@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dist-host/
+dist-client/
+dist-base/
+temp/
+*.log
+.DS_Store
+.env
+.cache/
+.idea/
+.vscode/
+*.tsbuildinfo
+coverage/
+.nyc_output/
+playwright-report/
+test-results/

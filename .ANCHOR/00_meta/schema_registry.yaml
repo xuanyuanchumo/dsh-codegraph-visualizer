@@ -1,0 +1,14 @@
+schema_version: "2.0.0"
+schemas:
+  - name: graph_node
+    version: "1.0.0"
+    fields: [id, label, type, file_path, line_number, properties]
+    migration_path: migrations/1.0.0_to_2.0.0.py
+  - name: graph_edge
+    version: "1.0.0"
+    fields: [id, source, target, type, properties]
+    migration_path: migrations/1.0.0_to_2.0.0.py
+  - name: service_definition
+    version: "1.0.0"
+    fields: [name, inputs, outputs, contract]
+    migration_path: migrations/1.0.0_to_2.0.0.py

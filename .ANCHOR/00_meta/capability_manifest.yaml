@@ -1,0 +1,34 @@
+schema_version: "2.0.0"
+capabilities:
+  required:
+    - name: dsh-codegraph
+      version: ">=0.1.1-rc.2"
+      description: 代码图谱数据源（增量索引、文件监听、20+语言）
+      inputs: [repo_path, file_patterns]
+      outputs: [graph_nodes, graph_edges, symbols]
+      applicable_phases: [host]
+    - name: dsh-tool-lens
+      version: ">=0.1.1-rc.2"
+      description: AST 精准分析数据源（4层作用域、循环依赖检测）
+      inputs: [repo_path]
+      outputs: [ast_data, dependencies, impact_analysis]
+      applicable_phases: [host]
+    - name: cytoscape.js
+      version: "3.x"
+      description: 图谱渲染引擎
+      inputs: [nodes, edges, layout_options]
+      outputs: [rendered_graph, interaction_events]
+      applicable_phases: [client]
+  provided:
+    - name: graph_visualizer
+      version: "2.0.0"
+      description: 交互式代码图谱可视化面板
+      inputs: [graph_data, user_interactions]
+      outputs: [visualized_graph, export_artifacts]
+      applicable_phases: [host, client]
+    - name: graph_data_adapter
+      version: "2.0.0"
+      description: 多数据源聚合与标准化转换
+      inputs: [codegraph_data, lens_data]
+      outputs: [standardized_graph]
+      applicable_phases: [host]
