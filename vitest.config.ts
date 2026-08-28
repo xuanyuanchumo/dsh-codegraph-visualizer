@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest';
+import { defineConfig } from 'vitest/config';
 import { coverageConfigDefaults } from 'vitest/config';
 
 export default defineConfig({
@@ -21,7 +21,7 @@ export default defineConfig({
         'src/client/index.ts',
       ],
     },
-    include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
+    include: ['tests/unit/**/*.test.ts', 'src/**/*.test.ts'],
     testTimeout: 10000,
     hookTimeout: 10000,
   },

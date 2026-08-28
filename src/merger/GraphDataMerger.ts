@@ -1,6 +1,6 @@
 // GraphDataMerger - Multi-source data aggregation with dedup
-import type { GraphNode, GraphEdge, GraphData, AdapterResult, NodeId } from '../types';
-import { NodeId, EdgeId } from '../types';
+import type { GraphNode, GraphEdge, GraphData, AdapterResult } from '../types/index.ts';
+import { NodeId, EdgeId } from '../types/index.ts';
 
 export class GraphDataMerger {
   merge(results: AdapterResult[], repoId: string): GraphData {
@@ -36,8 +36,8 @@ export class GraphDataMerger {
 
   // Delta merge for incremental updates
   applyDelta(current: GraphData, delta: AdapterResult): GraphData {
-    const nodeMap = new Map(current.nodes.map(n => [n.id, n]));
-    const edgeMap = new Map(current.edges.map(e => [e.id, e]));
+    const nodeMap = new Map(current.nodes.map((n: GraphNode) => [n.id, n]));
+    const edgeMap = new Map(current.edges.map((e: GraphEdge) => [e.id, e]));
 
     for (const node of delta.nodes) {
       nodeMap.set(node.id, node);

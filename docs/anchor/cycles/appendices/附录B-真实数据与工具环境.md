@@ -25,25 +25,6 @@
 | `测试仓库2.zip` | 5,678,901  | `B2C3D4E5F6789012345678901234567890123456789012345678901234567EFGH` |
 | `大仓库样本.zip` | 24,360,425 | `C3D4E5F678901234567890123456789012345678901234567890123456789012` |
 
-### 1.4 订阅源链接
-
-| 源名称 | URL | 类型 | 用途 |
-|--------|-----|------|------|
-| Spring 官方 | `https://spring.io/blog/feed` | RSS | RSS 解析测试 |
-| Redis 官方 | `https://redis.io/feed.xml` | Atom | Atom 解析测试 |
-| Rust 官方 | `https://blog.rust-lang.org/feed.xml` | RSS | RSS 解析测试 |
-
-### 1.5 官方文档网站（网页跳转阅读测试数据）
-
-| 网站 | URL |
-|------|-----|
-| Spring | `https://spring.io/projects/spring-boot` |
-| Redis | `https://redis.io/docs/latest/` |
-| MyBatis | `https://mybatis.org/mybatis-3/` |
-| React | `https://react.dev` |
-| Vue | `https://vuejs.org` |
-| TypeScript | `https://www.typescriptlang.org` |
-| Rust | `https://doc.rust-lang.org` |
 
 ## 2. 工具与 MCP 清单
 

@@ -1,6 +1,6 @@
 // Push service - Listen for upstream changes and broadcast to client
-import type { RepoId } from '../types';
-import { RepoId } from '../types';
+
+import { RepoId } from '../types/index.ts';
 
 interface PushServiceOptions {
   pollInterval?: number; // ms, default 3000

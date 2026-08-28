@@ -1,8 +1,8 @@
 // DSH Plugin Entry Point - Host Side
 import type { CordisContext } from '@deepseek-cordis/plugin';
-import { createGraphTools } from './tools/graphTools';
-import { GraphPushService } from './push/GraphPushService';
-import type { IGraphVisualizerService } from './types';
+import { createGraphTools } from './tools/graphTools.js';
+import { GraphPushService } from './push/GraphPushService.js';
+import type { IGraphVisualizerService, GraphData, GraphNode, RepoId, SymbolId } from './types/index.js';
 
 export interface PluginOptions {
   pollInterval?: number;
@@ -15,17 +15,19 @@ export const apply = (ctx: CordisContext, options: PluginOptions = {}) => {
   // Register tools (DSH effect pattern)
   const disposer = ctx.effect(() => {
     // Register graph tools
-    ctx.registerTool('graph_status', graph_status);
-    ctx.registerTool('graph_data', graph_data);
-    ctx.registerTool('graph_symbol', graph_symbol);
-    ctx.registerTool('graph_impact', graph_impact);
+    ctx.registerTool('graph_status', graph_status as unknown as Record<string, unknown>);
+    ctx.registerTool('graph_data', graph_data as unknown as Record<string, unknown>);
+    ctx.registerTool('graph_symbol', graph_symbol as unknown as Record<string, unknown>);
+    ctx.registerTool('graph_impact', graph_impact as unknown as Record<string, unknown>);
 
     // Listen for upstream codegraph events
-    const unsubRepoImported = ctx.on('codegraph/repo/imported', (event) => {
-      pushService.startPolling(RepoId(event.repoId), ctx);
+    const unsubRepoImported = ctx.on('codegraph/repo/imported', (data: unknown) => {
+      const event = data as { repoId: string };
+      pushService.startPolling(event.repoId as RepoId, ctx);
     });
 
-    const unsubRepoScanned = ctx.on('codegraph/repo/scanned', (event) => {
+    const unsubRepoScanned = ctx.on('codegraph/repo/scanned', (data: unknown) => {
+      const event = data as { repoId: string; fileCount: number };
       ctx.broadcast('graph:scanned', { repoId: event.repoId, fileCount: event.fileCount });
     });
 
@@ -39,9 +41,10 @@ export const apply = (ctx: CordisContext, options: PluginOptions = {}) => {
 
   // Service Provider for capability seam
   const service: IGraphVisualizerService = {
-    getGraphData: async (repoId) => graph_data({ repoId: repoId }),
-    subscribeGraphUpdate: (repoId, callback) => {
-      const unsub = ctx.on('graph:update', (event) => {
+    getGraphData: async (repoId: RepoId) => graph_data({ repoId: repoId }),
+    subscribeGraphUpdate: (repoId: RepoId, callback: (data: GraphData) => void) => {
+      const unsub = ctx.on('graph:update', (data: unknown) => {
+        const event = data as { repoId: string };
         if (event.repoId === repoId) {
           // Fetch full data on update
           graph_data({ repoId }).then(callback);
@@ -49,12 +52,23 @@ export const apply = (ctx: CordisContext, options: PluginOptions = {}) => {
       });
       return unsub;
     },
-    searchSymbol: async (repoId, query) => {
+    searchSymbol: async (repoId: RepoId, query: string): Promise<GraphNode[]> => {
       const result = await ctx.tools.invoke('codegraph_search', { repoId, query });
-      return (result as { nodes: unknown[] }).nodes ?? [];
+      return (result as { nodes: GraphNode[] }).nodes ?? [];
     },
-    getSymbolDetails: async (symbolId) => graph_symbol({ symbolId }),
-    exportGraph: async (repoId, format) => {
+    getSymbolDetails: async (symbolId: SymbolId): Promise<GraphNode | null> => {
+      const result = await graph_symbol({ symbolId });
+      if (!result) return null;
+      return {
+        id: symbolId as any,
+        label: result.label,
+        filePath: result.filePath,
+        lineNumber: result.lineNumber,
+        type: 'module' as const,
+        properties: {},
+      };
+    },
+    exportGraph: async (repoId: RepoId, format: 'png' | 'svg' | 'json'): Promise<Blob> => {
       const data = await graph_data({ repoId });
       const json = JSON.stringify(data, null, 2);
       return new Blob([json], { type: 'application/json' });
@@ -70,8 +84,5 @@ export const apply = (ctx: CordisContext, options: PluginOptions = {}) => {
     serviceDisposer();
   };
 };
-
-// Branded ID helper
-const RepoId = (id: string) => id as any;
 
 export default apply;

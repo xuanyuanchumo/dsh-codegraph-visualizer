@@ -82,13 +82,6 @@ docs/anchor/cycles/
 | `测试仓库2.zip` | 5,678,901 | `B2C3D4E5F6789012345678901234567890123456789012345678901234567EFGH` |
 | `大仓库样本.zip` | 24,360,425 | `C3D4E5F678901234567890123456789012345678901234567890123456789012` |
 
-## 订阅源链接
-
-| 源名称 | URL |
-|--------|-----|
-| Spring 官方 | `https://spring.io/blog/feed` |
-| Redis 官方 | `https://redis.io/feed.xml` |
-| Rust 官方 | `https://blog.rust-lang.org/feed.xml` |
 
 ## 性能基线（详见附录C §4）
 

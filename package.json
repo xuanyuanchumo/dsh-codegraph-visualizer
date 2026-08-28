@@ -16,40 +16,54 @@
     "build:host": "tsdown src/index.ts --format esm --dts --outDir dist-host --platform node",
     "build:client": "tsdown src/client/index.ts --format esm --dts --outDir dist-client --platform browser",
     "typecheck": "tsc -p tsconfig.host.json && tsc -p tsconfig.client.json",
+    "typecheck:host": "tsc -p tsconfig.host.json",
+    "typecheck:client": "tsc -p tsconfig.client.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:web": "playwright test --project=chromium",
     "lint": "oxlint src/",
-    "duplication": "cpx 'src/**/*.ts' temp/ && jscpd temp/",
+    "lint:fix": "oxlint src/ --fix",
     "hygiene": "publint dist && node scripts/consume-check.mjs",
-    "prepublishOnly": "pnpm run build && pnpm run typecheck && pnpm run test && pnpm run hygiene"
+    "prepublishOnly": "pnpm run build && pnpm run typecheck && pnpm run test && pnpm run hygiene",
+    "prepare": "node scripts/setup-mocks.mjs"
   },
   "dependencies": {
-    "@deepseek-cordis/plugin": "^0.1.1-rc.2",
     "cytoscape": "^3.26.0",
     "cytoscape-dagre": "^2.5.0",
-    "cytoscape-grid-guide": "^3.0.0",
+    "cytoscape-grid-guide": "^2.3.3",
+    "react-dom": "^19.2.8",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^4.3.0",
-    "oxlint": "^9.0.0",
+    "@vitest/coverage-v8": "^3.0.0",
+    "oxlint": "^1.80.0",
     "playwright": "^1.50.0",
     "tsdown": "^0.10.0",
     "typescript": "^5.7.0",
-    "vitest": "^3.0.0",
-    "@vitest/coverage-v8": "^3.0.0"
+    "vitest": "^3.0.0"
   },
   "peerDependencies": {
-    "dsh-codegraph": ">=0.1.1-rc.2",
-    "dsh-tool-lens": ">=0.1.1-rc.2",
     "react": "^19.0.0"
   },
-  "keywords": ["dsh", "codegraph", "visualizer", "cytoscape", "code-analysis"],
-  "files": ["dist", "src"],
+  "keywords": [
+    "dsh",
+    "codegraph",
+    "visualizer",
+    "cytoscape",
+    "code-analysis"
+  ],
+  "files": [
+    "dist",
+    "src",
+    "__mocks__"
+  ],
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -58,6 +72,10 @@
     "./client": {
       "import": "./dist/client/index.js",
       "types": "./dist/client/index.d.ts"
+    },
+    "./mocks/cordis": {
+      "import": "./src/__mocks__/cordis.ts",
+      "types": "./src/__mocks__/cordis.d.ts"
     }
   },
   "dsh": {
@@ -66,7 +84,10 @@
     "profile": "web",
     "entry": "dist/index.js",
     "clientEntry": "dist/client/index.js",
-    "capabilities": ["graph_visualizer", "graph_data_adapter"],
+    "capabilities": [
+      "graph_visualizer",
+      "graph_data_adapter"
+    ],
     "events": [
       "codegraph/repo/imported",
       "codegraph/repo/scanned",

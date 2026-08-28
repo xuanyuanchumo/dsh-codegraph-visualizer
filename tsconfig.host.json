@@ -8,17 +8,24 @@
     "noUncheckedIndexedAccess": true,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
-    "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+    "composite": true,
+    "noEmit": true,
     "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
     "outDir": "dist-host",
     "rootDir": "src",
-    "types": ["node"],
+    "allowImportingTsExtensions": true,
     "plugins": []
   },
-  "include": ["src/**/*"],
-  "exclude": ["src/client", "node_modules", "dist"]
+  "include": [
+    "src/index.ts",
+    "src/adapters/**/*",
+    "src/merger/**/*",
+    "src/tools/**/*",
+    "src/push/**/*",
+    "src/types/**/*",
+    "src/events.ts"
+  ],
+  "exclude": ["node_modules", "dist", "dist-host", "dist-client", "src/client"]
 }

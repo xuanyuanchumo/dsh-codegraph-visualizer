@@ -1,6 +1,6 @@
 // Zustand store for graph visualization state
 import { create } from 'zustand';
-import type { GraphNode, GraphEdge, NodeId } from '../types';
+import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
 
 export type LayoutType = 'cose' | 'dagre' | 'circle' | 'grid';
 export type ThemeType = 'light' | 'dark';

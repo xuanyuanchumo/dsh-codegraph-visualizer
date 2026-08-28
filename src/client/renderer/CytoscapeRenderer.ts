@@ -1,8 +1,7 @@
 // Cytoscape.js renderer wrapper
-import cytoscape, { Core, Elems, LayoutOptions } from 'cytoscape';
+import cytoscape, { Core, LayoutOptions } from 'cytoscape';
 import dagre from 'cytoscape-dagre';
-import type { GraphNode, GraphEdge, NodeId } from '../types';
-import { NodeId } from '../types';
+import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
 
 // Register extensions
 cytoscape.use(dagre);
@@ -50,8 +49,8 @@ export class CytoscapeRenderer {
   updateData(nodes: GraphNode[], edges: GraphEdge[]): void {
     if (!this.cy) return;
 
-    const elements: Elems = {
-      nodes: nodes.map(n => ({
+    const elements = {
+      nodes: nodes.map((n) => ({
         data: {
           id: n.id,
           label: n.label,
@@ -60,7 +59,7 @@ export class CytoscapeRenderer {
           lineNumber: n.lineNumber,
         },
       })),
-      edges: edges.map(e => ({
+      edges: edges.map((e) => ({
         data: {
           id: e.id,
           source: e.source,
@@ -77,28 +76,35 @@ export class CytoscapeRenderer {
   applyLayout(layout: 'cose' | 'dagre' | 'circle' | 'grid'): void {
     if (!this.cy) return;
 
-    const layouts: Record<string, LayoutOptions> = {
-      cose: { name: 'cose', animate: true, fit: true },
-      dagre: { name: 'dagre', animate: true, fit: true },
-      circle: { name: 'circle', animate: true, fit: true },
-      grid: { name: 'grid', animate: true, fit: true },
+    const layouts: Record<string, any> = {
+      cose: { name: 'cose', fit: true },
+      dagre: { name: 'dagre', fit: true },
+      circle: { name: 'circle', fit: true },
+      grid: { name: 'grid', fit: true },
     };
 
-    this.cy.layout(layouts[layout]).run();
+    const layoutOptions = layouts[layout];
+    if (layoutOptions) {
+      this.cy.layout(layoutOptions).run();
+    }
   }
 
   // Highlight nodes
   highlightNodes(nodeIds: NodeId[]): void {
     if (!this.cy) return;
     const idSet = new Set(nodeIds);
-    
+
     this.cy.elements().forEach((ele) => {
       if (ele.isNode()) {
         ele.toggleClass('highlighted', idSet.has(ele.id() as NodeId));
       } else {
-        const src = ele.source().id();
-        const tgt = ele.target().id();
-        ele.toggleClass('highlighted', idSet.has(src as NodeId) || idSet.has(tgt as NodeId));
+        const edge = ele as any;
+        const src = edge.source();
+        const tgt = edge.target();
+        edge.toggleClass(
+          'highlighted',
+          idSet.has(src.id() as NodeId) || idSet.has(tgt.id() as NodeId)
+        );
       }
     });
   }
@@ -115,23 +121,23 @@ export class CytoscapeRenderer {
   filterByType(type: string): void {
     if (!this.cy) return;
     this.cy.nodes().forEach((node) => {
-      node.hidden(type !== 'all' && node.data('type') !== type);
+      node.style('display', type !== 'all' && node.data('type') !== type ? 'none' : 'element');
     });
     this.cy.edges().forEach((edge) => {
-      const srcHidden = edge.source().hidden();
-      const tgtHidden = edge.target().hidden();
-      edge.hidden(srcHidden || tgtHidden);
+      const srcHidden = edge.source().style('display') === 'none';
+      const tgtHidden = edge.target().style('display') === 'none';
+      edge.style('display', srcHidden || tgtHidden ? 'none' : 'element');
     });
   }
 
   // Search and highlight
   search(query: string): void {
     if (!this.cy || !query) return;
-    
+
     const q = query.toLowerCase();
     this.cy.nodes().forEach((node) => {
-      const label = node.data('label').toLowerCase();
-      node.toggleClass('search-match', label.includes(q));
+      const label = node.data('label');
+      node.toggleClass('search-match', typeof label === 'string' && label.toLowerCase().includes(q));
     });
   }
 
@@ -151,12 +157,12 @@ export class CytoscapeRenderer {
   // Export to SVG
   exportSVG(): string | null {
     if (!this.cy) return null;
-    const svg = this.cy.svg({ full: true });
+    const svg = (this.cy as any).svg({ full: true });
     return svg;
   }
 
   // Get stylesheet based on theme
-  private getStylesheet(): cytoscape.Stylesheet[] {
+  private getStylesheet(): any[] {
     const isDark = this.options.theme === 'dark';
     return [
       {

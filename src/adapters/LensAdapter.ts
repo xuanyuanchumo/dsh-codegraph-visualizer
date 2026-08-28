@@ -1,6 +1,6 @@
 // LensAdapter - Adapter for dsh-tool-lens data source
-import type { GraphNode, GraphEdge, GraphData, AdapterResult, NodeId, EdgeId, RepoId, DataSourceType } from '../types';
-import { NodeId, EdgeId, RepoId } from '../types';
+import type { GraphNode, GraphEdge, GraphData, AdapterResult, DataSourceType } from '../types/index.ts';
+import { NodeId, EdgeId, RepoId } from '../types/index.ts';
 
 interface LensToolResult {
   symbols: Array<{

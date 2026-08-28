@@ -1,8 +1,8 @@
 // GraphPanel - Main React component for graph visualization
-import { useEffect, useRef, useCallback, useState } from 'react';
-import { useGraphStore, type LayoutType, type ThemeType } from './store/graphStore';
-import { CytoscapeRenderer } from './renderer/CytoscapeRenderer';
-import type { NodeId } from '../types';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
+import { useGraphStore, type LayoutType, type ThemeType } from './store/graphStore.ts';
+import { CytoscapeRenderer } from './renderer/CytoscapeRenderer.ts';
+import type { NodeId } from '../types/index.ts';
 
 interface GraphPanelProps {
   className?: string;

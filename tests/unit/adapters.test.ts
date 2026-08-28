@@ -1,8 +1,8 @@
 // Unit tests for adapters and merger
 import { describe, it, expect, beforeEach } from 'vitest';
-import { CodeGraphAdapter } from '../adapters/CodeGraphAdapter';
-import { LensAdapter } from '../adapters/LensAdapter';
-import { GraphDataMerger } from '../merger/GraphDataMerger';
+import { CodeGraphAdapter } from '../../src/adapters/CodeGraphAdapter';
+import { LensAdapter } from '../../src/adapters/LensAdapter';
+import { GraphDataMerger } from '../../src/merger/GraphDataMerger';
 
 const mockCtx = {
   tools: {

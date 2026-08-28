@@ -1,9 +1,9 @@
 // DSH Tools for graph visualization
-import type { GraphData, RepoId, NodeId } from '../types';
-import { RepoId } from '../types';
-import { CodeGraphAdapter } from '../adapters/CodeGraphAdapter';
-import { LensAdapter } from '../adapters/LensAdapter';
-import { GraphDataMerger } from '../merger/GraphDataMerger';
+import type { GraphData, NodeId, AdapterResult, DataSourceType } from '../types/index.js';
+import { RepoId } from '../types/index.js';
+import { CodeGraphAdapter } from '../adapters/CodeGraphAdapter.ts';
+import { LensAdapter } from '../adapters/LensAdapter.ts';
+import { GraphDataMerger } from '../merger/GraphDataMerger.ts';
 
 export const createGraphTools = (ctx: {
   tools: { invoke: (tool: string, args: Record<string, unknown>) => Promise<unknown> };
@@ -28,7 +28,7 @@ export const createGraphTools = (ctx: {
     const repoId = RepoId(args.repoId);
     const source = args.source ?? 'both';
     
-    const results: Array<{ nodes: any[]; edges: any[]; source: string; timestamp: number }> = [];
+    const results: AdapterResult[] = [];
     
     if (source === 'codegraph' || source === 'both') {
       results.push(await codegraphAdapter.fetchData(repoId, ctx));

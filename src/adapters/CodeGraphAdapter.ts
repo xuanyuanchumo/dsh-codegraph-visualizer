@@ -1,6 +1,6 @@
 // CodeGraphAdapter - Adapter for dsh-codegraph data source
-import type { GraphNode, GraphEdge, GraphData, AdapterResult, NodeId, EdgeId, RepoId, DataSourceType } from '../types';
-import { NodeId, EdgeId, RepoId } from '../types';
+import type { GraphNode, GraphEdge, GraphData, AdapterResult, DataSourceType } from '../types/index.ts';
+import { NodeId, EdgeId, RepoId } from '../types/index.ts';
 
 interface CodeGraphToolResult {
   nodes: Array<{
