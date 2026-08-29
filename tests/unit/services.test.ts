@@ -1,8 +1,9 @@
-// SearchService tests - J3 符号搜索
+// Service-layer tests for J3–J11 user journeys.
 import { describe, it, expect, beforeEach } from 'vitest';
-import { GraphDataMerger } from '../../src/merger/GraphDataMerger';
-import { CodeGraphAdapter } from '../../src/adapters/CodeGraphAdapter';
-import type { GraphNode, GraphEdge } from '../../src/types';
+import { GraphDataMerger } from '../../src/merger/GraphDataMerger.ts';
+import { CodeGraphAdapter } from '../../src/adapters/CodeGraphAdapter.ts';
+import type { GraphNode, GraphEdge } from '../../src/types/index.ts';
+import { makeNode, makeEdge } from '../helpers.ts';
 
 describe('SearchService (J3)', () => {
   let merger: GraphDataMerger;
@@ -12,20 +13,20 @@ describe('SearchService (J3)', () => {
   beforeEach(() => {
     merger = new GraphDataMerger();
     mockNodes = [
-      { id: 'node1', label: 'calculateSum', type: 'function', filePath: '/src/math.ts', lineNumber: 10, weight: 5 },
-      { id: 'node2', label: 'multiply', type: 'function', filePath: '/src/math.ts', lineNumber: 20, weight: 3 },
-      { id: 'node3', label: 'result', type: 'variable', filePath: '/src/main.ts', lineNumber: 5, weight: 2 },
+      makeNode('node1', 'calculateSum', 'function', '/src/math.ts', 10),
+      makeNode('node2', 'multiply', 'function', '/src/math.ts', 20),
+      makeNode('node3', 'result', 'variable', '/src/main.ts', 5),
     ];
     mockEdges = [
-      { id: 'edge1', source: 'node1', target: 'node2', type: 'call' },
-      { id: 'edge2', source: 'node1', target: 'node3', type: 'assign' },
+      makeEdge('edge1', 'node1', 'node2', 'call'),
+      makeEdge('edge2', 'node1', 'node3', 'dependency'),
     ];
   });
 
   it('should search nodes by label', () => {
     const results = mockNodes.filter(n => n.label.toLowerCase().includes('sum'));
     expect(results).toHaveLength(1);
-    expect(results[0].label).toBe('calculateSum');
+    expect(results[0]?.label).toBe('calculateSum');
   });
 
   it('should search nodes by type', () => {
@@ -58,38 +59,38 @@ describe('SymbolResolver (J4)', () => {
 
   it('should resolve call chain for a node', () => {
     const nodes: GraphNode[] = [
-      { id: 'a', label: 'funcA', type: 'function', filePath: '/src/a.ts', lineNumber: 1, weight: 5 },
-      { id: 'b', label: 'funcB', type: 'function', filePath: '/src/b.ts', lineNumber: 1, weight: 3 },
-      { id: 'c', label: 'funcC', type: 'function', filePath: '/src/c.ts', lineNumber: 1, weight: 2 },
+      makeNode('a', 'funcA', 'function', '/src/a.ts', 1),
+      makeNode('b', 'funcB', 'function', '/src/b.ts', 1),
+      makeNode('c', 'funcC', 'function', '/src/c.ts', 1),
     ];
     const edges: GraphEdge[] = [
-      { id: 'e1', source: 'a', target: 'b', type: 'call' },
-      { id: 'e2', source: 'b', target: 'c', type: 'call' },
+      makeEdge('e1', 'a', 'b', 'call'),
+      makeEdge('e2', 'b', 'c', 'call'),
     ];
 
-    const incomingEdges = edges.filter(e => e.target === 'b');
+    const incomingEdges = edges.filter(e => e.target === nodes[1]!.id);
     expect(incomingEdges).toHaveLength(1);
-    expect(incomingEdges[0].source).toBe('a');
+    expect(incomingEdges[0]?.source).toBe(nodes[0]!.id);
 
-    const outgoingEdges = edges.filter(e => e.source === 'b');
+    const outgoingEdges = edges.filter(e => e.source === nodes[1]!.id);
     expect(outgoingEdges).toHaveLength(1);
-    expect(outgoingEdges[0].target).toBe('c');
+    expect(outgoingEdges[0]?.target).toBe(nodes[2]!.id);
   });
 
   it('should handle circular calls', () => {
     const edges: GraphEdge[] = [
-      { id: 'e1', source: 'a', target: 'b', type: 'call' },
-      { id: 'e2', source: 'b', target: 'a', type: 'call' },
+      makeEdge('e1', 'a', 'b', 'call'),
+      makeEdge('e2', 'b', 'a', 'call'),
     ];
 
-    const hasCycle = edges.some(e => e.source === 'a' && e.target === 'b') &&
-                     edges.some(e => e.source === 'b' && e.target === 'a');
+    const hasCycle = edges.some(e => e.source === makeNode('a', '', 'function', '', 0).id && e.target === makeNode('b', '', 'function', '', 0).id) &&
+                     edges.some(e => e.source === makeNode('b', '', 'function', '', 0).id && e.target === makeNode('a', '', 'function', '', 0).id);
     expect(hasCycle).toBe(true);
   });
 
   it('should handle cross-file calls', () => {
     const edges: GraphEdge[] = [
-      { id: 'e1', source: 'a', target: 'b', type: 'call' },
+      makeEdge('e1', 'a', 'b', 'call'),
     ];
 
     const crossFileEdges = edges.filter(e => e.type === 'call');
@@ -100,8 +101,8 @@ describe('SymbolResolver (J4)', () => {
 describe('DependencyService (J5)', () => {
   it('should identify dependencies', () => {
     const edges: GraphEdge[] = [
-      { id: 'e1', source: 'main', target: 'utils', type: 'import' },
-      { id: 'e2', source: 'utils', target: 'helpers', type: 'import' },
+      makeEdge('e1', 'main', 'utils', 'import'),
+      makeEdge('e2', 'utils', 'helpers', 'import'),
     ];
 
     const dependencies = edges.filter(e => e.type === 'import');
@@ -110,20 +111,20 @@ describe('DependencyService (J5)', () => {
 
   it('should identify circular dependencies', () => {
     const edges: GraphEdge[] = [
-      { id: 'e1', source: 'a', target: 'b', type: 'import' },
-      { id: 'e2', source: 'b', target: 'a', type: 'import' },
+      makeEdge('e1', 'a', 'b', 'import'),
+      makeEdge('e2', 'b', 'a', 'import'),
     ];
 
-    const hasCircular = edges.some(e => e.source === 'a' && e.target === 'b') &&
-                        edges.some(e => e.source === 'b' && e.target === 'a');
+    const hasCircular = edges.some(e => e.source === makeNode('a', '', 'function', '', 0).id && e.target === makeNode('b', '', 'function', '', 0).id) &&
+                        edges.some(e => e.source === makeNode('b', '', 'function', '', 0).id && e.target === makeNode('a', '', 'function', '', 0).id);
     expect(hasCircular).toBe(true);
   });
 
   it('should handle deep nested dependencies', () => {
     const edges: GraphEdge[] = [
-      { id: 'e1', source: 'a', target: 'b', type: 'import' },
-      { id: 'e2', source: 'b', target: 'c', type: 'import' },
-      { id: 'e3', source: 'c', target: 'd', type: 'import' },
+      makeEdge('e1', 'a', 'b', 'import'),
+      makeEdge('e2', 'b', 'c', 'import'),
+      makeEdge('e3', 'c', 'd', 'import'),
     ];
 
     const depth = edges.reduce((max, e) => {
@@ -138,20 +139,21 @@ describe('DependencyService (J5)', () => {
 describe('FilterService (J7)', () => {
   it('should filter by node type', () => {
     const nodes: GraphNode[] = [
-      { id: '1', label: 'func1', type: 'function', filePath: '/src/a.ts', lineNumber: 1, weight: 5 },
-      { id: '2', label: 'class1', type: 'class', filePath: '/src/b.ts', lineNumber: 1, weight: 3 },
-      { id: '3', label: 'var1', type: 'variable', filePath: '/src/c.ts', lineNumber: 1, weight: 2 },
+      makeNode('1', 'func1', 'function', '/src/a.ts', 1),
+      makeNode('2', 'class1', 'class', '/src/b.ts', 1),
+      makeNode('3', 'var1', 'variable', '/src/c.ts', 1),
     ];
 
     const functions = nodes.filter(n => n.type === 'function');
     expect(functions).toHaveLength(1);
-    expect(functions[0].type).toBe('function');
+    expect(functions[0]?.type).toBe('function');
   });
 
   it('should show all when filter is "all"', () => {
     const nodes: GraphNode[] = [
-      { id: '1', label: 'func1', type: 'function', filePath: '/src/a.ts', lineNumber: 1, weight: 5 },
-      { id: '2', label: 'class1', type: 'class', filePath: '/src/b.ts', lineNumber: 1, weight: 3 },
+      makeNode('1', 'func1', 'function', '/src/a.ts', 1),
+      makeNode('2', 'class1', 'class', '/src/b.ts', 1),
+      makeNode('3', 'var1', 'variable', '/src/c.ts', 1),
     ];
 
     const all = nodes.filter(n => n.type === 'function' || n.type === 'class');
@@ -160,7 +162,8 @@ describe('FilterService (J7)', () => {
 
   it('should return empty when no nodes match filter', () => {
     const nodes: GraphNode[] = [
-      { id: '1', label: 'func1', type: 'function', filePath: '/src/a.ts', lineNumber: 1, weight: 5 },
+      makeNode('1', 'func1', 'function', '/src/a.ts', 1),
+      makeNode('2', 'var1', 'variable', '/src/c.ts', 1),
     ];
 
     const classes = nodes.filter(n => n.type === 'class');
@@ -171,10 +174,10 @@ describe('FilterService (J7)', () => {
 describe('ExportService (J8)', () => {
   it('should export graph data as JSON', () => {
     const nodes: GraphNode[] = [
-      { id: '1', label: 'test', type: 'function', filePath: '/src/a.ts', lineNumber: 1, weight: 5 },
+      makeNode('1', 'test', 'function', '/src/a.ts', 1),
     ];
     const edges: GraphEdge[] = [
-      { id: 'e1', source: '1', target: '2', type: 'call' },
+      makeEdge('e1', '1', '2', 'call'),
     ];
 
     const exportData = { nodes, edges };

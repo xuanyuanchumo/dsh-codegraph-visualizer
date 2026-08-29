@@ -5,11 +5,16 @@
     "moduleResolution": "NodeNext",
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
     "jsx": "react-jsx",
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "outDir": "dist-test",
-    "rootDir": "src/client"
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": ["node", "vitest/globals"]
   },
-  "include": ["src/client/**/*"]
+  "include": ["src/client/**/*", "src/types/**/*", "tests/unit/**/*"],
+  "exclude": ["node_modules", "dist", "dist-test"]
 }

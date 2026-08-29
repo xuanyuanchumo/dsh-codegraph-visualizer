@@ -22,6 +22,7 @@ interface GraphState {
   // Loading
   isLoading: boolean;
   error: string | null;
+  lastUpdated: number;
   
   // Actions
   setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string) => void;
@@ -48,8 +49,9 @@ export const useGraphStore = create<GraphState>((set) => ({
   filterType: 'all',
   isLoading: false,
   error: null,
+  lastUpdated: 0,
 
-  setGraphData: (nodes, edges, repoId) => set({ nodes, edges, repoId, error: null }),
+  setGraphData: (nodes, edges, repoId) => set({ nodes, edges, repoId, error: null, lastUpdated: Date.now() }),
   setLayout: (layout) => set({ layout }),
   setTheme: (theme) => set({ theme }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
@@ -58,5 +60,5 @@ export const useGraphStore = create<GraphState>((set) => ({
   setFilterType: (filterType) => set({ filterType }),
   setLoading: (isLoading) => set({ isLoading }),
   setError: (error) => set({ error, isLoading: false }),
-  clearGraph: () => set({ nodes: [], edges: [], repoId: null, error: null }),
+  clearGraph: () => set({ nodes: [], edges: [], repoId: null, error: null, lastUpdated: 0 }),
 }));

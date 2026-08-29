@@ -15,6 +15,6 @@
     "outDir": "dist-base",
     "rootDir": "src"
   },
-  "include": ["src/types/**/*", "src/events.ts"],
+  "include": ["src/types/**/*"],
   "exclude": ["node_modules", "dist"]
 }

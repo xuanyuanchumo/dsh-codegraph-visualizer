@@ -12,10 +12,14 @@
   "packageManager": "pnpm@9.12.0",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsdown src/index.ts --format esm --dts --outDir dist",
+    "build": "tsdown src/index.ts --format esm --dts --outDir dist && pnpm run build:client",
     "build:host": "tsdown src/index.ts --format esm --dts --outDir dist-host --platform node",
-    "typecheck": "tsc -p tsconfig.host.json",
+    "build:client": "tsdown src/client/index.ts --format esm --outDir dist/client --platform browser --external react --external react-dom --external @deepseek-ai/cordis --external @deepseek-ai/dsh-client-runtime",
+    "dev": "node scripts/dev-server.mjs",
+    "typecheck": "tsc -p tsconfig.host.json && tsc -p tsconfig.client.json && tsc -p tsconfig.test.json",
     "typecheck:host": "tsc -p tsconfig.host.json",
+    "typecheck:client": "tsc -p tsconfig.client.json",
+    "typecheck:test": "tsc -p tsconfig.test.json",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
@@ -71,11 +75,20 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./client": {
+      "default": "./dist/client/index.js"
+    },
     "./package.json": "./package.json"
   },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ]
     }
   }
 }

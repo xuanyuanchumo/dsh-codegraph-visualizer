@@ -71,6 +71,11 @@ export interface RepoScannedEvent {
   timestamp: number;
 }
 
+export interface SourceOpenEvent {
+  filePath: string;
+  lineNumber: number;
+}
+
 // ---- Cordis event declaration merging ------------------------------------
 // These are emitted by the host plugin; Client/host listeners subscribe via
 // `ctx.on(...)`. Keep them writer-only so consumers never redefine the contract.
@@ -79,5 +84,17 @@ declare module '@deepseek-ai/cordis' {
     'codegraph/repo/imported'(event: RepoImportedEvent): void;
     'codegraph/repo/scanned'(event: RepoScannedEvent): void;
     'codegraph/graph/updated'(event: GraphUpdatedEvent): void;
+    'codegraph/source/open'(event: SourceOpenEvent): void;
   }
 }
+
+// ---- DSH Module Loader (runtime global) ----------------------------------
+// Injected by the DSH web app boot script. Client bundles register themselves
+// via __ModuleLoader__.load(id, factory) so the shell can wire them into the
+// page (slots, overlays, etc.).
+interface ModuleLoader {
+  load(id: string, factory: () => Record<string, unknown>): void;
+  register(registration: { id: string; factory: () => Record<string, unknown> }): void;
+}
+
+declare const __ModuleLoader__: ModuleLoader | undefined;

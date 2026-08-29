@@ -140,8 +140,9 @@ export const createGraphTools = (ctx: Context) => {
 
       // Incremental heat-update: merge fresh data into cached graph via applyDelta.
       const cached = graphCache.get(args.repoId);
+      const deltaSource: AdapterResult['source'] = source === 'lens' ? 'lens' : 'codegraph';
       const merged = cached
-        ? merger.applyDelta(cached, { nodes: fresh.nodes, edges: fresh.edges, source: 'codegraph', timestamp: fresh.metadata.timestamp })
+        ? merger.applyDelta(cached, { nodes: fresh.nodes, edges: fresh.edges, source: deltaSource, timestamp: fresh.metadata.timestamp })
         : fresh;
       graphCache.set(args.repoId, merged);
 
