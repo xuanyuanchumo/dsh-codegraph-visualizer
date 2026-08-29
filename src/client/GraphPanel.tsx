@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import { useGraphStore, type LayoutType, type ThemeType } from './store/graphStore.ts';
-import { CytoscapeRenderer } from './renderer/CytoscapeRenderer.ts';
-import type { NodeId, GraphNode } from '../types/index.ts';
+import { useGraphStore, type LayoutType, type ThemeType } from './store/graphStore.js';
+import { CytoscapeRenderer } from './renderer/CytoscapeRenderer.js';
+import type { NodeId, GraphNode } from '../types/index.js';
+import { useDebounce, useKeyboardShortcut, usePolling } from './hooks/index.js';
+import { GraphErrorBoundary } from './components/ErrorBoundary.js';
 import './styles.css';
 
 interface GraphPanelProps {
@@ -18,23 +20,13 @@ const FILTER_OPTIONS = [
   { value: 'interface', label: 'Interfaces' },
 ] as const;
 
-function useDebounce<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const id = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(id);
-  }, [value, delay]);
-  return debounced;
-}
-
 function formatTime(ts: number): string {
   const d = new Date(ts);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
 }
 
-export const GraphPanel = ({ className = '' }: GraphPanelProps) => {
+function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const miniMapRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<CytoscapeRenderer | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const {
@@ -49,23 +41,38 @@ export const GraphPanel = ({ className = '' }: GraphPanelProps) => {
   const [selectedNodeData, setSelectedNodeData] = useState<GraphNode | null>(null);
   const [showCycles, setShowCycles] = useState(false);
   const [showCallChain, setShowCallChain] = useState(false);
-  const [miniMapVisible, setMiniMapVisible] = useState(false);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; name: string; path: string; type: string } | null>(null);
 
-  // Refs to avoid stale closures in the renderer's tap callback.
+  // Refs to avoid stale closures in the renderer's tap callback
   const showCallChainRef = useRef(showCallChain);
   showCallChainRef.current = showCallChain;
 
   const debouncedSearch = useDebounce(searchQuery, 200);
 
-  // Initialize renderer once; recreate only when theme changes.
+  // Keyboard shortcuts
+  useKeyboardShortcut('/', () => setShowSearch(true), { preventDefault: true });
+  useKeyboardShortcut('Escape', () => {
+    setShowSearch(false);
+    setShowCallChain(false);
+    setShowCycles(false);
+    setTooltip(null);
+    rendererRef.current?.highlightCallChain(null);
+    rendererRef.current?.highlightCycles(new Set<string>());
+  });
+  useKeyboardShortcut('c', () => setShowCallChain(v => !v), { ctrl: true });
+  useKeyboardShortcut('l', () => {
+    const next: LayoutType = (layout === 'cose' ? 'dagre' : layout === 'dagre' ? 'circle' : layout === 'circle' ? 'grid' : 'cose');
+    setLayout(next);
+  }, { ctrl: true });
+
+  // Initialize renderer once; recreate only when theme changes
   useEffect(() => {
     if (!containerRef.current) return;
 
     const renderer = new CytoscapeRenderer({
       container: containerRef.current,
       theme,
-      onNodeTap: (nodeId) => {
+      onNodeTap: (nodeId: string) => {
         const id = nodeId as NodeId;
         setSelectedNode(id);
         const data = rendererRef.current?.getSelectedNodeData() ?? null;
@@ -74,16 +81,16 @@ export const GraphPanel = ({ className = '' }: GraphPanelProps) => {
           rendererRef.current?.highlightCallChain(id);
         }
       },
-      onNodeDoubleTap: (nodeId) => {
+      onNodeDoubleTap: (nodeId: string) => {
         const data = rendererRef.current?.getSelectedNodeData();
         if (data) {
-          // Emit a custom event for the host shell to open the source file.
+          // Emit a custom event for the host shell to open the source file
           window.dispatchEvent(new CustomEvent('codegraph:open-source', {
             detail: { filePath: data.filePath, lineNumber: data.lineNumber, nodeId },
           }));
         }
       },
-      onNodeHover: (nodeId, renderedPosition) => {
+      onNodeHover: (nodeId: string, renderedPosition: { x: number; y: number }) => {
         const data = rendererRef.current?.getNodeData(nodeId);
         if (data) {
           setTooltip({
@@ -107,7 +114,7 @@ export const GraphPanel = ({ className = '' }: GraphPanelProps) => {
     };
   }, [theme, setSelectedNode]);
 
-  // Update data + layout when nodes/edges/layout change.
+  // Update data + layout when nodes/edges/layout change
   useEffect(() => {
     const renderer = rendererRef.current;
     if (!renderer) return;
@@ -115,7 +122,7 @@ export const GraphPanel = ({ className = '' }: GraphPanelProps) => {
     renderer.applyLayout(layout);
   }, [nodes, edges, layout]);
 
-  // Highlight + selection.
+  // Highlight + selection
   useEffect(() => {
     const renderer = rendererRef.current;
     if (!renderer) return;
@@ -123,21 +130,21 @@ export const GraphPanel = ({ className = '' }: GraphPanelProps) => {
     renderer.selectNode(selectedNodeId);
   }, [highlightedNodeIds, selectedNodeId]);
 
-  // Filter.
+  // Filter
   useEffect(() => {
     const renderer = rendererRef.current;
     if (!renderer) return;
     renderer.filterByType(filterType);
   }, [filterType]);
 
-  // Debounced search.
+  // Debounced search
   useEffect(() => {
     const renderer = rendererRef.current;
     if (!renderer) return;
     renderer.search(debouncedSearch);
   }, [debouncedSearch]);
 
-  // Call chain highlight.
+  // Call chain highlight
   useEffect(() => {
     const renderer = rendererRef.current;
     if (!renderer) return;
@@ -148,7 +155,7 @@ export const GraphPanel = ({ className = '' }: GraphPanelProps) => {
     }
   }, [showCallChain, selectedNodeId]);
 
-  // Cycle detection.
+  // Cycle detection
   useEffect(() => {
     const renderer = rendererRef.current;
     if (!renderer) return;
@@ -160,49 +167,12 @@ export const GraphPanel = ({ className = '' }: GraphPanelProps) => {
     }
   }, [showCycles]);
 
-  // Keyboard shortcuts (passive listener for performance).
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        const tag = (e.target as HTMLElement)?.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-        e.preventDefault();
-        setShowSearch(true);
-      }
-      if (e.key === 'Escape') {
-        setShowSearch(false);
-        setShowCallChain(false);
-        setShowCycles(false);
-        setTooltip(null);
-        rendererRef.current?.highlightCallChain(null);
-        rendererRef.current?.highlightCycles(new Set<string>());
-      }
-      if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        setShowCallChain((v) => !v);
-      }
-      if (e.key === 'l' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        const next: LayoutType = (layout === 'cose' ? 'dagre' : layout === 'dagre' ? 'circle' : layout === 'circle' ? 'grid' : 'cose');
-        setLayout(next);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown, { passive: false });
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [layout, setLayout]);
-
-  // Polling fallback: refresh graph data every 3s when not loading (J9 realtime).
-  useEffect(() => {
-    if (collapsed) return;
-    const interval = setInterval(() => {
-      if (document.hidden) return;
+  // Polling fallback: refresh graph data every 3s when not loading (J9 realtime)
+  usePolling(() => {
+    if (!collapsed) {
       setLoading(true);
-      // In a real DSH environment, this calls graph_data via ctx.tools.
-      // Here we simulate the heat-update check; the host emits codegraph/graph/updated.
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [collapsed, setLoading]);
+    }
+  }, 3000, !collapsed);
 
   const handleLayoutChange = useCallback((newLayout: LayoutType) => {
     setLayout(newLayout);
@@ -246,7 +216,7 @@ export const GraphPanel = ({ className = '' }: GraphPanelProps) => {
   }, []);
 
   const handleCollapse = useCallback(() => {
-    setCollapsed((c) => !c);
+    setCollapsed(c => !c);
   }, []);
 
   const handleCloseDetail = useCallback(() => {
@@ -256,11 +226,11 @@ export const GraphPanel = ({ className = '' }: GraphPanelProps) => {
 
   const handleRefresh = useCallback(() => {
     setLoading(true);
-    // Trigger a manual re-fetch by emitting a refresh event.
+    // Trigger a manual re-fetch by emitting a refresh event
     window.dispatchEvent(new CustomEvent('codegraph:refresh'));
   }, [setLoading]);
 
-  // Resize handling via pointer events on the bottom-right corner.
+  // Resize handling via pointer events on the bottom-right corner
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
@@ -366,7 +336,7 @@ export const GraphPanel = ({ className = '' }: GraphPanelProps) => {
 
           <button
             className={`chain-btn ${showCallChain ? 'active' : ''}`}
-            onClick={() => setShowCallChain((v) => !v)}
+            onClick={() => setShowCallChain(v => !v)}
             title="Toggle call chain highlight (Ctrl+C)"
             aria-label="Toggle call chain"
             aria-pressed={showCallChain}
@@ -376,22 +346,12 @@ export const GraphPanel = ({ className = '' }: GraphPanelProps) => {
 
           <button
             className={`cycle-btn ${showCycles ? 'active' : ''}`}
-            onClick={() => setShowCycles((v) => !v)}
+            onClick={() => setShowCycles(v => !v)}
             title="Highlight circular dependencies"
             aria-label="Highlight cycles"
             aria-pressed={showCycles}
           >
             🔄
-          </button>
-
-          <button
-            className={`minimap-btn ${miniMapVisible ? 'active' : ''}`}
-            onClick={() => setMiniMapVisible((v) => !v)}
-            title="Toggle mini-map overview"
-            aria-label="Toggle mini-map"
-            aria-pressed={miniMapVisible}
-          >
-            🗺️
           </button>
 
           <button className="refresh-btn" onClick={handleRefresh} title="Refresh graph" aria-label="Refresh graph">
@@ -468,60 +428,16 @@ export const GraphPanel = ({ className = '' }: GraphPanelProps) => {
             <span className="detail-label">Line</span>
             <span className="detail-value">{selectedNodeData.lineNumber}</span>
           </div>
-          <div className="detail-row">
-            <span className="detail-label">ID</span>
-            <span className="detail-value">{selectedNodeData.id}</span>
-          </div>
         </div>
       )}
 
-      {miniMapVisible && !collapsed && (
-        <div className="mini-map" ref={miniMapRef}>
-          <div className="mini-map-header">
-            <span>Overview</span>
-            <span>{nodes.length} total</span>
-          </div>
-          <div className="mini-map-content">
-            {nodes.length > 0 && (
-              <div className="mini-map-stats">
-                <div><span className="dot" style={{ background: '#10b981' }} /> {nodeTypeCounts.function} functions</div>
-                <div><span className="dot" style={{ background: '#818cf8' }} /> {nodeTypeCounts.class} classes</div>
-                <div><span className="dot" style={{ background: '#f59e0b' }} /> {nodeTypeCounts.variable} variables</div>
-                <div><span className="dot" style={{ background: '#ec4899' }} /> {nodeTypeCounts.module} modules</div>
-                <div><span className="dot" style={{ background: '#14b8a6' }} /> {nodeTypeCounts.interface} interfaces</div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <div className="graph-container" ref={containerRef} />
 
-      <div ref={containerRef} className="graph-container" />
-
-      {!collapsed && (
-        <div className="status-bar" role="status" aria-live="polite">
-          <div className="status-item">
-            <span className={statusDotClass} />
-            <span>{statusText}</span>
-          </div>
-          <div className="status-item">
-            <span>{nodes.length}n · {edges.length}e</span>
-          </div>
-          <div className="status-spacer" />
-          {lastUpdated > 0 && (
-            <div className="status-item status-time">
-              <span>updated {formatTime(lastUpdated)}</span>
-            </div>
-          )}
-          <div className="status-item">
-            <span>{layout} · {theme}</span>
-          </div>
-        </div>
-      )}
-
-      {tooltip && !collapsed && (
+      {tooltip && (
         <div
           className="cg-tooltip"
-          style={{ left: tooltip.x + 14, top: tooltip.y + 14 }}
+          style={{ left: tooltip.x + 15, top: tooltip.y + 15 }}
+          role="tooltip"
         >
           <div className="tooltip-name">{tooltip.name}</div>
           <div className="tooltip-path">{tooltip.path}</div>
@@ -529,9 +445,24 @@ export const GraphPanel = ({ className = '' }: GraphPanelProps) => {
         </div>
       )}
 
-      <div className="resize-handle" aria-hidden="true" />
+      <div className="status-bar">
+        <div className="status-item">
+          <span className={statusDotClass} />
+          <span>{statusText}</span>
+        </div>
+        <div className="status-spacer" />
+        <div className="status-item">
+          <span className="status-time">{lastUpdated > 0 ? `Updated ${formatTime(lastUpdated)}` : 'No data'}</span>
+        </div>
+      </div>
     </div>
   );
-};
+}
 
-export default React.memo(GraphPanel);
+export function GraphPanel(props: GraphPanelProps) {
+  return (
+    <GraphErrorBoundary>
+      <GraphPanelInner {...props} />
+    </GraphErrorBoundary>
+  );
+}

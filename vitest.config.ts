@@ -21,6 +21,8 @@ export default defineConfig({
         'src/client/index.ts',
         'src/client/GraphPanel.tsx',
         'src/client/renderer/**',
+        'src/client/hooks/**',
+        'src/client/components/**',
         'src/client/styles.css',
         'scripts/**',
         'playwright.config.ts',
