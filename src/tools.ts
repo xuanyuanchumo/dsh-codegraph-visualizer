@@ -15,6 +15,9 @@ const codegraphAdapter = new CodeGraphAdapter();
 const lensAdapter = new LensAdapter();
 const merger = new GraphDataMerger();
 
+// Per-repo graph cache for incremental heat-updates (applyDelta).
+const graphCache = new Map<string, GraphData>();
+
 async function fetchMergedGraph(
   invoke: UpstreamInvoker,
   repoId: string,
@@ -28,6 +31,31 @@ async function fetchMergedGraph(
     results.push(await lensAdapter.fetchData(repoId, invoke));
   }
   return merger.merge(results, repoId);
+}
+
+/** Build a human-readable summary of graph data for tool render output. */
+function summarizeGraph(data: GraphData): string {
+  const nodeByType = new Map<string, number>();
+  const edgeByType = new Map<string, number>();
+  for (const n of data.nodes) nodeByType.set(n.type, (nodeByType.get(n.type) ?? 0) + 1);
+  for (const e of data.edges) edgeByType.set(e.type, (edgeByType.get(e.type) ?? 0) + 1);
+
+  const nodeStats = [...nodeByType.entries()].map(([t, c]) => `${t}:${c}`).join(', ');
+  const edgeStats = [...edgeByType.entries()].map(([t, c]) => `${t}:${c}`).join(', ');
+
+  const topNodes = data.nodes.slice(0, 10)
+    .map(n => `  • ${n.label} (${n.type}) @ ${n.filePath}:${n.lineNumber}`)
+    .join('\n');
+
+  const topEdges = data.edges.slice(0, 10)
+    .map(e => `  ${e.source} →${e.type}→ ${e.target}`)
+    .join('\n');
+
+  return [
+    `Graph: ${data.metadata.nodeCount} nodes [${nodeStats}], ${data.metadata.edgeCount} edges [${edgeStats}]`,
+    topNodes ? `\nTop nodes:\n${topNodes}` : '',
+    topEdges ? `\nTop edges:\n${topEdges}` : '',
+  ].join('');
 }
 
 export const createGraphTools = (ctx: Context) => {
@@ -59,32 +87,38 @@ export const createGraphTools = (ctx: Context) => {
       repoId: { type: 'string', required: true, description: 'Repository id.' },
     },
     output: {
-      schema: {
-        type: 'object',
-        properties: {
-          status: { type: 'string' },
-          nodeCount: { type: 'integer' },
-          edgeCount: { type: 'integer' },
-        },
-        additionalProperties: true,
+      schema: { type: 'json' },
+      render: (_args, value) => {
+        const v = value as { status: string; nodeCount: number; edgeCount: number; sources?: Record<string, boolean> };
+        const srcInfo = v.sources ? ` [codegraph:${v.sources.codegraph ? '✓' : '✗'} lens:${v.sources.lens ? '✓' : '✗'}]` : '';
+        return [
+          { type: 'text', text: `Graph status: ${v.status} (${v.nodeCount} nodes, ${v.edgeCount} edges)${srcInfo}` },
+        ];
       },
-      render: (_args, value) => [
-        { type: 'text', text: `Graph status: ${String(value.status)} (${value.nodeCount} nodes, ${value.edgeCount} edges)` },
-      ],
     },
     async execute(args) {
+      const [cgResult, lensResult] = await Promise.allSettled([
+        codegraphAdapter.fetchData(args.repoId, invoke),
+        lensAdapter.fetchData(args.repoId, invoke),
+      ]);
+      const cgNodes = cgResult.status === 'fulfilled' ? cgResult.value.nodes.length : 0;
+      const lensNodes = lensResult.status === 'fulfilled' ? lensResult.value.nodes.length : 0;
       const data = await fetchMergedGraph(invoke, args.repoId);
       return {
         status: data.nodes.length > 0 ? 'ready' : 'unavailable',
         nodeCount: data.metadata.nodeCount,
         edgeCount: data.metadata.edgeCount,
+        sources: {
+          codegraph: cgNodes > 0,
+          lens: lensNodes > 0,
+        },
       };
     },
   });
 
   const graphData = defineTool({
     name: 'graph_data',
-    description: 'Fetch the merged code relationship graph for a repository (calls + dependencies).',
+    description: 'Fetch the merged code relationship graph for a repository (calls + dependencies). Uses incremental delta merge on repeat calls.',
     parameters: {
       repoId: { type: 'string', required: true, description: 'Repository id.' },
       source: {
@@ -95,25 +129,29 @@ export const createGraphTools = (ctx: Context) => {
     },
     output: {
       schema: { type: 'json' },
-      render: (_args, value) => [
-        {
-          type: 'text',
-          text: `Graph loaded: ${(value as { metadata?: { nodeCount?: number; edgeCount?: number } }).metadata?.nodeCount ?? 0} nodes, ${
-            (value as { metadata?: { nodeCount?: number; edgeCount?: number } }).metadata?.edgeCount ?? 0
-          } edges`,
-        },
-      ],
+      render: (_args, value) => {
+        const data = value as unknown as GraphData;
+        return [{ type: 'text', text: summarizeGraph(data) }];
+      },
     },
     async execute(args) {
       const source = args.source ?? 'both';
-      const data = await fetchMergedGraph(invoke, args.repoId, source);
+      const fresh = await fetchMergedGraph(invoke, args.repoId, source);
+
+      // Incremental heat-update: merge fresh data into cached graph via applyDelta.
+      const cached = graphCache.get(args.repoId);
+      const merged = cached
+        ? merger.applyDelta(cached, { nodes: fresh.nodes, edges: fresh.edges, source: 'codegraph', timestamp: fresh.metadata.timestamp })
+        : fresh;
+      graphCache.set(args.repoId, merged);
+
       emitUpdate({
         repoId: args.repoId,
-        nodeCount: data.metadata.nodeCount,
-        edgeCount: data.metadata.edgeCount,
-        timestamp: data.metadata.timestamp,
+        nodeCount: merged.metadata.nodeCount,
+        edgeCount: merged.metadata.edgeCount,
+        timestamp: merged.metadata.timestamp,
       });
-      return data as unknown as JsonValue;
+      return merged as unknown as JsonValue;
     },
   });
 
@@ -125,7 +163,11 @@ export const createGraphTools = (ctx: Context) => {
     },
     output: {
       schema: { type: 'json' },
-      render: (_args, value) => [{ type: 'text', text: `Symbol: ${JSON.stringify(value)}` }],
+      render: (_args, value) => {
+        const v = value as { name?: string; file?: string; line?: number; category?: string; symbolId?: string } | null;
+        if (!v) return [{ type: 'text', text: 'Symbol not found.' }];
+        return [{ type: 'text', text: `${v.name ?? v.symbolId ?? '?'} (${v.category ?? 'unknown'}) @ ${v.file ?? '?'}:${v.line ?? '?'}` }];
+      },
     },
     async execute(args) {
       const raw = await invoke('codegraph_symbol', { symbolId: args.symbolId });
@@ -141,7 +183,12 @@ export const createGraphTools = (ctx: Context) => {
     },
     output: {
       schema: { type: 'json' },
-      render: (_args, value) => [{ type: 'text', text: `Impact: ${JSON.stringify(value)}` }],
+      render: (_args, value) => {
+        const v = value as { affected?: string[]; depth?: number };
+        const count = v.affected?.length ?? 0;
+        const list = v.affected?.slice(0, 10).join(', ') ?? '';
+        return [{ type: 'text', text: `Impact: ${count} symbols affected (depth ${v.depth ?? 0})${list ? `\n  ${list}` : ''}` }];
+      },
     },
     async execute(args) {
       const raw = await invoke('lens_impact', { symbolId: args.symbolId });
@@ -152,5 +199,5 @@ export const createGraphTools = (ctx: Context) => {
   return { graphStatus, graphData, graphSymbol, graphImpact };
 };
 
-export { fetchMergedGraph };
+export { fetchMergedGraph, summarizeGraph };
 export const makeRepo = (id: string): RepoId => makeRepoId(id);
