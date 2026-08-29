@@ -10,22 +10,17 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "composite": true,
     "noEmit": true,
     "declaration": true,
-    "outDir": "dist-host",
-    "rootDir": "src",
     "allowImportingTsExtensions": true,
-    "plugins": []
+    "types": ["node"]
   },
   "include": [
     "src/index.ts",
+    "src/tools.ts",
     "src/adapters/**/*",
     "src/merger/**/*",
-    "src/tools/**/*",
-    "src/push/**/*",
-    "src/types/**/*",
-    "src/events.ts"
+    "src/types/**/*"
   ],
-  "exclude": ["node_modules", "dist", "dist-host", "dist-client", "src/client"]
+  "exclude": ["node_modules", "dist", "dist-host", "dist-client", "src/client", "tests"]
 }

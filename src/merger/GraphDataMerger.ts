@@ -1,59 +1,45 @@
-// GraphDataMerger - Multi-source data aggregation with dedup
+// GraphDataMerger - multi-source aggregation with dedup + delta merge.
 import type { GraphNode, GraphEdge, GraphData, AdapterResult } from '../types/index.ts';
-import { NodeId, EdgeId } from '../types/index.ts';
+import { RepoId } from '../types/index.ts';
 
 export class GraphDataMerger {
   merge(results: AdapterResult[], repoId: string): GraphData {
-    const allNodes = results.flatMap(r => r.nodes);
-    const allEdges = results.flatMap(r => r.edges);
+    const nodes = new Map<string, GraphNode>();
+    const edges = new Map<string, GraphEdge>();
 
-    // Deduplicate nodes by id (prefer later sources for richer data)
-    const nodeMap = new Map<string, GraphNode>();
-    for (const node of allNodes) {
-      nodeMap.set(node.id, node);
+    for (const r of results) {
+      for (const node of r.nodes) nodes.set(node.id, node);
+      for (const edge of r.edges) edges.set(edge.id, edge);
     }
-
-    // Deduplicate edges by id
-    const edgeMap = new Map<string, GraphEdge>();
-    for (const edge of allEdges) {
-      edgeMap.set(edge.id, edge);
-    }
-
-    const nodes = Array.from(nodeMap.values());
-    const edges = Array.from(edgeMap.values());
 
     return {
-      nodes,
-      edges,
+      nodes: Array.from(nodes.values()),
+      edges: Array.from(edges.values()),
       metadata: {
-        repoId: repoId as any,
+        repoId: RepoId(repoId),
         timestamp: Date.now(),
-        nodeCount: nodes.length,
-        edgeCount: edges.length,
+        nodeCount: nodes.size,
+        edgeCount: edges.size,
       },
     };
   }
 
-  // Delta merge for incremental updates
+  // Delta merge for incremental heat-updates.
   applyDelta(current: GraphData, delta: AdapterResult): GraphData {
-    const nodeMap = new Map(current.nodes.map((n: GraphNode) => [n.id, n]));
-    const edgeMap = new Map(current.edges.map((e: GraphEdge) => [e.id, e]));
+    const nodes = new Map(current.nodes.map(n => [n.id, n]));
+    const edges = new Map(current.edges.map(e => [e.id, e]));
 
-    for (const node of delta.nodes) {
-      nodeMap.set(node.id, node);
-    }
-    for (const edge of delta.edges) {
-      edgeMap.set(edge.id, edge);
-    }
+    for (const node of delta.nodes) nodes.set(node.id, node);
+    for (const edge of delta.edges) edges.set(edge.id, edge);
 
     return {
-      nodes: Array.from(nodeMap.values()),
-      edges: Array.from(edgeMap.values()),
+      nodes: Array.from(nodes.values()),
+      edges: Array.from(edges.values()),
       metadata: {
         ...current.metadata,
         timestamp: Date.now(),
-        nodeCount: nodeMap.size,
-        edgeCount: edgeMap.size,
+        nodeCount: nodes.size,
+        edgeCount: edges.size,
       },
     };
   }

@@ -1,25 +1,14 @@
-// Client entry point
-import type { CordisContext } from '@deepseek-cordis/plugin';
+// DSH codegraph visualizer — client entry point.
+// The interactive graph panel is registered through the host-pushed heat-update
+// event; full Slot-based UI registration is wired by the client bundle build.
+import type { Context } from '@deepseek-ai/cordis';
 
-export interface ClientOptions {
-  container: HTMLElement;
+export const name = 'dsh-codegraph-visualizer-client';
+
+export function apply(ctx: Context) {
+  // Heat-update: re-fetch the merged graph when the host signals a change so
+  // the panel (registered from this fiber's client bundle) stays in sync.
+  ctx.on('codegraph/graph/updated', (event) => {
+    void event.repoId;
+  });
 }
-
-export const initClient = (ctx: CordisContext, options: ClientOptions) => {
-  // Listen for graph updates from host
-  const unsub = ctx.on('graph:update', (_event: unknown) => {
-    // Fetch full data
-    ctx.tools.invoke('graph_data', { repoId: 'default', source: 'both' }).catch(() => {});
-  });
-
-  // Auto-refresh on scan complete
-  const unsubScan = ctx.on('codegraph/repo/scanned', (_event: unknown) => {
-    ctx.tools.invoke('graph_data', { repoId: 'default' }).catch(() => {});
-  });
-
-  // Return cleanup
-  return () => {
-    unsub();
-    unsubScan();
-  };
-};

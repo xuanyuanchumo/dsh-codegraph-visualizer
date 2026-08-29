@@ -1,6 +1,7 @@
-// LensAdapter - Adapter for dsh-tool-lens data source
-import type { GraphNode, GraphEdge, GraphData, AdapterResult, DataSourceType } from '../types/index.ts';
-import { NodeId, EdgeId, RepoId } from '../types/index.ts';
+// LensAdapter - adapter for the optional dsh-tool-lens data source.
+import type { GraphNode, GraphEdge, AdapterResult, DataSourceType } from '../types/index.ts';
+import { NodeId, EdgeId } from '../types/index.ts';
+import type { UpstreamInvoker } from './CodeGraphAdapter.ts';
 
 interface LensToolResult {
   symbols: Array<{
@@ -21,10 +22,11 @@ interface LensToolResult {
 export class LensAdapter {
   private readonly source: DataSourceType = 'lens';
 
-  async fetchData(repoId: RepoId, ctx: { tools: { invoke: (tool: string, args: Record<string, unknown>) => Promise<unknown> } }): Promise<AdapterResult> {
+  async fetchData(repoId: string, invoke: UpstreamInvoker): Promise<AdapterResult> {
     try {
-      const raw = await ctx.tools.invoke('lens_analyze', { repoId: repoId }) as LensToolResult;
-      
+      const raw = (await invoke('lens_analyze', { repoId })) as LensToolResult | null;
+      if (!raw) return { nodes: [], edges: [], source: this.source, timestamp: Date.now() };
+
       const nodes: GraphNode[] = raw.symbols.map(s => ({
         id: NodeId(s.id),
         label: s.name,
@@ -43,8 +45,8 @@ export class LensAdapter {
       }));
 
       return { nodes, edges, source: this.source, timestamp: Date.now() };
-    } catch (error) {
-      // Lens is optional - return empty result on failure
+    } catch {
+      // Lens is optional - return empty result on failure.
       return { nodes: [], edges: [], source: this.source, timestamp: Date.now() };
     }
   }

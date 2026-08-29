@@ -1,6 +1,8 @@
-// CodeGraphAdapter - Adapter for dsh-codegraph data source
-import type { GraphNode, GraphEdge, GraphData, AdapterResult, DataSourceType } from '../types/index.ts';
-import { NodeId, EdgeId, RepoId } from '../types/index.ts';
+// CodeGraphAdapter - adapter for the optional dsh-codegraph data source.
+import type { GraphNode, GraphEdge, AdapterResult, DataSourceType } from '../types/index.ts';
+import { NodeId, EdgeId } from '../types/index.ts';
+
+export type UpstreamInvoker = (tool: string, args: Record<string, unknown>) => Promise<unknown | null>;
 
 interface CodeGraphToolResult {
   nodes: Array<{
@@ -23,9 +25,10 @@ interface CodeGraphToolResult {
 export class CodeGraphAdapter {
   private readonly source: DataSourceType = 'codegraph';
 
-  async fetchData(repoId: RepoId, ctx: { tools: { invoke: (tool: string, args: Record<string, unknown>) => Promise<unknown> } }): Promise<AdapterResult> {
-    const raw = await ctx.tools.invoke('codegraph_graph', { repoId: repoId }) as CodeGraphToolResult;
-    
+  async fetchData(repoId: string, invoke: UpstreamInvoker): Promise<AdapterResult> {
+    const raw = (await invoke('codegraph_graph', { repoId })) as CodeGraphToolResult | null;
+    if (!raw) return { nodes: [], edges: [], source: this.source, timestamp: Date.now() };
+
     const nodes: GraphNode[] = raw.nodes.map(n => ({
       id: NodeId(n.id),
       label: n.name,

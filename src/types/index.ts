@@ -1,4 +1,6 @@
-// Branded types for DSH plugin safety
+// Branded types and graph data structures shared across the Host/Client boundary.
+// Graph heat-update events are declared here via Cordis declaration merging.
+
 export type Branded<T, Brand> = T & { __brand: Brand };
 
 export type RepoId = Branded<string, 'RepoId'>;
@@ -11,7 +13,6 @@ export const SymbolId = (id: string): SymbolId => id as SymbolId;
 export const NodeId = (id: string): NodeId => id as NodeId;
 export const EdgeId = (id: string): EdgeId => id as EdgeId;
 
-// Graph data structures
 export interface GraphNode {
   id: NodeId;
   label: string;
@@ -40,16 +41,6 @@ export interface GraphData {
   };
 }
 
-// Service Definition
-export interface IGraphVisualizerService {
-  getGraphData(repoId: RepoId): Promise<GraphData>;
-  subscribeGraphUpdate(repoId: RepoId, callback: (data: GraphData) => void): () => void;
-  searchSymbol(repoId: RepoId, query: string): Promise<GraphNode[]>;
-  getSymbolDetails(symbolId: SymbolId): Promise<GraphNode | null>;
-  exportGraph(repoId: RepoId, format: 'png' | 'svg' | 'json'): Promise<Blob>;
-}
-
-// Data source types
 export type DataSourceType = 'codegraph' | 'lens';
 
 export interface AdapterResult {
@@ -57,4 +48,36 @@ export interface AdapterResult {
   edges: GraphEdge[];
   source: DataSourceType;
   timestamp: number;
+}
+
+// ---- Graph heat-update event payloads -------------------------------------
+
+export interface GraphUpdatedEvent {
+  repoId: string;
+  nodeCount: number;
+  edgeCount: number;
+  timestamp: number;
+}
+
+export interface RepoImportedEvent {
+  repoId: string;
+  path: string;
+  timestamp: number;
+}
+
+export interface RepoScannedEvent {
+  repoId: string;
+  fileCount: number;
+  timestamp: number;
+}
+
+// ---- Cordis event declaration merging ------------------------------------
+// These are emitted by the host plugin; Client/host listeners subscribe via
+// `ctx.on(...)`. Keep them writer-only so consumers never redefine the contract.
+declare module '@deepseek-ai/cordis' {
+  interface Events {
+    'codegraph/repo/imported'(event: RepoImportedEvent): void;
+    'codegraph/repo/scanned'(event: RepoScannedEvent): void;
+    'codegraph/graph/updated'(event: GraphUpdatedEvent): void;
+  }
 }

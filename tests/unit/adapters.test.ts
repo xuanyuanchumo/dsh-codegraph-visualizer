@@ -1,28 +1,25 @@
 // Unit tests for adapters and merger
 import { describe, it, expect, beforeEach } from 'vitest';
-import { CodeGraphAdapter } from '../../src/adapters/CodeGraphAdapter';
-import { LensAdapter } from '../../src/adapters/LensAdapter';
-import { GraphDataMerger } from '../../src/merger/GraphDataMerger';
+import { CodeGraphAdapter } from '../../src/adapters/CodeGraphAdapter.ts';
+import { LensAdapter } from '../../src/adapters/LensAdapter.ts';
+import { GraphDataMerger } from '../../src/merger/GraphDataMerger.ts';
 
-const mockCtx = {
-  tools: {
-    invoke: async (tool: string, args: Record<string, unknown>) => {
-      if (tool === 'codegraph_graph') {
-        return {
-          nodes: [{ id: 'n1', name: 'funcA', kind: 'function', file: 'a.ts', line: 10 }],
-          edges: [{ id: 'e1', from: 'n1', to: 'n2', kind: 'call' }],
-        };
-      }
-      if (tool === 'lens_analyze') {
-        return {
-          symbols: [{ id: 's1', name: 'classB', scope: 'global', file: 'b.ts', line: 5, category: 'class' }],
-          references: [{ from: 's1', to: 'n1', relation: 'call' }],
-        };
-      }
-      return null;
-    },
-  },
-  broadcast: () => {},
+type Invoke = (tool: string, args: Record<string, unknown>) => Promise<unknown | null>;
+
+const mockInvoke: Invoke = async (tool) => {
+  if (tool === 'codegraph_graph') {
+    return {
+      nodes: [{ id: 'n1', name: 'funcA', kind: 'function', file: 'a.ts', line: 10 }],
+      edges: [{ id: 'e1', from: 'n1', to: 'n2', kind: 'call' }],
+    };
+  }
+  if (tool === 'lens_analyze') {
+    return {
+      symbols: [{ id: 's1', name: 'classB', scope: 'global', file: 'b.ts', line: 5, category: 'class' }],
+      references: [{ from: 's1', to: 'n1', relation: 'call' }],
+    };
+  }
+  return null;
 };
 
 describe('CodeGraphAdapter', () => {
@@ -33,7 +30,7 @@ describe('CodeGraphAdapter', () => {
   });
 
   it('should fetch and transform data', async () => {
-    const result = await adapter.fetchData('test-repo', mockCtx);
+    const result = await adapter.fetchData('test-repo', mockInvoke);
     expect(result.nodes).toHaveLength(1);
     expect(result.nodes[0].type).toBe('function');
     expect(result.edges).toHaveLength(1);
@@ -41,8 +38,14 @@ describe('CodeGraphAdapter', () => {
   });
 
   it('should map kinds correctly', async () => {
-    const result = await adapter.fetchData('test-repo', mockCtx);
+    const result = await adapter.fetchData('test-repo', mockInvoke);
     expect(result.nodes[0].label).toBe('funcA');
+  });
+
+  it('should return empty result when upstream tool is missing', async () => {
+    const result = await adapter.fetchData('test-repo', async () => null);
+    expect(result.nodes).toEqual([]);
+    expect(result.edges).toEqual([]);
   });
 });
 
@@ -54,18 +57,17 @@ describe('LensAdapter', () => {
   });
 
   it('should fetch and transform lens data', async () => {
-    const result = await adapter.fetchData('test-repo', mockCtx);
+    const result = await adapter.fetchData('test-repo', mockInvoke);
     expect(result.nodes).toHaveLength(1);
     expect(result.nodes[0].type).toBe('class');
     expect(result.source).toBe('lens');
   });
 
-  it('should return empty result on failure', async () => {
-    const failingCtx = {
-      tools: { invoke: async () => { throw new Error('fail'); } },
-      broadcast: () => {},
+  it('should return empty result on upstream failure', async () => {
+    const failingInvoke: Invoke = async () => {
+      throw new Error('upstream failure');
     };
-    const result = await adapter.fetchData('test-repo', failingCtx as any);
+    const result = await adapter.fetchData('test-repo', failingInvoke);
     expect(result.nodes).toEqual([]);
     expect(result.edges).toEqual([]);
   });
@@ -99,21 +101,19 @@ describe('GraphDataMerger', () => {
     expect(merged.edges).toHaveLength(2);
     expect(merged.metadata.nodeCount).toBe(2);
     expect(merged.metadata.edgeCount).toBe(2);
+    expect(merged.metadata.repoId).toBe('test-repo');
   });
 
-  it('should deduplicate nodes', () => {
+  it('should deduplicate nodes by id', () => {
     const results = [
       {
-        nodes: [{ id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} }],
+        nodes: [
+          { id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} },
+          { id: 'n1', label: 'A', type: 'class', filePath: 'a.ts', lineNumber: 1, properties: {} },
+        ],
         edges: [],
         source: 'codegraph',
         timestamp: 1,
-      },
-      {
-        nodes: [{ id: 'n1', label: 'A', type: 'class', filePath: 'a.ts', lineNumber: 1, properties: {} }],
-        edges: [],
-        source: 'lens',
-        timestamp: 2,
       },
     ];
 

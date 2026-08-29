@@ -1,0 +1,6 @@
+# CodeGraph Visualizer bundle patch
+# Applied after dsh-base and dsh-web-app layers; inserts this plugin as a
+# host-plane row so its graph_* tools register into the global `tools` registry.
+- insert:
+    - id: codegraph-visualizer
+      name: dsh-codegraph-visualizer
