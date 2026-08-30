@@ -59,6 +59,13 @@ export interface GraphUpdatedEvent {
   timestamp: number;
 }
 
+export interface GraphDataEvent {
+  repoId: string;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  timestamp: number;
+}
+
 export interface RepoImportedEvent {
   repoId: string;
   path: string;
@@ -68,6 +75,11 @@ export interface RepoImportedEvent {
 export interface RepoScannedEvent {
   repoId: string;
   fileCount: number;
+  timestamp: number;
+}
+
+export interface RepoRequestScanEvent {
+  path: string;
   timestamp: number;
 }
 
@@ -83,7 +95,9 @@ declare module '@deepseek-ai/cordis' {
   interface Events {
     'codegraph/repo/imported'(event: RepoImportedEvent): void;
     'codegraph/repo/scanned'(event: RepoScannedEvent): void;
+    'codegraph/repo/request-scan'(event: RepoRequestScanEvent): void;
     'codegraph/graph/updated'(event: GraphUpdatedEvent): void;
+    'codegraph/graph/data'(event: GraphDataEvent): void;
     'codegraph/source/open'(event: SourceOpenEvent): void;
   }
 }

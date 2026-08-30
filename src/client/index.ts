@@ -3,7 +3,11 @@ import ReactDOM from 'react-dom/client';
 import type { Context } from '@deepseek-ai/cordis';
 import { GraphPanel } from './GraphPanel.tsx';
 import { useGraphStore } from './store/graphStore.ts';
-import type { GraphUpdatedEvent, GraphData } from '../types/index.ts';
+import { GraphIcon } from './components/Icons.tsx';
+import { scoped } from './services/Logger.ts';
+import type { GraphUpdatedEvent, GraphDataEvent, GraphData } from '../types/index.ts';
+
+const log = scoped('client');
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -72,7 +76,7 @@ export function apply(ctx: Context) {
         id: 'codegraph-visualizer',
         title: 'Code Graph',
         icon: (size: number) =>
-          React.createElement('span', { style: { fontSize: size } }, '📊'),
+          React.createElement(GraphIcon, { size }),
         order: 50,
         single: true,
         component: (props: { visible: boolean }) =>
@@ -163,9 +167,16 @@ export function apply(ctx: Context) {
   // Heat-update: when the host signals a graph update, mark loading for the matching repo.
   ctx.on('codegraph/graph/updated', (event: GraphUpdatedEvent) => {
     const store = useGraphStore.getState();
-    if (store.repoId === event.repoId) {
+    if (store.repoId === event.repoId || store.repoId === null) {
       store.setLoading(true);
     }
+  });
+
+  // Full data push: when the host sends complete graph data, load it into the store.
+  ctx.on('codegraph/graph/data', (event: GraphDataEvent) => {
+    const store = useGraphStore.getState();
+    store.setGraphData(event.nodes, event.edges, event.repoId);
+    log.info('graph data received', { repoId: event.repoId, nodes: event.nodes.length, edges: event.edges.length });
   });
 
   // Client-side event listeners for panel-initiated actions. Native window
@@ -173,22 +184,43 @@ export function apply(ctx: Context) {
   // the plugin fiber disposes (red line 1: register-as-effect, J13 no-leak).
   if (typeof window !== 'undefined') {
     const refreshListener = () => {
+      // Only mark loading when we already have data (refresh); avoid stuck
+      // loading when no data source answers the initial auto-import.
       const store = useGraphStore.getState();
-      store.setLoading(true);
+      if (store.nodes.length > 0) {
+        store.setLoading(true);
+      }
     };
 
     const openSourceListener = (e: Event) => {
-      // Delegate to the host shell to open the source file in the editor.
-      // The host listens for this event and invokes the editor's jump-to-line API.
       ctx.emit('codegraph/source/open', (e as CustomEvent).detail as { filePath: string; lineNumber: number });
+    };
+
+    const importRepoListener = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { path: string };
+      ctx.emit('codegraph/repo/request-scan', { path: detail.path, timestamp: Date.now() });
+      log.info('import-repo forwarded', { path: detail.path });
     };
 
     window.addEventListener('codegraph:refresh', refreshListener);
     window.addEventListener('codegraph:open-source', openSourceListener);
+    window.addEventListener('codegraph:import-repo', importRepoListener);
     ctx.effect(() => () => {
       window.removeEventListener('codegraph:refresh', refreshListener);
       window.removeEventListener('codegraph:open-source', openSourceListener);
+      window.removeEventListener('codegraph:import-repo', importRepoListener);
     });
+  }
+
+  // Auto-import: on first load, if no graph data is present, request a scan of
+  // the current workspace. Best-effort — if no data source answers, the panel
+  // simply shows the empty state with an Import button.
+  const store = useGraphStore.getState();
+  if (store.nodes.length === 0 && !store.isLoading) {
+    const workspacePath = (typeof window !== 'undefined' &&
+      (window as unknown as { __DSH_WORKSPACE__?: string }).__DSH_WORKSPACE__) || '.';
+    log.info('auto-import requested', { path: workspacePath });
+    ctx.emit('codegraph/repo/request-scan', { path: workspacePath, timestamp: Date.now() });
   }
 }
 

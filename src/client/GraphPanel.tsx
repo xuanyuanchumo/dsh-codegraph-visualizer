@@ -4,7 +4,17 @@ import { CytoscapeRenderer } from './renderer/CytoscapeRenderer.ts';
 import type { NodeId, GraphNode } from '../types/index.ts';
 import { useDebounce, useKeyboardShortcut, usePolling } from './hooks/index.ts';
 import { GraphErrorBoundary } from './components/ErrorBoundary.tsx';
+import { ImportPanel } from './components/ImportPanel.tsx';
+import { Legend } from './components/Legend.tsx';
+import {
+  GraphIcon, SearchIcon, ChainIcon, CycleIcon, MapIcon, RefreshIcon,
+  SunIcon, MoonIcon, DownloadIcon, ChevronDownIcon, ChevronUpIcon,
+  CloseIcon, UploadIcon, LayersIcon,
+} from './components/Icons.tsx';
+import { scoped } from './services/Logger.ts';
 import './styles.css';
+
+const log = scoped('panel');
 
 interface GraphPanelProps {
   className?: string;
@@ -29,6 +39,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<CytoscapeRenderer | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
   const {
     nodes, edges, layout, theme, searchQuery, selectedNodeId,
     highlightedNodeIds, filterType, isLoading, error, lastUpdated,
@@ -42,9 +53,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const [showCycles, setShowCycles] = useState(false);
   const [showCallChain, setShowCallChain] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [showLegend, setShowLegend] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; name: string; path: string; type: string } | null>(null);
 
-  // Refs to avoid stale closures in the renderer's tap callback
   const showCallChainRef = useRef(showCallChain);
   showCallChainRef.current = showCallChain;
 
@@ -56,6 +69,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     setShowSearch(false);
     setShowCallChain(false);
     setShowCycles(false);
+    setShowImport(false);
+    setShowLegend(false);
+    setShowExportMenu(false);
     setTooltip(null);
     rendererRef.current?.highlightCallChain(null);
     rendererRef.current?.highlightCycles(new Set<string>());
@@ -66,6 +82,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     const next: LayoutType = (layout === 'cose' ? 'dagre' : layout === 'dagre' ? 'circle' : layout === 'circle' ? 'grid' : 'cose');
     setLayout(next);
   }, { ctrl: true });
+  useKeyboardShortcut('i', () => setShowImport(v => !v), { ctrl: true });
 
   // Initialize renderer once; recreate only when theme changes
   useEffect(() => {
@@ -86,7 +103,6 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       onNodeDoubleTap: (nodeId: string) => {
         const data = rendererRef.current?.getSelectedNodeData();
         if (data) {
-          // Emit a custom event for the host shell to open the source file
           window.dispatchEvent(new CustomEvent('codegraph:open-source', {
             detail: { filePath: data.filePath, lineNumber: data.lineNumber, nodeId },
           }));
@@ -109,6 +125,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
     renderer.init();
     rendererRef.current = renderer;
+    log.info('renderer initialized', { theme });
 
     return () => {
       renderer.destroy();
@@ -139,7 +156,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     renderer.filterByType(filterType);
   }, [filterType]);
 
-  // Debounced search (J3): track match count to surface "no results" feedback.
+  // Debounced search
   const [searchMatchCount, setSearchMatchCount] = useState<number | null>(null);
   useEffect(() => {
     const renderer = rendererRef.current;
@@ -170,14 +187,23 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     }
   }, [showCycles]);
 
-  // Polling fallback: request fresh graph data every 3s while the panel is
-  // open (J9 realtime). The tick asks the host/dev data source for a refresh
-  // via the codegraph:refresh event; the store's loading fail-safe prevents a
-  // stuck overlay when no data source answers.
+  // Polling fallback: request fresh graph data every 3s while the panel is open.
   const requestRefresh = useCallback(() => {
     window.dispatchEvent(new CustomEvent('codegraph:refresh'));
   }, []);
   usePolling(requestRefresh, 3000, !collapsed);
+
+  // Close export menu on outside click
+  useEffect(() => {
+    if (!showExportMenu) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [showExportMenu]);
 
   const handleLayoutChange = useCallback((newLayout: LayoutType) => {
     setLayout(newLayout);
@@ -217,7 +243,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       a.download = `codegraph-${Date.now()}.${extension}`;
       a.click();
       URL.revokeObjectURL(url);
+      log.info(`exported ${format}`);
     }
+    setShowExportMenu(false);
   }, []);
 
   const handleCollapse = useCallback(() => {
@@ -231,11 +259,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const handleRefresh = useCallback(() => {
     setLoading(true);
-    // Trigger a manual re-fetch by emitting a refresh event
     window.dispatchEvent(new CustomEvent('codegraph:refresh'));
+    log.info('manual refresh');
   }, [setLoading]);
 
-  // Resize handling via pointer events on the bottom-right corner
+  // Resize handling via pointer events on the bottom-right corner.
+  // FIX: the .resize-handle element is now rendered in JSX (was missing before).
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
@@ -277,7 +306,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   );
 
   const nodeTypeCounts = useMemo(() => {
-    const counts = { function: 0, class: 0, variable: 0, module: 0, interface: 0 };
+    const counts = { function: 0, class: 0, variable: 0, module: 0, interface: 0, type: 0 };
     for (const n of nodes) {
       if (n.type in counts) counts[n.type as keyof typeof counts]++;
     }
@@ -292,9 +321,17 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const statusDotClass = error ? 'status-dot error' : isLoading ? 'status-dot loading' : 'status-dot';
   const statusText = error ? 'Error' : isLoading ? 'Loading…' : 'Ready';
 
+  // Node detail extra properties (first 5 entries of `properties`).
+  const nodeExtraProps = useMemo(() => {
+    if (!selectedNodeData) return [] as [string, unknown][];
+    return Object.entries(selectedNodeData.properties).slice(0, 5);
+  }, [selectedNodeData]);
+
   return (
     <div className={panelClassName} ref={panelRef} role="region" aria-label="Code graph visualizer">
-      <div className="collapse-fab" onClick={handleCollapse} role="button" aria-label="Expand graph panel">📊</div>
+      <div className="collapse-fab" onClick={handleCollapse} role="button" aria-label="Expand graph panel">
+        <GraphIcon size={22} />
+      </div>
 
       <div className="graph-toolbar">
         <div className="toolbar-left">
@@ -321,6 +358,16 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         </div>
 
         <div className="toolbar-right">
+          <button
+            className="import-btn"
+            onClick={() => setShowImport(v => !v)}
+            title="Import graph (Ctrl+I)"
+            aria-label="Import graph"
+            aria-pressed={showImport}
+          >
+            <UploadIcon size={15} />
+          </button>
+
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value as GraphNode['type'] | 'all')}
@@ -339,7 +386,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
             aria-label="Search symbols"
             aria-expanded={showSearch}
           >
-            🔍
+            <SearchIcon size={15} />
           </button>
 
           <button
@@ -349,7 +396,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
             aria-label="Toggle call chain"
             aria-pressed={showCallChain}
           >
-            🔗
+            <ChainIcon size={15} />
           </button>
 
           <button
@@ -359,7 +406,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
             aria-label="Highlight cycles"
             aria-pressed={showCycles}
           >
-            🔄
+            <CycleIcon size={15} />
           </button>
 
           <button
@@ -369,34 +416,56 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
             aria-label="Toggle mini-map"
             aria-pressed={showMiniMap}
           >
-            🗺️
+            <MapIcon size={15} />
+          </button>
+
+          <button
+            className={`legend-btn ${showLegend ? 'active' : ''}`}
+            onClick={() => setShowLegend(v => !v)}
+            title="Toggle legend"
+            aria-label="Toggle legend"
+            aria-pressed={showLegend}
+          >
+            <LayersIcon size={15} />
           </button>
 
           <button className="refresh-btn" onClick={handleRefresh} title="Refresh graph" aria-label="Refresh graph">
-            ⟳
+            <RefreshIcon size={15} />
           </button>
 
           <button className="theme-btn" onClick={handleThemeToggle} title="Toggle theme" aria-label="Toggle theme">
-            {theme === 'dark' ? '☀️' : '🌙'}
+            {theme === 'dark' ? <SunIcon size={15} /> : <MoonIcon size={15} />}
           </button>
 
-          <div className="export-menu">
-            <button className="export-btn" title="Export graph" aria-label="Export graph" aria-haspopup="menu">📥</button>
-            <div className="export-dropdown" role="menu">
-              <button onClick={() => handleExport('png')} role="menuitem">PNG</button>
-              <button onClick={() => handleExport('svg')} role="menuitem">SVG</button>
-              <button onClick={() => handleExport('json')} role="menuitem">JSON</button>
-            </div>
+          <div className="export-menu" ref={exportMenuRef}>
+            <button
+              className="export-btn"
+              onClick={() => setShowExportMenu(v => !v)}
+              title="Export graph"
+              aria-label="Export graph"
+              aria-haspopup="menu"
+              aria-expanded={showExportMenu}
+            >
+              <DownloadIcon size={15} />
+            </button>
+            {showExportMenu && (
+              <div className="export-dropdown" role="menu">
+                <button onClick={() => handleExport('png')} role="menuitem">PNG</button>
+                <button onClick={() => handleExport('svg')} role="menuitem">SVG</button>
+                <button onClick={() => handleExport('json')} role="menuitem">JSON</button>
+              </div>
+            )}
           </div>
 
           <button className="collapse-btn" onClick={handleCollapse} title={collapsed ? 'Expand' : 'Collapse'} aria-label={collapsed ? 'Expand panel' : 'Collapse panel'}>
-            {collapsed ? '▲' : '▼'}
+            {collapsed ? <ChevronUpIcon size={15} /> : <ChevronDownIcon size={15} />}
           </button>
         </div>
       </div>
 
       {showSearch && !collapsed && (
         <div className="search-bar">
+          <SearchIcon size={14} className="search-bar-icon" />
           <input
             type="text"
             placeholder="Search symbols…"
@@ -405,7 +474,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
             autoFocus
             aria-label="Symbol search input"
           />
-          <button onClick={() => setShowSearch(false)} aria-label="Close search">✕</button>
+          <button onClick={() => setShowSearch(false)} aria-label="Close search"><CloseIcon size={14} /></button>
           {searchQuery && searchMatchCount !== null && (
             <span className="search-hint" role="status" aria-live="polite">
               {searchMatchCount > 0 ? `${searchMatchCount} match${searchMatchCount === 1 ? '' : 'es'}` : 'No matching symbols'}
@@ -424,20 +493,32 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
       {error && !collapsed && (
         <div className="error-overlay" role="alert">
-          <span>⚠️ {error}</span>
+          <span>⚠ {error}</span>
         </div>
       )}
 
       {nodes.length === 0 && !isLoading && !error && !collapsed && (
         <div className="empty-state">
-          <span className="empty-icon">📊</span>
-          <span>No graph data available. Import a repository to begin.</span>
+          <GraphIcon size={48} className="empty-icon" />
+          <span className="empty-title">No graph data yet</span>
+          <span className="empty-subtitle">Import a JSON file, paste graph data, or scan a repository.</span>
+          <button className="empty-import-btn" onClick={() => setShowImport(true)}>
+            <UploadIcon size={15} /> Import Graph
+          </button>
         </div>
+      )}
+
+      {showImport && !collapsed && (
+        <ImportPanel onClose={() => setShowImport(false)} />
+      )}
+
+      {showLegend && !collapsed && (
+        <Legend onClose={() => setShowLegend(false)} />
       )}
 
       {selectedNodeData && !collapsed && (
         <div className="node-detail-panel" role="complementary" aria-label="Node details">
-          <button className="close-btn" onClick={handleCloseDetail} aria-label="Close details">✕</button>
+          <button className="close-btn" onClick={handleCloseDetail} aria-label="Close details"><CloseIcon size={14} /></button>
           <h3>{selectedNodeData.label}</h3>
           <div className="detail-row">
             <span className="detail-label">Type</span>
@@ -451,6 +532,17 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
             <span className="detail-label">Line</span>
             <span className="detail-value">{selectedNodeData.lineNumber}</span>
           </div>
+          {nodeExtraProps.length > 0 && (
+            <div className="detail-extra">
+              <div className="detail-extra-title">Properties</div>
+              {nodeExtraProps.map(([k, v]) => (
+                <div className="detail-row" key={k}>
+                  <span className="detail-label">{k}</span>
+                  <span className="detail-value">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -465,7 +557,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
               aria-label="Close mini-map"
               style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: '0 4px' }}
             >
-              ✕
+              <CloseIcon size={14} />
             </button>
           </div>
           <div className="mini-map-content">
@@ -502,6 +594,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           <span className="status-time">{lastUpdated > 0 ? `Updated ${formatTime(lastUpdated)}` : 'No data'}</span>
         </div>
       </div>
+
+      {/* Resize handle — rendered here so the pointer-event listener can find it. */}
+      <div className="resize-handle" aria-hidden="true" />
     </div>
   );
 }

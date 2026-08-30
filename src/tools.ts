@@ -6,7 +6,7 @@ import type { JsonValue } from '@deepseek-ai/dsh-session';
 import { CodeGraphAdapter } from './adapters/CodeGraphAdapter.ts';
 import { LensAdapter } from './adapters/LensAdapter.ts';
 import { GraphDataMerger } from './merger/GraphDataMerger.ts';
-import type { AdapterResult, GraphData, GraphUpdatedEvent, RepoId } from './types/index.ts';
+import type { AdapterResult, GraphData, GraphUpdatedEvent, GraphDataEvent, RepoId } from './types/index.ts';
 import { RepoId as makeRepoId } from './types/index.ts';
 
 export type UpstreamInvoker = (tool: string, args: Record<string, unknown>) => Promise<unknown | null>;
@@ -92,6 +92,10 @@ export const createGraphTools = (ctx: Context) => {
     ctx.emit('codegraph/graph/updated', event);
   };
 
+  const emitData = (event: GraphDataEvent) => {
+    ctx.emit('codegraph/graph/data', event);
+  };
+
   const graphStatus = defineTool({
     name: 'graph_status',
     description: 'Check whether an interactive code graph is available for a repository.',
@@ -162,6 +166,12 @@ export const createGraphTools = (ctx: Context) => {
         repoId: args.repoId,
         nodeCount: merged.metadata.nodeCount,
         edgeCount: merged.metadata.edgeCount,
+        timestamp: merged.metadata.timestamp,
+      });
+      emitData({
+        repoId: args.repoId,
+        nodes: merged.nodes,
+        edges: merged.edges,
         timestamp: merged.metadata.timestamp,
       });
       return merged as unknown as JsonValue;
