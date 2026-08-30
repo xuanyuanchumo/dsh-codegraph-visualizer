@@ -12,6 +12,7 @@ import {
   CloseIcon, UploadIcon, LayersIcon,
 } from './components/Icons.tsx';
 import { scoped } from './services/Logger.ts';
+import { useT, useLang, toggleLang } from './i18n/index.ts';
 import './styles.css';
 
 const log = scoped('panel');
@@ -21,14 +22,14 @@ interface GraphPanelProps {
 }
 
 const LAYOUTS: LayoutType[] = ['cose', 'dagre', 'circle', 'grid'];
-const FILTER_OPTIONS = [
-  { value: 'all', label: 'All Types' },
-  { value: 'function', label: 'Functions' },
-  { value: 'class', label: 'Classes' },
-  { value: 'variable', label: 'Variables' },
-  { value: 'module', label: 'Modules' },
-  { value: 'interface', label: 'Interfaces' },
-] as const;
+const FILTER_KEYS: { value: string; key: string }[] = [
+  { value: 'all', key: 'filter.all' },
+  { value: 'function', key: 'filter.function' },
+  { value: 'class', key: 'filter.class' },
+  { value: 'variable', key: 'filter.variable' },
+  { value: 'module', key: 'filter.module' },
+  { value: 'interface', key: 'filter.interface' },
+];
 
 function formatTime(ts: number): string {
   const d = new Date(ts);
@@ -36,6 +37,8 @@ function formatTime(ts: number): string {
 }
 
 function GraphPanelInner({ className = '' }: GraphPanelProps) {
+  const t = useT();
+  const lang = useLang();
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<CytoscapeRenderer | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -63,7 +66,6 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const debouncedSearch = useDebounce(searchQuery, 200);
 
-  // Keyboard shortcuts
   useKeyboardShortcut('/', () => setShowSearch(true), { preventDefault: true });
   useKeyboardShortcut('Escape', () => {
     setShowSearch(false);
@@ -84,10 +86,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, { ctrl: true });
   useKeyboardShortcut('i', () => setShowImport(v => !v), { ctrl: true });
 
-  // Initialize renderer once; recreate only when theme changes
   useEffect(() => {
     if (!containerRef.current) return;
-
     const renderer = new CytoscapeRenderer({
       container: containerRef.current,
       theme,
@@ -96,9 +96,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         setSelectedNode(id);
         const data = rendererRef.current?.getSelectedNodeData() ?? null;
         setSelectedNodeData(data);
-        if (showCallChainRef.current) {
-          rendererRef.current?.highlightCallChain(id);
-        }
+        if (showCallChainRef.current) { rendererRef.current?.highlightCallChain(id); }
       },
       onNodeDoubleTap: (nodeId: string) => {
         const data = rendererRef.current?.getSelectedNodeData();
@@ -111,29 +109,17 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       onNodeHover: (nodeId: string, renderedPosition: { x: number; y: number }) => {
         const data = rendererRef.current?.getNodeData(nodeId);
         if (data) {
-          setTooltip({
-            x: renderedPosition.x,
-            y: renderedPosition.y,
-            name: data.label,
-            path: `${data.filePath}:${data.lineNumber}`,
-            type: data.type,
-          });
+          setTooltip({ x: renderedPosition.x, y: renderedPosition.y, name: data.label, path: `${data.filePath}:${data.lineNumber}`, type: data.type });
         }
       },
       onNodeHoverOut: () => setTooltip(null),
     });
-
     renderer.init();
     rendererRef.current = renderer;
     log.info('renderer initialized', { theme });
-
-    return () => {
-      renderer.destroy();
-      rendererRef.current = null;
-    };
+    return () => { renderer.destroy(); rendererRef.current = null; };
   }, [theme, setSelectedNode]);
 
-  // Update data + layout when nodes/edges/layout change
   useEffect(() => {
     const renderer = rendererRef.current;
     if (!renderer) return;
@@ -141,7 +127,6 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     renderer.applyLayout(layout);
   }, [nodes, edges, layout]);
 
-  // Highlight + selection
   useEffect(() => {
     const renderer = rendererRef.current;
     if (!renderer) return;
@@ -149,14 +134,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     renderer.selectNode(selectedNodeId);
   }, [highlightedNodeIds, selectedNodeId]);
 
-  // Filter
   useEffect(() => {
     const renderer = rendererRef.current;
     if (!renderer) return;
     renderer.filterByType(filterType);
   }, [filterType]);
 
-  // Debounced search
   const [searchMatchCount, setSearchMatchCount] = useState<number | null>(null);
   useEffect(() => {
     const renderer = rendererRef.current;
@@ -164,51 +147,35 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     setSearchMatchCount(debouncedSearch ? renderer.search(debouncedSearch) : null);
   }, [debouncedSearch, nodes]);
 
-  // Call chain highlight
   useEffect(() => {
     const renderer = rendererRef.current;
     if (!renderer) return;
-    if (showCallChain && selectedNodeId) {
-      renderer.highlightCallChain(selectedNodeId);
-    } else {
-      renderer.highlightCallChain(null);
-    }
+    if (showCallChain && selectedNodeId) { renderer.highlightCallChain(selectedNodeId); }
+    else { renderer.highlightCallChain(null); }
   }, [showCallChain, selectedNodeId]);
 
-  // Cycle detection
   useEffect(() => {
     const renderer = rendererRef.current;
     if (!renderer) return;
-    if (showCycles) {
-      const cycles = renderer.detectCycles();
-      renderer.highlightCycles(cycles);
-    } else {
-      renderer.highlightCycles(new Set<string>());
-    }
+    if (showCycles) { const cycles = renderer.detectCycles(); renderer.highlightCycles(cycles); }
+    else { renderer.highlightCycles(new Set<string>()); }
   }, [showCycles]);
 
-  // Polling fallback: request fresh graph data every 3s while the panel is open.
   const requestRefresh = useCallback(() => {
     window.dispatchEvent(new CustomEvent('codegraph:refresh'));
   }, []);
   usePolling(requestRefresh, 3000, !collapsed);
 
-  // Close export menu on outside click
   useEffect(() => {
     if (!showExportMenu) return;
     const onDocClick = (e: MouseEvent) => {
-      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
-        setShowExportMenu(false);
-      }
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) { setShowExportMenu(false); }
     };
     document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [showExportMenu]);
 
-  const handleLayoutChange = useCallback((newLayout: LayoutType) => {
-    setLayout(newLayout);
-  }, [setLayout]);
-
+  const handleLayoutChange = useCallback((newLayout: LayoutType) => setLayout(newLayout), [setLayout]);
   const handleThemeToggle = useCallback(() => {
     const newTheme: ThemeType = theme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
@@ -218,118 +185,72 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const handleExport = useCallback((format: 'png' | 'svg' | 'json') => {
     const renderer = rendererRef.current;
     if (!renderer) return;
-
     let data: string | null = null;
     let mimeType = 'application/json';
     let extension = 'json';
-
-    if (format === 'png') {
-      data = renderer.exportPNG();
-      mimeType = 'image/png';
-      extension = 'png';
-    } else if (format === 'svg') {
-      data = renderer.exportSVG();
-      mimeType = 'image/svg+xml';
-      extension = 'svg';
-    } else {
-      data = renderer.exportJSON();
-    }
-
+    if (format === 'png') { data = renderer.exportPNG(); mimeType = 'image/png'; extension = 'png'; }
+    else if (format === 'svg') { data = renderer.exportSVG(); mimeType = 'image/svg+xml'; extension = 'svg'; }
+    else { data = renderer.exportJSON(); }
     if (data) {
       const blob = new Blob([data], { type: mimeType });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = `codegraph-${Date.now()}.${extension}`;
-      a.click();
+      a.href = url; a.download = `codegraph-${Date.now()}.${extension}`; a.click();
       URL.revokeObjectURL(url);
       log.info(`exported ${format}`);
     }
     setShowExportMenu(false);
   }, []);
 
-  const handleCollapse = useCallback(() => {
-    setCollapsed(c => !c);
-  }, []);
-
-  const handleCloseDetail = useCallback(() => {
-    setSelectedNodeData(null);
-    setSelectedNode(null);
-  }, [setSelectedNode]);
-
+  const handleCollapse = useCallback(() => setCollapsed(c => !c), []);
+  const handleCloseDetail = useCallback(() => { setSelectedNodeData(null); setSelectedNode(null); }, [setSelectedNode]);
   const handleRefresh = useCallback(() => {
     setLoading(true);
     window.dispatchEvent(new CustomEvent('codegraph:refresh'));
     log.info('manual refresh');
   }, [setLoading]);
 
-  // Resize handling via pointer events on the bottom-right corner.
-  // FIX: the .resize-handle element is now rendered in JSX (was missing before).
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
-
     let startX = 0, startY = 0, startW = 0, startH = 0;
-
     const onPointerMove = (e: PointerEvent) => {
       const w = Math.max(320, startW + (e.clientX - startX));
       const h = Math.max(240, startH + (e.clientY - startY));
-      panel.style.width = `${w}px`;
-      panel.style.height = `${h}px`;
+      panel.style.width = `${w}px`; panel.style.height = `${h}px`;
       rendererRef.current?.resize();
     };
-
     const onPointerUp = () => {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
     };
-
     const onPointerDown = (e: PointerEvent) => {
-      startX = e.clientX;
-      startY = e.clientY;
-      startW = panel.offsetWidth;
-      startH = panel.offsetHeight;
+      startX = e.clientX; startY = e.clientY; startW = panel.offsetWidth; startH = panel.offsetHeight;
       window.addEventListener('pointermove', onPointerMove);
       window.addEventListener('pointerup', onPointerUp);
     };
-
     const handle = panel.querySelector<HTMLElement>('.resize-handle');
     handle?.addEventListener('pointerdown', onPointerDown);
-    return () => {
-      handle?.removeEventListener('pointerdown', onPointerDown);
-    };
+    return () => { handle?.removeEventListener('pointerdown', onPointerDown); };
   }, []);
 
-  const statsText = useMemo(
-    () => `${nodes.length} nodes · ${edges.length} edges`,
-    [nodes.length, edges.length],
-  );
-
+  const statsText = useMemo(() => `${nodes.length} nodes · ${edges.length} edges`, [nodes.length, edges.length]);
   const nodeTypeCounts = useMemo(() => {
     const counts = { function: 0, class: 0, variable: 0, module: 0, interface: 0, type: 0 };
-    for (const n of nodes) {
-      if (n.type in counts) counts[n.type as keyof typeof counts]++;
-    }
+    for (const n of nodes) { if (n.type in counts) counts[n.type as keyof typeof counts]++; }
     return counts;
   }, [nodes]);
-
-  const panelClassName = useMemo(
-    () => `graph-panel resizable ${collapsed ? 'collapsed' : ''} ${className}`.trim(),
-    [collapsed, className],
-  );
-
+  const panelClassName = useMemo(() => `graph-panel resizable ${collapsed ? 'collapsed' : ''} ${className}`.trim(), [collapsed, className]);
   const statusDotClass = error ? 'status-dot error' : isLoading ? 'status-dot loading' : 'status-dot';
-  const statusText = error ? 'Error' : isLoading ? 'Loading…' : 'Ready';
-
-  // Node detail extra properties (first 5 entries of `properties`).
+  const statusText = error ? t('state.error') : isLoading ? t('state.loading') : t('state.ready');
   const nodeExtraProps = useMemo(() => {
     if (!selectedNodeData) return [] as [string, unknown][];
     return Object.entries(selectedNodeData.properties).slice(0, 5);
   }, [selectedNodeData]);
 
   return (
-    <div className={panelClassName} ref={panelRef} role="region" aria-label="Code graph visualizer">
-      <div className="collapse-fab" onClick={handleCollapse} role="button" aria-label="Expand graph panel">
+    <div className={panelClassName} ref={panelRef} role="region" aria-label={t('panel.ariaLabel')}>
+      <div className="collapse-fab" onClick={handleCollapse} role="button" aria-label={t('panel.expand')}>
         <GraphIcon size={22} />
       </div>
 
@@ -344,120 +265,54 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         <div className="toolbar-center">
           <div className="layout-buttons" role="group" aria-label="Layout switcher">
             {LAYOUTS.map((l) => (
-              <button
-                key={l}
-                className={`layout-btn ${layout === l ? 'active' : ''}`}
-                onClick={() => handleLayoutChange(l)}
-                title={`Switch to ${l} layout (Ctrl+L cycles)`}
-                aria-pressed={layout === l}
-              >
-                {l}
-              </button>
+              <button key={l} className={`layout-btn ${layout === l ? 'active' : ''}`} onClick={() => handleLayoutChange(l)}
+                title={t('toolbar.layout', { l })} aria-pressed={layout === l}>{l}</button>
             ))}
           </div>
         </div>
 
         <div className="toolbar-right">
-          <button
-            className="import-btn"
-            onClick={() => setShowImport(v => !v)}
-            title="Import graph (Ctrl+I)"
-            aria-label="Import graph"
-            aria-pressed={showImport}
-          >
-            <UploadIcon size={15} />
-          </button>
+          <button className="import-btn" onClick={() => setShowImport(v => !v)} title={t('toolbar.import')}
+            aria-label={t('toolbar.import')} aria-pressed={showImport}><UploadIcon size={15} /></button>
 
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value as GraphNode['type'] | 'all')}
-            className="filter-select"
-            aria-label="Filter by node type"
-          >
-            {FILTER_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+          <select value={filterType} onChange={(e) => setFilterType(e.target.value as GraphNode['type'] | 'all')}
+            className="filter-select" aria-label={t('toolbar.filter')}>
+            {FILTER_KEYS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{t(opt.key)}</option>
             ))}
           </select>
 
-          <button
-            className={`search-btn ${showSearch ? 'active' : ''}`}
-            onClick={() => setShowSearch(!showSearch)}
-            title="Search symbols (press /)"
-            aria-label="Search symbols"
-            aria-expanded={showSearch}
-          >
-            <SearchIcon size={15} />
-          </button>
-
-          <button
-            className={`chain-btn ${showCallChain ? 'active' : ''}`}
-            onClick={() => setShowCallChain(v => !v)}
-            title="Toggle call chain highlight (Ctrl+C)"
-            aria-label="Toggle call chain"
-            aria-pressed={showCallChain}
-          >
-            <ChainIcon size={15} />
-          </button>
-
-          <button
-            className={`cycle-btn ${showCycles ? 'active' : ''}`}
-            onClick={() => setShowCycles(v => !v)}
-            title="Highlight circular dependencies"
-            aria-label="Highlight cycles"
-            aria-pressed={showCycles}
-          >
-            <CycleIcon size={15} />
-          </button>
-
-          <button
-            className={`minimap-btn ${showMiniMap ? 'active' : ''}`}
-            onClick={() => setShowMiniMap(v => !v)}
-            title="Toggle mini-map (Ctrl+M)"
-            aria-label="Toggle mini-map"
-            aria-pressed={showMiniMap}
-          >
-            <MapIcon size={15} />
-          </button>
-
-          <button
-            className={`legend-btn ${showLegend ? 'active' : ''}`}
-            onClick={() => setShowLegend(v => !v)}
-            title="Toggle legend"
-            aria-label="Toggle legend"
-            aria-pressed={showLegend}
-          >
-            <LayersIcon size={15} />
-          </button>
-
-          <button className="refresh-btn" onClick={handleRefresh} title="Refresh graph" aria-label="Refresh graph">
-            <RefreshIcon size={15} />
-          </button>
-
-          <button className="theme-btn" onClick={handleThemeToggle} title="Toggle theme" aria-label="Toggle theme">
-            {theme === 'dark' ? <SunIcon size={15} /> : <MoonIcon size={15} />}
-          </button>
+          <button className={`search-btn ${showSearch ? 'active' : ''}`} onClick={() => setShowSearch(!showSearch)}
+            title={t('toolbar.search')} aria-label={t('toolbar.search')} aria-expanded={showSearch}><SearchIcon size={15} /></button>
+          <button className={`chain-btn ${showCallChain ? 'active' : ''}`} onClick={() => setShowCallChain(v => !v)}
+            title={t('toolbar.chain')} aria-label={t('toolbar.chain')} aria-pressed={showCallChain}><ChainIcon size={15} /></button>
+          <button className={`cycle-btn ${showCycles ? 'active' : ''}`} onClick={() => setShowCycles(v => !v)}
+            title={t('toolbar.cycles')} aria-label={t('toolbar.cycles')} aria-pressed={showCycles}><CycleIcon size={15} /></button>
+          <button className={`minimap-btn ${showMiniMap ? 'active' : ''}`} onClick={() => setShowMiniMap(v => !v)}
+            title={t('toolbar.minimap')} aria-label={t('toolbar.minimap')} aria-pressed={showMiniMap}><MapIcon size={15} /></button>
+          <button className={`legend-btn ${showLegend ? 'active' : ''}`} onClick={() => setShowLegend(v => !v)}
+            title={t('toolbar.legend')} aria-label={t('toolbar.legend')} aria-pressed={showLegend}><LayersIcon size={15} /></button>
+          <button className="refresh-btn" onClick={handleRefresh} title={t('toolbar.refresh')}
+            aria-label={t('toolbar.refresh')}><RefreshIcon size={15} /></button>
+          <button className="theme-btn" onClick={handleThemeToggle} title={t('toolbar.theme')}
+            aria-label={t('toolbar.theme')}>{theme === 'dark' ? <SunIcon size={15} /> : <MoonIcon size={15} />}</button>
+          <button className="lang-btn" onClick={toggleLang} title={t('toolbar.lang')}
+            aria-label={t('toolbar.lang')}><span className="lang-label">{lang === 'zh' ? '中' : 'EN'}</span></button>
 
           <div className="export-menu" ref={exportMenuRef}>
-            <button
-              className="export-btn"
-              onClick={() => setShowExportMenu(v => !v)}
-              title="Export graph"
-              aria-label="Export graph"
-              aria-haspopup="menu"
-              aria-expanded={showExportMenu}
-            >
-              <DownloadIcon size={15} />
-            </button>
+            <button className="export-btn" onClick={() => setShowExportMenu(v => !v)} title={t('toolbar.export')}
+              aria-label={t('toolbar.export')} aria-haspopup="menu" aria-expanded={showExportMenu}><DownloadIcon size={15} /></button>
             {showExportMenu && (
               <div className="export-dropdown" role="menu">
-                <button onClick={() => handleExport('png')} role="menuitem">PNG</button>
-                <button onClick={() => handleExport('svg')} role="menuitem">SVG</button>
-                <button onClick={() => handleExport('json')} role="menuitem">JSON</button>
+                <button onClick={() => handleExport('png')} role="menuitem">{t('export.png')}</button>
+                <button onClick={() => handleExport('svg')} role="menuitem">{t('export.svg')}</button>
+                <button onClick={() => handleExport('json')} role="menuitem">{t('export.json')}</button>
               </div>
             )}
           </div>
 
-          <button className="collapse-btn" onClick={handleCollapse} title={collapsed ? 'Expand' : 'Collapse'} aria-label={collapsed ? 'Expand panel' : 'Collapse panel'}>
+          <button className="collapse-btn" onClick={handleCollapse} title={collapsed ? t('panel.collapse') : t('panel.collapse')}
+            aria-label={collapsed ? t('panel.expandPanel') : t('panel.collapsePanel')}>
             {collapsed ? <ChevronUpIcon size={15} /> : <ChevronDownIcon size={15} />}
           </button>
         </div>
@@ -466,75 +321,50 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       {showSearch && !collapsed && (
         <div className="search-bar">
           <SearchIcon size={14} className="search-bar-icon" />
-          <input
-            type="text"
-            placeholder="Search symbols…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            autoFocus
-            aria-label="Symbol search input"
-          />
-          <button onClick={() => setShowSearch(false)} aria-label="Close search"><CloseIcon size={14} /></button>
+          <input type="text" placeholder={t('search.placeholder')} value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)} autoFocus aria-label={t('search.placeholder')} />
+          <button onClick={() => setShowSearch(false)} aria-label={t('search.close')}><CloseIcon size={14} /></button>
           {searchQuery && searchMatchCount !== null && (
             <span className="search-hint" role="status" aria-live="polite">
-              {searchMatchCount > 0 ? `${searchMatchCount} match${searchMatchCount === 1 ? '' : 'es'}` : 'No matching symbols'}
+              {searchMatchCount > 0 ? t(searchMatchCount === 1 ? 'search.match' : 'search.matches', { n: searchMatchCount }) : t('search.noMatch')}
             </span>
           )}
-          {!searchQuery && <span className="search-hint">debounced 200ms</span>}
+          {!searchQuery && <span className="search-hint">{t('search.debounced')}</span>}
         </div>
       )}
 
       {isLoading && !collapsed && (
         <div className="loading-overlay" role="status" aria-live="polite">
-          <div className="spinner" />
-          <span>Loading graph…</span>
+          <div className="spinner" /><span>{t('state.loading')}</span>
         </div>
       )}
 
-      {error && !collapsed && (
-        <div className="error-overlay" role="alert">
-          <span>⚠ {error}</span>
-        </div>
-      )}
+      {error && !collapsed && (<div className="error-overlay" role="alert"><span>⚠ {error}</span></div>)}
 
       {nodes.length === 0 && !isLoading && !error && !collapsed && (
         <div className="empty-state">
           <GraphIcon size={48} className="empty-icon" />
-          <span className="empty-title">No graph data yet</span>
-          <span className="empty-subtitle">Import a JSON file, paste graph data, or scan a repository.</span>
+          <span className="empty-title">{t('empty.title')}</span>
+          <span className="empty-subtitle">{t('empty.subtitle')}</span>
           <button className="empty-import-btn" onClick={() => setShowImport(true)}>
-            <UploadIcon size={15} /> Import Graph
+            <UploadIcon size={15} /> {t('empty.import')}
           </button>
         </div>
       )}
 
-      {showImport && !collapsed && (
-        <ImportPanel onClose={() => setShowImport(false)} />
-      )}
-
-      {showLegend && !collapsed && (
-        <Legend onClose={() => setShowLegend(false)} />
-      )}
+      {showImport && !collapsed && (<ImportPanel onClose={() => setShowImport(false)} />)}
+      {showLegend && !collapsed && (<Legend onClose={() => setShowLegend(false)} />)}
 
       {selectedNodeData && !collapsed && (
-        <div className="node-detail-panel" role="complementary" aria-label="Node details">
-          <button className="close-btn" onClick={handleCloseDetail} aria-label="Close details"><CloseIcon size={14} /></button>
+        <div className="node-detail-panel" role="complementary" aria-label={t('detail.ariaLabel')}>
+          <button className="close-btn" onClick={handleCloseDetail} aria-label={t('detail.close')}><CloseIcon size={14} /></button>
           <h3>{selectedNodeData.label}</h3>
-          <div className="detail-row">
-            <span className="detail-label">Type</span>
-            <span className="detail-value">{selectedNodeData.type}</span>
-          </div>
-          <div className="detail-row">
-            <span className="detail-label">File</span>
-            <span className="detail-value">{selectedNodeData.filePath}</span>
-          </div>
-          <div className="detail-row">
-            <span className="detail-label">Line</span>
-            <span className="detail-value">{selectedNodeData.lineNumber}</span>
-          </div>
+          <div className="detail-row"><span className="detail-label">{t('detail.type')}</span><span className="detail-value">{selectedNodeData.type}</span></div>
+          <div className="detail-row"><span className="detail-label">{t('detail.file')}</span><span className="detail-value">{selectedNodeData.filePath}</span></div>
+          <div className="detail-row"><span className="detail-label">{t('detail.line')}</span><span className="detail-value">{selectedNodeData.lineNumber}</span></div>
           {nodeExtraProps.length > 0 && (
             <div className="detail-extra">
-              <div className="detail-extra-title">Properties</div>
+              <div className="detail-extra-title">{t('detail.properties')}</div>
               {nodeExtraProps.map(([k, v]) => (
                 <div className="detail-row" key={k}>
                   <span className="detail-label">{k}</span>
@@ -549,35 +379,28 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       <div className="graph-container" ref={containerRef} />
 
       {showMiniMap && !collapsed && (
-        <div className="mini-map" role="complementary" aria-label="Graph overview">
+        <div className="mini-map" role="complementary" aria-label={t('minimap.title')}>
           <div className="mini-map-header">
-            <span>Overview</span>
-            <button
-              onClick={() => setShowMiniMap(false)}
-              aria-label="Close mini-map"
-              style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: '0 4px' }}
-            >
+            <span>{t('minimap.title')}</span>
+            <button onClick={() => setShowMiniMap(false)} aria-label={t('minimap.close')}
+              style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: '0 4px' }}>
               <CloseIcon size={14} />
             </button>
           </div>
           <div className="mini-map-content">
             <div className="mini-map-stats">
-              <div><span className="dot" style={{ background: 'var(--cg-success)' }} />Functions: {nodeTypeCounts.function}</div>
-              <div><span className="dot" style={{ background: 'var(--cg-accent)' }} />Classes: {nodeTypeCounts.class}</div>
-              <div><span className="dot" style={{ background: 'var(--cg-warning)' }} />Variables: {nodeTypeCounts.variable}</div>
-              <div><span className="dot" style={{ background: '#ec4899' }} />Modules: {nodeTypeCounts.module}</div>
-              <div><span className="dot" style={{ background: '#14b8a6' }} />Interfaces: {nodeTypeCounts.interface}</div>
+              <div><span className="dot" style={{ background: 'var(--cg-success)' }} />{t('minimap.functions')}: {nodeTypeCounts.function}</div>
+              <div><span className="dot" style={{ background: 'var(--cg-accent)' }} />{t('minimap.classes')}: {nodeTypeCounts.class}</div>
+              <div><span className="dot" style={{ background: 'var(--cg-warning)' }} />{t('minimap.variables')}: {nodeTypeCounts.variable}</div>
+              <div><span className="dot" style={{ background: '#ec4899' }} />{t('minimap.modules')}: {nodeTypeCounts.module}</div>
+              <div><span className="dot" style={{ background: '#14b8a6' }} />{t('minimap.interfaces')}: {nodeTypeCounts.interface}</div>
             </div>
           </div>
         </div>
       )}
 
       {tooltip && (
-        <div
-          className="cg-tooltip"
-          style={{ left: tooltip.x + 15, top: tooltip.y + 15 }}
-          role="tooltip"
-        >
+        <div className="cg-tooltip" style={{ left: tooltip.x + 15, top: tooltip.y + 15 }} role="tooltip">
           <div className="tooltip-name">{tooltip.name}</div>
           <div className="tooltip-path">{tooltip.path}</div>
           <span className="tooltip-type">{tooltip.type}</span>
@@ -586,16 +409,14 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
       <div className="status-bar">
         <div className="status-item">
-          <span className={statusDotClass} />
-          <span>{statusText}</span>
+          <span className={statusDotClass} /><span>{statusText}</span>
         </div>
         <div className="status-spacer" />
         <div className="status-item">
-          <span className="status-time">{lastUpdated > 0 ? `Updated ${formatTime(lastUpdated)}` : 'No data'}</span>
+          <span className="status-time">{lastUpdated > 0 ? t('state.updated', { time: formatTime(lastUpdated) }) : t('state.noData')}</span>
         </div>
       </div>
 
-      {/* Resize handle — rendered here so the pointer-event listener can find it. */}
       <div className="resize-handle" aria-hidden="true" />
     </div>
   );
