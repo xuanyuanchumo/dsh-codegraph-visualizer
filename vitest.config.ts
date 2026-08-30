@@ -9,7 +9,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
       thresholds: {
-        ...coverageConfigDefaults.thresholds,
+
         lines: 80,
         functions: 80,
         statements: 80,

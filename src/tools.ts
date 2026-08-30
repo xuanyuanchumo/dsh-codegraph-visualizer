@@ -16,7 +16,19 @@ const lensAdapter = new LensAdapter();
 const merger = new GraphDataMerger();
 
 // Per-repo graph cache for incremental heat-updates (applyDelta).
+// Bounded LRU: re-insert on access evicts the least-recently-used entry,
+// so long-lived sessions cannot grow the cache without limit (NFR-06).
+const GRAPH_CACHE_LIMIT = 8;
 const graphCache = new Map<string, GraphData>();
+
+function cacheGraph(repoId: string, data: GraphData): void {
+  graphCache.delete(repoId);
+  graphCache.set(repoId, data);
+  if (graphCache.size > GRAPH_CACHE_LIMIT) {
+    const oldest = graphCache.keys().next().value;
+    if (oldest !== undefined) graphCache.delete(oldest);
+  }
+}
 
 async function fetchMergedGraph(
   invoke: UpstreamInvoker,
@@ -144,7 +156,7 @@ export const createGraphTools = (ctx: Context) => {
       const merged = cached
         ? merger.applyDelta(cached, { nodes: fresh.nodes, edges: fresh.edges, source: deltaSource, timestamp: fresh.metadata.timestamp })
         : fresh;
-      graphCache.set(args.repoId, merged);
+      cacheGraph(args.repoId, merged);
 
       emitUpdate({
         repoId: args.repoId,

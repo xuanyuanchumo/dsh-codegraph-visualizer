@@ -82,23 +82,28 @@ export function useKeyboardShortcut(
 /**
  * Polling hook for real-time updates.
  * Use case: refresh graph data periodically.
+ * The callback is kept in a ref so a new inline callback per render does not
+ * tear down and recreate the interval (rerender cascade fix).
  */
 export function usePolling(
   callback: () => void,
   interval: number,
   enabled = true
 ): void {
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
+
   useEffect(() => {
     if (!enabled || interval <= 0) return;
 
     const id = setInterval(() => {
       if (!document.hidden) {
-        callback();
+        callbackRef.current();
       }
     }, interval);
 
     return () => clearInterval(id);
-  }, [callback, interval, enabled]);
+  }, [interval, enabled]);
 }
 
 /**

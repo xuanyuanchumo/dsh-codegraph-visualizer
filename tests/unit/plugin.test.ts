@@ -92,6 +92,47 @@ describe('createGraphTools (J1/J9/J11)', () => {
     expect(result2).toHaveProperty('nodes');
   });
 
+  it('graph_data should delta-merge cached nodes on repeat calls (heat-update)', async () => {
+    let r0Call = 0;
+    ctx.tools.execute.mockImplementation(async (req: { name: string; arguments?: { repoId?: string } }) => {
+      if (req.name === 'codegraph_graph') {
+        const rid = req.arguments?.repoId ?? '';
+        const nodeId = rid === 'r0' ? `n-r0-${++r0Call}` : `n-${rid}`;
+        return { isError: false, value: { nodes: [{ id: nodeId, name: 'f', kind: 'function', file: 'a.ts', line: 1 }], edges: [] } };
+      }
+      return { isError: false, value: null };
+    });
+    const tools = createGraphTools(ctx);
+    const first = await tools.graphData.execute({ repoId: 'r0' }, mockExec) as { nodes: Array<{ id: string }> };
+    expect(first.nodes).toHaveLength(1);
+    const second = await tools.graphData.execute({ repoId: 'r0' }, mockExec) as { nodes: Array<{ id: string }> };
+    // Cached n-r0-1 + fresh n-r0-2 both survive the delta merge.
+    expect(second.nodes.map(n => n.id).sort()).toEqual(['n-r0-1', 'n-r0-2']);
+  });
+
+  it('graph_data should evict the oldest entry beyond the LRU cache limit (NFR-06)', async () => {
+    let r0Call = 0;
+    ctx.tools.execute.mockImplementation(async (req: { name: string; arguments?: { repoId?: string } }) => {
+      if (req.name === 'codegraph_graph') {
+        const rid = req.arguments?.repoId ?? '';
+        const nodeId = rid === 'r0' ? `n-r0-${++r0Call}` : `n-${rid}`;
+        return { isError: false, value: { nodes: [{ id: nodeId, name: 'f', kind: 'function', file: 'a.ts', line: 1 }], edges: [] } };
+      }
+      return { isError: false, value: null };
+    });
+    const tools = createGraphTools(ctx);
+
+    // Prime the cache for r0 (limit is 8), then touch r1..r8 to evict it.
+    await tools.graphData.execute({ repoId: 'r0' }, mockExec);
+    for (let i = 1; i <= 8; i++) {
+      await tools.graphData.execute({ repoId: `r${i}` }, mockExec);
+    }
+
+    // r0 was evicted: no cached n-r0-1 can be merged back into the result.
+    const again = await tools.graphData.execute({ repoId: 'r0' }, mockExec) as { nodes: Array<{ id: string }> };
+    expect(again.nodes.map(n => n.id)).toEqual(['n-r0-2']);
+  });
+
   it('graph_symbol should return symbol detail', async () => {
     ctx.tools.execute.mockImplementation(async (req: { name: string }) => {
       if (req.name === 'codegraph_symbol') {

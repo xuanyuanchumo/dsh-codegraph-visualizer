@@ -200,31 +200,40 @@ export class CytoscapeRenderer {
 
   filterByType(type: string): void {
     if (!this.cy) return;
+    const hidden = new Set<string>();
+    if (type !== 'all') {
+      this.cy.nodes().forEach((node) => {
+        if (node.data('type') !== type) hidden.add(node.id());
+      });
+    }
     this.cy.batch(() => {
       this.cy!.nodes().forEach((node) => {
-        node.style('display', type !== 'all' && node.data('type') !== type ? 'none' : 'element');
+        node.style('display', hidden.has(node.id()) ? 'none' : 'element');
       });
       this.cy!.edges().forEach((edge) => {
-        const srcHidden = edge.source().style('display') === 'none';
-        const tgtHidden = edge.target().style('display') === 'none';
-        edge.style('display', srcHidden || tgtHidden ? 'none' : 'element');
+        const hiddenEdge = hidden.has(edge.source().id()) || hidden.has(edge.target().id());
+        edge.style('display', hiddenEdge ? 'none' : 'element');
       });
     });
   }
 
-  search(query: string): void {
-    if (!this.cy) return;
+  search(query: string): number {
+    if (!this.cy) return 0;
     if (!query) {
       this.cy.nodes().removeClass('search-match');
-      return;
+      return 0;
     }
     const q = query.toLowerCase();
+    let matches = 0;
     this.cy.batch(() => {
       this.cy!.nodes().forEach((node) => {
         const label = node.data('label');
-        node.toggleClass('search-match', typeof label === 'string' && label.toLowerCase().includes(q));
+        const isMatch = typeof label === 'string' && label.toLowerCase().includes(q);
+        node.toggleClass('search-match', isMatch);
+        if (isMatch) matches++;
       });
     });
+    return matches;
   }
 
   highlightCallChain(nodeId: NodeId | null): void {
@@ -233,11 +242,14 @@ export class CytoscapeRenderer {
       this.cy!.elements().removeClass('call-chain');
       if (!nodeId) return;
 
+      // Traverse via getElementById + connectedEdges (no string selectors, so
+      // node ids with quotes/brackets can neither break nor inject a query).
       const visited = new Set<string>();
       const queue = [nodeId];
+      let head = 0;
 
-      while (queue.length > 0) {
-        const id = queue.shift()!;
+      while (head < queue.length) {
+        const id = queue[head++]!;
         if (visited.has(id)) continue;
         visited.add(id);
 
@@ -246,12 +258,12 @@ export class CytoscapeRenderer {
           node.addClass('call-chain');
         }
 
-        const outEdges = this.cy!.edges(`[source="${id}"]`);
-        outEdges.forEach((edge) => {
+        node.connectedEdges().forEach((edge) => {
+          if (edge.source().id() !== id) return;
           edge.addClass('call-chain');
-          const target = edge.target();
-          if (!visited.has(target.id())) {
-            queue.push(target.id() as NodeId);
+          const target = edge.target().id();
+          if (!visited.has(target)) {
+            queue.push(target as NodeId);
           }
         });
       }
@@ -262,43 +274,55 @@ export class CytoscapeRenderer {
     const cycles = new Set<string>();
     if (!this.cy) return cycles;
 
+    // Build an adjacency list once: O(V + E), no per-step selector queries.
+    const adjacency = new Map<string, string[]>();
+    this.cy.edges().forEach((edge) => {
+      const s = edge.source().id();
+      const t = edge.target().id();
+      const list = adjacency.get(s);
+      if (list) list.push(t);
+      else adjacency.set(s, [t]);
+    });
+
+    // Iterative DFS with explicit frames — no recursion, safe on 10k+ nodes.
     const visited = new Set<string>();
-    const recStack = new Set<string>();
+    const inStack = new Set<string>();
     const path: string[] = [];
 
-    const dfs = (id: string): boolean => {
-      visited.add(id);
-      recStack.add(id);
-      path.push(id);
+    const enter = (start: string): void => {
+      const frames: Array<{ id: string; neighbors: string[]; next: number }> = [
+        { id: start, neighbors: adjacency.get(start) ?? [], next: 0 },
+      ];
+      visited.add(start);
+      inStack.add(start);
+      path.push(start);
 
-      const outEdges = this.cy!.edges(`[source="${id}"]`);
-      let foundCycle = false;
-
-      outEdges.forEach((edge) => {
-        const targetId = edge.target().id();
-        if (recStack.has(targetId)) {
-          const cycleStart = path.indexOf(targetId);
-          if (cycleStart >= 0) {
-            const cyclePath = path.slice(cycleStart);
-            cyclePath.forEach((n) => cycles.add(n));
-            cycles.add(`${cyclePath.join('→')}`);
-          }
-          foundCycle = true;
-        } else if (!visited.has(targetId)) {
-          if (dfs(targetId)) foundCycle = true;
+      while (frames.length > 0) {
+        const frame = frames[frames.length - 1]!;
+        if (frame.next >= frame.neighbors.length) {
+          inStack.delete(frame.id);
+          path.pop();
+          frames.pop();
+          continue;
         }
-      });
-
-      recStack.delete(id);
-      path.pop();
-      return foundCycle;
+        const target = frame.neighbors[frame.next++]!;
+        if (inStack.has(target)) {
+          const cycleStart = path.indexOf(target);
+          if (cycleStart >= 0) {
+            for (let i = cycleStart; i < path.length; i++) cycles.add(path[i]!);
+          }
+        } else if (!visited.has(target)) {
+          visited.add(target);
+          inStack.add(target);
+          path.push(target);
+          frames.push({ id: target, neighbors: adjacency.get(target) ?? [], next: 0 });
+        }
+      }
     };
 
-    this.cy.nodes().forEach((node) => {
-      if (!visited.has(node.id())) {
-        dfs(node.id());
-      }
-    });
+    for (const id of adjacency.keys()) {
+      if (!visited.has(id)) enter(id);
+    }
 
     return cycles;
   }

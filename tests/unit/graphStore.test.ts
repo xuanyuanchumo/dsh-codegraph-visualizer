@@ -1,5 +1,5 @@
-// Unit tests for Zustand graphStore — J6/J7/J10 state management
-import { describe, it, expect, beforeEach } from 'vitest';
+// Unit tests for Zustand graphStore — J6/J7/J9/J10 state management
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { useGraphStore } from '../../src/client/store/graphStore.ts';
 import { makeNode, makeEdge } from '../helpers.ts';
 
@@ -92,6 +92,42 @@ describe('graphStore (J6/J7/J10)', () => {
     expect(useGraphStore.getState().isLoading).toBe(true);
     useGraphStore.getState().setLoading(false);
     expect(useGraphStore.getState().isLoading).toBe(false);
+  });
+
+  it('should reset isLoading when graph data arrives (stuck-overlay fix, J9)', () => {
+    useGraphStore.getState().setLoading(true);
+    const nodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
+    const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
+    useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
+    expect(useGraphStore.getState().isLoading).toBe(false);
+  });
+
+  it('should fail-safe reset isLoading after 2s with no data (J12)', () => {
+    vi.useFakeTimers();
+    try {
+      useGraphStore.getState().setLoading(true);
+      expect(useGraphStore.getState().isLoading).toBe(true);
+      vi.advanceTimersByTime(2100);
+      expect(useGraphStore.getState().isLoading).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('fail-safe should not clear a freshly-set loading state from a later request', () => {
+    vi.useFakeTimers();
+    try {
+      useGraphStore.getState().setLoading(true);
+      vi.advanceTimersByTime(1000);
+      // A second loading request (e.g. refresh) must survive the first fail-safe.
+      useGraphStore.getState().setLoading(true);
+      vi.advanceTimersByTime(1100);
+      expect(useGraphStore.getState().isLoading).toBe(true);
+      vi.advanceTimersByTime(1000);
+      expect(useGraphStore.getState().isLoading).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('should set error and clear loading (J12 chaos)', () => {

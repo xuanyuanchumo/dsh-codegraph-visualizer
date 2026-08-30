@@ -90,11 +90,11 @@ declare module '@deepseek-ai/cordis' {
 
 // ---- DSH Module Loader (runtime global) ----------------------------------
 // Injected by the DSH web app boot script. Client bundles register themselves
-// via __ModuleLoader__.load(id, factory) so the shell can wire them into the
-// page (slots, overlays, etc.).
+// via __ModuleLoader__.load({ id, factory }) so the shell can wire them into
+// the page (slots, overlays, etc.). The factory receives a `require` function
+// for resolving platform externals (react, react-dom, cordis, etc.).
 interface ModuleLoader {
-  load(id: string, factory: () => Record<string, unknown>): void;
-  register(registration: { id: string; factory: () => Record<string, unknown> }): void;
+  load(registration: { id: string; factory: (require: (id: string) => unknown) => Record<string, unknown> }): void;
 }
 
 declare const __ModuleLoader__: ModuleLoader | undefined;

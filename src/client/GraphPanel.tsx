@@ -139,12 +139,13 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     renderer.filterByType(filterType);
   }, [filterType]);
 
-  // Debounced search
+  // Debounced search (J3): track match count to surface "no results" feedback.
+  const [searchMatchCount, setSearchMatchCount] = useState<number | null>(null);
   useEffect(() => {
     const renderer = rendererRef.current;
     if (!renderer) return;
-    renderer.search(debouncedSearch);
-  }, [debouncedSearch]);
+    setSearchMatchCount(debouncedSearch ? renderer.search(debouncedSearch) : null);
+  }, [debouncedSearch, nodes]);
 
   // Call chain highlight
   useEffect(() => {
@@ -169,12 +170,14 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     }
   }, [showCycles]);
 
-  // Polling fallback: refresh graph data every 3s when not loading (J9 realtime)
-  usePolling(() => {
-    if (!collapsed) {
-      setLoading(true);
-    }
-  }, 3000, !collapsed);
+  // Polling fallback: request fresh graph data every 3s while the panel is
+  // open (J9 realtime). The tick asks the host/dev data source for a refresh
+  // via the codegraph:refresh event; the store's loading fail-safe prevents a
+  // stuck overlay when no data source answers.
+  const requestRefresh = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('codegraph:refresh'));
+  }, []);
+  usePolling(requestRefresh, 3000, !collapsed);
 
   const handleLayoutChange = useCallback((newLayout: LayoutType) => {
     setLayout(newLayout);
@@ -403,7 +406,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
             aria-label="Symbol search input"
           />
           <button onClick={() => setShowSearch(false)} aria-label="Close search">✕</button>
-          <span className="search-hint">debounced 200ms</span>
+          {searchQuery && searchMatchCount !== null && (
+            <span className="search-hint" role="status" aria-live="polite">
+              {searchMatchCount > 0 ? `${searchMatchCount} match${searchMatchCount === 1 ? '' : 'es'}` : 'No matching symbols'}
+            </span>
+          )}
+          {!searchQuery && <span className="search-hint">debounced 200ms</span>}
         </div>
       )}
 

@@ -246,11 +246,12 @@ const HTML = `<!DOCTYPE html>
     "imports": {
       "react": "https://esm.sh/react@19.2.0",
       "react/": "https://esm.sh/react@19.2.0/",
-      "react-dom": "https://esm.sh/react-dom@19.2.0",
-      "react-dom/": "https://esm.sh/react-dom@19.2.0/",
+      "react-dom": "https://esm.sh/react-dom@19.2.0?external=react",
+      "react-dom/": "https://esm.sh/react-dom@19.2.0&external=react/",
       "cytoscape": "https://esm.sh/cytoscape@3.30.4",
-      "cytoscape-dagre": "https://esm.sh/cytoscape-dagre@2.5.0",
-      "zustand": "https://esm.sh/zustand@5.0.2"
+      "cytoscape-dagre": "https://esm.sh/cytoscape-dagre@2.5.0?external=cytoscape",
+      "zustand": "https://esm.sh/zustand@5.0.2?external=react",
+      "zustand/": "https://esm.sh/zustand@5.0.2&external=react/"
     }
   }
   </script>
@@ -264,7 +265,7 @@ const HTML = `<!DOCTYPE html>
     };
     globalThis.__ModuleLoader__ = __ModuleLoader__;
 
-    // Mock graph data for testing.
+    // Mock graph data for testing (wrapped as a GraphData payload for init()).
     const mockGraphData = {
       nodes: [
         { id: 'n1', label: 'apply', type: 'function', filePath: 'src/index.ts', lineNumber: 9, properties: {} },
@@ -298,6 +299,17 @@ const HTML = `<!DOCTYPE html>
       ],
     };
 
+    // GraphData payload consumed by the real client bundle's init().
+    const graphDataPayload = {
+      ...mockGraphData,
+      metadata: {
+        repoId: 'dev-workspace',
+        timestamp: Date.now(),
+        nodeCount: mockGraphData.nodes.length,
+        edgeCount: mockGraphData.edges.length,
+      },
+    };
+
     // API modal handling — "Configure Later" skips and reveals the panel.
     const apiModal = document.getElementById('api-modal');
     const apiSkipBtn = document.getElementById('api-skip-btn');
@@ -320,6 +332,21 @@ const HTML = `<!DOCTYPE html>
     });
 
     async function loadPlugin() {
+      // Prefer the real client bundle (architecture fidelity): the ESM build
+      // at dist/client/index.esm.js (the DSH web shell loads the CJS-wrapped
+      // dist/client/index.js via a classic <script> tag). Falls back to the
+      // inline renderer only when the bundle or its browser deps fail.
+      try {
+        const mod = await import('/dist/client/index.esm.js');
+        if (mod && typeof mod.init === 'function') {
+          mod.init(document.getElementById('plugin-root'), graphDataPayload);
+          console.log('[dev-server] real client bundle loaded');
+          return;
+        }
+        console.warn('[dev-server] bundle has no init(), falling back to inline renderer');
+      } catch (err) {
+        console.warn('[dev-server] real bundle unavailable, falling back to inline renderer:', err?.message);
+      }
       try {
         const react = await import('react');
         const reactDom = await import('react-dom/client');

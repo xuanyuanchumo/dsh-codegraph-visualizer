@@ -22,3 +22,7 @@ src/types/*.d.ts
 src/types/*.d.ts.map
 src/types/*.js
 src/types/*.js.map
+*.tgz
+dsh-web-run/
+dist/client-cjs/
+
