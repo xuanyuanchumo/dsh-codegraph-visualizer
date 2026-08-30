@@ -11,16 +11,18 @@ declare module '@deepseek-ai/cordis' {
       inject: (slotName: string, callback: () => void) => void;
       register: (options: { name: string; id: string; order?: number; label?: () => string }, component?: unknown) => void;
     };
-    // Optional: dsh-better-sidebar integration (graceful degradation if absent).
+    // Optional services — accessed via ctx.get(), not inject (cordis optional pattern).
     betterSidebar?: {
-      registerTab: (tab: {
+      registerTab: (descriptor: {
         id: string;
-        label: string;
-        icon?: string;
-        render: () => React.ReactNode;
-      }) => void;
+        title: string | (() => string);
+        icon?: unknown;
+        order?: number;
+        single?: boolean;
+        component: (props: { visible: boolean }) => React.ReactNode;
+      }) => () => void;
+      openTab: (seed: { type: string }) => void;
     };
-    // Optional: dsh-spotlight command integration.
     spotlight?: {
       registerCommand: (cmd: {
         id: string;
@@ -51,11 +53,59 @@ export function init(container: HTMLElement, initialData?: GraphData): void {
 }
 
 export function apply(ctx: Context) {
-  // Primary: register as a shell overlay panel. DSH web's slots API uses
-  // ctx.slots.inject(slotName, () => ctx.slots.register({name, id, ...}, Component)).
-  // Wrap in try-catch so activation never fails on slot mismatch; fall back
-  // to direct DOM mount if the slot system rejects the registration.
-  let mounted = false;
+  // ── Entry-point strategy (priority order) ──────────────────────────
+  // 1. better-sidebar tab  — when dsh-better-sidebar is installed, register
+  //    as a first-class sidebar tab (icon in the + menu, panel in the sidebar).
+  // 2. sidebar.footer.action — when no better-sidebar, add a quick-access
+  //    button in the sidebar footer (next to Settings).
+  // 3. settings.section      — always also register in Settings as a fallback.
+  // 4. direct DOM mount      — last resort if slots reject us.
+
+  let entryRegistered = false;
+
+  // (1) better-sidebar tab — use ctx.get() for optional service detection
+  //     (cordis pattern: ctx.get returns undefined if service not provided).
+  try {
+    const betterSidebar = ctx.get('betterSidebar') as Context['betterSidebar'] | undefined;
+    if (betterSidebar) {
+      const dispose = betterSidebar.registerTab({
+        id: 'codegraph-visualizer',
+        title: 'Code Graph',
+        icon: (size: number) =>
+          React.createElement('span', { style: { fontSize: size } }, '📊'),
+        order: 50,
+        single: true,
+        component: (props: { visible: boolean }) =>
+          props.visible ? React.createElement(GraphPanel) : null,
+      });
+      ctx.effect(() => dispose, 'codegraph: better-sidebar tab');
+      entryRegistered = true;
+    }
+  } catch {
+    // best-effort; fall through to slot registration
+  }
+
+  // (2) sidebar.footer.action — quick-access button in sidebar footer
+  if (!entryRegistered) {
+    try {
+      ctx.slots.inject('sidebar.footer.action', () => {
+        ctx.slots.register(
+          {
+            name: 'sidebar.footer.action',
+            id: 'codegraph-visualizer',
+            order: 10,
+            label: () => 'Code Graph',
+          },
+          GraphPanel,
+        );
+      });
+      entryRegistered = true;
+    } catch {
+      // slot not available; fall through
+    }
+  }
+
+  // (3) settings.section — always register as a fallback in Settings dialog
   try {
     ctx.slots.inject('settings.section', () => {
       ctx.slots.register(
@@ -68,13 +118,12 @@ export function apply(ctx: Context) {
         GraphPanel,
       );
     });
-    mounted = true;
   } catch {
-    // Slot registration is best-effort; fall through to DOM mount.
+    // best-effort
   }
 
-  // Fallback: mount directly into the document body if no slot accepted us.
-  if (!mounted && typeof document !== 'undefined') {
+  // (4) Direct DOM mount — last resort if no slot accepted us
+  if (!entryRegistered && typeof document !== 'undefined') {
     const container = document.createElement('div');
     container.className = 'codegraph-visualizer-root';
     document.body.appendChild(container);
@@ -86,28 +135,9 @@ export function apply(ctx: Context) {
     });
   }
 
-  // CR-01: Register as a sidebar tab if dsh-better-sidebar is available.
+  // ── Optional: spotlight commands ───────────────────────────────────
   try {
-    const betterSidebar = (ctx as unknown as Record<string, unknown>).betterSidebar as
-      | { registerTab: (tab: { id: string; label: string; icon?: string; render: () => React.ReactNode }) => void }
-      | undefined;
-    if (betterSidebar) {
-      betterSidebar.registerTab({
-        id: 'codegraph-visualizer',
-        label: 'Code Graph',
-        icon: '📊',
-        render: () => React.createElement(GraphPanel),
-      });
-    }
-  } catch {
-    // Sidebar registration is best-effort; ignore failures.
-  }
-
-  // CR-03: Register spotlight command if dsh-spotlight is available.
-  try {
-    const spotlight = (ctx as unknown as Record<string, unknown>).spotlight as
-      | { registerCommand: (cmd: { id: string; title: string; handler: () => void }) => void }
-      | undefined;
+    const spotlight = ctx.get('spotlight') as Context['spotlight'] | undefined;
     if (spotlight) {
       spotlight.registerCommand({
         id: 'codegraph-search',
@@ -126,7 +156,7 @@ export function apply(ctx: Context) {
       });
     }
   } catch {
-    // Spotlight registration is best-effort.
+    // best-effort
   }
 
 
