@@ -166,6 +166,35 @@
   margin: 0 4px;
 }
 
+/* ---- Type badges (node type stats in toolbar) ---------------------------- */
+
+.type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--cg-font-mono);
+  border-radius: var(--cg-radius-xs);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.type-badge.function {
+  background: rgba(16, 185, 129, 0.14);
+  color: var(--cg-success);
+}
+
+.type-badge.class {
+  background: var(--cg-accent-soft);
+  color: var(--cg-accent-hover);
+}
+
+.type-badge.interface {
+  background: rgba(20, 184, 166, 0.14);
+  color: #14b8a6;
+}
+
 /* ---- Layout switcher (segmented control) --------------------------------- */
 
 .layout-buttons {

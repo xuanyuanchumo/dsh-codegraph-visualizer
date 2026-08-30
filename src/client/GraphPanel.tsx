@@ -41,6 +41,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const [selectedNodeData, setSelectedNodeData] = useState<GraphNode | null>(null);
   const [showCycles, setShowCycles] = useState(false);
   const [showCallChain, setShowCallChain] = useState(false);
+  const [showMiniMap, setShowMiniMap] = useState(false);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; name: string; path: string; type: string } | null>(null);
 
   // Refs to avoid stale closures in the renderer's tap callback
@@ -60,6 +61,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     rendererRef.current?.highlightCycles(new Set<string>());
   });
   useKeyboardShortcut('c', () => setShowCallChain(v => !v), { ctrl: true });
+  useKeyboardShortcut('m', () => setShowMiniMap(v => !v), { ctrl: true });
   useKeyboardShortcut('l', () => {
     const next: LayoutType = (layout === 'cose' ? 'dagre' : layout === 'dagre' ? 'circle' : layout === 'circle' ? 'grid' : 'cose');
     setLayout(next);
@@ -294,6 +296,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       <div className="graph-toolbar">
         <div className="toolbar-left">
           <span className="node-count">{statsText}</span>
+          {nodeTypeCounts.function > 0 && <span className="type-badge function">fn:{nodeTypeCounts.function}</span>}
+          {nodeTypeCounts.class > 0 && <span className="type-badge class">cls:{nodeTypeCounts.class}</span>}
+          {nodeTypeCounts.interface > 0 && <span className="type-badge interface">if:{nodeTypeCounts.interface}</span>}
         </div>
 
         <div className="toolbar-center">
@@ -352,6 +357,16 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
             aria-pressed={showCycles}
           >
             🔄
+          </button>
+
+          <button
+            className={`minimap-btn ${showMiniMap ? 'active' : ''}`}
+            onClick={() => setShowMiniMap(v => !v)}
+            title="Toggle mini-map (Ctrl+M)"
+            aria-label="Toggle mini-map"
+            aria-pressed={showMiniMap}
+          >
+            🗺️
           </button>
 
           <button className="refresh-btn" onClick={handleRefresh} title="Refresh graph" aria-label="Refresh graph">
@@ -432,6 +447,30 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       )}
 
       <div className="graph-container" ref={containerRef} />
+
+      {showMiniMap && !collapsed && (
+        <div className="mini-map" role="complementary" aria-label="Graph overview">
+          <div className="mini-map-header">
+            <span>Overview</span>
+            <button
+              onClick={() => setShowMiniMap(false)}
+              aria-label="Close mini-map"
+              style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: '0 4px' }}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="mini-map-content">
+            <div className="mini-map-stats">
+              <div><span className="dot" style={{ background: 'var(--cg-success)' }} />Functions: {nodeTypeCounts.function}</div>
+              <div><span className="dot" style={{ background: 'var(--cg-accent)' }} />Classes: {nodeTypeCounts.class}</div>
+              <div><span className="dot" style={{ background: 'var(--cg-warning)' }} />Variables: {nodeTypeCounts.variable}</div>
+              <div><span className="dot" style={{ background: '#ec4899' }} />Modules: {nodeTypeCounts.module}</div>
+              <div><span className="dot" style={{ background: '#14b8a6' }} />Interfaces: {nodeTypeCounts.interface}</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {tooltip && (
         <div

@@ -1,5 +1,5 @@
 // Custom hooks for graph visualization
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 /**
  * Debounce a value with a delay.
