@@ -1013,45 +1013,50 @@
   gap: 12px;
 }
 
-.drop-zone {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex: 1;
-  min-height: 180px;
-  border: 2px dashed var(--cg-border-strong);
-  border-radius: var(--cg-radius);
-  color: var(--cg-text-secondary);
-  cursor: pointer;
-  transition: all var(--cg-transition);
-}
-
-.drop-zone:hover,
-.drop-zone:focus-visible {
-  border-color: var(--cg-accent);
-  background: var(--cg-accent-soft);
-  color: var(--cg-text);
-}
-
-.drop-text {
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.drop-hint {
-  font-size: 11px;
-  color: var(--cg-text-tertiary);
-  font-family: var(--cg-font-mono);
-}
 
 .paste-zone,
-.repo-zone {
+.workspace-zone {
   display: flex;
   flex-direction: column;
   gap: 10px;
   flex: 1;
+}
+
+.workspace-zone {
+  padding: 4px 0;
+}
+
+.workspace-path-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workspace-path-icon {
+  color: var(--cg-text-tertiary);
+}
+
+.workspace-path-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cg-text-secondary);
+}
+
+.workspace-path-value {
+  padding: 8px 12px;
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-sm);
+  color: var(--cg-text);
+  font-size: 12px;
+  font-family: var(--cg-font-mono);
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+.workspace-hint {
+  font-size: 11px;
+  color: var(--cg-text-tertiary);
 }
 
 .paste-input {
@@ -1074,27 +1079,6 @@
   box-shadow: 0 0 0 3px var(--cg-accent-soft);
 }
 
-.repo-input {
-  padding: 9px 12px;
-  background: var(--cg-surface);
-  border: 1px solid var(--cg-border);
-  border-radius: var(--cg-radius-sm);
-  color: var(--cg-text);
-  font-size: 13px;
-  font-family: var(--cg-font-mono);
-  outline: none;
-  transition: border-color var(--cg-transition);
-}
-
-.repo-input:focus {
-  border-color: var(--cg-accent);
-  box-shadow: 0 0 0 3px var(--cg-accent-soft);
-}
-
-.repo-hint {
-  font-size: 11px;
-  color: var(--cg-text-tertiary);
-}
 
 .import-submit {
   align-self: flex-start;

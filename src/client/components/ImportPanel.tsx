@@ -1,16 +1,17 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
 import { scoped } from '../services/Logger.ts';
 import { useT } from '../i18n/index.ts';
-import { UploadIcon, FolderIcon, FileIcon, CloseIcon, AlertIcon } from './Icons.tsx';
+import { UploadIcon, FolderIcon, CloseIcon, AlertIcon, RefreshIcon } from './Icons.tsx';
 import type { GraphNode, GraphEdge, NodeId, EdgeId, RepoId } from '../../types/index.ts';
 
 const log = scoped('import');
 
-type ImportTab = 'folder' | 'paste' | 'repo';
+type ImportTab = 'workspace' | 'paste';
 
 interface ImportPanelProps {
   onClose: () => void;
+  workspacePath: string;
 }
 
 interface ImportableGraph {
@@ -57,26 +58,12 @@ function parseGraphJson(text: string): { nodes: GraphNode[]; edges: GraphEdge[];
   return { nodes, edges, repoId: repoId as RepoId };
 }
 
-// Merge multiple graph fragments into one.
-function mergeGraphs(fragments: { nodes: GraphNode[]; edges: GraphEdge[] }[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
-  const nodeMap = new Map<string, GraphNode>();
-  const edgeSet = new Set<string>();
-  const edges: GraphEdge[] = [];
-  for (const f of fragments) {
-    for (const n of f.nodes) { if (!nodeMap.has(n.id)) nodeMap.set(n.id, n); }
-    for (const e of f.edges) { if (!edgeSet.has(e.id)) { edgeSet.add(e.id); edges.push(e); } }
-  }
-  return { nodes: Array.from(nodeMap.values()), edges };
-}
-
-export function ImportPanel({ onClose }: ImportPanelProps) {
+export function ImportPanel({ onClose, workspacePath }: ImportPanelProps) {
   const t = useT();
-  const [tab, setTab] = useState<ImportTab>('folder');
+  const [tab, setTab] = useState<ImportTab>('workspace');
   const [pasteText, setPasteText] = useState('');
-  const [repoPath, setRepoPath] = useState('');
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
-  const folderInputRef = useRef<HTMLInputElement>(null);
   const setGraphData = useGraphStore(s => s.setGraphData);
   const setLoading = useGraphStore(s => s.setLoading);
   const setError = useGraphStore(s => s.setError);
@@ -98,141 +85,23 @@ export function ImportPanel({ onClose }: ImportPanelProps) {
     } finally {
       setBusy(false);
     }
-  }, [setGraphData, setError, onClose, t]);
-
-  // Folder selection: scan for .codegraph/ directory or all .json files.
-  const handleFolder = useCallback(async (files: FileList) => {
-    setBusy(true);
-    setFeedback(null);
-    try {
-      const allFiles = Array.from(files);
-      // Prefer files under .codegraph/ directory; fall back to all .json files.
-      let jsonFiles = allFiles.filter(f => f.webkitRelativePath?.includes('.codegraph/') && f.name.endsWith('.json'));
-      if (jsonFiles.length === 0) {
-        jsonFiles = allFiles.filter(f => f.name.endsWith('.json'));
-      }
-      if (jsonFiles.length === 0) {
-        setFeedback({ kind: 'err', msg: t('import.noJson') });
-        setBusy(false);
-        return;
-      }
-      log.info(`scanning folder: ${jsonFiles.length} json files`);
-      const fragments: { nodes: GraphNode[]; edges: GraphEdge[] }[] = [];
-      for (const f of jsonFiles) {
-        if (f.size > 10 * 1024 * 1024) continue;
-        try {
-          const text = await f.text();
-          const parsed = parseGraphJson(text);
-          fragments.push({ nodes: parsed.nodes, edges: parsed.edges });
-        } catch {
-          // skip invalid files
-        }
-      }
-      if (fragments.length === 0) {
-        setFeedback({ kind: 'err', msg: t('import.noJson') });
-        setBusy(false);
-        return;
-      }
-      const merged = mergeGraphs(fragments);
-      const repoId = `folder-${Date.now()}` as RepoId;
-      setGraphData(merged.nodes, merged.edges, repoId);
-      log.info('folder imported', { files: fragments.length, nodes: merged.nodes.length, edges: merged.edges.length });
-      setFeedback({ kind: 'ok', msg: t('import.imported', { nodes: merged.nodes.length, edges: merged.edges.length }) });
-      setTimeout(onClose, 700);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setFeedback({ kind: 'err', msg });
-    } finally {
-      setBusy(false);
-    }
-  }, [setGraphData, t, onClose]);
-
-  const handleFolderInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      handleFolder(e.target.files);
-    }
-    e.target.value = '';
-  }, [handleFolder]);
-
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    const items = e.dataTransfer.items;
-    const firstItem = items?.[0];
-    if (firstItem && typeof firstItem.webkitGetAsEntry === 'function') {
-      // Directory drop support
-      const entry = firstItem.webkitGetAsEntry();
-      if (entry && entry.isDirectory) {
-        setBusy(true);
-        setFeedback(null);
-        try {
-          const jsonFiles: File[] = [];
-          await new Promise<void>((resolve) => {
-            const reader = (entry as FileSystemDirectoryEntry).createReader();
-            const readEntries = () => {
-              reader.readEntries(async (entries) => {
-                if (entries.length === 0) { resolve(); return; }
-                for (const ent of entries) {
-                  if (ent.isFile) {
-                    (ent as FileSystemFileEntry).file((f: File) => {
-                      if (f.name.endsWith('.json')) jsonFiles.push(f);
-                    });
-                  }
-                }
-                readEntries();
-              });
-            };
-            readEntries();
-          });
-          if (jsonFiles.length === 0) {
-            setFeedback({ kind: 'err', msg: t('import.noJson') });
-            setBusy(false);
-            return;
-          }
-          const fragments: { nodes: GraphNode[]; edges: GraphEdge[] }[] = [];
-          for (const f of jsonFiles) {
-            try {
-              const text = await f.text();
-              fragments.push(parseGraphJson(text));
-            } catch { /* skip */ }
-          }
-          if (fragments.length === 0) {
-            setFeedback({ kind: 'err', msg: t('import.noJson') });
-            setBusy(false);
-            return;
-          }
-          const merged = mergeGraphs(fragments);
-          setGraphData(merged.nodes, merged.edges, `folder-${Date.now()}` as RepoId);
-          setFeedback({ kind: 'ok', msg: t('import.imported', { nodes: merged.nodes.length, edges: merged.edges.length }) });
-          setTimeout(onClose, 700);
-        } catch (e2) {
-          setFeedback({ kind: 'err', msg: e2 instanceof Error ? e2.message : String(e2) });
-        } finally {
-          setBusy(false);
-        }
-        return;
-      }
-    }
-    // Fallback: file drop
-    const f = e.dataTransfer.files?.[0];
-    if (f) applyGraph(await f.text(), `file:${f.name}`);
-  }, [applyGraph, handleFolder, setGraphData, t, onClose]);
+  }, [setGraphData, setError, t, onClose]);
 
   const handlePasteSubmit = useCallback(() => {
     if (!pasteText.trim()) { setFeedback({ kind: 'err', msg: t('import.pasteFirst') }); return; }
     applyGraph(pasteText, 'paste');
   }, [pasteText, applyGraph, t]);
 
-  const handleRepoSubmit = useCallback(() => {
-    const path = repoPath.trim();
-    if (!path) { setFeedback({ kind: 'err', msg: t('import.enterPath') }); return; }
+  const handleWorkspaceScan = useCallback(() => {
     setBusy(true);
     setFeedback(null);
     setLoading(true);
+    const path = workspacePath || '.';
     window.dispatchEvent(new CustomEvent('codegraph:import-repo', { detail: { path } }));
-    log.info('requested repo import', { path });
+    log.info('workspace scan requested', { path });
     setFeedback({ kind: 'ok', msg: t('import.requestedScan', { path }) });
     setTimeout(() => { setBusy(false); onClose(); }, 900);
-  }, [repoPath, setLoading, onClose, t]);
+  }, [workspacePath, setLoading, onClose, t]);
 
   return (
     <div className="import-panel" role="dialog" aria-label={t('import.title')}>
@@ -242,40 +111,26 @@ export function ImportPanel({ onClose }: ImportPanelProps) {
       </div>
 
       <div className="import-tabs" role="tablist">
-        <button className={tab === 'folder' ? 'active' : ''} onClick={() => setTab('folder')} role="tab" aria-selected={tab === 'folder'}>
-          <FolderIcon size={14} /> {t('import.folder')}
+        <button className={tab === 'workspace' ? 'active' : ''} onClick={() => setTab('workspace')} role="tab" aria-selected={tab === 'workspace'}>
+          <FolderIcon size={14} /> {t('import.workspace')}
         </button>
         <button className={tab === 'paste' ? 'active' : ''} onClick={() => setTab('paste')} role="tab" aria-selected={tab === 'paste'}>
           <UploadIcon size={14} /> {t('import.paste')}
         </button>
-        <button className={tab === 'repo' ? 'active' : ''} onClick={() => setTab('repo')} role="tab" aria-selected={tab === 'repo'}>
-          <FileIcon size={14} /> {t('import.repo')}
-        </button>
       </div>
 
       <div className="import-body">
-        {tab === 'folder' && (
-          <div
-            className="drop-zone"
-            onDrop={handleDrop}
-            onDragOver={(e) => e.preventDefault()}
-            onClick={() => folderInputRef.current?.click()}
-            role="button"
-            tabIndex={0}
-          >
-            <FolderIcon size={32} />
-            <span className="drop-text">{busy ? t('import.scanning') : t('import.dropText')}</span>
-            <span className="drop-hint">{t('import.dropHint')}</span>
-            <input
-              ref={folderInputRef}
-              type="file"
-              // @ts-expect-error -- webkitdirectory is non-standard but widely supported
-              webkitdirectory=""
-              directory=""
-              multiple
-              onChange={handleFolderInput}
-              style={{ display: 'none' }}
-            />
+        {tab === 'workspace' && (
+          <div className="workspace-zone">
+            <div className="workspace-path-row">
+              <FolderIcon size={16} className="workspace-path-icon" />
+              <span className="workspace-path-label">{t('import.workspacePath')}</span>
+            </div>
+            <div className="workspace-path-value">{workspacePath || '.'}</div>
+            <span className="workspace-hint">{t('import.workspaceHint')}</span>
+            <button className="import-submit" onClick={handleWorkspaceScan} disabled={busy}>
+              <RefreshIcon size={14} /> {busy ? t('import.scanning') : t('import.scanWorkspace')}
+            </button>
           </div>
         )}
 
@@ -291,23 +146,6 @@ export function ImportPanel({ onClose }: ImportPanelProps) {
             />
             <button className="import-submit" onClick={handlePasteSubmit} disabled={busy}>
               {busy ? t('import.importing') : t('import.importJson')}
-            </button>
-          </div>
-        )}
-
-        {tab === 'repo' && (
-          <div className="repo-zone">
-            <input
-              className="repo-input"
-              type="text"
-              placeholder={t('import.repoPlaceholder')}
-              value={repoPath}
-              onChange={(e) => setRepoPath(e.target.value)}
-              aria-label="Repository path"
-            />
-            <span className="repo-hint">{t('import.repoHint')}</span>
-            <button className="import-submit" onClick={handleRepoSubmit} disabled={busy}>
-              {busy ? t('import.scanningRepo') : t('import.scanRepo')}
             </button>
           </div>
         )}

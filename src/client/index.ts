@@ -217,8 +217,28 @@ export function apply(ctx: Context) {
   // simply shows the empty state with an Import button.
   const store = useGraphStore.getState();
   if (store.nodes.length === 0 && !store.isLoading) {
-    const workspacePath = (typeof window !== 'undefined' &&
-      (window as unknown as { __DSH_WORKSPACE__?: string }).__DSH_WORKSPACE__) || '.';
+    // Try to get workspace path from DSH session, fallback to global, then '.'
+    let workspacePath = '.';
+    try {
+      const sessions = (ctx as unknown as { sessions?: { get?: (id: string) => { header?: { cwd?: string } } | undefined } }).sessions;
+      if (sessions?.get) {
+        // Best-effort: try to get any session's cwd
+        for (const sid of Object.keys(sessions)) {
+          if (sid === 'get') continue;
+          const session = sessions.get(sid);
+          const cwd = session?.header?.cwd;
+          if (cwd) { workspacePath = cwd; break; }
+        }
+      }
+    } catch { /* best-effort */ }
+    if (workspacePath === '.') {
+      workspacePath = (typeof window !== 'undefined' &&
+        (window as unknown as { __DSH_WORKSPACE__?: string }).__DSH_WORKSPACE__) || '.';
+    }
+    // Notify the panel of the workspace path
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: workspacePath } }));
+    }
     log.info('auto-import requested', { path: workspacePath });
     ctx.emit('codegraph/repo/request-scan', { path: workspacePath, timestamp: Date.now() });
   }

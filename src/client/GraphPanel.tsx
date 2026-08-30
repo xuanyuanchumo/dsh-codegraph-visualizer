@@ -59,12 +59,23 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const [showImport, setShowImport] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [workspacePath, setWorkspacePath] = useState<string>('.');
   const [tooltip, setTooltip] = useState<{ x: number; y: number; name: string; path: string; type: string } | null>(null);
 
   const showCallChainRef = useRef(showCallChain);
   showCallChainRef.current = showCallChain;
 
   const debouncedSearch = useDebounce(searchQuery, 200);
+
+  // Listen for workspace path updates from the host/client entry
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { path?: string };
+      if (detail?.path) setWorkspacePath(detail.path);
+    };
+    window.addEventListener('codegraph:workspace', handler);
+    return () => window.removeEventListener('codegraph:workspace', handler);
+  }, []);
 
   useKeyboardShortcut('/', () => setShowSearch(true), { preventDefault: true });
   useKeyboardShortcut('Escape', () => {
@@ -352,7 +363,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         </div>
       )}
 
-      {showImport && !collapsed && (<ImportPanel onClose={() => setShowImport(false)} />)}
+      {showImport && !collapsed && (<ImportPanel onClose={() => setShowImport(false)} workspacePath={workspacePath} />)}
       {showLegend && !collapsed && (<Legend onClose={() => setShowLegend(false)} />)}
 
       {selectedNodeData && !collapsed && (
