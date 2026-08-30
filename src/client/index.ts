@@ -5,7 +5,7 @@ import { GraphPanel } from './GraphPanel.tsx';
 import { useGraphStore } from './store/graphStore.ts';
 import { GraphIcon } from './components/Icons.tsx';
 import { scoped } from './services/Logger.ts';
-import type { GraphUpdatedEvent, GraphDataEvent, GraphData } from '../types/index.ts';
+import type { GraphUpdatedEvent, GraphDataEvent, GraphData, PrerequisiteStatusEvent, GraphInitResultEvent } from '../types/index.ts';
 
 const log = scoped('client');
 
@@ -179,6 +179,20 @@ export function apply(ctx: Context) {
     log.info('graph data received', { repoId: event.repoId, nodes: event.nodes.length, edges: event.edges.length });
   });
 
+  // Prerequisite status: update store so the UI can show guidance banner.
+  ctx.on('codegraph/prerequisite/status', (event: PrerequisiteStatusEvent) => {
+    const store = useGraphStore.getState();
+    store.setPrerequisites({ codegraph: event.codegraph, lens: event.lens });
+    log.info('prerequisite status received', event);
+  });
+
+  // Init result: update store with success/failure status.
+  ctx.on('codegraph/graph/init-result', (event: GraphInitResultEvent) => {
+    const store = useGraphStore.getState();
+    store.setInitStatus(event.success ? 'done' : 'error', event.message);
+    log.info('init result', { success: event.success, path: event.path });
+  });
+
   // Client-side event listeners for panel-initiated actions. Native window
   // listeners are registered through ctx.effect() so they are removed when
   // the plugin fiber disposes (red line 1: register-as-effect, J13 no-leak).
@@ -202,13 +216,33 @@ export function apply(ctx: Context) {
       log.info('import-repo forwarded', { path: detail.path });
     };
 
+    const initGraphListener = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { path: string };
+      const store = useGraphStore.getState();
+      store.setInitStatus('initializing');
+      ctx.emit('codegraph/graph/init', { path: detail.path, timestamp: Date.now() });
+      log.info('init-graph forwarded', { path: detail.path });
+    };
+
+    const toggleWatchListener = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { enabled: boolean; path: string };
+      const store = useGraphStore.getState();
+      store.setWatchEnabled(detail.enabled);
+      ctx.emit('codegraph/watch/toggle', { enabled: detail.enabled, path: detail.path, timestamp: Date.now() });
+      log.info('toggle-watch forwarded', { enabled: detail.enabled, path: detail.path });
+    };
+
     window.addEventListener('codegraph:refresh', refreshListener);
     window.addEventListener('codegraph:open-source', openSourceListener);
     window.addEventListener('codegraph:import-repo', importRepoListener);
+    window.addEventListener('codegraph:init-graph', initGraphListener);
+    window.addEventListener('codegraph:toggle-watch', toggleWatchListener);
     ctx.effect(() => () => {
       window.removeEventListener('codegraph:refresh', refreshListener);
       window.removeEventListener('codegraph:open-source', openSourceListener);
       window.removeEventListener('codegraph:import-repo', importRepoListener);
+      window.removeEventListener('codegraph:init-graph', initGraphListener);
+      window.removeEventListener('codegraph:toggle-watch', toggleWatchListener);
     });
   }
 

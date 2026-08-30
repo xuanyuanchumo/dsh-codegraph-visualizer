@@ -94,6 +94,14 @@ const en: Dict = {
   'import.importFailed': 'Import failed: {msg}',
   'import.requestedScan': 'Requested scan of {path}',
   'import.fileReadError': 'File read error',
+  'import.prereqMissing': 'Prerequisite plugins (dsh-codegraph or dsh-tool-lens) not detected. Install one for full functionality.',
+  'import.initGraph': 'Initialize Graph',
+  'import.initializing': 'Initializing…',
+  'import.initStarted': 'Initializing graph for {path}',
+  'import.initSuccess': 'Graph initialized successfully',
+  'import.initFailed': 'Initialization failed — check prerequisite plugins',
+  'import.watchOn': 'Auto Refresh: ON',
+  'import.watchOff': 'Auto Refresh: OFF',
 
   // Legend
   'legend.title': 'Legend',
@@ -204,6 +212,14 @@ const zh: Dict = {
   'import.importFailed': '导入失败: {msg}',
   'import.requestedScan': '已请求扫描 {path}',
   'import.fileReadError': '文件读取错误',
+  'import.prereqMissing': '未检测到前置插件 (dsh-codegraph 或 dsh-tool-lens)。请安装其一以获得完整功能。',
+  'import.initGraph': '初始化图谱',
+  'import.initializing': '初始化中…',
+  'import.initStarted': '正在为 {path} 初始化图谱',
+  'import.initSuccess': '图谱初始化成功',
+  'import.initFailed': '初始化失败 — 请检查前置插件',
+  'import.watchOn': '热更新: 开启',
+  'import.watchOff': '热更新: 关闭',
 
   // Legend
   'legend.title': '图例',

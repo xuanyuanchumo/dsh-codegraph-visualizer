@@ -44,6 +44,16 @@ interface GraphState {
   isLoading: boolean;
   error: string | null;
   lastUpdated: number;
+
+  // Prerequisite plugin status
+  prerequisites: { codegraph: boolean; lens: boolean };
+
+  // Init status: idle | initializing | done | error
+  initStatus: 'idle' | 'initializing' | 'done' | 'error';
+  initMessage: string | null;
+
+  // Hot-update watch toggle
+  watchEnabled: boolean;
   
   // Actions
   setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string) => void;
@@ -56,6 +66,9 @@ interface GraphState {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clearGraph: () => void;
+  setPrerequisites: (status: { codegraph: boolean; lens: boolean }) => void;
+  setInitStatus: (status: 'idle' | 'initializing' | 'done' | 'error', message?: string | null) => void;
+  setWatchEnabled: (enabled: boolean) => void;
 }
 
 export const useGraphStore = create<GraphState>()(
@@ -73,6 +86,10 @@ export const useGraphStore = create<GraphState>()(
       isLoading: false,
       error: null,
       lastUpdated: 0,
+      prerequisites: { codegraph: false, lens: false },
+      initStatus: 'idle',
+      initMessage: null,
+      watchEnabled: false,
 
       // Arriving data always clears the loading flag (fixes the stuck-overlay bug).
       setGraphData: (nodes, edges, repoId) => {
@@ -86,8 +103,6 @@ export const useGraphStore = create<GraphState>()(
       setHighlightedNodes: (highlightedNodeIds) => set({ highlightedNodeIds }),
       setFilterType: (filterType) => set({ filterType }),
       setLoading: (isLoading) => {
-        // A new request refreshes the fail-safe window; a real completion or
-        // error path cancels it entirely.
         clearLoadingFailsafe();
         set({ isLoading });
         if (isLoading) {
@@ -107,6 +122,9 @@ export const useGraphStore = create<GraphState>()(
         clearLoadingFailsafe();
         set({ nodes: [], edges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0 });
       },
+      setPrerequisites: (prerequisites) => set({ prerequisites }),
+      setInitStatus: (initStatus, initMessage = null) => set({ initStatus, initMessage }),
+      setWatchEnabled: (watchEnabled) => set({ watchEnabled }),
     }),
     {
       // J10 personalization: persist UI preferences only (versioned schema).

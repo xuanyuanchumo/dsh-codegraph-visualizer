@@ -9,7 +9,7 @@ import { Legend } from './components/Legend.tsx';
 import {
   GraphIcon, SearchIcon, ChainIcon, CycleIcon, MapIcon, RefreshIcon,
   SunIcon, MoonIcon, DownloadIcon, ChevronDownIcon, ChevronUpIcon,
-  CloseIcon, UploadIcon, LayersIcon,
+  CloseIcon, UploadIcon, LayersIcon, AlertIcon,
 } from './components/Icons.tsx';
 import { scoped } from './services/Logger.ts';
 import { useT, useLang, toggleLang } from './i18n/index.ts';
@@ -46,6 +46,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const {
     nodes, edges, layout, theme, searchQuery, selectedNodeId,
     highlightedNodeIds, filterType, isLoading, error, lastUpdated,
+    prerequisites, watchEnabled,
     setLayout, setTheme, setSearchQuery,
     setSelectedNode, setFilterType, setLoading,
   } = useGraphStore();
@@ -357,6 +358,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           <GraphIcon size={48} className="empty-icon" />
           <span className="empty-title">{t('empty.title')}</span>
           <span className="empty-subtitle">{t('empty.subtitle')}</span>
+          {(!prerequisites.codegraph && !prerequisites.lens) && (
+            <div className="empty-prereq-warning">
+              <AlertIcon size={14} />
+              <span>{t('import.prereqMissing')}</span>
+            </div>
+          )}
           <button className="empty-import-btn" onClick={() => setShowImport(true)}>
             <UploadIcon size={15} /> {t('empty.import')}
           </button>
@@ -422,6 +429,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         <div className="status-item">
           <span className={statusDotClass} /><span>{statusText}</span>
         </div>
+        {watchEnabled && <span className="watch-indicator" title={t('import.watchOn')}>●</span>}
         <div className="status-spacer" />
         <div className="status-item">
           <span className="status-time">{lastUpdated > 0 ? t('state.updated', { time: formatTime(lastUpdated) }) : t('state.noData')}</span>

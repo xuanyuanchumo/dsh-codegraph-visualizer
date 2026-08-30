@@ -97,3 +97,13 @@ export const AlertIcon = ({ size = 16, className }: IconProps) => (
 export const LayersIcon = ({ size = 16, className }: IconProps) => (
   <svg {...base(size)} className={className}><path d="m12 2 9 5-9 5-9-5 9-5Z" /><path d="m3 12 9 5 9-5" /><path d="m3 17 9 5 9-5" /></svg>
 );
+
+export const ZapIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z" /></svg>
+);
+
+export const WatchIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="12" cy="12" r="7" /><path d="M12 9v3l2 2" /><path d="M9 1h6M9 23h6" />
+  </svg>
+);

@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
 import { scoped } from '../services/Logger.ts';
 import { useT } from '../i18n/index.ts';
-import { UploadIcon, FolderIcon, CloseIcon, AlertIcon, RefreshIcon } from './Icons.tsx';
+import { UploadIcon, FolderIcon, CloseIcon, AlertIcon, RefreshIcon, ZapIcon, WatchIcon } from './Icons.tsx';
 import type { GraphNode, GraphEdge, NodeId, EdgeId, RepoId } from '../../types/index.ts';
 
 const log = scoped('import');
@@ -64,9 +64,14 @@ export function ImportPanel({ onClose, workspacePath }: ImportPanelProps) {
   const [pasteText, setPasteText] = useState('');
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
+  const [customPath, setCustomPath] = useState('');
   const setGraphData = useGraphStore(s => s.setGraphData);
   const setLoading = useGraphStore(s => s.setLoading);
   const setError = useGraphStore(s => s.setError);
+  const { prerequisites, initStatus, watchEnabled, setInitStatus, setWatchEnabled } = useGraphStore();
+
+  const effectivePath = customPath.trim() || workspacePath || '.';
+  const prereqMissing = !prerequisites.codegraph && !prerequisites.lens;
 
   const applyGraph = useCallback((text: string, source: string) => {
     setBusy(true);
@@ -96,12 +101,26 @@ export function ImportPanel({ onClose, workspacePath }: ImportPanelProps) {
     setBusy(true);
     setFeedback(null);
     setLoading(true);
-    const path = workspacePath || '.';
-    window.dispatchEvent(new CustomEvent('codegraph:import-repo', { detail: { path } }));
-    log.info('workspace scan requested', { path });
-    setFeedback({ kind: 'ok', msg: t('import.requestedScan', { path }) });
+    window.dispatchEvent(new CustomEvent('codegraph:import-repo', { detail: { path: effectivePath } }));
+    log.info('workspace scan requested', { path: effectivePath });
+    setFeedback({ kind: 'ok', msg: t('import.requestedScan', { path: effectivePath }) });
     setTimeout(() => { setBusy(false); onClose(); }, 900);
-  }, [workspacePath, setLoading, onClose, t]);
+  }, [effectivePath, setLoading, onClose, t]);
+
+  const handleInit = useCallback(() => {
+    setInitStatus('initializing');
+    setFeedback(null);
+    window.dispatchEvent(new CustomEvent('codegraph:init-graph', { detail: { path: effectivePath } }));
+    log.info('init requested', { path: effectivePath });
+    setFeedback({ kind: 'ok', msg: t('import.initStarted', { path: effectivePath }) });
+  }, [effectivePath, setInitStatus, t]);
+
+  const handleToggleWatch = useCallback(() => {
+    const next = !watchEnabled;
+    setWatchEnabled(next);
+    window.dispatchEvent(new CustomEvent('codegraph:toggle-watch', { detail: { enabled: next, path: effectivePath } }));
+    log.info('watch toggled', { enabled: next, path: effectivePath });
+  }, [watchEnabled, setWatchEnabled, effectivePath]);
 
   return (
     <div className="import-panel" role="dialog" aria-label={t('import.title')}>
@@ -109,6 +128,13 @@ export function ImportPanel({ onClose, workspacePath }: ImportPanelProps) {
         <span className="import-title">{t('import.title')}</span>
         <button className="import-close" onClick={onClose} aria-label={t('import.close')}><CloseIcon size={16} /></button>
       </div>
+
+      {prereqMissing && (
+        <div className="prereq-warning" role="alert">
+          <AlertIcon size={14} />
+          <span>{t('import.prereqMissing')}</span>
+        </div>
+      )}
 
       <div className="import-tabs" role="tablist">
         <button className={tab === 'workspace' ? 'active' : ''} onClick={() => setTab('workspace')} role="tab" aria-selected={tab === 'workspace'}>
@@ -126,11 +152,35 @@ export function ImportPanel({ onClose, workspacePath }: ImportPanelProps) {
               <FolderIcon size={16} className="workspace-path-icon" />
               <span className="workspace-path-label">{t('import.workspacePath')}</span>
             </div>
-            <div className="workspace-path-value">{workspacePath || '.'}</div>
+            <input
+              className="workspace-path-input"
+              type="text"
+              value={customPath}
+              onChange={(e) => setCustomPath(e.target.value)}
+              placeholder={workspacePath || '.'}
+              aria-label={t('import.workspacePath')}
+            />
             <span className="workspace-hint">{t('import.workspaceHint')}</span>
-            <button className="import-submit" onClick={handleWorkspaceScan} disabled={busy}>
-              <RefreshIcon size={14} /> {busy ? t('import.scanning') : t('import.scanWorkspace')}
+
+            <div className="workspace-actions">
+              <button className="import-submit" onClick={handleWorkspaceScan} disabled={busy}>
+                <RefreshIcon size={14} /> {busy ? t('import.scanning') : t('import.scanWorkspace')}
+              </button>
+              <button className="import-submit secondary" onClick={handleInit} disabled={initStatus === 'initializing'}>
+                <ZapIcon size={14} /> {initStatus === 'initializing' ? t('import.initializing') : t('import.initGraph')}
+              </button>
+            </div>
+
+            <button className={`watch-toggle ${watchEnabled ? 'active' : ''}`} onClick={handleToggleWatch}>
+              <WatchIcon size={14} /> {watchEnabled ? t('import.watchOn') : t('import.watchOff')}
             </button>
+
+            {initStatus === 'done' && (
+              <div className="init-feedback ok">{t('import.initSuccess')}</div>
+            )}
+            {initStatus === 'error' && (
+              <div className="init-feedback err">{t('import.initFailed')}</div>
+            )}
           </div>
         )}
 

@@ -88,6 +88,30 @@ export interface SourceOpenEvent {
   lineNumber: number;
 }
 
+export interface PrerequisiteStatusEvent {
+  codegraph: boolean;
+  lens: boolean;
+  timestamp: number;
+}
+
+export interface GraphInitEvent {
+  path: string;
+  timestamp: number;
+}
+
+export interface GraphInitResultEvent {
+  success: boolean;
+  path: string;
+  message: string;
+  timestamp: number;
+}
+
+export interface WatchToggleEvent {
+  enabled: boolean;
+  path: string;
+  timestamp: number;
+}
+
 // ---- Cordis event declaration merging ------------------------------------
 // These are emitted by the host plugin; Client/host listeners subscribe via
 // `ctx.on(...)`. Keep them writer-only so consumers never redefine the contract.
@@ -99,6 +123,10 @@ declare module '@deepseek-ai/cordis' {
     'codegraph/graph/updated'(event: GraphUpdatedEvent): void;
     'codegraph/graph/data'(event: GraphDataEvent): void;
     'codegraph/source/open'(event: SourceOpenEvent): void;
+    'codegraph/prerequisite/status'(event: PrerequisiteStatusEvent): void;
+    'codegraph/graph/init'(event: GraphInitEvent): void;
+    'codegraph/graph/init-result'(event: GraphInitResultEvent): void;
+    'codegraph/watch/toggle'(event: WatchToggleEvent): void;
   }
 }
 
