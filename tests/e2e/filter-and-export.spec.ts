@@ -1,6 +1,6 @@
 // E2E tests for J7-J8: 过滤器使用, 图谱导出
 import { test, expect } from '@playwright/test';
-import { setupPluginPage } from './helpers';
+import { setupPluginPage } from './helpers.ts';
 
 test.describe('J7: 过滤器使用', () => {
   test('should filter by function type', async ({ page }) => {

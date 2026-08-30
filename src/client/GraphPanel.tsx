@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import { useGraphStore, type LayoutType, type ThemeType } from './store/graphStore.js';
-import { CytoscapeRenderer } from './renderer/CytoscapeRenderer.js';
-import type { NodeId, GraphNode } from '../types/index.js';
-import { useDebounce, useKeyboardShortcut, usePolling } from './hooks/index.js';
-import { GraphErrorBoundary } from './components/ErrorBoundary.js';
+import { useGraphStore, type LayoutType, type ThemeType } from './store/graphStore.ts';
+import { CytoscapeRenderer } from './renderer/CytoscapeRenderer.ts';
+import type { NodeId, GraphNode } from '../types/index.ts';
+import { useDebounce, useKeyboardShortcut, usePolling } from './hooks/index.ts';
+import { GraphErrorBoundary } from './components/ErrorBoundary.ts';
 import './styles.css';
 
 interface GraphPanelProps {

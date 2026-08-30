@@ -1,6 +1,6 @@
 // E2E tests for J3-J5: 符号搜索与定位, 调用链追踪, 依赖拓扑分析
 import { test, expect } from '@playwright/test';
-import { setupPluginPage } from './helpers';
+import { setupPluginPage } from './helpers.ts';
 
 test.describe('J3: 符号搜索与定位', () => {
   test('should open search with search button', async ({ page }) => {

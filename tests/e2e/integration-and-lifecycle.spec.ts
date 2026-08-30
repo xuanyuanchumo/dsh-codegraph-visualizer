@@ -1,6 +1,6 @@
 // E2E tests for J11, J13, J14: 多数据源切换, 插件生命周期合规, 生态集成验证
 import { test, expect } from '@playwright/test';
-import { setupPluginPage } from './helpers';
+import { setupPluginPage } from './helpers.ts';
 
 test.describe('J11: 多数据源切换', () => {
   test('should display source status', async ({ page }) => {
