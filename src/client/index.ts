@@ -4,7 +4,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import { GraphPanel } from './GraphPanel.tsx';
 import { useGraphStore } from './store/graphStore.ts';
 import { GraphIcon } from './components/Icons.tsx';
-import { scoped } from './services/Logger.ts';
+import { scoped } from '../shared/Logger.ts';
 import type { GraphUpdatedEvent, GraphDataEvent, GraphData, PrerequisiteStatusEvent, GraphInitResultEvent } from '../types/index.ts';
 
 const log = scoped('client');

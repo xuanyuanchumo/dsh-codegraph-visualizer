@@ -57,6 +57,10 @@ const en: Dict = {
   'empty.subtitle': 'Import a .codegraph folder, paste graph data, or scan a repository.',
   'empty.import': 'Import Graph',
 
+  // Error boundary
+  'error.title': 'Something went wrong',
+  'error.retry': 'Retry',
+
   // Node detail
   'detail.ariaLabel': 'Node details',
   'detail.close': 'Close details',
@@ -175,6 +179,10 @@ const zh: Dict = {
   'empty.title': '暂无图谱数据',
   'empty.subtitle': '导入 .codegraph 文件夹、粘贴图谱数据或扫描仓库。',
   'empty.import': '导入图谱',
+
+  // Error boundary
+  'error.title': '出错了',
+  'error.retry': '重试',
 
   // Node detail
   'detail.ariaLabel': '节点详情',

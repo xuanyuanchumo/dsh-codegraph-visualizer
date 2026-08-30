@@ -1,5 +1,6 @@
 // Error boundary for graph visualization components
 import React, { Component, type ErrorInfo, type ReactNode } from 'react';
+import { t } from '../i18n/index.ts';
 
 interface Props {
   children: ReactNode;
@@ -35,13 +36,13 @@ export class GraphErrorBoundary extends Component<Props, State> {
 
       return (
         <div className="error-boundary-fallback" role="alert">
-          <h3>Something went wrong</h3>
+          <h3>{t('error.title')}</h3>
           <p>{this.state.error?.message}</p>
           <button
             onClick={() => this.setState({ hasError: false, error: null })}
-            aria-label="Retry"
+            aria-label={t('error.retry')}
           >
-            Retry
+            {t('error.retry')}
           </button>
         </div>
       );
@@ -49,13 +50,4 @@ export class GraphErrorBoundary extends Component<Props, State> {
 
     return this.props.children;
   }
-}
-
-// Functional component error boundary alternative using React 19 error hooks
-export function useErrorBoundary(): {
-  error: Error | null;
-  setError: (error: Error | null) => void;
-} {
-  const [error, setError] = React.useState<Error | null>(null);
-  return { error, setError };
 }

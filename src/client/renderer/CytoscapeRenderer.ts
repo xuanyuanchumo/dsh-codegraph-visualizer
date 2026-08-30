@@ -4,10 +4,6 @@ import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
 
 cytoscape.use(dagre);
 
-interface SvgExtension {
-  svg(options: { full?: boolean }): string;
-}
-
 
 export interface CytoscapeRendererOptions {
   container: HTMLElement;
@@ -350,10 +346,6 @@ export class CytoscapeRenderer {
     return this.cy.png({ full: true, scale: 2 });
   }
 
-  exportSVG(): string | null {
-    if (!this.cy) return null;
-    return (this.cy as unknown as SvgExtension).svg({ full: true });
-  }
 
   getSelectedNodeData(): GraphNode | null {
     if (!this.cy) return null;

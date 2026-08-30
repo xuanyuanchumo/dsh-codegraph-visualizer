@@ -1,11 +1,14 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
-import { scoped } from '../services/Logger.ts';
+import { useShallow } from 'zustand/shallow';
+import { scoped } from '../../shared/Logger.ts';
 import { useT } from '../i18n/index.ts';
 import { UploadIcon, FolderIcon, CloseIcon, AlertIcon, RefreshIcon, ZapIcon, WatchIcon } from './Icons.tsx';
 import type { GraphNode, GraphEdge, NodeId, EdgeId, RepoId } from '../../types/index.ts';
 
 const log = scoped('import');
+
+const MAX_PASTE_BYTES = 10 * 1024 * 1024;
 
 type ImportTab = 'workspace' | 'paste';
 
@@ -68,7 +71,13 @@ export function ImportPanel({ onClose, workspacePath }: ImportPanelProps) {
   const setGraphData = useGraphStore(s => s.setGraphData);
   const setLoading = useGraphStore(s => s.setLoading);
   const setError = useGraphStore(s => s.setError);
-  const { prerequisites, initStatus, watchEnabled, setInitStatus, setWatchEnabled } = useGraphStore();
+  const { prerequisites, initStatus, watchEnabled, setInitStatus, setWatchEnabled } = useGraphStore(useShallow((s) => ({
+    prerequisites: s.prerequisites, initStatus: s.initStatus, watchEnabled: s.watchEnabled,
+    setInitStatus: s.setInitStatus, setWatchEnabled: s.setWatchEnabled,
+  })));
+
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => { timersRef.current.forEach(clearTimeout); }, []);
 
   const effectivePath = customPath.trim() || workspacePath || '.';
   const prereqMissing = !prerequisites.codegraph && !prerequisites.lens;
@@ -77,11 +86,12 @@ export function ImportPanel({ onClose, workspacePath }: ImportPanelProps) {
     setBusy(true);
     setFeedback(null);
     try {
+      if (text.length > MAX_PASTE_BYTES) throw new Error(`JSON exceeds ${MAX_PASTE_BYTES / 1024 / 1024}MB limit`);
       const { nodes, edges, repoId } = parseGraphJson(text);
       setGraphData(nodes, edges, repoId);
       log.info(`imported from ${source}`, { nodes: nodes.length, edges: edges.length });
       setFeedback({ kind: 'ok', msg: t('import.imported', { nodes: nodes.length, edges: edges.length }) });
-      setTimeout(onClose, 700);
+      timersRef.current.push(setTimeout(onClose, 700));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       log.error(`import failed from ${source}`, msg);
@@ -104,7 +114,7 @@ export function ImportPanel({ onClose, workspacePath }: ImportPanelProps) {
     window.dispatchEvent(new CustomEvent('codegraph:import-repo', { detail: { path: effectivePath } }));
     log.info('workspace scan requested', { path: effectivePath });
     setFeedback({ kind: 'ok', msg: t('import.requestedScan', { path: effectivePath }) });
-    setTimeout(() => { setBusy(false); onClose(); }, 900);
+    timersRef.current.push(setTimeout(() => { setBusy(false); onClose(); }, 900));
   }, [effectivePath, setLoading, onClose, t]);
 
   const handleInit = useCallback(() => {

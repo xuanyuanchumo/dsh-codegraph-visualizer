@@ -10,6 +10,7 @@ type MockCtx = Context & {
   };
   on: ReturnType<typeof vi.fn>;
   emit: ReturnType<typeof vi.fn>;
+  effect: ReturnType<typeof vi.fn>;
 };
 
 function makeMockCtx(): MockCtx {
@@ -20,6 +21,7 @@ function makeMockCtx(): MockCtx {
     },
     on: vi.fn(),
     emit: vi.fn(),
+    effect: vi.fn(),
   } as unknown as MockCtx;
 }
 

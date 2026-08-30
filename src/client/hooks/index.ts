@@ -17,19 +17,7 @@ export function useDebounce<T>(value: T, delay: number): T {
 }
 
 /**
- * Track previous value for comparison.
- */
-export function usePrevious<T>(value: T): T | undefined {
-  const ref = useRef<T | undefined>(undefined);
 
-  useEffect(() => {
-    ref.current = value;
-  }, [value]);
-
-  return ref.current;
-}
-
-/**
  * Keyboard shortcut handler.
  * Use case: Ctrl+L for layout switch, / for search, etc.
  */
@@ -104,24 +92,4 @@ export function usePolling(
 
     return () => clearInterval(id);
   }, [interval, enabled]);
-}
-
-/**
- * Media query hook for responsive design.
- */
-export function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const media = window.matchMedia(query);
-    setMatches(media.matches);
-
-    const listener = (e: MediaQueryListEvent) => setMatches(e.matches);
-    media.addEventListener('change', listener);
-    return () => media.removeEventListener('change', listener);
-  }, [query]);
-
-  return matches;
 }

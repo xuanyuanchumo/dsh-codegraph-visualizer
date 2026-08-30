@@ -86,9 +86,6 @@ export const FolderIcon = ({ size = 16, className }: IconProps) => (
   <svg {...base(size)} className={className}><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" /></svg>
 );
 
-export const FileIcon = ({ size = 16, className }: IconProps) => (
-  <svg {...base(size)} className={className}><path d="M14 2v6h6" /><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /></svg>
-);
 
 export const AlertIcon = ({ size = 16, className }: IconProps) => (
   <svg {...base(size)} className={className}><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" /><path d="M12 9v4M12 17h.01" /></svg>

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useGraphStore, type LayoutType, type ThemeType } from './store/graphStore.ts';
+import { useShallow } from 'zustand/shallow';
 import { CytoscapeRenderer } from './renderer/CytoscapeRenderer.ts';
 import type { NodeId, GraphNode } from '../types/index.ts';
 import { useDebounce, useKeyboardShortcut, usePolling } from './hooks/index.ts';
@@ -11,7 +12,7 @@ import {
   SunIcon, MoonIcon, DownloadIcon, ChevronDownIcon, ChevronUpIcon,
   CloseIcon, UploadIcon, LayersIcon, AlertIcon,
 } from './components/Icons.tsx';
-import { scoped } from './services/Logger.ts';
+import { scoped } from '../shared/Logger.ts';
 import { useT, useLang, toggleLang } from './i18n/index.ts';
 import './styles.css';
 
@@ -49,7 +50,15 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     prerequisites, watchEnabled,
     setLayout, setTheme, setSearchQuery,
     setSelectedNode, setFilterType, setLoading,
-  } = useGraphStore();
+  } = useGraphStore(useShallow((s) => ({
+    nodes: s.nodes, edges: s.edges, layout: s.layout, theme: s.theme,
+    searchQuery: s.searchQuery, selectedNodeId: s.selectedNodeId,
+    highlightedNodeIds: s.highlightedNodeIds, filterType: s.filterType,
+    isLoading: s.isLoading, error: s.error, lastUpdated: s.lastUpdated,
+    prerequisites: s.prerequisites, watchEnabled: s.watchEnabled,
+    setLayout: s.setLayout, setTheme: s.setTheme, setSearchQuery: s.setSearchQuery,
+    setSelectedNode: s.setSelectedNode, setFilterType: s.setFilterType, setLoading: s.setLoading,
+  })));
 
   const [showSearch, setShowSearch] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -194,14 +203,13 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     rendererRef.current?.updateTheme(newTheme);
   }, [theme, setTheme]);
 
-  const handleExport = useCallback((format: 'png' | 'svg' | 'json') => {
+  const handleExport = useCallback((format: 'png' | 'json') => {
     const renderer = rendererRef.current;
     if (!renderer) return;
     let data: string | null = null;
     let mimeType = 'application/json';
     let extension = 'json';
     if (format === 'png') { data = renderer.exportPNG(); mimeType = 'image/png'; extension = 'png'; }
-    else if (format === 'svg') { data = renderer.exportSVG(); mimeType = 'image/svg+xml'; extension = 'svg'; }
     else { data = renderer.exportJSON(); }
     if (data) {
       const blob = new Blob([data], { type: mimeType });
@@ -317,13 +325,13 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
             {showExportMenu && (
               <div className="export-dropdown" role="menu">
                 <button onClick={() => handleExport('png')} role="menuitem">{t('export.png')}</button>
-                <button onClick={() => handleExport('svg')} role="menuitem">{t('export.svg')}</button>
+
                 <button onClick={() => handleExport('json')} role="menuitem">{t('export.json')}</button>
               </div>
             )}
           </div>
 
-          <button className="collapse-btn" onClick={handleCollapse} title={collapsed ? t('panel.collapse') : t('panel.collapse')}
+          <button className="collapse-btn" onClick={handleCollapse} title={collapsed ? t('panel.expand') : t('panel.collapse')}
             aria-label={collapsed ? t('panel.expandPanel') : t('panel.collapsePanel')}>
             {collapsed ? <ChevronUpIcon size={15} /> : <ChevronDownIcon size={15} />}
           </button>

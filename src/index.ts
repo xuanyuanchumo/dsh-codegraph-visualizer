@@ -1,8 +1,9 @@
 // DSH codegraph visualizer plugin — host entry point.
 // Compliant bundle plugin shape: `name` + `inject` + `apply(ctx)`.
 import type { Context } from '@deepseek-ai/cordis';
+import { watch } from 'node:fs';
 import { createGraphTools, fetchMergedGraph } from './tools.ts';
-import { scoped } from './client/services/Logger.ts';
+import { scoped } from './shared/Logger.ts';
 
 const log = scoped('host');
 
@@ -46,7 +47,8 @@ export function apply(ctx: Context) {
   };
   emitPrereqStatus();
   // Re-check after a delay — upstream plugins may register later.
-  setTimeout(emitPrereqStatus, 3000);
+  const prereqTimer = setTimeout(emitPrereqStatus, 3000);
+  ctx.effect(() => () => clearTimeout(prereqTimer), 'codegraph: prereq re-check timer');
 
   // ── Heat-update (push) ─────────────────────────────────────────────
   ctx.on('codegraph/repo/imported', (event) => {
@@ -141,7 +143,7 @@ export function apply(ctx: Context) {
 
     log.info('watch enabled', { path: event.path });
     try {
-      const { watch } = require('node:fs');
+
       const watcher = watch(event.path, { recursive: true }, (_eventType: string, filename: string | null) => {
         // Ignore .codegraph internal changes to avoid feedback loops
         if (filename && filename.includes('.codegraph')) return;

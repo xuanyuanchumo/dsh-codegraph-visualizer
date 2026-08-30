@@ -9,7 +9,8 @@ import { GraphDataMerger } from './merger/GraphDataMerger.ts';
 import type { AdapterResult, GraphData, GraphUpdatedEvent, GraphDataEvent, RepoId } from './types/index.ts';
 import { RepoId as makeRepoId } from './types/index.ts';
 
-export type UpstreamInvoker = (tool: string, args: Record<string, unknown>) => Promise<unknown | null>;
+export type { UpstreamInvoker } from './adapters/CodeGraphAdapter.ts';
+import type { UpstreamInvoker } from './adapters/CodeGraphAdapter.ts';
 
 const codegraphAdapter = new CodeGraphAdapter();
 const lensAdapter = new LensAdapter();
