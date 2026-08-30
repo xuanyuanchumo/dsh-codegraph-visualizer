@@ -3,7 +3,7 @@ import { useGraphStore, type LayoutType, type ThemeType } from './store/graphSto
 import { CytoscapeRenderer } from './renderer/CytoscapeRenderer.ts';
 import type { NodeId, GraphNode } from '../types/index.ts';
 import { useDebounce, useKeyboardShortcut, usePolling } from './hooks/index.ts';
-import { GraphErrorBoundary } from './components/ErrorBoundary.ts';
+import { GraphErrorBoundary } from './components/ErrorBoundary.tsx';
 import './styles.css';
 
 interface GraphPanelProps {

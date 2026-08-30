@@ -45,11 +45,20 @@ export function useKeyboardShortcut(
   } = {}
 ): void {
   const { ctrl = false, meta = false, alt = false, shift = false, preventDefault = true } = options;
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      // Allow Escape and '/' in all contexts (including inputs)
+      const isEscape = e.key === 'Escape';
+      const isSlash = e.key === '/';
+      
+      // Skip other shortcuts when user is typing in an input/textarea
+      if (!isEscape && !isSlash) {
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      }
 
       const keyMatch = e.key === key;
       const ctrlMatch = !ctrl || e.ctrlKey;
@@ -59,13 +68,15 @@ export function useKeyboardShortcut(
 
       if (keyMatch && ctrlMatch && metaMatch && altMatch && shiftMatch) {
         if (preventDefault) e.preventDefault();
-        callback();
+        callbackRef.current();
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown, { passive: !preventDefault });
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [key, ctrl, meta, alt, shift, preventDefault, callback]);
+    // Listen on document to catch events after React's synthetic event system
+    // Use bubbling phase (not capture) to allow React to process events first
+    document.addEventListener('keydown', handleKeyDown, { passive: !preventDefault });
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [key, ctrl, meta, alt, shift, preventDefault]);
 }
 
 /**

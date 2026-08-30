@@ -1,8 +1,9 @@
 import React from 'react';
+import ReactDOM from 'react-dom/client';
 import type { Context } from '@deepseek-ai/cordis';
 import { GraphPanel } from './GraphPanel.tsx';
 import { useGraphStore } from './store/graphStore.ts';
-import type { GraphUpdatedEvent } from '../types/index.ts';
+import type { GraphUpdatedEvent, GraphData } from '../types/index.ts';
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -38,6 +39,16 @@ declare const __ModuleLoader__: ModuleLoader | undefined;
 
 export const name = 'dsh-codegraph-visualizer-client';
 export const inject = ['slots', '?betterSidebar', '?spotlight'];
+
+// Standalone initialization for dev server / testing environments.
+export function init(container: HTMLElement, initialData?: GraphData): void {
+  const root = ReactDOM.createRoot(container);
+  if (initialData) {
+    const store = useGraphStore.getState();
+    store.setGraphData(initialData.nodes, initialData.edges, initialData.metadata.repoId);
+  }
+  root.render(React.createElement(GraphPanel));
+}
 
 export function apply(ctx: Context) {
   // Primary: register as a shell overlay panel.
