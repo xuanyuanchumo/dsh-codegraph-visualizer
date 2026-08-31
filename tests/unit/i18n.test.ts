@@ -79,4 +79,25 @@ describe('i18n lang persistence (J10)', () => {
     setLang('zh');
     expect(() => t('state.updated', { time: '10:00' })).not.toThrow();
   });
+
+  // ── Workspace i18n (cycle-14) ───────────────────────────────────────
+  it('should translate workspace keys in zh', () => {
+    setLang('zh');
+    expect(t('workspace.title')).toBe('工作区');
+    expect(t('workspace.current')).toBe('当前工作区');
+    expect(t('workspace.switch')).toBe('切换工作区');
+    expect(t('workspace.add')).toBe('添加工作区');
+    expect(t('workspace.empty')).toBe('暂无工作区');
+    expect(t('workspace.default')).toBe('默认');
+  });
+
+  it('should translate workspace keys in en', () => {
+    setLang('en');
+    expect(t('workspace.title')).toBe('Workspace');
+    expect(t('workspace.current')).toBe('Current Workspace');
+    expect(t('workspace.switch')).toBe('Switch Workspace');
+    expect(t('workspace.add')).toBe('Add Workspace');
+    expect(t('workspace.empty')).toBe('No workspaces yet');
+    expect(t('workspace.default')).toBe('Default');
+  });
 });

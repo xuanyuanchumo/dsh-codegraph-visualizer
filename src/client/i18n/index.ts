@@ -131,6 +131,44 @@ const en: Dict = {
   'export.png': 'PNG',
   'export.svg': 'SVG',
   'export.json': 'JSON',
+
+  // Workspace
+  'workspace.title': 'Workspace',
+  'workspace.current': 'Current Workspace',
+  'workspace.switch': 'Switch Workspace',
+  'workspace.add': 'Add Workspace',
+  'workspace.remove': 'Remove',
+  'workspace.empty': 'No workspaces yet',
+  'workspace.namePlaceholder': 'Workspace path or name',
+  'workspace.addHint': 'Enter a path and press Enter to add',
+  'workspace.active': 'Active',
+  'workspace.lastUsed': 'Last used',
+  'workspace.default': 'Default',
+
+  // Prerequisite plugin install commands
+  'prereq.installCodegraph': 'dsh plugin add dsh-codegraph',
+  'prereq.installLens': 'dsh plugin add dsh-tool-lens',
+  'prereq.installTitle': 'Install Prerequisite Plugin',
+  'prereq.detecting': 'Detecting prerequisite plugins…',
+  'prereq.found': 'Prerequisite plugin detected',
+  'prereq.notFound': 'Not detected',
+
+  // Graph initialization
+  'graph.init': 'Initialize Graph',
+  'graph.initializing': 'Initializing graph…',
+  'graph.initSuccess': 'Graph initialized successfully',
+  'graph.initFailed': 'Initialization failed',
+  'graph.refresh': 'Refresh',
+  'graph.hotUpdate': 'Hot Update',
+  'graph.hotUpdateOn': 'Auto refresh: ON',
+  'graph.hotUpdateOff': 'Auto refresh: OFF',
+
+  // Enhanced empty state
+  'empty.prereqTitle': 'Prerequisite Plugin Required',
+  'empty.prereqDesc': 'Install dsh-codegraph or dsh-tool-lens for full functionality:',
+  'empty.copyCmd': 'Copy install command',
+  'empty.copied': 'Copied!',
+  'empty.scanWorkspace': 'Scan Current Workspace',
 };
 
 const zh: Dict = {
@@ -256,6 +294,44 @@ const zh: Dict = {
   'export.png': 'PNG',
   'export.svg': 'SVG',
   'export.json': 'JSON',
+
+  // Workspace
+  'workspace.title': '工作区',
+  'workspace.current': '当前工作区',
+  'workspace.switch': '切换工作区',
+  'workspace.add': '添加工作区',
+  'workspace.remove': '移除',
+  'workspace.empty': '暂无工作区',
+  'workspace.namePlaceholder': '工作区路径或名称',
+  'workspace.addHint': '输入路径后按回车添加',
+  'workspace.active': '活跃',
+  'workspace.lastUsed': '上次使用',
+  'workspace.default': '默认',
+
+  // 前置插件安装命令
+  'prereq.installCodegraph': 'dsh plugin add dsh-codegraph',
+  'prereq.installLens': 'dsh plugin add dsh-tool-lens',
+  'prereq.installTitle': '安装前置插件',
+  'prereq.detecting': '正在检测前置插件…',
+  'prereq.found': '已检测到前置插件',
+  'prereq.notFound': '未检测到',
+
+  // 图谱初始化
+  'graph.init': '初始化图谱',
+  'graph.initializing': '正在初始化图谱…',
+  'graph.initSuccess': '图谱初始化成功',
+  'graph.initFailed': '初始化失败',
+  'graph.refresh': '刷新',
+  'graph.hotUpdate': '热更新',
+  'graph.hotUpdateOn': '自动刷新: 开启',
+  'graph.hotUpdateOff': '自动刷新: 关闭',
+
+  // 增强空状态
+  'empty.prereqTitle': '需要前置插件',
+  'empty.prereqDesc': '安装 dsh-codegraph 或 dsh-tool-lens 以获得完整功能：',
+  'empty.copyCmd': '复制安装命令',
+  'empty.copied': '已复制！',
+  'empty.scanWorkspace': '扫描当前工作区',
 };
 
 const dicts: Record<Lang, Dict> = { zh, en };

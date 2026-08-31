@@ -1,4 +1,4 @@
-﻿# DSH CodeGraph Visualizer 安装脚本
+﻿﻿# DSH CodeGraph Visualizer 安装脚本
 # 用于在 DSH web profile 中安装本插件
 
 param(

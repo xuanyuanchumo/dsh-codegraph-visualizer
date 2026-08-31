@@ -14,6 +14,12 @@ const memoryStorage: StateStorage = {
 export type LayoutType = 'cose' | 'dagre' | 'circle' | 'grid';
 export type ThemeType = 'light' | 'dark';
 
+export interface WorkspaceInfo {
+  path: string;
+  name: string;
+  lastUsed: number;
+}
+
 // Fail-safe window after which a stuck `isLoading` flag self-resets, so the
 // loading overlay can never hang forever when no data arrives (J9/J12).
 const LOADING_FAILSAFE_MS = 2000;
@@ -54,7 +60,11 @@ interface GraphState {
 
   // Hot-update watch toggle
   watchEnabled: boolean;
-  
+
+  // Workspace management
+  currentWorkspace: string;
+  workspaceList: WorkspaceInfo[];
+
   // Actions
   setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string) => void;
   setLayout: (layout: LayoutType) => void;
@@ -69,6 +79,9 @@ interface GraphState {
   setPrerequisites: (status: { codegraph: boolean; lens: boolean }) => void;
   setInitStatus: (status: 'idle' | 'initializing' | 'done' | 'error', message?: string | null) => void;
   setWatchEnabled: (enabled: boolean) => void;
+  setCurrentWorkspace: (path: string) => void;
+  addWorkspace: (path: string, name?: string) => void;
+  removeWorkspace: (path: string) => void;
 }
 
 export const useGraphStore = create<GraphState>()(
@@ -90,6 +103,8 @@ export const useGraphStore = create<GraphState>()(
       initStatus: 'idle',
       initMessage: null,
       watchEnabled: false,
+      currentWorkspace: '.',
+      workspaceList: [],
 
       // Arriving data always clears the loading flag (fixes the stuck-overlay bug).
       setGraphData: (nodes, edges, repoId) => {
@@ -125,28 +140,49 @@ export const useGraphStore = create<GraphState>()(
       setPrerequisites: (prerequisites) => set({ prerequisites }),
       setInitStatus: (initStatus, initMessage = null) => set({ initStatus, initMessage }),
       setWatchEnabled: (watchEnabled) => set({ watchEnabled }),
+      setCurrentWorkspace: (path) => set({ currentWorkspace: path }),
+      addWorkspace: (path, name) => set((s) => {
+        const wsName = name ?? path.split(/[\\/]/).pop() ?? path;
+        const existing = s.workspaceList.filter((w) => w.path !== path);
+        return {
+          currentWorkspace: path,
+          workspaceList: [{ path, name: wsName, lastUsed: Date.now() }, ...existing].slice(0, 10),
+        };
+      }),
+      removeWorkspace: (path) => set((s) => ({
+        workspaceList: s.workspaceList.filter((w) => w.path !== path),
+        currentWorkspace: s.currentWorkspace === path ? '.' : s.currentWorkspace,
+      })),
     }),
     {
       // J10 personalization: persist UI preferences only (versioned schema).
       name: 'dsh-codegraph-visualizer/ui',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() =>
         typeof window !== 'undefined' ? window.localStorage : memoryStorage,
       ),
       // Schema guard: v1 persisted 'dagre' etc.; future migrations normalize
       // unknown values instead of letting a stale value poison the store.
-      migrate: (persisted) => {
+      migrate: (persisted, version) => {
         const p = persisted as Partial<GraphState>;
         const layout = p.layout;
         const valid: LayoutType[] = ['cose', 'dagre', 'circle', 'grid'];
-        return {
+        const result: Partial<GraphState> = {
           ...p,
           layout: valid.includes(layout as LayoutType) ? (layout as LayoutType) : 'cose',
           theme: p.theme === 'light' ? 'light' : 'dark',
           filterType: p.filterType ?? 'all',
         };
+        if (version < 3) {
+          result.workspaceList = Array.isArray(p.workspaceList) ? p.workspaceList : [];
+          result.currentWorkspace = typeof p.currentWorkspace === 'string' ? p.currentWorkspace : '.';
+        }
+        return result;
       },
-      partialize: (s) => ({ layout: s.layout, theme: s.theme, filterType: s.filterType }),
+      partialize: (s) => ({
+        layout: s.layout, theme: s.theme, filterType: s.filterType,
+        currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
+      }),
     },
   ),
 );

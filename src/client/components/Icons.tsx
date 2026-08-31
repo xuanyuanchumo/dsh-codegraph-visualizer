@@ -104,3 +104,23 @@ export const WatchIcon = ({ size = 16, className }: IconProps) => (
     <circle cx="12" cy="12" r="7" /><path d="M12 9v3l2 2" /><path d="M9 1h6M9 23h6" />
   </svg>
 );
+
+export const WorkspaceIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" />
+  </svg>
+);
+
+export const PlusIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}><path d="M12 5v14M5 12h14" /></svg>
+);
+
+export const CheckIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}><path d="M20 6 9 17l-5-5" /></svg>
+);
+
+export const CopyIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </svg>
+);

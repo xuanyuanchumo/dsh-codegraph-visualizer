@@ -15,6 +15,8 @@ describe('graphStore (J6/J7/J10)', () => {
       filterType: 'all',
       isLoading: false,
       error: null,
+      currentWorkspace: '.',
+      workspaceList: [],
     });
   });
 
@@ -201,5 +203,82 @@ it('should track prerequisites (J11 data source detection)', () => {
     expect(useGraphStore.getState().highlightedNodeIds).toEqual([a, b]);
     useGraphStore.getState().setHighlightedNodes([]);
     expect(useGraphStore.getState().highlightedNodeIds).toEqual([]);
+  });
+
+  // ── Workspace management (cycle-14) ─────────────────────────────────
+  it('should initialize workspace state with defaults', () => {
+    const s = useGraphStore.getState();
+    expect(s.currentWorkspace).toBe('.');
+    expect(s.workspaceList).toEqual([]);
+  });
+
+  it('setCurrentWorkspace should update the current workspace path', () => {
+    useGraphStore.getState().setCurrentWorkspace('/home/user/project-a');
+    expect(useGraphStore.getState().currentWorkspace).toBe('/home/user/project-a');
+    useGraphStore.getState().setCurrentWorkspace('.');
+    expect(useGraphStore.getState().currentWorkspace).toBe('.');
+  });
+
+  it('addWorkspace should add to list and set as current', () => {
+    useGraphStore.getState().addWorkspace('/home/user/project-a');
+    const s = useGraphStore.getState();
+    expect(s.currentWorkspace).toBe('/home/user/project-a');
+    expect(s.workspaceList).toHaveLength(1);
+    expect(s.workspaceList[0]!.path).toBe('/home/user/project-a');
+    expect(s.workspaceList[0]!.name).toBe('project-a');
+    expect(s.workspaceList[0]!.lastUsed).toBeGreaterThan(0);
+  });
+
+  it('addWorkspace should derive name from Windows-style path', () => {
+    useGraphStore.getState().addWorkspace('C:\\Users\\dev\\my-project');
+    const s = useGraphStore.getState();
+    expect(s.workspaceList[0]!.name).toBe('my-project');
+  });
+
+  it('addWorkspace should use custom name when provided', () => {
+    useGraphStore.getState().addWorkspace('/home/user/project-b', 'Custom Name');
+    expect(useGraphStore.getState().workspaceList[0]!.name).toBe('Custom Name');
+  });
+
+  it('addWorkspace should deduplicate by path and move to front', () => {
+    useGraphStore.getState().addWorkspace('/path/a');
+    useGraphStore.getState().addWorkspace('/path/b');
+    useGraphStore.getState().addWorkspace('/path/a');
+    const s = useGraphStore.getState();
+    expect(s.workspaceList).toHaveLength(2);
+    expect(s.workspaceList[0]!.path).toBe('/path/a');
+    expect(s.workspaceList[1]!.path).toBe('/path/b');
+    expect(s.currentWorkspace).toBe('/path/a');
+  });
+
+  it('addWorkspace should cap the list at 10 entries', () => {
+    for (let i = 0; i < 15; i++) {
+      useGraphStore.getState().addWorkspace(`/path/${i}`);
+    }
+    expect(useGraphStore.getState().workspaceList).toHaveLength(10);
+    expect(useGraphStore.getState().workspaceList[0]!.path).toBe('/path/14');
+  });
+
+  it('removeWorkspace should remove from list', () => {
+    useGraphStore.getState().addWorkspace('/path/a');
+    useGraphStore.getState().addWorkspace('/path/b');
+    useGraphStore.getState().removeWorkspace('/path/a');
+    const s = useGraphStore.getState();
+    expect(s.workspaceList).toHaveLength(1);
+    expect(s.workspaceList[0]!.path).toBe('/path/b');
+  });
+
+  it('removeWorkspace should reset currentWorkspace to default when removing active', () => {
+    useGraphStore.getState().addWorkspace('/path/a');
+    expect(useGraphStore.getState().currentWorkspace).toBe('/path/a');
+    useGraphStore.getState().removeWorkspace('/path/a');
+    expect(useGraphStore.getState().currentWorkspace).toBe('.');
+  });
+
+  it('removeWorkspace should not change current when removing non-active', () => {
+    useGraphStore.getState().addWorkspace('/path/a');
+    useGraphStore.getState().addWorkspace('/path/b');
+    useGraphStore.getState().removeWorkspace('/path/a');
+    expect(useGraphStore.getState().currentWorkspace).toBe('/path/b');
   });
 });
