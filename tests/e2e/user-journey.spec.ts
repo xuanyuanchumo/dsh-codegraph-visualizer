@@ -54,9 +54,9 @@ test.describe('Full user journey: API modal → plugin entry', () => {
     await expect(filterSelect).toHaveValue('function');
   });
 
-  test('J8: should open export dropdown on hover', async ({ page }) => {
+  test('J8: should open export dropdown on click', async ({ page }) => {
     await setupPluginPage(page);
-    await page.locator('.export-menu').hover();
+    await page.locator('.export-btn').click();
     await expect(page.locator('.export-dropdown')).toBeVisible();
   });
 

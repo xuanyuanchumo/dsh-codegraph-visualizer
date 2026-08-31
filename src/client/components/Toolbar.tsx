@@ -42,7 +42,7 @@ interface ToolbarProps {
   onToggleLegend: () => void;
   onToggleImport: () => void;
   onRefresh: () => void;
-  onExport: (format: 'png' | 'json') => void;
+  onExport: (format: 'png' | 'svg' | 'json') => void;
   onCollapse: () => void;
 }
 
@@ -63,7 +63,7 @@ export function Toolbar(props: ToolbarProps) {
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [showExportMenu]);
 
-  const handleExport = useCallback((format: 'png' | 'json') => {
+  const handleExport = useCallback((format: 'png' | 'svg' | 'json') => {
     props.onExport(format);
     setShowExportMenu(false);
   }, [props]);
@@ -134,6 +134,7 @@ export function Toolbar(props: ToolbarProps) {
           {showExportMenu && (
             <div className="export-dropdown" role="menu">
               <button onClick={() => handleExport('png')} role="menuitem">{t('export.png')}</button>
+              <button onClick={() => handleExport('svg')} role="menuitem">{t('export.svg')}</button>
               <button onClick={() => handleExport('json')} role="menuitem">{t('export.json')}</button>
             </div>
           )}

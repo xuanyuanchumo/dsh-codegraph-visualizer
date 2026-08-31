@@ -34,27 +34,27 @@ test.describe('J7: 过滤器使用', () => {
 });
 
 test.describe('J8: 图谱导出', () => {
-  test('should show export dropdown on hover', async ({ page }) => {
+  test('should show export dropdown on click', async ({ page }) => {
     await setupPluginPage(page);
-    await page.locator('.export-menu').hover();
+    await page.locator('.export-btn').click();
     await expect(page.locator('.export-dropdown')).toBeVisible();
   });
 
   test('should have PNG export option', async ({ page }) => {
     await setupPluginPage(page);
-    await page.locator('.export-menu').hover();
+    await page.locator('.export-btn').click();
     await expect(page.locator('.export-dropdown button', { hasText: 'PNG' })).toBeVisible();
   });
 
   test('should have SVG export option', async ({ page }) => {
     await setupPluginPage(page);
-    await page.locator('.export-menu').hover();
+    await page.locator('.export-btn').click();
     await expect(page.locator('.export-dropdown button', { hasText: 'SVG' })).toBeVisible();
   });
 
   test('should have JSON export option', async ({ page }) => {
     await setupPluginPage(page);
-    await page.locator('.export-menu').hover();
+    await page.locator('.export-btn').click();
     await expect(page.locator('.export-dropdown button', { hasText: 'JSON' })).toBeVisible();
   });
 });

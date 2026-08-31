@@ -178,13 +178,14 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     rendererRef.current?.updateTheme(newTheme);
   }, [theme, setTheme]);
 
-  const handleExport = useCallback((format: 'png' | 'json') => {
+  const handleExport = useCallback((format: 'png' | 'svg' | 'json') => {
     const renderer = rendererRef.current;
     if (!renderer) return;
     let data: string | null = null;
     let mimeType = 'application/json';
     let extension = 'json';
     if (format === 'png') { data = renderer.exportPNG(); mimeType = 'image/png'; extension = 'png'; }
+    else if (format === 'svg') { data = renderer.exportSVG(); mimeType = 'image/svg+xml'; extension = 'svg'; }
     else { data = renderer.exportJSON(); }
     if (data) {
       const blob = new Blob([data], { type: mimeType });

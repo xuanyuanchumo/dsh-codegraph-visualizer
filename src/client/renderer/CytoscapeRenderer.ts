@@ -346,6 +346,14 @@ export class CytoscapeRenderer {
     return this.cy.png({ full: true, scale: 2 });
   }
 
+  exportSVG(): string | null {
+    if (!this.cy) return null;
+    const png = this.cy.png({ full: true, scale: 2 });
+    const w = this.cy.width();
+    const h = this.cy.height();
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><image href="${png}" width="${w}" height="${h}"/></svg>`;
+  }
+
 
   getSelectedNodeData(): GraphNode | null {
     if (!this.cy) return null;
