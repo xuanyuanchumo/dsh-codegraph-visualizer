@@ -1175,6 +1175,44 @@
   color: #f59e0b;
   font-size: 12px;
   line-height: 1.4;
+  flex-wrap: wrap;
+}
+
+.prereq-install {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding-top: 6px;
+}
+
+.prereq-install code {
+  flex: 1;
+  padding: 4px 8px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px dashed rgba(245, 158, 11, 0.4);
+  border-radius: var(--cg-radius-sm);
+  font-family: var(--cg-font-mono);
+  font-size: 11px;
+  color: #fbbf24;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.prereq-copy {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: var(--cg-radius-sm);
+  color: #f59e0b;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all var(--cg-transition);
+}
+
+.prereq-copy:hover {
+  background: rgba(245, 158, 11, 0.15);
 }
 
 .paste-input {

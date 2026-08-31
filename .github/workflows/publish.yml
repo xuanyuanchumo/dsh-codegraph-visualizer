@@ -149,7 +149,7 @@ jobs:
           path: dist/
 
       - name: 运行 E2E 测试
-        run: pnpm run test:e2e --project=chromium
+        run: npx playwright install --with-deps chromium && pnpm run test:e2e --project=chromium
 
       - name: 上传 E2E 测试报告
         uses: actions/upload-artifact@v4

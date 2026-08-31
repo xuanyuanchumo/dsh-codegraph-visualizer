@@ -99,6 +99,9 @@ const en: Dict = {
   'import.requestedScan': 'Requested scan of {path}',
   'import.fileReadError': 'File read error',
   'import.prereqMissing': 'Prerequisite plugins (dsh-codegraph or dsh-tool-lens) not detected. Install one for full functionality.',
+  'import.prereqCmd': '{cmd}',
+  'import.prereqCopy': 'Copy install command',
+  'import.copied': 'Copied',
   'import.initGraph': 'Initialize Graph',
   'import.initializing': 'Initializing…',
   'import.initStarted': 'Initializing graph for {path}',
@@ -221,6 +224,9 @@ const zh: Dict = {
   'import.requestedScan': '已请求扫描 {path}',
   'import.fileReadError': '文件读取错误',
   'import.prereqMissing': '未检测到前置插件 (dsh-codegraph 或 dsh-tool-lens)。请安装其一以获得完整功能。',
+  'import.prereqCmd': '{cmd}',
+  'import.prereqCopy': '复制安装命令',
+  'import.copied': '已复制',
   'import.initGraph': '初始化图谱',
   'import.initializing': '初始化中…',
   'import.initStarted': '正在为 {path} 初始化图谱',
@@ -255,20 +261,35 @@ const zh: Dict = {
 const dicts: Record<Lang, Dict> = { zh, en };
 
 // ── Store ────────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'dsh-codegraph-visualizer/lang';
 let currentLang: Lang = 'zh';
 const listeners = new Set<() => void>();
+
+function getStoredLang(): Lang {
+  if (typeof window === 'undefined') return 'zh';
+  try {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    return stored === 'zh' || stored === 'en' ? stored : 'zh';
+  } catch { return 'zh'; }
+}
 
 export function getLang(): Lang { return currentLang; }
 
 export function setLang(lang: Lang): void {
   if (lang === currentLang) return;
   currentLang = lang;
+  if (typeof window !== 'undefined') {
+    try { window.localStorage.setItem(STORAGE_KEY, lang); } catch { /* storage unavailable */ }
+  }
   for (const fn of listeners) fn();
 }
 
 export function toggleLang(): void {
   setLang(currentLang === 'zh' ? 'en' : 'zh');
 }
+
+// Initialize persisted language preference early (J10 personalization).
+currentLang = getStoredLang();
 
 // Subscribe for useSyncExternalStore
 function subscribe(fn: () => void): () => void {

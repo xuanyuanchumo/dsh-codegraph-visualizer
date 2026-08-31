@@ -107,6 +107,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, { ctrl: true });
   useKeyboardShortcut('i', () => setShowImport(v => !v), { ctrl: true });
 
+  // Renderer is created once on mount. Theme changes go through
+  // `updateTheme` (see handleThemeToggle) — recreating the renderer on theme
+  // change would destroy the viewport/zoom state and force a full re-init.
   useEffect(() => {
     if (!containerRef.current) return;
     const renderer = new CytoscapeRenderer({
@@ -139,14 +142,22 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     rendererRef.current = renderer;
     log.info('renderer initialized', { theme });
     return () => { renderer.destroy(); rendererRef.current = null; };
-  }, [theme, setSelectedNode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  // Data updates merge into the existing instance without re-running the
+  // layout (preserves user pan/zoom; layout only re-runs on explicit change).
   useEffect(() => {
     const renderer = rendererRef.current;
     if (!renderer) return;
     renderer.updateData(nodes, edges);
+  }, [nodes, edges]);
+
+  useEffect(() => {
+    const renderer = rendererRef.current;
+    if (!renderer) return;
     renderer.applyLayout(layout);
-  }, [nodes, edges, layout]);
+  }, [layout]);
 
   useEffect(() => {
     const renderer = rendererRef.current;
@@ -216,7 +227,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = `codegraph-${Date.now()}.${extension}`; a.click();
-      URL.revokeObjectURL(url);
+      // revoke on next tick: Safari/Firefox abort the download if the URL is
+      // revoked before the navigation to the blob really starts.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       log.info(`exported ${format}`);
     }
     setShowExportMenu(false);

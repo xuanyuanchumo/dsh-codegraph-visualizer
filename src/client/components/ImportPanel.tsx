@@ -79,6 +79,15 @@ export function ImportPanel({ onClose, workspacePath }: ImportPanelProps) {
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => { timersRef.current.forEach(clearTimeout); }, []);
 
+  const [copied, setCopied] = useState(false);
+  const copyInstallCmd = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText('dsh plugin --profile web add dsh-codegraph');
+      setCopied(true);
+      timersRef.current.push(setTimeout(() => setCopied(false), 1600));
+    } catch { /* clipboard unavailable — ignore */ }
+  }, []);
+
   const effectivePath = customPath.trim() || workspacePath || '.';
   const prereqMissing = !prerequisites.codegraph && !prerequisites.lens;
 
@@ -143,6 +152,13 @@ export function ImportPanel({ onClose, workspacePath }: ImportPanelProps) {
         <div className="prereq-warning" role="alert">
           <AlertIcon size={14} />
           <span>{t('import.prereqMissing')}</span>
+          <div className="prereq-install">
+            <code>{t('import.prereqCmd', { cmd: 'dsh plugin --profile web add dsh-codegraph' })}</code>
+            <button className="prereq-copy" onClick={() => { void copyInstallCmd(); }} disabled={copied}
+              aria-label={t('import.prereqCopy')}>
+              {copied ? t('import.copied') : t('import.prereqCopy')}
+            </button>
+          </div>
         </div>
       )}
 

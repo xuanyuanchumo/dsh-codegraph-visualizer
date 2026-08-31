@@ -129,10 +129,23 @@ export const useGraphStore = create<GraphState>()(
     {
       // J10 personalization: persist UI preferences only (versioned schema).
       name: 'dsh-codegraph-visualizer/ui',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() =>
         typeof window !== 'undefined' ? window.localStorage : memoryStorage,
       ),
+      // Schema guard: v1 persisted 'dagre' etc.; future migrations normalize
+      // unknown values instead of letting a stale value poison the store.
+      migrate: (persisted) => {
+        const p = persisted as Partial<GraphState>;
+        const layout = p.layout;
+        const valid: LayoutType[] = ['cose', 'dagre', 'circle', 'grid'];
+        return {
+          ...p,
+          layout: valid.includes(layout as LayoutType) ? (layout as LayoutType) : 'cose',
+          theme: p.theme === 'light' ? 'light' : 'dark',
+          filterType: p.filterType ?? 'all',
+        };
+      },
       partialize: (s) => ({ layout: s.layout, theme: s.theme, filterType: s.filterType }),
     },
   ),

@@ -201,5 +201,86 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     expect(ctx.on).toHaveBeenCalledWith('codegraph/graph/init', expect.any(Function));
     expect(ctx.on).toHaveBeenCalledWith('codegraph/watch/toggle', expect.any(Function));
   });
+
+  it('should emit prerequisite status twice (apply + 3s re-check)', async () => {
+    vi.useFakeTimers();
+    try {
+      const ctx = makeMockCtx();
+      const { apply } = await import('../../src/index.ts');
+      apply(ctx);
+      // First emit happens synchronously in apply.
+      expect(ctx.emit).toHaveBeenCalledWith('codegraph/prerequisite/status', expect.objectContaining({ codegraph: false, lens: false }));
+      const callsBefore = ctx.emit.mock.calls.filter(([n]) => n === 'codegraph/prerequisite/status').length;
+      vi.advanceTimersByTime(3001);
+      const callsAfter = ctx.emit.mock.calls.filter(([n]) => n === 'codegraph/prerequisite/status').length;
+      expect(callsAfter).toBe(callsBefore + 1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('should forward repo imported/scanned events as graph updated events', async () => {
+    const ctx = makeMockCtx();
+    const handlers = new Map<string, (event: Record<string, unknown>) => void>();
+    ctx.on.mockImplementation((name: string, fn: (e: unknown) => void) => { handlers.set(name, fn as (e: Record<string, unknown>) => void); });
+    const { apply } = await import('../../src/index.ts');
+    apply(ctx);
+
+    handlers.get('codegraph/repo/imported')!({ repoId: 'r1', path: '/x', timestamp: 123 });
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph/graph/updated', expect.objectContaining({ repoId: 'r1' }));
+
+    handlers.get('codegraph/repo/scanned')!({ repoId: 'r2', fileCount: 3, timestamp: 456 });
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph/graph/updated', expect.objectContaining({ repoId: 'r2' }));
+  });
+
+  it('request-scan should emit graph updated + graph data with merged counts', async () => {
+    const ctx = makeMockCtx();
+    const handlers = new Map<string, (event: Record<string, unknown>) => void>();
+    ctx.on.mockImplementation((name: string, fn: (e: unknown) => void) => { handlers.set(name, fn as (e: Record<string, unknown>) => void); });
+    ctx.tools.execute.mockImplementation(async (req: { name: string }) => {
+      if (req.name === 'codegraph_graph') {
+        return { isError: false, value: { nodes: [{ id: 'n1', name: 'f', kind: 'function', file: 'a.ts', line: 1 }], edges: [] } };
+      }
+      return { isError: false, value: null };
+    });
+    const { apply } = await import('../../src/index.ts');
+    apply(ctx);
+    handlers.get('codegraph/repo/request-scan')!({ path: '/tmp/repo', timestamp: 1 });
+    // let the async scanAndPush settle
+    await vi.waitFor(() => {
+      expect(ctx.emit).toHaveBeenCalledWith('codegraph/graph/data', expect.objectContaining({ repoId: '/tmp/repo' }));
+    });
+  });
+
+  it('graph init success should emit init-result + trigger scan', async () => {
+    const ctx = makeMockCtx();
+    const handlers = new Map<string, (event: Record<string, unknown>) => void>();
+    ctx.on.mockImplementation((name: string, fn: (e: unknown) => void) => { handlers.set(name, fn as (e: Record<string, unknown>) => void); });
+    ctx.tools.execute.mockImplementation(async (req: { name: string }) => {
+      if (req.name === 'codegraph_graph') {
+        return { isError: false, value: { nodes: [{ id: 'n1', name: 'f', kind: 'function', file: 'a.ts', line: 1 }], edges: [] } };
+      }
+      return { isError: false, value: null };
+    });
+    const { apply } = await import('../../src/index.ts');
+    apply(ctx);
+    handlers.get('codegraph/graph/init')!({ path: '/tmp/repo', timestamp: 1 });
+    await vi.waitFor(() => {
+      expect(ctx.emit).toHaveBeenCalledWith('codegraph/graph/init-result', expect.objectContaining({ success: true }));
+    });
+  });
+
+  it('graph init failure should emit failed init-result', async () => {
+    const ctx = makeMockCtx();
+    const handlers = new Map<string, (event: Record<string, unknown>) => void>();
+    ctx.on.mockImplementation((name: string, fn: (e: unknown) => void) => { handlers.set(name, fn as (e: Record<string, unknown>) => void); });
+    ctx.tools.execute.mockResolvedValue({ isError: true, value: null });
+    const { apply } = await import('../../src/index.ts');
+    apply(ctx);
+    handlers.get('codegraph/graph/init')!({ path: '/tmp/repo', timestamp: 1 });
+    await vi.waitFor(() => {
+      expect(ctx.emit).toHaveBeenCalledWith('codegraph/graph/init-result', expect.objectContaining({ success: false }));
+    });
+  });
 });
 
