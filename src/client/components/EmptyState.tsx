@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useT } from '../i18n/index.ts';
-import { GraphIcon, UploadIcon, AlertIcon, CheckIcon, CopyIcon } from './Icons.tsx';
+import { GraphIcon, UploadIcon, AlertIcon, CheckIcon, CopyIcon, ZapIcon } from './Icons.tsx';
 
 interface EmptyStateProps {
   prerequisites: { codegraph: boolean; lens: boolean };
@@ -10,6 +10,7 @@ interface EmptyStateProps {
 export function EmptyState({ prerequisites, onImport }: EmptyStateProps) {
   const t = useT();
   const [copied, setCopied] = useState(false);
+  const [installing, setInstalling] = useState(false);
   const prereqMissing = !prerequisites.codegraph && !prerequisites.lens;
 
   const handleCopyCmd = useCallback(() => {
@@ -22,6 +23,14 @@ export function EmptyState({ prerequisites, onImport }: EmptyStateProps) {
       // best-effort
     }
   }, [t]);
+
+  const handleInstall = useCallback(() => {
+    setInstalling(true);
+    window.dispatchEvent(new CustomEvent('codegraph:install-plugin', {
+      detail: { plugin: 'dsh-codegraph' },
+    }));
+    setTimeout(() => setInstalling(false), 3000);
+  }, []);
 
   return (
     <div className="empty-state">
@@ -46,6 +55,13 @@ export function EmptyState({ prerequisites, onImport }: EmptyStateProps) {
               {copied ? <CheckIcon size={13} /> : <CopyIcon size={13} />}
             </button>
           </div>
+          <button
+            className="prereq-install-btn"
+            onClick={handleInstall}
+            disabled={installing}
+          >
+            <ZapIcon size={14} /> {installing ? t('prereq.detecting') : t('prereq.installTitle')}
+          </button>
           {copied && <span className="prereq-copied">{t('empty.copied')}</span>}
         </div>
       )}

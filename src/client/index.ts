@@ -232,18 +232,52 @@ export function apply(ctx: Context) {
       log.info('toggle-watch forwarded', { enabled: detail.enabled, path: detail.path });
     };
 
+    const workspaceListener = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { path: string };
+      const store = useGraphStore.getState();
+      store.setCurrentWorkspace(detail.path);
+      ctx.emit('codegraph/repo/request-scan', { path: detail.path, timestamp: Date.now() });
+      log.info('workspace change forwarded', { path: detail.path });
+    };
+
+    const installPluginListener = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { plugin: string };
+      log.info('install plugin requested', { plugin: detail.plugin });
+    };
+
     window.addEventListener('codegraph:refresh', refreshListener);
     window.addEventListener('codegraph:open-source', openSourceListener);
     window.addEventListener('codegraph:import-repo', importRepoListener);
     window.addEventListener('codegraph:init-graph', initGraphListener);
     window.addEventListener('codegraph:toggle-watch', toggleWatchListener);
+    window.addEventListener('codegraph:workspace', workspaceListener);
+    window.addEventListener('codegraph:install-plugin', installPluginListener);
     ctx.effect(() => () => {
       window.removeEventListener('codegraph:refresh', refreshListener);
       window.removeEventListener('codegraph:open-source', openSourceListener);
       window.removeEventListener('codegraph:import-repo', importRepoListener);
       window.removeEventListener('codegraph:init-graph', initGraphListener);
       window.removeEventListener('codegraph:toggle-watch', toggleWatchListener);
+      window.removeEventListener('codegraph:workspace', workspaceListener);
+      window.removeEventListener('codegraph:install-plugin', installPluginListener);
     });
+  }
+
+  // Prerequisite status polling: re-check every 10s when prerequisites
+  // are missing, so the UI updates once the user installs a plugin.
+  {
+    const store = useGraphStore.getState();
+    if (!store.prerequisites.codegraph && !store.prerequisites.lens) {
+      const prereqInterval = setInterval(() => {
+        const s = useGraphStore.getState();
+        if (s.prerequisites.codegraph || s.prerequisites.lens) {
+          clearInterval(prereqInterval);
+          return;
+        }
+        ctx.emit('codegraph/prerequisite/status', { codegraph: false, lens: false, timestamp: Date.now() });
+      }, 10000);
+      ctx.effect(() => () => clearInterval(prereqInterval), 'codegraph: prereq polling');
+    }
   }
 
   // Auto-import: on first load, if no graph data is present, request a scan of
