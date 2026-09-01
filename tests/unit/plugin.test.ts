@@ -34,6 +34,9 @@ type MockCtx = Context & {
   on: ReturnType<typeof vi.fn>;
   emit: ReturnType<typeof vi.fn>;
   effect: ReturnType<typeof vi.fn>;
+  webServer: {
+    register: ReturnType<typeof vi.fn>;
+  };
 };
 
 function makeMockCtx(): MockCtx {
@@ -46,6 +49,9 @@ function makeMockCtx(): MockCtx {
     on: vi.fn(),
     emit: vi.fn(),
     effect: vi.fn(),
+    webServer: {
+      register: vi.fn().mockReturnValue(() => {}),
+    },
   } as unknown as MockCtx;
 }
 
@@ -165,17 +171,18 @@ describe('createGraphTools (J1/J9/J11)', () => {
 });
 
 describe('apply() plugin entry (J13 lifecycle)', () => {
-  it('should register 4 tools and 5 event listeners', async () => {
+  it('should register 4 tools and 6 event listeners', async () => {
     const ctx = makeMockCtx();
     const { apply } = await import('../../src/index.ts');
     apply(ctx);
     expect(ctx.tools.register).toHaveBeenCalledTimes(4);
-    expect(ctx.on).toHaveBeenCalledTimes(5);
+    expect(ctx.on).toHaveBeenCalledTimes(6);
     expect(ctx.on).toHaveBeenCalledWith('codegraph/repo/imported', expect.any(Function));
     expect(ctx.on).toHaveBeenCalledWith('codegraph/repo/scanned', expect.any(Function));
     expect(ctx.on).toHaveBeenCalledWith('codegraph/repo/request-scan', expect.any(Function));
     expect(ctx.on).toHaveBeenCalledWith('codegraph/graph/init', expect.any(Function));
     expect(ctx.on).toHaveBeenCalledWith('codegraph/watch/toggle', expect.any(Function));
+    expect(ctx.on).toHaveBeenCalledWith('codegraph/prerequisite/request', expect.any(Function));
   });
 
 

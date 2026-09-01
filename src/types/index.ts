@@ -124,10 +124,41 @@ declare module '@deepseek-ai/cordis' {
     'codegraph/graph/data'(event: GraphDataEvent): void;
     'codegraph/source/open'(event: SourceOpenEvent): void;
     'codegraph/prerequisite/status'(event: PrerequisiteStatusEvent): void;
+    'codegraph/prerequisite/request'(event: { timestamp: number }): void;
     'codegraph/graph/init'(event: GraphInitEvent): void;
     'codegraph/graph/init-result'(event: GraphInitResultEvent): void;
     'codegraph/watch/toggle'(event: WatchToggleEvent): void;
   }
+  interface Context {
+    webServer: WebServerService;
+  }
+}
+
+// ---- DSH WebServer service (Host-side HTTP route registration) -----------
+export interface WebServerRoute {
+  kind: 'exact' | 'prefix';
+  path: string;
+  handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>;
+}
+
+export interface WebServerService {
+  register(route: WebServerRoute): () => void;
+  registerFallback(handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>): () => void;
+}
+
+// Minimal Node.js HTTP types (avoid pulling in @types/node for client builds)
+export interface IncomingMessage {
+  url?: string;
+  method?: string;
+  headers: Record<string, string | string[] | undefined>;
+  on(event: 'data', handler: (chunk: Buffer) => void): void;
+  on(event: 'end', handler: () => void): void;
+  on(event: 'error', handler: (err: Error) => void): void;
+}
+
+export interface ServerResponse {
+  writeHead(code: number, headers?: Record<string, string>): void;
+  end(data?: string): void;
 }
 
 // ---- DSH Module Loader (runtime global) ----------------------------------

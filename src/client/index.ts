@@ -5,7 +5,7 @@ import { GraphPanel } from './GraphPanel.tsx';
 import { useGraphStore } from './store/graphStore.ts';
 import { GraphIcon } from './components/Icons.tsx';
 import { scoped } from '../shared/Logger.ts';
-import type { GraphUpdatedEvent, GraphDataEvent, GraphData, PrerequisiteStatusEvent, GraphInitResultEvent } from '../types/index.ts';
+import type { GraphData } from '../types/index.ts';
 
 const log = scoped('client');
 
@@ -15,7 +15,6 @@ declare module '@deepseek-ai/cordis' {
       inject: (slotName: string, callback: () => void) => void;
       register: (options: { name: string; id: string; order?: number; label?: () => string }, component?: unknown) => void;
     };
-    // Optional services — accessed via ctx.get(), not inject (cordis optional pattern).
     betterSidebar?: {
       registerTab: (descriptor: {
         id: string;
@@ -56,6 +55,74 @@ export function init(container: HTMLElement, initialData?: GraphData): void {
   root.render(React.createElement(GraphPanel));
 }
 
+// ── HTTP API helpers ──────────────────────────────────────────────────
+// The client communicates with the Host via HTTP fetch() calls to routes
+// registered by the Host-side plugin on the DSH webServer. ctx.emit/ctx.on
+// is local-only (same process) and cannot cross the Host-Client boundary.
+
+async function fetchStatus(): Promise<{ codegraph: boolean; lens: boolean }> {
+  try {
+    const res = await fetch('/api/codegraph/status');
+    if (!res.ok) return { codegraph: false, lens: false };
+    return await res.json();
+  } catch {
+    return { codegraph: false, lens: false };
+  }
+}
+
+async function fetchGraphData(): Promise<GraphData | null> {
+  try {
+    const res = await fetch('/api/codegraph/data');
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.nodes && data.nodes.length > 0) return data;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function requestScan(path: string): Promise<{ success: boolean; nodes: unknown[]; edges: unknown[] } | null> {
+  try {
+    const res = await fetch('/api/codegraph/scan', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function requestInit(path: string): Promise<{ success: boolean; message: string } | null> {
+  try {
+    const res = await fetch('/api/codegraph/init', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ path }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function requestWatch(enabled: boolean, path: string): Promise<boolean> {
+  try {
+    const res = await fetch('/api/codegraph/watch', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled, path }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export function apply(ctx: Context) {
   // ── Entry-point strategy (priority order) ──────────────────────────
   // 1. better-sidebar tab  — when dsh-better-sidebar is installed, register
@@ -68,7 +135,6 @@ export function apply(ctx: Context) {
   let entryRegistered = false;
 
   // (1) better-sidebar tab — use ctx.get() for optional service detection
-  //     (cordis pattern: ctx.get returns undefined if service not provided).
   try {
     const betterSidebar = ctx.get('betterSidebar') as Context['betterSidebar'] | undefined;
     if (betterSidebar) {
@@ -163,46 +229,112 @@ export function apply(ctx: Context) {
     // best-effort
   }
 
+  // ── Prerequisite status check via HTTP ─────────────────────────────
+  // Poll the Host for prerequisite status until both are installed or
+  // the plugin is disposed.
+  {
+    const checkStatus = async () => {
+      const status = await fetchStatus();
+      const store = useGraphStore.getState();
+      store.setPrerequisites({ codegraph: status.codegraph, lens: status.lens });
+      log.info('prerequisite status', status);
+      return status;
+    };
+    checkStatus();
+    // Re-check after a delay — upstream plugins may register later.
+    const prereqTimer = setTimeout(checkStatus, 3000);
+    ctx.effect(() => () => clearTimeout(prereqTimer), 'codegraph: prereq re-check timer');
 
-  // Heat-update: when the host signals a graph update, mark loading for the matching repo.
-  ctx.on('codegraph/graph/updated', (event: GraphUpdatedEvent) => {
+    // Poll every 10s when prerequisites are missing.
+    const prereqInterval = setInterval(async () => {
+      const s = useGraphStore.getState();
+      if (s.prerequisites.codegraph || s.prerequisites.lens) {
+        clearInterval(prereqInterval);
+        return;
+      }
+      await checkStatus();
+    }, 10000);
+    ctx.effect(() => () => clearInterval(prereqInterval), 'codegraph: prereq polling');
+  }
+
+  // ── Auto-import: fetch graph data on first load ────────────────────
+  // On first load, if no graph data is present, request a scan of the
+  // current workspace. Best-effort — if no data source answers, the panel
+  // simply shows the empty state with an Import button.
+  {
     const store = useGraphStore.getState();
-    if (store.repoId === event.repoId || store.repoId === null) {
-      store.setLoading(true);
+    if (store.nodes.length === 0 && !store.isLoading) {
+      const getWorkspaceAndScan = async () => {
+        let workspacePath = '.';
+        try {
+          const conn = ctx.get('connection') as {
+            api?: {
+              workspace?: {
+                list?: (payload: Record<string, never>, signal?: AbortSignal) => Promise<{
+                  result?: { ok?: boolean; value?: { items?: Array<{ path?: string }> } }
+                }>
+              }
+            }
+          } | undefined;
+          if (conn?.api?.workspace?.list) {
+            const wsResult = await conn.api.workspace.list({});
+            if (wsResult.result?.ok && wsResult.result.value?.items?.length) {
+              workspacePath = wsResult.result.value.items[0].path || '.';
+            }
+          }
+        } catch { /* best-effort */ }
+        if (workspacePath === '.') {
+          try {
+            const conn = ctx.get('connection') as {
+              api?: {
+                sessions?: {
+                  list?: (payload: Record<string, never>, signal?: AbortSignal) => Promise<{
+                    result?: { ok?: boolean; value?: { items?: Array<{ cwd?: string }> } }
+                  }>
+                }
+              }
+            } | undefined;
+            if (conn?.api?.sessions?.list) {
+              const sResult = await conn.api.sessions.list({});
+              if (sResult.result?.ok && sResult.result.value?.items?.length) {
+                for (const item of sResult.result.value.items) {
+                  if (item.cwd) { workspacePath = item.cwd; break; }
+                }
+              }
+            }
+          } catch { /* best-effort */ }
+        }
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: workspacePath } }));
+        }
+        log.info('auto-import requested', { path: workspacePath });
+        store.setLoading(true);
+        const result = await requestScan(workspacePath);
+        if (result && result.success && result.nodes.length > 0) {
+          const s = useGraphStore.getState();
+          s.setGraphData(result.nodes as never, result.edges as never, workspacePath);
+          log.info('graph data received', { path: workspacePath, nodes: result.nodes.length, edges: result.edges.length });
+        }
+        useGraphStore.getState().setLoading(false);
+      };
+      getWorkspaceAndScan();
     }
-  });
+  }
 
-  // Full data push: when the host sends complete graph data, load it into the store.
-  ctx.on('codegraph/graph/data', (event: GraphDataEvent) => {
-    const store = useGraphStore.getState();
-    store.setGraphData(event.nodes, event.edges, event.repoId);
-    log.info('graph data received', { repoId: event.repoId, nodes: event.nodes.length, edges: event.edges.length });
-  });
-
-  // Prerequisite status: update store so the UI can show guidance banner.
-  ctx.on('codegraph/prerequisite/status', (event: PrerequisiteStatusEvent) => {
-    const store = useGraphStore.getState();
-    store.setPrerequisites({ codegraph: event.codegraph, lens: event.lens });
-    log.info('prerequisite status received', event);
-  });
-
-  // Init result: update store with success/failure status.
-  ctx.on('codegraph/graph/init-result', (event: GraphInitResultEvent) => {
-    const store = useGraphStore.getState();
-    store.setInitStatus(event.success ? 'done' : 'error', event.message);
-    log.info('init result', { success: event.success, path: event.path });
-  });
-
-  // Client-side event listeners for panel-initiated actions. Native window
-  // listeners are registered through ctx.effect() so they are removed when
-  // the plugin fiber disposes (red line 1: register-as-effect, J13 no-leak).
+  // ── Client-side event listeners for panel-initiated actions ────────
+  // Native window listeners are registered through ctx.effect() so they
+  // are removed when the plugin fiber disposes (red line 1: register-as-effect).
   if (typeof window !== 'undefined') {
     const refreshListener = () => {
-      // Only mark loading when we already have data (refresh); avoid stuck
-      // loading when no data source answers the initial auto-import.
       const store = useGraphStore.getState();
       if (store.nodes.length > 0) {
         store.setLoading(true);
+        fetchGraphData().then((data) => {
+          if (data) {
+            store.setGraphData(data.nodes, data.edges, data.metadata.repoId);
+          }
+          store.setLoading(false);
+        });
       }
     };
 
@@ -212,7 +344,15 @@ export function apply(ctx: Context) {
 
     const importRepoListener = (e: Event) => {
       const detail = (e as CustomEvent).detail as { path: string };
-      ctx.emit('codegraph/repo/request-scan', { path: detail.path, timestamp: Date.now() });
+      const store = useGraphStore.getState();
+      store.setLoading(true);
+      requestScan(detail.path).then((result) => {
+        if (result && result.success && result.nodes.length > 0) {
+          store.setGraphData(result.nodes as never, result.edges as never, detail.path);
+          log.info('import-repo completed', { path: detail.path, nodes: result.nodes.length });
+        }
+        store.setLoading(false);
+      });
       log.info('import-repo forwarded', { path: detail.path });
     };
 
@@ -220,7 +360,22 @@ export function apply(ctx: Context) {
       const detail = (e as CustomEvent).detail as { path: string };
       const store = useGraphStore.getState();
       store.setInitStatus('initializing');
-      ctx.emit('codegraph/graph/init', { path: detail.path, timestamp: Date.now() });
+      requestInit(detail.path).then((result) => {
+        if (result) {
+          store.setInitStatus(result.success ? 'done' : 'error', result.message);
+          if (result.success) {
+            // After successful init, fetch the fresh graph data
+            fetchGraphData().then((data) => {
+              if (data) {
+                store.setGraphData(data.nodes, data.edges, data.metadata.repoId);
+              }
+            });
+          }
+        } else {
+          store.setInitStatus('error', 'Request failed');
+        }
+        log.info('init result', { path: detail.path, success: result?.success });
+      });
       log.info('init-graph forwarded', { path: detail.path });
     };
 
@@ -228,7 +383,7 @@ export function apply(ctx: Context) {
       const detail = (e as CustomEvent).detail as { enabled: boolean; path: string };
       const store = useGraphStore.getState();
       store.setWatchEnabled(detail.enabled);
-      ctx.emit('codegraph/watch/toggle', { enabled: detail.enabled, path: detail.path, timestamp: Date.now() });
+      requestWatch(detail.enabled, detail.path);
       log.info('toggle-watch forwarded', { enabled: detail.enabled, path: detail.path });
     };
 
@@ -236,7 +391,13 @@ export function apply(ctx: Context) {
       const detail = (e as CustomEvent).detail as { path: string };
       const store = useGraphStore.getState();
       store.setCurrentWorkspace(detail.path);
-      ctx.emit('codegraph/repo/request-scan', { path: detail.path, timestamp: Date.now() });
+      store.setLoading(true);
+      requestScan(detail.path).then((result) => {
+        if (result && result.success && result.nodes.length > 0) {
+          store.setGraphData(result.nodes as never, result.edges as never, detail.path);
+        }
+        store.setLoading(false);
+      });
       log.info('workspace change forwarded', { path: detail.path });
     };
 
@@ -261,54 +422,6 @@ export function apply(ctx: Context) {
       window.removeEventListener('codegraph:workspace', workspaceListener);
       window.removeEventListener('codegraph:install-plugin', installPluginListener);
     });
-  }
-
-  // Prerequisite status polling: re-check every 10s when prerequisites
-  // are missing, so the UI updates once the user installs a plugin.
-  {
-    const store = useGraphStore.getState();
-    if (!store.prerequisites.codegraph && !store.prerequisites.lens) {
-      const prereqInterval = setInterval(() => {
-        const s = useGraphStore.getState();
-        if (s.prerequisites.codegraph || s.prerequisites.lens) {
-          clearInterval(prereqInterval);
-          return;
-        }
-        ctx.emit('codegraph/prerequisite/status', { codegraph: false, lens: false, timestamp: Date.now() });
-      }, 10000);
-      ctx.effect(() => () => clearInterval(prereqInterval), 'codegraph: prereq polling');
-    }
-  }
-
-  // Auto-import: on first load, if no graph data is present, request a scan of
-  // the current workspace. Best-effort — if no data source answers, the panel
-  // simply shows the empty state with an Import button.
-  const store = useGraphStore.getState();
-  if (store.nodes.length === 0 && !store.isLoading) {
-    // Try to get workspace path from DSH session, fallback to global, then '.'
-    let workspacePath = '.';
-    try {
-      const sessions = (ctx as unknown as { sessions?: { get?: (id: string) => { header?: { cwd?: string } } | undefined } }).sessions;
-      if (sessions?.get) {
-        // Best-effort: try to get any session's cwd
-        for (const sid of Object.keys(sessions)) {
-          if (sid === 'get') continue;
-          const session = sessions.get(sid);
-          const cwd = session?.header?.cwd;
-          if (cwd) { workspacePath = cwd; break; }
-        }
-      }
-    } catch { /* best-effort */ }
-    if (workspacePath === '.') {
-      workspacePath = (typeof window !== 'undefined' &&
-        (window as unknown as { __DSH_WORKSPACE__?: string }).__DSH_WORKSPACE__) || '.';
-    }
-    // Notify the panel of the workspace path
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: workspacePath } }));
-    }
-    log.info('auto-import requested', { path: workspacePath });
-    ctx.emit('codegraph/repo/request-scan', { path: workspacePath, timestamp: Date.now() });
   }
 }
 

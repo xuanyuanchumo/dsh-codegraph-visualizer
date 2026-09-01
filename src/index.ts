@@ -5,11 +5,12 @@ import type { Context } from '@deepseek-ai/cordis';
 import { watch } from 'node:fs';
 import { createGraphTools, fetchMergedGraph } from './tools.ts';
 import { scoped } from './shared/Logger.ts';
+import type { GraphData, IncomingMessage, ServerResponse } from './types/index.ts';
 
 const log = scoped('host');
 
 export const name = 'dsh-codegraph-visualizer';
-export const inject = ['tools'];
+export const inject = ['tools', 'webServer'];
 
 // Debounced file watcher for hot-update (host-side fs.watch).
 let watchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -47,6 +48,164 @@ export function apply(ctx: Context) {
   ctx.tools.register(graphSymbol);
   ctx.tools.register(graphImpact);
 
+  // ── HTTP routes for Host-Client communication ──────────────────────
+  // The client (browser) communicates with the Host via HTTP fetch()
+  // calls to these routes, registered on the DSH webServer.
+  // ctx.emit/ctx.on is local-only (same process) and cannot cross the
+  // Host-Client boundary. The webServer service provides the only
+  // reliable channel for Host-Client data exchange.
+
+  let lastGraphData: GraphData | null = null;
+  let lastScanPath: string | null = null;
+  let lastInitResult: { success: boolean; path: string; message: string; timestamp: number } | null = null;
+
+  const sendJson = (res: ServerResponse, code: number, data: unknown) => {
+    res.writeHead(code, { 'content-type': 'application/json' });
+    res.end(JSON.stringify(data));
+  };
+
+  const readBody = (req: IncomingMessage): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      let body = '';
+      req.on('data', (chunk?: Buffer) => { if (chunk) body += chunk.toString(); });
+      req.on('end', () => resolve(body));
+      req.on('error', reject);
+    });
+  };
+
+  // GET /api/codegraph/status — prerequisite check
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: '/api/codegraph/status',
+    handler: (_req: IncomingMessage, res: ServerResponse) => {
+      const status = checkPrerequisites(ctx);
+      sendJson(res, 200, { codegraph: status.codegraph, lens: status.lens });
+    },
+  }), 'codegraph: status route');
+
+  // GET /api/codegraph/data — get cached graph data
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: '/api/codegraph/data',
+    handler: (_req: IncomingMessage, res: ServerResponse) => {
+      if (lastGraphData) {
+        sendJson(res, 200, lastGraphData);
+      } else {
+        sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: null, timestamp: 0, nodeCount: 0, edgeCount: 0 } });
+      }
+    },
+  }), 'codegraph: data route');
+
+  // Helper: find the workspace path from DSH sessions or fallback to process.cwd()
+  const findWorkspacePath = (): string => {
+    try {
+      const sessions = (ctx as unknown as { sessions?: { list?: () => Array<{ header?: { cwd?: string } }> } }).sessions;
+      if (sessions?.list) {
+        const all = sessions.list();
+        for (const session of all) {
+          const cwd = session?.header?.cwd;
+          if (cwd) return cwd;
+        }
+      }
+    } catch { /* best-effort */ }
+    return process.cwd();
+  };
+
+  // POST /api/codegraph/scan — trigger a workspace scan
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: '/api/codegraph/scan',
+    handler: async (req: IncomingMessage, res: ServerResponse) => {
+      try {
+        const body = await readBody(req);
+        const { path } = JSON.parse(body || '{}') as { path?: string };
+        const scanPath = path && path !== '.' ? path : findWorkspacePath();
+        lastScanPath = scanPath;
+        const repoId = scanPath || `workspace-${Date.now()}`;
+        const data = await fetchMergedGraph(invokeUpstream, repoId, 'both');
+        lastGraphData = data;
+        ctx.emit('codegraph/graph/updated', {
+          repoId,
+          nodeCount: data.metadata.nodeCount,
+          edgeCount: data.metadata.edgeCount,
+          timestamp: data.metadata.timestamp,
+        });
+        ctx.emit('codegraph/graph/data', {
+          repoId,
+          nodes: data.nodes,
+          edges: data.edges,
+          timestamp: data.metadata.timestamp,
+        });
+        log.info('scan completed', { repoId, nodes: data.metadata.nodeCount, edges: data.metadata.edgeCount });
+        sendJson(res, 200, { success: true, ...data });
+      } catch (e) {
+        log.error('scan failed', e);
+        sendJson(res, 200, { success: false, nodes: [], edges: [], metadata: { repoId: null, timestamp: 0, nodeCount: 0, edgeCount: 0 } });
+      }
+    },
+  }), 'codegraph: scan route');
+
+  // POST /api/codegraph/init — initialize the graph
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: '/api/codegraph/init',
+    handler: async (req: IncomingMessage, res: ServerResponse) => {
+      try {
+        const body = await readBody(req);
+        const { path } = JSON.parse(body || '{}') as { path?: string };
+        const initPath = path && path !== '.' ? path : findWorkspacePath();
+        log.info('init requested', { path: initPath });
+        const result = await invokeUpstream('codegraph_init', { path: initPath, force: true });
+        const success = result !== null;
+        lastInitResult = {
+          success,
+          path: initPath,
+          message: success ? 'Graph initialized successfully' : 'Initialization failed — is dsh-codegraph installed?',
+          timestamp: Date.now(),
+        };
+        ctx.emit('codegraph/graph/init-result', lastInitResult);
+        if (success) {
+          const repoId = initPath || `workspace-${Date.now()}`;
+          const data = await fetchMergedGraph(invokeUpstream, repoId, 'both');
+          lastGraphData = data;
+          ctx.emit('codegraph/graph/data', {
+            repoId,
+            nodes: data.nodes,
+            edges: data.edges,
+            timestamp: data.metadata.timestamp,
+          });
+        }
+        sendJson(res, 200, lastInitResult);
+      } catch (e) {
+        const errorResult = {
+          success: false,
+          path: '',
+          message: e instanceof Error ? e.message : String(e),
+          timestamp: Date.now(),
+        };
+        lastInitResult = errorResult;
+        sendJson(res, 200, errorResult);
+      }
+    },
+  }), 'codegraph: init route');
+
+  // POST /api/codegraph/watch — toggle file watching
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: '/api/codegraph/watch',
+    handler: async (req: IncomingMessage, res: ServerResponse) => {
+      try {
+        const body = await readBody(req);
+        const { enabled, path } = JSON.parse(body || '{}') as { enabled?: boolean; path?: string };
+        const watchPath = path && path !== '.' ? path : findWorkspacePath();
+        ctx.emit('codegraph/watch/toggle', { enabled: !!enabled, path: watchPath, timestamp: Date.now() });
+        sendJson(res, 200, { success: true });
+      } catch (e) {
+        sendJson(res, 200, { success: false, message: e instanceof Error ? e.message : String(e) });
+      }
+    },
+  }), 'codegraph: watch route');
+
   // ── Prerequisite check ─────────────────────────────────────────────
   // Detect whether dsh-codegraph (codegraph_graph) or dsh-tool-lens
   // (lens_analyze) are registered. Emit status so the client can show
@@ -64,6 +223,11 @@ export function apply(ctx: Context) {
   // Re-check after a delay — upstream plugins may register later.
   const prereqTimer = setTimeout(emitPrereqStatus, 3000);
   ctx.effect(() => () => clearTimeout(prereqTimer), 'codegraph: prereq re-check timer');
+
+  // Client can request a re-check (e.g. after installing a prerequisite plugin).
+  ctx.on('codegraph/prerequisite/request', () => {
+    emitPrereqStatus();
+  });
 
   // ── Heat-update (push) ─────────────────────────────────────────────
   ctx.on('codegraph/repo/imported', (event) => {
