@@ -1,6 +1,4 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { useGraphStore } from '../store/graphStore.ts';
-import { useShallow } from 'zustand/shallow';
 import { scoped } from '../../shared/Logger.ts';
 import { useT } from '../i18n/index.ts';
 import { UploadIcon, FolderIcon, CloseIcon, AlertIcon, RefreshIcon, ZapIcon, WatchIcon } from './Icons.tsx';
@@ -12,9 +10,17 @@ const MAX_PASTE_BYTES = 10 * 1024 * 1024;
 
 type ImportTab = 'workspace' | 'paste';
 
-interface ImportPanelProps {
+export interface ImportPanelProps {
   onClose: () => void;
   workspacePath: string;
+  prerequisites: { codegraph: boolean; lens: boolean };
+  initStatus: 'idle' | 'initializing' | 'done' | 'error';
+  watchEnabled: boolean;
+  onSetGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string) => void;
+  onSetLoading: (loading: boolean) => void;
+  onSetError: (error: string | null) => void;
+  onSetInitStatus: (status: 'idle' | 'initializing' | 'done' | 'error') => void;
+  onSetWatchEnabled: (enabled: boolean) => void;
 }
 
 interface ImportableGraph {
@@ -61,20 +67,24 @@ function parseGraphJson(text: string): { nodes: GraphNode[]; edges: GraphEdge[];
   return { nodes, edges, repoId: repoId as RepoId };
 }
 
-export function ImportPanel({ onClose, workspacePath }: ImportPanelProps) {
+export function ImportPanel({
+  onClose,
+  workspacePath,
+  prerequisites,
+  initStatus,
+  watchEnabled,
+  onSetGraphData,
+  onSetLoading,
+  onSetError,
+  onSetInitStatus,
+  onSetWatchEnabled,
+}: ImportPanelProps) {
   const t = useT();
   const [tab, setTab] = useState<ImportTab>('workspace');
   const [pasteText, setPasteText] = useState('');
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
   const [customPath, setCustomPath] = useState('');
-  const setGraphData = useGraphStore(s => s.setGraphData);
-  const setLoading = useGraphStore(s => s.setLoading);
-  const setError = useGraphStore(s => s.setError);
-  const { prerequisites, initStatus, watchEnabled, setInitStatus, setWatchEnabled } = useGraphStore(useShallow((s) => ({
-    prerequisites: s.prerequisites, initStatus: s.initStatus, watchEnabled: s.watchEnabled,
-    setInitStatus: s.setInitStatus, setWatchEnabled: s.setWatchEnabled,
-  })));
 
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => { timersRef.current.forEach(clearTimeout); }, []);
@@ -97,19 +107,19 @@ export function ImportPanel({ onClose, workspacePath }: ImportPanelProps) {
     try {
       if (text.length > MAX_PASTE_BYTES) throw new Error(`JSON exceeds ${MAX_PASTE_BYTES / 1024 / 1024}MB limit`);
       const { nodes, edges, repoId } = parseGraphJson(text);
-      setGraphData(nodes, edges, repoId);
+      onSetGraphData(nodes, edges, repoId);
       log.info(`imported from ${source}`, { nodes: nodes.length, edges: edges.length });
       setFeedback({ kind: 'ok', msg: t('import.imported', { nodes: nodes.length, edges: edges.length }) });
       timersRef.current.push(setTimeout(onClose, 700));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       log.error(`import failed from ${source}`, msg);
-      setError(t('import.importFailed', { msg }));
+      onSetError(t('import.importFailed', { msg }));
       setFeedback({ kind: 'err', msg });
     } finally {
       setBusy(false);
     }
-  }, [setGraphData, setError, t, onClose]);
+  }, [onSetGraphData, onSetError, t, onClose]);
 
   const handlePasteSubmit = useCallback(() => {
     if (!pasteText.trim()) { setFeedback({ kind: 'err', msg: t('import.pasteFirst') }); return; }
@@ -119,27 +129,27 @@ export function ImportPanel({ onClose, workspacePath }: ImportPanelProps) {
   const handleWorkspaceScan = useCallback(() => {
     setBusy(true);
     setFeedback(null);
-    setLoading(true);
+    onSetLoading(true);
     window.dispatchEvent(new CustomEvent('codegraph:import-repo', { detail: { path: effectivePath } }));
     log.info('workspace scan requested', { path: effectivePath });
     setFeedback({ kind: 'ok', msg: t('import.requestedScan', { path: effectivePath }) });
     timersRef.current.push(setTimeout(() => { setBusy(false); onClose(); }, 900));
-  }, [effectivePath, setLoading, onClose, t]);
+  }, [effectivePath, onSetLoading, onClose, t]);
 
   const handleInit = useCallback(() => {
-    setInitStatus('initializing');
+    onSetInitStatus('initializing');
     setFeedback(null);
     window.dispatchEvent(new CustomEvent('codegraph:init-graph', { detail: { path: effectivePath } }));
     log.info('init requested', { path: effectivePath });
     setFeedback({ kind: 'ok', msg: t('import.initStarted', { path: effectivePath }) });
-  }, [effectivePath, setInitStatus, t]);
+  }, [effectivePath, onSetInitStatus, t]);
 
   const handleToggleWatch = useCallback(() => {
     const next = !watchEnabled;
-    setWatchEnabled(next);
+    onSetWatchEnabled(next);
     window.dispatchEvent(new CustomEvent('codegraph:toggle-watch', { detail: { enabled: next, path: effectivePath } }));
     log.info('watch toggled', { enabled: next, path: effectivePath });
-  }, [watchEnabled, setWatchEnabled, effectivePath]);
+  }, [watchEnabled, onSetWatchEnabled, effectivePath]);
 
   return (
     <div className="import-panel" role="dialog" aria-label={t('import.title')}>

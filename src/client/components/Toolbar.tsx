@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import type { LayoutType, ThemeType } from '../store/graphStore.ts';
 import type { GraphNode } from '../../types/index.ts';
+import type { WorkspaceSelectorProps } from './WorkspaceSelector.tsx';
 import { useT, useLang, toggleLang } from '../i18n/index.ts';
 import { WorkspaceSelector } from './WorkspaceSelector.tsx';
 import {
@@ -19,7 +20,7 @@ const FILTER_KEYS: { value: string; key: string }[] = [
   { value: 'interface', key: 'filter.interface' },
 ];
 
-interface ToolbarProps {
+interface ToolbarProps extends WorkspaceSelectorProps {
   statsText: string;
   typeCounts: { function: number; class: number; interface: number };
   layout: LayoutType;
@@ -74,12 +75,19 @@ export function Toolbar(props: ToolbarProps) {
     onLayoutChange, onThemeToggle, onFilterChange,
     onToggleSearch, onToggleCallChain, onToggleCycles, onToggleMiniMap, onToggleLegend,
     onToggleImport, onRefresh, onCollapse,
+    currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
   } = props;
 
   return (
     <div className="graph-toolbar">
       <div className="toolbar-left">
-        <WorkspaceSelector />
+        <WorkspaceSelector
+          currentWorkspace={currentWorkspace}
+          workspaceList={workspaceList}
+          onSwitchWorkspace={onSwitchWorkspace}
+          onAddWorkspace={onAddWorkspace}
+          onRemoveWorkspace={onRemoveWorkspace}
+        />
         <span className="node-count">{statsText}</span>
         {typeCounts.function > 0 && <span className="type-badge function">fn:{typeCounts.function}</span>}
         {typeCounts.class > 0 && <span className="type-badge class">cls:{typeCounts.class}</span>}

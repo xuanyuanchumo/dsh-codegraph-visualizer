@@ -1,4 +1,4 @@
-﻿﻿$root = "D:\Projects\TraeProjects\dsh-codegraph-visualizer"
+﻿﻿﻿$root = "D:\Projects\TraeProjects\dsh-codegraph-visualizer"
 $existing = Get-NetTCPConnection -LocalPort 3080 -State Listen -ErrorAction SilentlyContinue
 if ($existing) {
   Write-Output "ALREADY_LISTENING pid=$($existing[0].OwningProcess)"

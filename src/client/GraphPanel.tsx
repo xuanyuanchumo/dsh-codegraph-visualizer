@@ -33,18 +33,24 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const {
     nodes, edges, layout, theme, searchQuery, selectedNodeId,
     highlightedNodeIds, filterType, isLoading, error, lastUpdated,
-    prerequisites, watchEnabled, currentWorkspace,
+    prerequisites, watchEnabled, currentWorkspace, workspaceList,
     setLayout, setTheme, setSearchQuery,
     setSelectedNode, setFilterType, setLoading,
+    setCurrentWorkspace, addWorkspace, removeWorkspace,
+    setGraphData, setInitStatus, setWatchEnabled, setError,
+    initStatus,
   } = useGraphStore(useShallow((s) => ({
     nodes: s.nodes, edges: s.edges, layout: s.layout, theme: s.theme,
     searchQuery: s.searchQuery, selectedNodeId: s.selectedNodeId,
     highlightedNodeIds: s.highlightedNodeIds, filterType: s.filterType,
     isLoading: s.isLoading, error: s.error, lastUpdated: s.lastUpdated,
     prerequisites: s.prerequisites, watchEnabled: s.watchEnabled,
-    currentWorkspace: s.currentWorkspace,
+    currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
     setLayout: s.setLayout, setTheme: s.setTheme, setSearchQuery: s.setSearchQuery,
     setSelectedNode: s.setSelectedNode, setFilterType: s.setFilterType, setLoading: s.setLoading,
+    setCurrentWorkspace: s.setCurrentWorkspace, addWorkspace: s.addWorkspace, removeWorkspace: s.removeWorkspace,
+    setGraphData: s.setGraphData, setInitStatus: s.setInitStatus, setWatchEnabled: s.setWatchEnabled, setError: s.setError,
+    initStatus: s.initStatus,
   })));
 
   const panel = usePanelState();
@@ -62,6 +68,18 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     window.addEventListener('codegraph:workspace', handler);
     return () => window.removeEventListener('codegraph:workspace', handler);
   }, []);
+
+  const handleWorkspaceSwitch = useCallback((path: string) => {
+    setCurrentWorkspace(path);
+    window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path } }));
+    window.dispatchEvent(new CustomEvent('codegraph:refresh'));
+  }, [setCurrentWorkspace]);
+
+  const handleWorkspaceAdd = useCallback((path: string) => {
+    addWorkspace(path, path.split(/[\\/]/).pop() || path);
+    window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path } }));
+    window.dispatchEvent(new CustomEvent('codegraph:import-repo', { detail: { path } }));
+  }, [addWorkspace]);
 
   const handleNodeTap = useCallback((id: NodeId) => {
     setSelectedNode(id);
@@ -174,6 +192,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         onRefresh={handleRefresh}
         onExport={renderer.exportGraph}
         onCollapse={panel.toggleCollapsed}
+        currentWorkspace={currentWorkspace}
+        workspaceList={workspaceList}
+        onSwitchWorkspace={handleWorkspaceSwitch}
+        onAddWorkspace={handleWorkspaceAdd}
+        onRemoveWorkspace={removeWorkspace}
       />
 
       {panel.showSearch && !c && (
@@ -198,7 +221,18 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       )}
 
       {panel.showImport && !c && (
-        <ImportPanel onClose={() => panel.setShowImport(false)} workspacePath={currentWorkspace} />
+        <ImportPanel
+          onClose={() => panel.setShowImport(false)}
+          workspacePath={currentWorkspace}
+          prerequisites={prerequisites}
+          initStatus={initStatus}
+          watchEnabled={watchEnabled}
+          onSetGraphData={setGraphData}
+          onSetLoading={setLoading}
+          onSetError={setError}
+          onSetInitStatus={setInitStatus}
+          onSetWatchEnabled={setWatchEnabled}
+        />
       )}
       {panel.showLegend && !c && (<Legend onClose={() => panel.setShowLegend(false)} />)}
 

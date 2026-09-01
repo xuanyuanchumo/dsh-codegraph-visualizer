@@ -1,8 +1,15 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { useGraphStore, type WorkspaceInfo } from '../store/graphStore.ts';
-import { useShallow } from 'zustand/shallow';
+import type { WorkspaceInfo } from '../store/graphStore.ts';
 import { useT } from '../i18n/index.ts';
 import { WorkspaceIcon, ChevronDownIcon, PlusIcon, CloseIcon, CheckIcon, FolderIcon } from './Icons.tsx';
+
+export interface WorkspaceSelectorProps {
+  currentWorkspace: string;
+  workspaceList: WorkspaceInfo[];
+  onSwitchWorkspace: (path: string) => void;
+  onAddWorkspace: (path: string) => void;
+  onRemoveWorkspace: (path: string) => void;
+}
 
 function formatRelativeTime(ts: number): string {
   if (ts === 0) return '—';
@@ -14,28 +21,23 @@ function formatRelativeTime(ts: number): string {
 }
 
 function deriveName(path: string): string {
-  const parts = path.replace(/[\\/]+$/, '').split(/[\\/]/);
+  const parts = path.replace(/[\/\\]+$/, '').split(/[\/\\]/);
   return parts[parts.length - 1] || path;
 }
 
-export function WorkspaceSelector() {
+export function WorkspaceSelector({
+  currentWorkspace,
+  workspaceList,
+  onSwitchWorkspace,
+  onAddWorkspace,
+  onRemoveWorkspace,
+}: WorkspaceSelectorProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newPath, setNewPath] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  const {
-    currentWorkspace, workspaceList,
-    setCurrentWorkspace, addWorkspace, removeWorkspace,
-  } = useGraphStore(useShallow((s) => ({
-    currentWorkspace: s.currentWorkspace,
-    workspaceList: s.workspaceList,
-    setCurrentWorkspace: s.setCurrentWorkspace,
-    addWorkspace: s.addWorkspace,
-    removeWorkspace: s.removeWorkspace,
-  })));
 
   useEffect(() => {
     if (!open) return;
@@ -54,30 +56,25 @@ export function WorkspaceSelector() {
   }, [adding]);
 
   const handleSwitch = useCallback((path: string) => {
-    setCurrentWorkspace(path);
+    onSwitchWorkspace(path);
     setOpen(false);
-    window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path } }));
-    window.dispatchEvent(new CustomEvent('codegraph:refresh'));
-  }, [setCurrentWorkspace]);
+  }, [onSwitchWorkspace]);
 
   const handleAdd = useCallback(() => {
     const path = newPath.trim();
     if (!path) return;
-    addWorkspace(path, deriveName(path));
-    window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path } }));
-    window.dispatchEvent(new CustomEvent('codegraph:import-repo', { detail: { path } }));
+    onAddWorkspace(path);
     setNewPath('');
     setAdding(false);
     setOpen(false);
-  }, [newPath, addWorkspace]);
+  }, [newPath, onAddWorkspace]);
 
   const handleRemove = useCallback((e: React.MouseEvent, path: string) => {
     e.stopPropagation();
-    removeWorkspace(path);
-  }, [removeWorkspace]);
+    onRemoveWorkspace(path);
+  }, [onRemoveWorkspace]);
 
   const displayName = currentWorkspace === '.' ? t('workspace.default') : deriveName(currentWorkspace);
-  const allWorkspaces: WorkspaceInfo[] = workspaceList;
   const hasExplicit = currentWorkspace !== '.' && !workspaceList.some((w) => w.path === currentWorkspace);
 
   return (
@@ -139,7 +136,7 @@ export function WorkspaceSelector() {
               </div>
             )}
 
-            {allWorkspaces.map((ws) => (
+            {workspaceList.map((ws) => (
               <div
                 key={ws.path}
                 className={`workspace-item ${ws.path === currentWorkspace ? 'current' : ''}`}
@@ -165,7 +162,7 @@ export function WorkspaceSelector() {
               </div>
             ))}
 
-            {!hasExplicit && allWorkspaces.length === 0 && (
+            {!hasExplicit && workspaceList.length === 0 && (
               <div className="workspace-empty">
                 <span>{t('workspace.empty')}</span>
               </div>
