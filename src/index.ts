@@ -1,5 +1,6 @@
 // DSH codegraph visualizer plugin — host entry point.
 // Compliant bundle plugin shape: `name` + `inject` + `apply(ctx)`.
+import { spawnSync } from 'node:child_process';
 import type { Context } from '@deepseek-ai/cordis';
 import { watch } from 'node:fs';
 import { createGraphTools, fetchMergedGraph } from './tools.ts';
@@ -14,13 +15,27 @@ export const inject = ['tools'];
 let watchTimer: ReturnType<typeof setTimeout> | null = null;
 let activeWatcher: { close: () => void } | null = null;
 
+/** Detect the codegraph CLI on PATH (cheap, cached per apply). */
+function detectCodegraphCli(): boolean {
+  try {
+    const cmd = process.platform === 'win32' ? 'codegraph.cmd' : 'codegraph';
+    const r = spawnSync(cmd, ['--version'], { encoding: 'utf8', timeout: 3000, shell: process.platform === 'win32' });
+    return r.status === 0;
+  } catch {
+    return false;
+  }
+}
+
 function checkPrerequisites(ctx: Context): { codegraph: boolean; lens: boolean } {
   try {
-    const cg = ctx.tools.get('codegraph_graph');
+    // dsh-codegraph registers codegraph_status (core surface); older builds
+    // exposed codegraph_graph — accept either. The CLI alone is enough for
+    // the SQLite direct-read path, so it also satisfies the prerequisite.
+    const cg = ctx.tools.get('codegraph_status') ?? ctx.tools.get('codegraph_graph') ?? ctx.tools.get('codegraph_query');
     const lens = ctx.tools.get('lens_analyze');
-    return { codegraph: !!cg, lens: !!lens };
+    return { codegraph: !!cg || detectCodegraphCli(), lens: !!lens };
   } catch {
-    return { codegraph: false, lens: false };
+    return { codegraph: detectCodegraphCli(), lens: false };
   }
 }
 
@@ -102,11 +117,12 @@ export function apply(ctx: Context) {
   });
 
   // ── Graph initialization ──────────────────────────────────────────
-  // Trigger upstream codegraph_graph to generate/refresh the .codegraph DB.
+  // Trigger upstream codegraph_init (dsh-codegraph surface) to generate the
+  // .codegraph DB; then scan and push the fresh graph to the client.
   ctx.on('codegraph/graph/init', async (event) => {
     log.info('init requested', { path: event.path });
     try {
-      const result = await invokeUpstream('codegraph_graph', { path: event.path, action: 'init' });
+      const result = await invokeUpstream('codegraph_init', { path: event.path, force: true });
       const success = result !== null;
       ctx.emit('codegraph/graph/init-result', {
         success,
@@ -154,8 +170,11 @@ export function apply(ctx: Context) {
         if (watchTimer) clearTimeout(watchTimer);
         watchTimer = setTimeout(() => {
           watchTimer = null;
-          log.info('file changed, re-scanning', { filename });
-          scanAndPush(event.path).catch((e) => log.error('watch re-scan failed', e));
+          log.info('file changed, syncing + re-scanning', { filename });
+          // Sync the upstream index first so the fresh read reflects the change.
+          invokeUpstream('codegraph_sync', { path: event.path })
+            .then(() => scanAndPush(event.path))
+            .catch((e) => log.error('watch re-scan failed', e));
         }, 500);
       });
       activeWatcher = watcher;

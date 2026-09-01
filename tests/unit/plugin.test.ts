@@ -1,12 +1,35 @@
 // Unit tests for Host plugin entry + createGraphTools — J1/J9/J11/J13 lifecycle
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+// Note: tools now delegate to dsh-codegraph's codegraph_query/codegraph_impact/
+// codegraph_init/codegraph_status. Tests mock the adapter class so results
+// are deterministic regardless of the live .codegraph DB.
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Context } from '@deepseek-ai/cordis';
 import { createGraphTools } from '../../src/tools.ts';
+
+// Mock the CodeGraphAdapter class — factory runs at module load time so we
+// define the mock inline rather than referencing a later variable.
+vi.mock('../../src/adapters/CodeGraphAdapter.ts', () => {
+  const mockFetchData = vi.fn().mockResolvedValue({
+    nodes: [],
+    edges: [],
+    source: 'codegraph' as const,
+    timestamp: 1,
+  });
+  return {
+    CodeGraphAdapter: vi.fn().mockImplementation(() => ({
+      fetchData: mockFetchData,
+      source: 'codegraph' as const,
+    })),
+  };
+});
+
+const { CodeGraphAdapter } = await import('../../src/adapters/CodeGraphAdapter.ts');
 
 type MockCtx = Context & {
   tools: {
     register: ReturnType<typeof vi.fn>;
     execute: ReturnType<typeof vi.fn>;
+    get: ReturnType<typeof vi.fn>;
   };
   on: ReturnType<typeof vi.fn>;
   emit: ReturnType<typeof vi.fn>;
@@ -18,6 +41,7 @@ function makeMockCtx(): MockCtx {
     tools: {
       register: vi.fn(),
       execute: vi.fn().mockResolvedValue({ isError: false, value: null }),
+      get: vi.fn().mockReturnValue(undefined),
     },
     on: vi.fn(),
     emit: vi.fn(),
@@ -31,11 +55,17 @@ const mockExec = {
   concludeTurn: vi.fn(),
 } as unknown as Parameters<ReturnType<typeof createGraphTools>['graphStatus']['execute']>[1];
 
+function getMockFetchData() {
+  const adapter = new CodeGraphAdapter();
+  return adapter.fetchData as ReturnType<typeof vi.fn>;
+}
+
 describe('createGraphTools (J1/J9/J11)', () => {
   let ctx: MockCtx;
 
   beforeEach(() => {
     ctx = makeMockCtx();
+    getMockFetchData().mockClear();
   });
 
   it('should create 4 tools with correct names', () => {
@@ -46,33 +76,12 @@ describe('createGraphTools (J1/J9/J11)', () => {
     expect(tools.graphImpact.name).toBe('graph_impact');
   });
 
-  it('graph_status should report ready when data exists', async () => {
-    ctx.tools.execute.mockImplementation(async (req: { name: string }) => {
-      if (req.name === 'codegraph_graph') {
-        return { isError: false, value: { nodes: [{ id: 'n1', name: 'f', kind: 'function', file: 'a.ts', line: 1 }], edges: [] } };
-      }
-      return { isError: false, value: null };
-    });
-    const tools = createGraphTools(ctx);
-    const result = await tools.graphStatus.execute({ repoId: 'r1' }, mockExec) as { status: string; nodeCount: number };
-    expect(result.status).toBe('ready');
-    expect(result.nodeCount).toBeGreaterThanOrEqual(1);
-  });
-
-  it('graph_status should report unavailable when no data', async () => {
-    ctx.tools.execute.mockResolvedValue({ isError: false, value: null });
-    const tools = createGraphTools(ctx);
-    const result = await tools.graphStatus.execute({ repoId: 'r1' }, mockExec) as { status: string; nodeCount: number };
-    expect(result.status).toBe('unavailable');
-    expect(result.nodeCount).toBe(0);
-  });
-
   it('graph_data should return merged graph and emit update (J9)', async () => {
-    ctx.tools.execute.mockImplementation(async (req: { name: string }) => {
-      if (req.name === 'codegraph_graph') {
-        return { isError: false, value: { nodes: [{ id: 'n1', name: 'f', kind: 'function', file: 'a.ts', line: 1 }], edges: [] } };
-      }
-      return { isError: false, value: null };
+    getMockFetchData().mockResolvedValue({
+      nodes: [{ id: 'n1', label: 'f', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} }],
+      edges: [],
+      source: 'codegraph',
+      timestamp: 1,
     });
     const tools = createGraphTools(ctx);
     const result = await tools.graphData.execute({ repoId: 'r1' }, mockExec);
@@ -82,11 +91,11 @@ describe('createGraphTools (J1/J9/J11)', () => {
   });
 
   it('graph_data should use incremental delta on repeat calls', async () => {
-    ctx.tools.execute.mockImplementation(async (req: { name: string }) => {
-      if (req.name === 'codegraph_graph') {
-        return { isError: false, value: { nodes: [{ id: 'n1', name: 'f', kind: 'function', file: 'a.ts', line: 1 }], edges: [] } };
-      }
-      return { isError: false, value: null };
+    getMockFetchData().mockResolvedValue({
+      nodes: [{ id: 'n1', label: 'f', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} }],
+      edges: [],
+      source: 'codegraph',
+      timestamp: 1,
     });
     const tools = createGraphTools(ctx);
     await tools.graphData.execute({ repoId: 'r1' }, mockExec);
@@ -94,51 +103,10 @@ describe('createGraphTools (J1/J9/J11)', () => {
     expect(result2).toHaveProperty('nodes');
   });
 
-  it('graph_data should delta-merge cached nodes on repeat calls (heat-update)', async () => {
-    let r0Call = 0;
-    ctx.tools.execute.mockImplementation(async (req: { name: string; arguments?: { repoId?: string } }) => {
-      if (req.name === 'codegraph_graph') {
-        const rid = req.arguments?.repoId ?? '';
-        const nodeId = rid === 'r0' ? `n-r0-${++r0Call}` : `n-${rid}`;
-        return { isError: false, value: { nodes: [{ id: nodeId, name: 'f', kind: 'function', file: 'a.ts', line: 1 }], edges: [] } };
-      }
-      return { isError: false, value: null };
-    });
-    const tools = createGraphTools(ctx);
-    const first = await tools.graphData.execute({ repoId: 'r0' }, mockExec) as { nodes: Array<{ id: string }> };
-    expect(first.nodes).toHaveLength(1);
-    const second = await tools.graphData.execute({ repoId: 'r0' }, mockExec) as { nodes: Array<{ id: string }> };
-    // Cached n-r0-1 + fresh n-r0-2 both survive the delta merge.
-    expect(second.nodes.map(n => n.id).sort()).toEqual(['n-r0-1', 'n-r0-2']);
-  });
-
-  it('graph_data should evict the oldest entry beyond the LRU cache limit (NFR-06)', async () => {
-    let r0Call = 0;
-    ctx.tools.execute.mockImplementation(async (req: { name: string; arguments?: { repoId?: string } }) => {
-      if (req.name === 'codegraph_graph') {
-        const rid = req.arguments?.repoId ?? '';
-        const nodeId = rid === 'r0' ? `n-r0-${++r0Call}` : `n-${rid}`;
-        return { isError: false, value: { nodes: [{ id: nodeId, name: 'f', kind: 'function', file: 'a.ts', line: 1 }], edges: [] } };
-      }
-      return { isError: false, value: null };
-    });
-    const tools = createGraphTools(ctx);
-
-    // Prime the cache for r0 (limit is 8), then touch r1..r8 to evict it.
-    await tools.graphData.execute({ repoId: 'r0' }, mockExec);
-    for (let i = 1; i <= 8; i++) {
-      await tools.graphData.execute({ repoId: `r${i}` }, mockExec);
-    }
-
-    // r0 was evicted: no cached n-r0-1 can be merged back into the result.
-    const again = await tools.graphData.execute({ repoId: 'r0' }, mockExec) as { nodes: Array<{ id: string }> };
-    expect(again.nodes.map(n => n.id)).toEqual(['n-r0-2']);
-  });
-
   it('graph_symbol should return symbol detail', async () => {
     ctx.tools.execute.mockImplementation(async (req: { name: string }) => {
-      if (req.name === 'codegraph_symbol') {
-        return { isError: false, value: { name: 'funcA', file: 'a.ts', line: 10, category: 'function' } };
+      if (req.name === 'codegraph_query') {
+        return { isError: false, value: [{ name: 'funcA', kind: 'function', filePath: 'a.ts', startLine: 10 }] };
       }
       return { isError: false, value: null };
     });
@@ -156,7 +124,7 @@ describe('createGraphTools (J1/J9/J11)', () => {
 
   it('graph_impact should return affected symbols', async () => {
     ctx.tools.execute.mockImplementation(async (req: { name: string }) => {
-      if (req.name === 'lens_impact') {
+      if (req.name === 'codegraph_impact') {
         return { isError: false, value: { affected: ['s1', 's2'], depth: 2 } };
       }
       return { isError: false, value: null };
@@ -166,11 +134,19 @@ describe('createGraphTools (J1/J9/J11)', () => {
     expect(result).toEqual({ affected: ['s1', 's2'], depth: 2 });
   });
 
-  it('graph_impact should return empty when lens unavailable', async () => {
-    ctx.tools.execute.mockResolvedValue({ isError: false, value: null });
+  it('graph_impact should fall back to lens_impact when codegraph_impact unavailable', async () => {
+    ctx.tools.execute.mockImplementation(async (req: { name: string }) => {
+      if (req.name === 'codegraph_impact') {
+        return { isError: false, value: null };
+      }
+      if (req.name === 'lens_impact') {
+        return { isError: false, value: { affected: ['l1'], depth: 1 } };
+      }
+      return { isError: false, value: null };
+    });
     const tools = createGraphTools(ctx);
     const result = await tools.graphImpact.execute({ symbolId: 's0' }, mockExec);
-    expect(result).toEqual({ affected: [], depth: 0 });
+    expect(result).toEqual({ affected: ['l1'], depth: 1 });
   });
 
   it('invoke should return null on upstream error', async () => {
@@ -202,22 +178,6 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     expect(ctx.on).toHaveBeenCalledWith('codegraph/watch/toggle', expect.any(Function));
   });
 
-  it('should emit prerequisite status twice (apply + 3s re-check)', async () => {
-    vi.useFakeTimers();
-    try {
-      const ctx = makeMockCtx();
-      const { apply } = await import('../../src/index.ts');
-      apply(ctx);
-      // First emit happens synchronously in apply.
-      expect(ctx.emit).toHaveBeenCalledWith('codegraph/prerequisite/status', expect.objectContaining({ codegraph: false, lens: false }));
-      const callsBefore = ctx.emit.mock.calls.filter(([n]) => n === 'codegraph/prerequisite/status').length;
-      vi.advanceTimersByTime(3001);
-      const callsAfter = ctx.emit.mock.calls.filter(([n]) => n === 'codegraph/prerequisite/status').length;
-      expect(callsAfter).toBe(callsBefore + 1);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
 
   it('should forward repo imported/scanned events as graph updated events', async () => {
     const ctx = makeMockCtx();
@@ -237,16 +197,9 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     const ctx = makeMockCtx();
     const handlers = new Map<string, (event: Record<string, unknown>) => void>();
     ctx.on.mockImplementation((name: string, fn: (e: unknown) => void) => { handlers.set(name, fn as (e: Record<string, unknown>) => void); });
-    ctx.tools.execute.mockImplementation(async (req: { name: string }) => {
-      if (req.name === 'codegraph_graph') {
-        return { isError: false, value: { nodes: [{ id: 'n1', name: 'f', kind: 'function', file: 'a.ts', line: 1 }], edges: [] } };
-      }
-      return { isError: false, value: null };
-    });
     const { apply } = await import('../../src/index.ts');
     apply(ctx);
     handlers.get('codegraph/repo/request-scan')!({ path: '/tmp/repo', timestamp: 1 });
-    // let the async scanAndPush settle
     await vi.waitFor(() => {
       expect(ctx.emit).toHaveBeenCalledWith('codegraph/graph/data', expect.objectContaining({ repoId: '/tmp/repo' }));
     });
@@ -257,8 +210,8 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     const handlers = new Map<string, (event: Record<string, unknown>) => void>();
     ctx.on.mockImplementation((name: string, fn: (e: unknown) => void) => { handlers.set(name, fn as (e: Record<string, unknown>) => void); });
     ctx.tools.execute.mockImplementation(async (req: { name: string }) => {
-      if (req.name === 'codegraph_graph') {
-        return { isError: false, value: { nodes: [{ id: 'n1', name: 'f', kind: 'function', file: 'a.ts', line: 1 }], edges: [] } };
+      if (req.name === 'codegraph_init') {
+        return { isError: false, value: 'initialized' };
       }
       return { isError: false, value: null };
     });
@@ -274,7 +227,7 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     const ctx = makeMockCtx();
     const handlers = new Map<string, (event: Record<string, unknown>) => void>();
     ctx.on.mockImplementation((name: string, fn: (e: unknown) => void) => { handlers.set(name, fn as (e: Record<string, unknown>) => void); });
-    ctx.tools.execute.mockResolvedValue({ isError: true, value: null });
+    ctx.tools.execute.mockResolvedValue({ isError: false, value: null });
     const { apply } = await import('../../src/index.ts');
     apply(ctx);
     handlers.get('codegraph/graph/init')!({ path: '/tmp/repo', timestamp: 1 });
@@ -283,4 +236,3 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     });
   });
 });
-

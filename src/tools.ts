@@ -71,6 +71,51 @@ function summarizeGraph(data: GraphData): string {
   ].join('');
 }
 
+/** Normalize a codegraph_impact payload into { affected, depth }. */
+export function normalizeImpact(raw: unknown): { affected: string[]; depth: number } | null {
+  if (typeof raw === 'string') {
+    try { raw = JSON.parse(raw) as unknown; } catch { return null; }
+  }
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  const list = obj.affected ?? obj.affectedNodes ?? obj.nodes;
+  if (!Array.isArray(list)) return null;
+  return {
+    affected: list.map((it) => {
+      if (typeof it === 'string') return it;
+      const rec = it as Record<string, unknown>;
+      return String(rec.name ?? rec.id ?? '?');
+    }),
+    depth: typeof obj.depth === 'number' ? obj.depth : 2,
+  };
+}
+
+/** Pick the closest match from a codegraph_query result payload. */
+export function pickBestMatch(raw: unknown, symbolId: string): Record<string, unknown> | null {
+  let payload = raw;
+  if (typeof payload === 'string') {
+    try { payload = JSON.parse(payload) as unknown; } catch { return null; }
+  }
+  const items = Array.isArray(payload)
+    ? payload
+    : (payload as Record<string, unknown>)?.results ?? (payload as Record<string, unknown>)?.nodes;
+  if (!Array.isArray(items) || items.length === 0) return null;
+  const wanted = symbolId.toLowerCase();
+  const best = items.find((it) => {
+    const rec = it as Record<string, unknown>;
+    return String(rec.name ?? '').toLowerCase() === wanted || rec.id === symbolId;
+  }) as Record<string, unknown> | undefined;
+  const chosen = best ?? (items[0] as Record<string, unknown>);
+  return {
+    symbolId,
+    name: chosen.name ?? chosen.qualified_name ?? symbolId,
+    category: chosen.kind ?? 'unknown',
+    file: chosen.filePath ?? chosen.file_path ?? '?',
+    line: chosen.startLine ?? chosen.start_line ?? 0,
+    signature: chosen.signature ?? null,
+  };
+}
+
 export const createGraphTools = (ctx: Context) => {
   // Best-effort call to an upstream tool (dsh-codegraph / dsh-tool-lens). Those
   // data sources are optional; a missing tool degrades to null instead of throwing.
@@ -194,8 +239,9 @@ export const createGraphTools = (ctx: Context) => {
       },
     },
     async execute(args) {
-      const raw = await invoke('codegraph_symbol', { symbolId: args.symbolId });
-      return (raw ?? null) as JsonValue;
+      // Resolve via the upstream codegraph_query tool (dsh-codegraph surface).
+      const raw = await invoke('codegraph_query', { search: args.symbolId, limit: 1 });
+      return pickBestMatch(raw, args.symbolId) as JsonValue;
     },
   });
 
@@ -215,8 +261,13 @@ export const createGraphTools = (ctx: Context) => {
       },
     },
     async execute(args) {
-      const raw = await invoke('lens_impact', { symbolId: args.symbolId });
-      return (raw ?? { affected: [], depth: 0 }) as JsonValue;
+      // dsh-codegraph exposes codegraph_impact (full surface) for change
+      // impact analysis; lens_impact stays as the alternative upstream.
+      const raw = await invoke('codegraph_impact', { symbol: args.symbolId, depth: 2 });
+      const normalized = normalizeImpact(raw);
+      if (normalized) return normalized as JsonValue;
+      const lens = await invoke('lens_impact', { symbolId: args.symbolId });
+      return (lens ?? { affected: [], depth: 0 }) as JsonValue;
     },
   });
 
