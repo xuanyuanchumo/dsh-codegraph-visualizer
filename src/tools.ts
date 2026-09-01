@@ -16,9 +16,6 @@ const codegraphAdapter = new CodeGraphAdapter();
 const lensAdapter = new LensAdapter();
 const merger = new GraphDataMerger();
 
-// Per-repo graph cache for incremental heat-updates (applyDelta).
-// Bounded LRU: re-insert on access evicts the least-recently-used entry,
-// so long-lived sessions cannot grow the cache without limit (NFR-06).
 const GRAPH_CACHE_LIMIT = 8;
 const graphCache = new Map<string, GraphData>();
 
@@ -46,7 +43,6 @@ async function fetchMergedGraph(
   return merger.merge(results, repoId);
 }
 
-/** Build a human-readable summary of graph data for tool render output. */
 function summarizeGraph(data: GraphData): string {
   const nodeByType = new Map<string, number>();
   const edgeByType = new Map<string, number>();
@@ -71,7 +67,6 @@ function summarizeGraph(data: GraphData): string {
   ].join('');
 }
 
-/** Normalize a codegraph_impact payload into { affected, depth }. */
 export function normalizeImpact(raw: unknown): { affected: string[]; depth: number } | null {
   if (typeof raw === 'string') {
     try { raw = JSON.parse(raw) as unknown; } catch { return null; }
@@ -90,7 +85,6 @@ export function normalizeImpact(raw: unknown): { affected: string[]; depth: numb
   };
 }
 
-/** Pick the closest match from a codegraph_query result payload. */
 export function pickBestMatch(raw: unknown, symbolId: string): Record<string, unknown> | null {
   let payload = raw;
   if (typeof payload === 'string') {
@@ -116,10 +110,10 @@ export function pickBestMatch(raw: unknown, symbolId: string): Record<string, un
   };
 }
 
-export const createGraphTools = (ctx: Context) => {
-  // Best-effort call to an upstream tool (dsh-codegraph / dsh-tool-lens). Those
-  // data sources are optional; a missing tool degrades to null instead of throwing.
-  const invoke: UpstreamInvoker = async (tool, args) => {
+// ── Extracted execute/render functions for testability ──────────────────
+
+export function createInvoke(ctx: Context): UpstreamInvoker {
+  return async (tool, args) => {
     try {
       const result = await ctx.tools.execute({
         callId: `codegraph:${tool}` as CallId,
@@ -133,6 +127,101 @@ export const createGraphTools = (ctx: Context) => {
       return null;
     }
   };
+}
+
+export function renderGraphStatus(_args: unknown, value: unknown) {
+  const v = value as { status: string; nodeCount: number; edgeCount: number; sources?: Record<string, boolean> };
+  const srcInfo = v.sources ? ` [codegraph:${v.sources.codegraph ? '✓' : '✗'} lens:${v.sources.lens ? '✓' : '✗'}]` : '';
+  return [
+    { type: 'text' as const, text: `Graph status: ${v.status} (${v.nodeCount} nodes, ${v.edgeCount} edges)${srcInfo}` },
+  ];
+}
+
+export async function executeGraphStatus(args: { repoId: string }, invoke: UpstreamInvoker) {
+  const [cgResult, lensResult] = await Promise.allSettled([
+    codegraphAdapter.fetchData(args.repoId, invoke),
+    lensAdapter.fetchData(args.repoId, invoke),
+  ]);
+  const cgNodes = cgResult.status === 'fulfilled' ? cgResult.value.nodes.length : 0;
+  const lensNodes = lensResult.status === 'fulfilled' ? lensResult.value.nodes.length : 0;
+  const data = await fetchMergedGraph(invoke, args.repoId);
+  return {
+    status: data.nodes.length > 0 ? 'ready' : 'unavailable',
+    nodeCount: data.metadata.nodeCount,
+    edgeCount: data.metadata.edgeCount,
+    sources: {
+      codegraph: cgNodes > 0,
+      lens: lensNodes > 0,
+    },
+  };
+}
+
+export function renderGraphData(_args: unknown, value: unknown) {
+  const data = value as unknown as GraphData;
+  return [{ type: 'text' as const, text: summarizeGraph(data) }];
+}
+
+export async function executeGraphData(
+  args: { repoId: string; source?: string },
+  invoke: UpstreamInvoker,
+  emitUpdate: (event: GraphUpdatedEvent) => void,
+  emitData: (event: GraphDataEvent) => void,
+) {
+  const source = (args.source ?? 'both') as 'codegraph' | 'lens' | 'both';
+  const fresh = await fetchMergedGraph(invoke, args.repoId, source);
+
+  const cached = graphCache.get(args.repoId);
+  const deltaSource: AdapterResult['source'] = source === 'lens' ? 'lens' : 'codegraph';
+  const merged = cached
+    ? merger.applyDelta(cached, { nodes: fresh.nodes, edges: fresh.edges, source: deltaSource, timestamp: fresh.metadata.timestamp })
+    : fresh;
+  cacheGraph(args.repoId, merged);
+
+  emitUpdate({
+    repoId: args.repoId,
+    nodeCount: merged.metadata.nodeCount,
+    edgeCount: merged.metadata.edgeCount,
+    timestamp: merged.metadata.timestamp,
+  });
+  emitData({
+    repoId: args.repoId,
+    nodes: merged.nodes,
+    edges: merged.edges,
+    timestamp: merged.metadata.timestamp,
+  });
+  return merged as unknown as JsonValue;
+}
+
+export function renderGraphSymbol(_args: unknown, value: unknown) {
+  const v = value as { name?: string; file?: string; line?: number; category?: string; symbolId?: string } | null;
+  if (!v) return [{ type: 'text' as const, text: 'Symbol not found.' }];
+  return [{ type: 'text' as const, text: `${v.name ?? v.symbolId ?? '?'} (${v.category ?? 'unknown'}) @ ${v.file ?? '?'}:${v.line ?? '?'}` }];
+}
+
+export async function executeGraphSymbol(args: { symbolId: string }, invoke: UpstreamInvoker) {
+  const raw = await invoke('codegraph_query', { search: args.symbolId, limit: 1 });
+  return pickBestMatch(raw, args.symbolId) as JsonValue;
+}
+
+export function renderGraphImpact(_args: unknown, value: unknown) {
+  const v = value as { affected?: string[]; depth?: number };
+  const count = v.affected?.length ?? 0;
+  const list = v.affected?.slice(0, 10).join(', ') ?? '';
+  return [{ type: 'text' as const, text: `Impact: ${count} symbols affected (depth ${v.depth ?? 0})${list ? `\n  ${list}` : ''}` }];
+}
+
+export async function executeGraphImpact(args: { symbolId: string }, invoke: UpstreamInvoker) {
+  const raw = await invoke('codegraph_impact', { symbol: args.symbolId, depth: 2 });
+  const normalized = normalizeImpact(raw);
+  if (normalized) return normalized as JsonValue;
+  const lens = await invoke('lens_impact', { symbolId: args.symbolId });
+  return (lens ?? { affected: [], depth: 0 }) as JsonValue;
+}
+
+// ── Tool factory ────────────────────────────────────────────────────────
+
+export const createGraphTools = (ctx: Context) => {
+  const invoke = createInvoke(ctx);
 
   const emitUpdate = (event: GraphUpdatedEvent) => {
     ctx.emit('codegraph/graph/updated', event);
@@ -150,32 +239,9 @@ export const createGraphTools = (ctx: Context) => {
     },
     output: {
       schema: { type: 'json' },
-      render: (_args, value) => {
-        const v = value as { status: string; nodeCount: number; edgeCount: number; sources?: Record<string, boolean> };
-        const srcInfo = v.sources ? ` [codegraph:${v.sources.codegraph ? '✓' : '✗'} lens:${v.sources.lens ? '✓' : '✗'}]` : '';
-        return [
-          { type: 'text', text: `Graph status: ${v.status} (${v.nodeCount} nodes, ${v.edgeCount} edges)${srcInfo}` },
-        ];
-      },
+      render: renderGraphStatus,
     },
-    async execute(args) {
-      const [cgResult, lensResult] = await Promise.allSettled([
-        codegraphAdapter.fetchData(args.repoId, invoke),
-        lensAdapter.fetchData(args.repoId, invoke),
-      ]);
-      const cgNodes = cgResult.status === 'fulfilled' ? cgResult.value.nodes.length : 0;
-      const lensNodes = lensResult.status === 'fulfilled' ? lensResult.value.nodes.length : 0;
-      const data = await fetchMergedGraph(invoke, args.repoId);
-      return {
-        status: data.nodes.length > 0 ? 'ready' : 'unavailable',
-        nodeCount: data.metadata.nodeCount,
-        edgeCount: data.metadata.edgeCount,
-        sources: {
-          codegraph: cgNodes > 0,
-          lens: lensNodes > 0,
-        },
-      };
-    },
+    execute: (args) => executeGraphStatus(args as { repoId: string }, invoke),
   });
 
   const graphData = defineTool({
@@ -191,37 +257,9 @@ export const createGraphTools = (ctx: Context) => {
     },
     output: {
       schema: { type: 'json' },
-      render: (_args, value) => {
-        const data = value as unknown as GraphData;
-        return [{ type: 'text', text: summarizeGraph(data) }];
-      },
+      render: renderGraphData,
     },
-    async execute(args) {
-      const source = args.source ?? 'both';
-      const fresh = await fetchMergedGraph(invoke, args.repoId, source);
-
-      // Incremental heat-update: merge fresh data into cached graph via applyDelta.
-      const cached = graphCache.get(args.repoId);
-      const deltaSource: AdapterResult['source'] = source === 'lens' ? 'lens' : 'codegraph';
-      const merged = cached
-        ? merger.applyDelta(cached, { nodes: fresh.nodes, edges: fresh.edges, source: deltaSource, timestamp: fresh.metadata.timestamp })
-        : fresh;
-      cacheGraph(args.repoId, merged);
-
-      emitUpdate({
-        repoId: args.repoId,
-        nodeCount: merged.metadata.nodeCount,
-        edgeCount: merged.metadata.edgeCount,
-        timestamp: merged.metadata.timestamp,
-      });
-      emitData({
-        repoId: args.repoId,
-        nodes: merged.nodes,
-        edges: merged.edges,
-        timestamp: merged.metadata.timestamp,
-      });
-      return merged as unknown as JsonValue;
-    },
+    execute: (args) => executeGraphData(args as { repoId: string; source?: string }, invoke, emitUpdate, emitData),
   });
 
   const graphSymbol = defineTool({
@@ -232,17 +270,9 @@ export const createGraphTools = (ctx: Context) => {
     },
     output: {
       schema: { type: 'json' },
-      render: (_args, value) => {
-        const v = value as { name?: string; file?: string; line?: number; category?: string; symbolId?: string } | null;
-        if (!v) return [{ type: 'text', text: 'Symbol not found.' }];
-        return [{ type: 'text', text: `${v.name ?? v.symbolId ?? '?'} (${v.category ?? 'unknown'}) @ ${v.file ?? '?'}:${v.line ?? '?'}` }];
-      },
+      render: renderGraphSymbol,
     },
-    async execute(args) {
-      // Resolve via the upstream codegraph_query tool (dsh-codegraph surface).
-      const raw = await invoke('codegraph_query', { search: args.symbolId, limit: 1 });
-      return pickBestMatch(raw, args.symbolId) as JsonValue;
-    },
+    execute: (args) => executeGraphSymbol(args as { symbolId: string }, invoke),
   });
 
   const graphImpact = defineTool({
@@ -253,22 +283,9 @@ export const createGraphTools = (ctx: Context) => {
     },
     output: {
       schema: { type: 'json' },
-      render: (_args, value) => {
-        const v = value as { affected?: string[]; depth?: number };
-        const count = v.affected?.length ?? 0;
-        const list = v.affected?.slice(0, 10).join(', ') ?? '';
-        return [{ type: 'text', text: `Impact: ${count} symbols affected (depth ${v.depth ?? 0})${list ? `\n  ${list}` : ''}` }];
-      },
+      render: renderGraphImpact,
     },
-    async execute(args) {
-      // dsh-codegraph exposes codegraph_impact (full surface) for change
-      // impact analysis; lens_impact stays as the alternative upstream.
-      const raw = await invoke('codegraph_impact', { symbol: args.symbolId, depth: 2 });
-      const normalized = normalizeImpact(raw);
-      if (normalized) return normalized as JsonValue;
-      const lens = await invoke('lens_impact', { symbolId: args.symbolId });
-      return (lens ?? { affected: [], depth: 0 }) as JsonValue;
-    },
+    execute: (args) => executeGraphImpact(args as { symbolId: string }, invoke),
   });
 
   return { graphStatus, graphData, graphSymbol, graphImpact };

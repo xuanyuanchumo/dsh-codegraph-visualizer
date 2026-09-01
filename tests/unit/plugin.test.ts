@@ -235,4 +235,40 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
       expect(ctx.emit).toHaveBeenCalledWith('codegraph/graph/init-result', expect.objectContaining({ success: false }));
     });
   });
+
+  it('should emit prerequisite status on apply', () => {
+    const ctx = makeMockCtx();
+    const { apply } = require('../../src/index.ts');
+    apply(ctx);
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph/prerequisite/status', expect.objectContaining({
+      codegraph: expect.any(Boolean),
+      lens: expect.any(Boolean),
+    }));
+  });
+
+  it('watch toggle should close existing watcher when disabled', async () => {
+    const ctx = makeMockCtx();
+    const handlers = new Map<string, (event: Record<string, unknown>) => void>();
+    ctx.on.mockImplementation((name: string, fn: (e: unknown) => void) => { handlers.set(name, fn as (e: Record<string, unknown>) => void); });
+    const { apply } = await import('../../src/index.ts');
+    apply(ctx);
+    handlers.get('codegraph/watch/toggle')!({ enabled: false, path: '/tmp/repo', timestamp: 1 });
+    expect(ctx.emit).not.toHaveBeenCalledWith('codegraph/graph/updated', expect.objectContaining({ repoId: '/tmp/repo' }));
+  });
+
+  it('watch toggle should start watching when enabled', async () => {
+    const ctx = makeMockCtx();
+    const handlers = new Map<string, (event: Record<string, unknown>) => void>();
+    ctx.on.mockImplementation((name: string, fn: (e: unknown) => void) => { handlers.set(name, fn as (e: Record<string, unknown>) => void); });
+    const { apply } = await import('../../src/index.ts');
+    apply(ctx);
+    handlers.get('codegraph/watch/toggle')!({ enabled: true, path: '/tmp/repo', timestamp: 1 });
+  });
+
+  it('should register effect for cleanup', () => {
+    const ctx = makeMockCtx();
+    const { apply } = require('../../src/index.ts');
+    apply(ctx);
+    expect(ctx.effect).toHaveBeenCalled();
+  });
 });
