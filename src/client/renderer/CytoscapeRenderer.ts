@@ -214,6 +214,39 @@ export class CytoscapeRenderer implements IRenderer {
     });
   }
 
+  filterByGraphType(graphType: 'all' | 'call' | 'dependency'): void {
+    if (!this.cy) return;
+    const allowedEdgeTypes = new Set<string>();
+    if (graphType === 'all') {
+      allowedEdgeTypes.add('call');
+      allowedEdgeTypes.add('import');
+      allowedEdgeTypes.add('extend');
+      allowedEdgeTypes.add('implement');
+      allowedEdgeTypes.add('dependency');
+    } else if (graphType === 'call') {
+      allowedEdgeTypes.add('call');
+    } else if (graphType === 'dependency') {
+      allowedEdgeTypes.add('import');
+      allowedEdgeTypes.add('dependency');
+    }
+
+    const connectedNodeIds = new Set<string>();
+    this.cy.batch(() => {
+      this.cy!.edges().forEach((edge) => {
+        const edgeType = edge.data('type') as string;
+        const visible = allowedEdgeTypes.has(edgeType);
+        edge.style('display', visible ? 'element' : 'none');
+        if (visible) {
+          connectedNodeIds.add(edge.source().id());
+          connectedNodeIds.add(edge.target().id());
+        }
+      });
+      this.cy!.nodes().forEach((node) => {
+        node.style('display', connectedNodeIds.has(node.id()) ? 'element' : 'none');
+      });
+    });
+  }
+
   search(query: string): number {
     if (!this.cy) return 0;
     if (!query) {

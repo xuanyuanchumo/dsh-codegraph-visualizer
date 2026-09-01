@@ -30,6 +30,7 @@ export function useGraphRenderer(
   highlightedNodeIds: NodeId[],
   selectedNodeId: NodeId | null,
   filterType: string,
+  graphType: 'all' | 'call' | 'dependency',
   debouncedSearch: string,
   showCallChain: boolean,
   showCycles: boolean,
@@ -79,6 +80,10 @@ export function useGraphRenderer(
   useEffect(() => {
     rendererRef.current?.filterByType(filterType);
   }, [filterType]);
+
+  useEffect(() => {
+    rendererRef.current?.filterByGraphType(graphType);
+  }, [graphType]);
 
   useEffect(() => {
     const r = rendererRef.current;

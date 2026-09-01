@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import { useGraphStore, type LayoutType, type ThemeType } from './store/graphStore.ts';
+import { useGraphStore, type ThemeType, type GraphType } from './store/graphStore.ts';
 import { useShallow } from 'zustand/shallow';
-import type { IRenderer } from './renderer/IRenderer.ts';
 import type { NodeId, GraphNode } from '../types/index.ts';
 import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard } from './hooks/index.ts';
 import { GraphErrorBoundary } from './components/ErrorBoundary.tsx';
@@ -32,10 +31,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const {
     nodes, edges, layout, theme, searchQuery, selectedNodeId,
-    highlightedNodeIds, filterType, isLoading, error, lastUpdated,
+    highlightedNodeIds, filterType, graphType, isLoading, error, lastUpdated,
     prerequisites, watchEnabled, currentWorkspace, workspaceList,
     setLayout, setTheme, setSearchQuery,
-    setSelectedNode, setFilterType, setLoading,
+    setSelectedNode, setFilterType, setGraphType, setLoading,
     setCurrentWorkspace, addWorkspace, removeWorkspace,
     setGraphData, setInitStatus, setWatchEnabled, setError,
     initStatus,
@@ -43,11 +42,14 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     nodes: s.nodes, edges: s.edges, layout: s.layout, theme: s.theme,
     searchQuery: s.searchQuery, selectedNodeId: s.selectedNodeId,
     highlightedNodeIds: s.highlightedNodeIds, filterType: s.filterType,
+    graphType: s.graphType,
     isLoading: s.isLoading, error: s.error, lastUpdated: s.lastUpdated,
     prerequisites: s.prerequisites, watchEnabled: s.watchEnabled,
     currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
     setLayout: s.setLayout, setTheme: s.setTheme, setSearchQuery: s.setSearchQuery,
-    setSelectedNode: s.setSelectedNode, setFilterType: s.setFilterType, setLoading: s.setLoading,
+    setSelectedNode: s.setSelectedNode, setFilterType: s.setFilterType,
+    setGraphType: s.setGraphType,
+    setLoading: s.setLoading,
     setCurrentWorkspace: s.setCurrentWorkspace, addWorkspace: s.addWorkspace, removeWorkspace: s.removeWorkspace,
     setGraphData: s.setGraphData, setInitStatus: s.setInitStatus, setWatchEnabled: s.setWatchEnabled, setError: s.setError,
     initStatus: s.initStatus,
@@ -107,7 +109,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const renderer = useGraphRenderer(
     nodes, edges, layout, theme,
-    highlightedNodeIds, selectedNodeId, filterType,
+    highlightedNodeIds, selectedNodeId, filterType, graphType,
     debouncedSearch, panel.showCallChain, panel.showCycles,
     { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut },
     showCallChainRef,
@@ -173,6 +175,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         layout={layout}
         theme={theme}
         filterType={filterType}
+        graphType={graphType}
         showSearch={panel.showSearch}
         showCallChain={panel.showCallChain}
         showCycles={panel.showCycles}
@@ -183,6 +186,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         onLayoutChange={setLayout}
         onThemeToggle={handleThemeToggle}
         onFilterChange={setFilterType}
+        onGraphTypeChange={setGraphType}
         onToggleSearch={panel.toggleSearch}
         onToggleCallChain={panel.toggleCallChain}
         onToggleCycles={panel.toggleCycles}
@@ -263,7 +267,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         </div>
       )}
 
-      <StatusBar error={error} isLoading={isLoading} lastUpdated={lastUpdated} watchEnabled={watchEnabled} />
+      <StatusBar error={error} isLoading={isLoading} lastUpdated={lastUpdated} watchEnabled={watchEnabled} workspaceName={currentWorkspace} />
 
       <div className="resize-handle" aria-hidden="true" />
     </div>

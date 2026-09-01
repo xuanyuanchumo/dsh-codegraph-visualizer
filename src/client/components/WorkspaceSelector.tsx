@@ -21,7 +21,7 @@ function formatRelativeTime(ts: number): string {
 }
 
 function deriveName(path: string): string {
-  const parts = path.replace(/[\/\\]+$/, '').split(/[\/\\]/);
+  const parts = path.replace(/[\\/]+$/, '').split(/[\\/]/);
   return parts[parts.length - 1] || path;
 }
 

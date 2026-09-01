@@ -23,6 +23,7 @@ export interface IRenderer {
   highlightNodes(nodeIds: NodeId[]): void;
   selectNode(nodeId: NodeId | null): void;
   filterByType(type: string): void;
+  filterByGraphType(graphType: 'all' | 'call' | 'dependency'): void;
   search(query: string): number;
   highlightCallChain(nodeId: NodeId | null): void;
   detectCycles(): Set<string>;

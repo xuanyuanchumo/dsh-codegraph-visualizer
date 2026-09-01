@@ -6,6 +6,7 @@ interface StatusBarProps {
   isLoading: boolean;
   lastUpdated: number;
   watchEnabled: boolean;
+  workspaceName?: string;
 }
 
 function formatTime(ts: number): string {
@@ -13,15 +14,23 @@ function formatTime(ts: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
 }
 
-export function StatusBar({ error, isLoading, lastUpdated, watchEnabled }: StatusBarProps) {
+function deriveWorkspaceName(path: string): string {
+  if (!path || path === '.') return '';
+  const parts = path.replace(/[\\/]+$/, '').split(/[\\/]/);
+  return parts[parts.length - 1] || path;
+}
+
+export function StatusBar({ error, isLoading, lastUpdated, watchEnabled, workspaceName }: StatusBarProps) {
   const t = useT();
   const statusDotClass = error ? 'status-dot error' : isLoading ? 'status-dot loading' : 'status-dot';
   const statusText = error ? t('state.error') : isLoading ? t('state.loading') : t('state.ready');
+  const wsName = workspaceName ? deriveWorkspaceName(workspaceName) : '';
   return (
     <div className="status-bar">
       <div className="status-item">
         <span className={statusDotClass} /><span>{statusText}</span>
       </div>
+      {wsName && <span className="status-workspace" title={workspaceName}>{wsName}</span>}
       {watchEnabled && <span className="watch-indicator" title={t('import.watchOn')}>●</span>}
       <div className="status-spacer" />
       <div className="status-item">

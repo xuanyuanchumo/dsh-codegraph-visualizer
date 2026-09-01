@@ -25,6 +25,9 @@ import type { GraphData } from '../../src/types/index.ts';
 import type { UpstreamInvoker } from '../../src/adapters/CodeGraphAdapter.ts';
 import type { Context } from '@deepseek-ai/cordis';
 
+type TextOutput = Array<{ type: string; text: string }>;
+
+
 // ── Mock adapters so createGraphTools doesn't hit real DB ──────────────
 vi.mock('../../src/adapters/CodeGraphAdapter.ts', () => {
   const mockFetchData = vi.fn().mockResolvedValue({
@@ -343,7 +346,10 @@ describe('createGraphTools', () => {
       timestamp: 1,
     });
     const tools = createGraphTools(ctx);
-    const result = await tools.graphStatus.execute({ repoId: 'r1' }, mockExec);
+    const result = await tools.graphStatus.execute({ repoId: 'r1' }, mockExec) as {
+      status: string; nodeCount: number; edgeCount: number;
+      sources: { codegraph: boolean; lens: boolean };
+    };
     expect(result.status).toBe('ready');
     expect(result.nodeCount).toBeGreaterThan(0);
     expect(result.sources.codegraph).toBe(true);
@@ -363,7 +369,10 @@ describe('createGraphTools', () => {
       timestamp: 1,
     });
     const tools = createGraphTools(ctx);
-    const result = await tools.graphStatus.execute({ repoId: 'r1' }, mockExec);
+    const result = await tools.graphStatus.execute({ repoId: 'r1' }, mockExec) as {
+      status: string; nodeCount: number; edgeCount: number;
+      sources: { codegraph: boolean; lens: boolean };
+    };
     expect(result.status).toBe('unavailable');
     expect(result.sources.codegraph).toBe(false);
     expect(result.sources.lens).toBe(false);
@@ -372,19 +381,19 @@ describe('createGraphTools', () => {
   it('graph_status render should format status text', () => {
     const tools = createGraphTools(ctx);
     const renderFn = tools.graphStatus.output.render!;
-    const output = renderFn({}, { status: 'ready', nodeCount: 5, edgeCount: 3, sources: { codegraph: true, lens: false } });
-    expect(output[0].text).toContain('ready');
-    expect(output[0].text).toContain('5 nodes');
-    expect(output[0].text).toContain('codegraph:✓');
-    expect(output[0].text).toContain('lens:✗');
+    const output = renderFn({}, { status: 'ready', nodeCount: 5, edgeCount: 3, sources: { codegraph: true, lens: false } }) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('ready');
+    expect(output[0]!.text).toContain('5 nodes');
+    expect(output[0]!.text).toContain('codegraph:✓');
+    expect(output[0]!.text).toContain('lens:✗');
   });
 
   it('graph_status render without sources', () => {
     const tools = createGraphTools(ctx);
     const renderFn = tools.graphStatus.output.render!;
-    const output = renderFn({}, { status: 'unavailable', nodeCount: 0, edgeCount: 0 });
-    expect(output[0].text).toContain('unavailable');
-    expect(output[0].text).not.toContain('codegraph:');
+    const output = renderFn({}, { status: 'unavailable', nodeCount: 0, edgeCount: 0 }) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('unavailable');
+    expect(output[0]!.text).not.toContain('codegraph:');
   });
 
   // ── graph_data ───────────────────────────────────────────────────────
@@ -436,9 +445,9 @@ describe('createGraphTools', () => {
       [makeNode('n1', 'funcA', 'function', 'a.ts', 10)],
       [makeEdge('e1', 'n1', 'n2', 'call')],
     );
-    const output = renderFn({}, data);
-    expect(output[0].text).toContain('1 nodes');
-    expect(output[0].text).toContain('funcA');
+    const output = renderFn({}, data as never) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('1 nodes');
+    expect(output[0]!.text).toContain('funcA');
   });
 
   // ── graph_symbol ─────────────────────────────────────────────────────
@@ -465,25 +474,25 @@ describe('createGraphTools', () => {
   it('graph_symbol render should format found symbol', () => {
     const tools = createGraphTools(ctx);
     const renderFn = tools.graphSymbol.output.render!;
-    const output = renderFn({}, { name: 'funcA', file: 'a.ts', line: 10, category: 'function', symbolId: 's1' });
-    expect(output[0].text).toContain('funcA');
-    expect(output[0].text).toContain('a.ts:10');
-    expect(output[0].text).toContain('function');
+    const output = renderFn({}, { name: 'funcA', file: 'a.ts', line: 10, category: 'function', symbolId: 's1' }) as TextOutput;
+    expect(output[0]!.text).toContain('funcA');
+    expect(output[0]!.text).toContain('a.ts:10');
+    expect(output[0]!.text).toContain('function');
   });
 
   it('graph_symbol render should show not found for null', () => {
     const tools = createGraphTools(ctx);
     const renderFn = tools.graphSymbol.output.render!;
-    const output = renderFn({}, null);
-    expect(output[0].text).toBe('Symbol not found.');
+    const output = renderFn({}, null) as TextOutput;
+    expect(output[0]!.text).toBe('Symbol not found.');
   });
 
   it('graph_symbol render should handle missing fields', () => {
     const tools = createGraphTools(ctx);
     const renderFn = tools.graphSymbol.output.render!;
-    const output = renderFn({}, { symbolId: 'x' });
-    expect(output[0].text).toContain('x');
-    expect(output[0].text).toContain('?');
+    const output = renderFn({}, { symbolId: 'x' }) as TextOutput;
+    expect(output[0]!.text).toContain('x');
+    expect(output[0]!.text).toContain('?');
   });
 
   // ── graph_impact ─────────────────────────────────────────────────────
@@ -525,25 +534,25 @@ describe('createGraphTools', () => {
   it('graph_impact render should format impact summary', () => {
     const tools = createGraphTools(ctx);
     const renderFn = tools.graphImpact.output.render!;
-    const output = renderFn({}, { affected: ['s1', 's2', 's3'], depth: 2 });
-    expect(output[0].text).toContain('3 symbols affected');
-    expect(output[0].text).toContain('depth 2');
-    expect(output[0].text).toContain('s1, s2, s3');
+    const output = renderFn({}, { affected: ['s1', 's2', 's3'], depth: 2 }) as TextOutput;
+    expect(output[0]!.text).toContain('3 symbols affected');
+    expect(output[0]!.text).toContain('depth 2');
+    expect(output[0]!.text).toContain('s1, s2, s3');
   });
 
   it('graph_impact render should handle empty affected list', () => {
     const tools = createGraphTools(ctx);
     const renderFn = tools.graphImpact.output.render!;
-    const output = renderFn({}, { affected: [], depth: 0 });
-    expect(output[0].text).toContain('0 symbols affected');
+    const output = renderFn({}, { affected: [], depth: 0 }) as TextOutput;
+    expect(output[0]!.text).toContain('0 symbols affected');
   });
 
   it('graph_impact render should limit to 10 affected symbols', () => {
     const tools = createGraphTools(ctx);
     const renderFn = tools.graphImpact.output.render!;
     const affected = Array.from({ length: 15 }, (_, i) => `s${i}`);
-    const output = renderFn({}, { affected, depth: 3 });
-    expect(output[0].text).toContain('15 symbols affected');
+    const output = renderFn({}, { affected, depth: 3 }) as TextOutput;
+    expect(output[0]!.text).toContain('15 symbols affected');
   });
 
   // ── invoke error paths ───────────────────────────────────────────────

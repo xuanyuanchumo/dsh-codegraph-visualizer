@@ -13,6 +13,7 @@ const memoryStorage: StateStorage = {
 
 export type LayoutType = 'cose' | 'dagre' | 'circle' | 'grid';
 export type ThemeType = 'light' | 'dark';
+export type GraphType = 'all' | 'call' | 'dependency';
 
 export interface WorkspaceInfo {
   path: string;
@@ -45,6 +46,7 @@ interface GraphState {
   selectedNodeId: NodeId | null;
   highlightedNodeIds: NodeId[];
   filterType: GraphNode['type'] | 'all';
+  graphType: GraphType;
   
   // Loading
   isLoading: boolean;
@@ -73,6 +75,7 @@ interface GraphState {
   setSelectedNode: (nodeId: NodeId | null) => void;
   setHighlightedNodes: (nodeIds: NodeId[]) => void;
   setFilterType: (filter: GraphNode['type'] | 'all') => void;
+  setGraphType: (graphType: GraphType) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clearGraph: () => void;
@@ -96,6 +99,7 @@ export const useGraphStore = create<GraphState>()(
       selectedNodeId: null,
       highlightedNodeIds: [],
       filterType: 'all',
+      graphType: 'all',
       isLoading: false,
       error: null,
       lastUpdated: 0,
@@ -117,6 +121,7 @@ export const useGraphStore = create<GraphState>()(
       setSelectedNode: (selectedNodeId) => set({ selectedNodeId }),
       setHighlightedNodes: (highlightedNodeIds) => set({ highlightedNodeIds }),
       setFilterType: (filterType) => set({ filterType }),
+      setGraphType: (graphType) => set({ graphType }),
       setLoading: (isLoading) => {
         clearLoadingFailsafe();
         set({ isLoading });
@@ -181,6 +186,7 @@ export const useGraphStore = create<GraphState>()(
       },
       partialize: (s) => ({
         layout: s.layout, theme: s.theme, filterType: s.filterType,
+        graphType: s.graphType,
         currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
       }),
     },

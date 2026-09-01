@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback } from 'react';
-import type { LayoutType, ThemeType } from '../store/graphStore.ts';
+import type { LayoutType, ThemeType, GraphType } from '../store/graphStore.ts';
 import type { GraphNode } from '../../types/index.ts';
 import type { WorkspaceSelectorProps } from './WorkspaceSelector.tsx';
 import { useT, useLang, toggleLang } from '../i18n/index.ts';
@@ -20,12 +20,19 @@ const FILTER_KEYS: { value: string; key: string }[] = [
   { value: 'interface', key: 'filter.interface' },
 ];
 
+const GRAPH_TYPES: { value: GraphType; key: string }[] = [
+  { value: 'all', key: 'graphType.all' },
+  { value: 'call', key: 'graphType.call' },
+  { value: 'dependency', key: 'graphType.dependency' },
+];
+
 interface ToolbarProps extends WorkspaceSelectorProps {
   statsText: string;
   typeCounts: { function: number; class: number; interface: number };
   layout: LayoutType;
   theme: ThemeType;
   filterType: GraphNode['type'] | 'all';
+  graphType: GraphType;
   showSearch: boolean;
   showCallChain: boolean;
   showCycles: boolean;
@@ -36,6 +43,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   onLayoutChange: (l: LayoutType) => void;
   onThemeToggle: () => void;
   onFilterChange: (f: GraphNode['type'] | 'all') => void;
+  onGraphTypeChange: (g: GraphType) => void;
   onToggleSearch: () => void;
   onToggleCallChain: () => void;
   onToggleCycles: () => void;
@@ -70,9 +78,9 @@ export function Toolbar(props: ToolbarProps) {
   }, [props]);
 
   const {
-    statsText, typeCounts, layout, theme, filterType,
+    statsText, typeCounts, layout, theme, filterType, graphType,
     showSearch, showCallChain, showCycles, showMiniMap, showLegend, showImport, collapsed,
-    onLayoutChange, onThemeToggle, onFilterChange,
+    onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange,
     onToggleSearch, onToggleCallChain, onToggleCycles, onToggleMiniMap, onToggleLegend,
     onToggleImport, onRefresh, onCollapse,
     currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
@@ -104,6 +112,17 @@ export function Toolbar(props: ToolbarProps) {
               title={t('toolbar.layout', { l })}
               aria-pressed={layout === l}
             >{l}</button>
+          ))}
+        </div>
+        <div className="graph-type-buttons" role="group" aria-label={t('toolbar.graphType')}>
+          {GRAPH_TYPES.map((g) => (
+            <button
+              key={g.value}
+              className={`graph-type-btn ${graphType === g.value ? 'active' : ''}`}
+              onClick={() => onGraphTypeChange(g.value)}
+              title={t(g.key)}
+              aria-pressed={graphType === g.value}
+            >{t(g.key)}</button>
           ))}
         </div>
       </div>

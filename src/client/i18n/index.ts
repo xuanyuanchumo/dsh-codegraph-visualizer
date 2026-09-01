@@ -32,6 +32,7 @@ const en: Dict = {
   'toolbar.export': 'Export graph',
   'toolbar.lang': 'Switch language',
   'toolbar.layout': 'Switch to {l} layout (Ctrl+L cycles)',
+  'toolbar.graphType': 'Graph type switcher',
 
   // Filter options
   'filter.all': 'All Types',
@@ -40,6 +41,11 @@ const en: Dict = {
   'filter.variable': 'Variables',
   'filter.module': 'Modules',
   'filter.interface': 'Interfaces',
+
+  // Graph type
+  'graphType.all': 'All',
+  'graphType.call': 'Calls',
+  'graphType.dependency': 'Deps',
 
   // Search
   'search.placeholder': 'Search symbols…',
@@ -201,6 +207,7 @@ const zh: Dict = {
   'toolbar.export': '导出图谱',
   'toolbar.lang': '切换语言',
   'toolbar.layout': '切换至 {l} 布局 (Ctrl+L 循环)',
+  'toolbar.graphType': '图谱类型切换',
 
   // Filter options
   'filter.all': '全部类型',
@@ -209,6 +216,11 @@ const zh: Dict = {
   'filter.variable': '变量',
   'filter.module': '模块',
   'filter.interface': '接口',
+
+  // 图谱类型
+  'graphType.all': '全部',
+  'graphType.call': '调用',
+  'graphType.dependency': '依赖',
 
   // Search
   'search.placeholder': '搜索符号…',

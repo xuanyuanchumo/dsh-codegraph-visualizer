@@ -54,8 +54,8 @@
   position: fixed;
   right: 16px;
   bottom: 16px;
-  width: 560px;
-  height: 460px;
+  width: 640px;
+  height: 520px;
   z-index: 1000;
   display: flex;
   flex-direction: column;
@@ -145,7 +145,7 @@
 .toolbar-center {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   flex: 1;
   justify-content: center;
 }
@@ -243,6 +243,41 @@
   color: #fff;
   background: var(--cg-accent);
   box-shadow: 0 1px 3px rgba(99, 102, 241, 0.4);
+}
+
+/* ---- Graph type switcher (segmented control) ----------------------------- */
+
+.graph-type-buttons {
+  display: flex;
+  gap: 2px;
+  background: var(--cg-bg);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-sm);
+  padding: 2px;
+}
+
+.graph-type-btn {
+  padding: 4px 10px;
+  border: none;
+  background: transparent;
+  color: var(--cg-text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: var(--cg-radius-xs);
+  cursor: pointer;
+  transition: all var(--cg-transition);
+  font-family: var(--cg-font-sans);
+}
+
+.graph-type-btn:hover {
+  color: var(--cg-text);
+  background: var(--cg-surface-hover);
+}
+
+.graph-type-btn.active {
+  color: #fff;
+  background: var(--cg-success);
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.4);
 }
 
 /* ---- Select -------------------------------------------------------------- */
@@ -542,6 +577,32 @@
   word-break: break-word;
 }
 
+.node-detail-panel .detail-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.node-detail-panel .detail-header h3 {
+  margin: 0;
+  flex: 1;
+}
+
+.node-detail-panel .detail-type-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1.5px solid;
+  border-radius: var(--cg-radius-xs);
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--cg-font-mono);
+  flex-shrink: 0;
+}
+
 .node-detail-panel .detail-row {
   display: flex;
   justify-content: space-between;
@@ -626,6 +687,18 @@
 
 .status-bar .status-dot.error {
   background: var(--cg-error);
+}
+
+.status-bar .status-workspace {
+  color: var(--cg-accent);
+  font-weight: 500;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 4px;
+  border-left: 1px solid var(--cg-border);
+  margin-left: 4px;
 }
 
 .status-bar .status-spacer {
