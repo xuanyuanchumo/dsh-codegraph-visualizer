@@ -1,6 +1,11 @@
 // Custom hooks for graph visualization
 import { useState, useEffect, useRef } from 'react';
 
+export { useGraphRenderer } from './useGraphRenderer.ts';
+export { usePanelResize } from './usePanelResize.ts';
+export { usePanelState } from './usePanelState.ts';
+export { usePanelKeyboard } from './usePanelKeyboard.ts';
+
 /**
  * Debounce a value with a delay.
  * Use case: search input, window resize, etc.

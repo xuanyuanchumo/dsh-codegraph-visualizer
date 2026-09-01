@@ -156,6 +156,20 @@
   gap: 6px;
 }
 
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbar-separator {
+  width: 1px;
+  height: 18px;
+  background: var(--cg-border);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
 .node-count {
   font-weight: 600;
   letter-spacing: 0.01em;
@@ -682,6 +696,15 @@
   height: 9px;
   border-radius: 50%;
   flex-shrink: 0;
+}
+
+.mini-map-total {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--cg-border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cg-text);
 }
 
 /* ---- Tooltip (node hover) ------------------------------------------------ */

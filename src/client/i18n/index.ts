@@ -24,6 +24,10 @@ const en: Dict = {
   'toolbar.minimap': 'Toggle mini-map (Ctrl+M)',
   'toolbar.legend': 'Toggle legend',
   'toolbar.refresh': 'Refresh graph',
+  'toolbar.dataGroup': 'Data controls',
+  'toolbar.analysisGroup': 'Analysis tools',
+  'toolbar.viewGroup': 'View controls',
+  'toolbar.settingsGroup': 'Settings',
   'toolbar.theme': 'Toggle theme',
   'toolbar.export': 'Export graph',
   'toolbar.lang': 'Switch language',
@@ -77,6 +81,7 @@ const en: Dict = {
   'minimap.variables': 'Variables',
   'minimap.modules': 'Modules',
   'minimap.interfaces': 'Interfaces',
+  'minimap.total': 'Total',
 
   // Import panel
   'import.title': 'Import Graph',
@@ -188,6 +193,10 @@ const zh: Dict = {
   'toolbar.minimap': '切换缩略图 (Ctrl+M)',
   'toolbar.legend': '切换图例',
   'toolbar.refresh': '刷新图谱',
+  'toolbar.dataGroup': '数据控制',
+  'toolbar.analysisGroup': '分析工具',
+  'toolbar.viewGroup': '视图控制',
+  'toolbar.settingsGroup': '设置',
   'toolbar.theme': '切换主题',
   'toolbar.export': '导出图谱',
   'toolbar.lang': '切换语言',
@@ -241,6 +250,7 @@ const zh: Dict = {
   'minimap.variables': '变量',
   'minimap.modules': '模块',
   'minimap.interfaces': '接口',
+  'minimap.total': '总计',
 
   // Import panel
   'import.title': '导入图谱',

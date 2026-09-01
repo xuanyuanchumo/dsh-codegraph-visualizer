@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useGraphStore, type LayoutType, type ThemeType } from './store/graphStore.ts';
 import { useShallow } from 'zustand/shallow';
-import { CytoscapeRenderer } from './renderer/CytoscapeRenderer.ts';
+import type { IRenderer } from './renderer/IRenderer.ts';
 import type { NodeId, GraphNode } from '../types/index.ts';
-import { useDebounce, useKeyboardShortcut, usePolling } from './hooks/index.ts';
+import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard } from './hooks/index.ts';
 import { GraphErrorBoundary } from './components/ErrorBoundary.tsx';
 import { ImportPanel } from './components/ImportPanel.tsx';
 import { Legend } from './components/Legend.tsx';
@@ -11,7 +11,7 @@ import { Toolbar } from './components/Toolbar.tsx';
 import { SearchBar } from './components/SearchBar.tsx';
 import { StatusBar } from './components/StatusBar.tsx';
 import { NodeDetail } from './components/NodeDetail.tsx';
-import { MiniMap } from './components/MiniMap.tsx';
+import { StatsPanel } from './components/StatsPanel.tsx';
 import { EmptyState } from './components/EmptyState.tsx';
 import { GraphIcon } from './components/Icons.tsx';
 import { scoped } from '../shared/Logger.ts';
@@ -26,9 +26,10 @@ interface GraphPanelProps {
 
 function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const t = useT();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const rendererRef = useRef<CytoscapeRenderer | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const [selectedNodeData, setSelectedNodeData] = useState<GraphNode | null>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; name: string; path: string; type: string } | null>(null);
+
   const {
     nodes, edges, layout, theme, searchQuery, selectedNodeId,
     highlightedNodeIds, filterType, isLoading, error, lastUpdated,
@@ -46,19 +47,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     setSelectedNode: s.setSelectedNode, setFilterType: s.setFilterType, setLoading: s.setLoading,
   })));
 
-  const [showSearch, setShowSearch] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
-  const [selectedNodeData, setSelectedNodeData] = useState<GraphNode | null>(null);
-  const [showCycles, setShowCycles] = useState(false);
-  const [showCallChain, setShowCallChain] = useState(false);
-  const [showMiniMap, setShowMiniMap] = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [showLegend, setShowLegend] = useState(false);
-  const [tooltip, setTooltip] = useState<{ x: number; y: number; name: string; path: string; type: string } | null>(null);
-
-  const showCallChainRef = useRef(showCallChain);
-  showCallChainRef.current = showCallChain;
+  const panel = usePanelState();
   const debouncedSearch = useDebounce(searchQuery, 200);
+  const showCallChainRef = useRef(panel.showCallChain);
+  showCallChainRef.current = panel.showCallChain;
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -71,163 +63,72 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     return () => window.removeEventListener('codegraph:workspace', handler);
   }, []);
 
-  useKeyboardShortcut('/', () => setShowSearch(true), { preventDefault: true });
-  useKeyboardShortcut('Escape', () => {
-    setShowSearch(false); setShowCallChain(false); setShowCycles(false);
-    setShowImport(false); setShowLegend(false); setTooltip(null);
-    rendererRef.current?.highlightCallChain(null);
-    rendererRef.current?.highlightCycles(new Set<string>());
-  });
-  useKeyboardShortcut('c', () => setShowCallChain((v) => !v), { ctrl: true });
-  useKeyboardShortcut('m', () => setShowMiniMap((v) => !v), { ctrl: true });
-  useKeyboardShortcut('l', () => {
-    const next: LayoutType = (layout === 'cose' ? 'dagre' : layout === 'dagre' ? 'circle' : layout === 'circle' ? 'grid' : 'cose');
-    setLayout(next);
-  }, { ctrl: true });
-  useKeyboardShortcut('i', () => setShowImport((v) => !v), { ctrl: true });
+  const handleNodeTap = useCallback((id: NodeId) => {
+    setSelectedNode(id);
+    const data = renderer.rendererRef.current?.getSelectedNodeData() ?? null;
+    setSelectedNodeData(data);
+  }, [setSelectedNode]);
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const renderer = new CytoscapeRenderer({
-      container: containerRef.current,
-      theme,
-      onNodeTap: (nodeId: string) => {
-        const id = nodeId as NodeId;
-        setSelectedNode(id);
-        const data = rendererRef.current?.getSelectedNodeData() ?? null;
-        setSelectedNodeData(data);
-        if (showCallChainRef.current) { rendererRef.current?.highlightCallChain(id); }
-      },
-      onNodeDoubleTap: (nodeId: string) => {
-        const data = rendererRef.current?.getSelectedNodeData();
-        if (data) {
-          window.dispatchEvent(new CustomEvent('codegraph:open-source', {
-            detail: { filePath: data.filePath, lineNumber: data.lineNumber, nodeId },
-          }));
-        }
-      },
-      onNodeHover: (nodeId: string, renderedPosition: { x: number; y: number }) => {
-        const data = rendererRef.current?.getNodeData(nodeId);
-        if (data) {
-          setTooltip({ x: renderedPosition.x, y: renderedPosition.y, name: data.label, path: `${data.filePath}:${data.lineNumber}`, type: data.type });
-        }
-      },
-      onNodeHoverOut: () => setTooltip(null),
-    });
-    renderer.init();
-    rendererRef.current = renderer;
-    log.info('renderer initialized', { theme });
-    return () => { renderer.destroy(); rendererRef.current = null; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleNodeDoubleTap = useCallback((nodeId: string) => {
+    const data = renderer.rendererRef.current?.getSelectedNodeData();
+    if (data) {
+      window.dispatchEvent(new CustomEvent('codegraph:open-source', {
+        detail: { filePath: data.filePath, lineNumber: data.lineNumber, nodeId },
+      }));
+    }
   }, []);
 
-  useEffect(() => {
-    const renderer = rendererRef.current;
-    if (!renderer) return;
-    renderer.updateData(nodes, edges);
-  }, [nodes, edges]);
+  const handleNodeHover = useCallback((nodeId: string, pos: { x: number; y: number }) => {
+    const data = renderer.rendererRef.current?.getNodeData(nodeId);
+    if (data) {
+      setTooltip({ x: pos.x, y: pos.y, name: data.label, path: `${data.filePath}:${data.lineNumber}`, type: data.type });
+    }
+  }, []);
 
-  useEffect(() => {
-    const renderer = rendererRef.current;
-    if (!renderer) return;
-    renderer.applyLayout(layout);
-  }, [layout]);
+  const handleNodeHoverOut = useCallback(() => setTooltip(null), []);
 
-  useEffect(() => {
-    const renderer = rendererRef.current;
-    if (!renderer) return;
-    renderer.highlightNodes(highlightedNodeIds);
-    renderer.selectNode(selectedNodeId);
-  }, [highlightedNodeIds, selectedNodeId]);
+  const renderer = useGraphRenderer(
+    nodes, edges, layout, theme,
+    highlightedNodeIds, selectedNodeId, filterType,
+    debouncedSearch, panel.showCallChain, panel.showCycles,
+    { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut },
+    showCallChainRef,
+  );
 
-  useEffect(() => {
-    const renderer = rendererRef.current;
-    if (!renderer) return;
-    renderer.filterByType(filterType);
-  }, [filterType]);
+  usePanelResize(panelRef, renderer.rendererRef);
 
-  const [searchMatchCount, setSearchMatchCount] = useState<number | null>(null);
-  useEffect(() => {
-    const renderer = rendererRef.current;
-    if (!renderer) return;
-    setSearchMatchCount(debouncedSearch ? renderer.search(debouncedSearch) : null);
-  }, [debouncedSearch, nodes]);
-
-  useEffect(() => {
-    const renderer = rendererRef.current;
-    if (!renderer) return;
-    if (showCallChain && selectedNodeId) { renderer.highlightCallChain(selectedNodeId); }
-    else { renderer.highlightCallChain(null); }
-  }, [showCallChain, selectedNodeId]);
-
-  useEffect(() => {
-    const renderer = rendererRef.current;
-    if (!renderer) return;
-    if (showCycles) { const cycles = renderer.detectCycles(); renderer.highlightCycles(cycles); }
-    else { renderer.highlightCycles(new Set<string>()); }
-  }, [showCycles]);
+  usePanelKeyboard(layout, setLayout, renderer.rendererRef, {
+    onToggleSearch: panel.toggleSearch,
+    onCloseAll: () => {
+      panel.setShowSearch(false); panel.setShowCallChain(false); panel.setShowCycles(false);
+      panel.setShowImport(false); panel.setShowLegend(false); setTooltip(null);
+    },
+    onToggleCallChain: panel.toggleCallChain,
+    onToggleMiniMap: panel.toggleMiniMap,
+    onCycleLayout: () => {},
+    onToggleImport: panel.toggleImport,
+  });
 
   const requestRefresh = useCallback(() => {
     window.dispatchEvent(new CustomEvent('codegraph:refresh'));
   }, []);
-  usePolling(requestRefresh, 3000, !collapsed);
+  usePolling(requestRefresh, 3000, !panel.collapsed);
 
   const handleThemeToggle = useCallback(() => {
     const newTheme: ThemeType = theme === 'dark' ? 'light' : 'dark';
     setTheme(newTheme);
-    rendererRef.current?.updateTheme(newTheme);
-  }, [theme, setTheme]);
+    renderer.updateTheme(newTheme);
+  }, [theme, setTheme, renderer]);
 
-  const handleExport = useCallback((format: 'png' | 'svg' | 'json') => {
-    const renderer = rendererRef.current;
-    if (!renderer) return;
-    let data: string | null = null;
-    let mimeType = 'application/json';
-    let extension = 'json';
-    if (format === 'png') { data = renderer.exportPNG(); mimeType = 'image/png'; extension = 'png'; }
-    else if (format === 'svg') { data = renderer.exportSVG(); mimeType = 'image/svg+xml'; extension = 'svg'; }
-    else { data = renderer.exportJSON(); }
-    if (data) {
-      const blob = new Blob([data], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = `codegraph-${Date.now()}.${extension}`; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      log.info(`exported ${format}`);
-    }
-  }, []);
+  const handleCloseDetail = useCallback(() => {
+    setSelectedNodeData(null); setSelectedNode(null);
+  }, [setSelectedNode]);
 
-  const handleCollapse = useCallback(() => setCollapsed((c) => !c), []);
-  const handleCloseDetail = useCallback(() => { setSelectedNodeData(null); setSelectedNode(null); }, [setSelectedNode]);
   const handleRefresh = useCallback(() => {
     setLoading(true);
     window.dispatchEvent(new CustomEvent('codegraph:refresh'));
     log.info('manual refresh');
   }, [setLoading]);
-
-  useEffect(() => {
-    const panel = panelRef.current;
-    if (!panel) return;
-    let startX = 0, startY = 0, startW = 0, startH = 0;
-    const onPointerMove = (e: PointerEvent) => {
-      const w = Math.max(320, startW + (e.clientX - startX));
-      const h = Math.max(240, startH + (e.clientY - startY));
-      panel.style.width = `${w}px`; panel.style.height = `${h}px`;
-      rendererRef.current?.resize();
-    };
-    const onPointerUp = () => {
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
-    };
-    const onPointerDown = (e: PointerEvent) => {
-      startX = e.clientX; startY = e.clientY; startW = panel.offsetWidth; startH = panel.offsetHeight;
-      window.addEventListener('pointermove', onPointerMove);
-      window.addEventListener('pointerup', onPointerUp);
-    };
-    const handle = panel.querySelector<HTMLElement>('.resize-handle');
-    handle?.addEventListener('pointerdown', onPointerDown);
-    return () => { handle?.removeEventListener('pointerdown', onPointerDown); };
-  }, []);
 
   const statsText = useMemo(() => `${nodes.length} nodes · ${edges.length} edges`, [nodes.length, edges.length]);
   const nodeTypeCounts = useMemo(() => {
@@ -235,11 +136,16 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     for (const n of nodes) { if (n.type in counts) counts[n.type as keyof typeof counts]++; }
     return counts;
   }, [nodes]);
-  const panelClassName = useMemo(() => `graph-panel resizable ${collapsed ? 'collapsed' : ''} ${className}`.trim(), [collapsed, className]);
+  const panelClassName = useMemo(() =>
+    `graph-panel resizable ${panel.collapsed ? 'collapsed' : ''} ${className}`.trim(),
+    [panel.collapsed, className],
+  );
+
+  const c = panel.collapsed;
 
   return (
     <div className={panelClassName} ref={panelRef} role="region" aria-label={t('panel.ariaLabel')}>
-      <div className="collapse-fab" onClick={handleCollapse} role="button" aria-label={t('panel.expand')}>
+      <div className="collapse-fab" onClick={panel.toggleCollapsed} role="button" aria-label={t('panel.expand')}>
         <GraphIcon size={22} />
       </div>
 
@@ -249,61 +155,61 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         layout={layout}
         theme={theme}
         filterType={filterType}
-        showSearch={showSearch}
-        showCallChain={showCallChain}
-        showCycles={showCycles}
-        showMiniMap={showMiniMap}
-        showLegend={showLegend}
-        showImport={showImport}
-        collapsed={collapsed}
+        showSearch={panel.showSearch}
+        showCallChain={panel.showCallChain}
+        showCycles={panel.showCycles}
+        showMiniMap={panel.showMiniMap}
+        showLegend={panel.showLegend}
+        showImport={panel.showImport}
+        collapsed={panel.collapsed}
         onLayoutChange={setLayout}
         onThemeToggle={handleThemeToggle}
         onFilterChange={setFilterType}
-        onToggleSearch={() => setShowSearch((v) => !v)}
-        onToggleCallChain={() => setShowCallChain((v) => !v)}
-        onToggleCycles={() => setShowCycles((v) => !v)}
-        onToggleMiniMap={() => setShowMiniMap((v) => !v)}
-        onToggleLegend={() => setShowLegend((v) => !v)}
-        onToggleImport={() => setShowImport((v) => !v)}
+        onToggleSearch={panel.toggleSearch}
+        onToggleCallChain={panel.toggleCallChain}
+        onToggleCycles={panel.toggleCycles}
+        onToggleMiniMap={panel.toggleMiniMap}
+        onToggleLegend={panel.toggleLegend}
+        onToggleImport={panel.toggleImport}
         onRefresh={handleRefresh}
-        onExport={handleExport}
-        onCollapse={handleCollapse}
+        onExport={renderer.exportGraph}
+        onCollapse={panel.toggleCollapsed}
       />
 
-      {showSearch && !collapsed && (
+      {panel.showSearch && !c && (
         <SearchBar
           query={searchQuery}
-          matchCount={searchMatchCount}
+          matchCount={renderer.searchMatchCount}
           onChange={setSearchQuery}
-          onClose={() => setShowSearch(false)}
+          onClose={() => panel.setShowSearch(false)}
         />
       )}
 
-      {isLoading && !collapsed && (
+      {isLoading && !c && (
         <div className="loading-overlay" role="status" aria-live="polite">
           <div className="spinner" /><span>{t('state.loading')}</span>
         </div>
       )}
 
-      {error && !collapsed && (<div className="error-overlay" role="alert"><span>⚠ {error}</span></div>)}
+      {error && !c && (<div className="error-overlay" role="alert"><span>⚠ {error}</span></div>)}
 
-      {nodes.length === 0 && !isLoading && !error && !collapsed && (
-        <EmptyState prerequisites={prerequisites} onImport={() => setShowImport(true)} />
+      {nodes.length === 0 && !isLoading && !error && !c && (
+        <EmptyState prerequisites={prerequisites} onImport={() => panel.setShowImport(true)} />
       )}
 
-      {showImport && !collapsed && (
-        <ImportPanel onClose={() => setShowImport(false)} workspacePath={currentWorkspace} />
+      {panel.showImport && !c && (
+        <ImportPanel onClose={() => panel.setShowImport(false)} workspacePath={currentWorkspace} />
       )}
-      {showLegend && !collapsed && (<Legend onClose={() => setShowLegend(false)} />)}
+      {panel.showLegend && !c && (<Legend onClose={() => panel.setShowLegend(false)} />)}
 
-      {selectedNodeData && !collapsed && (
+      {selectedNodeData && !c && (
         <NodeDetail node={selectedNodeData} onClose={handleCloseDetail} />
       )}
 
-      <div className="graph-container" ref={containerRef} />
+      <div className="graph-container" ref={renderer.containerRef} />
 
-      {showMiniMap && !collapsed && (
-        <MiniMap
+      {panel.showMiniMap && !c && (
+        <StatsPanel
           counts={{
             function: nodeTypeCounts.function,
             class: nodeTypeCounts.class,
@@ -311,7 +217,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
             module: nodeTypeCounts.module,
             interface: nodeTypeCounts.interface,
           }}
-          onClose={() => setShowMiniMap(false)}
+          onClose={() => panel.setShowMiniMap(false)}
         />
       )}
 

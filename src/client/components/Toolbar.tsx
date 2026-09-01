@@ -101,43 +101,57 @@ export function Toolbar(props: ToolbarProps) {
       </div>
 
       <div className="toolbar-right">
-        <button className="import-btn" onClick={onToggleImport} title={t('toolbar.import')}
-          aria-label={t('toolbar.import')} aria-pressed={showImport}><UploadIcon size={15} /></button>
+        <div className="toolbar-group" role="group" aria-label={t('toolbar.dataGroup')}>
+          <button className="import-btn" onClick={onToggleImport} title={t('toolbar.import')}
+            aria-label={t('toolbar.import')} aria-pressed={showImport}><UploadIcon size={15} /></button>
+          <select value={filterType} onChange={(e) => onFilterChange(e.target.value as GraphNode['type'] | 'all')}
+            className="filter-select" aria-label={t('toolbar.filter')}>
+            {FILTER_KEYS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{t(opt.key)}</option>
+            ))}
+          </select>
+        </div>
 
-        <select value={filterType} onChange={(e) => onFilterChange(e.target.value as GraphNode['type'] | 'all')}
-          className="filter-select" aria-label={t('toolbar.filter')}>
-          {FILTER_KEYS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{t(opt.key)}</option>
-          ))}
-        </select>
+        <span className="toolbar-separator" aria-hidden="true" />
 
-        <button className={`search-btn ${showSearch ? 'active' : ''}`} onClick={onToggleSearch}
-          title={t('toolbar.search')} aria-label={t('toolbar.search')} aria-expanded={showSearch}><SearchIcon size={15} /></button>
-        <button className={`chain-btn ${showCallChain ? 'active' : ''}`} onClick={onToggleCallChain}
-          title={t('toolbar.chain')} aria-label={t('toolbar.chain')} aria-pressed={showCallChain}><ChainIcon size={15} /></button>
-        <button className={`cycle-btn ${showCycles ? 'active' : ''}`} onClick={onToggleCycles}
-          title={t('toolbar.cycles')} aria-label={t('toolbar.cycles')} aria-pressed={showCycles}><CycleIcon size={15} /></button>
-        <button className={`minimap-btn ${showMiniMap ? 'active' : ''}`} onClick={onToggleMiniMap}
-          title={t('toolbar.minimap')} aria-label={t('toolbar.minimap')} aria-pressed={showMiniMap}><MapIcon size={15} /></button>
-        <button className={`legend-btn ${showLegend ? 'active' : ''}`} onClick={onToggleLegend}
-          title={t('toolbar.legend')} aria-label={t('toolbar.legend')} aria-pressed={showLegend}><LayersIcon size={15} /></button>
-        <button className="refresh-btn" onClick={onRefresh} title={t('toolbar.refresh')}
-          aria-label={t('toolbar.refresh')}><RefreshIcon size={15} /></button>
-        <button className="theme-btn" onClick={onThemeToggle} title={t('toolbar.theme')}
-          aria-label={t('toolbar.theme')}>{theme === 'dark' ? <SunIcon size={15} /> : <MoonIcon size={15} />}</button>
-        <button className="lang-btn" onClick={toggleLang} title={t('toolbar.lang')}
-          aria-label={t('toolbar.lang')}><span className="lang-label">{lang === 'zh' ? '中' : 'EN'}</span></button>
+        <div className="toolbar-group" role="group" aria-label={t('toolbar.analysisGroup')}>
+          <button className={`search-btn ${showSearch ? 'active' : ''}`} onClick={onToggleSearch}
+            title={t('toolbar.search')} aria-label={t('toolbar.search')} aria-expanded={showSearch}><SearchIcon size={15} /></button>
+          <button className={`chain-btn ${showCallChain ? 'active' : ''}`} onClick={onToggleCallChain}
+            title={t('toolbar.chain')} aria-label={t('toolbar.chain')} aria-pressed={showCallChain}><ChainIcon size={15} /></button>
+          <button className={`cycle-btn ${showCycles ? 'active' : ''}`} onClick={onToggleCycles}
+            title={t('toolbar.cycles')} aria-label={t('toolbar.cycles')} aria-pressed={showCycles}><CycleIcon size={15} /></button>
+        </div>
 
-        <div className="export-menu" ref={exportMenuRef}>
-          <button className="export-btn" onClick={() => setShowExportMenu((v) => !v)} title={t('toolbar.export')}
-            aria-label={t('toolbar.export')} aria-haspopup="menu" aria-expanded={showExportMenu}><DownloadIcon size={15} /></button>
-          {showExportMenu && (
-            <div className="export-dropdown" role="menu">
-              <button onClick={() => handleExport('png')} role="menuitem">{t('export.png')}</button>
-              <button onClick={() => handleExport('svg')} role="menuitem">{t('export.svg')}</button>
-              <button onClick={() => handleExport('json')} role="menuitem">{t('export.json')}</button>
-            </div>
-          )}
+        <span className="toolbar-separator" aria-hidden="true" />
+
+        <div className="toolbar-group" role="group" aria-label={t('toolbar.viewGroup')}>
+          <button className={`minimap-btn ${showMiniMap ? 'active' : ''}`} onClick={onToggleMiniMap}
+            title={t('toolbar.minimap')} aria-label={t('toolbar.minimap')} aria-pressed={showMiniMap}><MapIcon size={15} /></button>
+          <button className={`legend-btn ${showLegend ? 'active' : ''}`} onClick={onToggleLegend}
+            title={t('toolbar.legend')} aria-label={t('toolbar.legend')} aria-pressed={showLegend}><LayersIcon size={15} /></button>
+          <button className="refresh-btn" onClick={onRefresh} title={t('toolbar.refresh')}
+            aria-label={t('toolbar.refresh')}><RefreshIcon size={15} /></button>
+        </div>
+
+        <span className="toolbar-separator" aria-hidden="true" />
+
+        <div className="toolbar-group" role="group" aria-label={t('toolbar.settingsGroup')}>
+          <button className="theme-btn" onClick={onThemeToggle} title={t('toolbar.theme')}
+            aria-label={t('toolbar.theme')}>{theme === 'dark' ? <SunIcon size={15} /> : <MoonIcon size={15} />}</button>
+          <button className="lang-btn" onClick={toggleLang} title={t('toolbar.lang')}
+            aria-label={t('toolbar.lang')}><span className="lang-label">{lang === 'zh' ? '中' : 'EN'}</span></button>
+          <div className="export-menu" ref={exportMenuRef}>
+            <button className="export-btn" onClick={() => setShowExportMenu((v) => !v)} title={t('toolbar.export')}
+              aria-label={t('toolbar.export')} aria-haspopup="menu" aria-expanded={showExportMenu}><DownloadIcon size={15} /></button>
+            {showExportMenu && (
+              <div className="export-dropdown" role="menu">
+                <button onClick={() => handleExport('png')} role="menuitem">{t('export.png')}</button>
+                <button onClick={() => handleExport('svg')} role="menuitem">{t('export.svg')}</button>
+                <button onClick={() => handleExport('json')} role="menuitem">{t('export.json')}</button>
+              </div>
+            )}
+          </div>
         </div>
 
         <button className="collapse-btn" onClick={onCollapse} title={collapsed ? t('panel.expand') : t('panel.collapse')}

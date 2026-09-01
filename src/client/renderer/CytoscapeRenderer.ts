@@ -1,13 +1,14 @@
 import cytoscape, { type Core, type LayoutOptions } from 'cytoscape';
 import dagre from 'cytoscape-dagre';
 import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
+import type { IRenderer, LayoutType, ThemeType } from './IRenderer.ts';
 
 cytoscape.use(dagre);
 
 
 export interface CytoscapeRendererOptions {
   container: HTMLElement;
-  theme: 'light' | 'dark';
+  theme: ThemeType;
   onNodeTap?: (nodeId: string) => void;
   onEdgeTap?: (edgeId: string) => void;
   onNodeDoubleTap?: (nodeId: string) => void;
@@ -36,7 +37,7 @@ function readCssVar(name: string, fallback: string): string {
   return v || fallback;
 }
 
-function getThemeColors(theme: 'light' | 'dark'): ThemeColors {
+function getThemeColors(theme: ThemeType): ThemeColors {
   const isDark = theme === 'dark';
   return {
     nodeDefault: readCssVar('--cg-accent', isDark ? '#6366f1' : '#4f46e5'),
@@ -54,7 +55,7 @@ function getThemeColors(theme: 'light' | 'dark'): ThemeColors {
   };
 }
 
-export class CytoscapeRenderer {
+export class CytoscapeRenderer implements IRenderer {
   private cy: Core | null = null;
   private options: CytoscapeRendererOptions;
   private currentNodes: Map<string, GraphNode> = new Map();
@@ -146,7 +147,7 @@ export class CytoscapeRenderer {
     });
   }
 
-  applyLayout(layout: 'cose' | 'dagre' | 'circle' | 'grid'): void {
+  applyLayout(layout: LayoutType): void {
     if (!this.cy) return;
 
     if (this.layoutRaf !== null) {
@@ -372,7 +373,7 @@ export class CytoscapeRenderer {
     this.cy.resize();
   }
 
-  updateTheme(theme: 'light' | 'dark'): void {
+  updateTheme(theme: ThemeType): void {
     if (!this.cy) return;
     this.options.theme = theme;
     this.cy.style().fromJson(this.getStylesheet()).update();
