@@ -176,14 +176,17 @@ export class CytoscapeRenderer implements IRenderer {
     }
 
     this.layoutRaf = requestAnimationFrame(() => {
-      const layouts: Record<string, LayoutOptions> = {
-        cose: { name: 'cose', fit: true, animate: true, animationDuration: 300 } as LayoutOptions,
-        dagre: { name: 'dagre', fit: true, animate: true } as LayoutOptions,
-        circle: { name: 'circle', fit: true } as LayoutOptions,
-        grid: { name: 'grid', fit: true } as LayoutOptions,
-      };
-
-      const options = layouts[layout];
+      let options: LayoutOptions | undefined;
+      switch (layout) {
+        case 'cose': options = { name: 'cose', fit: true, animate: true, animationDuration: 300 } as LayoutOptions; break;
+        case 'dagre': options = { name: 'dagre', fit: true, animate: true } as LayoutOptions; break;
+        case 'circle': options = { name: 'circle', fit: true } as LayoutOptions; break;
+        case 'grid': options = { name: 'grid', fit: true } as LayoutOptions; break;
+        default: {
+          const _exhaustive: never = layout;
+          throw new Error(`Unhandled layout: ${_exhaustive}`);
+        }
+      }
       if (options) {
         this.cy!.layout(options).run();
       }
@@ -401,6 +404,8 @@ export class CytoscapeRenderer implements IRenderer {
     return this.cy.png({ full: true, scale: 2 });
   }
 
+  // NOTE: exportSVG returns an SVG wrapper containing an embedded PNG raster
+  // image, not a true vector SVG. Cytoscape does not support native SVG export.
   exportSVG(): string | null {
     if (!this.cy) return null;
     const png = this.cy.png({ full: true, scale: 2 });

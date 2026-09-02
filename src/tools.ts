@@ -146,16 +146,17 @@ export async function executeGraphStatus(args: { repoId: string }, invoke: Upstr
     codegraphAdapter.fetchData(args.repoId, invoke),
     lensAdapter.fetchData(args.repoId, invoke),
   ]);
-  const cgNodes = cgResult.status === 'fulfilled' ? cgResult.value.nodes.length : 0;
-  const lensNodes = lensResult.status === 'fulfilled' ? lensResult.value.nodes.length : 0;
-  const data = await fetchMergedGraph(invoke, args.repoId);
+  const results: AdapterResult[] = [cgResult, lensResult]
+    .filter((r): r is PromiseFulfilledResult<AdapterResult> => r.status === 'fulfilled')
+    .map((r) => r.value);
+  const data = merger.merge(results, makeRepoId(args.repoId));
   return {
     status: data.nodes.length > 0 ? 'ready' : 'unavailable',
     nodeCount: data.metadata.nodeCount,
     edgeCount: data.metadata.edgeCount,
     sources: {
-      codegraph: cgNodes > 0,
-      lens: lensNodes > 0,
+      codegraph: cgResult.status === 'fulfilled' && cgResult.value.nodes.length > 0,
+      lens: lensResult.status === 'fulfilled' && lensResult.value.nodes.length > 0,
     },
   };
 }

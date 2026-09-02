@@ -5,6 +5,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import { watch } from 'node:fs';
 import { resolve, normalize, isAbsolute } from 'node:path';
 import { createGraphTools, fetchMergedGraph } from './tools.ts';
+import { CallId } from '@deepseek-ai/dsh-llm';
 import { scoped } from './shared/Logger.ts';
 import type { GraphData, IncomingMessage, ServerResponse } from './types/index.ts';
 import { PLUGIN_VERSION } from './generated/version.ts';
@@ -41,7 +42,8 @@ function detectCodegraphCli(): boolean {
     const cmd = process.platform === 'win32' ? 'codegraph.cmd' : 'codegraph';
     const r = spawnSync(cmd, ['--version'], { encoding: 'utf8', timeout: 3000, shell: process.platform === 'win32' });
     return r.status === 0;
-  } catch {
+  } catch (e) {
+    log.warn('detectCodegraphCli failed', e);
     return false;
   }
 }
@@ -54,7 +56,8 @@ function checkPrerequisites(ctx: Context): { codegraph: boolean; lens: boolean }
     const cg = ctx.tools.get('codegraph_status') ?? ctx.tools.get('codegraph_graph') ?? ctx.tools.get('codegraph_query');
     const lens = ctx.tools.get('lens_analyze');
     return { codegraph: !!cg || detectCodegraphCli(), lens: !!lens };
-  } catch {
+  } catch (e) {
+    log.warn('checkPrerequisites failed', e);
     return { codegraph: detectCodegraphCli(), lens: false };
   }
 }
@@ -84,14 +87,15 @@ export function apply(ctx: Context) {
   const invokeUpstream = async (tool: string, args: Record<string, unknown>): Promise<unknown | null> => {
     try {
       const result = await ctx.tools.execute({
-        callId: `codegraph:${tool}` as never,
+        callId: CallId(`codegraph:${tool}`),
         name: tool,
         arguments: args,
         signal: AbortSignal.timeout(5000),
       });
       if (result.isError) return null;
       return result.value ?? null;
-    } catch {
+    } catch (e) {
+      log.warn('invokeUpstream failed', { tool, error: e });
       return null;
     }
   };

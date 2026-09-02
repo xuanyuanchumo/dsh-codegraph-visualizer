@@ -5,9 +5,10 @@ import { GraphIcon, UploadIcon, AlertIcon, CheckIcon, CopyIcon, ZapIcon } from '
 interface EmptyStateProps {
   prerequisites: { codegraph: boolean; lens: boolean };
   onImport: () => void;
+  onScanWorkspace: () => void;
 }
 
-export function EmptyState({ prerequisites, onImport }: EmptyStateProps) {
+export function EmptyState({ prerequisites, onImport, onScanWorkspace }: EmptyStateProps) {
   const t = useT();
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
   const [installing, setInstalling] = useState(false);
@@ -32,10 +33,10 @@ export function EmptyState({ prerequisites, onImport }: EmptyStateProps) {
     }
   }, []);
 
-  const handleInstall = useCallback(() => {
+  const handleInstall = useCallback((plugin: string) => {
     setInstalling(true);
     window.dispatchEvent(new CustomEvent('codegraph:install-plugin', {
-      detail: { plugin: 'dsh-codegraph' },
+      detail: { plugin },
     }));
     if (installTimerRef.current) clearTimeout(installTimerRef.current);
     installTimerRef.current = setTimeout(() => setInstalling(false), 3000);
@@ -78,7 +79,7 @@ export function EmptyState({ prerequisites, onImport }: EmptyStateProps) {
               </div>
               <button
                 className="prereq-install-btn"
-                onClick={handleInstall}
+                onClick={() => handleInstall('dsh-codegraph')}
                 disabled={installing}
               >
                 <ZapIcon size={14} /> {installing ? t('prereq.detecting') : t('prereq.installTitle')}
@@ -105,15 +106,27 @@ export function EmptyState({ prerequisites, onImport }: EmptyStateProps) {
                   {copiedCmd === t('prereq.installLens') ? <CheckIcon size={13} /> : <CopyIcon size={13} />}
                 </button>
               </div>
+              <button
+                className="prereq-install-btn"
+                onClick={() => handleInstall('dsh-tool-lens')}
+                disabled={installing}
+              >
+                <ZapIcon size={14} /> {installing ? t('prereq.detecting') : t('prereq.installTitle')}
+              </button>
             </div>
           )}
 
           {copiedCmd && <span className="prereq-copied">{t('empty.copied')}</span>}
         </div>
       )}
-      <button className="empty-import-btn" onClick={onImport}>
-        <UploadIcon size={15} /> {t('empty.import')}
-      </button>
+      <div className="empty-actions">
+        <button className="empty-import-btn" onClick={onImport}>
+          <UploadIcon size={15} /> {t('empty.import')}
+        </button>
+        <button className="empty-scan-btn" onClick={onScanWorkspace}>
+          <GraphIcon size={15} /> {t('empty.scanWorkspace')}
+        </button>
+      </div>
     </div>
   );
 }

@@ -505,6 +505,50 @@ body[data-ds-dark-theme] {
 
 /* ---- Overlays (loading / error / empty) ---------------------------------- */
 
+.error-boundary-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--cg-bg);
+  z-index: 10;
+  padding: 24px;
+}
+
+.error-boundary-fallback h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--cg-error);
+}
+
+.error-boundary-fallback p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--cg-text-secondary);
+  text-align: center;
+  max-width: 320px;
+  word-break: break-word;
+}
+
+.error-boundary-fallback button {
+  padding: 6px 16px;
+  border-radius: var(--cg-radius-xs);
+  border: 1px solid var(--cg-border-strong);
+  background: var(--cg-surface);
+  color: var(--cg-text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--cg-transition);
+}
+
+.error-boundary-fallback button:hover {
+  background: var(--cg-surface-hover);
+}
+
 .loading-overlay,
 .error-overlay,
 .empty-state {
@@ -979,6 +1023,48 @@ body[data-ds-dark-theme] {
   }
 }
 
+/* Medium panels (DSH sidebar medium width) */
+@media (max-width: 768px) {
+  .graph-toolbar {
+    padding: 0 8px;
+    gap: 6px;
+  }
+
+  .toolbar-center {
+    gap: 6px;
+  }
+
+  .toolbar-right {
+    gap: 6px;
+  }
+
+  .layout-btn,
+  .graph-type-btn {
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+
+  .node-detail-panel {
+    width: 220px;
+  }
+
+  .legend-panel {
+    width: 160px;
+  }
+
+  .mini-map {
+    width: 160px;
+  }
+
+  .filter-select {
+    font-size: 11px;
+  }
+
+  .toolbar-separator {
+    margin: 0 2px;
+  }
+}
+
 /* Very small panels */
 @media (max-width: 320px) {
   .graph-toolbar {
@@ -1112,6 +1198,12 @@ body[data-ds-dark-theme] {
   line-height: 1.5;
 }
 
+.empty-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 .empty-import-btn {
   display: inline-flex;
   align-items: center;
@@ -1133,6 +1225,27 @@ body[data-ds-dark-theme] {
   background: var(--cg-accent-hover);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
+
+.empty-scan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--cg-surface);
+  color: var(--cg-text);
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--cg-font-sans);
+  cursor: pointer;
+  transition: all var(--cg-transition);
+}
+
+.empty-scan-btn:hover {
+  background: var(--cg-surface-hover);
+  transform: translateY(-1px);
 }
 
 .empty-prereq-warning {

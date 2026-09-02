@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { CytoscapeRenderer } from '../renderer/CytoscapeRenderer.ts';
 import type { IRenderer, LayoutType, ThemeType } from '../renderer/IRenderer.ts';
 import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
@@ -137,5 +137,7 @@ export function useGraphRenderer(
     rendererRef.current?.updateTheme(newTheme);
   }, []);
 
-  return { containerRef, rendererRef, searchMatchCount, setSearchMatchCount, exportGraph, updateTheme };
+  return useMemo(() => ({
+    containerRef, rendererRef, searchMatchCount, setSearchMatchCount, exportGraph, updateTheme
+  }), [searchMatchCount, exportGraph, updateTheme]);
 }

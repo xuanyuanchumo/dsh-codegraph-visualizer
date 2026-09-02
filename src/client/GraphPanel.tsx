@@ -147,7 +147,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     });
     observer.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] });
     return () => observer.disconnect();
-  }, [renderer]);
+  }, [renderer.updateTheme]);
 
   usePanelResize(panelRef, renderer.rendererRef);
 
@@ -183,6 +183,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     window.dispatchEvent(new CustomEvent('codegraph:refresh'));
     log.info('manual refresh');
   }, [setLoading]);
+
+  const handleScanWorkspace = useCallback(() => {
+    setLoading(true);
+    window.dispatchEvent(new CustomEvent('codegraph:import-repo', { detail: { path: currentWorkspace || '.' } }));
+    log.info('scan workspace from empty state', { path: currentWorkspace });
+  }, [setLoading, currentWorkspace]);
 
   const statsText = useMemo(() => `${nodes.length} nodes · ${edges.length} edges`, [nodes.length, edges.length]);
   const nodeTypeCounts = useMemo(() => {
@@ -255,7 +261,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       {error && !c && (<div className="error-overlay" role="alert"><span>⚠ {error}</span></div>)}
 
       {nodes.length === 0 && !isLoading && !error && !c && (
-        <EmptyState prerequisites={prerequisites} onImport={() => panel.setShowImport(true)} />
+        <EmptyState prerequisites={prerequisites} onImport={() => panel.setShowImport(true)} onScanWorkspace={handleScanWorkspace} />
       )}
 
       {panel.showImport && !c && (

@@ -69,7 +69,8 @@ async function fetchStatus(): Promise<{ codegraph: boolean; lens: boolean }> {
     const res = await fetch('/api/codegraph/status');
     if (!res.ok) return { codegraph: false, lens: false };
     return await res.json();
-  } catch {
+  } catch (e) {
+    log.warn('fetchStatus failed', e);
     return { codegraph: false, lens: false };
   }
 }
@@ -79,7 +80,8 @@ async function fetchGraphData(): Promise<GraphData | null> {
     const res = await fetch('/api/codegraph/data');
     if (!res.ok) return null;
     return validateGraphData(await res.json());
-  } catch {
+  } catch (e) {
+    log.warn('fetchGraphData failed', e);
     return null;
   }
 }
@@ -93,7 +95,8 @@ async function requestScan(path: string): Promise<{ success: boolean; nodes: unk
     });
     if (!res.ok) return null;
     return await res.json();
-  } catch {
+  } catch (e) {
+    log.warn('requestScan failed', e);
     return null;
   }
 }
@@ -107,9 +110,54 @@ async function requestInit(path: string): Promise<{ success: boolean; message: s
     });
     if (!res.ok) return null;
     return await res.json();
-  } catch {
+  } catch (e) {
+    log.warn('requestInit failed', e);
     return null;
   }
+}
+
+interface ConnectionApi {
+  api?: {
+    workspace?: {
+      list?: (payload: Record<string, never>, signal?: AbortSignal) => Promise<{
+        result?: { ok?: boolean; value?: { items?: Array<{ path?: string }> } }
+      }>
+    }
+    sessions?: {
+      list?: (payload: Record<string, never>, signal?: AbortSignal) => Promise<{
+        result?: { ok?: boolean; value?: { items?: Array<{ cwd?: string }> } }
+      }>
+    }
+  }
+}
+
+async function detectWorkspacePath(ctx: Context): Promise<string> {
+  try {
+    const conn = ctx.get('connection') as ConnectionApi | undefined;
+    if (conn?.api?.workspace?.list) {
+      const wsResult = await conn.api.workspace.list({});
+      if (wsResult.result?.ok && wsResult.result.value?.items?.length) {
+        const path = wsResult.result.value.items[0]?.path;
+        if (path) return path;
+      }
+    }
+  } catch (e) {
+    log.warn('workspace.list failed', e);
+  }
+  try {
+    const conn = ctx.get('connection') as ConnectionApi | undefined;
+    if (conn?.api?.sessions?.list) {
+      const sResult = await conn.api.sessions.list({});
+      if (sResult.result?.ok && sResult.result.value?.items?.length) {
+        for (const item of sResult.result.value.items) {
+          if (item.cwd) return item.cwd;
+        }
+      }
+    }
+  } catch (e) {
+    log.warn('sessions.list failed', e);
+  }
+  return '.';
 }
 
 async function requestWatch(enabled: boolean, path: string): Promise<boolean> {
@@ -120,7 +168,8 @@ async function requestWatch(enabled: boolean, path: string): Promise<boolean> {
       body: JSON.stringify({ enabled, path }),
     });
     return res.ok;
-  } catch {
+  } catch (e) {
+    log.warn('requestWatch failed', e);
     return false;
   }
 }
@@ -136,6 +185,10 @@ export function apply(ctx: Context) {
 
   let entryRegistered = false;
 
+  function CodeGraphTab({ visible }: { visible: boolean }) {
+    return visible ? React.createElement(GraphPanel) : null;
+  }
+
   // (1) better-sidebar tab — use ctx.get() for optional service detection
   try {
     const betterSidebar = ctx.get('betterSidebar') as Context['betterSidebar'] | undefined;
@@ -147,14 +200,13 @@ export function apply(ctx: Context) {
           React.createElement(GraphIcon, { size }),
         order: 50,
         single: true,
-        component: (props: { visible: boolean }) =>
-          props.visible ? React.createElement(GraphPanel) : null,
+        component: CodeGraphTab,
       });
       ctx.effect(() => dispose, 'codegraph: better-sidebar tab');
       entryRegistered = true;
     }
-  } catch {
-    // best-effort; fall through to slot registration
+  } catch (e) {
+    log.warn('better-sidebar registration failed', e);
   }
 
   // (2) sidebar.footer.action — quick-access button in sidebar footer
@@ -172,8 +224,8 @@ export function apply(ctx: Context) {
         );
       });
       entryRegistered = true;
-    } catch {
-      // slot not available; fall through
+    } catch (e) {
+      log.warn('sidebar.footer.action slot failed', e);
     }
   }
 
@@ -190,8 +242,8 @@ export function apply(ctx: Context) {
         GraphPanel,
       );
     });
-  } catch {
-    // best-effort
+  } catch (e) {
+    log.warn('settings.section slot failed', e);
   }
 
   // (4) Direct DOM mount — last resort if no slot accepted us
@@ -204,7 +256,7 @@ export function apply(ctx: Context) {
     ctx.effect(() => () => {
       root.unmount();
       container.remove();
-    });
+    }, 'codegraph: direct DOM mount');
   }
 
   // ── Optional: spotlight commands ───────────────────────────────────
@@ -227,8 +279,8 @@ export function apply(ctx: Context) {
         },
       });
     }
-  } catch {
-    // best-effort
+  } catch (e) {
+    log.warn('spotlight registration failed', e);
   }
 
   // ── Prerequisite status check via HTTP ─────────────────────────────
@@ -267,45 +319,7 @@ export function apply(ctx: Context) {
   {
     const store = useGraphStore.getState();
     const getWorkspaceAndScan = async () => {
-      let workspacePath = '.';
-      try {
-        const conn = ctx.get('connection') as {
-          api?: {
-            workspace?: {
-              list?: (payload: Record<string, never>, signal?: AbortSignal) => Promise<{
-                result?: { ok?: boolean; value?: { items?: Array<{ path?: string }> } }
-              }>
-            }
-          }
-        } | undefined;
-        if (conn?.api?.workspace?.list) {
-          const wsResult = await conn.api.workspace.list({});
-          if (wsResult.result?.ok && wsResult.result.value?.items?.length) {
-            workspacePath = wsResult.result.value.items[0]?.path || '.';
-          }
-        }
-      } catch { /* best-effort */ }
-      if (workspacePath === '.') {
-        try {
-          const conn = ctx.get('connection') as {
-            api?: {
-              sessions?: {
-                list?: (payload: Record<string, never>, signal?: AbortSignal) => Promise<{
-                  result?: { ok?: boolean; value?: { items?: Array<{ cwd?: string }> } }
-                }>
-              }
-            }
-          } | undefined;
-          if (conn?.api?.sessions?.list) {
-            const sResult = await conn.api.sessions.list({});
-            if (sResult.result?.ok && sResult.result.value?.items?.length) {
-              for (const item of sResult.result.value.items) {
-                if (item.cwd) { workspacePath = item.cwd; break; }
-              }
-            }
-          }
-        } catch { /* best-effort */ }
-      }
+      const workspacePath = await detectWorkspacePath(ctx);
       lastDetectedWorkspace = workspacePath;
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: workspacePath } }));
@@ -333,45 +347,7 @@ export function apply(ctx: Context) {
     // switches workspaces at the platform level. When a change is detected,
     // dispatch the workspace event to trigger a re-scan.
     const workspacePoll = setInterval(async () => {
-      let currentWorkspace = '';
-      try {
-        const conn = ctx.get('connection') as {
-          api?: {
-            workspace?: {
-              list?: (payload: Record<string, never>, signal?: AbortSignal) => Promise<{
-                result?: { ok?: boolean; value?: { items?: Array<{ path?: string }> } }
-              }>
-            }
-          }
-        } | undefined;
-        if (conn?.api?.workspace?.list) {
-          const wsResult = await conn.api.workspace.list({});
-          if (wsResult.result?.ok && wsResult.result.value?.items?.length) {
-            currentWorkspace = wsResult.result.value.items[0]?.path || '';
-          }
-        }
-      } catch { /* best-effort */ }
-      if (!currentWorkspace) {
-        try {
-          const conn = ctx.get('connection') as {
-            api?: {
-              sessions?: {
-                list?: (payload: Record<string, never>, signal?: AbortSignal) => Promise<{
-                  result?: { ok?: boolean; value?: { items?: Array<{ cwd?: string }> } }
-                }>
-              }
-            }
-          } | undefined;
-          if (conn?.api?.sessions?.list) {
-            const sResult = await conn.api.sessions.list({});
-            if (sResult.result?.ok && sResult.result.value?.items?.length) {
-              for (const item of sResult.result.value.items) {
-                if (item.cwd) { currentWorkspace = item.cwd; break; }
-              }
-            }
-          }
-        } catch { /* best-effort */ }
-      }
+      const currentWorkspace = await detectWorkspacePath(ctx);
       if (currentWorkspace && currentWorkspace !== lastDetectedWorkspace) {
         log.info('workspace changed detected', { from: lastDetectedWorkspace, to: currentWorkspace });
         lastDetectedWorkspace = currentWorkspace;
@@ -494,7 +470,7 @@ export function apply(ctx: Context) {
       window.removeEventListener('codegraph:toggle-watch', toggleWatchListener);
       window.removeEventListener('codegraph:workspace', workspaceListener);
       window.removeEventListener('codegraph:install-plugin', installPluginListener);
-    });
+    }, 'codegraph: window event listeners');
   }
 }
 

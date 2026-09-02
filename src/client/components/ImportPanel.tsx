@@ -228,7 +228,7 @@ export function ImportPanel({
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
               rows={8}
-              aria-label="JSON paste input"
+              aria-label={t('import.pastePlaceholder')}
             />
             <button className="import-submit" onClick={handlePasteSubmit} disabled={busy}>
               {busy ? t('import.importing') : t('import.importJson')}

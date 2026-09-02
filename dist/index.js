@@ -1257,16 +1257,15 @@ function renderGraphStatus(_args, value) {
 }
 async function executeGraphStatus(args, invoke) {
 	const [cgResult, lensResult] = await Promise.allSettled([codegraphAdapter.fetchData(args.repoId, invoke), lensAdapter.fetchData(args.repoId, invoke)]);
-	const cgNodes = cgResult.status === "fulfilled" ? cgResult.value.nodes.length : 0;
-	const lensNodes = lensResult.status === "fulfilled" ? lensResult.value.nodes.length : 0;
-	const data = await fetchMergedGraph(invoke, args.repoId);
+	const results = [cgResult, lensResult].filter((r) => r.status === "fulfilled").map((r) => r.value);
+	const data = merger.merge(results, RepoId(args.repoId));
 	return {
 		status: data.nodes.length > 0 ? "ready" : "unavailable",
 		nodeCount: data.metadata.nodeCount,
 		edgeCount: data.metadata.edgeCount,
 		sources: {
-			codegraph: cgNodes > 0,
-			lens: lensNodes > 0
+			codegraph: cgResult.status === "fulfilled" && cgResult.value.nodes.length > 0,
+			lens: lensResult.status === "fulfilled" && lensResult.value.nodes.length > 0
 		}
 	};
 }
@@ -1529,7 +1528,8 @@ function detectCodegraphCli() {
 			shell: process.platform === "win32"
 		});
 		return r.status === 0;
-	} catch {
+	} catch (e) {
+		log.warn("detectCodegraphCli failed", e);
 		return false;
 	}
 }
@@ -1541,7 +1541,8 @@ function checkPrerequisites(ctx) {
 			codegraph: !!cg || detectCodegraphCli(),
 			lens: !!lens
 		};
-	} catch {
+	} catch (e) {
+		log.warn("checkPrerequisites failed", e);
 		return {
 			codegraph: detectCodegraphCli(),
 			lens: false
@@ -1563,14 +1564,18 @@ function apply(ctx) {
 	const invokeUpstream = async (tool, args) => {
 		try {
 			const result = await ctx.tools.execute({
-				callId: `codegraph:${tool}`,
+				callId: CallId(`codegraph:${tool}`),
 				name: tool,
 				arguments: args,
 				signal: AbortSignal.timeout(5e3)
 			});
 			if (result.isError) return null;
 			return result.value ?? null;
-		} catch {
+		} catch (e) {
+			log.warn("invokeUpstream failed", {
+				tool,
+				error: e
+			});
 			return null;
 		}
 	};

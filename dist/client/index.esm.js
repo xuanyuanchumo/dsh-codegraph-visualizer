@@ -39163,28 +39163,40 @@ var CytoscapeRenderer = class {
 		if (!this.cy) return;
 		if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
 		this.layoutRaf = requestAnimationFrame(() => {
-			const layouts = {
-				cose: {
-					name: "cose",
-					fit: true,
-					animate: true,
-					animationDuration: 300
-				},
-				dagre: {
-					name: "dagre",
-					fit: true,
-					animate: true
-				},
-				circle: {
-					name: "circle",
-					fit: true
-				},
-				grid: {
-					name: "grid",
-					fit: true
+			let options;
+			switch (layout$2) {
+				case "cose":
+					options = {
+						name: "cose",
+						fit: true,
+						animate: true,
+						animationDuration: 300
+					};
+					break;
+				case "dagre":
+					options = {
+						name: "dagre",
+						fit: true,
+						animate: true
+					};
+					break;
+				case "circle":
+					options = {
+						name: "circle",
+						fit: true
+					};
+					break;
+				case "grid":
+					options = {
+						name: "grid",
+						fit: true
+					};
+					break;
+				default: {
+					const _exhaustive = layout$2;
+					throw new Error(`Unhandled layout: ${_exhaustive}`);
 				}
-			};
-			const options = layouts[layout$2];
+			}
 			if (options) this.cy.layout(options).run();
 			this.layoutRaf = null;
 		});
@@ -39721,14 +39733,18 @@ function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, sel
 	const updateTheme = useCallback((newTheme) => {
 		rendererRef.current?.updateTheme(newTheme);
 	}, []);
-	return {
+	return useMemo(() => ({
 		containerRef,
 		rendererRef,
 		searchMatchCount,
 		setSearchMatchCount,
 		exportGraph,
 		updateTheme
-	};
+	}), [
+		searchMatchCount,
+		exportGraph,
+		updateTheme
+	]);
 }
 
 //#endregion
@@ -40824,7 +40840,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 						value: pasteText,
 						onChange: (e) => setPasteText(e.target.value),
 						rows: 8,
-						"aria-label": "JSON paste input"
+						"aria-label": t$1("import.pastePlaceholder")
 					}), /* @__PURE__ */ jsx("button", {
 						className: "import-submit",
 						onClick: handlePasteSubmit,
@@ -41682,7 +41698,7 @@ function StatsPanel({ counts, onClose }) {
 
 //#endregion
 //#region src/client/components/EmptyState.tsx
-function EmptyState({ prerequisites, onImport }) {
+function EmptyState({ prerequisites, onImport, onScanWorkspace }) {
 	const t$1 = useT();
 	const [copiedCmd, setCopiedCmd] = useState(null);
 	const [installing, setInstalling] = useState(false);
@@ -41702,9 +41718,9 @@ function EmptyState({ prerequisites, onImport }) {
 			copyTimerRef.current = setTimeout(() => setCopiedCmd(null), 2e3);
 		} catch {}
 	}, []);
-	const handleInstall = useCallback(() => {
+	const handleInstall = useCallback((plugin) => {
 		setInstalling(true);
-		window.dispatchEvent(new CustomEvent("codegraph:install-plugin", { detail: { plugin: "dsh-codegraph" } }));
+		window.dispatchEvent(new CustomEvent("codegraph:install-plugin", { detail: { plugin } }));
 		if (installTimerRef.current) clearTimeout(installTimerRef.current);
 		installTimerRef.current = setTimeout(() => setInstalling(false), 3e3);
 	}, []);
@@ -41772,7 +41788,7 @@ function EmptyState({ prerequisites, onImport }) {
 							}),
 							/* @__PURE__ */ jsxs("button", {
 								className: "prereq-install-btn",
-								onClick: handleInstall,
+								onClick: () => handleInstall("dsh-codegraph"),
 								disabled: installing,
 								children: [
 									/* @__PURE__ */ jsx(ZapIcon, { size: 14 }),
@@ -41815,6 +41831,16 @@ function EmptyState({ prerequisites, onImport }) {
 									title: t$1("empty.copyCmd"),
 									children: copiedCmd === t$1("prereq.installLens") ? /* @__PURE__ */ jsx(CheckIcon, { size: 13 }) : /* @__PURE__ */ jsx(CopyIcon, { size: 13 })
 								})]
+							}),
+							/* @__PURE__ */ jsxs("button", {
+								className: "prereq-install-btn",
+								onClick: () => handleInstall("dsh-tool-lens"),
+								disabled: installing,
+								children: [
+									/* @__PURE__ */ jsx(ZapIcon, { size: 14 }),
+									" ",
+									installing ? t$1("prereq.detecting") : t$1("prereq.installTitle")
+								]
 							})
 						]
 					}),
@@ -41824,14 +41850,25 @@ function EmptyState({ prerequisites, onImport }) {
 					})
 				]
 			}),
-			/* @__PURE__ */ jsxs("button", {
-				className: "empty-import-btn",
-				onClick: onImport,
-				children: [
-					/* @__PURE__ */ jsx(UploadIcon, { size: 15 }),
-					" ",
-					t$1("empty.import")
-				]
+			/* @__PURE__ */ jsxs("div", {
+				className: "empty-actions",
+				children: [/* @__PURE__ */ jsxs("button", {
+					className: "empty-import-btn",
+					onClick: onImport,
+					children: [
+						/* @__PURE__ */ jsx(UploadIcon, { size: 15 }),
+						" ",
+						t$1("empty.import")
+					]
+				}), /* @__PURE__ */ jsxs("button", {
+					className: "empty-scan-btn",
+					onClick: onScanWorkspace,
+					children: [
+						/* @__PURE__ */ jsx(GraphIcon, { size: 15 }),
+						" ",
+						t$1("empty.scanWorkspace")
+					]
+				})]
 			})
 		]
 	});
@@ -41953,7 +41990,7 @@ function GraphPanelInner({ className = "" }) {
 			attributeFilter: ["data-ds-dark-theme"]
 		});
 		return () => observer.disconnect();
-	}, [renderer$1]);
+	}, [renderer$1.updateTheme]);
 	usePanelResize(panelRef, renderer$1.rendererRef);
 	usePanelKeyboard(layout$2, setLayout, renderer$1.rendererRef, {
 		onToggleSearch: panel.toggleSearch,
@@ -41992,6 +42029,11 @@ function GraphPanelInner({ className = "" }) {
 		window.dispatchEvent(new CustomEvent("codegraph:refresh"));
 		log$1.info("manual refresh");
 	}, [setLoading]);
+	const handleScanWorkspace = useCallback(() => {
+		setLoading(true);
+		window.dispatchEvent(new CustomEvent("codegraph:import-repo", { detail: { path: currentWorkspace || "." } }));
+		log$1.info("scan workspace from empty state", { path: currentWorkspace });
+	}, [setLoading, currentWorkspace]);
 	const statsText = useMemo(() => `${nodes.length} nodes · ${edges.length} edges`, [nodes.length, edges.length]);
 	const nodeTypeCounts = useMemo(() => {
 		const counts = {
@@ -42076,7 +42118,8 @@ function GraphPanelInner({ className = "" }) {
 			}),
 			nodes.length === 0 && !isLoading && !error$1 && !c && /* @__PURE__ */ jsx(EmptyState, {
 				prerequisites,
-				onImport: () => panel.setShowImport(true)
+				onImport: () => panel.setShowImport(true),
+				onScanWorkspace: handleScanWorkspace
 			}),
 			panel.showImport && !c && /* @__PURE__ */ jsx(ImportPanel, {
 				onClose: () => panel.setShowImport(false),
@@ -42247,7 +42290,8 @@ async function fetchStatus() {
 			lens: false
 		};
 		return await res.json();
-	} catch {
+	} catch (e) {
+		log.warn("fetchStatus failed", e);
 		return {
 			codegraph: false,
 			lens: false
@@ -42259,7 +42303,8 @@ async function fetchGraphData() {
 		const res = await fetch("/api/codegraph/data");
 		if (!res.ok) return null;
 		return validateGraphData(await res.json());
-	} catch {
+	} catch (e) {
+		log.warn("fetchGraphData failed", e);
 		return null;
 	}
 }
@@ -42272,7 +42317,8 @@ async function requestScan(path) {
 		});
 		if (!res.ok) return null;
 		return await res.json();
-	} catch {
+	} catch (e) {
+		log.warn("requestScan failed", e);
 		return null;
 	}
 }
@@ -42285,9 +42331,36 @@ async function requestInit(path) {
 		});
 		if (!res.ok) return null;
 		return await res.json();
-	} catch {
+	} catch (e) {
+		log.warn("requestInit failed", e);
 		return null;
 	}
+}
+async function detectWorkspacePath(ctx) {
+	try {
+		const conn = ctx.get("connection");
+		if (conn?.api?.workspace?.list) {
+			const wsResult = await conn.api.workspace.list({});
+			if (wsResult.result?.ok && wsResult.result.value?.items?.length) {
+				const path = wsResult.result.value.items[0]?.path;
+				if (path) return path;
+			}
+		}
+	} catch (e) {
+		log.warn("workspace.list failed", e);
+	}
+	try {
+		const conn = ctx.get("connection");
+		if (conn?.api?.sessions?.list) {
+			const sResult = await conn.api.sessions.list({});
+			if (sResult.result?.ok && sResult.result.value?.items?.length) {
+				for (const item of sResult.result.value.items) if (item.cwd) return item.cwd;
+			}
+		}
+	} catch (e) {
+		log.warn("sessions.list failed", e);
+	}
+	return ".";
 }
 async function requestWatch(enabled, path) {
 	try {
@@ -42300,12 +42373,16 @@ async function requestWatch(enabled, path) {
 			})
 		});
 		return res.ok;
-	} catch {
+	} catch (e) {
+		log.warn("requestWatch failed", e);
 		return false;
 	}
 }
 function apply(ctx) {
 	let entryRegistered = false;
+	function CodeGraphTab({ visible }) {
+		return visible ? React.createElement(GraphPanel) : null;
+	}
 	try {
 		const betterSidebar = ctx.get("betterSidebar");
 		if (betterSidebar) {
@@ -42315,12 +42392,14 @@ function apply(ctx) {
 				icon: (size$1) => React.createElement(GraphIcon, { size: size$1 }),
 				order: 50,
 				single: true,
-				component: (props) => props.visible ? React.createElement(GraphPanel) : null
+				component: CodeGraphTab
 			});
 			ctx.effect(() => dispose, "codegraph: better-sidebar tab");
 			entryRegistered = true;
 		}
-	} catch {}
+	} catch (e) {
+		log.warn("better-sidebar registration failed", e);
+	}
 	if (!entryRegistered) try {
 		ctx.slots.inject("sidebar.footer.action", () => {
 			ctx.slots.register({
@@ -42331,7 +42410,9 @@ function apply(ctx) {
 			}, GraphPanel);
 		});
 		entryRegistered = true;
-	} catch {}
+	} catch (e) {
+		log.warn("sidebar.footer.action slot failed", e);
+	}
 	try {
 		ctx.slots.inject("settings.section", () => {
 			ctx.slots.register({
@@ -42341,7 +42422,9 @@ function apply(ctx) {
 				label: () => "Code Graph"
 			}, GraphPanel);
 		});
-	} catch {}
+	} catch (e) {
+		log.warn("settings.section slot failed", e);
+	}
 	if (!entryRegistered && typeof document !== "undefined") {
 		const container = document.createElement("div");
 		container.className = "codegraph-visualizer-root";
@@ -42351,7 +42434,7 @@ function apply(ctx) {
 		ctx.effect(() => () => {
 			root$12.unmount();
 			container.remove();
-		});
+		}, "codegraph: direct DOM mount");
 	}
 	try {
 		const spotlight = ctx.get("spotlight");
@@ -42372,7 +42455,9 @@ function apply(ctx) {
 				}
 			});
 		}
-	} catch {}
+	} catch (e) {
+		log.warn("spotlight registration failed", e);
+	}
 	{
 		const checkStatus = async () => {
 			const status = await fetchStatus();
@@ -42401,26 +42486,7 @@ function apply(ctx) {
 	{
 		const store = useGraphStore.getState();
 		const getWorkspaceAndScan = async () => {
-			let workspacePath = ".";
-			try {
-				const conn = ctx.get("connection");
-				if (conn?.api?.workspace?.list) {
-					const wsResult = await conn.api.workspace.list({});
-					if (wsResult.result?.ok && wsResult.result.value?.items?.length) workspacePath = wsResult.result.value.items[0]?.path || ".";
-				}
-			} catch {}
-			if (workspacePath === ".") try {
-				const conn = ctx.get("connection");
-				if (conn?.api?.sessions?.list) {
-					const sResult = await conn.api.sessions.list({});
-					if (sResult.result?.ok && sResult.result.value?.items?.length) {
-						for (const item of sResult.result.value.items) if (item.cwd) {
-							workspacePath = item.cwd;
-							break;
-						}
-					}
-				}
-			} catch {}
+			const workspacePath = await detectWorkspacePath(ctx);
 			lastDetectedWorkspace = workspacePath;
 			if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codegraph:workspace", { detail: { path: workspacePath } }));
 			log.info("auto-import requested", { path: workspacePath });
@@ -42442,26 +42508,7 @@ function apply(ctx) {
 		};
 		if (store.nodes.length === 0 && !store.isLoading) getWorkspaceAndScan();
 		const workspacePoll = setInterval(async () => {
-			let currentWorkspace = "";
-			try {
-				const conn = ctx.get("connection");
-				if (conn?.api?.workspace?.list) {
-					const wsResult = await conn.api.workspace.list({});
-					if (wsResult.result?.ok && wsResult.result.value?.items?.length) currentWorkspace = wsResult.result.value.items[0]?.path || "";
-				}
-			} catch {}
-			if (!currentWorkspace) try {
-				const conn = ctx.get("connection");
-				if (conn?.api?.sessions?.list) {
-					const sResult = await conn.api.sessions.list({});
-					if (sResult.result?.ok && sResult.result.value?.items?.length) {
-						for (const item of sResult.result.value.items) if (item.cwd) {
-							currentWorkspace = item.cwd;
-							break;
-						}
-					}
-				}
-			} catch {}
+			const currentWorkspace = await detectWorkspacePath(ctx);
 			if (currentWorkspace && currentWorkspace !== lastDetectedWorkspace) {
 				log.info("workspace changed detected", {
 					from: lastDetectedWorkspace,
@@ -42572,7 +42619,7 @@ function apply(ctx) {
 			window.removeEventListener("codegraph:toggle-watch", toggleWatchListener);
 			window.removeEventListener("codegraph:workspace", workspaceListener);
 			window.removeEventListener("codegraph:install-plugin", installPluginListener);
-		});
+		}, "codegraph: window event listeners");
 	}
 }
 
