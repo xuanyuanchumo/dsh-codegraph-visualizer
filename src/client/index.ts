@@ -54,7 +54,7 @@ export function init(container: HTMLElement, initialData?: GraphData): void {
   const root = ReactDOM.createRoot(container);
   if (initialData) {
     const store = useGraphStore.getState();
-    store.setGraphData(initialData.nodes, initialData.edges, initialData.metadata.repoId);
+    store.setGraphData(initialData.nodes, initialData.edges, initialData.metadata.repoId, initialData.metadata);
   }
   root.render(React.createElement(GraphPanel));
 }
@@ -86,7 +86,7 @@ async function fetchGraphData(): Promise<GraphData | null> {
   }
 }
 
-async function requestScan(path: string, maxNodes?: number): Promise<{ success: boolean; nodes: unknown[]; edges: unknown[] } | null> {
+async function requestScan(path: string, maxNodes?: number): Promise<{ success: boolean; nodes: unknown[]; edges: unknown[]; metadata?: Record<string, unknown> } | null> {
   try {
     const res = await fetch('/api/codegraph/scan', {
       method: 'POST',
@@ -331,7 +331,7 @@ export function apply(ctx: Context) {
         const validated = validateGraphData(result);
         if (validated) {
           const s = useGraphStore.getState();
-          s.setGraphData(validated.nodes, validated.edges, workspacePath);
+          s.setGraphData(validated.nodes, validated.edges, workspacePath, validated.metadata);
           log.info('graph data received', { path: workspacePath, nodes: validated.nodes.length, edges: validated.edges.length });
         }
       }
@@ -369,7 +369,7 @@ export function apply(ctx: Context) {
         store.setLoading(true);
         fetchGraphData().then((data) => {
           if (data) {
-            store.setGraphData(data.nodes, data.edges, data.metadata.repoId);
+            store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata);
           }
           store.setLoading(false);
         });
@@ -388,7 +388,7 @@ export function apply(ctx: Context) {
         if (result && result.success && result.nodes.length > 0) {
           const validated = validateGraphData(result);
           if (validated) {
-            store.setGraphData(validated.nodes, validated.edges, detail.path);
+            store.setGraphData(validated.nodes, validated.edges, detail.path, validated.metadata);
             log.info('import-repo completed', { path: detail.path, nodes: validated.nodes.length });
           }
         }
@@ -408,7 +408,7 @@ export function apply(ctx: Context) {
             // After successful init, fetch the fresh graph data
             fetchGraphData().then((data) => {
               if (data) {
-                store.setGraphData(data.nodes, data.edges, data.metadata.repoId);
+                store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata);
               }
             });
           }
@@ -441,7 +441,7 @@ export function apply(ctx: Context) {
           if (result && result.success && result.nodes.length > 0) {
             const validated = validateGraphData(result);
             if (validated) {
-              store.setGraphData(validated.nodes, validated.edges, detail.path);
+              store.setGraphData(validated.nodes, validated.edges, detail.path, validated.metadata);
             }
           }
           store.setLoading(false);

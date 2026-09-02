@@ -1593,8 +1593,11 @@ function apply(ctx) {
 			edges: keptEdges,
 			metadata: {
 				...data.metadata,
-				nodeCount: data.nodes.length,
-				edgeCount: data.edges.length
+				nodeCount: keptNodes.length,
+				edgeCount: keptEdges.length,
+				truncated: true,
+				totalNodeCount: data.nodes.length,
+				totalEdgeCount: data.edges.length
 			}
 		};
 	}

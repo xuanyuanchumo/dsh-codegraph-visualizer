@@ -76,7 +76,7 @@ interface GraphState {
   workspaceList: WorkspaceInfo[];
 
   // Actions
-  setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string) => void;
+  setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata?: { truncated?: boolean; totalNodeCount?: number; totalEdgeCount?: number }) => void;
   setLayout: (layout: LayoutType) => void;
   setTheme: (theme: ThemeType) => void;
   setSearchQuery: (query: string) => void;
@@ -122,9 +122,8 @@ export const useGraphStore = create<GraphState>()(
       workspaceList: [],
 
       // Arriving data always clears the loading flag (fixes the stuck-overlay bug).
-      setGraphData: (nodes, edges, repoId) => {
+      setGraphData: (nodes, edges, repoId, metadata) => {
         clearLoadingFailsafe();
-        const metadata = repoId as unknown as { truncated?: boolean; totalNodeCount?: number; totalEdgeCount?: number };
         set({
           nodes, edges, repoId, error: null, isLoading: false, lastUpdated: Date.now(),
           truncated: !!metadata?.truncated,

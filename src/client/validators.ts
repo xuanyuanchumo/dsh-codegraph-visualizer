@@ -37,6 +37,9 @@ export function validateGraphData(raw: unknown): GraphData | null {
   const metadata = o.metadata as Record<string, unknown> | undefined;
   const repoId = (metadata?.repoId as string | undefined) ?? `workspace-${Date.now()}`;
   const timestamp = typeof metadata?.timestamp === 'number' ? metadata.timestamp : Date.now();
+  const truncated = typeof metadata?.truncated === 'boolean' ? metadata.truncated : false;
+  const totalNodeCount = typeof metadata?.totalNodeCount === 'number' ? metadata.totalNodeCount : nodes.length;
+  const totalEdgeCount = typeof metadata?.totalEdgeCount === 'number' ? metadata.totalEdgeCount : edges.length;
   return {
     nodes,
     edges,
@@ -45,6 +48,9 @@ export function validateGraphData(raw: unknown): GraphData | null {
       timestamp,
       nodeCount: nodes.length,
       edgeCount: edges.length,
+      truncated,
+      totalNodeCount,
+      totalEdgeCount,
     },
   };
 }

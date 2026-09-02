@@ -38,6 +38,9 @@ export interface GraphData {
     timestamp: number;
     nodeCount: number;
     edgeCount: number;
+    truncated?: boolean;
+    totalNodeCount?: number;
+    totalEdgeCount?: number;
   };
 }
 

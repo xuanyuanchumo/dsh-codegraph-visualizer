@@ -279,9 +279,8 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	watchEnabled: false,
 	currentWorkspace: ".",
 	workspaceList: [],
-	setGraphData: (nodes, edges, repoId) => {
+	setGraphData: (nodes, edges, repoId, metadata) => {
 		clearLoadingFailsafe();
-		const metadata = repoId;
 		set$1({
 			nodes,
 			edges,
@@ -42292,6 +42291,9 @@ function validateGraphData(raw) {
 	const metadata = o.metadata;
 	const repoId = metadata?.repoId ?? `workspace-${Date.now()}`;
 	const timestamp = typeof metadata?.timestamp === "number" ? metadata.timestamp : Date.now();
+	const truncated = typeof metadata?.truncated === "boolean" ? metadata.truncated : false;
+	const totalNodeCount = typeof metadata?.totalNodeCount === "number" ? metadata.totalNodeCount : nodes.length;
+	const totalEdgeCount = typeof metadata?.totalEdgeCount === "number" ? metadata.totalEdgeCount : edges.length;
 	return {
 		nodes,
 		edges,
@@ -42299,7 +42301,10 @@ function validateGraphData(raw) {
 			repoId,
 			timestamp,
 			nodeCount: nodes.length,
-			edgeCount: edges.length
+			edgeCount: edges.length,
+			truncated,
+			totalNodeCount,
+			totalEdgeCount
 		}
 	};
 }
@@ -42317,7 +42322,7 @@ function init(container, initialData) {
 	const root$12 = ReactDOM.createRoot(container);
 	if (initialData) {
 		const store = useGraphStore.getState();
-		store.setGraphData(initialData.nodes, initialData.edges, initialData.metadata.repoId);
+		store.setGraphData(initialData.nodes, initialData.edges, initialData.metadata.repoId, initialData.metadata);
 	}
 	root$12.render(React.createElement(GraphPanel));
 }
@@ -42538,7 +42543,7 @@ function apply(ctx) {
 				const validated = validateGraphData(result);
 				if (validated) {
 					const s = useGraphStore.getState();
-					s.setGraphData(validated.nodes, validated.edges, workspacePath);
+					s.setGraphData(validated.nodes, validated.edges, workspacePath, validated.metadata);
 					log.info("graph data received", {
 						path: workspacePath,
 						nodes: validated.nodes.length,
@@ -42568,7 +42573,7 @@ function apply(ctx) {
 			if (store.nodes.length > 0) {
 				store.setLoading(true);
 				fetchGraphData().then((data$2) => {
-					if (data$2) store.setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId);
+					if (data$2) store.setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
 					store.setLoading(false);
 				});
 			}
@@ -42584,7 +42589,7 @@ function apply(ctx) {
 				if (result && result.success && result.nodes.length > 0) {
 					const validated = validateGraphData(result);
 					if (validated) {
-						store.setGraphData(validated.nodes, validated.edges, detail.path);
+						store.setGraphData(validated.nodes, validated.edges, detail.path, validated.metadata);
 						log.info("import-repo completed", {
 							path: detail.path,
 							nodes: validated.nodes.length
@@ -42603,7 +42608,7 @@ function apply(ctx) {
 				if (result) {
 					store.setInitStatus(result.success ? "done" : "error", result.message);
 					if (result.success) fetchGraphData().then((data$2) => {
-						if (data$2) store.setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId);
+						if (data$2) store.setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
 					});
 				} else store.setInitStatus("error", "Request failed");
 				log.info("init result", {
@@ -42635,7 +42640,7 @@ function apply(ctx) {
 				requestScan(detail.path).then((result) => {
 					if (result && result.success && result.nodes.length > 0) {
 						const validated = validateGraphData(result);
-						if (validated) store.setGraphData(validated.nodes, validated.edges, detail.path);
+						if (validated) store.setGraphData(validated.nodes, validated.edges, detail.path, validated.metadata);
 					}
 					store.setLoading(false);
 				});
