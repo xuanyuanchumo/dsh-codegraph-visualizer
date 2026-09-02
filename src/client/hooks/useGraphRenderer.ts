@@ -73,8 +73,11 @@ export function useGraphRenderer(
   }, [nodes, edges]);
 
   useEffect(() => {
-    rendererRef.current?.applyLayout(layout);
-  }, [layout]);
+    const r = rendererRef.current;
+    if (!r) return;
+    const timer = setTimeout(() => r.applyLayout(layout), 150);
+    return () => clearTimeout(timer);
+  }, [layout, nodes, edges]);
 
   useEffect(() => {
     const r = rendererRef.current;

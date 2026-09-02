@@ -245,7 +245,7 @@ const memoryStorage = {
 	setItem: () => {},
 	removeItem: () => {}
 };
-const LOADING_FAILSAFE_MS = 2e3;
+const LOADING_FAILSAFE_MS = 15e3;
 let loadingFailsafe = null;
 function clearLoadingFailsafe() {
 	if (loadingFailsafe !== null) {
@@ -39116,8 +39116,13 @@ var CytoscapeRenderer = class {
 		if (!this.cy) return;
 		const newNodeIds = new Set(nodes.map((n) => n.id));
 		const newEdgeIds = new Set(edges.map((e) => e.id));
+		const hasNewNodes = nodes.some((n) => !this.currentNodes.has(n.id));
+		const hasStaleNodes = this.currentNodes.size !== nodes.length || [...this.currentNodes.keys()].some((id) => !newNodeIds.has(id));
+		const hasNewEdges = edges.some((e) => !this.currentEdges.has(e.id));
+		const hasStaleEdges = this.currentEdges.size !== edges.length || [...this.currentEdges.keys()].some((id) => !newEdgeIds.has(id));
+		if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges) return;
 		this.cy.batch(() => {
-			for (const n of nodes) {
+			if (hasNewNodes) for (const n of nodes) {
 				if (!this.currentNodes.has(n.id)) this.cy.add({
 					group: "nodes",
 					data: {
@@ -39130,7 +39135,8 @@ var CytoscapeRenderer = class {
 				});
 				this.currentNodes.set(n.id, n);
 			}
-			for (const e of edges) {
+			else for (const n of nodes) this.currentNodes.set(n.id, n);
+			if (hasNewEdges) for (const e of edges) {
 				if (!this.currentEdges.has(e.id)) this.cy.add({
 					group: "edges",
 					data: {
@@ -39142,10 +39148,15 @@ var CytoscapeRenderer = class {
 				});
 				this.currentEdges.set(e.id, e);
 			}
-			const staleNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
-			const staleEdges = this.cy.edges().filter((e) => !newEdgeIds.has(e.id()));
-			if (staleNodes.length > 0) this.cy.remove(staleNodes);
-			if (staleEdges.length > 0) this.cy.remove(staleEdges);
+			else for (const e of edges) this.currentEdges.set(e.id, e);
+			if (hasStaleNodes) {
+				const staleNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
+				if (staleNodes.length > 0) this.cy.remove(staleNodes);
+			}
+			if (hasStaleEdges) {
+				const staleEdges = this.cy.edges().filter((e) => !newEdgeIds.has(e.id()));
+				if (staleEdges.length > 0) this.cy.remove(staleEdges);
+			}
 		});
 	}
 	applyLayout(layout$2) {
@@ -39641,8 +39652,15 @@ function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, sel
 		rendererRef.current?.updateData(nodes, edges);
 	}, [nodes, edges]);
 	useEffect(() => {
-		rendererRef.current?.applyLayout(layout$2);
-	}, [layout$2]);
+		const r = rendererRef.current;
+		if (!r) return;
+		const timer = setTimeout(() => r.applyLayout(layout$2), 150);
+		return () => clearTimeout(timer);
+	}, [
+		layout$2,
+		nodes,
+		edges
+	]);
 	useEffect(() => {
 		const r = rendererRef.current;
 		if (!r) return;
@@ -41878,7 +41896,6 @@ function GraphPanelInner({ className = "" }) {
 	const handleWorkspaceSwitch = useCallback((path) => {
 		setCurrentWorkspace(path);
 		window.dispatchEvent(new CustomEvent("codegraph:workspace", { detail: { path } }));
-		window.dispatchEvent(new CustomEvent("codegraph:refresh"));
 	}, [setCurrentWorkspace]);
 	const handleWorkspaceAdd = useCallback((path) => {
 		addWorkspace(path, path.split(/[\\/]/).pop() || path);
@@ -42380,50 +42397,81 @@ function apply(ctx) {
 		}, 1e4);
 		ctx.effect(() => () => clearInterval(prereqInterval), "codegraph: prereq polling");
 	}
+	let lastDetectedWorkspace = "";
 	{
 		const store = useGraphStore.getState();
-		if (store.nodes.length === 0 && !store.isLoading) {
-			const getWorkspaceAndScan = async () => {
-				let workspacePath = ".";
-				try {
-					const conn = ctx.get("connection");
-					if (conn?.api?.workspace?.list) {
-						const wsResult = await conn.api.workspace.list({});
-						if (wsResult.result?.ok && wsResult.result.value?.items?.length) workspacePath = wsResult.result.value.items[0]?.path || ".";
-					}
-				} catch {}
-				if (workspacePath === ".") try {
-					const conn = ctx.get("connection");
-					if (conn?.api?.sessions?.list) {
-						const sResult = await conn.api.sessions.list({});
-						if (sResult.result?.ok && sResult.result.value?.items?.length) {
-							for (const item of sResult.result.value.items) if (item.cwd) {
-								workspacePath = item.cwd;
-								break;
-							}
+		const getWorkspaceAndScan = async () => {
+			let workspacePath = ".";
+			try {
+				const conn = ctx.get("connection");
+				if (conn?.api?.workspace?.list) {
+					const wsResult = await conn.api.workspace.list({});
+					if (wsResult.result?.ok && wsResult.result.value?.items?.length) workspacePath = wsResult.result.value.items[0]?.path || ".";
+				}
+			} catch {}
+			if (workspacePath === ".") try {
+				const conn = ctx.get("connection");
+				if (conn?.api?.sessions?.list) {
+					const sResult = await conn.api.sessions.list({});
+					if (sResult.result?.ok && sResult.result.value?.items?.length) {
+						for (const item of sResult.result.value.items) if (item.cwd) {
+							workspacePath = item.cwd;
+							break;
 						}
 					}
-				} catch {}
-				if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codegraph:workspace", { detail: { path: workspacePath } }));
-				log.info("auto-import requested", { path: workspacePath });
-				store.setLoading(true);
-				const result = await requestScan(workspacePath);
-				if (result && result.success && result.nodes.length > 0) {
-					const validated = validateGraphData(result);
-					if (validated) {
-						const s = useGraphStore.getState();
-						s.setGraphData(validated.nodes, validated.edges, workspacePath);
-						log.info("graph data received", {
-							path: workspacePath,
-							nodes: validated.nodes.length,
-							edges: validated.edges.length
-						});
+				}
+			} catch {}
+			lastDetectedWorkspace = workspacePath;
+			if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codegraph:workspace", { detail: { path: workspacePath } }));
+			log.info("auto-import requested", { path: workspacePath });
+			store.setLoading(true);
+			const result = await requestScan(workspacePath);
+			if (result && result.success && result.nodes.length > 0) {
+				const validated = validateGraphData(result);
+				if (validated) {
+					const s = useGraphStore.getState();
+					s.setGraphData(validated.nodes, validated.edges, workspacePath);
+					log.info("graph data received", {
+						path: workspacePath,
+						nodes: validated.nodes.length,
+						edges: validated.edges.length
+					});
+				}
+			}
+			useGraphStore.getState().setLoading(false);
+		};
+		if (store.nodes.length === 0 && !store.isLoading) getWorkspaceAndScan();
+		const workspacePoll = setInterval(async () => {
+			let currentWorkspace = "";
+			try {
+				const conn = ctx.get("connection");
+				if (conn?.api?.workspace?.list) {
+					const wsResult = await conn.api.workspace.list({});
+					if (wsResult.result?.ok && wsResult.result.value?.items?.length) currentWorkspace = wsResult.result.value.items[0]?.path || "";
+				}
+			} catch {}
+			if (!currentWorkspace) try {
+				const conn = ctx.get("connection");
+				if (conn?.api?.sessions?.list) {
+					const sResult = await conn.api.sessions.list({});
+					if (sResult.result?.ok && sResult.result.value?.items?.length) {
+						for (const item of sResult.result.value.items) if (item.cwd) {
+							currentWorkspace = item.cwd;
+							break;
+						}
 					}
 				}
-				useGraphStore.getState().setLoading(false);
-			};
-			getWorkspaceAndScan();
-		}
+			} catch {}
+			if (currentWorkspace && currentWorkspace !== lastDetectedWorkspace) {
+				log.info("workspace changed detected", {
+					from: lastDetectedWorkspace,
+					to: currentWorkspace
+				});
+				lastDetectedWorkspace = currentWorkspace;
+				if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codegraph:workspace", { detail: { path: currentWorkspace } }));
+			}
+		}, 3e3);
+		ctx.effect(() => () => clearInterval(workspacePoll), "codegraph: workspace polling");
 	}
 	if (typeof window !== "undefined") {
 		const refreshListener = () => {
@@ -42486,19 +42534,24 @@ function apply(ctx) {
 				path: detail.path
 			});
 		};
+		let workspaceScanTimer = null;
 		const workspaceListener = (e) => {
 			const detail = e.detail;
 			const store = useGraphStore.getState();
 			store.setCurrentWorkspace(detail.path);
-			store.setLoading(true);
-			requestScan(detail.path).then((result) => {
-				if (result && result.success && result.nodes.length > 0) {
-					const validated = validateGraphData(result);
-					if (validated) store.setGraphData(validated.nodes, validated.edges, detail.path);
-				}
-				store.setLoading(false);
-			});
-			log.info("workspace change forwarded", { path: detail.path });
+			if (workspaceScanTimer) clearTimeout(workspaceScanTimer);
+			workspaceScanTimer = setTimeout(() => {
+				workspaceScanTimer = null;
+				store.setLoading(true);
+				requestScan(detail.path).then((result) => {
+					if (result && result.success && result.nodes.length > 0) {
+						const validated = validateGraphData(result);
+						if (validated) store.setGraphData(validated.nodes, validated.edges, detail.path);
+					}
+					store.setLoading(false);
+				});
+				log.info("workspace change forwarded", { path: detail.path });
+			}, 300);
 		};
 		const installPluginListener = (e) => {
 			const detail = e.detail;

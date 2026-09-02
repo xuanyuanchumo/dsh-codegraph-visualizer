@@ -26,7 +26,7 @@ export interface WorkspaceInfo {
 
 // Fail-safe window after which a stuck `isLoading` flag self-resets, so the
 // loading overlay can never hang forever when no data arrives (J9/J12).
-const LOADING_FAILSAFE_MS = 2000;
+const LOADING_FAILSAFE_MS = 15000;
 let loadingFailsafe: ReturnType<typeof setTimeout> | null = null;
 
 function clearLoadingFailsafe(): void {

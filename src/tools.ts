@@ -33,13 +33,17 @@ async function fetchMergedGraph(
   repoId: string,
   source: 'codegraph' | 'lens' | 'both' = 'both',
 ): Promise<GraphData> {
-  const results: AdapterResult[] = [];
+  const tasks: Promise<AdapterResult>[] = [];
   if (source === 'codegraph' || source === 'both') {
-    results.push(await codegraphAdapter.fetchData(repoId, invoke));
+    tasks.push(codegraphAdapter.fetchData(repoId, invoke));
   }
   if (source === 'lens' || source === 'both') {
-    results.push(await lensAdapter.fetchData(repoId, invoke));
+    tasks.push(lensAdapter.fetchData(repoId, invoke));
   }
+  const settled = await Promise.allSettled(tasks);
+  const results: AdapterResult[] = settled
+    .filter((r): r is PromiseFulfilledResult<AdapterResult> => r.status === 'fulfilled')
+    .map((r) => r.value);
   return merger.merge(results, makeRepoId(repoId));
 }
 

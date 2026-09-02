@@ -87,7 +87,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const handleWorkspaceSwitch = useCallback((path: string) => {
     setCurrentWorkspace(path);
     window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path } }));
-    window.dispatchEvent(new CustomEvent('codegraph:refresh'));
+
   }, [setCurrentWorkspace]);
 
   const handleWorkspaceAdd = useCallback((path: string) => {

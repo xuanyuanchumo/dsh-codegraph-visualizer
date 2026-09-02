@@ -108,42 +108,63 @@ export class CytoscapeRenderer implements IRenderer {
     const newNodeIds = new Set<string>(nodes.map((n) => n.id));
     const newEdgeIds = new Set<string>(edges.map((e) => e.id));
 
+    const hasNewNodes = nodes.some((n) => !this.currentNodes.has(n.id));
+    const hasStaleNodes = this.currentNodes.size !== nodes.length ||
+      [...this.currentNodes.keys()].some((id) => !newNodeIds.has(id));
+    const hasNewEdges = edges.some((e) => !this.currentEdges.has(e.id));
+    const hasStaleEdges = this.currentEdges.size !== edges.length ||
+      [...this.currentEdges.keys()].some((id) => !newEdgeIds.has(id));
+
+    if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges) return;
+
     this.cy.batch(() => {
-      for (const n of nodes) {
-        if (!this.currentNodes.has(n.id)) {
-          this.cy!.add({
-            group: 'nodes',
-            data: {
-              id: n.id,
-              label: n.label,
-              type: n.type,
-              filePath: n.filePath,
-              lineNumber: n.lineNumber,
-            },
-          });
+      if (hasNewNodes) {
+        for (const n of nodes) {
+          if (!this.currentNodes.has(n.id)) {
+            this.cy!.add({
+              group: 'nodes',
+              data: {
+                id: n.id,
+                label: n.label,
+                type: n.type,
+                filePath: n.filePath,
+                lineNumber: n.lineNumber,
+              },
+            });
+          }
+          this.currentNodes.set(n.id, n);
         }
-        this.currentNodes.set(n.id, n);
+      } else {
+        for (const n of nodes) this.currentNodes.set(n.id, n);
       }
 
-      for (const e of edges) {
-        if (!this.currentEdges.has(e.id)) {
-          this.cy!.add({
-            group: 'edges',
-            data: {
-              id: e.id,
-              source: e.source,
-              target: e.target,
-              type: e.type,
-            },
-          });
+      if (hasNewEdges) {
+        for (const e of edges) {
+          if (!this.currentEdges.has(e.id)) {
+            this.cy!.add({
+              group: 'edges',
+              data: {
+                id: e.id,
+                source: e.source,
+                target: e.target,
+                type: e.type,
+              },
+            });
+          }
+          this.currentEdges.set(e.id, e);
         }
-        this.currentEdges.set(e.id, e);
+      } else {
+        for (const e of edges) this.currentEdges.set(e.id, e);
       }
 
-      const staleNodes = this.cy!.nodes().filter((n) => !newNodeIds.has(n.id()));
-      const staleEdges = this.cy!.edges().filter((e) => !newEdgeIds.has(e.id()));
-      if (staleNodes.length > 0) this.cy!.remove(staleNodes);
-      if (staleEdges.length > 0) this.cy!.remove(staleEdges);
+      if (hasStaleNodes) {
+        const staleNodes = this.cy!.nodes().filter((n) => !newNodeIds.has(n.id()));
+        if (staleNodes.length > 0) this.cy!.remove(staleNodes);
+      }
+      if (hasStaleEdges) {
+        const staleEdges = this.cy!.edges().filter((e) => !newEdgeIds.has(e.id()));
+        if (staleEdges.length > 0) this.cy!.remove(staleEdges);
+      }
     });
   }
 

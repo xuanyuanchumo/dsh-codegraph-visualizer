@@ -263,67 +263,124 @@ export function apply(ctx: Context) {
   // On first load, if no graph data is present, request a scan of the
   // current workspace. Best-effort — if no data source answers, the panel
   // simply shows the empty state with an Import button.
+  let lastDetectedWorkspace = '';
   {
     const store = useGraphStore.getState();
-    if (store.nodes.length === 0 && !store.isLoading) {
-      const getWorkspaceAndScan = async () => {
-        let workspacePath = '.';
+    const getWorkspaceAndScan = async () => {
+      let workspacePath = '.';
+      try {
+        const conn = ctx.get('connection') as {
+          api?: {
+            workspace?: {
+              list?: (payload: Record<string, never>, signal?: AbortSignal) => Promise<{
+                result?: { ok?: boolean; value?: { items?: Array<{ path?: string }> } }
+              }>
+            }
+          }
+        } | undefined;
+        if (conn?.api?.workspace?.list) {
+          const wsResult = await conn.api.workspace.list({});
+          if (wsResult.result?.ok && wsResult.result.value?.items?.length) {
+            workspacePath = wsResult.result.value.items[0]?.path || '.';
+          }
+        }
+      } catch { /* best-effort */ }
+      if (workspacePath === '.') {
         try {
           const conn = ctx.get('connection') as {
             api?: {
-              workspace?: {
+              sessions?: {
                 list?: (payload: Record<string, never>, signal?: AbortSignal) => Promise<{
-                  result?: { ok?: boolean; value?: { items?: Array<{ path?: string }> } }
+                  result?: { ok?: boolean; value?: { items?: Array<{ cwd?: string }> } }
                 }>
               }
             }
           } | undefined;
-          if (conn?.api?.workspace?.list) {
-            const wsResult = await conn.api.workspace.list({});
-            if (wsResult.result?.ok && wsResult.result.value?.items?.length) {
-              workspacePath = wsResult.result.value.items[0]?.path || '.';
+          if (conn?.api?.sessions?.list) {
+            const sResult = await conn.api.sessions.list({});
+            if (sResult.result?.ok && sResult.result.value?.items?.length) {
+              for (const item of sResult.result.value.items) {
+                if (item.cwd) { workspacePath = item.cwd; break; }
+              }
             }
           }
         } catch { /* best-effort */ }
-        if (workspacePath === '.') {
-          try {
-            const conn = ctx.get('connection') as {
-              api?: {
-                sessions?: {
-                  list?: (payload: Record<string, never>, signal?: AbortSignal) => Promise<{
-                    result?: { ok?: boolean; value?: { items?: Array<{ cwd?: string }> } }
-                  }>
-                }
-              }
-            } | undefined;
-            if (conn?.api?.sessions?.list) {
-              const sResult = await conn.api.sessions.list({});
-              if (sResult.result?.ok && sResult.result.value?.items?.length) {
-                for (const item of sResult.result.value.items) {
-                  if (item.cwd) { workspacePath = item.cwd; break; }
-                }
-              }
-            }
-          } catch { /* best-effort */ }
+      }
+      lastDetectedWorkspace = workspacePath;
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: workspacePath } }));
+      }
+      log.info('auto-import requested', { path: workspacePath });
+      store.setLoading(true);
+      const result = await requestScan(workspacePath);
+      if (result && result.success && result.nodes.length > 0) {
+        const validated = validateGraphData(result);
+        if (validated) {
+          const s = useGraphStore.getState();
+          s.setGraphData(validated.nodes, validated.edges, workspacePath);
+          log.info('graph data received', { path: workspacePath, nodes: validated.nodes.length, edges: validated.edges.length });
         }
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: workspacePath } }));
-        }
-        log.info('auto-import requested', { path: workspacePath });
-        store.setLoading(true);
-        const result = await requestScan(workspacePath);
-        if (result && result.success && result.nodes.length > 0) {
-          const validated = validateGraphData(result);
-          if (validated) {
-            const s = useGraphStore.getState();
-            s.setGraphData(validated.nodes, validated.edges, workspacePath);
-            log.info('graph data received', { path: workspacePath, nodes: validated.nodes.length, edges: validated.edges.length });
-          }
-        }
-        useGraphStore.getState().setLoading(false);
-      };
+      }
+      useGraphStore.getState().setLoading(false);
+    };
+
+    if (store.nodes.length === 0 && !store.isLoading) {
       getWorkspaceAndScan();
     }
+
+    // ── Workspace change detection ───────────────────────────────────
+    // Poll DSH platform workspace list every 3s to detect when the user
+    // switches workspaces at the platform level. When a change is detected,
+    // dispatch the workspace event to trigger a re-scan.
+    const workspacePoll = setInterval(async () => {
+      let currentWorkspace = '';
+      try {
+        const conn = ctx.get('connection') as {
+          api?: {
+            workspace?: {
+              list?: (payload: Record<string, never>, signal?: AbortSignal) => Promise<{
+                result?: { ok?: boolean; value?: { items?: Array<{ path?: string }> } }
+              }>
+            }
+          }
+        } | undefined;
+        if (conn?.api?.workspace?.list) {
+          const wsResult = await conn.api.workspace.list({});
+          if (wsResult.result?.ok && wsResult.result.value?.items?.length) {
+            currentWorkspace = wsResult.result.value.items[0]?.path || '';
+          }
+        }
+      } catch { /* best-effort */ }
+      if (!currentWorkspace) {
+        try {
+          const conn = ctx.get('connection') as {
+            api?: {
+              sessions?: {
+                list?: (payload: Record<string, never>, signal?: AbortSignal) => Promise<{
+                  result?: { ok?: boolean; value?: { items?: Array<{ cwd?: string }> } }
+                }>
+              }
+            }
+          } | undefined;
+          if (conn?.api?.sessions?.list) {
+            const sResult = await conn.api.sessions.list({});
+            if (sResult.result?.ok && sResult.result.value?.items?.length) {
+              for (const item of sResult.result.value.items) {
+                if (item.cwd) { currentWorkspace = item.cwd; break; }
+              }
+            }
+          }
+        } catch { /* best-effort */ }
+      }
+      if (currentWorkspace && currentWorkspace !== lastDetectedWorkspace) {
+        log.info('workspace changed detected', { from: lastDetectedWorkspace, to: currentWorkspace });
+        lastDetectedWorkspace = currentWorkspace;
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: currentWorkspace } }));
+        }
+      }
+    }, 3000);
+    ctx.effect(() => () => clearInterval(workspacePoll), 'codegraph: workspace polling');
   }
 
   // ── Client-side event listeners for panel-initiated actions ────────
@@ -395,21 +452,26 @@ export function apply(ctx: Context) {
       log.info('toggle-watch forwarded', { enabled: detail.enabled, path: detail.path });
     };
 
+    let workspaceScanTimer: ReturnType<typeof setTimeout> | null = null;
     const workspaceListener = (e: Event) => {
       const detail = (e as CustomEvent).detail as { path: string };
       const store = useGraphStore.getState();
       store.setCurrentWorkspace(detail.path);
-      store.setLoading(true);
-      requestScan(detail.path).then((result) => {
-        if (result && result.success && result.nodes.length > 0) {
-          const validated = validateGraphData(result);
-          if (validated) {
-            store.setGraphData(validated.nodes, validated.edges, detail.path);
+      if (workspaceScanTimer) clearTimeout(workspaceScanTimer);
+      workspaceScanTimer = setTimeout(() => {
+        workspaceScanTimer = null;
+        store.setLoading(true);
+        requestScan(detail.path).then((result) => {
+          if (result && result.success && result.nodes.length > 0) {
+            const validated = validateGraphData(result);
+            if (validated) {
+              store.setGraphData(validated.nodes, validated.edges, detail.path);
+            }
           }
-        }
-        store.setLoading(false);
-      });
-      log.info('workspace change forwarded', { path: detail.path });
+          store.setLoading(false);
+        });
+        log.info('workspace change forwarded', { path: detail.path });
+      }, 300);
     };
 
     const installPluginListener = (e: Event) => {

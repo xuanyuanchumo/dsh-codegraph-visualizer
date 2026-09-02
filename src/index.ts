@@ -77,6 +77,9 @@ export function apply(ctx: Context) {
   let lastGraphData: GraphData | null = null;
   let lastScanPath: string | null = null;
   let lastInitResult: { success: boolean; path: string; message: string; timestamp: number } | null = null;
+  let scanInFlight: Promise<GraphData> | null = null;
+  const scanCache = new Map<string, { data: GraphData; timestamp: number }>();
+  const SCAN_CACHE_TTL = 30000;
 
   const invokeUpstream = async (tool: string, args: Record<string, unknown>): Promise<unknown | null> => {
     try {
@@ -160,22 +163,48 @@ export function apply(ctx: Context) {
         const scanPath = path && path !== '.' ? path : findWorkspacePath();
         lastScanPath = scanPath;
         const repoId = scanPath || `workspace-${Date.now()}`;
-        const data = await fetchMergedGraph(invokeUpstream, repoId, 'both');
-        lastGraphData = data;
-        ctx.emit('codegraph/graph/updated', {
-          repoId,
-          nodeCount: data.metadata.nodeCount,
-          edgeCount: data.metadata.edgeCount,
-          timestamp: data.metadata.timestamp,
-        });
-        ctx.emit('codegraph/graph/data', {
-          repoId,
-          nodes: data.nodes,
-          edges: data.edges,
-          timestamp: data.metadata.timestamp,
-        });
-        log.info('scan completed', { repoId, nodes: data.metadata.nodeCount, edges: data.metadata.edgeCount });
-        sendJson(res, 200, { success: true, ...data });
+
+        const cached = scanCache.get(scanPath);
+        if (cached && Date.now() - cached.timestamp < SCAN_CACHE_TTL) {
+          lastGraphData = cached.data;
+          sendJson(res, 200, { success: true, ...cached.data });
+          return;
+        }
+
+        if (scanInFlight) {
+          const data = await scanInFlight;
+          sendJson(res, 200, { success: true, ...data });
+          return;
+        }
+
+        scanInFlight = fetchMergedGraph(invokeUpstream, repoId, 'both');
+        try {
+          const data = await scanInFlight;
+          scanInFlight = null;
+          lastGraphData = data;
+          scanCache.set(scanPath, { data, timestamp: Date.now() });
+          if (scanCache.size > 4) {
+            const oldest = scanCache.keys().next().value;
+            if (oldest !== undefined) scanCache.delete(oldest);
+          }
+          ctx.emit('codegraph/graph/updated', {
+            repoId,
+            nodeCount: data.metadata.nodeCount,
+            edgeCount: data.metadata.edgeCount,
+            timestamp: data.metadata.timestamp,
+          });
+          ctx.emit('codegraph/graph/data', {
+            repoId,
+            nodes: data.nodes,
+            edges: data.edges,
+            timestamp: data.metadata.timestamp,
+          });
+          log.info('scan completed', { repoId, nodes: data.metadata.nodeCount, edges: data.metadata.edgeCount });
+          sendJson(res, 200, { success: true, ...data });
+        } catch (e) {
+          scanInFlight = null;
+          throw e;
+        }
       } catch (e) {
         log.error('scan failed', e);
         sendJson(res, 200, { success: false, nodes: [], edges: [], metadata: { repoId: null, timestamp: 0, nodeCount: 0, edgeCount: 0 } });

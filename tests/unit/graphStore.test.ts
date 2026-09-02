@@ -104,12 +104,12 @@ describe('graphStore (J6/J7/J10)', () => {
     expect(useGraphStore.getState().isLoading).toBe(false);
   });
 
-  it('should fail-safe reset isLoading after 2s with no data (J12)', () => {
+  it('should fail-safe reset isLoading after 15s with no data (J12)', () => {
     vi.useFakeTimers();
     try {
       useGraphStore.getState().setLoading(true);
       expect(useGraphStore.getState().isLoading).toBe(true);
-      vi.advanceTimersByTime(2100);
+      vi.advanceTimersByTime(15100);
       expect(useGraphStore.getState().isLoading).toBe(false);
     } finally {
       vi.useRealTimers();
@@ -120,12 +120,11 @@ describe('graphStore (J6/J7/J10)', () => {
     vi.useFakeTimers();
     try {
       useGraphStore.getState().setLoading(true);
-      vi.advanceTimersByTime(1000);
-      // A second loading request (e.g. refresh) must survive the first fail-safe.
+      vi.advanceTimersByTime(10000);
       useGraphStore.getState().setLoading(true);
-      vi.advanceTimersByTime(1100);
+      vi.advanceTimersByTime(11000);
       expect(useGraphStore.getState().isLoading).toBe(true);
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(5000);
       expect(useGraphStore.getState().isLoading).toBe(false);
     } finally {
       vi.useRealTimers();
