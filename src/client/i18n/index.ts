@@ -33,6 +33,13 @@ const en: Dict = {
   'toolbar.lang': 'Switch language',
   'toolbar.layout': 'Switch to {l} layout (Ctrl+L cycles)',
   'toolbar.graphType': 'Graph type switcher',
+  'toolbar.depth': 'Depth level filter',
+
+  // Depth levels
+  'depth.all': 'All Levels',
+  'depth.module': 'L1: Modules',
+  'depth.type': 'L2: + Types',
+  'depth.full': 'L3: Full',
 
   // Filter options
   'filter.all': 'All Types',
@@ -214,6 +221,13 @@ const zh: Dict = {
   'toolbar.lang': '切换语言',
   'toolbar.layout': '切换至 {l} 布局 (Ctrl+L 循环)',
   'toolbar.graphType': '图谱类型切换',
+  'toolbar.depth': '层级过滤',
+
+  // Depth levels
+  'depth.all': '全部层级',
+  'depth.module': 'L1: 模块',
+  'depth.type': 'L2: + 类型',
+  'depth.full': 'L3: 全部',
 
   // Filter options
   'filter.all': '全部类型',

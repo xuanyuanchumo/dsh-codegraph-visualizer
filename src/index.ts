@@ -128,6 +128,20 @@ export function apply(ctx: Context) {
     res.end(JSON.stringify(data));
   };
 
+  const findWorkspacePath = (): string => {
+    try {
+      const sessions = (ctx as ContextWithSessions).sessions;
+      if (sessions?.list) {
+        const all = sessions.list();
+        for (const session of all) {
+          const cwd = session?.header?.cwd;
+          if (cwd) return cwd;
+        }
+      }
+    } catch { /* best-effort */ }
+    return process.cwd();
+  };
+
   const readBody = (req: IncomingMessage): Promise<string> => {
     return new Promise((resolve, reject) => {
       let body = '';
@@ -147,6 +161,16 @@ export function apply(ctx: Context) {
     },
   }), 'codegraph: status route');
 
+  // GET /api/codegraph/workspace — get current DSH workspace path
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: '/api/codegraph/workspace',
+    handler: (_req: IncomingMessage, res: ServerResponse) => {
+      const wsPath = findWorkspacePath();
+      sendJson(res, 200, { path: wsPath });
+    },
+  }), 'codegraph: workspace route');
+
   // GET /api/codegraph/data — get cached graph data
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
@@ -160,20 +184,6 @@ export function apply(ctx: Context) {
     },
   }), 'codegraph: data route');
 
-  // Helper: find the workspace path from DSH sessions or fallback to process.cwd()
-  const findWorkspacePath = (): string => {
-    try {
-      const sessions = (ctx as ContextWithSessions).sessions;
-      if (sessions?.list) {
-        const all = sessions.list();
-        for (const session of all) {
-          const cwd = session?.header?.cwd;
-          if (cwd) return cwd;
-        }
-      }
-    } catch { /* best-effort */ }
-    return process.cwd();
-  };
 
   // POST /api/codegraph/scan — trigger a workspace scan
   ctx.effect(() => ctx.webServer.register({

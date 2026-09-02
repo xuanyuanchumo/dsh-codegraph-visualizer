@@ -55,6 +55,7 @@ interface GraphState {
   highlightedNodeIds: NodeId[];
   filterType: GraphNode['type'] | 'all';
   graphType: GraphType;
+  depthLevel: 1 | 2 | 3 | 'all';
   
   // Loading
   isLoading: boolean;
@@ -84,6 +85,7 @@ interface GraphState {
   setHighlightedNodes: (nodeIds: NodeId[]) => void;
   setFilterType: (filter: GraphNode['type'] | 'all') => void;
   setGraphType: (graphType: GraphType) => void;
+  setDepthLevel: (level: 1 | 2 | 3 | 'all') => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clearGraph: () => void;
@@ -111,6 +113,7 @@ export const useGraphStore = create<GraphState>()(
       highlightedNodeIds: [],
       filterType: 'all',
       graphType: 'all',
+      depthLevel: 'all',
       isLoading: false,
       error: null,
       lastUpdated: 0,
@@ -138,6 +141,7 @@ export const useGraphStore = create<GraphState>()(
       setHighlightedNodes: (highlightedNodeIds) => set({ highlightedNodeIds }),
       setFilterType: (filterType) => set({ filterType }),
       setGraphType: (graphType) => set({ graphType }),
+      setDepthLevel: (depthLevel) => set({ depthLevel }),
       setLoading: (isLoading) => {
         clearLoadingFailsafe();
         set({ isLoading });
@@ -202,7 +206,7 @@ export const useGraphStore = create<GraphState>()(
       },
       partialize: (s) => ({
         layout: s.layout, theme: s.theme, filterType: s.filterType,
-        graphType: s.graphType,
+        graphType: s.graphType, depthLevel: s.depthLevel,
         currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
       }),
     },

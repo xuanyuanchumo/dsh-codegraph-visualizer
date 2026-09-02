@@ -86,6 +86,18 @@ async function fetchGraphData(): Promise<GraphData | null> {
   }
 }
 
+async function fetchWorkspace(): Promise<string> {
+  try {
+    const res = await fetch('/api/codegraph/workspace');
+    if (!res.ok) return '.';
+    const data = await res.json() as { path?: string };
+    return data.path ?? '.';
+  } catch (e) {
+    log.warn('fetchWorkspace failed', e);
+    return '.';
+  }
+}
+
 async function requestScan(path: string, maxNodes?: number): Promise<{ success: boolean; nodes: unknown[]; edges: unknown[]; metadata?: Record<string, unknown> } | null> {
   try {
     const res = await fetch('/api/codegraph/scan', {
@@ -116,49 +128,7 @@ async function requestInit(path: string): Promise<{ success: boolean; message: s
   }
 }
 
-interface ConnectionApi {
-  api?: {
-    workspace?: {
-      list?: (payload: Record<string, never>, signal?: AbortSignal) => Promise<{
-        result?: { ok?: boolean; value?: { items?: Array<{ path?: string }> } }
-      }>
-    }
-    sessions?: {
-      list?: (payload: Record<string, never>, signal?: AbortSignal) => Promise<{
-        result?: { ok?: boolean; value?: { items?: Array<{ cwd?: string }> } }
-      }>
-    }
-  }
-}
 
-async function detectWorkspacePath(ctx: Context): Promise<string> {
-  try {
-    const conn = ctx.get('connection') as ConnectionApi | undefined;
-    if (conn?.api?.workspace?.list) {
-      const wsResult = await conn.api.workspace.list({});
-      if (wsResult.result?.ok && wsResult.result.value?.items?.length) {
-        const path = wsResult.result.value.items[0]?.path;
-        if (path) return path;
-      }
-    }
-  } catch (e) {
-    log.warn('workspace.list failed', e);
-  }
-  try {
-    const conn = ctx.get('connection') as ConnectionApi | undefined;
-    if (conn?.api?.sessions?.list) {
-      const sResult = await conn.api.sessions.list({});
-      if (sResult.result?.ok && sResult.result.value?.items?.length) {
-        for (const item of sResult.result.value.items) {
-          if (item.cwd) return item.cwd;
-        }
-      }
-    }
-  } catch (e) {
-    log.warn('sessions.list failed', e);
-  }
-  return '.';
-}
 
 async function requestWatch(enabled: boolean, path: string): Promise<boolean> {
   try {
@@ -319,7 +289,7 @@ export function apply(ctx: Context) {
   {
     const store = useGraphStore.getState();
     const getWorkspaceAndScan = async () => {
-      const workspacePath = await detectWorkspacePath(ctx);
+      const workspacePath = await fetchWorkspace();
       lastDetectedWorkspace = workspacePath;
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: workspacePath } }));
@@ -347,7 +317,7 @@ export function apply(ctx: Context) {
     // switches workspaces at the platform level. When a change is detected,
     // dispatch the workspace event to trigger a re-scan.
     const workspacePoll = setInterval(async () => {
-      const currentWorkspace = await detectWorkspacePath(ctx);
+      const currentWorkspace = await fetchWorkspace();
       if (currentWorkspace && currentWorkspace !== lastDetectedWorkspace) {
         log.info('workspace changed detected', { from: lastDetectedWorkspace, to: currentWorkspace });
         lastDetectedWorkspace = currentWorkspace;

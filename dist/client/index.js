@@ -348,6 +348,32 @@ body[data-ds-dark-theme] {
   box-shadow: 0 0 0 2px var(--cg-accent-soft);
 }
 
+.depth-select {
+  padding: 5px 24px 5px 8px;
+  background: var(--cg-bg);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-sm);
+  color: var(--cg-text);
+  font-size: 11px;
+  font-family: var(--cg-font-sans);
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%239ca0b8' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  transition: border-color var(--cg-transition);
+}
+
+.depth-select:hover {
+  border-color: var(--cg-accent);
+}
+
+.depth-select:focus-visible {
+  border-color: var(--cg-accent);
+  box-shadow: 0 0 0 2px var(--cg-accent-soft);
+}
+
 /* ---- Icon buttons -------------------------------------------------------- */
 
 .search-btn,
@@ -2284,6 +2310,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	highlightedNodeIds: [],
 	filterType: "all",
 	graphType: "all",
+	depthLevel: "all",
 	isLoading: false,
 	error: null,
 	lastUpdated: 0,
@@ -2317,6 +2344,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	setHighlightedNodes: (highlightedNodeIds) => set$1({ highlightedNodeIds }),
 	setFilterType: (filterType) => set$1({ filterType }),
 	setGraphType: (graphType) => set$1({ graphType }),
+	setDepthLevel: (depthLevel) => set$1({ depthLevel }),
 	setLoading: (isLoading) => {
 		clearLoadingFailsafe();
 		set$1({ isLoading });
@@ -2399,6 +2427,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		theme: s.theme,
 		filterType: s.filterType,
 		graphType: s.graphType,
+		depthLevel: s.depthLevel,
 		currentWorkspace: s.currentWorkspace,
 		workspaceList: s.workspaceList
 	})
@@ -41393,6 +41422,48 @@ var CytoscapeRenderer = class {
 			});
 		});
 	}
+	filterByDepth(level) {
+		if (!this.cy) return;
+		const levelTypes = {
+			1: new Set(["module"]),
+			2: new Set([
+				"module",
+				"class",
+				"interface",
+				"type"
+			]),
+			3: new Set([
+				"module",
+				"class",
+				"interface",
+				"type",
+				"function",
+				"variable"
+			])
+		};
+		const allowedTypes = level === "all" ? null : levelTypes[level] ?? levelTypes[3];
+		if (!allowedTypes) {
+			this.cy.batch(() => {
+				this.cy.nodes().style("display", "element");
+				this.cy.edges().style("display", "element");
+			});
+			return;
+		}
+		const hidden = new Set();
+		this.cy.nodes().forEach((node) => {
+			const type = node.data("type");
+			if (!allowedTypes.has(type)) hidden.add(node.id());
+		});
+		this.cy.batch(() => {
+			this.cy.nodes().forEach((node) => {
+				node.style("display", hidden.has(node.id()) ? "none" : "element");
+			});
+			this.cy.edges().forEach((edge) => {
+				const hiddenEdge = hidden.has(edge.source().id()) || hidden.has(edge.target().id());
+				edge.style("display", hiddenEdge ? "none" : "element");
+			});
+		});
+	}
 	search(query) {
 		if (!this.cy) return 0;
 		if (!query) {
@@ -41758,7 +41829,7 @@ function scoped(scope) {
 //#endregion
 //#region src/client/hooks/useGraphRenderer.ts
 const log$3 = scoped("renderer-hook");
-function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, debouncedSearch, showCallChain, showCycles, callbacks, showCallChainRef) {
+function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, depthLevel, debouncedSearch, showCallChain, showCycles, callbacks, showCallChainRef) {
 	const containerRef = (0, react.useRef)(null);
 	const rendererRef = (0, react.useRef)(null);
 	const [searchMatchCount, setSearchMatchCount] = (0, react.useState)(null);
@@ -41813,6 +41884,9 @@ function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, sel
 	(0, react.useEffect)(() => {
 		rendererRef.current?.filterByGraphType(graphType);
 	}, [graphType]);
+	(0, react.useEffect)(() => {
+		rendererRef.current?.filterByDepth(depthLevel);
+	}, [depthLevel]);
 	(0, react.useEffect)(() => {
 		const r = rendererRef.current;
 		if (!r) return;
@@ -42088,6 +42162,11 @@ const en = {
 	"toolbar.lang": "Switch language",
 	"toolbar.layout": "Switch to {l} layout (Ctrl+L cycles)",
 	"toolbar.graphType": "Graph type switcher",
+	"toolbar.depth": "Depth level filter",
+	"depth.all": "All Levels",
+	"depth.module": "L1: Modules",
+	"depth.type": "L2: + Types",
+	"depth.full": "L3: Full",
 	"filter.all": "All Types",
 	"filter.function": "Functions",
 	"filter.class": "Classes",
@@ -42234,6 +42313,11 @@ const zh = {
 	"toolbar.lang": "切换语言",
 	"toolbar.layout": "切换至 {l} 布局 (Ctrl+L 循环)",
 	"toolbar.graphType": "图谱类型切换",
+	"toolbar.depth": "层级过滤",
+	"depth.all": "全部层级",
+	"depth.module": "L1: 模块",
+	"depth.type": "L2: + 类型",
+	"depth.full": "L3: 全部",
 	"filter.all": "全部类型",
 	"filter.function": "函数",
 	"filter.class": "类",
@@ -43326,6 +43410,24 @@ const GRAPH_TYPES = [
 		key: "graphType.dependency"
 	}
 ];
+const DEPTH_LEVELS = [
+	{
+		value: "all",
+		key: "depth.all"
+	},
+	{
+		value: "1",
+		key: "depth.module"
+	},
+	{
+		value: "2",
+		key: "depth.type"
+	},
+	{
+		value: "3",
+		key: "depth.full"
+	}
+];
 function Toolbar(props) {
 	const t$1 = useT();
 	const lang = useLang();
@@ -43343,7 +43445,7 @@ function Toolbar(props) {
 		props.onExport(format);
 		setShowExportMenu(false);
 	}, [props]);
-	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, showSearch, showCallChain, showCycles, showMiniMap, showLegend, showImport, collapsed, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleMiniMap, onToggleLegend, onToggleImport, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace } = props;
+	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, depthLevel, showSearch, showCallChain, showCycles, showMiniMap, showLegend, showImport, collapsed, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onDepthLevelChange, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleMiniMap, onToggleLegend, onToggleImport, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace } = props;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "graph-toolbar",
 		children: [
@@ -43377,29 +43479,43 @@ function Toolbar(props) {
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: "toolbar-center",
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "layout-buttons",
-					role: "group",
-					"aria-label": "Layout switcher",
-					children: LAYOUTS.map((l) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-						className: `layout-btn ${layout$2 === l ? "active" : ""}`,
-						onClick: () => onLayoutChange(l),
-						title: t$1("toolbar.layout", { l }),
-						"aria-pressed": layout$2 === l,
-						children: l
-					}, l))
-				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "graph-type-buttons",
-					role: "group",
-					"aria-label": t$1("toolbar.graphType"),
-					children: GRAPH_TYPES.map((g) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-						className: `graph-type-btn ${graphType === g.value ? "active" : ""}`,
-						onClick: () => onGraphTypeChange(g.value),
-						title: t$1(g.key),
-						"aria-pressed": graphType === g.value,
-						children: t$1(g.key)
-					}, g.value))
-				})]
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "layout-buttons",
+						role: "group",
+						"aria-label": "Layout switcher",
+						children: LAYOUTS.map((l) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							className: `layout-btn ${layout$2 === l ? "active" : ""}`,
+							onClick: () => onLayoutChange(l),
+							title: t$1("toolbar.layout", { l }),
+							"aria-pressed": layout$2 === l,
+							children: l
+						}, l))
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "graph-type-buttons",
+						role: "group",
+						"aria-label": t$1("toolbar.graphType"),
+						children: GRAPH_TYPES.map((g) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							className: `graph-type-btn ${graphType === g.value ? "active" : ""}`,
+							onClick: () => onGraphTypeChange(g.value),
+							title: t$1(g.key),
+							"aria-pressed": graphType === g.value,
+							children: t$1(g.key)
+						}, g.value))
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
+						value: String(depthLevel),
+						onChange: (e) => onDepthLevelChange(e.target.value),
+						className: "depth-select",
+						"aria-label": t$1("toolbar.depth"),
+						title: t$1("toolbar.depth"),
+						children: DEPTH_LEVELS.map((opt) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+							value: opt.value,
+							children: t$1(opt.key)
+						}, opt.value))
+					})
+				]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: "toolbar-right",
@@ -44020,7 +44136,7 @@ function GraphPanelInner({ className = "" }) {
 	const getDataRef = (0, react.useRef)(null);
 	const [selectedNodeData, setSelectedNodeData] = (0, react.useState)(null);
 	const [tooltip, setTooltip] = (0, react.useState)(null);
-	const { nodes, edges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, totalEdgeCount } = useGraphStore(useShallow((s) => ({
+	const { nodes, edges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, depthLevel, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, totalEdgeCount } = useGraphStore(useShallow((s) => ({
 		nodes: s.nodes,
 		edges: s.edges,
 		layout: s.layout,
@@ -44030,6 +44146,7 @@ function GraphPanelInner({ className = "" }) {
 		highlightedNodeIds: s.highlightedNodeIds,
 		filterType: s.filterType,
 		graphType: s.graphType,
+		depthLevel: s.depthLevel,
 		isLoading: s.isLoading,
 		error: s.error,
 		lastUpdated: s.lastUpdated,
@@ -44048,6 +44165,7 @@ function GraphPanelInner({ className = "" }) {
 	const setSelectedNode = useGraphStore((s) => s.setSelectedNode);
 	const setFilterType = useGraphStore((s) => s.setFilterType);
 	const setGraphType = useGraphStore((s) => s.setGraphType);
+	const setDepthLevel = useGraphStore((s) => s.setDepthLevel);
 	const setLoading = useGraphStore((s) => s.setLoading);
 	const setCurrentWorkspace = useGraphStore((s) => s.setCurrentWorkspace);
 	const addWorkspace = useGraphStore((s) => s.addWorkspace);
@@ -44103,7 +44221,7 @@ function GraphPanelInner({ className = "" }) {
 		});
 	}, []);
 	const handleNodeHoverOut = (0, react.useCallback)(() => setTooltip(null), []);
-	const renderer$1 = useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, debouncedSearch, panel.showCallChain, panel.showCycles, {
+	const renderer$1 = useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, depthLevel, debouncedSearch, panel.showCallChain, panel.showCycles, {
 		onNodeTap: handleNodeTap,
 		onNodeDoubleTap: handleNodeDoubleTap,
 		onNodeHover: handleNodeHover,
@@ -44213,6 +44331,7 @@ function GraphPanelInner({ className = "" }) {
 				theme,
 				filterType,
 				graphType,
+				depthLevel,
 				showSearch: panel.showSearch,
 				showCallChain: panel.showCallChain,
 				showCycles: panel.showCycles,
@@ -44224,6 +44343,7 @@ function GraphPanelInner({ className = "" }) {
 				onThemeToggle: handleThemeToggle,
 				onFilterChange: setFilterType,
 				onGraphTypeChange: setGraphType,
+				onDepthLevelChange: setDepthLevel,
 				onToggleSearch: panel.toggleSearch,
 				onToggleCallChain: panel.toggleCallChain,
 				onToggleCycles: panel.toggleCycles,
@@ -44457,6 +44577,17 @@ async function fetchGraphData() {
 		return null;
 	}
 }
+async function fetchWorkspace() {
+	try {
+		const res = await fetch("/api/codegraph/workspace");
+		if (!res.ok) return ".";
+		const data$2 = await res.json();
+		return data$2.path ?? ".";
+	} catch (e) {
+		log.warn("fetchWorkspace failed", e);
+		return ".";
+	}
+}
 async function requestScan(path, maxNodes) {
 	try {
 		const res = await fetch("/api/codegraph/scan", {
@@ -44487,32 +44618,6 @@ async function requestInit(path) {
 		log.warn("requestInit failed", e);
 		return null;
 	}
-}
-async function detectWorkspacePath(ctx) {
-	try {
-		const conn = ctx.get("connection");
-		if (conn?.api?.workspace?.list) {
-			const wsResult = await conn.api.workspace.list({});
-			if (wsResult.result?.ok && wsResult.result.value?.items?.length) {
-				const path = wsResult.result.value.items[0]?.path;
-				if (path) return path;
-			}
-		}
-	} catch (e) {
-		log.warn("workspace.list failed", e);
-	}
-	try {
-		const conn = ctx.get("connection");
-		if (conn?.api?.sessions?.list) {
-			const sResult = await conn.api.sessions.list({});
-			if (sResult.result?.ok && sResult.result.value?.items?.length) {
-				for (const item of sResult.result.value.items) if (item.cwd) return item.cwd;
-			}
-		}
-	} catch (e) {
-		log.warn("sessions.list failed", e);
-	}
-	return ".";
 }
 async function requestWatch(enabled, path) {
 	try {
@@ -44638,7 +44743,7 @@ function apply(ctx) {
 	{
 		const store = useGraphStore.getState();
 		const getWorkspaceAndScan = async () => {
-			const workspacePath = await detectWorkspacePath(ctx);
+			const workspacePath = await fetchWorkspace();
 			lastDetectedWorkspace = workspacePath;
 			if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codegraph:workspace", { detail: { path: workspacePath } }));
 			log.info("auto-import requested", { path: workspacePath });
@@ -44660,7 +44765,7 @@ function apply(ctx) {
 		};
 		if (store.nodes.length === 0 && !store.isLoading) getWorkspaceAndScan();
 		const workspacePoll = setInterval(async () => {
-			const currentWorkspace = await detectWorkspacePath(ctx);
+			const currentWorkspace = await fetchWorkspace();
 			if (currentWorkspace && currentWorkspace !== lastDetectedWorkspace) {
 				log.info("workspace changed detected", {
 					from: lastDetectedWorkspace,

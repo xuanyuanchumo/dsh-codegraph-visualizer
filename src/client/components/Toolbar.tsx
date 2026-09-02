@@ -26,6 +26,13 @@ const GRAPH_TYPES: { value: GraphType; key: string }[] = [
   { value: 'dependency', key: 'graphType.dependency' },
 ];
 
+const DEPTH_LEVELS: { value: string; key: string }[] = [
+  { value: 'all', key: 'depth.all' },
+  { value: '1', key: 'depth.module' },
+  { value: '2', key: 'depth.type' },
+  { value: '3', key: 'depth.full' },
+];
+
 interface ToolbarProps extends WorkspaceSelectorProps {
   statsText: string;
   typeCounts: { function: number; class: number; interface: number };
@@ -33,6 +40,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   theme: ThemeType;
   filterType: GraphNode['type'] | 'all';
   graphType: GraphType;
+  depthLevel: 1 | 2 | 3 | 'all';
   showSearch: boolean;
   showCallChain: boolean;
   showCycles: boolean;
@@ -44,6 +52,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   onThemeToggle: () => void;
   onFilterChange: (f: GraphNode['type'] | 'all') => void;
   onGraphTypeChange: (g: GraphType) => void;
+  onDepthLevelChange: (level: 1 | 2 | 3 | 'all') => void;
   onToggleSearch: () => void;
   onToggleCallChain: () => void;
   onToggleCycles: () => void;
@@ -78,9 +87,9 @@ export function Toolbar(props: ToolbarProps) {
   }, [props]);
 
   const {
-    statsText, typeCounts, layout, theme, filterType, graphType,
+    statsText, typeCounts, layout, theme, filterType, graphType, depthLevel,
     showSearch, showCallChain, showCycles, showMiniMap, showLegend, showImport, collapsed,
-    onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange,
+    onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onDepthLevelChange,
     onToggleSearch, onToggleCallChain, onToggleCycles, onToggleMiniMap, onToggleLegend,
     onToggleImport, onRefresh, onCollapse,
     currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
@@ -125,6 +134,17 @@ export function Toolbar(props: ToolbarProps) {
             >{t(g.key)}</button>
           ))}
         </div>
+        <select
+          value={String(depthLevel)}
+          onChange={(e) => onDepthLevelChange(e.target.value as 1 | 2 | 3 | 'all')}
+          className="depth-select"
+          aria-label={t('toolbar.depth')}
+          title={t('toolbar.depth')}
+        >
+          {DEPTH_LEVELS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{t(opt.key)}</option>
+          ))}
+        </select>
       </div>
 
       <div className="toolbar-right">

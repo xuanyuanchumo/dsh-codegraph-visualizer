@@ -33,6 +33,7 @@ export function useGraphRenderer(
   selectedNodeId: NodeId | null,
   filterType: FilterType,
   graphType: 'all' | 'call' | 'dependency',
+  depthLevel: 1 | 2 | 3 | 'all',
   debouncedSearch: string,
   showCallChain: boolean,
   showCycles: boolean,
@@ -93,6 +94,10 @@ export function useGraphRenderer(
   useEffect(() => {
     rendererRef.current?.filterByGraphType(graphType);
   }, [graphType]);
+
+  useEffect(() => {
+    rendererRef.current?.filterByDepth(depthLevel);
+  }, [depthLevel]);
 
   useEffect(() => {
     const r = rendererRef.current;

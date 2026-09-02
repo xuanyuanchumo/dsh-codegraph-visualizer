@@ -1605,6 +1605,19 @@ function apply(ctx) {
 		res.writeHead(code, { "content-type": "application/json" });
 		res.end(JSON.stringify(data));
 	};
+	const findWorkspacePath = () => {
+		try {
+			const sessions = ctx.sessions;
+			if (sessions?.list) {
+				const all = sessions.list();
+				for (const session of all) {
+					const cwd = session?.header?.cwd;
+					if (cwd) return cwd;
+				}
+			}
+		} catch {}
+		return process.cwd();
+	};
 	const readBody = (req) => {
 		return new Promise((resolve, reject) => {
 			let body = "";
@@ -1628,6 +1641,14 @@ function apply(ctx) {
 	}), "codegraph: status route");
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
+		path: "/api/codegraph/workspace",
+		handler: (_req, res) => {
+			const wsPath = findWorkspacePath();
+			sendJson(res, 200, { path: wsPath });
+		}
+	}), "codegraph: workspace route");
+	ctx.effect(() => ctx.webServer.register({
+		kind: "exact",
 		path: "/api/codegraph/data",
 		handler: (_req, res) => {
 			if (lastGraphData) sendJson(res, 200, lastGraphData);
@@ -1643,19 +1664,6 @@ function apply(ctx) {
 			});
 		}
 	}), "codegraph: data route");
-	const findWorkspacePath = () => {
-		try {
-			const sessions = ctx.sessions;
-			if (sessions?.list) {
-				const all = sessions.list();
-				for (const session of all) {
-					const cwd = session?.header?.cwd;
-					if (cwd) return cwd;
-				}
-			}
-		} catch {}
-		return process.cwd();
-	};
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
 		path: "/api/codegraph/scan",
