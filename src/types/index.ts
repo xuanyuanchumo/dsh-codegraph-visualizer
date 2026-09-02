@@ -131,6 +131,7 @@ declare module '@deepseek-ai/cordis' {
   }
   interface Context {
     webServer: WebServerService;
+
   }
 }
 

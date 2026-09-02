@@ -35,6 +35,10 @@ export function usePanelResize(
       handle.addEventListener('pointerdown', onPointerDown);
       savedRef.current = handle;
     }
-    return () => { savedRef.current?.removeEventListener('pointerdown', onPointerDown); };
+    return () => {
+      savedRef.current?.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+    };
   }, [panelRef, rendererRef]);
 }

@@ -10,6 +10,10 @@ import type { GraphData, IncomingMessage, ServerResponse } from './types/index.t
 
 const log = scoped('host');
 
+interface ContextWithSessions {
+  sessions?: { list?: () => Array<{ header?: { cwd?: string } }> };
+}
+
 export const name = 'dsh-codegraph-visualizer';
 export const inject = ['tools', 'webServer'];
 
@@ -71,6 +75,21 @@ export function apply(ctx: Context) {
   let lastScanPath: string | null = null;
   let lastInitResult: { success: boolean; path: string; message: string; timestamp: number } | null = null;
 
+  const invokeUpstream = async (tool: string, args: Record<string, unknown>): Promise<unknown | null> => {
+    try {
+      const result = await ctx.tools.execute({
+        callId: `codegraph:${tool}` as never,
+        name: tool,
+        arguments: args,
+        signal: AbortSignal.timeout(5000),
+      });
+      if (result.isError) return null;
+      return result.value ?? null;
+    } catch {
+      return null;
+    }
+  };
+
   const sendJson = (res: ServerResponse, code: number, data: unknown) => {
     res.writeHead(code, { 'content-type': 'application/json' });
     res.end(JSON.stringify(data));
@@ -111,7 +130,7 @@ export function apply(ctx: Context) {
   // Helper: find the workspace path from DSH sessions or fallback to process.cwd()
   const findWorkspacePath = (): string => {
     try {
-      const sessions = (ctx as unknown as { sessions?: { list?: () => Array<{ header?: { cwd?: string } }> } }).sessions;
+      const sessions = (ctx as ContextWithSessions).sessions;
       if (sessions?.list) {
         const all = sessions.list();
         for (const session of all) {
@@ -262,20 +281,6 @@ export function apply(ctx: Context) {
   });
 
   // ── Auto-import: scan workspace on request ─────────────────────────
-  const invokeUpstream = async (tool: string, args: Record<string, unknown>): Promise<unknown | null> => {
-    try {
-      const result = await ctx.tools.execute({
-        callId: `codegraph:${tool}` as never,
-        name: tool,
-        arguments: args,
-        signal: AbortSignal.timeout(5000),
-      });
-      if (result.isError) return null;
-      return result.value ?? null;
-    } catch {
-      return null;
-    }
-  };
 
   const scanAndPush = async (path: string) => {
     log.info('scan requested', { path });

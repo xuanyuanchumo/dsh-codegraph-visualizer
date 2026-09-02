@@ -4,6 +4,8 @@ import type { IRenderer, LayoutType, ThemeType } from '../renderer/IRenderer.ts'
 import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
 import { scoped } from '../../shared/Logger.ts';
 
+type FilterType = GraphNode['type'] | 'all';
+
 const log = scoped('renderer-hook');
 
 export interface GraphRendererCallbacks {
@@ -25,11 +27,11 @@ export interface UseGraphRendererResult {
 export function useGraphRenderer(
   nodes: GraphNode[],
   edges: GraphEdge[],
-  layout: string,
+  layout: LayoutType,
   theme: ThemeType,
   highlightedNodeIds: NodeId[],
   selectedNodeId: NodeId | null,
-  filterType: string,
+  filterType: FilterType,
   graphType: 'all' | 'call' | 'dependency',
   debouncedSearch: string,
   showCallChain: boolean,
@@ -41,7 +43,10 @@ export function useGraphRenderer(
   const rendererRef = useRef<IRenderer | null>(null);
   const [searchMatchCount, setSearchMatchCount] = useState<number | null>(null);
   const callbacksRef = useRef(callbacks);
-  callbacksRef.current = callbacks;
+
+  useEffect(() => {
+    callbacksRef.current = callbacks;
+  }, [callbacks]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -68,7 +73,7 @@ export function useGraphRenderer(
   }, [nodes, edges]);
 
   useEffect(() => {
-    rendererRef.current?.applyLayout(layout as LayoutType);
+    rendererRef.current?.applyLayout(layout);
   }, [layout]);
 
   useEffect(() => {

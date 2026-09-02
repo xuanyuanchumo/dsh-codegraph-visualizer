@@ -67,7 +67,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const panel = usePanelState();
   const debouncedSearch = useDebounce(searchQuery, 200);
   const showCallChainRef = useRef(panel.showCallChain);
-  showCallChainRef.current = panel.showCallChain;
+
+  useEffect(() => {
+    showCallChainRef.current = panel.showCallChain;
+  }, [panel.showCallChain]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -124,10 +127,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     showCallChainRef,
   );
 
-  getDataRef.current = {
-    getSelectedNodeData: () => renderer.rendererRef.current?.getSelectedNodeData() ?? null,
-    getNodeData: (id: string) => renderer.rendererRef.current?.getNodeData(id) ?? null,
-  };
+  useEffect(() => {
+    getDataRef.current = {
+      getSelectedNodeData: () => renderer.rendererRef.current?.getSelectedNodeData() ?? null,
+      getNodeData: (id: string) => renderer.rendererRef.current?.getNodeData(id) ?? null,
+    };
+  }, [renderer.rendererRef]);
 
   usePanelResize(panelRef, renderer.rendererRef);
 
@@ -252,13 +257,13 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           onSetWatchEnabled={setWatchEnabled}
         />
       )}
-      {panel.showLegend && !c && (<Legend onClose={() => panel.setShowLegend(false)} />)}
-
       {selectedNodeData && !c && (
         <NodeDetail node={selectedNodeData} onClose={handleCloseDetail} />
       )}
 
       <div className="graph-container" ref={renderer.containerRef} />
+
+      {panel.showLegend && !c && (<Legend onClose={() => panel.setShowLegend(false)} />)}
 
       {panel.showMiniMap && !c && (
         <StatsPanel
