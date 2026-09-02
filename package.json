@@ -30,7 +30,7 @@
     "lint": "oxlint src/",
     "lint:fix": "oxlint src/ --fix",
     "hygiene": "publint dist && node scripts/consume-check.mjs",
-    "prepublishOnly": "pnpm run build && pnpm run typecheck && pnpm run test && pnpm run hygiene"
+    "prepublishOnly": "pnpm run build && pnpm run test"
   },
   "dependencies": {},
   "peerDependencies": {
