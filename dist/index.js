@@ -1561,44 +1561,26 @@ function apply(ctx) {
 	let scanInFlight = null;
 	const scanCache = new Map();
 	const SCAN_CACHE_TTL = 3e4;
-	const MAX_NODES_DEFAULT = 500;
-	function truncateGraphData(data, maxNodes) {
-		if (data.nodes.length <= maxNodes) return data;
-		const nodePriority = {
-			function: 4,
-			class: 3,
-			interface: 3,
-			module: 2,
-			variable: 1,
-			type: 1
-		};
-		const sorted = [...data.nodes].sort((a, b) => {
-			const pa = nodePriority[a.type] ?? 0;
-			const pb = nodePriority[b.type] ?? 0;
-			if (pa !== pb) return pb - pa;
-			const aExp = a.properties?.exported === true ? 1 : 0;
-			const bExp = b.properties?.exported === true ? 1 : 0;
-			return bExp - aExp;
-		});
-		const keptNodes = sorted.slice(0, maxNodes);
-		const keptIds = new Set(keptNodes.map((n) => n.id));
-		const keptEdges = data.edges.filter((e) => keptIds.has(e.source) && keptIds.has(e.target));
-		log.info("graph truncated", {
-			total: data.nodes.length,
-			kept: keptNodes.length,
-			edges: keptEdges.length
-		});
+	function slimGraphData(data) {
+		const slimNodes = data.nodes.map((n) => ({
+			id: n.id,
+			label: n.label,
+			type: n.type,
+			filePath: n.filePath,
+			lineNumber: n.lineNumber,
+			properties: n.properties?.exported === true ? { exported: true } : {}
+		}));
+		const slimEdges = data.edges.map((e) => ({
+			id: e.id,
+			source: e.source,
+			target: e.target,
+			type: e.type,
+			properties: {}
+		}));
 		return {
-			nodes: keptNodes,
-			edges: keptEdges,
-			metadata: {
-				...data.metadata,
-				nodeCount: keptNodes.length,
-				edgeCount: keptEdges.length,
-				truncated: true,
-				totalNodeCount: data.nodes.length,
-				totalEdgeCount: data.edges.length
-			}
+			nodes: slimNodes,
+			edges: slimEdges,
+			metadata: data.metadata
 		};
 	}
 	const invokeUpstream = async (tool, args) => {
@@ -1680,7 +1662,7 @@ function apply(ctx) {
 		handler: async (req, res) => {
 			try {
 				const body = await readBody(req);
-				const { path, maxNodes } = JSON.parse(body || "{}");
+				const { path } = JSON.parse(body || "{}");
 				if (path && path !== "." && !isPathAllowed(path)) {
 					sendJson(res, 403, {
 						success: false,
@@ -1698,7 +1680,6 @@ function apply(ctx) {
 				const scanPath = path && path !== "." ? path : findWorkspacePath();
 				lastScanPath = scanPath;
 				const repoId = scanPath || `workspace-${Date.now()}`;
-				const limit = typeof maxNodes === "number" && maxNodes > 0 ? maxNodes : MAX_NODES_DEFAULT;
 				const cached = scanCache.get(scanPath);
 				if (cached && Date.now() - cached.timestamp < SCAN_CACHE_TTL) {
 					lastGraphData = cached.data;
@@ -1720,7 +1701,7 @@ function apply(ctx) {
 				try {
 					const raw = await scanInFlight;
 					scanInFlight = null;
-					const data = truncateGraphData(raw, limit);
+					const data = slimGraphData(raw);
 					lastGraphData = data;
 					scanCache.set(scanPath, {
 						data,

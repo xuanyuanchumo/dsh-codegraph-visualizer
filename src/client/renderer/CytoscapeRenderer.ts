@@ -102,6 +102,9 @@ export class CytoscapeRenderer implements IRenderer {
     });
   }
 
+  private batchRaf: number | null = null;
+  private batchQueue: { nodes: GraphNode[]; edges: GraphEdge[] } | null = null;
+
   updateData(nodes: GraphNode[], edges: GraphEdge[]): void {
     if (!this.cy) return;
 
@@ -117,54 +120,97 @@ export class CytoscapeRenderer implements IRenderer {
 
     if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges) return;
 
+    const nodesToAdd: GraphNode[] = [];
+    const edgesToAdd: GraphEdge[] = [];
+
+    if (hasStaleNodes) {
+      const staleNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
+      if (staleNodes.length > 0) this.cy.remove(staleNodes);
+      for (const id of [...this.currentNodes.keys()]) {
+        if (!newNodeIds.has(id)) this.currentNodes.delete(id);
+      }
+    }
+    if (hasStaleEdges) {
+      const staleEdges = this.cy.edges().filter((e) => !newEdgeIds.has(e.id()));
+      if (staleEdges.length > 0) this.cy.remove(staleEdges);
+      for (const id of [...this.currentEdges.keys()]) {
+        if (!newEdgeIds.has(id)) this.currentEdges.delete(id);
+      }
+    }
+
+    for (const n of nodes) {
+      if (!this.currentNodes.has(n.id)) nodesToAdd.push(n);
+      this.currentNodes.set(n.id, n);
+    }
+    for (const e of edges) {
+      if (!this.currentEdges.has(e.id)) edgesToAdd.push(e);
+      this.currentEdges.set(e.id, e);
+    }
+
+    if (nodesToAdd.length === 0 && edgesToAdd.length === 0) return;
+
+    const BATCH_SIZE = 200;
+    if (nodesToAdd.length <= BATCH_SIZE) {
+      this.cy.batch(() => {
+        for (const n of nodesToAdd) {
+          this.cy!.add({ group: 'nodes', data: { id: n.id, label: n.label, type: n.type, filePath: n.filePath, lineNumber: n.lineNumber } });
+        }
+        for (const e of edgesToAdd) {
+          this.cy!.add({ group: 'edges', data: { id: e.id, source: e.source, target: e.target, type: e.type } });
+        }
+      });
+      return;
+    }
+
+    const firstBatchNodes = nodesToAdd.slice(0, BATCH_SIZE);
+    const firstBatchNodeIds = new Set(firstBatchNodes.map((n) => n.id));
+    const firstBatchEdges = edgesToAdd.filter((e) => firstBatchNodeIds.has(e.source) && firstBatchNodeIds.has(e.target));
+    const remainingNodes = nodesToAdd.slice(BATCH_SIZE);
+    const remainingEdges = edgesToAdd.filter((e) => !firstBatchEdges.includes(e));
+
     this.cy.batch(() => {
-      if (hasNewNodes) {
-        for (const n of nodes) {
-          if (!this.currentNodes.has(n.id)) {
-            this.cy!.add({
-              group: 'nodes',
-              data: {
-                id: n.id,
-                label: n.label,
-                type: n.type,
-                filePath: n.filePath,
-                lineNumber: n.lineNumber,
-              },
-            });
-          }
-          this.currentNodes.set(n.id, n);
-        }
-      } else {
-        for (const n of nodes) this.currentNodes.set(n.id, n);
+      for (const n of firstBatchNodes) {
+        this.cy!.add({ group: 'nodes', data: { id: n.id, label: n.label, type: n.type, filePath: n.filePath, lineNumber: n.lineNumber } });
       }
+      for (const e of firstBatchEdges) {
+        this.cy!.add({ group: 'edges', data: { id: e.id, source: e.source, target: e.target, type: e.type } });
+      }
+    });
 
-      if (hasNewEdges) {
-        for (const e of edges) {
-          if (!this.currentEdges.has(e.id)) {
-            this.cy!.add({
-              group: 'edges',
-              data: {
-                id: e.id,
-                source: e.source,
-                target: e.target,
-                type: e.type,
-              },
-            });
-          }
-          this.currentEdges.set(e.id, e);
-        }
-      } else {
-        for (const e of edges) this.currentEdges.set(e.id, e);
-      }
+    this.batchQueue = { nodes: remainingNodes, edges: remainingEdges };
+    this.processBatchQueue();
+  }
 
-      if (hasStaleNodes) {
-        const staleNodes = this.cy!.nodes().filter((n) => !newNodeIds.has(n.id()));
-        if (staleNodes.length > 0) this.cy!.remove(staleNodes);
+  private processBatchQueue(): void {
+    if (!this.batchQueue || !this.cy) return;
+    if (this.batchRaf !== null) cancelAnimationFrame(this.batchRaf);
+
+    this.batchRaf = requestAnimationFrame(() => {
+      if (!this.batchQueue || !this.cy) { this.batchRaf = null; return; }
+      const { nodes, edges } = this.batchQueue;
+      const BATCH_SIZE = 200;
+      const batchNodes = nodes.slice(0, BATCH_SIZE);
+      const batchNodeIds = new Set(batchNodes.map((n) => n.id));
+      const batchEdges = edges.filter((e) => batchNodeIds.has(e.source) && batchNodeIds.has(e.target));
+      const leftoverNodes = nodes.slice(BATCH_SIZE);
+      const leftoverEdges = edges.filter((e) => !batchEdges.includes(e));
+
+      this.cy.batch(() => {
+        for (const n of batchNodes) {
+          this.cy!.add({ group: 'nodes', data: { id: n.id, label: n.label, type: n.type, filePath: n.filePath, lineNumber: n.lineNumber } });
+        }
+        for (const e of batchEdges) {
+          this.cy!.add({ group: 'edges', data: { id: e.id, source: e.source, target: e.target, type: e.type } });
+        }
+      });
+
+      if (leftoverNodes.length > 0) {
+        this.batchQueue = { nodes: leftoverNodes, edges: leftoverEdges };
+        this.processBatchQueue();
+      } else {
+        this.batchQueue = null;
       }
-      if (hasStaleEdges) {
-        const staleEdges = this.cy!.edges().filter((e) => !newEdgeIds.has(e.id()));
-        if (staleEdges.length > 0) this.cy!.remove(staleEdges);
-      }
+      this.batchRaf = null;
     });
   }
 
