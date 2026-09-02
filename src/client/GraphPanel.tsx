@@ -12,6 +12,9 @@ import { StatusBar } from './components/StatusBar.tsx';
 import { NodeDetail } from './components/NodeDetail.tsx';
 import { StatsPanel } from './components/StatsPanel.tsx';
 import { EmptyState } from './components/EmptyState.tsx';
+import { GraphTooltip, type TooltipData } from './components/GraphTooltip.tsx';
+import { LoadingOverlay } from './components/LoadingOverlay.tsx';
+import { ErrorOverlay } from './components/ErrorOverlay.tsx';
 import { GraphIcon } from './components/Icons.tsx';
 import { scoped } from '../shared/Logger.ts';
 import { useT } from './i18n/index.ts';
@@ -31,7 +34,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     getNodeData: (id: string) => GraphNode | null;
   } | null>(null);
   const [selectedNodeData, setSelectedNodeData] = useState<GraphNode | null>(null);
-  const [tooltip, setTooltip] = useState<{ x: number; y: number; name: string; path: string; type: string } | null>(null);
+  const [tooltip, setTooltip] = useState<TooltipData | null>(null);
 
   const {
     nodes, edges, layout, theme, searchQuery, selectedNodeId,
@@ -256,13 +259,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         />
       )}
 
-      {isLoading && !c && (
-        <div className="loading-overlay" role="status" aria-live="polite">
-          <div className="spinner" /><span>{t('state.loading')}</span>
-        </div>
-      )}
+      {isLoading && !c && <LoadingOverlay visible={true} />}
 
-      {error && !c && (<div className="error-overlay" role="alert"><span>⚠ {error}</span></div>)}
+      {error && !c && <ErrorOverlay error={error} />}
 
       {nodes.length === 0 && !isLoading && !error && !c && (
         <EmptyState prerequisites={prerequisites} onImport={() => panel.setShowImport(true)} onScanWorkspace={handleScanWorkspace} />
@@ -303,13 +302,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         />
       )}
 
-      {tooltip && (
-        <div className="cg-tooltip" style={{ left: tooltip.x + 15, top: tooltip.y + 15 }} role="tooltip">
-          <div className="tooltip-name">{tooltip.name}</div>
-          <div className="tooltip-path">{tooltip.path}</div>
-          <span className="tooltip-type">{tooltip.type}</span>
-        </div>
-      )}
+      {tooltip && <GraphTooltip data={tooltip} />}
 
       <StatusBar error={error} isLoading={isLoading} lastUpdated={lastUpdated} watchEnabled={watchEnabled} workspaceName={currentWorkspace} truncated={truncated} totalNodeCount={totalNodeCount} totalEdgeCount={totalEdgeCount} />
 
