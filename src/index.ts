@@ -16,10 +16,11 @@ const log = scoped('host');
 
 interface ContextWithSessions {
   sessions?: { list?: () => Array<{ header?: { cwd?: string } }> };
+  workspaceRegistry?: { list?: () => Array<{ path?: string }> };
 }
 
 export const name = 'dsh-codegraph-visualizer';
-export const inject = ['tools', 'webServer'];
+export const inject = ['tools', 'webServer', 'sessions', 'workspaceRegistry'];
 
 let allowedWorkspaceRoots: string[] = [];
 
@@ -130,7 +131,16 @@ export function apply(ctx: Context) {
 
   const findWorkspacePath = (): string => {
     try {
-      const sessions = (ctx as ContextWithSessions).sessions;
+      const wsr = (ctx as unknown as ContextWithSessions).workspaceRegistry;
+      if (wsr?.list) {
+        const workspaces = wsr.list();
+        if (workspaces.length > 0 && workspaces[0]?.path) {
+          return workspaces[0].path;
+        }
+      }
+    } catch (e) { log.warn('findWorkspacePath: workspaceRegistry failed', e); }
+    try {
+      const sessions = (ctx as unknown as ContextWithSessions).sessions;
       if (sessions?.list) {
         const all = sessions.list();
         for (const session of all) {
@@ -138,13 +148,21 @@ export function apply(ctx: Context) {
           if (cwd) return cwd;
         }
       }
-    } catch { /* best-effort */ }
+    } catch (e) { log.warn('findWorkspacePath: sessions failed', e); }
     return process.cwd();
   };
 
   const listWorkspacePaths = (): string[] => {
     try {
-      const sessions = (ctx as ContextWithSessions).sessions;
+      const wsr = (ctx as unknown as ContextWithSessions).workspaceRegistry;
+      if (wsr?.list) {
+        const workspaces = wsr.list();
+        const paths = workspaces.map((w) => w.path).filter((p): p is string => !!p);
+        if (paths.length > 0) return paths;
+      }
+    } catch (e) { log.warn('listWorkspacePaths: workspaceRegistry failed', e); }
+    try {
+      const sessions = (ctx as unknown as ContextWithSessions).sessions;
       if (sessions?.list) {
         const all = sessions.list();
         const seen = new Set<string>();
@@ -158,9 +176,10 @@ export function apply(ctx: Context) {
         }
         if (paths.length > 0) return paths;
       }
-    } catch { /* best-effort */ }
+    } catch (e) { log.warn('listWorkspacePaths: sessions failed', e); }
     return [process.cwd()];
   };
+
 
   const readBody = (req: IncomingMessage): Promise<string> => {
     return new Promise((resolve, reject) => {

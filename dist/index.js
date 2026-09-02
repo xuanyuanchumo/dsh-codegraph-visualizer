@@ -1506,7 +1506,12 @@ const PLUGIN_VERSION = "0.1.0";
 //#region src/index.ts
 const log = scoped("host");
 const name = "dsh-codegraph-visualizer";
-const inject = ["tools", "webServer"];
+const inject = [
+	"tools",
+	"webServer",
+	"sessions",
+	"workspaceRegistry"
+];
 let allowedWorkspaceRoots = [];
 function isPathAllowed(path) {
 	if (!path || path === ".") return true;
@@ -1607,6 +1612,15 @@ function apply(ctx) {
 	};
 	const findWorkspacePath = () => {
 		try {
+			const wsr = ctx.workspaceRegistry;
+			if (wsr?.list) {
+				const workspaces = wsr.list();
+				if (workspaces.length > 0 && workspaces[0]?.path) return workspaces[0].path;
+			}
+		} catch (e) {
+			log.warn("findWorkspacePath: workspaceRegistry failed", e);
+		}
+		try {
 			const sessions = ctx.sessions;
 			if (sessions?.list) {
 				const all = sessions.list();
@@ -1615,10 +1629,22 @@ function apply(ctx) {
 					if (cwd) return cwd;
 				}
 			}
-		} catch {}
+		} catch (e) {
+			log.warn("findWorkspacePath: sessions failed", e);
+		}
 		return process.cwd();
 	};
 	const listWorkspacePaths = () => {
+		try {
+			const wsr = ctx.workspaceRegistry;
+			if (wsr?.list) {
+				const workspaces = wsr.list();
+				const paths = workspaces.map((w) => w.path).filter((p) => !!p);
+				if (paths.length > 0) return paths;
+			}
+		} catch (e) {
+			log.warn("listWorkspacePaths: workspaceRegistry failed", e);
+		}
 		try {
 			const sessions = ctx.sessions;
 			if (sessions?.list) {
@@ -1634,7 +1660,9 @@ function apply(ctx) {
 				}
 				if (paths.length > 0) return paths;
 			}
-		} catch {}
+		} catch (e) {
+			log.warn("listWorkspacePaths: sessions failed", e);
+		}
 		return [process.cwd()];
 	};
 	const readBody = (req) => {
