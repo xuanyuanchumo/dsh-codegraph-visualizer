@@ -12,6 +12,9 @@ if (-not $DSH_HOME) {
     $DSH_HOME = "$env:USERPROFILE\.dsh"
 }
 
+$PluginVersion = (Get-Content "$LocalPath\VERSION" -Raw).Trim()
+Write-Host "Plugin Version: $PluginVersion" -ForegroundColor Green
+
 $ProfilePath = "$DSH_HOME\profiles\web"
 Write-Host "DSH Profile Path: $ProfilePath" -ForegroundColor Green
 
@@ -82,7 +85,7 @@ if (-not $Package.dependencies."dsh-codegraph-visualizer") {
         $Package.dependencies | Add-Member -NotePropertyName "dsh-codegraph-visualizer" -NotePropertyValue "file:$LocalPath"
     }
     else {
-        $Package.dependencies | Add-Member -NotePropertyName "dsh-codegraph-visualizer" -NotePropertyValue "^2.1.0"
+        $Package.dependencies | Add-Member -NotePropertyName "dsh-codegraph-visualizer" -NotePropertyValue "^$PluginVersion"
     }
     $Package | ConvertTo-Json -Depth 10 | Set-Content $PackageFile
     Write-Host "Added dsh-codegraph-visualizer to dependencies" -ForegroundColor Green

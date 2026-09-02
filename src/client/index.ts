@@ -7,6 +7,9 @@ import { GraphIcon } from './components/Icons.tsx';
 import { scoped } from '../shared/Logger.ts';
 import type { GraphData } from '../types/index.ts';
 import { validateGraphData } from './validators.ts';
+import { PLUGIN_VERSION } from '../generated/version.ts';
+
+export { PLUGIN_VERSION };
 
 const log = scoped('client');
 

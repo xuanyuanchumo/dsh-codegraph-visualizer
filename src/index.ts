@@ -7,6 +7,9 @@ import { resolve, normalize, isAbsolute } from 'node:path';
 import { createGraphTools, fetchMergedGraph } from './tools.ts';
 import { scoped } from './shared/Logger.ts';
 import type { GraphData, IncomingMessage, ServerResponse } from './types/index.ts';
+import { PLUGIN_VERSION } from './generated/version.ts';
+
+export { PLUGIN_VERSION };
 
 const log = scoped('host');
 

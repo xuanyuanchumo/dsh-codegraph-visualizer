@@ -20,7 +20,8 @@
     "src/tools.ts",
     "src/adapters/**/*",
     "src/merger/**/*",
-    "src/types/**/*"
+    "src/types/**/*",
+    "src/generated/**/*"
   ],
   "exclude": ["node_modules", "dist", "dist-host", "dist-client", "src/client", "tests"]
 }

@@ -1,6 +1,6 @@
 {
   "name": "dsh-codegraph-visualizer",
-  "version": "2.1.0",
+  "version": "0.1.0",
   "description": "DSH 代码图谱可视化插件 - 打通 dsh-codegraph/dsh-tool-lens 数据源 → 聚合转换 → 交互式代码图谱",
   "type": "module",
   "license": "MIT",
@@ -12,6 +12,8 @@
   "packageManager": "pnpm@9.12.0",
   "main": "dist/index.js",
   "scripts": {
+    "sync-version": "node scripts/sync-version.mjs",
+    "prebuild": "pnpm run sync-version",
     "build": "tsdown src/index.ts --format esm --dts --outDir dist && pnpm run build:client",
     "build:host": "tsdown src/index.ts --format esm --dts --outDir dist-host --platform node",
     "build:client": "node scripts/build-client.mjs",

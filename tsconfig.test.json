@@ -15,6 +15,6 @@
     "allowImportingTsExtensions": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src/client/**/*", "src/types/**/*", "tests/unit/**/*"],
+  "include": ["src/client/**/*", "src/types/**/*", "src/generated/**/*", "tests/unit/**/*"],
   "exclude": ["node_modules", "dist", "dist-test"]
 }
