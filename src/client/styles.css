@@ -5,32 +5,34 @@
  * ============================================================================ */
 
 :root {
-  /* DSH theme bridge — consume host --dsw-* tokens with safe fallbacks. */
-  --cg-bg: var(--dsw-bg, #0f1117);
-  --cg-surface: var(--dsw-surface, #181a24);
-  --cg-surface-hover: var(--dsw-surface-hover, #21232f);
-  --cg-surface-active: var(--dsw-surface-active, #2a2d3d);
-  --cg-border: var(--dsw-border, #2e3142);
-  --cg-border-strong: var(--dsw-border-strong, #3a3e52);
-  --cg-text: var(--dsw-fg, #e6e8f0);
-  --cg-text-secondary: var(--dsw-fg-secondary, #9ca0b8);
-  --cg-text-tertiary: var(--dsw-fg-tertiary, #6b6f85);
-  --cg-accent: var(--dsw-accent, #6366f1);
-  --cg-accent-hover: var(--dsw-accent-hover, #818cf8);
-  --cg-accent-soft: var(--dsw-accent-soft, rgba(99, 102, 241, 0.12));
+  /* DSH theme bridge — consume host --dsw-* tokens with safe fallbacks.
+   * DSH does not expose CSS custom properties; fallbacks below match the
+   * actual computed values from DSH's light theme (measured via DevTools). */
+  --cg-bg: var(--dsw-bg, #ffffff);
+  --cg-surface: var(--dsw-surface, #f9fafb);
+  --cg-surface-hover: var(--dsw-surface-hover, #f3f4f6);
+  --cg-surface-active: var(--dsw-surface-active, #e5e7eb);
+  --cg-border: var(--dsw-border, rgba(0, 0, 0, 0.04));
+  --cg-border-strong: var(--dsw-border-strong, rgba(0, 0, 0, 0.1));
+  --cg-text: var(--dsw-fg, #0f1115);
+  --cg-text-secondary: var(--dsw-fg-secondary, #61666b);
+  --cg-text-tertiary: var(--dsw-fg-tertiary, #9ca0a5);
+  --cg-accent: var(--dsw-accent, #263148);
+  --cg-accent-hover: var(--dsw-accent-hover, #1a2230);
+  --cg-accent-soft: var(--dsw-accent-soft, rgba(38, 49, 72, 0.1));
   --cg-success: #10b981;
   --cg-warning: #f59e0b;
   --cg-error: #ef4444;
   --cg-info: #3b82f6;
 
-  /* Typography */
-  --cg-font-sans: var(--dsw-font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif);
-  --cg-font-mono: var(--dsw-font-mono, 'JetBrains Mono', 'Fira Code', Consolas, monospace);
+  /* Typography — match DSH's actual font stack including CJK fonts */
+  --cg-font-sans: var(--dsw-font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif);
+  --cg-font-mono: var(--dsw-font-mono, "JetBrains Mono", "Fira Code", Consolas, "Microsoft YaHei", monospace);
 
   /* Elevation */
-  --cg-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
-  --cg-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
-  --cg-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.36);
+  --cg-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --cg-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  --cg-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.14);
 
   /* Radii */
   --cg-radius: 12px;
@@ -48,14 +50,33 @@
   --cg-statusbar-h: 28px;
 }
 
+/* DSH Dark theme — activated when body[data-ds-dark-theme] is set.
+ * Values measured from DSH's actual dark theme via DevTools. */
+body[data-ds-dark-theme] {
+  --cg-bg: var(--dsw-bg, #151517);
+  --cg-surface: var(--dsw-surface, #232324);
+  --cg-surface-hover: var(--dsw-surface-hover, #2a2a2c);
+  --cg-surface-active: var(--dsw-surface-active, #333335);
+  --cg-border: var(--dsw-border, rgba(255, 255, 255, 0.08));
+  --cg-border-strong: var(--dsw-border-strong, rgba(255, 255, 255, 0.14));
+  --cg-text: var(--dsw-fg, #f9fafb);
+  --cg-text-secondary: var(--dsw-fg-secondary, #cfd3d6);
+  --cg-text-tertiary: var(--dsw-fg-tertiary, #8b8f93);
+  --cg-accent: var(--dsw-accent, #6366f1);
+  --cg-accent-hover: var(--dsw-accent-hover, #818cf8);
+  --cg-accent-soft: var(--dsw-accent-soft, rgba(99, 102, 241, 0.12));
+
+  --cg-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
+  --cg-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+  --cg-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.36);
+}
+
 /* ---- Panel container ------------------------------------------------------ */
 
 .graph-panel {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  width: 640px;
-  height: 520px;
+  position: relative;
+  width: 100%;
+  height: 100%;
   z-index: 1000;
   display: flex;
   flex-direction: column;
@@ -68,12 +89,8 @@
   font-family: var(--cg-font-sans);
   color: var(--cg-text);
   transition:
-    width var(--cg-transition-slow),
-    height var(--cg-transition-slow),
     opacity var(--cg-transition),
     transform var(--cg-transition);
-  backdrop-filter: blur(16px) saturate(1.4);
-  -webkit-backdrop-filter: blur(16px) saturate(1.4);
   contain: layout paint style;
 }
 
@@ -130,6 +147,17 @@
   background: var(--cg-surface);
   border-bottom: 1px solid var(--cg-border);
   flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.graph-toolbar::-webkit-scrollbar {
+  height: 3px;
+}
+
+.graph-toolbar::-webkit-scrollbar-thumb {
+  background: var(--cg-border-strong);
+  border-radius: 2px;
 }
 
 .toolbar-left {
@@ -240,7 +268,7 @@
 }
 
 .layout-btn.active {
-  color: #fff;
+  color: var(--cg-text);
   background: var(--cg-accent);
   box-shadow: 0 1px 3px rgba(99, 102, 241, 0.4);
 }
@@ -275,7 +303,7 @@
 }
 
 .graph-type-btn.active {
-  color: #fff;
+  color: var(--cg-text);
   background: var(--cg-success);
   box-shadow: 0 1px 3px rgba(16, 185, 129, 0.4);
 }
@@ -360,7 +388,7 @@
 .minimap-btn.active {
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
-  color: #fff;
+  color: var(--cg-text);
   box-shadow: 0 1px 4px rgba(99, 102, 241, 0.45);
 }
 
@@ -883,12 +911,114 @@
 
 /* ---- Responsive ---------------------------------------------------------- */
 
-@media (max-width: 640px) {
+/* Small panels (DSH sidebar tab, narrow bottom panel) */
+@media (max-width: 480px) {
   .graph-panel {
-    width: calc(100vw - 32px);
-    height: calc(100vh - 32px);
+    border-radius: var(--cg-radius-sm);
+  }
+
+  .graph-toolbar {
+    padding: 0 8px;
+    gap: 4px;
+  }
+
+  .toolbar-left {
+    font-size: 11px;
+  }
+
+  .toolbar-center {
+    gap: 4px;
+  }
+
+  .toolbar-right {
+    gap: 4px;
+  }
+
+  .layout-btn,
+  .graph-type-btn {
+    padding: 3px 6px;
+    font-size: 10px;
+  }
+
+  .search-btn,
+  .theme-btn,
+  .export-btn,
+  .collapse-btn,
+  .chain-btn,
+  .cycle-btn,
+  .minimap-btn,
+  .refresh-btn,
+  .import-btn,
+  .legend-btn,
+  .lang-btn {
+    width: 26px;
+    height: 26px;
+    font-size: 12px;
+  }
+
+  .node-detail-panel {
+    width: calc(100% - 24px);
+    left: 12px;
+    top: 12px;
+  }
+
+  .legend-panel {
+    width: 140px;
+  }
+
+  .mini-map {
+    width: 140px;
+  }
+
+  .type-badge {
+    display: none;
+  }
+
+  .toolbar-separator {
+    display: none;
+  }
+}
+
+/* Very small panels */
+@media (max-width: 320px) {
+  .graph-toolbar {
+    gap: 2px;
+  }
+
+  .layout-buttons,
+  .graph-type-buttons {
+    padding: 1px;
+  }
+
+  .layout-btn,
+  .graph-type-btn {
+    padding: 2px 4px;
+    font-size: 9px;
+  }
+
+  .filter-select {
+    padding: 3px 20px 3px 6px;
+    font-size: 10px;
+  }
+
+  .node-count {
+    font-size: 10px;
+  }
+
+  .legend-panel,
+  .mini-map {
+    width: 120px;
+  }
+}
+
+/* Large screens — allow fixed floating panel */
+@media (min-width: 1200px) {
+  .graph-panel.floating {
+    position: fixed;
     right: 16px;
     bottom: 16px;
+    width: 640px;
+    height: 520px;
   }
 }
 
@@ -943,7 +1073,7 @@
 .lang-btn.active {
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
-  color: #fff;
+  color: var(--cg-text);
   box-shadow: 0 1px 4px rgba(99, 102, 241, 0.45);
 }
 
@@ -988,7 +1118,7 @@
   gap: 6px;
   padding: 8px 16px;
   background: var(--cg-accent);
-  color: #fff;
+  color: var(--cg-text);
   border: none;
   border-radius: var(--cg-radius-sm);
   font-size: 13px;
@@ -1174,7 +1304,7 @@
 .import-tabs button.active {
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
-  color: #fff;
+  color: var(--cg-text);
 }
 
 .import-body {
@@ -1387,7 +1517,7 @@
   align-self: flex-start;
   padding: 8px 18px;
   background: var(--cg-accent);
-  color: #fff;
+  color: var(--cg-text);
   border: none;
   border-radius: var(--cg-radius-sm);
   font-size: 13px;

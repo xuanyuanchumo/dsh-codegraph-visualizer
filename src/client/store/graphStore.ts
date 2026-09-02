@@ -3,7 +3,10 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
 
-// No-op storage so non-browser environments (SSR/tests) silently skip
+function detectInitialTheme(): ThemeType {
+  if (typeof document === 'undefined') return 'dark';
+  return document.body.hasAttribute('data-ds-dark-theme') ? 'dark' : 'light';
+}
 // persistence instead of warning on every state update.
 const memoryStorage: StateStorage = {
   getItem: () => null,
@@ -94,7 +97,7 @@ export const useGraphStore = create<GraphState>()(
       edges: [],
       repoId: null,
       layout: 'cose',
-      theme: 'dark',
+      theme: detectInitialTheme(),
       searchQuery: '',
       selectedNodeId: null,
       highlightedNodeIds: [],

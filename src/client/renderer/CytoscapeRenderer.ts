@@ -40,18 +40,18 @@ function readCssVar(name: string, fallback: string): string {
 function getThemeColors(theme: ThemeType): ThemeColors {
   const isDark = theme === 'dark';
   return {
-    nodeDefault: readCssVar('--cg-accent', isDark ? '#6366f1' : '#4f46e5'),
+    nodeDefault: readCssVar('--cg-accent', isDark ? '#6366f1' : '#263148'),
     nodeFunction: readCssVar('--cg-success', isDark ? '#10b981' : '#059669'),
-    nodeClass: readCssVar('--cg-accent-hover', isDark ? '#818cf8' : '#6366f1'),
+    nodeClass: readCssVar('--cg-accent-hover', isDark ? '#818cf8' : '#1a2230'),
     nodeVariable: readCssVar('--cg-warning', isDark ? '#f59e0b' : '#d97706'),
     nodeModule: isDark ? '#ec4899' : '#db2777',
     nodeInterface: isDark ? '#14b8a6' : '#0d9488',
-    edgeDefault: readCssVar('--cg-border', isDark ? '#6b7280' : '#9ca3af'),
+    edgeDefault: readCssVar('--cg-border-strong', isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)'),
     edgeCall: isDark ? '#60a5fa' : '#3b82f6',
     edgeImport: isDark ? '#34d399' : '#10b981',
     edgeExtend: isDark ? '#f472b6' : '#ec4899',
-    text: readCssVar('--cg-text', isDark ? '#e4e6f0' : '#1f2937'),
-    border: readCssVar('--cg-border', isDark ? '#3a3b5c' : '#e5e7eb'),
+    text: readCssVar('--cg-text', isDark ? '#f9fafb' : '#0f1115'),
+    border: readCssVar('--cg-border', isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'),
   };
 }
 
@@ -482,7 +482,7 @@ export class CytoscapeRenderer implements IRenderer {
         selector: '.highlighted',
         style: {
           'border-width': 4,
-          'border-color': '#fbbf24',
+          'border-color': readCssVar('--cg-warning', '#f59e0b'),
           'z-index': 20,
         },
       },
@@ -490,7 +490,7 @@ export class CytoscapeRenderer implements IRenderer {
         selector: '.selected',
         style: {
           'border-width': 4,
-          'border-color': '#ef4444',
+          'border-color': readCssVar('--cg-error', '#ef4444'),
           'z-index': 30,
         },
       },
@@ -498,15 +498,15 @@ export class CytoscapeRenderer implements IRenderer {
         selector: '.search-match',
         style: {
           'border-width': 3,
-          'border-color': '#22c55e',
+          'border-color': readCssVar('--cg-success', '#10b981'),
         },
       },
       {
         selector: '.call-chain',
         style: {
-          'background-color': '#fbbf24',
+          'background-color': readCssVar('--cg-warning', '#f59e0b'),
           'border-width': 3,
-          'border-color': '#f59e0b',
+          'border-color': readCssVar('--cg-warning', '#f59e0b'),
           'opacity': 0.9,
         },
       },
@@ -514,11 +514,11 @@ export class CytoscapeRenderer implements IRenderer {
         selector: '.cycle-highlight',
         style: {
           'border-width': 4,
-          'border-color': '#ef4444',
-          'background-color': '#ef4444',
-
+          'border-color': readCssVar('--cg-error', '#ef4444'),
+          'background-color': readCssVar('--cg-error', '#ef4444'),
         },
       },
+
     ];
   }
 

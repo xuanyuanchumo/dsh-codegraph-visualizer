@@ -73,6 +73,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, [panel.showCallChain]);
 
   useEffect(() => {
+
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as { path?: string };
       if (detail?.path) {
@@ -133,6 +134,20 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       getNodeData: (id: string) => renderer.rendererRef.current?.getNodeData(id) ?? null,
     };
   }, [renderer.rendererRef]);
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const isDark = document.body.hasAttribute('data-ds-dark-theme');
+      const newTheme: ThemeType = isDark ? 'dark' : 'light';
+      const current = useGraphStore.getState().theme;
+      if (current !== newTheme) {
+        useGraphStore.getState().setTheme(newTheme);
+        renderer.updateTheme(newTheme);
+      }
+    });
+    observer.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] });
+    return () => observer.disconnect();
+  }, [renderer]);
 
   usePanelResize(panelRef, renderer.rendererRef);
 
