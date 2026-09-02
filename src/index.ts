@@ -142,6 +142,26 @@ export function apply(ctx: Context) {
     return process.cwd();
   };
 
+  const listWorkspacePaths = (): string[] => {
+    try {
+      const sessions = (ctx as ContextWithSessions).sessions;
+      if (sessions?.list) {
+        const all = sessions.list();
+        const seen = new Set<string>();
+        const paths: string[] = [];
+        for (const session of all) {
+          const cwd = session?.header?.cwd;
+          if (cwd && !seen.has(cwd)) {
+            seen.add(cwd);
+            paths.push(cwd);
+          }
+        }
+        if (paths.length > 0) return paths;
+      }
+    } catch { /* best-effort */ }
+    return [process.cwd()];
+  };
+
   const readBody = (req: IncomingMessage): Promise<string> => {
     return new Promise((resolve, reject) => {
       let body = '';
@@ -161,13 +181,14 @@ export function apply(ctx: Context) {
     },
   }), 'codegraph: status route');
 
-  // GET /api/codegraph/workspace — get current DSH workspace path
+  // GET /api/codegraph/workspace — get current DSH workspace + all workspace list
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: '/api/codegraph/workspace',
     handler: (_req: IncomingMessage, res: ServerResponse) => {
-      const wsPath = findWorkspacePath();
-      sendJson(res, 200, { path: wsPath });
+      const current = findWorkspacePath();
+      const list = listWorkspacePaths();
+      sendJson(res, 200, { path: current, list });
     },
   }), 'codegraph: workspace route');
 

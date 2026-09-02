@@ -86,15 +86,15 @@ async function fetchGraphData(): Promise<GraphData | null> {
   }
 }
 
-async function fetchWorkspace(): Promise<string> {
+async function fetchWorkspace(): Promise<{ path: string; list: string[] }> {
   try {
     const res = await fetch('/api/codegraph/workspace');
-    if (!res.ok) return '.';
-    const data = await res.json() as { path?: string };
-    return data.path ?? '.';
+    if (!res.ok) return { path: '.', list: [] };
+    const data = await res.json() as { path?: string; list?: string[] };
+    return { path: data.path ?? '.', list: data.list ?? [] };
   } catch (e) {
     log.warn('fetchWorkspace failed', e);
-    return '.';
+    return { path: '.', list: [] };
   }
 }
 
@@ -285,12 +285,26 @@ export function apply(ctx: Context) {
   // On first load, if no graph data is present, request a scan of the
   // current workspace. Best-effort — if no data source answers, the panel
   // simply shows the empty state with an Import button.
-  let lastDetectedWorkspace = '';
+  let lastDshWorkspace = '';
   {
     const store = useGraphStore.getState();
     const getWorkspaceAndScan = async () => {
-      const workspacePath = await fetchWorkspace();
-      lastDetectedWorkspace = workspacePath;
+      const { path: workspacePath, list: wsList } = await fetchWorkspace();
+      lastDshWorkspace = workspacePath;
+      const s = useGraphStore.getState();
+      s.setCurrentWorkspace(workspacePath);
+      if (wsList.length > 0) {
+        const workspaceInfos = wsList.map((p) => ({
+          path: p,
+          name: p.split(/[\\/]/).pop() ?? p,
+          lastUsed: Date.now(),
+        }));
+        for (const wi of workspaceInfos) {
+          if (!s.workspaceList.some((w) => w.path === wi.path)) {
+            s.addWorkspace(wi.path, wi.name);
+          }
+        }
+      }
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: workspacePath } }));
       }
@@ -300,8 +314,8 @@ export function apply(ctx: Context) {
       if (result && result.success && result.nodes.length > 0) {
         const validated = validateGraphData(result);
         if (validated) {
-          const s = useGraphStore.getState();
-          s.setGraphData(validated.nodes, validated.edges, workspacePath, validated.metadata);
+          const s2 = useGraphStore.getState();
+          s2.setGraphData(validated.nodes, validated.edges, workspacePath, validated.metadata);
           log.info('graph data received', { path: workspacePath, nodes: validated.nodes.length, edges: validated.edges.length });
         }
       }
@@ -312,17 +326,25 @@ export function apply(ctx: Context) {
       getWorkspaceAndScan();
     }
 
-    // ── Workspace change detection ───────────────────────────────────
-    // Poll DSH platform workspace list every 3s to detect when the user
-    // switches workspaces at the platform level. When a change is detected,
-    // dispatch the workspace event to trigger a re-scan.
+    // ── DSH workspace change detection ────────────────────────────────
+    // Poll DSH workspace every 3s. When DSH main window switches workspace,
+    // sync the plugin's currentWorkspace and trigger re-scan.
+    // Plugin-internal workspace switches do NOT affect DSH main window.
     const workspacePoll = setInterval(async () => {
-      const currentWorkspace = await fetchWorkspace();
-      if (currentWorkspace && currentWorkspace !== lastDetectedWorkspace) {
-        log.info('workspace changed detected', { from: lastDetectedWorkspace, to: currentWorkspace });
-        lastDetectedWorkspace = currentWorkspace;
+      const { path: dshCurrent, list: dshList } = await fetchWorkspace();
+      if (dshCurrent && dshCurrent !== lastDshWorkspace) {
+        log.info('DSH workspace changed', { from: lastDshWorkspace, to: dshCurrent });
+        lastDshWorkspace = dshCurrent;
+        const s = useGraphStore.getState();
+        s.setCurrentWorkspace(dshCurrent);
         if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: currentWorkspace } }));
+          window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: dshCurrent } }));
+        }
+      }
+      for (const p of dshList) {
+        const s = useGraphStore.getState();
+        if (!s.workspaceList.some((w) => w.path === p)) {
+          s.addWorkspace(p, p.split(/[\\/]/).pop() ?? p);
         }
       }
     }, 3000);

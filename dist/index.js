@@ -1618,6 +1618,25 @@ function apply(ctx) {
 		} catch {}
 		return process.cwd();
 	};
+	const listWorkspacePaths = () => {
+		try {
+			const sessions = ctx.sessions;
+			if (sessions?.list) {
+				const all = sessions.list();
+				const seen = new Set();
+				const paths = [];
+				for (const session of all) {
+					const cwd = session?.header?.cwd;
+					if (cwd && !seen.has(cwd)) {
+						seen.add(cwd);
+						paths.push(cwd);
+					}
+				}
+				if (paths.length > 0) return paths;
+			}
+		} catch {}
+		return [process.cwd()];
+	};
 	const readBody = (req) => {
 		return new Promise((resolve, reject) => {
 			let body = "";
@@ -1643,8 +1662,12 @@ function apply(ctx) {
 		kind: "exact",
 		path: "/api/codegraph/workspace",
 		handler: (_req, res) => {
-			const wsPath = findWorkspacePath();
-			sendJson(res, 200, { path: wsPath });
+			const current = findWorkspacePath();
+			const list = listWorkspacePaths();
+			sendJson(res, 200, {
+				path: current,
+				list
+			});
 		}
 	}), "codegraph: workspace route");
 	ctx.effect(() => ctx.webServer.register({

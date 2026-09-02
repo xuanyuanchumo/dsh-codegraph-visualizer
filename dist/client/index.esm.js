@@ -42537,12 +42537,21 @@ async function fetchGraphData() {
 async function fetchWorkspace() {
 	try {
 		const res = await fetch("/api/codegraph/workspace");
-		if (!res.ok) return ".";
+		if (!res.ok) return {
+			path: ".",
+			list: []
+		};
 		const data$2 = await res.json();
-		return data$2.path ?? ".";
+		return {
+			path: data$2.path ?? ".",
+			list: data$2.list ?? []
+		};
 	} catch (e) {
 		log.warn("fetchWorkspace failed", e);
-		return ".";
+		return {
+			path: ".",
+			list: []
+		};
 	}
 }
 async function requestScan(path, maxNodes) {
@@ -42696,12 +42705,22 @@ function apply(ctx) {
 		}, 1e4);
 		ctx.effect(() => () => clearInterval(prereqInterval), "codegraph: prereq polling");
 	}
-	let lastDetectedWorkspace = "";
+	let lastDshWorkspace = "";
 	{
 		const store = useGraphStore.getState();
 		const getWorkspaceAndScan = async () => {
-			const workspacePath = await fetchWorkspace();
-			lastDetectedWorkspace = workspacePath;
+			const { path: workspacePath, list: wsList } = await fetchWorkspace();
+			lastDshWorkspace = workspacePath;
+			const s = useGraphStore.getState();
+			s.setCurrentWorkspace(workspacePath);
+			if (wsList.length > 0) {
+				const workspaceInfos = wsList.map((p$1) => ({
+					path: p$1,
+					name: p$1.split(/[\\/]/).pop() ?? p$1,
+					lastUsed: Date.now()
+				}));
+				for (const wi of workspaceInfos) if (!s.workspaceList.some((w) => w.path === wi.path)) s.addWorkspace(wi.path, wi.name);
+			}
 			if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codegraph:workspace", { detail: { path: workspacePath } }));
 			log.info("auto-import requested", { path: workspacePath });
 			store.setLoading(true);
@@ -42709,8 +42728,8 @@ function apply(ctx) {
 			if (result && result.success && result.nodes.length > 0) {
 				const validated = validateGraphData(result);
 				if (validated) {
-					const s = useGraphStore.getState();
-					s.setGraphData(validated.nodes, validated.edges, workspacePath, validated.metadata);
+					const s2 = useGraphStore.getState();
+					s2.setGraphData(validated.nodes, validated.edges, workspacePath, validated.metadata);
 					log.info("graph data received", {
 						path: workspacePath,
 						nodes: validated.nodes.length,
@@ -42722,14 +42741,20 @@ function apply(ctx) {
 		};
 		if (store.nodes.length === 0 && !store.isLoading) getWorkspaceAndScan();
 		const workspacePoll = setInterval(async () => {
-			const currentWorkspace = await fetchWorkspace();
-			if (currentWorkspace && currentWorkspace !== lastDetectedWorkspace) {
-				log.info("workspace changed detected", {
-					from: lastDetectedWorkspace,
-					to: currentWorkspace
+			const { path: dshCurrent, list: dshList } = await fetchWorkspace();
+			if (dshCurrent && dshCurrent !== lastDshWorkspace) {
+				log.info("DSH workspace changed", {
+					from: lastDshWorkspace,
+					to: dshCurrent
 				});
-				lastDetectedWorkspace = currentWorkspace;
-				if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codegraph:workspace", { detail: { path: currentWorkspace } }));
+				lastDshWorkspace = dshCurrent;
+				const s = useGraphStore.getState();
+				s.setCurrentWorkspace(dshCurrent);
+				if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codegraph:workspace", { detail: { path: dshCurrent } }));
+			}
+			for (const p$1 of dshList) {
+				const s = useGraphStore.getState();
+				if (!s.workspaceList.some((w) => w.path === p$1)) s.addWorkspace(p$1, p$1.split(/[\\/]/).pop() ?? p$1);
 			}
 		}, 3e3);
 		ctx.effect(() => () => clearInterval(workspacePoll), "codegraph: workspace polling");
