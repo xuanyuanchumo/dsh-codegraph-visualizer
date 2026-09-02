@@ -83,6 +83,33 @@ export function apply(ctx: Context) {
   let scanInFlight: Promise<GraphData> | null = null;
   const scanCache = new Map<string, { data: GraphData; timestamp: number }>();
   const SCAN_CACHE_TTL = 30000;
+  const MAX_NODES_DEFAULT = 500;
+
+  function truncateGraphData(data: GraphData, maxNodes: number): GraphData {
+    if (data.nodes.length <= maxNodes) return data;
+    const nodePriority: Record<string, number> = { function: 4, class: 3, interface: 3, module: 2, variable: 1, type: 1 };
+    const sorted = [...data.nodes].sort((a, b) => {
+      const pa = nodePriority[a.type] ?? 0;
+      const pb = nodePriority[b.type] ?? 0;
+      if (pa !== pb) return pb - pa;
+      const aExp = a.properties?.exported === true ? 1 : 0;
+      const bExp = b.properties?.exported === true ? 1 : 0;
+      return bExp - aExp;
+    });
+    const keptNodes = sorted.slice(0, maxNodes);
+    const keptIds = new Set(keptNodes.map((n) => n.id));
+    const keptEdges = data.edges.filter((e) => keptIds.has(e.source) && keptIds.has(e.target));
+    log.info('graph truncated', { total: data.nodes.length, kept: keptNodes.length, edges: keptEdges.length });
+    return {
+      nodes: keptNodes,
+      edges: keptEdges,
+      metadata: {
+        ...data.metadata,
+        nodeCount: data.nodes.length,
+        edgeCount: data.edges.length,
+      },
+    };
+  }
 
   const invokeUpstream = async (tool: string, args: Record<string, unknown>): Promise<unknown | null> => {
     try {
@@ -159,7 +186,7 @@ export function apply(ctx: Context) {
     handler: async (req: IncomingMessage, res: ServerResponse) => {
       try {
         const body = await readBody(req);
-        const { path } = JSON.parse(body || '{}') as { path?: string };
+        const { path, maxNodes } = JSON.parse(body || '{}') as { path?: string; maxNodes?: number };
         if (path && path !== '.' && !isPathAllowed(path)) {
           sendJson(res, 403, { success: false, nodes: [], edges: [], metadata: { repoId: null, timestamp: 0, nodeCount: 0, edgeCount: 0 } });
           return;
@@ -167,6 +194,7 @@ export function apply(ctx: Context) {
         const scanPath = path && path !== '.' ? path : findWorkspacePath();
         lastScanPath = scanPath;
         const repoId = scanPath || `workspace-${Date.now()}`;
+        const limit = typeof maxNodes === 'number' && maxNodes > 0 ? maxNodes : MAX_NODES_DEFAULT;
 
         const cached = scanCache.get(scanPath);
         if (cached && Date.now() - cached.timestamp < SCAN_CACHE_TTL) {
@@ -183,8 +211,9 @@ export function apply(ctx: Context) {
 
         scanInFlight = fetchMergedGraph(invokeUpstream, repoId, 'both');
         try {
-          const data = await scanInFlight;
+          const raw = await scanInFlight;
           scanInFlight = null;
+          const data = truncateGraphData(raw, limit);
           lastGraphData = data;
           scanCache.set(scanPath, { data, timestamp: Date.now() });
           if (scanCache.size > 4) {

@@ -8,6 +8,9 @@ interface StatusBarProps {
   lastUpdated: number;
   watchEnabled: boolean;
   workspaceName?: string;
+  truncated?: boolean;
+  totalNodeCount?: number;
+  totalEdgeCount?: number;
 }
 
 function formatTime(ts: number): string {
@@ -15,7 +18,7 @@ function formatTime(ts: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
 }
 
-export function StatusBar({ error, isLoading, lastUpdated, watchEnabled, workspaceName }: StatusBarProps) {
+export function StatusBar({ error, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount, totalEdgeCount }: StatusBarProps) {
   const t = useT();
   const statusDotClass = error ? 'status-dot error' : isLoading ? 'status-dot loading' : 'status-dot';
   const statusText = error ? t('state.error') : isLoading ? t('state.loading') : t('state.ready');
@@ -26,6 +29,11 @@ export function StatusBar({ error, isLoading, lastUpdated, watchEnabled, workspa
         <span className={statusDotClass} /><span>{statusText}</span>
       </div>
       {wsName && <span className="status-workspace" title={workspaceName}>{wsName}</span>}
+      {truncated && (
+        <span className="status-truncated" title={t('state.truncatedHint', { total: totalNodeCount ?? 0 })}>
+          ⚠ {t('state.truncated', { shown: totalNodeCount ? `${totalNodeCount}` : '' })}
+        </span>
+      )}
       {watchEnabled && <span className="watch-indicator" title={t('import.watchOn')}>●</span>}
       <div className="status-spacer" />
       <div className="status-item">

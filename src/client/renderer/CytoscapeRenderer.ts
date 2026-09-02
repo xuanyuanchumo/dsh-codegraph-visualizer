@@ -176,14 +176,26 @@ export class CytoscapeRenderer implements IRenderer {
     }
 
     this.layoutRaf = requestAnimationFrame(() => {
+      const nodeCount = this.cy!.nodes().length;
+      let effectiveLayout = layout;
+      let animate = true;
+
+      if (nodeCount > 300) {
+        effectiveLayout = 'grid';
+        animate = false;
+      } else if (nodeCount > 100 && layout === 'cose') {
+        effectiveLayout = 'dagre';
+        animate = false;
+      }
+
       let options: LayoutOptions | undefined;
-      switch (layout) {
-        case 'cose': options = { name: 'cose', fit: true, animate: true, animationDuration: 300 } as LayoutOptions; break;
-        case 'dagre': options = { name: 'dagre', fit: true, animate: true } as LayoutOptions; break;
+      switch (effectiveLayout) {
+        case 'cose': options = { name: 'cose', fit: true, animate, animationDuration: 300 } as LayoutOptions; break;
+        case 'dagre': options = { name: 'dagre', fit: true, animate } as LayoutOptions; break;
         case 'circle': options = { name: 'circle', fit: true } as LayoutOptions; break;
         case 'grid': options = { name: 'grid', fit: true } as LayoutOptions; break;
         default: {
-          const _exhaustive: never = layout;
+          const _exhaustive: never = effectiveLayout;
           throw new Error(`Unhandled layout: ${_exhaustive}`);
         }
       }
@@ -440,25 +452,26 @@ export class CytoscapeRenderer implements IRenderer {
 
   private getStylesheet(): cytoscape.StylesheetJson {
     const c = getThemeColors(this.options.theme);
+    const nodeCount = this.cy?.nodes().length ?? 0;
+    const isLargeGraph = nodeCount > 200;
     return [
       {
         selector: 'node',
         style: {
           'background-color': c.nodeDefault,
-          'label': 'data(label)',
+          'label': isLargeGraph ? '' : 'data(label)',
           'font-size': '11px',
           'color': c.text,
           'text-valign': 'center',
           'text-halign': 'center',
           'text-wrap': 'wrap',
           'text-max-width': '80px',
-          'width': 'mapData(weight, 1, 10, 24, 56)',
-          'height': 'mapData(weight, 1, 10, 24, 56)',
-          'shape': 'ellipse',
-          'border-width': 2,
+          'width': isLargeGraph ? 16 : 'mapData(weight, 1, 10, 24, 56)',
+          'height': isLargeGraph ? 16 : 'mapData(weight, 1, 10, 24, 56)',
+          'shape': isLargeGraph ? 'ellipse' : 'ellipse',
+          'border-width': isLargeGraph ? 1 : 2,
           'border-color': c.border,
-          'transition-property': 'background-color',
-          'transition-duration': 200,
+          ...(isLargeGraph ? {} : { 'transition-property': 'background-color', 'transition-duration': 200 }),
         },
       },
       {

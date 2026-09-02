@@ -61,6 +61,8 @@ const en: Dict = {
   'state.error': 'Error',
   'state.noData': 'No data',
   'state.updated': 'Updated {time}',
+  'state.truncated': 'Showing top {shown} of {total} nodes',
+  'state.truncatedHint': 'Graph is truncated for performance. Showing most important nodes.',
 
   // Empty state
   'empty.title': 'No graph data yet',
@@ -240,6 +242,8 @@ const zh: Dict = {
   'state.error': '错误',
   'state.noData': '无数据',
   'state.updated': '更新于 {time}',
+  'state.truncated': '显示前 {shown}/{total} 节点',
+  'state.truncatedHint': '图谱已截断以提升性能，仅显示最重要的节点。',
 
   // Empty state
   'empty.title': '暂无图谱数据',

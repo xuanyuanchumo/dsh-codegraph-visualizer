@@ -257,6 +257,9 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	nodes: [],
 	edges: [],
 	repoId: null,
+	truncated: false,
+	totalNodeCount: 0,
+	totalEdgeCount: 0,
 	layout: "cose",
 	theme: detectInitialTheme(),
 	searchQuery: "",
@@ -278,13 +281,17 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	workspaceList: [],
 	setGraphData: (nodes, edges, repoId) => {
 		clearLoadingFailsafe();
+		const metadata = repoId;
 		set$1({
 			nodes,
 			edges,
 			repoId,
 			error: null,
 			isLoading: false,
-			lastUpdated: Date.now()
+			lastUpdated: Date.now(),
+			truncated: !!metadata?.truncated,
+			totalNodeCount: metadata?.totalNodeCount ?? nodes.length,
+			totalEdgeCount: metadata?.totalEdgeCount ?? edges.length
 		});
 	},
 	setLayout: (layout$2) => set$1({ layout: layout$2 }),
@@ -317,7 +324,10 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			repoId: null,
 			error: null,
 			isLoading: false,
-			lastUpdated: 0
+			lastUpdated: 0,
+			truncated: false,
+			totalNodeCount: 0,
+			totalEdgeCount: 0
 		});
 	},
 	setPrerequisites: (prerequisites) => set$1({ prerequisites }),
@@ -39163,13 +39173,23 @@ var CytoscapeRenderer = class {
 		if (!this.cy) return;
 		if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
 		this.layoutRaf = requestAnimationFrame(() => {
+			const nodeCount = this.cy.nodes().length;
+			let effectiveLayout = layout$2;
+			let animate = true;
+			if (nodeCount > 300) {
+				effectiveLayout = "grid";
+				animate = false;
+			} else if (nodeCount > 100 && layout$2 === "cose") {
+				effectiveLayout = "dagre";
+				animate = false;
+			}
 			let options;
-			switch (layout$2) {
+			switch (effectiveLayout) {
 				case "cose":
 					options = {
 						name: "cose",
 						fit: true,
-						animate: true,
+						animate,
 						animationDuration: 300
 					};
 					break;
@@ -39177,7 +39197,7 @@ var CytoscapeRenderer = class {
 					options = {
 						name: "dagre",
 						fit: true,
-						animate: true
+						animate
 					};
 					break;
 				case "circle":
@@ -39193,7 +39213,7 @@ var CytoscapeRenderer = class {
 					};
 					break;
 				default: {
-					const _exhaustive = layout$2;
+					const _exhaustive = effectiveLayout;
 					throw new Error(`Unhandled layout: ${_exhaustive}`);
 				}
 			}
@@ -39412,25 +39432,29 @@ var CytoscapeRenderer = class {
 	}
 	getStylesheet() {
 		const c = getThemeColors(this.options.theme);
+		const nodeCount = this.cy?.nodes().length ?? 0;
+		const isLargeGraph = nodeCount > 200;
 		return [
 			{
 				selector: "node",
 				style: {
 					"background-color": c.nodeDefault,
-					"label": "data(label)",
+					"label": isLargeGraph ? "" : "data(label)",
 					"font-size": "11px",
 					"color": c.text,
 					"text-valign": "center",
 					"text-halign": "center",
 					"text-wrap": "wrap",
 					"text-max-width": "80px",
-					"width": "mapData(weight, 1, 10, 24, 56)",
-					"height": "mapData(weight, 1, 10, 24, 56)",
-					"shape": "ellipse",
-					"border-width": 2,
+					"width": isLargeGraph ? 16 : "mapData(weight, 1, 10, 24, 56)",
+					"height": isLargeGraph ? 16 : "mapData(weight, 1, 10, 24, 56)",
+					"shape": isLargeGraph ? "ellipse" : "ellipse",
+					"border-width": isLargeGraph ? 1 : 2,
 					"border-color": c.border,
-					"transition-property": "background-color",
-					"transition-duration": 200
+					...isLargeGraph ? {} : {
+						"transition-property": "background-color",
+						"transition-duration": 200
+					}
 				}
 			},
 			{
@@ -39980,6 +40004,8 @@ const en = {
 	"state.error": "Error",
 	"state.noData": "No data",
 	"state.updated": "Updated {time}",
+	"state.truncated": "Showing top {shown} of {total} nodes",
+	"state.truncatedHint": "Graph is truncated for performance. Showing most important nodes.",
 	"empty.title": "No graph data yet",
 	"empty.subtitle": "Import a .codegraph folder, paste graph data, or scan a repository.",
 	"empty.import": "Import Graph",
@@ -40124,6 +40150,8 @@ const zh = {
 	"state.error": "错误",
 	"state.noData": "无数据",
 	"state.updated": "更新于 {time}",
+	"state.truncated": "显示前 {shown}/{total} 节点",
+	"state.truncatedHint": "图谱已截断以提升性能，仅显示最重要的节点。",
 	"empty.title": "暂无图谱数据",
 	"empty.subtitle": "导入 .codegraph 文件夹、粘贴图谱数据或扫描仓库。",
 	"empty.import": "导入图谱",
@@ -41481,7 +41509,7 @@ function formatTime(ts) {
 	const d = new Date(ts);
 	return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
 }
-function StatusBar({ error: error$1, isLoading, lastUpdated, watchEnabled, workspaceName }) {
+function StatusBar({ error: error$1, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount, totalEdgeCount }) {
 	const t$1 = useT();
 	const statusDotClass = error$1 ? "status-dot error" : isLoading ? "status-dot loading" : "status-dot";
 	const statusText = error$1 ? t$1("state.error") : isLoading ? t$1("state.loading") : t$1("state.ready");
@@ -41497,6 +41525,11 @@ function StatusBar({ error: error$1, isLoading, lastUpdated, watchEnabled, works
 				className: "status-workspace",
 				title: workspaceName,
 				children: wsName
+			}),
+			truncated && /* @__PURE__ */ jsxs("span", {
+				className: "status-truncated",
+				title: t$1("state.truncatedHint", { total: totalNodeCount ?? 0 }),
+				children: ["⚠ ", t$1("state.truncated", { shown: totalNodeCount ? `${totalNodeCount}` : "" })]
 			}),
 			watchEnabled && /* @__PURE__ */ jsx("span", {
 				className: "watch-indicator",
@@ -41883,7 +41916,7 @@ function GraphPanelInner({ className = "" }) {
 	const getDataRef = useRef(null);
 	const [selectedNodeData, setSelectedNodeData] = useState(null);
 	const [tooltip, setTooltip] = useState(null);
-	const { nodes, edges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus } = useGraphStore(useShallow((s) => ({
+	const { nodes, edges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, totalEdgeCount } = useGraphStore(useShallow((s) => ({
 		nodes: s.nodes,
 		edges: s.edges,
 		layout: s.layout,
@@ -41900,7 +41933,10 @@ function GraphPanelInner({ className = "" }) {
 		watchEnabled: s.watchEnabled,
 		currentWorkspace: s.currentWorkspace,
 		workspaceList: s.workspaceList,
-		initStatus: s.initStatus
+		initStatus: s.initStatus,
+		truncated: s.truncated,
+		totalNodeCount: s.totalNodeCount,
+		totalEdgeCount: s.totalEdgeCount
 	})));
 	const setLayout = useGraphStore((s) => s.setLayout);
 	const setTheme = useGraphStore((s) => s.setTheme);
@@ -42179,7 +42215,10 @@ function GraphPanelInner({ className = "" }) {
 				isLoading,
 				lastUpdated,
 				watchEnabled,
-				workspaceName: currentWorkspace
+				workspaceName: currentWorkspace,
+				truncated,
+				totalNodeCount,
+				totalEdgeCount
 			}),
 			/* @__PURE__ */ jsx("div", {
 				className: "resize-handle",
@@ -42308,12 +42347,15 @@ async function fetchGraphData() {
 		return null;
 	}
 }
-async function requestScan(path) {
+async function requestScan(path, maxNodes) {
 	try {
 		const res = await fetch("/api/codegraph/scan", {
 			method: "POST",
 			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ path })
+			body: JSON.stringify({
+				path,
+				maxNodes
+			})
 		});
 		if (!res.ok) return null;
 		return await res.json();

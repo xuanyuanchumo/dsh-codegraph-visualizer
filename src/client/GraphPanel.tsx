@@ -37,7 +37,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     nodes, edges, layout, theme, searchQuery, selectedNodeId,
     highlightedNodeIds, filterType, graphType, isLoading, error, lastUpdated,
     prerequisites, watchEnabled, currentWorkspace, workspaceList,
-    initStatus,
+    initStatus, truncated, totalNodeCount, totalEdgeCount,
   } = useGraphStore(useShallow((s) => ({
     nodes: s.nodes, edges: s.edges, layout: s.layout, theme: s.theme,
     searchQuery: s.searchQuery, selectedNodeId: s.selectedNodeId,
@@ -47,6 +47,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     prerequisites: s.prerequisites, watchEnabled: s.watchEnabled,
     currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
     initStatus: s.initStatus,
+    truncated: s.truncated, totalNodeCount: s.totalNodeCount, totalEdgeCount: s.totalEdgeCount,
   })));
 
   const setLayout = useGraphStore((s) => s.setLayout);
@@ -307,7 +308,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         </div>
       )}
 
-      <StatusBar error={error} isLoading={isLoading} lastUpdated={lastUpdated} watchEnabled={watchEnabled} workspaceName={currentWorkspace} />
+      <StatusBar error={error} isLoading={isLoading} lastUpdated={lastUpdated} watchEnabled={watchEnabled} workspaceName={currentWorkspace} truncated={truncated} totalNodeCount={totalNodeCount} totalEdgeCount={totalEdgeCount} />
 
       <div className="resize-handle" aria-hidden="true" />
     </div>

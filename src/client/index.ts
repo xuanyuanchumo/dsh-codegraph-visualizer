@@ -86,12 +86,12 @@ async function fetchGraphData(): Promise<GraphData | null> {
   }
 }
 
-async function requestScan(path: string): Promise<{ success: boolean; nodes: unknown[]; edges: unknown[] } | null> {
+async function requestScan(path: string, maxNodes?: number): Promise<{ success: boolean; nodes: unknown[]; edges: unknown[] } | null> {
   try {
     const res = await fetch('/api/codegraph/scan', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ path }),
+      body: JSON.stringify({ path, maxNodes }),
     });
     if (!res.ok) return null;
     return await res.json();

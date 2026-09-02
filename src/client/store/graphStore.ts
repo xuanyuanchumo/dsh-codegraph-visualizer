@@ -41,6 +41,11 @@ interface GraphState {
   nodes: GraphNode[];
   edges: GraphEdge[];
   repoId: string | null;
+
+  // Truncation info (when graph is too large to render fully)
+  truncated: boolean;
+  totalNodeCount: number;
+  totalEdgeCount: number;
   
   // UI state
   layout: LayoutType;
@@ -96,6 +101,9 @@ export const useGraphStore = create<GraphState>()(
       nodes: [],
       edges: [],
       repoId: null,
+      truncated: false,
+      totalNodeCount: 0,
+      totalEdgeCount: 0,
       layout: 'cose',
       theme: detectInitialTheme(),
       searchQuery: '',
@@ -116,7 +124,13 @@ export const useGraphStore = create<GraphState>()(
       // Arriving data always clears the loading flag (fixes the stuck-overlay bug).
       setGraphData: (nodes, edges, repoId) => {
         clearLoadingFailsafe();
-        set({ nodes, edges, repoId, error: null, isLoading: false, lastUpdated: Date.now() });
+        const metadata = repoId as unknown as { truncated?: boolean; totalNodeCount?: number; totalEdgeCount?: number };
+        set({
+          nodes, edges, repoId, error: null, isLoading: false, lastUpdated: Date.now(),
+          truncated: !!metadata?.truncated,
+          totalNodeCount: metadata?.totalNodeCount ?? nodes.length,
+          totalEdgeCount: metadata?.totalEdgeCount ?? edges.length,
+        });
       },
       setLayout: (layout) => set({ layout }),
       setTheme: (theme) => set({ theme }),
@@ -143,7 +157,7 @@ export const useGraphStore = create<GraphState>()(
       },
       clearGraph: () => {
         clearLoadingFailsafe();
-        set({ nodes: [], edges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0 });
+        set({ nodes: [], edges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0, truncated: false, totalNodeCount: 0, totalEdgeCount: 0 });
       },
       setPrerequisites: (prerequisites) => set({ prerequisites }),
       setInitStatus: (initStatus, initMessage = null) => set({ initStatus, initMessage }),
