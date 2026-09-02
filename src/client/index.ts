@@ -40,11 +40,6 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-interface ModuleLoader {
-  load(registration: { id: string; factory: (require: (id: string) => unknown) => Record<string, unknown> }): void;
-}
-
-declare const __ModuleLoader__: ModuleLoader | undefined;
 
 export const name = 'dsh-codegraph-visualizer-client';
 export const inject = ['slots'];

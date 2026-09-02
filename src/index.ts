@@ -3,7 +3,7 @@
 import { spawnSync } from 'node:child_process';
 import type { Context } from '@deepseek-ai/cordis';
 import { watch } from 'node:fs';
-import { resolve, normalize, isAbsolute } from 'node:path';
+import { normalize, isAbsolute } from 'node:path';
 import { createGraphTools, fetchMergedGraph } from './tools.ts';
 import { CallId } from '@deepseek-ai/dsh-llm';
 import { scoped } from './shared/Logger.ts';
@@ -66,10 +66,13 @@ function checkPrerequisites(ctx: Context): { codegraph: boolean; lens: boolean }
 export function apply(ctx: Context) {
   const { graphStatus, graphData, graphSymbol, graphImpact } = createGraphTools(ctx);
 
-  ctx.tools.register(graphStatus);
-  ctx.tools.register(graphData);
-  ctx.tools.register(graphSymbol);
-  ctx.tools.register(graphImpact);
+  ctx.effect(() => {
+    const d1 = ctx.tools.register(graphStatus);
+    const d2 = ctx.tools.register(graphData);
+    const d3 = ctx.tools.register(graphSymbol);
+    const d4 = ctx.tools.register(graphImpact);
+    return () => { d1(); d2(); d3(); d4(); };
+  }, 'codegraph: tool registrations');
 
   // ── HTTP routes for Host-Client communication ──────────────────────
   // The client (browser) communicates with the Host via HTTP fetch()
@@ -79,7 +82,7 @@ export function apply(ctx: Context) {
   // reliable channel for Host-Client data exchange.
 
   let lastGraphData: GraphData | null = null;
-  let lastScanPath: string | null = null;
+
   let lastInitResult: { success: boolean; path: string; message: string; timestamp: number } | null = null;
   let scanInFlight: Promise<GraphData> | null = null;
   const scanCache = new Map<string, { data: GraphData; timestamp: number }>();
@@ -238,7 +241,7 @@ export function apply(ctx: Context) {
           return;
         }
         const scanPath = path && path !== '.' ? path : findWorkspacePath();
-        lastScanPath = scanPath;
+
         const repoId = scanPath || `workspace-${Date.now()}`;
 
         const cached = scanCache.get(scanPath);
@@ -378,17 +381,18 @@ export function apply(ctx: Context) {
   ctx.effect(() => () => clearTimeout(prereqTimer), 'codegraph: prereq re-check timer');
 
   // Client can request a re-check (e.g. after installing a prerequisite plugin).
-  ctx.on('codegraph/prerequisite/request', () => {
+  ctx.effect(() => ctx.on('codegraph/prerequisite/request', () => {
     emitPrereqStatus();
-  });
+  }), 'codegraph: prerequisite request listener');
 
   // ── Heat-update (push) ─────────────────────────────────────────────
-  ctx.on('codegraph/repo/imported', (event) => {
+  ctx.effect(() => ctx.on('codegraph/repo/imported', (event) => {
     ctx.emit('codegraph/graph/updated', { repoId: event.repoId, nodeCount: 0, edgeCount: 0, timestamp: event.timestamp });
-  });
-  ctx.on('codegraph/repo/scanned', (event) => {
+  }), 'codegraph: repo imported listener');
+
+  ctx.effect(() => ctx.on('codegraph/repo/scanned', (event) => {
     ctx.emit('codegraph/graph/updated', { repoId: event.repoId, nodeCount: 0, edgeCount: 0, timestamp: event.timestamp });
-  });
+  }), 'codegraph: repo scanned listener');
 
   // ── Auto-import: scan workspace on request ─────────────────────────
 
@@ -415,14 +419,14 @@ export function apply(ctx: Context) {
     }
   };
 
-  ctx.on('codegraph/repo/request-scan', async (event) => {
+  ctx.effect(() => ctx.on('codegraph/repo/request-scan', async (event) => {
     await scanAndPush(event.path);
-  });
+  }), 'codegraph: repo request-scan listener');
 
   // ── Graph initialization ──────────────────────────────────────────
   // Trigger upstream codegraph_init (dsh-codegraph surface) to generate the
   // .codegraph DB; then scan and push the fresh graph to the client.
-  ctx.on('codegraph/graph/init', async (event) => {
+  ctx.effect(() => ctx.on('codegraph/graph/init', async (event) => {
     log.info('init requested', { path: event.path });
     try {
       const result = await invokeUpstream('codegraph_init', { path: event.path, force: true });
@@ -444,10 +448,10 @@ export function apply(ctx: Context) {
         timestamp: Date.now(),
       });
     }
-  });
+  }), 'codegraph: graph init listener');
 
   // ── File watcher for hot-update ────────────────────────────────────
-  ctx.on('codegraph/watch/toggle', (event) => {
+  ctx.effect(() => ctx.on('codegraph/watch/toggle', (event) => {
     // Close existing watcher
     if (activeWatcher) {
       try { activeWatcher.close(); } catch { /* best-effort */ }
@@ -488,5 +492,5 @@ export function apply(ctx: Context) {
     } catch (e) {
       log.error('watch setup failed', e);
     }
-  });
+  }), 'codegraph: watch toggle listener');
 }

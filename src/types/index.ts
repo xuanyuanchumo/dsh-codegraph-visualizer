@@ -134,7 +134,10 @@ declare module '@deepseek-ai/cordis' {
   }
   interface Context {
     webServer: WebServerService;
-
+    effect(execute: () => (() => void) | void, label?: string): () => void;
+    emit<K extends keyof Events>(name: K, ...args: Parameters<Events[K]>): void;
+    on<K extends keyof Events>(name: K, listener: Events[K]): () => boolean;
+    get(name: string, strict?: boolean): unknown;
   }
 }
 

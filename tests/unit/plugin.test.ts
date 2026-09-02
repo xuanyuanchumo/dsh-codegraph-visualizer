@@ -48,7 +48,7 @@ function makeMockCtx(): MockCtx {
     },
     on: vi.fn(),
     emit: vi.fn(),
-    effect: vi.fn(),
+    effect: vi.fn((fn: () => unknown) => { fn(); return () => {}; }),
     webServer: {
       register: vi.fn().mockReturnValue(() => {}),
     },

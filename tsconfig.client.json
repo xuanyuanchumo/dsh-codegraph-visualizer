@@ -21,6 +21,6 @@
     "allowImportingTsExtensions": true,
     "plugins": []
   },
-  "include": ["src/client/**/*", "src/types/**/*", "src/generated/**/*"],
+  "include": ["src/client/**/*", "src/shared/**/*", "src/types/**/*", "src/generated/**/*"],
   "exclude": ["node_modules", "dist"]
 }

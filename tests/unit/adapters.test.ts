@@ -837,7 +837,7 @@ describe('applyDelta properties deep merge', () => {
       timestamp: 2,
     };
     const result = merger.applyDelta(current, delta);
-    expect(result.nodes[0].properties).toEqual({ a: 1, b: 3, c: 4 });
+    expect(result.nodes[0]?.properties).toEqual({ a: 1, b: 3, c: 4 });
   });
 
   it('should deep merge edge properties', () => {
@@ -854,7 +854,7 @@ describe('applyDelta properties deep merge', () => {
       timestamp: 2,
     };
     const result = merger.applyDelta(current, delta);
-    expect(result.edges[0].properties).toEqual({ x: 'new', y: 'added' });
+    expect(result.edges[0]?.properties).toEqual({ x: 'new', y: 'added' });
   });
 
   it('should preserve existing properties not in delta', () => {
@@ -871,7 +871,7 @@ describe('applyDelta properties deep merge', () => {
       timestamp: 2,
     };
     const result = merger.applyDelta(current, delta);
-    expect(result.nodes[0].properties).toEqual({ a: 1, b: 99, c: 3 });
+    expect(result.nodes[0]?.properties).toEqual({ a: 1, b: 99, c: 3 });
   });
 
   it('should keep all existing properties when delta properties is empty', () => {
@@ -888,7 +888,7 @@ describe('applyDelta properties deep merge', () => {
       timestamp: 2,
     };
     const result = merger.applyDelta(current, delta);
-    expect(result.nodes[0].properties).toEqual({ a: 1, b: 2 });
+    expect(result.nodes[0]?.properties).toEqual({ a: 1, b: 2 });
   });
 
   it('should use delta properties when existing properties is empty', () => {
@@ -905,6 +905,6 @@ describe('applyDelta properties deep merge', () => {
       timestamp: 2,
     };
     const result = merger.applyDelta(current, delta);
-    expect(result.nodes[0].properties).toEqual({ x: 'new' });
+    expect(result.nodes[0]?.properties).toEqual({ x: 'new' });
   });
 });

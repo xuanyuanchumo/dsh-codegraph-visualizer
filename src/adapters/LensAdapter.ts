@@ -2,6 +2,9 @@
 import type { GraphNode, GraphEdge, AdapterResult, DataSourceType } from '../types/index.ts';
 import { NodeId, EdgeId } from '../types/index.ts';
 import type { UpstreamInvoker } from './CodeGraphAdapter.ts';
+import { scoped } from '../shared/Logger.ts';
+
+const log = scoped('lens-adapter');
 
 interface LensToolResult {
   symbols: Array<{
@@ -45,8 +48,8 @@ export class LensAdapter {
       }));
 
       return { nodes, edges, source: this.source, timestamp: Date.now() };
-    } catch {
-      // Lens is optional - return empty result on failure.
+    } catch (e) {
+      log.warn('Lens fetchData failed — lens is optional, returning empty', e);
       return { nodes: [], edges: [], source: this.source, timestamp: Date.now() };
     }
   }

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import { useGraphStore, type ThemeType, type GraphType } from './store/graphStore.ts';
+import { useGraphStore, type ThemeType } from './store/graphStore.ts';
 import { useShallow } from 'zustand/shallow';
 import type { NodeId, GraphNode } from '../types/index.ts';
 import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard } from './hooks/index.ts';

@@ -12,6 +12,9 @@ import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import type { GraphNode, GraphEdge, AdapterResult, DataSourceType } from '../types/index.ts';
 import { NodeId, EdgeId } from '../types/index.ts';
+import { scoped } from '../shared/Logger.ts';
+
+const log = scoped('codegraph-adapter');
 
 const require = createRequire(import.meta.url);
 
@@ -99,7 +102,8 @@ export function readGraphFromDb(dbPath: string): { nodes: DbNodeRow[]; edges: Db
     } finally {
       db.close();
     }
-  } catch {
+  } catch (e) {
+    log.warn('readGraphFromDb failed', e);
     return null;
   }
 }

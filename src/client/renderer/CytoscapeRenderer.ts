@@ -126,14 +126,14 @@ export class CytoscapeRenderer implements IRenderer {
     if (hasStaleNodes) {
       const staleNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
       if (staleNodes.length > 0) this.cy.remove(staleNodes);
-      for (const id of [...this.currentNodes.keys()]) {
+      for (const id of this.currentNodes.keys()) {
         if (!newNodeIds.has(id)) this.currentNodes.delete(id);
       }
     }
     if (hasStaleEdges) {
       const staleEdges = this.cy.edges().filter((e) => !newEdgeIds.has(e.id()));
       if (staleEdges.length > 0) this.cy.remove(staleEdges);
-      for (const id of [...this.currentEdges.keys()]) {
+      for (const id of this.currentEdges.keys()) {
         if (!newEdgeIds.has(id)) this.currentEdges.delete(id);
       }
     }

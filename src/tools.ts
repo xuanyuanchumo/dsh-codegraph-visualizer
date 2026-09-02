@@ -8,6 +8,9 @@ import { LensAdapter } from './adapters/LensAdapter.ts';
 import { GraphDataMerger } from './merger/GraphDataMerger.ts';
 import type { AdapterResult, GraphData, GraphUpdatedEvent, GraphDataEvent, RepoId } from './types/index.ts';
 import { RepoId as makeRepoId } from './types/index.ts';
+import { scoped } from './shared/Logger.ts';
+
+const log = scoped('tools');
 
 export type { UpstreamInvoker } from './adapters/CodeGraphAdapter.ts';
 import type { UpstreamInvoker } from './adapters/CodeGraphAdapter.ts';
@@ -73,7 +76,7 @@ function summarizeGraph(data: GraphData): string {
 
 export function normalizeImpact(raw: unknown): { affected: string[]; depth: number } | null {
   if (typeof raw === 'string') {
-    try { raw = JSON.parse(raw) as unknown; } catch { return null; }
+    try { raw = JSON.parse(raw) as unknown; } catch { log.warn('normalizeImpact: JSON.parse failed'); return null; }
   }
   if (!raw || typeof raw !== 'object') return null;
   const obj = raw as Record<string, unknown>;
@@ -92,7 +95,7 @@ export function normalizeImpact(raw: unknown): { affected: string[]; depth: numb
 export function pickBestMatch(raw: unknown, symbolId: string): Record<string, unknown> | null {
   let payload = raw;
   if (typeof payload === 'string') {
-    try { payload = JSON.parse(payload) as unknown; } catch { return null; }
+    try { payload = JSON.parse(payload) as unknown; } catch { log.warn('normalizeCallers: JSON.parse failed'); return null; }
   }
   const items = Array.isArray(payload)
     ? payload
@@ -127,7 +130,8 @@ export function createInvoke(ctx: Context): UpstreamInvoker {
       });
       if (result.isError) return null;
       return result.value ?? null;
-    } catch {
+    } catch (e) {
+      log.warn('createInvoke: tool execution failed', { tool, error: e });
       return null;
     }
   };
