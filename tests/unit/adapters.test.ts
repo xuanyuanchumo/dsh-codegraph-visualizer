@@ -11,6 +11,7 @@ import { LensAdapter } from '../../src/adapters/LensAdapter.ts';
 import { GraphDataMerger } from '../../src/merger/GraphDataMerger.ts';
 import { summarizeGraph } from '../../src/tools.ts';
 import type { AdapterResult } from '../../src/types/index.ts';
+import { RepoId } from '../../src/types/index.ts';
 import type { UpstreamInvoker } from '../../src/adapters/CodeGraphAdapter.ts';
 import { makeNode, makeEdge, makeGraphData } from '../helpers.ts';
 import { createRequire } from 'node:module';
@@ -607,7 +608,7 @@ describe('GraphDataMerger', () => {
       },
     ];
 
-    const merged = merger.merge(results, 'test-repo');
+    const merged = merger.merge(results, RepoId('test-repo'));
     expect(merged.nodes).toHaveLength(2);
     expect(merged.edges).toHaveLength(2);
     expect(merged.metadata.nodeCount).toBe(2);
@@ -628,7 +629,7 @@ describe('GraphDataMerger', () => {
       },
     ];
 
-    const merged = merger.merge(results, 'test-repo');
+    const merged = merger.merge(results, RepoId('test-repo'));
     expect(merged.nodes).toHaveLength(1);
   });
 
@@ -745,7 +746,7 @@ describe('GraphDataMerger', () => {
   });
 
   it('should merge empty results array', () => {
-    const merged = merger.merge([], 'empty-repo');
+    const merged = merger.merge([], RepoId('empty-repo'));
     expect(merged.nodes).toEqual([]);
     expect(merged.edges).toEqual([]);
     expect(merged.metadata.nodeCount).toBe(0);
@@ -769,7 +770,7 @@ describe('GraphDataMerger', () => {
       },
     ];
 
-    const merged = merger.merge(results, 'test-repo');
+    const merged = merger.merge(results, RepoId('test-repo'));
     expect(merged.edges).toHaveLength(1);
     expect(merged.edges[0]?.type).toBe('import');
   });
@@ -784,7 +785,7 @@ describe('GraphDataMerger', () => {
       },
     ];
 
-    const merged = merger.merge(results, 'single-repo');
+    const merged = merger.merge(results, RepoId('single-repo'));
     expect(merged.nodes).toHaveLength(1);
     expect(merged.edges).toHaveLength(1);
     expect(merged.metadata.repoId).toBe('single-repo');
@@ -818,5 +819,92 @@ describe('summarizeGraph', () => {
     const summary = summarizeGraph(data);
     expect(summary).toContain('0 nodes');
     expect(summary).toContain('0 edges');
+  });
+});
+
+describe('applyDelta properties deep merge', () => {
+  it('should deep merge node properties: existing {a:1,b:2} + delta {b:3,c:4} = {a:1,b:3,c:4}', () => {
+    const merger = new GraphDataMerger();
+    const current = makeGraphData(
+      [makeNode('n1', 'A', 'function', 'a.ts', 1, { a: 1, b: 2 })],
+      [],
+      'test-repo',
+    );
+    const delta: AdapterResult = {
+      nodes: [makeNode('n1', 'A', 'function', 'a.ts', 1, { b: 3, c: 4 })],
+      edges: [],
+      source: 'codegraph',
+      timestamp: 2,
+    };
+    const result = merger.applyDelta(current, delta);
+    expect(result.nodes[0].properties).toEqual({ a: 1, b: 3, c: 4 });
+  });
+
+  it('should deep merge edge properties', () => {
+    const merger = new GraphDataMerger();
+    const current = makeGraphData(
+      [makeNode('n1', 'A', 'function', 'a.ts', 1)],
+      [makeEdge('e1', 'n1', 'n1', 'call', { x: 'old' })],
+      'test-repo',
+    );
+    const delta: AdapterResult = {
+      nodes: [],
+      edges: [makeEdge('e1', 'n1', 'n1', 'call', { x: 'new', y: 'added' })],
+      source: 'codegraph',
+      timestamp: 2,
+    };
+    const result = merger.applyDelta(current, delta);
+    expect(result.edges[0].properties).toEqual({ x: 'new', y: 'added' });
+  });
+
+  it('should preserve existing properties not in delta', () => {
+    const merger = new GraphDataMerger();
+    const current = makeGraphData(
+      [makeNode('n1', 'A', 'function', 'a.ts', 1, { a: 1, b: 2, c: 3 })],
+      [],
+      'test-repo',
+    );
+    const delta: AdapterResult = {
+      nodes: [makeNode('n1', 'A', 'function', 'a.ts', 1, { b: 99 })],
+      edges: [],
+      source: 'codegraph',
+      timestamp: 2,
+    };
+    const result = merger.applyDelta(current, delta);
+    expect(result.nodes[0].properties).toEqual({ a: 1, b: 99, c: 3 });
+  });
+
+  it('should keep all existing properties when delta properties is empty', () => {
+    const merger = new GraphDataMerger();
+    const current = makeGraphData(
+      [makeNode('n1', 'A', 'function', 'a.ts', 1, { a: 1, b: 2 })],
+      [],
+      'test-repo',
+    );
+    const delta: AdapterResult = {
+      nodes: [makeNode('n1', 'A', 'function', 'a.ts', 1, {})],
+      edges: [],
+      source: 'codegraph',
+      timestamp: 2,
+    };
+    const result = merger.applyDelta(current, delta);
+    expect(result.nodes[0].properties).toEqual({ a: 1, b: 2 });
+  });
+
+  it('should use delta properties when existing properties is empty', () => {
+    const merger = new GraphDataMerger();
+    const current = makeGraphData(
+      [makeNode('n1', 'A', 'function', 'a.ts', 1, {})],
+      [],
+      'test-repo',
+    );
+    const delta: AdapterResult = {
+      nodes: [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: 'new' })],
+      edges: [],
+      source: 'codegraph',
+      timestamp: 2,
+    };
+    const result = merger.applyDelta(current, delta);
+    expect(result.nodes[0].properties).toEqual({ x: 'new' });
   });
 });

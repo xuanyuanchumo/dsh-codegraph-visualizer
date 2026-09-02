@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import type { WorkspaceInfo } from '../store/graphStore.ts';
 import { useT } from '../i18n/index.ts';
+import { deriveWorkspaceName as deriveName } from '../utils/deriveName.ts';
 import { WorkspaceIcon, ChevronDownIcon, PlusIcon, CloseIcon, CheckIcon, FolderIcon } from './Icons.tsx';
 
 export interface WorkspaceSelectorProps {
@@ -20,10 +21,6 @@ function formatRelativeTime(ts: number): string {
   return `${Math.floor(diff / 86_400_000)}d ago`;
 }
 
-function deriveName(path: string): string {
-  const parts = path.replace(/[\\/]+$/, '').split(/[\\/]/);
-  return parts[parts.length - 1] || path;
-}
 
 export function WorkspaceSelector({
   currentWorkspace,

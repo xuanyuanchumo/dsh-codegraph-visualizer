@@ -40,6 +40,8 @@ export function useGraphRenderer(
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<IRenderer | null>(null);
   const [searchMatchCount, setSearchMatchCount] = useState<number | null>(null);
+  const callbacksRef = useRef(callbacks);
+  callbacksRef.current = callbacks;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -48,19 +50,18 @@ export function useGraphRenderer(
       theme,
       onNodeTap: (nodeId: string) => {
         const id = nodeId as NodeId;
-        callbacks.onNodeTap(id);
+        callbacksRef.current.onNodeTap(id);
         if (showCallChainRef.current) { rendererRef.current?.highlightCallChain(id); }
       },
-      onNodeDoubleTap: (nodeId: string) => callbacks.onNodeDoubleTap(nodeId),
-      onNodeHover: (nodeId: string, pos: { x: number; y: number }) => callbacks.onNodeHover(nodeId, pos),
-      onNodeHoverOut: () => callbacks.onNodeHoverOut(),
+      onNodeDoubleTap: (nodeId: string) => callbacksRef.current.onNodeDoubleTap(nodeId),
+      onNodeHover: (nodeId: string, pos: { x: number; y: number }) => callbacksRef.current.onNodeHover(nodeId, pos),
+      onNodeHoverOut: () => callbacksRef.current.onNodeHoverOut(),
     });
     renderer.init();
     rendererRef.current = renderer;
     log.info('renderer initialized', { theme });
     return () => { renderer.destroy(); rendererRef.current = null; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [callbacksRef, showCallChainRef]);
 
   useEffect(() => {
     rendererRef.current?.updateData(nodes, edges);

@@ -34,13 +34,6 @@ export interface GraphData {
         edgeCount: number;
     };
 }
-export interface IGraphVisualizerService {
-    getGraphData(repoId: RepoId): Promise<GraphData>;
-    subscribeGraphUpdate(repoId: RepoId, callback: (data: GraphData) => void): () => void;
-    searchSymbol(repoId: RepoId, query: string): Promise<GraphNode[]>;
-    getSymbolDetails(symbolId: SymbolId): Promise<GraphNode | null>;
-    exportGraph(repoId: RepoId, format: 'png' | 'svg' | 'json'): Promise<Blob>;
-}
 export type DataSourceType = 'codegraph' | 'lens';
 export interface AdapterResult {
     nodes: GraphNode[];
@@ -48,4 +41,79 @@ export interface AdapterResult {
     source: DataSourceType;
     timestamp: number;
 }
+export interface GraphUpdatedEvent {
+    repoId: string;
+    nodeCount: number;
+    edgeCount: number;
+    timestamp: number;
+}
+export interface GraphDataEvent {
+    repoId: string;
+    nodes: GraphNode[];
+    edges: GraphEdge[];
+    timestamp: number;
+}
+export interface RepoImportedEvent {
+    repoId: string;
+    path: string;
+    timestamp: number;
+}
+export interface RepoScannedEvent {
+    repoId: string;
+    fileCount: number;
+    timestamp: number;
+}
+export interface RepoRequestScanEvent {
+    path: string;
+    timestamp: number;
+}
+export interface SourceOpenEvent {
+    filePath: string;
+    lineNumber: number;
+}
+export interface PrerequisiteStatusEvent {
+    codegraph: boolean;
+    lens: boolean;
+    timestamp: number;
+}
+export interface GraphInitEvent {
+    path: string;
+    timestamp: number;
+}
+export interface GraphInitResultEvent {
+    success: boolean;
+    path: string;
+    message: string;
+    timestamp: number;
+}
+export interface WatchToggleEvent {
+    enabled: boolean;
+    path: string;
+    timestamp: number;
+}
+export interface WebServerRoute {
+    kind: 'exact' | 'prefix';
+    path: string;
+    handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>;
+}
+export interface WebServerService {
+    register(route: WebServerRoute): () => void;
+    registerFallback(handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void>): () => void;
+}
+export interface IncomingMessage {
+    url?: string;
+    method?: string;
+    headers: Record<string, string | string[] | undefined>;
+    on(event: 'data', handler: (chunk: Buffer) => void): void;
+    on(event: 'end', handler: () => void): void;
+    on(event: 'error', handler: (err: Error) => void): void;
+}
+export interface ServerResponse {
+    writeHead(code: number, headers?: Record<string, string>): void;
+    end(data?: string): void;
+}
+interface ModuleLoader {
+    load(registration: { id: string; factory: (require: (id: string) => unknown) => Record<string, unknown> }): void;
+}
+declare const __ModuleLoader__: ModuleLoader | undefined;
 //# sourceMappingURL=index.d.ts.map

@@ -1,5 +1,6 @@
 import React from 'react';
 import { useT } from '../i18n/index.ts';
+import { deriveWorkspaceName } from '../utils/deriveName.ts';
 
 interface StatusBarProps {
   error: string | null;
@@ -12,12 +13,6 @@ interface StatusBarProps {
 function formatTime(ts: number): string {
   const d = new Date(ts);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
-}
-
-function deriveWorkspaceName(path: string): string {
-  if (!path || path === '.') return '';
-  const parts = path.replace(/[\\/]+$/, '').split(/[\\/]/);
-  return parts[parts.length - 1] || path;
 }
 
 export function StatusBar({ error, isLoading, lastUpdated, watchEnabled, workspaceName }: StatusBarProps) {

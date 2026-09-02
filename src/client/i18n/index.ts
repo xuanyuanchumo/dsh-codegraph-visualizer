@@ -163,6 +163,10 @@ const en: Dict = {
   'prereq.detecting': 'Detecting prerequisite plugins…',
   'prereq.found': 'Prerequisite plugin detected',
   'prereq.notFound': 'Not detected',
+  'prereq.codegraphLabel': 'dsh-codegraph',
+  'prereq.lensLabel': 'dsh-tool-lens',
+  'prereq.codegraphDesc': 'Required for code graph data — provides 20+ language support and incremental indexing.',
+  'prereq.lensDesc': 'Optional — provides AST-precise analysis and impact detection.',
 
   // Graph initialization
   'graph.init': 'Initialize Graph',
@@ -337,6 +341,10 @@ const zh: Dict = {
   'prereq.detecting': '正在检测前置插件…',
   'prereq.found': '已检测到前置插件',
   'prereq.notFound': '未检测到',
+  'prereq.codegraphLabel': 'dsh-codegraph',
+  'prereq.lensLabel': 'dsh-tool-lens',
+  'prereq.codegraphDesc': '必需 — 提供 20+ 语言支持和增量索引。',
+  'prereq.lensDesc': '可选 — 提供 AST 精准分析和影响检测。',
 
   // 图谱初始化
   'graph.init': '初始化图谱',
@@ -405,7 +413,7 @@ export function t(key: string, params?: Record<string, string | number>): string
   let str = dicts[currentLang][key] ?? dicts.en[key] ?? key;
   if (params) {
     for (const [k, v] of Object.entries(params)) {
-      str = str.replace(`{${k}}`, String(v));
+      str = str.replaceAll(`{${k}}`, String(v));
     }
   }
   return str;

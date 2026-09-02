@@ -6,6 +6,7 @@ import { useGraphStore } from './store/graphStore.ts';
 import { GraphIcon } from './components/Icons.tsx';
 import { scoped } from '../shared/Logger.ts';
 import type { GraphData } from '../types/index.ts';
+import { validateGraphData } from './validators.ts';
 
 const log = scoped('client');
 
@@ -74,9 +75,7 @@ async function fetchGraphData(): Promise<GraphData | null> {
   try {
     const res = await fetch('/api/codegraph/data');
     if (!res.ok) return null;
-    const data = await res.json();
-    if (data.nodes && data.nodes.length > 0) return data;
-    return null;
+    return validateGraphData(await res.json());
   } catch {
     return null;
   }
@@ -279,7 +278,7 @@ export function apply(ctx: Context) {
           if (conn?.api?.workspace?.list) {
             const wsResult = await conn.api.workspace.list({});
             if (wsResult.result?.ok && wsResult.result.value?.items?.length) {
-              workspacePath = wsResult.result.value.items[0].path || '.';
+              workspacePath = wsResult.result.value.items[0]?.path || '.';
             }
           }
         } catch { /* best-effort */ }
@@ -311,9 +310,12 @@ export function apply(ctx: Context) {
         store.setLoading(true);
         const result = await requestScan(workspacePath);
         if (result && result.success && result.nodes.length > 0) {
-          const s = useGraphStore.getState();
-          s.setGraphData(result.nodes as never, result.edges as never, workspacePath);
-          log.info('graph data received', { path: workspacePath, nodes: result.nodes.length, edges: result.edges.length });
+          const validated = validateGraphData(result);
+          if (validated) {
+            const s = useGraphStore.getState();
+            s.setGraphData(validated.nodes, validated.edges, workspacePath);
+            log.info('graph data received', { path: workspacePath, nodes: validated.nodes.length, edges: validated.edges.length });
+          }
         }
         useGraphStore.getState().setLoading(false);
       };
@@ -348,8 +350,11 @@ export function apply(ctx: Context) {
       store.setLoading(true);
       requestScan(detail.path).then((result) => {
         if (result && result.success && result.nodes.length > 0) {
-          store.setGraphData(result.nodes as never, result.edges as never, detail.path);
-          log.info('import-repo completed', { path: detail.path, nodes: result.nodes.length });
+          const validated = validateGraphData(result);
+          if (validated) {
+            store.setGraphData(validated.nodes, validated.edges, detail.path);
+            log.info('import-repo completed', { path: detail.path, nodes: validated.nodes.length });
+          }
         }
         store.setLoading(false);
       });
@@ -394,7 +399,10 @@ export function apply(ctx: Context) {
       store.setLoading(true);
       requestScan(detail.path).then((result) => {
         if (result && result.success && result.nodes.length > 0) {
-          store.setGraphData(result.nodes as never, result.edges as never, detail.path);
+          const validated = validateGraphData(result);
+          if (validated) {
+            store.setGraphData(validated.nodes, validated.edges, detail.path);
+          }
         }
         store.setLoading(false);
       });

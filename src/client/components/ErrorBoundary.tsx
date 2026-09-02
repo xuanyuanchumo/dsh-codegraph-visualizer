@@ -1,6 +1,6 @@
 // Error boundary for graph visualization components
 import React, { Component, type ErrorInfo, type ReactNode } from 'react';
-import { t } from '../i18n/index.ts';
+import { useT } from '../i18n/index.ts';
 
 interface Props {
   children: ReactNode;
@@ -11,6 +11,19 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+}
+
+function ErrorFallback({ error, onRetry }: { error: Error | null; onRetry: () => void }) {
+  const t = useT();
+  return (
+    <div className="error-boundary-fallback" role="alert">
+      <h3>{t('error.title')}</h3>
+      <p>{error?.message}</p>
+      <button onClick={onRetry} aria-label={t('error.retry')}>
+        {t('error.retry')}
+      </button>
+    </div>
+  );
 }
 
 export class GraphErrorBoundary extends Component<Props, State> {
@@ -35,16 +48,10 @@ export class GraphErrorBoundary extends Component<Props, State> {
       }
 
       return (
-        <div className="error-boundary-fallback" role="alert">
-          <h3>{t('error.title')}</h3>
-          <p>{this.state.error?.message}</p>
-          <button
-            onClick={() => this.setState({ hasError: false, error: null })}
-            aria-label={t('error.retry')}
-          >
-            {t('error.retry')}
-          </button>
-        </div>
+        <ErrorFallback
+          error={this.state.error}
+          onRetry={() => this.setState({ hasError: false, error: null })}
+        />
       );
     }
 

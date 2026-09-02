@@ -3,6 +3,7 @@
 import { spawnSync } from 'node:child_process';
 import type { Context } from '@deepseek-ai/cordis';
 import { watch } from 'node:fs';
+import { resolve, normalize, isAbsolute } from 'node:path';
 import { createGraphTools, fetchMergedGraph } from './tools.ts';
 import { scoped } from './shared/Logger.ts';
 import type { GraphData, IncomingMessage, ServerResponse } from './types/index.ts';
@@ -11,6 +12,17 @@ const log = scoped('host');
 
 export const name = 'dsh-codegraph-visualizer';
 export const inject = ['tools', 'webServer'];
+
+let allowedWorkspaceRoots: string[] = [];
+
+export function isPathAllowed(path: string): boolean {
+  if (!path || path === '.') return true;
+  const normalized = normalize(path);
+  if (!isAbsolute(normalized)) return false;
+  if (normalized.includes('..')) return false;
+  if (allowedWorkspaceRoots.length === 0) return true;
+  return allowedWorkspaceRoots.some((root) => normalized === root || normalized.startsWith(root + '\\') || normalized.startsWith(root + '/'));
+}
 
 // Debounced file watcher for hot-update (host-side fs.watch).
 let watchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -119,6 +131,10 @@ export function apply(ctx: Context) {
       try {
         const body = await readBody(req);
         const { path } = JSON.parse(body || '{}') as { path?: string };
+        if (path && path !== '.' && !isPathAllowed(path)) {
+          sendJson(res, 403, { success: false, nodes: [], edges: [], metadata: { repoId: null, timestamp: 0, nodeCount: 0, edgeCount: 0 } });
+          return;
+        }
         const scanPath = path && path !== '.' ? path : findWorkspacePath();
         lastScanPath = scanPath;
         const repoId = scanPath || `workspace-${Date.now()}`;
@@ -153,6 +169,10 @@ export function apply(ctx: Context) {
       try {
         const body = await readBody(req);
         const { path } = JSON.parse(body || '{}') as { path?: string };
+        if (path && path !== '.' && !isPathAllowed(path)) {
+          sendJson(res, 403, { success: false, path: '', message: 'Path not allowed', timestamp: Date.now() });
+          return;
+        }
         const initPath = path && path !== '.' ? path : findWorkspacePath();
         log.info('init requested', { path: initPath });
         const result = await invokeUpstream('codegraph_init', { path: initPath, force: true });
@@ -197,6 +217,10 @@ export function apply(ctx: Context) {
       try {
         const body = await readBody(req);
         const { enabled, path } = JSON.parse(body || '{}') as { enabled?: boolean; path?: string };
+        if (path && path !== '.' && !isPathAllowed(path)) {
+          sendJson(res, 403, { success: false, message: 'Path not allowed' });
+          return;
+        }
         const watchPath = path && path !== '.' ? path : findWorkspacePath();
         ctx.emit('codegraph/watch/toggle', { enabled: !!enabled, path: watchPath, timestamp: Date.now() });
         sendJson(res, 200, { success: true });

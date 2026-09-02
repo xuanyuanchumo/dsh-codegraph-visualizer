@@ -1,7 +1,7 @@
 // Graph tool definitions: adapters + merger wrapped as DSH `defineTool` tools.
 import type { Context } from '@deepseek-ai/cordis';
 import { defineTool } from '@deepseek-ai/dsh-tools';
-import type { CallId } from '@deepseek-ai/dsh-llm';
+import { CallId } from '@deepseek-ai/dsh-llm';
 import type { JsonValue } from '@deepseek-ai/dsh-session';
 import { CodeGraphAdapter } from './adapters/CodeGraphAdapter.ts';
 import { LensAdapter } from './adapters/LensAdapter.ts';
@@ -40,7 +40,7 @@ async function fetchMergedGraph(
   if (source === 'lens' || source === 'both') {
     results.push(await lensAdapter.fetchData(repoId, invoke));
   }
-  return merger.merge(results, repoId);
+  return merger.merge(results, makeRepoId(repoId));
 }
 
 function summarizeGraph(data: GraphData): string {
@@ -116,7 +116,7 @@ export function createInvoke(ctx: Context): UpstreamInvoker {
   return async (tool, args) => {
     try {
       const result = await ctx.tools.execute({
-        callId: `codegraph:${tool}` as CallId,
+        callId: CallId(`codegraph:${tool}`),
         name: tool,
         arguments: args,
         signal: AbortSignal.timeout(5000),

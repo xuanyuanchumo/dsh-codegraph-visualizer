@@ -26,6 +26,10 @@ interface GraphPanelProps {
 function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const t = useT();
   const panelRef = useRef<HTMLDivElement>(null);
+  const getDataRef = useRef<{
+    getSelectedNodeData: () => GraphNode | null;
+    getNodeData: (id: string) => GraphNode | null;
+  } | null>(null);
   const [selectedNodeData, setSelectedNodeData] = useState<GraphNode | null>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; name: string; path: string; type: string } | null>(null);
 
@@ -33,10 +37,6 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     nodes, edges, layout, theme, searchQuery, selectedNodeId,
     highlightedNodeIds, filterType, graphType, isLoading, error, lastUpdated,
     prerequisites, watchEnabled, currentWorkspace, workspaceList,
-    setLayout, setTheme, setSearchQuery,
-    setSelectedNode, setFilterType, setGraphType, setLoading,
-    setCurrentWorkspace, addWorkspace, removeWorkspace,
-    setGraphData, setInitStatus, setWatchEnabled, setError,
     initStatus,
   } = useGraphStore(useShallow((s) => ({
     nodes: s.nodes, edges: s.edges, layout: s.layout, theme: s.theme,
@@ -46,14 +46,23 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     isLoading: s.isLoading, error: s.error, lastUpdated: s.lastUpdated,
     prerequisites: s.prerequisites, watchEnabled: s.watchEnabled,
     currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
-    setLayout: s.setLayout, setTheme: s.setTheme, setSearchQuery: s.setSearchQuery,
-    setSelectedNode: s.setSelectedNode, setFilterType: s.setFilterType,
-    setGraphType: s.setGraphType,
-    setLoading: s.setLoading,
-    setCurrentWorkspace: s.setCurrentWorkspace, addWorkspace: s.addWorkspace, removeWorkspace: s.removeWorkspace,
-    setGraphData: s.setGraphData, setInitStatus: s.setInitStatus, setWatchEnabled: s.setWatchEnabled, setError: s.setError,
     initStatus: s.initStatus,
   })));
+
+  const setLayout = useGraphStore((s) => s.setLayout);
+  const setTheme = useGraphStore((s) => s.setTheme);
+  const setSearchQuery = useGraphStore((s) => s.setSearchQuery);
+  const setSelectedNode = useGraphStore((s) => s.setSelectedNode);
+  const setFilterType = useGraphStore((s) => s.setFilterType);
+  const setGraphType = useGraphStore((s) => s.setGraphType);
+  const setLoading = useGraphStore((s) => s.setLoading);
+  const setCurrentWorkspace = useGraphStore((s) => s.setCurrentWorkspace);
+  const addWorkspace = useGraphStore((s) => s.addWorkspace);
+  const removeWorkspace = useGraphStore((s) => s.removeWorkspace);
+  const setGraphData = useGraphStore((s) => s.setGraphData);
+  const setInitStatus = useGraphStore((s) => s.setInitStatus);
+  const setWatchEnabled = useGraphStore((s) => s.setWatchEnabled);
+  const setError = useGraphStore((s) => s.setError);
 
   const panel = usePanelState();
   const debouncedSearch = useDebounce(searchQuery, 200);
@@ -85,12 +94,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const handleNodeTap = useCallback((id: NodeId) => {
     setSelectedNode(id);
-    const data = renderer.rendererRef.current?.getSelectedNodeData() ?? null;
+    const data = getDataRef.current?.getSelectedNodeData() ?? null;
     setSelectedNodeData(data);
   }, [setSelectedNode]);
 
   const handleNodeDoubleTap = useCallback((nodeId: string) => {
-    const data = renderer.rendererRef.current?.getSelectedNodeData();
+    const data = getDataRef.current?.getSelectedNodeData();
     if (data) {
       window.dispatchEvent(new CustomEvent('codegraph:open-source', {
         detail: { filePath: data.filePath, lineNumber: data.lineNumber, nodeId },
@@ -99,7 +108,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, []);
 
   const handleNodeHover = useCallback((nodeId: string, pos: { x: number; y: number }) => {
-    const data = renderer.rendererRef.current?.getNodeData(nodeId);
+    const data = getDataRef.current?.getNodeData(nodeId);
     if (data) {
       setTooltip({ x: pos.x, y: pos.y, name: data.label, path: `${data.filePath}:${data.lineNumber}`, type: data.type });
     }
@@ -114,6 +123,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut },
     showCallChainRef,
   );
+
+  getDataRef.current = {
+    getSelectedNodeData: () => renderer.rendererRef.current?.getSelectedNodeData() ?? null,
+    getNodeData: (id: string) => renderer.rendererRef.current?.getNodeData(id) ?? null,
+  };
 
   usePanelResize(panelRef, renderer.rendererRef);
 
@@ -132,7 +146,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const requestRefresh = useCallback(() => {
     window.dispatchEvent(new CustomEvent('codegraph:refresh'));
   }, []);
-  usePolling(requestRefresh, 3000, !panel.collapsed);
+  usePolling(requestRefresh, watchEnabled ? 2000 : 5000, !panel.collapsed);
 
   const handleThemeToggle = useCallback(() => {
     const newTheme: ThemeType = theme === 'dark' ? 'light' : 'dark';
