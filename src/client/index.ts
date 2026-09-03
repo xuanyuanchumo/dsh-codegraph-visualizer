@@ -266,8 +266,9 @@ export function apply(ctx: Context) {
 
     // Poll every 10s when prerequisites are missing.
     const prereqInterval = setInterval(async () => {
+      if (document.hidden) return;
       const s = useGraphStore.getState();
-      if (s.prerequisites.codegraph || s.prerequisites.lens) {
+      if (s.prerequisites.codegraph && s.prerequisites.lens) {
         clearInterval(prereqInterval);
         return;
       }
@@ -322,10 +323,11 @@ export function apply(ctx: Context) {
     }
 
     // ── DSH workspace change detection ────────────────────────────────
-    // Poll DSH workspace every 3s. When DSH main window switches workspace,
+    // Poll DSH workspace every 5s. When DSH main window switches workspace,
     // sync the plugin's currentWorkspace and trigger re-scan.
     // Plugin-internal workspace switches do NOT affect DSH main window.
     const workspacePoll = setInterval(async () => {
+      if (document.hidden) return;
       const { path: dshCurrent, list: dshList } = await fetchWorkspace();
       if (dshCurrent && dshCurrent !== lastDshWorkspace) {
         log.info('DSH workspace changed', { from: lastDshWorkspace, to: dshCurrent });
@@ -342,7 +344,7 @@ export function apply(ctx: Context) {
           s.addWorkspace(p, p.split(/[\\/]/).pop() ?? p);
         }
       }
-    }, 3000);
+    }, 5000);
     ctx.effect(() => () => clearInterval(workspacePoll), 'codegraph: workspace polling');
   }
 

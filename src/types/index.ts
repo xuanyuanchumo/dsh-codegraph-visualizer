@@ -51,6 +51,7 @@ export interface AdapterResult {
   edges: GraphEdge[];
   source: DataSourceType;
   timestamp: number;
+  error?: string;
 }
 
 // ---- Graph heat-update event payloads -------------------------------------

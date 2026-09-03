@@ -184,13 +184,43 @@ export function apply(ctx: Context) {
   };
 
 
+  const MAX_BODY_BYTES = 1024 * 1024;
+
   const readBody = (req: IncomingMessage): Promise<string> => {
     return new Promise((resolve, reject) => {
       let body = '';
-      req.on('data', (chunk?: Buffer) => { if (chunk) body += chunk.toString(); });
+      let totalBytes = 0;
+      req.on('data', (chunk?: Buffer) => {
+        if (!chunk) return;
+        totalBytes += chunk.length;
+        if (totalBytes > MAX_BODY_BYTES) {
+          reject(new Error('Request body too large'));
+
+          return;
+        }
+        body += chunk.toString();
+      });
       req.on('end', () => resolve(body));
       req.on('error', reject);
     });
+  };
+
+  const parseJsonBody = (body: string): Record<string, unknown> => {
+    const parsed = JSON.parse(body || '{}');
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      throw new Error('Invalid JSON body: expected object');
+    }
+    return parsed as Record<string, unknown>;
+  };
+
+  const extractStringField = (obj: Record<string, unknown>, field: string): string | undefined => {
+    const v = obj[field];
+    return typeof v === 'string' ? v : undefined;
+  };
+
+  const extractBooleanField = (obj: Record<string, unknown>, field: string): boolean | undefined => {
+    const v = obj[field];
+    return typeof v === 'boolean' ? v : undefined;
   };
 
   // GET /api/codegraph/status — prerequisite check
@@ -235,7 +265,8 @@ export function apply(ctx: Context) {
     handler: async (req: IncomingMessage, res: ServerResponse) => {
       try {
         const body = await readBody(req);
-        const { path } = JSON.parse(body || '{}') as { path?: string };
+        const parsed = parseJsonBody(body);
+        const path = extractStringField(parsed, 'path');
         if (path && path !== '.' && !isPathAllowed(path)) {
           sendJson(res, 403, { success: false, nodes: [], edges: [], metadata: { repoId: null, timestamp: 0, nodeCount: 0, edgeCount: 0 } });
           return;
@@ -288,7 +319,7 @@ export function apply(ctx: Context) {
         }
       } catch (e) {
         log.error('scan failed', e);
-        sendJson(res, 200, { success: false, nodes: [], edges: [], metadata: { repoId: null, timestamp: 0, nodeCount: 0, edgeCount: 0 } });
+        sendJson(res, 500, { success: false, nodes: [], edges: [], metadata: { repoId: null, timestamp: 0, nodeCount: 0, edgeCount: 0 } });
       }
     },
   }), 'codegraph: scan route');
@@ -300,7 +331,8 @@ export function apply(ctx: Context) {
     handler: async (req: IncomingMessage, res: ServerResponse) => {
       try {
         const body = await readBody(req);
-        const { path } = JSON.parse(body || '{}') as { path?: string };
+        const parsed = parseJsonBody(body);
+        const path = extractStringField(parsed, 'path');
         if (path && path !== '.' && !isPathAllowed(path)) {
           sendJson(res, 403, { success: false, path: '', message: 'Path not allowed', timestamp: Date.now() });
           return;
@@ -336,7 +368,7 @@ export function apply(ctx: Context) {
           timestamp: Date.now(),
         };
         lastInitResult = errorResult;
-        sendJson(res, 200, errorResult);
+        sendJson(res, 500, errorResult);
       }
     },
   }), 'codegraph: init route');
@@ -348,7 +380,9 @@ export function apply(ctx: Context) {
     handler: async (req: IncomingMessage, res: ServerResponse) => {
       try {
         const body = await readBody(req);
-        const { enabled, path } = JSON.parse(body || '{}') as { enabled?: boolean; path?: string };
+        const parsed = parseJsonBody(body);
+        const enabled = extractBooleanField(parsed, 'enabled');
+        const path = extractStringField(parsed, 'path');
         if (path && path !== '.' && !isPathAllowed(path)) {
           sendJson(res, 403, { success: false, message: 'Path not allowed' });
           return;
@@ -357,7 +391,7 @@ export function apply(ctx: Context) {
         ctx.emit('codegraph/watch/toggle', { enabled: !!enabled, path: watchPath, timestamp: Date.now() });
         sendJson(res, 200, { success: true });
       } catch (e) {
-        sendJson(res, 200, { success: false, message: e instanceof Error ? e.message : String(e) });
+        sendJson(res, 500, { success: false, message: e instanceof Error ? e.message : String(e) });
       }
     },
   }), 'codegraph: watch route');

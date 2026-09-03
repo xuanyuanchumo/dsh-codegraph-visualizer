@@ -252,20 +252,40 @@ export class CytoscapeRenderer implements IRenderer {
     });
   }
 
+  private highlightedNodeIds: Set<string> = new Set();
+
   highlightNodes(nodeIds: NodeId[]): void {
     if (!this.cy) return;
-    const idSet = new Set(nodeIds);
+    const newSet = new Set<string>(nodeIds);
 
     this.cy.batch(() => {
-      this.cy!.nodes().forEach((node) => {
-        node.toggleClass('highlighted', idSet.has(node.id() as NodeId));
-      });
+      const nodesToUnhighlight: string[] = [];
+      const nodesToHighlight: string[] = [];
+      for (const id of this.highlightedNodeIds) {
+        if (!newSet.has(id)) nodesToUnhighlight.push(id);
+      }
+      for (const id of newSet) {
+        if (!this.highlightedNodeIds.has(id)) nodesToHighlight.push(id);
+      }
+
+      for (const id of nodesToUnhighlight) {
+        const node = this.cy!.getElementById(id);
+        if (node.nonempty()) node.removeClass('highlighted');
+      }
+      for (const id of nodesToHighlight) {
+        const node = this.cy!.getElementById(id);
+        if (node.nonempty()) node.addClass('highlighted');
+      }
+
       this.cy!.edges().forEach((edge) => {
-        const srcId = edge.source().id() as NodeId;
-        const tgtId = edge.target().id() as NodeId;
-        edge.toggleClass('highlighted', idSet.has(srcId) || idSet.has(tgtId));
+        const srcId = edge.source().id();
+        const tgtId = edge.target().id();
+        const shouldHighlight = newSet.has(srcId) || newSet.has(tgtId);
+        edge.toggleClass('highlighted', shouldHighlight);
       });
     });
+
+    this.highlightedNodeIds = newSet;
   }
 
   selectNode(nodeId: NodeId | null): void {
@@ -368,15 +388,32 @@ export class CytoscapeRenderer implements IRenderer {
     }
     const q = query.toLowerCase();
     let matches = 0;
+    let firstMatchId: string | null = null;
     this.cy.batch(() => {
       this.cy!.nodes().forEach((node) => {
         const label = node.data('label');
         const isMatch = typeof label === 'string' && label.toLowerCase().includes(q);
         node.toggleClass('search-match', isMatch);
-        if (isMatch) matches++;
+        if (isMatch) {
+          matches++;
+          if (firstMatchId === null) firstMatchId = node.id();
+        }
       });
     });
+    if (firstMatchId) this.focusOnNode(firstMatchId);
     return matches;
+  }
+
+  focusOnNode(nodeId: string): void {
+    if (!this.cy) return;
+    const node = this.cy.getElementById(nodeId);
+    if (node.nonempty()) {
+      this.cy.animate({
+        center: { eles: node },
+        zoom: Math.max(this.cy.zoom(), 1.2),
+        duration: 300,
+      });
+    }
   }
 
   highlightCallChain(nodeId: NodeId | null): void {
@@ -624,6 +661,17 @@ export class CytoscapeRenderer implements IRenderer {
           'border-width': 3,
           'border-color': readCssVar('--cg-warning', '#f59e0b'),
           'opacity': 0.9,
+          'z-index': 25,
+        },
+      },
+      {
+        selector: 'edge.call-chain',
+        style: {
+          'line-color': readCssVar('--cg-warning', '#f59e0b'),
+          'target-arrow-color': readCssVar('--cg-warning', '#f59e0b'),
+          'width': 3,
+          'opacity': 1,
+          'z-index': 25,
         },
       },
       {

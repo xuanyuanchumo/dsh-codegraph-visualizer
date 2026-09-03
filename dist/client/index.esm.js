@@ -39359,19 +39359,31 @@ var CytoscapeRenderer = class {
 			this.layoutRaf = null;
 		});
 	}
+	highlightedNodeIds = new Set();
 	highlightNodes(nodeIds) {
 		if (!this.cy) return;
-		const idSet = new Set(nodeIds);
+		const newSet = new Set(nodeIds);
 		this.cy.batch(() => {
-			this.cy.nodes().forEach((node) => {
-				node.toggleClass("highlighted", idSet.has(node.id()));
-			});
+			const nodesToUnhighlight = [];
+			const nodesToHighlight = [];
+			for (const id of this.highlightedNodeIds) if (!newSet.has(id)) nodesToUnhighlight.push(id);
+			for (const id of newSet) if (!this.highlightedNodeIds.has(id)) nodesToHighlight.push(id);
+			for (const id of nodesToUnhighlight) {
+				const node = this.cy.getElementById(id);
+				if (node.nonempty()) node.removeClass("highlighted");
+			}
+			for (const id of nodesToHighlight) {
+				const node = this.cy.getElementById(id);
+				if (node.nonempty()) node.addClass("highlighted");
+			}
 			this.cy.edges().forEach((edge) => {
 				const srcId = edge.source().id();
 				const tgtId = edge.target().id();
-				edge.toggleClass("highlighted", idSet.has(srcId) || idSet.has(tgtId));
+				const shouldHighlight = newSet.has(srcId) || newSet.has(tgtId);
+				edge.toggleClass("highlighted", shouldHighlight);
 			});
 		});
+		this.highlightedNodeIds = newSet;
 	}
 	selectNode(nodeId) {
 		if (!this.cy) return;
@@ -39477,15 +39489,29 @@ var CytoscapeRenderer = class {
 		}
 		const q = query.toLowerCase();
 		let matches$2 = 0;
+		let firstMatchId = null;
 		this.cy.batch(() => {
 			this.cy.nodes().forEach((node) => {
 				const label = node.data("label");
 				const isMatch = typeof label === "string" && label.toLowerCase().includes(q);
 				node.toggleClass("search-match", isMatch);
-				if (isMatch) matches$2++;
+				if (isMatch) {
+					matches$2++;
+					if (firstMatchId === null) firstMatchId = node.id();
+				}
 			});
 		});
+		if (firstMatchId) this.focusOnNode(firstMatchId);
 		return matches$2;
+	}
+	focusOnNode(nodeId) {
+		if (!this.cy) return;
+		const node = this.cy.getElementById(nodeId);
+		if (node.nonempty()) this.cy.animate({
+			center: { eles: node },
+			zoom: Math.max(this.cy.zoom(), 1.2),
+			duration: 300
+		});
 	}
 	highlightCallChain(nodeId) {
 		if (!this.cy) return;
@@ -39733,7 +39759,18 @@ var CytoscapeRenderer = class {
 					"background-color": readCssVar("--cg-warning", "#f59e0b"),
 					"border-width": 3,
 					"border-color": readCssVar("--cg-warning", "#f59e0b"),
-					"opacity": .9
+					"opacity": .9,
+					"z-index": 25
+				}
+			},
+			{
+				selector: "edge.call-chain",
+				style: {
+					"line-color": readCssVar("--cg-warning", "#f59e0b"),
+					"target-arrow-color": readCssVar("--cg-warning", "#f59e0b"),
+					"width": 3,
+					"opacity": 1,
+					"z-index": 25
 				}
 			},
 			{
@@ -40051,6 +40088,7 @@ function usePanelKeyboard(layout$2, setLayout, rendererRef, handlers) {
 		setLayoutRef.current(next);
 	}, { ctrl: true });
 	useKeyboardShortcut("i", () => handlersRef.current.onToggleImport(), { ctrl: true });
+	useKeyboardShortcut("?", () => handlersRef.current.onToggleHelp(), { preventDefault: true });
 }
 
 //#endregion
@@ -40286,7 +40324,16 @@ const en = {
 	"empty.prereqDesc": "Install dsh-codegraph or dsh-tool-lens for full functionality:",
 	"empty.copyCmd": "Copy install command",
 	"empty.copied": "Copied!",
-	"empty.scanWorkspace": "Scan Current Workspace"
+	"empty.scanWorkspace": "Scan Current Workspace",
+	"shortcut.title": "Keyboard Shortcuts",
+	"shortcut.close": "Close",
+	"shortcut.search": "Search symbols",
+	"shortcut.closeAll": "Close all panels",
+	"shortcut.callChain": "Toggle call chain",
+	"shortcut.minimap": "Toggle mini-map",
+	"shortcut.layout": "Cycle layout",
+	"shortcut.import": "Toggle import panel",
+	"shortcut.help": "Show this help"
 };
 const zh = {
 	"panel.ariaLabel": "代码图谱可视化",
@@ -40437,7 +40484,16 @@ const zh = {
 	"empty.prereqDesc": "安装 dsh-codegraph 或 dsh-tool-lens 以获得完整功能：",
 	"empty.copyCmd": "复制安装命令",
 	"empty.copied": "已复制！",
-	"empty.scanWorkspace": "扫描当前工作区"
+	"empty.scanWorkspace": "扫描当前工作区",
+	"shortcut.title": "键盘快捷键",
+	"shortcut.close": "关闭",
+	"shortcut.search": "搜索符号",
+	"shortcut.closeAll": "关闭所有面板",
+	"shortcut.callChain": "切换调用链",
+	"shortcut.minimap": "切换缩略图",
+	"shortcut.layout": "循环切换布局",
+	"shortcut.import": "切换导入面板",
+	"shortcut.help": "显示此帮助"
 };
 const dicts = {
 	zh,
@@ -42196,6 +42252,72 @@ function ErrorOverlay({ error: error$1 }) {
 }
 
 //#endregion
+//#region src/client/components/KeyboardHelp.tsx
+const SHORTCUTS = [
+	{
+		key: "/",
+		descKey: "shortcut.search"
+	},
+	{
+		key: "Esc",
+		descKey: "shortcut.closeAll"
+	},
+	{
+		key: "Ctrl+C",
+		descKey: "shortcut.callChain"
+	},
+	{
+		key: "Ctrl+M",
+		descKey: "shortcut.minimap"
+	},
+	{
+		key: "Ctrl+L",
+		descKey: "shortcut.layout"
+	},
+	{
+		key: "Ctrl+I",
+		descKey: "shortcut.import"
+	},
+	{
+		key: "?",
+		descKey: "shortcut.help"
+	}
+];
+function KeyboardHelp({ visible, onClose }) {
+	const t$1 = useT();
+	if (!visible) return null;
+	return /* @__PURE__ */ jsx("div", {
+		className: "keyboard-help-overlay",
+		onClick: onClose,
+		children: /* @__PURE__ */ jsxs("div", {
+			className: "keyboard-help-panel",
+			onClick: (e) => e.stopPropagation(),
+			children: [/* @__PURE__ */ jsxs("div", {
+				className: "keyboard-help-header",
+				children: [/* @__PURE__ */ jsx("span", { children: t$1("shortcut.title") }), /* @__PURE__ */ jsx("button", {
+					className: "keyboard-help-close",
+					onClick: onClose,
+					"aria-label": t$1("shortcut.close"),
+					children: "×"
+				})]
+			}), /* @__PURE__ */ jsx("div", {
+				className: "keyboard-help-list",
+				children: SHORTCUTS.map((s) => /* @__PURE__ */ jsxs("div", {
+					className: "keyboard-help-item",
+					children: [/* @__PURE__ */ jsx("kbd", {
+						className: "keyboard-help-key",
+						children: s.key
+					}), /* @__PURE__ */ jsx("span", {
+						className: "keyboard-help-desc",
+						children: t$1(s.descKey)
+					})]
+				}, s.key))
+			})]
+		})
+	});
+}
+
+//#endregion
 //#region src/client/GraphPanel.tsx
 const log$1 = scoped("panel");
 function GraphPanelInner({ className = "" }) {
@@ -42204,6 +42326,7 @@ function GraphPanelInner({ className = "" }) {
 	const getDataRef = useRef(null);
 	const [selectedNodeData, setSelectedNodeData] = useState(null);
 	const [tooltip, setTooltip] = useState(null);
+	const [showHelp, setShowHelp] = useState(false);
 	const { nodes, edges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, depthLevel, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, totalEdgeCount } = useGraphStore(useShallow((s) => ({
 		nodes: s.nodes,
 		edges: s.edges,
@@ -42327,11 +42450,13 @@ function GraphPanelInner({ className = "" }) {
 			panel.setShowImport(false);
 			panel.setShowLegend(false);
 			setTooltip(null);
+			setShowHelp(false);
 		},
 		onToggleCallChain: panel.toggleCallChain,
 		onToggleMiniMap: panel.toggleMiniMap,
 		onCycleLayout: () => {},
-		onToggleImport: panel.toggleImport
+		onToggleImport: panel.toggleImport,
+		onToggleHelp: () => setShowHelp((v) => !v)
 	});
 	const requestRefresh = useCallback(() => {
 		window.dispatchEvent(new CustomEvent("codegraph:refresh"));
@@ -42472,6 +42597,10 @@ function GraphPanelInner({ className = "" }) {
 				onClose: () => panel.setShowMiniMap(false)
 			}),
 			tooltip && /* @__PURE__ */ jsx(GraphTooltip, { data: tooltip }),
+			/* @__PURE__ */ jsx(KeyboardHelp, {
+				visible: showHelp,
+				onClose: () => setShowHelp(false)
+			}),
 			/* @__PURE__ */ jsx(StatusBar, {
 				error: error$1,
 				isLoading,
@@ -42777,8 +42906,9 @@ function apply(ctx) {
 		const prereqTimer = setTimeout(checkStatus, 3e3);
 		ctx.effect(() => () => clearTimeout(prereqTimer), "codegraph: prereq re-check timer");
 		const prereqInterval = setInterval(async () => {
+			if (document.hidden) return;
 			const s = useGraphStore.getState();
-			if (s.prerequisites.codegraph || s.prerequisites.lens) {
+			if (s.prerequisites.codegraph && s.prerequisites.lens) {
 				clearInterval(prereqInterval);
 				return;
 			}
@@ -42822,6 +42952,7 @@ function apply(ctx) {
 		};
 		if (store.nodes.length === 0 && !store.isLoading) getWorkspaceAndScan();
 		const workspacePoll = setInterval(async () => {
+			if (document.hidden) return;
 			const { path: dshCurrent, list: dshList } = await fetchWorkspace();
 			if (dshCurrent && dshCurrent !== lastDshWorkspace) {
 				log.info("DSH workspace changed", {
@@ -42837,7 +42968,7 @@ function apply(ctx) {
 				const s = useGraphStore.getState();
 				if (!s.workspaceList.some((w) => w.path === p$1)) s.addWorkspace(p$1, p$1.split(/[\\/]/).pop() ?? p$1);
 			}
-		}, 3e3);
+		}, 5e3);
 		ctx.effect(() => () => clearInterval(workspacePoll), "codegraph: workspace polling");
 	}
 	if (typeof window !== "undefined") {

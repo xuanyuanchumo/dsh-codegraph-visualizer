@@ -8,8 +8,18 @@ export class GraphDataMerger {
     const edges = new Map<string, GraphEdge>();
 
     for (const r of results) {
-      for (const node of r.nodes) nodes.set(node.id, node);
-      for (const edge of r.edges) edges.set(edge.id, edge);
+      for (const node of r.nodes) {
+        nodes.set(node.id, {
+          ...node,
+          properties: { ...node.properties, __source: r.source },
+        });
+      }
+      for (const edge of r.edges) {
+        edges.set(edge.id, {
+          ...edge,
+          properties: { ...edge.properties, __source: r.source },
+        });
+      }
     }
 
     return {

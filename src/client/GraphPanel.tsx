@@ -15,6 +15,7 @@ import { EmptyState } from './components/EmptyState.tsx';
 import { GraphTooltip, type TooltipData } from './components/GraphTooltip.tsx';
 import { LoadingOverlay } from './components/LoadingOverlay.tsx';
 import { ErrorOverlay } from './components/ErrorOverlay.tsx';
+import { KeyboardHelp } from './components/KeyboardHelp.tsx';
 import { GraphIcon } from './components/Icons.tsx';
 import { scoped } from '../shared/Logger.ts';
 import { useT } from './i18n/index.ts';
@@ -35,6 +36,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   } | null>(null);
   const [selectedNodeData, setSelectedNodeData] = useState<GraphNode | null>(null);
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
 
   const {
     nodes, edges, layout, theme, searchQuery, selectedNodeId,
@@ -160,12 +162,13 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     onToggleSearch: panel.toggleSearch,
     onCloseAll: () => {
       panel.setShowSearch(false); panel.setShowCallChain(false); panel.setShowCycles(false);
-      panel.setShowImport(false); panel.setShowLegend(false); setTooltip(null);
+      panel.setShowImport(false); panel.setShowLegend(false); setTooltip(null); setShowHelp(false);
     },
     onToggleCallChain: panel.toggleCallChain,
     onToggleMiniMap: panel.toggleMiniMap,
     onCycleLayout: () => {},
     onToggleImport: panel.toggleImport,
+    onToggleHelp: () => setShowHelp((v) => !v),
   });
 
   const requestRefresh = useCallback(() => {
@@ -303,6 +306,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       )}
 
       {tooltip && <GraphTooltip data={tooltip} />}
+
+      <KeyboardHelp visible={showHelp} onClose={() => setShowHelp(false)} />
 
       <StatusBar error={error} isLoading={isLoading} lastUpdated={lastUpdated} watchEnabled={watchEnabled} workspaceName={currentWorkspace} truncated={truncated} totalNodeCount={totalNodeCount} totalEdgeCount={totalEdgeCount} />
 

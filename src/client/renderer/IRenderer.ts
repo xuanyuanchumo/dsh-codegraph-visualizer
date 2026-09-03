@@ -26,6 +26,7 @@ export interface IRenderer {
   filterByGraphType(graphType: 'all' | 'call' | 'dependency'): void;
   filterByDepth(level: 1 | 2 | 3 | 'all'): void;
   search(query: string): number;
+  focusOnNode(nodeId: string): void;
   highlightCallChain(nodeId: NodeId | null): void;
   detectCycles(): Set<string>;
   highlightCycles(cycleIds: Set<string>): void;

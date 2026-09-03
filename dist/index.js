@@ -1112,7 +1112,9 @@ var LensAdapter = class {
 				source: this.source,
 				timestamp: Date.now()
 			};
-			const nodes = raw.symbols.map((s) => ({
+			const symbols = Array.isArray(raw.symbols) ? raw.symbols : [];
+			const references = Array.isArray(raw.references) ? raw.references : [];
+			const nodes = symbols.map((s) => ({
 				id: NodeId(s.id),
 				label: s.name,
 				type: this.mapCategory(s.category),
@@ -1120,7 +1122,7 @@ var LensAdapter = class {
 				lineNumber: s.line,
 				properties: { scope: s.scope }
 			}));
-			const edges = raw.references.map((r) => ({
+			const edges = references.map((r) => ({
 				id: EdgeId(`${r.from}->${r.to}`),
 				source: NodeId(r.from),
 				target: NodeId(r.to),
@@ -1134,12 +1136,14 @@ var LensAdapter = class {
 				timestamp: Date.now()
 			};
 		} catch (e) {
+			const errorMsg = e instanceof Error ? e.message : String(e);
 			log$2.warn("Lens fetchData failed — lens is optional, returning empty", e);
 			return {
 				nodes: [],
 				edges: [],
 				source: this.source,
-				timestamp: Date.now()
+				timestamp: Date.now(),
+				error: errorMsg
 			};
 		}
 	}
@@ -1173,8 +1177,20 @@ var GraphDataMerger = class {
 		const nodes = new Map();
 		const edges = new Map();
 		for (const r of results) {
-			for (const node of r.nodes) nodes.set(node.id, node);
-			for (const edge of r.edges) edges.set(edge.id, edge);
+			for (const node of r.nodes) nodes.set(node.id, {
+				...node,
+				properties: {
+					...node.properties,
+					__source: r.source
+				}
+			});
+			for (const edge of r.edges) edges.set(edge.id, {
+				...edge,
+				properties: {
+					...edge.properties,
+					__source: r.source
+				}
+			});
 		}
 		return {
 			nodes: Array.from(nodes.values()),
@@ -1683,15 +1699,36 @@ function apply(ctx) {
 		}
 		return [process.cwd()];
 	};
+	const MAX_BODY_BYTES = 1024 * 1024;
 	const readBody = (req) => {
 		return new Promise((resolve, reject) => {
 			let body = "";
+			let totalBytes = 0;
 			req.on("data", (chunk) => {
-				if (chunk) body += chunk.toString();
+				if (!chunk) return;
+				totalBytes += chunk.length;
+				if (totalBytes > MAX_BODY_BYTES) {
+					reject(new Error("Request body too large"));
+					return;
+				}
+				body += chunk.toString();
 			});
 			req.on("end", () => resolve(body));
 			req.on("error", reject);
 		});
+	};
+	const parseJsonBody = (body) => {
+		const parsed = JSON.parse(body || "{}");
+		if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("Invalid JSON body: expected object");
+		return parsed;
+	};
+	const extractStringField = (obj, field) => {
+		const v = obj[field];
+		return typeof v === "string" ? v : void 0;
+	};
+	const extractBooleanField = (obj, field) => {
+		const v = obj[field];
+		return typeof v === "boolean" ? v : void 0;
 	};
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
@@ -1739,7 +1776,8 @@ function apply(ctx) {
 		handler: async (req, res) => {
 			try {
 				const body = await readBody(req);
-				const { path } = JSON.parse(body || "{}");
+				const parsed = parseJsonBody(body);
+				const path = extractStringField(parsed, "path");
 				if (path && path !== "." && !isPathAllowed(path)) {
 					sendJson(res, 403, {
 						success: false,
@@ -1814,7 +1852,7 @@ function apply(ctx) {
 				}
 			} catch (e) {
 				log.error("scan failed", e);
-				sendJson(res, 200, {
+				sendJson(res, 500, {
 					success: false,
 					nodes: [],
 					edges: [],
@@ -1834,7 +1872,8 @@ function apply(ctx) {
 		handler: async (req, res) => {
 			try {
 				const body = await readBody(req);
-				const { path } = JSON.parse(body || "{}");
+				const parsed = parseJsonBody(body);
+				const path = extractStringField(parsed, "path");
 				if (path && path !== "." && !isPathAllowed(path)) {
 					sendJson(res, 403, {
 						success: false,
@@ -1878,7 +1917,7 @@ function apply(ctx) {
 					timestamp: Date.now()
 				};
 				lastInitResult = errorResult;
-				sendJson(res, 200, errorResult);
+				sendJson(res, 500, errorResult);
 			}
 		}
 	}), "codegraph: init route");
@@ -1888,7 +1927,9 @@ function apply(ctx) {
 		handler: async (req, res) => {
 			try {
 				const body = await readBody(req);
-				const { enabled, path } = JSON.parse(body || "{}");
+				const parsed = parseJsonBody(body);
+				const enabled = extractBooleanField(parsed, "enabled");
+				const path = extractStringField(parsed, "path");
 				if (path && path !== "." && !isPathAllowed(path)) {
 					sendJson(res, 403, {
 						success: false,
@@ -1904,7 +1945,7 @@ function apply(ctx) {
 				});
 				sendJson(res, 200, { success: true });
 			} catch (e) {
-				sendJson(res, 200, {
+				sendJson(res, 500, {
 					success: false,
 					message: e instanceof Error ? e.message : String(e)
 				});

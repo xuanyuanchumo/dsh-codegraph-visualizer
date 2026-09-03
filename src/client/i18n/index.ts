@@ -193,6 +193,17 @@ const en: Dict = {
   'empty.copyCmd': 'Copy install command',
   'empty.copied': 'Copied!',
   'empty.scanWorkspace': 'Scan Current Workspace',
+
+  // Keyboard shortcuts
+  'shortcut.title': 'Keyboard Shortcuts',
+  'shortcut.close': 'Close',
+  'shortcut.search': 'Search symbols',
+  'shortcut.closeAll': 'Close all panels',
+  'shortcut.callChain': 'Toggle call chain',
+  'shortcut.minimap': 'Toggle mini-map',
+  'shortcut.layout': 'Cycle layout',
+  'shortcut.import': 'Toggle import panel',
+  'shortcut.help': 'Show this help',
 };
 
 const zh: Dict = {
@@ -380,6 +391,17 @@ const zh: Dict = {
   'empty.copyCmd': '复制安装命令',
   'empty.copied': '已复制！',
   'empty.scanWorkspace': '扫描当前工作区',
+
+  // 键盘快捷键
+  'shortcut.title': '键盘快捷键',
+  'shortcut.close': '关闭',
+  'shortcut.search': '搜索符号',
+  'shortcut.closeAll': '关闭所有面板',
+  'shortcut.callChain': '切换调用链',
+  'shortcut.minimap': '切换缩略图',
+  'shortcut.layout': '循环切换布局',
+  'shortcut.import': '切换导入面板',
+  'shortcut.help': '显示此帮助',
 };
 
 const dicts: Record<Lang, Dict> = { zh, en };

@@ -10,6 +10,7 @@ export interface PanelKeyboardHandlers {
   onToggleMiniMap: () => void;
   onCycleLayout: () => void;
   onToggleImport: () => void;
+  onToggleHelp: () => void;
 }
 
 export function usePanelKeyboard(
@@ -40,4 +41,5 @@ export function usePanelKeyboard(
     setLayoutRef.current(next);
   }, { ctrl: true });
   useKeyboardShortcut('i', () => handlersRef.current.onToggleImport(), { ctrl: true });
+  useKeyboardShortcut('?', () => handlersRef.current.onToggleHelp(), { preventDefault: true });
 }

@@ -22,6 +22,7 @@ interface LensToolResult {
   }>;
 }
 
+
 export class LensAdapter {
   private readonly source: DataSourceType = 'lens';
 
@@ -30,7 +31,10 @@ export class LensAdapter {
       const raw = (await invoke('lens_analyze', { repoId })) as LensToolResult | null;
       if (!raw) return { nodes: [], edges: [], source: this.source, timestamp: Date.now() };
 
-      const nodes: GraphNode[] = raw.symbols.map(s => ({
+      const symbols = Array.isArray(raw.symbols) ? raw.symbols : [];
+      const references = Array.isArray(raw.references) ? raw.references : [];
+
+      const nodes: GraphNode[] = symbols.map(s => ({
         id: NodeId(s.id),
         label: s.name,
         type: this.mapCategory(s.category),
@@ -39,7 +43,7 @@ export class LensAdapter {
         properties: { scope: s.scope },
       }));
 
-      const edges: GraphEdge[] = raw.references.map(r => ({
+      const edges: GraphEdge[] = references.map(r => ({
         id: EdgeId(`${r.from}->${r.to}`),
         source: NodeId(r.from),
         target: NodeId(r.to),
@@ -49,8 +53,9 @@ export class LensAdapter {
 
       return { nodes, edges, source: this.source, timestamp: Date.now() };
     } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : String(e);
       log.warn('Lens fetchData failed — lens is optional, returning empty', e);
-      return { nodes: [], edges: [], source: this.source, timestamp: Date.now() };
+      return { nodes: [], edges: [], source: this.source, timestamp: Date.now(), error: errorMsg };
     }
   }
 
