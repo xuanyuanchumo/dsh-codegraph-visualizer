@@ -24,7 +24,7 @@ export interface IRenderer {
   selectNode(nodeId: NodeId | null): void;
   filterByType(type: string): void;
   filterByGraphType(graphType: 'all' | 'call' | 'dependency'): void;
-  filterByDepth(level: 1 | 2 | 3 | 'all'): void;
+
   search(query: string): number;
   focusOnNode(nodeId: string): void;
   highlightCallChain(nodeId: NodeId | null): void;

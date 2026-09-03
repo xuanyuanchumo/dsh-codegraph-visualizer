@@ -424,36 +424,6 @@ export class CytoscapeRenderer implements IRenderer {
     });
   }
 
-  filterByDepth(level: 1 | 2 | 3 | 'all'): void {
-    if (!this.cy) return;
-    const levelTypes: Record<number, Set<string>> = {
-      1: new Set(['module']),
-      2: new Set(['module', 'class', 'interface', 'type']),
-      3: new Set(['module', 'class', 'interface', 'type', 'function', 'variable']),
-    };
-    const allowedTypes = level === 'all' ? null : (levelTypes[level] ?? levelTypes[3]);
-    if (!allowedTypes) {
-      this.cy.batch(() => {
-        this.cy!.nodes().style('display', 'element');
-        this.cy!.edges().style('display', 'element');
-      });
-      return;
-    }
-    const hidden = new Set<string>();
-    this.cy.nodes().forEach((node) => {
-      const type = node.data('type') as string;
-      if (!allowedTypes.has(type)) hidden.add(node.id());
-    });
-    this.cy.batch(() => {
-      this.cy!.nodes().forEach((node) => {
-        node.style('display', hidden.has(node.id()) ? 'none' : 'element');
-      });
-      this.cy!.edges().forEach((edge) => {
-        const hiddenEdge = hidden.has(edge.source().id()) || hidden.has(edge.target().id());
-        edge.style('display', hiddenEdge ? 'none' : 'element');
-      });
-    });
-  }
 
   search(query: string): number {
     if (!this.cy) return 0;

@@ -48,7 +48,7 @@ function filterByDepthLevel(
   depthLevel: 1 | 2 | 3 | 'all',
   expandedNodeIds?: Set<string>,
 ): { nodes: GraphNode[]; edges: GraphEdge[] } {
-  if (depthLevel === 'all') return { nodes: rawNodes, edges: rawEdges };
+  if (depthLevel === 'all' || depthLevel === 3) return { nodes: rawNodes, edges: rawEdges };
   const allowedTypes = DEPTH_TYPE_MAP[depthLevel] ?? DEPTH_TYPE_MAP[3]!;
   const expanded = expandedNodeIds ?? new Set<string>();
 
