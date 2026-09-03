@@ -22,6 +22,67 @@ interface ContextWithSessions {
 export const name = 'dsh-codegraph-visualizer';
 export const inject = ['tools', 'webServer', 'sessions', 'workspaceRegistry'];
 
+// ── Plugin config (red line 9: explicit config, misconfiguration fails loud) ──
+// Deployment-varying tunables are validated fields, changeable from
+// cordis.yml via the bundle patch. Protocol/security invariants stay fixed.
+
+export interface VisualizerConfig {
+  /** Preferred data source for tool-side merges. */
+  dataSource: 'auto' | 'codegraph' | 'lens';
+  /** Upstream tool call timeout in ms. */
+  requestTimeout: number;
+  /** Scan result cache TTL in ms. */
+  scanCacheTtl: number;
+  /** Maximum scan-cache entries (bounded memory). */
+  scanCacheLimit: number;
+  /** HTTP request body limit in bytes. */
+  maxBodyBytes: number;
+  /** Delay before re-checking prerequisites, in ms. */
+  prerequisiteRetryDelay: number;
+  /** File-watcher debounce window in ms. */
+  watchDebounce: number;
+  /** Default maxNodes cap for scans. */
+  maxNodes: number;
+}
+
+export const DEFAULT_CONFIG: VisualizerConfig = {
+  dataSource: 'auto',
+  requestTimeout: 5000,
+  scanCacheTtl: 30_000,
+  scanCacheLimit: 4,
+  maxBodyBytes: 1024 * 1024,
+  prerequisiteRetryDelay: 3000,
+  watchDebounce: 500,
+  maxNodes: 10_000,
+};
+
+/** Merge user config over defaults and reject invalid values at load time. */
+export function resolveConfig(userConfig?: Partial<VisualizerConfig>): VisualizerConfig {
+  const config: VisualizerConfig = { ...DEFAULT_CONFIG, ...userConfig };
+  const errors: string[] = [];
+  if (config.dataSource !== 'auto' && config.dataSource !== 'codegraph' && config.dataSource !== 'lens') {
+    errors.push(`dataSource must be auto|codegraph|lens, got ${String(config.dataSource)}`);
+  }
+  const positiveFields: Array<[keyof VisualizerConfig, number]> = [
+    ['requestTimeout', config.requestTimeout],
+    ['scanCacheTtl', config.scanCacheTtl],
+    ['scanCacheLimit', config.scanCacheLimit],
+    ['maxBodyBytes', config.maxBodyBytes],
+    ['prerequisiteRetryDelay', config.prerequisiteRetryDelay],
+    ['watchDebounce', config.watchDebounce],
+    ['maxNodes', config.maxNodes],
+  ];
+  for (const [field, value] of positiveFields) {
+    if (!Number.isFinite(value) || value <= 0) {
+      errors.push(`${field} must be a positive finite number, got ${String(value)}`);
+    }
+  }
+  if (errors.length > 0) {
+    throw new Error(`[dsh-codegraph-visualizer] invalid config: ${errors.join('; ')}`);
+  }
+  return config;
+}
+
 let allowedWorkspaceRoots: string[] = [];
 
 export function isPathAllowed(path: string): boolean {
@@ -63,8 +124,11 @@ function checkPrerequisites(ctx: Context): { codegraph: boolean; lens: boolean }
   }
 }
 
-export function apply(ctx: Context) {
-  const { graphStatus, graphData, graphSymbol, graphImpact } = createGraphTools(ctx);
+export function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
+  // Red line 9: explicit config — deployment-varying tunables are validated
+  // Config fields, changeable from cordis.yml; misconfiguration fails loud.
+  const config = resolveConfig(userConfig);
+  const { graphStatus, graphData, graphSymbol, graphImpact } = createGraphTools(ctx, { requestTimeout: config.requestTimeout });
 
   ctx.effect(() => {
     const d1 = ctx.tools.register(graphStatus);
@@ -86,7 +150,7 @@ export function apply(ctx: Context) {
   let lastInitResult: { success: boolean; path: string; message: string; timestamp: number } | null = null;
   let scanInFlight: Promise<GraphData> | null = null;
   const scanCache = new Map<string, { data: GraphData; timestamp: number }>();
-  const SCAN_CACHE_TTL = 30000;
+
 
   function slimGraphData(data: GraphData): GraphData {
     const slimNodes = data.nodes.map((n) => ({
@@ -117,7 +181,7 @@ export function apply(ctx: Context) {
         callId: CallId(`codegraph:${tool}`),
         name: tool,
         arguments: args,
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(config.requestTimeout),
       });
       if (result.isError) return null;
       return result.value ?? null;
@@ -184,7 +248,7 @@ export function apply(ctx: Context) {
   };
 
 
-  const MAX_BODY_BYTES = 1024 * 1024;
+  const MAX_BODY_BYTES = config.maxBodyBytes;
 
   const readBody = (req: IncomingMessage): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -289,7 +353,7 @@ export function apply(ctx: Context) {
         const repoId = scanPath || `workspace-${Date.now()}`;
 
         const cached = scanCache.get(scanPath);
-        if (cached && Date.now() - cached.timestamp < SCAN_CACHE_TTL) {
+        if (cached && Date.now() - cached.timestamp < config.scanCacheTtl) {
           lastGraphData = cached.data;
           sendJson(res, 200, { success: true, ...cached.data });
           return;
@@ -308,7 +372,7 @@ export function apply(ctx: Context) {
           const data = slimGraphData(raw);
           lastGraphData = data;
           scanCache.set(scanPath, { data, timestamp: Date.now() });
-          if (scanCache.size > 4) {
+          if (scanCache.size > config.scanCacheLimit) {
             const oldest = scanCache.keys().next().value;
             if (oldest !== undefined) scanCache.delete(oldest);
           }
@@ -424,7 +488,7 @@ export function apply(ctx: Context) {
   };
   emitPrereqStatus();
   // Re-check after a delay — upstream plugins may register later.
-  const prereqTimer = setTimeout(emitPrereqStatus, 3000);
+  const prereqTimer = setTimeout(emitPrereqStatus, config.prerequisiteRetryDelay);
   ctx.effect(() => () => clearTimeout(prereqTimer), 'codegraph: prereq re-check timer');
 
   // Client can request a re-check (e.g. after installing a prerequisite plugin).
@@ -498,46 +562,51 @@ export function apply(ctx: Context) {
   }), 'codegraph: graph init listener');
 
   // ── File watcher for hot-update ────────────────────────────────────
-  ctx.effect(() => ctx.on('codegraph/watch/toggle', (event) => {
-    // Close existing watcher
+  // One fiber-level effect owns the toggle listener AND the active watcher,
+  // so switching watch on/off never accumulates effect entries and plugin
+  // unload always closes the live watcher (red line 1: register-as-effect).
+  const closeActiveWatcher = (): void => {
     if (activeWatcher) {
       try { activeWatcher.close(); } catch { /* best-effort */ }
       activeWatcher = null;
     }
     if (watchTimer) { clearTimeout(watchTimer); watchTimer = null; }
+  };
+  ctx.effect(() => {
+    const dispose = ctx.on('codegraph/watch/toggle', (event) => {
+      closeActiveWatcher();
 
-    if (!event.enabled) {
-      log.info('watch disabled');
-      return;
-    }
+      if (!event.enabled) {
+        log.info('watch disabled');
+        return;
+      }
 
-    log.info('watch enabled', { path: event.path });
-    try {
+      log.info('watch enabled', { path: event.path });
+      try {
+        activeWatcher = watch(event.path, { recursive: true }, (_eventType: string, filename: string | null) => {
+          // Ignore .codegraph internal changes to avoid feedback loops
+          if (filename && filename.includes('.codegraph')) return;
+          if (filename && filename.includes('node_modules')) return;
+          if (filename && filename.includes('.git')) return;
 
-      const watcher = watch(event.path, { recursive: true }, (_eventType: string, filename: string | null) => {
-        // Ignore .codegraph internal changes to avoid feedback loops
-        if (filename && filename.includes('.codegraph')) return;
-        if (filename && filename.includes('node_modules')) return;
-        if (filename && filename.includes('.git')) return;
-
-        // Debounce 500ms — batch rapid file saves into one re-scan
-        if (watchTimer) clearTimeout(watchTimer);
-        watchTimer = setTimeout(() => {
-          watchTimer = null;
-          log.info('file changed, syncing + re-scanning', { filename });
-          // Sync the upstream index first so the fresh read reflects the change.
-          invokeUpstream('codegraph_sync', { path: event.path })
-            .then(() => scanAndPush(event.path))
-            .catch((e) => log.error('watch re-scan failed', e));
-        }, 500);
-      });
-      activeWatcher = watcher;
-      ctx.effect(() => () => {
-        try { watcher.close(); } catch { /* best-effort */ }
-        if (watchTimer) { clearTimeout(watchTimer); watchTimer = null; }
-      }, 'codegraph: file watcher');
-    } catch (e) {
-      log.error('watch setup failed', e);
-    }
-  }), 'codegraph: watch toggle listener');
+          // Debounce — batch rapid file saves into one re-scan
+          if (watchTimer) clearTimeout(watchTimer);
+          watchTimer = setTimeout(() => {
+            watchTimer = null;
+            log.info('file changed, syncing + re-scanning', { filename });
+            // Sync the upstream index first so the fresh read reflects the change.
+            invokeUpstream('codegraph_sync', { path: event.path })
+              .then(() => scanAndPush(event.path))
+              .catch((e) => log.error('watch re-scan failed', e));
+          }, config.watchDebounce);
+        });
+      } catch (e) {
+        log.error('watch setup failed', e);
+      }
+    });
+    return () => {
+      dispose();
+      closeActiveWatcher();
+    };
+  }, 'codegraph: watch toggle listener');
 }

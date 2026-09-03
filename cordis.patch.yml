@@ -1,6 +1,17 @@
 # CodeGraph Visualizer bundle patch
 # Applied after dsh-base and dsh-web-app layers; inserts this plugin as a
 # host-plane row so its graph_* tools register into the global `tools` registry.
+# Config is explicit (red line 9) — all fields below match DEFAULT_CONFIG in
+# src/index.ts; misconfigured values fail loud at load.
 - insert:
     - id: codegraph-visualizer
       name: dsh-codegraph-visualizer
+      config:
+        dataSource: auto
+        requestTimeout: 5000
+        scanCacheTtl: 30000
+        scanCacheLimit: 4
+        maxBodyBytes: 1048576
+        prerequisiteRetryDelay: 3000
+        watchDebounce: 500
+        maxNodes: 10000

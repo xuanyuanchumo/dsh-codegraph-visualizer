@@ -1,6 +1,9 @@
 // Error boundary for graph visualization components
 import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 import { useT } from '../i18n/index.ts';
+import { scoped } from '../../shared/Logger.ts';
+
+const log = scoped('boundary');
 
 interface Props {
   children: ReactNode;
@@ -38,7 +41,7 @@ export class GraphErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     this.props.onError?.(error, errorInfo);
-    console.error('GraphErrorBoundary caught error:', error, errorInfo);
+    log.error('render error caught by boundary', { error, componentStack: errorInfo.componentStack });
   }
 
   render(): ReactNode {

@@ -655,12 +655,19 @@ export class CytoscapeRenderer implements IRenderer {
           'text-halign': 'center',
           'text-wrap': 'wrap',
           'text-max-width': '80px',
-          'width': isLargeGraph ? 16 : 'mapData(weight, 1, 10, 24, 56)',
-          'height': isLargeGraph ? 16 : 'mapData(weight, 1, 10, 24, 56)',
+          'width': isLargeGraph ? 16 : 40,
+          'height': isLargeGraph ? 16 : 40,
           'shape': isLargeGraph ? 'ellipse' : 'ellipse',
           'border-width': isLargeGraph ? 1 : 2,
           'border-color': c.border,
           ...(isLargeGraph ? {} : { 'transition-property': 'background-color', 'transition-duration': 200 }),
+        },
+      },
+      {
+        selector: 'node[weight]',
+        style: {
+          'width': 'mapData(weight, 1, 10, 24, 56)',
+          'height': 'mapData(weight, 1, 10, 24, 56)',
         },
       },
       {

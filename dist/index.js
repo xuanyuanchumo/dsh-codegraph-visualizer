@@ -1069,19 +1069,25 @@ var CodeGraphAdapter = class {
 	}
 	toAdapterResult(dbNodes, dbEdges) {
 		const nodeIds = new Set(dbNodes.map((n) => n.id));
-		const nodes = dbNodes.map((n) => ({
-			id: NodeId(n.id),
-			label: n.name,
-			type: mapNodeKind(n.kind),
-			filePath: n.file_path,
-			lineNumber: n.start_line ?? 1,
-			properties: {
-				kind: n.kind,
-				...n.signature ? { signature: n.signature } : {},
-				...n.docstring ? { docstring: n.docstring } : {},
-				exported: n.is_exported === 1
-			}
-		}));
+		const fileNodeIds = new Map();
+		for (const n of dbNodes) if (n.kind === "file" || n.kind === "module") fileNodeIds.set(n.file_path, n.id);
+		const nodes = dbNodes.map((n) => {
+			const parentId = n.kind !== "file" && n.kind !== "module" && n.kind !== "import" ? fileNodeIds.get(n.file_path) ?? void 0 : void 0;
+			return {
+				id: NodeId(n.id),
+				label: n.name,
+				type: mapNodeKind(n.kind),
+				filePath: n.file_path,
+				lineNumber: n.start_line ?? 1,
+				properties: {
+					kind: n.kind,
+					...n.signature ? { signature: n.signature } : {},
+					...n.docstring ? { docstring: n.docstring } : {},
+					exported: n.is_exported === 1
+				},
+				...parentId ? { parentId: NodeId(parentId) } : {}
+			};
+		});
 		const edges = dbEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target)).map((e) => ({
 			id: EdgeId(String(e.id)),
 			source: NodeId(e.source),
@@ -1114,14 +1120,20 @@ var LensAdapter = class {
 			};
 			const symbols = Array.isArray(raw.symbols) ? raw.symbols : [];
 			const references = Array.isArray(raw.references) ? raw.references : [];
-			const nodes = symbols.map((s) => ({
-				id: NodeId(s.id),
-				label: s.name,
-				type: this.mapCategory(s.category),
-				filePath: s.file,
-				lineNumber: s.line,
-				properties: { scope: s.scope }
-			}));
+			const fileNodeMap = new Map();
+			for (const s of symbols) if (s.category === "module" || s.category === "file") fileNodeMap.set(s.file, s.id);
+			const nodes = symbols.map((s) => {
+				const parentId = s.category !== "module" && s.category !== "file" ? fileNodeMap.get(s.file) : void 0;
+				return {
+					id: NodeId(s.id),
+					label: s.name,
+					type: this.mapCategory(s.category),
+					filePath: s.file,
+					lineNumber: s.line,
+					properties: { scope: s.scope },
+					...parentId ? { parentId: NodeId(parentId) } : {}
+				};
+			});
 			const edges = references.map((r) => ({
 				id: EdgeId(`${r.from}->${r.to}`),
 				source: NodeId(r.from),
@@ -1327,14 +1339,14 @@ function pickBestMatch(raw, symbolId) {
 		signature: chosen.signature ?? null
 	};
 }
-function createInvoke(ctx) {
+function createInvoke(ctx, requestTimeout = 5e3) {
 	return async (tool, args) => {
 		try {
 			const result = await ctx.tools.execute({
 				callId: CallId(`codegraph:${tool}`),
 				name: tool,
 				arguments: args,
-				signal: AbortSignal.timeout(5e3)
+				signal: AbortSignal.timeout(requestTimeout)
 			});
 			if (result.isError) return null;
 			return result.value ?? null;
@@ -1442,8 +1454,8 @@ async function executeGraphImpact(args, invoke) {
 		depth: 0
 	};
 }
-const createGraphTools = (ctx) => {
-	const invoke = createInvoke(ctx);
+const createGraphTools = (ctx, options = {}) => {
+	const invoke = createInvoke(ctx, options.requestTimeout);
 	const emitUpdate = (event) => {
 		ctx.emit("codegraph/graph/updated", event);
 	};
@@ -1539,6 +1551,37 @@ const inject = [
 	"sessions",
 	"workspaceRegistry"
 ];
+const DEFAULT_CONFIG = {
+	dataSource: "auto",
+	requestTimeout: 5e3,
+	scanCacheTtl: 3e4,
+	scanCacheLimit: 4,
+	maxBodyBytes: 1024 * 1024,
+	prerequisiteRetryDelay: 3e3,
+	watchDebounce: 500,
+	maxNodes: 1e4
+};
+/** Merge user config over defaults and reject invalid values at load time. */
+function resolveConfig(userConfig) {
+	const config = {
+		...DEFAULT_CONFIG,
+		...userConfig
+	};
+	const errors = [];
+	if (config.dataSource !== "auto" && config.dataSource !== "codegraph" && config.dataSource !== "lens") errors.push(`dataSource must be auto|codegraph|lens, got ${String(config.dataSource)}`);
+	const positiveFields = [
+		["requestTimeout", config.requestTimeout],
+		["scanCacheTtl", config.scanCacheTtl],
+		["scanCacheLimit", config.scanCacheLimit],
+		["maxBodyBytes", config.maxBodyBytes],
+		["prerequisiteRetryDelay", config.prerequisiteRetryDelay],
+		["watchDebounce", config.watchDebounce],
+		["maxNodes", config.maxNodes]
+	];
+	for (const [field, value] of positiveFields) if (!Number.isFinite(value) || value <= 0) errors.push(`${field} must be a positive finite number, got ${String(value)}`);
+	if (errors.length > 0) throw new Error(`[dsh-codegraph-visualizer] invalid config: ${errors.join("; ")}`);
+	return config;
+}
 let allowedWorkspaceRoots = [];
 function isPathAllowed(path) {
 	if (!path || path === ".") return true;
@@ -1581,8 +1624,9 @@ function checkPrerequisites(ctx) {
 		};
 	}
 }
-function apply(ctx) {
-	const { graphStatus, graphData, graphSymbol, graphImpact } = createGraphTools(ctx);
+function apply(ctx, userConfig) {
+	const config = resolveConfig(userConfig);
+	const { graphStatus, graphData, graphSymbol, graphImpact } = createGraphTools(ctx, { requestTimeout: config.requestTimeout });
 	ctx.effect(() => {
 		const d1 = ctx.tools.register(graphStatus);
 		const d2 = ctx.tools.register(graphData);
@@ -1599,7 +1643,6 @@ function apply(ctx) {
 	let lastInitResult = null;
 	let scanInFlight = null;
 	const scanCache = new Map();
-	const SCAN_CACHE_TTL = 3e4;
 	function slimGraphData(data) {
 		const slimNodes = data.nodes.map((n) => ({
 			id: n.id,
@@ -1628,7 +1671,7 @@ function apply(ctx) {
 				callId: CallId(`codegraph:${tool}`),
 				name: tool,
 				arguments: args,
-				signal: AbortSignal.timeout(5e3)
+				signal: AbortSignal.timeout(config.requestTimeout)
 			});
 			if (result.isError) return null;
 			return result.value ?? null;
@@ -1699,7 +1742,7 @@ function apply(ctx) {
 		}
 		return [process.cwd()];
 	};
-	const MAX_BODY_BYTES = 1024 * 1024;
+	const MAX_BODY_BYTES = config.maxBodyBytes;
 	const readBody = (req) => {
 		return new Promise((resolve, reject) => {
 			let body = "";
@@ -1809,7 +1852,7 @@ function apply(ctx) {
 				const scanPath = path && path !== "." ? path : findWorkspacePath();
 				const repoId = scanPath || `workspace-${Date.now()}`;
 				const cached = scanCache.get(scanPath);
-				if (cached && Date.now() - cached.timestamp < SCAN_CACHE_TTL) {
+				if (cached && Date.now() - cached.timestamp < config.scanCacheTtl) {
 					lastGraphData = cached.data;
 					sendJson(res, 200, {
 						success: true,
@@ -1835,7 +1878,7 @@ function apply(ctx) {
 						data,
 						timestamp: Date.now()
 					});
-					if (scanCache.size > 4) {
+					if (scanCache.size > config.scanCacheLimit) {
 						const oldest = scanCache.keys().next().value;
 						if (oldest !== void 0) scanCache.delete(oldest);
 					}
@@ -1976,7 +2019,7 @@ function apply(ctx) {
 		log.info("prerequisite status", status);
 	};
 	emitPrereqStatus();
-	const prereqTimer = setTimeout(emitPrereqStatus, 3e3);
+	const prereqTimer = setTimeout(emitPrereqStatus, config.prerequisiteRetryDelay);
 	ctx.effect(() => () => clearTimeout(prereqTimer), "codegraph: prereq re-check timer");
 	ctx.effect(() => ctx.on("codegraph/prerequisite/request", () => {
 		emitPrereqStatus();
@@ -2050,7 +2093,7 @@ function apply(ctx) {
 			});
 		}
 	}), "codegraph: graph init listener");
-	ctx.effect(() => ctx.on("codegraph/watch/toggle", (event) => {
+	const closeActiveWatcher = () => {
 		if (activeWatcher) {
 			try {
 				activeWatcher.close();
@@ -2061,39 +2104,38 @@ function apply(ctx) {
 			clearTimeout(watchTimer);
 			watchTimer = null;
 		}
-		if (!event.enabled) {
-			log.info("watch disabled");
-			return;
-		}
-		log.info("watch enabled", { path: event.path });
-		try {
-			const watcher = watch(event.path, { recursive: true }, (_eventType, filename) => {
-				if (filename && filename.includes(".codegraph")) return;
-				if (filename && filename.includes("node_modules")) return;
-				if (filename && filename.includes(".git")) return;
-				if (watchTimer) clearTimeout(watchTimer);
-				watchTimer = setTimeout(() => {
-					watchTimer = null;
-					log.info("file changed, syncing + re-scanning", { filename });
-					invokeUpstream("codegraph_sync", { path: event.path }).then(() => scanAndPush(event.path)).catch((e) => log.error("watch re-scan failed", e));
-				}, 500);
-			});
-			activeWatcher = watcher;
-			ctx.effect(() => () => {
-				try {
-					watcher.close();
-				} catch {}
-				if (watchTimer) {
-					clearTimeout(watchTimer);
-					watchTimer = null;
-				}
-			}, "codegraph: file watcher");
-		} catch (e) {
-			log.error("watch setup failed", e);
-		}
-	}), "codegraph: watch toggle listener");
+	};
+	ctx.effect(() => {
+		const dispose = ctx.on("codegraph/watch/toggle", (event) => {
+			closeActiveWatcher();
+			if (!event.enabled) {
+				log.info("watch disabled");
+				return;
+			}
+			log.info("watch enabled", { path: event.path });
+			try {
+				activeWatcher = watch(event.path, { recursive: true }, (_eventType, filename) => {
+					if (filename && filename.includes(".codegraph")) return;
+					if (filename && filename.includes("node_modules")) return;
+					if (filename && filename.includes(".git")) return;
+					if (watchTimer) clearTimeout(watchTimer);
+					watchTimer = setTimeout(() => {
+						watchTimer = null;
+						log.info("file changed, syncing + re-scanning", { filename });
+						invokeUpstream("codegraph_sync", { path: event.path }).then(() => scanAndPush(event.path)).catch((e) => log.error("watch re-scan failed", e));
+					}, config.watchDebounce);
+				});
+			} catch (e) {
+				log.error("watch setup failed", e);
+			}
+		});
+		return () => {
+			dispose();
+			closeActiveWatcher();
+		};
+	}, "codegraph: watch toggle listener");
 }
 
 //#endregion
-export { PLUGIN_VERSION, apply, inject, isPathAllowed, name };
+export { DEFAULT_CONFIG, PLUGIN_VERSION, apply, inject, isPathAllowed, name, resolveConfig };
 //# sourceMappingURL=index.js.map

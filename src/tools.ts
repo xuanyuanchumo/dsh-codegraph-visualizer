@@ -119,14 +119,14 @@ export function pickBestMatch(raw: unknown, symbolId: string): Record<string, un
 
 // ── Extracted execute/render functions for testability ──────────────────
 
-export function createInvoke(ctx: Context): UpstreamInvoker {
+export function createInvoke(ctx: Context, requestTimeout = 5000): UpstreamInvoker {
   return async (tool, args) => {
     try {
       const result = await ctx.tools.execute({
         callId: CallId(`codegraph:${tool}`),
         name: tool,
         arguments: args,
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(requestTimeout),
       });
       if (result.isError) return null;
       return result.value ?? null;
@@ -229,8 +229,8 @@ export async function executeGraphImpact(args: { symbolId: string }, invoke: Ups
 
 // ── Tool factory ────────────────────────────────────────────────────────
 
-export const createGraphTools = (ctx: Context) => {
-  const invoke = createInvoke(ctx);
+export const createGraphTools = (ctx: Context, options: { requestTimeout?: number } = {}) => {
+  const invoke = createInvoke(ctx, options.requestTimeout);
 
   const emitUpdate = (event: GraphUpdatedEvent) => {
     ctx.emit('codegraph/graph/updated', event);

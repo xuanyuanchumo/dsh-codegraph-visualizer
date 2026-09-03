@@ -87,6 +87,7 @@ body[data-ds-dark-theme] {
 
 .graph-panel {
   position: relative;
+  box-sizing: border-box;
   width: 100%;
   height: 100%;
   z-index: 1000;
@@ -2608,6 +2609,12 @@ function filterByDepthLevel(rawNodes, rawEdges, depthLevel, expandedNodeIds) {
 	};
 	const allowedTypes = DEPTH_TYPE_MAP[depthLevel] ?? DEPTH_TYPE_MAP[3];
 	const expanded = expandedNodeIds ?? new Set();
+	const childrenOfParent = new Map();
+	for (const n of rawNodes) if (n.parentId) {
+		const list = childrenOfParent.get(n.parentId);
+		if (list) list.push(n);
+		else childrenOfParent.set(n.parentId, [n]);
+	}
 	const edgeAdjacency = new Map();
 	for (const e of rawEdges) {
 		const list = edgeAdjacency.get(e.source);
@@ -2618,8 +2625,10 @@ function filterByDepthLevel(rawNodes, rawEdges, depthLevel, expandedNodeIds) {
 		else edgeAdjacency.set(e.target, [e.source]);
 	}
 	const visibleNodeIds = new Set();
-	for (const n of rawNodes) if (allowedTypes.has(n.type)) visibleNodeIds.add(n.id);
-	for (const expandedId of expanded) if (!visibleNodeIds.has(expandedId)) {
+	for (const n of rawNodes) if (allowedTypes.has(n.type) && !n.parentId) visibleNodeIds.add(n.id);
+	for (const expandedId of expanded) {
+		const children = childrenOfParent.get(expandedId);
+		if (children) for (const child of children) visibleNodeIds.add(child.id);
 		const neighbors = edgeAdjacency.get(expandedId) ?? [];
 		for (const neighborId of neighbors) {
 			const neighbor = rawNodes.find((n) => n.id === neighborId);
@@ -41595,7 +41604,8 @@ var CytoscapeRenderer = class {
 						label: n.label,
 						type: n.type,
 						filePath: n.filePath,
-						lineNumber: n.lineNumber
+						lineNumber: n.lineNumber,
+						parent: n.parentId ?? void 0
 					}
 				});
 				for (const e of edgesToAdd) this.cy.add({
@@ -41623,7 +41633,8 @@ var CytoscapeRenderer = class {
 					label: n.label,
 					type: n.type,
 					filePath: n.filePath,
-					lineNumber: n.lineNumber
+					lineNumber: n.lineNumber,
+					parent: n.parentId ?? void 0
 				}
 			});
 			for (const e of firstBatchEdges) this.cy.add({
@@ -41665,7 +41676,8 @@ var CytoscapeRenderer = class {
 						label: n.label,
 						type: n.type,
 						filePath: n.filePath,
-						lineNumber: n.lineNumber
+						lineNumber: n.lineNumber,
+						parent: n.parentId ?? void 0
 					}
 				});
 				for (const e of batchEdges) this.cy.add({
@@ -41695,10 +41707,10 @@ var CytoscapeRenderer = class {
 			const nodeCount = this.cy.nodes().length;
 			let effectiveLayout = layout$2;
 			let animate = true;
-			if (nodeCount > 500) {
+			if (nodeCount > 800) {
 				effectiveLayout = "grid";
 				animate = false;
-			} else if (nodeCount > 150 && layout$2 === "cose") {
+			} else if (nodeCount > 200 && layout$2 === "cose") {
 				effectiveLayout = "dagre";
 				animate = false;
 			}
@@ -41710,14 +41722,14 @@ var CytoscapeRenderer = class {
 						fit: true,
 						animate,
 						animationDuration: 400,
-						nodeRepulse: () => 4500,
-						idealEdgeLength: () => 80,
-						edgeElasticity: () => .45,
-						gravity: .25,
-						numIter: nodeCount > 80 ? 1500 : 2500,
-						randomize: true,
+						nodeRepulse: () => 8e3,
+						idealEdgeLength: () => 120,
+						edgeElasticity: () => .3,
+						gravity: .15,
+						numIter: nodeCount > 80 ? 2500 : 4e3,
+						randomize: false,
 						tile: true,
-						padding: 30
+						padding: 40
 					};
 					break;
 				case "dagre":
@@ -41726,11 +41738,11 @@ var CytoscapeRenderer = class {
 						fit: true,
 						animate,
 						rankDir: "TB",
-						rankSep: 60,
-						edgeSep: 20,
-						nodeSep: 40,
+						rankSep: 100,
+						edgeSep: 40,
+						nodeSep: 80,
 						ranker: "tight-tree",
-						padding: 30
+						padding: 40
 					};
 					break;
 				case "circle":
@@ -42055,8 +42067,8 @@ var CytoscapeRenderer = class {
 					"text-halign": "center",
 					"text-wrap": "wrap",
 					"text-max-width": "80px",
-					"width": isLargeGraph ? 16 : "mapData(weight, 1, 10, 24, 56)",
-					"height": isLargeGraph ? 16 : "mapData(weight, 1, 10, 24, 56)",
+					"width": isLargeGraph ? 16 : 40,
+					"height": isLargeGraph ? 16 : 40,
 					"shape": isLargeGraph ? "ellipse" : "ellipse",
 					"border-width": isLargeGraph ? 1 : 2,
 					"border-color": c.border,
@@ -42064,6 +42076,30 @@ var CytoscapeRenderer = class {
 						"transition-property": "background-color",
 						"transition-duration": 200
 					}
+				}
+			},
+			{
+				selector: "node[weight]",
+				style: {
+					"width": "mapData(weight, 1, 10, 24, 56)",
+					"height": "mapData(weight, 1, 10, 24, 56)"
+				}
+			},
+			{
+				selector: ":parent",
+				style: {
+					"background-color": "rgba(0,0,0,0.05)",
+					"border-width": 2,
+					"border-color": c.border,
+					"border-style": "dashed",
+					"label": "data(label)",
+					"font-size": "10px",
+					"color": c.text,
+					"text-valign": "top",
+					"text-halign": "center",
+					"text-wrap": "wrap",
+					"text-max-width": "100px",
+					"padding": "10px"
 				}
 			},
 			{
@@ -42273,7 +42309,7 @@ function scoped(scope) {
 
 //#endregion
 //#region src/client/hooks/useGraphRenderer.ts
-const log$3 = scoped("renderer-hook");
+const log$4 = scoped("renderer-hook");
 function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, depthLevel, debouncedSearch, showCallChain, showCycles, callbacks, showCallChainRef) {
 	const containerRef = (0, react.useRef)(null);
 	const rendererRef = (0, react.useRef)(null);
@@ -42298,7 +42334,7 @@ function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, sel
 		});
 		renderer$1.init();
 		rendererRef.current = renderer$1;
-		log$3.info("renderer initialized", { theme });
+		log$4.info("renderer initialized", { theme });
 		return () => {
 			renderer$1.destroy();
 			rendererRef.current = null;
@@ -42372,7 +42408,7 @@ function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, sel
 			a.download = `codegraph-${Date.now()}.${extension$1}`;
 			a.click();
 			setTimeout(() => URL.revokeObjectURL(url), 1e3);
-			log$3.info(`exported ${format}`);
+			log$4.info(`exported ${format}`);
 		}
 	}, []);
 	const updateTheme = (0, react.useCallback)((newTheme) => {
@@ -42608,7 +42644,7 @@ const en = {
 	"toolbar.graphType": "Graph type switcher",
 	"toolbar.depth": "Depth level filter",
 	"depth.all": "All Levels",
-	"depth.module": "L1: Modules (dbl-click to expand)",
+	"depth.module": "L1: Files (dbl-click to expand)",
 	"depth.type": "L2: + Types (dbl-click to expand)",
 	"depth.full": "L3: Full Detail",
 	"filter.all": "All Types",
@@ -42772,7 +42808,7 @@ const zh = {
 	"toolbar.graphType": "图谱类型切换",
 	"toolbar.depth": "层级过滤",
 	"depth.all": "全部层级",
-	"depth.module": "L1: 模块 (双击展开)",
+	"depth.module": "L1: 文件 (双击展开)",
 	"depth.type": "L2: + 类型 (双击展开)",
 	"depth.full": "L3: 全部详情",
 	"filter.all": "全部类型",
@@ -42963,6 +42999,7 @@ function useT() {
 
 //#endregion
 //#region src/client/components/ErrorBoundary.tsx
+const log$3 = scoped("boundary");
 function ErrorFallback({ error: error$1, onRetry }) {
 	const t$1 = useT();
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -42995,7 +43032,10 @@ var GraphErrorBoundary = class extends react.Component {
 	}
 	componentDidCatch(error$1, errorInfo) {
 		this.props.onError?.(error$1, errorInfo);
-		console.error("GraphErrorBoundary caught error:", error$1, errorInfo);
+		log$3.error("render error caught by boundary", {
+			error: error$1,
+			componentStack: errorInfo.componentStack
+		});
 	}
 	render() {
 		if (this.state.hasError) {
@@ -44284,7 +44324,10 @@ const TYPE_COLORS = {
 const EXPANDABLE_TYPES = new Set([
 	"module",
 	"class",
-	"interface"
+	"interface",
+	"function",
+	"variable",
+	"type"
 ]);
 function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse }) {
 	const t$1 = useT();
@@ -44873,34 +44916,13 @@ function GraphPanelInner({ className = "" }) {
 	const handleNodeDoubleTap = (0, react.useCallback)((nodeId) => {
 		const data$2 = getDataRef.current?.getNodeData(nodeId);
 		if (!data$2) return;
-		if (data$2.type === "module") if (depthLevel === 1) {
-			setDepthLevel(2);
-			expandNode(nodeId);
-		} else if (depthLevel === 2) {
-			setDepthLevel(3);
-			expandNode(nodeId);
-		} else window.dispatchEvent(new CustomEvent("codegraph:open-source", { detail: {
-			filePath: data$2.filePath,
-			lineNumber: data$2.lineNumber,
-			nodeId
-		} }));
-		else if (data$2.type === "class" || data$2.type === "interface") if (depthLevel === 2) {
-			setDepthLevel(3);
-			expandNode(nodeId);
-		} else window.dispatchEvent(new CustomEvent("codegraph:open-source", { detail: {
-			filePath: data$2.filePath,
-			lineNumber: data$2.lineNumber,
-			nodeId
-		} }));
-		else window.dispatchEvent(new CustomEvent("codegraph:open-source", { detail: {
-			filePath: data$2.filePath,
-			lineNumber: data$2.lineNumber,
-			nodeId
-		} }));
+		const isExpanded = expandedNodeIds.has(nodeId);
+		if (isExpanded) collapseNode(nodeId);
+		else expandNode(nodeId);
 	}, [
-		depthLevel,
-		setDepthLevel,
-		expandNode
+		expandedNodeIds,
+		expandNode,
+		collapseNode
 	]);
 	const handleNodeHover = (0, react.useCallback)((nodeId, pos) => {
 		const data$2 = getDataRef.current?.getNodeData(nodeId);
@@ -45318,6 +45340,14 @@ async function requestWatch(enabled, path) {
 }
 function apply(ctx) {
 	let entryRegistered = false;
+	const slotDisposers = [];
+	const trackSlotDisposer = (d) => {
+		if (typeof d === "function") slotDisposers.push(d);
+	};
+	ctx.effect(() => () => {
+		for (const dispose of slotDisposers) dispose();
+		slotDisposers.length = 0;
+	}, "codegraph: slot registrations cleanup");
 	function CodeGraphTab({ visible }) {
 		return visible ? react.default.createElement(GraphPanel) : null;
 	}
@@ -45340,12 +45370,12 @@ function apply(ctx) {
 	}
 	if (!entryRegistered) try {
 		ctx.slots.inject("sidebar.footer.action", () => {
-			ctx.slots.register({
+			trackSlotDisposer(ctx.slots.register({
 				name: "sidebar.footer.action",
 				id: "codegraph-visualizer",
 				order: 10,
 				label: () => "Code Graph"
-			}, GraphPanel);
+			}, GraphPanel));
 		});
 		entryRegistered = true;
 	} catch (e) {
@@ -45353,12 +45383,12 @@ function apply(ctx) {
 	}
 	try {
 		ctx.slots.inject("settings.section", () => {
-			ctx.slots.register({
+			trackSlotDisposer(ctx.slots.register({
 				name: "settings.section",
 				id: "codegraph-visualizer",
 				order: 50,
 				label: () => "Code Graph"
-			}, GraphPanel);
+			}, GraphPanel));
 		});
 	} catch (e) {
 		log.warn("settings.section slot failed", e);
@@ -45377,14 +45407,15 @@ function apply(ctx) {
 	try {
 		const spotlight = ctx.get("spotlight");
 		if (spotlight) {
-			spotlight.registerCommand({
+			const d1 = spotlight.registerCommand({
 				id: "codegraph-search",
 				title: "Code Graph: Search Symbols",
 				handler: () => {
 					window.dispatchEvent(new KeyboardEvent("keydown", { key: "/" }));
 				}
 			});
-			spotlight.registerCommand({
+			if (typeof d1 === "function") ctx.effect(() => d1, "codegraph: spotlight search cmd");
+			const d2 = spotlight.registerCommand({
 				id: "codegraph-toggle",
 				title: "Code Graph: Toggle Panel",
 				handler: () => {
@@ -45392,6 +45423,7 @@ function apply(ctx) {
 					panel?.dispatchEvent(new MouseEvent("click"));
 				}
 			});
+			if (typeof d2 === "function") ctx.effect(() => d2, "codegraph: spotlight toggle cmd");
 		}
 	} catch (e) {
 		log.warn("spotlight registration failed", e);
@@ -45485,7 +45517,7 @@ function apply(ctx) {
 				return res.json();
 			}).then((data$2) => {
 				if (data$2 && data$2.nodes && data$2.nodes.length > 0) store.setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
-			}).catch(() => {});
+			}).catch((e$1) => log.warn("incremental graph fetch failed", e$1));
 			else fetchGraphData().then((data$2) => {
 				if (data$2) store.setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
 			});

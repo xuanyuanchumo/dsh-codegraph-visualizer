@@ -17,7 +17,7 @@ declare module '@deepseek-ai/cordis' {
   interface Context {
     slots: {
       inject: (slotName: string, callback: () => void) => void;
-      register: (options: { name: string; id: string; order?: number; label?: () => string }, component?: unknown) => void;
+      register: (options: { name: string; id: string; order?: number; label?: () => string }, component?: unknown) => (() => void) | void;
     };
     betterSidebar?: {
       registerTab: (descriptor: {
@@ -35,7 +35,7 @@ declare module '@deepseek-ai/cordis' {
         id: string;
         title: string;
         handler: () => void;
-      }) => void;
+      }) => (() => void) | void;
     };
   }
 }
@@ -150,6 +150,18 @@ export function apply(ctx: Context) {
 
   let entryRegistered = false;
 
+  // Slot registrations happen lazily inside slot callbacks; collect their
+  // disposers so the fiber-level cleanup can revoke them on plugin unload
+  // (red line 1: every registration returns/is tracked as a disposer).
+  const slotDisposers: Array<() => void> = [];
+  const trackSlotDisposer = (d: (() => void) | void): void => {
+    if (typeof d === 'function') slotDisposers.push(d);
+  };
+  ctx.effect(() => () => {
+    for (const dispose of slotDisposers) dispose();
+    slotDisposers.length = 0;
+  }, 'codegraph: slot registrations cleanup');
+
   function CodeGraphTab({ visible }: { visible: boolean }) {
     return visible ? React.createElement(GraphPanel) : null;
   }
@@ -178,14 +190,16 @@ export function apply(ctx: Context) {
   if (!entryRegistered) {
     try {
       ctx.slots.inject('sidebar.footer.action', () => {
-        ctx.slots.register(
-          {
-            name: 'sidebar.footer.action',
-            id: 'codegraph-visualizer',
-            order: 10,
-            label: () => 'Code Graph',
-          },
-          GraphPanel,
+        trackSlotDisposer(
+          ctx.slots.register(
+            {
+              name: 'sidebar.footer.action',
+              id: 'codegraph-visualizer',
+              order: 10,
+              label: () => 'Code Graph',
+            },
+            GraphPanel,
+          ),
         );
       });
       entryRegistered = true;
@@ -197,14 +211,16 @@ export function apply(ctx: Context) {
   // (3) settings.section — always register as a fallback in Settings dialog
   try {
     ctx.slots.inject('settings.section', () => {
-      ctx.slots.register(
-        {
-          name: 'settings.section',
-          id: 'codegraph-visualizer',
-          order: 50,
-          label: () => 'Code Graph',
-        },
-        GraphPanel,
+      trackSlotDisposer(
+        ctx.slots.register(
+          {
+            name: 'settings.section',
+            id: 'codegraph-visualizer',
+            order: 50,
+            label: () => 'Code Graph',
+          },
+          GraphPanel,
+        ),
       );
     });
   } catch (e) {
@@ -228,14 +244,15 @@ export function apply(ctx: Context) {
   try {
     const spotlight = ctx.get('spotlight') as Context['spotlight'] | undefined;
     if (spotlight) {
-      spotlight.registerCommand({
+      const d1 = spotlight.registerCommand({
         id: 'codegraph-search',
         title: 'Code Graph: Search Symbols',
         handler: () => {
           window.dispatchEvent(new KeyboardEvent('keydown', { key: '/' }));
         },
       });
-      spotlight.registerCommand({
+      if (typeof d1 === 'function') ctx.effect(() => d1, 'codegraph: spotlight search cmd');
+      const d2 = spotlight.registerCommand({
         id: 'codegraph-toggle',
         title: 'Code Graph: Toggle Panel',
         handler: () => {
@@ -243,6 +260,7 @@ export function apply(ctx: Context) {
           panel?.dispatchEvent(new MouseEvent('click'));
         },
       });
+      if (typeof d2 === 'function') ctx.effect(() => d2, 'codegraph: spotlight toggle cmd');
     }
   } catch (e) {
     log.warn('spotlight registration failed', e);
@@ -367,7 +385,7 @@ export function apply(ctx: Context) {
                 store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata);
               }
             })
-            .catch(() => {});
+            .catch((e) => log.warn('incremental graph fetch failed', e));
         } else {
           fetchGraphData().then((data) => {
             if (data) {
