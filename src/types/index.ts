@@ -20,6 +20,7 @@ export interface GraphNode {
   filePath: string;
   lineNumber: number;
   properties: Record<string, unknown>;
+  parentId?: NodeId;
 }
 
 export interface GraphEdge {

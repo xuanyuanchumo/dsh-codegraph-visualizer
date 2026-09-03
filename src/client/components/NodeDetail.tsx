@@ -21,7 +21,7 @@ const TYPE_COLORS: Record<string, string> = {
   type: 'var(--cg-text-tertiary)',
 };
 
-const EXPANDABLE_TYPES = new Set(['module', 'class', 'interface']);
+const EXPANDABLE_TYPES = new Set(['module', 'class', 'interface', 'function', 'variable', 'type']);
 
 interface NodeDetailProps {
   node: GraphNode;

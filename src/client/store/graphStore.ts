@@ -52,6 +52,15 @@ function filterByDepthLevel(
   const allowedTypes = DEPTH_TYPE_MAP[depthLevel] ?? DEPTH_TYPE_MAP[3]!;
   const expanded = expandedNodeIds ?? new Set<string>();
 
+  const childrenOfParent = new Map<string, GraphNode[]>();
+  for (const n of rawNodes) {
+    if (n.parentId) {
+      const list = childrenOfParent.get(n.parentId);
+      if (list) list.push(n);
+      else childrenOfParent.set(n.parentId, [n]);
+    }
+  }
+
   const edgeAdjacency = new Map<string, string[]>();
   for (const e of rawEdges) {
     const list = edgeAdjacency.get(e.source);
@@ -64,18 +73,23 @@ function filterByDepthLevel(
 
   const visibleNodeIds = new Set<string>();
   for (const n of rawNodes) {
-    if (allowedTypes.has(n.type)) {
+    if (allowedTypes.has(n.type) && !n.parentId) {
       visibleNodeIds.add(n.id);
     }
   }
+
   for (const expandedId of expanded) {
-    if (!visibleNodeIds.has(expandedId)) {
-      const neighbors = edgeAdjacency.get(expandedId) ?? [];
-      for (const neighborId of neighbors) {
-        const neighbor = rawNodes.find((n) => n.id === neighborId);
-        if (neighbor && allowedTypes.has(neighbor.type)) {
-          visibleNodeIds.add(neighborId);
-        }
+    const children = childrenOfParent.get(expandedId);
+    if (children) {
+      for (const child of children) {
+        visibleNodeIds.add(child.id);
+      }
+    }
+    const neighbors = edgeAdjacency.get(expandedId) ?? [];
+    for (const neighborId of neighbors) {
+      const neighbor = rawNodes.find((n) => n.id === neighborId);
+      if (neighbor && allowedTypes.has(neighbor.type)) {
+        visibleNodeIds.add(neighborId);
       }
     }
   }

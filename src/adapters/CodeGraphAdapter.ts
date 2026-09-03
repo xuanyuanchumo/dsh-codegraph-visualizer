@@ -154,22 +154,34 @@ export class CodeGraphAdapter {
   }
 
   private toAdapterResult(dbNodes: DbNodeRow[], dbEdges: DbEdgeRow[]): AdapterResult {
-    // Index nodes by id so we can drop dangling edges in one pass.
     const nodeIds = new Set(dbNodes.map((n) => n.id));
 
-    const nodes: GraphNode[] = dbNodes.map((n) => ({
-      id: NodeId(n.id),
-      label: n.name,
-      type: mapNodeKind(n.kind),
-      filePath: n.file_path,
-      lineNumber: n.start_line ?? 1,
-      properties: {
-        kind: n.kind,
-        ...(n.signature ? { signature: n.signature } : {}),
-        ...(n.docstring ? { docstring: n.docstring } : {}),
-        exported: n.is_exported === 1,
-      },
-    }));
+    const fileNodeIds = new Map<string, string>();
+    for (const n of dbNodes) {
+      if (n.kind === 'file' || n.kind === 'module') {
+        fileNodeIds.set(n.file_path, n.id);
+      }
+    }
+
+    const nodes: GraphNode[] = dbNodes.map((n) => {
+      const parentId = (n.kind !== 'file' && n.kind !== 'module' && n.kind !== 'import')
+        ? fileNodeIds.get(n.file_path) ?? undefined
+        : undefined;
+      return {
+        id: NodeId(n.id),
+        label: n.name,
+        type: mapNodeKind(n.kind),
+        filePath: n.file_path,
+        lineNumber: n.start_line ?? 1,
+        properties: {
+          kind: n.kind,
+          ...(n.signature ? { signature: n.signature } : {}),
+          ...(n.docstring ? { docstring: n.docstring } : {}),
+          exported: n.is_exported === 1,
+        },
+        ...(parentId ? { parentId: NodeId(parentId) } : {}),
+      };
+    });
 
     const edges: GraphEdge[] = dbEdges
       .filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target))

@@ -120,33 +120,13 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const handleNodeDoubleTap = useCallback((nodeId: string) => {
     const data = getDataRef.current?.getNodeData(nodeId);
     if (!data) return;
-    if (data.type === 'module') {
-      if (depthLevel === 1) {
-        setDepthLevel(2);
-        expandNode(nodeId);
-      } else if (depthLevel === 2) {
-        setDepthLevel(3);
-        expandNode(nodeId);
-      } else {
-        window.dispatchEvent(new CustomEvent('codegraph:open-source', {
-          detail: { filePath: data.filePath, lineNumber: data.lineNumber, nodeId },
-        }));
-      }
-    } else if (data.type === 'class' || data.type === 'interface') {
-      if (depthLevel === 2) {
-        setDepthLevel(3);
-        expandNode(nodeId);
-      } else {
-        window.dispatchEvent(new CustomEvent('codegraph:open-source', {
-          detail: { filePath: data.filePath, lineNumber: data.lineNumber, nodeId },
-        }));
-      }
+    const isExpanded = expandedNodeIds.has(nodeId);
+    if (isExpanded) {
+      collapseNode(nodeId);
     } else {
-      window.dispatchEvent(new CustomEvent('codegraph:open-source', {
-        detail: { filePath: data.filePath, lineNumber: data.lineNumber, nodeId },
-      }));
+      expandNode(nodeId);
     }
-  }, [depthLevel, setDepthLevel, expandNode]);
+  }, [expandedNodeIds, expandNode, collapseNode]);
 
   const handleNodeHover = useCallback((nodeId: string, pos: { x: number; y: number }) => {
     const data = getDataRef.current?.getNodeData(nodeId);

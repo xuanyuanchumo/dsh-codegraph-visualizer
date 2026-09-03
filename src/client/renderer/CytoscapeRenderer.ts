@@ -153,7 +153,17 @@ export class CytoscapeRenderer implements IRenderer {
     if (nodesToAdd.length <= BATCH_SIZE) {
       this.cy.batch(() => {
         for (const n of nodesToAdd) {
-          this.cy!.add({ group: 'nodes', data: { id: n.id, label: n.label, type: n.type, filePath: n.filePath, lineNumber: n.lineNumber } });
+          this.cy!.add({
+            group: 'nodes',
+            data: {
+              id: n.id,
+              label: n.label,
+              type: n.type,
+              filePath: n.filePath,
+              lineNumber: n.lineNumber,
+              parent: n.parentId ?? undefined,
+            } as any,
+          });
         }
         for (const e of edgesToAdd) {
           this.cy!.add({ group: 'edges', data: { id: e.id, source: e.source, target: e.target, type: e.type } });
@@ -170,7 +180,17 @@ export class CytoscapeRenderer implements IRenderer {
 
     this.cy.batch(() => {
       for (const n of firstBatchNodes) {
-        this.cy!.add({ group: 'nodes', data: { id: n.id, label: n.label, type: n.type, filePath: n.filePath, lineNumber: n.lineNumber } });
+        this.cy!.add({
+          group: 'nodes',
+          data: {
+            id: n.id,
+            label: n.label,
+            type: n.type,
+            filePath: n.filePath,
+            lineNumber: n.lineNumber,
+            parent: n.parentId ?? undefined,
+          } as any,
+        });
       }
       for (const e of firstBatchEdges) {
         this.cy!.add({ group: 'edges', data: { id: e.id, source: e.source, target: e.target, type: e.type } });
@@ -197,7 +217,17 @@ export class CytoscapeRenderer implements IRenderer {
 
       this.cy.batch(() => {
         for (const n of batchNodes) {
-          this.cy!.add({ group: 'nodes', data: { id: n.id, label: n.label, type: n.type, filePath: n.filePath, lineNumber: n.lineNumber } });
+          this.cy!.add({
+            group: 'nodes',
+            data: {
+              id: n.id,
+              label: n.label,
+              type: n.type,
+              filePath: n.filePath,
+              lineNumber: n.lineNumber,
+              parent: n.parentId ?? undefined,
+            } as any,
+          });
         }
         for (const e of batchEdges) {
           this.cy!.add({ group: 'edges', data: { id: e.id, source: e.source, target: e.target, type: e.type } });
@@ -226,10 +256,10 @@ export class CytoscapeRenderer implements IRenderer {
       let effectiveLayout = layout;
       let animate = true;
 
-      if (nodeCount > 500) {
+      if (nodeCount > 800) {
         effectiveLayout = 'grid';
         animate = false;
-      } else if (nodeCount > 150 && layout === 'cose') {
+      } else if (nodeCount > 200 && layout === 'cose') {
         effectiveLayout = 'dagre';
         animate = false;
       }
@@ -242,14 +272,14 @@ export class CytoscapeRenderer implements IRenderer {
             fit: true,
             animate,
             animationDuration: 400,
-            nodeRepulse: () => 4500,
-            idealEdgeLength: () => 80,
-            edgeElasticity: () => 0.45,
-            gravity: 0.25,
-            numIter: nodeCount > 80 ? 1500 : 2500,
-            randomize: true,
+            nodeRepulse: () => 8000,
+            idealEdgeLength: () => 120,
+            edgeElasticity: () => 0.3,
+            gravity: 0.15,
+            numIter: nodeCount > 80 ? 2500 : 4000,
+            randomize: false,
             tile: true,
-            padding: 30,
+            padding: 40,
           } as LayoutOptions;
           break;
         case 'dagre':
@@ -258,11 +288,11 @@ export class CytoscapeRenderer implements IRenderer {
             fit: true,
             animate,
             rankDir: 'TB',
-            rankSep: 60,
-            edgeSep: 20,
-            nodeSep: 40,
+            rankSep: 100,
+            edgeSep: 40,
+            nodeSep: 80,
             ranker: 'tight-tree',
-            padding: 30,
+            padding: 40,
           } as LayoutOptions;
           break;
         case 'circle':
@@ -631,6 +661,23 @@ export class CytoscapeRenderer implements IRenderer {
           'border-width': isLargeGraph ? 1 : 2,
           'border-color': c.border,
           ...(isLargeGraph ? {} : { 'transition-property': 'background-color', 'transition-duration': 200 }),
+        },
+      },
+      {
+        selector: ':parent',
+        style: {
+          'background-color': 'rgba(0,0,0,0.05)',
+          'border-width': 2,
+          'border-color': c.border,
+          'border-style': 'dashed',
+          'label': 'data(label)',
+          'font-size': '10px',
+          'color': c.text,
+          'text-valign': 'top',
+          'text-halign': 'center',
+          'text-wrap': 'wrap',
+          'text-max-width': '100px',
+          'padding': '10px',
         },
       },
       {

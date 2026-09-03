@@ -34,14 +34,27 @@ export class LensAdapter {
       const symbols = Array.isArray(raw.symbols) ? raw.symbols : [];
       const references = Array.isArray(raw.references) ? raw.references : [];
 
-      const nodes: GraphNode[] = symbols.map(s => ({
+    const fileNodeMap = new Map<string, string>();
+    for (const s of symbols) {
+      if (s.category === 'module' || s.category === 'file') {
+        fileNodeMap.set(s.file, s.id);
+      }
+    }
+
+    const nodes: GraphNode[] = symbols.map(s => {
+      const parentId = (s.category !== 'module' && s.category !== 'file')
+        ? fileNodeMap.get(s.file)
+        : undefined;
+      return {
         id: NodeId(s.id),
         label: s.name,
         type: this.mapCategory(s.category),
         filePath: s.file,
         lineNumber: s.line,
         properties: { scope: s.scope },
-      }));
+        ...(parentId ? { parentId: NodeId(parentId) } : {}),
+      };
+    });
 
       const edges: GraphEdge[] = references.map(r => ({
         id: EdgeId(`${r.from}->${r.to}`),

@@ -1,5 +1,5 @@
 import { spawn, execSync } from 'node:child_process';
-import { existsSync, writeFileSync, readFileSync, unlinkSync } from 'node:fs';
+import { existsSync, writeFileSync, readFileSync, unlinkSync, mkdirSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir, tmpdir } from 'node:os';
@@ -14,8 +14,10 @@ const USER_DATA_DIR = join(__dirname, '..', 'test-results', 'chrome-debug-profil
 
 const action = process.argv[2] || 'start';
 const timeoutSeconds = parseInt(process.argv[3] || '30', 10);
+const verbose = process.argv.includes('--verbose');
 
 function log(msg) { console.log(`>>> ${msg}`); }
+function dbg(msg) { if (verbose) console.log(`    [debug] ${msg}`); }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 async function waitForUrl(url, timeoutMs) {
@@ -28,6 +30,43 @@ async function waitForUrl(url, timeoutMs) {
     await sleep(500);
   }
   return false;
+}
+
+async function waitForChromeDebug(timeoutMs = 15000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch(`${CHROME_DEBUG_URL}/json/version`, { signal: AbortSignal.timeout(1000) });
+      if (res.ok) {
+        const data = await res.json();
+        if (data['Browser'] && data['webSocketDebuggerUrl']) {
+          dbg(`Chrome DevTools 就绪: ${data['Browser']}`);
+          return true;
+        }
+      }
+    } catch { /* keep waiting */ }
+    await sleep(300);
+  }
+  return false;
+}
+
+async function waitForTarget(timeoutMs = 20000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch(`${CHROME_DEBUG_URL}/json`, { signal: AbortSignal.timeout(1000) });
+      if (res.ok) {
+        const targets = await res.json();
+        const dshTarget = targets.find(t => t.url && t.url.includes('localhost:3080'));
+        if (dshTarget) {
+          dbg(`找到 DSH 页面目标: ${dshTarget.title || '(无标题)'}`);
+          return dshTarget;
+        }
+      }
+    } catch { /* keep waiting */ }
+    await sleep(500);
+  }
+  return null;
 }
 
 function findDshCmd() {
@@ -65,6 +104,10 @@ function findPidByPort(port) {
   return null;
 }
 
+function isPortInUse(port) {
+  return findPidByPort(port) !== null;
+}
+
 function killProcess(pid) {
   try { execSync(`taskkill /PID ${pid} /F /T`, { stdio: 'ignore' }); return true; }
   catch { return false; }
@@ -78,6 +121,16 @@ function killChromeByPidFile() {
     else log(`Chrome 进程 (PID: ${pid}) 已不存在`);
   }
   try { unlinkSync(CHROME_PID_FILE); } catch { /* */ }
+}
+
+function cleanChromeLockFiles() {
+  const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+  for (const f of lockFiles) {
+    const p = join(USER_DATA_DIR, f);
+    if (existsSync(p)) {
+      try { unlinkSync(p); dbg(`已清理锁文件: ${f}`); } catch { /* */ }
+    }
+  }
 }
 
 function stopEnvironment() {
@@ -96,6 +149,17 @@ function stopEnvironment() {
 
 async function startEnvironment() {
   stopEnvironment();
+
+  if (isPortInUse(3080)) {
+    const pid = findPidByPort(3080);
+    console.error(`端口 3080 已被占用 (PID: ${pid})，请先释放该端口`);
+    process.exit(5);
+  }
+  if (isPortInUse(9222)) {
+    const pid = findPidByPort(9222);
+    console.error(`端口 9222 已被占用 (PID: ${pid})，请先释放该端口`);
+    process.exit(5);
+  }
 
   const dshCmd = findDshCmd();
   if (!dshCmd) { console.error('找不到 dsh.cmd'); process.exit(1); }
@@ -146,15 +210,41 @@ async function startEnvironment() {
   }
   log(`使用 Chrome: ${chromeExe}`);
 
+  if (!existsSync(USER_DATA_DIR)) {
+    mkdirSync(USER_DATA_DIR, { recursive: true });
+  }
+  cleanChromeLockFiles();
+
   log('启动 Chrome 调试实例 (端口 9222)...');
   const chromeProc = spawn(chromeExe, [
     '--remote-debugging-port=9222',
     `--user-data-dir=${USER_DATA_DIR}`,
+    '--no-first-run',
+    '--no-default-browser-check',
+    '--disable-default-apps',
+    '--disable-extensions',
+    '--disable-plugins',
+    '--disable-sync',
+    '--disable-background-networking',
+    '--disable-client-side-phishing-detection',
+    '--disable-crash-reporter',
+    '--disable-logging',
+    '--disable-breakpad',
+    '--no-pings',
+    '--disable-features=TranslateUI',
     DSH_URL,
   ], { detached: true, stdio: 'ignore' });
   chromeProc.unref();
 
-  await sleep(2000);
+  log('等待 Chrome DevTools 协议就绪...');
+  const debugReady = await waitForChromeDebug(15000);
+  if (!debugReady) {
+    console.error('Chrome 调试端口未能在 15 秒内就绪');
+    if (chromeProc.pid) killProcess(chromeProc.pid);
+    process.exit(4);
+  }
+  log('Chrome DevTools 协议已就绪');
+
   const chromeRealPid = findPidByPort(9222);
   const finalChromePid = chromeRealPid || chromeProc.pid;
   if (chromeRealPid) {
@@ -164,8 +254,28 @@ async function startEnvironment() {
   }
   writeFileSync(CHROME_PID_FILE, String(finalChromePid));
 
+  log('等待 DSH 页面成为有效调试目标...');
+  const dshTarget = await waitForTarget(20000);
+  if (!dshTarget) {
+    log('警告: 未能在 20 秒内找到 DSH 页面目标，MCP 可能需要手动附加');
+  } else {
+    log(`DSH 页面目标已就绪: ${dshTarget.title || '(无标题)'}`);
+    dbg(`目标 URL: ${dshTarget.url}`);
+    dbg(`WebSocket: ${dshTarget.webSocketDebuggerUrl}`);
+  }
+
   log('环境启动完成！');
-  log(`MCP 可通过 ${CHROME_DEBUG_URL} 连接 Chrome`);
+  console.log('');
+  console.log('=== MCP 连接信息 ===');
+  console.log(`Chrome DevTools: ${CHROME_DEBUG_URL}`);
+  if (dshTarget) {
+    console.log(`DSH 页面 WebSocket: ${dshTarget.webSocketDebuggerUrl}`);
+  }
+  console.log(`DSH Web 服务: ${DSH_URL}`);
+  console.log('');
+  console.log('chrome-devtools MCP 可直接使用，无需额外配置。');
+  console.log('MCP 工具会自动通过 http://127.0.0.1:9222 发现并附加到 DSH 页面。');
+  console.log('');
   log(`DSH PID: ${finalDshPid} (保存在 ${PID_FILE})`);
   log(`Chrome PID: ${finalChromePid} (保存在 ${CHROME_PID_FILE})`);
   process.exit(0);

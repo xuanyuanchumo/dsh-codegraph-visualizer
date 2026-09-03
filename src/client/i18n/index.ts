@@ -37,7 +37,7 @@ const en: Dict = {
 
   // Depth levels
   'depth.all': 'All Levels',
-  'depth.module': 'L1: Modules (dbl-click to expand)',
+  'depth.module': 'L1: Files (dbl-click to expand)',
   'depth.type': 'L2: + Types (dbl-click to expand)',
   'depth.full': 'L3: Full Detail',
 
@@ -240,7 +240,7 @@ const zh: Dict = {
 
   // Depth levels
   'depth.all': '全部层级',
-  'depth.module': 'L1: 模块 (双击展开)',
+  'depth.module': 'L1: 文件 (双击展开)',
   'depth.type': 'L2: + 类型 (双击展开)',
   'depth.full': 'L3: 全部详情',
 

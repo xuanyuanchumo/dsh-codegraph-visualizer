@@ -9,8 +9,11 @@ export function makeNode(
   file: string,
   line: number,
   properties: Record<string, unknown> = {},
+  parentId?: string,
 ): GraphNode {
-  return { id: NodeId(id), label, type, filePath: file, lineNumber: line, properties };
+  const node: GraphNode = { id: NodeId(id), label, type, filePath: file, lineNumber: line, properties };
+  if (parentId) node.parentId = NodeId(parentId);
+  return node;
 }
 
 export function makeEdge(

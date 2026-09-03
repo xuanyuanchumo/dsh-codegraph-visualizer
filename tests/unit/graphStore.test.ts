@@ -316,4 +316,53 @@ it('should track prerequisites (J11 data source detection)', () => {
     expect(sAll.nodes).toHaveLength(3);
     expect(sAll.edges).toHaveLength(2);
   });
+
+  it('expandNode should show children of expanded node (per-node独立展开)', () => {
+    const nodes = [
+      makeNode('file1', 'a.ts', 'module', 'a.ts', 1),
+      makeNode('func1', 'funcA', 'function', 'a.ts', 10, {}, 'file1'),
+      makeNode('cls1', 'ClassA', 'class', 'a.ts', 20, {}, 'file1'),
+      makeNode('file2', 'b.ts', 'module', 'b.ts', 1),
+      makeNode('func2', 'funcB', 'function', 'b.ts', 5, {}, 'file2'),
+    ];
+    const edges = [
+      makeEdge('e1', 'file1', 'file2', 'import'),
+      makeEdge('e2', 'func1', 'func2', 'call'),
+    ];
+    useGraphStore.getState().setDepthLevel(1);
+    useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
+
+    const s0 = useGraphStore.getState();
+    expect(s0.nodes).toHaveLength(2);
+    expect(s0.nodes.map((n) => n.id).sort()).toEqual(['file1', 'file2']);
+
+    useGraphStore.getState().expandNode('file1');
+    const s1 = useGraphStore.getState();
+    expect(s1.nodes).toHaveLength(4);
+    expect(s1.nodes.map((n) => n.id).sort()).toEqual(['cls1', 'file1', 'file2', 'func1']);
+
+    useGraphStore.getState().collapseNode('file1');
+    const s2 = useGraphStore.getState();
+    expect(s2.nodes).toHaveLength(2);
+    expect(s2.nodes.map((n) => n.id).sort()).toEqual(['file1', 'file2']);
+  });
+
+  it('collapseAll should collapse all expanded nodes', () => {
+    const nodes = [
+      makeNode('file1', 'a.ts', 'module', 'a.ts', 1),
+      makeNode('func1', 'funcA', 'function', 'a.ts', 10, {}, 'file1'),
+      makeNode('file2', 'b.ts', 'module', 'b.ts', 1),
+      makeNode('func2', 'funcB', 'function', 'b.ts', 5, {}, 'file2'),
+    ];
+    useGraphStore.getState().setDepthLevel(1);
+    useGraphStore.getState().setGraphData(nodes, [], 'repo-1');
+
+    useGraphStore.getState().expandNode('file1');
+    useGraphStore.getState().expandNode('file2');
+    expect(useGraphStore.getState().nodes).toHaveLength(4);
+
+    useGraphStore.getState().collapseAll();
+    expect(useGraphStore.getState().nodes).toHaveLength(2);
+    expect(useGraphStore.getState().expandedNodeIds.size).toBe(0);
+  });
 });
