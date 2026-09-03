@@ -25,15 +25,15 @@ export interface UseGraphRendererResult {
 }
 
 export function useGraphRenderer(
-  nodes: GraphNode[],
-  edges: GraphEdge[],
+  nodes: (GraphNode | import('../store/graphStore.ts').ClusterNode)[],
+  edges: (GraphEdge | import('../store/graphStore.ts').ClusterEdge)[],
   layout: LayoutType,
   theme: ThemeType,
   highlightedNodeIds: NodeId[],
   selectedNodeId: NodeId | null,
   filterType: FilterType,
   graphType: 'all' | 'call' | 'dependency',
-  depthLevel: 1 | 2 | 3 | 'all',
+  clusterLevel: 'directory' | 'file' | 'function',
   debouncedSearch: string,
   showCallChain: boolean,
   showCycles: boolean,
@@ -78,7 +78,7 @@ export function useGraphRenderer(
     if (!r) return;
     const timer = setTimeout(() => r.applyLayout(layout), 150);
     return () => clearTimeout(timer);
-  }, [layout, depthLevel, nodes.length, edges.length]);
+  }, [layout, clusterLevel, nodes.length, edges.length]);
 
   useEffect(() => {
     const r = rendererRef.current;
@@ -96,7 +96,6 @@ export function useGraphRenderer(
   }, [graphType]);
 
   useEffect(() => {
-
     const r = rendererRef.current;
     if (!r) return;
     setSearchMatchCount(debouncedSearch ? r.search(debouncedSearch) : null);

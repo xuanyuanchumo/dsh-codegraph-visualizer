@@ -2585,62 +2585,189 @@ function clearLoadingFailsafe() {
 		loadingFailsafe = null;
 	}
 }
-const DEPTH_TYPE_MAP = {
-	1: new Set(["module"]),
-	2: new Set([
-		"module",
-		"class",
-		"interface",
-		"type"
-	]),
-	3: new Set([
-		"module",
-		"class",
-		"interface",
-		"type",
-		"function",
-		"variable"
-	])
-};
-function filterByDepthLevel(rawNodes, rawEdges, depthLevel, expandedNodeIds) {
-	if (depthLevel === "all") return {
+function getTopLevelDir(filePath) {
+	const parts = filePath.split(/[\\/]/);
+	if (parts.length <= 2) return filePath;
+	if (parts[0] === "crates" && parts.length >= 2) return `crates/${parts[1]}`;
+	if (parts[0] === "src" || parts[0] === "lib" || parts[0] === "app") return parts.slice(0, 2).join("/");
+	return parts.slice(0, 2).join("/");
+}
+function getDirLabel(dirPath) {
+	const parts = dirPath.split("/");
+	return parts[parts.length - 1] ?? dirPath;
+}
+function computeDirectoryClusters(rawNodes, rawEdges, expandedDirs) {
+	const nodeToDir = new Map();
+	const dirToNodes = new Map();
+	for (const n of rawNodes) {
+		const dir = getTopLevelDir(n.filePath);
+		nodeToDir.set(n.id, dir);
+		const list = dirToNodes.get(dir);
+		if (list) list.push(n);
+		else dirToNodes.set(dir, [n]);
+	}
+	const visibleNodes = [];
+	const nodeIdToVisibleId = new Map();
+	for (const [dirPath, nodes] of dirToNodes) if (expandedDirs.has(dirPath)) for (const n of nodes) {
+		visibleNodes.push(n);
+		nodeIdToVisibleId.set(n.id, n.id);
+	}
+	else {
+		const clusterId = `cluster__${dirPath.replace(/[/:\\]/g, "__")}`;
+		const childIds = nodes.map((n) => n.id);
+		const clusterNode = {
+			id: clusterId,
+			label: `${getDirLabel(dirPath)} (${nodes.length})`,
+			type: "module",
+			filePath: dirPath,
+			lineNumber: 0,
+			properties: {},
+			isCluster: true,
+			childCount: nodes.length,
+			childIds,
+			clusterPath: dirPath
+		};
+		visibleNodes.push(clusterNode);
+		for (const n of nodes) nodeIdToVisibleId.set(n.id, clusterId);
+	}
+	const edgeAggregation = new Map();
+	for (const e of rawEdges) {
+		const sourceVisibleId = nodeIdToVisibleId.get(e.source);
+		const targetVisibleId = nodeIdToVisibleId.get(e.target);
+		if (!sourceVisibleId || !targetVisibleId) continue;
+		if (sourceVisibleId === targetVisibleId) continue;
+		const key = `${sourceVisibleId}→${targetVisibleId}`;
+		const existing = edgeAggregation.get(key);
+		if (existing) {
+			existing.count++;
+			existing.types.add(e.type);
+		} else edgeAggregation.set(key, {
+			source: sourceVisibleId,
+			target: targetVisibleId,
+			count: 1,
+			types: new Set([e.type])
+		});
+	}
+	const visibleEdges = [];
+	for (const [, agg] of edgeAggregation) {
+		const sourceIsCluster = agg.source.startsWith("cluster__");
+		const targetIsCluster = agg.target.startsWith("cluster__");
+		if (!sourceIsCluster && !targetIsCluster) {
+			for (const e of rawEdges) if (nodeIdToVisibleId.get(e.source) === agg.source && nodeIdToVisibleId.get(e.target) === agg.target) visibleEdges.push(e);
+		} else {
+			const clusterEdge = {
+				id: `clusteredge__${agg.source}__${agg.target}`,
+				source: agg.source,
+				target: agg.target,
+				type: agg.types.size === 1 ? [...agg.types][0] : "dependency",
+				properties: {},
+				isCluster: true,
+				aggregatedCount: agg.count
+			};
+			visibleEdges.push(clusterEdge);
+		}
+	}
+	return {
+		nodes: visibleNodes,
+		edges: visibleEdges
+	};
+}
+function computeFileClusters(rawNodes, rawEdges, expandedFiles) {
+	const visibleNodes = [];
+	const nodeIdToVisibleId = new Map();
+	for (const n of rawNodes) if (n.type === "module") {
+		visibleNodes.push(n);
+		nodeIdToVisibleId.set(n.id, n.id);
+	} else {
+		const parentFileId = n.parentId;
+		if (parentFileId && expandedFiles.has(parentFileId)) {
+			visibleNodes.push(n);
+			nodeIdToVisibleId.set(n.id, n.id);
+		} else {
+			const clusterId = parentFileId ? `filecluster__${parentFileId.replace(/[/:\\]/g, "__")}` : `filecluster__orphan`;
+			nodeIdToVisibleId.set(n.id, clusterId);
+		}
+	}
+	const fileClusterChildren = new Map();
+	for (const n of rawNodes) if (n.type !== "module") {
+		const clusterId = nodeIdToVisibleId.get(n.id);
+		if (clusterId && clusterId.startsWith("filecluster__")) {
+			const list = fileClusterChildren.get(clusterId);
+			if (list) list.push(n);
+			else fileClusterChildren.set(clusterId, [n]);
+		}
+	}
+	for (const [clusterId, children] of fileClusterChildren) {
+		const parentFileId = clusterId.replace("filecluster__", "").replace(/__/g, "/");
+		const parentNode = rawNodes.find((n) => n.id === parentFileId);
+		const clusterNode = {
+			id: clusterId,
+			label: `${parentNode?.label ?? "unknown"} (${children.length})`,
+			type: "module",
+			filePath: parentNode?.filePath ?? "",
+			lineNumber: 0,
+			properties: {},
+			isCluster: true,
+			childCount: children.length,
+			childIds: children.map((c) => c.id),
+			clusterPath: parentFileId
+		};
+		visibleNodes.push(clusterNode);
+	}
+	const edgeAggregation = new Map();
+	for (const e of rawEdges) {
+		const sourceVisibleId = nodeIdToVisibleId.get(e.source);
+		const targetVisibleId = nodeIdToVisibleId.get(e.target);
+		if (!sourceVisibleId || !targetVisibleId) continue;
+		if (sourceVisibleId === targetVisibleId) continue;
+		const key = `${sourceVisibleId}→${targetVisibleId}`;
+		const existing = edgeAggregation.get(key);
+		if (existing) {
+			existing.count++;
+			existing.types.add(e.type);
+		} else edgeAggregation.set(key, {
+			source: sourceVisibleId,
+			target: targetVisibleId,
+			count: 1,
+			types: new Set([e.type])
+		});
+	}
+	const visibleEdges = [];
+	for (const [, agg] of edgeAggregation) {
+		const sourceIsCluster = agg.source.startsWith("filecluster__");
+		const targetIsCluster = agg.target.startsWith("filecluster__");
+		if (!sourceIsCluster && !targetIsCluster) {
+			for (const e of rawEdges) if (nodeIdToVisibleId.get(e.source) === agg.source && nodeIdToVisibleId.get(e.target) === agg.target) visibleEdges.push(e);
+		} else {
+			const clusterEdge = {
+				id: `clusteredge__${agg.source}__${agg.target}`,
+				source: agg.source,
+				target: agg.target,
+				type: agg.types.size === 1 ? [...agg.types][0] : "dependency",
+				properties: {},
+				isCluster: true,
+				aggregatedCount: agg.count
+			};
+			visibleEdges.push(clusterEdge);
+		}
+	}
+	return {
+		nodes: visibleNodes,
+		edges: visibleEdges
+	};
+}
+function computeFunctionLevel(rawNodes, rawEdges) {
+	return {
 		nodes: rawNodes,
 		edges: rawEdges
 	};
-	const allowedTypes = DEPTH_TYPE_MAP[depthLevel] ?? DEPTH_TYPE_MAP[3];
-	const expanded = expandedNodeIds ?? new Set();
-	const childrenOfParent = new Map();
-	for (const n of rawNodes) if (n.parentId) {
-		const list = childrenOfParent.get(n.parentId);
-		if (list) list.push(n);
-		else childrenOfParent.set(n.parentId, [n]);
+}
+function computeClusteredGraph(rawNodes, rawEdges, clusterLevel, expandedNodeIds) {
+	switch (clusterLevel) {
+		case "directory": return computeDirectoryClusters(rawNodes, rawEdges, expandedNodeIds);
+		case "file": return computeFileClusters(rawNodes, rawEdges, expandedNodeIds);
+		case "function": return computeFunctionLevel(rawNodes, rawEdges);
 	}
-	const edgeAdjacency = new Map();
-	for (const e of rawEdges) {
-		const list = edgeAdjacency.get(e.source);
-		if (list) list.push(e.target);
-		else edgeAdjacency.set(e.source, [e.target]);
-		const list2 = edgeAdjacency.get(e.target);
-		if (list2) list2.push(e.source);
-		else edgeAdjacency.set(e.target, [e.source]);
-	}
-	const visibleNodeIds = new Set();
-	for (const n of rawNodes) if (allowedTypes.has(n.type) && !n.parentId) visibleNodeIds.add(n.id);
-	for (const expandedId of expanded) {
-		const children = childrenOfParent.get(expandedId);
-		if (children) for (const child of children) visibleNodeIds.add(child.id);
-		const neighbors = edgeAdjacency.get(expandedId) ?? [];
-		for (const neighborId of neighbors) {
-			const neighbor = rawNodes.find((n) => n.id === neighborId);
-			if (neighbor && allowedTypes.has(neighbor.type)) visibleNodeIds.add(neighborId);
-		}
-	}
-	const filteredNodes = rawNodes.filter((n) => visibleNodeIds.has(n.id));
-	const filteredEdges = rawEdges.filter((e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target));
-	return {
-		nodes: filteredNodes,
-		edges: filteredEdges
-	};
 }
 const useGraphStore = create$1()(persist((set$1) => ({
 	nodes: [],
@@ -2658,7 +2785,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	highlightedNodeIds: [],
 	filterType: "all",
 	graphType: "all",
-	depthLevel: 1,
+	clusterLevel: "directory",
 	isLoading: false,
 	error: null,
 	lastUpdated: 0,
@@ -2674,14 +2801,13 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	workspaceList: [],
 	setGraphData: (nodes, edges, repoId, metadata) => {
 		clearLoadingFailsafe();
-		const depthLevel = useGraphStore.getState().depthLevel;
-		const expandedNodeIds = useGraphStore.getState().expandedNodeIds;
-		const { nodes: filteredNodes, edges: filteredEdges } = filterByDepthLevel(nodes, edges, depthLevel, expandedNodeIds);
+		const { clusterLevel, expandedNodeIds } = useGraphStore.getState();
+		const result = computeClusteredGraph(nodes, edges, clusterLevel, expandedNodeIds);
 		set$1({
 			rawNodes: nodes,
 			rawEdges: edges,
-			nodes: filteredNodes,
-			edges: filteredEdges,
+			nodes: result.nodes,
+			edges: result.edges,
 			repoId,
 			error: null,
 			isLoading: false,
@@ -2698,13 +2824,13 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	setHighlightedNodes: (highlightedNodeIds) => set$1({ highlightedNodeIds }),
 	setFilterType: (filterType) => set$1({ filterType }),
 	setGraphType: (graphType) => set$1({ graphType }),
-	setDepthLevel: (depthLevel) => {
+	setClusterLevel: (clusterLevel) => {
 		const { rawNodes, rawEdges, expandedNodeIds } = useGraphStore.getState();
-		const { nodes, edges } = filterByDepthLevel(rawNodes, rawEdges, depthLevel, expandedNodeIds);
+		const result = computeClusteredGraph(rawNodes, rawEdges, clusterLevel, expandedNodeIds);
 		set$1({
-			depthLevel,
-			nodes,
-			edges
+			clusterLevel,
+			nodes: result.nodes,
+			edges: result.edges
 		});
 	},
 	setLoading: (isLoading) => {
@@ -2745,34 +2871,34 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	}),
 	setWatchEnabled: (watchEnabled) => set$1({ watchEnabled }),
 	expandNode: (nodeId) => {
-		const { rawNodes, rawEdges, depthLevel, expandedNodeIds } = useGraphStore.getState();
+		const { rawNodes, rawEdges, clusterLevel, expandedNodeIds } = useGraphStore.getState();
 		const newExpanded = new Set(expandedNodeIds);
 		newExpanded.add(nodeId);
-		const { nodes, edges } = filterByDepthLevel(rawNodes, rawEdges, depthLevel, newExpanded);
+		const result = computeClusteredGraph(rawNodes, rawEdges, clusterLevel, newExpanded);
 		set$1({
 			expandedNodeIds: newExpanded,
-			nodes,
-			edges
+			nodes: result.nodes,
+			edges: result.edges
 		});
 	},
 	collapseNode: (nodeId) => {
-		const { rawNodes, rawEdges, depthLevel, expandedNodeIds } = useGraphStore.getState();
+		const { rawNodes, rawEdges, clusterLevel, expandedNodeIds } = useGraphStore.getState();
 		const newExpanded = new Set(expandedNodeIds);
 		newExpanded.delete(nodeId);
-		const { nodes, edges } = filterByDepthLevel(rawNodes, rawEdges, depthLevel, newExpanded);
+		const result = computeClusteredGraph(rawNodes, rawEdges, clusterLevel, newExpanded);
 		set$1({
 			expandedNodeIds: newExpanded,
-			nodes,
-			edges
+			nodes: result.nodes,
+			edges: result.edges
 		});
 	},
 	collapseAll: () => {
-		const { rawNodes, rawEdges, depthLevel } = useGraphStore.getState();
-		const { nodes, edges } = filterByDepthLevel(rawNodes, rawEdges, depthLevel, new Set());
+		const { rawNodes, rawEdges, clusterLevel } = useGraphStore.getState();
+		const result = computeClusteredGraph(rawNodes, rawEdges, clusterLevel, new Set());
 		set$1({
 			expandedNodeIds: new Set(),
-			nodes,
-			edges
+			nodes: result.nodes,
+			edges: result.edges
 		});
 	},
 	setCurrentWorkspace: (path) => set$1({ currentWorkspace: path }),
@@ -2794,7 +2920,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	}))
 }), {
 	name: "dsh-codegraph-visualizer/ui",
-	version: 3,
+	version: 4,
 	storage: createJSONStorage(() => typeof window !== "undefined" ? window.localStorage : memoryStorage),
 	migrate: (persisted, version$1) => {
 		const p$1 = persisted;
@@ -2815,6 +2941,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			result.workspaceList = Array.isArray(p$1.workspaceList) ? p$1.workspaceList : [];
 			result.currentWorkspace = typeof p$1.currentWorkspace === "string" ? p$1.currentWorkspace : ".";
 		}
+		if (version$1 < 4) result.clusterLevel = "directory";
 		return result;
 	},
 	partialize: (s) => ({
@@ -2822,7 +2949,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		theme: s.theme,
 		filterType: s.filterType,
 		graphType: s.graphType,
-		depthLevel: s.depthLevel,
+		clusterLevel: s.clusterLevel,
 		currentWorkspace: s.currentWorkspace,
 		workspaceList: s.workspaceList
 	})
@@ -41597,26 +41724,36 @@ var CytoscapeRenderer = class {
 		const BATCH_SIZE = 200;
 		if (nodesToAdd.length <= BATCH_SIZE) {
 			this.cy.batch(() => {
-				for (const n of nodesToAdd) this.cy.add({
-					group: "nodes",
-					data: {
-						id: n.id,
-						label: n.label,
-						type: n.type,
-						filePath: n.filePath,
-						lineNumber: n.lineNumber,
-						parent: n.parentId ?? void 0
-					}
-				});
-				for (const e of edgesToAdd) this.cy.add({
-					group: "edges",
-					data: {
-						id: e.id,
-						source: e.source,
-						target: e.target,
-						type: e.type
-					}
-				});
+				for (const n of nodesToAdd) {
+					const cn = n;
+					this.cy.add({
+						group: "nodes",
+						data: {
+							id: n.id,
+							label: n.label,
+							type: n.type,
+							filePath: n.filePath,
+							lineNumber: n.lineNumber,
+							parent: n.parentId ?? void 0,
+							isCluster: cn.isCluster ?? false,
+							childCount: cn.childCount ?? 0
+						}
+					});
+				}
+				for (const e of edgesToAdd) {
+					const ce = e;
+					this.cy.add({
+						group: "edges",
+						data: {
+							id: e.id,
+							source: e.source,
+							target: e.target,
+							type: e.type,
+							isCluster: ce.isCluster ?? false,
+							label: ce.isCluster ? `${ce.aggregatedCount} deps` : ""
+						}
+					});
+				}
 			});
 			return;
 		}
@@ -41626,26 +41763,36 @@ var CytoscapeRenderer = class {
 		const remainingNodes = nodesToAdd.slice(BATCH_SIZE);
 		const remainingEdges = edgesToAdd.filter((e) => !firstBatchEdges.includes(e));
 		this.cy.batch(() => {
-			for (const n of firstBatchNodes) this.cy.add({
-				group: "nodes",
-				data: {
-					id: n.id,
-					label: n.label,
-					type: n.type,
-					filePath: n.filePath,
-					lineNumber: n.lineNumber,
-					parent: n.parentId ?? void 0
-				}
-			});
-			for (const e of firstBatchEdges) this.cy.add({
-				group: "edges",
-				data: {
-					id: e.id,
-					source: e.source,
-					target: e.target,
-					type: e.type
-				}
-			});
+			for (const n of firstBatchNodes) {
+				const cn = n;
+				this.cy.add({
+					group: "nodes",
+					data: {
+						id: n.id,
+						label: n.label,
+						type: n.type,
+						filePath: n.filePath,
+						lineNumber: n.lineNumber,
+						parent: n.parentId ?? void 0,
+						isCluster: cn.isCluster ?? false,
+						childCount: cn.childCount ?? 0
+					}
+				});
+			}
+			for (const e of firstBatchEdges) {
+				const ce = e;
+				this.cy.add({
+					group: "edges",
+					data: {
+						id: e.id,
+						source: e.source,
+						target: e.target,
+						type: e.type,
+						isCluster: ce.isCluster ?? false,
+						label: ce.isCluster ? `${ce.aggregatedCount} deps` : ""
+					}
+				});
+			}
 		});
 		this.batchQueue = {
 			nodes: remainingNodes,
@@ -41669,26 +41816,36 @@ var CytoscapeRenderer = class {
 			const leftoverNodes = nodes.slice(BATCH_SIZE);
 			const leftoverEdges = edges.filter((e) => !batchEdges.includes(e));
 			this.cy.batch(() => {
-				for (const n of batchNodes) this.cy.add({
-					group: "nodes",
-					data: {
-						id: n.id,
-						label: n.label,
-						type: n.type,
-						filePath: n.filePath,
-						lineNumber: n.lineNumber,
-						parent: n.parentId ?? void 0
-					}
-				});
-				for (const e of batchEdges) this.cy.add({
-					group: "edges",
-					data: {
-						id: e.id,
-						source: e.source,
-						target: e.target,
-						type: e.type
-					}
-				});
+				for (const n of batchNodes) {
+					const cn = n;
+					this.cy.add({
+						group: "nodes",
+						data: {
+							id: n.id,
+							label: n.label,
+							type: n.type,
+							filePath: n.filePath,
+							lineNumber: n.lineNumber,
+							parent: n.parentId ?? void 0,
+							isCluster: cn.isCluster ?? false,
+							childCount: cn.childCount ?? 0
+						}
+					});
+				}
+				for (const e of batchEdges) {
+					const ce = e;
+					this.cy.add({
+						group: "edges",
+						data: {
+							id: e.id,
+							source: e.source,
+							target: e.target,
+							type: e.type,
+							isCluster: ce.isCluster ?? false,
+							label: ce.isCluster ? `${ce.aggregatedCount} deps` : ""
+						}
+					});
+				}
 			});
 			if (leftoverNodes.length > 0) {
 				this.batchQueue = {
@@ -41707,13 +41864,19 @@ var CytoscapeRenderer = class {
 			const nodeCount = this.cy.nodes().length;
 			let effectiveLayout = layout$2;
 			let animate = true;
-			if (nodeCount > 800) {
+			if (nodeCount > 2e3) {
 				effectiveLayout = "grid";
 				animate = false;
-			} else if (nodeCount > 200 && layout$2 === "cose") {
+			} else if (nodeCount > 500 && layout$2 === "cose") {
 				effectiveLayout = "dagre";
 				animate = false;
 			}
+			const nodes = this.cy.nodes();
+			let hasPositions = true;
+			nodes.forEach((n) => {
+				const p$1 = n.position();
+				if (p$1.x == null || p$1.y == null || Number.isNaN(p$1.x) || Number.isNaN(p$1.y)) hasPositions = false;
+			});
 			let options;
 			switch (effectiveLayout) {
 				case "cose":
@@ -41727,7 +41890,7 @@ var CytoscapeRenderer = class {
 						edgeElasticity: () => .3,
 						gravity: .15,
 						numIter: nodeCount > 80 ? 2500 : 4e3,
-						randomize: false,
+						randomize: !hasPositions,
 						tile: true,
 						padding: 40
 					};
@@ -41761,8 +41924,8 @@ var CytoscapeRenderer = class {
 						animate: false,
 						padding: 20,
 						avoidOverlap: true,
-						rows: () => Math.ceil(Math.sqrt(nodeCount)),
-						cols: () => Math.ceil(Math.sqrt(nodeCount))
+						rows: Math.ceil(Math.sqrt(nodeCount)),
+						cols: Math.ceil(Math.sqrt(nodeCount))
 					};
 					break;
 				default: {
@@ -41851,48 +42014,6 @@ var CytoscapeRenderer = class {
 			});
 			this.cy.nodes().forEach((node) => {
 				node.style("display", connectedNodeIds.has(node.id()) ? "element" : "none");
-			});
-		});
-	}
-	filterByDepth(level) {
-		if (!this.cy) return;
-		const levelTypes = {
-			1: new Set(["module"]),
-			2: new Set([
-				"module",
-				"class",
-				"interface",
-				"type"
-			]),
-			3: new Set([
-				"module",
-				"class",
-				"interface",
-				"type",
-				"function",
-				"variable"
-			])
-		};
-		const allowedTypes = level === "all" ? null : levelTypes[level] ?? levelTypes[3];
-		if (!allowedTypes) {
-			this.cy.batch(() => {
-				this.cy.nodes().style("display", "element");
-				this.cy.edges().style("display", "element");
-			});
-			return;
-		}
-		const hidden = new Set();
-		this.cy.nodes().forEach((node) => {
-			const type = node.data("type");
-			if (!allowedTypes.has(type)) hidden.add(node.id());
-		});
-		this.cy.batch(() => {
-			this.cy.nodes().forEach((node) => {
-				node.style("display", hidden.has(node.id()) ? "none" : "element");
-			});
-			this.cy.edges().forEach((edge) => {
-				const hiddenEdge = hidden.has(edge.source().id()) || hidden.has(edge.target().id());
-				edge.style("display", hiddenEdge ? "none" : "element");
 			});
 		});
 	}
@@ -42053,6 +42174,7 @@ var CytoscapeRenderer = class {
 	}
 	getStylesheet() {
 		const c = getThemeColors(this.options.theme);
+		const isDark = this.options.theme === "dark";
 		const nodeCount = this.cy?.nodes().length ?? 0;
 		const isLargeGraph = nodeCount > 200;
 		return [
@@ -42219,6 +42341,45 @@ var CytoscapeRenderer = class {
 					"border-color": readCssVar("--cg-error", "#ef4444"),
 					"background-color": readCssVar("--cg-error", "#ef4444")
 				}
+			},
+			{
+				selector: "node[isCluster]",
+				style: {
+					"shape": "round-rectangle",
+					"background-color": isDark ? "rgba(99,102,241,0.25)" : "rgba(38,49,72,0.2)",
+					"border-width": 3,
+					"border-color": isDark ? "#818cf8" : "#263148",
+					"border-style": "double",
+					"label": "data(label)",
+					"font-size": "13px",
+					"font-weight": "bold",
+					"color": c.text,
+					"text-valign": "center",
+					"text-halign": "center",
+					"text-wrap": "wrap",
+					"text-max-width": "120px",
+					"width": 60,
+					"height": 60,
+					"z-index": 5
+				}
+			},
+			{
+				selector: "edge[isCluster]",
+				style: {
+					"width": 3,
+					"line-color": isDark ? "#818cf8" : "#263148",
+					"target-arrow-color": isDark ? "#818cf8" : "#263148",
+					"target-arrow-shape": "triangle",
+					"curve-style": "bezier",
+					"label": "data(label)",
+					"font-size": "10px",
+					"color": c.text,
+					"text-rotation": "autorotate",
+					"text-background-color": isDark ? "#232324" : "#f9fafb",
+					"text-background-opacity": .8,
+					"text-background-padding": "2px",
+					"opacity": .8
+				}
 			}
 		];
 	}
@@ -42310,7 +42471,7 @@ function scoped(scope) {
 //#endregion
 //#region src/client/hooks/useGraphRenderer.ts
 const log$4 = scoped("renderer-hook");
-function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, depthLevel, debouncedSearch, showCallChain, showCycles, callbacks, showCallChainRef) {
+function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, showCallChain, showCycles, callbacks, showCallChainRef) {
 	const containerRef = (0, react.useRef)(null);
 	const rendererRef = (0, react.useRef)(null);
 	const [searchMatchCount, setSearchMatchCount] = (0, react.useState)(null);
@@ -42350,7 +42511,7 @@ function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, sel
 		return () => clearTimeout(timer);
 	}, [
 		layout$2,
-		depthLevel,
+		clusterLevel,
 		nodes.length,
 		edges.length
 	]);
@@ -42642,11 +42803,10 @@ const en = {
 	"toolbar.lang": "Switch language",
 	"toolbar.layout": "Switch to {l} layout (Ctrl+L cycles)",
 	"toolbar.graphType": "Graph type switcher",
-	"toolbar.depth": "Depth level filter",
-	"depth.all": "All Levels",
-	"depth.module": "L1: Files (dbl-click to expand)",
-	"depth.type": "L2: + Types (dbl-click to expand)",
-	"depth.full": "L3: Full Detail",
+	"toolbar.cluster": "Cluster level",
+	"cluster.directory": "Directory",
+	"cluster.file": "File",
+	"cluster.function": "Function",
 	"filter.all": "All Types",
 	"filter.function": "Functions",
 	"filter.class": "Classes",
@@ -42806,11 +42966,10 @@ const zh = {
 	"toolbar.lang": "切换语言",
 	"toolbar.layout": "切换至 {l} 布局 (Ctrl+L 循环)",
 	"toolbar.graphType": "图谱类型切换",
-	"toolbar.depth": "层级过滤",
-	"depth.all": "全部层级",
-	"depth.module": "L1: 文件 (双击展开)",
-	"depth.type": "L2: + 类型 (双击展开)",
-	"depth.full": "L3: 全部详情",
+	"toolbar.cluster": "聚类层级",
+	"cluster.directory": "目录级",
+	"cluster.file": "文件级",
+	"cluster.function": "函数级",
 	"filter.all": "全部类型",
 	"filter.function": "函数",
 	"filter.class": "类",
@@ -43939,22 +44098,18 @@ const GRAPH_TYPES = [
 		key: "graphType.dependency"
 	}
 ];
-const DEPTH_LEVELS = [
+const CLUSTER_LEVELS = [
 	{
-		value: "all",
-		key: "depth.all"
+		value: "directory",
+		key: "cluster.directory"
 	},
 	{
-		value: "1",
-		key: "depth.module"
+		value: "file",
+		key: "cluster.file"
 	},
 	{
-		value: "2",
-		key: "depth.type"
-	},
-	{
-		value: "3",
-		key: "depth.full"
+		value: "function",
+		key: "cluster.function"
 	}
 ];
 function Toolbar(props) {
@@ -43974,7 +44129,7 @@ function Toolbar(props) {
 		props.onExport(format);
 		setShowExportMenu(false);
 	}, [props]);
-	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, depthLevel, showSearch, showCallChain, showCycles, showMiniMap, showLegend, showImport, collapsed, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onDepthLevelChange, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleMiniMap, onToggleLegend, onToggleImport, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll } = props;
+	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterLevel, showSearch, showCallChain, showCycles, showMiniMap, showLegend, showImport, collapsed, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleMiniMap, onToggleLegend, onToggleImport, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll } = props;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "graph-toolbar",
 		children: [
@@ -44040,12 +44195,12 @@ function Toolbar(props) {
 						}, g.value))
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
-						value: String(depthLevel),
-						onChange: (e) => onDepthLevelChange(e.target.value),
+						value: clusterLevel,
+						onChange: (e) => onClusterLevelChange(e.target.value),
 						className: "depth-select",
-						"aria-label": t$1("toolbar.depth"),
-						title: t$1("toolbar.depth"),
-						children: DEPTH_LEVELS.map((opt) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+						"aria-label": t$1("toolbar.cluster"),
+						title: t$1("toolbar.cluster"),
+						children: CLUSTER_LEVELS.map((opt) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
 							value: opt.value,
 							children: t$1(opt.key)
 						}, opt.value))
@@ -44840,7 +44995,7 @@ function GraphPanelInner({ className = "" }) {
 	const [selectedNodeData, setSelectedNodeData] = (0, react.useState)(null);
 	const [tooltip, setTooltip] = (0, react.useState)(null);
 	const [showHelp, setShowHelp] = (0, react.useState)(false);
-	const { nodes, edges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, depthLevel, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, totalEdgeCount, expandedNodeIds } = useGraphStore(useShallow((s) => ({
+	const { nodes, edges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, clusterLevel, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, totalEdgeCount, expandedNodeIds } = useGraphStore(useShallow((s) => ({
 		nodes: s.nodes,
 		edges: s.edges,
 		layout: s.layout,
@@ -44850,7 +45005,7 @@ function GraphPanelInner({ className = "" }) {
 		highlightedNodeIds: s.highlightedNodeIds,
 		filterType: s.filterType,
 		graphType: s.graphType,
-		depthLevel: s.depthLevel,
+		clusterLevel: s.clusterLevel,
 		isLoading: s.isLoading,
 		error: s.error,
 		lastUpdated: s.lastUpdated,
@@ -44870,7 +45025,7 @@ function GraphPanelInner({ className = "" }) {
 	const setSelectedNode = useGraphStore((s) => s.setSelectedNode);
 	const setFilterType = useGraphStore((s) => s.setFilterType);
 	const setGraphType = useGraphStore((s) => s.setGraphType);
-	const setDepthLevel = useGraphStore((s) => s.setDepthLevel);
+	const setClusterLevel = useGraphStore((s) => s.setClusterLevel);
 	const setLoading = useGraphStore((s) => s.setLoading);
 	const setCurrentWorkspace = useGraphStore((s) => s.setCurrentWorkspace);
 	const addWorkspace = useGraphStore((s) => s.addWorkspace);
@@ -44935,7 +45090,7 @@ function GraphPanelInner({ className = "" }) {
 		});
 	}, []);
 	const handleNodeHoverOut = (0, react.useCallback)(() => setTooltip(null), []);
-	const renderer$1 = useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, depthLevel, debouncedSearch, panel.showCallChain, panel.showCycles, {
+	const renderer$1 = useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, panel.showCallChain, panel.showCycles, {
 		onNodeTap: handleNodeTap,
 		onNodeDoubleTap: handleNodeDoubleTap,
 		onNodeHover: handleNodeHover,
@@ -45049,7 +45204,7 @@ function GraphPanelInner({ className = "" }) {
 				theme,
 				filterType,
 				graphType,
-				depthLevel,
+				clusterLevel,
 				showSearch: panel.showSearch,
 				showCallChain: panel.showCallChain,
 				showCycles: panel.showCycles,
@@ -45061,7 +45216,7 @@ function GraphPanelInner({ className = "" }) {
 				onThemeToggle: handleThemeToggle,
 				onFilterChange: setFilterType,
 				onGraphTypeChange: setGraphType,
-				onDepthLevelChange: setDepthLevel,
+				onClusterLevelChange: setClusterLevel,
 				onToggleSearch: panel.toggleSearch,
 				onToggleCallChain: panel.toggleCallChain,
 				onToggleCycles: panel.toggleCycles,

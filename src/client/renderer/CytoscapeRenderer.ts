@@ -1,6 +1,7 @@
 import cytoscape, { type Core, type LayoutOptions } from 'cytoscape';
 import dagre from 'cytoscape-dagre';
 import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
+import type { ClusterNode, ClusterEdge } from '../store/graphStore.ts';
 import type { IRenderer, LayoutType, ThemeType } from './IRenderer.ts';
 
 cytoscape.use(dagre);
@@ -153,6 +154,7 @@ export class CytoscapeRenderer implements IRenderer {
     if (nodesToAdd.length <= BATCH_SIZE) {
       this.cy.batch(() => {
         for (const n of nodesToAdd) {
+          const cn = n as ClusterNode;
           this.cy!.add({
             group: 'nodes',
             data: {
@@ -162,11 +164,24 @@ export class CytoscapeRenderer implements IRenderer {
               filePath: n.filePath,
               lineNumber: n.lineNumber,
               parent: n.parentId ?? undefined,
+              isCluster: cn.isCluster ?? false,
+              childCount: cn.childCount ?? 0,
             } as any,
           });
         }
         for (const e of edgesToAdd) {
-          this.cy!.add({ group: 'edges', data: { id: e.id, source: e.source, target: e.target, type: e.type } });
+          const ce = e as ClusterEdge;
+          this.cy!.add({
+            group: 'edges',
+            data: {
+              id: e.id,
+              source: e.source,
+              target: e.target,
+              type: e.type,
+              isCluster: ce.isCluster ?? false,
+              label: ce.isCluster ? `${ce.aggregatedCount} deps` : '',
+            },
+          });
         }
       });
       return;
@@ -180,6 +195,7 @@ export class CytoscapeRenderer implements IRenderer {
 
     this.cy.batch(() => {
       for (const n of firstBatchNodes) {
+        const cn = n as ClusterNode;
         this.cy!.add({
           group: 'nodes',
           data: {
@@ -189,11 +205,24 @@ export class CytoscapeRenderer implements IRenderer {
             filePath: n.filePath,
             lineNumber: n.lineNumber,
             parent: n.parentId ?? undefined,
+            isCluster: cn.isCluster ?? false,
+            childCount: cn.childCount ?? 0,
           } as any,
         });
       }
       for (const e of firstBatchEdges) {
-        this.cy!.add({ group: 'edges', data: { id: e.id, source: e.source, target: e.target, type: e.type } });
+        const ce = e as ClusterEdge;
+        this.cy!.add({
+          group: 'edges',
+          data: {
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            type: e.type,
+            isCluster: ce.isCluster ?? false,
+            label: ce.isCluster ? `${ce.aggregatedCount} deps` : '',
+          },
+        });
       }
     });
 
@@ -217,6 +246,7 @@ export class CytoscapeRenderer implements IRenderer {
 
       this.cy.batch(() => {
         for (const n of batchNodes) {
+          const cn = n as ClusterNode;
           this.cy!.add({
             group: 'nodes',
             data: {
@@ -226,11 +256,24 @@ export class CytoscapeRenderer implements IRenderer {
               filePath: n.filePath,
               lineNumber: n.lineNumber,
               parent: n.parentId ?? undefined,
+              isCluster: cn.isCluster ?? false,
+              childCount: cn.childCount ?? 0,
             } as any,
           });
         }
         for (const e of batchEdges) {
-          this.cy!.add({ group: 'edges', data: { id: e.id, source: e.source, target: e.target, type: e.type } });
+          const ce = e as ClusterEdge;
+          this.cy!.add({
+            group: 'edges',
+            data: {
+              id: e.id,
+              source: e.source,
+              target: e.target,
+              type: e.type,
+              isCluster: ce.isCluster ?? false,
+              label: ce.isCluster ? `${ce.aggregatedCount} deps` : '',
+            },
+          });
         }
       });
 
@@ -256,13 +299,22 @@ export class CytoscapeRenderer implements IRenderer {
       let effectiveLayout = layout;
       let animate = true;
 
-      if (nodeCount > 800) {
+      if (nodeCount > 2000) {
         effectiveLayout = 'grid';
         animate = false;
-      } else if (nodeCount > 200 && layout === 'cose') {
+      } else if (nodeCount > 500 && layout === 'cose') {
         effectiveLayout = 'dagre';
         animate = false;
       }
+
+      const nodes = this.cy!.nodes();
+      let hasPositions = true;
+      nodes.forEach((n) => {
+        const p = n.position();
+        if (p.x == null || p.y == null || Number.isNaN(p.x) || Number.isNaN(p.y)) {
+          hasPositions = false;
+        }
+      });
 
       let options: LayoutOptions | undefined;
       switch (effectiveLayout) {
@@ -277,7 +329,7 @@ export class CytoscapeRenderer implements IRenderer {
             edgeElasticity: () => 0.3,
             gravity: 0.15,
             numIter: nodeCount > 80 ? 2500 : 4000,
-            randomize: false,
+            randomize: !hasPositions,
             tile: true,
             padding: 40,
           } as LayoutOptions;
@@ -311,8 +363,8 @@ export class CytoscapeRenderer implements IRenderer {
             animate: false,
             padding: 20,
             avoidOverlap: true,
-            rows: () => Math.ceil(Math.sqrt(nodeCount)),
-            cols: () => Math.ceil(Math.sqrt(nodeCount)),
+            rows: Math.ceil(Math.sqrt(nodeCount)),
+            cols: Math.ceil(Math.sqrt(nodeCount)),
           } as LayoutOptions;
           break;
         default: {
@@ -611,6 +663,7 @@ export class CytoscapeRenderer implements IRenderer {
 
   private getStylesheet(): cytoscape.StylesheetJson {
     const c = getThemeColors(this.options.theme);
+    const isDark = this.options.theme === 'dark';
     const nodeCount = this.cy?.nodes().length ?? 0;
     const isLargeGraph = nodeCount > 200;
     return [
@@ -749,6 +802,45 @@ export class CytoscapeRenderer implements IRenderer {
           'border-width': 4,
           'border-color': readCssVar('--cg-error', '#ef4444'),
           'background-color': readCssVar('--cg-error', '#ef4444'),
+        },
+      },
+      {
+        selector: 'node[isCluster]',
+        style: {
+          'shape': 'round-rectangle',
+          'background-color': isDark ? 'rgba(99,102,241,0.25)' : 'rgba(38,49,72,0.2)',
+          'border-width': 3,
+          'border-color': isDark ? '#818cf8' : '#263148',
+          'border-style': 'double',
+          'label': 'data(label)',
+          'font-size': '13px',
+          'font-weight': 'bold',
+          'color': c.text,
+          'text-valign': 'center',
+          'text-halign': 'center',
+          'text-wrap': 'wrap',
+          'text-max-width': '120px',
+          'width': 60,
+          'height': 60,
+          'z-index': 5,
+        },
+      },
+      {
+        selector: 'edge[isCluster]',
+        style: {
+          'width': 3,
+          'line-color': isDark ? '#818cf8' : '#263148',
+          'target-arrow-color': isDark ? '#818cf8' : '#263148',
+          'target-arrow-shape': 'triangle',
+          'curve-style': 'bezier',
+          'label': 'data(label)',
+          'font-size': '10px',
+          'color': c.text,
+          'text-rotation': 'autorotate',
+          'text-background-color': isDark ? '#232324' : '#f9fafb',
+          'text-background-opacity': 0.8,
+          'text-background-padding': '2px',
+          'opacity': 0.8,
         },
       },
 

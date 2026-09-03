@@ -40,14 +40,14 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const {
     nodes, edges, layout, theme, searchQuery, selectedNodeId,
-    highlightedNodeIds, filterType, graphType, depthLevel, isLoading, error, lastUpdated,
+    highlightedNodeIds, filterType, graphType, clusterLevel, isLoading, error, lastUpdated,
     prerequisites, watchEnabled, currentWorkspace, workspaceList,
     initStatus, truncated, totalNodeCount, totalEdgeCount, expandedNodeIds,
   } = useGraphStore(useShallow((s) => ({
     nodes: s.nodes, edges: s.edges, layout: s.layout, theme: s.theme,
     searchQuery: s.searchQuery, selectedNodeId: s.selectedNodeId,
     highlightedNodeIds: s.highlightedNodeIds, filterType: s.filterType,
-    graphType: s.graphType, depthLevel: s.depthLevel,
+    graphType: s.graphType, clusterLevel: s.clusterLevel,
     isLoading: s.isLoading, error: s.error, lastUpdated: s.lastUpdated,
     prerequisites: s.prerequisites, watchEnabled: s.watchEnabled,
     currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
@@ -62,7 +62,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const setSelectedNode = useGraphStore((s) => s.setSelectedNode);
   const setFilterType = useGraphStore((s) => s.setFilterType);
   const setGraphType = useGraphStore((s) => s.setGraphType);
-  const setDepthLevel = useGraphStore((s) => s.setDepthLevel);
+  const setClusterLevel = useGraphStore((s) => s.setClusterLevel);
   const setLoading = useGraphStore((s) => s.setLoading);
   const setCurrentWorkspace = useGraphStore((s) => s.setCurrentWorkspace);
   const addWorkspace = useGraphStore((s) => s.addWorkspace);
@@ -139,7 +139,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const renderer = useGraphRenderer(
     nodes, edges, layout, theme,
-    highlightedNodeIds, selectedNodeId, filterType, graphType, depthLevel,
+    highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel,
     debouncedSearch, panel.showCallChain, panel.showCycles,
     { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut },
     showCallChainRef,
@@ -239,7 +239,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         theme={theme}
         filterType={filterType}
         graphType={graphType}
-        depthLevel={depthLevel}
+        clusterLevel={clusterLevel}
         showSearch={panel.showSearch}
         showCallChain={panel.showCallChain}
         showCycles={panel.showCycles}
@@ -251,7 +251,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         onThemeToggle={handleThemeToggle}
         onFilterChange={setFilterType}
         onGraphTypeChange={setGraphType}
-        onDepthLevelChange={setDepthLevel}
+        onClusterLevelChange={setClusterLevel}
         onToggleSearch={panel.toggleSearch}
         onToggleCallChain={panel.toggleCallChain}
         onToggleCycles={panel.toggleCycles}

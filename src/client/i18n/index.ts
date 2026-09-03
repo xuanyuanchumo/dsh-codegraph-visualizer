@@ -33,13 +33,12 @@ const en: Dict = {
   'toolbar.lang': 'Switch language',
   'toolbar.layout': 'Switch to {l} layout (Ctrl+L cycles)',
   'toolbar.graphType': 'Graph type switcher',
-  'toolbar.depth': 'Depth level filter',
+  'toolbar.cluster': 'Cluster level',
 
-  // Depth levels
-  'depth.all': 'All Levels',
-  'depth.module': 'L1: Files (dbl-click to expand)',
-  'depth.type': 'L2: + Types (dbl-click to expand)',
-  'depth.full': 'L3: Full Detail',
+  // Cluster levels
+  'cluster.directory': 'Directory',
+  'cluster.file': 'File',
+  'cluster.function': 'Function',
 
   // Filter options
   'filter.all': 'All Types',
@@ -236,13 +235,12 @@ const zh: Dict = {
   'toolbar.lang': '切换语言',
   'toolbar.layout': '切换至 {l} 布局 (Ctrl+L 循环)',
   'toolbar.graphType': '图谱类型切换',
-  'toolbar.depth': '层级过滤',
+  'toolbar.cluster': '聚类层级',
 
-  // Depth levels
-  'depth.all': '全部层级',
-  'depth.module': 'L1: 文件 (双击展开)',
-  'depth.type': 'L2: + 类型 (双击展开)',
-  'depth.full': 'L3: 全部详情',
+  // 聚类层级
+  'cluster.directory': '目录级',
+  'cluster.file': '文件级',
+  'cluster.function': '函数级',
 
   // Filter options
   'filter.all': '全部类型',

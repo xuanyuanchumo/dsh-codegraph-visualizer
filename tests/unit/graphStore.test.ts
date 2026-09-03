@@ -1,5 +1,5 @@
 // Unit tests for Zustand graphStore — J6/J7/J9/J10 state management
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useGraphStore, type LayoutType } from '../../src/client/store/graphStore.ts';
 import { makeNode, makeEdge } from '../helpers.ts';
 
@@ -17,6 +17,8 @@ describe('graphStore (J6/J7/J10)', () => {
       error: null,
       currentWorkspace: '.',
       workspaceList: [],
+      clusterLevel: 'directory',
+      expandedNodeIds: new Set(),
     });
   });
 
@@ -28,12 +30,13 @@ describe('graphStore (J6/J7/J10)', () => {
     expect(s.theme).toBe('dark');
     expect(s.isLoading).toBe(false);
     expect(s.error).toBeNull();
+    expect(s.clusterLevel).toBe('directory');
   });
 
   it('should set graph data and clear error (J1)', () => {
     const nodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
     const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
-    useGraphStore.getState().setDepthLevel('all');
+    useGraphStore.getState().setClusterLevel('function');
     useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
     const s = useGraphStore.getState();
     expect(s.nodes).toHaveLength(1);
@@ -152,8 +155,6 @@ describe('graphStore (J6/J7/J10)', () => {
   });
 
   it('should apply v2 schema migration: keep valid layout, fall back to cose otherwise', () => {
-    // Trigger the store's persist migrate() manually by exercising a partial
-    // state write — the migrate guard must not corrupt an existing valid state.
     useGraphStore.setState({ layout: 'dagre' as LayoutType });
     expect(useGraphStore.getState().layout).toBe('dagre');
     useGraphStore.setState({ layout: 'cose' as LayoutType });
@@ -161,7 +162,6 @@ describe('graphStore (J6/J7/J10)', () => {
   });
 
   it('should persist only UI preferences, never graph data (J10 personalization)', () => {
-    // partialize must exclude nodes/edges so snapshot data never lands in localStorage.
     const partial = useGraphStore.persist.getOptions().partialize?.(useGraphStore.getState()) as Record<string, unknown>;
     expect(partial.nodes).toBeUndefined();
     expect(partial.edges).toBeUndefined();
@@ -171,7 +171,7 @@ describe('graphStore (J6/J7/J10)', () => {
     expect(partial.filterType).toBeDefined();
   });
 
-it('should track prerequisites (J11 data source detection)', () => {
+  it('should track prerequisites (J11 data source detection)', () => {
     useGraphStore.getState().setPrerequisites({ codegraph: true, lens: false });
     const s = useGraphStore.getState();
     expect(s.prerequisites).toEqual({ codegraph: true, lens: false });
@@ -282,7 +282,8 @@ it('should track prerequisites (J11 data source detection)', () => {
     expect(useGraphStore.getState().currentWorkspace).toBe('/path/b');
   });
 
-  it('setDepthLevel should filter nodes/edges from raw data (data-layer分层)', () => {
+  // ── Cluster level tests ─────────────────────────────────────────────
+  it('setClusterLevel to function should show all nodes', () => {
     const nodes = [
       makeNode('m1', 'ModuleA', 'module', 'a.ts', 1),
       makeNode('c1', 'ClassA', 'class', 'a.ts', 10),
@@ -292,75 +293,58 @@ it('should track prerequisites (J11 data source detection)', () => {
       makeEdge('e1', 'm1', 'c1', 'import'),
       makeEdge('e2', 'c1', 'f1', 'call'),
     ];
-    useGraphStore.getState().setDepthLevel('all');
+    useGraphStore.getState().setClusterLevel('function');
     useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
-
-    useGraphStore.getState().setDepthLevel(1);
-    const s1 = useGraphStore.getState();
-    expect(s1.nodes).toHaveLength(1);
-    expect(s1.nodes[0]?.type).toBe('module');
-    expect(s1.edges).toHaveLength(0);
-
-    useGraphStore.getState().setDepthLevel(2);
-    const s2 = useGraphStore.getState();
-    expect(s2.nodes).toHaveLength(2);
-    expect(s2.edges).toHaveLength(1);
-
-    useGraphStore.getState().setDepthLevel(3);
-    const s3 = useGraphStore.getState();
-    expect(s3.nodes).toHaveLength(3);
-    expect(s3.edges).toHaveLength(2);
-
-    useGraphStore.getState().setDepthLevel('all');
-    const sAll = useGraphStore.getState();
-    expect(sAll.nodes).toHaveLength(3);
-    expect(sAll.edges).toHaveLength(2);
+    const s = useGraphStore.getState();
+    expect(s.nodes).toHaveLength(3);
+    expect(s.edges).toHaveLength(2);
   });
 
-  it('expandNode should show children of expanded node (per-node独立展开)', () => {
+  it('directory cluster level should aggregate nodes by top-level directory', () => {
     const nodes = [
-      makeNode('file1', 'a.ts', 'module', 'a.ts', 1),
-      makeNode('func1', 'funcA', 'function', 'a.ts', 10, {}, 'file1'),
-      makeNode('cls1', 'ClassA', 'class', 'a.ts', 20, {}, 'file1'),
-      makeNode('file2', 'b.ts', 'module', 'b.ts', 1),
-      makeNode('func2', 'funcB', 'function', 'b.ts', 5, {}, 'file2'),
+      makeNode('m1', 'a.ts', 'module', 'crates/core/src/a.ts', 1),
+      makeNode('m2', 'b.ts', 'module', 'crates/core/src/b.ts', 1),
+      makeNode('m3', 'c.ts', 'module', 'crates/api/src/c.ts', 1),
     ];
     const edges = [
-      makeEdge('e1', 'file1', 'file2', 'import'),
-      makeEdge('e2', 'func1', 'func2', 'call'),
+      makeEdge('e1', 'm1', 'm3', 'import'),
     ];
-    useGraphStore.getState().setDepthLevel(1);
+    useGraphStore.getState().setClusterLevel('directory');
     useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
-
-    const s0 = useGraphStore.getState();
-    expect(s0.nodes).toHaveLength(2);
-    expect(s0.nodes.map((n) => n.id).sort()).toEqual(['file1', 'file2']);
-
-    useGraphStore.getState().expandNode('file1');
-    const s1 = useGraphStore.getState();
-    expect(s1.nodes).toHaveLength(4);
-    expect(s1.nodes.map((n) => n.id).sort()).toEqual(['cls1', 'file1', 'file2', 'func1']);
-
-    useGraphStore.getState().collapseNode('file1');
-    const s2 = useGraphStore.getState();
-    expect(s2.nodes).toHaveLength(2);
-    expect(s2.nodes.map((n) => n.id).sort()).toEqual(['file1', 'file2']);
+    const s = useGraphStore.getState();
+    expect(s.nodes).toHaveLength(2);
+    const clusterNodes = s.nodes.filter(n => 'isCluster' in n && n.isCluster);
+    expect(clusterNodes).toHaveLength(2);
   });
 
-  it('collapseAll should collapse all expanded nodes', () => {
+  it('expandNode on directory cluster should show individual file nodes', () => {
     const nodes = [
-      makeNode('file1', 'a.ts', 'module', 'a.ts', 1),
-      makeNode('func1', 'funcA', 'function', 'a.ts', 10, {}, 'file1'),
-      makeNode('file2', 'b.ts', 'module', 'b.ts', 1),
-      makeNode('func2', 'funcB', 'function', 'b.ts', 5, {}, 'file2'),
+      makeNode('m1', 'a.ts', 'module', 'crates/core/src/a.ts', 1),
+      makeNode('m2', 'b.ts', 'module', 'crates/core/src/b.ts', 1),
+      makeNode('m3', 'c.ts', 'module', 'crates/api/src/c.ts', 1),
     ];
-    useGraphStore.getState().setDepthLevel(1);
+    const edges = [
+      makeEdge('e1', 'm1', 'm3', 'import'),
+    ];
+    useGraphStore.getState().setClusterLevel('directory');
+    useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
+    expect(useGraphStore.getState().nodes).toHaveLength(2);
+    useGraphStore.getState().expandNode('crates/core');
+    const s = useGraphStore.getState();
+    expect(s.nodes).toHaveLength(3);
+    const realNodes = s.nodes.filter(n => !('isCluster' in n) || !n.isCluster);
+    expect(realNodes).toHaveLength(2);
+  });
+
+  it('collapseAll should collapse all expanded directory clusters', () => {
+    const nodes = [
+      makeNode('m1', 'a.ts', 'module', 'crates/core/src/a.ts', 1),
+      makeNode('m2', 'b.ts', 'module', 'crates/api/src/b.ts', 1),
+    ];
+    useGraphStore.getState().setClusterLevel('directory');
     useGraphStore.getState().setGraphData(nodes, [], 'repo-1');
-
-    useGraphStore.getState().expandNode('file1');
-    useGraphStore.getState().expandNode('file2');
-    expect(useGraphStore.getState().nodes).toHaveLength(4);
-
+    useGraphStore.getState().expandNode('crates/core');
+    expect(useGraphStore.getState().nodes).toHaveLength(2);
     useGraphStore.getState().collapseAll();
     expect(useGraphStore.getState().nodes).toHaveLength(2);
     expect(useGraphStore.getState().expandedNodeIds.size).toBe(0);

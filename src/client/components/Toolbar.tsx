@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback } from 'react';
-import type { LayoutType, ThemeType, GraphType } from '../store/graphStore.ts';
+import type { LayoutType, ThemeType, GraphType, ClusterLevel } from '../store/graphStore.ts';
 import type { GraphNode } from '../../types/index.ts';
 import type { WorkspaceSelectorProps } from './WorkspaceSelector.tsx';
 import { useT, useLang, toggleLang } from '../i18n/index.ts';
@@ -26,11 +26,10 @@ const GRAPH_TYPES: { value: GraphType; key: string }[] = [
   { value: 'dependency', key: 'graphType.dependency' },
 ];
 
-const DEPTH_LEVELS: { value: string; key: string }[] = [
-  { value: 'all', key: 'depth.all' },
-  { value: '1', key: 'depth.module' },
-  { value: '2', key: 'depth.type' },
-  { value: '3', key: 'depth.full' },
+const CLUSTER_LEVELS: { value: string; key: string }[] = [
+  { value: 'directory', key: 'cluster.directory' },
+  { value: 'file', key: 'cluster.file' },
+  { value: 'function', key: 'cluster.function' },
 ];
 
 interface ToolbarProps extends WorkspaceSelectorProps {
@@ -40,7 +39,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   theme: ThemeType;
   filterType: GraphNode['type'] | 'all';
   graphType: GraphType;
-  depthLevel: 1 | 2 | 3 | 'all';
+  clusterLevel: ClusterLevel;
   showSearch: boolean;
   showCallChain: boolean;
   showCycles: boolean;
@@ -52,7 +51,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   onThemeToggle: () => void;
   onFilterChange: (f: GraphNode['type'] | 'all') => void;
   onGraphTypeChange: (g: GraphType) => void;
-  onDepthLevelChange: (level: 1 | 2 | 3 | 'all') => void;
+  onClusterLevelChange: (level: ClusterLevel) => void;
   onToggleSearch: () => void;
   onToggleCallChain: () => void;
   onToggleCycles: () => void;
@@ -88,9 +87,9 @@ export function Toolbar(props: ToolbarProps) {
   }, [props]);
 
   const {
-    statsText, typeCounts, layout, theme, filterType, graphType, depthLevel,
+    statsText, typeCounts, layout, theme, filterType, graphType, clusterLevel,
     showSearch, showCallChain, showCycles, showMiniMap, showLegend, showImport, collapsed,
-    onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onDepthLevelChange,
+    onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange,
     onToggleSearch, onToggleCallChain, onToggleCycles, onToggleMiniMap, onToggleLegend,
     onToggleImport, onRefresh, onCollapse,
     currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
@@ -138,13 +137,13 @@ export function Toolbar(props: ToolbarProps) {
           ))}
         </div>
         <select
-          value={String(depthLevel)}
-          onChange={(e) => onDepthLevelChange(e.target.value as 1 | 2 | 3 | 'all')}
+          value={clusterLevel}
+          onChange={(e) => onClusterLevelChange(e.target.value as ClusterLevel)}
           className="depth-select"
-          aria-label={t('toolbar.depth')}
-          title={t('toolbar.depth')}
+          aria-label={t('toolbar.cluster')}
+          title={t('toolbar.cluster')}
         >
-          {DEPTH_LEVELS.map((opt) => (
+          {CLUSTER_LEVELS.map((opt) => (
             <option key={opt.value} value={opt.value}>{t(opt.key)}</option>
           ))}
         </select>
