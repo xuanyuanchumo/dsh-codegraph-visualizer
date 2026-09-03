@@ -1068,6 +1068,14 @@ body[data-ds-dark-theme] {
   .toolbar-separator {
     display: none;
   }
+
+  .graph-type-buttons {
+    display: none;
+  }
+
+  .depth-select {
+    display: none;
+  }
 }
 
 /* Medium panels (DSH sidebar medium width) */
@@ -1109,6 +1117,10 @@ body[data-ds-dark-theme] {
 
   .toolbar-separator {
     margin: 0 2px;
+  }
+
+  .depth-select {
+    display: none;
   }
 }
 
@@ -1864,6 +1876,11 @@ body[data-ds-dark-theme] {
   animation: ws-slide-in 120ms var(--cg-ease-out);
 }
 
+.workspace-dropdown-portal {
+  position: fixed;
+  z-index: 9999;
+}
+
 @keyframes ws-slide-in {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
@@ -2074,6 +2091,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 const react = __toESM(require("react"));
 const react_dom_client = __toESM(require("react-dom/client"));
 const react_jsx_runtime = __toESM(require("react/jsx-runtime"));
+const react_dom = __toESM(require("react-dom"));
 
 //#region node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_react@19.2.8/node_modules/zustand/esm/vanilla.mjs
 const createStoreImpl = (createState) => {
@@ -2296,9 +2314,42 @@ function clearLoadingFailsafe() {
 		loadingFailsafe = null;
 	}
 }
+const DEPTH_TYPE_MAP = {
+	1: new Set(["module"]),
+	2: new Set([
+		"module",
+		"class",
+		"interface",
+		"type"
+	]),
+	3: new Set([
+		"module",
+		"class",
+		"interface",
+		"type",
+		"function",
+		"variable"
+	])
+};
+function filterByDepthLevel(rawNodes, rawEdges, depthLevel) {
+	if (depthLevel === "all") return {
+		nodes: rawNodes,
+		edges: rawEdges
+	};
+	const allowedTypes = DEPTH_TYPE_MAP[depthLevel] ?? DEPTH_TYPE_MAP[3];
+	const filteredNodes = rawNodes.filter((n) => allowedTypes.has(n.type));
+	const nodeIds = new Set(filteredNodes.map((n) => n.id));
+	const filteredEdges = rawEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+	return {
+		nodes: filteredNodes,
+		edges: filteredEdges
+	};
+}
 const useGraphStore = create$1()(persist((set$1) => ({
 	nodes: [],
 	edges: [],
+	rawNodes: [],
+	rawEdges: [],
 	repoId: null,
 	truncated: false,
 	totalNodeCount: 0,
@@ -2310,7 +2361,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	highlightedNodeIds: [],
 	filterType: "all",
 	graphType: "all",
-	depthLevel: "all",
+	depthLevel: 1,
 	isLoading: false,
 	error: null,
 	lastUpdated: 0,
@@ -2325,9 +2376,13 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	workspaceList: [],
 	setGraphData: (nodes, edges, repoId, metadata) => {
 		clearLoadingFailsafe();
+		const depthLevel = useGraphStore.getState().depthLevel;
+		const { nodes: filteredNodes, edges: filteredEdges } = filterByDepthLevel(nodes, edges, depthLevel);
 		set$1({
-			nodes,
-			edges,
+			rawNodes: nodes,
+			rawEdges: edges,
+			nodes: filteredNodes,
+			edges: filteredEdges,
 			repoId,
 			error: null,
 			isLoading: false,
@@ -2344,7 +2399,15 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	setHighlightedNodes: (highlightedNodeIds) => set$1({ highlightedNodeIds }),
 	setFilterType: (filterType) => set$1({ filterType }),
 	setGraphType: (graphType) => set$1({ graphType }),
-	setDepthLevel: (depthLevel) => set$1({ depthLevel }),
+	setDepthLevel: (depthLevel) => {
+		const { rawNodes, rawEdges } = useGraphStore.getState();
+		const { nodes, edges } = filterByDepthLevel(rawNodes, rawEdges, depthLevel);
+		set$1({
+			depthLevel,
+			nodes,
+			edges
+		});
+	},
 	setLoading: (isLoading) => {
 		clearLoadingFailsafe();
 		set$1({ isLoading });
@@ -2365,6 +2428,8 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		set$1({
 			nodes: [],
 			edges: [],
+			rawNodes: [],
+			rawEdges: [],
 			repoId: null,
 			error: null,
 			isLoading: false,
@@ -41183,12 +41248,12 @@ var CytoscapeRenderer = class {
 		if (hasStaleNodes) {
 			const staleNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
 			if (staleNodes.length > 0) this.cy.remove(staleNodes);
-			for (const id of [...this.currentNodes.keys()]) if (!newNodeIds.has(id)) this.currentNodes.delete(id);
+			for (const id of this.currentNodes.keys()) if (!newNodeIds.has(id)) this.currentNodes.delete(id);
 		}
 		if (hasStaleEdges) {
 			const staleEdges = this.cy.edges().filter((e) => !newEdgeIds.has(e.id()));
 			if (staleEdges.length > 0) this.cy.remove(staleEdges);
-			for (const id of [...this.currentEdges.keys()]) if (!newEdgeIds.has(id)) this.currentEdges.delete(id);
+			for (const id of this.currentEdges.keys()) if (!newEdgeIds.has(id)) this.currentEdges.delete(id);
 		}
 		for (const n of nodes) {
 			if (!this.currentNodes.has(n.id)) nodesToAdd.push(n);
@@ -41867,11 +41932,7 @@ function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, sel
 		if (!r) return;
 		const timer = setTimeout(() => r.applyLayout(layout$2), 150);
 		return () => clearTimeout(timer);
-	}, [
-		layout$2,
-		nodes,
-		edges
-	]);
+	}, [layout$2, depthLevel]);
 	(0, react.useEffect)(() => {
 		const r = rendererRef.current;
 		if (!r) return;
@@ -41884,9 +41945,6 @@ function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, sel
 	(0, react.useEffect)(() => {
 		rendererRef.current?.filterByGraphType(graphType);
 	}, [graphType]);
-	(0, react.useEffect)(() => {
-		rendererRef.current?.filterByDepth(depthLevel);
-	}, [depthLevel]);
 	(0, react.useEffect)(() => {
 		const r = rendererRef.current;
 		if (!r) return;
@@ -43205,10 +43263,23 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 	const [newPath, setNewPath] = (0, react.useState)("");
 	const dropdownRef = (0, react.useRef)(null);
 	const inputRef = (0, react.useRef)(null);
+	const triggerRef = (0, react.useRef)(null);
+	const [dropdownPos, setDropdownPos] = (0, react.useState)({
+		top: 0,
+		left: 0
+	});
+	(0, react.useLayoutEffect)(() => {
+		if (!open || !triggerRef.current) return;
+		const rect = triggerRef.current.getBoundingClientRect();
+		setDropdownPos({
+			top: rect.bottom + 4,
+			left: rect.left
+		});
+	}, [open]);
 	(0, react.useEffect)(() => {
 		if (!open) return;
 		const onDocClick = (e) => {
-			if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+			if (dropdownRef.current && !dropdownRef.current.contains(e.target) && triggerRef.current && !triggerRef.current.contains(e.target)) {
 				setOpen(false);
 				setAdding(false);
 			}
@@ -43239,8 +43310,8 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 	const hasExplicit = currentWorkspace !== "." && !workspaceList.some((w) => w.path === currentWorkspace);
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "workspace-selector",
-		ref: dropdownRef,
 		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+			ref: triggerRef,
 			className: "workspace-trigger",
 			onClick: () => setOpen((v) => !v),
 			"aria-label": t$1("workspace.switch"),
@@ -43258,10 +43329,16 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 					className: "workspace-chevron"
 				})
 			]
-		}), open && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-			className: "workspace-dropdown",
+		}), open && (0, react_dom.createPortal)(/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			className: "workspace-dropdown workspace-dropdown-portal",
 			role: "listbox",
 			"aria-label": t$1("workspace.switch"),
+			style: {
+				position: "fixed",
+				top: dropdownPos.top,
+				left: dropdownPos.left
+			},
+			ref: dropdownRef,
 			children: [
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: "workspace-dropdown-header",
@@ -43358,7 +43435,7 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 					]
 				})
 			]
-		})]
+		}), document.body)]
 	});
 }
 
@@ -43729,7 +43806,7 @@ function formatTime(ts) {
 	const d = new Date(ts);
 	return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
 }
-function StatusBar({ error: error$1, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount, totalEdgeCount }) {
+function StatusBar({ error: error$1, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount }) {
 	const t$1 = useT();
 	const statusDotClass = error$1 ? "status-dot error" : isLoading ? "status-dot loading" : "status-dot";
 	const statusText = error$1 ? t$1("state.error") : isLoading ? t$1("state.loading") : t$1("state.ready");
@@ -44128,6 +44205,57 @@ function EmptyState({ prerequisites, onImport, onScanWorkspace }) {
 }
 
 //#endregion
+//#region src/client/components/GraphTooltip.tsx
+function GraphTooltip({ data: data$2 }) {
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+		className: "cg-tooltip",
+		style: {
+			left: data$2.x + 15,
+			top: data$2.y + 15
+		},
+		role: "tooltip",
+		children: [
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				className: "tooltip-name",
+				children: data$2.name
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				className: "tooltip-path",
+				children: data$2.path
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+				className: "tooltip-type",
+				children: data$2.type
+			})
+		]
+	});
+}
+
+//#endregion
+//#region src/client/components/LoadingOverlay.tsx
+function LoadingOverlay({ visible }) {
+	const t$1 = useT();
+	if (!visible) return null;
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+		className: "loading-overlay",
+		role: "status",
+		"aria-live": "polite",
+		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: "spinner" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("state.loading") })]
+	});
+}
+
+//#endregion
+//#region src/client/components/ErrorOverlay.tsx
+function ErrorOverlay({ error: error$1 }) {
+	if (!error$1) return null;
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+		className: "error-overlay",
+		role: "alert",
+		children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", { children: ["⚠ ", error$1] })
+	});
+}
+
+//#endregion
 //#region src/client/GraphPanel.tsx
 const log$1 = scoped("panel");
 function GraphPanelInner({ className = "" }) {
@@ -44365,17 +44493,8 @@ function GraphPanelInner({ className = "" }) {
 				onChange: setSearchQuery,
 				onClose: () => panel.setShowSearch(false)
 			}),
-			isLoading && !c && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "loading-overlay",
-				role: "status",
-				"aria-live": "polite",
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: "spinner" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("state.loading") })]
-			}),
-			error$1 && !c && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				className: "error-overlay",
-				role: "alert",
-				children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", { children: ["⚠ ", error$1] })
-			}),
+			isLoading && !c && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LoadingOverlay, { visible: true }),
+			error$1 && !c && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ErrorOverlay, { error: error$1 }),
 			nodes.length === 0 && !isLoading && !error$1 && !c && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, {
 				prerequisites,
 				onImport: () => panel.setShowImport(true),
@@ -44412,28 +44531,7 @@ function GraphPanelInner({ className = "" }) {
 				},
 				onClose: () => panel.setShowMiniMap(false)
 			}),
-			tooltip && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "cg-tooltip",
-				style: {
-					left: tooltip.x + 15,
-					top: tooltip.y + 15
-				},
-				role: "tooltip",
-				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "tooltip-name",
-						children: tooltip.name
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "tooltip-path",
-						children: tooltip.path
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "tooltip-type",
-						children: tooltip.type
-					})
-				]
-			}),
+			tooltip && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphTooltip, { data: tooltip }),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)(StatusBar, {
 				error: error$1,
 				isLoading,

@@ -1864,6 +1864,11 @@ body[data-ds-dark-theme] {
   animation: ws-slide-in 120ms var(--cg-ease-out);
 }
 
+.workspace-dropdown-portal {
+  position: fixed;
+  z-index: 9999;
+}
+
 @keyframes ws-slide-in {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }

@@ -33,6 +33,7 @@ describe('graphStore (J6/J7/J10)', () => {
   it('should set graph data and clear error (J1)', () => {
     const nodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
     const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
+    useGraphStore.getState().setDepthLevel('all');
     useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
     const s = useGraphStore.getState();
     expect(s.nodes).toHaveLength(1);
@@ -279,5 +280,40 @@ it('should track prerequisites (J11 data source detection)', () => {
     useGraphStore.getState().addWorkspace('/path/b');
     useGraphStore.getState().removeWorkspace('/path/a');
     expect(useGraphStore.getState().currentWorkspace).toBe('/path/b');
+  });
+
+  it('setDepthLevel should filter nodes/edges from raw data (data-layer分层)', () => {
+    const nodes = [
+      makeNode('m1', 'ModuleA', 'module', 'a.ts', 1),
+      makeNode('c1', 'ClassA', 'class', 'a.ts', 10),
+      makeNode('f1', 'funcA', 'function', 'a.ts', 20),
+    ];
+    const edges = [
+      makeEdge('e1', 'm1', 'c1', 'import'),
+      makeEdge('e2', 'c1', 'f1', 'call'),
+    ];
+    useGraphStore.getState().setDepthLevel('all');
+    useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
+
+    useGraphStore.getState().setDepthLevel(1);
+    const s1 = useGraphStore.getState();
+    expect(s1.nodes).toHaveLength(1);
+    expect(s1.nodes[0]?.type).toBe('module');
+    expect(s1.edges).toHaveLength(0);
+
+    useGraphStore.getState().setDepthLevel(2);
+    const s2 = useGraphStore.getState();
+    expect(s2.nodes).toHaveLength(2);
+    expect(s2.edges).toHaveLength(1);
+
+    useGraphStore.getState().setDepthLevel(3);
+    const s3 = useGraphStore.getState();
+    expect(s3.nodes).toHaveLength(3);
+    expect(s3.edges).toHaveLength(2);
+
+    useGraphStore.getState().setDepthLevel('all');
+    const sAll = useGraphStore.getState();
+    expect(sAll.nodes).toHaveLength(3);
+    expect(sAll.edges).toHaveLength(2);
   });
 });

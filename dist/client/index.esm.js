@@ -1,6 +1,7 @@
-import React, { Component, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import React, { Component, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import ReactDOM from "react-dom/client";
 import { jsx, jsxs } from "react/jsx-runtime";
+import { createPortal } from "react-dom";
 
 //#region rolldown:runtime
 var __create = Object.create;
@@ -253,9 +254,42 @@ function clearLoadingFailsafe() {
 		loadingFailsafe = null;
 	}
 }
+const DEPTH_TYPE_MAP = {
+	1: new Set(["module"]),
+	2: new Set([
+		"module",
+		"class",
+		"interface",
+		"type"
+	]),
+	3: new Set([
+		"module",
+		"class",
+		"interface",
+		"type",
+		"function",
+		"variable"
+	])
+};
+function filterByDepthLevel(rawNodes, rawEdges, depthLevel) {
+	if (depthLevel === "all") return {
+		nodes: rawNodes,
+		edges: rawEdges
+	};
+	const allowedTypes = DEPTH_TYPE_MAP[depthLevel] ?? DEPTH_TYPE_MAP[3];
+	const filteredNodes = rawNodes.filter((n) => allowedTypes.has(n.type));
+	const nodeIds = new Set(filteredNodes.map((n) => n.id));
+	const filteredEdges = rawEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+	return {
+		nodes: filteredNodes,
+		edges: filteredEdges
+	};
+}
 const useGraphStore = create$1()(persist((set$1) => ({
 	nodes: [],
 	edges: [],
+	rawNodes: [],
+	rawEdges: [],
 	repoId: null,
 	truncated: false,
 	totalNodeCount: 0,
@@ -267,7 +301,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	highlightedNodeIds: [],
 	filterType: "all",
 	graphType: "all",
-	depthLevel: "all",
+	depthLevel: 1,
 	isLoading: false,
 	error: null,
 	lastUpdated: 0,
@@ -282,9 +316,13 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	workspaceList: [],
 	setGraphData: (nodes, edges, repoId, metadata) => {
 		clearLoadingFailsafe();
+		const depthLevel = useGraphStore.getState().depthLevel;
+		const { nodes: filteredNodes, edges: filteredEdges } = filterByDepthLevel(nodes, edges, depthLevel);
 		set$1({
-			nodes,
-			edges,
+			rawNodes: nodes,
+			rawEdges: edges,
+			nodes: filteredNodes,
+			edges: filteredEdges,
 			repoId,
 			error: null,
 			isLoading: false,
@@ -301,7 +339,15 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	setHighlightedNodes: (highlightedNodeIds) => set$1({ highlightedNodeIds }),
 	setFilterType: (filterType) => set$1({ filterType }),
 	setGraphType: (graphType) => set$1({ graphType }),
-	setDepthLevel: (depthLevel) => set$1({ depthLevel }),
+	setDepthLevel: (depthLevel) => {
+		const { rawNodes, rawEdges } = useGraphStore.getState();
+		const { nodes, edges } = filterByDepthLevel(rawNodes, rawEdges, depthLevel);
+		set$1({
+			depthLevel,
+			nodes,
+			edges
+		});
+	},
 	setLoading: (isLoading) => {
 		clearLoadingFailsafe();
 		set$1({ isLoading });
@@ -322,6 +368,8 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		set$1({
 			nodes: [],
 			edges: [],
+			rawNodes: [],
+			rawEdges: [],
 			repoId: null,
 			error: null,
 			isLoading: false,
@@ -39140,12 +39188,12 @@ var CytoscapeRenderer = class {
 		if (hasStaleNodes) {
 			const staleNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
 			if (staleNodes.length > 0) this.cy.remove(staleNodes);
-			for (const id of [...this.currentNodes.keys()]) if (!newNodeIds.has(id)) this.currentNodes.delete(id);
+			for (const id of this.currentNodes.keys()) if (!newNodeIds.has(id)) this.currentNodes.delete(id);
 		}
 		if (hasStaleEdges) {
 			const staleEdges = this.cy.edges().filter((e) => !newEdgeIds.has(e.id()));
 			if (staleEdges.length > 0) this.cy.remove(staleEdges);
-			for (const id of [...this.currentEdges.keys()]) if (!newEdgeIds.has(id)) this.currentEdges.delete(id);
+			for (const id of this.currentEdges.keys()) if (!newEdgeIds.has(id)) this.currentEdges.delete(id);
 		}
 		for (const n of nodes) {
 			if (!this.currentNodes.has(n.id)) nodesToAdd.push(n);
@@ -39824,11 +39872,7 @@ function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, sel
 		if (!r) return;
 		const timer = setTimeout(() => r.applyLayout(layout$2), 150);
 		return () => clearTimeout(timer);
-	}, [
-		layout$2,
-		nodes,
-		edges
-	]);
+	}, [layout$2, depthLevel]);
 	useEffect(() => {
 		const r = rendererRef.current;
 		if (!r) return;
@@ -39841,9 +39885,6 @@ function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, sel
 	useEffect(() => {
 		rendererRef.current?.filterByGraphType(graphType);
 	}, [graphType]);
-	useEffect(() => {
-		rendererRef.current?.filterByDepth(depthLevel);
-	}, [depthLevel]);
 	useEffect(() => {
 		const r = rendererRef.current;
 		if (!r) return;
@@ -41162,10 +41203,23 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 	const [newPath, setNewPath] = useState("");
 	const dropdownRef = useRef(null);
 	const inputRef = useRef(null);
+	const triggerRef = useRef(null);
+	const [dropdownPos, setDropdownPos] = useState({
+		top: 0,
+		left: 0
+	});
+	useLayoutEffect(() => {
+		if (!open || !triggerRef.current) return;
+		const rect = triggerRef.current.getBoundingClientRect();
+		setDropdownPos({
+			top: rect.bottom + 4,
+			left: rect.left
+		});
+	}, [open]);
 	useEffect(() => {
 		if (!open) return;
 		const onDocClick = (e) => {
-			if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+			if (dropdownRef.current && !dropdownRef.current.contains(e.target) && triggerRef.current && !triggerRef.current.contains(e.target)) {
 				setOpen(false);
 				setAdding(false);
 			}
@@ -41196,8 +41250,8 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 	const hasExplicit = currentWorkspace !== "." && !workspaceList.some((w) => w.path === currentWorkspace);
 	return /* @__PURE__ */ jsxs("div", {
 		className: "workspace-selector",
-		ref: dropdownRef,
 		children: [/* @__PURE__ */ jsxs("button", {
+			ref: triggerRef,
 			className: "workspace-trigger",
 			onClick: () => setOpen((v) => !v),
 			"aria-label": t$1("workspace.switch"),
@@ -41215,10 +41269,16 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 					className: "workspace-chevron"
 				})
 			]
-		}), open && /* @__PURE__ */ jsxs("div", {
-			className: "workspace-dropdown",
+		}), open && createPortal(/* @__PURE__ */ jsxs("div", {
+			className: "workspace-dropdown workspace-dropdown-portal",
 			role: "listbox",
 			"aria-label": t$1("workspace.switch"),
+			style: {
+				position: "fixed",
+				top: dropdownPos.top,
+				left: dropdownPos.left
+			},
+			ref: dropdownRef,
 			children: [
 				/* @__PURE__ */ jsxs("div", {
 					className: "workspace-dropdown-header",
@@ -41315,7 +41375,7 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 					]
 				})
 			]
-		})]
+		}), document.body)]
 	});
 }
 
@@ -41686,7 +41746,7 @@ function formatTime(ts) {
 	const d = new Date(ts);
 	return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
 }
-function StatusBar({ error: error$1, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount, totalEdgeCount }) {
+function StatusBar({ error: error$1, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount }) {
 	const t$1 = useT();
 	const statusDotClass = error$1 ? "status-dot error" : isLoading ? "status-dot loading" : "status-dot";
 	const statusText = error$1 ? t$1("state.error") : isLoading ? t$1("state.loading") : t$1("state.ready");
@@ -42085,6 +42145,57 @@ function EmptyState({ prerequisites, onImport, onScanWorkspace }) {
 }
 
 //#endregion
+//#region src/client/components/GraphTooltip.tsx
+function GraphTooltip({ data: data$2 }) {
+	return /* @__PURE__ */ jsxs("div", {
+		className: "cg-tooltip",
+		style: {
+			left: data$2.x + 15,
+			top: data$2.y + 15
+		},
+		role: "tooltip",
+		children: [
+			/* @__PURE__ */ jsx("div", {
+				className: "tooltip-name",
+				children: data$2.name
+			}),
+			/* @__PURE__ */ jsx("div", {
+				className: "tooltip-path",
+				children: data$2.path
+			}),
+			/* @__PURE__ */ jsx("span", {
+				className: "tooltip-type",
+				children: data$2.type
+			})
+		]
+	});
+}
+
+//#endregion
+//#region src/client/components/LoadingOverlay.tsx
+function LoadingOverlay({ visible }) {
+	const t$1 = useT();
+	if (!visible) return null;
+	return /* @__PURE__ */ jsxs("div", {
+		className: "loading-overlay",
+		role: "status",
+		"aria-live": "polite",
+		children: [/* @__PURE__ */ jsx("div", { className: "spinner" }), /* @__PURE__ */ jsx("span", { children: t$1("state.loading") })]
+	});
+}
+
+//#endregion
+//#region src/client/components/ErrorOverlay.tsx
+function ErrorOverlay({ error: error$1 }) {
+	if (!error$1) return null;
+	return /* @__PURE__ */ jsx("div", {
+		className: "error-overlay",
+		role: "alert",
+		children: /* @__PURE__ */ jsxs("span", { children: ["⚠ ", error$1] })
+	});
+}
+
+//#endregion
 //#region src/client/GraphPanel.tsx
 const log$1 = scoped("panel");
 function GraphPanelInner({ className = "" }) {
@@ -42322,17 +42433,8 @@ function GraphPanelInner({ className = "" }) {
 				onChange: setSearchQuery,
 				onClose: () => panel.setShowSearch(false)
 			}),
-			isLoading && !c && /* @__PURE__ */ jsxs("div", {
-				className: "loading-overlay",
-				role: "status",
-				"aria-live": "polite",
-				children: [/* @__PURE__ */ jsx("div", { className: "spinner" }), /* @__PURE__ */ jsx("span", { children: t$1("state.loading") })]
-			}),
-			error$1 && !c && /* @__PURE__ */ jsx("div", {
-				className: "error-overlay",
-				role: "alert",
-				children: /* @__PURE__ */ jsxs("span", { children: ["⚠ ", error$1] })
-			}),
+			isLoading && !c && /* @__PURE__ */ jsx(LoadingOverlay, { visible: true }),
+			error$1 && !c && /* @__PURE__ */ jsx(ErrorOverlay, { error: error$1 }),
 			nodes.length === 0 && !isLoading && !error$1 && !c && /* @__PURE__ */ jsx(EmptyState, {
 				prerequisites,
 				onImport: () => panel.setShowImport(true),
@@ -42369,28 +42471,7 @@ function GraphPanelInner({ className = "" }) {
 				},
 				onClose: () => panel.setShowMiniMap(false)
 			}),
-			tooltip && /* @__PURE__ */ jsxs("div", {
-				className: "cg-tooltip",
-				style: {
-					left: tooltip.x + 15,
-					top: tooltip.y + 15
-				},
-				role: "tooltip",
-				children: [
-					/* @__PURE__ */ jsx("div", {
-						className: "tooltip-name",
-						children: tooltip.name
-					}),
-					/* @__PURE__ */ jsx("div", {
-						className: "tooltip-path",
-						children: tooltip.path
-					}),
-					/* @__PURE__ */ jsx("span", {
-						className: "tooltip-type",
-						children: tooltip.type
-					})
-				]
-			}),
+			tooltip && /* @__PURE__ */ jsx(GraphTooltip, { data: tooltip }),
 			/* @__PURE__ */ jsx(StatusBar, {
 				error: error$1,
 				isLoading,

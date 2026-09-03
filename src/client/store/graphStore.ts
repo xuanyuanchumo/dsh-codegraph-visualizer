@@ -36,10 +36,32 @@ function clearLoadingFailsafe(): void {
   }
 }
 
+const DEPTH_TYPE_MAP: Record<number, Set<string>> = {
+  1: new Set(['module']),
+  2: new Set(['module', 'class', 'interface', 'type']),
+  3: new Set(['module', 'class', 'interface', 'type', 'function', 'variable']),
+};
+
+function filterByDepthLevel(
+  rawNodes: GraphNode[],
+  rawEdges: GraphEdge[],
+  depthLevel: 1 | 2 | 3 | 'all',
+): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  if (depthLevel === 'all') return { nodes: rawNodes, edges: rawEdges };
+  const allowedTypes = DEPTH_TYPE_MAP[depthLevel] ?? DEPTH_TYPE_MAP[3]!;
+  const filteredNodes = rawNodes.filter((n) => allowedTypes.has(n.type));
+  const nodeIds = new Set(filteredNodes.map((n) => n.id));
+  const filteredEdges = rawEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+  return { nodes: filteredNodes, edges: filteredEdges };
+}
+
 interface GraphState {
-  // Data
+  // Data (filtered by depthLevel)
   nodes: GraphNode[];
   edges: GraphEdge[];
+  // Raw data (full graph, unfiltered)
+  rawNodes: GraphNode[];
+  rawEdges: GraphEdge[];
   repoId: string | null;
 
   // Truncation info (when graph is too large to render fully)
@@ -102,6 +124,8 @@ export const useGraphStore = create<GraphState>()(
     (set) => ({
       nodes: [],
       edges: [],
+      rawNodes: [],
+      rawEdges: [],
       repoId: null,
       truncated: false,
       totalNodeCount: 0,
@@ -113,7 +137,7 @@ export const useGraphStore = create<GraphState>()(
       highlightedNodeIds: [],
       filterType: 'all',
       graphType: 'all',
-      depthLevel: 'all',
+      depthLevel: 1,
       isLoading: false,
       error: null,
       lastUpdated: 0,
@@ -127,8 +151,12 @@ export const useGraphStore = create<GraphState>()(
       // Arriving data always clears the loading flag (fixes the stuck-overlay bug).
       setGraphData: (nodes, edges, repoId, metadata) => {
         clearLoadingFailsafe();
+        const depthLevel = useGraphStore.getState().depthLevel;
+        const { nodes: filteredNodes, edges: filteredEdges } = filterByDepthLevel(nodes, edges, depthLevel);
         set({
-          nodes, edges, repoId, error: null, isLoading: false, lastUpdated: Date.now(),
+          rawNodes: nodes, rawEdges: edges,
+          nodes: filteredNodes, edges: filteredEdges,
+          repoId, error: null, isLoading: false, lastUpdated: Date.now(),
           truncated: !!metadata?.truncated,
           totalNodeCount: metadata?.totalNodeCount ?? nodes.length,
           totalEdgeCount: metadata?.totalEdgeCount ?? edges.length,
@@ -141,7 +169,11 @@ export const useGraphStore = create<GraphState>()(
       setHighlightedNodes: (highlightedNodeIds) => set({ highlightedNodeIds }),
       setFilterType: (filterType) => set({ filterType }),
       setGraphType: (graphType) => set({ graphType }),
-      setDepthLevel: (depthLevel) => set({ depthLevel }),
+      setDepthLevel: (depthLevel) => {
+        const { rawNodes, rawEdges } = useGraphStore.getState();
+        const { nodes, edges } = filterByDepthLevel(rawNodes, rawEdges, depthLevel);
+        set({ depthLevel, nodes, edges });
+      },
       setLoading: (isLoading) => {
         clearLoadingFailsafe();
         set({ isLoading });
@@ -160,7 +192,7 @@ export const useGraphStore = create<GraphState>()(
       },
       clearGraph: () => {
         clearLoadingFailsafe();
-        set({ nodes: [], edges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0, truncated: false, totalNodeCount: 0, totalEdgeCount: 0 });
+        set({ nodes: [], edges: [], rawNodes: [], rawEdges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0, truncated: false, totalNodeCount: 0, totalEdgeCount: 0 });
       },
       setPrerequisites: (prerequisites) => set({ prerequisites }),
       setInitStatus: (initStatus, initMessage = null) => set({ initStatus, initMessage }),

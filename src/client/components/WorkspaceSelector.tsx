@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { WorkspaceInfo } from '../store/graphStore.ts';
 import { useT } from '../i18n/index.ts';
 import { deriveWorkspaceName as deriveName } from '../utils/deriveName.ts';
@@ -35,11 +36,20 @@ export function WorkspaceSelector({
   const [newPath, setNewPath] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+
+  useLayoutEffect(() => {
+    if (!open || !triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setDropdownPos({ top: rect.bottom + 4, left: rect.left });
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     const onDocClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node) &&
+          triggerRef.current && !triggerRef.current.contains(e.target as Node)) {
         setOpen(false);
         setAdding(false);
       }
@@ -75,8 +85,9 @@ export function WorkspaceSelector({
   const hasExplicit = currentWorkspace !== '.' && !workspaceList.some((w) => w.path === currentWorkspace);
 
   return (
-    <div className="workspace-selector" ref={dropdownRef}>
+    <div className="workspace-selector">
       <button
+        ref={triggerRef}
         className="workspace-trigger"
         onClick={() => setOpen((v) => !v)}
         aria-label={t('workspace.switch')}
@@ -89,8 +100,14 @@ export function WorkspaceSelector({
         <ChevronDownIcon size={12} className="workspace-chevron" />
       </button>
 
-      {open && (
-        <div className="workspace-dropdown" role="listbox" aria-label={t('workspace.switch')}>
+      {open && createPortal(
+        <div
+          className="workspace-dropdown workspace-dropdown-portal"
+          role="listbox"
+          aria-label={t('workspace.switch')}
+          style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left }}
+          ref={dropdownRef}
+        >
           <div className="workspace-dropdown-header">
             <span>{t('workspace.current')}</span>
             <button
@@ -165,7 +182,8 @@ export function WorkspaceSelector({
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

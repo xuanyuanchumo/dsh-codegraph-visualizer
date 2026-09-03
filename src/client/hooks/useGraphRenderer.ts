@@ -78,7 +78,7 @@ export function useGraphRenderer(
     if (!r) return;
     const timer = setTimeout(() => r.applyLayout(layout), 150);
     return () => clearTimeout(timer);
-  }, [layout, nodes, edges]);
+  }, [layout, depthLevel]);
 
   useEffect(() => {
     const r = rendererRef.current;
@@ -96,10 +96,7 @@ export function useGraphRenderer(
   }, [graphType]);
 
   useEffect(() => {
-    rendererRef.current?.filterByDepth(depthLevel);
-  }, [depthLevel]);
 
-  useEffect(() => {
     const r = rendererRef.current;
     if (!r) return;
     setSearchMatchCount(debouncedSearch ? r.search(debouncedSearch) : null);

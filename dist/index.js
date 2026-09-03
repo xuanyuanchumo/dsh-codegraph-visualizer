@@ -884,7 +884,81 @@ const NodeId = (id) => id;
 const EdgeId = (id) => id;
 
 //#endregion
+//#region src/shared/Logger.ts
+const LEVEL_ORDER = {
+	debug: 0,
+	info: 1,
+	warn: 2,
+	error: 3
+};
+const RING_SIZE = 200;
+var LoggerImpl = class {
+	buffer = [];
+	listeners = new Set();
+	minLevel = typeof globalThis !== "undefined" && globalThis.__CG_DEBUG ? "debug" : "info";
+	log(level, scope, message, data) {
+		if (LEVEL_ORDER[level] < LEVEL_ORDER[this.minLevel]) return;
+		const entry = {
+			ts: Date.now(),
+			level,
+			scope,
+			message,
+			data
+		};
+		this.buffer.push(entry);
+		if (this.buffer.length > RING_SIZE) this.buffer.splice(0, this.buffer.length - RING_SIZE);
+		this.emit();
+		const fn = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
+		try {
+			fn(`[codegraph:${scope}] ${message}`, data ?? "");
+		} catch {}
+	}
+	debug(scope, message, data) {
+		this.log("debug", scope, message, data);
+	}
+	info(scope, message, data) {
+		this.log("info", scope, message, data);
+	}
+	warn(scope, message, data) {
+		this.log("warn", scope, message, data);
+	}
+	error(scope, message, data) {
+		this.log("error", scope, message, data);
+	}
+	entries() {
+		return this.buffer.slice();
+	}
+	clear() {
+		this.buffer = [];
+		this.emit();
+	}
+	subscribe(fn) {
+		this.listeners.add(fn);
+		fn(this.entries());
+		return () => {
+			this.listeners.delete(fn);
+		};
+	}
+	emit() {
+		const snapshot = this.entries();
+		for (const fn of this.listeners) try {
+			fn(snapshot);
+		} catch {}
+	}
+};
+const logger = new LoggerImpl();
+function scoped(scope) {
+	return {
+		debug: (m, d) => logger.debug(scope, m, d),
+		info: (m, d) => logger.info(scope, m, d),
+		warn: (m, d) => logger.warn(scope, m, d),
+		error: (m, d) => logger.error(scope, m, d)
+	};
+}
+
+//#endregion
 //#region src/adapters/CodeGraphAdapter.ts
+const log$3 = scoped("codegraph-adapter");
 const require = createRequire(import.meta.url);
 const NODE_KIND_MAP = {
 	function: "function",
@@ -939,7 +1013,8 @@ function readGraphFromDb(dbPath) {
 		} finally {
 			db.close();
 		}
-	} catch {
+	} catch (e) {
+		log$3.warn("readGraphFromDb failed", e);
 		return null;
 	}
 }
@@ -1025,6 +1100,7 @@ var CodeGraphAdapter = class {
 
 //#endregion
 //#region src/adapters/LensAdapter.ts
+const log$2 = scoped("lens-adapter");
 var LensAdapter = class {
 	source = "lens";
 	async fetchData(repoId, invoke) {
@@ -1057,7 +1133,8 @@ var LensAdapter = class {
 				source: this.source,
 				timestamp: Date.now()
 			};
-		} catch {
+		} catch (e) {
+			log$2.warn("Lens fetchData failed — lens is optional, returning empty", e);
 			return {
 				nodes: [],
 				edges: [],
@@ -1152,6 +1229,7 @@ var GraphDataMerger = class {
 
 //#endregion
 //#region src/tools.ts
+const log$1 = scoped("tools");
 const codegraphAdapter = new CodeGraphAdapter();
 const lensAdapter = new LensAdapter();
 const merger = new GraphDataMerger();
@@ -1192,6 +1270,7 @@ function normalizeImpact(raw) {
 	if (typeof raw === "string") try {
 		raw = JSON.parse(raw);
 	} catch {
+		log$1.warn("normalizeImpact: JSON.parse failed");
 		return null;
 	}
 	if (!raw || typeof raw !== "object") return null;
@@ -1212,6 +1291,7 @@ function pickBestMatch(raw, symbolId) {
 	if (typeof payload === "string") try {
 		payload = JSON.parse(payload);
 	} catch {
+		log$1.warn("normalizeCallers: JSON.parse failed");
 		return null;
 	}
 	const items = Array.isArray(payload) ? payload : payload?.results ?? payload?.nodes;
@@ -1242,7 +1322,11 @@ function createInvoke(ctx) {
 			});
 			if (result.isError) return null;
 			return result.value ?? null;
-		} catch {
+		} catch (e) {
+			log$1.warn("createInvoke: tool execution failed", {
+				tool,
+				error: e
+			});
 			return null;
 		}
 	};
@@ -1426,79 +1510,6 @@ const createGraphTools = (ctx) => {
 };
 
 //#endregion
-//#region src/shared/Logger.ts
-const LEVEL_ORDER = {
-	debug: 0,
-	info: 1,
-	warn: 2,
-	error: 3
-};
-const RING_SIZE = 200;
-var LoggerImpl = class {
-	buffer = [];
-	listeners = new Set();
-	minLevel = typeof globalThis !== "undefined" && globalThis.__CG_DEBUG ? "debug" : "info";
-	log(level, scope, message, data) {
-		if (LEVEL_ORDER[level] < LEVEL_ORDER[this.minLevel]) return;
-		const entry = {
-			ts: Date.now(),
-			level,
-			scope,
-			message,
-			data
-		};
-		this.buffer.push(entry);
-		if (this.buffer.length > RING_SIZE) this.buffer.splice(0, this.buffer.length - RING_SIZE);
-		this.emit();
-		const fn = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
-		try {
-			fn(`[codegraph:${scope}] ${message}`, data ?? "");
-		} catch {}
-	}
-	debug(scope, message, data) {
-		this.log("debug", scope, message, data);
-	}
-	info(scope, message, data) {
-		this.log("info", scope, message, data);
-	}
-	warn(scope, message, data) {
-		this.log("warn", scope, message, data);
-	}
-	error(scope, message, data) {
-		this.log("error", scope, message, data);
-	}
-	entries() {
-		return this.buffer.slice();
-	}
-	clear() {
-		this.buffer = [];
-		this.emit();
-	}
-	subscribe(fn) {
-		this.listeners.add(fn);
-		fn(this.entries());
-		return () => {
-			this.listeners.delete(fn);
-		};
-	}
-	emit() {
-		const snapshot = this.entries();
-		for (const fn of this.listeners) try {
-			fn(snapshot);
-		} catch {}
-	}
-};
-const logger = new LoggerImpl();
-function scoped(scope) {
-	return {
-		debug: (m, d) => logger.debug(scope, m, d),
-		info: (m, d) => logger.info(scope, m, d),
-		warn: (m, d) => logger.warn(scope, m, d),
-		error: (m, d) => logger.error(scope, m, d)
-	};
-}
-
-//#endregion
 //#region src/generated/version.ts
 const PLUGIN_VERSION = "0.1.0";
 
@@ -1556,12 +1567,19 @@ function checkPrerequisites(ctx) {
 }
 function apply(ctx) {
 	const { graphStatus, graphData, graphSymbol, graphImpact } = createGraphTools(ctx);
-	ctx.tools.register(graphStatus);
-	ctx.tools.register(graphData);
-	ctx.tools.register(graphSymbol);
-	ctx.tools.register(graphImpact);
+	ctx.effect(() => {
+		const d1 = ctx.tools.register(graphStatus);
+		const d2 = ctx.tools.register(graphData);
+		const d3 = ctx.tools.register(graphSymbol);
+		const d4 = ctx.tools.register(graphImpact);
+		return () => {
+			d1();
+			d2();
+			d3();
+			d4();
+		};
+	}, "codegraph: tool registrations");
 	let lastGraphData = null;
-	let lastScanPath = null;
 	let lastInitResult = null;
 	let scanInFlight = null;
 	const scanCache = new Map();
@@ -1737,7 +1755,6 @@ function apply(ctx) {
 					return;
 				}
 				const scanPath = path && path !== "." ? path : findWorkspacePath();
-				lastScanPath = scanPath;
 				const repoId = scanPath || `workspace-${Date.now()}`;
 				const cached = scanCache.get(scanPath);
 				if (cached && Date.now() - cached.timestamp < SCAN_CACHE_TTL) {
@@ -1906,25 +1923,25 @@ function apply(ctx) {
 	emitPrereqStatus();
 	const prereqTimer = setTimeout(emitPrereqStatus, 3e3);
 	ctx.effect(() => () => clearTimeout(prereqTimer), "codegraph: prereq re-check timer");
-	ctx.on("codegraph/prerequisite/request", () => {
+	ctx.effect(() => ctx.on("codegraph/prerequisite/request", () => {
 		emitPrereqStatus();
-	});
-	ctx.on("codegraph/repo/imported", (event) => {
+	}), "codegraph: prerequisite request listener");
+	ctx.effect(() => ctx.on("codegraph/repo/imported", (event) => {
 		ctx.emit("codegraph/graph/updated", {
 			repoId: event.repoId,
 			nodeCount: 0,
 			edgeCount: 0,
 			timestamp: event.timestamp
 		});
-	});
-	ctx.on("codegraph/repo/scanned", (event) => {
+	}), "codegraph: repo imported listener");
+	ctx.effect(() => ctx.on("codegraph/repo/scanned", (event) => {
 		ctx.emit("codegraph/graph/updated", {
 			repoId: event.repoId,
 			nodeCount: 0,
 			edgeCount: 0,
 			timestamp: event.timestamp
 		});
-	});
+	}), "codegraph: repo scanned listener");
 	const scanAndPush = async (path) => {
 		log.info("scan requested", { path });
 		try {
@@ -1951,10 +1968,10 @@ function apply(ctx) {
 			log.error("scan failed", e);
 		}
 	};
-	ctx.on("codegraph/repo/request-scan", async (event) => {
+	ctx.effect(() => ctx.on("codegraph/repo/request-scan", async (event) => {
 		await scanAndPush(event.path);
-	});
-	ctx.on("codegraph/graph/init", async (event) => {
+	}), "codegraph: repo request-scan listener");
+	ctx.effect(() => ctx.on("codegraph/graph/init", async (event) => {
 		log.info("init requested", { path: event.path });
 		try {
 			const result = await invokeUpstream("codegraph_init", {
@@ -1977,8 +1994,8 @@ function apply(ctx) {
 				timestamp: Date.now()
 			});
 		}
-	});
-	ctx.on("codegraph/watch/toggle", (event) => {
+	}), "codegraph: graph init listener");
+	ctx.effect(() => ctx.on("codegraph/watch/toggle", (event) => {
 		if (activeWatcher) {
 			try {
 				activeWatcher.close();
@@ -2019,7 +2036,7 @@ function apply(ctx) {
 		} catch (e) {
 			log.error("watch setup failed", e);
 		}
-	});
+	}), "codegraph: watch toggle listener");
 }
 
 //#endregion
