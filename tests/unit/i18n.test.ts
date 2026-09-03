@@ -171,8 +171,8 @@ describe('i18n lang persistence (J10)', () => {
 
   it('t should handle prereq.installCodegraph and prereq.installLens keys', () => {
     setLang('en');
-    expect(t('prereq.installCodegraph')).toBe('dsh plugin add dsh-codegraph');
-    expect(t('prereq.installLens')).toBe('dsh plugin add dsh-tool-lens');
+    expect(t('prereq.installCodegraph')).toBe('dsh plugin --profile web add dsh-codegraph');
+    expect(t('prereq.installLens')).toBe('dsh plugin --profile web add dsh-tool-lens');
   });
 
   it('setLang should not change when setting same language', () => {

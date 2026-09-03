@@ -821,13 +821,15 @@ body[data-ds-dark-theme] {
 .status-bar .status-workspace {
   color: var(--cg-accent);
   font-weight: 500;
-  max-width: 120px;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 0 4px;
+  padding: 0 6px;
   border-left: 1px solid var(--cg-border);
   margin-left: 4px;
+  font-family: var(--cg-font-mono);
+  font-size: 10px;
 }
 
 .status-bar .status-truncated {
@@ -42712,8 +42714,8 @@ const en = {
 	"workspace.active": "Active",
 	"workspace.lastUsed": "Last used",
 	"workspace.default": "Default",
-	"prereq.installCodegraph": "dsh plugin add dsh-codegraph",
-	"prereq.installLens": "dsh plugin add dsh-tool-lens",
+	"prereq.installCodegraph": "dsh plugin --profile web add dsh-codegraph",
+	"prereq.installLens": "dsh plugin --profile web add dsh-tool-lens",
 	"prereq.installTitle": "Install Prerequisite Plugin",
 	"prereq.detecting": "Detecting prerequisite plugins…",
 	"prereq.found": "Prerequisite plugin detected",
@@ -42876,8 +42878,8 @@ const zh = {
 	"workspace.active": "活跃",
 	"workspace.lastUsed": "上次使用",
 	"workspace.default": "默认",
-	"prereq.installCodegraph": "dsh plugin add dsh-codegraph",
-	"prereq.installLens": "dsh plugin add dsh-tool-lens",
+	"prereq.installCodegraph": "dsh plugin --profile web add dsh-codegraph",
+	"prereq.installLens": "dsh plugin --profile web add dsh-tool-lens",
 	"prereq.installTitle": "安装前置插件",
 	"prereq.detecting": "正在检测前置插件…",
 	"prereq.found": "已检测到前置插件",

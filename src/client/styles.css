@@ -809,13 +809,15 @@ body[data-ds-dark-theme] {
 .status-bar .status-workspace {
   color: var(--cg-accent);
   font-weight: 500;
-  max-width: 120px;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 0 4px;
+  padding: 0 6px;
   border-left: 1px solid var(--cg-border);
   margin-left: 4px;
+  font-family: var(--cg-font-mono);
+  font-size: 10px;
 }
 
 .status-bar .status-truncated {

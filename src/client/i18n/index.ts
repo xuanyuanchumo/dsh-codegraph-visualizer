@@ -170,8 +170,8 @@ const en: Dict = {
   'workspace.default': 'Default',
 
   // Prerequisite plugin install commands
-  'prereq.installCodegraph': 'dsh plugin add dsh-codegraph',
-  'prereq.installLens': 'dsh plugin add dsh-tool-lens',
+  'prereq.installCodegraph': 'dsh plugin --profile web add dsh-codegraph',
+  'prereq.installLens': 'dsh plugin --profile web add dsh-tool-lens',
   'prereq.installTitle': 'Install Prerequisite Plugin',
   'prereq.detecting': 'Detecting prerequisite plugins…',
   'prereq.found': 'Prerequisite plugin detected',
@@ -372,8 +372,8 @@ const zh: Dict = {
   'workspace.default': '默认',
 
   // 前置插件安装命令
-  'prereq.installCodegraph': 'dsh plugin add dsh-codegraph',
-  'prereq.installLens': 'dsh plugin add dsh-tool-lens',
+  'prereq.installCodegraph': 'dsh plugin --profile web add dsh-codegraph',
+  'prereq.installLens': 'dsh plugin --profile web add dsh-tool-lens',
   'prereq.installTitle': '安装前置插件',
   'prereq.detecting': '正在检测前置插件…',
   'prereq.found': '已检测到前置插件',
