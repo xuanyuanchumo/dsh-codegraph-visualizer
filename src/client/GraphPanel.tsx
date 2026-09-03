@@ -42,7 +42,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     nodes, edges, layout, theme, searchQuery, selectedNodeId,
     highlightedNodeIds, filterType, graphType, depthLevel, isLoading, error, lastUpdated,
     prerequisites, watchEnabled, currentWorkspace, workspaceList,
-    initStatus, truncated, totalNodeCount, totalEdgeCount,
+    initStatus, truncated, totalNodeCount, totalEdgeCount, expandedNodeIds,
   } = useGraphStore(useShallow((s) => ({
     nodes: s.nodes, edges: s.edges, layout: s.layout, theme: s.theme,
     searchQuery: s.searchQuery, selectedNodeId: s.selectedNodeId,
@@ -53,6 +53,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
     initStatus: s.initStatus,
     truncated: s.truncated, totalNodeCount: s.totalNodeCount, totalEdgeCount: s.totalEdgeCount,
+    expandedNodeIds: s.expandedNodeIds,
   })));
 
   const setLayout = useGraphStore((s) => s.setLayout);
@@ -70,6 +71,13 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const setInitStatus = useGraphStore((s) => s.setInitStatus);
   const setWatchEnabled = useGraphStore((s) => s.setWatchEnabled);
   const setError = useGraphStore((s) => s.setError);
+  const expandNode = useGraphStore((s) => s.expandNode);
+  const collapseNode = useGraphStore((s) => s.collapseNode);
+  const collapseAll = useGraphStore((s) => s.collapseAll);
+
+  const handleCollapseAll = useCallback(() => {
+    collapseAll();
+  }, [collapseAll]);
 
   const panel = usePanelState();
   const debouncedSearch = useDebounce(searchQuery, 200);
@@ -110,13 +118,35 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, [setSelectedNode]);
 
   const handleNodeDoubleTap = useCallback((nodeId: string) => {
-    const data = getDataRef.current?.getSelectedNodeData();
-    if (data) {
+    const data = getDataRef.current?.getNodeData(nodeId);
+    if (!data) return;
+    if (data.type === 'module') {
+      if (depthLevel === 1) {
+        setDepthLevel(2);
+        expandNode(nodeId);
+      } else if (depthLevel === 2) {
+        setDepthLevel(3);
+        expandNode(nodeId);
+      } else {
+        window.dispatchEvent(new CustomEvent('codegraph:open-source', {
+          detail: { filePath: data.filePath, lineNumber: data.lineNumber, nodeId },
+        }));
+      }
+    } else if (data.type === 'class' || data.type === 'interface') {
+      if (depthLevel === 2) {
+        setDepthLevel(3);
+        expandNode(nodeId);
+      } else {
+        window.dispatchEvent(new CustomEvent('codegraph:open-source', {
+          detail: { filePath: data.filePath, lineNumber: data.lineNumber, nodeId },
+        }));
+      }
+    } else {
       window.dispatchEvent(new CustomEvent('codegraph:open-source', {
         detail: { filePath: data.filePath, lineNumber: data.lineNumber, nodeId },
       }));
     }
-  }, []);
+  }, [depthLevel, setDepthLevel, expandNode]);
 
   const handleNodeHover = useCallback((nodeId: string, pos: { x: number; y: number }) => {
     const data = getDataRef.current?.getNodeData(nodeId);
@@ -172,9 +202,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   });
 
   const requestRefresh = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('codegraph:refresh'));
+    window.dispatchEvent(new CustomEvent('codegraph:refresh', { detail: { incremental: true } }));
   }, []);
-  usePolling(requestRefresh, watchEnabled ? 2000 : 5000, !panel.collapsed);
+  usePolling(requestRefresh, watchEnabled ? 3000 : 10000, !panel.collapsed);
 
   const handleThemeToggle = useCallback(() => {
     const newTheme: ThemeType = theme === 'dark' ? 'light' : 'dark';
@@ -188,8 +218,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const handleRefresh = useCallback(() => {
     setLoading(true);
-    window.dispatchEvent(new CustomEvent('codegraph:refresh'));
-    log.info('manual refresh');
+    window.dispatchEvent(new CustomEvent('codegraph:refresh', { detail: { incremental: false } }));
+    log.info('manual refresh (full)');
   }, [setLoading]);
 
   const handleScanWorkspace = useCallback(() => {
@@ -246,6 +276,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         onRefresh={handleRefresh}
         onExport={renderer.exportGraph}
         onCollapse={panel.toggleCollapsed}
+        onCollapseAll={handleCollapseAll}
         currentWorkspace={currentWorkspace}
         workspaceList={workspaceList}
         onSwitchWorkspace={handleWorkspaceSwitch}
@@ -285,7 +316,13 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         />
       )}
       {selectedNodeData && !c && (
-        <NodeDetail node={selectedNodeData} onClose={handleCloseDetail} />
+        <NodeDetail
+          node={selectedNodeData}
+          onClose={handleCloseDetail}
+          isExpanded={selectedNodeData ? expandedNodeIds.has(selectedNodeData.id) : false}
+          connectionCount={selectedNodeData ? edges.filter((e) => e.source === selectedNodeData.id || e.target === selectedNodeData.id).length : 0}
+          onCollapse={() => selectedNodeData && collapseNode(selectedNodeData.id)}
+        />
       )}
 
       <div className="graph-container" ref={renderer.containerRef} />

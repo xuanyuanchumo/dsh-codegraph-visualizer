@@ -21,12 +21,17 @@ const TYPE_COLORS: Record<string, string> = {
   type: 'var(--cg-text-tertiary)',
 };
 
+const EXPANDABLE_TYPES = new Set(['module', 'class', 'interface']);
+
 interface NodeDetailProps {
   node: GraphNode;
   onClose: () => void;
+  isExpanded?: boolean;
+  connectionCount?: number;
+  onCollapse?: () => void;
 }
 
-export function NodeDetail({ node, onClose }: NodeDetailProps) {
+export function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse }: NodeDetailProps) {
   const t = useT();
   const extraProps = useMemo(
     () => Object.entries(node.properties).slice(0, 5) as [string, unknown][],
@@ -34,6 +39,8 @@ export function NodeDetail({ node, onClose }: NodeDetailProps) {
   );
   const icon = TYPE_ICONS[node.type] ?? '?';
   const color = TYPE_COLORS[node.type] ?? 'var(--cg-accent)';
+  const canExpand = EXPANDABLE_TYPES.has(node.type);
+
   return (
     <div className="node-detail-panel" role="complementary" aria-label={t('detail.ariaLabel')}>
       <button className="close-btn" onClick={onClose} aria-label={t('detail.close')}>
@@ -42,10 +49,27 @@ export function NodeDetail({ node, onClose }: NodeDetailProps) {
       <div className="detail-header">
         <span className="detail-type-icon" style={{ color, borderColor: color }}>{icon}</span>
         <h3>{node.label}</h3>
+        {isExpanded && <span className="detail-expanded-badge">EXP</span>}
       </div>
       <div className="detail-row"><span className="detail-label">{t('detail.type')}</span><span className="detail-value">{node.type}</span></div>
       <div className="detail-row"><span className="detail-label">{t('detail.file')}</span><span className="detail-value">{node.filePath}</span></div>
       <div className="detail-row"><span className="detail-label">{t('detail.line')}</span><span className="detail-value">{node.lineNumber}</span></div>
+      {connectionCount !== undefined && connectionCount > 0 && (
+        <div className="detail-row"><span className="detail-label">{t('detail.connections')}</span><span className="detail-value">{connectionCount}</span></div>
+      )}
+      {canExpand && !isExpanded && (
+        <div className="detail-expand-hint">
+          {t('detail.doubleClickExpand')}
+        </div>
+      )}
+      {canExpand && isExpanded && onCollapse && (
+        <div className="detail-expand-hint" style={{ background: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.3)', color: 'var(--cg-success)' }}>
+          {t('detail.expanded')}
+          <button onClick={onCollapse} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: 'var(--cg-success)', cursor: 'pointer', fontSize: '11px', textDecoration: 'underline' }}>
+            {t('detail.collapse')}
+          </button>
+        </div>
+      )}
       {extraProps.length > 0 && (
         <div className="detail-extra">
           <div className="detail-extra-title">{t('detail.properties')}</div>

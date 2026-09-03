@@ -244,13 +244,26 @@ export function apply(ctx: Context) {
     },
   }), 'codegraph: workspace route');
 
-  // GET /api/codegraph/data — get cached graph data
+  // GET /api/codegraph/data — get cached graph data (supports incremental via If-None-Match)
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: '/api/codegraph/data',
-    handler: (_req: IncomingMessage, res: ServerResponse) => {
+    handler: (req: IncomingMessage, res: ServerResponse) => {
+      const ifNoneMatch = req.headers['if-none-match'];
+      if (ifNoneMatch && lastGraphData) {
+        const clientTimestamp = parseInt(String(ifNoneMatch), 10);
+        if (clientTimestamp >= lastGraphData.metadata.timestamp) {
+          res.writeHead(304, { 'etag': String(lastGraphData.metadata.timestamp) });
+          res.end();
+          return;
+        }
+      }
       if (lastGraphData) {
-        sendJson(res, 200, lastGraphData);
+        res.writeHead(200, {
+          'content-type': 'application/json',
+          'etag': String(lastGraphData.metadata.timestamp),
+        });
+        res.end(JSON.stringify(lastGraphData));
       } else {
         sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: null, timestamp: 0, nodeCount: 0, edgeCount: 0 } });
       }

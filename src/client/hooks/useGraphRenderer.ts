@@ -78,7 +78,7 @@ export function useGraphRenderer(
     if (!r) return;
     const timer = setTimeout(() => r.applyLayout(layout), 150);
     return () => clearTimeout(timer);
-  }, [layout, depthLevel]);
+  }, [layout, depthLevel, nodes.length, edges.length]);
 
   useEffect(() => {
     const r = rendererRef.current;

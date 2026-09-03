@@ -352,16 +352,29 @@ export function apply(ctx: Context) {
   // Native window listeners are registered through ctx.effect() so they
   // are removed when the plugin fiber disposes (red line 1: register-as-effect).
   if (typeof window !== 'undefined') {
-    const refreshListener = () => {
+    const refreshListener = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { incremental?: boolean } | undefined;
       const store = useGraphStore.getState();
       if (store.nodes.length > 0) {
-        store.setLoading(true);
-        fetchGraphData().then((data) => {
-          if (data) {
-            store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata);
-          }
-          store.setLoading(false);
-        });
+        if (detail?.incremental) {
+          fetch('/api/codegraph/data', { headers: { 'if-none-match': String(store.lastUpdated) } })
+            .then((res) => {
+              if (res.status === 304) return null;
+              return res.json();
+            })
+            .then((data) => {
+              if (data && data.nodes && data.nodes.length > 0) {
+                store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata);
+              }
+            })
+            .catch(() => {});
+        } else {
+          fetchGraphData().then((data) => {
+            if (data) {
+              store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata);
+            }
+          });
+        }
       }
     };
 

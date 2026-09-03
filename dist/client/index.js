@@ -160,6 +160,7 @@ body[data-ds-dark-theme] {
   border-bottom: 1px solid var(--cg-border);
   flex-shrink: 0;
   overflow-x: auto;
+  overflow-y: visible;
   scrollbar-width: thin;
 }
 
@@ -2177,6 +2178,154 @@ body[data-ds-dark-theme] {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* ---- Expandable node indicators ------------------------------------------- */
+
+.node-detail-panel .detail-expand-hint {
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: var(--cg-accent-soft);
+  border: 1px solid var(--cg-accent);
+  border-radius: var(--cg-radius-xs);
+  font-size: 11px;
+  color: var(--cg-accent);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.node-detail-panel .detail-connections {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--cg-border);
+}
+
+.node-detail-panel .detail-connections-title {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--cg-text-tertiary);
+  margin-bottom: 6px;
+}
+
+.node-detail-panel .detail-connection-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: 11px;
+  color: var(--cg-text-secondary);
+}
+
+.node-detail-panel .detail-connection-type {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: var(--cg-surface-active);
+  color: var(--cg-text-tertiary);
+  flex-shrink: 0;
+}
+
+.node-detail-panel .detail-connection-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Depth level indicator ------------------------------------------------ */
+
+.depth-level-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  background: var(--cg-accent-soft);
+  border: 1px solid var(--cg-accent);
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cg-accent);
+  white-space: nowrap;
+}
+
+.depth-level-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cg-accent);
+}
+
+.depth-level-dot.active {
+  background: var(--cg-success);
+  box-shadow: 0 0 4px var(--cg-success);
+}
+
+/* ---- Expanded node badge in detail panel ---------------------------------- */
+
+.node-detail-panel .detail-expanded-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cg-success);
+  margin-left: 6px;
+}
+
+/* ---- Collapse-all button -------------------------------------------------- */
+
+.collapse-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--cg-surface-hover);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-xs);
+  font-size: 10px;
+  color: var(--cg-text-secondary);
+  cursor: pointer;
+  transition: all var(--cg-transition);
+  white-space: nowrap;
+}
+
+.collapse-all-btn:hover {
+  background: var(--cg-surface-active);
+  color: var(--cg-text);
+  border-color: var(--cg-border-strong);
+}
+
+/* ---- Smooth graph transitions --------------------------------------------- */
+
+.graph-container {
+  transition: opacity 200ms var(--cg-ease);
+}
+
+.graph-container.loading {
+  opacity: 0.4;
+}
+
+/* ---- Responsive improvements ---------------------------------------------- */
+
+@media (max-width: 768px) {
+  .depth-level-indicator {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .collapse-all-btn {
+    display: none;
+  }
+}
+
 `;
 			document.head.appendChild(style);
 		})();
@@ -2450,15 +2599,33 @@ const DEPTH_TYPE_MAP = {
 		"variable"
 	])
 };
-function filterByDepthLevel(rawNodes, rawEdges, depthLevel) {
+function filterByDepthLevel(rawNodes, rawEdges, depthLevel, expandedNodeIds) {
 	if (depthLevel === "all") return {
 		nodes: rawNodes,
 		edges: rawEdges
 	};
 	const allowedTypes = DEPTH_TYPE_MAP[depthLevel] ?? DEPTH_TYPE_MAP[3];
-	const filteredNodes = rawNodes.filter((n) => allowedTypes.has(n.type));
-	const nodeIds = new Set(filteredNodes.map((n) => n.id));
-	const filteredEdges = rawEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+	const expanded = expandedNodeIds ?? new Set();
+	const edgeAdjacency = new Map();
+	for (const e of rawEdges) {
+		const list = edgeAdjacency.get(e.source);
+		if (list) list.push(e.target);
+		else edgeAdjacency.set(e.source, [e.target]);
+		const list2 = edgeAdjacency.get(e.target);
+		if (list2) list2.push(e.source);
+		else edgeAdjacency.set(e.target, [e.source]);
+	}
+	const visibleNodeIds = new Set();
+	for (const n of rawNodes) if (allowedTypes.has(n.type)) visibleNodeIds.add(n.id);
+	for (const expandedId of expanded) if (!visibleNodeIds.has(expandedId)) {
+		const neighbors = edgeAdjacency.get(expandedId) ?? [];
+		for (const neighborId of neighbors) {
+			const neighbor = rawNodes.find((n) => n.id === neighborId);
+			if (neighbor && allowedTypes.has(neighbor.type)) visibleNodeIds.add(neighborId);
+		}
+	}
+	const filteredNodes = rawNodes.filter((n) => visibleNodeIds.has(n.id));
+	const filteredEdges = rawEdges.filter((e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target));
 	return {
 		nodes: filteredNodes,
 		edges: filteredEdges
@@ -2491,12 +2658,14 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	initStatus: "idle",
 	initMessage: null,
 	watchEnabled: false,
+	expandedNodeIds: new Set(),
 	currentWorkspace: ".",
 	workspaceList: [],
 	setGraphData: (nodes, edges, repoId, metadata) => {
 		clearLoadingFailsafe();
 		const depthLevel = useGraphStore.getState().depthLevel;
-		const { nodes: filteredNodes, edges: filteredEdges } = filterByDepthLevel(nodes, edges, depthLevel);
+		const expandedNodeIds = useGraphStore.getState().expandedNodeIds;
+		const { nodes: filteredNodes, edges: filteredEdges } = filterByDepthLevel(nodes, edges, depthLevel, expandedNodeIds);
 		set$1({
 			rawNodes: nodes,
 			rawEdges: edges,
@@ -2519,8 +2688,8 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	setFilterType: (filterType) => set$1({ filterType }),
 	setGraphType: (graphType) => set$1({ graphType }),
 	setDepthLevel: (depthLevel) => {
-		const { rawNodes, rawEdges } = useGraphStore.getState();
-		const { nodes, edges } = filterByDepthLevel(rawNodes, rawEdges, depthLevel);
+		const { rawNodes, rawEdges, expandedNodeIds } = useGraphStore.getState();
+		const { nodes, edges } = filterByDepthLevel(rawNodes, rawEdges, depthLevel, expandedNodeIds);
 		set$1({
 			depthLevel,
 			nodes,
@@ -2564,6 +2733,37 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		initMessage
 	}),
 	setWatchEnabled: (watchEnabled) => set$1({ watchEnabled }),
+	expandNode: (nodeId) => {
+		const { rawNodes, rawEdges, depthLevel, expandedNodeIds } = useGraphStore.getState();
+		const newExpanded = new Set(expandedNodeIds);
+		newExpanded.add(nodeId);
+		const { nodes, edges } = filterByDepthLevel(rawNodes, rawEdges, depthLevel, newExpanded);
+		set$1({
+			expandedNodeIds: newExpanded,
+			nodes,
+			edges
+		});
+	},
+	collapseNode: (nodeId) => {
+		const { rawNodes, rawEdges, depthLevel, expandedNodeIds } = useGraphStore.getState();
+		const newExpanded = new Set(expandedNodeIds);
+		newExpanded.delete(nodeId);
+		const { nodes, edges } = filterByDepthLevel(rawNodes, rawEdges, depthLevel, newExpanded);
+		set$1({
+			expandedNodeIds: newExpanded,
+			nodes,
+			edges
+		});
+	},
+	collapseAll: () => {
+		const { rawNodes, rawEdges, depthLevel } = useGraphStore.getState();
+		const { nodes, edges } = filterByDepthLevel(rawNodes, rawEdges, depthLevel, new Set());
+		set$1({
+			expandedNodeIds: new Set(),
+			nodes,
+			edges
+		});
+	},
 	setCurrentWorkspace: (path) => set$1({ currentWorkspace: path }),
 	addWorkspace: (path, name$1) => set$1((s) => {
 		const wsName = name$1 ?? path.split(/[\\/]/).pop() ?? path;
@@ -41493,10 +41693,10 @@ var CytoscapeRenderer = class {
 			const nodeCount = this.cy.nodes().length;
 			let effectiveLayout = layout$2;
 			let animate = true;
-			if (nodeCount > 300) {
+			if (nodeCount > 500) {
 				effectiveLayout = "grid";
 				animate = false;
-			} else if (nodeCount > 100 && layout$2 === "cose") {
+			} else if (nodeCount > 150 && layout$2 === "cose") {
 				effectiveLayout = "dagre";
 				animate = false;
 			}
@@ -41507,26 +41707,48 @@ var CytoscapeRenderer = class {
 						name: "cose",
 						fit: true,
 						animate,
-						animationDuration: 300
+						animationDuration: 400,
+						nodeRepulse: () => 4500,
+						idealEdgeLength: () => 80,
+						edgeElasticity: () => .45,
+						gravity: .25,
+						numIter: nodeCount > 80 ? 1500 : 2500,
+						randomize: true,
+						tile: true,
+						padding: 30
 					};
 					break;
 				case "dagre":
 					options = {
 						name: "dagre",
 						fit: true,
-						animate
+						animate,
+						rankDir: "TB",
+						rankSep: 60,
+						edgeSep: 20,
+						nodeSep: 40,
+						ranker: "tight-tree",
+						padding: 30
 					};
 					break;
 				case "circle":
 					options = {
 						name: "circle",
-						fit: true
+						fit: true,
+						animate,
+						padding: 30,
+						radius: () => Math.min(this.cy.width(), this.cy.height()) / 2 - 40
 					};
 					break;
 				case "grid":
 					options = {
 						name: "grid",
-						fit: true
+						fit: true,
+						animate: false,
+						padding: 20,
+						avoidOverlap: true,
+						rows: () => Math.ceil(Math.sqrt(nodeCount)),
+						cols: () => Math.ceil(Math.sqrt(nodeCount))
 					};
 					break;
 				default: {
@@ -42088,7 +42310,12 @@ function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, sel
 		if (!r) return;
 		const timer = setTimeout(() => r.applyLayout(layout$2), 150);
 		return () => clearTimeout(timer);
-	}, [layout$2, depthLevel]);
+	}, [
+		layout$2,
+		depthLevel,
+		nodes.length,
+		edges.length
+	]);
 	(0, react.useEffect)(() => {
 		const r = rendererRef.current;
 		if (!r) return;
@@ -42379,9 +42606,9 @@ const en = {
 	"toolbar.graphType": "Graph type switcher",
 	"toolbar.depth": "Depth level filter",
 	"depth.all": "All Levels",
-	"depth.module": "L1: Modules",
-	"depth.type": "L2: + Types",
-	"depth.full": "L3: Full",
+	"depth.module": "L1: Modules (dbl-click to expand)",
+	"depth.type": "L2: + Types (dbl-click to expand)",
+	"depth.full": "L3: Full Detail",
 	"filter.all": "All Types",
 	"filter.function": "Functions",
 	"filter.class": "Classes",
@@ -42415,6 +42642,10 @@ const en = {
 	"detail.file": "File",
 	"detail.line": "Line",
 	"detail.properties": "Properties",
+	"detail.connections": "Connections",
+	"detail.doubleClickExpand": "Double-click to expand related nodes",
+	"detail.expanded": "Expanded",
+	"detail.collapse": "Collapse",
 	"minimap.title": "Overview",
 	"minimap.close": "Close mini-map",
 	"minimap.functions": "Functions",
@@ -42539,9 +42770,9 @@ const zh = {
 	"toolbar.graphType": "图谱类型切换",
 	"toolbar.depth": "层级过滤",
 	"depth.all": "全部层级",
-	"depth.module": "L1: 模块",
-	"depth.type": "L2: + 类型",
-	"depth.full": "L3: 全部",
+	"depth.module": "L1: 模块 (双击展开)",
+	"depth.type": "L2: + 类型 (双击展开)",
+	"depth.full": "L3: 全部详情",
 	"filter.all": "全部类型",
 	"filter.function": "函数",
 	"filter.class": "类",
@@ -42575,6 +42806,10 @@ const zh = {
 	"detail.file": "文件",
 	"detail.line": "行号",
 	"detail.properties": "属性",
+	"detail.connections": "连接数",
+	"detail.doubleClickExpand": "双击展开相关节点",
+	"detail.expanded": "已展开",
+	"detail.collapse": "收起",
 	"minimap.title": "概览",
 	"minimap.close": "关闭缩略图",
 	"minimap.functions": "函数",
@@ -43697,7 +43932,7 @@ function Toolbar(props) {
 		props.onExport(format);
 		setShowExportMenu(false);
 	}, [props]);
-	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, depthLevel, showSearch, showCallChain, showCycles, showMiniMap, showLegend, showImport, collapsed, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onDepthLevelChange, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleMiniMap, onToggleLegend, onToggleImport, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace } = props;
+	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, depthLevel, showSearch, showCallChain, showCycles, showMiniMap, showLegend, showImport, collapsed, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onDepthLevelChange, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleMiniMap, onToggleLegend, onToggleImport, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll } = props;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "graph-toolbar",
 		children: [
@@ -43726,6 +43961,12 @@ function Toolbar(props) {
 					typeCounts.interface > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 						className: "type-badge interface",
 						children: ["if:", typeCounts.interface]
+					}),
+					onCollapseAll && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+						className: "collapse-all-btn",
+						onClick: onCollapseAll,
+						title: t$1("detail.collapse"),
+						children: t$1("detail.collapse")
 					})
 				]
 			}),
@@ -44038,11 +44279,17 @@ const TYPE_COLORS = {
 	interface: "#14b8a6",
 	type: "var(--cg-text-tertiary)"
 };
-function NodeDetail({ node, onClose }) {
+const EXPANDABLE_TYPES = new Set([
+	"module",
+	"class",
+	"interface"
+]);
+function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse }) {
 	const t$1 = useT();
 	const extraProps = (0, react.useMemo)(() => Object.entries(node.properties).slice(0, 5), [node]);
 	const icon = TYPE_ICONS[node.type] ?? "?";
 	const color = TYPE_COLORS[node.type] ?? "var(--cg-accent)";
+	const canExpand = EXPANDABLE_TYPES.has(node.type);
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "node-detail-panel",
 		role: "complementary",
@@ -44056,14 +44303,21 @@ function NodeDetail({ node, onClose }) {
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: "detail-header",
-				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "detail-type-icon",
-					style: {
-						color,
-						borderColor: color
-					},
-					children: icon
-				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("h3", { children: node.label })]
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: "detail-type-icon",
+						style: {
+							color,
+							borderColor: color
+						},
+						children: icon
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h3", { children: node.label }),
+					isExpanded && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: "detail-expanded-badge",
+						children: "EXP"
+					})
+				]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: "detail-row",
@@ -44093,6 +44347,41 @@ function NodeDetail({ node, onClose }) {
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: "detail-value",
 					children: node.lineNumber
+				})]
+			}),
+			connectionCount !== void 0 && connectionCount > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "detail-row",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "detail-label",
+					children: t$1("detail.connections")
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "detail-value",
+					children: connectionCount
+				})]
+			}),
+			canExpand && !isExpanded && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				className: "detail-expand-hint",
+				children: t$1("detail.doubleClickExpand")
+			}),
+			canExpand && isExpanded && onCollapse && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "detail-expand-hint",
+				style: {
+					background: "rgba(16,185,129,0.08)",
+					borderColor: "rgba(16,185,129,0.3)",
+					color: "var(--cg-success)"
+				},
+				children: [t$1("detail.expanded"), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+					onClick: onCollapse,
+					style: {
+						marginLeft: "auto",
+						background: "transparent",
+						border: "none",
+						color: "var(--cg-success)",
+						cursor: "pointer",
+						fontSize: "11px",
+						textDecoration: "underline"
+					},
+					children: t$1("detail.collapse")
 				})]
 			}),
 			extraProps.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -44506,7 +44795,7 @@ function GraphPanelInner({ className = "" }) {
 	const [selectedNodeData, setSelectedNodeData] = (0, react.useState)(null);
 	const [tooltip, setTooltip] = (0, react.useState)(null);
 	const [showHelp, setShowHelp] = (0, react.useState)(false);
-	const { nodes, edges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, depthLevel, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, totalEdgeCount } = useGraphStore(useShallow((s) => ({
+	const { nodes, edges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, depthLevel, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, totalEdgeCount, expandedNodeIds } = useGraphStore(useShallow((s) => ({
 		nodes: s.nodes,
 		edges: s.edges,
 		layout: s.layout,
@@ -44527,7 +44816,8 @@ function GraphPanelInner({ className = "" }) {
 		initStatus: s.initStatus,
 		truncated: s.truncated,
 		totalNodeCount: s.totalNodeCount,
-		totalEdgeCount: s.totalEdgeCount
+		totalEdgeCount: s.totalEdgeCount,
+		expandedNodeIds: s.expandedNodeIds
 	})));
 	const setLayout = useGraphStore((s) => s.setLayout);
 	const setTheme = useGraphStore((s) => s.setTheme);
@@ -44544,6 +44834,12 @@ function GraphPanelInner({ className = "" }) {
 	const setInitStatus = useGraphStore((s) => s.setInitStatus);
 	const setWatchEnabled = useGraphStore((s) => s.setWatchEnabled);
 	const setError = useGraphStore((s) => s.setError);
+	const expandNode = useGraphStore((s) => s.expandNode);
+	const collapseNode = useGraphStore((s) => s.collapseNode);
+	const collapseAll = useGraphStore((s) => s.collapseAll);
+	const handleCollapseAll = (0, react.useCallback)(() => {
+		collapseAll();
+	}, [collapseAll]);
 	const panel = usePanelState();
 	const debouncedSearch = useDebounce(searchQuery, 200);
 	const showCallChainRef = (0, react.useRef)(panel.showCallChain);
@@ -44573,13 +44869,37 @@ function GraphPanelInner({ className = "" }) {
 		setSelectedNodeData(data$2);
 	}, [setSelectedNode]);
 	const handleNodeDoubleTap = (0, react.useCallback)((nodeId) => {
-		const data$2 = getDataRef.current?.getSelectedNodeData();
-		if (data$2) window.dispatchEvent(new CustomEvent("codegraph:open-source", { detail: {
+		const data$2 = getDataRef.current?.getNodeData(nodeId);
+		if (!data$2) return;
+		if (data$2.type === "module") if (depthLevel === 1) {
+			setDepthLevel(2);
+			expandNode(nodeId);
+		} else if (depthLevel === 2) {
+			setDepthLevel(3);
+			expandNode(nodeId);
+		} else window.dispatchEvent(new CustomEvent("codegraph:open-source", { detail: {
 			filePath: data$2.filePath,
 			lineNumber: data$2.lineNumber,
 			nodeId
 		} }));
-	}, []);
+		else if (data$2.type === "class" || data$2.type === "interface") if (depthLevel === 2) {
+			setDepthLevel(3);
+			expandNode(nodeId);
+		} else window.dispatchEvent(new CustomEvent("codegraph:open-source", { detail: {
+			filePath: data$2.filePath,
+			lineNumber: data$2.lineNumber,
+			nodeId
+		} }));
+		else window.dispatchEvent(new CustomEvent("codegraph:open-source", { detail: {
+			filePath: data$2.filePath,
+			lineNumber: data$2.lineNumber,
+			nodeId
+		} }));
+	}, [
+		depthLevel,
+		setDepthLevel,
+		expandNode
+	]);
 	const handleNodeHover = (0, react.useCallback)((nodeId, pos) => {
 		const data$2 = getDataRef.current?.getNodeData(nodeId);
 		if (data$2) setTooltip({
@@ -44638,9 +44958,9 @@ function GraphPanelInner({ className = "" }) {
 		onToggleHelp: () => setShowHelp((v) => !v)
 	});
 	const requestRefresh = (0, react.useCallback)(() => {
-		window.dispatchEvent(new CustomEvent("codegraph:refresh"));
+		window.dispatchEvent(new CustomEvent("codegraph:refresh", { detail: { incremental: true } }));
 	}, []);
-	usePolling(requestRefresh, watchEnabled ? 2e3 : 5e3, !panel.collapsed);
+	usePolling(requestRefresh, watchEnabled ? 3e3 : 1e4, !panel.collapsed);
 	const handleThemeToggle = (0, react.useCallback)(() => {
 		const newTheme = theme === "dark" ? "light" : "dark";
 		setTheme(newTheme);
@@ -44656,8 +44976,8 @@ function GraphPanelInner({ className = "" }) {
 	}, [setSelectedNode]);
 	const handleRefresh = (0, react.useCallback)(() => {
 		setLoading(true);
-		window.dispatchEvent(new CustomEvent("codegraph:refresh"));
-		log$1.info("manual refresh");
+		window.dispatchEvent(new CustomEvent("codegraph:refresh", { detail: { incremental: false } }));
+		log$1.info("manual refresh (full)");
 	}, [setLoading]);
 	const handleScanWorkspace = (0, react.useCallback)(() => {
 		setLoading(true);
@@ -44725,6 +45045,7 @@ function GraphPanelInner({ className = "" }) {
 				onRefresh: handleRefresh,
 				onExport: renderer$1.exportGraph,
 				onCollapse: panel.toggleCollapsed,
+				onCollapseAll: handleCollapseAll,
 				currentWorkspace,
 				workspaceList,
 				onSwitchWorkspace: handleWorkspaceSwitch,
@@ -44758,7 +45079,10 @@ function GraphPanelInner({ className = "" }) {
 			}),
 			selectedNodeData && !c && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(NodeDetail, {
 				node: selectedNodeData,
-				onClose: handleCloseDetail
+				onClose: handleCloseDetail,
+				isExpanded: selectedNodeData ? expandedNodeIds.has(selectedNodeData.id) : false,
+				connectionCount: selectedNodeData ? edges.filter((e) => e.source === selectedNodeData.id || e.target === selectedNodeData.id).length : 0,
+				onCollapse: () => selectedNodeData && collapseNode(selectedNodeData.id)
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 				className: "graph-container",
@@ -45151,15 +45475,18 @@ function apply(ctx) {
 		ctx.effect(() => () => clearInterval(workspacePoll), "codegraph: workspace polling");
 	}
 	if (typeof window !== "undefined") {
-		const refreshListener = () => {
+		const refreshListener = (e) => {
+			const detail = e.detail;
 			const store = useGraphStore.getState();
-			if (store.nodes.length > 0) {
-				store.setLoading(true);
-				fetchGraphData().then((data$2) => {
-					if (data$2) store.setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
-					store.setLoading(false);
-				});
-			}
+			if (store.nodes.length > 0) if (detail?.incremental) fetch("/api/codegraph/data", { headers: { "if-none-match": String(store.lastUpdated) } }).then((res) => {
+				if (res.status === 304) return null;
+				return res.json();
+			}).then((data$2) => {
+				if (data$2 && data$2.nodes && data$2.nodes.length > 0) store.setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
+			}).catch(() => {});
+			else fetchGraphData().then((data$2) => {
+				if (data$2) store.setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
+			});
 		};
 		const openSourceListener = (e) => {
 			ctx.emit("codegraph/source/open", e.detail);

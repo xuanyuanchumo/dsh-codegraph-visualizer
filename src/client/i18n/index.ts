@@ -37,9 +37,9 @@ const en: Dict = {
 
   // Depth levels
   'depth.all': 'All Levels',
-  'depth.module': 'L1: Modules',
-  'depth.type': 'L2: + Types',
-  'depth.full': 'L3: Full',
+  'depth.module': 'L1: Modules (dbl-click to expand)',
+  'depth.type': 'L2: + Types (dbl-click to expand)',
+  'depth.full': 'L3: Full Detail',
 
   // Filter options
   'filter.all': 'All Types',
@@ -87,6 +87,10 @@ const en: Dict = {
   'detail.file': 'File',
   'detail.line': 'Line',
   'detail.properties': 'Properties',
+  'detail.connections': 'Connections',
+  'detail.doubleClickExpand': 'Double-click to expand related nodes',
+  'detail.expanded': 'Expanded',
+  'detail.collapse': 'Collapse',
 
   // Mini-map
   'minimap.title': 'Overview',
@@ -236,9 +240,9 @@ const zh: Dict = {
 
   // Depth levels
   'depth.all': '全部层级',
-  'depth.module': 'L1: 模块',
-  'depth.type': 'L2: + 类型',
-  'depth.full': 'L3: 全部',
+  'depth.module': 'L1: 模块 (双击展开)',
+  'depth.type': 'L2: + 类型 (双击展开)',
+  'depth.full': 'L3: 全部详情',
 
   // Filter options
   'filter.all': '全部类型',
@@ -286,6 +290,10 @@ const zh: Dict = {
   'detail.file': '文件',
   'detail.line': '行号',
   'detail.properties': '属性',
+  'detail.connections': '连接数',
+  'detail.doubleClickExpand': '双击展开相关节点',
+  'detail.expanded': '已展开',
+  'detail.collapse': '收起',
 
   // Mini-map
   'minimap.title': '概览',

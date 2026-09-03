@@ -62,6 +62,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   onRefresh: () => void;
   onExport: (format: 'png' | 'svg' | 'json') => void;
   onCollapse: () => void;
+  onCollapseAll?: () => void;
 }
 
 export function Toolbar(props: ToolbarProps) {
@@ -93,6 +94,7 @@ export function Toolbar(props: ToolbarProps) {
     onToggleSearch, onToggleCallChain, onToggleCycles, onToggleMiniMap, onToggleLegend,
     onToggleImport, onRefresh, onCollapse,
     currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
+    onCollapseAll,
   } = props;
 
   return (
@@ -109,6 +111,7 @@ export function Toolbar(props: ToolbarProps) {
         {typeCounts.function > 0 && <span className="type-badge function">fn:{typeCounts.function}</span>}
         {typeCounts.class > 0 && <span className="type-badge class">cls:{typeCounts.class}</span>}
         {typeCounts.interface > 0 && <span className="type-badge interface">if:{typeCounts.interface}</span>}
+        {onCollapseAll && <button className="collapse-all-btn" onClick={onCollapseAll} title={t('detail.collapse')}>{t('detail.collapse')}</button>}
       </div>
 
       <div className="toolbar-center">

@@ -46,12 +46,42 @@ function filterByDepthLevel(
   rawNodes: GraphNode[],
   rawEdges: GraphEdge[],
   depthLevel: 1 | 2 | 3 | 'all',
+  expandedNodeIds?: Set<string>,
 ): { nodes: GraphNode[]; edges: GraphEdge[] } {
   if (depthLevel === 'all') return { nodes: rawNodes, edges: rawEdges };
   const allowedTypes = DEPTH_TYPE_MAP[depthLevel] ?? DEPTH_TYPE_MAP[3]!;
-  const filteredNodes = rawNodes.filter((n) => allowedTypes.has(n.type));
-  const nodeIds = new Set(filteredNodes.map((n) => n.id));
-  const filteredEdges = rawEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+  const expanded = expandedNodeIds ?? new Set<string>();
+
+  const edgeAdjacency = new Map<string, string[]>();
+  for (const e of rawEdges) {
+    const list = edgeAdjacency.get(e.source);
+    if (list) list.push(e.target);
+    else edgeAdjacency.set(e.source, [e.target]);
+    const list2 = edgeAdjacency.get(e.target);
+    if (list2) list2.push(e.source);
+    else edgeAdjacency.set(e.target, [e.source]);
+  }
+
+  const visibleNodeIds = new Set<string>();
+  for (const n of rawNodes) {
+    if (allowedTypes.has(n.type)) {
+      visibleNodeIds.add(n.id);
+    }
+  }
+  for (const expandedId of expanded) {
+    if (!visibleNodeIds.has(expandedId)) {
+      const neighbors = edgeAdjacency.get(expandedId) ?? [];
+      for (const neighborId of neighbors) {
+        const neighbor = rawNodes.find((n) => n.id === neighborId);
+        if (neighbor && allowedTypes.has(neighbor.type)) {
+          visibleNodeIds.add(neighborId);
+        }
+      }
+    }
+  }
+
+  const filteredNodes = rawNodes.filter((n) => visibleNodeIds.has(n.id));
+  const filteredEdges = rawEdges.filter((e) => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target));
   return { nodes: filteredNodes, edges: filteredEdges };
 }
 
@@ -94,6 +124,9 @@ interface GraphState {
   // Hot-update watch toggle
   watchEnabled: boolean;
 
+  // Expanded nodes (per-node depth expansion for double-click interaction)
+  expandedNodeIds: Set<string>;
+
   // Workspace management
   currentWorkspace: string;
   workspaceList: WorkspaceInfo[];
@@ -114,6 +147,9 @@ interface GraphState {
   setPrerequisites: (status: { codegraph: boolean; lens: boolean }) => void;
   setInitStatus: (status: 'idle' | 'initializing' | 'done' | 'error', message?: string | null) => void;
   setWatchEnabled: (enabled: boolean) => void;
+  expandNode: (nodeId: string) => void;
+  collapseNode: (nodeId: string) => void;
+  collapseAll: () => void;
   setCurrentWorkspace: (path: string) => void;
   addWorkspace: (path: string, name?: string) => void;
   removeWorkspace: (path: string) => void;
@@ -145,6 +181,7 @@ export const useGraphStore = create<GraphState>()(
       initStatus: 'idle',
       initMessage: null,
       watchEnabled: false,
+      expandedNodeIds: new Set(),
       currentWorkspace: '.',
       workspaceList: [],
 
@@ -152,7 +189,8 @@ export const useGraphStore = create<GraphState>()(
       setGraphData: (nodes, edges, repoId, metadata) => {
         clearLoadingFailsafe();
         const depthLevel = useGraphStore.getState().depthLevel;
-        const { nodes: filteredNodes, edges: filteredEdges } = filterByDepthLevel(nodes, edges, depthLevel);
+        const expandedNodeIds = useGraphStore.getState().expandedNodeIds;
+        const { nodes: filteredNodes, edges: filteredEdges } = filterByDepthLevel(nodes, edges, depthLevel, expandedNodeIds);
         set({
           rawNodes: nodes, rawEdges: edges,
           nodes: filteredNodes, edges: filteredEdges,
@@ -170,8 +208,8 @@ export const useGraphStore = create<GraphState>()(
       setFilterType: (filterType) => set({ filterType }),
       setGraphType: (graphType) => set({ graphType }),
       setDepthLevel: (depthLevel) => {
-        const { rawNodes, rawEdges } = useGraphStore.getState();
-        const { nodes, edges } = filterByDepthLevel(rawNodes, rawEdges, depthLevel);
+        const { rawNodes, rawEdges, expandedNodeIds } = useGraphStore.getState();
+        const { nodes, edges } = filterByDepthLevel(rawNodes, rawEdges, depthLevel, expandedNodeIds);
         set({ depthLevel, nodes, edges });
       },
       setLoading: (isLoading) => {
@@ -197,6 +235,25 @@ export const useGraphStore = create<GraphState>()(
       setPrerequisites: (prerequisites) => set({ prerequisites }),
       setInitStatus: (initStatus, initMessage = null) => set({ initStatus, initMessage }),
       setWatchEnabled: (watchEnabled) => set({ watchEnabled }),
+      expandNode: (nodeId) => {
+        const { rawNodes, rawEdges, depthLevel, expandedNodeIds } = useGraphStore.getState();
+        const newExpanded = new Set(expandedNodeIds);
+        newExpanded.add(nodeId);
+        const { nodes, edges } = filterByDepthLevel(rawNodes, rawEdges, depthLevel, newExpanded);
+        set({ expandedNodeIds: newExpanded, nodes, edges });
+      },
+      collapseNode: (nodeId) => {
+        const { rawNodes, rawEdges, depthLevel, expandedNodeIds } = useGraphStore.getState();
+        const newExpanded = new Set(expandedNodeIds);
+        newExpanded.delete(nodeId);
+        const { nodes, edges } = filterByDepthLevel(rawNodes, rawEdges, depthLevel, newExpanded);
+        set({ expandedNodeIds: newExpanded, nodes, edges });
+      },
+      collapseAll: () => {
+        const { rawNodes, rawEdges, depthLevel } = useGraphStore.getState();
+        const { nodes, edges } = filterByDepthLevel(rawNodes, rawEdges, depthLevel, new Set());
+        set({ expandedNodeIds: new Set(), nodes, edges });
+      },
       setCurrentWorkspace: (path) => set({ currentWorkspace: path }),
       addWorkspace: (path, name) => set((s) => {
         const wsName = name ?? path.split(/[\\/]/).pop() ?? path;

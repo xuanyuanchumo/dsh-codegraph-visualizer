@@ -226,20 +226,65 @@ export class CytoscapeRenderer implements IRenderer {
       let effectiveLayout = layout;
       let animate = true;
 
-      if (nodeCount > 300) {
+      if (nodeCount > 500) {
         effectiveLayout = 'grid';
         animate = false;
-      } else if (nodeCount > 100 && layout === 'cose') {
+      } else if (nodeCount > 150 && layout === 'cose') {
         effectiveLayout = 'dagre';
         animate = false;
       }
 
       let options: LayoutOptions | undefined;
       switch (effectiveLayout) {
-        case 'cose': options = { name: 'cose', fit: true, animate, animationDuration: 300 } as LayoutOptions; break;
-        case 'dagre': options = { name: 'dagre', fit: true, animate } as LayoutOptions; break;
-        case 'circle': options = { name: 'circle', fit: true } as LayoutOptions; break;
-        case 'grid': options = { name: 'grid', fit: true } as LayoutOptions; break;
+        case 'cose':
+          options = {
+            name: 'cose',
+            fit: true,
+            animate,
+            animationDuration: 400,
+            nodeRepulse: () => 4500,
+            idealEdgeLength: () => 80,
+            edgeElasticity: () => 0.45,
+            gravity: 0.25,
+            numIter: nodeCount > 80 ? 1500 : 2500,
+            randomize: true,
+            tile: true,
+            padding: 30,
+          } as LayoutOptions;
+          break;
+        case 'dagre':
+          options = {
+            name: 'dagre',
+            fit: true,
+            animate,
+            rankDir: 'TB',
+            rankSep: 60,
+            edgeSep: 20,
+            nodeSep: 40,
+            ranker: 'tight-tree',
+            padding: 30,
+          } as LayoutOptions;
+          break;
+        case 'circle':
+          options = {
+            name: 'circle',
+            fit: true,
+            animate,
+            padding: 30,
+            radius: () => Math.min(this.cy!.width(), this.cy!.height()) / 2 - 40,
+          } as LayoutOptions;
+          break;
+        case 'grid':
+          options = {
+            name: 'grid',
+            fit: true,
+            animate: false,
+            padding: 20,
+            avoidOverlap: true,
+            rows: () => Math.ceil(Math.sqrt(nodeCount)),
+            cols: () => Math.ceil(Math.sqrt(nodeCount)),
+          } as LayoutOptions;
+          break;
         default: {
           const _exhaustive: never = effectiveLayout;
           throw new Error(`Unhandled layout: ${_exhaustive}`);

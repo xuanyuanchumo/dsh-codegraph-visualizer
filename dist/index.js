@@ -1756,9 +1756,23 @@ function apply(ctx) {
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
 		path: "/api/codegraph/data",
-		handler: (_req, res) => {
-			if (lastGraphData) sendJson(res, 200, lastGraphData);
-			else sendJson(res, 200, {
+		handler: (req, res) => {
+			const ifNoneMatch = req.headers["if-none-match"];
+			if (ifNoneMatch && lastGraphData) {
+				const clientTimestamp = parseInt(String(ifNoneMatch), 10);
+				if (clientTimestamp >= lastGraphData.metadata.timestamp) {
+					res.writeHead(304, { "etag": String(lastGraphData.metadata.timestamp) });
+					res.end();
+					return;
+				}
+			}
+			if (lastGraphData) {
+				res.writeHead(200, {
+					"content-type": "application/json",
+					"etag": String(lastGraphData.metadata.timestamp)
+				});
+				res.end(JSON.stringify(lastGraphData));
+			} else sendJson(res, 200, {
 				nodes: [],
 				edges: [],
 				metadata: {
