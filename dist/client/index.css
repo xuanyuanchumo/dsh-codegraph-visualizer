@@ -1083,9 +1083,6 @@ body[data-ds-dark-theme] {
     display: none;
   }
 
-  .depth-select {
-    display: none;
-  }
 }
 
 /* Medium panels (DSH sidebar medium width) */
@@ -1129,9 +1126,6 @@ body[data-ds-dark-theme] {
     margin: 0 2px;
   }
 
-  .depth-select {
-    display: none;
-  }
 }
 
 /* Very small panels */

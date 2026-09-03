@@ -1095,9 +1095,6 @@ body[data-ds-dark-theme] {
     display: none;
   }
 
-  .depth-select {
-    display: none;
-  }
 }
 
 /* Medium panels (DSH sidebar medium width) */
@@ -1141,9 +1138,6 @@ body[data-ds-dark-theme] {
     margin: 0 2px;
   }
 
-  .depth-select {
-    display: none;
-  }
 }
 
 /* Very small panels */
@@ -41885,14 +41879,14 @@ var CytoscapeRenderer = class {
 						fit: true,
 						animate,
 						animationDuration: 400,
-						nodeRepulse: () => 8e3,
-						idealEdgeLength: () => 120,
-						edgeElasticity: () => .3,
-						gravity: .15,
-						numIter: nodeCount > 80 ? 2500 : 4e3,
+						nodeRepulse: () => 12e3,
+						idealEdgeLength: () => 150,
+						edgeElasticity: () => .25,
+						gravity: .1,
+						numIter: nodeCount > 80 ? 3e3 : 4e3,
 						randomize: !hasPositions,
 						tile: true,
-						padding: 40
+						padding: 50
 					};
 					break;
 				case "dagre":
@@ -42195,9 +42189,17 @@ var CytoscapeRenderer = class {
 					"border-width": isLargeGraph ? 1 : 2,
 					"border-color": c.border,
 					...isLargeGraph ? {} : {
-						"transition-property": "background-color",
+						"transition-property": "background-color, border-color, border-width",
 						"transition-duration": 200
 					}
+				}
+			},
+			{
+				selector: "node:hover",
+				style: {
+					"border-width": isLargeGraph ? 2 : 3,
+					"border-color": isDark ? "#818cf8" : "#1a2230",
+					"overlay-opacity": 0
 				}
 			},
 			{
@@ -42346,27 +42348,37 @@ var CytoscapeRenderer = class {
 				selector: "node[isCluster]",
 				style: {
 					"shape": "round-rectangle",
-					"background-color": isDark ? "rgba(99,102,241,0.25)" : "rgba(38,49,72,0.2)",
+					"background-color": isDark ? "rgba(99,102,241,0.18)" : "rgba(38,49,72,0.12)",
 					"border-width": 3,
 					"border-color": isDark ? "#818cf8" : "#263148",
 					"border-style": "double",
 					"label": "data(label)",
-					"font-size": "13px",
+					"font-size": "12px",
 					"font-weight": "bold",
 					"color": c.text,
 					"text-valign": "center",
 					"text-halign": "center",
 					"text-wrap": "wrap",
-					"text-max-width": "120px",
-					"width": 60,
-					"height": 60,
-					"z-index": 5
+					"text-max-width": "100px",
+					"width": "mapData(childCount, 1, 3000, 50, 120)",
+					"height": "mapData(childCount, 1, 3000, 50, 120)",
+					"z-index": 5,
+					"transition-property": "background-color, border-color, border-width",
+					"transition-duration": 200
+				}
+			},
+			{
+				selector: "node[isCluster]:hover",
+				style: {
+					"background-color": isDark ? "rgba(99,102,241,0.35)" : "rgba(38,49,72,0.25)",
+					"border-width": 4,
+					"border-color": isDark ? "#a5b4fc" : "#1a2230"
 				}
 			},
 			{
 				selector: "edge[isCluster]",
 				style: {
-					"width": 3,
+					"width": "mapData(label, 1, 9999, 1.5, 6)",
 					"line-color": isDark ? "#818cf8" : "#263148",
 					"target-arrow-color": isDark ? "#818cf8" : "#263148",
 					"target-arrow-shape": "triangle",
@@ -42376,9 +42388,17 @@ var CytoscapeRenderer = class {
 					"color": c.text,
 					"text-rotation": "autorotate",
 					"text-background-color": isDark ? "#232324" : "#f9fafb",
-					"text-background-opacity": .8,
+					"text-background-opacity": .85,
 					"text-background-padding": "2px",
-					"opacity": .8
+					"text-background-shape": "roundrectangle",
+					"opacity": .75
+				}
+			},
+			{
+				selector: "edge[isCluster]:hover",
+				style: {
+					"opacity": 1,
+					"width": "mapData(label, 1, 9999, 3, 8)"
 				}
 			}
 		];
