@@ -44987,6 +44987,8 @@ function GraphPanelInner({ className = "" }) {
 	usePolling(requestRefresh, watchEnabled ? 3e3 : 1e4, !panel.collapsed);
 	const handleThemeToggle = (0, react.useCallback)(() => {
 		const newTheme = theme === "dark" ? "light" : "dark";
+		if (newTheme === "dark") document.body.setAttribute("data-ds-dark-theme", "");
+		else document.body.removeAttribute("data-ds-dark-theme");
 		setTheme(newTheme);
 		renderer$1.updateTheme(newTheme);
 	}, [

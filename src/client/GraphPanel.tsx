@@ -188,6 +188,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const handleThemeToggle = useCallback(() => {
     const newTheme: ThemeType = theme === 'dark' ? 'light' : 'dark';
+    if (newTheme === 'dark') {
+      document.body.setAttribute('data-ds-dark-theme', '');
+    } else {
+      document.body.removeAttribute('data-ds-dark-theme');
+    }
     setTheme(newTheme);
     renderer.updateTheme(newTheme);
   }, [theme, setTheme, renderer]);
