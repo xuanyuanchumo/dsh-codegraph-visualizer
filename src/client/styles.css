@@ -25,6 +25,34 @@
   --cg-error: #ef4444;
   --cg-info: #3b82f6;
 
+  /* Node type semantic colors — light theme */
+  --cg-node-default: #263148;
+  --cg-node-function: #059669;
+  --cg-node-class: #1a2230;
+  --cg-node-variable: #d97706;
+  --cg-node-module: #db2777;
+  --cg-node-interface: #0d9488;
+
+  /* Edge type semantic colors — light theme */
+  --cg-edge-default: rgba(0, 0, 0, 0.1);
+  --cg-edge-call: #3b82f6;
+  --cg-edge-import: #10b981;
+  --cg-edge-extend: #ec4899;
+
+  /* Highlight / analysis colors — light theme */
+  --cg-hover-border: #1a2230;
+  --cg-impact-d1: #f59e0b;
+  --cg-impact-d2: #fbbf24;
+  --cg-impact-d3: #fde68a;
+  --cg-inheritance-extend: #ec4899;
+  --cg-inheritance-implement: #14b8a6;
+  --cg-cluster-bg: rgba(38, 49, 72, 0.10);
+  --cg-cluster-border: #263148;
+  --cg-cluster-hover-bg: rgba(38, 49, 72, 0.25);
+  --cg-cluster-hover-border: #1a2230;
+  --cg-cluster-edge: #263148;
+  --cg-cluster-edge-label-bg: #f9fafb;
+
   /* Typography — match DSH's actual font stack including CJK fonts */
   --cg-font-sans: var(--dsw-font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif);
   --cg-font-mono: var(--dsw-font-mono, "JetBrains Mono", "Fira Code", Consolas, "Microsoft YaHei", monospace);
@@ -65,6 +93,34 @@ body[data-ds-dark-theme] {
   --cg-accent: var(--dsw-accent, #6366f1);
   --cg-accent-hover: var(--dsw-accent-hover, #818cf8);
   --cg-accent-soft: var(--dsw-accent-soft, rgba(99, 102, 241, 0.12));
+
+  /* Node type semantic colors — dark theme */
+  --cg-node-default: #6366f1;
+  --cg-node-function: #10b981;
+  --cg-node-class: #818cf8;
+  --cg-node-variable: #f59e0b;
+  --cg-node-module: #ec4899;
+  --cg-node-interface: #14b8a6;
+
+  /* Edge type semantic colors — dark theme */
+  --cg-edge-default: rgba(255, 255, 255, 0.14);
+  --cg-edge-call: #60a5fa;
+  --cg-edge-import: #34d399;
+  --cg-edge-extend: #f472b6;
+
+  /* Highlight / analysis colors — dark theme */
+  --cg-hover-border: #818cf8;
+  --cg-impact-d1: #f59e0b;
+  --cg-impact-d2: #fbbf24;
+  --cg-impact-d3: #fde68a;
+  --cg-inheritance-extend: #f472b6;
+  --cg-inheritance-implement: #2dd4bf;
+  --cg-cluster-bg: rgba(99, 102, 241, 0.15);
+  --cg-cluster-border: #818cf8;
+  --cg-cluster-hover-bg: rgba(99, 102, 241, 0.35);
+  --cg-cluster-hover-border: #a5b4fc;
+  --cg-cluster-edge: #818cf8;
+  --cg-cluster-edge-label-bg: #232324;
 
   --cg-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
   --cg-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
