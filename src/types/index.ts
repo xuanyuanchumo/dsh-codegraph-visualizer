@@ -140,6 +140,7 @@ declare module '@deepseek-ai/cordis' {
     emit<K extends keyof Events>(name: K, ...args: Parameters<Events[K]>): void;
     on<K extends keyof Events>(name: K, listener: Events[K]): () => boolean;
     get(name: string, strict?: boolean): unknown;
+    provide(name: string, service: unknown): () => void;
   }
 }
 

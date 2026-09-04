@@ -41820,11 +41820,22 @@ var CytoscapeRenderer = class {
 		});
 		this.cy.on("mouseover", "node", (evt) => {
 			const node = evt.target;
+			node.addClass("hovered");
 			const pos = node.renderedPosition();
 			this.options.onNodeHover?.(node.id(), {
 				x: pos.x,
 				y: pos.y
 			});
+		});
+		this.cy.on("mouseout", "node", (evt) => {
+			evt.target.removeClass("hovered");
+			this.options.onNodeHoverOut?.();
+		});
+		this.cy.on("mouseover", "edge", (evt) => {
+			evt.target.addClass("hovered");
+		});
+		this.cy.on("mouseout", "edge", (evt) => {
+			evt.target.removeClass("hovered");
 		});
 		this.cy.on("mouseout", "node", () => {
 			this.options.onNodeHoverOut?.();
@@ -42015,10 +42026,10 @@ var CytoscapeRenderer = class {
 				animate = false;
 			}
 			const nodes = this.cy.nodes();
-			let hasPositions = true;
+			let _hasPositions = true;
 			nodes.forEach((n) => {
 				const p$1 = n.position();
-				if (p$1.x == null || p$1.y == null || Number.isNaN(p$1.x) || Number.isNaN(p$1.y)) hasPositions = false;
+				if (p$1.x == null || p$1.y == null || Number.isNaN(p$1.x) || Number.isNaN(p$1.y)) _hasPositions = false;
 			});
 			let options;
 			switch (effectiveLayout) {
@@ -42566,7 +42577,7 @@ var CytoscapeRenderer = class {
 				}
 			},
 			{
-				selector: "node:hover",
+				selector: "node.hovered",
 				style: {
 					"border-width": isLargeGraph ? 2 : 3,
 					"border-color": isDark ? "#818cf8" : "#1a2230",
@@ -42851,7 +42862,7 @@ var CytoscapeRenderer = class {
 				}
 			},
 			{
-				selector: "node[isCluster]:hover",
+				selector: "node[isCluster].hovered",
 				style: {
 					"background-color": isDark ? "rgba(99,102,241,0.35)" : "rgba(38,49,72,0.25)",
 					"border-width": 4,
@@ -42878,7 +42889,7 @@ var CytoscapeRenderer = class {
 				}
 			},
 			{
-				selector: "edge[isCluster]:hover",
+				selector: "edge[isCluster].hovered",
 				style: {
 					"opacity": 1,
 					"width": "mapData(aggregatedCount, 1, 200, 2.5, 6)"
