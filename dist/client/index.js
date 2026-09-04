@@ -41768,6 +41768,7 @@ var CytoscapeRenderer = class {
 							target: e.target,
 							type: e.type,
 							isCluster: ce.isCluster ?? false,
+							aggregatedCount: ce.aggregatedCount ?? 0,
 							label: ce.isCluster ? `${ce.aggregatedCount} deps` : ""
 						}
 					});
@@ -41860,6 +41861,7 @@ var CytoscapeRenderer = class {
 							target: e.target,
 							type: e.type,
 							isCluster: ce.isCluster ?? false,
+							aggregatedCount: ce.aggregatedCount ?? 0,
 							label: ce.isCluster ? `${ce.aggregatedCount} deps` : ""
 						}
 					});
@@ -41903,14 +41905,14 @@ var CytoscapeRenderer = class {
 						fit: true,
 						animate,
 						animationDuration: 400,
-						nodeRepulse: () => 12e3,
-						idealEdgeLength: () => 150,
-						edgeElasticity: () => .25,
-						gravity: .1,
+						nodeRepulse: () => 25e3,
+						idealEdgeLength: () => 200,
+						edgeElasticity: () => .2,
+						gravity: .08,
 						numIter: nodeCount > 80 ? 3e3 : 4e3,
 						randomize: !hasPositions,
 						tile: true,
-						padding: 50
+						padding: 60
 					};
 					break;
 				case "dagre":
@@ -41919,11 +41921,11 @@ var CytoscapeRenderer = class {
 						fit: true,
 						animate,
 						rankDir: "TB",
-						rankSep: 100,
-						edgeSep: 40,
-						nodeSep: 80,
+						rankSep: 120,
+						edgeSep: 50,
+						nodeSep: 100,
 						ranker: "tight-tree",
-						padding: 40
+						padding: 50
 					};
 					break;
 				case "circle":
@@ -42261,16 +42263,16 @@ var CytoscapeRenderer = class {
 				style: {
 					"background-color": c.nodeDefault,
 					"label": isLargeGraph ? "" : "data(label)",
-					"font-size": "11px",
+					"font-size": "10px",
 					"color": c.text,
 					"text-valign": "center",
 					"text-halign": "center",
 					"text-wrap": "wrap",
-					"text-max-width": "80px",
-					"width": isLargeGraph ? 16 : 40,
-					"height": isLargeGraph ? 16 : 40,
-					"shape": isLargeGraph ? "ellipse" : "ellipse",
-					"border-width": isLargeGraph ? 1 : 2,
+					"text-max-width": "70px",
+					"width": isLargeGraph ? 14 : 32,
+					"height": isLargeGraph ? 14 : 32,
+					"shape": "ellipse",
+					"border-width": isLargeGraph ? 1 : 1.5,
 					"border-color": c.border,
 					...isLargeGraph ? {} : {
 						"transition-property": "background-color, border-color, border-width",
@@ -42348,12 +42350,12 @@ var CytoscapeRenderer = class {
 			{
 				selector: "edge",
 				style: {
-					"width": 1.5,
+					"width": 1,
 					"line-color": c.edgeDefault,
 					"target-arrow-color": c.edgeDefault,
 					"target-arrow-shape": "triangle",
 					"curve-style": "bezier",
-					"opacity": .7
+					"opacity": .5
 				}
 			},
 			{
@@ -42470,20 +42472,20 @@ var CytoscapeRenderer = class {
 				selector: "node[isCluster]",
 				style: {
 					"shape": "round-rectangle",
-					"background-color": isDark ? "rgba(99,102,241,0.18)" : "rgba(38,49,72,0.12)",
-					"border-width": 3,
+					"background-color": isDark ? "rgba(99,102,241,0.15)" : "rgba(38,49,72,0.10)",
+					"border-width": 2,
 					"border-color": isDark ? "#818cf8" : "#263148",
-					"border-style": "double",
+					"border-style": "solid",
 					"label": "data(label)",
-					"font-size": "12px",
+					"font-size": "11px",
 					"font-weight": "bold",
 					"color": c.text,
 					"text-valign": "center",
 					"text-halign": "center",
 					"text-wrap": "wrap",
-					"text-max-width": "100px",
-					"width": "mapData(childCount, 1, 3000, 50, 120)",
-					"height": "mapData(childCount, 1, 3000, 50, 120)",
+					"text-max-width": "90px",
+					"width": "mapData(childCount, 1, 3000, 40, 80)",
+					"height": "mapData(childCount, 1, 3000, 40, 80)",
 					"z-index": 5,
 					"transition-property": "background-color, border-color, border-width",
 					"transition-duration": 200
@@ -42500,7 +42502,7 @@ var CytoscapeRenderer = class {
 			{
 				selector: "edge[isCluster]",
 				style: {
-					"width": "mapData(label, 1, 9999, 1.5, 6)",
+					"width": "mapData(aggregatedCount, 1, 200, 1.5, 4)",
 					"line-color": isDark ? "#818cf8" : "#263148",
 					"target-arrow-color": isDark ? "#818cf8" : "#263148",
 					"target-arrow-shape": "triangle",
@@ -42520,7 +42522,7 @@ var CytoscapeRenderer = class {
 				selector: "edge[isCluster]:hover",
 				style: {
 					"opacity": 1,
-					"width": "mapData(label, 1, 9999, 3, 8)"
+					"width": "mapData(aggregatedCount, 1, 200, 2.5, 6)"
 				}
 			}
 		];
