@@ -190,6 +190,8 @@ export function ImportPanel({
             </div>
             <input
               className="workspace-path-input"
+              id="import-workspace-path"
+              name="import-workspace-path"
               type="text"
               value={customPath}
               onChange={(e) => setCustomPath(e.target.value)}
@@ -224,6 +226,8 @@ export function ImportPanel({
           <div className="paste-zone">
             <textarea
               className="paste-input"
+              id="import-paste-json"
+              name="import-paste-json"
               placeholder={t('import.pastePlaceholder')}
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}

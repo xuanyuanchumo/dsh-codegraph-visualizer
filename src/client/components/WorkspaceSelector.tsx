@@ -124,6 +124,8 @@ export function WorkspaceSelector({
             <div className="workspace-add-form">
               <input
                 ref={inputRef}
+                id="workspace-add-path"
+                name="workspace-add-path"
                 type="text"
                 value={newPath}
                 onChange={(e) => setNewPath(e.target.value)}

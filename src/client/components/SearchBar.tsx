@@ -15,6 +15,8 @@ export function SearchBar({ query, matchCount, onChange, onClose }: SearchBarPro
     <div className="search-bar">
       <SearchIcon size={14} className="search-bar-icon" />
       <input
+        id="graph-search"
+        name="graph-search"
         type="text"
         placeholder={t('search.placeholder')}
         value={query}

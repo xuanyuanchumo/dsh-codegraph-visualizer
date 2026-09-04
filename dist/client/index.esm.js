@@ -41909,6 +41909,8 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 						}),
 						/* @__PURE__ */ jsx("input", {
 							className: "workspace-path-input",
+							id: "import-workspace-path",
+							name: "import-workspace-path",
 							type: "text",
 							value: customPath,
 							onChange: (e) => setCustomPath(e.target.value),
@@ -41963,6 +41965,8 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 					className: "paste-zone",
 					children: [/* @__PURE__ */ jsx("textarea", {
 						className: "paste-input",
+						id: "import-paste-json",
+						name: "import-paste-json",
 						placeholder: t$1("import.pastePlaceholder"),
 						value: pasteText,
 						onChange: (e) => setPasteText(e.target.value),
@@ -42207,6 +42211,8 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 					className: "workspace-add-form",
 					children: [/* @__PURE__ */ jsx("input", {
 						ref: inputRef,
+						id: "workspace-add-path",
+						name: "workspace-add-path",
 						type: "text",
 						value: newPath,
 						onChange: (e) => setNewPath(e.target.value),
@@ -42444,6 +42450,8 @@ function Toolbar(props) {
 						value: clusterLevel,
 						onChange: (e) => onClusterLevelChange(e.target.value),
 						className: "depth-select",
+						id: "cluster-level",
+						name: "cluster-level",
 						"aria-label": t$1("toolbar.cluster"),
 						title: t$1("toolbar.cluster"),
 						children: CLUSTER_LEVELS.map((opt) => /* @__PURE__ */ jsx("option", {
@@ -42471,6 +42479,8 @@ function Toolbar(props) {
 							value: filterType,
 							onChange: (e) => onFilterChange(e.target.value),
 							className: "filter-select",
+							id: "filter-type",
+							name: "filter-type",
 							"aria-label": t$1("toolbar.filter"),
 							children: FILTER_KEYS.map((opt) => /* @__PURE__ */ jsx("option", {
 								value: opt.value,
@@ -42649,6 +42659,8 @@ function SearchBar({ query, matchCount, onChange, onClose }) {
 				className: "search-bar-icon"
 			}),
 			/* @__PURE__ */ jsx("input", {
+				id: "graph-search",
+				name: "graph-search",
 				type: "text",
 				placeholder: t$1("search.placeholder"),
 				value: query,

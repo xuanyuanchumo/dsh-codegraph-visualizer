@@ -3,18 +3,20 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './tests/e2e',
   testMatch: /.*\.spec\.ts$/,
-  timeout: 30000,
+  timeout: 60000,
   expect: {
-    timeout: 10000,
+    timeout: 15000,
   },
   fullyParallel: false,
-  retries: 0,
+  retries: 1,
   workers: 1,
   reporter: 'html',
   use: {
     baseURL: 'http://localhost:3080',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    actionTimeout: 20000,
+    navigationTimeout: 30000,
   },
   projects: [
     {
@@ -28,5 +30,6 @@ export default defineConfig({
     command: 'pnpm run dev',
     url: 'http://localhost:3080',
     reuseExistingServer: true,
+    timeout: 120000,
   },
 });

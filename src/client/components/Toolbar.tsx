@@ -145,6 +145,8 @@ export function Toolbar(props: ToolbarProps) {
           value={clusterLevel}
           onChange={(e) => onClusterLevelChange(e.target.value as ClusterLevel)}
           className="depth-select"
+          id="cluster-level"
+          name="cluster-level"
           aria-label={t('toolbar.cluster')}
           title={t('toolbar.cluster')}
         >
@@ -159,7 +161,7 @@ export function Toolbar(props: ToolbarProps) {
           <button className="import-btn" onClick={onToggleImport} title={t('toolbar.import')}
             aria-label={t('toolbar.import')} aria-pressed={showImport}><UploadIcon size={15} /></button>
           <select value={filterType} onChange={(e) => onFilterChange(e.target.value as GraphNode['type'] | 'all')}
-            className="filter-select" aria-label={t('toolbar.filter')}>
+            className="filter-select" id="filter-type" name="filter-type" aria-label={t('toolbar.filter')}>
             {FILTER_KEYS.map((opt) => (
               <option key={opt.value} value={opt.value}>{t(opt.key)}</option>
             ))}
