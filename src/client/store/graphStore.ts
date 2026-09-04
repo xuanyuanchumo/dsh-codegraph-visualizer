@@ -101,7 +101,8 @@ function computeDirectoryClusters(
   const nodeIdToVisibleId = new Map<string, string>(); // raw node id → visible id (cluster or self)
 
   for (const [dirPath, nodes] of dirToNodes) {
-    if (expandedDirs.has(dirPath)) {
+    const clusterId = `cluster__${dirPath.replace(/[/:\\]/g, '__')}`;
+    if (expandedDirs.has(clusterId) || expandedDirs.has(dirPath)) {
       // Expanded: show individual file-level nodes
       for (const n of nodes) {
         visibleNodes.push(n);
@@ -203,7 +204,8 @@ function computeFileClusters(
     } else {
       // Non-module nodes: check if their parent file is expanded
       const parentFileId = n.parentId;
-      if (parentFileId && expandedFiles.has(parentFileId)) {
+      const fileClusterId = parentFileId ? `filecluster__${parentFileId.replace(/[/:\\]/g, '__')}` : `filecluster__orphan`;
+      if (parentFileId && (expandedFiles.has(fileClusterId) || expandedFiles.has(parentFileId))) {
         visibleNodes.push(n);
         nodeIdToVisibleId.set(n.id, n.id);
       } else {

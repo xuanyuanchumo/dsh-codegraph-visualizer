@@ -33,12 +33,13 @@ export function useGraphRenderer(
   selectedNodeId: NodeId | null,
   filterType: FilterType,
   graphType: 'all' | 'call' | 'dependency',
-  clusterLevel: 'directory' | 'file' | 'function',
+  clusterLevel: 'directory' | 'file' | 'function' | 'smart',
   debouncedSearch: string,
   showCallChain: boolean,
   showCycles: boolean,
   showImpact: boolean,
   showInheritance: boolean,
+  focusNodeId: string | null,
   callbacks: GraphRendererCallbacks,
   showCallChainRef: React.RefObject<boolean>,
 ): UseGraphRendererResult {
@@ -130,6 +131,13 @@ export function useGraphRenderer(
     if (showInheritance) { r.highlightInheritance(selectedNodeId); }
     else { r.highlightInheritance(null); }
   }, [showInheritance, selectedNodeId]);
+
+  useEffect(() => {
+    const r = rendererRef.current;
+    if (!r) return;
+    if (focusNodeId) { r.focusNeighborhood(focusNodeId as NodeId); }
+    else { r.focusNeighborhood(null); }
+  }, [focusNodeId]);
 
   const exportGraph = useCallback((format: 'png' | 'svg' | 'json') => {
     const renderer = rendererRef.current;

@@ -32,6 +32,7 @@ export interface IRenderer {
   highlightCycles(cycleIds: Set<string>): void;
   highlightImpact(nodeId: NodeId | null): void;
   highlightInheritance(nodeId: NodeId | null): void;
+  focusNeighborhood(nodeId: NodeId | null): void;
   getThumbnail(): string | null;
   getViewportInfo(): { zoom: number; pan: { x: number; y: number }; renderedSize: { w: number; h: number }; totalSize: { w: number; h: number } } | null;
   exportJSON(): string;

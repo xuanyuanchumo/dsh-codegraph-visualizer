@@ -324,16 +324,15 @@ export class CytoscapeRenderer implements IRenderer {
           options = {
             name: 'cose',
             fit: true,
-            animate,
-            animationDuration: 400,
-            nodeRepulse: () => 25000,
-            idealEdgeLength: () => 200,
-            edgeElasticity: () => 0.2,
-            gravity: 0.08,
-            numIter: nodeCount > 80 ? 3000 : 4000,
-            randomize: !hasPositions,
+            animate: false,
+            nodeRepulse: () => 120000,
+            idealEdgeLength: () => 400,
+            edgeElasticity: () => 0.05,
+            gravity: 0.02,
+            numIter: 15000,
+            randomize: true,
             tile: true,
-            padding: 60,
+            padding: 120,
             avoidOverlap: true,
           } as LayoutOptions;
           break;
@@ -343,11 +342,11 @@ export class CytoscapeRenderer implements IRenderer {
             fit: true,
             animate,
             rankDir: 'TB',
-            rankSep: 120,
-            edgeSep: 50,
-            nodeSep: 100,
+            rankSep: 300,
+            edgeSep: 120,
+            nodeSep: 250,
             ranker: 'tight-tree',
-            padding: 50,
+            padding: 100,
           } as LayoutOptions;
           break;
         case 'circle':
@@ -355,8 +354,8 @@ export class CytoscapeRenderer implements IRenderer {
             name: 'circle',
             fit: true,
             animate,
-            padding: 30,
-            radius: () => Math.min(this.cy!.width(), this.cy!.height()) / 2 - 40,
+            padding: 80,
+            radius: () => Math.min(this.cy!.width(), this.cy!.height()) / 2 - 120,
           } as LayoutOptions;
           break;
         case 'grid':
@@ -364,7 +363,7 @@ export class CytoscapeRenderer implements IRenderer {
             name: 'grid',
             fit: true,
             animate: false,
-            padding: 20,
+            padding: 80,
             avoidOverlap: true,
             rows: Math.ceil(Math.sqrt(nodeCount)),
             cols: Math.ceil(Math.sqrt(nodeCount)),
@@ -376,10 +375,93 @@ export class CytoscapeRenderer implements IRenderer {
         }
       }
       if (options) {
-        this.cy!.layout(options).run();
+        const layout = this.cy!.layout(options);
+        layout.one('layoutstop', () => {
+          this.removeOverlaps();
+        });
+        layout.run();
       }
       this.layoutRaf = null;
     });
+  }
+
+  private removeOverlaps(): void {
+    if (!this.cy) return;
+    const nodes = this.cy.nodes();
+    if (nodes.length === 0) return;
+
+    const minGap = 40;
+    let iterations = 0;
+    const maxIterations = 50;
+
+    const bbox = this.cy!.nodes().boundingBox();
+    const cx = (bbox.x1 + bbox.x2) / 2;
+    const cy = (bbox.y1 + bbox.y2) / 2;
+    const scaleFactor = 1.4;
+    this.cy!.batch(() => {
+      nodes.forEach((n) => {
+        const p = n.position();
+        n.position({
+          x: cx + (p.x - cx) * scaleFactor,
+          y: cy + (p.y - cy) * scaleFactor,
+        });
+      });
+    });
+
+    while (iterations < maxIterations) {
+      iterations++;
+      let overlapCount = 0;
+      const positions: Array<{ id: string; x: number; y: number; w: number; h: number }> = [];
+      nodes.forEach((n) => {
+        const p = n.position();
+        positions.push({ id: n.id(), x: p.x, y: p.y, w: n.width(), h: n.height() });
+      });
+
+      const displacements = new Map<string, { dx: number; dy: number }>();
+      for (const p of positions) displacements.set(p.id, { dx: 0, dy: 0 });
+
+      for (let i = 0; i < positions.length; i++) {
+        for (let j = i + 1; j < positions.length; j++) {
+          const a = positions[i]!;
+          const b = positions[j]!;
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const minDx = (a.w + b.w) / 2 + minGap;
+          const minDy = (a.h + b.h) / 2 + minGap;
+          const absDx = Math.abs(dx);
+          const absDy = Math.abs(dy);
+          if (absDx < minDx && absDy < minDy) {
+            overlapCount++;
+            const overlapX = minDx - absDx;
+            const overlapY = minDy - absDy;
+            const pushX = overlapX / 2 + 3;
+            const pushY = overlapY / 2 + 3;
+            const signX = dx >= 0 ? 1 : -1;
+            const signY = dy >= 0 ? 1 : -1;
+            const da = displacements.get(a.id)!;
+            const db = displacements.get(b.id)!;
+            da.dx -= signX * pushX;
+            da.dy -= signY * pushY;
+            db.dx += signX * pushX;
+            db.dy += signY * pushY;
+          }
+        }
+      }
+
+      if (overlapCount === 0) break;
+
+      this.cy!.batch(() => {
+        for (const [id, d] of displacements) {
+          const node = this.cy!.getElementById(id);
+          if (node.nonempty()) {
+            const p = node.position();
+            node.position({ x: p.x + d.dx, y: p.y + d.dy });
+          }
+        }
+      });
+    }
+
+    this.cy!.fit(undefined, 80);
   }
 
   private highlightedNodeIds: Set<string> = new Set();
@@ -717,6 +799,36 @@ export class CytoscapeRenderer implements IRenderer {
     });
   }
 
+  focusNeighborhood(nodeId: NodeId | null): void {
+    if (!this.cy) return;
+    this.cy.batch(() => {
+      this.cy!.elements().removeClass('focus-highlight focus-dim');
+      if (!nodeId) return;
+
+      const focusNode = this.cy!.getElementById(nodeId);
+      if (focusNode.empty()) return;
+
+      const relevant = new Set<string>([nodeId]);
+      focusNode.neighborhood().forEach((el) => {
+        if (el.isNode()) relevant.add(el.id());
+      });
+
+      relevant.forEach((id) => {
+        const el = this.cy!.getElementById(id);
+        if (el.nonempty()) el.addClass('focus-highlight');
+      });
+
+      this.cy!.elements().forEach((el) => {
+        if (!relevant.has(el.id())) el.addClass('focus-dim');
+      });
+
+      this.cy!.animate({
+        fit: { eles: this.cy!.elements().filter((el) => relevant.has(el.id())), padding: 80 },
+        duration: 400,
+      });
+    });
+  }
+
   getThumbnail(): string | null {
     if (!this.cy) return null;
     return this.cy.png({ full: true, scale: 0.15, bg: 'transparent' });
@@ -1016,6 +1128,31 @@ export class CytoscapeRenderer implements IRenderer {
         selector: '.inheritance-dim',
         style: {
           'opacity': 0.15,
+        },
+      },
+      {
+        selector: '.focus-highlight',
+        style: {
+          'border-width': 3,
+          'border-color': readCssVar('--cg-accent', isDark ? '#6366f1' : '#263148'),
+          'opacity': 1,
+          'z-index': 30,
+        },
+      },
+      {
+        selector: 'edge.focus-highlight',
+        style: {
+          'width': 2.5,
+          'line-color': readCssVar('--cg-accent', isDark ? '#6366f1' : '#263148'),
+          'target-arrow-color': readCssVar('--cg-accent', isDark ? '#6366f1' : '#263148'),
+          'opacity': 1,
+          'z-index': 30,
+        },
+      },
+      {
+        selector: '.focus-dim',
+        style: {
+          'opacity': 0.1,
         },
       },
       {

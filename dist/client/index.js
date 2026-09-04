@@ -2621,27 +2621,30 @@ function computeDirectoryClusters(rawNodes, rawEdges, expandedDirs) {
 	}
 	const visibleNodes = [];
 	const nodeIdToVisibleId = new Map();
-	for (const [dirPath, nodes] of dirToNodes) if (expandedDirs.has(dirPath)) for (const n of nodes) {
-		visibleNodes.push(n);
-		nodeIdToVisibleId.set(n.id, n.id);
-	}
-	else {
+	for (const [dirPath, nodes] of dirToNodes) {
 		const clusterId = `cluster__${dirPath.replace(/[/:\\]/g, "__")}`;
-		const childIds = nodes.map((n) => n.id);
-		const clusterNode = {
-			id: clusterId,
-			label: `${getDirLabel(dirPath)} (${nodes.length})`,
-			type: "module",
-			filePath: dirPath,
-			lineNumber: 0,
-			properties: {},
-			isCluster: true,
-			childCount: nodes.length,
-			childIds,
-			clusterPath: dirPath
-		};
-		visibleNodes.push(clusterNode);
-		for (const n of nodes) nodeIdToVisibleId.set(n.id, clusterId);
+		if (expandedDirs.has(clusterId) || expandedDirs.has(dirPath)) for (const n of nodes) {
+			visibleNodes.push(n);
+			nodeIdToVisibleId.set(n.id, n.id);
+		}
+		else {
+			const clusterId$1 = `cluster__${dirPath.replace(/[/:\\]/g, "__")}`;
+			const childIds = nodes.map((n) => n.id);
+			const clusterNode = {
+				id: clusterId$1,
+				label: `${getDirLabel(dirPath)} (${nodes.length})`,
+				type: "module",
+				filePath: dirPath,
+				lineNumber: 0,
+				properties: {},
+				isCluster: true,
+				childCount: nodes.length,
+				childIds,
+				clusterPath: dirPath
+			};
+			visibleNodes.push(clusterNode);
+			for (const n of nodes) nodeIdToVisibleId.set(n.id, clusterId$1);
+		}
 	}
 	const edgeAggregation = new Map();
 	for (const e of rawEdges) {
@@ -2693,7 +2696,8 @@ function computeFileClusters(rawNodes, rawEdges, expandedFiles) {
 		nodeIdToVisibleId.set(n.id, n.id);
 	} else {
 		const parentFileId = n.parentId;
-		if (parentFileId && expandedFiles.has(parentFileId)) {
+		const fileClusterId = parentFileId ? `filecluster__${parentFileId.replace(/[/:\\]/g, "__")}` : `filecluster__orphan`;
+		if (parentFileId && (expandedFiles.has(fileClusterId) || expandedFiles.has(parentFileId))) {
 			visibleNodes.push(n);
 			nodeIdToVisibleId.set(n.id, n.id);
 		} else {
@@ -42022,16 +42026,15 @@ var CytoscapeRenderer = class {
 					options = {
 						name: "cose",
 						fit: true,
-						animate,
-						animationDuration: 400,
-						nodeRepulse: () => 25e3,
-						idealEdgeLength: () => 200,
-						edgeElasticity: () => .2,
-						gravity: .08,
-						numIter: nodeCount > 80 ? 3e3 : 4e3,
-						randomize: !hasPositions,
+						animate: false,
+						nodeRepulse: () => 12e4,
+						idealEdgeLength: () => 400,
+						edgeElasticity: () => .05,
+						gravity: .02,
+						numIter: 15e3,
+						randomize: true,
 						tile: true,
-						padding: 60,
+						padding: 120,
 						avoidOverlap: true
 					};
 					break;
@@ -42041,11 +42044,11 @@ var CytoscapeRenderer = class {
 						fit: true,
 						animate,
 						rankDir: "TB",
-						rankSep: 120,
-						edgeSep: 50,
-						nodeSep: 100,
+						rankSep: 300,
+						edgeSep: 120,
+						nodeSep: 250,
 						ranker: "tight-tree",
-						padding: 50
+						padding: 100
 					};
 					break;
 				case "circle":
@@ -42053,8 +42056,8 @@ var CytoscapeRenderer = class {
 						name: "circle",
 						fit: true,
 						animate,
-						padding: 30,
-						radius: () => Math.min(this.cy.width(), this.cy.height()) / 2 - 40
+						padding: 80,
+						radius: () => Math.min(this.cy.width(), this.cy.height()) / 2 - 120
 					};
 					break;
 				case "grid":
@@ -42062,7 +42065,7 @@ var CytoscapeRenderer = class {
 						name: "grid",
 						fit: true,
 						animate: false,
-						padding: 20,
+						padding: 80,
 						avoidOverlap: true,
 						rows: Math.ceil(Math.sqrt(nodeCount)),
 						cols: Math.ceil(Math.sqrt(nodeCount))
@@ -42073,9 +42076,95 @@ var CytoscapeRenderer = class {
 					throw new Error(`Unhandled layout: ${_exhaustive}`);
 				}
 			}
-			if (options) this.cy.layout(options).run();
+			if (options) {
+				const layout$3 = this.cy.layout(options);
+				layout$3.one("layoutstop", () => {
+					this.removeOverlaps();
+				});
+				layout$3.run();
+			}
 			this.layoutRaf = null;
 		});
+	}
+	removeOverlaps() {
+		if (!this.cy) return;
+		const nodes = this.cy.nodes();
+		if (nodes.length === 0) return;
+		const minGap = 40;
+		let iterations = 0;
+		const maxIterations = 50;
+		const bbox = this.cy.nodes().boundingBox();
+		const cx = (bbox.x1 + bbox.x2) / 2;
+		const cy = (bbox.y1 + bbox.y2) / 2;
+		const scaleFactor = 1.4;
+		this.cy.batch(() => {
+			nodes.forEach((n) => {
+				const p$1 = n.position();
+				n.position({
+					x: cx + (p$1.x - cx) * scaleFactor,
+					y: cy + (p$1.y - cy) * scaleFactor
+				});
+			});
+		});
+		while (iterations < maxIterations) {
+			iterations++;
+			let overlapCount = 0;
+			const positions = [];
+			nodes.forEach((n) => {
+				const p$1 = n.position();
+				positions.push({
+					id: n.id(),
+					x: p$1.x,
+					y: p$1.y,
+					w: n.width(),
+					h: n.height()
+				});
+			});
+			const displacements = new Map();
+			for (const p$1 of positions) displacements.set(p$1.id, {
+				dx: 0,
+				dy: 0
+			});
+			for (let i$1 = 0; i$1 < positions.length; i$1++) for (let j = i$1 + 1; j < positions.length; j++) {
+				const a = positions[i$1];
+				const b = positions[j];
+				const dx = b.x - a.x;
+				const dy = b.y - a.y;
+				const minDx = (a.w + b.w) / 2 + minGap;
+				const minDy = (a.h + b.h) / 2 + minGap;
+				const absDx = Math.abs(dx);
+				const absDy = Math.abs(dy);
+				if (absDx < minDx && absDy < minDy) {
+					overlapCount++;
+					const overlapX = minDx - absDx;
+					const overlapY = minDy - absDy;
+					const pushX = overlapX / 2 + 3;
+					const pushY = overlapY / 2 + 3;
+					const signX = dx >= 0 ? 1 : -1;
+					const signY = dy >= 0 ? 1 : -1;
+					const da = displacements.get(a.id);
+					const db = displacements.get(b.id);
+					da.dx -= signX * pushX;
+					da.dy -= signY * pushY;
+					db.dx += signX * pushX;
+					db.dy += signY * pushY;
+				}
+			}
+			if (overlapCount === 0) break;
+			this.cy.batch(() => {
+				for (const [id, d] of displacements) {
+					const node = this.cy.getElementById(id);
+					if (node.nonempty()) {
+						const p$1 = node.position();
+						node.position({
+							x: p$1.x + d.dx,
+							y: p$1.y + d.dy
+						});
+					}
+				}
+			});
+		}
+		this.cy.fit(void 0, 80);
 	}
 	highlightedNodeIds = new Set();
 	highlightNodes(nodeIds) {
@@ -42350,6 +42439,33 @@ var CytoscapeRenderer = class {
 			this.cy.edges("[type!=\"extend\"][type!=\"implement\"]").addClass("inheritance-dim");
 			this.cy.nodes().forEach((node) => {
 				if (!relevant.has(node.id())) node.addClass("inheritance-dim");
+			});
+		});
+	}
+	focusNeighborhood(nodeId) {
+		if (!this.cy) return;
+		this.cy.batch(() => {
+			this.cy.elements().removeClass("focus-highlight focus-dim");
+			if (!nodeId) return;
+			const focusNode = this.cy.getElementById(nodeId);
+			if (focusNode.empty()) return;
+			const relevant = new Set([nodeId]);
+			focusNode.neighborhood().forEach((el) => {
+				if (el.isNode()) relevant.add(el.id());
+			});
+			relevant.forEach((id) => {
+				const el = this.cy.getElementById(id);
+				if (el.nonempty()) el.addClass("focus-highlight");
+			});
+			this.cy.elements().forEach((el) => {
+				if (!relevant.has(el.id())) el.addClass("focus-dim");
+			});
+			this.cy.animate({
+				fit: {
+					eles: this.cy.elements().filter((el) => relevant.has(el.id())),
+					padding: 80
+				},
+				duration: 400
 			});
 		});
 	}
@@ -42689,6 +42805,29 @@ var CytoscapeRenderer = class {
 				style: { "opacity": .15 }
 			},
 			{
+				selector: ".focus-highlight",
+				style: {
+					"border-width": 3,
+					"border-color": readCssVar("--cg-accent", isDark ? "#6366f1" : "#263148"),
+					"opacity": 1,
+					"z-index": 30
+				}
+			},
+			{
+				selector: "edge.focus-highlight",
+				style: {
+					"width": 2.5,
+					"line-color": readCssVar("--cg-accent", isDark ? "#6366f1" : "#263148"),
+					"target-arrow-color": readCssVar("--cg-accent", isDark ? "#6366f1" : "#263148"),
+					"opacity": 1,
+					"z-index": 30
+				}
+			},
+			{
+				selector: ".focus-dim",
+				style: { "opacity": .1 }
+			},
+			{
 				selector: "node[isCluster]",
 				style: {
 					"shape": "round-rectangle",
@@ -42835,7 +42974,7 @@ function scoped(scope) {
 //#endregion
 //#region src/client/hooks/useGraphRenderer.ts
 const log$4 = scoped("renderer-hook");
-function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, showCallChain, showCycles, showImpact, showInheritance, callbacks, showCallChainRef) {
+function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, showCallChain, showCycles, showImpact, showInheritance, focusNodeId, callbacks, showCallChainRef) {
 	const containerRef = (0, react.useRef)(null);
 	const rendererRef = (0, react.useRef)(null);
 	const [searchMatchCount, setSearchMatchCount] = (0, react.useState)(null);
@@ -42922,6 +43061,12 @@ function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, sel
 		if (showInheritance) r.highlightInheritance(selectedNodeId);
 		else r.highlightInheritance(null);
 	}, [showInheritance, selectedNodeId]);
+	(0, react.useEffect)(() => {
+		const r = rendererRef.current;
+		if (!r) return;
+		if (focusNodeId) r.focusNeighborhood(focusNodeId);
+		else r.focusNeighborhood(null);
+	}, [focusNodeId]);
 	const exportGraph = (0, react.useCallback)((format) => {
 		const renderer$1 = rendererRef.current;
 		if (!renderer$1) return;
@@ -45577,12 +45722,19 @@ function GraphPanelInner({ className = "" }) {
 		const data$2 = getDataRef.current?.getSelectedNodeData() ?? null;
 		setSelectedNodeData(data$2);
 	}, [setSelectedNode]);
+	const [focusNodeId, setFocusNodeId] = (0, react.useState)(null);
 	const handleNodeDoubleTap = (0, react.useCallback)((nodeId) => {
 		const data$2 = getDataRef.current?.getNodeData(nodeId);
 		if (!data$2) return;
-		const isExpanded = expandedNodeIds.has(nodeId);
-		if (isExpanded) collapseNode(nodeId);
-		else expandNode(nodeId);
+		const isClusterNode = "isCluster" in data$2 && data$2.isCluster === true;
+		if (isClusterNode) {
+			const isExpanded = expandedNodeIds.has(nodeId);
+			if (isExpanded) collapseNode(nodeId);
+			else expandNode(nodeId);
+		} else setFocusNodeId((prev) => {
+			if (prev === nodeId) return null;
+			return nodeId;
+		});
 	}, [
 		expandedNodeIds,
 		expandNode,
@@ -45599,7 +45751,7 @@ function GraphPanelInner({ className = "" }) {
 		});
 	}, []);
 	const handleNodeHoverOut = (0, react.useCallback)(() => setTooltip(null), []);
-	const renderer$1 = useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact, panel.showInheritance, {
+	const renderer$1 = useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact, panel.showInheritance, focusNodeId, {
 		onNodeTap: handleNodeTap,
 		onNodeDoubleTap: handleNodeDoubleTap,
 		onNodeHover: handleNodeHover,
@@ -45640,6 +45792,7 @@ function GraphPanelInner({ className = "" }) {
 			panel.setShowLegend(false);
 			setTooltip(null);
 			setShowHelp(false);
+			setFocusNodeId(null);
 		},
 		onToggleCallChain: panel.toggleCallChain,
 		onToggleImpact: panel.toggleImpact,

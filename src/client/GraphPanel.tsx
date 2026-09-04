@@ -123,14 +123,26 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     setSelectedNodeData(data);
   }, [setSelectedNode]);
 
+  const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
+
   const handleNodeDoubleTap = useCallback((nodeId: string) => {
     const data = getDataRef.current?.getNodeData(nodeId);
     if (!data) return;
-    const isExpanded = expandedNodeIds.has(nodeId);
-    if (isExpanded) {
-      collapseNode(nodeId);
+    const isClusterNode = 'isCluster' in data && data.isCluster === true;
+    if (isClusterNode) {
+      const isExpanded = expandedNodeIds.has(nodeId);
+      if (isExpanded) {
+        collapseNode(nodeId);
+      } else {
+        expandNode(nodeId);
+      }
     } else {
-      expandNode(nodeId);
+      setFocusNodeId((prev) => {
+        if (prev === nodeId) {
+          return null;
+        }
+        return nodeId;
+      });
     }
   }, [expandedNodeIds, expandNode, collapseNode]);
 
@@ -146,7 +158,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const renderer = useGraphRenderer(
     nodes, edges, layout, theme,
     highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel,
-    debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact, panel.showInheritance,
+    debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact, panel.showInheritance, focusNodeId,
     { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut },
     showCallChainRef,
   );
@@ -179,7 +191,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     onCloseAll: () => {
       panel.setShowSearch(false); panel.setShowCallChain(false); panel.setShowCycles(false);
       panel.setShowImpact(false); panel.setShowInheritance(false); panel.setShowImport(false); panel.setShowLegend(false);
-      setTooltip(null); setShowHelp(false);
+      setTooltip(null); setShowHelp(false); setFocusNodeId(null);
     },
     onToggleCallChain: panel.toggleCallChain,
     onToggleImpact: panel.toggleImpact,
