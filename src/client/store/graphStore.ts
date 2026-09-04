@@ -17,7 +17,7 @@ const memoryStorage: StateStorage = {
 export type LayoutType = 'cose' | 'dagre' | 'circle' | 'grid';
 export type ThemeType = 'light' | 'dark';
 export type GraphType = 'all' | 'call' | 'dependency';
-export type ClusterLevel = 'directory' | 'file' | 'function';
+export type ClusterLevel = 'directory' | 'file' | 'function' | 'smart';
 
 export interface WorkspaceInfo {
   path: string;
@@ -305,6 +305,135 @@ function computeFunctionLevel(
   return { nodes: rawNodes, edges: rawEdges };
 }
 
+function computeSmartClusters(
+  rawNodes: GraphNode[],
+  rawEdges: GraphEdge[],
+  expandedNodeIds: Set<string>,
+): ClusterResult {
+  if (rawNodes.length === 0) return { nodes: [], edges: [] };
+
+  const adjacency = new Map<string, Set<string>>();
+  for (const n of rawNodes) adjacency.set(n.id, new Set());
+  for (const e of rawEdges) {
+    adjacency.get(e.source)?.add(e.target);
+    adjacency.get(e.target)?.add(e.source);
+  }
+
+  const labels = new Map<string, string>();
+  let nextLabel = 0;
+  for (const n of rawNodes) labels.set(n.id, `c${nextLabel++}`);
+
+  let changed = true;
+  let iterations = 0;
+  const maxIterations = 10;
+  while (changed && iterations < maxIterations) {
+    changed = false;
+    iterations++;
+    for (const n of rawNodes) {
+      const neighbors = adjacency.get(n.id);
+      if (!neighbors || neighbors.size === 0) continue;
+      const labelCounts = new Map<string, number>();
+      for (const nb of neighbors) {
+        const lbl = labels.get(nb);
+        if (lbl) labelCounts.set(lbl, (labelCounts.get(lbl) ?? 0) + 1);
+      }
+      let bestLabel = labels.get(n.id)!;
+      let bestCount = 0;
+      for (const [lbl, cnt] of labelCounts) {
+        if (cnt > bestCount) { bestLabel = lbl; bestCount = cnt; }
+      }
+      if (bestLabel !== labels.get(n.id)) {
+        labels.set(n.id, bestLabel);
+        changed = true;
+      }
+    }
+  }
+
+  const labelToNodes = new Map<string, GraphNode[]>();
+  for (const n of rawNodes) {
+    const lbl = labels.get(n.id)!;
+    const list = labelToNodes.get(lbl);
+    if (list) list.push(n);
+    else labelToNodes.set(lbl, [n]);
+  }
+
+  const visibleNodes: (GraphNode | ClusterNode)[] = [];
+  const nodeIdToVisibleId = new Map<string, string>();
+
+  for (const [label, nodes] of labelToNodes) {
+    if (nodes.length <= 1) {
+      for (const n of nodes) {
+        visibleNodes.push(n);
+        nodeIdToVisibleId.set(n.id, n.id);
+      }
+      continue;
+    }
+    const clusterId = `smartcluster__${label}`;
+    const isExpanded = expandedNodeIds.has(clusterId);
+    if (isExpanded) {
+      for (const n of nodes) {
+        visibleNodes.push(n);
+        nodeIdToVisibleId.set(n.id, n.id);
+      }
+    } else {
+      const primaryNode = nodes[0]!;
+      const clusterNode: ClusterNode = {
+        id: clusterId as NodeId,
+        label: `${primaryNode.label.split(/[\\/]/).pop()?.split('.')[0] ?? 'group'} +${nodes.length - 1}`,
+        type: primaryNode.type,
+        filePath: primaryNode.filePath,
+        lineNumber: 0,
+        properties: {},
+        isCluster: true,
+        childCount: nodes.length,
+        childIds: nodes.map((n) => n.id),
+        clusterPath: label,
+      };
+      visibleNodes.push(clusterNode);
+      for (const n of nodes) nodeIdToVisibleId.set(n.id, clusterId);
+    }
+  }
+
+  const edgeAggregation = new Map<string, { source: string; target: string; count: number; types: Set<string> }>();
+  for (const e of rawEdges) {
+    const sourceVisibleId = nodeIdToVisibleId.get(e.source);
+    const targetVisibleId = nodeIdToVisibleId.get(e.target);
+    if (!sourceVisibleId || !targetVisibleId) continue;
+    if (sourceVisibleId === targetVisibleId) continue;
+    const key = `${sourceVisibleId}→${targetVisibleId}`;
+    const existing = edgeAggregation.get(key);
+    if (existing) { existing.count++; existing.types.add(e.type); }
+    else edgeAggregation.set(key, { source: sourceVisibleId, target: targetVisibleId, count: 1, types: new Set([e.type]) });
+  }
+
+  const visibleEdges: (GraphEdge | ClusterEdge)[] = [];
+  for (const [, agg] of edgeAggregation) {
+    const sourceIsCluster = agg.source.startsWith('smartcluster__');
+    const targetIsCluster = agg.target.startsWith('smartcluster__');
+    if (!sourceIsCluster && !targetIsCluster) {
+      for (const e of rawEdges) {
+        if (nodeIdToVisibleId.get(e.source) === agg.source &&
+            nodeIdToVisibleId.get(e.target) === agg.target) {
+          visibleEdges.push(e);
+        }
+      }
+    } else {
+      const clusterEdge: ClusterEdge = {
+        id: EdgeId(`clusteredge__${agg.source}__${agg.target}`),
+        source: agg.source as NodeId,
+        target: agg.target as NodeId,
+        type: (agg.types.size === 1 ? [...agg.types][0]! : 'dependency') as GraphEdge['type'],
+        properties: {},
+        isCluster: true,
+        aggregatedCount: agg.count,
+      };
+      visibleEdges.push(clusterEdge);
+    }
+  }
+
+  return { nodes: visibleNodes, edges: visibleEdges };
+}
+
 function computeClusteredGraph(
   rawNodes: GraphNode[],
   rawEdges: GraphEdge[],
@@ -318,6 +447,8 @@ function computeClusteredGraph(
       return computeFileClusters(rawNodes, rawEdges, expandedNodeIds);
     case 'function':
       return computeFunctionLevel(rawNodes, rawEdges);
+    case 'smart':
+      return computeSmartClusters(rawNodes, rawEdges, expandedNodeIds);
   }
 }
 

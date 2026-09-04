@@ -41,6 +41,7 @@ const en: Dict = {
   'cluster.directory': 'Directory',
   'cluster.file': 'File',
   'cluster.function': 'Function',
+  'cluster.smart': 'Smart',
 
   // Filter options
   'filter.all': 'All Types',
@@ -247,6 +248,7 @@ const zh: Dict = {
   'cluster.directory': '目录级',
   'cluster.file': '文件级',
   'cluster.function': '函数级',
+  'cluster.smart': '智能聚类',
 
   // Filter options
   'filter.all': '全部类型',

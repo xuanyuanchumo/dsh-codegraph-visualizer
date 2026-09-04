@@ -30,6 +30,7 @@ const CLUSTER_LEVELS: { value: string; key: string }[] = [
   { value: 'directory', key: 'cluster.directory' },
   { value: 'file', key: 'cluster.file' },
   { value: 'function', key: 'cluster.function' },
+  { value: 'smart', key: 'cluster.smart' },
 ];
 
 interface ToolbarProps extends WorkspaceSelectorProps {
