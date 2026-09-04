@@ -36,7 +36,7 @@ export class CytoscapeRenderer implements IRenderer {
 
     this.cy = cytoscape({
       container: this.options.container,
-      wheelSensitivity: 0.2,
+
       minZoom: 0.1,
       maxZoom: 3,
       style: this.getStylesheet(),

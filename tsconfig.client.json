@@ -6,7 +6,7 @@
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "strict": true,
     "noUncheckedIndexedAccess": true,
-    "verbatimModuleSyntax": false,
+    "verbatimModuleSyntax": true,
     "isolatedModules": false,
     "esModuleInterop": true,
     "skipLibCheck": true,

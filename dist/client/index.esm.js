@@ -39749,7 +39749,7 @@ function buildStylesheet(theme, nodeCount = 0) {
 			style: { "opacity": .1 }
 		},
 		{
-			selector: "node[isCluster]",
+			selector: "node[isCluster=\"true\"]",
 			style: {
 				"shape": "round-rectangle",
 				"background-color": clusterBg,
@@ -39772,7 +39772,7 @@ function buildStylesheet(theme, nodeCount = 0) {
 			}
 		},
 		{
-			selector: "node[isCluster].hovered",
+			selector: "node[isCluster=\"true\"].hovered",
 			style: {
 				"background-color": clusterHoverBg,
 				"border-width": 4,
@@ -39780,7 +39780,7 @@ function buildStylesheet(theme, nodeCount = 0) {
 			}
 		},
 		{
-			selector: "edge[isCluster]",
+			selector: "edge[isCluster=\"true\"]",
 			style: {
 				"width": "mapData(aggregatedCount, 1, 200, 1.5, 4)",
 				"line-color": clusterEdge,
@@ -39799,7 +39799,7 @@ function buildStylesheet(theme, nodeCount = 0) {
 			}
 		},
 		{
-			selector: "edge[isCluster].hovered",
+			selector: "edge[isCluster=\"true\"].hovered",
 			style: {
 				"opacity": 1,
 				"width": "mapData(aggregatedCount, 1, 200, 2.5, 6)"
@@ -39824,7 +39824,6 @@ var CytoscapeRenderer = class {
 		if (this.cy) return;
 		this.cy = cytoscape$1({
 			container: this.options.container,
-			wheelSensitivity: .2,
 			minZoom: .1,
 			maxZoom: 3,
 			style: this.getStylesheet(),

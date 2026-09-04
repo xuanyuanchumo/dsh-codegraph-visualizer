@@ -357,7 +357,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       },
     },
     {
-      selector: 'node[isCluster]',
+      selector: 'node[isCluster="true"]',
       style: {
         'shape': 'round-rectangle',
         'background-color': clusterBg,
@@ -380,7 +380,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       },
     },
     {
-      selector: 'node[isCluster].hovered',
+      selector: 'node[isCluster="true"].hovered',
       style: {
         'background-color': clusterHoverBg,
         'border-width': 4,
@@ -388,7 +388,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       },
     },
     {
-      selector: 'edge[isCluster]',
+      selector: 'edge[isCluster="true"]',
       style: {
         'width': 'mapData(aggregatedCount, 1, 200, 1.5, 4)',
         'line-color': clusterEdge,
@@ -407,7 +407,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       },
     },
     {
-      selector: 'edge[isCluster].hovered',
+      selector: 'edge[isCluster="true"].hovered',
       style: {
         'opacity': 1,
         'width': 'mapData(aggregatedCount, 1, 200, 2.5, 6)',
