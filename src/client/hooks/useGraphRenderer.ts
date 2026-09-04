@@ -37,6 +37,7 @@ export function useGraphRenderer(
   debouncedSearch: string,
   showCallChain: boolean,
   showCycles: boolean,
+  showImpact: boolean,
   callbacks: GraphRendererCallbacks,
   showCallChainRef: React.RefObject<boolean>,
 ): UseGraphRendererResult {
@@ -114,6 +115,13 @@ export function useGraphRenderer(
     if (showCycles) { const cycles = r.detectCycles(); r.highlightCycles(cycles); }
     else { r.highlightCycles(new Set<string>()); }
   }, [showCycles]);
+
+  useEffect(() => {
+    const r = rendererRef.current;
+    if (!r) return;
+    if (showImpact && selectedNodeId) { r.highlightImpact(selectedNodeId); }
+    else { r.highlightImpact(null); }
+  }, [showImpact, selectedNodeId]);
 
   const exportGraph = useCallback((format: 'png' | 'svg' | 'json') => {
     const renderer = rendererRef.current;

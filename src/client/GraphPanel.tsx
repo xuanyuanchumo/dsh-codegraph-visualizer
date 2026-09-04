@@ -37,6 +37,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const [selectedNodeData, setSelectedNodeData] = useState<GraphNode | null>(null);
   const [tooltip, setTooltip] = useState<TooltipData | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [thumbnail, setThumbnail] = useState<string | null>(null);
+  const [viewportInfo, setViewportInfo] = useState<{
+    zoom: number; pan: { x: number; y: number };
+    renderedSize: { w: number; h: number };
+    totalSize: { w: number; h: number };
+  } | null>(null);
 
   const {
     nodes, edges, layout, theme, searchQuery, selectedNodeId,
@@ -140,7 +146,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const renderer = useGraphRenderer(
     nodes, edges, layout, theme,
     highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel,
-    debouncedSearch, panel.showCallChain, panel.showCycles,
+    debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact,
     { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut },
     showCallChainRef,
   );
@@ -172,9 +178,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     onToggleSearch: panel.toggleSearch,
     onCloseAll: () => {
       panel.setShowSearch(false); panel.setShowCallChain(false); panel.setShowCycles(false);
-      panel.setShowImport(false); panel.setShowLegend(false); setTooltip(null); setShowHelp(false);
+      panel.setShowImpact(false); panel.setShowImport(false); panel.setShowLegend(false);
+      setTooltip(null); setShowHelp(false);
     },
     onToggleCallChain: panel.toggleCallChain,
+    onToggleImpact: panel.toggleImpact,
     onToggleMiniMap: panel.toggleMiniMap,
     onCycleLayout: () => {},
     onToggleImport: panel.toggleImport,
@@ -185,6 +193,19 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     window.dispatchEvent(new CustomEvent('codegraph:refresh', { detail: { incremental: true } }));
   }, []);
   usePolling(requestRefresh, watchEnabled ? 3000 : 10000, !panel.collapsed);
+
+  useEffect(() => {
+    if (!panel.showMiniMap || panel.collapsed) return;
+    const updateMiniMap = () => {
+      const r = renderer.rendererRef.current;
+      if (!r) return;
+      setThumbnail(r.getThumbnail());
+      setViewportInfo(r.getViewportInfo());
+    };
+    updateMiniMap();
+    const id = setInterval(updateMiniMap, 2000);
+    return () => clearInterval(id);
+  }, [panel.showMiniMap, panel.collapsed, renderer.rendererRef, nodes.length, layout]);
 
   const handleThemeToggle = useCallback(() => {
     const newTheme: ThemeType = theme === 'dark' ? 'light' : 'dark';
@@ -243,6 +264,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         showSearch={panel.showSearch}
         showCallChain={panel.showCallChain}
         showCycles={panel.showCycles}
+        showImpact={panel.showImpact}
         showMiniMap={panel.showMiniMap}
         showLegend={panel.showLegend}
         showImport={panel.showImport}
@@ -255,6 +277,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         onToggleSearch={panel.toggleSearch}
         onToggleCallChain={panel.toggleCallChain}
         onToggleCycles={panel.toggleCycles}
+        onToggleImpact={panel.toggleImpact}
         onToggleMiniMap={panel.toggleMiniMap}
         onToggleLegend={panel.toggleLegend}
         onToggleImport={panel.toggleImport}
@@ -324,6 +347,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
             interface: nodeTypeCounts.interface,
           }}
           onClose={() => panel.setShowMiniMap(false)}
+          thumbnail={thumbnail}
+          viewportInfo={viewportInfo}
         />
       )}
 

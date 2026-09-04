@@ -236,6 +236,10 @@ const persistImpl = (config, baseOptions) => (set$1, get$3, api) => {
 const persist = persistImpl;
 
 //#endregion
+//#region src/types/index.ts
+const EdgeId = (id) => id;
+
+//#endregion
 //#region src/client/store/graphStore.ts
 function detectInitialTheme() {
 	if (typeof document === "undefined") return "dark";
@@ -325,7 +329,7 @@ function computeDirectoryClusters(rawNodes, rawEdges, expandedDirs) {
 			for (const e of rawEdges) if (nodeIdToVisibleId.get(e.source) === agg.source && nodeIdToVisibleId.get(e.target) === agg.target) visibleEdges.push(e);
 		} else {
 			const clusterEdge = {
-				id: `clusteredge__${agg.source}__${agg.target}`,
+				id: EdgeId(`clusteredge__${agg.source}__${agg.target}`),
 				source: agg.source,
 				target: agg.target,
 				type: agg.types.size === 1 ? [...agg.types][0] : "dependency",
@@ -409,7 +413,7 @@ function computeFileClusters(rawNodes, rawEdges, expandedFiles) {
 			for (const e of rawEdges) if (nodeIdToVisibleId.get(e.source) === agg.source && nodeIdToVisibleId.get(e.target) === agg.target) visibleEdges.push(e);
 		} else {
 			const clusterEdge = {
-				id: `clusteredge__${agg.source}__${agg.target}`,
+				id: EdgeId(`clusteredge__${agg.source}__${agg.target}`),
 				source: agg.source,
 				target: agg.target,
 				type: agg.types.size === 1 ? [...agg.types][0] : "dependency",
@@ -39801,6 +39805,66 @@ var CytoscapeRenderer = class {
 			});
 		});
 	}
+	highlightImpact(nodeId) {
+		if (!this.cy) return;
+		this.cy.batch(() => {
+			this.cy.elements().removeClass("impact-d1 impact-d2 impact-d3 impact-source");
+			if (!nodeId) return;
+			const sourceNode = this.cy.getElementById(nodeId);
+			if (sourceNode.nonempty()) sourceNode.addClass("impact-source");
+			const visited = new Map();
+			const queue = [{
+				id: nodeId,
+				depth: 0
+			}];
+			let head = 0;
+			while (head < queue.length) {
+				const { id, depth } = queue[head++];
+				if (visited.has(id) && visited.get(id) <= depth) continue;
+				visited.set(id, depth);
+				const node = this.cy.getElementById(id);
+				if (depth > 0 && node.nonempty()) {
+					const cls = depth <= 1 ? "impact-d1" : depth === 2 ? "impact-d2" : "impact-d3";
+					node.addClass(cls);
+				}
+				if (depth < 3) node.incomers().forEach((edge) => {
+					const src = edge.source().id();
+					if (!visited.has(src) || visited.get(src) > depth + 1) queue.push({
+						id: src,
+						depth: depth + 1
+					});
+				});
+			}
+		});
+	}
+	getThumbnail() {
+		if (!this.cy) return null;
+		return this.cy.png({
+			full: true,
+			scale: .15,
+			bg: "transparent"
+		});
+	}
+	getViewportInfo() {
+		if (!this.cy) return null;
+		const zoom = this.cy.zoom();
+		const pan = this.cy.pan();
+		const renderedSize = {
+			w: this.cy.width(),
+			h: this.cy.height()
+		};
+		const bounds$1 = this.cy.elements().boundingBox();
+		const totalSize = {
+			w: bounds$1.w,
+			h: bounds$1.h
+		};
+		return {
+			zoom,
+			pan,
+			renderedSize,
+			totalSize
+		};
+	}
 	exportJSON() {
 		if (!this.cy) return "";
 		return JSON.stringify(this.cy.json(), null, 2);
@@ -40020,6 +40084,44 @@ var CytoscapeRenderer = class {
 				}
 			},
 			{
+				selector: ".impact-source",
+				style: {
+					"border-width": 4,
+					"border-color": readCssVar("--cg-error", "#ef4444"),
+					"background-color": readCssVar("--cg-error", "#ef4444"),
+					"z-index": 35
+				}
+			},
+			{
+				selector: ".impact-d1",
+				style: {
+					"border-width": 3,
+					"border-color": "#f59e0b",
+					"background-color": "#f59e0b",
+					"z-index": 28
+				}
+			},
+			{
+				selector: ".impact-d2",
+				style: {
+					"border-width": 3,
+					"border-color": "#fbbf24",
+					"background-color": "#fbbf24",
+					"opacity": .8,
+					"z-index": 22
+				}
+			},
+			{
+				selector: ".impact-d3",
+				style: {
+					"border-width": 2,
+					"border-color": "#fde68a",
+					"background-color": "#fde68a",
+					"opacity": .6,
+					"z-index": 18
+				}
+			},
+			{
 				selector: "node[isCluster]",
 				style: {
 					"shape": "round-rectangle",
@@ -40166,7 +40268,7 @@ function scoped(scope) {
 //#endregion
 //#region src/client/hooks/useGraphRenderer.ts
 const log$4 = scoped("renderer-hook");
-function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, showCallChain, showCycles, callbacks, showCallChainRef) {
+function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, showCallChain, showCycles, showImpact, callbacks, showCallChainRef) {
 	const containerRef = useRef(null);
 	const rendererRef = useRef(null);
 	const [searchMatchCount, setSearchMatchCount] = useState(null);
@@ -40241,6 +40343,12 @@ function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, sel
 			r.highlightCycles(cycles);
 		} else r.highlightCycles(new Set());
 	}, [showCycles]);
+	useEffect(() => {
+		const r = rendererRef.current;
+		if (!r) return;
+		if (showImpact && selectedNodeId) r.highlightImpact(selectedNodeId);
+		else r.highlightImpact(null);
+	}, [showImpact, selectedNodeId]);
 	const exportGraph = useCallback((format) => {
 		const renderer$1 = rendererRef.current;
 		if (!renderer$1) return;
@@ -40331,6 +40439,7 @@ function usePanelState() {
 	const [collapsed, setCollapsed] = useState(false);
 	const [showCycles, setShowCycles] = useState(false);
 	const [showCallChain, setShowCallChain] = useState(false);
+	const [showImpact, setShowImpact] = useState(false);
 	const [showMiniMap, setShowMiniMap] = useState(false);
 	const [showImport, setShowImport] = useState(false);
 	const [showLegend, setShowLegend] = useState(false);
@@ -40338,6 +40447,7 @@ function usePanelState() {
 	const toggleCollapsed = useCallback(() => setCollapsed((c) => !c), []);
 	const toggleCycles = useCallback(() => setShowCycles((v) => !v), []);
 	const toggleCallChain = useCallback(() => setShowCallChain((v) => !v), []);
+	const toggleImpact = useCallback(() => setShowImpact((v) => !v), []);
 	const toggleMiniMap = useCallback(() => setShowMiniMap((v) => !v), []);
 	const toggleImport = useCallback(() => setShowImport((v) => !v), []);
 	const toggleLegend = useCallback(() => setShowLegend((v) => !v), []);
@@ -40346,6 +40456,7 @@ function usePanelState() {
 		collapsed,
 		showCycles,
 		showCallChain,
+		showImpact,
 		showMiniMap,
 		showImport,
 		showLegend,
@@ -40353,6 +40464,7 @@ function usePanelState() {
 		toggleCollapsed,
 		toggleCycles,
 		toggleCallChain,
+		toggleImpact,
 		toggleMiniMap,
 		toggleImport,
 		toggleLegend,
@@ -40360,6 +40472,7 @@ function usePanelState() {
 		setShowImport,
 		setShowCallChain,
 		setShowCycles,
+		setShowImpact,
 		setShowMiniMap,
 		setShowLegend
 	};
@@ -40381,6 +40494,7 @@ function usePanelKeyboard(layout$2, setLayout, rendererRef, handlers) {
 		rendererRef.current?.highlightCycles(new Set());
 	});
 	useKeyboardShortcut("c", () => handlersRef.current.onToggleCallChain(), { ctrl: true });
+	useKeyboardShortcut("e", () => handlersRef.current.onToggleImpact(), { ctrl: true });
 	useKeyboardShortcut("m", () => handlersRef.current.onToggleMiniMap(), { ctrl: true });
 	useKeyboardShortcut("l", () => {
 		const cur = layoutRef.current;
@@ -40486,6 +40600,7 @@ const en = {
 	"toolbar.search": "Search symbols (press /)",
 	"toolbar.chain": "Toggle call chain highlight (Ctrl+C)",
 	"toolbar.cycles": "Highlight circular dependencies",
+	"toolbar.impact": "Impact analysis - show dependents (Ctrl+E)",
 	"toolbar.minimap": "Toggle mini-map (Ctrl+M)",
 	"toolbar.legend": "Toggle legend",
 	"toolbar.refresh": "Refresh graph",
@@ -40633,6 +40748,7 @@ const en = {
 	"shortcut.search": "Search symbols",
 	"shortcut.closeAll": "Close all panels",
 	"shortcut.callChain": "Toggle call chain",
+	"shortcut.impact": "Toggle impact analysis",
 	"shortcut.minimap": "Toggle mini-map",
 	"shortcut.layout": "Cycle layout",
 	"shortcut.import": "Toggle import panel",
@@ -40649,6 +40765,7 @@ const zh = {
 	"toolbar.search": "搜索符号 (按 /)",
 	"toolbar.chain": "切换调用链高亮 (Ctrl+C)",
 	"toolbar.cycles": "高亮循环依赖",
+	"toolbar.impact": "影响分析 - 显示依赖者 (Ctrl+E)",
 	"toolbar.minimap": "切换缩略图 (Ctrl+M)",
 	"toolbar.legend": "切换图例",
 	"toolbar.refresh": "刷新图谱",
@@ -40796,6 +40913,7 @@ const zh = {
 	"shortcut.search": "搜索符号",
 	"shortcut.closeAll": "关闭所有面板",
 	"shortcut.callChain": "切换调用链",
+	"shortcut.impact": "切换影响分析",
 	"shortcut.minimap": "切换缩略图",
 	"shortcut.layout": "循环切换布局",
 	"shortcut.import": "切换导入面板",
@@ -41824,7 +41942,7 @@ function Toolbar(props) {
 		props.onExport(format);
 		setShowExportMenu(false);
 	}, [props]);
-	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterLevel, showSearch, showCallChain, showCycles, showMiniMap, showLegend, showImport, collapsed, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleMiniMap, onToggleLegend, onToggleImport, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll } = props;
+	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterLevel, showSearch, showCallChain, showCycles, showImpact, showMiniMap, showLegend, showImport, collapsed, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleMiniMap, onToggleLegend, onToggleImport, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll } = props;
 	return /* @__PURE__ */ jsxs("div", {
 		className: "graph-toolbar",
 		children: [
@@ -41959,6 +42077,14 @@ function Toolbar(props) {
 								"aria-label": t$1("toolbar.cycles"),
 								"aria-pressed": showCycles,
 								children: /* @__PURE__ */ jsx(CycleIcon, { size: 15 })
+							}),
+							/* @__PURE__ */ jsx("button", {
+								className: `impact-btn ${showImpact ? "active" : ""}`,
+								onClick: onToggleImpact,
+								title: t$1("toolbar.impact"),
+								"aria-label": t$1("toolbar.impact"),
+								"aria-pressed": showImpact,
+								children: /* @__PURE__ */ jsx(ZapIcon, { size: 15 })
 							})
 						]
 					}),
@@ -42301,9 +42427,36 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse }) 
 
 //#endregion
 //#region src/client/components/StatsPanel.tsx
-function StatsPanel({ counts, onClose }) {
+function StatsPanel({ counts, onClose, thumbnail, viewportInfo }) {
 	const t$1 = useT();
 	const total = counts.function + counts.class + counts.variable + counts.module + counts.interface;
+	const imgRef = useRef(null);
+	const [imgLoaded, setImgLoaded] = useState(false);
+	useEffect(() => {
+		if (thumbnail) setImgLoaded(false);
+	}, [thumbnail]);
+	const viewportBox = (() => {
+		if (!viewportInfo || !imgLoaded || !imgRef.current) return null;
+		const img = imgRef.current;
+		const imgW = img.clientWidth;
+		const imgH = img.clientHeight;
+		if (imgW === 0 || imgH === 0) return null;
+		const { zoom, pan, renderedSize, totalSize } = viewportInfo;
+		if (totalSize.w === 0 || totalSize.h === 0) return null;
+		const scale$1 = Math.min(imgW / totalSize.w, imgH / totalSize.h);
+		const offsetX = (imgW - totalSize.w * scale$1) / 2;
+		const offsetY = (imgH - totalSize.h * scale$1) / 2;
+		const vpW = renderedSize.w / zoom * scale$1;
+		const vpH = renderedSize.h / zoom * scale$1;
+		const vpX = offsetX + pan.x / zoom * scale$1 + (totalSize.w * scale$1 - imgW) / 2;
+		const vpY = offsetY + pan.y / zoom * scale$1 + (totalSize.h * scale$1 - imgH) / 2;
+		return {
+			left: vpX,
+			top: vpY,
+			width: vpW,
+			height: vpH
+		};
+	})();
 	return /* @__PURE__ */ jsxs("div", {
 		className: "mini-map",
 		role: "complementary",
@@ -42324,63 +42477,89 @@ function StatsPanel({ counts, onClose }) {
 			})]
 		}), /* @__PURE__ */ jsxs("div", {
 			className: "mini-map-content",
-			children: [/* @__PURE__ */ jsxs("div", {
-				className: "mini-map-stats",
-				children: [
-					/* @__PURE__ */ jsxs("div", { children: [
-						/* @__PURE__ */ jsx("span", {
-							className: "dot",
-							style: { background: "var(--cg-success)" }
-						}),
-						t$1("minimap.functions"),
+			children: [
+				thumbnail && /* @__PURE__ */ jsxs("div", {
+					className: "mini-map-thumbnail",
+					children: [/* @__PURE__ */ jsx("img", {
+						ref: imgRef,
+						src: thumbnail,
+						alt: t$1("minimap.title"),
+						onLoad: () => setImgLoaded(true),
+						style: {
+							width: "100%",
+							height: "auto",
+							display: "block"
+						}
+					}), viewportBox && /* @__PURE__ */ jsx("div", {
+						className: "mini-map-viewport",
+						style: {
+							position: "absolute",
+							left: `${viewportBox.left}px`,
+							top: `${viewportBox.top}px`,
+							width: `${viewportBox.width}px`,
+							height: `${viewportBox.height}px`
+						}
+					})]
+				}),
+				/* @__PURE__ */ jsxs("div", {
+					className: "mini-map-stats",
+					children: [
+						/* @__PURE__ */ jsxs("div", { children: [
+							/* @__PURE__ */ jsx("span", {
+								className: "dot",
+								style: { background: "var(--cg-success)" }
+							}),
+							t$1("minimap.functions"),
+							": ",
+							counts.function
+						] }),
+						/* @__PURE__ */ jsxs("div", { children: [
+							/* @__PURE__ */ jsx("span", {
+								className: "dot",
+								style: { background: "var(--cg-accent)" }
+							}),
+							t$1("minimap.classes"),
+							": ",
+							counts.class
+						] }),
+						/* @__PURE__ */ jsxs("div", { children: [
+							/* @__PURE__ */ jsx("span", {
+								className: "dot",
+								style: { background: "var(--cg-warning)" }
+							}),
+							t$1("minimap.variables"),
+							": ",
+							counts.variable
+						] }),
+						/* @__PURE__ */ jsxs("div", { children: [
+							/* @__PURE__ */ jsx("span", {
+								className: "dot",
+								style: { background: "#ec4899" }
+							}),
+							t$1("minimap.modules"),
+							": ",
+							counts.module
+						] }),
+						/* @__PURE__ */ jsxs("div", { children: [
+							/* @__PURE__ */ jsx("span", {
+								className: "dot",
+								style: { background: "#14b8a6" }
+							}),
+							t$1("minimap.interfaces"),
+							": ",
+							counts.interface
+						] })
+					]
+				}),
+				/* @__PURE__ */ jsxs("div", {
+					className: "mini-map-total",
+					children: [
+						t$1("minimap.total"),
 						": ",
-						counts.function
-					] }),
-					/* @__PURE__ */ jsxs("div", { children: [
-						/* @__PURE__ */ jsx("span", {
-							className: "dot",
-							style: { background: "var(--cg-accent)" }
-						}),
-						t$1("minimap.classes"),
-						": ",
-						counts.class
-					] }),
-					/* @__PURE__ */ jsxs("div", { children: [
-						/* @__PURE__ */ jsx("span", {
-							className: "dot",
-							style: { background: "var(--cg-warning)" }
-						}),
-						t$1("minimap.variables"),
-						": ",
-						counts.variable
-					] }),
-					/* @__PURE__ */ jsxs("div", { children: [
-						/* @__PURE__ */ jsx("span", {
-							className: "dot",
-							style: { background: "#ec4899" }
-						}),
-						t$1("minimap.modules"),
-						": ",
-						counts.module
-					] }),
-					/* @__PURE__ */ jsxs("div", { children: [
-						/* @__PURE__ */ jsx("span", {
-							className: "dot",
-							style: { background: "#14b8a6" }
-						}),
-						t$1("minimap.interfaces"),
-						": ",
-						counts.interface
-					] })
-				]
-			}), /* @__PURE__ */ jsxs("div", {
-				className: "mini-map-total",
-				children: [
-					t$1("minimap.total"),
-					": ",
-					total
-				]
-			})]
+						total
+					]
+				})
+			]
 		})]
 	});
 }
@@ -42630,6 +42809,10 @@ const SHORTCUTS = [
 		descKey: "shortcut.callChain"
 	},
 	{
+		key: "Ctrl+E",
+		descKey: "shortcut.impact"
+	},
+	{
 		key: "Ctrl+M",
 		descKey: "shortcut.minimap"
 	},
@@ -42690,6 +42873,8 @@ function GraphPanelInner({ className = "" }) {
 	const [selectedNodeData, setSelectedNodeData] = useState(null);
 	const [tooltip, setTooltip] = useState(null);
 	const [showHelp, setShowHelp] = useState(false);
+	const [thumbnail, setThumbnail] = useState(null);
+	const [viewportInfo, setViewportInfo] = useState(null);
 	const { nodes, edges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, clusterLevel, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, totalEdgeCount, expandedNodeIds } = useGraphStore(useShallow((s) => ({
 		nodes: s.nodes,
 		edges: s.edges,
@@ -42785,7 +42970,7 @@ function GraphPanelInner({ className = "" }) {
 		});
 	}, []);
 	const handleNodeHoverOut = useCallback(() => setTooltip(null), []);
-	const renderer$1 = useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, panel.showCallChain, panel.showCycles, {
+	const renderer$1 = useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact, {
 		onNodeTap: handleNodeTap,
 		onNodeDoubleTap: handleNodeDoubleTap,
 		onNodeHover: handleNodeHover,
@@ -42820,12 +43005,14 @@ function GraphPanelInner({ className = "" }) {
 			panel.setShowSearch(false);
 			panel.setShowCallChain(false);
 			panel.setShowCycles(false);
+			panel.setShowImpact(false);
 			panel.setShowImport(false);
 			panel.setShowLegend(false);
 			setTooltip(null);
 			setShowHelp(false);
 		},
 		onToggleCallChain: panel.toggleCallChain,
+		onToggleImpact: panel.toggleImpact,
 		onToggleMiniMap: panel.toggleMiniMap,
 		onCycleLayout: () => {},
 		onToggleImport: panel.toggleImport,
@@ -42835,6 +43022,24 @@ function GraphPanelInner({ className = "" }) {
 		window.dispatchEvent(new CustomEvent("codegraph:refresh", { detail: { incremental: true } }));
 	}, []);
 	usePolling(requestRefresh, watchEnabled ? 3e3 : 1e4, !panel.collapsed);
+	useEffect(() => {
+		if (!panel.showMiniMap || panel.collapsed) return;
+		const updateMiniMap = () => {
+			const r = renderer$1.rendererRef.current;
+			if (!r) return;
+			setThumbnail(r.getThumbnail());
+			setViewportInfo(r.getViewportInfo());
+		};
+		updateMiniMap();
+		const id = setInterval(updateMiniMap, 2e3);
+		return () => clearInterval(id);
+	}, [
+		panel.showMiniMap,
+		panel.collapsed,
+		renderer$1.rendererRef,
+		nodes.length,
+		layout$2
+	]);
 	const handleThemeToggle = useCallback(() => {
 		const newTheme = theme === "dark" ? "light" : "dark";
 		if (newTheme === "dark") document.body.setAttribute("data-ds-dark-theme", "");
@@ -42903,6 +43108,7 @@ function GraphPanelInner({ className = "" }) {
 				showSearch: panel.showSearch,
 				showCallChain: panel.showCallChain,
 				showCycles: panel.showCycles,
+				showImpact: panel.showImpact,
 				showMiniMap: panel.showMiniMap,
 				showLegend: panel.showLegend,
 				showImport: panel.showImport,
@@ -42915,6 +43121,7 @@ function GraphPanelInner({ className = "" }) {
 				onToggleSearch: panel.toggleSearch,
 				onToggleCallChain: panel.toggleCallChain,
 				onToggleCycles: panel.toggleCycles,
+				onToggleImpact: panel.toggleImpact,
 				onToggleMiniMap: panel.toggleMiniMap,
 				onToggleLegend: panel.toggleLegend,
 				onToggleImport: panel.toggleImport,
@@ -42973,7 +43180,9 @@ function GraphPanelInner({ className = "" }) {
 					module: nodeTypeCounts.module,
 					interface: nodeTypeCounts.interface
 				},
-				onClose: () => panel.setShowMiniMap(false)
+				onClose: () => panel.setShowMiniMap(false),
+				thumbnail,
+				viewportInfo
 			}),
 			tooltip && /* @__PURE__ */ jsx(GraphTooltip, { data: tooltip }),
 			/* @__PURE__ */ jsx(KeyboardHelp, {

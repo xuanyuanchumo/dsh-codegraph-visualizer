@@ -30,6 +30,9 @@ export interface IRenderer {
   highlightCallChain(nodeId: NodeId | null): void;
   detectCycles(): Set<string>;
   highlightCycles(cycleIds: Set<string>): void;
+  highlightImpact(nodeId: NodeId | null): void;
+  getThumbnail(): string | null;
+  getViewportInfo(): { zoom: number; pan: { x: number; y: number }; renderedSize: { w: number; h: number }; totalSize: { w: number; h: number } } | null;
   exportJSON(): string;
   exportPNG(): string | null;
   exportSVG(): string | null;

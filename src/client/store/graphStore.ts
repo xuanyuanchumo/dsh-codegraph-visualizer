@@ -1,6 +1,7 @@
 // Zustand store for graph visualization state
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
+import { EdgeId } from '../../types/index.ts';
 import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
 
 function detectInitialTheme(): ThemeType {
@@ -170,7 +171,7 @@ function computeDirectoryClusters(
     } else {
       // At least one cluster endpoint — create cluster edge
       const clusterEdge: ClusterEdge = {
-        id: `clusteredge__${agg.source}__${agg.target}` as any,
+        id: EdgeId(`clusteredge__${agg.source}__${agg.target}`),
         source: agg.source as NodeId,
         target: agg.target as NodeId,
         type: (agg.types.size === 1 ? [...agg.types][0]! : 'dependency') as GraphEdge['type'],
@@ -281,7 +282,7 @@ function computeFileClusters(
       }
     } else {
       const clusterEdge: ClusterEdge = {
-        id: `clusteredge__${agg.source}__${agg.target}` as any,
+        id: EdgeId(`clusteredge__${agg.source}__${agg.target}`),
         source: agg.source as NodeId,
         target: agg.target as NodeId,
         type: (agg.types.size === 1 ? [...agg.types][0]! : 'dependency') as GraphEdge['type'],

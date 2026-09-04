@@ -1,4 +1,4 @@
-import cytoscape, { type Core, type LayoutOptions } from 'cytoscape';
+import cytoscape, { type Core, type LayoutOptions, type NodeDataDefinition } from 'cytoscape';
 import dagre from 'cytoscape-dagre';
 import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
 import type { ClusterNode, ClusterEdge } from '../store/graphStore.ts';
@@ -166,7 +166,7 @@ export class CytoscapeRenderer implements IRenderer {
               parent: n.parentId ?? undefined,
               isCluster: cn.isCluster ?? false,
               childCount: cn.childCount ?? 0,
-            } as any,
+            } as NodeDataDefinition,
           });
         }
         for (const e of edgesToAdd) {
@@ -207,7 +207,7 @@ export class CytoscapeRenderer implements IRenderer {
             parent: n.parentId ?? undefined,
             isCluster: cn.isCluster ?? false,
             childCount: cn.childCount ?? 0,
-          } as any,
+          } as NodeDataDefinition,
         });
       }
       for (const e of firstBatchEdges) {
@@ -258,7 +258,7 @@ export class CytoscapeRenderer implements IRenderer {
               parent: n.parentId ?? undefined,
               isCluster: cn.isCluster ?? false,
               childCount: cn.childCount ?? 0,
-            } as any,
+            } as NodeDataDefinition,
           });
         }
         for (const e of batchEdges) {
@@ -617,6 +617,59 @@ export class CytoscapeRenderer implements IRenderer {
     });
   }
 
+  highlightImpact(nodeId: NodeId | null): void {
+    if (!this.cy) return;
+    this.cy.batch(() => {
+      this.cy!.elements().removeClass('impact-d1 impact-d2 impact-d3 impact-source');
+      if (!nodeId) return;
+
+      const sourceNode = this.cy!.getElementById(nodeId);
+      if (sourceNode.nonempty()) {
+        sourceNode.addClass('impact-source');
+      }
+
+      const visited = new Map<string, number>();
+      const queue: Array<{ id: string; depth: number }> = [{ id: nodeId, depth: 0 }];
+      let head = 0;
+
+      while (head < queue.length) {
+        const { id, depth } = queue[head++]!;
+        if (visited.has(id) && visited.get(id)! <= depth) continue;
+        visited.set(id, depth);
+
+        const node = this.cy!.getElementById(id);
+        if (depth > 0 && node.nonempty()) {
+          const cls = depth <= 1 ? 'impact-d1' : depth === 2 ? 'impact-d2' : 'impact-d3';
+          node.addClass(cls);
+        }
+
+        if (depth < 3) {
+          node.incomers().forEach((edge) => {
+            const src = edge.source().id();
+            if (!visited.has(src) || visited.get(src)! > depth + 1) {
+              queue.push({ id: src, depth: depth + 1 });
+            }
+          });
+        }
+      }
+    });
+  }
+
+  getThumbnail(): string | null {
+    if (!this.cy) return null;
+    return this.cy.png({ full: true, scale: 0.15, bg: 'transparent' });
+  }
+
+  getViewportInfo(): { zoom: number; pan: { x: number; y: number }; renderedSize: { w: number; h: number }; totalSize: { w: number; h: number } } | null {
+    if (!this.cy) return null;
+    const zoom = this.cy.zoom();
+    const pan = this.cy.pan();
+    const renderedSize = { w: this.cy.width(), h: this.cy.height() };
+    const bounds = this.cy.elements().boundingBox();
+    const totalSize = { w: bounds.w, h: bounds.h };
+    return { zoom, pan, renderedSize, totalSize };
+  }
+
   exportJSON(): string {
     if (!this.cy) return '';
     return JSON.stringify(this.cy.json(), null, 2);
@@ -810,6 +863,44 @@ export class CytoscapeRenderer implements IRenderer {
           'border-width': 4,
           'border-color': readCssVar('--cg-error', '#ef4444'),
           'background-color': readCssVar('--cg-error', '#ef4444'),
+        },
+      },
+      {
+        selector: '.impact-source',
+        style: {
+          'border-width': 4,
+          'border-color': readCssVar('--cg-error', '#ef4444'),
+          'background-color': readCssVar('--cg-error', '#ef4444'),
+          'z-index': 35,
+        },
+      },
+      {
+        selector: '.impact-d1',
+        style: {
+          'border-width': 3,
+          'border-color': '#f59e0b',
+          'background-color': '#f59e0b',
+          'z-index': 28,
+        },
+      },
+      {
+        selector: '.impact-d2',
+        style: {
+          'border-width': 3,
+          'border-color': '#fbbf24',
+          'background-color': '#fbbf24',
+          'opacity': 0.8,
+          'z-index': 22,
+        },
+      },
+      {
+        selector: '.impact-d3',
+        style: {
+          'border-width': 2,
+          'border-color': '#fde68a',
+          'background-color': '#fde68a',
+          'opacity': 0.6,
+          'z-index': 18,
         },
       },
       {

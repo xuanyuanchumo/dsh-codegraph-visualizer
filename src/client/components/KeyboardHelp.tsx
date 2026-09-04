@@ -10,6 +10,7 @@ const SHORTCUTS = [
   { key: '/', descKey: 'shortcut.search' },
   { key: 'Esc', descKey: 'shortcut.closeAll' },
   { key: 'Ctrl+C', descKey: 'shortcut.callChain' },
+  { key: 'Ctrl+E', descKey: 'shortcut.impact' },
   { key: 'Ctrl+M', descKey: 'shortcut.minimap' },
   { key: 'Ctrl+L', descKey: 'shortcut.layout' },
   { key: 'Ctrl+I', descKey: 'shortcut.import' },

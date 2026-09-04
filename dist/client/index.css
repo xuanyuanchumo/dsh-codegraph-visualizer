@@ -372,6 +372,7 @@ body[data-ds-dark-theme] {
 .collapse-btn,
 .chain-btn,
 .cycle-btn,
+.impact-btn,
 .minimap-btn,
 .refresh-btn {
   width: 30px;
@@ -395,6 +396,7 @@ body[data-ds-dark-theme] {
 .collapse-btn:hover,
 .chain-btn:hover,
 .cycle-btn:hover,
+.impact-btn:hover,
 .minimap-btn:hover,
 .refresh-btn:hover {
   background: var(--cg-surface-hover);
@@ -405,7 +407,8 @@ body[data-ds-dark-theme] {
 .search-btn:focus-visible,
 .theme-btn:focus-visible,
 .chain-btn:focus-visible,
-.cycle-btn:focus-visible {
+.cycle-btn:focus-visible,
+.impact-btn:focus-visible {
   outline: 2px solid var(--cg-accent);
   outline-offset: 2px;
 }
@@ -413,6 +416,7 @@ body[data-ds-dark-theme] {
 .search-btn.active,
 .chain-btn.active,
 .cycle-btn.active,
+.impact-btn.active,
 .minimap-btn.active {
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
@@ -877,6 +881,22 @@ body[data-ds-dark-theme] {
 
 .mini-map-content {
   padding: 10px 12px;
+}
+
+.mini-map-thumbnail {
+  position: relative;
+  margin-bottom: 8px;
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-sm);
+  overflow: hidden;
+  background: var(--cg-surface);
+}
+
+.mini-map-viewport {
+  border: 2px solid var(--cg-accent);
+  background: rgba(99, 102, 241, 0.1);
+  pointer-events: none;
+  transition: all 0.3s ease;
 }
 
 .mini-map-stats {

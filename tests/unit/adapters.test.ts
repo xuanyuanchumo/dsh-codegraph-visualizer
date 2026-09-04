@@ -546,6 +546,72 @@ describe('LensAdapter', () => {
     const result = await adapter.fetchData('test-repo', invoke);
     expect(result.edges[0]?.id).toBe('alpha->beta');
   });
+
+  it('should set parentId for non-module symbols when file node exists', async () => {
+    const invoke: UpstreamInvoker = async (tool: string) => {
+      if (tool === 'lens_analyze') {
+        return {
+          symbols: [
+            { id: 'f1', name: 'main.ts', scope: 'global', file: 'main.ts', line: 0, category: 'module' },
+            { id: 'fn1', name: 'init', scope: 'module', file: 'main.ts', line: 5, category: 'function' },
+          ],
+          references: [],
+        };
+      }
+      return null;
+    };
+    const result = await adapter.fetchData('test-repo', invoke);
+    expect(result.nodes).toHaveLength(2);
+    expect(result.nodes[0]?.id).toBe('f1');
+    expect(result.nodes[0]?.properties).toEqual({ scope: 'global' });
+    expect(result.nodes[1]?.parentId).toBe('f1');
+  });
+
+  it('should not set parentId for module/file category symbols', async () => {
+    const invoke: UpstreamInvoker = async (tool: string) => {
+      if (tool === 'lens_analyze') {
+        return {
+          symbols: [
+            { id: 'mod1', name: 'mod', scope: 'g', file: 'mod.ts', line: 0, category: 'module' },
+            { id: 'file1', name: 'file', scope: 'g', file: 'file.ts', line: 0, category: 'file' },
+          ],
+          references: [],
+        };
+      }
+      return null;
+    };
+    const result = await adapter.fetchData('test-repo', invoke);
+    expect(result.nodes).toHaveLength(2);
+    expect(result.nodes[0]?.parentId).toBeUndefined();
+    expect(result.nodes[1]?.parentId).toBeUndefined();
+  });
+
+  it('should handle non-array symbols gracefully', async () => {
+    const invoke: UpstreamInvoker = async (tool: string) => {
+      if (tool === 'lens_analyze') {
+        return { symbols: 'not-an-array', references: [] };
+      }
+      return null;
+    };
+    const result = await adapter.fetchData('test-repo', invoke);
+    expect(result.nodes).toEqual([]);
+    expect(result.edges).toEqual([]);
+  });
+
+  it('should handle non-array references gracefully', async () => {
+    const invoke: UpstreamInvoker = async (tool: string) => {
+      if (tool === 'lens_analyze') {
+        return {
+          symbols: [{ id: 's1', name: 'fn', scope: 'g', file: 'a.ts', line: 1, category: 'function' }],
+          references: 'not-an-array',
+        };
+      }
+      return null;
+    };
+    const result = await adapter.fetchData('test-repo', invoke);
+    expect(result.nodes).toHaveLength(1);
+    expect(result.edges).toEqual([]);
+  });
 });
 
 describe('mapNodeKind', () => {
