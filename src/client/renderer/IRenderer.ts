@@ -9,6 +9,8 @@ export interface RendererCallbacks {
   onNodeDoubleTap?(nodeId: string): void;
   onNodeHover?(nodeId: string, renderedPosition: { x: number; y: number }): void;
   onNodeHoverOut?(): void;
+  onEdgeHover?(edgeId: string, renderedPosition: { x: number; y: number }): void;
+  onEdgeHoverOut?(): void;
 }
 
 export interface RendererOptions extends RendererCallbacks {
@@ -40,6 +42,7 @@ export interface IRenderer {
   exportSVG(): string | null;
   getSelectedNodeData(): GraphNode | null;
   getNodeData(nodeId: string): GraphNode | null;
+  getEdgeData(edgeId: string): GraphEdge | null;
   resize(): void;
   updateTheme(theme: ThemeType): void;
   destroy(): void;

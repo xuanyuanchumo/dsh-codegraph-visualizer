@@ -16,6 +16,8 @@ export interface CytoscapeRendererOptions {
   onNodeDoubleTap?: (nodeId: string) => void;
   onNodeHover?: (nodeId: string, renderedPosition: { x: number; y: number }) => void;
   onNodeHoverOut?: () => void;
+  onEdgeHover?: (edgeId: string, renderedPosition: { x: number; y: number }) => void;
+  onEdgeHoverOut?: () => void;
 }
 
 export class CytoscapeRenderer implements IRenderer {
@@ -67,11 +69,15 @@ export class CytoscapeRenderer implements IRenderer {
     });
 
     this.cy.on('mouseover', 'edge', (evt) => {
-      evt.target.addClass('hovered');
+      const edge = evt.target;
+      edge.addClass('hovered');
+      const pos = edge.renderedMidpoint();
+      this.options.onEdgeHover?.(edge.id(), { x: pos.x, y: pos.y });
     });
 
     this.cy.on('mouseout', 'edge', (evt) => {
       evt.target.removeClass('hovered');
+      this.options.onEdgeHoverOut?.();
     });
 
     this.cy.on('mouseout', 'node', () => {
@@ -880,6 +886,10 @@ export class CytoscapeRenderer implements IRenderer {
 
   getNodeData(nodeId: string): GraphNode | null {
     return this.currentNodes.get(nodeId) ?? null;
+  }
+
+  getEdgeData(edgeId: string): GraphEdge | null {
+    return this.currentEdges.get(edgeId) ?? null;
   }
 
   resize(): void {

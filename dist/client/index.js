@@ -1045,6 +1045,22 @@ body[data-ds-dark-theme] {
   color: var(--cg-accent-hover);
 }
 
+.cg-tooltip .tooltip-edge-source {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.cg-tooltip .tooltip-edge-arrow {
+  color: var(--cg-text-secondary);
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+
+.cg-tooltip .tooltip-edge-target {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
 /* ---- Resize handle ------------------------------------------------------- */
 
 .graph-panel.resizable .resize-handle {
@@ -42254,10 +42270,17 @@ var CytoscapeRenderer = class {
 			this.options.onNodeHoverOut?.();
 		});
 		this.cy.on("mouseover", "edge", (evt) => {
-			evt.target.addClass("hovered");
+			const edge = evt.target;
+			edge.addClass("hovered");
+			const pos = edge.renderedMidpoint();
+			this.options.onEdgeHover?.(edge.id(), {
+				x: pos.x,
+				y: pos.y
+			});
 		});
 		this.cy.on("mouseout", "edge", (evt) => {
 			evt.target.removeClass("hovered");
+			this.options.onEdgeHoverOut?.();
 		});
 		this.cy.on("mouseout", "node", () => {
 			this.options.onNodeHoverOut?.();
@@ -42996,6 +43019,9 @@ var CytoscapeRenderer = class {
 	getNodeData(nodeId) {
 		return this.currentNodes.get(nodeId) ?? null;
 	}
+	getEdgeData(edgeId) {
+		return this.currentEdges.get(edgeId) ?? null;
+	}
 	resize() {
 		if (!this.cy) return;
 		this.cy.resize();
@@ -43096,7 +43122,7 @@ function scoped(scope) {
 
 //#endregion
 //#region src/client/hooks/useGraphRenderer.ts
-const log$4 = scoped("renderer-hook");
+const log$5 = scoped("renderer-hook");
 function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, showCallChain, showCycles, showImpact, showInheritance, focusNodeId, callbacks, showCallChainRef) {
 	const containerRef = (0, react.useRef)(null);
 	const rendererRef = (0, react.useRef)(null);
@@ -43117,11 +43143,13 @@ function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, sel
 			},
 			onNodeDoubleTap: (nodeId) => callbacksRef.current.onNodeDoubleTap(nodeId),
 			onNodeHover: (nodeId, pos) => callbacksRef.current.onNodeHover(nodeId, pos),
-			onNodeHoverOut: () => callbacksRef.current.onNodeHoverOut()
+			onNodeHoverOut: () => callbacksRef.current.onNodeHoverOut(),
+			onEdgeHover: (edgeId, pos) => callbacksRef.current.onEdgeHover(edgeId, pos),
+			onEdgeHoverOut: () => callbacksRef.current.onEdgeHoverOut()
 		});
 		renderer$1.init();
 		rendererRef.current = renderer$1;
-		log$4.info("renderer initialized", { theme });
+		log$5.info("renderer initialized", { theme });
 		return () => {
 			renderer$1.destroy();
 			rendererRef.current = null;
@@ -43213,7 +43241,7 @@ function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, sel
 			a.download = `codegraph-${Date.now()}.${extension$1}`;
 			a.click();
 			setTimeout(() => URL.revokeObjectURL(url), 1e3);
-			log$4.info(`exported ${format}`);
+			log$5.info(`exported ${format}`);
 		}
 	}, []);
 	const updateTheme = (0, react.useCallback)((newTheme) => {
@@ -43435,7 +43463,7 @@ function usePolling(callback, interval, enabled = true) {
 }
 
 //#endregion
-//#region src/client/i18n/index.ts
+//#region src/client/i18n/dicts/en.ts
 const en = {
 	"panel.ariaLabel": "Code graph visualizer",
 	"panel.expand": "Expand graph panel",
@@ -43602,8 +43630,15 @@ const en = {
 	"shortcut.minimap": "Toggle mini-map",
 	"shortcut.layout": "Cycle layout",
 	"shortcut.import": "Toggle import panel",
-	"shortcut.help": "Show this help"
+	"shortcut.help": "Show this help",
+	"edge.tooltip.source": "Source",
+	"edge.tooltip.target": "Target",
+	"edge.tooltip.type": "Relationship",
+	"state.complete": "Graph is complete ({total} nodes)"
 };
+
+//#endregion
+//#region src/client/i18n/dicts/zh.ts
 const zh = {
 	"panel.ariaLabel": "代码图谱可视化",
 	"panel.expand": "展开图谱面板",
@@ -43770,8 +43805,15 @@ const zh = {
 	"shortcut.minimap": "切换缩略图",
 	"shortcut.layout": "循环切换布局",
 	"shortcut.import": "切换导入面板",
-	"shortcut.help": "显示此帮助"
+	"shortcut.help": "显示此帮助",
+	"edge.tooltip.source": "源节点",
+	"edge.tooltip.target": "目标节点",
+	"edge.tooltip.type": "关系类型",
+	"state.complete": "图谱完整 ({total} 节点)"
 };
+
+//#endregion
+//#region src/client/i18n/index.ts
 const dicts = {
 	zh,
 	en
@@ -43824,7 +43866,7 @@ function useT() {
 
 //#endregion
 //#region src/client/components/ErrorBoundary.tsx
-const log$3 = scoped("boundary");
+const log$4 = scoped("boundary");
 function ErrorFallback({ error: error$1, onRetry }) {
 	const t$1 = useT();
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -43857,7 +43899,7 @@ var GraphErrorBoundary = class extends react.Component {
 	}
 	componentDidCatch(error$1, errorInfo) {
 		this.props.onError?.(error$1, errorInfo);
-		log$3.error("render error caught by boundary", {
+		log$4.error("render error caught by boundary", {
 			error: error$1,
 			componentStack: errorInfo.componentStack
 		});
@@ -44175,7 +44217,7 @@ function validateGraphData(raw) {
 
 //#endregion
 //#region src/client/components/ImportPanel.tsx
-const log$2 = scoped("import");
+const log$3 = scoped("import");
 const MAX_PASTE_BYTES = 10 * 1024 * 1024;
 function parseGraphJson(text) {
 	const parsed = JSON.parse(text);
@@ -44220,7 +44262,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 			if (text.length > MAX_PASTE_BYTES) throw new Error(`JSON exceeds ${MAX_PASTE_BYTES / 1024 / 1024}MB limit`);
 			const { nodes, edges, repoId } = parseGraphJson(text);
 			onSetGraphData(nodes, edges, repoId);
-			log$2.info(`imported from ${source}`, {
+			log$3.info(`imported from ${source}`, {
 				nodes: nodes.length,
 				edges: edges.length
 			});
@@ -44234,7 +44276,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 			timersRef.current.push(setTimeout(onClose, 700));
 		} catch (e) {
 			const msg = e instanceof Error ? e.message : String(e);
-			log$2.error(`import failed from ${source}`, msg);
+			log$3.error(`import failed from ${source}`, msg);
 			onSetError(t$1("import.importFailed", { msg }));
 			setFeedback({
 				kind: "err",
@@ -44268,7 +44310,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 		setFeedback(null);
 		onSetLoading(true);
 		window.dispatchEvent(new CustomEvent("codegraph:import-repo", { detail: { path: effectivePath } }));
-		log$2.info("workspace scan requested", { path: effectivePath });
+		log$3.info("workspace scan requested", { path: effectivePath });
 		setFeedback({
 			kind: "ok",
 			msg: t$1("import.requestedScan", { path: effectivePath })
@@ -44287,7 +44329,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 		onSetInitStatus("initializing");
 		setFeedback(null);
 		window.dispatchEvent(new CustomEvent("codegraph:init-graph", { detail: { path: effectivePath } }));
-		log$2.info("init requested", { path: effectivePath });
+		log$3.info("init requested", { path: effectivePath });
 		setFeedback({
 			kind: "ok",
 			msg: t$1("import.initStarted", { path: effectivePath })
@@ -44304,7 +44346,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 			enabled: next,
 			path: effectivePath
 		} }));
-		log$2.info("watch toggled", {
+		log$3.info("watch toggled", {
 			enabled: next,
 			path: effectivePath
 		});
@@ -45179,7 +45221,7 @@ function formatTime(ts) {
 	const d = new Date(ts);
 	return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
 }
-function StatusBar({ error: error$1, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount }) {
+function StatusBar({ error: error$1, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount, totalEdgeCount, displayedNodeCount }) {
 	const t$1 = useT();
 	const statusDotClass = error$1 ? "status-dot error" : isLoading ? "status-dot loading" : "status-dot";
 	const statusText = error$1 ? t$1("state.error") : isLoading ? t$1("state.loading") : t$1("state.ready");
@@ -45196,11 +45238,18 @@ function StatusBar({ error: error$1, isLoading, lastUpdated, watchEnabled, works
 				title: workspaceName,
 				children: wsName
 			}),
-			truncated && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+			truncated ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 				className: "status-truncated",
-				title: t$1("state.truncatedHint", { total: totalNodeCount ?? 0 }),
-				children: ["⚠ ", t$1("state.truncated", { shown: totalNodeCount ? `${totalNodeCount}` : "" })]
-			}),
+				title: t$1("state.truncatedHint"),
+				children: ["⚠ ", t$1("state.truncated", {
+					shown: displayedNodeCount ?? 0,
+					total: totalNodeCount ?? 0
+				})]
+			}) : totalNodeCount && totalNodeCount > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+				className: "status-complete",
+				title: t$1("state.complete", { total: totalNodeCount }),
+				children: ["✓ ", t$1("state.complete", { total: totalNodeCount })]
+			}) : null,
 			watchEnabled && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 				className: "watch-indicator",
 				title: t$1("import.watchOn"),
@@ -45683,7 +45732,36 @@ function EmptyState({ prerequisites, onImport, onScanWorkspace }) {
 
 //#endregion
 //#region src/client/components/GraphTooltip.tsx
+function isEdgeTooltip(data$2) {
+	return "sourceLabel" in data$2;
+}
 function GraphTooltip({ data: data$2 }) {
+	if (isEdgeTooltip(data$2)) return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+		className: "cg-tooltip",
+		style: {
+			left: data$2.x + 15,
+			top: data$2.y + 15
+		},
+		role: "tooltip",
+		children: [
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				className: "tooltip-edge-source",
+				children: data$2.sourceLabel
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				className: "tooltip-edge-arrow",
+				children: "→"
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				className: "tooltip-edge-target",
+				children: data$2.targetLabel
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+				className: "tooltip-type",
+				children: data$2.edgeType
+			})
+		]
+	});
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "cg-tooltip",
 		style: {
@@ -45808,7 +45886,7 @@ function KeyboardHelp({ visible, onClose }) {
 
 //#endregion
 //#region src/client/GraphPanel.tsx
-const log$1 = scoped("panel");
+const log$2 = scoped("panel");
 function GraphPanelInner({ className = "" }) {
 	const t$1 = useT();
 	const panelRef = (0, react.useRef)(null);
@@ -45920,16 +45998,34 @@ function GraphPanelInner({ className = "" }) {
 		});
 	}, []);
 	const handleNodeHoverOut = (0, react.useCallback)(() => setTooltip(null), []);
+	const handleEdgeHover = (0, react.useCallback)((edgeId, pos) => {
+		const edgeData = getDataRef.current?.getEdgeData(edgeId);
+		if (edgeData) {
+			const sourceNode = getDataRef.current?.getNodeData(edgeData.source);
+			const targetNode = getDataRef.current?.getNodeData(edgeData.target);
+			setTooltip({
+				x: pos.x,
+				y: pos.y,
+				sourceLabel: sourceNode?.label ?? edgeData.source,
+				targetLabel: targetNode?.label ?? edgeData.target,
+				edgeType: edgeData.type
+			});
+		}
+	}, []);
+	const handleEdgeHoverOut = (0, react.useCallback)(() => setTooltip(null), []);
 	const renderer$1 = useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact, panel.showInheritance, focusNodeId, {
 		onNodeTap: handleNodeTap,
 		onNodeDoubleTap: handleNodeDoubleTap,
 		onNodeHover: handleNodeHover,
-		onNodeHoverOut: handleNodeHoverOut
+		onNodeHoverOut: handleNodeHoverOut,
+		onEdgeHover: handleEdgeHover,
+		onEdgeHoverOut: handleEdgeHoverOut
 	}, showCallChainRef);
 	(0, react.useEffect)(() => {
 		getDataRef.current = {
 			getSelectedNodeData: () => renderer$1.rendererRef.current?.getSelectedNodeData() ?? null,
-			getNodeData: (id) => renderer$1.rendererRef.current?.getNodeData(id) ?? null
+			getNodeData: (id) => renderer$1.rendererRef.current?.getNodeData(id) ?? null,
+			getEdgeData: (id) => renderer$1.rendererRef.current?.getEdgeData(id) ?? null
 		};
 	}, [renderer$1.rendererRef]);
 	(0, react.useEffect)(() => {
@@ -46011,12 +46107,12 @@ function GraphPanelInner({ className = "" }) {
 	const handleRefresh = (0, react.useCallback)(() => {
 		setLoading(true);
 		window.dispatchEvent(new CustomEvent("codegraph:refresh", { detail: { incremental: false } }));
-		log$1.info("manual refresh (full)");
+		log$2.info("manual refresh (full)");
 	}, [setLoading]);
 	const handleScanWorkspace = (0, react.useCallback)(() => {
 		setLoading(true);
 		window.dispatchEvent(new CustomEvent("codegraph:import-repo", { detail: { path: currentWorkspace || "." } }));
-		log$1.info("scan workspace from empty state", { path: currentWorkspace });
+		log$2.info("scan workspace from empty state", { path: currentWorkspace });
 	}, [setLoading, currentWorkspace]);
 	const statsText = (0, react.useMemo)(() => `${nodes.length} nodes · ${edges.length} edges`, [nodes.length, edges.length]);
 	const nodeTypeCounts = (0, react.useMemo)(() => {
@@ -46152,7 +46248,8 @@ function GraphPanelInner({ className = "" }) {
 				workspaceName: currentWorkspace,
 				truncated,
 				totalNodeCount,
-				totalEdgeCount
+				totalEdgeCount,
+				displayedNodeCount: nodes.length
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 				className: "resize-handle",
@@ -46170,18 +46267,8 @@ function GraphPanel(props) {
 const PLUGIN_VERSION = "0.1.0";
 
 //#endregion
-//#region src/client/index.ts
-const log = scoped("client");
-const name = "dsh-codegraph-visualizer-client";
-const inject = ["slots"];
-function init(container, initialData) {
-	const root$12 = react_dom_client.default.createRoot(container);
-	if (initialData) {
-		const store = useGraphStore.getState();
-		store.setGraphData(initialData.nodes, initialData.edges, initialData.metadata.repoId, initialData.metadata);
-	}
-	root$12.render(react.default.createElement(GraphPanel));
-}
+//#region src/client/api/index.ts
+const log$1 = scoped("client");
 async function fetchStatus() {
 	try {
 		const res = await fetch("/api/codegraph/status");
@@ -46191,7 +46278,7 @@ async function fetchStatus() {
 		};
 		return await res.json();
 	} catch (e) {
-		log.warn("fetchStatus failed", e);
+		log$1.warn("fetchStatus failed", e);
 		return {
 			codegraph: false,
 			lens: false
@@ -46204,7 +46291,7 @@ async function fetchGraphData() {
 		if (!res.ok) return null;
 		return validateGraphData(await res.json());
 	} catch (e) {
-		log.warn("fetchGraphData failed", e);
+		log$1.warn("fetchGraphData failed", e);
 		return null;
 	}
 }
@@ -46221,7 +46308,7 @@ async function fetchWorkspace() {
 			list: data$2.list ?? []
 		};
 	} catch (e) {
-		log.warn("fetchWorkspace failed", e);
+		log$1.warn("fetchWorkspace failed", e);
 		return {
 			path: ".",
 			list: []
@@ -46241,7 +46328,7 @@ async function requestScan(path, maxNodes) {
 		if (!res.ok) return null;
 		return await res.json();
 	} catch (e) {
-		log.warn("requestScan failed", e);
+		log$1.warn("requestScan failed", e);
 		return null;
 	}
 }
@@ -46255,7 +46342,7 @@ async function requestInit(path) {
 		if (!res.ok) return null;
 		return await res.json();
 	} catch (e) {
-		log.warn("requestInit failed", e);
+		log$1.warn("requestInit failed", e);
 		return null;
 	}
 }
@@ -46271,9 +46358,23 @@ async function requestWatch(enabled, path) {
 		});
 		return res.ok;
 	} catch (e) {
-		log.warn("requestWatch failed", e);
+		log$1.warn("requestWatch failed", e);
 		return false;
 	}
+}
+
+//#endregion
+//#region src/client/index.ts
+const log = scoped("client");
+const name = "dsh-codegraph-visualizer-client";
+const inject = ["slots"];
+function init(container, initialData) {
+	const root$12 = react_dom_client.default.createRoot(container);
+	if (initialData) {
+		const store = useGraphStore.getState();
+		store.setGraphData(initialData.nodes, initialData.edges, initialData.metadata.repoId, initialData.metadata);
+	}
+	root$12.render(react.default.createElement(GraphPanel));
 }
 function apply(ctx) {
 	let entryRegistered = false;

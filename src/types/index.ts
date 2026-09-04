@@ -141,6 +141,24 @@ declare module '@deepseek-ai/cordis' {
     on<K extends keyof Events>(name: K, listener: Events[K]): () => boolean;
     get(name: string, strict?: boolean): unknown;
     provide(name: string, service: unknown): () => void;
+    slots: {
+      inject(slotName: string, callback: () => void): void;
+      register(options: { name: string; id: string; order?: number; label?: () => string }, component?: unknown): (() => void) | void;
+    };
+    betterSidebar?: {
+      registerTab(descriptor: {
+        id: string;
+        title: string | (() => string);
+        icon?: unknown;
+        order?: number;
+        single?: boolean;
+        component: (props: { visible: boolean }) => unknown;
+      }): () => void;
+      openTab(seed: { type: string }): void;
+    };
+    spotlight?: {
+      registerCommand(cmd: { id: string; title: string; handler: () => void }): (() => void) | void;
+    };
   }
 }
 

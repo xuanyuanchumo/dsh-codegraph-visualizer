@@ -13,6 +13,8 @@ export interface GraphRendererCallbacks {
   onNodeDoubleTap(nodeId: string): void;
   onNodeHover(nodeId: string, pos: { x: number; y: number }): void;
   onNodeHoverOut(): void;
+  onEdgeHover(edgeId: string, pos: { x: number; y: number }): void;
+  onEdgeHoverOut(): void;
 }
 
 export interface UseGraphRendererResult {
@@ -65,6 +67,8 @@ export function useGraphRenderer(
       onNodeDoubleTap: (nodeId: string) => callbacksRef.current.onNodeDoubleTap(nodeId),
       onNodeHover: (nodeId: string, pos: { x: number; y: number }) => callbacksRef.current.onNodeHover(nodeId, pos),
       onNodeHoverOut: () => callbacksRef.current.onNodeHoverOut(),
+      onEdgeHover: (edgeId: string, pos: { x: number; y: number }) => callbacksRef.current.onEdgeHover(edgeId, pos),
+      onEdgeHoverOut: () => callbacksRef.current.onEdgeHoverOut(),
     });
     renderer.init();
     rendererRef.current = renderer;

@@ -1033,6 +1033,22 @@ body[data-ds-dark-theme] {
   color: var(--cg-accent-hover);
 }
 
+.cg-tooltip .tooltip-edge-source {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.cg-tooltip .tooltip-edge-arrow {
+  color: var(--cg-text-secondary);
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+
+.cg-tooltip .tooltip-edge-target {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
 /* ---- Resize handle ------------------------------------------------------- */
 
 .graph-panel.resizable .resize-handle {

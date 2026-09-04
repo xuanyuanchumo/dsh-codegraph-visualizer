@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useGraphStore, type ThemeType } from './store/graphStore.ts';
 import { useShallow } from 'zustand/shallow';
-import type { NodeId, GraphNode } from '../types/index.ts';
+import type { NodeId, GraphNode, GraphEdge } from '../types/index.ts';
 import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard } from './hooks/index.ts';
 import { GraphErrorBoundary } from './components/ErrorBoundary.tsx';
 import { ImportPanel } from './components/ImportPanel.tsx';
@@ -12,7 +12,7 @@ import { StatusBar } from './components/StatusBar.tsx';
 import { NodeDetail } from './components/NodeDetail.tsx';
 import { StatsPanel } from './components/StatsPanel.tsx';
 import { EmptyState } from './components/EmptyState.tsx';
-import { GraphTooltip, type TooltipData } from './components/GraphTooltip.tsx';
+import { GraphTooltip, type TooltipData, type EdgeTooltipData } from './components/GraphTooltip.tsx';
 import { LoadingOverlay } from './components/LoadingOverlay.tsx';
 import { ErrorOverlay } from './components/ErrorOverlay.tsx';
 import { KeyboardHelp } from './components/KeyboardHelp.tsx';
@@ -33,9 +33,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const getDataRef = useRef<{
     getSelectedNodeData: () => GraphNode | null;
     getNodeData: (id: string) => GraphNode | null;
+    getEdgeData: (id: string) => GraphEdge | null;
   } | null>(null);
   const [selectedNodeData, setSelectedNodeData] = useState<GraphNode | null>(null);
-  const [tooltip, setTooltip] = useState<TooltipData | null>(null);
+  const [tooltip, setTooltip] = useState<TooltipData | EdgeTooltipData | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [thumbnail, setThumbnail] = useState<string | null>(null);
   const [viewportInfo, setViewportInfo] = useState<{
@@ -155,11 +156,27 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const handleNodeHoverOut = useCallback(() => setTooltip(null), []);
 
+  const handleEdgeHover = useCallback((edgeId: string, pos: { x: number; y: number }) => {
+    const edgeData = getDataRef.current?.getEdgeData(edgeId);
+    if (edgeData) {
+      const sourceNode = getDataRef.current?.getNodeData(edgeData.source);
+      const targetNode = getDataRef.current?.getNodeData(edgeData.target);
+      setTooltip({
+        x: pos.x, y: pos.y,
+        sourceLabel: sourceNode?.label ?? edgeData.source,
+        targetLabel: targetNode?.label ?? edgeData.target,
+        edgeType: edgeData.type,
+      });
+    }
+  }, []);
+
+  const handleEdgeHoverOut = useCallback(() => setTooltip(null), []);
+
   const renderer = useGraphRenderer(
     nodes, edges, layout, theme,
     highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel,
     debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact, panel.showInheritance, focusNodeId,
-    { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut },
+    { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut, onEdgeHover: handleEdgeHover, onEdgeHoverOut: handleEdgeHoverOut },
     showCallChainRef,
   );
 
@@ -167,6 +184,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     getDataRef.current = {
       getSelectedNodeData: () => renderer.rendererRef.current?.getSelectedNodeData() ?? null,
       getNodeData: (id: string) => renderer.rendererRef.current?.getNodeData(id) ?? null,
+      getEdgeData: (id: string) => renderer.rendererRef.current?.getEdgeData(id) ?? null,
     };
   }, [renderer.rendererRef]);
 
@@ -371,7 +389,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
       <KeyboardHelp visible={showHelp} onClose={() => setShowHelp(false)} />
 
-      <StatusBar error={error} isLoading={isLoading} lastUpdated={lastUpdated} watchEnabled={watchEnabled} workspaceName={currentWorkspace} truncated={truncated} totalNodeCount={totalNodeCount} totalEdgeCount={totalEdgeCount} />
+      <StatusBar error={error} isLoading={isLoading} lastUpdated={lastUpdated} watchEnabled={watchEnabled} workspaceName={currentWorkspace} truncated={truncated} totalNodeCount={totalNodeCount} totalEdgeCount={totalEdgeCount} displayedNodeCount={nodes.length} />
 
       <div className="resize-handle" aria-hidden="true" />
     </div>
