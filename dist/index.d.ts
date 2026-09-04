@@ -30,9 +30,10 @@ interface VisualizerConfig {
 declare const DEFAULT_CONFIG: VisualizerConfig;
 /** Merge user config over defaults and reject invalid values at load time. */
 declare function resolveConfig(userConfig?: Partial<VisualizerConfig>): VisualizerConfig;
+declare function setAllowedWorkspaceRoots(roots: string[]): void;
 declare function isPathAllowed(path: string): boolean;
 declare function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>): void; //#endregion
 
 //# sourceMappingURL=index.d.ts.map
-export { DEFAULT_CONFIG, PLUGIN_VERSION, VisualizerConfig, apply, inject, isPathAllowed, name, resolveConfig };
+export { DEFAULT_CONFIG, PLUGIN_VERSION, VisualizerConfig, apply, inject, isPathAllowed, name, resolveConfig, setAllowedWorkspaceRoots };
 //# sourceMappingURL=index.d.ts.map

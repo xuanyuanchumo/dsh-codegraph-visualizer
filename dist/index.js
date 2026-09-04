@@ -1583,12 +1583,15 @@ function resolveConfig(userConfig) {
 	return config;
 }
 let allowedWorkspaceRoots = [];
+function setAllowedWorkspaceRoots(roots) {
+	allowedWorkspaceRoots = roots.map((r) => normalize(r));
+}
 function isPathAllowed(path) {
 	if (!path || path === ".") return true;
 	const normalized = normalize(path);
 	if (!isAbsolute(normalized)) return false;
 	if (normalized.includes("..")) return false;
-	if (allowedWorkspaceRoots.length === 0) return true;
+	if (allowedWorkspaceRoots.length === 0) return false;
 	return allowedWorkspaceRoots.some((root) => normalized === root || normalized.startsWith(root + "\\") || normalized.startsWith(root + "/"));
 }
 let watchTimer = null;
@@ -1624,8 +1627,40 @@ function checkPrerequisites(ctx) {
 		};
 	}
 }
+function extractWorkspacePaths(ctx) {
+	try {
+		const wsr = ctx.workspaceRegistry;
+		if (wsr?.list) {
+			const workspaces = wsr.list();
+			const paths = workspaces.map((w) => w.path).filter((p) => !!p);
+			if (paths.length > 0) return paths;
+		}
+	} catch (e) {
+		log.warn("extractWorkspacePaths: workspaceRegistry failed", e);
+	}
+	try {
+		const sessions = ctx.sessions;
+		if (sessions?.list) {
+			const all = sessions.list();
+			const seen = new Set();
+			const paths = [];
+			for (const session of all) {
+				const cwd = session?.header?.cwd;
+				if (cwd && !seen.has(cwd)) {
+					seen.add(cwd);
+					paths.push(cwd);
+				}
+			}
+			if (paths.length > 0) return paths;
+		}
+	} catch (e) {
+		log.warn("extractWorkspacePaths: sessions failed", e);
+	}
+	return [process.cwd()];
+}
 function apply(ctx, userConfig) {
 	const config = resolveConfig(userConfig);
+	setAllowedWorkspaceRoots(extractWorkspacePaths(ctx));
 	const { graphStatus, graphData, graphSymbol, graphImpact } = createGraphTools(ctx, { requestTimeout: config.requestTimeout });
 	ctx.effect(() => {
 		const d1 = ctx.tools.register(graphStatus);
@@ -1761,37 +1796,7 @@ function apply(ctx, userConfig) {
 		}
 		return process.cwd();
 	};
-	const listWorkspacePaths = () => {
-		try {
-			const wsr = ctx.workspaceRegistry;
-			if (wsr?.list) {
-				const workspaces = wsr.list();
-				const paths = workspaces.map((w) => w.path).filter((p) => !!p);
-				if (paths.length > 0) return paths;
-			}
-		} catch (e) {
-			log.warn("listWorkspacePaths: workspaceRegistry failed", e);
-		}
-		try {
-			const sessions = ctx.sessions;
-			if (sessions?.list) {
-				const all = sessions.list();
-				const seen = new Set();
-				const paths = [];
-				for (const session of all) {
-					const cwd = session?.header?.cwd;
-					if (cwd && !seen.has(cwd)) {
-						seen.add(cwd);
-						paths.push(cwd);
-					}
-				}
-				if (paths.length > 0) return paths;
-			}
-		} catch (e) {
-			log.warn("listWorkspacePaths: sessions failed", e);
-		}
-		return [process.cwd()];
-	};
+	const listWorkspacePaths = () => extractWorkspacePaths(ctx);
 	const MAX_BODY_BYTES = config.maxBodyBytes;
 	const readBody = (req) => {
 		return new Promise((resolve, reject) => {
@@ -2187,5 +2192,5 @@ function apply(ctx, userConfig) {
 }
 
 //#endregion
-export { DEFAULT_CONFIG, PLUGIN_VERSION, apply, inject, isPathAllowed, name, resolveConfig };
+export { DEFAULT_CONFIG, PLUGIN_VERSION, apply, inject, isPathAllowed, name, resolveConfig, setAllowedWorkspaceRoots };
 //# sourceMappingURL=index.js.map

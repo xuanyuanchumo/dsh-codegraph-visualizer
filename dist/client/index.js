@@ -2576,28 +2576,47 @@ const persistImpl = (config, baseOptions) => (set$1, get$3, api) => {
 const persist = persistImpl;
 
 //#endregion
-//#region src/types/index.ts
-const EdgeId = (id) => id;
+//#region src/client/store/cluster/types.ts
+function aggregateEdges(rawEdges, nodeIdToVisibleId, clusterPrefix) {
+	const aggregation = new Map();
+	for (const e of rawEdges) {
+		const sourceVisibleId = nodeIdToVisibleId.get(e.source);
+		const targetVisibleId = nodeIdToVisibleId.get(e.target);
+		if (!sourceVisibleId || !targetVisibleId) continue;
+		if (sourceVisibleId === targetVisibleId) continue;
+		const key = `${sourceVisibleId}→${targetVisibleId}`;
+		const existing = aggregation.get(key);
+		if (existing) {
+			existing.count++;
+			existing.types.add(e.type);
+		} else aggregation.set(key, {
+			source: sourceVisibleId,
+			target: targetVisibleId,
+			count: 1,
+			types: new Set([e.type])
+		});
+	}
+	const visibleEdges = [];
+	for (const [, agg] of aggregation) {
+		const sourceIsCluster = agg.source.startsWith(clusterPrefix);
+		const targetIsCluster = agg.target.startsWith(clusterPrefix);
+		if (!sourceIsCluster && !targetIsCluster) {
+			for (const e of rawEdges) if (nodeIdToVisibleId.get(e.source) === agg.source && nodeIdToVisibleId.get(e.target) === agg.target) visibleEdges.push(e);
+		} else visibleEdges.push({
+			id: `clusteredge__${agg.source}__${agg.target}`,
+			source: agg.source,
+			target: agg.target,
+			type: agg.types.size === 1 ? [...agg.types][0] : "dependency",
+			properties: {},
+			isCluster: true,
+			aggregatedCount: agg.count
+		});
+	}
+	return visibleEdges;
+}
 
 //#endregion
-//#region src/client/store/graphStore.ts
-function detectInitialTheme() {
-	if (typeof document === "undefined") return "dark";
-	return document.body.hasAttribute("data-ds-dark-theme") ? "dark" : "light";
-}
-const memoryStorage = {
-	getItem: () => null,
-	setItem: () => {},
-	removeItem: () => {}
-};
-const LOADING_FAILSAFE_MS = 15e3;
-let loadingFailsafe = null;
-function clearLoadingFailsafe() {
-	if (loadingFailsafe !== null) {
-		clearTimeout(loadingFailsafe);
-		loadingFailsafe = null;
-	}
-}
+//#region src/client/store/cluster/directoryCluster.ts
 function getTopLevelDir(filePath) {
 	const parts = filePath.split(/[\\/]/);
 	if (parts.length <= 2) return filePath;
@@ -2628,10 +2647,9 @@ function computeDirectoryClusters(rawNodes, rawEdges, expandedDirs) {
 			nodeIdToVisibleId.set(n.id, n.id);
 		}
 		else {
-			const clusterId$1 = `cluster__${dirPath.replace(/[/:\\]/g, "__")}`;
 			const childIds = nodes.map((n) => n.id);
 			const clusterNode = {
-				id: clusterId$1,
+				id: clusterId,
 				label: `${getDirLabel(dirPath)} (${nodes.length})`,
 				type: "module",
 				filePath: dirPath,
@@ -2643,51 +2661,26 @@ function computeDirectoryClusters(rawNodes, rawEdges, expandedDirs) {
 				clusterPath: dirPath
 			};
 			visibleNodes.push(clusterNode);
-			for (const n of nodes) nodeIdToVisibleId.set(n.id, clusterId$1);
+			for (const n of nodes) nodeIdToVisibleId.set(n.id, clusterId);
 		}
 	}
-	const edgeAggregation = new Map();
-	for (const e of rawEdges) {
-		const sourceVisibleId = nodeIdToVisibleId.get(e.source);
-		const targetVisibleId = nodeIdToVisibleId.get(e.target);
-		if (!sourceVisibleId || !targetVisibleId) continue;
-		if (sourceVisibleId === targetVisibleId) continue;
-		const key = `${sourceVisibleId}→${targetVisibleId}`;
-		const existing = edgeAggregation.get(key);
-		if (existing) {
-			existing.count++;
-			existing.types.add(e.type);
-		} else edgeAggregation.set(key, {
-			source: sourceVisibleId,
-			target: targetVisibleId,
-			count: 1,
-			types: new Set([e.type])
-		});
-	}
-	const visibleEdges = [];
-	for (const [, agg] of edgeAggregation) {
-		const sourceIsCluster = agg.source.startsWith("cluster__");
-		const targetIsCluster = agg.target.startsWith("cluster__");
-		if (!sourceIsCluster && !targetIsCluster) {
-			for (const e of rawEdges) if (nodeIdToVisibleId.get(e.source) === agg.source && nodeIdToVisibleId.get(e.target) === agg.target) visibleEdges.push(e);
-		} else {
-			const clusterEdge = {
-				id: EdgeId(`clusteredge__${agg.source}__${agg.target}`),
-				source: agg.source,
-				target: agg.target,
-				type: agg.types.size === 1 ? [...agg.types][0] : "dependency",
-				properties: {},
-				isCluster: true,
-				aggregatedCount: agg.count
-			};
-			visibleEdges.push(clusterEdge);
-		}
-	}
+	const visibleEdges = aggregateEdges(rawEdges, nodeIdToVisibleId, "cluster__");
 	return {
 		nodes: visibleNodes,
 		edges: visibleEdges
 	};
 }
+
+//#endregion
+//#region src/client/store/cluster/DirectoryClusterStrategy.ts
+var DirectoryClusterStrategy = class {
+	compute(rawNodes, rawEdges, expandedNodeIds) {
+		return computeDirectoryClusters(rawNodes, rawEdges, expandedNodeIds);
+	}
+};
+
+//#endregion
+//#region src/client/store/cluster/fileCluster.ts
 function computeFileClusters(rawNodes, rawEdges, expandedFiles) {
 	const visibleNodes = [];
 	const nodeIdToVisibleId = new Map();
@@ -2700,10 +2693,7 @@ function computeFileClusters(rawNodes, rawEdges, expandedFiles) {
 		if (parentFileId && (expandedFiles.has(fileClusterId) || expandedFiles.has(parentFileId))) {
 			visibleNodes.push(n);
 			nodeIdToVisibleId.set(n.id, n.id);
-		} else {
-			const clusterId = parentFileId ? `filecluster__${parentFileId.replace(/[/:\\]/g, "__")}` : `filecluster__orphan`;
-			nodeIdToVisibleId.set(n.id, clusterId);
-		}
+		} else nodeIdToVisibleId.set(n.id, fileClusterId);
 	}
 	const fileClusterChildren = new Map();
 	for (const n of rawNodes) if (n.type !== "module") {
@@ -2731,54 +2721,40 @@ function computeFileClusters(rawNodes, rawEdges, expandedFiles) {
 		};
 		visibleNodes.push(clusterNode);
 	}
-	const edgeAggregation = new Map();
-	for (const e of rawEdges) {
-		const sourceVisibleId = nodeIdToVisibleId.get(e.source);
-		const targetVisibleId = nodeIdToVisibleId.get(e.target);
-		if (!sourceVisibleId || !targetVisibleId) continue;
-		if (sourceVisibleId === targetVisibleId) continue;
-		const key = `${sourceVisibleId}→${targetVisibleId}`;
-		const existing = edgeAggregation.get(key);
-		if (existing) {
-			existing.count++;
-			existing.types.add(e.type);
-		} else edgeAggregation.set(key, {
-			source: sourceVisibleId,
-			target: targetVisibleId,
-			count: 1,
-			types: new Set([e.type])
-		});
-	}
-	const visibleEdges = [];
-	for (const [, agg] of edgeAggregation) {
-		const sourceIsCluster = agg.source.startsWith("filecluster__");
-		const targetIsCluster = agg.target.startsWith("filecluster__");
-		if (!sourceIsCluster && !targetIsCluster) {
-			for (const e of rawEdges) if (nodeIdToVisibleId.get(e.source) === agg.source && nodeIdToVisibleId.get(e.target) === agg.target) visibleEdges.push(e);
-		} else {
-			const clusterEdge = {
-				id: EdgeId(`clusteredge__${agg.source}__${agg.target}`),
-				source: agg.source,
-				target: agg.target,
-				type: agg.types.size === 1 ? [...agg.types][0] : "dependency",
-				properties: {},
-				isCluster: true,
-				aggregatedCount: agg.count
-			};
-			visibleEdges.push(clusterEdge);
-		}
-	}
+	const visibleEdges = aggregateEdges(rawEdges, nodeIdToVisibleId, "filecluster__");
 	return {
 		nodes: visibleNodes,
 		edges: visibleEdges
 	};
 }
+
+//#endregion
+//#region src/client/store/cluster/FileClusterStrategy.ts
+var FileClusterStrategy = class {
+	compute(rawNodes, rawEdges, expandedNodeIds) {
+		return computeFileClusters(rawNodes, rawEdges, expandedNodeIds);
+	}
+};
+
+//#endregion
+//#region src/client/store/cluster/functionCluster.ts
 function computeFunctionLevel(rawNodes, rawEdges) {
 	return {
 		nodes: rawNodes,
 		edges: rawEdges
 	};
 }
+
+//#endregion
+//#region src/client/store/cluster/FunctionClusterStrategy.ts
+var FunctionClusterStrategy = class {
+	compute(rawNodes, rawEdges, _expandedNodeIds) {
+		return computeFunctionLevel(rawNodes, rawEdges);
+	}
+};
+
+//#endregion
+//#region src/client/store/cluster/smartCluster.ts
 function computeSmartClusters(rawNodes, rawEdges, expandedNodeIds) {
 	if (rawNodes.length === 0) return {
 		nodes: [],
@@ -2860,54 +2836,52 @@ function computeSmartClusters(rawNodes, rawEdges, expandedNodeIds) {
 			for (const n of nodes) nodeIdToVisibleId.set(n.id, clusterId);
 		}
 	}
-	const edgeAggregation = new Map();
-	for (const e of rawEdges) {
-		const sourceVisibleId = nodeIdToVisibleId.get(e.source);
-		const targetVisibleId = nodeIdToVisibleId.get(e.target);
-		if (!sourceVisibleId || !targetVisibleId) continue;
-		if (sourceVisibleId === targetVisibleId) continue;
-		const key = `${sourceVisibleId}→${targetVisibleId}`;
-		const existing = edgeAggregation.get(key);
-		if (existing) {
-			existing.count++;
-			existing.types.add(e.type);
-		} else edgeAggregation.set(key, {
-			source: sourceVisibleId,
-			target: targetVisibleId,
-			count: 1,
-			types: new Set([e.type])
-		});
-	}
-	const visibleEdges = [];
-	for (const [, agg] of edgeAggregation) {
-		const sourceIsCluster = agg.source.startsWith("smartcluster__");
-		const targetIsCluster = agg.target.startsWith("smartcluster__");
-		if (!sourceIsCluster && !targetIsCluster) {
-			for (const e of rawEdges) if (nodeIdToVisibleId.get(e.source) === agg.source && nodeIdToVisibleId.get(e.target) === agg.target) visibleEdges.push(e);
-		} else {
-			const clusterEdge = {
-				id: EdgeId(`clusteredge__${agg.source}__${agg.target}`),
-				source: agg.source,
-				target: agg.target,
-				type: agg.types.size === 1 ? [...agg.types][0] : "dependency",
-				properties: {},
-				isCluster: true,
-				aggregatedCount: agg.count
-			};
-			visibleEdges.push(clusterEdge);
-		}
-	}
+	const visibleEdges = aggregateEdges(rawEdges, nodeIdToVisibleId, "smartcluster__");
 	return {
 		nodes: visibleNodes,
 		edges: visibleEdges
 	};
 }
+
+//#endregion
+//#region src/client/store/cluster/SmartClusterStrategy.ts
+var SmartClusterStrategy = class {
+	compute(rawNodes, rawEdges, expandedNodeIds) {
+		return computeSmartClusters(rawNodes, rawEdges, expandedNodeIds);
+	}
+};
+
+//#endregion
+//#region src/client/store/cluster/index.ts
+const strategyRegistry = new Map([
+	["directory", new DirectoryClusterStrategy()],
+	["file", new FileClusterStrategy()],
+	["function", new FunctionClusterStrategy()],
+	["smart", new SmartClusterStrategy()]
+]);
 function computeClusteredGraph(rawNodes, rawEdges, clusterLevel, expandedNodeIds) {
-	switch (clusterLevel) {
-		case "directory": return computeDirectoryClusters(rawNodes, rawEdges, expandedNodeIds);
-		case "file": return computeFileClusters(rawNodes, rawEdges, expandedNodeIds);
-		case "function": return computeFunctionLevel(rawNodes, rawEdges);
-		case "smart": return computeSmartClusters(rawNodes, rawEdges, expandedNodeIds);
+	const strategy = strategyRegistry.get(clusterLevel);
+	if (!strategy) throw new Error(`Unknown cluster level: ${clusterLevel}`);
+	return strategy.compute(rawNodes, rawEdges, expandedNodeIds);
+}
+
+//#endregion
+//#region src/client/store/graphStore.ts
+function detectInitialTheme() {
+	if (typeof document === "undefined") return "dark";
+	return document.body.hasAttribute("data-ds-dark-theme") ? "dark" : "light";
+}
+const memoryStorage = {
+	getItem: () => null,
+	setItem: () => {},
+	removeItem: () => {}
+};
+const LOADING_FAILSAFE_MS = 15e3;
+let loadingFailsafe = null;
+function clearLoadingFailsafe() {
+	if (loadingFailsafe !== null) {
+		clearTimeout(loadingFailsafe);
+		loadingFailsafe = null;
 	}
 }
 const useGraphStore = create$1()(persist((set$1) => ({
