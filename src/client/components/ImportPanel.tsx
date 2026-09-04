@@ -2,7 +2,8 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { scoped } from '../../shared/Logger.ts';
 import { useT } from '../i18n/index.ts';
 import { UploadIcon, FolderIcon, CloseIcon, AlertIcon, RefreshIcon, ZapIcon, WatchIcon } from './Icons.tsx';
-import type { GraphNode, GraphEdge, NodeId, EdgeId, RepoId } from '../../types/index.ts';
+import { coerceNode, coerceEdge } from '../validators.ts';
+import type { GraphNode, GraphEdge, RepoId } from '../../types/index.ts';
 
 const log = scoped('import');
 
@@ -23,40 +24,8 @@ export interface ImportPanelProps {
   onSetWatchEnabled: (enabled: boolean) => void;
 }
 
-interface ImportableGraph {
-  nodes?: unknown[];
-  edges?: unknown[];
-  metadata?: { repoId?: string };
-}
-
-function coerceNode(raw: unknown, i: number): GraphNode | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const o = raw as Record<string, unknown>;
-  const id = typeof o.id === 'string' ? o.id : `node-${i}`;
-  const label = typeof o.label === 'string' ? o.label : typeof o.name === 'string' ? o.name : id;
-  const type = (['function', 'class', 'variable', 'module', 'interface', 'type'].includes(o.type as string)
-    ? o.type : 'variable') as GraphNode['type'];
-  const filePath = typeof o.filePath === 'string' ? o.filePath : typeof o.file === 'string' ? o.file : '';
-  const lineNumber = typeof o.lineNumber === 'number' ? o.lineNumber : typeof o.line === 'number' ? o.line : 0;
-  const properties = (o.properties && typeof o.properties === 'object' ? o.properties : {}) as Record<string, unknown>;
-  return { id: id as NodeId, label, type, filePath, lineNumber, properties };
-}
-
-function coerceEdge(raw: unknown, i: number): GraphEdge | null {
-  if (!raw || typeof raw !== 'object') return null;
-  const o = raw as Record<string, unknown>;
-  const id = typeof o.id === 'string' ? o.id : `edge-${i}`;
-  const source = typeof o.source === 'string' ? o.source : typeof o.from === 'string' ? o.from : null;
-  const target = typeof o.target === 'string' ? o.target : typeof o.to === 'string' ? o.to : null;
-  if (!source || !target) return null;
-  const type = (['call', 'import', 'extend', 'implement', 'dependency'].includes(o.type as string)
-    ? o.type : 'dependency') as GraphEdge['type'];
-  const properties = (o.properties && typeof o.properties === 'object' ? o.properties : {}) as Record<string, unknown>;
-  return { id: id as EdgeId, source: source as NodeId, target: target as NodeId, type, properties };
-}
-
 function parseGraphJson(text: string): { nodes: GraphNode[]; edges: GraphEdge[]; repoId: string } {
-  const parsed = JSON.parse(text) as ImportableGraph;
+  const parsed = JSON.parse(text) as { nodes?: unknown[]; edges?: unknown[]; metadata?: { repoId?: string } };
   if (!parsed || typeof parsed !== 'object') throw new Error('Root is not an object');
   const rawNodes = Array.isArray(parsed.nodes) ? parsed.nodes : [];
   const rawEdges = Array.isArray(parsed.edges) ? parsed.edges : [];

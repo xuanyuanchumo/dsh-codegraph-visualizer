@@ -154,7 +154,9 @@ export function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
 
 
   function slimGraphData(data: GraphData): GraphData {
-    const slimNodes = data.nodes.map((n) => ({
+    const cap = config.maxNodes;
+    const truncated = data.nodes.length > cap;
+    const slimNodes = (truncated ? data.nodes.slice(0, cap) : data.nodes).map((n) => ({
       id: n.id,
       label: n.label,
       type: n.type,
@@ -162,17 +164,27 @@ export function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
       lineNumber: n.lineNumber,
       properties: n.properties?.exported === true ? { exported: true } : {},
     }));
-    const slimEdges = data.edges.map((e) => ({
-      id: e.id,
-      source: e.source,
-      target: e.target,
-      type: e.type,
-      properties: {},
-    }));
+    const allowedIds = new Set(slimNodes.map((n) => n.id));
+    const slimEdges = data.edges
+      .filter((e) => allowedIds.has(e.source) && allowedIds.has(e.target))
+      .map((e) => ({
+        id: e.id,
+        source: e.source,
+        target: e.target,
+        type: e.type,
+        properties: {},
+      }));
     return {
       nodes: slimNodes as GraphNode[],
       edges: slimEdges as GraphEdge[],
-      metadata: data.metadata,
+      metadata: {
+        ...data.metadata,
+        truncated,
+        nodeCount: slimNodes.length,
+        edgeCount: slimEdges.length,
+        totalNodeCount: data.metadata.totalNodeCount ?? data.nodes.length,
+        totalEdgeCount: data.metadata.totalEdgeCount ?? data.edges.length,
+      },
     };
   }
 

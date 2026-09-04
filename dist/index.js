@@ -1644,7 +1644,9 @@ function apply(ctx, userConfig) {
 	let scanInFlight = null;
 	const scanCache = new Map();
 	function slimGraphData(data) {
-		const slimNodes = data.nodes.map((n) => ({
+		const cap = config.maxNodes;
+		const truncated = data.nodes.length > cap;
+		const slimNodes = (truncated ? data.nodes.slice(0, cap) : data.nodes).map((n) => ({
 			id: n.id,
 			label: n.label,
 			type: n.type,
@@ -1652,7 +1654,8 @@ function apply(ctx, userConfig) {
 			lineNumber: n.lineNumber,
 			properties: n.properties?.exported === true ? { exported: true } : {}
 		}));
-		const slimEdges = data.edges.map((e) => ({
+		const allowedIds = new Set(slimNodes.map((n) => n.id));
+		const slimEdges = data.edges.filter((e) => allowedIds.has(e.source) && allowedIds.has(e.target)).map((e) => ({
 			id: e.id,
 			source: e.source,
 			target: e.target,
@@ -1662,7 +1665,14 @@ function apply(ctx, userConfig) {
 		return {
 			nodes: slimNodes,
 			edges: slimEdges,
-			metadata: data.metadata
+			metadata: {
+				...data.metadata,
+				truncated,
+				nodeCount: slimNodes.length,
+				edgeCount: slimEdges.length,
+				totalNodeCount: data.metadata.totalNodeCount ?? data.nodes.length,
+				totalEdgeCount: data.metadata.totalEdgeCount ?? data.edges.length
+			}
 		};
 	}
 	const invokeUpstream = async (tool, args) => {

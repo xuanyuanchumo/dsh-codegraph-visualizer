@@ -405,8 +405,13 @@ export class CytoscapeRenderer implements IRenderer {
     if (nodes.length === 0) return;
 
     const minGap = 40;
-    let iterations = 0;
-    const maxIterations = 50;
+    const maxIterations = 20;
+    const skipThreshold = 2000;
+
+    if (nodes.length > skipThreshold) {
+      this.cy!.fit(undefined, 80);
+      return;
+    }
 
     const bbox = this.cy!.nodes().boundingBox();
     const cx = (bbox.x1 + bbox.x2) / 2;
@@ -422,42 +427,66 @@ export class CytoscapeRenderer implements IRenderer {
       });
     });
 
-    while (iterations < maxIterations) {
-      iterations++;
-      let overlapCount = 0;
+    const cellSize = minGap * 4;
+    for (let iter = 0; iter < maxIterations; iter++) {
       const positions: Array<{ id: string; x: number; y: number; w: number; h: number }> = [];
       nodes.forEach((n) => {
         const p = n.position();
         positions.push({ id: n.id(), x: p.x, y: p.y, w: n.width(), h: n.height() });
       });
 
-      const displacements = new Map<string, { dx: number; dy: number }>();
-      for (const p of positions) displacements.set(p.id, { dx: 0, dy: 0 });
-
+      const grid = new Map<string, number[]>();
       for (let i = 0; i < positions.length; i++) {
-        for (let j = i + 1; j < positions.length; j++) {
-          const a = positions[i]!;
-          const b = positions[j]!;
-          const dx = b.x - a.x;
-          const dy = b.y - a.y;
-          const minDx = (a.w + b.w) / 2 + minGap;
-          const minDy = (a.h + b.h) / 2 + minGap;
-          const absDx = Math.abs(dx);
-          const absDy = Math.abs(dy);
-          if (absDx < minDx && absDy < minDy) {
-            overlapCount++;
-            const overlapX = minDx - absDx;
-            const overlapY = minDy - absDy;
-            const pushX = overlapX / 2 + 3;
-            const pushY = overlapY / 2 + 3;
-            const signX = dx >= 0 ? 1 : -1;
-            const signY = dy >= 0 ? 1 : -1;
-            const da = displacements.get(a.id)!;
-            const db = displacements.get(b.id)!;
-            da.dx -= signX * pushX;
-            da.dy -= signY * pushY;
-            db.dx += signX * pushX;
-            db.dy += signY * pushY;
+        const p = positions[i]!;
+        const gx = Math.floor(p.x / cellSize);
+        const gy = Math.floor(p.y / cellSize);
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dy = -1; dy <= 1; dy++) {
+            const key = `${gx + dx},${gy + dy}`;
+            let bucket = grid.get(key);
+            if (!bucket) { bucket = []; grid.set(key, bucket); }
+            bucket.push(i);
+          }
+        }
+      }
+
+      const displacements = new Map<string, { dx: number; dy: number }>();
+      let overlapCount = 0;
+      const checked = new Set<string>();
+
+      for (const [, bucket] of grid) {
+        for (let i = 0; i < bucket.length; i++) {
+          for (let j = i + 1; j < bucket.length; j++) {
+            const ai = bucket[i]!;
+            const bi = bucket[j]!;
+            const pairKey = ai < bi ? `${ai}-${bi}` : `${bi}-${ai}`;
+            if (checked.has(pairKey)) continue;
+            checked.add(pairKey);
+            const a = positions[ai]!;
+            const b = positions[bi]!;
+            const ddx = b.x - a.x;
+            const ddy = b.y - a.y;
+            const minDx = (a.w + b.w) / 2 + minGap;
+            const minDy = (a.h + b.h) / 2 + minGap;
+            const absDx = Math.abs(ddx);
+            const absDy = Math.abs(ddy);
+            if (absDx < minDx && absDy < minDy) {
+              overlapCount++;
+              const overlapX = minDx - absDx;
+              const overlapY = minDy - absDy;
+              const pushX = overlapX / 2 + 3;
+              const pushY = overlapY / 2 + 3;
+              const signX = ddx >= 0 ? 1 : -1;
+              const signY = ddy >= 0 ? 1 : -1;
+              let da = displacements.get(a.id);
+              if (!da) { da = { dx: 0, dy: 0 }; displacements.set(a.id, da); }
+              let db = displacements.get(b.id);
+              if (!db) { db = { dx: 0, dy: 0 }; displacements.set(b.id, db); }
+              da.dx -= signX * pushX;
+              da.dy -= signY * pushY;
+              db.dx += signX * pushX;
+              db.dy += signY * pushY;
+            }
           }
         }
       }

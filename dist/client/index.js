@@ -42102,8 +42102,12 @@ var CytoscapeRenderer = class {
 		const nodes = this.cy.nodes();
 		if (nodes.length === 0) return;
 		const minGap = 40;
-		let iterations = 0;
-		const maxIterations = 50;
+		const maxIterations = 20;
+		const skipThreshold = 2e3;
+		if (nodes.length > skipThreshold) {
+			this.cy.fit(void 0, 80);
+			return;
+		}
 		const bbox = this.cy.nodes().boundingBox();
 		const cx = (bbox.x1 + bbox.x2) / 2;
 		const cy = (bbox.y1 + bbox.y2) / 2;
@@ -42117,9 +42121,8 @@ var CytoscapeRenderer = class {
 				});
 			});
 		});
-		while (iterations < maxIterations) {
-			iterations++;
-			let overlapCount = 0;
+		const cellSize = minGap * 4;
+		for (let iter = 0; iter < maxIterations; iter++) {
 			const positions = [];
 			nodes.forEach((n) => {
 				const p$1 = n.position();
@@ -42131,30 +42134,62 @@ var CytoscapeRenderer = class {
 					h: n.height()
 				});
 			});
+			const grid = new Map();
+			for (let i$1 = 0; i$1 < positions.length; i$1++) {
+				const p$1 = positions[i$1];
+				const gx = Math.floor(p$1.x / cellSize);
+				const gy = Math.floor(p$1.y / cellSize);
+				for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+					const key = `${gx + dx},${gy + dy}`;
+					let bucket = grid.get(key);
+					if (!bucket) {
+						bucket = [];
+						grid.set(key, bucket);
+					}
+					bucket.push(i$1);
+				}
+			}
 			const displacements = new Map();
-			for (const p$1 of positions) displacements.set(p$1.id, {
-				dx: 0,
-				dy: 0
-			});
-			for (let i$1 = 0; i$1 < positions.length; i$1++) for (let j = i$1 + 1; j < positions.length; j++) {
-				const a = positions[i$1];
-				const b = positions[j];
-				const dx = b.x - a.x;
-				const dy = b.y - a.y;
+			let overlapCount = 0;
+			const checked = new Set();
+			for (const [, bucket] of grid) for (let i$1 = 0; i$1 < bucket.length; i$1++) for (let j = i$1 + 1; j < bucket.length; j++) {
+				const ai = bucket[i$1];
+				const bi = bucket[j];
+				const pairKey = ai < bi ? `${ai}-${bi}` : `${bi}-${ai}`;
+				if (checked.has(pairKey)) continue;
+				checked.add(pairKey);
+				const a = positions[ai];
+				const b = positions[bi];
+				const ddx = b.x - a.x;
+				const ddy = b.y - a.y;
 				const minDx = (a.w + b.w) / 2 + minGap;
 				const minDy = (a.h + b.h) / 2 + minGap;
-				const absDx = Math.abs(dx);
-				const absDy = Math.abs(dy);
+				const absDx = Math.abs(ddx);
+				const absDy = Math.abs(ddy);
 				if (absDx < minDx && absDy < minDy) {
 					overlapCount++;
 					const overlapX = minDx - absDx;
 					const overlapY = minDy - absDy;
 					const pushX = overlapX / 2 + 3;
 					const pushY = overlapY / 2 + 3;
-					const signX = dx >= 0 ? 1 : -1;
-					const signY = dy >= 0 ? 1 : -1;
-					const da = displacements.get(a.id);
-					const db = displacements.get(b.id);
+					const signX = ddx >= 0 ? 1 : -1;
+					const signY = ddy >= 0 ? 1 : -1;
+					let da = displacements.get(a.id);
+					if (!da) {
+						da = {
+							dx: 0,
+							dy: 0
+						};
+						displacements.set(a.id, da);
+					}
+					let db = displacements.get(b.id);
+					if (!db) {
+						db = {
+							dx: 0,
+							dy: 0
+						};
+						displacements.set(b.id, db);
+					}
 					da.dx -= signX * pushX;
 					da.dy -= signY * pushY;
 					db.dx += signX * pushX;
@@ -43983,10 +44018,8 @@ const TreeIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react
 });
 
 //#endregion
-//#region src/client/components/ImportPanel.tsx
-const log$2 = scoped("import");
-const MAX_PASTE_BYTES = 10 * 1024 * 1024;
-function coerceNode$1(raw, i$1) {
+//#region src/client/validators.ts
+function coerceNode(raw, i$1) {
 	if (!raw || typeof raw !== "object") return null;
 	const o = raw;
 	const id = typeof o.id === "string" ? o.id : `node-${i$1}`;
@@ -44011,7 +44044,7 @@ function coerceNode$1(raw, i$1) {
 		properties
 	};
 }
-function coerceEdge$1(raw, i$1) {
+function coerceEdge(raw, i$1) {
 	if (!raw || typeof raw !== "object") return null;
 	const o = raw;
 	const id = typeof o.id === "string" ? o.id : `edge-${i$1}`;
@@ -44034,13 +44067,46 @@ function coerceEdge$1(raw, i$1) {
 		properties
 	};
 }
+function validateGraphData(raw) {
+	if (!raw || typeof raw !== "object") return null;
+	const o = raw;
+	const rawNodes = Array.isArray(o.nodes) ? o.nodes : [];
+	const rawEdges = Array.isArray(o.edges) ? o.edges : [];
+	const nodes = rawNodes.map(coerceNode).filter((n) => n !== null);
+	const edges = rawEdges.map(coerceEdge).filter((e) => e !== null);
+	if (nodes.length === 0) return null;
+	const metadata = o.metadata;
+	const repoId = metadata?.repoId ?? `workspace-${Date.now()}`;
+	const timestamp = typeof metadata?.timestamp === "number" ? metadata.timestamp : Date.now();
+	const truncated = typeof metadata?.truncated === "boolean" ? metadata.truncated : false;
+	const totalNodeCount = typeof metadata?.totalNodeCount === "number" ? metadata.totalNodeCount : nodes.length;
+	const totalEdgeCount = typeof metadata?.totalEdgeCount === "number" ? metadata.totalEdgeCount : edges.length;
+	return {
+		nodes,
+		edges,
+		metadata: {
+			repoId,
+			timestamp,
+			nodeCount: nodes.length,
+			edgeCount: edges.length,
+			truncated,
+			totalNodeCount,
+			totalEdgeCount
+		}
+	};
+}
+
+//#endregion
+//#region src/client/components/ImportPanel.tsx
+const log$2 = scoped("import");
+const MAX_PASTE_BYTES = 10 * 1024 * 1024;
 function parseGraphJson(text) {
 	const parsed = JSON.parse(text);
 	if (!parsed || typeof parsed !== "object") throw new Error("Root is not an object");
 	const rawNodes = Array.isArray(parsed.nodes) ? parsed.nodes : [];
 	const rawEdges = Array.isArray(parsed.edges) ? parsed.edges : [];
-	const nodes = rawNodes.map(coerceNode$1).filter((n) => n !== null);
-	const edges = rawEdges.map(coerceEdge$1).filter((e) => e !== null);
+	const nodes = rawNodes.map(coerceNode).filter((n) => n !== null);
+	const edges = rawEdges.map(coerceEdge).filter((e) => e !== null);
 	if (nodes.length === 0) throw new Error("No valid nodes found in JSON");
 	const repoId = parsed.metadata?.repoId ?? `imported-${Date.now()}`;
 	return {
@@ -46017,85 +46083,6 @@ function GraphPanelInner({ className = "" }) {
 }
 function GraphPanel(props) {
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphPanelInner, { ...props }) });
-}
-
-//#endregion
-//#region src/client/validators.ts
-function coerceNode(raw, i$1) {
-	if (!raw || typeof raw !== "object") return null;
-	const o = raw;
-	const id = typeof o.id === "string" ? o.id : `node-${i$1}`;
-	const label = typeof o.label === "string" ? o.label : typeof o.name === "string" ? o.name : id;
-	const type = [
-		"function",
-		"class",
-		"variable",
-		"module",
-		"interface",
-		"type"
-	].includes(o.type) ? o.type : "variable";
-	const filePath = typeof o.filePath === "string" ? o.filePath : typeof o.file === "string" ? o.file : "";
-	const lineNumber = typeof o.lineNumber === "number" ? o.lineNumber : typeof o.line === "number" ? o.line : 0;
-	const properties = o.properties && typeof o.properties === "object" ? o.properties : {};
-	return {
-		id,
-		label,
-		type,
-		filePath,
-		lineNumber,
-		properties
-	};
-}
-function coerceEdge(raw, i$1) {
-	if (!raw || typeof raw !== "object") return null;
-	const o = raw;
-	const id = typeof o.id === "string" ? o.id : `edge-${i$1}`;
-	const source = typeof o.source === "string" ? o.source : typeof o.from === "string" ? o.from : null;
-	const target = typeof o.target === "string" ? o.target : typeof o.to === "string" ? o.to : null;
-	if (!source || !target) return null;
-	const type = [
-		"call",
-		"import",
-		"extend",
-		"implement",
-		"dependency"
-	].includes(o.type) ? o.type : "dependency";
-	const properties = o.properties && typeof o.properties === "object" ? o.properties : {};
-	return {
-		id,
-		source,
-		target,
-		type,
-		properties
-	};
-}
-function validateGraphData(raw) {
-	if (!raw || typeof raw !== "object") return null;
-	const o = raw;
-	const rawNodes = Array.isArray(o.nodes) ? o.nodes : [];
-	const rawEdges = Array.isArray(o.edges) ? o.edges : [];
-	const nodes = rawNodes.map(coerceNode).filter((n) => n !== null);
-	const edges = rawEdges.map(coerceEdge).filter((e) => e !== null);
-	if (nodes.length === 0) return null;
-	const metadata = o.metadata;
-	const repoId = metadata?.repoId ?? `workspace-${Date.now()}`;
-	const timestamp = typeof metadata?.timestamp === "number" ? metadata.timestamp : Date.now();
-	const truncated = typeof metadata?.truncated === "boolean" ? metadata.truncated : false;
-	const totalNodeCount = typeof metadata?.totalNodeCount === "number" ? metadata.totalNodeCount : nodes.length;
-	const totalEdgeCount = typeof metadata?.totalEdgeCount === "number" ? metadata.totalEdgeCount : edges.length;
-	return {
-		nodes,
-		edges,
-		metadata: {
-			repoId,
-			timestamp,
-			nodeCount: nodes.length,
-			edgeCount: edges.length,
-			truncated,
-			totalNodeCount,
-			totalEdgeCount
-		}
-	};
 }
 
 //#endregion
