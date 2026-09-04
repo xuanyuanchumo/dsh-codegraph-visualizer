@@ -154,25 +154,16 @@ body[data-ds-dark-theme] {
 .graph-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: var(--cg-toolbar-h);
-  padding: 0 12px;
+  gap: 6px;
+  min-height: var(--cg-toolbar-h);
+  padding: 4px 10px;
   background: var(--cg-surface);
   border-bottom: 1px solid var(--cg-border);
   flex-shrink: 0;
-  overflow-x: auto;
-  overflow-y: visible;
-  scrollbar-width: thin;
+  flex-wrap: wrap;
+  overflow: visible;
 }
 
-.graph-toolbar::-webkit-scrollbar {
-  height: 3px;
-}
-
-.graph-toolbar::-webkit-scrollbar-thumb {
-  background: var(--cg-border-strong);
-  border-radius: 2px;
-}
 
 .toolbar-left {
   display: flex;
@@ -201,7 +192,7 @@ body[data-ds-dark-theme] {
 .toolbar-group {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
 }
 
 .toolbar-separator {
@@ -263,11 +254,11 @@ body[data-ds-dark-theme] {
 }
 
 .layout-btn {
-  padding: 4px 10px;
+  padding: 3px 8px;
   border: none;
   background: transparent;
   color: var(--cg-text-secondary);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
   border-radius: var(--cg-radius-xs);
   cursor: pointer;
@@ -299,11 +290,11 @@ body[data-ds-dark-theme] {
 }
 
 .graph-type-btn {
-  padding: 4px 10px;
+  padding: 3px 8px;
   border: none;
   background: transparent;
   color: var(--cg-text-secondary);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
   border-radius: var(--cg-radius-xs);
   cursor: pointer;
@@ -388,8 +379,8 @@ body[data-ds-dark-theme] {
 .inheritance-btn,
 .minimap-btn,
 .refresh-btn {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
