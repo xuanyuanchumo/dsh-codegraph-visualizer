@@ -6,6 +6,7 @@ export interface PanelState {
   showCycles: boolean;
   showCallChain: boolean;
   showImpact: boolean;
+  showInheritance: boolean;
   showMiniMap: boolean;
   showImport: boolean;
   showLegend: boolean;
@@ -14,6 +15,7 @@ export interface PanelState {
   toggleCycles: () => void;
   toggleCallChain: () => void;
   toggleImpact: () => void;
+  toggleInheritance: () => void;
   toggleMiniMap: () => void;
   toggleImport: () => void;
   toggleLegend: () => void;
@@ -22,6 +24,7 @@ export interface PanelState {
   setShowCallChain: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowCycles: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowImpact: (v: boolean | ((prev: boolean) => boolean)) => void;
+  setShowInheritance: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowMiniMap: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowLegend: (v: boolean | ((prev: boolean) => boolean)) => void;
 }
@@ -32,6 +35,7 @@ export function usePanelState(): PanelState {
   const [showCycles, setShowCycles] = useState(false);
   const [showCallChain, setShowCallChain] = useState(false);
   const [showImpact, setShowImpact] = useState(false);
+  const [showInheritance, setShowInheritance] = useState(false);
   const [showMiniMap, setShowMiniMap] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
@@ -41,13 +45,14 @@ export function usePanelState(): PanelState {
   const toggleCycles = useCallback(() => setShowCycles((v) => !v), []);
   const toggleCallChain = useCallback(() => setShowCallChain((v) => !v), []);
   const toggleImpact = useCallback(() => setShowImpact((v) => !v), []);
+  const toggleInheritance = useCallback(() => setShowInheritance((v) => !v), []);
   const toggleMiniMap = useCallback(() => setShowMiniMap((v) => !v), []);
   const toggleImport = useCallback(() => setShowImport((v) => !v), []);
   const toggleLegend = useCallback(() => setShowLegend((v) => !v), []);
 
   return {
-    showSearch, collapsed, showCycles, showCallChain, showImpact, showMiniMap, showImport, showLegend,
-    toggleSearch, toggleCollapsed, toggleCycles, toggleCallChain, toggleImpact, toggleMiniMap, toggleImport, toggleLegend,
-    setShowSearch, setShowImport, setShowCallChain, setShowCycles, setShowImpact, setShowMiniMap, setShowLegend,
+    showSearch, collapsed, showCycles, showCallChain, showImpact, showInheritance, showMiniMap, showImport, showLegend,
+    toggleSearch, toggleCollapsed, toggleCycles, toggleCallChain, toggleImpact, toggleInheritance, toggleMiniMap, toggleImport, toggleLegend,
+    setShowSearch, setShowImport, setShowCallChain, setShowCycles, setShowImpact, setShowInheritance, setShowMiniMap, setShowLegend,
   };
 }

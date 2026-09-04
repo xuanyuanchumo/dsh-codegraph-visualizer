@@ -38,6 +38,7 @@ export function useGraphRenderer(
   showCallChain: boolean,
   showCycles: boolean,
   showImpact: boolean,
+  showInheritance: boolean,
   callbacks: GraphRendererCallbacks,
   showCallChainRef: React.RefObject<boolean>,
 ): UseGraphRendererResult {
@@ -122,6 +123,13 @@ export function useGraphRenderer(
     if (showImpact && selectedNodeId) { r.highlightImpact(selectedNodeId); }
     else { r.highlightImpact(null); }
   }, [showImpact, selectedNodeId]);
+
+  useEffect(() => {
+    const r = rendererRef.current;
+    if (!r) return;
+    if (showInheritance) { r.highlightInheritance(selectedNodeId); }
+    else { r.highlightInheritance(null); }
+  }, [showInheritance, selectedNodeId]);
 
   const exportGraph = useCallback((format: 'png' | 'svg' | 'json') => {
     const renderer = rendererRef.current;

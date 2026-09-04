@@ -373,6 +373,7 @@ body[data-ds-dark-theme] {
 .chain-btn,
 .cycle-btn,
 .impact-btn,
+.inheritance-btn,
 .minimap-btn,
 .refresh-btn {
   width: 30px;
@@ -397,6 +398,7 @@ body[data-ds-dark-theme] {
 .chain-btn:hover,
 .cycle-btn:hover,
 .impact-btn:hover,
+.inheritance-btn:hover,
 .minimap-btn:hover,
 .refresh-btn:hover {
   background: var(--cg-surface-hover);
@@ -408,7 +410,8 @@ body[data-ds-dark-theme] {
 .theme-btn:focus-visible,
 .chain-btn:focus-visible,
 .cycle-btn:focus-visible,
-.impact-btn:focus-visible {
+.impact-btn:focus-visible,
+.inheritance-btn:focus-visible {
   outline: 2px solid var(--cg-accent);
   outline-offset: 2px;
 }
@@ -417,6 +420,7 @@ body[data-ds-dark-theme] {
 .chain-btn.active,
 .cycle-btn.active,
 .impact-btn.active,
+.inheritance-btn.active,
 .minimap-btn.active {
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);

@@ -334,6 +334,7 @@ export class CytoscapeRenderer implements IRenderer {
             randomize: !hasPositions,
             tile: true,
             padding: 60,
+            avoidOverlap: true,
           } as LayoutOptions;
           break;
         case 'dagre':
@@ -657,6 +658,65 @@ export class CytoscapeRenderer implements IRenderer {
     });
   }
 
+  highlightInheritance(nodeId: NodeId | null): void {
+    if (!this.cy) return;
+    this.cy.batch(() => {
+      this.cy!.elements().removeClass('inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement');
+      if (!nodeId) {
+        this.cy!.edges('[type="extend"]').addClass('inheritance-extend');
+        this.cy!.edges('[type="implement"]').addClass('inheritance-implement');
+        this.cy!.edges('[type!="extend"][type!="implement"]').addClass('inheritance-dim');
+        this.cy!.nodes('[type!="class"][type!="interface"]').addClass('inheritance-dim');
+        return;
+      }
+
+      const focusNode = this.cy!.getElementById(nodeId);
+      if (focusNode.empty()) return;
+      focusNode.addClass('inheritance-focus');
+
+      const relevant = new Set<string>([nodeId]);
+      const traverse = (id: string, direction: 'up' | 'down') => {
+        const node = this.cy!.getElementById(id);
+        if (direction === 'up') {
+          node.outgoers('edge[type="extend"], edge[type="implement"]').forEach((edge) => {
+            const target = edge.target().id();
+            if (!relevant.has(target)) {
+              relevant.add(target);
+              edge.addClass('inheritance-highlight');
+              traverse(target, 'up');
+            }
+          });
+        } else {
+          node.incomers('edge[type="extend"], edge[type="implement"]').forEach((edge) => {
+            const source = edge.source().id();
+            if (!relevant.has(source)) {
+              relevant.add(source);
+              edge.addClass('inheritance-highlight');
+              traverse(source, 'down');
+            }
+          });
+        }
+      };
+      traverse(nodeId, 'up');
+      traverse(nodeId, 'down');
+
+      relevant.forEach((id) => {
+        const node = this.cy!.getElementById(id);
+        if (node.nonempty()) node.addClass('inheritance-highlight');
+      });
+
+      this.cy!.edges('[type="extend"], edge[type="implement"]').forEach((edge) => {
+        if (!relevant.has(edge.source().id()) && !relevant.has(edge.target().id())) {
+          edge.addClass('inheritance-dim');
+        }
+      });
+      this.cy!.edges('[type!="extend"][type!="implement"]').addClass('inheritance-dim');
+      this.cy!.nodes().forEach((node) => {
+        if (!relevant.has(node.id())) node.addClass('inheritance-dim');
+      });
+    });
+  }
+
   getThumbnail(): string | null {
     if (!this.cy) return null;
     return this.cy.png({ full: true, scale: 0.15, bg: 'transparent' });
@@ -903,6 +963,59 @@ export class CytoscapeRenderer implements IRenderer {
           'background-color': '#fde68a',
           'opacity': 0.6,
           'z-index': 18,
+        },
+      },
+      {
+        selector: '.inheritance-extend',
+        style: {
+          'width': 2.5,
+          'line-color': isDark ? '#f472b6' : '#ec4899',
+          'target-arrow-color': isDark ? '#f472b6' : '#ec4899',
+          'opacity': 0.9,
+          'z-index': 20,
+        },
+      },
+      {
+        selector: '.inheritance-implement',
+        style: {
+          'width': 2,
+          'line-color': isDark ? '#2dd4bf' : '#14b8a6',
+          'target-arrow-color': isDark ? '#2dd4bf' : '#14b8a6',
+          'opacity': 0.9,
+          'z-index': 20,
+          'line-style': 'dashed',
+        },
+      },
+      {
+        selector: '.inheritance-highlight',
+        style: {
+          'border-width': 3,
+          'border-color': isDark ? '#f472b6' : '#ec4899',
+          'opacity': 1,
+          'z-index': 25,
+        },
+      },
+      {
+        selector: 'edge.inheritance-highlight',
+        style: {
+          'width': 3,
+          'opacity': 1,
+          'z-index': 25,
+        },
+      },
+      {
+        selector: '.inheritance-focus',
+        style: {
+          'border-width': 4,
+          'border-color': readCssVar('--cg-error', '#ef4444'),
+          'background-color': readCssVar('--cg-error', '#ef4444'),
+          'z-index': 35,
+        },
+      },
+      {
+        selector: '.inheritance-dim',
+        style: {
+          'opacity': 0.15,
         },
       },
       {

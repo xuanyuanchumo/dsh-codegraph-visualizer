@@ -385,6 +385,7 @@ body[data-ds-dark-theme] {
 .chain-btn,
 .cycle-btn,
 .impact-btn,
+.inheritance-btn,
 .minimap-btn,
 .refresh-btn {
   width: 30px;
@@ -409,6 +410,7 @@ body[data-ds-dark-theme] {
 .chain-btn:hover,
 .cycle-btn:hover,
 .impact-btn:hover,
+.inheritance-btn:hover,
 .minimap-btn:hover,
 .refresh-btn:hover {
   background: var(--cg-surface-hover);
@@ -420,7 +422,8 @@ body[data-ds-dark-theme] {
 .theme-btn:focus-visible,
 .chain-btn:focus-visible,
 .cycle-btn:focus-visible,
-.impact-btn:focus-visible {
+.impact-btn:focus-visible,
+.inheritance-btn:focus-visible {
   outline: 2px solid var(--cg-accent);
   outline-offset: 2px;
 }
@@ -429,6 +432,7 @@ body[data-ds-dark-theme] {
 .chain-btn.active,
 .cycle-btn.active,
 .impact-btn.active,
+.inheritance-btn.active,
 .minimap-btn.active {
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
@@ -41912,7 +41916,8 @@ var CytoscapeRenderer = class {
 						numIter: nodeCount > 80 ? 3e3 : 4e3,
 						randomize: !hasPositions,
 						tile: true,
-						padding: 60
+						padding: 60,
+						avoidOverlap: true
 					};
 					break;
 				case "dagre":
@@ -42182,6 +42187,55 @@ var CytoscapeRenderer = class {
 					});
 				});
 			}
+		});
+	}
+	highlightInheritance(nodeId) {
+		if (!this.cy) return;
+		this.cy.batch(() => {
+			this.cy.elements().removeClass("inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement");
+			if (!nodeId) {
+				this.cy.edges("[type=\"extend\"]").addClass("inheritance-extend");
+				this.cy.edges("[type=\"implement\"]").addClass("inheritance-implement");
+				this.cy.edges("[type!=\"extend\"][type!=\"implement\"]").addClass("inheritance-dim");
+				this.cy.nodes("[type!=\"class\"][type!=\"interface\"]").addClass("inheritance-dim");
+				return;
+			}
+			const focusNode = this.cy.getElementById(nodeId);
+			if (focusNode.empty()) return;
+			focusNode.addClass("inheritance-focus");
+			const relevant = new Set([nodeId]);
+			const traverse = (id, direction) => {
+				const node = this.cy.getElementById(id);
+				if (direction === "up") node.outgoers("edge[type=\"extend\"], edge[type=\"implement\"]").forEach((edge) => {
+					const target = edge.target().id();
+					if (!relevant.has(target)) {
+						relevant.add(target);
+						edge.addClass("inheritance-highlight");
+						traverse(target, "up");
+					}
+				});
+				else node.incomers("edge[type=\"extend\"], edge[type=\"implement\"]").forEach((edge) => {
+					const source = edge.source().id();
+					if (!relevant.has(source)) {
+						relevant.add(source);
+						edge.addClass("inheritance-highlight");
+						traverse(source, "down");
+					}
+				});
+			};
+			traverse(nodeId, "up");
+			traverse(nodeId, "down");
+			relevant.forEach((id) => {
+				const node = this.cy.getElementById(id);
+				if (node.nonempty()) node.addClass("inheritance-highlight");
+			});
+			this.cy.edges("[type=\"extend\"], edge[type=\"implement\"]").forEach((edge) => {
+				if (!relevant.has(edge.source().id()) && !relevant.has(edge.target().id())) edge.addClass("inheritance-dim");
+			});
+			this.cy.edges("[type!=\"extend\"][type!=\"implement\"]").addClass("inheritance-dim");
+			this.cy.nodes().forEach((node) => {
+				if (!relevant.has(node.id())) node.addClass("inheritance-dim");
+			});
 		});
 	}
 	getThumbnail() {
@@ -42469,6 +42523,57 @@ var CytoscapeRenderer = class {
 				}
 			},
 			{
+				selector: ".inheritance-extend",
+				style: {
+					"width": 2.5,
+					"line-color": isDark ? "#f472b6" : "#ec4899",
+					"target-arrow-color": isDark ? "#f472b6" : "#ec4899",
+					"opacity": .9,
+					"z-index": 20
+				}
+			},
+			{
+				selector: ".inheritance-implement",
+				style: {
+					"width": 2,
+					"line-color": isDark ? "#2dd4bf" : "#14b8a6",
+					"target-arrow-color": isDark ? "#2dd4bf" : "#14b8a6",
+					"opacity": .9,
+					"z-index": 20,
+					"line-style": "dashed"
+				}
+			},
+			{
+				selector: ".inheritance-highlight",
+				style: {
+					"border-width": 3,
+					"border-color": isDark ? "#f472b6" : "#ec4899",
+					"opacity": 1,
+					"z-index": 25
+				}
+			},
+			{
+				selector: "edge.inheritance-highlight",
+				style: {
+					"width": 3,
+					"opacity": 1,
+					"z-index": 25
+				}
+			},
+			{
+				selector: ".inheritance-focus",
+				style: {
+					"border-width": 4,
+					"border-color": readCssVar("--cg-error", "#ef4444"),
+					"background-color": readCssVar("--cg-error", "#ef4444"),
+					"z-index": 35
+				}
+			},
+			{
+				selector: ".inheritance-dim",
+				style: { "opacity": .15 }
+			},
+			{
 				selector: "node[isCluster]",
 				style: {
 					"shape": "round-rectangle",
@@ -42615,7 +42720,7 @@ function scoped(scope) {
 //#endregion
 //#region src/client/hooks/useGraphRenderer.ts
 const log$4 = scoped("renderer-hook");
-function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, showCallChain, showCycles, showImpact, callbacks, showCallChainRef) {
+function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, showCallChain, showCycles, showImpact, showInheritance, callbacks, showCallChainRef) {
 	const containerRef = (0, react.useRef)(null);
 	const rendererRef = (0, react.useRef)(null);
 	const [searchMatchCount, setSearchMatchCount] = (0, react.useState)(null);
@@ -42696,6 +42801,12 @@ function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, sel
 		if (showImpact && selectedNodeId) r.highlightImpact(selectedNodeId);
 		else r.highlightImpact(null);
 	}, [showImpact, selectedNodeId]);
+	(0, react.useEffect)(() => {
+		const r = rendererRef.current;
+		if (!r) return;
+		if (showInheritance) r.highlightInheritance(selectedNodeId);
+		else r.highlightInheritance(null);
+	}, [showInheritance, selectedNodeId]);
 	const exportGraph = (0, react.useCallback)((format) => {
 		const renderer$1 = rendererRef.current;
 		if (!renderer$1) return;
@@ -42787,6 +42898,7 @@ function usePanelState() {
 	const [showCycles, setShowCycles] = (0, react.useState)(false);
 	const [showCallChain, setShowCallChain] = (0, react.useState)(false);
 	const [showImpact, setShowImpact] = (0, react.useState)(false);
+	const [showInheritance, setShowInheritance] = (0, react.useState)(false);
 	const [showMiniMap, setShowMiniMap] = (0, react.useState)(false);
 	const [showImport, setShowImport] = (0, react.useState)(false);
 	const [showLegend, setShowLegend] = (0, react.useState)(false);
@@ -42795,6 +42907,7 @@ function usePanelState() {
 	const toggleCycles = (0, react.useCallback)(() => setShowCycles((v) => !v), []);
 	const toggleCallChain = (0, react.useCallback)(() => setShowCallChain((v) => !v), []);
 	const toggleImpact = (0, react.useCallback)(() => setShowImpact((v) => !v), []);
+	const toggleInheritance = (0, react.useCallback)(() => setShowInheritance((v) => !v), []);
 	const toggleMiniMap = (0, react.useCallback)(() => setShowMiniMap((v) => !v), []);
 	const toggleImport = (0, react.useCallback)(() => setShowImport((v) => !v), []);
 	const toggleLegend = (0, react.useCallback)(() => setShowLegend((v) => !v), []);
@@ -42804,6 +42917,7 @@ function usePanelState() {
 		showCycles,
 		showCallChain,
 		showImpact,
+		showInheritance,
 		showMiniMap,
 		showImport,
 		showLegend,
@@ -42812,6 +42926,7 @@ function usePanelState() {
 		toggleCycles,
 		toggleCallChain,
 		toggleImpact,
+		toggleInheritance,
 		toggleMiniMap,
 		toggleImport,
 		toggleLegend,
@@ -42820,6 +42935,7 @@ function usePanelState() {
 		setShowCallChain,
 		setShowCycles,
 		setShowImpact,
+		setShowInheritance,
 		setShowMiniMap,
 		setShowLegend
 	};
@@ -42842,6 +42958,7 @@ function usePanelKeyboard(layout$2, setLayout, rendererRef, handlers) {
 	});
 	useKeyboardShortcut("c", () => handlersRef.current.onToggleCallChain(), { ctrl: true });
 	useKeyboardShortcut("e", () => handlersRef.current.onToggleImpact(), { ctrl: true });
+	useKeyboardShortcut("h", () => handlersRef.current.onToggleInheritance(), { ctrl: true });
 	useKeyboardShortcut("m", () => handlersRef.current.onToggleMiniMap(), { ctrl: true });
 	useKeyboardShortcut("l", () => {
 		const cur = layoutRef.current;
@@ -42948,6 +43065,7 @@ const en = {
 	"toolbar.chain": "Toggle call chain highlight (Ctrl+C)",
 	"toolbar.cycles": "Highlight circular dependencies",
 	"toolbar.impact": "Impact analysis - show dependents (Ctrl+E)",
+	"toolbar.inheritance": "Inheritance hierarchy - show extend/implement (Ctrl+H)",
 	"toolbar.minimap": "Toggle mini-map (Ctrl+M)",
 	"toolbar.legend": "Toggle legend",
 	"toolbar.refresh": "Refresh graph",
@@ -43096,6 +43214,7 @@ const en = {
 	"shortcut.closeAll": "Close all panels",
 	"shortcut.callChain": "Toggle call chain",
 	"shortcut.impact": "Toggle impact analysis",
+	"shortcut.inheritance": "Toggle inheritance hierarchy",
 	"shortcut.minimap": "Toggle mini-map",
 	"shortcut.layout": "Cycle layout",
 	"shortcut.import": "Toggle import panel",
@@ -43113,6 +43232,7 @@ const zh = {
 	"toolbar.chain": "切换调用链高亮 (Ctrl+C)",
 	"toolbar.cycles": "高亮循环依赖",
 	"toolbar.impact": "影响分析 - 显示依赖者 (Ctrl+E)",
+	"toolbar.inheritance": "继承层次 - 显示继承/实现关系 (Ctrl+H)",
 	"toolbar.minimap": "切换缩略图 (Ctrl+M)",
 	"toolbar.legend": "切换图例",
 	"toolbar.refresh": "刷新图谱",
@@ -43261,6 +43381,7 @@ const zh = {
 	"shortcut.closeAll": "关闭所有面板",
 	"shortcut.callChain": "切换调用链",
 	"shortcut.impact": "切换影响分析",
+	"shortcut.inheritance": "切换继承层次",
 	"shortcut.minimap": "切换缩略图",
 	"shortcut.layout": "循环切换布局",
 	"shortcut.import": "切换导入面板",
@@ -43558,6 +43679,34 @@ const CopyIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react
 		height: "13",
 		rx: "2"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" })]
+});
+const TreeIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+	...base(size$1),
+	className,
+	children: [
+		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
+			x: "9",
+			y: "2",
+			width: "6",
+			height: "4",
+			rx: "1"
+		}),
+		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
+			x: "2",
+			y: "18",
+			width: "6",
+			height: "4",
+			rx: "1"
+		}),
+		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
+			x: "16",
+			y: "18",
+			width: "6",
+			height: "4",
+			rx: "1"
+		}),
+		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 6v4M12 10H5v4M12 10h7v4M5 14v4M19 14v4" })
+	]
 });
 
 //#endregion
@@ -44289,7 +44438,7 @@ function Toolbar(props) {
 		props.onExport(format);
 		setShowExportMenu(false);
 	}, [props]);
-	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterLevel, showSearch, showCallChain, showCycles, showImpact, showMiniMap, showLegend, showImport, collapsed, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleMiniMap, onToggleLegend, onToggleImport, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll } = props;
+	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterLevel, showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport, collapsed, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll } = props;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "graph-toolbar",
 		children: [
@@ -44432,6 +44581,14 @@ function Toolbar(props) {
 								"aria-label": t$1("toolbar.impact"),
 								"aria-pressed": showImpact,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ZapIcon, { size: 15 })
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `inheritance-btn ${showInheritance ? "active" : ""}`,
+								onClick: onToggleInheritance,
+								title: t$1("toolbar.inheritance"),
+								"aria-label": t$1("toolbar.inheritance"),
+								"aria-pressed": showInheritance,
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TreeIcon, { size: 15 })
 							})
 						]
 					}),
@@ -45160,6 +45317,10 @@ const SHORTCUTS = [
 		descKey: "shortcut.impact"
 	},
 	{
+		key: "Ctrl+H",
+		descKey: "shortcut.inheritance"
+	},
+	{
 		key: "Ctrl+M",
 		descKey: "shortcut.minimap"
 	},
@@ -45317,7 +45478,7 @@ function GraphPanelInner({ className = "" }) {
 		});
 	}, []);
 	const handleNodeHoverOut = (0, react.useCallback)(() => setTooltip(null), []);
-	const renderer$1 = useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact, {
+	const renderer$1 = useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact, panel.showInheritance, {
 		onNodeTap: handleNodeTap,
 		onNodeDoubleTap: handleNodeDoubleTap,
 		onNodeHover: handleNodeHover,
@@ -45353,6 +45514,7 @@ function GraphPanelInner({ className = "" }) {
 			panel.setShowCallChain(false);
 			panel.setShowCycles(false);
 			panel.setShowImpact(false);
+			panel.setShowInheritance(false);
 			panel.setShowImport(false);
 			panel.setShowLegend(false);
 			setTooltip(null);
@@ -45360,6 +45522,7 @@ function GraphPanelInner({ className = "" }) {
 		},
 		onToggleCallChain: panel.toggleCallChain,
 		onToggleImpact: panel.toggleImpact,
+		onToggleInheritance: panel.toggleInheritance,
 		onToggleMiniMap: panel.toggleMiniMap,
 		onCycleLayout: () => {},
 		onToggleImport: panel.toggleImport,
@@ -45456,6 +45619,7 @@ function GraphPanelInner({ className = "" }) {
 				showCallChain: panel.showCallChain,
 				showCycles: panel.showCycles,
 				showImpact: panel.showImpact,
+				showInheritance: panel.showInheritance,
 				showMiniMap: panel.showMiniMap,
 				showLegend: panel.showLegend,
 				showImport: panel.showImport,
@@ -45469,6 +45633,7 @@ function GraphPanelInner({ className = "" }) {
 				onToggleCallChain: panel.toggleCallChain,
 				onToggleCycles: panel.toggleCycles,
 				onToggleImpact: panel.toggleImpact,
+				onToggleInheritance: panel.toggleInheritance,
 				onToggleMiniMap: panel.toggleMiniMap,
 				onToggleLegend: panel.toggleLegend,
 				onToggleImport: panel.toggleImport,

@@ -146,7 +146,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const renderer = useGraphRenderer(
     nodes, edges, layout, theme,
     highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel,
-    debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact,
+    debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact, panel.showInheritance,
     { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut },
     showCallChainRef,
   );
@@ -178,11 +178,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     onToggleSearch: panel.toggleSearch,
     onCloseAll: () => {
       panel.setShowSearch(false); panel.setShowCallChain(false); panel.setShowCycles(false);
-      panel.setShowImpact(false); panel.setShowImport(false); panel.setShowLegend(false);
+      panel.setShowImpact(false); panel.setShowInheritance(false); panel.setShowImport(false); panel.setShowLegend(false);
       setTooltip(null); setShowHelp(false);
     },
     onToggleCallChain: panel.toggleCallChain,
     onToggleImpact: panel.toggleImpact,
+    onToggleInheritance: panel.toggleInheritance,
     onToggleMiniMap: panel.toggleMiniMap,
     onCycleLayout: () => {},
     onToggleImport: panel.toggleImport,
@@ -265,6 +266,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         showCallChain={panel.showCallChain}
         showCycles={panel.showCycles}
         showImpact={panel.showImpact}
+        showInheritance={panel.showInheritance}
         showMiniMap={panel.showMiniMap}
         showLegend={panel.showLegend}
         showImport={panel.showImport}
@@ -278,6 +280,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         onToggleCallChain={panel.toggleCallChain}
         onToggleCycles={panel.toggleCycles}
         onToggleImpact={panel.toggleImpact}
+        onToggleInheritance={panel.toggleInheritance}
         onToggleMiniMap={panel.toggleMiniMap}
         onToggleLegend={panel.toggleLegend}
         onToggleImport={panel.toggleImport}

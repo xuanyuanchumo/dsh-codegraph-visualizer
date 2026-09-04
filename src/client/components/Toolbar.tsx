@@ -7,7 +7,7 @@ import { WorkspaceSelector } from './WorkspaceSelector.tsx';
 import {
   SearchIcon, ChainIcon, CycleIcon, MapIcon, RefreshIcon,
   SunIcon, MoonIcon, DownloadIcon, ChevronDownIcon, ChevronUpIcon,
-  UploadIcon, LayersIcon, ZapIcon,
+  UploadIcon, LayersIcon, ZapIcon, TreeIcon,
 } from './Icons.tsx';
 
 const LAYOUTS: LayoutType[] = ['cose', 'dagre', 'circle', 'grid'];
@@ -44,6 +44,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   showCallChain: boolean;
   showCycles: boolean;
   showImpact: boolean;
+  showInheritance: boolean;
   showMiniMap: boolean;
   showLegend: boolean;
   showImport: boolean;
@@ -57,6 +58,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   onToggleCallChain: () => void;
   onToggleCycles: () => void;
   onToggleImpact: () => void;
+  onToggleInheritance: () => void;
   onToggleMiniMap: () => void;
   onToggleLegend: () => void;
   onToggleImport: () => void;
@@ -90,9 +92,9 @@ export function Toolbar(props: ToolbarProps) {
 
   const {
     statsText, typeCounts, layout, theme, filterType, graphType, clusterLevel,
-    showSearch, showCallChain, showCycles, showImpact, showMiniMap, showLegend, showImport, collapsed,
+    showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport, collapsed,
     onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange,
-    onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleMiniMap, onToggleLegend,
+    onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend,
     onToggleImport, onRefresh, onCollapse,
     currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
     onCollapseAll,
@@ -174,6 +176,8 @@ export function Toolbar(props: ToolbarProps) {
             title={t('toolbar.cycles')} aria-label={t('toolbar.cycles')} aria-pressed={showCycles}><CycleIcon size={15} /></button>
           <button className={`impact-btn ${showImpact ? 'active' : ''}`} onClick={onToggleImpact}
             title={t('toolbar.impact')} aria-label={t('toolbar.impact')} aria-pressed={showImpact}><ZapIcon size={15} /></button>
+          <button className={`inheritance-btn ${showInheritance ? 'active' : ''}`} onClick={onToggleInheritance}
+            title={t('toolbar.inheritance')} aria-label={t('toolbar.inheritance')} aria-pressed={showInheritance}><TreeIcon size={15} /></button>
         </div>
 
         <span className="toolbar-separator" aria-hidden="true" />

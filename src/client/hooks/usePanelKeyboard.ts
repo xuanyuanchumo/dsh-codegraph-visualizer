@@ -8,6 +8,7 @@ export interface PanelKeyboardHandlers {
   onCloseAll: () => void;
   onToggleCallChain: () => void;
   onToggleImpact: () => void;
+  onToggleInheritance: () => void;
   onToggleMiniMap: () => void;
   onCycleLayout: () => void;
   onToggleImport: () => void;
@@ -36,6 +37,7 @@ export function usePanelKeyboard(
   });
   useKeyboardShortcut('c', () => handlersRef.current.onToggleCallChain(), { ctrl: true });
   useKeyboardShortcut('e', () => handlersRef.current.onToggleImpact(), { ctrl: true });
+  useKeyboardShortcut('h', () => handlersRef.current.onToggleInheritance(), { ctrl: true });
   useKeyboardShortcut('m', () => handlersRef.current.onToggleMiniMap(), { ctrl: true });
   useKeyboardShortcut('l', () => {
     const cur = layoutRef.current;
