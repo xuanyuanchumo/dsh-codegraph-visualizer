@@ -1,9 +1,9 @@
-import { spawnSync } from "node:child_process";
-import { existsSync, watch } from "node:fs";
-import { isAbsolute, join, normalize } from "node:path";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { createRequire } from "node:module";
 import "@deepseek-ai/cordis";
+import { existsSync, watch } from "node:fs";
+import { isAbsolute, join, normalize } from "node:path";
+import { spawnSync } from "node:child_process";
 
 //#region node_modules/.pnpm/@deepseek-ai+cosmokit@1.8.2/node_modules/@deepseek-ai/cosmokit/lib/index.js
 /** Return true when a value is `null` or `undefined`. */
@@ -958,7 +958,7 @@ function scoped(scope) {
 
 //#endregion
 //#region src/adapters/CodeGraphAdapter.ts
-const log$3 = scoped("codegraph-adapter");
+const log$6 = scoped("codegraph-adapter");
 const require = createRequire(import.meta.url);
 const NODE_KIND_MAP = {
 	function: "function",
@@ -1014,7 +1014,7 @@ function readGraphFromDb(dbPath) {
 			db.close();
 		}
 	} catch (e) {
-		log$3.warn("readGraphFromDb failed", e);
+		log$6.warn("readGraphFromDb failed", e);
 		return null;
 	}
 }
@@ -1106,7 +1106,7 @@ var CodeGraphAdapter = class {
 
 //#endregion
 //#region src/adapters/LensAdapter.ts
-const log$2 = scoped("lens-adapter");
+const log$5 = scoped("lens-adapter");
 var LensAdapter = class {
 	source = "lens";
 	async fetchData(repoId, invoke) {
@@ -1149,7 +1149,7 @@ var LensAdapter = class {
 			};
 		} catch (e) {
 			const errorMsg = e instanceof Error ? e.message : String(e);
-			log$2.warn("Lens fetchData failed — lens is optional, returning empty", e);
+			log$5.warn("Lens fetchData failed — lens is optional, returning empty", e);
 			return {
 				nodes: [],
 				edges: [],
@@ -1257,7 +1257,7 @@ var GraphDataMerger = class {
 
 //#endregion
 //#region src/tools.ts
-const log$1 = scoped("tools");
+const log$4 = scoped("tools");
 const codegraphAdapter = new CodeGraphAdapter();
 const lensAdapter = new LensAdapter();
 const merger = new GraphDataMerger();
@@ -1298,7 +1298,7 @@ function normalizeImpact(raw) {
 	if (typeof raw === "string") try {
 		raw = JSON.parse(raw);
 	} catch {
-		log$1.warn("normalizeImpact: JSON.parse failed");
+		log$4.warn("normalizeImpact: JSON.parse failed");
 		return null;
 	}
 	if (!raw || typeof raw !== "object") return null;
@@ -1319,7 +1319,7 @@ function pickBestMatch(raw, symbolId) {
 	if (typeof payload === "string") try {
 		payload = JSON.parse(payload);
 	} catch {
-		log$1.warn("normalizeCallers: JSON.parse failed");
+		log$4.warn("normalizeCallers: JSON.parse failed");
 		return null;
 	}
 	const items = Array.isArray(payload) ? payload : payload?.results ?? payload?.nodes;
@@ -1351,7 +1351,7 @@ function createInvoke(ctx, requestTimeout = 5e3) {
 			if (result.isError) return null;
 			return result.value ?? null;
 		} catch (e) {
-			log$1.warn("createInvoke: tool execution failed", {
+			log$4.warn("createInvoke: tool execution failed", {
 				tool,
 				error: e
 			});
@@ -1542,15 +1542,7 @@ const createGraphTools = (ctx, options = {}) => {
 const PLUGIN_VERSION = "0.1.0";
 
 //#endregion
-//#region src/index.ts
-const log = scoped("host");
-const name = "dsh-codegraph-visualizer";
-const inject = [
-	"tools",
-	"webServer",
-	"sessions",
-	"workspaceRegistry"
-];
+//#region src/host/config.ts
 const DEFAULT_CONFIG = {
 	dataSource: "auto",
 	requestTimeout: 5e3,
@@ -1561,7 +1553,6 @@ const DEFAULT_CONFIG = {
 	watchDebounce: 500,
 	maxNodes: 1e4
 };
-/** Merge user config over defaults and reject invalid values at load time. */
 function resolveConfig(userConfig) {
 	const config = {
 		...DEFAULT_CONFIG,
@@ -1582,6 +1573,9 @@ function resolveConfig(userConfig) {
 	if (errors.length > 0) throw new Error(`[dsh-codegraph-visualizer] invalid config: ${errors.join("; ")}`);
 	return config;
 }
+
+//#endregion
+//#region src/host/security.ts
 let allowedWorkspaceRoots = [];
 function setAllowedWorkspaceRoots(roots) {
 	allowedWorkspaceRoots = roots.map((r) => normalize(r));
@@ -1594,9 +1588,10 @@ function isPathAllowed(path) {
 	if (allowedWorkspaceRoots.length === 0) return false;
 	return allowedWorkspaceRoots.some((root) => normalized === root || normalized.startsWith(root + "\\") || normalized.startsWith(root + "/"));
 }
-let watchTimer = null;
-let activeWatcher = null;
-/** Detect the codegraph CLI on PATH (cheap, cached per apply). */
+
+//#endregion
+//#region src/host/prerequisites.ts
+const log$3 = scoped("host");
 function detectCodegraphCli() {
 	try {
 		const cmd = process.platform === "win32" ? "codegraph.cmd" : "codegraph";
@@ -1607,7 +1602,7 @@ function detectCodegraphCli() {
 		});
 		return r.status === 0;
 	} catch (e) {
-		log.warn("detectCodegraphCli failed", e);
+		log$3.warn("detectCodegraphCli failed", e);
 		return false;
 	}
 }
@@ -1620,7 +1615,7 @@ function checkPrerequisites(ctx) {
 			lens: !!lens
 		};
 	} catch (e) {
-		log.warn("checkPrerequisites failed", e);
+		log$3.warn("checkPrerequisites failed", e);
 		return {
 			codegraph: detectCodegraphCli(),
 			lens: false
@@ -1636,7 +1631,7 @@ function extractWorkspacePaths(ctx) {
 			if (paths.length > 0) return paths;
 		}
 	} catch (e) {
-		log.warn("extractWorkspacePaths: workspaceRegistry failed", e);
+		log$3.warn("extractWorkspacePaths: workspaceRegistry failed", e);
 	}
 	try {
 		const sessions = ctx.sessions;
@@ -1654,63 +1649,72 @@ function extractWorkspacePaths(ctx) {
 			if (paths.length > 0) return paths;
 		}
 	} catch (e) {
-		log.warn("extractWorkspacePaths: sessions failed", e);
+		log$3.warn("extractWorkspacePaths: sessions failed", e);
 	}
 	return [process.cwd()];
 }
-function apply(ctx, userConfig) {
-	const config = resolveConfig(userConfig);
-	setAllowedWorkspaceRoots(extractWorkspacePaths(ctx));
-	const { graphStatus, graphData, graphSymbol, graphImpact } = createGraphTools(ctx, { requestTimeout: config.requestTimeout });
-	ctx.effect(() => {
-		const d1 = ctx.tools.register(graphStatus);
-		const d2 = ctx.tools.register(graphData);
-		const d3 = ctx.tools.register(graphSymbol);
-		const d4 = ctx.tools.register(graphImpact);
-		return () => {
-			d1();
-			d2();
-			d3();
-			d4();
-		};
-	}, "codegraph: tool registrations");
-	let lastGraphData = null;
-	let lastInitResult = null;
-	let scanInFlight = null;
-	const scanCache = new Map();
-	function slimGraphData(data) {
-		const cap = config.maxNodes;
-		const truncated = data.nodes.length > cap;
-		const slimNodes = (truncated ? data.nodes.slice(0, cap) : data.nodes).map((n) => ({
-			id: n.id,
-			label: n.label,
-			type: n.type,
-			filePath: n.filePath,
-			lineNumber: n.lineNumber,
-			properties: n.properties?.exported === true ? { exported: true } : {}
-		}));
-		const allowedIds = new Set(slimNodes.map((n) => n.id));
-		const slimEdges = data.edges.filter((e) => allowedIds.has(e.source) && allowedIds.has(e.target)).map((e) => ({
-			id: e.id,
-			source: e.source,
-			target: e.target,
-			type: e.type,
-			properties: {}
-		}));
-		return {
-			nodes: slimNodes,
-			edges: slimEdges,
-			metadata: {
-				...data.metadata,
-				truncated,
-				nodeCount: slimNodes.length,
-				edgeCount: slimEdges.length,
-				totalNodeCount: data.metadata.totalNodeCount ?? data.nodes.length,
-				totalEdgeCount: data.metadata.totalEdgeCount ?? data.edges.length
-			}
-		};
+function findWorkspacePath(ctx) {
+	try {
+		const wsr = ctx.workspaceRegistry;
+		if (wsr?.list) {
+			const workspaces = wsr.list();
+			if (workspaces.length > 0 && workspaces[0]?.path) return workspaces[0].path;
+		}
+	} catch (e) {
+		log$3.warn("findWorkspacePath: workspaceRegistry failed", e);
 	}
-	const invokeUpstream = async (tool, args) => {
+	try {
+		const sessions = ctx.sessions;
+		if (sessions?.list) {
+			const all = sessions.list();
+			for (const session of all) {
+				const cwd = session?.header?.cwd;
+				if (cwd) return cwd;
+			}
+		}
+	} catch (e) {
+		log$3.warn("findWorkspacePath: sessions failed", e);
+	}
+	return process.cwd();
+}
+
+//#endregion
+//#region src/host/routes.ts
+const log$2 = scoped("host");
+function slimGraphData(data, maxNodes) {
+	const cap = maxNodes;
+	const truncated = data.nodes.length > cap;
+	const slimNodes = (truncated ? data.nodes.slice(0, cap) : data.nodes).map((n) => ({
+		id: n.id,
+		label: n.label,
+		type: n.type,
+		filePath: n.filePath,
+		lineNumber: n.lineNumber,
+		properties: n.properties?.exported === true ? { exported: true } : {}
+	}));
+	const allowedIds = new Set(slimNodes.map((n) => n.id));
+	const slimEdges = data.edges.filter((e) => allowedIds.has(e.source) && allowedIds.has(e.target)).map((e) => ({
+		id: e.id,
+		source: e.source,
+		target: e.target,
+		type: e.type,
+		properties: {}
+	}));
+	return {
+		nodes: slimNodes,
+		edges: slimEdges,
+		metadata: {
+			...data.metadata,
+			truncated,
+			nodeCount: slimNodes.length,
+			edgeCount: slimEdges.length,
+			totalNodeCount: data.metadata.totalNodeCount ?? data.nodes.length,
+			totalEdgeCount: data.metadata.totalEdgeCount ?? data.edges.length
+		}
+	};
+}
+function createInvokeUpstream(ctx, config) {
+	return async (tool, args) => {
 		try {
 			const result = await ctx.tools.execute({
 				callId: CallId(`codegraph:${tool}`),
@@ -1721,20 +1725,24 @@ function apply(ctx, userConfig) {
 			if (result.isError) return null;
 			return result.value ?? null;
 		} catch (e) {
-			log.warn("invokeUpstream failed", {
+			log$2.warn("invokeUpstream failed", {
 				tool,
 				error: e
 			});
 			return null;
 		}
 	};
+}
+function registerService(deps) {
+	const { ctx, config } = deps;
+	const invokeUpstream = createInvokeUpstream(ctx, config);
 	ctx.effect(() => {
 		const service = {
-			getCurrentGraph: () => lastGraphData,
+			getCurrentGraph: () => deps.getLastGraphData(),
 			getGraphData: async (repoId) => {
 				try {
 					const raw = await fetchMergedGraph(invokeUpstream, repoId, "both");
-					return slimGraphData(raw);
+					return slimGraphData(raw, config.maxNodes);
 				} catch {
 					return null;
 				}
@@ -1768,66 +1776,44 @@ function apply(ctx, userConfig) {
 		};
 		return ctx.provide("graphVisualizer", service);
 	}, "codegraph: service registration");
-	const sendJson = (res, code, data) => {
-		res.writeHead(code, { "content-type": "application/json" });
-		res.end(JSON.stringify(data));
-	};
-	const findWorkspacePath = () => {
-		try {
-			const wsr = ctx.workspaceRegistry;
-			if (wsr?.list) {
-				const workspaces = wsr.list();
-				if (workspaces.length > 0 && workspaces[0]?.path) return workspaces[0].path;
+}
+function sendJson(res, code, data) {
+	res.writeHead(code, { "content-type": "application/json" });
+	res.end(JSON.stringify(data));
+}
+function readBody(req, maxBodyBytes) {
+	return new Promise((resolve, reject) => {
+		let body = "";
+		let totalBytes = 0;
+		req.on("data", (chunk) => {
+			if (!chunk) return;
+			totalBytes += chunk.length;
+			if (totalBytes > maxBodyBytes) {
+				reject(new Error("Request body too large"));
+				return;
 			}
-		} catch (e) {
-			log.warn("findWorkspacePath: workspaceRegistry failed", e);
-		}
-		try {
-			const sessions = ctx.sessions;
-			if (sessions?.list) {
-				const all = sessions.list();
-				for (const session of all) {
-					const cwd = session?.header?.cwd;
-					if (cwd) return cwd;
-				}
-			}
-		} catch (e) {
-			log.warn("findWorkspacePath: sessions failed", e);
-		}
-		return process.cwd();
-	};
-	const listWorkspacePaths = () => extractWorkspacePaths(ctx);
-	const MAX_BODY_BYTES = config.maxBodyBytes;
-	const readBody = (req) => {
-		return new Promise((resolve, reject) => {
-			let body = "";
-			let totalBytes = 0;
-			req.on("data", (chunk) => {
-				if (!chunk) return;
-				totalBytes += chunk.length;
-				if (totalBytes > MAX_BODY_BYTES) {
-					reject(new Error("Request body too large"));
-					return;
-				}
-				body += chunk.toString();
-			});
-			req.on("end", () => resolve(body));
-			req.on("error", reject);
+			body += chunk.toString();
 		});
-	};
-	const parseJsonBody = (body) => {
-		const parsed = JSON.parse(body || "{}");
-		if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("Invalid JSON body: expected object");
-		return parsed;
-	};
-	const extractStringField = (obj, field) => {
-		const v = obj[field];
-		return typeof v === "string" ? v : void 0;
-	};
-	const extractBooleanField = (obj, field) => {
-		const v = obj[field];
-		return typeof v === "boolean" ? v : void 0;
-	};
+		req.on("end", () => resolve(body));
+		req.on("error", reject);
+	});
+}
+function parseJsonBody(body) {
+	const parsed = JSON.parse(body || "{}");
+	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("Invalid JSON body: expected object");
+	return parsed;
+}
+function extractStringField(obj, field) {
+	const v = obj[field];
+	return typeof v === "string" ? v : void 0;
+}
+function extractBooleanField(obj, field) {
+	const v = obj[field];
+	return typeof v === "boolean" ? v : void 0;
+}
+function registerRoutes(deps) {
+	const { ctx, config } = deps;
+	const invokeUpstream = createInvokeUpstream(ctx, config);
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
 		path: "/api/codegraph/status",
@@ -1843,8 +1829,8 @@ function apply(ctx, userConfig) {
 		kind: "exact",
 		path: "/api/codegraph/workspace",
 		handler: (_req, res) => {
-			const current = findWorkspacePath();
-			const list = listWorkspacePaths();
+			const current = findWorkspacePath(ctx);
+			const list = extractWorkspacePaths(ctx);
 			sendJson(res, 200, {
 				path: current,
 				list
@@ -1856,6 +1842,7 @@ function apply(ctx, userConfig) {
 		path: "/api/codegraph/data",
 		handler: (req, res) => {
 			const ifNoneMatch = req.headers["if-none-match"];
+			const lastGraphData = deps.getLastGraphData();
 			if (ifNoneMatch && lastGraphData) {
 				const clientTimestamp = parseInt(String(ifNoneMatch), 10);
 				if (clientTimestamp >= lastGraphData.metadata.timestamp) {
@@ -1887,7 +1874,7 @@ function apply(ctx, userConfig) {
 		path: "/api/codegraph/scan",
 		handler: async (req, res) => {
 			try {
-				const body = await readBody(req);
+				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
 				const path = extractStringField(parsed, "path");
 				if (path && path !== "." && !isPathAllowed(path)) {
@@ -1904,31 +1891,34 @@ function apply(ctx, userConfig) {
 					});
 					return;
 				}
-				const scanPath = path && path !== "." ? path : findWorkspacePath();
+				const scanPath = path && path !== "." ? path : findWorkspacePath(ctx);
 				const repoId = scanPath || `workspace-${Date.now()}`;
+				const scanCache = deps.getScanCache();
 				const cached = scanCache.get(scanPath);
 				if (cached && Date.now() - cached.timestamp < config.scanCacheTtl) {
-					lastGraphData = cached.data;
+					deps.setLastGraphData(cached.data);
 					sendJson(res, 200, {
 						success: true,
 						...cached.data
 					});
 					return;
 				}
-				if (scanInFlight) {
-					const data = await scanInFlight;
+				const inFlight = deps.getScanInFlight();
+				if (inFlight) {
+					const data = await inFlight;
 					sendJson(res, 200, {
 						success: true,
 						...data
 					});
 					return;
 				}
-				scanInFlight = fetchMergedGraph(invokeUpstream, repoId, "both");
+				const scanPromise = fetchMergedGraph(invokeUpstream, repoId, "both");
+				deps.setScanInFlight(scanPromise);
 				try {
-					const raw = await scanInFlight;
-					scanInFlight = null;
-					const data = slimGraphData(raw);
-					lastGraphData = data;
+					const raw = await scanPromise;
+					deps.setScanInFlight(null);
+					const data = slimGraphData(raw, config.maxNodes);
+					deps.setLastGraphData(data);
 					scanCache.set(scanPath, {
 						data,
 						timestamp: Date.now()
@@ -1949,7 +1939,7 @@ function apply(ctx, userConfig) {
 						edges: data.edges,
 						timestamp: data.metadata.timestamp
 					});
-					log.info("scan completed", {
+					log$2.info("scan completed", {
 						repoId,
 						nodes: data.metadata.nodeCount,
 						edges: data.metadata.edgeCount
@@ -1959,11 +1949,11 @@ function apply(ctx, userConfig) {
 						...data
 					});
 				} catch (e) {
-					scanInFlight = null;
+					deps.setScanInFlight(null);
 					throw e;
 				}
 			} catch (e) {
-				log.error("scan failed", e);
+				log$2.error("scan failed", e);
 				sendJson(res, 500, {
 					success: false,
 					nodes: [],
@@ -1983,7 +1973,7 @@ function apply(ctx, userConfig) {
 		path: "/api/codegraph/init",
 		handler: async (req, res) => {
 			try {
-				const body = await readBody(req);
+				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
 				const path = extractStringField(parsed, "path");
 				if (path && path !== "." && !isPathAllowed(path)) {
@@ -1995,24 +1985,25 @@ function apply(ctx, userConfig) {
 					});
 					return;
 				}
-				const initPath = path && path !== "." ? path : findWorkspacePath();
-				log.info("init requested", { path: initPath });
+				const initPath = path && path !== "." ? path : findWorkspacePath(ctx);
+				log$2.info("init requested", { path: initPath });
 				const result = await invokeUpstream("codegraph_init", {
 					path: initPath,
 					force: true
 				});
 				const success = result !== null;
-				lastInitResult = {
+				const initResult = {
 					success,
 					path: initPath,
 					message: success ? "Graph initialized successfully" : "Initialization failed — is dsh-codegraph installed?",
 					timestamp: Date.now()
 				};
-				ctx.emit("codegraph/graph/init-result", lastInitResult);
+				deps.setLastInitResult(initResult);
+				ctx.emit("codegraph/graph/init-result", initResult);
 				if (success) {
 					const repoId = initPath || `workspace-${Date.now()}`;
 					const data = await fetchMergedGraph(invokeUpstream, repoId, "both");
-					lastGraphData = data;
+					deps.setLastGraphData(data);
 					ctx.emit("codegraph/graph/data", {
 						repoId,
 						nodes: data.nodes,
@@ -2020,7 +2011,7 @@ function apply(ctx, userConfig) {
 						timestamp: data.metadata.timestamp
 					});
 				}
-				sendJson(res, 200, lastInitResult);
+				sendJson(res, 200, initResult);
 			} catch (e) {
 				const errorResult = {
 					success: false,
@@ -2028,7 +2019,7 @@ function apply(ctx, userConfig) {
 					message: e instanceof Error ? e.message : String(e),
 					timestamp: Date.now()
 				};
-				lastInitResult = errorResult;
+				deps.setLastInitResult(errorResult);
 				sendJson(res, 500, errorResult);
 			}
 		}
@@ -2038,7 +2029,7 @@ function apply(ctx, userConfig) {
 		path: "/api/codegraph/watch",
 		handler: async (req, res) => {
 			try {
-				const body = await readBody(req);
+				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
 				const enabled = extractBooleanField(parsed, "enabled");
 				const path = extractStringField(parsed, "path");
@@ -2049,7 +2040,7 @@ function apply(ctx, userConfig) {
 					});
 					return;
 				}
-				const watchPath = path && path !== "." ? path : findWorkspacePath();
+				const watchPath = path && path !== "." ? path : findWorkspacePath(ctx);
 				ctx.emit("codegraph/watch/toggle", {
 					enabled: !!enabled,
 					path: watchPath,
@@ -2064,21 +2055,109 @@ function apply(ctx, userConfig) {
 			}
 		}
 	}), "codegraph: watch route");
-	const emitPrereqStatus = () => {
-		const status = checkPrerequisites(ctx);
-		ctx.emit("codegraph/prerequisite/status", {
-			codegraph: status.codegraph,
-			lens: status.lens,
-			timestamp: Date.now()
-		});
-		log.info("prerequisite status", status);
+}
+
+//#endregion
+//#region src/host/watcher.ts
+const log$1 = scoped("host");
+let watchTimer = null;
+let activeWatcher = null;
+function closeActiveWatcher() {
+	if (activeWatcher) {
+		try {
+			activeWatcher.close();
+		} catch {}
+		activeWatcher = null;
+	}
+	if (watchTimer) {
+		clearTimeout(watchTimer);
+		watchTimer = null;
+	}
+}
+function registerWatcher(ctx, config, invokeUpstream) {
+	const scanAndPush = async (path) => {
+		log$1.info("scan requested", { path });
+		try {
+			const repoId = path || `workspace-${Date.now()}`;
+			const data = await fetchMergedGraph(invokeUpstream, repoId, "both");
+			ctx.emit("codegraph/graph/updated", {
+				repoId,
+				nodeCount: data.metadata.nodeCount,
+				edgeCount: data.metadata.edgeCount,
+				timestamp: data.metadata.timestamp
+			});
+			ctx.emit("codegraph/graph/data", {
+				repoId,
+				nodes: data.nodes,
+				edges: data.edges,
+				timestamp: data.metadata.timestamp
+			});
+			log$1.info("scan completed", {
+				repoId,
+				nodes: data.metadata.nodeCount,
+				edges: data.metadata.edgeCount
+			});
+		} catch (e) {
+			log$1.error("scan failed", e);
+		}
 	};
-	emitPrereqStatus();
-	const prereqTimer = setTimeout(emitPrereqStatus, config.prerequisiteRetryDelay);
-	ctx.effect(() => () => clearTimeout(prereqTimer), "codegraph: prereq re-check timer");
-	ctx.effect(() => ctx.on("codegraph/prerequisite/request", () => {
-		emitPrereqStatus();
-	}), "codegraph: prerequisite request listener");
+	ctx.effect(() => {
+		const dispose = ctx.on("codegraph/watch/toggle", (event) => {
+			closeActiveWatcher();
+			if (!event.enabled) {
+				log$1.info("watch disabled");
+				return;
+			}
+			log$1.info("watch enabled", { path: event.path });
+			try {
+				activeWatcher = watch(event.path, { recursive: true }, (_eventType, filename) => {
+					if (filename && filename.includes(".codegraph")) return;
+					if (filename && filename.includes("node_modules")) return;
+					if (filename && filename.includes(".git")) return;
+					if (watchTimer) clearTimeout(watchTimer);
+					watchTimer = setTimeout(() => {
+						watchTimer = null;
+						log$1.info("file changed, syncing + re-scanning", { filename });
+						invokeUpstream("codegraph_sync", { path: event.path }).then(() => scanAndPush(event.path)).catch((e) => log$1.error("watch re-scan failed", e));
+					}, config.watchDebounce);
+				});
+			} catch (e) {
+				log$1.error("watch setup failed", e);
+			}
+		});
+		return () => {
+			dispose();
+			closeActiveWatcher();
+		};
+	}, "codegraph: watch toggle listener");
+}
+function registerEventListeners(ctx, invokeUpstream) {
+	const scanAndPush = async (path) => {
+		log$1.info("scan requested", { path });
+		try {
+			const repoId = path || `workspace-${Date.now()}`;
+			const data = await fetchMergedGraph(invokeUpstream, repoId, "both");
+			ctx.emit("codegraph/graph/updated", {
+				repoId,
+				nodeCount: data.metadata.nodeCount,
+				edgeCount: data.metadata.edgeCount,
+				timestamp: data.metadata.timestamp
+			});
+			ctx.emit("codegraph/graph/data", {
+				repoId,
+				nodes: data.nodes,
+				edges: data.edges,
+				timestamp: data.metadata.timestamp
+			});
+			log$1.info("scan completed", {
+				repoId,
+				nodes: data.metadata.nodeCount,
+				edges: data.metadata.edgeCount
+			});
+		} catch (e) {
+			log$1.error("scan failed", e);
+		}
+	};
 	ctx.effect(() => ctx.on("codegraph/repo/imported", (event) => {
 		ctx.emit("codegraph/graph/updated", {
 			repoId: event.repoId,
@@ -2095,37 +2174,11 @@ function apply(ctx, userConfig) {
 			timestamp: event.timestamp
 		});
 	}), "codegraph: repo scanned listener");
-	const scanAndPush = async (path) => {
-		log.info("scan requested", { path });
-		try {
-			const repoId = path || `workspace-${Date.now()}`;
-			const data = await fetchMergedGraph(invokeUpstream, repoId, "both");
-			ctx.emit("codegraph/graph/updated", {
-				repoId,
-				nodeCount: data.metadata.nodeCount,
-				edgeCount: data.metadata.edgeCount,
-				timestamp: data.metadata.timestamp
-			});
-			ctx.emit("codegraph/graph/data", {
-				repoId,
-				nodes: data.nodes,
-				edges: data.edges,
-				timestamp: data.metadata.timestamp
-			});
-			log.info("scan completed", {
-				repoId,
-				nodes: data.metadata.nodeCount,
-				edges: data.metadata.edgeCount
-			});
-		} catch (e) {
-			log.error("scan failed", e);
-		}
-	};
 	ctx.effect(() => ctx.on("codegraph/repo/request-scan", async (event) => {
 		await scanAndPush(event.path);
 	}), "codegraph: repo request-scan listener");
 	ctx.effect(() => ctx.on("codegraph/graph/init", async (event) => {
-		log.info("init requested", { path: event.path });
+		log$1.info("init requested", { path: event.path });
 		try {
 			const result = await invokeUpstream("codegraph_init", {
 				path: event.path,
@@ -2148,47 +2201,75 @@ function apply(ctx, userConfig) {
 			});
 		}
 	}), "codegraph: graph init listener");
-	const closeActiveWatcher = () => {
-		if (activeWatcher) {
-			try {
-				activeWatcher.close();
-			} catch {}
-			activeWatcher = null;
-		}
-		if (watchTimer) {
-			clearTimeout(watchTimer);
-			watchTimer = null;
+}
+
+//#endregion
+//#region src/index.ts
+const log = scoped("host");
+const name = "dsh-codegraph-visualizer";
+const inject = [
+	"tools",
+	"webServer",
+	"sessions",
+	"workspaceRegistry"
+];
+function apply(ctx, userConfig) {
+	const config = resolveConfig(userConfig);
+	setAllowedWorkspaceRoots(extractWorkspacePaths(ctx));
+	const { graphStatus, graphData, graphSymbol, graphImpact } = createGraphTools(ctx, { requestTimeout: config.requestTimeout });
+	ctx.effect(() => {
+		const d1 = ctx.tools.register(graphStatus);
+		const d2 = ctx.tools.register(graphData);
+		const d3 = ctx.tools.register(graphSymbol);
+		const d4 = ctx.tools.register(graphImpact);
+		return () => {
+			d1();
+			d2();
+			d3();
+			d4();
+		};
+	}, "codegraph: tool registrations");
+	let lastGraphData = null;
+	let lastInitResult = null;
+	let scanInFlight = null;
+	const scanCache = new Map();
+	const routeDeps = {
+		ctx,
+		config,
+		getLastGraphData: () => lastGraphData,
+		setLastGraphData: (data) => {
+			lastGraphData = data;
+		},
+		getLastInitResult: () => lastInitResult,
+		setLastInitResult: (data) => {
+			lastInitResult = data;
+		},
+		getScanCache: () => scanCache,
+		getScanInFlight: () => scanInFlight,
+		setScanInFlight: (p) => {
+			scanInFlight = p;
 		}
 	};
-	ctx.effect(() => {
-		const dispose = ctx.on("codegraph/watch/toggle", (event) => {
-			closeActiveWatcher();
-			if (!event.enabled) {
-				log.info("watch disabled");
-				return;
-			}
-			log.info("watch enabled", { path: event.path });
-			try {
-				activeWatcher = watch(event.path, { recursive: true }, (_eventType, filename) => {
-					if (filename && filename.includes(".codegraph")) return;
-					if (filename && filename.includes("node_modules")) return;
-					if (filename && filename.includes(".git")) return;
-					if (watchTimer) clearTimeout(watchTimer);
-					watchTimer = setTimeout(() => {
-						watchTimer = null;
-						log.info("file changed, syncing + re-scanning", { filename });
-						invokeUpstream("codegraph_sync", { path: event.path }).then(() => scanAndPush(event.path)).catch((e) => log.error("watch re-scan failed", e));
-					}, config.watchDebounce);
-				});
-			} catch (e) {
-				log.error("watch setup failed", e);
-			}
+	registerService(routeDeps);
+	registerRoutes(routeDeps);
+	const invokeUpstream = createInvokeUpstream(ctx, config);
+	const emitPrereqStatus = () => {
+		const status = checkPrerequisites(ctx);
+		ctx.emit("codegraph/prerequisite/status", {
+			codegraph: status.codegraph,
+			lens: status.lens,
+			timestamp: Date.now()
 		});
-		return () => {
-			dispose();
-			closeActiveWatcher();
-		};
-	}, "codegraph: watch toggle listener");
+		log.info("prerequisite status", status);
+	};
+	emitPrereqStatus();
+	const prereqTimer = setTimeout(emitPrereqStatus, config.prerequisiteRetryDelay);
+	ctx.effect(() => () => clearTimeout(prereqTimer), "codegraph: prereq re-check timer");
+	ctx.effect(() => ctx.on("codegraph/prerequisite/request", () => {
+		emitPrereqStatus();
+	}), "codegraph: prerequisite request listener");
+	registerEventListeners(ctx, invokeUpstream);
+	registerWatcher(ctx, config, invokeUpstream);
 }
 
 //#endregion
