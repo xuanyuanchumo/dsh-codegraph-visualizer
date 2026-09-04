@@ -12,6 +12,8 @@ export interface ThemeColors {
   edgeCall: string;
   edgeImport: string;
   edgeExtend: string;
+  edgeImplement: string;
+  edgeDependency: string;
   text: string;
   border: string;
 }
@@ -35,6 +37,8 @@ export function getThemeColors(theme: ThemeType): ThemeColors {
     edgeCall: readCssVar('--cg-edge-call', isDark ? '#60a5fa' : '#3b82f6'),
     edgeImport: readCssVar('--cg-edge-import', isDark ? '#34d399' : '#10b981'),
     edgeExtend: readCssVar('--cg-edge-extend', isDark ? '#f472b6' : '#ec4899'),
+    edgeImplement: readCssVar('--cg-edge-implement', isDark ? '#2dd4bf' : '#0d9488'),
+    edgeDependency: readCssVar('--cg-edge-dependency', isDark ? '#fbbf24' : '#f59e0b'),
     text: readCssVar('--cg-text', isDark ? '#f9fafb' : '#0f1115'),
     border: readCssVar('--cg-border', isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'),
   };
@@ -137,25 +141,53 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
     {
       selector: 'edge',
       style: {
-        'width': 1,
+        'width': 1.5,
         'line-color': c.edgeDefault,
         'target-arrow-color': c.edgeDefault,
         'target-arrow-shape': 'triangle',
         'curve-style': 'bezier',
-        'opacity': 0.5,
+        'opacity': 0.6,
       },
     },
     {
       selector: 'edge[type="call"]',
-      style: { 'line-color': c.edgeCall, 'target-arrow-color': c.edgeCall },
+      style: {
+        'line-color': c.edgeCall,
+        'target-arrow-color': c.edgeCall,
+        'line-style': 'solid',
+      },
     },
     {
       selector: 'edge[type="import"]',
-      style: { 'line-color': c.edgeImport, 'target-arrow-color': c.edgeImport },
+      style: {
+        'line-color': c.edgeImport,
+        'target-arrow-color': c.edgeImport,
+        'line-style': 'dashed',
+      },
     },
     {
       selector: 'edge[type="extend"]',
-      style: { 'line-color': c.edgeExtend, 'target-arrow-color': c.edgeExtend },
+      style: {
+        'line-color': c.edgeExtend,
+        'target-arrow-color': c.edgeExtend,
+        'line-style': 'solid',
+      },
+    },
+    {
+      selector: 'edge[type="implement"]',
+      style: {
+        'line-color': c.edgeImplement,
+        'target-arrow-color': c.edgeImplement,
+        'line-style': 'dotted',
+      },
+    },
+    {
+      selector: 'edge[type="dependency"]',
+      style: {
+        'line-color': c.edgeDependency,
+        'target-arrow-color': c.edgeDependency,
+        'line-style': 'dashed',
+      },
     },
     {
       selector: '.highlighted',

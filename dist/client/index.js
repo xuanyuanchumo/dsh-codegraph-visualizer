@@ -50,6 +50,8 @@ window.__ModuleLoader__.load({
   --cg-edge-call: #3b82f6;
   --cg-edge-import: #10b981;
   --cg-edge-extend: #ec4899;
+  --cg-edge-implement: #0d9488;
+  --cg-edge-dependency: #f59e0b;
 
   /* Highlight / analysis colors — light theme */
   --cg-hover-border: #1a2230;
@@ -119,6 +121,8 @@ body[data-ds-dark-theme] {
   --cg-edge-call: #60a5fa;
   --cg-edge-import: #34d399;
   --cg-edge-extend: #f472b6;
+  --cg-edge-implement: #2dd4bf;
+  --cg-edge-dependency: #fbbf24;
 
   /* Highlight / analysis colors — dark theme */
   --cg-hover-border: #818cf8;
@@ -41814,6 +41818,8 @@ function getThemeColors(theme) {
 		edgeCall: readCssVar("--cg-edge-call", isDark ? "#60a5fa" : "#3b82f6"),
 		edgeImport: readCssVar("--cg-edge-import", isDark ? "#34d399" : "#10b981"),
 		edgeExtend: readCssVar("--cg-edge-extend", isDark ? "#f472b6" : "#ec4899"),
+		edgeImplement: readCssVar("--cg-edge-implement", isDark ? "#2dd4bf" : "#0d9488"),
+		edgeDependency: readCssVar("--cg-edge-dependency", isDark ? "#fbbf24" : "#f59e0b"),
 		text: readCssVar("--cg-text", isDark ? "#f9fafb" : "#0f1115"),
 		border: readCssVar("--cg-border", isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)")
 	};
@@ -41931,33 +41937,52 @@ function buildStylesheet(theme, nodeCount = 0) {
 		{
 			selector: "edge",
 			style: {
-				"width": 1,
+				"width": 1.5,
 				"line-color": c.edgeDefault,
 				"target-arrow-color": c.edgeDefault,
 				"target-arrow-shape": "triangle",
 				"curve-style": "bezier",
-				"opacity": .5
+				"opacity": .6
 			}
 		},
 		{
 			selector: "edge[type=\"call\"]",
 			style: {
 				"line-color": c.edgeCall,
-				"target-arrow-color": c.edgeCall
+				"target-arrow-color": c.edgeCall,
+				"line-style": "solid"
 			}
 		},
 		{
 			selector: "edge[type=\"import\"]",
 			style: {
 				"line-color": c.edgeImport,
-				"target-arrow-color": c.edgeImport
+				"target-arrow-color": c.edgeImport,
+				"line-style": "dashed"
 			}
 		},
 		{
 			selector: "edge[type=\"extend\"]",
 			style: {
 				"line-color": c.edgeExtend,
-				"target-arrow-color": c.edgeExtend
+				"target-arrow-color": c.edgeExtend,
+				"line-style": "solid"
+			}
+		},
+		{
+			selector: "edge[type=\"implement\"]",
+			style: {
+				"line-color": c.edgeImplement,
+				"target-arrow-color": c.edgeImplement,
+				"line-style": "dotted"
+			}
+		},
+		{
+			selector: "edge[type=\"dependency\"]",
+			style: {
+				"line-color": c.edgeDependency,
+				"target-arrow-color": c.edgeDependency,
+				"line-style": "dashed"
 			}
 		},
 		{
@@ -44452,59 +44477,59 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 const NODE_TYPES = [
 	{
 		type: "function",
-		color: "var(--cg-success)",
+		color: "var(--cg-node-function)",
 		key: "legend.function"
 	},
 	{
 		type: "class",
-		color: "var(--cg-accent)",
+		color: "var(--cg-node-class)",
 		key: "legend.class"
 	},
 	{
 		type: "variable",
-		color: "var(--cg-warning)",
+		color: "var(--cg-node-variable)",
 		key: "legend.variable"
 	},
 	{
 		type: "module",
-		color: "#ec4899",
+		color: "var(--cg-node-module)",
 		key: "legend.module"
 	},
 	{
 		type: "interface",
-		color: "#14b8a6",
+		color: "var(--cg-node-interface)",
 		key: "legend.interface"
-	},
-	{
-		type: "type",
-		color: "#a855f7",
-		key: "legend.type"
 	}
 ];
 const EDGE_TYPES = [
 	{
 		type: "call",
 		style: "solid",
+		color: "var(--cg-edge-call)",
 		key: "legend.call"
 	},
 	{
 		type: "import",
 		style: "dashed",
+		color: "var(--cg-edge-import)",
 		key: "legend.import"
 	},
 	{
 		type: "extend",
 		style: "solid",
+		color: "var(--cg-edge-extend)",
 		key: "legend.extend"
 	},
 	{
 		type: "implement",
 		style: "dotted",
+		color: "var(--cg-edge-implement)",
 		key: "legend.implement"
 	},
 	{
 		type: "dependency",
 		style: "dashed",
+		color: "var(--cg-edge-dependency)",
 		key: "legend.dependency"
 	}
 ];
@@ -44545,7 +44570,10 @@ function Legend({ onClose }) {
 					className: "legend-row",
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 						className: "legend-line",
-						style: { borderTopStyle: e.style }
+						style: {
+							borderTopStyle: e.style,
+							borderTopColor: e.color
+						}
 					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1(e.key) })]
 				}, e.type))]
 			})]

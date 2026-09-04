@@ -38,6 +38,8 @@
   --cg-edge-call: #3b82f6;
   --cg-edge-import: #10b981;
   --cg-edge-extend: #ec4899;
+  --cg-edge-implement: #0d9488;
+  --cg-edge-dependency: #f59e0b;
 
   /* Highlight / analysis colors — light theme */
   --cg-hover-border: #1a2230;
@@ -107,6 +109,8 @@ body[data-ds-dark-theme] {
   --cg-edge-call: #60a5fa;
   --cg-edge-import: #34d399;
   --cg-edge-extend: #f472b6;
+  --cg-edge-implement: #2dd4bf;
+  --cg-edge-dependency: #fbbf24;
 
   /* Highlight / analysis colors — dark theme */
   --cg-hover-border: #818cf8;
