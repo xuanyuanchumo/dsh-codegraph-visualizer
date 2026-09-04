@@ -1683,6 +1683,46 @@ function apply(ctx, userConfig) {
 			return null;
 		}
 	};
+	ctx.effect(() => {
+		const service = {
+			getCurrentGraph: () => lastGraphData,
+			getGraphData: async (repoId) => {
+				try {
+					const raw = await fetchMergedGraph(invokeUpstream, repoId, "both");
+					return slimGraphData(raw);
+				} catch {
+					return null;
+				}
+			},
+			getSymbolDetail: async (symbolId) => {
+				return invokeUpstream("codegraph_query", {
+					search: symbolId,
+					limit: 1
+				});
+			},
+			getImpactAnalysis: async (symbolId) => {
+				return invokeUpstream("codegraph_impact", {
+					symbol: symbolId,
+					depth: 2
+				});
+			},
+			onGraphUpdate: (callback) => {
+				return ctx.on("codegraph/graph/data", (event) => {
+					callback({
+						nodes: event.nodes,
+						edges: event.edges,
+						metadata: {
+							repoId: event.repoId,
+							timestamp: event.timestamp,
+							nodeCount: event.nodes.length,
+							edgeCount: event.edges.length
+						}
+					});
+				});
+			}
+		};
+		return ctx.provide("graphVisualizer", service);
+	}, "codegraph: service registration");
 	const sendJson = (res, code, data) => {
 		res.writeHead(code, { "content-type": "application/json" });
 		res.end(JSON.stringify(data));

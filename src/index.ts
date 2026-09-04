@@ -7,7 +7,7 @@ import { normalize, isAbsolute } from 'node:path';
 import { createGraphTools, fetchMergedGraph } from './tools.ts';
 import { CallId } from '@deepseek-ai/dsh-llm';
 import { scoped } from './shared/Logger.ts';
-import type { GraphData, GraphNode, GraphEdge, IncomingMessage, ServerResponse } from './types/index.ts';
+import type { GraphData, GraphNode, GraphEdge, IncomingMessage, ServerResponse, IGraphVisualizerService } from './types/index.ts';
 import { PLUGIN_VERSION } from './generated/version.ts';
 
 export { PLUGIN_VERSION };
@@ -138,6 +138,7 @@ export function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
     return () => { d1(); d2(); d3(); d4(); };
   }, 'codegraph: tool registrations');
 
+
   // ── HTTP routes for Host-Client communication ──────────────────────
   // The client (browser) communicates with the Host via HTTP fetch()
   // calls to these routes, registered on the DSH webServer.
@@ -190,6 +191,39 @@ export function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
       return null;
     }
   };
+
+  ctx.effect(() => {
+    const service: IGraphVisualizerService = {
+      getCurrentGraph: () => lastGraphData,
+      getGraphData: async (repoId: string) => {
+        try {
+          const raw = await fetchMergedGraph(invokeUpstream, repoId, 'both');
+          return slimGraphData(raw);
+        } catch { return null; }
+      },
+      getSymbolDetail: async (symbolId: string) => {
+        return invokeUpstream('codegraph_query', { search: symbolId, limit: 1 });
+      },
+      getImpactAnalysis: async (symbolId: string) => {
+        return invokeUpstream('codegraph_impact', { symbol: symbolId, depth: 2 });
+      },
+      onGraphUpdate: (callback: (data: GraphData) => void) => {
+        return ctx.on('codegraph/graph/data', (event) => {
+          callback({
+            nodes: event.nodes as GraphNode[],
+            edges: event.edges as GraphEdge[],
+            metadata: {
+              repoId: event.repoId as GraphData['metadata']['repoId'],
+              timestamp: event.timestamp,
+              nodeCount: event.nodes.length,
+              edgeCount: event.edges.length,
+            },
+          });
+        });
+      },
+    };
+    return ctx.provide('graphVisualizer', service);
+  }, 'codegraph: service registration');
 
   const sendJson = (res: ServerResponse, code: number, data: unknown) => {
     res.writeHead(code, { 'content-type': 'application/json' });

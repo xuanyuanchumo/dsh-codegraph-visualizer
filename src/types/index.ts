@@ -144,6 +144,15 @@ declare module '@deepseek-ai/cordis' {
 }
 
 // ---- DSH WebServer service (Host-side HTTP route registration) -----------
+
+export interface IGraphVisualizerService {
+  getCurrentGraph(): GraphData | null;
+  getGraphData(repoId: string): Promise<GraphData | null>;
+  getSymbolDetail(symbolId: string): Promise<unknown>;
+  getImpactAnalysis(symbolId: string): Promise<unknown>;
+  onGraphUpdate(callback: (data: GraphData) => void): () => void;
+}
+
 export interface WebServerRoute {
   kind: 'exact' | 'prefix';
   path: string;

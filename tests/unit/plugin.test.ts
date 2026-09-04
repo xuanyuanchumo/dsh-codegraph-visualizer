@@ -34,6 +34,7 @@ type MockCtx = Context & {
   on: ReturnType<typeof vi.fn>;
   emit: ReturnType<typeof vi.fn>;
   effect: ReturnType<typeof vi.fn>;
+  provide: ReturnType<typeof vi.fn>;
   webServer: {
     register: ReturnType<typeof vi.fn>;
   };
@@ -49,6 +50,7 @@ function makeMockCtx(): MockCtx {
     on: vi.fn(),
     emit: vi.fn(),
     effect: vi.fn((fn: () => unknown) => { fn(); return () => {}; }),
+    provide: vi.fn().mockReturnValue(() => {}),
     webServer: {
       register: vi.fn().mockReturnValue(() => {}),
     },
