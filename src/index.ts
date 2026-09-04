@@ -85,12 +85,16 @@ export function resolveConfig(userConfig?: Partial<VisualizerConfig>): Visualize
 
 let allowedWorkspaceRoots: string[] = [];
 
+export function setAllowedWorkspaceRoots(roots: string[]): void {
+  allowedWorkspaceRoots = roots.map(r => normalize(r));
+}
+
 export function isPathAllowed(path: string): boolean {
   if (!path || path === '.') return true;
   const normalized = normalize(path);
   if (!isAbsolute(normalized)) return false;
   if (normalized.includes('..')) return false;
-  if (allowedWorkspaceRoots.length === 0) return true;
+  if (allowedWorkspaceRoots.length === 0) return false;
   return allowedWorkspaceRoots.some((root) => normalized === root || normalized.startsWith(root + '\\') || normalized.startsWith(root + '/'));
 }
 
@@ -124,10 +128,39 @@ function checkPrerequisites(ctx: Context): { codegraph: boolean; lens: boolean }
   }
 }
 
+function extractWorkspacePaths(ctx: Context): string[] {
+  try {
+    const wsr = (ctx as unknown as ContextWithSessions).workspaceRegistry;
+    if (wsr?.list) {
+      const workspaces = wsr.list();
+      const paths = workspaces.map((w) => w.path).filter((p): p is string => !!p);
+      if (paths.length > 0) return paths;
+    }
+  } catch (e) { log.warn('extractWorkspacePaths: workspaceRegistry failed', e); }
+  try {
+    const sessions = (ctx as unknown as ContextWithSessions).sessions;
+    if (sessions?.list) {
+      const all = sessions.list();
+      const seen = new Set<string>();
+      const paths: string[] = [];
+      for (const session of all) {
+        const cwd = session?.header?.cwd;
+        if (cwd && !seen.has(cwd)) {
+          seen.add(cwd);
+          paths.push(cwd);
+        }
+      }
+      if (paths.length > 0) return paths;
+    }
+  } catch (e) { log.warn('extractWorkspacePaths: sessions failed', e); }
+  return [process.cwd()];
+}
+
 export function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
   // Red line 9: explicit config — deployment-varying tunables are validated
   // Config fields, changeable from cordis.yml; misconfiguration fails loud.
   const config = resolveConfig(userConfig);
+  setAllowedWorkspaceRoots(extractWorkspacePaths(ctx));
   const { graphStatus, graphData, graphSymbol, graphImpact } = createGraphTools(ctx, { requestTimeout: config.requestTimeout });
 
   ctx.effect(() => {
@@ -265,33 +298,7 @@ export function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
     return process.cwd();
   };
 
-  const listWorkspacePaths = (): string[] => {
-    try {
-      const wsr = (ctx as unknown as ContextWithSessions).workspaceRegistry;
-      if (wsr?.list) {
-        const workspaces = wsr.list();
-        const paths = workspaces.map((w) => w.path).filter((p): p is string => !!p);
-        if (paths.length > 0) return paths;
-      }
-    } catch (e) { log.warn('listWorkspacePaths: workspaceRegistry failed', e); }
-    try {
-      const sessions = (ctx as unknown as ContextWithSessions).sessions;
-      if (sessions?.list) {
-        const all = sessions.list();
-        const seen = new Set<string>();
-        const paths: string[] = [];
-        for (const session of all) {
-          const cwd = session?.header?.cwd;
-          if (cwd && !seen.has(cwd)) {
-            seen.add(cwd);
-            paths.push(cwd);
-          }
-        }
-        if (paths.length > 0) return paths;
-      }
-    } catch (e) { log.warn('listWorkspacePaths: sessions failed', e); }
-    return [process.cwd()];
-  };
+  const listWorkspacePaths = (): string[] => extractWorkspacePaths(ctx);
 
 
   const MAX_BODY_BYTES = config.maxBodyBytes;
