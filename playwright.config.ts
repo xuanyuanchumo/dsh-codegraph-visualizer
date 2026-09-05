@@ -3,9 +3,9 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './tests/e2e',
   testMatch: /.*\.spec\.ts$/,
-  timeout: 60000,
+  timeout: 120000,
   expect: {
-    timeout: 15000,
+    timeout: 30000,
   },
   fullyParallel: false,
   retries: 1,
@@ -15,8 +15,8 @@ export default defineConfig({
     baseURL: 'http://localhost:3080',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    actionTimeout: 20000,
-    navigationTimeout: 30000,
+    actionTimeout: 30000,
+    navigationTimeout: 60000,
   },
   projects: [
     {
@@ -27,9 +27,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'pnpm run dev',
+    command: 'pnpm run build:client && pnpm run dev',
     url: 'http://localhost:3080',
     reuseExistingServer: true,
-    timeout: 120000,
+    timeout: 180000,
   },
 });

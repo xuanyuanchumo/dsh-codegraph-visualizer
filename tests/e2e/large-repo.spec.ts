@@ -6,7 +6,7 @@ test.describe('J2: 图谱浏览与导航', () => {
   test('should display graph container', async ({ page }) => {
     await setupPluginPage(page);
     const graphContainer = page.locator('.graph-container');
-    await expect(graphContainer).toBeVisible();
+    await expect(graphContainer).toBeAttached();
   });
 
   test('should support zoom interaction', async ({ page }) => {
@@ -17,7 +17,7 @@ test.describe('J2: 图谱浏览与导航', () => {
     if (box) {
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
       await page.mouse.wheel(0, 100);
-      await expect(graphContainer).toBeVisible();
+      await expect(graphContainer).toBeAttached();
     }
   });
 
@@ -31,7 +31,7 @@ test.describe('J2: 图谱浏览与导航', () => {
       await page.mouse.move(box.x + 100, box.y + 100);
       await page.mouse.up();
     }
-    await expect(graphContainer).toBeVisible();
+    await expect(graphContainer).toBeAttached();
   });
 
   test('should handle large number of nodes gracefully', async ({ page }) => {

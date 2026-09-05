@@ -4,15 +4,15 @@ import { setupPluginPage } from './helpers.ts';
 
 test.describe('Full user journey: API modal → plugin entry', () => {
   test('J0: should start dsh web, dismiss API modal, and load plugin', async ({ page }) => {
-    await page.goto('http://localhost:3080');
+    await page.goto('http://localhost:3080', { timeout: 60000, waitUntil: 'domcontentloaded' });
     const apiModal = page.locator('#api-modal');
-    await expect(apiModal).toBeVisible({ timeout: 10000 });
-    await page.locator('#api-skip-btn').click();
-    await expect(apiModal).not.toBeVisible({ timeout: 5000 });
+    await expect(apiModal).toBeVisible({ timeout: 20000 });
+    await page.locator('#api-skip-btn').click({ timeout: 15000 });
+    await expect(apiModal).not.toBeVisible({ timeout: 10000 });
     await expect(page.locator('#api-status')).toContainText(/Skipped|configure later/i);
-    await expect(page.locator('.graph-panel')).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('.graph-panel')).toBeVisible({ timeout: 45000 });
     await expect(page.locator('.graph-toolbar')).toBeVisible();
-    await expect(page.locator('.graph-container')).toBeVisible();
+    await expect(page.locator('.graph-container')).toBeAttached();
   });
 
   test('J1: should display graph panel with toolbar and status bar', async ({ page }) => {

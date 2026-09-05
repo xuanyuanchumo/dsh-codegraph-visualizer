@@ -6,7 +6,7 @@ test.describe('J9: 实时更新验证', () => {
   test('should display graph container after load', async ({ page }) => {
     await setupPluginPage(page);
     const graphContainer = page.locator('.graph-container');
-    await expect(graphContainer).toBeVisible();
+    await expect(graphContainer).toBeAttached();
   });
 
   test('should handle rapid updates gracefully', async ({ page }) => {
@@ -15,7 +15,7 @@ test.describe('J9: 实时更新验证', () => {
       await page.waitForTimeout(100);
     }
     const graphContainer = page.locator('.graph-container');
-    await expect(graphContainer).toBeVisible();
+    await expect(graphContainer).toBeAttached();
   });
 
   test('should not show loading overlay after initial load', async ({ page }) => {

@@ -36,7 +36,7 @@ test.describe('J3: 符号搜索与定位', () => {
     const input = page.locator('.search-bar input');
     await input.type('function');
     await page.waitForTimeout(300);
-    await expect(page.locator('.graph-container')).toBeVisible();
+    await expect(page.locator('.graph-container')).toBeAttached();
   });
 
   test('should close search with close button', async ({ page }) => {

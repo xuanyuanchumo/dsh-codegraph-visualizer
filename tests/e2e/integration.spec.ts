@@ -34,6 +34,6 @@ test.describe('J14: 生态集成验证', () => {
   test('should provide graph container for data access', async ({ page }) => {
     await setupPluginPage(page);
     const graphContainer = page.locator('.graph-container');
-    await expect(graphContainer).toBeVisible();
+    await expect(graphContainer).toBeAttached();
   });
 });

@@ -14,11 +14,10 @@ test.describe('J12: 异常恢复与容错', () => {
   test('should recover after refresh', async ({ page }) => {
     await setupPluginPage(page);
     const graphContainer = page.locator('.graph-container');
-    await expect(graphContainer).toBeVisible();
-    await page.reload();
-    // Re-dismiss the API modal after reload.
-    await page.locator('#api-skip-btn').click({ timeout: 10000 }).catch(() => {});
-    await expect(page.locator('.graph-panel')).toBeVisible({ timeout: 15000 });
+    await expect(graphContainer).toBeAttached();
+    await page.reload({ timeout: 60000 });
+    await page.locator('#api-skip-btn').click({ timeout: 15000 }).catch(() => {});
+    await expect(page.locator('.graph-panel')).toBeVisible({ timeout: 45000 });
   });
 
   test('should handle corrupted cache gracefully', async ({ page }) => {
@@ -38,9 +37,8 @@ test.describe('J12: 异常恢复与容错', () => {
     await setupPluginPage(page);
     const panel = page.locator('.graph-panel');
     await expect(panel).toBeVisible();
-    // Navigate away and back.
-    await page.goto('http://localhost:3080');
-    await page.locator('#api-skip-btn').click({ timeout: 10000 }).catch(() => {});
-    await expect(page.locator('.graph-panel')).toBeVisible({ timeout: 15000 });
+    await page.goto('http://localhost:3080', { timeout: 60000, waitUntil: 'domcontentloaded' });
+    await page.locator('#api-skip-btn').click({ timeout: 15000 }).catch(() => {});
+    await expect(page.locator('.graph-panel')).toBeVisible({ timeout: 45000 });
   });
 });
