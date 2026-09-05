@@ -220,7 +220,7 @@ pnpm run lint:fix       # Lint 自动修复
 
 ## 致谢
 
-- [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/dsh) — Agent 运行时框架
+- [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness) — Agent 运行时框架
 - [Cytoscape.js](https://cytoscape.org/) — 图可视化引擎
 - [dsh-codegraph](https://github.com/jiangzhenguo/dsh-codegraph) — CodeGraph CLI 数据源
 - [dsh-tool-lens](https://github.com/trench-xinxin/dsh-tool-lens) — AST 代码图谱数据源
