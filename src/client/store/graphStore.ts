@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
-import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
+import type { GraphNode, GraphEdge, NodeId, HealthScore, RuleDefinition, RuleViolation } from '../../types/index.ts';
 import { computeClusteredGraph } from './cluster/index.ts';
 import type { ClusterLevel, ClusterNode, ClusterEdge } from './cluster/index.ts';
 
@@ -17,7 +17,7 @@ const memoryStorage: StateStorage = {
   removeItem: () => {},
 };
 
-export type LayoutType = 'cose' | 'dagre' | 'circle' | 'grid';
+export type LayoutType = 'cose' | 'dagre' | 'circle' | 'grid' | 'radial' | 'tree';
 export type ThemeType = 'light' | 'dark';
 export type GraphType = 'all' | 'call' | 'dependency';
 
@@ -71,6 +71,16 @@ interface GraphState {
   currentWorkspace: string;
   workspaceList: WorkspaceInfo[];
 
+  pathStartId: NodeId | null;
+  pathEndId: NodeId | null;
+  pathResult: NodeId[] | null;
+
+  focusDepth: number;
+
+  healthScore: HealthScore | null;
+  rules: RuleDefinition[];
+  ruleViolations: RuleViolation[];
+
   setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata?: { truncated?: boolean; totalNodeCount?: number; totalEdgeCount?: number }) => void;
   setLayout: (layout: LayoutType) => void;
   setTheme: (theme: ThemeType) => void;
@@ -92,6 +102,13 @@ interface GraphState {
   setCurrentWorkspace: (path: string) => void;
   addWorkspace: (path: string, name?: string) => void;
   removeWorkspace: (path: string) => void;
+  setPathStart: (nodeId: NodeId | null) => void;
+  setPathEnd: (nodeId: NodeId | null) => void;
+  setPathResult: (path: NodeId[] | null) => void;
+  setFocusDepth: (depth: number) => void;
+  setHealthScore: (score: HealthScore | null) => void;
+  setRules: (rules: RuleDefinition[]) => void;
+  setRuleViolations: (violations: RuleViolation[]) => void;
 }
 
 export const useGraphStore = create<GraphState>()(
@@ -123,6 +140,13 @@ export const useGraphStore = create<GraphState>()(
       expandedNodeIds: new Set(),
       currentWorkspace: '.',
       workspaceList: [],
+      pathStartId: null,
+      pathEndId: null,
+      pathResult: null,
+      focusDepth: 1,
+      healthScore: null,
+      rules: [],
+      ruleViolations: [],
 
       setGraphData: (nodes, edges, repoId, metadata) => {
         clearLoadingFailsafe();
@@ -204,6 +228,13 @@ export const useGraphStore = create<GraphState>()(
         workspaceList: s.workspaceList.filter((w) => w.path !== path),
         currentWorkspace: s.currentWorkspace === path ? '.' : s.currentWorkspace,
       })),
+      setPathStart: (nodeId) => set({ pathStartId: nodeId }),
+      setPathEnd: (nodeId) => set({ pathEndId: nodeId }),
+      setPathResult: (path) => set({ pathResult: path }),
+      setFocusDepth: (depth) => set({ focusDepth: depth }),
+      setHealthScore: (score) => set({ healthScore: score }),
+      setRules: (rules) => set({ rules }),
+      setRuleViolations: (violations) => set({ ruleViolations: violations }),
     }),
     {
       name: 'dsh-codegraph-visualizer/ui',
@@ -234,6 +265,7 @@ export const useGraphStore = create<GraphState>()(
         layout: s.layout, theme: s.theme, filterType: s.filterType,
         graphType: s.graphType, clusterLevel: s.clusterLevel,
         currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
+        rules: s.rules, focusDepth: s.focusDepth,
       }),
     },
   ),

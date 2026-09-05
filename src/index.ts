@@ -24,14 +24,18 @@ export function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
   const config = resolveConfig(userConfig);
   setAllowedWorkspaceRoots(extractWorkspacePaths(ctx));
 
-  const { graphStatus, graphData, graphSymbol, graphImpact } = createGraphTools(ctx, { requestTimeout: config.requestTimeout });
+  const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus } = createGraphTools(ctx, { requestTimeout: config.requestTimeout });
 
   ctx.effect(() => {
     const d1 = ctx.tools.register(graphStatus);
     const d2 = ctx.tools.register(graphData);
     const d3 = ctx.tools.register(graphSymbol);
     const d4 = ctx.tools.register(graphImpact);
-    return () => { d1(); d2(); d3(); d4(); };
+    const d5 = ctx.tools.register(graphPathFind);
+    const d6 = ctx.tools.register(graphHealth);
+    const d7 = ctx.tools.register(graphRulesCheck);
+    const d8 = ctx.tools.register(graphFocus);
+    return () => { d1(); d2(); d3(); d4(); d5(); d6(); d7(); d8(); };
   }, 'codegraph: tool registrations');
 
   let lastGraphData: GraphData | null = null;

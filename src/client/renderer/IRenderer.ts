@@ -1,6 +1,7 @@
 import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
+import type { PathResult } from './PathFinder.ts';
 
-export type LayoutType = 'cose' | 'dagre' | 'circle' | 'grid';
+export type LayoutType = 'cose' | 'dagre' | 'circle' | 'grid' | 'radial' | 'tree';
 export type ThemeType = 'light' | 'dark';
 
 export interface RendererCallbacks {
@@ -46,4 +47,8 @@ export interface IRenderer {
   resize(): void;
   updateTheme(theme: ThemeType): void;
   destroy(): void;
+
+  findPath(sourceId: NodeId, targetId: NodeId): PathResult | null;
+  highlightPath(path: NodeId[] | null): void;
+  expandNeighborhood(nodeId: NodeId, depth: number): Set<string>;
 }

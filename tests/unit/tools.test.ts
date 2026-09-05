@@ -328,12 +328,16 @@ describe('createGraphTools', () => {
     getMockFetchData('lens').mockClear();
   });
 
-  it('should create 4 tools with correct names', () => {
+  it('should create 8 tools with correct names', () => {
     const tools = createGraphTools(ctx);
     expect(tools.graphStatus.name).toBe('graph_status');
     expect(tools.graphData.name).toBe('graph_data');
     expect(tools.graphSymbol.name).toBe('graph_symbol');
     expect(tools.graphImpact.name).toBe('graph_impact');
+    expect(tools.graphPathFind.name).toBe('graph_path_find');
+    expect(tools.graphHealth.name).toBe('graph_health');
+    expect(tools.graphRulesCheck.name).toBe('graph_rules_check');
+    expect(tools.graphFocus.name).toBe('graph_focus');
   });
 
   // ── graph_status ─────────────────────────────────────────────────────

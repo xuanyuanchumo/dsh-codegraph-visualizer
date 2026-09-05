@@ -45,7 +45,7 @@ export interface GraphData {
   };
 }
 
-export type DataSourceType = 'codegraph' | 'lens';
+export type DataSourceType = 'codegraph' | 'lens' | 'tree-sitter';
 
 export interface AdapterResult {
   nodes: GraphNode[];
@@ -117,6 +117,62 @@ export interface WatchToggleEvent {
   timestamp: number;
 }
 
+export interface HealthScoreEvent {
+  repoId: string;
+  score: HealthScore;
+  timestamp: number;
+}
+
+export interface RuleViolationEvent {
+  violations: RuleViolation[];
+  timestamp: number;
+}
+
+export interface PathFoundEvent {
+  path: PathResult;
+  timestamp: number;
+}
+
+export interface FocusChangedEvent {
+  nodeId: NodeId | null;
+  depth: number;
+  timestamp: number;
+}
+
+export interface HealthScore {
+  coupling: number;
+  cohesion: number;
+  cyclicDependencyRate: number;
+  modularity: number;
+  overall: number;
+}
+
+export type RuleType = 'forbidden-edge' | 'required-edge' | 'max-indegree' | 'max-outdegree' | 'cross-layer-call';
+
+export interface RuleDefinition {
+  id: string;
+  name: string;
+  type: RuleType;
+  params: Record<string, unknown>;
+  severity: 'error' | 'warning';
+  enabled: boolean;
+}
+
+export interface RuleViolation {
+  ruleId: string;
+  nodeId?: NodeId;
+  edgeId?: EdgeId;
+  message: string;
+  severity: 'error' | 'warning';
+}
+
+export interface PathResult {
+  source: NodeId;
+  target: NodeId;
+  path: NodeId[];
+  length: number;
+}
+
 // ---- Cordis event declaration merging ------------------------------------
 // These are emitted by the host plugin; Client/host listeners subscribe via
 // `ctx.on(...)`. Keep them writer-only so consumers never redefine the contract.
@@ -133,6 +189,10 @@ declare module '@deepseek-ai/cordis' {
     'codegraph/graph/init'(event: GraphInitEvent): void;
     'codegraph/graph/init-result'(event: GraphInitResultEvent): void;
     'codegraph/watch/toggle'(event: WatchToggleEvent): void;
+    'codegraph/health/scored'(event: HealthScoreEvent): void;
+    'codegraph/rules/violation'(event: RuleViolationEvent): void;
+    'codegraph/path/found'(event: PathFoundEvent): void;
+    'codegraph/focus/changed'(event: FocusChangedEvent): void;
   }
   interface Context {
     webServer: WebServerService;

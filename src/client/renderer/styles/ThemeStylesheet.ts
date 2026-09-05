@@ -413,5 +413,65 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
         'width': 'mapData(aggregatedCount, 1, 200, 2.5, 6)',
       },
     },
+    {
+      selector: '.path-highlight',
+      style: {
+        'border-width': 4,
+        'border-color': accentColor,
+        'background-color': accentColor,
+        'z-index': 40,
+      },
+    },
+    {
+      selector: 'edge.path-highlight',
+      style: {
+        'width': 4,
+        'line-color': accentColor,
+        'target-arrow-color': accentColor,
+        'opacity': 1,
+        'z-index': 40,
+      },
+    },
+    {
+      selector: '.path-dim',
+      style: {
+        'opacity': 0.1,
+      },
+    },
+    {
+      selector: '.rule-violation',
+      style: {
+        'border-width': 4,
+        'border-color': errorColor,
+        'background-color': errorColor,
+        'z-index': 45,
+      },
+    },
+    {
+      selector: 'edge.rule-violation',
+      style: {
+        'width': 4,
+        'line-color': errorColor,
+        'target-arrow-color': errorColor,
+        'opacity': 1,
+        'z-index': 45,
+      },
+    },
+    {
+      selector: '.hotspot-high',
+      style: {
+        'border-width': 4,
+        'border-color': errorColor,
+        'z-index': 35,
+      },
+    },
+    {
+      selector: '.hotspot-medium',
+      style: {
+        'border-width': 3,
+        'border-color': warningColor,
+        'z-index': 28,
+      },
+    },
   ];
 }

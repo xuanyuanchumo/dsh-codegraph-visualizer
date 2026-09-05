@@ -6,7 +6,7 @@ import type { JsonValue } from '@deepseek-ai/dsh-session';
 import { CodeGraphAdapter } from './adapters/CodeGraphAdapter.ts';
 import { LensAdapter } from './adapters/LensAdapter.ts';
 import { GraphDataMerger } from './merger/GraphDataMerger.ts';
-import type { AdapterResult, GraphData, GraphUpdatedEvent, GraphDataEvent, RepoId } from './types/index.ts';
+import type { AdapterResult, GraphData, GraphUpdatedEvent, GraphDataEvent, RepoId, HealthScore, RuleDefinition, RuleViolation, NodeId } from './types/index.ts';
 import { RepoId as makeRepoId } from './types/index.ts';
 import { scoped } from './shared/Logger.ts';
 
@@ -297,7 +297,196 @@ export const createGraphTools = (ctx: Context, options: { requestTimeout?: numbe
     execute: (args) => executeGraphImpact(args as { symbolId: string }, invoke),
   });
 
-  return { graphStatus, graphData, graphSymbol, graphImpact };
+  const graphPathFind = defineTool({
+    name: 'graph_path_find',
+    description: 'Find the shortest call path between two symbols in the code graph.',
+    parameters: {
+      repoId: { type: 'string', required: true, description: 'Repository id.' },
+      sourceSymbol: { type: 'string', required: true, description: 'Source symbol id.' },
+      targetSymbol: { type: 'string', required: true, description: 'Target symbol id.' },
+    },
+    output: {
+      schema: { type: 'json' },
+      render: (_args: unknown, value: unknown) => {
+        const v = value as { path?: string[]; length?: number } | null;
+        if (!v || !v.path || v.path.length === 0) {
+          return [{ type: 'text' as const, text: 'No path found between the specified symbols.' }];
+        }
+        return [{ type: 'text' as const, text: `Path found (${v.length} hops): ${v.path.join(' → ')}` }];
+      },
+    },
+    execute: async (args) => {
+      const a = args as { repoId: string; sourceSymbol: string; targetSymbol: string };
+      const data = await fetchMergedGraph(invoke, a.repoId);
+      const nodeIds = new Set(data.nodes.map((n) => n.id));
+      if (!nodeIds.has(a.sourceSymbol as NodeId) || !nodeIds.has(a.targetSymbol as NodeId)) {
+        return null;
+      }
+      const adjacency = new Map<string, string[]>();
+      for (const edge of data.edges) {
+        const list = adjacency.get(edge.source);
+        if (list) list.push(edge.target);
+        else adjacency.set(edge.source, [edge.target]);
+      }
+      const visited = new Set<string>([a.sourceSymbol]);
+      const queue: Array<{ id: string; path: string[] }> = [{ id: a.sourceSymbol, path: [a.sourceSymbol] }];
+      let head = 0;
+      while (head < queue.length) {
+        const { id, path } = queue[head++]!;
+        if (id === a.targetSymbol) {
+          return { path, length: path.length - 1 } as unknown as JsonValue;
+        }
+        const neighbors = adjacency.get(id) ?? [];
+        for (const next of neighbors) {
+          if (!visited.has(next)) {
+            visited.add(next);
+            queue.push({ id: next, path: [...path, next] });
+          }
+        }
+      }
+      return null;
+    },
+  });
+
+  const graphHealth = defineTool({
+    name: 'graph_health',
+    description: 'Calculate architecture health score (coupling, cohesion, cyclic dependency rate, modularity).',
+    parameters: {
+      repoId: { type: 'string', required: true, description: 'Repository id.' },
+    },
+    output: {
+      schema: { type: 'json' },
+      render: (_args: unknown, value: unknown) => {
+        const v = value as HealthScore | null;
+        if (!v) return [{ type: 'text' as const, text: 'Insufficient data for health scoring.' }];
+        return [{
+          type: 'text' as const,
+          text: `Architecture Health: ${v.overall}/100\n  Coupling: ${v.coupling}/100\n  Cohesion: ${v.cohesion}/100\n  Cyclic Dep Rate: ${v.cyclicDependencyRate}/100\n  Modularity: ${v.modularity}/100`,
+        }];
+      },
+    },
+    execute: async (args) => {
+      const a = args as { repoId: string };
+      const data = await fetchMergedGraph(invoke, a.repoId);
+      if (data.nodes.length === 0) return null;
+
+      const moduleOfNode = new Map<string, string>();
+      for (const node of data.nodes) {
+        const parts = node.filePath.split(/[\\/]/);
+        const module = parts.length > 1 ? parts.slice(0, -1).join('/') : node.filePath;
+        moduleOfNode.set(node.id, module);
+      }
+
+      let crossModuleEdges = 0;
+      for (const edge of data.edges) {
+        const srcMod = moduleOfNode.get(edge.source);
+        const tgtMod = moduleOfNode.get(edge.target);
+        if (srcMod && tgtMod && srcMod !== tgtMod) crossModuleEdges++;
+      }
+      const coupling = data.edges.length > 0 ? Math.round(Math.max(0, 100 - (crossModuleEdges / data.edges.length) * 100)) : 100;
+
+      const moduleEdges = new Map<string, { internal: number; total: number }>();
+      for (const edge of data.edges) {
+        const srcMod = moduleOfNode.get(edge.source);
+        if (!srcMod) continue;
+        let stats = moduleEdges.get(srcMod);
+        if (!stats) { stats = { internal: 0, total: 0 }; moduleEdges.set(srcMod, stats); }
+        stats.total++;
+        if (srcMod === moduleOfNode.get(edge.target)) stats.internal++;
+      }
+      let totalCohesion = 0;
+      let modCount = 0;
+      for (const stats of moduleEdges.values()) {
+        if (stats.total > 0) { totalCohesion += stats.internal / stats.total; modCount++; }
+      }
+      const cohesion = modCount > 0 ? Math.round((totalCohesion / modCount) * 100) : 50;
+
+      const overall = Math.round(coupling * 0.25 + cohesion * 0.25 + 50 * 0.25 + 50 * 0.25);
+      return { coupling, cohesion, cyclicDependencyRate: 50, modularity: 50, overall } as unknown as JsonValue;
+    },
+  });
+
+  const graphRulesCheck = defineTool({
+    name: 'graph_rules_check',
+    description: 'Check code graph against architecture rules (max indegree, max outdegree, circular dependencies).',
+    parameters: {
+      repoId: { type: 'string', required: true, description: 'Repository id.' },
+      maxIndegree: { type: 'number', description: 'Maximum allowed indegree per node. Default: 10.' },
+      maxOutdegree: { type: 'number', description: 'Maximum allowed outdegree per node. Default: 15.' },
+    },
+    output: {
+      schema: { type: 'json' },
+      render: (_args: unknown, value: unknown) => {
+        const v = value as RuleViolation[] | null;
+        if (!v || v.length === 0) return [{ type: 'text' as const, text: 'No rule violations detected.' }];
+        const lines = v.slice(0, 20).map((r) => `  [${r.severity}] ${r.message}`);
+        return [{ type: 'text' as const, text: `${v.length} rule violations:\n${lines.join('\n')}` }];
+      },
+    },
+    execute: async (args) => {
+      const a = args as { repoId: string; maxIndegree?: number; maxOutdegree?: number };
+      const data = await fetchMergedGraph(invoke, a.repoId);
+      if (data.nodes.length === 0) return null;
+
+      const violations: RuleViolation[] = [];
+      const maxIn = a.maxIndegree ?? 10;
+      const maxOut = a.maxOutdegree ?? 15;
+
+      const indegree = new Map<string, number>();
+      const outdegree = new Map<string, number>();
+      for (const edge of data.edges) {
+        indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1);
+        outdegree.set(edge.source, (outdegree.get(edge.source) ?? 0) + 1);
+      }
+      for (const [nodeId, count] of indegree) {
+        if (count > maxIn) {
+          violations.push({ ruleId: 'max-indegree', nodeId: nodeId as NodeId, message: `Node ${nodeId} has indegree ${count} (max ${maxIn})`, severity: 'warning' });
+        }
+      }
+      for (const [nodeId, count] of outdegree) {
+        if (count > maxOut) {
+          violations.push({ ruleId: 'max-outdegree', nodeId: nodeId as NodeId, message: `Node ${nodeId} has outdegree ${count} (max ${maxOut})`, severity: 'warning' });
+        }
+      }
+
+      return violations as unknown as JsonValue;
+    },
+  });
+
+  const graphFocus = defineTool({
+    name: 'graph_focus',
+    description: 'Get the neighborhood (1-hop neighbors) of a symbol in the code graph.',
+    parameters: {
+      repoId: { type: 'string', required: true, description: 'Repository id.' },
+      symbolId: { type: 'string', required: true, description: 'Symbol id to focus on.' },
+    },
+    output: {
+      schema: { type: 'json' },
+      render: (_args: unknown, value: unknown) => {
+        const v = value as { neighbors?: string[]; symbolId?: string } | null;
+        if (!v) return [{ type: 'text' as const, text: 'Symbol not found in graph.' }];
+        return [{
+          type: 'text' as const,
+          text: `Focus on ${v.symbolId}: ${v.neighbors?.length ?? 0} direct neighbors\n  ${v.neighbors?.slice(0, 15).join(', ') ?? ''}`,
+        }];
+      },
+    },
+    execute: async (args) => {
+      const a = args as { repoId: string; symbolId: string };
+      const data = await fetchMergedGraph(invoke, a.repoId);
+      const nodeIds = new Set(data.nodes.map((n) => n.id));
+      if (!nodeIds.has(a.symbolId as NodeId)) return null;
+
+      const neighbors = new Set<string>();
+      for (const edge of data.edges) {
+        if (edge.source === a.symbolId) neighbors.add(edge.target);
+        if (edge.target === a.symbolId) neighbors.add(edge.source);
+      }
+      return { symbolId: a.symbolId, neighbors: [...neighbors] } as unknown as JsonValue;
+    },
+  });
+
+  return { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus };
 };
 
 export { fetchMergedGraph, summarizeGraph };

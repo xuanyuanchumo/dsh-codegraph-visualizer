@@ -1,0 +1,71 @@
+import type { Core } from 'cytoscape';
+import type { NodeId } from '../../types/index.ts';
+
+export interface PathResult {
+  source: NodeId;
+  target: NodeId;
+  path: NodeId[];
+  length: number;
+}
+
+export class PathFinder {
+  private cy: Core;
+
+  constructor(cy: Core) {
+    this.cy = cy;
+  }
+
+  findPath(sourceId: NodeId, targetId: NodeId): PathResult | null {
+    const sourceNode = this.cy.getElementById(sourceId);
+    const targetNode = this.cy.getElementById(targetId);
+    if (sourceNode.empty() || targetNode.empty()) return null;
+
+    const dijkstra = this.cy.elements().dijkstra({ root: sourceNode });
+    const pathToTarget = dijkstra.pathTo(targetNode);
+
+    if (pathToTarget.length === 0) return null;
+
+    const pathIds: NodeId[] = [];
+    pathToTarget.forEach((el) => {
+      if (el.isNode()) pathIds.push(el.id() as NodeId);
+    });
+
+    if (pathIds.length === 0) return null;
+
+    return {
+      source: sourceId,
+      target: targetId,
+      path: pathIds,
+      length: pathIds.length - 1,
+    };
+  }
+
+  highlightPath(path: NodeId[] | null): void {
+    this.cy.batch(() => {
+      this.cy.elements().removeClass('path-highlight path-dim');
+      if (!path || path.length === 0) return;
+
+      const pathSet = new Set<string>(path);
+      path.forEach((id) => {
+        const node = this.cy.getElementById(id);
+        if (node.nonempty()) node.addClass('path-highlight');
+      });
+
+      this.cy.edges().forEach((edge) => {
+        const srcId = edge.source().id();
+        const tgtId = edge.target().id();
+        if (pathSet.has(srcId) && pathSet.has(tgtId)) {
+          const srcIdx = path.indexOf(srcId as NodeId);
+          const tgtIdx = path.indexOf(tgtId as NodeId);
+          if (srcIdx >= 0 && tgtIdx >= 0 && Math.abs(srcIdx - tgtIdx) === 1) {
+            edge.addClass('path-highlight');
+          }
+        }
+      });
+
+      this.cy.elements().forEach((el) => {
+        if (!pathSet.has(el.id()) && el.isNode()) el.addClass('path-dim');
+      });
+    });
+  }
+}
