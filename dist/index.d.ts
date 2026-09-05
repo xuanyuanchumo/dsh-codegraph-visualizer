@@ -1,7 +1,7 @@
 import { Context } from "@deepseek-ai/cordis";
 
 //#region src/generated/version.d.ts
-declare const PLUGIN_VERSION = "0.1.0";
+declare const PLUGIN_VERSION = "0.1.1";
 
 //#endregion
 //#region src/host/config.d.ts

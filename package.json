@@ -1,6 +1,6 @@
 {
   "name": "dsh-codegraph-visualizer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DSH 代码图谱可视化插件 - 打通 dsh-codegraph/dsh-tool-lens 数据源 → 聚合转换 → 交互式代码图谱",
   "type": "module",
   "license": "MIT",

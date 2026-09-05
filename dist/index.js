@@ -1539,7 +1539,7 @@ const createGraphTools = (ctx, options = {}) => {
 
 //#endregion
 //#region src/generated/version.ts
-const PLUGIN_VERSION = "0.1.0";
+const PLUGIN_VERSION = "0.1.1";
 
 //#endregion
 //#region src/host/config.ts
