@@ -34,8 +34,9 @@ DSH CodeGraph Visualizer 是一个 [DeepSeek Harness](https://github.com/deepsee
 ### 通过 DSH 插件管理安装（推荐）
 
 ```bash
-# 安装插件（直接从 GitHub 仓库拉取）
+# 安装插件（两种方式均可）
 dsh plugin --profile web add github:xuanyuanchumo/dsh-codegraph-visualizer
+dsh plugin --profile web add xuanyuanchumo/dsh-codegraph-visualizer
 
 # 卸载插件
 dsh plugin --profile web remove dsh-codegraph-visualizer
