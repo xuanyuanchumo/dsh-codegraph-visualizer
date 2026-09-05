@@ -39,6 +39,8 @@ jobs:
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: "--experimental-sqlite"
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
