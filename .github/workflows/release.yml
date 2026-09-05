@@ -71,10 +71,11 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
-      - name: Configure pnpm auth
-        run: pnpm config set //registry.npmjs.org/:_authToken "${NODE_AUTH_TOKEN}"
+      - name: Configure npm auth
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" >> "$HOME/.npmrc"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - run: pnpm publish --access public --no-git-checks
+      - run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
