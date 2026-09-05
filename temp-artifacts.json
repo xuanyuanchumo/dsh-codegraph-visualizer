@@ -1,0 +1,45 @@
+{
+  "total_count": 2,
+  "artifacts": [
+    {
+      "id": 9962714672,
+      "node_id": "MDg6QXJ0aWZhY3Q5OTYyNzE0Njcy",
+      "name": "dist",
+      "size_in_bytes": 1032069,
+      "url": "https://api.github.com/repos/xuanyuanchumo/dsh-codegraph-visualizer/actions/artifacts/9962714672",
+      "archive_download_url": "https://api.github.com/repos/xuanyuanchumo/dsh-codegraph-visualizer/actions/artifacts/9962714672/zip",
+      "expired": false,
+      "digest": "sha256:da07dbcbbdac395e91448491ff1c4b39b0e65de6bdd78695e16040a90a5b6731",
+      "created_at": "2026-09-05T04:13:03Z",
+      "updated_at": "2026-09-05T04:13:03Z",
+      "expires_at": "2026-09-12T04:13:02Z",
+      "workflow_run": {
+        "id": 33943924503,
+        "repository_id": 1351152489,
+        "head_repository_id": 1351152489,
+        "head_branch": "v0.1.0",
+        "head_sha": "0175f7bacf6cda904b4645c2eedab55c1f38bf4a"
+      }
+    },
+    {
+      "id": 9962708116,
+      "node_id": "MDg6QXJ0aWZhY3Q5OTYyNzA4MTE2",
+      "name": "test-output",
+      "size_in_bytes": 8730,
+      "url": "https://api.github.com/repos/xuanyuanchumo/dsh-codegraph-visualizer/actions/artifacts/9962708116",
+      "archive_download_url": "https://api.github.com/repos/xuanyuanchumo/dsh-codegraph-visualizer/actions/artifacts/9962708116/zip",
+      "expired": false,
+      "digest": "sha256:3976093fc4dc5150173f01b59e6a6b118faa1bd62a26a2baafac4aefbae17935",
+      "created_at": "2026-09-05T04:12:36Z",
+      "updated_at": "2026-09-05T04:12:36Z",
+      "expires_at": "2026-09-12T04:12:35Z",
+      "workflow_run": {
+        "id": 33943924503,
+        "repository_id": 1351152489,
+        "head_repository_id": 1351152489,
+        "head_branch": "v0.1.0",
+        "head_sha": "0175f7bacf6cda904b4645c2eedab55c1f38bf4a"
+      }
+    }
+  ]
+}
