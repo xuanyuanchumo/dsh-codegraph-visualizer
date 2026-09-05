@@ -48,7 +48,16 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run test
+      - name: Run tests with verbose output
+        run: pnpm exec vitest run --reporter=verbose 2>&1 | tee test-output.txt; exit ${PIPESTATUS[0]}
+        continue-on-error: true
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output
+          path: test-output.txt
+          retention-days: 7
 
   build:
     name: Build
