@@ -1,4 +1,4 @@
-import { EdgeId } from '../../../types/index.ts';
+
 import type { GraphNode, GraphEdge, NodeId } from '../../../types/index.ts';
 import type { ClusterNode, ClusterResult } from './types.ts';
 import { aggregateEdges } from './types.ts';
