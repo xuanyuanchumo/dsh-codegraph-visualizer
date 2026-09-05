@@ -206,4 +206,59 @@ export const zh: Record<string, string> = {
   'edge.tooltip.target': '目标节点',
   'edge.tooltip.type': '关系类型',
   'state.complete': '图谱完整 ({total} 节点)',
+
+  // 路径查找
+  'pathFind.title': '路径查找',
+  'pathFind.close': '关闭路径查找',
+  'pathFind.start': '起点',
+  'pathFind.end': '终点',
+  'pathFind.startPlaceholder': '搜索起点符号…',
+  'pathFind.endPlaceholder': '搜索终点符号…',
+  'pathFind.find': '查找路径',
+  'pathFind.clear': '清除',
+  'pathFind.length': '路径长度',
+  'pathFind.hops': '经过节点',
+  'pathFind.noPath': '不可达',
+
+  // 健康评分
+  'health.title': '架构健康评分',
+  'health.close': '关闭健康评分',
+  'health.noData': '点击"检查"按钮计算评分',
+  'health.overall': '总体评分',
+  'health.coupling': '耦合度',
+  'health.cohesion': '内聚度',
+  'health.cyclicDependencyRate': '循环依赖率',
+  'health.modularity': '模块度',
+  'health.couplingDesc': '模块间耦合越低越好',
+  'health.cohesionDesc': '模块内内聚越高越好',
+  'health.cyclicDesc': '循环依赖越少越好',
+  'health.modularityDesc': '模块划分越均衡越好',
+
+  // 规则引擎
+  'rules.title': '规则引擎',
+  'rules.close': '关闭规则引擎',
+  'rules.config': '规则配置',
+  'rules.loadPresets': '加载预设规则',
+  'rules.noRules': '暂无规则，点击"加载预设规则"',
+  'rules.check': '检查违规',
+  'rules.violations': '违规列表',
+  'rules.noViolations': '无违规',
+
+  // 聚焦模式
+  'focus.title': '聚焦模式',
+  'focus.mode': '聚焦',
+  'focus.depth': '深度',
+  'focus.expand': '展开下一层',
+  'focus.contract': '收起一层',
+  'focus.exit': '退出聚焦',
+
+  // Toolbar 新按钮
+  'toolbar.pathFind': '路径查找',
+  'toolbar.health': '架构健康评分',
+  'toolbar.rules': '规则引擎',
+  'toolbar.hotspot': '热点分析',
+  'toolbar.godModule': 'God Module 检测',
+
+  // 影响半径
+  'impact.total': '总影响节点',
 };

@@ -172,6 +172,40 @@ export class HighlightController {
     });
   }
 
+  getImpactStats(nodeId: NodeId): { d1: number; d2: number; d3: number; total: number } | null {
+    const sourceNode = this.cy.getElementById(nodeId);
+    if (sourceNode.empty()) return null;
+
+    const visited = new Map<string, number>();
+    const queue: Array<{ id: string; depth: number }> = [{ id: nodeId, depth: 0 }];
+    let head = 0;
+    let d1 = 0, d2 = 0, d3 = 0;
+
+    while (head < queue.length) {
+      const { id, depth } = queue[head++]!;
+      if (visited.has(id) && visited.get(id)! <= depth) continue;
+      visited.set(id, depth);
+
+      if (depth > 0) {
+        if (depth <= 1) d1++;
+        else if (depth === 2) d2++;
+        else d3++;
+      }
+
+      if (depth < 3) {
+        const node = this.cy.getElementById(id);
+        node.incomers().forEach((edge) => {
+          const src = edge.source().id();
+          if (!visited.has(src) || visited.get(src)! > depth + 1) {
+            queue.push({ id: src, depth: depth + 1 });
+          }
+        });
+      }
+    }
+
+    return { d1, d2, d3, total: d1 + d2 + d3 };
+  }
+
   highlightInheritance(nodeId: NodeId | null): void {
     this.cy.batch(() => {
       this.cy.elements().removeClass('inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement');

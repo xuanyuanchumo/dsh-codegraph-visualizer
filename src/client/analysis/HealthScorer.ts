@@ -144,7 +144,7 @@ export class HealthScorer {
     return Math.round(Math.max(0, 100 - cycleRate * 100));
   }
 
-  private calculateModularity(nodes: GraphNode[], edges: GraphEdge[]): number {
+  private calculateModularity(nodes: GraphNode[], _edges: GraphEdge[]): number {
     if (nodes.length === 0) return 0;
 
     const moduleOfNode = this.buildModuleMap(nodes);

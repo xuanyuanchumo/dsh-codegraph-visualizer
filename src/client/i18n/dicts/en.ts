@@ -207,4 +207,59 @@ export const en: Record<string, string> = {
   'edge.tooltip.target': 'Target',
   'edge.tooltip.type': 'Relationship',
   'state.complete': 'Graph is complete ({total} nodes)',
+
+  // Path finding
+  'pathFind.title': 'Path Finder',
+  'pathFind.close': 'Close path finder',
+  'pathFind.start': 'Start',
+  'pathFind.end': 'End',
+  'pathFind.startPlaceholder': 'Search start symbol…',
+  'pathFind.endPlaceholder': 'Search end symbol…',
+  'pathFind.find': 'Find Path',
+  'pathFind.clear': 'Clear',
+  'pathFind.length': 'Path length',
+  'pathFind.hops': 'Hops',
+  'pathFind.noPath': 'Unreachable',
+
+  // Health score
+  'health.title': 'Architecture Health Score',
+  'health.close': 'Close health score',
+  'health.noData': 'Click "Check" to calculate score',
+  'health.overall': 'Overall',
+  'health.coupling': 'Coupling',
+  'health.cohesion': 'Cohesion',
+  'health.cyclicDependencyRate': 'Cyclic Dep Rate',
+  'health.modularity': 'Modularity',
+  'health.couplingDesc': 'Lower inter-module coupling is better',
+  'health.cohesionDesc': 'Higher intra-module cohesion is better',
+  'health.cyclicDesc': 'Fewer circular dependencies is better',
+  'health.modularityDesc': 'Better module separation is better',
+
+  // Rule engine
+  'rules.title': 'Rule Engine',
+  'rules.close': 'Close rule engine',
+  'rules.config': 'Rule Configuration',
+  'rules.loadPresets': 'Load Preset Rules',
+  'rules.noRules': 'No rules yet, click "Load Preset Rules"',
+  'rules.check': 'Check Violations',
+  'rules.violations': 'Violations',
+  'rules.noViolations': 'No violations',
+
+  // Focus mode
+  'focus.title': 'Focus Mode',
+  'focus.mode': 'Focus',
+  'focus.depth': 'Depth',
+  'focus.expand': 'Expand next layer',
+  'focus.contract': 'Contract one layer',
+  'focus.exit': 'Exit focus',
+
+  // Toolbar new buttons
+  'toolbar.pathFind': 'Path Finder',
+  'toolbar.health': 'Architecture Health Score',
+  'toolbar.rules': 'Rule Engine',
+  'toolbar.hotspot': 'Hotspot Analysis',
+  'toolbar.godModule': 'God Module Detection',
+
+  // Impact radius
+  'impact.total': 'Total impacted nodes',
 };

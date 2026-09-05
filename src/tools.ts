@@ -6,7 +6,7 @@ import type { JsonValue } from '@deepseek-ai/dsh-session';
 import { CodeGraphAdapter } from './adapters/CodeGraphAdapter.ts';
 import { LensAdapter } from './adapters/LensAdapter.ts';
 import { GraphDataMerger } from './merger/GraphDataMerger.ts';
-import type { AdapterResult, GraphData, GraphUpdatedEvent, GraphDataEvent, RepoId, HealthScore, RuleDefinition, RuleViolation, NodeId } from './types/index.ts';
+import type { AdapterResult, GraphData, GraphUpdatedEvent, GraphDataEvent, RepoId, HealthScore, RuleViolation, NodeId } from './types/index.ts';
 import { RepoId as makeRepoId } from './types/index.ts';
 import { scoped } from './shared/Logger.ts';
 

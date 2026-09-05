@@ -2414,6 +2414,917 @@ body[data-ds-dark-theme] {
   }
 }
 
+/* ---- PathBar (FR-25: Path Finding) ---------------------------------------- */
+
+.path-bar {
+  position: absolute;
+  left: 12px;
+  top: calc(var(--cg-toolbar-h) + 12px);
+  width: 280px;
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius);
+  box-shadow: var(--cg-shadow);
+  z-index: 7;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow: hidden;
+  animation: cg-slide-right 160ms var(--cg-ease-out);
+}
+
+.path-bar-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cg-text);
+  border-bottom: 1px solid var(--cg-border);
+}
+
+.path-bar-content {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.path-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+
+.path-input-group label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cg-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.path-input-group input {
+  padding: 6px 10px;
+  background: var(--cg-bg);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-sm);
+  color: var(--cg-text);
+  font-size: 12px;
+  font-family: var(--cg-font-sans);
+  outline: none;
+  transition: border-color var(--cg-transition), box-shadow var(--cg-transition);
+}
+
+.path-input-group input:focus {
+  border-color: var(--cg-accent);
+  box-shadow: 0 0 0 3px var(--cg-accent-soft);
+}
+
+.path-input-group input::placeholder {
+  color: var(--cg-text-tertiary);
+}
+
+.path-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 2px;
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-sm);
+  box-shadow: var(--cg-shadow);
+  z-index: 10;
+  max-height: 160px;
+  overflow-y: auto;
+  animation: cg-dropdown-in 120ms var(--cg-ease-out);
+}
+
+.path-suggestions button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: var(--cg-text);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--cg-transition);
+}
+
+.path-suggestions button:hover {
+  background: var(--cg-surface-hover);
+}
+
+.suggestion-type {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: var(--cg-accent-soft);
+  color: var(--cg-accent);
+  flex-shrink: 0;
+}
+
+.suggestion-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.path-selected {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--cg-accent-soft);
+  border: 1px solid var(--cg-accent);
+  border-radius: var(--cg-radius-xs);
+  font-size: 11px;
+  color: var(--cg-accent);
+  font-weight: 500;
+}
+
+.path-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.path-find-btn,
+.path-clear-btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: var(--cg-radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--cg-font-sans);
+  cursor: pointer;
+  transition: all var(--cg-transition);
+}
+
+.path-find-btn {
+  background: var(--cg-accent);
+  color: var(--cg-text);
+  flex: 1;
+}
+
+.path-find-btn:hover:not(:disabled) {
+  background: var(--cg-accent-hover);
+  transform: translateY(-1px);
+}
+
+.path-find-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.path-clear-btn {
+  background: var(--cg-surface);
+  color: var(--cg-text-secondary);
+  border: 1px solid var(--cg-border);
+}
+
+.path-clear-btn:hover {
+  background: var(--cg-surface-hover);
+  color: var(--cg-text);
+}
+
+.path-result {
+  display: flex;
+  gap: 12px;
+  padding: 6px 10px;
+  background: var(--cg-accent-soft);
+  border-radius: var(--cg-radius-xs);
+  font-size: 11px;
+  color: var(--cg-accent);
+  font-weight: 500;
+}
+
+/* ---- FocusModeBar (FR-26/28: Focus Mode) ---------------------------------- */
+
+.focus-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--cg-accent-soft);
+  border-bottom: 1px solid var(--cg-accent);
+  font-size: 12px;
+  color: var(--cg-accent);
+  flex-shrink: 0;
+  animation: cg-slide-down 160ms var(--cg-ease-out);
+}
+
+.focus-label {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+.focus-depth {
+  font-family: var(--cg-font-mono);
+  font-size: 11px;
+  padding: 1px 6px;
+  background: var(--cg-accent);
+  color: var(--cg-text);
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.focus-expand-btn,
+.focus-contract-btn,
+.focus-exit-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--cg-border);
+  background: var(--cg-bg);
+  border-radius: var(--cg-radius-xs);
+  cursor: pointer;
+  color: var(--cg-text-secondary);
+  transition: all var(--cg-transition);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.focus-expand-btn:hover,
+.focus-contract-btn:hover,
+.focus-exit-btn:hover {
+  background: var(--cg-surface-hover);
+  border-color: var(--cg-accent);
+  color: var(--cg-accent);
+}
+
+.focus-expand-btn:first-of-type {
+  margin-left: auto;
+}
+
+.focus-contract-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.focus-exit-btn:hover {
+  border-color: var(--cg-error);
+  color: var(--cg-error);
+}
+
+/* ---- HealthScoreCard (FR-32: Health Score) -------------------------------- */
+
+.health-score-card {
+  position: absolute;
+  left: 12px;
+  top: calc(var(--cg-toolbar-h) + 12px);
+  width: 260px;
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius);
+  box-shadow: var(--cg-shadow);
+  z-index: 7;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow: hidden;
+  animation: cg-slide-right 160ms var(--cg-ease-out);
+}
+
+.health-score-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cg-text);
+  border-bottom: 1px solid var(--cg-border);
+}
+
+.health-score-empty {
+  padding: 20px 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--cg-text-tertiary);
+}
+
+.health-score-overall {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 12px 10px;
+}
+
+.health-score-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border: 3px solid;
+  border-radius: 50%;
+  font-size: 22px;
+  font-weight: 700;
+  font-family: var(--cg-font-mono);
+}
+
+.health-score-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cg-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.health-dimensions {
+  padding: 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.health-dimension {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.health-dimension-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.health-dimension-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--cg-text-secondary);
+}
+
+.health-dimension-score {
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--cg-font-mono);
+}
+
+.health-dimension-bar {
+  height: 6px;
+  background: var(--cg-surface-active);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.health-dimension-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 400ms var(--cg-ease-out);
+}
+
+.health-dimension-desc {
+  font-size: 10px;
+  color: var(--cg-text-tertiary);
+  line-height: 1.3;
+}
+
+/* ---- RuleConfigPanel (FR-34: Rule Engine) --------------------------------- */
+
+.rule-panel {
+  position: absolute;
+  left: 12px;
+  top: calc(var(--cg-toolbar-h) + 12px);
+  width: 280px;
+  max-height: calc(100% - var(--cg-toolbar-h) - var(--cg-statusbar-h) - 24px);
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius);
+  box-shadow: var(--cg-shadow);
+  z-index: 7;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: cg-slide-right 160ms var(--cg-ease-out);
+}
+
+.rule-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cg-text);
+  border-bottom: 1px solid var(--cg-border);
+  flex-shrink: 0;
+}
+
+.rule-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.rule-config-section {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--cg-border);
+}
+
+.rule-config-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.rule-config-header span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cg-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rule-preset-btn {
+  padding: 3px 8px;
+  background: var(--cg-accent-soft);
+  border: 1px solid var(--cg-accent);
+  border-radius: var(--cg-radius-xs);
+  color: var(--cg-accent);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--cg-transition);
+}
+
+.rule-preset-btn:hover {
+  background: var(--cg-accent);
+  color: var(--cg-text);
+}
+
+.rule-empty {
+  padding: 8px 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--cg-text-tertiary);
+}
+
+.rule-item {
+  padding: 4px 0;
+}
+
+.rule-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.rule-toggle input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--cg-accent);
+  cursor: pointer;
+}
+
+.rule-name {
+  flex: 1;
+  color: var(--cg-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule-severity {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.rule-severity.error {
+  background: rgba(239, 68, 68, 0.14);
+  color: var(--cg-error);
+}
+
+.rule-severity.warning {
+  background: rgba(245, 158, 11, 0.14);
+  color: var(--cg-warning);
+}
+
+.rule-check-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px 14px;
+  background: var(--cg-accent);
+  color: var(--cg-text);
+  border: none;
+  border-radius: var(--cg-radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--cg-transition);
+}
+
+.rule-check-btn:hover:not(:disabled) {
+  background: var(--cg-accent-hover);
+}
+
+.rule-check-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rule-violations-section {
+  padding: 10px 12px;
+}
+
+.rule-violations-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  margin-bottom: 6px;
+}
+
+.rule-violations-header span:first-child {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cg-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.violation-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--cg-font-mono);
+}
+
+.violation-badge.error {
+  background: rgba(239, 68, 68, 0.14);
+  color: var(--cg-error);
+}
+
+.violation-badge.warning {
+  background: rgba(245, 158, 11, 0.14);
+  color: var(--cg-warning);
+}
+
+.rule-violations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.violation-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: var(--cg-radius-xs);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.violation-item.error {
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--cg-error);
+}
+
+.violation-item.warning {
+  background: rgba(245, 158, 11, 0.08);
+  color: var(--cg-warning);
+}
+
+.violation-message {
+  flex: 1;
+  word-break: break-word;
+}
+
+/* ---- Analysis panels (FR-33: Hotspot, FR-36: God Module) ------------------ */
+
+.analysis-panel {
+  position: absolute;
+  right: 12px;
+  top: calc(var(--cg-toolbar-h) + 12px);
+  width: 240px;
+  max-height: calc(100% - var(--cg-toolbar-h) - var(--cg-statusbar-h) - 24px);
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius);
+  box-shadow: var(--cg-shadow);
+  z-index: 7;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: cg-slide-up 160ms var(--cg-ease-out);
+}
+
+.analysis-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cg-text);
+  border-bottom: 1px solid var(--cg-border);
+  flex-shrink: 0;
+}
+
+.analysis-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Hotspot items */
+
+.hotspot-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: var(--cg-radius-xs);
+  font-size: 11px;
+  transition: background var(--cg-transition);
+}
+
+.hotspot-item:hover {
+  background: var(--cg-surface-hover);
+}
+
+.hotspot-item.critical {
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.hotspot-item.high {
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.hotspot-item.medium {
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.hotspot-level-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.hotspot-item.critical .hotspot-level-badge {
+  background: var(--cg-error);
+  color: white;
+}
+
+.hotspot-item.high .hotspot-level-badge {
+  background: var(--cg-warning);
+  color: white;
+}
+
+.hotspot-item.medium .hotspot-level-badge {
+  background: var(--cg-info);
+  color: white;
+}
+
+.hotspot-item.low .hotspot-level-badge {
+  background: var(--cg-text-tertiary);
+  color: white;
+}
+
+.hotspot-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--cg-text);
+}
+
+.hotspot-indegree {
+  font-family: var(--cg-font-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cg-text-secondary);
+  flex-shrink: 0;
+}
+
+/* God Module items */
+
+.godmodule-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px;
+  border-radius: var(--cg-radius-xs);
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+}
+
+.godmodule-path {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cg-text);
+  font-family: var(--cg-font-mono);
+  word-break: break-all;
+  line-height: 1.3;
+}
+
+.godmodule-stats {
+  font-size: 10px;
+  color: var(--cg-text-secondary);
+  font-family: var(--cg-font-mono);
+}
+
+.godmodule-suggestion {
+  font-size: 10px;
+  color: var(--cg-error);
+  line-height: 1.4;
+  padding-top: 2px;
+  border-top: 1px solid rgba(239, 68, 68, 0.12);
+}
+
+/* ---- New toolbar icon buttons --------------------------------------------- */
+
+.path-btn,
+.health-btn,
+.rule-btn,
+.hotspot-btn,
+.godmodule-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--cg-border);
+  background: var(--cg-bg);
+  border-radius: var(--cg-radius-sm);
+  cursor: pointer;
+  color: var(--cg-text-secondary);
+  transition: all var(--cg-transition);
+  flex-shrink: 0;
+}
+
+.path-btn:hover,
+.health-btn:hover,
+.rule-btn:hover,
+.hotspot-btn:hover,
+.godmodule-btn:hover {
+  background: var(--cg-surface-hover);
+  border-color: var(--cg-accent);
+  color: var(--cg-text);
+  transform: translateY(-1px);
+}
+
+.path-btn:focus-visible,
+.health-btn:focus-visible,
+.rule-btn:focus-visible,
+.hotspot-btn:focus-visible,
+.godmodule-btn:focus-visible {
+  outline: 2px solid var(--cg-accent);
+  outline-offset: 2px;
+}
+
+.path-btn.active,
+.health-btn.active,
+.rule-btn.active,
+.hotspot-btn.active,
+.godmodule-btn.active {
+  background: var(--cg-accent);
+  border-color: var(--cg-accent-hover);
+  color: var(--cg-text);
+  box-shadow: 0 1px 4px rgba(99, 102, 241, 0.45);
+}
+
+/* ---- Impact stats panel (FR-35) ------------------------------------------ */
+
+.impact-panel {
+  right: 12px;
+  bottom: calc(var(--cg-statusbar-h) + 12px);
+  top: auto;
+  width: 160px;
+}
+
+.impact-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.impact-stat-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.impact-stat-badge.d1 {
+  background: var(--cg-impact-d1);
+  color: var(--cg-text);
+}
+
+.impact-stat-badge.d2 {
+  background: var(--cg-impact-d2);
+  color: var(--cg-text);
+}
+
+.impact-stat-badge.d3 {
+  background: var(--cg-impact-d3);
+  color: var(--cg-text);
+}
+
+.impact-stat-count {
+  font-family: var(--cg-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cg-text);
+}
+
+.impact-stat-total {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--cg-border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cg-text);
+}
+
+/* ---- Responsive for new components ---------------------------------------- */
+
+@media (max-width: 480px) {
+  .path-bar,
+  .health-score-card,
+  .rule-panel {
+    width: calc(100% - 24px);
+  }
+
+  .analysis-panel {
+    width: calc(100% - 24px);
+  }
+
+  .focus-label {
+    max-width: 120px;
+  }
+}
+
+@media (max-width: 768px) {
+  .path-bar {
+    width: 240px;
+  }
+
+  .health-score-card {
+    width: 220px;
+  }
+
+  .rule-panel {
+    width: 240px;
+  }
+
+  .analysis-panel {
+    width: 200px;
+  }
+}
+
 `;
 			document.head.appendChild(style);
 		})();
@@ -3190,7 +4101,9 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			"cose",
 			"dagre",
 			"circle",
-			"grid"
+			"grid",
+			"radial",
+			"tree"
 		];
 		const result = {
 			...p$1,
@@ -42254,6 +43167,41 @@ var HighlightController = class {
 			}
 		});
 	}
+	getImpactStats(nodeId) {
+		const sourceNode = this.cy.getElementById(nodeId);
+		if (sourceNode.empty()) return null;
+		const visited = new Map();
+		const queue = [{
+			id: nodeId,
+			depth: 0
+		}];
+		let head = 0;
+		let d1 = 0, d2 = 0, d3 = 0;
+		while (head < queue.length) {
+			const { id, depth } = queue[head++];
+			if (visited.has(id) && visited.get(id) <= depth) continue;
+			visited.set(id, depth);
+			if (depth > 0) if (depth <= 1) d1++;
+			else if (depth === 2) d2++;
+			else d3++;
+			if (depth < 3) {
+				const node = this.cy.getElementById(id);
+				node.incomers().forEach((edge) => {
+					const src = edge.source().id();
+					if (!visited.has(src) || visited.get(src) > depth + 1) queue.push({
+						id: src,
+						depth: depth + 1
+					});
+				});
+			}
+		}
+		return {
+			d1,
+			d2,
+			d3,
+			total: d1 + d2 + d3
+		};
+	}
 	highlightInheritance(nodeId) {
 		this.cy.batch(() => {
 			this.cy.elements().removeClass("inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement");
@@ -42426,10 +43374,15 @@ var DataController = class {
 	cy;
 	currentNodes = new Map();
 	currentEdges = new Map();
+	rawNodesMap = new Map();
 	batchRaf = null;
 	batchQueue = null;
 	constructor(cy) {
 		this.cy = cy;
+	}
+	setRawNodes(rawNodes) {
+		this.rawNodesMap.clear();
+		for (const n of rawNodes) this.rawNodesMap.set(n.id, n);
 	}
 	updateData(nodes, edges) {
 		const newNodeIds = new Set(nodes.map((n) => n.id));
@@ -42594,16 +43547,34 @@ var DataController = class {
 		}
 		const q = query.toLowerCase();
 		let matches$2 = 0;
-		let firstMatchId = null;
+		const matchedCyNodeIds = new Set();
+		for (const rawNode of this.rawNodesMap.values()) if (rawNode.label.toLowerCase().includes(q)) {
+			matches$2++;
+			let cyNode = this.cy.getElementById(rawNode.id);
+			if (cyNode.length > 0) matchedCyNodeIds.add(rawNode.id);
+			else {
+				let parentId = rawNode.parentId;
+				while (parentId) {
+					cyNode = this.cy.getElementById(parentId);
+					if (cyNode.length > 0) {
+						matchedCyNodeIds.add(parentId);
+						break;
+					}
+					const parentRaw = this.rawNodesMap.get(parentId);
+					parentId = parentRaw?.parentId;
+				}
+			}
+		}
+		if (matches$2 === 0) this.cy.nodes().forEach((node) => {
+			const label = node.data("label");
+			if (typeof label === "string" && label.toLowerCase().includes(q)) {
+				matchedCyNodeIds.add(node.id());
+				matches$2++;
+			}
+		});
 		this.cy.batch(() => {
 			this.cy.nodes().forEach((node) => {
-				const label = node.data("label");
-				const isMatch = typeof label === "string" && label.toLowerCase().includes(q);
-				node.toggleClass("search-match", isMatch);
-				if (isMatch) {
-					matches$2++;
-					if (firstMatchId === null) firstMatchId = node.id();
-				}
+				node.toggleClass("search-match", matchedCyNodeIds.has(node.id()));
 			});
 		});
 		return matches$2;
@@ -43290,6 +44261,9 @@ var CytoscapeRenderer = class {
 	updateData(nodes, edges) {
 		this.dataCtrl?.updateData(nodes, edges);
 	}
+	setRawNodes(rawNodes) {
+		this.dataCtrl?.setRawNodes(rawNodes);
+	}
 	applyLayout(layout$2) {
 		this.layoutCtrl?.applyLayout(layout$2);
 	}
@@ -43323,6 +44297,9 @@ var CytoscapeRenderer = class {
 	highlightImpact(nodeId) {
 		this.highlightCtrl?.highlightImpact(nodeId);
 	}
+	getImpactStats(nodeId) {
+		return this.highlightCtrl?.getImpactStats(nodeId) ?? null;
+	}
 	highlightInheritance(nodeId) {
 		this.highlightCtrl?.highlightInheritance(nodeId);
 	}
@@ -43334,6 +44311,13 @@ var CytoscapeRenderer = class {
 	}
 	getViewportInfo() {
 		return this.viewportCtrl?.getViewportInfo() ?? null;
+	}
+	focusOnArea(ratioX, ratioY) {
+		const info = this.viewportCtrl?.getViewportInfo();
+		if (!info) return;
+		const targetX = info.totalSize.w * ratioX;
+		const targetY = info.totalSize.h * ratioY;
+		this.viewportCtrl?.focusOnArea(targetX, targetY, info.zoom);
 	}
 	exportJSON() {
 		return this.dataCtrl?.exportJSON() ?? "";
@@ -43460,7 +44444,7 @@ function scoped(scope) {
 //#endregion
 //#region src/client/hooks/useGraphRenderer.ts
 const log$5 = scoped("renderer-hook");
-function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, showCallChain, showCycles, showImpact, showInheritance, focusNodeId, callbacks, showCallChainRef) {
+function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, showCallChain, showCycles, showImpact, showInheritance, focusNodeId, callbacks, showCallChainRef) {
 	const containerRef = (0, react.useRef)(null);
 	const rendererRef = (0, react.useRef)(null);
 	const [searchMatchCount, setSearchMatchCount] = (0, react.useState)(null);
@@ -43495,6 +44479,9 @@ function useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, sel
 	(0, react.useEffect)(() => {
 		rendererRef.current?.updateData(nodes, edges);
 	}, [nodes, edges]);
+	(0, react.useEffect)(() => {
+		rendererRef.current?.setRawNodes(rawNodes);
+	}, [rawNodes]);
 	(0, react.useEffect)(() => {
 		const r = rendererRef.current;
 		if (!r) return;
@@ -43650,6 +44637,11 @@ function usePanelState() {
 	const [showMiniMap, setShowMiniMap] = (0, react.useState)(false);
 	const [showImport, setShowImport] = (0, react.useState)(false);
 	const [showLegend, setShowLegend] = (0, react.useState)(false);
+	const [showPathFind, setShowPathFind] = (0, react.useState)(false);
+	const [showHealthScore, setShowHealthScore] = (0, react.useState)(false);
+	const [showRules, setShowRules] = (0, react.useState)(false);
+	const [showHotspot, setShowHotspot] = (0, react.useState)(false);
+	const [showGodModule, setShowGodModule] = (0, react.useState)(false);
 	const toggleSearch = (0, react.useCallback)(() => setShowSearch((v) => !v), []);
 	const toggleCollapsed = (0, react.useCallback)(() => setCollapsed((c) => !c), []);
 	const toggleCycles = (0, react.useCallback)(() => setShowCycles((v) => !v), []);
@@ -43659,6 +44651,11 @@ function usePanelState() {
 	const toggleMiniMap = (0, react.useCallback)(() => setShowMiniMap((v) => !v), []);
 	const toggleImport = (0, react.useCallback)(() => setShowImport((v) => !v), []);
 	const toggleLegend = (0, react.useCallback)(() => setShowLegend((v) => !v), []);
+	const togglePathFind = (0, react.useCallback)(() => setShowPathFind((v) => !v), []);
+	const toggleHealthScore = (0, react.useCallback)(() => setShowHealthScore((v) => !v), []);
+	const toggleRules = (0, react.useCallback)(() => setShowRules((v) => !v), []);
+	const toggleHotspot = (0, react.useCallback)(() => setShowHotspot((v) => !v), []);
+	const toggleGodModule = (0, react.useCallback)(() => setShowGodModule((v) => !v), []);
 	return {
 		showSearch,
 		collapsed,
@@ -43669,6 +44666,11 @@ function usePanelState() {
 		showMiniMap,
 		showImport,
 		showLegend,
+		showPathFind,
+		showHealthScore,
+		showRules,
+		showHotspot,
+		showGodModule,
 		toggleSearch,
 		toggleCollapsed,
 		toggleCycles,
@@ -43678,6 +44680,11 @@ function usePanelState() {
 		toggleMiniMap,
 		toggleImport,
 		toggleLegend,
+		togglePathFind,
+		toggleHealthScore,
+		toggleRules,
+		toggleHotspot,
+		toggleGodModule,
 		setShowSearch,
 		setShowImport,
 		setShowCallChain,
@@ -43685,7 +44692,12 @@ function usePanelState() {
 		setShowImpact,
 		setShowInheritance,
 		setShowMiniMap,
-		setShowLegend
+		setShowLegend,
+		setShowPathFind,
+		setShowHealthScore,
+		setShowRules,
+		setShowHotspot,
+		setShowGodModule
 	};
 }
 
@@ -43971,7 +44983,50 @@ const en = {
 	"edge.tooltip.source": "Source",
 	"edge.tooltip.target": "Target",
 	"edge.tooltip.type": "Relationship",
-	"state.complete": "Graph is complete ({total} nodes)"
+	"state.complete": "Graph is complete ({total} nodes)",
+	"pathFind.title": "Path Finder",
+	"pathFind.close": "Close path finder",
+	"pathFind.start": "Start",
+	"pathFind.end": "End",
+	"pathFind.startPlaceholder": "Search start symbol…",
+	"pathFind.endPlaceholder": "Search end symbol…",
+	"pathFind.find": "Find Path",
+	"pathFind.clear": "Clear",
+	"pathFind.length": "Path length",
+	"pathFind.hops": "Hops",
+	"pathFind.noPath": "Unreachable",
+	"health.title": "Architecture Health Score",
+	"health.close": "Close health score",
+	"health.noData": "Click \"Check\" to calculate score",
+	"health.overall": "Overall",
+	"health.coupling": "Coupling",
+	"health.cohesion": "Cohesion",
+	"health.cyclicDependencyRate": "Cyclic Dep Rate",
+	"health.modularity": "Modularity",
+	"health.couplingDesc": "Lower inter-module coupling is better",
+	"health.cohesionDesc": "Higher intra-module cohesion is better",
+	"health.cyclicDesc": "Fewer circular dependencies is better",
+	"health.modularityDesc": "Better module separation is better",
+	"rules.title": "Rule Engine",
+	"rules.close": "Close rule engine",
+	"rules.config": "Rule Configuration",
+	"rules.loadPresets": "Load Preset Rules",
+	"rules.noRules": "No rules yet, click \"Load Preset Rules\"",
+	"rules.check": "Check Violations",
+	"rules.violations": "Violations",
+	"rules.noViolations": "No violations",
+	"focus.title": "Focus Mode",
+	"focus.mode": "Focus",
+	"focus.depth": "Depth",
+	"focus.expand": "Expand next layer",
+	"focus.contract": "Contract one layer",
+	"focus.exit": "Exit focus",
+	"toolbar.pathFind": "Path Finder",
+	"toolbar.health": "Architecture Health Score",
+	"toolbar.rules": "Rule Engine",
+	"toolbar.hotspot": "Hotspot Analysis",
+	"toolbar.godModule": "God Module Detection",
+	"impact.total": "Total impacted nodes"
 };
 
 //#endregion
@@ -44146,7 +45201,50 @@ const zh = {
 	"edge.tooltip.source": "源节点",
 	"edge.tooltip.target": "目标节点",
 	"edge.tooltip.type": "关系类型",
-	"state.complete": "图谱完整 ({total} 节点)"
+	"state.complete": "图谱完整 ({total} 节点)",
+	"pathFind.title": "路径查找",
+	"pathFind.close": "关闭路径查找",
+	"pathFind.start": "起点",
+	"pathFind.end": "终点",
+	"pathFind.startPlaceholder": "搜索起点符号…",
+	"pathFind.endPlaceholder": "搜索终点符号…",
+	"pathFind.find": "查找路径",
+	"pathFind.clear": "清除",
+	"pathFind.length": "路径长度",
+	"pathFind.hops": "经过节点",
+	"pathFind.noPath": "不可达",
+	"health.title": "架构健康评分",
+	"health.close": "关闭健康评分",
+	"health.noData": "点击\"检查\"按钮计算评分",
+	"health.overall": "总体评分",
+	"health.coupling": "耦合度",
+	"health.cohesion": "内聚度",
+	"health.cyclicDependencyRate": "循环依赖率",
+	"health.modularity": "模块度",
+	"health.couplingDesc": "模块间耦合越低越好",
+	"health.cohesionDesc": "模块内内聚越高越好",
+	"health.cyclicDesc": "循环依赖越少越好",
+	"health.modularityDesc": "模块划分越均衡越好",
+	"rules.title": "规则引擎",
+	"rules.close": "关闭规则引擎",
+	"rules.config": "规则配置",
+	"rules.loadPresets": "加载预设规则",
+	"rules.noRules": "暂无规则，点击\"加载预设规则\"",
+	"rules.check": "检查违规",
+	"rules.violations": "违规列表",
+	"rules.noViolations": "无违规",
+	"focus.title": "聚焦模式",
+	"focus.mode": "聚焦",
+	"focus.depth": "深度",
+	"focus.expand": "展开下一层",
+	"focus.contract": "收起一层",
+	"focus.exit": "退出聚焦",
+	"toolbar.pathFind": "路径查找",
+	"toolbar.health": "架构健康评分",
+	"toolbar.rules": "规则引擎",
+	"toolbar.hotspot": "热点分析",
+	"toolbar.godModule": "God Module 检测",
+	"impact.total": "总影响节点"
 };
 
 //#endregion
@@ -44471,6 +45569,66 @@ const TreeIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react
 		}),
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 6v4M12 10H5v4M12 10h7v4M5 14v4M19 14v4" })
 	]
+});
+const PathIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+	...base(size$1),
+	className,
+	children: [
+		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+			cx: "5",
+			cy: "5",
+			r: "2"
+		}),
+		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+			cx: "19",
+			cy: "19",
+			r: "2"
+		}),
+		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M5 7v4a4 4 0 0 0 4 4h6a4 4 0 0 1 4 4" })
+	]
+});
+const HeartIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+	...base(size$1),
+	className,
+	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z" })
+});
+const RuleIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+	...base(size$1),
+	className,
+	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M9 11l3 3L22 4" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" })]
+});
+const FlameIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+	...base(size$1),
+	className,
+	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5Z" })
+});
+const AlertCircleIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+	...base(size$1),
+	className,
+	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+		cx: "12",
+		cy: "12",
+		r: "10"
+	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 8v4M12 16h.01" })]
+});
+const ExpandIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+	...base(size$1),
+	className,
+	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 21H3M21 3H3M9 9l3-3 3 3M9 15l3 3 3-3" })
+});
+const ContractIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+	...base(size$1),
+	className,
+	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 21H3M21 3H3M15 9l-3-3-3 3M15 15l-3 3-3-3" })
+});
+const FocusIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+	...base(size$1),
+	className,
+	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+		cx: "12",
+		cy: "12",
+		r: "3"
+	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4l1.4-1.4M17 7l1.4-1.4" })]
 });
 
 //#endregion
@@ -45169,7 +46327,9 @@ const LAYOUTS = [
 	"cose",
 	"dagre",
 	"circle",
-	"grid"
+	"grid",
+	"radial",
+	"tree"
 ];
 const FILTER_KEYS = [
 	{
@@ -45246,7 +46406,7 @@ function Toolbar(props) {
 		props.onExport(format);
 		setShowExportMenu(false);
 	}, [props]);
-	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterLevel, showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport, collapsed, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll } = props;
+	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterLevel, showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport, showPathFind, showHealthScore, showRules, showHotspot, showGodModule, collapsed, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll } = props;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "graph-toolbar",
 		children: [
@@ -45401,6 +46561,46 @@ function Toolbar(props) {
 								"aria-label": t$1("toolbar.inheritance"),
 								"aria-pressed": showInheritance,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TreeIcon, { size: 15 })
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `pathfind-btn ${showPathFind ? "active" : ""}`,
+								onClick: onTogglePathFind,
+								title: t$1("toolbar.pathFind"),
+								"aria-label": t$1("toolbar.pathFind"),
+								"aria-pressed": showPathFind,
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PathIcon, { size: 15 })
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `health-btn ${showHealthScore ? "active" : ""}`,
+								onClick: onToggleHealthScore,
+								title: t$1("toolbar.health"),
+								"aria-label": t$1("toolbar.health"),
+								"aria-pressed": showHealthScore,
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(HeartIcon, { size: 15 })
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `rules-btn ${showRules ? "active" : ""}`,
+								onClick: onToggleRules,
+								title: t$1("toolbar.rules"),
+								"aria-label": t$1("toolbar.rules"),
+								"aria-pressed": showRules,
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RuleIcon, { size: 15 })
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `hotspot-btn ${showHotspot ? "active" : ""}`,
+								onClick: onToggleHotspot,
+								title: t$1("toolbar.hotspot"),
+								"aria-label": t$1("toolbar.hotspot"),
+								"aria-pressed": showHotspot,
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(FlameIcon, { size: 15 })
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `godmodule-btn ${showGodModule ? "active" : ""}`,
+								onClick: onToggleGodModule,
+								title: t$1("toolbar.godModule"),
+								"aria-label": t$1("toolbar.godModule"),
+								"aria-pressed": showGodModule,
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(AlertCircleIcon, { size: 15 })
 							})
 						]
 					}),
@@ -45752,7 +46952,7 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse }) 
 
 //#endregion
 //#region src/client/components/StatsPanel.tsx
-function StatsPanel({ counts, onClose, thumbnail, viewportInfo }) {
+function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusArea }) {
 	const t$1 = useT();
 	const total = counts.function + counts.class + counts.variable + counts.module + counts.interface;
 	const imgRef = (0, react.useRef)(null);
@@ -45782,6 +46982,13 @@ function StatsPanel({ counts, onClose, thumbnail, viewportInfo }) {
 			height: vpH
 		};
 	})();
+	const handleThumbnailClick = (e) => {
+		if (!onFocusArea || !imgRef.current) return;
+		const rect = imgRef.current.getBoundingClientRect();
+		const ratioX = (e.clientX - rect.left) / rect.width;
+		const ratioY = (e.clientY - rect.top) / rect.height;
+		onFocusArea(ratioX, ratioY);
+	};
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "mini-map",
 		role: "complementary",
@@ -45810,10 +47017,12 @@ function StatsPanel({ counts, onClose, thumbnail, viewportInfo }) {
 						src: thumbnail,
 						alt: t$1("minimap.title"),
 						onLoad: () => setImgLoaded(true),
+						onClick: handleThumbnailClick,
 						style: {
 							width: "100%",
 							height: "auto",
-							display: "block"
+							display: "block",
+							cursor: onFocusArea ? "crosshair" : "default"
 						}
 					}), viewportBox && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 						className: "mini-map-viewport",
@@ -46222,8 +47431,859 @@ function KeyboardHelp({ visible, onClose }) {
 }
 
 //#endregion
+//#region src/client/components/PathBar.tsx
+function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClose }) {
+	const t$1 = useT();
+	const rawNodes = useGraphStore((s) => s.rawNodes);
+	const pathStartId = useGraphStore((s) => s.pathStartId);
+	const pathEndId = useGraphStore((s) => s.pathEndId);
+	const setPathStart = useGraphStore((s) => s.setPathStart);
+	const setPathEnd = useGraphStore((s) => s.setPathEnd);
+	const setPathResult = useGraphStore((s) => s.setPathResult);
+	const [startQuery, setStartQuery] = (0, react.useState)("");
+	const [endQuery, setEndQuery] = (0, react.useState)("");
+	const startMatches = startQuery ? rawNodes.filter((n) => n.label.toLowerCase().includes(startQuery.toLowerCase())).slice(0, 10) : [];
+	const endMatches = endQuery ? rawNodes.filter((n) => n.label.toLowerCase().includes(endQuery.toLowerCase())).slice(0, 10) : [];
+	const handleFind = (0, react.useCallback)(() => {
+		if (pathStartId && pathEndId) onFindPath(pathStartId, pathEndId);
+	}, [
+		pathStartId,
+		pathEndId,
+		onFindPath
+	]);
+	const handleClear = (0, react.useCallback)(() => {
+		setPathStart(null);
+		setPathEnd(null);
+		setPathResult(null);
+		onClearPath();
+		setStartQuery("");
+		setEndQuery("");
+	}, [
+		setPathStart,
+		setPathEnd,
+		setPathResult,
+		onClearPath
+	]);
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+		className: "path-bar",
+		role: "region",
+		"aria-label": t$1("pathFind.title"),
+		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			className: "path-bar-header",
+			children: [
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)(PathIcon, { size: 14 }),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("pathFind.title") }),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+					onClick: onClose,
+					"aria-label": t$1("pathFind.close"),
+					style: {
+						background: "transparent",
+						border: "none",
+						color: "inherit",
+						cursor: "pointer",
+						marginLeft: "auto"
+					},
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CloseIcon, { size: 14 })
+				})
+			]
+		}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			className: "path-bar-content",
+			children: [
+				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: "path-input-group",
+					children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", { children: t$1("pathFind.start") }),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+							type: "text",
+							value: startQuery,
+							onChange: (e) => {
+								setStartQuery(e.target.value);
+								setPathStart(null);
+							},
+							placeholder: t$1("pathFind.startPlaceholder")
+						}),
+						startMatches.length > 0 && !pathStartId && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: "path-suggestions",
+							children: startMatches.map((n) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+								onClick: () => {
+									setStartQuery(n.label);
+									setPathStart(n.id);
+								},
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: "suggestion-type",
+									children: n.type
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: "suggestion-label",
+									children: n.label
+								})]
+							}, n.id))
+						}),
+						pathStartId && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "path-selected",
+							children: rawNodes.find((n) => n.id === pathStartId)?.label ?? pathStartId
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: "path-input-group",
+					children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", { children: t$1("pathFind.end") }),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+							type: "text",
+							value: endQuery,
+							onChange: (e) => {
+								setEndQuery(e.target.value);
+								setPathEnd(null);
+							},
+							placeholder: t$1("pathFind.endPlaceholder")
+						}),
+						endMatches.length > 0 && !pathEndId && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className: "path-suggestions",
+							children: endMatches.map((n) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+								onClick: () => {
+									setEndQuery(n.label);
+									setPathEnd(n.id);
+								},
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: "suggestion-type",
+									children: n.type
+								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: "suggestion-label",
+									children: n.label
+								})]
+							}, n.id))
+						}),
+						pathEndId && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "path-selected",
+							children: rawNodes.find((n) => n.id === pathEndId)?.label ?? pathEndId
+						})
+					]
+				}),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: "path-actions",
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+						onClick: handleFind,
+						disabled: !pathStartId || !pathEndId,
+						className: "path-find-btn",
+						children: t$1("pathFind.find")
+					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+						onClick: handleClear,
+						className: "path-clear-btn",
+						children: t$1("pathFind.clear")
+					})]
+				}),
+				pathResult && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: "path-result",
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", { children: [
+						t$1("pathFind.length"),
+						": ",
+						pathLength
+					] }), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", { children: [
+						t$1("pathFind.hops"),
+						": ",
+						pathResult.length
+					] })]
+				})
+			]
+		})]
+	});
+}
+
+//#endregion
+//#region src/client/components/HealthScoreCard.tsx
+function scoreColor(score) {
+	if (score >= 80) return "var(--cg-success)";
+	if (score >= 60) return "var(--cg-warning)";
+	return "var(--cg-error)";
+}
+function DimensionBar({ name: name$1, score, description }) {
+	const t$1 = useT();
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+		className: "health-dimension",
+		children: [
+			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "health-dimension-header",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "health-dimension-name",
+					children: t$1(`health.${name$1}`)
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "health-dimension-score",
+					style: { color: scoreColor(score) },
+					children: score
+				})]
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				className: "health-dimension-bar",
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: "health-dimension-fill",
+					style: {
+						width: `${score}%`,
+						background: scoreColor(score)
+					}
+				})
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				className: "health-dimension-desc",
+				children: description
+			})
+		]
+	});
+}
+function HealthScoreCard({ onClose }) {
+	const t$1 = useT();
+	const healthScore = useGraphStore((s) => s.healthScore);
+	if (!healthScore) return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+		className: "health-score-card",
+		role: "region",
+		"aria-label": t$1("health.title"),
+		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			className: "health-score-header",
+			children: [
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)(HeartIcon, { size: 14 }),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("health.title") }),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+					onClick: onClose,
+					"aria-label": t$1("health.close"),
+					style: {
+						background: "transparent",
+						border: "none",
+						color: "inherit",
+						cursor: "pointer",
+						marginLeft: "auto"
+					},
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CloseIcon, { size: 14 })
+				})
+			]
+		}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+			className: "health-score-empty",
+			children: t$1("health.noData")
+		})]
+	});
+	const dimensions$1 = [
+		{
+			name: "coupling",
+			score: healthScore.coupling,
+			description: t$1("health.couplingDesc")
+		},
+		{
+			name: "cohesion",
+			score: healthScore.cohesion,
+			description: t$1("health.cohesionDesc")
+		},
+		{
+			name: "cyclicDependencyRate",
+			score: healthScore.cyclicDependencyRate,
+			description: t$1("health.cyclicDesc")
+		},
+		{
+			name: "modularity",
+			score: healthScore.modularity,
+			description: t$1("health.modularityDesc")
+		}
+	];
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+		className: "health-score-card",
+		role: "region",
+		"aria-label": t$1("health.title"),
+		children: [
+			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "health-score-header",
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(HeartIcon, { size: 14 }),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("health.title") }),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+						onClick: onClose,
+						"aria-label": t$1("health.close"),
+						style: {
+							background: "transparent",
+							border: "none",
+							color: "inherit",
+							cursor: "pointer",
+							marginLeft: "auto"
+						},
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CloseIcon, { size: 14 })
+					})
+				]
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "health-score-overall",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: "health-score-circle",
+					style: { borderColor: scoreColor(healthScore.overall) },
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						style: { color: scoreColor(healthScore.overall) },
+						children: healthScore.overall
+					})
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "health-score-label",
+					children: t$1("health.overall")
+				})]
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				className: "health-dimensions",
+				children: dimensions$1.map((d) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(DimensionBar, {
+					name: d.name,
+					score: d.score,
+					description: d.description
+				}, d.name))
+			})
+		]
+	});
+}
+
+//#endregion
+//#region src/client/analysis/RuleEngine.ts
+const PRESET_RULES = [
+	{
+		id: "no-circular-deps",
+		name: "No Circular Dependencies",
+		type: "forbidden-edge",
+		params: { edgeTypes: [
+			"call",
+			"import",
+			"dependency"
+		] },
+		severity: "error",
+		enabled: false
+	},
+	{
+		id: "max-indegree-10",
+		name: "Max Indegree ≤ 10",
+		type: "max-indegree",
+		params: { threshold: 10 },
+		severity: "warning",
+		enabled: false
+	},
+	{
+		id: "max-outdegree-15",
+		name: "Max Outdegree ≤ 15",
+		type: "max-outdegree",
+		params: { threshold: 15 },
+		severity: "warning",
+		enabled: false
+	}
+];
+function getPresetRules() {
+	return PRESET_RULES.map((r) => ({ ...r }));
+}
+var RuleEngine = class {
+	detectors = new Map();
+	constructor() {
+		this.registerDetector("forbidden-edge", new ForbiddenEdgeDetector());
+		this.registerDetector("max-indegree", new MaxIndegreeDetector());
+		this.registerDetector("max-outdegree", new MaxOutdegreeDetector());
+	}
+	registerDetector(type, detector) {
+		this.detectors.set(type, detector);
+	}
+	check(rules, nodes, edges) {
+		const violations = [];
+		for (const rule of rules) {
+			if (!rule.enabled) continue;
+			const detector = this.detectors.get(rule.type);
+			if (detector) violations.push(...detector.detect(rule, nodes, edges));
+		}
+		return violations;
+	}
+};
+var ForbiddenEdgeDetector = class {
+	detect(rule, nodes, edges) {
+		const violations = [];
+		const edgeTypes = rule.params.edgeTypes ?? [
+			"call",
+			"import",
+			"dependency"
+		];
+		const adjacency = new Map();
+		for (const edge of edges) {
+			if (!edgeTypes.includes(edge.type)) continue;
+			const list = adjacency.get(edge.source);
+			if (list) list.push(edge.target);
+			else adjacency.set(edge.source, [edge.target]);
+		}
+		const visited = new Set();
+		const inStack = new Set();
+		const path = [];
+		const enter = (start) => {
+			const frames = [{
+				id: start,
+				neighbors: adjacency.get(start) ?? [],
+				next: 0
+			}];
+			visited.add(start);
+			inStack.add(start);
+			path.push(start);
+			while (frames.length > 0) {
+				const frame = frames[frames.length - 1];
+				if (frame.next >= frame.neighbors.length) {
+					inStack.delete(frame.id);
+					path.pop();
+					frames.pop();
+					continue;
+				}
+				const target = frame.neighbors[frame.next++];
+				if (inStack.has(target)) violations.push({
+					ruleId: rule.id,
+					nodeId: target,
+					message: `Circular dependency detected: ${target}`,
+					severity: rule.severity
+				});
+				else if (!visited.has(target)) {
+					visited.add(target);
+					inStack.add(target);
+					path.push(target);
+					frames.push({
+						id: target,
+						neighbors: adjacency.get(target) ?? [],
+						next: 0
+					});
+				}
+			}
+		};
+		for (const id of adjacency.keys()) if (!visited.has(id)) enter(id);
+		return violations;
+	}
+};
+var MaxIndegreeDetector = class {
+	detect(rule, _nodes, edges) {
+		const violations = [];
+		const threshold = rule.params.threshold ?? 10;
+		const indegree = new Map();
+		for (const edge of edges) indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1);
+		for (const [nodeId, count] of indegree) if (count > threshold) violations.push({
+			ruleId: rule.id,
+			nodeId,
+			message: `Node ${nodeId} has indegree ${count} (max ${threshold})`,
+			severity: rule.severity
+		});
+		return violations;
+	}
+};
+var MaxOutdegreeDetector = class {
+	detect(rule, _nodes, edges) {
+		const violations = [];
+		const threshold = rule.params.threshold ?? 15;
+		const outdegree = new Map();
+		for (const edge of edges) outdegree.set(edge.source, (outdegree.get(edge.source) ?? 0) + 1);
+		for (const [nodeId, count] of outdegree) if (count > threshold) violations.push({
+			ruleId: rule.id,
+			nodeId,
+			message: `Node ${nodeId} has outdegree ${count} (max ${threshold})`,
+			severity: rule.severity
+		});
+		return violations;
+	}
+};
+
+//#endregion
+//#region src/client/components/RuleConfigPanel.tsx
+function RuleConfigPanel({ violations, onCheckRules, onClose }) {
+	const t$1 = useT();
+	const rules = useGraphStore((s) => s.rules);
+	const setRules = useGraphStore((s) => s.setRules);
+	const [showViolations, setShowViolations] = (0, react.useState)(true);
+	const handleToggleRule = (0, react.useCallback)((ruleId) => {
+		const newRules = rules.map((r) => r.id === ruleId ? {
+			...r,
+			enabled: !r.enabled
+		} : r);
+		setRules(newRules);
+	}, [rules, setRules]);
+	const handleLoadPresets = (0, react.useCallback)(() => {
+		setRules(getPresetRules());
+	}, [setRules]);
+	const errorCount = violations.filter((v) => v.severity === "error").length;
+	const warningCount = violations.filter((v) => v.severity === "warning").length;
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+		className: "rule-panel",
+		role: "region",
+		"aria-label": t$1("rules.title"),
+		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			className: "rule-panel-header",
+			children: [
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)(RuleIcon, { size: 14 }),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("rules.title") }),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+					onClick: onClose,
+					"aria-label": t$1("rules.close"),
+					style: {
+						background: "transparent",
+						border: "none",
+						color: "inherit",
+						cursor: "pointer",
+						marginLeft: "auto"
+					},
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CloseIcon, { size: 14 })
+				})
+			]
+		}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			className: "rule-panel-content",
+			children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "rule-config-section",
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: "rule-config-header",
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("rules.config") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							onClick: handleLoadPresets,
+							className: "rule-preset-btn",
+							children: t$1("rules.loadPresets")
+						})]
+					}),
+					rules.length === 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "rule-empty",
+						children: t$1("rules.noRules")
+					}),
+					rules.map((rule) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "rule-item",
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+							className: "rule-toggle",
+							children: [
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+									type: "checkbox",
+									checked: rule.enabled,
+									onChange: () => handleToggleRule(rule.id)
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: "rule-name",
+									children: rule.name
+								}),
+								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+									className: `rule-severity ${rule.severity}`,
+									children: rule.severity
+								})
+							]
+						})
+					}, rule.id)),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+						onClick: onCheckRules,
+						disabled: rules.filter((r) => r.enabled).length === 0,
+						className: "rule-check-btn",
+						children: t$1("rules.check")
+					})
+				]
+			}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "rule-violations-section",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: "rule-violations-header",
+					onClick: () => setShowViolations((v) => !v),
+					children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("rules.violations") }),
+						errorCount > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "violation-badge error",
+							children: errorCount
+						}),
+						warningCount > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "violation-badge warning",
+							children: warningCount
+						})
+					]
+				}), showViolations && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: "rule-violations-list",
+					children: [violations.length === 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "rule-empty",
+						children: t$1("rules.noViolations")
+					}), violations.map((v, i$1) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: `violation-item ${v.severity}`,
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(AlertIcon, { size: 12 }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "violation-message",
+							children: v.message
+						})]
+					}, `${v.ruleId}-${i$1}`))]
+				})]
+			})]
+		})]
+	});
+}
+
+//#endregion
+//#region src/client/components/FocusModeBar.tsx
+function FocusModeBar({ focusNodeId, onExpand, onContract, onExit }) {
+	const t$1 = useT();
+	const focusDepth = useGraphStore((s) => s.focusDepth);
+	const rawNodes = useGraphStore((s) => s.rawNodes);
+	if (!focusNodeId) return null;
+	const focusLabel = rawNodes.find((n) => n.id === focusNodeId)?.label ?? focusNodeId;
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+		className: "focus-mode-bar",
+		role: "region",
+		"aria-label": t$1("focus.title"),
+		children: [
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)(FocusIcon, { size: 14 }),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+				className: "focus-label",
+				children: [
+					t$1("focus.mode"),
+					": ",
+					focusLabel
+				]
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+				className: "focus-depth",
+				children: [
+					t$1("focus.depth"),
+					": ",
+					focusDepth
+				]
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+				onClick: onExpand,
+				className: "focus-expand-btn",
+				title: t$1("focus.expand"),
+				"aria-label": t$1("focus.expand"),
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ExpandIcon, { size: 14 })
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+				onClick: onContract,
+				className: "focus-contract-btn",
+				title: t$1("focus.contract"),
+				"aria-label": t$1("focus.contract"),
+				disabled: focusDepth <= 1,
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ContractIcon, { size: 14 })
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+				onClick: onExit,
+				className: "focus-exit-btn",
+				title: t$1("focus.exit"),
+				"aria-label": t$1("focus.exit"),
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CloseIcon, { size: 14 })
+			})
+		]
+	});
+}
+
+//#endregion
+//#region src/client/analysis/HealthScorer.ts
+var HealthScorer = class {
+	calculate(nodes, edges) {
+		if (nodes.length === 0) return {
+			coupling: 0,
+			cohesion: 0,
+			cyclicDependencyRate: 0,
+			modularity: 0,
+			overall: 0
+		};
+		const coupling = this.calculateCoupling(nodes, edges);
+		const cohesion = this.calculateCohesion(nodes, edges);
+		const cyclicDependencyRate = this.calculateCyclicDependencyRate(nodes, edges);
+		const modularity = this.calculateModularity(nodes, edges);
+		const overall = Math.round(coupling * .25 + cohesion * .25 + cyclicDependencyRate * .25 + modularity * .25);
+		return {
+			coupling,
+			cohesion,
+			cyclicDependencyRate,
+			modularity,
+			overall
+		};
+	}
+	getDimensions(score) {
+		return [
+			{
+				name: "coupling",
+				score: score.coupling,
+				description: "Lower inter-module coupling is better"
+			},
+			{
+				name: "cohesion",
+				score: score.cohesion,
+				description: "Higher intra-module cohesion is better"
+			},
+			{
+				name: "cyclicDependencyRate",
+				score: score.cyclicDependencyRate,
+				description: "Fewer circular dependencies is better"
+			},
+			{
+				name: "modularity",
+				score: score.modularity,
+				description: "Better module separation is better"
+			}
+		];
+	}
+	calculateCoupling(nodes, edges) {
+		if (edges.length === 0) return 100;
+		const moduleOfNode = this.buildModuleMap(nodes);
+		let crossModuleEdges = 0;
+		for (const edge of edges) {
+			const srcModule = moduleOfNode.get(edge.source);
+			const tgtModule = moduleOfNode.get(edge.target);
+			if (srcModule && tgtModule && srcModule !== tgtModule) crossModuleEdges++;
+		}
+		const couplingRatio = crossModuleEdges / edges.length;
+		return Math.round(Math.max(0, 100 - couplingRatio * 100));
+	}
+	calculateCohesion(nodes, edges) {
+		const moduleOfNode = this.buildModuleMap(nodes);
+		const moduleEdges = new Map();
+		for (const edge of edges) {
+			const srcModule = moduleOfNode.get(edge.source);
+			const tgtModule = moduleOfNode.get(edge.target);
+			if (!srcModule) continue;
+			let stats = moduleEdges.get(srcModule);
+			if (!stats) {
+				stats = {
+					internal: 0,
+					total: 0
+				};
+				moduleEdges.set(srcModule, stats);
+			}
+			stats.total++;
+			if (srcModule === tgtModule) stats.internal++;
+		}
+		if (moduleEdges.size === 0) return 50;
+		let totalCohesion = 0;
+		let moduleCount = 0;
+		for (const stats of moduleEdges.values()) if (stats.total > 0) {
+			totalCohesion += stats.internal / stats.total;
+			moduleCount++;
+		}
+		if (moduleCount === 0) return 50;
+		return Math.round(totalCohesion / moduleCount * 100);
+	}
+	calculateCyclicDependencyRate(nodes, edges) {
+		if (edges.length === 0) return 100;
+		const adjacency = new Map();
+		for (const edge of edges) {
+			const list = adjacency.get(edge.source);
+			if (list) list.push(edge.target);
+			else adjacency.set(edge.source, [edge.target]);
+		}
+		const visited = new Set();
+		const inStack = new Set();
+		const path = [];
+		let cycleNodeCount = 0;
+		const enter = (start) => {
+			const frames = [{
+				id: start,
+				neighbors: adjacency.get(start) ?? [],
+				next: 0
+			}];
+			visited.add(start);
+			inStack.add(start);
+			path.push(start);
+			while (frames.length > 0) {
+				const frame = frames[frames.length - 1];
+				if (frame.next >= frame.neighbors.length) {
+					inStack.delete(frame.id);
+					path.pop();
+					frames.pop();
+					continue;
+				}
+				const target = frame.neighbors[frame.next++];
+				if (inStack.has(target)) {
+					const cycleStart = path.indexOf(target);
+					if (cycleStart >= 0) {
+						for (let i$1 = cycleStart; i$1 < path.length; i$1++) if (!visited.has(`__cycle_${path[i$1]}`)) {
+							cycleNodeCount++;
+							visited.add(`__cycle_${path[i$1]}`);
+						}
+					}
+				} else if (!visited.has(target)) {
+					visited.add(target);
+					inStack.add(target);
+					path.push(target);
+					frames.push({
+						id: target,
+						neighbors: adjacency.get(target) ?? [],
+						next: 0
+					});
+				}
+			}
+		};
+		for (const id of adjacency.keys()) if (!visited.has(id)) enter(id);
+		const cycleRate = cycleNodeCount / nodes.length;
+		return Math.round(Math.max(0, 100 - cycleRate * 100));
+	}
+	calculateModularity(nodes, _edges) {
+		if (nodes.length === 0) return 0;
+		const moduleOfNode = this.buildModuleMap(nodes);
+		const modules$1 = new Set();
+		for (const m of moduleOfNode.values()) modules$1.add(m);
+		if (modules$1.size <= 1) return 50;
+		const moduleSizes = new Map();
+		for (const m of moduleOfNode.values()) moduleSizes.set(m, (moduleSizes.get(m) ?? 0) + 1);
+		let sizeVariance = 0;
+		const avgSize = nodes.length / modules$1.size;
+		for (const size$1 of moduleSizes.values()) sizeVariance += Math.abs(size$1 - avgSize);
+		sizeVariance /= modules$1.size;
+		const balanceScore = Math.max(0, 100 - sizeVariance / avgSize * 50);
+		const separationScore = Math.min(100, modules$1.size / Math.max(1, Math.sqrt(nodes.length)) * 100);
+		return Math.round((balanceScore + separationScore) / 2);
+	}
+	buildModuleMap(nodes) {
+		const moduleOfNode = new Map();
+		for (const node of nodes) {
+			const parts = node.filePath.split(/[\\/]/);
+			const module$1 = parts.length > 1 ? parts.slice(0, -1).join("/") : node.filePath;
+			moduleOfNode.set(node.id, module$1);
+		}
+		return moduleOfNode;
+	}
+};
+
+//#endregion
+//#region src/client/analysis/HotspotAnalyzer.ts
+var HotspotAnalyzer = class {
+	analyze(nodes, edges) {
+		const indegree = new Map();
+		for (const edge of edges) indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1);
+		const nodeMap = new Map();
+		for (const n of nodes) nodeMap.set(n.id, n);
+		const results = [];
+		for (const [nodeId, count] of indegree) {
+			const node = nodeMap.get(nodeId);
+			if (!node || count < 5) continue;
+			const level = count >= 20 ? "high" : count >= 10 ? "medium" : "low";
+			results.push({
+				nodeId,
+				label: node.label,
+				indegree: count,
+				level
+			});
+		}
+		return results.sort((a, b) => b.indegree - a.indegree);
+	}
+};
+var GodModuleDetector = class {
+	detect(nodes, edges, threshold = 50) {
+		const moduleNodes = new Map();
+		for (const node of nodes) {
+			const parts = node.filePath.split(/[\\/]/);
+			const module$1 = parts.length > 1 ? parts.slice(0, -1).join("/") : node.filePath;
+			let list = moduleNodes.get(module$1);
+			if (!list) {
+				list = [];
+				moduleNodes.set(module$1, list);
+			}
+			list.push(node);
+		}
+		const moduleEdges = new Map();
+		const nodeToModule = new Map();
+		for (const [module$1, nodeList] of moduleNodes) for (const n of nodeList) nodeToModule.set(n.id, module$1);
+		for (const edge of edges) {
+			const srcModule = nodeToModule.get(edge.source);
+			if (srcModule) moduleEdges.set(srcModule, (moduleEdges.get(srcModule) ?? 0) + 1);
+		}
+		const results = [];
+		for (const [modulePath, nodeList] of moduleNodes) {
+			const edgeCount = moduleEdges.get(modulePath) ?? 0;
+			if (nodeList.length >= threshold) results.push({
+				modulePath,
+				nodeCount: nodeList.length,
+				edgeCount,
+				suggestion: `Module "${modulePath}" has ${nodeList.length} nodes — consider splitting into smaller modules`
+			});
+		}
+		return results.sort((a, b) => b.nodeCount - a.nodeCount);
+	}
+};
+
+//#endregion
 //#region src/client/GraphPanel.tsx
 const log$2 = scoped("panel");
+const healthScorer = new HealthScorer();
+const ruleEngine = new RuleEngine();
+const hotspotAnalyzer = new HotspotAnalyzer();
+const godModuleDetector = new GodModuleDetector();
 function GraphPanelInner({ className = "" }) {
 	const t$1 = useT();
 	const panelRef = (0, react.useRef)(null);
@@ -46233,9 +48293,11 @@ function GraphPanelInner({ className = "" }) {
 	const [showHelp, setShowHelp] = (0, react.useState)(false);
 	const [thumbnail, setThumbnail] = (0, react.useState)(null);
 	const [viewportInfo, setViewportInfo] = (0, react.useState)(null);
-	const { nodes, edges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, clusterLevel, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, totalEdgeCount, expandedNodeIds } = useGraphStore(useShallow((s) => ({
+	const { nodes, edges, rawNodes, rawEdges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, clusterLevel, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, totalEdgeCount, expandedNodeIds, pathResult, focusDepth, healthScore, rules, ruleViolations } = useGraphStore(useShallow((s) => ({
 		nodes: s.nodes,
 		edges: s.edges,
+		rawNodes: s.rawNodes,
+		rawEdges: s.rawEdges,
 		layout: s.layout,
 		theme: s.theme,
 		searchQuery: s.searchQuery,
@@ -46255,7 +48317,14 @@ function GraphPanelInner({ className = "" }) {
 		truncated: s.truncated,
 		totalNodeCount: s.totalNodeCount,
 		totalEdgeCount: s.totalEdgeCount,
-		expandedNodeIds: s.expandedNodeIds
+		expandedNodeIds: s.expandedNodeIds,
+		pathStartId: s.pathStartId,
+		pathEndId: s.pathEndId,
+		pathResult: s.pathResult,
+		focusDepth: s.focusDepth,
+		healthScore: s.healthScore,
+		rules: s.rules,
+		ruleViolations: s.ruleViolations
 	})));
 	const setLayout = useGraphStore((s) => s.setLayout);
 	const setTheme = useGraphStore((s) => s.setTheme);
@@ -46275,6 +48344,11 @@ function GraphPanelInner({ className = "" }) {
 	const expandNode = useGraphStore((s) => s.expandNode);
 	const collapseNode = useGraphStore((s) => s.collapseNode);
 	const collapseAll = useGraphStore((s) => s.collapseAll);
+	const setPathResult = useGraphStore((s) => s.setPathResult);
+	const setFocusDepth = useGraphStore((s) => s.setFocusDepth);
+	const setHealthScore = useGraphStore((s) => s.setHealthScore);
+	const setRules = useGraphStore((s) => s.setRules);
+	const setRuleViolations = useGraphStore((s) => s.setRuleViolations);
 	const handleCollapseAll = (0, react.useCallback)(() => {
 		collapseAll();
 	}, [collapseAll]);
@@ -46350,7 +48424,7 @@ function GraphPanelInner({ className = "" }) {
 		}
 	}, []);
 	const handleEdgeHoverOut = (0, react.useCallback)(() => setTooltip(null), []);
-	const renderer$1 = useGraphRenderer(nodes, edges, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact, panel.showInheritance, focusNodeId, {
+	const renderer$1 = useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact, panel.showInheritance, focusNodeId, {
 		onNodeTap: handleNodeTap,
 		onNodeDoubleTap: handleNodeDoubleTap,
 		onNodeHover: handleNodeHover,
@@ -46392,6 +48466,11 @@ function GraphPanelInner({ className = "" }) {
 			panel.setShowInheritance(false);
 			panel.setShowImport(false);
 			panel.setShowLegend(false);
+			panel.setShowPathFind(false);
+			panel.setShowHealthScore(false);
+			panel.setShowRules(false);
+			panel.setShowHotspot(false);
+			panel.setShowGodModule(false);
 			setTooltip(null);
 			setShowHelp(false);
 			setFocusNodeId(null);
@@ -46451,6 +48530,125 @@ function GraphPanelInner({ className = "" }) {
 		window.dispatchEvent(new CustomEvent("codegraph:import-repo", { detail: { path: currentWorkspace || "." } }));
 		log$2.info("scan workspace from empty state", { path: currentWorkspace });
 	}, [setLoading, currentWorkspace]);
+	const handleFindPath = (0, react.useCallback)((sourceId, targetId) => {
+		const r = renderer$1.rendererRef.current;
+		if (!r) return;
+		const result = r.findPath(sourceId, targetId);
+		if (result) {
+			setPathResult(result.path);
+			r.highlightPath(result.path);
+		} else {
+			setPathResult(null);
+			r.highlightPath(null);
+		}
+	}, [renderer$1.rendererRef, setPathResult]);
+	const handleClearPath = (0, react.useCallback)(() => {
+		renderer$1.rendererRef.current?.highlightPath(null);
+		setPathResult(null);
+	}, [renderer$1.rendererRef, setPathResult]);
+	const handleFocusExpand = (0, react.useCallback)(() => {
+		if (!focusNodeId) return;
+		const newDepth = focusDepth + 1;
+		setFocusDepth(newDepth);
+		renderer$1.rendererRef.current?.expandNeighborhood(focusNodeId, newDepth);
+	}, [
+		focusNodeId,
+		focusDepth,
+		setFocusDepth,
+		renderer$1.rendererRef
+	]);
+	const handleFocusContract = (0, react.useCallback)(() => {
+		if (!focusNodeId || focusDepth <= 1) return;
+		const newDepth = focusDepth - 1;
+		setFocusDepth(newDepth);
+		renderer$1.rendererRef.current?.expandNeighborhood(focusNodeId, newDepth);
+	}, [
+		focusNodeId,
+		focusDepth,
+		setFocusDepth,
+		renderer$1.rendererRef
+	]);
+	const handleFocusExit = (0, react.useCallback)(() => {
+		setFocusNodeId(null);
+		setFocusDepth(1);
+		renderer$1.rendererRef.current?.focusNeighborhood(null);
+	}, [setFocusDepth, renderer$1.rendererRef]);
+	const handleHealthCheck = (0, react.useCallback)(() => {
+		const score = healthScorer.calculate(rawNodes, rawEdges);
+		setHealthScore(score);
+	}, [
+		rawNodes,
+		rawEdges,
+		setHealthScore
+	]);
+	const handleRulesCheck = (0, react.useCallback)(() => {
+		const violations = ruleEngine.check(rules, rawNodes, rawEdges);
+		setRuleViolations(violations);
+	}, [
+		rules,
+		rawNodes,
+		rawEdges,
+		setRuleViolations
+	]);
+	const [impactStats, setImpactStats] = (0, react.useState)(null);
+	const [hotspotNodes, setHotspotNodes] = (0, react.useState)([]);
+	const handleHotspotToggle = (0, react.useCallback)(() => {
+		if (panel.showHotspot) {
+			setHotspotNodes([]);
+			return;
+		}
+		const hotspots = hotspotAnalyzer.analyze(rawNodes, rawEdges);
+		setHotspotNodes(hotspots);
+	}, [
+		panel.showHotspot,
+		rawNodes,
+		rawEdges
+	]);
+	const [godModules, setGodModules] = (0, react.useState)([]);
+	const handleGodModuleToggle = (0, react.useCallback)(() => {
+		if (panel.showGodModule) {
+			setGodModules([]);
+			return;
+		}
+		const modules$1 = godModuleDetector.detect(rawNodes, rawEdges);
+		setGodModules(modules$1);
+	}, [
+		panel.showGodModule,
+		rawNodes,
+		rawEdges
+	]);
+	(0, react.useEffect)(() => {
+		if (panel.showHealthScore && !healthScore && rawNodes.length > 0) handleHealthCheck();
+	}, [
+		panel.showHealthScore,
+		healthScore,
+		rawNodes.length,
+		handleHealthCheck
+	]);
+	(0, react.useEffect)(() => {
+		if (panel.showRules && rules.length === 0) setRules(getPresetRules());
+	}, [
+		panel.showRules,
+		rules.length,
+		setRules
+	]);
+	(0, react.useEffect)(() => {
+		if (panel.showHotspot) handleHotspotToggle();
+	}, [panel.showHotspot, handleHotspotToggle]);
+	(0, react.useEffect)(() => {
+		if (panel.showGodModule) handleGodModuleToggle();
+	}, [panel.showGodModule, handleGodModuleToggle]);
+	(0, react.useEffect)(() => {
+		if (panel.showImpact && selectedNodeId) {
+			const stats = renderer$1.rendererRef.current?.getImpactStats(selectedNodeId);
+			setImpactStats(stats ?? null);
+		} else setImpactStats(null);
+	}, [
+		panel.showImpact,
+		selectedNodeId,
+		renderer$1.rendererRef,
+		nodes.length
+	]);
 	const statsText = (0, react.useMemo)(() => `${nodes.length} nodes · ${edges.length} edges`, [nodes.length, edges.length]);
 	const nodeTypeCounts = (0, react.useMemo)(() => {
 		const counts = {
@@ -46461,9 +48659,9 @@ function GraphPanelInner({ className = "" }) {
 			interface: 0,
 			type: 0
 		};
-		for (const n of nodes) if (n.type in counts) counts[n.type]++;
+		for (const n of rawNodes) if (n.type in counts) counts[n.type]++;
 		return counts;
-	}, [nodes]);
+	}, [rawNodes]);
 	const panelClassName = (0, react.useMemo)(() => `graph-panel resizable ${panel.collapsed ? "collapsed" : ""} ${className}`.trim(), [panel.collapsed, className]);
 	const c = panel.collapsed;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -46499,6 +48697,11 @@ function GraphPanelInner({ className = "" }) {
 				showMiniMap: panel.showMiniMap,
 				showLegend: panel.showLegend,
 				showImport: panel.showImport,
+				showPathFind: panel.showPathFind,
+				showHealthScore: panel.showHealthScore,
+				showRules: panel.showRules,
+				showHotspot: panel.showHotspot,
+				showGodModule: panel.showGodModule,
 				collapsed: panel.collapsed,
 				onLayoutChange: setLayout,
 				onThemeToggle: handleThemeToggle,
@@ -46513,6 +48716,11 @@ function GraphPanelInner({ className = "" }) {
 				onToggleMiniMap: panel.toggleMiniMap,
 				onToggleLegend: panel.toggleLegend,
 				onToggleImport: panel.toggleImport,
+				onTogglePathFind: panel.togglePathFind,
+				onToggleHealthScore: panel.toggleHealthScore,
+				onToggleRules: panel.toggleRules,
+				onToggleHotspot: panel.toggleHotspot,
+				onToggleGodModule: panel.toggleGodModule,
 				onRefresh: handleRefresh,
 				onExport: renderer$1.exportGraph,
 				onCollapse: panel.toggleCollapsed,
@@ -46528,6 +48736,25 @@ function GraphPanelInner({ className = "" }) {
 				matchCount: renderer$1.searchMatchCount,
 				onChange: setSearchQuery,
 				onClose: () => panel.setShowSearch(false)
+			}),
+			panel.showPathFind && !c && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PathBar, {
+				onFindPath: handleFindPath,
+				onClearPath: handleClearPath,
+				pathResult,
+				pathLength: pathResult ? pathResult.length - 1 : null,
+				onClose: () => panel.setShowPathFind(false)
+			}),
+			focusNodeId && !c && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(FocusModeBar, {
+				focusNodeId,
+				onExpand: handleFocusExpand,
+				onContract: handleFocusContract,
+				onExit: handleFocusExit
+			}),
+			panel.showHealthScore && !c && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(HealthScoreCard, { onClose: () => panel.setShowHealthScore(false) }),
+			panel.showRules && !c && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RuleConfigPanel, {
+				violations: ruleViolations,
+				onCheckRules: handleRulesCheck,
+				onClose: () => panel.setShowRules(false)
 			}),
 			isLoading && !c && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LoadingOverlay, { visible: true }),
 			error$1 && !c && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ErrorOverlay, { error: error$1 }),
@@ -46570,7 +48797,140 @@ function GraphPanelInner({ className = "" }) {
 				},
 				onClose: () => panel.setShowMiniMap(false),
 				thumbnail,
-				viewportInfo
+				viewportInfo,
+				onFocusArea: (ratioX, ratioY) => renderer$1.rendererRef.current?.focusOnArea(ratioX, ratioY)
+			}),
+			panel.showHotspot && !c && hotspotNodes.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "analysis-panel hotspot-panel",
+				role: "region",
+				"aria-label": t$1("toolbar.hotspot"),
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: "analysis-panel-header",
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("toolbar.hotspot") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+						onClick: () => panel.setShowHotspot(false),
+						style: {
+							background: "transparent",
+							border: "none",
+							color: "inherit",
+							cursor: "pointer",
+							marginLeft: "auto"
+						},
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CloseIcon, { size: 14 })
+					})]
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: "analysis-panel-content",
+					children: hotspotNodes.slice(0, 20).map((h) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: `hotspot-item ${h.level}`,
+						children: [
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: "hotspot-level-badge",
+								children: h.level
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: "hotspot-label",
+								children: h.label
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: "hotspot-indegree",
+								children: h.indegree
+							})
+						]
+					}, h.nodeId))
+				})]
+			}),
+			panel.showGodModule && !c && godModules.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "analysis-panel godmodule-panel",
+				role: "region",
+				"aria-label": t$1("toolbar.godModule"),
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: "analysis-panel-header",
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("toolbar.godModule") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+						onClick: () => panel.setShowGodModule(false),
+						style: {
+							background: "transparent",
+							border: "none",
+							color: "inherit",
+							cursor: "pointer",
+							marginLeft: "auto"
+						},
+						children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CloseIcon, { size: 14 })
+					})]
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: "analysis-panel-content",
+					children: godModules.map((m) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: "godmodule-item",
+						children: [
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								className: "godmodule-path",
+								children: m.modulePath
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+								className: "godmodule-stats",
+								children: [
+									m.nodeCount,
+									" nodes · ",
+									m.edgeCount,
+									" edges"
+								]
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								className: "godmodule-suggestion",
+								children: m.suggestion
+							})
+						]
+					}, m.modulePath))
+				})]
+			}),
+			panel.showImpact && !c && impactStats && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "analysis-panel impact-panel",
+				role: "region",
+				"aria-label": t$1("toolbar.impact"),
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: "analysis-panel-header",
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("toolbar.impact") })
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: "analysis-panel-content",
+					children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: "impact-stat-row",
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: "impact-stat-badge d1",
+								children: "D1"
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: "impact-stat-count",
+								children: impactStats.d1
+							})]
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: "impact-stat-row",
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: "impact-stat-badge d2",
+								children: "D2"
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: "impact-stat-count",
+								children: impactStats.d2
+							})]
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: "impact-stat-row",
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: "impact-stat-badge d3",
+								children: "D3"
+							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: "impact-stat-count",
+								children: impactStats.d3
+							})]
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+							className: "impact-stat-total",
+							children: [
+								t$1("impact.total"),
+								": ",
+								impactStats.total
+							]
+						})
+					]
+				})]
 			}),
 			tooltip && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphTooltip, { data: tooltip }),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)(KeyboardHelp, {

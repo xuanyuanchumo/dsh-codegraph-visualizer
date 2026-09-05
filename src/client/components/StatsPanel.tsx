@@ -7,9 +7,10 @@ interface StatsPanelProps {
   onClose: () => void;
   thumbnail: string | null;
   viewportInfo: { zoom: number; pan: { x: number; y: number }; renderedSize: { w: number; h: number }; totalSize: { w: number; h: number } } | null;
+  onFocusArea?: (ratioX: number, ratioY: number) => void;
 }
 
-export function StatsPanel({ counts, onClose, thumbnail, viewportInfo }: StatsPanelProps) {
+export function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusArea }: StatsPanelProps) {
   const t = useT();
   const total = counts.function + counts.class + counts.variable + counts.module + counts.interface;
   const imgRef = useRef<HTMLImageElement>(null);
@@ -37,6 +38,14 @@ export function StatsPanel({ counts, onClose, thumbnail, viewportInfo }: StatsPa
     return { left: vpX, top: vpY, width: vpW, height: vpH };
   })();
 
+  const handleThumbnailClick = (e: React.MouseEvent<HTMLImageElement>) => {
+    if (!onFocusArea || !imgRef.current) return;
+    const rect = imgRef.current.getBoundingClientRect();
+    const ratioX = (e.clientX - rect.left) / rect.width;
+    const ratioY = (e.clientY - rect.top) / rect.height;
+    onFocusArea(ratioX, ratioY);
+  };
+
   return (
     <div className="mini-map" role="complementary" aria-label={t('minimap.title')}>
       <div className="mini-map-header">
@@ -57,7 +66,8 @@ export function StatsPanel({ counts, onClose, thumbnail, viewportInfo }: StatsPa
               src={thumbnail}
               alt={t('minimap.title')}
               onLoad={() => setImgLoaded(true)}
-              style={{ width: '100%', height: 'auto', display: 'block' }}
+              onClick={handleThumbnailClick}
+              style={{ width: '100%', height: 'auto', display: 'block', cursor: onFocusArea ? 'crosshair' : 'default' }}
             />
             {viewportBox && (
               <div

@@ -8,9 +8,10 @@ import {
   SearchIcon, ChainIcon, CycleIcon, MapIcon, RefreshIcon,
   SunIcon, MoonIcon, DownloadIcon, ChevronDownIcon, ChevronUpIcon,
   UploadIcon, LayersIcon, ZapIcon, TreeIcon,
+  PathIcon, HeartIcon, RuleIcon, FlameIcon, AlertCircleIcon,
 } from './Icons.tsx';
 
-const LAYOUTS: LayoutType[] = ['cose', 'dagre', 'circle', 'grid'];
+const LAYOUTS: LayoutType[] = ['cose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
 const FILTER_KEYS: { value: string; key: string }[] = [
   { value: 'all', key: 'filter.all' },
   { value: 'function', key: 'filter.function' },
@@ -49,6 +50,11 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   showMiniMap: boolean;
   showLegend: boolean;
   showImport: boolean;
+  showPathFind: boolean;
+  showHealthScore: boolean;
+  showRules: boolean;
+  showHotspot: boolean;
+  showGodModule: boolean;
   collapsed: boolean;
   onLayoutChange: (l: LayoutType) => void;
   onThemeToggle: () => void;
@@ -63,6 +69,11 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   onToggleMiniMap: () => void;
   onToggleLegend: () => void;
   onToggleImport: () => void;
+  onTogglePathFind: () => void;
+  onToggleHealthScore: () => void;
+  onToggleRules: () => void;
+  onToggleHotspot: () => void;
+  onToggleGodModule: () => void;
   onRefresh: () => void;
   onExport: (format: 'png' | 'svg' | 'json') => void;
   onCollapse: () => void;
@@ -93,10 +104,13 @@ export function Toolbar(props: ToolbarProps) {
 
   const {
     statsText, typeCounts, layout, theme, filterType, graphType, clusterLevel,
-    showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport, collapsed,
+    showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport,
+    showPathFind, showHealthScore, showRules, showHotspot, showGodModule,
+    collapsed,
     onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange,
     onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend,
-    onToggleImport, onRefresh, onCollapse,
+    onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule,
+    onRefresh, onCollapse,
     currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
     onCollapseAll,
   } = props;
@@ -181,6 +195,16 @@ export function Toolbar(props: ToolbarProps) {
             title={t('toolbar.impact')} aria-label={t('toolbar.impact')} aria-pressed={showImpact}><ZapIcon size={15} /></button>
           <button className={`inheritance-btn ${showInheritance ? 'active' : ''}`} onClick={onToggleInheritance}
             title={t('toolbar.inheritance')} aria-label={t('toolbar.inheritance')} aria-pressed={showInheritance}><TreeIcon size={15} /></button>
+          <button className={`pathfind-btn ${showPathFind ? 'active' : ''}`} onClick={onTogglePathFind}
+            title={t('toolbar.pathFind')} aria-label={t('toolbar.pathFind')} aria-pressed={showPathFind}><PathIcon size={15} /></button>
+          <button className={`health-btn ${showHealthScore ? 'active' : ''}`} onClick={onToggleHealthScore}
+            title={t('toolbar.health')} aria-label={t('toolbar.health')} aria-pressed={showHealthScore}><HeartIcon size={15} /></button>
+          <button className={`rules-btn ${showRules ? 'active' : ''}`} onClick={onToggleRules}
+            title={t('toolbar.rules')} aria-label={t('toolbar.rules')} aria-pressed={showRules}><RuleIcon size={15} /></button>
+          <button className={`hotspot-btn ${showHotspot ? 'active' : ''}`} onClick={onToggleHotspot}
+            title={t('toolbar.hotspot')} aria-label={t('toolbar.hotspot')} aria-pressed={showHotspot}><FlameIcon size={15} /></button>
+          <button className={`godmodule-btn ${showGodModule ? 'active' : ''}`} onClick={onToggleGodModule}
+            title={t('toolbar.godModule')} aria-label={t('toolbar.godModule')} aria-pressed={showGodModule}><AlertCircleIcon size={15} /></button>
         </div>
 
         <span className="toolbar-separator" aria-hidden="true" />

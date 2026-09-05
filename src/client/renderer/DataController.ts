@@ -6,11 +6,17 @@ export class DataController {
   private cy: Core;
   private currentNodes: Map<string, GraphNode> = new Map();
   private currentEdges: Map<string, GraphEdge> = new Map();
+  private rawNodesMap: Map<string, GraphNode> = new Map();
   private batchRaf: number | null = null;
   private batchQueue: { nodes: GraphNode[]; edges: GraphEdge[] } | null = null;
 
   constructor(cy: Core) {
     this.cy = cy;
+  }
+
+  setRawNodes(rawNodes: GraphNode[]): void {
+    this.rawNodesMap.clear();
+    for (const n of rawNodes) this.rawNodesMap.set(n.id, n);
   }
 
   updateData(nodes: GraphNode[], edges: GraphEdge[]): void {
@@ -189,16 +195,42 @@ export class DataController {
     }
     const q = query.toLowerCase();
     let matches = 0;
-    let firstMatchId: string | null = null;
-    this.cy.batch(() => {
+    const matchedCyNodeIds = new Set<string>();
+
+    for (const rawNode of this.rawNodesMap.values()) {
+      if (rawNode.label.toLowerCase().includes(q)) {
+        matches++;
+        let cyNode = this.cy.getElementById(rawNode.id);
+        if (cyNode.length > 0) {
+          matchedCyNodeIds.add(rawNode.id);
+        } else {
+          let parentId: string | undefined = rawNode.parentId;
+          while (parentId) {
+            cyNode = this.cy.getElementById(parentId);
+            if (cyNode.length > 0) {
+              matchedCyNodeIds.add(parentId);
+              break;
+            }
+            const parentRaw = this.rawNodesMap.get(parentId);
+            parentId = parentRaw?.parentId;
+          }
+        }
+      }
+    }
+
+    if (matches === 0) {
       this.cy.nodes().forEach((node) => {
         const label = node.data('label');
-        const isMatch = typeof label === 'string' && label.toLowerCase().includes(q);
-        node.toggleClass('search-match', isMatch);
-        if (isMatch) {
+        if (typeof label === 'string' && label.toLowerCase().includes(q)) {
+          matchedCyNodeIds.add(node.id());
           matches++;
-          if (firstMatchId === null) firstMatchId = node.id();
         }
+      });
+    }
+
+    this.cy.batch(() => {
+      this.cy.nodes().forEach((node) => {
+        node.toggleClass('search-match', matchedCyNodeIds.has(node.id()));
       });
     });
     return matches;

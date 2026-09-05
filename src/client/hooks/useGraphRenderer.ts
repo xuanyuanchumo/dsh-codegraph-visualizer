@@ -29,6 +29,7 @@ export interface UseGraphRendererResult {
 export function useGraphRenderer(
   nodes: (GraphNode | import('../store/graphStore.ts').ClusterNode)[],
   edges: (GraphEdge | import('../store/graphStore.ts').ClusterEdge)[],
+  rawNodes: GraphNode[],
   layout: LayoutType,
   theme: ThemeType,
   highlightedNodeIds: NodeId[],
@@ -79,6 +80,10 @@ export function useGraphRenderer(
   useEffect(() => {
     rendererRef.current?.updateData(nodes, edges);
   }, [nodes, edges]);
+
+  useEffect(() => {
+    rendererRef.current?.setRawNodes(rawNodes);
+  }, [rawNodes]);
 
   useEffect(() => {
     const r = rendererRef.current;

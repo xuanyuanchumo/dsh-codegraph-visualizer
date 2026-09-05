@@ -68,6 +68,10 @@ export class CytoscapeRenderer implements IRenderer {
     this.dataCtrl?.updateData(nodes, edges);
   }
 
+  setRawNodes(rawNodes: GraphNode[]): void {
+    this.dataCtrl?.setRawNodes(rawNodes);
+  }
+
   applyLayout(layout: LayoutType): void {
     this.layoutCtrl?.applyLayout(layout);
   }
@@ -112,6 +116,10 @@ export class CytoscapeRenderer implements IRenderer {
     this.highlightCtrl?.highlightImpact(nodeId);
   }
 
+  getImpactStats(nodeId: NodeId): { d1: number; d2: number; d3: number; total: number } | null {
+    return this.highlightCtrl?.getImpactStats(nodeId) ?? null;
+  }
+
   highlightInheritance(nodeId: NodeId | null): void {
     this.highlightCtrl?.highlightInheritance(nodeId);
   }
@@ -126,6 +134,14 @@ export class CytoscapeRenderer implements IRenderer {
 
   getViewportInfo(): { zoom: number; pan: { x: number; y: number }; renderedSize: { w: number; h: number }; totalSize: { w: number; h: number } } | null {
     return this.viewportCtrl?.getViewportInfo() ?? null;
+  }
+
+  focusOnArea(ratioX: number, ratioY: number): void {
+    const info = this.viewportCtrl?.getViewportInfo();
+    if (!info) return;
+    const targetX = info.totalSize.w * ratioX;
+    const targetY = info.totalSize.h * ratioY;
+    this.viewportCtrl?.focusOnArea(targetX, targetY, info.zoom);
   }
 
   exportJSON(): string {

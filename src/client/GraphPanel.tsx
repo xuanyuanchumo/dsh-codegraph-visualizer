@@ -16,12 +16,24 @@ import { GraphTooltip, type TooltipData, type EdgeTooltipData } from './componen
 import { LoadingOverlay } from './components/LoadingOverlay.tsx';
 import { ErrorOverlay } from './components/ErrorOverlay.tsx';
 import { KeyboardHelp } from './components/KeyboardHelp.tsx';
-import { GraphIcon } from './components/Icons.tsx';
+import { PathBar } from './components/PathBar.tsx';
+import { HealthScoreCard } from './components/HealthScoreCard.tsx';
+import { RuleConfigPanel } from './components/RuleConfigPanel.tsx';
+import { FocusModeBar } from './components/FocusModeBar.tsx';
+import { GraphIcon, CloseIcon } from './components/Icons.tsx';
+import { HealthScorer } from './analysis/HealthScorer.ts';
+import { RuleEngine, getPresetRules } from './analysis/RuleEngine.ts';
+import { HotspotAnalyzer, GodModuleDetector } from './analysis/HotspotAnalyzer.ts';
 import { scoped } from '../shared/Logger.ts';
 import { useT } from './i18n/index.ts';
 import './styles.css';
 
 const log = scoped('panel');
+
+const healthScorer = new HealthScorer();
+const ruleEngine = new RuleEngine();
+const hotspotAnalyzer = new HotspotAnalyzer();
+const godModuleDetector = new GodModuleDetector();
 
 interface GraphPanelProps {
   className?: string;
@@ -46,12 +58,14 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   } | null>(null);
 
   const {
-    nodes, edges, layout, theme, searchQuery, selectedNodeId,
+    nodes, edges, rawNodes, rawEdges, layout, theme, searchQuery, selectedNodeId,
     highlightedNodeIds, filterType, graphType, clusterLevel, isLoading, error, lastUpdated,
     prerequisites, watchEnabled, currentWorkspace, workspaceList,
     initStatus, truncated, totalNodeCount, totalEdgeCount, expandedNodeIds,
+    pathResult, focusDepth, healthScore, rules, ruleViolations,
   } = useGraphStore(useShallow((s) => ({
-    nodes: s.nodes, edges: s.edges, layout: s.layout, theme: s.theme,
+    nodes: s.nodes, edges: s.edges, rawNodes: s.rawNodes, rawEdges: s.rawEdges,
+    layout: s.layout, theme: s.theme,
     searchQuery: s.searchQuery, selectedNodeId: s.selectedNodeId,
     highlightedNodeIds: s.highlightedNodeIds, filterType: s.filterType,
     graphType: s.graphType, clusterLevel: s.clusterLevel,
@@ -61,6 +75,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     initStatus: s.initStatus,
     truncated: s.truncated, totalNodeCount: s.totalNodeCount, totalEdgeCount: s.totalEdgeCount,
     expandedNodeIds: s.expandedNodeIds,
+    pathStartId: s.pathStartId, pathEndId: s.pathEndId, pathResult: s.pathResult,
+    focusDepth: s.focusDepth, healthScore: s.healthScore,
+    rules: s.rules, ruleViolations: s.ruleViolations,
   })));
 
   const setLayout = useGraphStore((s) => s.setLayout);
@@ -81,6 +98,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const expandNode = useGraphStore((s) => s.expandNode);
   const collapseNode = useGraphStore((s) => s.collapseNode);
   const collapseAll = useGraphStore((s) => s.collapseAll);
+  const setPathResult = useGraphStore((s) => s.setPathResult);
+  const setFocusDepth = useGraphStore((s) => s.setFocusDepth);
+  const setHealthScore = useGraphStore((s) => s.setHealthScore);
+  const setRules = useGraphStore((s) => s.setRules);
+  const setRuleViolations = useGraphStore((s) => s.setRuleViolations);
 
   const handleCollapseAll = useCallback(() => {
     collapseAll();
@@ -95,7 +117,6 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, [panel.showCallChain]);
 
   useEffect(() => {
-
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as { path?: string };
       if (detail?.path) {
@@ -109,7 +130,6 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const handleWorkspaceSwitch = useCallback((path: string) => {
     setCurrentWorkspace(path);
     window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path } }));
-
   }, [setCurrentWorkspace]);
 
   const handleWorkspaceAdd = useCallback((path: string) => {
@@ -173,7 +193,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const handleEdgeHoverOut = useCallback(() => setTooltip(null), []);
 
   const renderer = useGraphRenderer(
-    nodes, edges, layout, theme,
+    nodes, edges, rawNodes, layout, theme,
     highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel,
     debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact, panel.showInheritance, focusNodeId,
     { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut, onEdgeHover: handleEdgeHover, onEdgeHoverOut: handleEdgeHoverOut },
@@ -209,6 +229,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     onCloseAll: () => {
       panel.setShowSearch(false); panel.setShowCallChain(false); panel.setShowCycles(false);
       panel.setShowImpact(false); panel.setShowInheritance(false); panel.setShowImport(false); panel.setShowLegend(false);
+      panel.setShowPathFind(false); panel.setShowHealthScore(false); panel.setShowRules(false);
+      panel.setShowHotspot(false); panel.setShowGodModule(false);
       setTooltip(null); setShowHelp(false); setFocusNodeId(null);
     },
     onToggleCallChain: panel.toggleCallChain,
@@ -265,12 +287,127 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     log.info('scan workspace from empty state', { path: currentWorkspace });
   }, [setLoading, currentWorkspace]);
 
+  // FR-25: Path finding handlers
+  const handleFindPath = useCallback((sourceId: NodeId, targetId: NodeId) => {
+    const r = renderer.rendererRef.current;
+    if (!r) return;
+    const result = r.findPath(sourceId, targetId);
+    if (result) {
+      setPathResult(result.path);
+      r.highlightPath(result.path);
+    } else {
+      setPathResult(null);
+      r.highlightPath(null);
+    }
+  }, [renderer.rendererRef, setPathResult]);
+
+  const handleClearPath = useCallback(() => {
+    renderer.rendererRef.current?.highlightPath(null);
+    setPathResult(null);
+  }, [renderer.rendererRef, setPathResult]);
+
+  // FR-26/28: Focus mode handlers
+  const handleFocusExpand = useCallback(() => {
+    if (!focusNodeId) return;
+    const newDepth = focusDepth + 1;
+    setFocusDepth(newDepth);
+    renderer.rendererRef.current?.expandNeighborhood(focusNodeId as NodeId, newDepth);
+  }, [focusNodeId, focusDepth, setFocusDepth, renderer.rendererRef]);
+
+  const handleFocusContract = useCallback(() => {
+    if (!focusNodeId || focusDepth <= 1) return;
+    const newDepth = focusDepth - 1;
+    setFocusDepth(newDepth);
+    renderer.rendererRef.current?.expandNeighborhood(focusNodeId as NodeId, newDepth);
+  }, [focusNodeId, focusDepth, setFocusDepth, renderer.rendererRef]);
+
+  const handleFocusExit = useCallback(() => {
+    setFocusNodeId(null);
+    setFocusDepth(1);
+    renderer.rendererRef.current?.focusNeighborhood(null);
+  }, [setFocusDepth, renderer.rendererRef]);
+
+  // FR-32: Health score handler
+  const handleHealthCheck = useCallback(() => {
+    const score = healthScorer.calculate(rawNodes, rawEdges);
+    setHealthScore(score);
+  }, [rawNodes, rawEdges, setHealthScore]);
+
+  // FR-34: Rule engine handler
+  const handleRulesCheck = useCallback(() => {
+    const violations = ruleEngine.check(rules, rawNodes, rawEdges);
+    setRuleViolations(violations);
+  }, [rules, rawNodes, rawEdges, setRuleViolations]);
+
+  // FR-35: Impact radius stats
+  const [impactStats, setImpactStats] = useState<{ d1: number; d2: number; d3: number; total: number } | null>(null);
+
+  // FR-33: Hotspot analysis handler
+  const [hotspotNodes, setHotspotNodes] = useState<{ nodeId: string; label: string; indegree: number; level: string }[]>([]);
+  const handleHotspotToggle = useCallback(() => {
+    if (panel.showHotspot) {
+      setHotspotNodes([]);
+      return;
+    }
+    const hotspots = hotspotAnalyzer.analyze(rawNodes, rawEdges);
+    setHotspotNodes(hotspots);
+  }, [panel.showHotspot, rawNodes, rawEdges]);
+
+  // FR-36: God Module detection handler
+  const [godModules, setGodModules] = useState<{ modulePath: string; nodeCount: number; edgeCount: number; suggestion: string }[]>([]);
+  const handleGodModuleToggle = useCallback(() => {
+    if (panel.showGodModule) {
+      setGodModules([]);
+      return;
+    }
+    const modules = godModuleDetector.detect(rawNodes, rawEdges);
+    setGodModules(modules);
+  }, [panel.showGodModule, rawNodes, rawEdges]);
+
+  // Auto-calculate health score when panel opens
+  useEffect(() => {
+    if (panel.showHealthScore && !healthScore && rawNodes.length > 0) {
+      handleHealthCheck();
+    }
+  }, [panel.showHealthScore, healthScore, rawNodes.length, handleHealthCheck]);
+
+  // Auto-check rules when panel opens
+  useEffect(() => {
+    if (panel.showRules && rules.length === 0) {
+      setRules(getPresetRules());
+    }
+  }, [panel.showRules, rules.length, setRules]);
+
+  // Auto-run hotspot analysis when panel opens
+  useEffect(() => {
+    if (panel.showHotspot) {
+      handleHotspotToggle();
+    }
+  }, [panel.showHotspot, handleHotspotToggle]);
+
+  // Auto-run God Module detection when panel opens
+  useEffect(() => {
+    if (panel.showGodModule) {
+      handleGodModuleToggle();
+    }
+  }, [panel.showGodModule, handleGodModuleToggle]);
+
+  // FR-35: Auto-fetch impact stats when impact mode is on and a node is selected
+  useEffect(() => {
+    if (panel.showImpact && selectedNodeId) {
+      const stats = renderer.rendererRef.current?.getImpactStats(selectedNodeId);
+      setImpactStats(stats ?? null);
+    } else {
+      setImpactStats(null);
+    }
+  }, [panel.showImpact, selectedNodeId, renderer.rendererRef, nodes.length]);
+
   const statsText = useMemo(() => `${nodes.length} nodes · ${edges.length} edges`, [nodes.length, edges.length]);
   const nodeTypeCounts = useMemo(() => {
     const counts = { function: 0, class: 0, variable: 0, module: 0, interface: 0, type: 0 };
-    for (const n of nodes) { if (n.type in counts) counts[n.type as keyof typeof counts]++; }
+    for (const n of rawNodes) { if (n.type in counts) counts[n.type as keyof typeof counts]++; }
     return counts;
-  }, [nodes]);
+  }, [rawNodes]);
   const panelClassName = useMemo(() =>
     `graph-panel resizable ${panel.collapsed ? 'collapsed' : ''} ${className}`.trim(),
     [panel.collapsed, className],
@@ -300,6 +437,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         showMiniMap={panel.showMiniMap}
         showLegend={panel.showLegend}
         showImport={panel.showImport}
+        showPathFind={panel.showPathFind}
+        showHealthScore={panel.showHealthScore}
+        showRules={panel.showRules}
+        showHotspot={panel.showHotspot}
+        showGodModule={panel.showGodModule}
         collapsed={panel.collapsed}
         onLayoutChange={setLayout}
         onThemeToggle={handleThemeToggle}
@@ -314,6 +456,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         onToggleMiniMap={panel.toggleMiniMap}
         onToggleLegend={panel.toggleLegend}
         onToggleImport={panel.toggleImport}
+        onTogglePathFind={panel.togglePathFind}
+        onToggleHealthScore={panel.toggleHealthScore}
+        onToggleRules={panel.toggleRules}
+        onToggleHotspot={panel.toggleHotspot}
+        onToggleGodModule={panel.toggleGodModule}
         onRefresh={handleRefresh}
         onExport={renderer.exportGraph}
         onCollapse={panel.toggleCollapsed}
@@ -331,6 +478,37 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           matchCount={renderer.searchMatchCount}
           onChange={setSearchQuery}
           onClose={() => panel.setShowSearch(false)}
+        />
+      )}
+
+      {panel.showPathFind && !c && (
+        <PathBar
+          onFindPath={handleFindPath}
+          onClearPath={handleClearPath}
+          pathResult={pathResult}
+          pathLength={pathResult ? pathResult.length - 1 : null}
+          onClose={() => panel.setShowPathFind(false)}
+        />
+      )}
+
+      {focusNodeId && !c && (
+        <FocusModeBar
+          focusNodeId={focusNodeId}
+          onExpand={handleFocusExpand}
+          onContract={handleFocusContract}
+          onExit={handleFocusExit}
+        />
+      )}
+
+      {panel.showHealthScore && !c && (
+        <HealthScoreCard onClose={() => panel.setShowHealthScore(false)} />
+      )}
+
+      {panel.showRules && !c && (
+        <RuleConfigPanel
+          violations={ruleViolations}
+          onCheckRules={handleRulesCheck}
+          onClose={() => panel.setShowRules(false)}
         />
       )}
 
@@ -382,7 +560,67 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           onClose={() => panel.setShowMiniMap(false)}
           thumbnail={thumbnail}
           viewportInfo={viewportInfo}
+          onFocusArea={(ratioX, ratioY) => renderer.rendererRef.current?.focusOnArea(ratioX, ratioY)}
         />
+      )}
+
+      {panel.showHotspot && !c && hotspotNodes.length > 0 && (
+        <div className="analysis-panel hotspot-panel" role="region" aria-label={t('toolbar.hotspot')}>
+          <div className="analysis-panel-header">
+            <span>{t('toolbar.hotspot')}</span>
+            <button onClick={() => panel.setShowHotspot(false)} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', marginLeft: 'auto' }}><CloseIcon size={14} /></button>
+          </div>
+          <div className="analysis-panel-content">
+            {hotspotNodes.slice(0, 20).map((h) => (
+              <div key={h.nodeId} className={`hotspot-item ${h.level}`}>
+                <span className="hotspot-level-badge">{h.level}</span>
+                <span className="hotspot-label">{h.label}</span>
+                <span className="hotspot-indegree">{h.indegree}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {panel.showGodModule && !c && godModules.length > 0 && (
+        <div className="analysis-panel godmodule-panel" role="region" aria-label={t('toolbar.godModule')}>
+          <div className="analysis-panel-header">
+            <span>{t('toolbar.godModule')}</span>
+            <button onClick={() => panel.setShowGodModule(false)} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', marginLeft: 'auto' }}><CloseIcon size={14} /></button>
+          </div>
+          <div className="analysis-panel-content">
+            {godModules.map((m) => (
+              <div key={m.modulePath} className="godmodule-item">
+                <div className="godmodule-path">{m.modulePath}</div>
+                <div className="godmodule-stats">{m.nodeCount} nodes · {m.edgeCount} edges</div>
+                <div className="godmodule-suggestion">{m.suggestion}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {panel.showImpact && !c && impactStats && (
+        <div className="analysis-panel impact-panel" role="region" aria-label={t('toolbar.impact')}>
+          <div className="analysis-panel-header">
+            <span>{t('toolbar.impact')}</span>
+          </div>
+          <div className="analysis-panel-content">
+            <div className="impact-stat-row">
+              <span className="impact-stat-badge d1">D1</span>
+              <span className="impact-stat-count">{impactStats.d1}</span>
+            </div>
+            <div className="impact-stat-row">
+              <span className="impact-stat-badge d2">D2</span>
+              <span className="impact-stat-count">{impactStats.d2}</span>
+            </div>
+            <div className="impact-stat-row">
+              <span className="impact-stat-badge d3">D3</span>
+              <span className="impact-stat-count">{impactStats.d3}</span>
+            </div>
+            <div className="impact-stat-total">{t('impact.total')}: {impactStats.total}</div>
+          </div>
+        </div>
       )}
 
       {tooltip && <GraphTooltip data={tooltip} />}

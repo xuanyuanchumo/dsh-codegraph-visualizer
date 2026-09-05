@@ -133,3 +133,53 @@ export const TreeIcon = ({ size = 16, className }: IconProps) => (
     <path d="M12 6v4M12 10H5v4M12 10h7v4M5 14v4M19 14v4" />
   </svg>
 );
+
+export const PathIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="5" cy="5" r="2" /><circle cx="19" cy="19" r="2" />
+    <path d="M5 7v4a4 4 0 0 0 4 4h6a4 4 0 0 1 4 4" />
+  </svg>
+);
+
+export const HeartIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z" />
+  </svg>
+);
+
+export const RuleIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+  </svg>
+);
+
+export const FlameIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5Z" />
+  </svg>
+);
+
+export const AlertCircleIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" />
+  </svg>
+);
+
+export const ExpandIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M21 21H3M21 3H3M9 9l3-3 3 3M9 15l3 3 3-3" />
+  </svg>
+);
+
+export const ContractIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M21 21H3M21 3H3M15 9l-3-3-3 3M15 15l-3 3-3-3" />
+  </svg>
+);
+
+export const FocusIcon = ({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4l1.4-1.4M17 7l1.4-1.4" />
+  </svg>
+);

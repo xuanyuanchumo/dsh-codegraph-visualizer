@@ -22,6 +22,7 @@ export interface RendererOptions extends RendererCallbacks {
 export interface IRenderer {
   init(): void;
   updateData(nodes: GraphNode[], edges: GraphEdge[]): void;
+  setRawNodes(rawNodes: GraphNode[]): void;
   applyLayout(layout: LayoutType): void;
   highlightNodes(nodeIds: NodeId[]): void;
   selectNode(nodeId: NodeId | null): void;
@@ -34,10 +35,12 @@ export interface IRenderer {
   detectCycles(): Set<string>;
   highlightCycles(cycleIds: Set<string>): void;
   highlightImpact(nodeId: NodeId | null): void;
+  getImpactStats(nodeId: NodeId): { d1: number; d2: number; d3: number; total: number } | null;
   highlightInheritance(nodeId: NodeId | null): void;
   focusNeighborhood(nodeId: NodeId | null): void;
   getThumbnail(): string | null;
   getViewportInfo(): { zoom: number; pan: { x: number; y: number }; renderedSize: { w: number; h: number }; totalSize: { w: number; h: number } } | null;
+  focusOnArea(ratioX: number, ratioY: number): void;
   exportJSON(): string;
   exportPNG(): string | null;
   exportSVG(): string | null;
