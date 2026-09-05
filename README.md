@@ -31,19 +31,33 @@ DSH CodeGraph Visualizer 是一个 [DeepSeek Harness](https://github.com/deepsee
 - pnpm >= 9
 - DSH Web 环境（`dsh web`）
 
-### 通过 DSH 插件管理安装
+### 通过 DSH 插件管理安装（推荐）
 
 ```bash
-dsh plugin --profile web add /path/to/dsh-codegraph-visualizer
+# 安装插件（直接从 GitHub 仓库拉取）
+dsh plugin --profile web add github:xuanyuanchumo/dsh-codegraph-visualizer
+
+# 卸载插件
+dsh plugin --profile web remove dsh-codegraph-visualizer
 ```
 
-### 从源码构建
+安装完成后启动 DSH Web 即可在侧边栏看到 "Code Graph" 标签页：
+
+```bash
+dsh web
+# → http://localhost:3080，点击侧边栏 "Code Graph" 标签页
+```
+
+### 从源码构建（开发者）
 
 ```bash
 git clone https://github.com/xuanyuanchumo/dsh-codegraph-visualizer.git
 cd dsh-codegraph-visualizer
 pnpm install
 pnpm run build
+
+# 将构建产物安装到 DSH
+dsh plugin --profile web add /path/to/dsh-codegraph-visualizer
 ```
 
 ## 快速开始
@@ -54,18 +68,6 @@ pnpm run build
 # 启动自包含的 dev server（模拟 DSH Web Shell + 模拟数据）
 pnpm run dev
 # → http://localhost:3080
-```
-
-### 在真实 DSH 环境中测试
-
-```bash
-# 构建并安装插件
-pnpm run build
-dsh plugin --profile web add /path/to/dsh-codegraph-visualizer
-
-# 启动 DSH Web
-dsh web
-# → http://localhost:3080，点击侧边栏 "Code Graph" 标签页
 ```
 
 ### 运行测试
