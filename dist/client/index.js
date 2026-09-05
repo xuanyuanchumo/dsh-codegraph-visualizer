@@ -3046,6 +3046,13 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	expandedNodeIds: new Set(),
 	currentWorkspace: ".",
 	workspaceList: [],
+	pathStartId: null,
+	pathEndId: null,
+	pathResult: null,
+	focusDepth: 1,
+	healthScore: null,
+	rules: [],
+	ruleViolations: [],
 	setGraphData: (nodes, edges, repoId, metadata) => {
 		clearLoadingFailsafe();
 		const { clusterLevel, expandedNodeIds } = useGraphStore.getState();
@@ -3164,7 +3171,14 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	removeWorkspace: (path) => set$1((s) => ({
 		workspaceList: s.workspaceList.filter((w) => w.path !== path),
 		currentWorkspace: s.currentWorkspace === path ? "." : s.currentWorkspace
-	}))
+	})),
+	setPathStart: (nodeId) => set$1({ pathStartId: nodeId }),
+	setPathEnd: (nodeId) => set$1({ pathEndId: nodeId }),
+	setPathResult: (path) => set$1({ pathResult: path }),
+	setFocusDepth: (depth) => set$1({ focusDepth: depth }),
+	setHealthScore: (score) => set$1({ healthScore: score }),
+	setRules: (rules) => set$1({ rules }),
+	setRuleViolations: (violations) => set$1({ ruleViolations: violations })
 }), {
 	name: "dsh-codegraph-visualizer/ui",
 	version: 4,
@@ -3198,7 +3212,9 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		graphType: s.graphType,
 		clusterLevel: s.clusterLevel,
 		currentWorkspace: s.currentWorkspace,
-		workspaceList: s.workspaceList
+		workspaceList: s.workspaceList,
+		rules: s.rules,
+		focusDepth: s.focusDepth
 	})
 }));
 
@@ -41871,6 +41887,767 @@ var require_cytoscape_dagre = __commonJS({ "node_modules/.pnpm/cytoscape-dagre@2
 var import_cytoscape_dagre = __toESM(require_cytoscape_dagre(), 1);
 
 //#endregion
+//#region src/client/renderer/LayoutController.ts
+var LayoutController = class {
+	cy;
+	layoutRaf = null;
+	constructor(cy) {
+		this.cy = cy;
+	}
+	applyLayout(layout$2) {
+		if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
+		this.layoutRaf = requestAnimationFrame(() => {
+			const nodeCount = this.cy.nodes().length;
+			let effectiveLayout = layout$2;
+			let animate = true;
+			if (nodeCount > 2e3) {
+				effectiveLayout = "grid";
+				animate = false;
+			} else if (nodeCount > 500 && layout$2 === "cose") {
+				effectiveLayout = "dagre";
+				animate = false;
+			}
+			const options = this.buildLayoutOptions(effectiveLayout, animate, nodeCount);
+			if (options) {
+				const l = this.cy.layout(options);
+				l.one("layoutstop", () => this.removeOverlaps());
+				l.run();
+			}
+			this.layoutRaf = null;
+		});
+	}
+	buildLayoutOptions(layout$2, animate, nodeCount) {
+		switch (layout$2) {
+			case "cose": return {
+				name: "cose",
+				fit: true,
+				animate: false,
+				nodeRepulse: () => 12e4,
+				idealEdgeLength: () => 400,
+				edgeElasticity: () => .05,
+				gravity: .02,
+				numIter: 15e3,
+				randomize: true,
+				tile: true,
+				padding: 120,
+				avoidOverlap: true
+			};
+			case "dagre": return {
+				name: "dagre",
+				fit: true,
+				animate,
+				rankDir: "TB",
+				rankSep: 300,
+				edgeSep: 120,
+				nodeSep: 250,
+				ranker: "tight-tree",
+				padding: 100
+			};
+			case "circle": return {
+				name: "circle",
+				fit: true,
+				animate,
+				padding: 80,
+				radius: () => Math.min(this.cy.width(), this.cy.height()) / 2 - 120
+			};
+			case "grid": return {
+				name: "grid",
+				fit: true,
+				animate: false,
+				padding: 80,
+				avoidOverlap: true,
+				rows: Math.ceil(Math.sqrt(nodeCount)),
+				cols: Math.ceil(Math.sqrt(nodeCount))
+			};
+			case "radial": return {
+				name: "concentric",
+				fit: true,
+				animate,
+				padding: 80,
+				minNodeSpacing: 40,
+				concentric: (n) => n.degree(),
+				levelWidth: () => 2
+			};
+			case "tree": return {
+				name: "breadthfirst",
+				fit: true,
+				animate,
+				padding: 80,
+				directed: true,
+				spacingFactor: 1.2,
+				roots: void 0,
+				maximalAdjustments: 2
+			};
+			default: {
+				const _exhaustive = layout$2;
+				throw new Error(`Unhandled layout: ${_exhaustive}`);
+			}
+		}
+	}
+	removeOverlaps() {
+		const nodes = this.cy.nodes();
+		if (nodes.length === 0) return;
+		const minGap = 40;
+		const maxIterations = 20;
+		const skipThreshold = 2e3;
+		if (nodes.length > skipThreshold) {
+			this.cy.fit(void 0, 80);
+			return;
+		}
+		const bbox = this.cy.nodes().boundingBox();
+		const cx = (bbox.x1 + bbox.x2) / 2;
+		const cy = (bbox.y1 + bbox.y2) / 2;
+		const scaleFactor = 1.4;
+		this.cy.batch(() => {
+			nodes.forEach((n) => {
+				const p$1 = n.position();
+				n.position({
+					x: cx + (p$1.x - cx) * scaleFactor,
+					y: cy + (p$1.y - cy) * scaleFactor
+				});
+			});
+		});
+		const cellSize = minGap * 4;
+		for (let iter = 0; iter < maxIterations; iter++) {
+			const positions = [];
+			nodes.forEach((n) => {
+				const p$1 = n.position();
+				positions.push({
+					id: n.id(),
+					x: p$1.x,
+					y: p$1.y,
+					w: n.width(),
+					h: n.height()
+				});
+			});
+			const grid = new Map();
+			for (let i$1 = 0; i$1 < positions.length; i$1++) {
+				const p$1 = positions[i$1];
+				const gx = Math.floor(p$1.x / cellSize);
+				const gy = Math.floor(p$1.y / cellSize);
+				for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+					const key = `${gx + dx},${gy + dy}`;
+					let bucket = grid.get(key);
+					if (!bucket) {
+						bucket = [];
+						grid.set(key, bucket);
+					}
+					bucket.push(i$1);
+				}
+			}
+			const displacements = new Map();
+			let overlapCount = 0;
+			const checked = new Set();
+			for (const [, bucket] of grid) for (let i$1 = 0; i$1 < bucket.length; i$1++) for (let j = i$1 + 1; j < bucket.length; j++) {
+				const ai = bucket[i$1];
+				const bi = bucket[j];
+				const pairKey = ai < bi ? `${ai}-${bi}` : `${bi}-${ai}`;
+				if (checked.has(pairKey)) continue;
+				checked.add(pairKey);
+				const a = positions[ai];
+				const b = positions[bi];
+				const ddx = b.x - a.x;
+				const ddy = b.y - a.y;
+				const minDx = (a.w + b.w) / 2 + minGap;
+				const minDy = (a.h + b.h) / 2 + minGap;
+				const absDx = Math.abs(ddx);
+				const absDy = Math.abs(ddy);
+				if (absDx < minDx && absDy < minDy) {
+					overlapCount++;
+					const overlapX = minDx - absDx;
+					const overlapY = minDy - absDy;
+					const pushX = overlapX / 2 + 3;
+					const pushY = overlapY / 2 + 3;
+					const signX = ddx >= 0 ? 1 : -1;
+					const signY = ddy >= 0 ? 1 : -1;
+					let da = displacements.get(a.id);
+					if (!da) {
+						da = {
+							dx: 0,
+							dy: 0
+						};
+						displacements.set(a.id, da);
+					}
+					let db = displacements.get(b.id);
+					if (!db) {
+						db = {
+							dx: 0,
+							dy: 0
+						};
+						displacements.set(b.id, db);
+					}
+					da.dx -= signX * pushX;
+					da.dy -= signY * pushY;
+					db.dx += signX * pushX;
+					db.dy += signY * pushY;
+				}
+			}
+			if (overlapCount === 0) break;
+			this.cy.batch(() => {
+				for (const [id, d] of displacements) {
+					const node = this.cy.getElementById(id);
+					if (node.nonempty()) {
+						const p$1 = node.position();
+						node.position({
+							x: p$1.x + d.dx,
+							y: p$1.y + d.dy
+						});
+					}
+				}
+			});
+		}
+		this.cy.fit(void 0, 80);
+	}
+	destroy() {
+		if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
+		this.layoutRaf = null;
+	}
+};
+
+//#endregion
+//#region src/client/renderer/HighlightController.ts
+var HighlightController = class {
+	cy;
+	highlightedNodeIds = new Set();
+	constructor(cy) {
+		this.cy = cy;
+	}
+	highlightNodes(nodeIds) {
+		const newSet = new Set(nodeIds);
+		this.cy.batch(() => {
+			const nodesToUnhighlight = [];
+			const nodesToHighlight = [];
+			for (const id of this.highlightedNodeIds) if (!newSet.has(id)) nodesToUnhighlight.push(id);
+			for (const id of newSet) if (!this.highlightedNodeIds.has(id)) nodesToHighlight.push(id);
+			for (const id of nodesToUnhighlight) {
+				const node = this.cy.getElementById(id);
+				if (node.nonempty()) node.removeClass("highlighted");
+			}
+			for (const id of nodesToHighlight) {
+				const node = this.cy.getElementById(id);
+				if (node.nonempty()) node.addClass("highlighted");
+			}
+			this.cy.edges().forEach((edge) => {
+				const srcId = edge.source().id();
+				const tgtId = edge.target().id();
+				const shouldHighlight = newSet.has(srcId) || newSet.has(tgtId);
+				edge.toggleClass("highlighted", shouldHighlight);
+			});
+		});
+		this.highlightedNodeIds = newSet;
+	}
+	selectNode(nodeId) {
+		this.cy.batch(() => {
+			this.cy.elements().forEach((ele) => {
+				ele.toggleClass("selected", ele.isNode() && ele.id() === nodeId);
+			});
+		});
+	}
+	highlightCallChain(nodeId) {
+		this.cy.batch(() => {
+			this.cy.elements().removeClass("call-chain");
+			if (!nodeId) return;
+			const visited = new Set();
+			const queue = [nodeId];
+			let head = 0;
+			while (head < queue.length) {
+				const id = queue[head++];
+				if (visited.has(id)) continue;
+				visited.add(id);
+				const node = this.cy.getElementById(id);
+				if (node.nonempty()) node.addClass("call-chain");
+				node.connectedEdges().forEach((edge) => {
+					if (edge.source().id() !== id) return;
+					edge.addClass("call-chain");
+					const target = edge.target().id();
+					if (!visited.has(target)) queue.push(target);
+				});
+			}
+		});
+	}
+	detectCycles() {
+		const cycles = new Set();
+		const adjacency = new Map();
+		this.cy.edges().forEach((edge) => {
+			const s = edge.source().id();
+			const t$1 = edge.target().id();
+			const list = adjacency.get(s);
+			if (list) list.push(t$1);
+			else adjacency.set(s, [t$1]);
+		});
+		const visited = new Set();
+		const inStack = new Set();
+		const path = [];
+		const enter = (start) => {
+			const frames = [{
+				id: start,
+				neighbors: adjacency.get(start) ?? [],
+				next: 0
+			}];
+			visited.add(start);
+			inStack.add(start);
+			path.push(start);
+			while (frames.length > 0) {
+				const frame = frames[frames.length - 1];
+				if (frame.next >= frame.neighbors.length) {
+					inStack.delete(frame.id);
+					path.pop();
+					frames.pop();
+					continue;
+				}
+				const target = frame.neighbors[frame.next++];
+				if (inStack.has(target)) {
+					const cycleStart = path.indexOf(target);
+					if (cycleStart >= 0) for (let i$1 = cycleStart; i$1 < path.length; i$1++) cycles.add(path[i$1]);
+				} else if (!visited.has(target)) {
+					visited.add(target);
+					inStack.add(target);
+					path.push(target);
+					frames.push({
+						id: target,
+						neighbors: adjacency.get(target) ?? [],
+						next: 0
+					});
+				}
+			}
+		};
+		for (const id of adjacency.keys()) if (!visited.has(id)) enter(id);
+		return cycles;
+	}
+	highlightCycles(cycleIds) {
+		this.cy.batch(() => {
+			this.cy.elements().removeClass("cycle-highlight");
+			cycleIds.forEach((id) => {
+				const node = this.cy.getElementById(id);
+				if (node.nonempty()) node.addClass("cycle-highlight");
+			});
+		});
+	}
+	highlightImpact(nodeId) {
+		this.cy.batch(() => {
+			this.cy.elements().removeClass("impact-d1 impact-d2 impact-d3 impact-source");
+			if (!nodeId) return;
+			const sourceNode = this.cy.getElementById(nodeId);
+			if (sourceNode.nonempty()) sourceNode.addClass("impact-source");
+			const visited = new Map();
+			const queue = [{
+				id: nodeId,
+				depth: 0
+			}];
+			let head = 0;
+			while (head < queue.length) {
+				const { id, depth } = queue[head++];
+				if (visited.has(id) && visited.get(id) <= depth) continue;
+				visited.set(id, depth);
+				const node = this.cy.getElementById(id);
+				if (depth > 0 && node.nonempty()) {
+					const cls = depth <= 1 ? "impact-d1" : depth === 2 ? "impact-d2" : "impact-d3";
+					node.addClass(cls);
+				}
+				if (depth < 3) node.incomers().forEach((edge) => {
+					const src = edge.source().id();
+					if (!visited.has(src) || visited.get(src) > depth + 1) queue.push({
+						id: src,
+						depth: depth + 1
+					});
+				});
+			}
+		});
+	}
+	highlightInheritance(nodeId) {
+		this.cy.batch(() => {
+			this.cy.elements().removeClass("inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement");
+			if (!nodeId) {
+				this.cy.edges("[type=\"extend\"]").addClass("inheritance-extend");
+				this.cy.edges("[type=\"implement\"]").addClass("inheritance-implement");
+				this.cy.edges("[type!=\"extend\"][type!=\"implement\"]").addClass("inheritance-dim");
+				this.cy.nodes("[type!=\"class\"][type!=\"interface\"]").addClass("inheritance-dim");
+				return;
+			}
+			const focusNode = this.cy.getElementById(nodeId);
+			if (focusNode.empty()) return;
+			focusNode.addClass("inheritance-focus");
+			const relevant = new Set([nodeId]);
+			const traverse = (id, direction) => {
+				const node = this.cy.getElementById(id);
+				if (direction === "up") node.outgoers("edge[type=\"extend\"], edge[type=\"implement\"]").forEach((edge) => {
+					const target = edge.target().id();
+					if (!relevant.has(target)) {
+						relevant.add(target);
+						edge.addClass("inheritance-highlight");
+						traverse(target, "up");
+					}
+				});
+				else node.incomers("edge[type=\"extend\"], edge[type=\"implement\"]").forEach((edge) => {
+					const source = edge.source().id();
+					if (!relevant.has(source)) {
+						relevant.add(source);
+						edge.addClass("inheritance-highlight");
+						traverse(source, "down");
+					}
+				});
+			};
+			traverse(nodeId, "up");
+			traverse(nodeId, "down");
+			relevant.forEach((id) => {
+				const node = this.cy.getElementById(id);
+				if (node.nonempty()) node.addClass("inheritance-highlight");
+			});
+			this.cy.edges("[type=\"extend\"], edge[type=\"implement\"]").forEach((edge) => {
+				if (!relevant.has(edge.source().id()) && !relevant.has(edge.target().id())) edge.addClass("inheritance-dim");
+			});
+			this.cy.edges("[type!=\"extend\"][type!=\"implement\"]").addClass("inheritance-dim");
+			this.cy.nodes().forEach((node) => {
+				if (!relevant.has(node.id())) node.addClass("inheritance-dim");
+			});
+		});
+	}
+};
+
+//#endregion
+//#region src/client/renderer/ViewportController.ts
+var ViewportController = class {
+	cy;
+	constructor(cy) {
+		this.cy = cy;
+	}
+	focusOnNode(nodeId) {
+		const node = this.cy.getElementById(nodeId);
+		if (node.nonempty()) this.cy.animate({
+			center: { eles: node },
+			zoom: Math.max(this.cy.zoom(), 1.2),
+			duration: 300
+		});
+	}
+	focusNeighborhood(nodeId) {
+		this.cy.batch(() => {
+			this.cy.elements().removeClass("focus-highlight focus-dim");
+			if (!nodeId) return;
+			const focusNode = this.cy.getElementById(nodeId);
+			if (focusNode.empty()) return;
+			const relevant = new Set([nodeId]);
+			focusNode.neighborhood().forEach((el) => {
+				if (el.isNode()) relevant.add(el.id());
+			});
+			relevant.forEach((id) => {
+				const el = this.cy.getElementById(id);
+				if (el.nonempty()) el.addClass("focus-highlight");
+			});
+			this.cy.elements().forEach((el) => {
+				if (!relevant.has(el.id())) el.addClass("focus-dim");
+			});
+			this.cy.animate({
+				fit: {
+					eles: this.cy.elements().filter((el) => relevant.has(el.id())),
+					padding: 80
+				},
+				duration: 400
+			});
+		});
+	}
+	expandNeighborhood(nodeId, depth) {
+		const relevant = new Set([nodeId]);
+		let frontier = new Set([nodeId]);
+		for (let d = 0; d < depth; d++) {
+			const nextFrontier = new Set();
+			for (const id of frontier) {
+				const node = this.cy.getElementById(id);
+				if (node.empty()) continue;
+				node.neighborhood().forEach((el) => {
+					if (el.isNode() && !relevant.has(el.id())) {
+						relevant.add(el.id());
+						nextFrontier.add(el.id());
+					}
+				});
+			}
+			frontier = nextFrontier;
+			if (frontier.size === 0) break;
+		}
+		this.cy.batch(() => {
+			this.cy.elements().removeClass("focus-highlight focus-dim");
+			relevant.forEach((id) => {
+				const el = this.cy.getElementById(id);
+				if (el.nonempty()) el.addClass("focus-highlight");
+			});
+			this.cy.elements().forEach((el) => {
+				if (!relevant.has(el.id())) el.addClass("focus-dim");
+			});
+			this.cy.animate({
+				fit: {
+					eles: this.cy.elements().filter((el) => relevant.has(el.id())),
+					padding: 80
+				},
+				duration: 400
+			});
+		});
+		return relevant;
+	}
+	getThumbnail() {
+		return this.cy.png({
+			full: true,
+			scale: .15,
+			bg: "transparent"
+		});
+	}
+	getViewportInfo() {
+		const zoom = this.cy.zoom();
+		const pan = this.cy.pan();
+		const renderedSize = {
+			w: this.cy.width(),
+			h: this.cy.height()
+		};
+		const bounds$1 = this.cy.elements().boundingBox();
+		const totalSize = {
+			w: bounds$1.w,
+			h: bounds$1.h
+		};
+		return {
+			zoom,
+			pan,
+			renderedSize,
+			totalSize
+		};
+	}
+	focusOnArea(x$1, y$1, zoom) {
+		this.cy.panBy({
+			x: -x$1 + this.cy.width() / 2,
+			y: -y$1 + this.cy.height() / 2
+		});
+		this.cy.zoom(zoom);
+	}
+	resize() {
+		this.cy.resize();
+	}
+};
+
+//#endregion
+//#region src/client/renderer/DataController.ts
+var DataController = class {
+	cy;
+	currentNodes = new Map();
+	currentEdges = new Map();
+	batchRaf = null;
+	batchQueue = null;
+	constructor(cy) {
+		this.cy = cy;
+	}
+	updateData(nodes, edges) {
+		const newNodeIds = new Set(nodes.map((n) => n.id));
+		const newEdgeIds = new Set(edges.map((e) => e.id));
+		const hasNewNodes = nodes.some((n) => !this.currentNodes.has(n.id));
+		const hasStaleNodes = this.currentNodes.size !== nodes.length || [...this.currentNodes.keys()].some((id) => !newNodeIds.has(id));
+		const hasNewEdges = edges.some((e) => !this.currentEdges.has(e.id));
+		const hasStaleEdges = this.currentEdges.size !== edges.length || [...this.currentEdges.keys()].some((id) => !newEdgeIds.has(id));
+		if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges) return;
+		const nodesToAdd = [];
+		const edgesToAdd = [];
+		if (hasStaleNodes) {
+			const staleNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
+			if (staleNodes.length > 0) this.cy.remove(staleNodes);
+			for (const id of this.currentNodes.keys()) if (!newNodeIds.has(id)) this.currentNodes.delete(id);
+		}
+		if (hasStaleEdges) {
+			const staleEdges = this.cy.edges().filter((e) => !newEdgeIds.has(e.id()));
+			if (staleEdges.length > 0) this.cy.remove(staleEdges);
+			for (const id of this.currentEdges.keys()) if (!newEdgeIds.has(id)) this.currentEdges.delete(id);
+		}
+		for (const n of nodes) {
+			if (!this.currentNodes.has(n.id)) nodesToAdd.push(n);
+			this.currentNodes.set(n.id, n);
+		}
+		for (const e of edges) {
+			if (!this.currentEdges.has(e.id)) edgesToAdd.push(e);
+			this.currentEdges.set(e.id, e);
+		}
+		if (nodesToAdd.length === 0 && edgesToAdd.length === 0) return;
+		const BATCH_SIZE = 200;
+		if (nodesToAdd.length <= BATCH_SIZE) {
+			this.cy.batch(() => {
+				for (const n of nodesToAdd) this.addNode(n);
+				for (const e of edgesToAdd) this.addEdge(e);
+			});
+			return;
+		}
+		const firstBatchNodes = nodesToAdd.slice(0, BATCH_SIZE);
+		const firstBatchNodeIds = new Set(firstBatchNodes.map((n) => n.id));
+		const firstBatchEdges = edgesToAdd.filter((e) => firstBatchNodeIds.has(e.source) && firstBatchNodeIds.has(e.target));
+		const remainingNodes = nodesToAdd.slice(BATCH_SIZE);
+		const remainingEdges = edgesToAdd.filter((e) => !firstBatchEdges.includes(e));
+		this.cy.batch(() => {
+			for (const n of firstBatchNodes) this.addNode(n);
+			for (const e of firstBatchEdges) this.addEdge(e);
+		});
+		this.batchQueue = {
+			nodes: remainingNodes,
+			edges: remainingEdges
+		};
+		this.processBatchQueue();
+	}
+	addNode(n) {
+		const cn = n;
+		this.cy.add({
+			group: "nodes",
+			data: {
+				id: n.id,
+				label: n.label,
+				type: n.type,
+				filePath: n.filePath,
+				lineNumber: n.lineNumber,
+				parent: n.parentId ?? void 0,
+				isCluster: cn.isCluster ?? false,
+				childCount: cn.childCount ?? 0
+			}
+		});
+	}
+	addEdge(e) {
+		const ce = e;
+		this.cy.add({
+			group: "edges",
+			data: {
+				id: e.id,
+				source: e.source,
+				target: e.target,
+				type: e.type,
+				isCluster: ce.isCluster ?? false,
+				aggregatedCount: ce.aggregatedCount ?? 0,
+				label: ce.isCluster ? `${ce.aggregatedCount} deps` : ""
+			}
+		});
+	}
+	processBatchQueue() {
+		if (!this.batchQueue) return;
+		if (this.batchRaf !== null) cancelAnimationFrame(this.batchRaf);
+		this.batchRaf = requestAnimationFrame(() => {
+			if (!this.batchQueue) {
+				this.batchRaf = null;
+				return;
+			}
+			const { nodes, edges } = this.batchQueue;
+			const BATCH_SIZE = 200;
+			const batchNodes = nodes.slice(0, BATCH_SIZE);
+			const batchNodeIds = new Set(batchNodes.map((n) => n.id));
+			const batchEdges = edges.filter((e) => batchNodeIds.has(e.source) && batchNodeIds.has(e.target));
+			const leftoverNodes = nodes.slice(BATCH_SIZE);
+			const leftoverEdges = edges.filter((e) => !batchEdges.includes(e));
+			this.cy.batch(() => {
+				for (const n of batchNodes) this.addNode(n);
+				for (const e of batchEdges) this.addEdge(e);
+			});
+			if (leftoverNodes.length > 0) {
+				this.batchQueue = {
+					nodes: leftoverNodes,
+					edges: leftoverEdges
+				};
+				this.processBatchQueue();
+			} else this.batchQueue = null;
+			this.batchRaf = null;
+		});
+	}
+	filterByType(type) {
+		const hidden = new Set();
+		if (type !== "all") this.cy.nodes().forEach((node) => {
+			if (node.data("type") !== type) hidden.add(node.id());
+		});
+		this.cy.batch(() => {
+			this.cy.nodes().forEach((node) => {
+				node.style("display", hidden.has(node.id()) ? "none" : "element");
+			});
+			this.cy.edges().forEach((edge) => {
+				const hiddenEdge = hidden.has(edge.source().id()) || hidden.has(edge.target().id());
+				edge.style("display", hiddenEdge ? "none" : "element");
+			});
+		});
+	}
+	filterByGraphType(graphType) {
+		const allowedEdgeTypes = new Set();
+		if (graphType === "all") {
+			allowedEdgeTypes.add("call");
+			allowedEdgeTypes.add("import");
+			allowedEdgeTypes.add("extend");
+			allowedEdgeTypes.add("implement");
+			allowedEdgeTypes.add("dependency");
+		} else if (graphType === "call") allowedEdgeTypes.add("call");
+		else if (graphType === "dependency") {
+			allowedEdgeTypes.add("import");
+			allowedEdgeTypes.add("dependency");
+		}
+		const connectedNodeIds = new Set();
+		this.cy.batch(() => {
+			this.cy.edges().forEach((edge) => {
+				const edgeType = edge.data("type");
+				const visible = allowedEdgeTypes.has(edgeType);
+				edge.style("display", visible ? "element" : "none");
+				if (visible) {
+					connectedNodeIds.add(edge.source().id());
+					connectedNodeIds.add(edge.target().id());
+				}
+			});
+			this.cy.nodes().forEach((node) => {
+				node.style("display", connectedNodeIds.has(node.id()) ? "element" : "none");
+			});
+		});
+	}
+	search(query) {
+		if (!query) {
+			this.cy.nodes().removeClass("search-match");
+			return 0;
+		}
+		const q = query.toLowerCase();
+		let matches$2 = 0;
+		let firstMatchId = null;
+		this.cy.batch(() => {
+			this.cy.nodes().forEach((node) => {
+				const label = node.data("label");
+				const isMatch = typeof label === "string" && label.toLowerCase().includes(q);
+				node.toggleClass("search-match", isMatch);
+				if (isMatch) {
+					matches$2++;
+					if (firstMatchId === null) firstMatchId = node.id();
+				}
+			});
+		});
+		return matches$2;
+	}
+	getSelectedNodeData() {
+		const selected = this.cy.nodes(".selected");
+		if (selected.length === 0) return null;
+		const id = selected.first().id();
+		return this.currentNodes.get(id) ?? null;
+	}
+	getNodeData(nodeId) {
+		return this.currentNodes.get(nodeId) ?? null;
+	}
+	getEdgeData(edgeId) {
+		return this.currentEdges.get(edgeId) ?? null;
+	}
+	exportJSON() {
+		return JSON.stringify(this.cy.json(), null, 2);
+	}
+	exportPNG() {
+		return this.cy.png({
+			full: true,
+			scale: 2
+		});
+	}
+	exportSVG() {
+		const png = this.cy.png({
+			full: true,
+			scale: 2
+		});
+		const w = this.cy.width();
+		const h = this.cy.height();
+		return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><image href="${png}" width="${w}" height="${h}"/></svg>`;
+	}
+	destroy() {
+		if (this.batchRaf !== null) cancelAnimationFrame(this.batchRaf);
+		this.batchRaf = null;
+		this.batchQueue = null;
+		this.currentNodes.clear();
+		this.currentEdges.clear();
+	}
+};
+
+//#endregion
 //#region src/client/renderer/styles/ThemeStylesheet.ts
 function readCssVar(name$1, fallback) {
 	if (typeof window === "undefined") return fallback;
@@ -42276,9 +43053,195 @@ function buildStylesheet(theme, nodeCount = 0) {
 				"opacity": 1,
 				"width": "mapData(aggregatedCount, 1, 200, 2.5, 6)"
 			}
+		},
+		{
+			selector: ".path-highlight",
+			style: {
+				"border-width": 4,
+				"border-color": accentColor,
+				"background-color": accentColor,
+				"z-index": 40
+			}
+		},
+		{
+			selector: "edge.path-highlight",
+			style: {
+				"width": 4,
+				"line-color": accentColor,
+				"target-arrow-color": accentColor,
+				"opacity": 1,
+				"z-index": 40
+			}
+		},
+		{
+			selector: ".path-dim",
+			style: { "opacity": .1 }
+		},
+		{
+			selector: ".rule-violation",
+			style: {
+				"border-width": 4,
+				"border-color": errorColor,
+				"background-color": errorColor,
+				"z-index": 45
+			}
+		},
+		{
+			selector: "edge.rule-violation",
+			style: {
+				"width": 4,
+				"line-color": errorColor,
+				"target-arrow-color": errorColor,
+				"opacity": 1,
+				"z-index": 45
+			}
+		},
+		{
+			selector: ".hotspot-high",
+			style: {
+				"border-width": 4,
+				"border-color": errorColor,
+				"z-index": 35
+			}
+		},
+		{
+			selector: ".hotspot-medium",
+			style: {
+				"border-width": 3,
+				"border-color": warningColor,
+				"z-index": 28
+			}
 		}
 	];
 }
+
+//#endregion
+//#region src/client/renderer/StyleController.ts
+var StyleController = class {
+	cy;
+	theme;
+	constructor(cy, theme) {
+		this.cy = cy;
+		this.theme = theme;
+	}
+	getStylesheet() {
+		const nodeCount = this.cy.nodes().length;
+		return buildStylesheet(this.theme, nodeCount);
+	}
+	updateTheme(theme) {
+		this.theme = theme;
+		this.cy.style().fromJson(this.getStylesheet()).update();
+	}
+	getTheme() {
+		return this.theme;
+	}
+};
+
+//#endregion
+//#region src/client/renderer/InteractionController.ts
+var InteractionController = class {
+	cy;
+	callbacks;
+	constructor(cy, callbacks) {
+		this.cy = cy;
+		this.callbacks = callbacks;
+		this.bindEvents();
+	}
+	bindEvents() {
+		this.cy.on("tap", "node", (evt) => {
+			this.callbacks.onNodeTap?.(evt.target.id());
+		});
+		this.cy.on("tap", "edge", (evt) => {
+			this.callbacks.onEdgeTap?.(evt.target.id());
+		});
+		this.cy.on("dbltap", "node", (evt) => {
+			this.callbacks.onNodeDoubleTap?.(evt.target.id());
+		});
+		this.cy.on("mouseover", "node", (evt) => {
+			const node = evt.target;
+			node.addClass("hovered");
+			const pos = node.renderedPosition();
+			this.callbacks.onNodeHover?.(node.id(), {
+				x: pos.x,
+				y: pos.y
+			});
+		});
+		this.cy.on("mouseout", "node", (evt) => {
+			evt.target.removeClass("hovered");
+			this.callbacks.onNodeHoverOut?.();
+		});
+		this.cy.on("mouseover", "edge", (evt) => {
+			const edge = evt.target;
+			edge.addClass("hovered");
+			const pos = edge.renderedMidpoint();
+			this.callbacks.onEdgeHover?.(edge.id(), {
+				x: pos.x,
+				y: pos.y
+			});
+		});
+		this.cy.on("mouseout", "edge", (evt) => {
+			evt.target.removeClass("hovered");
+			this.callbacks.onEdgeHoverOut?.();
+		});
+		this.cy.on("mouseout", "node", () => {
+			this.callbacks.onNodeHoverOut?.();
+		});
+	}
+	updateCallbacks(callbacks) {
+		this.callbacks = callbacks;
+	}
+};
+
+//#endregion
+//#region src/client/renderer/PathFinder.ts
+var PathFinder = class {
+	cy;
+	constructor(cy) {
+		this.cy = cy;
+	}
+	findPath(sourceId, targetId) {
+		const sourceNode = this.cy.getElementById(sourceId);
+		const targetNode = this.cy.getElementById(targetId);
+		if (sourceNode.empty() || targetNode.empty()) return null;
+		const dijkstra$2 = this.cy.elements().dijkstra({ root: sourceNode });
+		const pathToTarget = dijkstra$2.pathTo(targetNode);
+		if (pathToTarget.length === 0) return null;
+		const pathIds = [];
+		pathToTarget.forEach((el) => {
+			if (el.isNode()) pathIds.push(el.id());
+		});
+		if (pathIds.length === 0) return null;
+		return {
+			source: sourceId,
+			target: targetId,
+			path: pathIds,
+			length: pathIds.length - 1
+		};
+	}
+	highlightPath(path) {
+		this.cy.batch(() => {
+			this.cy.elements().removeClass("path-highlight path-dim");
+			if (!path || path.length === 0) return;
+			const pathSet = new Set(path);
+			path.forEach((id) => {
+				const node = this.cy.getElementById(id);
+				if (node.nonempty()) node.addClass("path-highlight");
+			});
+			this.cy.edges().forEach((edge) => {
+				const srcId = edge.source().id();
+				const tgtId = edge.target().id();
+				if (pathSet.has(srcId) && pathSet.has(tgtId)) {
+					const srcIdx = path.indexOf(srcId);
+					const tgtIdx = path.indexOf(tgtId);
+					if (srcIdx >= 0 && tgtIdx >= 0 && Math.abs(srcIdx - tgtIdx) === 1) edge.addClass("path-highlight");
+				}
+			});
+			this.cy.elements().forEach((el) => {
+				if (!pathSet.has(el.id()) && el.isNode()) el.addClass("path-dim");
+			});
+		});
+	}
+};
 
 //#endregion
 //#region src/client/renderer/CytoscapeRenderer.ts
@@ -42286,9 +43249,13 @@ cytoscape$1.use(import_cytoscape_dagre.default);
 var CytoscapeRenderer = class {
 	cy = null;
 	options;
-	currentNodes = new Map();
-	currentEdges = new Map();
-	layoutRaf = null;
+	layoutCtrl = null;
+	highlightCtrl = null;
+	viewportCtrl = null;
+	dataCtrl = null;
+	styleCtrl = null;
+	interactionCtrl = null;
+	pathFinder = null;
 	constructor(options) {
 		this.options = options;
 	}
@@ -42298,807 +43265,122 @@ var CytoscapeRenderer = class {
 			container: this.options.container,
 			minZoom: .1,
 			maxZoom: 3,
-			style: this.getStylesheet(),
+			style: [],
 			layout: { name: "cose" },
 			headless: false
 		});
-		this.cy.on("tap", "node", (evt) => {
-			this.options.onNodeTap?.(evt.target.id());
+		const cy = this.cy;
+		this.styleCtrl = new StyleController(cy, this.options.theme);
+		cy.style().fromJson(this.styleCtrl.getStylesheet()).update();
+		this.layoutCtrl = new LayoutController(cy);
+		this.highlightCtrl = new HighlightController(cy);
+		this.viewportCtrl = new ViewportController(cy);
+		this.dataCtrl = new DataController(cy);
+		this.interactionCtrl = new InteractionController(cy, {
+			onNodeTap: this.options.onNodeTap ?? (() => {}),
+			onEdgeTap: this.options.onEdgeTap ?? (() => {}),
+			onNodeDoubleTap: this.options.onNodeDoubleTap ?? (() => {}),
+			onNodeHover: this.options.onNodeHover ?? (() => {}),
+			onNodeHoverOut: this.options.onNodeHoverOut ?? (() => {}),
+			onEdgeHover: this.options.onEdgeHover ?? (() => {}),
+			onEdgeHoverOut: this.options.onEdgeHoverOut ?? (() => {})
 		});
-		this.cy.on("tap", "edge", (evt) => {
-			this.options.onEdgeTap?.(evt.target.id());
-		});
-		this.cy.on("dbltap", "node", (evt) => {
-			this.options.onNodeDoubleTap?.(evt.target.id());
-		});
-		this.cy.on("mouseover", "node", (evt) => {
-			const node = evt.target;
-			node.addClass("hovered");
-			const pos = node.renderedPosition();
-			this.options.onNodeHover?.(node.id(), {
-				x: pos.x,
-				y: pos.y
-			});
-		});
-		this.cy.on("mouseout", "node", (evt) => {
-			evt.target.removeClass("hovered");
-			this.options.onNodeHoverOut?.();
-		});
-		this.cy.on("mouseover", "edge", (evt) => {
-			const edge = evt.target;
-			edge.addClass("hovered");
-			const pos = edge.renderedMidpoint();
-			this.options.onEdgeHover?.(edge.id(), {
-				x: pos.x,
-				y: pos.y
-			});
-		});
-		this.cy.on("mouseout", "edge", (evt) => {
-			evt.target.removeClass("hovered");
-			this.options.onEdgeHoverOut?.();
-		});
-		this.cy.on("mouseout", "node", () => {
-			this.options.onNodeHoverOut?.();
-		});
+		this.pathFinder = new PathFinder(cy);
 	}
-	batchRaf = null;
-	batchQueue = null;
 	updateData(nodes, edges) {
-		if (!this.cy) return;
-		const newNodeIds = new Set(nodes.map((n) => n.id));
-		const newEdgeIds = new Set(edges.map((e) => e.id));
-		const hasNewNodes = nodes.some((n) => !this.currentNodes.has(n.id));
-		const hasStaleNodes = this.currentNodes.size !== nodes.length || [...this.currentNodes.keys()].some((id) => !newNodeIds.has(id));
-		const hasNewEdges = edges.some((e) => !this.currentEdges.has(e.id));
-		const hasStaleEdges = this.currentEdges.size !== edges.length || [...this.currentEdges.keys()].some((id) => !newEdgeIds.has(id));
-		if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges) return;
-		const nodesToAdd = [];
-		const edgesToAdd = [];
-		if (hasStaleNodes) {
-			const staleNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
-			if (staleNodes.length > 0) this.cy.remove(staleNodes);
-			for (const id of this.currentNodes.keys()) if (!newNodeIds.has(id)) this.currentNodes.delete(id);
-		}
-		if (hasStaleEdges) {
-			const staleEdges = this.cy.edges().filter((e) => !newEdgeIds.has(e.id()));
-			if (staleEdges.length > 0) this.cy.remove(staleEdges);
-			for (const id of this.currentEdges.keys()) if (!newEdgeIds.has(id)) this.currentEdges.delete(id);
-		}
-		for (const n of nodes) {
-			if (!this.currentNodes.has(n.id)) nodesToAdd.push(n);
-			this.currentNodes.set(n.id, n);
-		}
-		for (const e of edges) {
-			if (!this.currentEdges.has(e.id)) edgesToAdd.push(e);
-			this.currentEdges.set(e.id, e);
-		}
-		if (nodesToAdd.length === 0 && edgesToAdd.length === 0) return;
-		const BATCH_SIZE = 200;
-		if (nodesToAdd.length <= BATCH_SIZE) {
-			this.cy.batch(() => {
-				for (const n of nodesToAdd) {
-					const cn = n;
-					this.cy.add({
-						group: "nodes",
-						data: {
-							id: n.id,
-							label: n.label,
-							type: n.type,
-							filePath: n.filePath,
-							lineNumber: n.lineNumber,
-							parent: n.parentId ?? void 0,
-							isCluster: cn.isCluster ?? false,
-							childCount: cn.childCount ?? 0
-						}
-					});
-				}
-				for (const e of edgesToAdd) {
-					const ce = e;
-					this.cy.add({
-						group: "edges",
-						data: {
-							id: e.id,
-							source: e.source,
-							target: e.target,
-							type: e.type,
-							isCluster: ce.isCluster ?? false,
-							aggregatedCount: ce.aggregatedCount ?? 0,
-							label: ce.isCluster ? `${ce.aggregatedCount} deps` : ""
-						}
-					});
-				}
-			});
-			return;
-		}
-		const firstBatchNodes = nodesToAdd.slice(0, BATCH_SIZE);
-		const firstBatchNodeIds = new Set(firstBatchNodes.map((n) => n.id));
-		const firstBatchEdges = edgesToAdd.filter((e) => firstBatchNodeIds.has(e.source) && firstBatchNodeIds.has(e.target));
-		const remainingNodes = nodesToAdd.slice(BATCH_SIZE);
-		const remainingEdges = edgesToAdd.filter((e) => !firstBatchEdges.includes(e));
-		this.cy.batch(() => {
-			for (const n of firstBatchNodes) {
-				const cn = n;
-				this.cy.add({
-					group: "nodes",
-					data: {
-						id: n.id,
-						label: n.label,
-						type: n.type,
-						filePath: n.filePath,
-						lineNumber: n.lineNumber,
-						parent: n.parentId ?? void 0,
-						isCluster: cn.isCluster ?? false,
-						childCount: cn.childCount ?? 0
-					}
-				});
-			}
-			for (const e of firstBatchEdges) {
-				const ce = e;
-				this.cy.add({
-					group: "edges",
-					data: {
-						id: e.id,
-						source: e.source,
-						target: e.target,
-						type: e.type,
-						isCluster: ce.isCluster ?? false,
-						label: ce.isCluster ? `${ce.aggregatedCount} deps` : ""
-					}
-				});
-			}
-		});
-		this.batchQueue = {
-			nodes: remainingNodes,
-			edges: remainingEdges
-		};
-		this.processBatchQueue();
-	}
-	processBatchQueue() {
-		if (!this.batchQueue || !this.cy) return;
-		if (this.batchRaf !== null) cancelAnimationFrame(this.batchRaf);
-		this.batchRaf = requestAnimationFrame(() => {
-			if (!this.batchQueue || !this.cy) {
-				this.batchRaf = null;
-				return;
-			}
-			const { nodes, edges } = this.batchQueue;
-			const BATCH_SIZE = 200;
-			const batchNodes = nodes.slice(0, BATCH_SIZE);
-			const batchNodeIds = new Set(batchNodes.map((n) => n.id));
-			const batchEdges = edges.filter((e) => batchNodeIds.has(e.source) && batchNodeIds.has(e.target));
-			const leftoverNodes = nodes.slice(BATCH_SIZE);
-			const leftoverEdges = edges.filter((e) => !batchEdges.includes(e));
-			this.cy.batch(() => {
-				for (const n of batchNodes) {
-					const cn = n;
-					this.cy.add({
-						group: "nodes",
-						data: {
-							id: n.id,
-							label: n.label,
-							type: n.type,
-							filePath: n.filePath,
-							lineNumber: n.lineNumber,
-							parent: n.parentId ?? void 0,
-							isCluster: cn.isCluster ?? false,
-							childCount: cn.childCount ?? 0
-						}
-					});
-				}
-				for (const e of batchEdges) {
-					const ce = e;
-					this.cy.add({
-						group: "edges",
-						data: {
-							id: e.id,
-							source: e.source,
-							target: e.target,
-							type: e.type,
-							isCluster: ce.isCluster ?? false,
-							aggregatedCount: ce.aggregatedCount ?? 0,
-							label: ce.isCluster ? `${ce.aggregatedCount} deps` : ""
-						}
-					});
-				}
-			});
-			if (leftoverNodes.length > 0) {
-				this.batchQueue = {
-					nodes: leftoverNodes,
-					edges: leftoverEdges
-				};
-				this.processBatchQueue();
-			} else this.batchQueue = null;
-			this.batchRaf = null;
-		});
+		this.dataCtrl?.updateData(nodes, edges);
 	}
 	applyLayout(layout$2) {
-		if (!this.cy) return;
-		if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
-		this.layoutRaf = requestAnimationFrame(() => {
-			const nodeCount = this.cy.nodes().length;
-			let effectiveLayout = layout$2;
-			let animate = true;
-			if (nodeCount > 2e3) {
-				effectiveLayout = "grid";
-				animate = false;
-			} else if (nodeCount > 500 && layout$2 === "cose") {
-				effectiveLayout = "dagre";
-				animate = false;
-			}
-			const nodes = this.cy.nodes();
-			let _hasPositions = true;
-			nodes.forEach((n) => {
-				const p$1 = n.position();
-				if (p$1.x == null || p$1.y == null || Number.isNaN(p$1.x) || Number.isNaN(p$1.y)) _hasPositions = false;
-			});
-			let options;
-			switch (effectiveLayout) {
-				case "cose":
-					options = {
-						name: "cose",
-						fit: true,
-						animate: false,
-						nodeRepulse: () => 12e4,
-						idealEdgeLength: () => 400,
-						edgeElasticity: () => .05,
-						gravity: .02,
-						numIter: 15e3,
-						randomize: true,
-						tile: true,
-						padding: 120,
-						avoidOverlap: true
-					};
-					break;
-				case "dagre":
-					options = {
-						name: "dagre",
-						fit: true,
-						animate,
-						rankDir: "TB",
-						rankSep: 300,
-						edgeSep: 120,
-						nodeSep: 250,
-						ranker: "tight-tree",
-						padding: 100
-					};
-					break;
-				case "circle":
-					options = {
-						name: "circle",
-						fit: true,
-						animate,
-						padding: 80,
-						radius: () => Math.min(this.cy.width(), this.cy.height()) / 2 - 120
-					};
-					break;
-				case "grid":
-					options = {
-						name: "grid",
-						fit: true,
-						animate: false,
-						padding: 80,
-						avoidOverlap: true,
-						rows: Math.ceil(Math.sqrt(nodeCount)),
-						cols: Math.ceil(Math.sqrt(nodeCount))
-					};
-					break;
-				default: {
-					const _exhaustive = effectiveLayout;
-					throw new Error(`Unhandled layout: ${_exhaustive}`);
-				}
-			}
-			if (options) {
-				const layout$3 = this.cy.layout(options);
-				layout$3.one("layoutstop", () => {
-					this.removeOverlaps();
-				});
-				layout$3.run();
-			}
-			this.layoutRaf = null;
-		});
+		this.layoutCtrl?.applyLayout(layout$2);
 	}
-	removeOverlaps() {
-		if (!this.cy) return;
-		const nodes = this.cy.nodes();
-		if (nodes.length === 0) return;
-		const minGap = 40;
-		const maxIterations = 20;
-		const skipThreshold = 2e3;
-		if (nodes.length > skipThreshold) {
-			this.cy.fit(void 0, 80);
-			return;
-		}
-		const bbox = this.cy.nodes().boundingBox();
-		const cx = (bbox.x1 + bbox.x2) / 2;
-		const cy = (bbox.y1 + bbox.y2) / 2;
-		const scaleFactor = 1.4;
-		this.cy.batch(() => {
-			nodes.forEach((n) => {
-				const p$1 = n.position();
-				n.position({
-					x: cx + (p$1.x - cx) * scaleFactor,
-					y: cy + (p$1.y - cy) * scaleFactor
-				});
-			});
-		});
-		const cellSize = minGap * 4;
-		for (let iter = 0; iter < maxIterations; iter++) {
-			const positions = [];
-			nodes.forEach((n) => {
-				const p$1 = n.position();
-				positions.push({
-					id: n.id(),
-					x: p$1.x,
-					y: p$1.y,
-					w: n.width(),
-					h: n.height()
-				});
-			});
-			const grid = new Map();
-			for (let i$1 = 0; i$1 < positions.length; i$1++) {
-				const p$1 = positions[i$1];
-				const gx = Math.floor(p$1.x / cellSize);
-				const gy = Math.floor(p$1.y / cellSize);
-				for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
-					const key = `${gx + dx},${gy + dy}`;
-					let bucket = grid.get(key);
-					if (!bucket) {
-						bucket = [];
-						grid.set(key, bucket);
-					}
-					bucket.push(i$1);
-				}
-			}
-			const displacements = new Map();
-			let overlapCount = 0;
-			const checked = new Set();
-			for (const [, bucket] of grid) for (let i$1 = 0; i$1 < bucket.length; i$1++) for (let j = i$1 + 1; j < bucket.length; j++) {
-				const ai = bucket[i$1];
-				const bi = bucket[j];
-				const pairKey = ai < bi ? `${ai}-${bi}` : `${bi}-${ai}`;
-				if (checked.has(pairKey)) continue;
-				checked.add(pairKey);
-				const a = positions[ai];
-				const b = positions[bi];
-				const ddx = b.x - a.x;
-				const ddy = b.y - a.y;
-				const minDx = (a.w + b.w) / 2 + minGap;
-				const minDy = (a.h + b.h) / 2 + minGap;
-				const absDx = Math.abs(ddx);
-				const absDy = Math.abs(ddy);
-				if (absDx < minDx && absDy < minDy) {
-					overlapCount++;
-					const overlapX = minDx - absDx;
-					const overlapY = minDy - absDy;
-					const pushX = overlapX / 2 + 3;
-					const pushY = overlapY / 2 + 3;
-					const signX = ddx >= 0 ? 1 : -1;
-					const signY = ddy >= 0 ? 1 : -1;
-					let da = displacements.get(a.id);
-					if (!da) {
-						da = {
-							dx: 0,
-							dy: 0
-						};
-						displacements.set(a.id, da);
-					}
-					let db = displacements.get(b.id);
-					if (!db) {
-						db = {
-							dx: 0,
-							dy: 0
-						};
-						displacements.set(b.id, db);
-					}
-					da.dx -= signX * pushX;
-					da.dy -= signY * pushY;
-					db.dx += signX * pushX;
-					db.dy += signY * pushY;
-				}
-			}
-			if (overlapCount === 0) break;
-			this.cy.batch(() => {
-				for (const [id, d] of displacements) {
-					const node = this.cy.getElementById(id);
-					if (node.nonempty()) {
-						const p$1 = node.position();
-						node.position({
-							x: p$1.x + d.dx,
-							y: p$1.y + d.dy
-						});
-					}
-				}
-			});
-		}
-		this.cy.fit(void 0, 80);
-	}
-	highlightedNodeIds = new Set();
 	highlightNodes(nodeIds) {
-		if (!this.cy) return;
-		const newSet = new Set(nodeIds);
-		this.cy.batch(() => {
-			const nodesToUnhighlight = [];
-			const nodesToHighlight = [];
-			for (const id of this.highlightedNodeIds) if (!newSet.has(id)) nodesToUnhighlight.push(id);
-			for (const id of newSet) if (!this.highlightedNodeIds.has(id)) nodesToHighlight.push(id);
-			for (const id of nodesToUnhighlight) {
-				const node = this.cy.getElementById(id);
-				if (node.nonempty()) node.removeClass("highlighted");
-			}
-			for (const id of nodesToHighlight) {
-				const node = this.cy.getElementById(id);
-				if (node.nonempty()) node.addClass("highlighted");
-			}
-			this.cy.edges().forEach((edge) => {
-				const srcId = edge.source().id();
-				const tgtId = edge.target().id();
-				const shouldHighlight = newSet.has(srcId) || newSet.has(tgtId);
-				edge.toggleClass("highlighted", shouldHighlight);
-			});
-		});
-		this.highlightedNodeIds = newSet;
+		this.highlightCtrl?.highlightNodes(nodeIds);
 	}
 	selectNode(nodeId) {
-		if (!this.cy) return;
-		this.cy.batch(() => {
-			this.cy.elements().forEach((ele) => {
-				ele.toggleClass("selected", ele.isNode() && ele.id() === nodeId);
-			});
-		});
+		this.highlightCtrl?.selectNode(nodeId);
 	}
 	filterByType(type) {
-		if (!this.cy) return;
-		const hidden = new Set();
-		if (type !== "all") this.cy.nodes().forEach((node) => {
-			if (node.data("type") !== type) hidden.add(node.id());
-		});
-		this.cy.batch(() => {
-			this.cy.nodes().forEach((node) => {
-				node.style("display", hidden.has(node.id()) ? "none" : "element");
-			});
-			this.cy.edges().forEach((edge) => {
-				const hiddenEdge = hidden.has(edge.source().id()) || hidden.has(edge.target().id());
-				edge.style("display", hiddenEdge ? "none" : "element");
-			});
-		});
+		this.dataCtrl?.filterByType(type);
 	}
 	filterByGraphType(graphType) {
-		if (!this.cy) return;
-		const allowedEdgeTypes = new Set();
-		if (graphType === "all") {
-			allowedEdgeTypes.add("call");
-			allowedEdgeTypes.add("import");
-			allowedEdgeTypes.add("extend");
-			allowedEdgeTypes.add("implement");
-			allowedEdgeTypes.add("dependency");
-		} else if (graphType === "call") allowedEdgeTypes.add("call");
-		else if (graphType === "dependency") {
-			allowedEdgeTypes.add("import");
-			allowedEdgeTypes.add("dependency");
-		}
-		const connectedNodeIds = new Set();
-		this.cy.batch(() => {
-			this.cy.edges().forEach((edge) => {
-				const edgeType = edge.data("type");
-				const visible = allowedEdgeTypes.has(edgeType);
-				edge.style("display", visible ? "element" : "none");
-				if (visible) {
-					connectedNodeIds.add(edge.source().id());
-					connectedNodeIds.add(edge.target().id());
-				}
-			});
-			this.cy.nodes().forEach((node) => {
-				node.style("display", connectedNodeIds.has(node.id()) ? "element" : "none");
-			});
-		});
+		this.dataCtrl?.filterByGraphType(graphType);
 	}
 	search(query) {
-		if (!this.cy) return 0;
-		if (!query) {
-			this.cy.nodes().removeClass("search-match");
-			return 0;
-		}
-		const q = query.toLowerCase();
-		let matches$2 = 0;
-		let firstMatchId = null;
-		this.cy.batch(() => {
-			this.cy.nodes().forEach((node) => {
-				const label = node.data("label");
-				const isMatch = typeof label === "string" && label.toLowerCase().includes(q);
-				node.toggleClass("search-match", isMatch);
-				if (isMatch) {
-					matches$2++;
-					if (firstMatchId === null) firstMatchId = node.id();
-				}
-			});
-		});
-		if (firstMatchId) this.focusOnNode(firstMatchId);
-		return matches$2;
+		return this.dataCtrl?.search(query) ?? 0;
 	}
 	focusOnNode(nodeId) {
-		if (!this.cy) return;
-		const node = this.cy.getElementById(nodeId);
-		if (node.nonempty()) this.cy.animate({
-			center: { eles: node },
-			zoom: Math.max(this.cy.zoom(), 1.2),
-			duration: 300
-		});
+		this.viewportCtrl?.focusOnNode(nodeId);
 	}
 	highlightCallChain(nodeId) {
-		if (!this.cy) return;
-		this.cy.batch(() => {
-			this.cy.elements().removeClass("call-chain");
-			if (!nodeId) return;
-			const visited = new Set();
-			const queue = [nodeId];
-			let head = 0;
-			while (head < queue.length) {
-				const id = queue[head++];
-				if (visited.has(id)) continue;
-				visited.add(id);
-				const node = this.cy.getElementById(id);
-				if (node.nonempty()) node.addClass("call-chain");
-				node.connectedEdges().forEach((edge) => {
-					if (edge.source().id() !== id) return;
-					edge.addClass("call-chain");
-					const target = edge.target().id();
-					if (!visited.has(target)) queue.push(target);
-				});
-			}
-		});
+		this.highlightCtrl?.highlightCallChain(nodeId);
 	}
 	detectCycles() {
-		const cycles = new Set();
-		if (!this.cy) return cycles;
-		const adjacency = new Map();
-		this.cy.edges().forEach((edge) => {
-			const s = edge.source().id();
-			const t$1 = edge.target().id();
-			const list = adjacency.get(s);
-			if (list) list.push(t$1);
-			else adjacency.set(s, [t$1]);
-		});
-		const visited = new Set();
-		const inStack = new Set();
-		const path = [];
-		const enter = (start) => {
-			const frames = [{
-				id: start,
-				neighbors: adjacency.get(start) ?? [],
-				next: 0
-			}];
-			visited.add(start);
-			inStack.add(start);
-			path.push(start);
-			while (frames.length > 0) {
-				const frame = frames[frames.length - 1];
-				if (frame.next >= frame.neighbors.length) {
-					inStack.delete(frame.id);
-					path.pop();
-					frames.pop();
-					continue;
-				}
-				const target = frame.neighbors[frame.next++];
-				if (inStack.has(target)) {
-					const cycleStart = path.indexOf(target);
-					if (cycleStart >= 0) for (let i$1 = cycleStart; i$1 < path.length; i$1++) cycles.add(path[i$1]);
-				} else if (!visited.has(target)) {
-					visited.add(target);
-					inStack.add(target);
-					path.push(target);
-					frames.push({
-						id: target,
-						neighbors: adjacency.get(target) ?? [],
-						next: 0
-					});
-				}
-			}
-		};
-		for (const id of adjacency.keys()) if (!visited.has(id)) enter(id);
-		return cycles;
+		return this.highlightCtrl?.detectCycles() ?? new Set();
 	}
 	highlightCycles(cycleIds) {
-		if (!this.cy) return;
-		this.cy.batch(() => {
-			this.cy.elements().removeClass("cycle-highlight");
-			cycleIds.forEach((id) => {
-				const node = this.cy.getElementById(id);
-				if (node.nonempty()) node.addClass("cycle-highlight");
-			});
-		});
+		this.highlightCtrl?.highlightCycles(cycleIds);
 	}
 	highlightImpact(nodeId) {
-		if (!this.cy) return;
-		this.cy.batch(() => {
-			this.cy.elements().removeClass("impact-d1 impact-d2 impact-d3 impact-source");
-			if (!nodeId) return;
-			const sourceNode = this.cy.getElementById(nodeId);
-			if (sourceNode.nonempty()) sourceNode.addClass("impact-source");
-			const visited = new Map();
-			const queue = [{
-				id: nodeId,
-				depth: 0
-			}];
-			let head = 0;
-			while (head < queue.length) {
-				const { id, depth } = queue[head++];
-				if (visited.has(id) && visited.get(id) <= depth) continue;
-				visited.set(id, depth);
-				const node = this.cy.getElementById(id);
-				if (depth > 0 && node.nonempty()) {
-					const cls = depth <= 1 ? "impact-d1" : depth === 2 ? "impact-d2" : "impact-d3";
-					node.addClass(cls);
-				}
-				if (depth < 3) node.incomers().forEach((edge) => {
-					const src = edge.source().id();
-					if (!visited.has(src) || visited.get(src) > depth + 1) queue.push({
-						id: src,
-						depth: depth + 1
-					});
-				});
-			}
-		});
+		this.highlightCtrl?.highlightImpact(nodeId);
 	}
 	highlightInheritance(nodeId) {
-		if (!this.cy) return;
-		this.cy.batch(() => {
-			this.cy.elements().removeClass("inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement");
-			if (!nodeId) {
-				this.cy.edges("[type=\"extend\"]").addClass("inheritance-extend");
-				this.cy.edges("[type=\"implement\"]").addClass("inheritance-implement");
-				this.cy.edges("[type!=\"extend\"][type!=\"implement\"]").addClass("inheritance-dim");
-				this.cy.nodes("[type!=\"class\"][type!=\"interface\"]").addClass("inheritance-dim");
-				return;
-			}
-			const focusNode = this.cy.getElementById(nodeId);
-			if (focusNode.empty()) return;
-			focusNode.addClass("inheritance-focus");
-			const relevant = new Set([nodeId]);
-			const traverse = (id, direction) => {
-				const node = this.cy.getElementById(id);
-				if (direction === "up") node.outgoers("edge[type=\"extend\"], edge[type=\"implement\"]").forEach((edge) => {
-					const target = edge.target().id();
-					if (!relevant.has(target)) {
-						relevant.add(target);
-						edge.addClass("inheritance-highlight");
-						traverse(target, "up");
-					}
-				});
-				else node.incomers("edge[type=\"extend\"], edge[type=\"implement\"]").forEach((edge) => {
-					const source = edge.source().id();
-					if (!relevant.has(source)) {
-						relevant.add(source);
-						edge.addClass("inheritance-highlight");
-						traverse(source, "down");
-					}
-				});
-			};
-			traverse(nodeId, "up");
-			traverse(nodeId, "down");
-			relevant.forEach((id) => {
-				const node = this.cy.getElementById(id);
-				if (node.nonempty()) node.addClass("inheritance-highlight");
-			});
-			this.cy.edges("[type=\"extend\"], edge[type=\"implement\"]").forEach((edge) => {
-				if (!relevant.has(edge.source().id()) && !relevant.has(edge.target().id())) edge.addClass("inheritance-dim");
-			});
-			this.cy.edges("[type!=\"extend\"][type!=\"implement\"]").addClass("inheritance-dim");
-			this.cy.nodes().forEach((node) => {
-				if (!relevant.has(node.id())) node.addClass("inheritance-dim");
-			});
-		});
+		this.highlightCtrl?.highlightInheritance(nodeId);
 	}
 	focusNeighborhood(nodeId) {
-		if (!this.cy) return;
-		this.cy.batch(() => {
-			this.cy.elements().removeClass("focus-highlight focus-dim");
-			if (!nodeId) return;
-			const focusNode = this.cy.getElementById(nodeId);
-			if (focusNode.empty()) return;
-			const relevant = new Set([nodeId]);
-			focusNode.neighborhood().forEach((el) => {
-				if (el.isNode()) relevant.add(el.id());
-			});
-			relevant.forEach((id) => {
-				const el = this.cy.getElementById(id);
-				if (el.nonempty()) el.addClass("focus-highlight");
-			});
-			this.cy.elements().forEach((el) => {
-				if (!relevant.has(el.id())) el.addClass("focus-dim");
-			});
-			this.cy.animate({
-				fit: {
-					eles: this.cy.elements().filter((el) => relevant.has(el.id())),
-					padding: 80
-				},
-				duration: 400
-			});
-		});
+		this.viewportCtrl?.focusNeighborhood(nodeId);
 	}
 	getThumbnail() {
-		if (!this.cy) return null;
-		return this.cy.png({
-			full: true,
-			scale: .15,
-			bg: "transparent"
-		});
+		return this.viewportCtrl?.getThumbnail() ?? null;
 	}
 	getViewportInfo() {
-		if (!this.cy) return null;
-		const zoom = this.cy.zoom();
-		const pan = this.cy.pan();
-		const renderedSize = {
-			w: this.cy.width(),
-			h: this.cy.height()
-		};
-		const bounds$1 = this.cy.elements().boundingBox();
-		const totalSize = {
-			w: bounds$1.w,
-			h: bounds$1.h
-		};
-		return {
-			zoom,
-			pan,
-			renderedSize,
-			totalSize
-		};
+		return this.viewportCtrl?.getViewportInfo() ?? null;
 	}
 	exportJSON() {
-		if (!this.cy) return "";
-		return JSON.stringify(this.cy.json(), null, 2);
+		return this.dataCtrl?.exportJSON() ?? "";
 	}
 	exportPNG() {
-		if (!this.cy) return null;
-		return this.cy.png({
-			full: true,
-			scale: 2
-		});
+		return this.dataCtrl?.exportPNG() ?? null;
 	}
 	exportSVG() {
-		if (!this.cy) return null;
-		const png = this.cy.png({
-			full: true,
-			scale: 2
-		});
-		const w = this.cy.width();
-		const h = this.cy.height();
-		return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><image href="${png}" width="${w}" height="${h}"/></svg>`;
+		return this.dataCtrl?.exportSVG() ?? null;
 	}
 	getSelectedNodeData() {
-		if (!this.cy) return null;
-		const selected = this.cy.nodes(".selected");
-		if (selected.length === 0) return null;
-		const id = selected.first().id();
-		return this.currentNodes.get(id) ?? null;
+		return this.dataCtrl?.getSelectedNodeData() ?? null;
 	}
 	getNodeData(nodeId) {
-		return this.currentNodes.get(nodeId) ?? null;
+		return this.dataCtrl?.getNodeData(nodeId) ?? null;
 	}
 	getEdgeData(edgeId) {
-		return this.currentEdges.get(edgeId) ?? null;
+		return this.dataCtrl?.getEdgeData(edgeId) ?? null;
 	}
 	resize() {
-		if (!this.cy) return;
-		this.cy.resize();
+		this.viewportCtrl?.resize();
 	}
 	updateTheme(theme) {
-		if (!this.cy) return;
 		this.options.theme = theme;
-		this.cy.style().fromJson(this.getStylesheet()).update();
-	}
-	getStylesheet() {
-		const nodeCount = this.cy?.nodes().length ?? 0;
-		return buildStylesheet(this.options.theme, nodeCount);
+		this.styleCtrl?.updateTheme(theme);
 	}
 	destroy() {
-		if (this.layoutRaf !== null) {
-			cancelAnimationFrame(this.layoutRaf);
-			this.layoutRaf = null;
-		}
+		this.layoutCtrl?.destroy();
+		this.dataCtrl?.destroy();
 		this.cy?.destroy();
 		this.cy = null;
-		this.currentNodes.clear();
-		this.currentEdges.clear();
+		this.layoutCtrl = null;
+		this.highlightCtrl = null;
+		this.viewportCtrl = null;
+		this.dataCtrl = null;
+		this.styleCtrl = null;
+		this.interactionCtrl = null;
+		this.pathFinder = null;
+	}
+	findPath(sourceId, targetId) {
+		return this.pathFinder?.findPath(sourceId, targetId) ?? null;
+	}
+	highlightPath(path) {
+		this.pathFinder?.highlightPath(path);
+	}
+	expandNeighborhood(nodeId, depth) {
+		return this.viewportCtrl?.expandNeighborhood(nodeId, depth) ?? new Set();
 	}
 };
 
