@@ -7,6 +7,7 @@ export interface ClusterNode extends GraphNode {
   childCount: number;
   childIds: string[];
   clusterPath: string;
+  clusterLevel?: ClusterLevel;
 }
 
 export interface ClusterEdge extends GraphEdge {
@@ -53,10 +54,12 @@ export function aggregateEdges(
     }
   }
 
+  const clusterPrefixes = [clusterPrefix, 'filecluster__', 'smartcluster__'];
+
   const visibleEdges: (GraphEdge | ClusterEdge)[] = [];
   for (const [, agg] of aggregation) {
-    const sourceIsCluster = agg.source.startsWith(clusterPrefix);
-    const targetIsCluster = agg.target.startsWith(clusterPrefix);
+    const sourceIsCluster = clusterPrefixes.some((p) => agg.source.startsWith(p));
+    const targetIsCluster = clusterPrefixes.some((p) => agg.target.startsWith(p));
 
     if (!sourceIsCluster && !targetIsCluster) {
       for (const e of rawEdges) {

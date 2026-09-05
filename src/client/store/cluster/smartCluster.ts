@@ -85,6 +85,7 @@ export function computeSmartClusters(
         childCount: nodes.length,
         childIds: nodes.map((n) => n.id),
         clusterPath: label,
+        clusterLevel: 'smart',
       };
       visibleNodes.push(clusterNode);
       for (const n of nodes) nodeIdToVisibleId.set(n.id, clusterId);

@@ -2672,10 +2672,15 @@ function aggregateEdges(rawEdges, nodeIdToVisibleId, clusterPrefix) {
 			types: new Set([e.type])
 		});
 	}
+	const clusterPrefixes = [
+		clusterPrefix,
+		"filecluster__",
+		"smartcluster__"
+	];
 	const visibleEdges = [];
 	for (const [, agg] of aggregation) {
-		const sourceIsCluster = agg.source.startsWith(clusterPrefix);
-		const targetIsCluster = agg.target.startsWith(clusterPrefix);
+		const sourceIsCluster = clusterPrefixes.some((p$1) => agg.source.startsWith(p$1));
+		const targetIsCluster = clusterPrefixes.some((p$1) => agg.target.startsWith(p$1));
 		if (!sourceIsCluster && !targetIsCluster) {
 			for (const e of rawEdges) if (nodeIdToVisibleId.get(e.source) === agg.source && nodeIdToVisibleId.get(e.target) === agg.target) visibleEdges.push(e);
 		} else visibleEdges.push({
@@ -2704,6 +2709,52 @@ function getDirLabel(dirPath) {
 	const parts = dirPath.split("/");
 	return parts[parts.length - 1] ?? dirPath;
 }
+function getFileClusterId(filePath) {
+	return `filecluster__${filePath.replace(/[/:\\]/g, "__")}`;
+}
+function computeFileClusterNodesForDir(dirNodes, dirPath, expandedFileClusters) {
+	const visibleNodes = [];
+	const nodeIdToVisibleId = new Map();
+	const fileGroups = new Map();
+	for (const n of dirNodes) if (n.type === "module") {
+		visibleNodes.push(n);
+		nodeIdToVisibleId.set(n.id, n.id);
+	} else {
+		const parentFileId = n.parentId ?? n.filePath;
+		const fileClusterId = getFileClusterId(parentFileId);
+		if (expandedFileClusters.has(fileClusterId)) {
+			visibleNodes.push(n);
+			nodeIdToVisibleId.set(n.id, n.id);
+		} else {
+			nodeIdToVisibleId.set(n.id, fileClusterId);
+			const list = fileGroups.get(fileClusterId);
+			if (list) list.push(n);
+			else fileGroups.set(fileClusterId, [n]);
+		}
+	}
+	for (const [fileClusterId, children] of fileGroups) {
+		const parentFileId = children[0]?.parentId ?? children[0]?.filePath ?? "";
+		const parentNode = dirNodes.find((n) => n.id === parentFileId || n.filePath === parentFileId);
+		const clusterNode = {
+			id: fileClusterId,
+			label: `${parentNode?.label ?? parentFileId.split(/[\\/]/).pop() ?? "unknown"} (${children.length})`,
+			type: "module",
+			filePath: parentNode?.filePath ?? parentFileId,
+			lineNumber: 0,
+			properties: {},
+			isCluster: true,
+			childCount: children.length,
+			childIds: children.map((c) => c.id),
+			clusterPath: parentFileId,
+			clusterLevel: "file"
+		};
+		visibleNodes.push(clusterNode);
+	}
+	return {
+		nodes: visibleNodes,
+		nodeIdToVisibleId
+	};
+}
 function computeDirectoryClusters(rawNodes, rawEdges, expandedDirs) {
 	const nodeToDir = new Map();
 	const dirToNodes = new Map();
@@ -2716,13 +2767,15 @@ function computeDirectoryClusters(rawNodes, rawEdges, expandedDirs) {
 	}
 	const visibleNodes = [];
 	const nodeIdToVisibleId = new Map();
+	const expandedFileClusters = new Set();
+	for (const id of expandedDirs) if (id.startsWith("filecluster__")) expandedFileClusters.add(id);
 	for (const [dirPath, nodes] of dirToNodes) {
 		const clusterId = `cluster__${dirPath.replace(/[/:\\]/g, "__")}`;
-		if (expandedDirs.has(clusterId) || expandedDirs.has(dirPath)) for (const n of nodes) {
-			visibleNodes.push(n);
-			nodeIdToVisibleId.set(n.id, n.id);
-		}
-		else {
+		if (expandedDirs.has(clusterId) || expandedDirs.has(dirPath)) {
+			const { nodes: fileNodes, nodeIdToVisibleId: fileMap } = computeFileClusterNodesForDir(nodes, dirPath, expandedFileClusters);
+			for (const n of fileNodes) visibleNodes.push(n);
+			for (const [rawId, visId] of fileMap) nodeIdToVisibleId.set(rawId, visId);
+		} else {
 			const childIds = nodes.map((n) => n.id);
 			const clusterNode = {
 				id: clusterId,
@@ -2734,7 +2787,8 @@ function computeDirectoryClusters(rawNodes, rawEdges, expandedDirs) {
 				isCluster: true,
 				childCount: nodes.length,
 				childIds,
-				clusterPath: dirPath
+				clusterPath: dirPath,
+				clusterLevel: "directory"
 			};
 			visibleNodes.push(clusterNode);
 			for (const n of nodes) nodeIdToVisibleId.set(n.id, clusterId);
@@ -2793,7 +2847,8 @@ function computeFileClusters(rawNodes, rawEdges, expandedFiles) {
 			isCluster: true,
 			childCount: children.length,
 			childIds: children.map((c) => c.id),
-			clusterPath: parentFileId
+			clusterPath: parentFileId,
+			clusterLevel: "file"
 		};
 		visibleNodes.push(clusterNode);
 	}
@@ -2906,7 +2961,8 @@ function computeSmartClusters(rawNodes, rawEdges, expandedNodeIds) {
 				isCluster: true,
 				childCount: nodes.length,
 				childIds: nodes.map((n) => n.id),
-				clusterPath: label
+				clusterPath: label,
+				clusterLevel: "smart"
 			};
 			visibleNodes.push(clusterNode);
 			for (const n of nodes) nodeIdToVisibleId.set(n.id, clusterId);

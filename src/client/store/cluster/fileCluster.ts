@@ -52,6 +52,7 @@ export function computeFileClusters(
       childCount: children.length,
       childIds: children.map((c) => c.id),
       clusterPath: parentFileId,
+      clusterLevel: 'file',
     };
     visibleNodes.push(clusterNode);
   }
