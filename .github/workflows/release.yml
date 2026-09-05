@@ -40,11 +40,7 @@ jobs:
         with:
           name: dist
           path: dist/
-      - name: Delete existing release if present
-        run: gh release delete "${{ github.ref_name }}" --yes --cleanup-tag || true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Create Release
+      - name: Create or Update Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
@@ -71,10 +67,6 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
-      - name: Configure npm auth
-        run: echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > "$HOME/.npmrc"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - run: pnpm publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

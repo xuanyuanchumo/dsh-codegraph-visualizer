@@ -25,5 +25,6 @@ src/types/*.js.map
 *.tgz
 dsh-web-run/
 dist/client-cjs/
+temp-*.json
 
 

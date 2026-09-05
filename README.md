@@ -2,7 +2,8 @@
 
 > DeepSeek Harness (DSH) 代码图谱可视化插件 — 将 `dsh-codegraph` 与 `dsh-tool-lens` 数据源聚合为交互式代码关系图谱
 
-[![CI/CD](https://github.com/xuanyuanchumo/dsh-codegraph-visualizer/actions/workflows/publish.yml/badge.svg)](https://github.com/xuanyuanchumo/dsh-codegraph-visualizer/actions/workflows/publish.yml)
+[![CI](https://github.com/xuanyuanchumo/dsh-codegraph-visualizer/actions/workflows/ci.yml/badge.svg)](https://github.com/xuanyuanchumo/dsh-codegraph-visualizer/actions/workflows/ci.yml)
+[![Release](https://github.com/xuanyuanchumo/dsh-codegraph-visualizer/actions/workflows/release.yml/badge.svg)](https://github.com/xuanyuanchumo/dsh-codegraph-visualizer/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node Version](https://img.shields.io/badge/node-%3E%3D22.19-brightgreen)](https://nodejs.org/)
 [![pnpm](https://img.shields.io/badge/pnpm-%3E%3D9-orange)](https://pnpm.io/)
@@ -70,17 +71,10 @@ dsh web
 ### 运行测试
 
 ```bash
-# 单元测试
-pnpm run test
-
-# E2E 测试（需先启动 dev server）
-pnpm run test:e2e
-
-# 类型检查
-pnpm run typecheck
-
-# Lint
-pnpm run lint
+pnpm run test           # 单元测试（320 tests）
+pnpm run test:e2e       # E2E 测试（需先启动 dev server）
+pnpm run typecheck      # 类型检查
+pnpm run lint           # Lint
 ```
 
 ## 架构
@@ -202,6 +196,15 @@ pnpm run typecheck      # 三面类型检查
 pnpm run lint           # Lint
 pnpm run lint:fix       # Lint 自动修复
 ```
+
+### CI/CD
+
+项目使用两个独立的 GitHub Actions 工作流：
+
+| 工作流 | 文件 | 触发条件 | 职责 |
+|--------|------|----------|------|
+| CI | `ci.yml` | push/PR to master | lint + typecheck + test + build |
+| Release | `release.yml` | push tag `v*` | build + GitHub Release + npm publish |
 
 ### 测试覆盖
 
