@@ -67,6 +67,19 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
+      - name: Debug auth config
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN}" ]; then
+            echo "ERROR: NPM_TOKEN secret is not set or empty"
+          else
+            echo "NPM_TOKEN is set (length: ${#NODE_AUTH_TOKEN})"
+          fi
+          echo "--- .npmrc content ---"
+          cat .npmrc || echo "No project .npmrc found"
+          echo "--- HOME .npmrc ---"
+          cat "$HOME/.npmrc" || echo "No home .npmrc found"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - run: pnpm publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
