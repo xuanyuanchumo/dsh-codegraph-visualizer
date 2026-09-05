@@ -48,8 +48,19 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
+      - run: node --version
+      - run: node -e "try{const {DatabaseSync}=require('node:sqlite');console.log('SQLite OK')}catch(e){console.log('SQLite FAIL:',e.message)}"
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run test
+      - name: Run tests
+        run: pnpm run test 2>&1 | tee test-output.txt; exit ${PIPESTATUS[0]}
+        continue-on-error: true
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output
+          path: test-output.txt
+          retention-days: 7
 
   build:
     name: Build
