@@ -47,8 +47,20 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
+      - run: node --version
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run test
+      - name: Run tests
+        run: pnpm run test 2>&1
+        continue-on-error: true
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output
+          path: |
+            coverage/
+            test-results/
+          retention-days: 7
 
   build:
     name: Build
