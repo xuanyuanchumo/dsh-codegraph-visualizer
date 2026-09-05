@@ -95,14 +95,11 @@ jobs:
           name: dist
           path: dist/
       - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/index.js
-            dist/index.d.ts
-            dist/client/index.js
-            dist/client/index.esm.js
-          generate_release_notes: true
-          draft: false
+        run: |
+          gh release create ${{ github.ref_name }} \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            dist/index.js dist/index.d.ts \
+            dist/client/index.js dist/client/index.esm.js
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
