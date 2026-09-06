@@ -20,14 +20,14 @@ const lensAdapter = new LensAdapter();
 const merger = new GraphDataMerger();
 
 const GRAPH_CACHE_LIMIT = 8;
-const graphCache = new Map<string, GraphData>();
 
-function cacheGraph(repoId: string, data: GraphData): void {
-  graphCache.delete(repoId);
-  graphCache.set(repoId, data);
-  if (graphCache.size > GRAPH_CACHE_LIMIT) {
-    const oldest = graphCache.keys().next().value;
-    if (oldest !== undefined) graphCache.delete(oldest);
+
+function cacheGraph(cache: Map<string, GraphData>, repoId: string, data: GraphData): void {
+  cache.delete(repoId);
+  cache.set(repoId, data);
+  if (cache.size > GRAPH_CACHE_LIMIT) {
+    const oldest = cache.keys().next().value;
+    if (oldest !== undefined) cache.delete(oldest);
   }
 }
 
@@ -175,6 +175,7 @@ export async function executeGraphData(
   invoke: UpstreamInvoker,
   emitUpdate: (event: GraphUpdatedEvent) => void,
   emitData: (event: GraphDataEvent) => void,
+  graphCache: Map<string, GraphData>,
 ) {
   const source = (args.source ?? 'both') as 'codegraph' | 'lens' | 'both';
   const fresh = await fetchMergedGraph(invoke, args.repoId, source);
@@ -184,7 +185,7 @@ export async function executeGraphData(
   const merged = cached
     ? merger.applyDelta(cached, { nodes: fresh.nodes, edges: fresh.edges, source: deltaSource, timestamp: fresh.metadata.timestamp })
     : fresh;
-  cacheGraph(args.repoId, merged);
+  cacheGraph(graphCache, args.repoId, merged);
 
   emitUpdate({
     repoId: args.repoId,
@@ -231,6 +232,7 @@ export async function executeGraphImpact(args: { symbolId: string }, invoke: Ups
 
 export const createGraphTools = (ctx: Context, options: { requestTimeout?: number } = {}) => {
   const invoke = createInvoke(ctx, options.requestTimeout);
+  const graphCache = new Map<string, GraphData>();
 
   const emitUpdate = (event: GraphUpdatedEvent) => {
     ctx.emit('codegraph/graph/updated', event);
@@ -268,7 +270,7 @@ export const createGraphTools = (ctx: Context, options: { requestTimeout?: numbe
       schema: { type: 'json' },
       render: renderGraphData,
     },
-    execute: (args) => executeGraphData(args as { repoId: string; source?: string }, invoke, emitUpdate, emitData),
+    execute: (args) => executeGraphData(args as { repoId: string; source?: string }, invoke, emitUpdate, emitData, graphCache),
   });
 
   const graphSymbol = defineTool({

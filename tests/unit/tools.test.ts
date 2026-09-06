@@ -711,7 +711,8 @@ describe('executeGraphData', () => {
     const invoke: UpstreamInvoker = async () => null;
     const emitUpdate = vi.fn();
     const emitData = vi.fn();
-    const result = await executeGraphData({ repoId: 'test-repo' }, invoke, emitUpdate, emitData);
+    const graphCache = new Map<string, GraphData>();
+    const result = await executeGraphData({ repoId: 'test-repo' }, invoke, emitUpdate, emitData, graphCache);
     expect(result).toHaveProperty('nodes');
     expect(result).toHaveProperty('edges');
     expect(emitUpdate).toHaveBeenCalled();
@@ -722,8 +723,9 @@ describe('executeGraphData', () => {
     const invoke: UpstreamInvoker = async () => null;
     const emitUpdate = vi.fn();
     const emitData = vi.fn();
-    await executeGraphData({ repoId: 'delta-repo' }, invoke, emitUpdate, emitData);
-    const result2 = await executeGraphData({ repoId: 'delta-repo' }, invoke, emitUpdate, emitData);
+    const graphCache = new Map<string, GraphData>();
+    await executeGraphData({ repoId: 'delta-repo' }, invoke, emitUpdate, emitData, graphCache);
+    const result2 = await executeGraphData({ repoId: 'delta-repo' }, invoke, emitUpdate, emitData, graphCache);
     expect(result2).toHaveProperty('nodes');
   });
 });

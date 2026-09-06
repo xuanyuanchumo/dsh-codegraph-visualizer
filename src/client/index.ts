@@ -17,6 +17,10 @@ const log = scoped('client');
 export const name = 'dsh-codegraph-visualizer-client';
 export const inject = ['slots'];
 
+function CodeGraphTab({ visible }: { visible: boolean }) {
+  return visible ? React.createElement(GraphPanel) : null;
+}
+
 export function init(container: HTMLElement, initialData?: GraphData): void {
   const root = ReactDOM.createRoot(container);
   if (initialData) {
@@ -36,10 +40,6 @@ export function apply(ctx: Context) {
     for (const dispose of slotDisposers) dispose();
     slotDisposers.length = 0;
   }, 'codegraph: slot registrations cleanup');
-
-  function CodeGraphTab({ visible }: { visible: boolean }) {
-    return visible ? React.createElement(GraphPanel) : null;
-  }
 
   try {
     const betterSidebar = ctx.get('betterSidebar') as Context['betterSidebar'] | undefined;
@@ -200,7 +200,7 @@ export function apply(ctx: Context) {
       const store = useGraphStore.getState();
       if (store.nodes.length > 0) {
         if (detail?.incremental) {
-          fetch('/api/codegraph/data', { headers: { 'if-none-match': String(store.lastUpdated) } })
+          fetch('/api/v1/codegraph/data', { headers: { 'if-none-match': String(store.lastUpdated) } })
             .then((res) => { if (res.status === 304) return null; return res.json(); })
             .then((data) => { if (data && data.nodes && data.nodes.length > 0) { store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata); } })
             .catch((e) => log.warn('incremental graph fetch failed', e));

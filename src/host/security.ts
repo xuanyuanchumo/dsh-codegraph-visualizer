@@ -1,4 +1,4 @@
-import { normalize, isAbsolute } from 'node:path';
+import { normalize, isAbsolute, sep } from 'node:path';
 
 let allowedWorkspaceRoots: string[] = [];
 
@@ -12,5 +12,9 @@ export function isPathAllowed(path: string): boolean {
   if (!isAbsolute(normalized)) return false;
   if (normalized.includes('..')) return false;
   if (allowedWorkspaceRoots.length === 0) return false;
-  return allowedWorkspaceRoots.some((root) => normalized === root || normalized.startsWith(root + '\\') || normalized.startsWith(root + '/'));
+  return allowedWorkspaceRoots.some((root) =>
+    normalized === root ||
+    normalized.startsWith(root + sep) ||
+    normalized.startsWith(root + '/')
+  );
 }

@@ -148,9 +148,15 @@ export async function runCli(args: string[]): Promise<void> {
   log.info('CLI started', opts);
 
   const { fetchMergedGraph } = await import('../tools.ts');
-  const data = await fetchMergedGraph(async (tool: string, toolArgs: Record<string, unknown>) => {
+  const data = await fetchMergedGraph(async (_tool: string, _toolArgs: Record<string, unknown>) => {
     return null;
   }, opts.workspace, 'both');
+
+  if (data.nodes.length === 0 && data.edges.length === 0) {
+    console.error('No graph data available. The CLI requires a running DSH environment with dsh-codegraph installed.');
+    console.error('Run this command from within a DSH workspace, or ensure dsh-codegraph is configured.');
+    process.exit(1);
+  }
 
   const reportContent = opts.format === 'html'
     ? generateHtmlReport(data)
