@@ -8,6 +8,7 @@ import { LensAdapter } from './adapters/LensAdapter.ts';
 import { GraphDataMerger } from './merger/GraphDataMerger.ts';
 import type { AdapterResult, GraphData, GraphUpdatedEvent, GraphDataEvent, RepoId, HealthScore, RuleViolation, NodeId } from './types/index.ts';
 import { RepoId as makeRepoId } from './types/index.ts';
+import { HealthScorer } from './client/analysis/HealthScorer.ts';
 import { scoped } from './shared/Logger.ts';
 
 const log = scoped('tools');
@@ -372,39 +373,9 @@ export const createGraphTools = (ctx: Context, options: { requestTimeout?: numbe
       const data = await fetchMergedGraph(invoke, a.repoId);
       if (data.nodes.length === 0) return null;
 
-      const moduleOfNode = new Map<string, string>();
-      for (const node of data.nodes) {
-        const parts = node.filePath.split(/[\\/]/);
-        const module = parts.length > 1 ? parts.slice(0, -1).join('/') : node.filePath;
-        moduleOfNode.set(node.id, module);
-      }
-
-      let crossModuleEdges = 0;
-      for (const edge of data.edges) {
-        const srcMod = moduleOfNode.get(edge.source);
-        const tgtMod = moduleOfNode.get(edge.target);
-        if (srcMod && tgtMod && srcMod !== tgtMod) crossModuleEdges++;
-      }
-      const coupling = data.edges.length > 0 ? Math.round(Math.max(0, 100 - (crossModuleEdges / data.edges.length) * 100)) : 100;
-
-      const moduleEdges = new Map<string, { internal: number; total: number }>();
-      for (const edge of data.edges) {
-        const srcMod = moduleOfNode.get(edge.source);
-        if (!srcMod) continue;
-        let stats = moduleEdges.get(srcMod);
-        if (!stats) { stats = { internal: 0, total: 0 }; moduleEdges.set(srcMod, stats); }
-        stats.total++;
-        if (srcMod === moduleOfNode.get(edge.target)) stats.internal++;
-      }
-      let totalCohesion = 0;
-      let modCount = 0;
-      for (const stats of moduleEdges.values()) {
-        if (stats.total > 0) { totalCohesion += stats.internal / stats.total; modCount++; }
-      }
-      const cohesion = modCount > 0 ? Math.round((totalCohesion / modCount) * 100) : 50;
-
-      const overall = Math.round(coupling * 0.25 + cohesion * 0.25 + 50 * 0.25 + 50 * 0.25);
-      return { coupling, cohesion, cyclicDependencyRate: 50, modularity: 50, overall } as unknown as JsonValue;
+      const scorer = new HealthScorer();
+      const score = scorer.calculate(data.nodes, data.edges);
+      return score as unknown as JsonValue;
     },
   });
 

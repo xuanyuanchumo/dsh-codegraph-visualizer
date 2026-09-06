@@ -14,6 +14,16 @@ export interface ScoreDimension {
   description: string;
 }
 
+const EDGE_WEIGHTS: Record<GraphEdge['type'], number> = {
+  call: 1.0,
+  extend: 0.8,
+  implement: 0.7,
+  import: 0.5,
+  dependency: 0.3,
+};
+
+const MAX_MODULE_DEPTH = 3;
+
 export class HealthScorer {
   calculate(nodes: GraphNode[], edges: GraphEdge[]): HealthScore {
     if (nodes.length === 0) {
@@ -24,7 +34,9 @@ export class HealthScorer {
     const cohesion = this.calculateCohesion(nodes, edges);
     const cyclicDependencyRate = this.calculateCyclicDependencyRate(nodes, edges);
     const modularity = this.calculateModularity(nodes, edges);
-    const overall = Math.round(coupling * 0.25 + cohesion * 0.25 + cyclicDependencyRate * 0.25 + modularity * 0.25);
+    const overall = Math.round(
+      coupling * 0.25 + cohesion * 0.25 + cyclicDependencyRate * 0.30 + modularity * 0.20,
+    );
 
     return { coupling, cohesion, cyclicDependencyRate, modularity, overall };
   }
@@ -42,16 +54,21 @@ export class HealthScorer {
     if (edges.length === 0) return 100;
 
     const moduleOfNode = this.buildModuleMap(nodes);
-    let crossModuleEdges = 0;
+    let weightedCrossModule = 0;
+    let totalWeight = 0;
+
     for (const edge of edges) {
+      const weight = EDGE_WEIGHTS[edge.type] ?? 0.5;
+      totalWeight += weight;
       const srcModule = moduleOfNode.get(edge.source);
       const tgtModule = moduleOfNode.get(edge.target);
       if (srcModule && tgtModule && srcModule !== tgtModule) {
-        crossModuleEdges++;
+        weightedCrossModule += weight;
       }
     }
 
-    const couplingRatio = crossModuleEdges / edges.length;
+    if (totalWeight === 0) return 100;
+    const couplingRatio = weightedCrossModule / totalWeight;
     return Math.round(Math.max(0, 100 - couplingRatio * 100));
   }
 
@@ -89,62 +106,35 @@ export class HealthScorer {
     if (edges.length === 0) return 100;
 
     const adjacency = new Map<string, string[]>();
+    const nodeIds = new Set<string>();
+    for (const node of nodes) nodeIds.add(node.id);
     for (const edge of edges) {
       const list = adjacency.get(edge.source);
       if (list) list.push(edge.target);
       else adjacency.set(edge.source, [edge.target]);
+      nodeIds.add(edge.source);
+      nodeIds.add(edge.target);
     }
 
-    const visited = new Set<string>();
-    const inStack = new Set<string>();
-    const path: string[] = [];
+    const sccs = this.tarjanSCC(adjacency, nodeIds);
     let cycleNodeCount = 0;
-
-    const enter = (start: string): void => {
-      const frames: Array<{ id: string; neighbors: string[]; next: number }> = [
-        { id: start, neighbors: adjacency.get(start) ?? [], next: 0 },
-      ];
-      visited.add(start);
-      inStack.add(start);
-      path.push(start);
-
-      while (frames.length > 0) {
-        const frame = frames[frames.length - 1]!;
-        if (frame.next >= frame.neighbors.length) {
-          inStack.delete(frame.id);
-          path.pop();
-          frames.pop();
-          continue;
-        }
-        const target = frame.neighbors[frame.next++]!;
-        if (inStack.has(target)) {
-          const cycleStart = path.indexOf(target);
-          if (cycleStart >= 0) {
-            for (let i = cycleStart; i < path.length; i++) {
-              if (!visited.has(`__cycle_${path[i]}`)) {
-                cycleNodeCount++;
-                visited.add(`__cycle_${path[i]}`);
-              }
-            }
-          }
-        } else if (!visited.has(target)) {
-          visited.add(target);
-          inStack.add(target);
-          path.push(target);
-          frames.push({ id: target, neighbors: adjacency.get(target) ?? [], next: 0 });
+    for (const scc of sccs) {
+      if (scc.length > 1) {
+        cycleNodeCount += scc.length;
+      } else if (scc.length === 1) {
+        const id = scc[0]!;
+        const neighbors = adjacency.get(id);
+        if (neighbors && neighbors.includes(id)) {
+          cycleNodeCount++;
         }
       }
-    };
-
-    for (const id of adjacency.keys()) {
-      if (!visited.has(id)) enter(id);
     }
 
     const cycleRate = cycleNodeCount / nodes.length;
     return Math.round(Math.max(0, 100 - cycleRate * 100));
   }
 
-  private calculateModularity(nodes: GraphNode[], _edges: GraphEdge[]): number {
+  private calculateModularity(nodes: GraphNode[], edges: GraphEdge[]): number {
     if (nodes.length === 0) return 0;
 
     const moduleOfNode = this.buildModuleMap(nodes);
@@ -165,8 +155,18 @@ export class HealthScorer {
     }
     sizeVariance /= modules.size;
 
-    const balanceScore = Math.max(0, 100 - (sizeVariance / avgSize) * 50);
-    const separationScore = Math.min(100, (modules.size / Math.max(1, Math.sqrt(nodes.length))) * 100);
+    const balanceScore = Math.max(0, 100 - (sizeVariance / Math.max(1, avgSize)) * 50);
+
+    let crossModuleEdges = 0;
+    for (const edge of edges) {
+      const srcModule = moduleOfNode.get(edge.source);
+      const tgtModule = moduleOfNode.get(edge.target);
+      if (srcModule && tgtModule && srcModule !== tgtModule) {
+        crossModuleEdges++;
+      }
+    }
+    const crossModuleRatio = edges.length > 0 ? crossModuleEdges / edges.length : 0;
+    const separationScore = Math.max(0, 100 - crossModuleRatio * 100);
 
     return Math.round((balanceScore + separationScore) / 2);
   }
@@ -174,10 +174,63 @@ export class HealthScorer {
   private buildModuleMap(nodes: GraphNode[]): Map<string, string> {
     const moduleOfNode = new Map<string, string>();
     for (const node of nodes) {
-      const parts = node.filePath.split(/[\\/]/);
-      const module = parts.length > 1 ? parts.slice(0, -1).join('/') : node.filePath;
+      const rawPath = node.filePath.replace(/^(file|import):/, '');
+      const parts = rawPath.split(/[\\/]/);
+      const dirParts = parts.length > 1 ? parts.slice(0, -1) : [rawPath];
+      const module = dirParts.length > MAX_MODULE_DEPTH
+        ? dirParts.slice(0, MAX_MODULE_DEPTH).join('/')
+        : dirParts.join('/');
       moduleOfNode.set(node.id, module);
     }
     return moduleOfNode;
+  }
+
+  private tarjanSCC(
+    adjacency: Map<string, string[]>,
+    nodeIds: Set<string>,
+  ): string[][] {
+    let index = 0;
+    const indices = new Map<string, number>();
+    const lowLinks = new Map<string, number>();
+    const onStack = new Set<string>();
+    const stack: string[] = [];
+    const sccs: string[][] = [];
+
+    const strongConnect = (v: string): void => {
+      indices.set(v, index);
+      lowLinks.set(v, index);
+      index++;
+      stack.push(v);
+      onStack.add(v);
+
+      const neighbors = adjacency.get(v) ?? [];
+      for (const w of neighbors) {
+        if (!indices.has(w)) {
+          strongConnect(w);
+          lowLinks.set(v, Math.min(lowLinks.get(v)!, lowLinks.get(w)!));
+        } else if (onStack.has(w)) {
+          lowLinks.set(v, Math.min(lowLinks.get(v)!, indices.get(w)!));
+        }
+      }
+
+      if (lowLinks.get(v) === indices.get(v)) {
+        const scc: string[] = [];
+        let w: string;
+        do {
+          w = stack.pop()!;
+          onStack.delete(w);
+          scc.push(w);
+        } while (w !== v);
+        sccs.push(scc);
+      }
+    };
+
+    for (const id of nodeIds) {
+      if (!indices.has(id)) {
+        strongConnect(id);
+      }
+    }
+
+    return sccs;
   }
 }
