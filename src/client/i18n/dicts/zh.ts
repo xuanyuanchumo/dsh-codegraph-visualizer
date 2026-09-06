@@ -261,4 +261,8 @@ export const zh: Record<string, string> = {
 
   // 影响半径
   'impact.total': '总影响节点',
+
+  // 历史记录
+  'toolbar.undo': '撤销 (Ctrl+Z)',
+  'toolbar.redo': '重做 (Ctrl+Y)',
 };

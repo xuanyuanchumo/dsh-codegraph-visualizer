@@ -426,7 +426,9 @@ body[data-ds-dark-theme] {
 .impact-btn,
 .inheritance-btn,
 .minimap-btn,
-.refresh-btn {
+.refresh-btn,
+.undo-btn,
+.redo-btn {
   width: 28px;
   height: 28px;
   display: flex;
@@ -451,7 +453,9 @@ body[data-ds-dark-theme] {
 .impact-btn:hover,
 .inheritance-btn:hover,
 .minimap-btn:hover,
-.refresh-btn:hover {
+.refresh-btn:hover,
+.undo-btn:hover,
+.redo-btn:hover {
   background: var(--cg-surface-hover);
   border-color: var(--cg-accent);
   transform: translateY(-1px);
@@ -3190,7 +3194,9 @@ body[data-ds-dark-theme] {
 .health-btn:hover,
 .rule-btn:hover,
 .hotspot-btn:hover,
-.godmodule-btn:hover {
+.godmodule-btn:hover,
+.undo-btn:hover,
+.redo-btn:hover {
   background: var(--cg-surface-hover);
   border-color: var(--cg-accent);
   color: var(--cg-text);
@@ -3201,7 +3207,9 @@ body[data-ds-dark-theme] {
 .health-btn:focus-visible,
 .rule-btn:focus-visible,
 .hotspot-btn:focus-visible,
-.godmodule-btn:focus-visible {
+.godmodule-btn:focus-visible,
+.undo-btn:focus-visible,
+.redo-btn:focus-visible {
   outline: 2px solid var(--cg-accent);
   outline-offset: 2px;
 }
@@ -3275,6 +3283,12 @@ body[data-ds-dark-theme] {
   font-size: 11px;
   font-weight: 600;
   color: var(--cg-text);
+}
+
+.undo-btn:disabled,
+.redo-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* ---- Responsive for new components ---------------------------------------- */

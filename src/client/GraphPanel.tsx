@@ -3,6 +3,8 @@ import { useGraphStore, type ThemeType } from './store/graphStore.ts';
 import { useShallow } from 'zustand/shallow';
 import type { NodeId, GraphNode, GraphEdge } from '../types/index.ts';
 import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard } from './hooks/index.ts';
+import { useHistory } from './hooks/useHistory.ts';
+import { useGraphCache } from './hooks/useGraphCache.ts';
 import { GraphErrorBoundary } from './components/ErrorBoundary.tsx';
 import { ImportPanel } from './components/ImportPanel.tsx';
 import { Legend } from './components/Legend.tsx';
@@ -109,6 +111,27 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, [collapseAll]);
 
   const panel = usePanelState();
+  const history = useHistory();
+  const graphCache = useGraphCache();
+  // FR-53: Smart cache — cache graph data on workspace switch
+  const prevWorkspaceRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!currentWorkspace) return;
+    if (prevWorkspaceRef.current && prevWorkspaceRef.current !== currentWorkspace) {
+      const cached = graphCache.getCachedData(currentWorkspace);
+      if (cached) {
+        setGraphData(cached.nodes, cached.edges, currentWorkspace);
+      }
+    }
+    prevWorkspaceRef.current = currentWorkspace;
+  }, [currentWorkspace, graphCache, setGraphData]);
+
+  useEffect(() => {
+    if (currentWorkspace && rawNodes.length > 0) {
+      graphCache.cacheData(currentWorkspace, rawNodes, rawEdges);
+    }
+  }, [currentWorkspace, rawNodes, rawEdges, graphCache]);
+
   const debouncedSearch = useDebounce(searchQuery, 200);
   const showCallChainRef = useRef(panel.showCallChain);
 
@@ -126,6 +149,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     window.addEventListener('codegraph:workspace', handler);
     return () => window.removeEventListener('codegraph:workspace', handler);
   }, []);
+
 
   const handleWorkspaceSwitch = useCallback((path: string) => {
     setCurrentWorkspace(path);
@@ -208,6 +232,28 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     };
   }, [renderer.rendererRef]);
 
+  // FR-27: Smart focus linkage — listen for editor symbol selection events
+  useEffect(() => {
+    const symbolHandler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { symbol?: string; filePath?: string; lineNumber?: number };
+      if (!detail?.symbol) return;
+      const sym = detail.symbol;
+      const store = useGraphStore.getState();
+      const match = store.rawNodes.find((n) =>
+        n.label === sym ||
+        n.label.endsWith(`.${sym}`) ||
+        n.label.includes(sym),
+      );
+      if (match) {
+        store.setSelectedNode(match.id as NodeId);
+        renderer.rendererRef.current?.focusOnNode(match.id);
+        renderer.rendererRef.current?.selectNode(match.id as NodeId);
+      }
+    };
+    window.addEventListener('codegraph:symbol-select', symbolHandler);
+    return () => window.removeEventListener('codegraph:symbol-select', symbolHandler);
+  }, [renderer.rendererRef]);
+
   useEffect(() => {
     const observer = new MutationObserver(() => {
       const isDark = document.body.hasAttribute('data-ds-dark-theme');
@@ -240,6 +286,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     onCycleLayout: () => {},
     onToggleImport: panel.toggleImport,
     onToggleHelp: () => setShowHelp((v) => !v),
+    onUndo: history.undo,
+    onRedo: history.redo,
   });
 
   const requestRefresh = useCallback(() => {
@@ -465,6 +513,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         onExport={renderer.exportGraph}
         onCollapse={panel.toggleCollapsed}
         onCollapseAll={handleCollapseAll}
+        onUndo={history.undo}
+        onRedo={history.redo}
+        canUndo={history.canUndo}
+        canRedo={history.canRedo}
         currentWorkspace={currentWorkspace}
         workspaceList={workspaceList}
         onSwitchWorkspace={handleWorkspaceSwitch}

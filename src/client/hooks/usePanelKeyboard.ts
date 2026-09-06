@@ -13,6 +13,8 @@ export interface PanelKeyboardHandlers {
   onCycleLayout: () => void;
   onToggleImport: () => void;
   onToggleHelp: () => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 export function usePanelKeyboard(
@@ -46,4 +48,6 @@ export function usePanelKeyboard(
   }, { ctrl: true });
   useKeyboardShortcut('i', () => handlersRef.current.onToggleImport(), { ctrl: true });
   useKeyboardShortcut('?', () => handlersRef.current.onToggleHelp(), { preventDefault: true });
+  useKeyboardShortcut('z', () => handlersRef.current.onUndo?.(), { ctrl: true, preventDefault: true });
+  useKeyboardShortcut('y', () => handlersRef.current.onRedo?.(), { ctrl: true, preventDefault: true });
 }

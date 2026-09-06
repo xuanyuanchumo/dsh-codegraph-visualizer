@@ -9,6 +9,7 @@ import {
   SunIcon, MoonIcon, DownloadIcon, ChevronDownIcon, ChevronUpIcon,
   UploadIcon, LayersIcon, ZapIcon, TreeIcon,
   PathIcon, HeartIcon, RuleIcon, FlameIcon, AlertCircleIcon,
+  UndoIcon, RedoIcon,
 } from './Icons.tsx';
 
 const LAYOUTS: LayoutType[] = ['cose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
@@ -78,6 +79,10 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   onExport: (format: 'png' | 'svg' | 'json') => void;
   onCollapse: () => void;
   onCollapseAll?: () => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 }
 
 export function Toolbar(props: ToolbarProps) {
@@ -113,6 +118,7 @@ export function Toolbar(props: ToolbarProps) {
     onRefresh, onCollapse,
     currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
     onCollapseAll,
+    onUndo, onRedo, canUndo, canRedo,
   } = props;
 
   return (
@@ -216,6 +222,14 @@ export function Toolbar(props: ToolbarProps) {
             title={t('toolbar.legend')} aria-label={t('toolbar.legend')} aria-pressed={showLegend}><LayersIcon size={15} /></button>
           <button className="refresh-btn" onClick={onRefresh} title={t('toolbar.refresh')}
             aria-label={t('toolbar.refresh')}><RefreshIcon size={15} /></button>
+          {onUndo && (
+            <button className="undo-btn" onClick={onUndo} disabled={!canUndo} title={t('toolbar.undo')}
+              aria-label={t('toolbar.undo')} aria-disabled={!canUndo}><UndoIcon size={15} /></button>
+          )}
+          {onRedo && (
+            <button className="redo-btn" onClick={onRedo} disabled={!canRedo} title={t('toolbar.redo')}
+              aria-label={t('toolbar.redo')} aria-disabled={!canRedo}><RedoIcon size={15} /></button>
+          )}
         </div>
 
         <span className="toolbar-separator" aria-hidden="true" />

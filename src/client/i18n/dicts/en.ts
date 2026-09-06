@@ -262,4 +262,8 @@ export const en: Record<string, string> = {
 
   // Impact radius
   'impact.total': 'Total impacted nodes',
+
+  // History
+  'toolbar.undo': 'Undo (Ctrl+Z)',
+  'toolbar.redo': 'Redo (Ctrl+Y)',
 };

@@ -291,6 +291,16 @@ export function apply(ctx: Context) {
     window.addEventListener('codegraph:toggle-watch', toggleWatchListener);
     window.addEventListener('codegraph:workspace', workspaceListener);
     window.addEventListener('codegraph:install-plugin', installPluginListener);
+
+    // FR-27: Forward DSH editor symbol selection events to graph panel
+    const symbolSelectListener = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { symbol?: string; filePath?: string; lineNumber?: number };
+      if (detail?.symbol) {
+        window.dispatchEvent(new CustomEvent('codegraph:symbol-select', { detail }));
+      }
+    };
+    window.addEventListener('dsh:editor-symbol-select', symbolSelectListener);
+
     ctx.effect(() => () => {
       window.removeEventListener('codegraph:refresh', refreshListener);
       window.removeEventListener('codegraph:open-source', openSourceListener);
@@ -299,6 +309,7 @@ export function apply(ctx: Context) {
       window.removeEventListener('codegraph:toggle-watch', toggleWatchListener);
       window.removeEventListener('codegraph:workspace', workspaceListener);
       window.removeEventListener('codegraph:install-plugin', installPluginListener);
+      window.removeEventListener('dsh:editor-symbol-select', symbolSelectListener);
     }, 'codegraph: window event listeners');
   }
 }

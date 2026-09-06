@@ -438,7 +438,9 @@ body[data-ds-dark-theme] {
 .impact-btn,
 .inheritance-btn,
 .minimap-btn,
-.refresh-btn {
+.refresh-btn,
+.undo-btn,
+.redo-btn {
   width: 28px;
   height: 28px;
   display: flex;
@@ -463,7 +465,9 @@ body[data-ds-dark-theme] {
 .impact-btn:hover,
 .inheritance-btn:hover,
 .minimap-btn:hover,
-.refresh-btn:hover {
+.refresh-btn:hover,
+.undo-btn:hover,
+.redo-btn:hover {
   background: var(--cg-surface-hover);
   border-color: var(--cg-accent);
   transform: translateY(-1px);
@@ -3202,7 +3206,9 @@ body[data-ds-dark-theme] {
 .health-btn:hover,
 .rule-btn:hover,
 .hotspot-btn:hover,
-.godmodule-btn:hover {
+.godmodule-btn:hover,
+.undo-btn:hover,
+.redo-btn:hover {
   background: var(--cg-surface-hover);
   border-color: var(--cg-accent);
   color: var(--cg-text);
@@ -3213,7 +3219,9 @@ body[data-ds-dark-theme] {
 .health-btn:focus-visible,
 .rule-btn:focus-visible,
 .hotspot-btn:focus-visible,
-.godmodule-btn:focus-visible {
+.godmodule-btn:focus-visible,
+.undo-btn:focus-visible,
+.redo-btn:focus-visible {
   outline: 2px solid var(--cg-accent);
   outline-offset: 2px;
 }
@@ -3287,6 +3295,12 @@ body[data-ds-dark-theme] {
   font-size: 11px;
   font-weight: 600;
   color: var(--cg-text);
+}
+
+.undo-btn:disabled,
+.redo-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* ---- Responsive for new components ---------------------------------------- */
@@ -44727,6 +44741,14 @@ function usePanelKeyboard(layout$2, setLayout, rendererRef, handlers) {
 	}, { ctrl: true });
 	useKeyboardShortcut("i", () => handlersRef.current.onToggleImport(), { ctrl: true });
 	useKeyboardShortcut("?", () => handlersRef.current.onToggleHelp(), { preventDefault: true });
+	useKeyboardShortcut("z", () => handlersRef.current.onUndo?.(), {
+		ctrl: true,
+		preventDefault: true
+	});
+	useKeyboardShortcut("y", () => handlersRef.current.onRedo?.(), {
+		ctrl: true,
+		preventDefault: true
+	});
 }
 
 //#endregion
@@ -44809,6 +44831,213 @@ function usePolling(callback, interval, enabled = true) {
 		}, interval);
 		return () => clearInterval(id);
 	}, [interval, enabled]);
+}
+
+//#endregion
+//#region src/client/history/HistoryManager.ts
+var HistoryManager = class {
+	undoStack = [];
+	redoStack = [];
+	maxHistory = 50;
+	push(snapshot) {
+		this.undoStack.push(snapshot);
+		if (this.undoStack.length > this.maxHistory) this.undoStack.shift();
+		this.redoStack = [];
+	}
+	undo() {
+		const snapshot = this.undoStack.pop();
+		if (!snapshot) return null;
+		this.redoStack.push(snapshot);
+		return this.undoStack[this.undoStack.length - 1] ?? null;
+	}
+	redo() {
+		const snapshot = this.redoStack.pop();
+		if (!snapshot) return null;
+		this.undoStack.push(snapshot);
+		return snapshot;
+	}
+	canUndo() {
+		return this.undoStack.length > 0;
+	}
+	canRedo() {
+		return this.redoStack.length > 0;
+	}
+	clear() {
+		this.undoStack = [];
+		this.redoStack = [];
+	}
+	getCurrent() {
+		return this.undoStack[this.undoStack.length - 1] ?? null;
+	}
+};
+
+//#endregion
+//#region src/client/hooks/useHistory.ts
+function createSnapshot() {
+	const s = useGraphStore.getState();
+	return {
+		layout: s.layout,
+		filterType: s.filterType,
+		graphType: s.graphType,
+		clusterLevel: s.clusterLevel,
+		selectedNodeId: s.selectedNodeId,
+		expandedNodeIds: new Set(s.expandedNodeIds)
+	};
+}
+function isSameSnapshot(a, b) {
+	if (a.layout !== b.layout) return false;
+	if (a.filterType !== b.filterType) return false;
+	if (a.graphType !== b.graphType) return false;
+	if (a.clusterLevel !== b.clusterLevel) return false;
+	if (a.selectedNodeId !== b.selectedNodeId) return false;
+	if (a.expandedNodeIds.size !== b.expandedNodeIds.size) return false;
+	for (const id of a.expandedNodeIds) if (!b.expandedNodeIds.has(id)) return false;
+	return true;
+}
+function applySnapshot(snapshot) {
+	const s = useGraphStore.getState();
+	if (snapshot.clusterLevel !== s.clusterLevel) s.setClusterLevel(snapshot.clusterLevel);
+	if (snapshot.layout !== s.layout) s.setLayout(snapshot.layout);
+	if (snapshot.filterType !== s.filterType) s.setFilterType(snapshot.filterType);
+	if (snapshot.graphType !== s.graphType) s.setGraphType(snapshot.graphType);
+	if (snapshot.selectedNodeId !== s.selectedNodeId) s.setSelectedNode(snapshot.selectedNodeId);
+	const currentExpanded = s.expandedNodeIds;
+	const sameSize = currentExpanded.size === snapshot.expandedNodeIds.size;
+	const sameContent = sameSize && [...snapshot.expandedNodeIds].every((id) => currentExpanded.has(id));
+	if (!sameContent) {
+		useGraphStore.setState({ expandedNodeIds: snapshot.expandedNodeIds });
+		s.setClusterLevel(snapshot.clusterLevel);
+	}
+}
+function useHistory() {
+	const managerRef = (0, react.useRef)(new HistoryManager());
+	const lastSnapshotRef = (0, react.useRef)(null);
+	const isUndoRedoRef = (0, react.useRef)(false);
+	const [canUndo, setCanUndo] = (0, react.useState)(false);
+	const [canRedo, setCanRedo] = (0, react.useState)(false);
+	const updateFlags = (0, react.useCallback)(() => {
+		setCanUndo(managerRef.current.canUndo());
+		setCanRedo(managerRef.current.canRedo());
+	}, []);
+	const pushHistory = (0, react.useCallback)(() => {
+		if (isUndoRedoRef.current) return;
+		const snapshot = createSnapshot();
+		const last$1 = lastSnapshotRef.current;
+		if (last$1 && isSameSnapshot(last$1, snapshot)) return;
+		managerRef.current.push(snapshot);
+		lastSnapshotRef.current = snapshot;
+		updateFlags();
+	}, [updateFlags]);
+	const undo$3 = (0, react.useCallback)(() => {
+		const prev = managerRef.current.undo();
+		if (prev) {
+			isUndoRedoRef.current = true;
+			applySnapshot(prev);
+			lastSnapshotRef.current = prev;
+			isUndoRedoRef.current = false;
+			updateFlags();
+		}
+	}, [updateFlags]);
+	const redo = (0, react.useCallback)(() => {
+		const next = managerRef.current.redo();
+		if (next) {
+			isUndoRedoRef.current = true;
+			applySnapshot(next);
+			lastSnapshotRef.current = next;
+			isUndoRedoRef.current = false;
+			updateFlags();
+		}
+	}, [updateFlags]);
+	(0, react.useEffect)(() => {
+		const unsub = useGraphStore.subscribe(() => {
+			pushHistory();
+		});
+		return unsub;
+	}, [pushHistory]);
+	return {
+		undo: undo$3,
+		redo,
+		canUndo,
+		canRedo,
+		pushHistory
+	};
+}
+
+//#endregion
+//#region src/client/cache/GraphCache.ts
+var GraphCache = class {
+	cache = new Map();
+	maxEntries = 5;
+	get(repoId) {
+		return this.cache.get(repoId) ?? null;
+	}
+	set(repoId, nodes, edges, layoutPositions, layoutType) {
+		const existing = this.cache.get(repoId);
+		this.cache.set(repoId, {
+			nodes,
+			edges,
+			repoId,
+			timestamp: Date.now(),
+			layoutPositions: layoutPositions ?? existing?.layoutPositions ?? null,
+			layoutType: layoutType ?? existing?.layoutType ?? null
+		});
+		if (this.cache.size > this.maxEntries) {
+			const oldest = [...this.cache.entries()].sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
+			if (oldest) this.cache.delete(oldest[0]);
+		}
+	}
+	getLayoutPositions(repoId) {
+		return this.cache.get(repoId)?.layoutPositions ?? null;
+	}
+	setLayoutPositions(repoId, positions, layoutType) {
+		const entry = this.cache.get(repoId);
+		if (entry) {
+			entry.layoutPositions = positions;
+			entry.layoutType = layoutType;
+		}
+	}
+	has(repoId) {
+		return this.cache.has(repoId);
+	}
+	clear() {
+		this.cache.clear();
+	}
+	size() {
+		return this.cache.size;
+	}
+};
+
+//#endregion
+//#region src/client/hooks/useGraphCache.ts
+function useGraphCache() {
+	const cacheRef = (0, react.useRef)(new GraphCache());
+	const getCachedData = (0, react.useCallback)((repoId) => {
+		const entry = cacheRef.current.get(repoId);
+		if (!entry) return null;
+		return {
+			nodes: entry.nodes,
+			edges: entry.edges
+		};
+	}, []);
+	const cacheData = (0, react.useCallback)((repoId, nodes, edges) => {
+		cacheRef.current.set(repoId, nodes, edges);
+	}, []);
+	const getCachedLayout = (0, react.useCallback)((repoId) => {
+		return cacheRef.current.getLayoutPositions(repoId);
+	}, []);
+	const cacheLayout = (0, react.useCallback)((repoId, positions, layoutType) => {
+		cacheRef.current.setLayoutPositions(repoId, positions, layoutType);
+	}, []);
+	const hasCache = (0, react.useCallback)((repoId) => {
+		return cacheRef.current.has(repoId);
+	}, []);
+	return {
+		getCachedData,
+		cacheData,
+		getCachedLayout,
+		cacheLayout,
+		hasCache
+	};
 }
 
 //#endregion
@@ -45026,7 +45255,9 @@ const en = {
 	"toolbar.rules": "Rule Engine",
 	"toolbar.hotspot": "Hotspot Analysis",
 	"toolbar.godModule": "God Module Detection",
-	"impact.total": "Total impacted nodes"
+	"impact.total": "Total impacted nodes",
+	"toolbar.undo": "Undo (Ctrl+Z)",
+	"toolbar.redo": "Redo (Ctrl+Y)"
 };
 
 //#endregion
@@ -45244,7 +45475,9 @@ const zh = {
 	"toolbar.rules": "规则引擎",
 	"toolbar.hotspot": "热点分析",
 	"toolbar.godModule": "God Module 检测",
-	"impact.total": "总影响节点"
+	"impact.total": "总影响节点",
+	"toolbar.undo": "撤销 (Ctrl+Z)",
+	"toolbar.redo": "重做 (Ctrl+Y)"
 };
 
 //#endregion
@@ -45629,6 +45862,16 @@ const FocusIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, reac
 		cy: "12",
 		r: "3"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4l1.4-1.4M17 7l1.4-1.4" })]
+});
+const UndoIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+	...base(size$1),
+	className,
+	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 7v6h6" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 13a9 9 0 1 0 3-7.7L3 8" })]
+});
+const RedoIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+	...base(size$1),
+	className,
+	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 7v6h-6" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 13a9 9 0 1 1-3-7.7L21 8" })]
 });
 
 //#endregion
@@ -46406,7 +46649,7 @@ function Toolbar(props) {
 		props.onExport(format);
 		setShowExportMenu(false);
 	}, [props]);
-	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterLevel, showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport, showPathFind, showHealthScore, showRules, showHotspot, showGodModule, collapsed, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll } = props;
+	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterLevel, showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport, showPathFind, showHealthScore, showRules, showHotspot, showGodModule, collapsed, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll, onUndo, onRedo, canUndo, canRedo } = props;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "graph-toolbar",
 		children: [
@@ -46635,6 +46878,24 @@ function Toolbar(props) {
 								title: t$1("toolbar.refresh"),
 								"aria-label": t$1("toolbar.refresh"),
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RefreshIcon, { size: 15 })
+							}),
+							onUndo && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: "undo-btn",
+								onClick: onUndo,
+								disabled: !canUndo,
+								title: t$1("toolbar.undo"),
+								"aria-label": t$1("toolbar.undo"),
+								"aria-disabled": !canUndo,
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(UndoIcon, { size: 15 })
+							}),
+							onRedo && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: "redo-btn",
+								onClick: onRedo,
+								disabled: !canRedo,
+								title: t$1("toolbar.redo"),
+								"aria-label": t$1("toolbar.redo"),
+								"aria-disabled": !canRedo,
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RedoIcon, { size: 15 })
 							})
 						]
 					}),
@@ -48353,6 +48614,29 @@ function GraphPanelInner({ className = "" }) {
 		collapseAll();
 	}, [collapseAll]);
 	const panel = usePanelState();
+	const history = useHistory();
+	const graphCache = useGraphCache();
+	const prevWorkspaceRef = (0, react.useRef)(null);
+	(0, react.useEffect)(() => {
+		if (!currentWorkspace) return;
+		if (prevWorkspaceRef.current && prevWorkspaceRef.current !== currentWorkspace) {
+			const cached = graphCache.getCachedData(currentWorkspace);
+			if (cached) setGraphData(cached.nodes, cached.edges, currentWorkspace);
+		}
+		prevWorkspaceRef.current = currentWorkspace;
+	}, [
+		currentWorkspace,
+		graphCache,
+		setGraphData
+	]);
+	(0, react.useEffect)(() => {
+		if (currentWorkspace && rawNodes.length > 0) graphCache.cacheData(currentWorkspace, rawNodes, rawEdges);
+	}, [
+		currentWorkspace,
+		rawNodes,
+		rawEdges,
+		graphCache
+	]);
 	const debouncedSearch = useDebounce(searchQuery, 200);
 	const showCallChainRef = (0, react.useRef)(panel.showCallChain);
 	(0, react.useEffect)(() => {
@@ -48440,6 +48724,22 @@ function GraphPanelInner({ className = "" }) {
 		};
 	}, [renderer$1.rendererRef]);
 	(0, react.useEffect)(() => {
+		const symbolHandler = (e) => {
+			const detail = e.detail;
+			if (!detail?.symbol) return;
+			const sym = detail.symbol;
+			const store = useGraphStore.getState();
+			const match$1 = store.rawNodes.find((n) => n.label === sym || n.label.endsWith(`.${sym}`) || n.label.includes(sym));
+			if (match$1) {
+				store.setSelectedNode(match$1.id);
+				renderer$1.rendererRef.current?.focusOnNode(match$1.id);
+				renderer$1.rendererRef.current?.selectNode(match$1.id);
+			}
+		};
+		window.addEventListener("codegraph:symbol-select", symbolHandler);
+		return () => window.removeEventListener("codegraph:symbol-select", symbolHandler);
+	}, [renderer$1.rendererRef]);
+	(0, react.useEffect)(() => {
 		const observer = new MutationObserver(() => {
 			const isDark = document.body.hasAttribute("data-ds-dark-theme");
 			const newTheme = isDark ? "dark" : "light";
@@ -48481,7 +48781,9 @@ function GraphPanelInner({ className = "" }) {
 		onToggleMiniMap: panel.toggleMiniMap,
 		onCycleLayout: () => {},
 		onToggleImport: panel.toggleImport,
-		onToggleHelp: () => setShowHelp((v) => !v)
+		onToggleHelp: () => setShowHelp((v) => !v),
+		onUndo: history.undo,
+		onRedo: history.redo
 	});
 	const requestRefresh = (0, react.useCallback)(() => {
 		window.dispatchEvent(new CustomEvent("codegraph:refresh", { detail: { incremental: true } }));
@@ -48725,6 +49027,10 @@ function GraphPanelInner({ className = "" }) {
 				onExport: renderer$1.exportGraph,
 				onCollapse: panel.toggleCollapsed,
 				onCollapseAll: handleCollapseAll,
+				onUndo: history.undo,
+				onRedo: history.redo,
+				canUndo: history.canUndo,
+				canRedo: history.canRedo,
 				currentWorkspace,
 				workspaceList,
 				onSwitchWorkspace: handleWorkspaceSwitch,
@@ -49337,6 +49643,11 @@ function apply(ctx) {
 		window.addEventListener("codegraph:toggle-watch", toggleWatchListener);
 		window.addEventListener("codegraph:workspace", workspaceListener);
 		window.addEventListener("codegraph:install-plugin", installPluginListener);
+		const symbolSelectListener = (e) => {
+			const detail = e.detail;
+			if (detail?.symbol) window.dispatchEvent(new CustomEvent("codegraph:symbol-select", { detail }));
+		};
+		window.addEventListener("dsh:editor-symbol-select", symbolSelectListener);
 		ctx.effect(() => () => {
 			window.removeEventListener("codegraph:refresh", refreshListener);
 			window.removeEventListener("codegraph:open-source", openSourceListener);
@@ -49345,6 +49656,7 @@ function apply(ctx) {
 			window.removeEventListener("codegraph:toggle-watch", toggleWatchListener);
 			window.removeEventListener("codegraph:workspace", workspaceListener);
 			window.removeEventListener("codegraph:install-plugin", installPluginListener);
+			window.removeEventListener("dsh:editor-symbol-select", symbolSelectListener);
 		}, "codegraph: window event listeners");
 	}
 }
