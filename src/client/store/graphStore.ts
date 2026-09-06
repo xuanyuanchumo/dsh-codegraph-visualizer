@@ -55,6 +55,7 @@ interface GraphState {
   highlightedNodeIds: NodeId[];
   filterType: GraphNode['type'] | 'all';
   graphType: GraphType;
+  viewMode: 'code' | 'dependencies';
   clusterLevel: ClusterLevel;
 
   isLoading: boolean;
@@ -89,6 +90,7 @@ interface GraphState {
   setHighlightedNodes: (nodeIds: NodeId[]) => void;
   setFilterType: (filter: GraphNode['type'] | 'all') => void;
   setGraphType: (graphType: GraphType) => void;
+  setViewMode: (viewMode: 'code' | 'dependencies') => void;
   setClusterLevel: (level: ClusterLevel) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -129,6 +131,7 @@ export const useGraphStore = create<GraphState>()(
       highlightedNodeIds: [],
       filterType: 'all',
       graphType: 'all',
+      viewMode: 'code',
       clusterLevel: 'directory',
       isLoading: false,
       error: null,
@@ -168,6 +171,7 @@ export const useGraphStore = create<GraphState>()(
       setHighlightedNodes: (highlightedNodeIds) => set({ highlightedNodeIds }),
       setFilterType: (filterType) => set({ filterType }),
       setGraphType: (graphType) => set({ graphType }),
+      setViewMode: (viewMode) => set({ viewMode }),
       setClusterLevel: (clusterLevel) => {
         const { rawNodes, rawEdges, expandedNodeIds } = useGraphStore.getState();
         const result = computeClusteredGraph(rawNodes, rawEdges, clusterLevel, expandedNodeIds);

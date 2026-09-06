@@ -361,6 +361,32 @@ body[data-ds-dark-theme] {
   box-shadow: 0 1px 3px rgba(16, 185, 129, 0.4);
 }
 
+.view-mode-btn {
+  padding: 3px 8px;
+  border: 1px solid var(--cg-border);
+  background: transparent;
+  color: var(--cg-text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: var(--cg-radius-xs);
+  cursor: pointer;
+  transition: all var(--cg-transition);
+  font-family: var(--cg-font-sans);
+  margin-left: 4px;
+}
+
+.view-mode-btn:hover {
+  color: var(--cg-text);
+  background: var(--cg-surface-hover);
+}
+
+.view-mode-btn.active {
+  color: var(--cg-text);
+  background: var(--cg-accent);
+  border-color: var(--cg-accent);
+  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.4);
+}
+
 /* ---- Select -------------------------------------------------------------- */
 
 .filter-select {

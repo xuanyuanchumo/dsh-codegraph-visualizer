@@ -24,6 +24,14 @@ export interface IRenderer {
   updateData(nodes: GraphNode[], edges: GraphEdge[]): void;
   setRawNodes(rawNodes: GraphNode[]): void;
   applyLayout(layout: LayoutType): void;
+  applyIncrementalLayout(layout: LayoutType, newNodeIds: Set<string>): void;
+  isWorkerLayoutAvailable(): boolean;
+  applyLayoutWithWorker(nodes: GraphNode[], edges: GraphEdge[], layout: LayoutType): Promise<Record<string, { x: number; y: number }>>;
+  applyWorkerLayout(positions: Record<string, { x: number; y: number }>): void;
+  enableVirtualScroll(): void;
+  disableVirtualScroll(): void;
+  isVirtualScrollEnabled(): boolean;
+  shouldEnableVirtualScroll(nodeCount: number): boolean;
   highlightNodes(nodeIds: NodeId[]): void;
   selectNode(nodeId: NodeId | null): void;
   filterByType(type: string): void;

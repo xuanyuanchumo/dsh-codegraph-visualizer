@@ -265,4 +265,8 @@ export const zh: Record<string, string> = {
   // 历史记录
   'toolbar.undo': '撤销 (Ctrl+Z)',
   'toolbar.redo': '重做 (Ctrl+Y)',
+
+  // 视图模式
+  'toolbar.viewModeDeps': '切换到依赖图谱视图',
+  'toolbar.viewModeCode': '切换到代码图谱视图',
 };

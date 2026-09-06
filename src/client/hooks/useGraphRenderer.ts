@@ -85,10 +85,40 @@ export function useGraphRenderer(
     rendererRef.current?.setRawNodes(rawNodes);
   }, [rawNodes]);
 
+  const prevNodeCountRef = useRef(0);
+  const isWorkerInProgressRef = useRef(false);
+
   useEffect(() => {
     const r = rendererRef.current;
     if (!r) return;
-    const timer = setTimeout(() => r.applyLayout(layout), 150);
+    const currentCount = nodes.length;
+    const prevCount = prevNodeCountRef.current;
+    const isNewDataSet = prevCount === 0 && currentCount > 0;
+    const isIncremental = !isNewDataSet && currentCount > prevCount && currentCount - prevCount < 50;
+    const shouldUseWorker = currentCount > 500 && r.isWorkerLayoutAvailable() && !isWorkerInProgressRef.current;
+
+    const timer = setTimeout(async () => {
+      if (shouldUseWorker && !isNewDataSet) {
+        isWorkerInProgressRef.current = true;
+        try {
+          const positions = await r.applyLayoutWithWorker(
+            nodes as GraphNode[],
+            edges as GraphEdge[],
+            layout,
+          );
+          if (Object.keys(positions).length > 0) {
+            r.applyWorkerLayout(positions);
+          }
+        } finally {
+          isWorkerInProgressRef.current = false;
+        }
+      } else if (isIncremental) {
+        r.applyIncrementalLayout(layout, new Set());
+      } else {
+        r.applyLayout(layout);
+      }
+      prevNodeCountRef.current = currentCount;
+    }, 150);
     return () => clearTimeout(timer);
   }, [layout, clusterLevel, nodes.length, edges.length]);
 
@@ -147,6 +177,16 @@ export function useGraphRenderer(
     if (focusNodeId) { r.focusNeighborhood(focusNodeId as NodeId); }
     else { r.focusNeighborhood(null); }
   }, [focusNodeId]);
+
+  useEffect(() => {
+    const r = rendererRef.current;
+    if (!r) return;
+    if (r.shouldEnableVirtualScroll(nodes.length) && !r.isVirtualScrollEnabled()) {
+      r.enableVirtualScroll();
+    } else if (!r.shouldEnableVirtualScroll(nodes.length) && r.isVirtualScrollEnabled()) {
+      r.disableVirtualScroll();
+    }
+  }, [nodes.length]);
 
   const exportGraph = useCallback((format: 'png' | 'svg' | 'json') => {
     const renderer = rendererRef.current;

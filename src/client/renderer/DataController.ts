@@ -9,9 +9,18 @@ export class DataController {
   private rawNodesMap: Map<string, GraphNode> = new Map();
   private batchRaf: number | null = null;
   private batchQueue: { nodes: GraphNode[]; edges: GraphEdge[] } | null = null;
+  private lastAddedNodeIds: Set<string> = new Set();
 
   constructor(cy: Core) {
     this.cy = cy;
+  }
+
+  getLastAddedNodeIds(): Set<string> {
+    return this.lastAddedNodeIds;
+  }
+
+  clearLastAddedNodeIds(): void {
+    this.lastAddedNodeIds.clear();
   }
 
   setRawNodes(rawNodes: GraphNode[]): void {
@@ -51,7 +60,10 @@ export class DataController {
     }
 
     for (const n of nodes) {
-      if (!this.currentNodes.has(n.id)) nodesToAdd.push(n);
+      if (!this.currentNodes.has(n.id)) {
+        nodesToAdd.push(n);
+        this.lastAddedNodeIds.add(n.id);
+      }
       this.currentNodes.set(n.id, n);
     }
     for (const e of edges) {

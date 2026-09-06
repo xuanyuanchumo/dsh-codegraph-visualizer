@@ -9,6 +9,7 @@ import { DataController } from './DataController.ts';
 import { StyleController } from './StyleController.ts';
 import { InteractionController, type InteractionCallbacks } from './InteractionController.ts';
 import { PathFinder, type PathResult } from './PathFinder.ts';
+import { VirtualViewportController } from './VirtualViewportController.ts';
 
 cytoscape.use(dagre);
 
@@ -27,6 +28,7 @@ export class CytoscapeRenderer implements IRenderer {
   private styleCtrl: StyleController | null = null;
   private interactionCtrl: InteractionController | null = null;
   private pathFinder: PathFinder | null = null;
+  private virtualViewportCtrl: VirtualViewportController | null = null;
 
   constructor(options: CytoscapeRendererOptions) {
     this.options = options;
@@ -62,6 +64,7 @@ export class CytoscapeRenderer implements IRenderer {
       onEdgeHoverOut: this.options.onEdgeHoverOut ?? (() => {}),
     });
     this.pathFinder = new PathFinder(cy);
+    this.virtualViewportCtrl = new VirtualViewportController(cy);
   }
 
   updateData(nodes: GraphNode[], edges: GraphEdge[]): void {
@@ -74,6 +77,38 @@ export class CytoscapeRenderer implements IRenderer {
 
   applyLayout(layout: LayoutType): void {
     this.layoutCtrl?.applyLayout(layout);
+  }
+
+  applyIncrementalLayout(layout: LayoutType, newNodeIds: Set<string>): void {
+    this.layoutCtrl?.applyIncrementalLayout(layout, newNodeIds);
+  }
+
+  isWorkerLayoutAvailable(): boolean {
+    return this.layoutCtrl?.isWorkerAvailable() ?? false;
+  }
+
+  applyLayoutWithWorker(nodes: GraphNode[], edges: GraphEdge[], layout: LayoutType): Promise<Record<string, { x: number; y: number }>> {
+    return this.layoutCtrl?.applyLayoutWithWorker(nodes, edges, layout) ?? Promise.resolve({});
+  }
+
+  applyWorkerLayout(positions: Record<string, { x: number; y: number }>): void {
+    this.layoutCtrl?.applyWorkerLayout(positions);
+  }
+
+  enableVirtualScroll(): void {
+    this.virtualViewportCtrl?.enable();
+  }
+
+  disableVirtualScroll(): void {
+    this.virtualViewportCtrl?.disable();
+  }
+
+  isVirtualScrollEnabled(): boolean {
+    return this.virtualViewportCtrl?.isEnabled() ?? false;
+  }
+
+  shouldEnableVirtualScroll(nodeCount: number): boolean {
+    return this.virtualViewportCtrl?.shouldEnable(nodeCount) ?? false;
   }
 
   highlightNodes(nodeIds: NodeId[]): void {
@@ -179,6 +214,7 @@ export class CytoscapeRenderer implements IRenderer {
 
   destroy(): void {
     this.layoutCtrl?.destroy();
+    this.virtualViewportCtrl?.destroy();
     this.dataCtrl?.destroy();
     this.cy?.destroy();
     this.cy = null;

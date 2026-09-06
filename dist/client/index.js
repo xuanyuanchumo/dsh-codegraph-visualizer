@@ -373,6 +373,32 @@ body[data-ds-dark-theme] {
   box-shadow: 0 1px 3px rgba(16, 185, 129, 0.4);
 }
 
+.view-mode-btn {
+  padding: 3px 8px;
+  border: 1px solid var(--cg-border);
+  background: transparent;
+  color: var(--cg-text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: var(--cg-radius-xs);
+  cursor: pointer;
+  transition: all var(--cg-transition);
+  font-family: var(--cg-font-sans);
+  margin-left: 4px;
+}
+
+.view-mode-btn:hover {
+  color: var(--cg-text);
+  background: var(--cg-surface-hover);
+}
+
+.view-mode-btn.active {
+  color: var(--cg-text);
+  background: var(--cg-accent);
+  border-color: var(--cg-accent);
+  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.4);
+}
+
 /* ---- Select -------------------------------------------------------------- */
 
 .filter-select {
@@ -3957,6 +3983,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	highlightedNodeIds: [],
 	filterType: "all",
 	graphType: "all",
+	viewMode: "code",
 	clusterLevel: "directory",
 	isLoading: false,
 	error: null,
@@ -4003,6 +4030,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	setHighlightedNodes: (highlightedNodeIds) => set$1({ highlightedNodeIds }),
 	setFilterType: (filterType) => set$1({ filterType }),
 	setGraphType: (graphType) => set$1({ graphType }),
+	setViewMode: (viewMode) => set$1({ viewMode }),
 	setClusterLevel: (clusterLevel) => {
 		const { rawNodes, rawEdges, expandedNodeIds } = useGraphStore.getState();
 		const result = computeClusteredGraph(rawNodes, rawEdges, clusterLevel, expandedNodeIds);
@@ -42818,12 +42846,69 @@ var import_cytoscape_dagre = __toESM(require_cytoscape_dagre(), 1);
 var LayoutController = class {
 	cy;
 	layoutRaf = null;
+	positionCache = new Map();
+	workerLayoutResolve = null;
+	worker = null;
 	constructor(cy) {
 		this.cy = cy;
+		this.initWorker();
+	}
+	initWorker() {
+		try {
+			this.worker = new Worker(new URL("../worker/layoutWorker.ts", import.meta.url), { type: "module" });
+			this.worker.onmessage = (e) => {
+				if (this.workerLayoutResolve) {
+					this.workerLayoutResolve(e.data.positions);
+					this.workerLayoutResolve = null;
+				}
+			};
+			this.worker.onerror = () => {
+				if (this.workerLayoutResolve) {
+					this.workerLayoutResolve({});
+					this.workerLayoutResolve = null;
+				}
+			};
+		} catch {
+			this.worker = null;
+		}
+	}
+	isWorkerAvailable() {
+		return this.worker !== null;
+	}
+	applyLayoutWithWorker(nodes, edges, layout$2) {
+		if (!this.worker) return Promise.resolve({});
+		return new Promise((resolve) => {
+			this.workerLayoutResolve = resolve;
+			this.worker.postMessage({
+				nodes: nodes.map((n) => ({
+					id: n.id,
+					label: n.label,
+					type: n.type
+				})),
+				edges: edges.map((e) => ({
+					id: e.id,
+					source: e.source,
+					target: e.target,
+					type: e.type
+				})),
+				layout: layout$2
+			});
+		});
+	}
+	applyWorkerLayout(positions) {
+		this.cy.batch(() => {
+			for (const [id, pos] of Object.entries(positions)) {
+				const node = this.cy.getElementById(id);
+				if (node.nonempty()) node.position(pos);
+			}
+		});
+		this.cy.fit(void 0, 80);
+		this.cachePositions();
 	}
 	applyLayout(layout$2) {
 		if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
 		this.layoutRaf = requestAnimationFrame(() => {
+			this.cachePositions();
 			const nodeCount = this.cy.nodes().length;
 			let effectiveLayout = layout$2;
 			let animate = true;
@@ -42841,6 +42926,65 @@ var LayoutController = class {
 				l.run();
 			}
 			this.layoutRaf = null;
+		});
+	}
+	applyIncrementalLayout(layout$2, newNodeIds) {
+		if (newNodeIds.size === 0) return;
+		if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
+		this.layoutRaf = requestAnimationFrame(() => {
+			const newNodes = this.cy.nodes().filter((n) => newNodeIds.has(n.id()));
+			if (newNodes.length === 0) {
+				this.layoutRaf = null;
+				return;
+			}
+			this.restoreCachedPositions();
+			const presetOptions = {
+				name: "preset",
+				positions: (node) => {
+					const cached = this.positionCache.get(node.id());
+					if (cached) return cached;
+					const existingNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
+					if (existingNodes.length === 0) return {
+						x: 0,
+						y: 0
+					};
+					const bbox = existingNodes.boundingBox();
+					return {
+						x: bbox.x2 + 100 + Math.random() * 200,
+						y: bbox.y1 + Math.random() * bbox.h
+					};
+				},
+				animate: false
+			};
+			this.cy.layout(presetOptions).run();
+			if (layout$2 === "cose" || layout$2 === "dagre") {
+				const incrementalOptions = this.buildLayoutOptions(layout$2, false, newNodes.length);
+				if (incrementalOptions) {
+					const l = newNodes.layout(incrementalOptions);
+					l.one("layoutstop", () => this.removeOverlaps());
+					l.run();
+				}
+			} else this.removeOverlaps();
+			this.cachePositions();
+			this.layoutRaf = null;
+		});
+	}
+	cachePositions() {
+		this.positionCache.clear();
+		this.cy.nodes().forEach((n) => {
+			const p$1 = n.position();
+			this.positionCache.set(n.id(), {
+				x: p$1.x,
+				y: p$1.y
+			});
+		});
+	}
+	restoreCachedPositions() {
+		this.cy.batch(() => {
+			this.cy.nodes().forEach((n) => {
+				const cached = this.positionCache.get(n.id());
+				if (cached) n.position(cached);
+			});
 		});
 	}
 	buildLayoutOptions(layout$2, animate, nodeCount) {
@@ -43028,6 +43172,8 @@ var LayoutController = class {
 	destroy() {
 		if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
 		this.layoutRaf = null;
+		this.worker?.terminate();
+		this.worker = null;
 	}
 };
 
@@ -43391,8 +43537,15 @@ var DataController = class {
 	rawNodesMap = new Map();
 	batchRaf = null;
 	batchQueue = null;
+	lastAddedNodeIds = new Set();
 	constructor(cy) {
 		this.cy = cy;
+	}
+	getLastAddedNodeIds() {
+		return this.lastAddedNodeIds;
+	}
+	clearLastAddedNodeIds() {
+		this.lastAddedNodeIds.clear();
 	}
 	setRawNodes(rawNodes) {
 		this.rawNodesMap.clear();
@@ -43419,7 +43572,10 @@ var DataController = class {
 			for (const id of this.currentEdges.keys()) if (!newEdgeIds.has(id)) this.currentEdges.delete(id);
 		}
 		for (const n of nodes) {
-			if (!this.currentNodes.has(n.id)) nodesToAdd.push(n);
+			if (!this.currentNodes.has(n.id)) {
+				nodesToAdd.push(n);
+				this.lastAddedNodeIds.add(n.id);
+			}
 			this.currentNodes.set(n.id, n);
 		}
 		for (const e of edges) {
@@ -44229,6 +44385,91 @@ var PathFinder = class {
 };
 
 //#endregion
+//#region src/client/renderer/VirtualViewportController.ts
+const VIRTUAL_SCROLL_THRESHOLD = 2e3;
+var VirtualViewportController = class {
+	cy;
+	enabled = false;
+	rafId = null;
+	visibleNodeIds = new Set();
+	constructor(cy) {
+		this.cy = cy;
+	}
+	enable() {
+		if (this.enabled) return;
+		this.enabled = true;
+		this.updateVisibility();
+		this.cy.on("viewport", () => this.handleViewportChange());
+	}
+	disable() {
+		if (!this.enabled) return;
+		this.enabled = false;
+		this.cy.off("viewport");
+		this.cy.batch(() => {
+			this.cy.nodes().forEach((n) => {
+				n.style("display", "element");
+			});
+			this.cy.edges().forEach((e) => {
+				e.style("display", "element");
+			});
+		});
+		this.visibleNodeIds.clear();
+		if (this.rafId !== null) cancelAnimationFrame(this.rafId);
+		this.rafId = null;
+	}
+	isEnabled() {
+		return this.enabled;
+	}
+	shouldEnable(nodeCount) {
+		return nodeCount > VIRTUAL_SCROLL_THRESHOLD;
+	}
+	handleViewportChange = () => {
+		if (this.rafId !== null) return;
+		this.rafId = requestAnimationFrame(() => {
+			this.updateVisibility();
+			this.rafId = null;
+		});
+	};
+	updateVisibility() {
+		if (!this.enabled) return;
+		const zoom = this.cy.zoom();
+		const pan = this.cy.pan();
+		const width$1 = this.cy.width();
+		const height = this.cy.height();
+		const viewBounds = {
+			x1: -pan.x / zoom,
+			y1: -pan.y / zoom,
+			x2: (-pan.x + width$1) / zoom,
+			y2: (-pan.y + height) / zoom
+		};
+		const newVisible = new Set();
+		const padding = 100;
+		this.cy.batch(() => {
+			this.cy.nodes().forEach((node) => {
+				const p$1 = node.position();
+				const isVisible = p$1.x >= viewBounds.x1 - padding && p$1.x <= viewBounds.x2 + padding && p$1.y >= viewBounds.y1 - padding && p$1.y <= viewBounds.y2 + padding;
+				if (isVisible) {
+					newVisible.add(node.id());
+					node.style("display", "element");
+				} else node.style("display", "none");
+			});
+			this.cy.edges().forEach((edge) => {
+				const sourceVisible = newVisible.has(edge.source().id());
+				const targetVisible = newVisible.has(edge.target().id());
+				edge.style("display", sourceVisible && targetVisible ? "element" : "none");
+			});
+		});
+		this.visibleNodeIds = newVisible;
+	}
+	getVisibleNodeCount() {
+		return this.visibleNodeIds.size;
+	}
+	destroy() {
+		this.disable();
+	}
+};
+
+//#endregion
 //#region src/client/renderer/CytoscapeRenderer.ts
 cytoscape$1.use(import_cytoscape_dagre.default);
 var CytoscapeRenderer = class {
@@ -44241,6 +44482,7 @@ var CytoscapeRenderer = class {
 	styleCtrl = null;
 	interactionCtrl = null;
 	pathFinder = null;
+	virtualViewportCtrl = null;
 	constructor(options) {
 		this.options = options;
 	}
@@ -44271,6 +44513,7 @@ var CytoscapeRenderer = class {
 			onEdgeHoverOut: this.options.onEdgeHoverOut ?? (() => {})
 		});
 		this.pathFinder = new PathFinder(cy);
+		this.virtualViewportCtrl = new VirtualViewportController(cy);
 	}
 	updateData(nodes, edges) {
 		this.dataCtrl?.updateData(nodes, edges);
@@ -44280,6 +44523,30 @@ var CytoscapeRenderer = class {
 	}
 	applyLayout(layout$2) {
 		this.layoutCtrl?.applyLayout(layout$2);
+	}
+	applyIncrementalLayout(layout$2, newNodeIds) {
+		this.layoutCtrl?.applyIncrementalLayout(layout$2, newNodeIds);
+	}
+	isWorkerLayoutAvailable() {
+		return this.layoutCtrl?.isWorkerAvailable() ?? false;
+	}
+	applyLayoutWithWorker(nodes, edges, layout$2) {
+		return this.layoutCtrl?.applyLayoutWithWorker(nodes, edges, layout$2) ?? Promise.resolve({});
+	}
+	applyWorkerLayout(positions) {
+		this.layoutCtrl?.applyWorkerLayout(positions);
+	}
+	enableVirtualScroll() {
+		this.virtualViewportCtrl?.enable();
+	}
+	disableVirtualScroll() {
+		this.virtualViewportCtrl?.disable();
+	}
+	isVirtualScrollEnabled() {
+		return this.virtualViewportCtrl?.isEnabled() ?? false;
+	}
+	shouldEnableVirtualScroll(nodeCount) {
+		return this.virtualViewportCtrl?.shouldEnable(nodeCount) ?? false;
 	}
 	highlightNodes(nodeIds) {
 		this.highlightCtrl?.highlightNodes(nodeIds);
@@ -44360,6 +44627,7 @@ var CytoscapeRenderer = class {
 	}
 	destroy() {
 		this.layoutCtrl?.destroy();
+		this.virtualViewportCtrl?.destroy();
 		this.dataCtrl?.destroy();
 		this.cy?.destroy();
 		this.cy = null;
@@ -44496,10 +44764,29 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 	(0, react.useEffect)(() => {
 		rendererRef.current?.setRawNodes(rawNodes);
 	}, [rawNodes]);
+	const prevNodeCountRef = (0, react.useRef)(0);
+	const isWorkerInProgressRef = (0, react.useRef)(false);
 	(0, react.useEffect)(() => {
 		const r = rendererRef.current;
 		if (!r) return;
-		const timer = setTimeout(() => r.applyLayout(layout$2), 150);
+		const currentCount = nodes.length;
+		const prevCount = prevNodeCountRef.current;
+		const isNewDataSet = prevCount === 0 && currentCount > 0;
+		const isIncremental = !isNewDataSet && currentCount > prevCount && currentCount - prevCount < 50;
+		const shouldUseWorker = currentCount > 500 && r.isWorkerLayoutAvailable() && !isWorkerInProgressRef.current;
+		const timer = setTimeout(async () => {
+			if (shouldUseWorker && !isNewDataSet) {
+				isWorkerInProgressRef.current = true;
+				try {
+					const positions = await r.applyLayoutWithWorker(nodes, edges, layout$2);
+					if (Object.keys(positions).length > 0) r.applyWorkerLayout(positions);
+				} finally {
+					isWorkerInProgressRef.current = false;
+				}
+			} else if (isIncremental) r.applyIncrementalLayout(layout$2, new Set());
+			else r.applyLayout(layout$2);
+			prevNodeCountRef.current = currentCount;
+		}, 150);
 		return () => clearTimeout(timer);
 	}, [
 		layout$2,
@@ -44556,6 +44843,12 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 		if (focusNodeId) r.focusNeighborhood(focusNodeId);
 		else r.focusNeighborhood(null);
 	}, [focusNodeId]);
+	(0, react.useEffect)(() => {
+		const r = rendererRef.current;
+		if (!r) return;
+		if (r.shouldEnableVirtualScroll(nodes.length) && !r.isVirtualScrollEnabled()) r.enableVirtualScroll();
+		else if (!r.shouldEnableVirtualScroll(nodes.length) && r.isVirtualScrollEnabled()) r.disableVirtualScroll();
+	}, [nodes.length]);
 	const exportGraph = (0, react.useCallback)((format) => {
 		const renderer$1 = rendererRef.current;
 		if (!renderer$1) return;
@@ -45257,7 +45550,9 @@ const en = {
 	"toolbar.godModule": "God Module Detection",
 	"impact.total": "Total impacted nodes",
 	"toolbar.undo": "Undo (Ctrl+Z)",
-	"toolbar.redo": "Redo (Ctrl+Y)"
+	"toolbar.redo": "Redo (Ctrl+Y)",
+	"toolbar.viewModeDeps": "Switch to dependency graph view",
+	"toolbar.viewModeCode": "Switch to code graph view"
 };
 
 //#endregion
@@ -45477,7 +45772,9 @@ const zh = {
 	"toolbar.godModule": "God Module 检测",
 	"impact.total": "总影响节点",
 	"toolbar.undo": "撤销 (Ctrl+Z)",
-	"toolbar.redo": "重做 (Ctrl+Y)"
+	"toolbar.redo": "重做 (Ctrl+Y)",
+	"toolbar.viewModeDeps": "切换到依赖图谱视图",
+	"toolbar.viewModeCode": "切换到代码图谱视图"
 };
 
 //#endregion
@@ -46649,7 +46946,7 @@ function Toolbar(props) {
 		props.onExport(format);
 		setShowExportMenu(false);
 	}, [props]);
-	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterLevel, showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport, showPathFind, showHealthScore, showRules, showHotspot, showGodModule, collapsed, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll, onUndo, onRedo, canUndo, canRedo } = props;
+	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterLevel, showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport, showPathFind, showHealthScore, showRules, showHotspot, showGodModule, viewMode, collapsed, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onToggleViewMode, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll, onUndo, onRedo, canUndo, canRedo } = props;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "graph-toolbar",
 		children: [
@@ -46713,6 +47010,13 @@ function Toolbar(props) {
 							"aria-pressed": graphType === g.value,
 							children: t$1(g.key)
 						}, g.value))
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+						className: `view-mode-btn ${viewMode === "dependencies" ? "active" : ""}`,
+						onClick: onToggleViewMode,
+						title: viewMode === "code" ? t$1("toolbar.viewModeDeps") : t$1("toolbar.viewModeCode"),
+						"aria-pressed": viewMode === "dependencies",
+						children: viewMode === "code" ? "Deps" : "Code"
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
 						value: clusterLevel,
@@ -48554,7 +48858,7 @@ function GraphPanelInner({ className = "" }) {
 	const [showHelp, setShowHelp] = (0, react.useState)(false);
 	const [thumbnail, setThumbnail] = (0, react.useState)(null);
 	const [viewportInfo, setViewportInfo] = (0, react.useState)(null);
-	const { nodes, edges, rawNodes, rawEdges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, clusterLevel, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, totalEdgeCount, expandedNodeIds, pathResult, focusDepth, healthScore, rules, ruleViolations } = useGraphStore(useShallow((s) => ({
+	const { nodes, edges, rawNodes, rawEdges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, clusterLevel, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, totalEdgeCount, expandedNodeIds, pathResult, focusDepth, healthScore, rules, ruleViolations, viewMode } = useGraphStore(useShallow((s) => ({
 		nodes: s.nodes,
 		edges: s.edges,
 		rawNodes: s.rawNodes,
@@ -48585,7 +48889,8 @@ function GraphPanelInner({ className = "" }) {
 		focusDepth: s.focusDepth,
 		healthScore: s.healthScore,
 		rules: s.rules,
-		ruleViolations: s.ruleViolations
+		ruleViolations: s.ruleViolations,
+		viewMode: s.viewMode
 	})));
 	const setLayout = useGraphStore((s) => s.setLayout);
 	const setTheme = useGraphStore((s) => s.setTheme);
@@ -48610,6 +48915,7 @@ function GraphPanelInner({ className = "" }) {
 	const setHealthScore = useGraphStore((s) => s.setHealthScore);
 	const setRules = useGraphStore((s) => s.setRules);
 	const setRuleViolations = useGraphStore((s) => s.setRuleViolations);
+	const setViewMode = useGraphStore((s) => s.setViewMode);
 	const handleCollapseAll = (0, react.useCallback)(() => {
 		collapseAll();
 	}, [collapseAll]);
@@ -48822,6 +49128,22 @@ function GraphPanelInner({ className = "" }) {
 		setSelectedNodeData(null);
 		setSelectedNode(null);
 	}, [setSelectedNode]);
+	const handleToggleViewMode = (0, react.useCallback)(() => {
+		const newMode = viewMode === "code" ? "dependencies" : "code";
+		setViewMode(newMode);
+		if (newMode === "dependencies") {
+			setLoading(true);
+			fetch("/api/codegraph/dependencies").then((r) => r.json()).then((data$2) => {
+				if (data$2.nodes && data$2.nodes.length > 0) setGraphData(data$2.nodes, data$2.edges, data$2.metadata?.repoId || currentWorkspace);
+			}).catch(() => {}).finally(() => setLoading(false));
+		} else window.dispatchEvent(new CustomEvent("codegraph:refresh", { detail: { incremental: false } }));
+	}, [
+		viewMode,
+		setViewMode,
+		setLoading,
+		setGraphData,
+		currentWorkspace
+	]);
 	const handleRefresh = (0, react.useCallback)(() => {
 		setLoading(true);
 		window.dispatchEvent(new CustomEvent("codegraph:refresh", { detail: { incremental: false } }));
@@ -49004,6 +49326,8 @@ function GraphPanelInner({ className = "" }) {
 				showRules: panel.showRules,
 				showHotspot: panel.showHotspot,
 				showGodModule: panel.showGodModule,
+				viewMode,
+				onToggleViewMode: handleToggleViewMode,
 				collapsed: panel.collapsed,
 				onLayoutChange: setLayout,
 				onThemeToggle: handleThemeToggle,

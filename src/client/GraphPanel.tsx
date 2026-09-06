@@ -65,6 +65,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     prerequisites, watchEnabled, currentWorkspace, workspaceList,
     initStatus, truncated, totalNodeCount, totalEdgeCount, expandedNodeIds,
     pathResult, focusDepth, healthScore, rules, ruleViolations,
+    viewMode,
   } = useGraphStore(useShallow((s) => ({
     nodes: s.nodes, edges: s.edges, rawNodes: s.rawNodes, rawEdges: s.rawEdges,
     layout: s.layout, theme: s.theme,
@@ -80,6 +81,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     pathStartId: s.pathStartId, pathEndId: s.pathEndId, pathResult: s.pathResult,
     focusDepth: s.focusDepth, healthScore: s.healthScore,
     rules: s.rules, ruleViolations: s.ruleViolations,
+    viewMode: s.viewMode,
   })));
 
   const setLayout = useGraphStore((s) => s.setLayout);
@@ -105,6 +107,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const setHealthScore = useGraphStore((s) => s.setHealthScore);
   const setRules = useGraphStore((s) => s.setRules);
   const setRuleViolations = useGraphStore((s) => s.setRuleViolations);
+  const setViewMode = useGraphStore((s) => s.setViewMode);
 
   const handleCollapseAll = useCallback(() => {
     collapseAll();
@@ -323,6 +326,26 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     setSelectedNodeData(null); setSelectedNode(null);
   }, [setSelectedNode]);
 
+  // FR-21: View mode toggle — code graph vs dependency graph
+  const handleToggleViewMode = useCallback(() => {
+    const newMode = viewMode === 'code' ? 'dependencies' : 'code';
+    setViewMode(newMode);
+    if (newMode === 'dependencies') {
+      setLoading(true);
+      fetch('/api/codegraph/dependencies')
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.nodes && data.nodes.length > 0) {
+            setGraphData(data.nodes, data.edges, data.metadata?.repoId || currentWorkspace);
+          }
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    } else {
+      window.dispatchEvent(new CustomEvent('codegraph:refresh', { detail: { incremental: false } }));
+    }
+  }, [viewMode, setViewMode, setLoading, setGraphData, currentWorkspace]);
+
   const handleRefresh = useCallback(() => {
     setLoading(true);
     window.dispatchEvent(new CustomEvent('codegraph:refresh', { detail: { incremental: false } }));
@@ -490,6 +513,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         showRules={panel.showRules}
         showHotspot={panel.showHotspot}
         showGodModule={panel.showGodModule}
+        viewMode={viewMode}
+        onToggleViewMode={handleToggleViewMode}
         collapsed={panel.collapsed}
         onLayoutChange={setLayout}
         onThemeToggle={handleThemeToggle}

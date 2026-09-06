@@ -6,6 +6,8 @@ import { fetchMergedGraph } from '../tools.ts';
 import { isPathAllowed } from './security.ts';
 import { findWorkspacePath, extractWorkspacePaths, checkPrerequisites } from './prerequisites.ts';
 import type { VisualizerConfig } from './config.ts';
+import { parsePackageJson, parseCargoToml, parseGoMod, dependencyGraphToGraphData } from '../adapters/DependencyAdapter.ts';
+import { computeGraphDiff, diffToGraphData } from '../merger/DiffEngine.ts';
 
 const log = scoped('host');
 
@@ -345,4 +347,109 @@ export function registerRoutes(deps: RouteDeps): void {
       }
     },
   }), 'codegraph: watch route');
+
+  // GET /api/codegraph/dependencies — FR-21 第三方依赖图谱
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: '/api/codegraph/dependencies',
+    handler: async (_req: IncomingMessage, res: ServerResponse) => {
+      try {
+        const workspacePath = findWorkspacePath(ctx);
+        if (!workspacePath) {
+          sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: null, timestamp: 0, nodeCount: 0, edgeCount: 0 } });
+          return;
+        }
+
+        const fs = await import('node:fs/promises');
+        const path = await import('node:path');
+        const allDepNodes: ReturnType<typeof dependencyGraphToGraphData>['nodes'] = [];
+        const allDepEdges: ReturnType<typeof dependencyGraphToGraphData>['edges'] = [];
+
+        const packageJsonPath = path.join(workspacePath, 'package.json');
+        try {
+          const content = await fs.readFile(packageJsonPath, 'utf-8');
+          const depGraph = parsePackageJson(content);
+          const converted = dependencyGraphToGraphData(depGraph);
+          allDepNodes.push(...converted.nodes);
+          allDepEdges.push(...converted.edges);
+        } catch { /* no package.json */ }
+
+        const cargoTomlPath = path.join(workspacePath, 'Cargo.toml');
+        try {
+          const content = await fs.readFile(cargoTomlPath, 'utf-8');
+          const depGraph = parseCargoToml(content);
+          const converted = dependencyGraphToGraphData(depGraph);
+          allDepNodes.push(...converted.nodes);
+          allDepEdges.push(...converted.edges);
+        } catch { /* no Cargo.toml */ }
+
+        const goModPath = path.join(workspacePath, 'go.mod');
+        try {
+          const content = await fs.readFile(goModPath, 'utf-8');
+          const depGraph = parseGoMod(content);
+          const converted = dependencyGraphToGraphData(depGraph);
+          allDepNodes.push(...converted.nodes);
+          allDepEdges.push(...converted.edges);
+        } catch { /* no go.mod */ }
+
+        sendJson(res, 200, {
+          nodes: allDepNodes,
+          edges: allDepEdges,
+          metadata: {
+            repoId: workspacePath as GraphData['metadata']['repoId'],
+            timestamp: Date.now(),
+            nodeCount: allDepNodes.length,
+            edgeCount: allDepEdges.length,
+          },
+        });
+      } catch (e) {
+        log.error('dependencies route failed', e);
+        sendJson(res, 500, { nodes: [], edges: [], metadata: { repoId: null, timestamp: 0, nodeCount: 0, edgeCount: 0 } });
+      }
+    },
+  }), 'codegraph: dependencies route');
+
+  // POST /api/codegraph/diff — FR-24 版本对比图谱
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: '/api/codegraph/diff',
+    handler: async (req: IncomingMessage, res: ServerResponse) => {
+      try {
+        const body = await readBody(req, config.maxBodyBytes);
+        const parsed = parseJsonBody(body);
+        const fromCommit = extractStringField(parsed, 'from');
+        const toCommit = extractStringField(parsed, 'to');
+        if (!fromCommit || !toCommit) {
+          sendJson(res, 400, { error: 'from and to commits are required' });
+          return;
+        }
+
+        const workspacePath = findWorkspacePath(ctx);
+        if (!workspacePath) {
+          sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: null, timestamp: 0, nodeCount: 0, edgeCount: 0 } });
+          return;
+        }
+
+        const beforeGraph = await fetchMergedGraph(invokeUpstream, `${workspacePath}@${fromCommit}`, 'both');
+        const afterGraph = await fetchMergedGraph(invokeUpstream, `${workspacePath}@${toCommit}`, 'both');
+
+        const diff = computeGraphDiff(beforeGraph.nodes, beforeGraph.edges, afterGraph.nodes, afterGraph.edges);
+        const { nodes, edges } = diffToGraphData(diff);
+
+        sendJson(res, 200, {
+          nodes,
+          edges,
+          metadata: {
+            repoId: workspacePath as GraphData['metadata']['repoId'],
+            timestamp: Date.now(),
+            nodeCount: nodes.length,
+            edgeCount: edges.length,
+          },
+        });
+      } catch (e) {
+        log.error('diff route failed', e);
+        sendJson(res, 500, { error: e instanceof Error ? e.message : String(e) });
+      }
+    },
+  }), 'codegraph: diff route');
 }

@@ -958,7 +958,7 @@ function scoped(scope) {
 
 //#endregion
 //#region src/adapters/CodeGraphAdapter.ts
-const log$6 = scoped("codegraph-adapter");
+const log$7 = scoped("codegraph-adapter");
 const require = createRequire(import.meta.url);
 const NODE_KIND_MAP = {
 	function: "function",
@@ -1014,7 +1014,7 @@ function readGraphFromDb(dbPath) {
 			db.close();
 		}
 	} catch (e) {
-		log$6.warn("readGraphFromDb failed", e);
+		log$7.warn("readGraphFromDb failed", e);
 		return null;
 	}
 }
@@ -1106,7 +1106,7 @@ var CodeGraphAdapter = class {
 
 //#endregion
 //#region src/adapters/LensAdapter.ts
-const log$5 = scoped("lens-adapter");
+const log$6 = scoped("lens-adapter");
 var LensAdapter = class {
 	source = "lens";
 	async fetchData(repoId, invoke) {
@@ -1149,7 +1149,7 @@ var LensAdapter = class {
 			};
 		} catch (e) {
 			const errorMsg = e instanceof Error ? e.message : String(e);
-			log$5.warn("Lens fetchData failed — lens is optional, returning empty", e);
+			log$6.warn("Lens fetchData failed — lens is optional, returning empty", e);
 			return {
 				nodes: [],
 				edges: [],
@@ -1257,7 +1257,7 @@ var GraphDataMerger = class {
 
 //#endregion
 //#region src/tools.ts
-const log$4 = scoped("tools");
+const log$5 = scoped("tools");
 const codegraphAdapter = new CodeGraphAdapter();
 const lensAdapter = new LensAdapter();
 const merger = new GraphDataMerger();
@@ -1298,7 +1298,7 @@ function normalizeImpact(raw) {
 	if (typeof raw === "string") try {
 		raw = JSON.parse(raw);
 	} catch {
-		log$4.warn("normalizeImpact: JSON.parse failed");
+		log$5.warn("normalizeImpact: JSON.parse failed");
 		return null;
 	}
 	if (!raw || typeof raw !== "object") return null;
@@ -1319,7 +1319,7 @@ function pickBestMatch(raw, symbolId) {
 	if (typeof payload === "string") try {
 		payload = JSON.parse(payload);
 	} catch {
-		log$4.warn("normalizeCallers: JSON.parse failed");
+		log$5.warn("normalizeCallers: JSON.parse failed");
 		return null;
 	}
 	const items = Array.isArray(payload) ? payload : payload?.results ?? payload?.nodes;
@@ -1351,7 +1351,7 @@ function createInvoke(ctx, requestTimeout = 5e3) {
 			if (result.isError) return null;
 			return result.value ?? null;
 		} catch (e) {
-			log$4.warn("createInvoke: tool execution failed", {
+			log$5.warn("createInvoke: tool execution failed", {
 				tool,
 				error: e
 			});
@@ -1841,7 +1841,7 @@ function isPathAllowed(path) {
 
 //#endregion
 //#region src/host/prerequisites.ts
-const log$3 = scoped("host");
+const log$4 = scoped("host");
 function detectCodegraphCli() {
 	try {
 		const cmd = process.platform === "win32" ? "codegraph.cmd" : "codegraph";
@@ -1852,7 +1852,7 @@ function detectCodegraphCli() {
 		});
 		return r.status === 0;
 	} catch (e) {
-		log$3.warn("detectCodegraphCli failed", e);
+		log$4.warn("detectCodegraphCli failed", e);
 		return false;
 	}
 }
@@ -1865,7 +1865,7 @@ function checkPrerequisites(ctx) {
 			lens: !!lens
 		};
 	} catch (e) {
-		log$3.warn("checkPrerequisites failed", e);
+		log$4.warn("checkPrerequisites failed", e);
 		return {
 			codegraph: detectCodegraphCli(),
 			lens: false
@@ -1881,7 +1881,7 @@ function extractWorkspacePaths(ctx) {
 			if (paths.length > 0) return paths;
 		}
 	} catch (e) {
-		log$3.warn("extractWorkspacePaths: workspaceRegistry failed", e);
+		log$4.warn("extractWorkspacePaths: workspaceRegistry failed", e);
 	}
 	try {
 		const sessions = ctx.sessions;
@@ -1899,7 +1899,7 @@ function extractWorkspacePaths(ctx) {
 			if (paths.length > 0) return paths;
 		}
 	} catch (e) {
-		log$3.warn("extractWorkspacePaths: sessions failed", e);
+		log$4.warn("extractWorkspacePaths: sessions failed", e);
 	}
 	return [process.cwd()];
 }
@@ -1911,7 +1911,7 @@ function findWorkspacePath(ctx) {
 			if (workspaces.length > 0 && workspaces[0]?.path) return workspaces[0].path;
 		}
 	} catch (e) {
-		log$3.warn("findWorkspacePath: workspaceRegistry failed", e);
+		log$4.warn("findWorkspacePath: workspaceRegistry failed", e);
 	}
 	try {
 		const sessions = ctx.sessions;
@@ -1923,9 +1923,261 @@ function findWorkspacePath(ctx) {
 			}
 		}
 	} catch (e) {
-		log$3.warn("findWorkspacePath: sessions failed", e);
+		log$4.warn("findWorkspacePath: sessions failed", e);
 	}
 	return process.cwd();
+}
+
+//#endregion
+//#region src/adapters/DependencyAdapter.ts
+const log$3 = scoped("dep-adapter");
+function parsePackageJson(content) {
+	const nodes = [];
+	const edges = [];
+	try {
+		const pkg = JSON.parse(content);
+		const rootName = pkg.name || "root";
+		const rootId = `dep:${rootName}`;
+		nodes.push({
+			id: rootId,
+			name: rootName,
+			version: pkg.version || "0.0.0",
+			type: "npm"
+		});
+		const depSections = [
+			"dependencies",
+			"devDependencies",
+			"peerDependencies",
+			"optionalDependencies"
+		];
+		for (const section of depSections) {
+			const deps = pkg[section];
+			if (!deps || typeof deps !== "object") continue;
+			for (const [name$1, version$1] of Object.entries(deps)) {
+				const depId = `dep:${name$1}`;
+				if (!nodes.find((n) => n.id === depId)) nodes.push({
+					id: depId,
+					name: name$1,
+					version: String(version$1),
+					type: "npm"
+				});
+				edges.push({
+					source: rootId,
+					target: depId,
+					type: "depends"
+				});
+			}
+		}
+	} catch (e) {
+		log$3.warn("parsePackageJson failed", e);
+	}
+	return {
+		nodes,
+		edges
+	};
+}
+function parseCargoToml(content) {
+	const nodes = [];
+	const edges = [];
+	try {
+		const lines = content.split("\n");
+		let inDepsSection = false;
+		let rootName = "root";
+		for (const line of lines) {
+			const nameMatch = line.match(/^name\s*=\s*"([^"]+)"/);
+			if (nameMatch) rootName = nameMatch[1];
+			if (line.match(/^\[dependencies\]/)) {
+				inDepsSection = true;
+				continue;
+			}
+			if (line.match(/^\[/)) {
+				inDepsSection = false;
+				continue;
+			}
+			if (!inDepsSection) continue;
+			const depMatch = line.match(/^([a-zA-Z0-9_-]+)\s*=\s*"([^"]+)"/);
+			if (depMatch) {
+				const depName = depMatch[1];
+				const depVersion = depMatch[2];
+				const depId = `dep:${depName}`;
+				if (!nodes.find((n) => n.id === depId)) nodes.push({
+					id: depId,
+					name: depName,
+					version: depVersion,
+					type: "cargo"
+				});
+				edges.push({
+					source: `dep:${rootName}`,
+					target: depId,
+					type: "depends"
+				});
+			}
+		}
+		nodes.unshift({
+			id: `dep:${rootName}`,
+			name: rootName,
+			version: "0.0.0",
+			type: "cargo"
+		});
+	} catch (e) {
+		log$3.warn("parseCargoToml failed", e);
+	}
+	return {
+		nodes,
+		edges
+	};
+}
+function parseGoMod(content) {
+	const nodes = [];
+	const edges = [];
+	try {
+		const lines = content.split("\n");
+		let moduleName = "root";
+		let inRequireBlock = false;
+		for (const line of lines) {
+			const moduleMatch = line.match(/^module\s+(\S+)/);
+			if (moduleMatch) moduleName = moduleMatch[1];
+			if (line.match(/^require\s*\(/)) {
+				inRequireBlock = true;
+				continue;
+			}
+			if (line.match(/^\)/)) {
+				inRequireBlock = false;
+				continue;
+			}
+			if (!inRequireBlock && !line.match(/^require\s+/)) continue;
+			const depMatch = line.match(/^\s*(\S+)\s+(\S+)/);
+			if (depMatch) {
+				const depName = depMatch[1];
+				const depVersion = depMatch[2];
+				const depId = `dep:${depName}`;
+				if (!nodes.find((n) => n.id === depId)) nodes.push({
+					id: depId,
+					name: depName,
+					version: depVersion,
+					type: "gomod"
+				});
+				edges.push({
+					source: `dep:${moduleName}`,
+					target: depId,
+					type: "depends"
+				});
+			}
+		}
+		nodes.unshift({
+			id: `dep:${moduleName}`,
+			name: moduleName,
+			version: "0.0.0",
+			type: "gomod"
+		});
+	} catch (e) {
+		log$3.warn("parseGoMod failed", e);
+	}
+	return {
+		nodes,
+		edges
+	};
+}
+function dependencyGraphToGraphData(depGraph) {
+	const nodes = depGraph.nodes.map((n) => ({
+		id: n.id,
+		label: n.name,
+		type: "module",
+		filePath: "",
+		lineNumber: 0,
+		properties: {
+			version: n.version,
+			depType: n.type,
+			isExternal: true
+		}
+	}));
+	const edges = depGraph.edges.map((e, i) => ({
+		id: `depedge-${i}`,
+		source: e.source,
+		target: e.target,
+		type: "dependency",
+		properties: {}
+	}));
+	return {
+		nodes,
+		edges
+	};
+}
+
+//#endregion
+//#region src/merger/DiffEngine.ts
+function computeGraphDiff(beforeNodes, beforeEdges, afterNodes, afterEdges) {
+	const beforeNodeMap = new Map();
+	for (const n of beforeNodes) beforeNodeMap.set(n.id, n);
+	const afterNodeMap = new Map();
+	for (const n of afterNodes) afterNodeMap.set(n.id, n);
+	const beforeEdgeMap = new Map();
+	for (const e of beforeEdges) beforeEdgeMap.set(e.id, e);
+	const afterEdgeMap = new Map();
+	for (const e of afterEdges) afterEdgeMap.set(e.id, e);
+	const addedNodes = [];
+	const removedNodes = [];
+	const modifiedNodes = [];
+	for (const [id, node] of afterNodeMap) if (!beforeNodeMap.has(id)) addedNodes.push(node);
+	else {
+		const before = beforeNodeMap.get(id);
+		if (before.label !== node.label || before.type !== node.type || before.filePath !== node.filePath) modifiedNodes.push(node);
+	}
+	for (const [id, node] of beforeNodeMap) if (!afterNodeMap.has(id)) removedNodes.push(node);
+	const addedEdges = [];
+	const removedEdges = [];
+	for (const [id, edge] of afterEdgeMap) if (!beforeEdgeMap.has(id)) addedEdges.push(edge);
+	for (const [id, edge] of beforeEdgeMap) if (!afterEdgeMap.has(id)) removedEdges.push(edge);
+	return {
+		addedNodes,
+		removedNodes,
+		modifiedNodes,
+		addedEdges,
+		removedEdges
+	};
+}
+function diffToGraphData(diff) {
+	const nodes = [];
+	const edges = [];
+	for (const n of diff.addedNodes) nodes.push({
+		...n,
+		properties: {
+			...n.properties,
+			diffStatus: "added"
+		}
+	});
+	for (const n of diff.modifiedNodes) nodes.push({
+		...n,
+		properties: {
+			...n.properties,
+			diffStatus: "modified"
+		}
+	});
+	for (const n of diff.removedNodes) nodes.push({
+		...n,
+		properties: {
+			...n.properties,
+			diffStatus: "removed"
+		}
+	});
+	for (const e of diff.addedEdges) edges.push({
+		...e,
+		properties: {
+			...e.properties,
+			diffStatus: "added"
+		}
+	});
+	for (const e of diff.removedEdges) edges.push({
+		...e,
+		properties: {
+			...e.properties,
+			diffStatus: "removed"
+		}
+	});
+	return {
+		nodes,
+		edges
+	};
 }
 
 //#endregion
@@ -2305,6 +2557,125 @@ function registerRoutes(deps) {
 			}
 		}
 	}), "codegraph: watch route");
+	ctx.effect(() => ctx.webServer.register({
+		kind: "exact",
+		path: "/api/codegraph/dependencies",
+		handler: async (_req, res) => {
+			try {
+				const workspacePath = findWorkspacePath(ctx);
+				if (!workspacePath) {
+					sendJson(res, 200, {
+						nodes: [],
+						edges: [],
+						metadata: {
+							repoId: null,
+							timestamp: 0,
+							nodeCount: 0,
+							edgeCount: 0
+						}
+					});
+					return;
+				}
+				const fs = await import("node:fs/promises");
+				const path = await import("node:path");
+				const allDepNodes = [];
+				const allDepEdges = [];
+				const packageJsonPath = path.join(workspacePath, "package.json");
+				try {
+					const content = await fs.readFile(packageJsonPath, "utf-8");
+					const depGraph = parsePackageJson(content);
+					const converted = dependencyGraphToGraphData(depGraph);
+					allDepNodes.push(...converted.nodes);
+					allDepEdges.push(...converted.edges);
+				} catch {}
+				const cargoTomlPath = path.join(workspacePath, "Cargo.toml");
+				try {
+					const content = await fs.readFile(cargoTomlPath, "utf-8");
+					const depGraph = parseCargoToml(content);
+					const converted = dependencyGraphToGraphData(depGraph);
+					allDepNodes.push(...converted.nodes);
+					allDepEdges.push(...converted.edges);
+				} catch {}
+				const goModPath = path.join(workspacePath, "go.mod");
+				try {
+					const content = await fs.readFile(goModPath, "utf-8");
+					const depGraph = parseGoMod(content);
+					const converted = dependencyGraphToGraphData(depGraph);
+					allDepNodes.push(...converted.nodes);
+					allDepEdges.push(...converted.edges);
+				} catch {}
+				sendJson(res, 200, {
+					nodes: allDepNodes,
+					edges: allDepEdges,
+					metadata: {
+						repoId: workspacePath,
+						timestamp: Date.now(),
+						nodeCount: allDepNodes.length,
+						edgeCount: allDepEdges.length
+					}
+				});
+			} catch (e) {
+				log$2.error("dependencies route failed", e);
+				sendJson(res, 500, {
+					nodes: [],
+					edges: [],
+					metadata: {
+						repoId: null,
+						timestamp: 0,
+						nodeCount: 0,
+						edgeCount: 0
+					}
+				});
+			}
+		}
+	}), "codegraph: dependencies route");
+	ctx.effect(() => ctx.webServer.register({
+		kind: "exact",
+		path: "/api/codegraph/diff",
+		handler: async (req, res) => {
+			try {
+				const body = await readBody(req, config.maxBodyBytes);
+				const parsed = parseJsonBody(body);
+				const fromCommit = extractStringField(parsed, "from");
+				const toCommit = extractStringField(parsed, "to");
+				if (!fromCommit || !toCommit) {
+					sendJson(res, 400, { error: "from and to commits are required" });
+					return;
+				}
+				const workspacePath = findWorkspacePath(ctx);
+				if (!workspacePath) {
+					sendJson(res, 200, {
+						nodes: [],
+						edges: [],
+						metadata: {
+							repoId: null,
+							timestamp: 0,
+							nodeCount: 0,
+							edgeCount: 0
+						}
+					});
+					return;
+				}
+				const beforeGraph = await fetchMergedGraph(invokeUpstream, `${workspacePath}@${fromCommit}`, "both");
+				const afterGraph = await fetchMergedGraph(invokeUpstream, `${workspacePath}@${toCommit}`, "both");
+				const diff = computeGraphDiff(beforeGraph.nodes, beforeGraph.edges, afterGraph.nodes, afterGraph.edges);
+				const { nodes, edges } = diffToGraphData(diff);
+				sendJson(res, 200, {
+					nodes,
+					edges,
+					metadata: {
+						repoId: workspacePath,
+						timestamp: Date.now(),
+						nodeCount: nodes.length,
+						edgeCount: edges.length
+					}
+				});
+			} catch (e) {
+				log$2.error("diff route failed", e);
+				sendJson(res, 500, { error: e instanceof Error ? e.message : String(e) });
+			}
+		}
+	}), "codegraph: diff route");
 }
 
 //#endregion

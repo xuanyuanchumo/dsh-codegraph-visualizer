@@ -1,18 +1,77 @@
 import type { Core, LayoutOptions } from 'cytoscape';
 import type { LayoutType } from './IRenderer.ts';
+import type { GraphNode, GraphEdge } from '../../types/index.ts';
+
 
 export class LayoutController {
   private cy: Core;
   private layoutRaf: number | null = null;
+  private positionCache: Map<string, { x: number; y: number }> = new Map();
+  private workerLayoutResolve: ((positions: Record<string, { x: number; y: number }>) => void) | null = null;
+  private worker: Worker | null = null;
 
   constructor(cy: Core) {
     this.cy = cy;
+    this.initWorker();
+  }
+
+  private initWorker(): void {
+    try {
+      this.worker = new Worker(new URL('../worker/layoutWorker.ts', import.meta.url), { type: 'module' });
+      this.worker.onmessage = (e: MessageEvent<{ positions: Record<string, { x: number; y: number }> }>) => {
+        if (this.workerLayoutResolve) {
+          this.workerLayoutResolve(e.data.positions);
+          this.workerLayoutResolve = null;
+        }
+      };
+      this.worker.onerror = () => {
+        if (this.workerLayoutResolve) {
+          this.workerLayoutResolve({});
+          this.workerLayoutResolve = null;
+        }
+      };
+    } catch {
+      this.worker = null;
+    }
+  }
+
+  isWorkerAvailable(): boolean {
+    return this.worker !== null;
+  }
+
+  applyLayoutWithWorker(
+    nodes: GraphNode[],
+    edges: GraphEdge[],
+    layout: LayoutType,
+  ): Promise<Record<string, { x: number; y: number }>> {
+    if (!this.worker) return Promise.resolve({});
+
+    return new Promise((resolve) => {
+      this.workerLayoutResolve = resolve;
+      this.worker!.postMessage({
+        nodes: nodes.map((n) => ({ id: n.id, label: n.label, type: n.type })),
+        edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, type: e.type })),
+        layout,
+      });
+    });
+  }
+
+  applyWorkerLayout(positions: Record<string, { x: number; y: number }>): void {
+    this.cy.batch(() => {
+      for (const [id, pos] of Object.entries(positions)) {
+        const node = this.cy.getElementById(id);
+        if (node.nonempty()) node.position(pos);
+      }
+    });
+    this.cy.fit(undefined, 80);
+    this.cachePositions();
   }
 
   applyLayout(layout: LayoutType): void {
     if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
 
     this.layoutRaf = requestAnimationFrame(() => {
+      this.cachePositions();
       const nodeCount = this.cy.nodes().length;
       let effectiveLayout = layout;
       let animate = true;
@@ -32,6 +91,70 @@ export class LayoutController {
         l.run();
       }
       this.layoutRaf = null;
+    });
+  }
+
+  applyIncrementalLayout(layout: LayoutType, newNodeIds: Set<string>): void {
+    if (newNodeIds.size === 0) return;
+    if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
+
+    this.layoutRaf = requestAnimationFrame(() => {
+      const newNodes = this.cy.nodes().filter((n) => newNodeIds.has(n.id()));
+      if (newNodes.length === 0) {
+        this.layoutRaf = null;
+        return;
+      }
+
+      this.restoreCachedPositions();
+
+      const presetOptions: LayoutOptions = {
+        name: 'preset',
+        positions: (node: { id: () => string }) => {
+          const cached = this.positionCache.get(node.id());
+          if (cached) return cached;
+          const existingNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
+          if (existingNodes.length === 0) return { x: 0, y: 0 };
+          const bbox = existingNodes.boundingBox();
+          return {
+            x: bbox.x2 + 100 + Math.random() * 200,
+            y: bbox.y1 + Math.random() * bbox.h,
+          };
+        },
+        animate: false,
+      } as LayoutOptions;
+
+      this.cy.layout(presetOptions).run();
+
+      if (layout === 'cose' || layout === 'dagre') {
+        const incrementalOptions = this.buildLayoutOptions(layout, false, newNodes.length);
+        if (incrementalOptions) {
+          const l = newNodes.layout(incrementalOptions);
+          l.one('layoutstop', () => this.removeOverlaps());
+          l.run();
+        }
+      } else {
+        this.removeOverlaps();
+      }
+
+      this.cachePositions();
+      this.layoutRaf = null;
+    });
+  }
+
+  private cachePositions(): void {
+    this.positionCache.clear();
+    this.cy.nodes().forEach((n) => {
+      const p = n.position();
+      this.positionCache.set(n.id(), { x: p.x, y: p.y });
+    });
+  }
+
+  private restoreCachedPositions(): void {
+    this.cy.batch(() => {
+      this.cy.nodes().forEach((n) => {
+        const cached = this.positionCache.get(n.id());
+        if (cached) n.position(cached);
+      });
     });
   }
 
@@ -189,5 +312,7 @@ export class LayoutController {
   destroy(): void {
     if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
     this.layoutRaf = null;
+    this.worker?.terminate();
+    this.worker = null;
   }
 }

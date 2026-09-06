@@ -56,6 +56,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   showRules: boolean;
   showHotspot: boolean;
   showGodModule: boolean;
+  viewMode: 'code' | 'dependencies';
   collapsed: boolean;
   onLayoutChange: (l: LayoutType) => void;
   onThemeToggle: () => void;
@@ -75,6 +76,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   onToggleRules: () => void;
   onToggleHotspot: () => void;
   onToggleGodModule: () => void;
+  onToggleViewMode: () => void;
   onRefresh: () => void;
   onExport: (format: 'png' | 'svg' | 'json') => void;
   onCollapse: () => void;
@@ -111,10 +113,12 @@ export function Toolbar(props: ToolbarProps) {
     statsText, typeCounts, layout, theme, filterType, graphType, clusterLevel,
     showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport,
     showPathFind, showHealthScore, showRules, showHotspot, showGodModule,
+    viewMode,
     collapsed,
     onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange,
     onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend,
     onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule,
+    onToggleViewMode,
     onRefresh, onCollapse,
     currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
     onCollapseAll,
@@ -161,6 +165,12 @@ export function Toolbar(props: ToolbarProps) {
             >{t(g.key)}</button>
           ))}
         </div>
+        <button
+          className={`view-mode-btn ${viewMode === 'dependencies' ? 'active' : ''}`}
+          onClick={onToggleViewMode}
+          title={viewMode === 'code' ? t('toolbar.viewModeDeps') : t('toolbar.viewModeCode')}
+          aria-pressed={viewMode === 'dependencies'}
+        >{viewMode === 'code' ? 'Deps' : 'Code'}</button>
         <select
           value={clusterLevel}
           onChange={(e) => onClusterLevelChange(e.target.value as ClusterLevel)}

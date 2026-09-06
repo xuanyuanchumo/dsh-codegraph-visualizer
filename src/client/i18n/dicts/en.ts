@@ -266,4 +266,8 @@ export const en: Record<string, string> = {
   // History
   'toolbar.undo': 'Undo (Ctrl+Z)',
   'toolbar.redo': 'Redo (Ctrl+Y)',
+
+  // View mode
+  'toolbar.viewModeDeps': 'Switch to dependency graph view',
+  'toolbar.viewModeCode': 'Switch to code graph view',
 };
