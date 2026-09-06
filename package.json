@@ -32,7 +32,9 @@
     "hygiene": "publint dist && node scripts/consume-check.mjs",
     "prepublishOnly": "pnpm run build && pnpm run test"
   },
-  "dependencies": {},
+  "dependencies": {
+    "web-tree-sitter": "^0.27.0"
+  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-tools": "^0.1.1-rc.2",

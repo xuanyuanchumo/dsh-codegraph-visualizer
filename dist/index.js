@@ -958,7 +958,7 @@ function scoped(scope) {
 
 //#endregion
 //#region src/adapters/CodeGraphAdapter.ts
-const log$7 = scoped("codegraph-adapter");
+const log$8 = scoped("codegraph-adapter");
 const require = createRequire(import.meta.url);
 const NODE_KIND_MAP = {
 	function: "function",
@@ -1014,7 +1014,7 @@ function readGraphFromDb(dbPath) {
 			db.close();
 		}
 	} catch (e) {
-		log$7.warn("readGraphFromDb failed", e);
+		log$8.warn("readGraphFromDb failed", e);
 		return null;
 	}
 }
@@ -1106,7 +1106,7 @@ var CodeGraphAdapter = class {
 
 //#endregion
 //#region src/adapters/LensAdapter.ts
-const log$6 = scoped("lens-adapter");
+const log$7 = scoped("lens-adapter");
 var LensAdapter = class {
 	source = "lens";
 	async fetchData(repoId, invoke) {
@@ -1149,7 +1149,7 @@ var LensAdapter = class {
 			};
 		} catch (e) {
 			const errorMsg = e instanceof Error ? e.message : String(e);
-			log$6.warn("Lens fetchData failed — lens is optional, returning empty", e);
+			log$7.warn("Lens fetchData failed — lens is optional, returning empty", e);
 			return {
 				nodes: [],
 				edges: [],
@@ -1257,7 +1257,7 @@ var GraphDataMerger = class {
 
 //#endregion
 //#region src/tools.ts
-const log$5 = scoped("tools");
+const log$6 = scoped("tools");
 const codegraphAdapter = new CodeGraphAdapter();
 const lensAdapter = new LensAdapter();
 const merger = new GraphDataMerger();
@@ -1298,7 +1298,7 @@ function normalizeImpact(raw) {
 	if (typeof raw === "string") try {
 		raw = JSON.parse(raw);
 	} catch {
-		log$5.warn("normalizeImpact: JSON.parse failed");
+		log$6.warn("normalizeImpact: JSON.parse failed");
 		return null;
 	}
 	if (!raw || typeof raw !== "object") return null;
@@ -1319,7 +1319,7 @@ function pickBestMatch(raw, symbolId) {
 	if (typeof payload === "string") try {
 		payload = JSON.parse(payload);
 	} catch {
-		log$5.warn("normalizeCallers: JSON.parse failed");
+		log$6.warn("normalizeCallers: JSON.parse failed");
 		return null;
 	}
 	const items = Array.isArray(payload) ? payload : payload?.results ?? payload?.nodes;
@@ -1351,7 +1351,7 @@ function createInvoke(ctx, requestTimeout = 5e3) {
 			if (result.isError) return null;
 			return result.value ?? null;
 		} catch (e) {
-			log$5.warn("createInvoke: tool execution failed", {
+			log$6.warn("createInvoke: tool execution failed", {
 				tool,
 				error: e
 			});
@@ -1841,7 +1841,7 @@ function isPathAllowed(path) {
 
 //#endregion
 //#region src/host/prerequisites.ts
-const log$4 = scoped("host");
+const log$5 = scoped("host");
 function detectCodegraphCli() {
 	try {
 		const cmd = process.platform === "win32" ? "codegraph.cmd" : "codegraph";
@@ -1852,7 +1852,7 @@ function detectCodegraphCli() {
 		});
 		return r.status === 0;
 	} catch (e) {
-		log$4.warn("detectCodegraphCli failed", e);
+		log$5.warn("detectCodegraphCli failed", e);
 		return false;
 	}
 }
@@ -1865,7 +1865,7 @@ function checkPrerequisites(ctx) {
 			lens: !!lens
 		};
 	} catch (e) {
-		log$4.warn("checkPrerequisites failed", e);
+		log$5.warn("checkPrerequisites failed", e);
 		return {
 			codegraph: detectCodegraphCli(),
 			lens: false
@@ -1881,7 +1881,7 @@ function extractWorkspacePaths(ctx) {
 			if (paths.length > 0) return paths;
 		}
 	} catch (e) {
-		log$4.warn("extractWorkspacePaths: workspaceRegistry failed", e);
+		log$5.warn("extractWorkspacePaths: workspaceRegistry failed", e);
 	}
 	try {
 		const sessions = ctx.sessions;
@@ -1899,7 +1899,7 @@ function extractWorkspacePaths(ctx) {
 			if (paths.length > 0) return paths;
 		}
 	} catch (e) {
-		log$4.warn("extractWorkspacePaths: sessions failed", e);
+		log$5.warn("extractWorkspacePaths: sessions failed", e);
 	}
 	return [process.cwd()];
 }
@@ -1911,7 +1911,7 @@ function findWorkspacePath(ctx) {
 			if (workspaces.length > 0 && workspaces[0]?.path) return workspaces[0].path;
 		}
 	} catch (e) {
-		log$4.warn("findWorkspacePath: workspaceRegistry failed", e);
+		log$5.warn("findWorkspacePath: workspaceRegistry failed", e);
 	}
 	try {
 		const sessions = ctx.sessions;
@@ -1923,14 +1923,14 @@ function findWorkspacePath(ctx) {
 			}
 		}
 	} catch (e) {
-		log$4.warn("findWorkspacePath: sessions failed", e);
+		log$5.warn("findWorkspacePath: sessions failed", e);
 	}
 	return process.cwd();
 }
 
 //#endregion
 //#region src/adapters/DependencyAdapter.ts
-const log$3 = scoped("dep-adapter");
+const log$4 = scoped("dep-adapter");
 function parsePackageJson(content) {
 	const nodes = [];
 	const edges = [];
@@ -1969,7 +1969,7 @@ function parsePackageJson(content) {
 			}
 		}
 	} catch (e) {
-		log$3.warn("parsePackageJson failed", e);
+		log$4.warn("parsePackageJson failed", e);
 	}
 	return {
 		nodes,
@@ -2020,7 +2020,7 @@ function parseCargoToml(content) {
 			type: "cargo"
 		});
 	} catch (e) {
-		log$3.warn("parseCargoToml failed", e);
+		log$4.warn("parseCargoToml failed", e);
 	}
 	return {
 		nodes,
@@ -2071,7 +2071,7 @@ function parseGoMod(content) {
 			type: "gomod"
 		});
 	} catch (e) {
-		log$3.warn("parseGoMod failed", e);
+		log$4.warn("parseGoMod failed", e);
 	}
 	return {
 		nodes,
@@ -2179,6 +2179,192 @@ function diffToGraphData(diff) {
 		edges
 	};
 }
+
+//#endregion
+//#region src/adapters/TreeSitterAdapter.ts
+const log$3 = scoped("tree-sitter-adapter");
+const SUPPORTED_LANGUAGES = [
+	"typescript",
+	"javascript",
+	"python",
+	"java",
+	"rust",
+	"go"
+];
+const FILE_EXTENSIONS = {
+	".ts": "typescript",
+	".tsx": "typescript",
+	".js": "javascript",
+	".jsx": "javascript",
+	".py": "python",
+	".java": "java",
+	".rs": "rust",
+	".go": "go"
+};
+var TreeSitterAdapter = class {
+	parser = null;
+	loadedLanguages = new Set();
+	async init() {
+		if (this.parser) return;
+		try {
+			const { Parser } = await import("web-tree-sitter");
+			this.parser = new Parser();
+			log$3.info("TreeSitter parser initialized");
+		} catch (e) {
+			log$3.warn("Failed to init TreeSitter", e);
+		}
+	}
+	isAvailable() {
+		return this.parser !== null;
+	}
+	getSupportedLanguages() {
+		return SUPPORTED_LANGUAGES;
+	}
+	detectLanguage(filePath) {
+		for (const [ext, lang] of Object.entries(FILE_EXTENSIONS)) if (filePath.endsWith(ext)) return lang;
+		return null;
+	}
+	async parseFile(filePath, content) {
+		if (!this.parser) {
+			await this.init();
+			if (!this.parser) return {
+				nodes: [],
+				edges: [],
+				source: "tree-sitter",
+				timestamp: Date.now(),
+				error: "Parser not initialized"
+			};
+		}
+		const language = this.detectLanguage(filePath);
+		if (!language) return {
+			nodes: [],
+			edges: [],
+			source: "tree-sitter",
+			timestamp: Date.now(),
+			error: `Unsupported file: ${filePath}`
+		};
+		if (!this.loadedLanguages.has(language)) try {
+			const langModule = await this.loadLanguageWasm(language);
+			this.parser.setLanguage(langModule);
+			this.loadedLanguages.add(language);
+		} catch (e) {
+			return {
+				nodes: [],
+				edges: [],
+				source: "tree-sitter",
+				timestamp: Date.now(),
+				error: `Failed to load ${language}: ${e}`
+			};
+		}
+		try {
+			const tree = this.parser.parse(content);
+			const { nodes, edges } = this.extractSymbols(tree.rootNode, filePath);
+			tree.delete();
+			return {
+				nodes,
+				edges,
+				source: "tree-sitter",
+				timestamp: Date.now()
+			};
+		} catch (e) {
+			log$3.warn("parseFile failed", {
+				filePath,
+				error: e
+			});
+			return {
+				nodes: [],
+				edges: [],
+				source: "tree-sitter",
+				timestamp: Date.now(),
+				error: String(e)
+			};
+		}
+	}
+	async loadLanguageWasm(language) {
+		const wasmPaths = {
+			typescript: "tree-sitter-typescript.wasm",
+			javascript: "tree-sitter-javascript.wasm",
+			python: "tree-sitter-python.wasm",
+			java: "tree-sitter-java.wasm",
+			rust: "tree-sitter-rust.wasm",
+			go: "tree-sitter-go.wasm"
+		};
+		const wasmPath = wasmPaths[language];
+		const { Language } = await import("web-tree-sitter");
+		return await Language.load(wasmPath);
+	}
+	extractSymbols(rootNode, filePath) {
+		const nodes = [];
+		const edges = [];
+		const visited = new Set();
+		const walk = (node, parentId) => {
+			if (!node) return;
+			const nodeType = node.type;
+			let graphType = null;
+			if ([
+				"function_declaration",
+				"function_definition",
+				"method_declaration",
+				"method_definition",
+				"arrow_function"
+			].includes(nodeType)) graphType = "function";
+			else if ([
+				"class_declaration",
+				"class_definition",
+				"struct_declaration",
+				"interface_declaration"
+			].includes(nodeType)) graphType = "class";
+			else if ([
+				"variable_declaration",
+				"const_declaration",
+				"let_declaration",
+				"assignment"
+			].includes(nodeType)) graphType = "variable";
+			else if ([
+				"import_statement",
+				"import_declaration",
+				"use_declaration"
+			].includes(nodeType)) graphType = "module";
+			if (graphType) {
+				const nameNode = node.childForFieldName?.("name") || node.children?.find((c) => c.type === "identifier" || c.type === "property_identifier");
+				const label = nameNode ? nameNode.text : `<${nodeType}>`;
+				const id = `${filePath}:${label}:${node.startPosition.row}`;
+				if (!visited.has(id)) {
+					visited.add(id);
+					nodes.push({
+						id,
+						label,
+						type: graphType,
+						filePath,
+						lineNumber: node.startPosition.row + 1,
+						properties: {
+							source: "tree-sitter",
+							nodeType
+						},
+						...parentId ? { parentId } : {}
+					});
+					if (parentId) edges.push({
+						id: `tsedge:${parentId}->${id}`,
+						source: parentId,
+						target: id,
+						type: "dependency",
+						properties: {}
+					});
+				}
+			}
+			for (let i = 0; i < (node.childCount || 0); i++) walk(node.child(i), graphType ? `${filePath}:${node.childForFieldName?.("name")?.text || `<${nodeType}>`}:${node.startPosition.row}` : parentId);
+		};
+		walk(rootNode);
+		return {
+			nodes,
+			edges
+		};
+	}
+	destroy() {
+		this.parser = null;
+		this.loadedLanguages.clear();
+	}
+};
 
 //#endregion
 //#region src/host/routes.ts
@@ -2676,6 +2862,30 @@ function registerRoutes(deps) {
 			}
 		}
 	}), "codegraph: diff route");
+	ctx.effect(() => {
+		const treeSitterAdapter = new TreeSitterAdapter();
+		return ctx.webServer.register({
+			kind: "exact",
+			path: "/api/codegraph/tree-sitter",
+			handler: async (req, res) => {
+				try {
+					const body = await readBody(req, config.maxBodyBytes);
+					const parsed = parseJsonBody(body);
+					const filePath = extractStringField(parsed, "filePath");
+					const content = extractStringField(parsed, "content");
+					if (!filePath || !content) {
+						sendJson(res, 400, { error: "filePath and content are required" });
+						return;
+					}
+					const result = await treeSitterAdapter.parseFile(filePath, content);
+					sendJson(res, 200, result);
+				} catch (e) {
+					log$2.error("tree-sitter route failed", e);
+					sendJson(res, 500, { error: e instanceof Error ? e.message : String(e) });
+				}
+			}
+		});
+	}, "codegraph: tree-sitter route");
 }
 
 //#endregion

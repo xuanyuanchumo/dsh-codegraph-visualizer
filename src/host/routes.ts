@@ -8,6 +8,7 @@ import { findWorkspacePath, extractWorkspacePaths, checkPrerequisites } from './
 import type { VisualizerConfig } from './config.ts';
 import { parsePackageJson, parseCargoToml, parseGoMod, dependencyGraphToGraphData } from '../adapters/DependencyAdapter.ts';
 import { computeGraphDiff, diffToGraphData } from '../merger/DiffEngine.ts';
+import { TreeSitterAdapter } from '../adapters/TreeSitterAdapter.ts';
 
 const log = scoped('host');
 
@@ -452,4 +453,30 @@ export function registerRoutes(deps: RouteDeps): void {
       }
     },
   }), 'codegraph: diff route');
+
+  // POST /api/codegraph/tree-sitter — FR-20 Tree-sitter 多语言解析
+  ctx.effect(() => {
+    const treeSitterAdapter = new TreeSitterAdapter();
+    return ctx.webServer.register({
+      kind: 'exact',
+      path: '/api/codegraph/tree-sitter',
+      handler: async (req: IncomingMessage, res: ServerResponse) => {
+        try {
+          const body = await readBody(req, config.maxBodyBytes);
+          const parsed = parseJsonBody(body);
+          const filePath = extractStringField(parsed, 'filePath');
+          const content = extractStringField(parsed, 'content');
+          if (!filePath || !content) {
+            sendJson(res, 400, { error: 'filePath and content are required' });
+            return;
+          }
+          const result = await treeSitterAdapter.parseFile(filePath, content);
+          sendJson(res, 200, result);
+        } catch (e) {
+          log.error('tree-sitter route failed', e);
+          sendJson(res, 500, { error: e instanceof Error ? e.message : String(e) });
+        }
+      },
+    });
+  }, 'codegraph: tree-sitter route');
 }
