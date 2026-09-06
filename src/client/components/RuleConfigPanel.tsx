@@ -71,8 +71,8 @@ export function RuleConfigPanel({ violations, onCheckRules, onClose }: RuleConfi
           {showViolations && (
             <div className="rule-violations-list">
               {violations.length === 0 && <div className="rule-empty">{t('rules.noViolations')}</div>}
-              {violations.map((v, i) => (
-                <div key={`${v.ruleId}-${i}`} className={`violation-item ${v.severity}`}>
+              {violations.map((v) => (
+                <div key={`${v.ruleId}-${v.edgeId ?? v.nodeId ?? v.message}`} className={`violation-item ${v.severity}`}>
                   <AlertIcon size={12} />
                   <span className="violation-message">{v.message}</span>
                 </div>

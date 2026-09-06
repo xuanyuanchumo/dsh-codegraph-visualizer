@@ -104,10 +104,11 @@ export function Toolbar(props: ToolbarProps) {
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [showExportMenu]);
 
+  const onExport = props.onExport;
   const handleExport = useCallback((format: 'png' | 'svg' | 'json') => {
-    props.onExport(format);
+    onExport(format);
     setShowExportMenu(false);
-  }, [props]);
+  }, [onExport]);
 
   const {
     statsText, typeCounts, layout, theme, filterType, graphType, clusterLevel,

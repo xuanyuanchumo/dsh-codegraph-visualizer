@@ -44,6 +44,7 @@ interface GraphPanelProps {
 function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const t = useT();
   const panelRef = useRef<HTMLDivElement>(null);
+  const depsFetchAbortRef = useRef<AbortController | null>(null);
   const getDataRef = useRef<{
     getSelectedNodeData: () => GraphNode | null;
     getNodeData: (id: string) => GraphNode | null;
@@ -78,7 +79,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     initStatus: s.initStatus,
     truncated: s.truncated, totalNodeCount: s.totalNodeCount, totalEdgeCount: s.totalEdgeCount,
     expandedNodeIds: s.expandedNodeIds,
-    pathStartId: s.pathStartId, pathEndId: s.pathEndId, pathResult: s.pathResult,
+    pathResult: s.pathResult,
     focusDepth: s.focusDepth, healthScore: s.healthScore,
     rules: s.rules, ruleViolations: s.ruleViolations,
     viewMode: s.viewMode,
@@ -324,6 +325,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     };
   }, [panel.showMiniMap, panel.collapsed, renderer.rendererRef, nodes.length, layout]);
 
+  // Abort in-flight dependency fetch on unmount
+  useEffect(() => () => depsFetchAbortRef.current?.abort(), []);
+
   const handleThemeToggle = useCallback(() => {
     const newTheme: ThemeType = theme === 'dark' ? 'light' : 'dark';
     if (newTheme === 'dark') {
@@ -345,16 +349,21 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     setViewMode(newMode);
     if (newMode === 'dependencies') {
       setLoading(true);
-      fetch('/api/v1/codegraph/dependencies')
+      const controller = new AbortController();
+      depsFetchAbortRef.current?.abort();
+      depsFetchAbortRef.current = controller;
+      fetch('/api/v1/codegraph/dependencies', { signal: controller.signal })
         .then((r) => r.json())
         .then((data) => {
+          if (controller.signal.aborted) return;
           if (data.nodes && data.nodes.length > 0) {
             setGraphData(data.nodes, data.edges, data.metadata?.repoId || currentWorkspace);
           }
         })
         .catch(() => {})
-        .finally(() => setLoading(false));
+        .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     } else {
+      depsFetchAbortRef.current?.abort();
       window.dispatchEvent(new CustomEvent('codegraph:refresh', { detail: { incremental: false } }));
     }
   }, [viewMode, setViewMode, setLoading, setGraphData, currentWorkspace]);
@@ -426,27 +435,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   // FR-35: Impact radius stats
   const [impactStats, setImpactStats] = useState<{ d1: number; d2: number; d3: number; total: number } | null>(null);
 
-  // FR-33: Hotspot analysis handler
+  // FR-33: Hotspot analysis state (auto-computed when panel opens)
   const [hotspotNodes, setHotspotNodes] = useState<{ nodeId: string; label: string; indegree: number; level: string }[]>([]);
-  const handleHotspotToggle = useCallback(() => {
-    if (panel.showHotspot) {
-      setHotspotNodes([]);
-      return;
-    }
-    const hotspots = hotspotAnalyzer.analyze(rawNodes, rawEdges);
-    setHotspotNodes(hotspots);
-  }, [panel.showHotspot, rawNodes, rawEdges]);
 
-  // FR-36: God Module detection handler
+  // FR-36: God Module detection state (auto-computed when panel opens)
   const [godModules, setGodModules] = useState<{ modulePath: string; nodeCount: number; edgeCount: number; suggestion: string }[]>([]);
-  const handleGodModuleToggle = useCallback(() => {
-    if (panel.showGodModule) {
-      setGodModules([]);
-      return;
-    }
-    const modules = godModuleDetector.detect(rawNodes, rawEdges);
-    setGodModules(modules);
-  }, [panel.showGodModule, rawNodes, rawEdges]);
 
   // Auto-calculate health score when panel opens
   useEffect(() => {
@@ -464,17 +457,17 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   // Auto-run hotspot analysis when panel opens
   useEffect(() => {
-    if (panel.showHotspot) {
-      handleHotspotToggle();
+    if (panel.showHotspot && rawNodes.length > 0) {
+      setHotspotNodes(hotspotAnalyzer.analyze(rawNodes, rawEdges));
     }
-  }, [panel.showHotspot, handleHotspotToggle]);
+  }, [panel.showHotspot, rawNodes, rawEdges]);
 
   // Auto-run God Module detection when panel opens
   useEffect(() => {
-    if (panel.showGodModule) {
-      handleGodModuleToggle();
+    if (panel.showGodModule && rawNodes.length > 0) {
+      setGodModules(godModuleDetector.detect(rawNodes, rawEdges));
     }
-  }, [panel.showGodModule, handleGodModuleToggle]);
+  }, [panel.showGodModule, rawNodes, rawEdges]);
 
   // FR-35: Auto-fetch impact stats when impact mode is on and a node is selected
   useEffect(() => {

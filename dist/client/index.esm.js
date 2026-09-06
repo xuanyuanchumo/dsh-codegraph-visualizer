@@ -41994,21 +41994,9 @@ function useGraphCache() {
 	const cacheData = useCallback((repoId, nodes, edges) => {
 		cacheRef.current.set(repoId, nodes, edges);
 	}, []);
-	const getCachedLayout = useCallback((repoId) => {
-		return cacheRef.current.getLayoutPositions(repoId);
-	}, []);
-	const cacheLayout = useCallback((repoId, positions, layoutType) => {
-		cacheRef.current.setLayoutPositions(repoId, positions, layoutType);
-	}, []);
-	const hasCache = useCallback((repoId) => {
-		return cacheRef.current.has(repoId);
-	}, []);
 	return {
 		getCachedData,
-		cacheData,
-		getCachedLayout,
-		cacheLayout,
-		hasCache
+		cacheData
 	};
 }
 
@@ -43621,10 +43609,11 @@ function Toolbar(props) {
 		document.addEventListener("mousedown", onDocClick);
 		return () => document.removeEventListener("mousedown", onDocClick);
 	}, [showExportMenu]);
+	const onExport = props.onExport;
 	const handleExport = useCallback((format) => {
-		props.onExport(format);
+		onExport(format);
 		setShowExportMenu(false);
-	}, [props]);
+	}, [onExport]);
 	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterLevel, showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport, showPathFind, showHealthScore, showRules, showHotspot, showGodModule, viewMode, collapsed, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onToggleViewMode, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll, onUndo, onRedo, canUndo, canRedo } = props;
 	return /* @__PURE__ */ jsxs("div", {
 		className: "graph-toolbar",
@@ -44686,8 +44675,8 @@ function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClose }) {
 	const setPathResult = useGraphStore((s) => s.setPathResult);
 	const [startQuery, setStartQuery] = useState("");
 	const [endQuery, setEndQuery] = useState("");
-	const startMatches = startQuery ? rawNodes.filter((n) => n.label.toLowerCase().includes(startQuery.toLowerCase())).slice(0, 10) : [];
-	const endMatches = endQuery ? rawNodes.filter((n) => n.label.toLowerCase().includes(endQuery.toLowerCase())).slice(0, 10) : [];
+	const startMatches = useMemo(() => startQuery ? rawNodes.filter((n) => n.label.toLowerCase().includes(startQuery.toLowerCase())).slice(0, 10) : [], [startQuery, rawNodes]);
+	const endMatches = useMemo(() => endQuery ? rawNodes.filter((n) => n.label.toLowerCase().includes(endQuery.toLowerCase())).slice(0, 10) : [], [endQuery, rawNodes]);
 	const handleFind = useCallback(() => {
 		if (pathStartId && pathEndId) onFindPath(pathStartId, pathEndId);
 	}, [
@@ -44736,8 +44725,13 @@ function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClose }) {
 				/* @__PURE__ */ jsxs("div", {
 					className: "path-input-group",
 					children: [
-						/* @__PURE__ */ jsx("label", { children: t$1("pathFind.start") }),
+						/* @__PURE__ */ jsx("label", {
+							htmlFor: "path-start-input",
+							children: t$1("pathFind.start")
+						}),
 						/* @__PURE__ */ jsx("input", {
+							id: "path-start-input",
+							name: "pathStart",
 							type: "text",
 							value: startQuery,
 							onChange: (e) => {
@@ -44771,8 +44765,13 @@ function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClose }) {
 				/* @__PURE__ */ jsxs("div", {
 					className: "path-input-group",
 					children: [
-						/* @__PURE__ */ jsx("label", { children: t$1("pathFind.end") }),
+						/* @__PURE__ */ jsx("label", {
+							htmlFor: "path-end-input",
+							children: t$1("pathFind.end")
+						}),
 						/* @__PURE__ */ jsx("input", {
+							id: "path-end-input",
+							name: "pathEnd",
 							type: "text",
 							value: endQuery,
 							onChange: (e) => {
@@ -45314,13 +45313,13 @@ function RuleConfigPanel({ violations, onCheckRules, onClose }) {
 					children: [violations.length === 0 && /* @__PURE__ */ jsx("div", {
 						className: "rule-empty",
 						children: t$1("rules.noViolations")
-					}), violations.map((v, i$1) => /* @__PURE__ */ jsxs("div", {
+					}), violations.map((v) => /* @__PURE__ */ jsxs("div", {
 						className: `violation-item ${v.severity}`,
 						children: [/* @__PURE__ */ jsx(AlertIcon, { size: 12 }), /* @__PURE__ */ jsx("span", {
 							className: "violation-message",
 							children: v.message
 						})]
-					}, `${v.ruleId}-${i$1}`))]
+					}, `${v.ruleId}-${v.edgeId ?? v.nodeId ?? v.message}`))]
 				})]
 			})]
 		})]
@@ -45619,6 +45618,7 @@ const godModuleDetector = new GodModuleDetector();
 function GraphPanelInner({ className = "" }) {
 	const t$1 = useT();
 	const panelRef = useRef(null);
+	const depsFetchAbortRef = useRef(null);
 	const getDataRef = useRef(null);
 	const [selectedNodeData, setSelectedNodeData] = useState(null);
 	const [tooltip, setTooltip] = useState(null);
@@ -45650,8 +45650,6 @@ function GraphPanelInner({ className = "" }) {
 		totalNodeCount: s.totalNodeCount,
 		totalEdgeCount: s.totalEdgeCount,
 		expandedNodeIds: s.expandedNodeIds,
-		pathStartId: s.pathStartId,
-		pathEndId: s.pathEndId,
 		pathResult: s.pathResult,
 		focusDepth: s.focusDepth,
 		healthScore: s.healthScore,
@@ -45893,6 +45891,7 @@ function GraphPanelInner({ className = "" }) {
 		nodes.length,
 		layout$2
 	]);
+	useEffect(() => () => depsFetchAbortRef.current?.abort(), []);
 	const handleThemeToggle = useCallback(() => {
 		const newTheme = theme === "dark" ? "light" : "dark";
 		if (newTheme === "dark") document.body.setAttribute("data-ds-dark-theme", "");
@@ -45913,10 +45912,19 @@ function GraphPanelInner({ className = "" }) {
 		setViewMode(newMode);
 		if (newMode === "dependencies") {
 			setLoading(true);
-			fetch("/api/v1/codegraph/dependencies").then((r) => r.json()).then((data$2) => {
+			const controller = new AbortController();
+			depsFetchAbortRef.current?.abort();
+			depsFetchAbortRef.current = controller;
+			fetch("/api/v1/codegraph/dependencies", { signal: controller.signal }).then((r) => r.json()).then((data$2) => {
+				if (controller.signal.aborted) return;
 				if (data$2.nodes && data$2.nodes.length > 0) setGraphData(data$2.nodes, data$2.edges, data$2.metadata?.repoId || currentWorkspace);
-			}).catch(() => {}).finally(() => setLoading(false));
-		} else window.dispatchEvent(new CustomEvent("codegraph:refresh", { detail: { incremental: false } }));
+			}).catch(() => {}).finally(() => {
+				if (!controller.signal.aborted) setLoading(false);
+			});
+		} else {
+			depsFetchAbortRef.current?.abort();
+			window.dispatchEvent(new CustomEvent("codegraph:refresh", { detail: { incremental: false } }));
+		}
 	}, [
 		viewMode,
 		setViewMode,
@@ -45996,31 +46004,7 @@ function GraphPanelInner({ className = "" }) {
 	]);
 	const [impactStats, setImpactStats] = useState(null);
 	const [hotspotNodes, setHotspotNodes] = useState([]);
-	const handleHotspotToggle = useCallback(() => {
-		if (panel.showHotspot) {
-			setHotspotNodes([]);
-			return;
-		}
-		const hotspots = hotspotAnalyzer.analyze(rawNodes, rawEdges);
-		setHotspotNodes(hotspots);
-	}, [
-		panel.showHotspot,
-		rawNodes,
-		rawEdges
-	]);
 	const [godModules, setGodModules] = useState([]);
-	const handleGodModuleToggle = useCallback(() => {
-		if (panel.showGodModule) {
-			setGodModules([]);
-			return;
-		}
-		const modules$1 = godModuleDetector.detect(rawNodes, rawEdges);
-		setGodModules(modules$1);
-	}, [
-		panel.showGodModule,
-		rawNodes,
-		rawEdges
-	]);
 	useEffect(() => {
 		if (panel.showHealthScore && !healthScore && rawNodes.length > 0) handleHealthCheck();
 	}, [
@@ -46037,11 +46021,19 @@ function GraphPanelInner({ className = "" }) {
 		setRules
 	]);
 	useEffect(() => {
-		if (panel.showHotspot) handleHotspotToggle();
-	}, [panel.showHotspot, handleHotspotToggle]);
+		if (panel.showHotspot && rawNodes.length > 0) setHotspotNodes(hotspotAnalyzer.analyze(rawNodes, rawEdges));
+	}, [
+		panel.showHotspot,
+		rawNodes,
+		rawEdges
+	]);
 	useEffect(() => {
-		if (panel.showGodModule) handleGodModuleToggle();
-	}, [panel.showGodModule, handleGodModuleToggle]);
+		if (panel.showGodModule && rawNodes.length > 0) setGodModules(godModuleDetector.detect(rawNodes, rawEdges));
+	}, [
+		panel.showGodModule,
+		rawNodes,
+		rawEdges
+	]);
 	useEffect(() => {
 		if (panel.showImpact && selectedNodeId) {
 			const stats = renderer$1.rendererRef.current?.getImpactStats(selectedNodeId);

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
 import { useT } from '../i18n/index.ts';
 import { CloseIcon, PathIcon } from './Icons.tsx';
@@ -23,12 +23,14 @@ export function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClo
   const [startQuery, setStartQuery] = useState('');
   const [endQuery, setEndQuery] = useState('');
 
-  const startMatches = startQuery
-    ? rawNodes.filter((n) => n.label.toLowerCase().includes(startQuery.toLowerCase())).slice(0, 10)
-    : [];
-  const endMatches = endQuery
-    ? rawNodes.filter((n) => n.label.toLowerCase().includes(endQuery.toLowerCase())).slice(0, 10)
-    : [];
+  const startMatches = useMemo(
+    () => (startQuery ? rawNodes.filter((n) => n.label.toLowerCase().includes(startQuery.toLowerCase())).slice(0, 10) : []),
+    [startQuery, rawNodes],
+  );
+  const endMatches = useMemo(
+    () => (endQuery ? rawNodes.filter((n) => n.label.toLowerCase().includes(endQuery.toLowerCase())).slice(0, 10) : []),
+    [endQuery, rawNodes],
+  );
 
   const handleFind = useCallback(() => {
     if (pathStartId && pathEndId) {
@@ -56,8 +58,10 @@ export function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClo
       </div>
       <div className="path-bar-content">
         <div className="path-input-group">
-          <label>{t('pathFind.start')}</label>
+          <label htmlFor="path-start-input">{t('pathFind.start')}</label>
           <input
+            id="path-start-input"
+            name="pathStart"
             type="text"
             value={startQuery}
             onChange={(e) => { setStartQuery(e.target.value); setPathStart(null); }}
@@ -76,8 +80,10 @@ export function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClo
           {pathStartId && <span className="path-selected">{rawNodes.find((n) => n.id === pathStartId)?.label ?? pathStartId}</span>}
         </div>
         <div className="path-input-group">
-          <label>{t('pathFind.end')}</label>
+          <label htmlFor="path-end-input">{t('pathFind.end')}</label>
           <input
+            id="path-end-input"
+            name="pathEnd"
             type="text"
             value={endQuery}
             onChange={(e) => { setEndQuery(e.target.value); setPathEnd(null); }}

@@ -16,17 +16,5 @@ export function useGraphCache() {
     cacheRef.current.set(repoId, nodes, edges);
   }, []);
 
-  const getCachedLayout = useCallback((repoId: string): Map<string, { x: number; y: number }> | null => {
-    return cacheRef.current.getLayoutPositions(repoId);
-  }, []);
-
-  const cacheLayout = useCallback((repoId: string, positions: Map<string, { x: number; y: number }>, layoutType: string) => {
-    cacheRef.current.setLayoutPositions(repoId, positions, layoutType as any);
-  }, []);
-
-  const hasCache = useCallback((repoId: string): boolean => {
-    return cacheRef.current.has(repoId);
-  }, []);
-
-  return { getCachedData, cacheData, getCachedLayout, cacheLayout, hasCache };
+  return { getCachedData, cacheData };
 }

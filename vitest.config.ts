@@ -35,7 +35,7 @@ export default defineConfig({
         '**/.pnpm/**',
       ],
     },
-    include: ['tests/unit/**/*.test.ts', 'src/**/*.test.ts'],
+    include: ['tests/unit/**/*.test.ts', 'tests/component/**/*.test.tsx', 'src/**/*.test.ts'],
     testTimeout: 10000,
     hookTimeout: 10000,
   },
