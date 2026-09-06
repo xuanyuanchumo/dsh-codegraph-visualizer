@@ -83,6 +83,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
         'shape': 'ellipse',
         'border-width': isLargeGraph ? 1 : 1.5,
         'border-color': c.border,
+        'overlay-opacity': 0,
         ...(isLargeGraph ? {} : { 'transition-property': 'background-color, border-color, border-width', 'transition-duration': 200 }),
       },
     },
@@ -146,7 +147,8 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
         'target-arrow-color': c.edgeDefault,
         'target-arrow-shape': 'triangle',
         'curve-style': 'bezier',
-        'opacity': 0.6,
+        'opacity': 0.8,
+        'overlay-opacity': 0,
       },
     },
     {
@@ -328,7 +330,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
     {
       selector: '.inheritance-dim',
       style: {
-        'opacity': 0.15,
+        'opacity': 0.25,
       },
     },
     {
@@ -353,7 +355,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
     {
       selector: '.focus-dim',
       style: {
-        'opacity': 0.1,
+        'opacity': 0.25,
       },
     },
     {
@@ -435,7 +437,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
     {
       selector: '.path-dim',
       style: {
-        'opacity': 0.1,
+        'opacity': 0.25,
       },
     },
     {

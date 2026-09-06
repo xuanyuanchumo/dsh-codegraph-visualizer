@@ -3710,7 +3710,7 @@ function computeDirectoryClusters(rawNodes, rawEdges, expandedDirs) {
 	const nodeToDir = new Map();
 	const dirToNodes = new Map();
 	for (const n of rawNodes) {
-		const dir = getTopLevelDir(n.filePath);
+		const dir = n.filePath ? getTopLevelDir(n.filePath) : n.id;
 		nodeToDir.set(n.id, dir);
 		const list = dirToNodes.get(dir);
 		if (list) list.push(n);
@@ -4020,7 +4020,8 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			lastUpdated: Date.now(),
 			truncated: !!metadata?.truncated,
 			totalNodeCount: metadata?.totalNodeCount ?? nodes.length,
-			totalEdgeCount: metadata?.totalEdgeCount ?? edges.length
+			totalEdgeCount: metadata?.totalEdgeCount ?? edges.length,
+			healthScore: null
 		});
 	},
 	setLayout: (layout$2) => set$1({ layout: layout$2 }),
@@ -42951,9 +42952,15 @@ var LayoutController = class {
 						y: 0
 					};
 					const bbox = existingNodes.boundingBox();
+					const cx = (bbox.x1 + bbox.x2) / 2;
+					const cy = (bbox.y1 + bbox.y2) / 2;
+					const radius$1 = Math.max(bbox.w, bbox.h) / 2 + 120;
+					const angleStep = 2 * Math.PI / Math.max(newNodes.length, 1);
+					const idx = Array.from(newNodeIds).indexOf(node.id());
+					const angle$1 = idx * angleStep;
 					return {
-						x: bbox.x2 + 100 + Math.random() * 200,
-						y: bbox.y1 + Math.random() * bbox.h
+						x: cx + radius$1 * Math.cos(angle$1),
+						y: cy + radius$1 * Math.sin(angle$1)
 					};
 				},
 				animate: false
@@ -43043,15 +43050,18 @@ var LayoutController = class {
 			};
 			case "tree": {
 				const rootNodes = this.cy.nodes().roots();
+				let roots;
+				if (rootNodes.nonempty()) roots = rootNodes;
+				else roots = this.cy.nodes().sort((a, b) => b.degree() - a.degree()).slice(0, 1);
 				return {
 					name: "breadthfirst",
 					fit: true,
 					animate,
 					padding: 80,
 					directed: true,
-					spacingFactor: 1.2,
-					roots: rootNodes.nonempty() ? rootNodes : this.cy.nodes().first(),
-					maximalAdjustments: 2
+					spacingFactor: 1.5,
+					roots,
+					maximalAdjustments: 5
 				};
 			}
 			default: {
@@ -43063,26 +43073,13 @@ var LayoutController = class {
 	removeOverlaps() {
 		const nodes = this.cy.nodes();
 		if (nodes.length === 0) return;
-		const minGap = 40;
-		const maxIterations = 20;
+		const minGap = 50;
+		const maxIterations = 30;
 		const skipThreshold = 2e3;
 		if (nodes.length > skipThreshold) {
 			this.cy.fit(void 0, 80);
 			return;
 		}
-		const bbox = this.cy.nodes().boundingBox();
-		const cx = (bbox.x1 + bbox.x2) / 2;
-		const cy = (bbox.y1 + bbox.y2) / 2;
-		const scaleFactor = 1.4;
-		this.cy.batch(() => {
-			nodes.forEach((n) => {
-				const p$1 = n.position();
-				n.position({
-					x: cx + (p$1.x - cx) * scaleFactor,
-					y: cy + (p$1.y - cy) * scaleFactor
-				});
-			});
-		});
 		const cellSize = minGap * 4;
 		for (let iter = 0; iter < maxIterations; iter++) {
 			const positions = [];
@@ -43132,8 +43129,8 @@ var LayoutController = class {
 					overlapCount++;
 					const overlapX = minDx - absDx;
 					const overlapY = minDy - absDy;
-					const pushX = overlapX / 2 + 3;
-					const pushY = overlapY / 2 + 3;
+					const pushX = overlapX / 2 + 8;
+					const pushY = overlapY / 2 + 8;
 					const signX = ddx >= 0 ? 1 : -1;
 					const signY = ddy >= 0 ? 1 : -1;
 					let da = displacements.get(a.id);
@@ -43897,6 +43894,7 @@ function buildStylesheet(theme, nodeCount = 0) {
 				"shape": "ellipse",
 				"border-width": isLargeGraph ? 1 : 1.5,
 				"border-color": c.border,
+				"overlay-opacity": 0,
 				...isLargeGraph ? {} : {
 					"transition-property": "background-color, border-color, border-width",
 					"transition-duration": 200
@@ -43978,7 +43976,8 @@ function buildStylesheet(theme, nodeCount = 0) {
 				"target-arrow-color": c.edgeDefault,
 				"target-arrow-shape": "triangle",
 				"curve-style": "bezier",
-				"opacity": .6
+				"opacity": .8,
+				"overlay-opacity": 0
 			}
 		},
 		{
@@ -44159,7 +44158,7 @@ function buildStylesheet(theme, nodeCount = 0) {
 		},
 		{
 			selector: ".inheritance-dim",
-			style: { "opacity": .15 }
+			style: { "opacity": .25 }
 		},
 		{
 			selector: ".focus-highlight",
@@ -44182,7 +44181,7 @@ function buildStylesheet(theme, nodeCount = 0) {
 		},
 		{
 			selector: ".focus-dim",
-			style: { "opacity": .1 }
+			style: { "opacity": .25 }
 		},
 		{
 			selector: "node[isCluster=\"true\"]",
@@ -44262,7 +44261,7 @@ function buildStylesheet(theme, nodeCount = 0) {
 		},
 		{
 			selector: ".path-dim",
-			style: { "opacity": .1 }
+			style: { "opacity": .25 }
 		},
 		{
 			selector: ".rule-violation",
@@ -48751,6 +48750,14 @@ function FocusModeBar({ focusNodeId, onExpand, onContract, onExit }) {
 
 //#endregion
 //#region src/client/analysis/HealthScorer.ts
+const EDGE_WEIGHTS = {
+	call: 1,
+	extend: .8,
+	implement: .7,
+	import: .5,
+	dependency: .3
+};
+const MAX_MODULE_DEPTH = 3;
 var HealthScorer = class {
 	calculate(nodes, edges) {
 		if (nodes.length === 0) return {
@@ -48764,7 +48771,7 @@ var HealthScorer = class {
 		const cohesion = this.calculateCohesion(nodes, edges);
 		const cyclicDependencyRate = this.calculateCyclicDependencyRate(nodes, edges);
 		const modularity = this.calculateModularity(nodes, edges);
-		const overall = Math.round(coupling * .25 + cohesion * .25 + cyclicDependencyRate * .25 + modularity * .25);
+		const overall = Math.round(coupling * .25 + cohesion * .25 + cyclicDependencyRate * .3 + modularity * .2);
 		return {
 			coupling,
 			cohesion,
@@ -48800,13 +48807,17 @@ var HealthScorer = class {
 	calculateCoupling(nodes, edges) {
 		if (edges.length === 0) return 100;
 		const moduleOfNode = this.buildModuleMap(nodes);
-		let crossModuleEdges = 0;
+		let weightedCrossModule = 0;
+		let totalWeight = 0;
 		for (const edge of edges) {
+			const weight = EDGE_WEIGHTS[edge.type] ?? .5;
+			totalWeight += weight;
 			const srcModule = moduleOfNode.get(edge.source);
 			const tgtModule = moduleOfNode.get(edge.target);
-			if (srcModule && tgtModule && srcModule !== tgtModule) crossModuleEdges++;
+			if (srcModule && tgtModule && srcModule !== tgtModule) weightedCrossModule += weight;
 		}
-		const couplingRatio = crossModuleEdges / edges.length;
+		if (totalWeight === 0) return 100;
+		const couplingRatio = weightedCrossModule / totalWeight;
 		return Math.round(Math.max(0, 100 - couplingRatio * 100));
 	}
 	calculateCohesion(nodes, edges) {
@@ -48840,58 +48851,27 @@ var HealthScorer = class {
 	calculateCyclicDependencyRate(nodes, edges) {
 		if (edges.length === 0) return 100;
 		const adjacency = new Map();
+		const nodeIds = new Set();
+		for (const node of nodes) nodeIds.add(node.id);
 		for (const edge of edges) {
 			const list = adjacency.get(edge.source);
 			if (list) list.push(edge.target);
 			else adjacency.set(edge.source, [edge.target]);
+			nodeIds.add(edge.source);
+			nodeIds.add(edge.target);
 		}
-		const visited = new Set();
-		const inStack = new Set();
-		const path = [];
+		const sccs = this.tarjanSCC(adjacency, nodeIds);
 		let cycleNodeCount = 0;
-		const enter = (start) => {
-			const frames = [{
-				id: start,
-				neighbors: adjacency.get(start) ?? [],
-				next: 0
-			}];
-			visited.add(start);
-			inStack.add(start);
-			path.push(start);
-			while (frames.length > 0) {
-				const frame = frames[frames.length - 1];
-				if (frame.next >= frame.neighbors.length) {
-					inStack.delete(frame.id);
-					path.pop();
-					frames.pop();
-					continue;
-				}
-				const target = frame.neighbors[frame.next++];
-				if (inStack.has(target)) {
-					const cycleStart = path.indexOf(target);
-					if (cycleStart >= 0) {
-						for (let i$1 = cycleStart; i$1 < path.length; i$1++) if (!visited.has(`__cycle_${path[i$1]}`)) {
-							cycleNodeCount++;
-							visited.add(`__cycle_${path[i$1]}`);
-						}
-					}
-				} else if (!visited.has(target)) {
-					visited.add(target);
-					inStack.add(target);
-					path.push(target);
-					frames.push({
-						id: target,
-						neighbors: adjacency.get(target) ?? [],
-						next: 0
-					});
-				}
-			}
-		};
-		for (const id of adjacency.keys()) if (!visited.has(id)) enter(id);
+		for (const scc of sccs) if (scc.length > 1) cycleNodeCount += scc.length;
+		else if (scc.length === 1) {
+			const id = scc[0];
+			const neighbors = adjacency.get(id);
+			if (neighbors && neighbors.includes(id)) cycleNodeCount++;
+		}
 		const cycleRate = cycleNodeCount / nodes.length;
 		return Math.round(Math.max(0, 100 - cycleRate * 100));
 	}
-	calculateModularity(nodes, _edges) {
+	calculateModularity(nodes, edges) {
 		if (nodes.length === 0) return 0;
 		const moduleOfNode = this.buildModuleMap(nodes);
 		const modules$1 = new Set();
@@ -48903,18 +48883,59 @@ var HealthScorer = class {
 		const avgSize = nodes.length / modules$1.size;
 		for (const size$1 of moduleSizes.values()) sizeVariance += Math.abs(size$1 - avgSize);
 		sizeVariance /= modules$1.size;
-		const balanceScore = Math.max(0, 100 - sizeVariance / avgSize * 50);
-		const separationScore = Math.min(100, modules$1.size / Math.max(1, Math.sqrt(nodes.length)) * 100);
+		const balanceScore = Math.max(0, 100 - sizeVariance / Math.max(1, avgSize) * 50);
+		let crossModuleEdges = 0;
+		for (const edge of edges) {
+			const srcModule = moduleOfNode.get(edge.source);
+			const tgtModule = moduleOfNode.get(edge.target);
+			if (srcModule && tgtModule && srcModule !== tgtModule) crossModuleEdges++;
+		}
+		const crossModuleRatio = edges.length > 0 ? crossModuleEdges / edges.length : 0;
+		const separationScore = Math.max(0, 100 - crossModuleRatio * 100);
 		return Math.round((balanceScore + separationScore) / 2);
 	}
 	buildModuleMap(nodes) {
 		const moduleOfNode = new Map();
 		for (const node of nodes) {
-			const parts = node.filePath.split(/[\\/]/);
-			const module$1 = parts.length > 1 ? parts.slice(0, -1).join("/") : node.filePath;
+			const rawPath = node.filePath.replace(/^(file|import):/, "");
+			const parts = rawPath.split(/[\\/]/);
+			const dirParts = parts.length > 1 ? parts.slice(0, -1) : [rawPath];
+			const module$1 = dirParts.length > MAX_MODULE_DEPTH ? dirParts.slice(0, MAX_MODULE_DEPTH).join("/") : dirParts.join("/");
 			moduleOfNode.set(node.id, module$1);
 		}
 		return moduleOfNode;
+	}
+	tarjanSCC(adjacency, nodeIds) {
+		let index = 0;
+		const indices = new Map();
+		const lowLinks = new Map();
+		const onStack = new Set();
+		const stack = [];
+		const sccs = [];
+		const strongConnect = (v) => {
+			indices.set(v, index);
+			lowLinks.set(v, index);
+			index++;
+			stack.push(v);
+			onStack.add(v);
+			const neighbors = adjacency.get(v) ?? [];
+			for (const w of neighbors) if (!indices.has(w)) {
+				strongConnect(w);
+				lowLinks.set(v, Math.min(lowLinks.get(v), lowLinks.get(w)));
+			} else if (onStack.has(w)) lowLinks.set(v, Math.min(lowLinks.get(v), indices.get(w)));
+			if (lowLinks.get(v) === indices.get(v)) {
+				const scc = [];
+				let w;
+				do {
+					w = stack.pop();
+					onStack.delete(w);
+					scc.push(w);
+				} while (w !== v);
+				sccs.push(scc);
+			}
+		};
+		for (const id of nodeIds) if (!indices.has(id)) strongConnect(id);
+		return sccs;
 	}
 };
 
@@ -49274,10 +49295,16 @@ function GraphPanelInner({ className = "" }) {
 		setSelectedNodeData(null);
 		setSelectedNode(null);
 	}, [setSelectedNode]);
+	const prevClusterLevelRef = (0, react.useRef)(clusterLevel);
+	const prevGraphTypeRef = (0, react.useRef)(graphType);
 	const handleToggleViewMode = (0, react.useCallback)(() => {
 		const newMode = viewMode === "code" ? "dependencies" : "code";
 		setViewMode(newMode);
 		if (newMode === "dependencies") {
+			prevClusterLevelRef.current = clusterLevel;
+			prevGraphTypeRef.current = graphType;
+			setClusterLevel("function");
+			setGraphType("dependency");
 			setLoading(true);
 			const controller = new AbortController();
 			depsFetchAbortRef.current?.abort();
@@ -49290,6 +49317,8 @@ function GraphPanelInner({ className = "" }) {
 			});
 		} else {
 			depsFetchAbortRef.current?.abort();
+			setClusterLevel(prevClusterLevelRef.current);
+			setGraphType(prevGraphTypeRef.current);
 			window.dispatchEvent(new CustomEvent("codegraph:refresh", { detail: { incremental: false } }));
 		}
 	}, [
@@ -49297,7 +49326,11 @@ function GraphPanelInner({ className = "" }) {
 		setViewMode,
 		setLoading,
 		setGraphData,
-		currentWorkspace
+		currentWorkspace,
+		clusterLevel,
+		graphType,
+		setClusterLevel,
+		setGraphType
 	]);
 	const handleRefresh = (0, react.useCallback)(() => {
 		setLoading(true);

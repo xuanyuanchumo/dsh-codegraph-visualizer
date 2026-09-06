@@ -117,9 +117,15 @@ export class LayoutController {
           const existingNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
           if (existingNodes.length === 0) return { x: 0, y: 0 };
           const bbox = existingNodes.boundingBox();
+          const cx = (bbox.x1 + bbox.x2) / 2;
+          const cy = (bbox.y1 + bbox.y2) / 2;
+          const radius = Math.max(bbox.w, bbox.h) / 2 + 120;
+          const angleStep = (2 * Math.PI) / Math.max(newNodes.length, 1);
+          const idx = Array.from(newNodeIds).indexOf(node.id());
+          const angle = idx * angleStep;
           return {
-            x: bbox.x2 + 100 + Math.random() * 200,
-            y: bbox.y1 + Math.random() * bbox.h,
+            x: cx + radius * Math.cos(angle),
+            y: cy + radius * Math.sin(angle),
           };
         },
         animate: false,
@@ -196,11 +202,17 @@ export class LayoutController {
         } as LayoutOptions;
       case 'tree': {
         const rootNodes = this.cy.nodes().roots();
+        let roots: ReturnType<typeof this.cy.nodes>;
+        if (rootNodes.nonempty()) {
+          roots = rootNodes;
+        } else {
+          roots = this.cy.nodes().sort((a, b) => b.degree() - a.degree()).slice(0, 1);
+        }
         return {
           name: 'breadthfirst', fit: true, animate,
-          padding: 80, directed: true, spacingFactor: 1.2,
-          roots: rootNodes.nonempty() ? rootNodes : this.cy.nodes().first(),
-          maximalAdjustments: 2,
+          padding: 80, directed: true, spacingFactor: 1.5,
+          roots,
+          maximalAdjustments: 5,
         } as LayoutOptions;
       }
       default: {
@@ -214,25 +226,14 @@ export class LayoutController {
     const nodes = this.cy.nodes();
     if (nodes.length === 0) return;
 
-    const minGap = 40;
-    const maxIterations = 20;
+    const minGap = 50;
+    const maxIterations = 30;
     const skipThreshold = 2000;
 
     if (nodes.length > skipThreshold) {
       this.cy.fit(undefined, 80);
       return;
     }
-
-    const bbox = this.cy.nodes().boundingBox();
-    const cx = (bbox.x1 + bbox.x2) / 2;
-    const cy = (bbox.y1 + bbox.y2) / 2;
-    const scaleFactor = 1.4;
-    this.cy.batch(() => {
-      nodes.forEach((n) => {
-        const p = n.position();
-        n.position({ x: cx + (p.x - cx) * scaleFactor, y: cy + (p.y - cy) * scaleFactor });
-      });
-    });
 
     const cellSize = minGap * 4;
     for (let iter = 0; iter < maxIterations; iter++) {
@@ -281,8 +282,8 @@ export class LayoutController {
               overlapCount++;
               const overlapX = minDx - absDx;
               const overlapY = minDy - absDy;
-              const pushX = overlapX / 2 + 3;
-              const pushY = overlapY / 2 + 3;
+              const pushX = overlapX / 2 + 8;
+              const pushY = overlapY / 2 + 8;
               const signX = ddx >= 0 ? 1 : -1;
               const signY = ddy >= 0 ? 1 : -1;
               let da = displacements.get(a.id);

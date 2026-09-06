@@ -1256,6 +1256,197 @@ var GraphDataMerger = class {
 };
 
 //#endregion
+//#region src/client/analysis/HealthScorer.ts
+const EDGE_WEIGHTS = {
+	call: 1,
+	extend: .8,
+	implement: .7,
+	import: .5,
+	dependency: .3
+};
+const MAX_MODULE_DEPTH = 3;
+var HealthScorer = class {
+	calculate(nodes, edges) {
+		if (nodes.length === 0) return {
+			coupling: 0,
+			cohesion: 0,
+			cyclicDependencyRate: 0,
+			modularity: 0,
+			overall: 0
+		};
+		const coupling = this.calculateCoupling(nodes, edges);
+		const cohesion = this.calculateCohesion(nodes, edges);
+		const cyclicDependencyRate = this.calculateCyclicDependencyRate(nodes, edges);
+		const modularity = this.calculateModularity(nodes, edges);
+		const overall = Math.round(coupling * .25 + cohesion * .25 + cyclicDependencyRate * .3 + modularity * .2);
+		return {
+			coupling,
+			cohesion,
+			cyclicDependencyRate,
+			modularity,
+			overall
+		};
+	}
+	getDimensions(score) {
+		return [
+			{
+				name: "coupling",
+				score: score.coupling,
+				description: "Lower inter-module coupling is better"
+			},
+			{
+				name: "cohesion",
+				score: score.cohesion,
+				description: "Higher intra-module cohesion is better"
+			},
+			{
+				name: "cyclicDependencyRate",
+				score: score.cyclicDependencyRate,
+				description: "Fewer circular dependencies is better"
+			},
+			{
+				name: "modularity",
+				score: score.modularity,
+				description: "Better module separation is better"
+			}
+		];
+	}
+	calculateCoupling(nodes, edges) {
+		if (edges.length === 0) return 100;
+		const moduleOfNode = this.buildModuleMap(nodes);
+		let weightedCrossModule = 0;
+		let totalWeight = 0;
+		for (const edge of edges) {
+			const weight = EDGE_WEIGHTS[edge.type] ?? .5;
+			totalWeight += weight;
+			const srcModule = moduleOfNode.get(edge.source);
+			const tgtModule = moduleOfNode.get(edge.target);
+			if (srcModule && tgtModule && srcModule !== tgtModule) weightedCrossModule += weight;
+		}
+		if (totalWeight === 0) return 100;
+		const couplingRatio = weightedCrossModule / totalWeight;
+		return Math.round(Math.max(0, 100 - couplingRatio * 100));
+	}
+	calculateCohesion(nodes, edges) {
+		const moduleOfNode = this.buildModuleMap(nodes);
+		const moduleEdges = new Map();
+		for (const edge of edges) {
+			const srcModule = moduleOfNode.get(edge.source);
+			const tgtModule = moduleOfNode.get(edge.target);
+			if (!srcModule) continue;
+			let stats = moduleEdges.get(srcModule);
+			if (!stats) {
+				stats = {
+					internal: 0,
+					total: 0
+				};
+				moduleEdges.set(srcModule, stats);
+			}
+			stats.total++;
+			if (srcModule === tgtModule) stats.internal++;
+		}
+		if (moduleEdges.size === 0) return 50;
+		let totalCohesion = 0;
+		let moduleCount = 0;
+		for (const stats of moduleEdges.values()) if (stats.total > 0) {
+			totalCohesion += stats.internal / stats.total;
+			moduleCount++;
+		}
+		if (moduleCount === 0) return 50;
+		return Math.round(totalCohesion / moduleCount * 100);
+	}
+	calculateCyclicDependencyRate(nodes, edges) {
+		if (edges.length === 0) return 100;
+		const adjacency = new Map();
+		const nodeIds = new Set();
+		for (const node of nodes) nodeIds.add(node.id);
+		for (const edge of edges) {
+			const list = adjacency.get(edge.source);
+			if (list) list.push(edge.target);
+			else adjacency.set(edge.source, [edge.target]);
+			nodeIds.add(edge.source);
+			nodeIds.add(edge.target);
+		}
+		const sccs = this.tarjanSCC(adjacency, nodeIds);
+		let cycleNodeCount = 0;
+		for (const scc of sccs) if (scc.length > 1) cycleNodeCount += scc.length;
+		else if (scc.length === 1) {
+			const id = scc[0];
+			const neighbors = adjacency.get(id);
+			if (neighbors && neighbors.includes(id)) cycleNodeCount++;
+		}
+		const cycleRate = cycleNodeCount / nodes.length;
+		return Math.round(Math.max(0, 100 - cycleRate * 100));
+	}
+	calculateModularity(nodes, edges) {
+		if (nodes.length === 0) return 0;
+		const moduleOfNode = this.buildModuleMap(nodes);
+		const modules = new Set();
+		for (const m of moduleOfNode.values()) modules.add(m);
+		if (modules.size <= 1) return 50;
+		const moduleSizes = new Map();
+		for (const m of moduleOfNode.values()) moduleSizes.set(m, (moduleSizes.get(m) ?? 0) + 1);
+		let sizeVariance = 0;
+		const avgSize = nodes.length / modules.size;
+		for (const size of moduleSizes.values()) sizeVariance += Math.abs(size - avgSize);
+		sizeVariance /= modules.size;
+		const balanceScore = Math.max(0, 100 - sizeVariance / Math.max(1, avgSize) * 50);
+		let crossModuleEdges = 0;
+		for (const edge of edges) {
+			const srcModule = moduleOfNode.get(edge.source);
+			const tgtModule = moduleOfNode.get(edge.target);
+			if (srcModule && tgtModule && srcModule !== tgtModule) crossModuleEdges++;
+		}
+		const crossModuleRatio = edges.length > 0 ? crossModuleEdges / edges.length : 0;
+		const separationScore = Math.max(0, 100 - crossModuleRatio * 100);
+		return Math.round((balanceScore + separationScore) / 2);
+	}
+	buildModuleMap(nodes) {
+		const moduleOfNode = new Map();
+		for (const node of nodes) {
+			const rawPath = node.filePath.replace(/^(file|import):/, "");
+			const parts = rawPath.split(/[\\/]/);
+			const dirParts = parts.length > 1 ? parts.slice(0, -1) : [rawPath];
+			const module = dirParts.length > MAX_MODULE_DEPTH ? dirParts.slice(0, MAX_MODULE_DEPTH).join("/") : dirParts.join("/");
+			moduleOfNode.set(node.id, module);
+		}
+		return moduleOfNode;
+	}
+	tarjanSCC(adjacency, nodeIds) {
+		let index = 0;
+		const indices = new Map();
+		const lowLinks = new Map();
+		const onStack = new Set();
+		const stack = [];
+		const sccs = [];
+		const strongConnect = (v) => {
+			indices.set(v, index);
+			lowLinks.set(v, index);
+			index++;
+			stack.push(v);
+			onStack.add(v);
+			const neighbors = adjacency.get(v) ?? [];
+			for (const w of neighbors) if (!indices.has(w)) {
+				strongConnect(w);
+				lowLinks.set(v, Math.min(lowLinks.get(v), lowLinks.get(w)));
+			} else if (onStack.has(w)) lowLinks.set(v, Math.min(lowLinks.get(v), indices.get(w)));
+			if (lowLinks.get(v) === indices.get(v)) {
+				const scc = [];
+				let w;
+				do {
+					w = stack.pop();
+					onStack.delete(w);
+					scc.push(w);
+				} while (w !== v);
+				sccs.push(scc);
+			}
+		};
+		for (const id of nodeIds) if (!indices.has(id)) strongConnect(id);
+		return sccs;
+	}
+};
+
+//#endregion
 //#region src/tools.ts
 const log$6 = scoped("tools");
 const codegraphAdapter = new CodeGraphAdapter();
@@ -1624,49 +1815,9 @@ const createGraphTools = (ctx, options = {}) => {
 			const a = args;
 			const data = await fetchMergedGraph(invoke, a.repoId);
 			if (data.nodes.length === 0) return null;
-			const moduleOfNode = new Map();
-			for (const node of data.nodes) {
-				const parts = node.filePath.split(/[\\/]/);
-				const module = parts.length > 1 ? parts.slice(0, -1).join("/") : node.filePath;
-				moduleOfNode.set(node.id, module);
-			}
-			let crossModuleEdges = 0;
-			for (const edge of data.edges) {
-				const srcMod = moduleOfNode.get(edge.source);
-				const tgtMod = moduleOfNode.get(edge.target);
-				if (srcMod && tgtMod && srcMod !== tgtMod) crossModuleEdges++;
-			}
-			const coupling = data.edges.length > 0 ? Math.round(Math.max(0, 100 - crossModuleEdges / data.edges.length * 100)) : 100;
-			const moduleEdges = new Map();
-			for (const edge of data.edges) {
-				const srcMod = moduleOfNode.get(edge.source);
-				if (!srcMod) continue;
-				let stats = moduleEdges.get(srcMod);
-				if (!stats) {
-					stats = {
-						internal: 0,
-						total: 0
-					};
-					moduleEdges.set(srcMod, stats);
-				}
-				stats.total++;
-				if (srcMod === moduleOfNode.get(edge.target)) stats.internal++;
-			}
-			let totalCohesion = 0;
-			let modCount = 0;
-			for (const stats of moduleEdges.values()) if (stats.total > 0) {
-				totalCohesion += stats.internal / stats.total;
-				modCount++;
-			}
-			const cohesion = modCount > 0 ? Math.round(totalCohesion / modCount * 100) : 50;
-			const overall = Math.round(coupling * .25 + cohesion * .25 + 50 * .25 + 50 * .25);
-			return {
-				coupling,
-				cohesion,
-				cyclicDependencyRate: 50,
-				modularity: 50,
-				overall
-			};
+			const scorer = new HealthScorer();
+			const score = scorer.calculate(data.nodes, data.edges);
+			return score;
 		}
 	});
 	const graphRulesCheck = defineTool({

@@ -344,10 +344,16 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, [setSelectedNode]);
 
   // FR-21: View mode toggle — code graph vs dependency graph
+  const prevClusterLevelRef = useRef(clusterLevel);
+  const prevGraphTypeRef = useRef(graphType);
   const handleToggleViewMode = useCallback(() => {
     const newMode = viewMode === 'code' ? 'dependencies' : 'code';
     setViewMode(newMode);
     if (newMode === 'dependencies') {
+      prevClusterLevelRef.current = clusterLevel;
+      prevGraphTypeRef.current = graphType;
+      setClusterLevel('function');
+      setGraphType('dependency');
       setLoading(true);
       const controller = new AbortController();
       depsFetchAbortRef.current?.abort();
@@ -364,9 +370,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     } else {
       depsFetchAbortRef.current?.abort();
+      setClusterLevel(prevClusterLevelRef.current);
+      setGraphType(prevGraphTypeRef.current);
       window.dispatchEvent(new CustomEvent('codegraph:refresh', { detail: { incremental: false } }));
     }
-  }, [viewMode, setViewMode, setLoading, setGraphData, currentWorkspace]);
+  }, [viewMode, setViewMode, setLoading, setGraphData, currentWorkspace, clusterLevel, graphType, setClusterLevel, setGraphType]);
 
   const handleRefresh = useCallback(() => {
     setLoading(true);

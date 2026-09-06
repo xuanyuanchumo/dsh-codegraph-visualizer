@@ -85,7 +85,7 @@ export function computeDirectoryClusters(
   const dirToNodes = new Map<string, GraphNode[]>();
 
   for (const n of rawNodes) {
-    const dir = getTopLevelDir(n.filePath);
+    const dir = n.filePath ? getTopLevelDir(n.filePath) : n.id;
     nodeToDir.set(n.id, dir);
     const list = dirToNodes.get(dir);
     if (list) list.push(n);
