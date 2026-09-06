@@ -120,6 +120,10 @@ function sendJson(res: ServerResponse, code: number, data: unknown): void {
   res.end(JSON.stringify(data));
 }
 
+function sendError(res: ServerResponse, code: number, message: string): void {
+  sendJson(res, code, { success: false, error: message });
+}
+
 function readBody(req: IncomingMessage, maxBodyBytes: number): Promise<string> {
   return new Promise((resolve, reject) => {
     let body = '';
@@ -160,20 +164,20 @@ export function registerRoutes(deps: RouteDeps): void {
   const { ctx, config } = deps;
   const invokeUpstream = createInvokeUpstream(ctx, config);
 
-  // GET /api/codegraph/status
+  // GET /api/v1/codegraph/status
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
-    path: '/api/codegraph/status',
+    path: '/api/v1/codegraph/status',
     handler: (_req: IncomingMessage, res: ServerResponse) => {
       const status = checkPrerequisites(ctx);
       sendJson(res, 200, { codegraph: status.codegraph, lens: status.lens });
     },
   }), 'codegraph: status route');
 
-  // GET /api/codegraph/workspace
+  // GET /api/v1/codegraph/workspace
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
-    path: '/api/codegraph/workspace',
+    path: '/api/v1/codegraph/workspace',
     handler: (_req: IncomingMessage, res: ServerResponse) => {
       const current = findWorkspacePath(ctx);
       const list = extractWorkspacePaths(ctx);
@@ -181,10 +185,10 @@ export function registerRoutes(deps: RouteDeps): void {
     },
   }), 'codegraph: workspace route');
 
-  // GET /api/codegraph/data
+  // GET /api/v1/codegraph/data
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
-    path: '/api/codegraph/data',
+    path: '/api/v1/codegraph/data',
     handler: (req: IncomingMessage, res: ServerResponse) => {
       const ifNoneMatch = req.headers['if-none-match'];
       const lastGraphData = deps.getLastGraphData();
@@ -208,17 +212,17 @@ export function registerRoutes(deps: RouteDeps): void {
     },
   }), 'codegraph: data route');
 
-  // POST /api/codegraph/scan
+  // POST /api/v1/codegraph/scan
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
-    path: '/api/codegraph/scan',
+    path: '/api/v1/codegraph/scan',
     handler: async (req: IncomingMessage, res: ServerResponse) => {
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
         const path = extractStringField(parsed, 'path');
         if (path && path !== '.' && !isPathAllowed(path)) {
-          sendJson(res, 403, { success: false, nodes: [], edges: [], metadata: { repoId: null, timestamp: 0, nodeCount: 0, edgeCount: 0 } });
+          sendError(res, 403, 'Path not allowed');
           return;
         }
         const scanPath = path && path !== '.' ? path : findWorkspacePath(ctx);
@@ -271,22 +275,22 @@ export function registerRoutes(deps: RouteDeps): void {
         }
       } catch (e) {
         log.error('scan failed', e);
-        sendJson(res, 500, { success: false, nodes: [], edges: [], metadata: { repoId: null, timestamp: 0, nodeCount: 0, edgeCount: 0 } });
+        sendError(res, 500, e instanceof Error ? e.message : String(e));
       }
     },
   }), 'codegraph: scan route');
 
-  // POST /api/codegraph/init
+  // POST /api/v1/codegraph/init
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
-    path: '/api/codegraph/init',
+    path: '/api/v1/codegraph/init',
     handler: async (req: IncomingMessage, res: ServerResponse) => {
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
         const path = extractStringField(parsed, 'path');
         if (path && path !== '.' && !isPathAllowed(path)) {
-          sendJson(res, 403, { success: false, path: '', message: 'Path not allowed', timestamp: Date.now() });
+          sendError(res, 403, 'Path not allowed');
           return;
         }
         const initPath = path && path !== '.' ? path : findWorkspacePath(ctx);
@@ -321,15 +325,15 @@ export function registerRoutes(deps: RouteDeps): void {
           timestamp: Date.now(),
         };
         deps.setLastInitResult(errorResult);
-        sendJson(res, 500, errorResult);
+        sendError(res, 500, e instanceof Error ? e.message : String(e));
       }
     },
   }), 'codegraph: init route');
 
-  // POST /api/codegraph/watch
+  // POST /api/v1/codegraph/watch
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
-    path: '/api/codegraph/watch',
+    path: '/api/v1/codegraph/watch',
     handler: async (req: IncomingMessage, res: ServerResponse) => {
       try {
         const body = await readBody(req, config.maxBodyBytes);
@@ -337,22 +341,22 @@ export function registerRoutes(deps: RouteDeps): void {
         const enabled = extractBooleanField(parsed, 'enabled');
         const path = extractStringField(parsed, 'path');
         if (path && path !== '.' && !isPathAllowed(path)) {
-          sendJson(res, 403, { success: false, message: 'Path not allowed' });
+          sendError(res, 403, 'Path not allowed');
           return;
         }
         const watchPath = path && path !== '.' ? path : findWorkspacePath(ctx);
         ctx.emit('codegraph/watch/toggle', { enabled: !!enabled, path: watchPath, timestamp: Date.now() });
         sendJson(res, 200, { success: true });
       } catch (e) {
-        sendJson(res, 500, { success: false, message: e instanceof Error ? e.message : String(e) });
+        sendError(res, 500, e instanceof Error ? e.message : String(e));
       }
     },
   }), 'codegraph: watch route');
 
-  // GET /api/codegraph/dependencies — FR-21 第三方依赖图谱
+  // GET /api/v1/codegraph/dependencies — FR-21 第三方依赖图谱
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
-    path: '/api/codegraph/dependencies',
+    path: '/api/v1/codegraph/dependencies',
     handler: async (_req: IncomingMessage, res: ServerResponse) => {
       try {
         const workspacePath = findWorkspacePath(ctx);
@@ -405,15 +409,15 @@ export function registerRoutes(deps: RouteDeps): void {
         });
       } catch (e) {
         log.error('dependencies route failed', e);
-        sendJson(res, 500, { nodes: [], edges: [], metadata: { repoId: null, timestamp: 0, nodeCount: 0, edgeCount: 0 } });
+        sendError(res, 500, e instanceof Error ? e.message : String(e));
       }
     },
   }), 'codegraph: dependencies route');
 
-  // POST /api/codegraph/diff — FR-24 版本对比图谱
+  // POST /api/v1/codegraph/diff — FR-24 版本对比图谱
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
-    path: '/api/codegraph/diff',
+    path: '/api/v1/codegraph/diff',
     handler: async (req: IncomingMessage, res: ServerResponse) => {
       try {
         const body = await readBody(req, config.maxBodyBytes);
@@ -421,7 +425,7 @@ export function registerRoutes(deps: RouteDeps): void {
         const fromCommit = extractStringField(parsed, 'from');
         const toCommit = extractStringField(parsed, 'to');
         if (!fromCommit || !toCommit) {
-          sendJson(res, 400, { error: 'from and to commits are required' });
+          sendError(res, 400, 'from and to commits are required');
           return;
         }
 
@@ -449,17 +453,17 @@ export function registerRoutes(deps: RouteDeps): void {
         });
       } catch (e) {
         log.error('diff route failed', e);
-        sendJson(res, 500, { error: e instanceof Error ? e.message : String(e) });
+        sendError(res, 500, e instanceof Error ? e.message : String(e));
       }
     },
   }), 'codegraph: diff route');
 
-  // POST /api/codegraph/tree-sitter — FR-20 Tree-sitter 多语言解析
+  // POST /api/v1/codegraph/tree-sitter — FR-20 Tree-sitter 多语言解析
   ctx.effect(() => {
     const treeSitterAdapter = new TreeSitterAdapter();
     return ctx.webServer.register({
       kind: 'exact',
-      path: '/api/codegraph/tree-sitter',
+      path: '/api/v1/codegraph/tree-sitter',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
         try {
           const body = await readBody(req, config.maxBodyBytes);
@@ -467,14 +471,14 @@ export function registerRoutes(deps: RouteDeps): void {
           const filePath = extractStringField(parsed, 'filePath');
           const content = extractStringField(parsed, 'content');
           if (!filePath || !content) {
-            sendJson(res, 400, { error: 'filePath and content are required' });
+            sendError(res, 400, 'filePath and content are required');
             return;
           }
           const result = await treeSitterAdapter.parseFile(filePath, content);
           sendJson(res, 200, result);
         } catch (e) {
           log.error('tree-sitter route failed', e);
-          sendJson(res, 500, { error: e instanceof Error ? e.message : String(e) });
+          sendError(res, 500, e instanceof Error ? e.message : String(e));
         }
       },
     });

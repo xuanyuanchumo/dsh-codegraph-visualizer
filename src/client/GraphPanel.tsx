@@ -307,8 +307,21 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       setViewportInfo(r.getViewportInfo());
     };
     updateMiniMap();
-    const id = setInterval(updateMiniMap, 2000);
-    return () => clearInterval(id);
+    let rafId: number | null = null;
+    let lastUpdate = 0;
+    const MIN_INTERVAL = 500;
+    const throttledUpdate = () => {
+      const now = Date.now();
+      if (now - lastUpdate < MIN_INTERVAL) return;
+      lastUpdate = now;
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(updateMiniMap);
+    };
+    const fallbackId = setInterval(throttledUpdate, 500);
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      clearInterval(fallbackId);
+    };
   }, [panel.showMiniMap, panel.collapsed, renderer.rendererRef, nodes.length, layout]);
 
   const handleThemeToggle = useCallback(() => {
@@ -332,7 +345,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     setViewMode(newMode);
     if (newMode === 'dependencies') {
       setLoading(true);
-      fetch('/api/codegraph/dependencies')
+      fetch('/api/v1/codegraph/dependencies')
         .then((r) => r.json())
         .then((data) => {
           if (data.nodes && data.nodes.length > 0) {

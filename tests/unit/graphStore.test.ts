@@ -349,4 +349,79 @@ describe('graphStore (J6/J7/J10)', () => {
     expect(useGraphStore.getState().nodes).toHaveLength(2);
     expect(useGraphStore.getState().expandedNodeIds.size).toBe(0);
   });
+
+  // ── viewMode tests (FR-21) ──────────────────────────────────────────
+  it('should initialize with viewMode code', () => {
+    expect(useGraphStore.getState().viewMode).toBe('code');
+  });
+
+  it('should switch viewMode to dependencies', () => {
+    useGraphStore.getState().setViewMode('dependencies');
+    expect(useGraphStore.getState().viewMode).toBe('dependencies');
+  });
+
+  it('should switch viewMode back to code', () => {
+    useGraphStore.getState().setViewMode('dependencies');
+    useGraphStore.getState().setViewMode('code');
+    expect(useGraphStore.getState().viewMode).toBe('code');
+  });
+
+  // ── graphType tests ─────────────────────────────────────────────────
+  it('should set graphType', () => {
+    useGraphStore.getState().setGraphType('call');
+    expect(useGraphStore.getState().graphType).toBe('call');
+    useGraphStore.getState().setGraphType('dependency');
+    expect(useGraphStore.getState().graphType).toBe('dependency');
+    useGraphStore.getState().setGraphType('all');
+    expect(useGraphStore.getState().graphType).toBe('all');
+  });
+
+  // ── path finding tests (FR-25) ──────────────────────────────────────
+  it('should set path start and end', () => {
+    const n1 = makeNode('n1', 'A', 'function', 'a.ts', 1).id;
+    const n2 = makeNode('n2', 'B', 'function', 'b.ts', 5).id;
+    useGraphStore.getState().setPathStart(n1);
+    useGraphStore.getState().setPathEnd(n2);
+    expect(useGraphStore.getState().pathStartId).toBe(n1);
+    expect(useGraphStore.getState().pathEndId).toBe(n2);
+  });
+
+  it('should set path result', () => {
+    const n1 = makeNode('n1', 'A', 'function', 'a.ts', 1).id;
+    const n2 = makeNode('n2', 'B', 'function', 'b.ts', 5).id;
+    useGraphStore.getState().setPathResult([n1, n2]);
+    expect(useGraphStore.getState().pathResult).toEqual([n1, n2]);
+    useGraphStore.getState().setPathResult(null);
+    expect(useGraphStore.getState().pathResult).toBeNull();
+  });
+
+  // ── focus depth tests (FR-26) ───────────────────────────────────────
+  it('should set focus depth', () => {
+    useGraphStore.getState().setFocusDepth(3);
+    expect(useGraphStore.getState().focusDepth).toBe(3);
+    useGraphStore.getState().setFocusDepth(1);
+    expect(useGraphStore.getState().focusDepth).toBe(1);
+  });
+
+  // ── health score tests (FR-32) ──────────────────────────────────────
+  it('should set health score', () => {
+    const score = { overall: 75, breakdown: { complexity: 80, coupling: 70, coverage: 75 } };
+    useGraphStore.getState().setHealthScore(score as any);
+    expect(useGraphStore.getState().healthScore).toEqual(score);
+    useGraphStore.getState().setHealthScore(null);
+    expect(useGraphStore.getState().healthScore).toBeNull();
+  });
+
+  // ── rules tests (FR-34) ─────────────────────────────────────────────
+  it('should set rules', () => {
+    const rules = [{ id: 'r1', name: 'No God Classes', severity: 'warning' as const, description: 'test' }];
+    useGraphStore.getState().setRules(rules as any);
+    expect(useGraphStore.getState().rules).toHaveLength(1);
+  });
+
+  it('should set rule violations', () => {
+    const violations = [{ ruleId: 'r1', nodeId: 'n1', message: 'God class detected' }];
+    useGraphStore.getState().setRuleViolations(violations as any);
+    expect(useGraphStore.getState().ruleViolations).toHaveLength(1);
+  });
 });

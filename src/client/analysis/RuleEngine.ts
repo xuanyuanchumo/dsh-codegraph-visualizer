@@ -48,6 +48,25 @@ const PRESET_RULES: RuleDefinition[] = [
     severity: 'warning',
     enabled: false,
   },
+  {
+    id: 'required-call-edge',
+    name: 'Public Functions Must Have Callers',
+    type: 'required-edge',
+    params: { edgeType: 'call', sourceType: 'function' },
+    severity: 'warning',
+    enabled: false,
+  },
+  {
+    id: 'no-cross-layer-call',
+    name: 'No Cross-Layer Calls',
+    type: 'cross-layer-call',
+    params: {
+      layers: { 'view': ['model'], 'model': ['view'] },
+      edgeType: 'call',
+    },
+    severity: 'error',
+    enabled: false,
+  },
 ];
 
 export function getPresetRules(): RuleDefinition[] {
@@ -61,6 +80,8 @@ export class RuleEngine {
     this.registerDetector('forbidden-edge', new ForbiddenEdgeDetector());
     this.registerDetector('max-indegree', new MaxIndegreeDetector());
     this.registerDetector('max-outdegree', new MaxOutdegreeDetector());
+    this.registerDetector('required-edge', new RequiredEdgeDetector());
+    this.registerDetector('cross-layer-call', new CrossLayerCallDetector());
   }
 
   registerDetector(type: RuleType, detector: RuleDetector): void {
@@ -179,6 +200,90 @@ class MaxOutdegreeDetector implements RuleDetector {
           ruleId: rule.id,
           nodeId: nodeId as NodeId,
           message: `Node ${nodeId} has outdegree ${count} (max ${threshold})`,
+          severity: rule.severity,
+        });
+      }
+    }
+
+    return violations;
+  }
+}
+
+class RequiredEdgeDetector implements RuleDetector {
+  detect(rule: RuleDefinition, nodes: GraphNode[], edges: GraphEdge[]): RuleViolation[] {
+    const violations: RuleViolation[] = [];
+    const requiredType = (rule.params.edgeType as string) ?? 'call';
+    const sourceType = (rule.params.sourceType as string) ?? undefined;
+    const targetType = (rule.params.targetType as string) ?? undefined;
+
+    const nodeMap = new Map<string, GraphNode>();
+    for (const n of nodes) nodeMap.set(n.id, n);
+
+    const hasEdge = new Set<string>();
+    for (const edge of edges) {
+      if (edge.type !== requiredType) continue;
+      if (sourceType) {
+        const src = nodeMap.get(edge.source);
+        if (!src || src.type !== sourceType) continue;
+      }
+      if (targetType) {
+        const tgt = nodeMap.get(edge.target);
+        if (!tgt || tgt.type !== targetType) continue;
+      }
+      hasEdge.add(edge.source);
+    }
+
+    for (const n of nodes) {
+      if (sourceType && n.type !== sourceType) continue;
+      if (!hasEdge.has(n.id)) {
+        violations.push({
+          ruleId: rule.id,
+          nodeId: n.id as NodeId,
+          message: `Node ${n.label} is missing required ${requiredType} edge`,
+          severity: rule.severity,
+        });
+      }
+    }
+
+    return violations;
+  }
+}
+
+class CrossLayerCallDetector implements RuleDetector {
+  detect(rule: RuleDefinition, nodes: GraphNode[], edges: GraphEdge[]): RuleViolation[] {
+    const violations: RuleViolation[] = [];
+    const layerMap = (rule.params.layers as Record<string, string[]>) ?? {};
+    const callType = (rule.params.edgeType as string) ?? 'call';
+
+    if (Object.keys(layerMap).length === 0) return violations;
+
+    const nodeLayer = new Map<string, string>();
+    for (const n of nodes) {
+      for (const [layerName, patterns] of Object.entries(layerMap)) {
+        if (patterns.some((p) => n.filePath.includes(p) || n.label.includes(p))) {
+          nodeLayer.set(n.id, layerName);
+          break;
+        }
+      }
+    }
+
+    const forbiddenPairs = new Set<string>();
+    for (const [srcLayer, tgtLayers] of Object.entries(layerMap)) {
+      for (const tgtLayer of tgtLayers) {
+        forbiddenPairs.add(`${srcLayer}->${tgtLayer}`);
+      }
+    }
+
+    for (const edge of edges) {
+      if (edge.type !== callType) continue;
+      const srcLayer = nodeLayer.get(edge.source);
+      const tgtLayer = nodeLayer.get(edge.target);
+      if (!srcLayer || !tgtLayer) continue;
+      if (forbiddenPairs.has(`${srcLayer}->${tgtLayer}`)) {
+        violations.push({
+          ruleId: rule.id,
+          edgeId: edge.id as EdgeId,
+          message: `Cross-layer call from ${srcLayer} to ${tgtLayer}`,
           severity: rule.severity,
         });
       }

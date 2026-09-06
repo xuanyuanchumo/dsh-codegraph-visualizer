@@ -2,7 +2,7 @@ import { defineTool } from "@deepseek-ai/dsh-tools";
 import { createRequire } from "node:module";
 import "@deepseek-ai/cordis";
 import { existsSync, watch } from "node:fs";
-import { isAbsolute, join, normalize } from "node:path";
+import { isAbsolute, join, normalize, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 
 //#region node_modules/.pnpm/@deepseek-ai+cosmokit@1.8.2/node_modules/@deepseek-ai/cosmokit/lib/index.js
@@ -1262,13 +1262,12 @@ const codegraphAdapter = new CodeGraphAdapter();
 const lensAdapter = new LensAdapter();
 const merger = new GraphDataMerger();
 const GRAPH_CACHE_LIMIT = 8;
-const graphCache = new Map();
-function cacheGraph(repoId, data) {
-	graphCache.delete(repoId);
-	graphCache.set(repoId, data);
-	if (graphCache.size > GRAPH_CACHE_LIMIT) {
-		const oldest = graphCache.keys().next().value;
-		if (oldest !== void 0) graphCache.delete(oldest);
+function cacheGraph(cache, repoId, data) {
+	cache.delete(repoId);
+	cache.set(repoId, data);
+	if (cache.size > GRAPH_CACHE_LIMIT) {
+		const oldest = cache.keys().next().value;
+		if (oldest !== void 0) cache.delete(oldest);
 	}
 }
 async function fetchMergedGraph(invoke, repoId, source = "both") {
@@ -1388,7 +1387,7 @@ function renderGraphData(_args, value) {
 		text: summarizeGraph(data)
 	}];
 }
-async function executeGraphData(args, invoke, emitUpdate, emitData) {
+async function executeGraphData(args, invoke, emitUpdate, emitData, graphCache) {
 	const source = args.source ?? "both";
 	const fresh = await fetchMergedGraph(invoke, args.repoId, source);
 	const cached = graphCache.get(args.repoId);
@@ -1399,7 +1398,7 @@ async function executeGraphData(args, invoke, emitUpdate, emitData) {
 		source: deltaSource,
 		timestamp: fresh.metadata.timestamp
 	}) : fresh;
-	cacheGraph(args.repoId, merged);
+	cacheGraph(graphCache, args.repoId, merged);
 	emitUpdate({
 		repoId: args.repoId,
 		nodeCount: merged.metadata.nodeCount,
@@ -1456,6 +1455,7 @@ async function executeGraphImpact(args, invoke) {
 }
 const createGraphTools = (ctx, options = {}) => {
 	const invoke = createInvoke(ctx, options.requestTimeout);
+	const graphCache = new Map();
 	const emitUpdate = (event) => {
 		ctx.emit("codegraph/graph/updated", event);
 	};
@@ -1499,7 +1499,7 @@ const createGraphTools = (ctx, options = {}) => {
 			schema: { type: "json" },
 			render: renderGraphData
 		},
-		execute: (args) => executeGraphData(args, invoke, emitUpdate, emitData)
+		execute: (args) => executeGraphData(args, invoke, emitUpdate, emitData, graphCache)
 	});
 	const graphSymbol = defineTool({
 		name: "graph_symbol",
@@ -1789,7 +1789,7 @@ const createGraphTools = (ctx, options = {}) => {
 
 //#endregion
 //#region src/generated/version.ts
-const PLUGIN_VERSION = "0.1.1";
+const PLUGIN_VERSION = "0.2.0";
 
 //#endregion
 //#region src/host/config.ts
@@ -1836,7 +1836,7 @@ function isPathAllowed(path) {
 	if (!isAbsolute(normalized)) return false;
 	if (normalized.includes("..")) return false;
 	if (allowedWorkspaceRoots.length === 0) return false;
-	return allowedWorkspaceRoots.some((root) => normalized === root || normalized.startsWith(root + "\\") || normalized.startsWith(root + "/"));
+	return allowedWorkspaceRoots.some((root) => normalized === root || normalized.startsWith(root + sep) || normalized.startsWith(root + "/"));
 }
 
 //#endregion
@@ -2045,7 +2045,25 @@ function parseGoMod(content) {
 				inRequireBlock = false;
 				continue;
 			}
-			if (!inRequireBlock && !line.match(/^require\s+/)) continue;
+			const singleRequireMatch = line.match(/^require\s+(\S+)\s+(\S+)/);
+			if (singleRequireMatch) {
+				const depName = singleRequireMatch[1];
+				const depVersion = singleRequireMatch[2];
+				const depId = `dep:${depName}`;
+				if (!nodes.find((n) => n.id === depId)) nodes.push({
+					id: depId,
+					name: depName,
+					version: depVersion,
+					type: "gomod"
+				});
+				edges.push({
+					source: `dep:${moduleName}`,
+					target: depId,
+					type: "depends"
+				});
+				continue;
+			}
+			if (!inRequireBlock) continue;
 			const depMatch = line.match(/^\s*(\S+)\s+(\S+)/);
 			if (depMatch) {
 				const depName = depMatch[1];
@@ -2126,14 +2144,20 @@ function computeGraphDiff(beforeNodes, beforeEdges, afterNodes, afterEdges) {
 	for (const [id, node] of beforeNodeMap) if (!afterNodeMap.has(id)) removedNodes.push(node);
 	const addedEdges = [];
 	const removedEdges = [];
-	for (const [id, edge] of afterEdgeMap) if (!beforeEdgeMap.has(id)) addedEdges.push(edge);
+	const modifiedEdges = [];
+	for (const [id, edge] of afterEdgeMap) {
+		const before = beforeEdgeMap.get(id);
+		if (!before) addedEdges.push(edge);
+		else if (before.type !== edge.type || before.source !== edge.source || before.target !== edge.target) modifiedEdges.push(edge);
+	}
 	for (const [id, edge] of beforeEdgeMap) if (!afterEdgeMap.has(id)) removedEdges.push(edge);
 	return {
 		addedNodes,
 		removedNodes,
 		modifiedNodes,
 		addedEdges,
-		removedEdges
+		removedEdges,
+		modifiedEdges
 	};
 }
 function diffToGraphData(diff) {
@@ -2165,6 +2189,13 @@ function diffToGraphData(diff) {
 		properties: {
 			...e.properties,
 			diffStatus: "added"
+		}
+	});
+	for (const e of diff.modifiedEdges) edges.push({
+		...e,
+		properties: {
+			...e.properties,
+			diffStatus: "modified"
 		}
 	});
 	for (const e of diff.removedEdges) edges.push({
@@ -2201,6 +2232,30 @@ const FILE_EXTENSIONS = {
 	".rs": "rust",
 	".go": "go"
 };
+const FUNCTION_NODE_TYPES = new Set([
+	"function_declaration",
+	"function_definition",
+	"method_declaration",
+	"method_definition",
+	"arrow_function"
+]);
+const CLASS_NODE_TYPES = new Set([
+	"class_declaration",
+	"class_definition",
+	"struct_declaration",
+	"interface_declaration"
+]);
+const VARIABLE_NODE_TYPES = new Set([
+	"variable_declaration",
+	"const_declaration",
+	"let_declaration",
+	"assignment"
+]);
+const IMPORT_NODE_TYPES = new Set([
+	"import_statement",
+	"import_declaration",
+	"use_declaration"
+]);
 var TreeSitterAdapter = class {
 	parser = null;
 	loadedLanguages = new Set();
@@ -2301,30 +2356,10 @@ var TreeSitterAdapter = class {
 			if (!node) return;
 			const nodeType = node.type;
 			let graphType = null;
-			if ([
-				"function_declaration",
-				"function_definition",
-				"method_declaration",
-				"method_definition",
-				"arrow_function"
-			].includes(nodeType)) graphType = "function";
-			else if ([
-				"class_declaration",
-				"class_definition",
-				"struct_declaration",
-				"interface_declaration"
-			].includes(nodeType)) graphType = "class";
-			else if ([
-				"variable_declaration",
-				"const_declaration",
-				"let_declaration",
-				"assignment"
-			].includes(nodeType)) graphType = "variable";
-			else if ([
-				"import_statement",
-				"import_declaration",
-				"use_declaration"
-			].includes(nodeType)) graphType = "module";
+			if (FUNCTION_NODE_TYPES.has(nodeType)) graphType = "function";
+			else if (CLASS_NODE_TYPES.has(nodeType)) graphType = "class";
+			else if (VARIABLE_NODE_TYPES.has(nodeType)) graphType = "variable";
+			else if (IMPORT_NODE_TYPES.has(nodeType)) graphType = "module";
 			if (graphType) {
 				const nameNode = node.childForFieldName?.("name") || node.children?.find((c) => c.type === "identifier" || c.type === "property_identifier");
 				const label = nameNode ? nameNode.text : `<${nodeType}>`;
@@ -2352,7 +2387,10 @@ var TreeSitterAdapter = class {
 					});
 				}
 			}
-			for (let i = 0; i < (node.childCount || 0); i++) walk(node.child(i), graphType ? `${filePath}:${node.childForFieldName?.("name")?.text || `<${nodeType}>`}:${node.startPosition.row}` : parentId);
+			for (let i = 0; i < (node.childCount || 0); i++) {
+				const child = node.child(i);
+				if (child) walk(child, graphType ? `${filePath}:${node.childForFieldName?.("name")?.text || `<${nodeType}>`}:${node.startPosition.row}` : parentId);
+			}
 		};
 		walk(rootNode);
 		return {
@@ -2469,6 +2507,12 @@ function sendJson(res, code, data) {
 	res.writeHead(code, { "content-type": "application/json" });
 	res.end(JSON.stringify(data));
 }
+function sendError(res, code, message) {
+	sendJson(res, code, {
+		success: false,
+		error: message
+	});
+}
 function readBody(req, maxBodyBytes) {
 	return new Promise((resolve, reject) => {
 		let body = "";
@@ -2504,7 +2548,7 @@ function registerRoutes(deps) {
 	const invokeUpstream = createInvokeUpstream(ctx, config);
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
-		path: "/api/codegraph/status",
+		path: "/api/v1/codegraph/status",
 		handler: (_req, res) => {
 			const status = checkPrerequisites(ctx);
 			sendJson(res, 200, {
@@ -2515,7 +2559,7 @@ function registerRoutes(deps) {
 	}), "codegraph: status route");
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
-		path: "/api/codegraph/workspace",
+		path: "/api/v1/codegraph/workspace",
 		handler: (_req, res) => {
 			const current = findWorkspacePath(ctx);
 			const list = extractWorkspacePaths(ctx);
@@ -2527,7 +2571,7 @@ function registerRoutes(deps) {
 	}), "codegraph: workspace route");
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
-		path: "/api/codegraph/data",
+		path: "/api/v1/codegraph/data",
 		handler: (req, res) => {
 			const ifNoneMatch = req.headers["if-none-match"];
 			const lastGraphData = deps.getLastGraphData();
@@ -2559,24 +2603,14 @@ function registerRoutes(deps) {
 	}), "codegraph: data route");
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
-		path: "/api/codegraph/scan",
+		path: "/api/v1/codegraph/scan",
 		handler: async (req, res) => {
 			try {
 				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
 				const path = extractStringField(parsed, "path");
 				if (path && path !== "." && !isPathAllowed(path)) {
-					sendJson(res, 403, {
-						success: false,
-						nodes: [],
-						edges: [],
-						metadata: {
-							repoId: null,
-							timestamp: 0,
-							nodeCount: 0,
-							edgeCount: 0
-						}
-					});
+					sendError(res, 403, "Path not allowed");
 					return;
 				}
 				const scanPath = path && path !== "." ? path : findWorkspacePath(ctx);
@@ -2642,35 +2676,20 @@ function registerRoutes(deps) {
 				}
 			} catch (e) {
 				log$2.error("scan failed", e);
-				sendJson(res, 500, {
-					success: false,
-					nodes: [],
-					edges: [],
-					metadata: {
-						repoId: null,
-						timestamp: 0,
-						nodeCount: 0,
-						edgeCount: 0
-					}
-				});
+				sendError(res, 500, e instanceof Error ? e.message : String(e));
 			}
 		}
 	}), "codegraph: scan route");
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
-		path: "/api/codegraph/init",
+		path: "/api/v1/codegraph/init",
 		handler: async (req, res) => {
 			try {
 				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
 				const path = extractStringField(parsed, "path");
 				if (path && path !== "." && !isPathAllowed(path)) {
-					sendJson(res, 403, {
-						success: false,
-						path: "",
-						message: "Path not allowed",
-						timestamp: Date.now()
-					});
+					sendError(res, 403, "Path not allowed");
 					return;
 				}
 				const initPath = path && path !== "." ? path : findWorkspacePath(ctx);
@@ -2708,13 +2727,13 @@ function registerRoutes(deps) {
 					timestamp: Date.now()
 				};
 				deps.setLastInitResult(errorResult);
-				sendJson(res, 500, errorResult);
+				sendError(res, 500, e instanceof Error ? e.message : String(e));
 			}
 		}
 	}), "codegraph: init route");
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
-		path: "/api/codegraph/watch",
+		path: "/api/v1/codegraph/watch",
 		handler: async (req, res) => {
 			try {
 				const body = await readBody(req, config.maxBodyBytes);
@@ -2722,10 +2741,7 @@ function registerRoutes(deps) {
 				const enabled = extractBooleanField(parsed, "enabled");
 				const path = extractStringField(parsed, "path");
 				if (path && path !== "." && !isPathAllowed(path)) {
-					sendJson(res, 403, {
-						success: false,
-						message: "Path not allowed"
-					});
+					sendError(res, 403, "Path not allowed");
 					return;
 				}
 				const watchPath = path && path !== "." ? path : findWorkspacePath(ctx);
@@ -2736,16 +2752,13 @@ function registerRoutes(deps) {
 				});
 				sendJson(res, 200, { success: true });
 			} catch (e) {
-				sendJson(res, 500, {
-					success: false,
-					message: e instanceof Error ? e.message : String(e)
-				});
+				sendError(res, 500, e instanceof Error ? e.message : String(e));
 			}
 		}
 	}), "codegraph: watch route");
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
-		path: "/api/codegraph/dependencies",
+		path: "/api/v1/codegraph/dependencies",
 		handler: async (_req, res) => {
 			try {
 				const workspacePath = findWorkspacePath(ctx);
@@ -2802,22 +2815,13 @@ function registerRoutes(deps) {
 				});
 			} catch (e) {
 				log$2.error("dependencies route failed", e);
-				sendJson(res, 500, {
-					nodes: [],
-					edges: [],
-					metadata: {
-						repoId: null,
-						timestamp: 0,
-						nodeCount: 0,
-						edgeCount: 0
-					}
-				});
+				sendError(res, 500, e instanceof Error ? e.message : String(e));
 			}
 		}
 	}), "codegraph: dependencies route");
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
-		path: "/api/codegraph/diff",
+		path: "/api/v1/codegraph/diff",
 		handler: async (req, res) => {
 			try {
 				const body = await readBody(req, config.maxBodyBytes);
@@ -2825,7 +2829,7 @@ function registerRoutes(deps) {
 				const fromCommit = extractStringField(parsed, "from");
 				const toCommit = extractStringField(parsed, "to");
 				if (!fromCommit || !toCommit) {
-					sendJson(res, 400, { error: "from and to commits are required" });
+					sendError(res, 400, "from and to commits are required");
 					return;
 				}
 				const workspacePath = findWorkspacePath(ctx);
@@ -2858,7 +2862,7 @@ function registerRoutes(deps) {
 				});
 			} catch (e) {
 				log$2.error("diff route failed", e);
-				sendJson(res, 500, { error: e instanceof Error ? e.message : String(e) });
+				sendError(res, 500, e instanceof Error ? e.message : String(e));
 			}
 		}
 	}), "codegraph: diff route");
@@ -2866,7 +2870,7 @@ function registerRoutes(deps) {
 		const treeSitterAdapter = new TreeSitterAdapter();
 		return ctx.webServer.register({
 			kind: "exact",
-			path: "/api/codegraph/tree-sitter",
+			path: "/api/v1/codegraph/tree-sitter",
 			handler: async (req, res) => {
 				try {
 					const body = await readBody(req, config.maxBodyBytes);
@@ -2874,14 +2878,14 @@ function registerRoutes(deps) {
 					const filePath = extractStringField(parsed, "filePath");
 					const content = extractStringField(parsed, "content");
 					if (!filePath || !content) {
-						sendJson(res, 400, { error: "filePath and content are required" });
+						sendError(res, 400, "filePath and content are required");
 						return;
 					}
 					const result = await treeSitterAdapter.parseFile(filePath, content);
 					sendJson(res, 200, result);
 				} catch (e) {
 					log$2.error("tree-sitter route failed", e);
-					sendJson(res, 500, { error: e instanceof Error ? e.message : String(e) });
+					sendError(res, 500, e instanceof Error ? e.message : String(e));
 				}
 			}
 		});

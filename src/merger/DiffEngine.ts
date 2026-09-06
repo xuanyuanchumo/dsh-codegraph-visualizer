@@ -6,6 +6,7 @@ export interface GraphDiff {
   modifiedNodes: GraphNode[];
   addedEdges: GraphEdge[];
   removedEdges: GraphEdge[];
+  modifiedEdges: GraphEdge[];
 }
 
 export function computeGraphDiff(
@@ -44,14 +45,22 @@ export function computeGraphDiff(
 
   const addedEdges: GraphEdge[] = [];
   const removedEdges: GraphEdge[] = [];
+  const modifiedEdges: GraphEdge[] = [];
   for (const [id, edge] of afterEdgeMap) {
-    if (!beforeEdgeMap.has(id)) addedEdges.push(edge);
+    const before = beforeEdgeMap.get(id);
+    if (!before) {
+      addedEdges.push(edge);
+    } else {
+      if (before.type !== edge.type || before.source !== edge.source || before.target !== edge.target) {
+        modifiedEdges.push(edge);
+      }
+    }
   }
   for (const [id, edge] of beforeEdgeMap) {
     if (!afterEdgeMap.has(id)) removedEdges.push(edge);
   }
 
-  return { addedNodes, removedNodes, modifiedNodes, addedEdges, removedEdges };
+  return { addedNodes, removedNodes, modifiedNodes, addedEdges, removedEdges, modifiedEdges };
 }
 
 export function diffToGraphData(diff: GraphDiff): { nodes: GraphNode[]; edges: GraphEdge[] } {
@@ -70,6 +79,9 @@ export function diffToGraphData(diff: GraphDiff): { nodes: GraphNode[]; edges: G
 
   for (const e of diff.addedEdges) {
     edges.push({ ...e, properties: { ...e.properties, diffStatus: 'added' } });
+  }
+  for (const e of diff.modifiedEdges) {
+    edges.push({ ...e, properties: { ...e.properties, diffStatus: 'modified' } });
   }
   for (const e of diff.removedEdges) {
     edges.push({ ...e, properties: { ...e.properties, diffStatus: 'removed' } });

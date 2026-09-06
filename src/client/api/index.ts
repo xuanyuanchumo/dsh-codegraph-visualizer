@@ -6,7 +6,7 @@ const log = scoped('client');
 
 export async function fetchStatus(): Promise<{ codegraph: boolean; lens: boolean }> {
   try {
-    const res = await fetch('/api/codegraph/status');
+    const res = await fetch('/api/v1/codegraph/status');
     if (!res.ok) return { codegraph: false, lens: false };
     return await res.json();
   } catch (e) {
@@ -17,7 +17,7 @@ export async function fetchStatus(): Promise<{ codegraph: boolean; lens: boolean
 
 export async function fetchGraphData(): Promise<GraphData | null> {
   try {
-    const res = await fetch('/api/codegraph/data');
+    const res = await fetch('/api/v1/codegraph/data');
     if (!res.ok) return null;
     return validateGraphData(await res.json());
   } catch (e) {
@@ -28,7 +28,7 @@ export async function fetchGraphData(): Promise<GraphData | null> {
 
 export async function fetchWorkspace(): Promise<{ path: string; list: string[] }> {
   try {
-    const res = await fetch('/api/codegraph/workspace');
+    const res = await fetch('/api/v1/codegraph/workspace');
     if (!res.ok) return { path: '.', list: [] };
     const data = await res.json() as { path?: string; list?: string[] };
     return { path: data.path ?? '.', list: data.list ?? [] };
@@ -40,7 +40,7 @@ export async function fetchWorkspace(): Promise<{ path: string; list: string[] }
 
 export async function requestScan(path: string, maxNodes?: number): Promise<{ success: boolean; nodes: unknown[]; edges: unknown[]; metadata?: Record<string, unknown> } | null> {
   try {
-    const res = await fetch('/api/codegraph/scan', {
+    const res = await fetch('/api/v1/codegraph/scan', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ path, maxNodes }),
@@ -55,7 +55,7 @@ export async function requestScan(path: string, maxNodes?: number): Promise<{ su
 
 export async function requestInit(path: string): Promise<{ success: boolean; message: string } | null> {
   try {
-    const res = await fetch('/api/codegraph/init', {
+    const res = await fetch('/api/v1/codegraph/init', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ path }),
@@ -70,7 +70,7 @@ export async function requestInit(path: string): Promise<{ success: boolean; mes
 
 export async function requestWatch(enabled: boolean, path: string): Promise<boolean> {
   try {
-    const res = await fetch('/api/codegraph/watch', {
+    const res = await fetch('/api/v1/codegraph/watch', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ enabled, path }),

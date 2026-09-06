@@ -272,10 +272,44 @@ export class DataController {
   }
 
   exportSVG(): string | null {
-    const png = this.cy.png({ full: true, scale: 2 });
-    const w = this.cy.width();
-    const h = this.cy.height();
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><image href="${png}" width="${w}" height="${h}"/></svg>`;
+    const nodes = this.cy.nodes();
+    const edges = this.cy.edges();
+    if (nodes.length === 0) return null;
+
+    const bbox = this.cy.elements().boundingBox();
+    const w = Math.ceil(bbox.w) + 160;
+    const h = Math.ceil(bbox.h) + 160;
+    const offsetX = -bbox.x1 + 80;
+    const offsetY = -bbox.y1 + 80;
+
+    const parts: string[] = [];
+    parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`);
+
+    const nodeColors: Record<string, string> = {
+      function: '#4CAF50', class: '#2196F3', variable: '#FF9800',
+      module: '#9C27B0', interface: '#00BCD4', type: '#E91E63',
+    };
+
+    edges.forEach((edge) => {
+      const srcPos = edge.source().position();
+      const tgtPos = edge.target().position();
+      const edgeType = edge.data('type') as string;
+      const color = edgeType === 'call' ? '#666' : edgeType === 'extend' ? '#E91E63' : '#999';
+      parts.push(`<line x1="${srcPos.x + offsetX}" y1="${srcPos.y + offsetY}" x2="${tgtPos.x + offsetX}" y2="${tgtPos.y + offsetY}" stroke="${color}" stroke-width="1" opacity="0.5"/>`);
+    });
+
+    nodes.forEach((node) => {
+      const pos = node.position();
+      const nodeType = node.data('type') as string;
+      const label = node.data('label') as string;
+      const color = nodeColors[nodeType] ?? '#757575';
+      const r = 12;
+      parts.push(`<circle cx="${pos.x + offsetX}" cy="${pos.y + offsetY}" r="${r}" fill="${color}" opacity="0.8"/>`);
+      parts.push(`<text x="${pos.x + offsetX}" y="${pos.y + offsetY + 4}" font-size="9" text-anchor="middle" fill="#333">${escapeXml(label)}</text>`);
+    });
+
+    parts.push('</svg>');
+    return parts.join('');
   }
 
   destroy(): void {
@@ -285,4 +319,17 @@ export class DataController {
     this.currentNodes.clear();
     this.currentEdges.clear();
   }
+}
+
+function escapeXml(s: string): string {
+  return s.replace(/[<>&"']/g, (c) => {
+    switch (c) {
+      case '<': return '&lt;';
+      case '>': return '&gt;';
+      case '&': return '&amp;';
+      case '"': return '&quot;';
+      case "'": return '&apos;';
+      default: return c;
+    }
+  });
 }

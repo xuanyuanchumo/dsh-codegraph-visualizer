@@ -17,7 +17,9 @@ export class LayoutController {
 
   private initWorker(): void {
     try {
-      this.worker = new Worker(new URL('../worker/layoutWorker.ts', import.meta.url), { type: 'module' });
+      const base = typeof document !== 'undefined' ? document.baseURI : location.href;
+      const workerUrl = new URL('../worker/layoutWorker.ts', base);
+      this.worker = new Worker(workerUrl, { type: 'module' });
       this.worker.onmessage = (e: MessageEvent<{ positions: Record<string, { x: number; y: number }> }>) => {
         if (this.workerLayoutResolve) {
           this.workerLayoutResolve(e.data.positions);
@@ -192,12 +194,15 @@ export class LayoutController {
           concentric: (n: { degree: () => number }) => n.degree(),
           levelWidth: () => 2,
         } as LayoutOptions;
-      case 'tree':
+      case 'tree': {
+        const rootNodes = this.cy.nodes().roots();
         return {
           name: 'breadthfirst', fit: true, animate,
           padding: 80, directed: true, spacingFactor: 1.2,
-          roots: undefined, maximalAdjustments: 2,
+          roots: rootNodes.nonempty() ? rootNodes : this.cy.nodes().first(),
+          maximalAdjustments: 2,
         } as LayoutOptions;
+      }
       default: {
         const _exhaustive: never = layout;
         throw new Error(`Unhandled layout: ${_exhaustive}`);

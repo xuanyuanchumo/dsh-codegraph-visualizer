@@ -137,7 +137,7 @@ export function apply(ctx: Context) {
       const s = useGraphStore.getState();
       if (s.prerequisites.codegraph && s.prerequisites.lens) { clearInterval(prereqInterval); return; }
       await checkStatus();
-    }, 10000);
+    }, 30000);
     ctx.effect(() => () => clearInterval(prereqInterval), 'codegraph: prereq polling');
   }
 
@@ -190,7 +190,7 @@ export function apply(ctx: Context) {
         const s = useGraphStore.getState();
         if (!s.workspaceList.some((w) => w.path === p)) { s.addWorkspace(p, p.split(/[\\/]/).pop() ?? p); }
       }
-    }, 5000);
+    }, 15000);
     ctx.effect(() => () => clearInterval(workspacePoll), 'codegraph: workspace polling');
   }
 

@@ -91,7 +91,18 @@ export function parseGoMod(content: string): DependencyGraph {
       if (moduleMatch) moduleName = moduleMatch[1]!;
       if (line.match(/^require\s*\(/)) { inRequireBlock = true; continue; }
       if (line.match(/^\)/)) { inRequireBlock = false; continue; }
-      if (!inRequireBlock && !line.match(/^require\s+/)) continue;
+      const singleRequireMatch = line.match(/^require\s+(\S+)\s+(\S+)/);
+      if (singleRequireMatch) {
+        const depName = singleRequireMatch[1]!;
+        const depVersion = singleRequireMatch[2]!;
+        const depId = `dep:${depName}`;
+        if (!nodes.find((n) => n.id === depId)) {
+          nodes.push({ id: depId, name: depName, version: depVersion, type: 'gomod' });
+        }
+        edges.push({ source: `dep:${moduleName}`, target: depId, type: 'depends' });
+        continue;
+      }
+      if (!inRequireBlock) continue;
       const depMatch = line.match(/^\s*(\S+)\s+(\S+)/);
       if (depMatch) {
         const depName = depMatch[1]!;

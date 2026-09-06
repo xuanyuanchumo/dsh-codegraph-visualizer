@@ -27097,10 +27097,10 @@ var Atlas = /* @__PURE__ */ function() {
 				if (this.locked) throw new Error("can't draw, atlas is locked");
 				var texSize = this.texSize, texRows = this.texRows, texHeight = this.texHeight;
 				var _this$getScale = this.getScale(bb), scale$1 = _this$getScale.scale, texW = _this$getScale.texW, texH = _this$getScale.texH;
-				var drawAt = function drawAt$1(location, canvas) {
+				var drawAt = function drawAt$1(location$1, canvas) {
 					if (doDrawing && canvas) {
 						var context = canvas.context;
-						var x$1 = location.x, row = location.row;
+						var x$1 = location$1.x, row = location$1.row;
 						var xOffset = x$1;
 						var yOffset = texHeight * row;
 						context.save();
@@ -39488,7 +39488,9 @@ var LayoutController = class {
 	}
 	initWorker() {
 		try {
-			this.worker = new Worker(new URL("../worker/layoutWorker.ts", import.meta.url), { type: "module" });
+			const base$1 = typeof document !== "undefined" ? document.baseURI : location.href;
+			const workerUrl = new URL("../worker/layoutWorker.ts", base$1);
+			this.worker = new Worker(workerUrl, { type: "module" });
 			this.worker.onmessage = (e) => {
 				if (this.workerLayoutResolve) {
 					this.workerLayoutResolve(e.data.positions);
@@ -39672,16 +39674,19 @@ var LayoutController = class {
 				concentric: (n) => n.degree(),
 				levelWidth: () => 2
 			};
-			case "tree": return {
-				name: "breadthfirst",
-				fit: true,
-				animate,
-				padding: 80,
-				directed: true,
-				spacingFactor: 1.2,
-				roots: void 0,
-				maximalAdjustments: 2
-			};
+			case "tree": {
+				const rootNodes = this.cy.nodes().roots();
+				return {
+					name: "breadthfirst",
+					fit: true,
+					animate,
+					padding: 80,
+					directed: true,
+					spacingFactor: 1.2,
+					roots: rootNodes.nonempty() ? rootNodes : this.cy.nodes().first(),
+					maximalAdjustments: 2
+				};
+			}
 			default: {
 				const _exhaustive = layout$2;
 				throw new Error(`Unhandled layout: ${_exhaustive}`);
@@ -40404,13 +40409,42 @@ var DataController = class {
 		});
 	}
 	exportSVG() {
-		const png = this.cy.png({
-			full: true,
-			scale: 2
+		const nodes = this.cy.nodes();
+		const edges = this.cy.edges();
+		if (nodes.length === 0) return null;
+		const bbox = this.cy.elements().boundingBox();
+		const w = Math.ceil(bbox.w) + 160;
+		const h = Math.ceil(bbox.h) + 160;
+		const offsetX = -bbox.x1 + 80;
+		const offsetY = -bbox.y1 + 80;
+		const parts = [];
+		parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`);
+		const nodeColors = {
+			function: "#4CAF50",
+			class: "#2196F3",
+			variable: "#FF9800",
+			module: "#9C27B0",
+			interface: "#00BCD4",
+			type: "#E91E63"
+		};
+		edges.forEach((edge) => {
+			const srcPos = edge.source().position();
+			const tgtPos = edge.target().position();
+			const edgeType = edge.data("type");
+			const color = edgeType === "call" ? "#666" : edgeType === "extend" ? "#E91E63" : "#999";
+			parts.push(`<line x1="${srcPos.x + offsetX}" y1="${srcPos.y + offsetY}" x2="${tgtPos.x + offsetX}" y2="${tgtPos.y + offsetY}" stroke="${color}" stroke-width="1" opacity="0.5"/>`);
 		});
-		const w = this.cy.width();
-		const h = this.cy.height();
-		return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><image href="${png}" width="${w}" height="${h}"/></svg>`;
+		nodes.forEach((node) => {
+			const pos = node.position();
+			const nodeType = node.data("type");
+			const label = node.data("label");
+			const color = nodeColors[nodeType] ?? "#757575";
+			const r = 12;
+			parts.push(`<circle cx="${pos.x + offsetX}" cy="${pos.y + offsetY}" r="${r}" fill="${color}" opacity="0.8"/>`);
+			parts.push(`<text x="${pos.x + offsetX}" y="${pos.y + offsetY + 4}" font-size="9" text-anchor="middle" fill="#333">${escapeXml(label)}</text>`);
+		});
+		parts.push("</svg>");
+		return parts.join("");
 	}
 	destroy() {
 		if (this.batchRaf !== null) cancelAnimationFrame(this.batchRaf);
@@ -40420,6 +40454,18 @@ var DataController = class {
 		this.currentEdges.clear();
 	}
 };
+function escapeXml(s) {
+	return s.replace(/[<>&"']/g, (c) => {
+		switch (c) {
+			case "<": return "&lt;";
+			case ">": return "&gt;";
+			case "&": return "&amp;";
+			case "\"": return "&quot;";
+			case "'": return "&apos;";
+			default: return c;
+		}
+	});
+}
 
 //#endregion
 //#region src/client/renderer/styles/ThemeStylesheet.ts
@@ -44959,6 +45005,31 @@ const PRESET_RULES = [
 		params: { threshold: 15 },
 		severity: "warning",
 		enabled: false
+	},
+	{
+		id: "required-call-edge",
+		name: "Public Functions Must Have Callers",
+		type: "required-edge",
+		params: {
+			edgeType: "call",
+			sourceType: "function"
+		},
+		severity: "warning",
+		enabled: false
+	},
+	{
+		id: "no-cross-layer-call",
+		name: "No Cross-Layer Calls",
+		type: "cross-layer-call",
+		params: {
+			layers: {
+				"view": ["model"],
+				"model": ["view"]
+			},
+			edgeType: "call"
+		},
+		severity: "error",
+		enabled: false
 	}
 ];
 function getPresetRules() {
@@ -44970,6 +45041,8 @@ var RuleEngine = class {
 		this.registerDetector("forbidden-edge", new ForbiddenEdgeDetector());
 		this.registerDetector("max-indegree", new MaxIndegreeDetector());
 		this.registerDetector("max-outdegree", new MaxOutdegreeDetector());
+		this.registerDetector("required-edge", new RequiredEdgeDetector());
+		this.registerDetector("cross-layer-call", new CrossLayerCallDetector());
 	}
 	registerDetector(type, detector) {
 		this.detectors.set(type, detector);
@@ -45069,6 +45142,67 @@ var MaxOutdegreeDetector = class {
 			message: `Node ${nodeId} has outdegree ${count} (max ${threshold})`,
 			severity: rule.severity
 		});
+		return violations;
+	}
+};
+var RequiredEdgeDetector = class {
+	detect(rule, nodes, edges) {
+		const violations = [];
+		const requiredType = rule.params.edgeType ?? "call";
+		const sourceType = rule.params.sourceType ?? void 0;
+		const targetType = rule.params.targetType ?? void 0;
+		const nodeMap = new Map();
+		for (const n of nodes) nodeMap.set(n.id, n);
+		const hasEdge = new Set();
+		for (const edge of edges) {
+			if (edge.type !== requiredType) continue;
+			if (sourceType) {
+				const src = nodeMap.get(edge.source);
+				if (!src || src.type !== sourceType) continue;
+			}
+			if (targetType) {
+				const tgt = nodeMap.get(edge.target);
+				if (!tgt || tgt.type !== targetType) continue;
+			}
+			hasEdge.add(edge.source);
+		}
+		for (const n of nodes) {
+			if (sourceType && n.type !== sourceType) continue;
+			if (!hasEdge.has(n.id)) violations.push({
+				ruleId: rule.id,
+				nodeId: n.id,
+				message: `Node ${n.label} is missing required ${requiredType} edge`,
+				severity: rule.severity
+			});
+		}
+		return violations;
+	}
+};
+var CrossLayerCallDetector = class {
+	detect(rule, nodes, edges) {
+		const violations = [];
+		const layerMap = rule.params.layers ?? {};
+		const callType = rule.params.edgeType ?? "call";
+		if (Object.keys(layerMap).length === 0) return violations;
+		const nodeLayer = new Map();
+		for (const n of nodes) for (const [layerName, patterns] of Object.entries(layerMap)) if (patterns.some((p$1) => n.filePath.includes(p$1) || n.label.includes(p$1))) {
+			nodeLayer.set(n.id, layerName);
+			break;
+		}
+		const forbiddenPairs = new Set();
+		for (const [srcLayer, tgtLayers] of Object.entries(layerMap)) for (const tgtLayer of tgtLayers) forbiddenPairs.add(`${srcLayer}->${tgtLayer}`);
+		for (const edge of edges) {
+			if (edge.type !== callType) continue;
+			const srcLayer = nodeLayer.get(edge.source);
+			const tgtLayer = nodeLayer.get(edge.target);
+			if (!srcLayer || !tgtLayer) continue;
+			if (forbiddenPairs.has(`${srcLayer}->${tgtLayer}`)) violations.push({
+				ruleId: rule.id,
+				edgeId: edge.id,
+				message: `Cross-layer call from ${srcLayer} to ${tgtLayer}`,
+				severity: rule.severity
+			});
+		}
 		return violations;
 	}
 };
@@ -45737,8 +45871,21 @@ function GraphPanelInner({ className = "" }) {
 			setViewportInfo(r.getViewportInfo());
 		};
 		updateMiniMap();
-		const id = setInterval(updateMiniMap, 2e3);
-		return () => clearInterval(id);
+		let rafId = null;
+		let lastUpdate = 0;
+		const MIN_INTERVAL = 500;
+		const throttledUpdate = () => {
+			const now$1 = Date.now();
+			if (now$1 - lastUpdate < MIN_INTERVAL) return;
+			lastUpdate = now$1;
+			if (rafId !== null) cancelAnimationFrame(rafId);
+			rafId = requestAnimationFrame(updateMiniMap);
+		};
+		const fallbackId = setInterval(throttledUpdate, 500);
+		return () => {
+			if (rafId !== null) cancelAnimationFrame(rafId);
+			clearInterval(fallbackId);
+		};
 	}, [
 		panel.showMiniMap,
 		panel.collapsed,
@@ -45766,7 +45913,7 @@ function GraphPanelInner({ className = "" }) {
 		setViewMode(newMode);
 		if (newMode === "dependencies") {
 			setLoading(true);
-			fetch("/api/codegraph/dependencies").then((r) => r.json()).then((data$2) => {
+			fetch("/api/v1/codegraph/dependencies").then((r) => r.json()).then((data$2) => {
 				if (data$2.nodes && data$2.nodes.length > 0) setGraphData(data$2.nodes, data$2.edges, data$2.metadata?.repoId || currentWorkspace);
 			}).catch(() => {}).finally(() => setLoading(false));
 		} else window.dispatchEvent(new CustomEvent("codegraph:refresh", { detail: { incremental: false } }));
@@ -46224,14 +46371,14 @@ function GraphPanel(props) {
 
 //#endregion
 //#region src/generated/version.ts
-const PLUGIN_VERSION = "0.1.1";
+const PLUGIN_VERSION = "0.2.0";
 
 //#endregion
 //#region src/client/api/index.ts
 const log$1 = scoped("client");
 async function fetchStatus() {
 	try {
-		const res = await fetch("/api/codegraph/status");
+		const res = await fetch("/api/v1/codegraph/status");
 		if (!res.ok) return {
 			codegraph: false,
 			lens: false
@@ -46247,7 +46394,7 @@ async function fetchStatus() {
 }
 async function fetchGraphData() {
 	try {
-		const res = await fetch("/api/codegraph/data");
+		const res = await fetch("/api/v1/codegraph/data");
 		if (!res.ok) return null;
 		return validateGraphData(await res.json());
 	} catch (e) {
@@ -46257,7 +46404,7 @@ async function fetchGraphData() {
 }
 async function fetchWorkspace() {
 	try {
-		const res = await fetch("/api/codegraph/workspace");
+		const res = await fetch("/api/v1/codegraph/workspace");
 		if (!res.ok) return {
 			path: ".",
 			list: []
@@ -46277,7 +46424,7 @@ async function fetchWorkspace() {
 }
 async function requestScan(path, maxNodes) {
 	try {
-		const res = await fetch("/api/codegraph/scan", {
+		const res = await fetch("/api/v1/codegraph/scan", {
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({
@@ -46294,7 +46441,7 @@ async function requestScan(path, maxNodes) {
 }
 async function requestInit(path) {
 	try {
-		const res = await fetch("/api/codegraph/init", {
+		const res = await fetch("/api/v1/codegraph/init", {
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({ path })
@@ -46308,7 +46455,7 @@ async function requestInit(path) {
 }
 async function requestWatch(enabled, path) {
 	try {
-		const res = await fetch("/api/codegraph/watch", {
+		const res = await fetch("/api/v1/codegraph/watch", {
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({
@@ -46328,6 +46475,9 @@ async function requestWatch(enabled, path) {
 const log = scoped("client");
 const name = "dsh-codegraph-visualizer-client";
 const inject = ["slots"];
+function CodeGraphTab({ visible }) {
+	return visible ? React.createElement(GraphPanel) : null;
+}
 function init(container, initialData) {
 	const root$12 = ReactDOM.createRoot(container);
 	if (initialData) {
@@ -46346,9 +46496,6 @@ function apply(ctx) {
 		for (const dispose of slotDisposers) dispose();
 		slotDisposers.length = 0;
 	}, "codegraph: slot registrations cleanup");
-	function CodeGraphTab({ visible }) {
-		return visible ? React.createElement(GraphPanel) : null;
-	}
 	try {
 		const betterSidebar = ctx.get("betterSidebar");
 		if (betterSidebar) {
@@ -46448,7 +46595,7 @@ function apply(ctx) {
 				return;
 			}
 			await checkStatus();
-		}, 1e4);
+		}, 3e4);
 		ctx.effect(() => () => clearInterval(prereqInterval), "codegraph: prereq polling");
 	}
 	let lastDshWorkspace = "";
@@ -46503,14 +46650,14 @@ function apply(ctx) {
 				const s = useGraphStore.getState();
 				if (!s.workspaceList.some((w) => w.path === p$1)) s.addWorkspace(p$1, p$1.split(/[\\/]/).pop() ?? p$1);
 			}
-		}, 5e3);
+		}, 15e3);
 		ctx.effect(() => () => clearInterval(workspacePoll), "codegraph: workspace polling");
 	}
 	if (typeof window !== "undefined") {
 		const refreshListener = (e) => {
 			const detail = e.detail;
 			const store = useGraphStore.getState();
-			if (store.nodes.length > 0) if (detail?.incremental) fetch("/api/codegraph/data", { headers: { "if-none-match": String(store.lastUpdated) } }).then((res) => {
+			if (store.nodes.length > 0) if (detail?.incremental) fetch("/api/v1/codegraph/data", { headers: { "if-none-match": String(store.lastUpdated) } }).then((res) => {
 				if (res.status === 304) return null;
 				return res.json();
 			}).then((data$2) => {
