@@ -122,17 +122,29 @@ export class TreeSitterAdapter {
   }
 
   private async loadLanguageWasm(language: SupportedLanguage): Promise<TreeSitterLanguage> {
-    const wasmPaths: Record<SupportedLanguage, string> = {
-      typescript: 'tree-sitter-typescript.wasm',
-      javascript: 'tree-sitter-javascript.wasm',
-      python: 'tree-sitter-python.wasm',
-      java: 'tree-sitter-java.wasm',
-      rust: 'tree-sitter-rust.wasm',
-      go: 'tree-sitter-go.wasm',
-    };
-    const wasmPath = wasmPaths[language];
+    const wasmFile = `tree-sitter-${language}.wasm`;
     const { Language } = await import('web-tree-sitter');
-    return await (Language as unknown as TreeSitterLanguage).load(wasmPath);
+
+    const candidates: string[] = [];
+
+    // In browser context (both ESM and CJS bundles), use document.baseURI
+    // for relative URL resolution. This avoids `import.meta` syntax which
+    // is a SyntaxError in CJS/classic-script bundles.
+    const doc = (globalThis as Record<string, unknown>).document as { baseURI?: string } | undefined;
+    if (doc && doc.baseURI) {
+      try { candidates.push(new URL(`node_modules/web-tree-sitter/dist/${wasmFile}`, doc.baseURI).href); } catch {}
+      try { candidates.push(new URL(`plugins/dsh-codegraph-visualizer/${wasmFile}`, doc.baseURI).href); } catch {}
+    }
+
+    // Bare filename as last resort (relative to page)
+    candidates.push(wasmFile);
+
+    for (const path of candidates) {
+      try {
+        return await (Language as unknown as TreeSitterLanguage).load(path);
+      } catch {}
+    }
+    throw new Error(`Cannot load ${wasmFile} from any candidate path`);
   }
 
   private extractSymbols(rootNode: TreeSitterNode, filePath: string): { nodes: GraphNode[]; edges: GraphEdge[] } {

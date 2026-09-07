@@ -16,7 +16,37 @@ export class LayoutController {
   }
 
   private initWorker(): void {
-    this.worker = null;
+    try {
+      let workerUrl: string | null = null;
+
+      // In browser context (both ESM and CJS bundles), use document.baseURI
+      // for relative URL resolution. This works in DSH web's classic <script>
+      // loading as well as the dev server's ESM dynamic import.
+      if (typeof document !== 'undefined' && document.baseURI) {
+        try {
+          workerUrl = new URL('plugins/dsh-codegraph-visualizer/worker/layoutWorker.js', document.baseURI).href;
+        } catch {}
+      }
+
+      if (workerUrl) {
+        this.worker = new Worker(workerUrl, { type: 'module' });
+      }
+
+      if (this.worker) {
+        this.worker.onmessage = (e: MessageEvent<{ positions: Record<string, { x: number; y: number }> }>) => {
+          if (this.workerLayoutResolve) {
+            this.workerLayoutResolve(e.data.positions);
+            this.workerLayoutResolve = null;
+          }
+        };
+        this.worker.onerror = () => {
+          this.worker?.terminate();
+          this.worker = null;
+        };
+      }
+    } catch {
+      this.worker = null;
+    }
   }
 
   isWorkerAvailable(): boolean {

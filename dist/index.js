@@ -2783,17 +2783,23 @@ var TreeSitterAdapter = class {
 		}
 	}
 	async loadLanguageWasm(language) {
-		const wasmPaths = {
-			typescript: "tree-sitter-typescript.wasm",
-			javascript: "tree-sitter-javascript.wasm",
-			python: "tree-sitter-python.wasm",
-			java: "tree-sitter-java.wasm",
-			rust: "tree-sitter-rust.wasm",
-			go: "tree-sitter-go.wasm"
-		};
-		const wasmPath = wasmPaths[language];
+		const wasmFile = `tree-sitter-${language}.wasm`;
 		const { Language } = await import("web-tree-sitter");
-		return await Language.load(wasmPath);
+		const candidates = [];
+		const doc = globalThis.document;
+		if (doc && doc.baseURI) {
+			try {
+				candidates.push(new URL(`node_modules/web-tree-sitter/dist/${wasmFile}`, doc.baseURI).href);
+			} catch {}
+			try {
+				candidates.push(new URL(`plugins/dsh-codegraph-visualizer/${wasmFile}`, doc.baseURI).href);
+			} catch {}
+		}
+		candidates.push(wasmFile);
+		for (const path$1 of candidates) try {
+			return await Language.load(path$1);
+		} catch {}
+		throw new Error(`Cannot load ${wasmFile} from any candidate path`);
 	}
 	extractSymbols(rootNode, filePath) {
 		const nodes = [];

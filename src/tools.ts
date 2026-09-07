@@ -6,7 +6,7 @@ import type { JsonValue } from '@deepseek-ai/dsh-session';
 import { CodeGraphAdapter } from './adapters/CodeGraphAdapter.ts';
 import { LensAdapter } from './adapters/LensAdapter.ts';
 import { GraphDataMerger } from './merger/GraphDataMerger.ts';
-import type { AdapterResult, GraphData, GraphUpdatedEvent, GraphDataEvent, RepoId, HealthScore, RuleViolation } from './types/index.ts';
+import type { AdapterResult, GraphData, GraphUpdatedEvent, GraphDataEvent, HealthScore, RuleViolation } from './types/index.ts';
 import { RepoId as makeRepoId, NodeId } from './types/index.ts';
 import { HealthScorer } from './shared/analysis/HealthScorer.ts';
 import { RuleEngine, type RuleDefinition } from './shared/analysis/RuleEngine.ts';
@@ -466,4 +466,3 @@ export const createGraphTools = (ctx: Context, options: { requestTimeout?: numbe
 };
 
 
-export const makeRepo = (id: string): RepoId => makeRepoId(id);

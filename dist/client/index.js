@@ -42964,7 +42964,27 @@ var LayoutController = class {
 		this.initWorker();
 	}
 	initWorker() {
-		this.worker = null;
+		try {
+			let workerUrl = null;
+			if (typeof document !== "undefined" && document.baseURI) try {
+				workerUrl = new URL("plugins/dsh-codegraph-visualizer/worker/layoutWorker.js", document.baseURI).href;
+			} catch {}
+			if (workerUrl) this.worker = new Worker(workerUrl, { type: "module" });
+			if (this.worker) {
+				this.worker.onmessage = (e) => {
+					if (this.workerLayoutResolve) {
+						this.workerLayoutResolve(e.data.positions);
+						this.workerLayoutResolve = null;
+					}
+				};
+				this.worker.onerror = () => {
+					this.worker?.terminate();
+					this.worker = null;
+				};
+			}
+		} catch {
+			this.worker = null;
+		}
 	}
 	isWorkerAvailable() {
 		return this.worker !== null;

@@ -3,6 +3,7 @@ import { CytoscapeRenderer } from '../renderer/CytoscapeRenderer.ts';
 import type { IRenderer, LayoutType, ThemeType } from '../renderer/IRenderer.ts';
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { NodeId } from '../../types/index.ts';
+import type { ClusterNode, ClusterEdge } from '../store/cluster/index.ts';
 import { scoped } from '../../shared/Logger.ts';
 
 type FilterType = GraphNode['type'] | 'all';
@@ -28,8 +29,8 @@ export interface UseGraphRendererResult {
 }
 
 export function useGraphRenderer(
-  nodes: (GraphNode | import('../store/graphStore.ts').ClusterNode)[],
-  edges: (GraphEdge | import('../store/graphStore.ts').ClusterEdge)[],
+  nodes: (GraphNode | ClusterNode)[],
+  edges: (GraphEdge | ClusterEdge)[],
   rawNodes: GraphNode[],
   layout: LayoutType,
   theme: ThemeType,

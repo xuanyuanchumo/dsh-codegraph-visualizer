@@ -1,6 +1,6 @@
 import type { Core, NodeDataDefinition } from 'cytoscape';
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
-import type { ClusterNode, ClusterEdge } from '../store/graphStore.ts';
+import type { ClusterNode, ClusterEdge } from '../store/cluster/index.ts';
 import { getThemeColors } from './styles/ThemeStylesheet.ts';
 import type { ThemeType } from './IRenderer.ts';
 

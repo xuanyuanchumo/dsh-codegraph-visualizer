@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   fetchMergedGraph,
   summarizeGraph,
-  makeRepo,
+
   pickBestMatch,
   normalizeImpact,
   createGraphTools,
@@ -21,6 +21,7 @@ import {
   renderGraphSymbol,
   renderGraphImpact,
 } from '../../src/tools.ts';
+import { RepoId as makeRepoId } from '../../src/types/index.ts';
 import { makeNode, makeEdge, makeGraphData } from '../helpers.ts';
 import type { GraphData } from '../../src/types/index.ts';
 import type { UpstreamInvoker } from '../../src/adapters/CodeGraphAdapter.ts';
@@ -310,9 +311,9 @@ describe('summarizeGraph (additional)', () => {
   });
 });
 
-describe('makeRepo', () => {
+describe('makeRepoId', () => {
   it('should create a branded RepoId', () => {
-    const id = makeRepo('my-repo');
+    const id = makeRepoId('my-repo');
     expect(id).toBe('my-repo');
     expect(typeof id).toBe('string');
   });
