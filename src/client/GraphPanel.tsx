@@ -27,6 +27,7 @@ import { GraphIcon, CloseIcon } from './components/Icons.tsx';
 import { HealthScorer } from '../shared/analysis/HealthScorer.ts';
 import { RuleEngine, getPresetRules } from '../shared/analysis/RuleEngine.ts';
 import { HotspotAnalyzer, GodModuleDetector } from '../shared/analysis/HotspotAnalyzer.ts';
+import { fetchGraphData } from './api/index.ts';
 import { scoped } from '../shared/Logger.ts';
 import { useT } from './i18n/index.ts';
 import './styles.css';
@@ -372,8 +373,13 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       depsFetchAbortRef.current?.abort();
       setClusterLevel(prevClusterLevelRef.current);
       setGraphType(prevGraphTypeRef.current);
-      setLoading(false);
-      window.dispatchEvent(new CustomEvent('codegraph:refresh', { detail: { incremental: false } }));
+      setLoading(true);
+      fetchGraphData().then((data) => {
+        if (data) {
+          setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata);
+        }
+        setLoading(false);
+      }).catch(() => { setLoading(false); });
     }
   }, [viewMode, setViewMode, setLoading, setGraphData, setError, currentWorkspace, clusterLevel, graphType, setClusterLevel, setGraphType]);
 
@@ -503,7 +509,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   return (
     <div className={panelClassName} ref={panelRef} role="region" aria-label={t('panel.ariaLabel')}>
-      <div className="collapse-fab" onClick={panel.toggleCollapsed} role="button" aria-label={t('panel.expand')}>
+      <div className="collapse-fab" onClick={panel.toggleCollapsed} role="button" tabIndex={0} aria-label={t('panel.expand')} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); panel.toggleCollapsed(); } }}>
         <GraphIcon size={22} />
       </div>
 
@@ -660,7 +666,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         <div className="analysis-panel hotspot-panel" role="region" aria-label={t('toolbar.hotspot')}>
           <div className="analysis-panel-header">
             <span>{t('toolbar.hotspot')}</span>
-            <button onClick={() => panel.setShowHotspot(false)} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', marginLeft: 'auto' }}><CloseIcon size={14} /></button>
+            <button onClick={() => panel.setShowHotspot(false)} className="cg-close-btn"><CloseIcon size={14} /></button>
           </div>
           <div className="analysis-panel-content">
             {hotspotNodes.slice(0, 20).map((h) => (
@@ -678,7 +684,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         <div className="analysis-panel godmodule-panel" role="region" aria-label={t('toolbar.godModule')}>
           <div className="analysis-panel-header">
             <span>{t('toolbar.godModule')}</span>
-            <button onClick={() => panel.setShowGodModule(false)} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', marginLeft: 'auto' }}><CloseIcon size={14} /></button>
+            <button onClick={() => panel.setShowGodModule(false)} className="cg-close-btn"><CloseIcon size={14} /></button>
           </div>
           <div className="analysis-panel-content">
             {godModules.map((m) => (

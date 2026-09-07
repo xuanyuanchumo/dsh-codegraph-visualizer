@@ -9,6 +9,7 @@ export class DataController {
   private currentNodes: Map<string, GraphNode> = new Map();
   private currentEdges: Map<string, GraphEdge> = new Map();
   private rawNodesMap: Map<string, GraphNode> = new Map();
+  private rawToVisibleMap: Map<string, string> = new Map();
   private batchRaf: number | null = null;
   private batchQueue: { nodes: GraphNode[]; edges: GraphEdge[] } | null = null;
   private lastAddedNodeIds: Set<string> = new Set();
@@ -33,6 +34,18 @@ export class DataController {
   updateData(nodes: GraphNode[], edges: GraphEdge[]): void {
     const newNodeIds = new Set<string>(nodes.map((n) => n.id));
     const newEdgeIds = new Set<string>(edges.map((e) => e.id));
+
+    this.rawToVisibleMap.clear();
+    for (const n of nodes) {
+      if ('isCluster' in n && n.isCluster === true) {
+        const clusterNode = n as ClusterNode;
+        for (const childId of clusterNode.childIds) {
+          this.rawToVisibleMap.set(childId, n.id);
+        }
+      } else {
+        this.rawToVisibleMap.set(n.id, n.id);
+      }
+    }
 
     const hasNewNodes = nodes.some((n) => !this.currentNodes.has(n.id));
     const hasStaleNodes = this.currentNodes.size !== nodes.length ||
@@ -217,20 +230,23 @@ export class DataController {
     for (const rawNode of this.rawNodesMap.values()) {
       if (rawNode.label.toLowerCase().includes(q)) {
         matches++;
-        let cyNode = this.cy.getElementById(rawNode.id);
-        if (cyNode.length > 0) {
-          matchedCyNodeIds.add(rawNode.id);
-        } else {
-          let parentId: string | undefined = rawNode.parentId;
-          while (parentId) {
-            cyNode = this.cy.getElementById(parentId);
-            if (cyNode.length > 0) {
-              matchedCyNodeIds.add(parentId);
-              break;
-            }
-            const parentRaw = this.rawNodesMap.get(parentId);
-            parentId = parentRaw?.parentId;
+        const visibleId = this.rawToVisibleMap.get(rawNode.id);
+        if (visibleId) {
+          const cyNode = this.cy.getElementById(visibleId);
+          if (cyNode.length > 0) {
+            matchedCyNodeIds.add(visibleId);
+            continue;
           }
+        }
+        let parentId: string | undefined = rawNode.parentId;
+        while (parentId) {
+          const cyNode = this.cy.getElementById(parentId);
+          if (cyNode.length > 0) {
+            matchedCyNodeIds.add(parentId);
+            break;
+          }
+          const parentRaw = this.rawNodesMap.get(parentId);
+          parentId = parentRaw?.parentId;
         }
       }
     }
@@ -336,6 +352,7 @@ export class DataController {
     this.currentNodes.clear();
     this.currentEdges.clear();
     this.rawNodesMap.clear();
+    this.rawToVisibleMap.clear();
     this.lastAddedNodeIds.clear();
   }
 }

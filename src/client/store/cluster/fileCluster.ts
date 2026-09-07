@@ -1,4 +1,5 @@
-import type { GraphNode, GraphEdge, NodeId } from '../../../types/index.ts';
+import { NodeId } from '../../../types/index.ts';
+import type { GraphNode, GraphEdge } from '../../../types/index.ts';
 import type { ClusterNode, ClusterResult } from './types.ts';
 import { aggregateEdges } from './types.ts';
 
@@ -42,7 +43,7 @@ export function computeFileClusters(
   for (const [clusterId, { children, parentFileId }] of fileClusterChildren) {
     const parentNode = rawNodes.find((n) => n.id === parentFileId);
     const clusterNode: ClusterNode = {
-      id: clusterId as NodeId,
+      id: NodeId(clusterId),
       label: `${parentNode?.label ?? 'unknown'} (${children.length})`,
       type: 'module',
       filePath: parentNode?.filePath ?? '',

@@ -1,4 +1,5 @@
-import type { GraphNode, GraphEdge, NodeId } from '../../../types/index.ts';
+import { NodeId, EdgeId } from '../../../types/index.ts';
+import type { GraphNode, GraphEdge } from '../../../types/index.ts';
 
 export type ClusterLevel = 'directory' | 'file' | 'function' | 'smart';
 
@@ -93,9 +94,9 @@ export function aggregateEdges(
       }
     } else {
       visibleEdges.push({
-        id: `clusteredge__${agg.source}__${agg.target}` as GraphEdge['id'],
-        source: agg.source as NodeId,
-        target: agg.target as NodeId,
+        id: EdgeId(`clusteredge__${agg.source}__${agg.target}`),
+        source: NodeId(agg.source),
+        target: NodeId(agg.target),
         type: (agg.types.size === 1 ? [...agg.types][0]! : 'dependency') as GraphEdge['type'],
         properties: {},
         isCluster: true,

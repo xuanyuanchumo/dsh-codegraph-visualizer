@@ -33,7 +33,7 @@ export function RuleConfigPanel({ violations, onCheckRules, onClose }: RuleConfi
       <div className="rule-panel-header">
         <RuleIcon size={14} />
         <span>{t('rules.title')}</span>
-        <button onClick={onClose} aria-label={t('rules.close')} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', marginLeft: 'auto' }}>
+        <button onClick={onClose} aria-label={t('rules.close')} className="cg-close-btn">
           <CloseIcon size={14} />
         </button>
       </div>
@@ -63,7 +63,7 @@ export function RuleConfigPanel({ violations, onCheckRules, onClose }: RuleConfi
         </div>
 
         <div className="rule-violations-section">
-          <div className="rule-violations-header" onClick={() => setShowViolations((v) => !v)}>
+          <div className="rule-violations-header" onClick={() => setShowViolations((v) => !v)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowViolations((v) => !v); } }}>
             <span>{t('rules.violations')}</span>
             {errorCount > 0 && <span className="violation-badge error">{errorCount}</span>}
             {warningCount > 0 && <span className="violation-badge warning">{warningCount}</span>}

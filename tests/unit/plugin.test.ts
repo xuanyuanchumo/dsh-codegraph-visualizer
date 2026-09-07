@@ -37,6 +37,7 @@ type MockCtx = Context & {
   provide: ReturnType<typeof vi.fn>;
   webServer: {
     register: ReturnType<typeof vi.fn>;
+    registerFallback: ReturnType<typeof vi.fn>;
   };
 };
 
@@ -53,6 +54,7 @@ function makeMockCtx(): MockCtx {
     provide: vi.fn().mockReturnValue(() => {}),
     webServer: {
       register: vi.fn().mockReturnValue(() => {}),
+      registerFallback: vi.fn().mockReturnValue(() => {}),
     },
   } as unknown as MockCtx;
 }

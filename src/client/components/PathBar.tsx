@@ -60,7 +60,7 @@ export function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClo
       <div className="path-bar-header">
         <PathIcon size={14} />
         <span>{t('pathFind.title')}</span>
-        <button onClick={onClose} aria-label={t('pathFind.close')} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', marginLeft: 'auto' }}>
+        <button onClick={onClose} aria-label={t('pathFind.close')} className="cg-close-btn">
           <CloseIcon size={14} />
         </button>
       </div>

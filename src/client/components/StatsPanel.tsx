@@ -53,7 +53,7 @@ export function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusAr
         <button
           onClick={onClose}
           aria-label={t('minimap.close')}
-          style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: '0 4px' }}
+          className="cg-close-btn cg-close-btn--compact"
         >
           <CloseIcon size={14} />
         </button>

@@ -1,5 +1,6 @@
 
-import type { GraphNode, GraphEdge, NodeId } from '../../../types/index.ts';
+import { NodeId } from '../../../types/index.ts';
+import type { GraphNode, GraphEdge } from '../../../types/index.ts';
 import type { ClusterNode, ClusterResult } from './types.ts';
 import { aggregateEdges } from './types.ts';
 
@@ -57,7 +58,7 @@ function computeFileClusterNodesForDir(
     const parentFileId = children[0]?.parentId ?? children[0]?.filePath ?? '';
     const parentNode = dirNodes.find((n) => n.id === parentFileId || n.filePath === parentFileId);
     const clusterNode: ClusterNode = {
-      id: fileClusterId as NodeId,
+      id: NodeId(fileClusterId),
       label: `${parentNode?.label ?? parentFileId.split(/[\\/]/).pop() ?? 'unknown'} (${children.length})`,
       type: 'module',
       filePath: parentNode?.filePath ?? parentFileId,
@@ -116,7 +117,7 @@ export function computeDirectoryClusters(
     } else {
       const childIds = nodes.map((n) => n.id);
       const clusterNode: ClusterNode = {
-        id: clusterId as NodeId,
+        id: NodeId(clusterId),
         label: `${getDirLabel(dirPath)} (${nodes.length})`,
         type: 'module',
         filePath: dirPath,

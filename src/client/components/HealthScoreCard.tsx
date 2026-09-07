@@ -40,7 +40,7 @@ export function HealthScoreCard({ onClose }: HealthScoreCardProps) {
         <div className="health-score-header">
           <HeartIcon size={14} />
           <span>{t('health.title')}</span>
-          <button onClick={onClose} aria-label={t('health.close')} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', marginLeft: 'auto' }}>
+          <button onClick={onClose} aria-label={t('health.close')} className="cg-close-btn">
             <CloseIcon size={14} />
           </button>
         </div>
@@ -61,7 +61,7 @@ export function HealthScoreCard({ onClose }: HealthScoreCardProps) {
       <div className="health-score-header">
         <HeartIcon size={14} />
         <span>{t('health.title')}</span>
-        <button onClick={onClose} aria-label={t('health.close')} style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', marginLeft: 'auto' }}>
+        <button onClick={onClose} aria-label={t('health.close')} className="cg-close-btn">
           <CloseIcon size={14} />
         </button>
       </div>

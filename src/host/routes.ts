@@ -523,6 +523,11 @@ export function registerRoutes(deps: RouteDeps): void {
             sendError(res, 400, 'filePath and content are required');
             return;
           }
+          const MAX_TREE_SITTER_CONTENT = 512 * 1024;
+          if (content.length > MAX_TREE_SITTER_CONTENT) {
+            sendError(res, 413, `Content too large for tree-sitter parsing (max ${MAX_TREE_SITTER_CONTENT} bytes, got ${content.length})`);
+            return;
+          }
           const result = await treeSitterAdapter.parseFile(filePath, content);
           sendJson(res, 200, result);
         } catch (e) {

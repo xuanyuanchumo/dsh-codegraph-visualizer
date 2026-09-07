@@ -1,4 +1,5 @@
-import type { GraphNode, GraphEdge, GraphData, NodeId, EdgeId, RepoId } from '../types/index.ts';
+import { NodeId, EdgeId, RepoId } from '../types/index.ts';
+import type { GraphNode, GraphEdge, GraphData } from '../types/index.ts';
 
 export function coerceNode(raw: unknown, i: number): GraphNode | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -10,7 +11,7 @@ export function coerceNode(raw: unknown, i: number): GraphNode | null {
   const filePath = typeof o.filePath === 'string' ? o.filePath : typeof o.file === 'string' ? o.file : '';
   const lineNumber = typeof o.lineNumber === 'number' ? o.lineNumber : typeof o.line === 'number' ? o.line : 0;
   const properties = (o.properties && typeof o.properties === 'object' ? o.properties : {}) as Record<string, unknown>;
-  return { id: id as NodeId, label, type, filePath, lineNumber, properties };
+  return { id: NodeId(id), label, type, filePath, lineNumber, properties };
 }
 
 export function coerceEdge(raw: unknown, i: number): GraphEdge | null {
@@ -23,7 +24,7 @@ export function coerceEdge(raw: unknown, i: number): GraphEdge | null {
   const type = (['call', 'import', 'extend', 'implement', 'dependency'].includes(o.type as string)
     ? o.type : 'dependency') as GraphEdge['type'];
   const properties = (o.properties && typeof o.properties === 'object' ? o.properties : {}) as Record<string, unknown>;
-  return { id: id as EdgeId, source: source as NodeId, target: target as NodeId, type, properties };
+  return { id: EdgeId(id), source: NodeId(source), target: NodeId(target), type, properties };
 }
 
 export function validateGraphData(raw: unknown): GraphData | null {
@@ -44,7 +45,7 @@ export function validateGraphData(raw: unknown): GraphData | null {
     nodes,
     edges,
     metadata: {
-      repoId: repoId as RepoId,
+      repoId: RepoId(repoId),
       timestamp,
       nodeCount: nodes.length,
       edgeCount: edges.length,

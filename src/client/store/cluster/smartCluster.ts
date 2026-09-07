@@ -1,4 +1,5 @@
-import type { GraphNode, GraphEdge, NodeId } from '../../../types/index.ts';
+import { NodeId } from '../../../types/index.ts';
+import type { GraphNode, GraphEdge } from '../../../types/index.ts';
 import type { ClusterNode, ClusterResult } from './types.ts';
 import { aggregateEdges } from './types.ts';
 
@@ -83,7 +84,7 @@ export function computeSmartClusters(
     } else {
       const primaryNode = nodes[0]!;
       const clusterNode: ClusterNode = {
-        id: clusterId as NodeId,
+        id: NodeId(clusterId),
         label: `${primaryNode.label.split(/[\\/]/).pop()?.split('.')[0] ?? 'group'} +${nodes.length - 1}`,
         type: primaryNode.type,
         filePath: primaryNode.filePath,

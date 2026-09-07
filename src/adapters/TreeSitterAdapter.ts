@@ -1,5 +1,6 @@
 import { scoped } from '../shared/Logger.ts';
-import type { GraphNode, GraphEdge, NodeId, EdgeId, AdapterResult } from '../types/index.ts';
+import { NodeId, EdgeId } from '../types/index.ts';
+import type { GraphNode, GraphEdge, AdapterResult } from '../types/index.ts';
 
 const log = scoped('tree-sitter-adapter');
 
@@ -172,20 +173,20 @@ export class TreeSitterAdapter {
         if (!visited.has(id)) {
           visited.add(id);
           nodes.push({
-            id: id as NodeId,
+            id: NodeId(id),
             label,
             type: graphType,
             filePath,
             lineNumber: node.startPosition.row + 1,
             properties: { source: 'tree-sitter', nodeType },
-            ...(parentId ? { parentId: parentId as NodeId } : {}),
+            ...(parentId ? { parentId: NodeId(parentId) } : {}),
           });
 
           if (parentId) {
             edges.push({
-              id: `tsedge:${parentId}->${id}` as EdgeId,
-              source: parentId as NodeId,
-              target: id as NodeId,
+              id: EdgeId(`tsedge:${parentId}->${id}`),
+              source: NodeId(parentId),
+              target: NodeId(id),
               type: 'dependency',
               properties: {},
             });

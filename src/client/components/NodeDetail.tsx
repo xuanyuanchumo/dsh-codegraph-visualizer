@@ -63,9 +63,9 @@ export function NodeDetail({ node, onClose, isExpanded, connectionCount, onColla
         </div>
       )}
       {canExpand && isExpanded && onCollapse && (
-        <div className="detail-expand-hint" style={{ background: 'rgba(16,185,129,0.08)', borderColor: 'rgba(16,185,129,0.3)', color: 'var(--cg-success)' }}>
+        <div className="detail-expand-hint detail-expand-hint--expanded">
           {t('detail.expanded')}
-          <button onClick={onCollapse} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: 'var(--cg-success)', cursor: 'pointer', fontSize: '11px', textDecoration: 'underline' }}>
+          <button onClick={onCollapse} className="detail-collapse-btn">
             {t('detail.collapse')}
           </button>
         </div>
