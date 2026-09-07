@@ -5,6 +5,7 @@ export const zh: Record<string, string> = {
   'panel.collapse': '折叠',
   'panel.expandPanel': '展开面板',
   'panel.collapsePanel': '折叠面板',
+  'panel.resetSize': '双击恢复响应式填充',
 
   // Toolbar
   'toolbar.import': '导入图谱 (Ctrl+I)',

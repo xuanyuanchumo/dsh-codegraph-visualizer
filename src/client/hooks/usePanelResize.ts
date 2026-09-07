@@ -11,6 +11,7 @@ export function usePanelResize(
 ): void {
   const savedRef = useRef<HTMLElement | null>(null);
   const setPanelSize = useGraphStore((s) => s.setPanelSize);
+  const resetPanelSize = useGraphStore((s) => s.resetPanelSize);
 
   useEffect(() => {
     const panel = panelRef.current;
@@ -46,17 +47,25 @@ export function usePanelResize(
       window.addEventListener('pointermove', onPointerMove);
       window.addEventListener('pointerup', onPointerUp);
     };
+    const onDoubleClick = () => {
+      panel.style.width = '';
+      panel.style.height = '';
+      resetPanelSize();
+      rendererRef.current?.resize();
+    };
 
     const handle = panel.querySelector<HTMLElement>('.resize-handle');
     if (handle) {
       handle.addEventListener('pointerdown', onPointerDown);
+      handle.addEventListener('dblclick', onDoubleClick);
       savedRef.current = handle;
     }
     return () => {
       savedRef.current?.removeEventListener('pointerdown', onPointerDown);
+      savedRef.current?.removeEventListener('dblclick', onDoubleClick);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
-  }, [panelRef, rendererRef, setPanelSize]);
+  }, [panelRef, rendererRef, setPanelSize, resetPanelSize]);
 }

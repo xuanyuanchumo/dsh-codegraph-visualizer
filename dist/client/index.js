@@ -154,6 +154,7 @@ body[data-ds-dark-theme] {
   box-sizing: border-box;
   width: 100%;
   height: 100%;
+  min-height: var(--cg-panel-min-h, 240px);
   z-index: 1000;
   display: flex;
   flex-direction: column;
@@ -45123,6 +45124,7 @@ const MIN_HEIGHT = 240;
 function usePanelResize(panelRef, rendererRef) {
 	const savedRef = (0, react.useRef)(null);
 	const setPanelSize = useGraphStore((s) => s.setPanelSize);
+	const resetPanelSize = useGraphStore((s) => s.resetPanelSize);
 	(0, react.useEffect)(() => {
 		const panel = panelRef.current;
 		if (!panel) return;
@@ -45156,13 +45158,21 @@ function usePanelResize(panelRef, rendererRef) {
 			window.addEventListener("pointermove", onPointerMove);
 			window.addEventListener("pointerup", onPointerUp);
 		};
+		const onDoubleClick = () => {
+			panel.style.width = "";
+			panel.style.height = "";
+			resetPanelSize();
+			rendererRef.current?.resize();
+		};
 		const handle = panel.querySelector(".resize-handle");
 		if (handle) {
 			handle.addEventListener("pointerdown", onPointerDown);
+			handle.addEventListener("dblclick", onDoubleClick);
 			savedRef.current = handle;
 		}
 		return () => {
 			savedRef.current?.removeEventListener("pointerdown", onPointerDown);
+			savedRef.current?.removeEventListener("dblclick", onDoubleClick);
 			window.removeEventListener("pointermove", onPointerMove);
 			window.removeEventListener("pointerup", onPointerUp);
 			if (rafId !== null) cancelAnimationFrame(rafId);
@@ -45170,7 +45180,8 @@ function usePanelResize(panelRef, rendererRef) {
 	}, [
 		panelRef,
 		rendererRef,
-		setPanelSize
+		setPanelSize,
+		resetPanelSize
 	]);
 }
 
@@ -45612,6 +45623,7 @@ const en = {
 	"panel.collapse": "Collapse",
 	"panel.expandPanel": "Expand panel",
 	"panel.collapsePanel": "Collapse panel",
+	"panel.resetSize": "Double-click to reset to responsive fill",
 	"toolbar.import": "Import graph (Ctrl+I)",
 	"toolbar.filter": "Filter by node type",
 	"toolbar.search": "Search symbols (press /)",
@@ -45834,6 +45846,7 @@ const zh = {
 	"panel.collapse": "折叠",
 	"panel.expandPanel": "展开面板",
 	"panel.collapsePanel": "折叠面板",
+	"panel.resetSize": "双击恢复响应式填充",
 	"toolbar.import": "导入图谱 (Ctrl+I)",
 	"toolbar.filter": "按节点类型筛选",
 	"toolbar.search": "搜索符号 (按 /)",
@@ -49635,25 +49648,52 @@ function GraphPanelInner({ className = "" }) {
 		if (panel.collapsed) return;
 		const panelEl = panelRef.current;
 		if (!panelEl) return;
-		const parent = panelEl.parentElement;
-		const parentHeight = parent ? parent.getBoundingClientRect().height : 0;
-		const THRESHOLD = 300;
-		const hasInlineHeight = panelEl.style.height !== "";
-		if (!hasInlineHeight) {
-			if (panelHeight !== null && panelHeight >= 240) {
-				panelEl.style.height = `${panelHeight}px`;
-				if (panelWidth !== null && panelWidth >= 320) panelEl.style.width = `${panelWidth}px`;
-				renderer$1.rendererRef.current?.resize();
-			} else if (parentHeight > 0 && parentHeight < THRESHOLD) {
-				const fillHeight = Math.max(600, window.innerHeight * .7);
-				panelEl.style.height = `${fillHeight}px`;
-				renderer$1.rendererRef.current?.resize();
-			}
-		}
+		if (panelHeight !== null && panelHeight >= 240) panelEl.style.height = `${panelHeight}px`;
+		if (panelWidth !== null && panelWidth >= 320) panelEl.style.width = `${panelWidth}px`;
+		if (panelHeight !== null || panelWidth !== null) renderer$1.rendererRef.current?.resize();
 	}, [
 		panel.collapsed,
 		panelHeight,
 		panelWidth,
+		renderer$1.rendererRef
+	]);
+	(0, react.useEffect)(() => {
+		if (panel.collapsed) return;
+		const panelEl = panelRef.current;
+		if (!panelEl) return;
+		const hasUserOverride = panelHeight !== null;
+		if (hasUserOverride) return;
+		let ancestor = panelEl.parentElement;
+		let depth = 0;
+		while (ancestor && depth < 8) {
+			const h = ancestor.getBoundingClientRect().height;
+			if (h >= 300) break;
+			ancestor = ancestor.parentElement;
+			depth++;
+		}
+		const target = ancestor ?? panelEl.parentElement ?? panelEl;
+		let rafId = null;
+		const applyAncestorHeight = () => {
+			if (rafId !== null) cancelAnimationFrame(rafId);
+			rafId = requestAnimationFrame(() => {
+				rafId = null;
+				const h = target.getBoundingClientRect().height;
+				if (h >= 240) {
+					panelEl.style.height = `${h}px`;
+					renderer$1.rendererRef.current?.resize();
+				}
+			});
+		};
+		applyAncestorHeight();
+		const ro = new ResizeObserver(applyAncestorHeight);
+		ro.observe(target);
+		return () => {
+			ro.disconnect();
+			if (rafId !== null) cancelAnimationFrame(rafId);
+		};
+	}, [
+		panel.collapsed,
+		panelHeight,
 		renderer$1.rendererRef
 	]);
 	usePanelKeyboard(layout$2, setLayout, renderer$1.rendererRef, {
@@ -50217,7 +50257,7 @@ function GraphPanelInner({ className = "" }) {
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 				className: "resize-handle",
-				"aria-hidden": "true"
+				title: t$1("panel.resetSize")
 			})
 		]
 	});

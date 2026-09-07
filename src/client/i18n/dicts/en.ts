@@ -5,6 +5,7 @@ export const en: Record<string, string> = {
   'panel.collapse': 'Collapse',
   'panel.expandPanel': 'Expand panel',
   'panel.collapsePanel': 'Collapse panel',
+  'panel.resetSize': 'Double-click to reset to responsive fill',
 
   // Toolbar
   'toolbar.import': 'Import graph (Ctrl+I)',

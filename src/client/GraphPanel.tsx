@@ -282,25 +282,56 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     const panelEl = panelRef.current;
     if (!panelEl) return;
 
-    const parent = panelEl.parentElement;
-    const parentHeight = parent ? parent.getBoundingClientRect().height : 0;
-    const THRESHOLD = 300;
-    const hasInlineHeight = panelEl.style.height !== '';
-
-    if (!hasInlineHeight) {
-      if (panelHeight !== null && panelHeight >= 240) {
-        panelEl.style.height = `${panelHeight}px`;
-        if (panelWidth !== null && panelWidth >= 320) {
-          panelEl.style.width = `${panelWidth}px`;
-        }
-        renderer.rendererRef.current?.resize();
-      } else if (parentHeight > 0 && parentHeight < THRESHOLD) {
-        const fillHeight = Math.max(600, window.innerHeight * 0.7);
-        panelEl.style.height = `${fillHeight}px`;
-        renderer.rendererRef.current?.resize();
-      }
+    if (panelHeight !== null && panelHeight >= 240) {
+      panelEl.style.height = `${panelHeight}px`;
+    }
+    if (panelWidth !== null && panelWidth >= 320) {
+      panelEl.style.width = `${panelWidth}px`;
+    }
+    if (panelHeight !== null || panelWidth !== null) {
+      renderer.rendererRef.current?.resize();
     }
   }, [panel.collapsed, panelHeight, panelWidth, renderer.rendererRef]);
+
+  useEffect(() => {
+    if (panel.collapsed) return;
+    const panelEl = panelRef.current;
+    if (!panelEl) return;
+
+    const hasUserOverride = panelHeight !== null;
+    if (hasUserOverride) return;
+
+    let ancestor: HTMLElement | null = panelEl.parentElement;
+    let depth = 0;
+    while (ancestor && depth < 8) {
+      const h = ancestor.getBoundingClientRect().height;
+      if (h >= 300) break;
+      ancestor = ancestor.parentElement;
+      depth++;
+    }
+    const target = ancestor ?? panelEl.parentElement ?? panelEl;
+
+    let rafId: number | null = null;
+    const applyAncestorHeight = () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const h = target.getBoundingClientRect().height;
+        if (h >= 240) {
+          panelEl.style.height = `${h}px`;
+          renderer.rendererRef.current?.resize();
+        }
+      });
+    };
+
+    applyAncestorHeight();
+    const ro = new ResizeObserver(applyAncestorHeight);
+    ro.observe(target);
+    return () => {
+      ro.disconnect();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+  }, [panel.collapsed, panelHeight, renderer.rendererRef]);
 
   usePanelKeyboard(layout, setLayout, renderer.rendererRef, {
     onToggleSearch: panel.toggleSearch,
@@ -771,7 +802,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
       <StatusBar error={error} isLoading={isLoading} lastUpdated={lastUpdated} watchEnabled={watchEnabled} workspaceName={currentWorkspace} truncated={truncated} totalNodeCount={totalNodeCount} displayedNodeCount={nodes.length} />
 
-      <div className="resize-handle" aria-hidden="true" />
+      <div className="resize-handle" title={t('panel.resetSize')} />
     </div>
   );
 }
