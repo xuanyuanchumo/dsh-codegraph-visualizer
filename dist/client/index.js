@@ -761,6 +761,7 @@ body[data-ds-dark-theme] {
   min-height: 0;
   position: relative;
   background: var(--cg-bg);
+  transition: opacity 200ms var(--cg-ease);
 }
 
 .graph-container canvas {
@@ -1746,8 +1747,13 @@ body[data-ds-dark-theme] {
 }
 
 .init-feedback.ok {
-  background: var(--cg-success-soft, rgba(34, 197, 94, 0.1));
-  color: var(--cg-success, #22c55e);
+  background: color-mix(in srgb, var(--cg-success) 10%, transparent);
+  color: var(--cg-success);
+}
+
+.init-feedback.err {
+  background: color-mix(in srgb, var(--cg-error) 10%, transparent);
+  color: var(--cg-error);
 }
 
 .init-feedback.err {
@@ -2428,9 +2434,6 @@ body[data-ds-dark-theme] {
 
 /* ---- Smooth graph transitions --------------------------------------------- */
 
-.graph-container {
-  transition: opacity 200ms var(--cg-ease);
-}
 
 .graph-container.loading {
   opacity: 0.4;
@@ -49826,6 +49829,24 @@ function GraphPanelInner({ className = "" }) {
 		panel.showGodModule,
 		rawNodes,
 		rawEdges
+	]);
+	const hasAutoScannedRef = (0, react.useRef)(false);
+	(0, react.useEffect)(() => {
+		if (hasAutoScannedRef.current) return;
+		if (panel.collapsed) return;
+		if (nodes.length > 0 || rawNodes.length > 0) return;
+		if (!prerequisites.codegraph) return;
+		if (!currentWorkspace) return;
+		hasAutoScannedRef.current = true;
+		log$1.info("auto-fill: triggering scan on first open", { path: currentWorkspace });
+		handleScanWorkspace();
+	}, [
+		panel.collapsed,
+		nodes.length,
+		rawNodes.length,
+		prerequisites.codegraph,
+		currentWorkspace,
+		handleScanWorkspace
 	]);
 	(0, react.useEffect)(() => {
 		if (panel.showImpact && selectedNodeId) {

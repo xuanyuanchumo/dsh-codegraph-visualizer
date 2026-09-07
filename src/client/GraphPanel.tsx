@@ -484,6 +484,23 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     }
   }, [panel.showGodModule, rawNodes, rawEdges]);
 
+  // FR-XX: Auto-fill graph on first panel open
+  // When panel is opened with no data and prerequisites are met, auto-trigger scan.
+  // This eliminates the "manual fill" friction while still guarding against
+  // scanning when upstream tools are unavailable.
+  const hasAutoScannedRef = useRef(false);
+  useEffect(() => {
+    if (hasAutoScannedRef.current) return;
+    if (panel.collapsed) return;
+    if (nodes.length > 0 || rawNodes.length > 0) return;
+    if (!prerequisites.codegraph) return;
+    if (!currentWorkspace) return;
+
+    hasAutoScannedRef.current = true;
+    log.info('auto-fill: triggering scan on first open', { path: currentWorkspace });
+    handleScanWorkspace();
+  }, [panel.collapsed, nodes.length, rawNodes.length, prerequisites.codegraph, currentWorkspace, handleScanWorkspace]);
+
   // FR-35: Auto-fetch impact stats when impact mode is on and a node is selected
   useEffect(() => {
     if (panel.showImpact && selectedNodeId) {
