@@ -290,8 +290,8 @@ body[data-ds-dark-theme] {
 }
 
 .type-badge.interface {
-  background: rgba(20, 184, 166, 0.14);
-  color: #14b8a6;
+  background: color-mix(in srgb, var(--cg-node-interface) 14%, transparent);
+  color: var(--cg-node-interface);
 }
 
 /* ---- Layout switcher (segmented control) --------------------------------- */
@@ -1480,11 +1480,11 @@ body[data-ds-dark-theme] {
 }
 
 .prereq-status-dot.ok {
-  background: var(--cg-success, #22c55e);
+  background: var(--cg-success);
 }
 
 .prereq-status-dot.missing {
-  background: #ef4444;
+  background: var(--cg-error);
 }
 
 .prereq-item-label {
@@ -1494,7 +1494,7 @@ body[data-ds-dark-theme] {
 
 .prereq-item-status {
   font-size: 11px;
-  color: #ef4444;
+  color: var(--cg-error);
   margin-left: auto;
 }
 
@@ -1749,10 +1749,10 @@ body[data-ds-dark-theme] {
   gap: 8px;
   padding: 8px 14px;
   margin: 0 14px 8px;
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: color-mix(in srgb, var(--cg-warning) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cg-warning) 30%, transparent);
   border-radius: var(--cg-radius-sm);
-  color: #f59e0b;
+  color: var(--cg-warning);
   font-size: 12px;
   line-height: 1.4;
   flex-wrap: wrap;
@@ -1769,12 +1769,12 @@ body[data-ds-dark-theme] {
 .prereq-install code {
   flex: 1;
   padding: 4px 8px;
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px dashed rgba(245, 158, 11, 0.4);
+  background: color-mix(in srgb, var(--cg-warning) 12%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--cg-warning) 40%, transparent);
   border-radius: var(--cg-radius-sm);
   font-family: var(--cg-font-mono);
   font-size: 11px;
-  color: #fbbf24;
+  color: color-mix(in srgb, var(--cg-warning) 85%, white);
   overflow-x: auto;
   white-space: nowrap;
 }
@@ -1783,9 +1783,9 @@ body[data-ds-dark-theme] {
   flex-shrink: 0;
   padding: 4px 10px;
   background: transparent;
-  border: 1px solid rgba(245, 158, 11, 0.4);
+  border: 1px solid color-mix(in srgb, var(--cg-warning) 40%, transparent);
   border-radius: var(--cg-radius-sm);
-  color: #f59e0b;
+  color: var(--cg-warning);
   font-size: 11px;
   cursor: pointer;
   transition: all var(--cg-transition);
