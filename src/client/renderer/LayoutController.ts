@@ -102,6 +102,9 @@ export class LayoutController {
 
       this.restoreCachedPositions();
 
+      const totalNodes = this.cy.nodes().length;
+      const sp = this.computeSmartSpacing(totalNodes);
+
       const presetOptions: LayoutOptions = {
         name: 'preset',
         positions: (node: { id: () => string }) => {
@@ -112,7 +115,7 @@ export class LayoutController {
           const bbox = existingNodes.boundingBox();
           const cx = (bbox.x1 + bbox.x2) / 2;
           const cy = (bbox.y1 + bbox.y2) / 2;
-          const radius = Math.max(bbox.w, bbox.h) / 2 + 120;
+          const radius = Math.max(bbox.w, bbox.h) / 2 + sp.incrementalRadius;
           const angleStep = (2 * Math.PI) / Math.max(newNodes.length, 1);
           const idx = Array.from(newNodeIds).indexOf(node.id());
           const angle = idx * angleStep;
@@ -159,29 +162,62 @@ export class LayoutController {
     });
   }
 
+  private computeSmartSpacing(nodeCount: number): {
+    nodeRepulse: number; idealEdgeLength: number;
+    rankSep: number; edgeSep: number; nodeSep: number;
+    padding: number; minNodeSpacing: number; spacingFactor: number;
+    minGap: number; incrementalRadius: number;
+  } {
+    const w = this.cy.width() || 800;
+    const h = this.cy.height() || 600;
+    const containerArea = w * h;
+    const containerMinDim = Math.min(w, h);
+    const areaPerNode = containerArea / Math.max(nodeCount, 1);
+    const idealSpacing = Math.sqrt(areaPerNode);
+    let densityFactor: number;
+    if (nodeCount < 50) densityFactor = 1.5;
+    else if (nodeCount < 200) densityFactor = 1.0;
+    else if (nodeCount < 500) densityFactor = 0.7;
+    else densityFactor = 0.5;
+    const s = Math.max(40, idealSpacing * densityFactor);
+    return {
+      nodeRepulse: s * s * 10,
+      idealEdgeLength: s * 2,
+      rankSep: Math.max(150, s * 2),
+      edgeSep: Math.max(60, s),
+      nodeSep: Math.max(80, s * 1.5),
+      padding: Math.max(40, Math.min(120, containerMinDim * 0.05)),
+      minNodeSpacing: Math.max(20, s * 0.3),
+      spacingFactor: nodeCount < 100 ? 1.5 : nodeCount < 300 ? 1.2 : 1.0,
+      minGap: Math.max(30, s * 0.4),
+      incrementalRadius: Math.max(100, s * 1.5),
+    };
+  }
+
   private buildLayoutOptions(layout: LayoutType, animate: boolean, nodeCount: number): LayoutOptions | undefined {
+    const sp = this.computeSmartSpacing(nodeCount);
     switch (layout) {
       case 'cose':
         return {
           name: 'cose', fit: true, animate: false,
-          nodeRepulse: 120000, idealEdgeLength: 400,
+          nodeRepulse: sp.nodeRepulse, idealEdgeLength: sp.idealEdgeLength,
           edgeElasticity: 0.05, gravity: 0.02, numIter: 15000,
-          randomize: true, tile: true, padding: 120, avoidOverlap: true,
+          randomize: true, tile: true, padding: sp.padding, avoidOverlap: true,
         } as LayoutOptions;
       case 'dagre':
         return {
           name: 'dagre', fit: true, animate, rankDir: 'TB',
-          rankSep: 300, edgeSep: 120, nodeSep: 250,
-          ranker: 'tight-tree', padding: 100,
+          rankSep: sp.rankSep, edgeSep: sp.edgeSep, nodeSep: sp.nodeSep,
+          ranker: 'tight-tree', padding: sp.padding,
         } as LayoutOptions;
       case 'circle':
         return {
-          name: 'circle', fit: true, animate, padding: 80,
-          radius: () => Math.min(this.cy.width(), this.cy.height()) / 2 - 120,
+          name: 'circle', fit: true, animate, padding: sp.padding,
+          radius: () => Math.min(this.cy.width(), this.cy.height()) / 2 - sp.padding,
         } as LayoutOptions;
       case 'grid':
         return {
-          name: 'grid', fit: true, animate: false, padding: 80,
+          name: 'grid', fit: true, animate: false, padding: sp.padding,
           avoidOverlap: true,
           rows: Math.ceil(Math.sqrt(nodeCount)),
           cols: Math.ceil(Math.sqrt(nodeCount)),
@@ -189,7 +225,7 @@ export class LayoutController {
       case 'radial':
         return {
           name: 'concentric', fit: true, animate,
-          padding: 80, minNodeSpacing: 40,
+          padding: sp.padding, minNodeSpacing: sp.minNodeSpacing,
           concentric: (n: { degree: () => number }) => n.degree(),
           levelWidth: () => 2,
         } as LayoutOptions;
@@ -203,7 +239,7 @@ export class LayoutController {
         }
         return {
           name: 'breadthfirst', fit: true, animate,
-          padding: 80, directed: true, spacingFactor: 1.5,
+          padding: sp.padding, directed: true, spacingFactor: sp.spacingFactor,
           roots,
           maximalAdjustments: 5,
         } as LayoutOptions;
@@ -219,7 +255,8 @@ export class LayoutController {
     const nodes = this.cy.nodes();
     if (nodes.length === 0) return;
 
-    const minGap = 50;
+    const sp = this.computeSmartSpacing(nodes.length);
+    const minGap = sp.minGap;
     const maxIterations = 30;
     const skipThreshold = 2000;
 

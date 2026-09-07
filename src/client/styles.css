@@ -330,7 +330,8 @@ body[data-ds-dark-theme] {
 .layout-btn.active {
   color: var(--cg-on-accent);
   background: var(--cg-accent);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  border-color: var(--cg-accent-hover);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
 /* ---- Graph type switcher (segmented control) ----------------------------- */
@@ -364,8 +365,9 @@ body[data-ds-dark-theme] {
 
 .graph-type-btn.active {
   color: var(--cg-on-accent);
-  background: var(--cg-success);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  background: var(--cg-accent);
+  border-color: var(--cg-accent-hover);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
 .view-mode-btn {
@@ -390,8 +392,8 @@ body[data-ds-dark-theme] {
 .view-mode-btn.active {
   color: var(--cg-on-accent);
   background: var(--cg-accent);
-  border-color: var(--cg-accent);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  border-color: var(--cg-accent-hover);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
 /* ---- Select -------------------------------------------------------------- */

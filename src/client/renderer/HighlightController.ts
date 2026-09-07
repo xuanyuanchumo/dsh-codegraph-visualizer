@@ -205,8 +205,7 @@ export class HighlightController {
       if (!nodeId) {
         this.cy.edges('[type="extend"]').addClass('inheritance-extend');
         this.cy.edges('[type="implement"]').addClass('inheritance-implement');
-        this.cy.edges('[type!="extend"][type!="implement"]').addClass('inheritance-dim');
-        this.cy.nodes('[type!="class"][type!="interface"]').addClass('inheritance-dim');
+
         return;
       }
 

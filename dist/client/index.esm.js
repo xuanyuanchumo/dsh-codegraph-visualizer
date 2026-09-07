@@ -39623,6 +39623,8 @@ var LayoutController = class {
 				return;
 			}
 			this.restoreCachedPositions();
+			const totalNodes = this.cy.nodes().length;
+			const sp = this.computeSmartSpacing(totalNodes);
 			const presetOptions = {
 				name: "preset",
 				positions: (node) => {
@@ -39636,7 +39638,7 @@ var LayoutController = class {
 					const bbox = existingNodes.boundingBox();
 					const cx = (bbox.x1 + bbox.x2) / 2;
 					const cy = (bbox.y1 + bbox.y2) / 2;
-					const radius$1 = Math.max(bbox.w, bbox.h) / 2 + 120;
+					const radius$1 = Math.max(bbox.w, bbox.h) / 2 + sp.incrementalRadius;
 					const angleStep = 2 * Math.PI / Math.max(newNodes.length, 1);
 					const idx = Array.from(newNodeIds).indexOf(node.id());
 					const angle$1 = idx * angleStep;
@@ -39678,20 +39680,47 @@ var LayoutController = class {
 			});
 		});
 	}
+	computeSmartSpacing(nodeCount) {
+		const w = this.cy.width() || 800;
+		const h = this.cy.height() || 600;
+		const containerArea = w * h;
+		const containerMinDim = Math.min(w, h);
+		const areaPerNode = containerArea / Math.max(nodeCount, 1);
+		const idealSpacing = Math.sqrt(areaPerNode);
+		let densityFactor;
+		if (nodeCount < 50) densityFactor = 1.5;
+		else if (nodeCount < 200) densityFactor = 1;
+		else if (nodeCount < 500) densityFactor = .7;
+		else densityFactor = .5;
+		const s = Math.max(40, idealSpacing * densityFactor);
+		return {
+			nodeRepulse: s * s * 10,
+			idealEdgeLength: s * 2,
+			rankSep: Math.max(150, s * 2),
+			edgeSep: Math.max(60, s),
+			nodeSep: Math.max(80, s * 1.5),
+			padding: Math.max(40, Math.min(120, containerMinDim * .05)),
+			minNodeSpacing: Math.max(20, s * .3),
+			spacingFactor: nodeCount < 100 ? 1.5 : nodeCount < 300 ? 1.2 : 1,
+			minGap: Math.max(30, s * .4),
+			incrementalRadius: Math.max(100, s * 1.5)
+		};
+	}
 	buildLayoutOptions(layout$2, animate, nodeCount) {
+		const sp = this.computeSmartSpacing(nodeCount);
 		switch (layout$2) {
 			case "cose": return {
 				name: "cose",
 				fit: true,
 				animate: false,
-				nodeRepulse: 12e4,
-				idealEdgeLength: 400,
+				nodeRepulse: sp.nodeRepulse,
+				idealEdgeLength: sp.idealEdgeLength,
 				edgeElasticity: .05,
 				gravity: .02,
 				numIter: 15e3,
 				randomize: true,
 				tile: true,
-				padding: 120,
+				padding: sp.padding,
 				avoidOverlap: true
 			};
 			case "dagre": return {
@@ -39699,24 +39728,24 @@ var LayoutController = class {
 				fit: true,
 				animate,
 				rankDir: "TB",
-				rankSep: 300,
-				edgeSep: 120,
-				nodeSep: 250,
+				rankSep: sp.rankSep,
+				edgeSep: sp.edgeSep,
+				nodeSep: sp.nodeSep,
 				ranker: "tight-tree",
-				padding: 100
+				padding: sp.padding
 			};
 			case "circle": return {
 				name: "circle",
 				fit: true,
 				animate,
-				padding: 80,
-				radius: () => Math.min(this.cy.width(), this.cy.height()) / 2 - 120
+				padding: sp.padding,
+				radius: () => Math.min(this.cy.width(), this.cy.height()) / 2 - sp.padding
 			};
 			case "grid": return {
 				name: "grid",
 				fit: true,
 				animate: false,
-				padding: 80,
+				padding: sp.padding,
 				avoidOverlap: true,
 				rows: Math.ceil(Math.sqrt(nodeCount)),
 				cols: Math.ceil(Math.sqrt(nodeCount))
@@ -39725,8 +39754,8 @@ var LayoutController = class {
 				name: "concentric",
 				fit: true,
 				animate,
-				padding: 80,
-				minNodeSpacing: 40,
+				padding: sp.padding,
+				minNodeSpacing: sp.minNodeSpacing,
 				concentric: (n) => n.degree(),
 				levelWidth: () => 2
 			};
@@ -39739,9 +39768,9 @@ var LayoutController = class {
 					name: "breadthfirst",
 					fit: true,
 					animate,
-					padding: 80,
+					padding: sp.padding,
 					directed: true,
-					spacingFactor: 1.5,
+					spacingFactor: sp.spacingFactor,
 					roots,
 					maximalAdjustments: 5
 				};
@@ -39755,7 +39784,8 @@ var LayoutController = class {
 	removeOverlaps() {
 		const nodes = this.cy.nodes();
 		if (nodes.length === 0) return;
-		const minGap = 50;
+		const sp = this.computeSmartSpacing(nodes.length);
+		const minGap = sp.minGap;
 		const maxIterations = 30;
 		const skipThreshold = 2e3;
 		if (nodes.length > skipThreshold) {
@@ -40046,8 +40076,6 @@ var HighlightController = class {
 			if (!nodeId) {
 				this.cy.edges("[type=\"extend\"]").addClass("inheritance-extend");
 				this.cy.edges("[type=\"implement\"]").addClass("inheritance-implement");
-				this.cy.edges("[type!=\"extend\"][type!=\"implement\"]").addClass("inheritance-dim");
-				this.cy.nodes("[type!=\"class\"][type!=\"interface\"]").addClass("inheritance-dim");
 				return;
 			}
 			const focusNode = this.cy.getElementById(nodeId);
