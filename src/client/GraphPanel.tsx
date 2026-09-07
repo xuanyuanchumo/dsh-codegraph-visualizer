@@ -110,6 +110,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const setRules = useGraphStore((s) => s.setRules);
   const setRuleViolations = useGraphStore((s) => s.setRuleViolations);
   const setViewMode = useGraphStore((s) => s.setViewMode);
+  const panelHeight = useGraphStore((s) => s.panelHeight);
+  const panelWidth = useGraphStore((s) => s.panelWidth);
 
   const handleCollapseAll = useCallback(() => {
     collapseAll();
@@ -274,6 +276,31 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, [renderer.updateTheme]);
 
   usePanelResize(panelRef, renderer.rendererRef);
+
+  useEffect(() => {
+    if (panel.collapsed) return;
+    const panelEl = panelRef.current;
+    if (!panelEl) return;
+
+    const parent = panelEl.parentElement;
+    const parentHeight = parent ? parent.getBoundingClientRect().height : 0;
+    const THRESHOLD = 300;
+    const hasInlineHeight = panelEl.style.height !== '';
+
+    if (!hasInlineHeight) {
+      if (panelHeight !== null && panelHeight >= 240) {
+        panelEl.style.height = `${panelHeight}px`;
+        if (panelWidth !== null && panelWidth >= 320) {
+          panelEl.style.width = `${panelWidth}px`;
+        }
+        renderer.rendererRef.current?.resize();
+      } else if (parentHeight > 0 && parentHeight < THRESHOLD) {
+        const fillHeight = Math.max(600, window.innerHeight * 0.7);
+        panelEl.style.height = `${fillHeight}px`;
+        renderer.rendererRef.current?.resize();
+      }
+    }
+  }, [panel.collapsed, panelHeight, panelWidth, renderer.rendererRef]);
 
   usePanelKeyboard(layout, setLayout, renderer.rendererRef, {
     onToggleSearch: panel.toggleSearch,

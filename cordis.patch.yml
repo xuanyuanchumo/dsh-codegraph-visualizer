@@ -15,3 +15,5 @@
         prerequisiteRetryDelay: 3000
         watchDebounce: 500
         maxNodes: 10000
+        panelMinHeight: 240
+        panelDefaultHeight: 600

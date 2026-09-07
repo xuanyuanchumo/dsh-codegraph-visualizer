@@ -424,4 +424,28 @@ describe('graphStore (J6/J7/J10)', () => {
     useGraphStore.getState().setRuleViolations(violations as any);
     expect(useGraphStore.getState().ruleViolations).toHaveLength(1);
   });
+
+  // ── panel size tests (panel height/width persistence) ───────────────
+  it('should initialize panelHeight and panelWidth as null', () => {
+    useGraphStore.setState({ panelHeight: null, panelWidth: null });
+    const s = useGraphStore.getState();
+    expect(s.panelHeight).toBeNull();
+    expect(s.panelWidth).toBeNull();
+  });
+
+  it('should set panel size via setPanelSize', () => {
+    useGraphStore.getState().setPanelSize(600, 800);
+    const s = useGraphStore.getState();
+    expect(s.panelHeight).toBe(600);
+    expect(s.panelWidth).toBe(800);
+  });
+
+  it('should reset panel size via resetPanelSize', () => {
+    useGraphStore.getState().setPanelSize(500, 700);
+    expect(useGraphStore.getState().panelHeight).toBe(500);
+    expect(useGraphStore.getState().panelWidth).toBe(700);
+    useGraphStore.getState().resetPanelSize();
+    expect(useGraphStore.getState().panelHeight).toBeNull();
+    expect(useGraphStore.getState().panelWidth).toBeNull();
+  });
 });

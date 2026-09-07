@@ -82,6 +82,9 @@ interface GraphState {
   rules: RuleDefinition[];
   ruleViolations: RuleViolation[];
 
+  panelHeight: number | null;
+  panelWidth: number | null;
+
   setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata?: { truncated?: boolean; totalNodeCount?: number; totalEdgeCount?: number }) => void;
   setLayout: (layout: LayoutType) => void;
   setTheme: (theme: ThemeType) => void;
@@ -111,6 +114,8 @@ interface GraphState {
   setHealthScore: (score: HealthScore | null) => void;
   setRules: (rules: RuleDefinition[]) => void;
   setRuleViolations: (violations: RuleViolation[]) => void;
+  setPanelSize: (height: number, width: number) => void;
+  resetPanelSize: () => void;
 }
 
 export const useGraphStore = create<GraphState>()(
@@ -150,6 +155,8 @@ export const useGraphStore = create<GraphState>()(
       healthScore: null,
       rules: [],
       ruleViolations: [],
+      panelHeight: null,
+      panelWidth: null,
 
       setGraphData: (nodes, edges, repoId, metadata) => {
         clearLoadingFailsafe();
@@ -241,10 +248,12 @@ export const useGraphStore = create<GraphState>()(
       setHealthScore: (score) => set({ healthScore: score }),
       setRules: (rules) => set({ rules }),
       setRuleViolations: (violations) => set({ ruleViolations: violations }),
+      setPanelSize: (height, width) => set({ panelHeight: height, panelWidth: width }),
+      resetPanelSize: () => set({ panelHeight: null, panelWidth: null }),
     }),
     {
       name: 'dsh-codegraph-visualizer/ui',
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() =>
         typeof window !== 'undefined' ? window.localStorage : memoryStorage,
       ),
@@ -265,6 +274,12 @@ export const useGraphStore = create<GraphState>()(
         if (version < 4) {
           result.clusterLevel = 'directory';
         }
+        if (version < 5) {
+          const h = (p as { panelHeight?: unknown }).panelHeight;
+          const w = (p as { panelWidth?: unknown }).panelWidth;
+          result.panelHeight = typeof h === 'number' && h >= 240 ? h : null;
+          result.panelWidth = typeof w === 'number' && w >= 320 ? w : null;
+        }
         return result;
       },
       partialize: (s) => ({
@@ -272,6 +287,7 @@ export const useGraphStore = create<GraphState>()(
         graphType: s.graphType, clusterLevel: s.clusterLevel,
         currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
         rules: s.rules, focusDepth: s.focusDepth,
+        panelHeight: s.panelHeight, panelWidth: s.panelWidth,
       }),
     },
   ),

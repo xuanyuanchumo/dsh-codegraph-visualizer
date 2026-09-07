@@ -2182,7 +2182,9 @@ const DEFAULT_CONFIG = {
 	prerequisiteRetryDelay: 3e3,
 	watchDebounce: 500,
 	maxNodes: 1e4,
-	allowedOrigins: ["http://localhost:3080"]
+	allowedOrigins: ["http://localhost:3080"],
+	panelMinHeight: 240,
+	panelDefaultHeight: 600
 };
 function resolveConfig(userConfig) {
 	const config = {
@@ -2198,9 +2200,12 @@ function resolveConfig(userConfig) {
 		["maxBodyBytes", config.maxBodyBytes],
 		["prerequisiteRetryDelay", config.prerequisiteRetryDelay],
 		["watchDebounce", config.watchDebounce],
-		["maxNodes", config.maxNodes]
+		["maxNodes", config.maxNodes],
+		["panelMinHeight", config.panelMinHeight],
+		["panelDefaultHeight", config.panelDefaultHeight]
 	];
 	for (const [field, value] of positiveFields) if (!Number.isFinite(value) || value <= 0) errors.push(`${field} must be a positive finite number, got ${String(value)}`);
+	if (config.panelDefaultHeight < config.panelMinHeight) errors.push(`panelDefaultHeight (${config.panelDefaultHeight}) must be >= panelMinHeight (${config.panelMinHeight})`);
 	if (errors.length > 0) throw new Error(`[dsh-codegraph-visualizer] invalid config: ${errors.join("; ")}`);
 	return config;
 }

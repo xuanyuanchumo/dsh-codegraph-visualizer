@@ -79,6 +79,8 @@
   /* Layout */
   --cg-toolbar-h: 44px;
   --cg-statusbar-h: 28px;
+  --cg-panel-min-h: 240px;
+  --cg-panel-min-w: 320px;
 }
 
 /* DSH Dark theme — activated when body[data-ds-dark-theme] is set.

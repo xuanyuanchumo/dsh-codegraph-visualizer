@@ -215,6 +215,8 @@ interface VisualizerConfig {
   watchDebounce: number;
   maxNodes: number;
   allowedOrigins: string[];
+  panelMinHeight: number;
+  panelDefaultHeight: number;
 }
 declare const DEFAULT_CONFIG: VisualizerConfig;
 declare function resolveConfig(userConfig?: Partial<VisualizerConfig>): VisualizerConfig;

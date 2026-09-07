@@ -10,6 +10,8 @@ export interface VisualizerConfig {
   watchDebounce: number;
   maxNodes: number;
   allowedOrigins: string[];
+  panelMinHeight: number;
+  panelDefaultHeight: number;
 }
 
 export const DEFAULT_CONFIG: VisualizerConfig = {
@@ -22,6 +24,8 @@ export const DEFAULT_CONFIG: VisualizerConfig = {
   watchDebounce: 500,
   maxNodes: 10_000,
   allowedOrigins: ['http://localhost:3080'],
+  panelMinHeight: 240,
+  panelDefaultHeight: 600,
 };
 
 export function resolveConfig(userConfig?: Partial<VisualizerConfig>): VisualizerConfig {
@@ -38,11 +42,16 @@ export function resolveConfig(userConfig?: Partial<VisualizerConfig>): Visualize
     ['prerequisiteRetryDelay', config.prerequisiteRetryDelay],
     ['watchDebounce', config.watchDebounce],
     ['maxNodes', config.maxNodes],
+    ['panelMinHeight', config.panelMinHeight],
+    ['panelDefaultHeight', config.panelDefaultHeight],
   ];
   for (const [field, value] of positiveFields) {
     if (!Number.isFinite(value) || value <= 0) {
       errors.push(`${field} must be a positive finite number, got ${String(value)}`);
     }
+  }
+  if (config.panelDefaultHeight < config.panelMinHeight) {
+    errors.push(`panelDefaultHeight (${config.panelDefaultHeight}) must be >= panelMinHeight (${config.panelMinHeight})`);
   }
   if (errors.length > 0) {
     throw new Error(`[dsh-codegraph-visualizer] invalid config: ${errors.join('; ')}`);

@@ -677,6 +677,8 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	healthScore: null,
 	rules: [],
 	ruleViolations: [],
+	panelHeight: null,
+	panelWidth: null,
 	setGraphData: (nodes, edges, repoId, metadata) => {
 		clearLoadingFailsafe();
 		const { clusterLevel, expandedNodeIds } = useGraphStore.getState();
@@ -805,10 +807,18 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	setFocusDepth: (depth) => set$1({ focusDepth: depth }),
 	setHealthScore: (score) => set$1({ healthScore: score }),
 	setRules: (rules) => set$1({ rules }),
-	setRuleViolations: (violations) => set$1({ ruleViolations: violations })
+	setRuleViolations: (violations) => set$1({ ruleViolations: violations }),
+	setPanelSize: (height, width$1) => set$1({
+		panelHeight: height,
+		panelWidth: width$1
+	}),
+	resetPanelSize: () => set$1({
+		panelHeight: null,
+		panelWidth: null
+	})
 }), {
 	name: "dsh-codegraph-visualizer/ui",
-	version: 4,
+	version: 5,
 	storage: createJSONStorage(() => typeof window !== "undefined" ? window.localStorage : memoryStorage),
 	migrate: (persisted, version$1) => {
 		const p$1 = persisted;
@@ -832,6 +842,12 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			result.currentWorkspace = typeof p$1.currentWorkspace === "string" ? p$1.currentWorkspace : ".";
 		}
 		if (version$1 < 4) result.clusterLevel = "directory";
+		if (version$1 < 5) {
+			const h = p$1.panelHeight;
+			const w = p$1.panelWidth;
+			result.panelHeight = typeof h === "number" && h >= 240 ? h : null;
+			result.panelWidth = typeof w === "number" && w >= 320 ? w : null;
+		}
 		return result;
 	},
 	partialize: (s) => ({
@@ -843,7 +859,9 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		currentWorkspace: s.currentWorkspace,
 		workspaceList: s.workspaceList,
 		rules: s.rules,
-		focusDepth: s.focusDepth
+		focusDepth: s.focusDepth,
+		panelHeight: s.panelHeight,
+		panelWidth: s.panelWidth
 	})
 }));
 
@@ -41685,16 +41703,19 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 
 //#endregion
 //#region src/client/hooks/usePanelResize.ts
+const MIN_WIDTH = 320;
+const MIN_HEIGHT = 240;
 function usePanelResize(panelRef, rendererRef) {
 	const savedRef = useRef(null);
+	const setPanelSize = useGraphStore((s) => s.setPanelSize);
 	useEffect(() => {
 		const panel = panelRef.current;
 		if (!panel) return;
 		let startX$1 = 0, startY$1 = 0, startW = 0, startH = 0;
 		let rafId = null;
 		const onPointerMove = (e) => {
-			const w = Math.max(320, startW + (e.clientX - startX$1));
-			const h = Math.max(240, startH + (e.clientY - startY$1));
+			const w = Math.max(MIN_WIDTH, startW + (e.clientX - startX$1));
+			const h = Math.max(MIN_HEIGHT, startH + (e.clientY - startY$1));
 			panel.style.width = `${w}px`;
 			panel.style.height = `${h}px`;
 			if (rafId !== null) cancelAnimationFrame(rafId);
@@ -41708,6 +41729,9 @@ function usePanelResize(panelRef, rendererRef) {
 			window.removeEventListener("pointerup", onPointerUp);
 			if (rafId !== null) cancelAnimationFrame(rafId);
 			rendererRef.current?.resize();
+			const w = panel.offsetWidth;
+			const h = panel.offsetHeight;
+			if (w >= MIN_WIDTH && h >= MIN_HEIGHT) setPanelSize(h, w);
 		};
 		const onPointerDown = (e) => {
 			startX$1 = e.clientX;
@@ -41728,7 +41752,11 @@ function usePanelResize(panelRef, rendererRef) {
 			window.removeEventListener("pointerup", onPointerUp);
 			if (rafId !== null) cancelAnimationFrame(rafId);
 		};
-	}, [panelRef, rendererRef]);
+	}, [
+		panelRef,
+		rendererRef,
+		setPanelSize
+	]);
 }
 
 //#endregion
@@ -46040,6 +46068,8 @@ function GraphPanelInner({ className = "" }) {
 	const setRules = useGraphStore((s) => s.setRules);
 	const setRuleViolations = useGraphStore((s) => s.setRuleViolations);
 	const setViewMode = useGraphStore((s) => s.setViewMode);
+	const panelHeight = useGraphStore((s) => s.panelHeight);
+	const panelWidth = useGraphStore((s) => s.panelWidth);
 	const handleCollapseAll = useCallback(() => {
 		collapseAll();
 	}, [collapseAll]);
@@ -46186,6 +46216,31 @@ function GraphPanelInner({ className = "" }) {
 		return () => observer.disconnect();
 	}, [renderer$1.updateTheme]);
 	usePanelResize(panelRef, renderer$1.rendererRef);
+	useEffect(() => {
+		if (panel.collapsed) return;
+		const panelEl = panelRef.current;
+		if (!panelEl) return;
+		const parent = panelEl.parentElement;
+		const parentHeight = parent ? parent.getBoundingClientRect().height : 0;
+		const THRESHOLD = 300;
+		const hasInlineHeight = panelEl.style.height !== "";
+		if (!hasInlineHeight) {
+			if (panelHeight !== null && panelHeight >= 240) {
+				panelEl.style.height = `${panelHeight}px`;
+				if (panelWidth !== null && panelWidth >= 320) panelEl.style.width = `${panelWidth}px`;
+				renderer$1.rendererRef.current?.resize();
+			} else if (parentHeight > 0 && parentHeight < THRESHOLD) {
+				const fillHeight = Math.max(600, window.innerHeight * .7);
+				panelEl.style.height = `${fillHeight}px`;
+				renderer$1.rendererRef.current?.resize();
+			}
+		}
+	}, [
+		panel.collapsed,
+		panelHeight,
+		panelWidth,
+		renderer$1.rendererRef
+	]);
 	usePanelKeyboard(layout$2, setLayout, renderer$1.rendererRef, {
 		onToggleSearch: panel.toggleSearch,
 		onCloseAll: () => {
@@ -46416,6 +46471,24 @@ function GraphPanelInner({ className = "" }) {
 		panel.showGodModule,
 		rawNodes,
 		rawEdges
+	]);
+	const hasAutoScannedRef = useRef(false);
+	useEffect(() => {
+		if (hasAutoScannedRef.current) return;
+		if (panel.collapsed) return;
+		if (nodes.length > 0 || rawNodes.length > 0) return;
+		if (!prerequisites.codegraph) return;
+		if (!currentWorkspace) return;
+		hasAutoScannedRef.current = true;
+		log$1.info("auto-fill: triggering scan on first open", { path: currentWorkspace });
+		handleScanWorkspace();
+	}, [
+		panel.collapsed,
+		nodes.length,
+		rawNodes.length,
+		prerequisites.codegraph,
+		currentWorkspace,
+		handleScanWorkspace
 	]);
 	useEffect(() => {
 		if (panel.showImpact && selectedNodeId) {

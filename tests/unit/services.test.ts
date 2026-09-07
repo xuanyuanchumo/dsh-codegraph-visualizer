@@ -469,6 +469,26 @@ describe('resolveConfig (J10 settings)', () => {
   it('should reject NaN values', () => {
     expect(() => resolveConfig({ scanCacheTtl: NaN })).toThrow();
   });
+
+  it('should accept panelMinHeight and panelDefaultHeight overrides', () => {
+    const config = resolveConfig({ panelMinHeight: 300, panelDefaultHeight: 800 });
+    expect(config.panelMinHeight).toBe(300);
+    expect(config.panelDefaultHeight).toBe(800);
+  });
+
+  it('should reject non-positive panelMinHeight', () => {
+    expect(() => resolveConfig({ panelMinHeight: 0 })).toThrow();
+    expect(() => resolveConfig({ panelMinHeight: -10 })).toThrow();
+  });
+
+  it('should reject non-positive panelDefaultHeight', () => {
+    expect(() => resolveConfig({ panelDefaultHeight: 0 })).toThrow();
+    expect(() => resolveConfig({ panelDefaultHeight: -5 })).toThrow();
+  });
+
+  it('should reject panelDefaultHeight < panelMinHeight', () => {
+    expect(() => resolveConfig({ panelMinHeight: 500, panelDefaultHeight: 400 })).toThrow();
+  });
 });
 
 // ── isPathAllowed — path security ───────────────────────────────────────────
