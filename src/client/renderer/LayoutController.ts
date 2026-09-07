@@ -16,26 +16,7 @@ export class LayoutController {
   }
 
   private initWorker(): void {
-    try {
-      this.worker = new Worker(
-        new URL('../worker/layoutWorker.ts', import.meta.url),
-        { type: 'module' },
-      );
-      this.worker.onmessage = (e: MessageEvent<{ positions: Record<string, { x: number; y: number }> }>) => {
-        if (this.workerLayoutResolve) {
-          this.workerLayoutResolve(e.data.positions);
-          this.workerLayoutResolve = null;
-        }
-      };
-      this.worker.onerror = () => {
-        if (this.workerLayoutResolve) {
-          this.workerLayoutResolve({});
-          this.workerLayoutResolve = null;
-        }
-      };
-    } catch {
-      this.worker = null;
-    }
+    this.worker = null;
   }
 
   isWorkerAvailable(): boolean {
@@ -331,6 +312,10 @@ export class LayoutController {
     if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
     this.layoutRaf = null;
     this.positionCache.clear();
+    if (this.workerLayoutResolve) {
+      this.workerLayoutResolve({});
+      this.workerLayoutResolve = null;
+    }
     this.worker?.terminate();
     this.worker = null;
   }

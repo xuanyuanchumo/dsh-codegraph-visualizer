@@ -180,10 +180,13 @@ export class DataController {
     }
     this.cy.batch(() => {
       this.cy.nodes().forEach((node) => {
-        node.style('display', hidden.has(node.id()) ? 'none' : 'element');
+        const isFiltered = hidden.has(node.id());
+        node.data('typeFiltered', isFiltered);
+        node.style('display', isFiltered ? 'none' : 'element');
       });
       this.cy.edges().forEach((edge) => {
         const hiddenEdge = hidden.has(edge.source().id()) || hidden.has(edge.target().id());
+        edge.data('typeFiltered', hiddenEdge);
         edge.style('display', hiddenEdge ? 'none' : 'element');
       });
     });
@@ -206,6 +209,7 @@ export class DataController {
       this.cy.edges().forEach((edge) => {
         const edgeType = edge.data('type') as string;
         const visible = allowedEdgeTypes.has(edgeType);
+        edge.data('typeFiltered', !visible);
         edge.style('display', visible ? 'element' : 'none');
         if (visible) {
           connectedNodeIds.add(edge.source().id());
@@ -213,10 +217,13 @@ export class DataController {
         }
       });
       this.cy.nodes().forEach((node) => {
-        node.style('display', connectedNodeIds.has(node.id()) ? 'element' : 'none');
+        const isFiltered = !connectedNodeIds.has(node.id());
+        node.data('typeFiltered', isFiltered);
+        node.style('display', isFiltered ? 'none' : 'element');
       });
     });
   }
+
 
   search(query: string): number {
     if (!query) {

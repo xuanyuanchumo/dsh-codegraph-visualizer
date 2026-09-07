@@ -360,14 +360,14 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       depsFetchAbortRef.current?.abort();
       depsFetchAbortRef.current = controller;
       fetch('/api/v1/codegraph/dependencies', { signal: controller.signal })
-        .then((r) => r.json())
+        .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
         .then((data) => {
           if (controller.signal.aborted) return;
           if (data.nodes && data.nodes.length > 0) {
             setGraphData(data.nodes, data.edges, data.metadata?.repoId || currentWorkspace);
           }
         })
-        .catch(() => {})
+        .catch((e) => { if (!controller.signal.aborted) setError(t('error.title')); })
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     } else {
       depsFetchAbortRef.current?.abort();

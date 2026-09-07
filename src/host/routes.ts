@@ -188,31 +188,31 @@ export function registerRoutes(deps: RouteDeps): void {
     sendJson(res, code, { success: false, error: message }, req);
   };
 
-  ctx.effect(() => ctx.webServer.registerFallback((req: IncomingMessage, res: ServerResponse) => {
-    if (req.method === 'OPTIONS') {
-      const headers: Record<string, string> = {
-        'access-control-allow-methods': 'GET, POST, OPTIONS',
-        'access-control-allow-headers': 'content-type, if-none-match',
-      };
-      if (origins.length > 0) {
-        const reqOrigin = req.headers?.['origin'];
-        if (typeof reqOrigin === 'string' && origins.includes(reqOrigin)) {
-          headers['access-control-allow-origin'] = reqOrigin;
-        } else if (origins.length === 1) {
-          headers['access-control-allow-origin'] = origins[0]!;
-        }
+  const handleCorsPreflight = (req: IncomingMessage, res: ServerResponse): boolean => {
+    if (req.method !== 'OPTIONS') return false;
+    const headers: Record<string, string> = {
+      'access-control-allow-methods': 'GET, POST, OPTIONS',
+      'access-control-allow-headers': 'content-type, if-none-match',
+    };
+    if (origins.length > 0) {
+      const reqOrigin = req.headers?.['origin'];
+      if (typeof reqOrigin === 'string' && origins.includes(reqOrigin)) {
+        headers['access-control-allow-origin'] = reqOrigin;
+      } else if (origins.length === 1) {
+        headers['access-control-allow-origin'] = origins[0]!;
       }
-      res.writeHead(204, headers);
-      res.end();
-      return;
     }
-  }), 'codegraph: CORS preflight fallback');
+    res.writeHead(204, headers);
+    res.end();
+    return true;
+  };
 
   // GET /api/v1/codegraph/status
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: '/api/v1/codegraph/status',
-    handler: (_req: IncomingMessage, res: ServerResponse) => {
+    handler: (req: IncomingMessage, res: ServerResponse) => {
+      if (handleCorsPreflight(req, res)) return;
       const status = checkPrerequisites(ctx);
       sendJson(res, 200, { codegraph: status.codegraph, lens: status.lens });
     },
@@ -222,7 +222,8 @@ export function registerRoutes(deps: RouteDeps): void {
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: '/api/v1/codegraph/workspace',
-    handler: (_req: IncomingMessage, res: ServerResponse) => {
+    handler: (req: IncomingMessage, res: ServerResponse) => {
+      if (handleCorsPreflight(req, res)) return;
       const current = findWorkspacePath(ctx);
       const list = extractWorkspacePaths(ctx);
       sendJson(res, 200, { path: current, list });
@@ -234,6 +235,7 @@ export function registerRoutes(deps: RouteDeps): void {
     kind: 'exact',
     path: '/api/v1/codegraph/data',
     handler: (req: IncomingMessage, res: ServerResponse) => {
+      if (handleCorsPreflight(req, res)) return;
       const ifNoneMatch = req.headers['if-none-match'];
       const lastGraphData = deps.getLastGraphData();
       if (ifNoneMatch && lastGraphData) {
@@ -261,6 +263,7 @@ export function registerRoutes(deps: RouteDeps): void {
     kind: 'exact',
     path: '/api/v1/codegraph/scan',
     handler: async (req: IncomingMessage, res: ServerResponse) => {
+      if (handleCorsPreflight(req, res)) return;
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
@@ -329,6 +332,7 @@ export function registerRoutes(deps: RouteDeps): void {
     kind: 'exact',
     path: '/api/v1/codegraph/init',
     handler: async (req: IncomingMessage, res: ServerResponse) => {
+      if (handleCorsPreflight(req, res)) return;
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
@@ -381,6 +385,7 @@ export function registerRoutes(deps: RouteDeps): void {
     kind: 'exact',
     path: '/api/v1/codegraph/watch',
     handler: async (req: IncomingMessage, res: ServerResponse) => {
+      if (handleCorsPreflight(req, res)) return;
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
@@ -403,14 +408,18 @@ export function registerRoutes(deps: RouteDeps): void {
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: '/api/v1/codegraph/dependencies',
-    handler: async (_req: IncomingMessage, res: ServerResponse) => {
+    handler: async (req: IncomingMessage, res: ServerResponse) => {
+      if (handleCorsPreflight(req, res)) return;
       try {
         const workspacePath = findWorkspacePath(ctx);
         if (!workspacePath) {
           sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } });
           return;
         }
-
+        if (!isPathAllowed(workspacePath)) {
+          sendError(res, 403, 'Workspace path not allowed');
+          return;
+        }
 
         const allDepNodes: ReturnType<typeof dependencyGraphToGraphData>['nodes'] = [];
         const allDepEdges: ReturnType<typeof dependencyGraphToGraphData>['edges'] = [];
@@ -464,6 +473,7 @@ export function registerRoutes(deps: RouteDeps): void {
     kind: 'exact',
     path: '/api/v1/codegraph/diff',
     handler: async (req: IncomingMessage, res: ServerResponse) => {
+      if (handleCorsPreflight(req, res)) return;
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
@@ -481,6 +491,10 @@ export function registerRoutes(deps: RouteDeps): void {
         const workspacePath = findWorkspacePath(ctx);
         if (!workspacePath) {
           sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } });
+          return;
+        }
+        if (!isPathAllowed(workspacePath)) {
+          sendError(res, 403, 'Workspace path not allowed');
           return;
         }
 
@@ -514,6 +528,7 @@ export function registerRoutes(deps: RouteDeps): void {
       kind: 'exact',
       path: '/api/v1/codegraph/tree-sitter',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
+        if (handleCorsPreflight(req, res)) return;
         try {
           const body = await readBody(req, config.maxBodyBytes);
           const parsed = parseJsonBody(body);

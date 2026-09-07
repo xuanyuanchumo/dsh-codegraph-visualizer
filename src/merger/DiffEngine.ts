@@ -1,5 +1,19 @@
 import type { GraphNode, GraphEdge } from '../types/index.ts';
 
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null) return false;
+  if (typeof a !== 'object' || typeof b !== 'object') return false;
+  const aKeys = Object.keys(a as Record<string, unknown>).sort();
+  const bKeys = Object.keys(b as Record<string, unknown>).sort();
+  if (aKeys.length !== bKeys.length) return false;
+  for (let i = 0; i < aKeys.length; i++) {
+    if (aKeys[i] !== bKeys[i]) return false;
+    if (!deepEqual((a as Record<string, unknown>)[aKeys[i]!], (b as Record<string, unknown>)[bKeys[i]!])) return false;
+  }
+  return true;
+}
+
 export interface GraphDiff {
   addedNodes: GraphNode[];
   removedNodes: GraphNode[];
@@ -36,7 +50,7 @@ export function computeGraphDiff(
       const before = beforeNodeMap.get(id)!;
       if (before.label !== node.label || before.type !== node.type || before.filePath !== node.filePath ||
           before.lineNumber !== node.lineNumber || before.parentId !== node.parentId ||
-          JSON.stringify(before.properties) !== JSON.stringify(node.properties)) {
+          !deepEqual(before.properties, node.properties)) {
         modifiedNodes.push(node);
       }
     }

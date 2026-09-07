@@ -163,6 +163,7 @@ export const useGraphStore = create<GraphState>()(
           totalNodeCount: metadata?.totalNodeCount ?? nodes.length,
           totalEdgeCount: metadata?.totalEdgeCount ?? edges.length,
           healthScore: null,
+          ruleViolations: [],
         });
       },
       setLayout: (layout) => set({ layout }),

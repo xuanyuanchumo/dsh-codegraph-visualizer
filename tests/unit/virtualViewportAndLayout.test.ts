@@ -5,6 +5,7 @@ function makeMockNode(id: string, x = 0, y = 0) {
     id: () => id,
     position: vi.fn(() => ({ x, y })),
     style: vi.fn(),
+    data: vi.fn((key: string) => { if (key === 'typeFiltered') return false; return undefined; }),
     width: vi.fn(() => 30),
     height: vi.fn(() => 30),
     degree: vi.fn(() => 1),
@@ -20,6 +21,7 @@ function makeMockEdge(id: string, sourceId: string, targetId: string) {
     source: () => sourceNode,
     target: () => targetNode,
     style: vi.fn(),
+    data: vi.fn((key: string) => { if (key === 'typeFiltered') return false; return undefined; }),
   };
 }
 

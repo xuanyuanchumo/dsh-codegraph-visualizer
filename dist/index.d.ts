@@ -9,8 +9,10 @@ declare const PLUGIN_VERSION = "0.2.0";
 type Branded<T, Brand> = T & {
   __brand: Brand;
 };
+type RepoId = Branded<string, 'RepoId'>;
 type NodeId = Branded<string, 'NodeId'>;
 type EdgeId = Branded<string, 'EdgeId'>;
+declare const RepoId: (id: string) => RepoId;
 declare const NodeId: (id: string) => NodeId;
 declare const EdgeId: (id: string) => EdgeId;
 interface GraphNode {
@@ -31,24 +33,24 @@ interface GraphEdge {
 }
 type DataSourceType = 'auto' | 'codegraph' | 'lens' | 'tree-sitter';
 interface GraphUpdatedEvent {
-  repoId: string;
+  repoId: RepoId;
   nodeCount: number;
   edgeCount: number;
   timestamp: number;
 }
 interface GraphDataEvent {
-  repoId: string;
+  repoId: RepoId;
   nodes: GraphNode[];
   edges: GraphEdge[];
   timestamp: number;
 }
 interface RepoImportedEvent {
-  repoId: string;
+  repoId: RepoId;
   path: string;
   timestamp: number;
 }
 interface RepoScannedEvent {
-  repoId: string;
+  repoId: RepoId;
   fileCount: number;
   timestamp: number;
 }
@@ -81,7 +83,7 @@ interface WatchToggleEvent {
   timestamp: number;
 }
 interface HealthScoreEvent {
-  repoId: string;
+  repoId: RepoId;
   score: HealthScore;
   timestamp: number;
 }
@@ -212,6 +214,7 @@ interface VisualizerConfig {
   prerequisiteRetryDelay: number;
   watchDebounce: number;
   maxNodes: number;
+  allowedOrigins: string[];
 }
 declare const DEFAULT_CONFIG: VisualizerConfig;
 declare function resolveConfig(userConfig?: Partial<VisualizerConfig>): VisualizerConfig;
@@ -225,7 +228,6 @@ declare function isPathAllowed(path: string): boolean;
 //#endregion
 //#region src/index.d.ts
 //# sourceMappingURL=security.d.ts.map
-
 declare const name = "dsh-codegraph-visualizer";
 declare const inject: string[];
 declare function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>): () => void;

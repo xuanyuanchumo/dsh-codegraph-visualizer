@@ -116,7 +116,7 @@ function clone(source, refs = /* @__PURE__ */ new Map()) {
 	return result;
 }
 /** Deeply compare arrays, dates, regexps, buffers, and plain object fields. */
-function deepEqual(a, b, strict) {
+function deepEqual$1(a, b, strict) {
 	if (a === b) return true;
 	if (!strict && isNullable(a) && isNullable(b)) return true;
 	if (typeof a !== typeof b) return false;
@@ -125,7 +125,7 @@ function deepEqual(a, b, strict) {
 	function check(test, then) {
 		return test(a) ? test(b) ? then(a, b) : false : test(b) ? false : void 0;
 	}
-	return check(Array.isArray, (a$1, b$1) => a$1.length === b$1.length && a$1.every((item, index) => deepEqual(item, b$1[index]))) ?? check(is("Date"), (a$1, b$1) => a$1.valueOf() === b$1.valueOf()) ?? check(is("RegExp"), (a$1, b$1) => a$1.source === b$1.source && a$1.flags === b$1.flags) ?? check(isArrayBufferLike, (a$1, b$1) => {
+	return check(Array.isArray, (a$1, b$1) => a$1.length === b$1.length && a$1.every((item, index) => deepEqual$1(item, b$1[index]))) ?? check(is("Date"), (a$1, b$1) => a$1.valueOf() === b$1.valueOf()) ?? check(is("RegExp"), (a$1, b$1) => a$1.source === b$1.source && a$1.flags === b$1.flags) ?? check(isArrayBufferLike, (a$1, b$1) => {
 		if (a$1.byteLength !== b$1.byteLength) return false;
 		const viewA = new Uint8Array(a$1);
 		const viewB = new Uint8Array(b$1);
@@ -134,7 +134,7 @@ function deepEqual(a, b, strict) {
 	}) ?? Object.keys({
 		...a,
 		...b
-	}).every((key) => deepEqual(a[key], b[key], strict));
+	}).every((key) => deepEqual$1(a[key], b[key], strict));
 }
 /** Time constants plus parsing and formatting helpers. */
 var Time;
@@ -384,7 +384,7 @@ Schema.prototype.pattern = function pattern(regexp) {
 	return schema;
 };
 Schema.prototype.simplify = function simplify(value) {
-	if (deepEqual(value, this.meta.default, this.type === "dict")) return null;
+	if (deepEqual$1(value, this.meta.default, this.type === "dict")) return null;
 	if (isNullable(value)) return value;
 	if (this.type === "object" || this.type === "dict") {
 		const result = {};
@@ -392,7 +392,7 @@ Schema.prototype.simplify = function simplify(value) {
 			const item = (this.type === "object" ? this.dict[key] : this.inner)?.simplify(value[key]);
 			if (this.type === "dict" || !isNullable(item)) result[key] = item;
 		}
-		if (deepEqual(result, this.meta.default, this.type === "dict")) return null;
+		if (deepEqual$1(result, this.meta.default, this.type === "dict")) return null;
 		return result;
 	} else if (this.type === "array" || this.type === "tuple") {
 		const result = [];
@@ -558,7 +558,7 @@ Schema.extend("never", (data, _, options) => {
 	throw new ValidationError(`expected nullable but got ${data}`, options);
 });
 Schema.extend("const", (data, { value }, options) => {
-	if (deepEqual(data, value)) return [value];
+	if (deepEqual$1(data, value)) return [value];
 	throw new ValidationError(`expected ${value} but got ${data}`, options);
 });
 function checkWithinRange(data, meta, description, options, skipMin = false) {
@@ -1215,7 +1215,7 @@ var GraphDataMerger = class {
 			nodes: Array.from(nodes.values()),
 			edges: Array.from(edges.values()),
 			metadata: {
-				repoId: RepoId(repoId),
+				repoId,
 				timestamp: Date.now(),
 				nodeCount: nodes.size,
 				edgeCount: edges.size
@@ -1263,7 +1263,7 @@ var GraphDataMerger = class {
 };
 
 //#endregion
-//#region src/client/analysis/HealthScorer.ts
+//#region src/shared/analysis/HealthScorer.ts
 const EDGE_WEIGHTS = {
 	call: 1,
 	extend: .8,
@@ -1494,12 +1494,195 @@ var HealthScorer = class {
 };
 
 //#endregion
+//#region src/shared/analysis/RuleEngine.ts
+var RuleEngine = class {
+	detectors = new Map();
+	constructor() {
+		this.registerDetector("forbidden-edge", new ForbiddenEdgeDetector());
+		this.registerDetector("max-indegree", new MaxIndegreeDetector());
+		this.registerDetector("max-outdegree", new MaxOutdegreeDetector());
+		this.registerDetector("required-edge", new RequiredEdgeDetector());
+		this.registerDetector("cross-layer-call", new CrossLayerCallDetector());
+	}
+	registerDetector(type, detector) {
+		this.detectors.set(type, detector);
+	}
+	check(rules, nodes, edges) {
+		const violations = [];
+		for (const rule of rules) {
+			if (!rule.enabled) continue;
+			const detector = this.detectors.get(rule.type);
+			if (detector) violations.push(...detector.detect(rule, nodes, edges));
+		}
+		return violations;
+	}
+};
+var ForbiddenEdgeDetector = class {
+	detect(rule, nodes, edges) {
+		const violations = [];
+		const edgeTypes = rule.params.edgeTypes ?? [
+			"call",
+			"import",
+			"dependency"
+		];
+		const adjacency = new Map();
+		for (const edge of edges) {
+			if (!edgeTypes.includes(edge.type)) continue;
+			const list = adjacency.get(edge.source);
+			if (list) list.push(edge.target);
+			else adjacency.set(edge.source, [edge.target]);
+		}
+		const visited = new Set();
+		const inStack = new Set();
+		const reportedCycles = new Set();
+		const enter = (start) => {
+			const frames = [{
+				id: start,
+				neighbors: adjacency.get(start) ?? [],
+				next: 0
+			}];
+			visited.add(start);
+			inStack.add(start);
+			while (frames.length > 0) {
+				const frame = frames[frames.length - 1];
+				if (frame.next >= frame.neighbors.length) {
+					inStack.delete(frame.id);
+					frames.pop();
+					continue;
+				}
+				const target = frame.neighbors[frame.next++];
+				if (inStack.has(target)) {
+					const cycleKey = [target, ...frames.slice(frames.findIndex((f) => f.id === target)).map((f) => f.id)].sort().join("→");
+					if (!reportedCycles.has(cycleKey)) {
+						reportedCycles.add(cycleKey);
+						violations.push({
+							ruleId: rule.id,
+							nodeId: NodeId(target),
+							message: `Circular dependency detected involving: ${cycleKey}`,
+							severity: rule.severity
+						});
+					}
+				} else if (!visited.has(target)) {
+					visited.add(target);
+					inStack.add(target);
+					frames.push({
+						id: target,
+						neighbors: adjacency.get(target) ?? [],
+						next: 0
+					});
+				}
+			}
+		};
+		for (const id of adjacency.keys()) if (!visited.has(id)) enter(id);
+		return violations;
+	}
+};
+var MaxIndegreeDetector = class {
+	detect(rule, _nodes, edges) {
+		const violations = [];
+		const threshold = rule.params.threshold ?? 10;
+		const indegree = new Map();
+		for (const edge of edges) indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1);
+		for (const [nodeId, count] of indegree) if (count > threshold) violations.push({
+			ruleId: rule.id,
+			nodeId: NodeId(nodeId),
+			message: `Node ${nodeId} has indegree ${count} (max ${threshold})`,
+			severity: rule.severity
+		});
+		return violations;
+	}
+};
+var MaxOutdegreeDetector = class {
+	detect(rule, _nodes, edges) {
+		const violations = [];
+		const threshold = rule.params.threshold ?? 15;
+		const outdegree = new Map();
+		for (const edge of edges) outdegree.set(edge.source, (outdegree.get(edge.source) ?? 0) + 1);
+		for (const [nodeId, count] of outdegree) if (count > threshold) violations.push({
+			ruleId: rule.id,
+			nodeId: NodeId(nodeId),
+			message: `Node ${nodeId} has outdegree ${count} (max ${threshold})`,
+			severity: rule.severity
+		});
+		return violations;
+	}
+};
+var RequiredEdgeDetector = class {
+	detect(rule, nodes, edges) {
+		const violations = [];
+		const requiredType = rule.params.edgeType ?? "call";
+		const sourceType = rule.params.sourceType ?? void 0;
+		const targetType = rule.params.targetType ?? void 0;
+		const nodeMap = new Map();
+		for (const n of nodes) nodeMap.set(n.id, n);
+		const hasEdge = new Set();
+		for (const edge of edges) {
+			if (edge.type !== requiredType) continue;
+			if (sourceType) {
+				const src = nodeMap.get(edge.source);
+				if (!src || src.type !== sourceType) continue;
+			}
+			if (targetType) {
+				const tgt = nodeMap.get(edge.target);
+				if (!tgt || tgt.type !== targetType) continue;
+			}
+			hasEdge.add(edge.source);
+		}
+		for (const n of nodes) {
+			if (sourceType && n.type !== sourceType) continue;
+			if (!hasEdge.has(n.id)) violations.push({
+				ruleId: rule.id,
+				nodeId: NodeId(n.id),
+				message: `Node ${n.label} is missing required ${requiredType} edge`,
+				severity: rule.severity
+			});
+		}
+		return violations;
+	}
+};
+var CrossLayerCallDetector = class {
+	detect(rule, nodes, edges) {
+		const violations = [];
+		const layerMap = rule.params.layers ?? {};
+		const callType = rule.params.edgeType ?? "call";
+		if (Object.keys(layerMap).length === 0) return violations;
+		const nodeLayer = new Map();
+		for (const n of nodes) for (const [layerName, patterns] of Object.entries(layerMap)) if (patterns.some((p) => {
+			const seg = n.filePath.split(/[\\/]/);
+			return seg.includes(p) || n.label === p;
+		})) {
+			nodeLayer.set(n.id, layerName);
+			break;
+		}
+		const forbiddenPairs = new Set();
+		for (const [srcLayer, tgtLayers] of Object.entries(layerMap)) for (const tgtLayer of tgtLayers) forbiddenPairs.add(`${srcLayer}->${tgtLayer}`);
+		for (const edge of edges) {
+			if (edge.type !== callType) continue;
+			const srcLayer = nodeLayer.get(edge.source);
+			const tgtLayer = nodeLayer.get(edge.target);
+			if (!srcLayer || !tgtLayer) continue;
+			if (forbiddenPairs.has(`${srcLayer}->${tgtLayer}`)) violations.push({
+				ruleId: rule.id,
+				edgeId: EdgeId(edge.id),
+				message: `Cross-layer call from ${srcLayer} to ${tgtLayer}`,
+				severity: rule.severity
+			});
+		}
+		return violations;
+	}
+};
+
+//#endregion
 //#region src/tools.ts
 const log$6 = scoped("tools");
-const codegraphAdapter = new CodeGraphAdapter();
-const lensAdapter = new LensAdapter();
-const merger = new GraphDataMerger();
 const GRAPH_CACHE_LIMIT = 8;
+function createGraphToolDeps() {
+	return {
+		codegraphAdapter: new CodeGraphAdapter(),
+		lensAdapter: new LensAdapter(),
+		merger: new GraphDataMerger()
+	};
+}
 function cacheGraph(cache, repoId, data) {
 	cache.delete(repoId);
 	cache.set(repoId, data);
@@ -1508,13 +1691,14 @@ function cacheGraph(cache, repoId, data) {
 		if (oldest !== void 0) cache.delete(oldest);
 	}
 }
-async function fetchMergedGraph(invoke, repoId, source = "both") {
+async function fetchMergedGraph(invoke, repoId, source = "both", deps) {
+	const d = deps ?? createGraphToolDeps();
 	const tasks = [];
-	if (source === "codegraph" || source === "both") tasks.push(codegraphAdapter.fetchData(repoId, invoke));
-	if (source === "lens" || source === "both") tasks.push(lensAdapter.fetchData(repoId, invoke));
+	if (source === "codegraph" || source === "both") tasks.push(d.codegraphAdapter.fetchData(repoId, invoke));
+	if (source === "lens" || source === "both") tasks.push(d.lensAdapter.fetchData(repoId, invoke));
 	const settled = await Promise.allSettled(tasks);
 	const results = settled.filter((r) => r.status === "fulfilled").map((r) => r.value);
-	return merger.merge(results, RepoId(repoId));
+	return d.merger.merge(results, RepoId(repoId));
 }
 function summarizeGraph(data) {
 	const nodeByType = new Map();
@@ -1604,10 +1788,10 @@ function renderGraphStatus(_args, value) {
 		text: `Graph status: ${v.status} (${v.nodeCount} nodes, ${v.edgeCount} edges)${srcInfo}`
 	}];
 }
-async function executeGraphStatus(args, invoke) {
-	const [cgResult, lensResult] = await Promise.allSettled([codegraphAdapter.fetchData(args.repoId, invoke), lensAdapter.fetchData(args.repoId, invoke)]);
+async function executeGraphStatus(args, invoke, deps) {
+	const [cgResult, lensResult] = await Promise.allSettled([deps.codegraphAdapter.fetchData(args.repoId, invoke), deps.lensAdapter.fetchData(args.repoId, invoke)]);
 	const results = [cgResult, lensResult].filter((r) => r.status === "fulfilled").map((r) => r.value);
-	const data = merger.merge(results, RepoId(args.repoId));
+	const data = deps.merger.merge(results, RepoId(args.repoId));
 	return {
 		status: data.nodes.length > 0 ? "ready" : "unavailable",
 		nodeCount: data.metadata.nodeCount,
@@ -1625,11 +1809,11 @@ function renderGraphData(_args, value) {
 		text: summarizeGraph(data)
 	}];
 }
-async function executeGraphData(args, invoke, emitUpdate, emitData, graphCache) {
+async function executeGraphData(args, invoke, emitUpdate, emitData, graphCache, deps) {
 	const source = args.source ?? "both";
-	const fresh = await fetchMergedGraph(invoke, args.repoId, source);
+	const fresh = await fetchMergedGraph(invoke, args.repoId, source, deps);
 	const cached = graphCache.get(args.repoId);
-	const merged = cached ? merger.applyDelta(cached, {
+	const merged = cached ? deps.merger.applyDelta(cached, {
 		nodes: fresh.nodes,
 		edges: fresh.edges,
 		source: "codegraph",
@@ -1637,13 +1821,13 @@ async function executeGraphData(args, invoke, emitUpdate, emitData, graphCache) 
 	}) : fresh;
 	cacheGraph(graphCache, args.repoId, merged);
 	emitUpdate({
-		repoId: args.repoId,
+		repoId: RepoId(args.repoId),
 		nodeCount: merged.metadata.nodeCount,
 		edgeCount: merged.metadata.edgeCount,
 		timestamp: merged.metadata.timestamp
 	});
 	emitData({
-		repoId: args.repoId,
+		repoId: RepoId(args.repoId),
 		nodes: merged.nodes,
 		edges: merged.edges,
 		timestamp: merged.metadata.timestamp
@@ -1693,6 +1877,7 @@ async function executeGraphImpact(args, invoke) {
 const createGraphTools = (ctx, options = {}) => {
 	const invoke = createInvoke(ctx, options.requestTimeout);
 	const graphCache = new Map();
+	const deps = createGraphToolDeps();
 	const emitUpdate = (event) => {
 		ctx.emit("codegraph/graph/updated", event);
 	};
@@ -1711,7 +1896,7 @@ const createGraphTools = (ctx, options = {}) => {
 			schema: { type: "json" },
 			render: renderGraphStatus
 		},
-		execute: (args) => executeGraphStatus(args, invoke)
+		execute: (args) => executeGraphStatus(args, invoke, deps)
 	});
 	const graphData = defineTool({
 		name: "graph_data",
@@ -1736,7 +1921,7 @@ const createGraphTools = (ctx, options = {}) => {
 			schema: { type: "json" },
 			render: renderGraphData
 		},
-		execute: (args) => executeGraphData(args, invoke, emitUpdate, emitData, graphCache)
+		execute: (args) => executeGraphData(args, invoke, emitUpdate, emitData, graphCache, deps)
 	});
 	const graphSymbol = defineTool({
 		name: "graph_symbol",
@@ -1804,7 +1989,7 @@ const createGraphTools = (ctx, options = {}) => {
 			const a = args;
 			const data = await fetchMergedGraph(invoke, a.repoId);
 			const nodeIds = new Set(data.nodes.map((n) => n.id));
-			if (!nodeIds.has(a.sourceSymbol) || !nodeIds.has(a.targetSymbol)) return null;
+			if (!nodeIds.has(NodeId(a.sourceSymbol)) || !nodeIds.has(NodeId(a.targetSymbol))) return null;
 			const adjacency = new Map();
 			for (const edge of data.edges) {
 				const list = adjacency.get(edge.source);
@@ -1901,29 +2086,27 @@ const createGraphTools = (ctx, options = {}) => {
 		},
 		execute: async (args) => {
 			const a = args;
-			const data = await fetchMergedGraph(invoke, a.repoId);
+			const data = await fetchMergedGraph(invoke, a.repoId, "both", deps);
 			if (data.nodes.length === 0) return null;
-			const violations = [];
 			const maxIn = a.maxIndegree ?? 10;
 			const maxOut = a.maxOutdegree ?? 15;
-			const indegree = new Map();
-			const outdegree = new Map();
-			for (const edge of data.edges) {
-				indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1);
-				outdegree.set(edge.source, (outdegree.get(edge.source) ?? 0) + 1);
-			}
-			for (const [nodeId, count] of indegree) if (count > maxIn) violations.push({
-				ruleId: "max-indegree",
-				nodeId,
-				message: `Node ${nodeId} has indegree ${count} (max ${maxIn})`,
-				severity: "warning"
-			});
-			for (const [nodeId, count] of outdegree) if (count > maxOut) violations.push({
-				ruleId: "max-outdegree",
-				nodeId,
-				message: `Node ${nodeId} has outdegree ${count} (max ${maxOut})`,
-				severity: "warning"
-			});
+			const rules = [{
+				id: "max-indegree",
+				name: "Max Indegree",
+				type: "max-indegree",
+				params: { threshold: maxIn },
+				severity: "warning",
+				enabled: true
+			}, {
+				id: "max-outdegree",
+				name: "Max Outdegree",
+				type: "max-outdegree",
+				params: { threshold: maxOut },
+				severity: "warning",
+				enabled: true
+			}];
+			const engine = new RuleEngine();
+			const violations = engine.check(rules, data.nodes, data.edges);
 			return violations;
 		}
 	});
@@ -1960,7 +2143,7 @@ const createGraphTools = (ctx, options = {}) => {
 			const a = args;
 			const data = await fetchMergedGraph(invoke, a.repoId);
 			const nodeIds = new Set(data.nodes.map((n) => n.id));
-			if (!nodeIds.has(a.symbolId)) return null;
+			if (!nodeIds.has(NodeId(a.symbolId))) return null;
 			const neighbors = new Set();
 			for (const edge of data.edges) {
 				if (edge.source === a.symbolId) neighbors.add(edge.target);
@@ -1998,7 +2181,8 @@ const DEFAULT_CONFIG = {
 	maxBodyBytes: 1024 * 1024,
 	prerequisiteRetryDelay: 3e3,
 	watchDebounce: 500,
-	maxNodes: 1e4
+	maxNodes: 1e4,
+	allowedOrigins: ["http://localhost:3080"]
 };
 function resolveConfig(userConfig) {
 	const config = {
@@ -2023,17 +2207,26 @@ function resolveConfig(userConfig) {
 
 //#endregion
 //#region src/host/security.ts
-let allowedWorkspaceRoots = [];
+var SecurityManager = class {
+	allowedWorkspaceRoots = [];
+	setAllowedWorkspaceRoots(roots) {
+		this.allowedWorkspaceRoots = roots.map((r) => normalize(r));
+	}
+	isPathAllowed(path$1) {
+		if (!path$1 || path$1 === ".") return true;
+		const normalized = normalize(path$1);
+		if (!isAbsolute(normalized)) return false;
+		if (normalized.includes("..")) return false;
+		if (this.allowedWorkspaceRoots.length === 0) return false;
+		return this.allowedWorkspaceRoots.some((root) => normalized === root || normalized.startsWith(root + sep));
+	}
+};
+const defaultManager = new SecurityManager();
 function setAllowedWorkspaceRoots(roots) {
-	allowedWorkspaceRoots = roots.map((r) => normalize(r));
+	defaultManager.setAllowedWorkspaceRoots(roots);
 }
 function isPathAllowed(path$1) {
-	if (!path$1 || path$1 === ".") return true;
-	const normalized = normalize(path$1);
-	if (!isAbsolute(normalized)) return false;
-	if (normalized.includes("..")) return false;
-	if (allowedWorkspaceRoots.length === 0) return false;
-	return allowedWorkspaceRoots.some((root) => normalized === root || normalized.startsWith(root + sep) || normalized.startsWith(root + "/"));
+	return defaultManager.isPathAllowed(path$1);
 }
 
 //#endregion
@@ -2171,11 +2364,24 @@ function parseCargoToml(content) {
 	const seenIds = new Set();
 	try {
 		const lines = content.split("\n");
-		let inDepsSection = false;
 		let rootName = "root";
 		for (const line of lines) {
 			const nameMatch = line.match(/^name\s*=\s*"([^"]+)"/);
-			if (nameMatch) rootName = nameMatch[1];
+			if (nameMatch) {
+				rootName = nameMatch[1];
+				break;
+			}
+		}
+		const rootId = `dep:${rootName}`;
+		nodes.push({
+			id: rootId,
+			name: rootName,
+			version: "0.0.0",
+			type: "cargo"
+		});
+		seenIds.add(rootId);
+		let inDepsSection = false;
+		for (const line of lines) {
 			if (line.match(/^\[dependencies\]/)) {
 				inDepsSection = true;
 				continue;
@@ -2200,7 +2406,7 @@ function parseCargoToml(content) {
 					});
 				}
 				edges.push({
-					source: `dep:${rootName}`,
+					source: rootId,
 					target: depId,
 					type: "depends"
 				});
@@ -2221,18 +2427,12 @@ function parseCargoToml(content) {
 					});
 				}
 				edges.push({
-					source: `dep:${rootName}`,
+					source: rootId,
 					target: depId,
 					type: "depends"
 				});
 			}
 		}
-		nodes.unshift({
-			id: `dep:${rootName}`,
-			name: rootName,
-			version: "0.0.0",
-			type: "cargo"
-		});
 	} catch (e) {
 		log$4.warn("parseCargoToml failed", e);
 	}
@@ -2248,10 +2448,23 @@ function parseGoMod(content) {
 	try {
 		const lines = content.split("\n");
 		let moduleName = "root";
-		let inRequireBlock = false;
 		for (const line of lines) {
 			const moduleMatch = line.match(/^module\s+(\S+)/);
-			if (moduleMatch) moduleName = moduleMatch[1];
+			if (moduleMatch) {
+				moduleName = moduleMatch[1];
+				break;
+			}
+		}
+		const rootId = `dep:${moduleName}`;
+		nodes.push({
+			id: rootId,
+			name: moduleName,
+			version: "0.0.0",
+			type: "gomod"
+		});
+		seenIds.add(rootId);
+		let inRequireBlock = false;
+		for (const line of lines) {
 			if (line.match(/^require\s*\(/)) {
 				inRequireBlock = true;
 				continue;
@@ -2275,7 +2488,7 @@ function parseGoMod(content) {
 					});
 				}
 				edges.push({
-					source: `dep:${moduleName}`,
+					source: rootId,
 					target: depId,
 					type: "depends"
 				});
@@ -2298,18 +2511,12 @@ function parseGoMod(content) {
 					});
 				}
 				edges.push({
-					source: `dep:${moduleName}`,
+					source: rootId,
 					target: depId,
 					type: "depends"
 				});
 			}
 		}
-		nodes.unshift({
-			id: `dep:${moduleName}`,
-			name: moduleName,
-			version: "0.0.0",
-			type: "gomod"
-		});
 	} catch (e) {
 		log$4.warn("parseGoMod failed", e);
 	}
@@ -2346,6 +2553,19 @@ function dependencyGraphToGraphData(depGraph) {
 
 //#endregion
 //#region src/merger/DiffEngine.ts
+function deepEqual(a, b) {
+	if (a === b) return true;
+	if (a === null || b === null) return false;
+	if (typeof a !== "object" || typeof b !== "object") return false;
+	const aKeys = Object.keys(a).sort();
+	const bKeys = Object.keys(b).sort();
+	if (aKeys.length !== bKeys.length) return false;
+	for (let i = 0; i < aKeys.length; i++) {
+		if (aKeys[i] !== bKeys[i]) return false;
+		if (!deepEqual(a[aKeys[i]], b[bKeys[i]])) return false;
+	}
+	return true;
+}
 function computeGraphDiff(beforeNodes, beforeEdges, afterNodes, afterEdges) {
 	const beforeNodeMap = new Map();
 	for (const n of beforeNodes) beforeNodeMap.set(n.id, n);
@@ -2361,7 +2581,7 @@ function computeGraphDiff(beforeNodes, beforeEdges, afterNodes, afterEdges) {
 	for (const [id, node] of afterNodeMap) if (!beforeNodeMap.has(id)) addedNodes.push(node);
 	else {
 		const before = beforeNodeMap.get(id);
-		if (before.label !== node.label || before.type !== node.type || before.filePath !== node.filePath || before.lineNumber !== node.lineNumber || before.parentId !== node.parentId) modifiedNodes.push(node);
+		if (before.label !== node.label || before.type !== node.type || before.filePath !== node.filePath || before.lineNumber !== node.lineNumber || before.parentId !== node.parentId || !deepEqual(before.properties, node.properties)) modifiedNodes.push(node);
 	}
 	for (const [id, node] of beforeNodeMap) if (!afterNodeMap.has(id)) removedNodes.push(node);
 	const addedEdges = [];
@@ -2594,7 +2814,7 @@ var TreeSitterAdapter = class {
 				if (!visited.has(id)) {
 					visited.add(id);
 					nodes.push({
-						id,
+						id: NodeId(id),
 						label,
 						type: graphType,
 						filePath,
@@ -2603,12 +2823,12 @@ var TreeSitterAdapter = class {
 							source: "tree-sitter",
 							nodeType
 						},
-						...parentId ? { parentId } : {}
+						...parentId ? { parentId: NodeId(parentId) } : {}
 					});
 					if (parentId) edges.push({
-						id: `tsedge:${parentId}->${id}`,
-						source: parentId,
-						target: id,
+						id: EdgeId(`tsedge:${parentId}->${id}`),
+						source: NodeId(parentId),
+						target: NodeId(id),
 						type: "dependency",
 						properties: {}
 					});
@@ -2627,6 +2847,7 @@ var TreeSitterAdapter = class {
 		};
 	}
 	destroy() {
+		this.parser?.delete();
 		this.parser = null;
 		this.loadedLanguages.clear();
 	}
@@ -2668,24 +2889,7 @@ function slimGraphData(data, maxNodes) {
 	};
 }
 function createInvokeUpstream(ctx, config) {
-	return async (tool, args) => {
-		try {
-			const result = await ctx.tools.execute({
-				callId: CallId(`codegraph:${tool}`),
-				name: tool,
-				arguments: args,
-				signal: AbortSignal.timeout(config.requestTimeout)
-			});
-			if (result.isError) return null;
-			return result.value ?? null;
-		} catch (e) {
-			log$2.warn("invokeUpstream failed", {
-				tool,
-				error: e
-			});
-			return null;
-		}
-	};
+	return createInvoke(ctx, config.requestTimeout);
 }
 function registerService(deps) {
 	const { ctx, config } = deps;
@@ -2735,21 +2939,6 @@ function registerService(deps) {
 		return ctx.provide("graphVisualizer", service);
 	}, "codegraph: service registration");
 }
-function sendJson(res, code, data) {
-	res.writeHead(code, {
-		"content-type": "application/json",
-		"access-control-allow-origin": "*",
-		"access-control-allow-methods": "GET, POST, OPTIONS",
-		"access-control-allow-headers": "content-type, if-none-match"
-	});
-	res.end(JSON.stringify(data));
-}
-function sendError(res, code, message) {
-	sendJson(res, code, {
-		success: false,
-		error: message
-	});
-}
 function readBody(req, maxBodyBytes) {
 	return new Promise((resolve, reject) => {
 		let body = "";
@@ -2781,13 +2970,54 @@ function extractBooleanField(obj, field) {
 	const v = obj[field];
 	return typeof v === "boolean" ? v : void 0;
 }
+const GIT_REF_PATTERN = /^[a-zA-Z0-9._\/-]+$/;
+function isSafeGitRef(ref) {
+	return GIT_REF_PATTERN.test(ref);
+}
 function registerRoutes(deps) {
 	const { ctx, config } = deps;
 	const invokeUpstream = createInvokeUpstream(ctx, config);
+	const origins = config.allowedOrigins;
+	const sendJson = (res, code, data, req) => {
+		const headers = {
+			"content-type": "application/json",
+			"access-control-allow-methods": "GET, POST, OPTIONS",
+			"access-control-allow-headers": "content-type, if-none-match"
+		};
+		if (origins.length > 0) {
+			const reqOrigin = req?.headers?.["origin"];
+			if (typeof reqOrigin === "string" && origins.includes(reqOrigin)) headers["access-control-allow-origin"] = reqOrigin;
+			else if (origins.length === 1) headers["access-control-allow-origin"] = origins[0];
+		}
+		res.writeHead(code, headers);
+		res.end(JSON.stringify(data));
+	};
+	const sendError = (res, code, message, req) => {
+		sendJson(res, code, {
+			success: false,
+			error: message
+		}, req);
+	};
+	const handleCorsPreflight = (req, res) => {
+		if (req.method !== "OPTIONS") return false;
+		const headers = {
+			"access-control-allow-methods": "GET, POST, OPTIONS",
+			"access-control-allow-headers": "content-type, if-none-match"
+		};
+		if (origins.length > 0) {
+			const reqOrigin = req.headers?.["origin"];
+			if (typeof reqOrigin === "string" && origins.includes(reqOrigin)) headers["access-control-allow-origin"] = reqOrigin;
+			else if (origins.length === 1) headers["access-control-allow-origin"] = origins[0];
+		}
+		res.writeHead(204, headers);
+		res.end();
+		return true;
+	};
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
 		path: "/api/v1/codegraph/status",
-		handler: (_req, res) => {
+		handler: (req, res) => {
+			if (handleCorsPreflight(req, res)) return;
 			const status = checkPrerequisites(ctx);
 			sendJson(res, 200, {
 				codegraph: status.codegraph,
@@ -2798,7 +3028,8 @@ function registerRoutes(deps) {
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
 		path: "/api/v1/codegraph/workspace",
-		handler: (_req, res) => {
+		handler: (req, res) => {
+			if (handleCorsPreflight(req, res)) return;
 			const current = findWorkspacePath(ctx);
 			const list = extractWorkspacePaths(ctx);
 			sendJson(res, 200, {
@@ -2811,6 +3042,7 @@ function registerRoutes(deps) {
 		kind: "exact",
 		path: "/api/v1/codegraph/data",
 		handler: (req, res) => {
+			if (handleCorsPreflight(req, res)) return;
 			const ifNoneMatch = req.headers["if-none-match"];
 			const lastGraphData = deps.getLastGraphData();
 			if (ifNoneMatch && lastGraphData) {
@@ -2831,7 +3063,7 @@ function registerRoutes(deps) {
 				nodes: [],
 				edges: [],
 				metadata: {
-					repoId: null,
+					repoId: RepoId("empty"),
 					timestamp: 0,
 					nodeCount: 0,
 					edgeCount: 0
@@ -2843,6 +3075,7 @@ function registerRoutes(deps) {
 		kind: "exact",
 		path: "/api/v1/codegraph/scan",
 		handler: async (req, res) => {
+			if (handleCorsPreflight(req, res)) return;
 			try {
 				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
@@ -2887,13 +3120,13 @@ function registerRoutes(deps) {
 						if (oldest !== void 0) scanCache.delete(oldest);
 					}
 					ctx.emit("codegraph/graph/updated", {
-						repoId,
+						repoId: RepoId(repoId),
 						nodeCount: data.metadata.nodeCount,
 						edgeCount: data.metadata.edgeCount,
 						timestamp: data.metadata.timestamp
 					});
 					ctx.emit("codegraph/graph/data", {
-						repoId,
+						repoId: RepoId(repoId),
 						nodes: data.nodes,
 						edges: data.edges,
 						timestamp: data.metadata.timestamp
@@ -2921,6 +3154,7 @@ function registerRoutes(deps) {
 		kind: "exact",
 		path: "/api/v1/codegraph/init",
 		handler: async (req, res) => {
+			if (handleCorsPreflight(req, res)) return;
 			try {
 				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
@@ -2950,7 +3184,7 @@ function registerRoutes(deps) {
 					const data = slimGraphData(raw, config.maxNodes);
 					deps.setLastGraphData(data);
 					ctx.emit("codegraph/graph/data", {
-						repoId,
+						repoId: RepoId(repoId),
 						nodes: data.nodes,
 						edges: data.edges,
 						timestamp: data.metadata.timestamp
@@ -2974,6 +3208,7 @@ function registerRoutes(deps) {
 		kind: "exact",
 		path: "/api/v1/codegraph/watch",
 		handler: async (req, res) => {
+			if (handleCorsPreflight(req, res)) return;
 			try {
 				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
@@ -3002,7 +3237,8 @@ function registerRoutes(deps) {
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
 		path: "/api/v1/codegraph/dependencies",
-		handler: async (_req, res) => {
+		handler: async (req, res) => {
+			if (handleCorsPreflight(req, res)) return;
 			try {
 				const workspacePath = findWorkspacePath(ctx);
 				if (!workspacePath) {
@@ -3010,12 +3246,16 @@ function registerRoutes(deps) {
 						nodes: [],
 						edges: [],
 						metadata: {
-							repoId: null,
+							repoId: RepoId("empty"),
 							timestamp: 0,
 							nodeCount: 0,
 							edgeCount: 0
 						}
 					});
+					return;
+				}
+				if (!isPathAllowed(workspacePath)) {
+					sendError(res, 403, "Workspace path not allowed");
 					return;
 				}
 				const allDepNodes = [];
@@ -3064,6 +3304,7 @@ function registerRoutes(deps) {
 		kind: "exact",
 		path: "/api/v1/codegraph/diff",
 		handler: async (req, res) => {
+			if (handleCorsPreflight(req, res)) return;
 			try {
 				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
@@ -3073,18 +3314,26 @@ function registerRoutes(deps) {
 					sendError(res, 400, "from and to commits are required");
 					return;
 				}
+				if (!isSafeGitRef(fromCommit) || !isSafeGitRef(toCommit)) {
+					sendError(res, 400, "Invalid git ref format");
+					return;
+				}
 				const workspacePath = findWorkspacePath(ctx);
 				if (!workspacePath) {
 					sendJson(res, 200, {
 						nodes: [],
 						edges: [],
 						metadata: {
-							repoId: null,
+							repoId: RepoId("empty"),
 							timestamp: 0,
 							nodeCount: 0,
 							edgeCount: 0
 						}
 					});
+					return;
+				}
+				if (!isPathAllowed(workspacePath)) {
+					sendError(res, 403, "Workspace path not allowed");
 					return;
 				}
 				const beforeGraph = await fetchMergedGraph(invokeUpstream, `${workspacePath}@${fromCommit}`, "both");
@@ -3113,6 +3362,7 @@ function registerRoutes(deps) {
 			kind: "exact",
 			path: "/api/v1/codegraph/tree-sitter",
 			handler: async (req, res) => {
+				if (handleCorsPreflight(req, res)) return;
 				try {
 					const body = await readBody(req, config.maxBodyBytes);
 					const parsed = parseJsonBody(body);
@@ -3120,6 +3370,11 @@ function registerRoutes(deps) {
 					const content = extractStringField(parsed, "content");
 					if (!filePath || !content) {
 						sendError(res, 400, "filePath and content are required");
+						return;
+					}
+					const MAX_TREE_SITTER_CONTENT = 512 * 1024;
+					if (content.length > MAX_TREE_SITTER_CONTENT) {
+						sendError(res, 413, `Content too large for tree-sitter parsing (max ${MAX_TREE_SITTER_CONTENT} bytes, got ${content.length})`);
 						return;
 					}
 					const result = await treeSitterAdapter.parseFile(filePath, content);
@@ -3142,13 +3397,13 @@ async function scanAndPush(ctx, invokeUpstream, path$1) {
 		const repoId = path$1 || `workspace-${Date.now()}`;
 		const data = await fetchMergedGraph(invokeUpstream, repoId, "both");
 		ctx.emit("codegraph/graph/updated", {
-			repoId,
+			repoId: RepoId(repoId),
 			nodeCount: data.metadata.nodeCount,
 			edgeCount: data.metadata.edgeCount,
 			timestamp: data.metadata.timestamp
 		});
 		ctx.emit("codegraph/graph/data", {
-			repoId,
+			repoId: RepoId(repoId),
 			nodes: data.nodes,
 			edges: data.edges,
 			timestamp: data.metadata.timestamp

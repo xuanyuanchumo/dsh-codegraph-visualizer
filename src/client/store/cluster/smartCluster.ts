@@ -22,7 +22,7 @@ function computeLabels(rawNodes: GraphNode[], rawEdges: GraphEdge[]): Map<string
   while (changed && iterations < maxIterations) {
     changed = false;
     iterations++;
-    for (const n of rawNodes) {
+    for (const n of sortedNodes) {
       const neighbors = adjacency.get(n.id);
       if (!neighbors || neighbors.size === 0) continue;
       const labelCounts = new Map<string, number>();

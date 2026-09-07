@@ -78,8 +78,17 @@ export class McpServer {
 
     if (method === 'tools/call') {
       const params = msg['params'] as Record<string, unknown>;
-      const toolName = params?.['name'] as string;
-      const args = (params?.['arguments'] as Record<string, unknown>) || {};
+      if (typeof params !== 'object' || params === null) {
+        return {
+          jsonrpc: '2.0',
+          id,
+          error: { code: -32602, message: 'Invalid params: expected object' },
+        };
+      }
+      const toolName = typeof params['name'] === 'string' ? params['name'] : '';
+      const args = (typeof params['arguments'] === 'object' && params['arguments'] !== null
+        ? params['arguments'] as Record<string, unknown>
+        : {});
       const tool = this.tools.get(toolName);
       if (!tool) {
         return {

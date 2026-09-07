@@ -3353,3 +3353,40 @@ body[data-ds-dark-theme] {
   }
 }
 
+/* Panel close button — shared across hotspot, god-module, path-bar, rule-config, health panels */
+.cg-close-btn {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  margin-left: auto;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.cg-close-btn:hover {
+  opacity: 0.7;
+}
+
+.cg-close-btn--compact {
+  padding: 0 4px;
+}
+
+/* Node detail expand hint — collapsed state */
+.detail-expand-hint--expanded {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: var(--cg-success);
+}
+
+.detail-collapse-btn {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: var(--cg-success);
+  cursor: pointer;
+  font-size: 11px;
+  text-decoration: underline;
+}
+

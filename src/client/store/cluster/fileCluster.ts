@@ -15,10 +15,13 @@ export function computeFileClusters(
     if (n.type === 'module') {
       visibleNodes.push(n);
       nodeIdToVisibleId.set(n.id, n.id);
+    } else if (!n.parentId) {
+      visibleNodes.push(n);
+      nodeIdToVisibleId.set(n.id, n.id);
     } else {
       const parentFileId = n.parentId;
-      const fileClusterId = parentFileId ? `filecluster__${parentFileId.replace(/[/:\\]/g, '__')}` : `filecluster__orphan`;
-      if (parentFileId && (expandedFiles.has(fileClusterId) || expandedFiles.has(parentFileId))) {
+      const fileClusterId = `filecluster__${parentFileId.replace(/[/:\\]/g, '__')}`;
+      if (expandedFiles.has(fileClusterId) || expandedFiles.has(parentFileId)) {
         visibleNodes.push(n);
         nodeIdToVisibleId.set(n.id, n.id);
       } else {

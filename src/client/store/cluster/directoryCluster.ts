@@ -7,14 +7,17 @@ import { aggregateEdges } from './types.ts';
 function getTopLevelDir(filePath: string): string {
   const parts = filePath.split(/[\\/]/);
   if (parts.length <= 2) return filePath;
+  let startIdx = 0;
+  if (/^[A-Za-z]:$/.test(parts[0]!)) startIdx = 1;
   if (parts[0] === 'crates' && parts.length >= 2) {
     return `crates/${parts[1]}`;
   }
-  if (parts[0] === 'src' || parts[0] === 'lib' || parts[0] === 'app') {
-    return parts.slice(0, 2).join('/');
+  if (parts[startIdx] === 'src' || parts[startIdx] === 'lib' || parts[startIdx] === 'app') {
+    return parts.slice(startIdx, startIdx + 2).join('/');
   }
-  return parts.slice(0, 2).join('/');
+  return parts.slice(startIdx, startIdx + 2).join('/');
 }
+
 
 function getDirLabel(dirPath: string): string {
   const parts = dirPath.split('/');

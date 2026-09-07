@@ -70,6 +70,10 @@ export class VirtualViewportController {
 
     this.cy.batch(() => {
       this.cy.nodes().forEach((node) => {
+        if (node.data('typeFiltered') === true) {
+          node.style('display', 'none');
+          return;
+        }
         const p = node.position();
         const isVisible =
           p.x >= viewBounds.x1 - padding &&
@@ -86,6 +90,10 @@ export class VirtualViewportController {
       });
 
       this.cy.edges().forEach((edge) => {
+        if (edge.data('typeFiltered') === true) {
+          edge.style('display', 'none');
+          return;
+        }
         const sourceVisible = newVisible.has(edge.source().id());
         const targetVisible = newVisible.has(edge.target().id());
         edge.style('display', sourceVisible && targetVisible ? 'element' : 'none');
