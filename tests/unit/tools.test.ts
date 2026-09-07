@@ -780,3 +780,259 @@ describe('executeGraphImpact', () => {
     expect(result).toEqual({ affected: [], depth: 0 });
   });
 });
+
+describe('createGraphTools - additional tools', () => {
+  let ctx: MockCtx;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    getMockFetchData('codegraph').mockClear();
+    getMockFetchData('lens').mockClear();
+  });
+
+  it('graph_path_find should find shortest path', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [
+        { id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} },
+        { id: 'n2', label: 'B', type: 'function', filePath: 'b.ts', lineNumber: 2, properties: {} },
+        { id: 'n3', label: 'C', type: 'function', filePath: 'c.ts', lineNumber: 3, properties: {} },
+      ],
+      edges: [
+        { id: 'e1', source: 'n1', target: 'n2', type: 'call', properties: {} },
+        { id: 'e2', source: 'n2', target: 'n3', type: 'call', properties: {} },
+      ],
+      source: 'codegraph',
+      timestamp: 1,
+    });
+    const tools = createGraphTools(ctx);
+    const result = await tools.graphPathFind.execute({ repoId: 'r1', sourceSymbol: 'n1', targetSymbol: 'n3' }, mockExec) as { path: string[]; length: number };
+    expect(result.path).toEqual(['n1', 'n2', 'n3']);
+    expect(result.length).toBe(2);
+  });
+
+  it('graph_path_find should return null when source not in graph', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [{ id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} }],
+      edges: [],
+      source: 'codegraph',
+      timestamp: 1,
+    });
+    const tools = createGraphTools(ctx);
+    const result = await tools.graphPathFind.execute({ repoId: 'r1', sourceSymbol: 'missing', targetSymbol: 'n1' }, mockExec);
+    expect(result).toBeNull();
+  });
+
+  it('graph_path_find should return null when no path exists', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [
+        { id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} },
+        { id: 'n2', label: 'B', type: 'function', filePath: 'b.ts', lineNumber: 2, properties: {} },
+      ],
+      edges: [],
+      source: 'codegraph',
+      timestamp: 1,
+    });
+    const tools = createGraphTools(ctx);
+    const result = await tools.graphPathFind.execute({ repoId: 'r1', sourceSymbol: 'n1', targetSymbol: 'n2' }, mockExec);
+    expect(result).toBeNull();
+  });
+
+  it('graph_path_find render should show path', () => {
+    const tools = createGraphTools(ctx);
+    const renderFn = tools.graphPathFind.output.render!;
+    const output = renderFn({}, { path: ['n1', 'n2'], length: 1 }) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('n1');
+    expect(output[0]!.text).toContain('n2');
+  });
+
+  it('graph_path_find render should show no path message', () => {
+    const tools = createGraphTools(ctx);
+    const renderFn = tools.graphPathFind.output.render!;
+    const output = renderFn({}, null) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('No path');
+  });
+
+  it('graph_health should return health score', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [
+        { id: 'n1', label: 'A', type: 'function', filePath: 'src/mod1/a.ts', lineNumber: 1, properties: {} },
+        { id: 'n2', label: 'B', type: 'function', filePath: 'src/mod1/b.ts', lineNumber: 2, properties: {} },
+      ],
+      edges: [{ id: 'e1', source: 'n1', target: 'n2', type: 'call', properties: {} }],
+      source: 'codegraph',
+      timestamp: 1,
+    });
+    const tools = createGraphTools(ctx);
+    const result = await tools.graphHealth.execute({ repoId: 'r1' }, mockExec) as { overall: number };
+    expect(result).toHaveProperty('overall');
+    expect(result).toHaveProperty('coupling');
+  });
+
+  it('graph_health should return null for empty graph', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [],
+      edges: [],
+      source: 'codegraph',
+      timestamp: 1,
+    });
+    const tools = createGraphTools(ctx);
+    const result = await tools.graphHealth.execute({ repoId: 'r1' }, mockExec);
+    expect(result).toBeNull();
+  });
+
+  it('graph_health render should format score', () => {
+    const tools = createGraphTools(ctx);
+    const renderFn = tools.graphHealth.output.render!;
+    const output = renderFn({}, { overall: 80, coupling: 90, cohesion: 85, cyclicDependencyRate: 70, modularity: 75 }) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('80');
+    expect(output[0]!.text).toContain('Coupling');
+  });
+
+  it('graph_health render should show insufficient data', () => {
+    const tools = createGraphTools(ctx);
+    const renderFn = tools.graphHealth.output.render!;
+    const output = renderFn({}, null) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('Insufficient');
+  });
+
+  it('graph_rules_check should return violations', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [
+        { id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} },
+        { id: 'n2', label: 'B', type: 'function', filePath: 'b.ts', lineNumber: 2, properties: {} },
+      ],
+      edges: [{ id: 'e1', source: 'n1', target: 'n2', type: 'call', properties: {} }],
+      source: 'codegraph',
+      timestamp: 1,
+    });
+    const tools = createGraphTools(ctx);
+    const result = await tools.graphRulesCheck.execute({ repoId: 'r1', maxIndegree: 5, maxOutdegree: 5 }, mockExec);
+    expect(Array.isArray(result)).toBe(true);
+  });
+
+  it('graph_rules_check should return null for empty graph', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [],
+      edges: [],
+      source: 'codegraph',
+      timestamp: 1,
+    });
+    const tools = createGraphTools(ctx);
+    const result = await tools.graphRulesCheck.execute({ repoId: 'r1' }, mockExec);
+    expect(result).toBeNull();
+  });
+
+  it('graph_rules_check render should show no violations', () => {
+    const tools = createGraphTools(ctx);
+    const renderFn = tools.graphRulesCheck.output.render!;
+    const output = renderFn({}, []) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('No rule violations');
+  });
+
+  it('graph_rules_check render should show violations', () => {
+    const tools = createGraphTools(ctx);
+    const renderFn = tools.graphRulesCheck.output.render!;
+    const output = renderFn({}, [
+      { severity: 'warning', message: 'indegree too high', nodeId: 'n1', ruleId: 'max-indegree' },
+      { severity: 'warning', message: 'outdegree too high', nodeId: 'n2', ruleId: 'max-outdegree' },
+    ]) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('2 rule violations');
+  });
+
+  it('graph_focus should return neighbors', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [
+        { id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} },
+        { id: 'n2', label: 'B', type: 'function', filePath: 'b.ts', lineNumber: 2, properties: {} },
+        { id: 'n3', label: 'C', type: 'function', filePath: 'c.ts', lineNumber: 3, properties: {} },
+      ],
+      edges: [
+        { id: 'e1', source: 'n1', target: 'n2', type: 'call', properties: {} },
+        { id: 'e2', source: 'n3', target: 'n1', type: 'call', properties: {} },
+      ],
+      source: 'codegraph',
+      timestamp: 1,
+    });
+    const tools = createGraphTools(ctx);
+    const result = await tools.graphFocus.execute({ repoId: 'r1', symbolId: 'n1' }, mockExec) as { neighbors: string[]; symbolId: string };
+    expect(result.symbolId).toBe('n1');
+    expect(result.neighbors).toContain('n2');
+    expect(result.neighbors).toContain('n3');
+  });
+
+  it('graph_focus should return null for unknown symbol', async () => {
+    getMockFetchData('codegraph').mockResolvedValue({
+      nodes: [{ id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} }],
+      edges: [],
+      source: 'codegraph',
+      timestamp: 1,
+    });
+    const tools = createGraphTools(ctx);
+    const result = await tools.graphFocus.execute({ repoId: 'r1', symbolId: 'missing' }, mockExec);
+    expect(result).toBeNull();
+  });
+
+  it('graph_focus render should show neighbors', () => {
+    const tools = createGraphTools(ctx);
+    const renderFn = tools.graphFocus.output.render!;
+    const output = renderFn({}, { symbolId: 'n1', neighbors: ['n2', 'n3'] }) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('n1');
+    expect(output[0]!.text).toContain('2');
+  });
+
+  it('graph_focus render should show not found', () => {
+    const tools = createGraphTools(ctx);
+    const renderFn = tools.graphFocus.output.render!;
+    const output = renderFn({}, null) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('not found');
+  });
+});
+
+describe('render functions', () => {
+  let ctx: MockCtx;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+  });
+
+  it('renderGraphSymbol should format symbol detail', () => {
+    const tools = createGraphTools(ctx);
+    const renderFn = tools.graphSymbol.output.render!;
+    const output = renderFn({}, { name: 'myFunc', category: 'function', file: 'a.ts', line: 10 }) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('myFunc');
+    expect(output[0]!.text).toContain('a.ts:10');
+  });
+
+  it('renderGraphSymbol should show not found for null', () => {
+    const tools = createGraphTools(ctx);
+    const renderFn = tools.graphSymbol.output.render!;
+    const output = renderFn({}, null) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('not found');
+  });
+
+  it('renderGraphImpact should format impact', () => {
+    const tools = createGraphTools(ctx);
+    const renderFn = tools.graphImpact.output.render!;
+    const output = renderFn({}, { affected: ['s1', 's2'], depth: 2 }) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('2 symbols');
+    expect(output[0]!.text).toContain('s1');
+  });
+
+  it('renderGraphImpact should handle empty affected', () => {
+    const tools = createGraphTools(ctx);
+    const renderFn = tools.graphImpact.output.render!;
+    const output = renderFn({}, { affected: [], depth: 0 }) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('0 symbols');
+  });
+
+  it('renderGraphData should format graph summary', () => {
+    const tools = createGraphTools(ctx);
+    const renderFn = tools.graphData.output.render!;
+    const data = makeGraphData(
+      [makeNode('n1', 'A', 'function', 'a.ts', 1)],
+      [makeEdge('e1', 'n1', 'n2', 'call')],
+    );
+    const output = renderFn({}, data as never) as Array<{ type: string; text: string }>;
+    expect(output[0]!.text).toContain('Graph');
+  });
+});

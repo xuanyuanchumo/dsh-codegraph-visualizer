@@ -243,6 +243,25 @@ describe('RuleEngine', () => {
       expect(violations[0]!.message).toContain('outdegree 3');
       expect(violations[0]!.message).toContain('max 2');
     });
+
+    it('uses default threshold of 15 when not specified', () => {
+      const ruleDefault: RuleDefinition = {
+        id: 'max-out-default',
+        name: 'Max Out Default',
+        type: 'max-outdegree',
+        params: {},
+        severity: 'warning',
+        enabled: true,
+      };
+      const nodes = [
+        makeNode('hub', 'Hub', 'function', 'src/hub.ts', 1),
+        ...Array.from({ length: 16 }, (_, i) => makeNode(`n${i}`, `N${i}`, 'function', `src/n${i}.ts`, 1)),
+      ];
+      const edges = Array.from({ length: 16 }, (_, i) => makeEdge(`e${i}`, 'hub', `n${i}`, 'call'));
+      const violations = engine.check([ruleDefault], nodes, edges);
+      expect(violations).toHaveLength(1);
+      expect(violations[0]!.message).toContain('max 15');
+    });
   });
 
   describe('RequiredEdgeDetector', () => {
@@ -297,6 +316,55 @@ describe('RuleEngine', () => {
       const violations = engine.check([ruleNoFilter], nodes, edges);
       expect(violations).toHaveLength(2);
     });
+
+    it('filters by targetType when specified', () => {
+      const ruleWithTarget: RuleDefinition = {
+        id: 'req-call-target',
+        name: 'Required Call to Class',
+        type: 'required-edge',
+        params: { edgeType: 'call', sourceType: 'function', targetType: 'class' },
+        severity: 'warning',
+        enabled: true,
+      };
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/b.ts', 1),
+        makeNode('c', 'C', 'class', 'src/c.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'b', 'call')];
+      const violations = engine.check([ruleWithTarget], nodes, edges);
+      expect(violations).toHaveLength(2);
+      expect(violations.some((v) => v.message.includes('A'))).toBe(true);
+      expect(violations.some((v) => v.message.includes('B'))).toBe(true);
+    });
+
+    it('does not report when edge has correct sourceType and targetType', () => {
+      const ruleWithTarget: RuleDefinition = {
+        id: 'req-call-target',
+        name: 'Required Call to Class',
+        type: 'required-edge',
+        params: { edgeType: 'call', sourceType: 'function', targetType: 'class' },
+        severity: 'warning',
+        enabled: true,
+      };
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/a.ts', 1),
+        makeNode('c', 'C', 'class', 'src/c.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'c', 'call')];
+      const violations = engine.check([ruleWithTarget], nodes, edges);
+      expect(violations).toHaveLength(0);
+    });
+
+    it('skips edges with wrong edge type', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/b.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'b', 'import')];
+      const violations = engine.check([rule], nodes, edges);
+      expect(violations).toHaveLength(2);
+    });
   });
 
   describe('CrossLayerCallDetector', () => {
@@ -349,6 +417,34 @@ describe('RuleEngine', () => {
         makeNode('v2', 'View2', 'function', 'src/view/b.ts', 1),
       ];
       const edges = [makeEdge('e1', 'v1', 'v2', 'call')];
+      expect(engine.check([rule], nodes, edges)).toEqual([]);
+    });
+
+    it('matches layers by label name', () => {
+      const ruleLabel: RuleDefinition = {
+        ...rule,
+        params: {
+          layers: { 'view': ['model'], 'model': ['view'] },
+          edgeType: 'call',
+        },
+      };
+      const nodes = [
+        makeNode('v', 'view', 'function', 'src/x.ts', 1),
+        makeNode('m', 'model', 'function', 'src/y.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'v', 'm', 'call')];
+      const violations = engine.check([ruleLabel], nodes, edges);
+      expect(violations).toHaveLength(1);
+      expect(violations[0]!.message).toContain('view');
+      expect(violations[0]!.message).toContain('model');
+    });
+
+    it('skips edges where source or target has no layer', () => {
+      const nodes = [
+        makeNode('v', 'View', 'function', 'src/view/a.ts', 1),
+        makeNode('x', 'X', 'function', 'src/other.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'v', 'x', 'call')];
       expect(engine.check([rule], nodes, edges)).toEqual([]);
     });
   });

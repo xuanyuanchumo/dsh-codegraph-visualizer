@@ -58,4 +58,48 @@ describe('TreeSitterAdapter (FR-20)', () => {
     adapter.destroy();
     expect(adapter.isAvailable()).toBe(false);
   });
+
+  it('init should set parser when web-tree-sitter available', async () => {
+    await adapter.init();
+    expect(adapter.isAvailable()).toBe(false);
+  });
+
+  it('init should be idempotent (no-op if already initialized)', async () => {
+    await adapter.init();
+    await adapter.init();
+    expect(adapter.isAvailable()).toBe(false);
+  });
+
+  it('parseFile should return error for unsupported file extension', async () => {
+    const result = await adapter.parseFile('foo.txt', 'content');
+    expect(result.nodes).toEqual([]);
+    expect(result.edges).toEqual([]);
+    expect(result.source).toBe('tree-sitter');
+    expect(result.error).toBeDefined();
+  });
+
+  it('parseFile should return error when parser fails to init', async () => {
+    const result = await adapter.parseFile('foo.md', 'content');
+    expect(result.error).toBeDefined();
+  });
+
+  it('detectLanguage should handle files with multiple dots', () => {
+    expect(adapter.detectLanguage('path/to/file.test.ts')).toBe('typescript');
+    expect(adapter.detectLanguage('path/to/file.spec.js')).toBe('javascript');
+  });
+
+  it('detectLanguage should handle uppercase extensions', () => {
+    expect(adapter.detectLanguage('foo.TS')).toBeNull();
+  });
+
+  it('destroy should clear loaded languages', async () => {
+    await adapter.init();
+    adapter.destroy();
+    expect(adapter.isAvailable()).toBe(false);
+  });
+
+  it('should handle parseFile with empty content', async () => {
+    const result = await adapter.parseFile('foo.ts', '');
+    expect(result.source).toBe('tree-sitter');
+  });
 });

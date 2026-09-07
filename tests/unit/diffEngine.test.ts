@@ -121,4 +121,81 @@ describe('DiffEngine (FR-24)', () => {
     expect(result.edges[1]!.properties.diffStatus).toBe('modified');
     expect(result.edges[2]!.properties.diffStatus).toBe('removed');
   });
+
+  it('should detect modified nodes (filePath change)', () => {
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'b.ts', 1)];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(1);
+  });
+
+  it('should detect modified nodes (lineNumber change)', () => {
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 10)];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(1);
+  });
+
+  it('should detect modified nodes (parentId change)', () => {
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, {}, 'p1')];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, {}, 'p2')];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(1);
+  });
+
+  it('should detect modified nodes (properties change)', () => {
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { exported: true })];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { exported: false })];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(1);
+  });
+
+  it('should not mark modified when properties are deeply equal', () => {
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { exported: true, nested: { a: 1 } })];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { nested: { a: 1 }, exported: true })];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(0);
+  });
+
+  it('should detect modified nodes (properties key count change)', () => {
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { a: 1 })];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { a: 1, b: 2 })];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(1);
+  });
+
+  it('should detect modified edges (target change)', () => {
+    const beforeEdges = [makeEdge('e1', 'n1', 'n2', 'call')];
+    const afterEdges = [makeEdge('e1', 'n1', 'n3', 'call')];
+    const diff = computeGraphDiff([], beforeEdges, [], afterEdges);
+    expect(diff.modifiedEdges).toHaveLength(1);
+  });
+
+  it('should handle diffToGraphData with empty diff', () => {
+    const diff = {
+      addedNodes: [],
+      removedNodes: [],
+      modifiedNodes: [],
+      addedEdges: [],
+      removedEdges: [],
+      modifiedEdges: [],
+    };
+    const result = diffToGraphData(diff);
+    expect(result.nodes).toHaveLength(0);
+    expect(result.edges).toHaveLength(0);
+  });
+
+  it('should preserve existing properties when adding diffStatus', () => {
+    const diff = {
+      addedNodes: [makeNode('n1', 'A', 'function', 'a.ts', 1, { custom: 'value' })],
+      removedNodes: [],
+      modifiedNodes: [],
+      addedEdges: [],
+      removedEdges: [],
+      modifiedEdges: [],
+    };
+    const result = diffToGraphData(diff);
+    expect(result.nodes[0]!.properties.custom).toBe('value');
+    expect(result.nodes[0]!.properties.diffStatus).toBe('added');
+  });
 });

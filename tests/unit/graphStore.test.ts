@@ -448,4 +448,17 @@ describe('graphStore (J6/J7/J10)', () => {
     expect(useGraphStore.getState().panelHeight).toBeNull();
     expect(useGraphStore.getState().panelWidth).toBeNull();
   });
+
+  it('collapseNode should remove node from expanded set', () => {
+    const nodes = [
+      makeNode('m1', 'a.ts', 'module', 'crates/core/src/a.ts', 1),
+      makeNode('m2', 'b.ts', 'module', 'crates/api/src/b.ts', 1),
+    ];
+    useGraphStore.getState().setClusterLevel('directory');
+    useGraphStore.getState().setGraphData(nodes, [], 'repo-1');
+    useGraphStore.getState().expandNode('crates/core');
+    expect(useGraphStore.getState().expandedNodeIds.has('crates/core')).toBe(true);
+    useGraphStore.getState().collapseNode('crates/core');
+    expect(useGraphStore.getState().expandedNodeIds.has('crates/core')).toBe(false);
+  });
 });

@@ -54,6 +54,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.2.5",
     "@vitejs/plugin-react": "^4.3.0",
+    "@vitest/coverage-istanbul": "^3.2.7",
     "@vitest/coverage-v8": "^3.0.0",
     "cytoscape": "^3.26.0",
     "cytoscape-dagre": "^2.5.0",
