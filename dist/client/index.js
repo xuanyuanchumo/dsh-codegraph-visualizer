@@ -32,6 +32,7 @@ window.__ModuleLoader__.load({
   --cg-accent: var(--dsw-accent, #263148);
   --cg-accent-hover: var(--dsw-accent-hover, #1a2230);
   --cg-accent-soft: var(--dsw-accent-soft, rgba(38, 49, 72, 0.1));
+  --cg-on-accent: var(--dsw-on-accent, #ffffff);
   --cg-success: #10b981;
   --cg-warning: #f59e0b;
   --cg-error: #ef4444;
@@ -107,6 +108,7 @@ body[data-ds-dark-theme] {
   --cg-accent: var(--dsw-accent, #6366f1);
   --cg-accent-hover: var(--dsw-accent-hover, #818cf8);
   --cg-accent-soft: var(--dsw-accent-soft, rgba(99, 102, 241, 0.12));
+  --cg-on-accent: var(--dsw-on-accent, #ffffff);
 
   /* Node type semantic colors — dark theme */
   --cg-node-default: #6366f1;
@@ -165,6 +167,8 @@ body[data-ds-dark-theme] {
     opacity var(--cg-transition),
     transform var(--cg-transition);
   contain: layout paint style;
+  container-type: inline-size;
+  container-name: graphpanel;
 }
 
 .graph-panel.collapsed {
@@ -333,9 +337,9 @@ body[data-ds-dark-theme] {
 }
 
 .layout-btn.active {
-  color: var(--cg-text);
+  color: var(--cg-on-accent);
   background: var(--cg-accent);
-  box-shadow: 0 1px 3px rgba(99, 102, 241, 0.4);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
 /* ---- Graph type switcher (segmented control) ----------------------------- */
@@ -368,9 +372,9 @@ body[data-ds-dark-theme] {
 }
 
 .graph-type-btn.active {
-  color: var(--cg-text);
+  color: var(--cg-on-accent);
   background: var(--cg-success);
-  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.4);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
 .view-mode-btn {
@@ -393,10 +397,10 @@ body[data-ds-dark-theme] {
 }
 
 .view-mode-btn.active {
-  color: var(--cg-text);
+  color: var(--cg-on-accent);
   background: var(--cg-accent);
   border-color: var(--cg-accent);
-  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
 /* ---- Select -------------------------------------------------------------- */
@@ -517,8 +521,8 @@ body[data-ds-dark-theme] {
 .minimap-btn.active {
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
-  color: var(--cg-text);
-  box-shadow: 0 1px 4px rgba(99, 102, 241, 0.45);
+  color: var(--cg-on-accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
 /* ---- Export menu --------------------------------------------------------- */
@@ -1145,8 +1149,10 @@ body[data-ds-dark-theme] {
 
 /* ---- Responsive ---------------------------------------------------------- */
 
-/* Small panels (DSH sidebar tab, narrow bottom panel) */
-@media (max-width: 480px) {
+/* Small panels (DSH sidebar tab, narrow bottom panel).
+ * Container queries respond to the PANEL width, not the viewport — the plugin
+ * renders inside DSH panels whose width is unrelated to the window size. */
+@container graphpanel (max-width: 480px) {
   .graph-panel {
     border-radius: var(--cg-radius-sm);
   }
@@ -1219,7 +1225,7 @@ body[data-ds-dark-theme] {
 }
 
 /* Medium panels (DSH sidebar medium width) */
-@media (max-width: 768px) {
+@container graphpanel (max-width: 768px) {
   .graph-toolbar {
     padding: 0 8px;
     gap: 6px;
@@ -1262,7 +1268,7 @@ body[data-ds-dark-theme] {
 }
 
 /* Very small panels */
-@media (max-width: 320px) {
+@container graphpanel (max-width: 320px) {
   .graph-toolbar {
     gap: 2px;
   }
@@ -1355,8 +1361,8 @@ body[data-ds-dark-theme] {
 .lang-btn.active {
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
-  color: var(--cg-text);
-  box-shadow: 0 1px 4px rgba(99, 102, 241, 0.45);
+  color: var(--cg-on-accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
 .lang-label {
@@ -2432,13 +2438,13 @@ body[data-ds-dark-theme] {
 
 /* ---- Responsive improvements ---------------------------------------------- */
 
-@media (max-width: 768px) {
+@container graphpanel (max-width: 768px) {
   .depth-level-indicator {
     display: none;
   }
 }
 
-@media (max-width: 480px) {
+@container graphpanel (max-width: 480px) {
   .collapse-all-btn {
     display: none;
   }
@@ -3259,8 +3265,8 @@ body[data-ds-dark-theme] {
 .godmodule-btn.active {
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
-  color: var(--cg-text);
-  box-shadow: 0 1px 4px rgba(99, 102, 241, 0.45);
+  color: var(--cg-on-accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
 /* ---- Impact stats panel (FR-35) ------------------------------------------ */
@@ -3331,7 +3337,7 @@ body[data-ds-dark-theme] {
 
 /* ---- Responsive for new components ---------------------------------------- */
 
-@media (max-width: 480px) {
+@container graphpanel (max-width: 480px) {
   .path-bar,
   .health-score-card,
   .rule-panel {
@@ -3347,7 +3353,7 @@ body[data-ds-dark-theme] {
   }
 }
 
-@media (max-width: 768px) {
+@container graphpanel (max-width: 768px) {
   .path-bar {
     width: 240px;
   }
@@ -48776,7 +48782,7 @@ var CrossLayerCallDetector = class {
 		const nodeLayer = new Map();
 		for (const n of nodes) for (const [layerName, patterns] of Object.entries(layerMap)) if (patterns.some((p$1) => {
 			const seg = n.filePath.split(/[\\/]/);
-			return seg.includes(p$1) || n.label === p$1;
+			return seg.indexOf(p$1) >= 0 || n.label === p$1;
 		})) {
 			nodeLayer.set(n.id, layerName);
 			break;

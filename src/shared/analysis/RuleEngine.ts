@@ -264,7 +264,7 @@ class CrossLayerCallDetector implements RuleDetector {
       for (const [layerName, patterns] of Object.entries(layerMap)) {
         if (patterns.some((p) => {
           const seg = n.filePath.split(/[\\/]/);
-          return seg.includes(p) || n.label === p;
+          return seg.indexOf(p) >= 0 || n.label === p;
         })) {
           nodeLayer.set(n.id, layerName);
           break;

@@ -45372,7 +45372,7 @@ var CrossLayerCallDetector = class {
 		const nodeLayer = new Map();
 		for (const n of nodes) for (const [layerName, patterns] of Object.entries(layerMap)) if (patterns.some((p$1) => {
 			const seg = n.filePath.split(/[\\/]/);
-			return seg.includes(p$1) || n.label === p$1;
+			return seg.indexOf(p$1) >= 0 || n.label === p$1;
 		})) {
 			nodeLayer.set(n.id, layerName);
 			break;

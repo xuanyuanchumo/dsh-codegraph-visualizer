@@ -4,6 +4,8 @@
     "outDir": "dist",
     "module": "nodenext",
     "target": "es2024",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "types": ["node", "vitest/globals"],
     "sourceMap": true,
     "declaration": true,
     "declarationMap": true,

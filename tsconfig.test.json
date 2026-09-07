@@ -11,10 +11,11 @@
     "jsx": "react-jsx",
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["src/client/**/*", "src/types/**/*", "src/generated/**/*", "tests/unit/**/*"],
+  "include": ["src/client/**/*", "src/types/**/*", "src/generated/**/*", "tests/unit/**/*", "tests/component/**/*", "tests/helpers.ts"],
   "exclude": ["node_modules", "dist", "dist-test"]
 }
