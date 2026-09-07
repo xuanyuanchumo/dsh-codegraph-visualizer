@@ -8,8 +8,8 @@ import React from 'react';
 
 import { RuleConfigPanel } from '../../src/client/components/RuleConfigPanel.tsx';
 import { useGraphStore } from '../../src/client/store/graphStore.ts';
-import { getPresetRules } from '../../src/client/analysis/RuleEngine.ts';
-import type { RuleViolation } from '../../src/client/analysis/RuleEngine.ts';
+import { getPresetRules } from '../../src/shared/analysis/RuleEngine.ts';
+import type { RuleViolation } from '../../src/shared/analysis/RuleEngine.ts';
 
 const sampleViolations: RuleViolation[] = [
   { ruleId: 'r1', nodeId: 'n1' as RuleViolation['nodeId'], message: 'Node A violates r1', severity: 'error' },

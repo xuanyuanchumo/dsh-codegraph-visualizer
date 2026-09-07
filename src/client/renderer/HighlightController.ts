@@ -1,5 +1,5 @@
 import type { Core } from 'cytoscape';
-import type { NodeId } from '../../types/index.ts';
+import { NodeId } from '../../types/index.ts';
 
 export class HighlightController {
   private cy: Core;
@@ -67,7 +67,7 @@ export class HighlightController {
           if (edge.source().id() !== id) return;
           edge.addClass('call-chain');
           const target = edge.target().id();
-          if (!visited.has(target)) queue.push(target as NodeId);
+          if (!visited.has(target)) queue.push(NodeId(target));
         });
       }
     });
@@ -87,9 +87,9 @@ export class HighlightController {
 
     const visited = new Set<string>();
     const inStack = new Set<string>();
-    const path: string[] = [];
 
     const enter = (start: string): void => {
+      const path: string[] = [];
       const frames: Array<{ id: string; neighbors: string[]; next: number }> = [
         { id: start, neighbors: adjacency.get(start) ?? [], next: 0 },
       ];
@@ -137,60 +137,15 @@ export class HighlightController {
     });
   }
 
-  highlightImpact(nodeId: NodeId | null): void {
-    this.cy.batch(() => {
-      this.cy.elements().removeClass('impact-d1 impact-d2 impact-d3 impact-source');
-      if (!nodeId) return;
-
-      const sourceNode = this.cy.getElementById(nodeId);
-      if (sourceNode.nonempty()) sourceNode.addClass('impact-source');
-
-      const visited = new Map<string, number>();
-      const queue: Array<{ id: string; depth: number }> = [{ id: nodeId, depth: 0 }];
-      let head = 0;
-
-      while (head < queue.length) {
-        const { id, depth } = queue[head++]!;
-        if (visited.has(id) && visited.get(id)! <= depth) continue;
-        visited.set(id, depth);
-
-        const node = this.cy.getElementById(id);
-        if (depth > 0 && node.nonempty()) {
-          const cls = depth <= 1 ? 'impact-d1' : depth === 2 ? 'impact-d2' : 'impact-d3';
-          node.addClass(cls);
-        }
-
-        if (depth < 3) {
-          node.incomers().forEach((edge) => {
-            const src = edge.source().id();
-            if (!visited.has(src) || visited.get(src)! > depth + 1) {
-              queue.push({ id: src, depth: depth + 1 });
-            }
-          });
-        }
-      }
-    });
-  }
-
-  getImpactStats(nodeId: NodeId): { d1: number; d2: number; d3: number; total: number } | null {
-    const sourceNode = this.cy.getElementById(nodeId);
-    if (sourceNode.empty()) return null;
-
+  private computeImpact(nodeId: NodeId): Map<string, number> {
     const visited = new Map<string, number>();
     const queue: Array<{ id: string; depth: number }> = [{ id: nodeId, depth: 0 }];
     let head = 0;
-    let d1 = 0, d2 = 0, d3 = 0;
 
     while (head < queue.length) {
       const { id, depth } = queue[head++]!;
       if (visited.has(id) && visited.get(id)! <= depth) continue;
       visited.set(id, depth);
-
-      if (depth > 0) {
-        if (depth <= 1) d1++;
-        else if (depth === 2) d2++;
-        else d3++;
-      }
 
       if (depth < 3) {
         const node = this.cy.getElementById(id);
@@ -200,6 +155,44 @@ export class HighlightController {
             queue.push({ id: src, depth: depth + 1 });
           }
         });
+      }
+    }
+
+    return visited;
+  }
+
+  highlightImpact(nodeId: NodeId | null): void {
+    this.cy.batch(() => {
+      this.cy.elements().removeClass('impact-d1 impact-d2 impact-d3 impact-source');
+      if (!nodeId) return;
+
+      const sourceNode = this.cy.getElementById(nodeId);
+      if (sourceNode.nonempty()) sourceNode.addClass('impact-source');
+
+      const visited = this.computeImpact(nodeId);
+      for (const [id, depth] of visited) {
+        if (depth > 0) {
+          const node = this.cy.getElementById(id);
+          if (node.nonempty()) {
+            const cls = depth <= 1 ? 'impact-d1' : depth === 2 ? 'impact-d2' : 'impact-d3';
+            node.addClass(cls);
+          }
+        }
+      }
+    });
+  }
+
+  getImpactStats(nodeId: NodeId): { d1: number; d2: number; d3: number; total: number } | null {
+    const sourceNode = this.cy.getElementById(nodeId);
+    if (sourceNode.empty()) return null;
+
+    const visited = this.computeImpact(nodeId);
+    let d1 = 0, d2 = 0, d3 = 0;
+    for (const depth of visited.values()) {
+      if (depth > 0) {
+        if (depth <= 1) d1++;
+        else if (depth === 2) d2++;
+        else d3++;
       }
     }
 
@@ -222,30 +215,26 @@ export class HighlightController {
       focusNode.addClass('inheritance-focus');
 
       const relevant = new Set<string>([nodeId]);
-      const traverse = (id: string, direction: 'up' | 'down') => {
+      const stack: Array<{ id: string; direction: 'up' | 'down' }> = [
+        { id: nodeId, direction: 'up' },
+        { id: nodeId, direction: 'down' },
+      ];
+
+      while (stack.length > 0) {
+        const { id, direction } = stack.pop()!;
         const node = this.cy.getElementById(id);
-        if (direction === 'up') {
-          node.outgoers('edge[type="extend"], edge[type="implement"]').forEach((edge) => {
-            const target = edge.target().id();
-            if (!relevant.has(target)) {
-              relevant.add(target);
-              edge.addClass('inheritance-highlight');
-              traverse(target, 'up');
-            }
-          });
-        } else {
-          node.incomers('edge[type="extend"], edge[type="implement"]').forEach((edge) => {
-            const source = edge.source().id();
-            if (!relevant.has(source)) {
-              relevant.add(source);
-              edge.addClass('inheritance-highlight');
-              traverse(source, 'down');
-            }
-          });
-        }
-      };
-      traverse(nodeId, 'up');
-      traverse(nodeId, 'down');
+        const edges = direction === 'up'
+          ? node.outgoers('edge[type="extend"], edge[type="implement"]')
+          : node.incomers('edge[type="extend"], edge[type="implement"]');
+        edges.forEach((edge) => {
+          const target = direction === 'up' ? edge.target().id() : edge.source().id();
+          if (!relevant.has(target)) {
+            relevant.add(target);
+            edge.addClass('inheritance-highlight');
+            stack.push({ id: target, direction });
+          }
+        });
+      }
 
       relevant.forEach((id) => {
         const node = this.cy.getElementById(id);
@@ -262,5 +251,9 @@ export class HighlightController {
         if (!relevant.has(node.id())) node.addClass('inheritance-dim');
       });
     });
+  }
+
+  destroy(): void {
+    this.highlightedNodeIds.clear();
   }
 }

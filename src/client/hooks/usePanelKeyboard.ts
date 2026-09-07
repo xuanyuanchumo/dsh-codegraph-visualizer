@@ -43,7 +43,9 @@ export function usePanelKeyboard(
   useKeyboardShortcut('m', () => handlersRef.current.onToggleMiniMap(), { ctrl: true });
   useKeyboardShortcut('l', () => {
     const cur = layoutRef.current;
-    const next: LayoutType = (cur === 'cose' ? 'dagre' : cur === 'dagre' ? 'circle' : cur === 'circle' ? 'grid' : 'cose');
+    const order: LayoutType[] = ['cose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
+    const idx = order.indexOf(cur);
+    const next = order[(idx + 1) % order.length]!;
     setLayoutRef.current(next);
   }, { ctrl: true });
   useKeyboardShortcut('i', () => handlersRef.current.onToggleImport(), { ctrl: true });

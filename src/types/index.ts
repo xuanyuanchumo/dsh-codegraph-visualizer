@@ -45,7 +45,7 @@ export interface GraphData {
   };
 }
 
-export type DataSourceType = 'codegraph' | 'lens' | 'tree-sitter';
+export type DataSourceType = 'auto' | 'codegraph' | 'lens' | 'tree-sitter';
 
 export interface AdapterResult {
   nodes: GraphNode[];
@@ -58,27 +58,27 @@ export interface AdapterResult {
 // ---- Graph heat-update event payloads -------------------------------------
 
 export interface GraphUpdatedEvent {
-  repoId: string;
+  repoId: RepoId;
   nodeCount: number;
   edgeCount: number;
   timestamp: number;
 }
 
 export interface GraphDataEvent {
-  repoId: string;
+  repoId: RepoId;
   nodes: GraphNode[];
   edges: GraphEdge[];
   timestamp: number;
 }
 
 export interface RepoImportedEvent {
-  repoId: string;
+  repoId: RepoId;
   path: string;
   timestamp: number;
 }
 
 export interface RepoScannedEvent {
-  repoId: string;
+  repoId: RepoId;
   fileCount: number;
   timestamp: number;
 }
@@ -118,7 +118,7 @@ export interface WatchToggleEvent {
 }
 
 export interface HealthScoreEvent {
-  repoId: string;
+  repoId: RepoId;
   score: HealthScore;
   timestamp: number;
 }
@@ -227,8 +227,8 @@ declare module '@deepseek-ai/cordis' {
 export interface IGraphVisualizerService {
   getCurrentGraph(): GraphData | null;
   getGraphData(repoId: string): Promise<GraphData | null>;
-  getSymbolDetail(symbolId: string): Promise<unknown>;
-  getImpactAnalysis(symbolId: string): Promise<unknown>;
+  getSymbolDetail(symbolId: string): Promise<Record<string, unknown> | null>;
+  getImpactAnalysis(symbolId: string): Promise<{ affected: string[]; depth: number } | null>;
   onGraphUpdate(callback: (data: GraphData) => void): () => void;
 }
 
@@ -251,6 +251,7 @@ export interface IncomingMessage {
   on(event: 'data', handler: (chunk: Buffer) => void): void;
   on(event: 'end', handler: () => void): void;
   on(event: 'error', handler: (err: Error) => void): void;
+  destroy(): void;
 }
 
 export interface ServerResponse {

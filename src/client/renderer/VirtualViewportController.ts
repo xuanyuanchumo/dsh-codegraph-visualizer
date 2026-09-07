@@ -9,6 +9,7 @@ export class VirtualViewportController {
   private rafId: number | null = null;
   private visibleNodeIds: Set<string> = new Set();
 
+
   constructor(cy: Core) {
     this.cy = cy;
   }
@@ -17,13 +18,13 @@ export class VirtualViewportController {
     if (this.enabled) return;
     this.enabled = true;
     this.updateVisibility();
-    this.cy.on('viewport', () => this.handleViewportChange());
+    this.cy.on('viewport', this.handleViewportChange);
   }
 
   disable(): void {
     if (!this.enabled) return;
     this.enabled = false;
-    this.cy.off('viewport');
+    this.cy.off('viewport', this.handleViewportChange);
     this.cy.batch(() => {
       this.cy.nodes().forEach((n) => { n.style('display', 'element'); });
       this.cy.edges().forEach((e) => { e.style('display', 'element'); });

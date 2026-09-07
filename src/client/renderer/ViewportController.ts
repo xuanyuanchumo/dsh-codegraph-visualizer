@@ -100,11 +100,16 @@ export class ViewportController {
   }
 
   focusOnArea(x: number, y: number, zoom: number): void {
-    this.cy.panBy({ x: -x + this.cy.width() / 2, y: -y + this.cy.height() / 2 });
     this.cy.zoom(zoom);
+    this.cy.panBy({
+      x: -x * zoom + this.cy.width() / 2,
+      y: -y * zoom + this.cy.height() / 2,
+    });
   }
 
   resize(): void {
     this.cy.resize();
   }
+
+  destroy(): void {}
 }

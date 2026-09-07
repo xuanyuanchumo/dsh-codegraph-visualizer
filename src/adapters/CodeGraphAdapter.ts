@@ -9,7 +9,7 @@
 // codegraph_callees) when the DB cannot be read (e.g. remote sandboxed fs).
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { join } from 'node:path';
+import { join, normalize } from 'node:path';
 import type { GraphNode, GraphEdge, AdapterResult, DataSourceType } from '../types/index.ts';
 import { NodeId, EdgeId } from '../types/index.ts';
 import { scoped } from '../shared/Logger.ts';
@@ -80,7 +80,11 @@ export function mapEdgeKind(kind: string): GraphEdge['type'] {
 /** Locate the .codegraph/codegraph.db for a workspace path. */
 export function resolveDbPath(workspacePath: string): string {
   const root = workspacePath && workspacePath !== '.' ? workspacePath : process.cwd();
-  return join(root, '.codegraph', 'codegraph.db');
+  const normalized = normalize(root);
+  if (normalized.includes('..')) {
+    throw new Error(`Invalid workspace path: ${workspacePath}`);
+  }
+  return join(normalized, '.codegraph', 'codegraph.db');
 }
 
 /** Read the whole graph from a codegraph.db. Returns null when unreadable. */

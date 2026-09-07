@@ -1,5 +1,6 @@
 import { createInterface } from 'node:readline';
 import { scoped } from '../shared/Logger.ts';
+import { PLUGIN_VERSION } from '../generated/version.ts';
 import type { GraphData, GraphNode, GraphEdge } from '../types/index.ts';
 
 const log = scoped('mcp-server');
@@ -56,7 +57,7 @@ export class McpServer {
         result: {
           protocolVersion: '2024-11-05',
           capabilities: { tools: {} },
-          serverInfo: { name: 'dsh-codegraph-visualizer', version: '0.2.0' },
+          serverInfo: { name: 'dsh-codegraph-visualizer', version: PLUGIN_VERSION },
         },
       };
     }

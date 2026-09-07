@@ -22,18 +22,26 @@ const EDGE_WEIGHTS: Record<GraphEdge['type'], number> = {
   dependency: 0.3,
 };
 
-const MAX_MODULE_DEPTH = 3;
+const DEFAULT_MAX_MODULE_DEPTH = 3;
 
 export class HealthScorer {
+  private readonly maxModuleDepth: number;
+
+  constructor(maxModuleDepth?: number) {
+    this.maxModuleDepth = maxModuleDepth ?? DEFAULT_MAX_MODULE_DEPTH;
+  }
+
   calculate(nodes: GraphNode[], edges: GraphEdge[]): HealthScore {
     if (nodes.length === 0) {
       return { coupling: 0, cohesion: 0, cyclicDependencyRate: 0, modularity: 0, overall: 0 };
     }
 
-    const coupling = this.calculateCoupling(nodes, edges);
-    const cohesion = this.calculateCohesion(nodes, edges);
+    const moduleOfNode = this.buildModuleMap(nodes);
+
+    const coupling = this.calculateCoupling(nodes, edges, moduleOfNode);
+    const cohesion = this.calculateCohesion(nodes, edges, moduleOfNode);
     const cyclicDependencyRate = this.calculateCyclicDependencyRate(nodes, edges);
-    const modularity = this.calculateModularity(nodes, edges);
+    const modularity = this.calculateModularity(nodes, edges, moduleOfNode);
     const overall = Math.round(
       coupling * 0.25 + cohesion * 0.25 + cyclicDependencyRate * 0.30 + modularity * 0.20,
     );
@@ -50,10 +58,10 @@ export class HealthScorer {
     ];
   }
 
-  private calculateCoupling(nodes: GraphNode[], edges: GraphEdge[]): number {
+  private calculateCoupling(nodes: GraphNode[], edges: GraphEdge[], moduleOfNode: Map<string, string>): number {
     if (edges.length === 0) return 100;
 
-    const moduleOfNode = this.buildModuleMap(nodes);
+
     let weightedCrossModule = 0;
     let totalWeight = 0;
 
@@ -72,19 +80,28 @@ export class HealthScorer {
     return Math.round(Math.max(0, 100 - couplingRatio * 100));
   }
 
-  private calculateCohesion(nodes: GraphNode[], edges: GraphEdge[]): number {
-    const moduleOfNode = this.buildModuleMap(nodes);
+  private calculateCohesion(nodes: GraphNode[], edges: GraphEdge[], moduleOfNode: Map<string, string>): number {
     const moduleEdges = new Map<string, { internal: number; total: number }>();
+
+    const ensure = (m: string) => {
+      let stats = moduleEdges.get(m);
+      if (!stats) { stats = { internal: 0, total: 0 }; moduleEdges.set(m, stats); }
+      return stats;
+    };
 
     for (const edge of edges) {
       const srcModule = moduleOfNode.get(edge.source);
       const tgtModule = moduleOfNode.get(edge.target);
-      if (!srcModule) continue;
+      if (!srcModule && !tgtModule) continue;
 
-      let stats = moduleEdges.get(srcModule);
-      if (!stats) { stats = { internal: 0, total: 0 }; moduleEdges.set(srcModule, stats); }
-      stats.total++;
-      if (srcModule === tgtModule) stats.internal++;
+      if (srcModule && tgtModule && srcModule === tgtModule) {
+        const stats = ensure(srcModule);
+        stats.total++;
+        stats.internal++;
+      } else {
+        if (srcModule) ensure(srcModule).total++;
+        if (tgtModule) ensure(tgtModule).total++;
+      }
     }
 
     if (moduleEdges.size === 0) return 50;
@@ -105,10 +122,12 @@ export class HealthScorer {
   private calculateCyclicDependencyRate(nodes: GraphNode[], edges: GraphEdge[]): number {
     if (edges.length === 0) return 100;
 
+    const cycleEdgeTypes: GraphEdge['type'][] = ['call', 'extend', 'implement'];
     const adjacency = new Map<string, string[]>();
     const nodeIds = new Set<string>();
     for (const node of nodes) nodeIds.add(node.id);
     for (const edge of edges) {
+      if (!cycleEdgeTypes.includes(edge.type)) continue;
       const list = adjacency.get(edge.source);
       if (list) list.push(edge.target);
       else adjacency.set(edge.source, [edge.target]);
@@ -134,10 +153,10 @@ export class HealthScorer {
     return Math.round(Math.max(0, 100 - cycleRate * 100));
   }
 
-  private calculateModularity(nodes: GraphNode[], edges: GraphEdge[]): number {
+  private calculateModularity(nodes: GraphNode[], edges: GraphEdge[], moduleOfNode: Map<string, string>): number {
     if (nodes.length === 0) return 0;
 
-    const moduleOfNode = this.buildModuleMap(nodes);
+
     const modules = new Set<string>();
     for (const m of moduleOfNode.values()) modules.add(m);
 
@@ -177,8 +196,8 @@ export class HealthScorer {
       const rawPath = node.filePath.replace(/^(file|import):/, '');
       const parts = rawPath.split(/[\\/]/);
       const dirParts = parts.length > 1 ? parts.slice(0, -1) : [rawPath];
-      const module = dirParts.length > MAX_MODULE_DEPTH
-        ? dirParts.slice(0, MAX_MODULE_DEPTH).join('/')
+      const module = dirParts.length > this.maxModuleDepth
+        ? dirParts.slice(0, this.maxModuleDepth).join('/')
         : dirParts.join('/');
       moduleOfNode.set(node.id, module);
     }
@@ -196,38 +215,51 @@ export class HealthScorer {
     const stack: string[] = [];
     const sccs: string[][] = [];
 
-    const strongConnect = (v: string): void => {
-      indices.set(v, index);
-      lowLinks.set(v, index);
-      index++;
-      stack.push(v);
-      onStack.add(v);
+    for (const startId of nodeIds) {
+      if (indices.has(startId)) continue;
 
-      const neighbors = adjacency.get(v) ?? [];
-      for (const w of neighbors) {
-        if (!indices.has(w)) {
-          strongConnect(w);
-          lowLinks.set(v, Math.min(lowLinks.get(v)!, lowLinks.get(w)!));
-        } else if (onStack.has(w)) {
-          lowLinks.set(v, Math.min(lowLinks.get(v)!, indices.get(w)!));
+      const callStack: Array<{ v: string; neighborIdx: number; neighbors: string[] }> = [];
+      callStack.push({ v: startId, neighborIdx: 0, neighbors: adjacency.get(startId) ?? [] });
+
+      while (callStack.length > 0) {
+        const frame = callStack[callStack.length - 1]!;
+        const v = frame.v;
+
+        if (frame.neighborIdx === 0) {
+          indices.set(v, index);
+          lowLinks.set(v, index);
+          index++;
+          stack.push(v);
+          onStack.add(v);
         }
-      }
 
-      if (lowLinks.get(v) === indices.get(v)) {
-        const scc: string[] = [];
-        let w: string;
-        do {
-          w = stack.pop()!;
-          onStack.delete(w);
-          scc.push(w);
-        } while (w !== v);
-        sccs.push(scc);
-      }
-    };
+        if (frame.neighborIdx < frame.neighbors.length) {
+          const w = frame.neighbors[frame.neighborIdx]!;
+          frame.neighborIdx++;
 
-    for (const id of nodeIds) {
-      if (!indices.has(id)) {
-        strongConnect(id);
+          if (!indices.has(w)) {
+            callStack.push({ v: w, neighborIdx: 0, neighbors: adjacency.get(w) ?? [] });
+          } else if (onStack.has(w)) {
+            lowLinks.set(v, Math.min(lowLinks.get(v)!, indices.get(w)!));
+          }
+        } else {
+          if (lowLinks.get(v) === indices.get(v)) {
+            const scc: string[] = [];
+            let w: string;
+            do {
+              w = stack.pop()!;
+              onStack.delete(w);
+              scc.push(w);
+            } while (w !== v);
+            sccs.push(scc);
+          }
+
+          callStack.pop();
+          if (callStack.length > 0) {
+            const parentFrame = callStack[callStack.length - 1]!;
+            lowLinks.set(parentFrame.v, Math.min(lowLinks.get(parentFrame.v)!, lowLinks.get(v)!));
+          }
+        }
       }
     }
 

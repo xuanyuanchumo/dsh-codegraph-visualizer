@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useReducer, useCallback } from 'react';
 
 export interface PanelState {
   showSearch: boolean;
@@ -44,40 +44,102 @@ export interface PanelState {
   setShowGodModule: (v: boolean | ((prev: boolean) => boolean)) => void;
 }
 
-export function usePanelState(): PanelState {
-  const [showSearch, setShowSearch] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
-  const [showCycles, setShowCycles] = useState(false);
-  const [showCallChain, setShowCallChain] = useState(false);
-  const [showImpact, setShowImpact] = useState(false);
-  const [showInheritance, setShowInheritance] = useState(false);
-  const [showMiniMap, setShowMiniMap] = useState(false);
-  const [showImport, setShowImport] = useState(false);
-  const [showLegend, setShowLegend] = useState(false);
-  const [showPathFind, setShowPathFind] = useState(false);
-  const [showHealthScore, setShowHealthScore] = useState(false);
-  const [showRules, setShowRules] = useState(false);
-  const [showHotspot, setShowHotspot] = useState(false);
-  const [showGodModule, setShowGodModule] = useState(false);
+type PanelVisibilityKey =
+  | 'showSearch' | 'showCycles' | 'showCallChain' | 'showImpact'
+  | 'showInheritance' | 'showMiniMap' | 'showImport' | 'showLegend'
+  | 'showPathFind' | 'showHealthScore' | 'showRules' | 'showHotspot'
+  | 'showGodModule';
 
-  const toggleSearch = useCallback(() => setShowSearch((v) => !v), []);
-  const toggleCollapsed = useCallback(() => setCollapsed((c) => !c), []);
-  const toggleCycles = useCallback(() => setShowCycles((v) => !v), []);
-  const toggleCallChain = useCallback(() => setShowCallChain((v) => !v), []);
-  const toggleImpact = useCallback(() => setShowImpact((v) => !v), []);
-  const toggleInheritance = useCallback(() => setShowInheritance((v) => !v), []);
-  const toggleMiniMap = useCallback(() => setShowMiniMap((v) => !v), []);
-  const toggleImport = useCallback(() => setShowImport((v) => !v), []);
-  const toggleLegend = useCallback(() => setShowLegend((v) => !v), []);
-  const togglePathFind = useCallback(() => setShowPathFind((v) => !v), []);
-  const toggleHealthScore = useCallback(() => setShowHealthScore((v) => !v), []);
-  const toggleRules = useCallback(() => setShowRules((v) => !v), []);
-  const toggleHotspot = useCallback(() => setShowHotspot((v) => !v), []);
-  const toggleGodModule = useCallback(() => setShowGodModule((v) => !v), []);
+interface PanelStateInternal {
+  showSearch: boolean;
+  collapsed: boolean;
+  showCycles: boolean;
+  showCallChain: boolean;
+  showImpact: boolean;
+  showInheritance: boolean;
+  showMiniMap: boolean;
+  showImport: boolean;
+  showLegend: boolean;
+  showPathFind: boolean;
+  showHealthScore: boolean;
+  showRules: boolean;
+  showHotspot: boolean;
+  showGodModule: boolean;
+}
+
+type Action =
+  | { type: 'toggle'; key: PanelVisibilityKey | 'collapsed' }
+  | { type: 'set'; key: PanelVisibilityKey; value: boolean | ((prev: boolean) => boolean) };
+
+const initialState: PanelStateInternal = {
+  showSearch: false,
+  collapsed: false,
+  showCycles: false,
+  showCallChain: false,
+  showImpact: false,
+  showInheritance: false,
+  showMiniMap: false,
+  showImport: false,
+  showLegend: false,
+  showPathFind: false,
+  showHealthScore: false,
+  showRules: false,
+  showHotspot: false,
+  showGodModule: false,
+};
+
+function reducer(state: PanelStateInternal, action: Action): PanelStateInternal {
+  switch (action.type) {
+    case 'toggle': {
+      const key = action.key;
+      return { ...state, [key]: !state[key] };
+    }
+    case 'set': {
+      const key = action.key;
+      const prev = state[key];
+      const next = typeof action.value === 'function' ? action.value(prev) : action.value;
+      return { ...state, [key]: next };
+    }
+  }
+}
+
+export function usePanelState(): PanelState {
+  const [state, dispatch] = useReducer(reducer, initialState);
+
+  const makeToggle = useCallback((key: PanelVisibilityKey | 'collapsed') => () => dispatch({ type: 'toggle', key }), []);
+  const makeSet = useCallback((key: PanelVisibilityKey) => (v: boolean | ((prev: boolean) => boolean)) => dispatch({ type: 'set', key, value: v }), []);
+
+  const toggleSearch = useCallback(makeToggle('showSearch'), [makeToggle]);
+  const toggleCollapsed = useCallback(makeToggle('collapsed'), [makeToggle]);
+  const toggleCycles = useCallback(makeToggle('showCycles'), [makeToggle]);
+  const toggleCallChain = useCallback(makeToggle('showCallChain'), [makeToggle]);
+  const toggleImpact = useCallback(makeToggle('showImpact'), [makeToggle]);
+  const toggleInheritance = useCallback(makeToggle('showInheritance'), [makeToggle]);
+  const toggleMiniMap = useCallback(makeToggle('showMiniMap'), [makeToggle]);
+  const toggleImport = useCallback(makeToggle('showImport'), [makeToggle]);
+  const toggleLegend = useCallback(makeToggle('showLegend'), [makeToggle]);
+  const togglePathFind = useCallback(makeToggle('showPathFind'), [makeToggle]);
+  const toggleHealthScore = useCallback(makeToggle('showHealthScore'), [makeToggle]);
+  const toggleRules = useCallback(makeToggle('showRules'), [makeToggle]);
+  const toggleHotspot = useCallback(makeToggle('showHotspot'), [makeToggle]);
+  const toggleGodModule = useCallback(makeToggle('showGodModule'), [makeToggle]);
+
+  const setShowSearch = useCallback(makeSet('showSearch'), [makeSet]);
+  const setShowImport = useCallback(makeSet('showImport'), [makeSet]);
+  const setShowCallChain = useCallback(makeSet('showCallChain'), [makeSet]);
+  const setShowCycles = useCallback(makeSet('showCycles'), [makeSet]);
+  const setShowImpact = useCallback(makeSet('showImpact'), [makeSet]);
+  const setShowInheritance = useCallback(makeSet('showInheritance'), [makeSet]);
+  const setShowMiniMap = useCallback(makeSet('showMiniMap'), [makeSet]);
+  const setShowLegend = useCallback(makeSet('showLegend'), [makeSet]);
+  const setShowPathFind = useCallback(makeSet('showPathFind'), [makeSet]);
+  const setShowHealthScore = useCallback(makeSet('showHealthScore'), [makeSet]);
+  const setShowRules = useCallback(makeSet('showRules'), [makeSet]);
+  const setShowHotspot = useCallback(makeSet('showHotspot'), [makeSet]);
+  const setShowGodModule = useCallback(makeSet('showGodModule'), [makeSet]);
 
   return {
-    showSearch, collapsed, showCycles, showCallChain, showImpact, showInheritance, showMiniMap, showImport, showLegend,
-    showPathFind, showHealthScore, showRules, showHotspot, showGodModule,
+    ...state,
     toggleSearch, toggleCollapsed, toggleCycles, toggleCallChain, toggleImpact, toggleInheritance, toggleMiniMap, toggleImport, toggleLegend,
     togglePathFind, toggleHealthScore, toggleRules, toggleHotspot, toggleGodModule,
     setShowSearch, setShowImport, setShowCallChain, setShowCycles, setShowImpact, setShowInheritance, setShowMiniMap, setShowLegend,

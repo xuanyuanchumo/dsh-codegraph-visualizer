@@ -26,20 +26,20 @@ export function computeFileClusters(
     }
   }
 
-  const fileClusterChildren = new Map<string, GraphNode[]>();
+  const fileClusterChildren = new Map<string, { children: GraphNode[]; parentFileId: string }>();
   for (const n of rawNodes) {
     if (n.type !== 'module') {
       const clusterId = nodeIdToVisibleId.get(n.id);
       if (clusterId && clusterId.startsWith('filecluster__')) {
-        const list = fileClusterChildren.get(clusterId);
-        if (list) list.push(n);
-        else fileClusterChildren.set(clusterId, [n]);
+        const parentFileId = n.parentId ?? '';
+        const entry = fileClusterChildren.get(clusterId);
+        if (entry) entry.children.push(n);
+        else fileClusterChildren.set(clusterId, { children: [n], parentFileId });
       }
     }
   }
 
-  for (const [clusterId, children] of fileClusterChildren) {
-    const parentFileId = clusterId.replace('filecluster__', '').replace(/__/g, '/');
+  for (const [clusterId, { children, parentFileId }] of fileClusterChildren) {
     const parentNode = rawNodes.find((n) => n.id === parentFileId);
     const clusterNode: ClusterNode = {
       id: clusterId as NodeId,

@@ -12,16 +12,23 @@ export function usePanelResize(
     if (!panel) return;
 
     let startX = 0, startY = 0, startW = 0, startH = 0;
+    let rafId: number | null = null;
     const onPointerMove = (e: PointerEvent) => {
       const w = Math.max(320, startW + (e.clientX - startX));
       const h = Math.max(240, startH + (e.clientY - startY));
       panel.style.width = `${w}px`;
       panel.style.height = `${h}px`;
-      rendererRef.current?.resize();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        rendererRef.current?.resize();
+      });
     };
     const onPointerUp = () => {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rendererRef.current?.resize();
     };
     const onPointerDown = (e: PointerEvent) => {
       startX = e.clientX; startY = e.clientY;
@@ -39,6 +46,7 @@ export function usePanelResize(
       savedRef.current?.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
+      if (rafId !== null) cancelAnimationFrame(rafId);
     };
   }, [panelRef, rendererRef]);
 }

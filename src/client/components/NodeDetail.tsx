@@ -16,8 +16,8 @@ const TYPE_COLORS: Record<string, string> = {
   function: 'var(--cg-success)',
   class: 'var(--cg-accent-hover)',
   variable: 'var(--cg-warning)',
-  module: '#ec4899',
-  interface: '#14b8a6',
+  module: 'var(--cg-accent)',
+  interface: 'var(--cg-text-secondary)',
   type: 'var(--cg-text-tertiary)',
 };
 

@@ -102,8 +102,7 @@ export function ImportPanel({
     window.dispatchEvent(new CustomEvent('codegraph:import-repo', { detail: { path: effectivePath } }));
     log.info('workspace scan requested', { path: effectivePath });
     setFeedback({ kind: 'ok', msg: t('import.requestedScan', { path: effectivePath }) });
-    timersRef.current.push(setTimeout(() => { setBusy(false); onClose(); }, 900));
-  }, [effectivePath, onSetLoading, onClose, t]);
+  }, [effectivePath, onSetLoading, t]);
 
   const handleInit = useCallback(() => {
     onSetInitStatus('initializing');

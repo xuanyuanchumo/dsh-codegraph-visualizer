@@ -1,8 +1,12 @@
 import type { Context } from '@deepseek-ai/cordis';
-import { CallId } from '@deepseek-ai/dsh-llm';
+
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { scoped } from '../shared/Logger.ts';
 import type { GraphData, GraphNode, GraphEdge, IncomingMessage, ServerResponse, IGraphVisualizerService } from '../types/index.ts';
+import { RepoId } from '../types/index.ts';
 import { fetchMergedGraph } from '../tools.ts';
+import { createInvoke } from '../tools.ts';
 import { isPathAllowed } from './security.ts';
 import { findWorkspacePath, extractWorkspacePaths, checkPrerequisites } from './prerequisites.ts';
 import type { VisualizerConfig } from './config.ts';
@@ -20,8 +24,8 @@ export interface RouteDeps {
   getLastInitResult: () => { success: boolean; path: string; message: string; timestamp: number } | null;
   setLastInitResult: (data: { success: boolean; path: string; message: string; timestamp: number } | null) => void;
   getScanCache: () => Map<string, { data: GraphData; timestamp: number }>;
-  getScanInFlight: () => Promise<GraphData> | null;
-  setScanInFlight: (p: Promise<GraphData> | null) => void;
+  getScanInFlight: (path: string) => Promise<GraphData> | null;
+  setScanInFlight: (path: string, p: Promise<GraphData> | null) => void;
 }
 
 export function slimGraphData(data: GraphData, maxNodes: number): GraphData {
@@ -60,21 +64,7 @@ export function slimGraphData(data: GraphData, maxNodes: number): GraphData {
 }
 
 export function createInvokeUpstream(ctx: Context, config: VisualizerConfig) {
-  return async (tool: string, args: Record<string, unknown>): Promise<unknown | null> => {
-    try {
-      const result = await ctx.tools.execute({
-        callId: CallId(`codegraph:${tool}`),
-        name: tool,
-        arguments: args,
-        signal: AbortSignal.timeout(config.requestTimeout),
-      });
-      if (result.isError) return null;
-      return result.value ?? null;
-    } catch (e) {
-      log.warn('invokeUpstream failed', { tool, error: e });
-      return null;
-    }
-  };
+  return createInvoke(ctx, config.requestTimeout);
 }
 
 export function registerService(deps: RouteDeps): void {
@@ -91,10 +81,16 @@ export function registerService(deps: RouteDeps): void {
         } catch { return null; }
       },
       getSymbolDetail: async (symbolId: string) => {
-        return invokeUpstream('codegraph_query', { search: symbolId, limit: 1 });
+        const result = await invokeUpstream('codegraph_query', { search: symbolId, limit: 1 });
+        if (result && typeof result === 'object') return result as Record<string, unknown>;
+        return null;
       },
       getImpactAnalysis: async (symbolId: string) => {
-        return invokeUpstream('codegraph_impact', { symbol: symbolId, depth: 2 });
+        const result = await invokeUpstream('codegraph_impact', { symbol: symbolId, depth: 2 });
+        if (result && typeof result === 'object' && 'affected' in result) {
+          return result as { affected: string[]; depth: number };
+        }
+        return null;
       },
       onGraphUpdate: (callback: (data: GraphData) => void) => {
         return ctx.on('codegraph/graph/data', (event) => {
@@ -102,7 +98,7 @@ export function registerService(deps: RouteDeps): void {
             nodes: event.nodes as GraphNode[],
             edges: event.edges as GraphEdge[],
             metadata: {
-              repoId: event.repoId as GraphData['metadata']['repoId'],
+              repoId: RepoId(event.repoId),
               timestamp: event.timestamp,
               nodeCount: event.nodes.length,
               edgeCount: event.edges.length,
@@ -115,14 +111,6 @@ export function registerService(deps: RouteDeps): void {
   }, 'codegraph: service registration');
 }
 
-function sendJson(res: ServerResponse, code: number, data: unknown): void {
-  res.writeHead(code, { 'content-type': 'application/json' });
-  res.end(JSON.stringify(data));
-}
-
-function sendError(res: ServerResponse, code: number, message: string): void {
-  sendJson(res, code, { success: false, error: message });
-}
 
 function readBody(req: IncomingMessage, maxBodyBytes: number): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -132,6 +120,7 @@ function readBody(req: IncomingMessage, maxBodyBytes: number): Promise<string> {
       if (!chunk) return;
       totalBytes += chunk.length;
       if (totalBytes > maxBodyBytes) {
+        req.destroy();
         reject(new Error('Request body too large'));
         return;
       }
@@ -160,9 +149,64 @@ function extractBooleanField(obj: Record<string, unknown>, field: string): boole
   return typeof v === 'boolean' ? v : undefined;
 }
 
+function isSafePath(p: string): boolean {
+  if (!p || p.includes('\0')) return false;
+  if (p.includes('..')) return false;
+  return true;
+}
+
+const GIT_REF_PATTERN = /^[a-zA-Z0-9._\/-]+$/;
+
+function isSafeGitRef(ref: string): boolean {
+  return GIT_REF_PATTERN.test(ref);
+}
+
 export function registerRoutes(deps: RouteDeps): void {
   const { ctx, config } = deps;
   const invokeUpstream = createInvokeUpstream(ctx, config);
+  const origins = config.allowedOrigins;
+
+  const sendJson = (res: ServerResponse, code: number, data: unknown, req?: IncomingMessage): void => {
+    const headers: Record<string, string> = {
+      'content-type': 'application/json',
+      'access-control-allow-methods': 'GET, POST, OPTIONS',
+      'access-control-allow-headers': 'content-type, if-none-match',
+    };
+    if (origins.length > 0) {
+      const reqOrigin = req?.headers?.['origin'];
+      if (typeof reqOrigin === 'string' && origins.includes(reqOrigin)) {
+        headers['access-control-allow-origin'] = reqOrigin;
+      } else if (origins.length === 1) {
+        headers['access-control-allow-origin'] = origins[0]!;
+      }
+    }
+    res.writeHead(code, headers);
+    res.end(JSON.stringify(data));
+  };
+
+  const sendError = (res: ServerResponse, code: number, message: string, req?: IncomingMessage): void => {
+    sendJson(res, code, { success: false, error: message }, req);
+  };
+
+  ctx.effect(() => ctx.webServer.registerFallback((req: IncomingMessage, res: ServerResponse) => {
+    if (req.method === 'OPTIONS') {
+      const headers: Record<string, string> = {
+        'access-control-allow-methods': 'GET, POST, OPTIONS',
+        'access-control-allow-headers': 'content-type, if-none-match',
+      };
+      if (origins.length > 0) {
+        const reqOrigin = req.headers?.['origin'];
+        if (typeof reqOrigin === 'string' && origins.includes(reqOrigin)) {
+          headers['access-control-allow-origin'] = reqOrigin;
+        } else if (origins.length === 1) {
+          headers['access-control-allow-origin'] = origins[0]!;
+        }
+      }
+      res.writeHead(204, headers);
+      res.end();
+      return;
+    }
+  }), 'codegraph: CORS preflight fallback');
 
   // GET /api/v1/codegraph/status
   ctx.effect(() => ctx.webServer.register({
@@ -207,7 +251,7 @@ export function registerRoutes(deps: RouteDeps): void {
         });
         res.end(JSON.stringify(lastGraphData));
       } else {
-        sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: null, timestamp: 0, nodeCount: 0, edgeCount: 0 } });
+        sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } });
       }
     },
   }), 'codegraph: data route');
@@ -236,19 +280,19 @@ export function registerRoutes(deps: RouteDeps): void {
           return;
         }
 
-        const inFlight = deps.getScanInFlight();
+        const inFlight = deps.getScanInFlight(scanPath);
         if (inFlight) {
           const data = await inFlight;
           sendJson(res, 200, { success: true, ...data });
           return;
         }
 
-        const scanPromise = fetchMergedGraph(invokeUpstream, repoId, 'both');
-        deps.setScanInFlight(scanPromise);
+        const scanPromise = fetchMergedGraph(invokeUpstream, repoId, 'both')
+          .then(raw => slimGraphData(raw, config.maxNodes));
+        deps.setScanInFlight(scanPath, scanPromise);
         try {
-          const raw = await scanPromise;
-          deps.setScanInFlight(null);
-          const data = slimGraphData(raw, config.maxNodes);
+          const data = await scanPromise;
+          deps.setScanInFlight(scanPath, null);
           deps.setLastGraphData(data);
           scanCache.set(scanPath, { data, timestamp: Date.now() });
           if (scanCache.size > config.scanCacheLimit) {
@@ -256,13 +300,13 @@ export function registerRoutes(deps: RouteDeps): void {
             if (oldest !== undefined) scanCache.delete(oldest);
           }
           ctx.emit('codegraph/graph/updated', {
-            repoId,
+            repoId: RepoId(repoId),
             nodeCount: data.metadata.nodeCount,
             edgeCount: data.metadata.edgeCount,
             timestamp: data.metadata.timestamp,
           });
           ctx.emit('codegraph/graph/data', {
-            repoId,
+            repoId: RepoId(repoId),
             nodes: data.nodes,
             edges: data.edges,
             timestamp: data.metadata.timestamp,
@@ -270,12 +314,12 @@ export function registerRoutes(deps: RouteDeps): void {
           log.info('scan completed', { repoId, nodes: data.metadata.nodeCount, edges: data.metadata.edgeCount });
           sendJson(res, 200, { success: true, ...data });
         } catch (e) {
-          deps.setScanInFlight(null);
+          deps.setScanInFlight(scanPath, null);
           throw e;
         }
       } catch (e) {
         log.error('scan failed', e);
-        sendError(res, 500, e instanceof Error ? e.message : String(e));
+        sendError(res, 500, 'Internal server error');
       }
     },
   }), 'codegraph: scan route');
@@ -307,10 +351,11 @@ export function registerRoutes(deps: RouteDeps): void {
         ctx.emit('codegraph/graph/init-result', initResult);
         if (success) {
           const repoId = initPath || `workspace-${Date.now()}`;
-          const data = await fetchMergedGraph(invokeUpstream, repoId, 'both');
+          const raw = await fetchMergedGraph(invokeUpstream, repoId, 'both');
+          const data = slimGraphData(raw, config.maxNodes);
           deps.setLastGraphData(data);
           ctx.emit('codegraph/graph/data', {
-            repoId,
+            repoId: RepoId(repoId),
             nodes: data.nodes,
             edges: data.edges,
             timestamp: data.metadata.timestamp,
@@ -318,14 +363,15 @@ export function registerRoutes(deps: RouteDeps): void {
         }
         sendJson(res, 200, initResult);
       } catch (e) {
+        log.error('init route failed', e);
         const errorResult = {
           success: false,
           path: '',
-          message: e instanceof Error ? e.message : String(e),
+          message: 'Initialization failed',
           timestamp: Date.now(),
         };
         deps.setLastInitResult(errorResult);
-        sendError(res, 500, e instanceof Error ? e.message : String(e));
+        sendError(res, 500, 'Internal server error');
       }
     },
   }), 'codegraph: init route');
@@ -346,9 +392,9 @@ export function registerRoutes(deps: RouteDeps): void {
         }
         const watchPath = path && path !== '.' ? path : findWorkspacePath(ctx);
         ctx.emit('codegraph/watch/toggle', { enabled: !!enabled, path: watchPath, timestamp: Date.now() });
-        sendJson(res, 200, { success: true });
+        sendJson(res, 200, { success: true, enabled: !!enabled, path: watchPath });
       } catch (e) {
-        sendError(res, 500, e instanceof Error ? e.message : String(e));
+        sendError(res, 500, 'Internal server error');
       }
     },
   }), 'codegraph: watch route');
@@ -361,12 +407,11 @@ export function registerRoutes(deps: RouteDeps): void {
       try {
         const workspacePath = findWorkspacePath(ctx);
         if (!workspacePath) {
-          sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: null, timestamp: 0, nodeCount: 0, edgeCount: 0 } });
+          sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } });
           return;
         }
 
-        const fs = await import('node:fs/promises');
-        const path = await import('node:path');
+
         const allDepNodes: ReturnType<typeof dependencyGraphToGraphData>['nodes'] = [];
         const allDepEdges: ReturnType<typeof dependencyGraphToGraphData>['edges'] = [];
 
@@ -401,7 +446,7 @@ export function registerRoutes(deps: RouteDeps): void {
           nodes: allDepNodes,
           edges: allDepEdges,
           metadata: {
-            repoId: workspacePath as GraphData['metadata']['repoId'],
+            repoId: RepoId(workspacePath),
             timestamp: Date.now(),
             nodeCount: allDepNodes.length,
             edgeCount: allDepEdges.length,
@@ -409,7 +454,7 @@ export function registerRoutes(deps: RouteDeps): void {
         });
       } catch (e) {
         log.error('dependencies route failed', e);
-        sendError(res, 500, e instanceof Error ? e.message : String(e));
+        sendError(res, 500, 'Internal server error');
       }
     },
   }), 'codegraph: dependencies route');
@@ -428,10 +473,14 @@ export function registerRoutes(deps: RouteDeps): void {
           sendError(res, 400, 'from and to commits are required');
           return;
         }
+        if (!isSafeGitRef(fromCommit) || !isSafeGitRef(toCommit)) {
+          sendError(res, 400, 'Invalid git ref format');
+          return;
+        }
 
         const workspacePath = findWorkspacePath(ctx);
         if (!workspacePath) {
-          sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: null, timestamp: 0, nodeCount: 0, edgeCount: 0 } });
+          sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } });
           return;
         }
 
@@ -445,7 +494,7 @@ export function registerRoutes(deps: RouteDeps): void {
           nodes,
           edges,
           metadata: {
-            repoId: workspacePath as GraphData['metadata']['repoId'],
+            repoId: RepoId(workspacePath),
             timestamp: Date.now(),
             nodeCount: nodes.length,
             edgeCount: edges.length,
@@ -453,7 +502,7 @@ export function registerRoutes(deps: RouteDeps): void {
         });
       } catch (e) {
         log.error('diff route failed', e);
-        sendError(res, 500, e instanceof Error ? e.message : String(e));
+        sendError(res, 500, 'Internal server error');
       }
     },
   }), 'codegraph: diff route');
@@ -478,7 +527,7 @@ export function registerRoutes(deps: RouteDeps): void {
           sendJson(res, 200, result);
         } catch (e) {
           log.error('tree-sitter route failed', e);
-          sendError(res, 500, e instanceof Error ? e.message : String(e));
+          sendError(res, 500, 'Internal server error');
         }
       },
     });

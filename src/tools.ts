@@ -6,9 +6,10 @@ import type { JsonValue } from '@deepseek-ai/dsh-session';
 import { CodeGraphAdapter } from './adapters/CodeGraphAdapter.ts';
 import { LensAdapter } from './adapters/LensAdapter.ts';
 import { GraphDataMerger } from './merger/GraphDataMerger.ts';
-import type { AdapterResult, GraphData, GraphUpdatedEvent, GraphDataEvent, RepoId, HealthScore, RuleViolation, NodeId } from './types/index.ts';
-import { RepoId as makeRepoId } from './types/index.ts';
-import { HealthScorer } from './client/analysis/HealthScorer.ts';
+import type { AdapterResult, GraphData, GraphUpdatedEvent, GraphDataEvent, RepoId, HealthScore, RuleViolation } from './types/index.ts';
+import { RepoId as makeRepoId, NodeId } from './types/index.ts';
+import { HealthScorer } from './shared/analysis/HealthScorer.ts';
+import { RuleEngine, type RuleDefinition } from './shared/analysis/RuleEngine.ts';
 import { scoped } from './shared/Logger.ts';
 
 const log = scoped('tools');
@@ -16,12 +17,21 @@ const log = scoped('tools');
 export type { UpstreamInvoker } from './adapters/CodeGraphAdapter.ts';
 import type { UpstreamInvoker } from './adapters/CodeGraphAdapter.ts';
 
-const codegraphAdapter = new CodeGraphAdapter();
-const lensAdapter = new LensAdapter();
-const merger = new GraphDataMerger();
-
 const GRAPH_CACHE_LIMIT = 8;
 
+export interface GraphToolDeps {
+  codegraphAdapter: CodeGraphAdapter;
+  lensAdapter: LensAdapter;
+  merger: GraphDataMerger;
+}
+
+export function createGraphToolDeps(): GraphToolDeps {
+  return {
+    codegraphAdapter: new CodeGraphAdapter(),
+    lensAdapter: new LensAdapter(),
+    merger: new GraphDataMerger(),
+  };
+}
 
 function cacheGraph(cache: Map<string, GraphData>, repoId: string, data: GraphData): void {
   cache.delete(repoId);
@@ -32,26 +42,28 @@ function cacheGraph(cache: Map<string, GraphData>, repoId: string, data: GraphDa
   }
 }
 
-async function fetchMergedGraph(
+export async function fetchMergedGraph(
   invoke: UpstreamInvoker,
   repoId: string,
   source: 'codegraph' | 'lens' | 'both' = 'both',
+  deps?: GraphToolDeps,
 ): Promise<GraphData> {
+  const d = deps ?? createGraphToolDeps();
   const tasks: Promise<AdapterResult>[] = [];
   if (source === 'codegraph' || source === 'both') {
-    tasks.push(codegraphAdapter.fetchData(repoId, invoke));
+    tasks.push(d.codegraphAdapter.fetchData(repoId, invoke));
   }
   if (source === 'lens' || source === 'both') {
-    tasks.push(lensAdapter.fetchData(repoId, invoke));
+    tasks.push(d.lensAdapter.fetchData(repoId, invoke));
   }
   const settled = await Promise.allSettled(tasks);
   const results: AdapterResult[] = settled
     .filter((r): r is PromiseFulfilledResult<AdapterResult> => r.status === 'fulfilled')
     .map((r) => r.value);
-  return merger.merge(results, makeRepoId(repoId));
+  return d.merger.merge(results, makeRepoId(repoId));
 }
 
-function summarizeGraph(data: GraphData): string {
+export function summarizeGraph(data: GraphData): string {
   const nodeByType = new Map<string, number>();
   const edgeByType = new Map<string, number>();
   for (const n of data.nodes) nodeByType.set(n.type, (nodeByType.get(n.type) ?? 0) + 1);
@@ -146,15 +158,15 @@ export function renderGraphStatus(_args: unknown, value: unknown) {
   ];
 }
 
-export async function executeGraphStatus(args: { repoId: string }, invoke: UpstreamInvoker) {
+export async function executeGraphStatus(args: { repoId: string }, invoke: UpstreamInvoker, deps: GraphToolDeps) {
   const [cgResult, lensResult] = await Promise.allSettled([
-    codegraphAdapter.fetchData(args.repoId, invoke),
-    lensAdapter.fetchData(args.repoId, invoke),
+    deps.codegraphAdapter.fetchData(args.repoId, invoke),
+    deps.lensAdapter.fetchData(args.repoId, invoke),
   ]);
   const results: AdapterResult[] = [cgResult, lensResult]
     .filter((r): r is PromiseFulfilledResult<AdapterResult> => r.status === 'fulfilled')
     .map((r) => r.value);
-  const data = merger.merge(results, makeRepoId(args.repoId));
+  const data = deps.merger.merge(results, makeRepoId(args.repoId));
   return {
     status: data.nodes.length > 0 ? 'ready' : 'unavailable',
     nodeCount: data.metadata.nodeCount,
@@ -177,25 +189,25 @@ export async function executeGraphData(
   emitUpdate: (event: GraphUpdatedEvent) => void,
   emitData: (event: GraphDataEvent) => void,
   graphCache: Map<string, GraphData>,
+  deps: GraphToolDeps,
 ) {
   const source = (args.source ?? 'both') as 'codegraph' | 'lens' | 'both';
-  const fresh = await fetchMergedGraph(invoke, args.repoId, source);
+  const fresh = await fetchMergedGraph(invoke, args.repoId, source, deps);
 
   const cached = graphCache.get(args.repoId);
-  const deltaSource: AdapterResult['source'] = source === 'lens' ? 'lens' : 'codegraph';
   const merged = cached
-    ? merger.applyDelta(cached, { nodes: fresh.nodes, edges: fresh.edges, source: deltaSource, timestamp: fresh.metadata.timestamp })
+    ? deps.merger.applyDelta(cached, { nodes: fresh.nodes, edges: fresh.edges, source: 'codegraph', timestamp: fresh.metadata.timestamp })
     : fresh;
   cacheGraph(graphCache, args.repoId, merged);
 
   emitUpdate({
-    repoId: args.repoId,
+    repoId: makeRepoId(args.repoId),
     nodeCount: merged.metadata.nodeCount,
     edgeCount: merged.metadata.edgeCount,
     timestamp: merged.metadata.timestamp,
   });
   emitData({
-    repoId: args.repoId,
+    repoId: makeRepoId(args.repoId),
     nodes: merged.nodes,
     edges: merged.edges,
     timestamp: merged.metadata.timestamp,
@@ -234,6 +246,7 @@ export async function executeGraphImpact(args: { symbolId: string }, invoke: Ups
 export const createGraphTools = (ctx: Context, options: { requestTimeout?: number } = {}) => {
   const invoke = createInvoke(ctx, options.requestTimeout);
   const graphCache = new Map<string, GraphData>();
+  const deps = createGraphToolDeps();
 
   const emitUpdate = (event: GraphUpdatedEvent) => {
     ctx.emit('codegraph/graph/updated', event);
@@ -253,7 +266,7 @@ export const createGraphTools = (ctx: Context, options: { requestTimeout?: numbe
       schema: { type: 'json' },
       render: renderGraphStatus,
     },
-    execute: (args) => executeGraphStatus(args as { repoId: string }, invoke),
+    execute: (args) => executeGraphStatus(args as { repoId: string }, invoke, deps),
   });
 
   const graphData = defineTool({
@@ -271,7 +284,7 @@ export const createGraphTools = (ctx: Context, options: { requestTimeout?: numbe
       schema: { type: 'json' },
       render: renderGraphData,
     },
-    execute: (args) => executeGraphData(args as { repoId: string; source?: string }, invoke, emitUpdate, emitData, graphCache),
+    execute: (args) => executeGraphData(args as { repoId: string; source?: string }, invoke, emitUpdate, emitData, graphCache, deps),
   });
 
   const graphSymbol = defineTool({
@@ -322,7 +335,7 @@ export const createGraphTools = (ctx: Context, options: { requestTimeout?: numbe
       const a = args as { repoId: string; sourceSymbol: string; targetSymbol: string };
       const data = await fetchMergedGraph(invoke, a.repoId);
       const nodeIds = new Set(data.nodes.map((n) => n.id));
-      if (!nodeIds.has(a.sourceSymbol as NodeId) || !nodeIds.has(a.targetSymbol as NodeId)) {
+      if (!nodeIds.has(NodeId(a.sourceSymbol)) || !nodeIds.has(NodeId(a.targetSymbol))) {
         return null;
       }
       const adjacency = new Map<string, string[]>();
@@ -398,29 +411,19 @@ export const createGraphTools = (ctx: Context, options: { requestTimeout?: numbe
     },
     execute: async (args) => {
       const a = args as { repoId: string; maxIndegree?: number; maxOutdegree?: number };
-      const data = await fetchMergedGraph(invoke, a.repoId);
+      const data = await fetchMergedGraph(invoke, a.repoId, 'both', deps);
       if (data.nodes.length === 0) return null;
 
-      const violations: RuleViolation[] = [];
       const maxIn = a.maxIndegree ?? 10;
       const maxOut = a.maxOutdegree ?? 15;
 
-      const indegree = new Map<string, number>();
-      const outdegree = new Map<string, number>();
-      for (const edge of data.edges) {
-        indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1);
-        outdegree.set(edge.source, (outdegree.get(edge.source) ?? 0) + 1);
-      }
-      for (const [nodeId, count] of indegree) {
-        if (count > maxIn) {
-          violations.push({ ruleId: 'max-indegree', nodeId: nodeId as NodeId, message: `Node ${nodeId} has indegree ${count} (max ${maxIn})`, severity: 'warning' });
-        }
-      }
-      for (const [nodeId, count] of outdegree) {
-        if (count > maxOut) {
-          violations.push({ ruleId: 'max-outdegree', nodeId: nodeId as NodeId, message: `Node ${nodeId} has outdegree ${count} (max ${maxOut})`, severity: 'warning' });
-        }
-      }
+      const rules: RuleDefinition[] = [
+        { id: 'max-indegree', name: 'Max Indegree', type: 'max-indegree', params: { threshold: maxIn }, severity: 'warning', enabled: true },
+        { id: 'max-outdegree', name: 'Max Outdegree', type: 'max-outdegree', params: { threshold: maxOut }, severity: 'warning', enabled: true },
+      ];
+
+      const engine = new RuleEngine();
+      const violations = engine.check(rules, data.nodes, data.edges);
 
       return violations as unknown as JsonValue;
     },
@@ -448,7 +451,7 @@ export const createGraphTools = (ctx: Context, options: { requestTimeout?: numbe
       const a = args as { repoId: string; symbolId: string };
       const data = await fetchMergedGraph(invoke, a.repoId);
       const nodeIds = new Set(data.nodes.map((n) => n.id));
-      if (!nodeIds.has(a.symbolId as NodeId)) return null;
+      if (!nodeIds.has(NodeId(a.symbolId))) return null;
 
       const neighbors = new Set<string>();
       for (const edge of data.edges) {
@@ -462,5 +465,5 @@ export const createGraphTools = (ctx: Context, options: { requestTimeout?: numbe
   return { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus };
 };
 
-export { fetchMergedGraph, summarizeGraph };
+
 export const makeRepo = (id: string): RepoId => makeRepoId(id);

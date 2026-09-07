@@ -1,19 +1,21 @@
-import { spawnSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import type { Context } from '@deepseek-ai/cordis';
 import { scoped } from '../shared/Logger.ts';
 
 const log = scoped('host');
+const execFileAsync = promisify(execFile);
 
 export interface ContextWithSessions {
   sessions?: { list?: () => Array<{ header?: { cwd?: string } }> };
   workspaceRegistry?: { list?: () => Array<{ path?: string }> };
 }
 
-export function detectCodegraphCli(): boolean {
+export async function detectCodegraphCli(): Promise<boolean> {
   try {
     const cmd = process.platform === 'win32' ? 'codegraph.cmd' : 'codegraph';
-    const r = spawnSync(cmd, ['--version'], { encoding: 'utf8', timeout: 3000, shell: process.platform === 'win32' });
-    return r.status === 0;
+    await execFileAsync(cmd, ['--version'], { timeout: 3000, shell: process.platform === 'win32' });
+    return true;
   } catch (e) {
     log.warn('detectCodegraphCli failed', e);
     return false;
@@ -24,10 +26,10 @@ export function checkPrerequisites(ctx: Context): { codegraph: boolean; lens: bo
   try {
     const cg = ctx.tools.get('codegraph_status') ?? ctx.tools.get('codegraph_graph') ?? ctx.tools.get('codegraph_query');
     const lens = ctx.tools.get('lens_analyze');
-    return { codegraph: !!cg || detectCodegraphCli(), lens: !!lens };
+    return { codegraph: !!cg, lens: !!lens };
   } catch (e) {
     log.warn('checkPrerequisites failed', e);
-    return { codegraph: detectCodegraphCli(), lens: false };
+    return { codegraph: false, lens: false };
   }
 }
 

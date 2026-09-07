@@ -1,5 +1,6 @@
 import { scoped } from '../shared/Logger.ts';
-import type { GraphNode, GraphEdge, NodeId, EdgeId } from '../types/index.ts';
+import type { GraphNode, GraphEdge } from '../types/index.ts';
+import { NodeId, EdgeId } from '../types/index.ts';
 
 const log = scoped('dep-adapter');
 
@@ -24,11 +25,13 @@ export interface DependencyGraph {
 export function parsePackageJson(content: string): DependencyGraph {
   const nodes: DependencyNode[] = [];
   const edges: DependencyEdge[] = [];
+  const seenIds = new Set<string>();
   try {
     const pkg = JSON.parse(content);
     const rootName = pkg.name || 'root';
     const rootId = `dep:${rootName}`;
     nodes.push({ id: rootId, name: rootName, version: pkg.version || '0.0.0', type: 'npm' });
+    seenIds.add(rootId);
 
     const depSections = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
     for (const section of depSections) {
@@ -36,7 +39,8 @@ export function parsePackageJson(content: string): DependencyGraph {
       if (!deps || typeof deps !== 'object') continue;
       for (const [name, version] of Object.entries(deps)) {
         const depId = `dep:${name}`;
-        if (!nodes.find((n) => n.id === depId)) {
+        if (!seenIds.has(depId)) {
+          seenIds.add(depId);
           nodes.push({ id: depId, name, version: String(version), type: 'npm' });
         }
         edges.push({ source: rootId, target: depId, type: 'depends' });
@@ -51,28 +55,47 @@ export function parsePackageJson(content: string): DependencyGraph {
 export function parseCargoToml(content: string): DependencyGraph {
   const nodes: DependencyNode[] = [];
   const edges: DependencyEdge[] = [];
+  const seenIds = new Set<string>();
   try {
     const lines = content.split('\n');
-    let inDepsSection = false;
     let rootName = 'root';
     for (const line of lines) {
       const nameMatch = line.match(/^name\s*=\s*"([^"]+)"/);
-      if (nameMatch) rootName = nameMatch[1]!;
+      if (nameMatch) { rootName = nameMatch[1]!; break; }
+    }
+    const rootId = `dep:${rootName}`;
+    nodes.push({ id: rootId, name: rootName, version: '0.0.0', type: 'cargo' });
+    seenIds.add(rootId);
+
+    let inDepsSection = false;
+    for (const line of lines) {
       if (line.match(/^\[dependencies\]/)) { inDepsSection = true; continue; }
       if (line.match(/^\[/)) { inDepsSection = false; continue; }
       if (!inDepsSection) continue;
-      const depMatch = line.match(/^([a-zA-Z0-9_-]+)\s*=\s*"([^"]+)"/);
-      if (depMatch) {
-        const depName = depMatch[1]!;
-        const depVersion = depMatch[2]!;
+      const simpleDepMatch = line.match(/^([a-zA-Z0-9_-]+)\s*=\s*"([^"]+)"/);
+      if (simpleDepMatch) {
+        const depName = simpleDepMatch[1]!;
+        const depVersion = simpleDepMatch[2]!;
         const depId = `dep:${depName}`;
-        if (!nodes.find((n) => n.id === depId)) {
+        if (!seenIds.has(depId)) {
+          seenIds.add(depId);
           nodes.push({ id: depId, name: depName, version: depVersion, type: 'cargo' });
         }
-        edges.push({ source: `dep:${rootName}`, target: depId, type: 'depends' });
+        edges.push({ source: rootId, target: depId, type: 'depends' });
+        continue;
+      }
+      const tableDepMatch = line.match(/^([a-zA-Z0-9_-]+)\s*=\s*\{[^}]*version\s*=\s*"([^"]+)"/);
+      if (tableDepMatch) {
+        const depName = tableDepMatch[1]!;
+        const depVersion = tableDepMatch[2]!;
+        const depId = `dep:${depName}`;
+        if (!seenIds.has(depId)) {
+          seenIds.add(depId);
+          nodes.push({ id: depId, name: depName, version: depVersion, type: 'cargo' });
+        }
+        edges.push({ source: rootId, target: depId, type: 'depends' });
       }
     }
-    nodes.unshift({ id: `dep:${rootName}`, name: rootName, version: '0.0.0', type: 'cargo' });
   } catch (e) {
     log.warn('parseCargoToml failed', e);
   }
@@ -82,13 +105,20 @@ export function parseCargoToml(content: string): DependencyGraph {
 export function parseGoMod(content: string): DependencyGraph {
   const nodes: DependencyNode[] = [];
   const edges: DependencyEdge[] = [];
+  const seenIds = new Set<string>();
   try {
     const lines = content.split('\n');
     let moduleName = 'root';
-    let inRequireBlock = false;
     for (const line of lines) {
       const moduleMatch = line.match(/^module\s+(\S+)/);
-      if (moduleMatch) moduleName = moduleMatch[1]!;
+      if (moduleMatch) { moduleName = moduleMatch[1]!; break; }
+    }
+    const rootId = `dep:${moduleName}`;
+    nodes.push({ id: rootId, name: moduleName, version: '0.0.0', type: 'gomod' });
+    seenIds.add(rootId);
+
+    let inRequireBlock = false;
+    for (const line of lines) {
       if (line.match(/^require\s*\(/)) { inRequireBlock = true; continue; }
       if (line.match(/^\)/)) { inRequireBlock = false; continue; }
       const singleRequireMatch = line.match(/^require\s+(\S+)\s+(\S+)/);
@@ -96,25 +126,27 @@ export function parseGoMod(content: string): DependencyGraph {
         const depName = singleRequireMatch[1]!;
         const depVersion = singleRequireMatch[2]!;
         const depId = `dep:${depName}`;
-        if (!nodes.find((n) => n.id === depId)) {
+        if (!seenIds.has(depId)) {
+          seenIds.add(depId);
           nodes.push({ id: depId, name: depName, version: depVersion, type: 'gomod' });
         }
-        edges.push({ source: `dep:${moduleName}`, target: depId, type: 'depends' });
+        edges.push({ source: rootId, target: depId, type: 'depends' });
         continue;
       }
       if (!inRequireBlock) continue;
+      if (line.trim().startsWith('//')) continue;
       const depMatch = line.match(/^\s*(\S+)\s+(\S+)/);
       if (depMatch) {
         const depName = depMatch[1]!;
         const depVersion = depMatch[2]!;
         const depId = `dep:${depName}`;
-        if (!nodes.find((n) => n.id === depId)) {
+        if (!seenIds.has(depId)) {
+          seenIds.add(depId);
           nodes.push({ id: depId, name: depName, version: depVersion, type: 'gomod' });
         }
-        edges.push({ source: `dep:${moduleName}`, target: depId, type: 'depends' });
+        edges.push({ source: rootId, target: depId, type: 'depends' });
       }
     }
-    nodes.unshift({ id: `dep:${moduleName}`, name: moduleName, version: '0.0.0', type: 'gomod' });
   } catch (e) {
     log.warn('parseGoMod failed', e);
   }
@@ -123,17 +155,17 @@ export function parseGoMod(content: string): DependencyGraph {
 
 export function dependencyGraphToGraphData(depGraph: DependencyGraph): { nodes: GraphNode[]; edges: GraphEdge[] } {
   const nodes: GraphNode[] = depGraph.nodes.map((n) => ({
-    id: n.id as NodeId,
+    id: NodeId(n.id),
     label: n.name,
     type: 'module',
     filePath: '',
     lineNumber: 0,
     properties: { version: n.version, depType: n.type, isExternal: true },
   }));
-  const edges: GraphEdge[] = depGraph.edges.map((e, i) => ({
-    id: `depedge-${i}` as EdgeId,
-    source: e.source as NodeId,
-    target: e.target as NodeId,
+  const edges: GraphEdge[] = depGraph.edges.map((e) => ({
+    id: EdgeId(`${e.source}->${e.target}:dependency`),
+    source: NodeId(e.source),
+    target: NodeId(e.target),
     type: 'dependency',
     properties: {},
   }));

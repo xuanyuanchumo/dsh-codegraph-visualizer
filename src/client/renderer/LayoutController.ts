@@ -17,9 +17,10 @@ export class LayoutController {
 
   private initWorker(): void {
     try {
-      const base = typeof document !== 'undefined' ? document.baseURI : location.href;
-      const workerUrl = new URL('../worker/layoutWorker.ts', base);
-      this.worker = new Worker(workerUrl, { type: 'module' });
+      this.worker = new Worker(
+        new URL('../worker/layoutWorker.ts', import.meta.url),
+        { type: 'module' },
+      );
       this.worker.onmessage = (e: MessageEvent<{ positions: Record<string, { x: number; y: number }> }>) => {
         if (this.workerLayoutResolve) {
           this.workerLayoutResolve(e.data.positions);
@@ -49,7 +50,18 @@ export class LayoutController {
     if (!this.worker) return Promise.resolve({});
 
     return new Promise((resolve) => {
-      this.workerLayoutResolve = resolve;
+      const timeout = setTimeout(() => {
+        if (this.workerLayoutResolve) {
+          this.workerLayoutResolve({});
+          this.workerLayoutResolve = null;
+        }
+      }, 10000);
+
+      this.workerLayoutResolve = (positions) => {
+        clearTimeout(timeout);
+        resolve(positions);
+      };
+
       this.worker!.postMessage({
         nodes: nodes.map((n) => ({ id: n.id, label: n.label, type: n.type })),
         edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, type: e.type })),
@@ -171,8 +183,8 @@ export class LayoutController {
       case 'cose':
         return {
           name: 'cose', fit: true, animate: false,
-          nodeRepulse: () => 120000, idealEdgeLength: () => 400,
-          edgeElasticity: () => 0.05, gravity: 0.02, numIter: 15000,
+          nodeRepulse: 120000, idealEdgeLength: 400,
+          edgeElasticity: 0.05, gravity: 0.02, numIter: 15000,
           randomize: true, tile: true, padding: 120, avoidOverlap: true,
         } as LayoutOptions;
       case 'dagre':
@@ -318,6 +330,7 @@ export class LayoutController {
   destroy(): void {
     if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
     this.layoutRaf = null;
+    this.positionCache.clear();
     this.worker?.terminate();
     this.worker = null;
   }

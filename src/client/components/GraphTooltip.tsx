@@ -24,10 +24,23 @@ function isEdgeTooltip(data: TooltipData | EdgeTooltipData): data is EdgeTooltip
   return 'sourceLabel' in data;
 }
 
+function clampPosition(x: number, y: number): { left: number; top: number } {
+  const offset = 15;
+  const tooltipWidth = 200;
+  const tooltipHeight = 80;
+  const maxX = window.innerWidth - tooltipWidth - offset;
+  const maxY = window.innerHeight - tooltipHeight - offset;
+  return {
+    left: Math.min(x + offset, Math.max(offset, maxX)),
+    top: Math.min(y + offset, Math.max(offset, maxY)),
+  };
+}
+
 export function GraphTooltip({ data }: GraphTooltipProps) {
+  const pos = clampPosition(data.x, data.y);
   if (isEdgeTooltip(data)) {
     return (
-      <div className="cg-tooltip" style={{ left: data.x + 15, top: data.y + 15 }} role="tooltip">
+      <div className="cg-tooltip" style={{ left: pos.left, top: pos.top }} role="tooltip">
         <div className="tooltip-edge-source">{data.sourceLabel}</div>
         <div className="tooltip-edge-arrow">→</div>
         <div className="tooltip-edge-target">{data.targetLabel}</div>
@@ -36,7 +49,7 @@ export function GraphTooltip({ data }: GraphTooltipProps) {
     );
   }
   return (
-    <div className="cg-tooltip" style={{ left: data.x + 15, top: data.y + 15 }} role="tooltip">
+    <div className="cg-tooltip" style={{ left: pos.left, top: pos.top }} role="tooltip">
       <div className="tooltip-name">{data.name}</div>
       <div className="tooltip-path">{data.path}</div>
       <span className="tooltip-type">{data.type}</span>

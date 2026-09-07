@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useGraphStore, type ThemeType } from './store/graphStore.ts';
 import { useShallow } from 'zustand/shallow';
-import type { NodeId, GraphNode, GraphEdge } from '../types/index.ts';
+import type { GraphNode, GraphEdge } from '../types/index.ts';
+import { NodeId } from '../types/index.ts';
 import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard } from './hooks/index.ts';
 import { useHistory } from './hooks/useHistory.ts';
 import { useGraphCache } from './hooks/useGraphCache.ts';
@@ -23,19 +24,14 @@ import { HealthScoreCard } from './components/HealthScoreCard.tsx';
 import { RuleConfigPanel } from './components/RuleConfigPanel.tsx';
 import { FocusModeBar } from './components/FocusModeBar.tsx';
 import { GraphIcon, CloseIcon } from './components/Icons.tsx';
-import { HealthScorer } from './analysis/HealthScorer.ts';
-import { RuleEngine, getPresetRules } from './analysis/RuleEngine.ts';
-import { HotspotAnalyzer, GodModuleDetector } from './analysis/HotspotAnalyzer.ts';
+import { HealthScorer } from '../shared/analysis/HealthScorer.ts';
+import { RuleEngine, getPresetRules } from '../shared/analysis/RuleEngine.ts';
+import { HotspotAnalyzer, GodModuleDetector } from '../shared/analysis/HotspotAnalyzer.ts';
 import { scoped } from '../shared/Logger.ts';
 import { useT } from './i18n/index.ts';
 import './styles.css';
 
 const log = scoped('panel');
-
-const healthScorer = new HealthScorer();
-const ruleEngine = new RuleEngine();
-const hotspotAnalyzer = new HotspotAnalyzer();
-const godModuleDetector = new GodModuleDetector();
 
 interface GraphPanelProps {
   className?: string;
@@ -43,6 +39,10 @@ interface GraphPanelProps {
 
 function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const t = useT();
+  const healthScorer = useMemo(() => new HealthScorer(), []);
+  const ruleEngine = useMemo(() => new RuleEngine(), []);
+  const hotspotAnalyzer = useMemo(() => new HotspotAnalyzer(), []);
+  const godModuleDetector = useMemo(() => new GodModuleDetector(), []);
   const panelRef = useRef<HTMLDivElement>(null);
   const depsFetchAbortRef = useRef<AbortController | null>(null);
   const getDataRef = useRef<{
@@ -64,7 +64,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     nodes, edges, rawNodes, rawEdges, layout, theme, searchQuery, selectedNodeId,
     highlightedNodeIds, filterType, graphType, clusterLevel, isLoading, error, lastUpdated,
     prerequisites, watchEnabled, currentWorkspace, workspaceList,
-    initStatus, truncated, totalNodeCount, totalEdgeCount, expandedNodeIds,
+    initStatus, truncated, totalNodeCount, expandedNodeIds,
     pathResult, focusDepth, healthScore, rules, ruleViolations,
     viewMode,
   } = useGraphStore(useShallow((s) => ({
@@ -77,7 +77,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     prerequisites: s.prerequisites, watchEnabled: s.watchEnabled,
     currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
     initStatus: s.initStatus,
-    truncated: s.truncated, totalNodeCount: s.totalNodeCount, totalEdgeCount: s.totalEdgeCount,
+    truncated: s.truncated, totalNodeCount: s.totalNodeCount,
     expandedNodeIds: s.expandedNodeIds,
     pathResult: s.pathResult,
     focusDepth: s.focusDepth, healthScore: s.healthScore,
@@ -249,9 +249,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         n.label.includes(sym),
       );
       if (match) {
-        store.setSelectedNode(match.id as NodeId);
+        store.setSelectedNode(NodeId(match.id));
         renderer.rendererRef.current?.focusOnNode(match.id);
-        renderer.rendererRef.current?.selectNode(match.id as NodeId);
+        renderer.rendererRef.current?.selectNode(NodeId(match.id));
       }
     };
     window.addEventListener('codegraph:symbol-select', symbolHandler);
@@ -372,9 +372,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       depsFetchAbortRef.current?.abort();
       setClusterLevel(prevClusterLevelRef.current);
       setGraphType(prevGraphTypeRef.current);
+      setLoading(false);
       window.dispatchEvent(new CustomEvent('codegraph:refresh', { detail: { incremental: false } }));
     }
-  }, [viewMode, setViewMode, setLoading, setGraphData, currentWorkspace, clusterLevel, graphType, setClusterLevel, setGraphType]);
+  }, [viewMode, setViewMode, setLoading, setGraphData, setError, currentWorkspace, clusterLevel, graphType, setClusterLevel, setGraphType]);
 
   const handleRefresh = useCallback(() => {
     setLoading(true);
@@ -412,14 +413,14 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     if (!focusNodeId) return;
     const newDepth = focusDepth + 1;
     setFocusDepth(newDepth);
-    renderer.rendererRef.current?.expandNeighborhood(focusNodeId as NodeId, newDepth);
+    renderer.rendererRef.current?.expandNeighborhood(NodeId(focusNodeId), newDepth);
   }, [focusNodeId, focusDepth, setFocusDepth, renderer.rendererRef]);
 
   const handleFocusContract = useCallback(() => {
     if (!focusNodeId || focusDepth <= 1) return;
     const newDepth = focusDepth - 1;
     setFocusDepth(newDepth);
-    renderer.rendererRef.current?.expandNeighborhood(focusNodeId as NodeId, newDepth);
+    renderer.rendererRef.current?.expandNeighborhood(NodeId(focusNodeId), newDepth);
   }, [focusNodeId, focusDepth, setFocusDepth, renderer.rendererRef]);
 
   const handleFocusExit = useCallback(() => {
@@ -498,7 +499,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     [panel.collapsed, className],
   );
 
-  const c = panel.collapsed;
+  const isCollapsed = panel.collapsed;
 
   return (
     <div className={panelClassName} ref={panelRef} role="region" aria-label={t('panel.ariaLabel')}>
@@ -563,7 +564,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         onRemoveWorkspace={removeWorkspace}
       />
 
-      {panel.showSearch && !c && (
+      {panel.showSearch && !isCollapsed && (
         <SearchBar
           query={searchQuery}
           matchCount={renderer.searchMatchCount}
@@ -572,7 +573,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         />
       )}
 
-      {panel.showPathFind && !c && (
+      {panel.showPathFind && !isCollapsed && (
         <PathBar
           onFindPath={handleFindPath}
           onClearPath={handleClearPath}
@@ -582,7 +583,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         />
       )}
 
-      {focusNodeId && !c && (
+      {focusNodeId && !isCollapsed && (
         <FocusModeBar
           focusNodeId={focusNodeId}
           onExpand={handleFocusExpand}
@@ -591,11 +592,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         />
       )}
 
-      {panel.showHealthScore && !c && (
+      {panel.showHealthScore && !isCollapsed && (
         <HealthScoreCard onClose={() => panel.setShowHealthScore(false)} />
       )}
 
-      {panel.showRules && !c && (
+      {panel.showRules && !isCollapsed && (
         <RuleConfigPanel
           violations={ruleViolations}
           onCheckRules={handleRulesCheck}
@@ -603,15 +604,15 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         />
       )}
 
-      {isLoading && !c && <LoadingOverlay visible={true} />}
+      {isLoading && !isCollapsed && <LoadingOverlay visible={true} />}
 
-      {error && !c && <ErrorOverlay error={error} />}
+      {error && !isCollapsed && <ErrorOverlay error={error} />}
 
-      {nodes.length === 0 && !isLoading && !error && !c && (
+      {nodes.length === 0 && !isLoading && !error && !isCollapsed && (
         <EmptyState prerequisites={prerequisites} onImport={() => panel.setShowImport(true)} onScanWorkspace={handleScanWorkspace} />
       )}
 
-      {panel.showImport && !c && (
+      {panel.showImport && !isCollapsed && (
         <ImportPanel
           onClose={() => panel.setShowImport(false)}
           workspacePath={currentWorkspace}
@@ -625,7 +626,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           onSetWatchEnabled={setWatchEnabled}
         />
       )}
-      {selectedNodeData && !c && (
+      {selectedNodeData && !isCollapsed && (
         <NodeDetail
           node={selectedNodeData}
           onClose={handleCloseDetail}
@@ -637,9 +638,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
       <div className="graph-container" ref={renderer.containerRef} />
 
-      {panel.showLegend && !c && (<Legend onClose={() => panel.setShowLegend(false)} />)}
+      {panel.showLegend && !isCollapsed && (<Legend onClose={() => panel.setShowLegend(false)} />)}
 
-      {panel.showMiniMap && !c && (
+      {panel.showMiniMap && !isCollapsed && (
         <StatsPanel
           counts={{
             function: nodeTypeCounts.function,
@@ -655,7 +656,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         />
       )}
 
-      {panel.showHotspot && !c && hotspotNodes.length > 0 && (
+      {panel.showHotspot && !isCollapsed && hotspotNodes.length > 0 && (
         <div className="analysis-panel hotspot-panel" role="region" aria-label={t('toolbar.hotspot')}>
           <div className="analysis-panel-header">
             <span>{t('toolbar.hotspot')}</span>
@@ -673,7 +674,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         </div>
       )}
 
-      {panel.showGodModule && !c && godModules.length > 0 && (
+      {panel.showGodModule && !isCollapsed && godModules.length > 0 && (
         <div className="analysis-panel godmodule-panel" role="region" aria-label={t('toolbar.godModule')}>
           <div className="analysis-panel-header">
             <span>{t('toolbar.godModule')}</span>
@@ -691,7 +692,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         </div>
       )}
 
-      {panel.showImpact && !c && impactStats && (
+      {panel.showImpact && !isCollapsed && impactStats && (
         <div className="analysis-panel impact-panel" role="region" aria-label={t('toolbar.impact')}>
           <div className="analysis-panel-header">
             <span>{t('toolbar.impact')}</span>
@@ -718,7 +719,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
       <KeyboardHelp visible={showHelp} onClose={() => setShowHelp(false)} />
 
-      <StatusBar error={error} isLoading={isLoading} lastUpdated={lastUpdated} watchEnabled={watchEnabled} workspaceName={currentWorkspace} truncated={truncated} totalNodeCount={totalNodeCount} totalEdgeCount={totalEdgeCount} displayedNodeCount={nodes.length} />
+      <StatusBar error={error} isLoading={isLoading} lastUpdated={lastUpdated} watchEnabled={watchEnabled} workspaceName={currentWorkspace} truncated={truncated} totalNodeCount={totalNodeCount} displayedNodeCount={nodes.length} />
 
       <div className="resize-handle" aria-hidden="true" />
     </div>

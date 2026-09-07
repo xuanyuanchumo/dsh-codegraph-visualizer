@@ -50,12 +50,19 @@ export class InteractionController {
       evt.target.removeClass('hovered');
       this.callbacks.onEdgeHoverOut?.();
     });
-    this.cy.on('mouseout', 'node', () => {
-      this.callbacks.onNodeHoverOut?.();
-    });
   }
 
   updateCallbacks(callbacks: InteractionCallbacks): void {
     this.callbacks = callbacks;
+  }
+
+  destroy(): void {
+    this.cy.off('tap', 'node');
+    this.cy.off('tap', 'edge');
+    this.cy.off('dbltap', 'node');
+    this.cy.off('mouseover', 'node');
+    this.cy.off('mouseout', 'node');
+    this.cy.off('mouseover', 'edge');
+    this.cy.off('mouseout', 'edge');
   }
 }

@@ -10,7 +10,7 @@ interface StatusBarProps {
   workspaceName?: string;
   truncated?: boolean;
   totalNodeCount?: number;
-  totalEdgeCount?: number;
+
   displayedNodeCount?: number;
 }
 
@@ -19,7 +19,7 @@ function formatTime(ts: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
 }
 
-export function StatusBar({ error, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount, totalEdgeCount: _totalEdgeCount, displayedNodeCount }: StatusBarProps) {
+export function StatusBar({ error, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount, displayedNodeCount }: StatusBarProps) {
   const t = useT();
   const statusDotClass = error ? 'status-dot error' : isLoading ? 'status-dot loading' : 'status-dot';
   const statusText = error ? t('state.error') : isLoading ? t('state.loading') : t('state.ready');

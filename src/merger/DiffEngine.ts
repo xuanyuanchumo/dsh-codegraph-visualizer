@@ -34,7 +34,9 @@ export function computeGraphDiff(
       addedNodes.push(node);
     } else {
       const before = beforeNodeMap.get(id)!;
-      if (before.label !== node.label || before.type !== node.type || before.filePath !== node.filePath) {
+      if (before.label !== node.label || before.type !== node.type || before.filePath !== node.filePath ||
+          before.lineNumber !== node.lineNumber || before.parentId !== node.parentId ||
+          JSON.stringify(before.properties) !== JSON.stringify(node.properties)) {
         modifiedNodes.push(node);
       }
     }

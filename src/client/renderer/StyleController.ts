@@ -1,4 +1,4 @@
-import type { Core } from 'cytoscape';
+import type { Core, StylesheetJson } from 'cytoscape';
 import type { ThemeType } from './IRenderer.ts';
 import { buildStylesheet } from './styles/ThemeStylesheet.ts';
 
@@ -11,7 +11,7 @@ export class StyleController {
     this.theme = theme;
   }
 
-  getStylesheet(): cytoscape.StylesheetJson {
+  getStylesheet(): StylesheetJson {
     const nodeCount = this.cy.nodes().length;
     return buildStylesheet(this.theme, nodeCount);
   }
@@ -24,4 +24,6 @@ export class StyleController {
   getTheme(): ThemeType {
     return this.theme;
   }
+
+  destroy(): void {}
 }

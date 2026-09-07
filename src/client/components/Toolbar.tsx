@@ -13,7 +13,7 @@ import {
 } from './Icons.tsx';
 
 const LAYOUTS: LayoutType[] = ['cose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
-const FILTER_KEYS: { value: string; key: string }[] = [
+const FILTER_KEYS: { value: GraphNode['type'] | 'all'; key: string }[] = [
   { value: 'all', key: 'filter.all' },
   { value: 'function', key: 'filter.function' },
   { value: 'class', key: 'filter.class' },
@@ -28,21 +28,14 @@ const GRAPH_TYPES: { value: GraphType; key: string }[] = [
   { value: 'dependency', key: 'graphType.dependency' },
 ];
 
-const CLUSTER_LEVELS: { value: string; key: string }[] = [
+const CLUSTER_LEVELS: { value: ClusterLevel; key: string }[] = [
   { value: 'directory', key: 'cluster.directory' },
   { value: 'file', key: 'cluster.file' },
   { value: 'function', key: 'cluster.function' },
   { value: 'smart', key: 'cluster.smart' },
 ];
 
-interface ToolbarProps extends WorkspaceSelectorProps {
-  statsText: string;
-  typeCounts: { function: number; class: number; interface: number };
-  layout: LayoutType;
-  theme: ThemeType;
-  filterType: GraphNode['type'] | 'all';
-  graphType: GraphType;
-  clusterLevel: ClusterLevel;
+export interface ToolbarVisibilityState {
   showSearch: boolean;
   showCallChain: boolean;
   showCycles: boolean;
@@ -56,13 +49,9 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   showRules: boolean;
   showHotspot: boolean;
   showGodModule: boolean;
-  viewMode: 'code' | 'dependencies';
-  collapsed: boolean;
-  onLayoutChange: (l: LayoutType) => void;
-  onThemeToggle: () => void;
-  onFilterChange: (f: GraphNode['type'] | 'all') => void;
-  onGraphTypeChange: (g: GraphType) => void;
-  onClusterLevelChange: (level: ClusterLevel) => void;
+}
+
+export interface ToolbarToggleHandlers {
   onToggleSearch: () => void;
   onToggleCallChain: () => void;
   onToggleCycles: () => void;
@@ -76,6 +65,23 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   onToggleRules: () => void;
   onToggleHotspot: () => void;
   onToggleGodModule: () => void;
+}
+
+interface ToolbarProps extends WorkspaceSelectorProps, ToolbarVisibilityState, ToolbarToggleHandlers {
+  statsText: string;
+  typeCounts: { function: number; class: number; interface: number };
+  layout: LayoutType;
+  theme: ThemeType;
+  filterType: GraphNode['type'] | 'all';
+  graphType: GraphType;
+  clusterLevel: ClusterLevel;
+  viewMode: 'code' | 'dependencies';
+  collapsed: boolean;
+  onLayoutChange: (l: LayoutType) => void;
+  onThemeToggle: () => void;
+  onFilterChange: (f: GraphNode['type'] | 'all') => void;
+  onGraphTypeChange: (g: GraphType) => void;
+  onClusterLevelChange: (level: ClusterLevel) => void;
   onToggleViewMode: () => void;
   onRefresh: () => void;
   onExport: (format: 'png' | 'svg' | 'json') => void;
@@ -114,16 +120,14 @@ export function Toolbar(props: ToolbarProps) {
     statsText, typeCounts, layout, theme, filterType, graphType, clusterLevel,
     showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport,
     showPathFind, showHealthScore, showRules, showHotspot, showGodModule,
-    viewMode,
-    collapsed,
+    viewMode, collapsed,
     onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange,
     onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend,
     onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule,
     onToggleViewMode,
     onRefresh, onCollapse,
     currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
-    onCollapseAll,
-    onUndo, onRedo, canUndo, canRedo,
+    onCollapseAll, onUndo, onRedo, canUndo, canRedo,
   } = props;
 
   return (
@@ -178,6 +182,7 @@ export function Toolbar(props: ToolbarProps) {
           className="depth-select"
           id="cluster-level"
           name="cluster-level"
+
           aria-label={t('toolbar.cluster')}
           title={t('toolbar.cluster')}
         >

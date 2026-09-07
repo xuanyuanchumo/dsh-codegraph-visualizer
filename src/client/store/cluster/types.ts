@@ -56,17 +56,40 @@ export function aggregateEdges(
 
   const clusterPrefixes = [clusterPrefix, 'filecluster__', 'smartcluster__'];
 
-  const visibleEdges: (GraphEdge | ClusterEdge)[] = [];
+  const nonClusterAggKeys = new Set<string>();
   for (const [, agg] of aggregation) {
+    const sourceIsCluster = clusterPrefixes.some((p) => agg.source.startsWith(p));
+    const targetIsCluster = clusterPrefixes.some((p) => agg.target.startsWith(p));
+    if (!sourceIsCluster && !targetIsCluster) {
+      nonClusterAggKeys.add(`${agg.source}→${agg.target}`);
+    }
+  }
+
+  const nonClusterEdges = new Map<string, GraphEdge[]>();
+  if (nonClusterAggKeys.size > 0) {
+    for (const e of rawEdges) {
+      const sv = nodeIdToVisibleId.get(e.source);
+      const tv = nodeIdToVisibleId.get(e.target);
+      if (sv && tv) {
+        const key = `${sv}→${tv}`;
+        if (nonClusterAggKeys.has(key)) {
+          const list = nonClusterEdges.get(key);
+          if (list) list.push(e);
+          else nonClusterEdges.set(key, [e]);
+        }
+      }
+    }
+  }
+
+  const visibleEdges: (GraphEdge | ClusterEdge)[] = [];
+  for (const [key, agg] of aggregation) {
     const sourceIsCluster = clusterPrefixes.some((p) => agg.source.startsWith(p));
     const targetIsCluster = clusterPrefixes.some((p) => agg.target.startsWith(p));
 
     if (!sourceIsCluster && !targetIsCluster) {
-      for (const e of rawEdges) {
-        if (nodeIdToVisibleId.get(e.source) === agg.source &&
-            nodeIdToVisibleId.get(e.target) === agg.target) {
-          visibleEdges.push(e);
-        }
+      const edges = nonClusterEdges.get(key);
+      if (edges) {
+        for (const e of edges) visibleEdges.push(e);
       }
     } else {
       visibleEdges.push({

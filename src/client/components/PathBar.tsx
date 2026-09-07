@@ -2,7 +2,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
 import { useT } from '../i18n/index.ts';
 import { CloseIcon, PathIcon } from './Icons.tsx';
-import type { NodeId } from '../../types/index.ts';
+import { NodeId } from '../../types/index.ts';
 
 interface PathBarProps {
   onFindPath: (sourceId: NodeId, targetId: NodeId) => void;
@@ -14,21 +14,29 @@ interface PathBarProps {
 
 export function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClose }: PathBarProps) {
   const t = useT();
-  const rawNodes = useGraphStore((s) => s.rawNodes);
   const pathStartId = useGraphStore((s) => s.pathStartId);
   const pathEndId = useGraphStore((s) => s.pathEndId);
   const setPathStart = useGraphStore((s) => s.setPathStart);
   const setPathEnd = useGraphStore((s) => s.setPathEnd);
   const setPathResult = useGraphStore((s) => s.setPathResult);
+  const startLabel = useGraphStore((s) => pathStartId ? s.rawNodes.find((n) => n.id === pathStartId)?.label ?? pathStartId : null);
+  const endLabel = useGraphStore((s) => pathEndId ? s.rawNodes.find((n) => n.id === pathEndId)?.label ?? pathEndId : null);
+  const rawNodes = useGraphStore((s) => s.rawNodes);
   const [startQuery, setStartQuery] = useState('');
   const [endQuery, setEndQuery] = useState('');
 
   const startMatches = useMemo(
-    () => (startQuery ? rawNodes.filter((n) => n.label.toLowerCase().includes(startQuery.toLowerCase())).slice(0, 10) : []),
+    () => {
+      if (!startQuery) return [];
+      return rawNodes.filter((n) => n.label.toLowerCase().includes(startQuery.toLowerCase())).slice(0, 10);
+    },
     [startQuery, rawNodes],
   );
   const endMatches = useMemo(
-    () => (endQuery ? rawNodes.filter((n) => n.label.toLowerCase().includes(endQuery.toLowerCase())).slice(0, 10) : []),
+    () => {
+      if (!endQuery) return [];
+      return rawNodes.filter((n) => n.label.toLowerCase().includes(endQuery.toLowerCase())).slice(0, 10);
+    },
     [endQuery, rawNodes],
   );
 
@@ -70,14 +78,14 @@ export function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClo
           {startMatches.length > 0 && !pathStartId && (
             <div className="path-suggestions">
               {startMatches.map((n) => (
-                <button key={n.id} onClick={() => { setStartQuery(n.label); setPathStart(n.id as NodeId); }}>
+                <button key={n.id} onClick={() => { setStartQuery(n.label); setPathStart(NodeId(n.id)); }}>
                   <span className="suggestion-type">{n.type}</span>
                   <span className="suggestion-label">{n.label}</span>
                 </button>
               ))}
             </div>
           )}
-          {pathStartId && <span className="path-selected">{rawNodes.find((n) => n.id === pathStartId)?.label ?? pathStartId}</span>}
+          {pathStartId && <span className="path-selected">{startLabel}</span>}
         </div>
         <div className="path-input-group">
           <label htmlFor="path-end-input">{t('pathFind.end')}</label>
@@ -92,14 +100,14 @@ export function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClo
           {endMatches.length > 0 && !pathEndId && (
             <div className="path-suggestions">
               {endMatches.map((n) => (
-                <button key={n.id} onClick={() => { setEndQuery(n.label); setPathEnd(n.id as NodeId); }}>
+                <button key={n.id} onClick={() => { setEndQuery(n.label); setPathEnd(NodeId(n.id)); }}>
                   <span className="suggestion-type">{n.type}</span>
                   <span className="suggestion-label">{n.label}</span>
                 </button>
               ))}
             </div>
           )}
-          {pathEndId && <span className="path-selected">{rawNodes.find((n) => n.id === pathEndId)?.label ?? pathEndId}</span>}
+          {pathEndId && <span className="path-selected">{endLabel}</span>}
         </div>
         <div className="path-actions">
           <button onClick={handleFind} disabled={!pathStartId || !pathEndId} className="path-find-btn">

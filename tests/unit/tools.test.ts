@@ -11,6 +11,7 @@ import {
   normalizeImpact,
   createGraphTools,
   createInvoke,
+  createGraphToolDeps,
   executeGraphStatus,
   executeGraphData,
   executeGraphSymbol,
@@ -697,8 +698,8 @@ describe('renderGraphImpact', () => {
 describe('executeGraphStatus', () => {
   it('should return ready status with nodes', async () => {
     const invoke: UpstreamInvoker = async () => null;
-    // This will read from DB or fallback — in test env, DB won't exist so returns empty
-    const result = await executeGraphStatus({ repoId: 'test-repo' }, invoke);
+    const deps = createGraphToolDeps();
+    const result = await executeGraphStatus({ repoId: 'test-repo' }, invoke, deps);
     expect(result).toHaveProperty('status');
     expect(result).toHaveProperty('nodeCount');
     expect(result).toHaveProperty('edgeCount');
@@ -712,7 +713,8 @@ describe('executeGraphData', () => {
     const emitUpdate = vi.fn();
     const emitData = vi.fn();
     const graphCache = new Map<string, GraphData>();
-    const result = await executeGraphData({ repoId: 'test-repo' }, invoke, emitUpdate, emitData, graphCache);
+    const deps = createGraphToolDeps();
+    const result = await executeGraphData({ repoId: 'test-repo' }, invoke, emitUpdate, emitData, graphCache, deps);
     expect(result).toHaveProperty('nodes');
     expect(result).toHaveProperty('edges');
     expect(emitUpdate).toHaveBeenCalled();
@@ -724,8 +726,9 @@ describe('executeGraphData', () => {
     const emitUpdate = vi.fn();
     const emitData = vi.fn();
     const graphCache = new Map<string, GraphData>();
-    await executeGraphData({ repoId: 'delta-repo' }, invoke, emitUpdate, emitData, graphCache);
-    const result2 = await executeGraphData({ repoId: 'delta-repo' }, invoke, emitUpdate, emitData, graphCache);
+    const deps = createGraphToolDeps();
+    await executeGraphData({ repoId: 'delta-repo' }, invoke, emitUpdate, emitData, graphCache, deps);
+    const result2 = await executeGraphData({ repoId: 'delta-repo' }, invoke, emitUpdate, emitData, graphCache, deps);
     expect(result2).toHaveProperty('nodes');
   });
 });

@@ -34,35 +34,38 @@ export class LensAdapter {
       const symbols = Array.isArray(raw.symbols) ? raw.symbols : [];
       const references = Array.isArray(raw.references) ? raw.references : [];
 
-    const fileNodeMap = new Map<string, string>();
-    for (const s of symbols) {
-      if (s.category === 'module' || s.category === 'file') {
-        fileNodeMap.set(s.file, s.id);
+      const fileNodeMap = new Map<string, string>();
+      for (const s of symbols) {
+        if (s.category === 'module' || s.category === 'file') {
+          fileNodeMap.set(s.file, s.id);
+        }
       }
-    }
 
-    const nodes: GraphNode[] = symbols.map(s => {
-      const parentId = (s.category !== 'module' && s.category !== 'file')
-        ? fileNodeMap.get(s.file)
-        : undefined;
-      return {
-        id: NodeId(s.id),
-        label: s.name,
-        type: this.mapCategory(s.category),
-        filePath: s.file,
-        lineNumber: s.line,
-        properties: { scope: s.scope },
-        ...(parentId ? { parentId: NodeId(parentId) } : {}),
-      };
-    });
+      const nodes: GraphNode[] = symbols.map((s) => {
+        const parentId = (s.category !== 'module' && s.category !== 'file')
+          ? fileNodeMap.get(s.file)
+          : undefined;
+        return {
+          id: NodeId(s.id),
+          label: s.name,
+          type: this.mapCategory(s.category),
+          filePath: s.file,
+          lineNumber: s.line,
+          properties: { scope: s.scope },
+          ...(parentId ? { parentId: NodeId(parentId) } : {}),
+        };
+      });
 
-      const edges: GraphEdge[] = references.map(r => ({
-        id: EdgeId(`${r.from}->${r.to}`),
-        source: NodeId(r.from),
-        target: NodeId(r.to),
-        type: this.mapRelation(r.relation),
-        properties: {},
-      }));
+      const edges: GraphEdge[] = references.map((r) => {
+        const edgeType = this.mapRelation(r.relation);
+        return {
+          id: EdgeId(`${r.from}->${r.to}:${edgeType}`),
+          source: NodeId(r.from),
+          target: NodeId(r.to),
+          type: edgeType,
+          properties: {},
+        };
+      });
 
       return { nodes, edges, source: this.source, timestamp: Date.now() };
     } catch (e) {

@@ -1,6 +1,5 @@
 // GraphDataMerger - multi-source aggregation with dedup + delta merge.
-import type { GraphNode, GraphEdge, GraphData, AdapterResult } from '../types/index.ts';
-import { RepoId } from '../types/index.ts';
+import type { GraphNode, GraphEdge, GraphData, AdapterResult, RepoId } from '../types/index.ts';
 
 export class GraphDataMerger {
   merge(results: AdapterResult[], repoId: RepoId): GraphData {
@@ -26,7 +25,7 @@ export class GraphDataMerger {
       nodes: Array.from(nodes.values()),
       edges: Array.from(edges.values()),
       metadata: {
-        repoId: RepoId(repoId),
+        repoId: repoId,
         timestamp: Date.now(),
         nodeCount: nodes.size,
         edgeCount: edges.size,

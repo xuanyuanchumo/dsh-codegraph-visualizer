@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
 import { useT } from '../i18n/index.ts';
 import { CloseIcon, RuleIcon, AlertIcon } from './Icons.tsx';
-import { getPresetRules, type RuleViolation } from '../analysis/RuleEngine.ts';
+import { getPresetRules, type RuleViolation } from '../../shared/analysis/RuleEngine.ts';
 
 interface RuleConfigPanelProps {
   violations: RuleViolation[];

@@ -40,7 +40,7 @@ export function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
 
   let lastGraphData: GraphData | null = null;
   let lastInitResult: { success: boolean; path: string; message: string; timestamp: number } | null = null;
-  let scanInFlight: Promise<GraphData> | null = null;
+  const scanInFlightMap = new Map<string, Promise<GraphData>>();
   const scanCache = new Map<string, { data: GraphData; timestamp: number }>();
 
   const routeDeps = {
@@ -51,8 +51,11 @@ export function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
     getLastInitResult: () => lastInitResult,
     setLastInitResult: (data: { success: boolean; path: string; message: string; timestamp: number } | null) => { lastInitResult = data; },
     getScanCache: () => scanCache,
-    getScanInFlight: () => scanInFlight,
-    setScanInFlight: (p: Promise<GraphData> | null) => { scanInFlight = p; },
+    getScanInFlight: (path: string) => scanInFlightMap.get(path) ?? null,
+    setScanInFlight: (path: string, p: Promise<GraphData> | null) => {
+      if (p === null) scanInFlightMap.delete(path);
+      else scanInFlightMap.set(path, p);
+    },
   };
 
   registerService(routeDeps);
@@ -70,8 +73,8 @@ export function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
     log.info('prerequisite status', status);
   };
   emitPrereqStatus();
-  const prereqTimer = setTimeout(emitPrereqStatus, config.prerequisiteRetryDelay);
-  ctx.effect(() => () => clearTimeout(prereqTimer), 'codegraph: prereq re-check timer');
+  const prereqTimer = setInterval(emitPrereqStatus, config.prerequisiteRetryDelay);
+  ctx.effect(() => () => clearInterval(prereqTimer), 'codegraph: prereq re-check timer');
 
   ctx.effect(() => ctx.on('codegraph/prerequisite/request', () => {
     emitPrereqStatus();
@@ -79,4 +82,11 @@ export function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
 
   registerEventListeners(ctx, invokeUpstream);
   registerWatcher(ctx, config, invokeUpstream);
+
+  return () => {
+    scanCache.clear();
+    scanInFlightMap.clear();
+    lastGraphData = null;
+    lastInitResult = null;
+  };
 }

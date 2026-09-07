@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { HealthScorer } from '../../src/client/analysis/HealthScorer.ts';
+import { HealthScorer } from '../../src/shared/analysis/HealthScorer.ts';
 import { makeNode, makeEdge } from '../helpers.ts';
 
 const scorer = new HealthScorer();

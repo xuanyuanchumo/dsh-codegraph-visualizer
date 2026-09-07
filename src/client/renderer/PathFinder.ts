@@ -1,5 +1,5 @@
 import type { Core } from 'cytoscape';
-import type { NodeId } from '../../types/index.ts';
+import { NodeId } from '../../types/index.ts';
 
 export interface PathResult {
   source: NodeId;
@@ -27,7 +27,7 @@ export class PathFinder {
 
     const pathIds: NodeId[] = [];
     pathToTarget.forEach((el) => {
-      if (el.isNode()) pathIds.push(el.id() as NodeId);
+      if (el.isNode()) pathIds.push(NodeId(el.id()));
     });
 
     if (pathIds.length === 0) return null;
@@ -46,6 +46,9 @@ export class PathFinder {
       if (!path || path.length === 0) return;
 
       const pathSet = new Set<string>(path);
+      const pathIndex = new Map<string, number>();
+      path.forEach((id, i) => pathIndex.set(id, i));
+
       path.forEach((id) => {
         const node = this.cy.getElementById(id);
         if (node.nonempty()) node.addClass('path-highlight');
@@ -55,9 +58,9 @@ export class PathFinder {
         const srcId = edge.source().id();
         const tgtId = edge.target().id();
         if (pathSet.has(srcId) && pathSet.has(tgtId)) {
-          const srcIdx = path.indexOf(srcId as NodeId);
-          const tgtIdx = path.indexOf(tgtId as NodeId);
-          if (srcIdx >= 0 && tgtIdx >= 0 && Math.abs(srcIdx - tgtIdx) === 1) {
+          const srcIdx = pathIndex.get(srcId);
+          const tgtIdx = pathIndex.get(tgtId);
+          if (srcIdx !== undefined && tgtIdx !== undefined && Math.abs(srcIdx - tgtIdx) === 1) {
             edge.addClass('path-highlight');
           }
         }
@@ -68,4 +71,6 @@ export class PathFinder {
       });
     });
   }
+
+  destroy(): void {}
 }

@@ -2,10 +2,20 @@
 
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { scoped } from '../shared/Logger.ts';
 import type { GraphData, GraphNode, GraphEdge } from '../types/index.ts';
 
 const log = scoped('cli');
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 interface CliOptions {
   workspace: string;
@@ -79,7 +89,7 @@ function generateHtmlReport(data: GraphData): string {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>CodeGraph Report — ${data.metadata.repoId}</title>
+<title>CodeGraph Report — ${escapeHtml(data.metadata.repoId)}</title>
 <style>
 body { font-family: -apple-system, sans-serif; margin: 40px; color: #333; }
 h1 { color: #1a73e8; }
@@ -95,7 +105,7 @@ th { background: #f5f5f5; }
 <body>
 <h1>CodeGraph Architecture Report</h1>
 <p>Generated: ${new Date().toISOString()}</p>
-<p>Repository: ${data.metadata.repoId}</p>
+<p>Repository: ${escapeHtml(data.metadata.repoId)}</p>
 
 <h2>Summary</h2>
 <div class="stat"><div class="stat-value">${data.nodes.length}</div><div class="stat-label">Total Nodes</div></div>
@@ -103,17 +113,17 @@ th { background: #f5f5f5; }
 
 <h2>Node Types</h2>
 <table><tr><th>Type</th><th>Count</th></tr>
-${Object.entries(nodeTypes).map(([type, count]) => `<tr><td>${type}</td><td>${count}</td></tr>`).join('')}
+${Object.entries(nodeTypes).map(([type, count]) => `<tr><td>${escapeHtml(type)}</td><td>${count}</td></tr>`).join('')}
 </table>
 
 <h2>Edge Types</h2>
 <table><tr><th>Type</th><th>Count</th></tr>
-${Object.entries(edgeTypes).map(([type, count]) => `<tr><td>${type}</td><td>${count}</td></tr>`).join('')}
+${Object.entries(edgeTypes).map(([type, count]) => `<tr><td>${escapeHtml(type)}</td><td>${count}</td></tr>`).join('')}
 </table>
 
 <h2>Top Connected Nodes</h2>
 <table><tr><th>Node</th><th>Type</th><th>Connections</th></tr>
-${topNodes.map((n) => `<tr><td>${n.label}</td><td>${n.type}</td><td>${n.connections}</td></tr>`).join('')}
+${topNodes.map((n) => `<tr><td>${escapeHtml(n.label)}</td><td>${escapeHtml(n.type)}</td><td>${n.connections}</td></tr>`).join('')}
 </table>
 </body>
 </html>`;
@@ -168,7 +178,7 @@ export async function runCli(args: string[]): Promise<void> {
   console.log(`Report generated: ${outputPath}`);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
   runCli(process.argv.slice(2)).catch((e) => {
     console.error('CLI failed:', e);
     process.exit(1);

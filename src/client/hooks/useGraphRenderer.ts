@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { CytoscapeRenderer } from '../renderer/CytoscapeRenderer.ts';
 import type { IRenderer, LayoutType, ThemeType } from '../renderer/IRenderer.ts';
-import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
+import type { GraphNode, GraphEdge } from '../../types/index.ts';
+import { NodeId } from '../../types/index.ts';
 import { scoped } from '../../shared/Logger.ts';
 
 type FilterType = GraphNode['type'] | 'all';
@@ -61,7 +62,7 @@ export function useGraphRenderer(
       container: containerRef.current,
       theme,
       onNodeTap: (nodeId: string) => {
-        const id = nodeId as NodeId;
+        const id = NodeId(nodeId);
         callbacksRef.current.onNodeTap(id);
         if (showCallChainRef.current) { rendererRef.current?.highlightCallChain(id); }
       },
@@ -174,7 +175,7 @@ export function useGraphRenderer(
   useEffect(() => {
     const r = rendererRef.current;
     if (!r) return;
-    if (focusNodeId) { r.focusNeighborhood(focusNodeId as NodeId); }
+    if (focusNodeId) { r.focusNeighborhood(NodeId(focusNodeId)); }
     else { r.focusNeighborhood(null); }
   }, [focusNodeId]);
 

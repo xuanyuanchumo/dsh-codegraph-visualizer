@@ -2,13 +2,7 @@ import type { GraphNode, GraphEdge, NodeId } from '../../../types/index.ts';
 import type { ClusterNode, ClusterResult } from './types.ts';
 import { aggregateEdges } from './types.ts';
 
-export function computeSmartClusters(
-  rawNodes: GraphNode[],
-  rawEdges: GraphEdge[],
-  expandedNodeIds: Set<string>,
-): ClusterResult {
-  if (rawNodes.length === 0) return { nodes: [], edges: [] };
-
+function computeLabels(rawNodes: GraphNode[], rawEdges: GraphEdge[]): Map<string, string> {
   const adjacency = new Map<string, Set<string>>();
   for (const n of rawNodes) adjacency.set(n.id, new Set());
   for (const e of rawEdges) {
@@ -18,7 +12,8 @@ export function computeSmartClusters(
 
   const labels = new Map<string, string>();
   let nextLabel = 0;
-  for (const n of rawNodes) labels.set(n.id, `c${nextLabel++}`);
+  const sortedNodes = [...rawNodes].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  for (const n of sortedNodes) labels.set(n.id, `c${nextLabel++}`);
 
   let changed = true;
   let iterations = 0;
@@ -45,6 +40,19 @@ export function computeSmartClusters(
       }
     }
   }
+
+
+  return labels;
+}
+
+export function computeSmartClusters(
+  rawNodes: GraphNode[],
+  rawEdges: GraphEdge[],
+  expandedNodeIds: Set<string>,
+): ClusterResult {
+  if (rawNodes.length === 0) return { nodes: [], edges: [] };
+
+  const labels = computeLabels(rawNodes, rawEdges);
 
   const labelToNodes = new Map<string, GraphNode[]>();
   for (const n of rawNodes) {

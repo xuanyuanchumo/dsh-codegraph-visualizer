@@ -1,4 +1,5 @@
-import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
+import type { GraphNode, GraphEdge } from '../../types/index.ts';
+import { NodeId } from '../../types/index.ts';
 
 export interface HotspotNode {
   nodeId: NodeId;
@@ -23,7 +24,7 @@ export class HotspotAnalyzer {
       if (!node || count < 5) continue;
 
       const level: HotspotNode['level'] = count >= 20 ? 'high' : count >= 10 ? 'medium' : 'low';
-      results.push({ nodeId: nodeId as NodeId, label: node.label, indegree: count, level });
+      results.push({ nodeId: NodeId(nodeId), label: node.label, indegree: count, level });
     }
 
     return results.sort((a, b) => b.indegree - a.indegree);
@@ -38,11 +39,21 @@ export interface GodModule {
 }
 
 export class GodModuleDetector {
+  private readonly maxModuleDepth: number;
+
+  constructor(maxModuleDepth?: number) {
+    this.maxModuleDepth = maxModuleDepth ?? 3;
+  }
+
   detect(nodes: GraphNode[], edges: GraphEdge[], threshold = 50): GodModule[] {
     const moduleNodes = new Map<string, GraphNode[]>();
     for (const node of nodes) {
-      const parts = node.filePath.split(/[\\/]/);
-      const module = parts.length > 1 ? parts.slice(0, -1).join('/') : node.filePath;
+      const rawPath = node.filePath.replace(/^(file|import):/, '');
+      const parts = rawPath.split(/[\\/]/);
+      const dirParts = parts.length > 1 ? parts.slice(0, -1) : [rawPath];
+      const module = dirParts.length > this.maxModuleDepth
+        ? dirParts.slice(0, this.maxModuleDepth).join('/')
+        : dirParts.join('/');
       let list = moduleNodes.get(module);
       if (!list) { list = []; moduleNodes.set(module, list); }
       list.push(node);
@@ -55,8 +66,12 @@ export class GodModuleDetector {
     }
     for (const edge of edges) {
       const srcModule = nodeToModule.get(edge.source);
+      const tgtModule = nodeToModule.get(edge.target);
       if (srcModule) {
         moduleEdges.set(srcModule, (moduleEdges.get(srcModule) ?? 0) + 1);
+      }
+      if (tgtModule && tgtModule !== srcModule) {
+        moduleEdges.set(tgtModule, (moduleEdges.get(tgtModule) ?? 0) + 1);
       }
     }
 

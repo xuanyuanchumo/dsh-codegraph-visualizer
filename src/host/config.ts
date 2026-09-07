@@ -1,5 +1,7 @@
+import type { DataSourceType } from '../types/index.ts';
+
 export interface VisualizerConfig {
-  dataSource: 'auto' | 'codegraph' | 'lens';
+  dataSource: DataSourceType;
   requestTimeout: number;
   scanCacheTtl: number;
   scanCacheLimit: number;
@@ -7,24 +9,26 @@ export interface VisualizerConfig {
   prerequisiteRetryDelay: number;
   watchDebounce: number;
   maxNodes: number;
+  allowedOrigins: string[];
 }
 
 export const DEFAULT_CONFIG: VisualizerConfig = {
   dataSource: 'auto',
-  requestTimeout: 5000,
+  requestTimeout: 15000,
   scanCacheTtl: 30_000,
   scanCacheLimit: 4,
   maxBodyBytes: 1024 * 1024,
   prerequisiteRetryDelay: 3000,
   watchDebounce: 500,
   maxNodes: 10_000,
+  allowedOrigins: ['http://localhost:3080'],
 };
 
 export function resolveConfig(userConfig?: Partial<VisualizerConfig>): VisualizerConfig {
   const config: VisualizerConfig = { ...DEFAULT_CONFIG, ...userConfig };
   const errors: string[] = [];
-  if (config.dataSource !== 'auto' && config.dataSource !== 'codegraph' && config.dataSource !== 'lens') {
-    errors.push(`dataSource must be auto|codegraph|lens, got ${String(config.dataSource)}`);
+  if (config.dataSource !== 'auto' && config.dataSource !== 'codegraph' && config.dataSource !== 'lens' && config.dataSource !== 'tree-sitter') {
+    errors.push(`dataSource must be auto|codegraph|lens|tree-sitter, got ${String(config.dataSource)}`);
   }
   const positiveFields: Array<[keyof VisualizerConfig, number]> = [
     ['requestTimeout', config.requestTimeout],

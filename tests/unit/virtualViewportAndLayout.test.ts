@@ -90,7 +90,7 @@ describe('VirtualViewportController (FR-50)', () => {
     controller.enable();
     controller.disable();
     expect(controller.isEnabled()).toBe(false);
-    expect(cy.off).toHaveBeenCalledWith('viewport');
+    expect(cy.off).toHaveBeenCalledWith('viewport', expect.any(Function));
   });
 
   it('getVisibleNodeCount returns 0 initially', () => {

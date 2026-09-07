@@ -3413,7 +3413,7 @@ const createStoreImpl = (createState) => {
 		}
 	};
 	const getState = () => state;
-	const getInitialState = () => initialState;
+	const getInitialState = () => initialState$1;
 	const subscribe$1 = (listener) => {
 		listeners$1.add(listener);
 		return () => listeners$1.delete(listener);
@@ -3424,7 +3424,7 @@ const createStoreImpl = (createState) => {
 		getInitialState,
 		subscribe: subscribe$1
 	};
-	const initialState = state = createState(setState, getState, api);
+	const initialState$1 = state = createState(setState, getState, api);
 	return api;
 };
 const createStore = (createState) => createState ? createStoreImpl(createState) : createStoreImpl;
@@ -3837,11 +3837,9 @@ var FunctionClusterStrategy = class {
 
 //#endregion
 //#region src/client/store/cluster/smartCluster.ts
-function computeSmartClusters(rawNodes, rawEdges, expandedNodeIds) {
-	if (rawNodes.length === 0) return {
-		nodes: [],
-		edges: []
-	};
+let labelCache = null;
+function computeLabels(rawNodes, rawEdges) {
+	if (labelCache && labelCache.nodeCount === rawNodes.length && labelCache.edgeCount === rawEdges.length) return labelCache.labels;
 	const adjacency = new Map();
 	for (const n of rawNodes) adjacency.set(n.id, new Set());
 	for (const e of rawEdges) {
@@ -3877,6 +3875,19 @@ function computeSmartClusters(rawNodes, rawEdges, expandedNodeIds) {
 			}
 		}
 	}
+	labelCache = {
+		nodeCount: rawNodes.length,
+		edgeCount: rawEdges.length,
+		labels
+	};
+	return labels;
+}
+function computeSmartClusters(rawNodes, rawEdges, expandedNodeIds) {
+	if (rawNodes.length === 0) return {
+		nodes: [],
+		edges: []
+	};
+	const labels = computeLabels(rawNodes, rawEdges);
 	const labelToNodes = new Map();
 	for (const n of rawNodes) {
 		const lbl = labels.get(n.id);
@@ -16276,12 +16287,12 @@ var generateSpringRK4 = function() {
 	function springAccelerationForState(state) {
 		return -state.tension * state.x - state.friction * state.v;
 	}
-	function springEvaluateStateWithDerivative(initialState, dt, derivative) {
+	function springEvaluateStateWithDerivative(initialState$1, dt, derivative) {
 		var state = {
-			x: initialState.x + derivative.dx * dt,
-			v: initialState.v + derivative.dv * dt,
-			tension: initialState.tension,
-			friction: initialState.friction
+			x: initialState$1.x + derivative.dx * dt,
+			v: initialState$1.v + derivative.dv * dt,
+			tension: initialState$1.tension,
+			friction: initialState$1.friction
 		};
 		return {
 			dx: state.v,
@@ -30465,10 +30476,10 @@ var Atlas = /* @__PURE__ */ function() {
 				if (this.locked) throw new Error("can't draw, atlas is locked");
 				var texSize = this.texSize, texRows = this.texRows, texHeight = this.texHeight;
 				var _this$getScale = this.getScale(bb), scale$1 = _this$getScale.scale, texW = _this$getScale.texW, texH = _this$getScale.texH;
-				var drawAt = function drawAt$1(location$1, canvas) {
+				var drawAt = function drawAt$1(location, canvas) {
 					if (doDrawing && canvas) {
 						var context = canvas.context;
-						var x$1 = location$1.x, row = location$1.row;
+						var x$1 = location.x, row = location.row;
 						var xOffset = x$1;
 						var yOffset = texHeight * row;
 						context.save();
@@ -42856,9 +42867,7 @@ var LayoutController = class {
 	}
 	initWorker() {
 		try {
-			const base$1 = typeof document !== "undefined" ? document.baseURI : location.href;
-			const workerUrl = new URL("../worker/layoutWorker.ts", base$1);
-			this.worker = new Worker(workerUrl, { type: "module" });
+			this.worker = new Worker(new URL("../worker/layoutWorker.ts", import.meta.url), { type: "module" });
 			this.worker.onmessage = (e) => {
 				if (this.workerLayoutResolve) {
 					this.workerLayoutResolve(e.data.positions);
@@ -43180,6 +43189,11 @@ var LayoutController = class {
 };
 
 //#endregion
+//#region src/types/index.ts
+const NodeId = (id) => id;
+const EdgeId = (id) => id;
+
+//#endregion
 //#region src/client/renderer/HighlightController.ts
 var HighlightController = class {
 	cy;
@@ -43235,7 +43249,7 @@ var HighlightController = class {
 					if (edge.source().id() !== id) return;
 					edge.addClass("call-chain");
 					const target = edge.target().id();
-					if (!visited.has(target)) queue.push(target);
+					if (!visited.has(target)) queue.push(NodeId(target));
 				});
 			}
 		});
@@ -43378,27 +43392,29 @@ var HighlightController = class {
 			if (focusNode.empty()) return;
 			focusNode.addClass("inheritance-focus");
 			const relevant = new Set([nodeId]);
-			const traverse = (id, direction) => {
+			const stack = [{
+				id: nodeId,
+				direction: "up"
+			}, {
+				id: nodeId,
+				direction: "down"
+			}];
+			while (stack.length > 0) {
+				const { id, direction } = stack.pop();
 				const node = this.cy.getElementById(id);
-				if (direction === "up") node.outgoers("edge[type=\"extend\"], edge[type=\"implement\"]").forEach((edge) => {
-					const target = edge.target().id();
+				const edges = direction === "up" ? node.outgoers("edge[type=\"extend\"], edge[type=\"implement\"]") : node.incomers("edge[type=\"extend\"], edge[type=\"implement\"]");
+				edges.forEach((edge) => {
+					const target = direction === "up" ? edge.target().id() : edge.source().id();
 					if (!relevant.has(target)) {
 						relevant.add(target);
 						edge.addClass("inheritance-highlight");
-						traverse(target, "up");
+						stack.push({
+							id: target,
+							direction
+						});
 					}
 				});
-				else node.incomers("edge[type=\"extend\"], edge[type=\"implement\"]").forEach((edge) => {
-					const source = edge.source().id();
-					if (!relevant.has(source)) {
-						relevant.add(source);
-						edge.addClass("inheritance-highlight");
-						traverse(source, "down");
-					}
-				});
-			};
-			traverse(nodeId, "up");
-			traverse(nodeId, "down");
+			}
 			relevant.forEach((id) => {
 				const node = this.cy.getElementById(id);
 				if (node.nonempty()) node.addClass("inheritance-highlight");
@@ -43412,6 +43428,7 @@ var HighlightController = class {
 			});
 		});
 	}
+	destroy() {}
 };
 
 //#endregion
@@ -43519,317 +43536,17 @@ var ViewportController = class {
 		};
 	}
 	focusOnArea(x$1, y$1, zoom) {
-		this.cy.panBy({
-			x: -x$1 + this.cy.width() / 2,
-			y: -y$1 + this.cy.height() / 2
-		});
 		this.cy.zoom(zoom);
+		this.cy.panBy({
+			x: -x$1 * zoom + this.cy.width() / 2,
+			y: -y$1 * zoom + this.cy.height() / 2
+		});
 	}
 	resize() {
 		this.cy.resize();
 	}
+	destroy() {}
 };
-
-//#endregion
-//#region src/client/renderer/DataController.ts
-var DataController = class {
-	cy;
-	currentNodes = new Map();
-	currentEdges = new Map();
-	rawNodesMap = new Map();
-	batchRaf = null;
-	batchQueue = null;
-	lastAddedNodeIds = new Set();
-	constructor(cy) {
-		this.cy = cy;
-	}
-	getLastAddedNodeIds() {
-		return this.lastAddedNodeIds;
-	}
-	clearLastAddedNodeIds() {
-		this.lastAddedNodeIds.clear();
-	}
-	setRawNodes(rawNodes) {
-		this.rawNodesMap.clear();
-		for (const n of rawNodes) this.rawNodesMap.set(n.id, n);
-	}
-	updateData(nodes, edges) {
-		const newNodeIds = new Set(nodes.map((n) => n.id));
-		const newEdgeIds = new Set(edges.map((e) => e.id));
-		const hasNewNodes = nodes.some((n) => !this.currentNodes.has(n.id));
-		const hasStaleNodes = this.currentNodes.size !== nodes.length || [...this.currentNodes.keys()].some((id) => !newNodeIds.has(id));
-		const hasNewEdges = edges.some((e) => !this.currentEdges.has(e.id));
-		const hasStaleEdges = this.currentEdges.size !== edges.length || [...this.currentEdges.keys()].some((id) => !newEdgeIds.has(id));
-		if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges) return;
-		const nodesToAdd = [];
-		const edgesToAdd = [];
-		if (hasStaleNodes) {
-			const staleNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
-			if (staleNodes.length > 0) this.cy.remove(staleNodes);
-			for (const id of this.currentNodes.keys()) if (!newNodeIds.has(id)) this.currentNodes.delete(id);
-		}
-		if (hasStaleEdges) {
-			const staleEdges = this.cy.edges().filter((e) => !newEdgeIds.has(e.id()));
-			if (staleEdges.length > 0) this.cy.remove(staleEdges);
-			for (const id of this.currentEdges.keys()) if (!newEdgeIds.has(id)) this.currentEdges.delete(id);
-		}
-		for (const n of nodes) {
-			if (!this.currentNodes.has(n.id)) {
-				nodesToAdd.push(n);
-				this.lastAddedNodeIds.add(n.id);
-			}
-			this.currentNodes.set(n.id, n);
-		}
-		for (const e of edges) {
-			if (!this.currentEdges.has(e.id)) edgesToAdd.push(e);
-			this.currentEdges.set(e.id, e);
-		}
-		if (nodesToAdd.length === 0 && edgesToAdd.length === 0) return;
-		const BATCH_SIZE = 200;
-		if (nodesToAdd.length <= BATCH_SIZE) {
-			this.cy.batch(() => {
-				for (const n of nodesToAdd) this.addNode(n);
-				for (const e of edgesToAdd) this.addEdge(e);
-			});
-			return;
-		}
-		const firstBatchNodes = nodesToAdd.slice(0, BATCH_SIZE);
-		const firstBatchNodeIds = new Set(firstBatchNodes.map((n) => n.id));
-		const firstBatchEdges = edgesToAdd.filter((e) => firstBatchNodeIds.has(e.source) && firstBatchNodeIds.has(e.target));
-		const remainingNodes = nodesToAdd.slice(BATCH_SIZE);
-		const remainingEdges = edgesToAdd.filter((e) => !firstBatchEdges.includes(e));
-		this.cy.batch(() => {
-			for (const n of firstBatchNodes) this.addNode(n);
-			for (const e of firstBatchEdges) this.addEdge(e);
-		});
-		this.batchQueue = {
-			nodes: remainingNodes,
-			edges: remainingEdges
-		};
-		this.processBatchQueue();
-	}
-	addNode(n) {
-		const cn = n;
-		this.cy.add({
-			group: "nodes",
-			data: {
-				id: n.id,
-				label: n.label,
-				type: n.type,
-				filePath: n.filePath,
-				lineNumber: n.lineNumber,
-				parent: n.parentId ?? void 0,
-				isCluster: cn.isCluster ?? false,
-				childCount: cn.childCount ?? 0
-			}
-		});
-	}
-	addEdge(e) {
-		const ce = e;
-		this.cy.add({
-			group: "edges",
-			data: {
-				id: e.id,
-				source: e.source,
-				target: e.target,
-				type: e.type,
-				isCluster: ce.isCluster ?? false,
-				aggregatedCount: ce.aggregatedCount ?? 0,
-				label: ce.isCluster ? `${ce.aggregatedCount} deps` : ""
-			}
-		});
-	}
-	processBatchQueue() {
-		if (!this.batchQueue) return;
-		if (this.batchRaf !== null) cancelAnimationFrame(this.batchRaf);
-		this.batchRaf = requestAnimationFrame(() => {
-			if (!this.batchQueue) {
-				this.batchRaf = null;
-				return;
-			}
-			const { nodes, edges } = this.batchQueue;
-			const BATCH_SIZE = 200;
-			const batchNodes = nodes.slice(0, BATCH_SIZE);
-			const batchNodeIds = new Set(batchNodes.map((n) => n.id));
-			const batchEdges = edges.filter((e) => batchNodeIds.has(e.source) && batchNodeIds.has(e.target));
-			const leftoverNodes = nodes.slice(BATCH_SIZE);
-			const leftoverEdges = edges.filter((e) => !batchEdges.includes(e));
-			this.cy.batch(() => {
-				for (const n of batchNodes) this.addNode(n);
-				for (const e of batchEdges) this.addEdge(e);
-			});
-			if (leftoverNodes.length > 0) {
-				this.batchQueue = {
-					nodes: leftoverNodes,
-					edges: leftoverEdges
-				};
-				this.processBatchQueue();
-			} else this.batchQueue = null;
-			this.batchRaf = null;
-		});
-	}
-	filterByType(type) {
-		const hidden = new Set();
-		if (type !== "all") this.cy.nodes().forEach((node) => {
-			if (node.data("type") !== type) hidden.add(node.id());
-		});
-		this.cy.batch(() => {
-			this.cy.nodes().forEach((node) => {
-				node.style("display", hidden.has(node.id()) ? "none" : "element");
-			});
-			this.cy.edges().forEach((edge) => {
-				const hiddenEdge = hidden.has(edge.source().id()) || hidden.has(edge.target().id());
-				edge.style("display", hiddenEdge ? "none" : "element");
-			});
-		});
-	}
-	filterByGraphType(graphType) {
-		const allowedEdgeTypes = new Set();
-		if (graphType === "all") {
-			allowedEdgeTypes.add("call");
-			allowedEdgeTypes.add("import");
-			allowedEdgeTypes.add("extend");
-			allowedEdgeTypes.add("implement");
-			allowedEdgeTypes.add("dependency");
-		} else if (graphType === "call") allowedEdgeTypes.add("call");
-		else if (graphType === "dependency") {
-			allowedEdgeTypes.add("import");
-			allowedEdgeTypes.add("dependency");
-		}
-		const connectedNodeIds = new Set();
-		this.cy.batch(() => {
-			this.cy.edges().forEach((edge) => {
-				const edgeType = edge.data("type");
-				const visible = allowedEdgeTypes.has(edgeType);
-				edge.style("display", visible ? "element" : "none");
-				if (visible) {
-					connectedNodeIds.add(edge.source().id());
-					connectedNodeIds.add(edge.target().id());
-				}
-			});
-			this.cy.nodes().forEach((node) => {
-				node.style("display", connectedNodeIds.has(node.id()) ? "element" : "none");
-			});
-		});
-	}
-	search(query) {
-		if (!query) {
-			this.cy.nodes().removeClass("search-match");
-			return 0;
-		}
-		const q = query.toLowerCase();
-		let matches$2 = 0;
-		const matchedCyNodeIds = new Set();
-		for (const rawNode of this.rawNodesMap.values()) if (rawNode.label.toLowerCase().includes(q)) {
-			matches$2++;
-			let cyNode = this.cy.getElementById(rawNode.id);
-			if (cyNode.length > 0) matchedCyNodeIds.add(rawNode.id);
-			else {
-				let parentId = rawNode.parentId;
-				while (parentId) {
-					cyNode = this.cy.getElementById(parentId);
-					if (cyNode.length > 0) {
-						matchedCyNodeIds.add(parentId);
-						break;
-					}
-					const parentRaw = this.rawNodesMap.get(parentId);
-					parentId = parentRaw?.parentId;
-				}
-			}
-		}
-		if (matches$2 === 0) this.cy.nodes().forEach((node) => {
-			const label = node.data("label");
-			if (typeof label === "string" && label.toLowerCase().includes(q)) {
-				matchedCyNodeIds.add(node.id());
-				matches$2++;
-			}
-		});
-		this.cy.batch(() => {
-			this.cy.nodes().forEach((node) => {
-				node.toggleClass("search-match", matchedCyNodeIds.has(node.id()));
-			});
-		});
-		return matches$2;
-	}
-	getSelectedNodeData() {
-		const selected = this.cy.nodes(".selected");
-		if (selected.length === 0) return null;
-		const id = selected.first().id();
-		return this.currentNodes.get(id) ?? null;
-	}
-	getNodeData(nodeId) {
-		return this.currentNodes.get(nodeId) ?? null;
-	}
-	getEdgeData(edgeId) {
-		return this.currentEdges.get(edgeId) ?? null;
-	}
-	exportJSON() {
-		return JSON.stringify(this.cy.json(), null, 2);
-	}
-	exportPNG() {
-		return this.cy.png({
-			full: true,
-			scale: 2
-		});
-	}
-	exportSVG() {
-		const nodes = this.cy.nodes();
-		const edges = this.cy.edges();
-		if (nodes.length === 0) return null;
-		const bbox = this.cy.elements().boundingBox();
-		const w = Math.ceil(bbox.w) + 160;
-		const h = Math.ceil(bbox.h) + 160;
-		const offsetX = -bbox.x1 + 80;
-		const offsetY = -bbox.y1 + 80;
-		const parts = [];
-		parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`);
-		const nodeColors = {
-			function: "#4CAF50",
-			class: "#2196F3",
-			variable: "#FF9800",
-			module: "#9C27B0",
-			interface: "#00BCD4",
-			type: "#E91E63"
-		};
-		edges.forEach((edge) => {
-			const srcPos = edge.source().position();
-			const tgtPos = edge.target().position();
-			const edgeType = edge.data("type");
-			const color = edgeType === "call" ? "#666" : edgeType === "extend" ? "#E91E63" : "#999";
-			parts.push(`<line x1="${srcPos.x + offsetX}" y1="${srcPos.y + offsetY}" x2="${tgtPos.x + offsetX}" y2="${tgtPos.y + offsetY}" stroke="${color}" stroke-width="1" opacity="0.5"/>`);
-		});
-		nodes.forEach((node) => {
-			const pos = node.position();
-			const nodeType = node.data("type");
-			const label = node.data("label");
-			const color = nodeColors[nodeType] ?? "#757575";
-			const r = 12;
-			parts.push(`<circle cx="${pos.x + offsetX}" cy="${pos.y + offsetY}" r="${r}" fill="${color}" opacity="0.8"/>`);
-			parts.push(`<text x="${pos.x + offsetX}" y="${pos.y + offsetY + 4}" font-size="9" text-anchor="middle" fill="#333">${escapeXml(label)}</text>`);
-		});
-		parts.push("</svg>");
-		return parts.join("");
-	}
-	destroy() {
-		if (this.batchRaf !== null) cancelAnimationFrame(this.batchRaf);
-		this.batchRaf = null;
-		this.batchQueue = null;
-		this.currentNodes.clear();
-		this.currentEdges.clear();
-	}
-};
-function escapeXml(s) {
-	return s.replace(/[<>&"']/g, (c) => {
-		switch (c) {
-			case "<": return "&lt;";
-			case ">": return "&gt;";
-			case "&": return "&amp;";
-			case "\"": return "&quot;";
-			case "'": return "&apos;";
-			default: return c;
-		}
-	});
-}
 
 //#endregion
 //#region src/client/renderer/styles/ThemeStylesheet.ts
@@ -44302,6 +44019,313 @@ function buildStylesheet(theme, nodeCount = 0) {
 }
 
 //#endregion
+//#region src/client/renderer/DataController.ts
+var DataController = class {
+	cy;
+	currentNodes = new Map();
+	currentEdges = new Map();
+	rawNodesMap = new Map();
+	batchRaf = null;
+	batchQueue = null;
+	lastAddedNodeIds = new Set();
+	constructor(cy) {
+		this.cy = cy;
+	}
+	getLastAddedNodeIds() {
+		return this.lastAddedNodeIds;
+	}
+	clearLastAddedNodeIds() {
+		this.lastAddedNodeIds.clear();
+	}
+	setRawNodes(rawNodes) {
+		this.rawNodesMap.clear();
+		for (const n of rawNodes) this.rawNodesMap.set(n.id, n);
+	}
+	updateData(nodes, edges) {
+		const newNodeIds = new Set(nodes.map((n) => n.id));
+		const newEdgeIds = new Set(edges.map((e) => e.id));
+		const hasNewNodes = nodes.some((n) => !this.currentNodes.has(n.id));
+		const hasStaleNodes = this.currentNodes.size !== nodes.length || [...this.currentNodes.keys()].some((id) => !newNodeIds.has(id));
+		const hasNewEdges = edges.some((e) => !this.currentEdges.has(e.id));
+		const hasStaleEdges = this.currentEdges.size !== edges.length || [...this.currentEdges.keys()].some((id) => !newEdgeIds.has(id));
+		if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges) return;
+		const nodesToAdd = [];
+		const edgesToAdd = [];
+		if (hasStaleNodes) {
+			const staleNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
+			if (staleNodes.length > 0) this.cy.remove(staleNodes);
+			for (const id of this.currentNodes.keys()) if (!newNodeIds.has(id)) this.currentNodes.delete(id);
+		}
+		if (hasStaleEdges) {
+			const staleEdges = this.cy.edges().filter((e) => !newEdgeIds.has(e.id()));
+			if (staleEdges.length > 0) this.cy.remove(staleEdges);
+			for (const id of this.currentEdges.keys()) if (!newEdgeIds.has(id)) this.currentEdges.delete(id);
+		}
+		for (const n of nodes) {
+			if (!this.currentNodes.has(n.id)) {
+				nodesToAdd.push(n);
+				this.lastAddedNodeIds.add(n.id);
+			}
+			this.currentNodes.set(n.id, n);
+		}
+		for (const e of edges) {
+			if (!this.currentEdges.has(e.id)) edgesToAdd.push(e);
+			this.currentEdges.set(e.id, e);
+		}
+		if (nodesToAdd.length === 0 && edgesToAdd.length === 0) return;
+		const BATCH_SIZE = 200;
+		if (nodesToAdd.length <= BATCH_SIZE) {
+			this.cy.batch(() => {
+				for (const n of nodesToAdd) this.addNode(n);
+				for (const e of edgesToAdd) this.addEdge(e);
+			});
+			return;
+		}
+		const firstBatchNodes = nodesToAdd.slice(0, BATCH_SIZE);
+		const firstBatchNodeIds = new Set(firstBatchNodes.map((n) => n.id));
+		const firstBatchEdges = edgesToAdd.filter((e) => firstBatchNodeIds.has(e.source) && firstBatchNodeIds.has(e.target));
+		const firstBatchEdgeIds = new Set(firstBatchEdges.map((e) => e.id));
+		const remainingNodes = nodesToAdd.slice(BATCH_SIZE);
+		const remainingEdges = edgesToAdd.filter((e) => !firstBatchEdgeIds.has(e.id));
+		this.cy.batch(() => {
+			for (const n of firstBatchNodes) this.addNode(n);
+			for (const e of firstBatchEdges) this.addEdge(e);
+		});
+		this.batchQueue = {
+			nodes: remainingNodes,
+			edges: remainingEdges
+		};
+		this.processBatchQueue();
+	}
+	addNode(n) {
+		const isCluster = "isCluster" in n && n.isCluster === true;
+		this.cy.add({
+			group: "nodes",
+			data: {
+				id: n.id,
+				label: n.label,
+				type: n.type,
+				filePath: n.filePath,
+				lineNumber: n.lineNumber,
+				parent: n.parentId ?? void 0,
+				isCluster,
+				childCount: isCluster ? n.childCount : 0
+			}
+		});
+	}
+	addEdge(e) {
+		const isCluster = "isCluster" in e && e.isCluster === true;
+		const ce = isCluster ? e : null;
+		this.cy.add({
+			group: "edges",
+			data: {
+				id: e.id,
+				source: e.source,
+				target: e.target,
+				type: e.type,
+				isCluster,
+				aggregatedCount: ce?.aggregatedCount ?? 0,
+				label: isCluster ? `${ce.aggregatedCount} deps` : ""
+			}
+		});
+	}
+	processBatchQueue() {
+		if (!this.batchQueue) return;
+		if (this.batchRaf !== null) cancelAnimationFrame(this.batchRaf);
+		this.batchRaf = requestAnimationFrame(() => {
+			if (!this.batchQueue) {
+				this.batchRaf = null;
+				return;
+			}
+			const { nodes, edges } = this.batchQueue;
+			const BATCH_SIZE = 200;
+			const batchNodes = nodes.slice(0, BATCH_SIZE);
+			const batchNodeIds = new Set(batchNodes.map((n) => n.id));
+			const batchEdges = edges.filter((e) => batchNodeIds.has(e.source) && batchNodeIds.has(e.target));
+			const batchEdgeIds = new Set(batchEdges.map((e) => e.id));
+			const leftoverNodes = nodes.slice(BATCH_SIZE);
+			const leftoverEdges = edges.filter((e) => !batchEdgeIds.has(e.id));
+			this.cy.batch(() => {
+				for (const n of batchNodes) this.addNode(n);
+				for (const e of batchEdges) this.addEdge(e);
+			});
+			if (leftoverNodes.length > 0) {
+				this.batchQueue = {
+					nodes: leftoverNodes,
+					edges: leftoverEdges
+				};
+				this.processBatchQueue();
+			} else this.batchQueue = null;
+			this.batchRaf = null;
+		});
+	}
+	filterByType(type) {
+		const hidden = new Set();
+		if (type !== "all") this.cy.nodes().forEach((node) => {
+			if (node.data("type") !== type) hidden.add(node.id());
+		});
+		this.cy.batch(() => {
+			this.cy.nodes().forEach((node) => {
+				node.style("display", hidden.has(node.id()) ? "none" : "element");
+			});
+			this.cy.edges().forEach((edge) => {
+				const hiddenEdge = hidden.has(edge.source().id()) || hidden.has(edge.target().id());
+				edge.style("display", hiddenEdge ? "none" : "element");
+			});
+		});
+	}
+	filterByGraphType(graphType) {
+		const allowedEdgeTypes = new Set();
+		if (graphType === "all") {
+			allowedEdgeTypes.add("call");
+			allowedEdgeTypes.add("import");
+			allowedEdgeTypes.add("extend");
+			allowedEdgeTypes.add("implement");
+			allowedEdgeTypes.add("dependency");
+		} else if (graphType === "call") allowedEdgeTypes.add("call");
+		else if (graphType === "dependency") {
+			allowedEdgeTypes.add("import");
+			allowedEdgeTypes.add("dependency");
+		}
+		const connectedNodeIds = new Set();
+		this.cy.batch(() => {
+			this.cy.edges().forEach((edge) => {
+				const edgeType = edge.data("type");
+				const visible = allowedEdgeTypes.has(edgeType);
+				edge.style("display", visible ? "element" : "none");
+				if (visible) {
+					connectedNodeIds.add(edge.source().id());
+					connectedNodeIds.add(edge.target().id());
+				}
+			});
+			this.cy.nodes().forEach((node) => {
+				node.style("display", connectedNodeIds.has(node.id()) ? "element" : "none");
+			});
+		});
+	}
+	search(query) {
+		if (!query) {
+			this.cy.nodes().removeClass("search-match");
+			return 0;
+		}
+		const q = query.toLowerCase();
+		let matches$2 = 0;
+		const matchedCyNodeIds = new Set();
+		for (const rawNode of this.rawNodesMap.values()) if (rawNode.label.toLowerCase().includes(q)) {
+			matches$2++;
+			let cyNode = this.cy.getElementById(rawNode.id);
+			if (cyNode.length > 0) matchedCyNodeIds.add(rawNode.id);
+			else {
+				let parentId = rawNode.parentId;
+				while (parentId) {
+					cyNode = this.cy.getElementById(parentId);
+					if (cyNode.length > 0) {
+						matchedCyNodeIds.add(parentId);
+						break;
+					}
+					const parentRaw = this.rawNodesMap.get(parentId);
+					parentId = parentRaw?.parentId;
+				}
+			}
+		}
+		if (matches$2 === 0) this.cy.nodes().forEach((node) => {
+			const label = node.data("label");
+			if (typeof label === "string" && label.toLowerCase().includes(q)) {
+				matchedCyNodeIds.add(node.id());
+				matches$2++;
+			}
+		});
+		this.cy.batch(() => {
+			this.cy.nodes().forEach((node) => {
+				node.toggleClass("search-match", matchedCyNodeIds.has(node.id()));
+			});
+		});
+		return matches$2;
+	}
+	getSelectedNodeData() {
+		const selected = this.cy.nodes(".selected");
+		if (selected.length === 0) return null;
+		const id = selected.first().id();
+		return this.currentNodes.get(id) ?? null;
+	}
+	getNodeData(nodeId) {
+		return this.currentNodes.get(nodeId) ?? null;
+	}
+	getEdgeData(edgeId) {
+		return this.currentEdges.get(edgeId) ?? null;
+	}
+	exportJSON() {
+		return JSON.stringify(this.cy.json(), null, 2);
+	}
+	exportPNG() {
+		return this.cy.png({
+			full: true,
+			scale: 2
+		});
+	}
+	exportSVG(theme = "dark") {
+		const nodes = this.cy.nodes();
+		const edges = this.cy.edges();
+		if (nodes.length === 0) return null;
+		const colors$1 = getThemeColors(theme);
+		const nodeColors = {
+			function: colors$1.nodeFunction,
+			class: colors$1.nodeClass,
+			variable: colors$1.nodeVariable,
+			module: colors$1.nodeModule,
+			interface: colors$1.nodeInterface,
+			type: colors$1.nodeDefault
+		};
+		const bbox = this.cy.elements().boundingBox();
+		const w = Math.ceil(bbox.w) + 160;
+		const h = Math.ceil(bbox.h) + 160;
+		const offsetX = -bbox.x1 + 80;
+		const offsetY = -bbox.y1 + 80;
+		const parts = [];
+		parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`);
+		edges.forEach((edge) => {
+			const srcPos = edge.source().position();
+			const tgtPos = edge.target().position();
+			const edgeType = edge.data("type");
+			const color = edgeType === "call" ? "#666" : edgeType === "extend" ? "#E91E63" : "#999";
+			parts.push(`<line x1="${srcPos.x + offsetX}" y1="${srcPos.y + offsetY}" x2="${tgtPos.x + offsetX}" y2="${tgtPos.y + offsetY}" stroke="${color}" stroke-width="1" opacity="0.5"/>`);
+		});
+		nodes.forEach((node) => {
+			const pos = node.position();
+			const nodeType = node.data("type");
+			const label = node.data("label");
+			const color = nodeColors[nodeType] ?? "#757575";
+			const r = 12;
+			parts.push(`<circle cx="${pos.x + offsetX}" cy="${pos.y + offsetY}" r="${r}" fill="${color}" opacity="0.8"/>`);
+			parts.push(`<text x="${pos.x + offsetX}" y="${pos.y + offsetY + 4}" font-size="9" text-anchor="middle" fill="#333">${escapeXml(label)}</text>`);
+		});
+		parts.push("</svg>");
+		return parts.join("");
+	}
+	destroy() {
+		if (this.batchRaf !== null) cancelAnimationFrame(this.batchRaf);
+		this.batchRaf = null;
+		this.batchQueue = null;
+		this.currentNodes.clear();
+		this.currentEdges.clear();
+		this.rawNodesMap.clear();
+		this.lastAddedNodeIds.clear();
+	}
+};
+function escapeXml(s) {
+	return s.replace(/[<>&"']/g, (c) => {
+		switch (c) {
+			case "<": return "&lt;";
+			case ">": return "&gt;";
+			case "&": return "&amp;";
+			case "\"": return "&quot;";
+			case "'": return "&apos;";
+			default: return c;
+		}
+	});
+}
+
+//#endregion
 //#region src/client/renderer/StyleController.ts
 var StyleController = class {
 	cy;
@@ -44321,6 +44345,7 @@ var StyleController = class {
 	getTheme() {
 		return this.theme;
 	}
+	destroy() {}
 };
 
 //#endregion
@@ -44369,12 +44394,18 @@ var InteractionController = class {
 			evt.target.removeClass("hovered");
 			this.callbacks.onEdgeHoverOut?.();
 		});
-		this.cy.on("mouseout", "node", () => {
-			this.callbacks.onNodeHoverOut?.();
-		});
 	}
 	updateCallbacks(callbacks) {
 		this.callbacks = callbacks;
+	}
+	destroy() {
+		this.cy.off("tap", "node");
+		this.cy.off("tap", "edge");
+		this.cy.off("dbltap", "node");
+		this.cy.off("mouseover", "node");
+		this.cy.off("mouseout", "node");
+		this.cy.off("mouseover", "edge");
+		this.cy.off("mouseout", "edge");
 	}
 };
 
@@ -44394,7 +44425,7 @@ var PathFinder = class {
 		if (pathToTarget.length === 0) return null;
 		const pathIds = [];
 		pathToTarget.forEach((el) => {
-			if (el.isNode()) pathIds.push(el.id());
+			if (el.isNode()) pathIds.push(NodeId(el.id()));
 		});
 		if (pathIds.length === 0) return null;
 		return {
@@ -44417,8 +44448,8 @@ var PathFinder = class {
 				const srcId = edge.source().id();
 				const tgtId = edge.target().id();
 				if (pathSet.has(srcId) && pathSet.has(tgtId)) {
-					const srcIdx = path.indexOf(srcId);
-					const tgtIdx = path.indexOf(tgtId);
+					const srcIdx = path.indexOf(NodeId(srcId));
+					const tgtIdx = path.indexOf(NodeId(tgtId));
 					if (srcIdx >= 0 && tgtIdx >= 0 && Math.abs(srcIdx - tgtIdx) === 1) edge.addClass("path-highlight");
 				}
 			});
@@ -44427,6 +44458,7 @@ var PathFinder = class {
 			});
 		});
 	}
+	destroy() {}
 };
 
 //#endregion
@@ -44437,19 +44469,24 @@ var VirtualViewportController = class {
 	enabled = false;
 	rafId = null;
 	visibleNodeIds = new Set();
+	viewportHandler = null;
 	constructor(cy) {
 		this.cy = cy;
 	}
 	enable() {
 		if (this.enabled) return;
 		this.enabled = true;
+		this.viewportHandler = () => this.handleViewportChange();
 		this.updateVisibility();
-		this.cy.on("viewport", () => this.handleViewportChange());
+		this.cy.on("viewport", this.viewportHandler);
 	}
 	disable() {
 		if (!this.enabled) return;
 		this.enabled = false;
-		this.cy.off("viewport");
+		if (this.viewportHandler) {
+			this.cy.off("viewport", this.viewportHandler);
+			this.viewportHandler = null;
+		}
 		this.cy.batch(() => {
 			this.cy.nodes().forEach((n) => {
 				n.style("display", "element");
@@ -44516,7 +44553,13 @@ var VirtualViewportController = class {
 
 //#endregion
 //#region src/client/renderer/CytoscapeRenderer.ts
-cytoscape$1.use(import_cytoscape_dagre.default);
+let dagreRegistered = false;
+function ensureDagreRegistered() {
+	if (!dagreRegistered) {
+		cytoscape$1.use(import_cytoscape_dagre.default);
+		dagreRegistered = true;
+	}
+}
 var CytoscapeRenderer = class {
 	cy = null;
 	options;
@@ -44533,32 +44576,43 @@ var CytoscapeRenderer = class {
 	}
 	init() {
 		if (this.cy) return;
-		this.cy = cytoscape$1({
-			container: this.options.container,
-			minZoom: .1,
-			maxZoom: 3,
-			style: [],
-			layout: { name: "cose" },
-			headless: false
-		});
-		const cy = this.cy;
-		this.styleCtrl = new StyleController(cy, this.options.theme);
-		cy.style().fromJson(this.styleCtrl.getStylesheet()).update();
-		this.layoutCtrl = new LayoutController(cy);
-		this.highlightCtrl = new HighlightController(cy);
-		this.viewportCtrl = new ViewportController(cy);
-		this.dataCtrl = new DataController(cy);
-		this.interactionCtrl = new InteractionController(cy, {
-			onNodeTap: this.options.onNodeTap ?? (() => {}),
-			onEdgeTap: this.options.onEdgeTap ?? (() => {}),
-			onNodeDoubleTap: this.options.onNodeDoubleTap ?? (() => {}),
-			onNodeHover: this.options.onNodeHover ?? (() => {}),
-			onNodeHoverOut: this.options.onNodeHoverOut ?? (() => {}),
-			onEdgeHover: this.options.onEdgeHover ?? (() => {}),
-			onEdgeHoverOut: this.options.onEdgeHoverOut ?? (() => {})
-		});
-		this.pathFinder = new PathFinder(cy);
-		this.virtualViewportCtrl = new VirtualViewportController(cy);
+		ensureDagreRegistered();
+		try {
+			this.cy = cytoscape$1({
+				container: this.options.container,
+				minZoom: .1,
+				maxZoom: 3,
+				style: [],
+				layout: { name: "cose" },
+				headless: false
+			});
+			const cy = this.cy;
+			this.styleCtrl = new StyleController(cy, this.options.theme);
+			cy.style().fromJson(this.styleCtrl.getStylesheet()).update();
+			this.layoutCtrl = new LayoutController(cy);
+			this.highlightCtrl = new HighlightController(cy);
+			this.viewportCtrl = new ViewportController(cy);
+			this.dataCtrl = new DataController(cy);
+			this.interactionCtrl = new InteractionController(cy, {
+				onNodeTap: this.options.onNodeTap ?? (() => {}),
+				onEdgeTap: this.options.onEdgeTap ?? (() => {}),
+				onNodeDoubleTap: this.options.onNodeDoubleTap ?? (() => {}),
+				onNodeHover: this.options.onNodeHover ?? (() => {}),
+				onNodeHoverOut: this.options.onNodeHoverOut ?? (() => {}),
+				onEdgeHover: this.options.onEdgeHover ?? (() => {}),
+				onEdgeHoverOut: this.options.onEdgeHoverOut ?? (() => {})
+			});
+			this.pathFinder = new PathFinder(cy);
+			this.virtualViewportCtrl = new VirtualViewportController(cy);
+		} catch (err) {
+			this.interactionCtrl?.destroy();
+			this.layoutCtrl?.destroy();
+			this.virtualViewportCtrl?.destroy();
+			this.dataCtrl?.destroy();
+			this.cy?.destroy();
+			this.cy = null;
+			throw err;
+		}
 	}
 	updateData(nodes, edges) {
 		this.dataCtrl?.updateData(nodes, edges);
@@ -44671,9 +44725,14 @@ var CytoscapeRenderer = class {
 		this.styleCtrl?.updateTheme(theme);
 	}
 	destroy() {
+		this.interactionCtrl?.destroy();
 		this.layoutCtrl?.destroy();
 		this.virtualViewportCtrl?.destroy();
 		this.dataCtrl?.destroy();
+		this.highlightCtrl?.destroy();
+		this.viewportCtrl?.destroy();
+		this.styleCtrl?.destroy();
+		this.pathFinder?.destroy();
 		this.cy?.destroy();
 		this.cy = null;
 		this.layoutCtrl = null;
@@ -44945,16 +45004,23 @@ function usePanelResize(panelRef, rendererRef) {
 		const panel = panelRef.current;
 		if (!panel) return;
 		let startX$1 = 0, startY$1 = 0, startW = 0, startH = 0;
+		let rafId = null;
 		const onPointerMove = (e) => {
 			const w = Math.max(320, startW + (e.clientX - startX$1));
 			const h = Math.max(240, startH + (e.clientY - startY$1));
 			panel.style.width = `${w}px`;
 			panel.style.height = `${h}px`;
-			rendererRef.current?.resize();
+			if (rafId !== null) cancelAnimationFrame(rafId);
+			rafId = requestAnimationFrame(() => {
+				rafId = null;
+				rendererRef.current?.resize();
+			});
 		};
 		const onPointerUp = () => {
 			window.removeEventListener("pointermove", onPointerMove);
 			window.removeEventListener("pointerup", onPointerUp);
+			if (rafId !== null) cancelAnimationFrame(rafId);
+			rendererRef.current?.resize();
 		};
 		const onPointerDown = (e) => {
 			startX$1 = e.clientX;
@@ -44973,56 +45039,89 @@ function usePanelResize(panelRef, rendererRef) {
 			savedRef.current?.removeEventListener("pointerdown", onPointerDown);
 			window.removeEventListener("pointermove", onPointerMove);
 			window.removeEventListener("pointerup", onPointerUp);
+			if (rafId !== null) cancelAnimationFrame(rafId);
 		};
 	}, [panelRef, rendererRef]);
 }
 
 //#endregion
 //#region src/client/hooks/usePanelState.ts
+const initialState = {
+	showSearch: false,
+	collapsed: false,
+	showCycles: false,
+	showCallChain: false,
+	showImpact: false,
+	showInheritance: false,
+	showMiniMap: false,
+	showImport: false,
+	showLegend: false,
+	showPathFind: false,
+	showHealthScore: false,
+	showRules: false,
+	showHotspot: false,
+	showGodModule: false
+};
+function reducer(state, action) {
+	switch (action.type) {
+		case "toggle": {
+			const key = action.key;
+			return {
+				...state,
+				[key]: !state[key]
+			};
+		}
+		case "set": {
+			const key = action.key;
+			const prev = state[key];
+			const next = typeof action.value === "function" ? action.value(prev) : action.value;
+			return {
+				...state,
+				[key]: next
+			};
+		}
+	}
+}
 function usePanelState() {
-	const [showSearch, setShowSearch] = (0, react.useState)(false);
-	const [collapsed, setCollapsed] = (0, react.useState)(false);
-	const [showCycles, setShowCycles] = (0, react.useState)(false);
-	const [showCallChain, setShowCallChain] = (0, react.useState)(false);
-	const [showImpact, setShowImpact] = (0, react.useState)(false);
-	const [showInheritance, setShowInheritance] = (0, react.useState)(false);
-	const [showMiniMap, setShowMiniMap] = (0, react.useState)(false);
-	const [showImport, setShowImport] = (0, react.useState)(false);
-	const [showLegend, setShowLegend] = (0, react.useState)(false);
-	const [showPathFind, setShowPathFind] = (0, react.useState)(false);
-	const [showHealthScore, setShowHealthScore] = (0, react.useState)(false);
-	const [showRules, setShowRules] = (0, react.useState)(false);
-	const [showHotspot, setShowHotspot] = (0, react.useState)(false);
-	const [showGodModule, setShowGodModule] = (0, react.useState)(false);
-	const toggleSearch = (0, react.useCallback)(() => setShowSearch((v) => !v), []);
-	const toggleCollapsed = (0, react.useCallback)(() => setCollapsed((c) => !c), []);
-	const toggleCycles = (0, react.useCallback)(() => setShowCycles((v) => !v), []);
-	const toggleCallChain = (0, react.useCallback)(() => setShowCallChain((v) => !v), []);
-	const toggleImpact = (0, react.useCallback)(() => setShowImpact((v) => !v), []);
-	const toggleInheritance = (0, react.useCallback)(() => setShowInheritance((v) => !v), []);
-	const toggleMiniMap = (0, react.useCallback)(() => setShowMiniMap((v) => !v), []);
-	const toggleImport = (0, react.useCallback)(() => setShowImport((v) => !v), []);
-	const toggleLegend = (0, react.useCallback)(() => setShowLegend((v) => !v), []);
-	const togglePathFind = (0, react.useCallback)(() => setShowPathFind((v) => !v), []);
-	const toggleHealthScore = (0, react.useCallback)(() => setShowHealthScore((v) => !v), []);
-	const toggleRules = (0, react.useCallback)(() => setShowRules((v) => !v), []);
-	const toggleHotspot = (0, react.useCallback)(() => setShowHotspot((v) => !v), []);
-	const toggleGodModule = (0, react.useCallback)(() => setShowGodModule((v) => !v), []);
+	const [state, dispatch] = (0, react.useReducer)(reducer, initialState);
+	const makeToggle = (0, react.useCallback)((key) => () => dispatch({
+		type: "toggle",
+		key
+	}), []);
+	const makeSet = (0, react.useCallback)((key) => (v) => dispatch({
+		type: "set",
+		key,
+		value: v
+	}), []);
+	const toggleSearch = (0, react.useCallback)(makeToggle("showSearch"), [makeToggle]);
+	const toggleCollapsed = (0, react.useCallback)(makeToggle("collapsed"), [makeToggle]);
+	const toggleCycles = (0, react.useCallback)(makeToggle("showCycles"), [makeToggle]);
+	const toggleCallChain = (0, react.useCallback)(makeToggle("showCallChain"), [makeToggle]);
+	const toggleImpact = (0, react.useCallback)(makeToggle("showImpact"), [makeToggle]);
+	const toggleInheritance = (0, react.useCallback)(makeToggle("showInheritance"), [makeToggle]);
+	const toggleMiniMap = (0, react.useCallback)(makeToggle("showMiniMap"), [makeToggle]);
+	const toggleImport = (0, react.useCallback)(makeToggle("showImport"), [makeToggle]);
+	const toggleLegend = (0, react.useCallback)(makeToggle("showLegend"), [makeToggle]);
+	const togglePathFind = (0, react.useCallback)(makeToggle("showPathFind"), [makeToggle]);
+	const toggleHealthScore = (0, react.useCallback)(makeToggle("showHealthScore"), [makeToggle]);
+	const toggleRules = (0, react.useCallback)(makeToggle("showRules"), [makeToggle]);
+	const toggleHotspot = (0, react.useCallback)(makeToggle("showHotspot"), [makeToggle]);
+	const toggleGodModule = (0, react.useCallback)(makeToggle("showGodModule"), [makeToggle]);
+	const setShowSearch = (0, react.useCallback)(makeSet("showSearch"), [makeSet]);
+	const setShowImport = (0, react.useCallback)(makeSet("showImport"), [makeSet]);
+	const setShowCallChain = (0, react.useCallback)(makeSet("showCallChain"), [makeSet]);
+	const setShowCycles = (0, react.useCallback)(makeSet("showCycles"), [makeSet]);
+	const setShowImpact = (0, react.useCallback)(makeSet("showImpact"), [makeSet]);
+	const setShowInheritance = (0, react.useCallback)(makeSet("showInheritance"), [makeSet]);
+	const setShowMiniMap = (0, react.useCallback)(makeSet("showMiniMap"), [makeSet]);
+	const setShowLegend = (0, react.useCallback)(makeSet("showLegend"), [makeSet]);
+	const setShowPathFind = (0, react.useCallback)(makeSet("showPathFind"), [makeSet]);
+	const setShowHealthScore = (0, react.useCallback)(makeSet("showHealthScore"), [makeSet]);
+	const setShowRules = (0, react.useCallback)(makeSet("showRules"), [makeSet]);
+	const setShowHotspot = (0, react.useCallback)(makeSet("showHotspot"), [makeSet]);
+	const setShowGodModule = (0, react.useCallback)(makeSet("showGodModule"), [makeSet]);
 	return {
-		showSearch,
-		collapsed,
-		showCycles,
-		showCallChain,
-		showImpact,
-		showInheritance,
-		showMiniMap,
-		showImport,
-		showLegend,
-		showPathFind,
-		showHealthScore,
-		showRules,
-		showHotspot,
-		showGodModule,
+		...state,
 		toggleSearch,
 		toggleCollapsed,
 		toggleCycles,
@@ -45074,7 +45173,16 @@ function usePanelKeyboard(layout$2, setLayout, rendererRef, handlers) {
 	useKeyboardShortcut("m", () => handlersRef.current.onToggleMiniMap(), { ctrl: true });
 	useKeyboardShortcut("l", () => {
 		const cur = layoutRef.current;
-		const next = cur === "cose" ? "dagre" : cur === "dagre" ? "circle" : cur === "circle" ? "grid" : "cose";
+		const order$2 = [
+			"cose",
+			"dagre",
+			"circle",
+			"grid",
+			"radial",
+			"tree"
+		];
+		const idx = order$2.indexOf(cur);
+		const next = order$2[(idx + 1) % order$2.length];
 		setLayoutRef.current(next);
 	}, { ctrl: true });
 	useKeyboardShortcut("i", () => handlersRef.current.onToggleImport(), { ctrl: true });
@@ -45886,13 +45994,15 @@ var GraphErrorBoundary = class extends react.Component {
 		super(props);
 		this.state = {
 			hasError: false,
-			error: null
+			error: null,
+			retryKey: 0
 		};
 	}
 	static getDerivedStateFromError(error$1) {
 		return {
 			hasError: true,
-			error: error$1
+			error: error$1,
+			retryKey: 0
 		};
 	}
 	componentDidCatch(error$1, errorInfo) {
@@ -45907,13 +46017,14 @@ var GraphErrorBoundary = class extends react.Component {
 			if (this.props.fallback) return this.props.fallback;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ErrorFallback, {
 				error: this.state.error,
-				onRetry: () => this.setState({
+				onRetry: () => this.setState((prev) => ({
 					hasError: false,
-					error: null
-				})
+					error: null,
+					retryKey: prev.retryKey + 1
+				}))
 			});
 		}
-		return this.props.children;
+		return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { children: this.props.children }, this.state.retryKey);
 	}
 };
 
@@ -45929,7 +46040,10 @@ const base = (size$1) => ({
 	strokeLinecap: "round",
 	strokeLinejoin: "round"
 });
-const GraphIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+function memo(Component$1) {
+	return react.default.memo(Component$1);
+}
+const GraphIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -45951,8 +46065,8 @@ const GraphIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, reac
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M5 8v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8" }),
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 12v4" })
 	]
-});
-const SearchIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+}));
+const SearchIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -45960,13 +46074,13 @@ const SearchIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, rea
 		cy: "11",
 		r: "7"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m21 21-4.3-4.3" })]
-});
-const ChainIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+}));
+const ChainIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" })]
-});
-const CycleIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+}));
+const CycleIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -45975,8 +46089,8 @@ const CycleIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, reac
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" }),
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 21v-5h5" })
 	]
-});
-const MapIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+}));
+const MapIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -45984,8 +46098,8 @@ const MapIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M9 4v14" }),
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M15 6v14" })
 	]
-});
-const RefreshIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+}));
+const RefreshIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -45994,8 +46108,8 @@ const RefreshIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, re
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" }),
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 21v-5h5" })
 	]
-});
-const SunIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+}));
+const SunIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -46003,13 +46117,13 @@ const SunIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_
 		cy: "12",
 		r: "4"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" })]
-});
-const MoonIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+}));
+const MoonIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" })
-});
-const DownloadIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+}));
+const DownloadIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -46017,23 +46131,23 @@ const DownloadIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, r
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M7 10l5 5 5-5" }),
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 15V3" })
 	]
-});
-const ChevronDownIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+}));
+const ChevronDownIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m6 9 6 6 6-6" })
-});
-const ChevronUpIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+}));
+const ChevronUpIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m18 15-6-6-6 6" })
-});
-const CloseIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+}));
+const CloseIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M18 6 6 18M6 6l12 12" })
-});
-const UploadIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+}));
+const UploadIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -46041,18 +46155,18 @@ const UploadIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, rea
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M17 8l-5-5-5 5" }),
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 3v12" })
 	]
-});
-const FolderIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+}));
+const FolderIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" })
-});
-const AlertIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+}));
+const AlertIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 9v4M12 17h.01" })]
-});
-const LayersIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+}));
+const LayersIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -46060,13 +46174,13 @@ const LayersIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, rea
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m3 12 9 5 9-5" }),
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m3 17 9 5 9-5" })
 	]
-});
-const ZapIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+}));
+const ZapIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M13 2 3 14h9l-1 8 10-12h-9l1-8Z" })
-});
-const WatchIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+}));
+const WatchIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -46078,23 +46192,23 @@ const WatchIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, reac
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 9v3l2 2" }),
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M9 1h6M9 23h6" })
 	]
-});
-const WorkspaceIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+}));
+const WorkspaceIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" })
-});
-const PlusIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+}));
+const PlusIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 5v14M5 12h14" })
-});
-const CheckIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+}));
+const CheckIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M20 6 9 17l-5-5" })
-});
-const CopyIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+}));
+const CopyIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
@@ -46104,8 +46218,8 @@ const CopyIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react
 		height: "13",
 		rx: "2"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" })]
-});
-const TreeIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+}));
+const TreeIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -46132,8 +46246,8 @@ const TreeIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react
 		}),
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 6v4M12 10H5v4M12 10h7v4M5 14v4M19 14v4" })
 	]
-});
-const PathIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+}));
+const PathIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -46149,23 +46263,23 @@ const PathIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react
 		}),
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M5 7v4a4 4 0 0 0 4 4h6a4 4 0 0 1 4 4" })
 	]
-});
-const HeartIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+}));
+const HeartIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z" })
-});
-const RuleIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+}));
+const RuleIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M9 11l3 3L22 4" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" })]
-});
-const FlameIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+}));
+const FlameIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5Z" })
-});
-const AlertCircleIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+}));
+const AlertCircleIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -46173,18 +46287,18 @@ const AlertCircleIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0
 		cy: "12",
 		r: "10"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 8v4M12 16h.01" })]
-});
-const ExpandIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+}));
+const ExpandIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 21H3M21 3H3M9 9l3-3 3 3M9 15l3 3 3-3" })
-});
-const ContractIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+}));
+const ContractIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 21H3M21 3H3M15 9l-3-3-3 3M15 15l-3 3-3-3" })
-});
-const FocusIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+}));
+const FocusIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -46192,17 +46306,17 @@ const FocusIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, reac
 		cy: "12",
 		r: "3"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4l1.4-1.4M17 7l1.4-1.4" })]
-});
-const UndoIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+}));
+const UndoIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 7v6h6" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 13a9 9 0 1 0 3-7.7L3 8" })]
-});
-const RedoIcon = ({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+}));
+const RedoIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 7v6h-6" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 13a9 9 0 1 1-3-7.7L21 8" })]
-});
+}));
 
 //#endregion
 //#region src/client/validators.ts
@@ -46714,6 +46828,7 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 	const [open, setOpen] = (0, react.useState)(false);
 	const [adding, setAdding] = (0, react.useState)(false);
 	const [newPath, setNewPath] = (0, react.useState)("");
+	const [, setTick] = (0, react.useState)(0);
 	const dropdownRef = (0, react.useRef)(null);
 	const inputRef = (0, react.useRef)(null);
 	const triggerRef = (0, react.useRef)(null);
@@ -46721,6 +46836,11 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 		top: 0,
 		left: 0
 	});
+	(0, react.useEffect)(() => {
+		if (!open) return;
+		const interval = setInterval(() => setTick((v) => v + 1), 3e4);
+		return () => clearInterval(interval);
+	}, [open]);
 	(0, react.useLayoutEffect)(() => {
 		if (!open || !triggerRef.current) return;
 		const rect = triggerRef.current.getBoundingClientRect();
@@ -47357,7 +47477,7 @@ function formatTime(ts) {
 	const d = new Date(ts);
 	return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
 }
-function StatusBar({ error: error$1, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount, totalEdgeCount: _totalEdgeCount, displayedNodeCount }) {
+function StatusBar({ error: error$1, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount, displayedNodeCount }) {
 	const t$1 = useT();
 	const statusDotClass = error$1 ? "status-dot error" : isLoading ? "status-dot loading" : "status-dot";
 	const statusText = error$1 ? t$1("state.error") : isLoading ? t$1("state.loading") : t$1("state.ready");
@@ -47417,8 +47537,8 @@ const TYPE_COLORS = {
 	function: "var(--cg-success)",
 	class: "var(--cg-accent-hover)",
 	variable: "var(--cg-warning)",
-	module: "#ec4899",
-	interface: "#14b8a6",
+	module: "var(--cg-accent)",
+	interface: "var(--cg-text-secondary)",
 	type: "var(--cg-text-tertiary)"
 };
 const EXPANDABLE_TYPES = new Set([
@@ -47880,12 +48000,24 @@ function EmptyState({ prerequisites, onImport, onScanWorkspace }) {
 function isEdgeTooltip(data$2) {
 	return "sourceLabel" in data$2;
 }
+function clampPosition(x$1, y$1) {
+	const offset = 15;
+	const tooltipWidth = 200;
+	const tooltipHeight = 80;
+	const maxX = window.innerWidth - tooltipWidth - offset;
+	const maxY = window.innerHeight - tooltipHeight - offset;
+	return {
+		left: Math.min(x$1 + offset, Math.max(offset, maxX)),
+		top: Math.min(y$1 + offset, Math.max(offset, maxY))
+	};
+}
 function GraphTooltip({ data: data$2 }) {
+	const pos = clampPosition(data$2.x, data$2.y);
 	if (isEdgeTooltip(data$2)) return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "cg-tooltip",
 		style: {
-			left: data$2.x + 15,
-			top: data$2.y + 15
+			left: pos.left,
+			top: pos.top
 		},
 		role: "tooltip",
 		children: [
@@ -47910,8 +48042,8 @@ function GraphTooltip({ data: data$2 }) {
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "cg-tooltip",
 		style: {
-			left: data$2.x + 15,
-			top: data$2.y + 15
+			left: pos.left,
+			top: pos.top
 		},
 		role: "tooltip",
 		children: [
@@ -47948,10 +48080,13 @@ function LoadingOverlay({ visible }) {
 //#region src/client/components/ErrorOverlay.tsx
 function ErrorOverlay({ error: error$1 }) {
 	if (!error$1) return null;
-	return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "error-overlay",
 		role: "alert",
-		children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", { children: ["⚠ ", error$1] })
+		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(AlertCircleIcon, {
+			size: 16,
+			className: "error-overlay-icon"
+		}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: error$1 })]
 	});
 }
 
@@ -47997,12 +48132,42 @@ const SHORTCUTS = [
 ];
 function KeyboardHelp({ visible, onClose }) {
 	const t$1 = useT();
+	const panelRef = (0, react.useRef)(null);
+	(0, react.useEffect)(() => {
+		if (!visible) return;
+		const panel = panelRef.current;
+		if (!panel) return;
+		const focusable = panel.querySelectorAll("button, [tabindex]");
+		const first = focusable[0];
+		first?.focus();
+		const onKeydown = (e) => {
+			if (e.key === "Escape") {
+				onClose();
+				return;
+			}
+			if (e.key === "Tab" && focusable.length > 0) {
+				const active = document.activeElement;
+				const lastIndex = focusable.length - 1;
+				const currentIndex = Array.from(focusable).indexOf(active);
+				if (e.shiftKey && currentIndex <= 0) {
+					e.preventDefault();
+					focusable[lastIndex]?.focus();
+				} else if (!e.shiftKey && currentIndex >= lastIndex) {
+					e.preventDefault();
+					focusable[0]?.focus();
+				}
+			}
+		};
+		panel.addEventListener("keydown", onKeydown);
+		return () => panel.removeEventListener("keydown", onKeydown);
+	}, [visible, onClose]);
 	if (!visible) return null;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 		className: "keyboard-help-overlay",
 		onClick: onClose,
 		children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 			className: "keyboard-help-panel",
+			ref: panelRef,
 			onClick: (e) => e.stopPropagation(),
 			children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: "keyboard-help-header",
@@ -48033,16 +48198,25 @@ function KeyboardHelp({ visible, onClose }) {
 //#region src/client/components/PathBar.tsx
 function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClose }) {
 	const t$1 = useT();
-	const rawNodes = useGraphStore((s) => s.rawNodes);
 	const pathStartId = useGraphStore((s) => s.pathStartId);
 	const pathEndId = useGraphStore((s) => s.pathEndId);
 	const setPathStart = useGraphStore((s) => s.setPathStart);
 	const setPathEnd = useGraphStore((s) => s.setPathEnd);
 	const setPathResult = useGraphStore((s) => s.setPathResult);
+	const startLabel = useGraphStore((s) => pathStartId ? s.rawNodes.find((n) => n.id === pathStartId)?.label ?? pathStartId : null);
+	const endLabel = useGraphStore((s) => pathEndId ? s.rawNodes.find((n) => n.id === pathEndId)?.label ?? pathEndId : null);
 	const [startQuery, setStartQuery] = (0, react.useState)("");
 	const [endQuery, setEndQuery] = (0, react.useState)("");
-	const startMatches = (0, react.useMemo)(() => startQuery ? rawNodes.filter((n) => n.label.toLowerCase().includes(startQuery.toLowerCase())).slice(0, 10) : [], [startQuery, rawNodes]);
-	const endMatches = (0, react.useMemo)(() => endQuery ? rawNodes.filter((n) => n.label.toLowerCase().includes(endQuery.toLowerCase())).slice(0, 10) : [], [endQuery, rawNodes]);
+	const startMatches = (0, react.useMemo)(() => {
+		if (!startQuery) return [];
+		const rawNodes = useGraphStore.getState().rawNodes;
+		return rawNodes.filter((n) => n.label.toLowerCase().includes(startQuery.toLowerCase())).slice(0, 10);
+	}, [startQuery]);
+	const endMatches = (0, react.useMemo)(() => {
+		if (!endQuery) return [];
+		const rawNodes = useGraphStore.getState().rawNodes;
+		return rawNodes.filter((n) => n.label.toLowerCase().includes(endQuery.toLowerCase())).slice(0, 10);
+	}, [endQuery]);
 	const handleFind = (0, react.useCallback)(() => {
 		if (pathStartId && pathEndId) onFindPath(pathStartId, pathEndId);
 	}, [
@@ -48124,7 +48298,7 @@ function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClose }) {
 						}),
 						pathStartId && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 							className: "path-selected",
-							children: rawNodes.find((n) => n.id === pathStartId)?.label ?? pathStartId
+							children: startLabel
 						})
 					]
 				}),
@@ -48164,7 +48338,7 @@ function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClose }) {
 						}),
 						pathEndId && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 							className: "path-selected",
-							children: rawNodes.find((n) => n.id === pathEndId)?.label ?? pathEndId
+							children: endLabel
 						})
 					]
 				}),
@@ -48439,7 +48613,7 @@ var ForbiddenEdgeDetector = class {
 		}
 		const visited = new Set();
 		const inStack = new Set();
-		const path = [];
+		const reportedCycles = new Set();
 		const enter = (start) => {
 			const frames = [{
 				id: start,
@@ -48448,26 +48622,28 @@ var ForbiddenEdgeDetector = class {
 			}];
 			visited.add(start);
 			inStack.add(start);
-			path.push(start);
 			while (frames.length > 0) {
 				const frame = frames[frames.length - 1];
 				if (frame.next >= frame.neighbors.length) {
 					inStack.delete(frame.id);
-					path.pop();
 					frames.pop();
 					continue;
 				}
 				const target = frame.neighbors[frame.next++];
-				if (inStack.has(target)) violations.push({
-					ruleId: rule.id,
-					nodeId: target,
-					message: `Circular dependency detected: ${target}`,
-					severity: rule.severity
-				});
-				else if (!visited.has(target)) {
+				if (inStack.has(target)) {
+					const cycleKey = [target, ...frames.slice(frames.findIndex((f) => f.id === target)).map((f) => f.id)].sort().join("→");
+					if (!reportedCycles.has(cycleKey)) {
+						reportedCycles.add(cycleKey);
+						violations.push({
+							ruleId: rule.id,
+							nodeId: NodeId(target),
+							message: `Circular dependency detected involving: ${cycleKey}`,
+							severity: rule.severity
+						});
+					}
+				} else if (!visited.has(target)) {
 					visited.add(target);
 					inStack.add(target);
-					path.push(target);
 					frames.push({
 						id: target,
 						neighbors: adjacency.get(target) ?? [],
@@ -48488,7 +48664,7 @@ var MaxIndegreeDetector = class {
 		for (const edge of edges) indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1);
 		for (const [nodeId, count] of indegree) if (count > threshold) violations.push({
 			ruleId: rule.id,
-			nodeId,
+			nodeId: NodeId(nodeId),
 			message: `Node ${nodeId} has indegree ${count} (max ${threshold})`,
 			severity: rule.severity
 		});
@@ -48503,7 +48679,7 @@ var MaxOutdegreeDetector = class {
 		for (const edge of edges) outdegree.set(edge.source, (outdegree.get(edge.source) ?? 0) + 1);
 		for (const [nodeId, count] of outdegree) if (count > threshold) violations.push({
 			ruleId: rule.id,
-			nodeId,
+			nodeId: NodeId(nodeId),
 			message: `Node ${nodeId} has outdegree ${count} (max ${threshold})`,
 			severity: rule.severity
 		});
@@ -48535,7 +48711,7 @@ var RequiredEdgeDetector = class {
 			if (sourceType && n.type !== sourceType) continue;
 			if (!hasEdge.has(n.id)) violations.push({
 				ruleId: rule.id,
-				nodeId: n.id,
+				nodeId: NodeId(n.id),
 				message: `Node ${n.label} is missing required ${requiredType} edge`,
 				severity: rule.severity
 			});
@@ -48550,7 +48726,10 @@ var CrossLayerCallDetector = class {
 		const callType = rule.params.edgeType ?? "call";
 		if (Object.keys(layerMap).length === 0) return violations;
 		const nodeLayer = new Map();
-		for (const n of nodes) for (const [layerName, patterns] of Object.entries(layerMap)) if (patterns.some((p$1) => n.filePath.includes(p$1) || n.label.includes(p$1))) {
+		for (const n of nodes) for (const [layerName, patterns] of Object.entries(layerMap)) if (patterns.some((p$1) => {
+			const seg = n.filePath.split(/[\\/]/);
+			return seg.includes(p$1) || n.label === p$1;
+		})) {
 			nodeLayer.set(n.id, layerName);
 			break;
 		}
@@ -48563,7 +48742,7 @@ var CrossLayerCallDetector = class {
 			if (!srcLayer || !tgtLayer) continue;
 			if (forbiddenPairs.has(`${srcLayer}->${tgtLayer}`)) violations.push({
 				ruleId: rule.id,
-				edgeId: edge.id,
+				edgeId: EdgeId(edge.id),
 				message: `Cross-layer call from ${srcLayer} to ${tgtLayer}`,
 				severity: rule.severity
 			});
@@ -48697,9 +48876,11 @@ function RuleConfigPanel({ violations, onCheckRules, onClose }) {
 function FocusModeBar({ focusNodeId, onExpand, onContract, onExit }) {
 	const t$1 = useT();
 	const focusDepth = useGraphStore((s) => s.focusDepth);
-	const rawNodes = useGraphStore((s) => s.rawNodes);
+	const focusLabel = useGraphStore((s) => {
+		if (!focusNodeId) return null;
+		return s.rawNodes.find((n) => n.id === focusNodeId)?.label ?? focusNodeId;
+	});
 	if (!focusNodeId) return null;
-	const focusLabel = rawNodes.find((n) => n.id === focusNodeId)?.label ?? focusNodeId;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "focus-mode-bar",
 		role: "region",
@@ -48757,8 +48938,12 @@ const EDGE_WEIGHTS = {
 	import: .5,
 	dependency: .3
 };
-const MAX_MODULE_DEPTH = 3;
+const DEFAULT_MAX_MODULE_DEPTH = 3;
 var HealthScorer = class {
+	maxModuleDepth;
+	constructor(maxModuleDepth) {
+		this.maxModuleDepth = maxModuleDepth ?? DEFAULT_MAX_MODULE_DEPTH;
+	}
 	calculate(nodes, edges) {
 		if (nodes.length === 0) return {
 			coupling: 0,
@@ -48767,10 +48952,11 @@ var HealthScorer = class {
 			modularity: 0,
 			overall: 0
 		};
-		const coupling = this.calculateCoupling(nodes, edges);
-		const cohesion = this.calculateCohesion(nodes, edges);
+		const moduleOfNode = this.buildModuleMap(nodes);
+		const coupling = this.calculateCoupling(nodes, edges, moduleOfNode);
+		const cohesion = this.calculateCohesion(nodes, edges, moduleOfNode);
 		const cyclicDependencyRate = this.calculateCyclicDependencyRate(nodes, edges);
-		const modularity = this.calculateModularity(nodes, edges);
+		const modularity = this.calculateModularity(nodes, edges, moduleOfNode);
 		const overall = Math.round(coupling * .25 + cohesion * .25 + cyclicDependencyRate * .3 + modularity * .2);
 		return {
 			coupling,
@@ -48804,9 +48990,8 @@ var HealthScorer = class {
 			}
 		];
 	}
-	calculateCoupling(nodes, edges) {
+	calculateCoupling(nodes, edges, moduleOfNode) {
 		if (edges.length === 0) return 100;
-		const moduleOfNode = this.buildModuleMap(nodes);
 		let weightedCrossModule = 0;
 		let totalWeight = 0;
 		for (const edge of edges) {
@@ -48820,23 +49005,31 @@ var HealthScorer = class {
 		const couplingRatio = weightedCrossModule / totalWeight;
 		return Math.round(Math.max(0, 100 - couplingRatio * 100));
 	}
-	calculateCohesion(nodes, edges) {
-		const moduleOfNode = this.buildModuleMap(nodes);
+	calculateCohesion(nodes, edges, moduleOfNode) {
 		const moduleEdges = new Map();
-		for (const edge of edges) {
-			const srcModule = moduleOfNode.get(edge.source);
-			const tgtModule = moduleOfNode.get(edge.target);
-			if (!srcModule) continue;
-			let stats = moduleEdges.get(srcModule);
+		const ensure = (m) => {
+			let stats = moduleEdges.get(m);
 			if (!stats) {
 				stats = {
 					internal: 0,
 					total: 0
 				};
-				moduleEdges.set(srcModule, stats);
+				moduleEdges.set(m, stats);
 			}
-			stats.total++;
-			if (srcModule === tgtModule) stats.internal++;
+			return stats;
+		};
+		for (const edge of edges) {
+			const srcModule = moduleOfNode.get(edge.source);
+			const tgtModule = moduleOfNode.get(edge.target);
+			if (!srcModule && !tgtModule) continue;
+			if (srcModule && tgtModule && srcModule === tgtModule) {
+				const stats = ensure(srcModule);
+				stats.total++;
+				stats.internal++;
+			} else {
+				if (srcModule) ensure(srcModule).total++;
+				if (tgtModule) ensure(tgtModule).total++;
+			}
 		}
 		if (moduleEdges.size === 0) return 50;
 		let totalCohesion = 0;
@@ -48850,10 +49043,16 @@ var HealthScorer = class {
 	}
 	calculateCyclicDependencyRate(nodes, edges) {
 		if (edges.length === 0) return 100;
+		const cycleEdgeTypes = [
+			"call",
+			"extend",
+			"implement"
+		];
 		const adjacency = new Map();
 		const nodeIds = new Set();
 		for (const node of nodes) nodeIds.add(node.id);
 		for (const edge of edges) {
+			if (!cycleEdgeTypes.includes(edge.type)) continue;
 			const list = adjacency.get(edge.source);
 			if (list) list.push(edge.target);
 			else adjacency.set(edge.source, [edge.target]);
@@ -48871,9 +49070,8 @@ var HealthScorer = class {
 		const cycleRate = cycleNodeCount / nodes.length;
 		return Math.round(Math.max(0, 100 - cycleRate * 100));
 	}
-	calculateModularity(nodes, edges) {
+	calculateModularity(nodes, edges, moduleOfNode) {
 		if (nodes.length === 0) return 0;
-		const moduleOfNode = this.buildModuleMap(nodes);
 		const modules$1 = new Set();
 		for (const m of moduleOfNode.values()) modules$1.add(m);
 		if (modules$1.size <= 1) return 50;
@@ -48900,7 +49098,7 @@ var HealthScorer = class {
 			const rawPath = node.filePath.replace(/^(file|import):/, "");
 			const parts = rawPath.split(/[\\/]/);
 			const dirParts = parts.length > 1 ? parts.slice(0, -1) : [rawPath];
-			const module$1 = dirParts.length > MAX_MODULE_DEPTH ? dirParts.slice(0, MAX_MODULE_DEPTH).join("/") : dirParts.join("/");
+			const module$1 = dirParts.length > this.maxModuleDepth ? dirParts.slice(0, this.maxModuleDepth).join("/") : dirParts.join("/");
 			moduleOfNode.set(node.id, module$1);
 		}
 		return moduleOfNode;
@@ -48912,29 +49110,52 @@ var HealthScorer = class {
 		const onStack = new Set();
 		const stack = [];
 		const sccs = [];
-		const strongConnect = (v) => {
-			indices.set(v, index);
-			lowLinks.set(v, index);
-			index++;
-			stack.push(v);
-			onStack.add(v);
-			const neighbors = adjacency.get(v) ?? [];
-			for (const w of neighbors) if (!indices.has(w)) {
-				strongConnect(w);
-				lowLinks.set(v, Math.min(lowLinks.get(v), lowLinks.get(w)));
-			} else if (onStack.has(w)) lowLinks.set(v, Math.min(lowLinks.get(v), indices.get(w)));
-			if (lowLinks.get(v) === indices.get(v)) {
-				const scc = [];
-				let w;
-				do {
-					w = stack.pop();
-					onStack.delete(w);
-					scc.push(w);
-				} while (w !== v);
-				sccs.push(scc);
+		for (const startId of nodeIds) {
+			if (indices.has(startId)) continue;
+			const callStack = [];
+			callStack.push({
+				v: startId,
+				neighborIdx: 0,
+				neighbors: adjacency.get(startId) ?? []
+			});
+			while (callStack.length > 0) {
+				const frame = callStack[callStack.length - 1];
+				const v = frame.v;
+				if (frame.neighborIdx === 0) {
+					indices.set(v, index);
+					lowLinks.set(v, index);
+					index++;
+					stack.push(v);
+					onStack.add(v);
+				}
+				if (frame.neighborIdx < frame.neighbors.length) {
+					const w = frame.neighbors[frame.neighborIdx];
+					frame.neighborIdx++;
+					if (!indices.has(w)) callStack.push({
+						v: w,
+						neighborIdx: 0,
+						neighbors: adjacency.get(w) ?? []
+					});
+					else if (onStack.has(w)) lowLinks.set(v, Math.min(lowLinks.get(v), indices.get(w)));
+				} else {
+					if (lowLinks.get(v) === indices.get(v)) {
+						const scc = [];
+						let w;
+						do {
+							w = stack.pop();
+							onStack.delete(w);
+							scc.push(w);
+						} while (w !== v);
+						sccs.push(scc);
+					}
+					callStack.pop();
+					if (callStack.length > 0) {
+						const parentFrame = callStack[callStack.length - 1];
+						lowLinks.set(parentFrame.v, Math.min(lowLinks.get(parentFrame.v), lowLinks.get(v)));
+					}
+				}
 			}
-		};
-		for (const id of nodeIds) if (!indices.has(id)) strongConnect(id);
+		}
 		return sccs;
 	}
 };
@@ -48953,7 +49174,7 @@ var HotspotAnalyzer = class {
 			if (!node || count < 5) continue;
 			const level = count >= 20 ? "high" : count >= 10 ? "medium" : "low";
 			results.push({
-				nodeId,
+				nodeId: NodeId(nodeId),
 				label: node.label,
 				indegree: count,
 				level
@@ -48963,11 +49184,17 @@ var HotspotAnalyzer = class {
 	}
 };
 var GodModuleDetector = class {
+	maxModuleDepth;
+	constructor(maxModuleDepth) {
+		this.maxModuleDepth = maxModuleDepth ?? 3;
+	}
 	detect(nodes, edges, threshold = 50) {
 		const moduleNodes = new Map();
 		for (const node of nodes) {
-			const parts = node.filePath.split(/[\\/]/);
-			const module$1 = parts.length > 1 ? parts.slice(0, -1).join("/") : node.filePath;
+			const rawPath = node.filePath.replace(/^(file|import):/, "");
+			const parts = rawPath.split(/[\\/]/);
+			const dirParts = parts.length > 1 ? parts.slice(0, -1) : [rawPath];
+			const module$1 = dirParts.length > this.maxModuleDepth ? dirParts.slice(0, this.maxModuleDepth).join("/") : dirParts.join("/");
 			let list = moduleNodes.get(module$1);
 			if (!list) {
 				list = [];
@@ -48980,7 +49207,9 @@ var GodModuleDetector = class {
 		for (const [module$1, nodeList] of moduleNodes) for (const n of nodeList) nodeToModule.set(n.id, module$1);
 		for (const edge of edges) {
 			const srcModule = nodeToModule.get(edge.source);
+			const tgtModule = nodeToModule.get(edge.target);
 			if (srcModule) moduleEdges.set(srcModule, (moduleEdges.get(srcModule) ?? 0) + 1);
+			if (tgtModule && tgtModule !== srcModule) moduleEdges.set(tgtModule, (moduleEdges.get(tgtModule) ?? 0) + 1);
 		}
 		const results = [];
 		for (const [modulePath, nodeList] of moduleNodes) {
@@ -49312,7 +49541,10 @@ function GraphPanelInner({ className = "" }) {
 			fetch("/api/v1/codegraph/dependencies", { signal: controller.signal }).then((r) => r.json()).then((data$2) => {
 				if (controller.signal.aborted) return;
 				if (data$2.nodes && data$2.nodes.length > 0) setGraphData(data$2.nodes, data$2.edges, data$2.metadata?.repoId || currentWorkspace);
-			}).catch(() => {}).finally(() => {
+			}).catch((e) => {
+				if (controller.signal.aborted) return;
+				setError(e instanceof Error ? e.message : "Failed to fetch dependencies");
+			}).finally(() => {
 				if (!controller.signal.aborted) setLoading(false);
 			});
 		} else {
@@ -49747,7 +49979,6 @@ function GraphPanelInner({ className = "" }) {
 				workspaceName: currentWorkspace,
 				truncated,
 				totalNodeCount,
-				totalEdgeCount,
 				displayedNodeCount: nodes.length
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {

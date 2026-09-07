@@ -1,4 +1,5 @@
-import type { GraphNode, GraphEdge, NodeId, EdgeId } from '../../types/index.ts';
+import type { GraphNode, GraphEdge } from '../../types/index.ts';
+import { NodeId, EdgeId } from '../../types/index.ts';
 
 export type RuleType = 'forbidden-edge' | 'required-edge' | 'max-indegree' | 'max-outdegree' | 'cross-layer-call';
 
@@ -116,7 +117,7 @@ class ForbiddenEdgeDetector implements RuleDetector {
 
     const visited = new Set<string>();
     const inStack = new Set<string>();
-    const path: string[] = [];
+    const reportedCycles = new Set<string>();
 
     const enter = (start: string): void => {
       const frames: Array<{ id: string; neighbors: string[]; next: number }> = [
@@ -124,28 +125,29 @@ class ForbiddenEdgeDetector implements RuleDetector {
       ];
       visited.add(start);
       inStack.add(start);
-      path.push(start);
 
       while (frames.length > 0) {
         const frame = frames[frames.length - 1]!;
         if (frame.next >= frame.neighbors.length) {
           inStack.delete(frame.id);
-          path.pop();
           frames.pop();
           continue;
         }
         const target = frame.neighbors[frame.next++]!;
         if (inStack.has(target)) {
-          violations.push({
-            ruleId: rule.id,
-            nodeId: target as NodeId,
-            message: `Circular dependency detected: ${target}`,
-            severity: rule.severity,
-          });
+          const cycleKey = [target, ...frames.slice(frames.findIndex(f => f.id === target)).map(f => f.id)].sort().join('→');
+          if (!reportedCycles.has(cycleKey)) {
+            reportedCycles.add(cycleKey);
+            violations.push({
+              ruleId: rule.id,
+              nodeId: NodeId(target),
+              message: `Circular dependency detected involving: ${cycleKey}`,
+              severity: rule.severity,
+            });
+          }
         } else if (!visited.has(target)) {
           visited.add(target);
           inStack.add(target);
-          path.push(target);
           frames.push({ id: target, neighbors: adjacency.get(target) ?? [], next: 0 });
         }
       }
@@ -173,7 +175,7 @@ class MaxIndegreeDetector implements RuleDetector {
       if (count > threshold) {
         violations.push({
           ruleId: rule.id,
-          nodeId: nodeId as NodeId,
+          nodeId: NodeId(nodeId),
           message: `Node ${nodeId} has indegree ${count} (max ${threshold})`,
           severity: rule.severity,
         });
@@ -198,7 +200,7 @@ class MaxOutdegreeDetector implements RuleDetector {
       if (count > threshold) {
         violations.push({
           ruleId: rule.id,
-          nodeId: nodeId as NodeId,
+          nodeId: NodeId(nodeId),
           message: `Node ${nodeId} has outdegree ${count} (max ${threshold})`,
           severity: rule.severity,
         });
@@ -238,7 +240,7 @@ class RequiredEdgeDetector implements RuleDetector {
       if (!hasEdge.has(n.id)) {
         violations.push({
           ruleId: rule.id,
-          nodeId: n.id as NodeId,
+          nodeId: NodeId(n.id),
           message: `Node ${n.label} is missing required ${requiredType} edge`,
           severity: rule.severity,
         });
@@ -260,7 +262,10 @@ class CrossLayerCallDetector implements RuleDetector {
     const nodeLayer = new Map<string, string>();
     for (const n of nodes) {
       for (const [layerName, patterns] of Object.entries(layerMap)) {
-        if (patterns.some((p) => n.filePath.includes(p) || n.label.includes(p))) {
+        if (patterns.some((p) => {
+          const seg = n.filePath.split(/[\\/]/);
+          return seg.includes(p) || n.label === p;
+        })) {
           nodeLayer.set(n.id, layerName);
           break;
         }
@@ -282,7 +287,7 @@ class CrossLayerCallDetector implements RuleDetector {
       if (forbiddenPairs.has(`${srcLayer}->${tgtLayer}`)) {
         violations.push({
           ruleId: rule.id,
-          edgeId: edge.id as EdgeId,
+          edgeId: EdgeId(edge.id),
           message: `Cross-layer call from ${srcLayer} to ${tgtLayer}`,
           severity: rule.severity,
         });

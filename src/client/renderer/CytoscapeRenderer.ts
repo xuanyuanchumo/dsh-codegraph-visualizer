@@ -11,7 +11,13 @@ import { InteractionController, type InteractionCallbacks } from './InteractionC
 import { PathFinder, type PathResult } from './PathFinder.ts';
 import { VirtualViewportController } from './VirtualViewportController.ts';
 
-cytoscape.use(dagre);
+let dagreRegistered = false;
+function ensureDagreRegistered(): void {
+  if (!dagreRegistered) {
+    cytoscape.use(dagre);
+    dagreRegistered = true;
+  }
+}
 
 export interface CytoscapeRendererOptions extends InteractionCallbacks {
   container: HTMLElement;
@@ -36,35 +42,58 @@ export class CytoscapeRenderer implements IRenderer {
 
   init(): void {
     if (this.cy) return;
+    ensureDagreRegistered();
 
-    this.cy = cytoscape({
-      container: this.options.container,
-      minZoom: 0.1,
-      maxZoom: 3,
-      style: [],
-      layout: { name: 'cose' },
-      headless: false,
-    });
+    try {
+      this.cy = cytoscape({
+        container: this.options.container,
+        minZoom: 0.1,
+        maxZoom: 3,
+        style: [],
+        layout: { name: 'cose' },
+        headless: false,
+      });
 
-    const cy = this.cy;
-    this.styleCtrl = new StyleController(cy, this.options.theme);
-    cy.style().fromJson(this.styleCtrl.getStylesheet()).update();
+      const cy = this.cy;
+      this.styleCtrl = new StyleController(cy, this.options.theme);
+      cy.style().fromJson(this.styleCtrl.getStylesheet()).update();
 
-    this.layoutCtrl = new LayoutController(cy);
-    this.highlightCtrl = new HighlightController(cy);
-    this.viewportCtrl = new ViewportController(cy);
-    this.dataCtrl = new DataController(cy);
-    this.interactionCtrl = new InteractionController(cy, {
-      onNodeTap: this.options.onNodeTap ?? (() => {}),
-      onEdgeTap: this.options.onEdgeTap ?? (() => {}),
-      onNodeDoubleTap: this.options.onNodeDoubleTap ?? (() => {}),
-      onNodeHover: this.options.onNodeHover ?? (() => {}),
-      onNodeHoverOut: this.options.onNodeHoverOut ?? (() => {}),
-      onEdgeHover: this.options.onEdgeHover ?? (() => {}),
-      onEdgeHoverOut: this.options.onEdgeHoverOut ?? (() => {}),
-    });
-    this.pathFinder = new PathFinder(cy);
-    this.virtualViewportCtrl = new VirtualViewportController(cy);
+      this.layoutCtrl = new LayoutController(cy);
+      this.highlightCtrl = new HighlightController(cy);
+      this.viewportCtrl = new ViewportController(cy);
+      this.dataCtrl = new DataController(cy);
+      this.interactionCtrl = new InteractionController(cy, {
+        onNodeTap: this.options.onNodeTap ?? (() => {}),
+        onEdgeTap: this.options.onEdgeTap ?? (() => {}),
+        onNodeDoubleTap: this.options.onNodeDoubleTap ?? (() => {}),
+        onNodeHover: this.options.onNodeHover ?? (() => {}),
+        onNodeHoverOut: this.options.onNodeHoverOut ?? (() => {}),
+        onEdgeHover: this.options.onEdgeHover ?? (() => {}),
+        onEdgeHoverOut: this.options.onEdgeHoverOut ?? (() => {}),
+      });
+      this.pathFinder = new PathFinder(cy);
+      this.virtualViewportCtrl = new VirtualViewportController(cy);
+    } catch (err) {
+      this.pathFinder?.destroy();
+      this.virtualViewportCtrl?.destroy();
+      this.interactionCtrl?.destroy();
+      this.highlightCtrl?.destroy();
+      this.viewportCtrl?.destroy();
+      this.layoutCtrl?.destroy();
+      this.dataCtrl?.destroy();
+      this.styleCtrl?.destroy();
+      this.cy?.destroy();
+      this.cy = null;
+      this.pathFinder = null;
+      this.virtualViewportCtrl = null;
+      this.interactionCtrl = null;
+      this.highlightCtrl = null;
+      this.viewportCtrl = null;
+      this.layoutCtrl = null;
+      this.dataCtrl = null;
+      this.styleCtrl = null;
+      throw err;
+    }
   }
 
   updateData(nodes: GraphNode[], edges: GraphEdge[]): void {
@@ -213,9 +242,14 @@ export class CytoscapeRenderer implements IRenderer {
   }
 
   destroy(): void {
+    this.interactionCtrl?.destroy();
     this.layoutCtrl?.destroy();
     this.virtualViewportCtrl?.destroy();
     this.dataCtrl?.destroy();
+    this.highlightCtrl?.destroy();
+    this.viewportCtrl?.destroy();
+    this.styleCtrl?.destroy();
+    this.pathFinder?.destroy();
     this.cy?.destroy();
     this.cy = null;
     this.layoutCtrl = null;

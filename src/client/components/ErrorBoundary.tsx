@@ -14,6 +14,7 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  retryKey: number;
 }
 
 function ErrorFallback({ error, onRetry }: { error: Error | null; onRetry: () => void }) {
@@ -32,11 +33,11 @@ function ErrorFallback({ error, onRetry }: { error: Error | null; onRetry: () =>
 export class GraphErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, retryKey: 0 };
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return { hasError: true, error, retryKey: 0 };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
@@ -53,11 +54,11 @@ export class GraphErrorBoundary extends Component<Props, State> {
       return (
         <ErrorFallback
           error={this.state.error}
-          onRetry={() => this.setState({ hasError: false, error: null })}
+          onRetry={() => this.setState((prev) => ({ hasError: false, error: null, retryKey: prev.retryKey + 1 }))}
         />
       );
     }
 
-    return this.props.children;
+    return <div key={this.state.retryKey}>{this.props.children}</div>;
   }
 }

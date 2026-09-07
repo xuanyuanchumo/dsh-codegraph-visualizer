@@ -13,11 +13,12 @@ interface FocusModeBarProps {
 export function FocusModeBar({ focusNodeId, onExpand, onContract, onExit }: FocusModeBarProps) {
   const t = useT();
   const focusDepth = useGraphStore((s) => s.focusDepth);
-  const rawNodes = useGraphStore((s) => s.rawNodes);
+  const focusLabel = useGraphStore((s) => {
+    if (!focusNodeId) return null;
+    return s.rawNodes.find((n) => n.id === focusNodeId)?.label ?? focusNodeId;
+  });
 
   if (!focusNodeId) return null;
-
-  const focusLabel = rawNodes.find((n) => n.id === focusNodeId)?.label ?? focusNodeId;
 
   return (
     <div className="focus-mode-bar" role="region" aria-label={t('focus.title')}>

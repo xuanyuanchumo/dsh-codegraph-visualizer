@@ -544,7 +544,7 @@ describe('LensAdapter', () => {
       return null;
     };
     const result = await adapter.fetchData('test-repo', invoke);
-    expect(result.edges[0]?.id).toBe('alpha->beta');
+    expect(result.edges[0]?.id).toBe('alpha->beta:call');
   });
 
   it('should set parentId for non-module symbols when file node exists', async () => {

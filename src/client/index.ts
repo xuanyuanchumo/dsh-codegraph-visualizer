@@ -160,16 +160,19 @@ export function apply(ctx: Context) {
       }
       log.info('auto-import requested', { path: workspacePath });
       store.setLoading(true);
-      const result = await requestScan(workspacePath);
-      if (result && result.success && result.nodes.length > 0) {
-        const validated = validateGraphData(result);
-        if (validated) {
-          const s2 = useGraphStore.getState();
-          s2.setGraphData(validated.nodes, validated.edges, workspacePath, validated.metadata);
-          log.info('graph data received', { path: workspacePath, nodes: validated.nodes.length, edges: validated.edges.length });
+      try {
+        const result = await requestScan(workspacePath);
+        if (result && result.success && result.nodes.length > 0) {
+          const validated = validateGraphData(result);
+          if (validated) {
+            const s2 = useGraphStore.getState();
+            s2.setGraphData(validated.nodes, validated.edges, workspacePath, validated.metadata);
+            log.info('graph data received', { path: workspacePath, nodes: validated.nodes.length, edges: validated.edges.length });
+          }
         }
+      } finally {
+        useGraphStore.getState().setLoading(false);
       }
-      useGraphStore.getState().setLoading(false);
     };
 
     if (store.nodes.length === 0 && !store.isLoading) { getWorkspaceAndScan(); }

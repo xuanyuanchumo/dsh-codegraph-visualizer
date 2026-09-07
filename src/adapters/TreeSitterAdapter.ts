@@ -139,6 +139,15 @@ export class TreeSitterAdapter {
     const edges: GraphEdge[] = [];
     const visited = new Set<string>();
 
+    const extractName = (node: TreeSitterNode): string => {
+      const nameNode = node.childForFieldName?.('name') ||
+        node.children?.find((c: TreeSitterNode) => c.type === 'identifier' || c.type === 'property_identifier');
+      return nameNode ? nameNode.text : `<${node.type}>`;
+    };
+
+    const makeId = (node: TreeSitterNode, label: string): string =>
+      `${filePath}:${label}:${node.startPosition.row}`;
+
     const walk = (node: TreeSitterNode, parentId?: string): void => {
       if (!node) return;
       const nodeType = node.type;
@@ -154,10 +163,11 @@ export class TreeSitterAdapter {
         graphType = 'module';
       }
 
+      let currentParentId: string | undefined = parentId;
+
       if (graphType) {
-        const nameNode = node.childForFieldName?.('name') || node.children?.find((c: TreeSitterNode) => c.type === 'identifier' || c.type === 'property_identifier');
-        const label = nameNode ? nameNode.text : `<${nodeType}>`;
-        const id = `${filePath}:${label}:${node.startPosition.row}`;
+        const label = extractName(node);
+        const id = makeId(node, label);
 
         if (!visited.has(id)) {
           visited.add(id);
@@ -181,11 +191,12 @@ export class TreeSitterAdapter {
             });
           }
         }
+        currentParentId = id;
       }
 
       for (let i = 0; i < (node.childCount || 0); i++) {
         const child = node.child(i);
-        if (child) walk(child, graphType ? `${filePath}:${node.childForFieldName?.('name')?.text || `<${nodeType}>`}:${node.startPosition.row}` : parentId);
+        if (child) walk(child, currentParentId);
       }
     };
 
@@ -194,6 +205,7 @@ export class TreeSitterAdapter {
   }
 
   destroy(): void {
+    this.parser?.delete();
     this.parser = null;
     this.loadedLanguages.clear();
   }

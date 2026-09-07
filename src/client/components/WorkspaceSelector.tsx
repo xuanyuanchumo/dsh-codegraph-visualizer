@@ -34,10 +34,17 @@ export function WorkspaceSelector({
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newPath, setNewPath] = useState('');
+  const [, setTick] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    if (!open) return;
+    const interval = setInterval(() => setTick((v) => v + 1), 30_000);
+    return () => clearInterval(interval);
+  }, [open]);
 
   useLayoutEffect(() => {
     if (!open || !triggerRef.current) return;

@@ -98,8 +98,17 @@ export function useHistory() {
   }, [updateFlags]);
 
   useEffect(() => {
-    const unsub = useGraphStore.subscribe(() => {
-      pushHistory();
+    const unsub = useGraphStore.subscribe((state, prevState) => {
+      if (
+        state.layout !== prevState.layout ||
+        state.filterType !== prevState.filterType ||
+        state.graphType !== prevState.graphType ||
+        state.clusterLevel !== prevState.clusterLevel ||
+        state.selectedNodeId !== prevState.selectedNodeId ||
+        state.expandedNodeIds !== prevState.expandedNodeIds
+      ) {
+        pushHistory();
+      }
     });
     return unsub;
   }, [pushHistory]);

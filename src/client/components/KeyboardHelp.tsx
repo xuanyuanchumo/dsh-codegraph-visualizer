@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useT } from '../i18n/index.ts';
 
 interface KeyboardHelpProps {
@@ -20,10 +20,42 @@ const SHORTCUTS = [
 
 export function KeyboardHelp({ visible, onClose }: KeyboardHelpProps) {
   const t = useT();
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    const focusable = panel.querySelectorAll<HTMLElement>('button, [tabindex]');
+    const first = focusable[0];
+    first?.focus();
+
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (e.key === 'Tab' && focusable.length > 0) {
+        const active = document.activeElement;
+        const lastIndex = focusable.length - 1;
+        const currentIndex = Array.from(focusable).indexOf(active as HTMLElement);
+        if (e.shiftKey && currentIndex <= 0) {
+          e.preventDefault();
+          focusable[lastIndex]?.focus();
+        } else if (!e.shiftKey && currentIndex >= lastIndex) {
+          e.preventDefault();
+          focusable[0]?.focus();
+        }
+      }
+    };
+    panel.addEventListener('keydown', onKeydown);
+    return () => panel.removeEventListener('keydown', onKeydown);
+  }, [visible, onClose]);
+
   if (!visible) return null;
   return (
     <div className="keyboard-help-overlay" onClick={onClose}>
-      <div className="keyboard-help-panel" onClick={(e) => e.stopPropagation()}>
+      <div className="keyboard-help-panel" ref={panelRef} onClick={(e) => e.stopPropagation()}>
         <div className="keyboard-help-header">
           <span>{t('shortcut.title')}</span>
           <button className="keyboard-help-close" onClick={onClose} aria-label={t('shortcut.close')}>×</button>

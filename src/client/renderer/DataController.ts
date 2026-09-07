@@ -1,6 +1,8 @@
 import type { Core, NodeDataDefinition } from 'cytoscape';
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import type { ClusterNode, ClusterEdge } from '../store/graphStore.ts';
+import { getThemeColors } from './styles/ThemeStylesheet.ts';
+import type { ThemeType } from './IRenderer.ts';
 
 export class DataController {
   private cy: Core;
@@ -85,8 +87,9 @@ export class DataController {
     const firstBatchNodes = nodesToAdd.slice(0, BATCH_SIZE);
     const firstBatchNodeIds = new Set(firstBatchNodes.map((n) => n.id));
     const firstBatchEdges = edgesToAdd.filter((e) => firstBatchNodeIds.has(e.source) && firstBatchNodeIds.has(e.target));
+    const firstBatchEdgeIds = new Set(firstBatchEdges.map((e) => e.id));
     const remainingNodes = nodesToAdd.slice(BATCH_SIZE);
-    const remainingEdges = edgesToAdd.filter((e) => !firstBatchEdges.includes(e));
+    const remainingEdges = edgesToAdd.filter((e) => !firstBatchEdgeIds.has(e.id));
 
     this.cy.batch(() => {
       for (const n of firstBatchNodes) this.addNode(n);
@@ -98,28 +101,29 @@ export class DataController {
   }
 
   private addNode(n: GraphNode): void {
-    const cn = n as ClusterNode;
+    const isCluster = 'isCluster' in n && n.isCluster === true;
     this.cy.add({
       group: 'nodes',
       data: {
         id: n.id, label: n.label, type: n.type,
         filePath: n.filePath, lineNumber: n.lineNumber,
         parent: n.parentId ?? undefined,
-        isCluster: cn.isCluster ?? false,
-        childCount: cn.childCount ?? 0,
+        isCluster,
+        childCount: isCluster ? (n as ClusterNode).childCount : 0,
       } as NodeDataDefinition,
     });
   }
 
   private addEdge(e: GraphEdge): void {
-    const ce = e as ClusterEdge;
+    const isCluster = 'isCluster' in e && e.isCluster === true;
+    const ce = isCluster ? (e as ClusterEdge) : null;
     this.cy.add({
       group: 'edges',
       data: {
         id: e.id, source: e.source, target: e.target, type: e.type,
-        isCluster: ce.isCluster ?? false,
-        aggregatedCount: ce.aggregatedCount ?? 0,
-        label: ce.isCluster ? `${ce.aggregatedCount} deps` : '',
+        isCluster,
+        aggregatedCount: ce?.aggregatedCount ?? 0,
+        label: isCluster ? `${ce?.aggregatedCount ?? 0} deps` : '',
       },
     });
   }
@@ -135,8 +139,9 @@ export class DataController {
       const batchNodes = nodes.slice(0, BATCH_SIZE);
       const batchNodeIds = new Set(batchNodes.map((n) => n.id));
       const batchEdges = edges.filter((e) => batchNodeIds.has(e.source) && batchNodeIds.has(e.target));
+      const batchEdgeIds = new Set(batchEdges.map((e) => e.id));
       const leftoverNodes = nodes.slice(BATCH_SIZE);
-      const leftoverEdges = edges.filter((e) => !batchEdges.includes(e));
+      const leftoverEdges = edges.filter((e) => !batchEdgeIds.has(e.id));
 
       this.cy.batch(() => {
         for (const n of batchNodes) this.addNode(n);
@@ -271,10 +276,27 @@ export class DataController {
     return this.cy.png({ full: true, scale: 2 });
   }
 
-  exportSVG(): string | null {
+  exportSVG(theme: ThemeType = 'dark'): string | null {
     const nodes = this.cy.nodes();
     const edges = this.cy.edges();
     if (nodes.length === 0) return null;
+
+    const colors = getThemeColors(theme);
+    const nodeColors: Record<string, string> = {
+      function: colors.nodeFunction,
+      class: colors.nodeClass,
+      variable: colors.nodeVariable,
+      module: colors.nodeModule,
+      interface: colors.nodeInterface,
+      type: colors.nodeDefault,
+    };
+    const edgeColors: Record<string, string> = {
+      call: colors.edgeCall,
+      extend: colors.edgeExtend,
+      implement: colors.edgeImplement,
+      import: colors.edgeImport,
+      dependency: colors.edgeDependency,
+    };
 
     const bbox = this.cy.elements().boundingBox();
     const w = Math.ceil(bbox.w) + 160;
@@ -285,16 +307,11 @@ export class DataController {
     const parts: string[] = [];
     parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`);
 
-    const nodeColors: Record<string, string> = {
-      function: '#4CAF50', class: '#2196F3', variable: '#FF9800',
-      module: '#9C27B0', interface: '#00BCD4', type: '#E91E63',
-    };
-
     edges.forEach((edge) => {
       const srcPos = edge.source().position();
       const tgtPos = edge.target().position();
       const edgeType = edge.data('type') as string;
-      const color = edgeType === 'call' ? '#666' : edgeType === 'extend' ? '#E91E63' : '#999';
+      const color = edgeColors[edgeType] ?? colors.edgeDefault;
       parts.push(`<line x1="${srcPos.x + offsetX}" y1="${srcPos.y + offsetY}" x2="${tgtPos.x + offsetX}" y2="${tgtPos.y + offsetY}" stroke="${color}" stroke-width="1" opacity="0.5"/>`);
     });
 
@@ -302,10 +319,10 @@ export class DataController {
       const pos = node.position();
       const nodeType = node.data('type') as string;
       const label = node.data('label') as string;
-      const color = nodeColors[nodeType] ?? '#757575';
+      const color = nodeColors[nodeType] ?? colors.nodeDefault;
       const r = 12;
       parts.push(`<circle cx="${pos.x + offsetX}" cy="${pos.y + offsetY}" r="${r}" fill="${color}" opacity="0.8"/>`);
-      parts.push(`<text x="${pos.x + offsetX}" y="${pos.y + offsetY + 4}" font-size="9" text-anchor="middle" fill="#333">${escapeXml(label)}</text>`);
+      parts.push(`<text x="${pos.x + offsetX}" y="${pos.y + offsetY + 4}" font-size="9" text-anchor="middle" fill="${colors.text}">${escapeXml(label)}</text>`);
     });
 
     parts.push('</svg>');
@@ -318,6 +335,8 @@ export class DataController {
     this.batchQueue = null;
     this.currentNodes.clear();
     this.currentEdges.clear();
+    this.rawNodesMap.clear();
+    this.lastAddedNodeIds.clear();
   }
 }
 
