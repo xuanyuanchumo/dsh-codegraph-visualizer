@@ -49690,7 +49690,7 @@ function GraphPanelInner({ className = "" }) {
 			}).then((data$2) => {
 				if (controller.signal.aborted) return;
 				if (data$2.nodes && data$2.nodes.length > 0) setGraphData(data$2.nodes, data$2.edges, data$2.metadata?.repoId || currentWorkspace);
-			}).catch((e) => {
+			}).catch(() => {
 				if (!controller.signal.aborted) setError(t$1("error.title"));
 			}).finally(() => {
 				if (!controller.signal.aborted) setLoading(false);

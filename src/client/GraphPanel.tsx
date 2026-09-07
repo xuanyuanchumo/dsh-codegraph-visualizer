@@ -367,7 +367,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
             setGraphData(data.nodes, data.edges, data.metadata?.repoId || currentWorkspace);
           }
         })
-        .catch((e) => { if (!controller.signal.aborted) setError(t('error.title')); })
+        .catch(() => { if (!controller.signal.aborted) setError(t('error.title')); })
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     } else {
       depsFetchAbortRef.current?.abort();

@@ -149,13 +149,8 @@ function extractBooleanField(obj: Record<string, unknown>, field: string): boole
   return typeof v === 'boolean' ? v : undefined;
 }
 
-function isSafePath(p: string): boolean {
-  if (!p || p.includes('\0')) return false;
-  if (p.includes('..')) return false;
-  return true;
-}
 
-const GIT_REF_PATTERN = /^[a-zA-Z0-9._\/-]+$/;
+const GIT_REF_PATTERN = /^[a-zA-Z0-9._/-]+$/;
 
 function isSafeGitRef(ref: string): boolean {
   return GIT_REF_PATTERN.test(ref);
@@ -398,7 +393,7 @@ export function registerRoutes(deps: RouteDeps): void {
         const watchPath = path && path !== '.' ? path : findWorkspacePath(ctx);
         ctx.emit('codegraph/watch/toggle', { enabled: !!enabled, path: watchPath, timestamp: Date.now() });
         sendJson(res, 200, { success: true, enabled: !!enabled, path: watchPath });
-      } catch (e) {
+      } catch {
         sendError(res, 500, 'Internal server error');
       }
     },

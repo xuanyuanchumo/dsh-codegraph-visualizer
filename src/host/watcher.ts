@@ -112,7 +112,7 @@ export function registerEventListeners(ctx: Context, invokeUpstream: (tool: stri
       if (success) {
         await scanAndPush(ctx, invokeUpstream, event.path);
       }
-    } catch (e) {
+    } catch {
       ctx.emit('codegraph/graph/init-result', {
         success: false,
         path: event.path,

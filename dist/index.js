@@ -2970,7 +2970,7 @@ function extractBooleanField(obj, field) {
 	const v = obj[field];
 	return typeof v === "boolean" ? v : void 0;
 }
-const GIT_REF_PATTERN = /^[a-zA-Z0-9._\/-]+$/;
+const GIT_REF_PATTERN = /^[a-zA-Z0-9._/-]+$/;
 function isSafeGitRef(ref) {
 	return GIT_REF_PATTERN.test(ref);
 }
@@ -3229,7 +3229,7 @@ function registerRoutes(deps) {
 					enabled: !!enabled,
 					path: watchPath
 				});
-			} catch (e) {
+			} catch {
 				sendError(res, 500, "Internal server error");
 			}
 		}
@@ -3500,7 +3500,7 @@ function registerEventListeners(ctx, invokeUpstream) {
 				timestamp: Date.now()
 			});
 			if (success) await scanAndPush(ctx, invokeUpstream, event.path);
-		} catch (e) {
+		} catch {
 			ctx.emit("codegraph/graph/init-result", {
 				success: false,
 				path: event.path,
