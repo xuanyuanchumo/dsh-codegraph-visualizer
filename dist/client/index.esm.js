@@ -39751,12 +39751,12 @@ var LayoutController = class {
 		return {
 			nodeRepulse: s * s * 10,
 			idealEdgeLength: s * 2,
-			rankSep: Math.max(150, s * 2),
-			edgeSep: Math.max(60, s),
-			nodeSep: Math.max(80, s * 1.5),
+			rankSep: Math.min(Math.max(100, s * 1.2), 200),
+			edgeSep: Math.min(Math.max(40, s * .6), 80),
+			nodeSep: Math.min(Math.max(30, s * .5), 60),
 			padding: Math.max(40, Math.min(120, containerMinDim * .05)),
 			minNodeSpacing: Math.max(20, s * .3),
-			spacingFactor: nodeCount < 100 ? 1.5 : nodeCount < 300 ? 1.2 : 1,
+			spacingFactor: nodeCount < 100 ? 1.5 : nodeCount < D300 ? 1.2 : 1,
 			minGap: Math.max(30, s * .4),
 			incrementalRadius: Math.max(100, s * 1.5)
 		};
@@ -39808,7 +39808,7 @@ var LayoutController = class {
 			case "radial": return {
 				name: "concentric",
 				fit: true,
-				animate,
+				animate: false,
 				padding: sp.padding,
 				minNodeSpacing: sp.minNodeSpacing,
 				concentric: (n) => n.degree(),
@@ -39822,12 +39822,11 @@ var LayoutController = class {
 				return {
 					name: "breadthfirst",
 					fit: true,
-					animate,
+					animate: false,
 					padding: sp.padding,
 					directed: true,
 					spacingFactor: sp.spacingFactor,
-					roots,
-					maximalAdjustments: 5
+					roots
 				};
 			}
 			default: {

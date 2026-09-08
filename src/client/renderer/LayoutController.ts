@@ -252,12 +252,12 @@ export class LayoutController {
     return {
       nodeRepulse: s * s * 10,
       idealEdgeLength: s * 2,
-      rankSep: Math.max(150, s * 2),
-      edgeSep: Math.max(60, s),
-      nodeSep: Math.max(80, s * 1.5),
+      rankSep: Math.min(Math.max(100, s * 1.2), 200),
+      edgeSep: Math.min(Math.max(40, s * 0.6), 80),
+      nodeSep: Math.min(Math.max(30, s * 0.5), 60),
       padding: Math.max(40, Math.min(120, containerMinDim * 0.05)),
       minNodeSpacing: Math.max(20, s * 0.3),
-      spacingFactor: nodeCount < 100 ? 1.5 : nodeCount < 300 ? 1.2 : 1.0,
+      spacingFactor: nodeCount < 100 ? 1.5 : nodeCount < D300 ? 1.2 : 1.0,
       minGap: Math.max(30, s * 0.4),
       incrementalRadius: Math.max(100, s * 1.5),
     };
@@ -293,7 +293,7 @@ export class LayoutController {
         } as LayoutOptions;
       case 'radial':
         return {
-          name: 'concentric', fit: true, animate,
+          name: 'concentric', fit: true, animate: false,
           padding: sp.padding, minNodeSpacing: sp.minNodeSpacing,
           concentric: (n: { degree: () => number }) => n.degree(),
           levelWidth: () => 2,
@@ -307,10 +307,9 @@ export class LayoutController {
           roots = this.cy.nodes().sort((a, b) => b.degree() - a.degree()).slice(0, 1);
         }
         return {
-          name: 'breadthfirst', fit: true, animate,
+          name: 'breadthfirst', fit: true, animate: false,
           padding: sp.padding, directed: true, spacingFactor: sp.spacingFactor,
           roots,
-          maximalAdjustments: 5,
         } as LayoutOptions;
       }
       default: {
