@@ -10,6 +10,8 @@ export class LayoutController {
   private workerLayoutResolve: ((positions: Record<string, { x: number; y: number }>) => void) | null = null;
   private worker: Worker | null = null;
 
+  private workerTimeout: ReturnType<typeof setTimeout> | null = null;
+
   constructor(cy: Core) {
     this.cy = cy;
     this.initWorker();
@@ -61,7 +63,7 @@ export class LayoutController {
     if (!this.worker) return Promise.resolve({});
 
     return new Promise((resolve) => {
-      const timeout = setTimeout(() => {
+      this.workerTimeout = setTimeout(() => {
         if (this.workerLayoutResolve) {
           this.workerLayoutResolve({});
           this.workerLayoutResolve = null;
@@ -69,7 +71,10 @@ export class LayoutController {
       }, 10000);
 
       this.workerLayoutResolve = (positions) => {
-        clearTimeout(timeout);
+        if (this.workerTimeout) {
+          clearTimeout(this.workerTimeout);
+          this.workerTimeout = null;
+        }
         resolve(positions);
       };
 
@@ -378,6 +383,10 @@ export class LayoutController {
   destroy(): void {
     if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
     this.layoutRaf = null;
+    if (this.workerTimeout) {
+      clearTimeout(this.workerTimeout);
+      this.workerTimeout = null;
+    }
     this.positionCache.clear();
     if (this.workerLayoutResolve) {
       this.workerLayoutResolve({});

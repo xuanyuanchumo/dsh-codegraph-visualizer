@@ -15,6 +15,7 @@ interface McpTool {
 export class McpServer {
   private tools: Map<string, McpTool> = new Map();
   private running = false;
+  private rl: ReturnType<typeof createInterface> | null = null;
 
   registerTool(tool: McpTool): void {
     this.tools.set(tool.name, tool);
@@ -23,10 +24,10 @@ export class McpServer {
   async start(getGraphData: () => GraphData | null): Promise<void> {
     this.registerGraphTools(getGraphData);
 
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    this.rl = createInterface({ input: process.stdin, output: process.stdout });
     this.running = true;
 
-    rl.on('line', async (line: string) => {
+    this.rl.on('line', async (line: string) => {
       try {
         const msg = JSON.parse(line);
         const response = await this.handleMessage(msg);
@@ -38,13 +39,14 @@ export class McpServer {
       }
     });
 
-    rl.on('close', () => {
+    this.rl.on('close', () => {
       this.running = false;
       log.info('MCP server stopped');
     });
 
     log.info('MCP server started', { tools: this.tools.size });
   }
+
 
   private async handleMessage(msg: Record<string, unknown>): Promise<Record<string, unknown> | null> {
     const method = msg['method'] as string;
@@ -213,6 +215,10 @@ export class McpServer {
 
   stop(): void {
     this.running = false;
+    if (this.rl) {
+      this.rl.close();
+      this.rl = null;
+    }
   }
 
   isRunning(): boolean {

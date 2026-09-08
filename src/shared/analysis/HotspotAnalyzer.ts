@@ -1,5 +1,6 @@
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { NodeId } from '../../types/index.ts';
+import { extractModulePath } from './modulePath.ts';
 
 export interface HotspotNode {
   nodeId: NodeId;
@@ -48,12 +49,7 @@ export class GodModuleDetector {
   detect(nodes: GraphNode[], edges: GraphEdge[], threshold = 50): GodModule[] {
     const moduleNodes = new Map<string, GraphNode[]>();
     for (const node of nodes) {
-      const rawPath = node.filePath.replace(/^(file|import):/, '');
-      const parts = rawPath.split(/[\\/]/);
-      const dirParts = parts.length > 1 ? parts.slice(0, -1) : [rawPath];
-      const module = dirParts.length > this.maxModuleDepth
-        ? dirParts.slice(0, this.maxModuleDepth).join('/')
-        : dirParts.join('/');
+      const module = extractModulePath(node.filePath, this.maxModuleDepth);
       let list = moduleNodes.get(module);
       if (!list) { list = []; moduleNodes.set(module, list); }
       list.push(node);

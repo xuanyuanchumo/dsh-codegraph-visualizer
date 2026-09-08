@@ -6,11 +6,6 @@ import { scoped } from '../shared/Logger.ts';
 const log = scoped('host');
 const execFileAsync = promisify(execFile);
 
-export interface ContextWithSessions {
-  sessions?: { list?: () => Array<{ header?: { cwd?: string } }> };
-  workspaceRegistry?: { list?: () => Array<{ path?: string }> };
-}
-
 export async function detectCodegraphCli(): Promise<boolean> {
   try {
     const cmd = process.platform === 'win32' ? 'codegraph.cmd' : 'codegraph';
@@ -33,9 +28,28 @@ export function checkPrerequisites(ctx: Context): { codegraph: boolean; lens: bo
   }
 }
 
+interface WorkspaceEntry {
+  path?: string;
+}
+
+interface SessionEntry {
+  header?: { cwd?: string };
+}
+
+type SessionsLike = { list?(): SessionEntry[] } | undefined;
+type WorkspaceRegistryLike = { list?(): WorkspaceEntry[] } | undefined;
+
+function getSessions(ctx: Context): SessionsLike {
+  return (ctx as unknown as { sessions?: SessionsLike }).sessions;
+}
+
+function getWorkspaceRegistry(ctx: Context): WorkspaceRegistryLike {
+  return ctx.workspaceRegistry;
+}
+
 export function extractWorkspacePaths(ctx: Context): string[] {
   try {
-    const wsr = (ctx as unknown as ContextWithSessions).workspaceRegistry;
+    const wsr = getWorkspaceRegistry(ctx);
     if (wsr?.list) {
       const workspaces = wsr.list();
       const paths = workspaces.map((w) => w.path).filter((p): p is string => !!p);
@@ -43,7 +57,7 @@ export function extractWorkspacePaths(ctx: Context): string[] {
     }
   } catch (e) { log.warn('extractWorkspacePaths: workspaceRegistry failed', e); }
   try {
-    const sessions = (ctx as unknown as ContextWithSessions).sessions;
+    const sessions = getSessions(ctx);
     if (sessions?.list) {
       const all = sessions.list();
       const seen = new Set<string>();
@@ -63,7 +77,7 @@ export function extractWorkspacePaths(ctx: Context): string[] {
 
 export function findWorkspacePath(ctx: Context): string {
   try {
-    const wsr = (ctx as unknown as ContextWithSessions).workspaceRegistry;
+    const wsr = getWorkspaceRegistry(ctx);
     if (wsr?.list) {
       const workspaces = wsr.list();
       if (workspaces.length > 0 && workspaces[0]?.path) {
@@ -72,7 +86,7 @@ export function findWorkspacePath(ctx: Context): string {
     }
   } catch (e) { log.warn('findWorkspacePath: workspaceRegistry failed', e); }
   try {
-    const sessions = (ctx as unknown as ContextWithSessions).sessions;
+    const sessions = getSessions(ctx);
     if (sessions?.list) {
       const all = sessions.list();
       for (const session of all) {

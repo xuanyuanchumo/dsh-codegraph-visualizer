@@ -18,14 +18,32 @@ export class SecurityManager {
       normalized.startsWith(root + sep)
     );
   }
+
+  reset(): void {
+    this.allowedWorkspaceRoots = [];
+  }
 }
 
-const defaultManager = new SecurityManager();
+let defaultManager: SecurityManager | null = null;
+
+function getManager(): SecurityManager {
+  if (!defaultManager) {
+    defaultManager = new SecurityManager();
+  }
+  return defaultManager;
+}
 
 export function setAllowedWorkspaceRoots(roots: string[]): void {
-  defaultManager.setAllowedWorkspaceRoots(roots);
+  getManager().setAllowedWorkspaceRoots(roots);
 }
 
 export function isPathAllowed(path: string): boolean {
-  return defaultManager.isPathAllowed(path);
+  return getManager().isPathAllowed(path);
+}
+
+export function resetSecurityManager(): void {
+  if (defaultManager) {
+    defaultManager.reset();
+    defaultManager = null;
+  }
 }

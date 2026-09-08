@@ -219,6 +219,10 @@ declare module '@deepseek-ai/cordis' {
     spotlight?: {
       registerCommand(cmd: { id: string; title: string; handler: () => void }): (() => void) | void;
     };
+
+    workspaceRegistry?: {
+      list?(): Array<{ path?: string }>;
+    };
   }
 }
 

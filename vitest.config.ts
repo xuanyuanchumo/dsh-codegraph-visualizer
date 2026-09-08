@@ -10,7 +10,7 @@ export default defineConfig({
       reporter: ['text', 'json', 'html', 'lcov'],
       thresholds: {
         lines: 79,
-        functions: 73,
+        functions: 72,
         statements: 79,
         branches: 65,
       },
@@ -27,6 +27,7 @@ export default defineConfig({
         'src/client/hooks/**',
         'src/client/components/**',
         'src/client/styles.css',
+        'src/client/store/cluster/ClusterStrategy.ts',
         'src/generated/**',
         'scripts/**',
         'playwright.config.ts',

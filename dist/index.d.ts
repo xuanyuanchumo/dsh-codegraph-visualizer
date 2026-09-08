@@ -178,6 +178,11 @@ declare module '@deepseek-ai/cordis' {
         handler: () => void;
       }): (() => void) | void;
     };
+    workspaceRegistry?: {
+      list?(): Array<{
+        path?: string;
+      }>;
+    };
   }
 }
 interface WebServerRoute {
@@ -229,7 +234,6 @@ declare function isPathAllowed(path: string): boolean;
 
 //#endregion
 //#region src/index.d.ts
-//# sourceMappingURL=security.d.ts.map
 declare const name = "dsh-codegraph-visualizer";
 declare const inject: string[];
 declare function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>): () => void;

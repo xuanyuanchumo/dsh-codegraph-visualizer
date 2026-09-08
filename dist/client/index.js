@@ -42959,6 +42959,7 @@ var LayoutController = class {
 	positionCache = new Map();
 	workerLayoutResolve = null;
 	worker = null;
+	workerTimeout = null;
 	constructor(cy) {
 		this.cy = cy;
 		this.initWorker();
@@ -42992,14 +42993,17 @@ var LayoutController = class {
 	applyLayoutWithWorker(nodes, edges, layout$2) {
 		if (!this.worker) return Promise.resolve({});
 		return new Promise((resolve) => {
-			const timeout = setTimeout(() => {
+			this.workerTimeout = setTimeout(() => {
 				if (this.workerLayoutResolve) {
 					this.workerLayoutResolve({});
 					this.workerLayoutResolve = null;
 				}
 			}, 1e4);
 			this.workerLayoutResolve = (positions) => {
-				clearTimeout(timeout);
+				if (this.workerTimeout) {
+					clearTimeout(this.workerTimeout);
+					this.workerTimeout = null;
+				}
 				resolve(positions);
 			};
 			this.worker.postMessage({
@@ -43324,6 +43328,10 @@ var LayoutController = class {
 	destroy() {
 		if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
 		this.layoutRaf = null;
+		if (this.workerTimeout) {
+			clearTimeout(this.workerTimeout);
+			this.workerTimeout = null;
+		}
 		this.positionCache.clear();
 		if (this.workerLayoutResolve) {
 			this.workerLayoutResolve({});
@@ -49082,6 +49090,23 @@ function FocusModeBar({ focusNodeId, onExpand, onContract, onExit }) {
 }
 
 //#endregion
+//#region src/shared/analysis/modulePath.ts
+function normalizeFilePath(filePath) {
+	return filePath.replace(/^(file|import):/, "");
+}
+function extractModulePath(filePath, maxDepth) {
+	const rawPath = normalizeFilePath(filePath);
+	const parts = rawPath.split(/[\\/]/);
+	const dirParts = parts.length > 1 ? parts.slice(0, -1) : [rawPath];
+	return dirParts.length > maxDepth ? dirParts.slice(0, maxDepth).join("/") : dirParts.join("/");
+}
+function buildModuleMap(nodes, maxDepth) {
+	const moduleOfNode = new Map();
+	for (const node of nodes) moduleOfNode.set(node.id, extractModulePath(node.filePath, maxDepth));
+	return moduleOfNode;
+}
+
+//#endregion
 //#region src/shared/analysis/HealthScorer.ts
 const EDGE_WEIGHTS = {
 	call: 1,
@@ -49245,15 +49270,7 @@ var HealthScorer = class {
 		return Math.round((balanceScore + separationScore) / 2);
 	}
 	buildModuleMap(nodes) {
-		const moduleOfNode = new Map();
-		for (const node of nodes) {
-			const rawPath = node.filePath.replace(/^(file|import):/, "");
-			const parts = rawPath.split(/[\\/]/);
-			const dirParts = parts.length > 1 ? parts.slice(0, -1) : [rawPath];
-			const module$1 = dirParts.length > this.maxModuleDepth ? dirParts.slice(0, this.maxModuleDepth).join("/") : dirParts.join("/");
-			moduleOfNode.set(node.id, module$1);
-		}
-		return moduleOfNode;
+		return buildModuleMap(nodes, this.maxModuleDepth);
 	}
 	tarjanSCC(adjacency, nodeIds) {
 		let index = 0;
@@ -49343,10 +49360,7 @@ var GodModuleDetector = class {
 	detect(nodes, edges, threshold = 50) {
 		const moduleNodes = new Map();
 		for (const node of nodes) {
-			const rawPath = node.filePath.replace(/^(file|import):/, "");
-			const parts = rawPath.split(/[\\/]/);
-			const dirParts = parts.length > 1 ? parts.slice(0, -1) : [rawPath];
-			const module$1 = dirParts.length > this.maxModuleDepth ? dirParts.slice(0, this.maxModuleDepth).join("/") : dirParts.join("/");
+			const module$1 = extractModulePath(node.filePath, this.maxModuleDepth);
 			let list = moduleNodes.get(module$1);
 			if (!list) {
 				list = [];

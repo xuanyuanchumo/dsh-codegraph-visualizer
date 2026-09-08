@@ -198,4 +198,39 @@ describe('DiffEngine (FR-24)', () => {
     expect(result.nodes[0]!.properties.custom).toBe('value');
     expect(result.nodes[0]!.properties.diffStatus).toBe('added');
   });
+
+  it('deepEqual: null vs non-null returns false', () => {
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: null })];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: 1 })];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(1);
+  });
+
+  it('deepEqual: different types (object vs primitive) returns false', () => {
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: { a: 1 } })];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: 'str' })];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(1);
+  });
+
+  it('deepEqual: nested object difference detected', () => {
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { nested: { a: 1, b: 2 } })];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { nested: { a: 1, b: 3 } })];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(1);
+  });
+
+  it('deepEqual: different key names detected', () => {
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { a: 1, b: 2 })];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { a: 1, c: 2 })];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(1);
+  });
+
+  it('deepEqual: both null properties are equal', () => {
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: null })];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: null })];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(0);
+  });
 });

@@ -1,4 +1,5 @@
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
+import { buildModuleMap } from './modulePath.ts';
 
 export interface HealthScore {
   coupling: number;
@@ -191,17 +192,7 @@ export class HealthScorer {
   }
 
   private buildModuleMap(nodes: GraphNode[]): Map<string, string> {
-    const moduleOfNode = new Map<string, string>();
-    for (const node of nodes) {
-      const rawPath = node.filePath.replace(/^(file|import):/, '');
-      const parts = rawPath.split(/[\\/]/);
-      const dirParts = parts.length > 1 ? parts.slice(0, -1) : [rawPath];
-      const module = dirParts.length > this.maxModuleDepth
-        ? dirParts.slice(0, this.maxModuleDepth).join('/')
-        : dirParts.join('/');
-      moduleOfNode.set(node.id, module);
-    }
-    return moduleOfNode;
+    return buildModuleMap(nodes, this.maxModuleDepth);
   }
 
   private tarjanSCC(

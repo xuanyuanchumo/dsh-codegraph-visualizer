@@ -1263,6 +1263,23 @@ var GraphDataMerger = class {
 };
 
 //#endregion
+//#region src/shared/analysis/modulePath.ts
+function normalizeFilePath(filePath) {
+	return filePath.replace(/^(file|import):/, "");
+}
+function extractModulePath(filePath, maxDepth) {
+	const rawPath = normalizeFilePath(filePath);
+	const parts = rawPath.split(/[\\/]/);
+	const dirParts = parts.length > 1 ? parts.slice(0, -1) : [rawPath];
+	return dirParts.length > maxDepth ? dirParts.slice(0, maxDepth).join("/") : dirParts.join("/");
+}
+function buildModuleMap(nodes, maxDepth) {
+	const moduleOfNode = new Map();
+	for (const node of nodes) moduleOfNode.set(node.id, extractModulePath(node.filePath, maxDepth));
+	return moduleOfNode;
+}
+
+//#endregion
 //#region src/shared/analysis/HealthScorer.ts
 const EDGE_WEIGHTS = {
 	call: 1,
@@ -1426,15 +1443,7 @@ var HealthScorer = class {
 		return Math.round((balanceScore + separationScore) / 2);
 	}
 	buildModuleMap(nodes) {
-		const moduleOfNode = new Map();
-		for (const node of nodes) {
-			const rawPath = node.filePath.replace(/^(file|import):/, "");
-			const parts = rawPath.split(/[\\/]/);
-			const dirParts = parts.length > 1 ? parts.slice(0, -1) : [rawPath];
-			const module = dirParts.length > this.maxModuleDepth ? dirParts.slice(0, this.maxModuleDepth).join("/") : dirParts.join("/");
-			moduleOfNode.set(node.id, module);
-		}
-		return moduleOfNode;
+		return buildModuleMap(nodes, this.maxModuleDepth);
 	}
 	tarjanSCC(adjacency, nodeIds) {
 		let index = 0;
@@ -2225,13 +2234,20 @@ var SecurityManager = class {
 		if (this.allowedWorkspaceRoots.length === 0) return false;
 		return this.allowedWorkspaceRoots.some((root) => normalized === root || normalized.startsWith(root + sep));
 	}
+	reset() {
+		this.allowedWorkspaceRoots = [];
+	}
 };
-const defaultManager = new SecurityManager();
+let defaultManager = null;
+function getManager() {
+	if (!defaultManager) defaultManager = new SecurityManager();
+	return defaultManager;
+}
 function setAllowedWorkspaceRoots(roots) {
-	defaultManager.setAllowedWorkspaceRoots(roots);
+	getManager().setAllowedWorkspaceRoots(roots);
 }
 function isPathAllowed(path$1) {
-	return defaultManager.isPathAllowed(path$1);
+	return getManager().isPathAllowed(path$1);
 }
 
 //#endregion
@@ -2254,9 +2270,15 @@ function checkPrerequisites(ctx) {
 		};
 	}
 }
+function getSessions(ctx) {
+	return ctx.sessions;
+}
+function getWorkspaceRegistry(ctx) {
+	return ctx.workspaceRegistry;
+}
 function extractWorkspacePaths(ctx) {
 	try {
-		const wsr = ctx.workspaceRegistry;
+		const wsr = getWorkspaceRegistry(ctx);
 		if (wsr?.list) {
 			const workspaces = wsr.list();
 			const paths = workspaces.map((w) => w.path).filter((p) => !!p);
@@ -2266,7 +2288,7 @@ function extractWorkspacePaths(ctx) {
 		log$5.warn("extractWorkspacePaths: workspaceRegistry failed", e);
 	}
 	try {
-		const sessions = ctx.sessions;
+		const sessions = getSessions(ctx);
 		if (sessions?.list) {
 			const all = sessions.list();
 			const seen = new Set();
@@ -2287,7 +2309,7 @@ function extractWorkspacePaths(ctx) {
 }
 function findWorkspacePath(ctx) {
 	try {
-		const wsr = ctx.workspaceRegistry;
+		const wsr = getWorkspaceRegistry(ctx);
 		if (wsr?.list) {
 			const workspaces = wsr.list();
 			if (workspaces.length > 0 && workspaces[0]?.path) return workspaces[0].path;
@@ -2296,7 +2318,7 @@ function findWorkspacePath(ctx) {
 		log$5.warn("findWorkspacePath: workspaceRegistry failed", e);
 	}
 	try {
-		const sessions = ctx.sessions;
+		const sessions = getSessions(ctx);
 		if (sessions?.list) {
 			const all = sessions.list();
 			for (const session of all) {
