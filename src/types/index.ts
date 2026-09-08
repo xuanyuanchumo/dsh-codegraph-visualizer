@@ -27,7 +27,7 @@ export interface GraphEdge {
   id: EdgeId;
   source: NodeId;
   target: NodeId;
-  type: 'call' | 'import' | 'extend' | 'implement' | 'dependency';
+  type: 'call' | 'import' | 'extend' | 'implement' | 'dependency' | 'contains';
   properties: Record<string, unknown>;
 }
 

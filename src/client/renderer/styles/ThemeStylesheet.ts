@@ -14,6 +14,7 @@ export interface ThemeColors {
   edgeExtend: string;
   edgeImplement: string;
   edgeDependency: string;
+  edgeContains: string;
   text: string;
   border: string;
 }
@@ -39,6 +40,7 @@ export function getThemeColors(theme: ThemeType): ThemeColors {
     edgeExtend: readCssVar('--cg-edge-extend', isDark ? '#f472b6' : '#ec4899'),
     edgeImplement: readCssVar('--cg-edge-implement', isDark ? '#2dd4bf' : '#0d9488'),
     edgeDependency: readCssVar('--cg-edge-dependency', isDark ? '#fbbf24' : '#f59e0b'),
+    edgeContains: readCssVar('--cg-edge-contains', isDark ? '#a78bfa' : '#7c3aed'),
     text: readCssVar('--cg-text', isDark ? '#f9fafb' : '#0f1115'),
     border: readCssVar('--cg-border', isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'),
   };
@@ -189,6 +191,15 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
         'line-color': c.edgeDependency,
         'target-arrow-color': c.edgeDependency,
         'line-style': 'dashed',
+      },
+    },
+    {
+      selector: 'edge[type="contains"]',
+      style: {
+        'line-color': c.edgeContains,
+        'target-arrow-color': c.edgeContains,
+        'line-style': 'dotted',
+        'width': 1,
       },
     },
     {

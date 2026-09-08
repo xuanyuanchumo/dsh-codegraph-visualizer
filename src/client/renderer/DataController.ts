@@ -197,11 +197,12 @@ export class DataController {
     if (graphType === 'all') {
       allowedEdgeTypes.add('call'); allowedEdgeTypes.add('import');
       allowedEdgeTypes.add('extend'); allowedEdgeTypes.add('implement');
-      allowedEdgeTypes.add('dependency');
+      allowedEdgeTypes.add('dependency'); allowedEdgeTypes.add('contains');
     } else if (graphType === 'call') {
       allowedEdgeTypes.add('call');
     } else if (graphType === 'dependency') {
       allowedEdgeTypes.add('import'); allowedEdgeTypes.add('dependency');
+      allowedEdgeTypes.add('contains');
     }
 
     const connectedNodeIds = new Set<string>();
@@ -319,6 +320,7 @@ export class DataController {
       implement: colors.edgeImplement,
       import: colors.edgeImport,
       dependency: colors.edgeDependency,
+      contains: colors.edgeContains,
     };
 
     const bbox = this.cy.elements().boundingBox();

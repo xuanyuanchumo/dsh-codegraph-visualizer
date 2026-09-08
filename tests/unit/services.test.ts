@@ -235,7 +235,7 @@ describe('CodeGraphAdapter mapNodeKind/mapEdgeKind (J4 symbol resolution)', () =
     expect(mapEdgeKind('extends')).toBe('extend');
     expect(mapEdgeKind('implement')).toBe('implement');
     expect(mapEdgeKind('implements')).toBe('implement');
-    expect(mapEdgeKind('contains')).toBe('dependency');
+    expect(mapEdgeKind('contains')).toBe('contains');
     expect(mapEdgeKind('dependency')).toBe('dependency');
     expect(mapEdgeKind('depends')).toBe('dependency');
   });

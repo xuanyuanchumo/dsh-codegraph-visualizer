@@ -21,7 +21,7 @@ export function coerceEdge(raw: unknown, i: number): GraphEdge | null {
   const source = typeof o.source === 'string' ? o.source : typeof o.from === 'string' ? o.from : null;
   const target = typeof o.target === 'string' ? o.target : typeof o.to === 'string' ? o.to : null;
   if (!source || !target) return null;
-  const type = (['call', 'import', 'extend', 'implement', 'dependency'].includes(o.type as string)
+  const type = (['call', 'import', 'extend', 'implement', 'dependency', 'contains'].includes(o.type as string)
     ? o.type : 'dependency') as GraphEdge['type'];
   const properties = (o.properties && typeof o.properties === 'object' ? o.properties : {}) as Record<string, unknown>;
   return { id: EdgeId(id), source: NodeId(source), target: NodeId(target), type, properties };

@@ -21,6 +21,7 @@ const EDGE_WEIGHTS: Record<GraphEdge['type'], number> = {
   implement: 0.7,
   import: 0.5,
   dependency: 0.3,
+  contains: 0.1,
 };
 
 const DEFAULT_MAX_MODULE_DEPTH = 3;

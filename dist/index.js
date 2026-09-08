@@ -984,10 +984,12 @@ const EDGE_KIND_MAP = {
 	extends: "extend",
 	implement: "implement",
 	implements: "implement",
-	contains: "dependency",
+	contains: "contains",
 	dependency: "dependency",
 	depends: "dependency"
 };
+const FILTERED_EDGE_KINDS = new Set(["uses_var", "func_imports_local"]);
+const MAX_IMPORTS_PER_SOURCE = 20;
 function mapNodeKind(kind) {
 	return NODE_KIND_MAP[kind] ?? "module";
 }
@@ -1092,13 +1094,24 @@ var CodeGraphAdapter = class {
 				...parentId ? { parentId: NodeId(parentId) } : {}
 			};
 		});
-		const edges = dbEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target)).map((e) => ({
-			id: EdgeId(String(e.id)),
-			source: NodeId(e.source),
-			target: NodeId(e.target),
-			type: mapEdgeKind(e.kind),
-			properties: e.line != null ? { line: e.line } : {}
-		}));
+		const filteredEdges = dbEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target) && !FILTERED_EDGE_KINDS.has(e.kind));
+		const importCountBySource = new Map();
+		const edges = [];
+		for (const e of filteredEdges) {
+			const mappedType = mapEdgeKind(e.kind);
+			if (mappedType === "import") {
+				const count = importCountBySource.get(e.source) ?? 0;
+				if (count >= MAX_IMPORTS_PER_SOURCE) continue;
+				importCountBySource.set(e.source, count + 1);
+			}
+			edges.push({
+				id: EdgeId(String(e.id)),
+				source: NodeId(e.source),
+				target: NodeId(e.target),
+				type: mappedType,
+				properties: e.line != null ? { line: e.line } : {}
+			});
+		}
 		return {
 			nodes,
 			edges,
@@ -1286,7 +1299,8 @@ const EDGE_WEIGHTS = {
 	extend: .8,
 	implement: .7,
 	import: .5,
-	dependency: .3
+	dependency: .3,
+	contains: .1
 };
 const DEFAULT_MAX_MODULE_DEPTH = 3;
 var HealthScorer = class {

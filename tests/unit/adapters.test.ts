@@ -642,7 +642,7 @@ describe('mapEdgeKind', () => {
     expect(mapEdgeKind('extends')).toBe('extend');
     expect(mapEdgeKind('implement')).toBe('implement');
     expect(mapEdgeKind('implements')).toBe('implement');
-    expect(mapEdgeKind('contains')).toBe('dependency');
+    expect(mapEdgeKind('contains')).toBe('contains');
     expect(mapEdgeKind('dependency')).toBe('dependency');
   });
 

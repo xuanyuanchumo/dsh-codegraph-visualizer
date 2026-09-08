@@ -40321,6 +40321,7 @@ function getThemeColors(theme) {
 		edgeExtend: readCssVar("--cg-edge-extend", isDark ? "#f472b6" : "#ec4899"),
 		edgeImplement: readCssVar("--cg-edge-implement", isDark ? "#2dd4bf" : "#0d9488"),
 		edgeDependency: readCssVar("--cg-edge-dependency", isDark ? "#fbbf24" : "#f59e0b"),
+		edgeContains: readCssVar("--cg-edge-contains", isDark ? "#a78bfa" : "#7c3aed"),
 		text: readCssVar("--cg-text", isDark ? "#f9fafb" : "#0f1115"),
 		border: readCssVar("--cg-border", isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)")
 	};
@@ -40486,6 +40487,15 @@ function buildStylesheet(theme, nodeCount = 0) {
 				"line-color": c.edgeDependency,
 				"target-arrow-color": c.edgeDependency,
 				"line-style": "dashed"
+			}
+		},
+		{
+			selector: "edge[type=\"contains\"]",
+			style: {
+				"line-color": c.edgeContains,
+				"target-arrow-color": c.edgeContains,
+				"line-style": "dotted",
+				"width": 1
 			}
 		},
 		{
@@ -40942,10 +40952,12 @@ var DataController = class {
 			allowedEdgeTypes.add("extend");
 			allowedEdgeTypes.add("implement");
 			allowedEdgeTypes.add("dependency");
+			allowedEdgeTypes.add("contains");
 		} else if (graphType === "call") allowedEdgeTypes.add("call");
 		else if (graphType === "dependency") {
 			allowedEdgeTypes.add("import");
 			allowedEdgeTypes.add("dependency");
+			allowedEdgeTypes.add("contains");
 		}
 		const connectedNodeIds = new Set();
 		this.cy.batch(() => {
@@ -41048,7 +41060,8 @@ var DataController = class {
 			extend: colors$1.edgeExtend,
 			implement: colors$1.edgeImplement,
 			import: colors$1.edgeImport,
-			dependency: colors$1.edgeDependency
+			dependency: colors$1.edgeDependency,
+			contains: colors$1.edgeContains
 		};
 		const bbox = this.cy.elements().boundingBox();
 		const w = Math.ceil(bbox.w) + 160;
@@ -43177,7 +43190,8 @@ function coerceEdge(raw, i$1) {
 		"import",
 		"extend",
 		"implement",
-		"dependency"
+		"dependency",
+		"contains"
 	].includes(o.type) ? o.type : "dependency";
 	const properties = o.properties && typeof o.properties === "object" ? o.properties : {};
 	return {
@@ -45732,7 +45746,8 @@ const EDGE_WEIGHTS = {
 	extend: .8,
 	implement: .7,
 	import: .5,
-	dependency: .3
+	dependency: .3,
+	contains: .1
 };
 const DEFAULT_MAX_MODULE_DEPTH = 3;
 var HealthScorer = class {
