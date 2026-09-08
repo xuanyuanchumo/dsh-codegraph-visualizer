@@ -473,7 +473,7 @@ body[data-ds-dark-theme] {
   background: var(--cg-bg);
   border-radius: var(--cg-radius-sm);
   cursor: pointer;
-  font-size: 14px;
+  color: var(--cg-text-secondary);
   transition: all var(--cg-transition);
   position: relative;
   flex-shrink: 0;
@@ -493,15 +493,22 @@ body[data-ds-dark-theme] {
 .redo-btn:hover {
   background: var(--cg-surface-hover);
   border-color: var(--cg-accent);
+  color: var(--cg-text);
   transform: translateY(-1px);
 }
 
 .search-btn:focus-visible,
 .theme-btn:focus-visible,
+.export-btn:focus-visible,
+.collapse-btn:focus-visible,
 .chain-btn:focus-visible,
 .cycle-btn:focus-visible,
 .impact-btn:focus-visible,
-.inheritance-btn:focus-visible {
+.inheritance-btn:focus-visible,
+.minimap-btn:focus-visible,
+.refresh-btn:focus-visible,
+.undo-btn:focus-visible,
+.redo-btn:focus-visible {
   outline: 2px solid var(--cg-accent);
   outline-offset: 2px;
 }
@@ -1180,11 +1187,20 @@ body[data-ds-dark-theme] {
   .collapse-btn,
   .chain-btn,
   .cycle-btn,
+  .impact-btn,
+  .inheritance-btn,
   .minimap-btn,
   .refresh-btn,
+  .undo-btn,
+  .redo-btn,
   .import-btn,
   .legend-btn,
-  .lang-btn {
+  .lang-btn,
+  .pathfind-btn,
+  .health-btn,
+  .rules-btn,
+  .hotspot-btn,
+  .godmodule-btn {
     width: 26px;
     height: 26px;
     font-size: 12px;
@@ -1320,8 +1336,8 @@ body[data-ds-dark-theme] {
 .import-btn,
 .legend-btn,
 .lang-btn {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2420,9 +2436,9 @@ body[data-ds-dark-theme] {
 }
 
 .collapse-all-btn:hover {
-  background: var(--cg-surface-active);
+  background: var(--cg-surface-hover);
   color: var(--cg-text);
-  border-color: var(--cg-border-strong);
+  border-color: var(--cg-accent);
 }
 
 /* ---- Smooth graph transitions --------------------------------------------- */
@@ -3211,9 +3227,9 @@ body[data-ds-dark-theme] {
 
 /* ---- New toolbar icon buttons --------------------------------------------- */
 
-.path-btn,
+.pathfind-btn,
 .health-btn,
-.rule-btn,
+.rules-btn,
 .hotspot-btn,
 .godmodule-btn {
   width: 28px;
@@ -3230,33 +3246,29 @@ body[data-ds-dark-theme] {
   flex-shrink: 0;
 }
 
-.path-btn:hover,
+.pathfind-btn:hover,
 .health-btn:hover,
-.rule-btn:hover,
+.rules-btn:hover,
 .hotspot-btn:hover,
-.godmodule-btn:hover,
-.undo-btn:hover,
-.redo-btn:hover {
+.godmodule-btn:hover {
   background: var(--cg-surface-hover);
   border-color: var(--cg-accent);
   color: var(--cg-text);
   transform: translateY(-1px);
 }
 
-.path-btn:focus-visible,
+.pathfind-btn:focus-visible,
 .health-btn:focus-visible,
-.rule-btn:focus-visible,
+.rules-btn:focus-visible,
 .hotspot-btn:focus-visible,
-.godmodule-btn:focus-visible,
-.undo-btn:focus-visible,
-.redo-btn:focus-visible {
+.godmodule-btn:focus-visible {
   outline: 2px solid var(--cg-accent);
   outline-offset: 2px;
 }
 
-.path-btn.active,
+.pathfind-btn.active,
 .health-btn.active,
-.rule-btn.active,
+.rules-btn.active,
 .hotspot-btn.active,
 .godmodule-btn.active {
   background: var(--cg-accent);
