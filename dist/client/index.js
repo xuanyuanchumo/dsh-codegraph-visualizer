@@ -3777,7 +3777,7 @@ function getTopLevelDir(filePath) {
 	if (parts[startIdx] === "src" || parts[startIdx] === "lib" || parts[startIdx] === "app") return parts.slice(startIdx, startIdx + 2).join("/");
 	return parts.slice(startIdx, startIdx + 2).join("/");
 }
-function getDirLabel(dirPath) {
+function getDirLabel$1(dirPath) {
 	const parts = dirPath.split("/");
 	return parts[parts.length - 1] ?? dirPath;
 }
@@ -3851,7 +3851,7 @@ function computeDirectoryClusters(rawNodes, rawEdges, expandedDirs) {
 			const childIds = nodes.map((n) => n.id);
 			const clusterNode = {
 				id: NodeId(clusterId),
-				label: `${getDirLabel(dirPath)} (${nodes.length})`,
+				label: `${getDirLabel$1(dirPath)} (${nodes.length})`,
 				type: "module",
 				filePath: dirPath,
 				lineNumber: 0,
@@ -3883,28 +3883,63 @@ var DirectoryClusterStrategy = class {
 
 //#endregion
 //#region src/client/store/cluster/fileCluster.ts
+function getParentDir(filePath) {
+	const parts = filePath.split(/[\\/]/);
+	if (parts.length <= 1) return filePath;
+	return parts.slice(0, -1).join("/");
+}
+function getDirLabel(dirPath) {
+	const parts = dirPath.split(/[\\/]/);
+	return parts[parts.length - 1] ?? dirPath;
+}
 function computeFileClusters(rawNodes, rawEdges, expandedFiles) {
 	const visibleNodes = [];
 	const nodeIdToVisibleId = new Map();
-	for (const n of rawNodes) if (n.type === "module") {
-		visibleNodes.push(n);
-		nodeIdToVisibleId.set(n.id, n.id);
-	} else if (!n.parentId) {
-		visibleNodes.push(n);
-		nodeIdToVisibleId.set(n.id, n.id);
-	} else {
-		const parentFileId = n.parentId;
-		const fileClusterId = `filecluster__${parentFileId.replace(/[/:\\]/g, "__")}`;
-		if (expandedFiles.has(fileClusterId) || expandedFiles.has(parentFileId)) {
+	const moduleDirGroups = new Map();
+	const nonModuleNodes = [];
+	for (const n of rawNodes) if (n.type === "module" && n.filePath) {
+		const parentDir = getParentDir(n.filePath);
+		const list = moduleDirGroups.get(parentDir);
+		if (list) list.push(n);
+		else moduleDirGroups.set(parentDir, [n]);
+	} else if (!n.parentId) nonModuleNodes.push(n);
+	else nonModuleNodes.push(n);
+	for (const [dirPath, nodes] of moduleDirGroups) {
+		const clusterId = `filecluster__${dirPath.replace(/[/:\\]/g, "__")}`;
+		if (expandedFiles.has(clusterId)) for (const n of nodes) {
 			visibleNodes.push(n);
 			nodeIdToVisibleId.set(n.id, n.id);
-		} else nodeIdToVisibleId.set(n.id, fileClusterId);
+		}
+		else if (nodes.length === 1) {
+			visibleNodes.push(nodes[0]);
+			nodeIdToVisibleId.set(nodes[0].id, nodes[0].id);
+		} else {
+			const clusterNode = {
+				id: NodeId(clusterId),
+				label: `${getDirLabel(dirPath)} (${nodes.length})`,
+				type: "module",
+				filePath: dirPath,
+				lineNumber: 0,
+				properties: {},
+				isCluster: true,
+				childCount: nodes.length,
+				childIds: nodes.map((n) => n.id),
+				clusterPath: dirPath,
+				clusterLevel: "file"
+			};
+			visibleNodes.push(clusterNode);
+			for (const n of nodes) nodeIdToVisibleId.set(n.id, clusterId);
+		}
 	}
 	const fileClusterChildren = new Map();
-	for (const n of rawNodes) if (n.type !== "module") {
-		const clusterId = nodeIdToVisibleId.get(n.id);
-		if (clusterId && clusterId.startsWith("filecluster__")) {
-			const parentFileId = n.parentId ?? "";
+	for (const n of nonModuleNodes) if (n.parentId) {
+		const parentFileId = n.parentId;
+		const clusterId = `filecluster__${parentFileId.replace(/[/:\\]/g, "__")}`;
+		if (expandedFiles.has(clusterId) || expandedFiles.has(parentFileId)) {
+			visibleNodes.push(n);
+			nodeIdToVisibleId.set(n.id, n.id);
+		} else {
+			nodeIdToVisibleId.set(n.id, clusterId);
 			const entry = fileClusterChildren.get(clusterId);
 			if (entry) entry.children.push(n);
 			else fileClusterChildren.set(clusterId, {
@@ -3912,6 +3947,9 @@ function computeFileClusters(rawNodes, rawEdges, expandedFiles) {
 				parentFileId
 			});
 		}
+	} else {
+		visibleNodes.push(n);
+		nodeIdToVisibleId.set(n.id, n.id);
 	}
 	for (const [clusterId, { children, parentFileId }] of fileClusterChildren) {
 		const parentNode = rawNodes.find((n) => n.id === parentFileId);
