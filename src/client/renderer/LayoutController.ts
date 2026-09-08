@@ -252,12 +252,12 @@ export class LayoutController {
     return {
       nodeRepulse: s * s * 10,
       idealEdgeLength: s * 2,
-      rankSep: Math.min(Math.max(100, s * 1.2), 200),
-      edgeSep: Math.min(Math.max(40, s * 0.6), 80),
-      nodeSep: Math.min(Math.max(30, s * 0.5), 60),
+      rankSep: Math.min(Math.max(30, s * 0.3), 80),
+      edgeSep: Math.min(Math.max(15, s * 0.15), 40),
+      nodeSep: Math.min(Math.max(20, s * 0.2), 40),
       padding: Math.max(40, Math.min(120, containerMinDim * 0.05)),
       minNodeSpacing: Math.max(20, s * 0.3),
-      spacingFactor: nodeCount < 100 ? 1.5 : nodeCount < D300 ? 1.2 : 1.0,
+      spacingFactor: nodeCount < 100 ? 1.2 : nodeCount < 300 ? 1.0 : 0.8,
       minGap: Math.max(30, s * 0.4),
       incrementalRadius: Math.max(100, s * 1.5),
     };

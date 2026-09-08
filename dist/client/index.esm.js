@@ -39751,12 +39751,12 @@ var LayoutController = class {
 		return {
 			nodeRepulse: s * s * 10,
 			idealEdgeLength: s * 2,
-			rankSep: Math.min(Math.max(100, s * 1.2), 200),
-			edgeSep: Math.min(Math.max(40, s * .6), 80),
-			nodeSep: Math.min(Math.max(30, s * .5), 60),
+			rankSep: Math.min(Math.max(30, s * .3), 80),
+			edgeSep: Math.min(Math.max(15, s * .15), 40),
+			nodeSep: Math.min(Math.max(20, s * .2), 40),
 			padding: Math.max(40, Math.min(120, containerMinDim * .05)),
 			minNodeSpacing: Math.max(20, s * .3),
-			spacingFactor: nodeCount < 100 ? 1.5 : nodeCount < D300 ? 1.2 : 1,
+			spacingFactor: nodeCount < 100 ? 1.2 : nodeCount < 300 ? 1 : .8,
 			minGap: Math.max(30, s * .4),
 			incrementalRadius: Math.max(100, s * 1.5)
 		};
