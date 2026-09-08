@@ -115,30 +115,32 @@ export class DataController {
 
   private addNode(n: GraphNode): void {
     const isCluster = 'isCluster' in n && n.isCluster === true;
-    this.cy.add({
-      group: 'nodes',
-      data: {
-        id: n.id, label: n.label, type: n.type,
-        filePath: n.filePath, lineNumber: n.lineNumber,
-        parent: n.parentId ?? undefined,
-        isCluster,
-        childCount: isCluster ? (n as ClusterNode).childCount : 0,
-      } as NodeDataDefinition,
-    });
+    const data: NodeDataDefinition = {
+      id: n.id, label: n.label, type: n.type,
+      filePath: n.filePath, lineNumber: n.lineNumber,
+      parent: n.parentId ?? undefined,
+      isCluster,
+      childCount: isCluster ? (n as ClusterNode).childCount : 0,
+    };
+    if (n.properties?.depType) {
+      (data as Record<string, unknown>).depType = n.properties.depType;
+    }
+    this.cy.add({ group: 'nodes', data });
   }
 
   private addEdge(e: GraphEdge): void {
     const isCluster = 'isCluster' in e && e.isCluster === true;
     const ce = isCluster ? (e as ClusterEdge) : null;
-    this.cy.add({
-      group: 'edges',
-      data: {
-        id: e.id, source: e.source, target: e.target, type: e.type,
-        isCluster,
-        aggregatedCount: ce?.aggregatedCount ?? 0,
-        label: isCluster ? `${ce?.aggregatedCount ?? 0} deps` : '',
-      },
-    });
+    const data: Record<string, unknown> = {
+      id: e.id, source: e.source, target: e.target, type: e.type,
+      isCluster,
+      aggregatedCount: ce?.aggregatedCount ?? 0,
+      label: isCluster ? `${ce?.aggregatedCount ?? 0} deps` : '',
+    };
+    if (e.properties?.scope) {
+      data.scope = e.properties.scope;
+    }
+    this.cy.add({ group: 'edges', data });
   }
 
   private processBatchQueue(): void {

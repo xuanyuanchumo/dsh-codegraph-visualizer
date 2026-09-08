@@ -18,6 +18,14 @@ function getTopLevelDir(filePath: string): string {
   return parts.slice(startIdx, startIdx + 2).join('/');
 }
 
+function getDependencyGroup(node: GraphNode): string | null {
+  const depType = node.properties?.depType;
+  if (typeof depType === 'string') {
+    return `dep:${depType}`;
+  }
+  return null;
+}
+
 
 function getDirLabel(dirPath: string): string {
   const parts = dirPath.split('/');
@@ -89,7 +97,8 @@ export function computeDirectoryClusters(
   const dirToNodes = new Map<string, GraphNode[]>();
 
   for (const n of rawNodes) {
-    const dir = n.filePath ? getTopLevelDir(n.filePath) : n.id;
+    const depGroup = getDependencyGroup(n);
+    const dir = depGroup ?? (n.filePath ? getTopLevelDir(n.filePath) : n.id);
     nodeToDir.set(n.id, dir);
     const list = dirToNodes.get(dir);
     if (list) list.push(n);

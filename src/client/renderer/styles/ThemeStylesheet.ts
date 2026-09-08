@@ -8,6 +8,11 @@ export interface ThemeColors {
   nodeVariable: string;
   nodeModule: string;
   nodeInterface: string;
+  nodeType: string;
+  nodeDepNpm: string;
+  nodeDepCargo: string;
+  nodeDepGomod: string;
+  nodeDepPip: string;
   edgeDefault: string;
   edgeCall: string;
   edgeImport: string;
@@ -15,6 +20,10 @@ export interface ThemeColors {
   edgeImplement: string;
   edgeDependency: string;
   edgeContains: string;
+  edgeDepProd: string;
+  edgeDepDev: string;
+  edgeDepPeer: string;
+  edgeDepOptional: string;
   text: string;
   border: string;
 }
@@ -34,6 +43,11 @@ export function getThemeColors(theme: ThemeType): ThemeColors {
     nodeVariable: readCssVar('--cg-node-variable', isDark ? '#f59e0b' : '#d97706'),
     nodeModule: readCssVar('--cg-node-module', isDark ? '#ec4899' : '#db2777'),
     nodeInterface: readCssVar('--cg-node-interface', isDark ? '#14b8a6' : '#0d9488'),
+    nodeType: readCssVar('--cg-node-type', isDark ? '#a78bfa' : '#7c3aed'),
+    nodeDepNpm: readCssVar('--cg-node-dep-npm', isDark ? '#cb3837' : '#cc3535'),
+    nodeDepCargo: readCssVar('--cg-node-dep-cargo', isDark ? '#dea584' : '#ce422b'),
+    nodeDepGomod: readCssVar('--cg-node-dep-gomod', isDark ? '#00add8' : '#007d9b'),
+    nodeDepPip: readCssVar('--cg-node-dep-pip', isDark ? '#3776ab' : '#3776ab'),
     edgeDefault: readCssVar('--cg-edge-default', isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)'),
     edgeCall: readCssVar('--cg-edge-call', isDark ? '#60a5fa' : '#3b82f6'),
     edgeImport: readCssVar('--cg-edge-import', isDark ? '#34d399' : '#10b981'),
@@ -41,6 +55,10 @@ export function getThemeColors(theme: ThemeType): ThemeColors {
     edgeImplement: readCssVar('--cg-edge-implement', isDark ? '#2dd4bf' : '#0d9488'),
     edgeDependency: readCssVar('--cg-edge-dependency', isDark ? '#fbbf24' : '#f59e0b'),
     edgeContains: readCssVar('--cg-edge-contains', isDark ? '#a78bfa' : '#7c3aed'),
+    edgeDepProd: readCssVar('--cg-edge-dep-prod', isDark ? '#fbbf24' : '#f59e0b'),
+    edgeDepDev: readCssVar('--cg-edge-dep-dev', isDark ? '#60a5fa' : '#3b82f6'),
+    edgeDepPeer: readCssVar('--cg-edge-dep-peer', isDark ? '#34d399' : '#10b981'),
+    edgeDepOptional: readCssVar('--cg-edge-dep-optional', isDark ? '#a78bfa' : '#7c3aed'),
     text: readCssVar('--cg-text', isDark ? '#f9fafb' : '#0f1115'),
     border: readCssVar('--cg-border', isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'),
   };
@@ -142,6 +160,26 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       style: { 'shape': 'hexagon', 'background-color': c.nodeInterface },
     },
     {
+      selector: 'node[type="type"]',
+      style: { 'shape': 'star', 'background-color': c.nodeType },
+    },
+    {
+      selector: 'node[depType="npm"]',
+      style: { 'shape': 'round-rectangle', 'background-color': c.nodeDepNpm },
+    },
+    {
+      selector: 'node[depType="cargo"]',
+      style: { 'shape': 'round-rectangle', 'background-color': c.nodeDepCargo },
+    },
+    {
+      selector: 'node[depType="gomod"]',
+      style: { 'shape': 'round-rectangle', 'background-color': c.nodeDepGomod },
+    },
+    {
+      selector: 'node[depType="pip"]',
+      style: { 'shape': 'round-rectangle', 'background-color': c.nodeDepPip },
+    },
+    {
       selector: 'edge',
       style: {
         'width': 1.5,
@@ -191,6 +229,39 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
         'line-color': c.edgeDependency,
         'target-arrow-color': c.edgeDependency,
         'line-style': 'dashed',
+      },
+    },
+    {
+      selector: 'edge[type="dependency"][scope="prod"]',
+      style: {
+        'line-color': c.edgeDepProd,
+        'target-arrow-color': c.edgeDepProd,
+        'line-style': 'solid',
+      },
+    },
+    {
+      selector: 'edge[type="dependency"][scope="dev"]',
+      style: {
+        'line-color': c.edgeDepDev,
+        'target-arrow-color': c.edgeDepDev,
+        'line-style': 'dashed',
+      },
+    },
+    {
+      selector: 'edge[type="dependency"][scope="peer"]',
+      style: {
+        'line-color': c.edgeDepPeer,
+        'target-arrow-color': c.edgeDepPeer,
+        'line-style': 'dotted',
+      },
+    },
+    {
+      selector: 'edge[type="dependency"][scope="optional"]',
+      style: {
+        'line-color': c.edgeDepOptional,
+        'target-arrow-color': c.edgeDepOptional,
+        'line-style': 'dotted',
+        'opacity': 0.6,
       },
     },
     {

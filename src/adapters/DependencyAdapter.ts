@@ -15,6 +15,7 @@ export interface DependencyEdge {
   source: string;
   target: string;
   type: 'depends';
+  scope: 'prod' | 'dev' | 'peer' | 'optional';
 }
 
 export interface DependencyGraph {
@@ -33,9 +34,14 @@ export function parsePackageJson(content: string): DependencyGraph {
     nodes.push({ id: rootId, name: rootName, version: pkg.version || '0.0.0', type: 'npm' });
     seenIds.add(rootId);
 
-    const depSections = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'];
-    for (const section of depSections) {
-      const deps = pkg[section];
+    const depSections: Array<{ key: string; scope: DependencyEdge['scope'] }> = [
+      { key: 'dependencies', scope: 'prod' },
+      { key: 'devDependencies', scope: 'dev' },
+      { key: 'peerDependencies', scope: 'peer' },
+      { key: 'optionalDependencies', scope: 'optional' },
+    ];
+    for (const { key, scope } of depSections) {
+      const deps = pkg[key];
       if (!deps || typeof deps !== 'object') continue;
       for (const [name, version] of Object.entries(deps)) {
         const depId = `dep:${name}`;
@@ -43,7 +49,7 @@ export function parsePackageJson(content: string): DependencyGraph {
           seenIds.add(depId);
           nodes.push({ id: depId, name, version: String(version), type: 'npm' });
         }
-        edges.push({ source: rootId, target: depId, type: 'depends' });
+        edges.push({ source: rootId, target: depId, type: 'depends', scope });
       }
     }
   } catch (e) {
@@ -81,7 +87,7 @@ export function parseCargoToml(content: string): DependencyGraph {
           seenIds.add(depId);
           nodes.push({ id: depId, name: depName, version: depVersion, type: 'cargo' });
         }
-        edges.push({ source: rootId, target: depId, type: 'depends' });
+        edges.push({ source: rootId, target: depId, type: 'depends', scope: 'prod' });
         continue;
       }
       const tableDepMatch = line.match(/^([a-zA-Z0-9_-]+)\s*=\s*\{[^}]*version\s*=\s*"([^"]+)"/);
@@ -93,7 +99,7 @@ export function parseCargoToml(content: string): DependencyGraph {
           seenIds.add(depId);
           nodes.push({ id: depId, name: depName, version: depVersion, type: 'cargo' });
         }
-        edges.push({ source: rootId, target: depId, type: 'depends' });
+        edges.push({ source: rootId, target: depId, type: 'depends', scope: 'prod' });
       }
     }
   } catch (e) {
@@ -130,7 +136,7 @@ export function parseGoMod(content: string): DependencyGraph {
           seenIds.add(depId);
           nodes.push({ id: depId, name: depName, version: depVersion, type: 'gomod' });
         }
-        edges.push({ source: rootId, target: depId, type: 'depends' });
+        edges.push({ source: rootId, target: depId, type: 'depends', scope: 'prod' });
         continue;
       }
       if (!inRequireBlock) continue;
@@ -144,7 +150,7 @@ export function parseGoMod(content: string): DependencyGraph {
           seenIds.add(depId);
           nodes.push({ id: depId, name: depName, version: depVersion, type: 'gomod' });
         }
-        edges.push({ source: rootId, target: depId, type: 'depends' });
+        edges.push({ source: rootId, target: depId, type: 'depends', scope: 'prod' });
       }
     }
   } catch (e) {
@@ -154,20 +160,34 @@ export function parseGoMod(content: string): DependencyGraph {
 }
 
 export function dependencyGraphToGraphData(depGraph: DependencyGraph): { nodes: GraphNode[]; edges: GraphEdge[] } {
-  const nodes: GraphNode[] = depGraph.nodes.map((n) => ({
-    id: NodeId(n.id),
-    label: n.name,
-    type: 'module',
-    filePath: '',
-    lineNumber: 0,
-    properties: { version: n.version, depType: n.type, isExternal: true },
-  }));
+  const nodes: GraphNode[] = depGraph.nodes.map((n) => {
+    let filePath = '';
+    if (n.type === 'npm') {
+      filePath = n.id === `dep:${n.name}` && depGraph.edges.some((e) => e.source === n.id)
+        ? 'package.json'
+        : `node_modules/${n.name}`;
+    } else if (n.type === 'cargo') {
+      filePath = depGraph.edges.some((e) => e.source === n.id) ? 'Cargo.toml' : `cargo/${n.name}`;
+    } else if (n.type === 'gomod') {
+      filePath = depGraph.edges.some((e) => e.source === n.id) ? 'go.mod' : `go/${n.name}`;
+    } else {
+      filePath = n.name;
+    }
+    return {
+      id: NodeId(n.id),
+      label: n.name,
+      type: 'module',
+      filePath,
+      lineNumber: 0,
+      properties: { version: n.version, depType: n.type, isExternal: true },
+    };
+  });
   const edges: GraphEdge[] = depGraph.edges.map((e) => ({
     id: EdgeId(`${e.source}->${e.target}:dependency`),
     source: NodeId(e.source),
     target: NodeId(e.target),
     type: 'dependency',
-    properties: {},
+    properties: { scope: e.scope },
   }));
   return { nodes, edges };
 }

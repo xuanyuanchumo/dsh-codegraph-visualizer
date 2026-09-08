@@ -1300,7 +1300,7 @@ const EDGE_WEIGHTS = {
 	implement: .7,
 	import: .5,
 	dependency: .3,
-	contains: .1
+	contains: 0
 };
 const DEFAULT_MAX_MODULE_DEPTH = 3;
 var HealthScorer = class {
@@ -1316,8 +1316,8 @@ var HealthScorer = class {
 			modularity: 0,
 			overall: 0
 		};
-		const moduleOfNode = this.buildModuleMap(nodes);
-		const coupling = this.calculateCoupling(nodes, edges, moduleOfNode);
+		const moduleOfNode = buildModuleMap(nodes, this.maxModuleDepth);
+		const coupling = this.calculateCoupling(edges, moduleOfNode);
 		const cohesion = this.calculateCohesion(nodes, edges, moduleOfNode);
 		const cyclicDependencyRate = this.calculateCyclicDependencyRate(nodes, edges);
 		const modularity = this.calculateModularity(nodes, edges, moduleOfNode);
@@ -1354,35 +1354,65 @@ var HealthScorer = class {
 			}
 		];
 	}
-	calculateCoupling(nodes, edges, moduleOfNode) {
+	calculateCoupling(edges, moduleOfNode) {
 		if (edges.length === 0) return 100;
-		let weightedCrossModule = 0;
-		let totalWeight = 0;
+		const efferent = new Map();
+		const afferent = new Map();
 		for (const edge of edges) {
-			const weight = EDGE_WEIGHTS[edge.type] ?? .5;
-			totalWeight += weight;
+			if (EDGE_WEIGHTS[edge.type] === 0) continue;
 			const srcModule = moduleOfNode.get(edge.source);
 			const tgtModule = moduleOfNode.get(edge.target);
-			if (srcModule && tgtModule && srcModule !== tgtModule) weightedCrossModule += weight;
+			if (!srcModule || !tgtModule || srcModule === tgtModule) continue;
+			let eff = efferent.get(srcModule);
+			if (!eff) {
+				eff = new Set();
+				efferent.set(srcModule, eff);
+			}
+			eff.add(tgtModule);
+			let aff = afferent.get(tgtModule);
+			if (!aff) {
+				aff = new Set();
+				afferent.set(tgtModule, aff);
+			}
+			aff.add(srcModule);
 		}
-		if (totalWeight === 0) return 100;
-		const couplingRatio = weightedCrossModule / totalWeight;
-		return Math.round(Math.max(0, 100 - couplingRatio * 100));
+		const modules = new Set();
+		for (const m of moduleOfNode.values()) modules.add(m);
+		if (modules.size <= 1) return 100;
+		let totalInstability = 0;
+		let moduleCount = 0;
+		for (const mod of modules) {
+			const ce = efferent.get(mod)?.size ?? 0;
+			const ca = afferent.get(mod)?.size ?? 0;
+			if (ce + ca === 0) continue;
+			const instability = ce / (ce + ca);
+			totalInstability += instability;
+			moduleCount++;
+		}
+		if (moduleCount === 0) return 100;
+		const avgInstability = totalInstability / moduleCount;
+		return Math.round(Math.max(0, 100 - avgInstability * 100));
 	}
 	calculateCohesion(nodes, edges, moduleOfNode) {
-		const moduleEdges = new Map();
+		const moduleStats = new Map();
 		const ensure = (m) => {
-			let stats = moduleEdges.get(m);
+			let stats = moduleStats.get(m);
 			if (!stats) {
 				stats = {
 					internal: 0,
-					total: 0
+					total: 0,
+					nodeCount: 0
 				};
-				moduleEdges.set(m, stats);
+				moduleStats.set(m, stats);
 			}
 			return stats;
 		};
+		for (const node of nodes) {
+			const mod = moduleOfNode.get(node.id);
+			if (mod) ensure(mod).nodeCount++;
+		}
 		for (const edge of edges) {
+			if (EDGE_WEIGHTS[edge.type] === 0) continue;
 			const srcModule = moduleOfNode.get(edge.source);
 			const tgtModule = moduleOfNode.get(edge.target);
 			if (!srcModule && !tgtModule) continue;
@@ -1395,26 +1425,27 @@ var HealthScorer = class {
 				if (tgtModule) ensure(tgtModule).total++;
 			}
 		}
-		if (moduleEdges.size === 0) return 50;
-		let totalCohesion = 0;
-		let moduleCount = 0;
-		for (const stats of moduleEdges.values()) if (stats.total > 0) {
-			totalCohesion += stats.internal / stats.total;
-			moduleCount++;
+		if (moduleStats.size === 0) return 50;
+		let weightedCohesion = 0;
+		let totalNodes = 0;
+		for (const stats of moduleStats.values()) {
+			if (stats.nodeCount === 0) continue;
+			const cohesionRatio = stats.total > 0 ? stats.internal / stats.total : 0;
+			weightedCohesion += cohesionRatio * stats.nodeCount;
+			totalNodes += stats.nodeCount;
 		}
-		if (moduleCount === 0) return 50;
-		return Math.round(totalCohesion / moduleCount * 100);
+		if (totalNodes === 0) return 50;
+		return Math.round(weightedCohesion / totalNodes * 100);
 	}
 	calculateCyclicDependencyRate(nodes, edges) {
-		if (edges.length === 0) return 100;
 		const cycleEdgeTypes = [
 			"call",
 			"extend",
-			"implement"
+			"implement",
+			"import"
 		];
 		const adjacency = new Map();
 		const nodeIds = new Set();
-		for (const node of nodes) nodeIds.add(node.id);
 		for (const edge of edges) {
 			if (!cycleEdgeTypes.includes(edge.type)) continue;
 			const list = adjacency.get(edge.source);
@@ -1423,6 +1454,7 @@ var HealthScorer = class {
 			nodeIds.add(edge.source);
 			nodeIds.add(edge.target);
 		}
+		if (nodeIds.size === 0) return 100;
 		const sccs = this.tarjanSCC(adjacency, nodeIds);
 		let cycleNodeCount = 0;
 		for (const scc of sccs) if (scc.length > 1) cycleNodeCount += scc.length;
@@ -1431,7 +1463,7 @@ var HealthScorer = class {
 			const neighbors = adjacency.get(id);
 			if (neighbors && neighbors.includes(id)) cycleNodeCount++;
 		}
-		const cycleRate = cycleNodeCount / nodes.length;
+		const cycleRate = cycleNodeCount / nodeIds.size;
 		return Math.round(Math.max(0, 100 - cycleRate * 100));
 	}
 	calculateModularity(nodes, edges, moduleOfNode) {
@@ -1441,23 +1473,28 @@ var HealthScorer = class {
 		if (modules.size <= 1) return 50;
 		const moduleSizes = new Map();
 		for (const m of moduleOfNode.values()) moduleSizes.set(m, (moduleSizes.get(m) ?? 0) + 1);
-		let sizeVariance = 0;
 		const avgSize = nodes.length / modules.size;
-		for (const size of moduleSizes.values()) sizeVariance += Math.abs(size - avgSize);
+		let sizeVariance = 0;
+		for (const size of moduleSizes.values()) sizeVariance += (size - avgSize) ** 2;
 		sizeVariance /= modules.size;
-		const balanceScore = Math.max(0, 100 - sizeVariance / Math.max(1, avgSize) * 50);
-		let crossModuleEdges = 0;
+		const cv = Math.sqrt(sizeVariance) / Math.max(1, avgSize);
+		const balanceScore = Math.max(0, 100 - cv * 50);
+		let internalEdges = 0;
+		let totalRelevantEdges = 0;
 		for (const edge of edges) {
+			if (EDGE_WEIGHTS[edge.type] === 0) continue;
 			const srcModule = moduleOfNode.get(edge.source);
 			const tgtModule = moduleOfNode.get(edge.target);
-			if (srcModule && tgtModule && srcModule !== tgtModule) crossModuleEdges++;
+			if (!srcModule || !tgtModule) continue;
+			totalRelevantEdges++;
+			if (srcModule === tgtModule) internalEdges++;
 		}
-		const crossModuleRatio = edges.length > 0 ? crossModuleEdges / edges.length : 0;
-		const separationScore = Math.max(0, 100 - crossModuleRatio * 100);
+		if (totalRelevantEdges === 0) return Math.round(balanceScore);
+		const internalRatio = internalEdges / totalRelevantEdges;
+		const expectedRatio = 1 / modules.size;
+		const modularityQ = internalRatio - expectedRatio;
+		const separationScore = Math.max(0, Math.min(100, modularityQ * 100 * modules.size + 50));
 		return Math.round((balanceScore + separationScore) / 2);
-	}
-	buildModuleMap(nodes) {
-		return buildModuleMap(nodes, this.maxModuleDepth);
 	}
 	tarjanSCC(adjacency, nodeIds) {
 		let index = 0;
@@ -2365,13 +2402,25 @@ function parsePackageJson(content) {
 		});
 		seenIds.add(rootId);
 		const depSections = [
-			"dependencies",
-			"devDependencies",
-			"peerDependencies",
-			"optionalDependencies"
+			{
+				key: "dependencies",
+				scope: "prod"
+			},
+			{
+				key: "devDependencies",
+				scope: "dev"
+			},
+			{
+				key: "peerDependencies",
+				scope: "peer"
+			},
+			{
+				key: "optionalDependencies",
+				scope: "optional"
+			}
 		];
-		for (const section of depSections) {
-			const deps = pkg[section];
+		for (const { key, scope } of depSections) {
+			const deps = pkg[key];
 			if (!deps || typeof deps !== "object") continue;
 			for (const [name$1, version$1] of Object.entries(deps)) {
 				const depId = `dep:${name$1}`;
@@ -2387,7 +2436,8 @@ function parsePackageJson(content) {
 				edges.push({
 					source: rootId,
 					target: depId,
-					type: "depends"
+					type: "depends",
+					scope
 				});
 			}
 		}
@@ -2449,7 +2499,8 @@ function parseCargoToml(content) {
 				edges.push({
 					source: rootId,
 					target: depId,
-					type: "depends"
+					type: "depends",
+					scope: "prod"
 				});
 				continue;
 			}
@@ -2470,7 +2521,8 @@ function parseCargoToml(content) {
 				edges.push({
 					source: rootId,
 					target: depId,
-					type: "depends"
+					type: "depends",
+					scope: "prod"
 				});
 			}
 		}
@@ -2531,7 +2583,8 @@ function parseGoMod(content) {
 				edges.push({
 					source: rootId,
 					target: depId,
-					type: "depends"
+					type: "depends",
+					scope: "prod"
 				});
 				continue;
 			}
@@ -2554,7 +2607,8 @@ function parseGoMod(content) {
 				edges.push({
 					source: rootId,
 					target: depId,
-					type: "depends"
+					type: "depends",
+					scope: "prod"
 				});
 			}
 		}
@@ -2567,24 +2621,31 @@ function parseGoMod(content) {
 	};
 }
 function dependencyGraphToGraphData(depGraph) {
-	const nodes = depGraph.nodes.map((n) => ({
-		id: NodeId(n.id),
-		label: n.name,
-		type: "module",
-		filePath: "",
-		lineNumber: 0,
-		properties: {
-			version: n.version,
-			depType: n.type,
-			isExternal: true
-		}
-	}));
+	const nodes = depGraph.nodes.map((n) => {
+		let filePath = "";
+		if (n.type === "npm") filePath = n.id === `dep:${n.name}` && depGraph.edges.some((e) => e.source === n.id) ? "package.json" : `node_modules/${n.name}`;
+		else if (n.type === "cargo") filePath = depGraph.edges.some((e) => e.source === n.id) ? "Cargo.toml" : `cargo/${n.name}`;
+		else if (n.type === "gomod") filePath = depGraph.edges.some((e) => e.source === n.id) ? "go.mod" : `go/${n.name}`;
+		else filePath = n.name;
+		return {
+			id: NodeId(n.id),
+			label: n.name,
+			type: "module",
+			filePath,
+			lineNumber: 0,
+			properties: {
+				version: n.version,
+				depType: n.type,
+				isExternal: true
+			}
+		};
+	});
 	const edges = depGraph.edges.map((e) => ({
 		id: EdgeId(`${e.source}->${e.target}:dependency`),
 		source: NodeId(e.source),
 		target: NodeId(e.target),
 		type: "dependency",
-		properties: {}
+		properties: { scope: e.scope }
 	}));
 	return {
 		nodes,

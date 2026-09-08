@@ -45,6 +45,11 @@ window.__ModuleLoader__.load({
   --cg-node-variable: #d97706;
   --cg-node-module: #db2777;
   --cg-node-interface: #0d9488;
+  --cg-node-type: #7c3aed;
+  --cg-node-dep-npm: #cc3535;
+  --cg-node-dep-cargo: #ce422b;
+  --cg-node-dep-gomod: #007d9b;
+  --cg-node-dep-pip: #3776ab;
 
   /* Edge type semantic colors — light theme */
   --cg-edge-default: rgba(0, 0, 0, 0.1);
@@ -53,6 +58,11 @@ window.__ModuleLoader__.load({
   --cg-edge-extend: #ec4899;
   --cg-edge-implement: #0d9488;
   --cg-edge-dependency: #f59e0b;
+  --cg-edge-contains: #7c3aed;
+  --cg-edge-dep-prod: #f59e0b;
+  --cg-edge-dep-dev: #3b82f6;
+  --cg-edge-dep-peer: #10b981;
+  --cg-edge-dep-optional: #7c3aed;
 
   /* Highlight / analysis colors — light theme */
   --cg-hover-border: #1a2230;
@@ -119,6 +129,11 @@ body[data-ds-dark-theme] {
   --cg-node-variable: #f59e0b;
   --cg-node-module: #ec4899;
   --cg-node-interface: #14b8a6;
+  --cg-node-type: #a78bfa;
+  --cg-node-dep-npm: #cb3837;
+  --cg-node-dep-cargo: #dea584;
+  --cg-node-dep-gomod: #00add8;
+  --cg-node-dep-pip: #3776ab;
 
   /* Edge type semantic colors — dark theme */
   --cg-edge-default: rgba(255, 255, 255, 0.14);
@@ -127,6 +142,11 @@ body[data-ds-dark-theme] {
   --cg-edge-extend: #f472b6;
   --cg-edge-implement: #2dd4bf;
   --cg-edge-dependency: #fbbf24;
+  --cg-edge-contains: #a78bfa;
+  --cg-edge-dep-prod: #fbbf24;
+  --cg-edge-dep-dev: #60a5fa;
+  --cg-edge-dep-peer: #34d399;
+  --cg-edge-dep-optional: #a78bfa;
 
   /* Highlight / analysis colors — dark theme */
   --cg-hover-border: #818cf8;
@@ -3837,6 +3857,11 @@ function getTopLevelDir(filePath) {
 	if (parts[startIdx] === "src" || parts[startIdx] === "lib" || parts[startIdx] === "app") return parts.slice(startIdx, startIdx + 2).join("/");
 	return parts.slice(startIdx, startIdx + 2).join("/");
 }
+function getDependencyGroup(node) {
+	const depType = node.properties?.depType;
+	if (typeof depType === "string") return `dep:${depType}`;
+	return null;
+}
 function getDirLabel$1(dirPath) {
 	const parts = dirPath.split("/");
 	return parts[parts.length - 1] ?? dirPath;
@@ -3891,7 +3916,8 @@ function computeDirectoryClusters(rawNodes, rawEdges, expandedDirs) {
 	const nodeToDir = new Map();
 	const dirToNodes = new Map();
 	for (const n of rawNodes) {
-		const dir = n.filePath ? getTopLevelDir(n.filePath) : n.id;
+		const depGroup = getDependencyGroup(n);
+		const dir = depGroup ?? (n.filePath ? getTopLevelDir(n.filePath) : n.id);
 		nodeToDir.set(n.id, dir);
 		const list = dirToNodes.get(dir);
 		if (list) list.push(n);
@@ -3952,18 +3978,40 @@ function getDirLabel(dirPath) {
 	const parts = dirPath.split(/[\\/]/);
 	return parts[parts.length - 1] ?? dirPath;
 }
+function buildNodeScopeMap(rawEdges) {
+	const scopeMap = new Map();
+	for (const e of rawEdges) if (e.type === "dependency" && e.properties?.scope) scopeMap.set(e.target, String(e.properties.scope));
+	return scopeMap;
+}
+function getDependencyScopeGroup(node, nodeScopeMap) {
+	const isExternal = node.properties?.isExternal;
+	if (isExternal) {
+		const scope = nodeScopeMap.get(node.id);
+		if (scope) return `depscope:${scope}`;
+		return "depscope:prod";
+	}
+	return null;
+}
 function computeFileClusters(rawNodes, rawEdges, expandedFiles) {
 	const visibleNodes = [];
 	const nodeIdToVisibleId = new Map();
+	const nodeScopeMap = buildNodeScopeMap(rawEdges);
 	const moduleDirGroups = new Map();
 	const nonModuleNodes = [];
-	for (const n of rawNodes) if (n.type === "module" && n.filePath) {
-		const parentDir = getParentDir(n.filePath);
-		const list = moduleDirGroups.get(parentDir);
-		if (list) list.push(n);
-		else moduleDirGroups.set(parentDir, [n]);
-	} else if (!n.parentId) nonModuleNodes.push(n);
-	else nonModuleNodes.push(n);
+	for (const n of rawNodes) {
+		const scopeGroup = getDependencyScopeGroup(n, nodeScopeMap);
+		if (scopeGroup) {
+			const list = moduleDirGroups.get(scopeGroup);
+			if (list) list.push(n);
+			else moduleDirGroups.set(scopeGroup, [n]);
+		} else if (n.type === "module" && n.filePath) {
+			const parentDir = getParentDir(n.filePath);
+			const list = moduleDirGroups.get(parentDir);
+			if (list) list.push(n);
+			else moduleDirGroups.set(parentDir, [n]);
+		} else if (!n.parentId) nonModuleNodes.push(n);
+		else nonModuleNodes.push(n);
+	}
 	for (const [dirPath, nodes] of moduleDirGroups) {
 		const clusterId = `filecluster__${dirPath.replace(/[/:\\]/g, "__")}`;
 		if (expandedFiles.has(clusterId)) for (const n of nodes) {
@@ -43307,7 +43355,7 @@ var LayoutController = class {
 		else densityFactor = .5;
 		const s = Math.max(40, idealSpacing * densityFactor);
 		return {
-			nodeRepulse: s * s * 10,
+			nodeRepulse: Math.min(s * s * 4, 2e4),
 			idealEdgeLength: s * 2,
 			rankSep: Math.min(Math.max(30, s * .3), 80),
 			edgeSep: Math.min(Math.max(15, s * .15), 40),
@@ -43363,15 +43411,20 @@ var LayoutController = class {
 				rows: Math.ceil(Math.sqrt(nodeCount)),
 				cols: Math.ceil(Math.sqrt(nodeCount))
 			};
-			case "radial": return {
-				name: "concentric",
-				fit: true,
-				animate: false,
-				padding: sp.padding,
-				minNodeSpacing: sp.minNodeSpacing,
-				concentric: (n) => n.degree(),
-				levelWidth: () => 2
-			};
+			case "radial": {
+				const degrees = this.cy.nodes().map((n) => n.degree()).sort((a, b) => a - b);
+				const maxDeg = degrees[degrees.length - 1] ?? 1;
+				const levelW = Math.max(1, Math.ceil(maxDeg / 4));
+				return {
+					name: "concentric",
+					fit: true,
+					animate: false,
+					padding: sp.padding,
+					minNodeSpacing: sp.minNodeSpacing,
+					concentric: (n) => n.degree(),
+					levelWidth: () => levelW
+				};
+			}
 			case "tree": {
 				const rootNodes = this.cy.nodes().roots();
 				let roots;
@@ -43453,8 +43506,8 @@ var LayoutController = class {
 					overlapCount++;
 					const overlapX = minDx - absDx;
 					const overlapY = minDy - absDy;
-					const pushX = overlapX / 2 + 8;
-					const pushY = overlapY / 2 + 8;
+					const pushX = overlapX / 2 + Math.max(2, overlapX * .15);
+					const pushY = overlapY / 2 + Math.max(2, overlapY * .15);
 					const signX = ddx >= 0 ? 1 : -1;
 					const signY = ddy >= 0 ? 1 : -1;
 					let da = displacements.get(a.id);
@@ -43872,6 +43925,11 @@ function getThemeColors(theme) {
 		nodeVariable: readCssVar("--cg-node-variable", isDark ? "#f59e0b" : "#d97706"),
 		nodeModule: readCssVar("--cg-node-module", isDark ? "#ec4899" : "#db2777"),
 		nodeInterface: readCssVar("--cg-node-interface", isDark ? "#14b8a6" : "#0d9488"),
+		nodeType: readCssVar("--cg-node-type", isDark ? "#a78bfa" : "#7c3aed"),
+		nodeDepNpm: readCssVar("--cg-node-dep-npm", isDark ? "#cb3837" : "#cc3535"),
+		nodeDepCargo: readCssVar("--cg-node-dep-cargo", isDark ? "#dea584" : "#ce422b"),
+		nodeDepGomod: readCssVar("--cg-node-dep-gomod", isDark ? "#00add8" : "#007d9b"),
+		nodeDepPip: readCssVar("--cg-node-dep-pip", isDark ? "#3776ab" : "#3776ab"),
 		edgeDefault: readCssVar("--cg-edge-default", isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.1)"),
 		edgeCall: readCssVar("--cg-edge-call", isDark ? "#60a5fa" : "#3b82f6"),
 		edgeImport: readCssVar("--cg-edge-import", isDark ? "#34d399" : "#10b981"),
@@ -43879,6 +43937,10 @@ function getThemeColors(theme) {
 		edgeImplement: readCssVar("--cg-edge-implement", isDark ? "#2dd4bf" : "#0d9488"),
 		edgeDependency: readCssVar("--cg-edge-dependency", isDark ? "#fbbf24" : "#f59e0b"),
 		edgeContains: readCssVar("--cg-edge-contains", isDark ? "#a78bfa" : "#7c3aed"),
+		edgeDepProd: readCssVar("--cg-edge-dep-prod", isDark ? "#fbbf24" : "#f59e0b"),
+		edgeDepDev: readCssVar("--cg-edge-dep-dev", isDark ? "#60a5fa" : "#3b82f6"),
+		edgeDepPeer: readCssVar("--cg-edge-dep-peer", isDark ? "#34d399" : "#10b981"),
+		edgeDepOptional: readCssVar("--cg-edge-dep-optional", isDark ? "#a78bfa" : "#7c3aed"),
 		text: readCssVar("--cg-text", isDark ? "#f9fafb" : "#0f1115"),
 		border: readCssVar("--cg-border", isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)")
 	};
@@ -43995,6 +44057,41 @@ function buildStylesheet(theme, nodeCount = 0) {
 			}
 		},
 		{
+			selector: "node[type=\"type\"]",
+			style: {
+				"shape": "star",
+				"background-color": c.nodeType
+			}
+		},
+		{
+			selector: "node[depType=\"npm\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": c.nodeDepNpm
+			}
+		},
+		{
+			selector: "node[depType=\"cargo\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": c.nodeDepCargo
+			}
+		},
+		{
+			selector: "node[depType=\"gomod\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": c.nodeDepGomod
+			}
+		},
+		{
+			selector: "node[depType=\"pip\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": c.nodeDepPip
+			}
+		},
+		{
 			selector: "edge",
 			style: {
 				"width": 1.5,
@@ -44044,6 +44141,39 @@ function buildStylesheet(theme, nodeCount = 0) {
 				"line-color": c.edgeDependency,
 				"target-arrow-color": c.edgeDependency,
 				"line-style": "dashed"
+			}
+		},
+		{
+			selector: "edge[type=\"dependency\"][scope=\"prod\"]",
+			style: {
+				"line-color": c.edgeDepProd,
+				"target-arrow-color": c.edgeDepProd,
+				"line-style": "solid"
+			}
+		},
+		{
+			selector: "edge[type=\"dependency\"][scope=\"dev\"]",
+			style: {
+				"line-color": c.edgeDepDev,
+				"target-arrow-color": c.edgeDepDev,
+				"line-style": "dashed"
+			}
+		},
+		{
+			selector: "edge[type=\"dependency\"][scope=\"peer\"]",
+			style: {
+				"line-color": c.edgeDepPeer,
+				"target-arrow-color": c.edgeDepPeer,
+				"line-style": "dotted"
+			}
+		},
+		{
+			selector: "edge[type=\"dependency\"][scope=\"optional\"]",
+			style: {
+				"line-color": c.edgeDepOptional,
+				"target-arrow-color": c.edgeDepOptional,
+				"line-style": "dotted",
+				"opacity": .6
 			}
 		},
 		{
@@ -44423,34 +44553,38 @@ var DataController = class {
 	}
 	addNode(n) {
 		const isCluster = "isCluster" in n && n.isCluster === true;
+		const data$2 = {
+			id: n.id,
+			label: n.label,
+			type: n.type,
+			filePath: n.filePath,
+			lineNumber: n.lineNumber,
+			parent: n.parentId ?? void 0,
+			isCluster,
+			childCount: isCluster ? n.childCount : 0
+		};
+		if (n.properties?.depType) data$2.depType = n.properties.depType;
 		this.cy.add({
 			group: "nodes",
-			data: {
-				id: n.id,
-				label: n.label,
-				type: n.type,
-				filePath: n.filePath,
-				lineNumber: n.lineNumber,
-				parent: n.parentId ?? void 0,
-				isCluster,
-				childCount: isCluster ? n.childCount : 0
-			}
+			data: data$2
 		});
 	}
 	addEdge(e) {
 		const isCluster = "isCluster" in e && e.isCluster === true;
 		const ce = isCluster ? e : null;
+		const data$2 = {
+			id: e.id,
+			source: e.source,
+			target: e.target,
+			type: e.type,
+			isCluster,
+			aggregatedCount: ce?.aggregatedCount ?? 0,
+			label: isCluster ? `${ce?.aggregatedCount ?? 0} deps` : ""
+		};
+		if (e.properties?.scope) data$2.scope = e.properties.scope;
 		this.cy.add({
 			group: "edges",
-			data: {
-				id: e.id,
-				source: e.source,
-				target: e.target,
-				type: e.type,
-				isCluster,
-				aggregatedCount: ce?.aggregatedCount ?? 0,
-				label: isCluster ? `${ce?.aggregatedCount ?? 0} deps` : ""
-			}
+			data: data$2
 		});
 	}
 	processBatchQueue() {
@@ -45984,6 +46118,7 @@ const en = {
 	"legend.extend": "extends",
 	"legend.implement": "implements",
 	"legend.dependency": "depends on",
+	"legend.contains": "contains",
 	"export.png": "PNG",
 	"export.svg": "SVG",
 	"export.json": "JSON",
@@ -46207,6 +46342,7 @@ const zh = {
 	"legend.extend": "继承",
 	"legend.implement": "实现",
 	"legend.dependency": "依赖",
+	"legend.contains": "包含",
 	"export.png": "PNG",
 	"export.svg": "SVG",
 	"export.json": "JSON",
@@ -47109,6 +47245,11 @@ const NODE_TYPES = [
 		type: "interface",
 		color: "var(--cg-node-interface)",
 		key: "legend.interface"
+	},
+	{
+		type: "type",
+		color: "var(--cg-node-type)",
+		key: "legend.type"
 	}
 ];
 const EDGE_TYPES = [
@@ -47141,6 +47282,12 @@ const EDGE_TYPES = [
 		style: "dashed",
 		color: "var(--cg-edge-dependency)",
 		key: "legend.dependency"
+	},
+	{
+		type: "contains",
+		style: "dotted",
+		color: "var(--cg-edge-contains)",
+		key: "legend.contains"
 	}
 ];
 function Legend({ onClose }) {
@@ -49347,7 +49494,7 @@ const EDGE_WEIGHTS = {
 	implement: .7,
 	import: .5,
 	dependency: .3,
-	contains: .1
+	contains: 0
 };
 const DEFAULT_MAX_MODULE_DEPTH = 3;
 var HealthScorer = class {
@@ -49363,8 +49510,8 @@ var HealthScorer = class {
 			modularity: 0,
 			overall: 0
 		};
-		const moduleOfNode = this.buildModuleMap(nodes);
-		const coupling = this.calculateCoupling(nodes, edges, moduleOfNode);
+		const moduleOfNode = buildModuleMap(nodes, this.maxModuleDepth);
+		const coupling = this.calculateCoupling(edges, moduleOfNode);
 		const cohesion = this.calculateCohesion(nodes, edges, moduleOfNode);
 		const cyclicDependencyRate = this.calculateCyclicDependencyRate(nodes, edges);
 		const modularity = this.calculateModularity(nodes, edges, moduleOfNode);
@@ -49401,35 +49548,65 @@ var HealthScorer = class {
 			}
 		];
 	}
-	calculateCoupling(nodes, edges, moduleOfNode) {
+	calculateCoupling(edges, moduleOfNode) {
 		if (edges.length === 0) return 100;
-		let weightedCrossModule = 0;
-		let totalWeight = 0;
+		const efferent = new Map();
+		const afferent = new Map();
 		for (const edge of edges) {
-			const weight = EDGE_WEIGHTS[edge.type] ?? .5;
-			totalWeight += weight;
+			if (EDGE_WEIGHTS[edge.type] === 0) continue;
 			const srcModule = moduleOfNode.get(edge.source);
 			const tgtModule = moduleOfNode.get(edge.target);
-			if (srcModule && tgtModule && srcModule !== tgtModule) weightedCrossModule += weight;
+			if (!srcModule || !tgtModule || srcModule === tgtModule) continue;
+			let eff = efferent.get(srcModule);
+			if (!eff) {
+				eff = new Set();
+				efferent.set(srcModule, eff);
+			}
+			eff.add(tgtModule);
+			let aff = afferent.get(tgtModule);
+			if (!aff) {
+				aff = new Set();
+				afferent.set(tgtModule, aff);
+			}
+			aff.add(srcModule);
 		}
-		if (totalWeight === 0) return 100;
-		const couplingRatio = weightedCrossModule / totalWeight;
-		return Math.round(Math.max(0, 100 - couplingRatio * 100));
+		const modules$1 = new Set();
+		for (const m of moduleOfNode.values()) modules$1.add(m);
+		if (modules$1.size <= 1) return 100;
+		let totalInstability = 0;
+		let moduleCount = 0;
+		for (const mod of modules$1) {
+			const ce = efferent.get(mod)?.size ?? 0;
+			const ca = afferent.get(mod)?.size ?? 0;
+			if (ce + ca === 0) continue;
+			const instability = ce / (ce + ca);
+			totalInstability += instability;
+			moduleCount++;
+		}
+		if (moduleCount === 0) return 100;
+		const avgInstability = totalInstability / moduleCount;
+		return Math.round(Math.max(0, 100 - avgInstability * 100));
 	}
 	calculateCohesion(nodes, edges, moduleOfNode) {
-		const moduleEdges = new Map();
+		const moduleStats = new Map();
 		const ensure = (m) => {
-			let stats = moduleEdges.get(m);
+			let stats = moduleStats.get(m);
 			if (!stats) {
 				stats = {
 					internal: 0,
-					total: 0
+					total: 0,
+					nodeCount: 0
 				};
-				moduleEdges.set(m, stats);
+				moduleStats.set(m, stats);
 			}
 			return stats;
 		};
+		for (const node of nodes) {
+			const mod = moduleOfNode.get(node.id);
+			if (mod) ensure(mod).nodeCount++;
+		}
 		for (const edge of edges) {
+			if (EDGE_WEIGHTS[edge.type] === 0) continue;
 			const srcModule = moduleOfNode.get(edge.source);
 			const tgtModule = moduleOfNode.get(edge.target);
 			if (!srcModule && !tgtModule) continue;
@@ -49442,26 +49619,27 @@ var HealthScorer = class {
 				if (tgtModule) ensure(tgtModule).total++;
 			}
 		}
-		if (moduleEdges.size === 0) return 50;
-		let totalCohesion = 0;
-		let moduleCount = 0;
-		for (const stats of moduleEdges.values()) if (stats.total > 0) {
-			totalCohesion += stats.internal / stats.total;
-			moduleCount++;
+		if (moduleStats.size === 0) return 50;
+		let weightedCohesion = 0;
+		let totalNodes = 0;
+		for (const stats of moduleStats.values()) {
+			if (stats.nodeCount === 0) continue;
+			const cohesionRatio = stats.total > 0 ? stats.internal / stats.total : 0;
+			weightedCohesion += cohesionRatio * stats.nodeCount;
+			totalNodes += stats.nodeCount;
 		}
-		if (moduleCount === 0) return 50;
-		return Math.round(totalCohesion / moduleCount * 100);
+		if (totalNodes === 0) return 50;
+		return Math.round(weightedCohesion / totalNodes * 100);
 	}
 	calculateCyclicDependencyRate(nodes, edges) {
-		if (edges.length === 0) return 100;
 		const cycleEdgeTypes = [
 			"call",
 			"extend",
-			"implement"
+			"implement",
+			"import"
 		];
 		const adjacency = new Map();
 		const nodeIds = new Set();
-		for (const node of nodes) nodeIds.add(node.id);
 		for (const edge of edges) {
 			if (!cycleEdgeTypes.includes(edge.type)) continue;
 			const list = adjacency.get(edge.source);
@@ -49470,6 +49648,7 @@ var HealthScorer = class {
 			nodeIds.add(edge.source);
 			nodeIds.add(edge.target);
 		}
+		if (nodeIds.size === 0) return 100;
 		const sccs = this.tarjanSCC(adjacency, nodeIds);
 		let cycleNodeCount = 0;
 		for (const scc of sccs) if (scc.length > 1) cycleNodeCount += scc.length;
@@ -49478,7 +49657,7 @@ var HealthScorer = class {
 			const neighbors = adjacency.get(id);
 			if (neighbors && neighbors.includes(id)) cycleNodeCount++;
 		}
-		const cycleRate = cycleNodeCount / nodes.length;
+		const cycleRate = cycleNodeCount / nodeIds.size;
 		return Math.round(Math.max(0, 100 - cycleRate * 100));
 	}
 	calculateModularity(nodes, edges, moduleOfNode) {
@@ -49488,23 +49667,28 @@ var HealthScorer = class {
 		if (modules$1.size <= 1) return 50;
 		const moduleSizes = new Map();
 		for (const m of moduleOfNode.values()) moduleSizes.set(m, (moduleSizes.get(m) ?? 0) + 1);
-		let sizeVariance = 0;
 		const avgSize = nodes.length / modules$1.size;
-		for (const size$1 of moduleSizes.values()) sizeVariance += Math.abs(size$1 - avgSize);
+		let sizeVariance = 0;
+		for (const size$1 of moduleSizes.values()) sizeVariance += (size$1 - avgSize) ** 2;
 		sizeVariance /= modules$1.size;
-		const balanceScore = Math.max(0, 100 - sizeVariance / Math.max(1, avgSize) * 50);
-		let crossModuleEdges = 0;
+		const cv = Math.sqrt(sizeVariance) / Math.max(1, avgSize);
+		const balanceScore = Math.max(0, 100 - cv * 50);
+		let internalEdges = 0;
+		let totalRelevantEdges = 0;
 		for (const edge of edges) {
+			if (EDGE_WEIGHTS[edge.type] === 0) continue;
 			const srcModule = moduleOfNode.get(edge.source);
 			const tgtModule = moduleOfNode.get(edge.target);
-			if (srcModule && tgtModule && srcModule !== tgtModule) crossModuleEdges++;
+			if (!srcModule || !tgtModule) continue;
+			totalRelevantEdges++;
+			if (srcModule === tgtModule) internalEdges++;
 		}
-		const crossModuleRatio = edges.length > 0 ? crossModuleEdges / edges.length : 0;
-		const separationScore = Math.max(0, 100 - crossModuleRatio * 100);
+		if (totalRelevantEdges === 0) return Math.round(balanceScore);
+		const internalRatio = internalEdges / totalRelevantEdges;
+		const expectedRatio = 1 / modules$1.size;
+		const modularityQ = internalRatio - expectedRatio;
+		const separationScore = Math.max(0, Math.min(100, modularityQ * 100 * modules$1.size + 50));
 		return Math.round((balanceScore + separationScore) / 2);
-	}
-	buildModuleMap(nodes) {
-		return buildModuleMap(nodes, this.maxModuleDepth);
 	}
 	tarjanSCC(adjacency, nodeIds) {
 		let index = 0;
@@ -50076,14 +50260,20 @@ function GraphPanelInner({ className = "" }) {
 	}, [setSelectedNode]);
 	const prevClusterLevelRef = (0, react.useRef)(clusterLevel);
 	const prevGraphTypeRef = (0, react.useRef)(graphType);
+	const prevFilterTypeRef = (0, react.useRef)(filterType);
+	const prevLayoutRef = (0, react.useRef)(layout$2);
 	const handleToggleViewMode = (0, react.useCallback)(() => {
 		const newMode = viewMode === "code" ? "dependencies" : "code";
 		setViewMode(newMode);
 		if (newMode === "dependencies") {
 			prevClusterLevelRef.current = clusterLevel;
 			prevGraphTypeRef.current = graphType;
-			setClusterLevel("function");
+			prevFilterTypeRef.current = filterType;
+			prevLayoutRef.current = layout$2;
+			setClusterLevel("directory");
 			setGraphType("dependency");
+			setFilterType("all");
+			setLayout("radial");
 			setLoading(true);
 			const controller = new AbortController();
 			depsFetchAbortRef.current?.abort();
@@ -50103,6 +50293,8 @@ function GraphPanelInner({ className = "" }) {
 			depsFetchAbortRef.current?.abort();
 			setClusterLevel(prevClusterLevelRef.current);
 			setGraphType(prevGraphTypeRef.current);
+			setFilterType(prevFilterTypeRef.current);
+			setLayout(prevLayoutRef.current);
 			setLoading(true);
 			fetchGraphData().then((data$2) => {
 				if (data$2) setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
@@ -50120,8 +50312,12 @@ function GraphPanelInner({ className = "" }) {
 		currentWorkspace,
 		clusterLevel,
 		graphType,
+		filterType,
+		layout$2,
 		setClusterLevel,
-		setGraphType
+		setGraphType,
+		setFilterType,
+		setLayout
 	]);
 	const handleRefresh = (0, react.useCallback)(() => {
 		setLoading(true);

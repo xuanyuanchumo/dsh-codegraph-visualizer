@@ -143,6 +143,7 @@ export const zh: Record<string, string> = {
   'legend.extend': '继承',
   'legend.implement': '实现',
   'legend.dependency': '依赖',
+  'legend.contains': '包含',
 
   // Export
   'export.png': 'PNG',

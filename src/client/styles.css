@@ -33,6 +33,11 @@
   --cg-node-variable: #d97706;
   --cg-node-module: #db2777;
   --cg-node-interface: #0d9488;
+  --cg-node-type: #7c3aed;
+  --cg-node-dep-npm: #cc3535;
+  --cg-node-dep-cargo: #ce422b;
+  --cg-node-dep-gomod: #007d9b;
+  --cg-node-dep-pip: #3776ab;
 
   /* Edge type semantic colors — light theme */
   --cg-edge-default: rgba(0, 0, 0, 0.1);
@@ -41,6 +46,11 @@
   --cg-edge-extend: #ec4899;
   --cg-edge-implement: #0d9488;
   --cg-edge-dependency: #f59e0b;
+  --cg-edge-contains: #7c3aed;
+  --cg-edge-dep-prod: #f59e0b;
+  --cg-edge-dep-dev: #3b82f6;
+  --cg-edge-dep-peer: #10b981;
+  --cg-edge-dep-optional: #7c3aed;
 
   /* Highlight / analysis colors — light theme */
   --cg-hover-border: #1a2230;
@@ -107,6 +117,11 @@ body[data-ds-dark-theme] {
   --cg-node-variable: #f59e0b;
   --cg-node-module: #ec4899;
   --cg-node-interface: #14b8a6;
+  --cg-node-type: #a78bfa;
+  --cg-node-dep-npm: #cb3837;
+  --cg-node-dep-cargo: #dea584;
+  --cg-node-dep-gomod: #00add8;
+  --cg-node-dep-pip: #3776ab;
 
   /* Edge type semantic colors — dark theme */
   --cg-edge-default: rgba(255, 255, 255, 0.14);
@@ -115,6 +130,11 @@ body[data-ds-dark-theme] {
   --cg-edge-extend: #f472b6;
   --cg-edge-implement: #2dd4bf;
   --cg-edge-dependency: #fbbf24;
+  --cg-edge-contains: #a78bfa;
+  --cg-edge-dep-prod: #fbbf24;
+  --cg-edge-dep-dev: #60a5fa;
+  --cg-edge-dep-peer: #34d399;
+  --cg-edge-dep-optional: #a78bfa;
 
   /* Highlight / analysis colors — dark theme */
   --cg-hover-border: #818cf8;

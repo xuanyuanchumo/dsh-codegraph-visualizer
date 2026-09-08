@@ -11,6 +11,7 @@ const NODE_TYPES: { type: string; color: string; key: string }[] = [
   { type: 'variable', color: 'var(--cg-node-variable)', key: 'legend.variable' },
   { type: 'module', color: 'var(--cg-node-module)', key: 'legend.module' },
   { type: 'interface', color: 'var(--cg-node-interface)', key: 'legend.interface' },
+  { type: 'type', color: 'var(--cg-node-type)', key: 'legend.type' },
 ];
 
 const EDGE_TYPES: { type: string; style: 'solid' | 'dashed' | 'dotted'; color: string; key: string }[] = [
@@ -19,6 +20,7 @@ const EDGE_TYPES: { type: string; style: 'solid' | 'dashed' | 'dotted'; color: s
   { type: 'extend', style: 'solid', color: 'var(--cg-edge-extend)', key: 'legend.extend' },
   { type: 'implement', style: 'dotted', color: 'var(--cg-edge-implement)', key: 'legend.implement' },
   { type: 'dependency', style: 'dashed', color: 'var(--cg-edge-dependency)', key: 'legend.dependency' },
+  { type: 'contains', style: 'dotted', color: 'var(--cg-edge-contains)', key: 'legend.contains' },
 ];
 
 export function Legend({ onClose }: LegendProps) {

@@ -250,7 +250,7 @@ export class LayoutController {
     else densityFactor = 0.5;
     const s = Math.max(40, idealSpacing * densityFactor);
     return {
-      nodeRepulse: s * s * 10,
+      nodeRepulse: Math.min(s * s * 4, 20000),
       idealEdgeLength: s * 2,
       rankSep: Math.min(Math.max(30, s * 0.3), 80),
       edgeSep: Math.min(Math.max(15, s * 0.15), 40),
@@ -291,13 +291,17 @@ export class LayoutController {
           rows: Math.ceil(Math.sqrt(nodeCount)),
           cols: Math.ceil(Math.sqrt(nodeCount)),
         } as LayoutOptions;
-      case 'radial':
+      case 'radial': {
+        const degrees = this.cy.nodes().map((n) => n.degree()).sort((a, b) => a - b);
+        const maxDeg = degrees[degrees.length - 1] ?? 1;
+        const levelW = Math.max(1, Math.ceil(maxDeg / 4));
         return {
           name: 'concentric', fit: true, animate: false,
           padding: sp.padding, minNodeSpacing: sp.minNodeSpacing,
           concentric: (n: { degree: () => number }) => n.degree(),
-          levelWidth: () => 2,
+          levelWidth: () => levelW,
         } as LayoutOptions;
+      }
       case 'tree': {
         const rootNodes = this.cy.nodes().roots();
         let roots: ReturnType<typeof this.cy.nodes>;
@@ -380,8 +384,8 @@ export class LayoutController {
               overlapCount++;
               const overlapX = minDx - absDx;
               const overlapY = minDy - absDy;
-              const pushX = overlapX / 2 + 8;
-              const pushY = overlapY / 2 + 8;
+              const pushX = overlapX / 2 + Math.max(2, overlapX * 0.15);
+              const pushY = overlapY / 2 + Math.max(2, overlapY * 0.15);
               const signX = ddx >= 0 ? 1 : -1;
               const signY = ddy >= 0 ? 1 : -1;
               let da = displacements.get(a.id);

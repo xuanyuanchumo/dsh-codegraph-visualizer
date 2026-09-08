@@ -36,7 +36,7 @@ describe('HealthScorer', () => {
       ];
       const edges = [makeEdge('e1', 'a', 'b', 'call')];
       const score = scorer.calculate(nodes, edges);
-      expect(score.coupling).toBe(0);
+      expect(score.coupling).toBe(50);
     });
 
     it('weights call edges higher than dependency edges', () => {
@@ -251,7 +251,7 @@ describe('HealthScorer', () => {
       ];
       const score = scorer.calculate(nodes, edges);
       expect(score.cyclicDependencyRate).toBe(0);
-      expect(score.overall).toBeLessThanOrEqual(60);
+      expect(score.overall).toBeLessThanOrEqual(65);
     });
 
     it('produces high overall score for healthy codebase', () => {
@@ -436,7 +436,7 @@ describe('HealthScorer', () => {
       expect(score.cyclicDependencyRate).toBeLessThan(100);
     });
 
-    it('only counts call/extend/implement edges for cycles', () => {
+    it('counts call/extend/implement/import edges for cycles', () => {
       const nodes = [
         makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
         makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
@@ -446,7 +446,7 @@ describe('HealthScorer', () => {
         makeEdge('e2', 'b', 'a', 'import'),
       ];
       const score = scorer.calculate(nodes, edges);
-      expect(score.cyclicDependencyRate).toBe(100);
+      expect(score.cyclicDependencyRate).toBe(0);
     });
   });
 });

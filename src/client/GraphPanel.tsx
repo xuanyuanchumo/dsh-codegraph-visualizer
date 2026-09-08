@@ -405,14 +405,20 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   // FR-21: View mode toggle — code graph vs dependency graph
   const prevClusterLevelRef = useRef(clusterLevel);
   const prevGraphTypeRef = useRef(graphType);
+  const prevFilterTypeRef = useRef(filterType);
+  const prevLayoutRef = useRef(layout);
   const handleToggleViewMode = useCallback(() => {
     const newMode = viewMode === 'code' ? 'dependencies' : 'code';
     setViewMode(newMode);
     if (newMode === 'dependencies') {
       prevClusterLevelRef.current = clusterLevel;
       prevGraphTypeRef.current = graphType;
-      setClusterLevel('function');
+      prevFilterTypeRef.current = filterType;
+      prevLayoutRef.current = layout;
+      setClusterLevel('directory');
       setGraphType('dependency');
+      setFilterType('all');
+      setLayout('radial');
       setLoading(true);
       const controller = new AbortController();
       depsFetchAbortRef.current?.abort();
@@ -431,6 +437,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       depsFetchAbortRef.current?.abort();
       setClusterLevel(prevClusterLevelRef.current);
       setGraphType(prevGraphTypeRef.current);
+      setFilterType(prevFilterTypeRef.current);
+      setLayout(prevLayoutRef.current);
       setLoading(true);
       fetchGraphData().then((data) => {
         if (data) {
@@ -439,7 +447,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         setLoading(false);
       }).catch(() => { setLoading(false); });
     }
-  }, [viewMode, setViewMode, setLoading, setGraphData, setError, currentWorkspace, clusterLevel, graphType, setClusterLevel, setGraphType]);
+  }, [viewMode, setViewMode, setLoading, setGraphData, setError, currentWorkspace, clusterLevel, graphType, filterType, layout, setClusterLevel, setGraphType, setFilterType, setLayout]);
 
   const handleRefresh = useCallback(() => {
     setLoading(true);

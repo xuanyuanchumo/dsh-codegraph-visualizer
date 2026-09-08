@@ -21,7 +21,7 @@ const EDGE_WEIGHTS: Record<GraphEdge['type'], number> = {
   implement: 0.7,
   import: 0.5,
   dependency: 0.3,
-  contains: 0.1,
+  contains: 0.0,
 };
 
 const DEFAULT_MAX_MODULE_DEPTH = 3;
@@ -38,9 +38,9 @@ export class HealthScorer {
       return { coupling: 0, cohesion: 0, cyclicDependencyRate: 0, modularity: 0, overall: 0 };
     }
 
-    const moduleOfNode = this.buildModuleMap(nodes);
+    const moduleOfNode = buildModuleMap(nodes, this.maxModuleDepth);
 
-    const coupling = this.calculateCoupling(nodes, edges, moduleOfNode);
+    const coupling = this.calculateCoupling(edges, moduleOfNode);
     const cohesion = this.calculateCohesion(nodes, edges, moduleOfNode);
     const cyclicDependencyRate = this.calculateCyclicDependencyRate(nodes, edges);
     const modularity = this.calculateModularity(nodes, edges, moduleOfNode);
@@ -60,38 +60,63 @@ export class HealthScorer {
     ];
   }
 
-  private calculateCoupling(nodes: GraphNode[], edges: GraphEdge[], moduleOfNode: Map<string, string>): number {
+  private calculateCoupling(edges: GraphEdge[], moduleOfNode: Map<string, string>): number {
     if (edges.length === 0) return 100;
 
-
-    let weightedCrossModule = 0;
-    let totalWeight = 0;
+    const efferent = new Map<string, Set<string>>();
+    const afferent = new Map<string, Set<string>>();
 
     for (const edge of edges) {
-      const weight = EDGE_WEIGHTS[edge.type] ?? 0.5;
-      totalWeight += weight;
+      if (EDGE_WEIGHTS[edge.type] === 0) continue;
       const srcModule = moduleOfNode.get(edge.source);
       const tgtModule = moduleOfNode.get(edge.target);
-      if (srcModule && tgtModule && srcModule !== tgtModule) {
-        weightedCrossModule += weight;
-      }
+      if (!srcModule || !tgtModule || srcModule === tgtModule) continue;
+
+      let eff = efferent.get(srcModule);
+      if (!eff) { eff = new Set(); efferent.set(srcModule, eff); }
+      eff.add(tgtModule);
+
+      let aff = afferent.get(tgtModule);
+      if (!aff) { aff = new Set(); afferent.set(tgtModule, aff); }
+      aff.add(srcModule);
     }
 
-    if (totalWeight === 0) return 100;
-    const couplingRatio = weightedCrossModule / totalWeight;
-    return Math.round(Math.max(0, 100 - couplingRatio * 100));
+    const modules = new Set<string>();
+    for (const m of moduleOfNode.values()) modules.add(m);
+    if (modules.size <= 1) return 100;
+
+    let totalInstability = 0;
+    let moduleCount = 0;
+    for (const mod of modules) {
+      const ce = (efferent.get(mod)?.size ?? 0);
+      const ca = (afferent.get(mod)?.size ?? 0);
+      if (ce + ca === 0) continue;
+      const instability = ce / (ce + ca);
+      totalInstability += instability;
+      moduleCount++;
+    }
+
+    if (moduleCount === 0) return 100;
+    const avgInstability = totalInstability / moduleCount;
+    return Math.round(Math.max(0, 100 - avgInstability * 100));
   }
 
   private calculateCohesion(nodes: GraphNode[], edges: GraphEdge[], moduleOfNode: Map<string, string>): number {
-    const moduleEdges = new Map<string, { internal: number; total: number }>();
+    const moduleStats = new Map<string, { internal: number; total: number; nodeCount: number }>();
 
     const ensure = (m: string) => {
-      let stats = moduleEdges.get(m);
-      if (!stats) { stats = { internal: 0, total: 0 }; moduleEdges.set(m, stats); }
+      let stats = moduleStats.get(m);
+      if (!stats) { stats = { internal: 0, total: 0, nodeCount: 0 }; moduleStats.set(m, stats); }
       return stats;
     };
 
+    for (const node of nodes) {
+      const mod = moduleOfNode.get(node.id);
+      if (mod) ensure(mod).nodeCount++;
+    }
+
     for (const edge of edges) {
+      if (EDGE_WEIGHTS[edge.type] === 0) continue;
       const srcModule = moduleOfNode.get(edge.source);
       const tgtModule = moduleOfNode.get(edge.target);
       if (!srcModule && !tgtModule) continue;
@@ -106,28 +131,26 @@ export class HealthScorer {
       }
     }
 
-    if (moduleEdges.size === 0) return 50;
+    if (moduleStats.size === 0) return 50;
 
-    let totalCohesion = 0;
-    let moduleCount = 0;
-    for (const stats of moduleEdges.values()) {
-      if (stats.total > 0) {
-        totalCohesion += stats.internal / stats.total;
-        moduleCount++;
-      }
+    let weightedCohesion = 0;
+    let totalNodes = 0;
+    for (const stats of moduleStats.values()) {
+      if (stats.nodeCount === 0) continue;
+      const cohesionRatio = stats.total > 0 ? stats.internal / stats.total : 0;
+      weightedCohesion += cohesionRatio * stats.nodeCount;
+      totalNodes += stats.nodeCount;
     }
 
-    if (moduleCount === 0) return 50;
-    return Math.round((totalCohesion / moduleCount) * 100);
+    if (totalNodes === 0) return 50;
+    return Math.round((weightedCohesion / totalNodes) * 100);
   }
 
   private calculateCyclicDependencyRate(nodes: GraphNode[], edges: GraphEdge[]): number {
-    if (edges.length === 0) return 100;
-
-    const cycleEdgeTypes: GraphEdge['type'][] = ['call', 'extend', 'implement'];
+    const cycleEdgeTypes: GraphEdge['type'][] = ['call', 'extend', 'implement', 'import'];
     const adjacency = new Map<string, string[]>();
     const nodeIds = new Set<string>();
-    for (const node of nodes) nodeIds.add(node.id);
+
     for (const edge of edges) {
       if (!cycleEdgeTypes.includes(edge.type)) continue;
       const list = adjacency.get(edge.source);
@@ -136,6 +159,8 @@ export class HealthScorer {
       nodeIds.add(edge.source);
       nodeIds.add(edge.target);
     }
+
+    if (nodeIds.size === 0) return 100;
 
     const sccs = this.tarjanSCC(adjacency, nodeIds);
     let cycleNodeCount = 0;
@@ -151,13 +176,12 @@ export class HealthScorer {
       }
     }
 
-    const cycleRate = cycleNodeCount / nodes.length;
+    const cycleRate = cycleNodeCount / nodeIds.size;
     return Math.round(Math.max(0, 100 - cycleRate * 100));
   }
 
   private calculateModularity(nodes: GraphNode[], edges: GraphEdge[], moduleOfNode: Map<string, string>): number {
     if (nodes.length === 0) return 0;
-
 
     const modules = new Set<string>();
     for (const m of moduleOfNode.values()) modules.add(m);
@@ -169,31 +193,33 @@ export class HealthScorer {
       moduleSizes.set(m, (moduleSizes.get(m) ?? 0) + 1);
     }
 
-    let sizeVariance = 0;
     const avgSize = nodes.length / modules.size;
+    let sizeVariance = 0;
     for (const size of moduleSizes.values()) {
-      sizeVariance += Math.abs(size - avgSize);
+      sizeVariance += (size - avgSize) ** 2;
     }
     sizeVariance /= modules.size;
+    const cv = Math.sqrt(sizeVariance) / Math.max(1, avgSize);
+    const balanceScore = Math.max(0, 100 - cv * 50);
 
-    const balanceScore = Math.max(0, 100 - (sizeVariance / Math.max(1, avgSize)) * 50);
-
-    let crossModuleEdges = 0;
+    let internalEdges = 0;
+    let totalRelevantEdges = 0;
     for (const edge of edges) {
+      if (EDGE_WEIGHTS[edge.type] === 0) continue;
       const srcModule = moduleOfNode.get(edge.source);
       const tgtModule = moduleOfNode.get(edge.target);
-      if (srcModule && tgtModule && srcModule !== tgtModule) {
-        crossModuleEdges++;
-      }
+      if (!srcModule || !tgtModule) continue;
+      totalRelevantEdges++;
+      if (srcModule === tgtModule) internalEdges++;
     }
-    const crossModuleRatio = edges.length > 0 ? crossModuleEdges / edges.length : 0;
-    const separationScore = Math.max(0, 100 - crossModuleRatio * 100);
+
+    if (totalRelevantEdges === 0) return Math.round(balanceScore);
+    const internalRatio = internalEdges / totalRelevantEdges;
+    const expectedRatio = 1 / modules.size;
+    const modularityQ = internalRatio - expectedRatio;
+    const separationScore = Math.max(0, Math.min(100, modularityQ * 100 * modules.size + 50));
 
     return Math.round((balanceScore + separationScore) / 2);
-  }
-
-  private buildModuleMap(nodes: GraphNode[]): Map<string, string> {
-    return buildModuleMap(nodes, this.maxModuleDepth);
   }
 
   private tarjanSCC(

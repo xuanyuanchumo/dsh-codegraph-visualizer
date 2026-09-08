@@ -144,6 +144,7 @@ export const en: Record<string, string> = {
   'legend.extend': 'extends',
   'legend.implement': 'implements',
   'legend.dependency': 'depends on',
+  'legend.contains': 'contains',
 
   // Export
   'export.png': 'PNG',

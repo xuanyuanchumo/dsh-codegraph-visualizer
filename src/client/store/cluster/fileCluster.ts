@@ -14,6 +14,26 @@ function getDirLabel(dirPath: string): string {
   return parts[parts.length - 1] ?? dirPath;
 }
 
+function buildNodeScopeMap(rawEdges: GraphEdge[]): Map<string, string> {
+  const scopeMap = new Map<string, string>();
+  for (const e of rawEdges) {
+    if (e.type === 'dependency' && e.properties?.scope) {
+      scopeMap.set(e.target, String(e.properties.scope));
+    }
+  }
+  return scopeMap;
+}
+
+function getDependencyScopeGroup(node: GraphNode, nodeScopeMap: Map<string, string>): string | null {
+  const isExternal = node.properties?.isExternal;
+  if (isExternal) {
+    const scope = nodeScopeMap.get(node.id);
+    if (scope) return `depscope:${scope}`;
+    return 'depscope:prod';
+  }
+  return null;
+}
+
 export function computeFileClusters(
   rawNodes: GraphNode[],
   rawEdges: GraphEdge[],
@@ -22,11 +42,18 @@ export function computeFileClusters(
   const visibleNodes: (GraphNode | ClusterNode)[] = [];
   const nodeIdToVisibleId = new Map<string, string>();
 
+  const nodeScopeMap = buildNodeScopeMap(rawEdges);
+
   const moduleDirGroups = new Map<string, GraphNode[]>();
   const nonModuleNodes: GraphNode[] = [];
 
   for (const n of rawNodes) {
-    if (n.type === 'module' && n.filePath) {
+    const scopeGroup = getDependencyScopeGroup(n, nodeScopeMap);
+    if (scopeGroup) {
+      const list = moduleDirGroups.get(scopeGroup);
+      if (list) list.push(n);
+      else moduleDirGroups.set(scopeGroup, [n]);
+    } else if (n.type === 'module' && n.filePath) {
       const parentDir = getParentDir(n.filePath);
       const list = moduleDirGroups.get(parentDir);
       if (list) list.push(n);
