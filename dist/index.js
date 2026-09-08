@@ -2204,7 +2204,7 @@ const DEFAULT_CONFIG = {
 	maxBodyBytes: 1024 * 1024,
 	prerequisiteRetryDelay: 3e3,
 	watchDebounce: 500,
-	maxNodes: 1e4,
+	maxNodes: 5e5,
 	allowedOrigins: ["http://localhost:3080"],
 	panelMinHeight: 240,
 	panelDefaultHeight: 600
@@ -2912,7 +2912,7 @@ function slimGraphData(data, maxNodes) {
 		type: n.type,
 		filePath: n.filePath,
 		lineNumber: n.lineNumber,
-		properties: n.properties?.exported === true ? { exported: true } : {}
+		properties: n.properties ?? {}
 	}));
 	const allowedIds = new Set(slimNodes.map((n) => n.id));
 	const slimEdges = data.edges.filter((e) => allowedIds.has(e.source) && allowedIds.has(e.target)).map((e) => ({
@@ -2920,7 +2920,7 @@ function slimGraphData(data, maxNodes) {
 		source: e.source,
 		target: e.target,
 		type: e.type,
-		properties: {}
+		properties: e.properties ?? {}
 	}));
 	return {
 		nodes: slimNodes,

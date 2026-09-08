@@ -44410,17 +44410,26 @@ const TYPE_COLORS = {
 const EXPANDABLE_TYPES = new Set([
 	"module",
 	"class",
-	"interface",
-	"function",
-	"variable",
-	"type"
+	"interface"
 ]);
 function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse }) {
 	const t$1 = useT();
-	const extraProps = useMemo(() => Object.entries(node.properties).slice(0, 5), [node]);
 	const icon = TYPE_ICONS[node.type] ?? "?";
 	const color = TYPE_COLORS[node.type] ?? "var(--cg-accent)";
 	const canExpand = EXPANDABLE_TYPES.has(node.type);
+	const signature = node.properties?.signature;
+	const docstring = node.properties?.docstring;
+	const exported = node.properties?.exported;
+	const kind = node.properties?.kind;
+	const extraProps = useMemo(() => {
+		const knownKeys = new Set([
+			"signature",
+			"docstring",
+			"exported",
+			"kind"
+		]);
+		return Object.entries(node.properties).filter(([k]) => !knownKeys.has(k));
+	}, [node]);
 	return /* @__PURE__ */ jsxs("div", {
 		className: "node-detail-panel",
 		role: "complementary",
@@ -44444,6 +44453,10 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse }) 
 						children: icon
 					}),
 					/* @__PURE__ */ jsx("h3", { children: node.label }),
+					exported && /* @__PURE__ */ jsx("span", {
+						className: "detail-exported-badge",
+						children: "EXP"
+					}),
 					isExpanded && /* @__PURE__ */ jsx("span", {
 						className: "detail-expanded-badge",
 						children: "EXP"
@@ -44458,6 +44471,16 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse }) 
 				}), /* @__PURE__ */ jsx("span", {
 					className: "detail-value",
 					children: node.type
+				})]
+			}),
+			kind && kind !== node.type && /* @__PURE__ */ jsxs("div", {
+				className: "detail-row",
+				children: [/* @__PURE__ */ jsx("span", {
+					className: "detail-label",
+					children: "kind"
+				}), /* @__PURE__ */ jsx("span", {
+					className: "detail-value",
+					children: kind
 				})]
 			}),
 			/* @__PURE__ */ jsxs("div", {
@@ -44488,6 +44511,26 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse }) 
 				}), /* @__PURE__ */ jsx("span", {
 					className: "detail-value",
 					children: connectionCount
+				})]
+			}),
+			signature && /* @__PURE__ */ jsxs("div", {
+				className: "detail-signature",
+				children: [/* @__PURE__ */ jsx("div", {
+					className: "detail-section-title",
+					children: "signature"
+				}), /* @__PURE__ */ jsx("code", {
+					className: "detail-code",
+					children: signature
+				})]
+			}),
+			docstring && /* @__PURE__ */ jsxs("div", {
+				className: "detail-docstring",
+				children: [/* @__PURE__ */ jsx("div", {
+					className: "detail-section-title",
+					children: "docstring"
+				}), /* @__PURE__ */ jsx("pre", {
+					className: "detail-doc-text",
+					children: docstring
 				})]
 			}),
 			canExpand && !isExpanded && /* @__PURE__ */ jsx("div", {

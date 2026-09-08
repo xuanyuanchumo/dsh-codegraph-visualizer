@@ -21,7 +21,7 @@ const TYPE_COLORS: Record<string, string> = {
   type: 'var(--cg-text-tertiary)',
 };
 
-const EXPANDABLE_TYPES = new Set(['module', 'class', 'interface', 'function', 'variable', 'type']);
+const EXPANDABLE_TYPES = new Set(['module', 'class', 'interface']);
 
 interface NodeDetailProps {
   node: GraphNode;
@@ -33,13 +33,20 @@ interface NodeDetailProps {
 
 export function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse }: NodeDetailProps) {
   const t = useT();
-  const extraProps = useMemo(
-    () => Object.entries(node.properties).slice(0, 5) as [string, unknown][],
-    [node],
-  );
   const icon = TYPE_ICONS[node.type] ?? '?';
   const color = TYPE_COLORS[node.type] ?? 'var(--cg-accent)';
   const canExpand = EXPANDABLE_TYPES.has(node.type);
+
+  const signature = node.properties?.signature as string | undefined;
+  const docstring = node.properties?.docstring as string | undefined;
+  const exported = node.properties?.exported as boolean | undefined;
+  const kind = node.properties?.kind as string | undefined;
+
+  const extraProps = useMemo(() => {
+    const knownKeys = new Set(['signature', 'docstring', 'exported', 'kind']);
+    return Object.entries(node.properties)
+      .filter(([k]) => !knownKeys.has(k)) as [string, unknown][];
+  }, [node]);
 
   return (
     <div className="node-detail-panel" role="complementary" aria-label={t('detail.ariaLabel')}>
@@ -49,13 +56,29 @@ export function NodeDetail({ node, onClose, isExpanded, connectionCount, onColla
       <div className="detail-header">
         <span className="detail-type-icon" style={{ color, borderColor: color }}>{icon}</span>
         <h3>{node.label}</h3>
+        {exported && <span className="detail-exported-badge">EXP</span>}
         {isExpanded && <span className="detail-expanded-badge">EXP</span>}
       </div>
       <div className="detail-row"><span className="detail-label">{t('detail.type')}</span><span className="detail-value">{node.type}</span></div>
+      {kind && kind !== node.type && (
+        <div className="detail-row"><span className="detail-label">kind</span><span className="detail-value">{kind}</span></div>
+      )}
       <div className="detail-row"><span className="detail-label">{t('detail.file')}</span><span className="detail-value">{node.filePath}</span></div>
       <div className="detail-row"><span className="detail-label">{t('detail.line')}</span><span className="detail-value">{node.lineNumber}</span></div>
       {connectionCount !== undefined && connectionCount > 0 && (
         <div className="detail-row"><span className="detail-label">{t('detail.connections')}</span><span className="detail-value">{connectionCount}</span></div>
+      )}
+      {signature && (
+        <div className="detail-signature">
+          <div className="detail-section-title">signature</div>
+          <code className="detail-code">{signature}</code>
+        </div>
+      )}
+      {docstring && (
+        <div className="detail-docstring">
+          <div className="detail-section-title">docstring</div>
+          <pre className="detail-doc-text">{docstring}</pre>
+        </div>
       )}
       {canExpand && !isExpanded && (
         <div className="detail-expand-hint">

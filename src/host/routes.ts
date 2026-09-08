@@ -37,7 +37,7 @@ export function slimGraphData(data: GraphData, maxNodes: number): GraphData {
     type: n.type,
     filePath: n.filePath,
     lineNumber: n.lineNumber,
-    properties: n.properties?.exported === true ? { exported: true } : {},
+    properties: n.properties ?? {},
   }));
   const allowedIds = new Set(slimNodes.map((n) => n.id));
   const slimEdges = data.edges
@@ -47,7 +47,7 @@ export function slimGraphData(data: GraphData, maxNodes: number): GraphData {
       source: e.source,
       target: e.target,
       type: e.type,
-      properties: {},
+      properties: e.properties ?? {},
     }));
   return {
     nodes: slimNodes as GraphNode[],

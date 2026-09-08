@@ -2423,13 +2423,73 @@ body[data-ds-dark-theme] .depth-select {
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  background: color-mix(in srgb, var(--cg-success) 120%, transparent);
+  background: color-mix(in srgb, var(--cg-success) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--cg-success) 30%, transparent);
   border-radius: 10px;
   font-size: 10px;
   font-weight: 600;
   color: var(--cg-success);
   margin-left: 6px;
+}
+
+.node-detail-panel .detail-exported-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  background: color-mix(in srgb, var(--cg-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cg-accent) 30%, transparent);
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cg-accent);
+  margin-left: 6px;
+}
+
+.node-detail-panel .detail-signature {
+  margin: 8px 0;
+  padding: 8px 10px;
+  background: var(--cg-surface);
+  border-radius: var(--cg-radius-sm);
+  border: 1px solid var(--cg-border);
+}
+
+.node-detail-panel .detail-section-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cg-text-tertiary);
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.node-detail-panel .detail-code {
+  display: block;
+  font-family: var(--cg-font-mono);
+  font-size: 12px;
+  color: var(--cg-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+.node-detail-panel .detail-docstring {
+  margin: 8px 0;
+  padding: 8px 10px;
+  background: var(--cg-surface);
+  border-radius: var(--cg-radius-sm);
+  border: 1px solid var(--cg-border);
+}
+
+.node-detail-panel .detail-doc-text {
+  font-family: var(--cg-font-sans);
+  font-size: 12px;
+  color: var(--cg-text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+  margin: 0;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 /* ---- Collapse-all button -------------------------------------------------- */
@@ -47870,17 +47930,26 @@ const TYPE_COLORS = {
 const EXPANDABLE_TYPES = new Set([
 	"module",
 	"class",
-	"interface",
-	"function",
-	"variable",
-	"type"
+	"interface"
 ]);
 function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse }) {
 	const t$1 = useT();
-	const extraProps = (0, react.useMemo)(() => Object.entries(node.properties).slice(0, 5), [node]);
 	const icon = TYPE_ICONS[node.type] ?? "?";
 	const color = TYPE_COLORS[node.type] ?? "var(--cg-accent)";
 	const canExpand = EXPANDABLE_TYPES.has(node.type);
+	const signature = node.properties?.signature;
+	const docstring = node.properties?.docstring;
+	const exported = node.properties?.exported;
+	const kind = node.properties?.kind;
+	const extraProps = (0, react.useMemo)(() => {
+		const knownKeys = new Set([
+			"signature",
+			"docstring",
+			"exported",
+			"kind"
+		]);
+		return Object.entries(node.properties).filter(([k]) => !knownKeys.has(k));
+	}, [node]);
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "node-detail-panel",
 		role: "complementary",
@@ -47904,6 +47973,10 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse }) 
 						children: icon
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h3", { children: node.label }),
+					exported && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: "detail-exported-badge",
+						children: "EXP"
+					}),
 					isExpanded && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 						className: "detail-expanded-badge",
 						children: "EXP"
@@ -47918,6 +47991,16 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse }) 
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: "detail-value",
 					children: node.type
+				})]
+			}),
+			kind && kind !== node.type && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "detail-row",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "detail-label",
+					children: "kind"
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "detail-value",
+					children: kind
 				})]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -47948,6 +48031,26 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse }) 
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 					className: "detail-value",
 					children: connectionCount
+				})]
+			}),
+			signature && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "detail-signature",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: "detail-section-title",
+					children: "signature"
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("code", {
+					className: "detail-code",
+					children: signature
+				})]
+			}),
+			docstring && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "detail-docstring",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: "detail-section-title",
+					children: "docstring"
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("pre", {
+					className: "detail-doc-text",
+					children: docstring
 				})]
 			}),
 			canExpand && !isExpanded && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {

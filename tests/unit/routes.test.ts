@@ -609,14 +609,14 @@ describe('registerService', () => {
 });
 
 describe('slimGraphData (additional)', () => {
-  it('preserves exported property in node properties', () => {
+  it('preserves all node properties including exported', () => {
     const data = makeGraphData(
-      [makeNode('n1', 'A', 'function', 'a.ts', 1, { exported: true, other: 'ignored' })],
+      [makeNode('n1', 'A', 'function', 'a.ts', 1, { exported: true, other: 'kept' })],
       [],
     );
     const result = slimGraphData(data, 10);
     expect(result.nodes[0]!.properties.exported).toBe(true);
-    expect(result.nodes[0]!.properties.other).toBeUndefined();
+    expect(result.nodes[0]!.properties.other).toBe('kept');
   });
 });
 

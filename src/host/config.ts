@@ -22,7 +22,7 @@ export const DEFAULT_CONFIG: VisualizerConfig = {
   maxBodyBytes: 1024 * 1024,
   prerequisiteRetryDelay: 3000,
   watchDebounce: 500,
-  maxNodes: 10_000,
+  maxNodes: 500_000,
   allowedOrigins: ['http://localhost:3080'],
   panelMinHeight: 240,
   panelDefaultHeight: 600,
