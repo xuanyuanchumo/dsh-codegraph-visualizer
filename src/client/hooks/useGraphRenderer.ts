@@ -88,6 +88,7 @@ export function useGraphRenderer(
   }, [rawNodes]);
 
   const prevNodeCountRef = useRef(0);
+  const prevNodeIdsRef = useRef<Set<string>>(new Set());
   const isWorkerInProgressRef = useRef(false);
 
   useEffect(() => {
@@ -115,11 +116,17 @@ export function useGraphRenderer(
           isWorkerInProgressRef.current = false;
         }
       } else if (isIncremental) {
-        r.applyIncrementalLayout(layout, new Set());
+        const currentNodeIds = new Set(nodes.map((n) => n.id));
+        const newNodeIds = new Set<string>();
+        for (const id of currentNodeIds) {
+          if (!prevNodeIdsRef.current.has(id)) newNodeIds.add(id);
+        }
+        r.applyIncrementalLayout(layout, newNodeIds);
       } else {
         r.applyLayout(layout);
       }
       prevNodeCountRef.current = currentCount;
+      prevNodeIdsRef.current = new Set(nodes.map((n) => n.id));
     }, 150);
     return () => clearTimeout(timer);
   }, [layout, clusterLevel, nodes.length, edges.length]);

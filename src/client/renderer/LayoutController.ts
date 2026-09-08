@@ -139,21 +139,55 @@ export class LayoutController {
 
       const totalNodes = this.cy.nodes().length;
       const sp = this.computeSmartSpacing(totalNodes);
+      const newNodeIdArray = Array.from(newNodeIds);
+
+      let anchorX = 0;
+      let anchorY = 0;
+      let anchorCount = 0;
+      for (const newId of newNodeIdArray) {
+        const newNode = this.cy.getElementById(newId);
+        if (newNode.empty()) continue;
+        newNode.connectedEdges().forEach((edge) => {
+          const source = edge.source();
+          const target = edge.target();
+          const other = source.id() === newId ? target : source;
+          if (!newNodeIds.has(other.id())) {
+            const pos = other.position();
+            anchorX += pos.x;
+            anchorY += pos.y;
+            anchorCount++;
+          }
+        });
+      }
+
+      let cx: number;
+      let cy: number;
+      if (anchorCount > 0) {
+        cx = anchorX / anchorCount;
+        cy = anchorY / anchorCount;
+      } else {
+        const existingNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
+        if (existingNodes.length > 0) {
+          const bbox = existingNodes.boundingBox();
+          cx = (bbox.x1 + bbox.x2) / 2;
+          cy = (bbox.y1 + bbox.y2) / 2;
+        } else {
+          cx = 0;
+          cy = 0;
+        }
+      }
+
+      const goldenAngle = Math.PI * (3 - Math.sqrt(5));
 
       const presetOptions: LayoutOptions = {
         name: 'preset',
         positions: (node: { id: () => string }) => {
           const cached = this.positionCache.get(node.id());
           if (cached) return cached;
-          const existingNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
-          if (existingNodes.length === 0) return { x: 0, y: 0 };
-          const bbox = existingNodes.boundingBox();
-          const cx = (bbox.x1 + bbox.x2) / 2;
-          const cy = (bbox.y1 + bbox.y2) / 2;
-          const radius = Math.max(bbox.w, bbox.h) / 2 + sp.incrementalRadius;
-          const angleStep = (2 * Math.PI) / Math.max(newNodes.length, 1);
-          const idx = Array.from(newNodeIds).indexOf(node.id());
-          const angle = idx * angleStep;
+          const idx = newNodeIdArray.indexOf(node.id());
+          if (idx === -1) return { x: cx, y: cy };
+          const radius = sp.incrementalRadius * Math.sqrt(idx + 1);
+          const angle = idx * goldenAngle;
           return {
             x: cx + radius * Math.cos(angle),
             y: cy + radius * Math.sin(angle),

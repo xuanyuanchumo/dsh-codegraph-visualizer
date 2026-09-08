@@ -43067,23 +43067,54 @@ var LayoutController = class {
 			this.restoreCachedPositions();
 			const totalNodes = this.cy.nodes().length;
 			const sp = this.computeSmartSpacing(totalNodes);
+			const newNodeIdArray = Array.from(newNodeIds);
+			let anchorX = 0;
+			let anchorY = 0;
+			let anchorCount = 0;
+			for (const newId of newNodeIdArray) {
+				const newNode = this.cy.getElementById(newId);
+				if (newNode.empty()) continue;
+				newNode.connectedEdges().forEach((edge) => {
+					const source = edge.source();
+					const target = edge.target();
+					const other = source.id() === newId ? target : source;
+					if (!newNodeIds.has(other.id())) {
+						const pos = other.position();
+						anchorX += pos.x;
+						anchorY += pos.y;
+						anchorCount++;
+					}
+				});
+			}
+			let cx;
+			let cy;
+			if (anchorCount > 0) {
+				cx = anchorX / anchorCount;
+				cy = anchorY / anchorCount;
+			} else {
+				const existingNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
+				if (existingNodes.length > 0) {
+					const bbox = existingNodes.boundingBox();
+					cx = (bbox.x1 + bbox.x2) / 2;
+					cy = (bbox.y1 + bbox.y2) / 2;
+				} else {
+					cx = 0;
+					cy = 0;
+				}
+			}
+			const goldenAngle = Math.PI * (3 - Math.sqrt(5));
 			const presetOptions = {
 				name: "preset",
 				positions: (node) => {
 					const cached = this.positionCache.get(node.id());
 					if (cached) return cached;
-					const existingNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
-					if (existingNodes.length === 0) return {
-						x: 0,
-						y: 0
+					const idx = newNodeIdArray.indexOf(node.id());
+					if (idx === -1) return {
+						x: cx,
+						y: cy
 					};
-					const bbox = existingNodes.boundingBox();
-					const cx = (bbox.x1 + bbox.x2) / 2;
-					const cy = (bbox.y1 + bbox.y2) / 2;
-					const radius$1 = Math.max(bbox.w, bbox.h) / 2 + sp.incrementalRadius;
-					const angleStep = 2 * Math.PI / Math.max(newNodes.length, 1);
-					const idx = Array.from(newNodeIds).indexOf(node.id());
-					const angle$1 = idx * angleStep;
+					const radius$1 = sp.incrementalRadius * Math.sqrt(idx + 1);
+					const angle$1 = idx * goldenAngle;
 					return {
 						x: cx + radius$1 * Math.cos(angle$1),
 						y: cy + radius$1 * Math.sin(angle$1)
@@ -45048,6 +45079,7 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 		rendererRef.current?.setRawNodes(rawNodes);
 	}, [rawNodes]);
 	const prevNodeCountRef = (0, react.useRef)(0);
+	const prevNodeIdsRef = (0, react.useRef)(new Set());
 	const isWorkerInProgressRef = (0, react.useRef)(false);
 	(0, react.useEffect)(() => {
 		const r = rendererRef.current;
@@ -45066,9 +45098,14 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 				} finally {
 					isWorkerInProgressRef.current = false;
 				}
-			} else if (isIncremental) r.applyIncrementalLayout(layout$2, new Set());
-			else r.applyLayout(layout$2);
+			} else if (isIncremental) {
+				const currentNodeIds = new Set(nodes.map((n) => n.id));
+				const newNodeIds = new Set();
+				for (const id of currentNodeIds) if (!prevNodeIdsRef.current.has(id)) newNodeIds.add(id);
+				r.applyIncrementalLayout(layout$2, newNodeIds);
+			} else r.applyLayout(layout$2);
 			prevNodeCountRef.current = currentCount;
+			prevNodeIdsRef.current = new Set(nodes.map((n) => n.id));
 		}, 150);
 		return () => clearTimeout(timer);
 	}, [
