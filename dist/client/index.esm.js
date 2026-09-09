@@ -44061,16 +44061,13 @@ var DataController = class {
 		const hasStaleNodes = cyNodeCount !== nodes.length || [...this.currentNodes.keys()].some((id) => !newNodeIds.has(id));
 		const hasNewEdges = edges.some((e) => !this.currentEdges.has(e.id));
 		const hasStaleEdges = cyEdgeCount !== edges.length || [...this.currentEdges.keys()].some((id) => !newEdgeIds.has(id));
-		const hasUpdatedNodes = nodes.some((n) => {
-			const existing = this.currentNodes.get(n.id);
-			if (!existing) return false;
-			const oldKeys = Object.keys(existing.properties ?? {});
-			const newKeys = Object.keys(n.properties ?? {});
-			if (oldKeys.length !== newKeys.length) return true;
-			return newKeys.some((k) => n.properties?.[k] !== existing.properties?.[k]);
-		});
-		if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges && !hasUpdatedNodes) return;
-		const needsFullReset = hasStaleNodes || hasUpdatedNodes;
+		if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges) {
+			const hasUpdatedNodes = this.detectPropertyChanges(nodes);
+			if (!hasUpdatedNodes) return;
+			this.applyIncrementalUpdates(nodes, edges);
+			return;
+		}
+		const needsFullReset = hasStaleNodes;
 		if (needsFullReset) {
 			this.cy.elements().remove();
 			this.currentNodes.clear();
@@ -44136,6 +44133,39 @@ var DataController = class {
 			edges: remainingEdges
 		};
 		this.processBatchQueue();
+	}
+	detectPropertyChanges(nodes) {
+		const criticalKeys = new Set([
+			"diagramType",
+			"depth",
+			"isRoot",
+			"isEntry",
+			"isPackage",
+			"umlLabel"
+		]);
+		for (const n of nodes) {
+			const existing = this.currentNodes.get(n.id);
+			if (!existing) continue;
+			if (n.label !== existing.label) return true;
+			if (n.type !== existing.type) return true;
+			const oldProps = existing.properties ?? {};
+			const newProps = n.properties ?? {};
+			for (const key of criticalKeys) if (oldProps[key] !== newProps[key]) return true;
+		}
+		return false;
+	}
+	applyIncrementalUpdates(nodes, edges) {
+		this.cy.batch(() => {
+			for (const n of nodes) {
+				this.updateNodeData(n);
+				this.currentNodes.set(n.id, n);
+			}
+			for (const e of edges) {
+				const cyEdge = this.cy.getElementById(e.id);
+				if (cyEdge.length > 0 && e.properties) for (const [key, value] of Object.entries(e.properties)) cyEdge.data(key, value);
+				this.currentEdges.set(e.id, e);
+			}
+		});
 	}
 	updateNodeData(n) {
 		const cyNode = this.cy.getElementById(n.id);
@@ -44397,9 +44427,16 @@ function escapeXml(s) {
 
 //#endregion
 //#region src/client/renderer/StyleController.ts
+const LOD_ZOOM_THRESHOLDS = {
+	minimal: .2,
+	compact: .5,
+	full: 1
+};
 var StyleController = class {
 	cy;
 	theme;
+	currentLOD = "full";
+	lodEnabled = false;
 	constructor(cy, theme) {
 		this.cy = cy;
 		this.theme = theme;
@@ -44410,12 +44447,84 @@ var StyleController = class {
 	}
 	updateTheme(theme) {
 		this.theme = theme;
-		this.cy.style().fromJson(this.getStylesheet()).update();
+		this.applyStylesheet();
 	}
 	getTheme() {
 		return this.theme;
 	}
-	destroy() {}
+	enableLOD() {
+		if (this.lodEnabled) return;
+		this.lodEnabled = true;
+		this.currentLOD = this.computeLODLevel(this.cy.zoom());
+		this.applyStylesheet();
+		this.cy.on("zoom", this.handleZoomChange);
+	}
+	disableLOD() {
+		if (!this.lodEnabled) return;
+		this.lodEnabled = false;
+		this.cy.off("zoom", this.handleZoomChange);
+		this.currentLOD = "full";
+		this.applyStylesheet();
+	}
+	isLODEnabled() {
+		return this.lodEnabled;
+	}
+	handleZoomChange = () => {
+		const zoom = this.cy.zoom();
+		const newLOD = this.computeLODLevel(zoom);
+		if (newLOD !== this.currentLOD) {
+			this.currentLOD = newLOD;
+			this.applyStylesheet();
+		}
+	};
+	computeLODLevel(zoom) {
+		if (zoom < LOD_ZOOM_THRESHOLDS.minimal) return "minimal";
+		if (zoom < LOD_ZOOM_THRESHOLDS.compact) return "compact";
+		return "full";
+	}
+	applyStylesheet() {
+		const baseStylesheet = this.getStylesheet();
+		if (this.lodEnabled && this.currentLOD !== "full") {
+			const lodOverrides = this.getLODOverrides(this.currentLOD);
+			this.cy.style().fromJson([...baseStylesheet, ...lodOverrides]).update();
+		} else this.cy.style().fromJson(baseStylesheet).update();
+	}
+	getLODOverrides(level) {
+		if (level === "minimal") return [{
+			selector: "node",
+			style: {
+				"label": "",
+				"width": 8,
+				"height": 8,
+				"border-width": 0
+			}
+		}, {
+			selector: "edge",
+			style: {
+				"label": "",
+				"width": .5
+			}
+		}];
+		if (level === "compact") return [{
+			selector: "node",
+			style: {
+				"label": "data(label)",
+				"font-size": 6,
+				"width": 16,
+				"height": 16
+			}
+		}, {
+			selector: "edge",
+			style: {
+				"label": "",
+				"width": 1
+			}
+		}];
+		return [];
+	}
+	destroy() {
+		this.disableLOD();
+	}
 };
 
 //#endregion
@@ -44534,6 +44643,82 @@ var PathFinder = class {
 };
 
 //#endregion
+//#region src/client/renderer/SpatialIndex.ts
+var SpatialIndex = class {
+	cellSize;
+	grid = new Map();
+	nodePositions = new Map();
+	cy;
+	constructor(cy, cellSize = 200) {
+		this.cy = cy;
+		this.cellSize = cellSize;
+	}
+	cellKey(x$1, y$1) {
+		const cx = Math.floor(x$1 / this.cellSize);
+		const cy = Math.floor(y$1 / this.cellSize);
+		return `${cx},${cy}`;
+	}
+	insert(nodeId, x$1, y$1) {
+		this.nodePositions.set(nodeId, {
+			x: x$1,
+			y: y$1
+		});
+		const key = this.cellKey(x$1, y$1);
+		let bucket = this.grid.get(key);
+		if (!bucket) {
+			bucket = new Set();
+			this.grid.set(key, bucket);
+		}
+		bucket.add(nodeId);
+	}
+	remove(nodeId) {
+		const pos = this.nodePositions.get(nodeId);
+		if (!pos) return;
+		this.nodePositions.delete(nodeId);
+		const key = this.cellKey(pos.x, pos.y);
+		const bucket = this.grid.get(key);
+		if (bucket) {
+			bucket.delete(nodeId);
+			if (bucket.size === 0) this.grid.delete(key);
+		}
+	}
+	update(nodeId, newX, newY) {
+		this.remove(nodeId);
+		this.insert(nodeId, newX, newY);
+	}
+	query(bounds$1) {
+		const result = new Set();
+		const minX = Math.floor(bounds$1.x1 / this.cellSize);
+		const maxX = Math.floor(bounds$1.x2 / this.cellSize);
+		const minY = Math.floor(bounds$1.y1 / this.cellSize);
+		const maxY = Math.floor(bounds$1.y2 / this.cellSize);
+		for (let cx = minX; cx <= maxX; cx++) for (let cy = minY; cy <= maxY; cy++) {
+			const bucket = this.grid.get(`${cx},${cy}`);
+			if (bucket) for (const id of bucket) result.add(id);
+		}
+		return result;
+	}
+	rebuildFromCytoscape() {
+		this.grid.clear();
+		this.nodePositions.clear();
+		this.cy.nodes().forEach((node) => {
+			const p$1 = node.position();
+			this.insert(node.id(), p$1.x, p$1.y);
+		});
+	}
+	getCellCount() {
+		return this.grid.size;
+	}
+	getNodeCount() {
+		return this.nodePositions.size;
+	}
+	clear() {
+		this.grid.clear();
+		this.nodePositions.clear();
+	}
+};
+
+//#endregion
 //#region src/client/renderer/VirtualViewportController.ts
 const VIRTUAL_SCROLL_THRESHOLD = 2e3;
 var VirtualViewportController = class {
@@ -44541,19 +44726,25 @@ var VirtualViewportController = class {
 	enabled = false;
 	rafId = null;
 	visibleNodeIds = new Set();
+	spatialIndex;
+	indexDirty = true;
 	constructor(cy) {
 		this.cy = cy;
+		this.spatialIndex = new SpatialIndex(cy);
 	}
 	enable() {
 		if (this.enabled) return;
 		this.enabled = true;
+		this.rebuildIndex();
 		this.updateVisibility();
 		this.cy.on("viewport", this.handleViewportChange);
+		this.cy.on("add remove", this.handleStructureChange);
 	}
 	disable() {
 		if (!this.enabled) return;
 		this.enabled = false;
 		this.cy.off("viewport", this.handleViewportChange);
+		this.cy.off("add remove", this.handleStructureChange);
 		this.cy.batch(() => {
 			this.cy.nodes().forEach((n) => {
 				n.style("display", "element");
@@ -44563,6 +44754,8 @@ var VirtualViewportController = class {
 			});
 		});
 		this.visibleNodeIds.clear();
+		this.spatialIndex.clear();
+		this.indexDirty = true;
 		if (this.rafId !== null) cancelAnimationFrame(this.rafId);
 		this.rafId = null;
 	}
@@ -44571,6 +44764,14 @@ var VirtualViewportController = class {
 	}
 	shouldEnable(nodeCount) {
 		return nodeCount > VIRTUAL_SCROLL_THRESHOLD;
+	}
+	handleStructureChange = () => {
+		this.indexDirty = true;
+	};
+	rebuildIndex() {
+		if (!this.indexDirty) return;
+		this.spatialIndex.rebuildFromCytoscape();
+		this.indexDirty = false;
 	}
 	handleViewportChange = () => {
 		if (this.rafId !== null) return;
@@ -44581,29 +44782,34 @@ var VirtualViewportController = class {
 	};
 	updateVisibility() {
 		if (!this.enabled) return;
+		if (this.indexDirty) this.rebuildIndex();
 		const zoom = this.cy.zoom();
 		const pan = this.cy.pan();
 		const width$1 = this.cy.width();
 		const height = this.cy.height();
-		const viewBounds = {
-			x1: -pan.x / zoom,
-			y1: -pan.y / zoom,
-			x2: (-pan.x + width$1) / zoom,
-			y2: (-pan.y + height) / zoom
-		};
-		const newVisible = new Set();
 		const padding = 100;
+		const viewBounds = {
+			x1: -pan.x / zoom - padding,
+			y1: -pan.y / zoom - padding,
+			x2: (-pan.x + width$1) / zoom + padding,
+			y2: (-pan.y + height) / zoom + padding
+		};
+		const candidateIds = this.spatialIndex.query(viewBounds);
+		const newVisible = new Set();
 		this.cy.batch(() => {
 			this.cy.nodes().forEach((node) => {
 				if (node.data("typeFiltered") === true) {
 					node.style("display", "none");
 					return;
 				}
-				const p$1 = node.position();
-				const isVisible = p$1.x >= viewBounds.x1 - padding && p$1.x <= viewBounds.x2 + padding && p$1.y >= viewBounds.y1 - padding && p$1.y <= viewBounds.y2 + padding;
-				if (isVisible) {
-					newVisible.add(node.id());
-					node.style("display", "element");
+				const id = node.id();
+				if (candidateIds.has(id)) {
+					const p$1 = node.position();
+					const isVisible = p$1.x >= viewBounds.x1 && p$1.x <= viewBounds.x2 && p$1.y >= viewBounds.y1 && p$1.y <= viewBounds.y2;
+					if (isVisible) {
+						newVisible.add(id);
+						node.style("display", "element");
+					} else node.style("display", "none");
 				} else node.style("display", "none");
 			});
 			this.cy.edges().forEach((edge) => {

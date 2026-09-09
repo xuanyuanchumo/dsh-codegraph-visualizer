@@ -43,6 +43,7 @@ export class DataController {
           this.rawToVisibleMap.set(childId, n.id);
         }
       } else {
+
         this.rawToVisibleMap.set(n.id, n.id);
       }
     }
@@ -55,18 +56,15 @@ export class DataController {
     const hasNewEdges = edges.some((e) => !this.currentEdges.has(e.id));
     const hasStaleEdges = cyEdgeCount !== edges.length ||
       [...this.currentEdges.keys()].some((id) => !newEdgeIds.has(id));
-    const hasUpdatedNodes = nodes.some((n) => {
-      const existing = this.currentNodes.get(n.id);
-      if (!existing) return false;
-      const oldKeys = Object.keys(existing.properties ?? {});
-      const newKeys = Object.keys(n.properties ?? {});
-      if (oldKeys.length !== newKeys.length) return true;
-      return newKeys.some(k => n.properties?.[k] !== existing.properties?.[k]);
-    });
 
-    if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges && !hasUpdatedNodes) return;
+    if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges) {
+      const hasUpdatedNodes = this.detectPropertyChanges(nodes);
+      if (!hasUpdatedNodes) return;
+      this.applyIncrementalUpdates(nodes, edges);
+      return;
+    }
 
-    const needsFullReset = hasStaleNodes || hasUpdatedNodes;
+    const needsFullReset = hasStaleNodes;
 
     if (needsFullReset) {
       this.cy.elements().remove();
@@ -149,6 +147,41 @@ export class DataController {
     this.batchQueue = { nodes: remainingNodes, edges: remainingEdges };
     this.processBatchQueue();
   }
+
+  private detectPropertyChanges(nodes: GraphNode[]): boolean {
+    const criticalKeys = new Set(['diagramType', 'depth', 'isRoot', 'isEntry', 'isPackage', 'umlLabel']);
+    for (const n of nodes) {
+      const existing = this.currentNodes.get(n.id);
+      if (!existing) continue;
+      if (n.label !== existing.label) return true;
+      if (n.type !== existing.type) return true;
+      const oldProps = existing.properties ?? {};
+      const newProps = n.properties ?? {};
+      for (const key of criticalKeys) {
+        if (oldProps[key] !== newProps[key]) return true;
+      }
+    }
+    return false;
+  }
+
+  private applyIncrementalUpdates(nodes: GraphNode[], edges: GraphEdge[]): void {
+    this.cy.batch(() => {
+      for (const n of nodes) {
+        this.updateNodeData(n);
+        this.currentNodes.set(n.id, n);
+      }
+      for (const e of edges) {
+        const cyEdge = this.cy.getElementById(e.id);
+        if (cyEdge.length > 0 && e.properties) {
+          for (const [key, value] of Object.entries(e.properties)) {
+            cyEdge.data(key, value);
+          }
+        }
+        this.currentEdges.set(e.id, e);
+      }
+    });
+  }
+
 
   private updateNodeData(n: GraphNode): void {
     const cyNode = this.cy.getElementById(n.id);
