@@ -228,6 +228,27 @@ export const useGraphStore = create<GraphState>()(
         const { rawNodes, rawEdges, clusterLevel, expandedNodeIds, selectedFunction, savedRawNodes, savedRawEdges } = state;
 
         if (viewMode === 'dependencies') {
+          const sourceNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
+          const sourceEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
+          const dataHash = computeDataHash(sourceNodes, sourceEdges);
+          let diagram = diagramCache.get(viewMode, dataHash);
+          if (!diagram) {
+            diagram = assembleDiagram(viewMode, sourceNodes, sourceEdges);
+            if (diagram) diagramCache.set(viewMode, dataHash, diagram);
+          }
+          if (diagram) {
+            const layer = diagram.layers[0];
+            const layerNodes = layer ? layer.nodes : diagram.allNodes;
+            const layerEdges = layer ? layer.edges : diagram.allEdges;
+            const result = computeClusteredGraph(layerNodes, layerEdges, 'function', new Set());
+            set({
+              viewMode, diagramData: diagram, currentLayer: 0,
+              savedRawNodes: rawNodes, savedRawEdges: rawEdges,
+              clusterLevel: 'function', expandedNodeIds: new Set(),
+              nodes: result.nodes, edges: result.edges,
+            });
+            return;
+          }
           const result = computeClusteredGraph(rawNodes, rawEdges, 'directory', new Set());
           set({
             viewMode, diagramData: null,

@@ -308,7 +308,7 @@ function aggregateEdges(rawEdges, nodeIdToVisibleId, clusterPrefix) {
 
 //#endregion
 //#region src/client/store/cluster/directoryCluster.ts
-function getTopLevelDir(filePath) {
+function getTopLevelDir$1(filePath) {
 	const parts = filePath.split(/[\\/]/);
 	if (parts.length <= 2) return filePath;
 	let startIdx = 0;
@@ -377,7 +377,7 @@ function computeDirectoryClusters(rawNodes, rawEdges, expandedDirs) {
 	const dirToNodes = new Map();
 	for (const n of rawNodes) {
 		const depGroup = getDependencyGroup(n);
-		const dir = depGroup ?? (n.filePath ? getTopLevelDir(n.filePath) : n.id);
+		const dir = depGroup ?? (n.filePath ? getTopLevelDir$1(n.filePath) : n.id);
 		nodeToDir.set(n.id, dir);
 		const list = dirToNodes.get(dir);
 		if (list) list.push(n);
@@ -1227,6 +1227,148 @@ var ClassAssembler = class {
 					depth: depth + 1
 				});
 			}
+		}
+		return depths;
+	}
+};
+
+//#endregion
+//#region src/client/diagram/DependencyAssembler.ts
+function getTopLevelDir(filePath) {
+	const normalized = filePath.replace(/\\/g, "/");
+	const parts = normalized.split("/");
+	if (parts.length <= 2) return "/";
+	return parts.slice(0, 2).join("/");
+}
+const DEPENDENCY_EDGE_TYPES = new Set(["import", "dependency"]);
+var DependencyAssembler = class {
+	assemble(nodes, edges) {
+		const depEdges = edges.filter((e) => DEPENDENCY_EDGE_TYPES.has(e.type));
+		const dirNodes = new Map();
+		const dirChildCount = new Map();
+		const dirTypeDist = new Map();
+		for (const n of nodes) {
+			const dir = getTopLevelDir(n.filePath);
+			if (!dirNodes.has(dir)) {
+				dirNodes.set(dir, {
+					id: NodeId(`depdir:${dir}`),
+					label: dir === "/" ? "root" : dir,
+					type: "module",
+					filePath: dir,
+					lineNumber: 0,
+					properties: {
+						isDependencyDir: true,
+						directory: dir
+					}
+				});
+				dirChildCount.set(dir, 0);
+				dirTypeDist.set(dir, {});
+			}
+			dirChildCount.set(dir, (dirChildCount.get(dir) ?? 0) + 1);
+			const dist$1 = dirTypeDist.get(dir);
+			dist$1[n.type] = (dist$1[n.type] ?? 0) + 1;
+		}
+		const nodeIdToDir = new Map();
+		for (const n of nodes) nodeIdToDir.set(n.id, getTopLevelDir(n.filePath));
+		const aggregatedEdges = new Map();
+		for (const e of depEdges) {
+			const sourceDir = nodeIdToDir.get(e.source);
+			const targetDir = nodeIdToDir.get(e.target);
+			if (!sourceDir || !targetDir || sourceDir === targetDir) continue;
+			const key = `${sourceDir}->${targetDir}`;
+			const existing = aggregatedEdges.get(key);
+			if (existing) {
+				existing.count++;
+				existing.types.add(e.type);
+			} else aggregatedEdges.set(key, {
+				source: sourceDir,
+				target: targetDir,
+				count: 1,
+				types: new Set([e.type])
+			});
+		}
+		const depEdgeList = [];
+		let edgeIdx = 0;
+		for (const [, agg] of aggregatedEdges) {
+			const sourceDirId = `depdir:${agg.source}`;
+			const targetDirId = `depdir:${agg.target}`;
+			if (!dirNodes.has(agg.source) || !dirNodes.has(agg.target)) continue;
+			depEdgeList.push({
+				id: EdgeId(`dep-edge:${edgeIdx++}`),
+				source: NodeId(sourceDirId),
+				target: NodeId(targetDirId),
+				type: agg.types.has("import") ? "import" : "dependency",
+				properties: {
+					aggregatedCount: agg.count,
+					isDependencyEdge: true
+				}
+			});
+		}
+		const inDegree = new Map();
+		const outDegree = new Map();
+		for (const e of depEdgeList) {
+			outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1);
+			inDegree.set(e.target, (inDegree.get(e.target) ?? 0) + 1);
+		}
+		const rootIds = [];
+		for (const [, dirNode] of dirNodes) if ((inDegree.get(dirNode.id) ?? 0) === 0) rootIds.push(dirNode.id);
+		const depthMap = this.computeDepths(rootIds, depEdgeList);
+		const assembledNodes = [];
+		for (const [dir, dirNode] of dirNodes) {
+			const childCount = dirChildCount.get(dir) ?? 0;
+			const typeDist = dirTypeDist.get(dir) ?? {};
+			const inDeg = inDegree.get(dirNode.id) ?? 0;
+			const outDeg = outDegree.get(dirNode.id) ?? 0;
+			const depth = depthMap.get(dirNode.id) ?? 0;
+			const typeSummary = Object.entries(typeDist).map(([t$1, c]) => `${t$1}: ${c}`).join(", ");
+			const umlLabel = `${dirNode.label}\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n${childCount} items${typeSummary ? "\n" + typeSummary : ""}`;
+			assembledNodes.push({
+				...dirNode,
+				properties: {
+					...dirNode.properties,
+					childCount,
+					typeDistribution: typeDist,
+					inDegree: inDeg,
+					outDegree: outDeg,
+					depth,
+					isRoot: inDeg === 0,
+					umlLabel
+				}
+			});
+		}
+		const maxDepth = Math.max(0, ...depthMap.values());
+		return {
+			nodes: assembledNodes,
+			edges: depEdgeList,
+			metadata: {
+				rootIds,
+				maxDepth,
+				nodeCount: assembledNodes.length,
+				edgeCount: depEdgeList.length
+			}
+		};
+	}
+	computeDepths(rootIds, edges) {
+		const outEdges = new Map();
+		for (const e of edges) {
+			const list = outEdges.get(e.source) ?? [];
+			list.push(e.target);
+			outEdges.set(e.source, list);
+		}
+		const depths = new Map();
+		const queue = rootIds.map((id) => ({
+			id,
+			depth: 0
+		}));
+		let head = 0;
+		while (head < queue.length) {
+			const { id, depth } = queue[head++];
+			if (depths.has(id) && depths.get(id) <= depth) continue;
+			depths.set(id, depth);
+			for (const target of outEdges.get(id) ?? []) if (!depths.has(target) || depths.get(target) > depth + 1) queue.push({
+				id: target,
+				depth: depth + 1
+			});
 		}
 		return depths;
 	}
@@ -2505,6 +2647,7 @@ const inheritanceAssembler = new InheritanceAssembler();
 const callGraphAssembler = new CallGraphAssembler();
 const packageAssembler = new PackageAssembler();
 const classAssembler = new ClassAssembler();
+const dependencyAssembler = new DependencyAssembler();
 const cfgAssembler = new CFGAssembler();
 const flowchartAssembler = new FlowchartAssembler();
 const sequenceAssembler = new SequenceAssembler();
@@ -2598,12 +2741,12 @@ const LAYER_DEFINITIONS = {
 		{
 			level: 0,
 			name: "目录依赖概览",
-			nodeFilter: () => true
+			nodeFilter: (n) => n.properties?.depth === 0
 		},
 		{
 			level: 1,
 			name: "文件依赖",
-			nodeFilter: () => true
+			nodeFilter: (n) => n.properties?.depth <= 1
 		},
 		{
 			level: 2,
@@ -2668,6 +2811,9 @@ function assembleDiagram(viewMode, nodes, edges) {
 			break;
 		case "class":
 			result = classAssembler.assemble(nodes, edges);
+			break;
+		case "dependencies":
+			result = dependencyAssembler.assemble(nodes, edges);
 			break;
 		default: return null;
 	}
@@ -2887,6 +3033,32 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		const state = useGraphStore.getState();
 		const { rawNodes, rawEdges, clusterLevel, expandedNodeIds, selectedFunction, savedRawNodes, savedRawEdges } = state;
 		if (viewMode === "dependencies") {
+			const sourceNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
+			const sourceEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
+			const dataHash = computeDataHash(sourceNodes, sourceEdges);
+			let diagram = diagramCache.get(viewMode, dataHash);
+			if (!diagram) {
+				diagram = assembleDiagram(viewMode, sourceNodes, sourceEdges);
+				if (diagram) diagramCache.set(viewMode, dataHash, diagram);
+			}
+			if (diagram) {
+				const layer = diagram.layers[0];
+				const layerNodes = layer ? layer.nodes : diagram.allNodes;
+				const layerEdges = layer ? layer.edges : diagram.allEdges;
+				const result$2 = computeClusteredGraph(layerNodes, layerEdges, "function", new Set());
+				set$1({
+					viewMode,
+					diagramData: diagram,
+					currentLayer: 0,
+					savedRawNodes: rawNodes,
+					savedRawEdges: rawEdges,
+					clusterLevel: "function",
+					expandedNodeIds: new Set(),
+					nodes: result$2.nodes,
+					edges: result$2.edges
+				});
+				return;
+			}
 			const result$1 = computeClusteredGraph(rawNodes, rawEdges, "directory", new Set());
 			set$1({
 				viewMode,

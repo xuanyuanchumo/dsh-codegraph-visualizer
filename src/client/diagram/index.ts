@@ -3,6 +3,7 @@ export { InheritanceAssembler } from './InheritanceAssembler.ts';
 export { CallGraphAssembler } from './CallGraphAssembler.ts';
 export { PackageAssembler } from './PackageAssembler.ts';
 export { ClassAssembler } from './ClassAssembler.ts';
+export { DependencyAssembler } from './DependencyAssembler.ts';
 export { CFGAssembler } from './CFGAssembler.ts';
 export { FlowchartAssembler } from './FlowchartAssembler.ts';
 export { SequenceAssembler } from './SequenceAssembler.ts';
@@ -16,6 +17,7 @@ import { InheritanceAssembler } from './InheritanceAssembler.ts';
 import { CallGraphAssembler } from './CallGraphAssembler.ts';
 import { PackageAssembler } from './PackageAssembler.ts';
 import { ClassAssembler } from './ClassAssembler.ts';
+import { DependencyAssembler } from './DependencyAssembler.ts';
 import { CFGAssembler } from './CFGAssembler.ts';
 import { FlowchartAssembler } from './FlowchartAssembler.ts';
 import { SequenceAssembler } from './SequenceAssembler.ts';
@@ -24,6 +26,7 @@ const inheritanceAssembler = new InheritanceAssembler();
 const callGraphAssembler = new CallGraphAssembler();
 const packageAssembler = new PackageAssembler();
 const classAssembler = new ClassAssembler();
+const dependencyAssembler = new DependencyAssembler();
 const cfgAssembler = new CFGAssembler();
 const flowchartAssembler = new FlowchartAssembler();
 const sequenceAssembler = new SequenceAssembler();
@@ -61,8 +64,8 @@ const LAYER_DEFINITIONS: Record<string, LayerDefinition[]> = {
     { level: 2, name: '全部节点', nodeFilter: () => true },
   ],
   dependencies: [
-    { level: 0, name: '目录依赖概览', nodeFilter: () => true },
-    { level: 1, name: '文件依赖', nodeFilter: () => true },
+    { level: 0, name: '目录依赖概览', nodeFilter: (n) => n.properties?.depth === 0 },
+    { level: 1, name: '文件依赖', nodeFilter: (n) => (n.properties?.depth as number) <= 1 },
     { level: 2, name: '模块依赖', nodeFilter: () => true },
   ],
 };
@@ -144,6 +147,9 @@ export function assembleDiagram(
       break;
     case 'class':
       result = classAssembler.assemble(nodes, edges);
+      break;
+    case 'dependencies':
+      result = dependencyAssembler.assemble(nodes, edges);
       break;
     default:
       return null;
