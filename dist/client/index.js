@@ -43171,9 +43171,7 @@ var LayoutController = class {
 					this.worker = null;
 				};
 			}
-		} catch {
-			this.worker = null;
-		}
+		} catch {}
 	}
 	isWorkerAvailable() {
 		return this.worker !== null;
@@ -47633,7 +47631,8 @@ function Toolbar(props) {
 		onExport(format);
 		setShowExportMenu(false);
 	}, [onExport]);
-	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterLevel, showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport, showPathFind, showHealthScore, showRules, showHotspot, showGodModule, viewMode, collapsed, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onToggleViewMode, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll, onUndo, onRedo, canUndo, canRedo } = props;
+	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterLevel, viewMode, collapsed, panelControls, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange, onToggleViewMode, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll, onUndo, onRedo, canUndo, canRedo } = props;
+	const { showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport, showPathFind, showHealthScore, showRules, showHotspot, showGodModule, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule } = panelControls;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "graph-toolbar",
 		children: [
@@ -50497,40 +50496,42 @@ function GraphPanelInner({ className = "" }) {
 				filterType,
 				graphType,
 				clusterLevel,
-				showSearch: panel.showSearch,
-				showCallChain: panel.showCallChain,
-				showCycles: panel.showCycles,
-				showImpact: panel.showImpact,
-				showInheritance: panel.showInheritance,
-				showMiniMap: panel.showMiniMap,
-				showLegend: panel.showLegend,
-				showImport: panel.showImport,
-				showPathFind: panel.showPathFind,
-				showHealthScore: panel.showHealthScore,
-				showRules: panel.showRules,
-				showHotspot: panel.showHotspot,
-				showGodModule: panel.showGodModule,
 				viewMode,
-				onToggleViewMode: handleToggleViewMode,
 				collapsed: panel.collapsed,
+				panelControls: {
+					showSearch: panel.showSearch,
+					showCallChain: panel.showCallChain,
+					showCycles: panel.showCycles,
+					showImpact: panel.showImpact,
+					showInheritance: panel.showInheritance,
+					showMiniMap: panel.showMiniMap,
+					showLegend: panel.showLegend,
+					showImport: panel.showImport,
+					showPathFind: panel.showPathFind,
+					showHealthScore: panel.showHealthScore,
+					showRules: panel.showRules,
+					showHotspot: panel.showHotspot,
+					showGodModule: panel.showGodModule,
+					onToggleSearch: panel.toggleSearch,
+					onToggleCallChain: panel.toggleCallChain,
+					onToggleCycles: panel.toggleCycles,
+					onToggleImpact: panel.toggleImpact,
+					onToggleInheritance: panel.toggleInheritance,
+					onToggleMiniMap: panel.toggleMiniMap,
+					onToggleLegend: panel.toggleLegend,
+					onToggleImport: panel.toggleImport,
+					onTogglePathFind: panel.togglePathFind,
+					onToggleHealthScore: panel.toggleHealthScore,
+					onToggleRules: panel.toggleRules,
+					onToggleHotspot: panel.toggleHotspot,
+					onToggleGodModule: panel.toggleGodModule
+				},
+				onToggleViewMode: handleToggleViewMode,
 				onLayoutChange: setLayout,
 				onThemeToggle: handleThemeToggle,
 				onFilterChange: setFilterType,
 				onGraphTypeChange: setGraphType,
 				onClusterLevelChange: setClusterLevel,
-				onToggleSearch: panel.toggleSearch,
-				onToggleCallChain: panel.toggleCallChain,
-				onToggleCycles: panel.toggleCycles,
-				onToggleImpact: panel.toggleImpact,
-				onToggleInheritance: panel.toggleInheritance,
-				onToggleMiniMap: panel.toggleMiniMap,
-				onToggleLegend: panel.toggleLegend,
-				onToggleImport: panel.toggleImport,
-				onTogglePathFind: panel.togglePathFind,
-				onToggleHealthScore: panel.toggleHealthScore,
-				onToggleRules: panel.toggleRules,
-				onToggleHotspot: panel.toggleHotspot,
-				onToggleGodModule: panel.toggleGodModule,
 				onRefresh: handleRefresh,
 				onExport: renderer$1.exportGraph,
 				onCollapse: panel.toggleCollapsed,

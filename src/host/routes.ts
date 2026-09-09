@@ -78,7 +78,7 @@ export function registerService(deps: RouteDeps): void {
         try {
           const raw = await fetchMergedGraph(invokeUpstream, repoId, 'both');
           return slimGraphData(raw, config.maxNodes);
-        } catch { return null; }
+        } catch (e) { log.warn('getGraphData failed', e); return null; }
       },
       getSymbolDetail: async (symbolId: string) => {
         const result = await invokeUpstream('codegraph_query', { search: symbolId, limit: 1 });
@@ -393,7 +393,8 @@ export function registerRoutes(deps: RouteDeps): void {
         const watchPath = path && path !== '.' ? path : findWorkspacePath(ctx);
         ctx.emit('codegraph/watch/toggle', { enabled: !!enabled, path: watchPath, timestamp: Date.now() });
         sendJson(res, 200, { success: true, enabled: !!enabled, path: watchPath });
-      } catch {
+      } catch (e) {
+        log.warn('watch route failed', e);
         sendError(res, 500, 'Internal server error');
       }
     },

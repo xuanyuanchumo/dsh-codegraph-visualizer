@@ -67,7 +67,9 @@ export interface ToolbarToggleHandlers {
   onToggleGodModule: () => void;
 }
 
-interface ToolbarProps extends WorkspaceSelectorProps, ToolbarVisibilityState, ToolbarToggleHandlers {
+export interface PanelControls extends ToolbarVisibilityState, ToolbarToggleHandlers {}
+
+interface ToolbarProps extends WorkspaceSelectorProps {
   statsText: string;
   typeCounts: { function: number; class: number; interface: number };
   layout: LayoutType;
@@ -77,6 +79,7 @@ interface ToolbarProps extends WorkspaceSelectorProps, ToolbarVisibilityState, T
   clusterLevel: ClusterLevel;
   viewMode: 'code' | 'dependencies';
   collapsed: boolean;
+  panelControls: PanelControls;
   onLayoutChange: (l: LayoutType) => void;
   onThemeToggle: () => void;
   onFilterChange: (f: GraphNode['type'] | 'all') => void;
@@ -118,17 +121,20 @@ export function Toolbar(props: ToolbarProps) {
 
   const {
     statsText, typeCounts, layout, theme, filterType, graphType, clusterLevel,
-    showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport,
-    showPathFind, showHealthScore, showRules, showHotspot, showGodModule,
-    viewMode, collapsed,
+    viewMode, collapsed, panelControls,
     onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange,
-    onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend,
-    onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule,
     onToggleViewMode,
     onRefresh, onCollapse,
     currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
     onCollapseAll, onUndo, onRedo, canUndo, canRedo,
   } = props;
+
+  const {
+    showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport,
+    showPathFind, showHealthScore, showRules, showHotspot, showGodModule,
+    onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend,
+    onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule,
+  } = panelControls;
 
   return (
     <div className="graph-toolbar">

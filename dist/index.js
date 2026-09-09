@@ -2057,24 +2057,28 @@ const createGraphTools = (ctx, options = {}) => {
 				else adjacency.set(edge.source, [edge.target]);
 			}
 			const visited = new Set([a.sourceSymbol]);
-			const queue = [{
-				id: a.sourceSymbol,
-				path: [a.sourceSymbol]
-			}];
+			const predecessor = new Map();
+			const queue = [a.sourceSymbol];
 			let head = 0;
 			while (head < queue.length) {
-				const { id, path: path$1 } = queue[head++];
-				if (id === a.targetSymbol) return {
-					path: path$1,
-					length: path$1.length - 1
-				};
+				const id = queue[head++];
+				if (id === a.targetSymbol) {
+					const path$1 = [];
+					let cur = id;
+					while (cur !== void 0) {
+						path$1.unshift(cur);
+						cur = predecessor.get(cur);
+					}
+					return {
+						path: path$1,
+						length: path$1.length - 1
+					};
+				}
 				const neighbors = adjacency.get(id) ?? [];
 				for (const next of neighbors) if (!visited.has(next)) {
 					visited.add(next);
-					queue.push({
-						id: next,
-						path: [...path$1, next]
-					});
+					predecessor.set(next, id);
+					queue.push(next);
 				}
 			}
 			return null;
@@ -2621,11 +2625,13 @@ function parseGoMod(content) {
 	};
 }
 function dependencyGraphToGraphData(depGraph) {
+	const sourceIds = new Set(depGraph.edges.map((e) => e.source));
 	const nodes = depGraph.nodes.map((n) => {
 		let filePath = "";
-		if (n.type === "npm") filePath = n.id === `dep:${n.name}` && depGraph.edges.some((e) => e.source === n.id) ? "package.json" : `node_modules/${n.name}`;
-		else if (n.type === "cargo") filePath = depGraph.edges.some((e) => e.source === n.id) ? "Cargo.toml" : `cargo/${n.name}`;
-		else if (n.type === "gomod") filePath = depGraph.edges.some((e) => e.source === n.id) ? "go.mod" : `go/${n.name}`;
+		const isRoot = sourceIds.has(n.id);
+		if (n.type === "npm") filePath = n.id === `dep:${n.name}` && isRoot ? "package.json" : `node_modules/${n.name}`;
+		else if (n.type === "cargo") filePath = isRoot ? "Cargo.toml" : `cargo/${n.name}`;
+		else if (n.type === "gomod") filePath = isRoot ? "go.mod" : `go/${n.name}`;
 		else filePath = n.name;
 		return {
 			id: NodeId(n.id),
@@ -3009,7 +3015,8 @@ function registerService(deps) {
 				try {
 					const raw = await fetchMergedGraph(invokeUpstream, repoId, "both");
 					return slimGraphData(raw, config.maxNodes);
-				} catch {
+				} catch (e) {
+					log$2.warn("getGraphData failed", e);
 					return null;
 				}
 			},
@@ -3337,7 +3344,8 @@ function registerRoutes(deps) {
 					enabled: !!enabled,
 					path: watchPath
 				});
-			} catch {
+			} catch (e) {
+				log$2.warn("watch route failed", e);
 				sendError(res, 500, "Internal server error");
 			}
 		}
@@ -3608,7 +3616,8 @@ function registerEventListeners(ctx, invokeUpstream) {
 				timestamp: Date.now()
 			});
 			if (success) await scanAndPush(ctx, invokeUpstream, event.path);
-		} catch {
+		} catch (e) {
+			log$1.warn("graph init failed", e);
 			ctx.emit("codegraph/graph/init-result", {
 				success: false,
 				path: event.path,

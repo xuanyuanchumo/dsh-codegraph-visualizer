@@ -160,16 +160,16 @@ export function parseGoMod(content: string): DependencyGraph {
 }
 
 export function dependencyGraphToGraphData(depGraph: DependencyGraph): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  const sourceIds = new Set(depGraph.edges.map((e) => e.source));
   const nodes: GraphNode[] = depGraph.nodes.map((n) => {
     let filePath = '';
+    const isRoot = sourceIds.has(n.id);
     if (n.type === 'npm') {
-      filePath = n.id === `dep:${n.name}` && depGraph.edges.some((e) => e.source === n.id)
-        ? 'package.json'
-        : `node_modules/${n.name}`;
+      filePath = n.id === `dep:${n.name}` && isRoot ? 'package.json' : `node_modules/${n.name}`;
     } else if (n.type === 'cargo') {
-      filePath = depGraph.edges.some((e) => e.source === n.id) ? 'Cargo.toml' : `cargo/${n.name}`;
+      filePath = isRoot ? 'Cargo.toml' : `cargo/${n.name}`;
     } else if (n.type === 'gomod') {
-      filePath = depGraph.edges.some((e) => e.source === n.id) ? 'go.mod' : `go/${n.name}`;
+      filePath = isRoot ? 'go.mod' : `go/${n.name}`;
     } else {
       filePath = n.name;
     }

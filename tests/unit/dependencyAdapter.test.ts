@@ -113,7 +113,7 @@ require github.com/foo/bar v1.0.0
         nodes: [
           { id: 'dep:react', name: 'react', version: '18.0.0', type: 'npm' as const },
         ],
-        edges: [{ source: 'dep:root', target: 'dep:react', type: 'depends' as const }],
+        edges: [{ source: 'dep:root', target: 'dep:react', type: 'depends' as const, scope: 'prod' as const }],
       };
       const result = dependencyGraphToGraphData(depGraph);
       expect(result.nodes).toHaveLength(1);

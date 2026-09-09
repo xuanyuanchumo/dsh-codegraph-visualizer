@@ -194,15 +194,22 @@ export class McpServer {
         const targetNode = data.nodes.find((n: GraphNode) => n.label === symbol || n.label.endsWith(`.${symbol}`));
         if (!targetNode) return { impacted: [], message: 'Symbol not found' };
 
+        const reverseAdj = new Map<string, string[]>();
+        for (const edge of data.edges) {
+          const list = reverseAdj.get(edge.target);
+          if (list) list.push(edge.source);
+          else reverseAdj.set(edge.target, [edge.source]);
+        }
         const impacted = new Set<string>();
         let frontier = new Set<string>([targetNode.id]);
         for (let d = 0; d < depth; d++) {
           const nextFrontier = new Set<string>();
           for (const id of frontier) {
-            for (const edge of data.edges) {
-              if (edge.target === id && !impacted.has(edge.source)) {
-                impacted.add(edge.source);
-                nextFrontier.add(edge.source);
+            const sources = reverseAdj.get(id) ?? [];
+            for (const src of sources) {
+              if (!impacted.has(src)) {
+                impacted.add(src);
+                nextFrontier.add(src);
               }
             }
           }

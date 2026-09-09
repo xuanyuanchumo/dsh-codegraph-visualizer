@@ -132,8 +132,8 @@ export class TreeSitterAdapter {
     // is a SyntaxError in CJS/classic-script bundles.
     const doc = (globalThis as Record<string, unknown>).document as { baseURI?: string } | undefined;
     if (doc && doc.baseURI) {
-      try { candidates.push(new URL(`node_modules/web-tree-sitter/dist/${wasmFile}`, doc.baseURI).href); } catch {}
-      try { candidates.push(new URL(`plugins/dsh-codegraph-visualizer/${wasmFile}`, doc.baseURI).href); } catch {}
+      try { candidates.push(new URL(`node_modules/web-tree-sitter/dist/${wasmFile}`, doc.baseURI).href); } catch { /* URL resolution fallback */ }
+      try { candidates.push(new URL(`plugins/dsh-codegraph-visualizer/${wasmFile}`, doc.baseURI).href); } catch { /* URL resolution fallback */ }
     }
 
     // Bare filename as last resort (relative to page)
@@ -142,7 +142,7 @@ export class TreeSitterAdapter {
     for (const path of candidates) {
       try {
         return await (Language as unknown as TreeSitterLanguage).load(path);
-      } catch {}
+      } catch { /* try next candidate path */ }
     }
     throw new Error(`Cannot load ${wasmFile} from any candidate path`);
   }

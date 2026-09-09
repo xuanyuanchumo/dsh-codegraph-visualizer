@@ -604,40 +604,42 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         filterType={filterType}
         graphType={graphType}
         clusterLevel={clusterLevel}
-        showSearch={panel.showSearch}
-        showCallChain={panel.showCallChain}
-        showCycles={panel.showCycles}
-        showImpact={panel.showImpact}
-        showInheritance={panel.showInheritance}
-        showMiniMap={panel.showMiniMap}
-        showLegend={panel.showLegend}
-        showImport={panel.showImport}
-        showPathFind={panel.showPathFind}
-        showHealthScore={panel.showHealthScore}
-        showRules={panel.showRules}
-        showHotspot={panel.showHotspot}
-        showGodModule={panel.showGodModule}
         viewMode={viewMode}
-        onToggleViewMode={handleToggleViewMode}
         collapsed={panel.collapsed}
+        panelControls={{
+          showSearch: panel.showSearch,
+          showCallChain: panel.showCallChain,
+          showCycles: panel.showCycles,
+          showImpact: panel.showImpact,
+          showInheritance: panel.showInheritance,
+          showMiniMap: panel.showMiniMap,
+          showLegend: panel.showLegend,
+          showImport: panel.showImport,
+          showPathFind: panel.showPathFind,
+          showHealthScore: panel.showHealthScore,
+          showRules: panel.showRules,
+          showHotspot: panel.showHotspot,
+          showGodModule: panel.showGodModule,
+          onToggleSearch: panel.toggleSearch,
+          onToggleCallChain: panel.toggleCallChain,
+          onToggleCycles: panel.toggleCycles,
+          onToggleImpact: panel.toggleImpact,
+          onToggleInheritance: panel.toggleInheritance,
+          onToggleMiniMap: panel.toggleMiniMap,
+          onToggleLegend: panel.toggleLegend,
+          onToggleImport: panel.toggleImport,
+          onTogglePathFind: panel.togglePathFind,
+          onToggleHealthScore: panel.toggleHealthScore,
+          onToggleRules: panel.toggleRules,
+          onToggleHotspot: panel.toggleHotspot,
+          onToggleGodModule: panel.toggleGodModule,
+        }}
+        onToggleViewMode={handleToggleViewMode}
         onLayoutChange={setLayout}
         onThemeToggle={handleThemeToggle}
         onFilterChange={setFilterType}
         onGraphTypeChange={setGraphType}
         onClusterLevelChange={setClusterLevel}
-        onToggleSearch={panel.toggleSearch}
-        onToggleCallChain={panel.toggleCallChain}
-        onToggleCycles={panel.toggleCycles}
-        onToggleImpact={panel.toggleImpact}
-        onToggleInheritance={panel.toggleInheritance}
-        onToggleMiniMap={panel.toggleMiniMap}
-        onToggleLegend={panel.toggleLegend}
-        onToggleImport={panel.toggleImport}
-        onTogglePathFind={panel.togglePathFind}
-        onToggleHealthScore={panel.toggleHealthScore}
-        onToggleRules={panel.toggleRules}
-        onToggleHotspot={panel.toggleHotspot}
-        onToggleGodModule={panel.toggleGodModule}
         onRefresh={handleRefresh}
         onExport={renderer.exportGraph}
         onCollapse={panel.toggleCollapsed}

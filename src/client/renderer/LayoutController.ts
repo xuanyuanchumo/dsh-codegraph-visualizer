@@ -27,7 +27,7 @@ export class LayoutController {
       if (typeof document !== 'undefined' && document.baseURI) {
         try {
           workerUrl = new URL('plugins/dsh-codegraph-visualizer/worker/layoutWorker.js', document.baseURI).href;
-        } catch {}
+        } catch { /* URL construction fallback — try next candidate */ }
       }
 
       if (workerUrl) {
@@ -46,9 +46,7 @@ export class LayoutController {
           this.worker = null;
         };
       }
-    } catch {
-      this.worker = null;
-    }
+    } catch { /* Worker init failed — fallback to main-thread layout */ }
   }
 
   isWorkerAvailable(): boolean {

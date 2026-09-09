@@ -28,9 +28,7 @@ export function EmptyState({ prerequisites, onImport, onScanWorkspace }: EmptySt
       setCopiedCmd(cmd);
       if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
       copyTimerRef.current = setTimeout(() => setCopiedCmd(null), 2000);
-    } catch {
-      // best-effort
-    }
+    } catch { /* clipboard unavailable — best-effort */ }
   }, []);
 
   const handleInstall = useCallback((plugin: string) => {

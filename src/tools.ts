@@ -345,18 +345,26 @@ export const createGraphTools = (ctx: Context, options: { requestTimeout?: numbe
         else adjacency.set(edge.source, [edge.target]);
       }
       const visited = new Set<string>([a.sourceSymbol]);
-      const queue: Array<{ id: string; path: string[] }> = [{ id: a.sourceSymbol, path: [a.sourceSymbol] }];
+      const predecessor = new Map<string, string>();
+      const queue: string[] = [a.sourceSymbol];
       let head = 0;
       while (head < queue.length) {
-        const { id, path } = queue[head++]!;
+        const id = queue[head++]!;
         if (id === a.targetSymbol) {
+          const path: string[] = [];
+          let cur: string | undefined = id;
+          while (cur !== undefined) {
+            path.unshift(cur);
+            cur = predecessor.get(cur);
+          }
           return { path, length: path.length - 1 } as unknown as JsonValue;
         }
         const neighbors = adjacency.get(id) ?? [];
         for (const next of neighbors) {
           if (!visited.has(next)) {
             visited.add(next);
-            queue.push({ id: next, path: [...path, next] });
+            predecessor.set(next, id);
+            queue.push(next);
           }
         }
       }

@@ -112,7 +112,8 @@ export function registerEventListeners(ctx: Context, invokeUpstream: (tool: stri
       if (success) {
         await scanAndPush(ctx, invokeUpstream, event.path);
       }
-    } catch {
+    } catch (e) {
+      log.warn('graph init failed', e);
       ctx.emit('codegraph/graph/init-result', {
         success: false,
         path: event.path,
