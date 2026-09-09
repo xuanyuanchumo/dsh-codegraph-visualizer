@@ -4,8 +4,12 @@ import type { GraphNode, GraphEdge, NodeId, HealthScore, RuleDefinition, RuleVio
 import { computeClusteredGraph } from './cluster/index.ts';
 import type { ClusterLevel, ClusterNode, ClusterEdge } from './cluster/index.ts';
 import { assembleDiagram, assembleMicroDiagram, type LayeredDiagram } from '../diagram/index.ts';
+import { DiagramCache, ClusterCache, computeDataHash } from '../cache/DiagramCache.ts';
 
 export type { ClusterLevel, ClusterNode, ClusterEdge } from './cluster/index.ts';
+
+const diagramCache = new DiagramCache(10);
+const clusterCache = new ClusterCache(20);
 
 function detectInitialTheme(): ThemeType {
   if (typeof document === 'undefined') return 'dark';
@@ -180,7 +184,14 @@ export const useGraphStore = create<GraphState>()(
         let displayEdges = edges;
         let diagramData: LayeredDiagram | null = null;
         if (viewMode === 'inheritance' || viewMode === 'callgraph' || viewMode === 'package' || viewMode === 'class') {
-          diagramData = assembleDiagram(viewMode, nodes, edges);
+          const dataHash = computeDataHash(nodes, edges);
+          const cached = diagramCache.get(viewMode, dataHash);
+          if (cached) {
+            diagramData = cached;
+          } else {
+            diagramData = assembleDiagram(viewMode, nodes, edges);
+            if (diagramData) diagramCache.set(viewMode, dataHash, diagramData);
+          }
           if (diagramData) {
             const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
             if (layer) {
@@ -244,7 +255,12 @@ export const useGraphStore = create<GraphState>()(
         if (viewMode === 'inheritance' || viewMode === 'callgraph' || viewMode === 'package' || viewMode === 'class') {
           const sourceNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
           const sourceEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
-          const diagram = assembleDiagram(viewMode, sourceNodes, sourceEdges);
+          const dataHash = computeDataHash(sourceNodes, sourceEdges);
+          let diagram = diagramCache.get(viewMode, dataHash);
+          if (!diagram) {
+            diagram = assembleDiagram(viewMode, sourceNodes, sourceEdges);
+            if (diagram) diagramCache.set(viewMode, dataHash, diagram);
+          }
           if (diagram) {
             const layer = diagram.layers[0];
             const layerNodes = layer ? layer.nodes : diagram.allNodes;
@@ -283,7 +299,16 @@ export const useGraphStore = create<GraphState>()(
             sourceEdges = layer.edges;
           }
         }
+        const nodesHash = computeDataHash(sourceNodes, sourceEdges);
+        const edgesHash = nodesHash;
+        const expandedKey = [...expandedNodeIds].sort().join(',');
+        const cached = clusterCache.get(nodesHash, edgesHash, clusterLevel, expandedKey);
+        if (cached) {
+          set({ clusterLevel, nodes: cached.nodes, edges: cached.edges });
+          return;
+        }
         const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, expandedNodeIds);
+        clusterCache.set(nodesHash, edgesHash, clusterLevel, expandedKey, result);
         set({ clusterLevel, nodes: result.nodes, edges: result.edges });
       },
       setLoading: (isLoading) => {

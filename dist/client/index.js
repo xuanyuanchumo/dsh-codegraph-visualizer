@@ -6323,7 +6323,69 @@ async function assembleMicroDiagram(viewMode, filePath, functionName) {
 }
 
 //#endregion
+//#region src/client/cache/DiagramCache.ts
+function computeDataHash(nodes, edges) {
+	const nodeHash = nodes.map((n) => `${n.id}:${n.type}`).join("|");
+	const edgeHash = edges.map((e) => `${e.id}:${e.source}:${e.target}:${e.type}`).join("|");
+	return `${nodeHash.length}_${edgeHash.length}`;
+}
+var DiagramCache = class {
+	cache = new Map();
+	maxEntries;
+	constructor(maxEntries = 10) {
+		this.maxEntries = maxEntries;
+	}
+	get(viewMode, dataHash) {
+		const key = `${viewMode}:${dataHash}`;
+		return this.cache.get(key) ?? null;
+	}
+	set(viewMode, dataHash, diagram) {
+		const key = `${viewMode}:${dataHash}`;
+		if (this.cache.size >= this.maxEntries) {
+			const firstKey = this.cache.keys().next().value;
+			if (firstKey) this.cache.delete(firstKey);
+		}
+		this.cache.set(key, diagram);
+	}
+	invalidate(viewMode) {
+		if (viewMode) {
+			for (const key of this.cache.keys()) if (key.startsWith(viewMode)) this.cache.delete(key);
+		} else this.cache.clear();
+	}
+	size() {
+		return this.cache.size;
+	}
+};
+var ClusterCache = class {
+	cache = new Map();
+	maxEntries;
+	constructor(maxEntries = 20) {
+		this.maxEntries = maxEntries;
+	}
+	get(nodesHash, edgesHash, level, expandedKey) {
+		const key = `${nodesHash}:${edgesHash}:${level}:${expandedKey}`;
+		return this.cache.get(key) ?? null;
+	}
+	set(nodesHash, edgesHash, level, expandedKey, result) {
+		const key = `${nodesHash}:${edgesHash}:${level}:${expandedKey}`;
+		if (this.cache.size >= this.maxEntries) {
+			const firstKey = this.cache.keys().next().value;
+			if (firstKey) this.cache.delete(firstKey);
+		}
+		this.cache.set(key, result);
+	}
+	invalidate() {
+		this.cache.clear();
+	}
+	size() {
+		return this.cache.size;
+	}
+};
+
+//#endregion
 //#region src/client/store/graphStore.ts
+const diagramCache = new DiagramCache(10);
+const clusterCache = new ClusterCache(20);
 function detectInitialTheme() {
 	if (typeof document === "undefined") return "dark";
 	return document.body.hasAttribute("data-ds-dark-theme") ? "dark" : "light";
@@ -6393,7 +6455,13 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		let displayEdges = edges;
 		let diagramData = null;
 		if (viewMode === "inheritance" || viewMode === "callgraph" || viewMode === "package" || viewMode === "class") {
-			diagramData = assembleDiagram(viewMode, nodes, edges);
+			const dataHash = computeDataHash(nodes, edges);
+			const cached = diagramCache.get(viewMode, dataHash);
+			if (cached) diagramData = cached;
+			else {
+				diagramData = assembleDiagram(viewMode, nodes, edges);
+				if (diagramData) diagramCache.set(viewMode, dataHash, diagramData);
+			}
 			if (diagramData) {
 				const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
 				if (layer) {
@@ -6471,7 +6539,12 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		if (viewMode === "inheritance" || viewMode === "callgraph" || viewMode === "package" || viewMode === "class") {
 			const sourceNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
 			const sourceEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
-			const diagram = assembleDiagram(viewMode, sourceNodes, sourceEdges);
+			const dataHash = computeDataHash(sourceNodes, sourceEdges);
+			let diagram = diagramCache.get(viewMode, dataHash);
+			if (!diagram) {
+				diagram = assembleDiagram(viewMode, sourceNodes, sourceEdges);
+				if (diagram) diagramCache.set(viewMode, dataHash, diagram);
+			}
 			if (diagram) {
 				const layer = diagram.layers[0];
 				const layerNodes = layer ? layer.nodes : diagram.allNodes;
@@ -6522,7 +6595,20 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				sourceEdges = layer.edges;
 			}
 		}
+		const nodesHash = computeDataHash(sourceNodes, sourceEdges);
+		const edgesHash = nodesHash;
+		const expandedKey = [...expandedNodeIds].sort().join(",");
+		const cached = clusterCache.get(nodesHash, edgesHash, clusterLevel, expandedKey);
+		if (cached) {
+			set$1({
+				clusterLevel,
+				nodes: cached.nodes,
+				edges: cached.edges
+			});
+			return;
+		}
 		const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, expandedNodeIds);
+		clusterCache.set(nodesHash, edgesHash, clusterLevel, expandedKey, result);
 		set$1({
 			clusterLevel,
 			nodes: result.nodes,
