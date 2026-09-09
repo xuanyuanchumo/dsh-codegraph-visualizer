@@ -70,6 +70,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     pathResult, focusDepth, healthScore, rules, ruleViolations,
     viewMode,
     selectedFunction,
+    currentLayer,
+    diagramData,
   } = useGraphStore(useShallow((s) => ({
     nodes: s.nodes, edges: s.edges, rawNodes: s.rawNodes, rawEdges: s.rawEdges,
     layout: s.layout, theme: s.theme,
@@ -87,6 +89,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     rules: s.rules, ruleViolations: s.ruleViolations,
     viewMode: s.viewMode,
     selectedFunction: s.selectedFunction,
+    currentLayer: s.currentLayer,
+    diagramData: s.diagramData,
   })));
 
   const setLayout = useGraphStore((s) => s.setLayout);
@@ -96,6 +100,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const setFilterType = useGraphStore((s) => s.setFilterType);
   const setGraphType = useGraphStore((s) => s.setGraphType);
   const setClusterLevel = useGraphStore((s) => s.setClusterLevel);
+  const setLayer = useGraphStore((s) => s.setLayer);
   const setLoading = useGraphStore((s) => s.setLoading);
   const setCurrentWorkspace = useGraphStore((s) => s.setCurrentWorkspace);
   const addWorkspace = useGraphStore((s) => s.addWorkspace);
@@ -628,6 +633,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         graphType={graphType}
         clusterLevel={clusterLevel}
         viewMode={viewMode}
+        currentLayer={currentLayer}
+        layerNames={diagramData?.layers.map((l) => l.name) ?? []}
+        onLayerChange={setLayer}
         collapsed={panel.collapsed}
         panelControls={{
           showSearch: panel.showSearch,

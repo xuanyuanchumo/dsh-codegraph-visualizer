@@ -28,6 +28,7 @@ export const en: Record<string, string> = {
   'toolbar.layout': 'Switch to {l} layout (Ctrl+L cycles)',
   'toolbar.graphType': 'Graph type switcher',
   'toolbar.cluster': 'Cluster level',
+  'toolbar.layer': 'Diagram layer',
 
   // Cluster levels
   'cluster.directory': 'Directory',

@@ -446,6 +446,40 @@ body[data-ds-dark-theme] .depth-select {
   opacity: 1;
 }
 
+.layer-selector {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 4px;
+  align-items: center;
+}
+
+.layer-btn {
+  padding: 3px 6px;
+  border: 1px solid var(--cg-border);
+  background: transparent;
+  color: var(--cg-text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: var(--cg-radius-xs);
+  cursor: pointer;
+  transition: all var(--cg-transition);
+  font-family: var(--cg-font-sans);
+  min-width: 28px;
+  text-align: center;
+}
+
+.layer-btn:hover {
+  color: var(--cg-text);
+  background: var(--cg-surface-hover);
+}
+
+.layer-btn.active {
+  color: var(--cg-on-accent);
+  background: var(--cg-accent);
+  border-color: var(--cg-accent-hover);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
 /* ---- Select -------------------------------------------------------------- */
 
 .filter-select {

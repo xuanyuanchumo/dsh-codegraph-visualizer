@@ -28,6 +28,7 @@ export const zh: Record<string, string> = {
   'toolbar.layout': '切换至 {l} 布局 (Ctrl+L 循环)',
   'toolbar.graphType': '图谱类型切换',
   'toolbar.cluster': '聚类层级',
+  'toolbar.layer': '图谱层级',
 
   // 聚类层级
   'cluster.directory': '目录级',

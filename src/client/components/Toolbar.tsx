@@ -93,6 +93,8 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   graphType: GraphType;
   clusterLevel: ClusterLevel;
   viewMode: ViewMode;
+  currentLayer: number;
+  layerNames: string[];
   collapsed: boolean;
   panelControls: PanelControls;
   onLayoutChange: (l: LayoutType) => void;
@@ -101,6 +103,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   onGraphTypeChange: (g: GraphType) => void;
   onClusterLevelChange: (level: ClusterLevel) => void;
   onViewModeChange: (mode: ViewMode) => void;
+  onLayerChange: (layer: number) => void;
   onRefresh: () => void;
   onExport: (format: 'png' | 'svg' | 'json') => void;
   onCollapse: () => void;
@@ -136,9 +139,9 @@ export function Toolbar(props: ToolbarProps) {
 
   const {
     statsText, typeCounts, layout, theme, filterType, graphType, clusterLevel,
-    viewMode, collapsed, panelControls,
+    viewMode, currentLayer, layerNames, collapsed, panelControls,
     onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange,
-    onViewModeChange,
+    onViewModeChange, onLayerChange,
     onRefresh, onCollapse,
     currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
     onCollapseAll, onUndo, onRedo, canUndo, canRedo,
@@ -212,6 +215,19 @@ export function Toolbar(props: ToolbarProps) {
             >{t(m.key)}</button>
           ))}
         </div>
+        {layerNames.length > 1 && (
+          <div className="layer-selector" role="group" aria-label={t('toolbar.layer')}>
+            {layerNames.map((name, idx) => (
+              <button
+                key={idx}
+                className={`layer-btn ${currentLayer === idx ? 'active' : ''}`}
+                onClick={() => onLayerChange(idx)}
+                title={name}
+                aria-pressed={currentLayer === idx}
+              >L{idx}</button>
+            ))}
+          </div>
+        )}
         <select
           value={clusterLevel}
           onChange={(e) => onClusterLevelChange(e.target.value as ClusterLevel)}

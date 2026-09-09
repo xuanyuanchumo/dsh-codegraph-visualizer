@@ -45530,6 +45530,7 @@ const en = {
 	"toolbar.layout": "Switch to {l} layout (Ctrl+L cycles)",
 	"toolbar.graphType": "Graph type switcher",
 	"toolbar.cluster": "Cluster level",
+	"toolbar.layer": "Diagram layer",
 	"cluster.directory": "Directory",
 	"cluster.file": "File",
 	"cluster.function": "Function",
@@ -45774,6 +45775,7 @@ const zh = {
 	"toolbar.layout": "切换至 {l} 布局 (Ctrl+L 循环)",
 	"toolbar.graphType": "图谱类型切换",
 	"toolbar.cluster": "聚类层级",
+	"toolbar.layer": "图谱层级",
 	"cluster.directory": "目录级",
 	"cluster.file": "文件级",
 	"cluster.function": "函数级",
@@ -47218,7 +47220,7 @@ function Toolbar(props) {
 		onExport(format);
 		setShowExportMenu(false);
 	}, [onExport]);
-	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterLevel, viewMode, collapsed, panelControls, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange, onViewModeChange, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll, onUndo, onRedo, canUndo, canRedo } = props;
+	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterLevel, viewMode, currentLayer, layerNames, collapsed, panelControls, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange, onViewModeChange, onLayerChange, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll, onUndo, onRedo, canUndo, canRedo } = props;
 	const { showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport, showPathFind, showHealthScore, showRules, showHotspot, showGodModule, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule } = panelControls;
 	return /* @__PURE__ */ jsxs("div", {
 		className: "graph-toolbar",
@@ -47308,6 +47310,18 @@ function Toolbar(props) {
 								children: t$1(m.key)
 							}, m.value))
 						]
+					}),
+					layerNames.length > 1 && /* @__PURE__ */ jsx("div", {
+						className: "layer-selector",
+						role: "group",
+						"aria-label": t$1("toolbar.layer"),
+						children: layerNames.map((name$1, idx) => /* @__PURE__ */ jsxs("button", {
+							className: `layer-btn ${currentLayer === idx ? "active" : ""}`,
+							onClick: () => onLayerChange(idx),
+							title: name$1,
+							"aria-pressed": currentLayer === idx,
+							children: ["L", idx]
+						}, idx))
 					}),
 					/* @__PURE__ */ jsx("select", {
 						value: clusterLevel,
@@ -50182,7 +50196,7 @@ function GraphPanelInner({ className = "" }) {
 	const [showHelp, setShowHelp] = useState(false);
 	const [thumbnail, setThumbnail] = useState(null);
 	const [viewportInfo, setViewportInfo] = useState(null);
-	const { nodes, edges, rawNodes, rawEdges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, clusterLevel, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, expandedNodeIds, pathResult, focusDepth, healthScore, rules, ruleViolations, viewMode, selectedFunction } = useGraphStore(useShallow((s) => ({
+	const { nodes, edges, rawNodes, rawEdges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, clusterLevel, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, expandedNodeIds, pathResult, focusDepth, healthScore, rules, ruleViolations, viewMode, selectedFunction, currentLayer, diagramData } = useGraphStore(useShallow((s) => ({
 		nodes: s.nodes,
 		edges: s.edges,
 		rawNodes: s.rawNodes,
@@ -50212,7 +50226,9 @@ function GraphPanelInner({ className = "" }) {
 		rules: s.rules,
 		ruleViolations: s.ruleViolations,
 		viewMode: s.viewMode,
-		selectedFunction: s.selectedFunction
+		selectedFunction: s.selectedFunction,
+		currentLayer: s.currentLayer,
+		diagramData: s.diagramData
 	})));
 	const setLayout = useGraphStore((s) => s.setLayout);
 	const setTheme = useGraphStore((s) => s.setTheme);
@@ -50221,6 +50237,7 @@ function GraphPanelInner({ className = "" }) {
 	const setFilterType = useGraphStore((s) => s.setFilterType);
 	const setGraphType = useGraphStore((s) => s.setGraphType);
 	const setClusterLevel = useGraphStore((s) => s.setClusterLevel);
+	const setLayer = useGraphStore((s) => s.setLayer);
 	const setLoading = useGraphStore((s) => s.setLoading);
 	const setCurrentWorkspace = useGraphStore((s) => s.setCurrentWorkspace);
 	const addWorkspace = useGraphStore((s) => s.addWorkspace);
@@ -50778,6 +50795,9 @@ function GraphPanelInner({ className = "" }) {
 				graphType,
 				clusterLevel,
 				viewMode,
+				currentLayer,
+				layerNames: diagramData?.layers.map((l) => l.name) ?? [],
+				onLayerChange: setLayer,
 				collapsed: panel.collapsed,
 				panelControls: {
 					showSearch: panel.showSearch,
