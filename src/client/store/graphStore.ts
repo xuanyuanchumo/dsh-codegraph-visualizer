@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
-import type { GraphNode, GraphEdge, NodeId, HealthScore, RuleDefinition, RuleViolation } from '../../types/index.ts';
+import type { GraphNode, GraphEdge, NodeId, HealthScore, RuleDefinition, RuleViolation, ViewMode } from '../../types/index.ts';
 import { computeClusteredGraph } from './cluster/index.ts';
 import type { ClusterLevel, ClusterNode, ClusterEdge } from './cluster/index.ts';
+import { assembleDiagram, assembleMicroDiagram, type LayeredDiagram } from '../diagram/index.ts';
 
 export type { ClusterLevel, ClusterNode, ClusterEdge } from './cluster/index.ts';
 
@@ -42,6 +43,8 @@ interface GraphState {
   edges: (GraphEdge | ClusterEdge)[];
   rawNodes: GraphNode[];
   rawEdges: GraphEdge[];
+  savedRawNodes: GraphNode[];
+  savedRawEdges: GraphEdge[];
   repoId: string | null;
 
   truncated: boolean;
@@ -55,7 +58,9 @@ interface GraphState {
   highlightedNodeIds: NodeId[];
   filterType: GraphNode['type'] | 'all';
   graphType: GraphType;
-  viewMode: 'code' | 'dependencies';
+  viewMode: ViewMode;
+  diagramData: LayeredDiagram | null;
+  currentLayer: number;
   clusterLevel: ClusterLevel;
 
   isLoading: boolean;
@@ -85,6 +90,8 @@ interface GraphState {
   panelHeight: number | null;
   panelWidth: number | null;
 
+  selectedFunction: { nodeId: string; filePath: string; functionName: string } | null;
+
   setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata?: { truncated?: boolean; totalNodeCount?: number; totalEdgeCount?: number }) => void;
   setLayout: (layout: LayoutType) => void;
   setTheme: (theme: ThemeType) => void;
@@ -93,7 +100,8 @@ interface GraphState {
   setHighlightedNodes: (nodeIds: NodeId[]) => void;
   setFilterType: (filter: GraphNode['type'] | 'all') => void;
   setGraphType: (graphType: GraphType) => void;
-  setViewMode: (viewMode: 'code' | 'dependencies') => void;
+  setViewMode: (viewMode: ViewMode) => void;
+  setLayer: (layer: number) => void;
   setClusterLevel: (level: ClusterLevel) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -114,6 +122,8 @@ interface GraphState {
   setHealthScore: (score: HealthScore | null) => void;
   setRules: (rules: RuleDefinition[]) => void;
   setRuleViolations: (violations: RuleViolation[]) => void;
+  setSelectedFunction: (fn: { nodeId: string; filePath: string; functionName: string } | null) => void;
+  assembleMicro: (viewMode: 'cfg' | 'flowchart' | 'sequence') => Promise<void>;
   setPanelSize: (height: number, width: number) => void;
   resetPanelSize: () => void;
 }
@@ -125,6 +135,8 @@ export const useGraphStore = create<GraphState>()(
       edges: [],
       rawNodes: [],
       rawEdges: [],
+      savedRawNodes: [],
+      savedRawEdges: [],
       repoId: null,
       truncated: false,
       totalNodeCount: 0,
@@ -137,6 +149,8 @@ export const useGraphStore = create<GraphState>()(
       filterType: 'all',
       graphType: 'all',
       viewMode: 'code',
+      diagramData: null,
+      currentLayer: 0,
       clusterLevel: 'directory',
       isLoading: false,
       error: null,
@@ -157,14 +171,32 @@ export const useGraphStore = create<GraphState>()(
       ruleViolations: [],
       panelHeight: null,
       panelWidth: null,
+      selectedFunction: null,
 
       setGraphData: (nodes, edges, repoId, metadata) => {
         clearLoadingFailsafe();
-        const { clusterLevel, expandedNodeIds } = useGraphStore.getState();
-        const result = computeClusteredGraph(nodes, edges, clusterLevel, expandedNodeIds);
+        const { clusterLevel, expandedNodeIds, viewMode, currentLayer } = useGraphStore.getState();
+        let displayNodes = nodes;
+        let displayEdges = edges;
+        let diagramData: LayeredDiagram | null = null;
+        if (viewMode === 'inheritance' || viewMode === 'callgraph' || viewMode === 'package' || viewMode === 'class') {
+          diagramData = assembleDiagram(viewMode, nodes, edges);
+          if (diagramData) {
+            const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+            if (layer) {
+              displayNodes = layer.nodes;
+              displayEdges = layer.edges;
+            }
+          }
+        }
+        const result = computeClusteredGraph(displayNodes, displayEdges, clusterLevel, expandedNodeIds);
+        const isDepsMode = viewMode === 'dependencies';
         set({
-          rawNodes: nodes, rawEdges: edges,
+          ...(isDepsMode
+            ? { savedRawNodes: nodes, savedRawEdges: edges }
+            : { rawNodes: nodes, rawEdges: edges }),
           nodes: result.nodes, edges: result.edges,
+          diagramData,
           repoId, error: null, isLoading: false, lastUpdated: Date.now(),
           truncated: !!metadata?.truncated,
           totalNodeCount: metadata?.totalNodeCount ?? nodes.length,
@@ -180,10 +212,78 @@ export const useGraphStore = create<GraphState>()(
       setHighlightedNodes: (highlightedNodeIds) => set({ highlightedNodeIds }),
       setFilterType: (filterType) => set({ filterType }),
       setGraphType: (graphType) => set({ graphType }),
-      setViewMode: (viewMode) => set({ viewMode }),
-      setClusterLevel: (clusterLevel) => {
-        const { rawNodes, rawEdges, expandedNodeIds } = useGraphStore.getState();
+      setViewMode: (viewMode) => {
+        const state = useGraphStore.getState();
+        const { rawNodes, rawEdges, clusterLevel, expandedNodeIds, selectedFunction, savedRawNodes, savedRawEdges } = state;
+
+        if (viewMode === 'dependencies') {
+          const result = computeClusteredGraph(rawNodes, rawEdges, 'directory', new Set());
+          set({
+            viewMode, diagramData: null,
+            savedRawNodes: rawNodes, savedRawEdges: rawEdges,
+            clusterLevel: 'directory', expandedNodeIds: new Set(),
+            nodes: result.nodes, edges: result.edges,
+          });
+          return;
+        }
+
+        if (viewMode === 'code') {
+          const restoreNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
+          const restoreEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
+          const result = computeClusteredGraph(restoreNodes, restoreEdges, 'directory', new Set());
+          set({
+            viewMode, diagramData: null,
+            rawNodes: restoreNodes, rawEdges: restoreEdges,
+            savedRawNodes: [], savedRawEdges: [],
+            clusterLevel: 'directory', expandedNodeIds: new Set(),
+            nodes: result.nodes, edges: result.edges,
+          });
+          return;
+        }
+
+        if (viewMode === 'inheritance' || viewMode === 'callgraph' || viewMode === 'package' || viewMode === 'class') {
+          const sourceNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
+          const sourceEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
+          const diagram = assembleDiagram(viewMode, sourceNodes, sourceEdges);
+          if (diagram) {
+            const layer = diagram.layers[0];
+            const layerNodes = layer ? layer.nodes : diagram.allNodes;
+            const layerEdges = layer ? layer.edges : diagram.allEdges;
+            const result = computeClusteredGraph(layerNodes, layerEdges, 'function', new Set());
+            set({
+              viewMode, diagramData: diagram, currentLayer: 0,
+              clusterLevel: 'function', expandedNodeIds: new Set(),
+              nodes: result.nodes, edges: result.edges,
+            });
+            return;
+          }
+        }
+
+        if (viewMode === 'cfg' || viewMode === 'flowchart' || viewMode === 'sequence') {
+          if (selectedFunction) {
+            set({ viewMode });
+            useGraphStore.getState().assembleMicro(viewMode);
+            return;
+          }
+          set({ viewMode, diagramData: null, nodes: [], edges: [] });
+          return;
+        }
+
         const result = computeClusteredGraph(rawNodes, rawEdges, clusterLevel, expandedNodeIds);
+        set({ viewMode, diagramData: null, nodes: result.nodes, edges: result.edges });
+      },
+      setClusterLevel: (clusterLevel) => {
+        const { rawNodes, rawEdges, expandedNodeIds, diagramData, currentLayer } = useGraphStore.getState();
+        let sourceNodes = rawNodes;
+        let sourceEdges = rawEdges;
+        if (diagramData) {
+          const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+          if (layer) {
+            sourceNodes = layer.nodes;
+            sourceEdges = layer.edges;
+          }
+        }
+        const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, expandedNodeIds);
         set({ clusterLevel, nodes: result.nodes, edges: result.edges });
       },
       setLoading: (isLoading) => {
@@ -204,28 +304,55 @@ export const useGraphStore = create<GraphState>()(
       },
       clearGraph: () => {
         clearLoadingFailsafe();
-        set({ nodes: [], edges: [], rawNodes: [], rawEdges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0, truncated: false, totalNodeCount: 0, totalEdgeCount: 0 });
+        set({ nodes: [], edges: [], rawNodes: [], rawEdges: [], savedRawNodes: [], savedRawEdges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0, truncated: false, totalNodeCount: 0, totalEdgeCount: 0 });
       },
       setPrerequisites: (prerequisites) => set({ prerequisites }),
       setInitStatus: (initStatus, initMessage = null) => set({ initStatus, initMessage }),
       setWatchEnabled: (watchEnabled) => set({ watchEnabled }),
       expandNode: (nodeId) => {
-        const { rawNodes, rawEdges, clusterLevel, expandedNodeIds } = useGraphStore.getState();
+        const { rawNodes, rawEdges, clusterLevel, expandedNodeIds, diagramData, currentLayer } = useGraphStore.getState();
+        let sourceNodes = rawNodes;
+        let sourceEdges = rawEdges;
+        if (diagramData) {
+          const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+          if (layer) {
+            sourceNodes = layer.nodes;
+            sourceEdges = layer.edges;
+          }
+        }
         const newExpanded = new Set(expandedNodeIds);
         newExpanded.add(nodeId);
-        const result = computeClusteredGraph(rawNodes, rawEdges, clusterLevel, newExpanded);
+        const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, newExpanded);
         set({ expandedNodeIds: newExpanded, nodes: result.nodes, edges: result.edges });
       },
       collapseNode: (nodeId) => {
-        const { rawNodes, rawEdges, clusterLevel, expandedNodeIds } = useGraphStore.getState();
+        const { rawNodes, rawEdges, clusterLevel, expandedNodeIds, diagramData, currentLayer } = useGraphStore.getState();
+        let sourceNodes = rawNodes;
+        let sourceEdges = rawEdges;
+        if (diagramData) {
+          const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+          if (layer) {
+            sourceNodes = layer.nodes;
+            sourceEdges = layer.edges;
+          }
+        }
         const newExpanded = new Set(expandedNodeIds);
         newExpanded.delete(nodeId);
-        const result = computeClusteredGraph(rawNodes, rawEdges, clusterLevel, newExpanded);
+        const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, newExpanded);
         set({ expandedNodeIds: newExpanded, nodes: result.nodes, edges: result.edges });
       },
       collapseAll: () => {
-        const { rawNodes, rawEdges, clusterLevel } = useGraphStore.getState();
-        const result = computeClusteredGraph(rawNodes, rawEdges, clusterLevel, new Set());
+        const { rawNodes, rawEdges, clusterLevel, diagramData, currentLayer } = useGraphStore.getState();
+        let sourceNodes = rawNodes;
+        let sourceEdges = rawEdges;
+        if (diagramData) {
+          const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+          if (layer) {
+            sourceNodes = layer.nodes;
+            sourceEdges = layer.edges;
+          }
+        }
+        const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, new Set());
         set({ expandedNodeIds: new Set(), nodes: result.nodes, edges: result.edges });
       },
       setCurrentWorkspace: (path) => set({ currentWorkspace: path }),
@@ -250,6 +377,24 @@ export const useGraphStore = create<GraphState>()(
       setRuleViolations: (violations) => set({ ruleViolations: violations }),
       setPanelSize: (height, width) => set({ panelHeight: height, panelWidth: width }),
       resetPanelSize: () => set({ panelHeight: null, panelWidth: null }),
+      setSelectedFunction: (fn) => set({ selectedFunction: fn }),
+      assembleMicro: async (viewMode) => {
+        const { selectedFunction, clusterLevel, expandedNodeIds } = useGraphStore.getState();
+        if (!selectedFunction) return;
+        const diagram = await assembleMicroDiagram(viewMode, selectedFunction.filePath, selectedFunction.functionName);
+        if (diagram) {
+          const result = computeClusteredGraph(diagram.nodes, diagram.edges, clusterLevel, expandedNodeIds);
+          set({ diagramData: null, nodes: result.nodes, edges: result.edges });
+        }
+      },
+      setLayer: (layer) => {
+        const { diagramData, clusterLevel, expandedNodeIds } = useGraphStore.getState();
+        if (!diagramData || layer < 0 || layer >= diagramData.layers.length) return;
+        const layerData = diagramData.layers[layer];
+        if (!layerData) return;
+        const result = computeClusteredGraph(layerData.nodes, layerData.edges, clusterLevel, expandedNodeIds);
+        set({ currentLayer: layer, nodes: result.nodes, edges: result.edges });
+      },
     }),
     {
       name: 'dsh-codegraph-visualizer/ui',

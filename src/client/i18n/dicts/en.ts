@@ -85,6 +85,7 @@ export const en: Record<string, string> = {
   'detail.doubleClickExpand': 'Double-click to expand related nodes',
   'detail.expanded': 'Expanded',
   'detail.collapse': 'Collapse',
+  'detail.microViews': 'Micro views',
 
   // Mini-map
   'minimap.title': 'Overview',
@@ -272,4 +273,23 @@ export const en: Record<string, string> = {
   // View mode
   'toolbar.viewModeDeps': 'Switch to dependency graph view',
   'toolbar.viewModeCode': 'Switch to code graph view',
+  'toolbar.viewModeInheritance': 'Switch to inheritance tree view',
+  'toolbar.viewModeCallgraph': 'Switch to call graph view',
+  'toolbar.viewModePackage': 'Switch to package/component diagram view',
+  'toolbar.viewModeClass': 'Switch to class diagram view',
+  'toolbar.viewModeCfg': 'Switch to control flow graph view',
+  'toolbar.viewModeFlowchart': 'Switch to flowchart view',
+  'toolbar.viewModeSequence': 'Switch to sequence diagram view',
+  'viewMode.code': 'Code',
+  'viewMode.dependencies': 'Deps',
+  'viewMode.inheritance': 'Inherit',
+  'viewMode.callgraph': 'Call',
+  'viewMode.package': 'Pkg',
+  'viewMode.class': 'Class',
+  'viewMode.cfg': 'CFG',
+  'viewMode.flowchart': 'Flow',
+  'viewMode.sequence': 'Seq',
+  'micro.selectFunctionPrompt': 'Please select a function node in the code graph first, then switch to this view',
+  'micro.selectedFunction': 'Current function: {name}',
+  'micro.clearSelection': 'Clear selection',
 };

@@ -1,6 +1,7 @@
 import { scoped } from '../shared/Logger.ts';
 import { NodeId, EdgeId } from '../types/index.ts';
 import type { GraphNode, GraphEdge, AdapterResult } from '../types/index.ts';
+import type { ASTNode } from '../client/diagram/CFGTypes.ts';
 
 const log = scoped('tree-sitter-adapter');
 
@@ -132,8 +133,9 @@ export class TreeSitterAdapter {
     // is a SyntaxError in CJS/classic-script bundles.
     const doc = (globalThis as Record<string, unknown>).document as { baseURI?: string } | undefined;
     if (doc && doc.baseURI) {
-      try { candidates.push(new URL(`node_modules/web-tree-sitter/dist/${wasmFile}`, doc.baseURI).href); } catch { /* URL resolution fallback */ }
+      // DSH plugin directory — WASM files are copied here during build
       try { candidates.push(new URL(`plugins/dsh-codegraph-visualizer/${wasmFile}`, doc.baseURI).href); } catch { /* URL resolution fallback */ }
+      try { candidates.push(new URL(`node_modules/web-tree-sitter/dist/${wasmFile}`, doc.baseURI).href); } catch { /* URL resolution fallback */ }
     }
 
     // Bare filename as last resort (relative to page)
@@ -215,6 +217,47 @@ export class TreeSitterAdapter {
 
     walk(rootNode);
     return { nodes, edges };
+  }
+
+  async parseToAst(filePath: string, content: string): Promise<ASTNode | null> {
+    if (!this.parser) {
+      await this.init();
+      if (!this.parser) return null;
+    }
+    const language = this.detectLanguage(filePath);
+    if (!language) return null;
+    if (!this.loadedLanguages.has(language)) {
+      try {
+        const langModule = await this.loadLanguageWasm(language);
+        this.parser.setLanguage(langModule);
+        this.loadedLanguages.add(language);
+      } catch {
+        return null;
+      }
+    }
+    try {
+      const tree = this.parser.parse(content);
+      const astRoot = this.convertToAstNode(tree.rootNode);
+      tree.delete();
+      return astRoot;
+    } catch {
+      return null;
+    }
+  }
+
+  private convertToAstNode(node: TreeSitterNode): ASTNode {
+    const children: ASTNode[] = [];
+    for (let i = 0; i < (node.childCount || 0); i++) {
+      const child = node.child(i);
+      if (child) children.push(this.convertToAstNode(child));
+    }
+    return {
+      type: node.type,
+      text: node.text,
+      startPosition: { row: node.startPosition.row, column: node.startPosition.column },
+      endPosition: { row: node.endPosition.row, column: node.endPosition.column },
+      children,
+    };
   }
 
   destroy(): void {

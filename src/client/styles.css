@@ -395,6 +395,12 @@ body[data-ds-dark-theme] .depth-select {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
+.view-mode-buttons {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 4px;
+}
+
 .view-mode-btn {
   padding: 3px 8px;
   border: 1px solid var(--cg-border);
@@ -406,7 +412,7 @@ body[data-ds-dark-theme] .depth-select {
   cursor: pointer;
   transition: all var(--cg-transition);
   font-family: var(--cg-font-sans);
-  margin-left: 4px;
+  margin-left: 2px;
 }
 
 .view-mode-btn:hover {
@@ -419,6 +425,25 @@ body[data-ds-dark-theme] .depth-select {
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.view-mode-divider {
+  display: inline-block;
+  width: 1px;
+  height: 16px;
+  background: var(--cg-border);
+  margin: 0 4px;
+  vertical-align: middle;
+}
+
+.view-mode-btn--micro {
+  border-style: dashed;
+  opacity: 0.85;
+}
+
+.view-mode-btn--micro.active {
+  border-style: solid;
+  opacity: 1;
 }
 
 /* ---- Select -------------------------------------------------------------- */
@@ -791,6 +816,25 @@ body[data-ds-dark-theme] .depth-select {
 
 .graph-container canvas {
   display: block;
+}
+
+/* ---- Sequence diagram container ----------------------------------------- */
+
+.sequence-diagram-container {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  background: var(--cg-bg);
+  user-select: none;
+}
+
+.sequence-diagram-container svg {
+  display: block;
+}
+
+.sequence-diagram-container text {
+  pointer-events: none;
 }
 
 /* ---- Node detail panel --------------------------------------------------- */

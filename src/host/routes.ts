@@ -517,6 +517,48 @@ export function registerRoutes(deps: RouteDeps): void {
     },
   }), 'codegraph: diff route');
 
+  // POST /api/v1/codegraph/ast — 获取文件 AST（用于微观图谱：CFG/流程图/时序图）
+  ctx.effect(() => {
+    const treeSitterAdapter = new TreeSitterAdapter();
+    return ctx.webServer.register({
+      kind: 'exact',
+      path: '/api/v1/codegraph/ast',
+      handler: async (req: IncomingMessage, res: ServerResponse) => {
+        if (handleCorsPreflight(req, res)) return;
+        try {
+          const body = await readBody(req, config.maxBodyBytes);
+          const parsed = parseJsonBody(body);
+          const filePath = extractStringField(parsed, 'filePath');
+          if (!filePath) {
+            sendError(res, 400, 'filePath is required');
+            return;
+          }
+          const workspacePath = findWorkspacePath(ctx);
+          const fullPath = path.resolve(workspacePath, filePath);
+          if (!isPathAllowed(fullPath)) {
+            sendError(res, 403, 'Access denied');
+            return;
+          }
+          const content = await fs.readFile(fullPath, 'utf-8');
+          const MAX_AST_CONTENT = 512 * 1024;
+          if (content.length > MAX_AST_CONTENT) {
+            sendError(res, 413, `File too large for AST parsing (max ${MAX_AST_CONTENT} bytes)`);
+            return;
+          }
+          const astRoot = await treeSitterAdapter.parseToAst(filePath, content);
+          if (!astRoot) {
+            sendError(res, 500, 'AST parsing failed');
+            return;
+          }
+          sendJson(res, 200, astRoot);
+        } catch (e) {
+          log.error('ast route failed', e);
+          sendError(res, 500, 'Internal server error');
+        }
+      },
+    });
+  }, 'codegraph: ast route');
+
   // POST /api/v1/codegraph/tree-sitter — FR-20 Tree-sitter 多语言解析
   ctx.effect(() => {
     const treeSitterAdapter = new TreeSitterAdapter();

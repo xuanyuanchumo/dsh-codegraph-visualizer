@@ -1,0 +1,952 @@
+(node:18180) Warning: Setting the NODE_TLS_REJECT_UNAUTHORIZED environment variable to '0' makes TLS connections and HTTPS requests insecure by disabling certificate verification.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+> dsh-codegraph-visualizer@0.2.0 test:coverage D:\Projects\TraeProjects\dsh-codegraph-visualizer
+> vitest run --coverage
+
+
+ RUN  v3.2.7 D:/Projects/TraeProjects/dsh-codegraph-visualizer
+      Coverage enabled with v8
+
+stderr | tests/unit/prerequisites.test.ts > checkPrerequisites > returns both false when ctx.tools.get throws
+[codegraph:host] checkPrerequisites failed Error: boom
+    at Object.<anonymous> (D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\prerequisites.test.ts:59:41)
+    at Object.mockCall (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+spy@3.2.7/node_modules/@vitest/spy/dist/index.js:96:15)
+    at Object.spy (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/tinyspy@4.0.4/node_modules/tinyspy/dist/index.js:47:80)
+    at checkPrerequisites (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\host\prerequisites.ts:22:26)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\prerequisites.test.ts:61:20
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+
+stderr | tests/unit/prerequisites.test.ts > extractWorkspacePaths > falls back to process.cwd() when workspaceRegistry.list throws
+[codegraph:host] extractWorkspacePaths: workspaceRegistry failed Error: boom
+    at Object.list (D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\prerequisites.test.ts:117:48)
+    at extractWorkspacePaths (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\host\prerequisites.ts:54:30)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\prerequisites.test.ts:119:20
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+    at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+stderr | tests/unit/prerequisites.test.ts > extractWorkspacePaths > falls back to process.cwd() when sessions.list throws
+[codegraph:host] extractWorkspacePaths: sessions failed Error: boom
+    at Object.list (D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\prerequisites.test.ts:126:39)
+    at extractWorkspacePaths (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\host\prerequisites.ts:62:28)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\prerequisites.test.ts:128:20
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+    at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+stderr | tests/unit/prerequisites.test.ts > findWorkspacePath > falls back to process.cwd() when workspaceRegistry throws
+[codegraph:host] findWorkspacePath: workspaceRegistry failed Error: boom
+    at Object.list (D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\prerequisites.test.ts:168:48)
+    at findWorkspacePath (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\host\prerequisites.ts:82:30)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\prerequisites.test.ts:170:12
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+    at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+stderr | tests/unit/prerequisites.test.ts > findWorkspacePath > falls back to process.cwd() when sessions throws
+[codegraph:host] findWorkspacePath: sessions failed Error: boom
+    at Object.list (D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\prerequisites.test.ts:176:39)
+    at findWorkspacePath (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\host\prerequisites.ts:91:28)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\prerequisites.test.ts:178:12
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+    at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+(node:13856) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+ ✓ tests/unit/virtualViewportAndLayout.test.ts (10 tests) 120ms
+stderr | tests/unit/api.test.ts > client api > fetchStatus > returns false/false on fetch error
+[codegraph:client] fetchStatus failed Error: network
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\api.test.ts:36:52
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+    at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+    at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+
+stderr | tests/unit/api.test.ts > client api > fetchGraphData > returns null on fetch error
+[codegraph:client] fetchGraphData failed Error: network
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\api.test.ts:65:52
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+    at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+    at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+
+stderr | tests/unit/api.test.ts > client api > fetchWorkspace > returns defaults on fetch error
+[codegraph:client] fetchWorkspace failed Error: network
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\api.test.ts:97:52
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+    at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+    at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+
+stderr | tests/unit/treeSitterAdapter.test.ts > TreeSitterAdapter (FR-20) > should return error result when parsing without init and wasm unavailable
+[codegraph:tree-sitter-adapter] Failed to init TreeSitter Error: cannot construct a Parser before calling `init()`
+    at Parser.initialize (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/web-tree-sitter@0.27.0/node_modules/web-tree-sitter/src/parser.ts:132:13)
+    at new Parser (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/web-tree-sitter@0.27.0/node_modules/web-tree-sitter/src/parser.ts:125:10)
+    at TreeSitterAdapter.init (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\adapters\TreeSitterAdapter.ts:68:21)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at TreeSitterAdapter.parseFile (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\adapters\TreeSitterAdapter.ts:92:7)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\treeSitterAdapter.test.ts:45:20
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20
+
+stderr | tests/unit/api.test.ts > client api > requestScan > returns null on fetch error
+[codegraph:client] requestScan failed Error: network
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\api.test.ts:144:52
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+    at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+    at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+
+stderr | tests/unit/api.test.ts > client api > requestInit > returns null on fetch error
+[codegraph:client] requestInit failed Error: network
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\api.test.ts:180:52
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+    at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+    at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+
+stderr | tests/unit/treeSitterAdapter.test.ts > TreeSitterAdapter (FR-20) > init should set parser when web-tree-sitter available
+[codegraph:tree-sitter-adapter] Failed to init TreeSitter Error: cannot construct a Parser before calling `init()`
+    at Parser.initialize (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/web-tree-sitter@0.27.0/node_modules/web-tree-sitter/src/parser.ts:132:13)
+    at new Parser (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/web-tree-sitter@0.27.0/node_modules/web-tree-sitter/src/parser.ts:125:10)
+    at TreeSitterAdapter.init (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\adapters\TreeSitterAdapter.ts:68:21)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\treeSitterAdapter.test.ts:63:5
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20
+
+stderr | tests/unit/api.test.ts > client api > requestWatch > returns false on fetch error
+[codegraph:client] requestWatch failed Error: network
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\api.test.ts:210:52
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+    at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+    at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+
+stderr | tests/unit/treeSitterAdapter.test.ts > TreeSitterAdapter (FR-20) > init should be idempotent (no-op if already initialized)
+[codegraph:tree-sitter-adapter] Failed to init TreeSitter Error: cannot construct a Parser before calling `init()`
+    at Parser.initialize (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/web-tree-sitter@0.27.0/node_modules/web-tree-sitter/src/parser.ts:132:13)
+    at new Parser (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/web-tree-sitter@0.27.0/node_modules/web-tree-sitter/src/parser.ts:125:10)
+    at TreeSitterAdapter.init (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\adapters\TreeSitterAdapter.ts:68:21)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\treeSitterAdapter.test.ts:68:5
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20
+
+stderr | tests/unit/treeSitterAdapter.test.ts > TreeSitterAdapter (FR-20) > init should be idempotent (no-op if already initialized)
+[codegraph:tree-sitter-adapter] Failed to init TreeSitter Error: cannot construct a Parser before calling `init()`
+    at Parser.initialize (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/web-tree-sitter@0.27.0/node_modules/web-tree-sitter/src/parser.ts:132:13)
+    at new Parser (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/web-tree-sitter@0.27.0/node_modules/web-tree-sitter/src/parser.ts:125:10)
+    at TreeSitterAdapter.init (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\adapters\TreeSitterAdapter.ts:68:21)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\treeSitterAdapter.test.ts:69:5
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20
+
+stderr | tests/unit/treeSitterAdapter.test.ts > TreeSitterAdapter (FR-20) > parseFile should return error for unsupported file extension
+[codegraph:tree-sitter-adapter] Failed to init TreeSitter Error: cannot construct a Parser before calling `init()`
+    at Parser.initialize (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/web-tree-sitter@0.27.0/node_modules/web-tree-sitter/src/parser.ts:132:13)
+    at new Parser (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/web-tree-sitter@0.27.0/node_modules/web-tree-sitter/src/parser.ts:125:10)
+    at TreeSitterAdapter.init (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\adapters\TreeSitterAdapter.ts:68:21)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at TreeSitterAdapter.parseFile (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\adapters\TreeSitterAdapter.ts:92:7)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\treeSitterAdapter.test.ts:74:20
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20
+
+stderr | tests/unit/treeSitterAdapter.test.ts > TreeSitterAdapter (FR-20) > parseFile should return error when parser fails to init
+[codegraph:tree-sitter-adapter] Failed to init TreeSitter Error: cannot construct a Parser before calling `init()`
+    at Parser.initialize (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/web-tree-sitter@0.27.0/node_modules/web-tree-sitter/src/parser.ts:132:13)
+    at new Parser (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/web-tree-sitter@0.27.0/node_modules/web-tree-sitter/src/parser.ts:125:10)
+    at TreeSitterAdapter.init (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\adapters\TreeSitterAdapter.ts:68:21)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at TreeSitterAdapter.parseFile (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\adapters\TreeSitterAdapter.ts:92:7)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\treeSitterAdapter.test.ts:82:20
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20
+
+stderr | tests/unit/treeSitterAdapter.test.ts > TreeSitterAdapter (FR-20) > destroy should clear loaded languages
+[codegraph:tree-sitter-adapter] Failed to init TreeSitter Error: cannot construct a Parser before calling `init()`
+    at Parser.initialize (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/web-tree-sitter@0.27.0/node_modules/web-tree-sitter/src/parser.ts:132:13)
+    at new Parser (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/web-tree-sitter@0.27.0/node_modules/web-tree-sitter/src/parser.ts:125:10)
+    at TreeSitterAdapter.init (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\adapters\TreeSitterAdapter.ts:68:21)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\treeSitterAdapter.test.ts:96:5
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20
+
+stderr | tests/unit/treeSitterAdapter.test.ts > TreeSitterAdapter (FR-20) > should handle parseFile with empty content
+[codegraph:tree-sitter-adapter] Failed to init TreeSitter Error: cannot construct a Parser before calling `init()`
+    at Parser.initialize (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/web-tree-sitter@0.27.0/node_modules/web-tree-sitter/src/parser.ts:132:13)
+    at new Parser (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/web-tree-sitter@0.27.0/node_modules/web-tree-sitter/src/parser.ts:125:10)
+    at TreeSitterAdapter.init (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\adapters\TreeSitterAdapter.ts:68:21)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at TreeSitterAdapter.parseFile (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\adapters\TreeSitterAdapter.ts:92:7)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\treeSitterAdapter.test.ts:102:20
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20
+
+stdout | tests/unit/routes.test.ts > registerRoutes > POST /scan fetches and returns graph data
+[codegraph:host] scan completed { repoId: '/test/workspace', nodes: 1, edges: 0 }
+
+ ✓ tests/unit/api.test.ts (23 tests) 52ms
+ ✓ tests/unit/treeSitterAdapter.test.ts (15 tests) 138ms
+stderr | tests/unit/routes.test.ts > registerRoutes > POST /scan returns 500 on fetch error
+[codegraph:host] scan failed Error: fetch failed
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\routes.test.ts:245:51
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+    at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+    at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+
+stdout | tests/unit/routes.test.ts > registerRoutes > POST /scan returns cached data when within TTL
+[codegraph:host] scan completed { repoId: '/test/workspace', nodes: 1, edges: 0 }
+
+stdout | tests/unit/routes.test.ts > registerRoutes > POST /init initializes graph and returns success
+[codegraph:host] init requested { path: '/test/workspace' }
+
+stdout | tests/unit/routes.test.ts > registerRoutes > POST /init returns 500 on error
+[codegraph:host] init requested { path: '/test/workspace' }
+
+stderr | tests/unit/routes.test.ts > registerRoutes > POST /init returns 500 on error
+[codegraph:host] init route failed Error: init failed
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\routes.test.ts:291:51
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+    at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+    at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+
+stderr | tests/unit/integration.test.ts > Integration: TreeSitter parse pipeline (FR-20) > should detect language and return error for unsupported file
+[codegraph:tree-sitter-adapter] Failed to init TreeSitter Error: cannot construct a Parser before calling `init()`
+    at Parser.initialize (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/web-tree-sitter@0.27.0/node_modules/web-tree-sitter/src/parser.ts:132:13)
+    at new Parser (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/web-tree-sitter@0.27.0/node_modules/web-tree-sitter/src/parser.ts:125:10)
+    at TreeSitterAdapter.init (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\adapters\TreeSitterAdapter.ts:68:21)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at TreeSitterAdapter.parseFile (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\adapters\TreeSitterAdapter.ts:92:7)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\integration.test.ts:157:20
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20
+
+stderr | tests/unit/routes.test.ts > registerRoutes > POST /tree-sitter returns 500 on parse error
+[codegraph:host] tree-sitter route failed Error: parse error
+    at t.<anonymous> (D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\routes.test.ts:452:44)
+    at new mockCall (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+spy@3.2.7/node_modules/@vitest/spy/dist/index.js:96:15)
+    at new spy (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/tinyspy@4.0.4/node_modules/tinyspy/dist/index.js:47:34)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\host\routes.ts:521:31
+    at Object.<anonymous> (D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\routes.test.ts:60:42)
+    at Object.mockCall (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+spy@3.2.7/node_modules/@vitest/spy/dist/index.js:96:15)
+    at Object.spy [as effect] (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/tinyspy@4.0.4/node_modules/tinyspy/dist/index.js:47:80)
+    at registerRoutes (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\host\routes.ts:520:7)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\routes.test.ts:454:5
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+
+ ✓ tests/unit/integration.test.ts (8 tests) 79ms
+ ✓ tests/unit/routes.test.ts (42 tests) 124ms
+stderr | tests/unit/chaos.test.ts > Chaos: DependencyAdapter malformed inputs (FR-21) > should handle empty strings
+[codegraph:dep-adapter] parsePackageJson failed SyntaxError: Unexpected end of JSON input
+    at JSON.parse (<anonymous>)
+    at parsePackageJson (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\adapters\DependencyAdapter.ts:30:22)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\chaos.test.ts:129:12
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+    at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+stderr | tests/unit/tools.test.ts > pickBestMatch > should return null for invalid JSON string
+[codegraph:tools] normalizeCallers: JSON.parse failed 
+
+stderr | tests/unit/tools.test.ts > normalizeImpact > should return null for invalid JSON string
+[codegraph:tools] normalizeImpact: JSON.parse failed 
+
+stderr | tests/unit/tools.test.ts > normalizeImpact > should return null for non-object raw
+[codegraph:tools] normalizeImpact: JSON.parse failed 
+
+stderr | tests/unit/plugin.test.ts > createGraphTools (J1/J9/J11) > invoke should return null on upstream error
+[codegraph:tools] createInvoke: tool execution failed {
+  tool: 'codegraph_impact',
+  error: Error: timeout
+      at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\plugin.test.ts:163:41
+      at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+      at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+      at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+      at new Promise (<anonymous>)
+      at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+      at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+      at processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+      at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+}
+
+stderr | tests/unit/plugin.test.ts > createGraphTools (J1/J9/J11) > invoke should return null on upstream error
+[codegraph:tools] createInvoke: tool execution failed {
+  tool: 'lens_impact',
+  error: Error: timeout
+      at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\plugin.test.ts:163:41
+      at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+      at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+      at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+      at new Promise (<anonymous>)
+      at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+      at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+      at processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+      at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+}
+
+stderr | tests/unit/adapters.test.ts > readGraphFromDb > should return null for corrupted db
+[codegraph:codegraph-adapter] readGraphFromDb failed Error: no such table: nodes
+    at readGraphFromDb (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\adapters\CodeGraphAdapter.ts:106:24)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\adapters.test.ts:266:20
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+    at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8) {
+  code: 'ERR_SQLITE_ERROR',
+  errcode: 1,
+  errstr: 'SQL logic error'
+}
+
+stderr | tests/unit/tools.test.ts > createGraphTools > invoke should return null on upstream error
+[codegraph:tools] createInvoke: tool execution failed {
+  tool: 'codegraph_impact',
+  error: Error: timeout
+      at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\tools.test.ts:567:41
+      at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+      at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+      at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+      at new Promise (<anonymous>)
+      at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+      at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+      at processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+      at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+}
+
+stderr | tests/unit/tools.test.ts > createGraphTools > invoke should return null on upstream error
+[codegraph:tools] createInvoke: tool execution failed {
+  tool: 'lens_impact',
+  error: Error: timeout
+      at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\tools.test.ts:567:41
+      at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+      at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+      at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+      at new Promise (<anonymous>)
+      at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+      at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+      at processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+      at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+}
+
+stderr | tests/unit/tools.test.ts > createInvoke > should return null on error
+[codegraph:tools] createInvoke: tool execution failed {
+  tool: 'codegraph_query',
+  error: Error: timeout
+      at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\tools.test.ts:619:41
+      at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+      at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+      at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+      at new Promise (<anonymous>)
+      at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+      at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+      at processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+      at runSuite (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1729:8)
+}
+
+ ✓ tests/unit/tools.test.ts (95 tests) 246ms
+ ✓ tests/unit/chaos.test.ts (18 tests) 347ms
+stderr | tests/unit/adapters.test.ts > LensAdapter > should return empty result on upstream failure
+[codegraph:lens-adapter] Lens fetchData failed — lens is optional, returning empty Error: upstream failure
+    at failingInvoke (D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\adapters.test.ts:370:13)
+    at LensAdapter.fetchData (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\adapters\LensAdapter.ts:31:26)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\adapters.test.ts:372:34
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+    at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+ ✓ tests/unit/layoutWorker.test.ts (11 tests) 1002ms
+(node:16820) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ tests/unit/adapters.test.ts (65 tests) 555ms
+ ✓ tests/unit/prerequisites.test.ts (21 tests) 971ms
+   ✓ detectCodegraphCli > returns a boolean indicating whether codegraph CLI is available  938ms
+stdout | tests/unit/plugin.test.ts > apply() plugin entry (J13 lifecycle) > should register 8 tools and 6 event listeners
+[codegraph:host] prerequisite status { codegraph: false, lens: false }
+
+stdout | tests/unit/plugin.test.ts > apply() plugin entry (J13 lifecycle) > should forward repo imported/scanned events as graph updated events
+[codegraph:host] prerequisite status { codegraph: false, lens: false }
+
+stdout | tests/unit/plugin.test.ts > apply() plugin entry (J13 lifecycle) > request-scan should emit graph updated + graph data with merged counts
+[codegraph:host] prerequisite status { codegraph: false, lens: false }
+[codegraph:host] scan requested { path: '/tmp/repo' }
+
+stdout | tests/unit/plugin.test.ts > apply() plugin entry (J13 lifecycle) > request-scan should emit graph updated + graph data with merged counts
+[codegraph:host] scan completed { repoId: '/tmp/repo', nodes: 1, edges: 0 }
+
+stdout | tests/unit/plugin.test.ts > apply() plugin entry (J13 lifecycle) > graph init success should emit init-result + trigger scan
+[codegraph:host] prerequisite status { codegraph: false, lens: false }
+[codegraph:host] init requested { path: '/tmp/repo' }
+
+stdout | tests/unit/plugin.test.ts > apply() plugin entry (J13 lifecycle) > graph init success should emit init-result + trigger scan
+[codegraph:host] scan requested { path: '/tmp/repo' }
+
+stdout | tests/unit/plugin.test.ts > apply() plugin entry (J13 lifecycle) > graph init success should emit init-result + trigger scan
+[codegraph:host] scan completed { repoId: '/tmp/repo', nodes: 1, edges: 0 }
+
+stdout | tests/unit/plugin.test.ts > apply() plugin entry (J13 lifecycle) > graph init failure should emit failed init-result
+[codegraph:host] prerequisite status { codegraph: false, lens: false }
+[codegraph:host] init requested { path: '/tmp/repo' }
+
+stdout | tests/unit/plugin.test.ts > apply() plugin entry (J13 lifecycle) > should emit prerequisite status on apply
+[codegraph:host] prerequisite status { codegraph: false, lens: false }
+
+stdout | tests/unit/plugin.test.ts > apply() plugin entry (J13 lifecycle) > watch toggle should close existing watcher when disabled
+[codegraph:host] prerequisite status { codegraph: false, lens: false }
+[codegraph:host] watch disabled 
+
+stdout | tests/unit/plugin.test.ts > apply() plugin entry (J13 lifecycle) > watch toggle should start watching when enabled
+[codegraph:host] prerequisite status { codegraph: false, lens: false }
+[codegraph:host] watch enabled { path: '/tmp/repo' }
+
+stderr | tests/unit/plugin.test.ts > apply() plugin entry (J13 lifecycle) > watch toggle should start watching when enabled
+[codegraph:host] watch setup failed Error: ENOENT: no such file or directory, watch '/tmp/repo'
+    at FSWatcher.<computed> (node:internal/fs/watchers:316:19)
+    at watch (node:fs:2537:36)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\host\watcher.ts:60:25
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\plugin.test.ts:276:42
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:20 {
+  errno: -4058,
+  syscall: 'watch',
+  code: 'ENOENT',
+  path: '/tmp/repo',
+  filename: '/tmp/repo'
+}
+
+stdout | tests/unit/plugin.test.ts > apply() plugin entry (J13 lifecycle) > should register effect for cleanup
+[codegraph:host] prerequisite status { codegraph: false, lens: false }
+
+ ✓ tests/unit/plugin.test.ts (18 tests) 1250ms
+   ✓ apply() plugin entry (J13 lifecycle) > should register 8 tools and 6 event listeners  625ms
+   ✓ apply() plugin entry (J13 lifecycle) > should emit prerequisite status on apply  363ms
+stdout | tests/unit/mcpServer.test.ts > McpServer (FR-46) > start > should start server and set running to true
+[codegraph:mcp-server] MCP server started { tools: 4 }
+
+stdout | tests/unit/mcpServer.test.ts > McpServer (FR-46) > start > should handle close event and set running to false
+[codegraph:mcp-server] MCP server started { tools: 4 }
+
+stdout | tests/unit/mcpServer.test.ts > McpServer (FR-46) > start > should handle close event and set running to false
+[codegraph:mcp-server] MCP server stopped 
+
+ ✓ tests/unit/mcpServer.test.ts (28 tests) 35ms
+stdout | tests/unit/watcher.test.ts > registerEventListeners > request-scan listener calls scanAndPush
+[codegraph:host] scan requested { path: '/repo' }
+
+stdout | tests/unit/watcher.test.ts > registerEventListeners > request-scan listener calls scanAndPush
+[codegraph:host] scan completed { repoId: '/repo', nodes: 1, edges: 0 }
+
+stdout | tests/unit/watcher.test.ts > registerEventListeners > graph init listener emits init-result on success
+[codegraph:host] init requested { path: '/repo' }
+
+stdout | tests/unit/watcher.test.ts > registerEventListeners > graph init listener emits init-result on success
+[codegraph:host] scan requested { path: '/repo' }
+
+stdout | tests/unit/watcher.test.ts > registerEventListeners > graph init listener emits init-result on success
+[codegraph:host] scan completed { repoId: '/repo', nodes: 1, edges: 0 }
+
+stdout | tests/unit/watcher.test.ts > registerEventListeners > graph init listener emits failed init-result when init returns null
+[codegraph:host] init requested { path: '/repo' }
+
+stdout | tests/unit/watcher.test.ts > registerEventListeners > graph init listener emits failed init-result on exception
+[codegraph:host] init requested { path: '/repo' }
+
+ ✓ tests/unit/watcher.test.ts (9 tests) 33ms
+stdout | tests/unit/logger.test.ts > Logger (log management) > should record entries at the given level/scope
+[codegraph:host] hello { a: 1 }
+
+stdout | tests/unit/logger.test.ts > Logger (log management) > should respect minLevel: debug hidden at info level
+[codegraph:host] appears 
+
+stdout | tests/unit/logger.test.ts > Logger (log management) > should cap the ring buffer at 200 entries
+[codegraph:host] m0 
+[codegraph:host] m1 
+[codegraph:host] m2 
+[codegraph:host] m3 
+[codegraph:host] m4 
+[codegraph:host] m5 
+[codegraph:host] m6 
+[codegraph:host] m7 
+[codegraph:host] m8 
+[codegraph:host] m9 
+[codegraph:host] m10 
+[codegraph:host] m11 
+[codegraph:host] m12 
+[codegraph:host] m13 
+[codegraph:host] m14 
+[codegraph:host] m15 
+[codegraph:host] m16 
+[codegraph:host] m17 
+[codegraph:host] m18 
+[codegraph:host] m19 
+[codegraph:host] m20 
+[codegraph:host] m21 
+[codegraph:host] m22 
+[codegraph:host] m23 
+[codegraph:host] m24 
+[codegraph:host] m25 
+[codegraph:host] m26 
+[codegraph:host] m27 
+[codegraph:host] m28 
+[codegraph:host] m29 
+[codegraph:host] m30 
+[codegraph:host] m31 
+[codegraph:host] m32 
+[codegraph:host] m33 
+[codegraph:host] m34 
+[codegraph:host] m35 
+[codegraph:host] m36 
+[codegraph:host] m37 
+[codegraph:host] m38 
+[codegraph:host] m39 
+[codegraph:host] m40 
+[codegraph:host] m41 
+[codegraph:host] m42 
+[codegraph:host] m43 
+[codegraph:host] m44 
+[codegraph:host] m45 
+[codegraph:host] m46 
+[codegraph:host] m47 
+[codegraph:host] m48 
+[codegraph:host] m49 
+[codegraph:host] m50 
+[codegraph:host] m51 
+[codegraph:host] m52 
+[codegraph:host] m53 
+[codegraph:host] m54 
+[codegraph:host] m55 
+[codegraph:host] m56 
+[codegraph:host] m57 
+[codegraph:host] m58 
+[codegraph:host] m59 
+[codegraph:host] m60 
+[codegraph:host] m61 
+[codegraph:host] m62 
+[codegraph:host] m63 
+[codegraph:host] m64 
+[codegraph:host] m65 
+[codegraph:host] m66 
+[codegraph:host] m67 
+[codegraph:host] m68 
+[codegraph:host] m69 
+[codegraph:host] m70 
+[codegraph:host] m71 
+[codegraph:host] m72 
+[codegraph:host] m73 
+[codegraph:host] m74 
+[codegraph:host] m75 
+[codegraph:host] m76 
+[codegraph:host] m77 
+[codegraph:host] m78 
+[codegraph:host] m79 
+[codegraph:host] m80 
+[codegraph:host] m81 
+[codegraph:host] m82 
+[codegraph:host] m83 
+[codegraph:host] m84 
+[codegraph:host] m85 
+[codegraph:host] m86 
+[codegraph:host] m87 
+[codegraph:host] m88 
+[codegraph:host] m89 
+[codegraph:host] m90 
+[codegraph:host] m91 
+[codegraph:host] m92 
+[codegraph:host] m93 
+[codegraph:host] m94 
+[codegraph:host] m95 
+[codegraph:host] m96 
+[codegraph:host] m97 
+[codegraph:host] m98 
+[codegraph:host] m99 
+[codegraph:host] m100 
+[codegraph:host] m101 
+[codegraph:host] m102 
+[codegraph:host] m103 
+[codegraph:host] m104 
+[codegraph:host] m105 
+[codegraph:host] m106 
+[codegraph:host] m107 
+[codegraph:host] m108 
+[codegraph:host] m109 
+[codegraph:host] m110 
+[codegraph:host] m111 
+[codegraph:host] m112 
+[codegraph:host] m113 
+[codegraph:host] m114 
+[codegraph:host] m115 
+[codegraph:host] m116 
+[codegraph:host] m117 
+[codegraph:host] m118 
+[codegraph:host] m119 
+[codegraph:host] m120 
+[codegraph:host] m121 
+[codegraph:host] m122 
+[codegraph:host] m123 
+[codegraph:host] m124 
+[codegraph:host] m125 
+[codegraph:host] m126 
+[codegraph:host] m127 
+[codegraph:host] m128 
+[codegraph:host] m129 
+[codegraph:host] m130 
+[codegraph:host] m131 
+[codegraph:host] m132 
+[codegraph:host] m133 
+[codegraph:host] m134 
+[codegraph:host] m135 
+[codegraph:host] m136 
+[codegraph:host] m137 
+[codegraph:host] m138 
+[codegraph:host] m139 
+[codegraph:host] m140 
+[codegraph:host] m141 
+[codegraph:host] m142 
+[codegraph:host] m143 
+[codegraph:host] m144 
+[codegraph:host] m145 
+[codegraph:host] m146 
+[codegraph:host] m147 
+[codegraph:host] m148 
+[codegraph:host] m149 
+[codegraph:host] m150 
+[codegraph:host] m151 
+[codegraph:host] m152 
+[codegraph:host] m153 
+[codegraph:host] m154 
+[codegraph:host] m155 
+[codegraph:host] m156 
+[codegraph:host] m157 
+[codegraph:host] m158 
+[codegraph:host] m159 
+[codegraph:host] m160 
+[codegraph:host] m161 
+[codegraph:host] m162 
+[codegraph:host] m163 
+[codegraph:host] m164 
+[codegraph:host] m165 
+[codegraph:host] m166 
+[codegraph:host] m167 
+[codegraph:host] m168 
+[codegraph:host] m169 
+[codegraph:host] m170 
+[codegraph:host] m171 
+[codegraph:host] m172 
+[codegraph:host] m173 
+[codegraph:host] m174 
+[codegraph:host] m175 
+[codegraph:host] m176 
+[codegraph:host] m177 
+[codegraph:host] m178 
+[codegraph:host] m179 
+[codegraph:host] m180 
+[codegraph:host] m181 
+[codegraph:host] m182 
+[codegraph:host] m183 
+[codegraph:host] m184 
+[codegraph:host] m185 
+[codegraph:host] m186 
+[codegraph:host] m187 
+[codegraph:host] m188 
+[codegraph:host] m189 
+[codegraph:host] m190 
+[codegraph:host] m191 
+[codegraph:host] m192 
+[codegraph:host] m193 
+[codegraph:host] m194 
+[codegraph:host] m195 
+[codegraph:host] m196 
+[codegraph:host] m197 
+[codegraph:host] m198 
+[codegraph:host] m199 
+[codegraph:host] m200 
+[codegraph:host] m201 
+[codegraph:host] m202 
+[codegraph:host] m203 
+[codegraph:host] m204 
+[codegraph:host] m205 
+[codegraph:host] m206 
+[codegraph:host] m207 
+[codegraph:host] m208 
+[codegraph:host] m209 
+[codegraph:host] m210 
+[codegraph:host] m211 
+[codegraph:host] m212 
+[codegraph:host] m213 
+[codegraph:host] m214 
+[codegraph:host] m215 
+[codegraph:host] m216 
+[codegraph:host] m217 
+[codegraph:host] m218 
+[codegraph:host] m219 
+[codegraph:host] m220 
+[codegraph:host] m221 
+[codegraph:host] m222 
+[codegraph:host] m223 
+[codegraph:host] m224 
+[codegraph:host] m225 
+[codegraph:host] m226 
+[codegraph:host] m227 
+[codegraph:host] m228 
+[codegraph:host] m229 
+[codegraph:host] m230 
+[codegraph:host] m231 
+[codegraph:host] m232 
+[codegraph:host] m233 
+[codegraph:host] m234 
+[codegraph:host] m235 
+[codegraph:host] m236 
+[codegraph:host] m237 
+[codegraph:host] m238 
+[codegraph:host] m239 
+[codegraph:host] m240 
+[codegraph:host] m241 
+[codegraph:host] m242 
+[codegraph:host] m243 
+[codegraph:host] m244 
+[codegraph:host] m245 
+[codegraph:host] m246 
+[codegraph:host] m247 
+[codegraph:host] m248 
+[codegraph:host] m249 
+
+stdout | tests/unit/logger.test.ts > Logger (log management) > should notify subscribers with a snapshot
+[codegraph:host] ping 
+[codegraph:host] after-dispose 
+
+stdout | tests/unit/logger.test.ts > Logger (log management) > clear() should empty the buffer and notify
+[codegraph:host] x 
+
+stderr | tests/unit/logger.test.ts > Logger (log management) > should not throw when console is missing
+[codegraph:host] warn-message 
+[codegraph:host] err-message 
+
+stdout | tests/unit/logger.test.ts > scoped logger factory > should create a scoped logger with all levels
+[codegraph:test] dbg-msg 
+[codegraph:test] info-msg 
+
+stderr | tests/unit/logger.test.ts > scoped logger factory > should create a scoped logger with all levels
+[codegraph:test] warn-msg 
+[codegraph:test] err-msg 
+
+stdout | tests/unit/logger.test.ts > scoped logger factory > should pass data through scoped logger
+[codegraph:data-test] with-data { key: 'value' }
+
+ ✓ tests/unit/logger.test.ts (8 tests) 31ms
+ ✓ tests/unit/cli.test.ts (12 tests) 35ms
+ ✓ tests/unit/RuleEngine.test.ts (30 tests) 25ms
+stderr | tests/unit/dependencyAdapter.test.ts > DependencyAdapter (FR-21) > parsePackageJson > should handle invalid JSON gracefully
+[codegraph:dep-adapter] parsePackageJson failed SyntaxError: Unexpected token 'o', "not json" is not valid JSON
+    at JSON.parse (<anonymous>)
+    at parsePackageJson (D:\Projects\TraeProjects\dsh-codegraph-visualizer\src\adapters\DependencyAdapter.ts:30:22)
+    at D:\Projects\TraeProjects\dsh-codegraph-visualizer\tests\unit\dependencyAdapter.test.ts:44:22
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:155:11
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:752:26
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1897:20
+    at new Promise (<anonymous>)
+    at runWithTimeout (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1863:10)
+    at runTest (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+runner@3.2.7/node_modules/@vitest/runner/dist/chunk-hooks.js:1574:12)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+ ✓ tests/unit/dependencyAdapter.test.ts (10 tests) 29ms
+ ✓ tests/unit/services.test.ts (51 tests) 38ms
+ ✓ tests/unit/HealthScorer.test.ts (35 tests) 28ms
+ ✓ tests/unit/graphStore.test.ts (48 tests) 46ms
+ ✓ tests/unit/diffEngine.test.ts (25 tests) 20ms
+ ✓ tests/unit/HotspotAnalyzer.test.ts (15 tests) 20ms
+ ✓ tests/unit/validators.test.ts (35 tests) 18ms
+ ✓ tests/unit/smartCluster.test.ts (10 tests) 16ms
+ ✓ tests/unit/historyAndCache.test.ts (19 tests) 17ms
+ ✓ tests/unit/directoryCluster.test.ts (12 tests) 15ms
+stderr | tests/unit/toolsPure.test.ts > tools pure functions > normalizeImpact returns null for invalid input
+[codegraph:tools] normalizeImpact: JSON.parse failed 
+
+stderr | tests/unit/toolsPure.test.ts > tools pure functions > pickBestMatch returns null for empty/null
+[codegraph:tools] normalizeCallers: JSON.parse failed 
+
+ ✓ tests/unit/toolsPure.test.ts (17 tests) 19ms
+ ✓ tests/unit/fileCluster.test.ts (11 tests) 15ms
+ ✓ tests/unit/clusterTypes.test.ts (12 tests) 15ms
+ ✓ tests/unit/i18n.test.ts (24 tests) 16ms
+ ✓ tests/unit/clusterIndex.test.ts (6 tests) 13ms
+ ✓ tests/unit/deriveName.test.ts (10 tests) 9ms
+ ✓ tests/unit/pathSecurity.test.ts (6 tests) 5ms
+ ✓ tests/component/RuleConfigPanel.test.tsx (4 tests) 449ms
+ ✓ tests/component/PathBar.test.tsx (5 tests) 742ms
+Failed to convert coverage for file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/src/host/security.ts.
+ TypeError: Cannot read properties of undefined (reading 'endCol')
+    at range.sliceRange (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+coverage-v8@3.2.7_vitest@3.2.7_@types+node@22.20.1_jiti@2.7.0_jsdom@30.0.1_lightningcss@1.33.0_/node_modules/@vitest/coverage-v8/dist/provider.js:556:55)
+    at CovSource.offsetToOriginalRelative (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+coverage-v8@3.2.7_vitest@3.2.7_@types+node@22.20.1_jiti@2.7.0_jsdom@30.0.1_lightningcss@1.33.0_/node_modules/@vitest/coverage-v8/dist/provider.js:1987:20)
+    at V8ToIstanbul._maybeRemapStartColEndCol (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+coverage-v8@3.2.7_vitest@3.2.7_@types+node@22.20.1_jiti@2.7.0_jsdom@30.0.1_lightningcss@1.33.0_/node_modules/@vitest/coverage-v8/dist/provider.js:2396:93)
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+coverage-v8@3.2.7_vitest@3.2.7_@types+node@22.20.1_jiti@2.7.0_jsdom@30.0.1_lightningcss@1.33.0_/node_modules/@vitest/coverage-v8/dist/provider.js:2305:61
+    at Array.forEach (<anonymous>)
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+coverage-v8@3.2.7_vitest@3.2.7_@types+node@22.20.1_jiti@2.7.0_jsdom@30.0.1_lightningcss@1.33.0_/node_modules/@vitest/coverage-v8/dist/provider.js:2303:21
+    at Array.forEach (<anonymous>)
+    at V8ToIstanbul.applyCoverage (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+coverage-v8@3.2.7_vitest@3.2.7_@types+node@22.20.1_jiti@2.7.0_jsdom@30.0.1_lightningcss@1.33.0_/node_modules/@vitest/coverage-v8/dist/provider.js:2302:13)
+    at V8CoverageProvider.v8ToIstanbul (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+coverage-v8@3.2.7_vitest@3.2.7_@types+node@22.20.1_jiti@2.7.0_jsdom@30.0.1_lightningcss@1.33.0_/node_modules/@vitest/coverage-v8/dist/provider.js:2732:14)
+    at async file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+coverage-v8@3.2.7_vitest@3.2.7_@types+node@22.20.1_jiti@2.7.0_jsdom@30.0.1_lightningcss@1.33.0_/node_modules/@vitest/coverage-v8/dist/provider.js:2825:23
+Failed to convert coverage for file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/src/shared/analysis/modulePath.ts.
+ TypeError: Cannot read properties of undefined (reading 'endCol')
+    at range.sliceRange (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+coverage-v8@3.2.7_vitest@3.2.7_@types+node@22.20.1_jiti@2.7.0_jsdom@30.0.1_lightningcss@1.33.0_/node_modules/@vitest/coverage-v8/dist/provider.js:556:55)
+    at CovSource.offsetToOriginalRelative (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+coverage-v8@3.2.7_vitest@3.2.7_@types+node@22.20.1_jiti@2.7.0_jsdom@30.0.1_lightningcss@1.33.0_/node_modules/@vitest/coverage-v8/dist/provider.js:1987:20)
+    at V8ToIstanbul._maybeRemapStartColEndCol (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+coverage-v8@3.2.7_vitest@3.2.7_@types+node@22.20.1_jiti@2.7.0_jsdom@30.0.1_lightningcss@1.33.0_/node_modules/@vitest/coverage-v8/dist/provider.js:2396:93)
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+coverage-v8@3.2.7_vitest@3.2.7_@types+node@22.20.1_jiti@2.7.0_jsdom@30.0.1_lightningcss@1.33.0_/node_modules/@vitest/coverage-v8/dist/provider.js:2305:61
+    at Array.forEach (<anonymous>)
+    at file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+coverage-v8@3.2.7_vitest@3.2.7_@types+node@22.20.1_jiti@2.7.0_jsdom@30.0.1_lightningcss@1.33.0_/node_modules/@vitest/coverage-v8/dist/provider.js:2303:21
+    at Array.forEach (<anonymous>)
+    at V8ToIstanbul.applyCoverage (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+coverage-v8@3.2.7_vitest@3.2.7_@types+node@22.20.1_jiti@2.7.0_jsdom@30.0.1_lightningcss@1.33.0_/node_modules/@vitest/coverage-v8/dist/provider.js:2302:13)
+    at V8CoverageProvider.v8ToIstanbul (file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+coverage-v8@3.2.7_vitest@3.2.7_@types+node@22.20.1_jiti@2.7.0_jsdom@30.0.1_lightningcss@1.33.0_/node_modules/@vitest/coverage-v8/dist/provider.js:2732:14)
+    at async file:///D:/Projects/TraeProjects/dsh-codegraph-visualizer/node_modules/.pnpm/@vitest+coverage-v8@3.2.7_vitest@3.2.7_@types+node@22.20.1_jiti@2.7.0_jsdom@30.0.1_lightningcss@1.33.0_/node_modules/@vitest/coverage-v8/dist/provider.js:2825:23
+
+ Test Files  35 passed (35)
+      Tests  768 passed (768)
+   Start at  14:21:29
+   Duration  10.77s (transform 8.25s, setup 0ms, collect 16.01s, tests 6.57s, environment 4.17s, prepare 19.17s)
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   79.15 |    88.93 |   72.92 |   79.15 |                   
+ ...i/cosmokit/lib |       0 |        0 |       0 |       0 |                   
+  index.js         |       0 |        0 |       0 |       0 | 1-325             
+ ...ai/dsh-llm/lib |     100 |      100 |     100 |     100 |                   
+  index.js         |     100 |      100 |     100 |     100 |                   
+ ...sh-timeout/lib |     100 |      100 |     100 |     100 |                   
+  index.js         |     100 |      100 |     100 |     100 |                   
+ ...chemastery/lib |     100 |      100 |     100 |     100 |                   
+  index.mjs        |     100 |      100 |     100 |     100 |                   
+ src               |   81.36 |    92.35 |   56.36 |   81.36 |                   
+  index.ts         |     100 |      100 |     100 |     100 |                   
+  tools.ts         |   56.61 |    92.35 |   56.36 |   56.61 | ...20-425,428-441 
+ src/adapters      |   61.08 |    88.81 |   59.09 |   61.08 |                   
+  ...aphAdapter.ts |   69.62 |    84.61 |      60 |   69.62 | ...87-197,199-209 
+  ...ncyAdapter.ts |   76.02 |    91.66 |   57.14 |   76.02 | ...89-105,147-156 
+  LensAdapter.ts   |      70 |    96.55 |   83.33 |      70 | 32-44,57-59,68-78 
+  ...terAdapter.ts |   35.58 |    78.57 |      50 |   35.58 | 80-83,90,95-218   
+ src/client        |     100 |    95.89 |     100 |     100 |                   
+  validators.ts    |     100 |    95.89 |     100 |     100 | 41-43             
+ src/client/api    |     100 |      100 |     100 |     100 |                   
+  index.ts         |     100 |      100 |     100 |     100 |                   
+ src/client/cache  |     100 |      100 |     100 |     100 |                   
+  GraphCache.ts    |     100 |      100 |     100 |     100 |                   
+ ...client/history |     100 |      100 |     100 |     100 |                   
+  ...oryManager.ts |     100 |      100 |     100 |     100 |                   
+ src/client/i18n   |     100 |    86.95 |     100 |     100 |                   
+  index.ts         |     100 |    86.95 |     100 |     100 | 19-20,29          
+ ...ent/i18n/dicts |     100 |      100 |     100 |     100 |                   
+  en.ts            |     100 |      100 |     100 |     100 |                   
+  zh.ts            |     100 |      100 |     100 |     100 |                   
+ src/client/store  |   87.56 |    98.27 |   94.87 |   87.56 |                   
+  graphStore.ts    |   87.56 |    98.27 |   94.87 |   87.56 | 261-284           
+ .../store/cluster |   89.73 |     85.8 |   81.81 |   89.73 |                   
+  ...erStrategy.ts |     100 |      100 |     100 |     100 |                   
+  ...erStrategy.ts |     100 |      100 |     100 |     100 |                   
+  ...erStrategy.ts |     100 |      100 |     100 |     100 |                   
+  ...erStrategy.ts |     100 |      100 |     100 |     100 |                   
+  ...oryCluster.ts |    97.6 |    77.41 |      75 |    97.6 | 16-17,19          
+  fileCluster.ts   |     100 |    95.65 |     100 |     100 | 38                
+  ...ionCluster.ts |     100 |      100 |     100 |     100 |                   
+  index.ts         |     100 |       60 |      75 |     100 | 7,23              
+  smartCluster.ts  |   89.24 |    91.66 |   66.66 |   89.24 | 36-47             
+  types.ts         |    58.9 |    90.32 |     100 |    58.9 | 48-64,72-78,87-95 
+ src/client/utils  |     100 |       80 |     100 |     100 |                   
+  deriveName.ts    |     100 |       80 |     100 |     100 | 4                 
+ src/client/worker |     100 |    94.11 |      80 |     100 |                   
+  layoutWorker.ts  |     100 |    94.11 |      80 |     100 | 65                
+ src/generated     |     100 |      100 |     100 |     100 |                   
+  version.ts       |     100 |      100 |     100 |     100 |                   
+ src/host          |   67.86 |    82.08 |   72.72 |   67.86 |                   
+  McpServer.ts     |    93.9 |    84.44 |     100 |    93.9 | 31-39,219-221     
+  cli.ts           |   89.92 |    90.47 |     100 |   89.92 | 41-47,162,182-186 
+  config.ts        |   90.69 |    70.58 |     100 |   90.69 | 36-37,39,55       
+  prerequisites.ts |      80 |    82.69 |    90.9 |      80 | 26-29,66-78       
+  routes.ts        |   44.55 |    79.05 |      56 |   44.55 | ...23-467,483-520 
+  security.ts      |     100 |      100 |     100 |     100 |                   
+  watcher.ts       |   69.09 |    87.09 |   85.71 |   69.09 | ...2-88,91,98-101 
+ src/merger        |   68.83 |      100 |   83.33 |   68.83 |                   
+  DiffEngine.ts    |   44.18 |      100 |      75 |   44.18 | 29-82             
+  ...DataMerger.ts |     100 |      100 |     100 |     100 |                   
+ src/shared        |   85.36 |       75 |   79.16 |   85.36 |                   
+  Logger.ts        |   85.36 |       75 |   79.16 |   85.36 | 41,45-47,50-51,56 
+ ...hared/analysis |   67.42 |    91.39 |   59.09 |   67.42 |                   
+  HealthScorer.ts  |   46.76 |    90.24 |      55 |   46.76 | ...95,199,217-218 
+  ...otAnalyzer.ts |     100 |      100 |     100 |     100 |                   
+  RuleEngine.ts    |   73.66 |    89.47 |      55 |   73.66 | ...19-239,243-251 
+  modulePath.ts    |     100 |      100 |     100 |     100 |                   
+ src/types         |     100 |      100 |     100 |     100 |                   
+  index.ts         |     100 |      100 |     100 |     100 |                   
+-------------------|---------|----------|---------|---------|-------------------

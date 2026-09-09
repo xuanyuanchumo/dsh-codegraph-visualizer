@@ -687,6 +687,2024 @@ function computeClusteredGraph(rawNodes, rawEdges, clusterLevel, expandedNodeIds
 }
 
 //#endregion
+//#region src/client/diagram/InheritanceAssembler.ts
+const INHERITANCE_NODE_TYPES = new Set([
+	"class",
+	"interface",
+	"type"
+]);
+const INHERITANCE_EDGE_TYPES = new Set(["extend", "implement"]);
+var InheritanceAssembler = class {
+	assemble(nodes, edges) {
+		const inheritanceNodes = nodes.filter((n) => INHERITANCE_NODE_TYPES.has(n.type));
+		const inheritanceEdges = edges.filter((e) => INHERITANCE_EDGE_TYPES.has(e.type));
+		const nodeIds = new Set(inheritanceNodes.map((n) => n.id));
+		const validEdges = inheritanceEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+		const outEdges = new Map();
+		const inEdges = new Map();
+		for (const e of validEdges) {
+			const outList = outEdges.get(e.source) ?? [];
+			outList.push(e);
+			outEdges.set(e.source, outList);
+			const inList = inEdges.get(e.target) ?? [];
+			inList.push(e);
+			inEdges.set(e.target, inList);
+		}
+		const rootIds = [];
+		for (const n of inheritanceNodes) if (!outEdges.has(n.id)) rootIds.push(n.id);
+		const depthMap = this.computeDepths(rootIds, inEdges);
+		const descendantCounts = this.computeDescendantCounts(rootIds, inEdges);
+		const assembledNodes = inheritanceNodes.map((n) => {
+			const parentEdges = outEdges.get(n.id) ?? [];
+			const childEdges = inEdges.get(n.id) ?? [];
+			const stereotype = n.type === "interface" ? "«interface»\n" : "";
+			const umlLabel = stereotype + n.label;
+			return {
+				...n,
+				properties: {
+					...n.properties,
+					depth: depthMap.get(n.id) ?? 0,
+					isRoot: !outEdges.has(n.id),
+					parentCount: parentEdges.length,
+					childCount: childEdges.length,
+					descendantCount: descendantCounts.get(n.id) ?? 0,
+					isAbstract: false,
+					umlLabel
+				}
+			};
+		});
+		const maxDepth = Math.max(0, ...depthMap.values());
+		return {
+			nodes: assembledNodes,
+			edges: validEdges,
+			metadata: {
+				rootIds,
+				maxDepth,
+				nodeCount: assembledNodes.length,
+				edgeCount: validEdges.length
+			}
+		};
+	}
+	computeDepths(rootIds, inEdges) {
+		const depths = new Map();
+		const queue = rootIds.map((id) => ({
+			id,
+			depth: 0
+		}));
+		let head = 0;
+		while (head < queue.length) {
+			const { id, depth } = queue[head++];
+			if (depths.has(id) && depths.get(id) <= depth) continue;
+			depths.set(id, depth);
+			const children = inEdges.get(id) ?? [];
+			for (const edge of children) {
+				const childId = edge.source;
+				if (!depths.has(childId) || depths.get(childId) > depth + 1) queue.push({
+					id: childId,
+					depth: depth + 1
+				});
+			}
+		}
+		return depths;
+	}
+	computeDescendantCounts(rootIds, inEdges) {
+		const counts = new Map();
+		const visited = new Set();
+		const countDescendants = (id) => {
+			if (counts.has(id)) return counts.get(id);
+			if (visited.has(id)) return 0;
+			visited.add(id);
+			const children = inEdges.get(id) ?? [];
+			let total = 0;
+			for (const edge of children) total += 1 + countDescendants(edge.source);
+			counts.set(id, total);
+			visited.delete(id);
+			return total;
+		};
+		for (const rootId of rootIds) countDescendants(rootId);
+		return counts;
+	}
+};
+
+//#endregion
+//#region src/client/diagram/CallGraphAssembler.ts
+const CALL_NODE_TYPES$1 = new Set(["function"]);
+const CALL_EDGE_TYPES = new Set(["call"]);
+const ENTRY_PATTERNS = {
+	handler: /handler|controller|route|middleware|endpoint/i,
+	event: /^on[A-Z]|^listen|^subscribe|^emit/i,
+	cli: /^main$|^cli$|^run$|^start$/i,
+	test: /^test|^it$|^describe$|^beforeEach$|^afterEach$/i
+};
+var CallGraphAssembler = class {
+	assemble(nodes, edges) {
+		const callNodes = nodes.filter((n) => CALL_NODE_TYPES$1.has(n.type));
+		const callEdges = edges.filter((e) => CALL_EDGE_TYPES.has(e.type));
+		const nodeIds = new Set(callNodes.map((n) => n.id));
+		const validEdges = callEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+		const outEdges = new Map();
+		const inEdges = new Map();
+		for (const e of validEdges) {
+			const outList = outEdges.get(e.source) ?? [];
+			outList.push(e);
+			outEdges.set(e.source, outList);
+			const inList = inEdges.get(e.target) ?? [];
+			inList.push(e);
+			inEdges.set(e.target, inList);
+		}
+		const inDegree = new Map();
+		const outDegree = new Map();
+		for (const n of callNodes) {
+			inDegree.set(n.id, (inEdges.get(n.id) ?? []).length);
+			outDegree.set(n.id, (outEdges.get(n.id) ?? []).length);
+		}
+		const rootIds = [];
+		for (const n of callNodes) if (inDegree.get(n.id) === 0) rootIds.push(n.id);
+		const recursiveIds = this.detectRecursion(callNodes, validEdges);
+		const depthMap = this.computeDepths(rootIds, outEdges);
+		const assembledNodes = callNodes.map((n) => {
+			const deg = inDegree.get(n.id) ?? 0;
+			const outDeg = outDegree.get(n.id) ?? 0;
+			const isEntry = deg === 0;
+			const entryType = isEntry ? this.classifyEntry(n) : "none";
+			const entryPrefix = isEntry ? `\u00AB${entryType}\u00BB\n` : "";
+			const umlLabel = entryPrefix + n.label;
+			return {
+				...n,
+				properties: {
+					...n.properties,
+					depth: depthMap.get(n.id) ?? 0,
+					isEntry,
+					entryType,
+					inDegree: deg,
+					outDegree: outDeg,
+					isRecursive: recursiveIds.has(n.id),
+					umlLabel
+				}
+			};
+		});
+		const maxDepth = Math.max(0, ...depthMap.values());
+		return {
+			nodes: assembledNodes,
+			edges: validEdges,
+			metadata: {
+				rootIds,
+				maxDepth,
+				nodeCount: assembledNodes.length,
+				edgeCount: validEdges.length
+			}
+		};
+	}
+	classifyEntry(node) {
+		const isExported = node.properties?.isExported === true || node.properties?.is_exported === 1;
+		if (isExported) return "export";
+		const name$1 = node.label;
+		if (ENTRY_PATTERNS.handler.test(name$1)) return "handler";
+		if (ENTRY_PATTERNS.event.test(name$1)) return "event";
+		if (ENTRY_PATTERNS.cli.test(name$1)) return "cli";
+		if (ENTRY_PATTERNS.test.test(name$1)) return "test";
+		return "none";
+	}
+	detectRecursion(nodes, edges) {
+		const adjacency = new Map();
+		for (const e of edges) {
+			const list = adjacency.get(e.source) ?? [];
+			list.push(e.target);
+			adjacency.set(e.source, list);
+		}
+		const recursive = new Set();
+		const visited = new Set();
+		const inStack = new Set();
+		const dfs$4 = (id) => {
+			visited.add(id);
+			inStack.add(id);
+			const neighbors = adjacency.get(id) ?? [];
+			for (const target of neighbors) if (inStack.has(target)) {
+				recursive.add(target);
+				recursive.add(id);
+			} else if (!visited.has(target)) dfs$4(target);
+			inStack.delete(id);
+		};
+		for (const n of nodes) if (!visited.has(n.id)) dfs$4(n.id);
+		return recursive;
+	}
+	computeDepths(rootIds, outEdges) {
+		const depths = new Map();
+		const queue = rootIds.map((id) => ({
+			id,
+			depth: 0
+		}));
+		let head = 0;
+		while (head < queue.length) {
+			const { id, depth } = queue[head++];
+			const currentDepth = depths.get(id);
+			if (currentDepth !== void 0 && currentDepth <= depth) continue;
+			depths.set(id, depth);
+			const outList = outEdges.get(id) ?? [];
+			for (const edge of outList) {
+				const targetId = edge.target;
+				if (!depths.has(targetId) || depths.get(targetId) > depth + 1) queue.push({
+					id: targetId,
+					depth: depth + 1
+				});
+			}
+		}
+		return depths;
+	}
+};
+
+//#endregion
+//#region src/client/diagram/PackageAssembler.ts
+function getDirectory(filePath) {
+	const normalized = filePath.replace(/\\/g, "/");
+	const lastSlash = normalized.lastIndexOf("/");
+	if (lastSlash <= 0) return "/";
+	return normalized.substring(0, lastSlash);
+}
+function getPackageLabel(dir) {
+	if (dir === "/") return "root";
+	const parts = dir.split("/");
+	return parts[parts.length - 1] ?? dir;
+}
+var PackageAssembler = class {
+	assemble(nodes, edges) {
+		const moduleNodes = nodes.filter((n) => n.type === "module");
+		const importEdges = edges.filter((e) => e.type === "import" || e.type === "dependency");
+		const packageNodes = new Map();
+		const packageChildCount = new Map();
+		const packageTypeDist = new Map();
+		for (const n of moduleNodes) {
+			const dir = getDirectory(n.filePath);
+			if (!packageNodes.has(dir)) {
+				packageNodes.set(dir, {
+					id: NodeId(`pkg:${dir}`),
+					label: getPackageLabel(dir),
+					type: "module",
+					filePath: dir,
+					lineNumber: 0,
+					properties: {
+						isPackage: true,
+						directory: dir
+					}
+				});
+				packageChildCount.set(dir, 0);
+				packageTypeDist.set(dir, {});
+			}
+			packageChildCount.set(dir, (packageChildCount.get(dir) ?? 0) + 1);
+		}
+		for (const n of nodes) {
+			if (n.type === "module") continue;
+			const dir = getDirectory(n.filePath);
+			if (!packageTypeDist.has(dir)) {
+				packageNodes.set(dir, {
+					id: NodeId(`pkg:${dir}`),
+					label: getPackageLabel(dir),
+					type: "module",
+					filePath: dir,
+					lineNumber: 0,
+					properties: {
+						isPackage: true,
+						directory: dir
+					}
+				});
+				packageChildCount.set(dir, 0);
+				packageTypeDist.set(dir, {});
+			}
+			const dist$1 = packageTypeDist.get(dir);
+			dist$1[n.type] = (dist$1[n.type] ?? 0) + 1;
+		}
+		const nodeIdToDir = new Map();
+		for (const n of nodes) nodeIdToDir.set(n.id, getDirectory(n.filePath));
+		const aggregatedEdges = new Map();
+		for (const e of importEdges) {
+			const sourceDir = nodeIdToDir.get(e.source);
+			const targetDir = nodeIdToDir.get(e.target);
+			if (!sourceDir || !targetDir || sourceDir === targetDir) continue;
+			const key = `${sourceDir}->${targetDir}`;
+			const existing = aggregatedEdges.get(key);
+			if (existing) {
+				existing.count++;
+				existing.types.add(e.type);
+			} else aggregatedEdges.set(key, {
+				source: sourceDir,
+				target: targetDir,
+				count: 1,
+				types: new Set([e.type])
+			});
+		}
+		const packageEdgeList = [];
+		let edgeIdx = 0;
+		for (const [, agg] of aggregatedEdges) {
+			const sourcePkgId = `pkg:${agg.source}`;
+			const targetPkgId = `pkg:${agg.target}`;
+			if (!packageNodes.has(agg.source) || !packageNodes.has(agg.target)) continue;
+			packageEdgeList.push({
+				id: EdgeId(`pkg-edge:${edgeIdx++}`),
+				source: NodeId(sourcePkgId),
+				target: NodeId(targetPkgId),
+				type: agg.types.has("import") ? "import" : "dependency",
+				properties: {
+					aggregatedCount: agg.count,
+					isPackageEdge: true
+				}
+			});
+		}
+		const inDegree = new Map();
+		const outDegree = new Map();
+		for (const e of packageEdgeList) {
+			outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1);
+			inDegree.set(e.target, (inDegree.get(e.target) ?? 0) + 1);
+		}
+		const rootIds = [];
+		for (const [, pkgNode] of packageNodes) if ((inDegree.get(pkgNode.id) ?? 0) === 0) rootIds.push(pkgNode.id);
+		const depthMap = this.computeDepths(rootIds, packageEdgeList);
+		const assembledNodes = [];
+		for (const [dir, pkgNode] of packageNodes) {
+			const childCount = packageChildCount.get(dir) ?? 0;
+			const typeDist = packageTypeDist.get(dir) ?? {};
+			const inDeg = inDegree.get(pkgNode.id) ?? 0;
+			const outDeg = outDegree.get(pkgNode.id) ?? 0;
+			const depth = depthMap.get(pkgNode.id) ?? 0;
+			const typeSummary = Object.entries(typeDist).map(([t$1, c]) => `${t$1}: ${c}`).join(", ");
+			const umlLabel = `${pkgNode.label}\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n${childCount} items${typeSummary ? "\n" + typeSummary : ""}`;
+			assembledNodes.push({
+				...pkgNode,
+				properties: {
+					...pkgNode.properties,
+					childCount,
+					typeDistribution: typeDist,
+					inDegree: inDeg,
+					outDegree: outDeg,
+					depth,
+					isRoot: inDeg === 0,
+					umlLabel
+				}
+			});
+		}
+		return {
+			nodes: assembledNodes,
+			edges: packageEdgeList,
+			metadata: {
+				rootIds,
+				maxDepth: Math.max(0, ...depthMap.values()),
+				nodeCount: assembledNodes.length,
+				edgeCount: packageEdgeList.length
+			}
+		};
+	}
+	computeDepths(rootIds, edges) {
+		const outEdges = new Map();
+		for (const e of edges) {
+			const list = outEdges.get(e.source) ?? [];
+			list.push(e.target);
+			outEdges.set(e.source, list);
+		}
+		const depths = new Map();
+		const queue = rootIds.map((id) => ({
+			id,
+			depth: 0
+		}));
+		let head = 0;
+		while (head < queue.length) {
+			const { id, depth } = queue[head++];
+			if (depths.has(id) && depths.get(id) <= depth) continue;
+			depths.set(id, depth);
+			for (const target of outEdges.get(id) ?? []) if (!depths.has(target) || depths.get(target) > depth + 1) queue.push({
+				id: target,
+				depth: depth + 1
+			});
+		}
+		return depths;
+	}
+};
+
+//#endregion
+//#region src/client/diagram/ClassAssembler.ts
+const CLASS_NODE_TYPES = new Set([
+	"class",
+	"interface",
+	"type"
+]);
+const CLASS_EDGE_TYPES = new Set(["extend", "implement"]);
+var ClassAssembler = class {
+	assemble(nodes, edges) {
+		const classNodes = nodes.filter((n) => CLASS_NODE_TYPES.has(n.type));
+		const classEdges = edges.filter((e) => CLASS_EDGE_TYPES.has(e.type));
+		const classIds = new Set(classNodes.map((n) => n.id));
+		const validEdges = classEdges.filter((e) => classIds.has(e.source) && classIds.has(e.target));
+		const membersByClass = this.associateMembers(classNodes, nodes);
+		const outEdges = new Map();
+		const inEdges = new Map();
+		for (const e of validEdges) {
+			const outList = outEdges.get(e.source) ?? [];
+			outList.push(e);
+			outEdges.set(e.source, outList);
+			const inList = inEdges.get(e.target) ?? [];
+			inList.push(e);
+			inEdges.set(e.target, inList);
+		}
+		const rootIds = [];
+		for (const n of classNodes) if (!outEdges.has(n.id)) rootIds.push(n.id);
+		const depthMap = this.computeDepths(rootIds, inEdges);
+		const assembledNodes = classNodes.map((n) => {
+			const members = membersByClass.get(n.id) ?? [];
+			const methodCount = members.filter((m) => m.type === "method").length;
+			const propertyCount = members.filter((m) => m.type === "property").length;
+			const parentEdges = outEdges.get(n.id) ?? [];
+			const childEdges = inEdges.get(n.id) ?? [];
+			const memberSignatures = members.slice(0, 10).map((m) => ({
+				name: m.name,
+				type: m.type,
+				visibility: m.visibility,
+				...m.signature ? { signature: m.signature } : {}
+			}));
+			const umlLabel = this.buildUmlLabel(n, members);
+			return {
+				...n,
+				properties: {
+					...n.properties,
+					depth: depthMap.get(n.id) ?? 0,
+					isRoot: !outEdges.has(n.id),
+					parentCount: parentEdges.length,
+					childCount: childEdges.length,
+					methodCount,
+					propertyCount,
+					members: memberSignatures,
+					umlLabel,
+					isAbstract: this.checkAbstract(n)
+				}
+			};
+		});
+		const maxDepth = Math.max(0, ...depthMap.values());
+		return {
+			nodes: assembledNodes,
+			edges: validEdges,
+			metadata: {
+				rootIds,
+				maxDepth,
+				nodeCount: assembledNodes.length,
+				edgeCount: validEdges.length
+			}
+		};
+	}
+	associateMembers(classNodes, allNodes) {
+		const result = new Map();
+		const classesByFile = new Map();
+		for (const cls of classNodes) {
+			const list = classesByFile.get(cls.filePath) ?? [];
+			list.push(cls);
+			classesByFile.set(cls.filePath, list);
+		}
+		for (const [filePath, classes] of classesByFile) {
+			const sortedClasses = [...classes].sort((a, b) => a.lineNumber - b.lineNumber);
+			const fileMembers = allNodes.filter((n) => n.filePath === filePath && (n.type === "function" || n.type === "variable") && !CLASS_NODE_TYPES.has(n.type));
+			for (const member of fileMembers) {
+				let assignedClass = null;
+				for (let i$1 = sortedClasses.length - 1; i$1 >= 0; i$1--) {
+					const cls = sortedClasses[i$1];
+					if (cls && cls.lineNumber <= member.lineNumber) {
+						assignedClass = cls;
+						break;
+					}
+				}
+				if (assignedClass) {
+					const list = result.get(assignedClass.id) ?? [];
+					const isMethod = member.type === "function";
+					list.push({
+						name: member.label,
+						type: isMethod ? "method" : "property",
+						...member.properties?.signature ? { signature: member.properties.signature } : {},
+						visibility: this.inferVisibility(member)
+					});
+					result.set(assignedClass.id, list);
+				}
+			}
+		}
+		return result;
+	}
+	inferVisibility(node) {
+		const name$1 = node.label;
+		if (name$1.startsWith("_") && !name$1.startsWith("__")) return "protected";
+		if (name$1.startsWith("__")) return "private";
+		const exported = node.properties?.exported ?? node.properties?.isExported;
+		if (exported === true || exported === 1) return "public";
+		return "public";
+	}
+	checkAbstract(node) {
+		const name$1 = node.label;
+		return name$1.startsWith("Abstract") || name$1.startsWith("I") && node.type === "interface";
+	}
+	buildUmlLabel(node, members) {
+		const visMark = (v) => v === "public" ? "+" : v === "private" ? "-" : "#";
+		const stereotype = node.type === "interface" ? `\u00ABinterface\u00BB\n` : "";
+		const header = stereotype + node.label;
+		const properties = members.filter((m) => m.type === "property");
+		const methods = members.filter((m) => m.type === "method");
+		const propLines = properties.slice(0, 5).map((m) => `${visMark(m.visibility)} ${m.name}${m.signature ? ": " + m.signature : ""}`);
+		const methodLines = methods.slice(0, 8).map((m) => `${visMark(m.visibility)} ${m.name}(${m.signature ?? ""})`);
+		const sep$1 = "─".repeat(20);
+		const parts = [header];
+		if (propLines.length > 0) parts.push(sep$1, ...propLines);
+		if (methodLines.length > 0) parts.push(sep$1, ...methodLines);
+		return parts.join("\n");
+	}
+	computeDepths(rootIds, inEdges) {
+		const depths = new Map();
+		const queue = rootIds.map((id) => ({
+			id,
+			depth: 0
+		}));
+		let head = 0;
+		while (head < queue.length) {
+			const { id, depth } = queue[head++];
+			if (depths.has(id) && depths.get(id) <= depth) continue;
+			depths.set(id, depth);
+			const children = inEdges.get(id) ?? [];
+			for (const edge of children) {
+				const childId = edge.source;
+				if (!depths.has(childId) || depths.get(childId) > depth + 1) queue.push({
+					id: childId,
+					depth: depth + 1
+				});
+			}
+		}
+		return depths;
+	}
+};
+
+//#endregion
+//#region src/client/diagram/CFGAssembler.ts
+const CONTROL_FLOW_TYPES$1 = new Set([
+	"if_statement",
+	"if",
+	"for_statement",
+	"for",
+	"while_statement",
+	"while",
+	"switch_statement",
+	"switch",
+	"try_statement",
+	"try",
+	"return_statement",
+	"return",
+	"throw_statement",
+	"throw",
+	"break_statement",
+	"break",
+	"continue_statement",
+	"continue"
+]);
+const STATEMENT_TYPES = new Set([
+	"expression_statement",
+	"assignment",
+	"call",
+	"return_statement",
+	"return",
+	"throw_statement",
+	"throw",
+	"break_statement",
+	"break",
+	"continue_statement",
+	"continue",
+	"declaration",
+	"variable_declaration",
+	"const_declaration",
+	"let_declaration",
+	"if_statement",
+	"if",
+	"for_statement",
+	"for",
+	"while_statement",
+	"while",
+	"switch_statement",
+	"switch",
+	"try_statement",
+	"try"
+]);
+let blockCounter = 0;
+function nextBlockId() {
+	return `cfg-block-${blockCounter++}`;
+}
+function resetCounter$2() {
+	blockCounter = 0;
+}
+function isControlFlow$1(node) {
+	return CONTROL_FLOW_TYPES$1.has(node.type);
+}
+function isStatement(node) {
+	return STATEMENT_TYPES.has(node.type) || node.type.endsWith("_statement");
+}
+function classifyStatement(node) {
+	const t$1 = node.type;
+	if (t$1 === "return_statement" || t$1 === "return") return "return";
+	if (t$1 === "throw_statement" || t$1 === "throw") return "throw";
+	if (t$1 === "break_statement" || t$1 === "break") return "break";
+	if (t$1 === "continue_statement" || t$1 === "continue") return "continue";
+	if (t$1 === "if_statement" || t$1 === "if" || t$1 === "for_statement" || t$1 === "for" || t$1 === "while_statement" || t$1 === "while" || t$1 === "switch_statement" || t$1 === "switch" || t$1 === "try_statement" || t$1 === "try") return "condition";
+	if (t$1.includes("declaration") || t$1 === "assignment") return "declaration";
+	if (t$1 === "call" || t$1 === "expression_statement") return "call";
+	return "expression";
+}
+function simplifyText(text, maxLen = 40) {
+	const trimmed = text.trim().replace(/\s+/g, " ");
+	if (trimmed.length <= maxLen) return trimmed;
+	return trimmed.substring(0, maxLen - 3) + "...";
+}
+function getConditionNode(node) {
+	if (node.type === "if_statement" || node.type === "if") return node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression") ?? null;
+	if (node.type === "while_statement" || node.type === "while") return node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression") ?? null;
+	if (node.type === "for_statement" || node.type === "for") return node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression") ?? null;
+	return null;
+}
+function getBodyChildren$1(node) {
+	const body = node.children.find((c) => c.type === "block" || c.type === "statement_block" || c.type === "body");
+	if (body) return body.children.filter(isStatement);
+	return node.children.filter((c) => c.type !== "condition" && c.type !== "parenthesized_expression" && isStatement(c));
+}
+function getElseBody$1(node) {
+	const elseNode = node.children.find((c) => c.type === "else_clause" || c.type === "else");
+	if (!elseNode) return [];
+	const body = elseNode.children.find((c) => c.type === "block" || c.type === "statement_block");
+	if (body) return body.children.filter(isStatement);
+	return elseNode.children.filter(isStatement);
+}
+var CFGAssembler = class {
+	assemble(astRoot, filePath, functionName) {
+		resetCounter$2();
+		const blocks = [];
+		const edges = [];
+		const entryBlock = {
+			id: nextBlockId(),
+			label: "Entry",
+			statements: [],
+			isEntry: true,
+			isExit: false,
+			blockType: "entry",
+			depth: 0
+		};
+		blocks.push(entryBlock);
+		const exitBlock = {
+			id: nextBlockId(),
+			label: "Exit",
+			statements: [],
+			isEntry: false,
+			isExit: true,
+			blockType: "exit",
+			depth: 0
+		};
+		this.processStatements(astRoot.children, entryBlock.id, exitBlock.id, blocks, edges, 1, filePath);
+		const hasExitEdge = edges.some((e) => e.target === exitBlock.id);
+		if (!hasExitEdge) {
+			const lastBlock = blocks[blocks.length - 1];
+			if (lastBlock && !lastBlock.isExit) edges.push({
+				source: lastBlock.id,
+				target: exitBlock.id,
+				edgeType: "fallthrough"
+			});
+		}
+		blocks.push(exitBlock);
+		const cfgData = {
+			blocks,
+			edges,
+			entryBlockId: entryBlock.id,
+			exitBlockIds: blocks.filter((b) => b.isExit).map((b) => b.id)
+		};
+		return this.toAssembledDiagram(cfgData, filePath, functionName);
+	}
+	processStatements(statements, entryId, exitId, blocks, edges, depth, _filePath) {
+		if (statements.length === 0) {
+			edges.push({
+				source: entryId,
+				target: exitId,
+				edgeType: "fallthrough"
+			});
+			return entryId;
+		}
+		let currentId = entryId;
+		let currentBlock = blocks.find((b) => b.id === currentId) ?? null;
+		if (!currentBlock || currentBlock.isEntry) {
+			currentBlock = this.createProcessBlock(blocks, depth);
+			edges.push({
+				source: entryId,
+				target: currentBlock.id,
+				edgeType: "fallthrough"
+			});
+			currentId = currentBlock.id;
+		}
+		for (let i$1 = 0; i$1 < statements.length; i$1++) {
+			const stmt = statements[i$1];
+			if (!stmt) continue;
+			if (isControlFlow$1(stmt)) {
+				currentId = this.processControlFlow(stmt, currentId, exitId, blocks, edges, depth, _filePath);
+				currentBlock = blocks.find((b) => b.id === currentId) ?? null;
+				if (!currentBlock) {
+					currentBlock = this.createProcessBlock(blocks, depth);
+					currentId = currentBlock.id;
+				}
+			} else {
+				if (!currentBlock || currentBlock.blockType !== "process") {
+					currentBlock = this.createProcessBlock(blocks, depth);
+					edges.push({
+						source: currentId,
+						target: currentBlock.id,
+						edgeType: "fallthrough"
+					});
+					currentId = currentBlock.id;
+				}
+				currentBlock.statements.push({
+					type: classifyStatement(stmt),
+					text: simplifyText(stmt.text),
+					line: stmt.startPosition.row + 1
+				});
+			}
+		}
+		if (currentId !== exitId) edges.push({
+			source: currentId,
+			target: exitId,
+			edgeType: "fallthrough"
+		});
+		return currentId;
+	}
+	processControlFlow(node, currentId, exitId, blocks, edges, depth, _filePath) {
+		const t$1 = node.type;
+		if (t$1 === "if_statement" || t$1 === "if") return this.processIf(node, currentId, exitId, blocks, edges, depth);
+		if (t$1 === "for_statement" || t$1 === "for" || t$1 === "while_statement" || t$1 === "while") return this.processLoop(node, currentId, exitId, blocks, edges, depth);
+		if (t$1 === "switch_statement" || t$1 === "switch") return this.processSwitch(node, currentId, exitId, blocks, edges, depth);
+		if (t$1 === "try_statement" || t$1 === "try") return this.processTry(node, currentId, exitId, blocks, edges, depth);
+		if (t$1 === "return_statement" || t$1 === "return") return this.processReturn(node, currentId, exitId, blocks, edges, depth);
+		if (t$1 === "throw_statement" || t$1 === "throw") return this.processThrow(node, currentId, exitId, blocks, edges, depth);
+		if (t$1 === "break_statement" || t$1 === "break") {
+			edges.push({
+				source: currentId,
+				target: exitId,
+				edgeType: "break"
+			});
+			return exitId;
+		}
+		if (t$1 === "continue_statement" || t$1 === "continue") {
+			edges.push({
+				source: currentId,
+				target: exitId,
+				edgeType: "continue"
+			});
+			return exitId;
+		}
+		return currentId;
+	}
+	processIf(node, currentId, exitId, blocks, edges, depth) {
+		const condNode = getConditionNode(node);
+		const condText = condNode ? simplifyText(condNode.text) : "if";
+		const condBlock = {
+			id: nextBlockId(),
+			label: condText,
+			statements: [{
+				type: "condition",
+				text: condText,
+				line: node.startPosition.row + 1
+			}],
+			isEntry: false,
+			isExit: false,
+			blockType: "condition",
+			depth
+		};
+		blocks.push(condBlock);
+		edges.push({
+			source: currentId,
+			target: condBlock.id,
+			edgeType: "fallthrough"
+		});
+		const mergeBlock = {
+			id: nextBlockId(),
+			label: "merge",
+			statements: [],
+			isEntry: false,
+			isExit: false,
+			blockType: "process",
+			depth
+		};
+		blocks.push(mergeBlock);
+		const trueBody = getBodyChildren$1(node);
+		const trueEntryId = nextBlockId();
+		const trueEntry = {
+			id: trueEntryId,
+			label: "true",
+			statements: [],
+			isEntry: false,
+			isExit: false,
+			blockType: "process",
+			depth: depth + 1
+		};
+		blocks.push(trueEntry);
+		edges.push({
+			source: condBlock.id,
+			target: trueEntryId,
+			edgeType: "true",
+			condition: condText
+		});
+		this.processStatements(trueBody, trueEntryId, mergeBlock.id, blocks, edges, depth + 1, "");
+		const elseBody = getElseBody$1(node);
+		if (elseBody.length > 0) {
+			const falseEntryId = nextBlockId();
+			const falseEntry = {
+				id: falseEntryId,
+				label: "false",
+				statements: [],
+				isEntry: false,
+				isExit: false,
+				blockType: "process",
+				depth: depth + 1
+			};
+			blocks.push(falseEntry);
+			edges.push({
+				source: condBlock.id,
+				target: falseEntryId,
+				edgeType: "false",
+				condition: condText
+			});
+			this.processStatements(elseBody, falseEntryId, mergeBlock.id, blocks, edges, depth + 1, "");
+		} else edges.push({
+			source: condBlock.id,
+			target: mergeBlock.id,
+			edgeType: "false",
+			condition: condText
+		});
+		return mergeBlock.id;
+	}
+	processLoop(node, currentId, exitId, blocks, edges, depth) {
+		const condNode = getConditionNode(node);
+		const condText = condNode ? simplifyText(condNode.text) : node.type;
+		const condBlock = {
+			id: nextBlockId(),
+			label: condText,
+			statements: [{
+				type: "condition",
+				text: condText,
+				line: node.startPosition.row + 1
+			}],
+			isEntry: false,
+			isExit: false,
+			blockType: "loop",
+			depth
+		};
+		blocks.push(condBlock);
+		edges.push({
+			source: currentId,
+			target: condBlock.id,
+			edgeType: "fallthrough"
+		});
+		const loopExitBlock = {
+			id: nextBlockId(),
+			label: "loop-exit",
+			statements: [],
+			isEntry: false,
+			isExit: false,
+			blockType: "process",
+			depth
+		};
+		blocks.push(loopExitBlock);
+		const body = getBodyChildren$1(node);
+		const bodyEntryId = nextBlockId();
+		const bodyEntry = {
+			id: bodyEntryId,
+			label: "loop-body",
+			statements: [],
+			isEntry: false,
+			isExit: false,
+			blockType: "process",
+			depth: depth + 1
+		};
+		blocks.push(bodyEntry);
+		edges.push({
+			source: condBlock.id,
+			target: bodyEntryId,
+			edgeType: "true",
+			condition: condText
+		});
+		this.processStatements(body, bodyEntryId, condBlock.id, blocks, edges, depth + 1, "");
+		edges.push({
+			source: condBlock.id,
+			target: loopExitBlock.id,
+			edgeType: "false",
+			condition: condText
+		});
+		return loopExitBlock.id;
+	}
+	processSwitch(node, currentId, exitId, blocks, edges, depth) {
+		const condNode = node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression");
+		const condText = condNode ? simplifyText(condNode.text) : "switch";
+		const condBlock = {
+			id: nextBlockId(),
+			label: condText,
+			statements: [{
+				type: "condition",
+				text: condText,
+				line: node.startPosition.row + 1
+			}],
+			isEntry: false,
+			isExit: false,
+			blockType: "switch",
+			depth
+		};
+		blocks.push(condBlock);
+		edges.push({
+			source: currentId,
+			target: condBlock.id,
+			edgeType: "fallthrough"
+		});
+		const mergeBlock = {
+			id: nextBlockId(),
+			label: "switch-merge",
+			statements: [],
+			isEntry: false,
+			isExit: false,
+			blockType: "process",
+			depth
+		};
+		blocks.push(mergeBlock);
+		const caseNodes = node.children.filter((c) => c.type === "case_statement" || c.type === "case" || c.type === "default_statement" || c.type === "default");
+		for (const caseNode of caseNodes) {
+			const isDefault = caseNode.type === "default_statement" || caseNode.type === "default";
+			const caseLabel = isDefault ? "default" : caseNode.children.find((c) => c.type === "identifier" || c.type === "number")?.text ?? "case";
+			const caseEntryId = nextBlockId();
+			const caseEntry = {
+				id: caseEntryId,
+				label: caseLabel,
+				statements: [],
+				isEntry: false,
+				isExit: false,
+				blockType: "process",
+				depth: depth + 1
+			};
+			blocks.push(caseEntry);
+			edges.push({
+				source: condBlock.id,
+				target: caseEntryId,
+				edgeType: isDefault ? "default" : "case",
+				condition: caseLabel
+			});
+			const caseBody = caseNode.children.filter((c) => c.type !== "identifier" && c.type !== "number" && isStatement(c));
+			this.processStatements(caseBody, caseEntryId, mergeBlock.id, blocks, edges, depth + 1, "");
+		}
+		if (!caseNodes.some((c) => c.type === "default_statement" || c.type === "default")) edges.push({
+			source: condBlock.id,
+			target: mergeBlock.id,
+			edgeType: "default"
+		});
+		return mergeBlock.id;
+	}
+	processTry(node, currentId, exitId, blocks, edges, depth) {
+		const tryBlock = {
+			id: nextBlockId(),
+			label: "try",
+			statements: [],
+			isEntry: false,
+			isExit: false,
+			blockType: "try",
+			depth
+		};
+		blocks.push(tryBlock);
+		edges.push({
+			source: currentId,
+			target: tryBlock.id,
+			edgeType: "fallthrough"
+		});
+		const tryBody = node.children.find((c) => c.type === "block" || c.type === "statement_block");
+		const tryStmts = tryBody ? tryBody.children.filter(isStatement) : [];
+		const mergeBlock = {
+			id: nextBlockId(),
+			label: "try-merge",
+			statements: [],
+			isEntry: false,
+			isExit: false,
+			blockType: "process",
+			depth
+		};
+		blocks.push(mergeBlock);
+		this.processStatements(tryStmts, tryBlock.id, mergeBlock.id, blocks, edges, depth + 1, "");
+		const catchNodes = node.children.filter((c) => c.type === "catch_clause" || c.type === "catch");
+		for (const catchNode of catchNodes) {
+			const catchBlock = {
+				id: nextBlockId(),
+				label: "catch",
+				statements: [],
+				isEntry: false,
+				isExit: false,
+				blockType: "catch",
+				depth
+			};
+			blocks.push(catchBlock);
+			edges.push({
+				source: tryBlock.id,
+				target: catchBlock.id,
+				edgeType: "exception"
+			});
+			const catchBody = catchNode.children.find((c) => c.type === "block" || c.type === "statement_block");
+			const catchStmts = catchBody ? catchBody.children.filter(isStatement) : [];
+			this.processStatements(catchStmts, catchBlock.id, mergeBlock.id, blocks, edges, depth + 1, "");
+		}
+		const finallyNode = node.children.find((c) => c.type === "finally_clause" || c.type === "finally");
+		if (finallyNode) {
+			const finallyBlock = {
+				id: nextBlockId(),
+				label: "finally",
+				statements: [],
+				isEntry: false,
+				isExit: false,
+				blockType: "finally",
+				depth
+			};
+			blocks.push(finallyBlock);
+			edges.push({
+				source: mergeBlock.id,
+				target: finallyBlock.id,
+				edgeType: "fallthrough"
+			});
+			const finallyBody = finallyNode.children.find((c) => c.type === "block" || c.type === "statement_block");
+			const finallyStmts = finallyBody ? finallyBody.children.filter(isStatement) : [];
+			const afterFinally = {
+				id: nextBlockId(),
+				label: "after-finally",
+				statements: [],
+				isEntry: false,
+				isExit: false,
+				blockType: "process",
+				depth
+			};
+			blocks.push(afterFinally);
+			this.processStatements(finallyStmts, finallyBlock.id, afterFinally.id, blocks, edges, depth + 1, "");
+			return afterFinally.id;
+		}
+		return mergeBlock.id;
+	}
+	processReturn(node, currentId, exitId, blocks, edges, depth) {
+		const exitBlock = {
+			id: nextBlockId(),
+			label: "return",
+			statements: [{
+				type: "return",
+				text: simplifyText(node.text),
+				line: node.startPosition.row + 1
+			}],
+			isEntry: false,
+			isExit: true,
+			blockType: "exit",
+			depth
+		};
+		blocks.push(exitBlock);
+		edges.push({
+			source: currentId,
+			target: exitBlock.id,
+			edgeType: "fallthrough"
+		});
+		return exitBlock.id;
+	}
+	processThrow(node, currentId, exitId, blocks, edges, depth) {
+		const exitBlock = {
+			id: nextBlockId(),
+			label: "throw",
+			statements: [{
+				type: "throw",
+				text: simplifyText(node.text),
+				line: node.startPosition.row + 1
+			}],
+			isEntry: false,
+			isExit: true,
+			blockType: "exit",
+			depth
+		};
+		blocks.push(exitBlock);
+		edges.push({
+			source: currentId,
+			target: exitBlock.id,
+			edgeType: "exception"
+		});
+		return exitBlock.id;
+	}
+	createProcessBlock(blocks, depth) {
+		const block = {
+			id: nextBlockId(),
+			label: "",
+			statements: [],
+			isEntry: false,
+			isExit: false,
+			blockType: "process",
+			depth
+		};
+		blocks.push(block);
+		return block;
+	}
+	toAssembledDiagram(cfgData, filePath, functionName) {
+		const nodes = cfgData.blocks.map((block) => {
+			const label = block.isEntry ? "Entry" : block.isExit ? block.label || "Exit" : block.statements.length > 0 ? block.statements[0].text : block.label || block.blockType;
+			return {
+				id: NodeId(block.id),
+				label,
+				type: "function",
+				filePath,
+				lineNumber: block.statements[0]?.line ?? 0,
+				properties: {
+					isEntry: block.isEntry,
+					isExit: block.isExit,
+					blockType: block.blockType,
+					depth: block.depth,
+					statements: block.statements,
+					cfgFunction: functionName
+				}
+			};
+		});
+		const edges = cfgData.edges.map((edge, idx) => ({
+			id: EdgeId(`cfg-edge-${idx}`),
+			source: NodeId(edge.source),
+			target: NodeId(edge.target),
+			type: "call",
+			properties: {
+				cfgEdgeType: edge.edgeType,
+				...edge.condition ? { condition: edge.condition } : {}
+			}
+		}));
+		return {
+			nodes,
+			edges,
+			metadata: {
+				rootIds: [cfgData.entryBlockId],
+				maxDepth: Math.max(0, ...nodes.map((n) => n.properties.depth ?? 0)),
+				nodeCount: nodes.length,
+				edgeCount: edges.length
+			}
+		};
+	}
+};
+
+//#endregion
+//#region src/client/diagram/FlowchartAssembler.ts
+const PROCESS_KEYWORDS = {
+	init: "初始化",
+	prepare: "数据准备",
+	load: "加载数据",
+	save: "保存数据",
+	fetch: "获取数据",
+	find: "查找",
+	create: "创建",
+	update: "更新",
+	delete: "删除",
+	validate: "验证",
+	check: "检查",
+	parse: "解析",
+	format: "格式化",
+	transform: "转换",
+	render: "渲染",
+	compute: "计算",
+	build: "构建",
+	register: "注册",
+	cleanup: "清理",
+	destroy: "销毁",
+	start: "开始",
+	stop: "停止",
+	handle: "处理",
+	send: "发送",
+	receive: "接收",
+	read: "读取",
+	write: "写入",
+	log: "记录日志",
+	notify: "通知",
+	dispatch: "分发",
+	resolve: "解析",
+	reject: "拒绝"
+};
+let fcCounter = 0;
+function nextFcId() {
+	return `fc-node-${fcCounter++}`;
+}
+function resetCounter$1() {
+	fcCounter = 0;
+}
+function inferSemanticLabel(statements, blockLabel) {
+	if (statements.length === 0) return blockLabel;
+	const firstStmt = statements[0];
+	if (!firstStmt) return blockLabel;
+	const text = firstStmt.text.toLowerCase();
+	for (const [keyword, label] of Object.entries(PROCESS_KEYWORDS)) if (text.includes(keyword)) return label;
+	if (firstStmt.type === "return") return "返回结果";
+	if (firstStmt.type === "throw") return "抛出异常";
+	if (statements.length === 1) return simplifyForLabel(firstStmt.text);
+	const verbMatch = text.match(/^(\w+)\s*\(/);
+	if (verbMatch && verbMatch[1]) {
+		const verb = verbMatch[1];
+		if (PROCESS_KEYWORDS[verb]) return PROCESS_KEYWORDS[verb];
+		return `${verb}()`;
+	}
+	return `${statements.length} 条语句`;
+}
+function simplifyForLabel(text, maxLen = 20) {
+	const trimmed = text.trim().replace(/\s+/g, " ");
+	if (trimmed.length <= maxLen) return trimmed;
+	return trimmed.substring(0, maxLen - 3) + "...";
+}
+function conditionToQuestion(condText) {
+	const trimmed = condText.trim();
+	if (trimmed.startsWith("if") || trimmed.startsWith("if (") || trimmed.startsWith("if(")) {
+		const inner = trimmed.replace(/^if\s*\(?/, "").replace(/\)?$/, "").trim();
+		return `${inner}?`;
+	}
+	if (trimmed.startsWith("while") || trimmed.startsWith("for")) return `循环: ${trimmed}`;
+	return `${trimmed}?`;
+}
+var FlowchartAssembler = class {
+	cfgAssembler = new CFGAssembler();
+	assemble(astRoot, filePath, functionName) {
+		resetCounter$1();
+		const cfgResult = this.cfgAssembler.assemble(astRoot, filePath, functionName);
+		const cfgBlocks = cfgResult.nodes.map((n) => ({
+			id: n.id,
+			label: n.label,
+			blockType: n.properties.blockType,
+			isEntry: n.properties.isEntry,
+			isExit: n.properties.isExit,
+			depth: n.properties.depth,
+			statements: n.properties.statements
+		}));
+		const cfgEdges = cfgResult.edges.map((e) => ({
+			source: e.source,
+			target: e.target,
+			edgeType: e.properties.cfgEdgeType,
+			condition: e.properties.condition
+		}));
+		const fcNodes = [];
+		const fcEdges = [];
+		const blockToFc = new Map();
+		for (const block of cfgBlocks) {
+			const fcId = nextFcId();
+			blockToFc.set(block.id, fcId);
+			let nodeType = "process";
+			let label = block.label;
+			if (block.isEntry) {
+				nodeType = "start";
+				label = "开始";
+			} else if (block.isExit) {
+				nodeType = block.label === "throw" ? "error" : "end";
+				label = block.label === "throw" ? "异常退出" : "结束";
+			} else if (block.blockType === "condition") {
+				nodeType = "decision";
+				label = conditionToQuestion(block.label);
+			} else if (block.blockType === "loop") {
+				nodeType = "loop";
+				label = conditionToQuestion(block.label);
+			} else if (block.blockType === "switch") {
+				nodeType = "decision";
+				label = `switch: ${block.label}`;
+			} else if (block.blockType === "try") {
+				nodeType = "process";
+				label = "尝试执行";
+			} else if (block.blockType === "catch") {
+				nodeType = "error";
+				label = "捕获异常";
+			} else if (block.blockType === "finally") {
+				nodeType = "process";
+				label = "最终处理";
+			} else {
+				nodeType = "process";
+				label = inferSemanticLabel(block.statements, block.label);
+			}
+			fcNodes.push({
+				id: fcId,
+				label,
+				nodeType,
+				depth: block.depth
+			});
+		}
+		for (const edge of cfgEdges) {
+			const sourceFc = blockToFc.get(edge.source);
+			const targetFc = blockToFc.get(edge.target);
+			if (!sourceFc || !targetFc) continue;
+			let edgeLabel;
+			let flowchartEdgeType = "normal";
+			if (edge.edgeType === "true") {
+				edgeLabel = "是";
+				flowchartEdgeType = "yes";
+			} else if (edge.edgeType === "false") {
+				edgeLabel = "否";
+				flowchartEdgeType = "no";
+			} else if (edge.edgeType === "loop-back") {
+				edgeLabel = "循环";
+				flowchartEdgeType = "loop";
+			} else if (edge.edgeType === "exception") {
+				edgeLabel = "异常";
+				flowchartEdgeType = "error";
+			} else if (edge.edgeType === "case") edgeLabel = edge.condition;
+			else if (edge.edgeType === "default") edgeLabel = "默认";
+			else if (edge.edgeType === "break") edgeLabel = "跳出";
+			else if (edge.edgeType === "continue") edgeLabel = "继续";
+			fcEdges.push({
+				source: sourceFc,
+				target: targetFc,
+				...edgeLabel ? { label: edgeLabel } : {},
+				edgeType: flowchartEdgeType
+			});
+		}
+		return this.toAssembledDiagram(fcNodes, fcEdges, filePath, functionName);
+	}
+	toAssembledDiagram(fcNodes, fcEdges, filePath, functionName) {
+		const nodes = fcNodes.map((node) => ({
+			id: NodeId(node.id),
+			label: node.label,
+			type: "function",
+			filePath,
+			lineNumber: 0,
+			properties: {
+				flowchartNodeType: node.nodeType,
+				depth: node.depth,
+				...node.description ? { description: node.description } : {},
+				fcFunction: functionName
+			}
+		}));
+		const edges = fcEdges.map((edge, idx) => ({
+			id: EdgeId(`fc-edge-${idx}`),
+			source: NodeId(edge.source),
+			target: NodeId(edge.target),
+			type: "call",
+			properties: {
+				flowchartEdgeType: edge.edgeType,
+				...edge.label ? { label: edge.label } : {}
+			}
+		}));
+		const startIds = nodes.filter((n) => n.properties.flowchartNodeType === "start").map((n) => n.id);
+		return {
+			nodes,
+			edges,
+			metadata: {
+				rootIds: startIds,
+				maxDepth: Math.max(0, ...nodes.map((n) => n.properties.depth ?? 0)),
+				nodeCount: nodes.length,
+				edgeCount: edges.length
+			}
+		};
+	}
+};
+
+//#endregion
+//#region src/client/diagram/SequenceAssembler.ts
+let seqCounter = 0;
+function nextId(prefix) {
+	return `${prefix}-${seqCounter++}`;
+}
+function resetCounter() {
+	seqCounter = 0;
+}
+const CALL_NODE_TYPES = new Set([
+	"call_expression",
+	"call",
+	"method_call",
+	"function_call"
+]);
+const CONTROL_FLOW_TYPES = new Set([
+	"if_statement",
+	"if",
+	"for_statement",
+	"for",
+	"while_statement",
+	"while",
+	"switch_statement",
+	"switch",
+	"try_statement",
+	"try",
+	"return_statement",
+	"return",
+	"throw_statement",
+	"throw",
+	"break_statement",
+	"break",
+	"continue_statement",
+	"continue"
+]);
+function isCallExpression(node) {
+	return CALL_NODE_TYPES.has(node.type) || node.type.includes("call");
+}
+function isControlFlow(node) {
+	return CONTROL_FLOW_TYPES.has(node.type);
+}
+function extractMethodName(node) {
+	const children = node.children;
+	const funcNode = children.find((c) => c.type === "identifier" || c.type === "property_identifier" || c.type === "member_expression");
+	if (funcNode) {
+		if (funcNode.type === "member_expression") {
+			const prop = funcNode.children.find((c) => c.type === "property_identifier");
+			return prop ? prop.text : funcNode.text;
+		}
+		return funcNode.text;
+	}
+	return "<anonymous>";
+}
+function extractArguments(node) {
+	const argsNode = node.children.find((c) => c.type === "arguments" || c.type === "argument_list");
+	if (!argsNode) return [];
+	return argsNode.children.filter((c) => c.type !== "(" && c.type !== ")" && c.type !== ",").map((c) => c.text.trim().substring(0, 30));
+}
+function extractReceiver(callNode) {
+	const children = callNode.children;
+	const memberExpr = children.find((c) => c.type === "member_expression");
+	if (memberExpr) {
+		const objNode = memberExpr.children.find((c) => c.type === "identifier" || c.type === "this");
+		if (objNode) return {
+			receiverName: objNode.text,
+			isSelf: objNode.type === "this" || objNode.text === "self"
+		};
+	}
+	return {
+		receiverName: "",
+		isSelf: false
+	};
+}
+function inferParticipantType(receiverName, _methodName) {
+	if (!receiverName || receiverName === "this" || receiverName === "self") return "self";
+	if (receiverName === "fetch" || receiverName === "console" || receiverName === "window") return "external";
+	if (receiverName.charAt(0) === receiverName.charAt(0).toUpperCase()) return "class";
+	return "instance";
+}
+function getConditionText(node) {
+	const condNode = node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression");
+	return condNode ? condNode.text.trim().substring(0, 40) : "";
+}
+function getBodyChildren(node) {
+	const body = node.children.find((c) => c.type === "block" || c.type === "statement_block" || c.type === "body");
+	if (body) return body.children;
+	return node.children.filter((c) => c.type !== "condition" && c.type !== "parenthesized_expression");
+}
+function getElseBody(node) {
+	const elseNode = node.children.find((c) => c.type === "else_clause" || c.type === "else");
+	if (!elseNode) return [];
+	const body = elseNode.children.find((c) => c.type === "block" || c.type === "statement_block");
+	return body ? body.children : elseNode.children;
+}
+function getCaseNodes(node) {
+	return node.children.filter((c) => c.type === "case_statement" || c.type === "case" || c.type === "default_statement" || c.type === "default");
+}
+function getCaseLabel(node) {
+	if (node.type === "default_statement" || node.type === "default") return "default";
+	const labelNode = node.children.find((c) => c.type === "identifier" || c.type === "number");
+	return labelNode ? labelNode.text : "case";
+}
+function getCaseBody(node) {
+	return node.children.filter((c) => c.type !== "identifier" && c.type !== "number" && c.type !== ":");
+}
+function getCatchNodes(node) {
+	return node.children.filter((c) => c.type === "catch_clause" || c.type === "catch");
+}
+function getFinallyNode(node) {
+	return node.children.find((c) => c.type === "finally_clause" || c.type === "finally") ?? null;
+}
+var SequenceAssembler = class {
+	assemble(astRoot, filePath, functionName) {
+		resetCounter();
+		const participants = new Map();
+		const messages = [];
+		const fragments = [];
+		let messageSeq = 0;
+		const entryParticipant = {
+			id: nextId("participant"),
+			name: functionName,
+			type: "self",
+			lifelineStart: 0,
+			lifelineEnd: 0,
+			isCreated: false,
+			isDestroyed: false
+		};
+		participants.set(functionName, entryParticipant);
+		this.processStatements(astRoot.children, entryParticipant.id, participants, messages, fragments, (msg) => {
+			msg.sequenceNumber = messageSeq++;
+			messages.push(msg);
+		}, filePath, functionName);
+		for (const participant of participants.values()) participant.lifelineEnd = messageSeq;
+		const sequenceData = {
+			participants: Array.from(participants.values()),
+			messages,
+			fragments,
+			entryFunctionName: functionName
+		};
+		return this.toAssembledDiagram(sequenceData, filePath, functionName);
+	}
+	processStatements(statements, selfId, participants, messages, fragments, addMessage, filePath, functionName) {
+		for (const stmt of statements) {
+			if (!stmt) continue;
+			if (isCallExpression(stmt)) this.processCall(stmt, selfId, participants, addMessage);
+			else if (isControlFlow(stmt)) this.processControlFlow(stmt, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+			else {
+				const childCalls = [];
+				this.collectCalls(stmt, childCalls);
+				for (const call of childCalls) this.processCall(call, selfId, participants, addMessage);
+			}
+		}
+	}
+	collectCalls(node, result) {
+		if (isCallExpression(node)) {
+			result.push(node);
+			return;
+		}
+		for (const child of node.children) this.collectCalls(child, result);
+	}
+	processCall(node, selfId, participants, addMessage) {
+		const methodName = extractMethodName(node);
+		const args = extractArguments(node);
+		const { receiverName, isSelf } = extractReceiver(node);
+		let targetId;
+		if (isSelf) targetId = selfId;
+		else {
+			const participantName = receiverName || methodName;
+			if (!participants.has(participantName)) {
+				const participantType = inferParticipantType(receiverName, methodName);
+				participants.set(participantName, {
+					id: nextId("participant"),
+					name: participantName,
+					type: participantType,
+					...receiverName && receiverName.charAt(0) === receiverName.charAt(0).toUpperCase() ? { className: receiverName } : {},
+					lifelineStart: 0,
+					lifelineEnd: 0,
+					isCreated: false,
+					isDestroyed: false
+				});
+			}
+			targetId = participants.get(participantName).id;
+		}
+		const msg = {
+			id: nextId("msg"),
+			sequenceNumber: 0,
+			source: selfId,
+			target: targetId,
+			methodName,
+			arguments: args,
+			isAsync: node.type.includes("await") || node.text.includes("await"),
+			isSelfCall: isSelf,
+			isReturn: false,
+			isCreate: false,
+			lineNumber: node.startPosition.row + 1
+		};
+		addMessage(msg);
+	}
+	processControlFlow(node, selfId, participants, messages, fragments, addMessage, filePath, functionName) {
+		const t$1 = node.type;
+		if (t$1 === "if_statement" || t$1 === "if") this.processIfFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+		else if (t$1 === "for_statement" || t$1 === "for" || t$1 === "while_statement" || t$1 === "while") this.processLoopFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+		else if (t$1 === "switch_statement" || t$1 === "switch") this.processSwitchFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+		else if (t$1 === "try_statement" || t$1 === "try") this.processTryFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+		else if (t$1 === "return_statement" || t$1 === "return") this.processReturnMessage(node, selfId, participants, addMessage);
+		else if (t$1 === "throw_statement" || t$1 === "throw") this.processThrowFragment(node, selfId, participants, messages, fragments, addMessage);
+	}
+	processIfFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName) {
+		const condText = getConditionText(node);
+		const elseBody = getElseBody(node);
+		const fragmentType = elseBody.length > 0 ? "alt" : "opt";
+		const startSeq = messages.length;
+		const trueBody = getBodyChildren(node);
+		this.processStatements(trueBody, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+		const trueEnd = messages.length;
+		const operands = [{
+			guardCondition: condText,
+			startMessage: startSeq,
+			endMessage: trueEnd
+		}];
+		if (elseBody.length > 0) {
+			const elseStart = messages.length;
+			this.processStatements(elseBody, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+			const elseEnd = messages.length;
+			operands.push({
+				guardCondition: "else",
+				startMessage: elseStart,
+				endMessage: elseEnd
+			});
+		}
+		const endSeq = messages.length;
+		fragments.push({
+			id: nextId("fragment"),
+			type: fragmentType,
+			condition: condText,
+			startMessage: startSeq,
+			endMessage: endSeq,
+			operands
+		});
+	}
+	processLoopFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName) {
+		const condText = getConditionText(node);
+		const startSeq = messages.length;
+		const body = getBodyChildren(node);
+		this.processStatements(body, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+		const endSeq = messages.length;
+		fragments.push({
+			id: nextId("fragment"),
+			type: "loop",
+			condition: condText,
+			loopConstraint: condText,
+			startMessage: startSeq,
+			endMessage: endSeq,
+			operands: [{
+				guardCondition: condText,
+				startMessage: startSeq,
+				endMessage: endSeq
+			}]
+		});
+	}
+	processSwitchFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName) {
+		const condText = getConditionText(node);
+		const startSeq = messages.length;
+		const caseNodes = getCaseNodes(node);
+		const operands = [];
+		for (const caseNode of caseNodes) {
+			const label = getCaseLabel(caseNode);
+			const caseBody = getCaseBody(caseNode);
+			const caseStart = messages.length;
+			this.processStatements(caseBody, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+			const caseEnd = messages.length;
+			operands.push({
+				guardCondition: label === "default" ? "default" : `case ${label}`,
+				startMessage: caseStart,
+				endMessage: caseEnd
+			});
+		}
+		const endSeq = messages.length;
+		fragments.push({
+			id: nextId("fragment"),
+			type: "alt",
+			condition: condText,
+			startMessage: startSeq,
+			endMessage: endSeq,
+			operands
+		});
+	}
+	processTryFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName) {
+		const startSeq = messages.length;
+		const tryBody = node.children.find((c) => c.type === "block" || c.type === "statement_block");
+		const tryStmts = tryBody ? tryBody.children : [];
+		this.processStatements(tryStmts, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+		const tryEnd = messages.length;
+		fragments.push({
+			id: nextId("fragment"),
+			type: "critical",
+			condition: "try",
+			startMessage: startSeq,
+			endMessage: tryEnd,
+			operands: [{
+				startMessage: startSeq,
+				endMessage: tryEnd
+			}]
+		});
+		const catchNodes = getCatchNodes(node);
+		for (const catchNode of catchNodes) {
+			const catchStart = messages.length;
+			const catchBody = catchNode.children.find((c) => c.type === "block" || c.type === "statement_block");
+			const catchStmts = catchBody ? catchBody.children : [];
+			this.processStatements(catchStmts, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+			const catchEnd = messages.length;
+			fragments.push({
+				id: nextId("fragment"),
+				type: "break",
+				condition: "catch",
+				startMessage: catchStart,
+				endMessage: catchEnd,
+				operands: [{
+					guardCondition: "exception",
+					startMessage: catchStart,
+					endMessage: catchEnd
+				}]
+			});
+		}
+		const finallyNode = getFinallyNode(node);
+		if (finallyNode) {
+			const finallyStart = messages.length;
+			const finallyBody = finallyNode.children.find((c) => c.type === "block" || c.type === "statement_block");
+			const finallyStmts = finallyBody ? finallyBody.children : [];
+			this.processStatements(finallyStmts, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+			const finallyEnd = messages.length;
+			fragments.push({
+				id: nextId("fragment"),
+				type: "critical",
+				condition: "finally",
+				startMessage: finallyStart,
+				endMessage: finallyEnd,
+				operands: [{
+					startMessage: finallyStart,
+					endMessage: finallyEnd
+				}]
+			});
+		}
+	}
+	processReturnMessage(node, selfId, participants, addMessage) {
+		const msg = {
+			id: nextId("msg"),
+			sequenceNumber: 0,
+			source: selfId,
+			target: selfId,
+			methodName: "return",
+			arguments: [node.text.trim().substring(0, 30)],
+			isAsync: false,
+			isSelfCall: true,
+			isReturn: true,
+			isCreate: false,
+			lineNumber: node.startPosition.row + 1
+		};
+		addMessage(msg);
+	}
+	processThrowFragment(node, selfId, participants, messages, fragments, addMessage) {
+		const startSeq = messages.length;
+		const msg = {
+			id: nextId("msg"),
+			sequenceNumber: 0,
+			source: selfId,
+			target: selfId,
+			methodName: "throw",
+			arguments: [node.text.trim().substring(0, 30)],
+			isAsync: false,
+			isSelfCall: true,
+			isReturn: true,
+			isCreate: false,
+			lineNumber: node.startPosition.row + 1
+		};
+		addMessage(msg);
+		const endSeq = messages.length;
+		fragments.push({
+			id: nextId("fragment"),
+			type: "break",
+			condition: "throw",
+			startMessage: startSeq,
+			endMessage: endSeq,
+			operands: [{
+				guardCondition: "exception",
+				startMessage: startSeq,
+				endMessage: endSeq
+			}]
+		});
+	}
+	toAssembledDiagram(sequenceData, filePath, functionName) {
+		const nodes = sequenceData.participants.map((p$1) => ({
+			id: NodeId(p$1.id),
+			label: p$1.name,
+			type: p$1.type === "class" ? "class" : p$1.type === "module" ? "module" : "function",
+			filePath,
+			lineNumber: 0,
+			properties: {
+				participantType: p$1.type,
+				...p$1.className ? { className: p$1.className } : {},
+				lifelineStart: p$1.lifelineStart,
+				lifelineEnd: p$1.lifelineEnd,
+				isCreated: p$1.isCreated,
+				isDestroyed: p$1.isDestroyed,
+				seqFunction: functionName
+			}
+		}));
+		const edges = sequenceData.messages.map((msg, idx) => ({
+			id: EdgeId(`seq-edge-${idx}`),
+			source: NodeId(msg.source),
+			target: NodeId(msg.target),
+			type: "call",
+			properties: {
+				sequenceNumber: msg.sequenceNumber,
+				methodName: msg.methodName,
+				arguments: msg.arguments,
+				isAsync: msg.isAsync,
+				isSelfCall: msg.isSelfCall,
+				isReturn: msg.isReturn,
+				isCreate: msg.isCreate,
+				...msg.fragmentId ? { fragmentId: msg.fragmentId } : {},
+				lineNumber: msg.lineNumber
+			}
+		}));
+		for (const fragment of sequenceData.fragments) {
+			const fragmentNode = {
+				id: NodeId(fragment.id),
+				label: `${fragment.type}${fragment.condition ? ` [${fragment.condition}]` : ""}`,
+				type: "type",
+				filePath,
+				lineNumber: 0,
+				properties: {
+					fragmentType: fragment.type,
+					...fragment.condition ? { condition: fragment.condition } : {},
+					...fragment.loopConstraint ? { loopConstraint: fragment.loopConstraint } : {},
+					startMessage: fragment.startMessage,
+					endMessage: fragment.endMessage,
+					...fragment.parentId ? { parentId: fragment.parentId } : {},
+					operands: fragment.operands,
+					seqFunction: functionName,
+					isFragment: true
+				}
+			};
+			nodes.push(fragmentNode);
+		}
+		return {
+			nodes,
+			edges,
+			metadata: {
+				rootIds: sequenceData.participants.length > 0 ? [sequenceData.participants[0].id] : [],
+				maxDepth: sequenceData.fragments.length > 0 ? Math.max(...sequenceData.fragments.map((f) => f.operands.length)) : 0,
+				nodeCount: nodes.length,
+				edgeCount: edges.length
+			}
+		};
+	}
+};
+
+//#endregion
+//#region src/client/diagram/index.ts
+const inheritanceAssembler = new InheritanceAssembler();
+const callGraphAssembler = new CallGraphAssembler();
+const packageAssembler = new PackageAssembler();
+const classAssembler = new ClassAssembler();
+const cfgAssembler = new CFGAssembler();
+const flowchartAssembler = new FlowchartAssembler();
+const sequenceAssembler = new SequenceAssembler();
+const LAYER_DEFINITIONS = {
+	inheritance: [
+		{
+			level: 0,
+			name: "根接口概览",
+			nodeFilter: (n) => n.properties?.depth === 0
+		},
+		{
+			level: 1,
+			name: "2层继承深度",
+			nodeFilter: (n) => n.properties?.depth <= 2
+		},
+		{
+			level: 2,
+			name: "完整继承树",
+			nodeFilter: () => true
+		}
+	],
+	callgraph: [
+		{
+			level: 0,
+			name: "入口函数概览",
+			nodeFilter: (n) => n.properties?.isEntry === true
+		},
+		{
+			level: 1,
+			name: "调用链2层",
+			nodeFilter: (n) => n.properties?.depth <= 2
+		},
+		{
+			level: 2,
+			name: "完整调用图",
+			nodeFilter: () => true
+		}
+	],
+	package: [
+		{
+			level: 0,
+			name: "顶层包概览",
+			nodeFilter: (n) => n.properties?.depth === 0
+		},
+		{
+			level: 1,
+			name: "子包展开",
+			nodeFilter: (n) => n.properties?.depth <= 1
+		},
+		{
+			level: 2,
+			name: "包内模块",
+			nodeFilter: () => true
+		}
+	],
+	class: [
+		{
+			level: 0,
+			name: "类概览",
+			nodeFilter: (n) => n.properties?.depth === 0
+		},
+		{
+			level: 1,
+			name: "类关系图",
+			nodeFilter: (n) => n.properties?.depth <= 2
+		},
+		{
+			level: 2,
+			name: "完整类图",
+			nodeFilter: () => true
+		}
+	],
+	code: [
+		{
+			level: 0,
+			name: "目录聚类",
+			nodeFilter: () => true
+		},
+		{
+			level: 1,
+			name: "文件聚类",
+			nodeFilter: () => true
+		},
+		{
+			level: 2,
+			name: "全部节点",
+			nodeFilter: () => true
+		}
+	],
+	dependencies: [
+		{
+			level: 0,
+			name: "目录依赖概览",
+			nodeFilter: () => true
+		},
+		{
+			level: 1,
+			name: "文件依赖",
+			nodeFilter: () => true
+		},
+		{
+			level: 2,
+			name: "模块依赖",
+			nodeFilter: () => true
+		}
+	]
+};
+function sliceByLayer(allNodes, allEdges, layerDef) {
+	const filteredNodes = allNodes.filter((n) => layerDef.nodeFilter(n, allNodes, allEdges));
+	const nodeIds = new Set(filteredNodes.map((n) => n.id));
+	const filteredEdges = allEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+	return {
+		level: layerDef.level,
+		name: layerDef.name,
+		nodes: filteredNodes,
+		edges: filteredEdges,
+		nodeIds,
+		edgeIds: new Set(filteredEdges.map((e) => e.id))
+	};
+}
+function buildLayeredDiagram(viewMode, assembled) {
+	const layerDefs = LAYER_DEFINITIONS[viewMode];
+	if (!layerDefs) return {
+		viewMode,
+		layers: [{
+			level: 0,
+			name: "全部",
+			nodes: assembled.nodes,
+			edges: assembled.edges,
+			nodeIds: new Set(assembled.nodes.map((n) => n.id)),
+			edgeIds: new Set(assembled.edges.map((e) => e.id))
+		}],
+		currentLayer: 0,
+		expandedNodes: new Set(),
+		allNodes: assembled.nodes,
+		allEdges: assembled.edges,
+		metadata: assembled.metadata
+	};
+	const layers = layerDefs.map((def) => sliceByLayer(assembled.nodes, assembled.edges, def));
+	return {
+		viewMode,
+		layers,
+		currentLayer: 0,
+		expandedNodes: new Set(),
+		allNodes: assembled.nodes,
+		allEdges: assembled.edges,
+		metadata: assembled.metadata
+	};
+}
+function assembleDiagram(viewMode, nodes, edges) {
+	let result = null;
+	switch (viewMode) {
+		case "inheritance":
+			result = inheritanceAssembler.assemble(nodes, edges);
+			break;
+		case "callgraph":
+			result = callGraphAssembler.assemble(nodes, edges);
+			break;
+		case "package":
+			result = packageAssembler.assemble(nodes, edges);
+			break;
+		case "class":
+			result = classAssembler.assemble(nodes, edges);
+			break;
+		default: return null;
+	}
+	if (result) {
+		for (const n of result.nodes) n.properties = {
+			...n.properties,
+			diagramType: viewMode
+		};
+		for (const e of result.edges) e.properties = {
+			...e.properties,
+			diagramType: viewMode
+		};
+		return buildLayeredDiagram(viewMode, result);
+	}
+	return null;
+}
+async function assembleMicroDiagram(viewMode, filePath, functionName) {
+	try {
+		const response = await fetch("/api/v1/codegraph/ast", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ filePath })
+		});
+		if (!response.ok) return null;
+		const astRoot = await response.json();
+		switch (viewMode) {
+			case "cfg": return cfgAssembler.assemble(astRoot, filePath, functionName);
+			case "flowchart": return flowchartAssembler.assemble(astRoot, filePath, functionName);
+			case "sequence": return sequenceAssembler.assemble(astRoot, filePath, functionName);
+			default: return null;
+		}
+	} catch {
+		return null;
+	}
+}
+
+//#endregion
 //#region src/client/store/graphStore.ts
 function detectInitialTheme() {
 	if (typeof document === "undefined") return "dark";
@@ -710,6 +2728,8 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	edges: [],
 	rawNodes: [],
 	rawEdges: [],
+	savedRawNodes: [],
+	savedRawEdges: [],
 	repoId: null,
 	truncated: false,
 	totalNodeCount: 0,
@@ -722,6 +2742,8 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	filterType: "all",
 	graphType: "all",
 	viewMode: "code",
+	diagramData: null,
+	currentLayer: 0,
 	clusterLevel: "directory",
 	isLoading: false,
 	error: null,
@@ -745,15 +2767,36 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	ruleViolations: [],
 	panelHeight: null,
 	panelWidth: null,
+	selectedFunction: null,
 	setGraphData: (nodes, edges, repoId, metadata) => {
 		clearLoadingFailsafe();
-		const { clusterLevel, expandedNodeIds } = useGraphStore.getState();
-		const result = computeClusteredGraph(nodes, edges, clusterLevel, expandedNodeIds);
+		const { clusterLevel, expandedNodeIds, viewMode, currentLayer } = useGraphStore.getState();
+		let displayNodes = nodes;
+		let displayEdges = edges;
+		let diagramData = null;
+		if (viewMode === "inheritance" || viewMode === "callgraph" || viewMode === "package" || viewMode === "class") {
+			diagramData = assembleDiagram(viewMode, nodes, edges);
+			if (diagramData) {
+				const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+				if (layer) {
+					displayNodes = layer.nodes;
+					displayEdges = layer.edges;
+				}
+			}
+		}
+		const result = computeClusteredGraph(displayNodes, displayEdges, clusterLevel, expandedNodeIds);
+		const isDepsMode = viewMode === "dependencies";
 		set$1({
-			rawNodes: nodes,
-			rawEdges: edges,
+			...isDepsMode ? {
+				savedRawNodes: nodes,
+				savedRawEdges: edges
+			} : {
+				rawNodes: nodes,
+				rawEdges: edges
+			},
 			nodes: result.nodes,
 			edges: result.edges,
+			diagramData,
 			repoId,
 			error: null,
 			isLoading: false,
@@ -772,10 +2815,96 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	setHighlightedNodes: (highlightedNodeIds) => set$1({ highlightedNodeIds }),
 	setFilterType: (filterType) => set$1({ filterType }),
 	setGraphType: (graphType) => set$1({ graphType }),
-	setViewMode: (viewMode) => set$1({ viewMode }),
-	setClusterLevel: (clusterLevel) => {
-		const { rawNodes, rawEdges, expandedNodeIds } = useGraphStore.getState();
+	setViewMode: (viewMode) => {
+		const state = useGraphStore.getState();
+		const { rawNodes, rawEdges, clusterLevel, expandedNodeIds, selectedFunction, savedRawNodes, savedRawEdges } = state;
+		if (viewMode === "dependencies") {
+			const result$1 = computeClusteredGraph(rawNodes, rawEdges, "directory", new Set());
+			set$1({
+				viewMode,
+				diagramData: null,
+				savedRawNodes: rawNodes,
+				savedRawEdges: rawEdges,
+				clusterLevel: "directory",
+				expandedNodeIds: new Set(),
+				nodes: result$1.nodes,
+				edges: result$1.edges
+			});
+			return;
+		}
+		if (viewMode === "code") {
+			const restoreNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
+			const restoreEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
+			const result$1 = computeClusteredGraph(restoreNodes, restoreEdges, "directory", new Set());
+			set$1({
+				viewMode,
+				diagramData: null,
+				rawNodes: restoreNodes,
+				rawEdges: restoreEdges,
+				savedRawNodes: [],
+				savedRawEdges: [],
+				clusterLevel: "directory",
+				expandedNodeIds: new Set(),
+				nodes: result$1.nodes,
+				edges: result$1.edges
+			});
+			return;
+		}
+		if (viewMode === "inheritance" || viewMode === "callgraph" || viewMode === "package" || viewMode === "class") {
+			const sourceNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
+			const sourceEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
+			const diagram = assembleDiagram(viewMode, sourceNodes, sourceEdges);
+			if (diagram) {
+				const layer = diagram.layers[0];
+				const layerNodes = layer ? layer.nodes : diagram.allNodes;
+				const layerEdges = layer ? layer.edges : diagram.allEdges;
+				const result$1 = computeClusteredGraph(layerNodes, layerEdges, "function", new Set());
+				set$1({
+					viewMode,
+					diagramData: diagram,
+					currentLayer: 0,
+					clusterLevel: "function",
+					expandedNodeIds: new Set(),
+					nodes: result$1.nodes,
+					edges: result$1.edges
+				});
+				return;
+			}
+		}
+		if (viewMode === "cfg" || viewMode === "flowchart" || viewMode === "sequence") {
+			if (selectedFunction) {
+				set$1({ viewMode });
+				useGraphStore.getState().assembleMicro(viewMode);
+				return;
+			}
+			set$1({
+				viewMode,
+				diagramData: null,
+				nodes: [],
+				edges: []
+			});
+			return;
+		}
 		const result = computeClusteredGraph(rawNodes, rawEdges, clusterLevel, expandedNodeIds);
+		set$1({
+			viewMode,
+			diagramData: null,
+			nodes: result.nodes,
+			edges: result.edges
+		});
+	},
+	setClusterLevel: (clusterLevel) => {
+		const { rawNodes, rawEdges, expandedNodeIds, diagramData, currentLayer } = useGraphStore.getState();
+		let sourceNodes = rawNodes;
+		let sourceEdges = rawEdges;
+		if (diagramData) {
+			const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+			if (layer) {
+				sourceNodes = layer.nodes;
+				sourceEdges = layer.edges;
+			}
+		}
+		const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, expandedNodeIds);
 		set$1({
 			clusterLevel,
 			nodes: result.nodes,
@@ -804,6 +2933,8 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			edges: [],
 			rawNodes: [],
 			rawEdges: [],
+			savedRawNodes: [],
+			savedRawEdges: [],
 			repoId: null,
 			error: null,
 			isLoading: false,
@@ -820,10 +2951,19 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	}),
 	setWatchEnabled: (watchEnabled) => set$1({ watchEnabled }),
 	expandNode: (nodeId) => {
-		const { rawNodes, rawEdges, clusterLevel, expandedNodeIds } = useGraphStore.getState();
+		const { rawNodes, rawEdges, clusterLevel, expandedNodeIds, diagramData, currentLayer } = useGraphStore.getState();
+		let sourceNodes = rawNodes;
+		let sourceEdges = rawEdges;
+		if (diagramData) {
+			const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+			if (layer) {
+				sourceNodes = layer.nodes;
+				sourceEdges = layer.edges;
+			}
+		}
 		const newExpanded = new Set(expandedNodeIds);
 		newExpanded.add(nodeId);
-		const result = computeClusteredGraph(rawNodes, rawEdges, clusterLevel, newExpanded);
+		const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, newExpanded);
 		set$1({
 			expandedNodeIds: newExpanded,
 			nodes: result.nodes,
@@ -831,10 +2971,19 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		});
 	},
 	collapseNode: (nodeId) => {
-		const { rawNodes, rawEdges, clusterLevel, expandedNodeIds } = useGraphStore.getState();
+		const { rawNodes, rawEdges, clusterLevel, expandedNodeIds, diagramData, currentLayer } = useGraphStore.getState();
+		let sourceNodes = rawNodes;
+		let sourceEdges = rawEdges;
+		if (diagramData) {
+			const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+			if (layer) {
+				sourceNodes = layer.nodes;
+				sourceEdges = layer.edges;
+			}
+		}
 		const newExpanded = new Set(expandedNodeIds);
 		newExpanded.delete(nodeId);
-		const result = computeClusteredGraph(rawNodes, rawEdges, clusterLevel, newExpanded);
+		const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, newExpanded);
 		set$1({
 			expandedNodeIds: newExpanded,
 			nodes: result.nodes,
@@ -842,8 +2991,17 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		});
 	},
 	collapseAll: () => {
-		const { rawNodes, rawEdges, clusterLevel } = useGraphStore.getState();
-		const result = computeClusteredGraph(rawNodes, rawEdges, clusterLevel, new Set());
+		const { rawNodes, rawEdges, clusterLevel, diagramData, currentLayer } = useGraphStore.getState();
+		let sourceNodes = rawNodes;
+		let sourceEdges = rawEdges;
+		if (diagramData) {
+			const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+			if (layer) {
+				sourceNodes = layer.nodes;
+				sourceEdges = layer.edges;
+			}
+		}
+		const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, new Set());
 		set$1({
 			expandedNodeIds: new Set(),
 			nodes: result.nodes,
@@ -881,7 +3039,33 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	resetPanelSize: () => set$1({
 		panelHeight: null,
 		panelWidth: null
-	})
+	}),
+	setSelectedFunction: (fn$7) => set$1({ selectedFunction: fn$7 }),
+	assembleMicro: async (viewMode) => {
+		const { selectedFunction, clusterLevel, expandedNodeIds } = useGraphStore.getState();
+		if (!selectedFunction) return;
+		const diagram = await assembleMicroDiagram(viewMode, selectedFunction.filePath, selectedFunction.functionName);
+		if (diagram) {
+			const result = computeClusteredGraph(diagram.nodes, diagram.edges, clusterLevel, expandedNodeIds);
+			set$1({
+				diagramData: null,
+				nodes: result.nodes,
+				edges: result.edges
+			});
+		}
+	},
+	setLayer: (layer) => {
+		const { diagramData, clusterLevel, expandedNodeIds } = useGraphStore.getState();
+		if (!diagramData || layer < 0 || layer >= diagramData.layers.length) return;
+		const layerData = diagramData.layers[layer];
+		if (!layerData) return;
+		const result = computeClusteredGraph(layerData.nodes, layerData.edges, clusterLevel, expandedNodeIds);
+		set$1({
+			currentLayer: layer,
+			nodes: result.nodes,
+			edges: result.edges
+		});
+	}
 }), {
 	name: "dsh-codegraph-visualizer/ui",
 	version: 5,
@@ -40580,17 +42764,21 @@ function buildStylesheet(theme, nodeCount = 0) {
 		{
 			selector: "edge[type=\"extend\"]",
 			style: {
-				"line-color": c.edgeExtend,
-				"target-arrow-color": c.edgeExtend,
-				"line-style": "solid"
+				"line-color": inhExtend,
+				"target-arrow-color": inhExtend,
+				"target-arrow-shape": "triangle-tee",
+				"line-style": "solid",
+				"width": 2
 			}
 		},
 		{
 			selector: "edge[type=\"implement\"]",
 			style: {
-				"line-color": c.edgeImplement,
-				"target-arrow-color": c.edgeImplement,
-				"line-style": "dotted"
+				"line-color": inhImplement,
+				"target-arrow-color": inhImplement,
+				"target-arrow-shape": "triangle-tee",
+				"line-style": "dashed",
+				"width": 2
 			}
 		},
 		{
@@ -40920,6 +43108,831 @@ function buildStylesheet(theme, nodeCount = 0) {
 				"border-color": warningColor,
 				"z-index": 28
 			}
+		},
+		{
+			selector: "node[isRoot=\"true\"]",
+			style: {
+				"border-width": 3,
+				"border-color": accentColor,
+				"font-weight": "bold",
+				"z-index": 15
+			}
+		},
+		{
+			selector: "node[isEntry=\"true\"]",
+			style: {
+				"border-width": 3,
+				"border-color": successColor,
+				"font-weight": "bold",
+				"z-index": 15
+			}
+		},
+		{
+			selector: "node[isRecursive=\"true\"]",
+			style: {
+				"border-width": 3,
+				"border-color": errorColor,
+				"border-style": "double"
+			}
+		},
+		{
+			selector: "node[entryType=\"handler\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": successColor
+			}
+		},
+		{
+			selector: "node[entryType=\"test\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": warningColor
+			}
+		},
+		{
+			selector: "node[entryType=\"export\"]",
+			style: {
+				"border-style": "double",
+				"border-width": 3
+			}
+		},
+		{
+			selector: "edge[type=\"extend\"][lineStyle=\"uml\"]",
+			style: {
+				"target-arrow-shape": "triangle-tee",
+				"line-style": "solid",
+				"width": 2
+			}
+		},
+		{
+			selector: "edge[type=\"implement\"][lineStyle=\"uml\"]",
+			style: {
+				"target-arrow-shape": "triangle-tee",
+				"line-style": "dashed",
+				"width": 2
+			}
+		},
+		{
+			selector: "node[isPackage=\"true\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": readCssVar("--cg-node-package", isDark ? "#6366f1" : "#263148"),
+				"border-width": 2,
+				"border-color": readCssVar("--cg-package-border", isDark ? "#818cf8" : "#1a2230"),
+				"label": "data(label)",
+				"font-size": "11px",
+				"font-weight": "bold",
+				"color": c.text,
+				"text-valign": "center",
+				"text-halign": "center",
+				"text-wrap": "wrap",
+				"text-max-width": "80px",
+				"width": "mapData(childCount, 1, 50, 30, 60)",
+				"height": "mapData(childCount, 1, 50, 30, 60)",
+				"z-index": 10
+			}
+		},
+		{
+			selector: "node[isPackage=\"true\"].hovered",
+			style: {
+				"border-width": 4,
+				"border-color": hoverBorder
+			}
+		},
+		{
+			selector: "edge[isPackageEdge=\"true\"]",
+			style: {
+				"width": "mapData(aggregatedCount, 1, 50, 1.5, 5)",
+				"line-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : "#263148"),
+				"target-arrow-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : "#263148"),
+				"target-arrow-shape": "vee",
+				"line-style": "dashed",
+				"curve-style": "bezier",
+				"label": "data(label)",
+				"font-size": "9px",
+				"color": c.text,
+				"text-rotation": "autorotate",
+				"text-background-color": clusterEdgeLabelBg,
+				"text-background-opacity": .85,
+				"text-background-padding": "2px",
+				"text-background-shape": "roundrectangle",
+				"opacity": .8
+			}
+		},
+		{
+			selector: "node[isAbstract=\"true\"]",
+			style: {
+				"border-style": "double",
+				"border-width": 3,
+				"font-style": "italic"
+			}
+		},
+		{
+			selector: "node[methodCount]",
+			style: {
+				"shape": "rectangle",
+				"label": "data(label)",
+				"font-size": "10px",
+				"text-wrap": "wrap",
+				"text-max-width": "100px",
+				"width": "mapData(methodCount, 0, 20, 40, 80)",
+				"height": "mapData(methodCount, 0, 20, 30, 60)"
+			}
+		},
+		{
+			selector: "node[isRoot=\"true\"][parentCount=\"0\"]",
+			style: {
+				"border-width": 3,
+				"border-color": accentColor,
+				"font-weight": "bold"
+			}
+		},
+		{
+			selector: "node[blockType=\"entry\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": successColor,
+				"border-width": 3,
+				"border-color": successColor,
+				"font-weight": "bold",
+				"label": "data(label)",
+				"text-valign": "center",
+				"text-halign": "center"
+			}
+		},
+		{
+			selector: "node[blockType=\"exit\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": errorColor,
+				"border-width": 3,
+				"border-color": errorColor,
+				"font-weight": "bold",
+				"label": "data(label)",
+				"text-valign": "center",
+				"text-halign": "center"
+			}
+		},
+		{
+			selector: "node[blockType=\"condition\"]",
+			style: {
+				"shape": "diamond",
+				"background-color": warningColor,
+				"border-width": 2,
+				"border-color": warningColor,
+				"label": "data(label)",
+				"text-valign": "center",
+				"text-halign": "center",
+				"text-wrap": "wrap",
+				"text-max-width": "60px"
+			}
+		},
+		{
+			selector: "node[blockType=\"loop\"]",
+			style: {
+				"shape": "diamond",
+				"background-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
+				"border-width": 2,
+				"border-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
+				"label": "data(label)",
+				"text-valign": "center",
+				"text-halign": "center",
+				"text-wrap": "wrap",
+				"text-max-width": "60px"
+			}
+		},
+		{
+			selector: "node[blockType=\"switch\"]",
+			style: {
+				"shape": "diamond",
+				"background-color": readCssVar("--cg-cfg-switch", isDark ? "#f472b6" : "#ec4899"),
+				"border-width": 2,
+				"border-color": readCssVar("--cg-cfg-switch", isDark ? "#f472b6" : "#ec4899"),
+				"label": "data(label)",
+				"text-valign": "center",
+				"text-halign": "center"
+			}
+		},
+		{
+			selector: "node[blockType=\"try\"]",
+			style: {
+				"shape": "rectangle",
+				"background-color": readCssVar("--cg-cfg-try", isDark ? "#60a5fa" : "#3b82f6"),
+				"border-width": 2,
+				"border-color": readCssVar("--cg-cfg-try", isDark ? "#60a5fa" : "#3b82f6"),
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[blockType=\"catch\"]",
+			style: {
+				"shape": "rectangle",
+				"background-color": errorColor,
+				"border-width": 2,
+				"border-color": errorColor,
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[blockType=\"finally\"]",
+			style: {
+				"shape": "rectangle",
+				"background-color": readCssVar("--cg-cfg-finally", isDark ? "#34d399" : "#10b981"),
+				"border-width": 2,
+				"border-color": readCssVar("--cg-cfg-finally", isDark ? "#34d399" : "#10b981"),
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[blockType=\"process\"]",
+			style: {
+				"shape": "rectangle",
+				"background-color": readCssVar("--cg-cfg-process", isDark ? "#60a5fa" : "#3b82f6"),
+				"border-width": 1.5,
+				"border-color": c.border,
+				"label": "data(label)",
+				"text-valign": "center",
+				"text-halign": "center",
+				"text-wrap": "wrap",
+				"text-max-width": "80px"
+			}
+		},
+		{
+			selector: "edge[cfgEdgeType=\"fallthrough\"]",
+			style: {
+				"line-color": c.edgeDefault,
+				"target-arrow-color": c.edgeDefault,
+				"line-style": "solid",
+				"width": 1.5
+			}
+		},
+		{
+			selector: "edge[cfgEdgeType=\"true\"]",
+			style: {
+				"line-color": successColor,
+				"target-arrow-color": successColor,
+				"line-style": "solid",
+				"width": 2,
+				"label": "data(label)",
+				"font-size": "9px",
+				"text-background-color": clusterEdgeLabelBg,
+				"text-background-opacity": .85,
+				"text-background-padding": "1px",
+				"text-background-shape": "roundrectangle"
+			}
+		},
+		{
+			selector: "edge[cfgEdgeType=\"false\"]",
+			style: {
+				"line-color": errorColor,
+				"target-arrow-color": errorColor,
+				"line-style": "solid",
+				"width": 2,
+				"label": "data(label)",
+				"font-size": "9px",
+				"text-background-color": clusterEdgeLabelBg,
+				"text-background-opacity": .85,
+				"text-background-padding": "1px",
+				"text-background-shape": "roundrectangle"
+			}
+		},
+		{
+			selector: "edge[cfgEdgeType=\"loop-back\"]",
+			style: {
+				"line-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
+				"target-arrow-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
+				"line-style": "dashed",
+				"width": 2,
+				"curve-style": "bezier"
+			}
+		},
+		{
+			selector: "edge[cfgEdgeType=\"exception\"]",
+			style: {
+				"line-color": warningColor,
+				"target-arrow-color": warningColor,
+				"line-style": "dashed",
+				"width": 2
+			}
+		},
+		{
+			selector: "edge[cfgEdgeType=\"case\"]",
+			style: {
+				"line-color": readCssVar("--cg-cfg-switch", isDark ? "#f472b6" : "#ec4899"),
+				"target-arrow-color": readCssVar("--cg-cfg-switch", isDark ? "#f472b6" : "#ec4899"),
+				"line-style": "solid",
+				"label": "data(label)",
+				"font-size": "9px"
+			}
+		},
+		{
+			selector: "edge[cfgEdgeType=\"default\"]",
+			style: {
+				"line-color": c.edgeDefault,
+				"target-arrow-color": c.edgeDefault,
+				"line-style": "dotted",
+				"label": "data(label)",
+				"font-size": "9px"
+			}
+		},
+		{
+			selector: "node[flowchartNodeType=\"start\"]",
+			style: {
+				"shape": "ellipse",
+				"background-color": successColor,
+				"border-width": 3,
+				"border-color": successColor,
+				"font-weight": "bold",
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[flowchartNodeType=\"end\"]",
+			style: {
+				"shape": "ellipse",
+				"background-color": errorColor,
+				"border-width": 3,
+				"border-color": errorColor,
+				"font-weight": "bold",
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[flowchartNodeType=\"decision\"]",
+			style: {
+				"shape": "diamond",
+				"background-color": warningColor,
+				"border-width": 2,
+				"border-color": warningColor,
+				"label": "data(label)",
+				"text-wrap": "wrap",
+				"text-max-width": "60px"
+			}
+		},
+		{
+			selector: "node[flowchartNodeType=\"loop\"]",
+			style: {
+				"shape": "hexagon",
+				"background-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
+				"border-width": 2,
+				"border-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
+				"label": "data(label)",
+				"text-wrap": "wrap",
+				"text-max-width": "60px"
+			}
+		},
+		{
+			selector: "node[flowchartNodeType=\"subprocess\"]",
+			style: {
+				"shape": "rectangle",
+				"background-color": readCssVar("--cg-cfg-subprocess", isDark ? "#fbbf24" : "#f59e0b"),
+				"border-width": 3,
+				"border-style": "double",
+				"border-color": readCssVar("--cg-cfg-subprocess", isDark ? "#fbbf24" : "#f59e0b"),
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[flowchartNodeType=\"error\"]",
+			style: {
+				"shape": "rectangle",
+				"background-color": errorColor,
+				"border-width": 2,
+				"border-color": errorColor,
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[flowchartNodeType=\"process\"]",
+			style: {
+				"shape": "rectangle",
+				"background-color": readCssVar("--cg-cfg-process", isDark ? "#60a5fa" : "#3b82f6"),
+				"border-width": 1.5,
+				"border-color": c.border,
+				"label": "data(label)",
+				"text-wrap": "wrap",
+				"text-max-width": "80px"
+			}
+		},
+		{
+			selector: "edge[flowchartEdgeType=\"normal\"]",
+			style: {
+				"line-color": c.edgeDefault,
+				"target-arrow-color": c.edgeDefault,
+				"line-style": "solid",
+				"width": 1.5
+			}
+		},
+		{
+			selector: "edge[flowchartEdgeType=\"yes\"]",
+			style: {
+				"line-color": successColor,
+				"target-arrow-color": successColor,
+				"line-style": "solid",
+				"width": 2,
+				"label": "data(label)",
+				"font-size": "9px"
+			}
+		},
+		{
+			selector: "edge[flowchartEdgeType=\"no\"]",
+			style: {
+				"line-color": errorColor,
+				"target-arrow-color": errorColor,
+				"line-style": "solid",
+				"width": 2,
+				"label": "data(label)",
+				"font-size": "9px"
+			}
+		},
+		{
+			selector: "edge[flowchartEdgeType=\"loop\"]",
+			style: {
+				"line-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
+				"target-arrow-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
+				"line-style": "dashed",
+				"width": 2
+			}
+		},
+		{
+			selector: "edge[flowchartEdgeType=\"error\"]",
+			style: {
+				"line-color": errorColor,
+				"target-arrow-color": errorColor,
+				"line-style": "dashed",
+				"width": 2
+			}
+		},
+		{
+			selector: "node[participantType=\"self\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": accentColor,
+				"border-width": 2,
+				"border-color": accentColor,
+				"font-weight": "bold",
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[participantType=\"class\"]",
+			style: {
+				"shape": "rectangle",
+				"background-color": c.nodeClass,
+				"border-width": 2,
+				"border-color": c.nodeClass,
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[participantType=\"external\"]",
+			style: {
+				"shape": "rectangle",
+				"background-color": readCssVar("--cg-seq-external", isDark ? "#ec4899" : "#db2777"),
+				"border-width": 2,
+				"border-color": readCssVar("--cg-seq-external", isDark ? "#ec4899" : "#db2777"),
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[participantType=\"instance\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": c.nodeFunction,
+				"border-width": 1.5,
+				"border-color": c.nodeFunction,
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[isFragment=\"true\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": "rgba(0,0,0,0.03)",
+				"border-width": 2,
+				"border-color": readCssVar("--cg-seq-fragment", isDark ? "#818cf8" : "#263148"),
+				"border-style": "dashed",
+				"label": "data(label)",
+				"font-size": "9px",
+				"font-weight": "bold",
+				"color": c.text,
+				"text-valign": "top",
+				"text-halign": "left",
+				"text-wrap": "wrap",
+				"text-max-width": "100px",
+				"width": 40,
+				"height": 20,
+				"z-index": 5
+			}
+		},
+		{
+			selector: "node[fragmentType=\"alt\"]",
+			style: { "border-color": warningColor }
+		},
+		{
+			selector: "node[fragmentType=\"loop\"]",
+			style: { "border-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed") }
+		},
+		{
+			selector: "node[fragmentType=\"break\"]",
+			style: {
+				"border-color": errorColor,
+				"border-style": "solid"
+			}
+		},
+		{
+			selector: "node[fragmentType=\"critical\"]",
+			style: {
+				"border-width": 3,
+				"border-style": "solid"
+			}
+		},
+		{
+			selector: "edge[isAsync=\"true\"]",
+			style: {
+				"line-style": "dashed",
+				"line-color": readCssVar("--cg-seq-async", isDark ? "#fbbf24" : "#f59e0b"),
+				"target-arrow-color": readCssVar("--cg-seq-async", isDark ? "#fbbf24" : "#f59e0b"),
+				"target-arrow-shape": "vee",
+				"label": "data(label)",
+				"font-size": "9px",
+				"text-background-color": clusterEdgeLabelBg,
+				"text-background-opacity": .85,
+				"text-background-padding": "1px",
+				"text-background-shape": "roundrectangle"
+			}
+		},
+		{
+			selector: "edge[isReturn=\"true\"]",
+			style: {
+				"line-style": "dotted",
+				"line-color": c.edgeDefault,
+				"target-arrow-color": c.edgeDefault,
+				"target-arrow-shape": "vee",
+				"label": "data(label)",
+				"font-size": "9px",
+				"text-background-color": clusterEdgeLabelBg,
+				"text-background-opacity": .85,
+				"text-background-padding": "1px",
+				"text-background-shape": "roundrectangle"
+			}
+		},
+		{
+			selector: "edge[isSelfCall=\"true\"]",
+			style: {
+				"curve-style": "bezier",
+				"line-color": accentColor,
+				"target-arrow-color": accentColor,
+				"label": "data(label)",
+				"font-size": "9px",
+				"text-background-color": clusterEdgeLabelBg,
+				"text-background-opacity": .85,
+				"text-background-padding": "1px",
+				"text-background-shape": "roundrectangle"
+			}
+		},
+		{
+			selector: "node[diagramType=\"inheritance\"]",
+			style: {
+				"shape": "rectangle",
+				"label": "data(umlLabel)",
+				"font-size": "10px",
+				"text-valign": "center",
+				"text-halign": "center",
+				"text-wrap": "wrap",
+				"text-max-width": "120px",
+				"width": "mapData(descendantCount, 0, 50, 40, 80)",
+				"height": "mapData(childCount, 0, 20, 30, 60)",
+				"border-width": 2,
+				"border-color": c.border
+			}
+		},
+		{
+			selector: "node[diagramType=\"inheritance\"][type=\"interface\"]",
+			style: {
+				"background-color": c.nodeInterface,
+				"border-style": "solid"
+			}
+		},
+		{
+			selector: "node[diagramType=\"inheritance\"][type=\"class\"]",
+			style: { "background-color": c.nodeClass }
+		},
+		{
+			selector: "node[diagramType=\"inheritance\"][isRoot=\"true\"]",
+			style: {
+				"border-width": 3,
+				"border-color": accentColor,
+				"font-weight": "bold"
+			}
+		},
+		{
+			selector: "node[diagramType=\"inheritance\"][isAbstract=\"true\"]",
+			style: {
+				"border-style": "double",
+				"border-width": 3,
+				"font-style": "italic"
+			}
+		},
+		{
+			selector: "edge[diagramType=\"inheritance\"][type=\"extend\"]",
+			style: {
+				"target-arrow-shape": "triangle-tee",
+				"line-style": "solid",
+				"width": 2,
+				"line-color": inhExtend,
+				"target-arrow-color": inhExtend
+			}
+		},
+		{
+			selector: "edge[diagramType=\"inheritance\"][type=\"implement\"]",
+			style: {
+				"target-arrow-shape": "triangle-tee",
+				"line-style": "dashed",
+				"width": 2,
+				"line-color": inhImplement,
+				"target-arrow-color": inhImplement
+			}
+		},
+		{
+			selector: "node[diagramType=\"class\"]",
+			style: {
+				"shape": "rectangle",
+				"label": "data(umlLabel)",
+				"font-size": "9px",
+				"text-valign": "top",
+				"text-halign": "center",
+				"text-wrap": "wrap",
+				"text-max-width": "140px",
+				"width": "mapData(methodCount, 0, 20, 60, 120)",
+				"height": "mapData(methodCount, 0, 20, 50, 100)",
+				"border-width": 2,
+				"border-color": c.border,
+				"padding": "4px"
+			}
+		},
+		{
+			selector: "node[diagramType=\"class\"][type=\"interface\"]",
+			style: { "background-color": c.nodeInterface }
+		},
+		{
+			selector: "node[diagramType=\"class\"][type=\"class\"]",
+			style: { "background-color": c.nodeClass }
+		},
+		{
+			selector: "node[diagramType=\"class\"][isAbstract=\"true\"]",
+			style: {
+				"border-style": "double",
+				"border-width": 3,
+				"font-style": "italic"
+			}
+		},
+		{
+			selector: "node[diagramType=\"class\"][isRoot=\"true\"]",
+			style: {
+				"border-width": 3,
+				"border-color": accentColor
+			}
+		},
+		{
+			selector: "edge[diagramType=\"class\"][type=\"extend\"]",
+			style: {
+				"target-arrow-shape": "triangle-tee",
+				"line-style": "solid",
+				"width": 2,
+				"line-color": inhExtend,
+				"target-arrow-color": inhExtend
+			}
+		},
+		{
+			selector: "edge[diagramType=\"class\"][type=\"implement\"]",
+			style: {
+				"target-arrow-shape": "triangle-tee",
+				"line-style": "dashed",
+				"width": 2,
+				"line-color": inhImplement,
+				"target-arrow-color": inhImplement
+			}
+		},
+		{
+			selector: "node[diagramType=\"package\"]",
+			style: {
+				"shape": "round-rectangle",
+				"label": "data(umlLabel)",
+				"font-size": "10px",
+				"font-weight": "bold",
+				"color": c.text,
+				"text-valign": "top",
+				"text-halign": "center",
+				"text-wrap": "wrap",
+				"text-max-width": "100px",
+				"background-color": readCssVar("--cg-node-package", isDark ? "#6366f1" : "#263148"),
+				"border-width": 2,
+				"border-color": readCssVar("--cg-package-border", isDark ? "#818cf8" : "#1a2230"),
+				"border-style": "solid",
+				"width": "mapData(childCount, 1, 50, 50, 100)",
+				"height": "mapData(childCount, 1, 50, 40, 80)",
+				"z-index": 10
+			}
+		},
+		{
+			selector: "node[diagramType=\"package\"][isRoot=\"true\"]",
+			style: {
+				"border-width": 3,
+				"border-color": accentColor
+			}
+		},
+		{
+			selector: "node[diagramType=\"package\"].hovered",
+			style: {
+				"border-width": 4,
+				"border-color": hoverBorder
+			}
+		},
+		{
+			selector: "edge[diagramType=\"package\"]",
+			style: {
+				"width": "mapData(aggregatedCount, 1, 50, 1.5, 5)",
+				"line-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : "#263148"),
+				"target-arrow-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : "#263148"),
+				"target-arrow-shape": "vee",
+				"line-style": "dashed",
+				"curve-style": "bezier",
+				"label": "data(label)",
+				"font-size": "9px",
+				"color": c.text,
+				"text-rotation": "autorotate",
+				"text-background-color": clusterEdgeLabelBg,
+				"text-background-opacity": .85,
+				"text-background-padding": "2px",
+				"text-background-shape": "roundrectangle",
+				"opacity": .8
+			}
+		},
+		{
+			selector: "node[diagramType=\"callgraph\"]",
+			style: {
+				"shape": "round-rectangle",
+				"label": "data(umlLabel)",
+				"font-size": "10px",
+				"text-valign": "center",
+				"text-halign": "center",
+				"text-wrap": "wrap",
+				"text-max-width": "100px",
+				"width": "mapData(outDegree, 0, 20, 30, 60)",
+				"height": "mapData(outDegree, 0, 20, 25, 50)",
+				"border-width": 2,
+				"border-color": c.border
+			}
+		},
+		{
+			selector: "node[diagramType=\"callgraph\"][isEntry=\"true\"]",
+			style: {
+				"border-width": 3,
+				"border-color": successColor,
+				"font-weight": "bold",
+				"background-color": successColor
+			}
+		},
+		{
+			selector: "node[diagramType=\"callgraph\"][entryType=\"handler\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": successColor
+			}
+		},
+		{
+			selector: "node[diagramType=\"callgraph\"][entryType=\"test\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": warningColor
+			}
+		},
+		{
+			selector: "node[diagramType=\"callgraph\"][entryType=\"export\"]",
+			style: {
+				"border-style": "double",
+				"border-width": 3
+			}
+		},
+		{
+			selector: "node[diagramType=\"callgraph\"][isRecursive=\"true\"]",
+			style: {
+				"border-width": 3,
+				"border-color": errorColor,
+				"border-style": "double"
+			}
+		},
+		{
+			selector: "edge[diagramType=\"callgraph\"]",
+			style: {
+				"line-color": c.edgeCall,
+				"target-arrow-color": c.edgeCall,
+				"target-arrow-shape": "triangle",
+				"line-style": "solid",
+				"width": 1.5,
+				"curve-style": "bezier"
+			}
 		}
 	];
 }
@@ -40956,11 +43969,36 @@ var DataController = class {
 			const clusterNode = n;
 			for (const childId of clusterNode.childIds) this.rawToVisibleMap.set(childId, n.id);
 		} else this.rawToVisibleMap.set(n.id, n.id);
+		const cyNodeCount = this.cy.nodes().length;
+		const cyEdgeCount = this.cy.edges().length;
 		const hasNewNodes = nodes.some((n) => !this.currentNodes.has(n.id));
-		const hasStaleNodes = this.currentNodes.size !== nodes.length || [...this.currentNodes.keys()].some((id) => !newNodeIds.has(id));
+		const hasStaleNodes = cyNodeCount !== nodes.length || [...this.currentNodes.keys()].some((id) => !newNodeIds.has(id));
 		const hasNewEdges = edges.some((e) => !this.currentEdges.has(e.id));
-		const hasStaleEdges = this.currentEdges.size !== edges.length || [...this.currentEdges.keys()].some((id) => !newEdgeIds.has(id));
-		if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges) return;
+		const hasStaleEdges = cyEdgeCount !== edges.length || [...this.currentEdges.keys()].some((id) => !newEdgeIds.has(id));
+		const hasUpdatedNodes = nodes.some((n) => {
+			const existing = this.currentNodes.get(n.id);
+			if (!existing) return false;
+			const oldKeys = Object.keys(existing.properties ?? {});
+			const newKeys = Object.keys(n.properties ?? {});
+			if (oldKeys.length !== newKeys.length) return true;
+			return newKeys.some((k) => n.properties?.[k] !== existing.properties?.[k]);
+		});
+		if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges && !hasUpdatedNodes) return;
+		const needsFullReset = hasStaleNodes || hasUpdatedNodes;
+		if (needsFullReset) {
+			this.cy.elements().remove();
+			this.currentNodes.clear();
+			this.currentEdges.clear();
+			this.lastAddedNodeIds.clear();
+			this.cy.batch(() => {
+				for (const n of nodes) {
+					this.addNode(n);
+					this.lastAddedNodeIds.add(n.id);
+				}
+				for (const e of edges) this.addEdge(e);
+			});
+			return;
+		}
 		const nodesToAdd = [];
 		const edgesToAdd = [];
 		if (hasStaleNodes) {
@@ -40977,11 +44015,15 @@ var DataController = class {
 			if (!this.currentNodes.has(n.id)) {
 				nodesToAdd.push(n);
 				this.lastAddedNodeIds.add(n.id);
-			}
+			} else this.updateNodeData(n);
 			this.currentNodes.set(n.id, n);
 		}
 		for (const e of edges) {
 			if (!this.currentEdges.has(e.id)) edgesToAdd.push(e);
+			else {
+				const cyEdge = this.cy.getElementById(e.id);
+				if (cyEdge.length > 0 && e.properties) for (const [key, value] of Object.entries(e.properties)) cyEdge.data(key, value);
+			}
 			this.currentEdges.set(e.id, e);
 		}
 		if (nodesToAdd.length === 0 && edgesToAdd.length === 0) return;
@@ -41009,6 +44051,11 @@ var DataController = class {
 		};
 		this.processBatchQueue();
 	}
+	updateNodeData(n) {
+		const cyNode = this.cy.getElementById(n.id);
+		if (cyNode.length === 0) return;
+		if (n.properties) for (const [key, value] of Object.entries(n.properties)) cyNode.data(key, value);
+	}
 	addNode(n) {
 		const isCluster = "isCluster" in n && n.isCluster === true;
 		const data$2 = {
@@ -41017,11 +44064,11 @@ var DataController = class {
 			type: n.type,
 			filePath: n.filePath,
 			lineNumber: n.lineNumber,
-			parent: n.parentId ?? void 0,
+			parent: n.parentId,
 			isCluster,
 			childCount: isCluster ? n.childCount : 0
 		};
-		if (n.properties?.depType) data$2.depType = n.properties.depType;
+		if (n.properties) for (const [key, value] of Object.entries(n.properties)) data$2[key] = value;
 		this.cy.add({
 			group: "nodes",
 			data: data$2
@@ -41039,7 +44086,7 @@ var DataController = class {
 			aggregatedCount: ce?.aggregatedCount ?? 0,
 			label: isCluster ? `${ce?.aggregatedCount ?? 0} deps` : ""
 		};
-		if (e.properties?.scope) data$2.scope = e.properties.scope;
+		if (e.properties) for (const [key, value] of Object.entries(e.properties)) data$2[key] = value;
 		this.cy.add({
 			group: "edges",
 			data: data$2
@@ -42524,6 +45571,7 @@ const en = {
 	"detail.doubleClickExpand": "Double-click to expand related nodes",
 	"detail.expanded": "Expanded",
 	"detail.collapse": "Collapse",
+	"detail.microViews": "Micro views",
 	"minimap.title": "Overview",
 	"minimap.close": "Close mini-map",
 	"minimap.functions": "Functions",
@@ -42675,7 +45723,26 @@ const en = {
 	"toolbar.undo": "Undo (Ctrl+Z)",
 	"toolbar.redo": "Redo (Ctrl+Y)",
 	"toolbar.viewModeDeps": "Switch to dependency graph view",
-	"toolbar.viewModeCode": "Switch to code graph view"
+	"toolbar.viewModeCode": "Switch to code graph view",
+	"toolbar.viewModeInheritance": "Switch to inheritance tree view",
+	"toolbar.viewModeCallgraph": "Switch to call graph view",
+	"toolbar.viewModePackage": "Switch to package/component diagram view",
+	"toolbar.viewModeClass": "Switch to class diagram view",
+	"toolbar.viewModeCfg": "Switch to control flow graph view",
+	"toolbar.viewModeFlowchart": "Switch to flowchart view",
+	"toolbar.viewModeSequence": "Switch to sequence diagram view",
+	"viewMode.code": "Code",
+	"viewMode.dependencies": "Deps",
+	"viewMode.inheritance": "Inherit",
+	"viewMode.callgraph": "Call",
+	"viewMode.package": "Pkg",
+	"viewMode.class": "Class",
+	"viewMode.cfg": "CFG",
+	"viewMode.flowchart": "Flow",
+	"viewMode.sequence": "Seq",
+	"micro.selectFunctionPrompt": "Please select a function node in the code graph first, then switch to this view",
+	"micro.selectedFunction": "Current function: {name}",
+	"micro.clearSelection": "Clear selection"
 };
 
 //#endregion
@@ -42748,6 +45815,7 @@ const zh = {
 	"detail.doubleClickExpand": "双击展开相关节点",
 	"detail.expanded": "已展开",
 	"detail.collapse": "收起",
+	"detail.microViews": "微观图谱",
 	"minimap.title": "概览",
 	"minimap.close": "关闭缩略图",
 	"minimap.functions": "函数",
@@ -42899,7 +45967,26 @@ const zh = {
 	"toolbar.undo": "撤销 (Ctrl+Z)",
 	"toolbar.redo": "重做 (Ctrl+Y)",
 	"toolbar.viewModeDeps": "切换到依赖图谱视图",
-	"toolbar.viewModeCode": "切换到代码图谱视图"
+	"toolbar.viewModeCode": "切换到代码图谱视图",
+	"toolbar.viewModeInheritance": "切换到继承树视图",
+	"toolbar.viewModeCallgraph": "切换到调用图视图",
+	"toolbar.viewModePackage": "切换到组件/包图视图",
+	"toolbar.viewModeClass": "切换到类图视图",
+	"toolbar.viewModeCfg": "切换到控制流图视图",
+	"toolbar.viewModeFlowchart": "切换到流程图视图",
+	"toolbar.viewModeSequence": "切换到时序图视图",
+	"viewMode.code": "代码",
+	"viewMode.dependencies": "依赖",
+	"viewMode.inheritance": "继承",
+	"viewMode.callgraph": "调用",
+	"viewMode.package": "包",
+	"viewMode.class": "类图",
+	"viewMode.cfg": "CFG",
+	"viewMode.flowchart": "流程",
+	"viewMode.sequence": "时序",
+	"micro.selectFunctionPrompt": "请先在代码图谱中选择一个函数节点，然后切换到此视图",
+	"micro.selectedFunction": "当前函数: {name}",
+	"micro.clearSelection": "清除选择"
 };
 
 //#endregion
@@ -44055,6 +47142,46 @@ const GRAPH_TYPES = [
 		key: "graphType.dependency"
 	}
 ];
+const MACRO_VIEW_MODES = [
+	{
+		value: "code",
+		key: "viewMode.code"
+	},
+	{
+		value: "dependencies",
+		key: "viewMode.dependencies"
+	},
+	{
+		value: "inheritance",
+		key: "viewMode.inheritance"
+	},
+	{
+		value: "callgraph",
+		key: "viewMode.callgraph"
+	},
+	{
+		value: "package",
+		key: "viewMode.package"
+	},
+	{
+		value: "class",
+		key: "viewMode.class"
+	}
+];
+const MICRO_VIEW_MODES = [
+	{
+		value: "cfg",
+		key: "viewMode.cfg"
+	},
+	{
+		value: "flowchart",
+		key: "viewMode.flowchart"
+	},
+	{
+		value: "sequence",
+		key: "viewMode.sequence"
+	}
+];
 const CLUSTER_LEVELS = [
 	{
 		value: "directory",
@@ -44091,7 +47218,7 @@ function Toolbar(props) {
 		onExport(format);
 		setShowExportMenu(false);
 	}, [onExport]);
-	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterLevel, viewMode, collapsed, panelControls, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange, onToggleViewMode, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll, onUndo, onRedo, canUndo, canRedo } = props;
+	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterLevel, viewMode, collapsed, panelControls, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange, onViewModeChange, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll, onUndo, onRedo, canUndo, canRedo } = props;
 	const { showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport, showPathFind, showHealthScore, showRules, showHotspot, showGodModule, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule } = panelControls;
 	return /* @__PURE__ */ jsxs("div", {
 		className: "graph-toolbar",
@@ -44157,12 +47284,30 @@ function Toolbar(props) {
 							children: t$1(g.key)
 						}, g.value))
 					}),
-					/* @__PURE__ */ jsx("button", {
-						className: `view-mode-btn ${viewMode === "dependencies" ? "active" : ""}`,
-						onClick: onToggleViewMode,
-						title: viewMode === "code" ? t$1("toolbar.viewModeDeps") : t$1("toolbar.viewModeCode"),
-						"aria-pressed": viewMode === "dependencies",
-						children: viewMode === "code" ? "Deps" : "Code"
+					/* @__PURE__ */ jsxs("div", {
+						className: "view-mode-buttons",
+						role: "group",
+						"aria-label": t$1("toolbar.graphType"),
+						children: [
+							MACRO_VIEW_MODES.map((m) => /* @__PURE__ */ jsx("button", {
+								className: `view-mode-btn ${viewMode === m.value ? "active" : ""}`,
+								onClick: () => onViewModeChange(m.value),
+								title: t$1(`toolbar.viewMode${m.value.charAt(0).toUpperCase() + m.value.slice(1)}`),
+								"aria-pressed": viewMode === m.value,
+								children: t$1(m.key)
+							}, m.value)),
+							/* @__PURE__ */ jsx("span", {
+								className: "view-mode-divider",
+								"aria-hidden": "true"
+							}),
+							MICRO_VIEW_MODES.map((m) => /* @__PURE__ */ jsx("button", {
+								className: `view-mode-btn view-mode-btn--micro ${viewMode === m.value ? "active" : ""}`,
+								onClick: () => onViewModeChange(m.value),
+								title: t$1(`toolbar.viewMode${m.value.charAt(0).toUpperCase() + m.value.slice(1)}`),
+								"aria-pressed": viewMode === m.value,
+								children: t$1(m.key)
+							}, m.value))
+						]
 					}),
 					/* @__PURE__ */ jsx("select", {
 						value: clusterLevel,
@@ -44538,7 +47683,7 @@ const EXPANDABLE_TYPES = new Set([
 	"class",
 	"interface"
 ]);
-function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse }) {
+function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, onSelectFunction }) {
 	const t$1 = useT();
 	const icon = TYPE_ICONS[node.type] ?? "?";
 	const color = TYPE_COLORS[node.type] ?? "var(--cg-accent)";
@@ -44669,6 +47814,32 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse }) 
 					onClick: onCollapse,
 					className: "detail-collapse-btn",
 					children: t$1("detail.collapse")
+				})]
+			}),
+			node.type === "function" && onSelectFunction && /* @__PURE__ */ jsxs("div", {
+				className: "detail-micro-actions",
+				children: [/* @__PURE__ */ jsx("div", {
+					className: "detail-section-title",
+					children: t$1("detail.microViews")
+				}), /* @__PURE__ */ jsxs("div", {
+					className: "detail-micro-btns",
+					children: [
+						/* @__PURE__ */ jsx("button", {
+							className: "detail-micro-btn",
+							onClick: () => onSelectFunction(node, "cfg"),
+							children: "CFG"
+						}),
+						/* @__PURE__ */ jsx("button", {
+							className: "detail-micro-btn",
+							onClick: () => onSelectFunction(node, "flowchart"),
+							children: t$1("viewMode.flowchart")
+						}),
+						/* @__PURE__ */ jsx("button", {
+							className: "detail-micro-btn",
+							onClick: () => onSelectFunction(node, "sequence"),
+							children: t$1("viewMode.sequence")
+						})
+					]
 				})]
 			}),
 			extraProps.length > 0 && /* @__PURE__ */ jsxs("div", {
@@ -46366,6 +49537,635 @@ async function requestWatch(enabled, path) {
 }
 
 //#endregion
+//#region src/client/renderer/SequenceDiagramRenderer.tsx
+const LAYOUT = {
+	PARTICIPANT_BOX_WIDTH: 140,
+	PARTICIPANT_BOX_HEIGHT: 36,
+	PARTICIPANT_GAP: 40,
+	LIFELINE_TOP_OFFSET: 50,
+	MESSAGE_HEIGHT: 44,
+	MESSAGE_LABEL_HEIGHT: 16,
+	ACTIVATION_WIDTH: 10,
+	ARROW_HEAD_SIZE: 8,
+	SELF_CALL_WIDTH: 30,
+	SELF_CALL_HEIGHT: 24,
+	FRAGMENT_LABEL_HEIGHT: 22,
+	FRAGMENT_PADDING: 8,
+	SVG_PADDING_X: 20,
+	SVG_PADDING_TOP: 10,
+	MIN_LIFELINE_EXTENSION: 40
+};
+function extractParticipants(nodes) {
+	return nodes.filter((n) => n.properties["participantType"] && !n.properties["isFragment"]).map((n) => ({
+		id: n.id,
+		name: n.label,
+		type: n.properties["participantType"],
+		className: n.properties["className"],
+		lifelineStart: n.properties["lifelineStart"],
+		lifelineEnd: n.properties["lifelineEnd"],
+		isCreated: n.properties["isCreated"],
+		isDestroyed: n.properties["isDestroyed"],
+		x: 0
+	})).sort((a, b) => a.lifelineStart - b.lifelineStart);
+}
+function extractMessages(edges) {
+	return edges.filter((e) => e.properties["sequenceNumber"] !== void 0).map((e) => ({
+		id: e.id,
+		sequenceNumber: e.properties["sequenceNumber"],
+		source: e.source,
+		target: e.target,
+		methodName: e.properties["methodName"],
+		arguments: e.properties["arguments"] ?? [],
+		isAsync: e.properties["isAsync"],
+		isSelfCall: e.properties["isSelfCall"],
+		isReturn: e.properties["isReturn"],
+		isCreate: e.properties["isCreate"],
+		lineNumber: e.properties["lineNumber"],
+		y: 0
+	})).sort((a, b) => a.sequenceNumber - b.sequenceNumber);
+}
+function extractFragments(nodes) {
+	return nodes.filter((n) => n.properties["isFragment"]).map((n) => ({
+		id: n.id,
+		type: n.properties["fragmentType"],
+		condition: n.properties["condition"],
+		loopConstraint: n.properties["loopConstraint"],
+		startMessage: n.properties["startMessage"],
+		endMessage: n.properties["endMessage"],
+		operands: n.properties["operands"] ?? []
+	}));
+}
+function getParticipantColor(type) {
+	switch (type) {
+		case "class": return "#4a90d9";
+		case "module": return "#7b68ee";
+		case "external": return "#e8a838";
+		case "instance": return "#5cb85c";
+		case "callback": return "#d9534f";
+		case "self": return "#9b59b6";
+		default: return "#888888";
+	}
+}
+function formatArguments(args) {
+	if (!args || args.length === 0) return "";
+	if (args.length <= 2) return `(${args.join(", ")})`;
+	return `(${args.slice(0, 2).join(", ")}, +${args.length - 2})`;
+}
+function truncateLabel(text, maxWidth) {
+	const charWidth = 7;
+	const maxChars = Math.floor(maxWidth / charWidth);
+	if (text.length <= maxChars) return text;
+	return text.slice(0, maxChars - 3) + "...";
+}
+const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
+	const svgRef = useRef(null);
+	const containerRef = useRef(null);
+	const [zoom, setZoom] = useState(1);
+	const [pan, setPan] = useState({
+		x: 0,
+		y: 0
+	});
+	const isDraggingRef = useRef(false);
+	const dragStartRef = useRef({
+		x: 0,
+		y: 0,
+		panX: 0,
+		panY: 0
+	});
+	const isDark = theme === "dark";
+	const colors$1 = useMemo(() => ({
+		bg: isDark ? "#1e1e2e" : "#ffffff",
+		text: isDark ? "#e0e0e0" : "#333333",
+		textSecondary: isDark ? "#a0a0b0" : "#666666",
+		lifeline: isDark ? "#555570" : "#aaaaaa",
+		lifelineDashed: isDark ? "#444460" : "#bbbbbb",
+		activation: isDark ? "#6677aa" : "#4a90d9",
+		activationBorder: isDark ? "#8899cc" : "#357abd",
+		syncArrow: isDark ? "#e0e0e0" : "#333333",
+		asyncArrow: isDark ? "#88cc88" : "#5cb85c",
+		returnArrow: isDark ? "#cc8888" : "#d9534f",
+		selfCallArrow: isDark ? "#cc88cc" : "#9b59b6",
+		createArrow: isDark ? "#88aacc" : "#4a90d9",
+		fragmentBg: isDark ? "rgba(100,100,140,0.15)" : "rgba(200,200,240,0.2)",
+		fragmentBorder: isDark ? "#7777aa" : "#9999cc",
+		fragmentLabelBg: isDark ? "#444466" : "#eeeeff",
+		participantBg: isDark ? "#2a2a3e" : "#f0f0f5",
+		participantBorder: isDark ? "#555570" : "#cccccc",
+		gridLine: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)"
+	}), [isDark]);
+	const { participants, messages, fragments, dimensions: dimensions$1 } = useMemo(() => {
+		const rawParticipants = extractParticipants(nodes);
+		const rawMessages = extractMessages(edges);
+		const rawFragments = extractFragments(nodes);
+		const participantCount = rawParticipants.length;
+		const participantSpacing = LAYOUT.PARTICIPANT_BOX_WIDTH + LAYOUT.PARTICIPANT_GAP;
+		const totalWidth = participantCount * LAYOUT.PARTICIPANT_BOX_WIDTH + (participantCount - 1) * LAYOUT.PARTICIPANT_GAP + LAYOUT.SVG_PADDING_X * 2;
+		const participantsWithX = rawParticipants.map((p$1, i$1) => ({
+			...p$1,
+			x: LAYOUT.SVG_PADDING_X + i$1 * participantSpacing + LAYOUT.PARTICIPANT_BOX_WIDTH / 2
+		}));
+		const lifelineTop = LAYOUT.SVG_PADDING_TOP + LAYOUT.LIFELINE_TOP_OFFSET;
+		const messagesWithY = rawMessages.map((m, i$1) => ({
+			...m,
+			y: lifelineTop + i$1 * LAYOUT.MESSAGE_HEIGHT + LAYOUT.MESSAGE_LABEL_HEIGHT
+		}));
+		const lastMessageY = messagesWithY.length > 0 ? messagesWithY[messagesWithY.length - 1].y : lifelineTop;
+		const lifelineBottom = lastMessageY + LAYOUT.MIN_LIFELINE_EXTENSION;
+		const fragmentBottomExtra = rawFragments.length > 0 ? LAYOUT.FRAGMENT_LABEL_HEIGHT * 2 : 0;
+		const totalHeight = lifelineBottom + LAYOUT.MIN_LIFELINE_EXTENSION + fragmentBottomExtra;
+		return {
+			participants: participantsWithX,
+			messages: messagesWithY,
+			fragments: rawFragments,
+			dimensions: {
+				width: totalWidth,
+				height: totalHeight,
+				lifelineTop,
+				lifelineBottom
+			}
+		};
+	}, [nodes, edges]);
+	const participantMap = useMemo(() => {
+		const map$1 = new Map();
+		for (const p$1 of participants) map$1.set(p$1.id, p$1);
+		return map$1;
+	}, [participants]);
+	const messageYBySeq = useMemo(() => {
+		const map$1 = new Map();
+		for (const m of messages) map$1.set(m.sequenceNumber, m.y);
+		return map$1;
+	}, [messages]);
+	const handleWheel = useCallback((e) => {
+		e.preventDefault();
+		const delta = e.deltaY > 0 ? .9 : 1.1;
+		setZoom((z) => Math.max(.3, Math.min(3, z * delta)));
+	}, []);
+	const handleMouseDown = useCallback((e) => {
+		isDraggingRef.current = true;
+		dragStartRef.current = {
+			x: e.clientX,
+			y: e.clientY,
+			panX: pan.x,
+			panY: pan.y
+		};
+	}, [pan]);
+	const handleMouseMove = useCallback((e) => {
+		if (!isDraggingRef.current) return;
+		const dx = e.clientX - dragStartRef.current.x;
+		const dy = e.clientY - dragStartRef.current.y;
+		setPan({
+			x: dragStartRef.current.panX + dx,
+			y: dragStartRef.current.panY + dy
+		});
+	}, []);
+	const handleMouseUp = useCallback(() => {
+		isDraggingRef.current = false;
+	}, []);
+	const handleResetView = useCallback(() => {
+		setZoom(1);
+		setPan({
+			x: 0,
+			y: 0
+		});
+	}, []);
+	const handleParticipantClick = useCallback((participantId) => {
+		onNodeTap?.(participantId);
+	}, [onNodeTap]);
+	useEffect(() => {
+		const container = containerRef.current;
+		if (!container) return;
+		const handleNativeWheel = (e) => {
+			e.preventDefault();
+		};
+		container.addEventListener("wheel", handleNativeWheel, { passive: false });
+		return () => container.removeEventListener("wheel", handleNativeWheel);
+	}, []);
+	if (participants.length === 0) return /* @__PURE__ */ jsx("div", {
+		ref: containerRef,
+		className: "sequence-diagram-container",
+		style: { background: colors$1.bg },
+		children: /* @__PURE__ */ jsx("div", {
+			style: {
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "center",
+				height: "100%",
+				color: colors$1.textSecondary,
+				fontSize: "14px"
+			},
+			children: "No sequence data available"
+		})
+	});
+	const svgWidth = dimensions$1.width;
+	const svgHeight = dimensions$1.height;
+	return /* @__PURE__ */ jsxs("div", {
+		ref: containerRef,
+		className: "sequence-diagram-container",
+		style: {
+			background: colors$1.bg,
+			cursor: isDraggingRef.current ? "grabbing" : "grab",
+			position: "relative",
+			overflow: "hidden",
+			width: "100%",
+			height: "100%"
+		},
+		onWheel: handleWheel,
+		onMouseDown: handleMouseDown,
+		onMouseMove: handleMouseMove,
+		onMouseUp: handleMouseUp,
+		onMouseLeave: handleMouseUp,
+		children: [
+			/* @__PURE__ */ jsx("div", {
+				style: {
+					position: "absolute",
+					top: `${pan.y}px`,
+					left: `${pan.x}px`,
+					transformOrigin: "0 0",
+					transform: `scale(${zoom})`
+				},
+				children: /* @__PURE__ */ jsxs("svg", {
+					ref: svgRef,
+					width: svgWidth,
+					height: svgHeight,
+					style: { display: "block" },
+					children: [
+						messages.map((m) => /* @__PURE__ */ jsx("line", {
+							x1: 0,
+							y1: m.y,
+							x2: svgWidth,
+							y2: m.y,
+							stroke: colors$1.gridLine,
+							strokeWidth: 1
+						}, `grid-${m.id}`)),
+						fragments.map((frag) => {
+							const startY$1 = messageYBySeq.get(frag.startMessage);
+							const endY = messageYBySeq.get(frag.endMessage);
+							if (startY$1 === void 0 || endY === void 0) return null;
+							const fragTop = startY$1 - LAYOUT.MESSAGE_LABEL_HEIGHT - LAYOUT.FRAGMENT_PADDING;
+							const fragBottom = endY + LAYOUT.MESSAGE_LABEL_HEIGHT + LAYOUT.FRAGMENT_PADDING;
+							const fragHeight = fragBottom - fragTop;
+							const fragWidth = svgWidth - LAYOUT.SVG_PADDING_X * 2;
+							const fragX = LAYOUT.SVG_PADDING_X;
+							const label = frag.type === "loop" ? `loop${frag.loopConstraint ? ` [${frag.loopConstraint}]` : ""}` : `${frag.type}${frag.condition ? ` [${frag.condition}]` : ""}`;
+							return /* @__PURE__ */ jsxs("g", { children: [
+								/* @__PURE__ */ jsx("rect", {
+									x: fragX,
+									y: fragTop,
+									width: fragWidth,
+									height: fragHeight,
+									fill: colors$1.fragmentBg,
+									stroke: colors$1.fragmentBorder,
+									strokeWidth: 1.5,
+									rx: 2
+								}),
+								/* @__PURE__ */ jsx("rect", {
+									x: fragX,
+									y: fragTop,
+									width: Math.max(label.length * 7 + 16, 50),
+									height: LAYOUT.FRAGMENT_LABEL_HEIGHT,
+									fill: colors$1.fragmentLabelBg,
+									stroke: colors$1.fragmentBorder,
+									strokeWidth: 1,
+									rx: 2
+								}),
+								/* @__PURE__ */ jsx("text", {
+									x: fragX + 8,
+									y: fragTop + 14,
+									fill: colors$1.text,
+									fontSize: 11,
+									fontFamily: "monospace",
+									fontWeight: "bold",
+									children: label
+								}),
+								frag.operands.length > 1 && frag.operands.slice(1).map((op, idx) => {
+									const opY = messageYBySeq.get(op.startMessage);
+									if (opY === void 0) return null;
+									return /* @__PURE__ */ jsxs("g", { children: [/* @__PURE__ */ jsx("line", {
+										x1: fragX,
+										y1: opY - LAYOUT.MESSAGE_LABEL_HEIGHT - LAYOUT.FRAGMENT_PADDING,
+										x2: fragX + fragWidth,
+										y2: opY - LAYOUT.MESSAGE_LABEL_HEIGHT - LAYOUT.FRAGMENT_PADDING,
+										stroke: colors$1.fragmentBorder,
+										strokeWidth: 1,
+										strokeDasharray: "4,2"
+									}), op.guardCondition && /* @__PURE__ */ jsxs("text", {
+										x: fragX + 8,
+										y: opY - LAYOUT.MESSAGE_LABEL_HEIGHT - LAYOUT.FRAGMENT_PADDING + 14,
+										fill: colors$1.textSecondary,
+										fontSize: 10,
+										fontFamily: "monospace",
+										children: [
+											"[",
+											op.guardCondition,
+											"]"
+										]
+									})] }, `frag-${frag.id}-op-${idx}`);
+								})
+							] }, `frag-${frag.id}`);
+						}),
+						participants.map((p$1) => {
+							const lifelineTop = dimensions$1.lifelineTop;
+							const lifelineBottom = p$1.isDestroyed ? messageYBySeq.get(p$1.lifelineEnd) ?? dimensions$1.lifelineBottom : dimensions$1.lifelineBottom;
+							return /* @__PURE__ */ jsxs("g", { children: [/* @__PURE__ */ jsx("line", {
+								x1: p$1.x,
+								y1: lifelineTop,
+								x2: p$1.x,
+								y2: lifelineBottom,
+								stroke: colors$1.lifelineDashed,
+								strokeWidth: 1,
+								strokeDasharray: "4,4"
+							}), p$1.isDestroyed && /* @__PURE__ */ jsxs("g", { children: [/* @__PURE__ */ jsx("line", {
+								x1: p$1.x - 6,
+								y1: lifelineBottom - 6,
+								x2: p$1.x + 6,
+								y2: lifelineBottom + 6,
+								stroke: colors$1.returnArrow,
+								strokeWidth: 2
+							}), /* @__PURE__ */ jsx("line", {
+								x1: p$1.x - 6,
+								y1: lifelineBottom + 6,
+								x2: p$1.x + 6,
+								y2: lifelineBottom - 6,
+								stroke: colors$1.returnArrow,
+								strokeWidth: 2
+							})] })] }, `lifeline-${p$1.id}`);
+						}),
+						(() => {
+							const activations = [];
+							const activeStacks = new Map();
+							for (const msg of messages) {
+								if (!msg.isReturn && !msg.isCreate) {
+									const stack = activeStacks.get(msg.target) ?? [];
+									stack.push(msg.y);
+									activeStacks.set(msg.target, stack);
+								}
+								if (msg.isReturn) {
+									const stack = activeStacks.get(msg.source);
+									if (stack && stack.length > 0) {
+										const startY$1 = stack.pop();
+										activations.push({
+											participantId: msg.source,
+											startY: startY$1,
+											endY: msg.y
+										});
+										activeStacks.set(msg.source, stack);
+									}
+								}
+							}
+							for (const [participantId, stack] of activeStacks) for (const startY$1 of stack) activations.push({
+								participantId,
+								startY: startY$1,
+								endY: dimensions$1.lifelineBottom
+							});
+							return activations.map((act, idx) => {
+								const p$1 = participantMap.get(act.participantId);
+								if (!p$1) return null;
+								return /* @__PURE__ */ jsx("rect", {
+									x: p$1.x - LAYOUT.ACTIVATION_WIDTH / 2,
+									y: act.startY - LAYOUT.MESSAGE_LABEL_HEIGHT / 2,
+									width: LAYOUT.ACTIVATION_WIDTH,
+									height: Math.max(act.endY - act.startY + LAYOUT.MESSAGE_LABEL_HEIGHT, 10),
+									fill: colors$1.activation,
+									stroke: colors$1.activationBorder,
+									strokeWidth: 1,
+									rx: 1
+								}, `act-${idx}`);
+							});
+						})(),
+						messages.map((msg) => {
+							const sourceP = participantMap.get(msg.source);
+							const targetP = participantMap.get(msg.target);
+							if (!sourceP || !targetP) return null;
+							const arrowColor = msg.isReturn ? colors$1.returnArrow : msg.isAsync ? colors$1.asyncArrow : msg.isSelfCall ? colors$1.selfCallArrow : msg.isCreate ? colors$1.createArrow : colors$1.syncArrow;
+							const lineStyle = msg.isReturn ? "4,3" : "none";
+							if (msg.isSelfCall || msg.source === msg.target) {
+								const loopX = sourceP.x + LAYOUT.ACTIVATION_WIDTH / 2;
+								const loopStartY = msg.y - LAYOUT.SELF_CALL_HEIGHT / 2;
+								const loopEndY = msg.y + LAYOUT.SELF_CALL_HEIGHT / 2;
+								const loopWidth = LAYOUT.SELF_CALL_WIDTH;
+								return /* @__PURE__ */ jsxs("g", { children: [
+									/* @__PURE__ */ jsx("path", {
+										d: `M ${loopX} ${loopStartY} L ${loopX + loopWidth} ${loopStartY} L ${loopX + loopWidth} ${loopEndY} L ${loopX + LAYOUT.ARROW_HEAD_SIZE} ${loopEndY}`,
+										fill: "none",
+										stroke: arrowColor,
+										strokeWidth: 1.5
+									}),
+									/* @__PURE__ */ jsx("polygon", {
+										points: `${loopX},${loopEndY} ${loopX + LAYOUT.ARROW_HEAD_SIZE},${loopEndY - 4} ${loopX + LAYOUT.ARROW_HEAD_SIZE},${loopEndY + 4}`,
+										fill: arrowColor
+									}),
+									/* @__PURE__ */ jsx("text", {
+										x: loopX + loopWidth + 4,
+										y: msg.y - 2,
+										fill: colors$1.text,
+										fontSize: 11,
+										fontFamily: "monospace",
+										children: truncateLabel(msg.methodName, 100)
+									}),
+									/* @__PURE__ */ jsx("text", {
+										x: loopX + loopWidth + 4,
+										y: msg.y + 10,
+										fill: colors$1.textSecondary,
+										fontSize: 9,
+										fontFamily: "monospace",
+										children: formatArguments(msg.arguments)
+									})
+								] }, `msg-${msg.id}`);
+							}
+							const sourceX = sourceP.x;
+							const targetX = targetP.x;
+							const isRightToLeft = targetX < sourceX;
+							const adjustedSourceX = isRightToLeft ? sourceX - LAYOUT.ACTIVATION_WIDTH / 2 : sourceX + LAYOUT.ACTIVATION_WIDTH / 2;
+							const adjustedTargetX = isRightToLeft ? targetX + LAYOUT.ACTIVATION_WIDTH / 2 : targetX - LAYOUT.ACTIVATION_WIDTH / 2;
+							const arrowEndX = adjustedTargetX;
+							const arrowStartX = adjustedSourceX;
+							const arrowHeadDir = isRightToLeft ? -1 : 1;
+							const arrowHeadPoints = msg.isAsync ? `${arrowEndX},${msg.y} ${arrowEndX - arrowHeadDir * LAYOUT.ARROW_HEAD_SIZE},${msg.y - 4} ${arrowEndX - arrowHeadDir * LAYOUT.ARROW_HEAD_SIZE},${msg.y + 4}` : `${arrowEndX},${msg.y} ${arrowEndX - arrowHeadDir * LAYOUT.ARROW_HEAD_SIZE},${msg.y - LAYOUT.ARROW_HEAD_SIZE / 2} ${arrowEndX - arrowHeadDir * LAYOUT.ARROW_HEAD_SIZE},${msg.y + LAYOUT.ARROW_HEAD_SIZE / 2}`;
+							const labelX = (arrowStartX + arrowEndX) / 2;
+							const labelY = msg.y - 4;
+							const seqLabel = `${msg.sequenceNumber}: ${truncateLabel(msg.methodName, 120)}`;
+							const argLabel = formatArguments(msg.arguments);
+							return /* @__PURE__ */ jsxs("g", { children: [
+								/* @__PURE__ */ jsx("line", {
+									x1: arrowStartX,
+									y1: msg.y,
+									x2: arrowEndX - arrowHeadDir * LAYOUT.ARROW_HEAD_SIZE,
+									y2: msg.y,
+									stroke: arrowColor,
+									strokeWidth: 1.5,
+									strokeDasharray: lineStyle
+								}),
+								/* @__PURE__ */ jsx("polygon", {
+									points: arrowHeadPoints,
+									fill: msg.isAsync ? "none" : arrowColor,
+									stroke: arrowColor,
+									strokeWidth: 1.5
+								}),
+								/* @__PURE__ */ jsx("text", {
+									x: labelX,
+									y: labelY,
+									fill: colors$1.text,
+									fontSize: 11,
+									fontFamily: "monospace",
+									textAnchor: "middle",
+									children: seqLabel
+								}),
+								argLabel && /* @__PURE__ */ jsx("text", {
+									x: labelX,
+									y: labelY + 12,
+									fill: colors$1.textSecondary,
+									fontSize: 9,
+									fontFamily: "monospace",
+									textAnchor: "middle",
+									children: argLabel
+								})
+							] }, `msg-${msg.id}`);
+						}),
+						participants.map((p$1) => {
+							const color = getParticipantColor(p$1.type);
+							const boxX = p$1.x - LAYOUT.PARTICIPANT_BOX_WIDTH / 2;
+							const boxY = LAYOUT.SVG_PADDING_TOP;
+							return /* @__PURE__ */ jsxs("g", {
+								style: { cursor: "pointer" },
+								onClick: () => handleParticipantClick(p$1.id),
+								children: [
+									/* @__PURE__ */ jsx("rect", {
+										x: boxX,
+										y: boxY,
+										width: LAYOUT.PARTICIPANT_BOX_WIDTH,
+										height: LAYOUT.PARTICIPANT_BOX_HEIGHT,
+										fill: colors$1.participantBg,
+										stroke: color,
+										strokeWidth: 2,
+										rx: 3
+									}),
+									/* @__PURE__ */ jsx("rect", {
+										x: boxX,
+										y: boxY,
+										width: 4,
+										height: LAYOUT.PARTICIPANT_BOX_HEIGHT,
+										fill: color,
+										rx: 1
+									}),
+									/* @__PURE__ */ jsx("text", {
+										x: p$1.x,
+										y: boxY + 14,
+										fill: colors$1.text,
+										fontSize: 12,
+										fontFamily: "monospace",
+										fontWeight: "bold",
+										textAnchor: "middle",
+										children: truncateLabel(p$1.name, LAYOUT.PARTICIPANT_BOX_WIDTH - 16)
+									}),
+									/* @__PURE__ */ jsxs("text", {
+										x: p$1.x,
+										y: boxY + 28,
+										fill: colors$1.textSecondary,
+										fontSize: 9,
+										fontFamily: "monospace",
+										textAnchor: "middle",
+										children: [
+											"«",
+											p$1.type,
+											"»"
+										]
+									}),
+									p$1.isCreated && /* @__PURE__ */ jsx("text", {
+										x: p$1.x,
+										y: boxY - 6,
+										fill: colors$1.createArrow,
+										fontSize: 9,
+										fontFamily: "monospace",
+										textAnchor: "middle",
+										children: "new"
+									})
+								]
+							}, `participant-${p$1.id}`);
+						})
+					]
+				})
+			}),
+			/* @__PURE__ */ jsxs("div", {
+				style: {
+					position: "absolute",
+					bottom: "8px",
+					right: "8px",
+					display: "flex",
+					flexDirection: "column",
+					gap: "4px",
+					zIndex: 10
+				},
+				children: [
+					/* @__PURE__ */ jsx("button", {
+						onClick: () => setZoom((z) => Math.min(3, z * 1.2)),
+						style: {
+							width: "28px",
+							height: "28px",
+							border: `1px solid ${colors$1.participantBorder}`,
+							background: colors$1.participantBg,
+							color: colors$1.text,
+							cursor: "pointer",
+							borderRadius: "4px",
+							fontSize: "14px",
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center"
+						},
+						children: "+"
+					}),
+					/* @__PURE__ */ jsx("button", {
+						onClick: () => setZoom((z) => Math.max(.3, z * .8)),
+						style: {
+							width: "28px",
+							height: "28px",
+							border: `1px solid ${colors$1.participantBorder}`,
+							background: colors$1.participantBg,
+							color: colors$1.text,
+							cursor: "pointer",
+							borderRadius: "4px",
+							fontSize: "14px",
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center"
+						},
+						children: "−"
+					}),
+					/* @__PURE__ */ jsx("button", {
+						onClick: handleResetView,
+						style: {
+							width: "28px",
+							height: "28px",
+							border: `1px solid ${colors$1.participantBorder}`,
+							background: colors$1.participantBg,
+							color: colors$1.text,
+							cursor: "pointer",
+							borderRadius: "4px",
+							fontSize: "10px",
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center"
+						},
+						children: "⟲"
+					})
+				]
+			}),
+			/* @__PURE__ */ jsxs("div", {
+				style: {
+					position: "absolute",
+					bottom: "8px",
+					left: "8px",
+					color: colors$1.textSecondary,
+					fontSize: "10px",
+					fontFamily: "monospace",
+					zIndex: 10
+				},
+				children: [Math.round(zoom * 100), "%"]
+			})
+		]
+	});
+};
+
+//#endregion
 //#region src/client/GraphPanel.tsx
 const log$1 = scoped("panel");
 function GraphPanelInner({ className = "" }) {
@@ -46382,7 +50182,7 @@ function GraphPanelInner({ className = "" }) {
 	const [showHelp, setShowHelp] = useState(false);
 	const [thumbnail, setThumbnail] = useState(null);
 	const [viewportInfo, setViewportInfo] = useState(null);
-	const { nodes, edges, rawNodes, rawEdges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, clusterLevel, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, expandedNodeIds, pathResult, focusDepth, healthScore, rules, ruleViolations, viewMode } = useGraphStore(useShallow((s) => ({
+	const { nodes, edges, rawNodes, rawEdges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, clusterLevel, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, expandedNodeIds, pathResult, focusDepth, healthScore, rules, ruleViolations, viewMode, selectedFunction } = useGraphStore(useShallow((s) => ({
 		nodes: s.nodes,
 		edges: s.edges,
 		rawNodes: s.rawNodes,
@@ -46411,7 +50211,8 @@ function GraphPanelInner({ className = "" }) {
 		healthScore: s.healthScore,
 		rules: s.rules,
 		ruleViolations: s.ruleViolations,
-		viewMode: s.viewMode
+		viewMode: s.viewMode,
+		selectedFunction: s.selectedFunction
 	})));
 	const setLayout = useGraphStore((s) => s.setLayout);
 	const setTheme = useGraphStore((s) => s.setTheme);
@@ -46437,6 +50238,7 @@ function GraphPanelInner({ className = "" }) {
 	const setRules = useGraphStore((s) => s.setRules);
 	const setRuleViolations = useGraphStore((s) => s.setRuleViolations);
 	const setViewMode = useGraphStore((s) => s.setViewMode);
+	const setSelectedFunction = useGraphStore((s) => s.setSelectedFunction);
 	const panelHeight = useGraphStore((s) => s.panelHeight);
 	const panelWidth = useGraphStore((s) => s.panelWidth);
 	const handleCollapseAll = useCallback(() => {
@@ -46717,22 +50519,40 @@ function GraphPanelInner({ className = "" }) {
 		setSelectedNodeData(null);
 		setSelectedNode(null);
 	}, [setSelectedNode]);
-	const prevClusterLevelRef = useRef(clusterLevel);
-	const prevGraphTypeRef = useRef(graphType);
-	const prevFilterTypeRef = useRef(filterType);
+	const handleSelectFunction = useCallback((node, mode) => {
+		setSelectedFunction({
+			nodeId: node.id,
+			filePath: node.filePath,
+			functionName: node.label
+		});
+		setSelectedNode(null);
+		setSelectedNodeData(null);
+		setViewMode(mode);
+	}, [
+		setSelectedFunction,
+		setSelectedNode,
+		setSelectedNodeData,
+		setViewMode
+	]);
 	const prevLayoutRef = useRef(layout$2);
-	const handleToggleViewMode = useCallback(() => {
-		const newMode = viewMode === "code" ? "dependencies" : "code";
-		setViewMode(newMode);
+	const handleViewModeChange = useCallback((newMode) => {
+		if (newMode === viewMode) return;
+		const layoutForMode = {
+			code: prevLayoutRef.current,
+			dependencies: "dagre",
+			inheritance: "dagre",
+			callgraph: "dagre",
+			"package": "dagre",
+			class: "dagre",
+			cfg: "dagre",
+			flowchart: "dagre",
+			sequence: "dagre"
+		};
+		setLayout(layoutForMode[newMode] ?? "cose");
 		if (newMode === "dependencies") {
-			prevClusterLevelRef.current = clusterLevel;
-			prevGraphTypeRef.current = graphType;
-			prevFilterTypeRef.current = filterType;
 			prevLayoutRef.current = layout$2;
-			setClusterLevel("directory");
 			setGraphType("dependency");
 			setFilterType("all");
-			setLayout("radial");
 			setLoading(true);
 			const controller = new AbortController();
 			depsFetchAbortRef.current?.abort();
@@ -46748,12 +50568,11 @@ function GraphPanelInner({ className = "" }) {
 			}).finally(() => {
 				if (!controller.signal.aborted) setLoading(false);
 			});
-		} else {
+		} else if (newMode === "code") {
+			prevLayoutRef.current = layout$2;
 			depsFetchAbortRef.current?.abort();
-			setClusterLevel(prevClusterLevelRef.current);
-			setGraphType(prevGraphTypeRef.current);
-			setFilterType(prevFilterTypeRef.current);
-			setLayout(prevLayoutRef.current);
+			setGraphType("all");
+			setFilterType("all");
 			setLoading(true);
 			fetchGraphData().then((data$2) => {
 				if (data$2) setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
@@ -46761,7 +50580,13 @@ function GraphPanelInner({ className = "" }) {
 			}).catch(() => {
 				setLoading(false);
 			});
+		} else {
+			prevLayoutRef.current = layout$2;
+			depsFetchAbortRef.current?.abort();
+			setGraphType("all");
+			setFilterType("all");
 		}
+		setViewMode(newMode);
 	}, [
 		viewMode,
 		setViewMode,
@@ -46769,14 +50594,10 @@ function GraphPanelInner({ className = "" }) {
 		setGraphData,
 		setError,
 		currentWorkspace,
-		clusterLevel,
-		graphType,
-		filterType,
 		layout$2,
-		setClusterLevel,
+		setLayout,
 		setGraphType,
-		setFilterType,
-		setLayout
+		setFilterType
 	]);
 	const handleRefresh = useCallback(() => {
 		setLoading(true);
@@ -46986,7 +50807,7 @@ function GraphPanelInner({ className = "" }) {
 					onToggleHotspot: panel.toggleHotspot,
 					onToggleGodModule: panel.toggleGodModule
 				},
-				onToggleViewMode: handleToggleViewMode,
+				onViewModeChange: handleViewModeChange,
 				onLayoutChange: setLayout,
 				onThemeToggle: handleThemeToggle,
 				onFilterChange: setFilterType,
@@ -47033,7 +50854,59 @@ function GraphPanelInner({ className = "" }) {
 			}),
 			isLoading && !isCollapsed && /* @__PURE__ */ jsx(LoadingOverlay, { visible: true }),
 			error$1 && !isCollapsed && /* @__PURE__ */ jsx(ErrorOverlay, { error: error$1 }),
-			nodes.length === 0 && !isLoading && !error$1 && !isCollapsed && /* @__PURE__ */ jsx(EmptyState, {
+			(viewMode === "cfg" || viewMode === "flowchart" || viewMode === "sequence") && !selectedFunction && !isLoading && !isCollapsed && /* @__PURE__ */ jsxs("div", {
+				style: {
+					position: "absolute",
+					top: "50%",
+					left: "50%",
+					transform: "translate(-50%, -50%)",
+					textAlign: "center",
+					color: "var(--ds-text-secondary, #888)",
+					fontSize: "14px",
+					maxWidth: "320px",
+					lineHeight: "1.6"
+				},
+				children: [/* @__PURE__ */ jsx("div", {
+					style: {
+						fontSize: "24px",
+						marginBottom: "12px",
+						opacity: .4
+					},
+					children: viewMode === "cfg" ? "CFG" : viewMode === "flowchart" ? t$1("toolbar.viewModeFlowchart") : t$1("toolbar.viewModeSequence")
+				}), /* @__PURE__ */ jsx("div", { children: t$1("micro.selectFunctionPrompt") })]
+			}),
+			(viewMode === "cfg" || viewMode === "flowchart" || viewMode === "sequence") && selectedFunction && !isCollapsed && /* @__PURE__ */ jsxs("div", {
+				style: {
+					position: "absolute",
+					top: "8px",
+					left: "50%",
+					transform: "translateX(-50%)",
+					display: "flex",
+					alignItems: "center",
+					gap: "8px",
+					padding: "4px 12px",
+					borderRadius: "4px",
+					background: "var(--ds-bg-secondary, rgba(0,0,0,0.6))",
+					color: "var(--ds-text-primary, #eee)",
+					fontSize: "12px",
+					zIndex: 10
+				},
+				children: [/* @__PURE__ */ jsx("span", { children: selectedFunction.functionName }), /* @__PURE__ */ jsx("button", {
+					onClick: () => {
+						setSelectedFunction(null);
+						setViewMode("code");
+					},
+					style: {
+						border: "none",
+						background: "transparent",
+						cursor: "pointer",
+						color: "var(--ds-text-secondary, #888)",
+						fontSize: "11px"
+					},
+					children: "✕"
+				})]
+			}),
+			nodes.length === 0 && !isLoading && !error$1 && !isCollapsed && viewMode !== "cfg" && viewMode !== "flowchart" && viewMode !== "sequence" && /* @__PURE__ */ jsx(EmptyState, {
 				prerequisites,
 				onImport: () => panel.setShowImport(true),
 				onScanWorkspace: handleScanWorkspace
@@ -47055,11 +50928,19 @@ function GraphPanelInner({ className = "" }) {
 				onClose: handleCloseDetail,
 				isExpanded: selectedNodeData ? expandedNodeIds.has(selectedNodeData.id) : false,
 				connectionCount: selectedNodeData ? edges.filter((e) => e.source === selectedNodeData.id || e.target === selectedNodeData.id).length : 0,
-				onCollapse: () => selectedNodeData && collapseNode(selectedNodeData.id)
+				onCollapse: () => selectedNodeData && collapseNode(selectedNodeData.id),
+				onSelectFunction: handleSelectFunction
 			}),
 			/* @__PURE__ */ jsx("div", {
 				className: "graph-container",
-				ref: renderer$1.containerRef
+				ref: renderer$1.containerRef,
+				style: { display: viewMode === "sequence" && selectedFunction ? "none" : void 0 }
+			}),
+			viewMode === "sequence" && selectedFunction && !isCollapsed && /* @__PURE__ */ jsx(SequenceDiagramRenderer, {
+				nodes,
+				edges,
+				theme,
+				onNodeTap: (id) => handleNodeTap(NodeId(id))
 			}),
 			panel.showLegend && !isCollapsed && /* @__PURE__ */ jsx(Legend, { onClose: () => panel.setShowLegend(false) }),
 			panel.showMiniMap && !isCollapsed && /* @__PURE__ */ jsx(StatsPanel, {

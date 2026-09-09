@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import { useGraphStore, type ThemeType } from './store/graphStore.ts';
+import { useGraphStore, type ThemeType, type LayoutType } from './store/graphStore.ts';
 import { useShallow } from 'zustand/shallow';
-import type { GraphNode, GraphEdge } from '../types/index.ts';
+import type { GraphNode, GraphEdge, ViewMode } from '../types/index.ts';
 import { NodeId } from '../types/index.ts';
 import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard } from './hooks/index.ts';
 import { useHistory } from './hooks/useHistory.ts';
@@ -28,6 +28,7 @@ import { HealthScorer } from '../shared/analysis/HealthScorer.ts';
 import { RuleEngine, getPresetRules } from '../shared/analysis/RuleEngine.ts';
 import { HotspotAnalyzer, GodModuleDetector } from '../shared/analysis/HotspotAnalyzer.ts';
 import { fetchGraphData } from './api/index.ts';
+import { SequenceDiagramRenderer } from './renderer/SequenceDiagramRenderer.tsx';
 import { scoped } from '../shared/Logger.ts';
 import { useT } from './i18n/index.ts';
 import './styles.css';
@@ -68,6 +69,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     initStatus, truncated, totalNodeCount, expandedNodeIds,
     pathResult, focusDepth, healthScore, rules, ruleViolations,
     viewMode,
+    selectedFunction,
   } = useGraphStore(useShallow((s) => ({
     nodes: s.nodes, edges: s.edges, rawNodes: s.rawNodes, rawEdges: s.rawEdges,
     layout: s.layout, theme: s.theme,
@@ -84,6 +86,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     focusDepth: s.focusDepth, healthScore: s.healthScore,
     rules: s.rules, ruleViolations: s.ruleViolations,
     viewMode: s.viewMode,
+    selectedFunction: s.selectedFunction,
   })));
 
   const setLayout = useGraphStore((s) => s.setLayout);
@@ -110,6 +113,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const setRules = useGraphStore((s) => s.setRules);
   const setRuleViolations = useGraphStore((s) => s.setRuleViolations);
   const setViewMode = useGraphStore((s) => s.setViewMode);
+  const setSelectedFunction = useGraphStore((s) => s.setSelectedFunction);
+
   const panelHeight = useGraphStore((s) => s.panelHeight);
   const panelWidth = useGraphStore((s) => s.panelWidth);
 
@@ -402,23 +407,35 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     setSelectedNodeData(null); setSelectedNode(null);
   }, [setSelectedNode]);
 
-  // FR-21: View mode toggle — code graph vs dependency graph
-  const prevClusterLevelRef = useRef(clusterLevel);
-  const prevGraphTypeRef = useRef(graphType);
-  const prevFilterTypeRef = useRef(filterType);
+  // FR-21: View mode switching — code / dependencies / inheritance / callgraph
+  const handleSelectFunction = useCallback((node: GraphNode, mode: 'cfg' | 'flowchart' | 'sequence') => {
+    setSelectedFunction({ nodeId: node.id, filePath: node.filePath, functionName: node.label });
+    setSelectedNode(null);
+    setSelectedNodeData(null);
+    setViewMode(mode);
+  }, [setSelectedFunction, setSelectedNode, setSelectedNodeData, setViewMode]);
+
   const prevLayoutRef = useRef(layout);
-  const handleToggleViewMode = useCallback(() => {
-    const newMode = viewMode === 'code' ? 'dependencies' : 'code';
-    setViewMode(newMode);
+  const handleViewModeChange = useCallback((newMode: ViewMode) => {
+    if (newMode === viewMode) return;
+
+    const layoutForMode: Record<string, LayoutType> = {
+      code: prevLayoutRef.current,
+      dependencies: 'dagre',
+      inheritance: 'dagre',
+      callgraph: 'dagre',
+      'package': 'dagre',
+      class: 'dagre',
+      cfg: 'dagre',
+      flowchart: 'dagre',
+      sequence: 'dagre',
+    };
+    setLayout(layoutForMode[newMode] ?? 'cose');
+
     if (newMode === 'dependencies') {
-      prevClusterLevelRef.current = clusterLevel;
-      prevGraphTypeRef.current = graphType;
-      prevFilterTypeRef.current = filterType;
       prevLayoutRef.current = layout;
-      setClusterLevel('directory');
       setGraphType('dependency');
       setFilterType('all');
-      setLayout('radial');
       setLoading(true);
       const controller = new AbortController();
       depsFetchAbortRef.current?.abort();
@@ -433,12 +450,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         })
         .catch(() => { if (!controller.signal.aborted) setError(t('error.title')); })
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    } else {
+    } else if (newMode === 'code') {
+      prevLayoutRef.current = layout;
       depsFetchAbortRef.current?.abort();
-      setClusterLevel(prevClusterLevelRef.current);
-      setGraphType(prevGraphTypeRef.current);
-      setFilterType(prevFilterTypeRef.current);
-      setLayout(prevLayoutRef.current);
+      setGraphType('all');
+      setFilterType('all');
       setLoading(true);
       fetchGraphData().then((data) => {
         if (data) {
@@ -446,8 +462,15 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         }
         setLoading(false);
       }).catch(() => { setLoading(false); });
+    } else {
+      prevLayoutRef.current = layout;
+      depsFetchAbortRef.current?.abort();
+      setGraphType('all');
+      setFilterType('all');
     }
-  }, [viewMode, setViewMode, setLoading, setGraphData, setError, currentWorkspace, clusterLevel, graphType, filterType, layout, setClusterLevel, setGraphType, setFilterType, setLayout]);
+
+    setViewMode(newMode);
+  }, [viewMode, setViewMode, setLoading, setGraphData, setError, currentWorkspace, layout, setLayout, setGraphType, setFilterType]);
 
   const handleRefresh = useCallback(() => {
     setLoading(true);
@@ -634,7 +657,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           onToggleHotspot: panel.toggleHotspot,
           onToggleGodModule: panel.toggleGodModule,
         }}
-        onToggleViewMode={handleToggleViewMode}
+        onViewModeChange={handleViewModeChange}
         onLayoutChange={setLayout}
         onThemeToggle={handleThemeToggle}
         onFilterChange={setFilterType}
@@ -699,7 +722,42 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
       {error && !isCollapsed && <ErrorOverlay error={error} />}
 
-      {nodes.length === 0 && !isLoading && !error && !isCollapsed && (
+      {(viewMode === 'cfg' || viewMode === 'flowchart' || viewMode === 'sequence') && !selectedFunction && !isLoading && !isCollapsed && (
+        <div style={{
+          position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+          textAlign: 'center', color: 'var(--ds-text-secondary, #888)', fontSize: '14px',
+          maxWidth: '320px', lineHeight: '1.6',
+        }}>
+          <div style={{ fontSize: '24px', marginBottom: '12px', opacity: 0.4 }}>
+            {viewMode === 'cfg' ? 'CFG' : viewMode === 'flowchart' ? t('toolbar.viewModeFlowchart') : t('toolbar.viewModeSequence')}
+          </div>
+          <div>{t('micro.selectFunctionPrompt')}</div>
+        </div>
+      )}
+
+      {(viewMode === 'cfg' || viewMode === 'flowchart' || viewMode === 'sequence') && selectedFunction && !isCollapsed && (
+        <div style={{
+          position: 'absolute', top: '8px', left: '50%', transform: 'translateX(-50%)',
+          display: 'flex', alignItems: 'center', gap: '8px',
+          padding: '4px 12px', borderRadius: '4px',
+          background: 'var(--ds-bg-secondary, rgba(0,0,0,0.6))',
+          color: 'var(--ds-text-primary, #eee)', fontSize: '12px',
+          zIndex: 10,
+        }}>
+          <span>{selectedFunction.functionName}</span>
+          <button
+            onClick={() => { setSelectedFunction(null); setViewMode('code'); }}
+            style={{
+              border: 'none', background: 'transparent', cursor: 'pointer',
+              color: 'var(--ds-text-secondary, #888)', fontSize: '11px',
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {nodes.length === 0 && !isLoading && !error && !isCollapsed && viewMode !== 'cfg' && viewMode !== 'flowchart' && viewMode !== 'sequence' && (
         <EmptyState prerequisites={prerequisites} onImport={() => panel.setShowImport(true)} onScanWorkspace={handleScanWorkspace} />
       )}
 
@@ -724,10 +782,23 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           isExpanded={selectedNodeData ? expandedNodeIds.has(selectedNodeData.id) : false}
           connectionCount={selectedNodeData ? edges.filter((e) => e.source === selectedNodeData.id || e.target === selectedNodeData.id).length : 0}
           onCollapse={() => selectedNodeData && collapseNode(selectedNodeData.id)}
+          onSelectFunction={handleSelectFunction}
         />
       )}
 
-      <div className="graph-container" ref={renderer.containerRef} />
+      <div
+        className="graph-container"
+        ref={renderer.containerRef}
+        style={{ display: viewMode === 'sequence' && selectedFunction ? 'none' : undefined }}
+      />
+      {viewMode === 'sequence' && selectedFunction && !isCollapsed && (
+        <SequenceDiagramRenderer
+          nodes={nodes}
+          edges={edges}
+          theme={theme}
+          onNodeTap={(id) => handleNodeTap(NodeId(id))}
+        />
+      )}
 
       {panel.showLegend && !isCollapsed && (<Legend onClose={() => panel.setShowLegend(false)} />)}
 

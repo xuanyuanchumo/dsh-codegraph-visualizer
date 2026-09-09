@@ -85,6 +85,7 @@ export const zh: Record<string, string> = {
   'detail.doubleClickExpand': '双击展开相关节点',
   'detail.expanded': '已展开',
   'detail.collapse': '收起',
+  'detail.microViews': '微观图谱',
 
   // Mini-map
   'minimap.title': '概览',
@@ -271,4 +272,23 @@ export const zh: Record<string, string> = {
   // 视图模式
   'toolbar.viewModeDeps': '切换到依赖图谱视图',
   'toolbar.viewModeCode': '切换到代码图谱视图',
+  'toolbar.viewModeInheritance': '切换到继承树视图',
+  'toolbar.viewModeCallgraph': '切换到调用图视图',
+  'toolbar.viewModePackage': '切换到组件/包图视图',
+  'toolbar.viewModeClass': '切换到类图视图',
+  'toolbar.viewModeCfg': '切换到控制流图视图',
+  'toolbar.viewModeFlowchart': '切换到流程图视图',
+  'toolbar.viewModeSequence': '切换到时序图视图',
+  'viewMode.code': '代码',
+  'viewMode.dependencies': '依赖',
+  'viewMode.inheritance': '继承',
+  'viewMode.callgraph': '调用',
+  'viewMode.package': '包',
+  'viewMode.class': '类图',
+  'viewMode.cfg': 'CFG',
+  'viewMode.flowchart': '流程',
+  'viewMode.sequence': '时序',
+  'micro.selectFunctionPrompt': '请先在代码图谱中选择一个函数节点，然后切换到此视图',
+  'micro.selectedFunction': '当前函数: {name}',
+  'micro.clearSelection': '清除选择',
 };

@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      tree-sitter-wasm:
+        specifier: ^1.1.8
+        version: 1.1.8
       web-tree-sitter:
         specifier: ^0.27.0
         version: 0.27.0
@@ -1850,6 +1853,9 @@ packages:
     resolution: {integrity: sha512-bLVMLPtstlZ4iMQHpFHTR7GAGj2jxi8Dg0s2h2MafAE4uSWF98FC/3MomU51iQAMf8/qDUbKWf5GxuvvVcXEhw==}
     engines: {node: '>=20'}
 
+  tree-sitter-wasm@1.1.8:
+    resolution: {integrity: sha512-TZ6rZ+8L+cnsc0hXtc+AfzNd7b1CDroBKSgSIF29sJdl/Odaxmx+mZEj2pW0rswKIyWHrA/ioNqZ9RixTSCGwA==}
+
   tsdown@0.10.2:
     resolution: {integrity: sha512-MhauwcNNVMeW3TTvpADDVPoAC3kfBfwPru3gtQ5pbVvGIF399VtbH3szUuXmw56P+DDlYjtQd0gKGJ8K5xRayQ==}
     engines: {node: '>=18.0.0'}
@@ -3579,6 +3585,8 @@ snapshots:
   tr46@6.0.0:
     dependencies:
       punycode: 2.3.1
+
+  tree-sitter-wasm@1.1.8: {}
 
   tsdown@0.10.2(typescript@5.9.3):
     dependencies:

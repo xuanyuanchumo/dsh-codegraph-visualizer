@@ -152,9 +152,9 @@ describe('registerRoutes', () => {
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
   });
 
-  it('registers all 9 routes', () => {
+  it('registers all 10 routes', () => {
     registerRoutes(deps);
-    expect(ctx.webServer.register).toHaveBeenCalledTimes(9);
+    expect(ctx.webServer.register).toHaveBeenCalledTimes(10);
   });
 
   it('GET /status returns prerequisites status', () => {
@@ -420,8 +420,9 @@ describe('registerRoutes', () => {
   });
 
   it('POST /tree-sitter parses content', async () => {
+
     registerRoutes(deps);
-    const handler = getHandler(ctx, 8);
+    const handler = getHandler(ctx, 9);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts', content: 'const x = 1;' })), res);
     expect(state.code).toBe(200);
@@ -430,7 +431,7 @@ describe('registerRoutes', () => {
 
   it('POST /tree-sitter returns 400 when filePath missing', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 8);
+    const handler = getHandler(ctx, 9);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ content: 'const x = 1;' })), res);
     expect(state.code).toBe(400);
@@ -439,7 +440,7 @@ describe('registerRoutes', () => {
 
   it('POST /tree-sitter returns 413 when content too large', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 8);
+    const handler = getHandler(ctx, 9);
     const { res, state } = makeRes();
     const largeContent = 'x'.repeat(512 * 1024 + 1);
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts', content: largeContent })), res);
@@ -452,7 +453,7 @@ describe('registerRoutes', () => {
       parseFile: vi.fn().mockRejectedValue(new Error('parse error')),
     }) as never);
     registerRoutes(deps);
-    const handler = getHandler(ctx, 8);
+    const handler = getHandler(ctx, 9);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts', content: 'const x = 1;' })), res);
     expect(state.code).toBe(500);

@@ -29,9 +29,10 @@ interface NodeDetailProps {
   isExpanded?: boolean;
   connectionCount?: number;
   onCollapse?: () => void;
+  onSelectFunction?: (node: GraphNode, viewMode: 'cfg' | 'flowchart' | 'sequence') => void;
 }
 
-export function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse }: NodeDetailProps) {
+export function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, onSelectFunction }: NodeDetailProps) {
   const t = useT();
   const icon = TYPE_ICONS[node.type] ?? '?';
   const color = TYPE_COLORS[node.type] ?? 'var(--cg-accent)';
@@ -91,6 +92,22 @@ export function NodeDetail({ node, onClose, isExpanded, connectionCount, onColla
           <button onClick={onCollapse} className="detail-collapse-btn">
             {t('detail.collapse')}
           </button>
+        </div>
+      )}
+      {node.type === 'function' && onSelectFunction && (
+        <div className="detail-micro-actions">
+          <div className="detail-section-title">{t('detail.microViews')}</div>
+          <div className="detail-micro-btns">
+            <button className="detail-micro-btn" onClick={() => onSelectFunction(node, 'cfg')}>
+              CFG
+            </button>
+            <button className="detail-micro-btn" onClick={() => onSelectFunction(node, 'flowchart')}>
+              {t('viewMode.flowchart')}
+            </button>
+            <button className="detail-micro-btn" onClick={() => onSelectFunction(node, 'sequence')}>
+              {t('viewMode.sequence')}
+            </button>
+          </div>
         </div>
       )}
       {extraProps.length > 0 && (

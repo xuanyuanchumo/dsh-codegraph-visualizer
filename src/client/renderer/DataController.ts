@@ -47,14 +47,41 @@ export class DataController {
       }
     }
 
+    const cyNodeCount = this.cy.nodes().length;
+    const cyEdgeCount = this.cy.edges().length;
     const hasNewNodes = nodes.some((n) => !this.currentNodes.has(n.id));
-    const hasStaleNodes = this.currentNodes.size !== nodes.length ||
+    const hasStaleNodes = cyNodeCount !== nodes.length ||
       [...this.currentNodes.keys()].some((id) => !newNodeIds.has(id));
     const hasNewEdges = edges.some((e) => !this.currentEdges.has(e.id));
-    const hasStaleEdges = this.currentEdges.size !== edges.length ||
+    const hasStaleEdges = cyEdgeCount !== edges.length ||
       [...this.currentEdges.keys()].some((id) => !newEdgeIds.has(id));
+    const hasUpdatedNodes = nodes.some((n) => {
+      const existing = this.currentNodes.get(n.id);
+      if (!existing) return false;
+      const oldKeys = Object.keys(existing.properties ?? {});
+      const newKeys = Object.keys(n.properties ?? {});
+      if (oldKeys.length !== newKeys.length) return true;
+      return newKeys.some(k => n.properties?.[k] !== existing.properties?.[k]);
+    });
 
-    if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges) return;
+    if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges && !hasUpdatedNodes) return;
+
+    const needsFullReset = hasStaleNodes || hasUpdatedNodes;
+
+    if (needsFullReset) {
+      this.cy.elements().remove();
+      this.currentNodes.clear();
+      this.currentEdges.clear();
+      this.lastAddedNodeIds.clear();
+      this.cy.batch(() => {
+        for (const n of nodes) {
+          this.addNode(n);
+          this.lastAddedNodeIds.add(n.id);
+        }
+        for (const e of edges) this.addEdge(e);
+      });
+      return;
+    }
 
     const nodesToAdd: GraphNode[] = [];
     const edgesToAdd: GraphEdge[] = [];
@@ -78,11 +105,21 @@ export class DataController {
       if (!this.currentNodes.has(n.id)) {
         nodesToAdd.push(n);
         this.lastAddedNodeIds.add(n.id);
+      } else {
+        this.updateNodeData(n);
       }
       this.currentNodes.set(n.id, n);
     }
     for (const e of edges) {
       if (!this.currentEdges.has(e.id)) edgesToAdd.push(e);
+      else {
+        const cyEdge = this.cy.getElementById(e.id);
+        if (cyEdge.length > 0 && e.properties) {
+          for (const [key, value] of Object.entries(e.properties)) {
+            cyEdge.data(key, value);
+          }
+        }
+      }
       this.currentEdges.set(e.id, e);
     }
 
@@ -113,17 +150,29 @@ export class DataController {
     this.processBatchQueue();
   }
 
+  private updateNodeData(n: GraphNode): void {
+    const cyNode = this.cy.getElementById(n.id);
+    if (cyNode.length === 0) return;
+    if (n.properties) {
+      for (const [key, value] of Object.entries(n.properties)) {
+        cyNode.data(key, value);
+      }
+    }
+  }
+
   private addNode(n: GraphNode): void {
     const isCluster = 'isCluster' in n && n.isCluster === true;
     const data: NodeDataDefinition = {
       id: n.id, label: n.label, type: n.type,
       filePath: n.filePath, lineNumber: n.lineNumber,
-      parent: n.parentId ?? undefined,
+      parent: n.parentId as string | undefined,
       isCluster,
       childCount: isCluster ? (n as ClusterNode).childCount : 0,
-    };
-    if (n.properties?.depType) {
-      (data as Record<string, unknown>).depType = n.properties.depType;
+    } as NodeDataDefinition;
+    if (n.properties) {
+      for (const [key, value] of Object.entries(n.properties)) {
+        (data as Record<string, unknown>)[key] = value;
+      }
     }
     this.cy.add({ group: 'nodes', data });
   }
@@ -137,8 +186,10 @@ export class DataController {
       aggregatedCount: ce?.aggregatedCount ?? 0,
       label: isCluster ? `${ce?.aggregatedCount ?? 0} deps` : '',
     };
-    if (e.properties?.scope) {
-      data.scope = e.properties.scope;
+    if (e.properties) {
+      for (const [key, value] of Object.entries(e.properties)) {
+        data[key] = value;
+      }
     }
     this.cy.add({ group: 'edges', data });
   }

@@ -2892,10 +2892,10 @@ var TreeSitterAdapter = class {
 		const doc = globalThis.document;
 		if (doc && doc.baseURI) {
 			try {
-				candidates.push(new URL(`node_modules/web-tree-sitter/dist/${wasmFile}`, doc.baseURI).href);
+				candidates.push(new URL(`plugins/dsh-codegraph-visualizer/${wasmFile}`, doc.baseURI).href);
 			} catch {}
 			try {
-				candidates.push(new URL(`plugins/dsh-codegraph-visualizer/${wasmFile}`, doc.baseURI).href);
+				candidates.push(new URL(`node_modules/web-tree-sitter/dist/${wasmFile}`, doc.baseURI).href);
 			} catch {}
 		}
 		candidates.push(wasmFile);
@@ -2958,6 +2958,49 @@ var TreeSitterAdapter = class {
 		return {
 			nodes,
 			edges
+		};
+	}
+	async parseToAst(filePath, content) {
+		if (!this.parser) {
+			await this.init();
+			if (!this.parser) return null;
+		}
+		const language = this.detectLanguage(filePath);
+		if (!language) return null;
+		if (!this.loadedLanguages.has(language)) try {
+			const langModule = await this.loadLanguageWasm(language);
+			this.parser.setLanguage(langModule);
+			this.loadedLanguages.add(language);
+		} catch {
+			return null;
+		}
+		try {
+			const tree = this.parser.parse(content);
+			const astRoot = this.convertToAstNode(tree.rootNode);
+			tree.delete();
+			return astRoot;
+		} catch {
+			return null;
+		}
+	}
+	convertToAstNode(node) {
+		const children = [];
+		for (let i = 0; i < (node.childCount || 0); i++) {
+			const child = node.child(i);
+			if (child) children.push(this.convertToAstNode(child));
+		}
+		return {
+			type: node.type,
+			text: node.text,
+			startPosition: {
+				row: node.startPosition.row,
+				column: node.startPosition.column
+			},
+			endPosition: {
+				row: node.endPosition.row,
+				column: node.endPosition.column
+			},
+			children
 		};
 	}
 	destroy() {
@@ -3472,6 +3515,46 @@ function registerRoutes(deps) {
 			}
 		}
 	}), "codegraph: diff route");
+	ctx.effect(() => {
+		const treeSitterAdapter = new TreeSitterAdapter();
+		return ctx.webServer.register({
+			kind: "exact",
+			path: "/api/v1/codegraph/ast",
+			handler: async (req, res) => {
+				if (handleCorsPreflight(req, res)) return;
+				try {
+					const body = await readBody(req, config.maxBodyBytes);
+					const parsed = parseJsonBody(body);
+					const filePath = extractStringField(parsed, "filePath");
+					if (!filePath) {
+						sendError(res, 400, "filePath is required");
+						return;
+					}
+					const workspacePath = findWorkspacePath(ctx);
+					const fullPath = path.resolve(workspacePath, filePath);
+					if (!isPathAllowed(fullPath)) {
+						sendError(res, 403, "Access denied");
+						return;
+					}
+					const content = await fs.readFile(fullPath, "utf-8");
+					const MAX_AST_CONTENT = 512 * 1024;
+					if (content.length > MAX_AST_CONTENT) {
+						sendError(res, 413, `File too large for AST parsing (max ${MAX_AST_CONTENT} bytes)`);
+						return;
+					}
+					const astRoot = await treeSitterAdapter.parseToAst(filePath, content);
+					if (!astRoot) {
+						sendError(res, 500, "AST parsing failed");
+						return;
+					}
+					sendJson(res, 200, astRoot);
+				} catch (e) {
+					log$2.error("ast route failed", e);
+					sendError(res, 500, "Internal server error");
+				}
+			}
+		});
+	}, "codegraph: ast route");
 	ctx.effect(() => {
 		const treeSitterAdapter = new TreeSitterAdapter();
 		return ctx.webServer.register({

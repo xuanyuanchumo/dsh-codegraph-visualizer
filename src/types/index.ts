@@ -45,6 +45,28 @@ export interface GraphData {
   };
 }
 
+export type ViewMode = 'code' | 'dependencies' | 'inheritance' | 'callgraph' | 'package' | 'class' | 'cfg' | 'flowchart' | 'sequence';
+
+export type DiagramType = ViewMode;
+
+export interface InheritanceNodeProperties {
+  depth: number;
+  isRoot: boolean;
+  parentCount: number;
+  childCount: number;
+  descendantCount: number;
+  isAbstract: boolean;
+}
+
+export interface CallGraphNodeProperties {
+  depth: number;
+  isEntry: boolean;
+  entryType: 'export' | 'handler' | 'event' | 'cli' | 'test' | 'none';
+  inDegree: number;
+  outDegree: number;
+  isRecursive: boolean;
+}
+
 export type DataSourceType = 'auto' | 'codegraph' | 'lens' | 'tree-sitter';
 
 export interface AdapterResult {

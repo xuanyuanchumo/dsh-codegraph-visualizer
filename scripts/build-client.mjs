@@ -9,9 +9,10 @@
  * signature. The dev server uses ESM dynamic import() so it needs the
  * plain ESM build.
  */
-import { renameSync, existsSync } from 'node:fs';
+import { renameSync, existsSync, mkdirSync, copyFileSync, readdirSync } from 'node:fs';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
+import { join } from 'node:path';
 
 const execAsync = promisify(exec);
 const root = process.cwd();
@@ -38,6 +39,22 @@ async function main() {
 
   console.log('[build-client] Step 3: wrap CJS in __ModuleLoader__.load -> dist/client/index.js');
   await run('node scripts/wrap-client-bundle.mjs dist/client-cjs/index.cjs dist/client/index.js dsh-codegraph-visualizer');
+
+  console.log('[build-client] Step 4: copy tree-sitter WASM files -> dist/client/');
+  const wasmSourceDir = join(root, 'node_modules', 'tree-sitter-wasm', 'out');
+  const wasmDestDir = join(root, 'dist', 'client');
+  const neededLanguages = ['typescript', 'javascript', 'python', 'java', 'rust', 'go'];
+  if (existsSync(wasmSourceDir)) {
+    for (const lang of neededLanguages) {
+      const srcFile = join(wasmSourceDir, lang, `tree-sitter-${lang}.wasm`);
+      if (existsSync(srcFile)) {
+        copyFileSync(srcFile, join(wasmDestDir, `tree-sitter-${lang}.wasm`));
+        console.log(`  copied tree-sitter-${lang}.wasm`);
+      }
+    }
+  } else {
+    console.warn('  WARNING: tree-sitter-wasm/out not found, skipping WASM copy');
+  }
 
   console.log('[build-client] Done.');
 }

@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import type { LayoutType, ThemeType, GraphType, ClusterLevel } from '../store/graphStore.ts';
-import type { GraphNode } from '../../types/index.ts';
+import type { GraphNode, ViewMode } from '../../types/index.ts';
 import type { WorkspaceSelectorProps } from './WorkspaceSelector.tsx';
 import { useT, useLang, toggleLang } from '../i18n/index.ts';
 import { WorkspaceSelector } from './WorkspaceSelector.tsx';
@@ -26,6 +26,21 @@ const GRAPH_TYPES: { value: GraphType; key: string }[] = [
   { value: 'all', key: 'graphType.all' },
   { value: 'call', key: 'graphType.call' },
   { value: 'dependency', key: 'graphType.dependency' },
+];
+
+const MACRO_VIEW_MODES: { value: ViewMode; key: string }[] = [
+  { value: 'code', key: 'viewMode.code' },
+  { value: 'dependencies', key: 'viewMode.dependencies' },
+  { value: 'inheritance', key: 'viewMode.inheritance' },
+  { value: 'callgraph', key: 'viewMode.callgraph' },
+  { value: 'package', key: 'viewMode.package' },
+  { value: 'class', key: 'viewMode.class' },
+];
+
+const MICRO_VIEW_MODES: { value: ViewMode; key: string }[] = [
+  { value: 'cfg', key: 'viewMode.cfg' },
+  { value: 'flowchart', key: 'viewMode.flowchart' },
+  { value: 'sequence', key: 'viewMode.sequence' },
 ];
 
 const CLUSTER_LEVELS: { value: ClusterLevel; key: string }[] = [
@@ -77,7 +92,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   filterType: GraphNode['type'] | 'all';
   graphType: GraphType;
   clusterLevel: ClusterLevel;
-  viewMode: 'code' | 'dependencies';
+  viewMode: ViewMode;
   collapsed: boolean;
   panelControls: PanelControls;
   onLayoutChange: (l: LayoutType) => void;
@@ -85,7 +100,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   onFilterChange: (f: GraphNode['type'] | 'all') => void;
   onGraphTypeChange: (g: GraphType) => void;
   onClusterLevelChange: (level: ClusterLevel) => void;
-  onToggleViewMode: () => void;
+  onViewModeChange: (mode: ViewMode) => void;
   onRefresh: () => void;
   onExport: (format: 'png' | 'svg' | 'json') => void;
   onCollapse: () => void;
@@ -123,7 +138,7 @@ export function Toolbar(props: ToolbarProps) {
     statsText, typeCounts, layout, theme, filterType, graphType, clusterLevel,
     viewMode, collapsed, panelControls,
     onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange,
-    onToggleViewMode,
+    onViewModeChange,
     onRefresh, onCollapse,
     currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
     onCollapseAll, onUndo, onRedo, canUndo, canRedo,
@@ -176,12 +191,27 @@ export function Toolbar(props: ToolbarProps) {
             >{t(g.key)}</button>
           ))}
         </div>
-        <button
-          className={`view-mode-btn ${viewMode === 'dependencies' ? 'active' : ''}`}
-          onClick={onToggleViewMode}
-          title={viewMode === 'code' ? t('toolbar.viewModeDeps') : t('toolbar.viewModeCode')}
-          aria-pressed={viewMode === 'dependencies'}
-        >{viewMode === 'code' ? 'Deps' : 'Code'}</button>
+        <div className="view-mode-buttons" role="group" aria-label={t('toolbar.graphType')}>
+          {MACRO_VIEW_MODES.map((m) => (
+            <button
+              key={m.value}
+              className={`view-mode-btn ${viewMode === m.value ? 'active' : ''}`}
+              onClick={() => onViewModeChange(m.value)}
+              title={t(`toolbar.viewMode${m.value.charAt(0).toUpperCase() + m.value.slice(1)}`)}
+              aria-pressed={viewMode === m.value}
+            >{t(m.key)}</button>
+          ))}
+          <span className="view-mode-divider" aria-hidden="true" />
+          {MICRO_VIEW_MODES.map((m) => (
+            <button
+              key={m.value}
+              className={`view-mode-btn view-mode-btn--micro ${viewMode === m.value ? 'active' : ''}`}
+              onClick={() => onViewModeChange(m.value)}
+              title={t(`toolbar.viewMode${m.value.charAt(0).toUpperCase() + m.value.slice(1)}`)}
+              aria-pressed={viewMode === m.value}
+            >{t(m.key)}</button>
+          ))}
+        </div>
         <select
           value={clusterLevel}
           onChange={(e) => onClusterLevelChange(e.target.value as ClusterLevel)}
