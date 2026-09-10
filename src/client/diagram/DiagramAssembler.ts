@@ -38,3 +38,29 @@ export interface LayeredDiagram {
 export interface DiagramAssembler {
   assemble(nodes: GraphNode[], edges: GraphEdge[]): AssembledDiagram;
 }
+
+export function computeDepths(
+  rootIds: string[],
+  edges: Map<string, GraphEdge[]>,
+  direction: 'source' | 'target',
+): Map<string, number> {
+  const depths = new Map<string, number>();
+  const queue: Array<{ id: string; depth: number }> = rootIds.map((id) => ({ id, depth: 0 }));
+  let head = 0;
+
+  while (head < queue.length) {
+    const { id, depth } = queue[head++]!;
+    if (depths.has(id) && depths.get(id)! <= depth) continue;
+    depths.set(id, depth);
+
+    const edgeList = edges.get(id) ?? [];
+    for (const edge of edgeList) {
+      const nextId = direction === 'source' ? edge.source : edge.target;
+      if (!depths.has(nextId) || depths.get(nextId)! > depth + 1) {
+        queue.push({ id: nextId, depth: depth + 1 });
+      }
+    }
+  }
+
+  return depths;
+}

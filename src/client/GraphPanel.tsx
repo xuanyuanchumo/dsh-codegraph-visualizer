@@ -605,7 +605,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     }
   }, [panel.showImpact, selectedNodeId, renderer.rendererRef, nodes.length]);
 
-  const statsText = useMemo(() => `${nodes.length} nodes · ${edges.length} edges`, [nodes.length, edges.length]);
+  const statsText = useMemo(() => t('stats.nodesEdges', { nodes: nodes.length, edges: edges.length }), [nodes.length, edges.length, t]);
   const nodeTypeCounts = useMemo(() => {
     const counts = { function: 0, class: 0, variable: 0, module: 0, interface: 0, type: 0 };
     for (const n of rawNodes) { if (n.type in counts) counts[n.type as keyof typeof counts]++; }
@@ -854,7 +854,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
             {godModules.map((m) => (
               <div key={m.modulePath} className="godmodule-item">
                 <div className="godmodule-path">{m.modulePath}</div>
-                <div className="godmodule-stats">{m.nodeCount} nodes · {m.edgeCount} edges</div>
+                <div className="godmodule-stats">{t('godmodule.stats', { nodes: m.nodeCount, edges: m.edgeCount })}</div>
                 <div className="godmodule-suggestion">{m.suggestion}</div>
               </div>
             ))}

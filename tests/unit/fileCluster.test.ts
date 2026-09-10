@@ -11,9 +11,19 @@ describe('computeFileClusters', () => {
     expect(result.nodes[0]!.id).toBe('m1');
   });
 
-  it('keeps nodes without parentId as-is', () => {
+  it('clusters nodes by filePath fallback when parentId missing', () => {
     const nodes = [makeNode('n1', 'root', 'function', 'src/root.ts', 1)];
     const result = computeFileClusters(nodes, [], new Set());
+    const cluster = result.nodes.find((n) => 'isCluster' in n && n.isCluster) as
+      { isCluster: true; label: string; childCount: number } | undefined;
+    expect(cluster).toBeDefined();
+    expect(cluster!.childCount).toBe(1);
+    expect(cluster!.label).toContain('root');
+  });
+
+  it('keeps nodes without parentId and filePath as-is', () => {
+    const node = makeNode('n1', 'root', 'function', '', 1);
+    const result = computeFileClusters([node], [], new Set());
     expect(result.nodes).toHaveLength(1);
     expect(result.nodes[0]!.id).toBe('n1');
   });
@@ -62,14 +72,14 @@ describe('computeFileClusters', () => {
     expect(cluster!.label).toContain('myModule.ts');
   });
 
-  it('uses unknown label when parent node missing', () => {
+  it('uses fallback label from parentFileId when parent node missing', () => {
     const child = makeNode('fn1', 'foo', 'function', 'src/a.ts', 1, {}, 'missingParent');
     const nodes = [child];
     const result = computeFileClusters(nodes, [], new Set());
     const cluster = result.nodes.find((n) => 'isCluster' in n && n.isCluster) as
       { isCluster: true; label: string } | undefined;
     expect(cluster).toBeDefined();
-    expect(cluster!.label).toContain('unknown');
+    expect(cluster!.label).toContain('missingParent');
   });
 
   it('aggregates edges between file clusters', () => {

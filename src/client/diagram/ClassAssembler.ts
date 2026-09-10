@@ -1,5 +1,6 @@
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import type { DiagramAssembler, AssembledDiagram } from './DiagramAssembler.ts';
+import { computeDepths } from './DiagramAssembler.ts';
 
 const CLASS_NODE_TYPES = new Set(['class', 'interface', 'type']);
 const CLASS_EDGE_TYPES = new Set(['extend', 'implement']);
@@ -40,7 +41,7 @@ export class ClassAssembler implements DiagramAssembler {
       if (!outEdges.has(n.id)) rootIds.push(n.id);
     }
 
-    const depthMap = this.computeDepths(rootIds, inEdges);
+    const depthMap = computeDepths(rootIds, inEdges, 'source');
 
     const assembledNodes = classNodes.map((n) => {
       const members = membersByClass.get(n.id) ?? [];
@@ -183,28 +184,4 @@ export class ClassAssembler implements DiagramAssembler {
     return parts.join('\n');
   }
 
-  private computeDepths(
-    rootIds: string[],
-    inEdges: Map<string, GraphEdge[]>,
-  ): Map<string, number> {
-    const depths = new Map<string, number>();
-    const queue: Array<{ id: string; depth: number }> = rootIds.map((id) => ({ id, depth: 0 }));
-    let head = 0;
-
-    while (head < queue.length) {
-      const { id, depth } = queue[head++]!;
-      if (depths.has(id) && depths.get(id)! <= depth) continue;
-      depths.set(id, depth);
-
-      const children = inEdges.get(id) ?? [];
-      for (const edge of children) {
-        const childId = edge.source;
-        if (!depths.has(childId) || depths.get(childId)! > depth + 1) {
-          queue.push({ id: childId, depth: depth + 1 });
-        }
-      }
-    }
-
-    return depths;
-  }
 }

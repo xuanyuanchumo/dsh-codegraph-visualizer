@@ -201,11 +201,8 @@ export const useGraphStore = create<GraphState>()(
           }
         }
         const result = computeClusteredGraph(displayNodes, displayEdges, clusterLevel, expandedNodeIds);
-        const isDepsMode = viewMode === 'dependencies';
         set({
-          ...(isDepsMode
-            ? { savedRawNodes: nodes, savedRawEdges: edges }
-            : { rawNodes: nodes, rawEdges: edges }),
+          rawNodes: nodes, rawEdges: edges,
           nodes: result.nodes, edges: result.edges,
           diagramData,
           repoId, error: null, isLoading: false, lastUpdated: Date.now(),

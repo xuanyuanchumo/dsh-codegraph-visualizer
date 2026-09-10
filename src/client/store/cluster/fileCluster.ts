@@ -98,8 +98,8 @@ export function computeFileClusters(
 
   const fileClusterChildren = new Map<string, { children: GraphNode[]; parentFileId: string }>();
   for (const n of nonModuleNodes) {
-    if (n.parentId) {
-      const parentFileId = n.parentId;
+    const parentFileId = n.parentId ?? n.filePath;
+    if (parentFileId) {
       const clusterId = `filecluster__${parentFileId.replace(/[/:\\]/g, '__')}`;
       if (expandedFiles.has(clusterId) || expandedFiles.has(parentFileId)) {
         visibleNodes.push(n);
@@ -117,12 +117,13 @@ export function computeFileClusters(
   }
 
   for (const [clusterId, { children, parentFileId }] of fileClusterChildren) {
-    const parentNode = rawNodes.find((n) => n.id === parentFileId);
+    const parentNode = rawNodes.find((n) => n.id === parentFileId || n.filePath === parentFileId);
+    const fallbackLabel = parentFileId.split(/[\\/]/).pop() ?? 'unknown';
     const clusterNode: ClusterNode = {
       id: NodeId(clusterId),
-      label: `${parentNode?.label ?? 'unknown'} (${children.length})`,
+      label: `${parentNode?.label ?? fallbackLabel} (${children.length})`,
       type: 'module',
-      filePath: parentNode?.filePath ?? '',
+      filePath: parentNode?.filePath ?? parentFileId,
       lineNumber: 0,
       properties: {},
       isCluster: true,

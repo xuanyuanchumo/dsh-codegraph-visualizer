@@ -1,6 +1,7 @@
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { NodeId as makeNodeId, EdgeId } from '../../types/index.ts';
 import type { DiagramAssembler, AssembledDiagram } from './DiagramAssembler.ts';
+import { computeDepths } from './DiagramAssembler.ts';
 
 function getDirectory(filePath: string): string {
   const normalized = filePath.replace(/\\/g, '/');
@@ -123,7 +124,13 @@ export class PackageAssembler implements DiagramAssembler {
       if ((inDegree.get(pkgNode.id) ?? 0) === 0) rootIds.push(pkgNode.id);
     }
 
-    const depthMap = this.computeDepths(rootIds, packageEdgeList);
+    const packageEdgeMap = new Map<string, GraphEdge[]>();
+    for (const e of packageEdgeList) {
+      const list = packageEdgeMap.get(e.source) ?? [];
+      list.push(e);
+      packageEdgeMap.set(e.source, list);
+    }
+    const depthMap = computeDepths(rootIds, packageEdgeMap, 'target');
 
     const assembledNodes: GraphNode[] = [];
     for (const [dir, pkgNode] of packageNodes) {
@@ -165,29 +172,4 @@ export class PackageAssembler implements DiagramAssembler {
     };
   }
 
-  private computeDepths(
-    rootIds: string[],
-    edges: GraphEdge[],
-  ): Map<string, number> {
-    const outEdges = new Map<string, string[]>();
-    for (const e of edges) {
-      const list = outEdges.get(e.source) ?? [];
-      list.push(e.target);
-      outEdges.set(e.source, list);
-    }
-    const depths = new Map<string, number>();
-    const queue: Array<{ id: string; depth: number }> = rootIds.map((id) => ({ id, depth: 0 }));
-    let head = 0;
-    while (head < queue.length) {
-      const { id, depth } = queue[head++]!;
-      if (depths.has(id) && depths.get(id)! <= depth) continue;
-      depths.set(id, depth);
-      for (const target of (outEdges.get(id) ?? [])) {
-        if (!depths.has(target) || depths.get(target)! > depth + 1) {
-          queue.push({ id: target, depth: depth + 1 });
-        }
-      }
-    }
-    return depths;
-  }
 }

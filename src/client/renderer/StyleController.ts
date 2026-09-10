@@ -73,11 +73,29 @@ export class StyleController {
 
   private applyStylesheet(): void {
     const baseStylesheet = this.getStylesheet();
+    const transitionOverrides: StylesheetJson = [
+      {
+        selector: 'node',
+        style: {
+          'transition-property': 'width, height, font-size, border-width',
+          'transition-duration': 200,
+          'transition-timing-function': 'ease-out',
+        },
+      },
+      {
+        selector: 'edge',
+        style: {
+          'transition-property': 'width',
+          'transition-duration': 200,
+          'transition-timing-function': 'ease-out',
+        },
+      },
+    ];
     if (this.lodEnabled && this.currentLOD !== 'full') {
       const lodOverrides = this.getLODOverrides(this.currentLOD);
-      this.cy.style().fromJson([...baseStylesheet, ...lodOverrides]).update();
+      this.cy.style().fromJson([...baseStylesheet, ...transitionOverrides, ...lodOverrides]).update();
     } else {
-      this.cy.style().fromJson(baseStylesheet).update();
+      this.cy.style().fromJson([...baseStylesheet, ...transitionOverrides]).update();
     }
   }
 

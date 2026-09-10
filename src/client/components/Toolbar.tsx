@@ -224,7 +224,7 @@ export function Toolbar(props: ToolbarProps) {
                 onClick={() => onLayerChange(idx)}
                 title={name}
                 aria-pressed={currentLayer === idx}
-              >L{idx}</button>
+              >{name.length <= 4 ? name : name.slice(0, 3)}</button>
             ))}
           </div>
         )}

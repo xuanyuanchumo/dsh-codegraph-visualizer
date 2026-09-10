@@ -16,7 +16,7 @@
   --cg-border-strong: var(--dsw-border-strong, rgba(0, 0, 0, 0.1));
   --cg-text: var(--dsw-fg, #0f1115);
   --cg-text-secondary: var(--dsw-fg-secondary, #61666b);
-  --cg-text-tertiary: var(--dsw-fg-tertiary, #767a7e);
+  --cg-text-tertiary: var(--dsw-fg-tertiary, #5f6368);
   --cg-accent: var(--dsw-accent, #263148);
   --cg-accent-hover: var(--dsw-accent-hover, #1a2230);
   --cg-accent-soft: var(--dsw-accent-soft, rgba(38, 49, 72, 0.1));
@@ -105,7 +105,7 @@ body[data-ds-dark-theme] {
   --cg-text: var(--dsw-fg, #f9fafb);
   --cg-text-secondary: var(--dsw-fg-secondary, #cfd3d6);
   --cg-text-tertiary: var(--dsw-fg-tertiary, #a8acb0);
-  --cg-accent: var(--dsw-accent, #7c7ff5);
+  --cg-accent: var(--dsw-accent, #8b8eff);
   --cg-accent-hover: var(--dsw-accent-hover, #818cf8);
   --cg-accent-soft: var(--dsw-accent-soft, rgba(99, 102, 241, 0.12));
   --cg-on-accent: var(--dsw-on-accent, #ffffff);
@@ -536,41 +536,7 @@ body[data-ds-dark-theme] .depth-select {
 
 /* ---- Icon buttons -------------------------------------------------------- */
 
-.cg-icon-btn {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--cg-border);
-  background: var(--cg-bg);
-  border-radius: var(--cg-radius-sm);
-  cursor: pointer;
-  color: var(--cg-text-secondary);
-  transition: all var(--cg-transition);
-  position: relative;
-  flex-shrink: 0;
-}
-
-.cg-icon-btn:hover {
-  background: var(--cg-surface-hover);
-  border-color: var(--cg-accent);
-  color: var(--cg-text);
-  transform: translateY(-1px);
-}
-
-.cg-icon-btn:focus-visible {
-  outline: 2px solid var(--cg-accent);
-  outline-offset: 2px;
-}
-
-.cg-icon-btn.active {
-  background: var(--cg-accent);
-  border-color: var(--cg-accent-hover);
-  color: var(--cg-on-accent);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-}
-
+.cg-icon-btn,
 .search-btn,
 .theme-btn,
 .export-btn,
@@ -606,6 +572,7 @@ body[data-ds-dark-theme] .depth-select {
   flex-shrink: 0;
 }
 
+.cg-icon-btn:hover,
 .search-btn:hover,
 .theme-btn:hover,
 .export-btn:hover,
@@ -632,6 +599,7 @@ body[data-ds-dark-theme] .depth-select {
   transform: translateY(-1px);
 }
 
+.cg-icon-btn:focus-visible,
 .search-btn:focus-visible,
 .theme-btn:focus-visible,
 .export-btn:focus-visible,
@@ -656,6 +624,7 @@ body[data-ds-dark-theme] .depth-select {
   outline-offset: 2px;
 }
 
+.cg-icon-btn.active,
 .search-btn.active,
 .chain-btn.active,
 .cycle-btn.active,
@@ -669,53 +638,7 @@ body[data-ds-dark-theme] .depth-select {
 .health-btn.active,
 .rules-btn.active,
 .hotspot-btn.active,
-.godmoduleF-btn.active {
-  background: var(--cg-accent);
-  border-color: var(--cg-accent-hover);
-  color: var(--cg-on-accent);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-}
-
-.search-btn:hover,
-.theme-btn:hover,
-.export-btn:hover,
-.collapse-btn:hover,
-.chain-btn:hover,
-.cycle-btn:hover,
-.impact-btn:hover,
-.inheritance-btn:hover,
-.minimap-btn:hover,
-.refresh-btn:hover,
-.undo-btn:hover,
-.redo-btn:hover {
-  background: var(--cg-surface-hover);
-  border-color: var(--cg-accent);
-  color: var(--cg-text);
-  transform: translateY(-1px);
-}
-
-.search-btn:focus-visible,
-.theme-btn:focus-visible,
-.export-btn:focus-visible,
-.collapse-btn:focus-visible,
-.chain-btn:focus-visible,
-.cycle-btn:focus-visible,
-.impact-btn:focus-visible,
-.inheritance-btn:focus-visible,
-.minimap-btn:focus-visible,
-.refresh-btn:focus-visible,
-.undo-btn:focus-visible,
-.redo-btn:focus-visible {
-  outline: 2px solid var(--cg-accent);
-  outline-offset: 2px;
-}
-
-.search-btn.active,
-.chain-btn.active,
-.cycle-btn.active,
-.impact-btn.active,
-.inheritance-btn.active,
-.minimap-btn.active {
+.godmodule-btn.active {
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
   color: var(--cg-on-accent);

@@ -500,32 +500,35 @@ function computeFileClusters(rawNodes, rawEdges, expandedFiles) {
 		}
 	}
 	const fileClusterChildren = new Map();
-	for (const n of nonModuleNodes) if (n.parentId) {
-		const parentFileId = n.parentId;
-		const clusterId = `filecluster__${parentFileId.replace(/[/:\\]/g, "__")}`;
-		if (expandedFiles.has(clusterId) || expandedFiles.has(parentFileId)) {
+	for (const n of nonModuleNodes) {
+		const parentFileId = n.parentId ?? n.filePath;
+		if (parentFileId) {
+			const clusterId = `filecluster__${parentFileId.replace(/[/:\\]/g, "__")}`;
+			if (expandedFiles.has(clusterId) || expandedFiles.has(parentFileId)) {
+				visibleNodes.push(n);
+				nodeIdToVisibleId.set(n.id, n.id);
+			} else {
+				nodeIdToVisibleId.set(n.id, clusterId);
+				const entry = fileClusterChildren.get(clusterId);
+				if (entry) entry.children.push(n);
+				else fileClusterChildren.set(clusterId, {
+					children: [n],
+					parentFileId
+				});
+			}
+		} else {
 			visibleNodes.push(n);
 			nodeIdToVisibleId.set(n.id, n.id);
-		} else {
-			nodeIdToVisibleId.set(n.id, clusterId);
-			const entry = fileClusterChildren.get(clusterId);
-			if (entry) entry.children.push(n);
-			else fileClusterChildren.set(clusterId, {
-				children: [n],
-				parentFileId
-			});
 		}
-	} else {
-		visibleNodes.push(n);
-		nodeIdToVisibleId.set(n.id, n.id);
 	}
 	for (const [clusterId, { children, parentFileId }] of fileClusterChildren) {
-		const parentNode = rawNodes.find((n) => n.id === parentFileId);
+		const parentNode = rawNodes.find((n) => n.id === parentFileId || n.filePath === parentFileId);
+		const fallbackLabel = parentFileId.split(/[\\/]/).pop() ?? "unknown";
 		const clusterNode = {
 			id: NodeId(clusterId),
-			label: `${parentNode?.label ?? "unknown"} (${children.length})`,
+			label: `${parentNode?.label ?? fallbackLabel} (${children.length})`,
 			type: "module",
-			filePath: parentNode?.filePath ?? "",
+			filePath: parentNode?.filePath ?? parentFileId,
 			lineNumber: 0,
 			properties: {},
 			isCluster: true,
@@ -687,6 +690,31 @@ function computeClusteredGraph(rawNodes, rawEdges, clusterLevel, expandedNodeIds
 }
 
 //#endregion
+//#region src/client/diagram/DiagramAssembler.ts
+function computeDepths(rootIds, edges, direction) {
+	const depths = new Map();
+	const queue = rootIds.map((id) => ({
+		id,
+		depth: 0
+	}));
+	let head = 0;
+	while (head < queue.length) {
+		const { id, depth } = queue[head++];
+		if (depths.has(id) && depths.get(id) <= depth) continue;
+		depths.set(id, depth);
+		const edgeList = edges.get(id) ?? [];
+		for (const edge of edgeList) {
+			const nextId$1 = direction === "source" ? edge.source : edge.target;
+			if (!depths.has(nextId$1) || depths.get(nextId$1) > depth + 1) queue.push({
+				id: nextId$1,
+				depth: depth + 1
+			});
+		}
+	}
+	return depths;
+}
+
+//#endregion
 //#region src/client/diagram/InheritanceAssembler.ts
 const INHERITANCE_NODE_TYPES = new Set([
 	"class",
@@ -712,7 +740,7 @@ var InheritanceAssembler = class {
 		}
 		const rootIds = [];
 		for (const n of inheritanceNodes) if (!outEdges.has(n.id)) rootIds.push(n.id);
-		const depthMap = this.computeDepths(rootIds, inEdges);
+		const depthMap = computeDepths(rootIds, inEdges, "source");
 		const descendantCounts = this.computeDescendantCounts(rootIds, inEdges);
 		const assembledNodes = inheritanceNodes.map((n) => {
 			const parentEdges = outEdges.get(n.id) ?? [];
@@ -744,28 +772,6 @@ var InheritanceAssembler = class {
 				edgeCount: validEdges.length
 			}
 		};
-	}
-	computeDepths(rootIds, inEdges) {
-		const depths = new Map();
-		const queue = rootIds.map((id) => ({
-			id,
-			depth: 0
-		}));
-		let head = 0;
-		while (head < queue.length) {
-			const { id, depth } = queue[head++];
-			if (depths.has(id) && depths.get(id) <= depth) continue;
-			depths.set(id, depth);
-			const children = inEdges.get(id) ?? [];
-			for (const edge of children) {
-				const childId = edge.source;
-				if (!depths.has(childId) || depths.get(childId) > depth + 1) queue.push({
-					id: childId,
-					depth: depth + 1
-				});
-			}
-		}
-		return depths;
 	}
 	computeDescendantCounts(rootIds, inEdges) {
 		const counts = new Map();
@@ -821,7 +827,7 @@ var CallGraphAssembler = class {
 		const rootIds = [];
 		for (const n of callNodes) if (inDegree.get(n.id) === 0) rootIds.push(n.id);
 		const recursiveIds = this.detectRecursion(callNodes, validEdges);
-		const depthMap = this.computeDepths(rootIds, outEdges);
+		const depthMap = computeDepths(rootIds, outEdges, "target");
 		const assembledNodes = callNodes.map((n) => {
 			const deg = inDegree.get(n.id) ?? 0;
 			const outDeg = outDegree.get(n.id) ?? 0;
@@ -887,29 +893,6 @@ var CallGraphAssembler = class {
 		};
 		for (const n of nodes) if (!visited.has(n.id)) dfs$4(n.id);
 		return recursive;
-	}
-	computeDepths(rootIds, outEdges) {
-		const depths = new Map();
-		const queue = rootIds.map((id) => ({
-			id,
-			depth: 0
-		}));
-		let head = 0;
-		while (head < queue.length) {
-			const { id, depth } = queue[head++];
-			const currentDepth = depths.get(id);
-			if (currentDepth !== void 0 && currentDepth <= depth) continue;
-			depths.set(id, depth);
-			const outList = outEdges.get(id) ?? [];
-			for (const edge of outList) {
-				const targetId = edge.target;
-				if (!depths.has(targetId) || depths.get(targetId) > depth + 1) queue.push({
-					id: targetId,
-					depth: depth + 1
-				});
-			}
-		}
-		return depths;
 	}
 };
 
@@ -1017,7 +1000,13 @@ var PackageAssembler = class {
 		}
 		const rootIds = [];
 		for (const [, pkgNode] of packageNodes) if ((inDegree.get(pkgNode.id) ?? 0) === 0) rootIds.push(pkgNode.id);
-		const depthMap = this.computeDepths(rootIds, packageEdgeList);
+		const packageEdgeMap = new Map();
+		for (const e of packageEdgeList) {
+			const list = packageEdgeMap.get(e.source) ?? [];
+			list.push(e);
+			packageEdgeMap.set(e.source, list);
+		}
+		const depthMap = computeDepths(rootIds, packageEdgeMap, "target");
 		const assembledNodes = [];
 		for (const [dir, pkgNode] of packageNodes) {
 			const childCount = packageChildCount.get(dir) ?? 0;
@@ -1052,30 +1041,6 @@ var PackageAssembler = class {
 			}
 		};
 	}
-	computeDepths(rootIds, edges) {
-		const outEdges = new Map();
-		for (const e of edges) {
-			const list = outEdges.get(e.source) ?? [];
-			list.push(e.target);
-			outEdges.set(e.source, list);
-		}
-		const depths = new Map();
-		const queue = rootIds.map((id) => ({
-			id,
-			depth: 0
-		}));
-		let head = 0;
-		while (head < queue.length) {
-			const { id, depth } = queue[head++];
-			if (depths.has(id) && depths.get(id) <= depth) continue;
-			depths.set(id, depth);
-			for (const target of outEdges.get(id) ?? []) if (!depths.has(target) || depths.get(target) > depth + 1) queue.push({
-				id: target,
-				depth: depth + 1
-			});
-		}
-		return depths;
-	}
 };
 
 //#endregion
@@ -1105,7 +1070,7 @@ var ClassAssembler = class {
 		}
 		const rootIds = [];
 		for (const n of classNodes) if (!outEdges.has(n.id)) rootIds.push(n.id);
-		const depthMap = this.computeDepths(rootIds, inEdges);
+		const depthMap = computeDepths(rootIds, inEdges, "source");
 		const assembledNodes = classNodes.map((n) => {
 			const members = membersByClass.get(n.id) ?? [];
 			const methodCount = members.filter((m) => m.type === "method").length;
@@ -1208,28 +1173,6 @@ var ClassAssembler = class {
 		if (methodLines.length > 0) parts.push(sep$1, ...methodLines);
 		return parts.join("\n");
 	}
-	computeDepths(rootIds, inEdges) {
-		const depths = new Map();
-		const queue = rootIds.map((id) => ({
-			id,
-			depth: 0
-		}));
-		let head = 0;
-		while (head < queue.length) {
-			const { id, depth } = queue[head++];
-			if (depths.has(id) && depths.get(id) <= depth) continue;
-			depths.set(id, depth);
-			const children = inEdges.get(id) ?? [];
-			for (const edge of children) {
-				const childId = edge.source;
-				if (!depths.has(childId) || depths.get(childId) > depth + 1) queue.push({
-					id: childId,
-					depth: depth + 1
-				});
-			}
-		}
-		return depths;
-	}
 };
 
 //#endregion
@@ -1312,7 +1255,13 @@ var DependencyAssembler = class {
 		}
 		const rootIds = [];
 		for (const [, dirNode] of dirNodes) if ((inDegree.get(dirNode.id) ?? 0) === 0) rootIds.push(dirNode.id);
-		const depthMap = this.computeDepths(rootIds, depEdgeList);
+		const depEdgeMap = new Map();
+		for (const e of depEdgeList) {
+			const list = depEdgeMap.get(e.source) ?? [];
+			list.push(e);
+			depEdgeMap.set(e.source, list);
+		}
+		const depthMap = computeDepths(rootIds, depEdgeMap, "target");
 		const assembledNodes = [];
 		for (const [dir, dirNode] of dirNodes) {
 			const childCount = dirChildCount.get(dir) ?? 0;
@@ -1347,30 +1296,6 @@ var DependencyAssembler = class {
 				edgeCount: depEdgeList.length
 			}
 		};
-	}
-	computeDepths(rootIds, edges) {
-		const outEdges = new Map();
-		for (const e of edges) {
-			const list = outEdges.get(e.source) ?? [];
-			list.push(e.target);
-			outEdges.set(e.source, list);
-		}
-		const depths = new Map();
-		const queue = rootIds.map((id) => ({
-			id,
-			depth: 0
-		}));
-		let head = 0;
-		while (head < queue.length) {
-			const { id, depth } = queue[head++];
-			if (depths.has(id) && depths.get(id) <= depth) continue;
-			depths.set(id, depth);
-			for (const target of outEdges.get(id) ?? []) if (!depths.has(target) || depths.get(target) > depth + 1) queue.push({
-				id: target,
-				depth: depth + 1
-			});
-		}
-		return depths;
 	}
 };
 
@@ -3051,15 +2976,9 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			}
 		}
 		const result = computeClusteredGraph(displayNodes, displayEdges, clusterLevel, expandedNodeIds);
-		const isDepsMode = viewMode === "dependencies";
 		set$1({
-			...isDepsMode ? {
-				savedRawNodes: nodes,
-				savedRawEdges: edges
-			} : {
-				rawNodes: nodes,
-				rawEdges: edges
-			},
+			rawNodes: nodes,
+			rawEdges: edges,
 			nodes: result.nodes,
 			edges: result.edges,
 			diagramData,
@@ -44790,10 +44709,29 @@ var StyleController = class {
 	}
 	applyStylesheet() {
 		const baseStylesheet = this.getStylesheet();
+		const transitionOverrides = [{
+			selector: "node",
+			style: {
+				"transition-property": "width, height, font-size, border-width",
+				"transition-duration": 200,
+				"transition-timing-function": "ease-out"
+			}
+		}, {
+			selector: "edge",
+			style: {
+				"transition-property": "width",
+				"transition-duration": 200,
+				"transition-timing-function": "ease-out"
+			}
+		}];
 		if (this.lodEnabled && this.currentLOD !== "full") {
 			const lodOverrides = this.getLODOverrides(this.currentLOD);
-			this.cy.style().fromJson([...baseStylesheet, ...lodOverrides]).update();
-		} else this.cy.style().fromJson(baseStylesheet).update();
+			this.cy.style().fromJson([
+				...baseStylesheet,
+				...transitionOverrides,
+				...lodOverrides
+			]).update();
+		} else this.cy.style().fromJson([...baseStylesheet, ...transitionOverrides]).update();
 	}
 	getLODOverrides(level) {
 		if (level === "minimal") return [{
@@ -46356,7 +46294,9 @@ const en = {
 	"viewMode.sequence": "Seq",
 	"micro.selectFunctionPrompt": "Please select a function node in the code graph first, then switch to this view",
 	"micro.selectedFunction": "Current function: {name}",
-	"micro.clearSelection": "Clear selection"
+	"micro.clearSelection": "Clear selection",
+	"stats.nodesEdges": "{nodes} nodes · {edges} edges",
+	"godmodule.stats": "{nodes} nodes · {edges} edges"
 };
 
 //#endregion
@@ -46604,7 +46544,9 @@ const zh = {
 	"viewMode.sequence": "时序",
 	"micro.selectFunctionPrompt": "请先在代码图谱中选择一个函数节点，然后切换到此视图",
 	"micro.selectedFunction": "当前函数: {name}",
-	"micro.clearSelection": "清除选择"
+	"micro.clearSelection": "清除选择",
+	"stats.nodesEdges": "{nodes} 节点 · {edges} 边",
+	"godmodule.stats": "{nodes} 节点 · {edges} 边"
 };
 
 //#endregion
@@ -47931,12 +47873,12 @@ function Toolbar(props) {
 						className: "layer-selector",
 						role: "group",
 						"aria-label": t$1("toolbar.layer"),
-						children: layerNames.map((name$1, idx) => /* @__PURE__ */ jsxs("button", {
+						children: layerNames.map((name$1, idx) => /* @__PURE__ */ jsx("button", {
 							className: `layer-btn ${currentLayer === idx ? "active" : ""}`,
 							onClick: () => onLayerChange(idx),
 							title: name$1,
 							"aria-pressed": currentLayer === idx,
-							children: ["L", idx]
+							children: name$1.length <= 4 ? name$1 : name$1.slice(0, 3)
 						}, idx))
 					}),
 					/* @__PURE__ */ jsx("select", {
@@ -51363,7 +51305,14 @@ function GraphPanelInner({ className = "" }) {
 		renderer$1.rendererRef,
 		nodes.length
 	]);
-	const statsText = useMemo(() => `${nodes.length} nodes · ${edges.length} edges`, [nodes.length, edges.length]);
+	const statsText = useMemo(() => t$1("stats.nodesEdges", {
+		nodes: nodes.length,
+		edges: edges.length
+	}), [
+		nodes.length,
+		edges.length,
+		t$1
+	]);
 	const nodeTypeCounts = useMemo(() => {
 		const counts = {
 			function: 0,
@@ -51644,14 +51593,12 @@ function GraphPanelInner({ className = "" }) {
 								className: "godmodule-path",
 								children: m.modulePath
 							}),
-							/* @__PURE__ */ jsxs("div", {
+							/* @__PURE__ */ jsx("div", {
 								className: "godmodule-stats",
-								children: [
-									m.nodeCount,
-									" nodes · ",
-									m.edgeCount,
-									" edges"
-								]
+								children: t$1("godmodule.stats", {
+									nodes: m.nodeCount,
+									edges: m.edgeCount
+								})
 							}),
 							/* @__PURE__ */ jsx("div", {
 								className: "godmodule-suggestion",

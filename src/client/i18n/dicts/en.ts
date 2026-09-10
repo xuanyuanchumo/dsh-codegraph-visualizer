@@ -296,4 +296,6 @@ export const en: Record<string, string> = {
   'micro.selectFunctionPrompt': 'Please select a function node in the code graph first, then switch to this view',
   'micro.selectedFunction': 'Current function: {name}',
   'micro.clearSelection': 'Clear selection',
+  'stats.nodesEdges': '{nodes} nodes · {edges} edges',
+  'godmodule.stats': '{nodes} nodes · {edges} edges',
 };

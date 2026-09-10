@@ -1,6 +1,7 @@
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { NodeId as makeNodeId, EdgeId } from '../../types/index.ts';
 import type { DiagramAssembler, AssembledDiagram } from './DiagramAssembler.ts';
+import { computeDepths } from './DiagramAssembler.ts';
 
 function getTopLevelDir(filePath: string): string {
   const normalized = filePath.replace(/\\/g, '/');
@@ -101,7 +102,13 @@ export class DependencyAssembler implements DiagramAssembler {
       if ((inDegree.get(dirNode.id) ?? 0) === 0) rootIds.push(dirNode.id);
     }
 
-    const depthMap = this.computeDepths(rootIds, depEdgeList);
+    const depEdgeMap = new Map<string, GraphEdge[]>();
+    for (const e of depEdgeList) {
+      const list = depEdgeMap.get(e.source) ?? [];
+      list.push(e);
+      depEdgeMap.set(e.source, list);
+    }
+    const depthMap = computeDepths(rootIds, depEdgeMap, 'target');
 
     const assembledNodes: GraphNode[] = [];
     for (const [dir, dirNode] of dirNodes) {
@@ -145,29 +152,4 @@ export class DependencyAssembler implements DiagramAssembler {
     };
   }
 
-  private computeDepths(
-    rootIds: string[],
-    edges: GraphEdge[],
-  ): Map<string, number> {
-    const outEdges = new Map<string, string[]>();
-    for (const e of edges) {
-      const list = outEdges.get(e.source) ?? [];
-      list.push(e.target);
-      outEdges.set(e.source, list);
-    }
-    const depths = new Map<string, number>();
-    const queue: Array<{ id: string; depth: number }> = rootIds.map((id) => ({ id, depth: 0 }));
-    let head = 0;
-    while (head < queue.length) {
-      const { id, depth } = queue[head++]!;
-      if (depths.has(id) && depths.get(id)! <= depth) continue;
-      depths.set(id, depth);
-      for (const target of (outEdges.get(id) ?? [])) {
-        if (!depths.has(target) || depths.get(target)! > depth + 1) {
-          queue.push({ id: target, depth: depth + 1 });
-        }
-      }
-    }
-    return depths;
-  }
 }

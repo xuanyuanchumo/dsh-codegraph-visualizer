@@ -1,5 +1,6 @@
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import type { DiagramAssembler, AssembledDiagram } from './DiagramAssembler.ts';
+import { computeDepths } from './DiagramAssembler.ts';
 
 const CALL_NODE_TYPES = new Set(['function']);
 const CALL_EDGE_TYPES = new Set(['call']);
@@ -46,7 +47,7 @@ export class CallGraphAssembler implements DiagramAssembler {
     }
 
     const recursiveIds = this.detectRecursion(callNodes, validEdges);
-    const depthMap = this.computeDepths(rootIds, outEdges);
+    const depthMap = computeDepths(rootIds, outEdges, 'target');
 
     const assembledNodes = callNodes.map((n) => {
       const deg = inDegree.get(n.id) ?? 0;
@@ -134,29 +135,4 @@ export class CallGraphAssembler implements DiagramAssembler {
     return recursive;
   }
 
-  private computeDepths(
-    rootIds: string[],
-    outEdges: Map<string, GraphEdge[]>,
-  ): Map<string, number> {
-    const depths = new Map<string, number>();
-    const queue: Array<{ id: string; depth: number }> = rootIds.map((id) => ({ id, depth: 0 }));
-    let head = 0;
-
-    while (head < queue.length) {
-      const { id, depth } = queue[head++]!;
-      const currentDepth = depths.get(id);
-      if (currentDepth !== undefined && currentDepth <= depth) continue;
-      depths.set(id, depth);
-
-      const outList = outEdges.get(id) ?? [];
-      for (const edge of outList) {
-        const targetId = edge.target;
-        if (!depths.has(targetId) || depths.get(targetId)! > depth + 1) {
-          queue.push({ id: targetId, depth: depth + 1 });
-        }
-      }
-    }
-
-    return depths;
-  }
 }
