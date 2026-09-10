@@ -27,5 +27,6 @@ dsh-web-run/
 dist/client-cjs/
 temp-*.json
 test-browsers/
+screenshots/
 
 

@@ -1,11 +1,9 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
 import type { LayoutType } from '../store/graphStore.ts';
 import type { ViewMode } from '../../types/index.ts';
 import { fetchGraphData } from '../api/index.ts';
-import { scoped } from '../../shared/Logger.ts';
 
-const log = scoped('panel');
 
 export function useViewMode(
   viewMode: ViewMode,

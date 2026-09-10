@@ -58,25 +58,52 @@ export function useGraphRenderer(
   }, [callbacks]);
 
   useEffect(() => {
-    if (!containerRef.current) return;
-    const renderer = new CytoscapeRenderer({
-      container: containerRef.current,
-      theme,
-      onNodeTap: (nodeId: string) => {
-        const id = NodeId(nodeId);
-        callbacksRef.current.onNodeTap(id);
-        if (showCallChainRef.current) { rendererRef.current?.highlightCallChain(id); }
-      },
-      onNodeDoubleTap: (nodeId: string) => callbacksRef.current.onNodeDoubleTap(nodeId),
-      onNodeHover: (nodeId: string, pos: { x: number; y: number }) => callbacksRef.current.onNodeHover(nodeId, pos),
-      onNodeHoverOut: () => callbacksRef.current.onNodeHoverOut(),
-      onEdgeHover: (edgeId: string, pos: { x: number; y: number }) => callbacksRef.current.onEdgeHover(edgeId, pos),
-      onEdgeHoverOut: () => callbacksRef.current.onEdgeHoverOut(),
-    });
-    renderer.init();
-    rendererRef.current = renderer;
-    log.info('renderer initialized', { theme });
-    return () => { renderer.destroy(); rendererRef.current = null; };
+    const container = containerRef.current;
+    if (!container) return;
+
+    let renderer: CytoscapeRenderer | null = null;
+    let ro: ResizeObserver | null = null;
+    let initTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const initWhenReady = () => {
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      if (w > 0 && h > 0) {
+        renderer = new CytoscapeRenderer({
+          container,
+          theme,
+          onNodeTap: (nodeId: string) => {
+            const id = NodeId(nodeId);
+            callbacksRef.current.onNodeTap(id);
+            if (showCallChainRef.current) { rendererRef.current?.highlightCallChain(id); }
+          },
+          onNodeDoubleTap: (nodeId: string) => callbacksRef.current.onNodeDoubleTap(nodeId),
+          onNodeHover: (nodeId: string, pos: { x: number; y: number }) => callbacksRef.current.onNodeHover(nodeId, pos),
+          onNodeHoverOut: () => callbacksRef.current.onNodeHoverOut(),
+          onEdgeHover: (edgeId: string, pos: { x: number; y: number }) => callbacksRef.current.onEdgeHover(edgeId, pos),
+          onEdgeHoverOut: () => callbacksRef.current.onEdgeHoverOut(),
+        });
+        renderer.init();
+        rendererRef.current = renderer;
+        log.info('renderer initialized', { theme, w, h });
+
+        ro = new ResizeObserver(() => {
+          rendererRef.current?.resize();
+        });
+        ro.observe(container);
+      } else {
+        initTimer = setTimeout(initWhenReady, 50);
+      }
+    };
+
+    initWhenReady();
+
+    return () => {
+      if (initTimer !== null) clearTimeout(initTimer);
+      ro?.disconnect();
+      renderer?.destroy();
+      rendererRef.current = null;
+    };
   }, [callbacksRef, showCallChainRef]);
 
   useEffect(() => {

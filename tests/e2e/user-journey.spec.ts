@@ -74,6 +74,6 @@ test.describe('Full user journey: API modal → plugin entry', () => {
     await setupPluginPage(page);
     await expect(page.locator('.node-count')).toBeVisible();
     const text = await page.locator('.node-count').textContent();
-    expect(text).toMatch(/nodes|n\b/i);
+    expect(text).toMatch(/nodes|节点|n\b/i);
   });
 });

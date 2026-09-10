@@ -52,8 +52,9 @@ describe('DependencyAssembler', () => {
     const result = assembler.assemble(nodes, edges);
 
     expect(result.nodes.length).toBe(1);
-    expect(result.nodes[0].properties.isDependencyDir).toBe(true);
-    expect(result.nodes[0].properties.directory).toBe('src/utils');
+    const dirNode = result.nodes.find((n) => n.label === 'src/utils');
+    expect(dirNode?.properties.isDependencyDir).toBe(true);
+    expect(dirNode?.properties.directory).toBe('src/utils');
   });
 
   it('counts children per directory', () => {
@@ -120,7 +121,8 @@ describe('DependencyAssembler', () => {
     const result = assembler.assemble(nodes, edges);
 
     expect(result.edges.length).toBe(1);
-    expect(result.edges[0].properties.aggregatedCount).toBe(2);
+    const aggEdge = result.edges.find((e) => e.type === 'import');
+    expect(aggEdge?.properties.aggregatedCount).toBe(2);
   });
 
   it('skips intra-directory edges', () => {
@@ -224,7 +226,8 @@ describe('DependencyAssembler', () => {
     const result = assembler.assemble(nodes, edges);
 
     expect(result.nodes.length).toBe(1);
-    expect(result.nodes[0].label).toBe('root');
+    const rootNode = result.nodes.find((n) => n.label === 'root');
+    expect(rootNode).toBeDefined();
   });
 
   it('handles Windows-style paths', () => {
@@ -276,7 +279,8 @@ describe('DependencyAssembler', () => {
     const result = assembler.assemble(nodes, edges);
 
     expect(result.edges.length).toBe(1);
-    expect(result.edges[0].type).toBe('import');
+    const importEdge = result.edges.find((e) => e.type === 'import');
+    expect(importEdge?.type).toBe('import');
   });
 
   it('sets isRoot property on root nodes', () => {

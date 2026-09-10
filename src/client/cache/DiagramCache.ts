@@ -2,14 +2,6 @@ import type { ViewMode } from '../../types/index.ts';
 import type { LayeredDiagram } from '../diagram/DiagramAssembler.ts';
 import type { ClusterLevel, ClusterResult } from '../store/cluster/index.ts';
 
-function fnv1aHash(str: string): string {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) {
-    hash ^= str.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return (hash >>> 0).toString(16);
-}
 
 function computeDataHash(nodes: { id: string; type: string }[], edges: { id: string; source: string; target: string; type: string }[]): string {
   let nodeHash = 0x811c9dc5;

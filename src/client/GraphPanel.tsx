@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useGraphStore, type ThemeType } from './store/graphStore.ts';
 import { useShallow } from 'zustand/shallow';
-import type { GraphNode, GraphEdge, ViewMode } from '../types/index.ts';
+import type { GraphNode, GraphEdge } from '../types/index.ts';
 import { NodeId } from '../types/index.ts';
 import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard, useViewMode, useAnalysisPanels } from './hooks/index.ts';
 import { useHistory } from './hooks/useHistory.ts';
@@ -28,7 +28,7 @@ import { GodModulePanel } from './components/GodModulePanel.tsx';
 import { ImpactPanel } from './components/ImpactPanel.tsx';
 import { MicroViewPrompt, MicroFunctionBar } from './components/MicroViewBar.tsx';
 import { GraphIcon } from './components/Icons.tsx';
-import { fetchGraphData } from './api/index.ts';
+
 import { SequenceDiagramRenderer } from './renderer/SequenceDiagramRenderer.tsx';
 import { scoped } from '../shared/Logger.ts';
 import { useT } from './i18n/index.ts';
@@ -65,7 +65,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     highlightedNodeIds, filterType, graphType, clusterLevel, isLoading, error, lastUpdated,
     prerequisites, watchEnabled, currentWorkspace, workspaceList,
     initStatus, truncated, totalNodeCount, expandedNodeIds,
-    pathResult, focusDepth, healthScore, rules, ruleViolations,
+    pathResult, focusDepth, ruleViolations,
     viewMode, selectedFunction, currentLayer, diagramData,
   } = useGraphStore(useShallow((s) => ({
     nodes: s.nodes, edges: s.edges, rawNodes: s.rawNodes, rawEdges: s.rawEdges,
@@ -105,11 +105,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const collapseAll = useGraphStore((s) => s.collapseAll);
   const setPathResult = useGraphStore((s) => s.setPathResult);
   const setFocusDepth = useGraphStore((s) => s.setFocusDepth);
-  const setHealthScore = useGraphStore((s) => s.setHealthScore);
-  const setRules = useGraphStore((s) => s.setRules);
-  const setRuleViolations = useGraphStore((s) => s.setRuleViolations);
-  const setViewMode = useGraphStore((s) => s.setViewMode);
-  const setSelectedFunction = useGraphStore((s) => s.setSelectedFunction);
+
   const panelHeight = useGraphStore((s) => s.panelHeight);
   const panelWidth = useGraphStore((s) => s.panelWidth);
 
@@ -256,7 +252,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     if (panel.collapsed) return;
     const panelEl = panelRef.current;
     if (!panelEl) return;
-    if (panelHeight !== null && panelHeight >= 240) panelEl.style.height = `${panelHeight}px`;
+    if (panelHeight !== null && panelHeight >= 240) panelEl.style.height = `${Math.min(panelHeight, window.innerHeight)}px`;
     if (panelWidth !== null && panelWidth >= 320) panelEl.style.width = `${panelWidth}px`;
     if (panelHeight !== null || panelWidth !== null) renderer.rendererRef.current?.resize();
   }, [panel.collapsed, panelHeight, panelWidth, renderer.rendererRef]);
@@ -282,8 +278,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       resizeTimer = setTimeout(() => {
         resizeTimer = null;
         const h = target.getBoundingClientRect().height;
-        if (h >= 240) {
-          panelEl.style.height = `${h}px`;
+        const maxH = window.innerHeight;
+        const finalH = Math.min(h, maxH);
+        if (finalH > 0) {
+          panelEl.style.height = `${finalH}px`;
           renderer.rendererRef.current?.resize();
         }
       }, 200);
@@ -413,7 +411,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     return renderer.rendererRef.current?.getImpactStats(selectedNodeId) ?? null;
   }, [renderer.rendererRef, selectedNodeId]);
 
-  const { handleHealthCheck, handleRulesCheck, hotspotNodes, godModules, impactStats } = useAnalysisPanels(
+  const { handleRulesCheck, hotspotNodes, godModules, impactStats } = useAnalysisPanels(
     rawNodes, rawEdges,
     panel.showHealthScore, panel.showRules, panel.showHotspot, panel.showGodModule,
     panel.showImpact, selectedNodeId, getImpactStats,
