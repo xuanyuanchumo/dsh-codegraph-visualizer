@@ -16,7 +16,7 @@
   --cg-border-strong: var(--dsw-border-strong, rgba(0, 0, 0, 0.1));
   --cg-text: var(--dsw-fg, #0f1115);
   --cg-text-secondary: var(--dsw-fg-secondary, #61666b);
-  --cg-text-tertiary: var(--dsw-fg-tertiary, #9ca0a5);
+  --cg-text-tertiary: var(--dsw-fg-tertiary, #767a7e);
   --cg-accent: var(--dsw-accent, #263148);
   --cg-accent-hover: var(--dsw-accent-hover, #1a2230);
   --cg-accent-soft: var(--dsw-accent-soft, rgba(38, 49, 72, 0.1));
@@ -105,7 +105,7 @@ body[data-ds-dark-theme] {
   --cg-text: var(--dsw-fg, #f9fafb);
   --cg-text-secondary: var(--dsw-fg-secondary, #cfd3d6);
   --cg-text-tertiary: var(--dsw-fg-tertiary, #a8acb0);
-  --cg-accent: var(--dsw-accent, #6366f1);
+  --cg-accent: var(--dsw-accent, #7c7ff5);
   --cg-accent-hover: var(--dsw-accent-hover, #818cf8);
   --cg-accent-soft: var(--dsw-accent-soft, rgba(99, 102, 241, 0.12));
   --cg-on-accent: var(--dsw-on-accent, #ffffff);
@@ -536,18 +536,7 @@ body[data-ds-dark-theme] .depth-select {
 
 /* ---- Icon buttons -------------------------------------------------------- */
 
-.search-btn,
-.theme-btn,
-.export-btn,
-.collapse-btn,
-.chain-btn,
-.cycle-btn,
-.impact-btn,
-.inheritance-btn,
-.minimap-btn,
-.refresh-btn,
-.undo-btn,
-.redo-btn {
+.cg-icon-btn {
   width: 28px;
   height: 28px;
   display: flex;
@@ -561,6 +550,130 @@ body[data-ds-dark-theme] .depth-select {
   transition: all var(--cg-transition);
   position: relative;
   flex-shrink: 0;
+}
+
+.cg-icon-btn:hover {
+  background: var(--cg-surface-hover);
+  border-color: var(--cg-accent);
+  color: var(--cg-text);
+  transform: translateY(-1px);
+}
+
+.cg-icon-btn:focus-visible {
+  outline: 2px solid var(--cg-accent);
+  outline-offset: 2px;
+}
+
+.cg-icon-btn.active {
+  background: var(--cg-accent);
+  border-color: var(--cg-accent-hover);
+  color: var(--cg-on-accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+.search-btn,
+.theme-btn,
+.export-btn,
+.collapse-btn,
+.chain-btn,
+.cycle-btn,
+.impact-btn,
+.inheritance-btn,
+.minimap-btn,
+.refresh-btn,
+.undo-btn,
+.redo-btn,
+.import-btn,
+.legend-btn,
+.lang-btn,
+.pathfind-btn,
+.health-btn,
+.rules-btn,
+.hotspot-btn,
+.godmodule-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--cg-border);
+  background: var(--cg-bg);
+  border-radius: var(--cg-radius-sm);
+  cursor: pointer;
+  color: var(--cg-text-secondary);
+  transition: all var(--cg-transition);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.search-btn:hover,
+.theme-btn:hover,
+.export-btn:hover,
+.collapse-btn:hover,
+.chain-btn:hover,
+.cycle-btn:hover,
+.impact-btn:hover,
+.inheritance-btn:hover,
+.minimap-btn:hover,
+.refresh-btn:hover,
+.undo-btn:hover,
+.redo-btn:hover,
+.import-btn:hover,
+.legend-btn:hover,
+.lang-btn:hover,
+.pathfind-btn:hover,
+.health-btn:hover,
+.rules-btn:hover,
+.hotspot-btn:hover,
+.godmodule-btn:hover {
+  background: var(--cg-surface-hover);
+  border-color: var(--cg-accent);
+  color: var(--cg-text);
+  transform: translateY(-1px);
+}
+
+.search-btn:focus-visible,
+.theme-btn:focus-visible,
+.export-btn:focus-visible,
+.collapse-btn:focus-visible,
+.chain-btn:focus-visible,
+.cycle-btn:focus-visible,
+.impact-btn:focus-visible,
+.inheritance-btn:focus-visible,
+.minimap-btn:focus-visible,
+.refresh-btn:focus-visible,
+.undo-btn:focus-visible,
+.redo-btn:focus-visible,
+.import-btn:focus-visible,
+.legend-btn:focus-visible,
+.lang-btn:focus-visible,
+.pathfind-btn:focus-visible,
+.health-btn:focus-visible,
+.rules-btn:focus-visible,
+.hotspot-btn:focus-visible,
+.godmodule-btn:focus-visible {
+  outline: 2px solid var(--cg-accent);
+  outline-offset: 2px;
+}
+
+.search-btn.active,
+.chain-btn.active,
+.cycle-btn.active,
+.impact-btn.active,
+.inheritance-btn.active,
+.minimap-btn.active,
+.import-btn.active,
+.legend-btn.active,
+.lang-btn.active,
+.pathfind-btn.active,
+.health-btn.active,
+.rules-btn.active,
+.hotspot-btn.active,
+.godmoduleF-btn.active {
+  background: var(--cg-accent);
+  border-color: var(--cg-accent-hover);
+  color: var(--cg-on-accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
 .search-btn:hover,
@@ -1434,49 +1547,7 @@ body[data-ds-dark-theme] .depth-select {
   }
 }
 
-/* ---- Import button + Legend button + Lang button (share icon-button styles) -- */
-
-.import-btn,
-.legend-btn,
-.lang-btn {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--cg-border);
-  background: var(--cg-bg);
-  border-radius: var(--cg-radius-sm);
-  cursor: pointer;
-  color: var(--cg-text-secondary);
-  transition: all var(--cg-transition);
-  flex-shrink: 0;
-}
-
-.import-btn:hover,
-.legend-btn:hover,
-.lang-btn:hover {
-  background: var(--cg-surface-hover);
-  border-color: var(--cg-accent);
-  color: var(--cg-text);
-  transform: translateY(-1px);
-}
-
-.import-btn:focus-visible,
-.legend-btn:focus-visible,
-.lang-btn:focus-visible {
-  outline: 2px solid var(--cg-accent);
-  outline-offset: 2px;
-}
-
-.import-btn.active,
-.legend-btn.active,
-.lang-btn.active {
-  background: var(--cg-accent);
-  border-color: var(--cg-accent-hover);
-  color: var(--cg-on-accent);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-}
+/* ---- Import button + Legend button + Lang button (use .cg-icon-btn) -- */
 
 .lang-label {
   font-size: 11px;
@@ -3385,57 +3456,7 @@ body[data-ds-dark-theme] .depth-select {
   border-top: 1px solid color-mix(in srgb, var(--cg-error) 120%, transparent);
 }
 
-/* ---- New toolbar icon buttons --------------------------------------------- */
-
-.pathfind-btn,
-.health-btn,
-.rules-btn,
-.hotspot-btn,
-.godmodule-btn {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--cg-border);
-  background: var(--cg-bg);
-  border-radius: var(--cg-radius-sm);
-  cursor: pointer;
-  color: var(--cg-text-secondary);
-  transition: all var(--cg-transition);
-  flex-shrink: 0;
-}
-
-.pathfind-btn:hover,
-.health-btn:hover,
-.rules-btn:hover,
-.hotspot-btn:hover,
-.godmodule-btn:hover {
-  background: var(--cg-surface-hover);
-  border-color: var(--cg-accent);
-  color: var(--cg-text);
-  transform: translateY(-1px);
-}
-
-.pathfind-btn:focus-visible,
-.health-btn:focus-visible,
-.rules-btn:focus-visible,
-.hotspot-btn:focus-visible,
-.godmodule-btn:focus-visible {
-  outline: 2px solid var(--cg-accent);
-  outline-offset: 2px;
-}
-
-.pathfind-btn.active,
-.health-btn.active,
-.rules-btn.active,
-.hotspot-btn.active,
-.godmodule-btn.active {
-  background: var(--cg-accent);
-  border-color: var(--cg-accent-hover);
-  color: var(--cg-on-accent);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-}
+/* ---- New toolbar icon buttons (use .cg-icon-btn) ------------------------ */
 
 /* ---- Impact stats panel (FR-35) ------------------------------------------ */
 

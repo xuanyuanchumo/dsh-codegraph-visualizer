@@ -268,7 +268,7 @@ export class LayoutController {
         return {
           name: 'cose', fit: true, animate: false,
           nodeRepulse: sp.nodeRepulse, idealEdgeLength: sp.idealEdgeLength,
-          edgeElasticity: 0.05, gravity: 0.02, numIter: 15000,
+          edgeElasticity: 0.05, gravity: 0.02, numIter: 2500,
           randomize: true, tile: true, padding: sp.padding, avoidOverlap: true,
         } as LayoutOptions;
       case 'dagre':
@@ -327,7 +327,7 @@ export class LayoutController {
 
     const sp = this.computeSmartSpacing(nodes.length);
     const minGap = sp.minGap;
-    const maxIterations = 30;
+    const maxIterations = 15;
     const skipThreshold = 2000;
 
     if (nodes.length > skipThreshold) {
@@ -336,6 +336,9 @@ export class LayoutController {
     }
 
     const cellSize = minGap * 4;
+    let lastOverlapCount = Infinity;
+    let noImprovementCount = 0;
+
     for (let iter = 0; iter < maxIterations; iter++) {
       const positions: Array<{ id: string; x: number; y: number; w: number; h: number }> = [];
       nodes.forEach((n) => {
@@ -400,6 +403,13 @@ export class LayoutController {
       }
 
       if (overlapCount === 0) break;
+      if (overlapCount >= lastOverlapCount) {
+        noImprovementCount++;
+        if (noImprovementCount >= 3) break;
+      } else {
+        noImprovementCount = 0;
+      }
+      lastOverlapCount = overlapCount;
 
       this.cy.batch(() => {
         for (const [id, d] of displacements) {

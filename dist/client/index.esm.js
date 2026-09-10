@@ -2853,9 +2853,49 @@ async function assembleMicroDiagram(viewMode, filePath, functionName) {
 //#endregion
 //#region src/client/cache/DiagramCache.ts
 function computeDataHash(nodes, edges) {
-	const nodeHash = nodes.map((n) => `${n.id}:${n.type}`).join("|");
-	const edgeHash = edges.map((e) => `${e.id}:${e.source}:${e.target}:${e.type}`).join("|");
-	return `${nodeHash.length}_${edgeHash.length}`;
+	let nodeHash = 2166136261;
+	for (const n of nodes) {
+		for (let i$1 = 0; i$1 < n.id.length; i$1++) {
+			nodeHash ^= n.id.charCodeAt(i$1);
+			nodeHash = Math.imul(nodeHash, 16777619);
+		}
+		nodeHash ^= ":".charCodeAt(0);
+		nodeHash = Math.imul(nodeHash, 16777619);
+		for (let i$1 = 0; i$1 < n.type.length; i$1++) {
+			nodeHash ^= n.type.charCodeAt(i$1);
+			nodeHash = Math.imul(nodeHash, 16777619);
+		}
+		nodeHash ^= "|".charCodeAt(0);
+		nodeHash = Math.imul(nodeHash, 16777619);
+	}
+	let edgeHash = 2166136261;
+	for (const e of edges) {
+		for (let i$1 = 0; i$1 < e.id.length; i$1++) {
+			edgeHash ^= e.id.charCodeAt(i$1);
+			edgeHash = Math.imul(edgeHash, 16777619);
+		}
+		edgeHash ^= ":".charCodeAt(0);
+		edgeHash = Math.imul(edgeHash, 16777619);
+		for (let i$1 = 0; i$1 < e.source.length; i$1++) {
+			edgeHash ^= e.source.charCodeAt(i$1);
+			edgeHash = Math.imul(edgeHash, 16777619);
+		}
+		edgeHash ^= ":".charCodeAt(0);
+		edgeHash = Math.imul(edgeHash, 16777619);
+		for (let i$1 = 0; i$1 < e.target.length; i$1++) {
+			edgeHash ^= e.target.charCodeAt(i$1);
+			edgeHash = Math.imul(edgeHash, 16777619);
+		}
+		edgeHash ^= ":".charCodeAt(0);
+		edgeHash = Math.imul(edgeHash, 16777619);
+		for (let i$1 = 0; i$1 < e.type.length; i$1++) {
+			edgeHash ^= e.type.charCodeAt(i$1);
+			edgeHash = Math.imul(edgeHash, 16777619);
+		}
+		edgeHash ^= "|".charCodeAt(0);
+		edgeHash = Math.imul(edgeHash, 16777619);
+	}
+	return `${(nodeHash >>> 0).toString(16)}_${(edgeHash >>> 0).toString(16)}`;
 }
 var DiagramCache = class {
 	cache = new Map();
@@ -2865,11 +2905,17 @@ var DiagramCache = class {
 	}
 	get(viewMode, dataHash) {
 		const key = `${viewMode}:${dataHash}`;
-		return this.cache.get(key) ?? null;
+		const value = this.cache.get(key);
+		if (value) {
+			this.cache.delete(key);
+			this.cache.set(key, value);
+		}
+		return value ?? null;
 	}
 	set(viewMode, dataHash, diagram) {
 		const key = `${viewMode}:${dataHash}`;
-		if (this.cache.size >= this.maxEntries) {
+		if (this.cache.has(key)) this.cache.delete(key);
+		else if (this.cache.size >= this.maxEntries) {
 			const firstKey = this.cache.keys().next().value;
 			if (firstKey) this.cache.delete(firstKey);
 		}
@@ -2877,7 +2923,7 @@ var DiagramCache = class {
 	}
 	invalidate(viewMode) {
 		if (viewMode) {
-			for (const key of this.cache.keys()) if (key.startsWith(viewMode)) this.cache.delete(key);
+			for (const key of this.cache.keys()) if (key.startsWith(`${viewMode}:`)) this.cache.delete(key);
 		} else this.cache.clear();
 	}
 	size() {
@@ -2890,13 +2936,19 @@ var ClusterCache = class {
 	constructor(maxEntries = 20) {
 		this.maxEntries = maxEntries;
 	}
-	get(nodesHash, edgesHash, level, expandedKey) {
-		const key = `${nodesHash}:${edgesHash}:${level}:${expandedKey}`;
-		return this.cache.get(key) ?? null;
+	get(dataHash, level, expandedKey) {
+		const key = `${dataHash}:${level}:${expandedKey}`;
+		const value = this.cache.get(key);
+		if (value) {
+			this.cache.delete(key);
+			this.cache.set(key, value);
+		}
+		return value ?? null;
 	}
-	set(nodesHash, edgesHash, level, expandedKey, result) {
-		const key = `${nodesHash}:${edgesHash}:${level}:${expandedKey}`;
-		if (this.cache.size >= this.maxEntries) {
+	set(dataHash, level, expandedKey, result) {
+		const key = `${dataHash}:${level}:${expandedKey}`;
+		if (this.cache.has(key)) this.cache.delete(key);
+		else if (this.cache.size >= this.maxEntries) {
 			const firstKey = this.cache.keys().next().value;
 			if (firstKey) this.cache.delete(firstKey);
 		}
@@ -3149,10 +3201,9 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				sourceEdges = layer.edges;
 			}
 		}
-		const nodesHash = computeDataHash(sourceNodes, sourceEdges);
-		const edgesHash = nodesHash;
+		const dataHash = computeDataHash(sourceNodes, sourceEdges);
 		const expandedKey = [...expandedNodeIds].sort().join(",");
-		const cached = clusterCache.get(nodesHash, edgesHash, clusterLevel, expandedKey);
+		const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
 		if (cached) {
 			set$1({
 				clusterLevel,
@@ -3162,7 +3213,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			return;
 		}
 		const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, expandedNodeIds);
-		clusterCache.set(nodesHash, edgesHash, clusterLevel, expandedKey, result);
+		clusterCache.set(dataHash, clusterLevel, expandedKey, result);
 		set$1({
 			clusterLevel,
 			nodes: result.nodes,
@@ -42278,7 +42329,7 @@ var LayoutController = class {
 				idealEdgeLength: sp.idealEdgeLength,
 				edgeElasticity: .05,
 				gravity: .02,
-				numIter: 15e3,
+				numIter: 2500,
 				randomize: true,
 				tile: true,
 				padding: sp.padding,
@@ -42351,13 +42402,15 @@ var LayoutController = class {
 		if (nodes.length === 0) return;
 		const sp = this.computeSmartSpacing(nodes.length);
 		const minGap = sp.minGap;
-		const maxIterations = 30;
+		const maxIterations = 15;
 		const skipThreshold = 2e3;
 		if (nodes.length > skipThreshold) {
 			this.cy.fit(void 0, 80);
 			return;
 		}
 		const cellSize = minGap * 4;
+		let lastOverlapCount = Infinity;
+		let noImprovementCount = 0;
 		for (let iter = 0; iter < maxIterations; iter++) {
 			const positions = [];
 			nodes.forEach((n) => {
@@ -42433,6 +42486,11 @@ var LayoutController = class {
 				}
 			}
 			if (overlapCount === 0) break;
+			if (overlapCount >= lastOverlapCount) {
+				noImprovementCount++;
+				if (noImprovementCount >= 3) break;
+			} else noImprovementCount = 0;
+			lastOverlapCount = overlapCount;
 			this.cy.batch(() => {
 				for (const [id, d] of displacements) {
 					const node = this.cy.getElementById(id);
@@ -42639,53 +42697,73 @@ var HighlightController = class {
 			total: d1 + d2 + d3
 		};
 	}
+	lastInheritanceRelevant = new Set();
 	highlightInheritance(nodeId) {
-		this.cy.batch(() => {
-			this.cy.elements().removeClass("inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement");
-			if (!nodeId) {
+		if (!nodeId) {
+			this.cy.batch(() => {
+				this.cy.elements().removeClass("inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement");
 				this.cy.edges("[type=\"extend\"]").addClass("inheritance-extend");
 				this.cy.edges("[type=\"implement\"]").addClass("inheritance-implement");
-				return;
-			}
-			const focusNode = this.cy.getElementById(nodeId);
-			if (focusNode.empty()) return;
-			focusNode.addClass("inheritance-focus");
-			const relevant = new Set([nodeId]);
-			const stack = [{
-				id: nodeId,
-				direction: "up"
-			}, {
-				id: nodeId,
-				direction: "down"
-			}];
-			while (stack.length > 0) {
-				const { id, direction } = stack.pop();
+			});
+			this.lastInheritanceRelevant.clear();
+			return;
+		}
+		const focusNode = this.cy.getElementById(nodeId);
+		if (focusNode.empty()) return;
+		const relevant = new Set([nodeId]);
+		const relevantEdges = new Set();
+		const stack = [{
+			id: nodeId,
+			direction: "up"
+		}, {
+			id: nodeId,
+			direction: "down"
+		}];
+		while (stack.length > 0) {
+			const { id, direction } = stack.pop();
+			const node = this.cy.getElementById(id);
+			const edges = direction === "up" ? node.outgoers("edge[type=\"extend\"], edge[type=\"implement\"]") : node.incomers("edge[type=\"extend\"], edge[type=\"implement\"]");
+			edges.forEach((edge) => {
+				const target = direction === "up" ? edge.target().id() : edge.source().id();
+				if (!relevant.has(target)) {
+					relevant.add(target);
+					relevantEdges.add(edge.id());
+					stack.push({
+						id: target,
+						direction
+					});
+				}
+			});
+		}
+		const toHighlight = [];
+		const toUnhighlight = [];
+		for (const id of relevant) if (!this.lastInheritanceRelevant.has(id)) toHighlight.push(id);
+		for (const id of this.lastInheritanceRelevant) if (!relevant.has(id)) toUnhighlight.push(id);
+		this.cy.batch(() => {
+			for (const id of toUnhighlight) {
 				const node = this.cy.getElementById(id);
-				const edges = direction === "up" ? node.outgoers("edge[type=\"extend\"], edge[type=\"implement\"]") : node.incomers("edge[type=\"extend\"], edge[type=\"implement\"]");
-				edges.forEach((edge) => {
-					const target = direction === "up" ? edge.target().id() : edge.source().id();
-					if (!relevant.has(target)) {
-						relevant.add(target);
-						edge.addClass("inheritance-highlight");
-						stack.push({
-							id: target,
-							direction
-						});
-					}
-				});
+				if (node.nonempty()) node.removeClass("inheritance-highlight inheritance-dim inheritance-focus");
 			}
-			relevant.forEach((id) => {
+			this.cy.elements().removeClass("inheritance-focus");
+			focusNode.addClass("inheritance-focus");
+			for (const id of toHighlight) {
 				const node = this.cy.getElementById(id);
 				if (node.nonempty()) node.addClass("inheritance-highlight");
-			});
+			}
 			this.cy.edges("[type=\"extend\"], edge[type=\"implement\"]").forEach((edge) => {
-				if (!relevant.has(edge.source().id()) && !relevant.has(edge.target().id())) edge.addClass("inheritance-dim");
+				if (!relevantEdges.has(edge.id()) && !relevant.has(edge.source().id()) && !relevant.has(edge.target().id())) edge.addClass("inheritance-dim");
+				else {
+					edge.removeClass("inheritance-dim");
+					if (relevantEdges.has(edge.id())) edge.addClass("inheritance-highlight");
+				}
 			});
 			this.cy.edges("[type!=\"extend\"][type!=\"implement\"]").addClass("inheritance-dim");
-			this.cy.nodes().forEach((node) => {
-				if (!relevant.has(node.id())) node.addClass("inheritance-dim");
-			});
+			for (const id of toHighlight) {
+				const node = this.cy.getElementById(id);
+				if (node.nonempty()) node.removeClass("inheritance-dim");
+			}
 		});
+		this.lastInheritanceRelevant = relevant;
 	}
 	destroy() {
 		this.highlightedNodeIds.clear();
@@ -42816,55 +42894,110 @@ function readCssVar(name$1, fallback) {
 	const v = getComputedStyle(document.body).getPropertyValue(name$1).trim();
 	return v || fallback;
 }
+let cssVarCache = null;
+function readCssVarCached(name$1, fallback) {
+	if (typeof window === "undefined") return fallback;
+	if (!cssVarCache) {
+		const style = getComputedStyle(document.body);
+		cssVarCache = new Map();
+		const vars = [
+			"--cg-node-default",
+			"--cg-node-function",
+			"--cg-node-class",
+			"--cg-node-variable",
+			"--cg-node-module",
+			"--cg-node-interface",
+			"--cg-node-type",
+			"--cg-node-dep-npm",
+			"--cg-node-dep-cargo",
+			"--cg-node-dep-gomod",
+			"--cg-node-dep-pip",
+			"--cg-edge-default",
+			"--cg-edge-call",
+			"--cg-edge-import",
+			"--cg-edge-extend",
+			"--cg-edge-implement",
+			"--cg-edge-dependency",
+			"--cg-edge-contains",
+			"--cg-edge-dep-prod",
+			"--cg-edge-dep-dev",
+			"--cg-edge-dep-peer",
+			"--cg-edge-dep-optional",
+			"--cg-text",
+			"--cg-border",
+			"--cg-hover-border",
+			"--cg-impact-d1",
+			"--cg-impact-d2",
+			"--cg-impact-d3",
+			"--cg-inheritance-extend",
+			"--cg-inheritance-implement",
+			"--cg-cluster-bg",
+			"--cg-cluster-border",
+			"--cg-cluster-hover-bg",
+			"--cg-cluster-hover-border",
+			"--cg-cluster-edge",
+			"--cg-cluster-edge-label-bg",
+			"--cg-warning",
+			"--cg-error",
+			"--cg-success",
+			"--cg-accent"
+		];
+		for (const v of vars) cssVarCache.set(v, style.getPropertyValue(v).trim());
+	}
+	return cssVarCache.get(name$1) || fallback;
+}
+function invalidateCssVarCache() {
+	cssVarCache = null;
+}
 function getThemeColors(theme) {
 	const isDark = theme === "dark";
 	return {
-		nodeDefault: readCssVar("--cg-node-default", isDark ? "#6366f1" : "#263148"),
-		nodeFunction: readCssVar("--cg-node-function", isDark ? "#10b981" : "#059669"),
-		nodeClass: readCssVar("--cg-node-class", isDark ? "#818cf8" : "#1a2230"),
-		nodeVariable: readCssVar("--cg-node-variable", isDark ? "#f59e0b" : "#d97706"),
-		nodeModule: readCssVar("--cg-node-module", isDark ? "#ec4899" : "#db2777"),
-		nodeInterface: readCssVar("--cg-node-interface", isDark ? "#14b8a6" : "#0d9488"),
-		nodeType: readCssVar("--cg-node-type", isDark ? "#a78bfa" : "#7c3aed"),
-		nodeDepNpm: readCssVar("--cg-node-dep-npm", isDark ? "#cb3837" : "#cc3535"),
-		nodeDepCargo: readCssVar("--cg-node-dep-cargo", isDark ? "#dea584" : "#ce422b"),
-		nodeDepGomod: readCssVar("--cg-node-dep-gomod", isDark ? "#00add8" : "#007d9b"),
-		nodeDepPip: readCssVar("--cg-node-dep-pip", isDark ? "#3776ab" : "#3776ab"),
-		edgeDefault: readCssVar("--cg-edge-default", isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.1)"),
-		edgeCall: readCssVar("--cg-edge-call", isDark ? "#60a5fa" : "#3b82f6"),
-		edgeImport: readCssVar("--cg-edge-import", isDark ? "#34d399" : "#10b981"),
-		edgeExtend: readCssVar("--cg-edge-extend", isDark ? "#f472b6" : "#ec4899"),
-		edgeImplement: readCssVar("--cg-edge-implement", isDark ? "#2dd4bf" : "#0d9488"),
-		edgeDependency: readCssVar("--cg-edge-dependency", isDark ? "#fbbf24" : "#f59e0b"),
-		edgeContains: readCssVar("--cg-edge-contains", isDark ? "#a78bfa" : "#7c3aed"),
-		edgeDepProd: readCssVar("--cg-edge-dep-prod", isDark ? "#fbbf24" : "#f59e0b"),
-		edgeDepDev: readCssVar("--cg-edge-dep-dev", isDark ? "#60a5fa" : "#3b82f6"),
-		edgeDepPeer: readCssVar("--cg-edge-dep-peer", isDark ? "#34d399" : "#10b981"),
-		edgeDepOptional: readCssVar("--cg-edge-dep-optional", isDark ? "#a78bfa" : "#7c3aed"),
-		text: readCssVar("--cg-text", isDark ? "#f9fafb" : "#0f1115"),
-		border: readCssVar("--cg-border", isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)")
+		nodeDefault: readCssVarCached("--cg-node-default", isDark ? "#6366f1" : "#263148"),
+		nodeFunction: readCssVarCached("--cg-node-function", isDark ? "#10b981" : "#059669"),
+		nodeClass: readCssVarCached("--cg-node-class", isDark ? "#818cf8" : "#1a2230"),
+		nodeVariable: readCssVarCached("--cg-node-variable", isDark ? "#f59e0b" : "#d97706"),
+		nodeModule: readCssVarCached("--cg-node-module", isDark ? "#ec4899" : "#db2777"),
+		nodeInterface: readCssVarCached("--cg-node-interface", isDark ? "#14b8a6" : "#0d9488"),
+		nodeType: readCssVarCached("--cg-node-type", isDark ? "#a78bfa" : "#7c3aed"),
+		nodeDepNpm: readCssVarCached("--cg-node-dep-npm", isDark ? "#cb3837" : "#cc3535"),
+		nodeDepCargo: readCssVarCached("--cg-node-dep-cargo", isDark ? "#dea584" : "#ce422b"),
+		nodeDepGomod: readCssVarCached("--cg-node-dep-gomod", isDark ? "#00add8" : "#007d9b"),
+		nodeDepPip: readCssVarCached("--cg-node-dep-pip", isDark ? "#3776ab" : "#3776ab"),
+		edgeDefault: readCssVarCached("--cg-edge-default", isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.1)"),
+		edgeCall: readCssVarCached("--cg-edge-call", isDark ? "#60a5fa" : "#3b82f6"),
+		edgeImport: readCssVarCached("--cg-edge-import", isDark ? "#34d399" : "#10b981"),
+		edgeExtend: readCssVarCached("--cg-edge-extend", isDark ? "#f472b6" : "#ec4899"),
+		edgeImplement: readCssVarCached("--cg-edge-implement", isDark ? "#2dd4bf" : "#0d9488"),
+		edgeDependency: readCssVarCached("--cg-edge-dependency", isDark ? "#fbbf24" : "#f59e0b"),
+		edgeContains: readCssVarCached("--cg-edge-contains", isDark ? "#a78bfa" : "#7c3aed"),
+		edgeDepProd: readCssVarCached("--cg-edge-dep-prod", isDark ? "#fbbf24" : "#f59e0b"),
+		edgeDepDev: readCssVarCached("--cg-edge-dep-dev", isDark ? "#60a5fa" : "#3b82f6"),
+		edgeDepPeer: readCssVarCached("--cg-edge-dep-peer", isDark ? "#34d399" : "#10b981"),
+		edgeDepOptional: readCssVarCached("--cg-edge-dep-optional", isDark ? "#a78bfa" : "#7c3aed"),
+		text: readCssVarCached("--cg-text", isDark ? "#f9fafb" : "#0f1115"),
+		border: readCssVarCached("--cg-border", isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)")
 	};
 }
 function buildStylesheet(theme, nodeCount = 0) {
 	const c = getThemeColors(theme);
 	const isDark = theme === "dark";
 	const isLargeGraph = nodeCount > 200;
-	const hoverBorder = readCssVar("--cg-hover-border", isDark ? "#818cf8" : "#1a2230");
-	const impactD1 = readCssVar("--cg-impact-d1", "#f59e0b");
-	const impactD2 = readCssVar("--cg-impact-d2", "#fbbf24");
-	const impactD3 = readCssVar("--cg-impact-d3", "#fde68a");
-	const inhExtend = readCssVar("--cg-inheritance-extend", isDark ? "#f472b6" : "#ec4899");
-	const inhImplement = readCssVar("--cg-inheritance-implement", isDark ? "#2dd4bf" : "#14b8a6");
-	const clusterBg = readCssVar("--cg-cluster-bg", isDark ? "rgba(99,102,241,0.15)" : "rgba(38,49,72,0.10)");
-	const clusterBorder = readCssVar("--cg-cluster-border", isDark ? "#818cf8" : "#263148");
-	const clusterHoverBg = readCssVar("--cg-cluster-hover-bg", isDark ? "rgba(99,102,241,0.35)" : "rgba(38,49,72,0.25)");
-	const clusterHoverBorder = readCssVar("--cg-cluster-hover-border", isDark ? "#a5b4fc" : "#1a2230");
-	const clusterEdge = readCssVar("--cg-cluster-edge", isDark ? "#818cf8" : "#263148");
-	const clusterEdgeLabelBg = readCssVar("--cg-cluster-edge-label-bg", isDark ? "#232324" : "#f9fafb");
-	const warningColor = readCssVar("--cg-warning", "#f59e0b");
-	const errorColor = readCssVar("--cg-error", "#ef4444");
-	const successColor = readCssVar("--cg-success", "#10b981");
-	const accentColor = readCssVar("--cg-accent", isDark ? "#6366f1" : "#263148");
+	const hoverBorder = readCssVarCached("--cg-hover-border", isDark ? "#818cf8" : "#1a2230");
+	const impactD1 = readCssVarCached("--cg-impact-d1", "#f59e0b");
+	const impactD2 = readCssVarCached("--cg-impact-d2", "#fbbf24");
+	const impactD3 = readCssVarCached("--cg-impact-d3", "#fde68a");
+	const inhExtend = readCssVarCached("--cg-inheritance-extend", isDark ? "#f472b6" : "#ec4899");
+	const inhImplement = readCssVarCached("--cg-inheritance-implement", isDark ? "#2dd4bf" : "#14b8a6");
+	const clusterBg = readCssVarCached("--cg-cluster-bg", isDark ? "rgba(99,102,241,0.15)" : "rgba(38,49,72,0.10)");
+	const clusterBorder = readCssVarCached("--cg-cluster-border", isDark ? "#818cf8" : "#263148");
+	const clusterHoverBg = readCssVarCached("--cg-cluster-hover-bg", isDark ? "rgba(99,102,241,0.35)" : "rgba(38,49,72,0.25)");
+	const clusterHoverBorder = readCssVarCached("--cg-cluster-hover-border", isDark ? "#a5b4fc" : "#1a2230");
+	const clusterEdge = readCssVarCached("--cg-cluster-edge", isDark ? "#818cf8" : "#263148");
+	const clusterEdgeLabelBg = readCssVarCached("--cg-cluster-edge-label-bg", isDark ? "#232324" : "#f9fafb");
+	const warningColor = readCssVarCached("--cg-warning", "#f59e0b");
+	const errorColor = readCssVarCached("--cg-error", "#ef4444");
+	const successColor = readCssVarCached("--cg-success", "#10b981");
+	const accentColor = readCssVarCached("--cg-accent", isDark ? "#6366f1" : "#263148");
 	return [
 		{
 			selector: "node",
@@ -44619,6 +44752,7 @@ var StyleController = class {
 	}
 	updateTheme(theme) {
 		this.theme = theme;
+		invalidateCssVarCache();
 		this.applyStylesheet();
 	}
 	getTheme() {
@@ -44968,22 +45102,33 @@ var VirtualViewportController = class {
 		};
 		const candidateIds = this.spatialIndex.query(viewBounds);
 		const newVisible = new Set();
+		const toShow = [];
+		const toHide = [];
+		for (const id of candidateIds) {
+			const node = this.cy.getElementById(id);
+			if (node.nonempty() === false) continue;
+			if (node.data("typeFiltered") === true) continue;
+			const p$1 = node.position();
+			const isVisible = p$1.x >= viewBounds.x1 && p$1.x <= viewBounds.x2 && p$1.y >= viewBounds.y1 && p$1.y <= viewBounds.y2;
+			if (isVisible) {
+				newVisible.add(id);
+				if (!this.visibleNodeIds.has(id)) toShow.push(id);
+			} else if (this.visibleNodeIds.has(id)) toHide.push(id);
+		}
+		for (const id of this.visibleNodeIds) if (!newVisible.has(id)) toHide.push(id);
+		if (toShow.length === 0 && toHide.length === 0) {
+			this.visibleNodeIds = newVisible;
+			return;
+		}
 		this.cy.batch(() => {
-			this.cy.nodes().forEach((node) => {
-				if (node.data("typeFiltered") === true) {
-					node.style("display", "none");
-					return;
-				}
-				const id = node.id();
-				if (candidateIds.has(id)) {
-					const p$1 = node.position();
-					const isVisible = p$1.x >= viewBounds.x1 && p$1.x <= viewBounds.x2 && p$1.y >= viewBounds.y1 && p$1.y <= viewBounds.y2;
-					if (isVisible) {
-						newVisible.add(id);
-						node.style("display", "element");
-					} else node.style("display", "none");
-				} else node.style("display", "none");
-			});
+			for (const id of toShow) {
+				const node = this.cy.getElementById(id);
+				if (node.nonempty()) node.style("display", "element");
+			}
+			for (const id of toHide) {
+				const node = this.cy.getElementById(id);
+				if (node.nonempty()) node.style("display", "none");
+			}
 			this.cy.edges().forEach((edge) => {
 				if (edge.data("typeFiltered") === true) {
 					edge.style("display", "none");
@@ -45350,6 +45495,7 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 				try {
 					const positions = await r.applyLayoutWithWorker(nodes, edges, layout$2);
 					if (Object.keys(positions).length > 0) r.applyWorkerLayout(positions);
+					else r.applyLayout(layout$2);
 				} finally {
 					isWorkerInProgressRef.current = false;
 				}
@@ -45361,7 +45507,7 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 			} else r.applyLayout(layout$2);
 			prevNodeCountRef.current = currentCount;
 			prevNodeIdsRef.current = new Set(nodes.map((n) => n.id));
-		}, 150);
+		}, isIncremental ? 50 : 150);
 		return () => clearTimeout(timer);
 	}, [
 		layout$2,
@@ -46029,6 +46175,7 @@ const en = {
 	"detail.ariaLabel": "Node details",
 	"detail.close": "Close details",
 	"detail.type": "Type",
+	"detail.kind": "Kind",
 	"detail.file": "File",
 	"detail.line": "Line",
 	"detail.properties": "Properties",
@@ -46037,6 +46184,8 @@ const en = {
 	"detail.expanded": "Expanded",
 	"detail.collapse": "Collapse",
 	"detail.microViews": "Micro views",
+	"detail.signature": "Signature",
+	"detail.docstring": "Docstring",
 	"minimap.title": "Overview",
 	"minimap.close": "Close mini-map",
 	"minimap.functions": "Functions",
@@ -46274,6 +46423,7 @@ const zh = {
 	"detail.ariaLabel": "节点详情",
 	"detail.close": "关闭详情",
 	"detail.type": "类型",
+	"detail.kind": "类别",
 	"detail.file": "文件",
 	"detail.line": "行号",
 	"detail.properties": "属性",
@@ -46282,6 +46432,8 @@ const zh = {
 	"detail.expanded": "已展开",
 	"detail.collapse": "收起",
 	"detail.microViews": "微观图谱",
+	"detail.signature": "签名",
+	"detail.docstring": "文档字符串",
 	"minimap.title": "概览",
 	"minimap.close": "关闭缩略图",
 	"minimap.functions": "函数",
@@ -48226,7 +48378,7 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, on
 				className: "detail-row",
 				children: [/* @__PURE__ */ jsx("span", {
 					className: "detail-label",
-					children: "kind"
+					children: t$1("detail.kind")
 				}), /* @__PURE__ */ jsx("span", {
 					className: "detail-value",
 					children: kind
@@ -48266,7 +48418,7 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, on
 				className: "detail-signature",
 				children: [/* @__PURE__ */ jsx("div", {
 					className: "detail-section-title",
-					children: "signature"
+					children: t$1("detail.signature")
 				}), /* @__PURE__ */ jsx("code", {
 					className: "detail-code",
 					children: signature
@@ -48276,7 +48428,7 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, on
 				className: "detail-docstring",
 				children: [/* @__PURE__ */ jsx("div", {
 					className: "detail-section-title",
-					children: "docstring"
+					children: t$1("detail.docstring")
 				}), /* @__PURE__ */ jsx("pre", {
 					className: "detail-doc-text",
 					children: docstring
@@ -48305,7 +48457,7 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, on
 						/* @__PURE__ */ jsx("button", {
 							className: "detail-micro-btn",
 							onClick: () => onSelectFunction(node, "cfg"),
-							children: "CFG"
+							children: t$1("viewMode.cfg")
 						}),
 						/* @__PURE__ */ jsx("button", {
 							className: "detail-micro-btn",
@@ -50896,24 +51048,24 @@ function GraphPanelInner({ className = "" }) {
 			depth++;
 		}
 		const target = ancestor ?? panelEl.parentElement ?? panelEl;
-		let rafId = null;
+		let resizeTimer = null;
 		const applyAncestorHeight = () => {
-			if (rafId !== null) cancelAnimationFrame(rafId);
-			rafId = requestAnimationFrame(() => {
-				rafId = null;
+			if (resizeTimer !== null) clearTimeout(resizeTimer);
+			resizeTimer = setTimeout(() => {
+				resizeTimer = null;
 				const h = target.getBoundingClientRect().height;
 				if (h >= 240) {
 					panelEl.style.height = `${h}px`;
 					renderer$1.rendererRef.current?.resize();
 				}
-			});
+			}, 200);
 		};
 		applyAncestorHeight();
 		const ro = new ResizeObserver(applyAncestorHeight);
 		ro.observe(target);
 		return () => {
 			ro.disconnect();
-			if (rafId !== null) cancelAnimationFrame(rafId);
+			if (resizeTimer !== null) clearTimeout(resizeTimer);
 		};
 	}, [
 		panel.collapsed,
@@ -50952,7 +51104,7 @@ function GraphPanelInner({ className = "" }) {
 	const requestRefresh = useCallback(() => {
 		window.dispatchEvent(new CustomEvent("codegraph:refresh", { detail: { incremental: true } }));
 	}, []);
-	usePolling(requestRefresh, watchEnabled ? 3e3 : 1e4, !panel.collapsed);
+	usePolling(requestRefresh, watchEnabled ? 1e4 : 3e4, !panel.collapsed);
 	useEffect(() => {
 		if (!panel.showMiniMap || panel.collapsed) return;
 		const updateMiniMap = () => {

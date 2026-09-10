@@ -321,17 +321,17 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     }
     const target = ancestor ?? panelEl.parentElement ?? panelEl;
 
-    let rafId: number | null = null;
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     const applyAncestorHeight = () => {
-      if (rafId !== null) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(() => {
-        rafId = null;
+      if (resizeTimer !== null) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        resizeTimer = null;
         const h = target.getBoundingClientRect().height;
         if (h >= 240) {
           panelEl.style.height = `${h}px`;
           renderer.rendererRef.current?.resize();
         }
-      });
+      }, 200);
     };
 
     applyAncestorHeight();
@@ -339,7 +339,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     ro.observe(target);
     return () => {
       ro.disconnect();
-      if (rafId !== null) cancelAnimationFrame(rafId);
+      if (resizeTimer !== null) clearTimeout(resizeTimer);
     };
   }, [panel.collapsed, panelHeight, renderer.rendererRef]);
 
@@ -366,7 +366,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const requestRefresh = useCallback(() => {
     window.dispatchEvent(new CustomEvent('codegraph:refresh', { detail: { incremental: true } }));
   }, []);
-  usePolling(requestRefresh, watchEnabled ? 3000 : 10000, !panel.collapsed);
+  usePolling(requestRefresh, watchEnabled ? 10000 : 30000, !panel.collapsed);
 
   useEffect(() => {
     if (!panel.showMiniMap || panel.collapsed) return;

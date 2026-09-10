@@ -320,16 +320,15 @@ export const useGraphStore = create<GraphState>()(
             sourceEdges = layer.edges;
           }
         }
-        const nodesHash = computeDataHash(sourceNodes, sourceEdges);
-        const edgesHash = nodesHash;
+        const dataHash = computeDataHash(sourceNodes, sourceEdges);
         const expandedKey = [...expandedNodeIds].sort().join(',');
-        const cached = clusterCache.get(nodesHash, edgesHash, clusterLevel, expandedKey);
+        const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
         if (cached) {
           set({ clusterLevel, nodes: cached.nodes, edges: cached.edges });
           return;
         }
         const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, expandedNodeIds);
-        clusterCache.set(nodesHash, edgesHash, clusterLevel, expandedKey, result);
+        clusterCache.set(dataHash, clusterLevel, expandedKey, result);
         set({ clusterLevel, nodes: result.nodes, edges: result.edges });
       },
       setLoading: (isLoading) => {

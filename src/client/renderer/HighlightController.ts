@@ -199,57 +199,83 @@ export class HighlightController {
     return { d1, d2, d3, total: d1 + d2 + d3 };
   }
 
+  private lastInheritanceRelevant: Set<string> = new Set();
+
   highlightInheritance(nodeId: NodeId | null): void {
-    this.cy.batch(() => {
-      this.cy.elements().removeClass('inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement');
-      if (!nodeId) {
+    if (!nodeId) {
+      this.cy.batch(() => {
+        this.cy.elements().removeClass('inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement');
         this.cy.edges('[type="extend"]').addClass('inheritance-extend');
         this.cy.edges('[type="implement"]').addClass('inheritance-implement');
+      });
+      this.lastInheritanceRelevant.clear();
+      return;
+    }
 
-        return;
-      }
+    const focusNode = this.cy.getElementById(nodeId);
+    if (focusNode.empty()) return;
 
-      const focusNode = this.cy.getElementById(nodeId);
-      if (focusNode.empty()) return;
-      focusNode.addClass('inheritance-focus');
+    const relevant = new Set<string>([nodeId]);
+    const relevantEdges = new Set<string>();
+    const stack: Array<{ id: string; direction: 'up' | 'down' }> = [
+      { id: nodeId, direction: 'up' },
+      { id: nodeId, direction: 'down' },
+    ];
 
-      const relevant = new Set<string>([nodeId]);
-      const stack: Array<{ id: string; direction: 'up' | 'down' }> = [
-        { id: nodeId, direction: 'up' },
-        { id: nodeId, direction: 'down' },
-      ];
+    while (stack.length > 0) {
+      const { id, direction } = stack.pop()!;
+      const node = this.cy.getElementById(id);
+      const edges = direction === 'up'
+        ? node.outgoers('edge[type="extend"], edge[type="implement"]')
+        : node.incomers('edge[type="extend"], edge[type="implement"]');
+      edges.forEach((edge) => {
+        const target = direction === 'up' ? edge.target().id() : edge.source().id();
+        if (!relevant.has(target)) {
+          relevant.add(target);
+          relevantEdges.add(edge.id());
+          stack.push({ id: target, direction });
+        }
+      });
+    }
 
-      while (stack.length > 0) {
-        const { id, direction } = stack.pop()!;
+    const toHighlight: string[] = [];
+    const toUnhighlight: string[] = [];
+    for (const id of relevant) {
+      if (!this.lastInheritanceRelevant.has(id)) toHighlight.push(id);
+    }
+    for (const id of this.lastInheritanceRelevant) {
+      if (!relevant.has(id)) toUnhighlight.push(id);
+    }
+
+    this.cy.batch(() => {
+      for (const id of toUnhighlight) {
         const node = this.cy.getElementById(id);
-        const edges = direction === 'up'
-          ? node.outgoers('edge[type="extend"], edge[type="implement"]')
-          : node.incomers('edge[type="extend"], edge[type="implement"]');
-        edges.forEach((edge) => {
-          const target = direction === 'up' ? edge.target().id() : edge.source().id();
-          if (!relevant.has(target)) {
-            relevant.add(target);
-            edge.addClass('inheritance-highlight');
-            stack.push({ id: target, direction });
-          }
-        });
+        if (node.nonempty()) node.removeClass('inheritance-highlight inheritance-dim inheritance-focus');
       }
-
-      relevant.forEach((id) => {
+      this.cy.elements().removeClass('inheritance-focus');
+      focusNode.addClass('inheritance-focus');
+      for (const id of toHighlight) {
         const node = this.cy.getElementById(id);
         if (node.nonempty()) node.addClass('inheritance-highlight');
-      });
+      }
 
       this.cy.edges('[type="extend"], edge[type="implement"]').forEach((edge) => {
-        if (!relevant.has(edge.source().id()) && !relevant.has(edge.target().id())) {
+        if (!relevantEdges.has(edge.id()) && !relevant.has(edge.source().id()) && !relevant.has(edge.target().id())) {
           edge.addClass('inheritance-dim');
+        } else {
+          edge.removeClass('inheritance-dim');
+          if (relevantEdges.has(edge.id())) edge.addClass('inheritance-highlight');
         }
       });
       this.cy.edges('[type!="extend"][type!="implement"]').addClass('inheritance-dim');
-      this.cy.nodes().forEach((node) => {
-        if (!relevant.has(node.id())) node.addClass('inheritance-dim');
-      });
+
+      for (const id of toHighlight) {
+        const node = this.cy.getElementById(id);
+        if (node.nonempty()) node.removeClass('inheritance-dim');
+      }
     });
+
+    this.lastInheritanceRelevant = relevant;
   }
 
   destroy(): void {

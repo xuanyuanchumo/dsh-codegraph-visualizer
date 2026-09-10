@@ -89,31 +89,45 @@ export class VirtualViewportController {
 
     const candidateIds = this.spatialIndex.query(viewBounds);
     const newVisible = new Set<string>();
+    const toShow: string[] = [];
+    const toHide: string[] = [];
+
+    for (const id of candidateIds) {
+      const node = this.cy.getElementById(id);
+      if (node.nonempty() === false) continue;
+      if (node.data('typeFiltered') === true) continue;
+      const p = node.position();
+      const isVisible =
+        p.x >= viewBounds.x1 &&
+        p.x <= viewBounds.x2 &&
+        p.y >= viewBounds.y1 &&
+        p.y <= viewBounds.y2;
+      if (isVisible) {
+        newVisible.add(id);
+        if (!this.visibleNodeIds.has(id)) toShow.push(id);
+      } else {
+        if (this.visibleNodeIds.has(id)) toHide.push(id);
+      }
+    }
+
+    for (const id of this.visibleNodeIds) {
+      if (!newVisible.has(id)) toHide.push(id);
+    }
+
+    if (toShow.length === 0 && toHide.length === 0) {
+      this.visibleNodeIds = newVisible;
+      return;
+    }
 
     this.cy.batch(() => {
-      this.cy.nodes().forEach((node) => {
-        if (node.data('typeFiltered') === true) {
-          node.style('display', 'none');
-          return;
-        }
-        const id = node.id();
-        if (candidateIds.has(id)) {
-          const p = node.position();
-          const isVisible =
-            p.x >= viewBounds.x1 &&
-            p.x <= viewBounds.x2 &&
-            p.y >= viewBounds.y1 &&
-            p.y <= viewBounds.y2;
-          if (isVisible) {
-            newVisible.add(id);
-            node.style('display', 'element');
-          } else {
-            node.style('display', 'none');
-          }
-        } else {
-          node.style('display', 'none');
-        }
-      });
+      for (const id of toShow) {
+        const node = this.cy.getElementById(id);
+        if (node.nonempty()) node.style('display', 'element');
+      }
+      for (const id of toHide) {
+        const node = this.cy.getElementById(id);
+        if (node.nonempty()) node.style('display', 'none');
+      }
 
       this.cy.edges().forEach((edge) => {
         if (edge.data('typeFiltered') === true) {

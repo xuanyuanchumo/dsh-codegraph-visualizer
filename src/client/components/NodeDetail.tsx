@@ -62,7 +62,7 @@ export function NodeDetail({ node, onClose, isExpanded, connectionCount, onColla
       </div>
       <div className="detail-row"><span className="detail-label">{t('detail.type')}</span><span className="detail-value">{node.type}</span></div>
       {kind && kind !== node.type && (
-        <div className="detail-row"><span className="detail-label">kind</span><span className="detail-value">{kind}</span></div>
+        <div className="detail-row"><span className="detail-label">{t('detail.kind')}</span><span className="detail-value">{kind}</span></div>
       )}
       <div className="detail-row"><span className="detail-label">{t('detail.file')}</span><span className="detail-value">{node.filePath}</span></div>
       <div className="detail-row"><span className="detail-label">{t('detail.line')}</span><span className="detail-value">{node.lineNumber}</span></div>
@@ -71,13 +71,13 @@ export function NodeDetail({ node, onClose, isExpanded, connectionCount, onColla
       )}
       {signature && (
         <div className="detail-signature">
-          <div className="detail-section-title">signature</div>
+          <div className="detail-section-title">{t('detail.signature')}</div>
           <code className="detail-code">{signature}</code>
         </div>
       )}
       {docstring && (
         <div className="detail-docstring">
-          <div className="detail-section-title">docstring</div>
+          <div className="detail-section-title">{t('detail.docstring')}</div>
           <pre className="detail-doc-text">{docstring}</pre>
         </div>
       )}
@@ -99,7 +99,7 @@ export function NodeDetail({ node, onClose, isExpanded, connectionCount, onColla
           <div className="detail-section-title">{t('detail.microViews')}</div>
           <div className="detail-micro-btns">
             <button className="detail-micro-btn" onClick={() => onSelectFunction(node, 'cfg')}>
-              CFG
+              {t('viewMode.cfg')}
             </button>
             <button className="detail-micro-btn" onClick={() => onSelectFunction(node, 'flowchart')}>
               {t('viewMode.flowchart')}

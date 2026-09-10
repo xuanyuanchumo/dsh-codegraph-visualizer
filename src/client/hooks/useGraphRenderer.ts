@@ -111,6 +111,8 @@ export function useGraphRenderer(
           );
           if (Object.keys(positions).length > 0) {
             r.applyWorkerLayout(positions);
+          } else {
+            r.applyLayout(layout);
           }
         } finally {
           isWorkerInProgressRef.current = false;
@@ -127,7 +129,7 @@ export function useGraphRenderer(
       }
       prevNodeCountRef.current = currentCount;
       prevNodeIdsRef.current = new Set(nodes.map((n) => n.id));
-    }, 150);
+    }, isIncremental ? 50 : 150);
     return () => clearTimeout(timer);
   }, [layout, clusterLevel, nodes.length, edges.length]);
 

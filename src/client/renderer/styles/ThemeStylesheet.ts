@@ -34,33 +34,64 @@ function readCssVar(name: string, fallback: string): string {
   return v || fallback;
 }
 
+let cssVarCache: Map<string, string> | null = null;
+
+function readCssVarCached(name: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback;
+  if (!cssVarCache) {
+    const style = getComputedStyle(document.body);
+    cssVarCache = new Map();
+    const vars = [
+      '--cg-node-default', '--cg-node-function', '--cg-node-class', '--cg-node-variable',
+      '--cg-node-module', '--cg-node-interface', '--cg-node-type', '--cg-node-dep-npm',
+      '--cg-node-dep-cargo', '--cg-node-dep-gomod', '--cg-node-dep-pip',
+      '--cg-edge-default', '--cg-edge-call', '--cg-edge-import', '--cg-edge-extend',
+      '--cg-edge-implement', '--cg-edge-dependency', '--cg-edge-contains',
+      '--cg-edge-dep-prod', '--cg-edge-dep-dev', '--cg-edge-dep-peer', '--cg-edge-dep-optional',
+      '--cg-text', '--cg-border', '--cg-hover-border', '--cg-impact-d1', '--cg-impact-d2',
+      '--cg-impact-d3', '--cg-inheritance-extend', '--cg-inheritance-implement',
+      '--cg-cluster-bg', '--cg-cluster-border', '--cg-cluster-hover-bg',
+      '--cg-cluster-hover-border', '--cg-cluster-edge', '--cg-cluster-edge-label-bg',
+      '--cg-warning', '--cg-error', '--cg-success', '--cg-accent',
+    ];
+    for (const v of vars) {
+      cssVarCache.set(v, style.getPropertyValue(v).trim());
+    }
+  }
+  return cssVarCache.get(name) || fallback;
+}
+
+export function invalidateCssVarCache(): void {
+  cssVarCache = null;
+}
+
 export function getThemeColors(theme: ThemeType): ThemeColors {
   const isDark = theme === 'dark';
   return {
-    nodeDefault: readCssVar('--cg-node-default', isDark ? '#6366f1' : '#263148'),
-    nodeFunction: readCssVar('--cg-node-function', isDark ? '#10b981' : '#059669'),
-    nodeClass: readCssVar('--cg-node-class', isDark ? '#818cf8' : '#1a2230'),
-    nodeVariable: readCssVar('--cg-node-variable', isDark ? '#f59e0b' : '#d97706'),
-    nodeModule: readCssVar('--cg-node-module', isDark ? '#ec4899' : '#db2777'),
-    nodeInterface: readCssVar('--cg-node-interface', isDark ? '#14b8a6' : '#0d9488'),
-    nodeType: readCssVar('--cg-node-type', isDark ? '#a78bfa' : '#7c3aed'),
-    nodeDepNpm: readCssVar('--cg-node-dep-npm', isDark ? '#cb3837' : '#cc3535'),
-    nodeDepCargo: readCssVar('--cg-node-dep-cargo', isDark ? '#dea584' : '#ce422b'),
-    nodeDepGomod: readCssVar('--cg-node-dep-gomod', isDark ? '#00add8' : '#007d9b'),
-    nodeDepPip: readCssVar('--cg-node-dep-pip', isDark ? '#3776ab' : '#3776ab'),
-    edgeDefault: readCssVar('--cg-edge-default', isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)'),
-    edgeCall: readCssVar('--cg-edge-call', isDark ? '#60a5fa' : '#3b82f6'),
-    edgeImport: readCssVar('--cg-edge-import', isDark ? '#34d399' : '#10b981'),
-    edgeExtend: readCssVar('--cg-edge-extend', isDark ? '#f472b6' : '#ec4899'),
-    edgeImplement: readCssVar('--cg-edge-implement', isDark ? '#2dd4bf' : '#0d9488'),
-    edgeDependency: readCssVar('--cg-edge-dependency', isDark ? '#fbbf24' : '#f59e0b'),
-    edgeContains: readCssVar('--cg-edge-contains', isDark ? '#a78bfa' : '#7c3aed'),
-    edgeDepProd: readCssVar('--cg-edge-dep-prod', isDark ? '#fbbf24' : '#f59e0b'),
-    edgeDepDev: readCssVar('--cg-edge-dep-dev', isDark ? '#60a5fa' : '#3b82f6'),
-    edgeDepPeer: readCssVar('--cg-edge-dep-peer', isDark ? '#34d399' : '#10b981'),
-    edgeDepOptional: readCssVar('--cg-edge-dep-optional', isDark ? '#a78bfa' : '#7c3aed'),
-    text: readCssVar('--cg-text', isDark ? '#f9fafb' : '#0f1115'),
-    border: readCssVar('--cg-border', isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'),
+    nodeDefault: readCssVarCached('--cg-node-default', isDark ? '#6366f1' : '#263148'),
+    nodeFunction: readCssVarCached('--cg-node-function', isDark ? '#10b981' : '#059669'),
+    nodeClass: readCssVarCached('--cg-node-class', isDark ? '#818cf8' : '#1a2230'),
+    nodeVariable: readCssVarCached('--cg-node-variable', isDark ? '#f59e0b' : '#d97706'),
+    nodeModule: readCssVarCached('--cg-node-module', isDark ? '#ec4899' : '#db2777'),
+    nodeInterface: readCssVarCached('--cg-node-interface', isDark ? '#14b8a6' : '#0d9488'),
+    nodeType: readCssVarCached('--cg-node-type', isDark ? '#a78bfa' : '#7c3aed'),
+    nodeDepNpm: readCssVarCached('--cg-node-dep-npm', isDark ? '#cb3837' : '#cc3535'),
+    nodeDepCargo: readCssVarCached('--cg-node-dep-cargo', isDark ? '#dea584' : '#ce422b'),
+    nodeDepGomod: readCssVarCached('--cg-node-dep-gomod', isDark ? '#00add8' : '#007d9b'),
+    nodeDepPip: readCssVarCached('--cg-node-dep-pip', isDark ? '#3776ab' : '#3776ab'),
+    edgeDefault: readCssVarCached('--cg-edge-default', isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)'),
+    edgeCall: readCssVarCached('--cg-edge-call', isDark ? '#60a5fa' : '#3b82f6'),
+    edgeImport: readCssVarCached('--cg-edge-import', isDark ? '#34d399' : '#10b981'),
+    edgeExtend: readCssVarCached('--cg-edge-extend', isDark ? '#f472b6' : '#ec4899'),
+    edgeImplement: readCssVarCached('--cg-edge-implement', isDark ? '#2dd4bf' : '#0d9488'),
+    edgeDependency: readCssVarCached('--cg-edge-dependency', isDark ? '#fbbf24' : '#f59e0b'),
+    edgeContains: readCssVarCached('--cg-edge-contains', isDark ? '#a78bfa' : '#7c3aed'),
+    edgeDepProd: readCssVarCached('--cg-edge-dep-prod', isDark ? '#fbbf24' : '#f59e0b'),
+    edgeDepDev: readCssVarCached('--cg-edge-dep-dev', isDark ? '#60a5fa' : '#3b82f6'),
+    edgeDepPeer: readCssVarCached('--cg-edge-dep-peer', isDark ? '#34d399' : '#10b981'),
+    edgeDepOptional: readCssVarCached('--cg-edge-dep-optional', isDark ? '#a78bfa' : '#7c3aed'),
+    text: readCssVarCached('--cg-text', isDark ? '#f9fafb' : '#0f1115'),
+    border: readCssVarCached('--cg-border', isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'),
   };
 }
 
@@ -69,22 +100,22 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
   const isDark = theme === 'dark';
   const isLargeGraph = nodeCount > 200;
 
-  const hoverBorder = readCssVar('--cg-hover-border', isDark ? '#818cf8' : '#1a2230');
-  const impactD1 = readCssVar('--cg-impact-d1', '#f59e0b');
-  const impactD2 = readCssVar('--cg-impact-d2', '#fbbf24');
-  const impactD3 = readCssVar('--cg-impact-d3', '#fde68a');
-  const inhExtend = readCssVar('--cg-inheritance-extend', isDark ? '#f472b6' : '#ec4899');
-  const inhImplement = readCssVar('--cg-inheritance-implement', isDark ? '#2dd4bf' : '#14b8a6');
-  const clusterBg = readCssVar('--cg-cluster-bg', isDark ? 'rgba(99,102,241,0.15)' : 'rgba(38,49,72,0.10)');
-  const clusterBorder = readCssVar('--cg-cluster-border', isDark ? '#818cf8' : '#263148');
-  const clusterHoverBg = readCssVar('--cg-cluster-hover-bg', isDark ? 'rgba(99,102,241,0.35)' : 'rgba(38,49,72,0.25)');
-  const clusterHoverBorder = readCssVar('--cg-cluster-hover-border', isDark ? '#a5b4fc' : '#1a2230');
-  const clusterEdge = readCssVar('--cg-cluster-edge', isDark ? '#818cf8' : '#263148');
-  const clusterEdgeLabelBg = readCssVar('--cg-cluster-edge-label-bg', isDark ? '#232324' : '#f9fafb');
-  const warningColor = readCssVar('--cg-warning', '#f59e0b');
-  const errorColor = readCssVar('--cg-error', '#ef4444');
-  const successColor = readCssVar('--cg-success', '#10b981');
-  const accentColor = readCssVar('--cg-accent', isDark ? '#6366f1' : '#263148');
+  const hoverBorder = readCssVarCached('--cg-hover-border', isDark ? '#818cf8' : '#1a2230');
+  const impactD1 = readCssVarCached('--cg-impact-d1', '#f59e0b');
+  const impactD2 = readCssVarCached('--cg-impact-d2', '#fbbf24');
+  const impactD3 = readCssVarCached('--cg-impact-d3', '#fde68a');
+  const inhExtend = readCssVarCached('--cg-inheritance-extend', isDark ? '#f472b6' : '#ec4899');
+  const inhImplement = readCssVarCached('--cg-inheritance-implement', isDark ? '#2dd4bf' : '#14b8a6');
+  const clusterBg = readCssVarCached('--cg-cluster-bg', isDark ? 'rgba(99,102,241,0.15)' : 'rgba(38,49,72,0.10)');
+  const clusterBorder = readCssVarCached('--cg-cluster-border', isDark ? '#818cf8' : '#263148');
+  const clusterHoverBg = readCssVarCached('--cg-cluster-hover-bg', isDark ? 'rgba(99,102,241,0.35)' : 'rgba(38,49,72,0.25)');
+  const clusterHoverBorder = readCssVarCached('--cg-cluster-hover-border', isDark ? '#a5b4fc' : '#1a2230');
+  const clusterEdge = readCssVarCached('--cg-cluster-edge', isDark ? '#818cf8' : '#263148');
+  const clusterEdgeLabelBg = readCssVarCached('--cg-cluster-edge-label-bg', isDark ? '#232324' : '#f9fafb');
+  const warningColor = readCssVarCached('--cg-warning', '#f59e0b');
+  const errorColor = readCssVarCached('--cg-error', '#ef4444');
+  const successColor = readCssVarCached('--cg-success', '#10b981');
+  const accentColor = readCssVarCached('--cg-accent', isDark ? '#6366f1' : '#263148');
 
   return [
     {

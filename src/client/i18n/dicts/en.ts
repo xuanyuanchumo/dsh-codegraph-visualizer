@@ -79,6 +79,7 @@ export const en: Record<string, string> = {
   'detail.ariaLabel': 'Node details',
   'detail.close': 'Close details',
   'detail.type': 'Type',
+  'detail.kind': 'Kind',
   'detail.file': 'File',
   'detail.line': 'Line',
   'detail.properties': 'Properties',
@@ -87,6 +88,8 @@ export const en: Record<string, string> = {
   'detail.expanded': 'Expanded',
   'detail.collapse': 'Collapse',
   'detail.microViews': 'Micro views',
+  'detail.signature': 'Signature',
+  'detail.docstring': 'Docstring',
 
   // Mini-map
   'minimap.title': 'Overview',

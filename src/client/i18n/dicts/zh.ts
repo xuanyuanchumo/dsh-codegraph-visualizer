@@ -79,6 +79,7 @@ export const zh: Record<string, string> = {
   'detail.ariaLabel': '节点详情',
   'detail.close': '关闭详情',
   'detail.type': '类型',
+  'detail.kind': '类别',
   'detail.file': '文件',
   'detail.line': '行号',
   'detail.properties': '属性',
@@ -87,6 +88,8 @@ export const zh: Record<string, string> = {
   'detail.expanded': '已展开',
   'detail.collapse': '收起',
   'detail.microViews': '微观图谱',
+  'detail.signature': '签名',
+  'detail.docstring': '文档字符串',
 
   // Mini-map
   'minimap.title': '概览',

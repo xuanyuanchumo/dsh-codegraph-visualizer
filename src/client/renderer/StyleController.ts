@@ -1,6 +1,6 @@
 import type { Core, StylesheetJson } from 'cytoscape';
 import type { ThemeType } from './IRenderer.ts';
-import { buildStylesheet } from './styles/ThemeStylesheet.ts';
+import { buildStylesheet, invalidateCssVarCache } from './styles/ThemeStylesheet.ts';
 
 const LOD_ZOOM_THRESHOLDS = {
   minimal: 0.2,
@@ -28,6 +28,7 @@ export class StyleController {
 
   updateTheme(theme: ThemeType): void {
     this.theme = theme;
+    invalidateCssVarCache();
     this.applyStylesheet();
   }
 
