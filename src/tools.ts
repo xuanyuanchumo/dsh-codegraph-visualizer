@@ -249,11 +249,11 @@ export const createGraphTools = (ctx: Context, options: { requestTimeout?: numbe
   const deps = createGraphToolDeps();
 
   const emitUpdate = (event: GraphUpdatedEvent) => {
-    ctx.emit('codegraph/graph/updated', event);
+    ctx.emit('cg-viz/graph/updated', event);
   };
 
   const emitData = (event: GraphDataEvent) => {
-    ctx.emit('codegraph/graph/data', event);
+    ctx.emit('cg-viz/graph/data', event);
   };
 
   const graphStatus = defineTool({

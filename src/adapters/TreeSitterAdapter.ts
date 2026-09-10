@@ -1,7 +1,7 @@
 import { scoped } from '../shared/Logger.ts';
 import { NodeId, EdgeId } from '../types/index.ts';
 import type { GraphNode, GraphEdge, AdapterResult } from '../types/index.ts';
-import type { ASTNode } from '../client/diagram/CFGTypes.ts';
+import type { ASTNode } from '../shared/CFGTypes.ts';
 
 const log = scoped('tree-sitter-adapter');
 

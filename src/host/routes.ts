@@ -16,6 +16,32 @@ import { TreeSitterAdapter } from '../adapters/TreeSitterAdapter.ts';
 
 const log = scoped('host');
 
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_DEFAULT = 60;
+const RATE_LIMIT_HEAVY = 10;
+const HEAVY_ENDPOINTS = new Set(['/api/v1/codegraph/scan', '/api/v1/codegraph/init', '/api/v1/codegraph/diff', '/api/v1/codegraph/ast', '/api/v1/codegraph/tree-sitter']);
+
+interface RateBucket { count: number; resetTime: number; }
+const rateLimitMap = new Map<string, RateBucket>();
+
+function checkRateLimit(ip: string, routePath: string): boolean {
+  const key = `${ip}:${routePath}`;
+  const limit = HEAVY_ENDPOINTS.has(routePath) ? RATE_LIMIT_HEAVY : RATE_LIMIT_DEFAULT;
+  const now = Date.now();
+  const bucket = rateLimitMap.get(key);
+  if (!bucket || now > bucket.resetTime) {
+    rateLimitMap.set(key, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  if (bucket.count >= limit) return false;
+  bucket.count++;
+  return true;
+}
+
+function getClientIp(req: IncomingMessage): string {
+  return req.headers?.['x-forwarded-for']?.toString().split(',')[0]?.trim() ?? 'unknown';
+}
+
 export interface RouteDeps {
   ctx: Context;
   config: VisualizerConfig;
@@ -93,7 +119,7 @@ export function registerService(deps: RouteDeps): void {
         return null;
       },
       onGraphUpdate: (callback: (data: GraphData) => void) => {
-        return ctx.on('codegraph/graph/data', (event) => {
+        return ctx.on('cg-viz/graph/data', (event) => {
           callback({
             nodes: event.nodes as GraphNode[],
             edges: event.edges as GraphEdge[],
@@ -161,6 +187,7 @@ export function registerRoutes(deps: RouteDeps): void {
   const invokeUpstream = createInvokeUpstream(ctx, config);
   const origins = config.allowedOrigins;
 
+
   const sendJson = (res: ServerResponse, code: number, data: unknown, req?: IncomingMessage): void => {
     const headers: Record<string, string> = {
       'content-type': 'application/json',
@@ -181,6 +208,14 @@ export function registerRoutes(deps: RouteDeps): void {
 
   const sendError = (res: ServerResponse, code: number, message: string, req?: IncomingMessage): void => {
     sendJson(res, code, { success: false, error: message }, req);
+  };
+
+  const checkRate = (req: IncomingMessage, res: ServerResponse, routePath: string): boolean => {
+    if (!checkRateLimit(getClientIp(req), routePath)) {
+      sendError(res, 429, 'Rate limit exceeded', req);
+      return false;
+    }
+    return true;
   };
 
   const handleCorsPreflight = (req: IncomingMessage, res: ServerResponse): boolean => {
@@ -208,6 +243,16 @@ export function registerRoutes(deps: RouteDeps): void {
     path: '/api/v1/codegraph/status',
     handler: (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
+      if (!checkRate(req, res, '/api/v1/codegraph/tree-sitter')) return;
+      if (!checkRate(req, res, '/api/v1/codegraph/ast')) return;
+      if (!checkRate(req, res, '/api/v1/codegraph/diff')) return;
+      if (!checkRate(req, res, '/api/v1/codegraph/dependencies')) return;
+      if (!checkRate(req, res, '/api/v1/codegraph/watch')) return;
+      if (!checkRate(req, res, '/api/v1/codegraph/init')) return;
+      if (!checkRate(req, res, '/api/v1/codegraph/scan')) return;
+      if (!checkRate(req, res, '/api/v1/codegraph/data')) return;
+      if (!checkRate(req, res, '/api/v1/codegraph/workspace')) return;
+      if (!checkRate(req, res, '/api/v1/codegraph/status')) return;
       const status = checkPrerequisites(ctx);
       sendJson(res, 200, { codegraph: status.codegraph, lens: status.lens });
     },
@@ -297,13 +342,13 @@ export function registerRoutes(deps: RouteDeps): void {
             const oldest = scanCache.keys().next().value;
             if (oldest !== undefined) scanCache.delete(oldest);
           }
-          ctx.emit('codegraph/graph/updated', {
+          ctx.emit('cg-viz/graph/updated', {
             repoId: RepoId(repoId),
             nodeCount: data.metadata.nodeCount,
             edgeCount: data.metadata.edgeCount,
             timestamp: data.metadata.timestamp,
           });
-          ctx.emit('codegraph/graph/data', {
+          ctx.emit('cg-viz/graph/data', {
             repoId: RepoId(repoId),
             nodes: data.nodes,
             edges: data.edges,
@@ -347,13 +392,13 @@ export function registerRoutes(deps: RouteDeps): void {
           timestamp: Date.now(),
         };
         deps.setLastInitResult(initResult);
-        ctx.emit('codegraph/graph/init-result', initResult);
+        ctx.emit('cg-viz/graph/init-result', initResult);
         if (success) {
           const repoId = initPath || `workspace-${Date.now()}`;
           const raw = await fetchMergedGraph(invokeUpstream, repoId, 'both');
           const data = slimGraphData(raw, config.maxNodes);
           deps.setLastGraphData(data);
-          ctx.emit('codegraph/graph/data', {
+          ctx.emit('cg-viz/graph/data', {
             repoId: RepoId(repoId),
             nodes: data.nodes,
             edges: data.edges,
@@ -391,7 +436,7 @@ export function registerRoutes(deps: RouteDeps): void {
           return;
         }
         const watchPath = path && path !== '.' ? path : findWorkspacePath(ctx);
-        ctx.emit('codegraph/watch/toggle', { enabled: !!enabled, path: watchPath, timestamp: Date.now() });
+        ctx.emit('cg-viz/watch/toggle', { enabled: !!enabled, path: watchPath, timestamp: Date.now() });
         sendJson(res, 200, { success: true, enabled: !!enabled, path: watchPath });
       } catch (e) {
         log.warn('watch route failed', e);

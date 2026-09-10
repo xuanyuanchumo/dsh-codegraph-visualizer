@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import { useGraphStore, type ThemeType, type LayoutType } from './store/graphStore.ts';
+import { useGraphStore, type ThemeType } from './store/graphStore.ts';
 import { useShallow } from 'zustand/shallow';
 import type { GraphNode, GraphEdge, ViewMode } from '../types/index.ts';
 import { NodeId } from '../types/index.ts';
-import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard } from './hooks/index.ts';
+import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard, useViewMode, useAnalysisPanels } from './hooks/index.ts';
 import { useHistory } from './hooks/useHistory.ts';
 import { useGraphCache } from './hooks/useGraphCache.ts';
 import { GraphErrorBoundary } from './components/ErrorBoundary.tsx';
@@ -23,10 +23,11 @@ import { PathBar } from './components/PathBar.tsx';
 import { HealthScoreCard } from './components/HealthScoreCard.tsx';
 import { RuleConfigPanel } from './components/RuleConfigPanel.tsx';
 import { FocusModeBar } from './components/FocusModeBar.tsx';
-import { GraphIcon, CloseIcon } from './components/Icons.tsx';
-import { HealthScorer } from '../shared/analysis/HealthScorer.ts';
-import { RuleEngine, getPresetRules } from '../shared/analysis/RuleEngine.ts';
-import { HotspotAnalyzer, GodModuleDetector } from '../shared/analysis/HotspotAnalyzer.ts';
+import { HotspotPanel } from './components/HotspotPanel.tsx';
+import { GodModulePanel } from './components/GodModulePanel.tsx';
+import { ImpactPanel } from './components/ImpactPanel.tsx';
+import { MicroViewPrompt, MicroFunctionBar } from './components/MicroViewBar.tsx';
+import { GraphIcon } from './components/Icons.tsx';
 import { fetchGraphData } from './api/index.ts';
 import { SequenceDiagramRenderer } from './renderer/SequenceDiagramRenderer.tsx';
 import { scoped } from '../shared/Logger.ts';
@@ -41,10 +42,6 @@ interface GraphPanelProps {
 
 function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const t = useT();
-  const healthScorer = useMemo(() => new HealthScorer(), []);
-  const ruleEngine = useMemo(() => new RuleEngine(), []);
-  const hotspotAnalyzer = useMemo(() => new HotspotAnalyzer(), []);
-  const godModuleDetector = useMemo(() => new GodModuleDetector(), []);
   const panelRef = useRef<HTMLDivElement>(null);
   const depsFetchAbortRef = useRef<AbortController | null>(null);
   const getDataRef = useRef<{
@@ -61,6 +58,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     renderedSize: { w: number; h: number };
     totalSize: { w: number; h: number };
   } | null>(null);
+  const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
 
   const {
     nodes, edges, rawNodes, rawEdges, layout, theme, searchQuery, selectedNodeId,
@@ -68,10 +66,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     prerequisites, watchEnabled, currentWorkspace, workspaceList,
     initStatus, truncated, totalNodeCount, expandedNodeIds,
     pathResult, focusDepth, healthScore, rules, ruleViolations,
-    viewMode,
-    selectedFunction,
-    currentLayer,
-    diagramData,
+    viewMode, selectedFunction, currentLayer, diagramData,
   } = useGraphStore(useShallow((s) => ({
     nodes: s.nodes, edges: s.edges, rawNodes: s.rawNodes, rawEdges: s.rawEdges,
     layout: s.layout, theme: s.theme,
@@ -81,16 +76,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     isLoading: s.isLoading, error: s.error, lastUpdated: s.lastUpdated,
     prerequisites: s.prerequisites, watchEnabled: s.watchEnabled,
     currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
-    initStatus: s.initStatus,
-    truncated: s.truncated, totalNodeCount: s.totalNodeCount,
-    expandedNodeIds: s.expandedNodeIds,
-    pathResult: s.pathResult,
+    initStatus: s.initStatus, truncated: s.truncated, totalNodeCount: s.totalNodeCount,
+    expandedNodeIds: s.expandedNodeIds, pathResult: s.pathResult,
     focusDepth: s.focusDepth, healthScore: s.healthScore,
     rules: s.rules, ruleViolations: s.ruleViolations,
-    viewMode: s.viewMode,
-    selectedFunction: s.selectedFunction,
-    currentLayer: s.currentLayer,
-    diagramData: s.diagramData,
+    viewMode: s.viewMode, selectedFunction: s.selectedFunction,
+    currentLayer: s.currentLayer, diagramData: s.diagramData,
   })));
 
   const setLayout = useGraphStore((s) => s.setLayout);
@@ -119,26 +110,21 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const setRuleViolations = useGraphStore((s) => s.setRuleViolations);
   const setViewMode = useGraphStore((s) => s.setViewMode);
   const setSelectedFunction = useGraphStore((s) => s.setSelectedFunction);
-
   const panelHeight = useGraphStore((s) => s.panelHeight);
   const panelWidth = useGraphStore((s) => s.panelWidth);
 
-  const handleCollapseAll = useCallback(() => {
-    collapseAll();
-  }, [collapseAll]);
+  const handleCollapseAll = useCallback(() => { collapseAll(); }, [collapseAll]);
 
   const panel = usePanelState();
   const history = useHistory();
   const graphCache = useGraphCache();
-  // FR-53: Smart cache — cache graph data on workspace switch
+
   const prevWorkspaceRef = useRef<string | null>(null);
   useEffect(() => {
     if (!currentWorkspace) return;
     if (prevWorkspaceRef.current && prevWorkspaceRef.current !== currentWorkspace) {
       const cached = graphCache.getCachedData(currentWorkspace);
-      if (cached) {
-        setGraphData(cached.nodes, cached.edges, currentWorkspace);
-      }
+      if (cached) setGraphData(cached.nodes, cached.edges, currentWorkspace);
     }
     prevWorkspaceRef.current = currentWorkspace;
   }, [currentWorkspace, graphCache, setGraphData]);
@@ -151,22 +137,16 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const debouncedSearch = useDebounce(searchQuery, 200);
   const showCallChainRef = useRef(panel.showCallChain);
-
-  useEffect(() => {
-    showCallChainRef.current = panel.showCallChain;
-  }, [panel.showCallChain]);
+  useEffect(() => { showCallChainRef.current = panel.showCallChain; }, [panel.showCallChain]);
 
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as { path?: string };
-      if (detail?.path) {
-        useGraphStore.getState().setCurrentWorkspace(detail.path);
-      }
+      if (detail?.path) useGraphStore.getState().setCurrentWorkspace(detail.path);
     };
     window.addEventListener('codegraph:workspace', handler);
     return () => window.removeEventListener('codegraph:workspace', handler);
   }, []);
-
 
   const handleWorkspaceSwitch = useCallback((path: string) => {
     setCurrentWorkspace(path);
@@ -185,26 +165,16 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     setSelectedNodeData(data);
   }, [setSelectedNode]);
 
-  const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
-
   const handleNodeDoubleTap = useCallback((nodeId: string) => {
     const data = getDataRef.current?.getNodeData(nodeId);
     if (!data) return;
     const isClusterNode = 'isCluster' in data && data.isCluster === true;
     if (isClusterNode) {
       const isExpanded = expandedNodeIds.has(nodeId);
-      if (isExpanded) {
-        collapseNode(nodeId);
-      } else {
-        expandNode(nodeId);
-      }
+      if (isExpanded) collapseNode(nodeId);
+      else expandNode(nodeId);
     } else {
-      setFocusNodeId((prev) => {
-        if (prev === nodeId) {
-          return null;
-        }
-        return nodeId;
-      });
+      setFocusNodeId((prev) => prev === nodeId ? null : nodeId);
     }
   }, [expandedNodeIds, expandNode, collapseNode]);
 
@@ -216,7 +186,6 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, []);
 
   const handleNodeHoverOut = useCallback(() => setTooltip(null), []);
-
   const handleEdgeHover = useCallback((edgeId: string, pos: { x: number; y: number }) => {
     const edgeData = getDataRef.current?.getEdgeData(edgeId);
     if (edgeData) {
@@ -230,7 +199,6 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       });
     }
   }, []);
-
   const handleEdgeHoverOut = useCallback(() => setTooltip(null), []);
 
   const renderer = useGraphRenderer(
@@ -249,17 +217,14 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     };
   }, [renderer.rendererRef]);
 
-  // FR-27: Smart focus linkage — listen for editor symbol selection events
   useEffect(() => {
     const symbolHandler = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { symbol?: string; filePath?: string; lineNumber?: number };
+      const detail = (e as CustomEvent).detail as { symbol?: string };
       if (!detail?.symbol) return;
       const sym = detail.symbol;
       const store = useGraphStore.getState();
       const match = store.rawNodes.find((n) =>
-        n.label === sym ||
-        n.label.endsWith(`.${sym}`) ||
-        n.label.includes(sym),
+        n.label === sym || n.label.endsWith(`.${sym}`) || n.label.includes(sym),
       );
       if (match) {
         store.setSelectedNode(NodeId(match.id));
@@ -291,26 +256,17 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     if (panel.collapsed) return;
     const panelEl = panelRef.current;
     if (!panelEl) return;
-
-    if (panelHeight !== null && panelHeight >= 240) {
-      panelEl.style.height = `${panelHeight}px`;
-    }
-    if (panelWidth !== null && panelWidth >= 320) {
-      panelEl.style.width = `${panelWidth}px`;
-    }
-    if (panelHeight !== null || panelWidth !== null) {
-      renderer.rendererRef.current?.resize();
-    }
+    if (panelHeight !== null && panelHeight >= 240) panelEl.style.height = `${panelHeight}px`;
+    if (panelWidth !== null && panelWidth >= 320) panelEl.style.width = `${panelWidth}px`;
+    if (panelHeight !== null || panelWidth !== null) renderer.rendererRef.current?.resize();
   }, [panel.collapsed, panelHeight, panelWidth, renderer.rendererRef]);
 
   useEffect(() => {
     if (panel.collapsed) return;
     const panelEl = panelRef.current;
     if (!panelEl) return;
-
     const hasUserOverride = panelHeight !== null;
     if (hasUserOverride) return;
-
     let ancestor: HTMLElement | null = panelEl.parentElement;
     let depth = 0;
     while (ancestor && depth < 8) {
@@ -320,7 +276,6 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       depth++;
     }
     const target = ancestor ?? panelEl.parentElement ?? panelEl;
-
     let resizeTimer: ReturnType<typeof setTimeout> | null = null;
     const applyAncestorHeight = () => {
       if (resizeTimer !== null) clearTimeout(resizeTimer);
@@ -333,14 +288,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         }
       }, 200);
     };
-
     applyAncestorHeight();
     const ro = new ResizeObserver(applyAncestorHeight);
     ro.observe(target);
-    return () => {
-      ro.disconnect();
-      if (resizeTimer !== null) clearTimeout(resizeTimer);
-    };
+    return () => { ro.disconnect(); if (resizeTimer !== null) clearTimeout(resizeTimer); };
   }, [panel.collapsed, panelHeight, renderer.rendererRef]);
 
   usePanelKeyboard(layout, setLayout, renderer.rendererRef, {
@@ -394,16 +345,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     };
   }, [panel.showMiniMap, panel.collapsed, renderer.rendererRef, nodes.length, layout]);
 
-  // Abort in-flight dependency fetch on unmount
   useEffect(() => () => depsFetchAbortRef.current?.abort(), []);
 
   const handleThemeToggle = useCallback(() => {
     const newTheme: ThemeType = theme === 'dark' ? 'light' : 'dark';
-    if (newTheme === 'dark') {
-      document.body.setAttribute('data-ds-dark-theme', '');
-    } else {
-      document.body.removeAttribute('data-ds-dark-theme');
-    }
+    if (newTheme === 'dark') document.body.setAttribute('data-ds-dark-theme', '');
+    else document.body.removeAttribute('data-ds-dark-theme');
     setTheme(newTheme);
     renderer.updateTheme(newTheme);
   }, [theme, setTheme, renderer]);
@@ -412,70 +359,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     setSelectedNodeData(null); setSelectedNode(null);
   }, [setSelectedNode]);
 
-  // FR-21: View mode switching — code / dependencies / inheritance / callgraph
-  const handleSelectFunction = useCallback((node: GraphNode, mode: 'cfg' | 'flowchart' | 'sequence') => {
-    setSelectedFunction({ nodeId: node.id, filePath: node.filePath, functionName: node.label });
-    setSelectedNode(null);
-    setSelectedNodeData(null);
-    setViewMode(mode);
-  }, [setSelectedFunction, setSelectedNode, setSelectedNodeData, setViewMode]);
-
-  const prevLayoutRef = useRef(layout);
-  const handleViewModeChange = useCallback((newMode: ViewMode) => {
-    if (newMode === viewMode) return;
-
-    const layoutForMode: Record<string, LayoutType> = {
-      code: prevLayoutRef.current,
-      dependencies: 'dagre',
-      inheritance: 'dagre',
-      callgraph: 'dagre',
-      'package': 'dagre',
-      class: 'dagre',
-      cfg: 'dagre',
-      flowchart: 'dagre',
-      sequence: 'dagre',
-    };
-    setLayout(layoutForMode[newMode] ?? 'cose');
-
-    if (newMode === 'dependencies') {
-      prevLayoutRef.current = layout;
-      setGraphType('dependency');
-      setFilterType('all');
-      setLoading(true);
-      const controller = new AbortController();
-      depsFetchAbortRef.current?.abort();
-      depsFetchAbortRef.current = controller;
-      fetch('/api/v1/codegraph/dependencies', { signal: controller.signal })
-        .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-        .then((data) => {
-          if (controller.signal.aborted) return;
-          if (data.nodes && data.nodes.length > 0) {
-            setGraphData(data.nodes, data.edges, data.metadata?.repoId || currentWorkspace);
-          }
-        })
-        .catch(() => { if (!controller.signal.aborted) setError(t('error.title')); })
-        .finally(() => { if (!controller.signal.aborted) setLoading(false); });
-    } else if (newMode === 'code') {
-      prevLayoutRef.current = layout;
-      depsFetchAbortRef.current?.abort();
-      setGraphType('all');
-      setFilterType('all');
-      setLoading(true);
-      fetchGraphData().then((data) => {
-        if (data) {
-          setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata);
-        }
-        setLoading(false);
-      }).catch(() => { setLoading(false); });
-    } else {
-      prevLayoutRef.current = layout;
-      depsFetchAbortRef.current?.abort();
-      setGraphType('all');
-      setFilterType('all');
-    }
-
-    setViewMode(newMode);
-  }, [viewMode, setViewMode, setLoading, setGraphData, setError, currentWorkspace, layout, setLayout, setGraphType, setFilterType]);
+  const { handleViewModeChange, handleSelectFunction, handleCloseMicroView } = useViewMode(
+    viewMode, layout, currentWorkspace, depsFetchAbortRef,
+  );
 
   const handleRefresh = useCallback(() => {
     setLoading(true);
@@ -489,18 +375,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     log.info('scan workspace from empty state', { path: currentWorkspace });
   }, [setLoading, currentWorkspace]);
 
-  // FR-25: Path finding handlers
   const handleFindPath = useCallback((sourceId: NodeId, targetId: NodeId) => {
     const r = renderer.rendererRef.current;
     if (!r) return;
     const result = r.findPath(sourceId, targetId);
-    if (result) {
-      setPathResult(result.path);
-      r.highlightPath(result.path);
-    } else {
-      setPathResult(null);
-      r.highlightPath(null);
-    }
+    if (result) { setPathResult(result.path); r.highlightPath(result.path); }
+    else { setPathResult(null); r.highlightPath(null); }
   }, [renderer.rendererRef, setPathResult]);
 
   const handleClearPath = useCallback(() => {
@@ -508,7 +388,6 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     setPathResult(null);
   }, [renderer.rendererRef, setPathResult]);
 
-  // FR-26/28: Focus mode handlers
   const handleFocusExpand = useCallback(() => {
     if (!focusNodeId) return;
     const newDepth = focusDepth + 1;
@@ -529,59 +408,17 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     renderer.rendererRef.current?.focusNeighborhood(null);
   }, [setFocusDepth, renderer.rendererRef]);
 
-  // FR-32: Health score handler
-  const handleHealthCheck = useCallback(() => {
-    const score = healthScorer.calculate(rawNodes, rawEdges);
-    setHealthScore(score);
-  }, [rawNodes, rawEdges, setHealthScore]);
+  const getImpactStats = useCallback(() => {
+    if (!selectedNodeId) return null;
+    return renderer.rendererRef.current?.getImpactStats(selectedNodeId) ?? null;
+  }, [renderer.rendererRef, selectedNodeId]);
 
-  // FR-34: Rule engine handler
-  const handleRulesCheck = useCallback(() => {
-    const violations = ruleEngine.check(rules, rawNodes, rawEdges);
-    setRuleViolations(violations);
-  }, [rules, rawNodes, rawEdges, setRuleViolations]);
+  const { handleHealthCheck, handleRulesCheck, hotspotNodes, godModules, impactStats } = useAnalysisPanels(
+    rawNodes, rawEdges,
+    panel.showHealthScore, panel.showRules, panel.showHotspot, panel.showGodModule,
+    panel.showImpact, selectedNodeId, getImpactStats,
+  );
 
-  // FR-35: Impact radius stats
-  const [impactStats, setImpactStats] = useState<{ d1: number; d2: number; d3: number; total: number } | null>(null);
-
-  // FR-33: Hotspot analysis state (auto-computed when panel opens)
-  const [hotspotNodes, setHotspotNodes] = useState<{ nodeId: string; label: string; indegree: number; level: string }[]>([]);
-
-  // FR-36: God Module detection state (auto-computed when panel opens)
-  const [godModules, setGodModules] = useState<{ modulePath: string; nodeCount: number; edgeCount: number; suggestion: string }[]>([]);
-
-  // Auto-calculate health score when panel opens
-  useEffect(() => {
-    if (panel.showHealthScore && !healthScore && rawNodes.length > 0) {
-      handleHealthCheck();
-    }
-  }, [panel.showHealthScore, healthScore, rawNodes.length, handleHealthCheck]);
-
-  // Auto-check rules when panel opens
-  useEffect(() => {
-    if (panel.showRules && rules.length === 0) {
-      setRules(getPresetRules());
-    }
-  }, [panel.showRules, rules.length, setRules]);
-
-  // Auto-run hotspot analysis when panel opens
-  useEffect(() => {
-    if (panel.showHotspot && rawNodes.length > 0) {
-      setHotspotNodes(hotspotAnalyzer.analyze(rawNodes, rawEdges));
-    }
-  }, [panel.showHotspot, rawNodes, rawEdges]);
-
-  // Auto-run God Module detection when panel opens
-  useEffect(() => {
-    if (panel.showGodModule && rawNodes.length > 0) {
-      setGodModules(godModuleDetector.detect(rawNodes, rawEdges));
-    }
-  }, [panel.showGodModule, rawNodes, rawEdges]);
-
-  // FR-XX: Auto-fill graph on first panel open
-  // When panel is opened with no data and prerequisites are met, auto-trigger scan.
-  // This eliminates the "manual fill" friction while still guarding against
-  // scanning when upstream tools are unavailable.
   const hasAutoScannedRef = useRef(false);
   useEffect(() => {
     if (hasAutoScannedRef.current) return;
@@ -589,21 +426,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     if (nodes.length > 0 || rawNodes.length > 0) return;
     if (!prerequisites.codegraph) return;
     if (!currentWorkspace) return;
-
     hasAutoScannedRef.current = true;
     log.info('auto-fill: triggering scan on first open', { path: currentWorkspace });
     handleScanWorkspace();
   }, [panel.collapsed, nodes.length, rawNodes.length, prerequisites.codegraph, currentWorkspace, handleScanWorkspace]);
-
-  // FR-35: Auto-fetch impact stats when impact mode is on and a node is selected
-  useEffect(() => {
-    if (panel.showImpact && selectedNodeId) {
-      const stats = renderer.rendererRef.current?.getImpactStats(selectedNodeId);
-      setImpactStats(stats ?? null);
-    } else {
-      setImpactStats(null);
-    }
-  }, [panel.showImpact, selectedNodeId, renderer.rendererRef, nodes.length]);
 
   const statsText = useMemo(() => t('stats.nodesEdges', { nodes: nodes.length, edges: edges.length }), [nodes.length, edges.length, t]);
   const nodeTypeCounts = useMemo(() => {
@@ -617,6 +443,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   );
 
   const isCollapsed = panel.collapsed;
+  const isMicroView = viewMode === 'cfg' || viewMode === 'flowchart' || viewMode === 'sequence';
 
   return (
     <div className={panelClassName} ref={panelRef} role="region" aria-label={t('panel.ariaLabel')}>
@@ -627,91 +454,52 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       <Toolbar
         statsText={statsText}
         typeCounts={{ function: nodeTypeCounts.function, class: nodeTypeCounts.class, interface: nodeTypeCounts.interface }}
-        layout={layout}
-        theme={theme}
-        filterType={filterType}
-        graphType={graphType}
-        clusterLevel={clusterLevel}
-        viewMode={viewMode}
-        currentLayer={currentLayer}
+        layout={layout} theme={theme} filterType={filterType} graphType={graphType}
+        clusterLevel={clusterLevel} viewMode={viewMode} currentLayer={currentLayer}
         layerNames={diagramData?.layers.map((l) => l.name) ?? []}
-        onLayerChange={setLayer}
-        collapsed={panel.collapsed}
+        onLayerChange={setLayer} collapsed={panel.collapsed}
         panelControls={{
-          showSearch: panel.showSearch,
-          showCallChain: panel.showCallChain,
-          showCycles: panel.showCycles,
-          showImpact: panel.showImpact,
-          showInheritance: panel.showInheritance,
-          showMiniMap: panel.showMiniMap,
-          showLegend: panel.showLegend,
-          showImport: panel.showImport,
-          showPathFind: panel.showPathFind,
-          showHealthScore: panel.showHealthScore,
-          showRules: panel.showRules,
-          showHotspot: panel.showHotspot,
+          showSearch: panel.showSearch, showCallChain: panel.showCallChain,
+          showCycles: panel.showCycles, showImpact: panel.showImpact,
+          showInheritance: panel.showInheritance, showMiniMap: panel.showMiniMap,
+          showLegend: panel.showLegend, showImport: panel.showImport,
+          showPathFind: panel.showPathFind, showHealthScore: panel.showHealthScore,
+          showRules: panel.showRules, showHotspot: panel.showHotspot,
           showGodModule: panel.showGodModule,
-          onToggleSearch: panel.toggleSearch,
-          onToggleCallChain: panel.toggleCallChain,
-          onToggleCycles: panel.toggleCycles,
-          onToggleImpact: panel.toggleImpact,
-          onToggleInheritance: panel.toggleInheritance,
-          onToggleMiniMap: panel.toggleMiniMap,
-          onToggleLegend: panel.toggleLegend,
-          onToggleImport: panel.toggleImport,
-          onTogglePathFind: panel.togglePathFind,
-          onToggleHealthScore: panel.toggleHealthScore,
-          onToggleRules: panel.toggleRules,
-          onToggleHotspot: panel.toggleHotspot,
+          onToggleSearch: panel.toggleSearch, onToggleCallChain: panel.toggleCallChain,
+          onToggleCycles: panel.toggleCycles, onToggleImpact: panel.toggleImpact,
+          onToggleInheritance: panel.toggleInheritance, onToggleMiniMap: panel.toggleMiniMap,
+          onToggleLegend: panel.toggleLegend, onToggleImport: panel.toggleImport,
+          onTogglePathFind: panel.togglePathFind, onToggleHealthScore: panel.toggleHealthScore,
+          onToggleRules: panel.toggleRules, onToggleHotspot: panel.toggleHotspot,
           onToggleGodModule: panel.toggleGodModule,
         }}
-        onViewModeChange={handleViewModeChange}
-        onLayoutChange={setLayout}
-        onThemeToggle={handleThemeToggle}
-        onFilterChange={setFilterType}
-        onGraphTypeChange={setGraphType}
-        onClusterLevelChange={setClusterLevel}
-        onRefresh={handleRefresh}
-        onExport={renderer.exportGraph}
-        onCollapse={panel.toggleCollapsed}
-        onCollapseAll={handleCollapseAll}
-        onUndo={history.undo}
-        onRedo={history.redo}
-        canUndo={history.canUndo}
-        canRedo={history.canRedo}
-        currentWorkspace={currentWorkspace}
-        workspaceList={workspaceList}
-        onSwitchWorkspace={handleWorkspaceSwitch}
-        onAddWorkspace={handleWorkspaceAdd}
+        onViewModeChange={handleViewModeChange} onLayoutChange={setLayout}
+        onThemeToggle={handleThemeToggle} onFilterChange={setFilterType}
+        onGraphTypeChange={setGraphType} onClusterLevelChange={setClusterLevel}
+        onRefresh={handleRefresh} onExport={renderer.exportGraph}
+        onCollapse={panel.toggleCollapsed} onCollapseAll={handleCollapseAll}
+        onUndo={history.undo} onRedo={history.redo}
+        canUndo={history.canUndo} canRedo={history.canRedo}
+        currentWorkspace={currentWorkspace} workspaceList={workspaceList}
+        onSwitchWorkspace={handleWorkspaceSwitch} onAddWorkspace={handleWorkspaceAdd}
         onRemoveWorkspace={removeWorkspace}
       />
 
       {panel.showSearch && !isCollapsed && (
-        <SearchBar
-          query={searchQuery}
-          matchCount={renderer.searchMatchCount}
-          onChange={setSearchQuery}
-          onClose={() => panel.setShowSearch(false)}
-        />
+        <SearchBar query={searchQuery} matchCount={renderer.searchMatchCount}
+          onChange={setSearchQuery} onClose={() => panel.setShowSearch(false)} />
       )}
 
       {panel.showPathFind && !isCollapsed && (
-        <PathBar
-          onFindPath={handleFindPath}
-          onClearPath={handleClearPath}
-          pathResult={pathResult}
-          pathLength={pathResult ? pathResult.length - 1 : null}
-          onClose={() => panel.setShowPathFind(false)}
-        />
+        <PathBar onFindPath={handleFindPath} onClearPath={handleClearPath}
+          pathResult={pathResult} pathLength={pathResult ? pathResult.length - 1 : null}
+          onClose={() => panel.setShowPathFind(false)} />
       )}
 
       {focusNodeId && !isCollapsed && (
-        <FocusModeBar
-          focusNodeId={focusNodeId}
-          onExpand={handleFocusExpand}
-          onContract={handleFocusContract}
-          onExit={handleFocusExit}
-        />
+        <FocusModeBar focusNodeId={focusNodeId}
+          onExpand={handleFocusExpand} onContract={handleFocusContract} onExit={handleFocusExit} />
       )}
 
       {panel.showHealthScore && !isCollapsed && (
@@ -719,79 +507,48 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       )}
 
       {panel.showRules && !isCollapsed && (
-        <RuleConfigPanel
-          violations={ruleViolations}
-          onCheckRules={handleRulesCheck}
-          onClose={() => panel.setShowRules(false)}
-        />
+        <RuleConfigPanel violations={ruleViolations} onCheckRules={handleRulesCheck}
+          onClose={() => panel.setShowRules(false)} />
       )}
 
       {isLoading && !isCollapsed && <LoadingOverlay visible={true} />}
-
       {error && !isCollapsed && <ErrorOverlay error={error} />}
 
-      {(viewMode === 'cfg' || viewMode === 'flowchart' || viewMode === 'sequence') && !selectedFunction && !isLoading && !isCollapsed && (
-        <div className="micro-empty-prompt">
-          <div className="micro-empty-icon">
-            {viewMode === 'cfg' ? 'CFG' : viewMode === 'flowchart' ? t('toolbar.viewModeFlowchart') : t('toolbar.viewModeSequence')}
-          </div>
-          <div>{t('micro.selectFunctionPrompt')}</div>
-        </div>
+      {isMicroView && !selectedFunction && !isLoading && !isCollapsed && (
+        <MicroViewPrompt viewMode={viewMode}
+          selectFunctionPrompt={t('micro.selectFunctionPrompt')}
+          flowchartLabel={t('toolbar.viewModeFlowchart')}
+          sequenceLabel={t('toolbar.viewModeSequence')} />
       )}
 
-      {(viewMode === 'cfg' || viewMode === 'flowchart' || viewMode === 'sequence') && selectedFunction && !isCollapsed && (
-        <div className="micro-function-bar">
-          <span>{selectedFunction.functionName}</span>
-          <button
-            className="micro-function-close"
-            onClick={() => { setSelectedFunction(null); setViewMode('code'); }}
-          >
-            ✕
-          </button>
-        </div>
+      {isMicroView && selectedFunction && !isCollapsed && (
+        <MicroFunctionBar functionName={selectedFunction.functionName} onClose={handleCloseMicroView} />
       )}
 
-      {nodes.length === 0 && !isLoading && !error && !isCollapsed && viewMode !== 'cfg' && viewMode !== 'flowchart' && viewMode !== 'sequence' && (
+      {nodes.length === 0 && !isLoading && !error && !isCollapsed && !isMicroView && (
         <EmptyState prerequisites={prerequisites} onImport={() => panel.setShowImport(true)} onScanWorkspace={handleScanWorkspace} />
       )}
 
       {panel.showImport && !isCollapsed && (
-        <ImportPanel
-          onClose={() => panel.setShowImport(false)}
-          workspacePath={currentWorkspace}
-          prerequisites={prerequisites}
-          initStatus={initStatus}
-          watchEnabled={watchEnabled}
-          onSetGraphData={setGraphData}
-          onSetLoading={setLoading}
-          onSetError={setError}
-          onSetInitStatus={setInitStatus}
-          onSetWatchEnabled={setWatchEnabled}
-        />
+        <ImportPanel onClose={() => panel.setShowImport(false)} workspacePath={currentWorkspace}
+          prerequisites={prerequisites} initStatus={initStatus} watchEnabled={watchEnabled}
+          onSetGraphData={setGraphData} onSetLoading={setLoading} onSetError={setError}
+          onSetInitStatus={setInitStatus} onSetWatchEnabled={setWatchEnabled} />
       )}
+
       {selectedNodeData && !isCollapsed && (
-        <NodeDetail
-          node={selectedNodeData}
-          onClose={handleCloseDetail}
+        <NodeDetail node={selectedNodeData} onClose={handleCloseDetail}
           isExpanded={selectedNodeData ? expandedNodeIds.has(selectedNodeData.id) : false}
           connectionCount={selectedNodeData ? edges.filter((e) => e.source === selectedNodeData.id || e.target === selectedNodeData.id).length : 0}
           onCollapse={() => selectedNodeData && collapseNode(selectedNodeData.id)}
-          onSelectFunction={handleSelectFunction}
-        />
+          onSelectFunction={(node, mode) => handleSelectFunction(node.id, node.filePath, node.label, mode)} />
       )}
 
-      <div
-        className="graph-container"
-        ref={renderer.containerRef}
-        style={{ display: viewMode === 'sequence' && selectedFunction ? 'none' : undefined }}
-      />
+      <div className="graph-container" ref={renderer.containerRef}
+        style={{ display: viewMode === 'sequence' && selectedFunction ? 'none' : undefined }} />
       {viewMode === 'sequence' && selectedFunction && !isCollapsed && (
-        <SequenceDiagramRenderer
-          nodes={nodes}
-          edges={edges}
-          theme={theme}
-          onNodeTap={(id) => handleNodeTap(NodeId(id))}
-        />
+        <SequenceDiagramRenderer nodes={nodes} edges={edges} theme={theme}
+          onNodeTap={(id) => handleNodeTap(NodeId(id))} />
       )}
 
       {panel.showLegend && !isCollapsed && (<Legend onClose={() => panel.setShowLegend(false)} />)}
@@ -799,84 +556,32 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       {panel.showMiniMap && !isCollapsed && (
         <StatsPanel
           counts={{
-            function: nodeTypeCounts.function,
-            class: nodeTypeCounts.class,
-            variable: nodeTypeCounts.variable,
-            module: nodeTypeCounts.module,
+            function: nodeTypeCounts.function, class: nodeTypeCounts.class,
+            variable: nodeTypeCounts.variable, module: nodeTypeCounts.module,
             interface: nodeTypeCounts.interface,
           }}
-          onClose={() => panel.setShowMiniMap(false)}
-          thumbnail={thumbnail}
-          viewportInfo={viewportInfo}
-          onFocusArea={(ratioX, ratioY) => renderer.rendererRef.current?.focusOnArea(ratioX, ratioY)}
-        />
+          onClose={() => panel.setShowMiniMap(false)} thumbnail={thumbnail} viewportInfo={viewportInfo}
+          onFocusArea={(ratioX, ratioY) => renderer.rendererRef.current?.focusOnArea(ratioX, ratioY)} />
       )}
 
       {panel.showHotspot && !isCollapsed && hotspotNodes.length > 0 && (
-        <div className="analysis-panel hotspot-panel" role="region" aria-label={t('toolbar.hotspot')}>
-          <div className="analysis-panel-header">
-            <span>{t('toolbar.hotspot')}</span>
-            <button onClick={() => panel.setShowHotspot(false)} className="cg-close-btn"><CloseIcon size={14} /></button>
-          </div>
-          <div className="analysis-panel-content">
-            {hotspotNodes.slice(0, 20).map((h) => (
-              <div key={h.nodeId} className={`hotspot-item ${h.level}`}>
-                <span className="hotspot-level-badge">{h.level}</span>
-                <span className="hotspot-label">{h.label}</span>
-                <span className="hotspot-indegree">{h.indegree}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+        <HotspotPanel hotspotNodes={hotspotNodes} onClose={() => panel.setShowHotspot(false)} label={t('toolbar.hotspot')} />
       )}
 
       {panel.showGodModule && !isCollapsed && godModules.length > 0 && (
-        <div className="analysis-panel godmodule-panel" role="region" aria-label={t('toolbar.godModule')}>
-          <div className="analysis-panel-header">
-            <span>{t('toolbar.godModule')}</span>
-            <button onClick={() => panel.setShowGodModule(false)} className="cg-close-btn"><CloseIcon size={14} /></button>
-          </div>
-          <div className="analysis-panel-content">
-            {godModules.map((m) => (
-              <div key={m.modulePath} className="godmodule-item">
-                <div className="godmodule-path">{m.modulePath}</div>
-                <div className="godmodule-stats">{t('godmodule.stats', { nodes: m.nodeCount, edges: m.edgeCount })}</div>
-                <div className="godmodule-suggestion">{m.suggestion}</div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <GodModulePanel godModules={godModules} onClose={() => panel.setShowGodModule(false)}
+          label={t('toolbar.godModule')} statsLabel={(n, e) => t('godmodule.stats', { nodes: n, edges: e })} />
       )}
 
       {panel.showImpact && !isCollapsed && impactStats && (
-        <div className="analysis-panel impact-panel" role="region" aria-label={t('toolbar.impact')}>
-          <div className="analysis-panel-header">
-            <span>{t('toolbar.impact')}</span>
-          </div>
-          <div className="analysis-panel-content">
-            <div className="impact-stat-row">
-              <span className="impact-stat-badge d1">D1</span>
-              <span className="impact-stat-count">{impactStats.d1}</span>
-            </div>
-            <div className="impact-stat-row">
-              <span className="impact-stat-badge d2">D2</span>
-              <span className="impact-stat-count">{impactStats.d2}</span>
-            </div>
-            <div className="impact-stat-row">
-              <span className="impact-stat-badge d3">D3</span>
-              <span className="impact-stat-count">{impactStats.d3}</span>
-            </div>
-            <div className="impact-stat-total">{t('impact.total')}: {impactStats.total}</div>
-          </div>
-        </div>
+        <ImpactPanel impactStats={impactStats} label={t('toolbar.impact')} totalLabel={t('impact.total')} />
       )}
 
       {tooltip && <GraphTooltip data={tooltip} />}
-
       <KeyboardHelp visible={showHelp} onClose={() => setShowHelp(false)} />
-
-      <StatusBar error={error} isLoading={isLoading} lastUpdated={lastUpdated} watchEnabled={watchEnabled} workspaceName={currentWorkspace} truncated={truncated} totalNodeCount={totalNodeCount} displayedNodeCount={nodes.length} />
-
+      <StatusBar error={error} isLoading={isLoading} lastUpdated={lastUpdated}
+        watchEnabled={watchEnabled} workspaceName={currentWorkspace}
+        truncated={truncated} totalNodeCount={totalNodeCount} displayedNodeCount={nodes.length} />
       <div className="resize-handle" title={t('panel.resetSize')} />
     </div>
   );
@@ -887,5 +592,6 @@ export function GraphPanel(props: GraphPanelProps) {
     <GraphErrorBoundary>
       <GraphPanelInner {...props} />
     </GraphErrorBoundary>
+
   );
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { FlowchartAssembler } from '../../src/client/diagram/FlowchartAssembler.ts';
-import type { ASTNode } from '../../src/client/diagram/CFGTypes.ts';
+import type { ASTNode } from '../../src/shared/CFGTypes.ts';
 
 function makeAstNode(type: string, text: string, children: ASTNode[] = [], row = 0): ASTNode {
   return {

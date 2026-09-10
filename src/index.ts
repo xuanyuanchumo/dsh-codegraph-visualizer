@@ -65,7 +65,7 @@ export function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
 
   const emitPrereqStatus = () => {
     const status = checkPrerequisites(ctx);
-    ctx.emit('codegraph/prerequisite/status', {
+    ctx.emit('cg-viz/prerequisite/status', {
       codegraph: status.codegraph,
       lens: status.lens,
       timestamp: Date.now(),
@@ -76,7 +76,7 @@ export function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
   const prereqTimer = setInterval(emitPrereqStatus, config.prerequisiteRetryDelay);
   ctx.effect(() => () => clearInterval(prereqTimer), 'codegraph: prereq re-check timer');
 
-  ctx.effect(() => ctx.on('codegraph/prerequisite/request', () => {
+  ctx.effect(() => ctx.on('cg-viz/prerequisite/request', () => {
     emitPrereqStatus();
   }), 'codegraph: prerequisite request listener');
 

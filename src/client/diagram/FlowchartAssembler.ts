@@ -1,7 +1,7 @@
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { NodeId, EdgeId } from '../../types/index.ts';
 import type { AssembledDiagram } from './DiagramAssembler.ts';
-import type { ASTNode, StatementInfo } from './CFGTypes.ts';
+import type { ASTNode, StatementInfo } from '../../shared/CFGTypes.ts';
 import { CFGAssembler } from './CFGAssembler.ts';
 
 const PROCESS_KEYWORDS: Record<string, string> = {

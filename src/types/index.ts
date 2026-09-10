@@ -200,21 +200,21 @@ export interface PathResult {
 // `ctx.on(...)`. Keep them writer-only so consumers never redefine the contract.
 declare module '@deepseek-ai/cordis' {
   interface Events {
-    'codegraph/repo/imported'(event: RepoImportedEvent): void;
-    'codegraph/repo/scanned'(event: RepoScannedEvent): void;
-    'codegraph/repo/request-scan'(event: RepoRequestScanEvent): void;
-    'codegraph/graph/updated'(event: GraphUpdatedEvent): void;
-    'codegraph/graph/data'(event: GraphDataEvent): void;
-    'codegraph/source/open'(event: SourceOpenEvent): void;
-    'codegraph/prerequisite/status'(event: PrerequisiteStatusEvent): void;
-    'codegraph/prerequisite/request'(event: { timestamp: number }): void;
-    'codegraph/graph/init'(event: GraphInitEvent): void;
-    'codegraph/graph/init-result'(event: GraphInitResultEvent): void;
-    'codegraph/watch/toggle'(event: WatchToggleEvent): void;
-    'codegraph/health/scored'(event: HealthScoreEvent): void;
-    'codegraph/rules/violation'(event: RuleViolationEvent): void;
-    'codegraph/path/found'(event: PathFoundEvent): void;
-    'codegraph/focus/changed'(event: FocusChangedEvent): void;
+    'cg-viz/repo/imported'(event: RepoImportedEvent): void;
+    'cg-viz/repo/scanned'(event: RepoScannedEvent): void;
+    'cg-viz/repo/request-scan'(event: RepoRequestScanEvent): void;
+    'cg-viz/graph/updated'(event: GraphUpdatedEvent): void;
+    'cg-viz/graph/data'(event: GraphDataEvent): void;
+    'cg-viz/source/open'(event: SourceOpenEvent): void;
+    'cg-viz/prerequisite/status'(event: PrerequisiteStatusEvent): void;
+    'cg-viz/prerequisite/request'(event: { timestamp: number }): void;
+    'cg-viz/graph/init'(event: GraphInitEvent): void;
+    'cg-viz/graph/init-result'(event: GraphInitResultEvent): void;
+    'cg-viz/watch/toggle'(event: WatchToggleEvent): void;
+    'cg-viz/health/scored'(event: HealthScoreEvent): void;
+    'cg-viz/rules/violation'(event: RuleViolationEvent): void;
+    'cg-viz/path/found'(event: PathFoundEvent): void;
+    'cg-viz/focus/changed'(event: FocusChangedEvent): void;
   }
   interface Context {
     webServer: WebServerService;

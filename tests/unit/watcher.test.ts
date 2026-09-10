@@ -75,10 +75,10 @@ describe('registerEventListeners', () => {
       return vi.fn();
     });
     registerEventListeners(ctx, vi.fn());
-    const importedCb = onCallbacks.find((c) => c.event === 'codegraph/repo/imported');
+    const importedCb = onCallbacks.find((c) => c.event === 'cg-viz/repo/imported');
     expect(importedCb).toBeDefined();
     importedCb!.cb({ repoId: 'r1', timestamp: 123 });
-    expect(ctx.emit).toHaveBeenCalledWith('codegraph/graph/updated', { repoId: 'r1', nodeCount: 0, edgeCount: 0, timestamp: 123 });
+    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/updated', { repoId: 'r1', nodeCount: 0, edgeCount: 0, timestamp: 123 });
   });
 
   it('repo scanned listener emits graph updated event', () => {
@@ -89,10 +89,10 @@ describe('registerEventListeners', () => {
       return vi.fn();
     });
     registerEventListeners(ctx, vi.fn());
-    const scannedCb = onCallbacks.find((c) => c.event === 'codegraph/repo/scanned');
+    const scannedCb = onCallbacks.find((c) => c.event === 'cg-viz/repo/scanned');
     expect(scannedCb).toBeDefined();
     scannedCb!.cb({ repoId: 'r2', timestamp: 456 });
-    expect(ctx.emit).toHaveBeenCalledWith('codegraph/graph/updated', { repoId: 'r2', nodeCount: 0, edgeCount: 0, timestamp: 456 });
+    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/updated', { repoId: 'r2', nodeCount: 0, edgeCount: 0, timestamp: 456 });
   });
 
   it('request-scan listener calls scanAndPush', async () => {
@@ -105,10 +105,10 @@ describe('registerEventListeners', () => {
     const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     mockedFetchMergedGraph.mockResolvedValue(graphData);
     registerEventListeners(ctx, vi.fn());
-    const scanCb = onCallbacks.find((c) => c.event === 'codegraph/repo/request-scan');
+    const scanCb = onCallbacks.find((c) => c.event === 'cg-viz/repo/request-scan');
     expect(scanCb).toBeDefined();
     await scanCb!.cb({ path: '/repo', timestamp: 1 });
-    expect(ctx.emit).toHaveBeenCalledWith('codegraph/graph/updated', expect.objectContaining({ repoId: '/repo' }));
+    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/updated', expect.objectContaining({ repoId: '/repo' }));
   });
 
   it('graph init listener emits init-result on success', async () => {
@@ -122,10 +122,10 @@ describe('registerEventListeners', () => {
     const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     mockedFetchMergedGraph.mockResolvedValue(graphData);
     registerEventListeners(ctx, invokeUpstream);
-    const initCb = onCallbacks.find((c) => c.event === 'codegraph/graph/init');
+    const initCb = onCallbacks.find((c) => c.event === 'cg-viz/graph/init');
     expect(initCb).toBeDefined();
     await initCb!.cb({ path: '/repo', timestamp: 1 });
-    expect(ctx.emit).toHaveBeenCalledWith('codegraph/graph/init-result', expect.objectContaining({ success: true }));
+    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/init-result', expect.objectContaining({ success: true }));
   });
 
   it('graph init listener emits failed init-result when init returns null', async () => {
@@ -137,9 +137,9 @@ describe('registerEventListeners', () => {
     });
     const invokeUpstream = vi.fn().mockResolvedValue(null);
     registerEventListeners(ctx, invokeUpstream);
-    const initCb = onCallbacks.find((c) => c.event === 'codegraph/graph/init');
+    const initCb = onCallbacks.find((c) => c.event === 'cg-viz/graph/init');
     await initCb!.cb({ path: '/repo', timestamp: 1 });
-    expect(ctx.emit).toHaveBeenCalledWith('codegraph/graph/init-result', expect.objectContaining({ success: false }));
+    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/init-result', expect.objectContaining({ success: false }));
   });
 
   it('graph init listener emits failed init-result on exception', async () => {
@@ -151,8 +151,8 @@ describe('registerEventListeners', () => {
     });
     const invokeUpstream = vi.fn().mockRejectedValue(new Error('init failed'));
     registerEventListeners(ctx, invokeUpstream);
-    const initCb = onCallbacks.find((c) => c.event === 'codegraph/graph/init');
+    const initCb = onCallbacks.find((c) => c.event === 'cg-viz/graph/init');
     await initCb!.cb({ path: '/repo', timestamp: 1 });
-    expect(ctx.emit).toHaveBeenCalledWith('codegraph/graph/init-result', expect.objectContaining({ success: false, message: 'Initialization failed' }));
+    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/init-result', expect.objectContaining({ success: false, message: 'Initialization failed' }));
   });
 });

@@ -5,6 +5,8 @@ export { useGraphRenderer } from './useGraphRenderer.ts';
 export { usePanelResize } from './usePanelResize.ts';
 export { usePanelState } from './usePanelState.ts';
 export { usePanelKeyboard } from './usePanelKeyboard.ts';
+export { useViewMode } from './useViewMode.ts';
+export { useAnalysisPanels } from './useAnalysisPanels.ts';
 
 /**
  * Debounce a value with a delay.

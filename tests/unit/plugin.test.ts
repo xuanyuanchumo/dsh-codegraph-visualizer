@@ -97,7 +97,7 @@ describe('createGraphTools (J1/J9/J11)', () => {
     const result = await tools.graphData.execute({ repoId: 'r1' }, mockExec);
     expect(result).toHaveProperty('nodes');
     expect(result).toHaveProperty('edges');
-    expect(ctx.emit).toHaveBeenCalledWith('codegraph/graph/updated', expect.objectContaining({ repoId: 'r1' }));
+    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/updated', expect.objectContaining({ repoId: 'r1' }));
   });
 
   it('graph_data should use incremental delta on repeat calls', async () => {
@@ -181,12 +181,12 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     apply(ctx);
     expect(ctx.tools.register).toHaveBeenCalledTimes(8);
     expect(ctx.on).toHaveBeenCalledTimes(6);
-    expect(ctx.on).toHaveBeenCalledWith('codegraph/repo/imported', expect.any(Function));
-    expect(ctx.on).toHaveBeenCalledWith('codegraph/repo/scanned', expect.any(Function));
-    expect(ctx.on).toHaveBeenCalledWith('codegraph/repo/request-scan', expect.any(Function));
-    expect(ctx.on).toHaveBeenCalledWith('codegraph/graph/init', expect.any(Function));
-    expect(ctx.on).toHaveBeenCalledWith('codegraph/watch/toggle', expect.any(Function));
-    expect(ctx.on).toHaveBeenCalledWith('codegraph/prerequisite/request', expect.any(Function));
+    expect(ctx.on).toHaveBeenCalledWith('cg-viz/repo/imported', expect.any(Function));
+    expect(ctx.on).toHaveBeenCalledWith('cg-viz/repo/scanned', expect.any(Function));
+    expect(ctx.on).toHaveBeenCalledWith('cg-viz/repo/request-scan', expect.any(Function));
+    expect(ctx.on).toHaveBeenCalledWith('cg-viz/graph/init', expect.any(Function));
+    expect(ctx.on).toHaveBeenCalledWith('cg-viz/watch/toggle', expect.any(Function));
+    expect(ctx.on).toHaveBeenCalledWith('cg-viz/prerequisite/request', expect.any(Function));
   });
 
 
@@ -197,11 +197,11 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     const { apply } = await import('../../src/index.ts');
     apply(ctx);
 
-    handlers.get('codegraph/repo/imported')!({ repoId: 'r1', path: '/x', timestamp: 123 });
-    expect(ctx.emit).toHaveBeenCalledWith('codegraph/graph/updated', expect.objectContaining({ repoId: 'r1' }));
+    handlers.get('cg-viz/repo/imported')!({ repoId: 'r1', path: '/x', timestamp: 123 });
+    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/updated', expect.objectContaining({ repoId: 'r1' }));
 
-    handlers.get('codegraph/repo/scanned')!({ repoId: 'r2', fileCount: 3, timestamp: 456 });
-    expect(ctx.emit).toHaveBeenCalledWith('codegraph/graph/updated', expect.objectContaining({ repoId: 'r2' }));
+    handlers.get('cg-viz/repo/scanned')!({ repoId: 'r2', fileCount: 3, timestamp: 456 });
+    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/updated', expect.objectContaining({ repoId: 'r2' }));
   });
 
   it('request-scan should emit graph updated + graph data with merged counts', async () => {
@@ -210,9 +210,9 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     ctx.on.mockImplementation((name: string, fn: (e: unknown) => void) => { handlers.set(name, fn as (e: Record<string, unknown>) => void); });
     const { apply } = await import('../../src/index.ts');
     apply(ctx);
-    handlers.get('codegraph/repo/request-scan')!({ path: '/tmp/repo', timestamp: 1 });
+    handlers.get('cg-viz/repo/request-scan')!({ path: '/tmp/repo', timestamp: 1 });
     await vi.waitFor(() => {
-      expect(ctx.emit).toHaveBeenCalledWith('codegraph/graph/data', expect.objectContaining({ repoId: '/tmp/repo' }));
+      expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/data', expect.objectContaining({ repoId: '/tmp/repo' }));
     });
   });
 
@@ -228,9 +228,9 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     });
     const { apply } = await import('../../src/index.ts');
     apply(ctx);
-    handlers.get('codegraph/graph/init')!({ path: '/tmp/repo', timestamp: 1 });
+    handlers.get('cg-viz/graph/init')!({ path: '/tmp/repo', timestamp: 1 });
     await vi.waitFor(() => {
-      expect(ctx.emit).toHaveBeenCalledWith('codegraph/graph/init-result', expect.objectContaining({ success: true }));
+      expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/init-result', expect.objectContaining({ success: true }));
     });
   });
 
@@ -241,9 +241,9 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     ctx.tools.execute.mockResolvedValue({ isError: false, value: null });
     const { apply } = await import('../../src/index.ts');
     apply(ctx);
-    handlers.get('codegraph/graph/init')!({ path: '/tmp/repo', timestamp: 1 });
+    handlers.get('cg-viz/graph/init')!({ path: '/tmp/repo', timestamp: 1 });
     await vi.waitFor(() => {
-      expect(ctx.emit).toHaveBeenCalledWith('codegraph/graph/init-result', expect.objectContaining({ success: false }));
+      expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/init-result', expect.objectContaining({ success: false }));
     });
   });
 
@@ -251,7 +251,7 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     const ctx = makeMockCtx();
     const { apply } = require('../../src/index.ts');
     apply(ctx);
-    expect(ctx.emit).toHaveBeenCalledWith('codegraph/prerequisite/status', expect.objectContaining({
+    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/prerequisite/status', expect.objectContaining({
       codegraph: expect.any(Boolean),
       lens: expect.any(Boolean),
     }));
@@ -263,8 +263,8 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     ctx.on.mockImplementation((name: string, fn: (e: unknown) => void) => { handlers.set(name, fn as (e: Record<string, unknown>) => void); });
     const { apply } = await import('../../src/index.ts');
     apply(ctx);
-    handlers.get('codegraph/watch/toggle')!({ enabled: false, path: '/tmp/repo', timestamp: 1 });
-    expect(ctx.emit).not.toHaveBeenCalledWith('codegraph/graph/updated', expect.objectContaining({ repoId: '/tmp/repo' }));
+    handlers.get('cg-viz/watch/toggle')!({ enabled: false, path: '/tmp/repo', timestamp: 1 });
+    expect(ctx.emit).not.toHaveBeenCalledWith('cg-viz/graph/updated', expect.objectContaining({ repoId: '/tmp/repo' }));
   });
 
   it('watch toggle should start watching when enabled', async () => {
@@ -273,7 +273,7 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     ctx.on.mockImplementation((name: string, fn: (e: unknown) => void) => { handlers.set(name, fn as (e: Record<string, unknown>) => void); });
     const { apply } = await import('../../src/index.ts');
     apply(ctx);
-    handlers.get('codegraph/watch/toggle')!({ enabled: true, path: '/tmp/repo', timestamp: 1 });
+    handlers.get('cg-viz/watch/toggle')!({ enabled: true, path: '/tmp/repo', timestamp: 1 });
   });
 
   it('should register effect for cleanup', () => {

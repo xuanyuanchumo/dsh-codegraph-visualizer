@@ -16,13 +16,13 @@ async function scanAndPush(
   try {
     const repoId = path || `workspace-${Date.now()}`;
     const data = await fetchMergedGraph(invokeUpstream, repoId, 'both');
-    ctx.emit('codegraph/graph/updated', {
+    ctx.emit('cg-viz/graph/updated', {
       repoId: RepoId(repoId),
       nodeCount: data.metadata.nodeCount,
       edgeCount: data.metadata.edgeCount,
       timestamp: data.metadata.timestamp,
     });
-    ctx.emit('codegraph/graph/data', {
+    ctx.emit('cg-viz/graph/data', {
       repoId: RepoId(repoId),
       nodes: data.nodes,
       edges: data.edges,
@@ -47,7 +47,7 @@ export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUp
   };
 
   ctx.effect(() => {
-    const dispose = ctx.on('codegraph/watch/toggle', (event) => {
+    const dispose = ctx.on('cg-viz/watch/toggle', (event) => {
       closeActiveWatcher();
 
       if (!event.enabled) {
@@ -86,24 +86,24 @@ export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUp
 }
 
 export function registerEventListeners(ctx: Context, invokeUpstream: (tool: string, args: Record<string, unknown>) => Promise<unknown | null>): void {
-  ctx.effect(() => ctx.on('codegraph/repo/imported', (event) => {
-    ctx.emit('codegraph/graph/updated', { repoId: event.repoId, nodeCount: 0, edgeCount: 0, timestamp: event.timestamp });
+  ctx.effect(() => ctx.on('cg-viz/repo/imported', (event) => {
+    ctx.emit('cg-viz/graph/updated', { repoId: event.repoId, nodeCount: 0, edgeCount: 0, timestamp: event.timestamp });
   }), 'codegraph: repo imported listener');
 
-  ctx.effect(() => ctx.on('codegraph/repo/scanned', (event) => {
-    ctx.emit('codegraph/graph/updated', { repoId: event.repoId, nodeCount: 0, edgeCount: 0, timestamp: event.timestamp });
+  ctx.effect(() => ctx.on('cg-viz/repo/scanned', (event) => {
+    ctx.emit('cg-viz/graph/updated', { repoId: event.repoId, nodeCount: 0, edgeCount: 0, timestamp: event.timestamp });
   }), 'codegraph: repo scanned listener');
 
-  ctx.effect(() => ctx.on('codegraph/repo/request-scan', async (event) => {
+  ctx.effect(() => ctx.on('cg-viz/repo/request-scan', async (event) => {
     await scanAndPush(ctx, invokeUpstream, event.path);
   }), 'codegraph: repo request-scan listener');
 
-  ctx.effect(() => ctx.on('codegraph/graph/init', async (event) => {
+  ctx.effect(() => ctx.on('cg-viz/graph/init', async (event) => {
     log.info('init requested', { path: event.path });
     try {
       const result = await invokeUpstream('codegraph_init', { path: event.path, force: true });
       const success = result !== null;
-      ctx.emit('codegraph/graph/init-result', {
+      ctx.emit('cg-viz/graph/init-result', {
         success,
         path: event.path,
         message: success ? 'Graph initialized successfully' : 'Initialization failed — is dsh-codegraph installed?',
@@ -114,7 +114,7 @@ export function registerEventListeners(ctx: Context, invokeUpstream: (tool: stri
       }
     } catch (e) {
       log.warn('graph init failed', e);
-      ctx.emit('codegraph/graph/init-result', {
+      ctx.emit('cg-viz/graph/init-result', {
         success: false,
         path: event.path,
         message: 'Initialization failed',
