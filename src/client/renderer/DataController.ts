@@ -51,11 +51,19 @@ export class DataController {
     const cyNodeCount = this.cy.nodes().length;
     const cyEdgeCount = this.cy.edges().length;
     const hasNewNodes = nodes.some((n) => !this.currentNodes.has(n.id));
-    const hasStaleNodes = cyNodeCount !== nodes.length ||
-      [...this.currentNodes.keys()].some((id) => !newNodeIds.has(id));
+    let hasStaleNodes = cyNodeCount !== nodes.length || this.currentNodes.size > newNodeIds.size;
+    if (!hasStaleNodes && this.currentNodes.size === newNodeIds.size) {
+      for (const id of this.currentNodes.keys()) {
+        if (!newNodeIds.has(id)) { hasStaleNodes = true; break; }
+      }
+    }
     const hasNewEdges = edges.some((e) => !this.currentEdges.has(e.id));
-    const hasStaleEdges = cyEdgeCount !== edges.length ||
-      [...this.currentEdges.keys()].some((id) => !newEdgeIds.has(id));
+    let hasStaleEdges = cyEdgeCount !== edges.length || this.currentEdges.size > newEdgeIds.size;
+    if (!hasStaleEdges && this.currentEdges.size === newEdgeIds.size) {
+      for (const id of this.currentEdges.keys()) {
+        if (!newEdgeIds.has(id)) { hasStaleEdges = true; break; }
+      }
+    }
 
     if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges) {
       const hasUpdatedNodes = this.detectPropertyChanges(nodes);

@@ -3191,7 +3191,19 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		}
 		const newExpanded = new Set(expandedNodeIds);
 		newExpanded.add(nodeId);
+		const dataHash = computeDataHash(sourceNodes, sourceEdges);
+		const expandedKey = [...newExpanded].sort().join(",");
+		const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
+		if (cached) {
+			set$1({
+				expandedNodeIds: newExpanded,
+				nodes: cached.nodes,
+				edges: cached.edges
+			});
+			return;
+		}
 		const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, newExpanded);
+		clusterCache.set(dataHash, clusterLevel, expandedKey, result);
 		set$1({
 			expandedNodeIds: newExpanded,
 			nodes: result.nodes,
@@ -3211,7 +3223,19 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		}
 		const newExpanded = new Set(expandedNodeIds);
 		newExpanded.delete(nodeId);
+		const dataHash = computeDataHash(sourceNodes, sourceEdges);
+		const expandedKey = [...newExpanded].sort().join(",");
+		const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
+		if (cached) {
+			set$1({
+				expandedNodeIds: newExpanded,
+				nodes: cached.nodes,
+				edges: cached.edges
+			});
+			return;
+		}
 		const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, newExpanded);
+		clusterCache.set(dataHash, clusterLevel, expandedKey, result);
 		set$1({
 			expandedNodeIds: newExpanded,
 			nodes: result.nodes,
@@ -3229,7 +3253,19 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				sourceEdges = layer.edges;
 			}
 		}
+		const dataHash = computeDataHash(sourceNodes, sourceEdges);
+		const expandedKey = "";
+		const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
+		if (cached) {
+			set$1({
+				expandedNodeIds: new Set(),
+				nodes: cached.nodes,
+				edges: cached.edges
+			});
+			return;
+		}
 		const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, new Set());
+		clusterCache.set(dataHash, clusterLevel, expandedKey, result);
 		set$1({
 			expandedNodeIds: new Set(),
 			nodes: result.nodes,
@@ -3287,7 +3323,19 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		if (!diagramData || layer < 0 || layer >= diagramData.layers.length) return;
 		const layerData = diagramData.layers[layer];
 		if (!layerData) return;
+		const dataHash = computeDataHash(layerData.nodes, layerData.edges);
+		const expandedKey = [...expandedNodeIds].sort().join(",");
+		const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
+		if (cached) {
+			set$1({
+				currentLayer: layer,
+				nodes: cached.nodes,
+				edges: cached.edges
+			});
+			return;
+		}
 		const result = computeClusteredGraph(layerData.nodes, layerData.edges, clusterLevel, expandedNodeIds);
+		clusterCache.set(dataHash, clusterLevel, expandedKey, result);
 		set$1({
 			currentLayer: layer,
 			nodes: result.nodes,
@@ -42097,7 +42145,7 @@ var LayoutController = class {
 			const nodeCount = this.cy.nodes().length;
 			let effectiveLayout = layout$2;
 			let animate = true;
-			if (nodeCount > 2e3) {
+			if (nodeCount > 5e3) {
 				effectiveLayout = "grid";
 				animate = false;
 			} else if (nodeCount > 500 && layout$2 === "cose") {
@@ -42282,8 +42330,18 @@ var LayoutController = class {
 				cols: Math.ceil(Math.sqrt(nodeCount))
 			};
 			case "radial": {
-				const degrees = this.cy.nodes().map((n) => n.degree()).sort((a, b) => a - b);
-				const maxDeg = degrees[degrees.length - 1] ?? 1;
+				let maxDeg = 1;
+				if (nodeCount > 2e3) {
+					const sampleSize = Math.min(200, nodeCount);
+					const step$2 = Math.max(1, Math.floor(nodeCount / sampleSize));
+					for (let i$1 = 0; i$1 < nodeCount; i$1 += step$2) {
+						const deg = this.cy.nodes()[i$1]?.degree() ?? 0;
+						if (deg > maxDeg) maxDeg = deg;
+					}
+				} else {
+					const degrees = this.cy.nodes().map((n) => n.degree()).sort((a, b) => a - b);
+					maxDeg = degrees[degrees.length - 1] ?? 1;
+				}
 				const levelW = Math.max(1, Math.ceil(maxDeg / 4));
 				return {
 					name: "concentric",
@@ -42322,7 +42380,7 @@ var LayoutController = class {
 		const sp = this.computeSmartSpacing(nodes.length);
 		const minGap = sp.minGap;
 		const maxIterations = 15;
-		const skipThreshold = 2e3;
+		const skipThreshold = 5e3;
 		if (nodes.length > skipThreshold) {
 			this.cy.fit(void 0, 80);
 			return;
@@ -42474,12 +42532,21 @@ var HighlightController = class {
 		});
 		this.highlightedNodeIds = newSet;
 	}
+	selectedNodeId = null;
 	selectNode(nodeId) {
+		const id = nodeId ?? null;
+		if (this.selectedNodeId === id) return;
 		this.cy.batch(() => {
-			this.cy.elements().forEach((ele) => {
-				ele.toggleClass("selected", ele.isNode() && ele.id() === nodeId);
-			});
+			if (this.selectedNodeId) {
+				const prev = this.cy.getElementById(this.selectedNodeId);
+				if (prev.nonempty()) prev.removeClass("selected");
+			}
+			if (id) {
+				const node = this.cy.getElementById(id);
+				if (node.nonempty()) node.addClass("selected");
+			}
 		});
+		this.selectedNodeId = id;
 	}
 	highlightCallChain(nodeId) {
 		this.cy.batch(() => {
@@ -42704,9 +42771,15 @@ var ViewportController = class {
 			duration: 300
 		});
 	}
+	dimmedNodeIds = new Set();
 	focusNeighborhood(nodeId) {
 		this.cy.batch(() => {
-			this.cy.elements().removeClass("focus-highlight focus-dim");
+			for (const id of this.dimmedNodeIds) {
+				const el = this.cy.getElementById(id);
+				if (el.nonempty()) el.removeClass("focus-dim");
+			}
+			this.dimmedNodeIds.clear();
+			this.cy.elements().removeClass("focus-highlight");
 			if (!nodeId) return;
 			const focusNode = this.cy.getElementById(nodeId);
 			if (focusNode.empty()) return;
@@ -42718,8 +42791,11 @@ var ViewportController = class {
 				const el = this.cy.getElementById(id);
 				if (el.nonempty()) el.addClass("focus-highlight");
 			});
-			this.cy.elements().forEach((el) => {
-				if (!relevant.has(el.id())) el.addClass("focus-dim");
+			this.cy.nodes().forEach((node) => {
+				if (!relevant.has(node.id())) {
+					node.addClass("focus-dim");
+					this.dimmedNodeIds.add(node.id());
+				}
 			});
 			this.cy.animate({
 				fit: {
@@ -42749,13 +42825,21 @@ var ViewportController = class {
 			if (frontier.size === 0) break;
 		}
 		this.cy.batch(() => {
-			this.cy.elements().removeClass("focus-highlight focus-dim");
+			for (const id of this.dimmedNodeIds) {
+				const el = this.cy.getElementById(id);
+				if (el.nonempty()) el.removeClass("focus-dim");
+			}
+			this.dimmedNodeIds.clear();
+			this.cy.elements().removeClass("focus-highlight");
 			relevant.forEach((id) => {
 				const el = this.cy.getElementById(id);
 				if (el.nonempty()) el.addClass("focus-highlight");
 			});
-			this.cy.elements().forEach((el) => {
-				if (!relevant.has(el.id())) el.addClass("focus-dim");
+			this.cy.nodes().forEach((node) => {
+				if (!relevant.has(node.id())) {
+					node.addClass("focus-dim");
+					this.dimmedNodeIds.add(node.id());
+				}
 			});
 			this.cy.animate({
 				fit: {
@@ -44282,9 +44366,21 @@ var DataController = class {
 		const cyNodeCount = this.cy.nodes().length;
 		const cyEdgeCount = this.cy.edges().length;
 		const hasNewNodes = nodes.some((n) => !this.currentNodes.has(n.id));
-		const hasStaleNodes = cyNodeCount !== nodes.length || [...this.currentNodes.keys()].some((id) => !newNodeIds.has(id));
+		let hasStaleNodes = cyNodeCount !== nodes.length || this.currentNodes.size > newNodeIds.size;
+		if (!hasStaleNodes && this.currentNodes.size === newNodeIds.size) {
+			for (const id of this.currentNodes.keys()) if (!newNodeIds.has(id)) {
+				hasStaleNodes = true;
+				break;
+			}
+		}
 		const hasNewEdges = edges.some((e) => !this.currentEdges.has(e.id));
-		const hasStaleEdges = cyEdgeCount !== edges.length || [...this.currentEdges.keys()].some((id) => !newEdgeIds.has(id));
+		let hasStaleEdges = cyEdgeCount !== edges.length || this.currentEdges.size > newEdgeIds.size;
+		if (!hasStaleEdges && this.currentEdges.size === newEdgeIds.size) {
+			for (const id of this.currentEdges.keys()) if (!newEdgeIds.has(id)) {
+				hasStaleEdges = true;
+				break;
+			}
+		}
 		if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges) {
 			const hasUpdatedNodes = this.detectPropertyChanges(nodes);
 			if (!hasUpdatedNodes) return;
@@ -45067,15 +45163,20 @@ var VirtualViewportController = class {
 				const node = this.cy.getElementById(id);
 				if (node.nonempty()) node.style("display", "none");
 			}
-			this.cy.edges().forEach((edge) => {
-				if (edge.data("typeFiltered") === true) {
-					edge.style("display", "none");
-					return;
-				}
-				const sourceVisible = newVisible.has(edge.source().id());
-				const targetVisible = newVisible.has(edge.target().id());
-				edge.style("display", sourceVisible && targetVisible ? "element" : "none");
-			});
+			const changedNodeIds = new Set([...toShow, ...toHide]);
+			for (const id of changedNodeIds) {
+				const node = this.cy.getElementById(id);
+				if (node.empty()) continue;
+				node.connectedEdges().forEach((edge) => {
+					if (edge.data("typeFiltered") === true) {
+						edge.style("display", "none");
+						return;
+					}
+					const sourceVisible = newVisible.has(edge.source().id());
+					const targetVisible = newVisible.has(edge.target().id());
+					edge.style("display", sourceVisible && targetVisible ? "element" : "none");
+				});
+			}
 		});
 		this.visibleNodeIds = newVisible;
 	}

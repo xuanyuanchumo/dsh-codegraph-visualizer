@@ -19,9 +19,17 @@ export class ViewportController {
     }
   }
 
+  private dimmedNodeIds: Set<string> = new Set();
+
   focusNeighborhood(nodeId: NodeId | null): void {
     this.cy.batch(() => {
-      this.cy.elements().removeClass('focus-highlight focus-dim');
+      for (const id of this.dimmedNodeIds) {
+        const el = this.cy.getElementById(id);
+        if (el.nonempty()) el.removeClass('focus-dim');
+      }
+      this.dimmedNodeIds.clear();
+
+      this.cy.elements().removeClass('focus-highlight');
       if (!nodeId) return;
 
       const focusNode = this.cy.getElementById(nodeId);
@@ -37,8 +45,11 @@ export class ViewportController {
         if (el.nonempty()) el.addClass('focus-highlight');
       });
 
-      this.cy.elements().forEach((el) => {
-        if (!relevant.has(el.id())) el.addClass('focus-dim');
+      this.cy.nodes().forEach((node) => {
+        if (!relevant.has(node.id())) {
+          node.addClass('focus-dim');
+          this.dimmedNodeIds.add(node.id());
+        }
       });
 
       this.cy.animate({
@@ -69,13 +80,21 @@ export class ViewportController {
     }
 
     this.cy.batch(() => {
-      this.cy.elements().removeClass('focus-highlight focus-dim');
+      for (const id of this.dimmedNodeIds) {
+        const el = this.cy.getElementById(id);
+        if (el.nonempty()) el.removeClass('focus-dim');
+      }
+      this.dimmedNodeIds.clear();
+      this.cy.elements().removeClass('focus-highlight');
       relevant.forEach((id) => {
         const el = this.cy.getElementById(id);
         if (el.nonempty()) el.addClass('focus-highlight');
       });
-      this.cy.elements().forEach((el) => {
-        if (!relevant.has(el.id())) el.addClass('focus-dim');
+      this.cy.nodes().forEach((node) => {
+        if (!relevant.has(node.id())) {
+          node.addClass('focus-dim');
+          this.dimmedNodeIds.add(node.id());
+        }
       });
       this.cy.animate({
         fit: { eles: this.cy.elements().filter((el) => relevant.has(el.id())), padding: 80 },

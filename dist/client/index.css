@@ -342,7 +342,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 500;
   border-radius: var(--cg-radius-xs);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   text-transform: capitalize;
   font-family: var(--cg-font-sans);
 }
@@ -379,7 +379,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 500;
   border-radius: var(--cg-radius-xs);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   font-family: var(--cg-font-sans);
 }
 
@@ -410,7 +410,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 600;
   border-radius: var(--cg-radius-xs);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   font-family: var(--cg-font-sans);
   margin-left: 2px;
 }
@@ -462,7 +462,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 700;
   border-radius: var(--cg-radius-xs);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   font-family: var(--cg-font-sans);
   min-width: 28px;
   text-align: center;
@@ -567,7 +567,7 @@ body[data-ds-dark-theme] .depth-select {
   border-radius: var(--cg-radius-sm);
   cursor: pointer;
   color: var(--cg-text-secondary);
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   position: relative;
   flex-shrink: 0;
 }
@@ -740,7 +740,7 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-text-secondary);
   cursor: pointer;
   font-size: 13px;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
 .search-bar button:hover {
@@ -1001,7 +1001,7 @@ body[data-ds-dark-theme] .depth-select {
   cursor: pointer;
   font-size: 14px;
   border-radius: var(--cg-radius-xs);
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1137,7 +1137,7 @@ body[data-ds-dark-theme] .depth-select {
   border: 2px solid var(--cg-accent);
   background: color-mix(in srgb, var(--cg-accent) 10%, transparent);
   pointer-events: none;
-  transition: all var(--cg-transition-slow, 280ms) var(--cg-ease, ease);
+  transition: background var(--cg-transition-slow, 280ms) var(--cg-ease, ease), border-color var(--cg-transition-slow, 280ms) var(--cg-ease, ease), color var(--cg-transition-slow, 280ms) var(--cg-ease, ease);
 }
 
 .mini-map-stats {
@@ -1526,7 +1526,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 500;
   font-family: var(--cg-font-sans);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--cg-accent) 30%, transparent);
 }
 
@@ -1549,7 +1549,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 500;
   font-family: var(--cg-font-sans);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
 .empty-scan-btn:hover {
@@ -1688,7 +1688,7 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-text-secondary);
   cursor: pointer;
   border-radius: var(--cg-radius-xs);
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
 .import-close:hover {
@@ -1715,7 +1715,7 @@ body[data-ds-dark-theme] .depth-select {
   font-family: var(--cg-font-sans);
   border-radius: var(--cg-radius-sm);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
 .import-tabs button:hover {
@@ -1831,7 +1831,7 @@ body[data-ds-dark-theme] .depth-select {
   font-size: 12px;
   font-family: var(--cg-font-sans);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   align-self: flex-start;
 }
 
@@ -1909,7 +1909,7 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-warning);
   font-size: 11px;
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
 .prereq-copy:hover {
@@ -1948,7 +1948,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 500;
   font-family: var(--cg-font-sans);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
 .import-submit:hover:not(:disabled) {
@@ -2585,7 +2585,7 @@ body[data-ds-dark-theme] .depth-select {
   font-size: 10px;
   color: var(--cg-text-secondary);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   white-space: nowrap;
 }
 
@@ -2768,7 +2768,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 500;
   font-family: var(--cg-font-sans);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
 .path-find-btn {
@@ -2855,7 +2855,7 @@ body[data-ds-dark-theme] .depth-select {
   border-radius: var(--cg-radius-xs);
   cursor: pointer;
   color: var(--cg-text-secondary);
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   flex-shrink: 0;
   margin-left: auto;
 }
@@ -3066,7 +3066,7 @@ body[data-ds-dark-theme] .depth-select {
   font-size: 10px;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
 .rule-preset-btn:hover {
@@ -3139,7 +3139,7 @@ body[data-ds-dark-theme] .depth-select {
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
 .rule-check-btn:hover:not(:disabled) {

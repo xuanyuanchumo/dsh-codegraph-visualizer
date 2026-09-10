@@ -129,15 +129,20 @@ export class VirtualViewportController {
         if (node.nonempty()) node.style('display', 'none');
       }
 
-      this.cy.edges().forEach((edge) => {
-        if (edge.data('typeFiltered') === true) {
-          edge.style('display', 'none');
-          return;
-        }
-        const sourceVisible = newVisible.has(edge.source().id());
-        const targetVisible = newVisible.has(edge.target().id());
-        edge.style('display', sourceVisible && targetVisible ? 'element' : 'none');
-      });
+      const changedNodeIds = new Set<string>([...toShow, ...toHide]);
+      for (const id of changedNodeIds) {
+        const node = this.cy.getElementById(id);
+        if (node.empty()) continue;
+        node.connectedEdges().forEach((edge) => {
+          if (edge.data('typeFiltered') === true) {
+            edge.style('display', 'none');
+            return;
+          }
+          const sourceVisible = newVisible.has(edge.source().id());
+          const targetVisible = newVisible.has(edge.target().id());
+          edge.style('display', sourceVisible && targetVisible ? 'element' : 'none');
+        });
+      }
     });
 
     this.visibleNodeIds = newVisible;

@@ -354,7 +354,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 500;
   border-radius: var(--cg-radius-xs);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   text-transform: capitalize;
   font-family: var(--cg-font-sans);
 }
@@ -391,7 +391,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 500;
   border-radius: var(--cg-radius-xs);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   font-family: var(--cg-font-sans);
 }
 
@@ -422,7 +422,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 600;
   border-radius: var(--cg-radius-xs);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   font-family: var(--cg-font-sans);
   margin-left: 2px;
 }
@@ -474,7 +474,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 700;
   border-radius: var(--cg-radius-xs);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   font-family: var(--cg-font-sans);
   min-width: 28px;
   text-align: center;
@@ -579,7 +579,7 @@ body[data-ds-dark-theme] .depth-select {
   border-radius: var(--cg-radius-sm);
   cursor: pointer;
   color: var(--cg-text-secondary);
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   position: relative;
   flex-shrink: 0;
 }
@@ -752,7 +752,7 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-text-secondary);
   cursor: pointer;
   font-size: 13px;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
 .search-bar button:hover {
@@ -1013,7 +1013,7 @@ body[data-ds-dark-theme] .depth-select {
   cursor: pointer;
   font-size: 14px;
   border-radius: var(--cg-radius-xs);
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1149,7 +1149,7 @@ body[data-ds-dark-theme] .depth-select {
   border: 2px solid var(--cg-accent);
   background: color-mix(in srgb, var(--cg-accent) 10%, transparent);
   pointer-events: none;
-  transition: all var(--cg-transition-slow, 280ms) var(--cg-ease, ease);
+  transition: background var(--cg-transition-slow, 280ms) var(--cg-ease, ease), border-color var(--cg-transition-slow, 280ms) var(--cg-ease, ease), color var(--cg-transition-slow, 280ms) var(--cg-ease, ease);
 }
 
 .mini-map-stats {
@@ -1538,7 +1538,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 500;
   font-family: var(--cg-font-sans);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--cg-accent) 30%, transparent);
 }
 
@@ -1561,7 +1561,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 500;
   font-family: var(--cg-font-sans);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
 .empty-scan-btn:hover {
@@ -1700,7 +1700,7 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-text-secondary);
   cursor: pointer;
   border-radius: var(--cg-radius-xs);
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
 .import-close:hover {
@@ -1727,7 +1727,7 @@ body[data-ds-dark-theme] .depth-select {
   font-family: var(--cg-font-sans);
   border-radius: var(--cg-radius-sm);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
 .import-tabs button:hover {
@@ -1843,7 +1843,7 @@ body[data-ds-dark-theme] .depth-select {
   font-size: 12px;
   font-family: var(--cg-font-sans);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   align-self: flex-start;
 }
 
@@ -1921,7 +1921,7 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-warning);
   font-size: 11px;
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
 .prereq-copy:hover {
@@ -1960,7 +1960,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 500;
   font-family: var(--cg-font-sans);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
 .import-submit:hover:not(:disabled) {
@@ -2597,7 +2597,7 @@ body[data-ds-dark-theme] .depth-select {
   font-size: 10px;
   color: var(--cg-text-secondary);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   white-space: nowrap;
 }
 
@@ -2780,7 +2780,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 500;
   font-family: var(--cg-font-sans);
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
 .path-find-btn {
@@ -2867,7 +2867,7 @@ body[data-ds-dark-theme] .depth-select {
   border-radius: var(--cg-radius-xs);
   cursor: pointer;
   color: var(--cg-text-secondary);
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
   flex-shrink: 0;
   margin-left: auto;
 }
@@ -3078,7 +3078,7 @@ body[data-ds-dark-theme] .depth-select {
   font-size: 10px;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
 .rule-preset-btn:hover {
@@ -3151,7 +3151,7 @@ body[data-ds-dark-theme] .depth-select {
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--cg-transition);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
 .rule-check-btn:hover:not(:disabled) {
@@ -6753,7 +6753,19 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		}
 		const newExpanded = new Set(expandedNodeIds);
 		newExpanded.add(nodeId);
+		const dataHash = computeDataHash(sourceNodes, sourceEdges);
+		const expandedKey = [...newExpanded].sort().join(",");
+		const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
+		if (cached) {
+			set$1({
+				expandedNodeIds: newExpanded,
+				nodes: cached.nodes,
+				edges: cached.edges
+			});
+			return;
+		}
 		const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, newExpanded);
+		clusterCache.set(dataHash, clusterLevel, expandedKey, result);
 		set$1({
 			expandedNodeIds: newExpanded,
 			nodes: result.nodes,
@@ -6773,7 +6785,19 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		}
 		const newExpanded = new Set(expandedNodeIds);
 		newExpanded.delete(nodeId);
+		const dataHash = computeDataHash(sourceNodes, sourceEdges);
+		const expandedKey = [...newExpanded].sort().join(",");
+		const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
+		if (cached) {
+			set$1({
+				expandedNodeIds: newExpanded,
+				nodes: cached.nodes,
+				edges: cached.edges
+			});
+			return;
+		}
 		const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, newExpanded);
+		clusterCache.set(dataHash, clusterLevel, expandedKey, result);
 		set$1({
 			expandedNodeIds: newExpanded,
 			nodes: result.nodes,
@@ -6791,7 +6815,19 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				sourceEdges = layer.edges;
 			}
 		}
+		const dataHash = computeDataHash(sourceNodes, sourceEdges);
+		const expandedKey = "";
+		const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
+		if (cached) {
+			set$1({
+				expandedNodeIds: new Set(),
+				nodes: cached.nodes,
+				edges: cached.edges
+			});
+			return;
+		}
 		const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, new Set());
+		clusterCache.set(dataHash, clusterLevel, expandedKey, result);
 		set$1({
 			expandedNodeIds: new Set(),
 			nodes: result.nodes,
@@ -6849,7 +6885,19 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		if (!diagramData || layer < 0 || layer >= diagramData.layers.length) return;
 		const layerData = diagramData.layers[layer];
 		if (!layerData) return;
+		const dataHash = computeDataHash(layerData.nodes, layerData.edges);
+		const expandedKey = [...expandedNodeIds].sort().join(",");
+		const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
+		if (cached) {
+			set$1({
+				currentLayer: layer,
+				nodes: cached.nodes,
+				edges: cached.edges
+			});
+			return;
+		}
 		const result = computeClusteredGraph(layerData.nodes, layerData.edges, clusterLevel, expandedNodeIds);
+		clusterCache.set(dataHash, clusterLevel, expandedKey, result);
 		set$1({
 			currentLayer: layer,
 			nodes: result.nodes,
@@ -45659,7 +45707,7 @@ var LayoutController = class {
 			const nodeCount = this.cy.nodes().length;
 			let effectiveLayout = layout$2;
 			let animate = true;
-			if (nodeCount > 2e3) {
+			if (nodeCount > 5e3) {
 				effectiveLayout = "grid";
 				animate = false;
 			} else if (nodeCount > 500 && layout$2 === "cose") {
@@ -45844,8 +45892,18 @@ var LayoutController = class {
 				cols: Math.ceil(Math.sqrt(nodeCount))
 			};
 			case "radial": {
-				const degrees = this.cy.nodes().map((n) => n.degree()).sort((a, b) => a - b);
-				const maxDeg = degrees[degrees.length - 1] ?? 1;
+				let maxDeg = 1;
+				if (nodeCount > 2e3) {
+					const sampleSize = Math.min(200, nodeCount);
+					const step$2 = Math.max(1, Math.floor(nodeCount / sampleSize));
+					for (let i$1 = 0; i$1 < nodeCount; i$1 += step$2) {
+						const deg = this.cy.nodes()[i$1]?.degree() ?? 0;
+						if (deg > maxDeg) maxDeg = deg;
+					}
+				} else {
+					const degrees = this.cy.nodes().map((n) => n.degree()).sort((a, b) => a - b);
+					maxDeg = degrees[degrees.length - 1] ?? 1;
+				}
 				const levelW = Math.max(1, Math.ceil(maxDeg / 4));
 				return {
 					name: "concentric",
@@ -45884,7 +45942,7 @@ var LayoutController = class {
 		const sp = this.computeSmartSpacing(nodes.length);
 		const minGap = sp.minGap;
 		const maxIterations = 15;
-		const skipThreshold = 2e3;
+		const skipThreshold = 5e3;
 		if (nodes.length > skipThreshold) {
 			this.cy.fit(void 0, 80);
 			return;
@@ -46036,12 +46094,21 @@ var HighlightController = class {
 		});
 		this.highlightedNodeIds = newSet;
 	}
+	selectedNodeId = null;
 	selectNode(nodeId) {
+		const id = nodeId ?? null;
+		if (this.selectedNodeId === id) return;
 		this.cy.batch(() => {
-			this.cy.elements().forEach((ele) => {
-				ele.toggleClass("selected", ele.isNode() && ele.id() === nodeId);
-			});
+			if (this.selectedNodeId) {
+				const prev = this.cy.getElementById(this.selectedNodeId);
+				if (prev.nonempty()) prev.removeClass("selected");
+			}
+			if (id) {
+				const node = this.cy.getElementById(id);
+				if (node.nonempty()) node.addClass("selected");
+			}
 		});
+		this.selectedNodeId = id;
 	}
 	highlightCallChain(nodeId) {
 		this.cy.batch(() => {
@@ -46266,9 +46333,15 @@ var ViewportController = class {
 			duration: 300
 		});
 	}
+	dimmedNodeIds = new Set();
 	focusNeighborhood(nodeId) {
 		this.cy.batch(() => {
-			this.cy.elements().removeClass("focus-highlight focus-dim");
+			for (const id of this.dimmedNodeIds) {
+				const el = this.cy.getElementById(id);
+				if (el.nonempty()) el.removeClass("focus-dim");
+			}
+			this.dimmedNodeIds.clear();
+			this.cy.elements().removeClass("focus-highlight");
 			if (!nodeId) return;
 			const focusNode = this.cy.getElementById(nodeId);
 			if (focusNode.empty()) return;
@@ -46280,8 +46353,11 @@ var ViewportController = class {
 				const el = this.cy.getElementById(id);
 				if (el.nonempty()) el.addClass("focus-highlight");
 			});
-			this.cy.elements().forEach((el) => {
-				if (!relevant.has(el.id())) el.addClass("focus-dim");
+			this.cy.nodes().forEach((node) => {
+				if (!relevant.has(node.id())) {
+					node.addClass("focus-dim");
+					this.dimmedNodeIds.add(node.id());
+				}
 			});
 			this.cy.animate({
 				fit: {
@@ -46311,13 +46387,21 @@ var ViewportController = class {
 			if (frontier.size === 0) break;
 		}
 		this.cy.batch(() => {
-			this.cy.elements().removeClass("focus-highlight focus-dim");
+			for (const id of this.dimmedNodeIds) {
+				const el = this.cy.getElementById(id);
+				if (el.nonempty()) el.removeClass("focus-dim");
+			}
+			this.dimmedNodeIds.clear();
+			this.cy.elements().removeClass("focus-highlight");
 			relevant.forEach((id) => {
 				const el = this.cy.getElementById(id);
 				if (el.nonempty()) el.addClass("focus-highlight");
 			});
-			this.cy.elements().forEach((el) => {
-				if (!relevant.has(el.id())) el.addClass("focus-dim");
+			this.cy.nodes().forEach((node) => {
+				if (!relevant.has(node.id())) {
+					node.addClass("focus-dim");
+					this.dimmedNodeIds.add(node.id());
+				}
 			});
 			this.cy.animate({
 				fit: {
@@ -47844,9 +47928,21 @@ var DataController = class {
 		const cyNodeCount = this.cy.nodes().length;
 		const cyEdgeCount = this.cy.edges().length;
 		const hasNewNodes = nodes.some((n) => !this.currentNodes.has(n.id));
-		const hasStaleNodes = cyNodeCount !== nodes.length || [...this.currentNodes.keys()].some((id) => !newNodeIds.has(id));
+		let hasStaleNodes = cyNodeCount !== nodes.length || this.currentNodes.size > newNodeIds.size;
+		if (!hasStaleNodes && this.currentNodes.size === newNodeIds.size) {
+			for (const id of this.currentNodes.keys()) if (!newNodeIds.has(id)) {
+				hasStaleNodes = true;
+				break;
+			}
+		}
 		const hasNewEdges = edges.some((e) => !this.currentEdges.has(e.id));
-		const hasStaleEdges = cyEdgeCount !== edges.length || [...this.currentEdges.keys()].some((id) => !newEdgeIds.has(id));
+		let hasStaleEdges = cyEdgeCount !== edges.length || this.currentEdges.size > newEdgeIds.size;
+		if (!hasStaleEdges && this.currentEdges.size === newEdgeIds.size) {
+			for (const id of this.currentEdges.keys()) if (!newEdgeIds.has(id)) {
+				hasStaleEdges = true;
+				break;
+			}
+		}
 		if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges) {
 			const hasUpdatedNodes = this.detectPropertyChanges(nodes);
 			if (!hasUpdatedNodes) return;
@@ -48629,15 +48725,20 @@ var VirtualViewportController = class {
 				const node = this.cy.getElementById(id);
 				if (node.nonempty()) node.style("display", "none");
 			}
-			this.cy.edges().forEach((edge) => {
-				if (edge.data("typeFiltered") === true) {
-					edge.style("display", "none");
-					return;
-				}
-				const sourceVisible = newVisible.has(edge.source().id());
-				const targetVisible = newVisible.has(edge.target().id());
-				edge.style("display", sourceVisible && targetVisible ? "element" : "none");
-			});
+			const changedNodeIds = new Set([...toShow, ...toHide]);
+			for (const id of changedNodeIds) {
+				const node = this.cy.getElementById(id);
+				if (node.empty()) continue;
+				node.connectedEdges().forEach((edge) => {
+					if (edge.data("typeFiltered") === true) {
+						edge.style("display", "none");
+						return;
+					}
+					const sourceVisible = newVisible.has(edge.source().id());
+					const targetVisible = newVisible.has(edge.target().id());
+					edge.style("display", sourceVisible && targetVisible ? "element" : "none");
+				});
+			}
 		});
 		this.visibleNodeIds = newVisible;
 	}

@@ -104,7 +104,7 @@ export class LayoutController {
       let effectiveLayout = layout;
       let animate = true;
 
-      if (nodeCount > 2000) {
+      if (nodeCount > 5000) {
         effectiveLayout = 'grid';
         animate = false;
       } else if (nodeCount > 500 && layout === 'cose') {
@@ -290,8 +290,18 @@ export class LayoutController {
           cols: Math.ceil(Math.sqrt(nodeCount)),
         } as LayoutOptions;
       case 'radial': {
-        const degrees = this.cy.nodes().map((n) => n.degree()).sort((a, b) => a - b);
-        const maxDeg = degrees[degrees.length - 1] ?? 1;
+        let maxDeg = 1;
+        if (nodeCount > 2000) {
+          const sampleSize = Math.min(200, nodeCount);
+          const step = Math.max(1, Math.floor(nodeCount / sampleSize));
+          for (let i = 0; i < nodeCount; i += step) {
+            const deg = this.cy.nodes()[i]?.degree() ?? 0;
+            if (deg > maxDeg) maxDeg = deg;
+          }
+        } else {
+          const degrees = this.cy.nodes().map((n) => n.degree()).sort((a, b) => a - b);
+          maxDeg = degrees[degrees.length - 1] ?? 1;
+        }
         const levelW = Math.max(1, Math.ceil(maxDeg / 4));
         return {
           name: 'concentric', fit: true, animate: false,
@@ -328,7 +338,7 @@ export class LayoutController {
     const sp = this.computeSmartSpacing(nodes.length);
     const minGap = sp.minGap;
     const maxIterations = 15;
-    const skipThreshold = 2000;
+    const skipThreshold = 5000;
 
     if (nodes.length > skipThreshold) {
       this.cy.fit(undefined, 80);

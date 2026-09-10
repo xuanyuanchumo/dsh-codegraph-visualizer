@@ -364,7 +364,15 @@ export const useGraphStore = create<GraphState>()(
         }
         const newExpanded = new Set(expandedNodeIds);
         newExpanded.add(nodeId);
+        const dataHash = computeDataHash(sourceNodes, sourceEdges);
+        const expandedKey = [...newExpanded].sort().join(',');
+        const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
+        if (cached) {
+          set({ expandedNodeIds: newExpanded, nodes: cached.nodes, edges: cached.edges });
+          return;
+        }
         const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, newExpanded);
+        clusterCache.set(dataHash, clusterLevel, expandedKey, result);
         set({ expandedNodeIds: newExpanded, nodes: result.nodes, edges: result.edges });
       },
       collapseNode: (nodeId) => {
@@ -380,7 +388,15 @@ export const useGraphStore = create<GraphState>()(
         }
         const newExpanded = new Set(expandedNodeIds);
         newExpanded.delete(nodeId);
+        const dataHash = computeDataHash(sourceNodes, sourceEdges);
+        const expandedKey = [...newExpanded].sort().join(',');
+        const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
+        if (cached) {
+          set({ expandedNodeIds: newExpanded, nodes: cached.nodes, edges: cached.edges });
+          return;
+        }
         const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, newExpanded);
+        clusterCache.set(dataHash, clusterLevel, expandedKey, result);
         set({ expandedNodeIds: newExpanded, nodes: result.nodes, edges: result.edges });
       },
       collapseAll: () => {
@@ -394,7 +410,15 @@ export const useGraphStore = create<GraphState>()(
             sourceEdges = layer.edges;
           }
         }
+        const dataHash = computeDataHash(sourceNodes, sourceEdges);
+        const expandedKey = '';
+        const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
+        if (cached) {
+          set({ expandedNodeIds: new Set(), nodes: cached.nodes, edges: cached.edges });
+          return;
+        }
         const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, new Set());
+        clusterCache.set(dataHash, clusterLevel, expandedKey, result);
         set({ expandedNodeIds: new Set(), nodes: result.nodes, edges: result.edges });
       },
       setCurrentWorkspace: (path) => set({ currentWorkspace: path }),
@@ -434,7 +458,15 @@ export const useGraphStore = create<GraphState>()(
         if (!diagramData || layer < 0 || layer >= diagramData.layers.length) return;
         const layerData = diagramData.layers[layer];
         if (!layerData) return;
+        const dataHash = computeDataHash(layerData.nodes, layerData.edges);
+        const expandedKey = [...expandedNodeIds].sort().join(',');
+        const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
+        if (cached) {
+          set({ currentLayer: layer, nodes: cached.nodes, edges: cached.edges });
+          return;
+        }
         const result = computeClusteredGraph(layerData.nodes, layerData.edges, clusterLevel, expandedNodeIds);
+        clusterCache.set(dataHash, clusterLevel, expandedKey, result);
         set({ currentLayer: layer, nodes: result.nodes, edges: result.edges });
       },
     }),

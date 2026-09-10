@@ -38,12 +38,22 @@ export class HighlightController {
     this.highlightedNodeIds = newSet;
   }
 
+  private selectedNodeId: string | null = null;
+
   selectNode(nodeId: NodeId | null): void {
+    const id = nodeId ?? null;
+    if (this.selectedNodeId === id) return;
     this.cy.batch(() => {
-      this.cy.elements().forEach((ele) => {
-        ele.toggleClass('selected', ele.isNode() && ele.id() === nodeId);
-      });
+      if (this.selectedNodeId) {
+        const prev = this.cy.getElementById(this.selectedNodeId);
+        if (prev.nonempty()) prev.removeClass('selected');
+      }
+      if (id) {
+        const node = this.cy.getElementById(id);
+        if (node.nonempty()) node.addClass('selected');
+      }
     });
+    this.selectedNodeId = id;
   }
 
   highlightCallChain(nodeId: NodeId | null): void {
