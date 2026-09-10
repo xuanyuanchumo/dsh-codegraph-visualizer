@@ -8,12 +8,12 @@
       name: dsh-codegraph-visualizer
       config:
         dataSource: auto
-        requestTimeout: 5000
+        requestTimeout: 15000
         scanCacheTtl: 30000
         scanCacheLimit: 4
         maxBodyBytes: 1048576
         prerequisiteRetryDelay: 3000
         watchDebounce: 500
-        maxNodes: 10000
+        maxNodes: 500000
         panelMinHeight: 240
         panelDefaultHeight: 600

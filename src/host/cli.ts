@@ -163,8 +163,12 @@ export async function runCli(args: string[]): Promise<void> {
   }, opts.workspace, 'both');
 
   if (data.nodes.length === 0 && data.edges.length === 0) {
-    console.error('No graph data available. The CLI requires a running DSH environment with dsh-codegraph installed.');
-    console.error('Run this command from within a DSH workspace, or ensure dsh-codegraph is configured.');
+    console.error('No graph data available.');
+    console.error('The CLI reads from .codegraph/codegraph.db in the workspace.');
+    console.error('Ensure dsh-codegraph is installed and has been initialized:');
+    console.error('  1. Install: dsh plugin add dsh-codegraph');
+    console.error('  2. Initialize: run "codegraph init" in your workspace');
+    console.error('  3. Or run this command from within a DSH workspace session');
     process.exit(1);
   }
 

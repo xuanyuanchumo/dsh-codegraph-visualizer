@@ -54,7 +54,7 @@ export function KeyboardHelp({ visible, onClose }: KeyboardHelpProps) {
 
   if (!visible) return null;
   return (
-    <div className="keyboard-help-overlay" onClick={onClose}>
+    <div className="keyboard-help-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={t('shortcut.title')}>
       <div className="keyboard-help-panel" ref={panelRef} onClick={(e) => e.stopPropagation()}>
         <div className="keyboard-help-header">
           <span>{t('shortcut.title')}</span>

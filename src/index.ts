@@ -5,7 +5,7 @@ import type { GraphData } from './types/index.ts';
 import { PLUGIN_VERSION } from './generated/version.ts';
 import { resolveConfig } from './host/config.ts';
 import type { VisualizerConfig } from './host/config.ts';
-import { setAllowedWorkspaceRoots } from './host/security.ts';
+import { setAllowedWorkspaceRoots, resetSecurityManager } from './host/security.ts';
 import { extractWorkspacePaths, checkPrerequisites } from './host/prerequisites.ts';
 import { createInvokeUpstream, registerRoutes, registerService } from './host/routes.ts';
 import { registerWatcher, registerEventListeners } from './host/watcher.ts';
@@ -88,5 +88,6 @@ export function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
     scanInFlightMap.clear();
     lastGraphData = null;
     lastInitResult = null;
+    resetSecurityManager();
   };
 }

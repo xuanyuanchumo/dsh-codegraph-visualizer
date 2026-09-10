@@ -2304,6 +2304,12 @@ function setAllowedWorkspaceRoots(roots) {
 function isPathAllowed(path$1) {
 	return getManager().isPathAllowed(path$1);
 }
+function resetSecurityManager() {
+	if (defaultManager) {
+		defaultManager.reset();
+		defaultManager = null;
+	}
+}
 
 //#endregion
 //#region src/host/prerequisites.ts
@@ -3792,6 +3798,7 @@ function apply(ctx, userConfig) {
 		scanInFlightMap.clear();
 		lastGraphData = null;
 		lastInitResult = null;
+		resetSecurityManager();
 	};
 }
 

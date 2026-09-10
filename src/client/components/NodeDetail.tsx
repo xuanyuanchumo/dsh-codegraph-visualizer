@@ -58,7 +58,7 @@ export function NodeDetail({ node, onClose, isExpanded, connectionCount, onColla
         <span className="detail-type-icon" style={{ color, borderColor: color }}>{icon}</span>
         <h3>{node.label}</h3>
         {exported && <span className="detail-exported-badge">EXP</span>}
-        {isExpanded && <span className="detail-expanded-badge">EXP</span>}
+        {isExpanded && <span className="detail-expanded-badge">OPEN</span>}
       </div>
       <div className="detail-row"><span className="detail-label">{t('detail.type')}</span><span className="detail-value">{node.type}</span></div>
       {kind && kind !== node.type && (

@@ -731,12 +731,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       {error && !isCollapsed && <ErrorOverlay error={error} />}
 
       {(viewMode === 'cfg' || viewMode === 'flowchart' || viewMode === 'sequence') && !selectedFunction && !isLoading && !isCollapsed && (
-        <div style={{
-          position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-          textAlign: 'center', color: 'var(--ds-text-secondary, #888)', fontSize: '14px',
-          maxWidth: '320px', lineHeight: '1.6',
-        }}>
-          <div style={{ fontSize: '24px', marginBottom: '12px', opacity: 0.4 }}>
+        <div className="micro-empty-prompt">
+          <div className="micro-empty-icon">
             {viewMode === 'cfg' ? 'CFG' : viewMode === 'flowchart' ? t('toolbar.viewModeFlowchart') : t('toolbar.viewModeSequence')}
           </div>
           <div>{t('micro.selectFunctionPrompt')}</div>
@@ -744,21 +740,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       )}
 
       {(viewMode === 'cfg' || viewMode === 'flowchart' || viewMode === 'sequence') && selectedFunction && !isCollapsed && (
-        <div style={{
-          position: 'absolute', top: '8px', left: '50%', transform: 'translateX(-50%)',
-          display: 'flex', alignItems: 'center', gap: '8px',
-          padding: '4px 12px', borderRadius: '4px',
-          background: 'var(--ds-bg-secondary, rgba(0,0,0,0.6))',
-          color: 'var(--ds-text-primary, #eee)', fontSize: '12px',
-          zIndex: 10,
-        }}>
+        <div className="micro-function-bar">
           <span>{selectedFunction.functionName}</span>
           <button
+            className="micro-function-close"
             onClick={() => { setSelectedFunction(null); setViewMode('code'); }}
-            style={{
-              border: 'none', background: 'transparent', cursor: 'pointer',
-              color: 'var(--ds-text-secondary, #888)', fontSize: '11px',
-            }}
           >
             ✕
           </button>

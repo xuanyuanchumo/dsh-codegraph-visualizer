@@ -87,8 +87,8 @@ export function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusAr
           <div><span className="dot" style={{ background: 'var(--cg-success)' }} />{t('minimap.functions')}: {counts.function}</div>
           <div><span className="dot" style={{ background: 'var(--cg-accent)' }} />{t('minimap.classes')}: {counts.class}</div>
           <div><span className="dot" style={{ background: 'var(--cg-warning)' }} />{t('minimap.variables')}: {counts.variable}</div>
-          <div><span className="dot" style={{ background: '#ec4899' }} />{t('minimap.modules')}: {counts.module}</div>
-          <div><span className="dot" style={{ background: '#14b8a6' }} />{t('minimap.interfaces')}: {counts.interface}</div>
+          <div><span className="dot" style={{ background: 'var(--cg-node-module)' }} />{t('minimap.modules')}: {counts.module}</div>
+          <div><span className="dot" style={{ background: 'var(--cg-node-interface)' }} />{t('minimap.interfaces')}: {counts.interface}</div>
         </div>
         <div className="mini-map-total">{t('minimap.total')}: {total}</div>
       </div>

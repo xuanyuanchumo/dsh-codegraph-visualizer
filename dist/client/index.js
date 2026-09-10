@@ -1149,7 +1149,7 @@ body[data-ds-dark-theme] .depth-select {
   border: 2px solid var(--cg-accent);
   background: color-mix(in srgb, var(--cg-accent) 10%, transparent);
   pointer-events: none;
-  transition: background var(--cg-transition-slow, 280ms) var(--cg-ease, ease), border-color var(--cg-transition-slow, 280ms) var(--cg-ease, ease), color var(--cg-transition-slow, 280ms) var(--cg-ease, ease);
+  transition: background var(--cg-transition-slow), border-color var(--cg-transition-slow), color var(--cg-transition-slow);
 }
 
 .mini-map-stats {
@@ -1638,12 +1638,7 @@ body[data-ds-dark-theme] .depth-select {
 .watch-indicator {
   color: var(--cg-success, #22c55e);
   font-size: 8px;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  animation: cg-pulse 2s ease-in-out infinite;
 }
 
 /* ---- Node detail extra properties ---------------------------------------- */
@@ -3558,6 +3553,59 @@ body[data-ds-dark-theme] .depth-select {
 .prereq-copy:focus-visible {
   outline: 2px solid var(--cg-accent);
   outline-offset: 2px;
+}
+
+/* ---- Micro view empty prompt & function bar -------------------------------- */
+
+.micro-empty-prompt {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: var(--cg-text-secondary);
+  font-size: 14px;
+  max-width: 320px;
+  line-height: 1.6;
+}
+
+.micro-empty-icon {
+  font-size: 24px;
+  margin-bottom: 12px;
+  opacity: 0.4;
+}
+
+.micro-function-bar {
+  position: absolute;
+  top:'8px';
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: var(--cg-radius-xs);
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border);
+  color: var(--cg-text);
+  font-size: 12px;
+  z-index: 10;
+}
+
+.micro-function-close {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--cg-text-secondary);
+  font-size: 11px;
+  padding: 0 4px;
+  border-radius: var(--cg-radius-xs);
+  transition: color var(--cg-transition), background var(--cg-transition);
+}
+
+.micro-function-close:hover {
+  color: var(--cg-text);
+  background: var(--cg-surface-hover);
 }
 
 `;
@@ -45622,13 +45670,88 @@ var require_cytoscape_dagre = __commonJS({ "node_modules/.pnpm/cytoscape-dagre@2
 var import_cytoscape_dagre = __toESM(require_cytoscape_dagre(), 1);
 
 //#endregion
+//#region src/shared/Logger.ts
+const LEVEL_ORDER = {
+	debug: 0,
+	info: 1,
+	warn: 2,
+	error: 3
+};
+const RING_SIZE = 200;
+var LoggerImpl = class {
+	buffer = [];
+	listeners = new Set();
+	minLevel = typeof globalThis !== "undefined" && globalThis.__CG_DEBUG ? "debug" : "info";
+	log(level, scope, message, data$2) {
+		if (LEVEL_ORDER[level] < LEVEL_ORDER[this.minLevel]) return;
+		const entry = {
+			ts: Date.now(),
+			level,
+			scope,
+			message,
+			data: data$2
+		};
+		this.buffer.push(entry);
+		if (this.buffer.length > RING_SIZE) this.buffer.splice(0, this.buffer.length - RING_SIZE);
+		this.emit();
+		const fn$7 = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
+		try {
+			fn$7(`[codegraph:${scope}] ${message}`, data$2 ?? "");
+		} catch {}
+	}
+	debug(scope, message, data$2) {
+		this.log("debug", scope, message, data$2);
+	}
+	info(scope, message, data$2) {
+		this.log("info", scope, message, data$2);
+	}
+	warn(scope, message, data$2) {
+		this.log("warn", scope, message, data$2);
+	}
+	error(scope, message, data$2) {
+		this.log("error", scope, message, data$2);
+	}
+	entries() {
+		return this.buffer.slice();
+	}
+	clear() {
+		this.buffer = [];
+		this.emit();
+	}
+	subscribe(fn$7) {
+		this.listeners.add(fn$7);
+		fn$7(this.entries());
+		return () => {
+			this.listeners.delete(fn$7);
+		};
+	}
+	emit() {
+		const snapshot = this.entries();
+		for (const fn$7 of this.listeners) try {
+			fn$7(snapshot);
+		} catch {}
+	}
+};
+const logger = new LoggerImpl();
+function scoped(scope) {
+	return {
+		debug: (m, d) => logger.debug(scope, m, d),
+		info: (m, d) => logger.info(scope, m, d),
+		warn: (m, d) => logger.warn(scope, m, d),
+		error: (m, d) => logger.error(scope, m, d)
+	};
+}
+
+//#endregion
 //#region src/client/renderer/LayoutController.ts
+const log$6 = scoped("layout");
 var LayoutController = class {
 	cy;
 	layoutRaf = null;
 	positionCache = new Map();
 	workerLayoutResolve = null;
 	worker = null;
+	workerInitFailed = false;
 	workerTimeout = null;
 	constructor(cy) {
 		this.cy = cy;
@@ -45651,9 +45774,17 @@ var LayoutController = class {
 				this.worker.onerror = () => {
 					this.worker?.terminate();
 					this.worker = null;
+					this.workerInitFailed = true;
+					log$6.warn("layout worker error — falling back to main-thread layout");
 				};
+			} else {
+				this.workerInitFailed = true;
+				log$6.warn("layout worker not available — using main-thread layout");
 			}
-		} catch {}
+		} catch (e) {
+			this.workerInitFailed = true;
+			log$6.warn("layout worker init failed — using main-thread layout", e);
+		}
 	}
 	isWorkerAvailable() {
 		return this.worker !== null;
@@ -48966,79 +49097,6 @@ var CytoscapeRenderer = class {
 };
 
 //#endregion
-//#region src/shared/Logger.ts
-const LEVEL_ORDER = {
-	debug: 0,
-	info: 1,
-	warn: 2,
-	error: 3
-};
-const RING_SIZE = 200;
-var LoggerImpl = class {
-	buffer = [];
-	listeners = new Set();
-	minLevel = typeof globalThis !== "undefined" && globalThis.__CG_DEBUG ? "debug" : "info";
-	log(level, scope, message, data$2) {
-		if (LEVEL_ORDER[level] < LEVEL_ORDER[this.minLevel]) return;
-		const entry = {
-			ts: Date.now(),
-			level,
-			scope,
-			message,
-			data: data$2
-		};
-		this.buffer.push(entry);
-		if (this.buffer.length > RING_SIZE) this.buffer.splice(0, this.buffer.length - RING_SIZE);
-		this.emit();
-		const fn$7 = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
-		try {
-			fn$7(`[codegraph:${scope}] ${message}`, data$2 ?? "");
-		} catch {}
-	}
-	debug(scope, message, data$2) {
-		this.log("debug", scope, message, data$2);
-	}
-	info(scope, message, data$2) {
-		this.log("info", scope, message, data$2);
-	}
-	warn(scope, message, data$2) {
-		this.log("warn", scope, message, data$2);
-	}
-	error(scope, message, data$2) {
-		this.log("error", scope, message, data$2);
-	}
-	entries() {
-		return this.buffer.slice();
-	}
-	clear() {
-		this.buffer = [];
-		this.emit();
-	}
-	subscribe(fn$7) {
-		this.listeners.add(fn$7);
-		fn$7(this.entries());
-		return () => {
-			this.listeners.delete(fn$7);
-		};
-	}
-	emit() {
-		const snapshot = this.entries();
-		for (const fn$7 of this.listeners) try {
-			fn$7(snapshot);
-		} catch {}
-	}
-};
-const logger = new LoggerImpl();
-function scoped(scope) {
-	return {
-		debug: (m, d) => logger.debug(scope, m, d),
-		info: (m, d) => logger.info(scope, m, d),
-		warn: (m, d) => logger.warn(scope, m, d),
-		error: (m, d) => logger.error(scope, m, d)
-	};
-}
-
-//#endregion
 //#region src/client/hooks/useGraphRenderer.ts
 const log$5 = scoped("renderer-hook");
 function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, showCallChain, showCycles, showImpact, showInheritance, focusNodeId, callbacks, showCallChainRef) {
@@ -51965,7 +52023,7 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, on
 					}),
 					isExpanded && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 						className: "detail-expanded-badge",
-						children: "EXP"
+						children: "OPEN"
 					})
 				]
 			}),
@@ -52209,7 +52267,7 @@ function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusArea }) {
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: "dot",
-								style: { background: "#ec4899" }
+								style: { background: "var(--cg-node-module)" }
 							}),
 							t$1("minimap.modules"),
 							": ",
@@ -52218,7 +52276,7 @@ function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusArea }) {
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 								className: "dot",
-								style: { background: "#14b8a6" }
+								style: { background: "var(--cg-node-interface)" }
 							}),
 							t$1("minimap.interfaces"),
 							": ",
@@ -52587,6 +52645,9 @@ function KeyboardHelp({ visible, onClose }) {
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 		className: "keyboard-help-overlay",
 		onClick: onClose,
+		role: "dialog",
+		"aria-modal": "true",
+		"aria-label": t$1("shortcut.title"),
 		children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 			className: "keyboard-help-panel",
 			ref: panelRef,
@@ -55103,53 +55164,19 @@ function GraphPanelInner({ className = "" }) {
 			isLoading && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LoadingOverlay, { visible: true }),
 			error$1 && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ErrorOverlay, { error: error$1 }),
 			(viewMode === "cfg" || viewMode === "flowchart" || viewMode === "sequence") && !selectedFunction && !isLoading && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				style: {
-					position: "absolute",
-					top: "50%",
-					left: "50%",
-					transform: "translate(-50%, -50%)",
-					textAlign: "center",
-					color: "var(--ds-text-secondary, #888)",
-					fontSize: "14px",
-					maxWidth: "320px",
-					lineHeight: "1.6"
-				},
+				className: "micro-empty-prompt",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					style: {
-						fontSize: "24px",
-						marginBottom: "12px",
-						opacity: .4
-					},
+					className: "micro-empty-icon",
 					children: viewMode === "cfg" ? "CFG" : viewMode === "flowchart" ? t$1("toolbar.viewModeFlowchart") : t$1("toolbar.viewModeSequence")
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { children: t$1("micro.selectFunctionPrompt") })]
 			}),
 			(viewMode === "cfg" || viewMode === "flowchart" || viewMode === "sequence") && selectedFunction && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				style: {
-					position: "absolute",
-					top: "8px",
-					left: "50%",
-					transform: "translateX(-50%)",
-					display: "flex",
-					alignItems: "center",
-					gap: "8px",
-					padding: "4px 12px",
-					borderRadius: "4px",
-					background: "var(--ds-bg-secondary, rgba(0,0,0,0.6))",
-					color: "var(--ds-text-primary, #eee)",
-					fontSize: "12px",
-					zIndex: 10
-				},
+				className: "micro-function-bar",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: selectedFunction.functionName }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+					className: "micro-function-close",
 					onClick: () => {
 						setSelectedFunction(null);
 						setViewMode("code");
-					},
-					style: {
-						border: "none",
-						background: "transparent",
-						cursor: "pointer",
-						color: "var(--ds-text-secondary, #888)",
-						fontSize: "11px"
 					},
 					children: "✕"
 				})]

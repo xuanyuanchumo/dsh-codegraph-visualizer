@@ -1,7 +1,9 @@
 import type { Core, LayoutOptions } from 'cytoscape';
 import type { LayoutType } from './IRenderer.ts';
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
+import { scoped } from '../../shared/Logger.ts';
 
+const log = scoped('layout');
 
 export class LayoutController {
   private cy: Core;
@@ -9,6 +11,7 @@ export class LayoutController {
   private positionCache: Map<string, { x: number; y: number }> = new Map();
   private workerLayoutResolve: ((positions: Record<string, { x: number; y: number }>) => void) | null = null;
   private worker: Worker | null = null;
+  private workerInitFailed = false;
 
   private workerTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -44,9 +47,17 @@ export class LayoutController {
         this.worker.onerror = () => {
           this.worker?.terminate();
           this.worker = null;
+          this.workerInitFailed = true;
+          log.warn('layout worker error — falling back to main-thread layout');
         };
+      } else {
+        this.workerInitFailed = true;
+        log.warn('layout worker not available — using main-thread layout');
       }
-    } catch { /* Worker init failed — fallback to main-thread layout */ }
+    } catch (e) {
+      this.workerInitFailed = true;
+      log.warn('layout worker init failed — using main-thread layout', e);
+    }
   }
 
   isWorkerAvailable(): boolean {
