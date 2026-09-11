@@ -31,6 +31,7 @@ export const en: Record<string, string> = {
   'toolbar.layer': 'Diagram layer',
 
   // Cluster levels
+  'cluster.progressive': 'Progressive',
   'cluster.directory': 'Directory',
   'cluster.file': 'File',
   'cluster.function': 'Function',

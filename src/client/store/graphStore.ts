@@ -257,21 +257,21 @@ export const useGraphStore = create<GraphState>()(
             const layer = diagram.layers[0];
             const layerNodes = layer ? layer.nodes : diagram.allNodes;
             const layerEdges = layer ? layer.edges : diagram.allEdges;
-            const result = computeClusteredGraph(layerNodes, layerEdges, 'directory', savedExpanded);
-            set({
-              viewMode, diagramData: diagram, currentLayer: 0, layout: recommendedLayout,
-              savedRawNodes: rawNodes, savedRawEdges: rawEdges,
-              clusterLevel: 'directory', expandedNodeIds: savedExpanded,
-              expandedNodeIdsByViewMode: newExpandedByViewMode,
-              nodes: result.nodes, edges: result.edges,
-            });
-            return;
-          }
-          const result = computeClusteredGraph(rawNodes, rawEdges, 'directory', savedExpanded);
+          const result = computeClusteredGraph(layerNodes, layerEdges, 'progressive', savedExpanded);
+          set({
+            viewMode, diagramData: diagram, currentLayer: 0, layout: recommendedLayout,
+            savedRawNodes: rawNodes, savedRawEdges: rawEdges,
+            clusterLevel: 'progressive', expandedNodeIds: savedExpanded,
+            expandedNodeIdsByViewMode: newExpandedByViewMode,
+            nodes: result.nodes, edges: result.edges,
+          });
+          return;
+        }
+          const result = computeClusteredGraph(rawNodes, rawEdges, 'progressive', savedExpanded);
           set({
             viewMode, diagramData: null, layout: recommendedLayout,
             savedRawNodes: rawNodes, savedRawEdges: rawEdges,
-            clusterLevel: 'directory', expandedNodeIds: savedExpanded,
+            clusterLevel: 'progressive', expandedNodeIds: savedExpanded,
             expandedNodeIdsByViewMode: newExpandedByViewMode,
             nodes: result.nodes, edges: result.edges,
           });
@@ -281,12 +281,12 @@ export const useGraphStore = create<GraphState>()(
         if (viewMode === 'code') {
           const restoreNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
           const restoreEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
-          const result = computeClusteredGraph(restoreNodes, restoreEdges, 'directory', savedExpanded);
+          const result = computeClusteredGraph(restoreNodes, restoreEdges, 'progressive', savedExpanded);
           set({
             viewMode, diagramData: null, layout: recommendedLayout,
             rawNodes: restoreNodes, rawEdges: restoreEdges,
             savedRawNodes: [], savedRawEdges: [],
-            clusterLevel: 'directory', expandedNodeIds: savedExpanded,
+            clusterLevel: 'progressive', expandedNodeIds: savedExpanded,
             expandedNodeIdsByViewMode: newExpandedByViewMode,
             nodes: result.nodes, edges: result.edges,
           });
@@ -306,11 +306,11 @@ export const useGraphStore = create<GraphState>()(
             const layer = diagram.layers[0];
             const layerNodes = layer ? layer.nodes : diagram.allNodes;
             const layerEdges = layer ? layer.edges : diagram.allEdges;
-            const result = computeClusteredGraph(layerNodes, layerEdges, 'directory', savedExpanded);
+            const result = computeClusteredGraph(layerNodes, layerEdges, 'progressive', savedExpanded);
             set({
               viewMode, diagramData: diagram, currentLayer: 0, layout: recommendedLayout,
               savedRawNodes: sourceNodes, savedRawEdges: sourceEdges,
-              clusterLevel: 'directory', expandedNodeIds: savedExpanded,
+              clusterLevel: 'progressive', expandedNodeIds: savedExpanded,
               expandedNodeIdsByViewMode: newExpandedByViewMode,
               nodes: result.nodes, edges: result.edges,
             });

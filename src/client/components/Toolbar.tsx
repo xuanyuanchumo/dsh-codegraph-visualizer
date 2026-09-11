@@ -44,6 +44,7 @@ const MICRO_VIEW_MODES: { value: ViewMode; key: string }[] = [
 ];
 
 const CLUSTER_LEVELS: { value: ClusterLevel; key: string }[] = [
+  { value: 'progressive', key: 'cluster.progressive' },
   { value: 'directory', key: 'cluster.directory' },
   { value: 'file', key: 'cluster.file' },
   { value: 'function', key: 'cluster.function' },

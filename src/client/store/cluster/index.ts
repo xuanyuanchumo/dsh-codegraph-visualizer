@@ -5,12 +5,14 @@ import { DirectoryClusterStrategy } from './DirectoryClusterStrategy.ts';
 import { FileClusterStrategy } from './FileClusterStrategy.ts';
 import { FunctionClusterStrategy } from './FunctionClusterStrategy.ts';
 import { SmartClusterStrategy } from './SmartClusterStrategy.ts';
+import { ProgressiveClusterStrategy } from './ProgressiveClusterStrategy.ts';
 
 const strategyRegistry = new Map<ClusterLevel, ClusterStrategy>([
   ['directory', new DirectoryClusterStrategy()],
   ['file', new FileClusterStrategy()],
   ['function', new FunctionClusterStrategy()],
   ['smart', new SmartClusterStrategy()],
+  ['progressive', new ProgressiveClusterStrategy()],
 ]);
 
 export function computeClusteredGraph(

@@ -31,6 +31,7 @@ export const zh: Record<string, string> = {
   'toolbar.layer': '图谱层级',
 
   // 聚类层级
+  'cluster.progressive': '渐进式',
   'cluster.directory': '目录级',
   'cluster.file': '文件级',
   'cluster.function': '函数级',

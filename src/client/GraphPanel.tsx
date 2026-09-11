@@ -161,25 +161,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     setSelectedNodeData(data);
   }, [setSelectedNode]);
 
+  const handleNodeDoubleTapRef = useRef<(nodeId: string) => void>(() => {});
+
   const handleNodeDoubleTap = useCallback((nodeId: string) => {
-    const data = getDataRef.current?.getNodeData(nodeId);
-    if (!data) return;
-    const isClusterNode = 'isCluster' in data && data.isCluster === true;
-    if (isClusterNode) {
-      const isExpanded = expandedNodeIds.has(nodeId);
-      if (isExpanded) collapseNode(nodeId);
-      else expandNode(nodeId);
-    } else {
-      setFocusNodeId((prev) => {
-        if (prev === nodeId) {
-          setSelectedNode(null);
-          return null;
-        }
-        setSelectedNode(null);
-        return nodeId;
-      });
-    }
-  }, [expandedNodeIds, expandNode, collapseNode, setSelectedNode]);
+    handleNodeDoubleTapRef.current(nodeId);
+  }, []);
 
   const handleNodeHover = useCallback((nodeId: string, pos: { x: number; y: number }) => {
     const data = getDataRef.current?.getNodeData(nodeId);
@@ -383,6 +369,28 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const { handleViewModeChange, handleSelectFunction, handleCloseMicroView } = useViewMode(
     viewMode, currentWorkspace, depsFetchAbortRef,
   );
+
+  handleNodeDoubleTapRef.current = (nodeId: string) => {
+    const data = getDataRef.current?.getNodeData(nodeId);
+    if (!data) return;
+    const isClusterNode = 'isCluster' in data && data.isCluster === true;
+    if (isClusterNode) {
+      const isExpanded = expandedNodeIds.has(nodeId);
+      if (isExpanded) collapseNode(nodeId);
+      else expandNode(nodeId);
+    } else if (data.type === 'function') {
+      handleSelectFunction(nodeId, data.filePath, data.label, 'cfg');
+    } else {
+      setFocusNodeId((prev) => {
+        if (prev === nodeId) {
+          setSelectedNode(null);
+          return null;
+        }
+        setSelectedNode(null);
+        return nodeId;
+      });
+    }
+  };
 
   const handleRefresh = useCallback(() => {
     setLoading(true);
