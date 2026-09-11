@@ -165,7 +165,13 @@ export function computeProgressiveClusters(
   }
 
   if (initialDepth >= 2) {
+    const allDirPaths = new Set<string>();
+    for (const [dirPath] of dirToNodes) {
+      allDirPaths.add(dirPath);
+    }
     for (const n of rawNodes) {
+      const nodeDir = n.filePath ? n.filePath.substring(0, n.filePath.lastIndexOf('/')) : '';
+      if (nodeDir && !allDirPaths.has(nodeDir)) continue;
       if (n.type === 'module') {
         const fileClusterId = `filecluster__file__${(n.parentId ?? n.filePath ?? n.id).replace(/[/:\\]/g, '__')}`;
         expandedFileClusters.add(fileClusterId);

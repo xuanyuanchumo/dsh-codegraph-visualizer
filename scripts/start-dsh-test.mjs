@@ -1,5 +1,5 @@
 import { spawn, execSync } from 'node:child_process';
-import { existsSync, writeFileSync, readFileSync, unlinkSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, writeFileSync, readFileSync, unlinkSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir, tmpdir } from 'node:os';
@@ -8,6 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '..');
 const PID_FILE = join(tmpdir(), 'dsh-codegraph-dsh.pid');
 const CHROME_PID_FILE = join(tmpdir(), 'dsh-codegraph-chrome.pid');
+const TOKEN_FILE = join(tmpdir(), 'dsh-codegraph-token.txt');
 const DSH_URL = 'http://localhost:3080';
 const CHROME_DEBUG_URL = 'http://127.0.0.1:9222';
 const USER_DATA_DIR = join(__dirname, '..', 'test-results', 'chrome-debug-profile');
@@ -25,7 +26,7 @@ async function waitForUrl(url, timeoutMs) {
   while (Date.now() - start < timeoutMs) {
     try {
       const res = await fetch(url, { signal: AbortSignal.timeout(2000) });
-      if (res.ok) return true;
+      if (res.status > 0) return true;
     } catch { /* keep waiting */ }
     await sleep(500);
   }
@@ -144,6 +145,7 @@ function stopEnvironment() {
     try { unlinkSync(PID_FILE); } catch { /* */ }
   }
   killChromeByPidFile();
+  try { unlinkSync(TOKEN_FILE); } catch { /* */ }
   log('清理完成。');
 }
 
@@ -165,13 +167,31 @@ async function startEnvironment() {
   if (!dshCmd) { console.error('找不到 dsh.cmd'); process.exit(1); }
   log(`使用 DSH: ${dshCmd}`);
 
-  log('启动 DSH Web 服务 (无窗口)...');
+  log('启动 DSH Web 服务...');
+  let dshTokenUrl = '';
+  let lastLoggedLine = '';
   const dshProc = spawn('cmd.exe', ['/c', dshCmd, 'web', '--no-open'], {
     cwd: PROJECT_ROOT,
     detached: true,
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
   });
+
+  const handleOutput = (chunk) => {
+    const text = chunk.toString().trim();
+    if (!text) return;
+    const tokenMatch = text.match(/https?:\/\/[^\s]+[?]token=[^\s]+/);
+    if (tokenMatch) {
+      dshTokenUrl = tokenMatch[0];
+      dbg(`捕获到 token URL: ${dshTokenUrl}`);
+    }
+    if (verbose && text !== lastLoggedLine) {
+      lastLoggedLine = text;
+      dbg(`[dsh] ${text.substring(0, 200)}`);
+    }
+  };
+  dshProc.stdout?.on('data', handleOutput);
+  dshProc.stderr?.on('data', handleOutput);
 
   let spawnFailed = false;
   dshProc.once('error', () => { spawnFailed = true; });
@@ -192,12 +212,20 @@ async function startEnvironment() {
     if (dshProc.pid) killProcess(dshProc.pid);
     process.exit(2);
   }
-  log(`DSH Web 服务已就绪 (${DSH_URL})`);
+  log(`DSH Web 服务已就绪`);
+
+  if (dshTokenUrl) {
+    log(`捕获到 token URL，保存到 ${TOKEN_FILE}`);
+    writeFileSync(TOKEN_FILE, dshTokenUrl);
+    process.env.DSH_WEB_TOKEN = dshTokenUrl;
+  } else {
+    dbg('未捕获到 token URL，将使用无 token 的 URL');
+  }
 
   const realPid = findPidByPort(3080);
   const finalDshPid = realPid || dshProc.pid;
   if (realPid) {
-    log(`DSH 实际 PID: ${realPid} (通过端口 3080 查找)`);
+    log(`DSH 实际 PID: ${realPid}`);
   } else {
     log(`警告: 无法通过端口查找 PID，使用 spawn PID: ${dshProc.pid}`);
   }
@@ -216,6 +244,8 @@ async function startEnvironment() {
   cleanChromeLockFiles();
 
   log('启动 Chrome 调试实例 (端口 9222)...');
+  const chromeUrl = dshTokenUrl || DSH_URL;
+  dbg(`Chrome 将打开: ${chromeUrl}`);
   const chromeProc = spawn(chromeExe, [
     '--remote-debugging-port=9222',
     `--user-data-dir=${USER_DATA_DIR}`,
@@ -232,7 +262,7 @@ async function startEnvironment() {
     '--disable-breakpad',
     '--no-pings',
     '--disable-features=TranslateUI',
-    DSH_URL,
+    chromeUrl,
   ], { detached: true, stdio: 'ignore' });
   chromeProc.unref();
 
@@ -248,7 +278,7 @@ async function startEnvironment() {
   const chromeRealPid = findPidByPort(9222);
   const finalChromePid = chromeRealPid || chromeProc.pid;
   if (chromeRealPid) {
-    log(`Chrome 实际 PID: ${chromeRealPid} (通过端口 9222 查找)`);
+    log(`Chrome 实际 PID: ${chromeRealPid}`);
   } else {
     log(`Chrome spawn PID: ${chromeProc.pid}`);
   }
@@ -272,9 +302,12 @@ async function startEnvironment() {
     console.log(`DSH 页面 WebSocket: ${dshTarget.webSocketDebuggerUrl}`);
   }
   console.log(`DSH Web 服务: ${DSH_URL}`);
+  if (dshTokenUrl) {
+    console.log(`DSH Token URL: ${dshTokenUrl}`);
+    console.log(`DSH_WEB_TOKEN 环境变量已设置`);
+  }
   console.log('');
   console.log('chrome-devtools MCP 可直接使用，无需额外配置。');
-  console.log('MCP 工具会自动通过 http://127.0.0.1:9222 发现并附加到 DSH 页面。');
   console.log('');
   log(`DSH PID: ${finalDshPid} (保存在 ${PID_FILE})`);
   log(`Chrome PID: ${finalChromePid} (保存在 ${CHROME_PID_FILE})`);

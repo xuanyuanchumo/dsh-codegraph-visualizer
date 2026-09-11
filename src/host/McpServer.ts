@@ -4,6 +4,7 @@ import { PLUGIN_VERSION } from '../generated/version.ts';
 import type { GraphData, GraphNode, GraphEdge } from '../types/index.ts';
 
 const log = scoped('mcp-server');
+const MAX_MESSAGE_LENGTH = 10 * 1024 * 1024;
 
 interface McpTool {
   name: string;
@@ -29,6 +30,10 @@ export class McpServer {
 
     this.rl.on('line', async (line: string) => {
       try {
+        if (line.length > MAX_MESSAGE_LENGTH) {
+          log.warn('MCP message too large, skipping', { length: line.length });
+          return;
+        }
         const msg = JSON.parse(line);
         const response = await this.handleMessage(msg);
         if (response) {
@@ -166,9 +171,14 @@ export class McpServer {
         const data = getGraphData();
         if (!data) return { results: [] };
         const search = (args['search'] as string).toLowerCase();
-        const results = data.nodes
-          .filter((n: GraphNode) => n.label.toLowerCase().includes(search))
-          .slice(0, 20)
+        const exact: GraphNode[] = [];
+        const partial: GraphNode[] = [];
+        for (const n of data.nodes) {
+          const labelLower = n.label.toLowerCase();
+          if (labelLower === search) exact.push(n);
+          else if (labelLower.includes(search)) partial.push(n);
+        }
+        const results = [...exact, ...partial].slice(0, 20)
           .map((n: GraphNode) => ({ id: n.id, label: n.label, type: n.type, filePath: n.filePath, lineNumber: n.lineNumber }));
         return { results, count: results.length };
       },

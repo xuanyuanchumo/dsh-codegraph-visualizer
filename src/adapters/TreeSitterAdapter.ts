@@ -106,8 +106,8 @@ export class TreeSitterAdapter {
         const langModule = await this.loadLanguageWasm(language);
         this.parser.setLanguage(langModule);
         this.loadedLanguages.add(language);
-      } catch (e) {
-        return { nodes: [], edges: [], source: 'tree-sitter', timestamp: Date.now(), error: `Failed to load ${language}: ${e}` };
+      } catch {
+        return { nodes: [], edges: [], source: 'tree-sitter', timestamp: Date.now(), error: `Failed to load ${language}` };
       }
     }
 

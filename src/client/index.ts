@@ -121,11 +121,16 @@ export function apply(ctx: Context) {
   }
 
   {
+    let lastStatusKey = '';
     const checkStatus = async () => {
       const status = await fetchStatus();
       const store = useGraphStore.getState();
       store.setPrerequisites({ codegraph: status.codegraph, lens: status.lens });
-      log.info('prerequisite status', status);
+      const statusKey = `${status.codegraph}:${status.lens}`;
+      if (statusKey !== lastStatusKey) {
+        log.info('prerequisite status', status);
+        lastStatusKey = statusKey;
+      }
       return status;
     };
     checkStatus();

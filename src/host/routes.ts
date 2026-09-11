@@ -186,7 +186,9 @@ function extractBooleanField(obj: Record<string, unknown>, field: string): boole
 const GIT_REF_PATTERN = /^[a-zA-Z0-9._/-]+$/;
 
 function isSafeGitRef(ref: string): boolean {
-  return GIT_REF_PATTERN.test(ref);
+  if (!GIT_REF_PATTERN.test(ref)) return false;
+  if (ref.includes('..')) return false;
+  return true;
 }
 
 export function registerRoutes(deps: RouteDeps): void {
@@ -625,6 +627,10 @@ export function registerRoutes(deps: RouteDeps): void {
           const content = extractStringField(parsed, 'content');
           if (!filePath || !content) {
             sendError(res, 400, 'filePath and content are required', req);
+            return;
+          }
+          if (filePath.includes('..') || filePath.length > 512) {
+            sendError(res, 400, 'Invalid filePath', req);
             return;
           }
           const MAX_TREE_SITTER_CONTENT = 512 * 1024;
