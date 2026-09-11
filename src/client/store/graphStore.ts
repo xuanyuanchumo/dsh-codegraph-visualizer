@@ -4,6 +4,7 @@ import type { GraphNode, GraphEdge, NodeId, HealthScore, RuleDefinition, RuleVio
 import { computeClusteredGraph } from './cluster/index.ts';
 import type { ClusterLevel, ClusterNode, ClusterEdge } from './cluster/index.ts';
 import { assembleDiagram, assembleMicroDiagram, type LayeredDiagram } from '../diagram/index.ts';
+import { CallChainAggregator } from '../diagram/CallChainAggregator.ts';
 import { DiagramCache, ClusterCache, computeDataHash } from '../cache/DiagramCache.ts';
 import { invalidateCssVarCache } from '../renderer/styles/ThemeStylesheet.ts';
 
@@ -11,6 +12,7 @@ export type { ClusterLevel, ClusterNode, ClusterEdge } from './cluster/index.ts'
 
 const diagramCache = new DiagramCache(10);
 const clusterCache = new ClusterCache(20);
+const callChainAggregator = new CallChainAggregator();
 
 function detectInitialTheme(): ThemeType {
   if (typeof document === 'undefined') return 'dark';
@@ -101,6 +103,8 @@ interface GraphState {
 
   focusDepth: number;
 
+  callChainDepth: number;
+
   healthScore: HealthScore | null;
   rules: RuleDefinition[];
   ruleViolations: RuleViolation[];
@@ -137,6 +141,8 @@ interface GraphState {
   setPathEnd: (nodeId: NodeId | null) => void;
   setPathResult: (path: NodeId[] | null) => void;
   setFocusDepth: (depth: number) => void;
+  setCallChainDepth: (depth: number) => void;
+  assembleMultiFunction: (entryNodeId: string) => Promise<void>;
   setHealthScore: (score: HealthScore | null) => void;
   setRules: (rules: RuleDefinition[]) => void;
   setRuleViolations: (violations: RuleViolation[]) => void;
@@ -185,6 +191,7 @@ export const useGraphStore = create<GraphState>()(
       pathEndId: null,
       pathResult: null,
       focusDepth: 1,
+      callChainDepth: 2,
       healthScore: null,
       rules: [],
       ruleViolations: [],
@@ -466,6 +473,36 @@ export const useGraphStore = create<GraphState>()(
       setPathEnd: (nodeId) => set({ pathEndId: nodeId }),
       setPathResult: (path) => set({ pathResult: path }),
       setFocusDepth: (depth) => set({ focusDepth: depth }),
+      setCallChainDepth: (depth) => set({ callChainDepth: depth }),
+      assembleMultiFunction: async (entryNodeId) => {
+        const { rawNodes, rawEdges, callChainDepth, clusterLevel, expandedNodeIds } = useGraphStore.getState();
+        const astFetcher = async (filePath: string) => {
+          try {
+            const response = await fetch('/api/v1/codegraph/ast', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filePath }),
+            });
+            if (!response.ok) return null;
+            return await response.json();
+          } catch {
+            return null;
+          }
+        };
+        const result = await callChainAggregator.aggregate(
+          entryNodeId, rawNodes, rawEdges, astFetcher,
+          { depth: callChainDepth, maxFunctions: 20 },
+        );
+        if (result) {
+          const clustered = computeClusteredGraph(result.diagram.nodes, result.diagram.edges, clusterLevel, expandedNodeIds);
+          set({
+            diagramData: null,
+            nodes: clustered.nodes,
+            edges: clustered.edges,
+            viewMode: 'cfg',
+          });
+        }
+      },
       setHealthScore: (score) => set({ healthScore: score }),
       setRules: (rules) => set({ rules }),
       setRuleViolations: (violations) => set({ ruleViolations: violations }),

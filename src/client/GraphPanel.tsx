@@ -573,7 +573,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           isExpanded={selectedNodeData ? expandedNodeIds.has(selectedNodeData.id) : false}
           connectionCount={selectedNodeData ? edges.filter((e) => e.source === selectedNodeData.id || e.target === selectedNodeData.id).length : 0}
           onCollapse={() => selectedNodeData && collapseNode(selectedNodeData.id)}
-          onSelectFunction={(node, mode) => handleSelectFunction(node.id, node.filePath, node.label, mode)} />
+          onSelectFunction={(node, mode) => handleSelectFunction(node.id, node.filePath, node.label, mode)}
+          onAggregateCallChain={(nodeId) => useGraphStore.getState().assembleMultiFunction(nodeId)} />
       )}
 
       <div className="graph-container" ref={renderer.containerRef}

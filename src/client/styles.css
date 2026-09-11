@@ -2583,6 +2583,47 @@ body[data-ds-dark-theme] .depth-select {
   overflow-y: auto;
 }
 
+.node-detail-panel .detail-micro-actions {
+  margin-top: 8px;
+}
+
+.node-detail-panel .detail-micro-btns {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.node-detail-panel .detail-micro-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-xs);
+  background: var(--cg-surface);
+  font-size: 11px;
+  color: var(--cg-text-secondary);
+  cursor: pointer;
+  transition: all var(--cg-transition);
+}
+
+.node-detail-panel .detail-micro-btn:hover {
+  background: var(--cg-surface-hover);
+  color: var(--cg-text);
+  border-color: var(--cg-accent);
+}
+
+.node-detail-panel .detail-chain-btn {
+  margin-top: 4px;
+  width: 100%;
+  background: color-mix(in srgb, var(--cg-accent) 15%, transparent);
+  border-color: color-mix(in srgb, var(--cg-accent) 40%, transparent);
+  color: var(--cg-accent);
+  font-weight: 600;
+}
+
+.node-detail-panel .detail-chain-btn:hover {
+  background: color-mix(in srgb, var(--cg-accent) 25%, transparent);
+  border-color: var(--cg-accent);
+}
+
 /* ---- Collapse-all button -------------------------------------------------- */
 
 .collapse-all-btn {

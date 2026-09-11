@@ -30,9 +30,10 @@ interface NodeDetailProps {
   connectionCount?: number;
   onCollapse?: () => void;
   onSelectFunction?: (node: GraphNode, viewMode: 'cfg' | 'flowchart' | 'sequence') => void;
+  onAggregateCallChain?: (nodeId: string) => void;
 }
 
-export function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, onSelectFunction }: NodeDetailProps) {
+export function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, onSelectFunction, onAggregateCallChain }: NodeDetailProps) {
   const t = useT();
   const icon = TYPE_ICONS[node.type] ?? '?';
   const color = TYPE_COLORS[node.type] ?? 'var(--cg-accent)';
@@ -108,6 +109,11 @@ export function NodeDetail({ node, onClose, isExpanded, connectionCount, onColla
               {t('viewMode.sequence')}
             </button>
           </div>
+          {onAggregateCallChain && (
+            <button className="detail-micro-btn detail-chain-btn" onClick={() => onAggregateCallChain(node.id)}>
+              {t('detail.aggregateCallChain')}
+            </button>
+          )}
         </div>
       )}
       {extraProps.length > 0 && (

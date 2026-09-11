@@ -7,7 +7,9 @@ export { DependencyAssembler } from './DependencyAssembler.ts';
 export { CFGAssembler } from './CFGAssembler.ts';
 export { FlowchartAssembler } from './FlowchartAssembler.ts';
 export { SequenceAssembler } from './SequenceAssembler.ts';
+export { CallChainAggregator } from './CallChainAggregator.ts';
 export type { ASTNode, BasicBlock, StatementInfo, CFGEdgeData, CFGData } from '../../shared/CFGTypes.ts';
+export type { CallChainAggregateOptions, CallChainResult } from './CallChainAggregator.ts';
 export type { Participant, ParticipantType, SequenceMessage, MessageType, CombinedFragment, FragmentType, FragmentOperand, SequenceData } from './SequenceTypes.ts';
 
 import type { GraphNode, GraphEdge, ViewMode } from '../../types/index.ts';

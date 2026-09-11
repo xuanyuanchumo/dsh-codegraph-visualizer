@@ -89,6 +89,7 @@ export const en: Record<string, string> = {
   'detail.expanded': 'Expanded',
   'detail.collapse': 'Collapse',
   'detail.microViews': 'Micro views',
+  'detail.aggregateCallChain': 'Aggregate Call Chain',
   'detail.signature': 'Signature',
   'detail.docstring': 'Docstring',
 

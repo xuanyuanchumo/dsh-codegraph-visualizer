@@ -89,6 +89,7 @@ export const zh: Record<string, string> = {
   'detail.expanded': '已展开',
   'detail.collapse': '收起',
   'detail.microViews': '微观图谱',
+  'detail.aggregateCallChain': '聚合调用链',
   'detail.signature': '签名',
   'detail.docstring': '文档字符串',
 
