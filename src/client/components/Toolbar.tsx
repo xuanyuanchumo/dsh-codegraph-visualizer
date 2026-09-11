@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback } from 'react';
-import type { LayoutType, ThemeType, GraphType, ClusterLevel } from '../store/graphStore.ts';
+import type { LayoutType, ThemeType, GraphType } from '../store/graphStore.ts';
 import type { GraphNode, ViewMode } from '../../types/index.ts';
 import type { WorkspaceSelectorProps } from './WorkspaceSelector.tsx';
 import { useT, useLang, toggleLang } from '../i18n/index.ts';
@@ -43,12 +43,10 @@ const MICRO_VIEW_MODES: { value: ViewMode; key: string }[] = [
   { value: 'sequence', key: 'viewMode.sequence' },
 ];
 
-const CLUSTER_LEVELS: { value: ClusterLevel; key: string }[] = [
-  { value: 'progressive', key: 'cluster.progressive' },
-  { value: 'directory', key: 'cluster.directory' },
-  { value: 'file', key: 'cluster.file' },
-  { value: 'function', key: 'cluster.function' },
-
+const CLUSTER_DEPTHS: { value: number; key: string }[] = [
+  { value: 0, key: 'clusterDepth.directory' },
+  { value: 1, key: 'clusterDepth.file' },
+  { value: 2, key: 'clusterDepth.function' },
 ];
 
 export interface ToolbarVisibilityState {
@@ -94,7 +92,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   theme: ThemeType;
   filterType: GraphNode['type'] | 'all';
   graphType: GraphType;
-  clusterLevel: ClusterLevel;
+  clusterDepth: number;
   viewMode: ViewMode;
   currentLayer: number;
   layerNames: string[];
@@ -104,7 +102,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   onThemeToggle: () => void;
   onFilterChange: (f: GraphNode['type'] | 'all') => void;
   onGraphTypeChange: (g: GraphType) => void;
-  onClusterLevelChange: (level: ClusterLevel) => void;
+  onClusterDepthChange: (depth: number) => void;
   onViewModeChange: (mode: ViewMode) => void;
   onLayerChange: (layer: number) => void;
   onRefresh: () => void;
@@ -141,9 +139,9 @@ export function Toolbar(props: ToolbarProps) {
   }, [onExport]);
 
   const {
-    statsText, typeCounts, layout, theme, filterType, graphType, clusterLevel,
+    statsText, typeCounts, layout, theme, filterType, graphType, clusterDepth,
     viewMode, currentLayer, layerNames, collapsed, panelControls,
-    onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange,
+    onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterDepthChange,
     onViewModeChange, onLayerChange,
     onRefresh, onCollapse,
     currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
@@ -231,20 +229,21 @@ export function Toolbar(props: ToolbarProps) {
             ))}
           </div>
         )}
-        <select
-          value={clusterLevel}
-          onChange={(e) => onClusterLevelChange(e.target.value as ClusterLevel)}
-          className="depth-select"
-          id="cluster-level"
-          name="cluster-level"
-
-          aria-label={t('toolbar.cluster')}
-          title={t('toolbar.cluster')}
-        >
-          {CLUSTER_LEVELS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{t(opt.key)}</option>
-          ))}
-        </select>
+        {viewMode === 'code' && (
+          <select
+            value={clusterDepth}
+            onChange={(e) => onClusterDepthChange(Number(e.target.value))}
+            className="depth-select"
+            id="cluster-depth"
+            name="cluster-depth"
+            aria-label={t('toolbar.cluster')}
+            title={t('toolbar.cluster')}
+          >
+            {CLUSTER_DEPTHS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{t(opt.key)}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       <div className="toolbar-right">

@@ -485,13 +485,13 @@ describe('registerRoutes - CORS', () => {
     expect(state.headers['access-control-allow-origin']).toBe('http://localhost:3080');
   });
 
-  it('sets CORS header for single origin even without request origin', () => {
+  it('does not set CORS header without request origin', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 0);
     const { res, state } = makeRes();
     handler(makeReq('GET'), res);
     expect(state.code).toBe(200);
-    expect(state.headers['access-control-allow-origin']).toBe('http://localhost:3080');
+    expect(state.headers['access-control-allow-origin']).toBeUndefined();
   });
 
   it('handles CORS preflight with matching origin', () => {

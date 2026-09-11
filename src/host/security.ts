@@ -8,10 +8,13 @@ export class SecurityManager {
   }
 
   isPathAllowed(path: string): boolean {
-    if (!path || path === '.') return true;
+    if (!path) return false;
     const normalized = normalize(path);
-    if (!isAbsolute(normalized)) return false;
     if (normalized.includes('..')) return false;
+    if (!isAbsolute(normalized)) {
+      if (normalized === '.') return true;
+      return false;
+    }
     if (this.allowedWorkspaceRoots.length === 0) return false;
     return this.allowedWorkspaceRoots.some((root) =>
       normalized === root ||

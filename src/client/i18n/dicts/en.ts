@@ -27,14 +27,13 @@ export const en: Record<string, string> = {
   'toolbar.lang': 'Switch language',
   'toolbar.layout': 'Switch to {l} layout (Ctrl+L cycles)',
   'toolbar.graphType': 'Graph type switcher',
-  'toolbar.cluster': 'Cluster level',
+  'toolbar.cluster': 'Expand depth',
   'toolbar.layer': 'Diagram layer',
 
-  // Cluster levels
-  'cluster.progressive': 'Progressive',
-  'cluster.directory': 'Directory',
-  'cluster.file': 'File',
-  'cluster.function': 'Function',
+  // Cluster depths
+  'clusterDepth.directory': 'Directory',
+  'clusterDepth.file': 'File',
+  'clusterDepth.function': 'Function',
 
 
   // Filter options
@@ -90,6 +89,7 @@ export const en: Record<string, string> = {
   'detail.collapse': 'Collapse',
   'detail.microViews': 'Micro views',
   'detail.aggregateCallChain': 'Aggregate Call Chain',
+  'detail.functionsInCluster': 'Functions in cluster',
   'detail.signature': 'Signature',
   'detail.docstring': 'Docstring',
 

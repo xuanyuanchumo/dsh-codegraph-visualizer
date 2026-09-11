@@ -6,8 +6,8 @@ describe('isPathAllowed', () => {
     setAllowedWorkspaceRoots([]);
   });
 
-  it('should return true for empty string', () => {
-    expect(isPathAllowed('')).toBe(true);
+  it('should return false for empty string', () => {
+    expect(isPathAllowed('')).toBe(false);
   });
 
   it('should return true for "."', () => {

@@ -118,6 +118,7 @@ export function computeProgressiveClusters(
   rawNodes: GraphNode[],
   rawEdges: GraphEdge[],
   expandedNodeIds: Set<string>,
+  initialDepth: number = 0,
 ): ClusterResult {
   if (rawNodes.length === 0) return { nodes: [], edges: [] };
 
@@ -125,6 +126,7 @@ export function computeProgressiveClusters(
 
   const visibleNodes: (GraphNode | ClusterNode)[] = [];
   const nodeIdToVisibleId = new Map<string, string>();
+  const displayedIds = new Set<string>();
 
   const expandedDirs = new Set<string>();
   const expandedFileClusters = new Set<string>();
@@ -155,6 +157,28 @@ export function computeProgressiveClusters(
     else dirToNodes.set(dir, [n]);
   }
 
+  if (initialDepth >= 1) {
+    for (const [dirPath] of dirToNodes) {
+      const clusterId = `cluster__${dirPath.replace(/[/:\\]/g, '__')}`;
+      expandedDirs.add(clusterId);
+    }
+  }
+
+  if (initialDepth >= 2) {
+    for (const n of rawNodes) {
+      if (n.type === 'module') {
+        const fileClusterId = `filecluster__file__${(n.parentId ?? n.filePath ?? n.id).replace(/[/:\\]/g, '__')}`;
+        expandedFileClusters.add(fileClusterId);
+      }
+      const parentFileId = n.parentId ?? n.filePath;
+      if (parentFileId) {
+        const fileClusterId = `filecluster__file__${parentFileId.replace(/[/:\\]/g, '__')}`;
+        expandedFileClusters.add(fileClusterId);
+      }
+    }
+  }
+
+
   const dirEdgeCache = new Map<string, GraphEdge[]>();
 
   for (const [dirPath, nodes] of dirToNodes) {
@@ -184,14 +208,18 @@ export function computeProgressiveClusters(
               const childNodes = parentToChildren.get(n.id) ?? filePathToNodes.get(n.filePath) ?? [];
               if (childNodes.length > 0) {
                 visibleNodes.push(n);
+                displayedIds.add(n.id);
                 nodeIdToVisibleId.set(n.id, n.id);
                 for (const child of childNodes) {
                   if (child.id === n.id) continue;
+                  if (displayedIds.has(child.id)) continue;
                   visibleNodes.push(child);
+                  displayedIds.add(child.id);
                   nodeIdToVisibleId.set(child.id, child.id);
                 }
               } else {
                 visibleNodes.push(n);
+                displayedIds.add(n.id);
                 nodeIdToVisibleId.set(n.id, n.id);
               }
             } else {
@@ -226,8 +254,11 @@ export function computeProgressiveClusters(
             if (parentFileId) {
               const fileClusterId = `filecluster__file__${parentFileId.replace(/[/:\\]/g, '__')}`;
               if (expandedFileClusters.has(fileClusterId)) {
-                visibleNodes.push(n);
-                nodeIdToVisibleId.set(n.id, n.id);
+                if (!displayedIds.has(n.id)) {
+                  visibleNodes.push(n);
+                  displayedIds.add(n.id);
+                  nodeIdToVisibleId.set(n.id, n.id);
+                }
               } else {
                 nodeIdToVisibleId.set(n.id, fileClusterId);
                 const list = fileGroups.get(fileClusterId);
@@ -236,6 +267,7 @@ export function computeProgressiveClusters(
               }
             } else {
               visibleNodes.push(n);
+              displayedIds.add(n.id);
               nodeIdToVisibleId.set(n.id, n.id);
             }
           }
@@ -304,6 +336,7 @@ function enforceNodeLimit(
   );
 
   const nodesToKeep = new Set<string>();
+  const collapsedChildIds = new Set<string>();
   const overLimit = visibleNodes.length - MAX_VISIBLE_NODES;
 
   const sortedClusters = [...clusterNodes].sort((a, b) => a.childCount - b.childCount);
@@ -312,12 +345,15 @@ function enforceNodeLimit(
     if (collapsed >= overLimit) break;
     for (const childId of cluster.childIds) {
       nodeIdToVisibleId.set(childId, cluster.id);
+      collapsedChildIds.add(childId);
     }
     collapsed += cluster.childCount;
   }
 
   for (const n of nonClusterNodes) {
-    nodesToKeep.add(n.id);
+    if (!collapsedChildIds.has(n.id)) {
+      nodesToKeep.add(n.id);
+    }
   }
   for (const n of clusterNodes) {
     nodesToKeep.add(n.id);

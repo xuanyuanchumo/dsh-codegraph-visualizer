@@ -8,7 +8,7 @@ function createSnapshot(): HistorySnapshot {
     layout: s.layout,
     filterType: s.filterType,
     graphType: s.graphType,
-    clusterLevel: s.clusterLevel,
+    clusterDepth: s.clusterDepth,
     selectedNodeId: s.selectedNodeId,
     expandedNodeIds: new Set(s.expandedNodeIds),
   };
@@ -18,7 +18,7 @@ function isSameSnapshot(a: HistorySnapshot, b: HistorySnapshot): boolean {
   if (a.layout !== b.layout) return false;
   if (a.filterType !== b.filterType) return false;
   if (a.graphType !== b.graphType) return false;
-  if (a.clusterLevel !== b.clusterLevel) return false;
+  if (a.clusterDepth !== b.clusterDepth) return false;
   if (a.selectedNodeId !== b.selectedNodeId) return false;
   if (a.expandedNodeIds.size !== b.expandedNodeIds.size) return false;
   for (const id of a.expandedNodeIds) {
@@ -29,8 +29,8 @@ function isSameSnapshot(a: HistorySnapshot, b: HistorySnapshot): boolean {
 
 function applySnapshot(snapshot: HistorySnapshot): void {
   const s = useGraphStore.getState();
-  if (snapshot.clusterLevel !== s.clusterLevel) {
-    s.setClusterLevel(snapshot.clusterLevel);
+  if (snapshot.clusterDepth !== s.clusterDepth) {
+    s.setClusterDepth(snapshot.clusterDepth);
   }
   if (snapshot.layout !== s.layout) {
     s.setLayout(snapshot.layout);
@@ -49,7 +49,7 @@ function applySnapshot(snapshot: HistorySnapshot): void {
   const sameContent = sameSize && [...snapshot.expandedNodeIds].every((id) => currentExpanded.has(id));
   if (!sameContent) {
     useGraphStore.setState({ expandedNodeIds: snapshot.expandedNodeIds });
-    s.setClusterLevel(snapshot.clusterLevel);
+    s.setClusterDepth(snapshot.clusterDepth);
   }
 }
 
@@ -103,7 +103,7 @@ export function useHistory() {
         state.layout !== prevState.layout ||
         state.filterType !== prevState.filterType ||
         state.graphType !== prevState.graphType ||
-        state.clusterLevel !== prevState.clusterLevel ||
+        state.clusterDepth !== prevState.clusterDepth ||
         state.selectedNodeId !== prevState.selectedNodeId ||
         state.expandedNodeIds !== prevState.expandedNodeIds
       ) {

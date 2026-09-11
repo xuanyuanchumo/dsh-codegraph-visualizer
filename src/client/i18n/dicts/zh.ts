@@ -27,14 +27,13 @@ export const zh: Record<string, string> = {
   'toolbar.lang': '切换语言',
   'toolbar.layout': '切换至 {l} 布局 (Ctrl+L 循环)',
   'toolbar.graphType': '图谱类型切换',
-  'toolbar.cluster': '聚类层级',
+  'toolbar.cluster': '展开深度',
   'toolbar.layer': '图谱层级',
 
-  // 聚类层级
-  'cluster.progressive': '渐进式',
-  'cluster.directory': '目录级',
-  'cluster.file': '文件级',
-  'cluster.function': '函数级',
+  // 展开深度
+  'clusterDepth.directory': '目录级',
+  'clusterDepth.file': '文件级',
+  'clusterDepth.function': '函数级',
 
 
   // Filter options
@@ -90,6 +89,7 @@ export const zh: Record<string, string> = {
   'detail.collapse': '收起',
   'detail.microViews': '微观图谱',
   'detail.aggregateCallChain': '聚合调用链',
+  'detail.functionsInCluster': '聚类中的函数',
   'detail.signature': '签名',
   'detail.docstring': '文档字符串',
 

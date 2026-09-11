@@ -157,13 +157,15 @@ export function assembleDiagram(
       return null;
   }
   if (result) {
-    for (const n of result.nodes) {
-      n.properties = { ...n.properties, diagramType: viewMode };
-    }
-    for (const e of result.edges) {
-      e.properties = { ...e.properties, diagramType: viewMode };
-    }
-    return buildLayeredDiagram(viewMode, result);
+    const taggedNodes = result.nodes.map((n) => ({
+      ...n,
+      properties: { ...n.properties, diagramType: viewMode },
+    }));
+    const taggedEdges = result.edges.map((e) => ({
+      ...e,
+      properties: { ...e.properties, diagramType: viewMode },
+    }));
+    return buildLayeredDiagram(viewMode, { nodes: taggedNodes, edges: taggedEdges, metadata: result.metadata });
   }
   return null;
 }

@@ -8,7 +8,8 @@ export class ProgressiveClusterStrategy implements ClusterStrategy {
     rawNodes: GraphNode[],
     rawEdges: GraphEdge[],
     expandedNodeIds: Set<string>,
+    initialDepth: number = 0,
   ): ClusterResult {
-    return computeProgressiveClusters(rawNodes, rawEdges, expandedNodeIds);
+    return computeProgressiveClusters(rawNodes, rawEdges, expandedNodeIds, initialDepth);
   }
 }

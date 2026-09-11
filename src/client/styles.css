@@ -2624,6 +2624,45 @@ body[data-ds-dark-theme] .depth-select {
   border-color: var(--cg-accent);
 }
 
+.node-detail-panel .detail-cluster-functions {
+  margin-top: 8px;
+}
+
+.node-detail-panel .detail-function-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.node-detail-panel .detail-function-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: var(--cg-radius-xs);
+}
+
+.node-detail-panel .detail-function-item:hover {
+  background: var(--cg-surface-hover);
+}
+
+.node-detail-panel .detail-function-name {
+  font-size: 11px;
+  color: var(--cg-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.node-detail-panel .detail-micro-btn--small {
+  padding: 2px 6px;
+  font-size: 10px;
+}
+
 /* ---- Collapse-all button -------------------------------------------------- */
 
 .collapse-all-btn {

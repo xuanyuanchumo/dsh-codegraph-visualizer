@@ -12,7 +12,7 @@ function makeSnapshot(overrides: Partial<HistorySnapshot> = {}): HistorySnapshot
     layout: 'cose',
     filterType: 'all',
     graphType: 'all',
-    clusterLevel: 'file',
+    clusterDepth: 1,
     selectedNodeId: null,
     expandedNodeIds: new Set<string>(),
     ...overrides,

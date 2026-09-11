@@ -3,7 +3,7 @@ import { CytoscapeRenderer } from '../renderer/CytoscapeRenderer.ts';
 import type { IRenderer, LayoutType, ThemeType } from '../renderer/IRenderer.ts';
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { NodeId } from '../../types/index.ts';
-import type { ClusterNode, ClusterEdge, ClusterLevel } from '../store/cluster/index.ts';
+import type { ClusterNode, ClusterEdge } from '../store/cluster/index.ts';
 import { scoped } from '../../shared/Logger.ts';
 
 type FilterType = GraphNode['type'] | 'all';
@@ -39,7 +39,7 @@ export function useGraphRenderer(
   selectedNodeId: NodeId | null,
   filterType: FilterType,
   graphType: 'all' | 'call' | 'dependency',
-  clusterLevel: ClusterLevel,
+  clusterDepth: number,
   debouncedSearch: string,
   showCallChain: boolean,
   showCycles: boolean,
@@ -160,7 +160,7 @@ export function useGraphRenderer(
       prevNodeIdsRef.current = new Set(nodes.map((n) => n.id));
     }, isIncremental ? 50 : 150);
     return () => clearTimeout(timer);
-  }, [layout, clusterLevel, nodes, edges]);
+  }, [layout, clusterDepth, nodes, edges]);
 
   useEffect(() => {
     const r = rendererRef.current;

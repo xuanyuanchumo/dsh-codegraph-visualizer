@@ -17,7 +17,7 @@ describe('graphStore (J6/J7/J10)', () => {
       error: null,
       currentWorkspace: '.',
       workspaceList: [],
-      clusterLevel: 'directory',
+      clusterDepth: 0,
       expandedNodeIds: new Set(),
     });
   });
@@ -30,13 +30,13 @@ describe('graphStore (J6/J7/J10)', () => {
     expect(s.theme).toBe('dark');
     expect(s.isLoading).toBe(false);
     expect(s.error).toBeNull();
-    expect(s.clusterLevel).toBe('directory');
+    expect(s.clusterDepth).toBe(0);
   });
 
   it('should set graph data and clear error (J1)', () => {
     const nodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
     const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
-    useGraphStore.getState().setClusterLevel('function');
+    useGraphStore.getState().setClusterDepth(0);
     useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
     const s = useGraphStore.getState();
     expect(s.nodes).toHaveLength(1);
@@ -282,8 +282,8 @@ describe('graphStore (J6/J7/J10)', () => {
     expect(useGraphStore.getState().currentWorkspace).toBe('/path/b');
   });
 
-  // ── Cluster level tests ─────────────────────────────────────────────
-  it('setClusterLevel to function should cluster non-module nodes by file', () => {
+  // ── Cluster depth tests ─────────────────────────────────────────────
+  it('setClusterDepth to 2 should show all nodes at function level', () => {
     const nodes = [
       makeNode('m1', 'ModuleA', 'module', 'a.ts', 1),
       makeNode('c1', 'ClassA', 'class', 'a.ts', 10),
@@ -293,13 +293,12 @@ describe('graphStore (J6/J7/J10)', () => {
       makeEdge('e1', 'm1', 'c1', 'import'),
       makeEdge('e2', 'c1', 'f1', 'call'),
     ];
-    useGraphStore.getState().setClusterLevel('function');
+    useGraphStore.getState().setClusterDepth(2);
     useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
     const s = useGraphStore.getState();
-    expect(s.nodes).toHaveLength(2);
-    const clusterNode = s.nodes.find((n) => 'isCluster' in n && n.isCluster);
-    expect(clusterNode).toBeDefined();
-    expect(clusterNode).toHaveProperty('childCount', 2);
+    expect(s.nodes).toHaveLength(3);
+    const realNodes = s.nodes.filter((n) => !('isCluster' in n && n.isCluster));
+    expect(realNodes).toHaveLength(3);
   });
 
   it('directory cluster level should aggregate nodes by top-level directory', () => {
@@ -311,7 +310,7 @@ describe('graphStore (J6/J7/J10)', () => {
     const edges = [
       makeEdge('e1', 'm1', 'm3', 'import'),
     ];
-    useGraphStore.getState().setClusterLevel('directory');
+    useGraphStore.getState().setClusterDepth(0);
     useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
     const s = useGraphStore.getState();
     expect(s.nodes).toHaveLength(2);
@@ -328,10 +327,10 @@ describe('graphStore (J6/J7/J10)', () => {
     const edges = [
       makeEdge('e1', 'm1', 'm3', 'import'),
     ];
-    useGraphStore.getState().setClusterLevel('directory');
+    useGraphStore.getState().setClusterDepth(0);
     useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
     expect(useGraphStore.getState().nodes).toHaveLength(2);
-    useGraphStore.getState().expandNode('crates/core');
+    useGraphStore.getState().expandNode('cluster__crates__core');
     const s = useGraphStore.getState();
     expect(s.nodes).toHaveLength(3);
     const realNodes = s.nodes.filter(n => !('isCluster' in n) || !n.isCluster);
@@ -343,9 +342,9 @@ describe('graphStore (J6/J7/J10)', () => {
       makeNode('m1', 'a.ts', 'module', 'crates/core/src/a.ts', 1),
       makeNode('m2', 'b.ts', 'module', 'crates/api/src/b.ts', 1),
     ];
-    useGraphStore.getState().setClusterLevel('directory');
+    useGraphStore.getState().setClusterDepth(0);
     useGraphStore.getState().setGraphData(nodes, [], 'repo-1');
-    useGraphStore.getState().expandNode('crates/core');
+    useGraphStore.getState().expandNode('cluster__crates__core');
     expect(useGraphStore.getState().nodes).toHaveLength(2);
     useGraphStore.getState().collapseAll();
     expect(useGraphStore.getState().nodes).toHaveLength(2);
@@ -456,11 +455,11 @@ describe('graphStore (J6/J7/J10)', () => {
       makeNode('m1', 'a.ts', 'module', 'crates/core/src/a.ts', 1),
       makeNode('m2', 'b.ts', 'module', 'crates/api/src/b.ts', 1),
     ];
-    useGraphStore.getState().setClusterLevel('directory');
+    useGraphStore.getState().setClusterDepth(0);
     useGraphStore.getState().setGraphData(nodes, [], 'repo-1');
-    useGraphStore.getState().expandNode('crates/core');
-    expect(useGraphStore.getState().expandedNodeIds.has('crates/core')).toBe(true);
-    useGraphStore.getState().collapseNode('crates/core');
-    expect(useGraphStore.getState().expandedNodeIds.has('crates/core')).toBe(false);
+    useGraphStore.getState().expandNode('cluster__crates__core');
+    expect(useGraphStore.getState().expandedNodeIds.has('cluster__crates__core')).toBe(true);
+    useGraphStore.getState().collapseNode('cluster__crates__core');
+    expect(useGraphStore.getState().expandedNodeIds.has('cluster__crates__core')).toBe(false);
   });
 });

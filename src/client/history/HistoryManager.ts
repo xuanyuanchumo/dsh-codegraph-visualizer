@@ -1,11 +1,11 @@
-import type { LayoutType, GraphType, ClusterLevel } from '../store/graphStore.ts';
+import type { LayoutType, GraphType } from '../store/graphStore.ts';
 import type { GraphNode, NodeId } from '../../types/index.ts';
 
 export interface HistorySnapshot {
   layout: LayoutType;
   filterType: GraphNode['type'] | 'all';
   graphType: GraphType;
-  clusterLevel: ClusterLevel;
+  clusterDepth: number;
   selectedNodeId: NodeId | null;
   expandedNodeIds: Set<string>;
 }

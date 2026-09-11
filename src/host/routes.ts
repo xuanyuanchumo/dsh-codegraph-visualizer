@@ -23,11 +23,18 @@ const HEAVY_ENDPOINTS = new Set(['/api/v1/codegraph/scan', '/api/v1/codegraph/in
 
 interface RateBucket { count: number; resetTime: number; }
 const rateLimitMap = new Map<string, RateBucket>();
+let lastCleanup = Date.now();
 
 function checkRateLimit(ip: string, routePath: string): boolean {
   const key = `${ip}:${routePath}`;
   const limit = HEAVY_ENDPOINTS.has(routePath) ? RATE_LIMIT_HEAVY : RATE_LIMIT_DEFAULT;
   const now = Date.now();
+  if (now - lastCleanup > RATE_LIMIT_WINDOW_MS) {
+    for (const [k, b] of rateLimitMap) {
+      if (now > b.resetTime) rateLimitMap.delete(k);
+    }
+    lastCleanup = now;
+  }
   const bucket = rateLimitMap.get(key);
   if (!bucket || now > bucket.resetTime) {
     rateLimitMap.set(key, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
@@ -198,8 +205,6 @@ export function registerRoutes(deps: RouteDeps): void {
       const reqOrigin = req?.headers?.['origin'];
       if (typeof reqOrigin === 'string' && origins.includes(reqOrigin)) {
         headers['access-control-allow-origin'] = reqOrigin;
-      } else if (origins.length === 1) {
-        headers['access-control-allow-origin'] = origins[0]!;
       }
     }
     res.writeHead(code, headers);
@@ -228,8 +233,6 @@ export function registerRoutes(deps: RouteDeps): void {
       const reqOrigin = req.headers?.['origin'];
       if (typeof reqOrigin === 'string' && origins.includes(reqOrigin)) {
         headers['access-control-allow-origin'] = reqOrigin;
-      } else if (origins.length === 1) {
-        headers['access-control-allow-origin'] = origins[0]!;
       }
     }
     res.writeHead(204, headers);
@@ -243,18 +246,10 @@ export function registerRoutes(deps: RouteDeps): void {
     path: '/api/v1/codegraph/status',
     handler: (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
-      if (!checkRate(req, res, '/api/v1/codegraph/tree-sitter')) return;
-      if (!checkRate(req, res, '/api/v1/codegraph/ast')) return;
-      if (!checkRate(req, res, '/api/v1/codegraph/diff')) return;
-      if (!checkRate(req, res, '/api/v1/codegraph/dependencies')) return;
-      if (!checkRate(req, res, '/api/v1/codegraph/watch')) return;
-      if (!checkRate(req, res, '/api/v1/codegraph/init')) return;
-      if (!checkRate(req, res, '/api/v1/codegraph/scan')) return;
-      if (!checkRate(req, res, '/api/v1/codegraph/data')) return;
-      if (!checkRate(req, res, '/api/v1/codegraph/workspace')) return;
+
       if (!checkRate(req, res, '/api/v1/codegraph/status')) return;
       const status = checkPrerequisites(ctx);
-      sendJson(res, 200, { codegraph: status.codegraph, lens: status.lens });
+      sendJson(res, 200, { codegraph: status.codegraph, lens: status.lens }, req);
     },
   }), 'codegraph: status route');
 
@@ -264,9 +259,10 @@ export function registerRoutes(deps: RouteDeps): void {
     path: '/api/v1/codegraph/workspace',
     handler: (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
+      if (!checkRate(req, res, '/api/v1/codegraph/workspace')) return;
       const current = findWorkspacePath(ctx);
       const list = extractWorkspacePaths(ctx);
-      sendJson(res, 200, { path: current, list });
+      sendJson(res, 200, { path: current, list }, req);
     },
   }), 'codegraph: workspace route');
 
@@ -276,6 +272,7 @@ export function registerRoutes(deps: RouteDeps): void {
     path: '/api/v1/codegraph/data',
     handler: (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
+      if (!checkRate(req, res, '/api/v1/codegraph/data')) return;
       const ifNoneMatch = req.headers['if-none-match'];
       const lastGraphData = deps.getLastGraphData();
       if (ifNoneMatch && lastGraphData) {
@@ -293,7 +290,7 @@ export function registerRoutes(deps: RouteDeps): void {
         });
         res.end(JSON.stringify(lastGraphData));
       } else {
-        sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } });
+        sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req);
       }
     },
   }), 'codegraph: data route');
@@ -309,7 +306,7 @@ export function registerRoutes(deps: RouteDeps): void {
         const parsed = parseJsonBody(body);
         const path = extractStringField(parsed, 'path');
         if (path && path !== '.' && !isPathAllowed(path)) {
-          sendError(res, 403, 'Path not allowed');
+          sendError(res, 403, 'Path not allowed', req);
           return;
         }
         const scanPath = path && path !== '.' ? path : findWorkspacePath(ctx);
@@ -319,14 +316,14 @@ export function registerRoutes(deps: RouteDeps): void {
         const cached = scanCache.get(scanPath);
         if (cached && Date.now() - cached.timestamp < config.scanCacheTtl) {
           deps.setLastGraphData(cached.data);
-          sendJson(res, 200, { success: true, ...cached.data });
+          sendJson(res, 200, { success: true, ...cached.data }, req);
           return;
         }
 
         const inFlight = deps.getScanInFlight(scanPath);
         if (inFlight) {
           const data = await inFlight;
-          sendJson(res, 200, { success: true, ...data });
+          sendJson(res, 200, { success: true, ...data }, req);
           return;
         }
 
@@ -355,14 +352,14 @@ export function registerRoutes(deps: RouteDeps): void {
             timestamp: data.metadata.timestamp,
           });
           log.info('scan completed', { repoId, nodes: data.metadata.nodeCount, edges: data.metadata.edgeCount });
-          sendJson(res, 200, { success: true, ...data });
+          sendJson(res, 200, { success: true, ...data }, req);
         } catch (e) {
           deps.setScanInFlight(scanPath, null);
           throw e;
         }
       } catch (e) {
         log.error('scan failed', e);
-        sendError(res, 500, 'Internal server error');
+        sendError(res, 500, 'Internal server error', req);
       }
     },
   }), 'codegraph: scan route');
@@ -378,7 +375,7 @@ export function registerRoutes(deps: RouteDeps): void {
         const parsed = parseJsonBody(body);
         const path = extractStringField(parsed, 'path');
         if (path && path !== '.' && !isPathAllowed(path)) {
-          sendError(res, 403, 'Path not allowed');
+          sendError(res, 403, 'Path not allowed', req);
           return;
         }
         const initPath = path && path !== '.' ? path : findWorkspacePath(ctx);
@@ -405,7 +402,7 @@ export function registerRoutes(deps: RouteDeps): void {
             timestamp: data.metadata.timestamp,
           });
         }
-        sendJson(res, 200, initResult);
+        sendJson(res, 200, initResult, req);
       } catch (e) {
         log.error('init route failed', e);
         const errorResult = {
@@ -415,7 +412,7 @@ export function registerRoutes(deps: RouteDeps): void {
           timestamp: Date.now(),
         };
         deps.setLastInitResult(errorResult);
-        sendError(res, 500, 'Internal server error');
+        sendError(res, 500, 'Internal server error', req);
       }
     },
   }), 'codegraph: init route');
@@ -432,15 +429,15 @@ export function registerRoutes(deps: RouteDeps): void {
         const enabled = extractBooleanField(parsed, 'enabled');
         const path = extractStringField(parsed, 'path');
         if (path && path !== '.' && !isPathAllowed(path)) {
-          sendError(res, 403, 'Path not allowed');
+          sendError(res, 403, 'Path not allowed', req);
           return;
         }
         const watchPath = path && path !== '.' ? path : findWorkspacePath(ctx);
         ctx.emit('cg-viz/watch/toggle', { enabled: !!enabled, path: watchPath, timestamp: Date.now() });
-        sendJson(res, 200, { success: true, enabled: !!enabled, path: watchPath });
+        sendJson(res, 200, { success: true, enabled: !!enabled, path: watchPath }, req);
       } catch (e) {
         log.warn('watch route failed', e);
-        sendError(res, 500, 'Internal server error');
+        sendError(res, 500, 'Internal server error', req);
       }
     },
   }), 'codegraph: watch route');
@@ -454,11 +451,11 @@ export function registerRoutes(deps: RouteDeps): void {
       try {
         const workspacePath = findWorkspacePath(ctx);
         if (!workspacePath) {
-          sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } });
+          sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req);
           return;
         }
         if (!isPathAllowed(workspacePath)) {
-          sendError(res, 403, 'Workspace path not allowed');
+          sendError(res, 403, 'Workspace path not allowed', req);
           return;
         }
 
@@ -501,10 +498,10 @@ export function registerRoutes(deps: RouteDeps): void {
             nodeCount: allDepNodes.length,
             edgeCount: allDepEdges.length,
           },
-        });
+        }, req);
       } catch (e) {
         log.error('dependencies route failed', e);
-        sendError(res, 500, 'Internal server error');
+        sendError(res, 500, 'Internal server error', req);
       }
     },
   }), 'codegraph: dependencies route');
@@ -521,21 +518,21 @@ export function registerRoutes(deps: RouteDeps): void {
         const fromCommit = extractStringField(parsed, 'from');
         const toCommit = extractStringField(parsed, 'to');
         if (!fromCommit || !toCommit) {
-          sendError(res, 400, 'from and to commits are required');
+          sendError(res, 400, 'from and to commits are required', req);
           return;
         }
         if (!isSafeGitRef(fromCommit) || !isSafeGitRef(toCommit)) {
-          sendError(res, 400, 'Invalid git ref format');
+          sendError(res, 400, 'Invalid git ref format', req);
           return;
         }
 
         const workspacePath = findWorkspacePath(ctx);
         if (!workspacePath) {
-          sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } });
+          sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req);
           return;
         }
         if (!isPathAllowed(workspacePath)) {
-          sendError(res, 403, 'Workspace path not allowed');
+          sendError(res, 403, 'Workspace path not allowed', req);
           return;
         }
 
@@ -554,10 +551,10 @@ export function registerRoutes(deps: RouteDeps): void {
             nodeCount: nodes.length,
             edgeCount: edges.length,
           },
-        });
+        }, req);
       } catch (e) {
         log.error('diff route failed', e);
-        sendError(res, 500, 'Internal server error');
+        sendError(res, 500, 'Internal server error', req);
       }
     },
   }), 'codegraph: diff route');
@@ -575,30 +572,39 @@ export function registerRoutes(deps: RouteDeps): void {
           const parsed = parseJsonBody(body);
           const filePath = extractStringField(parsed, 'filePath');
           if (!filePath) {
-            sendError(res, 400, 'filePath is required');
+            sendError(res, 400, 'filePath is required', req);
             return;
           }
           const workspacePath = findWorkspacePath(ctx);
+          if (!workspacePath) {
+            sendError(res, 400, 'No workspace path configured', req);
+            return;
+          }
           const fullPath = path.resolve(workspacePath, filePath);
+          const normalizedWorkspace = path.normalize(workspacePath);
+          if (!fullPath.startsWith(normalizedWorkspace + path.sep) && fullPath !== normalizedWorkspace) {
+            sendError(res, 403, 'Access denied: path outside workspace', req);
+            return;
+          }
           if (!isPathAllowed(fullPath)) {
-            sendError(res, 403, 'Access denied');
+            sendError(res, 403, 'Access denied', req);
             return;
           }
           const content = await fs.readFile(fullPath, 'utf-8');
           const MAX_AST_CONTENT = 512 * 1024;
           if (content.length > MAX_AST_CONTENT) {
-            sendError(res, 413, `File too large for AST parsing (max ${MAX_AST_CONTENT} bytes)`);
+            sendError(res, 413, `File too large for AST parsing (max ${MAX_AST_CONTENT} bytes)`, req);
             return;
           }
           const astRoot = await treeSitterAdapter.parseToAst(filePath, content);
           if (!astRoot) {
-            sendError(res, 500, 'AST parsing failed');
+            sendError(res, 500, 'AST parsing failed', req);
             return;
           }
-          sendJson(res, 200, astRoot);
+          sendJson(res, 200, astRoot, req);
         } catch (e) {
           log.error('ast route failed', e);
-          sendError(res, 500, 'Internal server error');
+          sendError(res, 500, 'Internal server error', req);
         }
       },
     });
@@ -618,19 +624,19 @@ export function registerRoutes(deps: RouteDeps): void {
           const filePath = extractStringField(parsed, 'filePath');
           const content = extractStringField(parsed, 'content');
           if (!filePath || !content) {
-            sendError(res, 400, 'filePath and content are required');
+            sendError(res, 400, 'filePath and content are required', req);
             return;
           }
           const MAX_TREE_SITTER_CONTENT = 512 * 1024;
           if (content.length > MAX_TREE_SITTER_CONTENT) {
-            sendError(res, 413, `Content too large for tree-sitter parsing (max ${MAX_TREE_SITTER_CONTENT} bytes, got ${content.length})`);
+            sendError(res, 413, `Content too large for tree-sitter parsing (max ${MAX_TREE_SITTER_CONTENT} bytes, got ${content.length})`, req);
             return;
           }
           const result = await treeSitterAdapter.parseFile(filePath, content);
-          sendJson(res, 200, result);
+          sendJson(res, 200, result, req);
         } catch (e) {
           log.error('tree-sitter route failed', e);
-          sendError(res, 500, 'Internal server error');
+          sendError(res, 500, 'Internal server error', req);
         }
       },
     });

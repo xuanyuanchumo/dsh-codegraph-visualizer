@@ -1,6 +1,6 @@
 import type { ViewMode } from '../../types/index.ts';
 import type { LayeredDiagram } from '../diagram/DiagramAssembler.ts';
-import type { ClusterLevel, ClusterResult } from '../store/cluster/index.ts';
+import type { ClusterResult } from '../store/cluster/index.ts';
 
 
 function computeDataHash(nodes: { id: string; type: string }[], edges: { id: string; source: string; target: string; type: string }[]): string {
@@ -105,7 +105,7 @@ export class ClusterCache {
 
   get(
     dataHash: string,
-    level: ClusterLevel,
+    level: string,
     expandedKey: string,
   ): ClusterResult | null {
     const key = `${dataHash}:${level}:${expandedKey}`;
@@ -119,7 +119,7 @@ export class ClusterCache {
 
   set(
     dataHash: string,
-    level: ClusterLevel,
+    level: string,
     expandedKey: string,
     result: ClusterResult,
   ): void {

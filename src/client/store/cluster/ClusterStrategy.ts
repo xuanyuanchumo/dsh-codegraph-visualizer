@@ -6,5 +6,6 @@ export interface ClusterStrategy {
     rawNodes: GraphNode[],
     rawEdges: GraphEdge[],
     expandedNodeIds: Set<string>,
+    initialDepth?: number,
   ): ClusterResult;
 }

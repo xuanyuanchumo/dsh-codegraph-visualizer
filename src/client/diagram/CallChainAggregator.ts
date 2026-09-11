@@ -65,9 +65,11 @@ export class CallChainAggregator {
     const allNodes: GraphNode[] = [];
     const allEdges: GraphEdge[] = [];
     const functionNodeMap = new Map<string, GraphNode>();
-    for (const fnId of includedFunctions) {
-      const fnNode = nodes.find((n) => n.id === fnId);
-      if (fnNode) functionNodeMap.set(fnId, fnNode);
+    const functionIndexMap = new Map<string, number>();
+    for (let i = 0; i < includedFunctions.length; i++) {
+      functionIndexMap.set(includedFunctions[i]!, i);
+      const fnNode = nodes.find((n) => n.id === includedFunctions[i]);
+      if (fnNode) functionNodeMap.set(includedFunctions[i]!, fnNode);
     }
 
     const astCache = new Map<string, ASTNode | null>();
@@ -99,7 +101,7 @@ export class CallChainAggregator {
             ...blockNode.properties,
             callChainFunction: fnNode.label,
             callChainFunctionId: fnId,
-            callChainDepth: includedFunctions.indexOf(fnId),
+            callChainDepth: functionIndexMap.get(fnId) ?? 0,
           },
         });
       }
@@ -120,22 +122,28 @@ export class CallChainAggregator {
       functionCount++;
     }
 
+    const nodesByPrefix = new Map<string, GraphNode[]>();
+    for (const n of allNodes) {
+      const prefixKey = n.id.split('__')[0]!;
+      const list = nodesByPrefix.get(prefixKey) ?? [];
+      list.push(n);
+      nodesByPrefix.set(prefixKey, list);
+    }
+
     for (const { source, target } of callChainEdges) {
       const sourceFn = functionNodeMap.get(source);
       const targetFn = functionNodeMap.get(target);
       if (!sourceFn || !targetFn) continue;
 
-      const sourceIdx = includedFunctions.indexOf(source);
-      const targetIdx = includedFunctions.indexOf(target);
-      const sourcePrefix = `fn${sourceIdx}__`;
-      const targetPrefix = `fn${targetIdx}__`;
+      const sourceIdx = functionIndexMap.get(source) ?? 0;
+      const targetIdx = functionIndexMap.get(target) ?? 0;
+      const sourcePrefix = `fn${sourceIdx}`;
+      const targetPrefix = `fn${targetIdx}`;
 
-      const sourceExitNodes = allNodes.filter(
-        (n) => n.id.startsWith(sourcePrefix) && n.properties?.isExit === true,
-      );
-      const targetEntryNodes = allNodes.filter(
-        (n) => n.id.startsWith(targetPrefix) && n.properties?.isEntry === true,
-      );
+      const sourceFnNodes = nodesByPrefix.get(sourcePrefix) ?? [];
+      const targetFnNodes = nodesByPrefix.get(targetPrefix) ?? [];
+      const sourceExitNodes = sourceFnNodes.filter((n) => n.properties?.isExit === true);
+      const targetEntryNodes = targetFnNodes.filter((n) => n.properties?.isEntry === true);
 
       if (sourceExitNodes.length > 0 && targetEntryNodes.length > 0) {
         const sourceExit = sourceExitNodes[0]!;
@@ -156,10 +164,7 @@ export class CallChainAggregator {
 
     if (allNodes.length === 0) return null;
 
-    const chainDepth = Math.max(
-      0,
-      ...includedFunctions.map((id) => includedFunctions.indexOf(id)),
-    );
+    const chainDepth = includedFunctions.length > 0 ? includedFunctions.length - 1 : 0;
 
     return {
       diagram: {

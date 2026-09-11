@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import type { GraphNode } from '../../types/index.ts';
 import { useT } from '../i18n/index.ts';
+import { useGraphStore } from '../store/graphStore.ts';
 import { CloseIcon } from './Icons.tsx';
 
 const TYPE_ICONS: Record<string, string> = {
@@ -35,9 +36,27 @@ interface NodeDetailProps {
 
 export function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, onSelectFunction, onAggregateCallChain }: NodeDetailProps) {
   const t = useT();
+  const rawNodes = useGraphStore((s) => s.rawNodes);
   const icon = TYPE_ICONS[node.type] ?? '?';
   const color = TYPE_COLORS[node.type] ?? 'var(--cg-accent)';
   const canExpand = EXPANDABLE_TYPES.has(node.type);
+
+  const isClusterNode = 'isCluster' in node && node.isCluster === true;
+  const clusterChildCount = isClusterNode ? (node as { childCount?: number }).childCount ?? 0 : 0;
+  const clusterChildIds = isClusterNode ? (node as { childIds?: string[] }).childIds ?? [] : [];
+
+  const childFunctionNodes = useMemo(() => {
+    if (!isClusterNode || clusterChildIds.length === 0) return [];
+    const nodeMap = new Map<string, GraphNode>(rawNodes.map((n) => [n.id as string, n]));
+    const result: GraphNode[] = [];
+    for (const id of clusterChildIds) {
+      const child = nodeMap.get(id);
+      if (child && child.type === 'function') {
+        result.push(child);
+      }
+    }
+    return result.slice(0, 50);
+  }, [isClusterNode, clusterChildIds, rawNodes]);
 
   const signature = node.properties?.signature as string | undefined;
   const docstring = node.properties?.docstring as string | undefined;
@@ -114,6 +133,21 @@ export function NodeDetail({ node, onClose, isExpanded, connectionCount, onColla
               {t('detail.aggregateCallChain')}
             </button>
           )}
+        </div>
+      )}
+      {isClusterNode && childFunctionNodes.length > 0 && onSelectFunction && (
+        <div className="detail-cluster-functions">
+          <div className="detail-section-title">{t('detail.functionsInCluster')} ({childFunctionNodes.length}{clusterChildCount > 50 ? '+' : ''})</div>
+          <div className="detail-function-list">
+            {childFunctionNodes.map((fn) => (
+              <div className="detail-function-item" key={fn.id}>
+                <span className="detail-function-name" title={fn.filePath}>{fn.label}</span>
+                <button className="detail-micro-btn detail-micro-btn--small" onClick={() => onSelectFunction(fn, 'cfg')}>
+                  {t('viewMode.cfg')}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
       {extraProps.length > 0 && (

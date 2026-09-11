@@ -1,30 +1,25 @@
 import type { GraphNode, GraphEdge } from '../../../types/index.ts';
-import type { ClusterLevel, ClusterResult } from './types.ts';
+import type { ClusterResult } from './types.ts';
 import type { ClusterStrategy } from './ClusterStrategy.ts';
-import { DirectoryClusterStrategy } from './DirectoryClusterStrategy.ts';
-import { FileClusterStrategy } from './FileClusterStrategy.ts';
-import { FunctionClusterStrategy } from './FunctionClusterStrategy.ts';
 import { ProgressiveClusterStrategy } from './ProgressiveClusterStrategy.ts';
 
-const strategyRegistry = new Map<ClusterLevel, ClusterStrategy>([
-  ['directory', new DirectoryClusterStrategy()],
-  ['file', new FileClusterStrategy()],
-  ['function', new FunctionClusterStrategy()],
+const strategyRegistry = new Map<string, ClusterStrategy>([
   ['progressive', new ProgressiveClusterStrategy()],
 ]);
 
 export function computeClusteredGraph(
   rawNodes: GraphNode[],
   rawEdges: GraphEdge[],
-  clusterLevel: ClusterLevel,
+  clusterLevel: string,
   expandedNodeIds: Set<string>,
+  initialDepth: number = 0,
 ): ClusterResult {
   const strategy = strategyRegistry.get(clusterLevel);
   if (!strategy) throw new Error(`Unknown cluster level: ${clusterLevel}`);
-  return strategy.compute(rawNodes, rawEdges, expandedNodeIds);
+  return strategy.compute(rawNodes, rawEdges, expandedNodeIds, initialDepth);
 }
 
-export function registerClusterStrategy(level: ClusterLevel, strategy: ClusterStrategy): void {
+export function registerClusterStrategy(level: string, strategy: ClusterStrategy): void {
   strategyRegistry.set(level, strategy);
 }
 

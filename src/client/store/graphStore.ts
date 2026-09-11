@@ -2,13 +2,13 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import type { GraphNode, GraphEdge, NodeId, HealthScore, RuleDefinition, RuleViolation, ViewMode } from '../../types/index.ts';
 import { computeClusteredGraph } from './cluster/index.ts';
-import type { ClusterLevel, ClusterNode, ClusterEdge } from './cluster/index.ts';
+import type { ClusterNode, ClusterEdge } from './cluster/index.ts';
 import { assembleDiagram, assembleMicroDiagram, type LayeredDiagram } from '../diagram/index.ts';
 import { CallChainAggregator } from '../diagram/CallChainAggregator.ts';
 import { DiagramCache, ClusterCache, computeDataHash } from '../cache/DiagramCache.ts';
 import { invalidateCssVarCache } from '../renderer/styles/ThemeStylesheet.ts';
 
-export type { ClusterLevel, ClusterNode, ClusterEdge } from './cluster/index.ts';
+export type { ClusterNode, ClusterEdge } from './cluster/index.ts';
 
 const diagramCache = new DiagramCache(10);
 const clusterCache = new ClusterCache(20);
@@ -50,6 +50,10 @@ const VIEW_MODE_LAYOUT: Record<ViewMode, LayoutType> = {
   sequence: 'grid',
 };
 
+function isLayeredViewMode(mode: ViewMode): boolean {
+  return mode === 'inheritance' || mode === 'callgraph' || mode === 'package' || mode === 'class' || mode === 'dependencies';
+}
+
 function clearLoadingFailsafe(): void {
   if (loadingFailsafe !== null) {
     clearTimeout(loadingFailsafe);
@@ -80,7 +84,7 @@ interface GraphState {
   viewMode: ViewMode;
   diagramData: LayeredDiagram | null;
   currentLayer: number;
-  clusterLevel: ClusterLevel;
+  clusterDepth: number;
 
   isLoading: boolean;
   error: string | null;
@@ -124,7 +128,7 @@ interface GraphState {
   setGraphType: (graphType: GraphType) => void;
   setViewMode: (viewMode: ViewMode) => void;
   setLayer: (layer: number) => void;
-  setClusterLevel: (level: ClusterLevel) => void;
+  setClusterDepth: (depth: number) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clearGraph: () => void;
@@ -175,7 +179,7 @@ export const useGraphStore = create<GraphState>()(
       viewMode: 'code',
       diagramData: null,
       currentLayer: 0,
-      clusterLevel: 'progressive',
+      clusterDepth: 0,
       isLoading: false,
       error: null,
       lastUpdated: 0,
@@ -201,11 +205,12 @@ export const useGraphStore = create<GraphState>()(
 
       setGraphData: (nodes, edges, repoId, metadata) => {
         clearLoadingFailsafe();
-        const { clusterLevel, expandedNodeIds, viewMode, currentLayer } = useGraphStore.getState();
+        const { clusterDepth, expandedNodeIds, viewMode, currentLayer } = useGraphStore.getState();
         let displayNodes = nodes;
         let displayEdges = edges;
         let diagramData: LayeredDiagram | null = null;
-        if (viewMode === 'inheritance' || viewMode === 'callgraph' || viewMode === 'package' || viewMode === 'class') {
+        const isLayeredView = viewMode === 'inheritance' || viewMode === 'callgraph' || viewMode === 'package' || viewMode === 'class' || viewMode === 'dependencies';
+        if (isLayeredView) {
           const dataHash = computeDataHash(nodes, edges);
           const cached = diagramCache.get(viewMode, dataHash);
           if (cached) {
@@ -221,8 +226,20 @@ export const useGraphStore = create<GraphState>()(
               displayEdges = layer.edges;
             }
           }
+          set({
+            rawNodes: nodes, rawEdges: edges,
+            nodes: displayNodes, edges: displayEdges,
+            diagramData,
+            repoId, error: null, isLoading: false, lastUpdated: Date.now(),
+            truncated: !!metadata?.truncated,
+            totalNodeCount: metadata?.totalNodeCount ?? nodes.length,
+            totalEdgeCount: metadata?.totalEdgeCount ?? edges.length,
+            healthScore: null,
+            ruleViolations: [],
+          });
+          return;
         }
-        const result = computeClusteredGraph(displayNodes, displayEdges, clusterLevel, expandedNodeIds);
+        const result = computeClusteredGraph(displayNodes, displayEdges, 'progressive', expandedNodeIds, clusterDepth);
         set({
           rawNodes: nodes, rawEdges: edges,
           nodes: result.nodes, edges: result.edges,
@@ -244,7 +261,7 @@ export const useGraphStore = create<GraphState>()(
       setGraphType: (graphType) => set({ graphType }),
       setViewMode: (viewMode) => {
         const state = useGraphStore.getState();
-        const { rawNodes, rawEdges, clusterLevel, expandedNodeIds, expandedNodeIdsByViewMode, selectedFunction, savedRawNodes, savedRawEdges, viewMode: prevViewMode } = state;
+        const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, selectedFunction, savedRawNodes, savedRawEdges, viewMode: prevViewMode } = state;
         const recommendedLayout = VIEW_MODE_LAYOUT[viewMode];
 
         const savedExpanded = expandedNodeIdsByViewMode[viewMode] ?? new Set<string>();
@@ -264,23 +281,21 @@ export const useGraphStore = create<GraphState>()(
             const layer = diagram.layers[0];
             const layerNodes = layer ? layer.nodes : diagram.allNodes;
             const layerEdges = layer ? layer.edges : diagram.allEdges;
-          const result = computeClusteredGraph(layerNodes, layerEdges, 'progressive', savedExpanded);
-          set({
-            viewMode, diagramData: diagram, currentLayer: 0, layout: recommendedLayout,
-            savedRawNodes: rawNodes, savedRawEdges: rawEdges,
-            clusterLevel: 'progressive', expandedNodeIds: savedExpanded,
-            expandedNodeIdsByViewMode: newExpandedByViewMode,
-            nodes: result.nodes, edges: result.edges,
-          });
-          return;
-        }
-          const result = computeClusteredGraph(rawNodes, rawEdges, 'progressive', savedExpanded);
+            set({
+              viewMode, diagramData: diagram, currentLayer: 0, layout: recommendedLayout,
+              savedRawNodes: rawNodes, savedRawEdges: rawEdges,
+              expandedNodeIds: savedExpanded,
+              expandedNodeIdsByViewMode: newExpandedByViewMode,
+              nodes: layerNodes, edges: layerEdges,
+            });
+            return;
+          }
           set({
             viewMode, diagramData: null, layout: recommendedLayout,
             savedRawNodes: rawNodes, savedRawEdges: rawEdges,
-            clusterLevel: 'progressive', expandedNodeIds: savedExpanded,
+            expandedNodeIds: savedExpanded,
             expandedNodeIdsByViewMode: newExpandedByViewMode,
-            nodes: result.nodes, edges: result.edges,
+            nodes: rawNodes, edges: rawEdges,
           });
           return;
         }
@@ -288,12 +303,12 @@ export const useGraphStore = create<GraphState>()(
         if (viewMode === 'code') {
           const restoreNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
           const restoreEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
-          const result = computeClusteredGraph(restoreNodes, restoreEdges, 'progressive', savedExpanded);
+          const result = computeClusteredGraph(restoreNodes, restoreEdges, 'progressive', savedExpanded, clusterDepth);
           set({
             viewMode, diagramData: null, layout: recommendedLayout,
             rawNodes: restoreNodes, rawEdges: restoreEdges,
             savedRawNodes: [], savedRawEdges: [],
-            clusterLevel: 'progressive', expandedNodeIds: savedExpanded,
+            expandedNodeIds: savedExpanded,
             expandedNodeIdsByViewMode: newExpandedByViewMode,
             nodes: result.nodes, edges: result.edges,
           });
@@ -313,13 +328,12 @@ export const useGraphStore = create<GraphState>()(
             const layer = diagram.layers[0];
             const layerNodes = layer ? layer.nodes : diagram.allNodes;
             const layerEdges = layer ? layer.edges : diagram.allEdges;
-            const result = computeClusteredGraph(layerNodes, layerEdges, 'progressive', savedExpanded);
             set({
               viewMode, diagramData: diagram, currentLayer: 0, layout: recommendedLayout,
               savedRawNodes: sourceNodes, savedRawEdges: sourceEdges,
-              clusterLevel: 'progressive', expandedNodeIds: savedExpanded,
+              expandedNodeIds: savedExpanded,
               expandedNodeIdsByViewMode: newExpandedByViewMode,
-              nodes: result.nodes, edges: result.edges,
+              nodes: layerNodes, edges: layerEdges,
             });
             return;
           }
@@ -335,11 +349,15 @@ export const useGraphStore = create<GraphState>()(
           return;
         }
 
-        const result = computeClusteredGraph(rawNodes, rawEdges, clusterLevel, savedExpanded);
+        const result = computeClusteredGraph(rawNodes, rawEdges, 'progressive', savedExpanded, clusterDepth);
         set({ viewMode, diagramData: null, layout: recommendedLayout, expandedNodeIds: savedExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: result.nodes, edges: result.edges });
       },
-      setClusterLevel: (clusterLevel) => {
-        const { rawNodes, rawEdges, expandedNodeIds, diagramData, currentLayer } = useGraphStore.getState();
+      setClusterDepth: (clusterDepth) => {
+        const { rawNodes, rawEdges, expandedNodeIds, diagramData, currentLayer, viewMode } = useGraphStore.getState();
+        if (isLayeredViewMode(viewMode)) {
+          set({ clusterDepth });
+          return;
+        }
         let sourceNodes = rawNodes;
         let sourceEdges = rawEdges;
         if (diagramData) {
@@ -351,14 +369,14 @@ export const useGraphStore = create<GraphState>()(
         }
         const dataHash = computeDataHash(sourceNodes, sourceEdges);
         const expandedKey = [...expandedNodeIds].sort().join(',');
-        const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
+        const cached = clusterCache.get(dataHash, 'progressive', expandedKey);
         if (cached) {
-          set({ clusterLevel, nodes: cached.nodes, edges: cached.edges });
+          set({ clusterDepth, nodes: cached.nodes, edges: cached.edges });
           return;
         }
-        const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, expandedNodeIds);
-        clusterCache.set(dataHash, clusterLevel, expandedKey, result);
-        set({ clusterLevel, nodes: result.nodes, edges: result.edges });
+        const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', expandedNodeIds, clusterDepth);
+        clusterCache.set(dataHash, 'progressive', expandedKey, result);
+        set({ clusterDepth, nodes: result.nodes, edges: result.edges });
       },
       setLoading: (isLoading) => {
         clearLoadingFailsafe();
@@ -384,32 +402,14 @@ export const useGraphStore = create<GraphState>()(
       setInitStatus: (initStatus, initMessage = null) => set({ initStatus, initMessage }),
       setWatchEnabled: (watchEnabled) => set({ watchEnabled }),
       expandNode: (nodeId) => {
-        const { rawNodes, rawEdges, clusterLevel, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
-        let sourceNodes = rawNodes;
-        let sourceEdges = rawEdges;
-        if (diagramData) {
-          const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
-          if (layer) {
-            sourceNodes = layer.nodes;
-            sourceEdges = layer.edges;
-          }
-        }
+        const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
         const newExpanded = new Set(expandedNodeIds);
         newExpanded.add(nodeId);
         const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: newExpanded };
-        const dataHash = computeDataHash(sourceNodes, sourceEdges);
-        const expandedKey = [...newExpanded].sort().join(',');
-        const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
-        if (cached) {
-          set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: cached.nodes, edges: cached.edges });
+        if (isLayeredViewMode(viewMode)) {
+          set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode });
           return;
         }
-        const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, newExpanded);
-        clusterCache.set(dataHash, clusterLevel, expandedKey, result);
-        set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: result.nodes, edges: result.edges });
-      },
-      collapseNode: (nodeId) => {
-        const { rawNodes, rawEdges, clusterLevel, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
         let sourceNodes = rawNodes;
         let sourceEdges = rawEdges;
         if (diagramData) {
@@ -419,22 +419,53 @@ export const useGraphStore = create<GraphState>()(
             sourceEdges = layer.edges;
           }
         }
-        const newExpanded = new Set(expandedNodeIds);
-        newExpanded.delete(nodeId);
-        const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: newExpanded };
         const dataHash = computeDataHash(sourceNodes, sourceEdges);
         const expandedKey = [...newExpanded].sort().join(',');
-        const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
+        const cached = clusterCache.get(dataHash, 'progressive', expandedKey);
         if (cached) {
           set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: cached.nodes, edges: cached.edges });
           return;
         }
-        const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, newExpanded);
-        clusterCache.set(dataHash, clusterLevel, expandedKey, result);
+        const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', newExpanded, clusterDepth);
+        clusterCache.set(dataHash, 'progressive', expandedKey, result);
+        set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: result.nodes, edges: result.edges });
+      },
+      collapseNode: (nodeId) => {
+        const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
+        const newExpanded = new Set(expandedNodeIds);
+        newExpanded.delete(nodeId);
+        const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: newExpanded };
+        if (isLayeredViewMode(viewMode)) {
+          set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode });
+          return;
+        }
+        let sourceNodes = rawNodes;
+        let sourceEdges = rawEdges;
+        if (diagramData) {
+          const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+          if (layer) {
+            sourceNodes = layer.nodes;
+            sourceEdges = layer.edges;
+          }
+        }
+        const dataHash = computeDataHash(sourceNodes, sourceEdges);
+        const expandedKey = [...newExpanded].sort().join(',');
+        const cached = clusterCache.get(dataHash, 'progressive', expandedKey);
+        if (cached) {
+          set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: cached.nodes, edges: cached.edges });
+          return;
+        }
+        const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', newExpanded, clusterDepth);
+        clusterCache.set(dataHash, 'progressive', expandedKey, result);
         set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: result.nodes, edges: result.edges });
       },
       collapseAll: () => {
-        const { rawNodes, rawEdges, clusterLevel, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
+        const { rawNodes, rawEdges, clusterDepth, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
+        const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: new Set<string>() };
+        if (isLayeredViewMode(viewMode)) {
+          set({ expandedNodeIds: new Set(), expandedNodeIdsByViewMode: newExpandedByViewMode });
+          return;
+        }
         let sourceNodes = rawNodes;
         let sourceEdges = rawEdges;
         if (diagramData) {
@@ -446,14 +477,13 @@ export const useGraphStore = create<GraphState>()(
         }
         const dataHash = computeDataHash(sourceNodes, sourceEdges);
         const expandedKey = '';
-        const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
-        const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: new Set<string>() };
+        const cached = clusterCache.get(dataHash, 'progressive', expandedKey);
         if (cached) {
           set({ expandedNodeIds: new Set(), expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: cached.nodes, edges: cached.edges });
           return;
         }
-        const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, new Set());
-        clusterCache.set(dataHash, clusterLevel, expandedKey, result);
+        const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', new Set(), clusterDepth);
+        clusterCache.set(dataHash, 'progressive', expandedKey, result);
         set({ expandedNodeIds: new Set(), expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: result.nodes, edges: result.edges });
       },
       setCurrentWorkspace: (path) => set({ currentWorkspace: path }),
@@ -475,7 +505,7 @@ export const useGraphStore = create<GraphState>()(
       setFocusDepth: (depth) => set({ focusDepth: depth }),
       setCallChainDepth: (depth) => set({ callChainDepth: depth }),
       assembleMultiFunction: async (entryNodeId) => {
-        const { rawNodes, rawEdges, callChainDepth, clusterLevel, expandedNodeIds } = useGraphStore.getState();
+        const { rawNodes, rawEdges, callChainDepth, clusterDepth, expandedNodeIds } = useGraphStore.getState();
         const astFetcher = async (filePath: string) => {
           try {
             const response = await fetch('/api/v1/codegraph/ast', {
@@ -494,7 +524,7 @@ export const useGraphStore = create<GraphState>()(
           { depth: callChainDepth, maxFunctions: 20 },
         );
         if (result) {
-          const clustered = computeClusteredGraph(result.diagram.nodes, result.diagram.edges, clusterLevel, expandedNodeIds);
+          const clustered = computeClusteredGraph(result.diagram.nodes, result.diagram.edges, 'progressive', expandedNodeIds, clusterDepth);
           set({
             diagramData: null,
             nodes: clustered.nodes,
@@ -510,37 +540,28 @@ export const useGraphStore = create<GraphState>()(
       resetPanelSize: () => set({ panelHeight: null, panelWidth: null }),
       setSelectedFunction: (fn) => set({ selectedFunction: fn }),
       assembleMicro: async (viewMode) => {
-        const { selectedFunction, clusterLevel, expandedNodeIds } = useGraphStore.getState();
+        const { selectedFunction, clusterDepth, expandedNodeIds } = useGraphStore.getState();
         if (!selectedFunction) return;
         const diagram = await assembleMicroDiagram(viewMode, selectedFunction.filePath, selectedFunction.functionName);
         if (diagram) {
-          const result = computeClusteredGraph(diagram.nodes, diagram.edges, clusterLevel, expandedNodeIds);
+          const result = computeClusteredGraph(diagram.nodes, diagram.edges, 'progressive', expandedNodeIds, clusterDepth);
           set({ diagramData: null, nodes: result.nodes, edges: result.edges });
         }
       },
       setLayer: (layer) => {
-        const { diagramData, clusterLevel, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, currentLayer } = useGraphStore.getState();
+        const { diagramData, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, currentLayer } = useGraphStore.getState();
         if (!diagramData || layer < 0 || layer >= diagramData.layers.length) return;
         const layerData = diagramData.layers[layer];
         if (!layerData) return;
         const currentLayerKey = `${viewMode}_layer${currentLayer}`;
         const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [currentLayerKey]: new Set(expandedNodeIds) };
         const layerExpanded = newExpandedByViewMode[`${viewMode}_layer${layer}`] ?? new Set<string>();
-        const dataHash = computeDataHash(layerData.nodes, layerData.edges);
-        const expandedKey = [...layerExpanded].sort().join(',');
-        const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
-        if (cached) {
-          set({ currentLayer: layer, expandedNodeIds: layerExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: cached.nodes, edges: cached.edges });
-          return;
-        }
-        const result = computeClusteredGraph(layerData.nodes, layerData.edges, clusterLevel, layerExpanded);
-        clusterCache.set(dataHash, clusterLevel, expandedKey, result);
-        set({ currentLayer: layer, expandedNodeIds: layerExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: result.nodes, edges: result.edges });
+        set({ currentLayer: layer, expandedNodeIds: layerExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: layerData.nodes, edges: layerData.edges });
       },
     }),
     {
       name: 'dsh-codegraph-visualizer/ui',
-      version: 6,
+      version: 7,
       storage: createJSONStorage(() =>
         typeof window !== 'undefined' ? window.localStorage : memoryStorage,
       ),
@@ -559,7 +580,7 @@ export const useGraphStore = create<GraphState>()(
           result.currentWorkspace = typeof p.currentWorkspace === 'string' ? p.currentWorkspace : '.';
         }
         if (version < 4) {
-          result.clusterLevel = 'directory';
+          (result as Record<string, unknown>).clusterLevel = 'directory';
         }
         if (version < 5) {
           const h = (p as { panelHeight?: unknown }).panelHeight;
@@ -568,16 +589,21 @@ export const useGraphStore = create<GraphState>()(
           result.panelWidth = typeof w === 'number' && w >= 320 ? w : null;
         }
         if (version < 6) {
-          const validClusterLevels: ClusterLevel[] = ['directory', 'file', 'function', 'progressive'];
-          if (!validClusterLevels.includes(p.clusterLevel as ClusterLevel)) {
-            result.clusterLevel = 'progressive';
+          const validClusterLevels = ['directory', 'file', 'function', 'progressive'];
+          if (!validClusterLevels.includes((p as { clusterLevel?: string }).clusterLevel ?? '')) {
+            (result as Record<string, unknown>).clusterLevel = 'progressive';
           }
+        }
+        if (version < 7) {
+          const oldLevel = (p as { clusterLevel?: string }).clusterLevel;
+          const depthMap: Record<string, number> = { directory: 0, file: 1, function: 2, progressive: 0, smart: 0 };
+          result.clusterDepth = typeof oldLevel === 'string' ? (depthMap[oldLevel] ?? 0) : 0;
         }
         return result;
       },
       partialize: (s) => ({
         layout: s.layout, theme: s.theme, filterType: s.filterType,
-        graphType: s.graphType, clusterLevel: s.clusterLevel,
+        graphType: s.graphType, clusterDepth: s.clusterDepth,
         currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
         rules: s.rules, focusDepth: s.focusDepth,
         panelHeight: s.panelHeight, panelWidth: s.panelWidth,

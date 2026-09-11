@@ -498,9 +498,9 @@ describe('isPathAllowed (security)', () => {
     setAllowedWorkspaceRoots([]);
   });
 
-  it('should allow "." and empty path', () => {
+  it('should allow "." but reject empty path', () => {
     expect(isPathAllowed('.')).toBe(true);
-    expect(isPathAllowed('')).toBe(true);
+    expect(isPathAllowed('')).toBe(false);
   });
 
   it('should reject relative paths', () => {

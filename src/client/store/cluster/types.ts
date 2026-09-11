@@ -1,7 +1,7 @@
 import { NodeId, EdgeId } from '../../../types/index.ts';
 import type { GraphNode, GraphEdge } from '../../../types/index.ts';
 
-export type ClusterLevel = 'directory' | 'file' | 'function' | 'smart' | 'progressive';
+export type ClusterLevel = 'directory' | 'file' | 'function' | 'smart';
 
 export interface ClusterNode extends GraphNode {
   isCluster: true;
