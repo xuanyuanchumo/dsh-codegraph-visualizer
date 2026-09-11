@@ -48,7 +48,7 @@ const CLUSTER_LEVELS: { value: ClusterLevel; key: string }[] = [
   { value: 'directory', key: 'cluster.directory' },
   { value: 'file', key: 'cluster.file' },
   { value: 'function', key: 'cluster.function' },
-  { value: 'smart', key: 'cluster.smart' },
+
 ];
 
 export interface ToolbarVisibilityState {

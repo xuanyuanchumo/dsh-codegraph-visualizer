@@ -175,7 +175,7 @@ export const useGraphStore = create<GraphState>()(
       viewMode: 'code',
       diagramData: null,
       currentLayer: 0,
-      clusterLevel: 'directory',
+      clusterLevel: 'progressive',
       isLoading: false,
       error: null,
       lastUpdated: 0,
@@ -540,7 +540,7 @@ export const useGraphStore = create<GraphState>()(
     }),
     {
       name: 'dsh-codegraph-visualizer/ui',
-      version: 5,
+      version: 6,
       storage: createJSONStorage(() =>
         typeof window !== 'undefined' ? window.localStorage : memoryStorage,
       ),
@@ -566,6 +566,12 @@ export const useGraphStore = create<GraphState>()(
           const w = (p as { panelWidth?: unknown }).panelWidth;
           result.panelHeight = typeof h === 'number' && h >= 240 ? h : null;
           result.panelWidth = typeof w === 'number' && w >= 320 ? w : null;
+        }
+        if (version < 6) {
+          const validClusterLevels: ClusterLevel[] = ['directory', 'file', 'function', 'progressive'];
+          if (!validClusterLevels.includes(p.clusterLevel as ClusterLevel)) {
+            result.clusterLevel = 'progressive';
+          }
         }
         return result;
       },

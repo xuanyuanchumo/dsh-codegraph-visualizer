@@ -2,6 +2,11 @@ import { NodeId } from '../../../types/index.ts';
 import type { GraphNode, GraphEdge } from '../../../types/index.ts';
 import type { ClusterNode, ClusterResult } from './types.ts';
 import { aggregateEdges } from './types.ts';
+import { detectCommunities } from './communityDetection.ts';
+
+const MAX_VISIBLE_NODES = 2000;
+const SUBGROUP_THRESHOLD = 100;
+const MAX_NODES_PER_DIR_BEFORE_SUBGROUP = 500;
 
 function getTopLevelDir(filePath: string): string {
   const parts = filePath.split(/[\\/]/);
@@ -35,19 +40,96 @@ function getFileLabel(filePath: string): string {
   return parts[parts.length - 1] ?? filePath;
 }
 
+function buildParentIndex(rawNodes: GraphNode[]): {
+  parentToChildren: Map<string, GraphNode[]>;
+  filePathToNodes: Map<string, GraphNode[]>;
+} {
+  const parentToChildren = new Map<string, GraphNode[]>();
+  const filePathToNodes = new Map<string, GraphNode[]>();
+
+  for (const n of rawNodes) {
+    if (n.parentId) {
+      const list = parentToChildren.get(n.parentId);
+      if (list) list.push(n);
+      else parentToChildren.set(n.parentId, [n]);
+    }
+    if (n.filePath) {
+      const list = filePathToNodes.get(n.filePath);
+      if (list) list.push(n);
+      else filePathToNodes.set(n.filePath, [n]);
+    }
+  }
+
+  return { parentToChildren, filePathToNodes };
+}
+
+function createSubgroupClusters(
+  dirNodes: GraphNode[],
+  dirEdges: GraphEdge[],
+  dirPath: string,
+  expandedSubgroups: Set<string>,
+): { nodes: (GraphNode | ClusterNode)[]; nodeIdToVisibleId: Map<string, string> } {
+  const visibleNodes: (GraphNode | ClusterNode)[] = [];
+  const nodeIdToVisibleId = new Map<string, string>();
+
+  const communities = detectCommunities(dirNodes, dirEdges);
+
+  for (const [communityLabel, group] of communities) {
+    if (group.nodes.length <= SUBGROUP_THRESHOLD) {
+      for (const n of group.nodes) {
+        visibleNodes.push(n);
+        nodeIdToVisibleId.set(n.id, n.id);
+      }
+      continue;
+    }
+
+    const subgroupClusterId = `subgroup__${dirPath.replace(/[/:\\]/g, '__')}__${communityLabel}`;
+    if (expandedSubgroups.has(subgroupClusterId)) {
+      for (const n of group.nodes) {
+        visibleNodes.push(n);
+        nodeIdToVisibleId.set(n.id, n.id);
+      }
+    } else {
+      const primaryNode = group.nodes[0]!;
+      const clusterNode: ClusterNode = {
+        id: NodeId(subgroupClusterId),
+        label: `${primaryNode.label.split(/[\\/]/).pop()?.split('.')[0] ?? 'group'} +${group.nodes.length - 1}`,
+        type: primaryNode.type,
+        filePath: primaryNode.filePath,
+        lineNumber: 0,
+        properties: {},
+        isCluster: true,
+        childCount: group.nodes.length,
+        childIds: group.nodes.map((n) => n.id),
+        clusterPath: `${dirPath}/${communityLabel}`,
+        clusterLevel: 'smart',
+      };
+      visibleNodes.push(clusterNode);
+      for (const n of group.nodes) {
+        nodeIdToVisibleId.set(n.id, subgroupClusterId);
+      }
+    }
+  }
+
+  return { nodes: visibleNodes, nodeIdToVisibleId };
+}
 
 export function computeProgressiveClusters(
   rawNodes: GraphNode[],
   rawEdges: GraphEdge[],
   expandedNodeIds: Set<string>,
 ): ClusterResult {
+  if (rawNodes.length === 0) return { nodes: [], edges: [] };
+
+  const { parentToChildren, filePathToNodes } = buildParentIndex(rawNodes);
+
   const visibleNodes: (GraphNode | ClusterNode)[] = [];
   const nodeIdToVisibleId = new Map<string, string>();
 
-  // Separate expanded IDs by type
   const expandedDirs = new Set<string>();
   const expandedFileClusters = new Set<string>();
   const expandedFuncClusters = new Set<string>();
+  const expandedSubgroups = new Set<string>();
 
   for (const id of expandedNodeIds) {
     if (id.startsWith('cluster__')) {
@@ -56,10 +138,11 @@ export function computeProgressiveClusters(
       expandedFileClusters.add(id);
     } else if (id.startsWith('funccluster__')) {
       expandedFuncClusters.add(id);
+    } else if (id.startsWith('subgroup__')) {
+      expandedSubgroups.add(id);
     }
   }
 
-  // Step 1: Group nodes by top-level directory
   const nodeToDir = new Map<string, string>();
   const dirToNodes = new Map<string, GraphNode[]>();
 
@@ -72,114 +155,112 @@ export function computeProgressiveClusters(
     else dirToNodes.set(dir, [n]);
   }
 
-  // Step 2: For each directory, decide what to show
+  const dirEdgeCache = new Map<string, GraphEdge[]>();
+
   for (const [dirPath, nodes] of dirToNodes) {
     const clusterId = `cluster__${dirPath.replace(/[/:\\]/g, '__')}`;
 
     if (expandedDirs.has(clusterId) || expandedDirs.has(dirPath)) {
-      // Directory is expanded → show file-level clusters inside
-      const fileGroups = new Map<string, GraphNode[]>();
+      if (nodes.length > MAX_NODES_PER_DIR_BEFORE_SUBGROUP) {
+        let dirEdges = dirEdgeCache.get(dirPath);
+        if (!dirEdges) {
+          const nodeIds = new Set(nodes.map((n) => n.id));
+          dirEdges = rawEdges.filter(
+            (e) => nodeIds.has(e.source) && nodeIds.has(e.target),
+          );
+          dirEdgeCache.set(dirPath, dirEdges);
+        }
+        const { nodes: subgroupNodes, nodeIdToVisibleId: subgroupMap } =
+          createSubgroupClusters(nodes, dirEdges, dirPath, expandedSubgroups);
+        for (const n of subgroupNodes) visibleNodes.push(n);
+        for (const [rawId, visId] of subgroupMap) nodeIdToVisibleId.set(rawId, visId);
+      } else {
+        const fileGroups = new Map<string, GraphNode[]>();
 
-
-      for (const n of nodes) {
-        if (n.type === 'module') {
-          // Module nodes are shown directly (they represent files)
-          const fileClusterId = `filecluster__file__${(n.parentId ?? n.filePath ?? n.id).replace(/[/:\\]/g, '__')}`;
-          if (expandedFileClusters.has(fileClusterId)) {
-            // File cluster is expanded → show function-level nodes inside
-            // Find all non-module nodes whose parentId matches this module
-            const childNodes = rawNodes.filter(
-              (rn) => rn.parentId === n.id || rn.filePath === n.filePath,
-            );
-            if (childNodes.length > 0) {
-              // Show module node + its function children
-              visibleNodes.push(n);
-              nodeIdToVisibleId.set(n.id, n.id);
-              for (const child of childNodes) {
-                if (child.id === n.id) continue;
-                visibleNodes.push(child);
-                nodeIdToVisibleId.set(child.id, child.id);
-              }
-            } else {
-              // No children → just show the module node
-              visibleNodes.push(n);
-              nodeIdToVisibleId.set(n.id, n.id);
-            }
-          } else {
-            // File cluster not expanded → show as file-level cluster
-            const childNodes = rawNodes.filter(
-              (rn) => rn.parentId === n.id || (rn.filePath === n.filePath && rn.id !== n.id),
-            );
-            if (childNodes.length > 0) {
-              const fileClusterNodeId = `filecluster__file__${(n.parentId ?? n.filePath ?? n.id).replace(/[/:\\]/g, '__')}`;
-              nodeIdToVisibleId.set(n.id, fileClusterNodeId);
-              for (const child of childNodes) {
-                nodeIdToVisibleId.set(child.id, fileClusterNodeId);
-              }
-              const clusterNode: ClusterNode = {
-                id: NodeId(fileClusterNodeId),
-                label: `${n.label} (${childNodes.length + 1})`,
-                type: 'module',
-                filePath: n.filePath,
-                lineNumber: 0,
-                properties: {},
-                isCluster: true,
-                childCount: childNodes.length + 1,
-                childIds: [n.id, ...childNodes.map((c) => c.id)],
-                clusterPath: n.filePath ?? n.id,
-                clusterLevel: 'file',
-              };
-              visibleNodes.push(clusterNode);
-            } else {
-              // No children → show module node directly
-              visibleNodes.push(n);
-              nodeIdToVisibleId.set(n.id, n.id);
-            }
-          }
-        } else {
-          // Non-module node inside expanded directory
-          const parentFileId = n.parentId ?? n.filePath;
-          if (parentFileId) {
-            const fileClusterId = `filecluster__file__${parentFileId.replace(/[/:\\]/g, '__')}`;
+        for (const n of nodes) {
+          if (n.type === 'module') {
+            const fileClusterId = `filecluster__file__${(n.parentId ?? n.filePath ?? n.id).replace(/[/:\\]/g, '__')}`;
             if (expandedFileClusters.has(fileClusterId)) {
-              // File cluster expanded → show node directly
-              visibleNodes.push(n);
-              nodeIdToVisibleId.set(n.id, n.id);
+              const childNodes = parentToChildren.get(n.id) ?? filePathToNodes.get(n.filePath) ?? [];
+              if (childNodes.length > 0) {
+                visibleNodes.push(n);
+                nodeIdToVisibleId.set(n.id, n.id);
+                for (const child of childNodes) {
+                  if (child.id === n.id) continue;
+                  visibleNodes.push(child);
+                  nodeIdToVisibleId.set(child.id, child.id);
+                }
+              } else {
+                visibleNodes.push(n);
+                nodeIdToVisibleId.set(n.id, n.id);
+              }
             } else {
-              // File cluster not expanded → group by file
-              nodeIdToVisibleId.set(n.id, fileClusterId);
-              const list = fileGroups.get(fileClusterId);
-              if (list) list.push(n);
-              else fileGroups.set(fileClusterId, [n]);
+              const childNodes = parentToChildren.get(n.id) ?? filePathToNodes.get(n.filePath) ?? [];
+              const filteredChildren = childNodes.filter((c) => c.id !== n.id);
+              if (filteredChildren.length > 0) {
+                nodeIdToVisibleId.set(n.id, fileClusterId);
+                for (const child of filteredChildren) {
+                  nodeIdToVisibleId.set(child.id, fileClusterId);
+                }
+                const clusterNode: ClusterNode = {
+                  id: NodeId(fileClusterId),
+                  label: `${n.label} (${filteredChildren.length + 1})`,
+                  type: 'module',
+                  filePath: n.filePath,
+                  lineNumber: 0,
+                  properties: {},
+                  isCluster: true,
+                  childCount: filteredChildren.length + 1,
+                  childIds: [n.id, ...filteredChildren.map((c) => c.id)],
+                  clusterPath: n.filePath ?? n.id,
+                  clusterLevel: 'file',
+                };
+                visibleNodes.push(clusterNode);
+              } else {
+                visibleNodes.push(n);
+                nodeIdToVisibleId.set(n.id, n.id);
+              }
             }
           } else {
-            visibleNodes.push(n);
-            nodeIdToVisibleId.set(n.id, n.id);
+            const parentFileId = n.parentId ?? n.filePath;
+            if (parentFileId) {
+              const fileClusterId = `filecluster__file__${parentFileId.replace(/[/:\\]/g, '__')}`;
+              if (expandedFileClusters.has(fileClusterId)) {
+                visibleNodes.push(n);
+                nodeIdToVisibleId.set(n.id, n.id);
+              } else {
+                nodeIdToVisibleId.set(n.id, fileClusterId);
+                const list = fileGroups.get(fileClusterId);
+                if (list) list.push(n);
+                else fileGroups.set(fileClusterId, [n]);
+              }
+            } else {
+              visibleNodes.push(n);
+              nodeIdToVisibleId.set(n.id, n.id);
+            }
           }
         }
-      }
 
-      // Create file-level cluster nodes for non-module nodes grouped by file
-      for (const [fileClusterId, children] of fileGroups) {
-        const parentFileId = children[0]?.parentId ?? children[0]?.filePath ?? '';
-        const parentNode = rawNodes.find((n) => n.id === parentFileId || n.filePath === parentFileId);
-        const clusterNode: ClusterNode = {
-          id: NodeId(fileClusterId),
-          label: `${parentNode?.label ?? getFileLabel(parentFileId)} (${children.length})`,
-          type: 'module',
-          filePath: parentNode?.filePath ?? parentFileId,
-          lineNumber: 0,
-          properties: {},
-          isCluster: true,
-          childCount: children.length,
-          childIds: children.map((c) => c.id),
-          clusterPath: parentFileId,
-          clusterLevel: 'file',
-        };
-        visibleNodes.push(clusterNode);
+        for (const [fileClusterId, children] of fileGroups) {
+          const parentFileId = children[0]?.parentId ?? children[0]?.filePath ?? '';
+          const parentNode = filePathToNodes.get(parentFileId)?.[0];
+          const clusterNode: ClusterNode = {
+            id: NodeId(fileClusterId),
+            label: `${parentNode?.label ?? getFileLabel(parentFileId)} (${children.length})`,
+            type: 'module',
+            filePath: parentNode?.filePath ?? parentFileId,
+            lineNumber: 0,
+            properties: {},
+            isCluster: true,
+            childCount: children.length,
+            childIds: children.map((c) => c.id),
+            clusterPath: parentFileId,
+            clusterLevel: 'file',
+          };
+          visibleNodes.push(clusterNode);
+        }
       }
     } else {
-      // Directory not expanded → show as directory-level cluster
       const childIds = nodes.map((n) => n.id);
       const clusterNode: ClusterNode = {
         id: NodeId(clusterId),
@@ -201,7 +282,49 @@ export function computeProgressiveClusters(
     }
   }
 
+  if (visibleNodes.length > MAX_VISIBLE_NODES) {
+    return enforceNodeLimit(visibleNodes, nodeIdToVisibleId, rawEdges);
+  }
+
   const visibleEdges = aggregateEdges(rawEdges, nodeIdToVisibleId, 'cluster__');
 
   return { nodes: visibleNodes, edges: visibleEdges };
+}
+
+function enforceNodeLimit(
+  visibleNodes: (GraphNode | ClusterNode)[],
+  nodeIdToVisibleId: Map<string, string>,
+  rawEdges: GraphEdge[],
+): ClusterResult {
+  const clusterNodes = visibleNodes.filter(
+    (n): n is ClusterNode => 'isCluster' in n && n.isCluster === true,
+  );
+  const nonClusterNodes = visibleNodes.filter(
+    (n): n is GraphNode => !('isCluster' in n && n.isCluster === true),
+  );
+
+  const nodesToKeep = new Set<string>();
+  const overLimit = visibleNodes.length - MAX_VISIBLE_NODES;
+
+  const sortedClusters = [...clusterNodes].sort((a, b) => a.childCount - b.childCount);
+  let collapsed = 0;
+  for (const cluster of sortedClusters) {
+    if (collapsed >= overLimit) break;
+    for (const childId of cluster.childIds) {
+      nodeIdToVisibleId.set(childId, cluster.id);
+    }
+    collapsed += cluster.childCount;
+  }
+
+  for (const n of nonClusterNodes) {
+    nodesToKeep.add(n.id);
+  }
+  for (const n of clusterNodes) {
+    nodesToKeep.add(n.id);
+  }
+
+  const finalNodes = visibleNodes.filter((n) => nodesToKeep.has(n.id));
+  const visibleEdges = aggregateEdges(rawEdges, nodeIdToVisibleId, 'cluster__');
+
+  return { nodes: finalNodes, edges: visibleEdges };
 }

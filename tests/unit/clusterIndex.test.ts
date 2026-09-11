@@ -36,13 +36,13 @@ describe('computeClusteredGraph', () => {
     expect(result.nodes.length).toBeGreaterThan(0);
   });
 
-  it('computes smart clusters', () => {
+  it('computes progressive clusters', () => {
     const nodes = [
       makeNode('n1', 'A', 'function', 'src/mod1/a.ts', 1),
       makeNode('n2', 'B', 'function', 'src/mod1/a.ts', 2),
     ];
     const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
-    const result = computeClusteredGraph(nodes, edges, 'smart', new Set());
+    const result = computeClusteredGraph(nodes, edges, 'progressive', new Set());
     expect(result.nodes.length).toBeGreaterThan(0);
   });
 });

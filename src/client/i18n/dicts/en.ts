@@ -35,7 +35,7 @@ export const en: Record<string, string> = {
   'cluster.directory': 'Directory',
   'cluster.file': 'File',
   'cluster.function': 'Function',
-  'cluster.smart': 'Smart',
+
 
   // Filter options
   'filter.all': 'All Types',

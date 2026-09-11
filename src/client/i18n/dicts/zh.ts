@@ -35,7 +35,7 @@ export const zh: Record<string, string> = {
   'cluster.directory': '目录级',
   'cluster.file': '文件级',
   'cluster.function': '函数级',
-  'cluster.smart': '智能聚类',
+
 
   // Filter options
   'filter.all': '全部类型',
