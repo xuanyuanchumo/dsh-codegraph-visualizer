@@ -156,9 +156,9 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
     {
       selector: ':parent',
       style: {
-        'background-color': 'rgba(0,0,0,0.05)',
+        'background-color': isDark ? 'rgba(99,102,241,0.08)' : 'rgba(0,0,0,0.05)',
         'border-width': 2,
-        'border-color': c.border,
+        'border-color': isDark ? 'rgba(129,140,248,0.3)' : c.border,
         'border-style': 'dashed',
         'label': 'data(label)',
         'font-size': '10px',
@@ -322,6 +322,37 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
         'border-width': 4,
         'border-color': errorColor,
         'z-index': 30,
+      },
+    },
+    {
+      selector: '.neighbor-dim',
+      style: {
+        'opacity': 0.2,
+      },
+    },
+    {
+      selector: 'edge.neighbor-dim',
+      style: {
+        'opacity': 0.1,
+      },
+    },
+    {
+      selector: '.neighbor-highlight',
+      style: {
+        'border-width': 3,
+        'border-color': accentColor,
+        'opacity': 1,
+        'z-index': 28,
+      },
+    },
+    {
+      selector: 'edge.neighbor-highlight',
+      style: {
+        'width': 2.5,
+        'line-color': accentColor,
+        'target-arrow-color': accentColor,
+        'opacity': 1,
+        'z-index': 28,
       },
     },
     {
@@ -499,7 +530,56 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       },
     },
     {
+      selector: 'node[isCluster="true"][clusterHue="0"]',
+      style: { 'background-color': isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.10)', 'border-color': isDark ? '#818cf8' : '#6366f1' },
+    },
+    {
+      selector: 'node[isCluster="true"][clusterHue="1"]',
+      style: { 'background-color': isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.10)', 'border-color': isDark ? '#34d399' : '#10b981' },
+    },
+    {
+      selector: 'node[isCluster="true"][clusterHue="2"]',
+      style: { 'background-color': isDark ? 'rgba(236,72,153,0.15)' : 'rgba(236,72,153,0.10)', 'border-color': isDark ? '#f472b6' : '#ec4899' },
+    },
+    {
+      selector: 'node[isCluster="true"][clusterHue="3"]',
+      style: { 'background-color': isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.10)', 'border-color': isDark ? '#fbbf24' : '#f59e0b' },
+    },
+    {
+      selector: 'node[isCluster="true"][clusterHue="4"]',
+      style: { 'background-color': isDark ? 'rgba(6,182,212,0.15)' : 'rgba(6,182,212,0.10)', 'border-color': isDark ? '#22d3ee' : '#06b6d4' },
+    },
+    {
+      selector: 'node[isCluster="true"][clusterHue="5"]',
+      style: { 'background-color': isDark ? 'rgba(168,85,247,0.15)' : 'rgba(168,85,247,0.10)', 'border-color': isDark ? '#a78bfa' : '#8b5cf6' },
+    },
+    {
+      selector: 'node[isCluster="true"][clusterHue="6"]',
+      style: { 'background-color': isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.10)', 'border-color': isDark ? '#f87171' : '#ef4444' },
+    },
+    {
+      selector: 'node[isCluster="true"][clusterHue="7"]',
+      style: { 'background-color': isDark ? 'rgba(132,204,22,0.15)' : 'rgba(132,204,22,0.10)', 'border-color': isDark ? '#a3e635' : '#84cc16' },
+    },
+    {
+      selector: 'node[isCluster="true"][clusterHue="8"]',
+      style: { 'background-color': isDark ? 'rgba(251,113,133,0.15)' : 'rgba(251,113,133,0.10)', 'border-color': isDark ? '#fb7185' : '#f43f5e' },
+    },
+    {
+      selector: 'node[isCluster="true"][clusterHue="9"]',
+      style: { 'background-color': isDark ? 'rgba(96,165,250,0.15)' : 'rgba(96,165,250,0.10)', 'border-color': isDark ? '#60a5fa' : '#3b82f6' },
+    },
+    {
+      selector: 'node[isCluster="true"][clusterHue="10"]',
+      style: { 'background-color': isDark ? 'rgba(52,211,153,0.15)' : 'rgba(52,211,153,0.10)', 'border-color': isDark ? '#34d399' : '#14b8a6' },
+    },
+    {
+      selector: 'node[isCluster="true"][clusterHue="11"]',
+      style: { 'background-color': isDark ? 'rgba(251,191,36,0.15)' : 'rgba(251,191,36,0.10)', 'border-color': isDark ? '#fbbf24' : '#eab308' },
+    },
+    {
       selector: 'node[isCluster="true"].hovered',
+
       style: {
         'background-color': clusterHoverBg,
         'border-width': 4,
@@ -1366,6 +1446,28 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
         'text-background-padding': '2px',
         'text-background-shape': 'roundrectangle',
         'opacity': 0.8,
+      },
+    },
+
+    // ===== Dependency Diagram =====
+    {
+      selector: 'edge[diagramType="dependencies"][type="import"]',
+      style: {
+        'width': 2,
+        'line-color': c.edgeImport,
+        'target-arrow-color': c.edgeImport,
+        'line-style': 'solid',
+        'target-arrow-shape': 'triangle',
+      },
+    },
+    {
+      selector: 'edge[diagramType="dependencies"][type="dependency"]',
+      style: {
+        'width': 1.5,
+        'line-color': c.edgeDependency,
+        'target-arrow-color': c.edgeDependency,
+        'line-style': 'dashed',
+        'target-arrow-shape': 'vee',
       },
     },
 

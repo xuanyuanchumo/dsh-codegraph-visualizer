@@ -170,16 +170,25 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       if (isExpanded) collapseNode(nodeId);
       else expandNode(nodeId);
     } else {
-      setFocusNodeId((prev) => prev === nodeId ? null : nodeId);
+      setFocusNodeId((prev) => {
+        if (prev === nodeId) {
+          setSelectedNode(null);
+          return null;
+        }
+        setSelectedNode(null);
+        return nodeId;
+      });
     }
-  }, [expandedNodeIds, expandNode, collapseNode]);
+  }, [expandedNodeIds, expandNode, collapseNode, setSelectedNode]);
 
   const handleNodeHover = useCallback((nodeId: string, pos: { x: number; y: number }) => {
     const data = getDataRef.current?.getNodeData(nodeId);
     if (data) {
-      setTooltip({ x: pos.x, y: pos.y, name: data.label, path: `${data.filePath}:${data.lineNumber}`, type: data.type });
+      const linksIn = edges.filter((e) => e.target === nodeId).length;
+      const linksOut = edges.filter((e) => e.source === nodeId).length;
+      setTooltip({ x: pos.x, y: pos.y, name: data.label, path: `${data.filePath}:${data.lineNumber}`, type: data.type, linksIn, linksOut });
     }
-  }, []);
+  }, [edges]);
 
   const handleNodeHoverOut = useCallback(() => setTooltip(null), []);
   const handleEdgeHover = useCallback((edgeId: string, pos: { x: number; y: number }) => {
@@ -197,11 +206,25 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, []);
   const handleEdgeHoverOut = useCallback(() => setTooltip(null), []);
 
+  const handleEdgeTap = useCallback((edgeId: string, pos: { x: number; y: number }) => {
+    const edgeData = getDataRef.current?.getEdgeData(edgeId);
+    if (edgeData) {
+      const sourceNode = getDataRef.current?.getNodeData(edgeData.source);
+      const targetNode = getDataRef.current?.getNodeData(edgeData.target);
+      setTooltip({
+        x: pos.x, y: pos.y,
+        sourceLabel: sourceNode?.label ?? edgeData.source,
+        targetLabel: targetNode?.label ?? edgeData.target,
+        edgeType: edgeData.type,
+      });
+    }
+  }, []);
+
   const renderer = useGraphRenderer(
     nodes, edges, rawNodes, layout, theme,
     highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel,
     debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact, panel.showInheritance, focusNodeId,
-    { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut, onEdgeHover: handleEdgeHover, onEdgeHoverOut: handleEdgeHoverOut },
+    { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut, onEdgeTap: handleEdgeTap, onEdgeHover: handleEdgeHover, onEdgeHoverOut: handleEdgeHoverOut },
     showCallChainRef,
   );
 
@@ -358,7 +381,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, [setSelectedNode]);
 
   const { handleViewModeChange, handleSelectFunction, handleCloseMicroView } = useViewMode(
-    viewMode, layout, currentWorkspace, depsFetchAbortRef,
+    viewMode, currentWorkspace, depsFetchAbortRef,
   );
 
   const handleRefresh = useCallback(() => {
@@ -403,8 +426,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const handleFocusExit = useCallback(() => {
     setFocusNodeId(null);
     setFocusDepth(1);
+    setSelectedNode(null);
     renderer.rendererRef.current?.focusNeighborhood(null);
-  }, [setFocusDepth, renderer.rendererRef]);
+  }, [setFocusDepth, setSelectedNode, renderer.rendererRef]);
 
   const getImpactStats = useCallback(() => {
     if (!selectedNodeId) return null;
@@ -549,7 +573,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           onNodeTap={(id) => handleNodeTap(NodeId(id))} />
       )}
 
-      {panel.showLegend && !isCollapsed && (<Legend onClose={() => panel.setShowLegend(false)} />)}
+      {panel.showLegend && !isCollapsed && (<Legend viewMode={viewMode} onClose={() => panel.setShowLegend(false)} />)}
 
       {panel.showMiniMap && !isCollapsed && (
         <StatsPanel

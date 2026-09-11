@@ -55,7 +55,7 @@ export function aggregateEdges(
     }
   }
 
-  const clusterPrefixes = [clusterPrefix, 'filecluster__', 'smartcluster__'];
+  const clusterPrefixes = [clusterPrefix, 'filecluster__', 'smartcluster__', 'funccluster__'];
 
   const nonClusterAggKeys = new Set<string>();
   for (const [, agg] of aggregation) {

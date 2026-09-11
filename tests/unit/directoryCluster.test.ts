@@ -60,7 +60,7 @@ describe('computeDirectoryClusters', () => {
     const child = makeNode('fn1', 'foo', 'function', 'src/mod1/a.ts', 1, {}, 'file1');
     const nodes = [parent, child];
     const dirClusterId = 'cluster__src__mod1';
-    const fileClusterId = 'filecluster__file1';
+    const fileClusterId = 'filecluster__file__file1';
     const result = computeDirectoryClusters(nodes, [], new Set([dirClusterId, fileClusterId]));
     const fileClusters = result.nodes.filter((n) =>
       'isCluster' in n && n.isCluster && (n as { clusterLevel?: string }).clusterLevel === 'file',

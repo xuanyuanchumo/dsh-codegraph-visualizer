@@ -40,7 +40,7 @@ describe('graphStore (J6/J7/J10)', () => {
     useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
     const s = useGraphStore.getState();
     expect(s.nodes).toHaveLength(1);
-    expect(s.edges).toHaveLength(1);
+    expect(s.nodes[0]).toHaveProperty('isCluster', true);
     expect(s.repoId).toBe('repo-1');
     expect(s.lastUpdated).toBeGreaterThan(0);
   });
@@ -283,7 +283,7 @@ describe('graphStore (J6/J7/J10)', () => {
   });
 
   // ── Cluster level tests ─────────────────────────────────────────────
-  it('setClusterLevel to function should show all nodes', () => {
+  it('setClusterLevel to function should cluster non-module nodes by file', () => {
     const nodes = [
       makeNode('m1', 'ModuleA', 'module', 'a.ts', 1),
       makeNode('c1', 'ClassA', 'class', 'a.ts', 10),
@@ -296,8 +296,10 @@ describe('graphStore (J6/J7/J10)', () => {
     useGraphStore.getState().setClusterLevel('function');
     useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
     const s = useGraphStore.getState();
-    expect(s.nodes).toHaveLength(3);
-    expect(s.edges).toHaveLength(2);
+    expect(s.nodes).toHaveLength(2);
+    const clusterNode = s.nodes.find((n) => 'isCluster' in n && n.isCluster);
+    expect(clusterNode).toBeDefined();
+    expect(clusterNode).toHaveProperty('childCount', 2);
   });
 
   it('directory cluster level should aggregate nodes by top-level directory', () => {

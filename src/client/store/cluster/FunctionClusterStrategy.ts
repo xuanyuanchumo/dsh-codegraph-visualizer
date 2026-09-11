@@ -7,8 +7,8 @@ export class FunctionClusterStrategy implements ClusterStrategy {
   compute(
     rawNodes: GraphNode[],
     rawEdges: GraphEdge[],
-    _expandedNodeIds: Set<string>,
+    expandedNodeIds: Set<string>,
   ): ClusterResult {
-    return computeFunctionLevel(rawNodes, rawEdges);
+    return computeFunctionLevel(rawNodes, rawEdges, expandedNodeIds);
   }
 }

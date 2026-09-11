@@ -18,15 +18,6 @@ const STATEMENT_TYPES = new Set([
   'switch_statement', 'switch', 'try_statement', 'try',
 ]);
 
-let blockCounter = 0;
-
-function nextBlockId(): string {
-  return `cfg-block-${blockCounter++}`;
-}
-
-function resetCounter(): void {
-  blockCounter = 0;
-}
 
 function isControlFlow(node: ASTNode): boolean {
   return CONTROL_FLOW_TYPES.has(node.type);
@@ -88,14 +79,20 @@ function getElseBody(node: ASTNode): ASTNode[] {
 }
 
 export class CFGAssembler {
+  private blockCounter = 0;
+
+  private nextBlockId(): string {
+    return `cfg-block-${this.blockCounter++}`;
+  }
+
   assemble(astRoot: ASTNode, filePath: string, functionName: string): AssembledDiagram {
-    resetCounter();
+    this.blockCounter = 0;
 
     const blocks: BasicBlock[] = [];
     const edges: CFGEdgeData[] = [];
 
     const entryBlock: BasicBlock = {
-      id: nextBlockId(),
+      id: this.nextBlockId(),
       label: 'Entry',
       statements: [],
       isEntry: true,
@@ -106,7 +103,7 @@ export class CFGAssembler {
     blocks.push(entryBlock);
 
     const exitBlock: BasicBlock = {
-      id: nextBlockId(),
+      id: this.nextBlockId(),
       label: 'Exit',
       statements: [],
       isEntry: false,
@@ -245,7 +242,7 @@ export class CFGAssembler {
     const condText = condNode ? simplifyText(condNode.text) : 'if';
 
     const condBlock: BasicBlock = {
-      id: nextBlockId(),
+      id: this.nextBlockId(),
       label: condText,
       statements: [{ type: 'condition', text: condText, line: node.startPosition.row + 1 }],
       isEntry: false,
@@ -257,7 +254,7 @@ export class CFGAssembler {
     edges.push({ source: currentId, target: condBlock.id, edgeType: 'fallthrough' });
 
     const mergeBlock: BasicBlock = {
-      id: nextBlockId(),
+      id: this.nextBlockId(),
       label: 'merge',
       statements: [],
       isEntry: false,
@@ -268,7 +265,7 @@ export class CFGAssembler {
     blocks.push(mergeBlock);
 
     const trueBody = getBodyChildren(node);
-    const trueEntryId = nextBlockId();
+    const trueEntryId = this.nextBlockId();
     const trueEntry: BasicBlock = {
       id: trueEntryId,
       label: 'true',
@@ -285,7 +282,7 @@ export class CFGAssembler {
 
     const elseBody = getElseBody(node);
     if (elseBody.length > 0) {
-      const falseEntryId = nextBlockId();
+      const falseEntryId = this.nextBlockId();
       const falseEntry: BasicBlock = {
         id: falseEntryId,
         label: 'false',
@@ -318,7 +315,7 @@ export class CFGAssembler {
     const condText = condNode ? simplifyText(condNode.text) : node.type;
 
     const condBlock: BasicBlock = {
-      id: nextBlockId(),
+      id: this.nextBlockId(),
       label: condText,
       statements: [{ type: 'condition', text: condText, line: node.startPosition.row + 1 }],
       isEntry: false,
@@ -330,7 +327,7 @@ export class CFGAssembler {
     edges.push({ source: currentId, target: condBlock.id, edgeType: 'fallthrough' });
 
     const loopExitBlock: BasicBlock = {
-      id: nextBlockId(),
+      id: this.nextBlockId(),
       label: 'loop-exit',
       statements: [],
       isEntry: false,
@@ -341,7 +338,7 @@ export class CFGAssembler {
     blocks.push(loopExitBlock);
 
     const body = getBodyChildren(node);
-    const bodyEntryId = nextBlockId();
+    const bodyEntryId = this.nextBlockId();
     const bodyEntry: BasicBlock = {
       id: bodyEntryId,
       label: 'loop-body',
@@ -373,7 +370,7 @@ export class CFGAssembler {
     const condText = condNode ? simplifyText(condNode.text) : 'switch';
 
     const condBlock: BasicBlock = {
-      id: nextBlockId(),
+      id: this.nextBlockId(),
       label: condText,
       statements: [{ type: 'condition', text: condText, line: node.startPosition.row + 1 }],
       isEntry: false,
@@ -385,7 +382,7 @@ export class CFGAssembler {
     edges.push({ source: currentId, target: condBlock.id, edgeType: 'fallthrough' });
 
     const mergeBlock: BasicBlock = {
-      id: nextBlockId(),
+      id: this.nextBlockId(),
       label: 'switch-merge',
       statements: [],
       isEntry: false,
@@ -404,7 +401,7 @@ export class CFGAssembler {
       const caseLabel = isDefault ? 'default' :
         (caseNode.children.find((c) => c.type === 'identifier' || c.type === 'number')?.text ?? 'case');
 
-      const caseEntryId = nextBlockId();
+      const caseEntryId = this.nextBlockId();
       const caseEntry: BasicBlock = {
         id: caseEntryId,
         label: caseLabel,
@@ -445,7 +442,7 @@ export class CFGAssembler {
     depth: number,
   ): string {
     const tryBlock: BasicBlock = {
-      id: nextBlockId(),
+      id: this.nextBlockId(),
       label: 'try',
       statements: [],
       isEntry: false,
@@ -460,7 +457,7 @@ export class CFGAssembler {
     const tryStmts = tryBody ? tryBody.children.filter(isStatement) : [];
 
     const mergeBlock: BasicBlock = {
-      id: nextBlockId(),
+      id: this.nextBlockId(),
       label: 'try-merge',
       statements: [],
       isEntry: false,
@@ -477,7 +474,7 @@ export class CFGAssembler {
     );
     for (const catchNode of catchNodes) {
       const catchBlock: BasicBlock = {
-        id: nextBlockId(),
+        id: this.nextBlockId(),
         label: 'catch',
         statements: [],
         isEntry: false,
@@ -499,7 +496,7 @@ export class CFGAssembler {
     );
     if (finallyNode) {
       const finallyBlock: BasicBlock = {
-        id: nextBlockId(),
+        id: this.nextBlockId(),
         label: 'finally',
         statements: [],
         isEntry: false,
@@ -515,7 +512,7 @@ export class CFGAssembler {
       const finallyStmts = finallyBody ? finallyBody.children.filter(isStatement) : [];
 
       const afterFinally: BasicBlock = {
-        id: nextBlockId(),
+        id: this.nextBlockId(),
         label: 'after-finally',
         statements: [],
         isEntry: false,
@@ -540,7 +537,7 @@ export class CFGAssembler {
     depth: number,
   ): string {
     const exitBlock: BasicBlock = {
-      id: nextBlockId(),
+      id: this.nextBlockId(),
       label: 'return',
       statements: [{ type: 'return', text: simplifyText(node.text), line: node.startPosition.row + 1 }],
       isEntry: false,
@@ -562,7 +559,7 @@ export class CFGAssembler {
     depth: number,
   ): string {
     const exitBlock: BasicBlock = {
-      id: nextBlockId(),
+      id: this.nextBlockId(),
       label: 'throw',
       statements: [{ type: 'throw', text: simplifyText(node.text), line: node.startPosition.row + 1 }],
       isEntry: false,
@@ -577,7 +574,7 @@ export class CFGAssembler {
 
   private createProcessBlock(blocks: BasicBlock[], depth: number): BasicBlock {
     const block: BasicBlock = {
-      id: nextBlockId(),
+      id: this.nextBlockId(),
       label: '',
       statements: [],
       isEntry: false,

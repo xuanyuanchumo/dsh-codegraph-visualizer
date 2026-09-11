@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useState, useCallback, useEffect } from 'react';
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import type { ThemeType } from './IRenderer.ts';
+import { getThemeColors } from './styles/ThemeStylesheet.ts';
 
 interface SequenceDiagramRendererProps {
   nodes: GraphNode[];
@@ -115,15 +116,16 @@ function extractFragments(nodes: GraphNode[]): FragmentInfo[] {
     }));
 }
 
-function getParticipantColor(type: string): string {
+function getParticipantColor(type: string, isDark: boolean): string {
+  const tc = getThemeColors(isDark ? 'dark' : 'light');
   switch (type) {
-    case 'class': return '#4a90d9';
-    case 'module': return '#7b68ee';
-    case 'external': return '#e8a838';
-    case 'instance': return '#5cb85c';
-    case 'callback': return '#d9534f';
-    case 'self': return '#9b59b6';
-    default: return '#888888';
+    case 'class': return tc.nodeClass;
+    case 'module': return tc.nodeModule;
+    case 'external': return tc.edgeDependency;
+    case 'instance': return tc.nodeFunction;
+    case 'callback': return tc.edgeCall;
+    case 'self': return tc.nodeType;
+    default: return tc.nodeDefault;
   }
 }
 
@@ -155,26 +157,29 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
 
   const isDark = theme === 'dark';
 
-  const colors = useMemo(() => ({
-    bg: isDark ? '#1e1e2e' : '#ffffff',
-    text: isDark ? '#e0e0e0' : '#333333',
-    textSecondary: isDark ? '#a0a0b0' : '#666666',
-    lifeline: isDark ? '#555570' : '#aaaaaa',
-    lifelineDashed: isDark ? '#444460' : '#bbbbbb',
-    activation: isDark ? '#6677aa' : '#4a90d9',
-    activationBorder: isDark ? '#8899cc' : '#357abd',
-    syncArrow: isDark ? '#e0e0e0' : '#333333',
-    asyncArrow: isDark ? '#88cc88' : '#5cb85c',
-    returnArrow: isDark ? '#cc8888' : '#d9534f',
-    selfCallArrow: isDark ? '#cc88cc' : '#9b59b6',
-    createArrow: isDark ? '#88aacc' : '#4a90d9',
-    fragmentBg: isDark ? 'rgba(100,100,140,0.15)' : 'rgba(200,200,240,0.2)',
-    fragmentBorder: isDark ? '#7777aa' : '#9999cc',
-    fragmentLabelBg: isDark ? '#444466' : '#eeeeff',
-    participantBg: isDark ? '#2a2a3e' : '#f0f0f5',
-    participantBorder: isDark ? '#555570' : '#cccccc',
-    gridLine: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
-  }), [isDark]);
+  const colors = useMemo(() => {
+    const tc = getThemeColors(theme);
+    return {
+      bg: isDark ? '#1e1e2e' : '#ffffff',
+      text: tc.text,
+      textSecondary: isDark ? '#a0a0b0' : '#666666',
+      lifeline: isDark ? '#555570' : '#aaaaaa',
+      lifelineDashed: isDark ? '#444460' : '#bbbbbb',
+      activation: tc.edgeCall,
+      activationBorder: isDark ? '#8899cc' : '#357abd',
+      syncArrow: tc.text,
+      asyncArrow: tc.edgeImport,
+      returnArrow: tc.edgeExtend,
+      selfCallArrow: tc.nodeType,
+      createArrow: tc.edgeCall,
+      fragmentBg: isDark ? 'rgba(100,100,140,0.15)' : 'rgba(200,200,240,0.2)',
+      fragmentBorder: isDark ? '#7777aa' : '#9999cc',
+      fragmentLabelBg: isDark ? '#444466' : '#eeeeff',
+      participantBg: isDark ? '#2a2a3e' : '#f0f0f5',
+      participantBorder: isDark ? '#555570' : '#cccccc',
+      gridLine: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+    };
+  }, [isDark, theme]);
 
   const { participants, messages, fragments, dimensions } = useMemo(() => {
     const rawParticipants = extractParticipants(nodes);
@@ -629,7 +634,7 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
 
           {/* Participant boxes (drawn last to be on top) */}
           {participants.map((p) => {
-            const color = getParticipantColor(p.type);
+            const color = getParticipantColor(p.type, isDark);
             const boxX = p.x - LAYOUT.PARTICIPANT_BOX_WIDTH / 2;
             const boxY = LAYOUT.SVG_PADDING_TOP;
 

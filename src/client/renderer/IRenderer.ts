@@ -6,7 +6,7 @@ export type ThemeType = 'light' | 'dark';
 
 export interface RendererCallbacks {
   onNodeTap?(nodeId: string): void;
-  onEdgeTap?(edgeId: string): void;
+  onEdgeTap?(edgeId: string, renderedPosition: { x: number; y: number }): void;
   onNodeDoubleTap?(nodeId: string): void;
   onNodeHover?(nodeId: string, renderedPosition: { x: number; y: number }): void;
   onNodeHoverOut?(): void;

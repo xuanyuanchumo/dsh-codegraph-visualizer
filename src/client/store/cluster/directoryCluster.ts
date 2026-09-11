@@ -33,7 +33,7 @@ function getDirLabel(dirPath: string): string {
 }
 
 function getFileClusterId(filePath: string): string {
-  return `filecluster__${filePath.replace(/[/:\\]/g, '__')}`;
+  return `filecluster__file__${filePath.replace(/[/:\\]/g, '__')}`;
 }
 
 function computeFileClusterNodesForDir(

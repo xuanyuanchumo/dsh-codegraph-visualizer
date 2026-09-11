@@ -1219,6 +1219,22 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-accent-hover);
 }
 
+.cg-tooltip .tooltip-links {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 10px;
+  font-family: var(--cg-font-mono);
+}
+
+.cg-tooltip .tooltip-links-in {
+  color: var(--cg-edge-import, #10b981);
+}
+
+.cg-tooltip .tooltip-links-out {
+  color: var(--cg-edge-call, #3b82f6);
+}
+
 .cg-tooltip .tooltip-edge-source {
   font-weight: 600;
   margin-bottom: 2px;

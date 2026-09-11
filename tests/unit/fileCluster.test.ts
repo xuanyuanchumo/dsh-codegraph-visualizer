@@ -45,7 +45,7 @@ describe('computeFileClusters', () => {
     const parent = makeNode('file1', 'a.ts', 'module', 'src/a.ts', 0);
     const child1 = makeNode('fn1', 'foo', 'function', 'src/a.ts', 1, {}, 'file1');
     const nodes = [parent, child1];
-    const fileClusterId = 'filecluster__file1';
+    const fileClusterId = 'filecluster__file__file1';
     const result = computeFileClusters(nodes, [], new Set([fileClusterId]));
     const clusterNodes = result.nodes.filter((n) => 'isCluster' in n && n.isCluster);
     expect(clusterNodes).toHaveLength(0);

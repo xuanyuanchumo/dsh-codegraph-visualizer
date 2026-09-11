@@ -5,7 +5,7 @@ import { aggregateEdges } from './types.ts';
 
 function getParentDir(filePath: string): string {
   const parts = filePath.split(/[\\/]/);
-  if (parts.length <= 1) return filePath;
+  if (parts.length <= 1) return '.';
   return parts.slice(0, -1).join('/');
 }
 
@@ -66,7 +66,7 @@ export function computeFileClusters(
   }
 
   for (const [dirPath, nodes] of moduleDirGroups) {
-    const clusterId = `filecluster__${dirPath.replace(/[/:\\]/g, '__')}`;
+    const clusterId = `filecluster__dir__${dirPath.replace(/[/:\\]/g, '__')}`;
     if (expandedFiles.has(clusterId)) {
       for (const n of nodes) {
         visibleNodes.push(n);
@@ -100,7 +100,7 @@ export function computeFileClusters(
   for (const n of nonModuleNodes) {
     const parentFileId = n.parentId ?? n.filePath;
     if (parentFileId) {
-      const clusterId = `filecluster__${parentFileId.replace(/[/:\\]/g, '__')}`;
+      const clusterId = `filecluster__file__${parentFileId.replace(/[/:\\]/g, '__')}`;
       if (expandedFiles.has(clusterId) || expandedFiles.has(parentFileId)) {
         visibleNodes.push(n);
         nodeIdToVisibleId.set(n.id, n.id);

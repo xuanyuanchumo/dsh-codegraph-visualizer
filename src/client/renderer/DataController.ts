@@ -69,6 +69,7 @@ export class DataController {
       const hasUpdatedNodes = this.detectPropertyChanges(nodes);
       if (!hasUpdatedNodes) return;
       this.applyIncrementalUpdates(nodes, edges);
+      this.computeNodeWeights();
       return;
     }
 
@@ -86,6 +87,7 @@ export class DataController {
         }
         for (const e of edges) this.addEdge(e);
       });
+      this.computeNodeWeights();
       return;
     }
 
@@ -119,8 +121,12 @@ export class DataController {
     for (const e of edges) {
       if (!this.currentEdges.has(e.id)) edgesToAdd.push(e);
       else {
+        const existing = this.currentEdges.get(e.id);
         const cyEdge = this.cy.getElementById(e.id);
-        if (cyEdge.length > 0 && e.properties) {
+        if (cyEdge.length > 0 && existing && (existing.source !== e.source || existing.target !== e.target)) {
+          this.cy.remove(cyEdge);
+          edgesToAdd.push(e);
+        } else if (cyEdge.length > 0 && e.properties) {
           for (const [key, value] of Object.entries(e.properties)) {
             cyEdge.data(key, value);
           }
@@ -129,7 +135,10 @@ export class DataController {
       this.currentEdges.set(e.id, e);
     }
 
-    if (nodesToAdd.length === 0 && edgesToAdd.length === 0) return;
+    if (nodesToAdd.length === 0 && edgesToAdd.length === 0) {
+      this.computeNodeWeights();
+      return;
+    }
 
     const BATCH_SIZE = 200;
     if (nodesToAdd.length <= BATCH_SIZE) {
@@ -137,6 +146,7 @@ export class DataController {
         for (const n of nodesToAdd) this.addNode(n);
         for (const e of edgesToAdd) this.addEdge(e);
       });
+      this.computeNodeWeights();
       return;
     }
 
@@ -202,6 +212,10 @@ export class DataController {
   }
 
   private addNode(n: GraphNode): void {
+    const existing = this.cy.getElementById(n.id);
+    if (existing.length > 0) {
+      existing.remove();
+    }
     const isCluster = 'isCluster' in n && n.isCluster === true;
     const data: NodeDataDefinition = {
       id: n.id, label: n.label, type: n.type,
@@ -219,6 +233,10 @@ export class DataController {
   }
 
   private addEdge(e: GraphEdge): void {
+    const existing = this.cy.getElementById(e.id);
+    if (existing.length > 0) {
+      existing.remove();
+    }
     const isCluster = 'isCluster' in e && e.isCluster === true;
     const ce = isCluster ? (e as ClusterEdge) : null;
     const data: Record<string, unknown> = {
@@ -261,6 +279,7 @@ export class DataController {
       } else {
         this.batchQueue = null;
       }
+      this.computeNodeWeights();
       this.batchRaf = null;
     });
   }
@@ -269,7 +288,8 @@ export class DataController {
     const hidden = new Set<string>();
     if (type !== 'all') {
       this.cy.nodes().forEach((node) => {
-        if (node.data('type') !== type) hidden.add(node.id());
+        const isCluster = node.data('isCluster') === true;
+        if (!isCluster && node.data('type') !== type) hidden.add(node.id());
       });
     }
     this.cy.batch(() => {
@@ -296,7 +316,7 @@ export class DataController {
       allowedEdgeTypes.add('call');
     } else if (graphType === 'dependency') {
       allowedEdgeTypes.add('import'); allowedEdgeTypes.add('dependency');
-      allowedEdgeTypes.add('contains');
+
     }
 
     const connectedNodeIds = new Set<string>();
@@ -446,6 +466,31 @@ export class DataController {
 
     parts.push('</svg>');
     return parts.join('');
+  }
+
+  private computeNodeWeights(): void {
+    this.cy.batch(() => {
+      this.cy.nodes().forEach((node) => {
+        const isCluster = node.data('isCluster') === true;
+        if (isCluster) {
+          const clusterPath = (node.data('clusterPath') as string) ?? node.id();
+          let hash = 0;
+          for (let i = 0; i < clusterPath.length; i++) {
+            hash = ((hash << 5) - hash + clusterPath.charCodeAt(i)) | 0;
+          }
+          node.data('clusterHue', Math.abs(hash) % 12);
+          return;
+        }
+        const inDegree = node.indegree(false);
+        const outDegree = node.outdegree(false);
+        const totalConnections = inDegree + outDegree;
+        if (totalConnections > 0) {
+          node.data('weight', Math.min(totalConnections, 10));
+        } else {
+          node.removeData('weight');
+        }
+      });
+    });
   }
 
   destroy(): void {

@@ -2,7 +2,7 @@ import type { Core } from 'cytoscape';
 
 export interface InteractionCallbacks {
   onNodeTap?(nodeId: string): void;
-  onEdgeTap?(edgeId: string): void;
+  onEdgeTap?(edgeId: string, renderedPosition: { x: number; y: number }): void;
   onNodeDoubleTap?(nodeId: string): void;
   onNodeHover?(nodeId: string, renderedPosition: { x: number; y: number }): void;
   onNodeHoverOut?(): void;
@@ -25,7 +25,9 @@ export class InteractionController {
       this.callbacks.onNodeTap?.(evt.target.id());
     });
     this.cy.on('tap', 'edge', (evt) => {
-      this.callbacks.onEdgeTap?.(evt.target.id());
+      const edge = evt.target;
+      const pos = edge.renderedMidpoint();
+      this.callbacks.onEdgeTap?.(edge.id(), { x: pos.x, y: pos.y });
     });
     this.cy.on('dbltap', 'node', (evt) => {
       this.callbacks.onNodeDoubleTap?.(evt.target.id());

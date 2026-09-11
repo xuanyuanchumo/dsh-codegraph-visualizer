@@ -6,6 +6,8 @@ export interface TooltipData {
   name: string;
   path: string;
   type: string;
+  linksIn?: number;
+  linksOut?: number;
 }
 
 export interface EdgeTooltipData {
@@ -53,6 +55,12 @@ export function GraphTooltip({ data }: GraphTooltipProps) {
       <div className="tooltip-name">{data.name}</div>
       <div className="tooltip-path">{data.path}</div>
       <span className="tooltip-type">{data.type}</span>
+      {(data.linksIn !== undefined || data.linksOut !== undefined) && (
+        <div className="tooltip-links">
+          {data.linksIn !== undefined && <span className="tooltip-links-in">in: {data.linksIn}</span>}
+          {data.linksOut !== undefined && <span className="tooltip-links-out">out: {data.linksOut}</span>}
+        </div>
+      )}
     </div>
   );
 }

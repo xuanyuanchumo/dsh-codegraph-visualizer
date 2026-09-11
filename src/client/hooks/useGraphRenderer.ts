@@ -15,6 +15,7 @@ export interface GraphRendererCallbacks {
   onNodeDoubleTap(nodeId: string): void;
   onNodeHover(nodeId: string, pos: { x: number; y: number }): void;
   onNodeHoverOut(): void;
+  onEdgeTap(edgeId: string, pos: { x: number; y: number }): void;
   onEdgeHover(edgeId: string, pos: { x: number; y: number }): void;
   onEdgeHoverOut(): void;
 }
@@ -80,6 +81,7 @@ export function useGraphRenderer(
           onNodeDoubleTap: (nodeId: string) => callbacksRef.current.onNodeDoubleTap(nodeId),
           onNodeHover: (nodeId: string, pos: { x: number; y: number }) => callbacksRef.current.onNodeHover(nodeId, pos),
           onNodeHoverOut: () => callbacksRef.current.onNodeHoverOut(),
+          onEdgeTap: (edgeId: string, pos: { x: number; y: number }) => callbacksRef.current.onEdgeTap(edgeId, pos),
           onEdgeHover: (edgeId: string, pos: { x: number; y: number }) => callbacksRef.current.onEdgeHover(edgeId, pos),
           onEdgeHoverOut: () => callbacksRef.current.onEdgeHoverOut(),
         });
@@ -158,7 +160,7 @@ export function useGraphRenderer(
       prevNodeIdsRef.current = new Set(nodes.map((n) => n.id));
     }, isIncremental ? 50 : 150);
     return () => clearTimeout(timer);
-  }, [layout, clusterLevel, nodes.length, edges.length]);
+  }, [layout, clusterLevel, nodes, edges]);
 
   useEffect(() => {
     const r = rendererRef.current;

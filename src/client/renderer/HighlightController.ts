@@ -52,6 +52,25 @@ export class HighlightController {
         const node = this.cy.getElementById(id);
         if (node.nonempty()) node.addClass('selected');
       }
+      this.cy.elements().removeClass('neighbor-highlight neighbor-dim');
+      if (id) {
+        const selectedNode = this.cy.getElementById(id);
+        if (selectedNode.nonempty()) {
+          const neighborIds = new Set<string>([id]);
+          selectedNode.neighborhood().forEach((el) => {
+            if (el.isNode()) neighborIds.add(el.id());
+          });
+          this.cy.nodes().forEach((n) => {
+            if (!neighborIds.has(n.id())) n.addClass('neighbor-dim');
+          });
+          this.cy.edges().forEach((e) => {
+            const srcIn = neighborIds.has(e.source().id());
+            const tgtIn = neighborIds.has(e.target().id());
+            if (!srcIn || !tgtIn) e.addClass('neighbor-dim');
+            else e.addClass('neighbor-highlight');
+          });
+        }
+      }
     });
     this.selectedNodeId = id;
   }
