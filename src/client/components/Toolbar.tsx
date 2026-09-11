@@ -9,7 +9,7 @@ import {
   SunIcon, MoonIcon, DownloadIcon, ChevronDownIcon, ChevronUpIcon,
   UploadIcon, LayersIcon, ZapIcon, TreeIcon,
   PathIcon, HeartIcon, RuleIcon, FlameIcon, AlertCircleIcon,
-  UndoIcon, RedoIcon,
+  UndoIcon, RedoIcon, StarIcon,
 } from './Icons.tsx';
 
 const LAYOUTS: LayoutType[] = ['cose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
@@ -65,6 +65,7 @@ export interface ToolbarVisibilityState {
   showRules: boolean;
   showHotspot: boolean;
   showGodModule: boolean;
+  showCoreFunction: boolean;
 }
 
 export interface ToolbarToggleHandlers {
@@ -81,6 +82,7 @@ export interface ToolbarToggleHandlers {
   onToggleRules: () => void;
   onToggleHotspot: () => void;
   onToggleGodModule: () => void;
+  onToggleCoreFunction: () => void;
 }
 
 export interface PanelControls extends ToolbarVisibilityState, ToolbarToggleHandlers {}
@@ -150,9 +152,9 @@ export function Toolbar(props: ToolbarProps) {
 
   const {
     showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport,
-    showPathFind, showHealthScore, showRules, showHotspot, showGodModule,
+    showPathFind, showHealthScore, showRules, showHotspot, showGodModule, showCoreFunction,
     onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend,
-    onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule,
+    onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onToggleCoreFunction,
   } = panelControls;
 
   return (
@@ -280,6 +282,8 @@ export function Toolbar(props: ToolbarProps) {
             title={t('toolbar.hotspot')} aria-label={t('toolbar.hotspot')} aria-pressed={showHotspot}><FlameIcon size={15} /></button>
           <button className={`godmodule-btn ${showGodModule ? 'active' : ''}`} onClick={onToggleGodModule}
             title={t('toolbar.godModule')} aria-label={t('toolbar.godModule')} aria-pressed={showGodModule}><AlertCircleIcon size={15} /></button>
+          <button className={`corefunction-btn ${showCoreFunction ? 'active' : ''}`} onClick={onToggleCoreFunction}
+            title={t('toolbar.coreFunction')} aria-label={t('toolbar.coreFunction')} aria-pressed={showCoreFunction}><StarIcon size={15} /></button>
         </div>
 
         <span className="toolbar-separator" aria-hidden="true" />

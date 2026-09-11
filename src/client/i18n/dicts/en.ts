@@ -267,6 +267,7 @@ export const en: Record<string, string> = {
   'toolbar.rules': 'Rule Engine',
   'toolbar.hotspot': 'Hotspot Analysis',
   'toolbar.godModule': 'God Module Detection',
+  'toolbar.coreFunction': 'Core Function Analysis',
 
   // Impact radius
   'impact.total': 'Total impacted nodes',

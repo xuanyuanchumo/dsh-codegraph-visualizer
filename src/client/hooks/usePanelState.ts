@@ -15,6 +15,7 @@ export interface PanelState {
   showRules: boolean;
   showHotspot: boolean;
   showGodModule: boolean;
+  showCoreFunction: boolean;
   toggleSearch: () => void;
   toggleCollapsed: () => void;
   toggleCycles: () => void;
@@ -29,6 +30,7 @@ export interface PanelState {
   toggleRules: () => void;
   toggleHotspot: () => void;
   toggleGodModule: () => void;
+  toggleCoreFunction: () => void;
   setShowSearch: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowImport: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowCallChain: (v: boolean | ((prev: boolean) => boolean)) => void;
@@ -42,13 +44,14 @@ export interface PanelState {
   setShowRules: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowHotspot: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowGodModule: (v: boolean | ((prev: boolean) => boolean)) => void;
+  setShowCoreFunction: (v: boolean | ((prev: boolean) => boolean)) => void;
 }
 
 type PanelVisibilityKey =
   | 'showSearch' | 'showCycles' | 'showCallChain' | 'showImpact'
   | 'showInheritance' | 'showMiniMap' | 'showImport' | 'showLegend'
   | 'showPathFind' | 'showHealthScore' | 'showRules' | 'showHotspot'
-  | 'showGodModule';
+  | 'showGodModule' | 'showCoreFunction';
 
 interface PanelStateInternal {
   showSearch: boolean;
@@ -65,6 +68,7 @@ interface PanelStateInternal {
   showRules: boolean;
   showHotspot: boolean;
   showGodModule: boolean;
+  showCoreFunction: boolean;
 }
 
 type Action =
@@ -86,6 +90,7 @@ const initialState: PanelStateInternal = {
   showRules: false,
   showHotspot: false,
   showGodModule: false,
+  showCoreFunction: false,
 };
 
 function reducer(state: PanelStateInternal, action: Action): PanelStateInternal {
@@ -123,6 +128,7 @@ export function usePanelState(): PanelState {
   const toggleRules = useCallback(makeToggle('showRules'), [makeToggle]);
   const toggleHotspot = useCallback(makeToggle('showHotspot'), [makeToggle]);
   const toggleGodModule = useCallback(makeToggle('showGodModule'), [makeToggle]);
+  const toggleCoreFunction = useCallback(makeToggle('showCoreFunction'), [makeToggle]);
 
   const setShowSearch = useCallback(makeSet('showSearch'), [makeSet]);
   const setShowImport = useCallback(makeSet('showImport'), [makeSet]);
@@ -137,12 +143,13 @@ export function usePanelState(): PanelState {
   const setShowRules = useCallback(makeSet('showRules'), [makeSet]);
   const setShowHotspot = useCallback(makeSet('showHotspot'), [makeSet]);
   const setShowGodModule = useCallback(makeSet('showGodModule'), [makeSet]);
+  const setShowCoreFunction = useCallback(makeSet('showCoreFunction'), [makeSet]);
 
   return {
     ...state,
     toggleSearch, toggleCollapsed, toggleCycles, toggleCallChain, toggleImpact, toggleInheritance, toggleMiniMap, toggleImport, toggleLegend,
-    togglePathFind, toggleHealthScore, toggleRules, toggleHotspot, toggleGodModule,
+    togglePathFind, toggleHealthScore, toggleRules, toggleHotspot, toggleGodModule, toggleCoreFunction,
     setShowSearch, setShowImport, setShowCallChain, setShowCycles, setShowImpact, setShowInheritance, setShowMiniMap, setShowLegend,
-    setShowPathFind, setShowHealthScore, setShowRules, setShowHotspot, setShowGodModule,
+    setShowPathFind, setShowHealthScore, setShowRules, setShowHotspot, setShowGodModule, setShowCoreFunction,
   };
 }

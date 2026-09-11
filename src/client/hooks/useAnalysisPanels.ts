@@ -4,6 +4,8 @@ import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { HealthScorer } from '../../shared/analysis/HealthScorer.ts';
 import { RuleEngine, getPresetRules } from '../../shared/analysis/RuleEngine.ts';
 import { HotspotAnalyzer, GodModuleDetector } from '../../shared/analysis/HotspotAnalyzer.ts';
+import { CoreFunctionAnalyzer } from '../../shared/analysis/CoreFunctionAnalyzer.ts';
+import type { CoreFunction } from '../../shared/analysis/CoreFunctionAnalyzer.ts';
 
 export interface HotspotNode { nodeId: string; label: string; indegree: number; level: string; }
 export interface GodModule { modulePath: string; nodeCount: number; edgeCount: number; suggestion: string; }
@@ -19,11 +21,13 @@ export function useAnalysisPanels(
   showImpact: boolean,
   selectedNodeId: string | null,
   getImpactStats: () => ImpactStats | null,
+  showCoreFunction: boolean = false,
 ) {
   const healthScorer = useMemo(() => new HealthScorer(), []);
   const ruleEngine = useMemo(() => new RuleEngine(), []);
   const hotspotAnalyzer = useMemo(() => new HotspotAnalyzer(), []);
   const godModuleDetector = useMemo(() => new GodModuleDetector(), []);
+  const coreFunctionAnalyzer = useMemo(() => new CoreFunctionAnalyzer(), []);
 
   const setHealthScore = useGraphStore((s) => s.setHealthScore);
   const setRules = useGraphStore((s) => s.setRules);
@@ -34,6 +38,7 @@ export function useAnalysisPanels(
   const [hotspotNodes, setHotspotNodes] = useState<HotspotNode[]>([]);
   const [godModules, setGodModules] = useState<GodModule[]>([]);
   const [impactStats, setImpactStats] = useState<ImpactStats | null>(null);
+  const [coreFunctions, setCoreFunctions] = useState<CoreFunction[]>([]);
 
   const handleHealthCheck = useCallback(() => {
     const score = healthScorer.calculate(rawNodes, rawEdges);
@@ -78,5 +83,11 @@ export function useAnalysisPanels(
     }
   }, [showImpact, selectedNodeId, getImpactStats]);
 
-  return { handleHealthCheck, handleRulesCheck, hotspotNodes, godModules, impactStats };
+  useEffect(() => {
+    if (showCoreFunction && rawNodes.length > 0) {
+      setCoreFunctions(coreFunctionAnalyzer.analyze(rawNodes, rawEdges));
+    }
+  }, [showCoreFunction, rawNodes, rawEdges, coreFunctionAnalyzer]);
+
+  return { handleHealthCheck, handleRulesCheck, hotspotNodes, godModules, impactStats, coreFunctions };
 }

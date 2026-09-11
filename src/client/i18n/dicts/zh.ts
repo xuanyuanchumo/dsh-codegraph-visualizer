@@ -266,6 +266,7 @@ export const zh: Record<string, string> = {
   'toolbar.rules': '规则引擎',
   'toolbar.hotspot': '热点分析',
   'toolbar.godModule': 'God Module 检测',
+  'toolbar.coreFunction': '核心函数识别',
 
   // 影响半径
   'impact.total': '总影响节点',

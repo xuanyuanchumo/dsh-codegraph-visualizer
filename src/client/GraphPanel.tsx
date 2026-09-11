@@ -26,6 +26,7 @@ import { FocusModeBar } from './components/FocusModeBar.tsx';
 import { HotspotPanel } from './components/HotspotPanel.tsx';
 import { GodModulePanel } from './components/GodModulePanel.tsx';
 import { ImpactPanel } from './components/ImpactPanel.tsx';
+import { CoreFunctionPanel } from './components/CoreFunctionPanel.tsx';
 import { MicroViewPrompt, MicroFunctionBar } from './components/MicroViewBar.tsx';
 import { GraphIcon } from './components/Icons.tsx';
 
@@ -307,7 +308,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       panel.setShowSearch(false); panel.setShowCallChain(false); panel.setShowCycles(false);
       panel.setShowImpact(false); panel.setShowInheritance(false); panel.setShowImport(false); panel.setShowLegend(false);
       panel.setShowPathFind(false); panel.setShowHealthScore(false); panel.setShowRules(false);
-      panel.setShowHotspot(false); panel.setShowGodModule(false);
+      panel.setShowHotspot(false); panel.setShowGodModule(false); panel.setShowCoreFunction(false);
       setTooltip(null); setShowHelp(false); setFocusNodeId(null);
     },
     onToggleCallChain: panel.toggleCallChain,
@@ -443,10 +444,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     return renderer.rendererRef.current?.getImpactStats(selectedNodeId) ?? null;
   }, [renderer.rendererRef, selectedNodeId]);
 
-  const { handleRulesCheck, hotspotNodes, godModules, impactStats } = useAnalysisPanels(
+  const { handleRulesCheck, hotspotNodes, godModules, impactStats, coreFunctions } = useAnalysisPanels(
     rawNodes, rawEdges,
     panel.showHealthScore, panel.showRules, panel.showHotspot, panel.showGodModule,
-    panel.showImpact, selectedNodeId, getImpactStats,
+    panel.showImpact, selectedNodeId, getImpactStats, panel.showCoreFunction,
   );
 
   const hasAutoScannedRef = useRef(false);
@@ -494,15 +495,16 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           showInheritance: panel.showInheritance, showMiniMap: panel.showMiniMap,
           showLegend: panel.showLegend, showImport: panel.showImport,
           showPathFind: panel.showPathFind, showHealthScore: panel.showHealthScore,
-          showRules: panel.showRules, showHotspot: panel.showHotspot,
+          showRules: panel.showRules,           showHotspot: panel.showHotspot,
           showGodModule: panel.showGodModule,
+          showCoreFunction: panel.showCoreFunction,
           onToggleSearch: panel.toggleSearch, onToggleCallChain: panel.toggleCallChain,
           onToggleCycles: panel.toggleCycles, onToggleImpact: panel.toggleImpact,
           onToggleInheritance: panel.toggleInheritance, onToggleMiniMap: panel.toggleMiniMap,
           onToggleLegend: panel.toggleLegend, onToggleImport: panel.toggleImport,
           onTogglePathFind: panel.togglePathFind, onToggleHealthScore: panel.toggleHealthScore,
           onToggleRules: panel.toggleRules, onToggleHotspot: panel.toggleHotspot,
-          onToggleGodModule: panel.toggleGodModule,
+          onToggleGodModule: panel.toggleGodModule, onToggleCoreFunction: panel.toggleCoreFunction,
         }}
         onViewModeChange={handleViewModeChange} onLayoutChange={setLayout}
         onThemeToggle={handleThemeToggle} onFilterChange={setFilterType}
@@ -601,6 +603,15 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       {panel.showGodModule && !isCollapsed && godModules.length > 0 && (
         <GodModulePanel godModules={godModules} onClose={() => panel.setShowGodModule(false)}
           label={t('toolbar.godModule')} statsLabel={(n, e) => t('godmodule.stats', { nodes: n, edges: e })} />
+      )}
+
+      {panel.showCoreFunction && !isCollapsed && coreFunctions.length > 0 && (
+        <CoreFunctionPanel coreFunctions={coreFunctions} onClose={() => panel.setShowCoreFunction(false)}
+          label={t('toolbar.coreFunction')} onSelectFunction={(nodeId) => {
+            setSelectedNode(NodeId(nodeId));
+            renderer.rendererRef.current?.focusOnNode(nodeId);
+            renderer.rendererRef.current?.selectNode(NodeId(nodeId));
+          }} />
       )}
 
       {panel.showImpact && !isCollapsed && impactStats && (
