@@ -217,7 +217,8 @@ export async function assembleMicroDiagram(
       default:
         return null;
     }
-  } catch {
+  } catch (e) {
+    console.warn('[codegraph:diagram] assembleASTDiagram failed', e);
     return null;
   }
 }

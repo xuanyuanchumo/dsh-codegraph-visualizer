@@ -515,7 +515,8 @@ export const useGraphStore = create<GraphState>()(
             });
             if (!response.ok) return null;
             return await response.json();
-          } catch {
+          } catch (e) {
+            console.warn('[codegraph:store] AST fetch failed', e);
             return null;
           }
         };

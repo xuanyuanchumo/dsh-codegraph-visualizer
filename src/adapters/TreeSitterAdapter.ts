@@ -106,7 +106,8 @@ export class TreeSitterAdapter {
         const langModule = await this.loadLanguageWasm(language);
         this.parser.setLanguage(langModule);
         this.loadedLanguages.add(language);
-      } catch {
+      } catch (e) {
+        log.warn(`Failed to load language: ${language}`, e);
         return { nodes: [], edges: [], source: 'tree-sitter', timestamp: Date.now(), error: `Failed to load ${language}` };
       }
     }
@@ -231,7 +232,8 @@ export class TreeSitterAdapter {
         const langModule = await this.loadLanguageWasm(language);
         this.parser.setLanguage(langModule);
         this.loadedLanguages.add(language);
-      } catch {
+      } catch (e) {
+        log.warn(`getAST: failed to load language: ${language}`, e);
         return null;
       }
     }
@@ -240,7 +242,8 @@ export class TreeSitterAdapter {
       const astRoot = this.convertToAstNode(tree.rootNode);
       tree.delete();
       return astRoot;
-    } catch {
+    } catch (e) {
+      log.warn(`getAST: parse failed: ${filePath}`, e);
       return null;
     }
   }
