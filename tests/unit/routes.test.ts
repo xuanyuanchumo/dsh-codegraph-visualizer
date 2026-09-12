@@ -42,6 +42,9 @@ const { findWorkspacePath, checkPrerequisites } = await import('../../src/host/p
 const { TreeSitterAdapter } = await import('../../src/adapters/TreeSitterAdapter.ts');
 
 
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
 import type { GraphData } from '../../src/types/index.ts';
 import { makeNode, makeEdge, makeGraphData } from '../helpers.ts';
 import type { VisualizerConfig } from '../../src/host/config.ts';
@@ -618,6 +621,633 @@ describe('slimGraphData (additional)', () => {
     const result = slimGraphData(data, 10);
     expect(result.nodes[0]!.properties.exported).toBe(true);
     expect(result.nodes[0]!.properties.other).toBe('kept');
+  });
+
+  it('truncates nodes when exceeding maxNodes and filters edges', () => {
+    const nodes = [
+      makeNode('n1', 'A', 'function', 'a.ts', 1),
+      makeNode('n2', 'B', 'function', 'b.ts', 2),
+      makeNode('n3', 'C', 'function', 'c.ts', 3),
+    ];
+    const edges = [
+      makeEdge('e1', 'n1', 'n2', 'call'),
+      makeEdge('e2', 'n2', 'n3', 'call'),
+      makeEdge('e3', 'n1', 'n3', 'call'),
+    ];
+    const data = makeGraphData(nodes, edges);
+    const result = slimGraphData(data, 2);
+    expect(result.nodes).toHaveLength(2);
+    expect(result.metadata.truncated).toBe(true);
+    expect(result.metadata.nodeCount).toBe(2);
+    expect(result.metadata.totalNodeCount).toBe(3);
+    expect(result.metadata.totalEdgeCount).toBe(3);
+    // Only edges between retained nodes survive
+    const retainedIds = new Set(result.nodes.map((n) => n.id));
+    for (const edge of result.edges) {
+      expect(retainedIds.has(edge.source)).toBe(true);
+      expect(retainedIds.has(edge.target)).toBe(true);
+    }
+  });
+
+  it('does not truncate when nodes fit within maxNodes', () => {
+    const data = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const result = slimGraphData(data, 10);
+    expect(result.metadata.truncated).toBe(false);
+  });
+});
+
+describe('POST /ast', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(isPathAllowed).mockReturnValue(true);
+    // Use platform-appropriate workspace path so path.resolve/normalize checks pass
+    vi.mocked(findWorkspacePath).mockReturnValue(path.resolve('D:\\test\\workspace'));
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(TreeSitterAdapter).mockImplementation(() => ({
+      parseFile: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
+      parseToAst: vi.fn().mockResolvedValue({ type: 'program', children: [] }),
+    }) as never);
+    vi.mocked(fs.readFile).mockResolvedValue('const x = 1;');
+  });
+
+  it('returns AST on success', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 8);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
+    expect(state.code).toBe(200);
+    const parsed = JSON.parse(state.body);
+    expect(parsed).toHaveProperty('type', 'program');
+  });
+
+  it('handles CORS preflight', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 8);
+    const { res, state } = makeRes();
+    await handler(makeReq('OPTIONS'), res);
+    expect(state.code).toBe(204);
+  });
+
+  it('returns 400 when filePath missing', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 8);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({})), res);
+    expect(state.code).toBe(400);
+    expect(JSON.parse(state.body).error).toContain('filePath is required');
+  });
+
+  it('returns 400 when no workspace path configured', async () => {
+    vi.mocked(findWorkspacePath).mockReturnValue('');
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 8);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
+    expect(state.code).toBe(400);
+    expect(JSON.parse(state.body).error).toContain('No workspace path');
+  });
+
+  it('returns 403 when path outside workspace', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 8);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ filePath: '../../../etc/passwd' })), res);
+    expect(state.code).toBe(403);
+    expect(JSON.parse(state.body).error).toContain('path outside workspace');
+  });
+
+  it('returns 403 when isPathAllowed returns false', async () => {
+    vi.mocked(isPathAllowed).mockReturnValue(false);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 8);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
+    expect(state.code).toBe(403);
+    expect(JSON.parse(state.body).error).toContain('Access denied');
+  });
+
+  it('returns 413 when file content too large', async () => {
+    const largeContent = 'x'.repeat(512 * 1024 + 1);
+    vi.mocked(fs.readFile).mockResolvedValue(largeContent);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 8);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
+    expect(state.code).toBe(413);
+    expect(JSON.parse(state.body).error).toContain('too large');
+  });
+
+  it('returns 500 when AST parsing returns null', async () => {
+    vi.mocked(TreeSitterAdapter).mockImplementation(() => ({
+      parseFile: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
+      parseToAst: vi.fn().mockResolvedValue(null),
+    }) as never);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 8);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
+    expect(state.code).toBe(500);
+    expect(JSON.parse(state.body).error).toContain('AST parsing failed');
+  });
+
+  it('returns 500 on file read error', async () => {
+    vi.mocked(fs.readFile).mockRejectedValue(new Error('read error'));
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 8);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
+    expect(state.code).toBe(500);
+    expect(JSON.parse(state.body).error).toBe('Internal server error');
+  });
+});
+
+describe('POST /tree-sitter (additional)', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(isPathAllowed).mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(TreeSitterAdapter).mockImplementation(() => ({
+      parseFile: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
+      parseToAst: vi.fn().mockResolvedValue({ type: 'program' }),
+    }) as never);
+  });
+
+  it('returns 400 when filePath contains ..', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 9);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ filePath: '../test.ts', content: 'const x = 1;' })), res);
+    expect(state.code).toBe(400);
+    expect(JSON.parse(state.body).error).toContain('Invalid filePath');
+  });
+
+  it('returns 400 when filePath exceeds 512 characters', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 9);
+    const { res, state } = makeRes();
+    const longPath = 'a'.repeat(513);
+    await handler(makeReq('POST', JSON.stringify({ filePath: longPath, content: 'const x = 1;' })), res);
+    expect(state.code).toBe(400);
+    expect(JSON.parse(state.body).error).toContain('Invalid filePath');
+  });
+
+  it('returns 400 when content missing', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 9);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
+    expect(state.code).toBe(400);
+    expect(JSON.parse(state.body).error).toContain('required');
+  });
+
+  it('handles CORS preflight', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 9);
+    const { res, state } = makeRes();
+    await handler(makeReq('OPTIONS'), res);
+    expect(state.code).toBe(204);
+  });
+});
+
+describe('POST /scan (additional)', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockClear();
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(isPathAllowed).mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+  });
+
+  it('returns in-flight data when a scan is already running', async () => {
+    const inFlightData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const inFlightPromise = Promise.resolve(inFlightData);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 3);
+    // Pre-set an in-flight promise for the workspace path
+    deps.setScanInFlight('/test/workspace', inFlightPromise);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ path: '.' })), res);
+    expect(state.code).toBe(200);
+    const parsed = JSON.parse(state.body);
+    expect(parsed.success).toBe(true);
+    expect(parsed.nodes).toHaveLength(1);
+    // fetchMergedGraph should NOT have been called since in-flight was used
+    expect(fetchMergedGraph).not.toHaveBeenCalled();
+  });
+
+  it('uses specific path when provided (not ".")', async () => {
+    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    vi.mocked(fetchMergedGraph).mockResolvedValue(graphData);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 3);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ path: '/custom/path' })), res);
+    expect(state.code).toBe(200);
+    expect(fetchMergedGraph).toHaveBeenCalledWith(expect.any(Function), '/custom/path', 'both');
+  });
+});
+
+describe('POST /init (additional)', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(isPathAllowed).mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+  });
+
+  it('returns failure result when invokeUpstream returns null', async () => {
+    const mockInvoke = vi.fn().mockResolvedValue(null);
+    vi.mocked(createInvoke).mockReturnValue(mockInvoke);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 4);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ path: '.' })), res);
+    expect(state.code).toBe(200);
+    const parsed = JSON.parse(state.body);
+    expect(parsed.success).toBe(false);
+    expect(parsed.message).toContain('Initialization failed');
+  });
+
+  it('handles CORS preflight', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 4);
+    const { res, state } = makeRes();
+    await handler(makeReq('OPTIONS'), res);
+    expect(state.code).toBe(204);
+  });
+});
+
+describe('POST /watch (additional)', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(isPathAllowed).mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+  });
+
+  it('toggles watch mode off when enabled is false', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 5);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ enabled: false, path: '.' })), res);
+    expect(state.code).toBe(200);
+    const parsed = JSON.parse(state.body);
+    expect(parsed.success).toBe(true);
+    expect(parsed.enabled).toBe(false);
+    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/watch/toggle', expect.objectContaining({ enabled: false }));
+  });
+
+  it('handles CORS preflight', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 5);
+    const { res, state } = makeRes();
+    await handler(makeReq('OPTIONS'), res);
+    expect(state.code).toBe(204);
+  });
+});
+
+describe('POST /diff (additional)', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(isPathAllowed).mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+  });
+
+  it('returns 500 on fetch error', async () => {
+    vi.mocked(fetchMergedGraph).mockRejectedValue(new Error('diff fetch failed'));
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 7);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ from: 'main', to: 'feature' })), res);
+    expect(state.code).toBe(500);
+    expect(JSON.parse(state.body).error).toBe('Internal server error');
+  });
+
+  it('handles CORS preflight', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 7);
+    const { res, state } = makeRes();
+    await handler(makeReq('OPTIONS'), res);
+    expect(state.code).toBe(204);
+  });
+
+  it('returns 400 when both from and to missing', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 7);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({})), res);
+    expect(state.code).toBe(400);
+    expect(JSON.parse(state.body).error).toContain('required');
+  });
+
+  it('rejects git ref containing ..', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 7);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ from: 'main..branch', to: 'feature' })), res);
+    expect(state.code).toBe(400);
+    expect(JSON.parse(state.body).error).toContain('Invalid git ref');
+  });
+});
+
+describe('GET /data (additional)', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(isPathAllowed).mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+  });
+
+  it('returns empty graph when if-none-match present but no cached data', () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 2);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { 'if-none-match': '12345' }), res);
+    expect(state.code).toBe(200);
+    const parsed = JSON.parse(state.body);
+    expect(parsed.nodes).toHaveLength(0);
+  });
+
+  it('returns full data when if-none-match is older than timestamp', () => {
+    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    deps.setLastGraphData(graphData);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 2);
+    const { res, state } = makeRes();
+    // if-none-match is 0, graphData timestamp is 1, so client data is stale
+    handler(makeReq('GET', undefined, { 'if-none-match': '0' }), res);
+    expect(state.code).toBe(200);
+    expect(JSON.parse(state.body).nodes).toHaveLength(1);
+  });
+
+  it('handles CORS preflight', () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 2);
+    const { res, state } = makeRes();
+    handler(makeReq('OPTIONS'), res);
+    expect(state.code).toBe(204);
+  });
+});
+
+describe('GET /workspace (additional)', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(isPathAllowed).mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+  });
+
+  it('handles CORS preflight', () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 1);
+    const { res, state } = makeRes();
+    handler(makeReq('OPTIONS'), res);
+    expect(state.code).toBe(204);
+  });
+});
+
+describe('GET /dependencies (additional)', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(isPathAllowed).mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+  });
+
+  it('handles CORS preflight', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 6);
+    const { res, state } = makeRes();
+    await handler(makeReq('OPTIONS'), res);
+    expect(state.code).toBe(204);
+  });
+
+  it('parses go.mod when present', async () => {
+    vi.mocked(fs.readFile).mockImplementation((filePath: unknown) => {
+      if (String(filePath).endsWith('go.mod')) return Promise.resolve('module test');
+      return Promise.reject(new Error('not found'));
+    });
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 6);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET'), res);
+    expect(state.code).toBe(200);
+    const parsed = JSON.parse(state.body);
+    expect(parsed).toHaveProperty('nodes');
+    expect(parsed).toHaveProperty('edges');
+  });
+
+  it('parses package.json and Cargo.toml when present', async () => {
+    vi.mocked(fs.readFile).mockImplementation((filePath: unknown) => {
+      const p = String(filePath);
+      if (p.endsWith('package.json')) return Promise.resolve('{}');
+      if (p.endsWith('Cargo.toml')) return Promise.resolve('[package]');
+      return Promise.reject(new Error('not found'));
+    });
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 6);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET'), res);
+    expect(state.code).toBe(200);
+    const parsed = JSON.parse(state.body);
+    expect(parsed).toHaveProperty('nodes');
+    expect(parsed).toHaveProperty('edges');
+  });
+
+  it('returns 500 when findWorkspacePath throws', async () => {
+    vi.mocked(findWorkspacePath).mockImplementation(() => {
+      throw new Error('workspace error');
+    });
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 6);
+    const { res, state } = makeRes();
+    await handler(makeReq('GET'), res);
+    expect(state.code).toBe(500);
+    expect(JSON.parse(state.body).error).toBe('Internal server error');
+  });
+});
+
+describe('registerRoutes - rate limiting', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(isPathAllowed).mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+  });
+
+  it('returns 429 when rate limit exceeded for /status', () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 0);
+    // /status is not a heavy endpoint, limit is 60 req/min
+    // Use a unique IP to avoid interfering with other tests
+    const uniqueIp = `10.0.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
+    const headers = { 'x-forwarded-for': uniqueIp };
+    // Send 60 requests (all should succeed)
+    for (let i = 0; i < 60; i++) {
+      const { res, state } = makeRes();
+      handler(makeReq('GET', undefined, headers), res);
+      expect(state.code).toBe(200);
+    }
+    // 61st request should be rate limited
+    const { res: resLast, state: stateLast } = makeRes();
+    handler(makeReq('GET', undefined, headers), resLast);
+    expect(stateLast.code).toBe(429);
+    expect(JSON.parse(stateLast.body).error).toBe('Rate limit exceeded');
+  });
+});
+
+describe('registerRoutes - CORS (additional)', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig({ allowedOrigins: ['http://localhost:3080'] });
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(isPathAllowed).mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+  });
+
+  it('does not set CORS header for non-matching origin', () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 0);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { origin: 'http://evil.com' }), res);
+    expect(state.code).toBe(200);
+    expect(state.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('does not set CORS header on preflight for non-matching origin', () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 0);
+    const { res, state } = makeRes();
+    handler(makeReq('OPTIONS', undefined, { origin: 'http://evil.com' }), res);
+    expect(state.code).toBe(204);
+    expect(state.headers['access-control-allow-origin']).toBeUndefined();
+  });
+});
+
+describe('registerService (additional)', () => {
+  it('service.getImpactAnalysis returns null when upstream returns null', async () => {
+    const ctx = makeMockCtx();
+    const config = makeConfig();
+    const deps = makeDeps(ctx, config);
+    const mockInvoke = vi.fn().mockResolvedValue(null);
+    vi.mocked(createInvoke).mockReturnValue(mockInvoke);
+    registerService(deps);
+    const service = ctx.provide.mock.calls[0]![1];
+    const result = await service.getImpactAnalysis('fn1');
+    expect(result).toBeNull();
+  });
+
+  it('service.getSymbolDetail returns null when upstream returns non-object', async () => {
+    const ctx = makeMockCtx();
+    const config = makeConfig();
+    const deps = makeDeps(ctx, config);
+    const mockInvoke = vi.fn().mockResolvedValue('not-an-object');
+    vi.mocked(createInvoke).mockReturnValue(mockInvoke);
+    registerService(deps);
+    const service = ctx.provide.mock.calls[0]![1];
+    const result = await service.getSymbolDetail('fn1');
+    expect(result).toBeNull();
+  });
+
+  it('service.onGraphUpdate callback receives graph data event', () => {
+    const ctx = makeMockCtx();
+    const config = makeConfig();
+    const deps = makeDeps(ctx, config);
+    registerService(deps);
+    const service = ctx.provide.mock.calls[0]![1];
+    const callback = vi.fn();
+    service.onGraphUpdate(callback);
+    // Simulate event emission
+    const eventHandler = ctx.on.mock.calls[0]![1] as (event: Record<string, unknown>) => void;
+    eventHandler({
+      repoId: 'test-repo',
+      nodes: [makeNode('n1', 'A', 'function', 'a.ts', 1)],
+      edges: [],
+      timestamp: 12345,
+    });
+    expect(callback).toHaveBeenCalledWith(expect.objectContaining({
+      nodes: expect.any(Array),
+      edges: expect.any(Array),
+      metadata: expect.objectContaining({ timestamp: 12345 }),
+    }));
   });
 });
 

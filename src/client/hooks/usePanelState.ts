@@ -1,4 +1,5 @@
 import { useReducer, useCallback } from 'react';
+import type { PanelControls } from '../components/Toolbar.tsx';
 
 export interface PanelState {
   showSearch: boolean;
@@ -45,6 +46,7 @@ export interface PanelState {
   setShowHotspot: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowGodModule: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowCoreFunction: (v: boolean | ((prev: boolean) => boolean)) => void;
+  toPanelControls: () => PanelControls;
 }
 
 type PanelVisibilityKey =
@@ -151,5 +153,17 @@ export function usePanelState(): PanelState {
     togglePathFind, toggleHealthScore, toggleRules, toggleHotspot, toggleGodModule, toggleCoreFunction,
     setShowSearch, setShowImport, setShowCallChain, setShowCycles, setShowImpact, setShowInheritance, setShowMiniMap, setShowLegend,
     setShowPathFind, setShowHealthScore, setShowRules, setShowHotspot, setShowGodModule, setShowCoreFunction,
+    toPanelControls: () => ({
+      showSearch: state.showSearch, showCallChain: state.showCallChain, showCycles: state.showCycles,
+      showImpact: state.showImpact, showInheritance: state.showInheritance, showMiniMap: state.showMiniMap,
+      showLegend: state.showLegend, showImport: state.showImport, showPathFind: state.showPathFind,
+      showHealthScore: state.showHealthScore, showRules: state.showRules, showHotspot: state.showHotspot,
+      showGodModule: state.showGodModule, showCoreFunction: state.showCoreFunction,
+      onToggleSearch: toggleSearch, onToggleCallChain: toggleCallChain, onToggleCycles: toggleCycles,
+      onToggleImpact: toggleImpact, onToggleInheritance: toggleInheritance, onToggleMiniMap: toggleMiniMap,
+      onToggleLegend: toggleLegend, onToggleImport: toggleImport, onTogglePathFind: togglePathFind,
+      onToggleHealthScore: toggleHealthScore, onToggleRules: toggleRules, onToggleHotspot: toggleHotspot,
+      onToggleGodModule: toggleGodModule, onToggleCoreFunction: toggleCoreFunction,
+    }),
   };
 }

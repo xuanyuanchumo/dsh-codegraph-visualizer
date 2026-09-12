@@ -124,23 +124,27 @@ export function parseGoMod(content: string): DependencyGraph {
     seenIds.add(rootId);
 
     let inRequireBlock = false;
-    for (const line of lines) {
+    for (const rawLine of lines) {
+      const trimmed = rawLine.trim();
+      if (trimmed.startsWith('//') || trimmed.startsWith('/*')) continue;
+      const line = trimmed.replace(/\s*\/\/.*$/, '');
       if (line.match(/^require\s*\(/)) { inRequireBlock = true; continue; }
       if (line.match(/^\)/)) { inRequireBlock = false; continue; }
-      const singleRequireMatch = line.match(/^require\s+(\S+)\s+(\S+)/);
-      if (singleRequireMatch) {
-        const depName = singleRequireMatch[1]!;
-        const depVersion = singleRequireMatch[2]!;
-        const depId = `dep:${depName}`;
-        if (!seenIds.has(depId)) {
-          seenIds.add(depId);
-          nodes.push({ id: depId, name: depName, version: depVersion, type: 'gomod' });
+      if (!inRequireBlock) {
+        const singleRequireMatch = line.match(/^require\s+(\S+)\s+(\S+)/);
+        if (singleRequireMatch) {
+          const depName = singleRequireMatch[1]!;
+          const depVersion = singleRequireMatch[2]!;
+          const depId = `dep:${depName}`;
+          if (!seenIds.has(depId)) {
+            seenIds.add(depId);
+            nodes.push({ id: depId, name: depName, version: depVersion, type: 'gomod' });
+          }
+          edges.push({ source: rootId, target: depId, type: 'depends', scope: 'prod' });
+          continue;
         }
-        edges.push({ source: rootId, target: depId, type: 'depends', scope: 'prod' });
         continue;
       }
-      if (!inRequireBlock) continue;
-      if (line.trim().startsWith('//')) continue;
       const depMatch = line.match(/^\s*(\S+)\s+(\S+)/);
       if (depMatch) {
         const depName = depMatch[1]!;

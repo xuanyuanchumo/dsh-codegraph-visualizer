@@ -17,8 +17,31 @@ const log = scoped('client');
 export const name = 'dsh-codegraph-visualizer-client';
 export const inject = ['slots'];
 
-function CodeGraphTab({ visible }: { visible: boolean }) {
-  return visible ? React.createElement(GraphPanel) : null;
+function SidebarNavButton({ onClick, active }: { onClick: () => void; active: boolean }) {
+  return React.createElement('button', {
+    onClick,
+    className: `cg-sidebar-nav-btn${active ? ' cg-sidebar-nav-btn-active' : ''}`,
+    title: 'Code Graph',
+    'aria-label': 'Code Graph',
+  }, React.createElement(GraphIcon, { size: 18 }));
+}
+
+function FloatingGraphPanel({ onClose }: { onClose: () => void }) {
+  return React.createElement('div', { className: 'cg-floating-overlay' },
+    React.createElement('div', { className: 'cg-floating-panel' },
+      React.createElement('div', { className: 'cg-floating-header' },
+        React.createElement('span', { className: 'cg-floating-title' }, 'Code Graph'),
+        React.createElement('button', {
+          onClick: onClose,
+          className: 'cg-floating-close',
+          'aria-label': 'Close graph panel',
+        }, '\u00d7'),
+      ),
+      React.createElement('div', { className: 'cg-floating-content' },
+        React.createElement(GraphPanel),
+      ),
+    ),
+  );
 }
 
 export function init(container: HTMLElement, initialData?: GraphData): void {
@@ -31,7 +54,9 @@ export function init(container: HTMLElement, initialData?: GraphData): void {
 }
 
 export function apply(ctx: Context) {
-  let entryRegistered = false;
+  let panelVisible = false;
+  let navButtonRegistered = false;
+  let renderFloating: () => void = () => {};
   const slotDisposers: Array<() => void> = [];
   const trackSlotDisposer = (d: (() => void) | void): void => {
     if (typeof d === 'function') slotDisposers.push(d);
@@ -40,6 +65,15 @@ export function apply(ctx: Context) {
     for (const dispose of slotDisposers) dispose();
     slotDisposers.length = 0;
   }, 'codegraph: slot registrations cleanup');
+
+  const togglePanel = (): void => {
+    panelVisible = !panelVisible;
+    const container = document.querySelector('.cg-floating-container');
+    if (container) {
+      container.setAttribute('data-visible', String(panelVisible));
+    }
+    renderFloating();
+  };
 
   try {
     const betterSidebar = ctx.get('betterSidebar') as Context['betterSidebar'] | undefined;
@@ -50,54 +84,55 @@ export function apply(ctx: Context) {
         icon: (size: number) => React.createElement(GraphIcon, { size }),
         order: 50,
         single: true,
-        component: CodeGraphTab,
+        component: ({ visible }: { visible: boolean }) => {
+          panelVisible = visible;
+          return visible ? React.createElement(GraphPanel) : null;
+        },
       });
       ctx.effect(() => dispose, 'codegraph: better-sidebar tab');
-      entryRegistered = true;
+      navButtonRegistered = true;
     }
   } catch (e) {
     log.warn('better-sidebar registration failed', e);
   }
 
-  if (!entryRegistered) {
+  if (!navButtonRegistered) {
     try {
       ctx.slots.inject('sidebar.footer.action', () => {
         trackSlotDisposer(
           ctx.slots.register(
             { name: 'sidebar.footer.action', id: 'codegraph-visualizer', order: 10, label: () => 'Code Graph' },
-            GraphPanel,
+            () => React.createElement(SidebarNavButton, { onClick: togglePanel, active: panelVisible }),
           ),
         );
       });
-      entryRegistered = true;
+      navButtonRegistered = true;
     } catch (e) {
       log.warn('sidebar.footer.action slot failed', e);
     }
   }
 
-  try {
-    ctx.slots.inject('settings.section', () => {
-      trackSlotDisposer(
-        ctx.slots.register(
-          { name: 'settings.section', id: 'codegraph-visualizer', order: 50, label: () => 'Code Graph' },
-          GraphPanel,
-        ),
-      );
-    });
-  } catch (e) {
-    log.warn('settings.section slot failed', e);
-  }
+  if (typeof document !== 'undefined') {
+    const floatingContainer = document.createElement('div');
+    floatingContainer.className = 'cg-floating-container';
+    floatingContainer.setAttribute('data-visible', 'false');
+    document.body.appendChild(floatingContainer);
+    const floatingRoot = ReactDOM.createRoot(floatingContainer);
 
-  if (!entryRegistered && typeof document !== 'undefined') {
-    const container = document.createElement('div');
-    container.className = 'codegraph-visualizer-root';
-    document.body.appendChild(container);
-    const root = ReactDOM.createRoot(container);
-    root.render(React.createElement(GraphPanel));
+    renderFloating = () => {
+      floatingRoot.render(
+        panelVisible
+          ? React.createElement(FloatingGraphPanel, { onClose: () => { panelVisible = false; floatingContainer.setAttribute('data-visible', 'false'); renderFloating(); } })
+          : null,
+      );
+    };
+
+    renderFloating();
+
     ctx.effect(() => () => {
-      root.unmount();
-      container.remove();
-    }, 'codegraph: direct DOM mount');
+      floatingRoot.unmount();
+      floatingContainer.remove();
+    }, 'codegraph: floating panel cleanup');
   }
 
   try {
@@ -112,7 +147,7 @@ export function apply(ctx: Context) {
       const d2 = spotlight.registerCommand({
         id: 'codegraph-toggle',
         title: 'Code Graph: Toggle Panel',
-        handler: () => { const panel = document.querySelector('.graph-panel'); panel?.dispatchEvent(new MouseEvent('click')); },
+        handler: () => togglePanel(),
       });
       if (typeof d2 === 'function') ctx.effect(() => d2, 'codegraph: spotlight toggle cmd');
     }
@@ -155,7 +190,7 @@ export function apply(ctx: Context) {
       const s = useGraphStore.getState();
       s.setCurrentWorkspace(workspacePath);
       if (wsList.length > 0) {
-        const workspaceInfos = wsList.map((p) => ({ path: p, name: p.split(/[\\/]/).pop() ?? p, lastUsed: Date.now() }));
+        const workspaceInfos = wsList.map((p) => ({ path: p, name: p.split(/[\\/]/).pop() ?? p,GlastUsed: Date.now() }));
         for (const wi of workspaceInfos) {
           if (!s.workspaceList.some((w) => w.path === wi.path)) { s.addWorkspace(wi.path, wi.name); }
         }
@@ -300,7 +335,6 @@ export function apply(ctx: Context) {
     window.addEventListener('codegraph:workspace', workspaceListener);
     window.addEventListener('codegraph:install-plugin', installPluginListener);
 
-    // FR-27: Forward DSH editor symbol selection events to graph panel
     const symbolSelectListener = (e: Event) => {
       const detail = (e as CustomEvent).detail as { symbol?: string; filePath?: string; lineNumber?: number };
       if (detail?.symbol) {
@@ -321,3 +355,5 @@ export function apply(ctx: Context) {
     }, 'codegraph: window event listeners');
   }
 }
+
+

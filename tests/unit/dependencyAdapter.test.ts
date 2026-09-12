@@ -105,6 +105,61 @@ require github.com/foo/bar v1.0.0
       const result = parseGoMod(content);
       expect(result.nodes.some((n) => n.name === 'github.com/foo/bar')).toBe(true);
     });
+
+    it('should skip comment lines in require block', () => {
+      const content = `
+module github.com/example/myapp
+
+require (
+  // github.com/commented/dep v1.0.0
+  github.com/real/dep v1.0.0
+  // another comment
+)
+`;
+      const result = parseGoMod(content);
+      expect(result.nodes.some((n) => n.name === 'github.com/real/dep')).toBe(true);
+      expect(result.nodes.some((n) => n.name === 'github.com/commented/dep')).toBe(false);
+    });
+
+    it('should skip block comment lines in require block', () => {
+      const content = `
+module github.com/example/myapp
+
+require (
+  /* github.com/block/dep v1.0.0 */
+  github.com/real/dep v1.0.0
+)
+`;
+      const result = parseGoMod(content);
+      expect(result.nodes.some((n) => n.name === 'github.com/real/dep')).toBe(true);
+      expect(result.nodes.some((n) => n.name === 'github.com/block/dep')).toBe(false);
+    });
+
+    it('should strip inline comments from dependency lines', () => {
+      const content = `
+module github.com/example/myapp
+
+require (
+  github.com/foo/bar v1.0.0 // indirect
+)
+`;
+      const result = parseGoMod(content);
+      expect(result.nodes.some((n) => n.name === 'github.com/foo/bar')).toBe(true);
+      const dep = result.nodes.find((n) => n.name === 'github.com/foo/bar');
+      expect(dep?.version).toBe('v1.0.0');
+    });
+
+    it('should skip commented-out single-line require', () => {
+      const content = `
+module github.com/example/myapp
+
+// require github.com/commented/dep v1.0.0
+require github.com/real/dep v1.0.0
+`;
+      const result = parseGoMod(content);
+      expect(result.nodes.some((n) => n.name === 'github.com/real/dep')).toBe(true);
+      expect(result.nodes.some((n) => n.name === 'github.com/commented/dep')).toBe(false);
+    });
   });
 
   describe('dependencyGraphToGraphData', () => {

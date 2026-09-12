@@ -3795,3 +3795,122 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-text);
   background: var(--cg-surface-hover);
 }
+/* ============================================================================
+ * Sidebar Navigation Button & Floating Graph Panel
+ * ============================================================================ */
+
+.cg-sidebar-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--cg-radius-sm);
+  background: transparent;
+  color: var(--cg-text-secondary);
+  cursor: pointer;
+  transition: color var(--cg-transition), background var(--cg-transition);
+}
+
+.cg-sidebar-nav-btn:hover {
+  color: var(--cg-text);
+  background: var(--cg-surface-hover);
+}
+
+.cg-sidebar-nav-btn-active {
+  color: var(--cg-accent);
+  background: var(--cg-accent-soft);
+}
+
+.cg-floating-container {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.cg-floating-container[data-visible="true"] {
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.cg-floating-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  transition: opacity var(--cg-transition);
+}
+
+.cg-floating-container[data-visible="true"] .cg-floating-overlay {
+  opacity: 1;
+}
+
+.cg-floating-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.95);
+  width: min(90vw, 1200px);
+  height: min(85vh, 800px);
+  background: var(--cg-bg);
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-lg);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity var(--cg-transition), transform var(--cg-transition);
+}
+
+.cg-floating-container[data-visible="true"] .cg-floating-panel {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.cg-floating-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--cg-surface);
+  border-bottom: 1px solid var(--cg-border);
+  flex-shrink: 0;
+}
+
+.cg-floating-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cg-text);
+}
+
+.cg-floating-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--cg-radius-xs);
+  background: transparent;
+  color: var(--cg-text-secondary);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  transition: color var(--cg-transition), background var(--cg-transition);
+}
+
+.cg-floating-close:hover {
+  color: var(--cg-text);
+  background: var(--cg-surface-hover);
+}
+
+.cg-floating-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}

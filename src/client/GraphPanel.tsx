@@ -489,23 +489,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         clusterDepth={clusterDepth} viewMode={viewMode} currentLayer={currentLayer}
         layerNames={diagramData?.layers.map((l) => l.name) ?? []}
         onLayerChange={setLayer} collapsed={panel.collapsed}
-        panelControls={{
-          showSearch: panel.showSearch, showCallChain: panel.showCallChain,
-          showCycles: panel.showCycles, showImpact: panel.showImpact,
-          showInheritance: panel.showInheritance, showMiniMap: panel.showMiniMap,
-          showLegend: panel.showLegend, showImport: panel.showImport,
-          showPathFind: panel.showPathFind, showHealthScore: panel.showHealthScore,
-          showRules: panel.showRules,           showHotspot: panel.showHotspot,
-          showGodModule: panel.showGodModule,
-          showCoreFunction: panel.showCoreFunction,
-          onToggleSearch: panel.toggleSearch, onToggleCallChain: panel.toggleCallChain,
-          onToggleCycles: panel.toggleCycles, onToggleImpact: panel.toggleImpact,
-          onToggleInheritance: panel.toggleInheritance, onToggleMiniMap: panel.toggleMiniMap,
-          onToggleLegend: panel.toggleLegend, onToggleImport: panel.toggleImport,
-          onTogglePathFind: panel.togglePathFind, onToggleHealthScore: panel.toggleHealthScore,
-          onToggleRules: panel.toggleRules, onToggleHotspot: panel.toggleHotspot,
-          onToggleGodModule: panel.toggleGodModule, onToggleCoreFunction: panel.toggleCoreFunction,
-        }}
+        panelControls={panel.toPanelControls()}
         onViewModeChange={handleViewModeChange} onLayoutChange={setLayout}
         onThemeToggle={handleThemeToggle} onFilterChange={setFilterType}
         onGraphTypeChange={setGraphType} onClusterDepthChange={setClusterDepth}
