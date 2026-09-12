@@ -6,7 +6,7 @@ export type ClusterLevel = 'directory' | 'file' | 'function' | 'smart';
 export interface ClusterNode extends GraphNode {
   isCluster: true;
   childCount: number;
-  childIds: string[];
+  childIds: NodeId[];
   clusterPath: string;
   clusterLevel?: ClusterLevel;
 }

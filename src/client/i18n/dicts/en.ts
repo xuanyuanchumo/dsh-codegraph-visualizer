@@ -170,6 +170,10 @@ export const en: Record<string, string> = {
   'workspace.active': 'Active',
   'workspace.lastUsed': 'Last used',
   'workspace.default': 'Default',
+  'workspace.timeJustNow': 'just now',
+  'workspace.timeMinutesAgo': '{n}m ago',
+  'workspace.timeHoursAgo': '{n}h ago',
+  'workspace.timeDaysAgo': '{n}d ago',
 
   // Prerequisite plugin install commands
   'prereq.installCodegraph': 'dsh plugin --profile web add dsh-codegraph',

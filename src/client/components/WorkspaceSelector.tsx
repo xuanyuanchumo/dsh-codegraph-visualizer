@@ -13,13 +13,13 @@ export interface WorkspaceSelectorProps {
   onRemoveWorkspace: (path: string) => void;
 }
 
-function formatRelativeTime(ts: number): string {
+function formatRelativeTime(ts: number, t: (key: string, params?: Record<string, string | number>) => string): string {
   if (ts === 0) return '—';
   const diff = Date.now() - ts;
-  if (diff < 60_000) return '< 1m';
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
-  return `${Math.floor(diff / 86_400_000)}d ago`;
+  if (diff < 60_000) return t('workspace.timeJustNow');
+  if (diff < 3_600_000) return t('workspace.timeMinutesAgo', { n: Math.floor(diff / 60_000) });
+  if (diff < 86_400_000) return t('workspace.timeHoursAgo', { n: Math.floor(diff / 3_600_000) });
+  return t('workspace.timeDaysAgo', { n: Math.floor(diff / 86_400_000) });
 }
 
 
@@ -49,7 +49,17 @@ export function WorkspaceSelector({
   useLayoutEffect(() => {
     if (!open || !triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
-    setDropdownPos({ top: rect.bottom + 4, left: rect.left });
+    const dropdownWidth = 280;
+    const dropdownMaxHeight = 400;
+    let top = rect.bottom + 4;
+    let left = rect.left;
+    if (left + dropdownWidth > window.innerWidth) {
+      left = Math.max(8, window.innerWidth - dropdownWidth - 8);
+    }
+    if (top + dropdownMaxHeight > window.innerHeight) {
+      top = Math.max(8, rect.top - dropdownMaxHeight - 4);
+    }
+    setDropdownPos({ top, left });
   }, [open]);
 
   useEffect(() => {
@@ -170,7 +180,7 @@ export function WorkspaceSelector({
                 <FolderIcon size={14} />
                 <span className="workspace-item-name">{ws.name}</span>
                 <span className="workspace-item-path">{ws.path}</span>
-                <span className="workspace-item-time">{formatRelativeTime(ws.lastUsed)}</span>
+                <span className="workspace-item-time">{formatRelativeTime(ws.lastUsed, t)}</span>
                 {ws.path === currentWorkspace && (
                   <span className="workspace-item-badge">{t('workspace.active')}</span>
                 )}

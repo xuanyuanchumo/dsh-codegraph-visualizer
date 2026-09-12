@@ -169,6 +169,10 @@ export const zh: Record<string, string> = {
   'workspace.active': '活跃',
   'workspace.lastUsed': '上次使用',
   'workspace.default': '默认',
+  'workspace.timeJustNow': '刚刚',
+  'workspace.timeMinutesAgo': '{n}分钟前',
+  'workspace.timeHoursAgo': '{n}小时前',
+  'workspace.timeDaysAgo': '{n}天前',
 
   // 前置插件安装命令
   'prereq.installCodegraph': 'dsh plugin --profile web add dsh-codegraph',

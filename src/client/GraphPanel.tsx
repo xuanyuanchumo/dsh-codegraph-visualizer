@@ -371,27 +371,29 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     viewMode, currentWorkspace, depsFetchAbortRef,
   );
 
-  handleNodeDoubleTapRef.current = (nodeId: string) => {
-    const data = getDataRef.current?.getNodeData(nodeId);
-    if (!data) return;
-    const isClusterNode = 'isCluster' in data && data.isCluster === true;
-    if (isClusterNode) {
-      const isExpanded = expandedNodeIds.has(nodeId);
-      if (isExpanded) collapseNode(nodeId);
-      else expandNode(nodeId);
-    } else if (data.type === 'function') {
-      handleSelectFunction(nodeId, data.filePath, data.label, 'cfg');
-    } else {
-      setFocusNodeId((prev) => {
-        if (prev === nodeId) {
+  useEffect(() => {
+    handleNodeDoubleTapRef.current = (nodeId: string) => {
+      const data = getDataRef.current?.getNodeData(nodeId);
+      if (!data) return;
+      const isClusterNode = 'isCluster' in data && data.isCluster === true;
+      if (isClusterNode) {
+        const isExpanded = expandedNodeIds.has(nodeId);
+        if (isExpanded) collapseNode(nodeId);
+        else expandNode(nodeId);
+      } else if (data.type === 'function') {
+        handleSelectFunction(nodeId, data.filePath, data.label, 'cfg');
+      } else {
+        setFocusNodeId((prev) => {
+          if (prev === nodeId) {
+            setSelectedNode(null);
+            return null;
+          }
           setSelectedNode(null);
-          return null;
-        }
-        setSelectedNode(null);
-        return nodeId;
-      });
-    }
-  };
+          return nodeId;
+        });
+      }
+    };
+  }, [expandedNodeIds, collapseNode, expandNode, handleSelectFunction, setSelectedNode]);
 
   const handleRefresh = useCallback(() => {
     setLoading(true);

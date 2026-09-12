@@ -18,7 +18,7 @@ export interface GraphNode {
   label: string;
   type: 'function' | 'class' | 'variable' | 'module' | 'interface' | 'type';
   filePath: string;
-  lineNumber: number;
+  lineNumber?: number;
   properties: Record<string, unknown>;
   parentId?: NodeId;
 }

@@ -61,7 +61,7 @@ export function detectCommunities(
       let bestLabel = labels.get(n.id)!;
       let bestCount = 0;
       for (const [lbl, cnt] of labelCounts) {
-        if (cnt > bestCount) {
+        if (cnt > bestCount || (cnt === bestCount && lbl === labels.get(n.id))) {
           bestLabel = lbl;
           bestCount = cnt;
         }

@@ -104,7 +104,9 @@ export class ClassAssembler implements DiagramAssembler {
     }
 
     for (const [filePath, classes] of classesByFile) {
-      const sortedClasses = [...classes].sort((a, b) => a.lineNumber - b.lineNumber);
+      const sortedClasses = [...classes].sort(
+        (a, b) => (a.lineNumber ?? 0) - (b.lineNumber ?? 0),
+      );
 
       const fileMembers = allNodes.filter(
         (n) =>
@@ -117,7 +119,7 @@ export class ClassAssembler implements DiagramAssembler {
         let assignedClass: GraphNode | null = null;
         for (let i = sortedClasses.length - 1; i >= 0; i--) {
           const cls = sortedClasses[i];
-          if (cls && cls.lineNumber <= member.lineNumber) {
+          if (cls && (cls.lineNumber ?? 0) <= (member.lineNumber ?? 0)) {
             assignedClass = cls;
             break;
           }
