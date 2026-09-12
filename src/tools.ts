@@ -338,6 +338,7 @@ export const createGraphTools = (ctx: Context, options: { requestTimeout?: numbe
       if (!nodeIds.has(NodeId(a.sourceSymbol)) || !nodeIds.has(NodeId(a.targetSymbol))) {
         return null;
       }
+      if (data.nodes.length > 10000) return null;
       const adjacency = new Map<string, string[]>();
       for (const edge of data.edges) {
         const list = adjacency.get(edge.source);

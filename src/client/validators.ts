@@ -33,8 +33,12 @@ export function validateGraphData(raw: unknown): GraphData | null {
   const rawNodes = Array.isArray(o.nodes) ? o.nodes : [];
   const rawEdges = Array.isArray(o.edges) ? o.edges : [];
   const nodes = rawNodes.map(coerceNode).filter((n): n is GraphNode => n !== null);
-  const edges = rawEdges.map(coerceEdge).filter((e): e is GraphEdge => e !== null);
   if (nodes.length === 0) return null;
+  const nodeIds = new Set(nodes.map((n) => n.id));
+  const edges = rawEdges
+    .map(coerceEdge)
+    .filter((e): e is GraphEdge => e !== null)
+    .filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
   const metadata = o.metadata as Record<string, unknown> | undefined;
   const repoId = (metadata?.repoId as string | undefined) ?? `workspace-${Date.now()}`;
   const timestamp = typeof metadata?.timestamp === 'number' ? metadata.timestamp : Date.now();

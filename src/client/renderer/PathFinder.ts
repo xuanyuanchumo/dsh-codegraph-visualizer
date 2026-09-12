@@ -20,6 +20,9 @@ export class PathFinder {
     const targetNode = this.cy.getElementById(targetId);
     if (sourceNode.empty() || targetNode.empty()) return null;
 
+    const nodeCount = this.cy.nodes().length;
+    if (nodeCount > 10000) return null;
+
     const dijkstra = this.cy.elements().dijkstra({ root: sourceNode });
     const pathToTarget = dijkstra.pathTo(targetNode);
 

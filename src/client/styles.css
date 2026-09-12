@@ -79,6 +79,7 @@
   --cg-radius: 12px;
   --cg-radius-sm: 8px;
   --cg-radius-xs: 4px;
+  --cg-radius-lg: 16px;
 
   /* Motion */
   --cg-ease: cubic-bezier(0.4, 0, 0.2, 1);

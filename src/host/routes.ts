@@ -19,6 +19,7 @@ const log = scoped('host');
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_DEFAULT = 60;
 const RATE_LIMIT_HEAVY = 10;
+const RATE_LIMIT_MAP_MAX = 10_000;
 const HEAVY_ENDPOINTS = new Set(['/api/v1/codegraph/scan', '/api/v1/codegraph/init', '/api/v1/codegraph/diff', '/api/v1/codegraph/ast', '/api/v1/codegraph/tree-sitter']);
 
 interface RateBucket { count: number; resetTime: number; }
@@ -34,6 +35,10 @@ function checkRateLimit(ip: string, routePath: string): boolean {
       if (now > b.resetTime) rateLimitMap.delete(k);
     }
     lastCleanup = now;
+  }
+  if (rateLimitMap.size >= RATE_LIMIT_MAP_MAX) {
+    const oldestKey = rateLimitMap.keys().next().value;
+    if (oldestKey !== undefined) rateLimitMap.delete(oldestKey);
   }
   const bucket = rateLimitMap.get(key);
   if (!bucket || now > bucket.resetTime) {
@@ -202,6 +207,7 @@ export function registerRoutes(deps: RouteDeps): void {
       'content-type': 'application/json',
       'access-control-allow-methods': 'GET, POST, OPTIONS',
       'access-control-allow-headers': 'content-type, if-none-match',
+      'access-control-max-age': '86400',
     };
     if (origins.length > 0) {
       const reqOrigin = req?.headers?.['origin'];
@@ -230,6 +236,7 @@ export function registerRoutes(deps: RouteDeps): void {
     const headers: Record<string, string> = {
       'access-control-allow-methods': 'GET, POST, OPTIONS',
       'access-control-allow-headers': 'content-type, if-none-match',
+      'access-control-max-age': '86400',
     };
     if (origins.length > 0) {
       const reqOrigin = req.headers?.['origin'];
@@ -242,12 +249,19 @@ export function registerRoutes(deps: RouteDeps): void {
     return true;
   };
 
+  const requireMethod = (req: IncomingMessage, res: ServerResponse, method: string): boolean => {
+    if (req.method === method) return true;
+    sendError(res, 405, `Method ${req.method} not allowed; expected ${method}`, req);
+    return false;
+  };
+
   // GET /api/v1/codegraph/status
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: '/api/v1/codegraph/status',
     handler: (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
+      if (!requireMethod(req, res, 'GET')) return;
 
       if (!checkRate(req, res, '/api/v1/codegraph/status')) return;
       const status = checkPrerequisites(ctx);
@@ -261,6 +275,7 @@ export function registerRoutes(deps: RouteDeps): void {
     path: '/api/v1/codegraph/workspace',
     handler: (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
+      if (!requireMethod(req, res, 'GET')) return;
       if (!checkRate(req, res, '/api/v1/codegraph/workspace')) return;
       const current = findWorkspacePath(ctx);
       const list = extractWorkspacePaths(ctx);
@@ -274,6 +289,7 @@ export function registerRoutes(deps: RouteDeps): void {
     path: '/api/v1/codegraph/data',
     handler: (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
+      if (!requireMethod(req, res, 'GET')) return;
       if (!checkRate(req, res, '/api/v1/codegraph/data')) return;
       const ifNoneMatch = req.headers['if-none-match'];
       const lastGraphData = deps.getLastGraphData();
@@ -303,6 +319,7 @@ export function registerRoutes(deps: RouteDeps): void {
     path: '/api/v1/codegraph/scan',
     handler: async (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
+      if (!requireMethod(req, res, 'POST')) return;
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
@@ -372,6 +389,7 @@ export function registerRoutes(deps: RouteDeps): void {
     path: '/api/v1/codegraph/init',
     handler: async (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
+      if (!requireMethod(req, res, 'POST')) return;
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
@@ -425,6 +443,7 @@ export function registerRoutes(deps: RouteDeps): void {
     path: '/api/v1/codegraph/watch',
     handler: async (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
+      if (!requireMethod(req, res, 'POST')) return;
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
@@ -450,6 +469,8 @@ export function registerRoutes(deps: RouteDeps): void {
     path: '/api/v1/codegraph/dependencies',
     handler: async (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
+      if (!requireMethod(req, res, 'GET')) return;
+      if (!checkRate(req, res, '/api/v1/codegraph/dependencies')) return;
       try {
         const workspacePath = findWorkspacePath(ctx);
         if (!workspacePath) {
@@ -514,6 +535,7 @@ export function registerRoutes(deps: RouteDeps): void {
     path: '/api/v1/codegraph/diff',
     handler: async (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
+      if (!requireMethod(req, res, 'POST')) return;
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
@@ -569,6 +591,7 @@ export function registerRoutes(deps: RouteDeps): void {
       path: '/api/v1/codegraph/ast',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
         if (handleCorsPreflight(req, res)) return;
+        if (!requireMethod(req, res, 'POST')) return;
         try {
           const body = await readBody(req, config.maxBodyBytes);
           const parsed = parseJsonBody(body);
@@ -620,6 +643,7 @@ export function registerRoutes(deps: RouteDeps): void {
       path: '/api/v1/codegraph/tree-sitter',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
         if (handleCorsPreflight(req, res)) return;
+        if (!requireMethod(req, res, 'POST')) return;
         try {
           const body = await readBody(req, config.maxBodyBytes);
           const parsed = parseJsonBody(body);

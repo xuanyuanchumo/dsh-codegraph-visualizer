@@ -233,6 +233,7 @@ export class DataController {
   }
 
   private addEdge(e: GraphEdge): void {
+    if (this.cy.getElementById(e.source).empty() || this.cy.getElementById(e.target).empty()) return;
     const existing = this.cy.getElementById(e.id);
     if (existing.length > 0) {
       existing.remove();
