@@ -305,4 +305,5 @@ export const en: Record<string, string> = {
   'micro.clearSelection': 'Clear selection',
   'stats.nodesEdges': '{nodes} nodes · {edges} edges',
   'godmodule.stats': '{nodes} nodes · {edges} edges',
+  'search.moreResults': '+{n} more results',
 };

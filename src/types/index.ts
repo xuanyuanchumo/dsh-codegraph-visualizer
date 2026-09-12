@@ -274,6 +274,7 @@ export interface IncomingMessage {
   url?: string;
   method?: string;
   headers: Record<string, string | string[] | undefined>;
+  socket?: { remoteAddress?: string };
   on(event: 'data', handler: (chunk: Buffer) => void): void;
   on(event: 'end', handler: () => void): void;
   on(event: 'error', handler: (err: Error) => void): void;

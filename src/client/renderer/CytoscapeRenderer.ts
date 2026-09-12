@@ -47,7 +47,7 @@ export class CytoscapeRenderer implements IRenderer {
     try {
       this.cy = cytoscape({
         container: this.options.container,
-        minZoom: 0.1,
+        minZoom: 0.02,
         maxZoom: 3,
         style: [],
         layout: { name: 'cose' },
@@ -98,6 +98,13 @@ export class CytoscapeRenderer implements IRenderer {
 
   updateData(nodes: GraphNode[], edges: GraphEdge[]): void {
     this.dataCtrl?.updateData(nodes, edges);
+    if (this.cy && nodes.length > 0) {
+      setTimeout(() => {
+        if (this.cy && this.cy.nodes().length > 0) {
+          this.cy.fit(undefined, 80);
+        }
+      }, 200);
+    }
   }
 
   setRawNodes(rawNodes: GraphNode[]): void {

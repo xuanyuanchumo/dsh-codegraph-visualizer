@@ -3,35 +3,84 @@ import { existsSync, writeFileSync, readFileSync, unlinkSync, mkdirSync } from '
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir, tmpdir } from 'node:os';
+import { randomBytes } from 'node:crypto';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '..');
 const PID_FILE = join(tmpdir(), 'dsh-codegraph-dsh.pid');
 const CHROME_PID_FILE = join(tmpdir(), 'dsh-codegraph-chrome.pid');
 const TOKEN_FILE = join(tmpdir(), 'dsh-codegraph-token.txt');
-const DSH_URL = 'http://localhost:3080';
+
+const DSH_HOSTS = ['127.0.0.1', 'localhost'];
+const DSH_PORT = 3080;
+const DSH_URL = `http://127.0.0.1:${DSH_PORT}`;
+const DSH_URL_ALT = `http://localhost:${DSH_PORT}`;
+
 const CHROME_DEBUG_URL = 'http://127.0.0.1:9222';
 const USER_DATA_DIR = join(__dirname, '..', 'test-results', 'chrome-debug-profile');
 
-const action = process.argv[2] || 'start';
-const timeoutSeconds = parseInt(process.argv[3] || '30', 10);
-const verbose = process.argv.includes('--verbose');
+// ============ 参数解析（修复 NaN bug） ============
+const args = process.argv.slice(2);
+const action = args[0] || 'start';
+const verbose = args.includes('--verbose');
+// 只把纯数字参数当作超时秒数，避免把 --verbose 等标志误解析为 NaN
+const timeoutArg = args.find(a => /^\d+$/.test(a));
+const timeoutSeconds = timeoutArg ? parseInt(timeoutArg, 10) : 30;
+// =================================================
 
 function log(msg) { console.log(`>>> ${msg}`); }
 function dbg(msg) { if (verbose) console.log(`    [debug] ${msg}`); }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-async function waitForUrl(url, timeoutMs) {
+// ============ 固定令牌管理 ============
+function getOrCreateFixedToken() {
+  if (existsSync(TOKEN_FILE)) {
+    const saved = readFileSync(TOKEN_FILE, 'utf8').trim();
+    if (saved) {
+      dbg(`从 ${TOKEN_FILE} 复用固定令牌`);
+      return saved;
+    }
+  }
+  const token = randomBytes(24).toString('hex');
+  writeFileSync(TOKEN_FILE, token, { mode: 0o600 });
+  log(`生成新的固定令牌并保存到 ${TOKEN_FILE}`);
+  return token;
+}
+
+function buildTokenUrl(token, host = '127.0.0.1') {
+  return `http://${host}:${DSH_PORT}/?web_token=${encodeURIComponent(token)}`;
+}
+// =====================================
+
+// ============ 等待服务就绪（含 NaN 保护 + 进程存活检查） ============
+async function waitForUrl(urls, timeoutMs, proc = null) {
+  // 防御：无效超时值回退为 30 秒
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    console.error(`waitForUrl 收到无效超时值: ${timeoutMs}，回退为 30 秒`);
+    timeoutMs = 30000;
+  }
+  const list = Array.isArray(urls) ? urls : [urls];
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(2000) });
-      if (res.status > 0) return true;
-    } catch { /* keep waiting */ }
+    // 若子进程已退出，立即停止等待
+    if (proc && proc.exitCode !== null) {
+      console.error(`DSH 进程已退出 (exitCode: ${proc.exitCode})，停止等待`);
+      return null;
+    }
+    for (const url of list) {
+      try {
+        const res = await fetch(url, {
+          signal: AbortSignal.timeout(2000),
+          redirect: 'manual',
+        });
+        if (res.status > 0) return url;
+      } catch { /* keep waiting */ }
+    }
     await sleep(500);
   }
-  return false;
+  return null;
 }
+// ==================================================================
 
 async function waitForChromeDebug(timeoutMs = 15000) {
   const start = Date.now();
@@ -58,7 +107,11 @@ async function waitForTarget(timeoutMs = 20000) {
       const res = await fetch(`${CHROME_DEBUG_URL}/json`, { signal: AbortSignal.timeout(1000) });
       if (res.ok) {
         const targets = await res.json();
-        const dshTarget = targets.find(t => t.url && t.url.includes('localhost:3080'));
+        const dshTarget = targets.find(t => {
+          if (!t.url) return false;
+          const u = t.url;
+          return DSH_HOSTS.some(h => u.includes(`${h}:${DSH_PORT}`));
+        });
         if (dshTarget) {
           dbg(`找到 DSH 页面目标: ${dshTarget.title || '(无标题)'}`);
           return dshTarget;
@@ -105,9 +158,7 @@ function findPidByPort(port) {
   return null;
 }
 
-function isPortInUse(port) {
-  return findPidByPort(port) !== null;
-}
+function isPortInUse(port) { return findPidByPort(port) !== null; }
 
 function killProcess(pid) {
   try { execSync(`taskkill /PID ${pid} /F /T`, { stdio: 'ignore' }); return true; }
@@ -145,16 +196,16 @@ function stopEnvironment() {
     try { unlinkSync(PID_FILE); } catch { /* */ }
   }
   killChromeByPidFile();
-  try { unlinkSync(TOKEN_FILE); } catch { /* */ }
+  // 保留 TOKEN_FILE，重启后复用同一令牌
   log('清理完成。');
 }
 
 async function startEnvironment() {
   stopEnvironment();
 
-  if (isPortInUse(3080)) {
-    const pid = findPidByPort(3080);
-    console.error(`端口 3080 已被占用 (PID: ${pid})，请先释放该端口`);
+  if (isPortInUse(DSH_PORT)) {
+    const pid = findPidByPort(DSH_PORT);
+    console.error(`端口 ${DSH_PORT} 已被占用 (PID: ${pid})，请先释放该端口`);
     process.exit(5);
   }
   if (isPortInUse(9222)) {
@@ -167,27 +218,38 @@ async function startEnvironment() {
   if (!dshCmd) { console.error('找不到 dsh.cmd'); process.exit(1); }
   log(`使用 DSH: ${dshCmd}`);
 
-  log('启动 DSH Web 服务...');
-  let dshTokenUrl = '';
+  const fixedToken = getOrCreateFixedToken();
+  const tokenUrl = buildTokenUrl(fixedToken);
+  log(`固定令牌已就绪 (${fixedToken.slice(0, 8)}...)`);
+  log(`认证 URL: ${tokenUrl}`);
+
+  log(`启动 DSH Web 服务（注入固定令牌，超时 ${timeoutSeconds}s）...`);
+  let dshTokenUrl = tokenUrl;
   let lastLoggedLine = '';
+
   const dshProc = spawn('cmd.exe', ['/c', dshCmd, 'web', '--no-open'], {
     cwd: PROJECT_ROOT,
     detached: true,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
+    env: {
+      ...process.env,
+      DSH_WEB_TOKEN: fixedToken,
+    },
   });
 
   const handleOutput = (chunk) => {
     const text = chunk.toString().trim();
     if (!text) return;
-    const tokenMatch = text.match(/https?:\/\/[^\s]+[?]token=[^\s]+/);
+    // 捕获 DSH 打印的 token URL（兼容 ?token= 和 ?web_token=），排除尾随标点
+    const tokenMatch = text.match(/https?:\/\/[^\s"'<>\[\]()]+[?](?:web_)?token=[^\s"'<>\[\]()]+/);
     if (tokenMatch) {
       dshTokenUrl = tokenMatch[0];
-      dbg(`捕获到 token URL: ${dshTokenUrl}`);
+      dbg(`捕获到 DSH 打印的 token URL: ${dshTokenUrl}`);
     }
     if (verbose && text !== lastLoggedLine) {
       lastLoggedLine = text;
-      dbg(`[dsh] ${text.substring(0, 200)}`);
+      dbg(`[dsh] ${text.substring(0, 300)}`);
     }
   };
   dshProc.stdout?.on('data', handleOutput);
@@ -206,29 +268,18 @@ async function startEnvironment() {
   log(`DSH spawn PID: ${dshProc.pid}`);
 
   log(`等待服务就绪 (超时 ${timeoutSeconds}s)...`);
-  const ready = await waitForUrl(DSH_URL, timeoutSeconds * 1000);
-  if (!ready) {
+  const readyUrl = await waitForUrl([DSH_URL, DSH_URL_ALT], timeoutSeconds * 1000, dshProc);
+  if (!readyUrl) {
     console.error(`DSH Web 服务未能在 ${timeoutSeconds} 秒内就绪`);
     if (dshProc.pid) killProcess(dshProc.pid);
     process.exit(2);
   }
-  log(`DSH Web 服务已就绪`);
+  log(`DSH Web 服务已就绪 (${readyUrl})`);
 
-  if (dshTokenUrl) {
-    log(`捕获到 token URL，保存到 ${TOKEN_FILE}`);
-    writeFileSync(TOKEN_FILE, dshTokenUrl);
-    process.env.DSH_WEB_TOKEN = dshTokenUrl;
-  } else {
-    dbg('未捕获到 token URL，将使用无 token 的 URL');
-  }
-
-  const realPid = findPidByPort(3080);
+  const realPid = findPidByPort(DSH_PORT);
   const finalDshPid = realPid || dshProc.pid;
-  if (realPid) {
-    log(`DSH 实际 PID: ${realPid}`);
-  } else {
-    log(`警告: 无法通过端口查找 PID，使用 spawn PID: ${dshProc.pid}`);
-  }
+  if (realPid) log(`DSH 实际 PID: ${realPid}`);
+  else log(`警告: 无法通过端口查找 PID，使用 spawn PID: ${dshProc.pid}`);
   writeFileSync(PID_FILE, String(finalDshPid));
 
   const chromeExe = findChromeExe();
@@ -244,11 +295,13 @@ async function startEnvironment() {
   cleanChromeLockFiles();
 
   log('启动 Chrome 调试实例 (端口 9222)...');
-  const chromeUrl = dshTokenUrl || DSH_URL;
-  dbg(`Chrome 将打开: ${chromeUrl}`);
+  const chromeUrl = dshTokenUrl || tokenUrl;
+  log(`Chrome 将打开: ${chromeUrl}`);
+
   const chromeProc = spawn(chromeExe, [
     '--remote-debugging-port=9222',
     `--user-data-dir=${USER_DATA_DIR}`,
+    '--window-size=1440,900',
     '--no-first-run',
     '--no-default-browser-check',
     '--disable-default-apps',
@@ -277,11 +330,8 @@ async function startEnvironment() {
 
   const chromeRealPid = findPidByPort(9222);
   const finalChromePid = chromeRealPid || chromeProc.pid;
-  if (chromeRealPid) {
-    log(`Chrome 实际 PID: ${chromeRealPid}`);
-  } else {
-    log(`Chrome spawn PID: ${chromeProc.pid}`);
-  }
+  if (chromeRealPid) log(`Chrome 实际 PID: ${chromeRealPid}`);
+  else log(`Chrome spawn PID: ${chromeProc.pid}`);
   writeFileSync(CHROME_PID_FILE, String(finalChromePid));
 
   log('等待 DSH 页面成为有效调试目标...');
@@ -301,11 +351,9 @@ async function startEnvironment() {
   if (dshTarget) {
     console.log(`DSH 页面 WebSocket: ${dshTarget.webSocketDebuggerUrl}`);
   }
-  console.log(`DSH Web 服务: ${DSH_URL}`);
-  if (dshTokenUrl) {
-    console.log(`DSH Token URL: ${dshTokenUrl}`);
-    console.log(`DSH_WEB_TOKEN 环境变量已设置`);
-  }
+  console.log(`DSH Web 服务: ${readyUrl}`);
+  console.log(`DSH 固定令牌: ${fixedToken}`);
+  console.log(`DSH 认证 URL: ${tokenUrl}`);
   console.log('');
   console.log('chrome-devtools MCP 可直接使用，无需额外配置。');
   console.log('');

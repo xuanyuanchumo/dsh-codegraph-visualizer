@@ -41,6 +41,14 @@ export class McpServer {
         }
       } catch (e) {
         log.warn('MCP message handling failed', e);
+        try {
+          const errorResponse = {
+            jsonrpc: '2.0',
+            id: null,
+            error: { code: -32700, message: 'Parse error' },
+          };
+          process.stdout.write(JSON.stringify(errorResponse) + '\n');
+        } catch { /* best-effort */ }
       }
     });
 

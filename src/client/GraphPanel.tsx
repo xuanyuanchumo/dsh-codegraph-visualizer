@@ -10,7 +10,7 @@ import { GraphErrorBoundary } from './components/ErrorBoundary.tsx';
 import { ImportPanel } from './components/ImportPanel.tsx';
 import { Legend } from './components/Legend.tsx';
 import { Toolbar } from './components/Toolbar.tsx';
-import { SearchBar } from './components/SearchBar.tsx';
+import { SearchBar, type SearchResultItem } from './components/SearchBar.tsx';
 import { StatusBar } from './components/StatusBar.tsx';
 import { NodeDetail } from './components/NodeDetail.tsx';
 import { StatsPanel } from './components/StatsPanel.tsx';
@@ -158,7 +158,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const handleNodeTap = useCallback((id: NodeId) => {
     setSelectedNode(id);
-    const data = getDataRef.current?.getSelectedNodeData() ?? null;
+    const data = getDataRef.current?.getNodeData(id) ?? null;
     setSelectedNodeData(data);
   }, [setSelectedNode]);
 
@@ -464,7 +464,27 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     handleScanWorkspace();
   }, [panel.collapsed, nodes.length, rawNodes.length, prerequisites.codegraph, currentWorkspace, handleScanWorkspace]);
 
-  const statsText = useMemo(() => t('stats.nodesEdges', { nodes: nodes.length, edges: edges.length }), [nodes.length, edges.length, t]);
+  const statsText = useMemo(() => {
+    const totalNodes = diagramData?.allNodes.length ?? nodes.length;
+    const totalEdges = diagramData?.allEdges.length ?? edges.length;
+    return t('stats.nodesEdges', { nodes: totalNodes, edges: totalEdges });
+  }, [nodes.length, edges.length, diagramData, t]);
+
+  const searchResults = useMemo<SearchResultItem[]>(() => {
+    if (!debouncedSearch) return [];
+    const q = debouncedSearch.toLowerCase();
+    return rawNodes
+      .filter((n) => n.label.toLowerCase().includes(q))
+      .slice(0, 50)
+      .map((n) => ({ id: n.id, label: n.label, type: n.type, filePath: n.filePath }));
+  }, [debouncedSearch, rawNodes]);
+
+  const handleSelectSearchResult = useCallback((id: string) => {
+    setSelectedNode(NodeId(id));
+    const data = getDataRef.current?.getNodeData(NodeId(id)) ?? null;
+    setSelectedNodeData(data);
+  }, [setSelectedNode]);
+
   const nodeTypeCounts = useMemo(() => {
     const counts = { function: 0, class: 0, variable: 0, module: 0, interface: 0, type: 0 };
     for (const n of rawNodes) { if (n.type in counts) counts[n.type as keyof typeof counts]++; }
@@ -506,7 +526,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
       {panel.showSearch && !isCollapsed && (
         <SearchBar query={searchQuery} matchCount={renderer.searchMatchCount}
-          onChange={setSearchQuery} onClose={() => panel.setShowSearch(false)} />
+          searchResults={searchResults}
+          onChange={setSearchQuery} onClose={() => panel.setShowSearch(false)}
+          onSelectResult={handleSelectSearchResult} />
       )}
 
       {panel.showPathFind && !isCollapsed && (

@@ -83,9 +83,13 @@ export class DataController {
       this.cy.batch(() => {
         for (const n of nodes) {
           this.addNode(n);
+          this.currentNodes.set(n.id, n);
           this.lastAddedNodeIds.add(n.id);
         }
-        for (const e of edges) this.addEdge(e);
+        for (const e of edges) {
+          this.addEdge(e);
+          this.currentEdges.set(e.id, e);
+        }
       });
       this.computeNodeWeights();
       return;

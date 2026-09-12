@@ -51,7 +51,8 @@ function checkRateLimit(ip: string, routePath: string): boolean {
 }
 
 function getClientIp(req: IncomingMessage): string {
-  return req.headers?.['x-forwarded-for']?.toString().split(',')[0]?.trim() ?? 'unknown';
+  const socketAddr = req.socket?.remoteAddress;
+  return socketAddr ?? 'unknown';
 }
 
 export interface RouteDeps {
@@ -208,6 +209,7 @@ export function registerRoutes(deps: RouteDeps): void {
       'access-control-allow-methods': 'GET, POST, OPTIONS',
       'access-control-allow-headers': 'content-type, if-none-match',
       'access-control-max-age': '86400',
+      'vary': 'Origin',
     };
     if (origins.length > 0) {
       const reqOrigin = req?.headers?.['origin'];

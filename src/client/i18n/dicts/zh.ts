@@ -304,4 +304,5 @@ export const zh: Record<string, string> = {
   'micro.clearSelection': '清除选择',
   'stats.nodesEdges': '{nodes} 节点 · {edges} 边',
   'godmodule.stats': '{nodes} 节点 · {edges} 边',
+  'search.moreResults': '还有 {n} 个结果',
 };

@@ -86,10 +86,11 @@ function makeConfig(overrides: Partial<VisualizerConfig> = {}): VisualizerConfig
   };
 }
 
-function makeReq(method: string, body?: string, headers: Record<string, string> = {}): IncomingMessage {
+function makeReq(method: string, body?: string, headers: Record<string, string> = {}, socketAddr?: string): IncomingMessage {
   const req = {
     method,
     headers,
+    socket: socketAddr ? { remoteAddress: socketAddr } : { remoteAddress: '127.0.0.1' },
     on: vi.fn((event: string, cb: (chunk?: unknown) => void) => {
       if (event === 'data' && body) cb(Buffer.from(body));
       if (event === 'end') cb();
@@ -1153,16 +1154,15 @@ describe('registerRoutes - rate limiting', () => {
     // /status is not a heavy endpoint, limit is 60 req/min
     // Use a unique IP to avoid interfering with other tests
     const uniqueIp = `10.0.${Math.floor(Math.random() * 255)}.${Math.floor(Math.random() * 255)}`;
-    const headers = { 'x-forwarded-for': uniqueIp };
     // Send 60 requests (all should succeed)
     for (let i = 0; i < 60; i++) {
       const { res, state } = makeRes();
-      handler(makeReq('GET', undefined, headers), res);
+      handler(makeReq('GET', undefined, {}, uniqueIp), res);
       expect(state.code).toBe(200);
     }
     // 61st request should be rate limited
     const { res: resLast, state: stateLast } = makeRes();
-    handler(makeReq('GET', undefined, headers), resLast);
+    handler(makeReq('GET', undefined, {}, uniqueIp), resLast);
     expect(stateLast.code).toBe(429);
     expect(JSON.parse(stateLast.body).error).toBe('Rate limit exceeded');
   });
