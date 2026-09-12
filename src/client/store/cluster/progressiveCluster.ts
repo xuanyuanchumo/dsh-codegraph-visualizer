@@ -114,25 +114,16 @@ function createSubgroupClusters(
   return { nodes: visibleNodes, nodeIdToVisibleId };
 }
 
-export function computeProgressiveClusters(
-  rawNodes: GraphNode[],
-  rawEdges: GraphEdge[],
-  expandedNodeIds: Set<string>,
-  initialDepth: number = 0,
-): ClusterResult {
-  if (rawNodes.length === 0) return { nodes: [], edges: [] };
-
-  const { parentToChildren, filePathToNodes } = buildParentIndex(rawNodes);
-
-  const visibleNodes: (GraphNode | ClusterNode)[] = [];
-  const nodeIdToVisibleId = new Map<string, string>();
-  const displayedIds = new Set<string>();
-
+function parseExpandedNodeIds(expandedNodeIds: Set<string>): {
+  expandedDirs: Set<string>;
+  expandedFileClusters: Set<string>;
+  expandedFuncClusters: Set<string>;
+  expandedSubgroups: Set<string>;
+} {
   const expandedDirs = new Set<string>();
   const expandedFileClusters = new Set<string>();
   const expandedFuncClusters = new Set<string>();
   const expandedSubgroups = new Set<string>();
-
   for (const id of expandedNodeIds) {
     if (id.startsWith('cluster__')) {
       expandedDirs.add(id);
@@ -144,10 +135,15 @@ export function computeProgressiveClusters(
       expandedSubgroups.add(id);
     }
   }
+  return { expandedDirs, expandedFileClusters, expandedFuncClusters, expandedSubgroups };
+}
 
+function buildDirMapping(rawNodes: GraphNode[]): {
+  nodeToDir: Map<string, string>;
+  dirToNodes: Map<string, GraphNode[]>;
+} {
   const nodeToDir = new Map<string, string>();
   const dirToNodes = new Map<string, GraphNode[]>();
-
   for (const n of rawNodes) {
     const depGroup = getDependencyGroup(n);
     const dir = depGroup ?? (n.filePath ? getTopLevelDir(n.filePath) : n.id);
@@ -156,14 +152,22 @@ export function computeProgressiveClusters(
     if (list) list.push(n);
     else dirToNodes.set(dir, [n]);
   }
+  return { nodeToDir, dirToNodes };
+}
 
+function applyInitialDepth(
+  initialDepth: number,
+  dirToNodes: Map<string, GraphNode[]>,
+  rawNodes: GraphNode[],
+  expandedDirs: Set<string>,
+  expandedFileClusters: Set<string>,
+): void {
   if (initialDepth >= 1) {
     for (const [dirPath] of dirToNodes) {
       const clusterId = `cluster__${dirPath.replace(/[/:\\]/g, '__')}`;
       expandedDirs.add(clusterId);
     }
   }
-
   if (initialDepth >= 2) {
     const allDirPaths = new Set<string>();
     for (const [dirPath] of dirToNodes) {
@@ -183,6 +187,28 @@ export function computeProgressiveClusters(
       }
     }
   }
+}
+
+export function computeProgressiveClusters(
+  rawNodes: GraphNode[],
+  rawEdges: GraphEdge[],
+  expandedNodeIds: Set<string>,
+  initialDepth: number = 0,
+): ClusterResult {
+  if (rawNodes.length === 0) return { nodes: [], edges: [] };
+
+  const { parentToChildren, filePathToNodes } = buildParentIndex(rawNodes);
+
+  const visibleNodes: (GraphNode | ClusterNode)[] = [];
+  const nodeIdToVisibleId = new Map<string, string>();
+  const displayedIds = new Set<string>();
+
+  const { expandedDirs, expandedFileClusters, expandedFuncClusters: _expandedFuncClusters, expandedSubgroups } =
+    parseExpandedNodeIds(expandedNodeIds);
+
+  const { nodeToDir: _nodeToDir, dirToNodes } = buildDirMapping(rawNodes);
+
+  applyInitialDepth(initialDepth, dirToNodes, rawNodes, expandedDirs, expandedFileClusters);
 
 
   const dirEdgeCache = new Map<string, GraphEdge[]>();
