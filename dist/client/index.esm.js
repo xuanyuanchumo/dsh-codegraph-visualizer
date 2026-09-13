@@ -265,7 +265,8 @@ function aggregateEdges(rawEdges, nodeIdToVisibleId, clusterPrefix) {
 	const clusterPrefixes = [
 		clusterPrefix,
 		"filecluster__",
-		"smartcluster__"
+		"smartcluster__",
+		"funccluster__"
 	];
 	const nonClusterAggKeys = new Set();
 	for (const [, agg] of aggregation) {
@@ -307,7 +308,86 @@ function aggregateEdges(rawEdges, nodeIdToVisibleId, clusterPrefix) {
 }
 
 //#endregion
-//#region src/client/store/cluster/directoryCluster.ts
+//#region src/client/store/cluster/communityDetection.ts
+const MAX_NODES_FOR_LABEL_PROP = 5e3;
+const MIN_NODES_FOR_SUBGROUP = 50;
+const MAX_ITERATIONS_LARGE = 3;
+const MAX_ITERATIONS_SMALL = 10;
+const LARGE_NODE_THRESHOLD = 2e3;
+function detectCommunities(nodes, edges) {
+	if (nodes.length === 0) return new Map();
+	if (nodes.length < MIN_NODES_FOR_SUBGROUP) {
+		const group = {
+			label: "all",
+			nodes
+		};
+		return new Map([["all", group]]);
+	}
+	const participatingNodes = nodes.length > MAX_NODES_FOR_LABEL_PROP ? nodes.slice(0, MAX_NODES_FOR_LABEL_PROP) : nodes;
+	const participatingIds = new Set(participatingNodes.map((n) => n.id));
+	const adjacency = new Map();
+	for (const n of participatingNodes) adjacency.set(n.id, new Set());
+	for (const e of edges) {
+		if (!participatingIds.has(e.source) || !participatingIds.has(e.target)) continue;
+		adjacency.get(e.source)?.add(e.target);
+		adjacency.get(e.target)?.add(e.source);
+	}
+	const labels = new Map();
+	let nextLabel = 0;
+	const sortedNodes = [...participatingNodes].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+	for (const n of sortedNodes) labels.set(n.id, `c${nextLabel++}`);
+	const maxIterations = participatingNodes.length > LARGE_NODE_THRESHOLD ? MAX_ITERATIONS_LARGE : MAX_ITERATIONS_SMALL;
+	let changed = true;
+	let iterations = 0;
+	while (changed && iterations < maxIterations) {
+		changed = false;
+		iterations++;
+		for (const n of sortedNodes) {
+			const neighbors = adjacency.get(n.id);
+			if (!neighbors || neighbors.size === 0) continue;
+			const labelCounts = new Map();
+			for (const nb of neighbors) {
+				const lbl = labels.get(nb);
+				if (lbl) labelCounts.set(lbl, (labelCounts.get(lbl) ?? 0) + 1);
+			}
+			let bestLabel = labels.get(n.id);
+			let bestCount = 0;
+			for (const [lbl, cnt] of labelCounts) if (cnt > bestCount || cnt === bestCount && lbl === labels.get(n.id)) {
+				bestLabel = lbl;
+				bestCount = cnt;
+			}
+			if (bestLabel !== labels.get(n.id)) {
+				labels.set(n.id, bestLabel);
+				changed = true;
+			}
+		}
+	}
+	const groups = new Map();
+	for (const n of participatingNodes) {
+		const lbl = labels.get(n.id);
+		const group = groups.get(lbl);
+		if (group) group.nodes.push(n);
+		else groups.set(lbl, {
+			label: lbl,
+			nodes: [n]
+		});
+	}
+	for (const n of nodes) if (!participatingIds.has(n.id)) {
+		const group = groups.get("overflow");
+		if (group) group.nodes.push(n);
+		else groups.set("overflow", {
+			label: "overflow",
+			nodes: [n]
+		});
+	}
+	return groups;
+}
+
+//#endregion
+//#region src/client/store/cluster/progressiveCluster.ts
+const MAX_VISIBLE_NODES = 2e3;
+const SUBGROUP_THRESHOLD = 100;
+const MAX_NODES_PER_DIR_BEFORE_SUBGROUP = 500;
 function getTopLevelDir$1(filePath) {
 	const parts = filePath.split(/[\\/]/);
 	if (parts.length <= 2) return filePath;
@@ -322,57 +402,92 @@ function getDependencyGroup(node) {
 	if (typeof depType === "string") return `dep:${depType}`;
 	return null;
 }
-function getDirLabel$1(dirPath) {
+function getDirLabel(dirPath) {
 	const parts = dirPath.split("/");
 	return parts[parts.length - 1] ?? dirPath;
 }
-function getFileClusterId(filePath) {
-	return `filecluster__${filePath.replace(/[/:\\]/g, "__")}`;
+function getFileLabel(filePath) {
+	const parts = filePath.split(/[\\/]/);
+	return parts[parts.length - 1] ?? filePath;
 }
-function computeFileClusterNodesForDir(dirNodes, dirPath, expandedFileClusters) {
-	const visibleNodes = [];
-	const nodeIdToVisibleId = new Map();
-	const fileGroups = new Map();
-	for (const n of dirNodes) if (n.type === "module") {
-		visibleNodes.push(n);
-		nodeIdToVisibleId.set(n.id, n.id);
-	} else {
-		const parentFileId = n.parentId ?? n.filePath;
-		const fileClusterId = getFileClusterId(parentFileId);
-		if (expandedFileClusters.has(fileClusterId)) {
-			visibleNodes.push(n);
-			nodeIdToVisibleId.set(n.id, n.id);
-		} else {
-			nodeIdToVisibleId.set(n.id, fileClusterId);
-			const list = fileGroups.get(fileClusterId);
+function buildParentIndex(rawNodes) {
+	const parentToChildren = new Map();
+	const filePathToNodes = new Map();
+	for (const n of rawNodes) {
+		if (n.parentId) {
+			const list = parentToChildren.get(n.parentId);
 			if (list) list.push(n);
-			else fileGroups.set(fileClusterId, [n]);
+			else parentToChildren.set(n.parentId, [n]);
+		}
+		if (n.filePath) {
+			const list = filePathToNodes.get(n.filePath);
+			if (list) list.push(n);
+			else filePathToNodes.set(n.filePath, [n]);
 		}
 	}
-	for (const [fileClusterId, children] of fileGroups) {
-		const parentFileId = children[0]?.parentId ?? children[0]?.filePath ?? "";
-		const parentNode = dirNodes.find((n) => n.id === parentFileId || n.filePath === parentFileId);
-		const clusterNode = {
-			id: NodeId(fileClusterId),
-			label: `${parentNode?.label ?? parentFileId.split(/[\\/]/).pop() ?? "unknown"} (${children.length})`,
-			type: "module",
-			filePath: parentNode?.filePath ?? parentFileId,
-			lineNumber: 0,
-			properties: {},
-			isCluster: true,
-			childCount: children.length,
-			childIds: children.map((c) => c.id),
-			clusterPath: parentFileId,
-			clusterLevel: "file"
-		};
-		visibleNodes.push(clusterNode);
+	return {
+		parentToChildren,
+		filePathToNodes
+	};
+}
+function createSubgroupClusters(dirNodes, dirEdges, dirPath, expandedSubgroups) {
+	const visibleNodes = [];
+	const nodeIdToVisibleId = new Map();
+	const communities = detectCommunities(dirNodes, dirEdges);
+	for (const [communityLabel, group] of communities) {
+		if (group.nodes.length <= SUBGROUP_THRESHOLD) {
+			for (const n of group.nodes) {
+				visibleNodes.push(n);
+				nodeIdToVisibleId.set(n.id, n.id);
+			}
+			continue;
+		}
+		const subgroupClusterId = `subgroup__${dirPath.replace(/[/:\\]/g, "__")}__${communityLabel}`;
+		if (expandedSubgroups.has(subgroupClusterId)) for (const n of group.nodes) {
+			visibleNodes.push(n);
+			nodeIdToVisibleId.set(n.id, n.id);
+		}
+		else {
+			const primaryNode = group.nodes[0];
+			const clusterNode = {
+				id: NodeId(subgroupClusterId),
+				label: `${primaryNode.label.split(/[\\/]/).pop()?.split(".")[0] ?? "group"} +${group.nodes.length - 1}`,
+				type: primaryNode.type,
+				filePath: primaryNode.filePath,
+				lineNumber: 0,
+				properties: {},
+				isCluster: true,
+				childCount: group.nodes.length,
+				childIds: group.nodes.map((n) => n.id),
+				clusterPath: `${dirPath}/${communityLabel}`,
+				clusterLevel: "smart"
+			};
+			visibleNodes.push(clusterNode);
+			for (const n of group.nodes) nodeIdToVisibleId.set(n.id, subgroupClusterId);
+		}
 	}
 	return {
 		nodes: visibleNodes,
 		nodeIdToVisibleId
 	};
 }
-function computeDirectoryClusters(rawNodes, rawEdges, expandedDirs) {
+function parseExpandedNodeIds(expandedNodeIds) {
+	const expandedDirs = new Set();
+	const expandedFileClusters = new Set();
+	const expandedFuncClusters = new Set();
+	const expandedSubgroups = new Set();
+	for (const id of expandedNodeIds) if (id.startsWith("cluster__")) expandedDirs.add(id);
+	else if (id.startsWith("filecluster__file__")) expandedFileClusters.add(id);
+	else if (id.startsWith("funccluster__")) expandedFuncClusters.add(id);
+	else if (id.startsWith("subgroup__")) expandedSubgroups.add(id);
+	return {
+		expandedDirs,
+		expandedFileClusters,
+		expandedFuncClusters,
+		expandedSubgroups
+	};
+}
+function buildDirMapping(rawNodes) {
 	const nodeToDir = new Map();
 	const dirToNodes = new Map();
 	for (const n of rawNodes) {
@@ -383,21 +498,150 @@ function computeDirectoryClusters(rawNodes, rawEdges, expandedDirs) {
 		if (list) list.push(n);
 		else dirToNodes.set(dir, [n]);
 	}
+	return {
+		nodeToDir,
+		dirToNodes
+	};
+}
+function applyInitialDepth(initialDepth, dirToNodes, rawNodes, expandedDirs, expandedFileClusters) {
+	if (initialDepth >= 1) for (const [dirPath] of dirToNodes) {
+		const clusterId = `cluster__${dirPath.replace(/[/:\\]/g, "__")}`;
+		expandedDirs.add(clusterId);
+	}
+	if (initialDepth >= 2) for (const [dirPath, nodesInDir] of dirToNodes) {
+		const dirClusterId = `cluster__${dirPath.replace(/[/:\\]/g, "__")}`;
+		if (!expandedDirs.has(dirClusterId)) continue;
+		const fileGroups = new Map();
+		for (const n of nodesInDir) {
+			const fileKey = n.parentId ?? n.filePath ?? n.id;
+			const group = fileGroups.get(fileKey);
+			if (group) group.push(n);
+			else fileGroups.set(fileKey, [n]);
+		}
+		for (const [fileKey] of fileGroups) {
+			const fileClusterId = `filecluster__file__${fileKey.replace(/[/:\\]/g, "__")}`;
+			expandedFileClusters.add(fileClusterId);
+		}
+	}
+}
+function computeProgressiveClusters(rawNodes, rawEdges, expandedNodeIds, initialDepth = 0) {
+	if (rawNodes.length === 0) return {
+		nodes: [],
+		edges: []
+	};
+	const { parentToChildren, filePathToNodes } = buildParentIndex(rawNodes);
 	const visibleNodes = [];
 	const nodeIdToVisibleId = new Map();
-	const expandedFileClusters = new Set();
-	for (const id of expandedDirs) if (id.startsWith("filecluster__")) expandedFileClusters.add(id);
+	const displayedIds = new Set();
+	const { expandedDirs, expandedFileClusters, expandedFuncClusters: _expandedFuncClusters, expandedSubgroups } = parseExpandedNodeIds(expandedNodeIds);
+	const { nodeToDir: _nodeToDir, dirToNodes } = buildDirMapping(rawNodes);
+	applyInitialDepth(initialDepth, dirToNodes, rawNodes, expandedDirs, expandedFileClusters);
+	const dirEdgeCache = new Map();
 	for (const [dirPath, nodes] of dirToNodes) {
 		const clusterId = `cluster__${dirPath.replace(/[/:\\]/g, "__")}`;
-		if (expandedDirs.has(clusterId) || expandedDirs.has(dirPath)) {
-			const { nodes: fileNodes, nodeIdToVisibleId: fileMap } = computeFileClusterNodesForDir(nodes, dirPath, expandedFileClusters);
-			for (const n of fileNodes) visibleNodes.push(n);
-			for (const [rawId, visId] of fileMap) nodeIdToVisibleId.set(rawId, visId);
+		if (expandedDirs.has(clusterId) || expandedDirs.has(dirPath)) if (nodes.length > MAX_NODES_PER_DIR_BEFORE_SUBGROUP) {
+			let dirEdges = dirEdgeCache.get(dirPath);
+			if (!dirEdges) {
+				const nodeIds = new Set(nodes.map((n) => n.id));
+				dirEdges = rawEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+				dirEdgeCache.set(dirPath, dirEdges);
+			}
+			const { nodes: subgroupNodes, nodeIdToVisibleId: subgroupMap } = createSubgroupClusters(nodes, dirEdges, dirPath, expandedSubgroups);
+			for (const n of subgroupNodes) visibleNodes.push(n);
+			for (const [rawId, visId] of subgroupMap) nodeIdToVisibleId.set(rawId, visId);
 		} else {
+			const fileGroups = new Map();
+			for (const n of nodes) if (n.type === "module") {
+				const fileClusterId = `filecluster__file__${(n.parentId ?? n.filePath ?? n.id).replace(/[/:\\]/g, "__")}`;
+				if (expandedFileClusters.has(fileClusterId)) {
+					const childNodes = parentToChildren.get(n.id) ?? filePathToNodes.get(n.filePath) ?? [];
+					if (childNodes.length > 0) {
+						visibleNodes.push(n);
+						displayedIds.add(n.id);
+						nodeIdToVisibleId.set(n.id, n.id);
+						for (const child of childNodes) {
+							if (child.id === n.id) continue;
+							if (displayedIds.has(child.id)) continue;
+							visibleNodes.push(child);
+							displayedIds.add(child.id);
+							nodeIdToVisibleId.set(child.id, child.id);
+						}
+					} else {
+						visibleNodes.push(n);
+						displayedIds.add(n.id);
+						nodeIdToVisibleId.set(n.id, n.id);
+					}
+				} else {
+					const childNodes = parentToChildren.get(n.id) ?? filePathToNodes.get(n.filePath) ?? [];
+					const filteredChildren = childNodes.filter((c) => c.id !== n.id);
+					if (filteredChildren.length > 0) {
+						nodeIdToVisibleId.set(n.id, fileClusterId);
+						for (const child of filteredChildren) nodeIdToVisibleId.set(child.id, fileClusterId);
+						const clusterNode = {
+							id: NodeId(fileClusterId),
+							label: `${n.label} (${filteredChildren.length + 1})`,
+							type: "module",
+							filePath: n.filePath,
+							lineNumber: 0,
+							properties: {},
+							isCluster: true,
+							childCount: filteredChildren.length + 1,
+							childIds: [n.id, ...filteredChildren.map((c) => c.id)],
+							clusterPath: n.filePath ?? n.id,
+							clusterLevel: "file"
+						};
+						visibleNodes.push(clusterNode);
+					} else {
+						visibleNodes.push(n);
+						nodeIdToVisibleId.set(n.id, n.id);
+					}
+				}
+			} else {
+				const parentFileId = n.parentId ?? n.filePath;
+				if (parentFileId) {
+					const fileClusterId = `filecluster__file__${parentFileId.replace(/[/:\\]/g, "__")}`;
+					if (expandedFileClusters.has(fileClusterId)) {
+						if (!displayedIds.has(n.id)) {
+							visibleNodes.push(n);
+							displayedIds.add(n.id);
+							nodeIdToVisibleId.set(n.id, n.id);
+						}
+					} else {
+						nodeIdToVisibleId.set(n.id, fileClusterId);
+						const list = fileGroups.get(fileClusterId);
+						if (list) list.push(n);
+						else fileGroups.set(fileClusterId, [n]);
+					}
+				} else {
+					visibleNodes.push(n);
+					displayedIds.add(n.id);
+					nodeIdToVisibleId.set(n.id, n.id);
+				}
+			}
+			for (const [fileClusterId, children] of fileGroups) {
+				const parentFileId = children[0]?.parentId ?? children[0]?.filePath ?? "";
+				const parentNode = filePathToNodes.get(parentFileId)?.[0];
+				const clusterNode = {
+					id: NodeId(fileClusterId),
+					label: `${parentNode?.label ?? getFileLabel(parentFileId)} (${children.length})`,
+					type: "module",
+					filePath: parentNode?.filePath ?? parentFileId,
+					lineNumber: 0,
+					properties: {},
+					isCluster: true,
+					childCount: children.length,
+					childIds: children.map((c) => c.id),
+					clusterPath: parentFileId,
+					clusterLevel: "file"
+				};
+				visibleNodes.push(clusterNode);
+			}
+		}
+		else {
 			const childIds = nodes.map((n) => n.id);
 			const clusterNode = {
 				id: NodeId(clusterId),
-				label: `${getDirLabel$1(dirPath)} (${nodes.length})`,
+				label: `${getDirLabel(dirPath)} (${nodes.length})`,
 				type: "module",
 				filePath: dirPath,
 				lineNumber: 0,
@@ -412,281 +656,54 @@ function computeDirectoryClusters(rawNodes, rawEdges, expandedDirs) {
 			for (const n of nodes) nodeIdToVisibleId.set(n.id, clusterId);
 		}
 	}
+	if (visibleNodes.length > MAX_VISIBLE_NODES) return enforceNodeLimit(visibleNodes, nodeIdToVisibleId, rawEdges);
 	const visibleEdges = aggregateEdges(rawEdges, nodeIdToVisibleId, "cluster__");
 	return {
 		nodes: visibleNodes,
 		edges: visibleEdges
 	};
 }
-
-//#endregion
-//#region src/client/store/cluster/DirectoryClusterStrategy.ts
-var DirectoryClusterStrategy = class {
-	compute(rawNodes, rawEdges, expandedNodeIds) {
-		return computeDirectoryClusters(rawNodes, rawEdges, expandedNodeIds);
-	}
-};
-
-//#endregion
-//#region src/client/store/cluster/fileCluster.ts
-function getParentDir(filePath) {
-	const parts = filePath.split(/[\\/]/);
-	if (parts.length <= 1) return filePath;
-	return parts.slice(0, -1).join("/");
-}
-function getDirLabel(dirPath) {
-	const parts = dirPath.split(/[\\/]/);
-	return parts[parts.length - 1] ?? dirPath;
-}
-function buildNodeScopeMap(rawEdges) {
-	const scopeMap = new Map();
-	for (const e of rawEdges) if (e.type === "dependency" && e.properties?.scope) scopeMap.set(e.target, String(e.properties.scope));
-	return scopeMap;
-}
-function getDependencyScopeGroup(node, nodeScopeMap) {
-	const isExternal = node.properties?.isExternal;
-	if (isExternal) {
-		const scope = nodeScopeMap.get(node.id);
-		if (scope) return `depscope:${scope}`;
-		return "depscope:prod";
-	}
-	return null;
-}
-function computeFileClusters(rawNodes, rawEdges, expandedFiles) {
-	const visibleNodes = [];
-	const nodeIdToVisibleId = new Map();
-	const nodeScopeMap = buildNodeScopeMap(rawEdges);
-	const moduleDirGroups = new Map();
-	const nonModuleNodes = [];
-	for (const n of rawNodes) {
-		const scopeGroup = getDependencyScopeGroup(n, nodeScopeMap);
-		if (scopeGroup) {
-			const list = moduleDirGroups.get(scopeGroup);
-			if (list) list.push(n);
-			else moduleDirGroups.set(scopeGroup, [n]);
-		} else if (n.type === "module" && n.filePath) {
-			const parentDir = getParentDir(n.filePath);
-			const list = moduleDirGroups.get(parentDir);
-			if (list) list.push(n);
-			else moduleDirGroups.set(parentDir, [n]);
-		} else if (!n.parentId) nonModuleNodes.push(n);
-		else nonModuleNodes.push(n);
-	}
-	for (const [dirPath, nodes] of moduleDirGroups) {
-		const clusterId = `filecluster__${dirPath.replace(/[/:\\]/g, "__")}`;
-		if (expandedFiles.has(clusterId)) for (const n of nodes) {
-			visibleNodes.push(n);
-			nodeIdToVisibleId.set(n.id, n.id);
+function enforceNodeLimit(visibleNodes, nodeIdToVisibleId, rawEdges) {
+	const clusterNodes = visibleNodes.filter((n) => "isCluster" in n && n.isCluster === true);
+	const nonClusterNodes = visibleNodes.filter((n) => !("isCluster" in n && n.isCluster === true));
+	const nodesToKeep = new Set();
+	const collapsedChildIds = new Set();
+	const overLimit = visibleNodes.length - MAX_VISIBLE_NODES;
+	const sortedClusters = [...clusterNodes].sort((a, b) => a.childCount - b.childCount);
+	let collapsed = 0;
+	for (const cluster of sortedClusters) {
+		if (collapsed >= overLimit) break;
+		for (const childId of cluster.childIds) {
+			nodeIdToVisibleId.set(childId, cluster.id);
+			collapsedChildIds.add(childId);
 		}
-		else if (nodes.length === 1) {
-			visibleNodes.push(nodes[0]);
-			nodeIdToVisibleId.set(nodes[0].id, nodes[0].id);
-		} else {
-			const clusterNode = {
-				id: NodeId(clusterId),
-				label: `${getDirLabel(dirPath)} (${nodes.length})`,
-				type: "module",
-				filePath: dirPath,
-				lineNumber: 0,
-				properties: {},
-				isCluster: true,
-				childCount: nodes.length,
-				childIds: nodes.map((n) => n.id),
-				clusterPath: dirPath,
-				clusterLevel: "file"
-			};
-			visibleNodes.push(clusterNode);
-			for (const n of nodes) nodeIdToVisibleId.set(n.id, clusterId);
-		}
+		collapsed += cluster.childCount;
 	}
-	const fileClusterChildren = new Map();
-	for (const n of nonModuleNodes) {
-		const parentFileId = n.parentId ?? n.filePath;
-		if (parentFileId) {
-			const clusterId = `filecluster__${parentFileId.replace(/[/:\\]/g, "__")}`;
-			if (expandedFiles.has(clusterId) || expandedFiles.has(parentFileId)) {
-				visibleNodes.push(n);
-				nodeIdToVisibleId.set(n.id, n.id);
-			} else {
-				nodeIdToVisibleId.set(n.id, clusterId);
-				const entry = fileClusterChildren.get(clusterId);
-				if (entry) entry.children.push(n);
-				else fileClusterChildren.set(clusterId, {
-					children: [n],
-					parentFileId
-				});
-			}
-		} else {
-			visibleNodes.push(n);
-			nodeIdToVisibleId.set(n.id, n.id);
-		}
-	}
-	for (const [clusterId, { children, parentFileId }] of fileClusterChildren) {
-		const parentNode = rawNodes.find((n) => n.id === parentFileId || n.filePath === parentFileId);
-		const fallbackLabel = parentFileId.split(/[\\/]/).pop() ?? "unknown";
-		const clusterNode = {
-			id: NodeId(clusterId),
-			label: `${parentNode?.label ?? fallbackLabel} (${children.length})`,
-			type: "module",
-			filePath: parentNode?.filePath ?? parentFileId,
-			lineNumber: 0,
-			properties: {},
-			isCluster: true,
-			childCount: children.length,
-			childIds: children.map((c) => c.id),
-			clusterPath: parentFileId,
-			clusterLevel: "file"
-		};
-		visibleNodes.push(clusterNode);
-	}
-	const visibleEdges = aggregateEdges(rawEdges, nodeIdToVisibleId, "filecluster__");
+	for (const n of nonClusterNodes) if (!collapsedChildIds.has(n.id)) nodesToKeep.add(n.id);
+	for (const n of clusterNodes) nodesToKeep.add(n.id);
+	const finalNodes = visibleNodes.filter((n) => nodesToKeep.has(n.id));
+	const visibleEdges = aggregateEdges(rawEdges, nodeIdToVisibleId, "cluster__");
 	return {
-		nodes: visibleNodes,
+		nodes: finalNodes,
 		edges: visibleEdges
 	};
 }
 
 //#endregion
-//#region src/client/store/cluster/FileClusterStrategy.ts
-var FileClusterStrategy = class {
-	compute(rawNodes, rawEdges, expandedNodeIds) {
-		return computeFileClusters(rawNodes, rawEdges, expandedNodeIds);
-	}
-};
-
-//#endregion
-//#region src/client/store/cluster/functionCluster.ts
-function computeFunctionLevel(rawNodes, rawEdges) {
-	return {
-		nodes: rawNodes,
-		edges: rawEdges
-	};
-}
-
-//#endregion
-//#region src/client/store/cluster/FunctionClusterStrategy.ts
-var FunctionClusterStrategy = class {
-	compute(rawNodes, rawEdges, _expandedNodeIds) {
-		return computeFunctionLevel(rawNodes, rawEdges);
-	}
-};
-
-//#endregion
-//#region src/client/store/cluster/smartCluster.ts
-function computeLabels(rawNodes, rawEdges) {
-	const adjacency = new Map();
-	for (const n of rawNodes) adjacency.set(n.id, new Set());
-	for (const e of rawEdges) {
-		adjacency.get(e.source)?.add(e.target);
-		adjacency.get(e.target)?.add(e.source);
-	}
-	const labels = new Map();
-	let nextLabel = 0;
-	const sortedNodes = [...rawNodes].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-	for (const n of sortedNodes) labels.set(n.id, `c${nextLabel++}`);
-	let changed = true;
-	let iterations = 0;
-	const maxIterations = 10;
-	while (changed && iterations < maxIterations) {
-		changed = false;
-		iterations++;
-		for (const n of sortedNodes) {
-			const neighbors = adjacency.get(n.id);
-			if (!neighbors || neighbors.size === 0) continue;
-			const labelCounts = new Map();
-			for (const nb of neighbors) {
-				const lbl = labels.get(nb);
-				if (lbl) labelCounts.set(lbl, (labelCounts.get(lbl) ?? 0) + 1);
-			}
-			let bestLabel = labels.get(n.id);
-			let bestCount = 0;
-			for (const [lbl, cnt] of labelCounts) if (cnt > bestCount) {
-				bestLabel = lbl;
-				bestCount = cnt;
-			}
-			if (bestLabel !== labels.get(n.id)) {
-				labels.set(n.id, bestLabel);
-				changed = true;
-			}
-		}
-	}
-	return labels;
-}
-function computeSmartClusters(rawNodes, rawEdges, expandedNodeIds) {
-	if (rawNodes.length === 0) return {
-		nodes: [],
-		edges: []
-	};
-	const labels = computeLabels(rawNodes, rawEdges);
-	const labelToNodes = new Map();
-	for (const n of rawNodes) {
-		const lbl = labels.get(n.id);
-		const list = labelToNodes.get(lbl);
-		if (list) list.push(n);
-		else labelToNodes.set(lbl, [n]);
-	}
-	const visibleNodes = [];
-	const nodeIdToVisibleId = new Map();
-	for (const [label, nodes] of labelToNodes) {
-		if (nodes.length <= 1) {
-			for (const n of nodes) {
-				visibleNodes.push(n);
-				nodeIdToVisibleId.set(n.id, n.id);
-			}
-			continue;
-		}
-		const clusterId = `smartcluster__${label}`;
-		const isExpanded = expandedNodeIds.has(clusterId);
-		if (isExpanded) for (const n of nodes) {
-			visibleNodes.push(n);
-			nodeIdToVisibleId.set(n.id, n.id);
-		}
-		else {
-			const primaryNode = nodes[0];
-			const clusterNode = {
-				id: NodeId(clusterId),
-				label: `${primaryNode.label.split(/[\\/]/).pop()?.split(".")[0] ?? "group"} +${nodes.length - 1}`,
-				type: primaryNode.type,
-				filePath: primaryNode.filePath,
-				lineNumber: 0,
-				properties: {},
-				isCluster: true,
-				childCount: nodes.length,
-				childIds: nodes.map((n) => n.id),
-				clusterPath: label,
-				clusterLevel: "smart"
-			};
-			visibleNodes.push(clusterNode);
-			for (const n of nodes) nodeIdToVisibleId.set(n.id, clusterId);
-		}
-	}
-	const visibleEdges = aggregateEdges(rawEdges, nodeIdToVisibleId, "smartcluster__");
-	return {
-		nodes: visibleNodes,
-		edges: visibleEdges
-	};
-}
-
-//#endregion
-//#region src/client/store/cluster/SmartClusterStrategy.ts
-var SmartClusterStrategy = class {
-	compute(rawNodes, rawEdges, expandedNodeIds) {
-		return computeSmartClusters(rawNodes, rawEdges, expandedNodeIds);
+//#region src/client/store/cluster/ProgressiveClusterStrategy.ts
+var ProgressiveClusterStrategy = class {
+	compute(rawNodes, rawEdges, expandedNodeIds, initialDepth = 0) {
+		return computeProgressiveClusters(rawNodes, rawEdges, expandedNodeIds, initialDepth);
 	}
 };
 
 //#endregion
 //#region src/client/store/cluster/index.ts
-const strategyRegistry = new Map([
-	["directory", new DirectoryClusterStrategy()],
-	["file", new FileClusterStrategy()],
-	["function", new FunctionClusterStrategy()],
-	["smart", new SmartClusterStrategy()]
-]);
-function computeClusteredGraph(rawNodes, rawEdges, clusterLevel, expandedNodeIds) {
+const strategyRegistry = new Map([["progressive", new ProgressiveClusterStrategy()]]);
+function computeClusteredGraph(rawNodes, rawEdges, clusterLevel, expandedNodeIds, initialDepth = 0) {
 	const strategy = strategyRegistry.get(clusterLevel);
 	if (!strategy) throw new Error(`Unknown cluster level: ${clusterLevel}`);
-	return strategy.compute(rawNodes, rawEdges, expandedNodeIds);
+	return strategy.compute(rawNodes, rawEdges, expandedNodeIds, initialDepth);
 }
 
 //#endregion
@@ -747,6 +764,7 @@ var InheritanceAssembler = class {
 			const childEdges = inEdges.get(n.id) ?? [];
 			const stereotype = n.type === "interface" ? "«interface»\n" : "";
 			const umlLabel = stereotype + n.label;
+			const isAbstract = n.type === "interface" || n.properties?.isAbstract === true || /^Abstract[A-Z]/.test(n.label) || /^I[A-Z][a-z]/.test(n.label) && n.type === "class";
 			return {
 				...n,
 				properties: {
@@ -756,7 +774,7 @@ var InheritanceAssembler = class {
 					parentCount: parentEdges.length,
 					childCount: childEdges.length,
 					descendantCount: descendantCounts.get(n.id) ?? 0,
-					isAbstract: false,
+					isAbstract,
 					umlLabel
 				}
 			};
@@ -775,19 +793,21 @@ var InheritanceAssembler = class {
 	}
 	computeDescendantCounts(rootIds, inEdges) {
 		const counts = new Map();
-		const visited = new Set();
-		const countDescendants = (id) => {
+		const countDescendants = (id, visited) => {
 			if (counts.has(id)) return counts.get(id);
 			if (visited.has(id)) return 0;
 			visited.add(id);
 			const children = inEdges.get(id) ?? [];
+			const childSet = new Set();
 			let total = 0;
-			for (const edge of children) total += 1 + countDescendants(edge.source);
+			for (const edge of children) if (!childSet.has(edge.source)) {
+				childSet.add(edge.source);
+				total += 1 + countDescendants(edge.source, visited);
+			}
 			counts.set(id, total);
-			visited.delete(id);
 			return total;
 		};
-		for (const rootId of rootIds) countDescendants(rootId);
+		for (const rootId of rootIds) countDescendants(rootId, new Set());
 		return counts;
 	}
 };
@@ -796,7 +816,7 @@ var InheritanceAssembler = class {
 //#region src/client/diagram/CallGraphAssembler.ts
 const CALL_NODE_TYPES$1 = new Set(["function"]);
 const CALL_EDGE_TYPES = new Set(["call"]);
-const ENTRY_PATTERNS = {
+const ENTRY_PATTERNS$1 = {
 	handler: /handler|controller|route|middleware|endpoint/i,
 	event: /^on[A-Z]|^listen|^subscribe|^emit/i,
 	cli: /^main$|^cli$|^run$|^start$/i,
@@ -865,10 +885,10 @@ var CallGraphAssembler = class {
 		const isExported = node.properties?.isExported === true || node.properties?.is_exported === 1;
 		if (isExported) return "export";
 		const name$1 = node.label;
-		if (ENTRY_PATTERNS.handler.test(name$1)) return "handler";
-		if (ENTRY_PATTERNS.event.test(name$1)) return "event";
-		if (ENTRY_PATTERNS.cli.test(name$1)) return "cli";
-		if (ENTRY_PATTERNS.test.test(name$1)) return "test";
+		if (ENTRY_PATTERNS$1.handler.test(name$1)) return "handler";
+		if (ENTRY_PATTERNS$1.event.test(name$1)) return "event";
+		if (ENTRY_PATTERNS$1.cli.test(name$1)) return "cli";
+		if (ENTRY_PATTERNS$1.test.test(name$1)) return "test";
 		return "none";
 	}
 	detectRecursion(nodes, edges) {
@@ -1121,13 +1141,13 @@ var ClassAssembler = class {
 			classesByFile.set(cls.filePath, list);
 		}
 		for (const [filePath, classes] of classesByFile) {
-			const sortedClasses = [...classes].sort((a, b) => a.lineNumber - b.lineNumber);
+			const sortedClasses = [...classes].sort((a, b) => (a.lineNumber ?? 0) - (b.lineNumber ?? 0));
 			const fileMembers = allNodes.filter((n) => n.filePath === filePath && (n.type === "function" || n.type === "variable") && !CLASS_NODE_TYPES.has(n.type));
 			for (const member of fileMembers) {
 				let assignedClass = null;
 				for (let i$1 = sortedClasses.length - 1; i$1 >= 0; i$1--) {
 					const cls = sortedClasses[i$1];
-					if (cls && cls.lineNumber <= member.lineNumber) {
+					if (cls && (cls.lineNumber ?? 0) <= (member.lineNumber ?? 0)) {
 						assignedClass = cls;
 						break;
 					}
@@ -1300,6 +1320,34 @@ var DependencyAssembler = class {
 };
 
 //#endregion
+//#region src/shared/CFGTypes.ts
+const FUNCTION_NODE_TYPES = new Set([
+	"function_declaration",
+	"function_definition",
+	"method_declaration",
+	"method_definition",
+	"arrow_function",
+	"function_item",
+	"constructor_declaration",
+	"destructor_declaration"
+]);
+function findFunctionNode(astRoot, functionName) {
+	for (const child of astRoot.children) if (FUNCTION_NODE_TYPES.has(child.type)) {
+		const nameNode = child.children.find((c) => c.type === "identifier" || c.type === "property_identifier" || c.type === "name");
+		if (nameNode && nameNode.text === functionName) return child;
+	}
+	for (const child of astRoot.children) if (child.type === "class_declaration" || child.type === "class_definition" || child.type === "impl_item") {
+		const found = findFunctionNode(child, functionName);
+		if (found) return found;
+	}
+	return null;
+}
+function getFunctionBody(funcNode) {
+	const body = funcNode.children.find((c) => c.type === "block" || c.type === "statement_block" || c.type === "body" || c.type === "compound_statement");
+	return body ? body.children : funcNode.children;
+}
+
+//#endregion
 //#region src/client/diagram/CFGAssembler.ts
 const CONTROL_FLOW_TYPES$1 = new Set([
 	"if_statement",
@@ -1348,13 +1396,6 @@ const STATEMENT_TYPES = new Set([
 	"try_statement",
 	"try"
 ]);
-let blockCounter = 0;
-function nextBlockId() {
-	return `cfg-block-${blockCounter++}`;
-}
-function resetCounter$2() {
-	blockCounter = 0;
-}
 function isControlFlow$1(node) {
 	return CONTROL_FLOW_TYPES$1.has(node.type);
 }
@@ -1396,12 +1437,16 @@ function getElseBody$1(node) {
 	return elseNode.children.filter(isStatement);
 }
 var CFGAssembler = class {
+	blockCounter = 0;
+	nextBlockId() {
+		return `cfg-block-${this.blockCounter++}`;
+	}
 	assemble(astRoot, filePath, functionName) {
-		resetCounter$2();
+		this.blockCounter = 0;
 		const blocks = [];
 		const edges = [];
 		const entryBlock = {
-			id: nextBlockId(),
+			id: this.nextBlockId(),
 			label: "Entry",
 			statements: [],
 			isEntry: true,
@@ -1411,7 +1456,7 @@ var CFGAssembler = class {
 		};
 		blocks.push(entryBlock);
 		const exitBlock = {
-			id: nextBlockId(),
+			id: this.nextBlockId(),
 			label: "Exit",
 			statements: [],
 			isEntry: false,
@@ -1419,7 +1464,9 @@ var CFGAssembler = class {
 			blockType: "exit",
 			depth: 0
 		};
-		this.processStatements(astRoot.children, entryBlock.id, exitBlock.id, blocks, edges, 1, filePath);
+		const funcNode = findFunctionNode(astRoot, functionName);
+		const targetChildren = funcNode ? getFunctionBody(funcNode) : astRoot.children;
+		this.processStatements(targetChildren, entryBlock.id, exitBlock.id, blocks, edges, 1, filePath);
 		const hasExitEdge = edges.some((e) => e.target === exitBlock.id);
 		if (!hasExitEdge) {
 			const lastBlock = blocks[blocks.length - 1];
@@ -1522,7 +1569,7 @@ var CFGAssembler = class {
 		const condNode = getConditionNode(node);
 		const condText = condNode ? simplifyText(condNode.text) : "if";
 		const condBlock = {
-			id: nextBlockId(),
+			id: this.nextBlockId(),
 			label: condText,
 			statements: [{
 				type: "condition",
@@ -1541,7 +1588,7 @@ var CFGAssembler = class {
 			edgeType: "fallthrough"
 		});
 		const mergeBlock = {
-			id: nextBlockId(),
+			id: this.nextBlockId(),
 			label: "merge",
 			statements: [],
 			isEntry: false,
@@ -1551,7 +1598,7 @@ var CFGAssembler = class {
 		};
 		blocks.push(mergeBlock);
 		const trueBody = getBodyChildren$1(node);
-		const trueEntryId = nextBlockId();
+		const trueEntryId = this.nextBlockId();
 		const trueEntry = {
 			id: trueEntryId,
 			label: "true",
@@ -1571,7 +1618,7 @@ var CFGAssembler = class {
 		this.processStatements(trueBody, trueEntryId, mergeBlock.id, blocks, edges, depth + 1, "");
 		const elseBody = getElseBody$1(node);
 		if (elseBody.length > 0) {
-			const falseEntryId = nextBlockId();
+			const falseEntryId = this.nextBlockId();
 			const falseEntry = {
 				id: falseEntryId,
 				label: "false",
@@ -1601,7 +1648,7 @@ var CFGAssembler = class {
 		const condNode = getConditionNode(node);
 		const condText = condNode ? simplifyText(condNode.text) : node.type;
 		const condBlock = {
-			id: nextBlockId(),
+			id: this.nextBlockId(),
 			label: condText,
 			statements: [{
 				type: "condition",
@@ -1620,7 +1667,7 @@ var CFGAssembler = class {
 			edgeType: "fallthrough"
 		});
 		const loopExitBlock = {
-			id: nextBlockId(),
+			id: this.nextBlockId(),
 			label: "loop-exit",
 			statements: [],
 			isEntry: false,
@@ -1630,7 +1677,7 @@ var CFGAssembler = class {
 		};
 		blocks.push(loopExitBlock);
 		const body = getBodyChildren$1(node);
-		const bodyEntryId = nextBlockId();
+		const bodyEntryId = this.nextBlockId();
 		const bodyEntry = {
 			id: bodyEntryId,
 			label: "loop-body",
@@ -1660,7 +1707,7 @@ var CFGAssembler = class {
 		const condNode = node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression");
 		const condText = condNode ? simplifyText(condNode.text) : "switch";
 		const condBlock = {
-			id: nextBlockId(),
+			id: this.nextBlockId(),
 			label: condText,
 			statements: [{
 				type: "condition",
@@ -1679,7 +1726,7 @@ var CFGAssembler = class {
 			edgeType: "fallthrough"
 		});
 		const mergeBlock = {
-			id: nextBlockId(),
+			id: this.nextBlockId(),
 			label: "switch-merge",
 			statements: [],
 			isEntry: false,
@@ -1692,7 +1739,7 @@ var CFGAssembler = class {
 		for (const caseNode of caseNodes) {
 			const isDefault = caseNode.type === "default_statement" || caseNode.type === "default";
 			const caseLabel = isDefault ? "default" : caseNode.children.find((c) => c.type === "identifier" || c.type === "number")?.text ?? "case";
-			const caseEntryId = nextBlockId();
+			const caseEntryId = this.nextBlockId();
 			const caseEntry = {
 				id: caseEntryId,
 				label: caseLabel,
@@ -1721,7 +1768,7 @@ var CFGAssembler = class {
 	}
 	processTry(node, currentId, exitId, blocks, edges, depth) {
 		const tryBlock = {
-			id: nextBlockId(),
+			id: this.nextBlockId(),
 			label: "try",
 			statements: [],
 			isEntry: false,
@@ -1738,7 +1785,7 @@ var CFGAssembler = class {
 		const tryBody = node.children.find((c) => c.type === "block" || c.type === "statement_block");
 		const tryStmts = tryBody ? tryBody.children.filter(isStatement) : [];
 		const mergeBlock = {
-			id: nextBlockId(),
+			id: this.nextBlockId(),
 			label: "try-merge",
 			statements: [],
 			isEntry: false,
@@ -1751,7 +1798,7 @@ var CFGAssembler = class {
 		const catchNodes = node.children.filter((c) => c.type === "catch_clause" || c.type === "catch");
 		for (const catchNode of catchNodes) {
 			const catchBlock = {
-				id: nextBlockId(),
+				id: this.nextBlockId(),
 				label: "catch",
 				statements: [],
 				isEntry: false,
@@ -1772,7 +1819,7 @@ var CFGAssembler = class {
 		const finallyNode = node.children.find((c) => c.type === "finally_clause" || c.type === "finally");
 		if (finallyNode) {
 			const finallyBlock = {
-				id: nextBlockId(),
+				id: this.nextBlockId(),
 				label: "finally",
 				statements: [],
 				isEntry: false,
@@ -1789,7 +1836,7 @@ var CFGAssembler = class {
 			const finallyBody = finallyNode.children.find((c) => c.type === "block" || c.type === "statement_block");
 			const finallyStmts = finallyBody ? finallyBody.children.filter(isStatement) : [];
 			const afterFinally = {
-				id: nextBlockId(),
+				id: this.nextBlockId(),
 				label: "after-finally",
 				statements: [],
 				isEntry: false,
@@ -1805,7 +1852,7 @@ var CFGAssembler = class {
 	}
 	processReturn(node, currentId, exitId, blocks, edges, depth) {
 		const exitBlock = {
-			id: nextBlockId(),
+			id: this.nextBlockId(),
 			label: "return",
 			statements: [{
 				type: "return",
@@ -1827,7 +1874,7 @@ var CFGAssembler = class {
 	}
 	processThrow(node, currentId, exitId, blocks, edges, depth) {
 		const exitBlock = {
-			id: nextBlockId(),
+			id: this.nextBlockId(),
 			label: "throw",
 			statements: [{
 				type: "throw",
@@ -1849,7 +1896,7 @@ var CFGAssembler = class {
 	}
 	createProcessBlock(blocks, depth) {
 		const block = {
-			id: nextBlockId(),
+			id: this.nextBlockId(),
 			label: "",
 			statements: [],
 			isEntry: false,
@@ -2236,7 +2283,9 @@ var SequenceAssembler = class {
 			isDestroyed: false
 		};
 		participants.set(functionName, entryParticipant);
-		this.processStatements(astRoot.children, entryParticipant.id, participants, messages, fragments, (msg) => {
+		const funcNode = findFunctionNode(astRoot, functionName);
+		const targetChildren = funcNode ? getFunctionBody(funcNode) : astRoot.children;
+		this.processStatements(targetChildren, entryParticipant.id, participants, messages, fragments, (msg) => {
 			msg.sequenceNumber = messageSeq++;
 			messages.push(msg);
 		}, filePath, functionName);
@@ -2567,6 +2616,156 @@ var SequenceAssembler = class {
 };
 
 //#endregion
+//#region src/client/diagram/CallChainAggregator.ts
+const MAX_FUNCTIONS = 20;
+var CallChainAggregator = class {
+	cfgAssembler = new CFGAssembler();
+	async aggregate(entryNodeId, nodes, edges, astFetcher, options = {
+		depth: 2,
+		maxFunctions: MAX_FUNCTIONS
+	}) {
+		const entryNode = nodes.find((n) => n.id === entryNodeId);
+		if (!entryNode || entryNode.type !== "function") return null;
+		const callEdges = edges.filter((e) => e.type === "call");
+		const outEdges = new Map();
+		for (const e of callEdges) {
+			if (e.source === e.target) continue;
+			const list = outEdges.get(e.source) ?? [];
+			list.push(e.target);
+			outEdges.set(e.source, list);
+		}
+		const visited = new Set([entryNodeId]);
+		const queue = [{
+			id: entryNodeId,
+			depth: 0
+		}];
+		const includedFunctions = [entryNodeId];
+		const callChainEdges = [];
+		let head = 0;
+		while (head < queue.length) {
+			const { id, depth } = queue[head++];
+			if (depth >= options.depth) continue;
+			if (includedFunctions.length >= options.maxFunctions) break;
+			const neighbors = outEdges.get(id) ?? [];
+			for (const target of neighbors) {
+				if (visited.has(target)) continue;
+				visited.add(target);
+				includedFunctions.push(target);
+				callChainEdges.push({
+					source: id,
+					target
+				});
+				queue.push({
+					id: target,
+					depth: depth + 1
+				});
+			}
+		}
+		const allNodes = [];
+		const allEdges = [];
+		const functionNodeMap = new Map();
+		const functionIndexMap = new Map();
+		for (let i$1 = 0; i$1 < includedFunctions.length; i$1++) {
+			functionIndexMap.set(includedFunctions[i$1], i$1);
+			const fnNode = nodes.find((n) => n.id === includedFunctions[i$1]);
+			if (fnNode) functionNodeMap.set(includedFunctions[i$1], fnNode);
+		}
+		const astCache = new Map();
+		let functionCount = 0;
+		for (const fnId of includedFunctions) {
+			const fnNode = functionNodeMap.get(fnId);
+			if (!fnNode) continue;
+			let astRoot = astCache.get(fnNode.filePath);
+			if (astRoot === void 0) {
+				astRoot = await astFetcher(fnNode.filePath);
+				astCache.set(fnNode.filePath, astRoot);
+			}
+			if (!astRoot) continue;
+			const fnDiagram = this.cfgAssembler.assemble(astRoot, fnNode.filePath, fnNode.label);
+			const prefix = `fn${functionCount}__`;
+			const blockIdMap = new Map();
+			for (const blockNode of fnDiagram.nodes) {
+				const newId = prefix + blockNode.id;
+				blockIdMap.set(blockNode.id, newId);
+				allNodes.push({
+					...blockNode,
+					id: NodeId(newId),
+					properties: {
+						...blockNode.properties,
+						callChainFunction: fnNode.label,
+						callChainFunctionId: fnId,
+						callChainDepth: functionIndexMap.get(fnId) ?? 0
+					}
+				});
+			}
+			for (const edge of fnDiagram.edges) {
+				const newSource = blockIdMap.get(edge.source);
+				const newTarget = blockIdMap.get(edge.target);
+				if (newSource && newTarget) allEdges.push({
+					...edge,
+					id: EdgeId(prefix + edge.id),
+					source: NodeId(newSource),
+					target: NodeId(newTarget)
+				});
+			}
+			functionCount++;
+		}
+		const nodesByPrefix = new Map();
+		for (const n of allNodes) {
+			const prefixKey = n.id.split("__")[0];
+			const list = nodesByPrefix.get(prefixKey) ?? [];
+			list.push(n);
+			nodesByPrefix.set(prefixKey, list);
+		}
+		for (const { source, target } of callChainEdges) {
+			const sourceFn = functionNodeMap.get(source);
+			const targetFn = functionNodeMap.get(target);
+			if (!sourceFn || !targetFn) continue;
+			const sourceIdx = functionIndexMap.get(source) ?? 0;
+			const targetIdx = functionIndexMap.get(target) ?? 0;
+			const sourcePrefix = `fn${sourceIdx}`;
+			const targetPrefix = `fn${targetIdx}`;
+			const sourceFnNodes = nodesByPrefix.get(sourcePrefix) ?? [];
+			const targetFnNodes = nodesByPrefix.get(targetPrefix) ?? [];
+			const sourceExitNodes = sourceFnNodes.filter((n) => n.properties?.isExit === true);
+			const targetEntryNodes = targetFnNodes.filter((n) => n.properties?.isEntry === true);
+			if (sourceExitNodes.length > 0 && targetEntryNodes.length > 0) {
+				const sourceExit = sourceExitNodes[0];
+				const targetEntry = targetEntryNodes[0];
+				allEdges.push({
+					id: EdgeId(`callchain__${source}__${target}`),
+					source: NodeId(sourceExit.id),
+					target: NodeId(targetEntry.id),
+					type: "call",
+					properties: {
+						callChainEdge: true,
+						sourceFunction: sourceFn.label,
+						targetFunction: targetFn.label
+					}
+				});
+			}
+		}
+		if (allNodes.length === 0) return null;
+		const chainDepth = includedFunctions.length > 0 ? includedFunctions.length - 1 : 0;
+		return {
+			diagram: {
+				nodes: allNodes,
+				edges: allEdges,
+				metadata: {
+					rootIds: [`fn0__cfg-block-0`],
+					maxDepth: chainDepth,
+					nodeCount: allNodes.length,
+					edgeCount: allEdges.length
+				}
+			},
+			functionCount,
+			chainDepth,
+			includedFunctions
+		};
+	}
+};
+
+//#endregion
 //#region src/client/diagram/index.ts
 const inheritanceAssembler = new InheritanceAssembler();
 const callGraphAssembler = new CallGraphAssembler();
@@ -2580,102 +2779,102 @@ const LAYER_DEFINITIONS = {
 	inheritance: [
 		{
 			level: 0,
-			name: "根接口概览",
+			name: "layer.inheritance.0",
 			nodeFilter: (n) => n.properties?.depth === 0
 		},
 		{
 			level: 1,
-			name: "2层继承深度",
+			name: "layer.inheritance.1",
 			nodeFilter: (n) => n.properties?.depth <= 2
 		},
 		{
 			level: 2,
-			name: "完整继承树",
+			name: "layer.inheritance.2",
 			nodeFilter: () => true
 		}
 	],
 	callgraph: [
 		{
 			level: 0,
-			name: "入口函数概览",
+			name: "layer.callgraph.0",
 			nodeFilter: (n) => n.properties?.isEntry === true
 		},
 		{
 			level: 1,
-			name: "调用链2层",
+			name: "layer.callgraph.1",
 			nodeFilter: (n) => n.properties?.depth <= 2
 		},
 		{
 			level: 2,
-			name: "完整调用图",
+			name: "layer.callgraph.2",
 			nodeFilter: () => true
 		}
 	],
 	package: [
 		{
 			level: 0,
-			name: "顶层包概览",
+			name: "layer.package.0",
 			nodeFilter: (n) => n.properties?.depth === 0
 		},
 		{
 			level: 1,
-			name: "子包展开",
+			name: "layer.package.1",
 			nodeFilter: (n) => n.properties?.depth <= 1
 		},
 		{
 			level: 2,
-			name: "包内模块",
+			name: "layer.package.2",
 			nodeFilter: () => true
 		}
 	],
 	class: [
 		{
 			level: 0,
-			name: "类概览",
+			name: "layer.class.0",
 			nodeFilter: (n) => n.properties?.depth === 0
 		},
 		{
 			level: 1,
-			name: "类关系图",
+			name: "layer.class.1",
 			nodeFilter: (n) => n.properties?.depth <= 2
 		},
 		{
 			level: 2,
-			name: "完整类图",
+			name: "layer.class.2",
 			nodeFilter: () => true
 		}
 	],
 	code: [
 		{
 			level: 0,
-			name: "目录聚类",
+			name: "layer.code.0",
 			nodeFilter: () => true
 		},
 		{
 			level: 1,
-			name: "文件聚类",
+			name: "layer.code.1",
 			nodeFilter: () => true
 		},
 		{
 			level: 2,
-			name: "全部节点",
+			name: "layer.code.2",
 			nodeFilter: () => true
 		}
 	],
 	dependencies: [
 		{
 			level: 0,
-			name: "目录依赖概览",
+			name: "layer.dependencies.0",
 			nodeFilter: (n) => n.properties?.depth === 0
 		},
 		{
 			level: 1,
-			name: "文件依赖",
+			name: "layer.dependencies.1",
 			nodeFilter: (n) => n.properties?.depth <= 1
 		},
 		{
 			level: 2,
-			name: "模块依赖",
+			name: "layer.dependencies.2",
 			nodeFilter: () => true
 		}
 	]
@@ -2743,15 +2942,25 @@ function assembleDiagram(viewMode, nodes, edges) {
 		default: return null;
 	}
 	if (result) {
-		for (const n of result.nodes) n.properties = {
-			...n.properties,
-			diagramType: viewMode
-		};
-		for (const e of result.edges) e.properties = {
-			...e.properties,
-			diagramType: viewMode
-		};
-		return buildLayeredDiagram(viewMode, result);
+		const taggedNodes = result.nodes.map((n) => ({
+			...n,
+			properties: {
+				...n.properties,
+				diagramType: viewMode
+			}
+		}));
+		const taggedEdges = result.edges.map((e) => ({
+			...e,
+			properties: {
+				...e.properties,
+				diagramType: viewMode
+			}
+		}));
+		return buildLayeredDiagram(viewMode, {
+			nodes: taggedNodes,
+			edges: taggedEdges,
+			metadata: result.metadata
+		});
 	}
 	return null;
 }
@@ -2770,7 +2979,8 @@ async function assembleMicroDiagram(viewMode, filePath, functionName) {
 			case "sequence": return sequenceAssembler.assemble(astRoot, filePath, functionName);
 			default: return null;
 		}
-	} catch {
+	} catch (e) {
+		console.warn("[codegraph:diagram] assembleASTDiagram failed", e);
 		return null;
 	}
 }
@@ -2888,9 +3098,1612 @@ var ClusterCache = class {
 };
 
 //#endregion
+//#region src/client/renderer/styles/diagramStyles.ts
+function buildDiagramStyles(ctx) {
+	const { c, isDark, hoverBorder, inhExtend, inhImplement, clusterEdgeLabelBg, warningColor, errorColor, successColor, accentColor } = ctx;
+	return [
+		{
+			selector: "node[blockType=\"entry\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": successColor,
+				"border-width": 3,
+				"border-color": successColor,
+				"font-weight": "bold",
+				"label": "data(label)",
+				"text-valign": "center",
+				"text-halign": "center"
+			}
+		},
+		{
+			selector: "node[blockType=\"exit\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": errorColor,
+				"border-width": 3,
+				"border-color": errorColor,
+				"font-weight": "bold",
+				"label": "data(label)",
+				"text-valign": "center",
+				"text-halign": "center"
+			}
+		},
+		{
+			selector: "node[blockType=\"condition\"]",
+			style: {
+				"shape": "diamond",
+				"background-color": warningColor,
+				"border-width": 2,
+				"border-color": warningColor,
+				"label": "data(label)",
+				"text-valign": "center",
+				"text-halign": "center",
+				"text-wrap": "wrap",
+				"text-max-width": "60px"
+			}
+		},
+		{
+			selector: "node[blockType=\"loop\"]",
+			style: {
+				"shape": "diamond",
+				"background-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
+				"border-width": 2,
+				"border-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
+				"label": "data(label)",
+				"text-valign": "center",
+				"text-halign": "center",
+				"text-wrap": "wrap",
+				"text-max-width": "60px"
+			}
+		},
+		{
+			selector: "node[blockType=\"switch\"]",
+			style: {
+				"shape": "diamond",
+				"background-color": readCssVar("--cg-cfg-switch", isDark ? "#f472b6" : "#ec4899"),
+				"border-width": 2,
+				"border-color": readCssVar("--cg-cfg-switch", isDark ? "#f472b6" : "#ec4899"),
+				"label": "data(label)",
+				"text-valign": "center",
+				"text-halign": "center"
+			}
+		},
+		{
+			selector: "node[blockType=\"try\"]",
+			style: {
+				"shape": "rectangle",
+				"background-color": readCssVar("--cg-cfg-try", isDark ? "#60a5fa" : "#3b82f6"),
+				"border-width": 2,
+				"border-color": readCssVar("--cg-cfg-try", isDark ? "#60a5fa" : "#3b82f6"),
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[blockType=\"catch\"]",
+			style: {
+				"shape": "rectangle",
+				"background-color": errorColor,
+				"border-width": 2,
+				"border-color": errorColor,
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[blockType=\"finally\"]",
+			style: {
+				"shape": "rectangle",
+				"background-color": readCssVar("--cg-cfg-finally", isDark ? "#34d399" : "#10b981"),
+				"border-width": 2,
+				"border-color": readCssVar("--cg-cfg-finally", isDark ? "#34d399" : "#10b981"),
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[blockType=\"process\"]",
+			style: {
+				"shape": "rectangle",
+				"background-color": readCssVar("--cg-cfg-process", isDark ? "#60a5fa" : "#3b82f6"),
+				"border-width": 1.5,
+				"border-color": c.border,
+				"label": "data(label)",
+				"text-valign": "center",
+				"text-halign": "center",
+				"text-wrap": "wrap",
+				"text-max-width": "80px"
+			}
+		},
+		{
+			selector: "edge[cfgEdgeType=\"fallthrough\"]",
+			style: {
+				"line-color": c.edgeDefault,
+				"target-arrow-color": c.edgeDefault,
+				"line-style": "solid",
+				"width": 1.5
+			}
+		},
+		{
+			selector: "edge[cfgEdgeType=\"true\"]",
+			style: {
+				"line-color": successColor,
+				"target-arrow-color": successColor,
+				"line-style": "solid",
+				"width": 2,
+				"label": "data(label)",
+				"font-size": "9px",
+				"text-background-color": clusterEdgeLabelBg,
+				"text-background-opacity": .85,
+				"text-background-padding": "1px",
+				"text-background-shape": "roundrectangle"
+			}
+		},
+		{
+			selector: "edge[cfgEdgeType=\"false\"]",
+			style: {
+				"line-color": errorColor,
+				"target-arrow-color": errorColor,
+				"line-style": "solid",
+				"width": 2,
+				"label": "data(label)",
+				"font-size": "9px",
+				"text-background-color": clusterEdgeLabelBg,
+				"text-background-opacity": .85,
+				"text-background-padding": "1px",
+				"text-background-shape": "roundrectangle"
+			}
+		},
+		{
+			selector: "edge[cfgEdgeType=\"loop-back\"]",
+			style: {
+				"line-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
+				"target-arrow-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
+				"line-style": "dashed",
+				"width": 2,
+				"curve-style": "bezier"
+			}
+		},
+		{
+			selector: "edge[cfgEdgeType=\"exception\"]",
+			style: {
+				"line-color": warningColor,
+				"target-arrow-color": warningColor,
+				"line-style": "dashed",
+				"width": 2
+			}
+		},
+		{
+			selector: "edge[cfgEdgeType=\"case\"]",
+			style: {
+				"line-color": readCssVar("--cg-cfg-switch", isDark ? "#f472b6" : "#ec4899"),
+				"target-arrow-color": readCssVar("--cg-cfg-switch", isDark ? "#f472b6" : "#ec4899"),
+				"line-style": "solid",
+				"label": "data(label)",
+				"font-size": "9px"
+			}
+		},
+		{
+			selector: "edge[cfgEdgeType=\"default\"]",
+			style: {
+				"line-color": c.edgeDefault,
+				"target-arrow-color": c.edgeDefault,
+				"line-style": "dotted",
+				"label": "data(label)",
+				"font-size": "9px"
+			}
+		},
+		{
+			selector: "node[flowchartNodeType=\"start\"]",
+			style: {
+				"shape": "ellipse",
+				"background-color": successColor,
+				"border-width": 3,
+				"border-color": successColor,
+				"font-weight": "bold",
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[flowchartNodeType=\"end\"]",
+			style: {
+				"shape": "ellipse",
+				"background-color": errorColor,
+				"border-width": 3,
+				"border-color": errorColor,
+				"font-weight": "bold",
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[flowchartNodeType=\"decision\"]",
+			style: {
+				"shape": "diamond",
+				"background-color": warningColor,
+				"border-width": 2,
+				"border-color": warningColor,
+				"label": "data(label)",
+				"text-wrap": "wrap",
+				"text-max-width": "60px"
+			}
+		},
+		{
+			selector: "node[flowchartNodeType=\"loop\"]",
+			style: {
+				"shape": "hexagon",
+				"background-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
+				"border-width": 2,
+				"border-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
+				"label": "data(label)",
+				"text-wrap": "wrap",
+				"text-max-width": "60px"
+			}
+		},
+		{
+			selector: "node[flowchartNodeType=\"subprocess\"]",
+			style: {
+				"shape": "rectangle",
+				"background-color": readCssVar("--cg-cfg-subprocess", isDark ? "#fbbf24" : "#f59e0b"),
+				"border-width": 3,
+				"border-style": "double",
+				"border-color": readCssVar("--cg-cfg-subprocess", isDark ? "#fbbf24" : "#f59e0b"),
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[flowchartNodeType=\"error\"]",
+			style: {
+				"shape": "rectangle",
+				"background-color": errorColor,
+				"border-width": 2,
+				"border-color": errorColor,
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[flowchartNodeType=\"process\"]",
+			style: {
+				"shape": "rectangle",
+				"background-color": readCssVar("--cg-cfg-process", isDark ? "#60a5fa" : "#3b82f6"),
+				"border-width": 1.5,
+				"border-color": c.border,
+				"label": "data(label)",
+				"text-wrap": "wrap",
+				"text-max-width": "80px"
+			}
+		},
+		{
+			selector: "edge[flowchartEdgeType=\"normal\"]",
+			style: {
+				"line-color": c.edgeDefault,
+				"target-arrow-color": c.edgeDefault,
+				"line-style": "solid",
+				"width": 1.5
+			}
+		},
+		{
+			selector: "edge[flowchartEdgeType=\"yes\"]",
+			style: {
+				"line-color": successColor,
+				"target-arrow-color": successColor,
+				"line-style": "solid",
+				"width": 2,
+				"label": "data(label)",
+				"font-size": "9px"
+			}
+		},
+		{
+			selector: "edge[flowchartEdgeType=\"no\"]",
+			style: {
+				"line-color": errorColor,
+				"target-arrow-color": errorColor,
+				"line-style": "solid",
+				"width": 2,
+				"label": "data(label)",
+				"font-size": "9px"
+			}
+		},
+		{
+			selector: "edge[flowchartEdgeType=\"loop\"]",
+			style: {
+				"line-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
+				"target-arrow-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
+				"line-style": "dashed",
+				"width": 2
+			}
+		},
+		{
+			selector: "edge[flowchartEdgeType=\"error\"]",
+			style: {
+				"line-color": errorColor,
+				"target-arrow-color": errorColor,
+				"line-style": "dashed",
+				"width": 2
+			}
+		},
+		{
+			selector: "node[participantType=\"self\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": accentColor,
+				"border-width": 2,
+				"border-color": accentColor,
+				"font-weight": "bold",
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[participantType=\"class\"]",
+			style: {
+				"shape": "rectangle",
+				"background-color": c.nodeClass,
+				"border-width": 2,
+				"border-color": c.nodeClass,
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[participantType=\"external\"]",
+			style: {
+				"shape": "rectangle",
+				"background-color": readCssVar("--cg-seq-external", isDark ? "#ec4899" : "#db2777"),
+				"border-width": 2,
+				"border-color": readCssVar("--cg-seq-external", isDark ? "#ec4899" : "#db2777"),
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[participantType=\"instance\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": c.nodeFunction,
+				"border-width": 1.5,
+				"border-color": c.nodeFunction,
+				"label": "data(label)"
+			}
+		},
+		{
+			selector: "node[isFragment=\"true\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": "rgba(0,0,0,0.03)",
+				"border-width": 2,
+				"border-color": readCssVar("--cg-seq-fragment", isDark ? "#818cf8" : "#263148"),
+				"border-style": "dashed",
+				"label": "data(label)",
+				"font-size": "9px",
+				"font-weight": "bold",
+				"color": c.text,
+				"text-valign": "top",
+				"text-halign": "left",
+				"text-wrap": "wrap",
+				"text-max-width": "100px",
+				"width": 40,
+				"height": 20,
+				"z-index": 5
+			}
+		},
+		{
+			selector: "node[fragmentType=\"alt\"]",
+			style: { "border-color": warningColor }
+		},
+		{
+			selector: "node[fragmentType=\"loop\"]",
+			style: { "border-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed") }
+		},
+		{
+			selector: "node[fragmentType=\"break\"]",
+			style: {
+				"border-color": errorColor,
+				"border-style": "solid"
+			}
+		},
+		{
+			selector: "node[fragmentType=\"critical\"]",
+			style: {
+				"border-width": 3,
+				"border-style": "solid"
+			}
+		},
+		{
+			selector: "edge[isAsync=\"true\"]",
+			style: {
+				"line-style": "dashed",
+				"line-color": readCssVar("--cg-seq-async", isDark ? "#fbbf24" : "#f59e0b"),
+				"target-arrow-color": readCssVar("--cg-seq-async", isDark ? "#fbbf24" : "#f59e0b"),
+				"target-arrow-shape": "vee",
+				"label": "data(label)",
+				"font-size": "9px",
+				"text-background-color": clusterEdgeLabelBg,
+				"text-background-opacity": .85,
+				"text-background-padding": "1px",
+				"text-background-shape": "roundrectangle"
+			}
+		},
+		{
+			selector: "edge[isReturn=\"true\"]",
+			style: {
+				"line-style": "dotted",
+				"line-color": c.edgeDefault,
+				"target-arrow-color": c.edgeDefault,
+				"target-arrow-shape": "vee",
+				"label": "data(label)",
+				"font-size": "9px",
+				"text-background-color": clusterEdgeLabelBg,
+				"text-background-opacity": .85,
+				"text-background-padding": "1px",
+				"text-background-shape": "roundrectangle"
+			}
+		},
+		{
+			selector: "edge[isSelfCall=\"true\"]",
+			style: {
+				"curve-style": "bezier",
+				"line-color": accentColor,
+				"target-arrow-color": accentColor,
+				"label": "data(label)",
+				"font-size": "9px",
+				"text-background-color": clusterEdgeLabelBg,
+				"text-background-opacity": .85,
+				"text-background-padding": "1px",
+				"text-background-shape": "roundrectangle"
+			}
+		},
+		{
+			selector: "node[diagramType=\"inheritance\"]",
+			style: {
+				"shape": "rectangle",
+				"label": "data(umlLabel)",
+				"font-size": "10px",
+				"text-valign": "center",
+				"text-halign": "center",
+				"text-wrap": "wrap",
+				"text-max-width": "120px",
+				"width": "mapData(descendantCount, 0, 50, 40, 80)",
+				"height": "mapData(childCount, 0, 20, 30, 60)",
+				"border-width": 2,
+				"border-color": c.border
+			}
+		},
+		{
+			selector: "node[diagramType=\"inheritance\"][type=\"interface\"]",
+			style: {
+				"background-color": c.nodeInterface,
+				"border-style": "solid"
+			}
+		},
+		{
+			selector: "node[diagramType=\"inheritance\"][type=\"class\"]",
+			style: { "background-color": c.nodeClass }
+		},
+		{
+			selector: "node[diagramType=\"inheritance\"][isRoot=\"true\"]",
+			style: {
+				"border-width": 3,
+				"border-color": accentColor,
+				"font-weight": "bold"
+			}
+		},
+		{
+			selector: "node[diagramType=\"inheritance\"][isAbstract=\"true\"]",
+			style: {
+				"border-style": "double",
+				"border-width": 3,
+				"font-style": "italic"
+			}
+		},
+		{
+			selector: "edge[diagramType=\"inheritance\"][type=\"extend\"]",
+			style: {
+				"target-arrow-shape": "triangle-tee",
+				"line-style": "solid",
+				"width": 2,
+				"line-color": inhExtend,
+				"target-arrow-color": inhExtend
+			}
+		},
+		{
+			selector: "edge[diagramType=\"inheritance\"][type=\"implement\"]",
+			style: {
+				"target-arrow-shape": "triangle-tee",
+				"line-style": "dashed",
+				"width": 2,
+				"line-color": inhImplement,
+				"target-arrow-color": inhImplement
+			}
+		},
+		{
+			selector: "node[diagramType=\"class\"]",
+			style: {
+				"shape": "rectangle",
+				"label": "data(umlLabel)",
+				"font-size": "9px",
+				"text-valign": "top",
+				"text-halign": "center",
+				"text-wrap": "wrap",
+				"text-max-width": "140px",
+				"width": "mapData(methodCount, 0, 20, 60, 120)",
+				"height": "mapData(methodCount, 0, 20, 50, 100)",
+				"border-width": 2,
+				"border-color": c.border,
+				"padding": "4px"
+			}
+		},
+		{
+			selector: "node[diagramType=\"class\"][type=\"interface\"]",
+			style: { "background-color": c.nodeInterface }
+		},
+		{
+			selector: "node[diagramType=\"class\"][type=\"class\"]",
+			style: { "background-color": c.nodeClass }
+		},
+		{
+			selector: "node[diagramType=\"class\"][isAbstract=\"true\"]",
+			style: {
+				"border-style": "double",
+				"border-width": 3,
+				"font-style": "italic"
+			}
+		},
+		{
+			selector: "node[diagramType=\"class\"][isRoot=\"true\"]",
+			style: {
+				"border-width": 3,
+				"border-color": accentColor
+			}
+		},
+		{
+			selector: "edge[diagramType=\"class\"][type=\"extend\"]",
+			style: {
+				"target-arrow-shape": "triangle-tee",
+				"line-style": "solid",
+				"width": 2,
+				"line-color": inhExtend,
+				"target-arrow-color": inhExtend
+			}
+		},
+		{
+			selector: "edge[diagramType=\"class\"][type=\"implement\"]",
+			style: {
+				"target-arrow-shape": "triangle-tee",
+				"line-style": "dashed",
+				"width": 2,
+				"line-color": inhImplement,
+				"target-arrow-color": inhImplement
+			}
+		},
+		{
+			selector: "node[diagramType=\"package\"]",
+			style: {
+				"shape": "round-rectangle",
+				"label": "data(umlLabel)",
+				"font-size": "10px",
+				"font-weight": "bold",
+				"color": c.text,
+				"text-valign": "top",
+				"text-halign": "center",
+				"text-wrap": "wrap",
+				"text-max-width": "100px",
+				"background-color": readCssVar("--cg-node-package", isDark ? "#6366f1" : "#263148"),
+				"border-width": 2,
+				"border-color": readCssVar("--cg-package-border", isDark ? "#818cf8" : "#1a2230"),
+				"border-style": "solid",
+				"width": "mapData(childCount, 1, 50, 50, 100)",
+				"height": "mapData(childCount, 1, 50, 40, 80)",
+				"z-index": 10
+			}
+		},
+		{
+			selector: "node[diagramType=\"package\"][isRoot=\"true\"]",
+			style: {
+				"border-width": 3,
+				"border-color": accentColor
+			}
+		},
+		{
+			selector: "node[diagramType=\"package\"].hovered",
+			style: {
+				"border-width": 4,
+				"border-color": hoverBorder
+			}
+		},
+		{
+			selector: "edge[diagramType=\"package\"]",
+			style: {
+				"width": "mapData(aggregatedCount, 1, 50, 1.5, 5)",
+				"line-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : "#263148"),
+				"target-arrow-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : "#263148"),
+				"target-arrow-shape": "vee",
+				"line-style": "dashed",
+				"curve-style": "bezier",
+				"label": "data(label)",
+				"font-size": "9px",
+				"color": c.text,
+				"text-rotation": "autorotate",
+				"text-background-color": clusterEdgeLabelBg,
+				"text-background-opacity": .85,
+				"text-background-padding": "2px",
+				"text-background-shape": "roundrectangle",
+				"opacity": .8
+			}
+		},
+		{
+			selector: "edge[diagramType=\"dependencies\"][type=\"import\"]",
+			style: {
+				"width": 2,
+				"line-color": c.edgeImport,
+				"target-arrow-color": c.edgeImport,
+				"line-style": "solid",
+				"target-arrow-shape": "triangle"
+			}
+		},
+		{
+			selector: "edge[diagramType=\"dependencies\"][type=\"dependency\"]",
+			style: {
+				"width": 1.5,
+				"line-color": c.edgeDependency,
+				"target-arrow-color": c.edgeDependency,
+				"line-style": "dashed",
+				"target-arrow-shape": "vee"
+			}
+		},
+		{
+			selector: "node[diagramType=\"callgraph\"]",
+			style: {
+				"shape": "round-rectangle",
+				"label": "data(umlLabel)",
+				"font-size": "10px",
+				"text-valign": "center",
+				"text-halign": "center",
+				"text-wrap": "wrap",
+				"text-max-width": "100px",
+				"width": "mapData(outDegree, 0, 20, 30, 60)",
+				"height": "mapData(outDegree, 0, 20, 25, 50)",
+				"border-width": 2,
+				"border-color": c.border
+			}
+		},
+		{
+			selector: "node[diagramType=\"callgraph\"][isEntry=\"true\"]",
+			style: {
+				"border-width": 3,
+				"border-color": successColor,
+				"font-weight": "bold",
+				"background-color": successColor
+			}
+		},
+		{
+			selector: "node[diagramType=\"callgraph\"][entryType=\"handler\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": successColor
+			}
+		},
+		{
+			selector: "node[diagramType=\"callgraph\"][entryType=\"test\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": warningColor
+			}
+		},
+		{
+			selector: "node[diagramType=\"callgraph\"][entryType=\"export\"]",
+			style: {
+				"border-style": "double",
+				"border-width": 3
+			}
+		},
+		{
+			selector: "node[diagramType=\"callgraph\"][isRecursive=\"true\"]",
+			style: {
+				"border-width": 3,
+				"border-color": errorColor,
+				"border-style": "double"
+			}
+		},
+		{
+			selector: "edge[diagramType=\"callgraph\"]",
+			style: {
+				"line-color": c.edgeCall,
+				"target-arrow-color": c.edgeCall,
+				"target-arrow-shape": "triangle",
+				"line-style": "solid",
+				"width": 1.5,
+				"curve-style": "bezier"
+			}
+		}
+	];
+}
+
+//#endregion
+//#region src/client/renderer/styles/ThemeStylesheet.ts
+function readCssVar(name$1, fallback) {
+	if (typeof window === "undefined") return fallback;
+	const v = getComputedStyle(document.body).getPropertyValue(name$1).trim();
+	return v || fallback;
+}
+let cssVarCache = null;
+function readCssVarCached(name$1, fallback) {
+	if (typeof window === "undefined") return fallback;
+	if (!cssVarCache) {
+		const style = getComputedStyle(document.body);
+		cssVarCache = new Map();
+		const vars = [
+			"--cg-node-default",
+			"--cg-node-function",
+			"--cg-node-class",
+			"--cg-node-variable",
+			"--cg-node-module",
+			"--cg-node-interface",
+			"--cg-node-type",
+			"--cg-node-dep-npm",
+			"--cg-node-dep-cargo",
+			"--cg-node-dep-gomod",
+			"--cg-node-dep-pip",
+			"--cg-edge-default",
+			"--cg-edge-call",
+			"--cg-edge-import",
+			"--cg-edge-extend",
+			"--cg-edge-implement",
+			"--cg-edge-dependency",
+			"--cg-edge-contains",
+			"--cg-edge-dep-prod",
+			"--cg-edge-dep-dev",
+			"--cg-edge-dep-peer",
+			"--cg-edge-dep-optional",
+			"--cg-text",
+			"--cg-border",
+			"--cg-hover-border",
+			"--cg-impact-d1",
+			"--cg-impact-d2",
+			"--cg-impact-d3",
+			"--cg-inheritance-extend",
+			"--cg-inheritance-implement",
+			"--cg-cluster-bg",
+			"--cg-cluster-border",
+			"--cg-cluster-hover-bg",
+			"--cg-cluster-hover-border",
+			"--cg-cluster-edge",
+			"--cg-cluster-edge-label-bg",
+			"--cg-warning",
+			"--cg-error",
+			"--cg-success",
+			"--cg-accent"
+		];
+		for (const v of vars) cssVarCache.set(v, style.getPropertyValue(v).trim());
+	}
+	return cssVarCache.get(name$1) || fallback;
+}
+function invalidateCssVarCache() {
+	cssVarCache = null;
+}
+function getThemeColors(theme) {
+	const isDark = theme === "dark";
+	return {
+		nodeDefault: readCssVarCached("--cg-node-default", isDark ? "#6366f1" : "#263148"),
+		nodeFunction: readCssVarCached("--cg-node-function", isDark ? "#10b981" : "#059669"),
+		nodeClass: readCssVarCached("--cg-node-class", isDark ? "#818cf8" : "#1a2230"),
+		nodeVariable: readCssVarCached("--cg-node-variable", isDark ? "#f59e0b" : "#d97706"),
+		nodeModule: readCssVarCached("--cg-node-module", isDark ? "#ec4899" : "#db2777"),
+		nodeInterface: readCssVarCached("--cg-node-interface", isDark ? "#14b8a6" : "#0d9488"),
+		nodeType: readCssVarCached("--cg-node-type", isDark ? "#a78bfa" : "#7c3aed"),
+		nodeDepNpm: readCssVarCached("--cg-node-dep-npm", isDark ? "#cb3837" : "#cc3535"),
+		nodeDepCargo: readCssVarCached("--cg-node-dep-cargo", isDark ? "#dea584" : "#ce422b"),
+		nodeDepGomod: readCssVarCached("--cg-node-dep-gomod", isDark ? "#00add8" : "#007d9b"),
+		nodeDepPip: readCssVarCached("--cg-node-dep-pip", isDark ? "#3776ab" : "#3776ab"),
+		edgeDefault: readCssVarCached("--cg-edge-default", isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.1)"),
+		edgeCall: readCssVarCached("--cg-edge-call", isDark ? "#60a5fa" : "#3b82f6"),
+		edgeImport: readCssVarCached("--cg-edge-import", isDark ? "#34d399" : "#10b981"),
+		edgeExtend: readCssVarCached("--cg-edge-extend", isDark ? "#f472b6" : "#ec4899"),
+		edgeImplement: readCssVarCached("--cg-edge-implement", isDark ? "#2dd4bf" : "#0d9488"),
+		edgeDependency: readCssVarCached("--cg-edge-dependency", isDark ? "#fbbf24" : "#f59e0b"),
+		edgeContains: readCssVarCached("--cg-edge-contains", isDark ? "#a78bfa" : "#7c3aed"),
+		edgeDepProd: readCssVarCached("--cg-edge-dep-prod", isDark ? "#fbbf24" : "#f59e0b"),
+		edgeDepDev: readCssVarCached("--cg-edge-dep-dev", isDark ? "#60a5fa" : "#3b82f6"),
+		edgeDepPeer: readCssVarCached("--cg-edge-dep-peer", isDark ? "#34d399" : "#10b981"),
+		edgeDepOptional: readCssVarCached("--cg-edge-dep-optional", isDark ? "#a78bfa" : "#7c3aed"),
+		text: readCssVarCached("--cg-text", isDark ? "#f9fafb" : "#0f1115"),
+		border: readCssVarCached("--cg-border", isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)")
+	};
+}
+function buildStylesheet(theme, nodeCount = 0) {
+	const c = getThemeColors(theme);
+	const isDark = theme === "dark";
+	const isLargeGraph = nodeCount > 200;
+	const hoverBorder = readCssVarCached("--cg-hover-border", isDark ? "#818cf8" : "#1a2230");
+	const impactD1 = readCssVarCached("--cg-impact-d1", "#f59e0b");
+	const impactD2 = readCssVarCached("--cg-impact-d2", "#fbbf24");
+	const impactD3 = readCssVarCached("--cg-impact-d3", "#fde68a");
+	const inhExtend = readCssVarCached("--cg-inheritance-extend", isDark ? "#f472b6" : "#ec4899");
+	const inhImplement = readCssVarCached("--cg-inheritance-implement", isDark ? "#2dd4bf" : "#14b8a6");
+	const clusterBg = readCssVarCached("--cg-cluster-bg", isDark ? "rgba(99,102,241,0.15)" : "rgba(38,49,72,0.10)");
+	const clusterBorder = readCssVarCached("--cg-cluster-border", isDark ? "#818cf8" : "#263148");
+	const clusterHoverBg = readCssVarCached("--cg-cluster-hover-bg", isDark ? "rgba(99,102,241,0.35)" : "rgba(38,49,72,0.25)");
+	const clusterHoverBorder = readCssVarCached("--cg-cluster-hover-border", isDark ? "#a5b4fc" : "#1a2230");
+	const clusterEdge = readCssVarCached("--cg-cluster-edge", isDark ? "#818cf8" : "#263148");
+	const clusterEdgeLabelBg = readCssVarCached("--cg-cluster-edge-label-bg", isDark ? "#232324" : "#f9fafb");
+	const warningColor = readCssVarCached("--cg-warning", "#f59e0b");
+	const errorColor = readCssVarCached("--cg-error", "#ef4444");
+	const successColor = readCssVarCached("--cg-success", "#10b981");
+	const accentColor = readCssVarCached("--cg-accent", isDark ? "#6366f1" : "#263148");
+	const ctx = {
+		c,
+		isDark,
+		isLargeGraph,
+		hoverBorder,
+		impactD1,
+		impactD2,
+		impactD3,
+		inhExtend,
+		inhImplement,
+		clusterBg,
+		clusterBorder,
+		clusterHoverBg,
+		clusterHoverBorder,
+		clusterEdge,
+		clusterEdgeLabelBg,
+		warningColor,
+		errorColor,
+		successColor,
+		accentColor
+	};
+	return [
+		{
+			selector: "node",
+			style: {
+				"background-color": c.nodeDefault,
+				"label": isLargeGraph ? "" : "data(label)",
+				"font-size": "10px",
+				"color": c.text,
+				"text-valign": "center",
+				"text-halign": "center",
+				"text-wrap": "wrap",
+				"text-max-width": "70px",
+				"width": isLargeGraph ? 14 : 32,
+				"height": isLargeGraph ? 14 : 32,
+				"shape": "ellipse",
+				"border-width": isLargeGraph ? 1 : 1.5,
+				"border-color": c.border,
+				"overlay-opacity": 0,
+				...isLargeGraph ? {} : {
+					"transition-property": "background-color, border-color, border-width",
+					"transition-duration": 200
+				}
+			}
+		},
+		{
+			selector: "node.hovered",
+			style: {
+				"border-width": isLargeGraph ? 2 : 3,
+				"border-color": hoverBorder,
+				"overlay-opacity": 0
+			}
+		},
+		{
+			selector: "node[weight]",
+			style: {
+				"width": "mapData(weight, 1, 10, 24, 56)",
+				"height": "mapData(weight, 1, 10, 24, 56)"
+			}
+		},
+		{
+			selector: ":parent",
+			style: {
+				"background-color": isDark ? "rgba(99,102,241,0.08)" : "rgba(0,0,0,0.05)",
+				"border-width": 2,
+				"border-color": isDark ? "rgba(129,140,248,0.3)" : c.border,
+				"border-style": "dashed",
+				"label": "data(label)",
+				"font-size": "10px",
+				"color": c.text,
+				"text-valign": "top",
+				"text-halign": "center",
+				"text-wrap": "wrap",
+				"text-max-width": "100px",
+				"padding": "10px"
+			}
+		},
+		{
+			selector: "node[type=\"function\"]",
+			style: {
+				"shape": "round-triangle",
+				"background-color": c.nodeFunction
+			}
+		},
+		{
+			selector: "node[type=\"class\"]",
+			style: {
+				"shape": "rectangle",
+				"background-color": c.nodeClass
+			}
+		},
+		{
+			selector: "node[type=\"variable\"]",
+			style: {
+				"shape": "diamond",
+				"background-color": c.nodeVariable
+			}
+		},
+		{
+			selector: "node[type=\"module\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": c.nodeModule
+			}
+		},
+		{
+			selector: "node[type=\"interface\"]",
+			style: {
+				"shape": "hexagon",
+				"background-color": c.nodeInterface
+			}
+		},
+		{
+			selector: "node[type=\"type\"]",
+			style: {
+				"shape": "star",
+				"background-color": c.nodeType
+			}
+		},
+		{
+			selector: "node[depType=\"npm\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": c.nodeDepNpm
+			}
+		},
+		{
+			selector: "node[depType=\"cargo\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": c.nodeDepCargo
+			}
+		},
+		{
+			selector: "node[depType=\"gomod\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": c.nodeDepGomod
+			}
+		},
+		{
+			selector: "node[depType=\"pip\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": c.nodeDepPip
+			}
+		},
+		{
+			selector: "edge",
+			style: {
+				"width": 1.5,
+				"line-color": c.edgeDefault,
+				"target-arrow-color": c.edgeDefault,
+				"target-arrow-shape": "triangle",
+				"curve-style": "bezier",
+				"opacity": .8,
+				"overlay-opacity": 0
+			}
+		},
+		{
+			selector: "edge[type=\"call\"]",
+			style: {
+				"line-color": c.edgeCall,
+				"target-arrow-color": c.edgeCall,
+				"line-style": "solid"
+			}
+		},
+		{
+			selector: "edge[type=\"import\"]",
+			style: {
+				"line-color": c.edgeImport,
+				"target-arrow-color": c.edgeImport,
+				"line-style": "dashed"
+			}
+		},
+		{
+			selector: "edge[type=\"extend\"]",
+			style: {
+				"line-color": inhExtend,
+				"target-arrow-color": inhExtend,
+				"target-arrow-shape": "triangle-tee",
+				"line-style": "solid",
+				"width": 2
+			}
+		},
+		{
+			selector: "edge[type=\"implement\"]",
+			style: {
+				"line-color": inhImplement,
+				"target-arrow-color": inhImplement,
+				"target-arrow-shape": "triangle-tee",
+				"line-style": "dashed",
+				"width": 2
+			}
+		},
+		{
+			selector: "edge[type=\"dependency\"]",
+			style: {
+				"line-color": c.edgeDependency,
+				"target-arrow-color": c.edgeDependency,
+				"line-style": "dashed"
+			}
+		},
+		{
+			selector: "edge[type=\"dependency\"][scope=\"prod\"]",
+			style: {
+				"line-color": c.edgeDepProd,
+				"target-arrow-color": c.edgeDepProd,
+				"line-style": "solid"
+			}
+		},
+		{
+			selector: "edge[type=\"dependency\"][scope=\"dev\"]",
+			style: {
+				"line-color": c.edgeDepDev,
+				"target-arrow-color": c.edgeDepDev,
+				"line-style": "dashed"
+			}
+		},
+		{
+			selector: "edge[type=\"dependency\"][scope=\"peer\"]",
+			style: {
+				"line-color": c.edgeDepPeer,
+				"target-arrow-color": c.edgeDepPeer,
+				"line-style": "dotted"
+			}
+		},
+		{
+			selector: "edge[type=\"dependency\"][scope=\"optional\"]",
+			style: {
+				"line-color": c.edgeDepOptional,
+				"target-arrow-color": c.edgeDepOptional,
+				"line-style": "dotted",
+				"opacity": .6
+			}
+		},
+		{
+			selector: "edge[type=\"contains\"]",
+			style: {
+				"line-color": c.edgeContains,
+				"target-arrow-color": c.edgeContains,
+				"line-style": "dotted",
+				"width": 1
+			}
+		},
+		{
+			selector: ".highlighted",
+			style: {
+				"border-width": 4,
+				"border-color": warningColor,
+				"z-index": 20
+			}
+		},
+		{
+			selector: ".selected",
+			style: {
+				"border-width": 4,
+				"border-color": errorColor,
+				"z-index": 30
+			}
+		},
+		{
+			selector: ".neighbor-dim",
+			style: { "opacity": .2 }
+		},
+		{
+			selector: "edge.neighbor-dim",
+			style: { "opacity": .1 }
+		},
+		{
+			selector: ".neighbor-highlight",
+			style: {
+				"border-width": 3,
+				"border-color": accentColor,
+				"opacity": 1,
+				"z-index": 28
+			}
+		},
+		{
+			selector: "edge.neighbor-highlight",
+			style: {
+				"width": 2.5,
+				"line-color": accentColor,
+				"target-arrow-color": accentColor,
+				"opacity": 1,
+				"z-index": 28
+			}
+		},
+		{
+			selector: ".search-match",
+			style: {
+				"border-width": 3,
+				"border-color": successColor
+			}
+		},
+		{
+			selector: ".call-chain",
+			style: {
+				"background-color": warningColor,
+				"border-width": 3,
+				"border-color": warningColor,
+				"opacity": .9,
+				"z-index": 25
+			}
+		},
+		{
+			selector: "edge.call-chain",
+			style: {
+				"line-color": warningColor,
+				"target-arrow-color": warningColor,
+				"width": 3,
+				"opacity": 1,
+				"z-index": 25
+			}
+		},
+		{
+			selector: ".cycle-highlight",
+			style: {
+				"border-width": 4,
+				"border-color": errorColor,
+				"background-color": errorColor
+			}
+		},
+		{
+			selector: ".impact-source",
+			style: {
+				"border-width": 4,
+				"border-color": errorColor,
+				"background-color": errorColor,
+				"z-index": 35
+			}
+		},
+		{
+			selector: ".impact-d1",
+			style: {
+				"border-width": 3,
+				"border-color": impactD1,
+				"background-color": impactD1,
+				"z-index": 28
+			}
+		},
+		{
+			selector: ".impact-d2",
+			style: {
+				"border-width": 3,
+				"border-color": impactD2,
+				"background-color": impactD2,
+				"opacity": .8,
+				"z-index": 22
+			}
+		},
+		{
+			selector: ".impact-d3",
+			style: {
+				"border-width": 2,
+				"border-color": impactD3,
+				"background-color": impactD3,
+				"opacity": .6,
+				"z-index": 18
+			}
+		},
+		{
+			selector: ".inheritance-extend",
+			style: {
+				"width": 2.5,
+				"line-color": inhExtend,
+				"target-arrow-color": inhExtend,
+				"opacity": .9,
+				"z-index": 20
+			}
+		},
+		{
+			selector: ".inheritance-implement",
+			style: {
+				"width": 2,
+				"line-color": inhImplement,
+				"target-arrow-color": inhImplement,
+				"opacity": .9,
+				"z-index": 20,
+				"line-style": "dashed"
+			}
+		},
+		{
+			selector: ".inheritance-highlight",
+			style: {
+				"border-width": 3,
+				"border-color": inhExtend,
+				"opacity": 1,
+				"z-index": 25
+			}
+		},
+		{
+			selector: "edge.inheritance-highlight",
+			style: {
+				"width": 3,
+				"opacity": 1,
+				"z-index": 25
+			}
+		},
+		{
+			selector: ".inheritance-focus",
+			style: {
+				"border-width": 4,
+				"border-color": errorColor,
+				"background-color": errorColor,
+				"z-index": 35
+			}
+		},
+		{
+			selector: ".inheritance-dim",
+			style: { "opacity": .25 }
+		},
+		{
+			selector: ".focus-highlight",
+			style: {
+				"border-width": 3,
+				"border-color": accentColor,
+				"opacity": 1,
+				"z-index": 30
+			}
+		},
+		{
+			selector: "edge.focus-highlight",
+			style: {
+				"width": 2.5,
+				"line-color": accentColor,
+				"target-arrow-color": accentColor,
+				"opacity": 1,
+				"z-index": 30
+			}
+		},
+		{
+			selector: ".focus-dim",
+			style: { "opacity": .25 }
+		},
+		{
+			selector: "node[isCluster=\"true\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": clusterBg,
+				"border-width": 2,
+				"border-color": clusterBorder,
+				"border-style": "solid",
+				"label": "data(label)",
+				"font-size": "11px",
+				"font-weight": "bold",
+				"color": c.text,
+				"text-valign": "center",
+				"text-halign": "center",
+				"text-wrap": "wrap",
+				"text-max-width": "90px",
+				"width": "mapData(childCount, 1, 3000, 40, 80)",
+				"height": "mapData(childCount, 1, 3000, 40, 80)",
+				"z-index": 5,
+				"transition-property": "background-color, border-color, border-width",
+				"transition-duration": 200
+			}
+		},
+		{
+			selector: "node[isCluster=\"true\"][clusterHue=\"0\"]",
+			style: {
+				"background-color": isDark ? "rgba(99,102,241,0.15)" : "rgba(99,102,241,0.10)",
+				"border-color": isDark ? "#818cf8" : "#6366f1"
+			}
+		},
+		{
+			selector: "node[isCluster=\"true\"][clusterHue=\"1\"]",
+			style: {
+				"background-color": isDark ? "rgba(16,185,129,0.15)" : "rgba(16,185,129,0.10)",
+				"border-color": isDark ? "#34d399" : "#10b981"
+			}
+		},
+		{
+			selector: "node[isCluster=\"true\"][clusterHue=\"2\"]",
+			style: {
+				"background-color": isDark ? "rgba(236,72,153,0.15)" : "rgba(236,72,153,0.10)",
+				"border-color": isDark ? "#f472b6" : "#ec4899"
+			}
+		},
+		{
+			selector: "node[isCluster=\"true\"][clusterHue=\"3\"]",
+			style: {
+				"background-color": isDark ? "rgba(245,158,11,0.15)" : "rgba(245,158,11,0.10)",
+				"border-color": isDark ? "#fbbf24" : "#f59e0b"
+			}
+		},
+		{
+			selector: "node[isCluster=\"true\"][clusterHue=\"4\"]",
+			style: {
+				"background-color": isDark ? "rgba(6,182,212,0.15)" : "rgba(6,182,212,0.10)",
+				"border-color": isDark ? "#22d3ee" : "#06b6d4"
+			}
+		},
+		{
+			selector: "node[isCluster=\"true\"][clusterHue=\"5\"]",
+			style: {
+				"background-color": isDark ? "rgba(168,85,247,0.15)" : "rgba(168,85,247,0.10)",
+				"border-color": isDark ? "#a78bfa" : "#8b5cf6"
+			}
+		},
+		{
+			selector: "node[isCluster=\"true\"][clusterHue=\"6\"]",
+			style: {
+				"background-color": isDark ? "rgba(239,68,68,0.15)" : "rgba(239,68,68,0.10)",
+				"border-color": isDark ? "#f87171" : "#ef4444"
+			}
+		},
+		{
+			selector: "node[isCluster=\"true\"][clusterHue=\"7\"]",
+			style: {
+				"background-color": isDark ? "rgba(132,204,22,0.15)" : "rgba(132,204,22,0.10)",
+				"border-color": isDark ? "#a3e635" : "#84cc16"
+			}
+		},
+		{
+			selector: "node[isCluster=\"true\"][clusterHue=\"8\"]",
+			style: {
+				"background-color": isDark ? "rgba(251,113,133,0.15)" : "rgba(251,113,133,0.10)",
+				"border-color": isDark ? "#fb7185" : "#f43f5e"
+			}
+		},
+		{
+			selector: "node[isCluster=\"true\"][clusterHue=\"9\"]",
+			style: {
+				"background-color": isDark ? "rgba(96,165,250,0.15)" : "rgba(96,165,250,0.10)",
+				"border-color": isDark ? "#60a5fa" : "#3b82f6"
+			}
+		},
+		{
+			selector: "node[isCluster=\"true\"][clusterHue=\"10\"]",
+			style: {
+				"background-color": isDark ? "rgba(52,211,153,0.15)" : "rgba(52,211,153,0.10)",
+				"border-color": isDark ? "#34d399" : "#14b8a6"
+			}
+		},
+		{
+			selector: "node[isCluster=\"true\"][clusterHue=\"11\"]",
+			style: {
+				"background-color": isDark ? "rgba(251,191,36,0.15)" : "rgba(251,191,36,0.10)",
+				"border-color": isDark ? "#fbbf24" : "#eab308"
+			}
+		},
+		{
+			selector: "node[isCluster=\"true\"].hovered",
+			style: {
+				"background-color": clusterHoverBg,
+				"border-width": 4,
+				"border-color": clusterHoverBorder
+			}
+		},
+		{
+			selector: "edge[isCluster=\"true\"]",
+			style: {
+				"width": "mapData(aggregatedCount, 1, 200, 1.5, 4)",
+				"line-color": clusterEdge,
+				"target-arrow-color": clusterEdge,
+				"target-arrow-shape": "triangle",
+				"curve-style": "bezier",
+				"label": "data(label)",
+				"font-size": "10px",
+				"color": c.text,
+				"text-rotation": "autorotate",
+				"text-background-color": clusterEdgeLabelBg,
+				"text-background-opacity": .85,
+				"text-background-padding": "2px",
+				"text-background-shape": "roundrectangle",
+				"opacity": .75
+			}
+		},
+		{
+			selector: "edge[isCluster=\"true\"].hovered",
+			style: {
+				"opacity": 1,
+				"width": "mapData(aggregatedCount, 1, 200, 2.5, 6)"
+			}
+		},
+		{
+			selector: ".path-highlight",
+			style: {
+				"border-width": 4,
+				"border-color": accentColor,
+				"background-color": accentColor,
+				"z-index": 40
+			}
+		},
+		{
+			selector: "edge.path-highlight",
+			style: {
+				"width": 4,
+				"line-color": accentColor,
+				"target-arrow-color": accentColor,
+				"opacity": 1,
+				"z-index": 40
+			}
+		},
+		{
+			selector: ".path-dim",
+			style: { "opacity": .25 }
+		},
+		{
+			selector: ".rule-violation",
+			style: {
+				"border-width": 4,
+				"border-color": errorColor,
+				"background-color": errorColor,
+				"z-index": 45
+			}
+		},
+		{
+			selector: "edge.rule-violation",
+			style: {
+				"width": 4,
+				"line-color": errorColor,
+				"target-arrow-color": errorColor,
+				"opacity": 1,
+				"z-index": 45
+			}
+		},
+		{
+			selector: ".hotspot-high",
+			style: {
+				"border-width": 4,
+				"border-color": errorColor,
+				"z-index": 35
+			}
+		},
+		{
+			selector: ".hotspot-medium",
+			style: {
+				"border-width": 3,
+				"border-color": warningColor,
+				"z-index": 28
+			}
+		},
+		{
+			selector: "node[isRoot=\"true\"]",
+			style: {
+				"border-width": 3,
+				"border-color": accentColor,
+				"font-weight": "bold",
+				"z-index": 15
+			}
+		},
+		{
+			selector: "node[isEntry=\"true\"]",
+			style: {
+				"border-width": 3,
+				"border-color": successColor,
+				"font-weight": "bold",
+				"z-index": 15
+			}
+		},
+		{
+			selector: "node[isRecursive=\"true\"]",
+			style: {
+				"border-width": 3,
+				"border-color": errorColor,
+				"border-style": "double"
+			}
+		},
+		{
+			selector: "node[entryType=\"handler\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": successColor
+			}
+		},
+		{
+			selector: "node[entryType=\"test\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": warningColor
+			}
+		},
+		{
+			selector: "node[entryType=\"export\"]",
+			style: {
+				"border-style": "double",
+				"border-width": 3
+			}
+		},
+		{
+			selector: "edge[type=\"extend\"][lineStyle=\"uml\"]",
+			style: {
+				"target-arrow-shape": "triangle-tee",
+				"line-style": "solid",
+				"width": 2
+			}
+		},
+		{
+			selector: "edge[type=\"implement\"][lineStyle=\"uml\"]",
+			style: {
+				"target-arrow-shape": "triangle-tee",
+				"line-style": "dashed",
+				"width": 2
+			}
+		},
+		{
+			selector: "node[isPackage=\"true\"]",
+			style: {
+				"shape": "round-rectangle",
+				"background-color": readCssVar("--cg-node-package", isDark ? "#6366f1" : "#263148"),
+				"border-width": 2,
+				"border-color": readCssVar("--cg-package-border", isDark ? "#818cf8" : "#1a2230"),
+				"label": "data(label)",
+				"font-size": "11px",
+				"font-weight": "bold",
+				"color": c.text,
+				"text-valign": "center",
+				"text-halign": "center",
+				"text-wrap": "wrap",
+				"text-max-width": "80px",
+				"width": "mapData(childCount, 1, 50, 30, 60)",
+				"height": "mapData(childCount, 1, 50, 30, 60)",
+				"z-index": 10
+			}
+		},
+		{
+			selector: "node[isPackage=\"true\"].hovered",
+			style: {
+				"border-width": 4,
+				"border-color": hoverBorder
+			}
+		},
+		{
+			selector: "edge[isPackageEdge=\"true\"]",
+			style: {
+				"width": "mapData(aggregatedCount, 1, 50, 1.5, 5)",
+				"line-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : "#263148"),
+				"target-arrow-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : "#263148"),
+				"target-arrow-shape": "vee",
+				"line-style": "dashed",
+				"curve-style": "bezier",
+				"label": "data(label)",
+				"font-size": "9px",
+				"color": c.text,
+				"text-rotation": "autorotate",
+				"text-background-color": clusterEdgeLabelBg,
+				"text-background-opacity": .85,
+				"text-background-padding": "2px",
+				"text-background-shape": "roundrectangle",
+				"opacity": .8
+			}
+		},
+		{
+			selector: "node[isAbstract=\"true\"]",
+			style: {
+				"border-style": "double",
+				"border-width": 3,
+				"font-style": "italic"
+			}
+		},
+		{
+			selector: "node[methodCount]",
+			style: {
+				"shape": "rectangle",
+				"label": "data(label)",
+				"font-size": "10px",
+				"text-wrap": "wrap",
+				"text-max-width": "100px",
+				"width": "mapData(methodCount, 0, 20, 40, 80)",
+				"height": "mapData(methodCount, 0, 20, 30, 60)"
+			}
+		},
+		{
+			selector: "node[isRoot=\"true\"][parentCount=\"0\"]",
+			style: {
+				"border-width": 3,
+				"border-color": accentColor,
+				"font-weight": "bold"
+			}
+		},
+		...buildDiagramStyles(ctx)
+	];
+}
+
+//#endregion
 //#region src/client/store/graphStore.ts
 const diagramCache = new DiagramCache(10);
 const clusterCache = new ClusterCache(20);
+const callChainAggregator = new CallChainAggregator();
 function detectInitialTheme() {
 	if (typeof document === "undefined") return "dark";
 	return document.body.hasAttribute("data-ds-dark-theme") ? "dark" : "light";
@@ -2902,6 +4715,50 @@ const memoryStorage = {
 };
 const LOADING_FAILSAFE_MS = 15e3;
 let loadingFailsafe = null;
+const VIEW_MODE_LAYOUT = {
+	code: "cose",
+	dependencies: "dagre",
+	inheritance: "tree",
+	callgraph: "dagre",
+	package: "tree",
+	class: "dagre",
+	cfg: "dagre",
+	flowchart: "dagre",
+	sequence: "grid"
+};
+function isLayeredViewMode(mode) {
+	return mode === "inheritance" || mode === "callgraph" || mode === "package" || mode === "class" || mode === "dependencies";
+}
+function computeLayeredExpandedView(diagramData, currentLayer, expandedNodeIds) {
+	const layer = diagramData.layers[currentLayer];
+	if (!layer) return {
+		nodes: [],
+		edges: []
+	};
+	const inEdgesMap = new Map();
+	for (const e of diagramData.allEdges) {
+		const list = inEdgesMap.get(e.target) ?? [];
+		list.push(e.source);
+		inEdgesMap.set(e.target, list);
+	}
+	const visibleIds = new Set(layer.nodeIds);
+	const queue = [];
+	for (const id of expandedNodeIds) if (visibleIds.has(id)) queue.push(id);
+	while (queue.length > 0) {
+		const id = queue.shift();
+		const children = inEdgesMap.get(id) ?? [];
+		for (const childId of children) if (!visibleIds.has(childId)) {
+			visibleIds.add(childId);
+			if (expandedNodeIds.has(childId)) queue.push(childId);
+		}
+	}
+	const visibleNodes = diagramData.allNodes.filter((n) => visibleIds.has(n.id));
+	const visibleEdges = diagramData.allEdges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target));
+	return {
+		nodes: visibleNodes,
+		edges: visibleEdges
+	};
+}
 function clearLoadingFailsafe() {
 	if (loadingFailsafe !== null) {
 		clearTimeout(loadingFailsafe);
@@ -2929,7 +4786,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	viewMode: "code",
 	diagramData: null,
 	currentLayer: 0,
-	clusterLevel: "directory",
+	clusterDepth: 0,
 	isLoading: false,
 	error: null,
 	lastUpdated: 0,
@@ -2941,12 +4798,14 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	initMessage: null,
 	watchEnabled: false,
 	expandedNodeIds: new Set(),
+	expandedNodeIdsByViewMode: {},
 	currentWorkspace: ".",
 	workspaceList: [],
 	pathStartId: null,
 	pathEndId: null,
 	pathResult: null,
 	focusDepth: 1,
+	callChainDepth: 2,
 	healthScore: null,
 	rules: [],
 	ruleViolations: [],
@@ -2955,11 +4814,12 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	selectedFunction: null,
 	setGraphData: (nodes, edges, repoId, metadata) => {
 		clearLoadingFailsafe();
-		const { clusterLevel, expandedNodeIds, viewMode, currentLayer } = useGraphStore.getState();
+		const { clusterDepth, expandedNodeIds, viewMode, currentLayer } = useGraphStore.getState();
 		let displayNodes = nodes;
 		let displayEdges = edges;
 		let diagramData = null;
-		if (viewMode === "inheritance" || viewMode === "callgraph" || viewMode === "package" || viewMode === "class") {
+		const isLayeredView = viewMode === "inheritance" || viewMode === "callgraph" || viewMode === "package" || viewMode === "class" || viewMode === "dependencies";
+		if (isLayeredView) {
 			const dataHash = computeDataHash(nodes, edges);
 			const cached = diagramCache.get(viewMode, dataHash);
 			if (cached) diagramData = cached;
@@ -2974,8 +4834,25 @@ const useGraphStore = create$1()(persist((set$1) => ({
 					displayEdges = layer.edges;
 				}
 			}
+			set$1({
+				rawNodes: nodes,
+				rawEdges: edges,
+				nodes: displayNodes,
+				edges: displayEdges,
+				diagramData,
+				repoId,
+				error: null,
+				isLoading: false,
+				lastUpdated: Date.now(),
+				truncated: !!metadata?.truncated,
+				totalNodeCount: metadata?.totalNodeCount ?? nodes.length,
+				totalEdgeCount: metadata?.totalEdgeCount ?? edges.length,
+				healthScore: null,
+				ruleViolations: []
+			});
+			return;
 		}
-		const result = computeClusteredGraph(displayNodes, displayEdges, clusterLevel, expandedNodeIds);
+		const result = computeClusteredGraph(displayNodes, displayEdges, "progressive", expandedNodeIds, clusterDepth);
 		set$1({
 			rawNodes: nodes,
 			rawEdges: edges,
@@ -2994,7 +4871,10 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		});
 	},
 	setLayout: (layout$2) => set$1({ layout: layout$2 }),
-	setTheme: (theme) => set$1({ theme }),
+	setTheme: (theme) => {
+		invalidateCssVarCache();
+		set$1({ theme });
+	},
 	setSearchQuery: (searchQuery) => set$1({ searchQuery }),
 	setSelectedNode: (selectedNodeId) => set$1({ selectedNodeId }),
 	setHighlightedNodes: (highlightedNodeIds) => set$1({ highlightedNodeIds }),
@@ -3002,7 +4882,14 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	setGraphType: (graphType) => set$1({ graphType }),
 	setViewMode: (viewMode) => {
 		const state = useGraphStore.getState();
-		const { rawNodes, rawEdges, clusterLevel, expandedNodeIds, selectedFunction, savedRawNodes, savedRawEdges } = state;
+		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, selectedFunction, savedRawNodes, savedRawEdges, viewMode: prevViewMode } = state;
+		const recommendedLayout = VIEW_MODE_LAYOUT[viewMode];
+		const savedExpanded = expandedNodeIdsByViewMode[viewMode] ?? new Set();
+		const prevExpanded = new Set(expandedNodeIds);
+		const newExpandedByViewMode = {
+			...expandedNodeIdsByViewMode,
+			[prevViewMode]: prevExpanded
+		};
 		if (viewMode === "dependencies") {
 			const sourceNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
 			const sourceEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
@@ -3016,46 +4903,47 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				const layer = diagram.layers[0];
 				const layerNodes = layer ? layer.nodes : diagram.allNodes;
 				const layerEdges = layer ? layer.edges : diagram.allEdges;
-				const result$2 = computeClusteredGraph(layerNodes, layerEdges, "function", new Set());
 				set$1({
 					viewMode,
 					diagramData: diagram,
 					currentLayer: 0,
+					layout: recommendedLayout,
 					savedRawNodes: rawNodes,
 					savedRawEdges: rawEdges,
-					clusterLevel: "function",
-					expandedNodeIds: new Set(),
-					nodes: result$2.nodes,
-					edges: result$2.edges
+					expandedNodeIds: savedExpanded,
+					expandedNodeIdsByViewMode: newExpandedByViewMode,
+					nodes: layerNodes,
+					edges: layerEdges
 				});
 				return;
 			}
-			const result$1 = computeClusteredGraph(rawNodes, rawEdges, "directory", new Set());
 			set$1({
 				viewMode,
 				diagramData: null,
+				layout: recommendedLayout,
 				savedRawNodes: rawNodes,
 				savedRawEdges: rawEdges,
-				clusterLevel: "directory",
-				expandedNodeIds: new Set(),
-				nodes: result$1.nodes,
-				edges: result$1.edges
+				expandedNodeIds: savedExpanded,
+				expandedNodeIdsByViewMode: newExpandedByViewMode,
+				nodes: rawNodes,
+				edges: rawEdges
 			});
 			return;
 		}
 		if (viewMode === "code") {
 			const restoreNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
 			const restoreEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
-			const result$1 = computeClusteredGraph(restoreNodes, restoreEdges, "directory", new Set());
+			const result$1 = computeClusteredGraph(restoreNodes, restoreEdges, "progressive", savedExpanded, clusterDepth);
 			set$1({
 				viewMode,
 				diagramData: null,
+				layout: recommendedLayout,
 				rawNodes: restoreNodes,
 				rawEdges: restoreEdges,
 				savedRawNodes: [],
 				savedRawEdges: [],
-				clusterLevel: "directory",
-				expandedNodeIds: new Set(),
+				expandedNodeIds: savedExpanded,
+				expandedNodeIdsByViewMode: newExpandedByViewMode,
 				nodes: result$1.nodes,
 				edges: result$1.edges
 			});
@@ -3074,43 +4962,58 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				const layer = diagram.layers[0];
 				const layerNodes = layer ? layer.nodes : diagram.allNodes;
 				const layerEdges = layer ? layer.edges : diagram.allEdges;
-				const result$1 = computeClusteredGraph(layerNodes, layerEdges, "function", new Set());
 				set$1({
 					viewMode,
 					diagramData: diagram,
 					currentLayer: 0,
-					clusterLevel: "function",
-					expandedNodeIds: new Set(),
-					nodes: result$1.nodes,
-					edges: result$1.edges
+					layout: recommendedLayout,
+					savedRawNodes: sourceNodes,
+					savedRawEdges: sourceEdges,
+					expandedNodeIds: savedExpanded,
+					expandedNodeIdsByViewMode: newExpandedByViewMode,
+					nodes: layerNodes,
+					edges: layerEdges
 				});
 				return;
 			}
 		}
 		if (viewMode === "cfg" || viewMode === "flowchart" || viewMode === "sequence") {
 			if (selectedFunction) {
-				set$1({ viewMode });
+				set$1({
+					viewMode,
+					layout: recommendedLayout,
+					expandedNodeIdsByViewMode: newExpandedByViewMode
+				});
 				useGraphStore.getState().assembleMicro(viewMode);
 				return;
 			}
 			set$1({
 				viewMode,
 				diagramData: null,
+				layout: recommendedLayout,
 				nodes: [],
-				edges: []
+				edges: [],
+				expandedNodeIdsByViewMode: newExpandedByViewMode
 			});
 			return;
 		}
-		const result = computeClusteredGraph(rawNodes, rawEdges, clusterLevel, expandedNodeIds);
+		const result = computeClusteredGraph(rawNodes, rawEdges, "progressive", savedExpanded, clusterDepth);
 		set$1({
 			viewMode,
 			diagramData: null,
+			layout: recommendedLayout,
+			expandedNodeIds: savedExpanded,
+			expandedNodeIdsByViewMode: newExpandedByViewMode,
 			nodes: result.nodes,
 			edges: result.edges
 		});
 	},
-	setClusterLevel: (clusterLevel) => {
-		const { rawNodes, rawEdges, expandedNodeIds, diagramData, currentLayer } = useGraphStore.getState();
+	setClusterDepth: (clusterDepth) => {
+		const { rawNodes, rawEdges, expandedNodeIds, diagramData, currentLayer, viewMode } = useGraphStore.getState();
+		if (isLayeredViewMode(viewMode)) {
+			set$1({ clusterDepth });
+			return;
+		}
 		let sourceNodes = rawNodes;
 		let sourceEdges = rawEdges;
 		if (diagramData) {
@@ -3122,19 +5025,19 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		}
 		const dataHash = computeDataHash(sourceNodes, sourceEdges);
 		const expandedKey = [...expandedNodeIds].sort().join(",");
-		const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
+		const cached = clusterCache.get(dataHash, "progressive", expandedKey);
 		if (cached) {
 			set$1({
-				clusterLevel,
+				clusterDepth,
 				nodes: cached.nodes,
 				edges: cached.edges
 			});
 			return;
 		}
-		const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, expandedNodeIds);
-		clusterCache.set(dataHash, clusterLevel, expandedKey, result);
+		const result = computeClusteredGraph(sourceNodes, sourceEdges, "progressive", expandedNodeIds, clusterDepth);
+		clusterCache.set(dataHash, "progressive", expandedKey, result);
 		set$1({
-			clusterLevel,
+			clusterDepth,
 			nodes: result.nodes,
 			edges: result.edges
 		});
@@ -3179,7 +5082,28 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	}),
 	setWatchEnabled: (watchEnabled) => set$1({ watchEnabled }),
 	expandNode: (nodeId) => {
-		const { rawNodes, rawEdges, clusterLevel, expandedNodeIds, diagramData, currentLayer } = useGraphStore.getState();
+		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
+		const newExpanded = new Set(expandedNodeIds);
+		newExpanded.add(nodeId);
+		const newExpandedByViewMode = {
+			...expandedNodeIdsByViewMode,
+			[viewMode]: newExpanded
+		};
+		if (isLayeredViewMode(viewMode)) {
+			if (diagramData) {
+				const { nodes: visNodes, edges: visEdges } = computeLayeredExpandedView(diagramData, currentLayer, newExpanded);
+				set$1({
+					expandedNodeIds: newExpanded,
+					expandedNodeIdsByViewMode: newExpandedByViewMode,
+					nodes: visNodes,
+					edges: visEdges
+				});
+			} else set$1({
+				expandedNodeIds: newExpanded,
+				expandedNodeIdsByViewMode: newExpandedByViewMode
+			});
+			return;
+		}
 		let sourceNodes = rawNodes;
 		let sourceEdges = rawEdges;
 		if (diagramData) {
@@ -3189,29 +5113,50 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				sourceEdges = layer.edges;
 			}
 		}
-		const newExpanded = new Set(expandedNodeIds);
-		newExpanded.add(nodeId);
 		const dataHash = computeDataHash(sourceNodes, sourceEdges);
 		const expandedKey = [...newExpanded].sort().join(",");
-		const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
+		const cached = clusterCache.get(dataHash, "progressive", expandedKey);
 		if (cached) {
 			set$1({
 				expandedNodeIds: newExpanded,
+				expandedNodeIdsByViewMode: newExpandedByViewMode,
 				nodes: cached.nodes,
 				edges: cached.edges
 			});
 			return;
 		}
-		const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, newExpanded);
-		clusterCache.set(dataHash, clusterLevel, expandedKey, result);
+		const result = computeClusteredGraph(sourceNodes, sourceEdges, "progressive", newExpanded, clusterDepth);
+		clusterCache.set(dataHash, "progressive", expandedKey, result);
 		set$1({
 			expandedNodeIds: newExpanded,
+			expandedNodeIdsByViewMode: newExpandedByViewMode,
 			nodes: result.nodes,
 			edges: result.edges
 		});
 	},
 	collapseNode: (nodeId) => {
-		const { rawNodes, rawEdges, clusterLevel, expandedNodeIds, diagramData, currentLayer } = useGraphStore.getState();
+		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
+		const newExpanded = new Set(expandedNodeIds);
+		newExpanded.delete(nodeId);
+		const newExpandedByViewMode = {
+			...expandedNodeIdsByViewMode,
+			[viewMode]: newExpanded
+		};
+		if (isLayeredViewMode(viewMode)) {
+			if (diagramData) {
+				const { nodes: visNodes, edges: visEdges } = computeLayeredExpandedView(diagramData, currentLayer, newExpanded);
+				set$1({
+					expandedNodeIds: newExpanded,
+					expandedNodeIdsByViewMode: newExpandedByViewMode,
+					nodes: visNodes,
+					edges: visEdges
+				});
+			} else set$1({
+				expandedNodeIds: newExpanded,
+				expandedNodeIdsByViewMode: newExpandedByViewMode
+			});
+			return;
+		}
 		let sourceNodes = rawNodes;
 		let sourceEdges = rawEdges;
 		if (diagramData) {
@@ -3221,29 +5166,50 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				sourceEdges = layer.edges;
 			}
 		}
-		const newExpanded = new Set(expandedNodeIds);
-		newExpanded.delete(nodeId);
 		const dataHash = computeDataHash(sourceNodes, sourceEdges);
 		const expandedKey = [...newExpanded].sort().join(",");
-		const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
+		const cached = clusterCache.get(dataHash, "progressive", expandedKey);
 		if (cached) {
 			set$1({
 				expandedNodeIds: newExpanded,
+				expandedNodeIdsByViewMode: newExpandedByViewMode,
 				nodes: cached.nodes,
 				edges: cached.edges
 			});
 			return;
 		}
-		const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, newExpanded);
-		clusterCache.set(dataHash, clusterLevel, expandedKey, result);
+		const result = computeClusteredGraph(sourceNodes, sourceEdges, "progressive", newExpanded, clusterDepth);
+		clusterCache.set(dataHash, "progressive", expandedKey, result);
 		set$1({
 			expandedNodeIds: newExpanded,
+			expandedNodeIdsByViewMode: newExpandedByViewMode,
 			nodes: result.nodes,
 			edges: result.edges
 		});
 	},
 	collapseAll: () => {
-		const { rawNodes, rawEdges, clusterLevel, diagramData, currentLayer } = useGraphStore.getState();
+		const { rawNodes, rawEdges, clusterDepth, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
+		const newExpandedByViewMode = {
+			...expandedNodeIdsByViewMode,
+			[viewMode]: new Set()
+		};
+		if (isLayeredViewMode(viewMode)) {
+			if (diagramData) {
+				const layer = diagramData.layers[currentLayer];
+				const layerNodes = layer ? layer.nodes : diagramData.allNodes;
+				const layerEdges = layer ? layer.edges : diagramData.allEdges;
+				set$1({
+					expandedNodeIds: new Set(),
+					expandedNodeIdsByViewMode: newExpandedByViewMode,
+					nodes: layerNodes,
+					edges: layerEdges
+				});
+			} else set$1({
+				expandedNodeIds: new Set(),
+				expandedNodeIdsByViewMode: newExpandedByViewMode
+			});
+			return;
+		}
 		let sourceNodes = rawNodes;
 		let sourceEdges = rawEdges;
 		if (diagramData) {
@@ -3255,19 +5221,21 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		}
 		const dataHash = computeDataHash(sourceNodes, sourceEdges);
 		const expandedKey = "";
-		const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
+		const cached = clusterCache.get(dataHash, "progressive", expandedKey);
 		if (cached) {
 			set$1({
 				expandedNodeIds: new Set(),
+				expandedNodeIdsByViewMode: newExpandedByViewMode,
 				nodes: cached.nodes,
 				edges: cached.edges
 			});
 			return;
 		}
-		const result = computeClusteredGraph(sourceNodes, sourceEdges, clusterLevel, new Set());
-		clusterCache.set(dataHash, clusterLevel, expandedKey, result);
+		const result = computeClusteredGraph(sourceNodes, sourceEdges, "progressive", new Set(), clusterDepth);
+		clusterCache.set(dataHash, "progressive", expandedKey, result);
 		set$1({
 			expandedNodeIds: new Set(),
+			expandedNodeIdsByViewMode: newExpandedByViewMode,
 			nodes: result.nodes,
 			edges: result.edges
 		});
@@ -3293,6 +5261,37 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	setPathEnd: (nodeId) => set$1({ pathEndId: nodeId }),
 	setPathResult: (path) => set$1({ pathResult: path }),
 	setFocusDepth: (depth) => set$1({ focusDepth: depth }),
+	setCallChainDepth: (depth) => set$1({ callChainDepth: depth }),
+	assembleMultiFunction: async (entryNodeId) => {
+		const { rawNodes, rawEdges, callChainDepth, clusterDepth, expandedNodeIds } = useGraphStore.getState();
+		const astFetcher = async (filePath) => {
+			try {
+				const response = await fetch("/api/v1/codegraph/ast", {
+					method: "POST",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ filePath })
+				});
+				if (!response.ok) return null;
+				return await response.json();
+			} catch (e) {
+				console.warn("[codegraph:store] AST fetch failed", e);
+				return null;
+			}
+		};
+		const result = await callChainAggregator.aggregate(entryNodeId, rawNodes, rawEdges, astFetcher, {
+			depth: callChainDepth,
+			maxFunctions: 20
+		});
+		if (result) {
+			const clustered = computeClusteredGraph(result.diagram.nodes, result.diagram.edges, "progressive", expandedNodeIds, clusterDepth);
+			set$1({
+				diagramData: null,
+				nodes: clustered.nodes,
+				edges: clustered.edges,
+				viewMode: "cfg"
+			});
+		}
+	},
 	setHealthScore: (score) => set$1({ healthScore: score }),
 	setRules: (rules) => set$1({ rules }),
 	setRuleViolations: (violations) => set$1({ ruleViolations: violations }),
@@ -3306,45 +5305,48 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	}),
 	setSelectedFunction: (fn$7) => set$1({ selectedFunction: fn$7 }),
 	assembleMicro: async (viewMode) => {
-		const { selectedFunction, clusterLevel, expandedNodeIds } = useGraphStore.getState();
+		const { selectedFunction, clusterDepth, expandedNodeIds } = useGraphStore.getState();
 		if (!selectedFunction) return;
+		set$1({
+			isLoading: true,
+			error: null
+		});
 		const diagram = await assembleMicroDiagram(viewMode, selectedFunction.filePath, selectedFunction.functionName);
 		if (diagram) {
-			const result = computeClusteredGraph(diagram.nodes, diagram.edges, clusterLevel, expandedNodeIds);
+			const result = computeClusteredGraph(diagram.nodes, diagram.edges, "progressive", expandedNodeIds, clusterDepth);
 			set$1({
 				diagramData: null,
 				nodes: result.nodes,
-				edges: result.edges
+				edges: result.edges,
+				isLoading: false
 			});
-		}
+		} else set$1({
+			isLoading: false,
+			error: "AST parsing failed for " + selectedFunction.functionName
+		});
 	},
 	setLayer: (layer) => {
-		const { diagramData, clusterLevel, expandedNodeIds } = useGraphStore.getState();
+		const { diagramData, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, currentLayer } = useGraphStore.getState();
 		if (!diagramData || layer < 0 || layer >= diagramData.layers.length) return;
 		const layerData = diagramData.layers[layer];
 		if (!layerData) return;
-		const dataHash = computeDataHash(layerData.nodes, layerData.edges);
-		const expandedKey = [...expandedNodeIds].sort().join(",");
-		const cached = clusterCache.get(dataHash, clusterLevel, expandedKey);
-		if (cached) {
-			set$1({
-				currentLayer: layer,
-				nodes: cached.nodes,
-				edges: cached.edges
-			});
-			return;
-		}
-		const result = computeClusteredGraph(layerData.nodes, layerData.edges, clusterLevel, expandedNodeIds);
-		clusterCache.set(dataHash, clusterLevel, expandedKey, result);
+		const currentLayerKey = `${viewMode}_layer${currentLayer}`;
+		const newExpandedByViewMode = {
+			...expandedNodeIdsByViewMode,
+			[currentLayerKey]: new Set(expandedNodeIds)
+		};
+		const layerExpanded = newExpandedByViewMode[`${viewMode}_layer${layer}`] ?? new Set();
 		set$1({
 			currentLayer: layer,
-			nodes: result.nodes,
-			edges: result.edges
+			expandedNodeIds: layerExpanded,
+			expandedNodeIdsByViewMode: newExpandedByViewMode,
+			nodes: layerData.nodes,
+			edges: layerData.edges
 		});
 	}
 }), {
 	name: "dsh-codegraph-visualizer/ui",
-	version: 5,
+	version: 7,
 	storage: createJSONStorage(() => typeof window !== "undefined" ? window.localStorage : memoryStorage),
 	migrate: (persisted, version$1) => {
 		const p$1 = persisted;
@@ -3374,6 +5376,26 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			result.panelHeight = typeof h === "number" && h >= 240 ? h : null;
 			result.panelWidth = typeof w === "number" && w >= 320 ? w : null;
 		}
+		if (version$1 < 6) {
+			const validClusterLevels = [
+				"directory",
+				"file",
+				"function",
+				"progressive"
+			];
+			if (!validClusterLevels.includes(p$1.clusterLevel ?? "")) result.clusterLevel = "progressive";
+		}
+		if (version$1 < 7) {
+			const oldLevel = p$1.clusterLevel;
+			const depthMap = {
+				directory: 0,
+				file: 1,
+				function: 2,
+				progressive: 0,
+				smart: 0
+			};
+			result.clusterDepth = typeof oldLevel === "string" ? depthMap[oldLevel] ?? 0 : 0;
+		}
 		return result;
 	},
 	partialize: (s) => ({
@@ -3381,7 +5403,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		theme: s.theme,
 		filterType: s.filterType,
 		graphType: s.graphType,
-		clusterLevel: s.clusterLevel,
+		clusterDepth: s.clusterDepth,
 		currentWorkspace: s.currentWorkspace,
 		workspaceList: s.workspaceList,
 		rules: s.rules,
@@ -42437,7 +44459,8 @@ var LayoutController = class {
 				};
 			}
 			case "tree": {
-				const rootNodes = this.cy.nodes().roots();
+				const rootByProp = this.cy.nodes().filter((n) => n.data("isRoot") === true);
+				const rootNodes = rootByProp.nonempty() ? rootByProp : this.cy.nodes().roots();
 				let roots;
 				if (rootNodes.nonempty()) roots = rootNodes;
 				else roots = this.cy.nodes().sort((a, b) => b.degree() - a.degree()).slice(0, 1);
@@ -42628,6 +44651,25 @@ var HighlightController = class {
 				const node = this.cy.getElementById(id);
 				if (node.nonempty()) node.addClass("selected");
 			}
+			this.cy.elements().removeClass("neighbor-highlight neighbor-dim");
+			if (id) {
+				const selectedNode = this.cy.getElementById(id);
+				if (selectedNode.nonempty()) {
+					const neighborIds = new Set([id]);
+					selectedNode.neighborhood().forEach((el) => {
+						if (el.isNode()) neighborIds.add(el.id());
+					});
+					this.cy.nodes().forEach((n) => {
+						if (!neighborIds.has(n.id())) n.addClass("neighbor-dim");
+					});
+					this.cy.edges().forEach((e) => {
+						const srcIn = neighborIds.has(e.source().id());
+						const tgtIn = neighborIds.has(e.target().id());
+						if (!srcIn || !tgtIn) e.addClass("neighbor-dim");
+						else e.addClass("neighbor-highlight");
+					});
+				}
+			}
 		});
 		this.selectedNodeId = id;
 	}
@@ -42667,6 +44709,7 @@ var HighlightController = class {
 		const inStack = new Set();
 		const enter = (start) => {
 			const path = [];
+			const pathIndex = new Map();
 			const frames = [{
 				id: start,
 				neighbors: adjacency.get(start) ?? [],
@@ -42675,22 +44718,25 @@ var HighlightController = class {
 			visited.add(start);
 			inStack.add(start);
 			path.push(start);
+			pathIndex.set(start, 0);
 			while (frames.length > 0) {
 				const frame = frames[frames.length - 1];
 				if (frame.next >= frame.neighbors.length) {
 					inStack.delete(frame.id);
 					path.pop();
+					pathIndex.delete(frame.id);
 					frames.pop();
 					continue;
 				}
 				const target = frame.neighbors[frame.next++];
 				if (inStack.has(target)) {
-					const cycleStart = path.indexOf(target);
-					if (cycleStart >= 0) for (let i$1 = cycleStart; i$1 < path.length; i$1++) cycles.add(path[i$1]);
+					const cycleStart = pathIndex.get(target);
+					if (cycleStart !== void 0) for (let i$1 = cycleStart; i$1 < path.length; i$1++) cycles.add(path[i$1]);
 				} else if (!visited.has(target)) {
 					visited.add(target);
 					inStack.add(target);
 					path.push(target);
+					pathIndex.set(target, path.length - 1);
 					frames.push({
 						id: target,
 						neighbors: adjacency.get(target) ?? [],
@@ -42974,1447 +45020,6 @@ var ViewportController = class {
 };
 
 //#endregion
-//#region src/client/renderer/styles/ThemeStylesheet.ts
-function readCssVar(name$1, fallback) {
-	if (typeof window === "undefined") return fallback;
-	const v = getComputedStyle(document.body).getPropertyValue(name$1).trim();
-	return v || fallback;
-}
-let cssVarCache = null;
-function readCssVarCached(name$1, fallback) {
-	if (typeof window === "undefined") return fallback;
-	if (!cssVarCache) {
-		const style = getComputedStyle(document.body);
-		cssVarCache = new Map();
-		const vars = [
-			"--cg-node-default",
-			"--cg-node-function",
-			"--cg-node-class",
-			"--cg-node-variable",
-			"--cg-node-module",
-			"--cg-node-interface",
-			"--cg-node-type",
-			"--cg-node-dep-npm",
-			"--cg-node-dep-cargo",
-			"--cg-node-dep-gomod",
-			"--cg-node-dep-pip",
-			"--cg-edge-default",
-			"--cg-edge-call",
-			"--cg-edge-import",
-			"--cg-edge-extend",
-			"--cg-edge-implement",
-			"--cg-edge-dependency",
-			"--cg-edge-contains",
-			"--cg-edge-dep-prod",
-			"--cg-edge-dep-dev",
-			"--cg-edge-dep-peer",
-			"--cg-edge-dep-optional",
-			"--cg-text",
-			"--cg-border",
-			"--cg-hover-border",
-			"--cg-impact-d1",
-			"--cg-impact-d2",
-			"--cg-impact-d3",
-			"--cg-inheritance-extend",
-			"--cg-inheritance-implement",
-			"--cg-cluster-bg",
-			"--cg-cluster-border",
-			"--cg-cluster-hover-bg",
-			"--cg-cluster-hover-border",
-			"--cg-cluster-edge",
-			"--cg-cluster-edge-label-bg",
-			"--cg-warning",
-			"--cg-error",
-			"--cg-success",
-			"--cg-accent"
-		];
-		for (const v of vars) cssVarCache.set(v, style.getPropertyValue(v).trim());
-	}
-	return cssVarCache.get(name$1) || fallback;
-}
-function invalidateCssVarCache() {
-	cssVarCache = null;
-}
-function getThemeColors(theme) {
-	const isDark = theme === "dark";
-	return {
-		nodeDefault: readCssVarCached("--cg-node-default", isDark ? "#6366f1" : "#263148"),
-		nodeFunction: readCssVarCached("--cg-node-function", isDark ? "#10b981" : "#059669"),
-		nodeClass: readCssVarCached("--cg-node-class", isDark ? "#818cf8" : "#1a2230"),
-		nodeVariable: readCssVarCached("--cg-node-variable", isDark ? "#f59e0b" : "#d97706"),
-		nodeModule: readCssVarCached("--cg-node-module", isDark ? "#ec4899" : "#db2777"),
-		nodeInterface: readCssVarCached("--cg-node-interface", isDark ? "#14b8a6" : "#0d9488"),
-		nodeType: readCssVarCached("--cg-node-type", isDark ? "#a78bfa" : "#7c3aed"),
-		nodeDepNpm: readCssVarCached("--cg-node-dep-npm", isDark ? "#cb3837" : "#cc3535"),
-		nodeDepCargo: readCssVarCached("--cg-node-dep-cargo", isDark ? "#dea584" : "#ce422b"),
-		nodeDepGomod: readCssVarCached("--cg-node-dep-gomod", isDark ? "#00add8" : "#007d9b"),
-		nodeDepPip: readCssVarCached("--cg-node-dep-pip", isDark ? "#3776ab" : "#3776ab"),
-		edgeDefault: readCssVarCached("--cg-edge-default", isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.1)"),
-		edgeCall: readCssVarCached("--cg-edge-call", isDark ? "#60a5fa" : "#3b82f6"),
-		edgeImport: readCssVarCached("--cg-edge-import", isDark ? "#34d399" : "#10b981"),
-		edgeExtend: readCssVarCached("--cg-edge-extend", isDark ? "#f472b6" : "#ec4899"),
-		edgeImplement: readCssVarCached("--cg-edge-implement", isDark ? "#2dd4bf" : "#0d9488"),
-		edgeDependency: readCssVarCached("--cg-edge-dependency", isDark ? "#fbbf24" : "#f59e0b"),
-		edgeContains: readCssVarCached("--cg-edge-contains", isDark ? "#a78bfa" : "#7c3aed"),
-		edgeDepProd: readCssVarCached("--cg-edge-dep-prod", isDark ? "#fbbf24" : "#f59e0b"),
-		edgeDepDev: readCssVarCached("--cg-edge-dep-dev", isDark ? "#60a5fa" : "#3b82f6"),
-		edgeDepPeer: readCssVarCached("--cg-edge-dep-peer", isDark ? "#34d399" : "#10b981"),
-		edgeDepOptional: readCssVarCached("--cg-edge-dep-optional", isDark ? "#a78bfa" : "#7c3aed"),
-		text: readCssVarCached("--cg-text", isDark ? "#f9fafb" : "#0f1115"),
-		border: readCssVarCached("--cg-border", isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)")
-	};
-}
-function buildStylesheet(theme, nodeCount = 0) {
-	const c = getThemeColors(theme);
-	const isDark = theme === "dark";
-	const isLargeGraph = nodeCount > 200;
-	const hoverBorder = readCssVarCached("--cg-hover-border", isDark ? "#818cf8" : "#1a2230");
-	const impactD1 = readCssVarCached("--cg-impact-d1", "#f59e0b");
-	const impactD2 = readCssVarCached("--cg-impact-d2", "#fbbf24");
-	const impactD3 = readCssVarCached("--cg-impact-d3", "#fde68a");
-	const inhExtend = readCssVarCached("--cg-inheritance-extend", isDark ? "#f472b6" : "#ec4899");
-	const inhImplement = readCssVarCached("--cg-inheritance-implement", isDark ? "#2dd4bf" : "#14b8a6");
-	const clusterBg = readCssVarCached("--cg-cluster-bg", isDark ? "rgba(99,102,241,0.15)" : "rgba(38,49,72,0.10)");
-	const clusterBorder = readCssVarCached("--cg-cluster-border", isDark ? "#818cf8" : "#263148");
-	const clusterHoverBg = readCssVarCached("--cg-cluster-hover-bg", isDark ? "rgba(99,102,241,0.35)" : "rgba(38,49,72,0.25)");
-	const clusterHoverBorder = readCssVarCached("--cg-cluster-hover-border", isDark ? "#a5b4fc" : "#1a2230");
-	const clusterEdge = readCssVarCached("--cg-cluster-edge", isDark ? "#818cf8" : "#263148");
-	const clusterEdgeLabelBg = readCssVarCached("--cg-cluster-edge-label-bg", isDark ? "#232324" : "#f9fafb");
-	const warningColor = readCssVarCached("--cg-warning", "#f59e0b");
-	const errorColor = readCssVarCached("--cg-error", "#ef4444");
-	const successColor = readCssVarCached("--cg-success", "#10b981");
-	const accentColor = readCssVarCached("--cg-accent", isDark ? "#6366f1" : "#263148");
-	return [
-		{
-			selector: "node",
-			style: {
-				"background-color": c.nodeDefault,
-				"label": isLargeGraph ? "" : "data(label)",
-				"font-size": "10px",
-				"color": c.text,
-				"text-valign": "center",
-				"text-halign": "center",
-				"text-wrap": "wrap",
-				"text-max-width": "70px",
-				"width": isLargeGraph ? 14 : 32,
-				"height": isLargeGraph ? 14 : 32,
-				"shape": "ellipse",
-				"border-width": isLargeGraph ? 1 : 1.5,
-				"border-color": c.border,
-				"overlay-opacity": 0,
-				...isLargeGraph ? {} : {
-					"transition-property": "background-color, border-color, border-width",
-					"transition-duration": 200
-				}
-			}
-		},
-		{
-			selector: "node.hovered",
-			style: {
-				"border-width": isLargeGraph ? 2 : 3,
-				"border-color": hoverBorder,
-				"overlay-opacity": 0
-			}
-		},
-		{
-			selector: "node[weight]",
-			style: {
-				"width": "mapData(weight, 1, 10, 24, 56)",
-				"height": "mapData(weight, 1, 10, 24, 56)"
-			}
-		},
-		{
-			selector: ":parent",
-			style: {
-				"background-color": "rgba(0,0,0,0.05)",
-				"border-width": 2,
-				"border-color": c.border,
-				"border-style": "dashed",
-				"label": "data(label)",
-				"font-size": "10px",
-				"color": c.text,
-				"text-valign": "top",
-				"text-halign": "center",
-				"text-wrap": "wrap",
-				"text-max-width": "100px",
-				"padding": "10px"
-			}
-		},
-		{
-			selector: "node[type=\"function\"]",
-			style: {
-				"shape": "round-triangle",
-				"background-color": c.nodeFunction
-			}
-		},
-		{
-			selector: "node[type=\"class\"]",
-			style: {
-				"shape": "rectangle",
-				"background-color": c.nodeClass
-			}
-		},
-		{
-			selector: "node[type=\"variable\"]",
-			style: {
-				"shape": "diamond",
-				"background-color": c.nodeVariable
-			}
-		},
-		{
-			selector: "node[type=\"module\"]",
-			style: {
-				"shape": "round-rectangle",
-				"background-color": c.nodeModule
-			}
-		},
-		{
-			selector: "node[type=\"interface\"]",
-			style: {
-				"shape": "hexagon",
-				"background-color": c.nodeInterface
-			}
-		},
-		{
-			selector: "node[type=\"type\"]",
-			style: {
-				"shape": "star",
-				"background-color": c.nodeType
-			}
-		},
-		{
-			selector: "node[depType=\"npm\"]",
-			style: {
-				"shape": "round-rectangle",
-				"background-color": c.nodeDepNpm
-			}
-		},
-		{
-			selector: "node[depType=\"cargo\"]",
-			style: {
-				"shape": "round-rectangle",
-				"background-color": c.nodeDepCargo
-			}
-		},
-		{
-			selector: "node[depType=\"gomod\"]",
-			style: {
-				"shape": "round-rectangle",
-				"background-color": c.nodeDepGomod
-			}
-		},
-		{
-			selector: "node[depType=\"pip\"]",
-			style: {
-				"shape": "round-rectangle",
-				"background-color": c.nodeDepPip
-			}
-		},
-		{
-			selector: "edge",
-			style: {
-				"width": 1.5,
-				"line-color": c.edgeDefault,
-				"target-arrow-color": c.edgeDefault,
-				"target-arrow-shape": "triangle",
-				"curve-style": "bezier",
-				"opacity": .8,
-				"overlay-opacity": 0
-			}
-		},
-		{
-			selector: "edge[type=\"call\"]",
-			style: {
-				"line-color": c.edgeCall,
-				"target-arrow-color": c.edgeCall,
-				"line-style": "solid"
-			}
-		},
-		{
-			selector: "edge[type=\"import\"]",
-			style: {
-				"line-color": c.edgeImport,
-				"target-arrow-color": c.edgeImport,
-				"line-style": "dashed"
-			}
-		},
-		{
-			selector: "edge[type=\"extend\"]",
-			style: {
-				"line-color": inhExtend,
-				"target-arrow-color": inhExtend,
-				"target-arrow-shape": "triangle-tee",
-				"line-style": "solid",
-				"width": 2
-			}
-		},
-		{
-			selector: "edge[type=\"implement\"]",
-			style: {
-				"line-color": inhImplement,
-				"target-arrow-color": inhImplement,
-				"target-arrow-shape": "triangle-tee",
-				"line-style": "dashed",
-				"width": 2
-			}
-		},
-		{
-			selector: "edge[type=\"dependency\"]",
-			style: {
-				"line-color": c.edgeDependency,
-				"target-arrow-color": c.edgeDependency,
-				"line-style": "dashed"
-			}
-		},
-		{
-			selector: "edge[type=\"dependency\"][scope=\"prod\"]",
-			style: {
-				"line-color": c.edgeDepProd,
-				"target-arrow-color": c.edgeDepProd,
-				"line-style": "solid"
-			}
-		},
-		{
-			selector: "edge[type=\"dependency\"][scope=\"dev\"]",
-			style: {
-				"line-color": c.edgeDepDev,
-				"target-arrow-color": c.edgeDepDev,
-				"line-style": "dashed"
-			}
-		},
-		{
-			selector: "edge[type=\"dependency\"][scope=\"peer\"]",
-			style: {
-				"line-color": c.edgeDepPeer,
-				"target-arrow-color": c.edgeDepPeer,
-				"line-style": "dotted"
-			}
-		},
-		{
-			selector: "edge[type=\"dependency\"][scope=\"optional\"]",
-			style: {
-				"line-color": c.edgeDepOptional,
-				"target-arrow-color": c.edgeDepOptional,
-				"line-style": "dotted",
-				"opacity": .6
-			}
-		},
-		{
-			selector: "edge[type=\"contains\"]",
-			style: {
-				"line-color": c.edgeContains,
-				"target-arrow-color": c.edgeContains,
-				"line-style": "dotted",
-				"width": 1
-			}
-		},
-		{
-			selector: ".highlighted",
-			style: {
-				"border-width": 4,
-				"border-color": warningColor,
-				"z-index": 20
-			}
-		},
-		{
-			selector: ".selected",
-			style: {
-				"border-width": 4,
-				"border-color": errorColor,
-				"z-index": 30
-			}
-		},
-		{
-			selector: ".search-match",
-			style: {
-				"border-width": 3,
-				"border-color": successColor
-			}
-		},
-		{
-			selector: ".call-chain",
-			style: {
-				"background-color": warningColor,
-				"border-width": 3,
-				"border-color": warningColor,
-				"opacity": .9,
-				"z-index": 25
-			}
-		},
-		{
-			selector: "edge.call-chain",
-			style: {
-				"line-color": warningColor,
-				"target-arrow-color": warningColor,
-				"width": 3,
-				"opacity": 1,
-				"z-index": 25
-			}
-		},
-		{
-			selector: ".cycle-highlight",
-			style: {
-				"border-width": 4,
-				"border-color": errorColor,
-				"background-color": errorColor
-			}
-		},
-		{
-			selector: ".impact-source",
-			style: {
-				"border-width": 4,
-				"border-color": errorColor,
-				"background-color": errorColor,
-				"z-index": 35
-			}
-		},
-		{
-			selector: ".impact-d1",
-			style: {
-				"border-width": 3,
-				"border-color": impactD1,
-				"background-color": impactD1,
-				"z-index": 28
-			}
-		},
-		{
-			selector: ".impact-d2",
-			style: {
-				"border-width": 3,
-				"border-color": impactD2,
-				"background-color": impactD2,
-				"opacity": .8,
-				"z-index": 22
-			}
-		},
-		{
-			selector: ".impact-d3",
-			style: {
-				"border-width": 2,
-				"border-color": impactD3,
-				"background-color": impactD3,
-				"opacity": .6,
-				"z-index": 18
-			}
-		},
-		{
-			selector: ".inheritance-extend",
-			style: {
-				"width": 2.5,
-				"line-color": inhExtend,
-				"target-arrow-color": inhExtend,
-				"opacity": .9,
-				"z-index": 20
-			}
-		},
-		{
-			selector: ".inheritance-implement",
-			style: {
-				"width": 2,
-				"line-color": inhImplement,
-				"target-arrow-color": inhImplement,
-				"opacity": .9,
-				"z-index": 20,
-				"line-style": "dashed"
-			}
-		},
-		{
-			selector: ".inheritance-highlight",
-			style: {
-				"border-width": 3,
-				"border-color": inhExtend,
-				"opacity": 1,
-				"z-index": 25
-			}
-		},
-		{
-			selector: "edge.inheritance-highlight",
-			style: {
-				"width": 3,
-				"opacity": 1,
-				"z-index": 25
-			}
-		},
-		{
-			selector: ".inheritance-focus",
-			style: {
-				"border-width": 4,
-				"border-color": errorColor,
-				"background-color": errorColor,
-				"z-index": 35
-			}
-		},
-		{
-			selector: ".inheritance-dim",
-			style: { "opacity": .25 }
-		},
-		{
-			selector: ".focus-highlight",
-			style: {
-				"border-width": 3,
-				"border-color": accentColor,
-				"opacity": 1,
-				"z-index": 30
-			}
-		},
-		{
-			selector: "edge.focus-highlight",
-			style: {
-				"width": 2.5,
-				"line-color": accentColor,
-				"target-arrow-color": accentColor,
-				"opacity": 1,
-				"z-index": 30
-			}
-		},
-		{
-			selector: ".focus-dim",
-			style: { "opacity": .25 }
-		},
-		{
-			selector: "node[isCluster=\"true\"]",
-			style: {
-				"shape": "round-rectangle",
-				"background-color": clusterBg,
-				"border-width": 2,
-				"border-color": clusterBorder,
-				"border-style": "solid",
-				"label": "data(label)",
-				"font-size": "11px",
-				"font-weight": "bold",
-				"color": c.text,
-				"text-valign": "center",
-				"text-halign": "center",
-				"text-wrap": "wrap",
-				"text-max-width": "90px",
-				"width": "mapData(childCount, 1, 3000, 40, 80)",
-				"height": "mapData(childCount, 1, 3000, 40, 80)",
-				"z-index": 5,
-				"transition-property": "background-color, border-color, border-width",
-				"transition-duration": 200
-			}
-		},
-		{
-			selector: "node[isCluster=\"true\"].hovered",
-			style: {
-				"background-color": clusterHoverBg,
-				"border-width": 4,
-				"border-color": clusterHoverBorder
-			}
-		},
-		{
-			selector: "edge[isCluster=\"true\"]",
-			style: {
-				"width": "mapData(aggregatedCount, 1, 200, 1.5, 4)",
-				"line-color": clusterEdge,
-				"target-arrow-color": clusterEdge,
-				"target-arrow-shape": "triangle",
-				"curve-style": "bezier",
-				"label": "data(label)",
-				"font-size": "10px",
-				"color": c.text,
-				"text-rotation": "autorotate",
-				"text-background-color": clusterEdgeLabelBg,
-				"text-background-opacity": .85,
-				"text-background-padding": "2px",
-				"text-background-shape": "roundrectangle",
-				"opacity": .75
-			}
-		},
-		{
-			selector: "edge[isCluster=\"true\"].hovered",
-			style: {
-				"opacity": 1,
-				"width": "mapData(aggregatedCount, 1, 200, 2.5, 6)"
-			}
-		},
-		{
-			selector: ".path-highlight",
-			style: {
-				"border-width": 4,
-				"border-color": accentColor,
-				"background-color": accentColor,
-				"z-index": 40
-			}
-		},
-		{
-			selector: "edge.path-highlight",
-			style: {
-				"width": 4,
-				"line-color": accentColor,
-				"target-arrow-color": accentColor,
-				"opacity": 1,
-				"z-index": 40
-			}
-		},
-		{
-			selector: ".path-dim",
-			style: { "opacity": .25 }
-		},
-		{
-			selector: ".rule-violation",
-			style: {
-				"border-width": 4,
-				"border-color": errorColor,
-				"background-color": errorColor,
-				"z-index": 45
-			}
-		},
-		{
-			selector: "edge.rule-violation",
-			style: {
-				"width": 4,
-				"line-color": errorColor,
-				"target-arrow-color": errorColor,
-				"opacity": 1,
-				"z-index": 45
-			}
-		},
-		{
-			selector: ".hotspot-high",
-			style: {
-				"border-width": 4,
-				"border-color": errorColor,
-				"z-index": 35
-			}
-		},
-		{
-			selector: ".hotspot-medium",
-			style: {
-				"border-width": 3,
-				"border-color": warningColor,
-				"z-index": 28
-			}
-		},
-		{
-			selector: "node[isRoot=\"true\"]",
-			style: {
-				"border-width": 3,
-				"border-color": accentColor,
-				"font-weight": "bold",
-				"z-index": 15
-			}
-		},
-		{
-			selector: "node[isEntry=\"true\"]",
-			style: {
-				"border-width": 3,
-				"border-color": successColor,
-				"font-weight": "bold",
-				"z-index": 15
-			}
-		},
-		{
-			selector: "node[isRecursive=\"true\"]",
-			style: {
-				"border-width": 3,
-				"border-color": errorColor,
-				"border-style": "double"
-			}
-		},
-		{
-			selector: "node[entryType=\"handler\"]",
-			style: {
-				"shape": "round-rectangle",
-				"background-color": successColor
-			}
-		},
-		{
-			selector: "node[entryType=\"test\"]",
-			style: {
-				"shape": "round-rectangle",
-				"background-color": warningColor
-			}
-		},
-		{
-			selector: "node[entryType=\"export\"]",
-			style: {
-				"border-style": "double",
-				"border-width": 3
-			}
-		},
-		{
-			selector: "edge[type=\"extend\"][lineStyle=\"uml\"]",
-			style: {
-				"target-arrow-shape": "triangle-tee",
-				"line-style": "solid",
-				"width": 2
-			}
-		},
-		{
-			selector: "edge[type=\"implement\"][lineStyle=\"uml\"]",
-			style: {
-				"target-arrow-shape": "triangle-tee",
-				"line-style": "dashed",
-				"width": 2
-			}
-		},
-		{
-			selector: "node[isPackage=\"true\"]",
-			style: {
-				"shape": "round-rectangle",
-				"background-color": readCssVar("--cg-node-package", isDark ? "#6366f1" : "#263148"),
-				"border-width": 2,
-				"border-color": readCssVar("--cg-package-border", isDark ? "#818cf8" : "#1a2230"),
-				"label": "data(label)",
-				"font-size": "11px",
-				"font-weight": "bold",
-				"color": c.text,
-				"text-valign": "center",
-				"text-halign": "center",
-				"text-wrap": "wrap",
-				"text-max-width": "80px",
-				"width": "mapData(childCount, 1, 50, 30, 60)",
-				"height": "mapData(childCount, 1, 50, 30, 60)",
-				"z-index": 10
-			}
-		},
-		{
-			selector: "node[isPackage=\"true\"].hovered",
-			style: {
-				"border-width": 4,
-				"border-color": hoverBorder
-			}
-		},
-		{
-			selector: "edge[isPackageEdge=\"true\"]",
-			style: {
-				"width": "mapData(aggregatedCount, 1, 50, 1.5, 5)",
-				"line-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : "#263148"),
-				"target-arrow-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : "#263148"),
-				"target-arrow-shape": "vee",
-				"line-style": "dashed",
-				"curve-style": "bezier",
-				"label": "data(label)",
-				"font-size": "9px",
-				"color": c.text,
-				"text-rotation": "autorotate",
-				"text-background-color": clusterEdgeLabelBg,
-				"text-background-opacity": .85,
-				"text-background-padding": "2px",
-				"text-background-shape": "roundrectangle",
-				"opacity": .8
-			}
-		},
-		{
-			selector: "node[isAbstract=\"true\"]",
-			style: {
-				"border-style": "double",
-				"border-width": 3,
-				"font-style": "italic"
-			}
-		},
-		{
-			selector: "node[methodCount]",
-			style: {
-				"shape": "rectangle",
-				"label": "data(label)",
-				"font-size": "10px",
-				"text-wrap": "wrap",
-				"text-max-width": "100px",
-				"width": "mapData(methodCount, 0, 20, 40, 80)",
-				"height": "mapData(methodCount, 0, 20, 30, 60)"
-			}
-		},
-		{
-			selector: "node[isRoot=\"true\"][parentCount=\"0\"]",
-			style: {
-				"border-width": 3,
-				"border-color": accentColor,
-				"font-weight": "bold"
-			}
-		},
-		{
-			selector: "node[blockType=\"entry\"]",
-			style: {
-				"shape": "round-rectangle",
-				"background-color": successColor,
-				"border-width": 3,
-				"border-color": successColor,
-				"font-weight": "bold",
-				"label": "data(label)",
-				"text-valign": "center",
-				"text-halign": "center"
-			}
-		},
-		{
-			selector: "node[blockType=\"exit\"]",
-			style: {
-				"shape": "round-rectangle",
-				"background-color": errorColor,
-				"border-width": 3,
-				"border-color": errorColor,
-				"font-weight": "bold",
-				"label": "data(label)",
-				"text-valign": "center",
-				"text-halign": "center"
-			}
-		},
-		{
-			selector: "node[blockType=\"condition\"]",
-			style: {
-				"shape": "diamond",
-				"background-color": warningColor,
-				"border-width": 2,
-				"border-color": warningColor,
-				"label": "data(label)",
-				"text-valign": "center",
-				"text-halign": "center",
-				"text-wrap": "wrap",
-				"text-max-width": "60px"
-			}
-		},
-		{
-			selector: "node[blockType=\"loop\"]",
-			style: {
-				"shape": "diamond",
-				"background-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
-				"border-width": 2,
-				"border-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
-				"label": "data(label)",
-				"text-valign": "center",
-				"text-halign": "center",
-				"text-wrap": "wrap",
-				"text-max-width": "60px"
-			}
-		},
-		{
-			selector: "node[blockType=\"switch\"]",
-			style: {
-				"shape": "diamond",
-				"background-color": readCssVar("--cg-cfg-switch", isDark ? "#f472b6" : "#ec4899"),
-				"border-width": 2,
-				"border-color": readCssVar("--cg-cfg-switch", isDark ? "#f472b6" : "#ec4899"),
-				"label": "data(label)",
-				"text-valign": "center",
-				"text-halign": "center"
-			}
-		},
-		{
-			selector: "node[blockType=\"try\"]",
-			style: {
-				"shape": "rectangle",
-				"background-color": readCssVar("--cg-cfg-try", isDark ? "#60a5fa" : "#3b82f6"),
-				"border-width": 2,
-				"border-color": readCssVar("--cg-cfg-try", isDark ? "#60a5fa" : "#3b82f6"),
-				"label": "data(label)"
-			}
-		},
-		{
-			selector: "node[blockType=\"catch\"]",
-			style: {
-				"shape": "rectangle",
-				"background-color": errorColor,
-				"border-width": 2,
-				"border-color": errorColor,
-				"label": "data(label)"
-			}
-		},
-		{
-			selector: "node[blockType=\"finally\"]",
-			style: {
-				"shape": "rectangle",
-				"background-color": readCssVar("--cg-cfg-finally", isDark ? "#34d399" : "#10b981"),
-				"border-width": 2,
-				"border-color": readCssVar("--cg-cfg-finally", isDark ? "#34d399" : "#10b981"),
-				"label": "data(label)"
-			}
-		},
-		{
-			selector: "node[blockType=\"process\"]",
-			style: {
-				"shape": "rectangle",
-				"background-color": readCssVar("--cg-cfg-process", isDark ? "#60a5fa" : "#3b82f6"),
-				"border-width": 1.5,
-				"border-color": c.border,
-				"label": "data(label)",
-				"text-valign": "center",
-				"text-halign": "center",
-				"text-wrap": "wrap",
-				"text-max-width": "80px"
-			}
-		},
-		{
-			selector: "edge[cfgEdgeType=\"fallthrough\"]",
-			style: {
-				"line-color": c.edgeDefault,
-				"target-arrow-color": c.edgeDefault,
-				"line-style": "solid",
-				"width": 1.5
-			}
-		},
-		{
-			selector: "edge[cfgEdgeType=\"true\"]",
-			style: {
-				"line-color": successColor,
-				"target-arrow-color": successColor,
-				"line-style": "solid",
-				"width": 2,
-				"label": "data(label)",
-				"font-size": "9px",
-				"text-background-color": clusterEdgeLabelBg,
-				"text-background-opacity": .85,
-				"text-background-padding": "1px",
-				"text-background-shape": "roundrectangle"
-			}
-		},
-		{
-			selector: "edge[cfgEdgeType=\"false\"]",
-			style: {
-				"line-color": errorColor,
-				"target-arrow-color": errorColor,
-				"line-style": "solid",
-				"width": 2,
-				"label": "data(label)",
-				"font-size": "9px",
-				"text-background-color": clusterEdgeLabelBg,
-				"text-background-opacity": .85,
-				"text-background-padding": "1px",
-				"text-background-shape": "roundrectangle"
-			}
-		},
-		{
-			selector: "edge[cfgEdgeType=\"loop-back\"]",
-			style: {
-				"line-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
-				"target-arrow-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
-				"line-style": "dashed",
-				"width": 2,
-				"curve-style": "bezier"
-			}
-		},
-		{
-			selector: "edge[cfgEdgeType=\"exception\"]",
-			style: {
-				"line-color": warningColor,
-				"target-arrow-color": warningColor,
-				"line-style": "dashed",
-				"width": 2
-			}
-		},
-		{
-			selector: "edge[cfgEdgeType=\"case\"]",
-			style: {
-				"line-color": readCssVar("--cg-cfg-switch", isDark ? "#f472b6" : "#ec4899"),
-				"target-arrow-color": readCssVar("--cg-cfg-switch", isDark ? "#f472b6" : "#ec4899"),
-				"line-style": "solid",
-				"label": "data(label)",
-				"font-size": "9px"
-			}
-		},
-		{
-			selector: "edge[cfgEdgeType=\"default\"]",
-			style: {
-				"line-color": c.edgeDefault,
-				"target-arrow-color": c.edgeDefault,
-				"line-style": "dotted",
-				"label": "data(label)",
-				"font-size": "9px"
-			}
-		},
-		{
-			selector: "node[flowchartNodeType=\"start\"]",
-			style: {
-				"shape": "ellipse",
-				"background-color": successColor,
-				"border-width": 3,
-				"border-color": successColor,
-				"font-weight": "bold",
-				"label": "data(label)"
-			}
-		},
-		{
-			selector: "node[flowchartNodeType=\"end\"]",
-			style: {
-				"shape": "ellipse",
-				"background-color": errorColor,
-				"border-width": 3,
-				"border-color": errorColor,
-				"font-weight": "bold",
-				"label": "data(label)"
-			}
-		},
-		{
-			selector: "node[flowchartNodeType=\"decision\"]",
-			style: {
-				"shape": "diamond",
-				"background-color": warningColor,
-				"border-width": 2,
-				"border-color": warningColor,
-				"label": "data(label)",
-				"text-wrap": "wrap",
-				"text-max-width": "60px"
-			}
-		},
-		{
-			selector: "node[flowchartNodeType=\"loop\"]",
-			style: {
-				"shape": "hexagon",
-				"background-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
-				"border-width": 2,
-				"border-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
-				"label": "data(label)",
-				"text-wrap": "wrap",
-				"text-max-width": "60px"
-			}
-		},
-		{
-			selector: "node[flowchartNodeType=\"subprocess\"]",
-			style: {
-				"shape": "rectangle",
-				"background-color": readCssVar("--cg-cfg-subprocess", isDark ? "#fbbf24" : "#f59e0b"),
-				"border-width": 3,
-				"border-style": "double",
-				"border-color": readCssVar("--cg-cfg-subprocess", isDark ? "#fbbf24" : "#f59e0b"),
-				"label": "data(label)"
-			}
-		},
-		{
-			selector: "node[flowchartNodeType=\"error\"]",
-			style: {
-				"shape": "rectangle",
-				"background-color": errorColor,
-				"border-width": 2,
-				"border-color": errorColor,
-				"label": "data(label)"
-			}
-		},
-		{
-			selector: "node[flowchartNodeType=\"process\"]",
-			style: {
-				"shape": "rectangle",
-				"background-color": readCssVar("--cg-cfg-process", isDark ? "#60a5fa" : "#3b82f6"),
-				"border-width": 1.5,
-				"border-color": c.border,
-				"label": "data(label)",
-				"text-wrap": "wrap",
-				"text-max-width": "80px"
-			}
-		},
-		{
-			selector: "edge[flowchartEdgeType=\"normal\"]",
-			style: {
-				"line-color": c.edgeDefault,
-				"target-arrow-color": c.edgeDefault,
-				"line-style": "solid",
-				"width": 1.5
-			}
-		},
-		{
-			selector: "edge[flowchartEdgeType=\"yes\"]",
-			style: {
-				"line-color": successColor,
-				"target-arrow-color": successColor,
-				"line-style": "solid",
-				"width": 2,
-				"label": "data(label)",
-				"font-size": "9px"
-			}
-		},
-		{
-			selector: "edge[flowchartEdgeType=\"no\"]",
-			style: {
-				"line-color": errorColor,
-				"target-arrow-color": errorColor,
-				"line-style": "solid",
-				"width": 2,
-				"label": "data(label)",
-				"font-size": "9px"
-			}
-		},
-		{
-			selector: "edge[flowchartEdgeType=\"loop\"]",
-			style: {
-				"line-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
-				"target-arrow-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed"),
-				"line-style": "dashed",
-				"width": 2
-			}
-		},
-		{
-			selector: "edge[flowchartEdgeType=\"error\"]",
-			style: {
-				"line-color": errorColor,
-				"target-arrow-color": errorColor,
-				"line-style": "dashed",
-				"width": 2
-			}
-		},
-		{
-			selector: "node[participantType=\"self\"]",
-			style: {
-				"shape": "round-rectangle",
-				"background-color": accentColor,
-				"border-width": 2,
-				"border-color": accentColor,
-				"font-weight": "bold",
-				"label": "data(label)"
-			}
-		},
-		{
-			selector: "node[participantType=\"class\"]",
-			style: {
-				"shape": "rectangle",
-				"background-color": c.nodeClass,
-				"border-width": 2,
-				"border-color": c.nodeClass,
-				"label": "data(label)"
-			}
-		},
-		{
-			selector: "node[participantType=\"external\"]",
-			style: {
-				"shape": "rectangle",
-				"background-color": readCssVar("--cg-seq-external", isDark ? "#ec4899" : "#db2777"),
-				"border-width": 2,
-				"border-color": readCssVar("--cg-seq-external", isDark ? "#ec4899" : "#db2777"),
-				"label": "data(label)"
-			}
-		},
-		{
-			selector: "node[participantType=\"instance\"]",
-			style: {
-				"shape": "round-rectangle",
-				"background-color": c.nodeFunction,
-				"border-width": 1.5,
-				"border-color": c.nodeFunction,
-				"label": "data(label)"
-			}
-		},
-		{
-			selector: "node[isFragment=\"true\"]",
-			style: {
-				"shape": "round-rectangle",
-				"background-color": "rgba(0,0,0,0.03)",
-				"border-width": 2,
-				"border-color": readCssVar("--cg-seq-fragment", isDark ? "#818cf8" : "#263148"),
-				"border-style": "dashed",
-				"label": "data(label)",
-				"font-size": "9px",
-				"font-weight": "bold",
-				"color": c.text,
-				"text-valign": "top",
-				"text-halign": "left",
-				"text-wrap": "wrap",
-				"text-max-width": "100px",
-				"width": 40,
-				"height": 20,
-				"z-index": 5
-			}
-		},
-		{
-			selector: "node[fragmentType=\"alt\"]",
-			style: { "border-color": warningColor }
-		},
-		{
-			selector: "node[fragmentType=\"loop\"]",
-			style: { "border-color": readCssVar("--cg-cfg-loop", isDark ? "#a78bfa" : "#7c3aed") }
-		},
-		{
-			selector: "node[fragmentType=\"break\"]",
-			style: {
-				"border-color": errorColor,
-				"border-style": "solid"
-			}
-		},
-		{
-			selector: "node[fragmentType=\"critical\"]",
-			style: {
-				"border-width": 3,
-				"border-style": "solid"
-			}
-		},
-		{
-			selector: "edge[isAsync=\"true\"]",
-			style: {
-				"line-style": "dashed",
-				"line-color": readCssVar("--cg-seq-async", isDark ? "#fbbf24" : "#f59e0b"),
-				"target-arrow-color": readCssVar("--cg-seq-async", isDark ? "#fbbf24" : "#f59e0b"),
-				"target-arrow-shape": "vee",
-				"label": "data(label)",
-				"font-size": "9px",
-				"text-background-color": clusterEdgeLabelBg,
-				"text-background-opacity": .85,
-				"text-background-padding": "1px",
-				"text-background-shape": "roundrectangle"
-			}
-		},
-		{
-			selector: "edge[isReturn=\"true\"]",
-			style: {
-				"line-style": "dotted",
-				"line-color": c.edgeDefault,
-				"target-arrow-color": c.edgeDefault,
-				"target-arrow-shape": "vee",
-				"label": "data(label)",
-				"font-size": "9px",
-				"text-background-color": clusterEdgeLabelBg,
-				"text-background-opacity": .85,
-				"text-background-padding": "1px",
-				"text-background-shape": "roundrectangle"
-			}
-		},
-		{
-			selector: "edge[isSelfCall=\"true\"]",
-			style: {
-				"curve-style": "bezier",
-				"line-color": accentColor,
-				"target-arrow-color": accentColor,
-				"label": "data(label)",
-				"font-size": "9px",
-				"text-background-color": clusterEdgeLabelBg,
-				"text-background-opacity": .85,
-				"text-background-padding": "1px",
-				"text-background-shape": "roundrectangle"
-			}
-		},
-		{
-			selector: "node[diagramType=\"inheritance\"]",
-			style: {
-				"shape": "rectangle",
-				"label": "data(umlLabel)",
-				"font-size": "10px",
-				"text-valign": "center",
-				"text-halign": "center",
-				"text-wrap": "wrap",
-				"text-max-width": "120px",
-				"width": "mapData(descendantCount, 0, 50, 40, 80)",
-				"height": "mapData(childCount, 0, 20, 30, 60)",
-				"border-width": 2,
-				"border-color": c.border
-			}
-		},
-		{
-			selector: "node[diagramType=\"inheritance\"][type=\"interface\"]",
-			style: {
-				"background-color": c.nodeInterface,
-				"border-style": "solid"
-			}
-		},
-		{
-			selector: "node[diagramType=\"inheritance\"][type=\"class\"]",
-			style: { "background-color": c.nodeClass }
-		},
-		{
-			selector: "node[diagramType=\"inheritance\"][isRoot=\"true\"]",
-			style: {
-				"border-width": 3,
-				"border-color": accentColor,
-				"font-weight": "bold"
-			}
-		},
-		{
-			selector: "node[diagramType=\"inheritance\"][isAbstract=\"true\"]",
-			style: {
-				"border-style": "double",
-				"border-width": 3,
-				"font-style": "italic"
-			}
-		},
-		{
-			selector: "edge[diagramType=\"inheritance\"][type=\"extend\"]",
-			style: {
-				"target-arrow-shape": "triangle-tee",
-				"line-style": "solid",
-				"width": 2,
-				"line-color": inhExtend,
-				"target-arrow-color": inhExtend
-			}
-		},
-		{
-			selector: "edge[diagramType=\"inheritance\"][type=\"implement\"]",
-			style: {
-				"target-arrow-shape": "triangle-tee",
-				"line-style": "dashed",
-				"width": 2,
-				"line-color": inhImplement,
-				"target-arrow-color": inhImplement
-			}
-		},
-		{
-			selector: "node[diagramType=\"class\"]",
-			style: {
-				"shape": "rectangle",
-				"label": "data(umlLabel)",
-				"font-size": "9px",
-				"text-valign": "top",
-				"text-halign": "center",
-				"text-wrap": "wrap",
-				"text-max-width": "140px",
-				"width": "mapData(methodCount, 0, 20, 60, 120)",
-				"height": "mapData(methodCount, 0, 20, 50, 100)",
-				"border-width": 2,
-				"border-color": c.border,
-				"padding": "4px"
-			}
-		},
-		{
-			selector: "node[diagramType=\"class\"][type=\"interface\"]",
-			style: { "background-color": c.nodeInterface }
-		},
-		{
-			selector: "node[diagramType=\"class\"][type=\"class\"]",
-			style: { "background-color": c.nodeClass }
-		},
-		{
-			selector: "node[diagramType=\"class\"][isAbstract=\"true\"]",
-			style: {
-				"border-style": "double",
-				"border-width": 3,
-				"font-style": "italic"
-			}
-		},
-		{
-			selector: "node[diagramType=\"class\"][isRoot=\"true\"]",
-			style: {
-				"border-width": 3,
-				"border-color": accentColor
-			}
-		},
-		{
-			selector: "edge[diagramType=\"class\"][type=\"extend\"]",
-			style: {
-				"target-arrow-shape": "triangle-tee",
-				"line-style": "solid",
-				"width": 2,
-				"line-color": inhExtend,
-				"target-arrow-color": inhExtend
-			}
-		},
-		{
-			selector: "edge[diagramType=\"class\"][type=\"implement\"]",
-			style: {
-				"target-arrow-shape": "triangle-tee",
-				"line-style": "dashed",
-				"width": 2,
-				"line-color": inhImplement,
-				"target-arrow-color": inhImplement
-			}
-		},
-		{
-			selector: "node[diagramType=\"package\"]",
-			style: {
-				"shape": "round-rectangle",
-				"label": "data(umlLabel)",
-				"font-size": "10px",
-				"font-weight": "bold",
-				"color": c.text,
-				"text-valign": "top",
-				"text-halign": "center",
-				"text-wrap": "wrap",
-				"text-max-width": "100px",
-				"background-color": readCssVar("--cg-node-package", isDark ? "#6366f1" : "#263148"),
-				"border-width": 2,
-				"border-color": readCssVar("--cg-package-border", isDark ? "#818cf8" : "#1a2230"),
-				"border-style": "solid",
-				"width": "mapData(childCount, 1, 50, 50, 100)",
-				"height": "mapData(childCount, 1, 50, 40, 80)",
-				"z-index": 10
-			}
-		},
-		{
-			selector: "node[diagramType=\"package\"][isRoot=\"true\"]",
-			style: {
-				"border-width": 3,
-				"border-color": accentColor
-			}
-		},
-		{
-			selector: "node[diagramType=\"package\"].hovered",
-			style: {
-				"border-width": 4,
-				"border-color": hoverBorder
-			}
-		},
-		{
-			selector: "edge[diagramType=\"package\"]",
-			style: {
-				"width": "mapData(aggregatedCount, 1, 50, 1.5, 5)",
-				"line-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : "#263148"),
-				"target-arrow-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : "#263148"),
-				"target-arrow-shape": "vee",
-				"line-style": "dashed",
-				"curve-style": "bezier",
-				"label": "data(label)",
-				"font-size": "9px",
-				"color": c.text,
-				"text-rotation": "autorotate",
-				"text-background-color": clusterEdgeLabelBg,
-				"text-background-opacity": .85,
-				"text-background-padding": "2px",
-				"text-background-shape": "roundrectangle",
-				"opacity": .8
-			}
-		},
-		{
-			selector: "node[diagramType=\"callgraph\"]",
-			style: {
-				"shape": "round-rectangle",
-				"label": "data(umlLabel)",
-				"font-size": "10px",
-				"text-valign": "center",
-				"text-halign": "center",
-				"text-wrap": "wrap",
-				"text-max-width": "100px",
-				"width": "mapData(outDegree, 0, 20, 30, 60)",
-				"height": "mapData(outDegree, 0, 20, 25, 50)",
-				"border-width": 2,
-				"border-color": c.border
-			}
-		},
-		{
-			selector: "node[diagramType=\"callgraph\"][isEntry=\"true\"]",
-			style: {
-				"border-width": 3,
-				"border-color": successColor,
-				"font-weight": "bold",
-				"background-color": successColor
-			}
-		},
-		{
-			selector: "node[diagramType=\"callgraph\"][entryType=\"handler\"]",
-			style: {
-				"shape": "round-rectangle",
-				"background-color": successColor
-			}
-		},
-		{
-			selector: "node[diagramType=\"callgraph\"][entryType=\"test\"]",
-			style: {
-				"shape": "round-rectangle",
-				"background-color": warningColor
-			}
-		},
-		{
-			selector: "node[diagramType=\"callgraph\"][entryType=\"export\"]",
-			style: {
-				"border-style": "double",
-				"border-width": 3
-			}
-		},
-		{
-			selector: "node[diagramType=\"callgraph\"][isRecursive=\"true\"]",
-			style: {
-				"border-width": 3,
-				"border-color": errorColor,
-				"border-style": "double"
-			}
-		},
-		{
-			selector: "edge[diagramType=\"callgraph\"]",
-			style: {
-				"line-color": c.edgeCall,
-				"target-arrow-color": c.edgeCall,
-				"target-arrow-shape": "triangle",
-				"line-style": "solid",
-				"width": 1.5,
-				"curve-style": "bezier"
-			}
-		}
-	];
-}
-
-//#endregion
 //#region src/client/renderer/DataController.ts
 var DataController = class {
 	cy;
@@ -44468,6 +45073,7 @@ var DataController = class {
 			const hasUpdatedNodes = this.detectPropertyChanges(nodes);
 			if (!hasUpdatedNodes) return;
 			this.applyIncrementalUpdates(nodes, edges);
+			this.computeNodeWeights();
 			return;
 		}
 		const needsFullReset = hasStaleNodes;
@@ -44479,10 +45085,15 @@ var DataController = class {
 			this.cy.batch(() => {
 				for (const n of nodes) {
 					this.addNode(n);
+					this.currentNodes.set(n.id, n);
 					this.lastAddedNodeIds.add(n.id);
 				}
-				for (const e of edges) this.addEdge(e);
+				for (const e of edges) {
+					this.addEdge(e);
+					this.currentEdges.set(e.id, e);
+				}
 			});
+			this.computeNodeWeights();
 			return;
 		}
 		const nodesToAdd = [];
@@ -44507,18 +45118,26 @@ var DataController = class {
 		for (const e of edges) {
 			if (!this.currentEdges.has(e.id)) edgesToAdd.push(e);
 			else {
+				const existing = this.currentEdges.get(e.id);
 				const cyEdge = this.cy.getElementById(e.id);
-				if (cyEdge.length > 0 && e.properties) for (const [key, value] of Object.entries(e.properties)) cyEdge.data(key, value);
+				if (cyEdge.length > 0 && existing && (existing.source !== e.source || existing.target !== e.target)) {
+					this.cy.remove(cyEdge);
+					edgesToAdd.push(e);
+				} else if (cyEdge.length > 0 && e.properties) for (const [key, value] of Object.entries(e.properties)) cyEdge.data(key, value);
 			}
 			this.currentEdges.set(e.id, e);
 		}
-		if (nodesToAdd.length === 0 && edgesToAdd.length === 0) return;
+		if (nodesToAdd.length === 0 && edgesToAdd.length === 0) {
+			this.computeNodeWeights();
+			return;
+		}
 		const BATCH_SIZE = 200;
 		if (nodesToAdd.length <= BATCH_SIZE) {
 			this.cy.batch(() => {
 				for (const n of nodesToAdd) this.addNode(n);
 				for (const e of edgesToAdd) this.addEdge(e);
 			});
+			this.computeNodeWeights();
 			return;
 		}
 		const firstBatchNodes = nodesToAdd.slice(0, BATCH_SIZE);
@@ -44576,6 +45195,8 @@ var DataController = class {
 		if (n.properties) for (const [key, value] of Object.entries(n.properties)) cyNode.data(key, value);
 	}
 	addNode(n) {
+		const existing = this.cy.getElementById(n.id);
+		if (existing.length > 0) existing.remove();
 		const isCluster = "isCluster" in n && n.isCluster === true;
 		const data$2 = {
 			id: n.id,
@@ -44594,6 +45215,9 @@ var DataController = class {
 		});
 	}
 	addEdge(e) {
+		if (this.cy.getElementById(e.source).empty() || this.cy.getElementById(e.target).empty()) return;
+		const existing = this.cy.getElementById(e.id);
+		if (existing.length > 0) existing.remove();
 		const isCluster = "isCluster" in e && e.isCluster === true;
 		const ce = isCluster ? e : null;
 		const data$2 = {
@@ -44638,13 +45262,15 @@ var DataController = class {
 				};
 				this.processBatchQueue();
 			} else this.batchQueue = null;
+			this.computeNodeWeights();
 			this.batchRaf = null;
 		});
 	}
 	filterByType(type) {
 		const hidden = new Set();
 		if (type !== "all") this.cy.nodes().forEach((node) => {
-			if (node.data("type") !== type) hidden.add(node.id());
+			const isCluster = node.data("isCluster") === true;
+			if (!isCluster && node.data("type") !== type) hidden.add(node.id());
 		});
 		this.cy.batch(() => {
 			this.cy.nodes().forEach((node) => {
@@ -44672,7 +45298,6 @@ var DataController = class {
 		else if (graphType === "dependency") {
 			allowedEdgeTypes.add("import");
 			allowedEdgeTypes.add("dependency");
-			allowedEdgeTypes.add("contains");
 		}
 		const connectedNodeIds = new Set();
 		this.cy.batch(() => {
@@ -44803,6 +45428,25 @@ var DataController = class {
 		});
 		parts.push("</svg>");
 		return parts.join("");
+	}
+	computeNodeWeights() {
+		this.cy.batch(() => {
+			this.cy.nodes().forEach((node) => {
+				const isCluster = node.data("isCluster") === true;
+				if (isCluster) {
+					const clusterPath = node.data("clusterPath") ?? node.id();
+					let hash = 0;
+					for (let i$1 = 0; i$1 < clusterPath.length; i$1++) hash = (hash << 5) - hash + clusterPath.charCodeAt(i$1) | 0;
+					node.data("clusterHue", Math.abs(hash) % 12);
+					return;
+				}
+				const inDegree = node.indegree(false);
+				const outDegree = node.outdegree(false);
+				const totalConnections = inDegree + outDegree;
+				if (totalConnections > 0) node.data("weight", Math.min(totalConnections, 10));
+				else node.removeData("weight");
+			});
+		});
 	}
 	destroy() {
 		if (this.batchRaf !== null) cancelAnimationFrame(this.batchRaf);
@@ -44965,7 +45609,12 @@ var InteractionController = class {
 			this.callbacks.onNodeTap?.(evt.target.id());
 		});
 		this.cy.on("tap", "edge", (evt) => {
-			this.callbacks.onEdgeTap?.(evt.target.id());
+			const edge = evt.target;
+			const pos = edge.renderedMidpoint();
+			this.callbacks.onEdgeTap?.(edge.id(), {
+				x: pos.x,
+				y: pos.y
+			});
 		});
 		this.cy.on("dbltap", "node", (evt) => {
 			this.callbacks.onNodeDoubleTap?.(evt.target.id());
@@ -45022,6 +45671,8 @@ var PathFinder = class {
 		const sourceNode = this.cy.getElementById(sourceId);
 		const targetNode = this.cy.getElementById(targetId);
 		if (sourceNode.empty() || targetNode.empty()) return null;
+		const nodeCount = this.cy.nodes().length;
+		if (nodeCount > 1e4) return null;
 		const dijkstra$2 = this.cy.elements().dijkstra({ root: sourceNode });
 		const pathToTarget = dijkstra$2.pathTo(targetNode);
 		if (pathToTarget.length === 0) return null;
@@ -45300,7 +45951,7 @@ var CytoscapeRenderer = class {
 		try {
 			this.cy = cytoscape$1({
 				container: this.options.container,
-				minZoom: .1,
+				minZoom: .02,
 				maxZoom: 3,
 				style: [],
 				layout: { name: "cose" },
@@ -45348,6 +45999,9 @@ var CytoscapeRenderer = class {
 	}
 	updateData(nodes, edges) {
 		this.dataCtrl?.updateData(nodes, edges);
+		if (this.cy && nodes.length > 0) setTimeout(() => {
+			if (this.cy && this.cy.nodes().length > 0) this.cy.fit(void 0, 80);
+		}, 200);
 	}
 	setRawNodes(rawNodes) {
 		this.dataCtrl?.setRawNodes(rawNodes);
@@ -45489,7 +46143,7 @@ var CytoscapeRenderer = class {
 //#endregion
 //#region src/client/hooks/useGraphRenderer.ts
 const log$5 = scoped("renderer-hook");
-function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, showCallChain, showCycles, showImpact, showInheritance, focusNodeId, callbacks, showCallChainRef) {
+function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterDepth, debouncedSearch, showCallChain, showCycles, showImpact, showInheritance, focusNodeId, callbacks, showCallChainRef) {
 	const containerRef = useRef(null);
 	const rendererRef = useRef(null);
 	const [searchMatchCount, setSearchMatchCount] = useState(null);
@@ -45498,26 +46152,48 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 		callbacksRef.current = callbacks;
 	}, [callbacks]);
 	useEffect(() => {
-		if (!containerRef.current) return;
-		const renderer$1 = new CytoscapeRenderer({
-			container: containerRef.current,
-			theme,
-			onNodeTap: (nodeId) => {
-				const id = NodeId(nodeId);
-				callbacksRef.current.onNodeTap(id);
-				if (showCallChainRef.current) rendererRef.current?.highlightCallChain(id);
-			},
-			onNodeDoubleTap: (nodeId) => callbacksRef.current.onNodeDoubleTap(nodeId),
-			onNodeHover: (nodeId, pos) => callbacksRef.current.onNodeHover(nodeId, pos),
-			onNodeHoverOut: () => callbacksRef.current.onNodeHoverOut(),
-			onEdgeHover: (edgeId, pos) => callbacksRef.current.onEdgeHover(edgeId, pos),
-			onEdgeHoverOut: () => callbacksRef.current.onEdgeHoverOut()
-		});
-		renderer$1.init();
-		rendererRef.current = renderer$1;
-		log$5.info("renderer initialized", { theme });
+		const container = containerRef.current;
+		if (!container) return;
+		let renderer$1 = null;
+		let ro = null;
+		let initTimer = null;
+		const initWhenReady = () => {
+			const w = container.clientWidth;
+			const h = container.clientHeight;
+			if (w > 0 && h > 0) {
+				renderer$1 = new CytoscapeRenderer({
+					container,
+					theme,
+					onNodeTap: (nodeId) => {
+						const id = NodeId(nodeId);
+						callbacksRef.current.onNodeTap(id);
+						if (showCallChainRef.current) rendererRef.current?.highlightCallChain(id);
+					},
+					onNodeDoubleTap: (nodeId) => callbacksRef.current.onNodeDoubleTap(nodeId),
+					onNodeHover: (nodeId, pos) => callbacksRef.current.onNodeHover(nodeId, pos),
+					onNodeHoverOut: () => callbacksRef.current.onNodeHoverOut(),
+					onEdgeTap: (edgeId, pos) => callbacksRef.current.onEdgeTap(edgeId, pos),
+					onEdgeHover: (edgeId, pos) => callbacksRef.current.onEdgeHover(edgeId, pos),
+					onEdgeHoverOut: () => callbacksRef.current.onEdgeHoverOut()
+				});
+				renderer$1.init();
+				rendererRef.current = renderer$1;
+				log$5.info("renderer initialized", {
+					theme,
+					w,
+					h
+				});
+				ro = new ResizeObserver(() => {
+					rendererRef.current?.resize();
+				});
+				ro.observe(container);
+			} else initTimer = setTimeout(initWhenReady, 50);
+		};
+		initWhenReady();
 		return () => {
-			renderer$1.destroy();
+			if (initTimer !== null) clearTimeout(initTimer);
+			ro?.disconnect();
+			renderer$1?.destroy();
 			rendererRef.current = null;
 		};
 	}, [callbacksRef, showCallChainRef]);
@@ -45560,9 +46236,9 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 		return () => clearTimeout(timer);
 	}, [
 		layout$2,
-		clusterLevel,
-		nodes.length,
-		edges.length
+		clusterDepth,
+		nodes,
+		edges
 	]);
 	useEffect(() => {
 		const r = rendererRef.current;
@@ -45746,7 +46422,8 @@ const initialState = {
 	showHealthScore: false,
 	showRules: false,
 	showHotspot: false,
-	showGodModule: false
+	showGodModule: false,
+	showCoreFunction: false
 };
 function reducer(state, action) {
 	switch (action.type) {
@@ -45793,6 +46470,7 @@ function usePanelState() {
 	const toggleRules = useCallback(makeToggle("showRules"), [makeToggle]);
 	const toggleHotspot = useCallback(makeToggle("showHotspot"), [makeToggle]);
 	const toggleGodModule = useCallback(makeToggle("showGodModule"), [makeToggle]);
+	const toggleCoreFunction = useCallback(makeToggle("showCoreFunction"), [makeToggle]);
 	const setShowSearch = useCallback(makeSet("showSearch"), [makeSet]);
 	const setShowImport = useCallback(makeSet("showImport"), [makeSet]);
 	const setShowCallChain = useCallback(makeSet("showCallChain"), [makeSet]);
@@ -45806,6 +46484,7 @@ function usePanelState() {
 	const setShowRules = useCallback(makeSet("showRules"), [makeSet]);
 	const setShowHotspot = useCallback(makeSet("showHotspot"), [makeSet]);
 	const setShowGodModule = useCallback(makeSet("showGodModule"), [makeSet]);
+	const setShowCoreFunction = useCallback(makeSet("showCoreFunction"), [makeSet]);
 	return {
 		...state,
 		toggleSearch,
@@ -45822,6 +46501,7 @@ function usePanelState() {
 		toggleRules,
 		toggleHotspot,
 		toggleGodModule,
+		toggleCoreFunction,
 		setShowSearch,
 		setShowImport,
 		setShowCallChain,
@@ -45834,7 +46514,38 @@ function usePanelState() {
 		setShowHealthScore,
 		setShowRules,
 		setShowHotspot,
-		setShowGodModule
+		setShowGodModule,
+		setShowCoreFunction,
+		toPanelControls: () => ({
+			showSearch: state.showSearch,
+			showCallChain: state.showCallChain,
+			showCycles: state.showCycles,
+			showImpact: state.showImpact,
+			showInheritance: state.showInheritance,
+			showMiniMap: state.showMiniMap,
+			showLegend: state.showLegend,
+			showImport: state.showImport,
+			showPathFind: state.showPathFind,
+			showHealthScore: state.showHealthScore,
+			showRules: state.showRules,
+			showHotspot: state.showHotspot,
+			showGodModule: state.showGodModule,
+			showCoreFunction: state.showCoreFunction,
+			onToggleSearch: toggleSearch,
+			onToggleCallChain: toggleCallChain,
+			onToggleCycles: toggleCycles,
+			onToggleImpact: toggleImpact,
+			onToggleInheritance: toggleInheritance,
+			onToggleMiniMap: toggleMiniMap,
+			onToggleLegend: toggleLegend,
+			onToggleImport: toggleImport,
+			onTogglePathFind: togglePathFind,
+			onToggleHealthScore: toggleHealthScore,
+			onToggleRules: toggleRules,
+			onToggleHotspot: toggleHotspot,
+			onToggleGodModule: toggleGodModule,
+			onToggleCoreFunction: toggleCoreFunction
+		})
 	};
 }
 
@@ -45881,6 +46592,1126 @@ function usePanelKeyboard(layout$2, setLayout, rendererRef, handlers) {
 		ctrl: true,
 		preventDefault: true
 	});
+}
+
+//#endregion
+//#region src/client/validators.ts
+function coerceNode(raw, i$1) {
+	if (!raw || typeof raw !== "object") return null;
+	const o = raw;
+	const id = typeof o.id === "string" ? o.id : `node-${i$1}`;
+	const label = typeof o.label === "string" ? o.label : typeof o.name === "string" ? o.name : id;
+	const type = [
+		"function",
+		"class",
+		"variable",
+		"module",
+		"interface",
+		"type"
+	].includes(o.type) ? o.type : "variable";
+	const filePath = typeof o.filePath === "string" ? o.filePath : typeof o.file === "string" ? o.file : "";
+	const lineNumber = typeof o.lineNumber === "number" ? o.lineNumber : typeof o.line === "number" ? o.line : 0;
+	const properties = o.properties && typeof o.properties === "object" ? o.properties : {};
+	return {
+		id: NodeId(id),
+		label,
+		type,
+		filePath,
+		lineNumber,
+		properties
+	};
+}
+function coerceEdge(raw, i$1) {
+	if (!raw || typeof raw !== "object") return null;
+	const o = raw;
+	const id = typeof o.id === "string" ? o.id : `edge-${i$1}`;
+	const source = typeof o.source === "string" ? o.source : typeof o.from === "string" ? o.from : null;
+	const target = typeof o.target === "string" ? o.target : typeof o.to === "string" ? o.to : null;
+	if (!source || !target) return null;
+	const type = [
+		"call",
+		"import",
+		"extend",
+		"implement",
+		"dependency",
+		"contains"
+	].includes(o.type) ? o.type : "dependency";
+	const properties = o.properties && typeof o.properties === "object" ? o.properties : {};
+	return {
+		id: EdgeId(id),
+		source: NodeId(source),
+		target: NodeId(target),
+		type,
+		properties
+	};
+}
+function validateGraphData(raw) {
+	if (!raw || typeof raw !== "object") return null;
+	const o = raw;
+	const rawNodes = Array.isArray(o.nodes) ? o.nodes : [];
+	const rawEdges = Array.isArray(o.edges) ? o.edges : [];
+	const nodes = rawNodes.map(coerceNode).filter((n) => n !== null);
+	if (nodes.length === 0) return null;
+	const nodeIds = new Set(nodes.map((n) => n.id));
+	const edges = rawEdges.map(coerceEdge).filter((e) => e !== null).filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+	const metadata = o.metadata;
+	const repoId = metadata?.repoId ?? `workspace-${Date.now()}`;
+	const timestamp = typeof metadata?.timestamp === "number" ? metadata.timestamp : Date.now();
+	const truncated = typeof metadata?.truncated === "boolean" ? metadata.truncated : false;
+	const totalNodeCount = typeof metadata?.totalNodeCount === "number" ? metadata.totalNodeCount : nodes.length;
+	const totalEdgeCount = typeof metadata?.totalEdgeCount === "number" ? metadata.totalEdgeCount : edges.length;
+	return {
+		nodes,
+		edges,
+		metadata: {
+			repoId: RepoId(repoId),
+			timestamp,
+			nodeCount: nodes.length,
+			edgeCount: edges.length,
+			truncated,
+			totalNodeCount,
+			totalEdgeCount
+		}
+	};
+}
+
+//#endregion
+//#region src/client/api/index.ts
+const log$4 = scoped("client");
+async function fetchStatus() {
+	try {
+		const res = await fetch("/api/v1/codegraph/status");
+		if (!res.ok) return {
+			codegraph: false,
+			lens: false
+		};
+		return await res.json();
+	} catch (e) {
+		log$4.warn("fetchStatus failed", e);
+		return {
+			codegraph: false,
+			lens: false
+		};
+	}
+}
+async function fetchGraphData() {
+	try {
+		const res = await fetch("/api/v1/codegraph/data");
+		if (!res.ok) return null;
+		return validateGraphData(await res.json());
+	} catch (e) {
+		log$4.warn("fetchGraphData failed", e);
+		return null;
+	}
+}
+async function fetchWorkspace() {
+	try {
+		const res = await fetch("/api/v1/codegraph/workspace");
+		if (!res.ok) return {
+			path: ".",
+			list: []
+		};
+		const data$2 = await res.json();
+		return {
+			path: data$2.path ?? ".",
+			list: data$2.list ?? []
+		};
+	} catch (e) {
+		log$4.warn("fetchWorkspace failed", e);
+		return {
+			path: ".",
+			list: []
+		};
+	}
+}
+async function requestScan(path, maxNodes) {
+	try {
+		const res = await fetch("/api/v1/codegraph/scan", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				path,
+				maxNodes
+			})
+		});
+		if (!res.ok) return null;
+		return await res.json();
+	} catch (e) {
+		log$4.warn("requestScan failed", e);
+		return null;
+	}
+}
+async function requestInit(path) {
+	try {
+		const res = await fetch("/api/v1/codegraph/init", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ path })
+		});
+		if (!res.ok) return null;
+		return await res.json();
+	} catch (e) {
+		log$4.warn("requestInit failed", e);
+		return null;
+	}
+}
+async function requestWatch(enabled, path) {
+	try {
+		const res = await fetch("/api/v1/codegraph/watch", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				enabled,
+				path
+			})
+		});
+		return res.ok;
+	} catch (e) {
+		log$4.warn("requestWatch failed", e);
+		return false;
+	}
+}
+
+//#endregion
+//#region src/client/hooks/useViewMode.ts
+const MICRO_MODES = [
+	"cfg",
+	"flowchart",
+	"sequence"
+];
+function isMicroMode(mode) {
+	return MICRO_MODES.includes(mode);
+}
+function useViewMode(viewMode, currentWorkspace, depsFetchAbortRef) {
+	const setViewMode = useGraphStore((s) => s.setViewMode);
+	const setLoading = useGraphStore((s) => s.setLoading);
+	const setGraphData = useGraphStore((s) => s.setGraphData);
+	const setError = useGraphStore((s) => s.setError);
+	const setGraphType = useGraphStore((s) => s.setGraphType);
+	const setFilterType = useGraphStore((s) => s.setFilterType);
+	const setSelectedFunction = useGraphStore((s) => s.setSelectedFunction);
+	const setSelectedNode = useGraphStore((s) => s.setSelectedNode);
+	const setHighlightedNodes = useGraphStore((s) => s.setHighlightedNodes);
+	const prevMacroViewModeRef = useRef("code");
+	const handleViewModeChange = useCallback((newMode) => {
+		if (newMode === viewMode) return;
+		setSelectedNode(null);
+		setHighlightedNodes([]);
+		if (newMode === "dependencies") {
+			setGraphType("dependency");
+			setFilterType("all");
+			setLoading(true);
+			const controller = new AbortController();
+			depsFetchAbortRef.current?.abort();
+			depsFetchAbortRef.current = controller;
+			fetch("/api/v1/codegraph/dependencies", { signal: controller.signal }).then((r) => {
+				if (!r.ok) throw new Error(`HTTP ${r.status}`);
+				return r.json();
+			}).then((data$2) => {
+				if (controller.signal.aborted) return;
+				if (data$2.nodes && data$2.nodes.length > 0) {
+					setViewMode(newMode);
+					setGraphData(data$2.nodes, data$2.edges, data$2.metadata?.repoId || currentWorkspace);
+				}
+			}).catch((err) => {
+				if (!controller.signal.aborted) setError(`Failed to load dependencies: ${err.message}`);
+			}).finally(() => {
+				if (!controller.signal.aborted) setLoading(false);
+			});
+		} else if (newMode === "code") {
+			depsFetchAbortRef.current?.abort();
+			setGraphType("all");
+			setFilterType("all");
+			setLoading(true);
+			fetchGraphData().then((data$2) => {
+				if (data$2) {
+					setViewMode(newMode);
+					setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
+				}
+				setLoading(false);
+			}).catch(() => {
+				setLoading(false);
+			});
+		} else {
+			depsFetchAbortRef.current?.abort();
+			setGraphType("all");
+			setFilterType("all");
+			if (!isMicroMode(newMode)) setSelectedFunction(null);
+			setViewMode(newMode);
+		}
+	}, [
+		viewMode,
+		setViewMode,
+		setLoading,
+		setGraphData,
+		setError,
+		currentWorkspace,
+		setGraphType,
+		setFilterType,
+		setSelectedNode,
+		setHighlightedNodes,
+		setSelectedFunction
+	]);
+	const handleSelectFunction = useCallback((nodeId, filePath, functionName, mode) => {
+		if (!isMicroMode(viewMode)) prevMacroViewModeRef.current = viewMode;
+		setSelectedFunction({
+			nodeId,
+			filePath,
+			functionName
+		});
+		setSelectedNode(null);
+		setViewMode(mode);
+	}, [
+		viewMode,
+		setSelectedFunction,
+		setSelectedNode,
+		setViewMode
+	]);
+	const handleCloseMicroView = useCallback(() => {
+		setSelectedFunction(null);
+		const targetMode = prevMacroViewModeRef.current;
+		if (isMicroMode(targetMode)) setViewMode("code");
+		else setViewMode(targetMode);
+	}, [setSelectedFunction, setViewMode]);
+	const handleAggregateCallChain = useCallback((nodeId) => {
+		if (!isMicroMode(viewMode)) prevMacroViewModeRef.current = viewMode;
+		setSelectedFunction(null);
+		setSelectedNode(null);
+		useGraphStore.getState().assembleMultiFunction(nodeId);
+	}, [
+		viewMode,
+		setSelectedFunction,
+		setSelectedNode
+	]);
+	return {
+		handleViewModeChange,
+		handleSelectFunction,
+		handleCloseMicroView,
+		handleAggregateCallChain
+	};
+}
+
+//#endregion
+//#region src/shared/analysis/modulePath.ts
+function normalizeFilePath(filePath) {
+	return filePath.replace(/^(file|import):/, "");
+}
+function extractModulePath(filePath, maxDepth) {
+	const rawPath = normalizeFilePath(filePath);
+	const parts = rawPath.split(/[\\/]/);
+	const dirParts = parts.length > 1 ? parts.slice(0, -1) : [rawPath];
+	return dirParts.length > maxDepth ? dirParts.slice(0, maxDepth).join("/") : dirParts.join("/");
+}
+function buildModuleMap(nodes, maxDepth) {
+	const moduleOfNode = new Map();
+	for (const node of nodes) moduleOfNode.set(node.id, extractModulePath(node.filePath, maxDepth));
+	return moduleOfNode;
+}
+
+//#endregion
+//#region src/shared/analysis/HealthScorer.ts
+const EDGE_WEIGHTS = {
+	call: 1,
+	extend: .8,
+	implement: .7,
+	import: .5,
+	dependency: .3,
+	contains: 0
+};
+const DEFAULT_MAX_MODULE_DEPTH = 3;
+var HealthScorer = class {
+	maxModuleDepth;
+	constructor(maxModuleDepth) {
+		this.maxModuleDepth = maxModuleDepth ?? DEFAULT_MAX_MODULE_DEPTH;
+	}
+	calculate(nodes, edges) {
+		if (nodes.length === 0) return {
+			coupling: 0,
+			cohesion: 0,
+			cyclicDependencyRate: 0,
+			modularity: 0,
+			overall: 0
+		};
+		const moduleOfNode = buildModuleMap(nodes, this.maxModuleDepth);
+		const coupling = this.calculateCoupling(edges, moduleOfNode);
+		const cohesion = this.calculateCohesion(nodes, edges, moduleOfNode);
+		const cyclicDependencyRate = this.calculateCyclicDependencyRate(nodes, edges);
+		const modularity = this.calculateModularity(nodes, edges, moduleOfNode);
+		const overall = Math.round(coupling * .25 + cohesion * .25 + cyclicDependencyRate * .3 + modularity * .2);
+		return {
+			coupling,
+			cohesion,
+			cyclicDependencyRate,
+			modularity,
+			overall
+		};
+	}
+	getDimensions(score) {
+		return [
+			{
+				name: "coupling",
+				score: score.coupling,
+				description: "Lower inter-module coupling is better"
+			},
+			{
+				name: "cohesion",
+				score: score.cohesion,
+				description: "Higher intra-module cohesion is better"
+			},
+			{
+				name: "cyclicDependencyRate",
+				score: score.cyclicDependencyRate,
+				description: "Fewer circular dependencies is better"
+			},
+			{
+				name: "modularity",
+				score: score.modularity,
+				description: "Better module separation is better"
+			}
+		];
+	}
+	calculateCoupling(edges, moduleOfNode) {
+		if (edges.length === 0) return 100;
+		const efferent = new Map();
+		const afferent = new Map();
+		for (const edge of edges) {
+			if (EDGE_WEIGHTS[edge.type] === 0) continue;
+			const srcModule = moduleOfNode.get(edge.source);
+			const tgtModule = moduleOfNode.get(edge.target);
+			if (!srcModule || !tgtModule || srcModule === tgtModule) continue;
+			let eff = efferent.get(srcModule);
+			if (!eff) {
+				eff = new Set();
+				efferent.set(srcModule, eff);
+			}
+			eff.add(tgtModule);
+			let aff = afferent.get(tgtModule);
+			if (!aff) {
+				aff = new Set();
+				afferent.set(tgtModule, aff);
+			}
+			aff.add(srcModule);
+		}
+		const modules$1 = new Set();
+		for (const m of moduleOfNode.values()) modules$1.add(m);
+		if (modules$1.size <= 1) return 100;
+		let totalInstability = 0;
+		let moduleCount = 0;
+		for (const mod of modules$1) {
+			const ce = efferent.get(mod)?.size ?? 0;
+			const ca = afferent.get(mod)?.size ?? 0;
+			if (ce + ca === 0) continue;
+			const instability = ce / (ce + ca);
+			totalInstability += instability;
+			moduleCount++;
+		}
+		if (moduleCount === 0) return 100;
+		const avgInstability = totalInstability / moduleCount;
+		return Math.round(Math.max(0, 100 - avgInstability * 100));
+	}
+	calculateCohesion(nodes, edges, moduleOfNode) {
+		const moduleStats = new Map();
+		const ensure = (m) => {
+			let stats = moduleStats.get(m);
+			if (!stats) {
+				stats = {
+					internal: 0,
+					total: 0,
+					nodeCount: 0
+				};
+				moduleStats.set(m, stats);
+			}
+			return stats;
+		};
+		for (const node of nodes) {
+			const mod = moduleOfNode.get(node.id);
+			if (mod) ensure(mod).nodeCount++;
+		}
+		for (const edge of edges) {
+			if (EDGE_WEIGHTS[edge.type] === 0) continue;
+			const srcModule = moduleOfNode.get(edge.source);
+			const tgtModule = moduleOfNode.get(edge.target);
+			if (!srcModule && !tgtModule) continue;
+			if (srcModule && tgtModule && srcModule === tgtModule) {
+				const stats = ensure(srcModule);
+				stats.total++;
+				stats.internal++;
+			} else {
+				if (srcModule) ensure(srcModule).total++;
+				if (tgtModule) ensure(tgtModule).total++;
+			}
+		}
+		if (moduleStats.size === 0) return 50;
+		let weightedCohesion = 0;
+		let totalNodes = 0;
+		for (const stats of moduleStats.values()) {
+			if (stats.nodeCount === 0) continue;
+			const cohesionRatio = stats.total > 0 ? stats.internal / stats.total : 0;
+			weightedCohesion += cohesionRatio * stats.nodeCount;
+			totalNodes += stats.nodeCount;
+		}
+		if (totalNodes === 0) return 50;
+		return Math.round(weightedCohesion / totalNodes * 100);
+	}
+	calculateCyclicDependencyRate(nodes, edges) {
+		const cycleEdgeTypes = [
+			"call",
+			"extend",
+			"implement",
+			"import"
+		];
+		const adjacency = new Map();
+		const nodeIds = new Set();
+		for (const edge of edges) {
+			if (!cycleEdgeTypes.includes(edge.type)) continue;
+			const list = adjacency.get(edge.source);
+			if (list) list.push(edge.target);
+			else adjacency.set(edge.source, [edge.target]);
+			nodeIds.add(edge.source);
+			nodeIds.add(edge.target);
+		}
+		if (nodeIds.size === 0) return 100;
+		const sccs = this.tarjanSCC(adjacency, nodeIds);
+		let cycleNodeCount = 0;
+		for (const scc of sccs) if (scc.length > 1) cycleNodeCount += scc.length;
+		else if (scc.length === 1) {
+			const id = scc[0];
+			const neighbors = adjacency.get(id);
+			if (neighbors && neighbors.includes(id)) cycleNodeCount++;
+		}
+		const cycleRate = cycleNodeCount / nodeIds.size;
+		return Math.round(Math.max(0, 100 - cycleRate * 100));
+	}
+	calculateModularity(nodes, edges, moduleOfNode) {
+		if (nodes.length === 0) return 0;
+		const modules$1 = new Set();
+		for (const m of moduleOfNode.values()) modules$1.add(m);
+		if (modules$1.size <= 1) return 50;
+		const moduleSizes = new Map();
+		for (const m of moduleOfNode.values()) moduleSizes.set(m, (moduleSizes.get(m) ?? 0) + 1);
+		const avgSize = nodes.length / modules$1.size;
+		let sizeVariance = 0;
+		for (const size$1 of moduleSizes.values()) sizeVariance += (size$1 - avgSize) ** 2;
+		sizeVariance /= modules$1.size;
+		const cv = Math.sqrt(sizeVariance) / Math.max(1, avgSize);
+		const balanceScore = Math.max(0, 100 - cv * 50);
+		let internalEdges = 0;
+		let totalRelevantEdges = 0;
+		for (const edge of edges) {
+			if (EDGE_WEIGHTS[edge.type] === 0) continue;
+			const srcModule = moduleOfNode.get(edge.source);
+			const tgtModule = moduleOfNode.get(edge.target);
+			if (!srcModule || !tgtModule) continue;
+			totalRelevantEdges++;
+			if (srcModule === tgtModule) internalEdges++;
+		}
+		if (totalRelevantEdges === 0) return Math.round(balanceScore);
+		const internalRatio = internalEdges / totalRelevantEdges;
+		const expectedRatio = 1 / modules$1.size;
+		const modularityQ = internalRatio - expectedRatio;
+		const separationScore = Math.max(0, Math.min(100, modularityQ * 100 * modules$1.size + 50));
+		return Math.round((balanceScore + separationScore) / 2);
+	}
+	tarjanSCC(adjacency, nodeIds) {
+		let index = 0;
+		const indices = new Map();
+		const lowLinks = new Map();
+		const onStack = new Set();
+		const stack = [];
+		const sccs = [];
+		for (const startId of nodeIds) {
+			if (indices.has(startId)) continue;
+			const callStack = [];
+			callStack.push({
+				v: startId,
+				neighborIdx: 0,
+				neighbors: adjacency.get(startId) ?? []
+			});
+			while (callStack.length > 0) {
+				const frame = callStack[callStack.length - 1];
+				const v = frame.v;
+				if (frame.neighborIdx === 0) {
+					indices.set(v, index);
+					lowLinks.set(v, index);
+					index++;
+					stack.push(v);
+					onStack.add(v);
+				}
+				if (frame.neighborIdx < frame.neighbors.length) {
+					const w = frame.neighbors[frame.neighborIdx];
+					frame.neighborIdx++;
+					if (!indices.has(w)) callStack.push({
+						v: w,
+						neighborIdx: 0,
+						neighbors: adjacency.get(w) ?? []
+					});
+					else if (onStack.has(w)) lowLinks.set(v, Math.min(lowLinks.get(v), indices.get(w)));
+				} else {
+					if (lowLinks.get(v) === indices.get(v)) {
+						const scc = [];
+						let w;
+						do {
+							w = stack.pop();
+							onStack.delete(w);
+							scc.push(w);
+						} while (w !== v);
+						sccs.push(scc);
+					}
+					callStack.pop();
+					if (callStack.length > 0) {
+						const parentFrame = callStack[callStack.length - 1];
+						lowLinks.set(parentFrame.v, Math.min(lowLinks.get(parentFrame.v), lowLinks.get(v)));
+					}
+				}
+			}
+		}
+		return sccs;
+	}
+};
+
+//#endregion
+//#region src/shared/analysis/RuleEngine.ts
+const PRESET_RULES = [
+	{
+		id: "no-circular-deps",
+		name: "No Circular Dependencies",
+		type: "forbidden-edge",
+		params: { edgeTypes: [
+			"call",
+			"import",
+			"dependency"
+		] },
+		severity: "error",
+		enabled: false
+	},
+	{
+		id: "max-indegree-10",
+		name: "Max Indegree ≤ 10",
+		type: "max-indegree",
+		params: { threshold: 10 },
+		severity: "warning",
+		enabled: false
+	},
+	{
+		id: "max-outdegree-15",
+		name: "Max Outdegree ≤ 15",
+		type: "max-outdegree",
+		params: { threshold: 15 },
+		severity: "warning",
+		enabled: false
+	},
+	{
+		id: "required-call-edge",
+		name: "Public Functions Must Have Callers",
+		type: "required-edge",
+		params: {
+			edgeType: "call",
+			sourceType: "function"
+		},
+		severity: "warning",
+		enabled: false
+	},
+	{
+		id: "no-cross-layer-call",
+		name: "No Cross-Layer Calls",
+		type: "cross-layer-call",
+		params: {
+			layers: {
+				"view": ["model"],
+				"model": ["view"]
+			},
+			edgeType: "call"
+		},
+		severity: "error",
+		enabled: false
+	}
+];
+function getPresetRules() {
+	return PRESET_RULES.map((r) => ({ ...r }));
+}
+var RuleEngine = class {
+	detectors = new Map();
+	constructor() {
+		this.registerDetector("forbidden-edge", new ForbiddenEdgeDetector());
+		this.registerDetector("max-indegree", new MaxIndegreeDetector());
+		this.registerDetector("max-outdegree", new MaxOutdegreeDetector());
+		this.registerDetector("required-edge", new RequiredEdgeDetector());
+		this.registerDetector("cross-layer-call", new CrossLayerCallDetector());
+	}
+	registerDetector(type, detector) {
+		this.detectors.set(type, detector);
+	}
+	check(rules, nodes, edges) {
+		const violations = [];
+		for (const rule of rules) {
+			if (!rule.enabled) continue;
+			const detector = this.detectors.get(rule.type);
+			if (detector) violations.push(...detector.detect(rule, nodes, edges));
+		}
+		return violations;
+	}
+};
+var ForbiddenEdgeDetector = class {
+	detect(rule, nodes, edges) {
+		const violations = [];
+		const edgeTypes = rule.params.edgeTypes ?? [
+			"call",
+			"import",
+			"dependency"
+		];
+		const adjacency = new Map();
+		for (const edge of edges) {
+			if (!edgeTypes.includes(edge.type)) continue;
+			const list = adjacency.get(edge.source);
+			if (list) list.push(edge.target);
+			else adjacency.set(edge.source, [edge.target]);
+		}
+		const visited = new Set();
+		const inStack = new Set();
+		const reportedCycles = new Set();
+		const enter = (start) => {
+			const frames = [{
+				id: start,
+				neighbors: adjacency.get(start) ?? [],
+				next: 0
+			}];
+			visited.add(start);
+			inStack.add(start);
+			while (frames.length > 0) {
+				const frame = frames[frames.length - 1];
+				if (frame.next >= frame.neighbors.length) {
+					inStack.delete(frame.id);
+					frames.pop();
+					continue;
+				}
+				const target = frame.neighbors[frame.next++];
+				if (inStack.has(target)) {
+					const cycleKey = [target, ...frames.slice(frames.findIndex((f) => f.id === target)).map((f) => f.id)].sort().join("→");
+					if (!reportedCycles.has(cycleKey)) {
+						reportedCycles.add(cycleKey);
+						violations.push({
+							ruleId: rule.id,
+							nodeId: NodeId(target),
+							message: `Circular dependency detected involving: ${cycleKey}`,
+							severity: rule.severity
+						});
+					}
+				} else if (!visited.has(target)) {
+					visited.add(target);
+					inStack.add(target);
+					frames.push({
+						id: target,
+						neighbors: adjacency.get(target) ?? [],
+						next: 0
+					});
+				}
+			}
+		};
+		for (const id of adjacency.keys()) if (!visited.has(id)) enter(id);
+		return violations;
+	}
+};
+var MaxIndegreeDetector = class {
+	detect(rule, _nodes, edges) {
+		const violations = [];
+		const threshold = rule.params.threshold ?? 10;
+		const indegree = new Map();
+		for (const edge of edges) indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1);
+		for (const [nodeId, count] of indegree) if (count > threshold) violations.push({
+			ruleId: rule.id,
+			nodeId: NodeId(nodeId),
+			message: `Node ${nodeId} has indegree ${count} (max ${threshold})`,
+			severity: rule.severity
+		});
+		return violations;
+	}
+};
+var MaxOutdegreeDetector = class {
+	detect(rule, _nodes, edges) {
+		const violations = [];
+		const threshold = rule.params.threshold ?? 15;
+		const outdegree = new Map();
+		for (const edge of edges) outdegree.set(edge.source, (outdegree.get(edge.source) ?? 0) + 1);
+		for (const [nodeId, count] of outdegree) if (count > threshold) violations.push({
+			ruleId: rule.id,
+			nodeId: NodeId(nodeId),
+			message: `Node ${nodeId} has outdegree ${count} (max ${threshold})`,
+			severity: rule.severity
+		});
+		return violations;
+	}
+};
+var RequiredEdgeDetector = class {
+	detect(rule, nodes, edges) {
+		const violations = [];
+		const requiredType = rule.params.edgeType ?? "call";
+		const sourceType = rule.params.sourceType ?? void 0;
+		const targetType = rule.params.targetType ?? void 0;
+		const nodeMap = new Map();
+		for (const n of nodes) nodeMap.set(n.id, n);
+		const hasEdge = new Set();
+		for (const edge of edges) {
+			if (edge.type !== requiredType) continue;
+			if (sourceType) {
+				const src = nodeMap.get(edge.source);
+				if (!src || src.type !== sourceType) continue;
+			}
+			if (targetType) {
+				const tgt = nodeMap.get(edge.target);
+				if (!tgt || tgt.type !== targetType) continue;
+			}
+			hasEdge.add(edge.source);
+		}
+		for (const n of nodes) {
+			if (sourceType && n.type !== sourceType) continue;
+			if (!hasEdge.has(n.id)) violations.push({
+				ruleId: rule.id,
+				nodeId: NodeId(n.id),
+				message: `Node ${n.label} is missing required ${requiredType} edge`,
+				severity: rule.severity
+			});
+		}
+		return violations;
+	}
+};
+var CrossLayerCallDetector = class {
+	detect(rule, nodes, edges) {
+		const violations = [];
+		const layerMap = rule.params.layers ?? {};
+		const callType = rule.params.edgeType ?? "call";
+		if (Object.keys(layerMap).length === 0) return violations;
+		const nodeLayer = new Map();
+		for (const n of nodes) for (const [layerName, patterns] of Object.entries(layerMap)) if (patterns.some((p$1) => {
+			const seg = n.filePath.split(/[\\/]/);
+			return seg.indexOf(p$1) >= 0 || n.label === p$1;
+		})) {
+			nodeLayer.set(n.id, layerName);
+			break;
+		}
+		const forbiddenPairs = new Set();
+		for (const [srcLayer, tgtLayers] of Object.entries(layerMap)) for (const tgtLayer of tgtLayers) forbiddenPairs.add(`${srcLayer}->${tgtLayer}`);
+		for (const edge of edges) {
+			if (edge.type !== callType) continue;
+			const srcLayer = nodeLayer.get(edge.source);
+			const tgtLayer = nodeLayer.get(edge.target);
+			if (!srcLayer || !tgtLayer) continue;
+			if (forbiddenPairs.has(`${srcLayer}->${tgtLayer}`)) violations.push({
+				ruleId: rule.id,
+				edgeId: EdgeId(edge.id),
+				message: `Cross-layer call from ${srcLayer} to ${tgtLayer}`,
+				severity: rule.severity
+			});
+		}
+		return violations;
+	}
+};
+
+//#endregion
+//#region src/shared/analysis/HotspotAnalyzer.ts
+var HotspotAnalyzer = class {
+	analyze(nodes, edges) {
+		const indegree = new Map();
+		for (const edge of edges) indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1);
+		const nodeMap = new Map();
+		for (const n of nodes) nodeMap.set(n.id, n);
+		const results = [];
+		for (const [nodeId, count] of indegree) {
+			const node = nodeMap.get(nodeId);
+			if (!node || count < 5) continue;
+			const level = count >= 20 ? "high" : count >= 10 ? "medium" : "low";
+			results.push({
+				nodeId: NodeId(nodeId),
+				label: node.label,
+				indegree: count,
+				level
+			});
+		}
+		return results.sort((a, b) => b.indegree - a.indegree);
+	}
+};
+var GodModuleDetector = class {
+	maxModuleDepth;
+	constructor(maxModuleDepth) {
+		this.maxModuleDepth = maxModuleDepth ?? 3;
+	}
+	detect(nodes, edges, threshold = 50) {
+		const moduleNodes = new Map();
+		for (const node of nodes) {
+			const module$1 = extractModulePath(node.filePath, this.maxModuleDepth);
+			let list = moduleNodes.get(module$1);
+			if (!list) {
+				list = [];
+				moduleNodes.set(module$1, list);
+			}
+			list.push(node);
+		}
+		const moduleEdges = new Map();
+		const nodeToModule = new Map();
+		for (const [module$1, nodeList] of moduleNodes) for (const n of nodeList) nodeToModule.set(n.id, module$1);
+		for (const edge of edges) {
+			const srcModule = nodeToModule.get(edge.source);
+			const tgtModule = nodeToModule.get(edge.target);
+			if (srcModule) moduleEdges.set(srcModule, (moduleEdges.get(srcModule) ?? 0) + 1);
+			if (tgtModule && tgtModule !== srcModule) moduleEdges.set(tgtModule, (moduleEdges.get(tgtModule) ?? 0) + 1);
+		}
+		const results = [];
+		for (const [modulePath, nodeList] of moduleNodes) {
+			const edgeCount = moduleEdges.get(modulePath) ?? 0;
+			if (nodeList.length >= threshold) results.push({
+				modulePath,
+				nodeCount: nodeList.length,
+				edgeCount,
+				suggestion: `Module "${modulePath}" has ${nodeList.length} nodes — consider splitting into smaller modules`
+			});
+		}
+		return results.sort((a, b) => b.nodeCount - a.nodeCount);
+	}
+};
+
+//#endregion
+//#region src/shared/analysis/CoreFunctionAnalyzer.ts
+const ENTRY_PATTERNS = {
+	handler: /handler|controller|route|middleware|endpoint|api/i,
+	event: /^on[A-Z]|^listen|^subscribe|^emit|^handle[A-Z]/i,
+	cli: /^main$|^cli$|^run$|^start$|^bootstrap$|^init$/i
+};
+const MIN_INDEGREE_HUB = 5;
+const MIN_OUTDEGREE_HUB = 5;
+const MIN_INFLUENCE_REACH = 10;
+const MIN_CALL_CHAIN_DEPTH = 3;
+const MAX_BFS_NODES = 500;
+var CoreFunctionAnalyzer = class {
+	analyze(nodes, edges) {
+		if (nodes.length === 0) return [];
+		const functionNodes = nodes.filter((n) => n.type === "function");
+		if (functionNodes.length === 0) return [];
+		const nodeIds = new Set(functionNodes.map((n) => n.id));
+		const callEdges = edges.filter((e) => e.type === "call" && nodeIds.has(e.source) && nodeIds.has(e.target));
+		const outEdges = new Map();
+		const inEdges = new Map();
+		for (const e of callEdges) {
+			if (e.source === e.target) continue;
+			const outList = outEdges.get(e.source) ?? [];
+			outList.push(e.target);
+			outEdges.set(e.source, outList);
+			const inList = inEdges.get(e.target) ?? [];
+			inList.push(e.source);
+			inEdges.set(e.target, inList);
+		}
+		const inDegree = new Map();
+		const outDegree = new Map();
+		for (const n of functionNodes) {
+			inDegree.set(n.id, (inEdges.get(n.id) ?? []).length);
+			outDegree.set(n.id, (outEdges.get(n.id) ?? []).length);
+		}
+		const influenceReach = this.computeInfluenceReach(functionNodes, outEdges);
+		const callChainDepth = this.computeCallChainDepth(functionNodes, outEdges);
+		const results = [];
+		for (const n of functionNodes) {
+			const reasons = [];
+			const indeg = inDegree.get(n.id) ?? 0;
+			const outdeg = outDegree.get(n.id) ?? 0;
+			const reach = influenceReach.get(n.id) ?? 0;
+			const depth = callChainDepth.get(n.id) ?? 0;
+			const isExported = n.properties?.isExported === true || n.properties?.is_exported === 1;
+			let score = 0;
+			if (indeg >= MIN_INDEGREE_HUB) {
+				reasons.push("high-indegree");
+				score += Math.min(indeg * 2, 30);
+			}
+			if (outdeg >= MIN_OUTDEGREE_HUB) {
+				reasons.push("high-outdegree");
+				score += Math.min(outdeg * 2, 30);
+			}
+			if (indeg === 0 && outdeg > 0) {
+				reasons.push("entry-point");
+				score += 15;
+			}
+			if (isExported) {
+				reasons.push("exported");
+				score += 10;
+			}
+			if (ENTRY_PATTERNS.handler.test(n.label)) {
+				reasons.push("handler-pattern");
+				score += 20;
+			}
+			if (ENTRY_PATTERNS.event.test(n.label)) {
+				reasons.push("event-pattern");
+				score += 15;
+			}
+			if (ENTRY_PATTERNS.cli.test(n.label)) {
+				reasons.push("cli-pattern");
+				score += 25;
+			}
+			if (reach >= MIN_INFLUENCE_REACH) {
+				reasons.push("large-influence");
+				score += Math.min(reach, 40);
+			}
+			if (depth >= MIN_CALL_CHAIN_DEPTH) {
+				reasons.push("deep-call-chain");
+				score += Math.min(depth * 3, 15);
+			}
+			if (indeg >= MIN_INDEGREE_HUB && outdeg >= MIN_OUTDEGREE_HUB) {
+				reasons.push("hub-function");
+				score += 20;
+			}
+			if (reasons.length === 0) continue;
+			const category = this.classify(reasons, indeg, outdeg);
+			results.push({
+				nodeId: NodeId(n.id),
+				label: n.label,
+				filePath: n.filePath,
+				score,
+				reasons,
+				inDegree: indeg,
+				outDegree: outdeg,
+				influenceReach: reach,
+				callChainDepth: depth,
+				category
+			});
+		}
+		return results.sort((a, b) => b.score - a.score);
+	}
+	classify(reasons, indeg, outdeg) {
+		if (reasons.includes("handler-pattern") || reasons.includes("event-pattern")) return "api";
+		if (reasons.includes("cli-pattern") || reasons.includes("entry-point")) return "entry";
+		if (reasons.includes("hub-function") || indeg >= MIN_INDEGREE_HUB && outdeg >= MIN_OUTDEGREE_HUB) return "hub";
+		return "critical";
+	}
+	computeInfluenceReach(nodes, outEdges) {
+		const reach = new Map();
+		for (const n of nodes) {
+			const visited = new Set([n.id]);
+			const queue = [n.id];
+			let head = 0;
+			while (head < queue.length && visited.size < MAX_BFS_NODES) {
+				const current = queue[head++];
+				const neighbors = outEdges.get(current) ?? [];
+				for (const target of neighbors) if (!visited.has(target)) {
+					visited.add(target);
+					queue.push(target);
+				}
+			}
+			reach.set(n.id, visited.size - 1);
+		}
+		return reach;
+	}
+	computeCallChainDepth(nodes, outEdges) {
+		const memo$1 = new Map();
+		const computing = new Set();
+		const computeDepth = (id) => {
+			if (memo$1.has(id)) return memo$1.get(id);
+			if (computing.has(id)) return 0;
+			computing.add(id);
+			const neighbors = outEdges.get(id) ?? [];
+			let maxChildDepth = 0;
+			for (const target of neighbors) {
+				const childDepth = computeDepth(target);
+				if (childDepth > maxChildDepth) maxChildDepth = childDepth;
+			}
+			computing.delete(id);
+			const result = maxChildDepth + 1;
+			memo$1.set(id, result);
+			return result;
+		};
+		for (const n of nodes) computeDepth(n.id);
+		return memo$1;
+	}
+};
+
+//#endregion
+//#region src/client/hooks/useAnalysisPanels.ts
+function useAnalysisPanels(rawNodes, rawEdges, showHealthScore, showRules, showHotspot, showGodModule, showImpact, selectedNodeId, getImpactStats, showCoreFunction = false) {
+	const healthScorer = useMemo(() => new HealthScorer(), []);
+	const ruleEngine = useMemo(() => new RuleEngine(), []);
+	const hotspotAnalyzer = useMemo(() => new HotspotAnalyzer(), []);
+	const godModuleDetector = useMemo(() => new GodModuleDetector(), []);
+	const coreFunctionAnalyzer = useMemo(() => new CoreFunctionAnalyzer(), []);
+	const setHealthScore = useGraphStore((s) => s.setHealthScore);
+	const setRules = useGraphStore((s) => s.setRules);
+	const setRuleViolations = useGraphStore((s) => s.setRuleViolations);
+	const rules = useGraphStore((s) => s.rules);
+	const healthScore = useGraphStore((s) => s.healthScore);
+	const [hotspotNodes, setHotspotNodes] = useState([]);
+	const [godModules, setGodModules] = useState([]);
+	const [impactStats, setImpactStats] = useState(null);
+	const [coreFunctions, setCoreFunctions] = useState([]);
+	const handleHealthCheck = useCallback(() => {
+		const score = healthScorer.calculate(rawNodes, rawEdges);
+		setHealthScore(score);
+	}, [
+		rawNodes,
+		rawEdges,
+		setHealthScore,
+		healthScorer
+	]);
+	const handleRulesCheck = useCallback(() => {
+		const violations = ruleEngine.check(rules, rawNodes, rawEdges);
+		setRuleViolations(violations);
+	}, [
+		rules,
+		rawNodes,
+		rawEdges,
+		setRuleViolations,
+		ruleEngine
+	]);
+	useEffect(() => {
+		if (showHealthScore && !healthScore && rawNodes.length > 0) handleHealthCheck();
+	}, [
+		showHealthScore,
+		healthScore,
+		rawNodes.length,
+		handleHealthCheck
+	]);
+	useEffect(() => {
+		if (showRules && rules.length === 0) setRules(getPresetRules());
+	}, [
+		showRules,
+		rules.length,
+		setRules
+	]);
+	useEffect(() => {
+		if (showHotspot && rawNodes.length > 0) setHotspotNodes(hotspotAnalyzer.analyze(rawNodes, rawEdges));
+	}, [
+		showHotspot,
+		rawNodes,
+		rawEdges,
+		hotspotAnalyzer
+	]);
+	useEffect(() => {
+		if (showGodModule && rawNodes.length > 0) setGodModules(godModuleDetector.detect(rawNodes, rawEdges));
+	}, [
+		showGodModule,
+		rawNodes,
+		rawEdges,
+		godModuleDetector
+	]);
+	useEffect(() => {
+		if (showImpact && selectedNodeId) {
+			const stats = getImpactStats();
+			setImpactStats(stats ?? null);
+		} else setImpactStats(null);
+	}, [
+		showImpact,
+		selectedNodeId,
+		getImpactStats
+	]);
+	useEffect(() => {
+		if (showCoreFunction && rawNodes.length > 0) setCoreFunctions(coreFunctionAnalyzer.analyze(rawNodes, rawEdges));
+	}, [
+		showCoreFunction,
+		rawNodes,
+		rawEdges,
+		coreFunctionAnalyzer
+	]);
+	return {
+		handleHealthCheck,
+		handleRulesCheck,
+		hotspotNodes,
+		godModules,
+		impactStats,
+		coreFunctions
+	};
 }
 
 //#endregion
@@ -46011,24 +47842,27 @@ function createSnapshot() {
 		layout: s.layout,
 		filterType: s.filterType,
 		graphType: s.graphType,
-		clusterLevel: s.clusterLevel,
+		clusterDepth: s.clusterDepth,
 		selectedNodeId: s.selectedNodeId,
-		expandedNodeIds: new Set(s.expandedNodeIds)
+		expandedNodeIds: new Set(s.expandedNodeIds),
+		viewMode: s.viewMode
 	};
 }
 function isSameSnapshot(a, b) {
 	if (a.layout !== b.layout) return false;
 	if (a.filterType !== b.filterType) return false;
 	if (a.graphType !== b.graphType) return false;
-	if (a.clusterLevel !== b.clusterLevel) return false;
+	if (a.clusterDepth !== b.clusterDepth) return false;
 	if (a.selectedNodeId !== b.selectedNodeId) return false;
+	if (a.viewMode !== b.viewMode) return false;
 	if (a.expandedNodeIds.size !== b.expandedNodeIds.size) return false;
 	for (const id of a.expandedNodeIds) if (!b.expandedNodeIds.has(id)) return false;
 	return true;
 }
 function applySnapshot(snapshot) {
 	const s = useGraphStore.getState();
-	if (snapshot.clusterLevel !== s.clusterLevel) s.setClusterLevel(snapshot.clusterLevel);
+	if (snapshot.viewMode !== s.viewMode) s.setViewMode(snapshot.viewMode);
+	if (snapshot.clusterDepth !== s.clusterDepth) s.setClusterDepth(snapshot.clusterDepth);
 	if (snapshot.layout !== s.layout) s.setLayout(snapshot.layout);
 	if (snapshot.filterType !== s.filterType) s.setFilterType(snapshot.filterType);
 	if (snapshot.graphType !== s.graphType) s.setGraphType(snapshot.graphType);
@@ -46038,7 +47872,7 @@ function applySnapshot(snapshot) {
 	const sameContent = sameSize && [...snapshot.expandedNodeIds].every((id) => currentExpanded.has(id));
 	if (!sameContent) {
 		useGraphStore.setState({ expandedNodeIds: snapshot.expandedNodeIds });
-		s.setClusterLevel(snapshot.clusterLevel);
+		s.setClusterDepth(snapshot.clusterDepth);
 	}
 }
 function useHistory() {
@@ -46082,7 +47916,7 @@ function useHistory() {
 	}, [updateFlags]);
 	useEffect(() => {
 		const unsub = useGraphStore.subscribe((state, prevState) => {
-			if (state.layout !== prevState.layout || state.filterType !== prevState.filterType || state.graphType !== prevState.graphType || state.clusterLevel !== prevState.clusterLevel || state.selectedNodeId !== prevState.selectedNodeId || state.expandedNodeIds !== prevState.expandedNodeIds) pushHistory();
+			if (state.layout !== prevState.layout || state.filterType !== prevState.filterType || state.graphType !== prevState.graphType || state.clusterDepth !== prevState.clusterDepth || state.selectedNodeId !== prevState.selectedNodeId || state.expandedNodeIds !== prevState.expandedNodeIds || state.viewMode !== prevState.viewMode) pushHistory();
 		});
 		return unsub;
 	}, [pushHistory]);
@@ -46188,12 +48022,11 @@ const en = {
 	"toolbar.lang": "Switch language",
 	"toolbar.layout": "Switch to {l} layout (Ctrl+L cycles)",
 	"toolbar.graphType": "Graph type switcher",
-	"toolbar.cluster": "Cluster level",
+	"toolbar.cluster": "Expand depth",
 	"toolbar.layer": "Diagram layer",
-	"cluster.directory": "Directory",
-	"cluster.file": "File",
-	"cluster.function": "Function",
-	"cluster.smart": "Smart",
+	"clusterDepth.directory": "Directory",
+	"clusterDepth.file": "File",
+	"clusterDepth.function": "Function",
 	"filter.all": "All Types",
 	"filter.function": "Functions",
 	"filter.class": "Classes",
@@ -46233,6 +48066,8 @@ const en = {
 	"detail.expanded": "Expanded",
 	"detail.collapse": "Collapse",
 	"detail.microViews": "Micro views",
+	"detail.aggregateCallChain": "Aggregate Call Chain",
+	"detail.functionsInCluster": "Functions in cluster",
 	"detail.signature": "Signature",
 	"detail.docstring": "Docstring",
 	"minimap.title": "Overview",
@@ -46302,6 +48137,10 @@ const en = {
 	"workspace.active": "Active",
 	"workspace.lastUsed": "Last used",
 	"workspace.default": "Default",
+	"workspace.timeJustNow": "just now",
+	"workspace.timeMinutesAgo": "{n}m ago",
+	"workspace.timeHoursAgo": "{n}h ago",
+	"workspace.timeDaysAgo": "{n}d ago",
 	"prereq.installCodegraph": "dsh plugin --profile web add dsh-codegraph",
 	"prereq.installLens": "dsh plugin --profile web add dsh-tool-lens",
 	"prereq.installTitle": "Install Prerequisite Plugin",
@@ -46382,6 +48221,7 @@ const en = {
 	"toolbar.rules": "Rule Engine",
 	"toolbar.hotspot": "Hotspot Analysis",
 	"toolbar.godModule": "God Module Detection",
+	"toolbar.coreFunction": "Core Function Analysis",
 	"impact.total": "Total impacted nodes",
 	"toolbar.undo": "Undo (Ctrl+Z)",
 	"toolbar.redo": "Redo (Ctrl+Y)",
@@ -46404,10 +48244,49 @@ const en = {
 	"viewMode.flowchart": "Flow",
 	"viewMode.sequence": "Seq",
 	"micro.selectFunctionPrompt": "Please select a function node in the code graph first, then switch to this view",
+	"micro.backToCode": "Back to Code View",
+	"sequence.noData": "No sequence data available",
 	"micro.selectedFunction": "Current function: {name}",
 	"micro.clearSelection": "Clear selection",
 	"stats.nodesEdges": "{nodes} nodes · {edges} edges",
-	"godmodule.stats": "{nodes} nodes · {edges} edges"
+	"godmodule.stats": "{nodes} nodes · {edges} edges",
+	"search.moreResults": "+{n} more results",
+	"layer.inheritance.0": "Root Overview",
+	"layer.inheritance.1": "2-Level Depth",
+	"layer.inheritance.2": "Full Tree",
+	"layer.callgraph.0": "Entry Functions",
+	"layer.callgraph.1": "2-Level Calls",
+	"layer.callgraph.2": "Full Call Graph",
+	"layer.package.0": "Top Packages",
+	"layer.package.1": "Sub Packages",
+	"layer.package.2": "Package Modules",
+	"layer.class.0": "Class Overview",
+	"layer.class.1": "Class Relations",
+	"layer.class.2": "Full Class Diagram",
+	"layer.code.0": "Directory Cluster",
+	"layer.code.1": "File Cluster",
+	"layer.code.2": "All Nodes",
+	"layer.dependencies.0": "Directory Deps",
+	"layer.dependencies.1": "File Dependencies",
+	"layer.dependencies.2": "Module Dependencies",
+	"coreFunction.category.entry": "Entry",
+	"coreFunction.category.hub": "Hub",
+	"coreFunction.category.api": "API",
+	"coreFunction.category.critical": "Critical",
+	"coreFunction.reason.high-indegree": "High In-Degree",
+	"coreFunction.reason.high-outdegree": "High Out-Degree",
+	"coreFunction.reason.entry-point": "Entry Point",
+	"coreFunction.reason.exported": "Exported",
+	"coreFunction.reason.handler-pattern": "Handler",
+	"coreFunction.reason.event-pattern": "Event",
+	"coreFunction.reason.cli-pattern": "CLI",
+	"coreFunction.reason.large-influence": "Large Influence",
+	"coreFunction.reason.deep-call-chain": "Deep Call Chain",
+	"coreFunction.reason.hub-function": "Hub Function",
+	"coreFunction.inDegree": "In-Degree",
+	"coreFunction.outDegree": "Out-Degree",
+	"coreFunction.influenceReach": "Influence Reach",
+	"coreFunction.callChainDepth": "Call Chain Depth"
 };
 
 //#endregion
@@ -46438,12 +48317,11 @@ const zh = {
 	"toolbar.lang": "切换语言",
 	"toolbar.layout": "切换至 {l} 布局 (Ctrl+L 循环)",
 	"toolbar.graphType": "图谱类型切换",
-	"toolbar.cluster": "聚类层级",
+	"toolbar.cluster": "展开深度",
 	"toolbar.layer": "图谱层级",
-	"cluster.directory": "目录级",
-	"cluster.file": "文件级",
-	"cluster.function": "函数级",
-	"cluster.smart": "智能聚类",
+	"clusterDepth.directory": "目录级",
+	"clusterDepth.file": "文件级",
+	"clusterDepth.function": "函数级",
 	"filter.all": "全部类型",
 	"filter.function": "函数",
 	"filter.class": "类",
@@ -46483,6 +48361,8 @@ const zh = {
 	"detail.expanded": "已展开",
 	"detail.collapse": "收起",
 	"detail.microViews": "微观图谱",
+	"detail.aggregateCallChain": "聚合调用链",
+	"detail.functionsInCluster": "聚类中的函数",
 	"detail.signature": "签名",
 	"detail.docstring": "文档字符串",
 	"minimap.title": "概览",
@@ -46552,6 +48432,10 @@ const zh = {
 	"workspace.active": "活跃",
 	"workspace.lastUsed": "上次使用",
 	"workspace.default": "默认",
+	"workspace.timeJustNow": "刚刚",
+	"workspace.timeMinutesAgo": "{n}分钟前",
+	"workspace.timeHoursAgo": "{n}小时前",
+	"workspace.timeDaysAgo": "{n}天前",
 	"prereq.installCodegraph": "dsh plugin --profile web add dsh-codegraph",
 	"prereq.installLens": "dsh plugin --profile web add dsh-tool-lens",
 	"prereq.installTitle": "安装前置插件",
@@ -46632,6 +48516,7 @@ const zh = {
 	"toolbar.rules": "规则引擎",
 	"toolbar.hotspot": "热点分析",
 	"toolbar.godModule": "God Module 检测",
+	"toolbar.coreFunction": "核心函数识别",
 	"impact.total": "总影响节点",
 	"toolbar.undo": "撤销 (Ctrl+Z)",
 	"toolbar.redo": "重做 (Ctrl+Y)",
@@ -46654,10 +48539,49 @@ const zh = {
 	"viewMode.flowchart": "流程",
 	"viewMode.sequence": "时序",
 	"micro.selectFunctionPrompt": "请先在代码图谱中选择一个函数节点，然后切换到此视图",
+	"micro.backToCode": "返回代码视图",
+	"sequence.noData": "暂无时序图数据",
 	"micro.selectedFunction": "当前函数: {name}",
 	"micro.clearSelection": "清除选择",
 	"stats.nodesEdges": "{nodes} 节点 · {edges} 边",
-	"godmodule.stats": "{nodes} 节点 · {edges} 边"
+	"godmodule.stats": "{nodes} 节点 · {edges} 边",
+	"search.moreResults": "还有 {n} 个结果",
+	"layer.inheritance.0": "根接口概览",
+	"layer.inheritance.1": "2层继承深度",
+	"layer.inheritance.2": "完整继承树",
+	"layer.callgraph.0": "入口函数概览",
+	"layer.callgraph.1": "调用链2层",
+	"layer.callgraph.2": "完整调用图",
+	"layer.package.0": "顶层包概览",
+	"layer.package.1": "子包展开",
+	"layer.package.2": "包内模块",
+	"layer.class.0": "类概览",
+	"layer.class.1": "类关系图",
+	"layer.class.2": "完整类图",
+	"layer.code.0": "目录聚类",
+	"layer.code.1": "文件聚类",
+	"layer.code.2": "全部节点",
+	"layer.dependencies.0": "目录依赖概览",
+	"layer.dependencies.1": "文件依赖",
+	"layer.dependencies.2": "模块依赖",
+	"coreFunction.category.entry": "入口",
+	"coreFunction.category.hub": "枢纽",
+	"coreFunction.category.api": "API",
+	"coreFunction.category.critical": "关键",
+	"coreFunction.reason.high-indegree": "高入度",
+	"coreFunction.reason.high-outdegree": "高出度",
+	"coreFunction.reason.entry-point": "入口点",
+	"coreFunction.reason.exported": "已导出",
+	"coreFunction.reason.handler-pattern": "处理器",
+	"coreFunction.reason.event-pattern": "事件",
+	"coreFunction.reason.cli-pattern": "CLI",
+	"coreFunction.reason.large-influence": "大影响",
+	"coreFunction.reason.deep-call-chain": "深调用链",
+	"coreFunction.reason.hub-function": "枢纽函数",
+	"coreFunction.inDegree": "入度",
+	"coreFunction.outDegree": "出度",
+	"coreFunction.influenceReach": "影响范围",
+	"coreFunction.callChainDepth": "调用链深度"
 };
 
 //#endregion
@@ -46714,7 +48638,7 @@ function useT() {
 
 //#endregion
 //#region src/client/components/ErrorBoundary.tsx
-const log$4 = scoped("boundary");
+const log$3 = scoped("boundary");
 function ErrorFallback({ error: error$1, onRetry }) {
 	const t$1 = useT();
 	return /* @__PURE__ */ jsxs("div", {
@@ -46749,7 +48673,7 @@ var GraphErrorBoundary = class extends Component {
 	}
 	componentDidCatch(error$1, errorInfo) {
 		this.props.onError?.(error$1, errorInfo);
-		log$4.error("render error caught by boundary", {
+		log$3.error("render error caught by boundary", {
 			error: error$1,
 			componentStack: errorInfo.componentStack
 		});
@@ -47059,90 +48983,15 @@ const RedoIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ jsxs
 	className,
 	children: [/* @__PURE__ */ jsx("path", { d: "M21 7v6h-6" }), /* @__PURE__ */ jsx("path", { d: "M21 13a9 9 0 1 1-3-7.7L21 8" })]
 }));
-
-//#endregion
-//#region src/client/validators.ts
-function coerceNode(raw, i$1) {
-	if (!raw || typeof raw !== "object") return null;
-	const o = raw;
-	const id = typeof o.id === "string" ? o.id : `node-${i$1}`;
-	const label = typeof o.label === "string" ? o.label : typeof o.name === "string" ? o.name : id;
-	const type = [
-		"function",
-		"class",
-		"variable",
-		"module",
-		"interface",
-		"type"
-	].includes(o.type) ? o.type : "variable";
-	const filePath = typeof o.filePath === "string" ? o.filePath : typeof o.file === "string" ? o.file : "";
-	const lineNumber = typeof o.lineNumber === "number" ? o.lineNumber : typeof o.line === "number" ? o.line : 0;
-	const properties = o.properties && typeof o.properties === "object" ? o.properties : {};
-	return {
-		id: NodeId(id),
-		label,
-		type,
-		filePath,
-		lineNumber,
-		properties
-	};
-}
-function coerceEdge(raw, i$1) {
-	if (!raw || typeof raw !== "object") return null;
-	const o = raw;
-	const id = typeof o.id === "string" ? o.id : `edge-${i$1}`;
-	const source = typeof o.source === "string" ? o.source : typeof o.from === "string" ? o.from : null;
-	const target = typeof o.target === "string" ? o.target : typeof o.to === "string" ? o.to : null;
-	if (!source || !target) return null;
-	const type = [
-		"call",
-		"import",
-		"extend",
-		"implement",
-		"dependency",
-		"contains"
-	].includes(o.type) ? o.type : "dependency";
-	const properties = o.properties && typeof o.properties === "object" ? o.properties : {};
-	return {
-		id: EdgeId(id),
-		source: NodeId(source),
-		target: NodeId(target),
-		type,
-		properties
-	};
-}
-function validateGraphData(raw) {
-	if (!raw || typeof raw !== "object") return null;
-	const o = raw;
-	const rawNodes = Array.isArray(o.nodes) ? o.nodes : [];
-	const rawEdges = Array.isArray(o.edges) ? o.edges : [];
-	const nodes = rawNodes.map(coerceNode).filter((n) => n !== null);
-	const edges = rawEdges.map(coerceEdge).filter((e) => e !== null);
-	if (nodes.length === 0) return null;
-	const metadata = o.metadata;
-	const repoId = metadata?.repoId ?? `workspace-${Date.now()}`;
-	const timestamp = typeof metadata?.timestamp === "number" ? metadata.timestamp : Date.now();
-	const truncated = typeof metadata?.truncated === "boolean" ? metadata.truncated : false;
-	const totalNodeCount = typeof metadata?.totalNodeCount === "number" ? metadata.totalNodeCount : nodes.length;
-	const totalEdgeCount = typeof metadata?.totalEdgeCount === "number" ? metadata.totalEdgeCount : edges.length;
-	return {
-		nodes,
-		edges,
-		metadata: {
-			repoId: RepoId(repoId),
-			timestamp,
-			nodeCount: nodes.length,
-			edgeCount: edges.length,
-			truncated,
-			totalNodeCount,
-			totalEdgeCount
-		}
-	};
-}
+const StarIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ jsx("svg", {
+	...base(size$1),
+	className,
+	children: /* @__PURE__ */ jsx("path", { d: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" })
+}));
 
 //#endregion
 //#region src/client/components/ImportPanel.tsx
-const log$3 = scoped("import");
+const log$2 = scoped("import");
 const MAX_PASTE_BYTES = 10 * 1024 * 1024;
 function parseGraphJson(text) {
 	const parsed = JSON.parse(text);
@@ -47187,7 +49036,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 			if (text.length > MAX_PASTE_BYTES) throw new Error(`JSON exceeds ${MAX_PASTE_BYTES / 1024 / 1024}MB limit`);
 			const { nodes, edges, repoId } = parseGraphJson(text);
 			onSetGraphData(nodes, edges, repoId);
-			log$3.info(`imported from ${source}`, {
+			log$2.info(`imported from ${source}`, {
 				nodes: nodes.length,
 				edges: edges.length
 			});
@@ -47201,7 +49050,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 			timersRef.current.push(setTimeout(onClose, 700));
 		} catch (e) {
 			const msg = e instanceof Error ? e.message : String(e);
-			log$3.error(`import failed from ${source}`, msg);
+			log$2.error(`import failed from ${source}`, msg);
 			onSetError(t$1("import.importFailed", { msg }));
 			setFeedback({
 				kind: "err",
@@ -47235,7 +49084,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 		setFeedback(null);
 		onSetLoading(true);
 		window.dispatchEvent(new CustomEvent("codegraph:import-repo", { detail: { path: effectivePath } }));
-		log$3.info("workspace scan requested", { path: effectivePath });
+		log$2.info("workspace scan requested", { path: effectivePath });
 		setFeedback({
 			kind: "ok",
 			msg: t$1("import.requestedScan", { path: effectivePath })
@@ -47249,7 +49098,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 		onSetInitStatus("initializing");
 		setFeedback(null);
 		window.dispatchEvent(new CustomEvent("codegraph:init-graph", { detail: { path: effectivePath } }));
-		log$3.info("init requested", { path: effectivePath });
+		log$2.info("init requested", { path: effectivePath });
 		setFeedback({
 			kind: "ok",
 			msg: t$1("import.initStarted", { path: effectivePath })
@@ -47266,7 +49115,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 			enabled: next,
 			path: effectivePath
 		} }));
-		log$3.info("watch toggled", {
+		log$2.info("watch toggled", {
 			enabled: next,
 			path: effectivePath
 		});
@@ -47436,7 +49285,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 
 //#endregion
 //#region src/client/components/Legend.tsx
-const NODE_TYPES = [
+const ALL_NODE_TYPES = [
 	{
 		type: "function",
 		color: "var(--cg-node-function)",
@@ -47468,7 +49317,7 @@ const NODE_TYPES = [
 		key: "legend.type"
 	}
 ];
-const EDGE_TYPES = [
+const ALL_EDGE_TYPES = [
 	{
 		type: "call",
 		style: "solid",
@@ -47506,8 +49355,69 @@ const EDGE_TYPES = [
 		key: "legend.contains"
 	}
 ];
-function Legend({ onClose }) {
+const VIEW_MODE_NODE_FILTER = {
+	code: new Set([
+		"function",
+		"class",
+		"variable",
+		"module",
+		"interface",
+		"type"
+	]),
+	dependencies: new Set([
+		"module",
+		"class",
+		"type"
+	]),
+	inheritance: new Set([
+		"class",
+		"interface",
+		"type"
+	]),
+	callgraph: new Set([
+		"function",
+		"class",
+		"module"
+	]),
+	package: new Set(["module", "class"]),
+	class: new Set([
+		"class",
+		"interface",
+		"type"
+	]),
+	cfg: new Set(["function"]),
+	flowchart: new Set(["function"]),
+	sequence: new Set([
+		"function",
+		"class",
+		"module"
+	])
+};
+const VIEW_MODE_EDGE_FILTER = {
+	code: new Set([
+		"call",
+		"import",
+		"extend",
+		"implement",
+		"contains"
+	]),
+	dependencies: new Set(["dependency"]),
+	inheritance: new Set(["extend", "implement"]),
+	callgraph: new Set(["call"]),
+	package: new Set(["contains", "dependency"]),
+	class: new Set([
+		"extend",
+		"implement",
+		"contains"
+	]),
+	cfg: new Set(["call"]),
+	flowchart: new Set(["call"]),
+	sequence: new Set(["call"])
+};
+function Legend({ viewMode, onClose }) {
 	const t$1 = useT();
+	const nodeTypes = ALL_NODE_TYPES.filter((n) => VIEW_MODE_NODE_FILTER[viewMode]?.has(n.type) ?? true);
+	const edgeTypes = ALL_EDGE_TYPES.filter((e) => VIEW_MODE_EDGE_FILTER[viewMode]?.has(e.type) ?? true);
 	return /* @__PURE__ */ jsxs("div", {
 		className: "legend-panel",
 		role: "complementary",
@@ -47527,7 +49437,7 @@ function Legend({ onClose }) {
 				children: [/* @__PURE__ */ jsx("div", {
 					className: "legend-section-title",
 					children: t$1("legend.nodes")
-				}), NODE_TYPES.map((n) => /* @__PURE__ */ jsxs("div", {
+				}), nodeTypes.map((n) => /* @__PURE__ */ jsxs("div", {
 					className: "legend-row",
 					children: [/* @__PURE__ */ jsx("span", {
 						className: "legend-swatch",
@@ -47539,7 +49449,7 @@ function Legend({ onClose }) {
 				children: [/* @__PURE__ */ jsx("div", {
 					className: "legend-section-title",
 					children: t$1("legend.edges")
-				}), EDGE_TYPES.map((e) => /* @__PURE__ */ jsxs("div", {
+				}), edgeTypes.map((e) => /* @__PURE__ */ jsxs("div", {
 					className: "legend-row",
 					children: [/* @__PURE__ */ jsx("span", {
 						className: "legend-line",
@@ -47564,13 +49474,13 @@ function deriveWorkspaceName(path) {
 
 //#endregion
 //#region src/client/components/WorkspaceSelector.tsx
-function formatRelativeTime(ts) {
+function formatRelativeTime(ts, t$1) {
 	if (ts === 0) return "—";
 	const diff = Date.now() - ts;
-	if (diff < 6e4) return "< 1m";
-	if (diff < 36e5) return `${Math.floor(diff / 6e4)}m ago`;
-	if (diff < 864e5) return `${Math.floor(diff / 36e5)}h ago`;
-	return `${Math.floor(diff / 864e5)}d ago`;
+	if (diff < 6e4) return t$1("workspace.timeJustNow");
+	if (diff < 36e5) return t$1("workspace.timeMinutesAgo", { n: Math.floor(diff / 6e4) });
+	if (diff < 864e5) return t$1("workspace.timeHoursAgo", { n: Math.floor(diff / 36e5) });
+	return t$1("workspace.timeDaysAgo", { n: Math.floor(diff / 864e5) });
 }
 function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace }) {
 	const t$1 = useT();
@@ -47593,9 +49503,15 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 	useLayoutEffect(() => {
 		if (!open || !triggerRef.current) return;
 		const rect = triggerRef.current.getBoundingClientRect();
+		const dropdownWidth = 280;
+		const dropdownMaxHeight = 400;
+		let top = rect.bottom + 4;
+		let left = rect.left;
+		if (left + dropdownWidth > window.innerWidth) left = Math.max(8, window.innerWidth - dropdownWidth - 8);
+		if (top + dropdownMaxHeight > window.innerHeight) top = Math.max(8, rect.top - dropdownMaxHeight - 4);
 		setDropdownPos({
-			top: rect.bottom + 4,
-			left: rect.left
+			top,
+			left
 		});
 	}, [open]);
 	useEffect(() => {
@@ -47737,7 +49653,7 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 								}),
 								/* @__PURE__ */ jsx("span", {
 									className: "workspace-item-time",
-									children: formatRelativeTime(ws.lastUsed)
+									children: formatRelativeTime(ws.lastUsed, t$1)
 								}),
 								ws.path === currentWorkspace && /* @__PURE__ */ jsx("span", {
 									className: "workspace-item-badge",
@@ -47853,22 +49769,18 @@ const MICRO_VIEW_MODES = [
 		key: "viewMode.sequence"
 	}
 ];
-const CLUSTER_LEVELS = [
+const CLUSTER_DEPTHS = [
 	{
-		value: "directory",
-		key: "cluster.directory"
+		value: 0,
+		key: "clusterDepth.directory"
 	},
 	{
-		value: "file",
-		key: "cluster.file"
+		value: 1,
+		key: "clusterDepth.file"
 	},
 	{
-		value: "function",
-		key: "cluster.function"
-	},
-	{
-		value: "smart",
-		key: "cluster.smart"
+		value: 2,
+		key: "clusterDepth.function"
 	}
 ];
 function Toolbar(props) {
@@ -47889,8 +49801,8 @@ function Toolbar(props) {
 		onExport(format);
 		setShowExportMenu(false);
 	}, [onExport]);
-	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterLevel, viewMode, currentLayer, layerNames, collapsed, panelControls, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterLevelChange, onViewModeChange, onLayerChange, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll, onUndo, onRedo, canUndo, canRedo } = props;
-	const { showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport, showPathFind, showHealthScore, showRules, showHotspot, showGodModule, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule } = panelControls;
+	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterDepth, viewMode, currentLayer, layerNames, collapsed, panelControls, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterDepthChange, onViewModeChange, onLayerChange, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll, onUndo, onRedo, canUndo, canRedo, hasSelectedFunction } = props;
+	const { showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport, showPathFind, showHealthScore, showRules, showHotspot, showGodModule, showCoreFunction, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onToggleCoreFunction } = panelControls;
 	return /* @__PURE__ */ jsxs("div", {
 		className: "graph-toolbar",
 		children: [
@@ -47976,6 +49888,8 @@ function Toolbar(props) {
 								onClick: () => onViewModeChange(m.value),
 								title: t$1(`toolbar.viewMode${m.value.charAt(0).toUpperCase() + m.value.slice(1)}`),
 								"aria-pressed": viewMode === m.value,
+								disabled: !hasSelectedFunction,
+								"aria-disabled": !hasSelectedFunction,
 								children: t$1(m.key)
 							}, m.value))
 						]
@@ -47984,23 +49898,26 @@ function Toolbar(props) {
 						className: "layer-selector",
 						role: "group",
 						"aria-label": t$1("toolbar.layer"),
-						children: layerNames.map((name$1, idx) => /* @__PURE__ */ jsx("button", {
-							className: `layer-btn ${currentLayer === idx ? "active" : ""}`,
-							onClick: () => onLayerChange(idx),
-							title: name$1,
-							"aria-pressed": currentLayer === idx,
-							children: name$1.length <= 4 ? name$1 : name$1.slice(0, 3)
-						}, idx))
+						children: layerNames.map((name$1, idx) => {
+							const translated = t$1(name$1) ?? name$1;
+							return /* @__PURE__ */ jsx("button", {
+								className: `layer-btn ${currentLayer === idx ? "active" : ""}`,
+								onClick: () => onLayerChange(idx),
+								title: translated,
+								"aria-pressed": currentLayer === idx,
+								children: translated.length <= 4 ? translated : translated.slice(0, 3)
+							}, idx);
+						})
 					}),
-					/* @__PURE__ */ jsx("select", {
-						value: clusterLevel,
-						onChange: (e) => onClusterLevelChange(e.target.value),
+					viewMode === "code" && /* @__PURE__ */ jsx("select", {
+						value: clusterDepth,
+						onChange: (e) => onClusterDepthChange(Number(e.target.value)),
 						className: "depth-select",
-						id: "cluster-level",
-						name: "cluster-level",
+						id: "cluster-depth",
+						name: "cluster-depth",
 						"aria-label": t$1("toolbar.cluster"),
 						title: t$1("toolbar.cluster"),
-						children: CLUSTER_LEVELS.map((opt) => /* @__PURE__ */ jsx("option", {
+						children: CLUSTER_DEPTHS.map((opt) => /* @__PURE__ */ jsx("option", {
 							value: opt.value,
 							children: t$1(opt.key)
 						}, opt.value))
@@ -48122,6 +50039,14 @@ function Toolbar(props) {
 								"aria-label": t$1("toolbar.godModule"),
 								"aria-pressed": showGodModule,
 								children: /* @__PURE__ */ jsx(AlertCircleIcon, { size: 15 })
+							}),
+							/* @__PURE__ */ jsx("button", {
+								className: `corefunction-btn ${showCoreFunction ? "active" : ""}`,
+								onClick: onToggleCoreFunction,
+								title: t$1("toolbar.coreFunction"),
+								"aria-label": t$1("toolbar.coreFunction"),
+								"aria-pressed": showCoreFunction,
+								children: /* @__PURE__ */ jsx(StarIcon, { size: 15 })
 							})
 						]
 					}),
@@ -48253,10 +50178,59 @@ function Toolbar(props) {
 
 //#endregion
 //#region src/client/components/SearchBar.tsx
-function SearchBar({ query, matchCount, onChange, onClose }) {
+function SearchBar({ query, matchCount, searchResults, onChange, onClose, onSelectResult }) {
 	const t$1 = useT();
+	const [showResults, setShowResults] = useState(false);
+	const [activeIndex, setActiveIndex] = useState(-1);
+	const containerRef = useRef(null);
+	const listRef = useRef(null);
+	useEffect(() => {
+		const handler = (e) => {
+			if (containerRef.current && !containerRef.current.contains(e.target)) setShowResults(false);
+		};
+		document.addEventListener("mousedown", handler);
+		return () => document.removeEventListener("mousedown", handler);
+	}, []);
+	useEffect(() => {
+		setActiveIndex(-1);
+	}, [query]);
+	useEffect(() => {
+		if (activeIndex < 0) return;
+		const list = listRef.current;
+		if (!list) return;
+		const item = list.children[activeIndex];
+		if (item) item.scrollIntoView({ block: "nearest" });
+	}, [activeIndex]);
+	const handleSelect = (id) => {
+		onSelectResult(id);
+		setShowResults(false);
+		setActiveIndex(-1);
+		onClose();
+	};
+	const handleKeyDown = (e) => {
+		if (e.key === "Escape") {
+			e.preventDefault();
+			e.stopPropagation();
+			onClose();
+			return;
+		}
+		if (!showResults || searchResults.length === 0) return;
+		const maxIdx = Math.min(searchResults.length, 10) - 1;
+		if (e.key === "ArrowDown") {
+			e.preventDefault();
+			setActiveIndex((prev) => prev < maxIdx ? prev + 1 : 0);
+		} else if (e.key === "ArrowUp") {
+			e.preventDefault();
+			setActiveIndex((prev) => prev > 0 ? prev - 1 : maxIdx);
+		} else if (e.key === "Enter" && activeIndex >= 0 && activeIndex < displayResults.length) {
+			e.preventDefault();
+			handleSelect(displayResults[activeIndex].id);
+		}
+	};
+	const displayResults = searchResults.slice(0, 10);
 	return /* @__PURE__ */ jsxs("div", {
 		className: "search-bar",
+		ref: containerRef,
 		children: [
 			/* @__PURE__ */ jsx(SearchIcon, {
 				size: 14,
@@ -48268,7 +50242,12 @@ function SearchBar({ query, matchCount, onChange, onClose }) {
 				type: "text",
 				placeholder: t$1("search.placeholder"),
 				value: query,
-				onChange: (e) => onChange(e.target.value),
+				onChange: (e) => {
+					onChange(e.target.value);
+					setShowResults(true);
+				},
+				onFocus: () => setShowResults(true),
+				onKeyDown: handleKeyDown,
 				autoFocus: true,
 				"aria-label": t$1("search.placeholder")
 			}),
@@ -48286,6 +50265,38 @@ function SearchBar({ query, matchCount, onChange, onClose }) {
 			!query && /* @__PURE__ */ jsx("span", {
 				className: "search-hint",
 				children: t$1("search.debounced")
+			}),
+			showResults && query && searchResults.length > 0 && /* @__PURE__ */ jsxs("ul", {
+				className: "search-results",
+				role: "listbox",
+				ref: listRef,
+				children: [displayResults.map((item, idx) => /* @__PURE__ */ jsxs("li", {
+					role: "option",
+					"aria-selected": idx === activeIndex,
+					className: `search-result-item ${idx === activeIndex ? "active" : ""}`,
+					onClick: () => handleSelect(item.id),
+					onKeyDown: (e) => {
+						if (e.key === "Enter") handleSelect(item.id);
+					},
+					tabIndex: 0,
+					children: [
+						/* @__PURE__ */ jsx("span", {
+							className: "search-result-type",
+							children: item.type
+						}),
+						/* @__PURE__ */ jsx("span", {
+							className: "search-result-label",
+							children: item.label
+						}),
+						/* @__PURE__ */ jsx("span", {
+							className: "search-result-path",
+							children: item.filePath
+						})
+					]
+				}, item.id)), searchResults.length > 10 && /* @__PURE__ */ jsx("li", {
+					className: "search-result-more",
+					children: t$1("search.moreResults", { n: searchResults.length - 10 })
+				})]
 			})
 		]
 	});
@@ -48366,11 +50377,29 @@ const EXPANDABLE_TYPES = new Set([
 	"class",
 	"interface"
 ]);
-function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, onSelectFunction }) {
+function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, onSelectFunction, onAggregateCallChain }) {
 	const t$1 = useT();
+	const rawNodes = useGraphStore((s) => s.rawNodes);
 	const icon = TYPE_ICONS[node.type] ?? "?";
 	const color = TYPE_COLORS[node.type] ?? "var(--cg-accent)";
 	const canExpand = EXPANDABLE_TYPES.has(node.type);
+	const isClusterNode = "isCluster" in node && node.isCluster === true;
+	const clusterChildCount = isClusterNode ? node.childCount ?? 0 : 0;
+	const clusterChildIds = isClusterNode ? node.childIds ?? [] : [];
+	const childFunctionNodes = useMemo(() => {
+		if (!isClusterNode || clusterChildIds.length === 0) return [];
+		const nodeMap = new Map(rawNodes.map((n) => [n.id, n]));
+		const result = [];
+		for (const id of clusterChildIds) {
+			const child = nodeMap.get(id);
+			if (child && child.type === "function") result.push(child);
+		}
+		return result.slice(0, 50);
+	}, [
+		isClusterNode,
+		clusterChildIds,
+		rawNodes
+	]);
 	const signature = node.properties?.signature;
 	const docstring = node.properties?.docstring;
 	const exported = node.properties?.exported;
@@ -48501,28 +50530,78 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, on
 			}),
 			node.type === "function" && onSelectFunction && /* @__PURE__ */ jsxs("div", {
 				className: "detail-micro-actions",
-				children: [/* @__PURE__ */ jsx("div", {
+				children: [
+					/* @__PURE__ */ jsx("div", {
+						className: "detail-section-title",
+						children: t$1("detail.microViews")
+					}),
+					/* @__PURE__ */ jsxs("div", {
+						className: "detail-micro-btns",
+						children: [
+							/* @__PURE__ */ jsx("button", {
+								className: "detail-micro-btn",
+								onClick: () => onSelectFunction(node, "cfg"),
+								children: t$1("viewMode.cfg")
+							}),
+							/* @__PURE__ */ jsx("button", {
+								className: "detail-micro-btn",
+								onClick: () => onSelectFunction(node, "flowchart"),
+								children: t$1("viewMode.flowchart")
+							}),
+							/* @__PURE__ */ jsx("button", {
+								className: "detail-micro-btn",
+								onClick: () => onSelectFunction(node, "sequence"),
+								children: t$1("viewMode.sequence")
+							})
+						]
+					}),
+					onAggregateCallChain && /* @__PURE__ */ jsx("button", {
+						className: "detail-micro-btn detail-chain-btn",
+						onClick: () => onAggregateCallChain(node.id),
+						children: t$1("detail.aggregateCallChain")
+					})
+				]
+			}),
+			isClusterNode && childFunctionNodes.length > 0 && onSelectFunction && /* @__PURE__ */ jsxs("div", {
+				className: "detail-cluster-functions",
+				children: [/* @__PURE__ */ jsxs("div", {
 					className: "detail-section-title",
-					children: t$1("detail.microViews")
-				}), /* @__PURE__ */ jsxs("div", {
-					className: "detail-micro-btns",
 					children: [
-						/* @__PURE__ */ jsx("button", {
-							className: "detail-micro-btn",
-							onClick: () => onSelectFunction(node, "cfg"),
-							children: t$1("viewMode.cfg")
-						}),
-						/* @__PURE__ */ jsx("button", {
-							className: "detail-micro-btn",
-							onClick: () => onSelectFunction(node, "flowchart"),
-							children: t$1("viewMode.flowchart")
-						}),
-						/* @__PURE__ */ jsx("button", {
-							className: "detail-micro-btn",
-							onClick: () => onSelectFunction(node, "sequence"),
-							children: t$1("viewMode.sequence")
-						})
+						t$1("detail.functionsInCluster"),
+						" (",
+						childFunctionNodes.length,
+						clusterChildCount > 50 ? "+" : "",
+						")"
 					]
+				}), /* @__PURE__ */ jsx("div", {
+					className: "detail-function-list",
+					children: childFunctionNodes.map((fn$7) => /* @__PURE__ */ jsxs("div", {
+						className: "detail-function-item",
+						children: [/* @__PURE__ */ jsx("span", {
+							className: "detail-function-name",
+							title: fn$7.filePath,
+							children: fn$7.label
+						}), /* @__PURE__ */ jsxs("div", {
+							className: "detail-function-micro-btns",
+							children: [
+								/* @__PURE__ */ jsx("button", {
+									className: "detail-micro-btn detail-micro-btn--small",
+									onClick: () => onSelectFunction(fn$7, "cfg"),
+									children: t$1("viewMode.cfg")
+								}),
+								/* @__PURE__ */ jsx("button", {
+									className: "detail-micro-btn detail-micro-btn--small",
+									onClick: () => onSelectFunction(fn$7, "flowchart"),
+									children: t$1("viewMode.flowchart")
+								}),
+								/* @__PURE__ */ jsx("button", {
+									className: "detail-micro-btn detail-micro-btn--small",
+									onClick: () => onSelectFunction(fn$7, "sequence"),
+									children: t$1("viewMode.sequence")
+								})
+							]
+						})]
+					}, fn$7.id))
 				})]
 			}),
 			extraProps.length > 0 && /* @__PURE__ */ jsxs("div", {
@@ -48928,6 +51007,16 @@ function GraphTooltip({ data: data$2 }) {
 			/* @__PURE__ */ jsx("span", {
 				className: "tooltip-type",
 				children: data$2.type
+			}),
+			(data$2.linksIn !== void 0 || data$2.linksOut !== void 0) && /* @__PURE__ */ jsxs("div", {
+				className: "tooltip-links",
+				children: [data$2.linksIn !== void 0 && /* @__PURE__ */ jsxs("span", {
+					className: "tooltip-links-in",
+					children: ["in: ", data$2.linksIn]
+				}), data$2.linksOut !== void 0 && /* @__PURE__ */ jsxs("span", {
+					className: "tooltip-links-out",
+					children: ["out: ", data$2.linksOut]
+				})]
 			})
 		]
 	});
@@ -49369,243 +51458,6 @@ function HealthScoreCard({ onClose }) {
 }
 
 //#endregion
-//#region src/shared/analysis/RuleEngine.ts
-const PRESET_RULES = [
-	{
-		id: "no-circular-deps",
-		name: "No Circular Dependencies",
-		type: "forbidden-edge",
-		params: { edgeTypes: [
-			"call",
-			"import",
-			"dependency"
-		] },
-		severity: "error",
-		enabled: false
-	},
-	{
-		id: "max-indegree-10",
-		name: "Max Indegree ≤ 10",
-		type: "max-indegree",
-		params: { threshold: 10 },
-		severity: "warning",
-		enabled: false
-	},
-	{
-		id: "max-outdegree-15",
-		name: "Max Outdegree ≤ 15",
-		type: "max-outdegree",
-		params: { threshold: 15 },
-		severity: "warning",
-		enabled: false
-	},
-	{
-		id: "required-call-edge",
-		name: "Public Functions Must Have Callers",
-		type: "required-edge",
-		params: {
-			edgeType: "call",
-			sourceType: "function"
-		},
-		severity: "warning",
-		enabled: false
-	},
-	{
-		id: "no-cross-layer-call",
-		name: "No Cross-Layer Calls",
-		type: "cross-layer-call",
-		params: {
-			layers: {
-				"view": ["model"],
-				"model": ["view"]
-			},
-			edgeType: "call"
-		},
-		severity: "error",
-		enabled: false
-	}
-];
-function getPresetRules() {
-	return PRESET_RULES.map((r) => ({ ...r }));
-}
-var RuleEngine = class {
-	detectors = new Map();
-	constructor() {
-		this.registerDetector("forbidden-edge", new ForbiddenEdgeDetector());
-		this.registerDetector("max-indegree", new MaxIndegreeDetector());
-		this.registerDetector("max-outdegree", new MaxOutdegreeDetector());
-		this.registerDetector("required-edge", new RequiredEdgeDetector());
-		this.registerDetector("cross-layer-call", new CrossLayerCallDetector());
-	}
-	registerDetector(type, detector) {
-		this.detectors.set(type, detector);
-	}
-	check(rules, nodes, edges) {
-		const violations = [];
-		for (const rule of rules) {
-			if (!rule.enabled) continue;
-			const detector = this.detectors.get(rule.type);
-			if (detector) violations.push(...detector.detect(rule, nodes, edges));
-		}
-		return violations;
-	}
-};
-var ForbiddenEdgeDetector = class {
-	detect(rule, nodes, edges) {
-		const violations = [];
-		const edgeTypes = rule.params.edgeTypes ?? [
-			"call",
-			"import",
-			"dependency"
-		];
-		const adjacency = new Map();
-		for (const edge of edges) {
-			if (!edgeTypes.includes(edge.type)) continue;
-			const list = adjacency.get(edge.source);
-			if (list) list.push(edge.target);
-			else adjacency.set(edge.source, [edge.target]);
-		}
-		const visited = new Set();
-		const inStack = new Set();
-		const reportedCycles = new Set();
-		const enter = (start) => {
-			const frames = [{
-				id: start,
-				neighbors: adjacency.get(start) ?? [],
-				next: 0
-			}];
-			visited.add(start);
-			inStack.add(start);
-			while (frames.length > 0) {
-				const frame = frames[frames.length - 1];
-				if (frame.next >= frame.neighbors.length) {
-					inStack.delete(frame.id);
-					frames.pop();
-					continue;
-				}
-				const target = frame.neighbors[frame.next++];
-				if (inStack.has(target)) {
-					const cycleKey = [target, ...frames.slice(frames.findIndex((f) => f.id === target)).map((f) => f.id)].sort().join("→");
-					if (!reportedCycles.has(cycleKey)) {
-						reportedCycles.add(cycleKey);
-						violations.push({
-							ruleId: rule.id,
-							nodeId: NodeId(target),
-							message: `Circular dependency detected involving: ${cycleKey}`,
-							severity: rule.severity
-						});
-					}
-				} else if (!visited.has(target)) {
-					visited.add(target);
-					inStack.add(target);
-					frames.push({
-						id: target,
-						neighbors: adjacency.get(target) ?? [],
-						next: 0
-					});
-				}
-			}
-		};
-		for (const id of adjacency.keys()) if (!visited.has(id)) enter(id);
-		return violations;
-	}
-};
-var MaxIndegreeDetector = class {
-	detect(rule, _nodes, edges) {
-		const violations = [];
-		const threshold = rule.params.threshold ?? 10;
-		const indegree = new Map();
-		for (const edge of edges) indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1);
-		for (const [nodeId, count] of indegree) if (count > threshold) violations.push({
-			ruleId: rule.id,
-			nodeId: NodeId(nodeId),
-			message: `Node ${nodeId} has indegree ${count} (max ${threshold})`,
-			severity: rule.severity
-		});
-		return violations;
-	}
-};
-var MaxOutdegreeDetector = class {
-	detect(rule, _nodes, edges) {
-		const violations = [];
-		const threshold = rule.params.threshold ?? 15;
-		const outdegree = new Map();
-		for (const edge of edges) outdegree.set(edge.source, (outdegree.get(edge.source) ?? 0) + 1);
-		for (const [nodeId, count] of outdegree) if (count > threshold) violations.push({
-			ruleId: rule.id,
-			nodeId: NodeId(nodeId),
-			message: `Node ${nodeId} has outdegree ${count} (max ${threshold})`,
-			severity: rule.severity
-		});
-		return violations;
-	}
-};
-var RequiredEdgeDetector = class {
-	detect(rule, nodes, edges) {
-		const violations = [];
-		const requiredType = rule.params.edgeType ?? "call";
-		const sourceType = rule.params.sourceType ?? void 0;
-		const targetType = rule.params.targetType ?? void 0;
-		const nodeMap = new Map();
-		for (const n of nodes) nodeMap.set(n.id, n);
-		const hasEdge = new Set();
-		for (const edge of edges) {
-			if (edge.type !== requiredType) continue;
-			if (sourceType) {
-				const src = nodeMap.get(edge.source);
-				if (!src || src.type !== sourceType) continue;
-			}
-			if (targetType) {
-				const tgt = nodeMap.get(edge.target);
-				if (!tgt || tgt.type !== targetType) continue;
-			}
-			hasEdge.add(edge.source);
-		}
-		for (const n of nodes) {
-			if (sourceType && n.type !== sourceType) continue;
-			if (!hasEdge.has(n.id)) violations.push({
-				ruleId: rule.id,
-				nodeId: NodeId(n.id),
-				message: `Node ${n.label} is missing required ${requiredType} edge`,
-				severity: rule.severity
-			});
-		}
-		return violations;
-	}
-};
-var CrossLayerCallDetector = class {
-	detect(rule, nodes, edges) {
-		const violations = [];
-		const layerMap = rule.params.layers ?? {};
-		const callType = rule.params.edgeType ?? "call";
-		if (Object.keys(layerMap).length === 0) return violations;
-		const nodeLayer = new Map();
-		for (const n of nodes) for (const [layerName, patterns] of Object.entries(layerMap)) if (patterns.some((p$1) => {
-			const seg = n.filePath.split(/[\\/]/);
-			return seg.indexOf(p$1) >= 0 || n.label === p$1;
-		})) {
-			nodeLayer.set(n.id, layerName);
-			break;
-		}
-		const forbiddenPairs = new Set();
-		for (const [srcLayer, tgtLayers] of Object.entries(layerMap)) for (const tgtLayer of tgtLayers) forbiddenPairs.add(`${srcLayer}->${tgtLayer}`);
-		for (const edge of edges) {
-			if (edge.type !== callType) continue;
-			const srcLayer = nodeLayer.get(edge.source);
-			const tgtLayer = nodeLayer.get(edge.target);
-			if (!srcLayer || !tgtLayer) continue;
-			if (forbiddenPairs.has(`${srcLayer}->${tgtLayer}`)) violations.push({
-				ruleId: rule.id,
-				edgeId: EdgeId(edge.id),
-				message: `Cross-layer call from ${srcLayer} to ${tgtLayer}`,
-				severity: rule.severity
-			});
-		}
-		return violations;
-	}
-};
-
-//#endregion
 //#region src/client/components/RuleConfigPanel.tsx
 function RuleConfigPanel({ violations, onCheckRules, onClose }) {
 	const t$1 = useT();
@@ -49786,440 +51638,244 @@ function FocusModeBar({ focusNodeId, onExpand, onContract, onExit }) {
 }
 
 //#endregion
-//#region src/shared/analysis/modulePath.ts
-function normalizeFilePath(filePath) {
-	return filePath.replace(/^(file|import):/, "");
-}
-function extractModulePath(filePath, maxDepth) {
-	const rawPath = normalizeFilePath(filePath);
-	const parts = rawPath.split(/[\\/]/);
-	const dirParts = parts.length > 1 ? parts.slice(0, -1) : [rawPath];
-	return dirParts.length > maxDepth ? dirParts.slice(0, maxDepth).join("/") : dirParts.join("/");
-}
-function buildModuleMap(nodes, maxDepth) {
-	const moduleOfNode = new Map();
-	for (const node of nodes) moduleOfNode.set(node.id, extractModulePath(node.filePath, maxDepth));
-	return moduleOfNode;
+//#region src/client/components/HotspotPanel.tsx
+function HotspotPanel({ hotspotNodes, onClose, label }) {
+	return /* @__PURE__ */ jsxs("div", {
+		className: "analysis-panel hotspot-panel",
+		role: "region",
+		"aria-label": label,
+		children: [/* @__PURE__ */ jsxs("div", {
+			className: "analysis-panel-header",
+			children: [/* @__PURE__ */ jsx("span", { children: label }), /* @__PURE__ */ jsx("button", {
+				onClick: onClose,
+				className: "cg-close-btn",
+				children: /* @__PURE__ */ jsx(CloseIcon, { size: 14 })
+			})]
+		}), /* @__PURE__ */ jsx("div", {
+			className: "analysis-panel-content",
+			children: hotspotNodes.slice(0, 20).map((h) => /* @__PURE__ */ jsxs("div", {
+				className: `hotspot-item ${h.level}`,
+				children: [
+					/* @__PURE__ */ jsx("span", {
+						className: "hotspot-level-badge",
+						children: h.level
+					}),
+					/* @__PURE__ */ jsx("span", {
+						className: "hotspot-label",
+						children: h.label
+					}),
+					/* @__PURE__ */ jsx("span", {
+						className: "hotspot-indegree",
+						children: h.indegree
+					})
+				]
+			}, h.nodeId))
+		})]
+	});
 }
 
 //#endregion
-//#region src/shared/analysis/HealthScorer.ts
-const EDGE_WEIGHTS = {
-	call: 1,
-	extend: .8,
-	implement: .7,
-	import: .5,
-	dependency: .3,
-	contains: 0
-};
-const DEFAULT_MAX_MODULE_DEPTH = 3;
-var HealthScorer = class {
-	maxModuleDepth;
-	constructor(maxModuleDepth) {
-		this.maxModuleDepth = maxModuleDepth ?? DEFAULT_MAX_MODULE_DEPTH;
-	}
-	calculate(nodes, edges) {
-		if (nodes.length === 0) return {
-			coupling: 0,
-			cohesion: 0,
-			cyclicDependencyRate: 0,
-			modularity: 0,
-			overall: 0
-		};
-		const moduleOfNode = buildModuleMap(nodes, this.maxModuleDepth);
-		const coupling = this.calculateCoupling(edges, moduleOfNode);
-		const cohesion = this.calculateCohesion(nodes, edges, moduleOfNode);
-		const cyclicDependencyRate = this.calculateCyclicDependencyRate(nodes, edges);
-		const modularity = this.calculateModularity(nodes, edges, moduleOfNode);
-		const overall = Math.round(coupling * .25 + cohesion * .25 + cyclicDependencyRate * .3 + modularity * .2);
-		return {
-			coupling,
-			cohesion,
-			cyclicDependencyRate,
-			modularity,
-			overall
-		};
-	}
-	getDimensions(score) {
-		return [
-			{
-				name: "coupling",
-				score: score.coupling,
-				description: "Lower inter-module coupling is better"
-			},
-			{
-				name: "cohesion",
-				score: score.cohesion,
-				description: "Higher intra-module cohesion is better"
-			},
-			{
-				name: "cyclicDependencyRate",
-				score: score.cyclicDependencyRate,
-				description: "Fewer circular dependencies is better"
-			},
-			{
-				name: "modularity",
-				score: score.modularity,
-				description: "Better module separation is better"
-			}
-		];
-	}
-	calculateCoupling(edges, moduleOfNode) {
-		if (edges.length === 0) return 100;
-		const efferent = new Map();
-		const afferent = new Map();
-		for (const edge of edges) {
-			if (EDGE_WEIGHTS[edge.type] === 0) continue;
-			const srcModule = moduleOfNode.get(edge.source);
-			const tgtModule = moduleOfNode.get(edge.target);
-			if (!srcModule || !tgtModule || srcModule === tgtModule) continue;
-			let eff = efferent.get(srcModule);
-			if (!eff) {
-				eff = new Set();
-				efferent.set(srcModule, eff);
-			}
-			eff.add(tgtModule);
-			let aff = afferent.get(tgtModule);
-			if (!aff) {
-				aff = new Set();
-				afferent.set(tgtModule, aff);
-			}
-			aff.add(srcModule);
-		}
-		const modules$1 = new Set();
-		for (const m of moduleOfNode.values()) modules$1.add(m);
-		if (modules$1.size <= 1) return 100;
-		let totalInstability = 0;
-		let moduleCount = 0;
-		for (const mod of modules$1) {
-			const ce = efferent.get(mod)?.size ?? 0;
-			const ca = afferent.get(mod)?.size ?? 0;
-			if (ce + ca === 0) continue;
-			const instability = ce / (ce + ca);
-			totalInstability += instability;
-			moduleCount++;
-		}
-		if (moduleCount === 0) return 100;
-		const avgInstability = totalInstability / moduleCount;
-		return Math.round(Math.max(0, 100 - avgInstability * 100));
-	}
-	calculateCohesion(nodes, edges, moduleOfNode) {
-		const moduleStats = new Map();
-		const ensure = (m) => {
-			let stats = moduleStats.get(m);
-			if (!stats) {
-				stats = {
-					internal: 0,
-					total: 0,
-					nodeCount: 0
-				};
-				moduleStats.set(m, stats);
-			}
-			return stats;
-		};
-		for (const node of nodes) {
-			const mod = moduleOfNode.get(node.id);
-			if (mod) ensure(mod).nodeCount++;
-		}
-		for (const edge of edges) {
-			if (EDGE_WEIGHTS[edge.type] === 0) continue;
-			const srcModule = moduleOfNode.get(edge.source);
-			const tgtModule = moduleOfNode.get(edge.target);
-			if (!srcModule && !tgtModule) continue;
-			if (srcModule && tgtModule && srcModule === tgtModule) {
-				const stats = ensure(srcModule);
-				stats.total++;
-				stats.internal++;
-			} else {
-				if (srcModule) ensure(srcModule).total++;
-				if (tgtModule) ensure(tgtModule).total++;
-			}
-		}
-		if (moduleStats.size === 0) return 50;
-		let weightedCohesion = 0;
-		let totalNodes = 0;
-		for (const stats of moduleStats.values()) {
-			if (stats.nodeCount === 0) continue;
-			const cohesionRatio = stats.total > 0 ? stats.internal / stats.total : 0;
-			weightedCohesion += cohesionRatio * stats.nodeCount;
-			totalNodes += stats.nodeCount;
-		}
-		if (totalNodes === 0) return 50;
-		return Math.round(weightedCohesion / totalNodes * 100);
-	}
-	calculateCyclicDependencyRate(nodes, edges) {
-		const cycleEdgeTypes = [
-			"call",
-			"extend",
-			"implement",
-			"import"
-		];
-		const adjacency = new Map();
-		const nodeIds = new Set();
-		for (const edge of edges) {
-			if (!cycleEdgeTypes.includes(edge.type)) continue;
-			const list = adjacency.get(edge.source);
-			if (list) list.push(edge.target);
-			else adjacency.set(edge.source, [edge.target]);
-			nodeIds.add(edge.source);
-			nodeIds.add(edge.target);
-		}
-		if (nodeIds.size === 0) return 100;
-		const sccs = this.tarjanSCC(adjacency, nodeIds);
-		let cycleNodeCount = 0;
-		for (const scc of sccs) if (scc.length > 1) cycleNodeCount += scc.length;
-		else if (scc.length === 1) {
-			const id = scc[0];
-			const neighbors = adjacency.get(id);
-			if (neighbors && neighbors.includes(id)) cycleNodeCount++;
-		}
-		const cycleRate = cycleNodeCount / nodeIds.size;
-		return Math.round(Math.max(0, 100 - cycleRate * 100));
-	}
-	calculateModularity(nodes, edges, moduleOfNode) {
-		if (nodes.length === 0) return 0;
-		const modules$1 = new Set();
-		for (const m of moduleOfNode.values()) modules$1.add(m);
-		if (modules$1.size <= 1) return 50;
-		const moduleSizes = new Map();
-		for (const m of moduleOfNode.values()) moduleSizes.set(m, (moduleSizes.get(m) ?? 0) + 1);
-		const avgSize = nodes.length / modules$1.size;
-		let sizeVariance = 0;
-		for (const size$1 of moduleSizes.values()) sizeVariance += (size$1 - avgSize) ** 2;
-		sizeVariance /= modules$1.size;
-		const cv = Math.sqrt(sizeVariance) / Math.max(1, avgSize);
-		const balanceScore = Math.max(0, 100 - cv * 50);
-		let internalEdges = 0;
-		let totalRelevantEdges = 0;
-		for (const edge of edges) {
-			if (EDGE_WEIGHTS[edge.type] === 0) continue;
-			const srcModule = moduleOfNode.get(edge.source);
-			const tgtModule = moduleOfNode.get(edge.target);
-			if (!srcModule || !tgtModule) continue;
-			totalRelevantEdges++;
-			if (srcModule === tgtModule) internalEdges++;
-		}
-		if (totalRelevantEdges === 0) return Math.round(balanceScore);
-		const internalRatio = internalEdges / totalRelevantEdges;
-		const expectedRatio = 1 / modules$1.size;
-		const modularityQ = internalRatio - expectedRatio;
-		const separationScore = Math.max(0, Math.min(100, modularityQ * 100 * modules$1.size + 50));
-		return Math.round((balanceScore + separationScore) / 2);
-	}
-	tarjanSCC(adjacency, nodeIds) {
-		let index = 0;
-		const indices = new Map();
-		const lowLinks = new Map();
-		const onStack = new Set();
-		const stack = [];
-		const sccs = [];
-		for (const startId of nodeIds) {
-			if (indices.has(startId)) continue;
-			const callStack = [];
-			callStack.push({
-				v: startId,
-				neighborIdx: 0,
-				neighbors: adjacency.get(startId) ?? []
-			});
-			while (callStack.length > 0) {
-				const frame = callStack[callStack.length - 1];
-				const v = frame.v;
-				if (frame.neighborIdx === 0) {
-					indices.set(v, index);
-					lowLinks.set(v, index);
-					index++;
-					stack.push(v);
-					onStack.add(v);
-				}
-				if (frame.neighborIdx < frame.neighbors.length) {
-					const w = frame.neighbors[frame.neighborIdx];
-					frame.neighborIdx++;
-					if (!indices.has(w)) callStack.push({
-						v: w,
-						neighborIdx: 0,
-						neighbors: adjacency.get(w) ?? []
-					});
-					else if (onStack.has(w)) lowLinks.set(v, Math.min(lowLinks.get(v), indices.get(w)));
-				} else {
-					if (lowLinks.get(v) === indices.get(v)) {
-						const scc = [];
-						let w;
-						do {
-							w = stack.pop();
-							onStack.delete(w);
-							scc.push(w);
-						} while (w !== v);
-						sccs.push(scc);
-					}
-					callStack.pop();
-					if (callStack.length > 0) {
-						const parentFrame = callStack[callStack.length - 1];
-						lowLinks.set(parentFrame.v, Math.min(lowLinks.get(parentFrame.v), lowLinks.get(v)));
-					}
-				}
-			}
-		}
-		return sccs;
-	}
-};
+//#region src/client/components/GodModulePanel.tsx
+function GodModulePanel({ godModules, onClose, label, statsLabel }) {
+	return /* @__PURE__ */ jsxs("div", {
+		className: "analysis-panel godmodule-panel",
+		role: "region",
+		"aria-label": label,
+		children: [/* @__PURE__ */ jsxs("div", {
+			className: "analysis-panel-header",
+			children: [/* @__PURE__ */ jsx("span", { children: label }), /* @__PURE__ */ jsx("button", {
+				onClick: onClose,
+				className: "cg-close-btn",
+				children: /* @__PURE__ */ jsx(CloseIcon, { size: 14 })
+			})]
+		}), /* @__PURE__ */ jsx("div", {
+			className: "analysis-panel-content",
+			children: godModules.map((m) => /* @__PURE__ */ jsxs("div", {
+				className: "godmodule-item",
+				children: [
+					/* @__PURE__ */ jsx("div", {
+						className: "godmodule-path",
+						children: m.modulePath
+					}),
+					/* @__PURE__ */ jsx("div", {
+						className: "godmodule-stats",
+						children: statsLabel(m.nodeCount, m.edgeCount)
+					}),
+					/* @__PURE__ */ jsx("div", {
+						className: "godmodule-suggestion",
+						children: m.suggestion
+					})
+				]
+			}, m.modulePath))
+		})]
+	});
+}
 
 //#endregion
-//#region src/shared/analysis/HotspotAnalyzer.ts
-var HotspotAnalyzer = class {
-	analyze(nodes, edges) {
-		const indegree = new Map();
-		for (const edge of edges) indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1);
-		const nodeMap = new Map();
-		for (const n of nodes) nodeMap.set(n.id, n);
-		const results = [];
-		for (const [nodeId, count] of indegree) {
-			const node = nodeMap.get(nodeId);
-			if (!node || count < 5) continue;
-			const level = count >= 20 ? "high" : count >= 10 ? "medium" : "low";
-			results.push({
-				nodeId: NodeId(nodeId),
-				label: node.label,
-				indegree: count,
-				level
-			});
-		}
-		return results.sort((a, b) => b.indegree - a.indegree);
-	}
-};
-var GodModuleDetector = class {
-	maxModuleDepth;
-	constructor(maxModuleDepth) {
-		this.maxModuleDepth = maxModuleDepth ?? 3;
-	}
-	detect(nodes, edges, threshold = 50) {
-		const moduleNodes = new Map();
-		for (const node of nodes) {
-			const module$1 = extractModulePath(node.filePath, this.maxModuleDepth);
-			let list = moduleNodes.get(module$1);
-			if (!list) {
-				list = [];
-				moduleNodes.set(module$1, list);
-			}
-			list.push(node);
-		}
-		const moduleEdges = new Map();
-		const nodeToModule = new Map();
-		for (const [module$1, nodeList] of moduleNodes) for (const n of nodeList) nodeToModule.set(n.id, module$1);
-		for (const edge of edges) {
-			const srcModule = nodeToModule.get(edge.source);
-			const tgtModule = nodeToModule.get(edge.target);
-			if (srcModule) moduleEdges.set(srcModule, (moduleEdges.get(srcModule) ?? 0) + 1);
-			if (tgtModule && tgtModule !== srcModule) moduleEdges.set(tgtModule, (moduleEdges.get(tgtModule) ?? 0) + 1);
-		}
-		const results = [];
-		for (const [modulePath, nodeList] of moduleNodes) {
-			const edgeCount = moduleEdges.get(modulePath) ?? 0;
-			if (nodeList.length >= threshold) results.push({
-				modulePath,
-				nodeCount: nodeList.length,
-				edgeCount,
-				suggestion: `Module "${modulePath}" has ${nodeList.length} nodes — consider splitting into smaller modules`
-			});
-		}
-		return results.sort((a, b) => b.nodeCount - a.nodeCount);
-	}
-};
+//#region src/client/components/ImpactPanel.tsx
+function ImpactPanel({ impactStats, label, totalLabel }) {
+	return /* @__PURE__ */ jsxs("div", {
+		className: "analysis-panel impact-panel",
+		role: "region",
+		"aria-label": label,
+		children: [/* @__PURE__ */ jsx("div", {
+			className: "analysis-panel-header",
+			children: /* @__PURE__ */ jsx("span", { children: label })
+		}), /* @__PURE__ */ jsxs("div", {
+			className: "analysis-panel-content",
+			children: [
+				/* @__PURE__ */ jsxs("div", {
+					className: "impact-stat-row",
+					children: [/* @__PURE__ */ jsx("span", {
+						className: "impact-stat-badge d1",
+						children: "D1"
+					}), /* @__PURE__ */ jsx("span", {
+						className: "impact-stat-count",
+						children: impactStats.d1
+					})]
+				}),
+				/* @__PURE__ */ jsxs("div", {
+					className: "impact-stat-row",
+					children: [/* @__PURE__ */ jsx("span", {
+						className: "impact-stat-badge d2",
+						children: "D2"
+					}), /* @__PURE__ */ jsx("span", {
+						className: "impact-stat-count",
+						children: impactStats.d2
+					})]
+				}),
+				/* @__PURE__ */ jsxs("div", {
+					className: "impact-stat-row",
+					children: [/* @__PURE__ */ jsx("span", {
+						className: "impact-stat-badge d3",
+						children: "D3"
+					}), /* @__PURE__ */ jsx("span", {
+						className: "impact-stat-count",
+						children: impactStats.d3
+					})]
+				}),
+				/* @__PURE__ */ jsxs("div", {
+					className: "impact-stat-total",
+					children: [
+						totalLabel,
+						": ",
+						impactStats.total
+					]
+				})
+			]
+		})]
+	});
+}
 
 //#endregion
-//#region src/client/api/index.ts
-const log$2 = scoped("client");
-async function fetchStatus() {
-	try {
-		const res = await fetch("/api/v1/codegraph/status");
-		if (!res.ok) return {
-			codegraph: false,
-			lens: false
-		};
-		return await res.json();
-	} catch (e) {
-		log$2.warn("fetchStatus failed", e);
-		return {
-			codegraph: false,
-			lens: false
-		};
-	}
+//#region src/client/components/CoreFunctionPanel.tsx
+const CATEGORY_COLORS = {
+	entry: "#4caf50",
+	hub: "#ff9800",
+	api: "#2196f3",
+	critical: "#f44336"
+};
+function CoreFunctionPanel({ coreFunctions, onClose, label, onSelectFunction }) {
+	const t$1 = useT();
+	const categoryLabel = (cat) => t$1(`coreFunction.category.${cat}`) ?? cat;
+	const reasonLabel = (r) => t$1(`coreFunction.reason.${r}`) ?? r;
+	return /* @__PURE__ */ jsxs("div", {
+		className: "analysis-panel core-function-panel",
+		role: "region",
+		"aria-label": label,
+		children: [/* @__PURE__ */ jsxs("div", {
+			className: "analysis-panel-header",
+			children: [/* @__PURE__ */ jsx("span", { children: label }), /* @__PURE__ */ jsx("button", {
+				onClick: onClose,
+				className: "cg-close-btn",
+				children: /* @__PURE__ */ jsx(CloseIcon, { size: 14 })
+			})]
+		}), /* @__PURE__ */ jsx("div", {
+			className: "analysis-panel-content",
+			children: coreFunctions.slice(0, 20).map((fn$7) => /* @__PURE__ */ jsxs("div", {
+				className: "core-function-item",
+				onClick: () => onSelectFunction(fn$7.nodeId),
+				role: "button",
+				tabIndex: 0,
+				onKeyDown: (e) => {
+					if (e.key === "Enter") onSelectFunction(fn$7.nodeId);
+				},
+				children: [
+					/* @__PURE__ */ jsx("span", {
+						className: "core-function-category-badge",
+						style: { backgroundColor: CATEGORY_COLORS[fn$7.category] },
+						children: categoryLabel(fn$7.category)
+					}),
+					/* @__PURE__ */ jsx("span", {
+						className: "core-function-label",
+						children: fn$7.label
+					}),
+					/* @__PURE__ */ jsx("span", {
+						className: "core-function-score",
+						children: fn$7.score
+					}),
+					/* @__PURE__ */ jsx("div", {
+						className: "core-function-reasons",
+						children: fn$7.reasons.map((r) => /* @__PURE__ */ jsx("span", {
+							className: "core-function-reason-tag",
+							children: reasonLabel(r)
+						}, r))
+					}),
+					/* @__PURE__ */ jsxs("div", {
+						className: "core-function-stats",
+						children: [
+							/* @__PURE__ */ jsxs("span", {
+								title: t$1("coreFunction.inDegree") ?? "入度",
+								children: ["in:", fn$7.inDegree]
+							}),
+							/* @__PURE__ */ jsxs("span", {
+								title: t$1("coreFunction.outDegree") ?? "出度",
+								children: ["out:", fn$7.outDegree]
+							}),
+							/* @__PURE__ */ jsxs("span", {
+								title: t$1("coreFunction.influenceReach") ?? "影响范围",
+								children: ["reach:", fn$7.influenceReach]
+							}),
+							/* @__PURE__ */ jsxs("span", {
+								title: t$1("coreFunction.callChainDepth") ?? "调用链深度",
+								children: ["depth:", fn$7.callChainDepth]
+							})
+						]
+					})
+				]
+			}, fn$7.nodeId))
+		})]
+	});
 }
-async function fetchGraphData() {
-	try {
-		const res = await fetch("/api/v1/codegraph/data");
-		if (!res.ok) return null;
-		return validateGraphData(await res.json());
-	} catch (e) {
-		log$2.warn("fetchGraphData failed", e);
-		return null;
-	}
-}
-async function fetchWorkspace() {
-	try {
-		const res = await fetch("/api/v1/codegraph/workspace");
-		if (!res.ok) return {
-			path: ".",
-			list: []
-		};
-		const data$2 = await res.json();
-		return {
-			path: data$2.path ?? ".",
-			list: data$2.list ?? []
-		};
-	} catch (e) {
-		log$2.warn("fetchWorkspace failed", e);
-		return {
-			path: ".",
-			list: []
-		};
-	}
-}
-async function requestScan(path, maxNodes) {
-	try {
-		const res = await fetch("/api/v1/codegraph/scan", {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({
-				path,
-				maxNodes
+
+//#endregion
+//#region src/client/components/MicroViewBar.tsx
+function MicroViewPrompt({ viewMode, selectFunctionPrompt, flowchartLabel, sequenceLabel, backToCodeLabel, onBackToCode }) {
+	return /* @__PURE__ */ jsxs("div", {
+		className: "micro-empty-prompt",
+		children: [
+			/* @__PURE__ */ jsx("div", {
+				className: "micro-empty-icon",
+				children: viewMode === "cfg" ? "CFG" : viewMode === "flowchart" ? flowchartLabel : sequenceLabel
+			}),
+			/* @__PURE__ */ jsx("div", { children: selectFunctionPrompt }),
+			/* @__PURE__ */ jsx("button", {
+				className: "micro-empty-back-btn",
+				onClick: onBackToCode,
+				children: backToCodeLabel
 			})
-		});
-		if (!res.ok) return null;
-		return await res.json();
-	} catch (e) {
-		log$2.warn("requestScan failed", e);
-		return null;
-	}
+		]
+	});
 }
-async function requestInit(path) {
-	try {
-		const res = await fetch("/api/v1/codegraph/init", {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ path })
-		});
-		if (!res.ok) return null;
-		return await res.json();
-	} catch (e) {
-		log$2.warn("requestInit failed", e);
-		return null;
-	}
-}
-async function requestWatch(enabled, path) {
-	try {
-		const res = await fetch("/api/v1/codegraph/watch", {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({
-				enabled,
-				path
-			})
-		});
-		return res.ok;
-	} catch (e) {
-		log$2.warn("requestWatch failed", e);
-		return false;
-	}
+function MicroFunctionBar({ functionName, onClose }) {
+	return /* @__PURE__ */ jsxs("div", {
+		className: "micro-function-bar",
+		children: [/* @__PURE__ */ jsx("span", { children: functionName }), /* @__PURE__ */ jsx("button", {
+			className: "micro-function-close",
+			onClick: onClose,
+			children: "✕"
+		})]
+	});
 }
 
 //#endregion
@@ -50281,15 +51937,16 @@ function extractFragments(nodes) {
 		operands: n.properties["operands"] ?? []
 	}));
 }
-function getParticipantColor(type) {
+function getParticipantColor(type, isDark) {
+	const tc = getThemeColors(isDark ? "dark" : "light");
 	switch (type) {
-		case "class": return "#4a90d9";
-		case "module": return "#7b68ee";
-		case "external": return "#e8a838";
-		case "instance": return "#5cb85c";
-		case "callback": return "#d9534f";
-		case "self": return "#9b59b6";
-		default: return "#888888";
+		case "class": return tc.nodeClass;
+		case "module": return tc.nodeModule;
+		case "external": return tc.edgeDependency;
+		case "instance": return tc.nodeFunction;
+		case "callback": return tc.edgeCall;
+		case "self": return tc.nodeType;
+		default: return tc.nodeDefault;
 	}
 }
 function formatArguments(args) {
@@ -50304,6 +51961,7 @@ function truncateLabel(text, maxWidth) {
 	return text.slice(0, maxChars - 3) + "...";
 }
 const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
+	const t$1 = useT();
 	const svgRef = useRef(null);
 	const containerRef = useRef(null);
 	const [zoom, setZoom] = useState(1);
@@ -50319,26 +51977,29 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 		panY: 0
 	});
 	const isDark = theme === "dark";
-	const colors$1 = useMemo(() => ({
-		bg: isDark ? "#1e1e2e" : "#ffffff",
-		text: isDark ? "#e0e0e0" : "#333333",
-		textSecondary: isDark ? "#a0a0b0" : "#666666",
-		lifeline: isDark ? "#555570" : "#aaaaaa",
-		lifelineDashed: isDark ? "#444460" : "#bbbbbb",
-		activation: isDark ? "#6677aa" : "#4a90d9",
-		activationBorder: isDark ? "#8899cc" : "#357abd",
-		syncArrow: isDark ? "#e0e0e0" : "#333333",
-		asyncArrow: isDark ? "#88cc88" : "#5cb85c",
-		returnArrow: isDark ? "#cc8888" : "#d9534f",
-		selfCallArrow: isDark ? "#cc88cc" : "#9b59b6",
-		createArrow: isDark ? "#88aacc" : "#4a90d9",
-		fragmentBg: isDark ? "rgba(100,100,140,0.15)" : "rgba(200,200,240,0.2)",
-		fragmentBorder: isDark ? "#7777aa" : "#9999cc",
-		fragmentLabelBg: isDark ? "#444466" : "#eeeeff",
-		participantBg: isDark ? "#2a2a3e" : "#f0f0f5",
-		participantBorder: isDark ? "#555570" : "#cccccc",
-		gridLine: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)"
-	}), [isDark]);
+	const colors$1 = useMemo(() => {
+		const tc = getThemeColors(theme);
+		return {
+			bg: isDark ? "#1e1e2e" : "#ffffff",
+			text: tc.text,
+			textSecondary: isDark ? "#a0a0b0" : "#666666",
+			lifeline: isDark ? "#555570" : "#aaaaaa",
+			lifelineDashed: isDark ? "#444460" : "#bbbbbb",
+			activation: tc.edgeCall,
+			activationBorder: isDark ? "#8899cc" : "#357abd",
+			syncArrow: tc.text,
+			asyncArrow: tc.edgeImport,
+			returnArrow: tc.edgeExtend,
+			selfCallArrow: tc.nodeType,
+			createArrow: tc.edgeCall,
+			fragmentBg: isDark ? "rgba(100,100,140,0.15)" : "rgba(200,200,240,0.2)",
+			fragmentBorder: isDark ? "#7777aa" : "#9999cc",
+			fragmentLabelBg: isDark ? "#444466" : "#eeeeff",
+			participantBg: isDark ? "#2a2a3e" : "#f0f0f5",
+			participantBorder: isDark ? "#555570" : "#cccccc",
+			gridLine: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)"
+		};
+	}, [isDark, theme]);
 	const { participants, messages, fragments, dimensions: dimensions$1 } = useMemo(() => {
 		const rawParticipants = extractParticipants(nodes);
 		const rawMessages = extractMessages(edges);
@@ -50439,7 +52100,7 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 				color: colors$1.textSecondary,
 				fontSize: "14px"
 			},
-			children: "No sequence data available"
+			children: t$1("sequence.noData")
 		})
 	});
 	const svgWidth = dimensions$1.width;
@@ -50630,6 +52291,7 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 								const loopEndY = msg.y + LAYOUT.SELF_CALL_HEIGHT / 2;
 								const loopWidth = LAYOUT.SELF_CALL_WIDTH;
 								return /* @__PURE__ */ jsxs("g", { children: [
+									/* @__PURE__ */ jsxs("title", { children: [`${msg.methodName}(${msg.arguments})`, msg.lineNumber ? ` :${msg.lineNumber}` : ""] }),
 									/* @__PURE__ */ jsx("path", {
 										d: `M ${loopX} ${loopStartY} L ${loopX + loopWidth} ${loopStartY} L ${loopX + loopWidth} ${loopEndY} L ${loopX + LAYOUT.ARROW_HEAD_SIZE} ${loopEndY}`,
 										fill: "none",
@@ -50672,6 +52334,7 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 							const seqLabel = `${msg.sequenceNumber}: ${truncateLabel(msg.methodName, 120)}`;
 							const argLabel = formatArguments(msg.arguments);
 							return /* @__PURE__ */ jsxs("g", { children: [
+								/* @__PURE__ */ jsxs("title", { children: [`${msg.methodName}(${msg.arguments})`, msg.lineNumber ? ` :${msg.lineNumber}` : ""] }),
 								/* @__PURE__ */ jsx("line", {
 									x1: arrowStartX,
 									y1: msg.y,
@@ -50708,7 +52371,7 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 							] }, `msg-${msg.id}`);
 						}),
 						participants.map((p$1) => {
-							const color = getParticipantColor(p$1.type);
+							const color = getParticipantColor(p$1.type, isDark);
 							const boxX = p$1.x - LAYOUT.PARTICIPANT_BOX_WIDTH / 2;
 							const boxY = LAYOUT.SVG_PADDING_TOP;
 							return /* @__PURE__ */ jsxs("g", {
@@ -50856,10 +52519,6 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 const log$1 = scoped("panel");
 function GraphPanelInner({ className = "" }) {
 	const t$1 = useT();
-	const healthScorer = useMemo(() => new HealthScorer(), []);
-	const ruleEngine = useMemo(() => new RuleEngine(), []);
-	const hotspotAnalyzer = useMemo(() => new HotspotAnalyzer(), []);
-	const godModuleDetector = useMemo(() => new GodModuleDetector(), []);
 	const panelRef = useRef(null);
 	const depsFetchAbortRef = useRef(null);
 	const getDataRef = useRef(null);
@@ -50868,7 +52527,8 @@ function GraphPanelInner({ className = "" }) {
 	const [showHelp, setShowHelp] = useState(false);
 	const [thumbnail, setThumbnail] = useState(null);
 	const [viewportInfo, setViewportInfo] = useState(null);
-	const { nodes, edges, rawNodes, rawEdges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, clusterLevel, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, expandedNodeIds, pathResult, focusDepth, healthScore, rules, ruleViolations, viewMode, selectedFunction, currentLayer, diagramData } = useGraphStore(useShallow((s) => ({
+	const [focusNodeId, setFocusNodeId] = useState(null);
+	const { nodes, edges, rawNodes, rawEdges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, clusterDepth, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, expandedNodeIds, pathResult, focusDepth, ruleViolations, viewMode, selectedFunction, currentLayer, diagramData } = useGraphStore(useShallow((s) => ({
 		nodes: s.nodes,
 		edges: s.edges,
 		rawNodes: s.rawNodes,
@@ -50880,7 +52540,7 @@ function GraphPanelInner({ className = "" }) {
 		highlightedNodeIds: s.highlightedNodeIds,
 		filterType: s.filterType,
 		graphType: s.graphType,
-		clusterLevel: s.clusterLevel,
+		clusterDepth: s.clusterDepth,
 		isLoading: s.isLoading,
 		error: s.error,
 		lastUpdated: s.lastUpdated,
@@ -50908,7 +52568,7 @@ function GraphPanelInner({ className = "" }) {
 	const setSelectedNode = useGraphStore((s) => s.setSelectedNode);
 	const setFilterType = useGraphStore((s) => s.setFilterType);
 	const setGraphType = useGraphStore((s) => s.setGraphType);
-	const setClusterLevel = useGraphStore((s) => s.setClusterLevel);
+	const setClusterDepth = useGraphStore((s) => s.setClusterDepth);
 	const setLayer = useGraphStore((s) => s.setLayer);
 	const setLoading = useGraphStore((s) => s.setLoading);
 	const setCurrentWorkspace = useGraphStore((s) => s.setCurrentWorkspace);
@@ -50923,11 +52583,6 @@ function GraphPanelInner({ className = "" }) {
 	const collapseAll = useGraphStore((s) => s.collapseAll);
 	const setPathResult = useGraphStore((s) => s.setPathResult);
 	const setFocusDepth = useGraphStore((s) => s.setFocusDepth);
-	const setHealthScore = useGraphStore((s) => s.setHealthScore);
-	const setRules = useGraphStore((s) => s.setRules);
-	const setRuleViolations = useGraphStore((s) => s.setRuleViolations);
-	const setViewMode = useGraphStore((s) => s.setViewMode);
-	const setSelectedFunction = useGraphStore((s) => s.setSelectedFunction);
 	const panelHeight = useGraphStore((s) => s.panelHeight);
 	const panelWidth = useGraphStore((s) => s.panelWidth);
 	const handleCollapseAll = useCallback(() => {
@@ -50981,37 +52636,29 @@ function GraphPanelInner({ className = "" }) {
 	}, [addWorkspace]);
 	const handleNodeTap = useCallback((id) => {
 		setSelectedNode(id);
-		const data$2 = getDataRef.current?.getSelectedNodeData() ?? null;
+		const data$2 = getDataRef.current?.getNodeData(id) ?? null;
 		setSelectedNodeData(data$2);
 	}, [setSelectedNode]);
-	const [focusNodeId, setFocusNodeId] = useState(null);
+	const handleNodeDoubleTapRef = useRef(() => {});
 	const handleNodeDoubleTap = useCallback((nodeId) => {
-		const data$2 = getDataRef.current?.getNodeData(nodeId);
-		if (!data$2) return;
-		const isClusterNode = "isCluster" in data$2 && data$2.isCluster === true;
-		if (isClusterNode) {
-			const isExpanded = expandedNodeIds.has(nodeId);
-			if (isExpanded) collapseNode(nodeId);
-			else expandNode(nodeId);
-		} else setFocusNodeId((prev) => {
-			if (prev === nodeId) return null;
-			return nodeId;
-		});
-	}, [
-		expandedNodeIds,
-		expandNode,
-		collapseNode
-	]);
+		handleNodeDoubleTapRef.current(nodeId);
+	}, []);
 	const handleNodeHover = useCallback((nodeId, pos) => {
 		const data$2 = getDataRef.current?.getNodeData(nodeId);
-		if (data$2) setTooltip({
-			x: pos.x,
-			y: pos.y,
-			name: data$2.label,
-			path: `${data$2.filePath}:${data$2.lineNumber}`,
-			type: data$2.type
-		});
-	}, []);
+		if (data$2) {
+			const linksIn = edges.filter((e) => e.target === nodeId).length;
+			const linksOut = edges.filter((e) => e.source === nodeId).length;
+			setTooltip({
+				x: pos.x,
+				y: pos.y,
+				name: data$2.label,
+				path: `${data$2.filePath}:${data$2.lineNumber}`,
+				type: data$2.type,
+				linksIn,
+				linksOut
+			});
+		}
+	}, [edges]);
 	const handleNodeHoverOut = useCallback(() => setTooltip(null), []);
 	const handleEdgeHover = useCallback((edgeId, pos) => {
 		const edgeData = getDataRef.current?.getEdgeData(edgeId);
@@ -51028,11 +52675,26 @@ function GraphPanelInner({ className = "" }) {
 		}
 	}, []);
 	const handleEdgeHoverOut = useCallback(() => setTooltip(null), []);
-	const renderer$1 = useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterLevel, debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact, panel.showInheritance, focusNodeId, {
+	const handleEdgeTap = useCallback((edgeId, pos) => {
+		const edgeData = getDataRef.current?.getEdgeData(edgeId);
+		if (edgeData) {
+			const sourceNode = getDataRef.current?.getNodeData(edgeData.source);
+			const targetNode = getDataRef.current?.getNodeData(edgeData.target);
+			setTooltip({
+				x: pos.x,
+				y: pos.y,
+				sourceLabel: sourceNode?.label ?? edgeData.source,
+				targetLabel: targetNode?.label ?? edgeData.target,
+				edgeType: edgeData.type
+			});
+		}
+	}, []);
+	const renderer$1 = useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterDepth, debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact, panel.showInheritance, focusNodeId, {
 		onNodeTap: handleNodeTap,
 		onNodeDoubleTap: handleNodeDoubleTap,
 		onNodeHover: handleNodeHover,
 		onNodeHoverOut: handleNodeHoverOut,
+		onEdgeTap: handleEdgeTap,
 		onEdgeHover: handleEdgeHover,
 		onEdgeHoverOut: handleEdgeHoverOut
 	}, showCallChainRef);
@@ -51080,7 +52742,7 @@ function GraphPanelInner({ className = "" }) {
 		if (panel.collapsed) return;
 		const panelEl = panelRef.current;
 		if (!panelEl) return;
-		if (panelHeight !== null && panelHeight >= 240) panelEl.style.height = `${panelHeight}px`;
+		if (panelHeight !== null && panelHeight >= 240) panelEl.style.height = `${Math.min(panelHeight, window.innerHeight)}px`;
 		if (panelWidth !== null && panelWidth >= 320) panelEl.style.width = `${panelWidth}px`;
 		if (panelHeight !== null || panelWidth !== null) renderer$1.rendererRef.current?.resize();
 	}, [
@@ -51110,8 +52772,10 @@ function GraphPanelInner({ className = "" }) {
 			resizeTimer = setTimeout(() => {
 				resizeTimer = null;
 				const h = target.getBoundingClientRect().height;
-				if (h >= 240) {
-					panelEl.style.height = `${h}px`;
+				const maxH = window.innerHeight;
+				const finalH = Math.min(h, maxH);
+				if (finalH > 0) {
+					panelEl.style.height = `${finalH}px`;
 					renderer$1.rendererRef.current?.resize();
 				}
 			}, 200);
@@ -51143,6 +52807,7 @@ function GraphPanelInner({ className = "" }) {
 			panel.setShowRules(false);
 			panel.setShowHotspot(false);
 			panel.setShowGodModule(false);
+			panel.setShowCoreFunction(false);
 			setTooltip(null);
 			setShowHelp(false);
 			setFocusNodeId(null);
@@ -51208,85 +52873,41 @@ function GraphPanelInner({ className = "" }) {
 		setSelectedNodeData(null);
 		setSelectedNode(null);
 	}, [setSelectedNode]);
-	const handleSelectFunction = useCallback((node, mode) => {
-		setSelectedFunction({
-			nodeId: node.id,
-			filePath: node.filePath,
-			functionName: node.label
-		});
-		setSelectedNode(null);
+	const { handleViewModeChange, handleSelectFunction: rawHandleSelectFunction, handleCloseMicroView, handleAggregateCallChain } = useViewMode(viewMode, currentWorkspace, depsFetchAbortRef);
+	const handleSelectFunction = useCallback((nodeId, filePath, functionName, mode) => {
 		setSelectedNodeData(null);
-		setViewMode(mode);
-	}, [
-		setSelectedFunction,
-		setSelectedNode,
-		setSelectedNodeData,
-		setViewMode
-	]);
-	const prevLayoutRef = useRef(layout$2);
-	const handleViewModeChange = useCallback((newMode) => {
-		if (newMode === viewMode) return;
-		const layoutForMode = {
-			code: prevLayoutRef.current,
-			dependencies: "dagre",
-			inheritance: "dagre",
-			callgraph: "dagre",
-			"package": "dagre",
-			class: "dagre",
-			cfg: "dagre",
-			flowchart: "dagre",
-			sequence: "dagre"
+		rawHandleSelectFunction(nodeId, filePath, functionName, mode);
+	}, [rawHandleSelectFunction]);
+	useEffect(() => {
+		setFocusNodeId(null);
+	}, [viewMode]);
+	useEffect(() => {
+		handleNodeDoubleTapRef.current = (nodeId) => {
+			const data$2 = getDataRef.current?.getNodeData(nodeId);
+			if (!data$2) return;
+			const isClusterNode = "isCluster" in data$2 && data$2.isCluster === true;
+			if (isClusterNode) {
+				const isExpanded = expandedNodeIds.has(nodeId);
+				if (isExpanded) collapseNode(nodeId);
+				else expandNode(nodeId);
+			} else if (data$2.type === "function") {
+				setSelectedNode(NodeId(nodeId));
+				setSelectedNodeData(data$2);
+			} else setFocusNodeId((prev) => {
+				if (prev === nodeId) {
+					setSelectedNode(null);
+					return null;
+				}
+				setSelectedNode(null);
+				return nodeId;
+			});
 		};
-		setLayout(layoutForMode[newMode] ?? "cose");
-		if (newMode === "dependencies") {
-			prevLayoutRef.current = layout$2;
-			setGraphType("dependency");
-			setFilterType("all");
-			setLoading(true);
-			const controller = new AbortController();
-			depsFetchAbortRef.current?.abort();
-			depsFetchAbortRef.current = controller;
-			fetch("/api/v1/codegraph/dependencies", { signal: controller.signal }).then((r) => {
-				if (!r.ok) throw new Error(`HTTP ${r.status}`);
-				return r.json();
-			}).then((data$2) => {
-				if (controller.signal.aborted) return;
-				if (data$2.nodes && data$2.nodes.length > 0) setGraphData(data$2.nodes, data$2.edges, data$2.metadata?.repoId || currentWorkspace);
-			}).catch(() => {
-				if (!controller.signal.aborted) setError(t$1("error.title"));
-			}).finally(() => {
-				if (!controller.signal.aborted) setLoading(false);
-			});
-		} else if (newMode === "code") {
-			prevLayoutRef.current = layout$2;
-			depsFetchAbortRef.current?.abort();
-			setGraphType("all");
-			setFilterType("all");
-			setLoading(true);
-			fetchGraphData().then((data$2) => {
-				if (data$2) setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
-				setLoading(false);
-			}).catch(() => {
-				setLoading(false);
-			});
-		} else {
-			prevLayoutRef.current = layout$2;
-			depsFetchAbortRef.current?.abort();
-			setGraphType("all");
-			setFilterType("all");
-		}
-		setViewMode(newMode);
 	}, [
-		viewMode,
-		setViewMode,
-		setLoading,
-		setGraphData,
-		setError,
-		currentWorkspace,
-		layout$2,
-		setLayout,
-		setGraphType,
-		setFilterType
+		expandedNodeIds,
+		collapseNode,
+		expandNode,
+		handleSelectFunction,
+		setSelectedNode
 	]);
 	const handleRefresh = useCallback(() => {
 		setLoading(true);
@@ -51339,57 +52960,18 @@ function GraphPanelInner({ className = "" }) {
 	const handleFocusExit = useCallback(() => {
 		setFocusNodeId(null);
 		setFocusDepth(1);
+		setSelectedNode(null);
 		renderer$1.rendererRef.current?.focusNeighborhood(null);
-	}, [setFocusDepth, renderer$1.rendererRef]);
-	const handleHealthCheck = useCallback(() => {
-		const score = healthScorer.calculate(rawNodes, rawEdges);
-		setHealthScore(score);
 	}, [
-		rawNodes,
-		rawEdges,
-		setHealthScore
+		setFocusDepth,
+		setSelectedNode,
+		renderer$1.rendererRef
 	]);
-	const handleRulesCheck = useCallback(() => {
-		const violations = ruleEngine.check(rules, rawNodes, rawEdges);
-		setRuleViolations(violations);
-	}, [
-		rules,
-		rawNodes,
-		rawEdges,
-		setRuleViolations
-	]);
-	const [impactStats, setImpactStats] = useState(null);
-	const [hotspotNodes, setHotspotNodes] = useState([]);
-	const [godModules, setGodModules] = useState([]);
-	useEffect(() => {
-		if (panel.showHealthScore && !healthScore && rawNodes.length > 0) handleHealthCheck();
-	}, [
-		panel.showHealthScore,
-		healthScore,
-		rawNodes.length,
-		handleHealthCheck
-	]);
-	useEffect(() => {
-		if (panel.showRules && rules.length === 0) setRules(getPresetRules());
-	}, [
-		panel.showRules,
-		rules.length,
-		setRules
-	]);
-	useEffect(() => {
-		if (panel.showHotspot && rawNodes.length > 0) setHotspotNodes(hotspotAnalyzer.analyze(rawNodes, rawEdges));
-	}, [
-		panel.showHotspot,
-		rawNodes,
-		rawEdges
-	]);
-	useEffect(() => {
-		if (panel.showGodModule && rawNodes.length > 0) setGodModules(godModuleDetector.detect(rawNodes, rawEdges));
-	}, [
-		panel.showGodModule,
-		rawNodes,
-		rawEdges
-	]);
+	const getImpactStats = useCallback(() => {
+		if (!selectedNodeId) return null;
+		return renderer$1.rendererRef.current?.getImpactStats(selectedNodeId) ?? null;
+	}, [renderer$1.rendererRef, selectedNodeId]);
+	const { handleRulesCheck, hotspotNodes, godModules, impactStats, coreFunctions } = useAnalysisPanels(rawNodes, rawEdges, panel.showHealthScore, panel.showRules, panel.showHotspot, panel.showGodModule, panel.showImpact, selectedNodeId, getImpactStats, panel.showCoreFunction);
 	const hasAutoScannedRef = useRef(false);
 	useEffect(() => {
 		if (hasAutoScannedRef.current) return;
@@ -51408,25 +52990,34 @@ function GraphPanelInner({ className = "" }) {
 		currentWorkspace,
 		handleScanWorkspace
 	]);
-	useEffect(() => {
-		if (panel.showImpact && selectedNodeId) {
-			const stats = renderer$1.rendererRef.current?.getImpactStats(selectedNodeId);
-			setImpactStats(stats ?? null);
-		} else setImpactStats(null);
+	const statsText = useMemo(() => {
+		const totalNodes = diagramData?.allNodes.length ?? nodes.length;
+		const totalEdges = diagramData?.allEdges.length ?? edges.length;
+		return t$1("stats.nodesEdges", {
+			nodes: totalNodes,
+			edges: totalEdges
+		});
 	}, [
-		panel.showImpact,
-		selectedNodeId,
-		renderer$1.rendererRef,
-		nodes.length
-	]);
-	const statsText = useMemo(() => t$1("stats.nodesEdges", {
-		nodes: nodes.length,
-		edges: edges.length
-	}), [
 		nodes.length,
 		edges.length,
+		diagramData,
 		t$1
 	]);
+	const searchResults = useMemo(() => {
+		if (!debouncedSearch) return [];
+		const q = debouncedSearch.toLowerCase();
+		return rawNodes.filter((n) => n.label.toLowerCase().includes(q)).slice(0, 50).map((n) => ({
+			id: n.id,
+			label: n.label,
+			type: n.type,
+			filePath: n.filePath
+		}));
+	}, [debouncedSearch, rawNodes]);
+	const handleSelectSearchResult = useCallback((id) => {
+		setSelectedNode(NodeId(id));
+		const data$2 = getDataRef.current?.getNodeData(NodeId(id)) ?? null;
+		setSelectedNodeData(data$2);
+	}, [setSelectedNode]);
 	const nodeTypeCounts = useMemo(() => {
 		const counts = {
 			function: 0,
@@ -51441,6 +53032,7 @@ function GraphPanelInner({ className = "" }) {
 	}, [rawNodes]);
 	const panelClassName = useMemo(() => `graph-panel resizable ${panel.collapsed ? "collapsed" : ""} ${className}`.trim(), [panel.collapsed, className]);
 	const isCollapsed = panel.collapsed;
+	const isMicroView = viewMode === "cfg" || viewMode === "flowchart" || viewMode === "sequence";
 	return /* @__PURE__ */ jsxs("div", {
 		className: panelClassName,
 		ref: panelRef,
@@ -51472,46 +53064,19 @@ function GraphPanelInner({ className = "" }) {
 				theme,
 				filterType,
 				graphType,
-				clusterLevel,
+				clusterDepth,
 				viewMode,
 				currentLayer,
 				layerNames: diagramData?.layers.map((l) => l.name) ?? [],
 				onLayerChange: setLayer,
 				collapsed: panel.collapsed,
-				panelControls: {
-					showSearch: panel.showSearch,
-					showCallChain: panel.showCallChain,
-					showCycles: panel.showCycles,
-					showImpact: panel.showImpact,
-					showInheritance: panel.showInheritance,
-					showMiniMap: panel.showMiniMap,
-					showLegend: panel.showLegend,
-					showImport: panel.showImport,
-					showPathFind: panel.showPathFind,
-					showHealthScore: panel.showHealthScore,
-					showRules: panel.showRules,
-					showHotspot: panel.showHotspot,
-					showGodModule: panel.showGodModule,
-					onToggleSearch: panel.toggleSearch,
-					onToggleCallChain: panel.toggleCallChain,
-					onToggleCycles: panel.toggleCycles,
-					onToggleImpact: panel.toggleImpact,
-					onToggleInheritance: panel.toggleInheritance,
-					onToggleMiniMap: panel.toggleMiniMap,
-					onToggleLegend: panel.toggleLegend,
-					onToggleImport: panel.toggleImport,
-					onTogglePathFind: panel.togglePathFind,
-					onToggleHealthScore: panel.toggleHealthScore,
-					onToggleRules: panel.toggleRules,
-					onToggleHotspot: panel.toggleHotspot,
-					onToggleGodModule: panel.toggleGodModule
-				},
+				panelControls: panel.toPanelControls(),
 				onViewModeChange: handleViewModeChange,
 				onLayoutChange: setLayout,
 				onThemeToggle: handleThemeToggle,
 				onFilterChange: setFilterType,
 				onGraphTypeChange: setGraphType,
-				onClusterLevelChange: setClusterLevel,
+				onClusterDepthChange: setClusterDepth,
 				onRefresh: handleRefresh,
 				onExport: renderer$1.exportGraph,
 				onCollapse: panel.toggleCollapsed,
@@ -51520,6 +53085,7 @@ function GraphPanelInner({ className = "" }) {
 				onRedo: history.redo,
 				canUndo: history.canUndo,
 				canRedo: history.canRedo,
+				hasSelectedFunction: !!selectedFunction,
 				currentWorkspace,
 				workspaceList,
 				onSwitchWorkspace: handleWorkspaceSwitch,
@@ -51529,8 +53095,10 @@ function GraphPanelInner({ className = "" }) {
 			panel.showSearch && !isCollapsed && /* @__PURE__ */ jsx(SearchBar, {
 				query: searchQuery,
 				matchCount: renderer$1.searchMatchCount,
+				searchResults,
 				onChange: setSearchQuery,
-				onClose: () => panel.setShowSearch(false)
+				onClose: () => panel.setShowSearch(false),
+				onSelectResult: handleSelectSearchResult
 			}),
 			panel.showPathFind && !isCollapsed && /* @__PURE__ */ jsx(PathBar, {
 				onFindPath: handleFindPath,
@@ -51553,25 +53121,19 @@ function GraphPanelInner({ className = "" }) {
 			}),
 			isLoading && !isCollapsed && /* @__PURE__ */ jsx(LoadingOverlay, { visible: true }),
 			error$1 && !isCollapsed && /* @__PURE__ */ jsx(ErrorOverlay, { error: error$1 }),
-			(viewMode === "cfg" || viewMode === "flowchart" || viewMode === "sequence") && !selectedFunction && !isLoading && !isCollapsed && /* @__PURE__ */ jsxs("div", {
-				className: "micro-empty-prompt",
-				children: [/* @__PURE__ */ jsx("div", {
-					className: "micro-empty-icon",
-					children: viewMode === "cfg" ? "CFG" : viewMode === "flowchart" ? t$1("toolbar.viewModeFlowchart") : t$1("toolbar.viewModeSequence")
-				}), /* @__PURE__ */ jsx("div", { children: t$1("micro.selectFunctionPrompt") })]
+			isMicroView && !selectedFunction && !isLoading && !isCollapsed && /* @__PURE__ */ jsx(MicroViewPrompt, {
+				viewMode,
+				selectFunctionPrompt: t$1("micro.selectFunctionPrompt"),
+				flowchartLabel: t$1("toolbar.viewModeFlowchart"),
+				sequenceLabel: t$1("toolbar.viewModeSequence"),
+				backToCodeLabel: t$1("micro.backToCode"),
+				onBackToCode: handleCloseMicroView
 			}),
-			(viewMode === "cfg" || viewMode === "flowchart" || viewMode === "sequence") && selectedFunction && !isCollapsed && /* @__PURE__ */ jsxs("div", {
-				className: "micro-function-bar",
-				children: [/* @__PURE__ */ jsx("span", { children: selectedFunction.functionName }), /* @__PURE__ */ jsx("button", {
-					className: "micro-function-close",
-					onClick: () => {
-						setSelectedFunction(null);
-						setViewMode("code");
-					},
-					children: "✕"
-				})]
+			isMicroView && selectedFunction && !isCollapsed && /* @__PURE__ */ jsx(MicroFunctionBar, {
+				functionName: selectedFunction.functionName,
+				onClose: handleCloseMicroView
 			}),
-			nodes.length === 0 && !isLoading && !error$1 && !isCollapsed && viewMode !== "cfg" && viewMode !== "flowchart" && viewMode !== "sequence" && /* @__PURE__ */ jsx(EmptyState, {
+			nodes.length === 0 && !isLoading && !error$1 && !isCollapsed && !isMicroView && /* @__PURE__ */ jsx(EmptyState, {
 				prerequisites,
 				onImport: () => panel.setShowImport(true),
 				onScanWorkspace: handleScanWorkspace
@@ -51594,7 +53156,8 @@ function GraphPanelInner({ className = "" }) {
 				isExpanded: selectedNodeData ? expandedNodeIds.has(selectedNodeData.id) : false,
 				connectionCount: selectedNodeData ? edges.filter((e) => e.source === selectedNodeData.id || e.target === selectedNodeData.id).length : 0,
 				onCollapse: () => selectedNodeData && collapseNode(selectedNodeData.id),
-				onSelectFunction: handleSelectFunction
+				onSelectFunction: (node, mode) => handleSelectFunction(node.id, node.filePath, node.label, mode),
+				onAggregateCallChain: handleAggregateCallChain
 			}),
 			/* @__PURE__ */ jsx("div", {
 				className: "graph-container",
@@ -51607,7 +53170,10 @@ function GraphPanelInner({ className = "" }) {
 				theme,
 				onNodeTap: (id) => handleNodeTap(NodeId(id))
 			}),
-			panel.showLegend && !isCollapsed && /* @__PURE__ */ jsx(Legend, { onClose: () => panel.setShowLegend(false) }),
+			panel.showLegend && !isCollapsed && /* @__PURE__ */ jsx(Legend, {
+				viewMode,
+				onClose: () => panel.setShowLegend(false)
+			}),
 			panel.showMiniMap && !isCollapsed && /* @__PURE__ */ jsx(StatsPanel, {
 				counts: {
 					function: nodeTypeCounts.function,
@@ -51621,123 +53187,34 @@ function GraphPanelInner({ className = "" }) {
 				viewportInfo,
 				onFocusArea: (ratioX, ratioY) => renderer$1.rendererRef.current?.focusOnArea(ratioX, ratioY)
 			}),
-			panel.showHotspot && !isCollapsed && hotspotNodes.length > 0 && /* @__PURE__ */ jsxs("div", {
-				className: "analysis-panel hotspot-panel",
-				role: "region",
-				"aria-label": t$1("toolbar.hotspot"),
-				children: [/* @__PURE__ */ jsxs("div", {
-					className: "analysis-panel-header",
-					children: [/* @__PURE__ */ jsx("span", { children: t$1("toolbar.hotspot") }), /* @__PURE__ */ jsx("button", {
-						onClick: () => panel.setShowHotspot(false),
-						className: "cg-close-btn",
-						children: /* @__PURE__ */ jsx(CloseIcon, { size: 14 })
-					})]
-				}), /* @__PURE__ */ jsx("div", {
-					className: "analysis-panel-content",
-					children: hotspotNodes.slice(0, 20).map((h) => /* @__PURE__ */ jsxs("div", {
-						className: `hotspot-item ${h.level}`,
-						children: [
-							/* @__PURE__ */ jsx("span", {
-								className: "hotspot-level-badge",
-								children: h.level
-							}),
-							/* @__PURE__ */ jsx("span", {
-								className: "hotspot-label",
-								children: h.label
-							}),
-							/* @__PURE__ */ jsx("span", {
-								className: "hotspot-indegree",
-								children: h.indegree
-							})
-						]
-					}, h.nodeId))
-				})]
+			panel.showHotspot && !isCollapsed && hotspotNodes.length > 0 && /* @__PURE__ */ jsx(HotspotPanel, {
+				hotspotNodes,
+				onClose: () => panel.setShowHotspot(false),
+				label: t$1("toolbar.hotspot")
 			}),
-			panel.showGodModule && !isCollapsed && godModules.length > 0 && /* @__PURE__ */ jsxs("div", {
-				className: "analysis-panel godmodule-panel",
-				role: "region",
-				"aria-label": t$1("toolbar.godModule"),
-				children: [/* @__PURE__ */ jsxs("div", {
-					className: "analysis-panel-header",
-					children: [/* @__PURE__ */ jsx("span", { children: t$1("toolbar.godModule") }), /* @__PURE__ */ jsx("button", {
-						onClick: () => panel.setShowGodModule(false),
-						className: "cg-close-btn",
-						children: /* @__PURE__ */ jsx(CloseIcon, { size: 14 })
-					})]
-				}), /* @__PURE__ */ jsx("div", {
-					className: "analysis-panel-content",
-					children: godModules.map((m) => /* @__PURE__ */ jsxs("div", {
-						className: "godmodule-item",
-						children: [
-							/* @__PURE__ */ jsx("div", {
-								className: "godmodule-path",
-								children: m.modulePath
-							}),
-							/* @__PURE__ */ jsx("div", {
-								className: "godmodule-stats",
-								children: t$1("godmodule.stats", {
-									nodes: m.nodeCount,
-									edges: m.edgeCount
-								})
-							}),
-							/* @__PURE__ */ jsx("div", {
-								className: "godmodule-suggestion",
-								children: m.suggestion
-							})
-						]
-					}, m.modulePath))
-				})]
+			panel.showGodModule && !isCollapsed && godModules.length > 0 && /* @__PURE__ */ jsx(GodModulePanel, {
+				godModules,
+				onClose: () => panel.setShowGodModule(false),
+				label: t$1("toolbar.godModule"),
+				statsLabel: (n, e) => t$1("godmodule.stats", {
+					nodes: n,
+					edges: e
+				})
 			}),
-			panel.showImpact && !isCollapsed && impactStats && /* @__PURE__ */ jsxs("div", {
-				className: "analysis-panel impact-panel",
-				role: "region",
-				"aria-label": t$1("toolbar.impact"),
-				children: [/* @__PURE__ */ jsx("div", {
-					className: "analysis-panel-header",
-					children: /* @__PURE__ */ jsx("span", { children: t$1("toolbar.impact") })
-				}), /* @__PURE__ */ jsxs("div", {
-					className: "analysis-panel-content",
-					children: [
-						/* @__PURE__ */ jsxs("div", {
-							className: "impact-stat-row",
-							children: [/* @__PURE__ */ jsx("span", {
-								className: "impact-stat-badge d1",
-								children: "D1"
-							}), /* @__PURE__ */ jsx("span", {
-								className: "impact-stat-count",
-								children: impactStats.d1
-							})]
-						}),
-						/* @__PURE__ */ jsxs("div", {
-							className: "impact-stat-row",
-							children: [/* @__PURE__ */ jsx("span", {
-								className: "impact-stat-badge d2",
-								children: "D2"
-							}), /* @__PURE__ */ jsx("span", {
-								className: "impact-stat-count",
-								children: impactStats.d2
-							})]
-						}),
-						/* @__PURE__ */ jsxs("div", {
-							className: "impact-stat-row",
-							children: [/* @__PURE__ */ jsx("span", {
-								className: "impact-stat-badge d3",
-								children: "D3"
-							}), /* @__PURE__ */ jsx("span", {
-								className: "impact-stat-count",
-								children: impactStats.d3
-							})]
-						}),
-						/* @__PURE__ */ jsxs("div", {
-							className: "impact-stat-total",
-							children: [
-								t$1("impact.total"),
-								": ",
-								impactStats.total
-							]
-						})
-					]
-				})]
+			panel.showCoreFunction && !isCollapsed && coreFunctions.length > 0 && /* @__PURE__ */ jsx(CoreFunctionPanel, {
+				coreFunctions,
+				onClose: () => panel.setShowCoreFunction(false),
+				label: t$1("toolbar.coreFunction"),
+				onSelectFunction: (nodeId) => {
+					setSelectedNode(NodeId(nodeId));
+					renderer$1.rendererRef.current?.focusOnNode(nodeId);
+					renderer$1.rendererRef.current?.selectNode(NodeId(nodeId));
+				}
+			}),
+			panel.showImpact && !isCollapsed && impactStats && /* @__PURE__ */ jsx(ImpactPanel, {
+				impactStats,
+				label: t$1("toolbar.impact"),
+				totalLabel: t$1("impact.total")
 			}),
 			tooltip && /* @__PURE__ */ jsx(GraphTooltip, { data: tooltip }),
 			/* @__PURE__ */ jsx(KeyboardHelp, {
@@ -51774,8 +53251,20 @@ const PLUGIN_VERSION = "0.2.0";
 const log = scoped("client");
 const name = "dsh-codegraph-visualizer-client";
 const inject = ["slots"];
-function CodeGraphTab({ visible }) {
-	return visible ? React.createElement(GraphPanel) : null;
+function SidebarNavButton({ onClick, active }) {
+	return React.createElement("button", {
+		onClick,
+		className: `cg-sidebar-nav-btn${active ? " cg-sidebar-nav-btn-active" : ""}`,
+		title: "Code Graph",
+		"aria-label": "Code Graph"
+	}, React.createElement(GraphIcon, { size: 18 }));
+}
+function FloatingGraphPanel({ onClose }) {
+	return React.createElement("div", { className: "cg-floating-overlay" }, React.createElement("div", { className: "cg-floating-panel" }, React.createElement("div", { className: "cg-floating-header" }, React.createElement("span", { className: "cg-floating-title" }, "Code Graph"), React.createElement("button", {
+		onClick: onClose,
+		className: "cg-floating-close",
+		"aria-label": "Close graph panel"
+	}, "×")), React.createElement("div", { className: "cg-floating-content" }, React.createElement(GraphPanel))));
 }
 function init(container, initialData) {
 	const root$12 = ReactDOM.createRoot(container);
@@ -51786,7 +53275,9 @@ function init(container, initialData) {
 	root$12.render(React.createElement(GraphPanel));
 }
 function apply(ctx) {
-	let entryRegistered = false;
+	let panelVisible = false;
+	let navButtonRegistered = false;
+	let renderFloating = () => {};
 	const slotDisposers = [];
 	const trackSlotDisposer = (d) => {
 		if (typeof d === "function") slotDisposers.push(d);
@@ -51795,6 +53286,12 @@ function apply(ctx) {
 		for (const dispose of slotDisposers) dispose();
 		slotDisposers.length = 0;
 	}, "codegraph: slot registrations cleanup");
+	const togglePanel = () => {
+		panelVisible = !panelVisible;
+		const container = document.querySelector(".cg-floating-container");
+		if (container) container.setAttribute("data-visible", String(panelVisible));
+		renderFloating();
+	};
 	try {
 		const betterSidebar = ctx.get("betterSidebar");
 		if (betterSidebar) {
@@ -51804,49 +53301,51 @@ function apply(ctx) {
 				icon: (size$1) => React.createElement(GraphIcon, { size: size$1 }),
 				order: 50,
 				single: true,
-				component: CodeGraphTab
+				component: ({ visible }) => {
+					panelVisible = visible;
+					return visible ? React.createElement(GraphPanel) : null;
+				}
 			});
 			ctx.effect(() => dispose, "codegraph: better-sidebar tab");
-			entryRegistered = true;
+			navButtonRegistered = true;
 		}
 	} catch (e) {
 		log.warn("better-sidebar registration failed", e);
 	}
-	if (!entryRegistered) try {
+	if (!navButtonRegistered) try {
 		ctx.slots.inject("sidebar.footer.action", () => {
 			trackSlotDisposer(ctx.slots.register({
 				name: "sidebar.footer.action",
 				id: "codegraph-visualizer",
 				order: 10,
 				label: () => "Code Graph"
-			}, GraphPanel));
+			}, () => React.createElement(SidebarNavButton, {
+				onClick: togglePanel,
+				active: panelVisible
+			})));
 		});
-		entryRegistered = true;
+		navButtonRegistered = true;
 	} catch (e) {
 		log.warn("sidebar.footer.action slot failed", e);
 	}
-	try {
-		ctx.slots.inject("settings.section", () => {
-			trackSlotDisposer(ctx.slots.register({
-				name: "settings.section",
-				id: "codegraph-visualizer",
-				order: 50,
-				label: () => "Code Graph"
-			}, GraphPanel));
-		});
-	} catch (e) {
-		log.warn("settings.section slot failed", e);
-	}
-	if (!entryRegistered && typeof document !== "undefined") {
-		const container = document.createElement("div");
-		container.className = "codegraph-visualizer-root";
-		document.body.appendChild(container);
-		const root$12 = ReactDOM.createRoot(container);
-		root$12.render(React.createElement(GraphPanel));
+	if (typeof document !== "undefined") {
+		const floatingContainer = document.createElement("div");
+		floatingContainer.className = "cg-floating-container";
+		floatingContainer.setAttribute("data-visible", "false");
+		document.body.appendChild(floatingContainer);
+		const floatingRoot = ReactDOM.createRoot(floatingContainer);
+		renderFloating = () => {
+			floatingRoot.render(panelVisible ? React.createElement(FloatingGraphPanel, { onClose: () => {
+				panelVisible = false;
+				floatingContainer.setAttribute("data-visible", "false");
+				renderFloating();
+			} }) : null);
+		};
+		renderFloating();
 		ctx.effect(() => () => {
-			root$12.unmount();
-			container.remove();
-		}, "codegraph: direct DOM mount");
+			floatingRoot.unmount();
+			floatingContainer.remove();
+		}, "codegraph: floating panel cleanup");
 	}
 	try {
 		const spotlight = ctx.get("spotlight");
@@ -51862,10 +53361,7 @@ function apply(ctx) {
 			const d2 = spotlight.registerCommand({
 				id: "codegraph-toggle",
 				title: "Code Graph: Toggle Panel",
-				handler: () => {
-					const panel = document.querySelector(".graph-panel");
-					panel?.dispatchEvent(new MouseEvent("click"));
-				}
+				handler: () => togglePanel()
 			});
 			if (typeof d2 === "function") ctx.effect(() => d2, "codegraph: spotlight toggle cmd");
 		}
@@ -51873,6 +53369,7 @@ function apply(ctx) {
 		log.warn("spotlight registration failed", e);
 	}
 	{
+		let lastStatusKey = "";
 		const checkStatus = async () => {
 			const status = await fetchStatus();
 			const store = useGraphStore.getState();
@@ -51880,7 +53377,11 @@ function apply(ctx) {
 				codegraph: status.codegraph,
 				lens: status.lens
 			});
-			log.info("prerequisite status", status);
+			const statusKey = `${status.codegraph}:${status.lens}`;
+			if (statusKey !== lastStatusKey) {
+				log.info("prerequisite status", status);
+				lastStatusKey = statusKey;
+			}
 			return status;
 		};
 		checkStatus();
@@ -51909,7 +53410,7 @@ function apply(ctx) {
 				const workspaceInfos = wsList.map((p$1) => ({
 					path: p$1,
 					name: p$1.split(/[\\/]/).pop() ?? p$1,
-					lastUsed: Date.now()
+					GlastUsed: Date.now()
 				}));
 				for (const wi of workspaceInfos) if (!s.workspaceList.some((w) => w.path === wi.path)) s.addWorkspace(wi.path, wi.name);
 			}
@@ -51970,7 +53471,7 @@ function apply(ctx) {
 			});
 		};
 		const openSourceListener = (e) => {
-			ctx.emit("codegraph/source/open", e.detail);
+			ctx.emit("cg-viz/source/open", e.detail);
 		};
 		const importRepoListener = (e) => {
 			const detail = e.detail;

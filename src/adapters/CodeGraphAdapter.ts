@@ -165,7 +165,6 @@ export class CodeGraphAdapter {
   }
 
   private toAdapterResult(dbNodes: DbNodeRow[], dbEdges: DbEdgeRow[]): AdapterResult {
-    const nodeIds = new Set(dbNodes.map((n) => n.id));
 
     const fileNodeIds = new Map<string, string>();
     for (const n of dbNodes) {

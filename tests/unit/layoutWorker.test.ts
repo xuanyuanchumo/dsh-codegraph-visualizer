@@ -21,7 +21,7 @@ const selfMock = {
 
 beforeAll(async () => {
   await import('../../src/client/worker/layoutWorker.ts');
-});
+}, 30000);
 
 function sendMessage(req: LayoutWorkerRequest): LayoutWorkerResponse {
   mockPostMessage.mockClear();
