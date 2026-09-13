@@ -355,13 +355,11 @@ describe('DiffEngine (FR-24)', () => {
 
   // ---- Enhanced tests for deepEqual edge cases ----
 
-  it('deepEqual: array vs object with same numeric keys are treated as equal (deepEqual limitation)', () => {
-    // deepEqual uses typeof === 'object' and Object.keys, so arrays and objects
-    // with the same numeric keys and values are considered equal.
+  it('deepEqual: array vs object with same numeric keys are detected as different', () => {
     const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: [1, 2] })];
     const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: { 0: 1, 1: 2 } })];
     const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
-    expect(diff.modifiedNodes).toHaveLength(0);
+    expect(diff.modifiedNodes).toHaveLength(1);
   });
 
   it('deepEqual: deeply nested equal objects are not flagged as modified', () => {

@@ -132,7 +132,7 @@ export class TreeSitterAdapter {
 
     const candidates: string[] = [];
 
-    if (typeof globalThis.document === 'undefined') {
+    if (typeof process !== 'undefined' && process.versions?.node) {
       try {
         const { getWasmPath } = await import('tree-sitter-wasm');
         const absPath = getWasmPath(language);

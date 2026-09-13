@@ -190,7 +190,7 @@ export function apply(ctx: Context) {
       const s = useGraphStore.getState();
       s.setCurrentWorkspace(workspacePath);
       if (wsList.length > 0) {
-        const workspaceInfos = wsList.map((p) => ({ path: p, name: p.split(/[\\/]/).pop() ?? p,GlastUsed: Date.now() }));
+        const workspaceInfos = wsList.map((p) => ({ path: p, name: p.split(/[\\/]/).pop() ?? p, lastUsed: Date.now() }));
         for (const wi of workspaceInfos) {
           if (!s.workspaceList.some((w) => w.path === wi.path)) { s.addWorkspace(wi.path, wi.name); }
         }
