@@ -7,7 +7,7 @@ import { assembleDiagram, assembleMicroDiagram, type LayeredDiagram } from '../d
 import { CallChainAggregator } from '../diagram/CallChainAggregator.ts';
 import { DiagramCache, ClusterCache, computeDataHash } from '../cache/DiagramCache.ts';
 import { invalidateCssVarCache } from '../renderer/styles/ThemeStylesheet.ts';
-import { computeViewModeTransition, VIEW_MODE_LAYOUT } from './viewModeTransition.ts';
+import { computeViewModeTransition } from './viewModeTransition.ts';
 
 export type { ClusterNode, ClusterEdge } from './cluster/index.ts';
 
@@ -372,15 +372,15 @@ export const useGraphStore = create<GraphState>()(
             viewMode: state.viewMode,
           },
           diagramCache,
-          (vm) => useGraphStore.getState().assembleMicro(vm),
+
         );
         if (result.needsMicroAssembly) {
-          const { needsMicroAssembly, ...rest } = result;
+          const { needsMicroAssembly: _, ...rest } = result;
           set(rest);
           useGraphStore.getState().assembleMicro(viewMode as 'cfg' | 'flowchart' | 'sequence');
           return;
         }
-        const { needsMicroAssembly: _, ...rest } = result;
+        const { needsMicroAssembly: _u, ...rest } = result;
         set(rest);
       },
       setClusterDepth: (clusterDepth) => {

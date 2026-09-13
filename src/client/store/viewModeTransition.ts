@@ -3,7 +3,7 @@ import type { LayeredDiagram } from '../diagram/index.ts';
 import { assembleDiagram } from '../diagram/index.ts';
 import { computeClusteredGraph } from './cluster/index.ts';
 import { DiagramCache, computeDataHash } from '../cache/DiagramCache.ts';
-import { invalidateCssVarCache } from '../renderer/styles/ThemeStylesheet.ts';
+
 
 export type LayoutType = 'cose' | 'dagre' | 'circle' | 'grid' | 'radial' | 'tree';
 
@@ -75,7 +75,7 @@ export function computeViewModeTransition(
   newViewMode: ViewMode,
   state: ViewModeTransitionState,
   diagramCache: DiagramCache,
-  assembleMicro: (viewMode: 'cfg' | 'flowchart' | 'sequence') => Promise<void>,
+
 ): ViewModeTransitionResult & { needsMicroAssembly?: boolean } {
   const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, selectedFunction, savedRawNodes, savedRawEdges, viewMode: prevViewMode } = state;
   const recommendedLayout = VIEW_MODE_LAYOUT[newViewMode];
@@ -162,8 +162,4 @@ export function computeViewModeTransition(
     expandedNodeIdsByViewMode: newExpandedByViewMode,
     nodes: result.nodes, edges: result.edges,
   };
-}
-
-export function setThemeAndInvalidate(theme: 'light' | 'dark'): void {
-  invalidateCssVarCache();
 }

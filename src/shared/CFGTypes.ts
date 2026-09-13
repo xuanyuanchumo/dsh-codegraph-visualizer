@@ -45,13 +45,6 @@ const FUNCTION_NODE_TYPES = new Set([
   'function_signature', 'method_signature',
 ]);
 
-const CLASS_CONTAINER_TYPES = new Set([
-  'class_declaration', 'class_definition', 'impl_item',
-  'interface_declaration', 'struct_declaration',
-  'enum_declaration', 'trait_declaration',
-  'module_declaration', 'namespace_declaration',
-  'program', 'source_file', 'module', 'mod_item',
-]);
 
 const BODY_NODE_TYPES = new Set([
   'block', 'statement_block', 'body', 'compound_statement',

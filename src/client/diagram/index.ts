@@ -213,7 +213,7 @@ export async function assembleMicroDiagram(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filePath }),
     });
-  } catch (e) {
+  } catch {
     throw new Error(`Network error: unable to reach AST endpoint`);
   }
   if (!response.ok) {
