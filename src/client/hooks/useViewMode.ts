@@ -4,6 +4,12 @@ import type { ViewMode } from '../../types/index.ts';
 import { fetchGraphData } from '../api/index.ts';
 
 
+const MICRO_MODES: ViewMode[] = ['cfg', 'flowchart', 'sequence'];
+
+function isMicroMode(mode: ViewMode): boolean {
+  return MICRO_MODES.includes(mode);
+}
+
 export function useViewMode(
   viewMode: ViewMode,
   currentWorkspace: string,
@@ -42,7 +48,7 @@ export function useViewMode(
             setGraphData(data.nodes, data.edges, data.metadata?.repoId || currentWorkspace);
           }
         })
-        .catch(() => { if (!controller.signal.aborted) setError('Error'); })
+        .catch((err) => { if (!controller.signal.aborted) setError(`Failed to load dependencies: ${err.message}`); })
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     } else if (newMode === 'code') {
       depsFetchAbortRef.current?.abort();
@@ -60,12 +66,17 @@ export function useViewMode(
       depsFetchAbortRef.current?.abort();
       setGraphType('all');
       setFilterType('all');
+      if (!isMicroMode(newMode)) {
+        setSelectedFunction(null);
+      }
       setViewMode(newMode);
     }
-  }, [viewMode, setViewMode, setLoading, setGraphData, setError, currentWorkspace, setGraphType, setFilterType, setSelectedNode, setHighlightedNodes]);
+  }, [viewMode, setViewMode, setLoading, setGraphData, setError, currentWorkspace, setGraphType, setFilterType, setSelectedNode, setHighlightedNodes, setSelectedFunction]);
 
   const handleSelectFunction = useCallback((nodeId: string, filePath: string, functionName: string, mode: 'cfg' | 'flowchart' | 'sequence') => {
-    prevMacroViewModeRef.current = viewMode;
+    if (!isMicroMode(viewMode)) {
+      prevMacroViewModeRef.current = viewMode;
+    }
     setSelectedFunction({ nodeId, filePath, functionName });
     setSelectedNode(null);
     setViewMode(mode);
@@ -73,8 +84,22 @@ export function useViewMode(
 
   const handleCloseMicroView = useCallback(() => {
     setSelectedFunction(null);
-    setViewMode(prevMacroViewModeRef.current);
+    const targetMode = prevMacroViewModeRef.current;
+    if (isMicroMode(targetMode)) {
+      setViewMode('code');
+    } else {
+      setViewMode(targetMode);
+    }
   }, [setSelectedFunction, setViewMode]);
 
-  return { handleViewModeChange, handleSelectFunction, handleCloseMicroView };
+  const handleAggregateCallChain = useCallback((nodeId: string) => {
+    if (!isMicroMode(viewMode)) {
+      prevMacroViewModeRef.current = viewMode;
+    }
+    setSelectedFunction(null);
+    setSelectedNode(null);
+    useGraphStore.getState().assembleMultiFunction(nodeId);
+  }, [viewMode, setSelectedFunction, setSelectedNode]);
+
+  return { handleViewModeChange, handleSelectFunction, handleCloseMicroView, handleAggregateCallChain };
 }

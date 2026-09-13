@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState, useCallback, useEffect } from 'react'
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import type { ThemeType } from './IRenderer.ts';
 import { getThemeColors } from './styles/ThemeStylesheet.ts';
+import { useT } from '../i18n/index.ts';
 
 interface SequenceDiagramRendererProps {
   nodes: GraphNode[];
@@ -148,6 +149,7 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
   theme,
   onNodeTap,
 }) => {
+  const t = useT();
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
@@ -272,7 +274,7 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
     return (
       <div ref={containerRef} className="sequence-diagram-container" style={{ background: colors.bg }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: colors.textSecondary, fontSize: '14px' }}>
-          No sequence data available
+          {t('sequence.noData')}
         </div>
       </div>
     );

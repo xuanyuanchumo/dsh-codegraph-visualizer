@@ -367,9 +367,18 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     setSelectedNodeData(null); setSelectedNode(null);
   }, [setSelectedNode]);
 
-  const { handleViewModeChange, handleSelectFunction, handleCloseMicroView } = useViewMode(
+  const { handleViewModeChange, handleSelectFunction: rawHandleSelectFunction, handleCloseMicroView, handleAggregateCallChain } = useViewMode(
     viewMode, currentWorkspace, depsFetchAbortRef,
   );
+
+  const handleSelectFunction = useCallback((nodeId: string, filePath: string, functionName: string, mode: 'cfg' | 'flowchart' | 'sequence') => {
+    setSelectedNodeData(null);
+    rawHandleSelectFunction(nodeId, filePath, functionName, mode);
+  }, [rawHandleSelectFunction]);
+
+  useEffect(() => {
+    setFocusNodeId(null);
+  }, [viewMode]);
 
   useEffect(() => {
     handleNodeDoubleTapRef.current = (nodeId: string) => {
@@ -585,7 +594,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           connectionCount={selectedNodeData ? edges.filter((e) => e.source === selectedNodeData.id || e.target === selectedNodeData.id).length : 0}
           onCollapse={() => selectedNodeData && collapseNode(selectedNodeData.id)}
           onSelectFunction={(node, mode) => handleSelectFunction(node.id, node.filePath, node.label, mode)}
-          onAggregateCallChain={(nodeId) => useGraphStore.getState().assembleMultiFunction(nodeId)} />
+          onAggregateCallChain={handleAggregateCallChain} />
       )}
 
       <div className="graph-container" ref={renderer.containerRef}

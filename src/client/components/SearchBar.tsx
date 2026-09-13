@@ -39,13 +39,28 @@ export function SearchBar({ query, matchCount, searchResults, onChange, onClose,
     setActiveIndex(-1);
   }, [query]);
 
+  useEffect(() => {
+    if (activeIndex < 0) return;
+    const list = listRef.current;
+    if (!list) return;
+    const item = list.children[activeIndex] as HTMLElement;
+    if (item) item.scrollIntoView({ block: 'nearest' });
+  }, [activeIndex]);
+
   const handleSelect = (id: string) => {
     onSelectResult(id);
     setShowResults(false);
     setActiveIndex(-1);
+    onClose();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      onClose();
+      return;
+    }
     if (!showResults || searchResults.length === 0) return;
     const maxIdx = Math.min(searchResults.length, 10) - 1;
     if (e.key === 'ArrowDown') {
