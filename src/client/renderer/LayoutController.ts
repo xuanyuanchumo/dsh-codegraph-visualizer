@@ -322,12 +322,13 @@ export class LayoutController {
         } as LayoutOptions;
       }
       case 'tree': {
-        const rootNodes = this.cy.nodes().roots();
+        const rootByProp = this.cy.nodes().filter((n: { data: (key: string) => unknown }) => n.data('isRoot') === true);
+        const rootNodes = rootByProp.nonempty() ? rootByProp : this.cy.nodes().roots();
         let roots: ReturnType<typeof this.cy.nodes>;
         if (rootNodes.nonempty()) {
           roots = rootNodes;
         } else {
-          roots = this.cy.nodes().sort((a, b) => b.degree() - a.degree()).slice(0, 1);
+          roots = this.cy.nodes().sort((a: { degree: () => number }, b: { degree: () => number }) => b.degree() - a.degree()).slice(0, 1);
         }
         return {
           name: 'breadthfirst', fit: true, animate: false,

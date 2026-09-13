@@ -54,6 +54,45 @@ function isLayeredViewMode(mode: ViewMode): boolean {
   return mode === 'inheritance' || mode === 'callgraph' || mode === 'package' || mode === 'class' || mode === 'dependencies';
 }
 
+function computeLayeredExpandedView(
+  diagramData: LayeredDiagram,
+  currentLayer: number,
+  expandedNodeIds: Set<string>,
+): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  const layer = diagramData.layers[currentLayer];
+  if (!layer) return { nodes: [], edges: [] };
+
+  const inEdgesMap = new Map<string, string[]>();
+  for (const e of diagramData.allEdges) {
+    const list = inEdgesMap.get(e.target) ?? [];
+    list.push(e.source);
+    inEdgesMap.set(e.target, list);
+  }
+
+  const visibleIds = new Set<string>(layer.nodeIds);
+  const queue: string[] = [];
+  for (const id of expandedNodeIds) {
+    if (visibleIds.has(id)) queue.push(id);
+  }
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    const children = inEdgesMap.get(id) ?? [];
+    for (const childId of children) {
+      if (!visibleIds.has(childId)) {
+        visibleIds.add(childId);
+        if (expandedNodeIds.has(childId)) queue.push(childId);
+      }
+    }
+  }
+
+  const visibleNodes = diagramData.allNodes.filter((n) => visibleIds.has(n.id));
+  const visibleEdges = diagramData.allEdges.filter(
+    (e) => visibleIds.has(e.source) && visibleIds.has(e.target),
+  );
+
+  return { nodes: visibleNodes, edges: visibleEdges };
+}
+
 function clearLoadingFailsafe(): void {
   if (loadingFailsafe !== null) {
     clearTimeout(loadingFailsafe);
@@ -407,7 +446,12 @@ export const useGraphStore = create<GraphState>()(
         newExpanded.add(nodeId);
         const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: newExpanded };
         if (isLayeredViewMode(viewMode)) {
-          set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode });
+          if (diagramData) {
+            const { nodes: visNodes, edges: visEdges } = computeLayeredExpandedView(diagramData, currentLayer, newExpanded);
+            set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: visNodes, edges: visEdges });
+          } else {
+            set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode });
+          }
           return;
         }
         let sourceNodes = rawNodes;
@@ -436,7 +480,12 @@ export const useGraphStore = create<GraphState>()(
         newExpanded.delete(nodeId);
         const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: newExpanded };
         if (isLayeredViewMode(viewMode)) {
-          set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode });
+          if (diagramData) {
+            const { nodes: visNodes, edges: visEdges } = computeLayeredExpandedView(diagramData, currentLayer, newExpanded);
+            set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: visNodes, edges: visEdges });
+          } else {
+            set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode });
+          }
           return;
         }
         let sourceNodes = rawNodes;
@@ -463,7 +512,14 @@ export const useGraphStore = create<GraphState>()(
         const { rawNodes, rawEdges, clusterDepth, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
         const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: new Set<string>() };
         if (isLayeredViewMode(viewMode)) {
-          set({ expandedNodeIds: new Set(), expandedNodeIdsByViewMode: newExpandedByViewMode });
+          if (diagramData) {
+            const layer = diagramData.layers[currentLayer];
+            const layerNodes = layer ? layer.nodes : diagramData.allNodes;
+            const layerEdges = layer ? layer.edges : diagramData.allEdges;
+            set({ expandedNodeIds: new Set(), expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: layerNodes, edges: layerEdges });
+          } else {
+            set({ expandedNodeIds: new Set(), expandedNodeIdsByViewMode: newExpandedByViewMode });
+          }
           return;
         }
         let sourceNodes = rawNodes;

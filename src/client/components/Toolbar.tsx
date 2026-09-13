@@ -218,15 +218,18 @@ export function Toolbar(props: ToolbarProps) {
         </div>
         {layerNames.length > 1 && (
           <div className="layer-selector" role="group" aria-label={t('toolbar.layer')}>
-            {layerNames.map((name, idx) => (
+            {layerNames.map((name, idx) => {
+              const translated = t(name) ?? name;
+              return (
               <button
                 key={idx}
                 className={`layer-btn ${currentLayer === idx ? 'active' : ''}`}
                 onClick={() => onLayerChange(idx)}
-                title={name}
+                title={translated}
                 aria-pressed={currentLayer === idx}
-              >{name.length <= 4 ? name : name.slice(0, 3)}</button>
-            ))}
+              >{translated.length <= 4 ? translated : translated.slice(0, 3)}</button>
+              );
+            })}
           </div>
         )}
         {viewMode === 'code' && (

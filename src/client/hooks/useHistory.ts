@@ -11,6 +11,7 @@ function createSnapshot(): HistorySnapshot {
     clusterDepth: s.clusterDepth,
     selectedNodeId: s.selectedNodeId,
     expandedNodeIds: new Set(s.expandedNodeIds),
+    viewMode: s.viewMode,
   };
 }
 
@@ -20,6 +21,7 @@ function isSameSnapshot(a: HistorySnapshot, b: HistorySnapshot): boolean {
   if (a.graphType !== b.graphType) return false;
   if (a.clusterDepth !== b.clusterDepth) return false;
   if (a.selectedNodeId !== b.selectedNodeId) return false;
+  if (a.viewMode !== b.viewMode) return false;
   if (a.expandedNodeIds.size !== b.expandedNodeIds.size) return false;
   for (const id of a.expandedNodeIds) {
     if (!b.expandedNodeIds.has(id)) return false;
@@ -29,6 +31,9 @@ function isSameSnapshot(a: HistorySnapshot, b: HistorySnapshot): boolean {
 
 function applySnapshot(snapshot: HistorySnapshot): void {
   const s = useGraphStore.getState();
+  if (snapshot.viewMode !== s.viewMode) {
+    s.setViewMode(snapshot.viewMode);
+  }
   if (snapshot.clusterDepth !== s.clusterDepth) {
     s.setClusterDepth(snapshot.clusterDepth);
   }
@@ -105,7 +110,8 @@ export function useHistory() {
         state.graphType !== prevState.graphType ||
         state.clusterDepth !== prevState.clusterDepth ||
         state.selectedNodeId !== prevState.selectedNodeId ||
-        state.expandedNodeIds !== prevState.expandedNodeIds
+        state.expandedNodeIds !== prevState.expandedNodeIds ||
+        state.viewMode !== prevState.viewMode
       ) {
         pushHistory();
       }

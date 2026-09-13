@@ -785,7 +785,8 @@ body[data-ds-dark-theme] .depth-select {
 }
 
 .search-result-item:hover,
-.search-result-item:focus {
+.search-result-item:focus,
+.search-result-item.active {
   background: var(--cg-surface-hover);
   outline: none;
 }

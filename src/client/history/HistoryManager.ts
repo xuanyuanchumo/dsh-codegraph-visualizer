@@ -1,5 +1,5 @@
 import type { LayoutType, GraphType } from '../store/graphStore.ts';
-import type { GraphNode, NodeId } from '../../types/index.ts';
+import type { GraphNode, NodeId, ViewMode } from '../../types/index.ts';
 
 export interface HistorySnapshot {
   layout: LayoutType;
@@ -8,6 +8,7 @@ export interface HistorySnapshot {
   clusterDepth: number;
   selectedNodeId: NodeId | null;
   expandedNodeIds: Set<string>;
+  viewMode: ViewMode;
 }
 
 export class HistoryManager {

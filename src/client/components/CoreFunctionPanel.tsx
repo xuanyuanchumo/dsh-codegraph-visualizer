@@ -1,5 +1,6 @@
 import React from 'react';
 import { CloseIcon } from './Icons.tsx';
+import { useT } from '../i18n/index.ts';
 import type { CoreFunction, CoreFunctionCategory } from '../../shared/analysis/CoreFunctionAnalyzer.ts';
 
 interface CoreFunctionPanelProps {
@@ -9,13 +10,6 @@ interface CoreFunctionPanelProps {
   onSelectFunction: (nodeId: string) => void;
 }
 
-const CATEGORY_LABELS: Record<CoreFunctionCategory, string> = {
-  entry: '入口',
-  hub: '枢纽',
-  api: 'API',
-  critical: '关键',
-};
-
 const CATEGORY_COLORS: Record<CoreFunctionCategory, string> = {
   entry: '#4caf50',
   hub: '#ff9800',
@@ -23,20 +17,11 @@ const CATEGORY_COLORS: Record<CoreFunctionCategory, string> = {
   critical: '#f44336',
 };
 
-const REASON_LABELS: Record<string, string> = {
-  'high-indegree': '高入度',
-  'high-outdegree': '高出度',
-  'entry-point': '入口点',
-  'exported': '已导出',
-  'handler-pattern': '处理器',
-  'event-pattern': '事件',
-  'cli-pattern': 'CLI',
-  'large-influence': '大影响',
-  'deep-call-chain': '深调用链',
-  'hub-function': '枢纽函数',
-};
-
 export function CoreFunctionPanel({ coreFunctions, onClose, label, onSelectFunction }: CoreFunctionPanelProps) {
+  const t = useT();
+  const categoryLabel = (cat: CoreFunctionCategory): string => t(`coreFunction.category.${cat}`) ?? cat;
+  const reasonLabel = (r: string): string => t(`coreFunction.reason.${r}`) ?? r;
+
   return (
     <div className="analysis-panel core-function-panel" role="region" aria-label={label}>
       <div className="analysis-panel-header">
@@ -57,20 +42,20 @@ export function CoreFunctionPanel({ coreFunctions, onClose, label, onSelectFunct
               className="core-function-category-badge"
               style={{ backgroundColor: CATEGORY_COLORS[fn.category] }}
             >
-              {CATEGORY_LABELS[fn.category]}
+              {categoryLabel(fn.category)}
             </span>
             <span className="core-function-label">{fn.label}</span>
             <span className="core-function-score">{fn.score}</span>
             <div className="core-function-reasons">
               {fn.reasons.map((r) => (
-                <span key={r} className="core-function-reason-tag">{REASON_LABELS[r] ?? r}</span>
+                <span key={r} className="core-function-reason-tag">{reasonLabel(r)}</span>
               ))}
             </div>
             <div className="core-function-stats">
-              <span title="入度">in:{fn.inDegree}</span>
-              <span title="出度">out:{fn.outDegree}</span>
-              <span title="影响范围">reach:{fn.influenceReach}</span>
-              <span title="调用链深度">depth:{fn.callChainDepth}</span>
+              <span title={t('coreFunction.inDegree') ?? '入度'}>in:{fn.inDegree}</span>
+              <span title={t('coreFunction.outDegree') ?? '出度'}>out:{fn.outDegree}</span>
+              <span title={t('coreFunction.influenceReach') ?? '影响范围'}>reach:{fn.influenceReach}</span>
+              <span title={t('coreFunction.callChainDepth') ?? '调用链深度'}>depth:{fn.callChainDepth}</span>
             </div>
           </div>
         ))}

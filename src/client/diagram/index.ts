@@ -41,34 +41,34 @@ interface LayerDefinition {
 
 const LAYER_DEFINITIONS: Record<string, LayerDefinition[]> = {
   inheritance: [
-    { level: 0, name: '根接口概览', nodeFilter: (n) => n.properties?.depth === 0 },
-    { level: 1, name: '2层继承深度', nodeFilter: (n) => (n.properties?.depth as number) <= 2 },
-    { level: 2, name: '完整继承树', nodeFilter: () => true },
+    { level: 0, name: 'layer.inheritance.0', nodeFilter: (n) => n.properties?.depth === 0 },
+    { level: 1, name: 'layer.inheritance.1', nodeFilter: (n) => (n.properties?.depth as number) <= 2 },
+    { level: 2, name: 'layer.inheritance.2', nodeFilter: () => true },
   ],
   callgraph: [
-    { level: 0, name: '入口函数概览', nodeFilter: (n) => n.properties?.isEntry === true },
-    { level: 1, name: '调用链2层', nodeFilter: (n) => (n.properties?.depth as number) <= 2 },
-    { level: 2, name: '完整调用图', nodeFilter: () => true },
+    { level: 0, name: 'layer.callgraph.0', nodeFilter: (n) => n.properties?.isEntry === true },
+    { level: 1, name: 'layer.callgraph.1', nodeFilter: (n) => (n.properties?.depth as number) <= 2 },
+    { level: 2, name: 'layer.callgraph.2', nodeFilter: () => true },
   ],
   package: [
-    { level: 0, name: '顶层包概览', nodeFilter: (n) => n.properties?.depth === 0 },
-    { level: 1, name: '子包展开', nodeFilter: (n) => (n.properties?.depth as number) <= 1 },
-    { level: 2, name: '包内模块', nodeFilter: () => true },
+    { level: 0, name: 'layer.package.0', nodeFilter: (n) => n.properties?.depth === 0 },
+    { level: 1, name: 'layer.package.1', nodeFilter: (n) => (n.properties?.depth as number) <= 1 },
+    { level: 2, name: 'layer.package.2', nodeFilter: () => true },
   ],
   class: [
-    { level: 0, name: '类概览', nodeFilter: (n) => n.properties?.depth === 0 },
-    { level: 1, name: '类关系图', nodeFilter: (n) => (n.properties?.depth as number) <= 2 },
-    { level: 2, name: '完整类图', nodeFilter: () => true },
+    { level: 0, name: 'layer.class.0', nodeFilter: (n) => n.properties?.depth === 0 },
+    { level: 1, name: 'layer.class.1', nodeFilter: (n) => (n.properties?.depth as number) <= 2 },
+    { level: 2, name: 'layer.class.2', nodeFilter: () => true },
   ],
   code: [
-    { level: 0, name: '目录聚类', nodeFilter: () => true },
-    { level: 1, name: '文件聚类', nodeFilter: () => true },
-    { level: 2, name: '全部节点', nodeFilter: () => true },
+    { level: 0, name: 'layer.code.0', nodeFilter: () => true },
+    { level: 1, name: 'layer.code.1', nodeFilter: () => true },
+    { level: 2, name: 'layer.code.2', nodeFilter: () => true },
   ],
   dependencies: [
-    { level: 0, name: '目录依赖概览', nodeFilter: (n) => n.properties?.depth === 0 },
-    { level: 1, name: '文件依赖', nodeFilter: (n) => (n.properties?.depth as number) <= 1 },
-    { level: 2, name: '模块依赖', nodeFilter: () => true },
+    { level: 0, name: 'layer.dependencies.0', nodeFilter: (n) => n.properties?.depth === 0 },
+    { level: 1, name: 'layer.dependencies.1', nodeFilter: (n) => (n.properties?.depth as number) <= 1 },
+    { level: 2, name: 'layer.dependencies.2', nodeFilter: () => true },
   ],
 };
 

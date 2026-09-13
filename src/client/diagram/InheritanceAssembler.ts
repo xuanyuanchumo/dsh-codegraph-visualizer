@@ -40,6 +40,8 @@ export class InheritanceAssembler implements DiagramAssembler {
       const childEdges = inEdges.get(n.id) ?? [];
       const stereotype = n.type === 'interface' ? '\u00ABinterface\u00BB\n' : '';
       const umlLabel = stereotype + n.label;
+      const isAbstract = n.type === 'interface' || (n.properties?.isAbstract === true) ||
+        (/^Abstract[A-Z]/.test(n.label) || /^I[A-Z][a-z]/.test(n.label) && n.type === 'class');
 
       return {
         ...n,
@@ -50,7 +52,7 @@ export class InheritanceAssembler implements DiagramAssembler {
           parentCount: parentEdges.length,
           childCount: childEdges.length,
           descendantCount: descendantCounts.get(n.id) ?? 0,
-          isAbstract: false,
+          isAbstract,
           umlLabel,
         },
       };
@@ -76,25 +78,27 @@ export class InheritanceAssembler implements DiagramAssembler {
     inEdges: Map<string, GraphEdge[]>,
   ): Map<string, number> {
     const counts = new Map<string, number>();
-    const visited = new Set<string>();
 
-    const countDescendants = (id: string): number => {
+    const countDescendants = (id: string, visited: Set<string>): number => {
       if (counts.has(id)) return counts.get(id)!;
       if (visited.has(id)) return 0;
       visited.add(id);
 
       const children = inEdges.get(id) ?? [];
+      const childSet = new Set<string>();
       let total = 0;
       for (const edge of children) {
-        total += 1 + countDescendants(edge.source);
+        if (!childSet.has(edge.source)) {
+          childSet.add(edge.source);
+          total += 1 + countDescendants(edge.source, visited);
+        }
       }
       counts.set(id, total);
-      visited.delete(id);
       return total;
     };
 
     for (const rootId of rootIds) {
-      countDescendants(rootId);
+      countDescendants(rootId, new Set());
     }
 
     return counts;

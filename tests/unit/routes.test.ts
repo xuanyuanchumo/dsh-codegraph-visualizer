@@ -252,7 +252,7 @@ describe('registerRoutes', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '.' })), res);
     expect(state.code).toBe(500);
-    expect(JSON.parse(state.body).error).toBe('Internal server error');
+    expect(JSON.parse(state.body).error).toBe('Scan failed — check codegraph installation');
   });
 
   it('POST /scan returns cached data when within TTL', async () => {
@@ -298,7 +298,7 @@ describe('registerRoutes', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '.' })), res);
     expect(state.code).toBe(500);
-    expect(JSON.parse(state.body).error).toBe('Internal server error');
+    expect(JSON.parse(state.body).error).toBe('Initialization failed — is dsh-codegraph installed?');
   });
 
   it('POST /watch toggles watch mode', async () => {
@@ -337,7 +337,7 @@ describe('registerRoutes', () => {
     };
     await handler(req as unknown as IncomingMessage, res);
     expect(state.code).toBe(500);
-    expect(JSON.parse(state.body).error).toBe('Internal server error');
+    expect(JSON.parse(state.body).error).toBe('Watch toggle failed');
   });
 
   it('GET /dependencies returns empty when no workspace', async () => {
@@ -765,7 +765,7 @@ describe('POST /ast', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
     expect(state.code).toBe(500);
-    expect(JSON.parse(state.body).error).toBe('Internal server error');
+    expect(JSON.parse(state.body).error).toBe('AST parsing failed');
   });
 });
 
@@ -965,7 +965,7 @@ describe('POST /diff (additional)', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ from: 'main', to: 'feature' })), res);
     expect(state.code).toBe(500);
-    expect(JSON.parse(state.body).error).toBe('Internal server error');
+    expect(JSON.parse(state.body).error).toBe('Graph diff failed — check git refs');
   });
 
   it('handles CORS preflight', async () => {

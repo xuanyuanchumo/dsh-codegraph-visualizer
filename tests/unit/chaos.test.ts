@@ -15,6 +15,7 @@ function makeSnapshot(overrides: Partial<HistorySnapshot> = {}): HistorySnapshot
     clusterDepth: 1,
     selectedNodeId: null,
     expandedNodeIds: new Set<string>(),
+    viewMode: 'code',
     ...overrides,
   };
 }

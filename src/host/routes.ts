@@ -239,6 +239,7 @@ export function registerRoutes(deps: RouteDeps): void {
       'access-control-allow-methods': 'GET, POST, OPTIONS',
       'access-control-allow-headers': 'content-type, if-none-match',
       'access-control-max-age': '86400',
+      'vary': 'Origin',
     };
     if (origins.length > 0) {
       const reqOrigin = req.headers?.['origin'];
@@ -380,7 +381,7 @@ export function registerRoutes(deps: RouteDeps): void {
         }
       } catch (e) {
         log.error('scan failed', e);
-        sendError(res, 500, 'Internal server error', req);
+        sendError(res, 500, 'Scan failed — check codegraph installation', req);
       }
     },
   }), 'codegraph: scan route');
@@ -434,7 +435,7 @@ export function registerRoutes(deps: RouteDeps): void {
           timestamp: Date.now(),
         };
         deps.setLastInitResult(errorResult);
-        sendError(res, 500, 'Internal server error', req);
+        sendError(res, 500, 'Initialization failed — is dsh-codegraph installed?', req);
       }
     },
   }), 'codegraph: init route');
@@ -460,7 +461,7 @@ export function registerRoutes(deps: RouteDeps): void {
         sendJson(res, 200, { success: true, enabled: !!enabled, path: watchPath }, req);
       } catch (e) {
         log.warn('watch route failed', e);
-        sendError(res, 500, 'Internal server error', req);
+        sendError(res, 500, 'Watch toggle failed', req);
       }
     },
   }), 'codegraph: watch route');
@@ -580,7 +581,7 @@ export function registerRoutes(deps: RouteDeps): void {
         }, req);
       } catch (e) {
         log.error('diff route failed', e);
-        sendError(res, 500, 'Internal server error', req);
+        sendError(res, 500, 'Graph diff failed — check git refs', req);
       }
     },
   }), 'codegraph: diff route');
@@ -631,7 +632,7 @@ export function registerRoutes(deps: RouteDeps): void {
           sendJson(res, 200, astRoot, req);
         } catch (e) {
           log.error('ast route failed', e);
-          sendError(res, 500, 'Internal server error', req);
+          sendError(res, 500, 'AST parsing failed', req);
         }
       },
     });

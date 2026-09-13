@@ -21,7 +21,9 @@ interface SearchBarProps {
 export function SearchBar({ query, matchCount, searchResults, onChange, onClose, onSelectResult }: SearchBarProps) {
   const t = useT();
   const [showResults, setShowResults] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -33,10 +35,32 @@ export function SearchBar({ query, matchCount, searchResults, onChange, onClose,
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  useEffect(() => {
+    setActiveIndex(-1);
+  }, [query]);
+
   const handleSelect = (id: string) => {
     onSelectResult(id);
     setShowResults(false);
+    setActiveIndex(-1);
   };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!showResults || searchResults.length === 0) return;
+    const maxIdx = Math.min(searchResults.length, 10) - 1;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((prev) => prev < maxIdx ? prev + 1 : 0);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((prev) => prev > 0 ? prev - 1 : maxIdx);
+    } else if (e.key === 'Enter' && activeIndex >= 0 && activeIndex < displayResults.length) {
+      e.preventDefault();
+      handleSelect(displayResults[activeIndex]!.id);
+    }
+  };
+
+  const displayResults = searchResults.slice(0, 10);
 
   return (
     <div className="search-bar" ref={containerRef}>
@@ -49,6 +73,7 @@ export function SearchBar({ query, matchCount, searchResults, onChange, onClose,
         value={query}
         onChange={(e) => { onChange(e.target.value); setShowResults(true); }}
         onFocus={() => setShowResults(true)}
+        onKeyDown={handleKeyDown}
         autoFocus
         aria-label={t('search.placeholder')}
       />
@@ -62,10 +87,10 @@ export function SearchBar({ query, matchCount, searchResults, onChange, onClose,
       )}
       {!query && <span className="search-hint">{t('search.debounced')}</span>}
       {showResults && query && searchResults.length > 0 && (
-        <ul className="search-results" role="listbox">
-          {searchResults.slice(0, 10).map((item) => (
-            <li key={item.id} role="option" aria-selected="false"
-              className="search-result-item"
+        <ul className="search-results" role="listbox" ref={listRef}>
+          {displayResults.map((item, idx) => (
+            <li key={item.id} role="option" aria-selected={idx === activeIndex}
+              className={`search-result-item ${idx === activeIndex ? 'active' : ''}`}
               onClick={() => handleSelect(item.id)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSelect(item.id); }}
               tabIndex={0}
