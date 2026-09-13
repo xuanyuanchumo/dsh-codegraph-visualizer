@@ -765,7 +765,7 @@ describe('POST /ast', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
     expect(state.code).toBe(500);
-    expect(JSON.parse(state.body).error).toBe('AST parsing failed');
+    expect(JSON.parse(state.body).error).toContain('AST parsing failed');
   });
 });
 

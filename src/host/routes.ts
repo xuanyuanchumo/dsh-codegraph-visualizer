@@ -633,13 +633,13 @@ export function registerRoutes(deps: RouteDeps): void {
           }
           const astRoot = await treeSitterAdapter.parseToAst(filePath, content);
           if (!astRoot) {
-            sendError(res, 500, 'AST parsing failed', req);
+            sendError(res, 500, `AST parsing failed: parseToAst returned null for ${filePath}`, req);
             return;
           }
           sendJson(res, 200, astRoot, req);
         } catch (e) {
           log.error('ast route failed', e);
-          sendError(res, 500, 'AST parsing failed', req);
+          sendError(res, 500, `AST parsing failed: ${e instanceof Error ? e.message : String(e)}`, req);
         }
       },
     });

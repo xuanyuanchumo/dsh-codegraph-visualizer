@@ -13,6 +13,8 @@ const FILE_EXTENSIONS: Record<string, SupportedLanguage> = {
   '.tsx': 'typescript',
   '.js': 'javascript',
   '.jsx': 'javascript',
+  '.mjs': 'javascript',
+  '.cjs': 'javascript',
   '.py': 'python',
   '.java': 'java',
   '.rs': 'rust',
@@ -66,6 +68,7 @@ export class TreeSitterAdapter {
     if (this.parser) return;
     try {
       const { Parser } = await import('web-tree-sitter');
+      await Parser.init();
       this.parser = new Parser() as unknown as TreeSitterParser;
       log.info('TreeSitter parser initialized');
     } catch (e) {
@@ -129,17 +132,20 @@ export class TreeSitterAdapter {
 
     const candidates: string[] = [];
 
-    // In browser context (both ESM and CJS bundles), use document.baseURI
-    // for relative URL resolution. This avoids `import.meta` syntax which
-    // is a SyntaxError in CJS/classic-script bundles.
+    if (typeof globalThis.document === 'undefined') {
+      try {
+        const { getWasmPath } = await import('tree-sitter-wasm');
+        const absPath = getWasmPath(language);
+        candidates.push(absPath);
+      } catch { /* tree-sitter-wasm not available */ }
+    }
+
     const doc = (globalThis as Record<string, unknown>).document as { baseURI?: string } | undefined;
     if (doc && doc.baseURI) {
-      // DSH plugin directory — WASM files are copied here during build
       try { candidates.push(new URL(`plugins/dsh-codegraph-visualizer/${wasmFile}`, doc.baseURI).href); } catch { /* URL resolution fallback */ }
       try { candidates.push(new URL(`node_modules/web-tree-sitter/dist/${wasmFile}`, doc.baseURI).href); } catch { /* URL resolution fallback */ }
     }
 
-    // Bare filename as last resort (relative to page)
     candidates.push(wasmFile);
 
     for (const path of candidates) {
@@ -223,17 +229,23 @@ export class TreeSitterAdapter {
   async parseToAst(filePath: string, content: string): Promise<ASTNode | null> {
     if (!this.parser) {
       await this.init();
-      if (!this.parser) return null;
+      if (!this.parser) {
+        log.warn('parseToAst: parser not initialized after init()');
+        return null;
+      }
     }
     const language = this.detectLanguage(filePath);
-    if (!language) return null;
+    if (!language) {
+      log.warn(`parseToAst: unsupported file extension: ${filePath}`);
+      return null;
+    }
     if (!this.loadedLanguages.has(language)) {
       try {
         const langModule = await this.loadLanguageWasm(language);
         this.parser.setLanguage(langModule);
         this.loadedLanguages.add(language);
       } catch (e) {
-        log.warn(`getAST: failed to load language: ${language}`, e);
+        log.warn(`parseToAst: failed to load language ${language}:`, e);
         return null;
       }
     }
@@ -243,7 +255,7 @@ export class TreeSitterAdapter {
       tree.delete();
       return astRoot;
     } catch (e) {
-      log.warn(`getAST: parse failed: ${filePath}`, e);
+      log.warn(`parseToAst: parse failed for ${filePath}:`, e);
       return null;
     }
   }

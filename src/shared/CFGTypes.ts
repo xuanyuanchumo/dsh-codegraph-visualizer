@@ -50,7 +50,7 @@ const CLASS_CONTAINER_TYPES = new Set([
   'interface_declaration', 'struct_declaration',
   'enum_declaration', 'trait_declaration',
   'module_declaration', 'namespace_declaration',
-  'program', 'source_file', 'module',
+  'program', 'source_file', 'module', 'mod_item',
 ]);
 
 const BODY_NODE_TYPES = new Set([
@@ -61,38 +61,23 @@ const BODY_NODE_TYPES = new Set([
 export function findFunctionNode(astRoot: ASTNode, functionName: string): ASTNode | null {
   const normalizedTarget = functionName.replace(/^.*\./, '');
 
-  if (FUNCTION_NODE_TYPES.has(astRoot.type)) {
-    const nameNode = astRoot.children.find(
-      (c) => c.type === 'identifier' || c.type === 'property_identifier' || c.type === 'name',
-    );
-    if (!nameNode || nameNode.text === functionName || nameNode.text === normalizedTarget) {
-      return astRoot;
-    }
-  }
-
-  const searchInNode = (node: ASTNode): ASTNode | null => {
-    for (const child of node.children) {
-      if (FUNCTION_NODE_TYPES.has(child.type)) {
-        const nameNode = child.children.find(
-          (c) => c.type === 'identifier' || c.type === 'property_identifier' || c.type === 'name',
-        );
-        if (nameNode) {
-          if (nameNode.text === functionName || nameNode.text === normalizedTarget) {
-            return child;
-          }
-        }
+  const matchNode = (node: ASTNode): ASTNode | null => {
+    if (FUNCTION_NODE_TYPES.has(node.type)) {
+      const nameNode = node.children.find(
+        (c) => c.type === 'identifier' || c.type === 'property_identifier' || c.type === 'name',
+      );
+      if (!nameNode || nameNode.text === functionName || nameNode.text === normalizedTarget) {
+        return node;
       }
     }
     for (const child of node.children) {
-      if (CLASS_CONTAINER_TYPES.has(child.type)) {
-        const found = searchInNode(child);
-        if (found) return found;
-      }
+      const found = matchNode(child);
+      if (found) return found;
     }
     return null;
   };
 
-  return searchInNode(astRoot);
+  return matchNode(astRoot);
 }
 
 export function getFunctionBody(funcNode: ASTNode): ASTNode[] {

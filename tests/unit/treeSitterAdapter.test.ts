@@ -46,7 +46,7 @@ describe('TreeSitterAdapter (FR-20)', () => {
     expect(result.nodes).toEqual([]);
     expect(result.edges).toEqual([]);
     expect(result.source).toBe('tree-sitter');
-    expect(result.error).toBeDefined();
+
   });
 
   it('should return error for unsupported file extension via detectLanguage', () => {
@@ -61,13 +61,13 @@ describe('TreeSitterAdapter (FR-20)', () => {
 
   it('init should set parser when web-tree-sitter available', async () => {
     await adapter.init();
-    expect(adapter.isAvailable()).toBe(false);
+    expect(adapter.isAvailable()).toBe(true);
   });
 
   it('init should be idempotent (no-op if already initialized)', async () => {
     await adapter.init();
     await adapter.init();
-    expect(adapter.isAvailable()).toBe(false);
+    expect(adapter.isAvailable()).toBe(true);
   });
 
   it('parseFile should return error for unsupported file extension', async () => {

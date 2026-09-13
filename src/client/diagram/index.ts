@@ -228,7 +228,10 @@ export async function assembleMicroDiagram(
       throw new Error(`File too large for AST parsing: ${filePath}`);
     }
     if (status === 500) {
-      throw new Error(`AST parsing failed for "${filePath}" — language may be unsupported or file unreadable`);
+      const errorBody = await response.text();
+      let serverMsg = '';
+      try { const parsed = JSON.parse(errorBody); serverMsg = parsed.error || ''; } catch { serverMsg = errorBody; }
+      throw new Error(serverMsg || `AST parsing failed for "${filePath}"`);
     }
     throw new Error(`AST request failed (HTTP ${status})`);
   }
