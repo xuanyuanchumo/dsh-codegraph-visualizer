@@ -14,16 +14,6 @@ import type {
   SequenceData,
 } from './SequenceTypes.ts';
 
-let seqCounter = 0;
-
-function nextId(prefix: string): string {
-  return `${prefix}-${seqCounter++}`;
-}
-
-function resetCounter(): void {
-  seqCounter = 0;
-}
-
 const CALL_NODE_TYPES = new Set([
   'call_expression', 'call', 'method_call', 'function_call',
 ]);
@@ -142,8 +132,14 @@ function getFinallyNode(node: ASTNode): ASTNode | null {
 }
 
 export class SequenceAssembler {
+  private seqCounter = 0;
+
+  private nextId(prefix: string): string {
+    return `${prefix}-${this.seqCounter++}`;
+  }
+
   assemble(astRoot: ASTNode, filePath: string, functionName: string): AssembledDiagram {
-    resetCounter();
+    this.seqCounter = 0;
 
     const participants = new Map<string, Participant>();
     const messages: SequenceMessage[] = [];
@@ -151,7 +147,7 @@ export class SequenceAssembler {
     let messageSeq = 0;
 
     const entryParticipant: Participant = {
-      id: nextId('participant'),
+      id: this.nextId('participant'),
       name: functionName,
       type: 'self',
       lifelineStart: 0,
@@ -174,8 +170,6 @@ export class SequenceAssembler {
         msg.sequenceNumber = messageSeq++;
         messages.push(msg);
       },
-      filePath,
-      functionName,
     );
 
     for (const participant of participants.values()) {
@@ -199,8 +193,6 @@ export class SequenceAssembler {
     messages: SequenceMessage[],
     fragments: CombinedFragment[],
     addMessage: (msg: SequenceMessage) => void,
-    filePath: string,
-    functionName: string,
   ): void {
     for (const stmt of statements) {
       if (!stmt) continue;
@@ -208,7 +200,7 @@ export class SequenceAssembler {
       if (isCallExpression(stmt)) {
         this.processCall(stmt, selfId, participants, addMessage);
       } else if (isControlFlow(stmt)) {
-        this.processControlFlow(stmt, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+        this.processControlFlow(stmt, selfId, participants, messages, fragments, addMessage);
       } else {
         const childCalls: ASTNode[] = [];
         this.collectCalls(stmt, childCalls);
@@ -220,11 +212,14 @@ export class SequenceAssembler {
   }
 
   private collectCalls(node: ASTNode, result: ASTNode[]): void {
+    if (!node) return;
     if (isCallExpression(node)) {
       result.push(node);
       return;
     }
-    for (const child of node.children) {
+    const children = node.children;
+    if (!children || !Array.isArray(children)) return;
+    for (const child of children) {
       this.collectCalls(child, result);
     }
   }
@@ -247,7 +242,7 @@ export class SequenceAssembler {
       if (!participants.has(participantName)) {
         const participantType = inferParticipantType(receiverName, methodName);
         participants.set(participantName, {
-          id: nextId('participant'),
+          id: this.nextId('participant'),
           name: participantName,
           type: participantType,
           ...(receiverName && receiverName.charAt(0) === receiverName.charAt(0).toUpperCase() ? { className: receiverName } : {}),
@@ -261,7 +256,7 @@ export class SequenceAssembler {
     }
 
     const msg: SequenceMessage = {
-      id: nextId('msg'),
+      id: this.nextId('msg'),
       sequenceNumber: 0,
       source: selfId,
       target: targetId,
@@ -284,20 +279,17 @@ export class SequenceAssembler {
     messages: SequenceMessage[],
     fragments: CombinedFragment[],
     addMessage: (msg: SequenceMessage) => void,
-    filePath: string,
-    functionName: string,
   ): void {
     const t = node.type;
 
-
     if (t === 'if_statement' || t === 'if') {
-      this.processIfFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+      this.processIfFragment(node, selfId, participants, messages, fragments, addMessage);
     } else if (t === 'for_statement' || t === 'for' || t === 'while_statement' || t === 'while') {
-      this.processLoopFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+      this.processLoopFragment(node, selfId, participants, messages, fragments, addMessage);
     } else if (t === 'switch_statement' || t === 'switch') {
-      this.processSwitchFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+      this.processSwitchFragment(node, selfId, participants, messages, fragments, addMessage);
     } else if (t === 'try_statement' || t === 'try') {
-      this.processTryFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+      this.processTryFragment(node, selfId, participants, messages, fragments, addMessage);
     } else if (t === 'return_statement' || t === 'return') {
       this.processReturnMessage(node, selfId, participants, addMessage);
     } else if (t === 'throw_statement' || t === 'throw') {
@@ -312,8 +304,6 @@ export class SequenceAssembler {
     messages: SequenceMessage[],
     fragments: CombinedFragment[],
     addMessage: (msg: SequenceMessage) => void,
-    filePath: string,
-    functionName: string,
   ): void {
     const condText = getConditionText(node);
     const elseBody = getElseBody(node);
@@ -322,7 +312,7 @@ export class SequenceAssembler {
     const startSeq = messages.length;
 
     const trueBody = getBodyChildren(node);
-    this.processStatements(trueBody, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+    this.processStatements(trueBody, selfId, participants, messages, fragments, addMessage);
     const trueEnd = messages.length;
 
     const operands: FragmentOperand[] = [
@@ -331,7 +321,7 @@ export class SequenceAssembler {
 
     if (elseBody.length > 0) {
       const elseStart = messages.length;
-      this.processStatements(elseBody, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+      this.processStatements(elseBody, selfId, participants, messages, fragments, addMessage);
       const elseEnd = messages.length;
       operands.push({ guardCondition: 'else', startMessage: elseStart, endMessage: elseEnd });
     }
@@ -339,7 +329,7 @@ export class SequenceAssembler {
     const endSeq = messages.length;
 
     fragments.push({
-      id: nextId('fragment'),
+      id: this.nextId('fragment'),
       type: fragmentType,
       condition: condText,
       startMessage: startSeq,
@@ -355,19 +345,17 @@ export class SequenceAssembler {
     messages: SequenceMessage[],
     fragments: CombinedFragment[],
     addMessage: (msg: SequenceMessage) => void,
-    filePath: string,
-    functionName: string,
   ): void {
     const condText = getConditionText(node);
     const startSeq = messages.length;
 
     const body = getBodyChildren(node);
-    this.processStatements(body, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+    this.processStatements(body, selfId, participants, messages, fragments, addMessage);
 
     const endSeq = messages.length;
 
     fragments.push({
-      id: nextId('fragment'),
+      id: this.nextId('fragment'),
       type: 'loop',
       condition: condText,
       loopConstraint: condText,
@@ -384,8 +372,6 @@ export class SequenceAssembler {
     messages: SequenceMessage[],
     fragments: CombinedFragment[],
     addMessage: (msg: SequenceMessage) => void,
-    filePath: string,
-    functionName: string,
   ): void {
     const condText = getConditionText(node);
     const startSeq = messages.length;
@@ -397,7 +383,7 @@ export class SequenceAssembler {
       const label = getCaseLabel(caseNode);
       const caseBody = getCaseBody(caseNode);
       const caseStart = messages.length;
-      this.processStatements(caseBody, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+      this.processStatements(caseBody, selfId, participants, messages, fragments, addMessage);
       const caseEnd = messages.length;
       operands.push({
         guardCondition: label === 'default' ? 'default' : `case ${label}`,
@@ -409,7 +395,7 @@ export class SequenceAssembler {
     const endSeq = messages.length;
 
     fragments.push({
-      id: nextId('fragment'),
+      id: this.nextId('fragment'),
       type: 'alt',
       condition: condText,
       startMessage: startSeq,
@@ -425,18 +411,16 @@ export class SequenceAssembler {
     messages: SequenceMessage[],
     fragments: CombinedFragment[],
     addMessage: (msg: SequenceMessage) => void,
-    filePath: string,
-    functionName: string,
   ): void {
     const startSeq = messages.length;
 
     const tryBody = node.children.find((c) => c.type === 'block' || c.type === 'statement_block');
     const tryStmts = tryBody ? tryBody.children : [];
-    this.processStatements(tryStmts, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+    this.processStatements(tryStmts, selfId, participants, messages, fragments, addMessage);
     const tryEnd = messages.length;
 
     fragments.push({
-      id: nextId('fragment'),
+      id: this.nextId('fragment'),
       type: 'critical',
       condition: 'try',
       startMessage: startSeq,
@@ -449,11 +433,11 @@ export class SequenceAssembler {
       const catchStart = messages.length;
       const catchBody = catchNode.children.find((c) => c.type === 'block' || c.type === 'statement_block');
       const catchStmts = catchBody ? catchBody.children : [];
-      this.processStatements(catchStmts, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+      this.processStatements(catchStmts, selfId, participants, messages, fragments, addMessage);
       const catchEnd = messages.length;
 
       fragments.push({
-        id: nextId('fragment'),
+        id: this.nextId('fragment'),
         type: 'break',
         condition: 'catch',
         startMessage: catchStart,
@@ -467,11 +451,11 @@ export class SequenceAssembler {
       const finallyStart = messages.length;
       const finallyBody = finallyNode.children.find((c) => c.type === 'block' || c.type === 'statement_block');
       const finallyStmts = finallyBody ? finallyBody.children : [];
-      this.processStatements(finallyStmts, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+      this.processStatements(finallyStmts, selfId, participants, messages, fragments, addMessage);
       const finallyEnd = messages.length;
 
       fragments.push({
-        id: nextId('fragment'),
+        id: this.nextId('fragment'),
         type: 'critical',
         condition: 'finally',
         startMessage: finallyStart,
@@ -488,7 +472,7 @@ export class SequenceAssembler {
     addMessage: (msg: SequenceMessage) => void,
   ): void {
     const msg: SequenceMessage = {
-      id: nextId('msg'),
+      id: this.nextId('msg'),
       sequenceNumber: 0,
       source: selfId,
       target: selfId,
@@ -514,7 +498,7 @@ export class SequenceAssembler {
     const startSeq = messages.length;
 
     const msg: SequenceMessage = {
-      id: nextId('msg'),
+      id: this.nextId('msg'),
       sequenceNumber: 0,
       source: selfId,
       target: selfId,
@@ -531,7 +515,7 @@ export class SequenceAssembler {
     const endSeq = messages.length;
 
     fragments.push({
-      id: nextId('fragment'),
+      id: this.nextId('fragment'),
       type: 'break',
       condition: 'throw',
       startMessage: startSeq,

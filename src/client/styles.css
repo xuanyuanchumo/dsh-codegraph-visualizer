@@ -986,6 +986,101 @@ body[data-ds-dark-theme] .depth-select {
   pointer-events: none;
 }
 
+.seq-zoom-controls {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 10;
+}
+
+.seq-zoom-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--cg-border-strong);
+  background: var(--cg-surface);
+  color: var(--cg-text);
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.seq-zoom-btn:hover {
+  background: var(--cg-surface-hover);
+  border-color: var(--cg-accent);
+}
+
+.seq-zoom-btn:active {
+  background: var(--cg-surface-active);
+}
+
+.seq-zoom-btn.seq-reset {
+  font-size: 10px;
+}
+
+.seq-zoom-indicator {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  color: var(--cg-text-secondary);
+  font-size: 10px;
+  font-family: monospace;
+  z-index: 10;
+}
+
+.seq-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--cg-text-secondary);
+  font-size: 14px;
+}
+
+.seq-participant-group {
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.seq-participant-group:hover {
+  opacity: 0.85;
+}
+
+.seq-participant-group:hover .seq-participant-box {
+  stroke-width: 3;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+}
+
+.seq-participant-box {
+  transition: stroke-width 0.15s, filter 0.15s;
+}
+
+.seq-message-group {
+  cursor: pointer;
+}
+
+.seq-message-group:hover .seq-message-line {
+  stroke-width: 2.5;
+}
+
+.seq-message-line {
+  transition: stroke-width 0.15s;
+}
+
+.seq-fragment-group {
+  transition: opacity 0.15s;
+}
+
+.seq-fragment-group:hover {
+  opacity: 0.9;
+}
+
 /* ---- Node detail panel --------------------------------------------------- */
 
 .node-detail-panel {
@@ -3868,7 +3963,7 @@ body[data-ds-dark-theme] .depth-select {
 
 .micro-function-bar {
   position: absolute;
-  top:'8px';
+  top: 8px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -3878,9 +3973,11 @@ body[data-ds-dark-theme] .depth-select {
   border-radius: var(--cg-radius-xs);
   background: var(--cg-surface);
   border: 1px solid var(--cg-border);
-  color: var(--cg-text);
+  color: var(--cg-text3, var(--cg-text));
   font-size: 12px;
   z-index: 10;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .micro-function-close {
@@ -3897,6 +3994,36 @@ body[data-ds-dark-theme] .depth-select {
 .micro-function-close:hover {
   color: var(--cg-text);
   background: var(--cg-surface-hover);
+}
+
+.micro-function-mode {
+  font-weight: 600;
+  color: var(--cg-accent);
+  padding: 1px 6px;
+  border-radius: var(--cg-radius-xs);
+  background: var(--cg-accent-soft);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.micro-function-name {
+  font-weight: 500;
+  color: var(--cg-text);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.micro-function-path {
+  color: var(--cg-text-secondary);
+  font-size: 10px;
+  opacity: 0.7;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* ============================================================================
  * Sidebar Navigation Button & Floating Graph Panel

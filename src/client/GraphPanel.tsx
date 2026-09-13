@@ -575,7 +575,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       )}
 
       {isMicroView && selectedFunction && !isCollapsed && (
-        <MicroFunctionBar functionName={selectedFunction.functionName} onClose={handleCloseMicroView} />
+        <MicroFunctionBar functionName={selectedFunction.functionName} filePath={selectedFunction.filePath} viewMode={viewMode} onClose={handleCloseMicroView} />
       )}
 
       {nodes.length === 0 && !isLoading && !error && !isCollapsed && !isMicroView && (

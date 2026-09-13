@@ -3,40 +3,41 @@ import { NodeId, EdgeId } from '../../types/index.ts';
 import type { AssembledDiagram } from './DiagramAssembler.ts';
 import type { ASTNode, StatementInfo } from '../../shared/CFGTypes.ts';
 import { CFGAssembler } from './CFGAssembler.ts';
+import { t } from '../i18n/index.ts';
 
 const PROCESS_KEYWORDS: Record<string, string> = {
-  init: '初始化',
-  prepare: '数据准备',
-  load: '加载数据',
-  save: '保存数据',
-  fetch: '获取数据',
-  find: '查找',
-  create: '创建',
-  update: '更新',
-  delete: '删除',
-  validate: '验证',
-  check: '检查',
-  parse: '解析',
-  format: '格式化',
-  transform: '转换',
-  render: '渲染',
-  compute: '计算',
-  build: '构建',
-  register: '注册',
-  cleanup: '清理',
-  destroy: '销毁',
-  start: '开始',
-  stop: '停止',
-  handle: '处理',
-  send: '发送',
-  receive: '接收',
-  read: '读取',
-  write: '写入',
-  log: '记录日志',
-  notify: '通知',
-  dispatch: '分发',
-  resolve: '解析',
-  reject: '拒绝',
+  init: 'flowchart.semantic.init',
+  prepare: 'flowchart.semantic.prepare',
+  load: 'flowchart.semantic.load',
+  save: 'flowchart.semantic.save',
+  fetch: 'flowchart.semantic.fetch',
+  find: 'flowchart.semantic.find',
+  create: 'flowchart.semantic.create',
+  update: 'flowchart.semantic.update',
+  delete: 'flowchart.semantic.delete',
+  validate: 'flowchart.semantic.validate',
+  check: 'flowchart.semantic.check',
+  parse: 'flowchart.semantic.parse',
+  format: 'flowchart.semantic.format',
+  transform: 'flowchart.semantic.transform',
+  render: 'flowchart.semantic.render',
+  compute: 'flowchart.semantic.compute',
+  build: 'flowchart.semantic.build',
+  register: 'flowchart.semantic.register',
+  cleanup: 'flowchart.semantic.cleanup',
+  destroy: 'flowchart.semantic.destroy',
+  start: 'flowchart.semantic.start',
+  stop: 'flowchart.semantic.stop',
+  handle: 'flowchart.semantic.handle',
+  send: 'flowchart.semantic.send',
+  receive: 'flowchart.semantic.receive',
+  read: 'flowchart.semantic.read',
+  write: 'flowchart.semantic.write',
+  log: 'flowchart.semantic.log',
+  notify: 'flowchart.semantic.notify',
+  dispatch: 'flowchart.semantic.dispatch',
+  resolve: 'flowchart.semantic.resolve',
+  reject: 'flowchart.semantic.reject',
 };
 
 export interface FlowchartNode {
@@ -54,16 +55,6 @@ export interface FlowchartEdge {
   edgeType: 'normal' | 'yes' | 'no' | 'loop' | 'error';
 }
 
-let fcCounter = 0;
-
-function nextFcId(): string {
-  return `fc-node-${fcCounter++}`;
-}
-
-function resetCounter(): void {
-  fcCounter = 0;
-}
-
 function inferSemanticLabel(statements: StatementInfo[], blockLabel: string): string {
   if (statements.length === 0) return blockLabel;
 
@@ -72,12 +63,12 @@ function inferSemanticLabel(statements: StatementInfo[], blockLabel: string): st
 
   const text = firstStmt.text.toLowerCase();
 
-  for (const [keyword, label] of Object.entries(PROCESS_KEYWORDS)) {
-    if (text.includes(keyword)) return label;
+  for (const [keyword, i18nKey] of Object.entries(PROCESS_KEYWORDS)) {
+    if (text.includes(keyword)) return t(i18nKey);
   }
 
-  if (firstStmt.type === 'return') return '返回结果';
-  if (firstStmt.type === 'throw') return '抛出异常';
+  if (firstStmt.type === 'return') return t('flowchart.returnResult');
+  if (firstStmt.type === 'throw') return t('flowchart.throwException');
 
   if (statements.length === 1) {
     return simplifyForLabel(firstStmt.text);
@@ -86,11 +77,11 @@ function inferSemanticLabel(statements: StatementInfo[], blockLabel: string): st
   const verbMatch = text.match(/^(\w+)\s*\(/);
   if (verbMatch && verbMatch[1]) {
     const verb = verbMatch[1];
-    if (PROCESS_KEYWORDS[verb]) return PROCESS_KEYWORDS[verb];
+    if (PROCESS_KEYWORDS[verb]) return t(PROCESS_KEYWORDS[verb]!);
     return `${verb}()`;
   }
 
-  return `${statements.length} 条语句`;
+  return t('flowchart.statementsCount', { n: statements.length });
 }
 
 function simplifyForLabel(text: string, maxLen = 20): string {
@@ -108,7 +99,7 @@ function conditionToQuestion(condText: string): string {
   }
 
   if (trimmed.startsWith('while') || trimmed.startsWith('for')) {
-    return `循环: ${trimmed}`;
+    return t('flowchart.loopPrefix', { cond: trimmed });
   }
 
   return `${trimmed}?`;
@@ -116,9 +107,14 @@ function conditionToQuestion(condText: string): string {
 
 export class FlowchartAssembler {
   private cfgAssembler = new CFGAssembler();
+  private fcCounter = 0;
+
+  private nextFcId(): string {
+    return `fc-node-${this.fcCounter++}`;
+  }
 
   assemble(astRoot: ASTNode, filePath: string, functionName: string): AssembledDiagram {
-    resetCounter();
+    this.fcCounter = 0;
 
     const cfgResult = this.cfgAssembler.assemble(astRoot, filePath, functionName);
 
@@ -144,7 +140,7 @@ export class FlowchartAssembler {
     const blockToFc = new Map<string, string>();
 
     for (const block of cfgBlocks) {
-      const fcId = nextFcId();
+      const fcId = this.nextFcId();
       blockToFc.set(block.id, fcId);
 
       let nodeType: FlowchartNode['nodeType'] = 'process';
@@ -152,10 +148,10 @@ export class FlowchartAssembler {
 
       if (block.isEntry) {
         nodeType = 'start';
-        label = '开始';
+        label = t('flowchart.start');
       } else if (block.isExit) {
         nodeType = block.label === 'throw' ? 'error' : 'end';
-        label = block.label === 'throw' ? '异常退出' : '结束';
+        label = block.label === 'throw' ? t('flowchart.errorExit') : t('flowchart.end');
       } else if (block.blockType === 'condition') {
         nodeType = 'decision';
         label = conditionToQuestion(block.label);
@@ -164,16 +160,16 @@ export class FlowchartAssembler {
         label = conditionToQuestion(block.label);
       } else if (block.blockType === 'switch') {
         nodeType = 'decision';
-        label = `switch: ${block.label}`;
+        label = t('flowchart.switchPrefix', { expr: block.label });
       } else if (block.blockType === 'try') {
         nodeType = 'process';
-        label = '尝试执行';
+        label = t('flowchart.tryBlock');
       } else if (block.blockType === 'catch') {
         nodeType = 'error';
-        label = '捕获异常';
+        label = t('flowchart.catchBlock');
       } else if (block.blockType === 'finally') {
         nodeType = 'process';
-        label = '最终处理';
+        label = t('flowchart.finallyBlock');
       } else {
         nodeType = 'process';
         label = inferSemanticLabel(block.statements, block.label);
@@ -196,25 +192,25 @@ export class FlowchartAssembler {
       let flowchartEdgeType: FlowchartEdge['edgeType'] = 'normal';
 
       if (edge.edgeType === 'true') {
-        edgeLabel = '是';
+        edgeLabel = t('flowchart.edge.yes');
         flowchartEdgeType = 'yes';
       } else if (edge.edgeType === 'false') {
-        edgeLabel = '否';
+        edgeLabel = t('flowchart.edge.no');
         flowchartEdgeType = 'no';
       } else if (edge.edgeType === 'loop-back') {
-        edgeLabel = '循环';
+        edgeLabel = t('flowchart.edge.loop');
         flowchartEdgeType = 'loop';
       } else if (edge.edgeType === 'exception') {
-        edgeLabel = '异常';
+        edgeLabel = t('flowchart.edge.error');
         flowchartEdgeType = 'error';
       } else if (edge.edgeType === 'case') {
         edgeLabel = edge.condition;
       } else if (edge.edgeType === 'default') {
-        edgeLabel = '默认';
+        edgeLabel = t('flowchart.edge.default');
       } else if (edge.edgeType === 'break') {
-        edgeLabel = '跳出';
+        edgeLabel = t('flowchart.edge.break');
       } else if (edge.edgeType === 'continue') {
-        edgeLabel = '继续';
+        edgeLabel = t('flowchart.edge.continue');
       }
 
       fcEdges.push({

@@ -116,7 +116,7 @@ export class CFGAssembler {
     const funcNode = findFunctionNode(astRoot, functionName);
     const targetChildren = funcNode ? getFunctionBody(funcNode) : astRoot.children;
 
-    this.processStatements(targetChildren, entryBlock.id, exitBlock.id, blocks, edges, 1, filePath);
+    this.processStatements(targetChildren, entryBlock.id, exitBlock.id, blocks, edges, 1);
 
     const hasExitEdge = edges.some((e) => e.target === exitBlock.id);
     if (!hasExitEdge) {
@@ -145,7 +145,7 @@ export class CFGAssembler {
     blocks: BasicBlock[],
     edges: CFGEdgeData[],
     depth: number,
-    _filePath: string,
+
   ): string {
     if (statements.length === 0) {
       edges.push({ source: entryId, target: exitId, edgeType: 'fallthrough' });
@@ -166,7 +166,7 @@ export class CFGAssembler {
       if (!stmt) continue;
 
       if (isControlFlow(stmt)) {
-        currentId = this.processControlFlow(stmt, currentId, exitId, blocks, edges, depth, _filePath);
+        currentId = this.processControlFlow(stmt, currentId, exitId, blocks, edges, depth);
         currentBlock = blocks.find((b) => b.id === currentId) ?? null;
         if (!currentBlock) {
           currentBlock = this.createProcessBlock(blocks, depth);
@@ -200,7 +200,7 @@ export class CFGAssembler {
     blocks: BasicBlock[],
     edges: CFGEdgeData[],
     depth: number,
-    _filePath: string,
+
   ): string {
     const t = node.type;
 
@@ -282,7 +282,7 @@ export class CFGAssembler {
     blocks.push(trueEntry);
     edges.push({ source: condBlock.id, target: trueEntryId, edgeType: 'true', condition: condText });
 
-    this.processStatements(trueBody, trueEntryId, mergeBlock.id, blocks, edges, depth + 1, '');
+    this.processStatements(trueBody, trueEntryId, mergeBlock.id, blocks, edges, depth + 1);
 
     const elseBody = getElseBody(node);
     if (elseBody.length > 0) {
@@ -299,7 +299,7 @@ export class CFGAssembler {
       blocks.push(falseEntry);
       edges.push({ source: condBlock.id, target: falseEntryId, edgeType: 'false', condition: condText });
 
-      this.processStatements(elseBody, falseEntryId, mergeBlock.id, blocks, edges, depth + 1, '');
+      this.processStatements(elseBody, falseEntryId, mergeBlock.id, blocks, edges, depth + 1);
     } else {
       edges.push({ source: condBlock.id, target: mergeBlock.id, edgeType: 'false', condition: condText });
     }
@@ -355,7 +355,7 @@ export class CFGAssembler {
     blocks.push(bodyEntry);
     edges.push({ source: condBlock.id, target: bodyEntryId, edgeType: 'true', condition: condText });
 
-    this.processStatements(body, bodyEntryId, condBlock.id, blocks, edges, depth + 1, '');
+    this.processStatements(body, bodyEntryId, condBlock.id, blocks, edges, depth + 1);
 
     edges.push({ source: condBlock.id, target: loopExitBlock.id, edgeType: 'false', condition: condText });
 
@@ -427,7 +427,7 @@ export class CFGAssembler {
       const caseBody = caseNode.children.filter((c) =>
         c.type !== 'identifier' && c.type !== 'number' && isStatement(c)
       );
-      this.processStatements(caseBody, caseEntryId, mergeBlock.id, blocks, edges, depth + 1, '');
+      this.processStatements(caseBody, caseEntryId, mergeBlock.id, blocks, edges, depth + 1);
     }
 
     if (!caseNodes.some((c) => c.type === 'default_statement' || c.type === 'default')) {
@@ -471,7 +471,7 @@ export class CFGAssembler {
     };
     blocks.push(mergeBlock);
 
-    this.processStatements(tryStmts, tryBlock.id, mergeBlock.id, blocks, edges, depth + 1, '');
+    this.processStatements(tryStmts, tryBlock.id, mergeBlock.id, blocks, edges, depth + 1);
 
     const catchNodes = node.children.filter((c) =>
       c.type === 'catch_clause' || c.type === 'catch'
@@ -492,7 +492,7 @@ export class CFGAssembler {
 
       const catchBody = catchNode.children.find((c) => c.type === 'block' || c.type === 'statement_block');
       const catchStmts = catchBody ? catchBody.children.filter(isStatement) : [];
-      this.processStatements(catchStmts, catchBlock.id, mergeBlock.id, blocks, edges, depth + 1, '');
+      this.processStatements(catchStmts, catchBlock.id, mergeBlock.id, blocks, edges, depth + 1);
     }
 
     const finallyNode = node.children.find((c) =>
@@ -525,7 +525,7 @@ export class CFGAssembler {
         depth,
       };
       blocks.push(afterFinally);
-      this.processStatements(finallyStmts, finallyBlock.id, afterFinally.id, blocks, edges, depth + 1, '');
+      this.processStatements(finallyStmts, finallyBlock.id, afterFinally.id, blocks, edges, depth + 1);
       return afterFinally.id;
     }
 

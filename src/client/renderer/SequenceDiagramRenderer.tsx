@@ -154,6 +154,9 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [hoveredParticipant, setHoveredParticipant] = useState<string | null>(null);
+  const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<string | null>(null);
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
 
@@ -180,6 +183,7 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
       participantBg: isDark ? '#2a2a3e' : '#f0f0f5',
       participantBorder: isDark ? '#555570' : '#cccccc',
       gridLine: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+      highlightBg: isDark ? 'rgba(100,150,255,0.2)' : 'rgba(50,100,255,0.15)',
     };
   }, [isDark, theme]);
 
@@ -262,6 +266,10 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
     onNodeTap?.(participantId);
   }, [onNodeTap]);
 
+  const handleMessageClick = useCallback((messageId: string) => {
+    setSelectedMessage((prev) => prev === messageId ? null : messageId);
+  }, []);
+
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -270,10 +278,14 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
     return () => container.removeEventListener('wheel', handleNativeWheel);
   }, []);
 
+  useEffect(() => {
+    setSelectedMessage(null);
+  }, [nodes, edges]);
+
   if (participants.length === 0) {
     return (
       <div ref={containerRef} className="sequence-diagram-container" style={{ background: colors.bg }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: colors.textSecondary, fontSize: '14px' }}>
+        <div className="seq-empty-state">
           {t('sequence.noData')}
         </div>
       </div>
@@ -290,10 +302,6 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
       style={{
         background: colors.bg,
         cursor: isDraggingRef.current ? 'grabbing' : 'grab',
-        position: 'relative',
-        overflow: 'hidden',
-        width: '100%',
-        height: '100%',
       }}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
@@ -316,7 +324,6 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
           height={svgHeight}
           style={{ display: 'block' }}
         >
-          {/* Background grid lines (horizontal) */}
           {messages.map((m) => (
             <line
               key={`grid-${m.id}`}
@@ -329,7 +336,6 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
             />
           ))}
 
-          {/* Combined fragments */}
           {fragments.map((frag) => {
             const startY = messageYBySeq.get(frag.startMessage);
             const endY = messageYBySeq.get(frag.endMessage);
@@ -346,7 +352,7 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
               : `${frag.type}${frag.condition ? ` [${frag.condition}]` : ''}`;
 
             return (
-              <g key={`frag-${frag.id}`}>
+              <g key={`frag-${frag.id}`} className="seq-fragment-group">
                 <rect
                   x={fragX}
                   y={fragTop}
@@ -357,7 +363,6 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
                   strokeWidth={1.5}
                   rx={2}
                 />
-                {/* Fragment label tab */}
                 <rect
                   x={fragX}
                   y={fragTop}
@@ -378,7 +383,6 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
                 >
                   {label}
                 </text>
-                {/* Operand divider lines */}
                 {frag.operands.length > 1 && frag.operands.slice(1).map((op, idx) => {
                   const opY = messageYBySeq.get(op.startMessage);
                   if (opY === undefined) return null;
@@ -411,7 +415,6 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
             );
           })}
 
-          {/* Lifelines */}
           {participants.map((p) => {
             const lifelineTop = dimensions.lifelineTop;
             const lifelineBottom = p.isDestroyed
@@ -420,7 +423,6 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
 
             return (
               <g key={`lifeline-${p.id}`}>
-                {/* Dashed lifeline */}
                 <line
                   x1={p.x}
                   y1={lifelineTop}
@@ -430,7 +432,6 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
                   strokeWidth={1}
                   strokeDasharray="4,4"
                 />
-                {/* Destroy marker (X at bottom) */}
                 {p.isDestroyed && (
                   <g>
                     <line
@@ -455,7 +456,6 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
             );
           })}
 
-          {/* Activation bars */}
           {(() => {
             const activations: Array<{ participantId: string; startY: number; endY: number }> = [];
             const activeStacks = new Map<string, number[]>();
@@ -509,7 +509,6 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
             });
           })()}
 
-          {/* Messages */}
           {messages.map((msg) => {
             const sourceP = participantMap.get(msg.source);
             const targetP = participantMap.get(msg.target);
@@ -526,8 +525,8 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
                     : colors.syncArrow;
 
             const lineStyle = msg.isReturn ? '4,3' : 'none';
+            const isHighlighted = hoveredMessage === msg.id || selectedMessage === msg.id;
 
-            // Self-call: draw a loop
             if (msg.isSelfCall || msg.source === msg.target) {
               const loopX = sourceP.x + LAYOUT.ACTIVATION_WIDTH / 2;
               const loopStartY = msg.y - LAYOUT.SELF_CALL_HEIGHT / 2;
@@ -535,13 +534,29 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
               const loopWidth = LAYOUT.SELF_CALL_WIDTH;
 
               return (
-                <g key={`msg-${msg.id}`}>
+                <g
+                  key={`msg-${msg.id}`}
+                  className="seq-message-group"
+                  onClick={() => handleMessageClick(msg.id)}
+                  onMouseEnter={() => setHoveredMessage(msg.id)}
+                  onMouseLeave={() => setHoveredMessage(null)}
+                >
                   <title>{`${msg.methodName}(${msg.arguments})`}{msg.lineNumber ? ` :${msg.lineNumber}` : ''}</title>
+                  {isHighlighted && (
+                    <rect
+                      x={loopX - 2}
+                      y={loopStartY - 2}
+                      width={loopWidth + 4}
+                      height={loopEndY - loopStartY + 4}
+                      fill={colors.highlightBg}
+                      rx={2}
+                    />
+                  )}
                   <path
                     d={`M ${loopX} ${loopStartY} L ${loopX + loopWidth} ${loopStartY} L ${loopX + loopWidth} ${loopEndY} L ${loopX + LAYOUT.ARROW_HEAD_SIZE} ${loopEndY}`}
                     fill="none"
                     stroke={arrowColor}
-                    strokeWidth={1.5}
+                    strokeWidth={isHighlighted ? 2.5 : 1.5}
                   />
                   <polygon
                     points={`${loopX},${loopEndY} ${loopX + LAYOUT.ARROW_HEAD_SIZE},${loopEndY - 4} ${loopX + LAYOUT.ARROW_HEAD_SIZE},${loopEndY + 4}`}
@@ -578,7 +593,6 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
             const arrowEndX = adjustedTargetX;
             const arrowStartX = adjustedSourceX;
 
-            // Arrow head
             const arrowHeadDir = isRightToLeft ? -1 : 1;
             const arrowHeadPoints = msg.isAsync
               ? `${arrowEndX},${msg.y} ${arrowEndX - arrowHeadDir * LAYOUT.ARROW_HEAD_SIZE},${msg.y - 4} ${arrowEndX - arrowHeadDir * LAYOUT.ARROW_HEAD_SIZE},${msg.y + 4}`
@@ -590,26 +604,40 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
             const argLabel = formatArguments(msg.arguments);
 
             return (
-              <g key={`msg-${msg.id}`}>
+              <g
+                key={`msg-${msg.id}`}
+                className="seq-message-group"
+                onClick={() => handleMessageClick(msg.id)}
+                onMouseEnter={() => setHoveredMessage(msg.id)}
+                onMouseLeave={() => setHoveredMessage(null)}
+              >
                 <title>{`${msg.methodName}(${msg.arguments})`}{msg.lineNumber ? ` :${msg.lineNumber}` : ''}</title>
-                {/* Message line */}
+                {isHighlighted && (
+                  <rect
+                    x={Math.min(arrowStartX, arrowEndX) - 4}
+                    y={msg.y - 10}
+                    width={Math.abs(arrowEndX - arrowStartX) + 8}
+                    height={20}
+                    fill={colors.highlightBg}
+                    rx={2}
+                  />
+                )}
                 <line
+                  className="seq-message-line"
                   x1={arrowStartX}
                   y1={msg.y}
                   x2={arrowEndX - arrowHeadDir * LAYOUT.ARROW_HEAD_SIZE}
                   y2={msg.y}
                   stroke={arrowColor}
-                  strokeWidth={1.5}
+                  strokeWidth={isHighlighted ? 2.5 : 1.5}
                   strokeDasharray={lineStyle}
                 />
-                {/* Arrow head */}
                 <polygon
                   points={arrowHeadPoints}
                   fill={msg.isAsync ? 'none' : arrowColor}
                   stroke={arrowColor}
                   strokeWidth={1.5}
                 />
-                {/* Message label */}
                 <text
                   x={labelX}
                   y={labelY}
@@ -636,29 +664,31 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
             );
           })}
 
-          {/* Participant boxes (drawn last to be on top) */}
           {participants.map((p) => {
             const color = getParticipantColor(p.type, isDark);
             const boxX = p.x - LAYOUT.PARTICIPANT_BOX_WIDTH / 2;
             const boxY = LAYOUT.SVG_PADDING_TOP;
+            const isHovered = hoveredParticipant === p.id;
 
             return (
               <g
                 key={`participant-${p.id}`}
-                style={{ cursor: 'pointer' }}
+                className="seq-participant-group"
                 onClick={() => handleParticipantClick(p.id)}
+                onMouseEnter={() => setHoveredParticipant(p.id)}
+                onMouseLeave={() => setHoveredParticipant(null)}
               >
                 <rect
+                  className="seq-participant-box"
                   x={boxX}
                   y={boxY}
                   width={LAYOUT.PARTICIPANT_BOX_WIDTH}
                   height={LAYOUT.PARTICIPANT_BOX_HEIGHT}
                   fill={colors.participantBg}
                   stroke={color}
-                  strokeWidth={2}
+                  strokeWidth={isHovered ? 3 : 2}
                   rx={3}
                 />
-                {/* Type indicator stripe */}
                 <rect
                   x={boxX}
                   y={boxY}
@@ -688,7 +718,6 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
                 >
                   «{p.type}»
                 </text>
-                {/* Create marker (dashed arrow from creator) */}
                 {p.isCreated && (
                   <text
                     x={p.x}
@@ -707,62 +736,13 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
         </svg>
       </div>
 
-      {/* Zoom controls */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '8px',
-          right: '8px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '4px',
-          zIndex: 10,
-        }}
-      >
-        <button
-          onClick={() => setZoom((z) => Math.min(3, z * 1.2))}
-          style={{
-            width: '28px', height: '28px', border: `1px solid ${colors.participantBorder}`,
-            background: colors.participantBg, color: colors.text, cursor: 'pointer',
-            borderRadius: '4px', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          +
-        </button>
-        <button
-          onClick={() => setZoom((z) => Math.max(0.3, z * 0.8))}
-          style={{
-            width: '28px', height: '28px', border: `1px solid ${colors.participantBorder}`,
-            background: colors.participantBg, color: colors.text, cursor: 'pointer',
-            borderRadius: '4px', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          −
-        </button>
-        <button
-          onClick={handleResetView}
-          style={{
-            width: '28px', height: '28px', border: `1px solid ${colors.participantBorder}`,
-            background: colors.participantBg, color: colors.text, cursor: 'pointer',
-            borderRadius: '4px', fontSize: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          ⟲
-        </button>
+      <div className="seq-zoom-controls">
+        <button className="seq-zoom-btn" onClick={() => setZoom((z) => Math.min(3, z * 1.2))}>+</button>
+        <button className="seq-zoom-btn" onClick={() => setZoom((z) => Math.max(0.3, z * 0.8))}>−</button>
+        <button className="seq-zoom-btn seq-reset" onClick={handleResetView}>⟲</button>
       </div>
 
-      {/* Zoom indicator */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '8px',
-          left: '8px',
-          color: colors.textSecondary,
-          fontSize: '10px',
-          fontFamily: 'monospace',
-          zIndex: 10,
-        }}
-      >
+      <div className="seq-zoom-indicator">
         {Math.round(zoom * 100)}%
       </div>
     </div>
