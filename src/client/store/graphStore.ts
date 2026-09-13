@@ -600,12 +600,13 @@ export const useGraphStore = create<GraphState>()(
         const { selectedFunction, clusterDepth, expandedNodeIds } = useGraphStore.getState();
         if (!selectedFunction) return;
         set({ isLoading: true, error: null });
-        const diagram = await assembleMicroDiagram(viewMode, selectedFunction.filePath, selectedFunction.functionName);
-        if (diagram) {
+        try {
+          const diagram = await assembleMicroDiagram(viewMode, selectedFunction.filePath, selectedFunction.functionName);
           const result = computeClusteredGraph(diagram.nodes, diagram.edges, 'progressive', expandedNodeIds, clusterDepth);
           set({ diagramData: null, nodes: result.nodes, edges: result.edges, isLoading: false });
-        } else {
-          set({ isLoading: false, error: 'AST parsing failed for ' + selectedFunction.functionName });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          set({ isLoading: false, error: `${msg} — ${selectedFunction.functionName}` });
         }
       },
       setLayer: (layer) => {

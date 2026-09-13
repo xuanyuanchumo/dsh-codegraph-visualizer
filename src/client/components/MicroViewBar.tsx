@@ -14,7 +14,7 @@ export function MicroViewPrompt({ viewMode, selectFunctionPrompt, flowchartLabel
   return (
     <div className="micro-empty-prompt">
       <div className="micro-empty-icon">{modeLabel}</div>
-      <div>{selectFunctionPrompt}</div>
+      <div className="micro-empty-text">{selectFunctionPrompt}</div>
       <button className="micro-empty-back-btn" onClick={onBackToCode}>{backToCodeLabel}</button>
     </div>
   );

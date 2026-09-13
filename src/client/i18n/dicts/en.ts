@@ -307,6 +307,7 @@ export const en: Record<string, string> = {
   'sequence.noData': 'No sequence data available',
   'micro.selectedFunction': 'Current function: {name}',
   'micro.clearSelection': 'Clear selection',
+  'micro.loadFailed': 'Micro diagram load failed',
   'stats.nodesEdges': '{nodes} nodes · {edges} edges',
   'godmodule.stats': '{nodes} nodes · {edges} edges',
   'search.moreResults': '+{n} more results',

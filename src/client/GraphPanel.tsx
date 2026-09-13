@@ -106,6 +106,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const collapseAll = useGraphStore((s) => s.collapseAll);
   const setPathResult = useGraphStore((s) => s.setPathResult);
   const setFocusDepth = useGraphStore((s) => s.setFocusDepth);
+  const assembleMicro = useGraphStore((s) => s.assembleMicro);
 
   const panelHeight = useGraphStore((s) => s.panelHeight);
   const panelWidth = useGraphStore((s) => s.panelWidth);
@@ -563,9 +564,15 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       )}
 
       {isLoading && !isCollapsed && <LoadingOverlay visible={true} />}
-      {error && !isCollapsed && <ErrorOverlay error={error} />}
+      {error && !isCollapsed && (
+        <ErrorOverlay
+          error={error}
+          onBack={isMicroView ? handleCloseMicroView : undefined}
+          onRetry={isMicroView && selectedFunction ? () => assembleMicro(viewMode) : undefined}
+        />
+      )}
 
-      {isMicroView && !selectedFunction && !isLoading && !isCollapsed && (
+      {isMicroView && !selectedFunction && !isLoading && !error && !isCollapsed && (
         <MicroViewPrompt viewMode={viewMode}
           selectFunctionPrompt={t('micro.selectFunctionPrompt')}
           flowchartLabel={t('toolbar.viewModeFlowchart')}
@@ -574,7 +581,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           onBackToCode={handleCloseMicroView} />
       )}
 
-      {isMicroView && selectedFunction && !isCollapsed && (
+      {isMicroView && selectedFunction && !error && !isCollapsed && (
         <MicroFunctionBar functionName={selectedFunction.functionName} filePath={selectedFunction.filePath} viewMode={viewMode} onClose={handleCloseMicroView} />
       )}
 

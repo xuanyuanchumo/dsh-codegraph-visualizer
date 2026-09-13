@@ -306,6 +306,7 @@ export const zh: Record<string, string> = {
   'sequence.noData': '暂无时序图数据',
   'micro.selectedFunction': '当前函数: {name}',
   'micro.clearSelection': '清除选择',
+  'micro.loadFailed': '微观图谱加载失败',
   'stats.nodesEdges': '{nodes} 节点 · {edges} 边',
   'godmodule.stats': '{nodes} 节点 · {edges} 边',
   'search.moreResults': '还有 {n} 个结果',

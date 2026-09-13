@@ -198,28 +198,30 @@ export async function assembleMicroDiagram(
   viewMode: 'cfg' | 'flowchart' | 'sequence',
   filePath: string,
   functionName: string,
-): Promise<AssembledDiagram | null> {
+): Promise<AssembledDiagram> {
+  let response: Response;
   try {
-    const response = await fetch('/api/v1/codegraph/ast', {
+    response = await fetch('/api/v1/codegraph/ast', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filePath }),
     });
-    if (!response.ok) return null;
-    const astRoot: ASTNode = await response.json();
-    switch (viewMode) {
-      case 'cfg':
-        return cfgAssembler.assemble(astRoot, filePath, functionName);
-      case 'flowchart':
-        return flowchartAssembler.assemble(astRoot, filePath, functionName);
-      case 'sequence':
-        return sequenceAssembler.assemble(astRoot, filePath, functionName);
-      default:
-        return null;
-    }
   } catch (e) {
-    console.warn('[codegraph:diagram] assembleASTDiagram failed', e);
-    return null;
+    throw new Error(`Network error: unable to reach AST endpoint`);
+  }
+  if (!response.ok) {
+    throw new Error(`AST request failed (HTTP ${response.status})`);
+  }
+  const astRoot: ASTNode = await response.json();
+  switch (viewMode) {
+    case 'cfg':
+      return cfgAssembler.assemble(astRoot, filePath, functionName);
+    case 'flowchart':
+      return flowchartAssembler.assemble(astRoot, filePath, functionName);
+    case 'sequence':
+      return sequenceAssembler.assemble(astRoot, filePath, functionName);
+    default:
+      throw new Error(`Unsupported view mode: ${viewMode}`);
   }
 }
 
