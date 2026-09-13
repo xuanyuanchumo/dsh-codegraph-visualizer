@@ -199,6 +199,13 @@ export async function assembleMicroDiagram(
   filePath: string,
   functionName: string,
 ): Promise<AssembledDiagram> {
+  if (!filePath) {
+    throw new Error('filePath is empty — cannot fetch AST');
+  }
+  if (!functionName) {
+    throw new Error('functionName is empty — cannot locate function in AST');
+  }
+
   let response: Response;
   try {
     response = await fetch('/api/v1/codegraph/ast', {
@@ -210,9 +217,27 @@ export async function assembleMicroDiagram(
     throw new Error(`Network error: unable to reach AST endpoint`);
   }
   if (!response.ok) {
-    throw new Error(`AST request failed (HTTP ${response.status})`);
+    const status = response.status;
+    if (status === 400) {
+      throw new Error(`Bad request: filePath "${filePath}" is invalid or workspace not configured`);
+    }
+    if (status === 403) {
+      throw new Error(`Access denied: filePath "${filePath}" is outside workspace`);
+    }
+    if (status === 413) {
+      throw new Error(`File too large for AST parsing: ${filePath}`);
+    }
+    if (status === 500) {
+      throw new Error(`AST parsing failed for "${filePath}" — language may be unsupported or file unreadable`);
+    }
+    throw new Error(`AST request failed (HTTP ${status})`);
   }
+
   const astRoot: ASTNode = await response.json();
+  if (!astRoot || !astRoot.children || astRoot.children.length === 0) {
+    throw new Error(`AST is empty for "${filePath}" — parsing produced no nodes`);
+  }
+
   switch (viewMode) {
     case 'cfg':
       return cfgAssembler.assemble(astRoot, filePath, functionName);

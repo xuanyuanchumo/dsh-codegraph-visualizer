@@ -39,31 +39,54 @@ const FUNCTION_NODE_TYPES = new Set([
   'function_declaration', 'function_definition', 'method_declaration',
   'method_definition', 'arrow_function', 'function_item',
   'constructor_declaration', 'destructor_declaration',
+  'function_expression', 'generator_function_declaration',
+  'generator_function', 'async_function_declaration',
+  'async_function_expression', 'async_arrow_function',
+  'function_signature', 'method_signature',
+]);
+
+const CLASS_CONTAINER_TYPES = new Set([
+  'class_declaration', 'class_definition', 'impl_item',
+  'interface_declaration', 'struct_declaration',
+  'enum_declaration', 'trait_declaration',
+  'module_declaration', 'namespace_declaration',
+  'program', 'source_file', 'module',
+]);
+
+const BODY_NODE_TYPES = new Set([
+  'block', 'statement_block', 'body', 'compound_statement',
+  'function_body', 'method_body', 'suite',
 ]);
 
 export function findFunctionNode(astRoot: ASTNode, functionName: string): ASTNode | null {
-  for (const child of astRoot.children) {
-    if (FUNCTION_NODE_TYPES.has(child.type)) {
-      const nameNode = child.children.find(
-        (c) => c.type === 'identifier' || c.type === 'property_identifier' || c.type === 'name',
-      );
-      if (nameNode && nameNode.text === functionName) {
-        return child;
+  const normalizedTarget = functionName.replace(/^.*\./, '');
+
+  const searchInNode = (node: ASTNode): ASTNode | null => {
+    for (const child of node.children) {
+      if (FUNCTION_NODE_TYPES.has(child.type)) {
+        const nameNode = child.children.find(
+          (c) => c.type === 'identifier' || c.type === 'property_identifier' || c.type === 'name',
+        );
+        if (nameNode) {
+          if (nameNode.text === functionName || nameNode.text === normalizedTarget) {
+            return child;
+          }
+        }
       }
     }
-  }
-  for (const child of astRoot.children) {
-    if (child.type === 'class_declaration' || child.type === 'class_definition' || child.type === 'impl_item') {
-      const found = findFunctionNode(child, functionName);
-      if (found) return found;
+    for (const child of node.children) {
+      if (CLASS_CONTAINER_TYPES.has(child.type)) {
+        const found = searchInNode(child);
+        if (found) return found;
+      }
     }
-  }
-  return null;
+    return null;
+  };
+
+  return searchInNode(astRoot);
 }
 
 export function getFunctionBody(funcNode: ASTNode): ASTNode[] {
-  const body = funcNode.children.find(
-    (c) => c.type === 'block' || c.type === 'statement_block' || c.type === 'body' || c.type === 'compound_statement',
-  );
+  const body = funcNode.children.find((c) => BODY_NODE_TYPES.has(c.type));
   return body ? body.children : funcNode.children;
 }

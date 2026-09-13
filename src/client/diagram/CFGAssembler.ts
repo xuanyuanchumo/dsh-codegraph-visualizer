@@ -5,18 +5,40 @@ import type { ASTNode, BasicBlock, StatementInfo, CFGEdgeData, CFGData } from '.
 import { findFunctionNode, getFunctionBody } from '../../shared/CFGTypes.ts';
 
 const CONTROL_FLOW_TYPES = new Set([
-  'if_statement', 'if', 'for_statement', 'for', 'while_statement', 'while',
-  'switch_statement', 'switch', 'try_statement', 'try',
-  'return_statement', 'return', 'throw_statement', 'throw',
-  'break_statement', 'break', 'continue_statement', 'continue',
+  'if_statement', 'if', 'if_expression',
+  'for_statement', 'for', 'for_expression', 'for_in_statement',
+  'while_statement', 'while', 'while_expression',
+  'switch_statement', 'switch', 'match_expression', 'match_arm',
+  'try_statement', 'try',
+  'return_statement', 'return',
+  'throw_statement', 'throw', 'raise_statement', 'raise',
+  'break_statement', 'break',
+  'continue_statement', 'continue',
+  'elif_clause', 'elif',
+  'except_clause', 'except',
+  'finally_clause', 'finally',
+  'catch_clause', 'catch',
 ]);
 
 const STATEMENT_TYPES = new Set([
   'expression_statement', 'assignment', 'call', 'return_statement', 'return',
-  'throw_statement', 'throw', 'break_statement', 'break', 'continue_statement', 'continue',
+  'throw_statement', 'throw', 'raise_statement', 'raise',
+  'break_statement', 'break', 'continue_statement', 'continue',
   'declaration', 'variable_declaration', 'const_declaration', 'let_declaration',
-  'if_statement', 'if', 'for_statement', 'for', 'while_statement', 'while',
-  'switch_statement', 'switch', 'try_statement', 'try',
+  'lexical_declaration',
+  'if_statement', 'if', 'if_expression',
+  'for_statement', 'for', 'for_expression', 'for_in_statement',
+  'while_statement', 'while', 'while_expression',
+  'switch_statement', 'switch', 'match_expression',
+  'try_statement', 'try',
+  'import_statement', 'import_declaration', 'use_declaration',
+  'export_statement',
+  'pass_statement', 'pass',
+  'assert_statement', 'assert',
+  'with_statement', 'with',
+  'yield_statement', 'yield',
+  'await_expression',
+  'macro_invocation',
 ]);
 
 
@@ -31,14 +53,16 @@ function isStatement(node: ASTNode): boolean {
 function classifyStatement(node: ASTNode): StatementInfo['type'] {
   const t = node.type;
   if (t === 'return_statement' || t === 'return') return 'return';
-  if (t === 'throw_statement' || t === 'throw') return 'throw';
+  if (t === 'throw_statement' || t === 'throw' || t === 'raise_statement' || t === 'raise') return 'throw';
   if (t === 'break_statement' || t === 'break') return 'break';
   if (t === 'continue_statement' || t === 'continue') return 'continue';
-  if (t === 'if_statement' || t === 'if' || t === 'for_statement' || t === 'for' ||
-      t === 'while_statement' || t === 'while' || t === 'switch_statement' || t === 'switch' ||
+  if (t === 'if_statement' || t === 'if' || t === 'if_expression' ||
+      t === 'for_statement' || t === 'for' || t === 'for_expression' || t === 'for_in_statement' ||
+      t === 'while_statement' || t === 'while' || t === 'while_expression' ||
+      t === 'switch_statement' || t === 'switch' || t === 'match_expression' ||
       t === 'try_statement' || t === 'try') return 'condition';
-  if (t.includes('declaration') || t === 'assignment') return 'declaration';
-  if (t === 'call' || t === 'expression_statement') return 'call';
+  if (t.includes('declaration') || t === 'assignment' || t === 'lexical_declaration') return 'declaration';
+  if (t === 'call' || t === 'expression_statement' || t === 'await_expression' || t === 'macro_invocation') return 'call';
   return 'expression';
 }
 
@@ -49,24 +73,36 @@ function simplifyText(text: string, maxLen = 40): string {
 }
 
 function getConditionNode(node: ASTNode): ASTNode | null {
-  if (node.type === 'if_statement' || node.type === 'if') {
-    return node.children.find((c) => c.type === 'condition' || c.type === 'parenthesized_expression') ?? null;
+  if (node.type === 'if_statement' || node.type === 'if' || node.type === 'if_expression') {
+    return node.children.find((c) =>
+      c.type === 'condition' || c.type === 'parenthesized_expression' ||
+      c.type === 'binary_expression' || c.type === 'comparison_expression'
+    ) ?? null;
   }
-  if (node.type === 'while_statement' || node.type === 'while') {
-    return node.children.find((c) => c.type === 'condition' || c.type === 'parenthesized_expression') ?? null;
+  if (node.type === 'while_statement' || node.type === 'while' || node.type === 'while_expression') {
+    return node.children.find((c) =>
+      c.type === 'condition' || c.type === 'parenthesized_expression' ||
+      c.type === 'binary_expression'
+    ) ?? null;
   }
-  if (node.type === 'for_statement' || node.type === 'for') {
-    return node.children.find((c) => c.type === 'condition' || c.type === 'parenthesized_expression') ?? null;
+  if (node.type === 'for_statement' || node.type === 'for' || node.type === 'for_expression' || node.type === 'for_in_statement') {
+    return node.children.find((c) =>
+      c.type === 'condition' || c.type === 'parenthesized_expression' ||
+      c.type === 'for_header' || c.type === 'binary_expression'
+    ) ?? null;
   }
   return null;
 }
 
 function getBodyChildren(node: ASTNode): ASTNode[] {
   const body = node.children.find((c) =>
-    c.type === 'block' || c.type === 'statement_block' || c.type === 'body'
+    c.type === 'block' || c.type === 'statement_block' || c.type === 'body' ||
+    c.type === 'compound_statement' || c.type === 'suite' || c.type === 'function_body'
   );
   if (body) return body.children.filter(isStatement);
-  return node.children.filter((c) => c.type !== 'condition' && c.type !== 'parenthesized_expression' && isStatement(c));
+  return node.children.filter((c) =>
+    c.type !== 'condition' && c.type !== 'parenthesized_expression' && isStatement(c)
+  );
 }
 
 function getElseBody(node: ASTNode): ASTNode[] {
@@ -204,13 +240,14 @@ export class CFGAssembler {
   ): string {
     const t = node.type;
 
-    if (t === 'if_statement' || t === 'if') {
+    if (t === 'if_statement' || t === 'if' || t === 'if_expression') {
       return this.processIf(node, currentId, exitId, blocks, edges, depth);
     }
-    if (t === 'for_statement' || t === 'for' || t === 'while_statement' || t === 'while') {
+    if (t === 'for_statement' || t === 'for' || t === 'for_expression' || t === 'for_in_statement' ||
+        t === 'while_statement' || t === 'while' || t === 'while_expression') {
       return this.processLoop(node, currentId, exitId, blocks, edges, depth);
     }
-    if (t === 'switch_statement' || t === 'switch') {
+    if (t === 'switch_statement' || t === 'switch' || t === 'match_expression') {
       return this.processSwitch(node, currentId, exitId, blocks, edges, depth);
     }
     if (t === 'try_statement' || t === 'try') {
@@ -219,7 +256,7 @@ export class CFGAssembler {
     if (t === 'return_statement' || t === 'return') {
       return this.processReturn(node, currentId, exitId, blocks, edges, depth);
     }
-    if (t === 'throw_statement' || t === 'throw') {
+    if (t === 'throw_statement' || t === 'throw' || t === 'raise_statement' || t === 'raise') {
       return this.processThrow(node, currentId, exitId, blocks, edges, depth);
     }
     if (t === 'break_statement' || t === 'break') {
@@ -397,13 +434,16 @@ export class CFGAssembler {
     blocks.push(mergeBlock);
 
     const caseNodes = node.children.filter((c) =>
-      c.type === 'case_statement' || c.type === 'case' || c.type === 'default_statement' || c.type === 'default'
+      c.type === 'case_statement' || c.type === 'case' ||
+      c.type === 'default_statement' || c.type === 'default' ||
+      c.type === 'match_arm'
     );
 
     for (const caseNode of caseNodes) {
-      const isDefault = caseNode.type === 'default_statement' || caseNode.type === 'default';
+      const isDefault = caseNode.type === 'default_statement' || caseNode.type === 'default' ||
+        (caseNode.type === 'match_arm' && caseNode.children.some((c) => c.type === 'wildcard_pattern' || c.text === '_'));
       const caseLabel = isDefault ? 'default' :
-        (caseNode.children.find((c) => c.type === 'identifier' || c.type === 'number')?.text ?? 'case');
+        (caseNode.children.find((c) => c.type === 'identifier' || c.type === 'number' || c.type === 'string' || c.type === 'literal_pattern')?.text ?? 'case');
 
       const caseEntryId = this.nextBlockId();
       const caseEntry: BasicBlock = {

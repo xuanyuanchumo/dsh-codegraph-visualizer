@@ -16,12 +16,17 @@ import type {
 
 const CALL_NODE_TYPES = new Set([
   'call_expression', 'call', 'method_call', 'function_call',
+  'await_expression', 'macro_invocation',
 ]);
 
 const CONTROL_FLOW_TYPES = new Set([
-  'if_statement', 'if', 'for_statement', 'for', 'while_statement', 'while',
-  'switch_statement', 'switch', 'try_statement', 'try',
-  'return_statement', 'return', 'throw_statement', 'throw',
+  'if_statement', 'if', 'if_expression',
+  'for_statement', 'for', 'for_expression', 'for_in_statement',
+  'while_statement', 'while', 'while_expression',
+  'switch_statement', 'switch', 'match_expression',
+  'try_statement', 'try',
+  'return_statement', 'return',
+  'throw_statement', 'throw', 'raise_statement', 'raise',
   'break_statement', 'break', 'continue_statement', 'continue',
 ]);
 
@@ -282,17 +287,18 @@ export class SequenceAssembler {
   ): void {
     const t = node.type;
 
-    if (t === 'if_statement' || t === 'if') {
+    if (t === 'if_statement' || t === 'if' || t === 'if_expression') {
       this.processIfFragment(node, selfId, participants, messages, fragments, addMessage);
-    } else if (t === 'for_statement' || t === 'for' || t === 'while_statement' || t === 'while') {
+    } else if (t === 'for_statement' || t === 'for' || t === 'for_expression' || t === 'for_in_statement' ||
+               t === 'while_statement' || t === 'while' || t === 'while_expression') {
       this.processLoopFragment(node, selfId, participants, messages, fragments, addMessage);
-    } else if (t === 'switch_statement' || t === 'switch') {
+    } else if (t === 'switch_statement' || t === 'switch' || t === 'match_expression') {
       this.processSwitchFragment(node, selfId, participants, messages, fragments, addMessage);
     } else if (t === 'try_statement' || t === 'try') {
       this.processTryFragment(node, selfId, participants, messages, fragments, addMessage);
     } else if (t === 'return_statement' || t === 'return') {
       this.processReturnMessage(node, selfId, participants, addMessage);
-    } else if (t === 'throw_statement' || t === 'throw') {
+    } else if (t === 'throw_statement' || t === 'throw' || t === 'raise_statement' || t === 'raise') {
       this.processThrowFragment(node, selfId, participants, messages, fragments, addMessage);
     }
   }
