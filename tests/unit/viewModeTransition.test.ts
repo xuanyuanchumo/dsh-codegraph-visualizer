@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { computeViewModeTransition, VIEW_MODE_LAYOUT } from '../../src/client/store/viewModeTransition.ts';
 import { DiagramCache } from '../../src/client/cache/DiagramCache.ts';
 import { makeNode, makeEdge } from '../helpers.ts';
-import type { GraphNode, GraphEdge } from '../../src/types/index.ts';
+import type { GraphNode, GraphEdge, ViewMode } from '../../src/types/index.ts';
 
 function makeState(overrides: Partial<{
   rawNodes: GraphNode[];
@@ -13,7 +13,7 @@ function makeState(overrides: Partial<{
   expandedNodeIds: Set<string>;
   expandedNodeIdsByViewMode: Record<string, Set<string>>;
   selectedFunction: { nodeId: string; filePath: string; functionName: string } | null;
-  viewMode: string;
+  viewMode: ViewMode;
 }> = {}) {
   return {
     rawNodes: [],
@@ -24,7 +24,7 @@ function makeState(overrides: Partial<{
     expandedNodeIds: new Set<string>(),
     expandedNodeIdsByViewMode: {},
     selectedFunction: null,
-    viewMode: 'code',
+    viewMode: 'code' as ViewMode,
     ...overrides,
   };
 }
@@ -90,7 +90,7 @@ describe('viewModeTransition', () => {
         'cfg',
         makeState({
           selectedFunction: { nodeId: 'n1', filePath: 'a.ts', functionName: 'foo' },
-          viewMode: 'code',
+          viewMode: 'code' as ViewMode,
         }),
         diagramCache,
       );
@@ -150,7 +150,7 @@ describe('viewModeTransition', () => {
         makeState({
           rawNodes: nodes,
           rawEdges: edges,
-          viewMode: 'code',
+          viewMode: 'code' as ViewMode,
         }),
         diagramCache,
       );

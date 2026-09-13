@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/shallow';
 import type { GraphNode, GraphEdge } from '../types/index.ts';
 import { NodeId } from '../types/index.ts';
 import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard, useViewMode, useAnalysisPanels } from './hooks/index.ts';
+import { useThemeSync } from './hooks/useThemeSync.ts';
 import { useHistory } from './hooks/useHistory.ts';
 import { useGraphCache } from './hooks/useGraphCache.ts';
 import { GraphErrorBoundary } from './components/ErrorBoundary.tsx';
@@ -243,19 +244,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     return () => window.removeEventListener('codegraph:symbol-select', symbolHandler);
   }, [renderer.rendererRef]);
 
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      const isDark = document.body.hasAttribute('data-ds-dark-theme');
-      const newTheme: ThemeType = isDark ? 'dark' : 'light';
-      const current = useGraphStore.getState().theme;
-      if (current !== newTheme) {
-        useGraphStore.getState().setTheme(newTheme);
-        renderer.updateTheme(newTheme);
-      }
-    });
-    observer.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] });
-    return () => observer.disconnect();
-  }, [renderer.updateTheme]);
+  useThemeSync(renderer.updateTheme);
 
   usePanelResize(panelRef, renderer.rendererRef);
 
