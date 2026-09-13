@@ -30,7 +30,7 @@ describe('Chaos: Micro diagram assemblers with malformed inputs', () => {
   });
 
   it('CFGAssembler handles deeply nested if statements (100 levels)', () => {
-    let inner: ASTNode = makeAstNode('expression_statement', 'x = 1', 100);
+    let inner: ASTNode = makeAstNode('expression_statement', 'x = 1', [], 100);
     for (let i = 99; i >= 0; i--) {
       inner = makeAstNode('if_statement', `if (x${i})`, [
         makeAstNode('parenthesized_expression', `x${i}`, [], i),
@@ -73,7 +73,7 @@ describe('Chaos: Micro diagram assemblers with malformed inputs', () => {
   });
 
   it('FlowchartAssembler handles deeply nested control flow', () => {
-    let body: ASTNode[] = [makeAstNode('expression_statement', 'x = 1', 10)];
+    let body: ASTNode[] = [makeAstNode('expression_statement', 'x = 1', [], 10)];
     for (let i = 9; i >= 0; i--) {
       const ifNode = makeAstNode('if_statement', `if (x${i})`, [
         makeAstNode('parenthesized_expression', `x${i}`, [], i),
@@ -103,12 +103,12 @@ describe('Chaos: Micro diagram assemblers with malformed inputs', () => {
   });
 
   it('SequenceAssembler handles deeply nested try-catch-finally', () => {
-    let inner: ASTNode = makeAstNode('expression_statement', 'x = 1', 10);
+    let inner: ASTNode = makeAstNode('expression_statement', 'x = 1', [], 10);
     for (let i = 9; i >= 0; i--) {
       inner = makeAstNode('try_statement', 'try { ... } catch (e) { ... }', [
         makeAstNode('block', '', [inner], i),
         makeAstNode('catch_clause', 'catch (e)', [
-          makeAstNode('block', '', [makeAstNode('expression_statement', 'handleError()', i)], i),
+          makeAstNode('block', '', [makeAstNode('expression_statement', 'handleError()', [], i)], i),
         ], i),
       ], i);
     }
@@ -162,11 +162,11 @@ describe('Chaos: Micro diagram assemblers with malformed inputs', () => {
     const caseNodes: ASTNode[] = [];
     for (let i = 0; i < 50; i++) {
       caseNodes.push(makeAstNode('case_statement', `case ${i}:`, [
-        makeAstNode('expression_statement', `x = ${i}`, i),
+        makeAstNode('expression_statement', `x = ${i}`, [], i),
       ], i));
     }
     caseNodes.push(makeAstNode('default_statement', 'default:', [
-      makeAstNode('expression_statement', 'x = 0', 50),
+      makeAstNode('expression_statement', 'x = 0', [], 50),
     ], 50));
     const astRoot = makeAstNode('function_declaration', 'function f() { switch(x) { ... } }', [
       makeAstNode('switch_statement', 'switch (x)', [

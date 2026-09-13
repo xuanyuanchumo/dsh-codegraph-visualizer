@@ -7,6 +7,7 @@ import { assembleDiagram, assembleMicroDiagram, type LayeredDiagram } from '../d
 import { CallChainAggregator } from '../diagram/CallChainAggregator.ts';
 import { DiagramCache, ClusterCache, computeDataHash } from '../cache/DiagramCache.ts';
 import { invalidateCssVarCache } from '../renderer/styles/ThemeStylesheet.ts';
+import { computeViewModeTransition, VIEW_MODE_LAYOUT } from './viewModeTransition.ts';
 
 export type { ClusterNode, ClusterEdge } from './cluster/index.ts';
 
@@ -38,17 +39,6 @@ export interface WorkspaceInfo {
 const LOADING_FAILSAFE_MS = 15000;
 let loadingFailsafe: ReturnType<typeof setTimeout> | null = null;
 
-const VIEW_MODE_LAYOUT: Record<ViewMode, LayoutType> = {
-  code: 'cose',
-  dependencies: 'dagre',
-  inheritance: 'tree',
-  callgraph: 'dagre',
-  package: 'tree',
-  class: 'dagre',
-  cfg: 'dagre',
-  flowchart: 'dagre',
-  sequence: 'grid',
-};
 
 function isLayeredViewMode(mode: ViewMode): boolean {
   return mode === 'inheritance' || mode === 'callgraph' || mode === 'package' || mode === 'class' || mode === 'dependencies';
@@ -326,96 +316,30 @@ export const useGraphStore = create<GraphState>()(
       setGraphType: (graphType) => set({ graphType }),
       setViewMode: (viewMode) => {
         const state = useGraphStore.getState();
-        const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, selectedFunction, savedRawNodes, savedRawEdges, viewMode: prevViewMode } = state;
-        const recommendedLayout = VIEW_MODE_LAYOUT[viewMode];
-
-        const savedExpanded = expandedNodeIdsByViewMode[viewMode] ?? new Set<string>();
-        const prevExpanded = new Set(expandedNodeIds);
-        const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [prevViewMode]: prevExpanded };
-
-        if (viewMode === 'dependencies') {
-          const sourceNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
-          const sourceEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
-          const dataHash = computeDataHash(sourceNodes, sourceEdges);
-          let diagram = diagramCache.get(viewMode, dataHash);
-          if (!diagram) {
-            diagram = assembleDiagram(viewMode, sourceNodes, sourceEdges);
-            if (diagram) diagramCache.set(viewMode, dataHash, diagram);
-          }
-          if (diagram) {
-            const layer = diagram.layers[0];
-            const layerNodes = layer ? layer.nodes : diagram.allNodes;
-            const layerEdges = layer ? layer.edges : diagram.allEdges;
-            set({
-              viewMode, diagramData: diagram, currentLayer: 0, layout: recommendedLayout,
-              savedRawNodes: rawNodes, savedRawEdges: rawEdges,
-              expandedNodeIds: savedExpanded,
-              expandedNodeIdsByViewMode: newExpandedByViewMode,
-              nodes: layerNodes, edges: layerEdges,
-            });
-            return;
-          }
-          set({
-            viewMode, diagramData: null, layout: recommendedLayout,
-            savedRawNodes: rawNodes, savedRawEdges: rawEdges,
-            expandedNodeIds: savedExpanded,
-            expandedNodeIdsByViewMode: newExpandedByViewMode,
-            nodes: rawNodes, edges: rawEdges,
-          });
+        const result = computeViewModeTransition(
+          viewMode,
+          {
+            rawNodes: state.rawNodes,
+            rawEdges: state.rawEdges,
+            savedRawNodes: state.savedRawNodes,
+            savedRawEdges: state.savedRawEdges,
+            clusterDepth: state.clusterDepth,
+            expandedNodeIds: state.expandedNodeIds,
+            expandedNodeIdsByViewMode: state.expandedNodeIdsByViewMode,
+            selectedFunction: state.selectedFunction,
+            viewMode: state.viewMode,
+          },
+          diagramCache,
+          (vm) => useGraphStore.getState().assembleMicro(vm),
+        );
+        if (result.needsMicroAssembly) {
+          const { needsMicroAssembly, ...rest } = result;
+          set(rest);
+          useGraphStore.getState().assembleMicro(viewMode as 'cfg' | 'flowchart' | 'sequence');
           return;
         }
-
-        if (viewMode === 'code') {
-          const restoreNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
-          const restoreEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
-          const result = computeClusteredGraph(restoreNodes, restoreEdges, 'progressive', savedExpanded, clusterDepth);
-          set({
-            viewMode, diagramData: null, layout: recommendedLayout,
-            rawNodes: restoreNodes, rawEdges: restoreEdges,
-            savedRawNodes: [], savedRawEdges: [],
-            expandedNodeIds: savedExpanded,
-            expandedNodeIdsByViewMode: newExpandedByViewMode,
-            nodes: result.nodes, edges: result.edges,
-          });
-          return;
-        }
-
-        if (viewMode === 'inheritance' || viewMode === 'callgraph' || viewMode === 'package' || viewMode === 'class') {
-          const sourceNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
-          const sourceEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
-          const dataHash = computeDataHash(sourceNodes, sourceEdges);
-          let diagram = diagramCache.get(viewMode, dataHash);
-          if (!diagram) {
-            diagram = assembleDiagram(viewMode, sourceNodes, sourceEdges);
-            if (diagram) diagramCache.set(viewMode, dataHash, diagram);
-          }
-          if (diagram) {
-            const layer = diagram.layers[0];
-            const layerNodes = layer ? layer.nodes : diagram.allNodes;
-            const layerEdges = layer ? layer.edges : diagram.allEdges;
-            set({
-              viewMode, diagramData: diagram, currentLayer: 0, layout: recommendedLayout,
-              savedRawNodes: sourceNodes, savedRawEdges: sourceEdges,
-              expandedNodeIds: savedExpanded,
-              expandedNodeIdsByViewMode: newExpandedByViewMode,
-              nodes: layerNodes, edges: layerEdges,
-            });
-            return;
-          }
-        }
-
-        if (viewMode === 'cfg' || viewMode === 'flowchart' || viewMode === 'sequence') {
-          if (selectedFunction) {
-            set({ viewMode, diagramData: null, layout: recommendedLayout, expandedNodeIdsByViewMode: newExpandedByViewMode });
-            useGraphStore.getState().assembleMicro(viewMode);
-            return;
-          }
-          set({ viewMode, diagramData: null, layout: recommendedLayout, nodes: [], edges: [], expandedNodeIdsByViewMode: newExpandedByViewMode });
-          return;
-        }
-
-        const result = computeClusteredGraph(rawNodes, rawEdges, 'progressive', savedExpanded, clusterDepth);
-        set({ viewMode, diagramData: null, layout: recommendedLayout, expandedNodeIds: savedExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: result.nodes, edges: result.edges });
+        const { needsMicroAssembly: _, ...rest } = result;
+        set(rest);
       },
       setClusterDepth: (clusterDepth) => {
         const { rawNodes, rawEdges, expandedNodeIds, diagramData, currentLayer, viewMode } = useGraphStore.getState();
