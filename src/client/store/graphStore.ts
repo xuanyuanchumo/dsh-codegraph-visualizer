@@ -115,6 +115,48 @@ function clearLoadingFailsafe(): void {
   }
 }
 
+function applyClusterUpdate(
+  newExpanded: Set<string>,
+  newExpandedByViewMode: Record<string, Set<string>>,
+  viewMode: ViewMode,
+  diagramData: LayeredDiagram | null,
+  currentLayer: number,
+  rawNodes: GraphNode[],
+  rawEdges: GraphEdge[],
+  clusterDepth: number,
+  clusterCache: ClusterCache,
+  set: (partial: Partial<GraphState>) => void,
+): void {
+  if (isLayeredViewMode(viewMode)) {
+    if (diagramData) {
+      const { nodes: visNodes, edges: visEdges } = computeLayeredExpandedView(diagramData, currentLayer, newExpanded);
+      set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: visNodes, edges: visEdges });
+    } else {
+      set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode });
+    }
+    return;
+  }
+  let sourceNodes = rawNodes;
+  let sourceEdges = rawEdges;
+  if (diagramData) {
+    const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+    if (layer) {
+      sourceNodes = layer.nodes;
+      sourceEdges = layer.edges;
+    }
+  }
+  const dataHash = computeDataHash(sourceNodes, sourceEdges);
+  const expandedKey = [...newExpanded].sort().join(',');
+  const cached = clusterCache.get(dataHash, 'progressive', expandedKey);
+  if (cached) {
+    set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: cached.nodes, edges: cached.edges });
+    return;
+  }
+  const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', newExpanded, clusterDepth);
+  clusterCache.set(dataHash, 'progressive', expandedKey, result);
+  set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: result.nodes, edges: result.edges });
+}
+
 interface GraphState {
   nodes: (GraphNode | ClusterNode)[];
   edges: (GraphEdge | ClusterEdge)[];
@@ -395,102 +437,19 @@ export const useGraphStore = create<GraphState>()(
         const newExpanded = new Set(expandedNodeIds);
         newExpanded.add(nodeId);
         const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: newExpanded };
-        if (isLayeredViewMode(viewMode)) {
-          if (diagramData) {
-            const { nodes: visNodes, edges: visEdges } = computeLayeredExpandedView(diagramData, currentLayer, newExpanded);
-            set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: visNodes, edges: visEdges });
-          } else {
-            set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode });
-          }
-          return;
-        }
-        let sourceNodes = rawNodes;
-        let sourceEdges = rawEdges;
-        if (diagramData) {
-          const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
-          if (layer) {
-            sourceNodes = layer.nodes;
-            sourceEdges = layer.edges;
-          }
-        }
-        const dataHash = computeDataHash(sourceNodes, sourceEdges);
-        const expandedKey = [...newExpanded].sort().join(',');
-        const cached = clusterCache.get(dataHash, 'progressive', expandedKey);
-        if (cached) {
-          set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: cached.nodes, edges: cached.edges });
-          return;
-        }
-        const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', newExpanded, clusterDepth);
-        clusterCache.set(dataHash, 'progressive', expandedKey, result);
-        set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: result.nodes, edges: result.edges });
+        applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set);
       },
       collapseNode: (nodeId) => {
         const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
         const newExpanded = new Set(expandedNodeIds);
         newExpanded.delete(nodeId);
         const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: newExpanded };
-        if (isLayeredViewMode(viewMode)) {
-          if (diagramData) {
-            const { nodes: visNodes, edges: visEdges } = computeLayeredExpandedView(diagramData, currentLayer, newExpanded);
-            set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: visNodes, edges: visEdges });
-          } else {
-            set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode });
-          }
-          return;
-        }
-        let sourceNodes = rawNodes;
-        let sourceEdges = rawEdges;
-        if (diagramData) {
-          const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
-          if (layer) {
-            sourceNodes = layer.nodes;
-            sourceEdges = layer.edges;
-          }
-        }
-        const dataHash = computeDataHash(sourceNodes, sourceEdges);
-        const expandedKey = [...newExpanded].sort().join(',');
-        const cached = clusterCache.get(dataHash, 'progressive', expandedKey);
-        if (cached) {
-          set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: cached.nodes, edges: cached.edges });
-          return;
-        }
-        const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', newExpanded, clusterDepth);
-        clusterCache.set(dataHash, 'progressive', expandedKey, result);
-        set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: result.nodes, edges: result.edges });
+        applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set);
       },
       collapseAll: () => {
         const { rawNodes, rawEdges, clusterDepth, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
         const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: new Set<string>() };
-        if (isLayeredViewMode(viewMode)) {
-          if (diagramData) {
-            const layer = diagramData.layers[currentLayer];
-            const layerNodes = layer ? layer.nodes : diagramData.allNodes;
-            const layerEdges = layer ? layer.edges : diagramData.allEdges;
-            set({ expandedNodeIds: new Set(), expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: layerNodes, edges: layerEdges });
-          } else {
-            set({ expandedNodeIds: new Set(), expandedNodeIdsByViewMode: newExpandedByViewMode });
-          }
-          return;
-        }
-        let sourceNodes = rawNodes;
-        let sourceEdges = rawEdges;
-        if (diagramData) {
-          const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
-          if (layer) {
-            sourceNodes = layer.nodes;
-            sourceEdges = layer.edges;
-          }
-        }
-        const dataHash = computeDataHash(sourceNodes, sourceEdges);
-        const expandedKey = '';
-        const cached = clusterCache.get(dataHash, 'progressive', expandedKey);
-        if (cached) {
-          set({ expandedNodeIds: new Set(), expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: cached.nodes, edges: cached.edges });
-          return;
-        }
-        const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', new Set(), clusterDepth);
-        clusterCache.set(dataHash, 'progressive', expandedKey, result);
-        set({ expandedNodeIds: new Set(), expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: result.nodes, edges: result.edges });
+        applyClusterUpdate(new Set(), newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set);
       },
       setCurrentWorkspace: (path) => set({ currentWorkspace: path }),
       addWorkspace: (path, name) => set((s) => {
