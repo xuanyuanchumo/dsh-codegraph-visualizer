@@ -519,6 +519,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         onCollapse={panel.toggleCollapsed} onCollapseAll={handleCollapseAll}
         onUndo={history.undo} onRedo={history.redo}
         canUndo={history.canUndo} canRedo={history.canRedo}
+        hasSelectedFunction={!!selectedFunction}
         currentWorkspace={currentWorkspace} workspaceList={workspaceList}
         onSwitchWorkspace={handleWorkspaceSwitch} onAddWorkspace={handleWorkspaceAdd}
         onRemoveWorkspace={removeWorkspace}
@@ -558,7 +559,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         <MicroViewPrompt viewMode={viewMode}
           selectFunctionPrompt={t('micro.selectFunctionPrompt')}
           flowchartLabel={t('toolbar.viewModeFlowchart')}
-          sequenceLabel={t('toolbar.viewModeSequence')} />
+          sequenceLabel={t('toolbar.viewModeSequence')}
+          backToCodeLabel={t('micro.backToCode')}
+          onBackToCode={handleCloseMicroView} />
       )}
 
       {isMicroView && selectedFunction && !isCollapsed && (

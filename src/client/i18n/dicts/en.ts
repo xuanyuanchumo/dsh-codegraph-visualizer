@@ -301,6 +301,7 @@ export const en: Record<string, string> = {
   'viewMode.flowchart': 'Flow',
   'viewMode.sequence': 'Seq',
   'micro.selectFunctionPrompt': 'Please select a function node in the code graph first, then switch to this view',
+  'micro.backToCode': 'Back to Code View',
   'micro.selectedFunction': 'Current function: {name}',
   'micro.clearSelection': 'Clear selection',
   'stats.nodesEdges': '{nodes} nodes · {edges} edges',

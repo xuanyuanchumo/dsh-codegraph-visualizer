@@ -447,6 +447,12 @@ body[data-ds-dark-theme] .depth-select {
   opacity: 1;
 }
 
+.view-mode-btn--micro:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-style: dotted;
+}
+
 .layer-selector {
   display: inline-flex;
   gap: 2px;
@@ -2718,6 +2724,12 @@ body[data-ds-dark-theme] .depth-select {
   border-radius: var(--cg-radius-xs);
 }
 
+.node-detail-panel .detail-function-micro-btns {
+  display: inline-flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
 .node-detail-panel .detail-function-item:hover {
   background: var(--cg-surface-hover);
 }
@@ -3834,6 +3846,24 @@ body[data-ds-dark-theme] .depth-select {
   font-size: 24px;
   margin-bottom: 12px;
   opacity: 0.4;
+}
+
+.micro-empty-back-btn {
+  margin-top: 12px;
+  padding: 6px 16px;
+  background: var(--cg-surface-hover);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-sm);
+  color: var(--cg-text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--cg-transition), border-color var(--cg-transition);
+}
+
+.micro-empty-back-btn:hover {
+  background: var(--cg-accent);
+  border-color: var(--cg-accent);
+  color: white;
 }
 
 .micro-function-bar {

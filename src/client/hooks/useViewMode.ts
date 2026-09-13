@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
 import type { ViewMode } from '../../types/index.ts';
 import { fetchGraphData } from '../api/index.ts';
@@ -18,6 +18,7 @@ export function useViewMode(
   const setSelectedFunction = useGraphStore((s) => s.setSelectedFunction);
   const setSelectedNode = useGraphStore((s) => s.setSelectedNode);
   const setHighlightedNodes = useGraphStore((s) => s.setHighlightedNodes);
+  const prevMacroViewModeRef = useRef<ViewMode>('code');
 
   const handleViewModeChange = useCallback((newMode: ViewMode) => {
     if (newMode === viewMode) return;
@@ -64,14 +65,15 @@ export function useViewMode(
   }, [viewMode, setViewMode, setLoading, setGraphData, setError, currentWorkspace, setGraphType, setFilterType, setSelectedNode, setHighlightedNodes]);
 
   const handleSelectFunction = useCallback((nodeId: string, filePath: string, functionName: string, mode: 'cfg' | 'flowchart' | 'sequence') => {
+    prevMacroViewModeRef.current = viewMode;
     setSelectedFunction({ nodeId, filePath, functionName });
     setSelectedNode(null);
     setViewMode(mode);
-  }, [setSelectedFunction, setSelectedNode, setViewMode]);
+  }, [viewMode, setSelectedFunction, setSelectedNode, setViewMode]);
 
   const handleCloseMicroView = useCallback(() => {
     setSelectedFunction(null);
-    setViewMode('code');
+    setViewMode(prevMacroViewModeRef.current);
   }, [setSelectedFunction, setViewMode]);
 
   return { handleViewModeChange, handleSelectFunction, handleCloseMicroView };

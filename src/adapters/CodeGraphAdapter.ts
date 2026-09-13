@@ -174,7 +174,9 @@ export class CodeGraphAdapter {
       }
     }
 
-    const nodes: GraphNode[] = dbNodes.map((n) => {
+    const nodes: GraphNode[] = dbNodes
+      .filter((n) => n.name && n.file_path)
+      .map((n) => {
       const parentId = (n.kind !== 'file' && n.kind !== 'module' && n.kind !== 'import')
         ? fileNodeIds.get(n.file_path) ?? undefined
         : undefined;
@@ -194,8 +196,11 @@ export class CodeGraphAdapter {
       };
     });
 
+    const validNodeIds = new Set<string>(nodes.map((n) => n.id as string));
     const filteredEdges = dbEdges.filter((e) =>
-      nodeIds.has(e.source) && nodeIds.has(e.target) && !FILTERED_EDGE_KINDS.has(e.kind),
+      validNodeIds.has(e.source) && validNodeIds.has(e.target) &&
+      e.source !== e.target &&
+      !FILTERED_EDGE_KINDS.has(e.kind),
     );
 
     const importCountBySource = new Map<string, number>();

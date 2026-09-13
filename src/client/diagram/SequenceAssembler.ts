@@ -2,6 +2,7 @@ import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { NodeId, EdgeId } from '../../types/index.ts';
 import type { AssembledDiagram } from './DiagramAssembler.ts';
 import type { ASTNode } from '../../shared/CFGTypes.ts';
+import { findFunctionNode, getFunctionBody } from '../../shared/CFGTypes.ts';
 import type {
   Participant,
   ParticipantType,
@@ -160,8 +161,11 @@ export class SequenceAssembler {
     };
     participants.set(functionName, entryParticipant);
 
+    const funcNode = findFunctionNode(astRoot, functionName);
+    const targetChildren = funcNode ? getFunctionBody(funcNode) : astRoot.children;
+
     this.processStatements(
-      astRoot.children,
+      targetChildren,
       entryParticipant.id,
       participants,
       messages,

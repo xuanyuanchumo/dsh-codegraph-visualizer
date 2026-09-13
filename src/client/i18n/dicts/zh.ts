@@ -300,6 +300,7 @@ export const zh: Record<string, string> = {
   'viewMode.flowchart': '流程',
   'viewMode.sequence': '时序',
   'micro.selectFunctionPrompt': '请先在代码图谱中选择一个函数节点，然后切换到此视图',
+  'micro.backToCode': '返回代码视图',
   'micro.selectedFunction': '当前函数: {name}',
   'micro.clearSelection': '清除选择',
   'stats.nodesEdges': '{nodes} 节点 · {edges} 边',

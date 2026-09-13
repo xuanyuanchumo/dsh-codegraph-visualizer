@@ -80,7 +80,7 @@ export function slimGraphData(data: GraphData, maxNodes: number): GraphData {
   }));
   const allowedIds = new Set(slimNodes.map((n) => n.id));
   const slimEdges = data.edges
-    .filter((e) => allowedIds.has(e.source) && allowedIds.has(e.target))
+    .filter((e) => allowedIds.has(e.source) && allowedIds.has(e.target) && e.source !== e.target)
     .map((e) => ({
       id: e.id,
       source: e.source,
@@ -515,9 +515,16 @@ export function registerRoutes(deps: RouteDeps): void {
           allDepEdges.push(...converted.edges);
         } catch { /* no go.mod */ }
 
+        const dedupNodes = new Map<string, typeof allDepNodes[number]>();
+        for (const n of allDepNodes) dedupNodes.set(n.id, n);
+        const dedupEdges = new Map<string, typeof allDepEdges[number]>();
+        for (const e of allDepEdges) {
+          if (e.source !== e.target) dedupEdges.set(e.id, e);
+        }
+
         sendJson(res, 200, {
-          nodes: allDepNodes,
-          edges: allDepEdges,
+          nodes: [...dedupNodes.values()],
+          edges: [...dedupEdges.values()],
           metadata: {
             repoId: RepoId(workspacePath),
             timestamp: Date.now(),

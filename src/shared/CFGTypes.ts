@@ -35,3 +35,35 @@ export interface CFGData {
   entryBlockId: string;
   exitBlockIds: string[];
 }
+const FUNCTION_NODE_TYPES = new Set([
+  'function_declaration', 'function_definition', 'method_declaration',
+  'method_definition', 'arrow_function', 'function_item',
+  'constructor_declaration', 'destructor_declaration',
+]);
+
+export function findFunctionNode(astRoot: ASTNode, functionName: string): ASTNode | null {
+  for (const child of astRoot.children) {
+    if (FUNCTION_NODE_TYPES.has(child.type)) {
+      const nameNode = child.children.find(
+        (c) => c.type === 'identifier' || c.type === 'property_identifier' || c.type === 'name',
+      );
+      if (nameNode && nameNode.text === functionName) {
+        return child;
+      }
+    }
+  }
+  for (const child of astRoot.children) {
+    if (child.type === 'class_declaration' || child.type === 'class_definition' || child.type === 'impl_item') {
+      const found = findFunctionNode(child, functionName);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+export function getFunctionBody(funcNode: ASTNode): ASTNode[] {
+  const body = funcNode.children.find(
+    (c) => c.type === 'block' || c.type === 'statement_block' || c.type === 'body' || c.type === 'compound_statement',
+  );
+  return body ? body.children : funcNode.children;
+}

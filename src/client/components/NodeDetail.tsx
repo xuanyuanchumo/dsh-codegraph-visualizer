@@ -142,9 +142,17 @@ export function NodeDetail({ node, onClose, isExpanded, connectionCount, onColla
             {childFunctionNodes.map((fn) => (
               <div className="detail-function-item" key={fn.id}>
                 <span className="detail-function-name" title={fn.filePath}>{fn.label}</span>
-                <button className="detail-micro-btn detail-micro-btn--small" onClick={() => onSelectFunction(fn, 'cfg')}>
-                  {t('viewMode.cfg')}
-                </button>
+                <div className="detail-function-micro-btns">
+                  <button className="detail-micro-btn detail-micro-btn--small" onClick={() => onSelectFunction(fn, 'cfg')}>
+                    {t('viewMode.cfg')}
+                  </button>
+                  <button className="detail-micro-btn detail-micro-btn--small" onClick={() => onSelectFunction(fn, 'flowchart')}>
+                    {t('viewMode.flowchart')}
+                  </button>
+                  <button className="detail-micro-btn detail-micro-btn--small" onClick={() => onSelectFunction(fn, 'sequence')}>
+                    {t('viewMode.sequence')}
+                  </button>
+                </div>
               </div>
             ))}
           </div>

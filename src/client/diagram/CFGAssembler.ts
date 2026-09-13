@@ -2,6 +2,7 @@ import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { NodeId, EdgeId } from '../../types/index.ts';
 import type { AssembledDiagram } from './DiagramAssembler.ts';
 import type { ASTNode, BasicBlock, StatementInfo, CFGEdgeData, CFGData } from '../../shared/CFGTypes.ts';
+import { findFunctionNode, getFunctionBody } from '../../shared/CFGTypes.ts';
 
 const CONTROL_FLOW_TYPES = new Set([
   'if_statement', 'if', 'for_statement', 'for', 'while_statement', 'while',
@@ -112,7 +113,10 @@ export class CFGAssembler {
       depth: 0,
     };
 
-    this.processStatements(astRoot.children, entryBlock.id, exitBlock.id, blocks, edges, 1, filePath);
+    const funcNode = findFunctionNode(astRoot, functionName);
+    const targetChildren = funcNode ? getFunctionBody(funcNode) : astRoot.children;
+
+    this.processStatements(targetChildren, entryBlock.id, exitBlock.id, blocks, edges, 1, filePath);
 
     const hasExitEdge = edges.some((e) => e.target === exitBlock.id);
     if (!hasExitEdge) {

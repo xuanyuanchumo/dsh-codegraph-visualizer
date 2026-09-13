@@ -113,6 +113,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
+  hasSelectedFunction?: boolean;
 }
 
 export function Toolbar(props: ToolbarProps) {
@@ -145,7 +146,7 @@ export function Toolbar(props: ToolbarProps) {
     onViewModeChange, onLayerChange,
     onRefresh, onCollapse,
     currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
-    onCollapseAll, onUndo, onRedo, canUndo, canRedo,
+    onCollapseAll, onUndo, onRedo, canUndo, canRedo, hasSelectedFunction,
   } = props;
 
   const {
@@ -213,6 +214,8 @@ export function Toolbar(props: ToolbarProps) {
               onClick={() => onViewModeChange(m.value)}
               title={t(`toolbar.viewMode${m.value.charAt(0).toUpperCase() + m.value.slice(1)}`)}
               aria-pressed={viewMode === m.value}
+              disabled={!hasSelectedFunction}
+              aria-disabled={!hasSelectedFunction}
             >{t(m.key)}</button>
           ))}
         </div>
