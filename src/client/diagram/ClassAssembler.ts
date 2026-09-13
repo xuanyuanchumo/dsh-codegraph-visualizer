@@ -148,7 +148,7 @@ export class ClassAssembler implements DiagramAssembler {
     if (name.startsWith('__')) return 'private';
     const exported = node.properties?.exported ?? node.properties?.isExported;
     if (exported === true || exported === 1) return 'public';
-    return 'public';
+    return 'private';
   }
 
   private checkAbstract(node: GraphNode): boolean {

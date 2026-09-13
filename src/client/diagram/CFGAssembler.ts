@@ -150,7 +150,10 @@ export class CFGAssembler {
     };
 
     const funcNode = findFunctionNode(astRoot, functionName);
-    const targetChildren = funcNode ? getFunctionBody(funcNode) : astRoot.children;
+    if (!funcNode) {
+      throw new Error(`Function "${functionName}" not found in AST of ${filePath}`);
+    }
+    const targetChildren = getFunctionBody(funcNode);
 
     this.processStatements(targetChildren, entryBlock.id, exitBlock.id, blocks, edges, 1);
 
@@ -392,7 +395,15 @@ export class CFGAssembler {
     blocks.push(bodyEntry);
     edges.push({ source: condBlock.id, target: bodyEntryId, edgeType: 'true', condition: condText });
 
+    const edgeCountBefore = edges.length;
     this.processStatements(body, bodyEntryId, condBlock.id, blocks, edges, depth + 1);
+
+    for (let i = edgeCountBefore; i < edges.length; i++) {
+      const e = edges[i]!;
+      if (e.target === condBlock.id && e.edgeType === 'fallthrough') {
+        e.edgeType = 'loop-back';
+      }
+    }
 
     edges.push({ source: condBlock.id, target: loopExitBlock.id, edgeType: 'false', condition: condText });
 

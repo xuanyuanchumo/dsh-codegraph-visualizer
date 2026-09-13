@@ -74,6 +74,18 @@ const FILTERED_EDGE_KINDS = new Set([
   'func_imports_local',
 ]);
 
+const NOISE_PATH_SEGMENTS = [
+  'node_modules', '.git', 'vendor', '__pycache__', '.venv', 'dist', 'build',
+  '.next', '.nuxt', '.cache', '.turbo', 'coverage', '.pytest_cache',
+];
+
+function isNoisePath(filePath: string): boolean {
+  for (const seg of NOISE_PATH_SEGMENTS) {
+    if (filePath.includes(seg)) return true;
+  }
+  return false;
+}
+
 const MAX_IMPORTS_PER_SOURCE = 20;
 
 export function mapNodeKind(kind: string): GraphNode['type'] {
@@ -137,7 +149,9 @@ export class CodeGraphAdapter {
       return { nodes: [], edges: [], source: this.source, timestamp: Date.now() };
     }
     const rawFiles = this.extractFileList(files);
-    const nodes: GraphNode[] = rawFiles.map((f, i) => ({
+    const nodes: GraphNode[] = rawFiles
+      .filter((f) => !isNoisePath(f.path))
+      .map((f, i) => ({
       id: NodeId(`file:${f.path}`),
       label: f.path.split('/').pop() ?? f.path,
       type: 'module',
@@ -174,7 +188,7 @@ export class CodeGraphAdapter {
     }
 
     const nodes: GraphNode[] = dbNodes
-      .filter((n) => n.name && n.file_path)
+      .filter((n) => n.name && n.file_path && !isNoisePath(n.file_path))
       .map((n) => {
       const parentId = (n.kind !== 'file' && n.kind !== 'module' && n.kind !== 'import')
         ? fileNodeIds.get(n.file_path) ?? undefined

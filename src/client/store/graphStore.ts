@@ -54,6 +54,31 @@ function isLayeredViewMode(mode: ViewMode): boolean {
   return mode === 'inheritance' || mode === 'callgraph' || mode === 'package' || mode === 'class' || mode === 'dependencies';
 }
 
+function sanitizeGraphData(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  const seenNodeIds = new Set<string>();
+  const validNodes: GraphNode[] = [];
+  for (const node of nodes) {
+    if (!node || !node.id || !node.label || !node.type || !node.filePath) continue;
+    if (seenNodeIds.has(node.id)) continue;
+    seenNodeIds.add(node.id);
+    validNodes.push(node);
+  }
+
+  const nodeIdSet = new Set(validNodes.map((n) => n.id));
+  const seenEdgeIds = new Set<string>();
+  const validEdges: GraphEdge[] = [];
+  for (const edge of edges) {
+    if (!edge || !edge.id || !edge.source || !edge.target) continue;
+    if (edge.source === edge.target) continue;
+    if (!nodeIdSet.has(edge.source) || !nodeIdSet.has(edge.target)) continue;
+    if (seenEdgeIds.has(edge.id)) continue;
+    seenEdgeIds.add(edge.id);
+    validEdges.push(edge);
+  }
+
+  return { nodes: validNodes, edges: validEdges };
+}
+
 function computeLayeredExpandedView(
   diagramData: LayeredDiagram,
   currentLayer: number,
@@ -245,17 +270,18 @@ export const useGraphStore = create<GraphState>()(
       setGraphData: (nodes, edges, repoId, metadata) => {
         clearLoadingFailsafe();
         const { clusterDepth, expandedNodeIds, viewMode, currentLayer } = useGraphStore.getState();
-        let displayNodes = nodes;
-        let displayEdges = edges;
+        const sanitized = sanitizeGraphData(nodes, edges);
+        let displayNodes = sanitized.nodes;
+        let displayEdges = sanitized.edges;
         let diagramData: LayeredDiagram | null = null;
-        const isLayeredView = viewMode === 'inheritance' || viewMode === 'callgraph' || viewMode === 'package' || viewMode === 'class' || viewMode === 'dependencies';
+        const isLayeredView = isLayeredViewMode(viewMode);
         if (isLayeredView) {
-          const dataHash = computeDataHash(nodes, edges);
+          const dataHash = computeDataHash(sanitized.nodes, sanitized.edges);
           const cached = diagramCache.get(viewMode, dataHash);
           if (cached) {
             diagramData = cached;
           } else {
-            diagramData = assembleDiagram(viewMode, nodes, edges);
+            diagramData = assembleDiagram(viewMode, sanitized.nodes, sanitized.edges);
             if (diagramData) diagramCache.set(viewMode, dataHash, diagramData);
           }
           if (diagramData) {
@@ -266,13 +292,13 @@ export const useGraphStore = create<GraphState>()(
             }
           }
           set({
-            rawNodes: nodes, rawEdges: edges,
+            rawNodes: sanitized.nodes, rawEdges: sanitized.edges,
             nodes: displayNodes, edges: displayEdges,
             diagramData,
             repoId, error: null, isLoading: false, lastUpdated: Date.now(),
             truncated: !!metadata?.truncated,
-            totalNodeCount: metadata?.totalNodeCount ?? nodes.length,
-            totalEdgeCount: metadata?.totalEdgeCount ?? edges.length,
+            totalNodeCount: metadata?.totalNodeCount ?? sanitized.nodes.length,
+            totalEdgeCount: metadata?.totalEdgeCount ?? sanitized.edges.length,
             healthScore: null,
             ruleViolations: [],
           });
@@ -280,13 +306,13 @@ export const useGraphStore = create<GraphState>()(
         }
         const result = computeClusteredGraph(displayNodes, displayEdges, 'progressive', expandedNodeIds, clusterDepth);
         set({
-          rawNodes: nodes, rawEdges: edges,
+          rawNodes: sanitized.nodes, rawEdges: sanitized.edges,
           nodes: result.nodes, edges: result.edges,
           diagramData,
           repoId, error: null, isLoading: false, lastUpdated: Date.now(),
           truncated: !!metadata?.truncated,
-          totalNodeCount: metadata?.totalNodeCount ?? nodes.length,
-          totalEdgeCount: metadata?.totalEdgeCount ?? edges.length,
+          totalNodeCount: metadata?.totalNodeCount ?? sanitized.nodes.length,
+          totalEdgeCount: metadata?.totalEdgeCount ?? sanitized.edges.length,
           healthScore: null,
           ruleViolations: [],
         });
@@ -380,7 +406,7 @@ export const useGraphStore = create<GraphState>()(
 
         if (viewMode === 'cfg' || viewMode === 'flowchart' || viewMode === 'sequence') {
           if (selectedFunction) {
-            set({ viewMode, layout: recommendedLayout, expandedNodeIdsByViewMode: newExpandedByViewMode });
+            set({ viewMode, diagramData: null, layout: recommendedLayout, expandedNodeIdsByViewMode: newExpandedByViewMode });
             useGraphStore.getState().assembleMicro(viewMode);
             return;
           }
@@ -597,13 +623,12 @@ export const useGraphStore = create<GraphState>()(
       resetPanelSize: () => set({ panelHeight: null, panelWidth: null }),
       setSelectedFunction: (fn) => set({ selectedFunction: fn }),
       assembleMicro: async (viewMode) => {
-        const { selectedFunction, clusterDepth, expandedNodeIds } = useGraphStore.getState();
+        const { selectedFunction } = useGraphStore.getState();
         if (!selectedFunction) return;
         set({ isLoading: true, error: null });
         try {
           const diagram = await assembleMicroDiagram(viewMode, selectedFunction.filePath, selectedFunction.functionName);
-          const result = computeClusteredGraph(diagram.nodes, diagram.edges, 'progressive', expandedNodeIds, clusterDepth);
-          set({ diagramData: null, nodes: result.nodes, edges: result.edges, isLoading: false });
+          set({ diagramData: null, nodes: diagram.nodes, edges: diagram.edges, isLoading: false });
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           set({ isLoading: false, error: `${msg} — ${selectedFunction.functionName}` });

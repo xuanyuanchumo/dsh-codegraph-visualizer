@@ -61,6 +61,15 @@ const BODY_NODE_TYPES = new Set([
 export function findFunctionNode(astRoot: ASTNode, functionName: string): ASTNode | null {
   const normalizedTarget = functionName.replace(/^.*\./, '');
 
+  if (FUNCTION_NODE_TYPES.has(astRoot.type)) {
+    const nameNode = astRoot.children.find(
+      (c) => c.type === 'identifier' || c.type === 'property_identifier' || c.type === 'name',
+    );
+    if (!nameNode || nameNode.text === functionName || nameNode.text === normalizedTarget) {
+      return astRoot;
+    }
+  }
+
   const searchInNode = (node: ASTNode): ASTNode | null => {
     for (const child of node.children) {
       if (FUNCTION_NODE_TYPES.has(child.type)) {

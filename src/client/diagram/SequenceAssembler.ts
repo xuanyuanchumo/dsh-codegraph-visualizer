@@ -30,6 +30,19 @@ const CONTROL_FLOW_TYPES = new Set([
   'break_statement', 'break', 'continue_statement', 'continue',
 ]);
 
+const DESTROY_METHODS = new Set([
+  'dispose', 'destroy', 'close', 'delete', 'remove', 'cleanup', 'finalize', 'free', 'release',
+]);
+
+function isNewExpression(node: ASTNode): boolean {
+  return node.type === 'new_expression' || node.type === 'object_creation_expression' ||
+    node.type === 'class_instance_creation_expression' || node.text.includes('new ');
+}
+
+function isDestroyMethod(methodName: string): boolean {
+  return DESTROY_METHODS.has(methodName.toLowerCase());
+}
+
 function isCallExpression(node: ASTNode): boolean {
   return CALL_NODE_TYPES.has(node.type) || node.type.includes('call');
 }
@@ -163,7 +176,10 @@ export class SequenceAssembler {
     participants.set(functionName, entryParticipant);
 
     const funcNode = findFunctionNode(astRoot, functionName);
-    const targetChildren = funcNode ? getFunctionBody(funcNode) : astRoot.children;
+    if (!funcNode) {
+      throw new Error(`Function "${functionName}" not found in AST of ${filePath}`);
+    }
+    const targetChildren = getFunctionBody(funcNode);
 
     this.processStatements(
       targetChildren,
@@ -238,14 +254,15 @@ export class SequenceAssembler {
     const methodName = extractMethodName(node);
     const args = extractArguments(node);
     const { receiverName, isSelf } = extractReceiver(node);
+    const isCreate = isNewExpression(node);
 
     let targetId: string;
-    if (isSelf) {
+    if (isSelf && !isCreate) {
       targetId = selfId;
     } else {
       const participantName = receiverName || methodName;
       if (!participants.has(participantName)) {
-        const participantType = inferParticipantType(receiverName, methodName);
+        const participantType = isCreate ? 'class' : inferParticipantType(receiverName, methodName);
         participants.set(participantName, {
           id: this.nextId('participant'),
           name: participantName,
@@ -253,11 +270,21 @@ export class SequenceAssembler {
           ...(receiverName && receiverName.charAt(0) === receiverName.charAt(0).toUpperCase() ? { className: receiverName } : {}),
           lifelineStart: 0,
           lifelineEnd: 0,
-          isCreated: false,
+          isCreated: isCreate,
           isDestroyed: false,
         });
+      } else if (isCreate) {
+        const existing = participants.get(participantName)!;
+        existing.isCreated = true;
       }
       targetId = participants.get(participantName)!.id;
+    }
+
+    if (!isSelf && !isCreate && isDestroyMethod(methodName)) {
+      const participant = participants.get(receiverName || methodName);
+      if (participant) {
+        participant.isDestroyed = true;
+      }
     }
 
     const msg: SequenceMessage = {
@@ -268,9 +295,9 @@ export class SequenceAssembler {
       methodName,
       arguments: args,
       isAsync: node.type.includes('await') || node.text.includes('await'),
-      isSelfCall: isSelf,
+      isSelfCall: isSelf && !isCreate,
       isReturn: false,
-      isCreate: false,
+      isCreate,
       lineNumber: node.startPosition.row + 1,
     };
 
