@@ -536,6 +536,7 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
 
               return (
                 <g key={`msg-${msg.id}`}>
+                  <title>{`${msg.methodName}(${msg.arguments})`}{msg.lineNumber ? ` :${msg.lineNumber}` : ''}</title>
                   <path
                     d={`M ${loopX} ${loopStartY} L ${loopX + loopWidth} ${loopStartY} L ${loopX + loopWidth} ${loopEndY} L ${loopX + LAYOUT.ARROW_HEAD_SIZE} ${loopEndY}`}
                     fill="none"
@@ -590,6 +591,7 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
 
             return (
               <g key={`msg-${msg.id}`}>
+                <title>{`${msg.methodName}(${msg.arguments})`}{msg.lineNumber ? ` :${msg.lineNumber}` : ''}</title>
                 {/* Message line */}
                 <line
                   x1={arrowStartX}

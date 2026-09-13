@@ -390,7 +390,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         if (isExpanded) collapseNode(nodeId);
         else expandNode(nodeId);
       } else if (data.type === 'function') {
-        handleSelectFunction(nodeId, data.filePath, data.label, 'cfg');
+        setSelectedNode(NodeId(nodeId));
+        setSelectedNodeData(data);
       } else {
         setFocusNodeId((prev) => {
           if (prev === nodeId) {
