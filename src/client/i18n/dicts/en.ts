@@ -215,6 +215,8 @@ export const en: Record<string, string> = {
   'shortcut.minimap': 'Toggle mini-map',
   'shortcut.layout': 'Cycle layout',
   'shortcut.import': 'Toggle import panel',
+  'shortcut.undo': 'Undo',
+  'shortcut.redo': 'Redo',
   'shortcut.help': 'Show this help',
   'edge.tooltip.source': 'Source',
   'edge.tooltip.target': 'Target',

@@ -15,6 +15,8 @@ const SHORTCUTS = [
   { key: 'Ctrl+M', descKey: 'shortcut.minimap' },
   { key: 'Ctrl+L', descKey: 'shortcut.layout' },
   { key: 'Ctrl+I', descKey: 'shortcut.import' },
+  { key: 'Ctrl+Z', descKey: 'shortcut.undo' },
+  { key: 'Ctrl+Y', descKey: 'shortcut.redo' },
   { key: '?', descKey: 'shortcut.help' },
 ];
 

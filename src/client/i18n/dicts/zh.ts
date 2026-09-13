@@ -214,6 +214,8 @@ export const zh: Record<string, string> = {
   'shortcut.minimap': '切换缩略图',
   'shortcut.layout': '循环切换布局',
   'shortcut.import': '切换导入面板',
+  'shortcut.undo': '撤销操作',
+  'shortcut.redo': '重做操作',
   'shortcut.help': '显示此帮助',
   'edge.tooltip.source': '源节点',
   'edge.tooltip.target': '目标节点',

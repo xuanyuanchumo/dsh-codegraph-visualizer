@@ -74,6 +74,8 @@
   --cg-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
   --cg-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
   --cg-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.14);
+  --cg-shadow-active: 0 1px 4px rgba(0, 0, 0, 0.3);
+  --cg-overlay-bg: rgba(0, 0, 0, 0.3);
 
   /* Radii */
   --cg-radius: 12px;
@@ -154,6 +156,8 @@ body[data-ds-dark-theme] {
   --cg-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
   --cg-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
   --cg-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.36);
+  --cg-shadow-active: 0 1px 4px rgba(0, 0, 0, 0.5);
+  --cg-overlay-bg: rgba(0, 0, 0, 0.5);
 }
 
 body[data-ds-dark-theme] .filter-select,
@@ -309,7 +313,7 @@ body[data-ds-dark-theme] .depth-select {
 }
 
 .type-badge.function {
-  background: color-mix(in srgb, var(--cg-success) 140%, transparent);
+  background: color-mix(in srgb, var(--cg-success) 100%, transparent);
   color: var(--cg-success);
 }
 
@@ -357,7 +361,7 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-on-accent);
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--cg-shadow-active);
 }
 
 /* ---- Graph type switcher (segmented control) ----------------------------- */
@@ -380,7 +384,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 500;
   border-radius: var(--cg-radius-xs);
   cursor: pointer;
-  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
+  transition: var(--cg-transition);
   font-family: var(--cg-font-sans);
 }
 
@@ -393,7 +397,7 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-on-accent);
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--cg-shadow-active);
 }
 
 .view-mode-buttons {
@@ -411,7 +415,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 600;
   border-radius: var(--cg-radius-xs);
   cursor: pointer;
-  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
+  transition: var(--cg-transition);
   font-family: var(--cg-font-sans);
   margin-left: 2px;
 }
@@ -425,7 +429,7 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-on-accent);
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--cg-shadow-active);
 }
 
 .view-mode-divider {
@@ -469,7 +473,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 700;
   border-radius: var(--cg-radius-xs);
   cursor: pointer;
-  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
+  transition: var(--cg-transition);
   font-family: var(--cg-font-sans);
   min-width: 28px;
   text-align: center;
@@ -484,37 +488,12 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-on-accent);
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--cg-shadow-active);
 }
 
 /* ---- Select -------------------------------------------------------------- */
 
-.filter-select {
-  padding: 5px 24px 5px 8px;
-  background: var(--cg-bg);
-  border: 1px solid var(--cg-border);
-  border-radius: var(--cg-radius-sm);
-  color: var(--cg-text);
-  font-size: 11px;
-  font-family: var(--cg-font-sans);
-  cursor: pointer;
-  outline: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%239ca0b8' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  transition: border-color var(--cg-transition);
-}
-
-.filter-select:hover {
-  border-color: var(--cg-accent);
-}
-
-.filter-select:focus-visible {
-  border-color: var(--cg-accent);
-  box-shadow: 0 0 0 2px var(--cg-accent-soft);
-}
-
+.filter-select,
 .depth-select {
   padding: 5px 24px 5px 8px;
   background: var(--cg-bg);
@@ -532,10 +511,12 @@ body[data-ds-dark-theme] .depth-select {
   transition: border-color var(--cg-transition);
 }
 
+.filter-select:hover,
 .depth-select:hover {
   border-color: var(--cg-accent);
 }
 
+.filter-select:focus-visible,
 .depth-select:focus-visible {
   border-color: var(--cg-accent);
   box-shadow: 0 0 0 2px var(--cg-accent-soft);
@@ -649,7 +630,7 @@ body[data-ds-dark-theme] .depth-select {
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
   color: var(--cg-on-accent);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--cg-shadow-active);
 }
 
 /* ---- Export menu --------------------------------------------------------- */
@@ -774,7 +755,7 @@ body[data-ds-dark-theme] .depth-select {
   background: var(--cg-surface);
   border: 1px solid var(--cg-border);
   border-radius: var(--cg-radius-sm);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--cg-shadow);
   z-index: 100;
   list-style: none;
   margin: 0;
@@ -1003,12 +984,12 @@ body[data-ds-dark-theme] .depth-select {
   background: var(--cg-surface);
   color: var(--cg-text);
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--cg-radius-xs);
   font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background var(--cg-transition), border-color var(--cg-transition);
 }
 
 .seq-zoom-btn:hover {
@@ -1030,7 +1011,7 @@ body[data-ds-dark-theme] .depth-select {
   left: 8px;
   color: var(--cg-text-secondary);
   font-size: 10px;
-  font-family: monospace;
+  font-family: var(--cg-font-mono);
   z-index: 10;
 }
 
@@ -1045,7 +1026,7 @@ body[data-ds-dark-theme] .depth-select {
 
 .seq-participant-group {
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: opacity var(--cg-transition);
 }
 
 .seq-participant-group:hover {
@@ -1058,7 +1039,7 @@ body[data-ds-dark-theme] .depth-select {
 }
 
 .seq-participant-box {
-  transition: stroke-width 0.15s, filter 0.15s;
+  transition: stroke-width var(--cg-transition), filter var(--cg-transition);
 }
 
 .seq-message-group {
@@ -1070,11 +1051,11 @@ body[data-ds-dark-theme] .depth-select {
 }
 
 .seq-message-line {
-  transition: stroke-width 0.15s;
+  transition: stroke-width var(--cg-transition);
 }
 
 .seq-fragment-group {
-  transition: opacity 0.15s;
+  transition: opacity var(--cg-transition);
 }
 
 .seq-fragment-group:hover {
@@ -1753,9 +1734,9 @@ body[data-ds-dark-theme] .depth-select {
   gap: 10px;
   padding: 12px 14px;
   background: color-mix(in srgb, var(--cg-warning) 80%, transparent);
-  border: 1px solid color-mix(in srgb, var(--cg-warning) 250%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cg-warning) 100%, transparent);
   border-radius: var(--cg-radius-sm);
-  color: var(--cg-text-primary);
+  color: var(--cg-text);
   font-size: 12px;
   line-height: 1.4;
   max-width: 400px;
@@ -1798,7 +1779,7 @@ body[data-ds-dark-theme] .depth-select {
 
 .prereq-item-label {
   font-weight: 600;
-  color: var(--cg-text-primary);
+  color: var(--cg-text);
 }
 
 .prereq-item-status {
@@ -1814,7 +1795,7 @@ body[data-ds-dark-theme] .depth-select {
 }
 
 .watch-indicator {
-  color: var(--cg-success, #22c55e);
+  color: var(--cg-success, #10b981);
   font-size: 8px;
   animation: cg-pulse 2s ease-in-out infinite;
 }
@@ -2500,7 +2481,7 @@ body[data-ds-dark-theme] .depth-select {
 .keyboard-help-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--cg-overlay-bg);
   backdrop-filter: blur(2px);
   z-index: 10000;
   display: flex;
@@ -2591,10 +2572,6 @@ body[data-ds-dark-theme] .depth-select {
   to { opacity: 1; }
 }
 
-@keyframes cg-slide-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
 
 /* ---- Expandable node indicators ------------------------------------------- */
 
@@ -3949,7 +3926,7 @@ body[data-ds-dark-theme] .depth-select {
   background: var(--cg-surface-hover);
   border: 1px solid var(--cg-border);
   border-radius: var(--cg-radius-sm);
-  color: var(--cg-text-primary);
+  color: var(--cg-text);
   font-size: 12px;
   cursor: pointer;
   transition: background var(--cg-transition), border-color var(--cg-transition);
@@ -3958,7 +3935,7 @@ body[data-ds-dark-theme] .depth-select {
 .micro-empty-back-btn:hover {
   background: var(--cg-accent);
   border-color: var(--cg-accent);
-  color: white;
+  color: var(--cg-on-accent);
 }
 
 .micro-function-bar {
@@ -3973,11 +3950,11 @@ body[data-ds-dark-theme] .depth-select {
   border-radius: var(--cg-radius-xs);
   background: var(--cg-surface);
   border: 1px solid var(--cg-border);
-  color: var(--cg-text3, var(--cg-text));
+  color: var(--cg-text);
   font-size: 12px;
   z-index: 10;
   backdrop-filter: blur(8px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--cg-shadow-sm);
 }
 
 .micro-function-close {
@@ -4069,7 +4046,7 @@ body[data-ds-dark-theme] .depth-select {
 .cg-floating-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--cg-overlay-bg);
   backdrop-filter: blur(2px);
   opacity: 0;
   transition: opacity var(--cg-transition);
@@ -4089,7 +4066,7 @@ body[data-ds-dark-theme] .depth-select {
   background: var(--cg-bg);
   border: 1px solid var(--cg-border-strong);
   border-radius: var(--cg-radius-lg);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--cg-shadow-lg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
