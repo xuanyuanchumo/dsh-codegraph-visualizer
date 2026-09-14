@@ -1,4 +1,4 @@
-import React from 'react';
+
 import type { ImpactStats } from '../hooks/useAnalysisPanels.ts';
 
 interface ImpactPanelProps {

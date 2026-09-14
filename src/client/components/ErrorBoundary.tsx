@@ -1,5 +1,5 @@
 // Error boundary for graph visualization components
-import React, { Component, type ErrorInfo, type ReactNode } from 'react';
+import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { useT } from '../i18n/index.ts';
 import { scoped } from '../../shared/Logger.ts';
 

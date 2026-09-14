@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { useT } from '../i18n/index.ts';
 import type { ViewMode } from '../../types/index.ts';
 

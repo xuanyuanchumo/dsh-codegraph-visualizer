@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { CloseIcon } from './Icons.tsx';
 import type { GodModule } from '../hooks/useAnalysisPanels.ts';
 

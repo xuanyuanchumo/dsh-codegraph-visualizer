@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { AlertCircleIcon } from './Icons.tsx';
 import { useT } from '../i18n/index.ts';
 

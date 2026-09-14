@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
+import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useGraphStore, type ThemeType } from './store/graphStore.ts';
 import { useShallow } from 'zustand/shallow';
 import type { GraphNode, GraphEdge } from '../types/index.ts';

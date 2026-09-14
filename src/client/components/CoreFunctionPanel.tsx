@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { CloseIcon } from './Icons.tsx';
 import { useT } from '../i18n/index.ts';
 import type { CoreFunction, CoreFunctionCategory } from '../../shared/analysis/CoreFunctionAnalyzer.ts';

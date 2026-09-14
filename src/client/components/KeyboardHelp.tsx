@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useT } from '../i18n/index.ts';
 
 interface KeyboardHelpProps {

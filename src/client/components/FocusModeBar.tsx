@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { useGraphStore } from '../store/graphStore.ts';
 import { useT } from '../i18n/index.ts';
 import { CloseIcon, ExpandIcon, ContractIcon, FocusIcon } from './Icons.tsx';

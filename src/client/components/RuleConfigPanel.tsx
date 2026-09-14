@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
 import { useT } from '../i18n/index.ts';
 import { CloseIcon, RuleIcon, AlertIcon } from './Icons.tsx';

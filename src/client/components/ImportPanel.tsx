@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { scoped } from '../../shared/Logger.ts';
 import { useT } from '../i18n/index.ts';
 import { UploadIcon, FolderIcon, CloseIcon, AlertIcon, RefreshIcon, ZapIcon, WatchIcon } from './Icons.tsx';

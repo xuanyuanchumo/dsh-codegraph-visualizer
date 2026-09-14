@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import type { GraphNode } from '../../types/index.ts';
 import { useT } from '../i18n/index.ts';
 import { useGraphStore } from '../store/graphStore.ts';
