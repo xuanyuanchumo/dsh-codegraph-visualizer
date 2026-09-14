@@ -1,8 +1,7 @@
 import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
 import type { PathResult } from './PathFinder.ts';
-import type { LayoutType } from '../../shared/viewModeUtils.ts';
-export type { LayoutType } from '../../shared/viewModeUtils.ts';
-export type ThemeType = 'light' | 'dark';
+import type { LayoutType, ThemeType } from '../../shared/viewModeUtils.ts';
+export type { LayoutType, ThemeType } from '../../shared/viewModeUtils.ts';
 
 export interface RendererCallbacks {
   onNodeTap?(nodeId: string): void;

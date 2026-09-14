@@ -32,6 +32,7 @@ vi.mock('../../src/adapters/TreeSitterAdapter.ts', () => ({
 vi.mock('node:fs/promises', () => ({
   default: {
     readFile: vi.fn().mockRejectedValue(new Error('not found')),
+    realpath: vi.fn((p: string) => Promise.resolve(p)),
   },
 }));
 
@@ -156,9 +157,9 @@ describe('registerRoutes', () => {
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
   });
 
-  it('registers all 10 routes', () => {
+  it('registers all 11 routes', () => {
     registerRoutes(deps);
-    expect(ctx.webServer.register).toHaveBeenCalledTimes(10);
+    expect(ctx.webServer.register).toHaveBeenCalledTimes(11);
   });
 
   it('GET /status returns prerequisites status', () => {
@@ -180,7 +181,7 @@ describe('registerRoutes', () => {
 
   it('GET /workspace returns current path and list', () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 1);
+    const handler = getHandler(ctx, 2);
     const { res, state } = makeRes();
     handler(makeReq('GET'), res);
     expect(state.code).toBe(200);
@@ -191,7 +192,7 @@ describe('registerRoutes', () => {
 
   it('GET /data returns empty graph when no lastGraphData', () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 2);
+    const handler = getHandler(ctx, 3);
     const { res, state } = makeRes();
     handler(makeReq('GET'), res);
     expect(state.code).toBe(200);
@@ -203,7 +204,7 @@ describe('registerRoutes', () => {
     const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
-    const handler = getHandler(ctx, 2);
+    const handler = getHandler(ctx, 3);
     const { res, state } = makeRes();
     handler(makeReq('GET'), res);
     expect(state.code).toBe(200);
@@ -215,7 +216,7 @@ describe('registerRoutes', () => {
     const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
-    const handler = getHandler(ctx, 2);
+    const handler = getHandler(ctx, 3);
     const { res, state } = makeRes();
     handler(makeReq('GET', undefined, { 'if-none-match': String(graphData.metadata.timestamp) }), res);
     expect(state.code).toBe(304);
@@ -226,7 +227,7 @@ describe('registerRoutes', () => {
     const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     vi.mocked(fetchMergedGraph).mockResolvedValue(graphData);
     registerRoutes(deps);
-    const handler = getHandler(ctx, 3);
+    const handler = getHandler(ctx, 4);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '.' })), res);
     expect(state.code).toBe(200);
@@ -238,7 +239,7 @@ describe('registerRoutes', () => {
   it('POST /scan returns 403 for disallowed path', async () => {
     vi.mocked(isPathAllowed).mockReturnValue(false);
     registerRoutes(deps);
-    const handler = getHandler(ctx, 3);
+    const handler = getHandler(ctx, 4);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '/etc/passwd' })), res);
     expect(state.code).toBe(403);
@@ -248,7 +249,7 @@ describe('registerRoutes', () => {
   it('POST /scan returns 500 on fetch error', async () => {
     vi.mocked(fetchMergedGraph).mockRejectedValue(new Error('fetch failed'));
     registerRoutes(deps);
-    const handler = getHandler(ctx, 3);
+    const handler = getHandler(ctx, 4);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '.' })), res);
     expect(state.code).toBe(500);
@@ -259,7 +260,7 @@ describe('registerRoutes', () => {
     const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     vi.mocked(fetchMergedGraph).mockResolvedValue(graphData);
     registerRoutes(deps);
-    const handler = getHandler(ctx, 3);
+    const handler = getHandler(ctx, 4);
     const { res: res1, state: state1 } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '.' })), res1);
     expect(state1.code).toBe(200);
@@ -273,7 +274,7 @@ describe('registerRoutes', () => {
   it('POST /init initializes graph and returns success', async () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []));
     registerRoutes(deps);
-    const handler = getHandler(ctx, 4);
+    const handler = getHandler(ctx, 5);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '.' })), res);
     expect(state.code).toBe(200);
@@ -284,7 +285,7 @@ describe('registerRoutes', () => {
   it('POST /init returns 403 for disallowed path', async () => {
     vi.mocked(isPathAllowed).mockReturnValue(false);
     registerRoutes(deps);
-    const handler = getHandler(ctx, 4);
+    const handler = getHandler(ctx, 5);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '/etc' })), res);
     expect(state.code).toBe(403);
@@ -294,7 +295,7 @@ describe('registerRoutes', () => {
   it('POST /init returns 500 on error', async () => {
     vi.mocked(fetchMergedGraph).mockRejectedValue(new Error('init failed'));
     registerRoutes(deps);
-    const handler = getHandler(ctx, 4);
+    const handler = getHandler(ctx, 5);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '.' })), res);
     expect(state.code).toBe(500);
@@ -303,7 +304,7 @@ describe('registerRoutes', () => {
 
   it('POST /watch toggles watch mode', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 5);
+    const handler = getHandler(ctx, 6);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ enabled: true, path: '.' })), res);
     expect(state.code).toBe(200);
@@ -316,7 +317,7 @@ describe('registerRoutes', () => {
   it('POST /watch returns 403 for disallowed path', async () => {
     vi.mocked(isPathAllowed).mockReturnValue(false);
     registerRoutes(deps);
-    const handler = getHandler(ctx, 5);
+    const handler = getHandler(ctx, 6);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ enabled: true, path: '/etc' })), res);
     expect(state.code).toBe(403);
@@ -325,7 +326,7 @@ describe('registerRoutes', () => {
 
   it('POST /watch returns 500 on error', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 5);
+    const handler = getHandler(ctx, 6);
     const { res, state } = makeRes();
     const req = {
       method: 'POST',
@@ -343,7 +344,7 @@ describe('registerRoutes', () => {
   it('GET /dependencies returns empty when no workspace', async () => {
     vi.mocked(findWorkspacePath).mockReturnValue('');
     registerRoutes(deps);
-    const handler = getHandler(ctx, 6);
+    const handler = getHandler(ctx, 7);
     const { res, state } = makeRes();
     await handler(makeReq('GET'), res);
     expect(state.code).toBe(200);
@@ -354,7 +355,7 @@ describe('registerRoutes', () => {
   it('GET /dependencies returns 403 when workspace path not allowed', async () => {
     vi.mocked(isPathAllowed).mockReturnValue(false);
     registerRoutes(deps);
-    const handler = getHandler(ctx, 6);
+    const handler = getHandler(ctx, 7);
     const { res, state } = makeRes();
     await handler(makeReq('GET'), res);
     expect(state.code).toBe(403);
@@ -363,7 +364,7 @@ describe('registerRoutes', () => {
 
   it('GET /dependencies returns dependency graph', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 6);
+    const handler = getHandler(ctx, 7);
     const { res, state } = makeRes();
     await handler(makeReq('GET'), res);
     expect(state.code).toBe(200);
@@ -374,7 +375,7 @@ describe('registerRoutes', () => {
 
   it('POST /diff returns 400 when from/to missing', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 7);
+    const handler = getHandler(ctx, 8);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ from: 'abc' })), res);
     expect(state.code).toBe(400);
@@ -383,7 +384,7 @@ describe('registerRoutes', () => {
 
   it('POST /diff returns 400 for invalid git ref', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 7);
+    const handler = getHandler(ctx, 8);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ from: 'bad;ref', to: 'main' })), res);
     expect(state.code).toBe(400);
@@ -393,7 +394,7 @@ describe('registerRoutes', () => {
   it('POST /diff returns diff graph', async () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []));
     registerRoutes(deps);
-    const handler = getHandler(ctx, 7);
+    const handler = getHandler(ctx, 8);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ from: 'main', to: 'feature' })), res);
     expect(state.code).toBe(200);
@@ -405,7 +406,7 @@ describe('registerRoutes', () => {
   it('POST /diff returns empty when no workspace', async () => {
     vi.mocked(findWorkspacePath).mockReturnValue('');
     registerRoutes(deps);
-    const handler = getHandler(ctx, 7);
+    const handler = getHandler(ctx, 8);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ from: 'main', to: 'feature' })), res);
     expect(state.code).toBe(200);
@@ -416,7 +417,7 @@ describe('registerRoutes', () => {
   it('POST /diff returns 403 when workspace not allowed', async () => {
     vi.mocked(isPathAllowed).mockReturnValue(false);
     registerRoutes(deps);
-    const handler = getHandler(ctx, 7);
+    const handler = getHandler(ctx, 8);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ from: 'main', to: 'feature' })), res);
     expect(state.code).toBe(403);
@@ -426,7 +427,7 @@ describe('registerRoutes', () => {
   it('POST /tree-sitter parses content', async () => {
 
     registerRoutes(deps);
-    const handler = getHandler(ctx, 9);
+    const handler = getHandler(ctx, 10);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts', content: 'const x = 1;' })), res);
     expect(state.code).toBe(200);
@@ -435,7 +436,7 @@ describe('registerRoutes', () => {
 
   it('POST /tree-sitter returns 400 when filePath missing', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 9);
+    const handler = getHandler(ctx, 10);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ content: 'const x = 1;' })), res);
     expect(state.code).toBe(400);
@@ -444,7 +445,7 @@ describe('registerRoutes', () => {
 
   it('POST /tree-sitter returns 413 when content too large', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 9);
+    const handler = getHandler(ctx, 10);
     const { res, state } = makeRes();
     const largeContent = 'x'.repeat(512 * 1024 + 1);
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts', content: largeContent })), res);
@@ -457,7 +458,7 @@ describe('registerRoutes', () => {
       parseFile: vi.fn().mockRejectedValue(new Error('parse error')),
     }) as never);
     registerRoutes(deps);
-    const handler = getHandler(ctx, 9);
+    const handler = getHandler(ctx, 10);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts', content: 'const x = 1;' })), res);
     expect(state.code).toBe(500);
@@ -680,7 +681,7 @@ describe('POST /ast', () => {
 
   it('returns AST on success', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 8);
+    const handler = getHandler(ctx, 9);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
     expect(state.code).toBe(200);
@@ -690,7 +691,7 @@ describe('POST /ast', () => {
 
   it('handles CORS preflight', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 8);
+    const handler = getHandler(ctx, 9);
     const { res, state } = makeRes();
     await handler(makeReq('OPTIONS'), res);
     expect(state.code).toBe(204);
@@ -698,7 +699,7 @@ describe('POST /ast', () => {
 
   it('returns 400 when filePath missing', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 8);
+    const handler = getHandler(ctx, 9);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({})), res);
     expect(state.code).toBe(400);
@@ -708,7 +709,7 @@ describe('POST /ast', () => {
   it('returns 400 when no workspace path configured', async () => {
     vi.mocked(findWorkspacePath).mockReturnValue('');
     registerRoutes(deps);
-    const handler = getHandler(ctx, 8);
+    const handler = getHandler(ctx, 9);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
     expect(state.code).toBe(400);
@@ -717,7 +718,7 @@ describe('POST /ast', () => {
 
   it('returns 403 when path outside workspace', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 8);
+    const handler = getHandler(ctx, 9);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: '../../../etc/passwd' })), res);
     expect(state.code).toBe(403);
@@ -727,7 +728,7 @@ describe('POST /ast', () => {
   it('returns 403 when isPathAllowed returns false', async () => {
     vi.mocked(isPathAllowed).mockReturnValue(false);
     registerRoutes(deps);
-    const handler = getHandler(ctx, 8);
+    const handler = getHandler(ctx, 9);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
     expect(state.code).toBe(403);
@@ -738,7 +739,7 @@ describe('POST /ast', () => {
     const largeContent = 'x'.repeat(512 * 1024 + 1);
     vi.mocked(fs.readFile).mockResolvedValue(largeContent);
     registerRoutes(deps);
-    const handler = getHandler(ctx, 8);
+    const handler = getHandler(ctx, 9);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
     expect(state.code).toBe(413);
@@ -751,7 +752,7 @@ describe('POST /ast', () => {
       parseToAst: vi.fn().mockResolvedValue(null),
     }) as never);
     registerRoutes(deps);
-    const handler = getHandler(ctx, 8);
+    const handler = getHandler(ctx, 9);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
     expect(state.code).toBe(500);
@@ -761,7 +762,7 @@ describe('POST /ast', () => {
   it('returns 500 on file read error', async () => {
     vi.mocked(fs.readFile).mockRejectedValue(new Error('read error'));
     registerRoutes(deps);
-    const handler = getHandler(ctx, 8);
+    const handler = getHandler(ctx, 9);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
     expect(state.code).toBe(500);
@@ -790,7 +791,7 @@ describe('POST /tree-sitter (additional)', () => {
 
   it('returns 400 when filePath contains ..', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 9);
+    const handler = getHandler(ctx, 10);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: '../test.ts', content: 'const x = 1;' })), res);
     expect(state.code).toBe(400);
@@ -799,7 +800,7 @@ describe('POST /tree-sitter (additional)', () => {
 
   it('returns 400 when filePath exceeds 512 characters', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 9);
+    const handler = getHandler(ctx, 10);
     const { res, state } = makeRes();
     const longPath = 'a'.repeat(513);
     await handler(makeReq('POST', JSON.stringify({ filePath: longPath, content: 'const x = 1;' })), res);
@@ -809,7 +810,7 @@ describe('POST /tree-sitter (additional)', () => {
 
   it('returns 400 when content missing', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 9);
+    const handler = getHandler(ctx, 10);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
     expect(state.code).toBe(400);
@@ -818,7 +819,7 @@ describe('POST /tree-sitter (additional)', () => {
 
   it('handles CORS preflight', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 9);
+    const handler = getHandler(ctx, 10);
     const { res, state } = makeRes();
     await handler(makeReq('OPTIONS'), res);
     expect(state.code).toBe(204);
@@ -845,7 +846,7 @@ describe('POST /scan (additional)', () => {
     const inFlightData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     const inFlightPromise = Promise.resolve(inFlightData);
     registerRoutes(deps);
-    const handler = getHandler(ctx, 3);
+    const handler = getHandler(ctx, 4);
     // Pre-set an in-flight promise for the workspace path
     deps.setScanInFlight('/test/workspace', inFlightPromise);
     const { res, state } = makeRes();
@@ -862,7 +863,7 @@ describe('POST /scan (additional)', () => {
     const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     vi.mocked(fetchMergedGraph).mockResolvedValue(graphData);
     registerRoutes(deps);
-    const handler = getHandler(ctx, 3);
+    const handler = getHandler(ctx, 4);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '/custom/path' })), res);
     expect(state.code).toBe(200);
@@ -889,7 +890,7 @@ describe('POST /init (additional)', () => {
     const mockInvoke = vi.fn().mockResolvedValue(null);
     vi.mocked(createInvoke).mockReturnValue(mockInvoke);
     registerRoutes(deps);
-    const handler = getHandler(ctx, 4);
+    const handler = getHandler(ctx, 5);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '.' })), res);
     expect(state.code).toBe(200);
@@ -900,7 +901,7 @@ describe('POST /init (additional)', () => {
 
   it('handles CORS preflight', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 4);
+    const handler = getHandler(ctx, 5);
     const { res, state } = makeRes();
     await handler(makeReq('OPTIONS'), res);
     expect(state.code).toBe(204);
@@ -924,7 +925,7 @@ describe('POST /watch (additional)', () => {
 
   it('toggles watch mode off when enabled is false', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 5);
+    const handler = getHandler(ctx, 6);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ enabled: false, path: '.' })), res);
     expect(state.code).toBe(200);
@@ -936,7 +937,7 @@ describe('POST /watch (additional)', () => {
 
   it('handles CORS preflight', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 5);
+    const handler = getHandler(ctx, 6);
     const { res, state } = makeRes();
     await handler(makeReq('OPTIONS'), res);
     expect(state.code).toBe(204);
@@ -961,7 +962,7 @@ describe('POST /diff (additional)', () => {
   it('returns 500 on fetch error', async () => {
     vi.mocked(fetchMergedGraph).mockRejectedValue(new Error('diff fetch failed'));
     registerRoutes(deps);
-    const handler = getHandler(ctx, 7);
+    const handler = getHandler(ctx, 8);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ from: 'main', to: 'feature' })), res);
     expect(state.code).toBe(500);
@@ -970,7 +971,7 @@ describe('POST /diff (additional)', () => {
 
   it('handles CORS preflight', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 7);
+    const handler = getHandler(ctx, 8);
     const { res, state } = makeRes();
     await handler(makeReq('OPTIONS'), res);
     expect(state.code).toBe(204);
@@ -978,7 +979,7 @@ describe('POST /diff (additional)', () => {
 
   it('returns 400 when both from and to missing', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 7);
+    const handler = getHandler(ctx, 8);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({})), res);
     expect(state.code).toBe(400);
@@ -987,7 +988,7 @@ describe('POST /diff (additional)', () => {
 
   it('rejects git ref containing ..', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 7);
+    const handler = getHandler(ctx, 8);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ from: 'main..branch', to: 'feature' })), res);
     expect(state.code).toBe(400);
@@ -1012,7 +1013,7 @@ describe('GET /data (additional)', () => {
 
   it('returns empty graph when if-none-match present but no cached data', () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 2);
+    const handler = getHandler(ctx, 3);
     const { res, state } = makeRes();
     handler(makeReq('GET', undefined, { 'if-none-match': '12345' }), res);
     expect(state.code).toBe(200);
@@ -1024,7 +1025,7 @@ describe('GET /data (additional)', () => {
     const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
-    const handler = getHandler(ctx, 2);
+    const handler = getHandler(ctx, 3);
     const { res, state } = makeRes();
     // if-none-match is 0, graphData timestamp is 1, so client data is stale
     handler(makeReq('GET', undefined, { 'if-none-match': '0' }), res);
@@ -1034,7 +1035,7 @@ describe('GET /data (additional)', () => {
 
   it('handles CORS preflight', () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 2);
+    const handler = getHandler(ctx, 3);
     const { res, state } = makeRes();
     handler(makeReq('OPTIONS'), res);
     expect(state.code).toBe(204);
@@ -1058,7 +1059,7 @@ describe('GET /workspace (additional)', () => {
 
   it('handles CORS preflight', () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 1);
+    const handler = getHandler(ctx, 2);
     const { res, state } = makeRes();
     handler(makeReq('OPTIONS'), res);
     expect(state.code).toBe(204);
@@ -1082,7 +1083,7 @@ describe('GET /dependencies (additional)', () => {
 
   it('handles CORS preflight', async () => {
     registerRoutes(deps);
-    const handler = getHandler(ctx, 6);
+    const handler = getHandler(ctx, 7);
     const { res, state } = makeRes();
     await handler(makeReq('OPTIONS'), res);
     expect(state.code).toBe(204);
@@ -1094,7 +1095,7 @@ describe('GET /dependencies (additional)', () => {
       return Promise.reject(new Error('not found'));
     });
     registerRoutes(deps);
-    const handler = getHandler(ctx, 6);
+    const handler = getHandler(ctx, 7);
     const { res, state } = makeRes();
     await handler(makeReq('GET'), res);
     expect(state.code).toBe(200);
@@ -1111,7 +1112,7 @@ describe('GET /dependencies (additional)', () => {
       return Promise.reject(new Error('not found'));
     });
     registerRoutes(deps);
-    const handler = getHandler(ctx, 6);
+    const handler = getHandler(ctx, 7);
     const { res, state } = makeRes();
     await handler(makeReq('GET'), res);
     expect(state.code).toBe(200);
@@ -1125,7 +1126,7 @@ describe('GET /dependencies (additional)', () => {
       throw new Error('workspace error');
     });
     registerRoutes(deps);
-    const handler = getHandler(ctx, 6);
+    const handler = getHandler(ctx, 7);
     const { res, state } = makeRes();
     await handler(makeReq('GET'), res);
     expect(state.code).toBe(500);

@@ -272,6 +272,41 @@ export function registerRoutes(deps: RouteDeps): void {
     },
   }), 'codegraph: status route');
 
+  // GET /api/v1/codegraph/health
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: '/api/v1/codegraph/health',
+    handler: (req: IncomingMessage, res: ServerResponse) => {
+      if (handleCorsPreflight(req, res)) return;
+      if (!requireMethod(req, res, 'GET')) return;
+      try {
+        const status = checkPrerequisites(ctx);
+        const mem = process.memoryUsage();
+        const hasGraphData = deps.getLastGraphData() !== null;
+        const healthy = status.codegraph;
+        sendJson(res, healthy ? 200 : 503, {
+          status: healthy ? 'healthy' : 'degraded',
+          codegraph: status.codegraph,
+          lens: status.lens,
+          hasGraphData,
+          uptime: process.uptime(),
+          memory: {
+            rss: mem.rss,
+            heapUsed: mem.heapUsed,
+            heapTotal: mem.heapTotal,
+          },
+          timestamp: Date.now(),
+        }, req);
+      } catch (e) {
+        sendJson(res, 503, {
+          status: 'unhealthy',
+          error: e instanceof Error ? e.message : String(e),
+          timestamp: Date.now(),
+        }, req);
+      }
+    },
+  }), 'codegraph: health route');
+
   // GET /api/v1/codegraph/workspace
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
@@ -621,11 +656,17 @@ export function registerRoutes(deps: RouteDeps): void {
             sendError(res, 403, 'Access denied: path outside workspace', req);
             return;
           }
-          if (!isPathAllowed(fullPath)) {
+          const realPath = await fs.realpath(fullPath);
+          const realWorkspace = await fs.realpath(normalizedWorkspace);
+          if (!realPath.startsWith(realWorkspace + path.sep) && realPath !== realWorkspace) {
+            sendError(res, 403, 'Access denied: symlink escape', req);
+            return;
+          }
+          if (!isPathAllowed(realPath)) {
             sendError(res, 403, 'Access denied', req);
             return;
           }
-          const content = await fs.readFile(fullPath, 'utf-8');
+          const content = await fs.readFile(realPath, 'utf-8');
           const MAX_AST_CONTENT = 512 * 1024;
           if (content.length > MAX_AST_CONTENT) {
             sendError(res, 413, `File too large for AST parsing (max ${MAX_AST_CONTENT} bytes)`, req);

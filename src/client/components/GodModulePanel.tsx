@@ -11,7 +11,7 @@ interface GodModulePanelProps {
 
 export function GodModulePanel({ godModules, onClose, label, statsLabel }: GodModulePanelProps) {
   return (
-    <div className="analysis-panel godmodule-panel" role="region" aria-label={label}>
+    <div className="analysis-panel godmodule-panel" role="region" aria-label={label} aria-live="polite">
       <div className="analysis-panel-header">
         <span>{label}</span>
         <button onClick={onClose} className="cg-close-btn"><CloseIcon size={14} /></button>

@@ -9,7 +9,7 @@ interface ImpactPanelProps {
 
 export function ImpactPanel({ impactStats, label, totalLabel }: ImpactPanelProps) {
   return (
-    <div className="analysis-panel impact-panel" role="region" aria-label={label}>
+    <div className="analysis-panel impact-panel" role="region" aria-label={label} aria-live="polite">
       <div className="analysis-panel-header">
         <span>{label}</span>
       </div>

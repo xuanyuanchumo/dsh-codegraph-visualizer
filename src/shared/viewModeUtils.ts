@@ -1,5 +1,6 @@
 import type { ViewMode } from '../types/index.ts';
 
+export type ThemeType = 'light' | 'dark';
 export type LayoutType = 'cose' | 'dagre' | 'circle' | 'grid' | 'radial' | 'tree';
 
 export const VIEW_MODE_LAYOUT: Record<ViewMode, LayoutType> = {

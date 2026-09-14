@@ -70,7 +70,7 @@ export function NodeDetail({ node, onClose, isExpanded, connectionCount, onColla
   }, [node]);
 
   return (
-    <div className="node-detail-panel" role="complementary" aria-label={t('detail.ariaLabel')}>
+    <div className="node-detail-panel" role="complementary" aria-label={t('detail.ariaLabel')} aria-live="polite">
       <button className="close-btn" onClick={onClose} aria-label={t('detail.close')}>
         <CloseIcon size={14} />
       </button>

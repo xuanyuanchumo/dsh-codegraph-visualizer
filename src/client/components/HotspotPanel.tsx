@@ -10,7 +10,7 @@ interface HotspotPanelProps {
 
 export function HotspotPanel({ hotspotNodes, onClose, label }: HotspotPanelProps) {
   return (
-    <div className="analysis-panel hotspot-panel" role="region" aria-label={label}>
+    <div className="analysis-panel hotspot-panel" role="region" aria-label={label} aria-live="polite">
       <div className="analysis-panel-header">
         <span>{label}</span>
         <button onClick={onClose} className="cg-close-btn"><CloseIcon size={14} /></button>

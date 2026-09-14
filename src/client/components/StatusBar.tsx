@@ -25,7 +25,7 @@ export function StatusBar({ error, isLoading, lastUpdated, watchEnabled, workspa
   const statusText = error ? t('state.error') : isLoading ? t('state.loading') : t('state.ready');
   const wsName = workspaceName ? deriveWorkspaceName(workspaceName) : '';
   return (
-    <div className="status-bar">
+    <div className="status-bar" role="status" aria-live="polite">
       <div className="status-item">
         <span className={statusDotClass} /><span>{statusText}</span>
       </div>

@@ -13,7 +13,7 @@ export type { CallChainAggregateOptions, CallChainResult } from './CallChainAggr
 export type { Participant, ParticipantType, SequenceMessage, MessageType, CombinedFragment, FragmentType, FragmentOperand, SequenceData } from './SequenceTypes.ts';
 
 import type { GraphNode, GraphEdge, ViewMode } from '../../types/index.ts';
-import type { AssembledDiagram, DiagramLayer, LayeredDiagram } from './DiagramAssembler.ts';
+import type { AssembledDiagram, DiagramLayer, LayeredDiagram, DiagramAssembler } from './DiagramAssembler.ts';
 import type { ASTNode } from '../../shared/CFGTypes.ts';
 import { InheritanceAssembler } from './InheritanceAssembler.ts';
 import { CallGraphAssembler } from './CallGraphAssembler.ts';
@@ -24,14 +24,31 @@ import { CFGAssembler } from './CFGAssembler.ts';
 import { FlowchartAssembler } from './FlowchartAssembler.ts';
 import { SequenceAssembler } from './SequenceAssembler.ts';
 
-const inheritanceAssembler = new InheritanceAssembler();
-const callGraphAssembler = new CallGraphAssembler();
-const packageAssembler = new PackageAssembler();
-const classAssembler = new ClassAssembler();
-const dependencyAssembler = new DependencyAssembler();
-const cfgAssembler = new CFGAssembler();
-const flowchartAssembler = new FlowchartAssembler();
-const sequenceAssembler = new SequenceAssembler();
+const macroAssemblerRegistry = new Map<ViewMode, DiagramAssembler>([
+  ['inheritance', new InheritanceAssembler()],
+  ['callgraph', new CallGraphAssembler()],
+  ['package', new PackageAssembler()],
+  ['class', new ClassAssembler()],
+  ['dependencies', new DependencyAssembler()],
+]);
+
+interface MicroAssembler {
+  assemble(astRoot: ASTNode, filePath: string, functionName: string): AssembledDiagram;
+}
+
+const microAssemblerRegistry = new Map<'cfg' | 'flowchart' | 'sequence', MicroAssembler>([
+  ['cfg', new CFGAssembler()],
+  ['flowchart', new FlowchartAssembler()],
+  ['sequence', new SequenceAssembler()],
+]);
+
+export function registerMacroAssembler(viewMode: ViewMode, assembler: DiagramAssembler): void {
+  macroAssemblerRegistry.set(viewMode, assembler);
+}
+
+export function registerMicroAssembler(viewMode: 'cfg' | 'flowchart' | 'sequence', assembler: MicroAssembler): void {
+  microAssemblerRegistry.set(viewMode, assembler);
+}
 
 interface LayerDefinition {
   level: number;
@@ -136,26 +153,9 @@ export function assembleDiagram(
   nodes: GraphNode[],
   edges: GraphEdge[],
 ): LayeredDiagram | null {
-  let result: AssembledDiagram | null = null;
-  switch (viewMode) {
-    case 'inheritance':
-      result = inheritanceAssembler.assemble(nodes, edges);
-      break;
-    case 'callgraph':
-      result = callGraphAssembler.assemble(nodes, edges);
-      break;
-    case 'package':
-      result = packageAssembler.assemble(nodes, edges);
-      break;
-    case 'class':
-      result = classAssembler.assemble(nodes, edges);
-      break;
-    case 'dependencies':
-      result = dependencyAssembler.assemble(nodes, edges);
-      break;
-    default:
-      return null;
-  }
+  const assembler = macroAssemblerRegistry.get(viewMode);
+  if (!assembler) return null;
+  const result = assembler.assemble(nodes, edges);
   if (result) {
     const taggedNodes = result.nodes.map((n) => ({
       ...n,
@@ -175,7 +175,7 @@ export function assembleCFG(
   filePath: string,
   functionName: string,
 ): AssembledDiagram {
-  return cfgAssembler.assemble(astRoot, filePath, functionName);
+  return microAssemblerRegistry.get('cfg')!.assemble(astRoot, filePath, functionName);
 }
 
 export function assembleFlowchart(
@@ -183,7 +183,7 @@ export function assembleFlowchart(
   filePath: string,
   functionName: string,
 ): AssembledDiagram {
-  return flowchartAssembler.assemble(astRoot, filePath, functionName);
+  return microAssemblerRegistry.get('flowchart')!.assemble(astRoot, filePath, functionName);
 }
 
 export function assembleSequence(
@@ -191,7 +191,7 @@ export function assembleSequence(
   filePath: string,
   functionName: string,
 ): AssembledDiagram {
-  return sequenceAssembler.assemble(astRoot, filePath, functionName);
+  return microAssemblerRegistry.get('sequence')!.assemble(astRoot, filePath, functionName);
 }
 
 export async function assembleMicroDiagram(
@@ -241,16 +241,11 @@ export async function assembleMicroDiagram(
     throw new Error(`AST is empty for "${filePath}" — parsing produced no nodes`);
   }
 
-  switch (viewMode) {
-    case 'cfg':
-      return cfgAssembler.assemble(astRoot, filePath, functionName);
-    case 'flowchart':
-      return flowchartAssembler.assemble(astRoot, filePath, functionName);
-    case 'sequence':
-      return sequenceAssembler.assemble(astRoot, filePath, functionName);
-    default:
-      throw new Error(`Unsupported view mode: ${viewMode}`);
+  const assembler = microAssemblerRegistry.get(viewMode);
+  if (!assembler) {
+    throw new Error(`Unsupported view mode: ${viewMode}`);
   }
+  return assembler.assemble(astRoot, filePath, functionName);
 }
 
 export function getLayerDefinitions(viewMode: ViewMode): LayerDefinition[] | null {

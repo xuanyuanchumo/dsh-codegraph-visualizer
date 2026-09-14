@@ -9,12 +9,12 @@ import { DiagramCache, ClusterCache, computeDataHash } from '../cache/DiagramCac
 import { invalidateCssVarCache } from '../renderer/styles/ThemeStylesheet.ts';
 import { computeViewModeTransition } from './viewModeTransition.ts';
 import { scoped } from '../../shared/Logger.ts';
-import { type LayoutType, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
+import { type LayoutType, type ThemeType, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
 
 const log = scoped('store');
 
 export type { ClusterNode, ClusterEdge } from './cluster/index.ts';
-export type { LayoutType } from '../../shared/viewModeUtils.ts';
+export type { LayoutType, ThemeType } from '../../shared/viewModeUtils.ts';
 
 const diagramCache = new DiagramCache(10);
 const clusterCache = new ClusterCache(20);
@@ -32,7 +32,7 @@ const memoryStorage: StateStorage = {
 };
 
 
-export type ThemeType = 'light' | 'dark';
+
 export type GraphType = 'all' | 'call' | 'dependency';
 
 export interface WorkspaceInfo {

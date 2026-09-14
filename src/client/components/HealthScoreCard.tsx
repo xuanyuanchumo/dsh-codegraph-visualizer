@@ -36,7 +36,7 @@ export function HealthScoreCard({ onClose }: HealthScoreCardProps) {
 
   if (!healthScore) {
     return (
-      <div className="health-score-card" role="region" aria-label={t('health.title')}>
+      <div className="health-score-card" role="region" aria-label={t('health.title')} aria-live="polite">
         <div className="health-score-header">
           <HeartIcon size={14} />
           <span>{t('health.title')}</span>
@@ -57,7 +57,7 @@ export function HealthScoreCard({ onClose }: HealthScoreCardProps) {
   ];
 
   return (
-    <div className="health-score-card" role="region" aria-label={t('health.title')}>
+    <div className="health-score-card" role="region" aria-label={t('health.title')} aria-live="polite">
       <div className="health-score-header">
         <HeartIcon size={14} />
         <span>{t('health.title')}</span>

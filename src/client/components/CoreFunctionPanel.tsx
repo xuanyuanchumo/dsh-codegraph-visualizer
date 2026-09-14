@@ -23,7 +23,7 @@ export function CoreFunctionPanel({ coreFunctions, onClose, label, onSelectFunct
   const reasonLabel = (r: string): string => t(`coreFunction.reason.${r}`) ?? r;
 
   return (
-    <div className="analysis-panel core-function-panel" role="region" aria-label={label}>
+    <div className="analysis-panel core-function-panel" role="region" aria-label={label} aria-live="polite">
       <div className="analysis-panel-header">
         <span>{label}</span>
         <button onClick={onClose} className="cg-close-btn"><CloseIcon size={14} /></button>
