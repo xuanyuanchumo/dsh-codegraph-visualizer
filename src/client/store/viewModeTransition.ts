@@ -3,25 +3,9 @@ import type { LayeredDiagram } from '../diagram/index.ts';
 import { assembleDiagram } from '../diagram/index.ts';
 import { computeClusteredGraph } from './cluster/index.ts';
 import { DiagramCache, computeDataHash } from '../cache/DiagramCache.ts';
+import { type LayoutType, VIEW_MODE_LAYOUT, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
 
-
-export type LayoutType = 'cose' | 'dagre' | 'circle' | 'grid' | 'radial' | 'tree';
-
-export const VIEW_MODE_LAYOUT: Record<ViewMode, LayoutType> = {
-  code: 'cose',
-  dependencies: 'dagre',
-  inheritance: 'tree',
-  callgraph: 'dagre',
-  package: 'tree',
-  class: 'dagre',
-  cfg: 'dagre',
-  flowchart: 'dagre',
-  sequence: 'grid',
-};
-
-function isLayeredViewMode(mode: ViewMode): boolean {
-  return mode === 'inheritance' || mode === 'callgraph' || mode === 'package' || mode === 'class' || mode === 'dependencies';
-}
+export { VIEW_MODE_LAYOUT };
 
 interface ViewModeTransitionState {
   rawNodes: GraphNode[];

@@ -9,10 +9,12 @@ import { DiagramCache, ClusterCache, computeDataHash } from '../cache/DiagramCac
 import { invalidateCssVarCache } from '../renderer/styles/ThemeStylesheet.ts';
 import { computeViewModeTransition } from './viewModeTransition.ts';
 import { scoped } from '../../shared/Logger.ts';
+import { type LayoutType, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
 
 const log = scoped('store');
 
 export type { ClusterNode, ClusterEdge } from './cluster/index.ts';
+export type { LayoutType } from '../../shared/viewModeUtils.ts';
 
 const diagramCache = new DiagramCache(10);
 const clusterCache = new ClusterCache(20);
@@ -29,7 +31,7 @@ const memoryStorage: StateStorage = {
   removeItem: () => {},
 };
 
-export type LayoutType = 'cose' | 'dagre' | 'circle' | 'grid' | 'radial' | 'tree';
+
 export type ThemeType = 'light' | 'dark';
 export type GraphType = 'all' | 'call' | 'dependency';
 
@@ -43,9 +45,6 @@ const LOADING_FAILSAFE_MS = 15000;
 let loadingFailsafe: ReturnType<typeof setTimeout> | null = null;
 
 
-function isLayeredViewMode(mode: ViewMode): boolean {
-  return mode === 'inheritance' || mode === 'callgraph' || mode === 'package' || mode === 'class' || mode === 'dependencies';
-}
 
 function sanitizeGraphData(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
   const seenNodeIds = new Set<string>();
@@ -488,18 +487,26 @@ export const useGraphStore = create<GraphState>()(
             return null;
           }
         };
-        const result = await callChainAggregator.aggregate(
-          entryNodeId, rawNodes, rawEdges, astFetcher,
-          { depth: callChainDepth, maxFunctions: 20 },
-        );
-        if (result) {
-          const clustered = computeClusteredGraph(result.diagram.nodes, result.diagram.edges, 'progressive', expandedNodeIds, clusterDepth);
-          set({
-            diagramData: null,
-            nodes: clustered.nodes,
-            edges: clustered.edges,
-            viewMode: 'cfg',
-          });
+        try {
+          const result = await callChainAggregator.aggregate(
+            entryNodeId, rawNodes, rawEdges, astFetcher,
+            { depth: callChainDepth, maxFunctions: 20 },
+          );
+          if (result && result.diagram.nodes.length > 0) {
+            const clustered = computeClusteredGraph(result.diagram.nodes, result.diagram.edges, 'progressive', expandedNodeIds, clusterDepth);
+            set({
+              diagramData: null,
+              nodes: clustered.nodes,
+              edges: clustered.edges,
+              viewMode: 'cfg',
+              error: null,
+            });
+          } else {
+            set({ error: 'Call chain aggregation produced no results — the selected function may have no callable targets or AST parsing failed.', isLoading: false });
+          }
+        } catch (e) {
+          log.warn('assembleMultiFunction failed', e);
+          set({ error: `Call chain aggregation failed: ${e instanceof Error ? e.message : String(e)}`, isLoading: false });
         }
       },
       setHealthScore: (score) => set({ healthScore: score }),

@@ -1,7 +1,7 @@
 import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
 import type { PathResult } from './PathFinder.ts';
-
-export type LayoutType = 'cose' | 'dagre' | 'circle' | 'grid' | 'radial' | 'tree';
+import type { LayoutType } from '../../shared/viewModeUtils.ts';
+export type { LayoutType } from '../../shared/viewModeUtils.ts';
 export type ThemeType = 'light' | 'dark';
 
 export interface RendererCallbacks {

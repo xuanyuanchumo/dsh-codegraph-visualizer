@@ -898,6 +898,7 @@ body[data-ds-dark-theme] .type-badge.function {
 
 .loading-overlay {
   opacity: 0.9;
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
 
@@ -2544,6 +2545,7 @@ body[data-ds-dark-theme] .type-badge.function {
   position: fixed;
   inset: 0;
   background: var(--cg-overlay-bg);
+  -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
   z-index: 10000;
   display: flex;
@@ -4027,6 +4029,7 @@ body[data-ds-dark-theme] .type-badge.function {
   color: var(--cg-text);
   font-size: 12px;
   z-index: 10;
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   box-shadow: var(--cg-shadow-sm);
 }
@@ -4121,6 +4124,7 @@ body[data-ds-dark-theme] .type-badge.function {
   position: fixed;
   inset: 0;
   background: var(--cg-overlay-bg);
+  -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
   opacity: 0;
   transition: opacity var(--cg-transition);

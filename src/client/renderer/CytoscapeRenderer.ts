@@ -227,7 +227,7 @@ export class CytoscapeRenderer implements IRenderer {
   }
 
   exportSVG(): string | null {
-    return this.dataCtrl?.exportSVG() ?? null;
+    return this.dataCtrl?.exportSVG(this.options.theme) ?? null;
   }
 
   getSelectedNodeData(): GraphNode | null {

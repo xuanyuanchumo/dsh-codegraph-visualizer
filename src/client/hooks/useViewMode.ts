@@ -62,9 +62,11 @@ export function useViewMode(
         if (data) {
           setViewMode(newMode);
           setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata);
+        } else {
+          setError('Failed to load code graph data');
         }
         setLoading(false);
-      }).catch((e) => { log.warn('fetchGraphData failed', e); setLoading(false); });
+      }).catch((e) => { log.warn('fetchGraphData failed', e); setError(`Failed to load code graph: ${e.message}`); setLoading(false); });
     } else {
       depsFetchAbortRef.current?.abort();
       setGraphType('all');
