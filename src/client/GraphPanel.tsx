@@ -601,7 +601,16 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       )}
 
       <div className="graph-container" ref={renderer.containerRef}
-        style={{ display: viewMode === 'sequence' && selectedFunction ? 'none' : undefined }} />
+        role="application"
+        aria-label={t('a11y.graphContainer') ?? `Code graph: ${nodes.length} nodes, ${edges.length} edges`}
+        aria-describedby="cg-graph-live-region"
+        style={{ display: viewMode === 'sequence' && selectedFunction ? 'none' : undefined }}>
+        <div id="cg-graph-live-region" className="cg-visually-hidden" role="status" aria-live="polite">
+          {selectedNodeData
+            ? `${t('a11y.selectedNode') ?? 'Selected'}: ${selectedNodeData.label}, ${selectedNodeData.type}, ${selectedNodeData.filePath}:${selectedNodeData.lineNumber}`
+            : ''}
+        </div>
+      </div>
       {viewMode === 'sequence' && selectedFunction && !isCollapsed && (
         <SequenceDiagramRenderer nodes={nodes} edges={edges} theme={theme}
           onNodeTap={(id) => handleNodeTap(NodeId(id))} />

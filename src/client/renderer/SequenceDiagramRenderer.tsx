@@ -299,6 +299,8 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
     <div
       ref={containerRef}
       className="sequence-diagram-container"
+      role="application"
+      aria-label={`${participants.length} participants, ${messages.length} messages`}
       style={{
         background: colors.bg,
         cursor: isDraggingRef.current ? 'grabbing' : 'grab',

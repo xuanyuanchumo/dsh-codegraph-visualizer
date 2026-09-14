@@ -1,4 +1,17 @@
-﻿/* Panel close button — shared across hotspot, god-module, path-bar, rule-config, health panels */
+﻿﻿/* Visually hidden — for screen reader only content */
+.cg-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Panel close button — shared across hotspot, god-module, path-bar, rule-config, health panels */
 .cg-close-btn {
   background: transparent;
   border: none;
