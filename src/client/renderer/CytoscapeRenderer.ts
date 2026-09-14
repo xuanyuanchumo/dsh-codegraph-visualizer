@@ -35,6 +35,7 @@ export class CytoscapeRenderer implements IRenderer {
   private interactionCtrl: InteractionController | null = null;
   private pathFinder: PathFinder | null = null;
   private virtualViewportCtrl: VirtualViewportController | null = null;
+  private fitTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: CytoscapeRendererOptions) {
     this.options = options;
@@ -99,7 +100,9 @@ export class CytoscapeRenderer implements IRenderer {
   updateData(nodes: GraphNode[], edges: GraphEdge[]): void {
     this.dataCtrl?.updateData(nodes, edges);
     if (this.cy && nodes.length > 0) {
-      setTimeout(() => {
+      if (this.fitTimer !== null) clearTimeout(this.fitTimer);
+      this.fitTimer = setTimeout(() => {
+        this.fitTimer = null;
         if (this.cy && this.cy.nodes().length > 0) {
           this.cy.fit(undefined, 80);
         }
@@ -259,6 +262,10 @@ export class CytoscapeRenderer implements IRenderer {
     this.pathFinder?.destroy();
     this.cy?.destroy();
     this.cy = null;
+    if (this.fitTimer !== null) {
+      clearTimeout(this.fitTimer);
+      this.fitTimer = null;
+    }
     this.layoutCtrl = null;
     this.highlightCtrl = null;
     this.viewportCtrl = null;
