@@ -2,6 +2,9 @@ import { useCallback, useRef } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
 import type { ViewMode } from '../../types/index.ts';
 import { fetchGraphData } from '../api/index.ts';
+import { scoped } from '../../shared/Logger.ts';
+
+const log = scoped('viewMode');
 
 
 const MICRO_MODES: ViewMode[] = ['cfg', 'flowchart', 'sequence'];
@@ -61,7 +64,7 @@ export function useViewMode(
           setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata);
         }
         setLoading(false);
-      }).catch(() => { setLoading(false); });
+      }).catch((e) => { log.warn('fetchGraphData failed', e); setLoading(false); });
     } else {
       depsFetchAbortRef.current?.abort();
       setGraphType('all');
