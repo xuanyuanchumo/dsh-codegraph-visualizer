@@ -1,0 +1,300 @@
+﻿/* Panel close button — shared across hotspot, god-module, path-bar, rule-config, health panels */
+.cg-close-btn {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  margin-left: auto;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.cg-close-btn:hover {
+  opacity: 0.7;
+}
+
+.cg-close-btn--compact {
+  padding: 0 4px;
+}
+
+/* Node detail expand hint — collapsed state */
+.detail-expand-hint--expanded {
+  background: color-mix(in srgb, var(--cg-success) 80%, transparent);
+  border-color: color-mix(in srgb, var(--cg-success) 30%, transparent);
+  color: var(--cg-success);
+}
+
+.detail-collapse-btn {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: var(--cg-success);
+  cursor: pointer;
+  font-size: 11px;
+  text-decoration: underline;
+}
+
+.export-dropdown button:focus-visible,
+.search-bar button:focus-visible,
+.import-close:focus-visible,
+.legend-close:focus-visible,
+.cg-close-btn:focus-visible,
+.collapse-fab:focus-visible,
+.path-find-btn:focus-visible,
+.path-clear-btn:focus-visible,
+.focus-expand-btn:focus-visible,
+.focus-contract-btn:focus-visible,
+.focus-exit-btn:focus-visible,
+.empty-import-btn:focus-visible,
+.empty-scan-btn:focus-visible,
+.import-submit:focus-visible,
+.rule-check-btn:focus-visible,
+.rule-preset-btn:focus-visible,
+.watch-toggle:focus-visible,
+.collapse-all-btn:focus-visible,
+.workspace-add-btn:focus-visible,
+.workspace-item-remove:focus-visible,
+.keyboard-help-close:focus-visible,
+.path-suggestions button:focus-visible,
+.hotspot-item:focus-visible,
+.prereq-copy:focus-visible,
+.layout-btn:focus-visible,
+.graph-type-btn:focus-visible,
+.view-mode-btn:focus-visible,
+.layer-btn:focus-visible,
+.corefunction-btn:focus-visible {
+  outline: 2px solid var(--cg-accent);
+  outline-offset: 2px;
+}
+
+/* ---- Micro view empty prompt & function bar -------------------------------- */
+
+.micro-empty-prompt {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: var(--cg-text-secondary);
+  font-size: 14px;
+  max-width: 320px;
+  line-height: 1.6;
+  animation: cg-fade-in 200ms var(--cg-ease-out);
+}
+
+.micro-empty-icon {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  opacity: 0.35;
+  letter-spacing: 2px;
+}
+
+.micro-empty-text {
+  margin-bottom: 4px;
+}
+
+.micro-empty-back-btn {
+  margin-top: 12px;
+  padding: 6px 16px;
+  background: var(--cg-surface-hover);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-sm);
+  color: var(--cg-text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--cg-transition), border-color var(--cg-transition);
+}
+
+.micro-empty-back-btn:hover {
+  background: var(--cg-accent);
+  border-color: var(--cg-accent);
+  color: var(--cg-on-accent);
+}
+
+.micro-function-bar {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: var(--cg-radius-xs);
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border);
+  color: var(--cg-text);
+  font-size: 12px;
+  z-index: 10;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--cg-shadow-sm);
+}
+
+.micro-function-close {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--cg-text-secondary);
+  font-size: 11px;
+  padding: 0 4px;
+  border-radius: var(--cg-radius-xs);
+  transition: color var(--cg-transition), background var(--cg-transition);
+}
+
+.micro-function-close:hover {
+  color: var(--cg-text);
+  background: var(--cg-surface-hover);
+}
+
+.micro-function-mode {
+  font-weight: 600;
+  color: var(--cg-accent);
+  padding: 1px 6px;
+  border-radius: var(--cg-radius-xs);
+  background: var(--cg-accent-soft);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.micro-function-name {
+  font-weight: 500;
+  color: var(--cg-text);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.micro-function-path {
+  color: var(--cg-text-secondary);
+  font-size: 10px;
+  opacity: 0.7;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* ============================================================================
+ * Sidebar Navigation Button & Floating Graph Panel
+ * ============================================================================ */
+
+.cg-sidebar-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--cg-radius-sm);
+  background: transparent;
+  color: var(--cg-text-secondary);
+  cursor: pointer;
+  transition: color var(--cg-transition), background var(--cg-transition);
+}
+
+.cg-sidebar-nav-btn:hover {
+  color: var(--cg-text);
+  background: var(--cg-surface-hover);
+}
+
+.cg-sidebar-nav-btn-active {
+  color: var(--cg-accent);
+  background: var(--cg-accent-soft);
+}
+
+.cg-floating-container {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.cg-floating-container[data-visible="true"] {
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.cg-floating-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--cg-overlay-bg);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  transition: opacity var(--cg-transition);
+}
+
+.cg-floating-container[data-visible="true"] .cg-floating-overlay {
+  opacity: 1;
+}
+
+.cg-floating-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.95);
+  width: min(90vw, 1200px);
+  height: min(85vh, 800px);
+  background: var(--cg-bg);
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-lg);
+  box-shadow: var(--cg-shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity var(--cg-transition), transform var(--cg-transition);
+}
+
+.cg-floating-container[data-visible="true"] .cg-floating-panel {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.cg-floating-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--cg-surface);
+  border-bottom: 1px solid var(--cg-border);
+  flex-shrink: 0;
+}
+
+.cg-floating-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cg-text);
+}
+
+.cg-floating-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--cg-radius-xs);
+  background: transparent;
+  color: var(--cg-text-secondary);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  transition: color var(--cg-transition), background var(--cg-transition);
+}
+
+.cg-floating-close:hover {
+  color: var(--cg-text);
+  background: var(--cg-surface-hover);
+}
+
+.cg-floating-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}

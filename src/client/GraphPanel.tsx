@@ -34,7 +34,13 @@ import { GraphIcon } from './components/Icons.tsx';
 import { SequenceDiagramRenderer } from './renderer/SequenceDiagramRenderer.tsx';
 import { scoped } from '../shared/Logger.ts';
 import { useT } from './i18n/index.ts';
-import './styles.css';
+import './styles/tokens.css';
+import './styles/layout.css';
+import './styles/overlays.css';
+import './styles/graph.css';
+import './styles/panels.css';
+import './styles/responsive.css';
+import './styles/misc.css';
 
 const log = scoped('panel');
 

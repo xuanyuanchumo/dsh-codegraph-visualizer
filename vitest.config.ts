@@ -34,7 +34,7 @@ export default defineConfig({
         'src/client/renderer/styles/**',
         'src/client/hooks/**',
         'src/client/components/**',
-        'src/client/styles.css',
+        'src/client/styles/**',
         'src/client/store/cluster/ClusterStrategy.ts',
         'src/generated/**',
         'scripts/**',

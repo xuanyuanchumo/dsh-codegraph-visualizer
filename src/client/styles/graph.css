@@ -1,0 +1,297 @@
+﻿/* ---- Graph container ----------------------------------------------------- */
+
+.graph-container {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: var(--cg-bg);
+  transition: opacity 200ms var(--cg-ease);
+}
+
+.graph-container canvas {
+  display: block;
+}
+/* ---- Sequence diagram container ----------------------------------------- */
+
+.sequence-diagram-container {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  background: var(--cg-bg);
+  user-select: none;
+}
+
+.sequence-diagram-container svg {
+  display: block;
+}
+
+.sequence-diagram-container text {
+  pointer-events: none;
+}
+
+.seq-zoom-controls {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 10;
+}
+
+.seq-zoom-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--cg-border-strong);
+  background: var(--cg-surface);
+  color: var(--cg-text);
+  cursor: pointer;
+  border-radius: var(--cg-radius-xs);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--cg-transition), border-color var(--cg-transition);
+}
+
+.seq-zoom-btn:hover {
+  background: var(--cg-surface-hover);
+  border-color: var(--cg-accent);
+}
+
+.seq-zoom-btn:active {
+  background: var(--cg-surface-active);
+}
+
+.seq-zoom-btn.seq-reset {
+  font-size: 10px;
+}
+
+.seq-zoom-indicator {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  color: var(--cg-text-secondary);
+  font-size: 10px;
+  font-family: var(--cg-font-mono);
+  z-index: 10;
+}
+
+.seq-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--cg-text-secondary);
+  font-size: 14px;
+}
+
+.seq-participant-group {
+  cursor: pointer;
+  transition: opacity var(--cg-transition);
+}
+
+.seq-participant-group:hover {
+  opacity: 0.85;
+}
+
+.seq-participant-group:hover .seq-participant-box {
+  stroke-width: 3;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+}
+
+.seq-participant-box {
+  transition: stroke-width var(--cg-transition), filter var(--cg-transition);
+}
+
+.seq-message-group {
+  cursor: pointer;
+}
+
+.seq-message-group:hover .seq-message-line {
+  stroke-width: 2.5;
+}
+
+.seq-message-line {
+  transition: stroke-width var(--cg-transition);
+}
+
+.seq-fragment-group {
+  transition: opacity var(--cg-transition);
+}
+
+.seq-fragment-group:hover {
+  opacity: 0.9;
+}
+/* ---- Mini-map ------------------------------------------------------------ */
+
+.mini-map {
+  position: absolute;
+  right: 12px;
+  bottom: calc(var(--cg-statusbar-h) + 12px);
+  width: 200px;
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius);
+  box-shadow: var(--cg-shadow);
+  z-index: 6;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  overflow: hidden;
+  animation: cg-slide-up 160ms var(--cg-ease-out);
+}
+
+@keyframes cg-slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.mini-map-header {
+  padding: 7px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cg-text-secondary);
+  border-bottom: 1px solid var(--cg-border);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mini-map-content {
+  padding: 10px 12px;
+}
+
+.mini-map-thumbnail {
+  position: relative;
+  margin-bottom: 8px;
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-sm);
+  overflow: hidden;
+  background: var(--cg-surface);
+}
+
+.mini-map-viewport {
+  border: 2px solid var(--cg-accent);
+  background: color-mix(in srgb, var(--cg-accent) 10%, transparent);
+  pointer-events: none;
+  transition: background var(--cg-transition-slow), border-color var(--cg-transition-slow), color var(--cg-transition-slow);
+}
+
+.mini-map-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mini-map-stats div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--cg-text-secondary);
+}
+
+.mini-map-stats .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mini-map-total {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--cg-border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cg-text);
+}
+/* ---- Tooltip (node hover) ------------------------------------------------ */
+
+.cg-tooltip {
+  position: fixed;
+  z-index: 9999;
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-sm);
+  box-shadow: var(--cg-shadow);
+  padding: 8px 12px;
+  font-size: 12px;
+  font-family: var(--cg-font-sans);
+  color: var(--cg-text);
+  pointer-events: none;
+  max-width: 320px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: cg-tooltip-in 100ms var(--cg-ease-out);
+}
+
+@keyframes cg-tooltip-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.cg-tooltip .tooltip-name {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.cg-tooltip .tooltip-path {
+  color: var(--cg-text-secondary);
+  font-family: var(--cg-font-mono);
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.cg-tooltip .tooltip-type {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 1px 6px;
+  border-radius: var(--cg-radius-xs);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: var(--cg-accent-soft);
+  color: var(--cg-accent-hover);
+}
+
+.cg-tooltip .tooltip-links {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 10px;
+  font-family: var(--cg-font-mono);
+}
+
+.cg-tooltip .tooltip-links-in {
+  color: var(--cg-edge-import, #10b981);
+}
+
+.cg-tooltip .tooltip-links-out {
+  color: var(--cg-edge-call, #3b82f6);
+}
+
+.cg-tooltip .tooltip-edge-source {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.cg-tooltip .tooltip-edge-arrow {
+  color: var(--cg-text-secondary);
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+
+.cg-tooltip .tooltip-edge-target {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+/* ---- Smooth graph transitions --------------------------------------------- */
+
+
+.graph-container.loading {
+  opacity: 0.4;
+}

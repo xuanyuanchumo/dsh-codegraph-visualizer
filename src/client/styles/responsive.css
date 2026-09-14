@@ -1,0 +1,217 @@
+﻿/* ---- Responsive ---------------------------------------------------------- */
+
+/* Small panels (DSH sidebar tab, narrow bottom panel).
+ * Container queries respond to the PANEL width, not the viewport — the plugin
+ * renders inside DSH panels whose width is unrelated to the window size. */
+@container graphpanel (max-width: 480px) {
+  .graph-panel {
+    border-radius: var(--cg-radius-sm);
+  }
+
+  .graph-toolbar {
+    padding: 0 8px;
+    gap: 4px;
+  }
+
+  .toolbar-left {
+    font-size: 11px;
+  }
+
+  .toolbar-center {
+    gap: 4px;
+  }
+
+  .toolbar-right {
+    gap: 4px;
+  }
+
+  .layout-btn,
+  .graph-type-btn {
+    padding: 3px 6px;
+    font-size: 10px;
+  }
+
+  .search-btn,
+  .theme-btn,
+  .export-btn,
+  .collapse-btn,
+  .chain-btn,
+  .cycle-btn,
+  .impact-btn,
+  .inheritance-btn,
+  .minimap-btn,
+  .refresh-btn,
+  .undo-btn,
+  .redo-btn,
+  .import-btn,
+  .legend-btn,
+  .lang-btn,
+  .pathfind-btn,
+  .health-btn,
+  .rules-btn,
+  .hotspot-btn,
+  .godmodule-btn {
+    width: 26px;
+    height: 26px;
+    font-size: 12px;
+  }
+
+  .node-detail-panel {
+    width: calc(100% - 24px);
+    left: 12px;
+    top: 12px;
+  }
+
+  .legend-panel {
+    width: 140px;
+  }
+
+  .mini-map {
+    width: 140px;
+  }
+
+  .type-badge {
+    display: none;
+  }
+
+  .toolbar-separator {
+    display: none;
+  }
+
+  .graph-type-buttons {
+    display: none;
+  }
+
+}
+
+/* Medium panels (DSH sidebar medium width) */
+@container graphpanel (max-width: 768px) {
+  .graph-toolbar {
+    padding: 0 8px;
+    gap: 6px;
+  }
+
+  .toolbar-center {
+    gap: 6px;
+  }
+
+  .toolbar-right {
+    gap: 6px;
+  }
+
+  .layout-btn,
+  .graph-type-btn {
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+
+  .node-detail-panel {
+    width: 220px;
+  }
+
+  .legend-panel {
+    width: 160px;
+  }
+
+  .mini-map {
+    width: 160px;
+  }
+
+  .filter-select {
+    font-size: 11px;
+  }
+
+  .toolbar-separator {
+    margin: 0 2px;
+  }
+
+}
+
+/* Very small panels */
+@container graphpanel (max-width: 320px) {
+  .graph-toolbar {
+    gap: 2px;
+  }
+
+  .layout-buttons,
+  .graph-type-buttons {
+    padding: 1px;
+  }
+
+  .layout-btn,
+  .graph-type-btn {
+    padding: 2px 4px;
+    font-size: 9px;
+  }
+
+  .filter-select {
+    padding: 3px 20px 3px 6px;
+    font-size: 10px;
+  }
+
+  .node-count {
+    font-size: 10px;
+  }
+
+  .legend-panel,
+  .mini-map {
+    width: 120px;
+  }
+}
+
+/* Large screens — allow fixed floating panel */
+@media (min-width: 1200px) {
+  .graph-panel.floating {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    width: 640px;
+    height: 520px;
+  }
+}
+
+/* ---- Reduced motion ------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+/* ---- Responsive for new components ---------------------------------------- */
+
+@container graphpanel (max-width: 480px) {
+  .path-bar,
+  .health-score-card,
+  .rule-panel {
+    width: calc(100% - 24px);
+  }
+
+  .analysis-panel {
+    width: calc(100% - 24px);
+  }
+
+  .focus-label {
+    max-width: 120px;
+  }
+}
+
+@container graphpanel (max-width: 768px) {
+  .path-bar {
+    width: 240px;
+  }
+
+  .health-score-card {
+    width: 220px;
+  }
+
+  .rule-panel {
+    width: 240px;
+  }
+
+  .analysis-panel {
+    width: 200px;
+  }
+}

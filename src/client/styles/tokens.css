@@ -1,0 +1,166 @@
+﻿/* ============================================================================
+ * DSH CodeGraph Visualizer — Modern UI Styles
+ * Follows dsh-web-ui design tokens (--dsw-* CSS custom properties).
+ * WCAG 2.2 AA compliant contrast, backdrop-blur glassmorphism, smooth motion.
+ * ============================================================================ */
+
+:root {
+  /* DSH theme bridge — consume host --dsw-* tokens with safe fallbacks.
+   * DSH does not expose CSS custom properties; fallbacks below match the
+   * actual computed values from DSH's light theme (measured via DevTools). */
+  --cg-bg: var(--dsw-bg, #ffffff);
+  --cg-surface: var(--dsw-surface, #f9fafb);
+  --cg-surface-hover: var(--dsw-surface-hover, #f3f4f6);
+  --cg-surface-active: var(--dsw-surface-active, #e5e7eb);
+  --cg-border: var(--dsw-border, rgba(0, 0, 0, 0.04));
+  --cg-border-strong: var(--dsw-border-strong, rgba(0, 0, 0, 0.1));
+  --cg-text: var(--dsw-fg, #0f1115);
+  --cg-text-secondary: var(--dsw-fg-secondary, #61666b);
+  --cg-text-tertiary: var(--dsw-fg-tertiary, #5f6368);
+  --cg-accent: var(--dsw-accent, #263148);
+  --cg-accent-hover: var(--dsw-accent-hover, #1a2230);
+  --cg-accent-soft: var(--dsw-accent-soft, rgba(38, 49, 72, 0.1));
+  --cg-on-accent: var(--dsw-on-accent, #ffffff);
+  --cg-success: #10b981;
+  --cg-warning: #f59e0b;
+  --cg-error: #ef4444;
+  --cg-info: #3b82f6;
+
+  /* Node type semantic colors — light theme */
+  --cg-node-default: #263148;
+  --cg-node-function: #059669;
+  --cg-node-class: #1a2230;
+  --cg-node-variable: #d97706;
+  --cg-node-module: #db2777;
+  --cg-node-interface: #0d9488;
+  --cg-node-type: #7c3aed;
+  --cg-node-dep-npm: #cc3535;
+  --cg-node-dep-cargo: #ce422b;
+  --cg-node-dep-gomod: #007d9b;
+  --cg-node-dep-pip: #3776ab;
+
+  /* Edge type semantic colors — light theme */
+  --cg-edge-default: rgba(0, 0, 0, 0.1);
+  --cg-edge-call: #3b82f6;
+  --cg-edge-import: #10b981;
+  --cg-edge-extend: #ec4899;
+  --cg-edge-implement: #0d9488;
+  --cg-edge-dependency: #f59e0b;
+  --cg-edge-contains: #7c3aed;
+  --cg-edge-dep-prod: #f59e0b;
+  --cg-edge-dep-dev: #3b82f6;
+  --cg-edge-dep-peer: #10b981;
+  --cg-edge-dep-optional: #7c3aed;
+
+  /* Highlight / analysis colors — light theme */
+  --cg-hover-border: #1a2230;
+  --cg-impact-d1: #f59e0b;
+  --cg-impact-d2: #fbbf24;
+  --cg-impact-d3: #fde68a;
+  --cg-inheritance-extend: #ec4899;
+  --cg-inheritance-implement: #14b8a6;
+  --cg-cluster-bg: rgba(38, 49, 72, 0.10);
+  --cg-cluster-border: #263148;
+  --cg-cluster-hover-bg: rgba(38, 49, 72, 0.25);
+  --cg-cluster-hover-border: #1a2230;
+  --cg-cluster-edge: #263148;
+  --cg-cluster-edge-label-bg: #f9fafb;
+
+  /* Typography — match DSH's actual font stack including CJK fonts */
+  --cg-font-sans: var(--dsw-font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif);
+  --cg-font-mono: var(--dsw-font-mono, "JetBrains Mono", "Fira Code", Consolas, "Microsoft YaHei", monospace);
+
+  /* Elevation */
+  --cg-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --cg-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  --cg-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.14);
+  --cg-shadow-active: 0 1px 4px rgba(0, 0, 0, 0.3);
+  --cg-overlay-bg: rgba(0, 0, 0, 0.3);
+
+  /* Radii */
+  --cg-radius: 12px;
+  --cg-radius-sm: 8px;
+  --cg-radius-xs: 4px;
+  --cg-radius-lg: 16px;
+
+  /* Motion */
+  --cg-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --cg-ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --cg-transition: 180ms var(--cg-ease);
+  --cg-transition-slow: 280ms var(--cg-ease);
+
+  /* Layout */
+  --cg-toolbar-h: 44px;
+  --cg-statusbar-h: 28px;
+  --cg-panel-min-h: 240px;
+  --cg-panel-min-w: 320px;
+}
+
+/* DSH Dark theme — activated when body[data-ds-dark-theme] is set.
+ * Values measured from DSH's actual dark theme via DevTools. */
+body[data-ds-dark-theme] {
+  --cg-bg: var(--dsw-bg, #151517);
+  --cg-surface: var(--dsw-surface, #232324);
+  --cg-surface-hover: var(--dsw-surface-hover, #2a2a2c);
+  --cg-surface-active: var(--dsw-surface-active, #333335);
+  --cg-border: var(--dsw-border, rgba(255, 255, 255, 0.08));
+  --cg-border-strong: var(--dsw-border-strong, rgba(255, 255, 255, 0.14));
+  --cg-text: var(--dsw-fg, #f9fafb);
+  --cg-text-secondary: var(--dsw-fg-secondary, #cfd3d6);
+  --cg-text-tertiary: var(--dsw-fg-tertiary, #a8acb0);
+  --cg-accent: var(--dsw-accent, #6366f1);
+  --cg-accent-hover: var(--dsw-accent-hover, #5457e5);
+  --cg-accent-soft: var(--dsw-accent-soft, rgba(99, 102, 241, 0.12));
+  --cg-on-accent: var(--dsw-on-accent, #ffffff);
+
+  /* Node type semantic colors — dark theme */
+  --cg-node-default: #6366f1;
+  --cg-node-function: #10b981;
+  --cg-node-class: #818cf8;
+  --cg-node-variable: #f59e0b;
+  --cg-node-module: #ec4899;
+  --cg-node-interface: #14b8a6;
+  --cg-node-type: #a78bfa;
+  --cg-node-dep-npm: #cb3837;
+  --cg-node-dep-cargo: #dea584;
+  --cg-node-dep-gomod: #00add8;
+  --cg-node-dep-pip: #3776ab;
+
+  /* Edge type semantic colors — dark theme */
+  --cg-edge-default: rgba(255, 255, 255, 0.14);
+  --cg-edge-call: #60a5fa;
+  --cg-edge-import: #34d399;
+  --cg-edge-extend: #f472b6;
+  --cg-edge-implement: #2dd4bf;
+  --cg-edge-dependency: #fbbf24;
+  --cg-edge-contains: #a78bfa;
+  --cg-edge-dep-prod: #fbbf24;
+  --cg-edge-dep-dev: #60a5fa;
+  --cg-edge-dep-peer: #34d399;
+  --cg-edge-dep-optional: #a78bfa;
+
+  /* Highlight / analysis colors — dark theme */
+  --cg-hover-border: #818cf8;
+  --cg-impact-d1: #f59e0b;
+  --cg-impact-d2: #fbbf24;
+  --cg-impact-d3: #fde68a;
+  --cg-inheritance-extend: #f472b6;
+  --cg-inheritance-implement: #2dd4bf;
+  --cg-cluster-bg: rgba(99, 102, 241, 0.15);
+  --cg-cluster-border: #818cf8;
+  --cg-cluster-hover-bg: rgba(99, 102, 241, 0.35);
+  --cg-cluster-hover-border: #a5b4fc;
+  --cg-cluster-edge: #818cf8;
+  --cg-cluster-edge-label-bg: #232324;
+
+  --cg-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
+  --cg-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+  --cg-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.36);
+  --cg-shadow-active: 0 1px 4px rgba(0, 0, 0, 0.5);
+  --cg-overlay-bg: rgba(0, 0, 0, 0.5);
+}
+
+body[data-ds-dark-theme] .filter-select,
+body[data-ds-dark-theme] .depth-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23a8acb0' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+}
