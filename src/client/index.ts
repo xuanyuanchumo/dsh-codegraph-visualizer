@@ -248,7 +248,7 @@ export function apply(ctx: Context) {
             .then((data) => { if (data && data.nodes && data.nodes.length > 0) { store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata); } })
             .catch((e) => log.warn('incremental graph fetch failed', e));
         } else {
-          fetchGraphData().then((data) => { if (data) { store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata); } });
+          fetchGraphData().then((data) => { if (data) { store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata); } }).catch((e) => log.warn('graph fetch failed', e));
         }
       }
     };
@@ -270,7 +270,7 @@ export function apply(ctx: Context) {
           }
         }
         store.setLoading(false);
-      });
+      }).catch((e) => { log.warn('import-repo failed', e); store.setLoading(false); });
       log.info('import-repo forwarded', { path: detail.path });
     };
 
@@ -284,13 +284,13 @@ export function apply(ctx: Context) {
           if (result.success) {
             fetchGraphData().then((data) => {
               if (data) { store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata); }
-            });
+            }).catch((e) => log.warn('post-init graph fetch failed', e));
           }
         } else {
           store.setInitStatus('error', 'Request failed');
         }
         log.info('init result', { path: detail.path, success: result?.success });
-      });
+      }).catch((e) => { log.warn('init-graph failed', e); store.setInitStatus('error', String(e)); });
       log.info('init-graph forwarded', { path: detail.path });
     };
 
@@ -317,7 +317,7 @@ export function apply(ctx: Context) {
             if (validated) { store.setGraphData(validated.nodes, validated.edges, detail.path, validated.metadata); }
           }
           store.setLoading(false);
-        });
+        }).catch((e) => { log.warn('workspace scan failed', e); store.setLoading(false); });
         log.info('workspace change forwarded', { path: detail.path });
       }, 300);
     };
