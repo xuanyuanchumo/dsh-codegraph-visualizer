@@ -12,10 +12,20 @@ interface CacheEntry {
 
 export class GraphCache {
   private cache = new Map<string, CacheEntry>();
-  private maxEntries = 5;
+  private maxEntries: number;
+
+  constructor(maxEntries: number = 5) {
+    this.maxEntries = maxEntries;
+  }
 
   get(repoId: string): CacheEntry | null {
-    return this.cache.get(repoId) ?? null;
+    const entry = this.cache.get(repoId);
+    if (entry) {
+      entry.timestamp = Date.now();
+      this.cache.delete(repoId);
+      this.cache.set(repoId, entry);
+    }
+    return entry ?? null;
   }
 
   set(repoId: string, nodes: GraphNode[], edges: GraphEdge[], layoutPositions?: Map<string, { x: number; y: number }>, layoutType?: LayoutType): void {
@@ -29,8 +39,8 @@ export class GraphCache {
       layoutType: layoutType ?? existing?.layoutType ?? null,
     });
     if (this.cache.size > this.maxEntries) {
-      const oldest = [...this.cache.entries()].sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
-      if (oldest) this.cache.delete(oldest[0]);
+      const oldest = this.cache.keys().next().value;
+      if (oldest !== undefined) this.cache.delete(oldest);
     }
   }
 

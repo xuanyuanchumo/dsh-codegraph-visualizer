@@ -53,7 +53,7 @@ function applySnapshot(snapshot: HistorySnapshot): void {
   const sameSize = currentExpanded.size === snapshot.expandedNodeIds.size;
   const sameContent = sameSize && [...snapshot.expandedNodeIds].every((id) => currentExpanded.has(id));
   if (!sameContent) {
-    useGraphStore.setState({ expandedNodeIds: snapshot.expandedNodeIds });
+    useGraphStore.setState({ expandedNodeIds: new Set(snapshot.expandedNodeIds) });
     s.setClusterDepth(snapshot.clusterDepth);
   }
 }
@@ -86,7 +86,9 @@ export function useHistory() {
       isUndoRedoRef.current = true;
       applySnapshot(prev);
       lastSnapshotRef.current = prev;
-      isUndoRedoRef.current = false;
+      queueMicrotask(() => {
+        isUndoRedoRef.current = false;
+      });
       updateFlags();
     }
   }, [updateFlags]);
@@ -97,7 +99,9 @@ export function useHistory() {
       isUndoRedoRef.current = true;
       applySnapshot(next);
       lastSnapshotRef.current = next;
-      isUndoRedoRef.current = false;
+      queueMicrotask(() => {
+        isUndoRedoRef.current = false;
+      });
       updateFlags();
     }
   }, [updateFlags]);

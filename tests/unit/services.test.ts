@@ -498,7 +498,8 @@ describe('isPathAllowed (security)', () => {
     setAllowedWorkspaceRoots([]);
   });
 
-  it('should allow "." but reject empty path', () => {
+  it('should allow "." when roots are set, but reject empty path', () => {
+    setAllowedWorkspaceRoots(['/home/user/project']);
     expect(isPathAllowed('.')).toBe(true);
     expect(isPathAllowed('')).toBe(false);
   });

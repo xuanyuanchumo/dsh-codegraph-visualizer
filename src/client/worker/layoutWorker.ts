@@ -7,6 +7,8 @@ export interface LayoutWorkerRequest {
   nodes: { id: string; label: string; type: string }[];
   edges: { id: string; source: string; target: string; type: string }[];
   layout: string;
+  containerWidth?: number;
+  containerHeight?: number;
 }
 
 export interface LayoutWorkerResponse {
@@ -38,7 +40,7 @@ function computeSmartSpacing(nodeCount: number, w: number, h: number) {
 }
 
 self.onmessage = (e: MessageEvent<LayoutWorkerRequest>) => {
-  const { nodes, edges, layout } = e.data;
+  const { nodes, edges, layout, containerWidth = 800, containerHeight = 600 } = e.data;
   try {
     const cy = cytoscape({
       headless: true,
@@ -48,7 +50,7 @@ self.onmessage = (e: MessageEvent<LayoutWorkerRequest>) => {
       ],
     });
 
-    const sp = computeSmartSpacing(nodes.length, 800, 600);
+    const sp = computeSmartSpacing(nodes.length, containerWidth, containerHeight);
     let options: LayoutOptions;
     switch (layout) {
       case 'cose':

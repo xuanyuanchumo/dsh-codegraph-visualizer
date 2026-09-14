@@ -258,6 +258,10 @@ export function registerRoutes(deps: RouteDeps): void {
     return false;
   };
 
+  const logRequest = (req: IncomingMessage, routePath: string): void => {
+    log.info('request', { method: req.method, path: routePath, ip: getClientIp(req) });
+  };
+
   // GET /api/v1/codegraph/status
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
@@ -265,6 +269,7 @@ export function registerRoutes(deps: RouteDeps): void {
     handler: (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
       if (!requireMethod(req, res, 'GET')) return;
+      logRequest(req, '/api/v1/codegraph/status');
 
       if (!checkRate(req, res, '/api/v1/codegraph/status')) return;
       const status = checkPrerequisites(ctx);
@@ -279,6 +284,7 @@ export function registerRoutes(deps: RouteDeps): void {
     handler: (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
       if (!requireMethod(req, res, 'GET')) return;
+      logRequest(req, '/api/v1/codegraph/health');
       try {
         const status = checkPrerequisites(ctx);
         const mem = process.memoryUsage();
@@ -314,6 +320,7 @@ export function registerRoutes(deps: RouteDeps): void {
     handler: (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
       if (!requireMethod(req, res, 'GET')) return;
+      logRequest(req, '/api/v1/codegraph/workspace');
       if (!checkRate(req, res, '/api/v1/codegraph/workspace')) return;
       const current = findWorkspacePath(ctx);
       const list = extractWorkspacePaths(ctx);
@@ -328,6 +335,7 @@ export function registerRoutes(deps: RouteDeps): void {
     handler: (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
       if (!requireMethod(req, res, 'GET')) return;
+      logRequest(req, '/api/v1/codegraph/data');
       if (!checkRate(req, res, '/api/v1/codegraph/data')) return;
       const ifNoneMatch = req.headers['if-none-match'];
       const lastGraphData = deps.getLastGraphData();
@@ -358,6 +366,7 @@ export function registerRoutes(deps: RouteDeps): void {
     handler: async (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
       if (!requireMethod(req, res, 'POST')) return;
+      logRequest(req, '/api/v1/codegraph/scan');
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
@@ -428,6 +437,7 @@ export function registerRoutes(deps: RouteDeps): void {
     handler: async (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
       if (!requireMethod(req, res, 'POST')) return;
+      logRequest(req, '/api/v1/codegraph/init');
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
@@ -482,6 +492,7 @@ export function registerRoutes(deps: RouteDeps): void {
     handler: async (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
       if (!requireMethod(req, res, 'POST')) return;
+      logRequest(req, '/api/v1/codegraph/watch');
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
@@ -508,6 +519,7 @@ export function registerRoutes(deps: RouteDeps): void {
     handler: async (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
       if (!requireMethod(req, res, 'GET')) return;
+      logRequest(req, '/api/v1/codegraph/dependencies');
       if (!checkRate(req, res, '/api/v1/codegraph/dependencies')) return;
       try {
         const workspacePath = findWorkspacePath(ctx);
@@ -581,6 +593,7 @@ export function registerRoutes(deps: RouteDeps): void {
     handler: async (req: IncomingMessage, res: ServerResponse) => {
       if (handleCorsPreflight(req, res)) return;
       if (!requireMethod(req, res, 'POST')) return;
+      logRequest(req, '/api/v1/codegraph/diff');
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
@@ -637,6 +650,7 @@ export function registerRoutes(deps: RouteDeps): void {
       handler: async (req: IncomingMessage, res: ServerResponse) => {
         if (handleCorsPreflight(req, res)) return;
         if (!requireMethod(req, res, 'POST')) return;
+        logRequest(req, '/api/v1/codegraph/ast');
         try {
           const body = await readBody(req, config.maxBodyBytes);
           const parsed = parseJsonBody(body);
@@ -695,6 +709,7 @@ export function registerRoutes(deps: RouteDeps): void {
       handler: async (req: IncomingMessage, res: ServerResponse) => {
         if (handleCorsPreflight(req, res)) return;
         if (!requireMethod(req, res, 'POST')) return;
+        logRequest(req, '/api/v1/codegraph/tree-sitter');
         try {
           const body = await readBody(req, config.maxBodyBytes);
           const parsed = parseJsonBody(body);

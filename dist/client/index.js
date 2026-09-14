@@ -10,7 +10,7 @@ window.__ModuleLoader__.load({
 			if (document.getElementById(styleId)) return;
 			var style = document.createElement("style");
 			style.id = styleId;
-			style.textContent = `/* ============================================================================
+			style.textContent = `﻿/* ============================================================================
  * DSH CodeGraph Visualizer — Modern UI Styles
  * Follows dsh-web-ui design tokens (--dsw-* CSS custom properties).
  * WCAG 2.2 AA compliant contrast, backdrop-blur glassmorphism, smooth motion.
@@ -50,6 +50,24 @@ window.__ModuleLoader__.load({
   --cg-node-dep-cargo: #ce422b;
   --cg-node-dep-gomod: #007d9b;
   --cg-node-dep-pip: #3776ab;
+  --cg-node-package: #263148;
+
+  /* CFG / flowchart semantic colors — light theme */
+  --cg-cfg-loop: #7c3aed;
+  --cg-cfg-switch: #ec4899;
+  --cg-cfg-try: #3b82f6;
+  --cg-cfg-finally: #10b981;
+  --cg-cfg-process: #3b82f6;
+  --cg-cfg-subprocess: #f59e0b;
+
+  /* Sequence diagram semantic colors — light theme */
+  --cg-seq-external: #db2777;
+  --cg-seq-fragment: #263148;
+  --cg-seq-async: #f59e0b;
+
+  /* Package diagram semantic colors — light theme */
+  --cg-package-border: #1a2230;
+  --cg-edge-package: #263148;
 
   /* Edge type semantic colors — light theme */
   --cg-edge-default: rgba(0, 0, 0, 0.1);
@@ -86,6 +104,8 @@ window.__ModuleLoader__.load({
   --cg-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
   --cg-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
   --cg-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.14);
+  --cg-shadow-active: 0 1px 4px rgba(0, 0, 0, 0.3);
+  --cg-overlay-bg: rgba(0, 0, 0, 0.3);
 
   /* Radii */
   --cg-radius: 12px;
@@ -118,8 +138,8 @@ body[data-ds-dark-theme] {
   --cg-text: var(--dsw-fg, #f9fafb);
   --cg-text-secondary: var(--dsw-fg-secondary, #cfd3d6);
   --cg-text-tertiary: var(--dsw-fg-tertiary, #a8acb0);
-  --cg-accent: var(--dsw-accent, #8b8eff);
-  --cg-accent-hover: var(--dsw-accent-hover, #818cf8);
+  --cg-accent: var(--dsw-accent, #6366f1);
+  --cg-accent-hover: var(--dsw-accent-hover, #5457e5);
   --cg-accent-soft: var(--dsw-accent-soft, rgba(99, 102, 241, 0.12));
   --cg-on-accent: var(--dsw-on-accent, #ffffff);
 
@@ -135,6 +155,24 @@ body[data-ds-dark-theme] {
   --cg-node-dep-cargo: #dea584;
   --cg-node-dep-gomod: #00add8;
   --cg-node-dep-pip: #3776ab;
+  --cg-node-package: #6366f1;
+
+  /* CFG / flowchart semantic colors — dark theme */
+  --cg-cfg-loop: #a78bfa;
+  --cg-cfg-switch: #f472b6;
+  --cg-cfg-try: #60a5fa;
+  --cg-cfg-finally: #34d399;
+  --cg-cfg-process: #60a5fa;
+  --cg-cfg-subprocess: #fbbf24;
+
+  /* Sequence diagram semantic colors — dark theme */
+  --cg-seq-external: #ec4899;
+  --cg-seq-fragment: #818cf8;
+  --cg-seq-async: #fbbf24;
+
+  /* Package diagram semantic colors — dark theme */
+  --cg-package-border: #818cf8;
+  --cg-edge-package: #818cf8;
 
   /* Edge type semantic colors — dark theme */
   --cg-edge-default: rgba(255, 255, 255, 0.14);
@@ -166,14 +204,21 @@ body[data-ds-dark-theme] {
   --cg-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
   --cg-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
   --cg-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.36);
+  --cg-shadow-active: 0 1px 4px rgba(0, 0, 0, 0.5);
+  --cg-overlay-bg: rgba(0, 0, 0, 0.5);
 }
 
 body[data-ds-dark-theme] .filter-select,
 body[data-ds-dark-theme] .depth-select {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23a8acb0' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
 }
+body[data-ds-dark-theme] .filter-select option,
+body[data-ds-dark-theme] .depth-select option {
+  background: #232324;
+  color: #f9fafb;
+}
 
-/* ---- Panel container ------------------------------------------------------ */
+﻿/* ---- Panel container ------------------------------------------------------ */
 
 .graph-panel {
   position: relative;
@@ -241,7 +286,6 @@ body[data-ds-dark-theme] .depth-select {
 .collapse-fab:hover {
   transform: scale(1.08);
 }
-
 /* ---- Toolbar ------------------------------------------------------------- */
 
 .graph-toolbar {
@@ -253,8 +297,24 @@ body[data-ds-dark-theme] .depth-select {
   background: var(--cg-surface);
   border-bottom: 1px solid var(--cg-border);
   flex-shrink: 0;
-  flex-wrap: wrap;
-  overflow: visible;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cg-border-strong) transparent;
+}
+
+.graph-toolbar::-webkit-scrollbar {
+  height: 3px;
+}
+
+.graph-toolbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.graph-toolbar::-webkit-scrollbar-thumb {
+  background: var(--cg-border-strong);
+  border-radius: 2px;
 }
 
 
@@ -321,8 +381,12 @@ body[data-ds-dark-theme] .depth-select {
 }
 
 .type-badge.function {
-  background: color-mix(in srgb, var(--cg-success) 140%, transparent);
-  color: var(--cg-success);
+  background: color-mix(in srgb, var(--cg-success) 14%, transparent);
+  color: #047857;
+}
+
+body[data-ds-dark-theme] .type-badge.function {
+  color: #34d399;
 }
 
 .type-badge.class {
@@ -369,7 +433,7 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-on-accent);
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--cg-shadow-active);
 }
 
 /* ---- Graph type switcher (segmented control) ----------------------------- */
@@ -392,7 +456,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 500;
   border-radius: var(--cg-radius-xs);
   cursor: pointer;
-  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
+  transition: var(--cg-transition);
   font-family: var(--cg-font-sans);
 }
 
@@ -405,7 +469,7 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-on-accent);
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--cg-shadow-active);
 }
 
 .view-mode-buttons {
@@ -423,7 +487,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 600;
   border-radius: var(--cg-radius-xs);
   cursor: pointer;
-  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
+  transition: var(--cg-transition);
   font-family: var(--cg-font-sans);
   margin-left: 2px;
 }
@@ -437,7 +501,7 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-on-accent);
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--cg-shadow-active);
 }
 
 .view-mode-divider {
@@ -481,7 +545,7 @@ body[data-ds-dark-theme] .depth-select {
   font-weight: 700;
   border-radius: var(--cg-radius-xs);
   cursor: pointer;
-  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
+  transition: var(--cg-transition);
   font-family: var(--cg-font-sans);
   min-width: 28px;
   text-align: center;
@@ -496,37 +560,12 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-on-accent);
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--cg-shadow-active);
 }
 
 /* ---- Select -------------------------------------------------------------- */
 
-.filter-select {
-  padding: 5px 24px 5px 8px;
-  background: var(--cg-bg);
-  border: 1px solid var(--cg-border);
-  border-radius: var(--cg-radius-sm);
-  color: var(--cg-text);
-  font-size: 11px;
-  font-family: var(--cg-font-sans);
-  cursor: pointer;
-  outline: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%239ca0b8' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  transition: border-color var(--cg-transition);
-}
-
-.filter-select:hover {
-  border-color: var(--cg-accent);
-}
-
-.filter-select:focus-visible {
-  border-color: var(--cg-accent);
-  box-shadow: 0 0 0 2px var(--cg-accent-soft);
-}
-
+.filter-select,
 .depth-select {
   padding: 5px 24px 5px 8px;
   background: var(--cg-bg);
@@ -544,10 +583,12 @@ body[data-ds-dark-theme] .depth-select {
   transition: border-color var(--cg-transition);
 }
 
+.filter-select:hover,
 .depth-select:hover {
   border-color: var(--cg-accent);
 }
 
+.filter-select:focus-visible,
 .depth-select:focus-visible {
   border-color: var(--cg-accent);
   box-shadow: 0 0 0 2px var(--cg-accent-soft);
@@ -661,7 +702,7 @@ body[data-ds-dark-theme] .depth-select {
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
   color: var(--cg-on-accent);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--cg-shadow-active);
 }
 
 /* ---- Export menu --------------------------------------------------------- */
@@ -709,7 +750,6 @@ body[data-ds-dark-theme] .depth-select {
 .export-dropdown button:hover {
   background: var(--cg-surface-hover);
 }
-
 /* ---- Search bar ---------------------------------------------------------- */
 
 .search-bar {
@@ -786,7 +826,7 @@ body[data-ds-dark-theme] .depth-select {
   background: var(--cg-surface);
   border: 1px solid var(--cg-border);
   border-radius: var(--cg-radius-sm);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--cg-shadow);
   z-index: 100;
   list-style: none;
   margin: 0;
@@ -846,8 +886,130 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-text-tertiary);
   text-align: center;
 }
+/* ---- Status bar ---------------------------------------------------------- */
 
-/* ---- Overlays (loading / error / empty) ---------------------------------- */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: var(--cg-statusbar-h);
+  padding: 0 12px;
+  background: var(--cg-surface);
+  border-top: 1px solid var(--cg-border);
+  font-size: 11px;
+  color: var(--cg-text-secondary);
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-bar .status-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.status-bar .status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cg-success);
+  flex-shrink: 0;
+}
+
+.status-bar .status-dot.loading {
+  background: var(--cg-warning);
+  animation: cg-pulse 1s ease-in-out infinite;
+}
+
+.status-bar .status-dot.error {
+  background: var(--cg-error);
+}
+
+.status-bar .status-workspace {
+  color: var(--cg-accent);
+  font-weight: 500;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 6px;
+  border-left: 1px solid var(--cg-border);
+  margin-left: 4px;
+  font-family: var(--cg-font-mono);
+  font-size: 10px;
+}
+
+.status-bar .status-truncated {
+  color: var(--cg-warning);
+  font-size: 11px;
+  padding: 0 4px;
+  border-left: 1px solid var(--cg-border);
+  margin-left: 4px;
+  cursor: help;
+}
+
+.status-bar .status-spacer {
+  flex: 1;
+}
+
+.status-bar .status-time {
+  color: var(--cg-text-tertiary);
+  font-family: var(--cg-font-mono);
+}
+/* ---- Resize handle ------------------------------------------------------- */
+
+.graph-panel.resizable .resize-handle {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  bottom: 0;
+  right: 0;
+  cursor: nwse-resize;
+  z-index: 10;
+}
+
+.graph-panel.resizable .resize-handle::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid var(--cg-text-tertiary);
+  border-bottom: 2px solid var(--cg-text-tertiary);
+  transition: border-color var(--cg-transition);
+}
+
+.graph-panel.resizable .resize-handle:hover::after {
+  border-right-color: var(--cg-accent);
+  border-bottom-color: var(--cg-accent);
+}
+
+/* ---- Scrollbar styling --------------------------------------------------- */
+
+.node-detail-panel::-webkit-scrollbar,
+.mini-map::-webkit-scrollbar {
+  width: 6px;
+}
+
+.node-detail-panel::-webkit-scrollbar-track,
+.mini-map::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.node-detail-panel::-webkit-scrollbar-thumb,
+.mini-map::-webkit-scrollbar-thumb {
+  background: var(--cg-border-strong);
+  border-radius: 3px;
+}
+
+.node-detail-panel::-webkit-scrollbar-thumb:hover,
+.mini-map::-webkit-scrollbar-thumb:hover {
+  background: var(--cg-text-tertiary);
+}
+
+﻿/* ---- Overlays (loading / error / empty) ---------------------------------- */
 
 .error-boundary-fallback {
   position: absolute;
@@ -909,6 +1071,7 @@ body[data-ds-dark-theme] .depth-select {
 
 .loading-overlay {
   opacity: 0.9;
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
 
@@ -965,7 +1128,192 @@ body[data-ds-dark-theme] .depth-select {
   font-size: 13px;
 }
 
-/* ---- Graph container ----------------------------------------------------- */
+.error-overlay-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.error-overlay-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.error-overlay-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition);
+}
+
+.error-overlay-retry {
+  background: var(--cg-surface);
+  color: var(--cg-text);
+}
+
+.error-overlay-retry:hover {
+  background: var(--cg-surface-hover);
+  border-color: var(--cg-accent);
+}
+
+.error-overlay-back {
+  background: var(--cg-accent);
+  border-color: var(--cg-accent);
+  color: var(--cg-on-accent);
+}
+
+.error-overlay-back:hover {
+  background: var(--cg-accent-hover);
+  border-color: var(--cg-accent-hover);
+}
+/* ---- Empty state (enhanced) ---------------------------------------------- */
+
+.empty-state .empty-icon {
+  font-size: 40px;
+  opacity: 0.5;
+  color: var(--cg-text-tertiary);
+}
+
+.empty-state .empty-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--cg-text);
+}
+
+.empty-state .empty-subtitle {
+  font-size: 12px;
+  color: var(--cg-text-secondary);
+  max-width: 280px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.empty-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.empty-import-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--cg-accent);
+  color: var(--cg-on-accent);
+  border: none;
+  border-radius: var(--cg-radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--cg-font-sans);
+  cursor: pointer;
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--cg-accent) 30%, transparent);
+}
+
+.empty-import-btn:hover {
+  background: var(--cg-accent-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--cg-accent) 40%, transparent);
+}
+
+.empty-scan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--cg-surface);
+  color: var(--cg-text);
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--cg-font-sans);
+  cursor: pointer;
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
+}
+
+.empty-scan-btn:hover {
+  background: var(--cg-surface-hover);
+  transform: translateY(-1px);
+}
+
+.empty-prereq-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--cg-warning) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cg-warning) 100%, transparent);
+  border-radius: var(--cg-radius-sm);
+  color: var(--cg-text);
+  font-size: 12px;
+  line-height: 1.4;
+  max-width: 400px;
+  text-align: left;
+}
+
+.prereq-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+  border-top: 1px solid color-mix(in srgb, var(--cg-warning) 30%, transparent);
+}
+
+.prereq-item:first-of-type {
+  border-top: none;
+  padding-top: 4px;
+}
+
+.prereq-item-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.prereq-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.prereq-status-dot.ok {
+  background: var(--cg-success);
+}
+
+.prereq-status-dot.missing {
+  background: var(--cg-error);
+}
+
+.prereq-item-label {
+  font-weight: 600;
+  color: var(--cg-text);
+}
+
+.prereq-item-status {
+  font-size: 11px;
+  color: var(--cg-error);
+  margin-left: auto;
+}
+
+.prereq-item-desc {
+  font-size: 11px;
+  color: var(--cg-text-tertiary);
+  padding-left: 14px;
+}
+
+.watch-indicator {
+  color: var(--cg-success, #10b981);
+  font-size: 8px;
+  animation: cg-pulse 2s ease-in-out infinite;
+}
+
+﻿/* ---- Graph container ----------------------------------------------------- */
 
 .graph-container {
   flex: 1;
@@ -978,7 +1326,6 @@ body[data-ds-dark-theme] .depth-select {
 .graph-container canvas {
   display: block;
 }
-
 /* ---- Sequence diagram container ----------------------------------------- */
 
 .sequence-diagram-container {
@@ -998,7 +1345,273 @@ body[data-ds-dark-theme] .depth-select {
   pointer-events: none;
 }
 
-/* ---- Node detail panel --------------------------------------------------- */
+.seq-zoom-controls {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 10;
+}
+
+.seq-zoom-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--cg-border-strong);
+  background: var(--cg-surface);
+  color: var(--cg-text);
+  cursor: pointer;
+  border-radius: var(--cg-radius-xs);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--cg-transition), border-color var(--cg-transition);
+}
+
+.seq-zoom-btn:hover {
+  background: var(--cg-surface-hover);
+  border-color: var(--cg-accent);
+}
+
+.seq-zoom-btn:active {
+  background: var(--cg-surface-active);
+}
+
+.seq-zoom-btn.seq-reset {
+  font-size: 10px;
+}
+
+.seq-zoom-indicator {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  color: var(--cg-text-secondary);
+  font-size: 10px;
+  font-family: var(--cg-font-mono);
+  z-index: 10;
+}
+
+.seq-empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--cg-text-secondary);
+  font-size: 14px;
+}
+
+.seq-participant-group {
+  cursor: pointer;
+  transition: opacity var(--cg-transition);
+}
+
+.seq-participant-group:hover {
+  opacity: 0.85;
+}
+
+.seq-participant-group:hover .seq-participant-box {
+  stroke-width: 3;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+}
+
+.seq-participant-box {
+  transition: stroke-width var(--cg-transition), filter var(--cg-transition);
+}
+
+.seq-message-group {
+  cursor: pointer;
+}
+
+.seq-message-group:hover .seq-message-line {
+  stroke-width: 2.5;
+}
+
+.seq-message-line {
+  transition: stroke-width var(--cg-transition);
+}
+
+.seq-fragment-group {
+  transition: opacity var(--cg-transition);
+}
+
+.seq-fragment-group:hover {
+  opacity: 0.9;
+}
+/* ---- Mini-map ------------------------------------------------------------ */
+
+.mini-map {
+  position: absolute;
+  right: 12px;
+  bottom: calc(var(--cg-statusbar-h) + 12px);
+  width: 200px;
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius);
+  box-shadow: var(--cg-shadow);
+  z-index: 6;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  overflow: hidden;
+  animation: cg-slide-up 160ms var(--cg-ease-out);
+}
+
+@keyframes cg-slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.mini-map-header {
+  padding: 7px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cg-text-secondary);
+  border-bottom: 1px solid var(--cg-border);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mini-map-content {
+  padding: 10px 12px;
+}
+
+.mini-map-thumbnail {
+  position: relative;
+  margin-bottom: 8px;
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-sm);
+  overflow: hidden;
+  background: var(--cg-surface);
+}
+
+.mini-map-viewport {
+  border: 2px solid var(--cg-accent);
+  background: color-mix(in srgb, var(--cg-accent) 10%, transparent);
+  pointer-events: none;
+  transition: background var(--cg-transition-slow), border-color var(--cg-transition-slow), color var(--cg-transition-slow);
+}
+
+.mini-map-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mini-map-stats div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--cg-text-secondary);
+}
+
+.mini-map-stats .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mini-map-total {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--cg-border);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cg-text);
+}
+/* ---- Tooltip (node hover) ------------------------------------------------ */
+
+.cg-tooltip {
+  position: fixed;
+  z-index: 9999;
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-sm);
+  box-shadow: var(--cg-shadow);
+  padding: 8px 12px;
+  font-size: 12px;
+  font-family: var(--cg-font-sans);
+  color: var(--cg-text);
+  pointer-events: none;
+  max-width: 320px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: cg-tooltip-in 100ms var(--cg-ease-out);
+}
+
+@keyframes cg-tooltip-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.cg-tooltip .tooltip-name {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.cg-tooltip .tooltip-path {
+  color: var(--cg-text-secondary);
+  font-family: var(--cg-font-mono);
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.cg-tooltip .tooltip-type {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 1px 6px;
+  border-radius: var(--cg-radius-xs);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: var(--cg-accent-soft);
+  color: var(--cg-accent-hover);
+}
+
+.cg-tooltip .tooltip-links {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 10px;
+  font-family: var(--cg-font-mono);
+}
+
+.cg-tooltip .tooltip-links-in {
+  color: var(--cg-edge-import, #10b981);
+}
+
+.cg-tooltip .tooltip-links-out {
+  color: var(--cg-edge-call, #3b82f6);
+}
+
+.cg-tooltip .tooltip-edge-source {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.cg-tooltip .tooltip-edge-arrow {
+  color: var(--cg-text-secondary);
+  font-size: 11px;
+  margin-bottom: 2px;
+}
+
+.cg-tooltip .tooltip-edge-target {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+/* ---- Smooth graph transitions --------------------------------------------- */
+
+
+.graph-container.loading {
+  opacity: 0.4;
+}
+
+﻿/* ---- Node detail panel --------------------------------------------------- */
 
 .node-detail-panel {
   position: absolute;
@@ -1102,640 +1715,6 @@ body[data-ds-dark-theme] .depth-select {
   background: var(--cg-surface-hover);
   color: var(--cg-text);
 }
-
-/* ---- Status bar ---------------------------------------------------------- */
-
-.status-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  height: var(--cg-statusbar-h);
-  padding: 0 12px;
-  background: var(--cg-surface);
-  border-top: 1px solid var(--cg-border);
-  font-size: 11px;
-  color: var(--cg-text-secondary);
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-}
-
-.status-bar .status-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
-}
-
-.status-bar .status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--cg-success);
-  flex-shrink: 0;
-}
-
-.status-bar .status-dot.loading {
-  background: var(--cg-warning);
-  animation: cg-pulse 1s ease-in-out infinite;
-}
-
-.status-bar .status-dot.error {
-  background: var(--cg-error);
-}
-
-.status-bar .status-workspace {
-  color: var(--cg-accent);
-  font-weight: 500;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 0 6px;
-  border-left: 1px solid var(--cg-border);
-  margin-left: 4px;
-  font-family: var(--cg-font-mono);
-  font-size: 10px;
-}
-
-.status-bar .status-truncated {
-  color: var(--cg-warning);
-  font-size: 11px;
-  padding: 0 4px;
-  border-left: 1px solid var(--cg-border);
-  margin-left: 4px;
-  cursor: help;
-}
-
-.status-bar .status-spacer {
-  flex: 1;
-}
-
-.status-bar .status-time {
-  color: var(--cg-text-tertiary);
-  font-family: var(--cg-font-mono);
-}
-
-/* ---- Mini-map ------------------------------------------------------------ */
-
-.mini-map {
-  position: absolute;
-  right: 12px;
-  bottom: calc(var(--cg-statusbar-h) + 12px);
-  width: 200px;
-  background: var(--cg-surface);
-  border: 1px solid var(--cg-border);
-  border-radius: var(--cg-radius);
-  box-shadow: var(--cg-shadow);
-  z-index: 6;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  overflow: hidden;
-  animation: cg-slide-up 160ms var(--cg-ease-out);
-}
-
-@keyframes cg-slide-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.mini-map-header {
-  padding: 7px 12px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--cg-text-secondary);
-  border-bottom: 1px solid var(--cg-border);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.mini-map-content {
-  padding: 10px 12px;
-}
-
-.mini-map-thumbnail {
-  position: relative;
-  margin-bottom: 8px;
-  border: 1px solid var(--cg-border);
-  border-radius: var(--cg-radius-sm);
-  overflow: hidden;
-  background: var(--cg-surface);
-}
-
-.mini-map-viewport {
-  border: 2px solid var(--cg-accent);
-  background: color-mix(in srgb, var(--cg-accent) 10%, transparent);
-  pointer-events: none;
-  transition: background var(--cg-transition-slow), border-color var(--cg-transition-slow), color var(--cg-transition-slow);
-}
-
-.mini-map-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.mini-map-stats div {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--cg-text-secondary);
-}
-
-.mini-map-stats .dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.mini-map-total {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--cg-border);
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--cg-text);
-}
-
-/* ---- Tooltip (node hover) ------------------------------------------------ */
-
-.cg-tooltip {
-  position: fixed;
-  z-index: 9999;
-  background: var(--cg-surface);
-  border: 1px solid var(--cg-border-strong);
-  border-radius: var(--cg-radius-sm);
-  box-shadow: var(--cg-shadow);
-  padding: 8px 12px;
-  font-size: 12px;
-  font-family: var(--cg-font-sans);
-  color: var(--cg-text);
-  pointer-events: none;
-  max-width: 320px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  animation: cg-tooltip-in 100ms var(--cg-ease-out);
-}
-
-@keyframes cg-tooltip-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.cg-tooltip .tooltip-name {
-  font-weight: 600;
-  margin-bottom: 2px;
-}
-
-.cg-tooltip .tooltip-path {
-  color: var(--cg-text-secondary);
-  font-family: var(--cg-font-mono);
-  font-size: 11px;
-  word-break: break-all;
-}
-
-.cg-tooltip .tooltip-type {
-  display: inline-block;
-  margin-top: 4px;
-  padding: 1px 6px;
-  border-radius: var(--cg-radius-xs);
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: uppercase;
-  background: var(--cg-accent-soft);
-  color: var(--cg-accent-hover);
-}
-
-.cg-tooltip .tooltip-links {
-  display: flex;
-  gap: 8px;
-  margin-top: 4px;
-  font-size: 10px;
-  font-family: var(--cg-font-mono);
-}
-
-.cg-tooltip .tooltip-links-in {
-  color: var(--cg-edge-import, #10b981);
-}
-
-.cg-tooltip .tooltip-links-out {
-  color: var(--cg-edge-call, #3b82f6);
-}
-
-.cg-tooltip .tooltip-edge-source {
-  font-weight: 600;
-  margin-bottom: 2px;
-}
-
-.cg-tooltip .tooltip-edge-arrow {
-  color: var(--cg-text-secondary);
-  font-size: 11px;
-  margin-bottom: 2px;
-}
-
-.cg-tooltip .tooltip-edge-target {
-  font-weight: 600;
-  margin-bottom: 4px;
-}
-
-/* ---- Resize handle ------------------------------------------------------- */
-
-.graph-panel.resizable .resize-handle {
-  position: absolute;
-  width: 18px;
-  height: 18px;
-  bottom: 0;
-  right: 0;
-  cursor: nwse-resize;
-  z-index: 10;
-}
-
-.graph-panel.resizable .resize-handle::after {
-  content: '';
-  position: absolute;
-  bottom: 4px;
-  right: 4px;
-  width: 10px;
-  height: 10px;
-  border-right: 2px solid var(--cg-text-tertiary);
-  border-bottom: 2px solid var(--cg-text-tertiary);
-  transition: border-color var(--cg-transition);
-}
-
-.graph-panel.resizable .resize-handle:hover::after {
-  border-right-color: var(--cg-accent);
-  border-bottom-color: var(--cg-accent);
-}
-
-/* ---- Scrollbar styling --------------------------------------------------- */
-
-.node-detail-panel::-webkit-scrollbar,
-.mini-map::-webkit-scrollbar {
-  width: 6px;
-}
-
-.node-detail-panel::-webkit-scrollbar-track,
-.mini-map::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.node-detail-panel::-webkit-scrollbar-thumb,
-.mini-map::-webkit-scrollbar-thumb {
-  background: var(--cg-border-strong);
-  border-radius: 3px;
-}
-
-.node-detail-panel::-webkit-scrollbar-thumb:hover,
-.mini-map::-webkit-scrollbar-thumb:hover {
-  background: var(--cg-text-tertiary);
-}
-
-/* ---- Responsive ---------------------------------------------------------- */
-
-/* Small panels (DSH sidebar tab, narrow bottom panel).
- * Container queries respond to the PANEL width, not the viewport — the plugin
- * renders inside DSH panels whose width is unrelated to the window size. */
-@container graphpanel (max-width: 480px) {
-  .graph-panel {
-    border-radius: var(--cg-radius-sm);
-  }
-
-  .graph-toolbar {
-    padding: 0 8px;
-    gap: 4px;
-  }
-
-  .toolbar-left {
-    font-size: 11px;
-  }
-
-  .toolbar-center {
-    gap: 4px;
-  }
-
-  .toolbar-right {
-    gap: 4px;
-  }
-
-  .layout-btn,
-  .graph-type-btn {
-    padding: 3px 6px;
-    font-size: 10px;
-  }
-
-  .search-btn,
-  .theme-btn,
-  .export-btn,
-  .collapse-btn,
-  .chain-btn,
-  .cycle-btn,
-  .impact-btn,
-  .inheritance-btn,
-  .minimap-btn,
-  .refresh-btn,
-  .undo-btn,
-  .redo-btn,
-  .import-btn,
-  .legend-btn,
-  .lang-btn,
-  .pathfind-btn,
-  .health-btn,
-  .rules-btn,
-  .hotspot-btn,
-  .godmodule-btn {
-    width: 26px;
-    height: 26px;
-    font-size: 12px;
-  }
-
-  .node-detail-panel {
-    width: calc(100% - 24px);
-    left: 12px;
-    top: 12px;
-  }
-
-  .legend-panel {
-    width: 140px;
-  }
-
-  .mini-map {
-    width: 140px;
-  }
-
-  .type-badge {
-    display: none;
-  }
-
-  .toolbar-separator {
-    display: none;
-  }
-
-  .graph-type-buttons {
-    display: none;
-  }
-
-}
-
-/* Medium panels (DSH sidebar medium width) */
-@container graphpanel (max-width: 768px) {
-  .graph-toolbar {
-    padding: 0 8px;
-    gap: 6px;
-  }
-
-  .toolbar-center {
-    gap: 6px;
-  }
-
-  .toolbar-right {
-    gap: 6px;
-  }
-
-  .layout-btn,
-  .graph-type-btn {
-    padding: 3px 8px;
-    font-size: 11px;
-  }
-
-  .node-detail-panel {
-    width: 220px;
-  }
-
-  .legend-panel {
-    width: 160px;
-  }
-
-  .mini-map {
-    width: 160px;
-  }
-
-  .filter-select {
-    font-size: 11px;
-  }
-
-  .toolbar-separator {
-    margin: 0 2px;
-  }
-
-}
-
-/* Very small panels */
-@container graphpanel (max-width: 320px) {
-  .graph-toolbar {
-    gap: 2px;
-  }
-
-  .layout-buttons,
-  .graph-type-buttons {
-    padding: 1px;
-  }
-
-  .layout-btn,
-  .graph-type-btn {
-    padding: 2px 4px;
-    font-size: 9px;
-  }
-
-  .filter-select {
-    padding: 3px 20px 3px 6px;
-    font-size: 10px;
-  }
-
-  .node-count {
-    font-size: 10px;
-  }
-
-  .legend-panel,
-  .mini-map {
-    width: 120px;
-  }
-}
-
-/* Large screens — allow fixed floating panel */
-@media (min-width: 1200px) {
-  .graph-panel.floating {
-    position: fixed;
-    right: 16px;
-    bottom: 16px;
-    width: 640px;
-    height: 520px;
-  }
-}
-
-/* ---- Reduced motion ------------------------------------------------------ */
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* ---- Import button + Legend button + Lang button (use .cg-icon-btn) -- */
-
-.lang-label {
-  font-size: 11px;
-  font-weight: 600;
-  font-family: var(--cg-font-sans);
-}
-
-/* ---- Search bar icon ----------------------------------------------------- */
-
-.search-bar-icon {
-  color: var(--cg-text-tertiary);
-  flex-shrink: 0;
-}
-
-/* ---- Empty state (enhanced) ---------------------------------------------- */
-
-.empty-state .empty-icon {
-  font-size: 40px;
-  opacity: 0.5;
-  color: var(--cg-text-tertiary);
-}
-
-.empty-state .empty-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--cg-text);
-}
-
-.empty-state .empty-subtitle {
-  font-size: 12px;
-  color: var(--cg-text-secondary);
-  max-width: 280px;
-  text-align: center;
-  line-height: 1.5;
-}
-
-.empty-actions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.empty-import-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  background: var(--cg-accent);
-  color: var(--cg-on-accent);
-  border: none;
-  border-radius: var(--cg-radius-sm);
-  font-size: 13px;
-  font-weight: 500;
-  font-family: var(--cg-font-sans);
-  cursor: pointer;
-  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--cg-accent) 30%, transparent);
-}
-
-.empty-import-btn:hover {
-  background: var(--cg-accent-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--cg-accent) 40%, transparent);
-}
-
-.empty-scan-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  background: var(--cg-surface);
-  color: var(--cg-text);
-  border: 1px solid var(--cg-border-strong);
-  border-radius: var(--cg-radius-sm);
-  font-size: 13px;
-  font-weight: 500;
-  font-family: var(--cg-font-sans);
-  cursor: pointer;
-  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
-}
-
-.empty-scan-btn:hover {
-  background: var(--cg-surface-hover);
-  transform: translateY(-1px);
-}
-
-.empty-prereq-warning {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 14px;
-  background: color-mix(in srgb, var(--cg-warning) 80%, transparent);
-  border: 1px solid color-mix(in srgb, var(--cg-warning) 250%, transparent);
-  border-radius: var(--cg-radius-sm);
-  color: var(--cg-text-primary);
-  font-size: 12px;
-  line-height: 1.4;
-  max-width: 400px;
-  text-align: left;
-}
-
-.prereq-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 0;
-  border-top: 1px solid color-mix(in srgb, var(--cg-warning) 150%, transparent);
-}
-
-.prereq-item:first-of-type {
-  border-top: none;
-  padding-top: 4px;
-}
-
-.prereq-item-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.prereq-status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.prereq-status-dot.ok {
-  background: var(--cg-success);
-}
-
-.prereq-status-dot.missing {
-  background: var(--cg-error);
-}
-
-.prereq-item-label {
-  font-weight: 600;
-  color: var(--cg-text-primary);
-}
-
-.prereq-item-status {
-  font-size: 11px;
-  color: var(--cg-error);
-  margin-left: auto;
-}
-
-.prereq-item-desc {
-  font-size: 11px;
-  color: var(--cg-text-tertiary);
-  padding-left: 14px;
-}
-
-.watch-indicator {
-  color: var(--cg-success, #22c55e);
-  font-size: 8px;
-  animation: cg-pulse 2s ease-in-out infinite;
-}
-
 /* ---- Node detail extra properties ---------------------------------------- */
 
 .node-detail-panel .detail-extra {
@@ -1752,7 +1731,6 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-text-tertiary);
   margin-bottom: 6px;
 }
-
 /* ---- Import panel -------------------------------------------------------- */
 
 .import-panel {
@@ -2015,7 +1993,7 @@ body[data-ds-dark-theme] .depth-select {
 }
 
 .prereq-copy:hover {
-  background: color-mix(in srgb, var(--cg-warning) 150%, transparent);
+  background: color-mix(in srgb, var(--cg-warning) 20%, transparent);
 }
 
 .paste-input {
@@ -2074,15 +2052,14 @@ body[data-ds-dark-theme] .depth-select {
 }
 
 .import-feedback.ok {
-  background: color-mix(in srgb, var(--cg-success) 120%, transparent);
+  background: color-mix(in srgb, var(--cg-success) 15%, transparent);
   color: var(--cg-success);
 }
 
 .import-feedback.err {
-  background: color-mix(in srgb, var(--cg-error) 120%, transparent);
+  background: color-mix(in srgb, var(--cg-error) 15%, transparent);
   color: var(--cg-error);
 }
-
 /* ---- Legend panel -------------------------------------------------------- */
 
 .legend-panel {
@@ -2167,7 +2144,6 @@ body[data-ds-dark-theme] .depth-select {
   border-top: 2px solid var(--cg-text-secondary);
   flex-shrink: 0;
 }
-
 /* ---- Workspace selector --------------------------------------------------- */
 
 .workspace-selector {
@@ -2411,13 +2387,13 @@ body[data-ds-dark-theme] .depth-select {
   font-size: 12px;
   color: var(--cg-text-tertiary);
 }
-
 /* ---- Keyboard help -------------------------------------------------------- */
 
 .keyboard-help-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--cg-overlay-bg);
+  -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
   z-index: 10000;
   display: flex;
@@ -2507,12 +2483,6 @@ body[data-ds-dark-theme] .depth-select {
   from { opacity: 0; }
   to { opacity: 1; }
 }
-
-@keyframes cg-slide-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
 /* ---- Expandable node indicators ------------------------------------------- */
 
 .node-detail-panel .detail-expand-hint {
@@ -2759,7 +2729,33 @@ body[data-ds-dark-theme] .depth-select {
   padding: 2px 6px;
   font-size: 10px;
 }
+/* ---- Depth level indicator ------------------------------------------------ */
 
+.depth-level-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  background: var(--cg-accent-soft);
+  border: 1px solid var(--cg-accent);
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cg-accent);
+  white-space: nowrap;
+}
+
+.depth-level-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cg-accent);
+}
+
+.depth-level-dot.active {
+  background: var(--cg-success);
+  box-shadow: 0 0 4px var(--cg-success);
+}
 /* ---- Collapse-all button -------------------------------------------------- */
 
 .collapse-all-btn {
@@ -2782,28 +2778,6 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-text);
   border-color: var(--cg-accent);
 }
-
-/* ---- Smooth graph transitions --------------------------------------------- */
-
-
-.graph-container.loading {
-  opacity: 0.4;
-}
-
-/* ---- Responsive improvements ---------------------------------------------- */
-
-@container graphpanel (max-width: 768px) {
-  .depth-level-indicator {
-    display: none;
-  }
-}
-
-@container graphpanel (max-width: 480px) {
-  .collapse-all-btn {
-    display: none;
-  }
-}
-
 /* ---- PathBar (FR-25: Path Finding) ---------------------------------------- */
 
 .path-bar {
@@ -2996,7 +2970,6 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-accent);
   font-weight: 500;
 }
-
 /* ---- FocusModeBar (FR-26/28: Focus Mode) ---------------------------------- */
 
 .focus-mode-bar {
@@ -3069,7 +3042,6 @@ body[data-ds-dark-theme] .depth-select {
   border-color: var(--cg-error);
   color: var(--cg-error);
 }
-
 /* ---- HealthScoreCard (FR-32: Health Score) -------------------------------- */
 
 .health-score-card {
@@ -3184,7 +3156,6 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-text-tertiary);
   line-height: 1.3;
 }
-
 /* ---- RuleConfigPanel (FR-34: Rule Engine) --------------------------------- */
 
 .rule-panel {
@@ -3412,7 +3383,6 @@ body[data-ds-dark-theme] .depth-select {
   flex: 1;
   word-break: break-word;
 }
-
 /* ---- Analysis panels (FR-33: Hotspot, FR-36: God Module) ------------------ */
 
 .analysis-panel {
@@ -3670,9 +3640,6 @@ body[data-ds-dark-theme] .depth-select {
   background: color-mix(in srgb, var(--cg-accent) 20%, transparent);
   color: var(--cg-accent);
 }
-
-/* ---- New toolbar icon buttons (use .cg-icon-btn) ------------------------ */
-
 /* ---- Impact stats panel (FR-35) ------------------------------------------ */
 
 .impact-panel {
@@ -3733,12 +3700,226 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-text);
 }
 
-.undo-btn:disabled,
-.redo-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+﻿/* ---- Responsive ---------------------------------------------------------- */
+
+/* Small panels (DSH sidebar tab, narrow bottom panel).
+ * Container queries respond to the PANEL width, not the viewport — the plugin
+ * renders inside DSH panels whose width is unrelated to the window size. */
+@container graphpanel (max-width: 480px) {
+  .graph-panel {
+    border-radius: var(--cg-radius-sm);
+  }
+
+  .graph-toolbar {
+    padding: 0 8px;
+    gap: 4px;
+  }
+
+  .toolbar-left {
+    font-size: 11px;
+  }
+
+  .toolbar-center {
+    gap: 4px;
+  }
+
+  .toolbar-right {
+    gap: 4px;
+  }
+
+  .layout-btn,
+  .graph-type-btn {
+    padding: 3px 6px;
+    font-size: 10px;
+  }
+
+  .search-btn,
+  .theme-btn,
+  .export-btn,
+  .collapse-btn,
+  .chain-btn,
+  .cycle-btn,
+  .impact-btn,
+  .inheritance-btn,
+  .minimap-btn,
+  .refresh-btn,
+  .undo-btn,
+  .redo-btn,
+  .import-btn,
+  .legend-btn,
+  .lang-btn,
+  .pathfind-btn,
+  .health-btn,
+  .rules-btn,
+  .hotspot-btn,
+  .godmodule-btn {
+    width: 26px;
+    height: 26px;
+    font-size: 12px;
+  }
+
+  .node-detail-panel {
+    width: calc(100% - 24px);
+    left: 12px;
+    top: 12px;
+  }
+
+  .legend-panel {
+    width: 140px;
+  }
+
+  .mini-map {
+    width: 140px;
+  }
+
+  .type-badge {
+    display: none;
+  }
+
+  .toolbar-separator {
+    display: none;
+  }
+
+  .graph-type-buttons {
+    display: none;
+  }
+
 }
 
+/* Medium panels (DSH sidebar medium width) */
+@container graphpanel (max-width: 768px) {
+  .graph-toolbar {
+    padding: 0 8px;
+    gap: 6px;
+  }
+
+  .toolbar-center {
+    gap: 6px;
+  }
+
+  .toolbar-right {
+    gap: 6px;
+  }
+
+  .layout-btn,
+  .graph-type-btn {
+    padding: 3px 8px;
+    font-size: 11px;
+  }
+
+  .node-detail-panel {
+    width: 220px;
+  }
+
+  .legend-panel {
+    width: 160px;
+  }
+
+  .mini-map {
+    width: 160px;
+  }
+
+  .filter-select {
+    font-size: 11px;
+  }
+
+  .toolbar-separator {
+    margin: 0 2px;
+  }
+
+}
+
+/* Very small panels */
+@container graphpanel (max-width: 320px) {
+  .graph-toolbar {
+    gap: 2px;
+  }
+
+  .layout-buttons,
+  .graph-type-buttons {
+    padding: 1px;
+  }
+
+  .layout-btn,
+  .graph-type-btn {
+    padding: 2px 4px;
+    font-size: 9px;
+  }
+
+  .filter-select {
+    padding: 3px 20px 3px 6px;
+    font-size: 10px;
+  }
+
+  .node-count {
+    font-size: 10px;
+  }
+
+  .legend-panel,
+  .mini-map {
+    width: 120px;
+  }
+}
+
+/* Large screens — allow fixed floating panel */
+@media (min-width: 1200px) {
+  .graph-panel.floating {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    width: 640px;
+    height: 520px;
+  }
+}
+
+/* ---- Reduced motion ------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---- Touch device adaptation --------------------------------------------- */
+
+@media (pointer: coarse) {
+  .layout-btn,
+  .graph-type-btn,
+  .search-btn,
+  .theme-btn,
+  .export-btn,
+  .collapse-btn,
+  .chain-btn,
+  .cycle-btn,
+  .impact-btn,
+  .inheritance-btn,
+  .minimap-btn,
+  .refresh-btn,
+  .undo-btn,
+  .redo-btn,
+  .import-btn,
+  .legend-btn,
+  .lang-btn,
+  .pathfind-btn,
+  .health-btn,
+  .rules-btn,
+  .hotspot-btn,
+  .godmodule-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .node-detail-panel .close-btn,
+  .legend-close,
+  .import-close,
+  .cg-close-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
 /* ---- Responsive for new components ---------------------------------------- */
 
 @container graphpanel (max-width: 480px) {
@@ -3773,6 +3954,19 @@ body[data-ds-dark-theme] .depth-select {
   .analysis-panel {
     width: 200px;
   }
+}
+
+﻿﻿/* Visually hidden — for screen reader only content */
+.cg-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* Panel close button — shared across hotspot, god-module, path-bar, rule-config, health panels */
@@ -3835,7 +4029,12 @@ body[data-ds-dark-theme] .depth-select {
 .keyboard-help-close:focus-visible,
 .path-suggestions button:focus-visible,
 .hotspot-item:focus-visible,
-.prereq-copy:focus-visible {
+.prereq-copy:focus-visible,
+.layout-btn:focus-visible,
+.graph-type-btn:focus-visible,
+.view-mode-btn:focus-visible,
+.layer-btn:focus-visible,
+.corefunction-btn:focus-visible {
   outline: 2px solid var(--cg-accent);
   outline-offset: 2px;
 }
@@ -3852,12 +4051,19 @@ body[data-ds-dark-theme] .depth-select {
   font-size: 14px;
   max-width: 320px;
   line-height: 1.6;
+  animation: cg-fade-in 200ms var(--cg-ease-out);
 }
 
 .micro-empty-icon {
-  font-size: 24px;
+  font-size: 28px;
+  font-weight: 700;
   margin-bottom: 12px;
-  opacity: 0.4;
+  opacity: 0.35;
+  letter-spacing: 2px;
+}
+
+.micro-empty-text {
+  margin-bottom: 4px;
 }
 
 .micro-empty-back-btn {
@@ -3866,7 +4072,7 @@ body[data-ds-dark-theme] .depth-select {
   background: var(--cg-surface-hover);
   border: 1px solid var(--cg-border);
   border-radius: var(--cg-radius-sm);
-  color: var(--cg-text-primary);
+  color: var(--cg-text);
   font-size: 12px;
   cursor: pointer;
   transition: background var(--cg-transition), border-color var(--cg-transition);
@@ -3875,12 +4081,12 @@ body[data-ds-dark-theme] .depth-select {
 .micro-empty-back-btn:hover {
   background: var(--cg-accent);
   border-color: var(--cg-accent);
-  color: white;
+  color: var(--cg-on-accent);
 }
 
 .micro-function-bar {
   position: absolute;
-  top:'8px';
+  top: 8px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -3893,6 +4099,9 @@ body[data-ds-dark-theme] .depth-select {
   color: var(--cg-text);
   font-size: 12px;
   z-index: 10;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--cg-shadow-sm);
 }
 
 .micro-function-close {
@@ -3909,6 +4118,36 @@ body[data-ds-dark-theme] .depth-select {
 .micro-function-close:hover {
   color: var(--cg-text);
   background: var(--cg-surface-hover);
+}
+
+.micro-function-mode {
+  font-weight: 600;
+  color: var(--cg-accent);
+  padding: 1px 6px;
+  border-radius: var(--cg-radius-xs);
+  background: var(--cg-accent-soft);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.micro-function-name {
+  font-weight: 500;
+  color: var(--cg-text);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.micro-function-path {
+  color: var(--cg-text-secondary);
+  font-size: 10px;
+  opacity: 0.7;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 /* ============================================================================
  * Sidebar Navigation Button & Floating Graph Panel
@@ -3954,7 +4193,8 @@ body[data-ds-dark-theme] .depth-select {
 .cg-floating-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--cg-overlay-bg);
+  -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
   opacity: 0;
   transition: opacity var(--cg-transition);
@@ -3974,7 +4214,7 @@ body[data-ds-dark-theme] .depth-select {
   background: var(--cg-bg);
   border: 1px solid var(--cg-border-strong);
   border-radius: var(--cg-radius-lg);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--cg-shadow-lg);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -4298,7 +4538,8 @@ function aggregateEdges(rawEdges, nodeIdToVisibleId, clusterPrefix) {
 		clusterPrefix,
 		"filecluster__",
 		"smartcluster__",
-		"funccluster__"
+		"funccluster__",
+		"subgroup__"
 	];
 	const nonClusterAggKeys = new Set();
 	for (const [, agg] of aggregation) {
@@ -4405,12 +4646,39 @@ function detectCommunities(nodes, edges) {
 		});
 	}
 	for (const n of nodes) if (!participatingIds.has(n.id)) {
-		const group = groups.get("overflow");
-		if (group) group.nodes.push(n);
-		else groups.set("overflow", {
-			label: "overflow",
-			nodes: [n]
-		});
+		let assigned = false;
+		for (const e of edges) {
+			if (e.source === n.id && participatingIds.has(e.target)) {
+				const lbl = labels.get(e.target);
+				if (lbl) {
+					const group = groups.get(lbl);
+					if (group) {
+						group.nodes.push(n);
+						assigned = true;
+						break;
+					}
+				}
+			}
+			if (e.target === n.id && participatingIds.has(e.source)) {
+				const lbl = labels.get(e.source);
+				if (lbl) {
+					const group = groups.get(lbl);
+					if (group) {
+						group.nodes.push(n);
+						assigned = true;
+						break;
+					}
+				}
+			}
+		}
+		if (!assigned) {
+			const group = groups.get("overflow");
+			if (group) group.nodes.push(n);
+			else groups.set("overflow", {
+				label: "overflow",
+				nodes: [n]
+			});
+		}
 	}
 	return groups;
 }
@@ -4753,9 +5021,9 @@ function computeDepths(rootIds, edges, direction) {
 		depths.set(id, depth);
 		const edgeList = edges.get(id) ?? [];
 		for (const edge of edgeList) {
-			const nextId$1 = direction === "source" ? edge.source : edge.target;
-			if (!depths.has(nextId$1) || depths.get(nextId$1) > depth + 1) queue.push({
-				id: nextId$1,
+			const nextId = direction === "source" ? edge.source : edge.target;
+			if (!depths.has(nextId) || depths.get(nextId) > depth + 1) queue.push({
+				id: nextId,
 				depth: depth + 1
 			});
 		}
@@ -5205,7 +5473,7 @@ var ClassAssembler = class {
 		if (name$1.startsWith("__")) return "private";
 		const exported = node.properties?.exported ?? node.properties?.isExported;
 		if (exported === true || exported === 1) return "public";
-		return "public";
+		return "private";
 	}
 	checkAbstract(node) {
 		const name$1 = node.label;
@@ -5361,21 +5629,42 @@ const FUNCTION_NODE_TYPES = new Set([
 	"arrow_function",
 	"function_item",
 	"constructor_declaration",
-	"destructor_declaration"
+	"destructor_declaration",
+	"function_expression",
+	"generator_function_declaration",
+	"generator_function",
+	"async_function_declaration",
+	"async_function_expression",
+	"async_arrow_function",
+	"function_signature",
+	"method_signature"
+]);
+const BODY_NODE_TYPES = new Set([
+	"block",
+	"statement_block",
+	"body",
+	"compound_statement",
+	"function_body",
+	"method_body",
+	"suite"
 ]);
 function findFunctionNode(astRoot, functionName) {
-	for (const child of astRoot.children) if (FUNCTION_NODE_TYPES.has(child.type)) {
-		const nameNode = child.children.find((c) => c.type === "identifier" || c.type === "property_identifier" || c.type === "name");
-		if (nameNode && nameNode.text === functionName) return child;
-	}
-	for (const child of astRoot.children) if (child.type === "class_declaration" || child.type === "class_definition" || child.type === "impl_item") {
-		const found = findFunctionNode(child, functionName);
-		if (found) return found;
-	}
-	return null;
+	const normalizedTarget = functionName.replace(/^.*\./, "");
+	const matchNode = (node) => {
+		if (FUNCTION_NODE_TYPES.has(node.type)) {
+			const nameNode = node.children.find((c) => c.type === "identifier" || c.type === "property_identifier" || c.type === "name");
+			if (!nameNode || nameNode.text === functionName || nameNode.text === normalizedTarget) return node;
+		}
+		for (const child of node.children) {
+			const found = matchNode(child);
+			if (found) return found;
+		}
+		return null;
+	};
+	return matchNode(astRoot);
 }
 function getFunctionBody(funcNode) {
-	const body = funcNode.children.find((c) => c.type === "block" || c.type === "statement_block" || c.type === "body" || c.type === "compound_statement");
+	const body = funcNode.children.find((c) => BODY_NODE_TYPES.has(c.type));
 	return body ? body.children : funcNode.children;
 }
 
@@ -5384,22 +5673,38 @@ function getFunctionBody(funcNode) {
 const CONTROL_FLOW_TYPES$1 = new Set([
 	"if_statement",
 	"if",
+	"if_expression",
 	"for_statement",
 	"for",
+	"for_expression",
+	"for_in_statement",
 	"while_statement",
 	"while",
+	"while_expression",
 	"switch_statement",
 	"switch",
+	"match_expression",
+	"match_arm",
 	"try_statement",
 	"try",
 	"return_statement",
 	"return",
 	"throw_statement",
 	"throw",
+	"raise_statement",
+	"raise",
 	"break_statement",
 	"break",
 	"continue_statement",
-	"continue"
+	"continue",
+	"elif_clause",
+	"elif",
+	"except_clause",
+	"except",
+	"finally_clause",
+	"finally",
+	"catch_clause",
+	"catch"
 ]);
 const STATEMENT_TYPES = new Set([
 	"expression_statement",
@@ -5409,6 +5714,8 @@ const STATEMENT_TYPES = new Set([
 	"return",
 	"throw_statement",
 	"throw",
+	"raise_statement",
+	"raise",
 	"break_statement",
 	"break",
 	"continue_statement",
@@ -5417,16 +5724,36 @@ const STATEMENT_TYPES = new Set([
 	"variable_declaration",
 	"const_declaration",
 	"let_declaration",
+	"lexical_declaration",
 	"if_statement",
 	"if",
+	"if_expression",
 	"for_statement",
 	"for",
+	"for_expression",
+	"for_in_statement",
 	"while_statement",
 	"while",
+	"while_expression",
 	"switch_statement",
 	"switch",
+	"match_expression",
 	"try_statement",
-	"try"
+	"try",
+	"import_statement",
+	"import_declaration",
+	"use_declaration",
+	"export_statement",
+	"pass_statement",
+	"pass",
+	"assert_statement",
+	"assert",
+	"with_statement",
+	"with",
+	"yield_statement",
+	"yield",
+	"await_expression",
+	"macro_invocation"
 ]);
 function isControlFlow$1(node) {
 	return CONTROL_FLOW_TYPES$1.has(node.type);
@@ -5437,12 +5764,12 @@ function isStatement(node) {
 function classifyStatement(node) {
 	const t$1 = node.type;
 	if (t$1 === "return_statement" || t$1 === "return") return "return";
-	if (t$1 === "throw_statement" || t$1 === "throw") return "throw";
+	if (t$1 === "throw_statement" || t$1 === "throw" || t$1 === "raise_statement" || t$1 === "raise") return "throw";
 	if (t$1 === "break_statement" || t$1 === "break") return "break";
 	if (t$1 === "continue_statement" || t$1 === "continue") return "continue";
-	if (t$1 === "if_statement" || t$1 === "if" || t$1 === "for_statement" || t$1 === "for" || t$1 === "while_statement" || t$1 === "while" || t$1 === "switch_statement" || t$1 === "switch" || t$1 === "try_statement" || t$1 === "try") return "condition";
-	if (t$1.includes("declaration") || t$1 === "assignment") return "declaration";
-	if (t$1 === "call" || t$1 === "expression_statement") return "call";
+	if (t$1 === "if_statement" || t$1 === "if" || t$1 === "if_expression" || t$1 === "for_statement" || t$1 === "for" || t$1 === "for_expression" || t$1 === "for_in_statement" || t$1 === "while_statement" || t$1 === "while" || t$1 === "while_expression" || t$1 === "switch_statement" || t$1 === "switch" || t$1 === "match_expression" || t$1 === "try_statement" || t$1 === "try") return "condition";
+	if (t$1.includes("declaration") || t$1 === "assignment" || t$1 === "lexical_declaration") return "declaration";
+	if (t$1 === "call" || t$1 === "expression_statement" || t$1 === "await_expression" || t$1 === "macro_invocation") return "call";
 	return "expression";
 }
 function simplifyText(text, maxLen = 40) {
@@ -5451,13 +5778,13 @@ function simplifyText(text, maxLen = 40) {
 	return trimmed.substring(0, maxLen - 3) + "...";
 }
 function getConditionNode(node) {
-	if (node.type === "if_statement" || node.type === "if") return node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression") ?? null;
-	if (node.type === "while_statement" || node.type === "while") return node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression") ?? null;
-	if (node.type === "for_statement" || node.type === "for") return node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression") ?? null;
+	if (node.type === "if_statement" || node.type === "if" || node.type === "if_expression") return node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression" || c.type === "binary_expression" || c.type === "comparison_expression") ?? null;
+	if (node.type === "while_statement" || node.type === "while" || node.type === "while_expression") return node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression" || c.type === "binary_expression") ?? null;
+	if (node.type === "for_statement" || node.type === "for" || node.type === "for_expression" || node.type === "for_in_statement") return node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression" || c.type === "for_header" || c.type === "binary_expression") ?? null;
 	return null;
 }
 function getBodyChildren$1(node) {
-	const body = node.children.find((c) => c.type === "block" || c.type === "statement_block" || c.type === "body");
+	const body = node.children.find((c) => c.type === "block" || c.type === "statement_block" || c.type === "body" || c.type === "compound_statement" || c.type === "suite" || c.type === "function_body");
 	if (body) return body.children.filter(isStatement);
 	return node.children.filter((c) => c.type !== "condition" && c.type !== "parenthesized_expression" && isStatement(c));
 }
@@ -5497,8 +5824,9 @@ var CFGAssembler = class {
 			depth: 0
 		};
 		const funcNode = findFunctionNode(astRoot, functionName);
-		const targetChildren = funcNode ? getFunctionBody(funcNode) : astRoot.children;
-		this.processStatements(targetChildren, entryBlock.id, exitBlock.id, blocks, edges, 1, filePath);
+		if (!funcNode) throw new Error(`Function "${functionName}" not found in AST of ${filePath}`);
+		const targetChildren = getFunctionBody(funcNode);
+		this.processStatements(targetChildren, entryBlock.id, exitBlock.id, blocks, edges, 1);
 		const hasExitEdge = edges.some((e) => e.target === exitBlock.id);
 		if (!hasExitEdge) {
 			const lastBlock = blocks[blocks.length - 1];
@@ -5517,7 +5845,7 @@ var CFGAssembler = class {
 		};
 		return this.toAssembledDiagram(cfgData, filePath, functionName);
 	}
-	processStatements(statements, entryId, exitId, blocks, edges, depth, _filePath) {
+	processStatements(statements, entryId, exitId, blocks, edges, depth) {
 		if (statements.length === 0) {
 			edges.push({
 				source: entryId,
@@ -5541,7 +5869,7 @@ var CFGAssembler = class {
 			const stmt = statements[i$1];
 			if (!stmt) continue;
 			if (isControlFlow$1(stmt)) {
-				currentId = this.processControlFlow(stmt, currentId, exitId, blocks, edges, depth, _filePath);
+				currentId = this.processControlFlow(stmt, currentId, exitId, blocks, edges, depth);
 				currentBlock = blocks.find((b) => b.id === currentId) ?? null;
 				if (!currentBlock) {
 					currentBlock = this.createProcessBlock(blocks, depth);
@@ -5571,14 +5899,14 @@ var CFGAssembler = class {
 		});
 		return currentId;
 	}
-	processControlFlow(node, currentId, exitId, blocks, edges, depth, _filePath) {
+	processControlFlow(node, currentId, exitId, blocks, edges, depth) {
 		const t$1 = node.type;
-		if (t$1 === "if_statement" || t$1 === "if") return this.processIf(node, currentId, exitId, blocks, edges, depth);
-		if (t$1 === "for_statement" || t$1 === "for" || t$1 === "while_statement" || t$1 === "while") return this.processLoop(node, currentId, exitId, blocks, edges, depth);
-		if (t$1 === "switch_statement" || t$1 === "switch") return this.processSwitch(node, currentId, exitId, blocks, edges, depth);
+		if (t$1 === "if_statement" || t$1 === "if" || t$1 === "if_expression") return this.processIf(node, currentId, exitId, blocks, edges, depth);
+		if (t$1 === "for_statement" || t$1 === "for" || t$1 === "for_expression" || t$1 === "for_in_statement" || t$1 === "while_statement" || t$1 === "while" || t$1 === "while_expression") return this.processLoop(node, currentId, exitId, blocks, edges, depth);
+		if (t$1 === "switch_statement" || t$1 === "switch" || t$1 === "match_expression") return this.processSwitch(node, currentId, exitId, blocks, edges, depth);
 		if (t$1 === "try_statement" || t$1 === "try") return this.processTry(node, currentId, exitId, blocks, edges, depth);
 		if (t$1 === "return_statement" || t$1 === "return") return this.processReturn(node, currentId, exitId, blocks, edges, depth);
-		if (t$1 === "throw_statement" || t$1 === "throw") return this.processThrow(node, currentId, exitId, blocks, edges, depth);
+		if (t$1 === "throw_statement" || t$1 === "throw" || t$1 === "raise_statement" || t$1 === "raise") return this.processThrow(node, currentId, exitId, blocks, edges, depth);
 		if (t$1 === "break_statement" || t$1 === "break") {
 			edges.push({
 				source: currentId,
@@ -5647,7 +5975,7 @@ var CFGAssembler = class {
 			edgeType: "true",
 			condition: condText
 		});
-		this.processStatements(trueBody, trueEntryId, mergeBlock.id, blocks, edges, depth + 1, "");
+		this.processStatements(trueBody, trueEntryId, mergeBlock.id, blocks, edges, depth + 1);
 		const elseBody = getElseBody$1(node);
 		if (elseBody.length > 0) {
 			const falseEntryId = this.nextBlockId();
@@ -5667,7 +5995,7 @@ var CFGAssembler = class {
 				edgeType: "false",
 				condition: condText
 			});
-			this.processStatements(elseBody, falseEntryId, mergeBlock.id, blocks, edges, depth + 1, "");
+			this.processStatements(elseBody, falseEntryId, mergeBlock.id, blocks, edges, depth + 1);
 		} else edges.push({
 			source: condBlock.id,
 			target: mergeBlock.id,
@@ -5726,7 +6054,12 @@ var CFGAssembler = class {
 			edgeType: "true",
 			condition: condText
 		});
-		this.processStatements(body, bodyEntryId, condBlock.id, blocks, edges, depth + 1, "");
+		const edgeCountBefore = edges.length;
+		this.processStatements(body, bodyEntryId, condBlock.id, blocks, edges, depth + 1);
+		for (let i$1 = edgeCountBefore; i$1 < edges.length; i$1++) {
+			const e = edges[i$1];
+			if (e.target === condBlock.id && e.edgeType === "fallthrough") e.edgeType = "loop-back";
+		}
 		edges.push({
 			source: condBlock.id,
 			target: loopExitBlock.id,
@@ -5767,10 +6100,10 @@ var CFGAssembler = class {
 			depth
 		};
 		blocks.push(mergeBlock);
-		const caseNodes = node.children.filter((c) => c.type === "case_statement" || c.type === "case" || c.type === "default_statement" || c.type === "default");
+		const caseNodes = node.children.filter((c) => c.type === "case_statement" || c.type === "case" || c.type === "default_statement" || c.type === "default" || c.type === "match_arm");
 		for (const caseNode of caseNodes) {
-			const isDefault = caseNode.type === "default_statement" || caseNode.type === "default";
-			const caseLabel = isDefault ? "default" : caseNode.children.find((c) => c.type === "identifier" || c.type === "number")?.text ?? "case";
+			const isDefault = caseNode.type === "default_statement" || caseNode.type === "default" || caseNode.type === "match_arm" && caseNode.children.some((c) => c.type === "wildcard_pattern" || c.text === "_");
+			const caseLabel = isDefault ? "default" : caseNode.children.find((c) => c.type === "identifier" || c.type === "number" || c.type === "string" || c.type === "literal_pattern")?.text ?? "case";
 			const caseEntryId = this.nextBlockId();
 			const caseEntry = {
 				id: caseEntryId,
@@ -5789,7 +6122,7 @@ var CFGAssembler = class {
 				condition: caseLabel
 			});
 			const caseBody = caseNode.children.filter((c) => c.type !== "identifier" && c.type !== "number" && isStatement(c));
-			this.processStatements(caseBody, caseEntryId, mergeBlock.id, blocks, edges, depth + 1, "");
+			this.processStatements(caseBody, caseEntryId, mergeBlock.id, blocks, edges, depth + 1);
 		}
 		if (!caseNodes.some((c) => c.type === "default_statement" || c.type === "default")) edges.push({
 			source: condBlock.id,
@@ -5826,7 +6159,7 @@ var CFGAssembler = class {
 			depth
 		};
 		blocks.push(mergeBlock);
-		this.processStatements(tryStmts, tryBlock.id, mergeBlock.id, blocks, edges, depth + 1, "");
+		this.processStatements(tryStmts, tryBlock.id, mergeBlock.id, blocks, edges, depth + 1);
 		const catchNodes = node.children.filter((c) => c.type === "catch_clause" || c.type === "catch");
 		for (const catchNode of catchNodes) {
 			const catchBlock = {
@@ -5846,7 +6179,7 @@ var CFGAssembler = class {
 			});
 			const catchBody = catchNode.children.find((c) => c.type === "block" || c.type === "statement_block");
 			const catchStmts = catchBody ? catchBody.children.filter(isStatement) : [];
-			this.processStatements(catchStmts, catchBlock.id, mergeBlock.id, blocks, edges, depth + 1, "");
+			this.processStatements(catchStmts, catchBlock.id, mergeBlock.id, blocks, edges, depth + 1);
 		}
 		const finallyNode = node.children.find((c) => c.type === "finally_clause" || c.type === "finally");
 		if (finallyNode) {
@@ -5877,7 +6210,7 @@ var CFGAssembler = class {
 				depth
 			};
 			blocks.push(afterFinally);
-			this.processStatements(finallyStmts, finallyBlock.id, afterFinally.id, blocks, edges, depth + 1, "");
+			this.processStatements(finallyStmts, finallyBlock.id, afterFinally.id, blocks, edges, depth + 1);
 			return afterFinally.id;
 		}
 		return mergeBlock.id;
@@ -5982,64 +6315,809 @@ var CFGAssembler = class {
 };
 
 //#endregion
+//#region src/client/i18n/dicts/en.ts
+const en = {
+	"panel.ariaLabel": "Code graph visualizer",
+	"panel.expand": "Expand graph panel",
+	"panel.collapse": "Collapse",
+	"panel.expandPanel": "Expand panel",
+	"panel.collapsePanel": "Collapse panel",
+	"panel.resetSize": "Double-click to reset to responsive fill",
+	"toolbar.import": "Import graph (Ctrl+I)",
+	"toolbar.filter": "Filter by node type",
+	"toolbar.search": "Search symbols (press /)",
+	"toolbar.chain": "Toggle call chain highlight (Ctrl+C)",
+	"toolbar.cycles": "Highlight circular dependencies",
+	"toolbar.impact": "Impact analysis - show dependents (Ctrl+E)",
+	"toolbar.inheritance": "Inheritance hierarchy - show extend/implement (Ctrl+H)",
+	"toolbar.minimap": "Toggle mini-map (Ctrl+M)",
+	"toolbar.legend": "Toggle legend",
+	"toolbar.refresh": "Refresh graph",
+	"toolbar.dataGroup": "Data controls",
+	"toolbar.analysisGroup": "Analysis tools",
+	"toolbar.viewGroup": "View controls",
+	"toolbar.settingsGroup": "Settings",
+	"toolbar.theme": "Toggle theme",
+	"toolbar.export": "Export graph",
+	"toolbar.lang": "Switch language",
+	"toolbar.layout": "Switch to {l} layout (Ctrl+L cycles)",
+	"toolbar.graphType": "Graph type switcher",
+	"toolbar.cluster": "Expand depth",
+	"toolbar.layer": "Diagram layer",
+	"clusterDepth.directory": "Directory",
+	"clusterDepth.file": "File",
+	"clusterDepth.function": "Function",
+	"filter.all": "All Types",
+	"filter.function": "Functions",
+	"filter.class": "Classes",
+	"filter.variable": "Variables",
+	"filter.module": "Modules",
+	"filter.interface": "Interfaces",
+	"graphType.all": "All",
+	"graphType.call": "Calls",
+	"graphType.dependency": "Deps",
+	"search.placeholder": "Search symbols…",
+	"search.close": "Close search",
+	"search.noMatch": "No matching symbols",
+	"search.match": "{n} match",
+	"search.matches": "{n} matches",
+	"search.debounced": "debounced 200ms",
+	"state.loading": "Loading graph…",
+	"state.ready": "Ready",
+	"state.error": "Error",
+	"state.noData": "No data",
+	"state.updated": "Updated {time}",
+	"state.truncated": "Showing top {shown} of {total} nodes",
+	"state.truncatedHint": "Graph is truncated for performance. Showing most important nodes.",
+	"empty.title": "No graph data yet",
+	"empty.subtitle": "Import a .codegraph folder, paste graph data, or scan a repository.",
+	"empty.import": "Import Graph",
+	"error.title": "Something went wrong",
+	"error.retry": "Retry",
+	"detail.ariaLabel": "Node details",
+	"detail.close": "Close details",
+	"detail.type": "Type",
+	"detail.kind": "Kind",
+	"detail.file": "File",
+	"detail.line": "Line",
+	"detail.properties": "Properties",
+	"detail.connections": "Connections",
+	"detail.doubleClickExpand": "Double-click to expand related nodes",
+	"detail.expanded": "Expanded",
+	"detail.collapse": "Collapse",
+	"detail.microViews": "Micro views",
+	"detail.aggregateCallChain": "Aggregate Call Chain",
+	"detail.functionsInCluster": "Functions in cluster",
+	"detail.signature": "Signature",
+	"detail.docstring": "Docstring",
+	"minimap.title": "Overview",
+	"minimap.close": "Close mini-map",
+	"minimap.functions": "Functions",
+	"minimap.classes": "Classes",
+	"minimap.variables": "Variables",
+	"minimap.modules": "Modules",
+	"minimap.interfaces": "Interfaces",
+	"minimap.total": "Total",
+	"import.title": "Import Graph",
+	"import.close": "Close import",
+	"import.workspace": "Workspace",
+	"import.paste": "Paste",
+	"import.workspacePath": "Current workspace path",
+	"import.workspaceHint": "Scan the current DSH workspace for .codegraph database",
+	"import.scanWorkspace": "Scan Workspace",
+	"import.scanning": "Scanning…",
+	"import.pastePlaceholder": "Paste graph JSON here, e.g. {\"nodes\":[...],\"edges\":[...]}",
+	"import.importJson": "Import JSON",
+	"import.importing": "Importing…",
+	"import.fileTooLarge": "File too large (max 10 MB)",
+	"import.pasteFirst": "Paste JSON first",
+	"import.enterPath": "Enter a repository path",
+	"import.imported": "Imported {nodes} nodes · {edges} edges",
+	"import.importFailed": "Import failed: {msg}",
+	"import.requestedScan": "Requested scan of {path}",
+	"import.fileReadError": "File read error",
+	"import.prereqMissing": "Prerequisite plugins (dsh-codegraph or dsh-tool-lens) not detected. Install one for full functionality.",
+	"import.prereqCmd": "{cmd}",
+	"import.prereqCopy": "Copy install command",
+	"import.copied": "Copied",
+	"import.initGraph": "Initialize Graph",
+	"import.initializing": "Initializing…",
+	"import.initStarted": "Initializing graph for {path}",
+	"import.initSuccess": "Graph initialized successfully",
+	"import.initFailed": "Initialization failed — check prerequisite plugins",
+	"import.watchOn": "Auto Refresh: ON",
+	"import.watchOff": "Auto Refresh: OFF",
+	"legend.title": "Legend",
+	"legend.close": "Close legend",
+	"legend.nodes": "Nodes",
+	"legend.edges": "Edges",
+	"legend.function": "Function",
+	"legend.class": "Class",
+	"legend.variable": "Variable",
+	"legend.module": "Module",
+	"legend.interface": "Interface",
+	"legend.type": "Type",
+	"legend.call": "calls",
+	"legend.import": "imports",
+	"legend.extend": "extends",
+	"legend.implement": "implements",
+	"legend.dependency": "depends on",
+	"legend.contains": "contains",
+	"export.png": "PNG",
+	"export.svg": "SVG",
+	"export.json": "JSON",
+	"workspace.title": "Workspace",
+	"workspace.current": "Current Workspace",
+	"workspace.switch": "Switch Workspace",
+	"workspace.add": "Add Workspace",
+	"workspace.remove": "Remove",
+	"workspace.empty": "No workspaces yet",
+	"workspace.namePlaceholder": "Workspace path or name",
+	"workspace.addHint": "Enter a path and press Enter to add",
+	"workspace.active": "Active",
+	"workspace.lastUsed": "Last used",
+	"workspace.default": "Default",
+	"workspace.timeJustNow": "just now",
+	"workspace.timeMinutesAgo": "{n}m ago",
+	"workspace.timeHoursAgo": "{n}h ago",
+	"workspace.timeDaysAgo": "{n}d ago",
+	"prereq.installCodegraph": "dsh plugin --profile web add dsh-codegraph",
+	"prereq.installLens": "dsh plugin --profile web add dsh-tool-lens",
+	"prereq.installTitle": "Install Prerequisite Plugin",
+	"prereq.detecting": "Detecting prerequisite plugins…",
+	"prereq.found": "Prerequisite plugin detected",
+	"prereq.notFound": "Not detected",
+	"prereq.codegraphLabel": "dsh-codegraph",
+	"prereq.lensLabel": "dsh-tool-lens",
+	"prereq.codegraphDesc": "Required for code graph data — provides 20+ language support and incremental indexing.",
+	"prereq.lensDesc": "Optional — provides AST-precise analysis and impact detection.",
+	"graph.init": "Initialize Graph",
+	"graph.initializing": "Initializing graph…",
+	"graph.initSuccess": "Graph initialized successfully",
+	"graph.initFailed": "Initialization failed",
+	"graph.refresh": "Refresh",
+	"graph.hotUpdate": "Hot Update",
+	"graph.hotUpdateOn": "Auto refresh: ON",
+	"graph.hotUpdateOff": "Auto refresh: OFF",
+	"empty.prereqTitle": "Prerequisite Plugin Required",
+	"empty.prereqDesc": "Install dsh-codegraph or dsh-tool-lens for full functionality:",
+	"empty.copyCmd": "Copy install command",
+	"empty.copied": "Copied!",
+	"empty.scanWorkspace": "Scan Current Workspace",
+	"shortcut.title": "Keyboard Shortcuts",
+	"shortcut.close": "Close",
+	"shortcut.search": "Search symbols",
+	"shortcut.closeAll": "Close all panels",
+	"shortcut.callChain": "Toggle call chain",
+	"shortcut.impact": "Toggle impact analysis",
+	"shortcut.inheritance": "Toggle inheritance hierarchy",
+	"shortcut.minimap": "Toggle mini-map",
+	"shortcut.layout": "Cycle layout",
+	"shortcut.import": "Toggle import panel",
+	"shortcut.undo": "Undo",
+	"shortcut.redo": "Redo",
+	"shortcut.help": "Show this help",
+	"edge.tooltip.source": "Source",
+	"edge.tooltip.target": "Target",
+	"edge.tooltip.type": "Relationship",
+	"state.complete": "Graph is complete ({total} nodes)",
+	"pathFind.title": "Path Finder",
+	"pathFind.close": "Close path finder",
+	"pathFind.start": "Start",
+	"pathFind.end": "End",
+	"pathFind.startPlaceholder": "Search start symbol…",
+	"pathFind.endPlaceholder": "Search end symbol…",
+	"pathFind.find": "Find Path",
+	"pathFind.clear": "Clear",
+	"pathFind.length": "Path length",
+	"pathFind.hops": "Hops",
+	"pathFind.noPath": "Unreachable",
+	"health.title": "Architecture Health Score",
+	"health.close": "Close health score",
+	"health.noData": "Click \"Check\" to calculate score",
+	"health.overall": "Overall",
+	"health.coupling": "Coupling",
+	"health.cohesion": "Cohesion",
+	"health.cyclicDependencyRate": "Cyclic Dep Rate",
+	"health.modularity": "Modularity",
+	"health.couplingDesc": "Lower inter-module coupling is better",
+	"health.cohesionDesc": "Higher intra-module cohesion is better",
+	"health.cyclicDesc": "Fewer circular dependencies is better",
+	"health.modularityDesc": "Better module separation is better",
+	"rules.title": "Rule Engine",
+	"rules.close": "Close rule engine",
+	"rules.config": "Rule Configuration",
+	"rules.loadPresets": "Load Preset Rules",
+	"rules.noRules": "No rules yet, click \"Load Preset Rules\"",
+	"rules.check": "Check Violations",
+	"rules.violations": "Violations",
+	"rules.noViolations": "No violations",
+	"focus.title": "Focus Mode",
+	"focus.mode": "Focus",
+	"focus.depth": "Depth",
+	"focus.expand": "Expand next layer",
+	"focus.contract": "Contract one layer",
+	"focus.exit": "Exit focus",
+	"toolbar.pathFind": "Path Finder",
+	"toolbar.health": "Architecture Health Score",
+	"toolbar.rules": "Rule Engine",
+	"toolbar.hotspot": "Hotspot Analysis",
+	"toolbar.godModule": "God Module Detection",
+	"toolbar.coreFunction": "Core Function Analysis",
+	"hotspot.close": "Close hotspot analysis",
+	"impact.total": "Total impacted nodes",
+	"toolbar.undo": "Undo (Ctrl+Z)",
+	"toolbar.redo": "Redo (Ctrl+Y)",
+	"toolbar.viewModeDeps": "Switch to dependency graph view",
+	"toolbar.viewModeCode": "Switch to code graph view",
+	"toolbar.viewModeInheritance": "Switch to inheritance tree view",
+	"toolbar.viewModeCallgraph": "Switch to call graph view",
+	"toolbar.viewModePackage": "Switch to package/component diagram view",
+	"toolbar.viewModeClass": "Switch to class diagram view",
+	"toolbar.viewModeCfg": "Switch to control flow graph view",
+	"toolbar.viewModeFlowchart": "Switch to flowchart view",
+	"toolbar.viewModeSequence": "Switch to sequence diagram view",
+	"viewMode.code": "Code",
+	"viewMode.dependencies": "Deps",
+	"viewMode.inheritance": "Inherit",
+	"viewMode.callgraph": "Call",
+	"viewMode.package": "Pkg",
+	"viewMode.class": "Class",
+	"viewMode.cfg": "CFG",
+	"viewMode.flowchart": "Flow",
+	"viewMode.sequence": "Seq",
+	"micro.selectFunctionPrompt": "Please select a function node in the code graph first, then switch to this view",
+	"micro.backToCode": "Back to Code View",
+	"sequence.noData": "No sequence data available",
+	"micro.selectedFunction": "Current function: {name}",
+	"micro.clearSelection": "Clear selection",
+	"micro.loadFailed": "Micro diagram load failed",
+	"micro.closeView": "Close micro view",
+	"stats.nodesEdges": "{nodes} nodes · {edges} edges",
+	"godmodule.stats": "{nodes} nodes · {edges} edges",
+	"search.moreResults": "+{n} more results",
+	"layer.inheritance.0": "Root Overview",
+	"layer.inheritance.1": "2-Level Depth",
+	"layer.inheritance.2": "Full Tree",
+	"layer.callgraph.0": "Entry Functions",
+	"layer.callgraph.1": "2-Level Calls",
+	"layer.callgraph.2": "Full Call Graph",
+	"layer.package.0": "Top Packages",
+	"layer.package.1": "Sub Packages",
+	"layer.package.2": "Package Modules",
+	"layer.class.0": "Class Overview",
+	"layer.class.1": "Class Relations",
+	"layer.class.2": "Full Class Diagram",
+	"layer.code.0": "Directory Cluster",
+	"layer.code.1": "File Cluster",
+	"layer.code.2": "All Nodes",
+	"layer.dependencies.0": "Directory Deps",
+	"layer.dependencies.1": "File Dependencies",
+	"layer.dependencies.2": "Module Dependencies",
+	"coreFunction.category.entry": "Entry",
+	"coreFunction.category.hub": "Hub",
+	"coreFunction.category.api": "API",
+	"coreFunction.category.critical": "Critical",
+	"coreFunction.reason.high-indegree": "High In-Degree",
+	"coreFunction.reason.high-outdegree": "High Out-Degree",
+	"coreFunction.reason.entry-point": "Entry Point",
+	"coreFunction.reason.exported": "Exported",
+	"coreFunction.reason.handler-pattern": "Handler",
+	"coreFunction.reason.event-pattern": "Event",
+	"coreFunction.reason.cli-pattern": "CLI",
+	"coreFunction.reason.large-influence": "Large Influence",
+	"coreFunction.reason.deep-call-chain": "Deep Call Chain",
+	"coreFunction.reason.hub-function": "Hub Function",
+	"coreFunction.inDegree": "In-Degree",
+	"coreFunction.outDegree": "Out-Degree",
+	"coreFunction.influenceReach": "Influence Reach",
+	"coreFunction.callChainDepth": "Call Chain Depth",
+	"flowchart.start": "Start",
+	"flowchart.end": "End",
+	"flowchart.errorExit": "Error Exit",
+	"flowchart.tryBlock": "Try",
+	"flowchart.catchBlock": "Catch",
+	"flowchart.finallyBlock": "Finally",
+	"flowchart.returnResult": "Return",
+	"flowchart.throwException": "Throw",
+	"flowchart.loopPrefix": "Loop: {cond}",
+	"flowchart.switchPrefix": "switch: {expr}",
+	"flowchart.statementsCount": "{n} statements",
+	"flowchart.edge.yes": "Yes",
+	"flowchart.edge.no": "No",
+	"flowchart.edge.loop": "Loop",
+	"flowchart.edge.error": "Error",
+	"flowchart.edge.default": "Default",
+	"flowchart.edge.break": "Break",
+	"flowchart.edge.continue": "Continue",
+	"flowchart.semantic.init": "Initialize",
+	"flowchart.semantic.prepare": "Prepare Data",
+	"flowchart.semantic.load": "Load Data",
+	"flowchart.semantic.save": "Save Data",
+	"flowchart.semantic.fetch": "Fetch Data",
+	"flowchart.semantic.find": "Find",
+	"flowchart.semantic.create": "Create",
+	"flowchart.semantic.update": "Update",
+	"flowchart.semantic.delete": "Delete",
+	"flowchart.semantic.validate": "Validate",
+	"flowchart.semantic.check": "Check",
+	"flowchart.semantic.parse": "Parse",
+	"flowchart.semantic.format": "Format",
+	"flowchart.semantic.transform": "Transform",
+	"flowchart.semantic.render": "Render",
+	"flowchart.semantic.compute": "Compute",
+	"flowchart.semantic.build": "Build",
+	"flowchart.semantic.register": "Register",
+	"flowchart.semantic.cleanup": "Cleanup",
+	"flowchart.semantic.destroy": "Destroy",
+	"flowchart.semantic.start": "Start",
+	"flowchart.semantic.stop": "Stop",
+	"flowchart.semantic.handle": "Handle",
+	"flowchart.semantic.send": "Send",
+	"flowchart.semantic.receive": "Receive",
+	"flowchart.semantic.read": "Read",
+	"flowchart.semantic.write": "Write",
+	"flowchart.semantic.log": "Log",
+	"flowchart.semantic.notify": "Notify",
+	"flowchart.semantic.dispatch": "Dispatch",
+	"flowchart.semantic.resolve": "Resolve",
+	"flowchart.semantic.reject": "Reject"
+};
+
+//#endregion
+//#region src/client/i18n/dicts/zh.ts
+const zh = {
+	"panel.ariaLabel": "代码图谱可视化",
+	"panel.expand": "展开图谱面板",
+	"panel.collapse": "折叠",
+	"panel.expandPanel": "展开面板",
+	"panel.collapsePanel": "折叠面板",
+	"panel.resetSize": "双击恢复响应式填充",
+	"toolbar.import": "导入图谱 (Ctrl+I)",
+	"toolbar.filter": "按节点类型筛选",
+	"toolbar.search": "搜索符号 (按 /)",
+	"toolbar.chain": "切换调用链高亮 (Ctrl+C)",
+	"toolbar.cycles": "高亮循环依赖",
+	"toolbar.impact": "影响分析 - 显示依赖者 (Ctrl+E)",
+	"toolbar.inheritance": "继承层次 - 显示继承/实现关系 (Ctrl+H)",
+	"toolbar.minimap": "切换缩略图 (Ctrl+M)",
+	"toolbar.legend": "切换图例",
+	"toolbar.refresh": "刷新图谱",
+	"toolbar.dataGroup": "数据控制",
+	"toolbar.analysisGroup": "分析工具",
+	"toolbar.viewGroup": "视图控制",
+	"toolbar.settingsGroup": "设置",
+	"toolbar.theme": "切换主题",
+	"toolbar.export": "导出图谱",
+	"toolbar.lang": "切换语言",
+	"toolbar.layout": "切换至 {l} 布局 (Ctrl+L 循环)",
+	"toolbar.graphType": "图谱类型切换",
+	"toolbar.cluster": "展开深度",
+	"toolbar.layer": "图谱层级",
+	"clusterDepth.directory": "目录级",
+	"clusterDepth.file": "文件级",
+	"clusterDepth.function": "函数级",
+	"filter.all": "全部类型",
+	"filter.function": "函数",
+	"filter.class": "类",
+	"filter.variable": "变量",
+	"filter.module": "模块",
+	"filter.interface": "接口",
+	"graphType.all": "全部",
+	"graphType.call": "调用",
+	"graphType.dependency": "依赖",
+	"search.placeholder": "搜索符号…",
+	"search.close": "关闭搜索",
+	"search.noMatch": "无匹配符号",
+	"search.match": "{n} 个匹配",
+	"search.matches": "{n} 个匹配",
+	"search.debounced": "防抖 200ms",
+	"state.loading": "加载图谱中…",
+	"state.ready": "就绪",
+	"state.error": "错误",
+	"state.noData": "无数据",
+	"state.updated": "更新于 {time}",
+	"state.truncated": "显示前 {shown}/{total} 节点",
+	"state.truncatedHint": "图谱已截断以提升性能，仅显示最重要的节点。",
+	"empty.title": "暂无图谱数据",
+	"empty.subtitle": "导入 .codegraph 文件夹、粘贴图谱数据或扫描仓库。",
+	"empty.import": "导入图谱",
+	"error.title": "出错了",
+	"error.retry": "重试",
+	"detail.ariaLabel": "节点详情",
+	"detail.close": "关闭详情",
+	"detail.type": "类型",
+	"detail.kind": "类别",
+	"detail.file": "文件",
+	"detail.line": "行号",
+	"detail.properties": "属性",
+	"detail.connections": "连接数",
+	"detail.doubleClickExpand": "双击展开相关节点",
+	"detail.expanded": "已展开",
+	"detail.collapse": "收起",
+	"detail.microViews": "微观图谱",
+	"detail.aggregateCallChain": "聚合调用链",
+	"detail.functionsInCluster": "聚类中的函数",
+	"detail.signature": "签名",
+	"detail.docstring": "文档字符串",
+	"minimap.title": "概览",
+	"minimap.close": "关闭缩略图",
+	"minimap.functions": "函数",
+	"minimap.classes": "类",
+	"minimap.variables": "变量",
+	"minimap.modules": "模块",
+	"minimap.interfaces": "接口",
+	"minimap.total": "总计",
+	"import.title": "导入图谱",
+	"import.close": "关闭导入",
+	"import.workspace": "工作区",
+	"import.paste": "粘贴",
+	"import.workspacePath": "当前工作区路径",
+	"import.workspaceHint": "扫描当前 DSH 工作区的 .codegraph 数据库",
+	"import.scanWorkspace": "扫描工作区",
+	"import.scanning": "扫描中…",
+	"import.pastePlaceholder": "在此粘贴图谱 JSON，例如 {\"nodes\":[...],\"edges\":[...]}",
+	"import.importJson": "导入 JSON",
+	"import.importing": "导入中…",
+	"import.fileTooLarge": "文件过大 (最大 10 MB)",
+	"import.pasteFirst": "请先粘贴 JSON",
+	"import.enterPath": "请输入仓库路径",
+	"import.imported": "已导入 {nodes} 节点 · {edges} 边",
+	"import.importFailed": "导入失败: {msg}",
+	"import.requestedScan": "已请求扫描 {path}",
+	"import.fileReadError": "文件读取错误",
+	"import.prereqMissing": "未检测到前置插件 (dsh-codegraph 或 dsh-tool-lens)。请安装其一以获得完整功能。",
+	"import.prereqCmd": "{cmd}",
+	"import.prereqCopy": "复制安装命令",
+	"import.copied": "已复制",
+	"import.initGraph": "初始化图谱",
+	"import.initializing": "初始化中…",
+	"import.initStarted": "正在为 {path} 初始化图谱",
+	"import.initSuccess": "图谱初始化成功",
+	"import.initFailed": "初始化失败 — 请检查前置插件",
+	"import.watchOn": "热更新: 开启",
+	"import.watchOff": "热更新: 关闭",
+	"legend.title": "图例",
+	"legend.close": "关闭图例",
+	"legend.nodes": "节点",
+	"legend.edges": "边",
+	"legend.function": "函数",
+	"legend.class": "类",
+	"legend.variable": "变量",
+	"legend.module": "模块",
+	"legend.interface": "接口",
+	"legend.type": "类型",
+	"legend.call": "调用",
+	"legend.import": "导入",
+	"legend.extend": "继承",
+	"legend.implement": "实现",
+	"legend.dependency": "依赖",
+	"legend.contains": "包含",
+	"export.png": "PNG",
+	"export.svg": "SVG",
+	"export.json": "JSON",
+	"workspace.title": "工作区",
+	"workspace.current": "当前工作区",
+	"workspace.switch": "切换工作区",
+	"workspace.add": "添加工作区",
+	"workspace.remove": "移除",
+	"workspace.empty": "暂无工作区",
+	"workspace.namePlaceholder": "工作区路径或名称",
+	"workspace.addHint": "输入路径后按回车添加",
+	"workspace.active": "活跃",
+	"workspace.lastUsed": "上次使用",
+	"workspace.default": "默认",
+	"workspace.timeJustNow": "刚刚",
+	"workspace.timeMinutesAgo": "{n}分钟前",
+	"workspace.timeHoursAgo": "{n}小时前",
+	"workspace.timeDaysAgo": "{n}天前",
+	"prereq.installCodegraph": "dsh plugin --profile web add dsh-codegraph",
+	"prereq.installLens": "dsh plugin --profile web add dsh-tool-lens",
+	"prereq.installTitle": "安装前置插件",
+	"prereq.detecting": "正在检测前置插件…",
+	"prereq.found": "已检测到前置插件",
+	"prereq.notFound": "未检测到",
+	"prereq.codegraphLabel": "dsh-codegraph",
+	"prereq.lensLabel": "dsh-tool-lens",
+	"prereq.codegraphDesc": "必需 — 提供 20+ 语言支持和增量索引。",
+	"prereq.lensDesc": "可选 — 提供 AST 精准分析和影响检测。",
+	"graph.init": "初始化图谱",
+	"graph.initializing": "正在初始化图谱…",
+	"graph.initSuccess": "图谱初始化成功",
+	"graph.initFailed": "初始化失败",
+	"graph.refresh": "刷新",
+	"graph.hotUpdate": "热更新",
+	"graph.hotUpdateOn": "自动刷新: 开启",
+	"graph.hotUpdateOff": "自动刷新: 关闭",
+	"empty.prereqTitle": "需要前置插件",
+	"empty.prereqDesc": "安装 dsh-codegraph 或 dsh-tool-lens 以获得完整功能：",
+	"empty.copyCmd": "复制安装命令",
+	"empty.copied": "已复制！",
+	"empty.scanWorkspace": "扫描当前工作区",
+	"shortcut.title": "键盘快捷键",
+	"shortcut.close": "关闭",
+	"shortcut.search": "搜索符号",
+	"shortcut.closeAll": "关闭所有面板",
+	"shortcut.callChain": "切换调用链",
+	"shortcut.impact": "切换影响分析",
+	"shortcut.inheritance": "切换继承层次",
+	"shortcut.minimap": "切换缩略图",
+	"shortcut.layout": "循环切换布局",
+	"shortcut.import": "切换导入面板",
+	"shortcut.undo": "撤销操作",
+	"shortcut.redo": "重做操作",
+	"shortcut.help": "显示此帮助",
+	"edge.tooltip.source": "源节点",
+	"edge.tooltip.target": "目标节点",
+	"edge.tooltip.type": "关系类型",
+	"state.complete": "图谱完整 ({total} 节点)",
+	"pathFind.title": "路径查找",
+	"pathFind.close": "关闭路径查找",
+	"pathFind.start": "起点",
+	"pathFind.end": "终点",
+	"pathFind.startPlaceholder": "搜索起点符号…",
+	"pathFind.endPlaceholder": "搜索终点符号…",
+	"pathFind.find": "查找路径",
+	"pathFind.clear": "清除",
+	"pathFind.length": "路径长度",
+	"pathFind.hops": "经过节点",
+	"pathFind.noPath": "不可达",
+	"health.title": "架构健康评分",
+	"health.close": "关闭健康评分",
+	"health.noData": "点击\"检查\"按钮计算评分",
+	"health.overall": "总体评分",
+	"health.coupling": "耦合度",
+	"health.cohesion": "内聚度",
+	"health.cyclicDependencyRate": "循环依赖率",
+	"health.modularity": "模块度",
+	"health.couplingDesc": "模块间耦合越低越好",
+	"health.cohesionDesc": "模块内内聚越高越好",
+	"health.cyclicDesc": "循环依赖越少越好",
+	"health.modularityDesc": "模块划分越均衡越好",
+	"rules.title": "规则引擎",
+	"rules.close": "关闭规则引擎",
+	"rules.config": "规则配置",
+	"rules.loadPresets": "加载预设规则",
+	"rules.noRules": "暂无规则，点击\"加载预设规则\"",
+	"rules.check": "检查违规",
+	"rules.violations": "违规列表",
+	"rules.noViolations": "无违规",
+	"focus.title": "聚焦模式",
+	"focus.mode": "聚焦",
+	"focus.depth": "深度",
+	"focus.expand": "展开下一层",
+	"focus.contract": "收起一层",
+	"focus.exit": "退出聚焦",
+	"toolbar.pathFind": "路径查找",
+	"toolbar.health": "架构健康评分",
+	"toolbar.rules": "规则引擎",
+	"toolbar.hotspot": "热点分析",
+	"toolbar.godModule": "God Module 检测",
+	"toolbar.coreFunction": "核心函数识别",
+	"hotspot.close": "关闭热点分析",
+	"impact.total": "总影响节点",
+	"toolbar.undo": "撤销 (Ctrl+Z)",
+	"toolbar.redo": "重做 (Ctrl+Y)",
+	"toolbar.viewModeDeps": "切换到依赖图谱视图",
+	"toolbar.viewModeCode": "切换到代码图谱视图",
+	"toolbar.viewModeInheritance": "切换到继承树视图",
+	"toolbar.viewModeCallgraph": "切换到调用图视图",
+	"toolbar.viewModePackage": "切换到组件/包图视图",
+	"toolbar.viewModeClass": "切换到类图视图",
+	"toolbar.viewModeCfg": "切换到控制流图视图",
+	"toolbar.viewModeFlowchart": "切换到流程图视图",
+	"toolbar.viewModeSequence": "切换到时序图视图",
+	"viewMode.code": "代码",
+	"viewMode.dependencies": "依赖",
+	"viewMode.inheritance": "继承",
+	"viewMode.callgraph": "调用",
+	"viewMode.package": "包",
+	"viewMode.class": "类图",
+	"viewMode.cfg": "CFG",
+	"viewMode.flowchart": "流程",
+	"viewMode.sequence": "时序",
+	"micro.selectFunctionPrompt": "请先在代码图谱中选择一个函数节点，然后切换到此视图",
+	"micro.backToCode": "返回代码视图",
+	"sequence.noData": "暂无时序图数据",
+	"micro.selectedFunction": "当前函数: {name}",
+	"micro.clearSelection": "清除选择",
+	"micro.loadFailed": "微观图谱加载失败",
+	"micro.closeView": "关闭微观视图",
+	"stats.nodesEdges": "{nodes} 节点 · {edges} 边",
+	"godmodule.stats": "{nodes} 节点 · {edges} 边",
+	"search.moreResults": "还有 {n} 个结果",
+	"layer.inheritance.0": "根接口概览",
+	"layer.inheritance.1": "2层继承深度",
+	"layer.inheritance.2": "完整继承树",
+	"layer.callgraph.0": "入口函数概览",
+	"layer.callgraph.1": "调用链2层",
+	"layer.callgraph.2": "完整调用图",
+	"layer.package.0": "顶层包概览",
+	"layer.package.1": "子包展开",
+	"layer.package.2": "包内模块",
+	"layer.class.0": "类概览",
+	"layer.class.1": "类关系图",
+	"layer.class.2": "完整类图",
+	"layer.code.0": "目录聚类",
+	"layer.code.1": "文件聚类",
+	"layer.code.2": "全部节点",
+	"layer.dependencies.0": "目录依赖概览",
+	"layer.dependencies.1": "文件依赖",
+	"layer.dependencies.2": "模块依赖",
+	"coreFunction.category.entry": "入口",
+	"coreFunction.category.hub": "枢纽",
+	"coreFunction.category.api": "API",
+	"coreFunction.category.critical": "关键",
+	"coreFunction.reason.high-indegree": "高入度",
+	"coreFunction.reason.high-outdegree": "高出度",
+	"coreFunction.reason.entry-point": "入口点",
+	"coreFunction.reason.exported": "已导出",
+	"coreFunction.reason.handler-pattern": "处理器",
+	"coreFunction.reason.event-pattern": "事件",
+	"coreFunction.reason.cli-pattern": "CLI",
+	"coreFunction.reason.large-influence": "大影响",
+	"coreFunction.reason.deep-call-chain": "深调用链",
+	"coreFunction.reason.hub-function": "枢纽函数",
+	"coreFunction.inDegree": "入度",
+	"coreFunction.outDegree": "出度",
+	"coreFunction.influenceReach": "影响范围",
+	"coreFunction.callChainDepth": "调用链深度",
+	"flowchart.start": "开始",
+	"flowchart.end": "结束",
+	"flowchart.errorExit": "异常退出",
+	"flowchart.tryBlock": "尝试执行",
+	"flowchart.catchBlock": "捕获异常",
+	"flowchart.finallyBlock": "最终处理",
+	"flowchart.returnResult": "返回结果",
+	"flowchart.throwException": "抛出异常",
+	"flowchart.loopPrefix": "循环: {cond}",
+	"flowchart.switchPrefix": "switch: {expr}",
+	"flowchart.statementsCount": "{n} 条语句",
+	"flowchart.edge.yes": "是",
+	"flowchart.edge.no": "否",
+	"flowchart.edge.loop": "循环",
+	"flowchart.edge.error": "异常",
+	"flowchart.edge.default": "默认",
+	"flowchart.edge.break": "跳出",
+	"flowchart.edge.continue": "继续",
+	"flowchart.semantic.init": "初始化",
+	"flowchart.semantic.prepare": "数据准备",
+	"flowchart.semantic.load": "加载数据",
+	"flowchart.semantic.save": "保存数据",
+	"flowchart.semantic.fetch": "获取数据",
+	"flowchart.semantic.find": "查找",
+	"flowchart.semantic.create": "创建",
+	"flowchart.semantic.update": "更新",
+	"flowchart.semantic.delete": "删除",
+	"flowchart.semantic.validate": "验证",
+	"flowchart.semantic.check": "检查",
+	"flowchart.semantic.parse": "解析",
+	"flowchart.semantic.format": "格式化",
+	"flowchart.semantic.transform": "转换",
+	"flowchart.semantic.render": "渲染",
+	"flowchart.semantic.compute": "计算",
+	"flowchart.semantic.build": "构建",
+	"flowchart.semantic.register": "注册",
+	"flowchart.semantic.cleanup": "清理",
+	"flowchart.semantic.destroy": "销毁",
+	"flowchart.semantic.start": "开始",
+	"flowchart.semantic.stop": "停止",
+	"flowchart.semantic.handle": "处理",
+	"flowchart.semantic.send": "发送",
+	"flowchart.semantic.receive": "接收",
+	"flowchart.semantic.read": "读取",
+	"flowchart.semantic.write": "写入",
+	"flowchart.semantic.log": "记录日志",
+	"flowchart.semantic.notify": "通知",
+	"flowchart.semantic.dispatch": "分发",
+	"flowchart.semantic.resolve": "解析",
+	"flowchart.semantic.reject": "拒绝"
+};
+
+//#endregion
+//#region src/client/i18n/index.ts
+const dicts = {
+	zh,
+	en
+};
+const STORAGE_KEY = "dsh-codegraph-visualizer/lang";
+let currentLang = typeof window === "undefined" ? "zh" : getStoredLang();
+const listeners = new Set();
+function getStoredLang() {
+	if (typeof window === "undefined") return "zh";
+	try {
+		const stored = window.localStorage.getItem(STORAGE_KEY);
+		return stored === "zh" || stored === "en" ? stored : "zh";
+	} catch {
+		return "zh";
+	}
+}
+function getLang() {
+	return currentLang;
+}
+function setLang(lang) {
+	if (lang === currentLang) return;
+	currentLang = lang;
+	if (typeof window !== "undefined") try {
+		window.localStorage.setItem(STORAGE_KEY, lang);
+	} catch {}
+	for (const fn$7 of listeners) fn$7();
+}
+function toggleLang() {
+	setLang(currentLang === "zh" ? "en" : "zh");
+}
+currentLang = getStoredLang();
+function subscribe(fn$7) {
+	listeners.add(fn$7);
+	return () => {
+		listeners.delete(fn$7);
+	};
+}
+function useLang() {
+	return (0, react.useSyncExternalStore)(subscribe, getLang, getLang);
+}
+function t(key, params) {
+	let str = dicts[currentLang][key] ?? dicts.en[key] ?? key;
+	if (params) for (const [k, v] of Object.entries(params)) str = str.replaceAll(`{${k}}`, String(v));
+	return str;
+}
+function useT() {
+	useLang();
+	return t;
+}
+
+//#endregion
 //#region src/client/diagram/FlowchartAssembler.ts
 const PROCESS_KEYWORDS = {
-	init: "初始化",
-	prepare: "数据准备",
-	load: "加载数据",
-	save: "保存数据",
-	fetch: "获取数据",
-	find: "查找",
-	create: "创建",
-	update: "更新",
-	delete: "删除",
-	validate: "验证",
-	check: "检查",
-	parse: "解析",
-	format: "格式化",
-	transform: "转换",
-	render: "渲染",
-	compute: "计算",
-	build: "构建",
-	register: "注册",
-	cleanup: "清理",
-	destroy: "销毁",
-	start: "开始",
-	stop: "停止",
-	handle: "处理",
-	send: "发送",
-	receive: "接收",
-	read: "读取",
-	write: "写入",
-	log: "记录日志",
-	notify: "通知",
-	dispatch: "分发",
-	resolve: "解析",
-	reject: "拒绝"
+	init: "flowchart.semantic.init",
+	prepare: "flowchart.semantic.prepare",
+	load: "flowchart.semantic.load",
+	save: "flowchart.semantic.save",
+	fetch: "flowchart.semantic.fetch",
+	find: "flowchart.semantic.find",
+	create: "flowchart.semantic.create",
+	update: "flowchart.semantic.update",
+	delete: "flowchart.semantic.delete",
+	validate: "flowchart.semantic.validate",
+	check: "flowchart.semantic.check",
+	parse: "flowchart.semantic.parse",
+	format: "flowchart.semantic.format",
+	transform: "flowchart.semantic.transform",
+	render: "flowchart.semantic.render",
+	compute: "flowchart.semantic.compute",
+	build: "flowchart.semantic.build",
+	register: "flowchart.semantic.register",
+	cleanup: "flowchart.semantic.cleanup",
+	destroy: "flowchart.semantic.destroy",
+	start: "flowchart.semantic.start",
+	stop: "flowchart.semantic.stop",
+	handle: "flowchart.semantic.handle",
+	send: "flowchart.semantic.send",
+	receive: "flowchart.semantic.receive",
+	read: "flowchart.semantic.read",
+	write: "flowchart.semantic.write",
+	log: "flowchart.semantic.log",
+	notify: "flowchart.semantic.notify",
+	dispatch: "flowchart.semantic.dispatch",
+	resolve: "flowchart.semantic.resolve",
+	reject: "flowchart.semantic.reject"
 };
-let fcCounter = 0;
-function nextFcId() {
-	return `fc-node-${fcCounter++}`;
-}
-function resetCounter$1() {
-	fcCounter = 0;
-}
 function inferSemanticLabel(statements, blockLabel) {
 	if (statements.length === 0) return blockLabel;
 	const firstStmt = statements[0];
 	if (!firstStmt) return blockLabel;
 	const text = firstStmt.text.toLowerCase();
-	for (const [keyword, label] of Object.entries(PROCESS_KEYWORDS)) if (text.includes(keyword)) return label;
-	if (firstStmt.type === "return") return "返回结果";
-	if (firstStmt.type === "throw") return "抛出异常";
+	for (const [keyword, i18nKey] of Object.entries(PROCESS_KEYWORDS)) if (text.includes(keyword)) return t(i18nKey);
+	if (firstStmt.type === "return") return t("flowchart.returnResult");
+	if (firstStmt.type === "throw") return t("flowchart.throwException");
 	if (statements.length === 1) return simplifyForLabel(firstStmt.text);
 	const verbMatch = text.match(/^(\w+)\s*\(/);
 	if (verbMatch && verbMatch[1]) {
 		const verb = verbMatch[1];
-		if (PROCESS_KEYWORDS[verb]) return PROCESS_KEYWORDS[verb];
+		if (PROCESS_KEYWORDS[verb]) return t(PROCESS_KEYWORDS[verb]);
 		return `${verb}()`;
 	}
-	return `${statements.length} 条语句`;
+	return t("flowchart.statementsCount", { n: statements.length });
 }
 function simplifyForLabel(text, maxLen = 20) {
 	const trimmed = text.trim().replace(/\s+/g, " ");
@@ -6052,13 +7130,17 @@ function conditionToQuestion(condText) {
 		const inner = trimmed.replace(/^if\s*\(?/, "").replace(/\)?$/, "").trim();
 		return `${inner}?`;
 	}
-	if (trimmed.startsWith("while") || trimmed.startsWith("for")) return `循环: ${trimmed}`;
+	if (trimmed.startsWith("while") || trimmed.startsWith("for")) return t("flowchart.loopPrefix", { cond: trimmed });
 	return `${trimmed}?`;
 }
 var FlowchartAssembler = class {
 	cfgAssembler = new CFGAssembler();
+	fcCounter = 0;
+	nextFcId() {
+		return `fc-node-${this.fcCounter++}`;
+	}
 	assemble(astRoot, filePath, functionName) {
-		resetCounter$1();
+		this.fcCounter = 0;
 		const cfgResult = this.cfgAssembler.assemble(astRoot, filePath, functionName);
 		const cfgBlocks = cfgResult.nodes.map((n) => ({
 			id: n.id,
@@ -6079,16 +7161,16 @@ var FlowchartAssembler = class {
 		const fcEdges = [];
 		const blockToFc = new Map();
 		for (const block of cfgBlocks) {
-			const fcId = nextFcId();
+			const fcId = this.nextFcId();
 			blockToFc.set(block.id, fcId);
 			let nodeType = "process";
 			let label = block.label;
 			if (block.isEntry) {
 				nodeType = "start";
-				label = "开始";
+				label = t("flowchart.start");
 			} else if (block.isExit) {
 				nodeType = block.label === "throw" ? "error" : "end";
-				label = block.label === "throw" ? "异常退出" : "结束";
+				label = block.label === "throw" ? t("flowchart.errorExit") : t("flowchart.end");
 			} else if (block.blockType === "condition") {
 				nodeType = "decision";
 				label = conditionToQuestion(block.label);
@@ -6097,16 +7179,16 @@ var FlowchartAssembler = class {
 				label = conditionToQuestion(block.label);
 			} else if (block.blockType === "switch") {
 				nodeType = "decision";
-				label = `switch: ${block.label}`;
+				label = t("flowchart.switchPrefix", { expr: block.label });
 			} else if (block.blockType === "try") {
 				nodeType = "process";
-				label = "尝试执行";
+				label = t("flowchart.tryBlock");
 			} else if (block.blockType === "catch") {
 				nodeType = "error";
-				label = "捕获异常";
+				label = t("flowchart.catchBlock");
 			} else if (block.blockType === "finally") {
 				nodeType = "process";
-				label = "最终处理";
+				label = t("flowchart.finallyBlock");
 			} else {
 				nodeType = "process";
 				label = inferSemanticLabel(block.statements, block.label);
@@ -6125,21 +7207,21 @@ var FlowchartAssembler = class {
 			let edgeLabel;
 			let flowchartEdgeType = "normal";
 			if (edge.edgeType === "true") {
-				edgeLabel = "是";
+				edgeLabel = t("flowchart.edge.yes");
 				flowchartEdgeType = "yes";
 			} else if (edge.edgeType === "false") {
-				edgeLabel = "否";
+				edgeLabel = t("flowchart.edge.no");
 				flowchartEdgeType = "no";
 			} else if (edge.edgeType === "loop-back") {
-				edgeLabel = "循环";
+				edgeLabel = t("flowchart.edge.loop");
 				flowchartEdgeType = "loop";
 			} else if (edge.edgeType === "exception") {
-				edgeLabel = "异常";
+				edgeLabel = t("flowchart.edge.error");
 				flowchartEdgeType = "error";
 			} else if (edge.edgeType === "case") edgeLabel = edge.condition;
-			else if (edge.edgeType === "default") edgeLabel = "默认";
-			else if (edge.edgeType === "break") edgeLabel = "跳出";
-			else if (edge.edgeType === "continue") edgeLabel = "继续";
+			else if (edge.edgeType === "default") edgeLabel = t("flowchart.edge.default");
+			else if (edge.edgeType === "break") edgeLabel = t("flowchart.edge.break");
+			else if (edge.edgeType === "continue") edgeLabel = t("flowchart.edge.continue");
 			fcEdges.push({
 				source: sourceFc,
 				target: targetFc,
@@ -6189,39 +7271,58 @@ var FlowchartAssembler = class {
 
 //#endregion
 //#region src/client/diagram/SequenceAssembler.ts
-let seqCounter = 0;
-function nextId(prefix) {
-	return `${prefix}-${seqCounter++}`;
-}
-function resetCounter() {
-	seqCounter = 0;
-}
 const CALL_NODE_TYPES = new Set([
 	"call_expression",
 	"call",
 	"method_call",
-	"function_call"
+	"function_call",
+	"await_expression",
+	"macro_invocation"
 ]);
 const CONTROL_FLOW_TYPES = new Set([
 	"if_statement",
 	"if",
+	"if_expression",
 	"for_statement",
 	"for",
+	"for_expression",
+	"for_in_statement",
 	"while_statement",
 	"while",
+	"while_expression",
 	"switch_statement",
 	"switch",
+	"match_expression",
 	"try_statement",
 	"try",
 	"return_statement",
 	"return",
 	"throw_statement",
 	"throw",
+	"raise_statement",
+	"raise",
 	"break_statement",
 	"break",
 	"continue_statement",
 	"continue"
 ]);
+const DESTROY_METHODS = new Set([
+	"dispose",
+	"destroy",
+	"close",
+	"delete",
+	"remove",
+	"cleanup",
+	"finalize",
+	"free",
+	"release"
+]);
+function isNewExpression(node) {
+	return node.type === "new_expression" || node.type === "object_creation_expression" || node.type === "class_instance_creation_expression" || node.text.includes("new ");
+}
+function isDestroyMethod(methodName) {
+	return DESTROY_METHODS.has(methodName.toLowerCase());
+}
 function isCallExpression(node) {
 	return CALL_NODE_TYPES.has(node.type) || node.type.includes("call");
 }
@@ -6299,14 +7400,18 @@ function getFinallyNode(node) {
 	return node.children.find((c) => c.type === "finally_clause" || c.type === "finally") ?? null;
 }
 var SequenceAssembler = class {
+	seqCounter = 0;
+	nextId(prefix) {
+		return `${prefix}-${this.seqCounter++}`;
+	}
 	assemble(astRoot, filePath, functionName) {
-		resetCounter();
+		this.seqCounter = 0;
 		const participants = new Map();
 		const messages = [];
 		const fragments = [];
 		let messageSeq = 0;
 		const entryParticipant = {
-			id: nextId("participant"),
+			id: this.nextId("participant"),
 			name: functionName,
 			type: "self",
 			lifelineStart: 0,
@@ -6316,11 +7421,12 @@ var SequenceAssembler = class {
 		};
 		participants.set(functionName, entryParticipant);
 		const funcNode = findFunctionNode(astRoot, functionName);
-		const targetChildren = funcNode ? getFunctionBody(funcNode) : astRoot.children;
+		if (!funcNode) throw new Error(`Function "${functionName}" not found in AST of ${filePath}`);
+		const targetChildren = getFunctionBody(funcNode);
 		this.processStatements(targetChildren, entryParticipant.id, participants, messages, fragments, (msg) => {
 			msg.sequenceNumber = messageSeq++;
 			messages.push(msg);
-		}, filePath, functionName);
+		});
 		for (const participant of participants.values()) participant.lifelineEnd = messageSeq;
 		const sequenceData = {
 			participants: Array.from(participants.values()),
@@ -6330,11 +7436,11 @@ var SequenceAssembler = class {
 		};
 		return this.toAssembledDiagram(sequenceData, filePath, functionName);
 	}
-	processStatements(statements, selfId, participants, messages, fragments, addMessage, filePath, functionName) {
+	processStatements(statements, selfId, participants, messages, fragments, addMessage) {
 		for (const stmt of statements) {
 			if (!stmt) continue;
 			if (isCallExpression(stmt)) this.processCall(stmt, selfId, participants, addMessage);
-			else if (isControlFlow(stmt)) this.processControlFlow(stmt, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+			else if (isControlFlow(stmt)) this.processControlFlow(stmt, selfId, participants, messages, fragments, addMessage);
 			else {
 				const childCalls = [];
 				this.collectCalls(stmt, childCalls);
@@ -6343,66 +7449,77 @@ var SequenceAssembler = class {
 		}
 	}
 	collectCalls(node, result) {
+		if (!node) return;
 		if (isCallExpression(node)) {
 			result.push(node);
 			return;
 		}
-		for (const child of node.children) this.collectCalls(child, result);
+		const children = node.children;
+		if (!children || !Array.isArray(children)) return;
+		for (const child of children) this.collectCalls(child, result);
 	}
 	processCall(node, selfId, participants, addMessage) {
 		const methodName = extractMethodName(node);
 		const args = extractArguments(node);
 		const { receiverName, isSelf } = extractReceiver(node);
+		const isCreate = isNewExpression(node);
 		let targetId;
-		if (isSelf) targetId = selfId;
+		if (isSelf && !isCreate) targetId = selfId;
 		else {
 			const participantName = receiverName || methodName;
 			if (!participants.has(participantName)) {
-				const participantType = inferParticipantType(receiverName, methodName);
+				const participantType = isCreate ? "class" : inferParticipantType(receiverName, methodName);
 				participants.set(participantName, {
-					id: nextId("participant"),
+					id: this.nextId("participant"),
 					name: participantName,
 					type: participantType,
 					...receiverName && receiverName.charAt(0) === receiverName.charAt(0).toUpperCase() ? { className: receiverName } : {},
 					lifelineStart: 0,
 					lifelineEnd: 0,
-					isCreated: false,
+					isCreated: isCreate,
 					isDestroyed: false
 				});
+			} else if (isCreate) {
+				const existing = participants.get(participantName);
+				existing.isCreated = true;
 			}
 			targetId = participants.get(participantName).id;
 		}
+		if (!isSelf && !isCreate && isDestroyMethod(methodName)) {
+			const participant = participants.get(receiverName || methodName);
+			if (participant) participant.isDestroyed = true;
+		}
 		const msg = {
-			id: nextId("msg"),
+			id: this.nextId("msg"),
 			sequenceNumber: 0,
 			source: selfId,
 			target: targetId,
 			methodName,
 			arguments: args,
 			isAsync: node.type.includes("await") || node.text.includes("await"),
-			isSelfCall: isSelf,
+			isSelfCall: isSelf && !isCreate,
 			isReturn: false,
-			isCreate: false,
+			isCreate,
 			lineNumber: node.startPosition.row + 1
 		};
 		addMessage(msg);
 	}
-	processControlFlow(node, selfId, participants, messages, fragments, addMessage, filePath, functionName) {
+	processControlFlow(node, selfId, participants, messages, fragments, addMessage) {
 		const t$1 = node.type;
-		if (t$1 === "if_statement" || t$1 === "if") this.processIfFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName);
-		else if (t$1 === "for_statement" || t$1 === "for" || t$1 === "while_statement" || t$1 === "while") this.processLoopFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName);
-		else if (t$1 === "switch_statement" || t$1 === "switch") this.processSwitchFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName);
-		else if (t$1 === "try_statement" || t$1 === "try") this.processTryFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+		if (t$1 === "if_statement" || t$1 === "if" || t$1 === "if_expression") this.processIfFragment(node, selfId, participants, messages, fragments, addMessage);
+		else if (t$1 === "for_statement" || t$1 === "for" || t$1 === "for_expression" || t$1 === "for_in_statement" || t$1 === "while_statement" || t$1 === "while" || t$1 === "while_expression") this.processLoopFragment(node, selfId, participants, messages, fragments, addMessage);
+		else if (t$1 === "switch_statement" || t$1 === "switch" || t$1 === "match_expression") this.processSwitchFragment(node, selfId, participants, messages, fragments, addMessage);
+		else if (t$1 === "try_statement" || t$1 === "try") this.processTryFragment(node, selfId, participants, messages, fragments, addMessage);
 		else if (t$1 === "return_statement" || t$1 === "return") this.processReturnMessage(node, selfId, participants, addMessage);
-		else if (t$1 === "throw_statement" || t$1 === "throw") this.processThrowFragment(node, selfId, participants, messages, fragments, addMessage);
+		else if (t$1 === "throw_statement" || t$1 === "throw" || t$1 === "raise_statement" || t$1 === "raise") this.processThrowFragment(node, selfId, participants, messages, fragments, addMessage);
 	}
-	processIfFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName) {
+	processIfFragment(node, selfId, participants, messages, fragments, addMessage) {
 		const condText = getConditionText(node);
 		const elseBody = getElseBody(node);
 		const fragmentType = elseBody.length > 0 ? "alt" : "opt";
 		const startSeq = messages.length;
 		const trueBody = getBodyChildren(node);
-		this.processStatements(trueBody, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+		this.processStatements(trueBody, selfId, participants, messages, fragments, addMessage);
 		const trueEnd = messages.length;
 		const operands = [{
 			guardCondition: condText,
@@ -6411,7 +7528,7 @@ var SequenceAssembler = class {
 		}];
 		if (elseBody.length > 0) {
 			const elseStart = messages.length;
-			this.processStatements(elseBody, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+			this.processStatements(elseBody, selfId, participants, messages, fragments, addMessage);
 			const elseEnd = messages.length;
 			operands.push({
 				guardCondition: "else",
@@ -6421,7 +7538,7 @@ var SequenceAssembler = class {
 		}
 		const endSeq = messages.length;
 		fragments.push({
-			id: nextId("fragment"),
+			id: this.nextId("fragment"),
 			type: fragmentType,
 			condition: condText,
 			startMessage: startSeq,
@@ -6429,14 +7546,14 @@ var SequenceAssembler = class {
 			operands
 		});
 	}
-	processLoopFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName) {
+	processLoopFragment(node, selfId, participants, messages, fragments, addMessage) {
 		const condText = getConditionText(node);
 		const startSeq = messages.length;
 		const body = getBodyChildren(node);
-		this.processStatements(body, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+		this.processStatements(body, selfId, participants, messages, fragments, addMessage);
 		const endSeq = messages.length;
 		fragments.push({
-			id: nextId("fragment"),
+			id: this.nextId("fragment"),
 			type: "loop",
 			condition: condText,
 			loopConstraint: condText,
@@ -6449,7 +7566,7 @@ var SequenceAssembler = class {
 			}]
 		});
 	}
-	processSwitchFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName) {
+	processSwitchFragment(node, selfId, participants, messages, fragments, addMessage) {
 		const condText = getConditionText(node);
 		const startSeq = messages.length;
 		const caseNodes = getCaseNodes(node);
@@ -6458,7 +7575,7 @@ var SequenceAssembler = class {
 			const label = getCaseLabel(caseNode);
 			const caseBody = getCaseBody(caseNode);
 			const caseStart = messages.length;
-			this.processStatements(caseBody, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+			this.processStatements(caseBody, selfId, participants, messages, fragments, addMessage);
 			const caseEnd = messages.length;
 			operands.push({
 				guardCondition: label === "default" ? "default" : `case ${label}`,
@@ -6468,7 +7585,7 @@ var SequenceAssembler = class {
 		}
 		const endSeq = messages.length;
 		fragments.push({
-			id: nextId("fragment"),
+			id: this.nextId("fragment"),
 			type: "alt",
 			condition: condText,
 			startMessage: startSeq,
@@ -6476,14 +7593,14 @@ var SequenceAssembler = class {
 			operands
 		});
 	}
-	processTryFragment(node, selfId, participants, messages, fragments, addMessage, filePath, functionName) {
+	processTryFragment(node, selfId, participants, messages, fragments, addMessage) {
 		const startSeq = messages.length;
 		const tryBody = node.children.find((c) => c.type === "block" || c.type === "statement_block");
 		const tryStmts = tryBody ? tryBody.children : [];
-		this.processStatements(tryStmts, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+		this.processStatements(tryStmts, selfId, participants, messages, fragments, addMessage);
 		const tryEnd = messages.length;
 		fragments.push({
-			id: nextId("fragment"),
+			id: this.nextId("fragment"),
 			type: "critical",
 			condition: "try",
 			startMessage: startSeq,
@@ -6498,10 +7615,10 @@ var SequenceAssembler = class {
 			const catchStart = messages.length;
 			const catchBody = catchNode.children.find((c) => c.type === "block" || c.type === "statement_block");
 			const catchStmts = catchBody ? catchBody.children : [];
-			this.processStatements(catchStmts, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+			this.processStatements(catchStmts, selfId, participants, messages, fragments, addMessage);
 			const catchEnd = messages.length;
 			fragments.push({
-				id: nextId("fragment"),
+				id: this.nextId("fragment"),
 				type: "break",
 				condition: "catch",
 				startMessage: catchStart,
@@ -6518,10 +7635,10 @@ var SequenceAssembler = class {
 			const finallyStart = messages.length;
 			const finallyBody = finallyNode.children.find((c) => c.type === "block" || c.type === "statement_block");
 			const finallyStmts = finallyBody ? finallyBody.children : [];
-			this.processStatements(finallyStmts, selfId, participants, messages, fragments, addMessage, filePath, functionName);
+			this.processStatements(finallyStmts, selfId, participants, messages, fragments, addMessage);
 			const finallyEnd = messages.length;
 			fragments.push({
-				id: nextId("fragment"),
+				id: this.nextId("fragment"),
 				type: "critical",
 				condition: "finally",
 				startMessage: finallyStart,
@@ -6535,7 +7652,7 @@ var SequenceAssembler = class {
 	}
 	processReturnMessage(node, selfId, participants, addMessage) {
 		const msg = {
-			id: nextId("msg"),
+			id: this.nextId("msg"),
 			sequenceNumber: 0,
 			source: selfId,
 			target: selfId,
@@ -6552,7 +7669,7 @@ var SequenceAssembler = class {
 	processThrowFragment(node, selfId, participants, messages, fragments, addMessage) {
 		const startSeq = messages.length;
 		const msg = {
-			id: nextId("msg"),
+			id: this.nextId("msg"),
 			sequenceNumber: 0,
 			source: selfId,
 			target: selfId,
@@ -6567,7 +7684,7 @@ var SequenceAssembler = class {
 		addMessage(msg);
 		const endSeq = messages.length;
 		fragments.push({
-			id: nextId("fragment"),
+			id: this.nextId("fragment"),
 			type: "break",
 			condition: "throw",
 			startMessage: startSeq,
@@ -6799,14 +7916,18 @@ var CallChainAggregator = class {
 
 //#endregion
 //#region src/client/diagram/index.ts
-const inheritanceAssembler = new InheritanceAssembler();
-const callGraphAssembler = new CallGraphAssembler();
-const packageAssembler = new PackageAssembler();
-const classAssembler = new ClassAssembler();
-const dependencyAssembler = new DependencyAssembler();
-const cfgAssembler = new CFGAssembler();
-const flowchartAssembler = new FlowchartAssembler();
-const sequenceAssembler = new SequenceAssembler();
+const macroAssemblerRegistry = new Map([
+	["inheritance", new InheritanceAssembler()],
+	["callgraph", new CallGraphAssembler()],
+	["package", new PackageAssembler()],
+	["class", new ClassAssembler()],
+	["dependencies", new DependencyAssembler()]
+]);
+const microAssemblerRegistry = new Map([
+	["cfg", new CFGAssembler()],
+	["flowchart", new FlowchartAssembler()],
+	["sequence", new SequenceAssembler()]
+]);
 const LAYER_DEFINITIONS = {
 	inheritance: [
 		{
@@ -6954,25 +8075,9 @@ function buildLayeredDiagram(viewMode, assembled) {
 	};
 }
 function assembleDiagram(viewMode, nodes, edges) {
-	let result = null;
-	switch (viewMode) {
-		case "inheritance":
-			result = inheritanceAssembler.assemble(nodes, edges);
-			break;
-		case "callgraph":
-			result = callGraphAssembler.assemble(nodes, edges);
-			break;
-		case "package":
-			result = packageAssembler.assemble(nodes, edges);
-			break;
-		case "class":
-			result = classAssembler.assemble(nodes, edges);
-			break;
-		case "dependencies":
-			result = dependencyAssembler.assemble(nodes, edges);
-			break;
-		default: return null;
-	}
+	const assembler = macroAssemblerRegistry.get(viewMode);
+	if (!assembler) return null;
+	const result = assembler.assemble(nodes, edges);
 	if (result) {
 		const taggedNodes = result.nodes.map((n) => ({
 			...n,
@@ -6997,24 +8102,41 @@ function assembleDiagram(viewMode, nodes, edges) {
 	return null;
 }
 async function assembleMicroDiagram(viewMode, filePath, functionName) {
+	if (!filePath) throw new Error("filePath is empty — cannot fetch AST");
+	if (!functionName) throw new Error("functionName is empty — cannot locate function in AST");
+	let response;
 	try {
-		const response = await fetch("/api/v1/codegraph/ast", {
+		response = await fetch("/api/v1/codegraph/ast", {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ filePath })
 		});
-		if (!response.ok) return null;
-		const astRoot = await response.json();
-		switch (viewMode) {
-			case "cfg": return cfgAssembler.assemble(astRoot, filePath, functionName);
-			case "flowchart": return flowchartAssembler.assemble(astRoot, filePath, functionName);
-			case "sequence": return sequenceAssembler.assemble(astRoot, filePath, functionName);
-			default: return null;
-		}
-	} catch (e) {
-		console.warn("[codegraph:diagram] assembleASTDiagram failed", e);
-		return null;
+	} catch {
+		throw new Error(`Network error: unable to reach AST endpoint`);
 	}
+	if (!response.ok) {
+		const status = response.status;
+		if (status === 400) throw new Error(`Bad request: filePath "${filePath}" is invalid or workspace not configured`);
+		if (status === 403) throw new Error(`Access denied: filePath "${filePath}" is outside workspace`);
+		if (status === 413) throw new Error(`File too large for AST parsing: ${filePath}`);
+		if (status === 500) {
+			const errorBody = await response.text();
+			let serverMsg = "";
+			try {
+				const parsed = JSON.parse(errorBody);
+				serverMsg = parsed.error || "";
+			} catch {
+				serverMsg = errorBody;
+			}
+			throw new Error(serverMsg || `AST parsing failed for "${filePath}"`);
+		}
+		throw new Error(`AST request failed (HTTP ${status})`);
+	}
+	const astRoot = await response.json();
+	if (!astRoot || !astRoot.children || astRoot.children.length === 0) throw new Error(`AST is empty for "${filePath}" — parsing produced no nodes`);
+	const assembler = microAssemblerRegistry.get(viewMode);
+	if (!assembler) throw new Error(`Unsupported view mode: ${viewMode}`);
+	return assembler.assemble(astRoot, filePath, functionName);
 }
 
 //#endregion
@@ -8732,7 +9854,236 @@ function buildStylesheet(theme, nodeCount = 0) {
 }
 
 //#endregion
+//#region src/shared/viewModeUtils.ts
+const VIEW_MODE_LAYOUT = {
+	code: "cose",
+	dependencies: "dagre",
+	inheritance: "tree",
+	callgraph: "dagre",
+	package: "tree",
+	class: "dagre",
+	cfg: "dagre",
+	flowchart: "dagre",
+	sequence: "grid"
+};
+function isLayeredViewMode(mode) {
+	return mode === "inheritance" || mode === "callgraph" || mode === "package" || mode === "class" || mode === "dependencies";
+}
+
+//#endregion
+//#region src/client/store/viewModeTransition.ts
+function getLayeredDiagram(viewMode, sourceNodes, sourceEdges, diagramCache$1) {
+	const dataHash = computeDataHash(sourceNodes, sourceEdges);
+	const cached = diagramCache$1.get(viewMode, dataHash);
+	if (cached) return cached;
+	const diagram = assembleDiagram(viewMode, sourceNodes, sourceEdges);
+	if (diagram) diagramCache$1.set(viewMode, dataHash, diagram);
+	return diagram;
+}
+function getFirstLayerNodes(diagram) {
+	const layer = diagram.layers[0];
+	return layer ? {
+		nodes: layer.nodes,
+		edges: layer.edges
+	} : {
+		nodes: diagram.allNodes,
+		edges: diagram.allEdges
+	};
+}
+function computeViewModeTransition(newViewMode, state, diagramCache$1) {
+	const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, selectedFunction, savedRawNodes, savedRawEdges, viewMode: prevViewMode } = state;
+	const recommendedLayout = VIEW_MODE_LAYOUT[newViewMode];
+	const savedExpanded = expandedNodeIdsByViewMode[newViewMode] ?? new Set();
+	const prevExpanded = new Set(expandedNodeIds);
+	const newExpandedByViewMode = {
+		...expandedNodeIdsByViewMode,
+		[prevViewMode]: prevExpanded
+	};
+	if (newViewMode === "code") {
+		const restoreNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
+		const restoreEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
+		const result$1 = computeClusteredGraph(restoreNodes, restoreEdges, "progressive", savedExpanded, clusterDepth);
+		return {
+			viewMode: newViewMode,
+			diagramData: null,
+			currentLayer: 0,
+			layout: recommendedLayout,
+			rawNodes: restoreNodes,
+			rawEdges: restoreEdges,
+			savedRawNodes: restoreNodes,
+			savedRawEdges: restoreEdges,
+			expandedNodeIds: savedExpanded,
+			expandedNodeIdsByViewMode: newExpandedByViewMode,
+			nodes: result$1.nodes,
+			edges: result$1.edges
+		};
+	}
+	if (newViewMode === "dependencies") {
+		const sourceNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
+		const sourceEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
+		const diagram = getLayeredDiagram(newViewMode, sourceNodes, sourceEdges, diagramCache$1);
+		if (diagram) {
+			const { nodes, edges } = getFirstLayerNodes(diagram);
+			return {
+				viewMode: newViewMode,
+				diagramData: diagram,
+				currentLayer: 0,
+				layout: recommendedLayout,
+				savedRawNodes: rawNodes,
+				savedRawEdges: rawEdges,
+				expandedNodeIds: savedExpanded,
+				expandedNodeIdsByViewMode: newExpandedByViewMode,
+				nodes,
+				edges
+			};
+		}
+		return {
+			viewMode: newViewMode,
+			diagramData: null,
+			currentLayer: 0,
+			layout: recommendedLayout,
+			savedRawNodes: rawNodes,
+			savedRawEdges: rawEdges,
+			expandedNodeIds: savedExpanded,
+			expandedNodeIdsByViewMode: newExpandedByViewMode,
+			nodes: rawNodes,
+			edges: rawEdges
+		};
+	}
+	if (isLayeredViewMode(newViewMode)) {
+		const sourceNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
+		const sourceEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
+		const diagram = getLayeredDiagram(newViewMode, sourceNodes, sourceEdges, diagramCache$1);
+		if (diagram) {
+			const { nodes, edges } = getFirstLayerNodes(diagram);
+			return {
+				viewMode: newViewMode,
+				diagramData: diagram,
+				currentLayer: 0,
+				layout: recommendedLayout,
+				savedRawNodes: sourceNodes,
+				savedRawEdges: sourceEdges,
+				expandedNodeIds: savedExpanded,
+				expandedNodeIdsByViewMode: newExpandedByViewMode,
+				nodes,
+				edges
+			};
+		}
+	}
+	if (newViewMode === "cfg" || newViewMode === "flowchart" || newViewMode === "sequence") {
+		if (selectedFunction) return {
+			viewMode: newViewMode,
+			diagramData: null,
+			currentLayer: 0,
+			layout: recommendedLayout,
+			expandedNodeIdsByViewMode: newExpandedByViewMode,
+			expandedNodeIds: savedExpanded,
+			nodes: [],
+			edges: [],
+			needsMicroAssembly: true
+		};
+		return {
+			viewMode: newViewMode,
+			diagramData: null,
+			currentLayer: 0,
+			layout: recommendedLayout,
+			expandedNodeIdsByViewMode: newExpandedByViewMode,
+			expandedNodeIds: savedExpanded,
+			nodes: [],
+			edges: []
+		};
+	}
+	const result = computeClusteredGraph(savedRawNodes.length > 0 ? savedRawNodes : rawNodes, savedRawEdges.length > 0 ? savedRawEdges : rawEdges, "progressive", savedExpanded, clusterDepth);
+	return {
+		viewMode: newViewMode,
+		diagramData: null,
+		currentLayer: 0,
+		layout: recommendedLayout,
+		savedRawNodes: savedRawNodes.length > 0 ? savedRawNodes : rawNodes,
+		savedRawEdges: savedRawEdges.length > 0 ? savedRawEdges : rawEdges,
+		expandedNodeIds: savedExpanded,
+		expandedNodeIdsByViewMode: newExpandedByViewMode,
+		nodes: result.nodes,
+		edges: result.edges
+	};
+}
+
+//#endregion
+//#region src/shared/Logger.ts
+const LEVEL_ORDER = {
+	debug: 0,
+	info: 1,
+	warn: 2,
+	error: 3
+};
+const RING_SIZE = 200;
+var LoggerImpl = class {
+	buffer = [];
+	listeners = new Set();
+	minLevel = typeof globalThis !== "undefined" && globalThis.__CG_DEBUG ? "debug" : "info";
+	log(level, scope, message, data$2) {
+		if (LEVEL_ORDER[level] < LEVEL_ORDER[this.minLevel]) return;
+		const entry = {
+			ts: Date.now(),
+			level,
+			scope,
+			message,
+			data: data$2
+		};
+		this.buffer.push(entry);
+		if (this.buffer.length > RING_SIZE) this.buffer.splice(0, this.buffer.length - RING_SIZE);
+		this.emit();
+		const fn$7 = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
+		try {
+			fn$7(`[codegraph:${scope}] ${message}`, data$2 ?? "");
+		} catch {}
+	}
+	debug(scope, message, data$2) {
+		this.log("debug", scope, message, data$2);
+	}
+	info(scope, message, data$2) {
+		this.log("info", scope, message, data$2);
+	}
+	warn(scope, message, data$2) {
+		this.log("warn", scope, message, data$2);
+	}
+	error(scope, message, data$2) {
+		this.log("error", scope, message, data$2);
+	}
+	entries() {
+		return this.buffer.slice();
+	}
+	clear() {
+		this.buffer = [];
+		this.emit();
+	}
+	subscribe(fn$7) {
+		this.listeners.add(fn$7);
+		fn$7(this.entries());
+		return () => {
+			this.listeners.delete(fn$7);
+		};
+	}
+	emit() {
+		const snapshot = this.entries();
+		for (const fn$7 of this.listeners) try {
+			fn$7(snapshot);
+		} catch {}
+	}
+};
+const logger = new LoggerImpl();
+function scoped(scope) {
+	return {
+		debug: (m, d) => logger.debug(scope, m, d),
+		info: (m, d) => logger.info(scope, m, d),
+		warn: (m, d) => logger.warn(scope, m, d),
+		error: (m, d) => logger.error(scope, m, d)
+	};
+}
+
+//#endregion
 //#region src/client/store/graphStore.ts
+const log$8 = scoped("store");
 const diagramCache = new DiagramCache(10);
 const clusterCache = new ClusterCache(20);
 const callChainAggregator = new CallChainAggregator();
@@ -8747,19 +10098,30 @@ const memoryStorage = {
 };
 const LOADING_FAILSAFE_MS = 15e3;
 let loadingFailsafe = null;
-const VIEW_MODE_LAYOUT = {
-	code: "cose",
-	dependencies: "dagre",
-	inheritance: "tree",
-	callgraph: "dagre",
-	package: "tree",
-	class: "dagre",
-	cfg: "dagre",
-	flowchart: "dagre",
-	sequence: "grid"
-};
-function isLayeredViewMode(mode) {
-	return mode === "inheritance" || mode === "callgraph" || mode === "package" || mode === "class" || mode === "dependencies";
+function sanitizeGraphData(nodes, edges) {
+	const seenNodeIds = new Set();
+	const validNodes = [];
+	for (const node of nodes) {
+		if (!node || !node.id || !node.label || !node.type || !node.filePath) continue;
+		if (seenNodeIds.has(node.id)) continue;
+		seenNodeIds.add(node.id);
+		validNodes.push(node);
+	}
+	const nodeIdSet = new Set(validNodes.map((n) => n.id));
+	const seenEdgeIds = new Set();
+	const validEdges = [];
+	for (const edge of edges) {
+		if (!edge || !edge.id || !edge.source || !edge.target) continue;
+		if (edge.source === edge.target) continue;
+		if (!nodeIdSet.has(edge.source) || !nodeIdSet.has(edge.target)) continue;
+		if (seenEdgeIds.has(edge.id)) continue;
+		seenEdgeIds.add(edge.id);
+		validEdges.push(edge);
+	}
+	return {
+		nodes: validNodes,
+		edges: validEdges
+	};
 }
 function computeLayeredExpandedView(diagramData, currentLayer, expandedNodeIds) {
 	const layer = diagramData.layers[currentLayer];
@@ -8796,6 +10158,52 @@ function clearLoadingFailsafe() {
 		clearTimeout(loadingFailsafe);
 		loadingFailsafe = null;
 	}
+}
+function applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache$1, set$1) {
+	if (isLayeredViewMode(viewMode)) {
+		if (diagramData) {
+			const { nodes: visNodes, edges: visEdges } = computeLayeredExpandedView(diagramData, currentLayer, newExpanded);
+			set$1({
+				expandedNodeIds: newExpanded,
+				expandedNodeIdsByViewMode: newExpandedByViewMode,
+				nodes: visNodes,
+				edges: visEdges
+			});
+		} else set$1({
+			expandedNodeIds: newExpanded,
+			expandedNodeIdsByViewMode: newExpandedByViewMode
+		});
+		return;
+	}
+	let sourceNodes = rawNodes;
+	let sourceEdges = rawEdges;
+	if (diagramData) {
+		const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+		if (layer) {
+			sourceNodes = layer.nodes;
+			sourceEdges = layer.edges;
+		}
+	}
+	const dataHash = computeDataHash(sourceNodes, sourceEdges);
+	const expandedKey = [...newExpanded].sort().join(",");
+	const cached = clusterCache$1.get(dataHash, "progressive", expandedKey);
+	if (cached) {
+		set$1({
+			expandedNodeIds: newExpanded,
+			expandedNodeIdsByViewMode: newExpandedByViewMode,
+			nodes: cached.nodes,
+			edges: cached.edges
+		});
+		return;
+	}
+	const result = computeClusteredGraph(sourceNodes, sourceEdges, "progressive", newExpanded, clusterDepth);
+	clusterCache$1.set(dataHash, "progressive", expandedKey, result);
+	set$1({
+		expandedNodeIds: newExpanded,
+		expandedNodeIdsByViewMode: newExpandedByViewMode,
+		nodes: result.nodes,
+		edges: result.edges
+	});
 }
 const useGraphStore = create$1()(persist((set$1) => ({
 	nodes: [],
@@ -8847,16 +10255,17 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	setGraphData: (nodes, edges, repoId, metadata) => {
 		clearLoadingFailsafe();
 		const { clusterDepth, expandedNodeIds, viewMode, currentLayer } = useGraphStore.getState();
-		let displayNodes = nodes;
-		let displayEdges = edges;
+		const sanitized = sanitizeGraphData(nodes, edges);
+		let displayNodes = sanitized.nodes;
+		let displayEdges = sanitized.edges;
 		let diagramData = null;
-		const isLayeredView = viewMode === "inheritance" || viewMode === "callgraph" || viewMode === "package" || viewMode === "class" || viewMode === "dependencies";
+		const isLayeredView = isLayeredViewMode(viewMode);
 		if (isLayeredView) {
-			const dataHash = computeDataHash(nodes, edges);
+			const dataHash = computeDataHash(sanitized.nodes, sanitized.edges);
 			const cached = diagramCache.get(viewMode, dataHash);
 			if (cached) diagramData = cached;
 			else {
-				diagramData = assembleDiagram(viewMode, nodes, edges);
+				diagramData = assembleDiagram(viewMode, sanitized.nodes, sanitized.edges);
 				if (diagramData) diagramCache.set(viewMode, dataHash, diagramData);
 			}
 			if (diagramData) {
@@ -8867,8 +10276,8 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				}
 			}
 			set$1({
-				rawNodes: nodes,
-				rawEdges: edges,
+				rawNodes: sanitized.nodes,
+				rawEdges: sanitized.edges,
 				nodes: displayNodes,
 				edges: displayEdges,
 				diagramData,
@@ -8877,8 +10286,8 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				isLoading: false,
 				lastUpdated: Date.now(),
 				truncated: !!metadata?.truncated,
-				totalNodeCount: metadata?.totalNodeCount ?? nodes.length,
-				totalEdgeCount: metadata?.totalEdgeCount ?? edges.length,
+				totalNodeCount: metadata?.totalNodeCount ?? sanitized.nodes.length,
+				totalEdgeCount: metadata?.totalEdgeCount ?? sanitized.edges.length,
 				healthScore: null,
 				ruleViolations: []
 			});
@@ -8886,8 +10295,8 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		}
 		const result = computeClusteredGraph(displayNodes, displayEdges, "progressive", expandedNodeIds, clusterDepth);
 		set$1({
-			rawNodes: nodes,
-			rawEdges: edges,
+			rawNodes: sanitized.nodes,
+			rawEdges: sanitized.edges,
 			nodes: result.nodes,
 			edges: result.edges,
 			diagramData,
@@ -8896,8 +10305,8 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			isLoading: false,
 			lastUpdated: Date.now(),
 			truncated: !!metadata?.truncated,
-			totalNodeCount: metadata?.totalNodeCount ?? nodes.length,
-			totalEdgeCount: metadata?.totalEdgeCount ?? edges.length,
+			totalNodeCount: metadata?.totalNodeCount ?? sanitized.nodes.length,
+			totalEdgeCount: metadata?.totalEdgeCount ?? sanitized.edges.length,
 			healthScore: null,
 			ruleViolations: []
 		});
@@ -8914,131 +10323,25 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	setGraphType: (graphType) => set$1({ graphType }),
 	setViewMode: (viewMode) => {
 		const state = useGraphStore.getState();
-		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, selectedFunction, savedRawNodes, savedRawEdges, viewMode: prevViewMode } = state;
-		const recommendedLayout = VIEW_MODE_LAYOUT[viewMode];
-		const savedExpanded = expandedNodeIdsByViewMode[viewMode] ?? new Set();
-		const prevExpanded = new Set(expandedNodeIds);
-		const newExpandedByViewMode = {
-			...expandedNodeIdsByViewMode,
-			[prevViewMode]: prevExpanded
-		};
-		if (viewMode === "dependencies") {
-			const sourceNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
-			const sourceEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
-			const dataHash = computeDataHash(sourceNodes, sourceEdges);
-			let diagram = diagramCache.get(viewMode, dataHash);
-			if (!diagram) {
-				diagram = assembleDiagram(viewMode, sourceNodes, sourceEdges);
-				if (diagram) diagramCache.set(viewMode, dataHash, diagram);
-			}
-			if (diagram) {
-				const layer = diagram.layers[0];
-				const layerNodes = layer ? layer.nodes : diagram.allNodes;
-				const layerEdges = layer ? layer.edges : diagram.allEdges;
-				set$1({
-					viewMode,
-					diagramData: diagram,
-					currentLayer: 0,
-					layout: recommendedLayout,
-					savedRawNodes: rawNodes,
-					savedRawEdges: rawEdges,
-					expandedNodeIds: savedExpanded,
-					expandedNodeIdsByViewMode: newExpandedByViewMode,
-					nodes: layerNodes,
-					edges: layerEdges
-				});
-				return;
-			}
-			set$1({
-				viewMode,
-				diagramData: null,
-				layout: recommendedLayout,
-				savedRawNodes: rawNodes,
-				savedRawEdges: rawEdges,
-				expandedNodeIds: savedExpanded,
-				expandedNodeIdsByViewMode: newExpandedByViewMode,
-				nodes: rawNodes,
-				edges: rawEdges
-			});
+		const result = computeViewModeTransition(viewMode, {
+			rawNodes: state.rawNodes,
+			rawEdges: state.rawEdges,
+			savedRawNodes: state.savedRawNodes,
+			savedRawEdges: state.savedRawEdges,
+			clusterDepth: state.clusterDepth,
+			expandedNodeIds: state.expandedNodeIds,
+			expandedNodeIdsByViewMode: state.expandedNodeIdsByViewMode,
+			selectedFunction: state.selectedFunction,
+			viewMode: state.viewMode
+		}, diagramCache);
+		if (result.needsMicroAssembly) {
+			const { needsMicroAssembly: _$36,...rest$1 } = result;
+			set$1(rest$1);
+			useGraphStore.getState().assembleMicro(viewMode);
 			return;
 		}
-		if (viewMode === "code") {
-			const restoreNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
-			const restoreEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
-			const result$1 = computeClusteredGraph(restoreNodes, restoreEdges, "progressive", savedExpanded, clusterDepth);
-			set$1({
-				viewMode,
-				diagramData: null,
-				layout: recommendedLayout,
-				rawNodes: restoreNodes,
-				rawEdges: restoreEdges,
-				savedRawNodes: [],
-				savedRawEdges: [],
-				expandedNodeIds: savedExpanded,
-				expandedNodeIdsByViewMode: newExpandedByViewMode,
-				nodes: result$1.nodes,
-				edges: result$1.edges
-			});
-			return;
-		}
-		if (viewMode === "inheritance" || viewMode === "callgraph" || viewMode === "package" || viewMode === "class") {
-			const sourceNodes = savedRawNodes.length > 0 ? savedRawNodes : rawNodes;
-			const sourceEdges = savedRawEdges.length > 0 ? savedRawEdges : rawEdges;
-			const dataHash = computeDataHash(sourceNodes, sourceEdges);
-			let diagram = diagramCache.get(viewMode, dataHash);
-			if (!diagram) {
-				diagram = assembleDiagram(viewMode, sourceNodes, sourceEdges);
-				if (diagram) diagramCache.set(viewMode, dataHash, diagram);
-			}
-			if (diagram) {
-				const layer = diagram.layers[0];
-				const layerNodes = layer ? layer.nodes : diagram.allNodes;
-				const layerEdges = layer ? layer.edges : diagram.allEdges;
-				set$1({
-					viewMode,
-					diagramData: diagram,
-					currentLayer: 0,
-					layout: recommendedLayout,
-					savedRawNodes: sourceNodes,
-					savedRawEdges: sourceEdges,
-					expandedNodeIds: savedExpanded,
-					expandedNodeIdsByViewMode: newExpandedByViewMode,
-					nodes: layerNodes,
-					edges: layerEdges
-				});
-				return;
-			}
-		}
-		if (viewMode === "cfg" || viewMode === "flowchart" || viewMode === "sequence") {
-			if (selectedFunction) {
-				set$1({
-					viewMode,
-					layout: recommendedLayout,
-					expandedNodeIdsByViewMode: newExpandedByViewMode
-				});
-				useGraphStore.getState().assembleMicro(viewMode);
-				return;
-			}
-			set$1({
-				viewMode,
-				diagramData: null,
-				layout: recommendedLayout,
-				nodes: [],
-				edges: [],
-				expandedNodeIdsByViewMode: newExpandedByViewMode
-			});
-			return;
-		}
-		const result = computeClusteredGraph(rawNodes, rawEdges, "progressive", savedExpanded, clusterDepth);
-		set$1({
-			viewMode,
-			diagramData: null,
-			layout: recommendedLayout,
-			expandedNodeIds: savedExpanded,
-			expandedNodeIdsByViewMode: newExpandedByViewMode,
-			nodes: result.nodes,
-			edges: result.edges
-		});
+		const { needsMicroAssembly: _u,...rest } = result;
+		set$1(rest);
 	},
 	setClusterDepth: (clusterDepth) => {
 		const { rawNodes, rawEdges, expandedNodeIds, diagramData, currentLayer, viewMode } = useGraphStore.getState();
@@ -9121,50 +10424,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			...expandedNodeIdsByViewMode,
 			[viewMode]: newExpanded
 		};
-		if (isLayeredViewMode(viewMode)) {
-			if (diagramData) {
-				const { nodes: visNodes, edges: visEdges } = computeLayeredExpandedView(diagramData, currentLayer, newExpanded);
-				set$1({
-					expandedNodeIds: newExpanded,
-					expandedNodeIdsByViewMode: newExpandedByViewMode,
-					nodes: visNodes,
-					edges: visEdges
-				});
-			} else set$1({
-				expandedNodeIds: newExpanded,
-				expandedNodeIdsByViewMode: newExpandedByViewMode
-			});
-			return;
-		}
-		let sourceNodes = rawNodes;
-		let sourceEdges = rawEdges;
-		if (diagramData) {
-			const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
-			if (layer) {
-				sourceNodes = layer.nodes;
-				sourceEdges = layer.edges;
-			}
-		}
-		const dataHash = computeDataHash(sourceNodes, sourceEdges);
-		const expandedKey = [...newExpanded].sort().join(",");
-		const cached = clusterCache.get(dataHash, "progressive", expandedKey);
-		if (cached) {
-			set$1({
-				expandedNodeIds: newExpanded,
-				expandedNodeIdsByViewMode: newExpandedByViewMode,
-				nodes: cached.nodes,
-				edges: cached.edges
-			});
-			return;
-		}
-		const result = computeClusteredGraph(sourceNodes, sourceEdges, "progressive", newExpanded, clusterDepth);
-		clusterCache.set(dataHash, "progressive", expandedKey, result);
-		set$1({
-			expandedNodeIds: newExpanded,
-			expandedNodeIdsByViewMode: newExpandedByViewMode,
-			nodes: result.nodes,
-			edges: result.edges
-		});
+		applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set$1);
 	},
 	collapseNode: (nodeId) => {
 		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
@@ -9174,50 +10434,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			...expandedNodeIdsByViewMode,
 			[viewMode]: newExpanded
 		};
-		if (isLayeredViewMode(viewMode)) {
-			if (diagramData) {
-				const { nodes: visNodes, edges: visEdges } = computeLayeredExpandedView(diagramData, currentLayer, newExpanded);
-				set$1({
-					expandedNodeIds: newExpanded,
-					expandedNodeIdsByViewMode: newExpandedByViewMode,
-					nodes: visNodes,
-					edges: visEdges
-				});
-			} else set$1({
-				expandedNodeIds: newExpanded,
-				expandedNodeIdsByViewMode: newExpandedByViewMode
-			});
-			return;
-		}
-		let sourceNodes = rawNodes;
-		let sourceEdges = rawEdges;
-		if (diagramData) {
-			const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
-			if (layer) {
-				sourceNodes = layer.nodes;
-				sourceEdges = layer.edges;
-			}
-		}
-		const dataHash = computeDataHash(sourceNodes, sourceEdges);
-		const expandedKey = [...newExpanded].sort().join(",");
-		const cached = clusterCache.get(dataHash, "progressive", expandedKey);
-		if (cached) {
-			set$1({
-				expandedNodeIds: newExpanded,
-				expandedNodeIdsByViewMode: newExpandedByViewMode,
-				nodes: cached.nodes,
-				edges: cached.edges
-			});
-			return;
-		}
-		const result = computeClusteredGraph(sourceNodes, sourceEdges, "progressive", newExpanded, clusterDepth);
-		clusterCache.set(dataHash, "progressive", expandedKey, result);
-		set$1({
-			expandedNodeIds: newExpanded,
-			expandedNodeIdsByViewMode: newExpandedByViewMode,
-			nodes: result.nodes,
-			edges: result.edges
-		});
+		applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set$1);
 	},
 	collapseAll: () => {
 		const { rawNodes, rawEdges, clusterDepth, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
@@ -9225,52 +10442,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			...expandedNodeIdsByViewMode,
 			[viewMode]: new Set()
 		};
-		if (isLayeredViewMode(viewMode)) {
-			if (diagramData) {
-				const layer = diagramData.layers[currentLayer];
-				const layerNodes = layer ? layer.nodes : diagramData.allNodes;
-				const layerEdges = layer ? layer.edges : diagramData.allEdges;
-				set$1({
-					expandedNodeIds: new Set(),
-					expandedNodeIdsByViewMode: newExpandedByViewMode,
-					nodes: layerNodes,
-					edges: layerEdges
-				});
-			} else set$1({
-				expandedNodeIds: new Set(),
-				expandedNodeIdsByViewMode: newExpandedByViewMode
-			});
-			return;
-		}
-		let sourceNodes = rawNodes;
-		let sourceEdges = rawEdges;
-		if (diagramData) {
-			const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
-			if (layer) {
-				sourceNodes = layer.nodes;
-				sourceEdges = layer.edges;
-			}
-		}
-		const dataHash = computeDataHash(sourceNodes, sourceEdges);
-		const expandedKey = "";
-		const cached = clusterCache.get(dataHash, "progressive", expandedKey);
-		if (cached) {
-			set$1({
-				expandedNodeIds: new Set(),
-				expandedNodeIdsByViewMode: newExpandedByViewMode,
-				nodes: cached.nodes,
-				edges: cached.edges
-			});
-			return;
-		}
-		const result = computeClusteredGraph(sourceNodes, sourceEdges, "progressive", new Set(), clusterDepth);
-		clusterCache.set(dataHash, "progressive", expandedKey, result);
-		set$1({
-			expandedNodeIds: new Set(),
-			expandedNodeIdsByViewMode: newExpandedByViewMode,
-			nodes: result.nodes,
-			edges: result.edges
-		});
+		applyClusterUpdate(new Set(), newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set$1);
 	},
 	setCurrentWorkspace: (path) => set$1({ currentWorkspace: path }),
 	addWorkspace: (path, name$1) => set$1((s) => {
@@ -9306,21 +10478,33 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				if (!response.ok) return null;
 				return await response.json();
 			} catch (e) {
-				console.warn("[codegraph:store] AST fetch failed", e);
+				log$8.warn("AST fetch failed", e);
 				return null;
 			}
 		};
-		const result = await callChainAggregator.aggregate(entryNodeId, rawNodes, rawEdges, astFetcher, {
-			depth: callChainDepth,
-			maxFunctions: 20
-		});
-		if (result) {
-			const clustered = computeClusteredGraph(result.diagram.nodes, result.diagram.edges, "progressive", expandedNodeIds, clusterDepth);
+		try {
+			const result = await callChainAggregator.aggregate(entryNodeId, rawNodes, rawEdges, astFetcher, {
+				depth: callChainDepth,
+				maxFunctions: 20
+			});
+			if (result && result.diagram.nodes.length > 0) {
+				const clustered = computeClusteredGraph(result.diagram.nodes, result.diagram.edges, "progressive", expandedNodeIds, clusterDepth);
+				set$1({
+					diagramData: null,
+					nodes: clustered.nodes,
+					edges: clustered.edges,
+					viewMode: "cfg",
+					error: null
+				});
+			} else set$1({
+				error: "Call chain aggregation produced no results — the selected function may have no callable targets or AST parsing failed.",
+				isLoading: false
+			});
+		} catch (e) {
+			log$8.warn("assembleMultiFunction failed", e);
 			set$1({
-				diagramData: null,
-				nodes: clustered.nodes,
-				edges: clustered.edges,
-				viewMode: "cfg"
+				error: `Call chain aggregation failed: ${e instanceof Error ? e.message : String(e)}`,
+				isLoading: false
 			});
 		}
 	},
@@ -9337,25 +10521,27 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	}),
 	setSelectedFunction: (fn$7) => set$1({ selectedFunction: fn$7 }),
 	assembleMicro: async (viewMode) => {
-		const { selectedFunction, clusterDepth, expandedNodeIds } = useGraphStore.getState();
+		const { selectedFunction } = useGraphStore.getState();
 		if (!selectedFunction) return;
 		set$1({
 			isLoading: true,
 			error: null
 		});
-		const diagram = await assembleMicroDiagram(viewMode, selectedFunction.filePath, selectedFunction.functionName);
-		if (diagram) {
-			const result = computeClusteredGraph(diagram.nodes, diagram.edges, "progressive", expandedNodeIds, clusterDepth);
+		try {
+			const diagram = await assembleMicroDiagram(viewMode, selectedFunction.filePath, selectedFunction.functionName);
 			set$1({
 				diagramData: null,
-				nodes: result.nodes,
-				edges: result.edges,
+				nodes: diagram.nodes,
+				edges: diagram.edges,
 				isLoading: false
 			});
-		} else set$1({
-			isLoading: false,
-			error: "AST parsing failed for " + selectedFunction.functionName
-		});
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : String(e);
+			set$1({
+				isLoading: false,
+				error: `${msg} — ${selectedFunction.functionName}`
+			});
+		}
 	},
 	setLayer: (layer) => {
 		const { diagramData, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, currentLayer } = useGraphStore.getState();
@@ -48114,81 +49300,8 @@ var require_cytoscape_dagre = __commonJS({ "node_modules/.pnpm/cytoscape-dagre@2
 var import_cytoscape_dagre = __toESM(require_cytoscape_dagre(), 1);
 
 //#endregion
-//#region src/shared/Logger.ts
-const LEVEL_ORDER = {
-	debug: 0,
-	info: 1,
-	warn: 2,
-	error: 3
-};
-const RING_SIZE = 200;
-var LoggerImpl = class {
-	buffer = [];
-	listeners = new Set();
-	minLevel = typeof globalThis !== "undefined" && globalThis.__CG_DEBUG ? "debug" : "info";
-	log(level, scope, message, data$2) {
-		if (LEVEL_ORDER[level] < LEVEL_ORDER[this.minLevel]) return;
-		const entry = {
-			ts: Date.now(),
-			level,
-			scope,
-			message,
-			data: data$2
-		};
-		this.buffer.push(entry);
-		if (this.buffer.length > RING_SIZE) this.buffer.splice(0, this.buffer.length - RING_SIZE);
-		this.emit();
-		const fn$7 = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
-		try {
-			fn$7(`[codegraph:${scope}] ${message}`, data$2 ?? "");
-		} catch {}
-	}
-	debug(scope, message, data$2) {
-		this.log("debug", scope, message, data$2);
-	}
-	info(scope, message, data$2) {
-		this.log("info", scope, message, data$2);
-	}
-	warn(scope, message, data$2) {
-		this.log("warn", scope, message, data$2);
-	}
-	error(scope, message, data$2) {
-		this.log("error", scope, message, data$2);
-	}
-	entries() {
-		return this.buffer.slice();
-	}
-	clear() {
-		this.buffer = [];
-		this.emit();
-	}
-	subscribe(fn$7) {
-		this.listeners.add(fn$7);
-		fn$7(this.entries());
-		return () => {
-			this.listeners.delete(fn$7);
-		};
-	}
-	emit() {
-		const snapshot = this.entries();
-		for (const fn$7 of this.listeners) try {
-			fn$7(snapshot);
-		} catch {}
-	}
-};
-const logger = new LoggerImpl();
-function scoped(scope) {
-	return {
-		debug: (m, d) => logger.debug(scope, m, d),
-		info: (m, d) => logger.info(scope, m, d),
-		warn: (m, d) => logger.warn(scope, m, d),
-		error: (m, d) => logger.error(scope, m, d)
-	};
-}
-
-//#endregion
 //#region src/client/renderer/LayoutController.ts
-const log$6 = scoped("layout");
+const log$7 = scoped("layout");
 var LayoutController = class {
 	cy;
 	layoutRaf = null;
@@ -48219,25 +49332,26 @@ var LayoutController = class {
 					this.worker?.terminate();
 					this.worker = null;
 					this.workerInitFailed = true;
-					log$6.warn("layout worker error — falling back to main-thread layout");
+					log$7.warn("layout worker error — falling back to main-thread layout");
 				};
 			} else {
 				this.workerInitFailed = true;
-				log$6.warn("layout worker not available — using main-thread layout");
+				log$7.warn("layout worker not available — using main-thread layout");
 			}
 		} catch (e) {
 			this.workerInitFailed = true;
-			log$6.warn("layout worker init failed — using main-thread layout", e);
+			log$7.warn("layout worker init failed — using main-thread layout", e);
 		}
 	}
 	isWorkerAvailable() {
-		return this.worker !== null;
+		return this.worker !== null && !this.workerInitFailed;
 	}
 	applyLayoutWithWorker(nodes, edges, layout$2) {
 		if (!this.worker) return Promise.resolve({});
 		return new Promise((resolve) => {
 			this.workerTimeout = setTimeout(() => {
 				if (this.workerLayoutResolve) {
+					log$7.warn("layout worker timeout — falling back to empty positions");
 					this.workerLayoutResolve({});
 					this.workerLayoutResolve = null;
 				}
@@ -48261,7 +49375,9 @@ var LayoutController = class {
 					target: e.target,
 					type: e.type
 				})),
-				layout: layout$2
+				layout: layout$2,
+				containerWidth: this.cy.width() || 800,
+				containerHeight: this.cy.height() || 600
 			});
 		});
 	}
@@ -48705,24 +49821,31 @@ var HighlightController = class {
 		});
 		this.selectedNodeId = id;
 	}
-	highlightCallChain(nodeId) {
+	highlightCallChain(nodeId, maxDepth = 50) {
 		this.cy.batch(() => {
 			this.cy.elements().removeClass("call-chain");
 			if (!nodeId) return;
 			const visited = new Set();
-			const queue = [nodeId];
+			const queue = [{
+				id: nodeId,
+				depth: 0
+			}];
 			let head = 0;
 			while (head < queue.length) {
-				const id = queue[head++];
-				if (visited.has(id)) continue;
-				visited.add(id);
-				const node = this.cy.getElementById(id);
+				const item = queue[head++];
+				if (visited.has(item.id)) continue;
+				if (item.depth > maxDepth) continue;
+				visited.add(item.id);
+				const node = this.cy.getElementById(item.id);
 				if (node.nonempty()) node.addClass("call-chain");
 				node.connectedEdges().forEach((edge) => {
-					if (edge.source().id() !== id) return;
+					if (edge.source().id() !== item.id) return;
 					edge.addClass("call-chain");
 					const target = edge.target().id();
-					if (!visited.has(target)) queue.push(NodeId(target));
+					if (!visited.has(target)) queue.push({
+						id: target,
+						depth: item.depth + 1
+					});
 				});
 			}
 		});
@@ -48789,7 +49912,7 @@ var HighlightController = class {
 			});
 		});
 	}
-	computeImpact(nodeId) {
+	computeImpact(nodeId, maxDepth = 3) {
 		const visited = new Map();
 		const queue = [{
 			id: nodeId,
@@ -48800,7 +49923,7 @@ var HighlightController = class {
 			const { id, depth } = queue[head++];
 			if (visited.has(id) && visited.get(id) <= depth) continue;
 			visited.set(id, depth);
-			if (depth < 3) {
+			if (depth < maxDepth) {
 				const node = this.cy.getElementById(id);
 				node.incomers().forEach((edge) => {
 					const src = edge.source().id();
@@ -48913,7 +50036,12 @@ var HighlightController = class {
 		this.lastInheritanceRelevant = relevant;
 	}
 	destroy() {
+		this.cy.batch(() => {
+			this.cy.elements().removeClass("highlighted selected neighbor-highlight neighbor-dim call-chain cycle-highlight impact-d1 impact-d2 impact-d3 impact-source inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement");
+		});
 		this.highlightedNodeIds.clear();
+		this.selectedNodeId = null;
+		this.lastInheritanceRelevant.clear();
 	}
 };
 
@@ -49682,6 +50810,8 @@ var InteractionController = class {
 		this.callbacks = callbacks;
 	}
 	destroy() {
+		this.cy.nodes().removeClass("hovered");
+		this.cy.edges().removeClass("hovered");
 		this.cy.off("tap", "node");
 		this.cy.off("tap", "edge");
 		this.cy.off("dbltap", "node");
@@ -49974,6 +51104,7 @@ var CytoscapeRenderer = class {
 	interactionCtrl = null;
 	pathFinder = null;
 	virtualViewportCtrl = null;
+	fitTimer = null;
 	constructor(options) {
 		this.options = options;
 	}
@@ -50030,10 +51161,15 @@ var CytoscapeRenderer = class {
 		}
 	}
 	updateData(nodes, edges) {
+		if (!this.cy) throw new Error("CytoscapeRenderer: init() must be called before updateData()");
 		this.dataCtrl?.updateData(nodes, edges);
-		if (this.cy && nodes.length > 0) setTimeout(() => {
-			if (this.cy && this.cy.nodes().length > 0) this.cy.fit(void 0, 80);
-		}, 200);
+		if (this.cy && nodes.length > 0) {
+			if (this.fitTimer !== null) clearTimeout(this.fitTimer);
+			this.fitTimer = setTimeout(() => {
+				this.fitTimer = null;
+				if (this.cy && this.cy.nodes().length > 0) this.cy.fit(void 0, 80);
+			}, 200);
+		}
 	}
 	setRawNodes(rawNodes) {
 		this.dataCtrl?.setRawNodes(rawNodes);
@@ -50110,12 +51246,8 @@ var CytoscapeRenderer = class {
 	getViewportInfo() {
 		return this.viewportCtrl?.getViewportInfo() ?? null;
 	}
-	focusOnArea(ratioX, ratioY) {
-		const info = this.viewportCtrl?.getViewportInfo();
-		if (!info) return;
-		const targetX = info.totalSize.w * ratioX;
-		const targetY = info.totalSize.h * ratioY;
-		this.viewportCtrl?.focusOnArea(targetX, targetY, info.zoom);
+	focusOnArea(x$1, y$1, zoom) {
+		this.viewportCtrl?.focusOnArea(x$1, y$1, zoom);
 	}
 	exportJSON() {
 		return this.dataCtrl?.exportJSON() ?? "";
@@ -50123,8 +51255,8 @@ var CytoscapeRenderer = class {
 	exportPNG() {
 		return this.dataCtrl?.exportPNG() ?? null;
 	}
-	exportSVG() {
-		return this.dataCtrl?.exportSVG() ?? null;
+	exportSVG(theme) {
+		return this.dataCtrl?.exportSVG(theme ?? this.options.theme) ?? null;
 	}
 	getSelectedNodeData() {
 		return this.dataCtrl?.getSelectedNodeData() ?? null;
@@ -50153,6 +51285,10 @@ var CytoscapeRenderer = class {
 		this.pathFinder?.destroy();
 		this.cy?.destroy();
 		this.cy = null;
+		if (this.fitTimer !== null) {
+			clearTimeout(this.fitTimer);
+			this.fitTimer = null;
+		}
 		this.layoutCtrl = null;
 		this.highlightCtrl = null;
 		this.viewportCtrl = null;
@@ -50174,7 +51310,7 @@ var CytoscapeRenderer = class {
 
 //#endregion
 //#region src/client/hooks/useGraphRenderer.ts
-const log$5 = scoped("renderer-hook");
+const log$6 = scoped("renderer-hook");
 function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterDepth, debouncedSearch, showCallChain, showCycles, showImpact, showInheritance, focusNodeId, callbacks, showCallChainRef) {
 	const containerRef = (0, react.useRef)(null);
 	const rendererRef = (0, react.useRef)(null);
@@ -50210,7 +51346,7 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 				});
 				renderer$1.init();
 				rendererRef.current = renderer$1;
-				log$5.info("renderer initialized", {
+				log$6.info("renderer initialized", {
 					theme,
 					w,
 					h
@@ -50350,7 +51486,7 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 			a.download = `codegraph-${Date.now()}.${extension$1}`;
 			a.click();
 			setTimeout(() => URL.revokeObjectURL(url), 1e3);
-			log$5.info(`exported ${format}`);
+			log$6.info(`exported ${format}`);
 		}
 	}, []);
 	const updateTheme = (0, react.useCallback)((newTheme) => {
@@ -50596,7 +51732,10 @@ function usePanelKeyboard(layout$2, setLayout, rendererRef, handlers) {
 		rendererRef.current?.highlightCallChain(null);
 		rendererRef.current?.highlightCycles(new Set());
 	});
-	useKeyboardShortcut("c", () => handlersRef.current.onToggleCallChain(), { ctrl: true });
+	useKeyboardShortcut("c", () => handlersRef.current.onToggleCallChain(), {
+		ctrl: true,
+		shift: true
+	});
 	useKeyboardShortcut("e", () => handlersRef.current.onToggleImpact(), { ctrl: true });
 	useKeyboardShortcut("h", () => handlersRef.current.onToggleInheritance(), { ctrl: true });
 	useKeyboardShortcut("m", () => handlersRef.current.onToggleMiniMap(), { ctrl: true });
@@ -50709,17 +51848,29 @@ function validateGraphData(raw) {
 
 //#endregion
 //#region src/client/api/index.ts
-const log$4 = scoped("client");
+const log$5 = scoped("client");
+const DEFAULT_TIMEOUT = 3e4;
+function fetchWithTimeout(url, options, timeoutMs = DEFAULT_TIMEOUT) {
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), timeoutMs);
+	return fetch(url, {
+		...options,
+		signal: controller.signal
+	}).finally(() => clearTimeout(timer));
+}
 async function fetchStatus() {
 	try {
-		const res = await fetch("/api/v1/codegraph/status");
+		const res = await fetchWithTimeout("/api/v1/codegraph/status");
 		if (!res.ok) return {
 			codegraph: false,
 			lens: false
 		};
 		return await res.json();
 	} catch (e) {
-		log$4.warn("fetchStatus failed", e);
+		log$5.warn("fetchStatus failed", {
+			url: "/api/v1/codegraph/status",
+			error: e instanceof Error ? e.message : String(e)
+		});
 		return {
 			codegraph: false,
 			lens: false
@@ -50728,17 +51879,20 @@ async function fetchStatus() {
 }
 async function fetchGraphData() {
 	try {
-		const res = await fetch("/api/v1/codegraph/data");
+		const res = await fetchWithTimeout("/api/v1/codegraph/data");
 		if (!res.ok) return null;
 		return validateGraphData(await res.json());
 	} catch (e) {
-		log$4.warn("fetchGraphData failed", e);
+		log$5.warn("fetchGraphData failed", {
+			url: "/api/v1/codegraph/data",
+			error: e instanceof Error ? e.message : String(e)
+		});
 		return null;
 	}
 }
 async function fetchWorkspace() {
 	try {
-		const res = await fetch("/api/v1/codegraph/workspace");
+		const res = await fetchWithTimeout("/api/v1/codegraph/workspace");
 		if (!res.ok) return {
 			path: ".",
 			list: []
@@ -50749,7 +51903,7 @@ async function fetchWorkspace() {
 			list: data$2.list ?? []
 		};
 	} catch (e) {
-		log$4.warn("fetchWorkspace failed", e);
+		log$5.warn("fetchWorkspace failed", e);
 		return {
 			path: ".",
 			list: []
@@ -50758,38 +51912,38 @@ async function fetchWorkspace() {
 }
 async function requestScan(path, maxNodes) {
 	try {
-		const res = await fetch("/api/v1/codegraph/scan", {
+		const res = await fetchWithTimeout("/api/v1/codegraph/scan", {
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({
 				path,
 				maxNodes
 			})
-		});
+		}, 6e4);
 		if (!res.ok) return null;
 		return await res.json();
 	} catch (e) {
-		log$4.warn("requestScan failed", e);
+		log$5.warn("requestScan failed", e);
 		return null;
 	}
 }
 async function requestInit(path) {
 	try {
-		const res = await fetch("/api/v1/codegraph/init", {
+		const res = await fetchWithTimeout("/api/v1/codegraph/init", {
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({ path })
-		});
+		}, 6e4);
 		if (!res.ok) return null;
 		return await res.json();
 	} catch (e) {
-		log$4.warn("requestInit failed", e);
+		log$5.warn("requestInit failed", e);
 		return null;
 	}
 }
 async function requestWatch(enabled, path) {
 	try {
-		const res = await fetch("/api/v1/codegraph/watch", {
+		const res = await fetchWithTimeout("/api/v1/codegraph/watch", {
 			method: "POST",
 			headers: { "content-type": "application/json" },
 			body: JSON.stringify({
@@ -50799,13 +51953,14 @@ async function requestWatch(enabled, path) {
 		});
 		return res.ok;
 	} catch (e) {
-		log$4.warn("requestWatch failed", e);
+		log$5.warn("requestWatch failed", e);
 		return false;
 	}
 }
 
 //#endregion
 //#region src/client/hooks/useViewMode.ts
+const log$4 = scoped("viewMode");
 const MICRO_MODES = [
 	"cfg",
 	"flowchart",
@@ -50859,9 +52014,11 @@ function useViewMode(viewMode, currentWorkspace, depsFetchAbortRef) {
 				if (data$2) {
 					setViewMode(newMode);
 					setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
-				}
+				} else setError("Failed to load code graph data");
 				setLoading(false);
-			}).catch(() => {
+			}).catch((e) => {
+				log$4.warn("fetchGraphData failed", e);
+				setError(`Failed to load code graph: ${e.message}`);
 				setLoading(false);
 			});
 		} else {
@@ -51663,7 +52820,6 @@ function useAnalysisPanels(rawNodes, rawEdges, showHealthScore, showRules, showH
 	const setRules = useGraphStore((s) => s.setRules);
 	const setRuleViolations = useGraphStore((s) => s.setRuleViolations);
 	const rules = useGraphStore((s) => s.rules);
-	const healthScore = useGraphStore((s) => s.healthScore);
 	const [hotspotNodes, setHotspotNodes] = (0, react.useState)([]);
 	const [godModules, setGodModules] = (0, react.useState)([]);
 	const [impactStats, setImpactStats] = (0, react.useState)(null);
@@ -51688,11 +52844,11 @@ function useAnalysisPanels(rawNodes, rawEdges, showHealthScore, showRules, showH
 		ruleEngine
 	]);
 	(0, react.useEffect)(() => {
-		if (showHealthScore && !healthScore && rawNodes.length > 0) handleHealthCheck();
+		if (showHealthScore && rawNodes.length > 0) handleHealthCheck();
 	}, [
 		showHealthScore,
-		healthScore,
 		rawNodes.length,
+		rawEdges.length,
 		handleHealthCheck
 	]);
 	(0, react.useEffect)(() => {
@@ -51784,7 +52940,7 @@ function useKeyboardShortcut(key, callback, options = {}) {
 				const tag = e.target?.tagName;
 				if (tag === "INPUT" || tag === "TEXTAREA") return;
 			}
-			const keyMatch = e.key === key;
+			const keyMatch = e.key.toLowerCase() === key.toLowerCase();
 			const ctrlMatch = !ctrl || e.ctrlKey;
 			const metaMatch = !meta$1 || e.metaKey;
 			const altMatch = !alt || e.altKey;
@@ -51829,11 +52985,36 @@ function usePolling(callback, interval, enabled = true) {
 }
 
 //#endregion
+//#region src/client/hooks/useThemeSync.ts
+function useThemeSync(updateRendererTheme) {
+	(0, react.useEffect)(() => {
+		const observer = new MutationObserver(() => {
+			const isDark = document.body.hasAttribute("data-ds-dark-theme");
+			const newTheme = isDark ? "dark" : "light";
+			const current = useGraphStore.getState().theme;
+			if (current !== newTheme) {
+				invalidateCssVarCache();
+				useGraphStore.getState().setTheme(newTheme);
+				updateRendererTheme(newTheme);
+			}
+		});
+		observer.observe(document.body, {
+			attributes: true,
+			attributeFilter: ["data-ds-dark-theme"]
+		});
+		return () => observer.disconnect();
+	}, [updateRendererTheme]);
+}
+
+//#endregion
 //#region src/client/history/HistoryManager.ts
 var HistoryManager = class {
 	undoStack = [];
 	redoStack = [];
-	maxHistory = 50;
+	maxHistory;
+	constructor(maxHistory = 50) {
+		this.maxHistory = maxHistory;
+	}
 	push(snapshot) {
 		this.undoStack.push(snapshot);
 		if (this.undoStack.length > this.maxHistory) this.undoStack.shift();
@@ -51903,7 +53084,7 @@ function applySnapshot(snapshot) {
 	const sameSize = currentExpanded.size === snapshot.expandedNodeIds.size;
 	const sameContent = sameSize && [...snapshot.expandedNodeIds].every((id) => currentExpanded.has(id));
 	if (!sameContent) {
-		useGraphStore.setState({ expandedNodeIds: snapshot.expandedNodeIds });
+		useGraphStore.setState({ expandedNodeIds: new Set(snapshot.expandedNodeIds) });
 		s.setClusterDepth(snapshot.clusterDepth);
 	}
 }
@@ -51932,7 +53113,9 @@ function useHistory() {
 			isUndoRedoRef.current = true;
 			applySnapshot(prev);
 			lastSnapshotRef.current = prev;
-			isUndoRedoRef.current = false;
+			queueMicrotask(() => {
+				isUndoRedoRef.current = false;
+			});
 			updateFlags();
 		}
 	}, [updateFlags]);
@@ -51942,7 +53125,9 @@ function useHistory() {
 			isUndoRedoRef.current = true;
 			applySnapshot(next);
 			lastSnapshotRef.current = next;
-			isUndoRedoRef.current = false;
+			queueMicrotask(() => {
+				isUndoRedoRef.current = false;
+			});
 			updateFlags();
 		}
 	}, [updateFlags]);
@@ -51965,9 +53150,18 @@ function useHistory() {
 //#region src/client/cache/GraphCache.ts
 var GraphCache = class {
 	cache = new Map();
-	maxEntries = 5;
+	maxEntries;
+	constructor(maxEntries = 5) {
+		this.maxEntries = maxEntries;
+	}
 	get(repoId) {
-		return this.cache.get(repoId) ?? null;
+		const entry = this.cache.get(repoId);
+		if (entry) {
+			entry.timestamp = Date.now();
+			this.cache.delete(repoId);
+			this.cache.set(repoId, entry);
+		}
+		return entry ?? null;
 	}
 	set(repoId, nodes, edges, layoutPositions, layoutType) {
 		const existing = this.cache.get(repoId);
@@ -51980,8 +53174,8 @@ var GraphCache = class {
 			layoutType: layoutType ?? existing?.layoutType ?? null
 		});
 		if (this.cache.size > this.maxEntries) {
-			const oldest = [...this.cache.entries()].sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
-			if (oldest) this.cache.delete(oldest[0]);
+			const oldest = this.cache.keys().next().value;
+			if (oldest !== void 0) this.cache.delete(oldest);
 		}
 	}
 	getLayoutPositions(repoId) {
@@ -52009,6 +53203,11 @@ var GraphCache = class {
 //#region src/client/hooks/useGraphCache.ts
 function useGraphCache() {
 	const cacheRef = (0, react.useRef)(new GraphCache());
+	(0, react.useEffect)(() => {
+		return () => {
+			cacheRef.current.clear();
+		};
+	}, []);
 	const getCachedData = (0, react.useCallback)((repoId) => {
 		const entry = cacheRef.current.get(repoId);
 		if (!entry) return null;
@@ -52024,648 +53223,6 @@ function useGraphCache() {
 		getCachedData,
 		cacheData
 	};
-}
-
-//#endregion
-//#region src/client/i18n/dicts/en.ts
-const en = {
-	"panel.ariaLabel": "Code graph visualizer",
-	"panel.expand": "Expand graph panel",
-	"panel.collapse": "Collapse",
-	"panel.expandPanel": "Expand panel",
-	"panel.collapsePanel": "Collapse panel",
-	"panel.resetSize": "Double-click to reset to responsive fill",
-	"toolbar.import": "Import graph (Ctrl+I)",
-	"toolbar.filter": "Filter by node type",
-	"toolbar.search": "Search symbols (press /)",
-	"toolbar.chain": "Toggle call chain highlight (Ctrl+C)",
-	"toolbar.cycles": "Highlight circular dependencies",
-	"toolbar.impact": "Impact analysis - show dependents (Ctrl+E)",
-	"toolbar.inheritance": "Inheritance hierarchy - show extend/implement (Ctrl+H)",
-	"toolbar.minimap": "Toggle mini-map (Ctrl+M)",
-	"toolbar.legend": "Toggle legend",
-	"toolbar.refresh": "Refresh graph",
-	"toolbar.dataGroup": "Data controls",
-	"toolbar.analysisGroup": "Analysis tools",
-	"toolbar.viewGroup": "View controls",
-	"toolbar.settingsGroup": "Settings",
-	"toolbar.theme": "Toggle theme",
-	"toolbar.export": "Export graph",
-	"toolbar.lang": "Switch language",
-	"toolbar.layout": "Switch to {l} layout (Ctrl+L cycles)",
-	"toolbar.graphType": "Graph type switcher",
-	"toolbar.cluster": "Expand depth",
-	"toolbar.layer": "Diagram layer",
-	"clusterDepth.directory": "Directory",
-	"clusterDepth.file": "File",
-	"clusterDepth.function": "Function",
-	"filter.all": "All Types",
-	"filter.function": "Functions",
-	"filter.class": "Classes",
-	"filter.variable": "Variables",
-	"filter.module": "Modules",
-	"filter.interface": "Interfaces",
-	"graphType.all": "All",
-	"graphType.call": "Calls",
-	"graphType.dependency": "Deps",
-	"search.placeholder": "Search symbols…",
-	"search.close": "Close search",
-	"search.noMatch": "No matching symbols",
-	"search.match": "{n} match",
-	"search.matches": "{n} matches",
-	"search.debounced": "debounced 200ms",
-	"state.loading": "Loading graph…",
-	"state.ready": "Ready",
-	"state.error": "Error",
-	"state.noData": "No data",
-	"state.updated": "Updated {time}",
-	"state.truncated": "Showing top {shown} of {total} nodes",
-	"state.truncatedHint": "Graph is truncated for performance. Showing most important nodes.",
-	"empty.title": "No graph data yet",
-	"empty.subtitle": "Import a .codegraph folder, paste graph data, or scan a repository.",
-	"empty.import": "Import Graph",
-	"error.title": "Something went wrong",
-	"error.retry": "Retry",
-	"detail.ariaLabel": "Node details",
-	"detail.close": "Close details",
-	"detail.type": "Type",
-	"detail.kind": "Kind",
-	"detail.file": "File",
-	"detail.line": "Line",
-	"detail.properties": "Properties",
-	"detail.connections": "Connections",
-	"detail.doubleClickExpand": "Double-click to expand related nodes",
-	"detail.expanded": "Expanded",
-	"detail.collapse": "Collapse",
-	"detail.microViews": "Micro views",
-	"detail.aggregateCallChain": "Aggregate Call Chain",
-	"detail.functionsInCluster": "Functions in cluster",
-	"detail.signature": "Signature",
-	"detail.docstring": "Docstring",
-	"minimap.title": "Overview",
-	"minimap.close": "Close mini-map",
-	"minimap.functions": "Functions",
-	"minimap.classes": "Classes",
-	"minimap.variables": "Variables",
-	"minimap.modules": "Modules",
-	"minimap.interfaces": "Interfaces",
-	"minimap.total": "Total",
-	"import.title": "Import Graph",
-	"import.close": "Close import",
-	"import.workspace": "Workspace",
-	"import.paste": "Paste",
-	"import.workspacePath": "Current workspace path",
-	"import.workspaceHint": "Scan the current DSH workspace for .codegraph database",
-	"import.scanWorkspace": "Scan Workspace",
-	"import.scanning": "Scanning…",
-	"import.pastePlaceholder": "Paste graph JSON here, e.g. {\"nodes\":[...],\"edges\":[...]}",
-	"import.importJson": "Import JSON",
-	"import.importing": "Importing…",
-	"import.fileTooLarge": "File too large (max 10 MB)",
-	"import.pasteFirst": "Paste JSON first",
-	"import.enterPath": "Enter a repository path",
-	"import.imported": "Imported {nodes} nodes · {edges} edges",
-	"import.importFailed": "Import failed: {msg}",
-	"import.requestedScan": "Requested scan of {path}",
-	"import.fileReadError": "File read error",
-	"import.prereqMissing": "Prerequisite plugins (dsh-codegraph or dsh-tool-lens) not detected. Install one for full functionality.",
-	"import.prereqCmd": "{cmd}",
-	"import.prereqCopy": "Copy install command",
-	"import.copied": "Copied",
-	"import.initGraph": "Initialize Graph",
-	"import.initializing": "Initializing…",
-	"import.initStarted": "Initializing graph for {path}",
-	"import.initSuccess": "Graph initialized successfully",
-	"import.initFailed": "Initialization failed — check prerequisite plugins",
-	"import.watchOn": "Auto Refresh: ON",
-	"import.watchOff": "Auto Refresh: OFF",
-	"legend.title": "Legend",
-	"legend.close": "Close legend",
-	"legend.nodes": "Nodes",
-	"legend.edges": "Edges",
-	"legend.function": "Function",
-	"legend.class": "Class",
-	"legend.variable": "Variable",
-	"legend.module": "Module",
-	"legend.interface": "Interface",
-	"legend.type": "Type",
-	"legend.call": "calls",
-	"legend.import": "imports",
-	"legend.extend": "extends",
-	"legend.implement": "implements",
-	"legend.dependency": "depends on",
-	"legend.contains": "contains",
-	"export.png": "PNG",
-	"export.svg": "SVG",
-	"export.json": "JSON",
-	"workspace.title": "Workspace",
-	"workspace.current": "Current Workspace",
-	"workspace.switch": "Switch Workspace",
-	"workspace.add": "Add Workspace",
-	"workspace.remove": "Remove",
-	"workspace.empty": "No workspaces yet",
-	"workspace.namePlaceholder": "Workspace path or name",
-	"workspace.addHint": "Enter a path and press Enter to add",
-	"workspace.active": "Active",
-	"workspace.lastUsed": "Last used",
-	"workspace.default": "Default",
-	"workspace.timeJustNow": "just now",
-	"workspace.timeMinutesAgo": "{n}m ago",
-	"workspace.timeHoursAgo": "{n}h ago",
-	"workspace.timeDaysAgo": "{n}d ago",
-	"prereq.installCodegraph": "dsh plugin --profile web add dsh-codegraph",
-	"prereq.installLens": "dsh plugin --profile web add dsh-tool-lens",
-	"prereq.installTitle": "Install Prerequisite Plugin",
-	"prereq.detecting": "Detecting prerequisite plugins…",
-	"prereq.found": "Prerequisite plugin detected",
-	"prereq.notFound": "Not detected",
-	"prereq.codegraphLabel": "dsh-codegraph",
-	"prereq.lensLabel": "dsh-tool-lens",
-	"prereq.codegraphDesc": "Required for code graph data — provides 20+ language support and incremental indexing.",
-	"prereq.lensDesc": "Optional — provides AST-precise analysis and impact detection.",
-	"graph.init": "Initialize Graph",
-	"graph.initializing": "Initializing graph…",
-	"graph.initSuccess": "Graph initialized successfully",
-	"graph.initFailed": "Initialization failed",
-	"graph.refresh": "Refresh",
-	"graph.hotUpdate": "Hot Update",
-	"graph.hotUpdateOn": "Auto refresh: ON",
-	"graph.hotUpdateOff": "Auto refresh: OFF",
-	"empty.prereqTitle": "Prerequisite Plugin Required",
-	"empty.prereqDesc": "Install dsh-codegraph or dsh-tool-lens for full functionality:",
-	"empty.copyCmd": "Copy install command",
-	"empty.copied": "Copied!",
-	"empty.scanWorkspace": "Scan Current Workspace",
-	"shortcut.title": "Keyboard Shortcuts",
-	"shortcut.close": "Close",
-	"shortcut.search": "Search symbols",
-	"shortcut.closeAll": "Close all panels",
-	"shortcut.callChain": "Toggle call chain",
-	"shortcut.impact": "Toggle impact analysis",
-	"shortcut.inheritance": "Toggle inheritance hierarchy",
-	"shortcut.minimap": "Toggle mini-map",
-	"shortcut.layout": "Cycle layout",
-	"shortcut.import": "Toggle import panel",
-	"shortcut.help": "Show this help",
-	"edge.tooltip.source": "Source",
-	"edge.tooltip.target": "Target",
-	"edge.tooltip.type": "Relationship",
-	"state.complete": "Graph is complete ({total} nodes)",
-	"pathFind.title": "Path Finder",
-	"pathFind.close": "Close path finder",
-	"pathFind.start": "Start",
-	"pathFind.end": "End",
-	"pathFind.startPlaceholder": "Search start symbol…",
-	"pathFind.endPlaceholder": "Search end symbol…",
-	"pathFind.find": "Find Path",
-	"pathFind.clear": "Clear",
-	"pathFind.length": "Path length",
-	"pathFind.hops": "Hops",
-	"pathFind.noPath": "Unreachable",
-	"health.title": "Architecture Health Score",
-	"health.close": "Close health score",
-	"health.noData": "Click \"Check\" to calculate score",
-	"health.overall": "Overall",
-	"health.coupling": "Coupling",
-	"health.cohesion": "Cohesion",
-	"health.cyclicDependencyRate": "Cyclic Dep Rate",
-	"health.modularity": "Modularity",
-	"health.couplingDesc": "Lower inter-module coupling is better",
-	"health.cohesionDesc": "Higher intra-module cohesion is better",
-	"health.cyclicDesc": "Fewer circular dependencies is better",
-	"health.modularityDesc": "Better module separation is better",
-	"rules.title": "Rule Engine",
-	"rules.close": "Close rule engine",
-	"rules.config": "Rule Configuration",
-	"rules.loadPresets": "Load Preset Rules",
-	"rules.noRules": "No rules yet, click \"Load Preset Rules\"",
-	"rules.check": "Check Violations",
-	"rules.violations": "Violations",
-	"rules.noViolations": "No violations",
-	"focus.title": "Focus Mode",
-	"focus.mode": "Focus",
-	"focus.depth": "Depth",
-	"focus.expand": "Expand next layer",
-	"focus.contract": "Contract one layer",
-	"focus.exit": "Exit focus",
-	"toolbar.pathFind": "Path Finder",
-	"toolbar.health": "Architecture Health Score",
-	"toolbar.rules": "Rule Engine",
-	"toolbar.hotspot": "Hotspot Analysis",
-	"toolbar.godModule": "God Module Detection",
-	"toolbar.coreFunction": "Core Function Analysis",
-	"impact.total": "Total impacted nodes",
-	"toolbar.undo": "Undo (Ctrl+Z)",
-	"toolbar.redo": "Redo (Ctrl+Y)",
-	"toolbar.viewModeDeps": "Switch to dependency graph view",
-	"toolbar.viewModeCode": "Switch to code graph view",
-	"toolbar.viewModeInheritance": "Switch to inheritance tree view",
-	"toolbar.viewModeCallgraph": "Switch to call graph view",
-	"toolbar.viewModePackage": "Switch to package/component diagram view",
-	"toolbar.viewModeClass": "Switch to class diagram view",
-	"toolbar.viewModeCfg": "Switch to control flow graph view",
-	"toolbar.viewModeFlowchart": "Switch to flowchart view",
-	"toolbar.viewModeSequence": "Switch to sequence diagram view",
-	"viewMode.code": "Code",
-	"viewMode.dependencies": "Deps",
-	"viewMode.inheritance": "Inherit",
-	"viewMode.callgraph": "Call",
-	"viewMode.package": "Pkg",
-	"viewMode.class": "Class",
-	"viewMode.cfg": "CFG",
-	"viewMode.flowchart": "Flow",
-	"viewMode.sequence": "Seq",
-	"micro.selectFunctionPrompt": "Please select a function node in the code graph first, then switch to this view",
-	"micro.backToCode": "Back to Code View",
-	"sequence.noData": "No sequence data available",
-	"micro.selectedFunction": "Current function: {name}",
-	"micro.clearSelection": "Clear selection",
-	"stats.nodesEdges": "{nodes} nodes · {edges} edges",
-	"godmodule.stats": "{nodes} nodes · {edges} edges",
-	"search.moreResults": "+{n} more results",
-	"layer.inheritance.0": "Root Overview",
-	"layer.inheritance.1": "2-Level Depth",
-	"layer.inheritance.2": "Full Tree",
-	"layer.callgraph.0": "Entry Functions",
-	"layer.callgraph.1": "2-Level Calls",
-	"layer.callgraph.2": "Full Call Graph",
-	"layer.package.0": "Top Packages",
-	"layer.package.1": "Sub Packages",
-	"layer.package.2": "Package Modules",
-	"layer.class.0": "Class Overview",
-	"layer.class.1": "Class Relations",
-	"layer.class.2": "Full Class Diagram",
-	"layer.code.0": "Directory Cluster",
-	"layer.code.1": "File Cluster",
-	"layer.code.2": "All Nodes",
-	"layer.dependencies.0": "Directory Deps",
-	"layer.dependencies.1": "File Dependencies",
-	"layer.dependencies.2": "Module Dependencies",
-	"coreFunction.category.entry": "Entry",
-	"coreFunction.category.hub": "Hub",
-	"coreFunction.category.api": "API",
-	"coreFunction.category.critical": "Critical",
-	"coreFunction.reason.high-indegree": "High In-Degree",
-	"coreFunction.reason.high-outdegree": "High Out-Degree",
-	"coreFunction.reason.entry-point": "Entry Point",
-	"coreFunction.reason.exported": "Exported",
-	"coreFunction.reason.handler-pattern": "Handler",
-	"coreFunction.reason.event-pattern": "Event",
-	"coreFunction.reason.cli-pattern": "CLI",
-	"coreFunction.reason.large-influence": "Large Influence",
-	"coreFunction.reason.deep-call-chain": "Deep Call Chain",
-	"coreFunction.reason.hub-function": "Hub Function",
-	"coreFunction.inDegree": "In-Degree",
-	"coreFunction.outDegree": "Out-Degree",
-	"coreFunction.influenceReach": "Influence Reach",
-	"coreFunction.callChainDepth": "Call Chain Depth"
-};
-
-//#endregion
-//#region src/client/i18n/dicts/zh.ts
-const zh = {
-	"panel.ariaLabel": "代码图谱可视化",
-	"panel.expand": "展开图谱面板",
-	"panel.collapse": "折叠",
-	"panel.expandPanel": "展开面板",
-	"panel.collapsePanel": "折叠面板",
-	"panel.resetSize": "双击恢复响应式填充",
-	"toolbar.import": "导入图谱 (Ctrl+I)",
-	"toolbar.filter": "按节点类型筛选",
-	"toolbar.search": "搜索符号 (按 /)",
-	"toolbar.chain": "切换调用链高亮 (Ctrl+C)",
-	"toolbar.cycles": "高亮循环依赖",
-	"toolbar.impact": "影响分析 - 显示依赖者 (Ctrl+E)",
-	"toolbar.inheritance": "继承层次 - 显示继承/实现关系 (Ctrl+H)",
-	"toolbar.minimap": "切换缩略图 (Ctrl+M)",
-	"toolbar.legend": "切换图例",
-	"toolbar.refresh": "刷新图谱",
-	"toolbar.dataGroup": "数据控制",
-	"toolbar.analysisGroup": "分析工具",
-	"toolbar.viewGroup": "视图控制",
-	"toolbar.settingsGroup": "设置",
-	"toolbar.theme": "切换主题",
-	"toolbar.export": "导出图谱",
-	"toolbar.lang": "切换语言",
-	"toolbar.layout": "切换至 {l} 布局 (Ctrl+L 循环)",
-	"toolbar.graphType": "图谱类型切换",
-	"toolbar.cluster": "展开深度",
-	"toolbar.layer": "图谱层级",
-	"clusterDepth.directory": "目录级",
-	"clusterDepth.file": "文件级",
-	"clusterDepth.function": "函数级",
-	"filter.all": "全部类型",
-	"filter.function": "函数",
-	"filter.class": "类",
-	"filter.variable": "变量",
-	"filter.module": "模块",
-	"filter.interface": "接口",
-	"graphType.all": "全部",
-	"graphType.call": "调用",
-	"graphType.dependency": "依赖",
-	"search.placeholder": "搜索符号…",
-	"search.close": "关闭搜索",
-	"search.noMatch": "无匹配符号",
-	"search.match": "{n} 个匹配",
-	"search.matches": "{n} 个匹配",
-	"search.debounced": "防抖 200ms",
-	"state.loading": "加载图谱中…",
-	"state.ready": "就绪",
-	"state.error": "错误",
-	"state.noData": "无数据",
-	"state.updated": "更新于 {time}",
-	"state.truncated": "显示前 {shown}/{total} 节点",
-	"state.truncatedHint": "图谱已截断以提升性能，仅显示最重要的节点。",
-	"empty.title": "暂无图谱数据",
-	"empty.subtitle": "导入 .codegraph 文件夹、粘贴图谱数据或扫描仓库。",
-	"empty.import": "导入图谱",
-	"error.title": "出错了",
-	"error.retry": "重试",
-	"detail.ariaLabel": "节点详情",
-	"detail.close": "关闭详情",
-	"detail.type": "类型",
-	"detail.kind": "类别",
-	"detail.file": "文件",
-	"detail.line": "行号",
-	"detail.properties": "属性",
-	"detail.connections": "连接数",
-	"detail.doubleClickExpand": "双击展开相关节点",
-	"detail.expanded": "已展开",
-	"detail.collapse": "收起",
-	"detail.microViews": "微观图谱",
-	"detail.aggregateCallChain": "聚合调用链",
-	"detail.functionsInCluster": "聚类中的函数",
-	"detail.signature": "签名",
-	"detail.docstring": "文档字符串",
-	"minimap.title": "概览",
-	"minimap.close": "关闭缩略图",
-	"minimap.functions": "函数",
-	"minimap.classes": "类",
-	"minimap.variables": "变量",
-	"minimap.modules": "模块",
-	"minimap.interfaces": "接口",
-	"minimap.total": "总计",
-	"import.title": "导入图谱",
-	"import.close": "关闭导入",
-	"import.workspace": "工作区",
-	"import.paste": "粘贴",
-	"import.workspacePath": "当前工作区路径",
-	"import.workspaceHint": "扫描当前 DSH 工作区的 .codegraph 数据库",
-	"import.scanWorkspace": "扫描工作区",
-	"import.scanning": "扫描中…",
-	"import.pastePlaceholder": "在此粘贴图谱 JSON，例如 {\"nodes\":[...],\"edges\":[...]}",
-	"import.importJson": "导入 JSON",
-	"import.importing": "导入中…",
-	"import.fileTooLarge": "文件过大 (最大 10 MB)",
-	"import.pasteFirst": "请先粘贴 JSON",
-	"import.enterPath": "请输入仓库路径",
-	"import.imported": "已导入 {nodes} 节点 · {edges} 边",
-	"import.importFailed": "导入失败: {msg}",
-	"import.requestedScan": "已请求扫描 {path}",
-	"import.fileReadError": "文件读取错误",
-	"import.prereqMissing": "未检测到前置插件 (dsh-codegraph 或 dsh-tool-lens)。请安装其一以获得完整功能。",
-	"import.prereqCmd": "{cmd}",
-	"import.prereqCopy": "复制安装命令",
-	"import.copied": "已复制",
-	"import.initGraph": "初始化图谱",
-	"import.initializing": "初始化中…",
-	"import.initStarted": "正在为 {path} 初始化图谱",
-	"import.initSuccess": "图谱初始化成功",
-	"import.initFailed": "初始化失败 — 请检查前置插件",
-	"import.watchOn": "热更新: 开启",
-	"import.watchOff": "热更新: 关闭",
-	"legend.title": "图例",
-	"legend.close": "关闭图例",
-	"legend.nodes": "节点",
-	"legend.edges": "边",
-	"legend.function": "函数",
-	"legend.class": "类",
-	"legend.variable": "变量",
-	"legend.module": "模块",
-	"legend.interface": "接口",
-	"legend.type": "类型",
-	"legend.call": "调用",
-	"legend.import": "导入",
-	"legend.extend": "继承",
-	"legend.implement": "实现",
-	"legend.dependency": "依赖",
-	"legend.contains": "包含",
-	"export.png": "PNG",
-	"export.svg": "SVG",
-	"export.json": "JSON",
-	"workspace.title": "工作区",
-	"workspace.current": "当前工作区",
-	"workspace.switch": "切换工作区",
-	"workspace.add": "添加工作区",
-	"workspace.remove": "移除",
-	"workspace.empty": "暂无工作区",
-	"workspace.namePlaceholder": "工作区路径或名称",
-	"workspace.addHint": "输入路径后按回车添加",
-	"workspace.active": "活跃",
-	"workspace.lastUsed": "上次使用",
-	"workspace.default": "默认",
-	"workspace.timeJustNow": "刚刚",
-	"workspace.timeMinutesAgo": "{n}分钟前",
-	"workspace.timeHoursAgo": "{n}小时前",
-	"workspace.timeDaysAgo": "{n}天前",
-	"prereq.installCodegraph": "dsh plugin --profile web add dsh-codegraph",
-	"prereq.installLens": "dsh plugin --profile web add dsh-tool-lens",
-	"prereq.installTitle": "安装前置插件",
-	"prereq.detecting": "正在检测前置插件…",
-	"prereq.found": "已检测到前置插件",
-	"prereq.notFound": "未检测到",
-	"prereq.codegraphLabel": "dsh-codegraph",
-	"prereq.lensLabel": "dsh-tool-lens",
-	"prereq.codegraphDesc": "必需 — 提供 20+ 语言支持和增量索引。",
-	"prereq.lensDesc": "可选 — 提供 AST 精准分析和影响检测。",
-	"graph.init": "初始化图谱",
-	"graph.initializing": "正在初始化图谱…",
-	"graph.initSuccess": "图谱初始化成功",
-	"graph.initFailed": "初始化失败",
-	"graph.refresh": "刷新",
-	"graph.hotUpdate": "热更新",
-	"graph.hotUpdateOn": "自动刷新: 开启",
-	"graph.hotUpdateOff": "自动刷新: 关闭",
-	"empty.prereqTitle": "需要前置插件",
-	"empty.prereqDesc": "安装 dsh-codegraph 或 dsh-tool-lens 以获得完整功能：",
-	"empty.copyCmd": "复制安装命令",
-	"empty.copied": "已复制！",
-	"empty.scanWorkspace": "扫描当前工作区",
-	"shortcut.title": "键盘快捷键",
-	"shortcut.close": "关闭",
-	"shortcut.search": "搜索符号",
-	"shortcut.closeAll": "关闭所有面板",
-	"shortcut.callChain": "切换调用链",
-	"shortcut.impact": "切换影响分析",
-	"shortcut.inheritance": "切换继承层次",
-	"shortcut.minimap": "切换缩略图",
-	"shortcut.layout": "循环切换布局",
-	"shortcut.import": "切换导入面板",
-	"shortcut.help": "显示此帮助",
-	"edge.tooltip.source": "源节点",
-	"edge.tooltip.target": "目标节点",
-	"edge.tooltip.type": "关系类型",
-	"state.complete": "图谱完整 ({total} 节点)",
-	"pathFind.title": "路径查找",
-	"pathFind.close": "关闭路径查找",
-	"pathFind.start": "起点",
-	"pathFind.end": "终点",
-	"pathFind.startPlaceholder": "搜索起点符号…",
-	"pathFind.endPlaceholder": "搜索终点符号…",
-	"pathFind.find": "查找路径",
-	"pathFind.clear": "清除",
-	"pathFind.length": "路径长度",
-	"pathFind.hops": "经过节点",
-	"pathFind.noPath": "不可达",
-	"health.title": "架构健康评分",
-	"health.close": "关闭健康评分",
-	"health.noData": "点击\"检查\"按钮计算评分",
-	"health.overall": "总体评分",
-	"health.coupling": "耦合度",
-	"health.cohesion": "内聚度",
-	"health.cyclicDependencyRate": "循环依赖率",
-	"health.modularity": "模块度",
-	"health.couplingDesc": "模块间耦合越低越好",
-	"health.cohesionDesc": "模块内内聚越高越好",
-	"health.cyclicDesc": "循环依赖越少越好",
-	"health.modularityDesc": "模块划分越均衡越好",
-	"rules.title": "规则引擎",
-	"rules.close": "关闭规则引擎",
-	"rules.config": "规则配置",
-	"rules.loadPresets": "加载预设规则",
-	"rules.noRules": "暂无规则，点击\"加载预设规则\"",
-	"rules.check": "检查违规",
-	"rules.violations": "违规列表",
-	"rules.noViolations": "无违规",
-	"focus.title": "聚焦模式",
-	"focus.mode": "聚焦",
-	"focus.depth": "深度",
-	"focus.expand": "展开下一层",
-	"focus.contract": "收起一层",
-	"focus.exit": "退出聚焦",
-	"toolbar.pathFind": "路径查找",
-	"toolbar.health": "架构健康评分",
-	"toolbar.rules": "规则引擎",
-	"toolbar.hotspot": "热点分析",
-	"toolbar.godModule": "God Module 检测",
-	"toolbar.coreFunction": "核心函数识别",
-	"impact.total": "总影响节点",
-	"toolbar.undo": "撤销 (Ctrl+Z)",
-	"toolbar.redo": "重做 (Ctrl+Y)",
-	"toolbar.viewModeDeps": "切换到依赖图谱视图",
-	"toolbar.viewModeCode": "切换到代码图谱视图",
-	"toolbar.viewModeInheritance": "切换到继承树视图",
-	"toolbar.viewModeCallgraph": "切换到调用图视图",
-	"toolbar.viewModePackage": "切换到组件/包图视图",
-	"toolbar.viewModeClass": "切换到类图视图",
-	"toolbar.viewModeCfg": "切换到控制流图视图",
-	"toolbar.viewModeFlowchart": "切换到流程图视图",
-	"toolbar.viewModeSequence": "切换到时序图视图",
-	"viewMode.code": "代码",
-	"viewMode.dependencies": "依赖",
-	"viewMode.inheritance": "继承",
-	"viewMode.callgraph": "调用",
-	"viewMode.package": "包",
-	"viewMode.class": "类图",
-	"viewMode.cfg": "CFG",
-	"viewMode.flowchart": "流程",
-	"viewMode.sequence": "时序",
-	"micro.selectFunctionPrompt": "请先在代码图谱中选择一个函数节点，然后切换到此视图",
-	"micro.backToCode": "返回代码视图",
-	"sequence.noData": "暂无时序图数据",
-	"micro.selectedFunction": "当前函数: {name}",
-	"micro.clearSelection": "清除选择",
-	"stats.nodesEdges": "{nodes} 节点 · {edges} 边",
-	"godmodule.stats": "{nodes} 节点 · {edges} 边",
-	"search.moreResults": "还有 {n} 个结果",
-	"layer.inheritance.0": "根接口概览",
-	"layer.inheritance.1": "2层继承深度",
-	"layer.inheritance.2": "完整继承树",
-	"layer.callgraph.0": "入口函数概览",
-	"layer.callgraph.1": "调用链2层",
-	"layer.callgraph.2": "完整调用图",
-	"layer.package.0": "顶层包概览",
-	"layer.package.1": "子包展开",
-	"layer.package.2": "包内模块",
-	"layer.class.0": "类概览",
-	"layer.class.1": "类关系图",
-	"layer.class.2": "完整类图",
-	"layer.code.0": "目录聚类",
-	"layer.code.1": "文件聚类",
-	"layer.code.2": "全部节点",
-	"layer.dependencies.0": "目录依赖概览",
-	"layer.dependencies.1": "文件依赖",
-	"layer.dependencies.2": "模块依赖",
-	"coreFunction.category.entry": "入口",
-	"coreFunction.category.hub": "枢纽",
-	"coreFunction.category.api": "API",
-	"coreFunction.category.critical": "关键",
-	"coreFunction.reason.high-indegree": "高入度",
-	"coreFunction.reason.high-outdegree": "高出度",
-	"coreFunction.reason.entry-point": "入口点",
-	"coreFunction.reason.exported": "已导出",
-	"coreFunction.reason.handler-pattern": "处理器",
-	"coreFunction.reason.event-pattern": "事件",
-	"coreFunction.reason.cli-pattern": "CLI",
-	"coreFunction.reason.large-influence": "大影响",
-	"coreFunction.reason.deep-call-chain": "深调用链",
-	"coreFunction.reason.hub-function": "枢纽函数",
-	"coreFunction.inDegree": "入度",
-	"coreFunction.outDegree": "出度",
-	"coreFunction.influenceReach": "影响范围",
-	"coreFunction.callChainDepth": "调用链深度"
-};
-
-//#endregion
-//#region src/client/i18n/index.ts
-const dicts = {
-	zh,
-	en
-};
-const STORAGE_KEY = "dsh-codegraph-visualizer/lang";
-let currentLang = "zh";
-const listeners = new Set();
-function getStoredLang() {
-	if (typeof window === "undefined") return "zh";
-	try {
-		const stored = window.localStorage.getItem(STORAGE_KEY);
-		return stored === "zh" || stored === "en" ? stored : "zh";
-	} catch {
-		return "zh";
-	}
-}
-function getLang() {
-	return currentLang;
-}
-function setLang(lang) {
-	if (lang === currentLang) return;
-	currentLang = lang;
-	if (typeof window !== "undefined") try {
-		window.localStorage.setItem(STORAGE_KEY, lang);
-	} catch {}
-	for (const fn$7 of listeners) fn$7();
-}
-function toggleLang() {
-	setLang(currentLang === "zh" ? "en" : "zh");
-}
-currentLang = getStoredLang();
-function subscribe(fn$7) {
-	listeners.add(fn$7);
-	return () => {
-		listeners.delete(fn$7);
-	};
-}
-function useLang() {
-	return (0, react.useSyncExternalStore)(subscribe, getLang, getLang);
-}
-function t(key, params) {
-	let str = dicts[currentLang][key] ?? dicts.en[key] ?? key;
-	if (params) for (const [k, v] of Object.entries(params)) str = str.replaceAll(`{${k}}`, String(v));
-	return str;
-}
-function useT() {
-	useLang();
-	return t;
 }
 
 //#endregion
@@ -52699,8 +53256,7 @@ var GraphErrorBoundary = class extends react.Component {
 	static getDerivedStateFromError(error$1) {
 		return {
 			hasError: true,
-			error: error$1,
-			retryKey: 0
+			error: error$1
 		};
 	}
 	componentDidCatch(error$1, errorInfo) {
@@ -52782,10 +53338,10 @@ const CycleIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0,
 	...base(size$1),
 	className,
 	children: [
-		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" }),
-		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 3v5h-5" }),
-		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" }),
-		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 21v-5h5" })
+		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m17 2 4 4-4 4" }),
+		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 11v-1a4 4 0 0 1 4-4h14" }),
+		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m7 22-4-4 4-4" }),
+		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 13v1a4 4 0 0 1-4 4H3" })
 	]
 }));
 const MapIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
@@ -54347,6 +54903,8 @@ function StatusBar({ error: error$1, isLoading, lastUpdated, watchEnabled, works
 	const wsName = workspaceName ? deriveWorkspaceName(workspaceName) : "";
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "status-bar",
+		role: "status",
+		"aria-live": "polite",
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: "status-item",
@@ -54449,6 +55007,7 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, on
 		className: "node-detail-panel",
 		role: "complementary",
 		"aria-label": t$1("detail.ariaLabel"),
+		"aria-live": "polite",
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 				className: "close-btn",
@@ -55069,15 +55628,30 @@ function LoadingOverlay({ visible }) {
 
 //#endregion
 //#region src/client/components/ErrorOverlay.tsx
-function ErrorOverlay({ error: error$1 }) {
+function ErrorOverlay({ error: error$1, onBack, onRetry }) {
+	const t$1 = useT();
 	if (!error$1) return null;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "error-overlay",
 		role: "alert",
-		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(AlertCircleIcon, {
-			size: 16,
-			className: "error-overlay-icon"
-		}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: error$1 })]
+		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			className: "error-overlay-content",
+			children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(AlertCircleIcon, {
+				size: 16,
+				className: "error-overlay-icon"
+			}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: error$1 })]
+		}), (onBack || onRetry) && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			className: "error-overlay-actions",
+			children: [onRetry && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+				className: "error-overlay-btn error-overlay-retry",
+				onClick: onRetry,
+				children: t$1("error.retry")
+			}), onBack && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+				className: "error-overlay-btn error-overlay-back",
+				onClick: onBack,
+				children: t$1("micro.backToCode")
+			})]
+		})]
 	});
 }
 
@@ -55115,6 +55689,14 @@ const SHORTCUTS = [
 	{
 		key: "Ctrl+I",
 		descKey: "shortcut.import"
+	},
+	{
+		key: "Ctrl+Z",
+		descKey: "shortcut.undo"
+	},
+	{
+		key: "Ctrl+Y",
+		descKey: "shortcut.redo"
 	},
 	{
 		key: "?",
@@ -55406,6 +55988,7 @@ function HealthScoreCard({ onClose }) {
 		className: "health-score-card",
 		role: "region",
 		"aria-label": t$1("health.title"),
+		"aria-live": "polite",
 		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 			className: "health-score-header",
 			children: [
@@ -55449,6 +56032,7 @@ function HealthScoreCard({ onClose }) {
 		className: "health-score-card",
 		role: "region",
 		"aria-label": t$1("health.title"),
+		"aria-live": "polite",
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: "health-score-header",
@@ -55672,15 +56256,18 @@ function FocusModeBar({ focusNodeId, onExpand, onContract, onExit }) {
 //#endregion
 //#region src/client/components/HotspotPanel.tsx
 function HotspotPanel({ hotspotNodes, onClose, label }) {
+	const t$1 = useT();
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "analysis-panel hotspot-panel",
 		role: "region",
 		"aria-label": label,
+		"aria-live": "polite",
 		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 			className: "analysis-panel-header",
 			children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: label }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 				onClick: onClose,
 				className: "cg-close-btn",
+				"aria-label": t$1("hotspot.close"),
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CloseIcon, { size: 14 })
 			})]
 		}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
@@ -55713,6 +56300,7 @@ function GodModulePanel({ godModules, onClose, label, statsLabel }) {
 		className: "analysis-panel godmodule-panel",
 		role: "region",
 		"aria-label": label,
+		"aria-live": "polite",
 		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 			className: "analysis-panel-header",
 			children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: label }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
@@ -55750,6 +56338,7 @@ function ImpactPanel({ impactStats, label, totalLabel }) {
 		className: "analysis-panel impact-panel",
 		role: "region",
 		"aria-label": label,
+		"aria-live": "polite",
 		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 			className: "analysis-panel-header",
 			children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: label })
@@ -55815,6 +56404,7 @@ function CoreFunctionPanel({ coreFunctions, onClose, label, onSelectFunction }) 
 		className: "analysis-panel core-function-panel",
 		role: "region",
 		"aria-label": label,
+		"aria-live": "polite",
 		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 			className: "analysis-panel-header",
 			children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: label }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
@@ -55883,14 +56473,18 @@ function CoreFunctionPanel({ coreFunctions, onClose, label, onSelectFunction }) 
 //#endregion
 //#region src/client/components/MicroViewBar.tsx
 function MicroViewPrompt({ viewMode, selectFunctionPrompt, flowchartLabel, sequenceLabel, backToCodeLabel, onBackToCode }) {
+	const modeLabel = viewMode === "cfg" ? "CFG" : viewMode === "flowchart" ? flowchartLabel : sequenceLabel;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "micro-empty-prompt",
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 				className: "micro-empty-icon",
-				children: viewMode === "cfg" ? "CFG" : viewMode === "flowchart" ? flowchartLabel : sequenceLabel
+				children: modeLabel
 			}),
-			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { children: selectFunctionPrompt }),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				className: "micro-empty-text",
+				children: selectFunctionPrompt
+			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 				className: "micro-empty-back-btn",
 				onClick: onBackToCode,
@@ -55899,14 +56493,32 @@ function MicroViewPrompt({ viewMode, selectFunctionPrompt, flowchartLabel, seque
 		]
 	});
 }
-function MicroFunctionBar({ functionName, onClose }) {
+function MicroFunctionBar({ functionName, filePath, viewMode, onClose }) {
+	const t$1 = useT();
+	const modeLabel = viewMode === "cfg" ? "CFG" : viewMode === "flowchart" ? t$1("viewMode.flowchart") : viewMode === "sequence" ? t$1("viewMode.sequence") : "";
+	const shortPath = filePath ? filePath.split(/[\\/]/).slice(-2).join("/") : "";
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "micro-function-bar",
-		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: functionName }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-			className: "micro-function-close",
-			onClick: onClose,
-			children: "✕"
-		})]
+		children: [
+			modeLabel && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+				className: "micro-function-mode",
+				children: modeLabel
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+				className: "micro-function-name",
+				children: functionName
+			}),
+			shortPath && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+				className: "micro-function-path",
+				children: shortPath
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+				className: "micro-function-close",
+				onClick: onClose,
+				"aria-label": t$1("micro.closeView"),
+				children: "✕"
+			})
+		]
 	});
 }
 
@@ -56001,6 +56613,9 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 		x: 0,
 		y: 0
 	});
+	const [hoveredParticipant, setHoveredParticipant] = (0, react.useState)(null);
+	const [hoveredMessage, setHoveredMessage] = (0, react.useState)(null);
+	const [selectedMessage, setSelectedMessage] = (0, react.useState)(null);
 	const isDraggingRef = (0, react.useRef)(false);
 	const dragStartRef = (0, react.useRef)({
 		x: 0,
@@ -56029,7 +56644,8 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 			fragmentLabelBg: isDark ? "#444466" : "#eeeeff",
 			participantBg: isDark ? "#2a2a3e" : "#f0f0f5",
 			participantBorder: isDark ? "#555570" : "#cccccc",
-			gridLine: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)"
+			gridLine: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)",
+			highlightBg: isDark ? "rgba(100,150,255,0.2)" : "rgba(50,100,255,0.15)"
 		};
 	}, [isDark, theme]);
 	const { participants, messages, fragments, dimensions: dimensions$1 } = (0, react.useMemo)(() => {
@@ -56110,6 +56726,9 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 	const handleParticipantClick = (0, react.useCallback)((participantId) => {
 		onNodeTap?.(participantId);
 	}, [onNodeTap]);
+	const handleMessageClick = (0, react.useCallback)((messageId) => {
+		setSelectedMessage((prev) => prev === messageId ? null : messageId);
+	}, []);
 	(0, react.useEffect)(() => {
 		const container = containerRef.current;
 		if (!container) return;
@@ -56119,19 +56738,15 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 		container.addEventListener("wheel", handleNativeWheel, { passive: false });
 		return () => container.removeEventListener("wheel", handleNativeWheel);
 	}, []);
+	(0, react.useEffect)(() => {
+		setSelectedMessage(null);
+	}, [nodes, edges]);
 	if (participants.length === 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 		ref: containerRef,
 		className: "sequence-diagram-container",
 		style: { background: colors$1.bg },
 		children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-			style: {
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "center",
-				height: "100%",
-				color: colors$1.textSecondary,
-				fontSize: "14px"
-			},
+			className: "seq-empty-state",
 			children: t$1("sequence.noData")
 		})
 	});
@@ -56140,13 +56755,11 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		ref: containerRef,
 		className: "sequence-diagram-container",
+		role: "application",
+		"aria-label": `${participants.length} participants, ${messages.length} messages`,
 		style: {
 			background: colors$1.bg,
-			cursor: isDraggingRef.current ? "grabbing" : "grab",
-			position: "relative",
-			overflow: "hidden",
-			width: "100%",
-			height: "100%"
+			cursor: isDraggingRef.current ? "grabbing" : "grab"
 		},
 		onWheel: handleWheel,
 		onMouseDown: handleMouseDown,
@@ -56186,61 +56799,64 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 							const fragWidth = svgWidth - LAYOUT.SVG_PADDING_X * 2;
 							const fragX = LAYOUT.SVG_PADDING_X;
 							const label = frag.type === "loop" ? `loop${frag.loopConstraint ? ` [${frag.loopConstraint}]` : ""}` : `${frag.type}${frag.condition ? ` [${frag.condition}]` : ""}`;
-							return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", { children: [
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
-									x: fragX,
-									y: fragTop,
-									width: fragWidth,
-									height: fragHeight,
-									fill: colors$1.fragmentBg,
-									stroke: colors$1.fragmentBorder,
-									strokeWidth: 1.5,
-									rx: 2
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
-									x: fragX,
-									y: fragTop,
-									width: Math.max(label.length * 7 + 16, 50),
-									height: LAYOUT.FRAGMENT_LABEL_HEIGHT,
-									fill: colors$1.fragmentLabelBg,
-									stroke: colors$1.fragmentBorder,
-									strokeWidth: 1,
-									rx: 2
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
-									x: fragX + 8,
-									y: fragTop + 14,
-									fill: colors$1.text,
-									fontSize: 11,
-									fontFamily: "monospace",
-									fontWeight: "bold",
-									children: label
-								}),
-								frag.operands.length > 1 && frag.operands.slice(1).map((op, idx) => {
-									const opY = messageYBySeq.get(op.startMessage);
-									if (opY === void 0) return null;
-									return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("line", {
-										x1: fragX,
-										y1: opY - LAYOUT.MESSAGE_LABEL_HEIGHT - LAYOUT.FRAGMENT_PADDING,
-										x2: fragX + fragWidth,
-										y2: opY - LAYOUT.MESSAGE_LABEL_HEIGHT - LAYOUT.FRAGMENT_PADDING,
+							return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", {
+								className: "seq-fragment-group",
+								children: [
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
+										x: fragX,
+										y: fragTop,
+										width: fragWidth,
+										height: fragHeight,
+										fill: colors$1.fragmentBg,
+										stroke: colors$1.fragmentBorder,
+										strokeWidth: 1.5,
+										rx: 2
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
+										x: fragX,
+										y: fragTop,
+										width: Math.max(label.length * 7 + 16, 50),
+										height: LAYOUT.FRAGMENT_LABEL_HEIGHT,
+										fill: colors$1.fragmentLabelBg,
 										stroke: colors$1.fragmentBorder,
 										strokeWidth: 1,
-										strokeDasharray: "4,2"
-									}), op.guardCondition && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("text", {
+										rx: 2
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
 										x: fragX + 8,
-										y: opY - LAYOUT.MESSAGE_LABEL_HEIGHT - LAYOUT.FRAGMENT_PADDING + 14,
-										fill: colors$1.textSecondary,
-										fontSize: 10,
+										y: fragTop + 14,
+										fill: colors$1.text,
+										fontSize: 11,
 										fontFamily: "monospace",
-										children: [
-											"[",
-											op.guardCondition,
-											"]"
-										]
-									})] }, `frag-${frag.id}-op-${idx}`);
-								})
-							] }, `frag-${frag.id}`);
+										fontWeight: "bold",
+										children: label
+									}),
+									frag.operands.length > 1 && frag.operands.slice(1).map((op, idx) => {
+										const opY = messageYBySeq.get(op.startMessage);
+										if (opY === void 0) return null;
+										return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("line", {
+											x1: fragX,
+											y1: opY - LAYOUT.MESSAGE_LABEL_HEIGHT - LAYOUT.FRAGMENT_PADDING,
+											x2: fragX + fragWidth,
+											y2: opY - LAYOUT.MESSAGE_LABEL_HEIGHT - LAYOUT.FRAGMENT_PADDING,
+											stroke: colors$1.fragmentBorder,
+											strokeWidth: 1,
+											strokeDasharray: "4,2"
+										}), op.guardCondition && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("text", {
+											x: fragX + 8,
+											y: opY - LAYOUT.MESSAGE_LABEL_HEIGHT - LAYOUT.FRAGMENT_PADDING + 14,
+											fill: colors$1.textSecondary,
+											fontSize: 10,
+											fontFamily: "monospace",
+											children: [
+												"[",
+												op.guardCondition,
+												"]"
+											]
+										})] }, `frag-${frag.id}-op-${idx}`);
+									})
+								]
+							}, `frag-${frag.id}`);
 						}),
 						participants.map((p$1) => {
 							const lifelineTop = dimensions$1.lifelineTop;
@@ -56317,40 +56933,55 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 							if (!sourceP || !targetP) return null;
 							const arrowColor = msg.isReturn ? colors$1.returnArrow : msg.isAsync ? colors$1.asyncArrow : msg.isSelfCall ? colors$1.selfCallArrow : msg.isCreate ? colors$1.createArrow : colors$1.syncArrow;
 							const lineStyle = msg.isReturn ? "4,3" : "none";
+							const isHighlighted = hoveredMessage === msg.id || selectedMessage === msg.id;
 							if (msg.isSelfCall || msg.source === msg.target) {
 								const loopX = sourceP.x + LAYOUT.ACTIVATION_WIDTH / 2;
 								const loopStartY = msg.y - LAYOUT.SELF_CALL_HEIGHT / 2;
 								const loopEndY = msg.y + LAYOUT.SELF_CALL_HEIGHT / 2;
 								const loopWidth = LAYOUT.SELF_CALL_WIDTH;
-								return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", { children: [
-									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("title", { children: [`${msg.methodName}(${msg.arguments})`, msg.lineNumber ? ` :${msg.lineNumber}` : ""] }),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", {
-										d: `M ${loopX} ${loopStartY} L ${loopX + loopWidth} ${loopStartY} L ${loopX + loopWidth} ${loopEndY} L ${loopX + LAYOUT.ARROW_HEAD_SIZE} ${loopEndY}`,
-										fill: "none",
-										stroke: arrowColor,
-										strokeWidth: 1.5
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("polygon", {
-										points: `${loopX},${loopEndY} ${loopX + LAYOUT.ARROW_HEAD_SIZE},${loopEndY - 4} ${loopX + LAYOUT.ARROW_HEAD_SIZE},${loopEndY + 4}`,
-										fill: arrowColor
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
-										x: loopX + loopWidth + 4,
-										y: msg.y - 2,
-										fill: colors$1.text,
-										fontSize: 11,
-										fontFamily: "monospace",
-										children: truncateLabel(msg.methodName, 100)
-									}),
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
-										x: loopX + loopWidth + 4,
-										y: msg.y + 10,
-										fill: colors$1.textSecondary,
-										fontSize: 9,
-										fontFamily: "monospace",
-										children: formatArguments(msg.arguments)
-									})
-								] }, `msg-${msg.id}`);
+								return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", {
+									className: "seq-message-group",
+									onClick: () => handleMessageClick(msg.id),
+									onMouseEnter: () => setHoveredMessage(msg.id),
+									onMouseLeave: () => setHoveredMessage(null),
+									children: [
+										/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("title", { children: [`${msg.methodName}(${msg.arguments})`, msg.lineNumber ? ` :${msg.lineNumber}` : ""] }),
+										isHighlighted && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
+											x: loopX - 2,
+											y: loopStartY - 2,
+											width: loopWidth + 4,
+											height: loopEndY - loopStartY + 4,
+											fill: colors$1.highlightBg,
+											rx: 2
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", {
+											d: `M ${loopX} ${loopStartY} L ${loopX + loopWidth} ${loopStartY} L ${loopX + loopWidth} ${loopEndY} L ${loopX + LAYOUT.ARROW_HEAD_SIZE} ${loopEndY}`,
+											fill: "none",
+											stroke: arrowColor,
+											strokeWidth: isHighlighted ? 2.5 : 1.5
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("polygon", {
+											points: `${loopX},${loopEndY} ${loopX + LAYOUT.ARROW_HEAD_SIZE},${loopEndY - 4} ${loopX + LAYOUT.ARROW_HEAD_SIZE},${loopEndY + 4}`,
+											fill: arrowColor
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
+											x: loopX + loopWidth + 4,
+											y: msg.y - 2,
+											fill: colors$1.text,
+											fontSize: 11,
+											fontFamily: "monospace",
+											children: truncateLabel(msg.methodName, 100)
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
+											x: loopX + loopWidth + 4,
+											y: msg.y + 10,
+											fill: colors$1.textSecondary,
+											fontSize: 9,
+											fontFamily: "monospace",
+											children: formatArguments(msg.arguments)
+										})
+									]
+								}, `msg-${msg.id}`);
 							}
 							const sourceX = sourceP.x;
 							const targetX = targetP.x;
@@ -56365,59 +56996,78 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 							const labelY = msg.y - 4;
 							const seqLabel = `${msg.sequenceNumber}: ${truncateLabel(msg.methodName, 120)}`;
 							const argLabel = formatArguments(msg.arguments);
-							return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", { children: [
-								/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("title", { children: [`${msg.methodName}(${msg.arguments})`, msg.lineNumber ? ` :${msg.lineNumber}` : ""] }),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("line", {
-									x1: arrowStartX,
-									y1: msg.y,
-									x2: arrowEndX - arrowHeadDir * LAYOUT.ARROW_HEAD_SIZE,
-									y2: msg.y,
-									stroke: arrowColor,
-									strokeWidth: 1.5,
-									strokeDasharray: lineStyle
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("polygon", {
-									points: arrowHeadPoints,
-									fill: msg.isAsync ? "none" : arrowColor,
-									stroke: arrowColor,
-									strokeWidth: 1.5
-								}),
-								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
-									x: labelX,
-									y: labelY,
-									fill: colors$1.text,
-									fontSize: 11,
-									fontFamily: "monospace",
-									textAnchor: "middle",
-									children: seqLabel
-								}),
-								argLabel && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
-									x: labelX,
-									y: labelY + 12,
-									fill: colors$1.textSecondary,
-									fontSize: 9,
-									fontFamily: "monospace",
-									textAnchor: "middle",
-									children: argLabel
-								})
-							] }, `msg-${msg.id}`);
+							return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", {
+								className: "seq-message-group",
+								onClick: () => handleMessageClick(msg.id),
+								onMouseEnter: () => setHoveredMessage(msg.id),
+								onMouseLeave: () => setHoveredMessage(null),
+								children: [
+									/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("title", { children: [`${msg.methodName}(${msg.arguments})`, msg.lineNumber ? ` :${msg.lineNumber}` : ""] }),
+									isHighlighted && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
+										x: Math.min(arrowStartX, arrowEndX) - 4,
+										y: msg.y - 10,
+										width: Math.abs(arrowEndX - arrowStartX) + 8,
+										height: 20,
+										fill: colors$1.highlightBg,
+										rx: 2
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("line", {
+										className: "seq-message-line",
+										x1: arrowStartX,
+										y1: msg.y,
+										x2: arrowEndX - arrowHeadDir * LAYOUT.ARROW_HEAD_SIZE,
+										y2: msg.y,
+										stroke: arrowColor,
+										strokeWidth: isHighlighted ? 2.5 : 1.5,
+										strokeDasharray: lineStyle
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("polygon", {
+										points: arrowHeadPoints,
+										fill: msg.isAsync ? "none" : arrowColor,
+										stroke: arrowColor,
+										strokeWidth: 1.5
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
+										x: labelX,
+										y: labelY,
+										fill: colors$1.text,
+										fontSize: 11,
+										fontFamily: "monospace",
+										textAnchor: "middle",
+										children: seqLabel
+									}),
+									argLabel && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("text", {
+										x: labelX,
+										y: labelY + 12,
+										fill: colors$1.textSecondary,
+										fontSize: 9,
+										fontFamily: "monospace",
+										textAnchor: "middle",
+										children: argLabel
+									})
+								]
+							}, `msg-${msg.id}`);
 						}),
 						participants.map((p$1) => {
 							const color = getParticipantColor(p$1.type, isDark);
 							const boxX = p$1.x - LAYOUT.PARTICIPANT_BOX_WIDTH / 2;
 							const boxY = LAYOUT.SVG_PADDING_TOP;
+							const isHovered = hoveredParticipant === p$1.id;
 							return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", {
-								style: { cursor: "pointer" },
+								className: "seq-participant-group",
 								onClick: () => handleParticipantClick(p$1.id),
+								onMouseEnter: () => setHoveredParticipant(p$1.id),
+								onMouseLeave: () => setHoveredParticipant(null),
 								children: [
 									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
+										className: "seq-participant-box",
 										x: boxX,
 										y: boxY,
 										width: LAYOUT.PARTICIPANT_BOX_WIDTH,
 										height: LAYOUT.PARTICIPANT_BOX_HEIGHT,
 										fill: colors$1.participantBg,
 										stroke: color,
-										strokeWidth: 2,
+										strokeWidth: isHovered ? 3 : 2,
 										rx: 3
 									}),
 									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
@@ -56467,79 +57117,27 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 				})
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				style: {
-					position: "absolute",
-					bottom: "8px",
-					right: "8px",
-					display: "flex",
-					flexDirection: "column",
-					gap: "4px",
-					zIndex: 10
-				},
+				className: "seq-zoom-controls",
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+						className: "seq-zoom-btn",
 						onClick: () => setZoom((z) => Math.min(3, z * 1.2)),
-						style: {
-							width: "28px",
-							height: "28px",
-							border: `1px solid ${colors$1.participantBorder}`,
-							background: colors$1.participantBg,
-							color: colors$1.text,
-							cursor: "pointer",
-							borderRadius: "4px",
-							fontSize: "14px",
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center"
-						},
 						children: "+"
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+						className: "seq-zoom-btn",
 						onClick: () => setZoom((z) => Math.max(.3, z * .8)),
-						style: {
-							width: "28px",
-							height: "28px",
-							border: `1px solid ${colors$1.participantBorder}`,
-							background: colors$1.participantBg,
-							color: colors$1.text,
-							cursor: "pointer",
-							borderRadius: "4px",
-							fontSize: "14px",
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center"
-						},
 						children: "−"
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+						className: "seq-zoom-btn seq-reset",
 						onClick: handleResetView,
-						style: {
-							width: "28px",
-							height: "28px",
-							border: `1px solid ${colors$1.participantBorder}`,
-							background: colors$1.participantBg,
-							color: colors$1.text,
-							cursor: "pointer",
-							borderRadius: "4px",
-							fontSize: "10px",
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center"
-						},
 						children: "⟲"
 					})
 				]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				style: {
-					position: "absolute",
-					bottom: "8px",
-					left: "8px",
-					color: colors$1.textSecondary,
-					fontSize: "10px",
-					fontFamily: "monospace",
-					zIndex: 10
-				},
+				className: "seq-zoom-indicator",
 				children: [Math.round(zoom * 100), "%"]
 			})
 		]
@@ -56615,6 +57213,7 @@ function GraphPanelInner({ className = "" }) {
 	const collapseAll = useGraphStore((s) => s.collapseAll);
 	const setPathResult = useGraphStore((s) => s.setPathResult);
 	const setFocusDepth = useGraphStore((s) => s.setFocusDepth);
+	const assembleMicro = useGraphStore((s) => s.assembleMicro);
 	const panelHeight = useGraphStore((s) => s.panelHeight);
 	const panelWidth = useGraphStore((s) => s.panelWidth);
 	const handleCollapseAll = (0, react.useCallback)(() => {
@@ -56753,22 +57352,7 @@ function GraphPanelInner({ className = "" }) {
 		window.addEventListener("codegraph:symbol-select", symbolHandler);
 		return () => window.removeEventListener("codegraph:symbol-select", symbolHandler);
 	}, [renderer$1.rendererRef]);
-	(0, react.useEffect)(() => {
-		const observer = new MutationObserver(() => {
-			const isDark = document.body.hasAttribute("data-ds-dark-theme");
-			const newTheme = isDark ? "dark" : "light";
-			const current = useGraphStore.getState().theme;
-			if (current !== newTheme) {
-				useGraphStore.getState().setTheme(newTheme);
-				renderer$1.updateTheme(newTheme);
-			}
-		});
-		observer.observe(document.body, {
-			attributes: true,
-			attributeFilter: ["data-ds-dark-theme"]
-		});
-		return () => observer.disconnect();
-	}, [renderer$1.updateTheme]);
+	useThemeSync(renderer$1.updateTheme);
 	usePanelResize(panelRef, renderer$1.rendererRef);
 	(0, react.useEffect)(() => {
 		if (panel.collapsed) return;
@@ -56894,6 +57478,7 @@ function GraphPanelInner({ className = "" }) {
 		const newTheme = theme === "dark" ? "light" : "dark";
 		if (newTheme === "dark") document.body.setAttribute("data-ds-dark-theme", "");
 		else document.body.removeAttribute("data-ds-dark-theme");
+		invalidateCssVarCache();
 		setTheme(newTheme);
 		renderer$1.updateTheme(newTheme);
 	}, [
@@ -57152,8 +57737,12 @@ function GraphPanelInner({ className = "" }) {
 				onClose: () => panel.setShowRules(false)
 			}),
 			isLoading && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LoadingOverlay, { visible: true }),
-			error$1 && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ErrorOverlay, { error: error$1 }),
-			isMicroView && !selectedFunction && !isLoading && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(MicroViewPrompt, {
+			error$1 && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ErrorOverlay, {
+				error: error$1,
+				onBack: isMicroView ? handleCloseMicroView : void 0,
+				onRetry: isMicroView && selectedFunction ? () => assembleMicro(viewMode) : void 0
+			}),
+			isMicroView && !selectedFunction && !isLoading && !error$1 && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(MicroViewPrompt, {
 				viewMode,
 				selectFunctionPrompt: t$1("micro.selectFunctionPrompt"),
 				flowchartLabel: t$1("toolbar.viewModeFlowchart"),
@@ -57161,8 +57750,10 @@ function GraphPanelInner({ className = "" }) {
 				backToCodeLabel: t$1("micro.backToCode"),
 				onBackToCode: handleCloseMicroView
 			}),
-			isMicroView && selectedFunction && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(MicroFunctionBar, {
+			isMicroView && selectedFunction && !error$1 && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(MicroFunctionBar, {
 				functionName: selectedFunction.functionName,
+				filePath: selectedFunction.filePath,
+				viewMode,
 				onClose: handleCloseMicroView
 			}),
 			nodes.length === 0 && !isLoading && !error$1 && !isCollapsed && !isMicroView && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(EmptyState, {
@@ -57194,7 +57785,17 @@ function GraphPanelInner({ className = "" }) {
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 				className: "graph-container",
 				ref: renderer$1.containerRef,
-				style: { display: viewMode === "sequence" && selectedFunction ? "none" : void 0 }
+				role: "application",
+				"aria-label": t$1("a11y.graphContainer") ?? `Code graph: ${nodes.length} nodes, ${edges.length} edges`,
+				"aria-describedby": "cg-graph-live-region",
+				style: { display: viewMode === "sequence" && selectedFunction ? "none" : void 0 },
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					id: "cg-graph-live-region",
+					className: "cg-visually-hidden",
+					role: "status",
+					"aria-live": "polite",
+					children: selectedNodeData ? `${t$1("a11y.selectedNode") ?? "Selected"}: ${selectedNodeData.label}, ${selectedNodeData.type}, ${selectedNodeData.filePath}:${selectedNodeData.lineNumber}` : ""
+				})
 			}),
 			viewMode === "sequence" && selectedFunction && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SequenceDiagramRenderer, {
 				nodes,
@@ -57202,11 +57803,11 @@ function GraphPanelInner({ className = "" }) {
 				theme,
 				onNodeTap: (id) => handleNodeTap(NodeId(id))
 			}),
-			panel.showLegend && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Legend, {
+			panel.showLegend && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Legend, {
 				viewMode,
 				onClose: () => panel.setShowLegend(false)
-			}),
-			panel.showMiniMap && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(StatsPanel, {
+			}) }),
+			panel.showMiniMap && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(StatsPanel, {
 				counts: {
 					function: nodeTypeCounts.function,
 					class: nodeTypeCounts.class,
@@ -57217,14 +57818,17 @@ function GraphPanelInner({ className = "" }) {
 				onClose: () => panel.setShowMiniMap(false),
 				thumbnail,
 				viewportInfo,
-				onFocusArea: (ratioX, ratioY) => renderer$1.rendererRef.current?.focusOnArea(ratioX, ratioY)
-			}),
-			panel.showHotspot && !isCollapsed && hotspotNodes.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(HotspotPanel, {
+				onFocusArea: (ratioX, ratioY) => {
+					const info = renderer$1.rendererRef.current?.getViewportInfo();
+					if (info) renderer$1.rendererRef.current?.focusOnArea(info.totalSize.w * ratioX, info.totalSize.h * ratioY, info.zoom);
+				}
+			}) }),
+			panel.showHotspot && !isCollapsed && hotspotNodes.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(HotspotPanel, {
 				hotspotNodes,
 				onClose: () => panel.setShowHotspot(false),
 				label: t$1("toolbar.hotspot")
-			}),
-			panel.showGodModule && !isCollapsed && godModules.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GodModulePanel, {
+			}) }),
+			panel.showGodModule && !isCollapsed && godModules.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GodModulePanel, {
 				godModules,
 				onClose: () => panel.setShowGodModule(false),
 				label: t$1("toolbar.godModule"),
@@ -57232,8 +57836,8 @@ function GraphPanelInner({ className = "" }) {
 					nodes: n,
 					edges: e
 				})
-			}),
-			panel.showCoreFunction && !isCollapsed && coreFunctions.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CoreFunctionPanel, {
+			}) }),
+			panel.showCoreFunction && !isCollapsed && coreFunctions.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CoreFunctionPanel, {
 				coreFunctions,
 				onClose: () => panel.setShowCoreFunction(false),
 				label: t$1("toolbar.coreFunction"),
@@ -57242,12 +57846,12 @@ function GraphPanelInner({ className = "" }) {
 					renderer$1.rendererRef.current?.focusOnNode(nodeId);
 					renderer$1.rendererRef.current?.selectNode(NodeId(nodeId));
 				}
-			}),
-			panel.showImpact && !isCollapsed && impactStats && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ImpactPanel, {
+			}) }),
+			panel.showImpact && !isCollapsed && impactStats && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ImpactPanel, {
 				impactStats,
 				label: t$1("toolbar.impact"),
 				totalLabel: t$1("impact.total")
-			}),
+			}) }),
 			tooltip && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphTooltip, { data: tooltip }),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)(KeyboardHelp, {
 				visible: showHelp,
@@ -57442,7 +58046,7 @@ function apply(ctx) {
 				const workspaceInfos = wsList.map((p$1) => ({
 					path: p$1,
 					name: p$1.split(/[\\/]/).pop() ?? p$1,
-					GlastUsed: Date.now()
+					lastUsed: Date.now()
 				}));
 				for (const wi of workspaceInfos) if (!s.workspaceList.some((w) => w.path === wi.path)) s.addWorkspace(wi.path, wi.name);
 			}
@@ -57500,7 +58104,7 @@ function apply(ctx) {
 			}).catch((e$1) => log.warn("incremental graph fetch failed", e$1));
 			else fetchGraphData().then((data$2) => {
 				if (data$2) store.setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
-			});
+			}).catch((e$1) => log.warn("graph fetch failed", e$1));
 		};
 		const openSourceListener = (e) => {
 			ctx.emit("cg-viz/source/open", e.detail);
@@ -57521,6 +58125,9 @@ function apply(ctx) {
 					}
 				}
 				store.setLoading(false);
+			}).catch((e$1) => {
+				log.warn("import-repo failed", e$1);
+				store.setLoading(false);
 			});
 			log.info("import-repo forwarded", { path: detail.path });
 		};
@@ -57533,12 +58140,15 @@ function apply(ctx) {
 					store.setInitStatus(result.success ? "done" : "error", result.message);
 					if (result.success) fetchGraphData().then((data$2) => {
 						if (data$2) store.setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
-					});
+					}).catch((e$1) => log.warn("post-init graph fetch failed", e$1));
 				} else store.setInitStatus("error", "Request failed");
 				log.info("init result", {
 					path: detail.path,
 					success: result?.success
 				});
+			}).catch((e$1) => {
+				log.warn("init-graph failed", e$1);
+				store.setInitStatus("error", String(e$1));
 			});
 			log.info("init-graph forwarded", { path: detail.path });
 		};
@@ -57566,6 +58176,9 @@ function apply(ctx) {
 						const validated = validateGraphData(result);
 						if (validated) store.setGraphData(validated.nodes, validated.edges, detail.path, validated.metadata);
 					}
+					store.setLoading(false);
+				}).catch((e$1) => {
+					log.warn("workspace scan failed", e$1);
 					store.setLoading(false);
 				});
 				log.info("workspace change forwarded", { path: detail.path });

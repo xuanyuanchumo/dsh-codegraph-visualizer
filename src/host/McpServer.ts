@@ -218,13 +218,16 @@ export class McpServer {
           if (list) list.push(edge.source);
           else reverseAdj.set(edge.target, [edge.source]);
         }
+        const MAX_IMPACT_RESULTS = 500;
         const impacted = new Set<string>();
         let frontier = new Set<string>([targetNode.id]);
-        for (let d = 0; d < depth; d++) {
+        for (let d = 0; d < depth && impacted.size < MAX_IMPACT_RESULTS; d++) {
           const nextFrontier = new Set<string>();
           for (const id of frontier) {
+            if (impacted.size >= MAX_IMPACT_RESULTS) break;
             const sources = reverseAdj.get(id) ?? [];
             for (const src of sources) {
+              if (impacted.size >= MAX_IMPACT_RESULTS) break;
               if (!impacted.has(src)) {
                 impacted.add(src);
                 nextFrontier.add(src);
@@ -233,7 +236,7 @@ export class McpServer {
           }
           frontier = nextFrontier;
         }
-        return { impacted: Array.from(impacted), count: impacted.size };
+        return { impacted: Array.from(impacted), count: impacted.size, truncated: impacted.size >= MAX_IMPACT_RESULTS };
       },
     });
   }

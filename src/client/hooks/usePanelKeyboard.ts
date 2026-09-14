@@ -37,7 +37,7 @@ export function usePanelKeyboard(
     rendererRef.current?.highlightCallChain(null);
     rendererRef.current?.highlightCycles(new Set<string>());
   });
-  useKeyboardShortcut('c', () => handlersRef.current.onToggleCallChain(), { ctrl: true });
+  useKeyboardShortcut('c', () => handlersRef.current.onToggleCallChain(), { ctrl: true, shift: true });
   useKeyboardShortcut('e', () => handlersRef.current.onToggleImpact(), { ctrl: true });
   useKeyboardShortcut('h', () => handlersRef.current.onToggleInheritance(), { ctrl: true });
   useKeyboardShortcut('m', () => handlersRef.current.onToggleMiniMap(), { ctrl: true });

@@ -7,6 +7,7 @@ import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelStat
 import { useThemeSync } from './hooks/useThemeSync.ts';
 import { useHistory } from './hooks/useHistory.ts';
 import { useGraphCache } from './hooks/useGraphCache.ts';
+import { invalidateCssVarCache } from './renderer/styles/ThemeStylesheet.ts';
 import { GraphErrorBoundary } from './components/ErrorBoundary.tsx';
 import { ImportPanel } from './components/ImportPanel.tsx';
 import { Legend } from './components/Legend.tsx';
@@ -355,6 +356,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     const newTheme: ThemeType = theme === 'dark' ? 'light' : 'dark';
     if (newTheme === 'dark') document.body.setAttribute('data-ds-dark-theme', '');
     else document.body.removeAttribute('data-ds-dark-theme');
+    invalidateCssVarCache();
     setTheme(newTheme);
     renderer.updateTheme(newTheme);
   }, [theme, setTheme, renderer]);
@@ -628,7 +630,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
             interface: nodeTypeCounts.interface,
           }}
           onClose={() => panel.setShowMiniMap(false)} thumbnail={thumbnail} viewportInfo={viewportInfo}
-          onFocusArea={(ratioX, ratioY) => renderer.rendererRef.current?.focusOnArea(ratioX, ratioY)} /></GraphErrorBoundary>
+          onFocusArea={(ratioX, ratioY) => {
+            const info = renderer.rendererRef.current?.getViewportInfo();
+            if (info) {
+              renderer.rendererRef.current?.focusOnArea(info.totalSize.w * ratioX, info.totalSize.h * ratioY, info.zoom);
+            }
+          }} /></GraphErrorBoundary>
       )}
 
       {panel.showHotspot && !isCollapsed && hotspotNodes.length > 0 && (

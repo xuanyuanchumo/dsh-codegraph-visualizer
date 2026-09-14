@@ -1,6 +1,7 @@
 
 import { CloseIcon } from './Icons.tsx';
 import type { HotspotNode } from '../hooks/useAnalysisPanels.ts';
+import { useT } from '../i18n/index.ts';
 
 interface HotspotPanelProps {
   hotspotNodes: HotspotNode[];
@@ -9,11 +10,12 @@ interface HotspotPanelProps {
 }
 
 export function HotspotPanel({ hotspotNodes, onClose, label }: HotspotPanelProps) {
+  const t = useT();
   return (
     <div className="analysis-panel hotspot-panel" role="region" aria-label={label} aria-live="polite">
       <div className="analysis-panel-header">
         <span>{label}</span>
-        <button onClick={onClose} className="cg-close-btn"><CloseIcon size={14} /></button>
+        <button onClick={onClose} className="cg-close-btn" aria-label={t('hotspot.close')}><CloseIcon size={14} /></button>
       </div>
       <div className="analysis-panel-content">
         {hotspotNodes.slice(0, 20).map((h) => (

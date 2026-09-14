@@ -74,6 +74,7 @@ export class LayoutController {
     return new Promise((resolve) => {
       this.workerTimeout = setTimeout(() => {
         if (this.workerLayoutResolve) {
+          log.warn('layout worker timeout — falling back to empty positions');
           this.workerLayoutResolve({});
           this.workerLayoutResolve = null;
         }
@@ -91,6 +92,8 @@ export class LayoutController {
         nodes: nodes.map((n) => ({ id: n.id, label: n.label, type: n.type })),
         edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, type: e.type })),
         layout,
+        containerWidth: this.cy.width() || 800,
+        containerHeight: this.cy.height() || 600,
       });
     });
   }

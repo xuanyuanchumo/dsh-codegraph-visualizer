@@ -1,0 +1,14 @@
+{
+  "entries": [
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "E2E验证测试",
+      "timestamp": "2026-09-14T14:24:40.249Z",
+      "previousHash": null,
+      "hash": "c2e7c9e5eeaf7c18af4a35efed17169e8a5d516130864194c55f3e337ad66404"
+    }
+  ],
+  "chainHead": "c2e7c9e5eeaf7c18af4a35efed17169e8a5d516130864194c55f3e337ad66404"
+}

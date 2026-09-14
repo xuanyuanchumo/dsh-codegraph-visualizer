@@ -75,28 +75,29 @@ export class HighlightController {
     this.selectedNodeId = id;
   }
 
-  highlightCallChain(nodeId: NodeId | null): void {
+  highlightCallChain(nodeId: NodeId | null, maxDepth: number = 50): void {
     this.cy.batch(() => {
       this.cy.elements().removeClass('call-chain');
       if (!nodeId) return;
 
       const visited = new Set<string>();
-      const queue = [nodeId];
+      const queue: Array<{ id: string; depth: number }> = [{ id: nodeId, depth: 0 }];
       let head = 0;
 
       while (head < queue.length) {
-        const id = queue[head++]!;
-        if (visited.has(id)) continue;
-        visited.add(id);
+        const item = queue[head++]!;
+        if (visited.has(item.id)) continue;
+        if (item.depth > maxDepth) continue;
+        visited.add(item.id);
 
-        const node = this.cy.getElementById(id);
+        const node = this.cy.getElementById(item.id);
         if (node.nonempty()) node.addClass('call-chain');
 
         node.connectedEdges().forEach((edge) => {
-          if (edge.source().id() !== id) return;
+          if (edge.source().id() !== item.id) return;
           edge.addClass('call-chain');
           const target = edge.target().id();
-          if (!visited.has(target)) queue.push(NodeId(target));
+          if (!visited.has(target)) queue.push({ id: target, depth: item.depth + 1 });
         });
       }
     });
@@ -170,7 +171,7 @@ export class HighlightController {
     });
   }
 
-  private computeImpact(nodeId: NodeId): Map<string, number> {
+  private computeImpact(nodeId: NodeId, maxDepth: number = 3): Map<string, number> {
     const visited = new Map<string, number>();
     const queue: Array<{ id: string; depth: number }> = [{ id: nodeId, depth: 0 }];
     let head = 0;
@@ -180,7 +181,7 @@ export class HighlightController {
       if (visited.has(id) && visited.get(id)! <= depth) continue;
       visited.set(id, depth);
 
-      if (depth < 3) {
+      if (depth < maxDepth) {
         const node = this.cy.getElementById(id);
         node.incomers().forEach((edge) => {
           const src = edge.source().id();
@@ -312,6 +313,11 @@ export class HighlightController {
   }
 
   destroy(): void {
+    this.cy.batch(() => {
+      this.cy.elements().removeClass('highlighted selected neighbor-highlight neighbor-dim call-chain cycle-highlight impact-d1 impact-d2 impact-d3 impact-source inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement');
+    });
     this.highlightedNodeIds.clear();
+    this.selectedNodeId = null;
+    this.lastInheritanceRelevant.clear();
   }
 }

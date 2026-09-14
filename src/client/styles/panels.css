@@ -380,7 +380,7 @@
 }
 
 .prereq-copy:hover {
-  background: color-mix(in srgb, var(--cg-warning) 150%, transparent);
+  background: color-mix(in srgb, var(--cg-warning) 20%, transparent);
 }
 
 .paste-input {
@@ -439,12 +439,12 @@
 }
 
 .import-feedback.ok {
-  background: color-mix(in srgb, var(--cg-success) 120%, transparent);
+  background: color-mix(in srgb, var(--cg-success) 15%, transparent);
   color: var(--cg-success);
 }
 
 .import-feedback.err {
-  background: color-mix(in srgb, var(--cg-error) 120%, transparent);
+  background: color-mix(in srgb, var(--cg-error) 15%, transparent);
   color: var(--cg-error);
 }
 /* ---- Legend panel -------------------------------------------------------- */

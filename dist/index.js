@@ -989,6 +989,25 @@ const EDGE_KIND_MAP = {
 	depends: "dependency"
 };
 const FILTERED_EDGE_KINDS = new Set(["uses_var", "func_imports_local"]);
+const NOISE_PATH_SEGMENTS = [
+	"node_modules",
+	".git",
+	"vendor",
+	"__pycache__",
+	".venv",
+	"dist",
+	"build",
+	".next",
+	".nuxt",
+	".cache",
+	".turbo",
+	"coverage",
+	".pytest_cache"
+];
+function isNoisePath(filePath) {
+	for (const seg of NOISE_PATH_SEGMENTS) if (filePath.includes(seg)) return true;
+	return false;
+}
 const MAX_IMPORTS_PER_SOURCE = 20;
 function mapNodeKind(kind) {
 	return NODE_KIND_MAP[kind] ?? "module";
@@ -1040,7 +1059,7 @@ var CodeGraphAdapter = class {
 			timestamp: Date.now()
 		};
 		const rawFiles = this.extractFileList(files);
-		const nodes = rawFiles.map((f, i) => ({
+		const nodes = rawFiles.filter((f) => !isNoisePath(f.path)).map((f, i) => ({
 			id: NodeId(`file:${f.path}`),
 			label: f.path.split("/").pop() ?? f.path,
 			type: "module",
@@ -1076,7 +1095,7 @@ var CodeGraphAdapter = class {
 	toAdapterResult(dbNodes, dbEdges) {
 		const fileNodeIds = new Map();
 		for (const n of dbNodes) if (n.kind === "file" || n.kind === "module") fileNodeIds.set(n.file_path, n.id);
-		const nodes = dbNodes.filter((n) => n.name && n.file_path).map((n) => {
+		const nodes = dbNodes.filter((n) => n.name && n.file_path && !isNoisePath(n.file_path)).map((n) => {
 			const parentId = n.kind !== "file" && n.kind !== "module" && n.kind !== "import" ? fileNodeIds.get(n.file_path) ?? void 0 : void 0;
 			return {
 				id: NodeId(n.id),
@@ -1209,20 +1228,44 @@ var GraphDataMerger = class {
 		const nodes = new Map();
 		const edges = new Map();
 		for (const r of results) {
-			for (const node of r.nodes) nodes.set(node.id, {
-				...node,
-				properties: {
-					...node.properties,
-					__source: r.source
-				}
-			});
-			for (const edge of r.edges) edges.set(edge.id, {
-				...edge,
-				properties: {
-					...edge.properties,
-					__source: r.source
-				}
-			});
+			for (const node of r.nodes) {
+				const existing = nodes.get(node.id);
+				if (existing) nodes.set(node.id, {
+					...existing,
+					...node,
+					properties: {
+						...existing.properties,
+						...node.properties,
+						__source: r.source
+					}
+				});
+				else nodes.set(node.id, {
+					...node,
+					properties: {
+						...node.properties,
+						__source: r.source
+					}
+				});
+			}
+			for (const edge of r.edges) {
+				const existing = edges.get(edge.id);
+				if (existing) edges.set(edge.id, {
+					...existing,
+					...edge,
+					properties: {
+						...existing.properties,
+						...edge.properties,
+						__source: r.source
+					}
+				});
+				else edges.set(edge.id, {
+					...edge,
+					properties: {
+						...edge.properties,
+						__source: r.source
+					}
+				});
+			}
 		}
 		return {
 			nodes: Array.from(nodes.values()),
@@ -2238,6 +2281,13 @@ const PLUGIN_VERSION = "0.2.0";
 
 //#endregion
 //#region src/host/config.ts
+const VALID_DATA_SOURCES = new Set([
+	"auto",
+	"codegraph",
+	"lens",
+	"tree-sitter"
+]);
+const ORIGIN_PATTERN = /^https?:\/\/[a-zA-Z0-9.-]+(:\d+)?$/;
 const DEFAULT_CONFIG = {
 	dataSource: "auto",
 	requestTimeout: 15e3,
@@ -2257,7 +2307,8 @@ function resolveConfig(userConfig) {
 		...userConfig
 	};
 	const errors = [];
-	if (config.dataSource !== "auto" && config.dataSource !== "codegraph" && config.dataSource !== "lens" && config.dataSource !== "tree-sitter") errors.push(`dataSource must be auto|codegraph|lens|tree-sitter, got ${String(config.dataSource)}`);
+	if (!VALID_DATA_SOURCES.has(config.dataSource)) errors.push(`dataSource must be auto|codegraph|lens|tree-sitter, got ${String(config.dataSource)}`);
+	for (const origin of config.allowedOrigins) if (!ORIGIN_PATTERN.test(origin)) errors.push(`allowedOrigins contains invalid origin: ${origin} (expected http(s)://host[:port])`);
 	const positiveFields = [
 		["requestTimeout", config.requestTimeout],
 		["scanCacheTtl", config.scanCacheTtl],
@@ -2287,7 +2338,7 @@ var SecurityManager = class {
 		const normalized = normalize(path$1);
 		if (normalized.includes("..")) return false;
 		if (!isAbsolute(normalized)) {
-			if (normalized === ".") return true;
+			if (normalized === "." && this.allowedWorkspaceRoots.length > 0) return true;
 			return false;
 		}
 		if (this.allowedWorkspaceRoots.length === 0) return false;
@@ -2486,6 +2537,7 @@ function parseCargoToml(content) {
 		});
 		seenIds.add(rootId);
 		let inDepsSection = false;
+		let pendingTableDep = null;
 		for (const line of lines) {
 			if (line.match(/^\[dependencies\]/)) {
 				inDepsSection = true;
@@ -2496,6 +2548,39 @@ function parseCargoToml(content) {
 				continue;
 			}
 			if (!inDepsSection) continue;
+			if (pendingTableDep) {
+				const trimmed = line.trim();
+				if (trimmed === "}") {
+					const versionField = pendingTableDep.fields.find((f) => f.match(/^version\s*=\s*"/));
+					if (versionField) {
+						const versionMatch = versionField.match(/^version\s*=\s*"([^"]+)"/);
+						if (versionMatch) {
+							const depName = pendingTableDep.name;
+							const depVersion = versionMatch[1];
+							const depId = `dep:${depName}`;
+							if (!seenIds.has(depId)) {
+								seenIds.add(depId);
+								nodes.push({
+									id: depId,
+									name: depName,
+									version: depVersion,
+									type: "cargo"
+								});
+							}
+							edges.push({
+								source: rootId,
+								target: depId,
+								type: "depends",
+								scope: "prod"
+							});
+						}
+					}
+					pendingTableDep = null;
+					continue;
+				}
+				pendingTableDep.fields.push(line.trim());
+				continue;
+			}
 			const simpleDepMatch = line.match(/^([a-zA-Z0-9_-]+)\s*=\s*"([^"]+)"/);
 			if (simpleDepMatch) {
 				const depName = simpleDepMatch[1];
@@ -2518,26 +2603,42 @@ function parseCargoToml(content) {
 				});
 				continue;
 			}
-			const tableDepMatch = line.match(/^([a-zA-Z0-9_-]+)\s*=\s*\{[^}]*version\s*=\s*"([^"]+)"/);
-			if (tableDepMatch) {
-				const depName = tableDepMatch[1];
-				const depVersion = tableDepMatch[2];
-				const depId = `dep:${depName}`;
-				if (!seenIds.has(depId)) {
-					seenIds.add(depId);
-					nodes.push({
-						id: depId,
-						name: depName,
-						version: depVersion,
-						type: "cargo"
-					});
+			const tableDepStartMatch = line.match(/^([a-zA-Z0-9_-]+)\s*=\s*\{(.*)$/);
+			if (tableDepStartMatch) {
+				const depName = tableDepStartMatch[1];
+				const rest = tableDepStartMatch[2];
+				if (rest.includes("}")) {
+					const inlineMatch = rest.match(/^([^}]*)\}/);
+					if (inlineMatch) {
+						const tableContent = inlineMatch[1];
+						const versionMatch = tableContent.match(/version\s*=\s*"([^"]+)"/);
+						if (versionMatch) {
+							const depVersion = versionMatch[1];
+							const depId = `dep:${depName}`;
+							if (!seenIds.has(depId)) {
+								seenIds.add(depId);
+								nodes.push({
+									id: depId,
+									name: depName,
+									version: depVersion,
+									type: "cargo"
+								});
+							}
+							edges.push({
+								source: rootId,
+								target: depId,
+								type: "depends",
+								scope: "prod"
+							});
+						}
+						continue;
+					}
 				}
-				edges.push({
-					source: rootId,
-					target: depId,
-					type: "depends",
-					scope: "prod"
-				});
+				pendingTableDep = {
+					name: depName,
+					fields: [rest]
+				};
+				continue;
 			}
 		}
 	} catch (e) {
@@ -2675,16 +2776,25 @@ function dependencyGraphToGraphData(depGraph) {
 
 //#endregion
 //#region src/merger/DiffEngine.ts
-function deepEqual(a, b) {
+function deepEqual(a, b, seen) {
 	if (a === b) return true;
 	if (a === null || b === null) return false;
 	if (typeof a !== "object" || typeof b !== "object") return false;
+	if (Array.isArray(a) || Array.isArray(b)) {
+		if (!Array.isArray(a) || !Array.isArray(b)) return false;
+		if (a.length !== b.length) return false;
+		for (let i = 0; i < a.length; i++) if (!deepEqual(a[i], b[i], seen)) return false;
+		return true;
+	}
+	if (!seen) seen = new Map();
+	if (seen.has(a)) return seen.get(a) === b;
+	seen.set(a, b);
 	const aKeys = Object.keys(a).sort();
 	const bKeys = Object.keys(b).sort();
 	if (aKeys.length !== bKeys.length) return false;
 	for (let i = 0; i < aKeys.length; i++) {
 		if (aKeys[i] !== bKeys[i]) return false;
-		if (!deepEqual(a[aKeys[i]], b[bKeys[i]])) return false;
+		if (!deepEqual(a[aKeys[i]], b[bKeys[i]], seen)) return false;
 	}
 	return true;
 }
@@ -2791,6 +2901,8 @@ const FILE_EXTENSIONS = {
 	".tsx": "typescript",
 	".js": "javascript",
 	".jsx": "javascript",
+	".mjs": "javascript",
+	".cjs": "javascript",
 	".py": "python",
 	".java": "java",
 	".rs": "rust",
@@ -2820,17 +2932,27 @@ const IMPORT_NODE_TYPES = new Set([
 	"import_declaration",
 	"use_declaration"
 ]);
-var TreeSitterAdapter = class {
+var TreeSitterAdapter = class TreeSitterAdapter {
 	parser = null;
 	loadedLanguages = new Set();
+	currentLanguage = null;
+	initAttempts = 0;
+	static MAX_INIT_ATTEMPTS = 3;
 	async init() {
 		if (this.parser) return;
+		if (this.initAttempts >= TreeSitterAdapter.MAX_INIT_ATTEMPTS) {
+			log$3.warn(`TreeSitter init skipped after ${this.initAttempts} failed attempts`);
+			return;
+		}
+		this.initAttempts++;
 		try {
 			const { Parser } = await import("web-tree-sitter");
+			await Parser.init();
 			this.parser = new Parser();
+			this.initAttempts = 0;
 			log$3.info("TreeSitter parser initialized");
 		} catch (e) {
-			log$3.warn("Failed to init TreeSitter", e);
+			log$3.warn(`Failed to init TreeSitter (attempt ${this.initAttempts}/${TreeSitterAdapter.MAX_INIT_ATTEMPTS})`, e);
 		}
 	}
 	isAvailable() {
@@ -2864,7 +2986,11 @@ var TreeSitterAdapter = class {
 		};
 		if (!this.loadedLanguages.has(language)) try {
 			const langModule = await this.loadLanguageWasm(language);
+			if (this.currentLanguage) try {
+				this.currentLanguage.delete?.();
+			} catch {}
 			this.parser.setLanguage(langModule);
+			this.currentLanguage = langModule;
 			this.loadedLanguages.add(language);
 		} catch (e) {
 			log$3.warn(`Failed to load language: ${language}`, e);
@@ -2904,6 +3030,11 @@ var TreeSitterAdapter = class {
 		const wasmFile = `tree-sitter-${language}.wasm`;
 		const { Language } = await import("web-tree-sitter");
 		const candidates = [];
+		if (typeof process !== "undefined" && process.versions?.node) try {
+			const { getWasmPath } = await import("tree-sitter-wasm");
+			const absPath = getWasmPath(language);
+			candidates.push(absPath);
+		} catch {}
 		const doc = globalThis.document;
 		if (doc && doc.baseURI) {
 			try {
@@ -2911,6 +3042,9 @@ var TreeSitterAdapter = class {
 			} catch {}
 			try {
 				candidates.push(new URL(`node_modules/web-tree-sitter/dist/${wasmFile}`, doc.baseURI).href);
+			} catch {}
+			try {
+				candidates.push(new URL(wasmFile, doc.baseURI).href);
 			} catch {}
 		}
 		candidates.push(wasmFile);
@@ -2958,7 +3092,7 @@ var TreeSitterAdapter = class {
 						id: EdgeId(`tsedge:${parentId}->${id}`),
 						source: NodeId(parentId),
 						target: NodeId(id),
-						type: "dependency",
+						type: "contains",
 						properties: {}
 					});
 				}
@@ -2978,16 +3112,26 @@ var TreeSitterAdapter = class {
 	async parseToAst(filePath, content) {
 		if (!this.parser) {
 			await this.init();
-			if (!this.parser) return null;
+			if (!this.parser) {
+				log$3.warn("parseToAst: parser not initialized after init()");
+				return null;
+			}
 		}
 		const language = this.detectLanguage(filePath);
-		if (!language) return null;
+		if (!language) {
+			log$3.warn(`parseToAst: unsupported file extension: ${filePath}`);
+			return null;
+		}
 		if (!this.loadedLanguages.has(language)) try {
 			const langModule = await this.loadLanguageWasm(language);
+			if (this.currentLanguage) try {
+				this.currentLanguage.delete?.();
+			} catch {}
 			this.parser.setLanguage(langModule);
+			this.currentLanguage = langModule;
 			this.loadedLanguages.add(language);
 		} catch (e) {
-			log$3.warn(`getAST: failed to load language: ${language}`, e);
+			log$3.warn(`parseToAst: failed to load language ${language}:`, e);
 			return null;
 		}
 		try {
@@ -2996,7 +3140,7 @@ var TreeSitterAdapter = class {
 			tree.delete();
 			return astRoot;
 		} catch (e) {
-			log$3.warn(`getAST: parse failed: ${filePath}`, e);
+			log$3.warn(`parseToAst: parse failed for ${filePath}:`, e);
 			return null;
 		}
 	}
@@ -3023,7 +3167,9 @@ var TreeSitterAdapter = class {
 	destroy() {
 		this.parser?.delete();
 		this.parser = null;
+		this.currentLanguage = null;
 		this.loadedLanguages.clear();
+		this.initAttempts = 0;
 	}
 };
 
@@ -3245,12 +3391,20 @@ function registerRoutes(deps) {
 		sendError(res, 405, `Method ${req.method} not allowed; expected ${method}`, req);
 		return false;
 	};
+	const logRequest = (req, routePath) => {
+		log$2.info("request", {
+			method: req.method,
+			path: routePath,
+			ip: getClientIp(req)
+		});
+	};
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
 		path: "/api/v1/codegraph/status",
 		handler: (req, res) => {
 			if (handleCorsPreflight(req, res)) return;
 			if (!requireMethod(req, res, "GET")) return;
+			logRequest(req, "/api/v1/codegraph/status");
 			if (!checkRate(req, res, "/api/v1/codegraph/status")) return;
 			const status = checkPrerequisites(ctx);
 			sendJson(res, 200, {
@@ -3261,10 +3415,45 @@ function registerRoutes(deps) {
 	}), "codegraph: status route");
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
+		path: "/api/v1/codegraph/health",
+		handler: (req, res) => {
+			if (handleCorsPreflight(req, res)) return;
+			if (!requireMethod(req, res, "GET")) return;
+			logRequest(req, "/api/v1/codegraph/health");
+			try {
+				const status = checkPrerequisites(ctx);
+				const mem = process.memoryUsage();
+				const hasGraphData = deps.getLastGraphData() !== null;
+				const healthy = status.codegraph;
+				sendJson(res, healthy ? 200 : 503, {
+					status: healthy ? "healthy" : "degraded",
+					codegraph: status.codegraph,
+					lens: status.lens,
+					hasGraphData,
+					uptime: process.uptime(),
+					memory: {
+						rss: mem.rss,
+						heapUsed: mem.heapUsed,
+						heapTotal: mem.heapTotal
+					},
+					timestamp: Date.now()
+				}, req);
+			} catch (e) {
+				sendJson(res, 503, {
+					status: "unhealthy",
+					error: e instanceof Error ? e.message : String(e),
+					timestamp: Date.now()
+				}, req);
+			}
+		}
+	}), "codegraph: health route");
+	ctx.effect(() => ctx.webServer.register({
+		kind: "exact",
 		path: "/api/v1/codegraph/workspace",
 		handler: (req, res) => {
 			if (handleCorsPreflight(req, res)) return;
 			if (!requireMethod(req, res, "GET")) return;
+			logRequest(req, "/api/v1/codegraph/workspace");
 			if (!checkRate(req, res, "/api/v1/codegraph/workspace")) return;
 			const current = findWorkspacePath(ctx);
 			const list = extractWorkspacePaths(ctx);
@@ -3280,6 +3469,7 @@ function registerRoutes(deps) {
 		handler: (req, res) => {
 			if (handleCorsPreflight(req, res)) return;
 			if (!requireMethod(req, res, "GET")) return;
+			logRequest(req, "/api/v1/codegraph/data");
 			if (!checkRate(req, res, "/api/v1/codegraph/data")) return;
 			const ifNoneMatch = req.headers["if-none-match"];
 			const lastGraphData = deps.getLastGraphData();
@@ -3315,6 +3505,7 @@ function registerRoutes(deps) {
 		handler: async (req, res) => {
 			if (handleCorsPreflight(req, res)) return;
 			if (!requireMethod(req, res, "POST")) return;
+			logRequest(req, "/api/v1/codegraph/scan");
 			try {
 				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
@@ -3395,6 +3586,7 @@ function registerRoutes(deps) {
 		handler: async (req, res) => {
 			if (handleCorsPreflight(req, res)) return;
 			if (!requireMethod(req, res, "POST")) return;
+			logRequest(req, "/api/v1/codegraph/init");
 			try {
 				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
@@ -3450,6 +3642,7 @@ function registerRoutes(deps) {
 		handler: async (req, res) => {
 			if (handleCorsPreflight(req, res)) return;
 			if (!requireMethod(req, res, "POST")) return;
+			logRequest(req, "/api/v1/codegraph/watch");
 			try {
 				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
@@ -3482,6 +3675,7 @@ function registerRoutes(deps) {
 		handler: async (req, res) => {
 			if (handleCorsPreflight(req, res)) return;
 			if (!requireMethod(req, res, "GET")) return;
+			logRequest(req, "/api/v1/codegraph/dependencies");
 			if (!checkRate(req, res, "/api/v1/codegraph/dependencies")) return;
 			try {
 				const workspacePath = findWorkspacePath(ctx);
@@ -3554,6 +3748,7 @@ function registerRoutes(deps) {
 		handler: async (req, res) => {
 			if (handleCorsPreflight(req, res)) return;
 			if (!requireMethod(req, res, "POST")) return;
+			logRequest(req, "/api/v1/codegraph/diff");
 			try {
 				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
@@ -3613,6 +3808,7 @@ function registerRoutes(deps) {
 			handler: async (req, res) => {
 				if (handleCorsPreflight(req, res)) return;
 				if (!requireMethod(req, res, "POST")) return;
+				logRequest(req, "/api/v1/codegraph/ast");
 				try {
 					const body = await readBody(req, config.maxBodyBytes);
 					const parsed = parseJsonBody(body);
@@ -3632,11 +3828,17 @@ function registerRoutes(deps) {
 						sendError(res, 403, "Access denied: path outside workspace", req);
 						return;
 					}
-					if (!isPathAllowed(fullPath)) {
+					const realPath = await fs.realpath(fullPath);
+					const realWorkspace = await fs.realpath(normalizedWorkspace);
+					if (!realPath.startsWith(realWorkspace + path.sep) && realPath !== realWorkspace) {
+						sendError(res, 403, "Access denied: symlink escape", req);
+						return;
+					}
+					if (!isPathAllowed(realPath)) {
 						sendError(res, 403, "Access denied", req);
 						return;
 					}
-					const content = await fs.readFile(fullPath, "utf-8");
+					const content = await fs.readFile(realPath, "utf-8");
 					const MAX_AST_CONTENT = 512 * 1024;
 					if (content.length > MAX_AST_CONTENT) {
 						sendError(res, 413, `File too large for AST parsing (max ${MAX_AST_CONTENT} bytes)`, req);
@@ -3644,13 +3846,13 @@ function registerRoutes(deps) {
 					}
 					const astRoot = await treeSitterAdapter.parseToAst(filePath, content);
 					if (!astRoot) {
-						sendError(res, 500, "AST parsing failed", req);
+						sendError(res, 500, `AST parsing failed: parseToAst returned null for ${filePath}`, req);
 						return;
 					}
 					sendJson(res, 200, astRoot, req);
 				} catch (e) {
 					log$2.error("ast route failed", e);
-					sendError(res, 500, "AST parsing failed", req);
+					sendError(res, 500, `AST parsing failed: ${e instanceof Error ? e.message : String(e)}`, req);
 				}
 			}
 		});
@@ -3663,6 +3865,7 @@ function registerRoutes(deps) {
 			handler: async (req, res) => {
 				if (handleCorsPreflight(req, res)) return;
 				if (!requireMethod(req, res, "POST")) return;
+				logRequest(req, "/api/v1/codegraph/tree-sitter");
 				try {
 					const body = await readBody(req, config.maxBodyBytes);
 					const parsed = parseJsonBody(body);
@@ -3698,7 +3901,7 @@ const log$1 = scoped("host");
 async function scanAndPush(ctx, invokeUpstream, path$1) {
 	log$1.info("scan requested", { path: path$1 });
 	try {
-		const repoId = path$1 || `workspace-${Date.now()}`;
+		const repoId = path$1 || "workspace-default";
 		const data = await fetchMergedGraph(invokeUpstream, repoId, "both");
 		ctx.emit("cg-viz/graph/updated", {
 			repoId: RepoId(repoId),
@@ -3890,21 +4093,23 @@ function apply(ctx, userConfig) {
 		}
 	};
 	emitPrereqStatus();
-	const prereqTimer = setInterval(() => {
-		const status = checkPrerequisites(ctx);
-		const statusKey = `${status.codegraph}:${status.lens}`;
-		ctx.emit("cg-viz/prerequisite/status", {
-			codegraph: status.codegraph,
-			lens: status.lens,
-			timestamp: Date.now()
-		});
-		if (statusKey !== lastStatus) {
-			log.info("prerequisite status", status);
-			lastStatus = statusKey;
-		}
-		if (status.codegraph && status.lens) clearInterval(prereqTimer);
-	}, config.prerequisiteRetryDelay);
-	ctx.effect(() => () => clearInterval(prereqTimer), "codegraph: prereq re-check timer");
+	ctx.effect(() => {
+		const prereqTimer = setInterval(() => {
+			const status = checkPrerequisites(ctx);
+			const statusKey = `${status.codegraph}:${status.lens}`;
+			ctx.emit("cg-viz/prerequisite/status", {
+				codegraph: status.codegraph,
+				lens: status.lens,
+				timestamp: Date.now()
+			});
+			if (statusKey !== lastStatus) {
+				log.info("prerequisite status", status);
+				lastStatus = statusKey;
+			}
+			if (status.codegraph && status.lens) clearInterval(prereqTimer);
+		}, config.prerequisiteRetryDelay);
+		return () => clearInterval(prereqTimer);
+	}, "codegraph: prereq re-check timer");
 	ctx.effect(() => ctx.on("cg-viz/prerequisite/request", () => {
 		emitPrereqStatus();
 	}), "codegraph: prerequisite request listener");

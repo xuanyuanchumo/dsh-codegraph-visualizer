@@ -9,7 +9,7 @@ type Dict = Record<string, string>;
 const dicts: Record<Lang, Dict> = { zh, en };
 
 const STORAGE_KEY = 'dsh-codegraph-visualizer/lang';
-let currentLang: Lang = 'zh';
+let currentLang: Lang = typeof window === 'undefined' ? 'zh' : getStoredLang();
 const listeners = new Set<() => void>();
 
 function getStoredLang(): Lang {

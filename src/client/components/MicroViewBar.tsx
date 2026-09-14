@@ -1,5 +1,7 @@
 
 
+import { useT } from '../i18n/index.ts';
+
 interface MicroViewPromptProps {
   viewMode: string;
   selectFunctionPrompt: string;
@@ -28,14 +30,15 @@ interface MicroFunctionBarProps {
 }
 
 export function MicroFunctionBar({ functionName, filePath, viewMode, onClose }: MicroFunctionBarProps) {
-  const modeLabel = viewMode === 'cfg' ? 'CFG' : viewMode === 'flowchart' ? 'Flow' : viewMode === 'sequence' ? 'Seq' : '';
+  const t = useT();
+  const modeLabel = viewMode === 'cfg' ? 'CFG' : viewMode === 'flowchart' ? t('viewMode.flowchart') : viewMode === 'sequence' ? t('viewMode.sequence') : '';
   const shortPath = filePath ? filePath.split(/[\\/]/).slice(-2).join('/') : '';
   return (
     <div className="micro-function-bar">
       {modeLabel && <span className="micro-function-mode">{modeLabel}</span>}
       <span className="micro-function-name">{functionName}</span>
       {shortPath && <span className="micro-function-path">{shortPath}</span>}
-      <button className="micro-function-close" onClick={onClose} aria-label="Close micro view">✕</button>
+      <button className="micro-function-close" onClick={onClose} aria-label={t('micro.closeView')}>✕</button>
     </div>
   );
 }

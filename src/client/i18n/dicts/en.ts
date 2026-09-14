@@ -276,6 +276,9 @@ export const en: Record<string, string> = {
   'toolbar.godModule': 'God Module Detection',
   'toolbar.coreFunction': 'Core Function Analysis',
 
+  // Hotspot panel
+  'hotspot.close': 'Close hotspot analysis',
+
   // Impact radius
   'impact.total': 'Total impacted nodes',
 
@@ -308,6 +311,7 @@ export const en: Record<string, string> = {
   'micro.selectedFunction': 'Current function: {name}',
   'micro.clearSelection': 'Clear selection',
   'micro.loadFailed': 'Micro diagram load failed',
+  'micro.closeView': 'Close micro view',
   'stats.nodesEdges': '{nodes} nodes · {edges} edges',
   'godmodule.stats': '{nodes} nodes · {edges} edges',
   'search.moreResults': '+{n} more results',

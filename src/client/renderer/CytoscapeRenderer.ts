@@ -98,6 +98,7 @@ export class CytoscapeRenderer implements IRenderer {
   }
 
   updateData(nodes: GraphNode[], edges: GraphEdge[]): void {
+    if (!this.cy) throw new Error('CytoscapeRenderer: init() must be called before updateData()');
     this.dataCtrl?.updateData(nodes, edges);
     if (this.cy && nodes.length > 0) {
       if (this.fitTimer !== null) clearTimeout(this.fitTimer);
@@ -210,12 +211,8 @@ export class CytoscapeRenderer implements IRenderer {
     return this.viewportCtrl?.getViewportInfo() ?? null;
   }
 
-  focusOnArea(ratioX: number, ratioY: number): void {
-    const info = this.viewportCtrl?.getViewportInfo();
-    if (!info) return;
-    const targetX = info.totalSize.w * ratioX;
-    const targetY = info.totalSize.h * ratioY;
-    this.viewportCtrl?.focusOnArea(targetX, targetY, info.zoom);
+  focusOnArea(x: number, y: number, zoom: number): void {
+    this.viewportCtrl?.focusOnArea(x, y, zoom);
   }
 
   exportJSON(): string {
@@ -226,8 +223,8 @@ export class CytoscapeRenderer implements IRenderer {
     return this.dataCtrl?.exportPNG() ?? null;
   }
 
-  exportSVG(): string | null {
-    return this.dataCtrl?.exportSVG(this.options.theme) ?? null;
+  exportSVG(theme?: ThemeType): string | null {
+    return this.dataCtrl?.exportSVG(theme ?? this.options.theme) ?? null;
   }
 
   getSelectedNodeData(): GraphNode | null {

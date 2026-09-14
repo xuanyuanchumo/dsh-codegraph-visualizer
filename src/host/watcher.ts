@@ -14,7 +14,7 @@ async function scanAndPush(
 ): Promise<void> {
   log.info('scan requested', { path });
   try {
-    const repoId = path || `workspace-${Date.now()}`;
+    const repoId = path || 'workspace-default';
     const data = await fetchMergedGraph(invokeUpstream, repoId, 'both');
     ctx.emit('cg-viz/graph/updated', {
       repoId: RepoId(repoId),

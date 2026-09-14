@@ -75,7 +75,7 @@ export function computeViewModeTransition(
     return {
       viewMode: newViewMode, diagramData: null, currentLayer: 0, layout: recommendedLayout,
       rawNodes: restoreNodes, rawEdges: restoreEdges,
-      savedRawNodes: [], savedRawEdges: [],
+      savedRawNodes: restoreNodes, savedRawEdges: restoreEdges,
       expandedNodeIds: savedExpanded,
       expandedNodeIdsByViewMode: newExpandedByViewMode,
       nodes: result.nodes, edges: result.edges,
@@ -139,9 +139,11 @@ export function computeViewModeTransition(
     };
   }
 
-  const result = computeClusteredGraph(rawNodes, rawEdges, 'progressive', savedExpanded, clusterDepth);
+  const result = computeClusteredGraph(savedRawNodes.length > 0 ? savedRawNodes : rawNodes, savedRawEdges.length > 0 ? savedRawEdges : rawEdges, 'progressive', savedExpanded, clusterDepth);
   return {
     viewMode: newViewMode, diagramData: null, currentLayer: 0, layout: recommendedLayout,
+    savedRawNodes: savedRawNodes.length > 0 ? savedRawNodes : rawNodes,
+    savedRawEdges: savedRawEdges.length > 0 ? savedRawEdges : rawEdges,
     expandedNodeIds: savedExpanded,
     expandedNodeIdsByViewMode: newExpandedByViewMode,
     nodes: result.nodes, edges: result.edges,

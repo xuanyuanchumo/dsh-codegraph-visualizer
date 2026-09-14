@@ -250,7 +250,7 @@
   flex-direction: column;
   gap: 4px;
   padding: 8px 0;
-  border-top: 1px solid color-mix(in srgb, var(--cg-warning) 150%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--cg-warning) 30%, transparent);
 }
 
 .prereq-item:first-of-type {

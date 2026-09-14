@@ -35,7 +35,7 @@ export interface CFGData {
   entryBlockId: string;
   exitBlockIds: string[];
 }
-const FUNCTION_NODE_TYPES = new Set([
+export const FUNCTION_NODE_TYPES = new Set([
   'function_declaration', 'function_definition', 'method_declaration',
   'method_definition', 'arrow_function', 'function_item',
   'constructor_declaration', 'destructor_declaration',
@@ -46,7 +46,7 @@ const FUNCTION_NODE_TYPES = new Set([
 ]);
 
 
-const BODY_NODE_TYPES = new Set([
+export const BODY_NODE_TYPES = new Set([
   'block', 'statement_block', 'body', 'compound_statement',
   'function_body', 'method_body', 'suite',
 ]);

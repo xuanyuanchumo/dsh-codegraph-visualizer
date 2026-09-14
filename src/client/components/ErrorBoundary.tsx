@@ -36,8 +36,8 @@ export class GraphErrorBoundary extends Component<Props, State> {
     this.state = { hasError: false, error: null, retryKey: 0 };
   }
 
-  static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error, retryKey: 0 };
+  static getDerivedStateFromError(error: Error): Partial<State> {
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {

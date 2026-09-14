@@ -1,6 +1,6 @@
 import type { GraphNode, GraphEdge } from '../types/index.ts';
 
-function deepEqual(a: unknown, b: unknown): boolean {
+function deepEqual(a: unknown, b: unknown, seen?: Map<unknown, unknown>): boolean {
   if (a === b) return true;
   if (a === null || b === null) return false;
   if (typeof a !== 'object' || typeof b !== 'object') return false;
@@ -8,16 +8,19 @@ function deepEqual(a: unknown, b: unknown): boolean {
     if (!Array.isArray(a) || !Array.isArray(b)) return false;
     if (a.length !== b.length) return false;
     for (let i = 0; i < a.length; i++) {
-      if (!deepEqual(a[i], b[i])) return false;
+      if (!deepEqual(a[i], b[i], seen)) return false;
     }
     return true;
   }
+  if (!seen) seen = new Map();
+  if (seen.has(a)) return seen.get(a) === b;
+  seen.set(a, b);
   const aKeys = Object.keys(a as Record<string, unknown>).sort();
   const bKeys = Object.keys(b as Record<string, unknown>).sort();
   if (aKeys.length !== bKeys.length) return false;
   for (let i = 0; i < aKeys.length; i++) {
     if (aKeys[i] !== bKeys[i]) return false;
-    if (!deepEqual((a as Record<string, unknown>)[aKeys[i]!], (b as Record<string, unknown>)[bKeys[i]!])) return false;
+    if (!deepEqual((a as Record<string, unknown>)[aKeys[i]!], (b as Record<string, unknown>)[bKeys[i]!], seen)) return false;
   }
   return true;
 }

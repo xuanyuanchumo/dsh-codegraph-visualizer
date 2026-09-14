@@ -14,7 +14,11 @@ export interface HistorySnapshot {
 export class HistoryManager {
   private undoStack: HistorySnapshot[] = [];
   private redoStack: HistorySnapshot[] = [];
-  private maxHistory = 50;
+  private maxHistory: number;
+
+  constructor(maxHistory: number = 50) {
+    this.maxHistory = maxHistory;
+  }
 
   push(snapshot: HistorySnapshot): void {
     this.undoStack.push(snapshot);

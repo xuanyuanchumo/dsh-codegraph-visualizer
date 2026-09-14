@@ -63,16 +63,25 @@ const IMPORT_NODE_TYPES = new Set([
 export class TreeSitterAdapter {
   private parser: TreeSitterParser | null = null;
   private loadedLanguages = new Set<SupportedLanguage>();
+  private currentLanguage: TreeSitterLanguage | null = null;
+  private initAttempts = 0;
+  private static readonly MAX_INIT_ATTEMPTS = 3;
 
   async init(): Promise<void> {
     if (this.parser) return;
+    if (this.initAttempts >= TreeSitterAdapter.MAX_INIT_ATTEMPTS) {
+      log.warn(`TreeSitter init skipped after ${this.initAttempts} failed attempts`);
+      return;
+    }
+    this.initAttempts++;
     try {
       const { Parser } = await import('web-tree-sitter');
       await Parser.init();
       this.parser = new Parser() as unknown as TreeSitterParser;
+      this.initAttempts = 0;
       log.info('TreeSitter parser initialized');
     } catch (e) {
-      log.warn('Failed to init TreeSitter', e);
+      log.warn(`Failed to init TreeSitter (attempt ${this.initAttempts}/${TreeSitterAdapter.MAX_INIT_ATTEMPTS})`, e);
     }
   }
 
@@ -107,7 +116,11 @@ export class TreeSitterAdapter {
     if (!this.loadedLanguages.has(language)) {
       try {
         const langModule = await this.loadLanguageWasm(language);
+        if (this.currentLanguage) {
+          try { (this.currentLanguage as unknown as { delete?: () => void }).delete?.(); } catch { /* old language cleanup */ }
+        }
         this.parser.setLanguage(langModule);
+        this.currentLanguage = langModule;
         this.loadedLanguages.add(language);
       } catch (e) {
         log.warn(`Failed to load language: ${language}`, e);
@@ -144,6 +157,7 @@ export class TreeSitterAdapter {
     if (doc && doc.baseURI) {
       try { candidates.push(new URL(`plugins/dsh-codegraph-visualizer/${wasmFile}`, doc.baseURI).href); } catch { /* URL resolution fallback */ }
       try { candidates.push(new URL(`node_modules/web-tree-sitter/dist/${wasmFile}`, doc.baseURI).href); } catch { /* URL resolution fallback */ }
+      try { candidates.push(new URL(wasmFile, doc.baseURI).href); } catch { /* URL resolution fallback */ }
     }
 
     candidates.push(wasmFile);
@@ -208,7 +222,7 @@ export class TreeSitterAdapter {
               id: EdgeId(`tsedge:${parentId}->${id}`),
               source: NodeId(parentId),
               target: NodeId(id),
-              type: 'dependency',
+              type: 'contains',
               properties: {},
             });
           }
@@ -242,7 +256,11 @@ export class TreeSitterAdapter {
     if (!this.loadedLanguages.has(language)) {
       try {
         const langModule = await this.loadLanguageWasm(language);
+        if (this.currentLanguage) {
+          try { (this.currentLanguage as unknown as { delete?: () => void }).delete?.(); } catch { /* old language cleanup */ }
+        }
         this.parser.setLanguage(langModule);
+        this.currentLanguage = langModule;
         this.loadedLanguages.add(language);
       } catch (e) {
         log.warn(`parseToAst: failed to load language ${language}:`, e);
@@ -278,6 +296,8 @@ export class TreeSitterAdapter {
   destroy(): void {
     this.parser?.delete();
     this.parser = null;
+    this.currentLanguage = null;
     this.loadedLanguages.clear();
+    this.initAttempts = 0;
   }
 }

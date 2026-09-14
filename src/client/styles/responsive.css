@@ -180,6 +180,44 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---- Touch device adaptation --------------------------------------------- */
+
+@media (pointer: coarse) {
+  .layout-btn,
+  .graph-type-btn,
+  .search-btn,
+  .theme-btn,
+  .export-btn,
+  .collapse-btn,
+  .chain-btn,
+  .cycle-btn,
+  .impact-btn,
+  .inheritance-btn,
+  .minimap-btn,
+  .refresh-btn,
+  .undo-btn,
+  .redo-btn,
+  .import-btn,
+  .legend-btn,
+  .lang-btn,
+  .pathfind-btn,
+  .health-btn,
+  .rules-btn,
+  .hotspot-btn,
+  .godmodule-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .node-detail-panel .close-btn,
+  .legend-close,
+  .import-close,
+  .cg-close-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
 /* ---- Responsive for new components ---------------------------------------- */
 
 @container graphpanel (max-width: 480px) {

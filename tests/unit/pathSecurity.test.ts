@@ -10,8 +10,13 @@ describe('isPathAllowed', () => {
     expect(isPathAllowed('')).toBe(false);
   });
 
-  it('should return true for "."', () => {
+  it('should return true for "." when roots are set', () => {
+    setAllowedWorkspaceRoots(['C:\\Projects\\my-repo']);
     expect(isPathAllowed('.')).toBe(true);
+  });
+
+  it('should return false for "." when no roots are set (fail-closed)', () => {
+    expect(isPathAllowed('.')).toBe(false);
   });
 
   it('should return false for relative path containing ".."', () => {

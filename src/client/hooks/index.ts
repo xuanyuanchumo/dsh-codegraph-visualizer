@@ -55,7 +55,7 @@ export function useKeyboardShortcut(
         if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       }
 
-      const keyMatch = e.key === key;
+      const keyMatch = e.key.toLowerCase() === key.toLowerCase();
       const ctrlMatch = !ctrl || e.ctrlKey;
       const metaMatch = !meta || e.metaKey;
       const altMatch = !alt || e.altKey;

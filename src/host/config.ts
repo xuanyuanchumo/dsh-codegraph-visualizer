@@ -1,5 +1,8 @@
 import type { DataSourceType } from '../types/index.ts';
 
+const VALID_DATA_SOURCES = new Set<DataSourceType>(['auto', 'codegraph', 'lens', 'tree-sitter']);
+const ORIGIN_PATTERN = /^https?:\/\/[a-zA-Z0-9.-]+(:\d+)?$/;
+
 export interface VisualizerConfig {
   dataSource: DataSourceType;
   requestTimeout: number;
@@ -31,8 +34,13 @@ export const DEFAULT_CONFIG: VisualizerConfig = {
 export function resolveConfig(userConfig?: Partial<VisualizerConfig>): VisualizerConfig {
   const config: VisualizerConfig = { ...DEFAULT_CONFIG, ...userConfig };
   const errors: string[] = [];
-  if (config.dataSource !== 'auto' && config.dataSource !== 'codegraph' && config.dataSource !== 'lens' && config.dataSource !== 'tree-sitter') {
+  if (!VALID_DATA_SOURCES.has(config.dataSource)) {
     errors.push(`dataSource must be auto|codegraph|lens|tree-sitter, got ${String(config.dataSource)}`);
+  }
+  for (const origin of config.allowedOrigins) {
+    if (!ORIGIN_PATTERN.test(origin)) {
+      errors.push(`allowedOrigins contains invalid origin: ${origin} (expected http(s)://host[:port])`);
+    }
   }
   const positiveFields: Array<[keyof VisualizerConfig, number]> = [
     ['requestTimeout', config.requestTimeout],

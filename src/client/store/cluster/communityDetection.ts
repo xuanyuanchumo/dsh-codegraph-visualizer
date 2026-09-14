@@ -83,9 +83,28 @@ export function detectCommunities(
 
   for (const n of nodes) {
     if (!participatingIds.has(n.id)) {
-      const group = groups.get('overflow');
-      if (group) group.nodes.push(n);
-      else groups.set('overflow', { label: 'overflow', nodes: [n] });
+      let assigned = false;
+      for (const e of edges) {
+        if (e.source === n.id && participatingIds.has(e.target)) {
+          const lbl = labels.get(e.target);
+          if (lbl) {
+            const group = groups.get(lbl);
+            if (group) { group.nodes.push(n); assigned = true; break; }
+          }
+        }
+        if (e.target === n.id && participatingIds.has(e.source)) {
+          const lbl = labels.get(e.source);
+          if (lbl) {
+            const group = groups.get(lbl);
+            if (group) { group.nodes.push(n); assigned = true; break; }
+          }
+        }
+      }
+      if (!assigned) {
+        const group = groups.get('overflow');
+        if (group) group.nodes.push(n);
+        else groups.set('overflow', { label: 'overflow', nodes: [n] });
+      }
     }
   }
 

@@ -47,10 +47,10 @@ export interface IRenderer {
   focusNeighborhood(nodeId: NodeId | null): void;
   getThumbnail(): string | null;
   getViewportInfo(): { zoom: number; pan: { x: number; y: number }; renderedSize: { w: number; h: number }; totalSize: { w: number; h: number } } | null;
-  focusOnArea(ratioX: number, ratioY: number): void;
+  focusOnArea(x: number, y: number, zoom: number): void;
   exportJSON(): string;
   exportPNG(): string | null;
-  exportSVG(): string | null;
+  exportSVG(theme?: ThemeType): string | null;
   getSelectedNodeData(): GraphNode | null;
   getNodeData(nodeId: string): GraphNode | null;
   getEdgeData(edgeId: string): GraphEdge | null;

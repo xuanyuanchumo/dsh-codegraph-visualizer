@@ -74,10 +74,36 @@ export function parseCargoToml(content: string): DependencyGraph {
     seenIds.add(rootId);
 
     let inDepsSection = false;
+    let pendingTableDep: { name: string; fields: string[] } | null = null;
     for (const line of lines) {
       if (line.match(/^\[dependencies\]/)) { inDepsSection = true; continue; }
       if (line.match(/^\[/)) { inDepsSection = false; continue; }
       if (!inDepsSection) continue;
+
+      if (pendingTableDep) {
+        const trimmed = line.trim();
+        if (trimmed === '}') {
+          const versionField = pendingTableDep.fields.find((f) => f.match(/^version\s*=\s*"/));
+          if (versionField) {
+            const versionMatch = versionField.match(/^version\s*=\s*"([^"]+)"/);
+            if (versionMatch) {
+              const depName = pendingTableDep.name;
+              const depVersion = versionMatch[1]!;
+              const depId = `dep:${depName}`;
+              if (!seenIds.has(depId)) {
+                seenIds.add(depId);
+                nodes.push({ id: depId, name: depName, version: depVersion, type: 'cargo' });
+              }
+              edges.push({ source: rootId, target: depId, type: 'depends', scope: 'prod' });
+            }
+          }
+          pendingTableDep = null;
+          continue;
+        }
+        pendingTableDep.fields.push(line.trim());
+        continue;
+      }
+
       const simpleDepMatch = line.match(/^([a-zA-Z0-9_-]+)\s*=\s*"([^"]+)"/);
       if (simpleDepMatch) {
         const depName = simpleDepMatch[1]!;
@@ -90,16 +116,29 @@ export function parseCargoToml(content: string): DependencyGraph {
         edges.push({ source: rootId, target: depId, type: 'depends', scope: 'prod' });
         continue;
       }
-      const tableDepMatch = line.match(/^([a-zA-Z0-9_-]+)\s*=\s*\{[^}]*version\s*=\s*"([^"]+)"/);
-      if (tableDepMatch) {
-        const depName = tableDepMatch[1]!;
-        const depVersion = tableDepMatch[2]!;
-        const depId = `dep:${depName}`;
-        if (!seenIds.has(depId)) {
-          seenIds.add(depId);
-          nodes.push({ id: depId, name: depName, version: depVersion, type: 'cargo' });
+      const tableDepStartMatch = line.match(/^([a-zA-Z0-9_-]+)\s*=\s*\{(.*)$/);
+      if (tableDepStartMatch) {
+        const depName = tableDepStartMatch[1]!;
+        const rest = tableDepStartMatch[2]!;
+        if (rest.includes('}')) {
+          const inlineMatch = rest.match(/^([^}]*)\}/);
+          if (inlineMatch) {
+            const tableContent = inlineMatch[1]!;
+            const versionMatch = tableContent.match(/version\s*=\s*"([^"]+)"/);
+            if (versionMatch) {
+              const depVersion = versionMatch[1]!;
+              const depId = `dep:${depName}`;
+              if (!seenIds.has(depId)) {
+                seenIds.add(depId);
+                nodes.push({ id: depId, name: depName, version: depVersion, type: 'cargo' });
+              }
+              edges.push({ source: rootId, target: depId, type: 'depends', scope: 'prod' });
+            }
+            continue;
+          }
         }
-        edges.push({ source: rootId, target: depId, type: 'depends', scope: 'prod' });
+        pendingTableDep = { name: depName, fields: [rest] };
+        continue;
       }
     }
   } catch (e) {

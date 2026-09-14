@@ -275,6 +275,9 @@ export const zh: Record<string, string> = {
   'toolbar.godModule': 'God Module 检测',
   'toolbar.coreFunction': '核心函数识别',
 
+  // Hotspot panel
+  'hotspot.close': '关闭热点分析',
+
   // 影响半径
   'impact.total': '总影响节点',
 
@@ -307,6 +310,7 @@ export const zh: Record<string, string> = {
   'micro.selectedFunction': '当前函数: {name}',
   'micro.clearSelection': '清除选择',
   'micro.loadFailed': '微观图谱加载失败',
+  'micro.closeView': '关闭微观视图',
   'stats.nodesEdges': '{nodes} 节点 · {edges} 边',
   'godmodule.stats': '{nodes} 节点 · {edges} 边',
   'search.moreResults': '还有 {n} 个结果',

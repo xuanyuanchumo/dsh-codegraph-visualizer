@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useGraphStore, type ThemeType } from '../store/graphStore.ts';
+import { invalidateCssVarCache } from '../renderer/styles/ThemeStylesheet.ts';
 
 export function useThemeSync(updateRendererTheme: (theme: ThemeType) => void): void {
   useEffect(() => {
@@ -8,6 +9,7 @@ export function useThemeSync(updateRendererTheme: (theme: ThemeType) => void): v
       const newTheme: ThemeType = isDark ? 'dark' : 'light';
       const current = useGraphStore.getState().theme;
       if (current !== newTheme) {
+        invalidateCssVarCache();
         useGraphStore.getState().setTheme(newTheme);
         updateRendererTheme(newTheme);
       }

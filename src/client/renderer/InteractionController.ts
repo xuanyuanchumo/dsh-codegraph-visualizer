@@ -59,6 +59,8 @@ export class InteractionController {
   }
 
   destroy(): void {
+    this.cy.nodes().removeClass('hovered');
+    this.cy.edges().removeClass('hovered');
     this.cy.off('tap', 'node');
     this.cy.off('tap', 'edge');
     this.cy.off('dbltap', 'node');

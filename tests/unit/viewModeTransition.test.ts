@@ -64,8 +64,8 @@ describe('viewModeTransition', () => {
       expect(result.viewMode).toBe('code');
       expect(result.diagramData).toBeNull();
       expect(result.layout).toBe('cose');
-      expect(result.savedRawNodes).toEqual([]);
-      expect(result.savedRawEdges).toEqual([]);
+      expect(result.savedRawNodes).toEqual(nodes);
+      expect(result.savedRawEdges).toEqual(edges);
     });
 
     it('should use rawNodes when savedRawNodes is empty', () => {

@@ -33,7 +33,7 @@ export function useAnalysisPanels(
   const setRules = useGraphStore((s) => s.setRules);
   const setRuleViolations = useGraphStore((s) => s.setRuleViolations);
   const rules = useGraphStore((s) => s.rules);
-  const healthScore = useGraphStore((s) => s.healthScore);
+
 
   const [hotspotNodes, setHotspotNodes] = useState<HotspotNode[]>([]);
   const [godModules, setGodModules] = useState<GodModule[]>([]);
@@ -51,10 +51,10 @@ export function useAnalysisPanels(
   }, [rules, rawNodes, rawEdges, setRuleViolations, ruleEngine]);
 
   useEffect(() => {
-    if (showHealthScore && !healthScore && rawNodes.length > 0) {
+    if (showHealthScore && rawNodes.length > 0) {
       handleHealthCheck();
     }
-  }, [showHealthScore, healthScore, rawNodes.length, handleHealthCheck]);
+  }, [showHealthScore, rawNodes.length, rawEdges.length, handleHealthCheck]);
 
   useEffect(() => {
     if (showRules && rules.length === 0) {
