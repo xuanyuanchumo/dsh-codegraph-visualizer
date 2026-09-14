@@ -61,7 +61,7 @@ export class LayoutController {
   }
 
   isWorkerAvailable(): boolean {
-    return this.worker !== null;
+    return this.worker !== null && !this.workerInitFailed;
   }
 
   applyLayoutWithWorker(
