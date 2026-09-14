@@ -8,6 +8,9 @@ import { CallChainAggregator } from '../diagram/CallChainAggregator.ts';
 import { DiagramCache, ClusterCache, computeDataHash } from '../cache/DiagramCache.ts';
 import { invalidateCssVarCache } from '../renderer/styles/ThemeStylesheet.ts';
 import { computeViewModeTransition } from './viewModeTransition.ts';
+import { scoped } from '../../shared/Logger.ts';
+
+const log = scoped('store');
 
 export type { ClusterNode, ClusterEdge } from './cluster/index.ts';
 
@@ -481,7 +484,7 @@ export const useGraphStore = create<GraphState>()(
             if (!response.ok) return null;
             return await response.json();
           } catch (e) {
-            console.warn('[codegraph:store] AST fetch failed', e);
+            log.warn('AST fetch failed', e);
             return null;
           }
         };
