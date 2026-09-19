@@ -27,26 +27,16 @@ export class SecurityManager {
   }
 }
 
-let defaultManager: SecurityManager | null = null;
-
-function getManager(): SecurityManager {
-  if (!defaultManager) {
-    defaultManager = new SecurityManager();
-  }
-  return defaultManager;
-}
+const defaultManager = new SecurityManager();
 
 export function setAllowedWorkspaceRoots(roots: string[]): void {
-  getManager().setAllowedWorkspaceRoots(roots);
+  defaultManager.setAllowedWorkspaceRoots(roots);
 }
 
 export function isPathAllowed(path: string): boolean {
-  return getManager().isPathAllowed(path);
+  return defaultManager.isPathAllowed(path);
 }
 
 export function resetSecurityManager(): void {
-  if (defaultManager) {
-    defaultManager.reset();
-    defaultManager = null;
-  }
+  defaultManager.reset();
 }

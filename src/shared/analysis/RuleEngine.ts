@@ -1,24 +1,7 @@
-import type { GraphNode, GraphEdge } from '../../types/index.ts';
+import type { GraphNode, GraphEdge, RuleType, RuleDefinition, RuleViolation } from '../../types/index.ts';
 import { NodeId, EdgeId } from '../../types/index.ts';
 
-export type RuleType = 'forbidden-edge' | 'required-edge' | 'max-indegree' | 'max-outdegree' | 'cross-layer-call';
-
-export interface RuleDefinition {
-  id: string;
-  name: string;
-  type: RuleType;
-  params: Record<string, unknown>;
-  severity: 'error' | 'warning';
-  enabled: boolean;
-}
-
-export interface RuleViolation {
-  ruleId: string;
-  nodeId?: NodeId;
-  edgeId?: EdgeId;
-  message: string;
-  severity: 'error' | 'warning';
-}
+export type { RuleType, RuleDefinition, RuleViolation };
 
 export interface RuleDetector {
   detect(rule: RuleDefinition, nodes: GraphNode[], edges: GraphEdge[]): RuleViolation[];

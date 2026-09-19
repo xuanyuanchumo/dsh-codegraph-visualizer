@@ -6,6 +6,7 @@ import path, { isAbsolute, join, normalize, sep } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import fs from "node:fs/promises";
+import { platform } from "node:os";
 
 //#region node_modules/.pnpm/@deepseek-ai+cosmokit@1.8.2/node_modules/@deepseek-ai/cosmokit/lib/index.js
 /** Return true when a value is `null` or `undefined`. */
@@ -942,6 +943,7 @@ var LoggerImpl = class {
 		};
 	}
 	emit() {
+		if (this.listeners.size === 0) return;
 		const snapshot = this.entries();
 		for (const fn of this.listeners) try {
 			fn(snapshot);
@@ -2078,10 +2080,16 @@ const createGraphTools = (ctx, options = {}) => {
 			schema: { type: "json" },
 			render: (_args, value) => {
 				const v = value;
-				if (!v || !v.path || v.path.length === 0) return [{
-					type: "text",
-					text: "No path found between the specified symbols."
-				}];
+				if (!v || !v.path || v.path.length === 0) {
+					if (v?.truncated) return [{
+						type: "text",
+						text: "Graph too large (>10000 nodes) for path finding. Try filtering first."
+					}];
+					return [{
+						type: "text",
+						text: "No path found between the specified symbols."
+					}];
+				}
 				return [{
 					type: "text",
 					text: `Path found (${v.length} hops): ${v.path.join(" → ")}`
@@ -2093,7 +2101,11 @@ const createGraphTools = (ctx, options = {}) => {
 			const data = await fetchMergedGraph(invoke, a.repoId);
 			const nodeIds = new Set(data.nodes.map((n) => n.id));
 			if (!nodeIds.has(NodeId(a.sourceSymbol)) || !nodeIds.has(NodeId(a.targetSymbol))) return null;
-			if (data.nodes.length > 1e4) return null;
+			if (data.nodes.length > 1e4) return {
+				path: [],
+				length: 0,
+				truncated: true
+			};
 			const adjacency = new Map();
 			for (const edge of data.edges) {
 				const list = adjacency.get(edge.source);
@@ -2271,7 +2283,8 @@ const createGraphTools = (ctx, options = {}) => {
 		graphPathFind,
 		graphHealth,
 		graphRulesCheck,
-		graphFocus
+		graphFocus,
+		dispose: () => graphCache.clear()
 	};
 };
 
@@ -2348,22 +2361,15 @@ var SecurityManager = class {
 		this.allowedWorkspaceRoots = [];
 	}
 };
-let defaultManager = null;
-function getManager() {
-	if (!defaultManager) defaultManager = new SecurityManager();
-	return defaultManager;
-}
+const defaultManager = new SecurityManager();
 function setAllowedWorkspaceRoots(roots) {
-	getManager().setAllowedWorkspaceRoots(roots);
+	defaultManager.setAllowedWorkspaceRoots(roots);
 }
 function isPathAllowed(path$1) {
-	return getManager().isPathAllowed(path$1);
+	return defaultManager.isPathAllowed(path$1);
 }
 function resetSecurityManager() {
-	if (defaultManager) {
-		defaultManager.reset();
-		defaultManager = null;
-	}
+	defaultManager.reset();
 }
 
 //#endregion
@@ -3187,31 +3193,41 @@ const HEAVY_ENDPOINTS = new Set([
 	"/api/v1/codegraph/ast",
 	"/api/v1/codegraph/tree-sitter"
 ]);
-const rateLimitMap = new Map();
-let lastCleanup = Date.now();
-function checkRateLimit(ip, routePath) {
-	const key = `${ip}:${routePath}`;
-	const limit = HEAVY_ENDPOINTS.has(routePath) ? RATE_LIMIT_HEAVY : RATE_LIMIT_DEFAULT;
-	const now = Date.now();
-	if (now - lastCleanup > RATE_LIMIT_WINDOW_MS) {
-		for (const [k, b] of rateLimitMap) if (now > b.resetTime) rateLimitMap.delete(k);
-		lastCleanup = now;
-	}
-	if (rateLimitMap.size >= RATE_LIMIT_MAP_MAX) {
-		const oldestKey = rateLimitMap.keys().next().value;
-		if (oldestKey !== void 0) rateLimitMap.delete(oldestKey);
-	}
-	const bucket = rateLimitMap.get(key);
-	if (!bucket || now > bucket.resetTime) {
-		rateLimitMap.set(key, {
-			count: 1,
-			resetTime: now + RATE_LIMIT_WINDOW_MS
-		});
+function createRateLimiter() {
+	const rateLimitMap = new Map();
+	let lastCleanup = Date.now();
+	function check(ip, routePath) {
+		const key = `${ip}:${routePath}`;
+		const limit = HEAVY_ENDPOINTS.has(routePath) ? RATE_LIMIT_HEAVY : RATE_LIMIT_DEFAULT;
+		const now = Date.now();
+		if (now - lastCleanup > RATE_LIMIT_WINDOW_MS) {
+			for (const [k, b] of rateLimitMap) if (now > b.resetTime) rateLimitMap.delete(k);
+			lastCleanup = now;
+		}
+		if (rateLimitMap.size >= RATE_LIMIT_MAP_MAX) {
+			const oldestKey = rateLimitMap.keys().next().value;
+			if (oldestKey !== void 0) rateLimitMap.delete(oldestKey);
+		}
+		const bucket = rateLimitMap.get(key);
+		if (!bucket || now > bucket.resetTime) {
+			rateLimitMap.set(key, {
+				count: 1,
+				resetTime: now + RATE_LIMIT_WINDOW_MS
+			});
+			return true;
+		}
+		if (bucket.count >= limit) return false;
+		bucket.count++;
 		return true;
 	}
-	if (bucket.count >= limit) return false;
-	bucket.count++;
-	return true;
+	function reset() {
+		rateLimitMap.clear();
+		lastCleanup = Date.now();
+	}
+	return {
+		check,
+		reset
+	};
 }
 function getClientIp(req) {
 	const socketAddr = req.socket?.remoteAddress;
@@ -3342,6 +3358,7 @@ function registerRoutes(deps) {
 	const { ctx, config } = deps;
 	const invokeUpstream = createInvokeUpstream(ctx, config);
 	const origins = config.allowedOrigins;
+	const rateLimiter = createRateLimiter();
 	const sendJson = (res, code, data, req) => {
 		const headers = {
 			"content-type": "application/json",
@@ -3364,7 +3381,7 @@ function registerRoutes(deps) {
 		}, req);
 	};
 	const checkRate = (req, res, routePath) => {
-		if (!checkRateLimit(getClientIp(req), routePath)) {
+		if (!rateLimiter.check(getClientIp(req), routePath)) {
 			sendError(res, 429, "Rate limit exceeded", req);
 			return false;
 		}
@@ -3515,6 +3532,10 @@ function registerRoutes(deps) {
 					return;
 				}
 				const scanPath = path$1 && path$1 !== "." ? path$1 : findWorkspacePath(ctx);
+				if (scanPath && scanPath !== "." && !isPathAllowed(scanPath)) {
+					sendError(res, 403, "Workspace path not allowed", req);
+					return;
+				}
 				const repoId = scanPath || `workspace-${Date.now()}`;
 				const scanCache = deps.getScanCache();
 				const cached = scanCache.get(scanPath);
@@ -3800,8 +3821,8 @@ function registerRoutes(deps) {
 			}
 		}
 	}), "codegraph: diff route");
+	const sharedTreeSitterAdapter = new TreeSitterAdapter();
 	ctx.effect(() => {
-		const treeSitterAdapter = new TreeSitterAdapter();
 		return ctx.webServer.register({
 			kind: "exact",
 			path: "/api/v1/codegraph/ast",
@@ -3844,7 +3865,7 @@ function registerRoutes(deps) {
 						sendError(res, 413, `File too large for AST parsing (max ${MAX_AST_CONTENT} bytes)`, req);
 						return;
 					}
-					const astRoot = await treeSitterAdapter.parseToAst(filePath, content);
+					const astRoot = await sharedTreeSitterAdapter.parseToAst(filePath, content);
 					if (!astRoot) {
 						sendError(res, 500, `AST parsing failed: parseToAst returned null for ${filePath}`, req);
 						return;
@@ -3858,7 +3879,6 @@ function registerRoutes(deps) {
 		});
 	}, "codegraph: ast route");
 	ctx.effect(() => {
-		const treeSitterAdapter = new TreeSitterAdapter();
 		return ctx.webServer.register({
 			kind: "exact",
 			path: "/api/v1/codegraph/tree-sitter",
@@ -3884,7 +3904,7 @@ function registerRoutes(deps) {
 						sendError(res, 413, `Content too large for tree-sitter parsing (max ${MAX_TREE_SITTER_CONTENT} bytes, got ${content.length})`, req);
 						return;
 					}
-					const result = await treeSitterAdapter.parseFile(filePath, content);
+					const result = await sharedTreeSitterAdapter.parseFile(filePath, content);
 					sendJson(res, 200, result, req);
 				} catch (e) {
 					log$2.error("tree-sitter route failed", e);
@@ -3893,11 +3913,13 @@ function registerRoutes(deps) {
 			}
 		});
 	}, "codegraph: tree-sitter route");
+	ctx.effect(() => () => rateLimiter.reset(), "codegraph: rate limiter cleanup");
 }
 
 //#endregion
 //#region src/host/watcher.ts
 const log$1 = scoped("host");
+const supportsRecursive = platform() === "win32" || platform() === "darwin";
 async function scanAndPush(ctx, invokeUpstream, path$1) {
 	log$1.info("scan requested", { path: path$1 });
 	try {
@@ -3948,7 +3970,8 @@ function registerWatcher(ctx, config, invokeUpstream) {
 			}
 			log$1.info("watch enabled", { path: event.path });
 			try {
-				activeWatcher = watch(event.path, { recursive: true }, (_eventType, filename) => {
+				const watchOpts = supportsRecursive ? { recursive: true } : {};
+				activeWatcher = watch(event.path, watchOpts, (_eventType, filename) => {
 					if (!filename) return;
 					const segments = filename.split(/[\\/]/);
 					if (segments.includes(".codegraph")) return;
@@ -4032,7 +4055,7 @@ const inject = [
 function apply(ctx, userConfig) {
 	const config = resolveConfig(userConfig);
 	setAllowedWorkspaceRoots(extractWorkspacePaths(ctx));
-	const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus } = createGraphTools(ctx, { requestTimeout: config.requestTimeout });
+	const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus, dispose: disposeGraphTools } = createGraphTools(ctx, { requestTimeout: config.requestTimeout });
 	ctx.effect(() => {
 		const d1 = ctx.tools.register(graphStatus);
 		const d2 = ctx.tools.register(graphData);
@@ -4121,6 +4144,7 @@ function apply(ctx, userConfig) {
 		lastGraphData = null;
 		lastInitResult = null;
 		resetSecurityManager();
+		disposeGraphTools();
 	};
 }
 

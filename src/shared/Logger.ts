@@ -45,6 +45,7 @@ class LoggerImpl {
   }
 
   private emit(): void {
+    if (this.listeners.size === 0) return;
     const snapshot = this.entries();
     for (const fn of this.listeners) { try { fn(snapshot); } catch { /* listener fault */ } }
   }

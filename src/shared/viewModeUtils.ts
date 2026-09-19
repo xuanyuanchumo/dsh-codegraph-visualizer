@@ -16,5 +16,21 @@ export const VIEW_MODE_LAYOUT: Record<ViewMode, LayoutType> = {
 };
 
 export function isLayeredViewMode(mode: ViewMode): boolean {
-  return mode === 'inheritance' || mode === 'callgraph' || mode === 'package' || mode === 'class' || mode === 'dependencies';
+  switch (mode) {
+    case 'inheritance':
+    case 'callgraph':
+    case 'package':
+    case 'class':
+    case 'dependencies':
+      return true;
+    case 'code':
+    case 'cfg':
+    case 'flowchart':
+    case 'sequence':
+      return false;
+    default: {
+      const _exhaustive: never = mode;
+      throw new Error(`Unhandled ViewMode: ${_exhaustive as string}`);
+    }
+  }
 }

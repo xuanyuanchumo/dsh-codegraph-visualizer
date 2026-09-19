@@ -1,4 +1,5 @@
 import { watch } from 'node:fs';
+import { platform } from 'node:os';
 import type { Context } from '@deepseek-ai/cordis';
 import { scoped } from '../shared/Logger.ts';
 import { fetchMergedGraph } from '../tools.ts';
@@ -6,6 +7,7 @@ import { RepoId } from '../types/index.ts';
 import type { VisualizerConfig } from './config.ts';
 
 const log = scoped('host');
+const supportsRecursive = platform() === 'win32' || platform() === 'darwin';
 
 async function scanAndPush(
   ctx: Context,
@@ -57,7 +59,8 @@ export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUp
 
       log.info('watch enabled', { path: event.path });
       try {
-        activeWatcher = watch(event.path, { recursive: true }, (_eventType: string, filename: string | null) => {
+        const watchOpts = supportsRecursive ? { recursive: true } : {};
+        activeWatcher = watch(event.path, watchOpts, (_eventType: string, filename: string | null) => {
           if (!filename) return;
           const segments = filename.split(/[\\/]/);
           if (segments.includes('.codegraph')) return;

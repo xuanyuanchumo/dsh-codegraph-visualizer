@@ -24,7 +24,7 @@ export function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
   const config = resolveConfig(userConfig);
   setAllowedWorkspaceRoots(extractWorkspacePaths(ctx));
 
-  const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus } = createGraphTools(ctx, { requestTimeout: config.requestTimeout });
+  const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus, dispose: disposeGraphTools } = createGraphTools(ctx, { requestTimeout: config.requestTimeout });
 
   ctx.effect(() => {
     const d1 = ctx.tools.register(graphStatus);
@@ -109,5 +109,6 @@ export function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
     lastGraphData = null;
     lastInitResult = null;
     resetSecurityManager();
+    disposeGraphTools();
   };
 }

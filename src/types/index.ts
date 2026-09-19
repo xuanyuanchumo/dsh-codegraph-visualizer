@@ -47,7 +47,6 @@ export interface GraphData {
 
 export type ViewMode = 'code' | 'dependencies' | 'inheritance' | 'callgraph' | 'package' | 'class' | 'cfg' | 'flowchart' | 'sequence';
 
-export type DiagramType = ViewMode;
 
 export interface InheritanceNodeProperties {
   depth: number;

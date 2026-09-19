@@ -168,9 +168,10 @@ export function apply(ctx: Context) {
       }
       return status;
     };
-    checkStatus();
-    const prereqTimer = setTimeout(checkStatus, 3000);
-    ctx.effect(() => () => clearTimeout(prereqTimer), 'codegraph: prereq re-check timer');
+    checkStatus().then(() => {
+      const prereqTimer = setTimeout(checkStatus, 3000);
+      ctx.effect(() => () => clearTimeout(prereqTimer), 'codegraph: prereq re-check timer');
+    });
 
     const prereqInterval = setInterval(async () => {
       if (document.hidden) return;
@@ -182,36 +183,46 @@ export function apply(ctx: Context) {
   }
 
   let lastDshWorkspace = '';
+  let scanInProgress = false;
   {
     const store = useGraphStore.getState();
     const getWorkspaceAndScan = async () => {
-      const { path: workspacePath, list: wsList } = await fetchWorkspace();
-      lastDshWorkspace = workspacePath;
-      const s = useGraphStore.getState();
-      s.setCurrentWorkspace(workspacePath);
-      if (wsList.length > 0) {
-        const workspaceInfos = wsList.map((p) => ({ path: p, name: p.split(/[\\/]/).pop() ?? p, lastUsed: Date.now() }));
-        for (const wi of workspaceInfos) {
-          if (!s.workspaceList.some((w) => w.path === wi.path)) { s.addWorkspace(wi.path, wi.name); }
-        }
-      }
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: workspacePath } }));
-      }
-      log.info('auto-import requested', { path: workspacePath });
-      store.setLoading(true);
+      if (scanInProgress) return;
+      scanInProgress = true;
       try {
-        const result = await requestScan(workspacePath);
-        if (result && result.success && result.nodes.length > 0) {
-          const validated = validateGraphData(result);
-          if (validated) {
-            const s2 = useGraphStore.getState();
-            s2.setGraphData(validated.nodes, validated.edges, workspacePath, validated.metadata);
-            log.info('graph data received', { path: workspacePath, nodes: validated.nodes.length, edges: validated.edges.length });
+        const { path: workspacePath, list: wsList } = await fetchWorkspace();
+        lastDshWorkspace = workspacePath;
+        const s = useGraphStore.getState();
+        s.setCurrentWorkspace(workspacePath);
+        if (wsList.length > 0) {
+          const workspaceInfos = wsList.map((p) => ({ path: p, name: p.split(/[\\/]/).pop() ?? p, lastUsed: Date.now() }));
+          for (const wi of workspaceInfos) {
+            if (!s.workspaceList.some((w) => w.path === wi.path)) { s.addWorkspace(wi.path, wi.name); }
           }
         }
-      } finally {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: workspacePath } }));
+        }
+        log.info('auto-import requested', { path: workspacePath });
+        store.setLoading(true);
+        try {
+          const result = await requestScan(workspacePath);
+          if (result && result.success && result.nodes.length > 0) {
+            const validated = validateGraphData(result);
+            if (validated) {
+              const s2 = useGraphStore.getState();
+              s2.setGraphData(validated.nodes, validated.edges, workspacePath, validated.metadata);
+              log.info('graph data received', { path: workspacePath, nodes: validated.nodes.length, edges: validated.edges.length });
+            }
+          }
+        } finally {
+          useGraphStore.getState().setLoading(false);
+        }
+      } catch (e) {
+        log.warn('getWorkspaceAndScan failed', e);
         useGraphStore.getState().setLoading(false);
+      } finally {
+        scanInProgress = false;
       }
     };
 

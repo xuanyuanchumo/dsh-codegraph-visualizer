@@ -23,31 +23,41 @@ const RATE_LIMIT_MAP_MAX = 10_000;
 const HEAVY_ENDPOINTS = new Set(['/api/v1/codegraph/scan', '/api/v1/codegraph/init', '/api/v1/codegraph/diff', '/api/v1/codegraph/ast', '/api/v1/codegraph/tree-sitter']);
 
 interface RateBucket { count: number; resetTime: number; }
-const rateLimitMap = new Map<string, RateBucket>();
-let lastCleanup = Date.now();
 
-function checkRateLimit(ip: string, routePath: string): boolean {
-  const key = `${ip}:${routePath}`;
-  const limit = HEAVY_ENDPOINTS.has(routePath) ? RATE_LIMIT_HEAVY : RATE_LIMIT_DEFAULT;
-  const now = Date.now();
-  if (now - lastCleanup > RATE_LIMIT_WINDOW_MS) {
-    for (const [k, b] of rateLimitMap) {
-      if (now > b.resetTime) rateLimitMap.delete(k);
+function createRateLimiter() {
+  const rateLimitMap = new Map<string, RateBucket>();
+  let lastCleanup = Date.now();
+
+  function check(ip: string, routePath: string): boolean {
+    const key = `${ip}:${routePath}`;
+    const limit = HEAVY_ENDPOINTS.has(routePath) ? RATE_LIMIT_HEAVY : RATE_LIMIT_DEFAULT;
+    const now = Date.now();
+    if (now - lastCleanup > RATE_LIMIT_WINDOW_MS) {
+      for (const [k, b] of rateLimitMap) {
+        if (now > b.resetTime) rateLimitMap.delete(k);
+      }
+      lastCleanup = now;
     }
-    lastCleanup = now;
-  }
-  if (rateLimitMap.size >= RATE_LIMIT_MAP_MAX) {
-    const oldestKey = rateLimitMap.keys().next().value;
-    if (oldestKey !== undefined) rateLimitMap.delete(oldestKey);
-  }
-  const bucket = rateLimitMap.get(key);
-  if (!bucket || now > bucket.resetTime) {
-    rateLimitMap.set(key, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+    if (rateLimitMap.size >= RATE_LIMIT_MAP_MAX) {
+      const oldestKey = rateLimitMap.keys().next().value;
+      if (oldestKey !== undefined) rateLimitMap.delete(oldestKey);
+    }
+    const bucket = rateLimitMap.get(key);
+    if (!bucket || now > bucket.resetTime) {
+      rateLimitMap.set(key, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
+      return true;
+    }
+    if (bucket.count >= limit) return false;
+    bucket.count++;
     return true;
   }
-  if (bucket.count >= limit) return false;
-  bucket.count++;
-  return true;
+
+  function reset(): void {
+    rateLimitMap.clear();
+    lastCleanup = Date.now();
+  }
+
+  return { check, reset };
 }
 
 function getClientIp(req: IncomingMessage): string {
@@ -201,6 +211,7 @@ export function registerRoutes(deps: RouteDeps): void {
   const { ctx, config } = deps;
   const invokeUpstream = createInvokeUpstream(ctx, config);
   const origins = config.allowedOrigins;
+  const rateLimiter = createRateLimiter();
 
 
   const sendJson = (res: ServerResponse, code: number, data: unknown, req?: IncomingMessage): void => {
@@ -226,7 +237,7 @@ export function registerRoutes(deps: RouteDeps): void {
   };
 
   const checkRate = (req: IncomingMessage, res: ServerResponse, routePath: string): boolean => {
-    if (!checkRateLimit(getClientIp(req), routePath)) {
+    if (!rateLimiter.check(getClientIp(req), routePath)) {
       sendError(res, 429, 'Rate limit exceeded', req);
       return false;
     }
@@ -376,6 +387,10 @@ export function registerRoutes(deps: RouteDeps): void {
           return;
         }
         const scanPath = path && path !== '.' ? path : findWorkspacePath(ctx);
+        if (scanPath && scanPath !== '.' && !isPathAllowed(scanPath)) {
+          sendError(res, 403, 'Workspace path not allowed', req);
+          return;
+        }
         const repoId = scanPath || `workspace-${Date.now()}`;
         const scanCache = deps.getScanCache();
 
@@ -641,9 +656,10 @@ export function registerRoutes(deps: RouteDeps): void {
     },
   }), 'codegraph: diff route');
 
+  const sharedTreeSitterAdapter = new TreeSitterAdapter();
+
   // POST /api/v1/codegraph/ast — 获取文件 AST（用于微观图谱：CFG/流程图/时序图）
   ctx.effect(() => {
-    const treeSitterAdapter = new TreeSitterAdapter();
     return ctx.webServer.register({
       kind: 'exact',
       path: '/api/v1/codegraph/ast',
@@ -686,7 +702,7 @@ export function registerRoutes(deps: RouteDeps): void {
             sendError(res, 413, `File too large for AST parsing (max ${MAX_AST_CONTENT} bytes)`, req);
             return;
           }
-          const astRoot = await treeSitterAdapter.parseToAst(filePath, content);
+          const astRoot = await sharedTreeSitterAdapter.parseToAst(filePath, content);
           if (!astRoot) {
             sendError(res, 500, `AST parsing failed: parseToAst returned null for ${filePath}`, req);
             return;
@@ -702,7 +718,6 @@ export function registerRoutes(deps: RouteDeps): void {
 
   // POST /api/v1/codegraph/tree-sitter — FR-20 Tree-sitter 多语言解析
   ctx.effect(() => {
-    const treeSitterAdapter = new TreeSitterAdapter();
     return ctx.webServer.register({
       kind: 'exact',
       path: '/api/v1/codegraph/tree-sitter',
@@ -728,7 +743,7 @@ export function registerRoutes(deps: RouteDeps): void {
             sendError(res, 413, `Content too large for tree-sitter parsing (max ${MAX_TREE_SITTER_CONTENT} bytes, got ${content.length})`, req);
             return;
           }
-          const result = await treeSitterAdapter.parseFile(filePath, content);
+          const result = await sharedTreeSitterAdapter.parseFile(filePath, content);
           sendJson(res, 200, result, req);
         } catch (e) {
           log.error('tree-sitter route failed', e);
@@ -737,4 +752,6 @@ export function registerRoutes(deps: RouteDeps): void {
       },
     });
   }, 'codegraph: tree-sitter route');
+
+  ctx.effect(() => () => rateLimiter.reset(), 'codegraph: rate limiter cleanup');
 }

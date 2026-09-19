@@ -324,8 +324,9 @@ export const createGraphTools = (ctx: Context, options: { requestTimeout?: numbe
     output: {
       schema: { type: 'json' },
       render: (_args: unknown, value: unknown) => {
-        const v = value as { path?: string[]; length?: number } | null;
+        const v = value as { path?: string[]; length?: number; truncated?: boolean } | null;
         if (!v || !v.path || v.path.length === 0) {
+          if (v?.truncated) return [{ type: 'text' as const, text: 'Graph too large (>10000 nodes) for path finding. Try filtering first.' }];
           return [{ type: 'text' as const, text: 'No path found between the specified symbols.' }];
         }
         return [{ type: 'text' as const, text: `Path found (${v.length} hops): ${v.path.join(' → ')}` }];
@@ -338,7 +339,7 @@ export const createGraphTools = (ctx: Context, options: { requestTimeout?: numbe
       if (!nodeIds.has(NodeId(a.sourceSymbol)) || !nodeIds.has(NodeId(a.targetSymbol))) {
         return null;
       }
-      if (data.nodes.length > 10000) return null;
+      if (data.nodes.length > 10000) return { path: [], length: 0, truncated: true } as unknown as JsonValue;
       const adjacency = new Map<string, string[]>();
       for (const edge of data.edges) {
         const list = adjacency.get(edge.source);
@@ -471,7 +472,7 @@ export const createGraphTools = (ctx: Context, options: { requestTimeout?: numbe
     },
   });
 
-  return { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus };
+  return { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus, dispose: () => graphCache.clear() };
 };
 
 

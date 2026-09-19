@@ -9867,7 +9867,21 @@ const VIEW_MODE_LAYOUT = {
 	sequence: "grid"
 };
 function isLayeredViewMode(mode) {
-	return mode === "inheritance" || mode === "callgraph" || mode === "package" || mode === "class" || mode === "dependencies";
+	switch (mode) {
+		case "inheritance":
+		case "callgraph":
+		case "package":
+		case "class":
+		case "dependencies": return true;
+		case "code":
+		case "cfg":
+		case "flowchart":
+		case "sequence": return false;
+		default: {
+			const _exhaustive = mode;
+			throw new Error(`Unhandled ViewMode: ${_exhaustive}`);
+		}
+	}
 }
 
 //#endregion
@@ -10065,6 +10079,7 @@ var LoggerImpl = class {
 		};
 	}
 	emit() {
+		if (this.listeners.size === 0) return;
 		const snapshot = this.entries();
 		for (const fn$7 of this.listeners) try {
 			fn$7(snapshot);
@@ -58020,9 +58035,10 @@ function apply(ctx) {
 			}
 			return status;
 		};
-		checkStatus();
-		const prereqTimer = setTimeout(checkStatus, 3e3);
-		ctx.effect(() => () => clearTimeout(prereqTimer), "codegraph: prereq re-check timer");
+		checkStatus().then(() => {
+			const prereqTimer = setTimeout(checkStatus, 3e3);
+			ctx.effect(() => () => clearTimeout(prereqTimer), "codegraph: prereq re-check timer");
+		});
 		const prereqInterval = setInterval(async () => {
 			if (document.hidden) return;
 			const s = useGraphStore.getState();
@@ -58035,40 +58051,50 @@ function apply(ctx) {
 		ctx.effect(() => () => clearInterval(prereqInterval), "codegraph: prereq polling");
 	}
 	let lastDshWorkspace = "";
+	let scanInProgress = false;
 	{
 		const store = useGraphStore.getState();
 		const getWorkspaceAndScan = async () => {
-			const { path: workspacePath, list: wsList } = await fetchWorkspace();
-			lastDshWorkspace = workspacePath;
-			const s = useGraphStore.getState();
-			s.setCurrentWorkspace(workspacePath);
-			if (wsList.length > 0) {
-				const workspaceInfos = wsList.map((p$1) => ({
-					path: p$1,
-					name: p$1.split(/[\\/]/).pop() ?? p$1,
-					lastUsed: Date.now()
-				}));
-				for (const wi of workspaceInfos) if (!s.workspaceList.some((w) => w.path === wi.path)) s.addWorkspace(wi.path, wi.name);
-			}
-			if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codegraph:workspace", { detail: { path: workspacePath } }));
-			log.info("auto-import requested", { path: workspacePath });
-			store.setLoading(true);
+			if (scanInProgress) return;
+			scanInProgress = true;
 			try {
-				const result = await requestScan(workspacePath);
-				if (result && result.success && result.nodes.length > 0) {
-					const validated = validateGraphData(result);
-					if (validated) {
-						const s2 = useGraphStore.getState();
-						s2.setGraphData(validated.nodes, validated.edges, workspacePath, validated.metadata);
-						log.info("graph data received", {
-							path: workspacePath,
-							nodes: validated.nodes.length,
-							edges: validated.edges.length
-						});
-					}
+				const { path: workspacePath, list: wsList } = await fetchWorkspace();
+				lastDshWorkspace = workspacePath;
+				const s = useGraphStore.getState();
+				s.setCurrentWorkspace(workspacePath);
+				if (wsList.length > 0) {
+					const workspaceInfos = wsList.map((p$1) => ({
+						path: p$1,
+						name: p$1.split(/[\\/]/).pop() ?? p$1,
+						lastUsed: Date.now()
+					}));
+					for (const wi of workspaceInfos) if (!s.workspaceList.some((w) => w.path === wi.path)) s.addWorkspace(wi.path, wi.name);
 				}
-			} finally {
+				if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codegraph:workspace", { detail: { path: workspacePath } }));
+				log.info("auto-import requested", { path: workspacePath });
+				store.setLoading(true);
+				try {
+					const result = await requestScan(workspacePath);
+					if (result && result.success && result.nodes.length > 0) {
+						const validated = validateGraphData(result);
+						if (validated) {
+							const s2 = useGraphStore.getState();
+							s2.setGraphData(validated.nodes, validated.edges, workspacePath, validated.metadata);
+							log.info("graph data received", {
+								path: workspacePath,
+								nodes: validated.nodes.length,
+								edges: validated.edges.length
+							});
+						}
+					}
+				} finally {
+					useGraphStore.getState().setLoading(false);
+				}
+			} catch (e) {
+				log.warn("getWorkspaceAndScan failed", e);
 				useGraphStore.getState().setLoading(false);
+			} finally {
+				scanInProgress = false;
 			}
 		};
 		if (store.nodes.length === 0 && !store.isLoading) getWorkspaceAndScan();
