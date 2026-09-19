@@ -58,23 +58,23 @@ interface LayerDefinition {
 
 const LAYER_DEFINITIONS: Record<string, LayerDefinition[]> = {
   inheritance: [
-    { level: 0, name: 'layer.inheritance.0', nodeFilter: (n) => n.properties?.depth === 0 },
-    { level: 1, name: 'layer.inheritance.1', nodeFilter: (n) => (n.properties?.depth as number) <= 2 },
+    { level: 0, name: 'layer.inheritance.0', nodeFilter: (n) => (n.properties?.depth as number) <= 1 },
+    { level: 1, name: 'layer.inheritance.1', nodeFilter: (n) => (n.properties?.depth as number) <= 3 },
     { level: 2, name: 'layer.inheritance.2', nodeFilter: () => true },
   ],
   callgraph: [
-    { level: 0, name: 'layer.callgraph.0', nodeFilter: (n) => n.properties?.isEntry === true },
-    { level: 1, name: 'layer.callgraph.1', nodeFilter: (n) => (n.properties?.depth as number) <= 2 },
+    { level: 0, name: 'layer.callgraph.0', nodeFilter: (n) => n.properties?.isEntry === true || (n.properties?.depth as number) <= 1 },
+    { level: 1, name: 'layer.callgraph.1', nodeFilter: (n) => (n.properties?.depth as number) <= 3 },
     { level: 2, name: 'layer.callgraph.2', nodeFilter: () => true },
   ],
   package: [
-    { level: 0, name: 'layer.package.0', nodeFilter: (n) => n.properties?.depth === 0 },
-    { level: 1, name: 'layer.package.1', nodeFilter: (n) => (n.properties?.depth as number) <= 1 },
+    { level: 0, name: 'layer.package.0', nodeFilter: (n) => (n.properties?.depth as number) <= 1 },
+    { level: 1, name: 'layer.package.1', nodeFilter: (n) => (n.properties?.depth as number) <= 3 },
     { level: 2, name: 'layer.package.2', nodeFilter: () => true },
   ],
   class: [
-    { level: 0, name: 'layer.class.0', nodeFilter: (n) => n.properties?.depth === 0 },
-    { level: 1, name: 'layer.class.1', nodeFilter: (n) => (n.properties?.depth as number) <= 2 },
+    { level: 0, name: 'layer.class.0', nodeFilter: (n) => (n.properties?.depth as number) <= 1 },
+    { level: 1, name: 'layer.class.1', nodeFilter: (n) => (n.properties?.depth as number) <= 3 },
     { level: 2, name: 'layer.class.2', nodeFilter: () => true },
   ],
   code: [
@@ -83,8 +83,8 @@ const LAYER_DEFINITIONS: Record<string, LayerDefinition[]> = {
     { level: 2, name: 'layer.code.2', nodeFilter: () => true },
   ],
   dependencies: [
-    { level: 0, name: 'layer.dependencies.0', nodeFilter: (n) => n.properties?.depth === 0 },
-    { level: 1, name: 'layer.dependencies.1', nodeFilter: (n) => (n.properties?.depth as number) <= 1 },
+    { level: 0, name: 'layer.dependencies.0', nodeFilter: (n) => (n.properties?.depth as number) <= 1 },
+    { level: 1, name: 'layer.dependencies.1', nodeFilter: (n) => (n.properties?.depth as number) <= 3 },
     { level: 2, name: 'layer.dependencies.2', nodeFilter: () => true },
   ],
 };

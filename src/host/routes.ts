@@ -188,9 +188,12 @@ function parseJsonBody(body: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
-function extractStringField(obj: Record<string, unknown>, field: string): string | undefined {
+function extractStringField(obj: Record<string, unknown>, field: string, maxLength?: number): string | undefined {
   const v = obj[field];
-  return typeof v === 'string' ? v : undefined;
+  if (typeof v !== 'string') return undefined;
+  if (v.includes('\0')) return undefined;
+  if (maxLength !== undefined && v.length > maxLength) return undefined;
+  return v;
 }
 
 function extractBooleanField(obj: Record<string, unknown>, field: string): boolean | undefined {
@@ -381,7 +384,7 @@ export function registerRoutes(deps: RouteDeps): void {
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
-        const path = extractStringField(parsed, 'path');
+        const path = extractStringField(parsed, 'path', 4096);
         if (path && path !== '.' && !isPathAllowed(path)) {
           sendError(res, 403, 'Path not allowed', req);
           return;
@@ -456,7 +459,7 @@ export function registerRoutes(deps: RouteDeps): void {
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
-        const path = extractStringField(parsed, 'path');
+        const path = extractStringField(parsed, 'path', 4096);
         if (path && path !== '.' && !isPathAllowed(path)) {
           sendError(res, 403, 'Path not allowed', req);
           return;
@@ -512,7 +515,7 @@ export function registerRoutes(deps: RouteDeps): void {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
         const enabled = extractBooleanField(parsed, 'enabled');
-        const path = extractStringField(parsed, 'path');
+        const path = extractStringField(parsed, 'path', 4096);
         if (path && path !== '.' && !isPathAllowed(path)) {
           sendError(res, 403, 'Path not allowed', req);
           return;
@@ -612,8 +615,8 @@ export function registerRoutes(deps: RouteDeps): void {
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
-        const fromCommit = extractStringField(parsed, 'from');
-        const toCommit = extractStringField(parsed, 'to');
+        const fromCommit = extractStringField(parsed, 'from', 256);
+        const toCommit = extractStringField(parsed, 'to', 256);
         if (!fromCommit || !toCommit) {
           sendError(res, 400, 'from and to commits are required', req);
           return;
@@ -670,7 +673,7 @@ export function registerRoutes(deps: RouteDeps): void {
         try {
           const body = await readBody(req, config.maxBodyBytes);
           const parsed = parseJsonBody(body);
-          const filePath = extractStringField(parsed, 'filePath');
+          const filePath = extractStringField(parsed, 'filePath', 512);
           if (!filePath) {
             sendError(res, 400, 'filePath is required', req);
             return;
