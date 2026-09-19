@@ -1,7 +1,8 @@
 import type { Core } from 'cytoscape';
 import { SpatialIndex } from './SpatialIndex.ts';
+import { VIRTUAL_VIEWPORT } from '../../shared/constants.ts';
 
-const VIRTUAL_SCROLL_THRESHOLD = 2000;
+const VIRTUAL_SCROLL_THRESHOLD = VIRTUAL_VIEWPORT.SCROLL_THRESHOLD;
 
 export class VirtualViewportController {
   private cy: Core;
@@ -79,7 +80,7 @@ export class VirtualViewportController {
     const width = this.cy.width();
     const height = this.cy.height();
 
-    const padding = 100;
+    const padding = VIRTUAL_VIEWPORT.PADDING;
     const viewBounds = {
       x1: -pan.x / zoom - padding,
       y1: -pan.y / zoom - padding,

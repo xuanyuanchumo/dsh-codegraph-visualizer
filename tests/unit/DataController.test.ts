@@ -324,6 +324,118 @@ describe('DataController', () => {
     expect(dc.getNodeData('a')).toBeNull();
   });
 
+  describe('exportMermaid', () => {
+    it('returns "graph TD" header when no nodes', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      const result = dc.exportMermaid();
+      expect(result).toBe('graph TD\n');
+    });
+
+    it('returns graph TD header with node definitions', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const nodeA = makeMockNode('a', { label: 'FuncA', type: 'function' });
+      const nodeB = makeMockNode('b', { label: 'ClassB', type: 'class' });
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const dc = new DataController(cy as any);
+      const result = dc.exportMermaid();
+      expect(result).toContain('graph TD');
+      expect(result).toContain('a(');
+      expect(result).toContain('b[');
+      expect(result).toContain('"FuncA"');
+      expect(result).toContain('"ClassB"');
+    });
+
+    it('uses correct shape for each node type', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const funcNode = makeMockNode('n1', { label: 'fn', type: 'function' });
+      const classNode = makeMockNode('n2', { label: 'cls', type: 'class' });
+      const varNode = makeMockNode('n3', { label: 'var', type: 'variable' });
+      const modNode = makeMockNode('n4', { label: 'mod', type: 'module' });
+      const ifaceNode = makeMockNode('n5', { label: 'iface', type: 'interface' });
+      const cy = makeMockCy([funcNode, classNode, varNode, modNode, ifaceNode], []);
+      const dc = new DataController(cy as any);
+      const result = dc.exportMermaid();
+      expect(result).toContain('n1("fn")');
+      expect(result).toContain('n2["cls"]');
+      expect(result).toContain('n3(("var"))');
+      expect(result).toContain('n4{"mod"}');
+      expect(result).toContain('n5/"iface"/');
+    });
+
+    it('uses default shape for unknown node type', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const unknownNode = makeMockNode('n1', { label: 'unknown', type: 'weird' });
+      const cy = makeMockCy([unknownNode], []);
+      const dc = new DataController(cy as any);
+      const result = dc.exportMermaid();
+      expect(result).toContain('n1["unknown"]');
+    });
+
+    it('exports edges with type labels', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const nodeA = makeMockNode('a', { label: 'A', type: 'function' });
+      const nodeB = makeMockNode('b', { label: 'B', type: 'function' });
+      const edge = makeMockEdge('e1', 'a', 'b', { type: 'call' });
+      const cy = makeMockCy([nodeA, nodeB], [edge]);
+      const dc = new DataController(cy as any);
+      const result = dc.exportMermaid();
+      expect(result).toContain('a -->|call| b');
+    });
+
+    it('exports edges without label for unknown edge type', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const nodeA = makeMockNode('a', { label: 'A', type: 'function' });
+      const nodeB = makeMockNode('b', { label: 'B', type: 'function' });
+      const edge = makeMockEdge('e1', 'a', 'b', { type: 'unknown_type' });
+      const cy = makeMockCy([nodeA, nodeB], [edge]);
+      const dc = new DataController(cy as any);
+      const result = dc.exportMermaid();
+      expect(result).toContain('a --> b');
+    });
+
+    it('sanitizes node IDs with special characters', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const nodeA = makeMockNode('src/file.ts', { label: 'A', type: 'function' });
+      const cy = makeMockCy([nodeA], []);
+      const dc = new DataController(cy as any);
+      const result = dc.exportMermaid();
+      expect(result).toContain('src_file_ts');
+    });
+
+    it('escapes double quotes in labels', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const nodeA = makeMockNode('a', { label: 'say "hello"', type: 'function' });
+      const cy = makeMockCy([nodeA], []);
+      const dc = new DataController(cy as any);
+      const result = dc.exportMermaid();
+      expect(result).toContain("'hello'");
+      expect(result).not.toContain('"hello"');
+    });
+
+    it('exports all 6 edge type labels', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const nodeA = makeMockNode('a', { label: 'A', type: 'function' });
+      const nodeB = makeMockNode('b', { label: 'B', type: 'class' });
+      const edgeCall = makeMockEdge('e1', 'a', 'b', { type: 'call' });
+      const edgeExtend = makeMockEdge('e2', 'a', 'b', { type: 'extend' });
+      const edgeImplement = makeMockEdge('e3', 'a', 'b', { type: 'implement' });
+      const edgeImport = makeMockEdge('e4', 'a', 'b', { type: 'import' });
+      const edgeDependency = makeMockEdge('e5', 'a', 'b', { type: 'dependency' });
+      const edgeContains = makeMockEdge('e6', 'a', 'b', { type: 'contains' });
+      const cy = makeMockCy([nodeA, nodeB], [edgeCall, edgeExtend, edgeImplement, edgeImport, edgeDependency, edgeContains]);
+      const dc = new DataController(cy as any);
+      const result = dc.exportMermaid();
+      expect(result).toContain('-->|call|');
+      expect(result).toContain('-->|extend|');
+      expect(result).toContain('-->|implement|');
+      expect(result).toContain('-->|import|');
+      expect(result).toContain('-->|dependency|');
+      expect(result).toContain('-->|contains|');
+    });
+  });
+
   describe('applyConnectionFilters', () => {
     it('with fanInThreshold=1 hides nodes with no incoming edges (orphans)', async () => {
       const { DataController } = await import('../../src/client/renderer/DataController.ts');

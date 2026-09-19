@@ -3,6 +3,7 @@ import type { LayoutType } from './IRenderer.ts';
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { computeSmartSpacing, type SmartSpacing } from '../../shared/layoutUtils.ts';
+import { LAYOUT as LAYOUT_CONST, RENDERER } from '../../shared/constants.ts';
 
 const log = scoped('layout');
 
@@ -79,7 +80,7 @@ export class LayoutController {
           this.workerLayoutResolve({});
           this.workerLayoutResolve = null;
         }
-      }, 10000);
+      }, RENDERER.LAYOUT_TIMEOUT_MS);
 
       this.workerLayoutResolve = (positions) => {
         if (this.workerTimeout) {
@@ -106,7 +107,7 @@ export class LayoutController {
         if (node.nonempty()) node.position(pos);
       }
     });
-    this.cy.fit(undefined, 80);
+    this.cy.fit(undefined, RENDERER.FIT_PADDING);
     this.cachePositions();
   }
 
@@ -119,10 +120,10 @@ export class LayoutController {
       let effectiveLayout = layout;
       let animate = true;
 
-      if (nodeCount > 5000) {
+      if (nodeCount > LAYOUT_CONST.GRID_FALLBACK_NODE_THRESHOLD) {
         effectiveLayout = 'grid';
         animate = false;
-      } else if (nodeCount > 500 && layout === 'cose') {
+      } else if (nodeCount > LAYOUT_CONST.LARGE_NODE_THRESHOLD && layout === 'cose') {
         effectiveLayout = 'dagre';
         animate = false;
       }
@@ -280,8 +281,8 @@ export class LayoutController {
         } as LayoutOptions;
       case 'radial': {
         let maxDeg = 1;
-        if (nodeCount > 2000) {
-          const sampleSize = Math.min(200, nodeCount);
+        if (nodeCount > LAYOUT_CONST.VERY_LARGE_NODE_THRESHOLD) {
+          const sampleSize = Math.min(LAYOUT_CONST.LAYOUT_SAMPLE_SIZE, nodeCount);
           const step = Math.max(1, Math.floor(nodeCount / sampleSize));
           for (let i = 0; i < nodeCount; i += step) {
             const deg = this.cy.nodes()[i]?.degree() ?? 0;
@@ -327,15 +328,15 @@ export class LayoutController {
 
     const sp = this.computeSmartSpacing(nodes.length);
     const minGap = sp.minGap;
-    const maxIterations = 15;
-    const skipThreshold = 5000;
+    const maxIterations = LAYOUT_CONST.OVERLAP_MAX_ITERATIONS;
+    const skipThreshold = LAYOUT_CONST.OVERLAP_SKIP_THRESHOLD;
 
     if (nodes.length > skipThreshold) {
-      this.cy.fit(undefined, 80);
+      this.cy.fit(undefined, RENDERER.FIT_PADDING);
       return;
     }
 
-    const cellSize = minGap * 4;
+    const cellSize = minGap * LAYOUT_CONST.OVERLAP_CELL_SIZE_MULTIPLIER;
     let lastOverlapCount = Infinity;
     let noImprovementCount = 0;
 
@@ -422,7 +423,7 @@ export class LayoutController {
       });
     }
 
-    this.cy.fit(undefined, 80);
+    this.cy.fit(undefined, RENDERER.FIT_PADDING);
   }
 
   destroy(): void {

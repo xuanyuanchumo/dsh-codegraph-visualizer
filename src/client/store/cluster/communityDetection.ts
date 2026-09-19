@@ -1,10 +1,10 @@
 import type { GraphNode, GraphEdge } from '../../../types/index.ts';
 import { CLUSTER } from '../../../shared/constants.ts';
 
-const MAX_NODES_FOR_LABEL_PROP = 5000;
+const MAX_NODES_FOR_LABEL_PROP = CLUSTER.MAX_NODES_FOR_LABEL_PROP;
 const MIN_NODES_FOR_SUBGROUP = CLUSTER.MIN_NODES_FOR_SUBGROUP;
 const MAX_ITERATIONS_LARGE = CLUSTER.MAX_ITERATIONS_LARGE;
-const MAX_ITERATIONS_SMALL = 10;
+const MAX_ITERATIONS_SMALL = CLUSTER.MAX_ITERATIONS_SMALL;
 const LARGE_NODE_THRESHOLD = CLUSTER.LARGE_NODE_THRESHOLD;
 
 export interface CommunityGroup {
