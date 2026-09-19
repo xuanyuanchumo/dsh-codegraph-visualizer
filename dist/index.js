@@ -913,7 +913,7 @@ var LoggerImpl = class {
 		this.emit();
 		const fn = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
 		try {
-			fn(`[codegraph:${scope}] ${message}`, data ?? "");
+			if (typeof fn === "function") fn(`[codegraph:${scope}] ${message}`, data ?? "");
 		} catch {}
 	}
 	debug(scope, message, data) {
@@ -941,6 +941,9 @@ var LoggerImpl = class {
 		return () => {
 			this.listeners.delete(fn);
 		};
+	}
+	clearListeners() {
+		this.listeners.clear();
 	}
 	emit() {
 		if (this.listeners.size === 0) return;
@@ -2782,25 +2785,29 @@ function dependencyGraphToGraphData(depGraph) {
 
 //#endregion
 //#region src/merger/DiffEngine.ts
-function deepEqual(a, b, seen) {
+const MAX_DEEP_EQUAL_DEPTH = 50;
+function deepEqual(a, b, seen, depth) {
 	if (a === b) return true;
 	if (a === null || b === null) return false;
 	if (typeof a !== "object" || typeof b !== "object") return false;
+	if (depth !== void 0 && depth > MAX_DEEP_EQUAL_DEPTH) return false;
 	if (Array.isArray(a) || Array.isArray(b)) {
 		if (!Array.isArray(a) || !Array.isArray(b)) return false;
 		if (a.length !== b.length) return false;
-		for (let i = 0; i < a.length; i++) if (!deepEqual(a[i], b[i], seen)) return false;
+		const nextDepth$1 = (depth ?? 0) + 1;
+		for (let i = 0; i < a.length; i++) if (!deepEqual(a[i], b[i], seen, nextDepth$1)) return false;
 		return true;
 	}
 	if (!seen) seen = new Map();
 	if (seen.has(a)) return seen.get(a) === b;
 	seen.set(a, b);
+	const nextDepth = (depth ?? 0) + 1;
 	const aKeys = Object.keys(a).sort();
 	const bKeys = Object.keys(b).sort();
 	if (aKeys.length !== bKeys.length) return false;
 	for (let i = 0; i < aKeys.length; i++) {
 		if (aKeys[i] !== bKeys[i]) return false;
-		if (!deepEqual(a[aKeys[i]], b[bKeys[i]], seen)) return false;
+		if (!deepEqual(a[aKeys[i]], b[bKeys[i]], seen, nextDepth)) return false;
 	}
 	return true;
 }
@@ -3914,6 +3921,7 @@ function registerRoutes(deps) {
 		});
 	}, "codegraph: tree-sitter route");
 	ctx.effect(() => () => rateLimiter.reset(), "codegraph: rate limiter cleanup");
+	ctx.effect(() => () => sharedTreeSitterAdapter.destroy(), "codegraph: tree-sitter adapter cleanup");
 }
 
 //#endregion

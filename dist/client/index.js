@@ -10,7 +10,7 @@ window.__ModuleLoader__.load({
 			if (document.getElementById(styleId)) return;
 			var style = document.createElement("style");
 			style.id = styleId;
-			style.textContent = `﻿/* ============================================================================
+			style.textContent = `/* ============================================================================
  * DSH CodeGraph Visualizer — Modern UI Styles
  * Follows dsh-web-ui design tokens (--dsw-* CSS custom properties).
  * WCAG 2.2 AA compliant contrast, backdrop-blur glassmorphism, smooth motion.
@@ -218,7 +218,7 @@ body[data-ds-dark-theme] .depth-select option {
   color: #f9fafb;
 }
 
-﻿/* ---- Panel container ------------------------------------------------------ */
+/* ---- Panel container ------------------------------------------------------ */
 
 .graph-panel {
   position: relative;
@@ -1009,7 +1009,7 @@ body[data-ds-dark-theme] .type-badge.function {
   background: var(--cg-text-tertiary);
 }
 
-﻿/* ---- Overlays (loading / error / empty) ---------------------------------- */
+/* ---- Overlays (loading / error / empty) ---------------------------------- */
 
 .error-boundary-fallback {
   position: absolute;
@@ -1313,7 +1313,7 @@ body[data-ds-dark-theme] .type-badge.function {
   animation: cg-pulse 2s ease-in-out infinite;
 }
 
-﻿/* ---- Graph container ----------------------------------------------------- */
+/* ---- Graph container ----------------------------------------------------- */
 
 .graph-container {
   flex: 1;
@@ -1611,7 +1611,7 @@ body[data-ds-dark-theme] .type-badge.function {
   opacity: 0.4;
 }
 
-﻿/* ---- Node detail panel --------------------------------------------------- */
+/* ---- Node detail panel --------------------------------------------------- */
 
 .node-detail-panel {
   position: absolute;
@@ -3700,7 +3700,7 @@ body[data-ds-dark-theme] .type-badge.function {
   color: var(--cg-text);
 }
 
-﻿/* ---- Responsive ---------------------------------------------------------- */
+/* ---- Responsive ---------------------------------------------------------- */
 
 /* Small panels (DSH sidebar tab, narrow bottom panel).
  * Container queries respond to the PANEL width, not the viewport — the plugin
@@ -3956,7 +3956,7 @@ body[data-ds-dark-theme] .type-badge.function {
   }
 }
 
-﻿﻿/* Visually hidden — for screen reader only content */
+﻿/* Visually hidden — for screen reader only content */
 .cg-visually-hidden {
   position: absolute;
   width: 1px;
@@ -4645,39 +4645,37 @@ function detectCommunities(nodes, edges) {
 			nodes: [n]
 		});
 	}
-	for (const n of nodes) if (!participatingIds.has(n.id)) {
-		let assigned = false;
+	const overflowNodes = [];
+	for (const n of nodes) if (!participatingIds.has(n.id)) overflowNodes.push(n);
+	if (overflowNodes.length > 0) {
+		const overflowAdjacency = new Map();
+		for (const n of overflowNodes) overflowAdjacency.set(n.id, []);
 		for (const e of edges) {
-			if (e.source === n.id && participatingIds.has(e.target)) {
-				const lbl = labels.get(e.target);
-				if (lbl) {
-					const group = groups.get(lbl);
-					if (group) {
-						group.nodes.push(n);
-						assigned = true;
-						break;
-					}
-				}
-			}
-			if (e.target === n.id && participatingIds.has(e.source)) {
-				const lbl = labels.get(e.source);
-				if (lbl) {
-					const group = groups.get(lbl);
-					if (group) {
-						group.nodes.push(n);
-						assigned = true;
-						break;
-					}
-				}
-			}
+			if (overflowAdjacency.has(e.source) && participatingIds.has(e.target)) overflowAdjacency.get(e.source).push(e.target);
+			if (overflowAdjacency.has(e.target) && participatingIds.has(e.source)) overflowAdjacency.get(e.target).push(e.source);
 		}
-		if (!assigned) {
-			const group = groups.get("overflow");
-			if (group) group.nodes.push(n);
-			else groups.set("overflow", {
-				label: "overflow",
-				nodes: [n]
-			});
+		for (const n of overflowNodes) {
+			const neighbors = overflowAdjacency.get(n.id) ?? [];
+			let assigned = false;
+			for (const neighborId of neighbors) {
+				const lbl = labels.get(neighborId);
+				if (lbl) {
+					const group = groups.get(lbl);
+					if (group) {
+						group.nodes.push(n);
+						assigned = true;
+						break;
+					}
+				}
+			}
+			if (!assigned) {
+				const group = groups.get("overflow");
+				if (group) group.nodes.push(n);
+				else groups.set("overflow", {
+					label: "overflow",
+					nodes: [n]
+				});
+			}
 		}
 	}
 	return groups;
@@ -6549,6 +6547,7 @@ const en = {
 	"toolbar.undo": "Undo (Ctrl+Z)",
 	"toolbar.redo": "Redo (Ctrl+Y)",
 	"toolbar.viewModeDeps": "Switch to dependency graph view",
+	"toolbar.viewModeDependencies": "Switch to dependency graph view",
 	"toolbar.viewModeCode": "Switch to code graph view",
 	"toolbar.viewModeInheritance": "Switch to inheritance tree view",
 	"toolbar.viewModeCallgraph": "Switch to call graph view",
@@ -6661,7 +6660,12 @@ const en = {
 	"flowchart.semantic.notify": "Notify",
 	"flowchart.semantic.dispatch": "Dispatch",
 	"flowchart.semantic.resolve": "Resolve",
-	"flowchart.semantic.reject": "Reject"
+	"flowchart.semantic.reject": "Reject",
+	"nav.title": "Code Graph",
+	"nav.ariaLabel": "Code Graph",
+	"nav.closePanel": "Close graph panel",
+	"nav.searchSymbols": "Code Graph: Search Symbols",
+	"nav.togglePanel": "Code Graph: Toggle Panel"
 };
 
 //#endregion
@@ -6899,6 +6903,7 @@ const zh = {
 	"toolbar.undo": "撤销 (Ctrl+Z)",
 	"toolbar.redo": "重做 (Ctrl+Y)",
 	"toolbar.viewModeDeps": "切换到依赖图谱视图",
+	"toolbar.viewModeDependencies": "切换到依赖图谱视图",
 	"toolbar.viewModeCode": "切换到代码图谱视图",
 	"toolbar.viewModeInheritance": "切换到继承树视图",
 	"toolbar.viewModeCallgraph": "切换到调用图视图",
@@ -7011,7 +7016,12 @@ const zh = {
 	"flowchart.semantic.notify": "通知",
 	"flowchart.semantic.dispatch": "分发",
 	"flowchart.semantic.resolve": "解析",
-	"flowchart.semantic.reject": "拒绝"
+	"flowchart.semantic.reject": "拒绝",
+	"nav.title": "代码图谱",
+	"nav.ariaLabel": "代码图谱",
+	"nav.closePanel": "关闭图谱面板",
+	"nav.searchSymbols": "代码图谱: 搜索符号",
+	"nav.togglePanel": "代码图谱: 切换面板"
 };
 
 //#endregion
@@ -7064,6 +7074,9 @@ function t(key, params) {
 function useT() {
 	useLang();
 	return t;
+}
+function resetI18nListeners() {
+	listeners.clear();
 }
 
 //#endregion
@@ -10049,7 +10062,7 @@ var LoggerImpl = class {
 		this.emit();
 		const fn$7 = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
 		try {
-			fn$7(`[codegraph:${scope}] ${message}`, data$2 ?? "");
+			if (typeof fn$7 === "function") fn$7(`[codegraph:${scope}] ${message}`, data$2 ?? "");
 		} catch {}
 	}
 	debug(scope, message, data$2) {
@@ -10078,6 +10091,9 @@ var LoggerImpl = class {
 			this.listeners.delete(fn$7);
 		};
 	}
+	clearListeners() {
+		this.listeners.clear();
+	}
 	emit() {
 		if (this.listeners.size === 0) return;
 		const snapshot = this.entries();
@@ -10094,6 +10110,9 @@ function scoped(scope) {
 		warn: (m, d) => logger.warn(scope, m, d),
 		error: (m, d) => logger.error(scope, m, d)
 	};
+}
+function resetLoggerListeners() {
+	logger.clearListeners();
 }
 
 //#endregion
@@ -10173,6 +10192,11 @@ function clearLoadingFailsafe() {
 		clearTimeout(loadingFailsafe);
 		loadingFailsafe = null;
 	}
+}
+function disposeStore() {
+	diagramCache.invalidate();
+	clusterCache.invalidate();
+	clearLoadingFailsafe();
 }
 function applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache$1, set$1) {
 	if (isLayeredViewMode(viewMode)) {
@@ -50536,14 +50560,55 @@ var DataController = class {
 		});
 		return matches$2;
 	}
+	nodeFromCy(nodeId) {
+		const cyNode = this.cy.getElementById(nodeId);
+		if (cyNode.length === 0) return null;
+		const data$2 = cyNode.data();
+		if (!data$2) return null;
+		const isCluster = data$2.isCluster === true;
+		const baseProps = {};
+		for (const key of Object.keys(data$2)) if (![
+			"id",
+			"label",
+			"type",
+			"filePath",
+			"lineNumber",
+			"parent",
+			"isCluster",
+			"childCount"
+		].includes(key)) baseProps[key] = data$2[key];
+		if (isCluster) return {
+			id: NodeId(data$2.id),
+			label: data$2.label ?? data$2.id,
+			type: "module",
+			filePath: data$2.filePath ?? "",
+			lineNumber: 0,
+			properties: baseProps,
+			isCluster: true,
+			childCount: data$2.childCount ?? 0,
+			childIds: [],
+			clusterPath: data$2.filePath ?? "",
+			clusterLevel: "directory"
+		};
+		const node = {
+			id: NodeId(data$2.id),
+			label: data$2.label ?? data$2.id,
+			type: data$2.type ?? "module",
+			filePath: data$2.filePath ?? "",
+			lineNumber: data$2.lineNumber ?? 0,
+			properties: baseProps
+		};
+		if (data$2.parent) node.parentId = NodeId(data$2.parent);
+		return node;
+	}
 	getSelectedNodeData() {
 		const selected = this.cy.nodes(".selected");
 		if (selected.length === 0) return null;
 		const id = selected.first().id();
-		return this.currentNodes.get(id) ?? null;
+		return this.currentNodes.get(id) ?? this.nodeFromCy(id);
 	}
 	getNodeData(nodeId) {
-		return this.currentNodes.get(nodeId) ?? null;
+		return this.currentNodes.get(nodeId) ?? this.nodeFromCy(nodeId);
 	}
 	getEdgeData(edgeId) {
 		return this.currentEdges.get(edgeId) ?? null;
@@ -51101,11 +51166,11 @@ var VirtualViewportController = class {
 
 //#endregion
 //#region src/client/renderer/CytoscapeRenderer.ts
-let dagreRegistered = false;
 function ensureDagreRegistered() {
-	if (!dagreRegistered) {
+	const cy = cytoscape$1;
+	if (!cy.__dagreRegistered) {
 		cytoscape$1.use(import_cytoscape_dagre.default);
-		dagreRegistered = true;
+		cy.__dagreRegistered = true;
 	}
 }
 var CytoscapeRenderer = class {
@@ -51180,10 +51245,11 @@ var CytoscapeRenderer = class {
 		this.dataCtrl?.updateData(nodes, edges);
 		if (this.cy && nodes.length > 0) {
 			if (this.fitTimer !== null) clearTimeout(this.fitTimer);
+			const fitDelay = nodes.length > 500 ? 500 : 200;
 			this.fitTimer = setTimeout(() => {
 				this.fitTimer = null;
 				if (this.cy && this.cy.nodes().length > 0) this.cy.fit(void 0, 80);
-			}, 200);
+			}, fitDelay);
 		}
 	}
 	setRawNodes(rawNodes) {
@@ -57516,13 +57582,12 @@ function GraphPanelInner({ className = "" }) {
 	(0, react.useEffect)(() => {
 		handleNodeDoubleTapRef.current = (nodeId) => {
 			const data$2 = getDataRef.current?.getNodeData(nodeId);
-			if (!data$2) return;
-			const isClusterNode = "isCluster" in data$2 && data$2.isCluster === true;
+			const isClusterNode = data$2 ? "isCluster" in data$2 && data$2.isCluster === true : nodeId.startsWith("cluster__") || nodeId.startsWith("filecluster__") || nodeId.startsWith("subgroup__");
 			if (isClusterNode) {
 				const isExpanded = expandedNodeIds.has(nodeId);
 				if (isExpanded) collapseNode(nodeId);
 				else expandNode(nodeId);
-			} else if (data$2.type === "function") {
+			} else if (data$2 && data$2.type === "function") {
 				setSelectedNode(NodeId(nodeId));
 				setSelectedNodeData(data$2);
 			} else setFocusNodeId((prev) => {
@@ -57906,15 +57971,15 @@ function SidebarNavButton({ onClick, active }) {
 	return react.default.createElement("button", {
 		onClick,
 		className: `cg-sidebar-nav-btn${active ? " cg-sidebar-nav-btn-active" : ""}`,
-		title: "Code Graph",
-		"aria-label": "Code Graph"
+		title: t("nav.title"),
+		"aria-label": t("nav.ariaLabel")
 	}, react.default.createElement(GraphIcon, { size: 18 }));
 }
 function FloatingGraphPanel({ onClose }) {
-	return react.default.createElement("div", { className: "cg-floating-overlay" }, react.default.createElement("div", { className: "cg-floating-panel" }, react.default.createElement("div", { className: "cg-floating-header" }, react.default.createElement("span", { className: "cg-floating-title" }, "Code Graph"), react.default.createElement("button", {
+	return react.default.createElement("div", { className: "cg-floating-overlay" }, react.default.createElement("div", { className: "cg-floating-panel" }, react.default.createElement("div", { className: "cg-floating-header" }, react.default.createElement("span", { className: "cg-floating-title" }, t("nav.title")), react.default.createElement("button", {
 		onClick: onClose,
 		className: "cg-floating-close",
-		"aria-label": "Close graph panel"
+		"aria-label": t("nav.closePanel")
 	}, "×")), react.default.createElement("div", { className: "cg-floating-content" }, react.default.createElement(GraphPanel))));
 }
 function init(container, initialData) {
@@ -57948,7 +58013,7 @@ function apply(ctx) {
 		if (betterSidebar) {
 			const dispose = betterSidebar.registerTab({
 				id: "codegraph-visualizer",
-				title: "Code Graph",
+				title: t("nav.title"),
 				icon: (size$1) => react.default.createElement(GraphIcon, { size: size$1 }),
 				order: 50,
 				single: true,
@@ -57969,7 +58034,7 @@ function apply(ctx) {
 				name: "sidebar.footer.action",
 				id: "codegraph-visualizer",
 				order: 10,
-				label: () => "Code Graph"
+				label: () => t("nav.title")
 			}, () => react.default.createElement(SidebarNavButton, {
 				onClick: togglePanel,
 				active: panelVisible
@@ -58003,7 +58068,7 @@ function apply(ctx) {
 		if (spotlight) {
 			const d1 = spotlight.registerCommand({
 				id: "codegraph-search",
-				title: "Code Graph: Search Symbols",
+				title: t("nav.searchSymbols"),
 				handler: () => {
 					window.dispatchEvent(new KeyboardEvent("keydown", { key: "/" }));
 				}
@@ -58011,7 +58076,7 @@ function apply(ctx) {
 			if (typeof d1 === "function") ctx.effect(() => d1, "codegraph: spotlight search cmd");
 			const d2 = spotlight.registerCommand({
 				id: "codegraph-toggle",
-				title: "Code Graph: Toggle Panel",
+				title: t("nav.togglePanel"),
 				handler: () => togglePanel()
 			});
 			if (typeof d2 === "function") ctx.effect(() => d2, "codegraph: spotlight toggle cmd");
@@ -58021,6 +58086,7 @@ function apply(ctx) {
 	}
 	{
 		let lastStatusKey = "";
+		let prereqTimer = null;
 		const checkStatus = async () => {
 			const status = await fetchStatus();
 			const store = useGraphStore.getState();
@@ -58035,9 +58101,11 @@ function apply(ctx) {
 			}
 			return status;
 		};
+		ctx.effect(() => () => {
+			if (prereqTimer !== null) clearTimeout(prereqTimer);
+		}, "codegraph: prereq timer cleanup");
 		checkStatus().then(() => {
-			const prereqTimer = setTimeout(checkStatus, 3e3);
-			ctx.effect(() => () => clearTimeout(prereqTimer), "codegraph: prereq re-check timer");
+			prereqTimer = setTimeout(checkStatus, 3e3);
 		});
 		const prereqInterval = setInterval(async () => {
 			if (document.hidden) return;
@@ -58237,6 +58305,11 @@ function apply(ctx) {
 			window.removeEventListener("dsh:editor-symbol-select", symbolSelectListener);
 		}, "codegraph: window event listeners");
 	}
+	ctx.effect(() => () => {
+		disposeStore();
+		resetI18nListeners();
+		resetLoggerListeners();
+	}, "codegraph: module-level state cleanup");
 }
 
 //#endregion

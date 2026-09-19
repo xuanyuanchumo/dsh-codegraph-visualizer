@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useGraphStore, type ThemeType } from './store/graphStore.ts';
 import { useShallow } from 'zustand/shallow';
 import type { GraphNode, GraphEdge } from '../types/index.ts';
+import type { ClusterNode } from './store/cluster/index.ts';
 import { NodeId } from '../types/index.ts';
 import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard, useViewMode, useAnalysisPanels } from './hooks/index.ts';
 import { useThemeSync } from './hooks/useThemeSync.ts';
@@ -54,11 +55,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const depsFetchAbortRef = useRef<AbortController | null>(null);
   const getDataRef = useRef<{
-    getSelectedNodeData: () => GraphNode | null;
-    getNodeData: (id: string) => GraphNode | null;
+    getSelectedNodeData: () => GraphNode | ClusterNode | null;
+    getNodeData: (id: string) => GraphNode | ClusterNode | null;
     getEdgeData: (id: string) => GraphEdge | null;
   } | null>(null);
-  const [selectedNodeData, setSelectedNodeData] = useState<GraphNode | null>(null);
+  const [selectedNodeData, setSelectedNodeData] = useState<GraphNode | ClusterNode | null>(null);
   const [tooltip, setTooltip] = useState<TooltipData | EdgeTooltipData | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [thumbnail, setThumbnail] = useState<string | null>(null);
@@ -381,13 +382,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   useEffect(() => {
     handleNodeDoubleTapRef.current = (nodeId: string) => {
       const data = getDataRef.current?.getNodeData(nodeId);
-      if (!data) return;
-      const isClusterNode = 'isCluster' in data && data.isCluster === true;
+      const isClusterNode = data ? ('isCluster' in data && data.isCluster === true) : nodeId.startsWith('cluster__') || nodeId.startsWith('filecluster__') || nodeId.startsWith('subgroup__');
       if (isClusterNode) {
         const isExpanded = expandedNodeIds.has(nodeId);
         if (isExpanded) collapseNode(nodeId);
         else expandNode(nodeId);
-      } else if (data.type === 'function') {
+      } else if (data && data.type === 'function') {
         setSelectedNode(NodeId(nodeId));
         setSelectedNodeData(data);
       } else {

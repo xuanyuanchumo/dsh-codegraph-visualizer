@@ -1,5 +1,5 @@
 import type { Core, NodeDataDefinition } from 'cytoscape';
-import type { GraphNode, GraphEdge } from '../../types/index.ts';
+import { NodeId, type GraphNode, type GraphEdge } from '../../types/index.ts';
 import type { ClusterNode, ClusterEdge } from '../store/cluster/index.ts';
 import { getThemeColors } from './styles/ThemeStylesheet.ts';
 import type { ThemeType } from './IRenderer.ts';
@@ -396,15 +396,54 @@ export class DataController {
     return matches;
   }
 
-  getSelectedNodeData(): GraphNode | null {
+  private nodeFromCy(nodeId: string): GraphNode | ClusterNode | null {
+    const cyNode = this.cy.getElementById(nodeId);
+    if (cyNode.length === 0) return null;
+    const data = cyNode.data();
+    if (!data) return null;
+    const isCluster = data.isCluster === true;
+    const baseProps: Record<string, unknown> = {};
+    for (const key of Object.keys(data)) {
+      if (!['id', 'label', 'type', 'filePath', 'lineNumber', 'parent', 'isCluster', 'childCount'].includes(key)) {
+        baseProps[key] = data[key];
+      }
+    }
+    if (isCluster) {
+      return {
+        id: NodeId(data.id as string),
+        label: (data.label as string) ?? data.id as string,
+        type: 'module',
+        filePath: (data.filePath as string) ?? '',
+        lineNumber: 0,
+        properties: baseProps,
+        isCluster: true,
+        childCount: (data.childCount as number) ?? 0,
+        childIds: [],
+        clusterPath: (data.filePath as string) ?? '',
+        clusterLevel: 'directory',
+      };
+    }
+    const node: GraphNode = {
+      id: NodeId(data.id as string),
+      label: (data.label as string) ?? data.id as string,
+      type: ((data.type as string) ?? 'module') as GraphNode['type'],
+      filePath: (data.filePath as string) ?? '',
+      lineNumber: (data.lineNumber as number) ?? 0,
+      properties: baseProps,
+    };
+    if (data.parent) node.parentId = NodeId(data.parent as string);
+    return node;
+  }
+
+  getSelectedNodeData(): GraphNode | ClusterNode | null {
     const selected = this.cy.nodes('.selected');
     if (selected.length === 0) return null;
     const id = selected.first().id();
-    return this.currentNodes.get(id) ?? null;
+    return this.currentNodes.get(id) ?? this.nodeFromCy(id);
   }
 
-  getNodeData(nodeId: string): GraphNode | null {
-    return this.currentNodes.get(nodeId) ?? null;
+  getNodeData(nodeId: string): GraphNode | ClusterNode | null {
+    return this.currentNodes.get(nodeId) ?? this.nodeFromCy(nodeId);
   }
 
   getEdgeData(edgeId: string): GraphEdge | null {

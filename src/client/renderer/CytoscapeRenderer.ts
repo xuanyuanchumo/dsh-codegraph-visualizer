@@ -1,6 +1,7 @@
 import cytoscape, { type Core } from 'cytoscape';
 import dagre from 'cytoscape-dagre';
 import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
+import type { ClusterNode } from '../store/cluster/index.ts';
 import type { IRenderer, LayoutType, ThemeType } from './IRenderer.ts';
 import { LayoutController } from './LayoutController.ts';
 import { HighlightController } from './HighlightController.ts';
@@ -102,12 +103,13 @@ export class CytoscapeRenderer implements IRenderer {
     this.dataCtrl?.updateData(nodes, edges);
     if (this.cy && nodes.length > 0) {
       if (this.fitTimer !== null) clearTimeout(this.fitTimer);
+      const fitDelay = nodes.length > 500 ? 500 : 200;
       this.fitTimer = setTimeout(() => {
         this.fitTimer = null;
         if (this.cy && this.cy.nodes().length > 0) {
           this.cy.fit(undefined, 80);
         }
-      }, 200);
+      }, fitDelay);
     }
   }
 
@@ -227,11 +229,11 @@ export class CytoscapeRenderer implements IRenderer {
     return this.dataCtrl?.exportSVG(theme ?? this.options.theme) ?? null;
   }
 
-  getSelectedNodeData(): GraphNode | null {
+  getSelectedNodeData(): GraphNode | ClusterNode | null {
     return this.dataCtrl?.getSelectedNodeData() ?? null;
   }
 
-  getNodeData(nodeId: string): GraphNode | null {
+  getNodeData(nodeId: string): GraphNode | ClusterNode | null {
     return this.dataCtrl?.getNodeData(nodeId) ?? null;
   }
 

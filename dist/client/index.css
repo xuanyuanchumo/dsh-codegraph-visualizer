@@ -1,4 +1,4 @@
-﻿/* ============================================================================
+/* ============================================================================
  * DSH CodeGraph Visualizer — Modern UI Styles
  * Follows dsh-web-ui design tokens (--dsw-* CSS custom properties).
  * WCAG 2.2 AA compliant contrast, backdrop-blur glassmorphism, smooth motion.
@@ -206,7 +206,7 @@ body[data-ds-dark-theme] .depth-select option {
   color: #f9fafb;
 }
 
-﻿/* ---- Panel container ------------------------------------------------------ */
+/* ---- Panel container ------------------------------------------------------ */
 
 .graph-panel {
   position: relative;
@@ -997,7 +997,7 @@ body[data-ds-dark-theme] .type-badge.function {
   background: var(--cg-text-tertiary);
 }
 
-﻿/* ---- Overlays (loading / error / empty) ---------------------------------- */
+/* ---- Overlays (loading / error / empty) ---------------------------------- */
 
 .error-boundary-fallback {
   position: absolute;
@@ -1301,7 +1301,7 @@ body[data-ds-dark-theme] .type-badge.function {
   animation: cg-pulse 2s ease-in-out infinite;
 }
 
-﻿/* ---- Graph container ----------------------------------------------------- */
+/* ---- Graph container ----------------------------------------------------- */
 
 .graph-container {
   flex: 1;
@@ -1599,7 +1599,7 @@ body[data-ds-dark-theme] .type-badge.function {
   opacity: 0.4;
 }
 
-﻿/* ---- Node detail panel --------------------------------------------------- */
+/* ---- Node detail panel --------------------------------------------------- */
 
 .node-detail-panel {
   position: absolute;
@@ -3688,7 +3688,7 @@ body[data-ds-dark-theme] .type-badge.function {
   color: var(--cg-text);
 }
 
-﻿/* ---- Responsive ---------------------------------------------------------- */
+/* ---- Responsive ---------------------------------------------------------- */
 
 /* Small panels (DSH sidebar tab, narrow bottom panel).
  * Container queries respond to the PANEL width, not the viewport — the plugin
@@ -3944,7 +3944,7 @@ body[data-ds-dark-theme] .type-badge.function {
   }
 }
 
-﻿﻿/* Visually hidden — for screen reader only content */
+﻿/* Visually hidden — for screen reader only content */
 .cg-visually-hidden {
   position: absolute;
   width: 1px;

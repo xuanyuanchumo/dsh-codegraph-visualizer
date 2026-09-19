@@ -1,4 +1,5 @@
 import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
+import type { ClusterNode } from '../store/cluster/index.ts';
 import type { PathResult } from './PathFinder.ts';
 import type { LayoutType, ThemeType } from '../../shared/viewModeUtils.ts';
 export type { LayoutType, ThemeType } from '../../shared/viewModeUtils.ts';
@@ -51,8 +52,8 @@ export interface IRenderer {
   exportJSON(): string;
   exportPNG(): string | null;
   exportSVG(theme?: ThemeType): string | null;
-  getSelectedNodeData(): GraphNode | null;
-  getNodeData(nodeId: string): GraphNode | null;
+  getSelectedNodeData(): GraphNode | ClusterNode | null;
+  getNodeData(nodeId: string): GraphNode | ClusterNode | null;
   getEdgeData(edgeId: string): GraphEdge | null;
   resize(): void;
   updateTheme(theme: ThemeType): void;
