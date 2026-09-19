@@ -27,7 +27,7 @@ class LoggerImpl {
     if (this.buffer.length > RING_SIZE) this.buffer.splice(0, this.buffer.length - RING_SIZE);
     this.emit();
     const fn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
-    try { fn(`[codegraph:${scope}] ${message}`, data ?? ''); } catch { /* console unavailable */ }
+    try { if (typeof fn === 'function') fn(`[codegraph:${scope}] ${message}`, data ?? ''); } catch { /* console unavailable */ }
   }
 
   debug(scope: string, message: string, data?: unknown): void { this.log('debug', scope, message, data); }
@@ -42,6 +42,10 @@ class LoggerImpl {
     this.listeners.add(fn);
     fn(this.entries());
     return () => { this.listeners.delete(fn); };
+  }
+
+  clearListeners(): void {
+    this.listeners.clear();
   }
 
   private emit(): void {
@@ -61,4 +65,7 @@ export function scoped(scope: string) {
     warn: (m: string, d?: unknown) => logger.warn(scope, m, d),
     error: (m: string, d?: unknown) => logger.error(scope, m, d),
   };
+}
+export function resetLoggerListeners(): void {
+  logger.clearListeners();
 }

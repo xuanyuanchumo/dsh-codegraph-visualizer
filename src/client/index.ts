@@ -5,10 +5,14 @@ import { GraphPanel } from './GraphPanel.tsx';
 import { useGraphStore } from './store/graphStore.ts';
 import { GraphIcon } from './components/Icons.tsx';
 import { scoped } from '../shared/Logger.ts';
+import { resetLoggerListeners } from '../shared/Logger.ts';
 import type { GraphData } from '../types/index.ts';
 import { validateGraphData } from './validators.ts';
 import { PLUGIN_VERSION } from '../generated/version.ts';
 import { fetchStatus, fetchGraphData, fetchWorkspace, requestScan, requestInit, requestWatch } from './api/index.ts';
+import { t } from './i18n/index.ts';
+import { resetI18nListeners } from './i18n/index.ts';
+import { disposeStore } from './store/graphStore.ts';
 
 export { PLUGIN_VERSION };
 
@@ -21,8 +25,8 @@ function SidebarNavButton({ onClick, active }: { onClick: () => void; active: bo
   return React.createElement('button', {
     onClick,
     className: `cg-sidebar-nav-btn${active ? ' cg-sidebar-nav-btn-active' : ''}`,
-    title: 'Code Graph',
-    'aria-label': 'Code Graph',
+    title: t('nav.title'),
+    'aria-label': t('nav.ariaLabel'),
   }, React.createElement(GraphIcon, { size: 18 }));
 }
 
@@ -30,11 +34,11 @@ function FloatingGraphPanel({ onClose }: { onClose: () => void }) {
   return React.createElement('div', { className: 'cg-floating-overlay' },
     React.createElement('div', { className: 'cg-floating-panel' },
       React.createElement('div', { className: 'cg-floating-header' },
-        React.createElement('span', { className: 'cg-floating-title' }, 'Code Graph'),
+        React.createElement('span', { className: 'cg-floating-title' }, t('nav.title')),
         React.createElement('button', {
           onClick: onClose,
           className: 'cg-floating-close',
-          'aria-label': 'Close graph panel',
+          'aria-label': t('nav.closePanel'),
         }, '\u00d7'),
       ),
       React.createElement('div', { className: 'cg-floating-content' },
@@ -80,7 +84,7 @@ export function apply(ctx: Context) {
     if (betterSidebar) {
       const dispose = betterSidebar.registerTab({
         id: 'codegraph-visualizer',
-        title: 'Code Graph',
+        title: t('nav.title'),
         icon: (size: number) => React.createElement(GraphIcon, { size }),
         order: 50,
         single: true,
@@ -101,7 +105,7 @@ export function apply(ctx: Context) {
       ctx.slots.inject('sidebar.footer.action', () => {
         trackSlotDisposer(
           ctx.slots.register(
-            { name: 'sidebar.footer.action', id: 'codegraph-visualizer', order: 10, label: () => 'Code Graph' },
+            { name: 'sidebar.footer.action', id: 'codegraph-visualizer', order: 10, label: () => t('nav.title') },
             () => React.createElement(SidebarNavButton, { onClick: togglePanel, active: panelVisible }),
           ),
         );
@@ -140,13 +144,13 @@ export function apply(ctx: Context) {
     if (spotlight) {
       const d1 = spotlight.registerCommand({
         id: 'codegraph-search',
-        title: 'Code Graph: Search Symbols',
+        title: t('nav.searchSymbols'),
         handler: () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: '/' })); },
       });
       if (typeof d1 === 'function') ctx.effect(() => d1, 'codegraph: spotlight search cmd');
       const d2 = spotlight.registerCommand({
         id: 'codegraph-toggle',
-        title: 'Code Graph: Toggle Panel',
+        title: t('nav.togglePanel'),
         handler: () => togglePanel(),
       });
       if (typeof d2 === 'function') ctx.effect(() => d2, 'codegraph: spotlight toggle cmd');
@@ -157,6 +161,7 @@ export function apply(ctx: Context) {
 
   {
     let lastStatusKey = '';
+    let prereqTimer: ReturnType<typeof setTimeout> | null = null;
     const checkStatus = async () => {
       const status = await fetchStatus();
       const store = useGraphStore.getState();
@@ -168,9 +173,11 @@ export function apply(ctx: Context) {
       }
       return status;
     };
+    ctx.effect(() => () => {
+      if (prereqTimer !== null) clearTimeout(prereqTimer);
+    }, 'codegraph: prereq timer cleanup');
     checkStatus().then(() => {
-      const prereqTimer = setTimeout(checkStatus, 3000);
-      ctx.effect(() => () => clearTimeout(prereqTimer), 'codegraph: prereq re-check timer');
+      prereqTimer = setTimeout(checkStatus, 3000);
     });
 
     const prereqInterval = setInterval(async () => {
@@ -365,6 +372,12 @@ export function apply(ctx: Context) {
       window.removeEventListener('dsh:editor-symbol-select', symbolSelectListener);
     }, 'codegraph: window event listeners');
   }
+
+  ctx.effect(() => () => {
+    disposeStore();
+    resetI18nListeners();
+    resetLoggerListeners();
+  }, 'codegraph: module-level state cleanup');
 }
 
 

@@ -117,6 +117,12 @@ function clearLoadingFailsafe(): void {
   }
 }
 
+export function disposeStore(): void {
+  diagramCache.invalidate();
+  clusterCache.invalidate();
+  clearLoadingFailsafe();
+}
+
 function applyClusterUpdate(
   newExpanded: Set<string>,
   newExpandedByViewMode: Record<string, Set<string>>,

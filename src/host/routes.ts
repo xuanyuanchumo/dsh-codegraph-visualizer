@@ -754,4 +754,5 @@ export function registerRoutes(deps: RouteDeps): void {
   }, 'codegraph: tree-sitter route');
 
   ctx.effect(() => () => rateLimiter.reset(), 'codegraph: rate limiter cleanup');
+  ctx.effect(() => () => sharedTreeSitterAdapter.destroy(), 'codegraph: tree-sitter adapter cleanup');
 }

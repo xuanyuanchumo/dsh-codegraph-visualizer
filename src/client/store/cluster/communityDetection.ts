@@ -81,23 +81,31 @@ export function detectCommunities(
     else groups.set(lbl, { label: lbl, nodes: [n] });
   }
 
+  const overflowNodes: GraphNode[] = [];
   for (const n of nodes) {
-    if (!participatingIds.has(n.id)) {
+    if (!participatingIds.has(n.id)) overflowNodes.push(n);
+  }
+
+  if (overflowNodes.length > 0) {
+    const overflowAdjacency = new Map<string, string[]>();
+    for (const n of overflowNodes) overflowAdjacency.set(n.id, []);
+    for (const e of edges) {
+      if (overflowAdjacency.has(e.source) && participatingIds.has(e.target)) {
+        overflowAdjacency.get(e.source)!.push(e.target);
+      }
+      if (overflowAdjacency.has(e.target) && participatingIds.has(e.source)) {
+        overflowAdjacency.get(e.target)!.push(e.source);
+      }
+    }
+
+    for (const n of overflowNodes) {
+      const neighbors = overflowAdjacency.get(n.id) ?? [];
       let assigned = false;
-      for (const e of edges) {
-        if (e.source === n.id && participatingIds.has(e.target)) {
-          const lbl = labels.get(e.target);
-          if (lbl) {
-            const group = groups.get(lbl);
-            if (group) { group.nodes.push(n); assigned = true; break; }
-          }
-        }
-        if (e.target === n.id && participatingIds.has(e.source)) {
-          const lbl = labels.get(e.source);
-          if (lbl) {
-            const group = groups.get(lbl);
-            if (group) { group.nodes.push(n); assigned = true; break; }
-          }
+      for (const neighborId of neighbors) {
+        const lbl = labels.get(neighborId);
+        if (lbl) {
+          const group = groups.get(lbl);
+          if (group) { group.nodes.push(n); assigned = true; break; }
         }
       }
       if (!assigned) {

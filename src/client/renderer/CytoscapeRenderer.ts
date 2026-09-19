@@ -11,11 +11,11 @@ import { InteractionController, type InteractionCallbacks } from './InteractionC
 import { PathFinder, type PathResult } from './PathFinder.ts';
 import { VirtualViewportController } from './VirtualViewportController.ts';
 
-let dagreRegistered = false;
 function ensureDagreRegistered(): void {
-  if (!dagreRegistered) {
+  const cy = cytoscape as unknown as { __dagreRegistered?: boolean };
+  if (!cy.__dagreRegistered) {
     cytoscape.use(dagre);
-    dagreRegistered = true;
+    cy.__dagreRegistered = true;
   }
 }
 

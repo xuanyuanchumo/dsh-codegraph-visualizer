@@ -288,6 +288,7 @@ export const en: Record<string, string> = {
 
   // View mode
   'toolbar.viewModeDeps': 'Switch to dependency graph view',
+  'toolbar.viewModeDependencies': 'Switch to dependency graph view',
   'toolbar.viewModeCode': 'Switch to code graph view',
   'toolbar.viewModeInheritance': 'Switch to inheritance tree view',
   'toolbar.viewModeCallgraph': 'Switch to call graph view',
@@ -411,4 +412,11 @@ export const en: Record<string, string> = {
   'flowchart.semantic.dispatch': 'Dispatch',
   'flowchart.semantic.resolve': 'Resolve',
   'flowchart.semantic.reject': 'Reject',
+
+  // Navigation
+  'nav.title': 'Code Graph',
+  'nav.ariaLabel': 'Code Graph',
+  'nav.closePanel': 'Close graph panel',
+  'nav.searchSymbols': 'Code Graph: Search Symbols',
+  'nav.togglePanel': 'Code Graph: Toggle Panel',
 };

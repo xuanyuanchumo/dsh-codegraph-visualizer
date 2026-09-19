@@ -60,3 +60,6 @@ export function useT(): (key: string, params?: Record<string, string | number>) 
   useLang();
   return t;
 }
+export function resetI18nListeners(): void {
+  listeners.clear();
+}

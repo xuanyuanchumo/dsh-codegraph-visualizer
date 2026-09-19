@@ -287,6 +287,7 @@ export const zh: Record<string, string> = {
 
   // 视图模式
   'toolbar.viewModeDeps': '切换到依赖图谱视图',
+  'toolbar.viewModeDependencies': '切换到依赖图谱视图',
   'toolbar.viewModeCode': '切换到代码图谱视图',
   'toolbar.viewModeInheritance': '切换到继承树视图',
   'toolbar.viewModeCallgraph': '切换到调用图视图',
@@ -410,4 +411,11 @@ export const zh: Record<string, string> = {
   'flowchart.semantic.dispatch': '分发',
   'flowchart.semantic.resolve': '解析',
   'flowchart.semantic.reject': '拒绝',
+
+  // 导航
+  'nav.title': '代码图谱',
+  'nav.ariaLabel': '代码图谱',
+  'nav.closePanel': '关闭图谱面板',
+  'nav.searchSymbols': '代码图谱: 搜索符号',
+  'nav.togglePanel': '代码图谱: 切换面板',
 };
