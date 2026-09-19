@@ -571,7 +571,7 @@ export const useGraphStore = create<GraphState>()(
       migrate: (persisted, version) => {
         const p = persisted as Partial<GraphState>;
         const layout = p.layout;
-        const valid: LayoutType[] = ['cose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
+        const valid: LayoutType[] = ['cose', 'fcose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
         const result: Partial<GraphState> = {
           ...p,
           layout: valid.includes(layout as LayoutType) ? (layout as LayoutType) : 'cose',

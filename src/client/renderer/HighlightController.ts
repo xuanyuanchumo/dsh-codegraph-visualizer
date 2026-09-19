@@ -255,6 +255,26 @@ export class HighlightController {
     });
   }
 
+  isolateCycles(cycleIds: Set<string>): void {
+    this.cy.batch(() => {
+      this.cy.elements().removeClass('cycle-hidden');
+      this.cy.nodes().forEach((node) => {
+        if (!cycleIds.has(node.id())) node.addClass('cycle-hidden');
+      });
+      this.cy.edges().forEach((edge) => {
+        const srcIn = cycleIds.has(edge.source().id());
+        const tgtIn = cycleIds.has(edge.target().id());
+        if (!srcIn || !tgtIn) edge.addClass('cycle-hidden');
+      });
+    });
+  }
+
+  restoreIsolation(): void {
+    this.cy.batch(() => {
+      this.cy.elements().removeClass('cycle-hidden');
+    });
+  }
+
   private computeImpact(nodeId: NodeId, maxDepth: number = HIGHLIGHT.IMPACT_MAX_DEPTH): Map<string, number> {
     const visited = new Map<string, number>();
     const queue: Array<{ id: string; depth: number }> = [{ id: nodeId, depth: 0 }];
@@ -398,7 +418,7 @@ export class HighlightController {
 
   destroy(): void {
     this.cy.batch(() => {
-      this.cy.elements().removeClass('highlighted selected neighbor-highlight neighbor-dim call-chain cycle-highlight impact-d1 impact-d2 impact-d3 impact-source inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement');
+      this.cy.elements().removeClass('highlighted selected neighbor-highlight neighbor-dim call-chain cycle-highlight cycle-hidden impact-d1 impact-d2 impact-d3 impact-source inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement');
     });
     this.highlightedNodeIds.clear();
     this.selectedNodeId = null;

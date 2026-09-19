@@ -13,6 +13,7 @@ export const zh: Record<string, string> = {
   'toolbar.search': '搜索符号 (按 /)',
   'toolbar.chain': '切换调用链高亮 (Ctrl+C)',
   'toolbar.cycles': '高亮循环依赖',
+  'toolbar.isolateCycles': '隔离循环依赖子图',
   'toolbar.impact': '影响分析 - 显示依赖者 (Ctrl+E)',
   'toolbar.inheritance': '继承层次 - 显示继承/实现关系 (Ctrl+H)',
   'toolbar.minimap': '切换缩略图 (Ctrl+M)',

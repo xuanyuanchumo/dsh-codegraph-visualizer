@@ -12,7 +12,7 @@ import {
   UndoIcon, RedoIcon, StarIcon, FilterIcon,
 } from './Icons.tsx';
 
-const LAYOUTS: LayoutType[] = ['cose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
+const LAYOUTS: LayoutType[] = ['cose', 'fcose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
 const FILTER_KEYS: { value: GraphNode['type'] | 'all'; key: string }[] = [
   { value: 'all', key: 'filter.all' },
   { value: 'function', key: 'filter.function' },
@@ -53,6 +53,7 @@ export interface ToolbarVisibilityState {
   showSearch: boolean;
   showCallChain: boolean;
   showCycles: boolean;
+  cycleIsolation: boolean;
   showImpact: boolean;
   showInheritance: boolean;
   showMiniMap: boolean;
@@ -71,6 +72,7 @@ export interface ToolbarToggleHandlers {
   onToggleSearch: () => void;
   onToggleCallChain: () => void;
   onToggleCycles: () => void;
+  onToggleCycleIsolation: () => void;
   onToggleImpact: () => void;
   onToggleInheritance: () => void;
   onToggleMiniMap: () => void;
@@ -152,9 +154,9 @@ export function Toolbar(props: ToolbarProps) {
   } = props;
 
   const {
-    showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport,
+    showSearch, showCallChain, showCycles, cycleIsolation, showImpact, showInheritance, showMiniMap, showLegend, showImport,
     showPathFind, showHealthScore, showRules, showHotspot, showGodModule, showCoreFunction, showFilterPanel,
-    onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend,
+    onToggleSearch, onToggleCallChain, onToggleCycles, onToggleCycleIsolation, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend,
     onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onToggleCoreFunction, onToggleFilterPanel,
   } = panelControls;
 
@@ -279,6 +281,10 @@ export function Toolbar(props: ToolbarProps) {
             title={t('toolbar.chain')} aria-label={t('toolbar.chain')} aria-pressed={showCallChain}><ChainIcon size={15} /></button>
           <button className={`cycle-btn ${showCycles ? 'active' : ''}`} onClick={onToggleCycles}
             title={t('toolbar.cycles')} aria-label={t('toolbar.cycles')} aria-pressed={showCycles}><CycleIcon size={15} /></button>
+          {showCycles && (
+            <button className={`isolate-btn ${cycleIsolation ? 'active' : ''}`} onClick={onToggleCycleIsolation}
+              title={t('toolbar.isolateCycles')} aria-label={t('toolbar.isolateCycles')} aria-pressed={cycleIsolation}><FilterIcon size={15} /></button>
+          )}
           <button className={`impact-btn ${showImpact ? 'active' : ''}`} onClick={onToggleImpact}
             title={t('toolbar.impact')} aria-label={t('toolbar.impact')} aria-pressed={showImpact}><ZapIcon size={15} /></button>
           <button className={`inheritance-btn ${showInheritance ? 'active' : ''}`} onClick={onToggleInheritance}

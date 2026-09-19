@@ -1,0 +1,265 @@
+/* ---- PathBar (FR-25: Path Finding) ---------------------------------------- */
+
+.path-bar {
+  position: absolute;
+  left: 12px;
+  top: calc(var(--cg-toolbar-h) + 12px);
+  width: 280px;
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius);
+  box-shadow: var(--cg-shadow);
+  z-index: 7;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow: hidden;
+  animation: cg-slide-right 160ms var(--cg-ease-out);
+}
+
+.path-bar-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cg-text);
+  border-bottom: 1px solid var(--cg-border);
+}
+
+.path-bar-content {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.path-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+
+.path-input-group label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cg-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.path-input-group input {
+  padding: 6px 10px;
+  background: var(--cg-bg);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-sm);
+  color: var(--cg-text);
+  font-size: 12px;
+  font-family: var(--cg-font-sans);
+  outline: none;
+  transition: border-color var(--cg-transition), box-shadow var(--cg-transition);
+}
+
+.path-input-group input:focus {
+  border-color: var(--cg-accent);
+  box-shadow: 0 0 0 3px var(--cg-accent-soft);
+}
+
+.path-input-group input::placeholder {
+  color: var(--cg-text-tertiary);
+}
+
+.path-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 2px;
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border-strong);
+  border-radius: var(--cg-radius-sm);
+  box-shadow: var(--cg-shadow);
+  z-index: 10;
+  max-height: 160px;
+  overflow-y: auto;
+  animation: cg-dropdown-in 120ms var(--cg-ease-out);
+}
+
+.path-suggestions button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  background: transparent;
+  color: var(--cg-text);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--cg-transition);
+}
+
+.path-suggestions button:hover {
+  background: var(--cg-surface-hover);
+}
+
+.suggestion-type {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: var(--cg-accent-soft);
+  color: var(--cg-accent);
+  flex-shrink: 0;
+}
+
+.suggestion-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.path-selected {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--cg-accent-soft);
+  border: 1px solid var(--cg-accent);
+  border-radius: var(--cg-radius-xs);
+  font-size: 11px;
+  color: var(--cg-accent);
+  font-weight: 500;
+}
+
+.path-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.path-find-btn,
+.path-clear-btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: var(--cg-radius-sm);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--cg-font-sans);
+  cursor: pointer;
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
+}
+
+.path-find-btn {
+  background: var(--cg-accent);
+  color: var(--cg-on-accent);
+  flex: 1;
+}
+
+.path-find-btn:hover:not(:disabled) {
+  background: var(--cg-accent-hover);
+  transform: translateY(-1px);
+}
+
+.path-find-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.path-clear-btn {
+  background: var(--cg-surface);
+  color: var(--cg-text-secondary);
+  border: 1px solid var(--cg-border);
+}
+
+.path-clear-btn:hover {
+  background: var(--cg-surface-hover);
+  color: var(--cg-text);
+}
+
+.path-result {
+  display: flex;
+  gap: 12px;
+  padding: 6px 10px;
+  background: var(--cg-accent-soft);
+  border-radius: var(--cg-radius-xs);
+  font-size: 11px;
+  color: var(--cg-accent);
+  font-weight: 500;
+}
+
+/* ---- FocusModeBar (FR-26/28: Focus Mode) ---------------------------------- */
+
+.focus-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--cg-accent-soft);
+  border-bottom: 1px solid var(--cg-accent);
+  font-size: 12px;
+  color: var(--cg-accent);
+  flex-shrink: 0;
+  animation: cg-slide-down 160ms var(--cg-ease-out);
+}
+
+.focus-label {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+.focus-depth {
+  font-family: var(--cg-font-mono);
+  font-size: 11px;
+  padding: 1px 6px;
+  background: var(--cg-accent);
+  color: var(--cg-on-accent);
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.focus-expand-btn,
+.focus-contract-btn,
+.focus-exit-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--cg-border);
+  background: var(--cg-bg);
+  border-radius: var(--cg-radius-xs);
+  cursor: pointer;
+  color: var(--cg-text-secondary);
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.focus-expand-btn:hover,
+.focus-contract-btn:hover,
+.focus-exit-btn:hover {
+  background: var(--cg-surface-hover);
+  border-color: var(--cg-accent);
+  color: var(--cg-accent);
+}
+
+.focus-expand-btn:first-of-type {
+  margin-left: auto;
+}
+
+.focus-contract-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.focus-exit-btn:hover {
+  border-color: var(--cg-error);
+  color: var(--cg-error);
+}

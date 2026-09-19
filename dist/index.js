@@ -1341,6 +1341,23 @@ function buildModuleMap(nodes, maxDepth) {
 }
 
 //#endregion
+//#region src/shared/constants.ts
+const API = {
+	DEFAULT_TIMEOUT_MS: 3e4,
+	RATE_LIMIT_WINDOW_MS: 6e4,
+	RATE_LIMIT_DEFAULT: 60,
+	RATE_LIMIT_HEAVY: 10,
+	RATE_LIMIT_MAP_MAX: 1e4
+};
+const HEALTH_SCORE = {
+	WEIGHT_COUPLING: .25,
+	WEIGHT_COHESION: .25,
+	WEIGHT_CYCLIC: .3,
+	WEIGHT_MODULARITY: .2,
+	DEFAULT_MAX_MODULE_DEPTH: 3
+};
+
+//#endregion
 //#region src/shared/analysis/HealthScorer.ts
 const EDGE_WEIGHTS = {
 	call: 1,
@@ -1350,7 +1367,7 @@ const EDGE_WEIGHTS = {
 	dependency: .3,
 	contains: 0
 };
-const DEFAULT_MAX_MODULE_DEPTH = 3;
+const DEFAULT_MAX_MODULE_DEPTH = HEALTH_SCORE.DEFAULT_MAX_MODULE_DEPTH;
 var HealthScorer = class {
 	maxModuleDepth;
 	constructor(maxModuleDepth) {
@@ -1369,7 +1386,7 @@ var HealthScorer = class {
 		const cohesion = this.calculateCohesion(nodes, edges, moduleOfNode);
 		const cyclicDependencyRate = this.calculateCyclicDependencyRate(nodes, edges);
 		const modularity = this.calculateModularity(nodes, edges, moduleOfNode);
-		const overall = Math.round(coupling * .25 + cohesion * .25 + cyclicDependencyRate * .3 + modularity * .2);
+		const overall = Math.round(coupling * HEALTH_SCORE.WEIGHT_COUPLING + cohesion * HEALTH_SCORE.WEIGHT_COHESION + cyclicDependencyRate * HEALTH_SCORE.WEIGHT_CYCLIC + modularity * HEALTH_SCORE.WEIGHT_MODULARITY);
 		return {
 			coupling,
 			cohesion,
@@ -3189,10 +3206,10 @@ var TreeSitterAdapter = class TreeSitterAdapter {
 //#endregion
 //#region src/host/routes.ts
 const log$2 = scoped("host");
-const RATE_LIMIT_WINDOW_MS = 6e4;
-const RATE_LIMIT_DEFAULT = 60;
-const RATE_LIMIT_HEAVY = 10;
-const RATE_LIMIT_MAP_MAX = 1e4;
+const RATE_LIMIT_WINDOW_MS = API.RATE_LIMIT_WINDOW_MS;
+const RATE_LIMIT_DEFAULT = API.RATE_LIMIT_DEFAULT;
+const RATE_LIMIT_HEAVY = API.RATE_LIMIT_HEAVY;
+const RATE_LIMIT_MAP_MAX = API.RATE_LIMIT_MAP_MAX;
 const HEAVY_ENDPOINTS = new Set([
 	"/api/v1/codegraph/scan",
 	"/api/v1/codegraph/init",
@@ -3347,9 +3364,12 @@ function parseJsonBody(body) {
 	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("Invalid JSON body: expected object");
 	return parsed;
 }
-function extractStringField(obj, field) {
+function extractStringField(obj, field, maxLength) {
 	const v = obj[field];
-	return typeof v === "string" ? v : void 0;
+	if (typeof v !== "string") return void 0;
+	if (v.includes("\0")) return void 0;
+	if (maxLength !== void 0 && v.length > maxLength) return void 0;
+	return v;
 }
 function extractBooleanField(obj, field) {
 	const v = obj[field];
@@ -3360,6 +3380,14 @@ function isSafeGitRef(ref) {
 	if (!GIT_REF_PATTERN.test(ref)) return false;
 	if (ref.includes("..")) return false;
 	return true;
+}
+async function validatePathRealpath(scanPath) {
+	try {
+		const realPath = await fs.realpath(scanPath);
+		return isPathAllowed(realPath);
+	} catch {
+		return true;
+	}
 }
 function registerRoutes(deps) {
 	const { ctx, config } = deps;
@@ -3530,10 +3558,11 @@ function registerRoutes(deps) {
 			if (handleCorsPreflight(req, res)) return;
 			if (!requireMethod(req, res, "POST")) return;
 			logRequest(req, "/api/v1/codegraph/scan");
+			if (!checkRate(req, res, "/api/v1/codegraph/scan")) return;
 			try {
 				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
-				const path$1 = extractStringField(parsed, "path");
+				const path$1 = extractStringField(parsed, "path", 4096);
 				if (path$1 && path$1 !== "." && !isPathAllowed(path$1)) {
 					sendError(res, 403, "Path not allowed", req);
 					return;
@@ -3541,6 +3570,10 @@ function registerRoutes(deps) {
 				const scanPath = path$1 && path$1 !== "." ? path$1 : findWorkspacePath(ctx);
 				if (scanPath && scanPath !== "." && !isPathAllowed(scanPath)) {
 					sendError(res, 403, "Workspace path not allowed", req);
+					return;
+				}
+				if (scanPath && scanPath !== "." && !await validatePathRealpath(scanPath)) {
+					sendError(res, 403, "Access denied: symlink escape", req);
 					return;
 				}
 				const repoId = scanPath || `workspace-${Date.now()}`;
@@ -3615,15 +3648,24 @@ function registerRoutes(deps) {
 			if (handleCorsPreflight(req, res)) return;
 			if (!requireMethod(req, res, "POST")) return;
 			logRequest(req, "/api/v1/codegraph/init");
+			if (!checkRate(req, res, "/api/v1/codegraph/init")) return;
 			try {
 				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
-				const path$1 = extractStringField(parsed, "path");
+				const path$1 = extractStringField(parsed, "path", 4096);
 				if (path$1 && path$1 !== "." && !isPathAllowed(path$1)) {
 					sendError(res, 403, "Path not allowed", req);
 					return;
 				}
 				const initPath = path$1 && path$1 !== "." ? path$1 : findWorkspacePath(ctx);
+				if (initPath && initPath !== "." && !isPathAllowed(initPath)) {
+					sendError(res, 403, "Path not allowed", req);
+					return;
+				}
+				if (initPath && initPath !== "." && !await validatePathRealpath(initPath)) {
+					sendError(res, 403, "Access denied: symlink escape", req);
+					return;
+				}
 				log$2.info("init requested", { path: initPath });
 				const result = await invokeUpstream("codegraph_init", {
 					path: initPath,
@@ -3675,12 +3717,20 @@ function registerRoutes(deps) {
 				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
 				const enabled = extractBooleanField(parsed, "enabled");
-				const path$1 = extractStringField(parsed, "path");
+				const path$1 = extractStringField(parsed, "path", 4096);
 				if (path$1 && path$1 !== "." && !isPathAllowed(path$1)) {
 					sendError(res, 403, "Path not allowed", req);
 					return;
 				}
 				const watchPath = path$1 && path$1 !== "." ? path$1 : findWorkspacePath(ctx);
+				if (watchPath && watchPath !== "." && !isPathAllowed(watchPath)) {
+					sendError(res, 403, "Path not allowed", req);
+					return;
+				}
+				if (watchPath && watchPath !== "." && !await validatePathRealpath(watchPath)) {
+					sendError(res, 403, "Access denied: symlink escape", req);
+					return;
+				}
 				ctx.emit("cg-viz/watch/toggle", {
 					enabled: !!enabled,
 					path: watchPath,
@@ -3777,11 +3827,12 @@ function registerRoutes(deps) {
 			if (handleCorsPreflight(req, res)) return;
 			if (!requireMethod(req, res, "POST")) return;
 			logRequest(req, "/api/v1/codegraph/diff");
+			if (!checkRate(req, res, "/api/v1/codegraph/diff")) return;
 			try {
 				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
-				const fromCommit = extractStringField(parsed, "from");
-				const toCommit = extractStringField(parsed, "to");
+				const fromCommit = extractStringField(parsed, "from", 256);
+				const toCommit = extractStringField(parsed, "to", 256);
 				if (!fromCommit || !toCommit) {
 					sendError(res, 400, "from and to commits are required", req);
 					return;
@@ -3837,10 +3888,11 @@ function registerRoutes(deps) {
 				if (handleCorsPreflight(req, res)) return;
 				if (!requireMethod(req, res, "POST")) return;
 				logRequest(req, "/api/v1/codegraph/ast");
+				if (!checkRate(req, res, "/api/v1/codegraph/ast")) return;
 				try {
 					const body = await readBody(req, config.maxBodyBytes);
 					const parsed = parseJsonBody(body);
-					const filePath = extractStringField(parsed, "filePath");
+					const filePath = extractStringField(parsed, "filePath", 512);
 					if (!filePath) {
 						sendError(res, 400, "filePath is required", req);
 						return;
@@ -3893,6 +3945,7 @@ function registerRoutes(deps) {
 				if (handleCorsPreflight(req, res)) return;
 				if (!requireMethod(req, res, "POST")) return;
 				logRequest(req, "/api/v1/codegraph/tree-sitter");
+				if (!checkRate(req, res, "/api/v1/codegraph/tree-sitter")) return;
 				try {
 					const body = await readBody(req, config.maxBodyBytes);
 					const parsed = parseJsonBody(body);

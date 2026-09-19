@@ -254,6 +254,44 @@ describe('HighlightController', () => {
     expect(nodeB.addClass).toHaveBeenCalledWith('cycle-highlight');
   });
 
+  it('isolateCycles adds cycle-hidden class to non-cycle nodes', async () => {
+    const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
+    const nodeA = makeMockNode('a');
+    const nodeB = makeMockNode('b');
+    const nodeC = makeMockNode('c');
+    const edgeAB = makeMockEdge('e1', 'a', 'b');
+    const edgeAC = makeMockEdge('e2', 'a', 'c');
+    const cy = makeMockCy([nodeA, nodeB, nodeC], [edgeAB, edgeAC]);
+    const hc = new HighlightController(cy as any);
+    hc.isolateCycles(new Set(['a', 'b']));
+    expect(nodeC.addClass).toHaveBeenCalledWith('cycle-hidden');
+    expect(edgeAC.addClass).toHaveBeenCalledWith('cycle-hidden');
+  });
+
+  it('isolateCycles does not hide cycle nodes or edges between cycle nodes', async () => {
+    const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
+    const nodeA = makeMockNode('a');
+    const nodeB = makeMockNode('b');
+    const edgeAB = makeMockEdge('e1', 'a', 'b');
+    const cy = makeMockCy([nodeA, nodeB], [edgeAB]);
+    const hc = new HighlightController(cy as any);
+    hc.isolateCycles(new Set(['a', 'b']));
+    expect(nodeA.addClass).not.toHaveBeenCalledWith('cycle-hidden');
+    expect(nodeB.addClass).not.toHaveBeenCalledWith('cycle-hidden');
+    expect(edgeAB.addClass).not.toHaveBeenCalledWith('cycle-hidden');
+  });
+
+  it('restoreIsolation removes cycle-hidden class from all elements', async () => {
+    const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
+    const nodeA = makeMockNode('a');
+    const nodeB = makeMockNode('b');
+    const cy = makeMockCy([nodeA, nodeB], []);
+    const hc = new HighlightController(cy as any);
+    hc.restoreIsolation();
+    expect(nodeA.removeClass).toHaveBeenCalledWith('cycle-hidden');
+    expect(nodeB.removeClass).toHaveBeenCalledWith('cycle-hidden');
+  });
+
   it('highlightCallChain adds call-chain class to node and outgoing edges', async () => {
     const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
     const nodeA = makeMockNode('a');

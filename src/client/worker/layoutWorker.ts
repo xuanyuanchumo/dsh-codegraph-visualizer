@@ -1,8 +1,10 @@
 import cytoscape, { type LayoutOptions } from 'cytoscape';
 import dagre from 'cytoscape-dagre';
+import fcose from 'cytoscape-fcose';
 import { computeSmartSpacing } from '../../shared/layoutUtils.ts';
 
 cytoscape.use(dagre);
+cytoscape.use(fcose);
 
 export interface LayoutWorkerRequest {
   nodes: { id: string; label: string; type: string }[];
@@ -33,6 +35,9 @@ self.onmessage = (e: MessageEvent<LayoutWorkerRequest>) => {
     switch (layout) {
       case 'cose':
         options = { name: 'cose', animate: false, nodeRepulse: () => sp.nodeRepulse, idealEdgeLength: () => sp.idealEdgeLength, edgeElasticity: 0.05, gravity: 0.02, numIter: 15000, randomize: true, tile: true, padding: sp.padding, avoidOverlap: true } as LayoutOptions;
+        break;
+      case 'fcose':
+        options = { name: 'fcose', animate: false, nodeRepulse: () => sp.nodeRepulse, idealEdgeLength: () => sp.idealEdgeLength, edgeElasticity: 0.05, gravity: 0.02, numIter: 15000, randomize: true, tile: true, padding: sp.padding, avoidOverlap: true, quality: 'default', samplingType: true, nodeSeparation: sp.minNodeSpacing } as LayoutOptions;
         break;
       case 'dagre':
         options = { name: 'dagre', animate: false, rankDir: 'TB', rankSep: sp.rankSep, edgeSep: sp.edgeSep, nodeSep: sp.nodeSep, ranker: 'tight-tree', padding: sp.padding } as LayoutOptions;

@@ -309,12 +309,98 @@ function aggregateEdges(rawEdges, nodeIdToVisibleId, clusterPrefix) {
 }
 
 //#endregion
+//#region src/shared/constants.ts
+const RENDERER = {
+	MIN_ZOOM: .02,
+	MAX_ZOOM: 3,
+	FIT_PADDING: 80,
+	FIT_DELAY_SMALL: 200,
+	FIT_DELAY_LARGE: 500,
+	LARGE_GRAPH_NODE_THRESHOLD: 500,
+	LAYOUT_TIMEOUT_MS: 1e4,
+	WORKER_NODE_THRESHOLD: 500,
+	INCREMENTAL_LAYOUT_THRESHOLD: 50,
+	INCREMENTAL_LAYOUT_DELAY_MS: 50,
+	FULL_LAYOUT_DELAY_MS: 150
+};
+const CLUSTER = {
+	MAX_VISIBLE_NODES: 2e3,
+	SUBGROUP_THRESHOLD: 100,
+	MAX_NODES_PER_DIR_BEFORE_SUBGROUP: 500,
+	LARGE_NODE_THRESHOLD: 2e3,
+	MIN_NODES_FOR_SUBGROUP: 50,
+	MAX_ITERATIONS_LARGE: 3,
+	MAX_ITERATIONS_SMALL: 10,
+	MAX_NODES_FOR_LABEL_PROP: 5e3
+};
+const PATH_FINDER = { MAX_NODES_FOR_DIJKSTRA: 1e4 };
+const HIGHLIGHT = {
+	CALL_CHAIN_MAX_DEPTH: 50,
+	IMPACT_MAX_DEPTH: 3
+};
+const HISTORY = { DEFAULT_MAX_HISTORY: 50 };
+const POLLING = {
+	PREREQ_INITIAL_DELAY_MS: 3e3,
+	PREREQ_INTERVAL_MS: 3e4,
+	WORKSPACE_INTERVAL_MS: 15e3,
+	LOADING_FAILSAFE_MS: 15e3,
+	WORKSPACE_SCAN_DEBOUNCE_MS: 300
+};
+const API = {
+	DEFAULT_TIMEOUT_MS: 3e4,
+	RATE_LIMIT_WINDOW_MS: 6e4,
+	RATE_LIMIT_DEFAULT: 60,
+	RATE_LIMIT_HEAVY: 10,
+	RATE_LIMIT_MAP_MAX: 1e4
+};
+const HEALTH_SCORE = {
+	WEIGHT_COUPLING: .25,
+	WEIGHT_COHESION: .25,
+	WEIGHT_CYCLIC: .3,
+	WEIGHT_MODULARITY: .2,
+	DEFAULT_MAX_MODULE_DEPTH: 3
+};
+const LAYOUT$1 = {
+	DENSITY_FACTOR_SMALL: 1.5,
+	DENSITY_FACTOR_MEDIUM: 1,
+	DENSITY_FACTOR_LARGE: .7,
+	SMALL_NODE_THRESHOLD: 50,
+	MEDIUM_NODE_THRESHOLD: 200,
+	LARGE_NODE_THRESHOLD: 500,
+	VERY_LARGE_NODE_THRESHOLD: 2e3,
+	LAYOUT_SAMPLE_SIZE: 200,
+	COSE_NUM_ITER: 2500,
+	COSE_LARGE_NUM_ITER: 15e3,
+	MAX_RANK_SEP: 80,
+	MIN_RANK_SEP: 30,
+	MIN_NODE_SPACING: 20,
+	SMALL_SPACING_FACTOR: 1.2,
+	MEDIUM_SPACING_FACTOR: 1,
+	LARGE_SPACING_FACTOR: .8,
+	SMALL_NODE_COUNT_THRESHOLD: 100,
+	MEDIUM_NODE_COUNT_THRESHOLD: 300,
+	INCREMENTAL_RADIUS_BASE: 100,
+	GRID_FALLBACK_NODE_THRESHOLD: 5e3,
+	OVERLAP_MAX_ITERATIONS: 15,
+	OVERLAP_SKIP_THRESHOLD: 5e3,
+	OVERLAP_CELL_SIZE_MULTIPLIER: 4
+};
+const VIRTUAL_VIEWPORT = {
+	SCROLL_THRESHOLD: 2e3,
+	PADDING: 100
+};
+const DATA_CONTROLLER = {
+	BATCH_SIZE: 200,
+	SVG_OFFSET: 80
+};
+
+//#endregion
 //#region src/client/store/cluster/communityDetection.ts
-const MAX_NODES_FOR_LABEL_PROP = 5e3;
-const MIN_NODES_FOR_SUBGROUP = 50;
-const MAX_ITERATIONS_LARGE = 3;
-const MAX_ITERATIONS_SMALL = 10;
-const LARGE_NODE_THRESHOLD = 2e3;
+const MAX_NODES_FOR_LABEL_PROP = CLUSTER.MAX_NODES_FOR_LABEL_PROP;
+const MIN_NODES_FOR_SUBGROUP = CLUSTER.MIN_NODES_FOR_SUBGROUP;
+const MAX_ITERATIONS_LARGE = CLUSTER.MAX_ITERATIONS_LARGE;
+const MAX_ITERATIONS_SMALL = CLUSTER.MAX_ITERATIONS_SMALL;
+const LARGE_NODE_THRESHOLD = CLUSTER.LARGE_NODE_THRESHOLD;
 function detectCommunities(nodes, edges) {
 	if (nodes.length === 0) return new Map();
 	if (nodes.length < MIN_NODES_FOR_SUBGROUP) {
@@ -410,12 +496,14 @@ function detectCommunities(nodes, edges) {
 }
 
 //#endregion
-//#region src/client/store/cluster/progressiveCluster.ts
-const MAX_VISIBLE_NODES = 2e3;
-const SUBGROUP_THRESHOLD = 100;
-const MAX_NODES_PER_DIR_BEFORE_SUBGROUP = 500;
-function getTopLevelDir$1(filePath) {
-	const parts = filePath.split(/[\\/]/);
+//#region src/shared/pathUtils.ts
+function getTopLevelDir(filePath, options) {
+	const normalized = filePath.replace(/\\/g, "/");
+	const parts = normalized.split("/");
+	if (options?.simplified) {
+		if (parts.length <= 2) return "/";
+		return parts.slice(0, 2).join("/");
+	}
 	if (parts.length <= 2) return filePath;
 	let startIdx = 0;
 	if (/^[A-Za-z]:$/.test(parts[0])) startIdx = 1;
@@ -423,6 +511,12 @@ function getTopLevelDir$1(filePath) {
 	if (parts[startIdx] === "src" || parts[startIdx] === "lib" || parts[startIdx] === "app") return parts.slice(startIdx, startIdx + 2).join("/");
 	return parts.slice(startIdx, startIdx + 2).join("/");
 }
+
+//#endregion
+//#region src/client/store/cluster/progressiveCluster.ts
+const MAX_VISIBLE_NODES = CLUSTER.MAX_VISIBLE_NODES;
+const SUBGROUP_THRESHOLD = CLUSTER.SUBGROUP_THRESHOLD;
+const MAX_NODES_PER_DIR_BEFORE_SUBGROUP = CLUSTER.MAX_NODES_PER_DIR_BEFORE_SUBGROUP;
 function getDependencyGroup(node) {
 	const depType = node.properties?.depType;
 	if (typeof depType === "string") return `dep:${depType}`;
@@ -518,7 +612,7 @@ function buildDirMapping(rawNodes) {
 	const dirToNodes = new Map();
 	for (const n of rawNodes) {
 		const depGroup = getDependencyGroup(n);
-		const dir = depGroup ?? (n.filePath ? getTopLevelDir$1(n.filePath) : n.id);
+		const dir = depGroup ?? (n.filePath ? getTopLevelDir(n.filePath) : n.id);
 		nodeToDir.set(n.id, dir);
 		const list = dirToNodes.get(dir);
 		if (list) list.push(n);
@@ -1223,12 +1317,6 @@ var ClassAssembler = class {
 
 //#endregion
 //#region src/client/diagram/DependencyAssembler.ts
-function getTopLevelDir(filePath) {
-	const normalized = filePath.replace(/\\/g, "/");
-	const parts = normalized.split("/");
-	if (parts.length <= 2) return "/";
-	return parts.slice(0, 2).join("/");
-}
 const DEPENDENCY_EDGE_TYPES = new Set(["import", "dependency"]);
 var DependencyAssembler = class {
 	assemble(nodes, edges) {
@@ -1237,7 +1325,7 @@ var DependencyAssembler = class {
 		const dirChildCount = new Map();
 		const dirTypeDist = new Map();
 		for (const n of nodes) {
-			const dir = getTopLevelDir(n.filePath);
+			const dir = getTopLevelDir(n.filePath, { simplified: true });
 			if (!dirNodes.has(dir)) {
 				dirNodes.set(dir, {
 					id: NodeId(`depdir:${dir}`),
@@ -1258,7 +1346,7 @@ var DependencyAssembler = class {
 			dist$1[n.type] = (dist$1[n.type] ?? 0) + 1;
 		}
 		const nodeIdToDir = new Map();
-		for (const n of nodes) nodeIdToDir.set(n.id, getTopLevelDir(n.filePath));
+		for (const n of nodes) nodeIdToDir.set(n.id, getTopLevelDir(n.filePath, { simplified: true }));
 		const aggregatedEdges = new Map();
 		for (const e of depEdges) {
 			const sourceDir = nodeIdToDir.get(e.source);
@@ -2054,6 +2142,7 @@ const en = {
 	"toolbar.search": "Search symbols (press /)",
 	"toolbar.chain": "Toggle call chain highlight (Ctrl+C)",
 	"toolbar.cycles": "Highlight circular dependencies",
+	"toolbar.isolateCycles": "Isolate cycle subgraph",
 	"toolbar.impact": "Impact analysis - show dependents (Ctrl+E)",
 	"toolbar.inheritance": "Inheritance hierarchy - show extend/implement (Ctrl+H)",
 	"toolbar.minimap": "Toggle mini-map (Ctrl+M)",
@@ -2100,6 +2189,10 @@ const en = {
 	"empty.import": "Import Graph",
 	"error.title": "Something went wrong",
 	"error.retry": "Retry",
+	"error.loadDependencies": "Unable to load dependency data. Please check your connection and try again.",
+	"error.loadGraphData": "Unable to load code graph data. Please refresh the page.",
+	"error.loadGraph": "Unable to load code graph. Please check the server status.",
+	"error.generic": "An unexpected error occurred. Please try again.",
 	"detail.ariaLabel": "Node details",
 	"detail.close": "Close details",
 	"detail.type": "Type",
@@ -2172,6 +2265,7 @@ const en = {
 	"export.png": "PNG",
 	"export.svg": "SVG",
 	"export.json": "JSON",
+	"export.mermaid": "Mermaid",
 	"workspace.title": "Workspace",
 	"workspace.current": "Current Workspace",
 	"workspace.switch": "Switch Workspace",
@@ -2393,7 +2487,21 @@ const en = {
 	"nav.ariaLabel": "Code Graph",
 	"nav.closePanel": "Close graph panel",
 	"nav.searchSymbols": "Code Graph: Search Symbols",
-	"nav.togglePanel": "Code Graph: Toggle Panel"
+	"nav.togglePanel": "Code Graph: Toggle Panel",
+	"filterPanel.title": "Filter & Connections",
+	"filterPanel.close": "Close filter panel",
+	"filterPanel.fanIn": "Min Fan-In",
+	"filterPanel.fanOut": "Min Fan-Out",
+	"filterPanel.fanInHint": "Show only nodes with at least this many incoming connections",
+	"filterPanel.fanOutHint": "Show only nodes with at least this many outgoing connections",
+	"filterPanel.nodeTypes": "Visible Node Types",
+	"filterPanel.edgeTypes": "Visible Edge Types",
+	"filterPanel.reset": "Reset All Filters",
+	"filterPanel.hideOrphans": "Hide Orphans",
+	"filterPanel.hideLeaves": "Hide Leaves",
+	"filterPanel.orphansHint": "Hide nodes with no incoming connections",
+	"filterPanel.leavesHint": "Hide nodes with no outgoing connections",
+	"toolbar.filterPanel": "Filter Panel"
 };
 
 //#endregion
@@ -2410,6 +2518,7 @@ const zh = {
 	"toolbar.search": "搜索符号 (按 /)",
 	"toolbar.chain": "切换调用链高亮 (Ctrl+C)",
 	"toolbar.cycles": "高亮循环依赖",
+	"toolbar.isolateCycles": "隔离循环依赖子图",
 	"toolbar.impact": "影响分析 - 显示依赖者 (Ctrl+E)",
 	"toolbar.inheritance": "继承层次 - 显示继承/实现关系 (Ctrl+H)",
 	"toolbar.minimap": "切换缩略图 (Ctrl+M)",
@@ -2456,6 +2565,10 @@ const zh = {
 	"empty.import": "导入图谱",
 	"error.title": "出错了",
 	"error.retry": "重试",
+	"error.loadDependencies": "无法加载依赖数据，请检查连接后重试。",
+	"error.loadGraphData": "无法加载代码图谱数据，请刷新页面。",
+	"error.loadGraph": "无法加载代码图谱，请检查服务器状态。",
+	"error.generic": "发生意外错误，请重试。",
 	"detail.ariaLabel": "节点详情",
 	"detail.close": "关闭详情",
 	"detail.type": "类型",
@@ -2528,6 +2641,7 @@ const zh = {
 	"export.png": "PNG",
 	"export.svg": "SVG",
 	"export.json": "JSON",
+	"export.mermaid": "Mermaid",
 	"workspace.title": "工作区",
 	"workspace.current": "当前工作区",
 	"workspace.switch": "切换工作区",
@@ -2749,7 +2863,21 @@ const zh = {
 	"nav.ariaLabel": "代码图谱",
 	"nav.closePanel": "关闭图谱面板",
 	"nav.searchSymbols": "代码图谱: 搜索符号",
-	"nav.togglePanel": "代码图谱: 切换面板"
+	"nav.togglePanel": "代码图谱: 切换面板",
+	"filterPanel.title": "筛选与连接数",
+	"filterPanel.close": "关闭筛选面板",
+	"filterPanel.fanIn": "最小入度",
+	"filterPanel.fanOut": "最小出度",
+	"filterPanel.fanInHint": "仅显示入度达到此值的节点",
+	"filterPanel.fanOutHint": "仅显示出度达到此值的节点",
+	"filterPanel.nodeTypes": "可见节点类型",
+	"filterPanel.edgeTypes": "可见边类型",
+	"filterPanel.reset": "重置所有筛选",
+	"filterPanel.hideOrphans": "隐藏孤儿节点",
+	"filterPanel.hideLeaves": "隐藏叶子节点",
+	"filterPanel.orphansHint": "隐藏没有任何入边的节点",
+	"filterPanel.leavesHint": "隐藏没有任何出边的节点",
+	"toolbar.filterPanel": "筛选面板"
 };
 
 //#endregion
@@ -3674,12 +3802,12 @@ const LAYER_DEFINITIONS = {
 		{
 			level: 0,
 			name: "layer.inheritance.0",
-			nodeFilter: (n) => n.properties?.depth === 0
+			nodeFilter: (n) => n.properties?.depth <= 1
 		},
 		{
 			level: 1,
 			name: "layer.inheritance.1",
-			nodeFilter: (n) => n.properties?.depth <= 2
+			nodeFilter: (n) => n.properties?.depth <= 3
 		},
 		{
 			level: 2,
@@ -3691,12 +3819,12 @@ const LAYER_DEFINITIONS = {
 		{
 			level: 0,
 			name: "layer.callgraph.0",
-			nodeFilter: (n) => n.properties?.isEntry === true
+			nodeFilter: (n) => n.properties?.isEntry === true || n.properties?.depth <= 1
 		},
 		{
 			level: 1,
 			name: "layer.callgraph.1",
-			nodeFilter: (n) => n.properties?.depth <= 2
+			nodeFilter: (n) => n.properties?.depth <= 3
 		},
 		{
 			level: 2,
@@ -3708,12 +3836,12 @@ const LAYER_DEFINITIONS = {
 		{
 			level: 0,
 			name: "layer.package.0",
-			nodeFilter: (n) => n.properties?.depth === 0
+			nodeFilter: (n) => n.properties?.depth <= 1
 		},
 		{
 			level: 1,
 			name: "layer.package.1",
-			nodeFilter: (n) => n.properties?.depth <= 1
+			nodeFilter: (n) => n.properties?.depth <= 3
 		},
 		{
 			level: 2,
@@ -3725,12 +3853,12 @@ const LAYER_DEFINITIONS = {
 		{
 			level: 0,
 			name: "layer.class.0",
-			nodeFilter: (n) => n.properties?.depth === 0
+			nodeFilter: (n) => n.properties?.depth <= 1
 		},
 		{
 			level: 1,
 			name: "layer.class.1",
-			nodeFilter: (n) => n.properties?.depth <= 2
+			nodeFilter: (n) => n.properties?.depth <= 3
 		},
 		{
 			level: 2,
@@ -3759,12 +3887,12 @@ const LAYER_DEFINITIONS = {
 		{
 			level: 0,
 			name: "layer.dependencies.0",
-			nodeFilter: (n) => n.properties?.depth === 0
+			nodeFilter: (n) => n.properties?.depth <= 1
 		},
 		{
 			level: 1,
 			name: "layer.dependencies.1",
-			nodeFilter: (n) => n.properties?.depth <= 1
+			nodeFilter: (n) => n.properties?.depth <= 3
 		},
 		{
 			level: 2,
@@ -5142,6 +5270,10 @@ function buildStylesheet(theme, nodeCount = 0) {
 			}
 		},
 		{
+			selector: ".cycle-hidden",
+			style: { "display": "none" }
+		},
+		{
 			selector: ".impact-source",
 			style: {
 				"border-width": 4,
@@ -5858,7 +5990,7 @@ const memoryStorage = {
 	setItem: () => {},
 	removeItem: () => {}
 };
-const LOADING_FAILSAFE_MS = 15e3;
+const LOADING_FAILSAFE_MS = POLLING.LOADING_FAILSAFE_MS;
 let loadingFailsafe = null;
 function sanitizeGraphData(nodes, edges) {
 	const seenNodeIds = new Set();
@@ -6013,6 +6145,10 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	pathResult: null,
 	focusDepth: 1,
 	callChainDepth: 2,
+	fanInThreshold: 0,
+	fanOutThreshold: 0,
+	visibleNodeTypes: new Set(),
+	visibleEdgeTypes: new Set(),
 	healthScore: null,
 	rules: [],
 	ruleViolations: [],
@@ -6233,6 +6369,10 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	setPathResult: (path) => set$1({ pathResult: path }),
 	setFocusDepth: (depth) => set$1({ focusDepth: depth }),
 	setCallChainDepth: (depth) => set$1({ callChainDepth: depth }),
+	setFanInThreshold: (threshold) => set$1({ fanInThreshold: threshold }),
+	setFanOutThreshold: (threshold) => set$1({ fanOutThreshold: threshold }),
+	setVisibleNodeTypes: (types) => set$1({ visibleNodeTypes: types }),
+	setVisibleEdgeTypes: (types) => set$1({ visibleEdgeTypes: types }),
 	assembleMultiFunction: async (entryNodeId) => {
 		const { rawNodes, rawEdges, callChainDepth, clusterDepth, expandedNodeIds } = useGraphStore.getState();
 		const astFetcher = async (filePath) => {
@@ -6338,6 +6478,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		const layout$2 = p$1.layout;
 		const valid$1 = [
 			"cose",
+			"fcose",
 			"dagre",
 			"circle",
 			"grid",
@@ -6437,8 +6578,8 @@ function shallow(valueA, valueB) {
 function useShallow(selector) {
 	const prev = React.useRef(void 0);
 	return (state) => {
-		const next = selector(state);
-		return shallow(prev.current, next) ? prev.current : prev.current = next;
+		const next$1 = selector(state);
+		return shallow(prev.current, next$1) ? prev.current : prev.current = next$1;
 	};
 }
 
@@ -8172,7 +8313,7 @@ var hashIntsArray = function hashIntsArray$1(ints, seed) {
 	};
 	var i$1 = 0;
 	var length = ints.length;
-	var iterator = { next: function next() {
+	var iterator = { next: function next$1() {
 		if (i$1 < length) entry.value = ints[i$1++];
 		else entry.done = true;
 		return entry;
@@ -8186,7 +8327,7 @@ var hashString = function hashString$1(str, seed) {
 	};
 	var i$1 = 0;
 	var length = str.length;
-	var iterator = { next: function next() {
+	var iterator = { next: function next$1() {
 		if (i$1 < length) entry.value = str.charCodeAt(i$1++);
 		else entry.done = true;
 		return entry;
@@ -9129,7 +9270,7 @@ var elesfn$r = { floydWarshall: function floydWarshall$1(options) {
 		if (i$1 === j) dist$1[n] = 0;
 		else dist$1[n] = Infinity;
 	}
-	var next = new Array(Nsq);
+	var next$1 = new Array(Nsq);
 	var edgeNext = new Array(Nsq);
 	for (var _i = 0; _i < edges.length; _i++) {
 		var edge = edges[_i];
@@ -9142,14 +9283,14 @@ var elesfn$r = { floydWarshall: function floydWarshall$1(options) {
 		var _weight = weightFn(edge);
 		if (dist$1[st] > _weight) {
 			dist$1[st] = _weight;
-			next[st] = t$1;
+			next$1[st] = t$1;
 			edgeNext[st] = edge;
 		}
 		if (!directed) {
 			var ts = t$1 * N + s;
 			if (!directed && dist$1[ts] > _weight) {
 				dist$1[ts] = _weight;
-				next[ts] = s;
+				next$1[ts] = s;
 				edgeNext[ts] = edge;
 			}
 		}
@@ -9161,7 +9302,7 @@ var elesfn$r = { floydWarshall: function floydWarshall$1(options) {
 			var kj = k * N + _j;
 			if (dist$1[ik] + dist$1[kj] < dist$1[ij]) {
 				dist$1[ij] = dist$1[ik] + dist$1[kj];
-				next[ij] = next[ik];
+				next$1[ij] = next$1[ik];
 			}
 		}
 	}
@@ -9182,14 +9323,14 @@ var elesfn$r = { floydWarshall: function floydWarshall$1(options) {
 			var j$1 = indexOfArgEle(to);
 			var fromNode = atIndex(i$2);
 			if (i$2 === j$1) return fromNode.collection();
-			if (next[i$2 * N + j$1] == null) return cy.collection();
+			if (next$1[i$2 * N + j$1] == null) return cy.collection();
 			var path$1 = cy.collection();
 			var prev = i$2;
 			var edge$1;
 			path$1.merge(fromNode);
 			while (i$2 !== j$1) {
 				prev = i$2;
-				i$2 = next[i$2 * N + j$1];
+				i$2 = next$1[i$2 * N + j$1];
 				edge$1 = edgeNext[prev * N + i$2];
 				path$1.merge(edge$1);
 				path$1.merge(atIndex(i$2));
@@ -11852,11 +11993,11 @@ _api.prototype = {
 	},
 	then: function then(onFulfilled, onRejected) {
 		var curr = this;
-		var next = new _api();
-		curr.onFulfilled.push(resolver(onFulfilled, next, "fulfill"));
-		curr.onRejected.push(resolver(onRejected, next, "reject"));
+		var next$1 = new _api();
+		curr.onFulfilled.push(resolver(onFulfilled, next$1, "fulfill"));
+		curr.onRejected.push(resolver(onRejected, next$1, "reject"));
 		execute(curr);
-		return next.proxy;
+		return next$1.proxy;
 	}
 };
 var deliver = function deliver$1(curr, state, name$1, value) {
@@ -11881,18 +12022,18 @@ var execute_handlers = function execute_handlers$1(curr, name$1, value) {
 	if (typeof setImmediate === "function") setImmediate(func);
 	else setTimeout(func, 0);
 };
-var resolver = function resolver$1(cb, next, method) {
+var resolver = function resolver$1(cb, next$1, method) {
 	return function(value) {
-		if (typeof cb !== "function") next[method].call(next, value);
+		if (typeof cb !== "function") next$1[method].call(next$1, value);
 		else {
 			var result;
 			try {
 				result = cb(value);
 			} catch (e) {
-				next.reject(e);
+				next$1.reject(e);
 				return;
 			}
-			_resolve(next, result);
+			_resolve(next$1, result);
 		}
 	};
 };
@@ -15475,7 +15616,7 @@ elesfn$b.updateCompoundBounds = function() {
 	var cy = this.cy();
 	if (!cy.styleEnabled() || !cy.hasCompoundNodes()) return this;
 	if (!force && cy.batching()) return this;
-	function update(parent) {
+	function update$1(parent) {
 		if (!parent.isParent()) return;
 		var _p$1 = parent._private;
 		var children = parent.children();
@@ -15557,7 +15698,7 @@ elesfn$b.updateCompoundBounds = function() {
 		var ele = this[i$1];
 		var _p = ele._private;
 		if (!_p.compoundBoundsClean || force) {
-			update(ele);
+			update$1(ele);
 			if (!cy.batching()) _p.compoundBoundsClean = true;
 		}
 	}
@@ -17040,7 +17181,7 @@ var defineSymbolIterator = function defineSymbolIterator$1() {
 		};
 		var i$1 = 0;
 		var length = this.length;
-		return _defineProperty$1({ next: function next() {
+		return _defineProperty$1({ next: function next$1() {
 			if (i$1 < length) entry.value = _this[i$1++];
 			else {
 				entry.value = void 0;
@@ -17639,11 +17780,11 @@ var defineDagAllHops = function defineDagAllHops$1(params) {
 		var sEles = [];
 		var sElesIds = {};
 		for (;;) {
-			var next = params.outgoing ? eles.outgoers() : eles.incomers();
-			if (next.length === 0) break;
+			var next$1 = params.outgoing ? eles.outgoers() : eles.incomers();
+			if (next$1.length === 0) break;
 			var newNext = false;
-			for (var i$1 = 0; i$1 < next.length; i$1++) {
-				var n = next[i$1];
+			for (var i$1 = 0; i$1 < next$1.length; i$1++) {
+				var n = next$1[i$1];
 				var nid = n.id();
 				if (!sElesIds[nid]) {
 					sElesIds[nid] = true;
@@ -17652,7 +17793,7 @@ var defineDagAllHops = function defineDagAllHops$1(params) {
 				}
 			}
 			if (!newNext) break;
-			eles = next;
+			eles = next$1;
 		}
 		return this.spawn(sEles, true).filter(selector);
 	};
@@ -18729,8 +18870,8 @@ function stepAll(now$1, cy) {
 		var queue = _p.animation.queue;
 		var ranAnis = false;
 		if (current.length === 0) {
-			var next = queue.shift();
-			if (next) current.push(next);
+			var next$1 = queue.shift();
+			if (next$1) current.push(next$1);
 		}
 		var callbacks = function callbacks$1(_callbacks) {
 			for (var j = _callbacks.length - 1; j >= 0; j--) {
@@ -18902,15 +19043,15 @@ var corefn$6 = { layout: function layout$2(options) {
 		return;
 	}
 	var name$1 = options.name;
-	var Layout = cy.extension("layout", name$1);
-	if (Layout == null) {
+	var Layout$1 = cy.extension("layout", name$1);
+	if (Layout$1 == null) {
 		error("No such layout `" + name$1 + "` found.  Did you forget to import it and `cytoscape.use()` it?");
 		return;
 	}
 	var eles;
 	if (string(options.eles)) eles = cy.$(options.eles);
 	else eles = options.eles != null ? options.eles : cy.$();
-	var layout$3 = new Layout(extend({}, options, {
+	var layout$3 = new Layout$1(extend({}, options, {
 		cy,
 		eles
 	}));
@@ -22633,10 +22774,10 @@ var Core = function Core$1(opts) {
 		min: options.minZoom,
 		max: options.maxZoom
 	});
-	var loadExtData = function loadExtData$1(extData, next) {
+	var loadExtData = function loadExtData$1(extData, next$1) {
 		var anyIsPromise = extData.some(promise);
-		if (anyIsPromise) return Promise$1$1.all(extData).then(next);
-		else next(extData);
+		if (anyIsPromise) return Promise$1$1.all(extData).then(next$1);
+		else next$1(extData);
 	};
 	if (_p.styleEnabled) cy.setStyle([]);
 	var rendererOptions = extend({}, options, options.renderer);
@@ -30201,7 +30342,7 @@ LTCp.validateLayersElesOrdering = function(lvl, eles) {
 		}
 	}
 };
-LTCp.updateElementsInLayers = function(eles, update) {
+LTCp.updateElementsInLayers = function(eles, update$1) {
 	var self$1 = this;
 	var isEles = element(eles[0]);
 	for (var i$1 = 0; i$1 < eles.length; i$1++) {
@@ -30213,7 +30354,7 @@ LTCp.updateElementsInLayers = function(eles, update) {
 			var layer = caches[l];
 			if (!layer) continue;
 			if (req && self$1.getEleLevelForLayerLevel(layer.level) !== req.level) continue;
-			update(layer, ele, req);
+			update$1(layer, ele, req);
 		}
 	}
 };
@@ -33577,18 +33718,18 @@ var ElementDrawingWebGL = /* @__PURE__ */ function() {
 						for (var _i = 0, _arr = [[tex1, true], [tex2, false]]; _i < _arr.length; _i++) {
 							var _arr$_i = _slicedToArray(_arr[_i], 2), tex = _arr$_i[0], first = _arr$_i[1];
 							if (tex.w != 0) {
-								var instance = this.instanceCount;
-								this.vertTypeBuffer.getView(instance)[0] = TEXTURE;
-								var indexView = this.indexBuffer.getView(instance);
+								var instance$1 = this.instanceCount;
+								this.vertTypeBuffer.getView(instance$1)[0] = TEXTURE;
+								var indexView = this.indexBuffer.getView(instance$1);
 								indexToVec4(eleIndex, indexView);
-								var atlasIdView = this.atlasIdBuffer.getView(instance);
+								var atlasIdView = this.atlasIdBuffer.getView(instance$1);
 								atlasIdView[0] = atlasIndex;
-								var texView = this.texBuffer.getView(instance);
+								var texView = this.texBuffer.getView(instance$1);
 								texView[0] = tex.x;
 								texView[1] = tex.y;
 								texView[2] = tex.w;
 								texView[3] = tex.h;
-								var matrixView = this.transformBuffer.getMatrixView(instance);
+								var matrixView = this.transformBuffer.getMatrixView(instance$1);
 								this.setTransformMatrix(ele, matrixView, opts, atlasInfo, first);
 								this.instanceCount++;
 								if (!first) this.wrappedCount++;
@@ -33675,17 +33816,17 @@ var ElementDrawingWebGL = /* @__PURE__ */ function() {
 			key: "drawPickingRectangle",
 			value: function drawPickingRectangle(ele, eleIndex, type) {
 				var opts = this.atlasManager.getRenderTypeOpts(type);
-				var instance = this.instanceCount;
-				this.vertTypeBuffer.getView(instance)[0] = RECTANGLE;
-				var indexView = this.indexBuffer.getView(instance);
+				var instance$1 = this.instanceCount;
+				this.vertTypeBuffer.getView(instance$1)[0] = RECTANGLE;
+				var indexView = this.indexBuffer.getView(instance$1);
 				indexToVec4(eleIndex, indexView);
-				var colorView = this.colorBuffer.getView(instance);
+				var colorView = this.colorBuffer.getView(instance$1);
 				toWebGLColor([
 					0,
 					0,
 					0
 				], 1, colorView);
-				var matrixView = this.transformBuffer.getMatrixView(instance);
+				var matrixView = this.transformBuffer.getMatrixView(instance$1);
 				this.setTransformMatrix(ele, matrixView, opts);
 				this.simpleCount++;
 				this.instanceCount++;
@@ -33703,12 +33844,12 @@ var ElementDrawingWebGL = /* @__PURE__ */ function() {
 					this.drawTexture(node, eleIndex, type);
 					return;
 				}
-				var instance = this.instanceCount;
-				this.vertTypeBuffer.getView(instance)[0] = vertType;
+				var instance$1 = this.instanceCount;
+				this.vertTypeBuffer.getView(instance$1)[0] = vertType;
 				if (vertType === ROUND_RECTANGLE || vertType === BOTTOM_ROUND_RECTANGLE) {
 					var bb = opts.getBoundingBox(node);
 					var radius$1 = this._getCornerRadius(node, props.radius, bb);
-					var radiusView = this.cornerRadiusBuffer.getView(instance);
+					var radiusView = this.cornerRadiusBuffer.getView(instance$1);
 					radiusView[0] = radius$1;
 					radiusView[1] = radius$1;
 					radiusView[2] = radius$1;
@@ -33718,14 +33859,14 @@ var ElementDrawingWebGL = /* @__PURE__ */ function() {
 						radiusView[2] = 0;
 					}
 				}
-				var indexView = this.indexBuffer.getView(instance);
+				var indexView = this.indexBuffer.getView(instance$1);
 				indexToVec4(eleIndex, indexView);
 				var opacity = this.renderTarget.picking ? 1 : type === "node-body" ? node.effectiveOpacity() : 1;
 				var bgOpacity = this.renderTarget.picking ? 1 : node.pstyle(props.opacity).value * opacity;
 				var color = node.pstyle(props.color).value;
-				var colorView = this.colorBuffer.getView(instance);
+				var colorView = this.colorBuffer.getView(instance$1);
 				toWebGLColor(color, bgOpacity, colorView);
-				var lineWidthView = this.lineWidthBuffer.getView(instance);
+				var lineWidthView = this.lineWidthBuffer.getView(instance$1);
 				lineWidthView[0] = 0;
 				lineWidthView[1] = 0;
 				if (props.border) {
@@ -33733,7 +33874,7 @@ var ElementDrawingWebGL = /* @__PURE__ */ function() {
 					if (borderWidth > 0) {
 						var borderColor = node.pstyle("border-color").value;
 						var borderOpacity = opacity * node.pstyle("border-opacity").value;
-						var borderColorView = this.borderColorBuffer.getView(instance);
+						var borderColorView = this.borderColorBuffer.getView(instance$1);
 						toWebGLColor(borderColor, borderOpacity, borderColorView);
 						var borderPos = node.pstyle("border-position").value;
 						if (borderPos === "inside") {
@@ -33749,7 +33890,7 @@ var ElementDrawingWebGL = /* @__PURE__ */ function() {
 						}
 					}
 				}
-				var matrixView = this.transformBuffer.getMatrixView(instance);
+				var matrixView = this.transformBuffer.getMatrixView(instance$1);
 				this.setTransformMatrix(node, matrixView, opts);
 				this.simpleCount++;
 				this.instanceCount++;
@@ -33808,16 +33949,16 @@ var ElementDrawingWebGL = /* @__PURE__ */ function() {
 				var lineWidth = edge.pstyle("width").pfValue;
 				var scale$1 = edge.pstyle("arrow-scale").value;
 				var size$1 = this.r.getArrowWidth(lineWidth, scale$1);
-				var instance = this.instanceCount;
-				var transform$1 = this.transformBuffer.getMatrixView(instance);
+				var instance$1 = this.instanceCount;
+				var transform$1 = this.transformBuffer.getMatrixView(instance$1);
 				identity$8(transform$1);
 				translate(transform$1, transform$1, [x$1, y$1]);
 				scale(transform$1, transform$1, [size$1, size$1]);
 				rotate(transform$1, transform$1, angle$1);
-				this.vertTypeBuffer.getView(instance)[0] = EDGE_ARROW;
-				var indexView = this.indexBuffer.getView(instance);
+				this.vertTypeBuffer.getView(instance$1)[0] = EDGE_ARROW;
+				var indexView = this.indexBuffer.getView(instance$1);
 				indexToVec4(eleIndex, indexView);
-				var colorView = this.colorBuffer.getView(instance);
+				var colorView = this.colorBuffer.getView(instance$1);
 				toWebGLColor(color, opacity, colorView);
 				this.instanceCount++;
 				if (this.instanceCount >= this.maxInstances) this.endBatch();
@@ -33836,15 +33977,15 @@ var ElementDrawingWebGL = /* @__PURE__ */ function() {
 				var opacity = baseOpacity * lineOpacity;
 				if (points.length / 2 + this.instanceCount > this.maxInstances) this.endBatch();
 				if (points.length == 4) {
-					var instance = this.instanceCount;
-					this.vertTypeBuffer.getView(instance)[0] = EDGE_STRAIGHT;
-					var indexView = this.indexBuffer.getView(instance);
+					var instance$1 = this.instanceCount;
+					this.vertTypeBuffer.getView(instance$1)[0] = EDGE_STRAIGHT;
+					var indexView = this.indexBuffer.getView(instance$1);
 					indexToVec4(eleIndex, indexView);
-					var colorView = this.colorBuffer.getView(instance);
+					var colorView = this.colorBuffer.getView(instance$1);
 					toWebGLColor(color, opacity, colorView);
-					var lineWidthBuffer = this.lineWidthBuffer.getView(instance);
+					var lineWidthBuffer = this.lineWidthBuffer.getView(instance$1);
 					lineWidthBuffer[0] = width$1;
-					var sourceTargetView = this.pointAPointBBuffer.getView(instance);
+					var sourceTargetView = this.pointAPointBBuffer.getView(instance$1);
 					sourceTargetView[0] = points[0];
 					sourceTargetView[1] = points[1];
 					sourceTargetView[2] = points[2];
@@ -35093,7 +35234,7 @@ function setExtension(type, name$1, registrant) {
 	else if (type === "collection") if (Collection.prototype[name$1]) return overrideErr(name$1);
 	else Collection.prototype[name$1] = registrant;
 	else if (type === "layout") {
-		var Layout = function Layout$1(options) {
+		var Layout$1 = function Layout$2(options) {
 			this.options = options;
 			registrant.call(this, options);
 			if (!plainObject(this._private)) this._private = {};
@@ -35101,7 +35242,7 @@ function setExtension(type, name$1, registrant) {
 			this._private.listeners = [];
 			this.createEmitter();
 		};
-		var layoutProto = Layout.prototype = Object.create(registrant.prototype);
+		var layoutProto = Layout$1.prototype = Object.create(registrant.prototype);
 		var optLayoutFns = [];
 		for (var i$1 = 0; i$1 < optLayoutFns.length; i$1++) {
 			var fnName = optLayoutFns[i$1];
@@ -35184,7 +35325,7 @@ function setExtension(type, name$1, registrant) {
 			}
 		});
 		define$4.eventAliasesOn(layoutProto);
-		ext = Layout;
+		ext = Layout$1;
 	} else if (type === "renderer" && name$1 !== "null" && name$1 !== "base") {
 		var BaseRenderer$1 = getExtension("renderer", "base");
 		var bProto = BaseRenderer$1.prototype;
@@ -45067,6 +45208,6617 @@ var require_cytoscape_dagre = __commonJS({ "node_modules/.pnpm/cytoscape-dagre@2
 var import_cytoscape_dagre = __toESM(require_cytoscape_dagre(), 1);
 
 //#endregion
+//#region node_modules/.pnpm/layout-base@2.0.1/node_modules/layout-base/layout-base.js
+var require_layout_base = __commonJS({ "node_modules/.pnpm/layout-base@2.0.1/node_modules/layout-base/layout-base.js"(exports, module) {
+	(function webpackUniversalModuleDefinition(root$12, factory) {
+		if (typeof exports === "object" && typeof module === "object") module.exports = factory();
+		else if (typeof define === "function" && define.amd) define([], factory);
+		else if (typeof exports === "object") exports["layoutBase"] = factory();
+		else root$12["layoutBase"] = factory();
+	})(exports, function() {
+		return function(modules$1) {
+			var installedModules = {};
+			function __webpack_require__(moduleId) {
+				if (installedModules[moduleId]) return installedModules[moduleId].exports;
+				var module$1 = installedModules[moduleId] = {
+					i: moduleId,
+					l: false,
+					exports: {}
+				};
+				modules$1[moduleId].call(module$1.exports, module$1, module$1.exports, __webpack_require__);
+				module$1.l = true;
+				return module$1.exports;
+			}
+			__webpack_require__.m = modules$1;
+			__webpack_require__.c = installedModules;
+			__webpack_require__.i = function(value) {
+				return value;
+			};
+			__webpack_require__.d = function(exports$1, name$1, getter) {
+				if (!__webpack_require__.o(exports$1, name$1)) Object.defineProperty(exports$1, name$1, {
+					configurable: false,
+					enumerable: true,
+					get: getter
+				});
+			};
+			__webpack_require__.n = function(module$1) {
+				var getter = module$1 && module$1.__esModule ? function getDefault() {
+					return module$1["default"];
+				} : function getModuleExports() {
+					return module$1;
+				};
+				__webpack_require__.d(getter, "a", getter);
+				return getter;
+			};
+			__webpack_require__.o = function(object$1, property$2) {
+				return Object.prototype.hasOwnProperty.call(object$1, property$2);
+			};
+			__webpack_require__.p = "";
+			return __webpack_require__(__webpack_require__.s = 28);
+		}([
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				function LayoutConstants() {}
+				/**
+				
+				* Layout Quality: 0:draft, 1:default, 2:proof
+				
+				*/
+				LayoutConstants.QUALITY = 1;
+				/**
+				
+				* Default parameters
+				
+				*/
+				LayoutConstants.DEFAULT_CREATE_BENDS_AS_NEEDED = false;
+				LayoutConstants.DEFAULT_INCREMENTAL = false;
+				LayoutConstants.DEFAULT_ANIMATION_ON_LAYOUT = true;
+				LayoutConstants.DEFAULT_ANIMATION_DURING_LAYOUT = false;
+				LayoutConstants.DEFAULT_ANIMATION_PERIOD = 50;
+				LayoutConstants.DEFAULT_UNIFORM_LEAF_NODE_SIZES = false;
+				LayoutConstants.DEFAULT_GRAPH_MARGIN = 15;
+				LayoutConstants.NODE_DIMENSIONS_INCLUDE_LABELS = false;
+				LayoutConstants.SIMPLE_NODE_SIZE = 40;
+				LayoutConstants.SIMPLE_NODE_HALF_SIZE = LayoutConstants.SIMPLE_NODE_SIZE / 2;
+				LayoutConstants.EMPTY_COMPOUND_NODE_SIZE = 40;
+				LayoutConstants.MIN_EDGE_LENGTH = 1;
+				LayoutConstants.WORLD_BOUNDARY = 1e6;
+				LayoutConstants.INITIAL_WORLD_BOUNDARY = LayoutConstants.WORLD_BOUNDARY / 1e3;
+				LayoutConstants.WORLD_CENTER_X = 1200;
+				LayoutConstants.WORLD_CENTER_Y = 900;
+				module$1.exports = LayoutConstants;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				var LGraphObject = __webpack_require__(2);
+				var IGeometry = __webpack_require__(8);
+				var IMath = __webpack_require__(9);
+				function LEdge(source, target, vEdge) {
+					LGraphObject.call(this, vEdge);
+					this.isOverlapingSourceAndTarget = false;
+					this.vGraphObject = vEdge;
+					this.bendpoints = [];
+					this.source = source;
+					this.target = target;
+				}
+				LEdge.prototype = Object.create(LGraphObject.prototype);
+				for (var prop in LGraphObject) LEdge[prop] = LGraphObject[prop];
+				LEdge.prototype.getSource = function() {
+					return this.source;
+				};
+				LEdge.prototype.getTarget = function() {
+					return this.target;
+				};
+				LEdge.prototype.isInterGraph = function() {
+					return this.isInterGraph;
+				};
+				LEdge.prototype.getLength = function() {
+					return this.length;
+				};
+				LEdge.prototype.isOverlapingSourceAndTarget = function() {
+					return this.isOverlapingSourceAndTarget;
+				};
+				LEdge.prototype.getBendpoints = function() {
+					return this.bendpoints;
+				};
+				LEdge.prototype.getLca = function() {
+					return this.lca;
+				};
+				LEdge.prototype.getSourceInLca = function() {
+					return this.sourceInLca;
+				};
+				LEdge.prototype.getTargetInLca = function() {
+					return this.targetInLca;
+				};
+				LEdge.prototype.getOtherEnd = function(node) {
+					if (this.source === node) return this.target;
+					else if (this.target === node) return this.source;
+					else throw "Node is not incident with this edge";
+				};
+				LEdge.prototype.getOtherEndInGraph = function(node, graph) {
+					var otherEnd = this.getOtherEnd(node);
+					var root$12 = graph.getGraphManager().getRoot();
+					while (true) {
+						if (otherEnd.getOwner() == graph) return otherEnd;
+						if (otherEnd.getOwner() == root$12) break;
+						otherEnd = otherEnd.getOwner().getParent();
+					}
+					return null;
+				};
+				LEdge.prototype.updateLength = function() {
+					var clipPointCoordinates = new Array(4);
+					this.isOverlapingSourceAndTarget = IGeometry.getIntersection(this.target.getRect(), this.source.getRect(), clipPointCoordinates);
+					if (!this.isOverlapingSourceAndTarget) {
+						this.lengthX = clipPointCoordinates[0] - clipPointCoordinates[2];
+						this.lengthY = clipPointCoordinates[1] - clipPointCoordinates[3];
+						if (Math.abs(this.lengthX) < 1) this.lengthX = IMath.sign(this.lengthX);
+						if (Math.abs(this.lengthY) < 1) this.lengthY = IMath.sign(this.lengthY);
+						this.length = Math.sqrt(this.lengthX * this.lengthX + this.lengthY * this.lengthY);
+					}
+				};
+				LEdge.prototype.updateLengthSimple = function() {
+					this.lengthX = this.target.getCenterX() - this.source.getCenterX();
+					this.lengthY = this.target.getCenterY() - this.source.getCenterY();
+					if (Math.abs(this.lengthX) < 1) this.lengthX = IMath.sign(this.lengthX);
+					if (Math.abs(this.lengthY) < 1) this.lengthY = IMath.sign(this.lengthY);
+					this.length = Math.sqrt(this.lengthX * this.lengthX + this.lengthY * this.lengthY);
+				};
+				module$1.exports = LEdge;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				function LGraphObject(vGraphObject) {
+					this.vGraphObject = vGraphObject;
+				}
+				module$1.exports = LGraphObject;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				var LGraphObject = __webpack_require__(2);
+				var Integer = __webpack_require__(10);
+				var RectangleD = __webpack_require__(13);
+				var LayoutConstants = __webpack_require__(0);
+				var RandomSeed = __webpack_require__(16);
+				var PointD = __webpack_require__(5);
+				function LNode(gm, loc, size$1, vNode) {
+					if (size$1 == null && vNode == null) vNode = loc;
+					LGraphObject.call(this, vNode);
+					if (gm.graphManager != null) gm = gm.graphManager;
+					this.estimatedSize = Integer.MIN_VALUE;
+					this.inclusionTreeDepth = Integer.MAX_VALUE;
+					this.vGraphObject = vNode;
+					this.edges = [];
+					this.graphManager = gm;
+					if (size$1 != null && loc != null) this.rect = new RectangleD(loc.x, loc.y, size$1.width, size$1.height);
+					else this.rect = new RectangleD();
+				}
+				LNode.prototype = Object.create(LGraphObject.prototype);
+				for (var prop in LGraphObject) LNode[prop] = LGraphObject[prop];
+				LNode.prototype.getEdges = function() {
+					return this.edges;
+				};
+				LNode.prototype.getChild = function() {
+					return this.child;
+				};
+				LNode.prototype.getOwner = function() {
+					return this.owner;
+				};
+				LNode.prototype.getWidth = function() {
+					return this.rect.width;
+				};
+				LNode.prototype.setWidth = function(width$1) {
+					this.rect.width = width$1;
+				};
+				LNode.prototype.getHeight = function() {
+					return this.rect.height;
+				};
+				LNode.prototype.setHeight = function(height) {
+					this.rect.height = height;
+				};
+				LNode.prototype.getCenterX = function() {
+					return this.rect.x + this.rect.width / 2;
+				};
+				LNode.prototype.getCenterY = function() {
+					return this.rect.y + this.rect.height / 2;
+				};
+				LNode.prototype.getCenter = function() {
+					return new PointD(this.rect.x + this.rect.width / 2, this.rect.y + this.rect.height / 2);
+				};
+				LNode.prototype.getLocation = function() {
+					return new PointD(this.rect.x, this.rect.y);
+				};
+				LNode.prototype.getRect = function() {
+					return this.rect;
+				};
+				LNode.prototype.getDiagonal = function() {
+					return Math.sqrt(this.rect.width * this.rect.width + this.rect.height * this.rect.height);
+				};
+				/**
+				* This method returns half the diagonal length of this node.
+				*/
+				LNode.prototype.getHalfTheDiagonal = function() {
+					return Math.sqrt(this.rect.height * this.rect.height + this.rect.width * this.rect.width) / 2;
+				};
+				LNode.prototype.setRect = function(upperLeft, dimension) {
+					this.rect.x = upperLeft.x;
+					this.rect.y = upperLeft.y;
+					this.rect.width = dimension.width;
+					this.rect.height = dimension.height;
+				};
+				LNode.prototype.setCenter = function(cx, cy) {
+					this.rect.x = cx - this.rect.width / 2;
+					this.rect.y = cy - this.rect.height / 2;
+				};
+				LNode.prototype.setLocation = function(x$1, y$1) {
+					this.rect.x = x$1;
+					this.rect.y = y$1;
+				};
+				LNode.prototype.moveBy = function(dx, dy) {
+					this.rect.x += dx;
+					this.rect.y += dy;
+				};
+				LNode.prototype.getEdgeListToNode = function(to) {
+					var edgeList = [];
+					var edge;
+					var self$1 = this;
+					self$1.edges.forEach(function(edge$1) {
+						if (edge$1.target == to) {
+							if (edge$1.source != self$1) throw "Incorrect edge source!";
+							edgeList.push(edge$1);
+						}
+					});
+					return edgeList;
+				};
+				LNode.prototype.getEdgesBetween = function(other) {
+					var edgeList = [];
+					var edge;
+					var self$1 = this;
+					self$1.edges.forEach(function(edge$1) {
+						if (!(edge$1.source == self$1 || edge$1.target == self$1)) throw "Incorrect edge source and/or target";
+						if (edge$1.target == other || edge$1.source == other) edgeList.push(edge$1);
+					});
+					return edgeList;
+				};
+				LNode.prototype.getNeighborsList = function() {
+					var neighbors = new Set();
+					var self$1 = this;
+					self$1.edges.forEach(function(edge) {
+						if (edge.source == self$1) neighbors.add(edge.target);
+						else {
+							if (edge.target != self$1) throw "Incorrect incidency!";
+							neighbors.add(edge.source);
+						}
+					});
+					return neighbors;
+				};
+				LNode.prototype.withChildren = function() {
+					var withNeighborsList = new Set();
+					var childNode;
+					var children;
+					withNeighborsList.add(this);
+					if (this.child != null) {
+						var nodes = this.child.getNodes();
+						for (var i$1 = 0; i$1 < nodes.length; i$1++) {
+							childNode = nodes[i$1];
+							children = childNode.withChildren();
+							children.forEach(function(node) {
+								withNeighborsList.add(node);
+							});
+						}
+					}
+					return withNeighborsList;
+				};
+				LNode.prototype.getNoOfChildren = function() {
+					var noOfChildren = 0;
+					var childNode;
+					if (this.child == null) noOfChildren = 1;
+					else {
+						var nodes = this.child.getNodes();
+						for (var i$1 = 0; i$1 < nodes.length; i$1++) {
+							childNode = nodes[i$1];
+							noOfChildren += childNode.getNoOfChildren();
+						}
+					}
+					if (noOfChildren == 0) noOfChildren = 1;
+					return noOfChildren;
+				};
+				LNode.prototype.getEstimatedSize = function() {
+					if (this.estimatedSize == Integer.MIN_VALUE) throw "assert failed";
+					return this.estimatedSize;
+				};
+				LNode.prototype.calcEstimatedSize = function() {
+					if (this.child == null) return this.estimatedSize = (this.rect.width + this.rect.height) / 2;
+					else {
+						this.estimatedSize = this.child.calcEstimatedSize();
+						this.rect.width = this.estimatedSize;
+						this.rect.height = this.estimatedSize;
+						return this.estimatedSize;
+					}
+				};
+				LNode.prototype.scatter = function() {
+					var randomCenterX;
+					var randomCenterY;
+					var minX = -LayoutConstants.INITIAL_WORLD_BOUNDARY;
+					var maxX = LayoutConstants.INITIAL_WORLD_BOUNDARY;
+					randomCenterX = LayoutConstants.WORLD_CENTER_X + RandomSeed.nextDouble() * (maxX - minX) + minX;
+					var minY = -LayoutConstants.INITIAL_WORLD_BOUNDARY;
+					var maxY = LayoutConstants.INITIAL_WORLD_BOUNDARY;
+					randomCenterY = LayoutConstants.WORLD_CENTER_Y + RandomSeed.nextDouble() * (maxY - minY) + minY;
+					this.rect.x = randomCenterX;
+					this.rect.y = randomCenterY;
+				};
+				LNode.prototype.updateBounds = function() {
+					if (this.getChild() == null) throw "assert failed";
+					if (this.getChild().getNodes().length != 0) {
+						var childGraph = this.getChild();
+						childGraph.updateBounds(true);
+						this.rect.x = childGraph.getLeft();
+						this.rect.y = childGraph.getTop();
+						this.setWidth(childGraph.getRight() - childGraph.getLeft());
+						this.setHeight(childGraph.getBottom() - childGraph.getTop());
+						if (LayoutConstants.NODE_DIMENSIONS_INCLUDE_LABELS) {
+							var width$1 = childGraph.getRight() - childGraph.getLeft();
+							var height = childGraph.getBottom() - childGraph.getTop();
+							if (this.labelWidth) {
+								if (this.labelPosHorizontal == "left") {
+									this.rect.x -= this.labelWidth;
+									this.setWidth(width$1 + this.labelWidth);
+								} else if (this.labelPosHorizontal == "center" && this.labelWidth > width$1) {
+									this.rect.x -= (this.labelWidth - width$1) / 2;
+									this.setWidth(this.labelWidth);
+								} else if (this.labelPosHorizontal == "right") this.setWidth(width$1 + this.labelWidth);
+							}
+							if (this.labelHeight) {
+								if (this.labelPosVertical == "top") {
+									this.rect.y -= this.labelHeight;
+									this.setHeight(height + this.labelHeight);
+								} else if (this.labelPosVertical == "center" && this.labelHeight > height) {
+									this.rect.y -= (this.labelHeight - height) / 2;
+									this.setHeight(this.labelHeight);
+								} else if (this.labelPosVertical == "bottom") this.setHeight(height + this.labelHeight);
+							}
+						}
+					}
+				};
+				LNode.prototype.getInclusionTreeDepth = function() {
+					if (this.inclusionTreeDepth == Integer.MAX_VALUE) throw "assert failed";
+					return this.inclusionTreeDepth;
+				};
+				LNode.prototype.transform = function(trans) {
+					var left = this.rect.x;
+					if (left > LayoutConstants.WORLD_BOUNDARY) left = LayoutConstants.WORLD_BOUNDARY;
+					else if (left < -LayoutConstants.WORLD_BOUNDARY) left = -LayoutConstants.WORLD_BOUNDARY;
+					var top = this.rect.y;
+					if (top > LayoutConstants.WORLD_BOUNDARY) top = LayoutConstants.WORLD_BOUNDARY;
+					else if (top < -LayoutConstants.WORLD_BOUNDARY) top = -LayoutConstants.WORLD_BOUNDARY;
+					var leftTop = new PointD(left, top);
+					var vLeftTop = trans.inverseTransformPoint(leftTop);
+					this.setLocation(vLeftTop.x, vLeftTop.y);
+				};
+				LNode.prototype.getLeft = function() {
+					return this.rect.x;
+				};
+				LNode.prototype.getRight = function() {
+					return this.rect.x + this.rect.width;
+				};
+				LNode.prototype.getTop = function() {
+					return this.rect.y;
+				};
+				LNode.prototype.getBottom = function() {
+					return this.rect.y + this.rect.height;
+				};
+				LNode.prototype.getParent = function() {
+					if (this.owner == null) return null;
+					return this.owner.getParent();
+				};
+				module$1.exports = LNode;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				var LayoutConstants = __webpack_require__(0);
+				function FDLayoutConstants() {}
+				for (var prop in LayoutConstants) FDLayoutConstants[prop] = LayoutConstants[prop];
+				FDLayoutConstants.MAX_ITERATIONS = 2500;
+				FDLayoutConstants.DEFAULT_EDGE_LENGTH = 50;
+				FDLayoutConstants.DEFAULT_SPRING_STRENGTH = .45;
+				FDLayoutConstants.DEFAULT_REPULSION_STRENGTH = 4500;
+				FDLayoutConstants.DEFAULT_GRAVITY_STRENGTH = .4;
+				FDLayoutConstants.DEFAULT_COMPOUND_GRAVITY_STRENGTH = 1;
+				FDLayoutConstants.DEFAULT_GRAVITY_RANGE_FACTOR = 3.8;
+				FDLayoutConstants.DEFAULT_COMPOUND_GRAVITY_RANGE_FACTOR = 1.5;
+				FDLayoutConstants.DEFAULT_USE_SMART_IDEAL_EDGE_LENGTH_CALCULATION = true;
+				FDLayoutConstants.DEFAULT_USE_SMART_REPULSION_RANGE_CALCULATION = true;
+				FDLayoutConstants.DEFAULT_COOLING_FACTOR_INCREMENTAL = .3;
+				FDLayoutConstants.COOLING_ADAPTATION_FACTOR = .33;
+				FDLayoutConstants.ADAPTATION_LOWER_NODE_LIMIT = 1e3;
+				FDLayoutConstants.ADAPTATION_UPPER_NODE_LIMIT = 5e3;
+				FDLayoutConstants.MAX_NODE_DISPLACEMENT_INCREMENTAL = 100;
+				FDLayoutConstants.MAX_NODE_DISPLACEMENT = FDLayoutConstants.MAX_NODE_DISPLACEMENT_INCREMENTAL * 3;
+				FDLayoutConstants.MIN_REPULSION_DIST = FDLayoutConstants.DEFAULT_EDGE_LENGTH / 10;
+				FDLayoutConstants.CONVERGENCE_CHECK_PERIOD = 100;
+				FDLayoutConstants.PER_LEVEL_IDEAL_EDGE_LENGTH_FACTOR = .1;
+				FDLayoutConstants.MIN_EDGE_LENGTH = 1;
+				FDLayoutConstants.GRID_CALCULATION_CHECK_PERIOD = 10;
+				module$1.exports = FDLayoutConstants;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				function PointD(x$1, y$1) {
+					if (x$1 == null && y$1 == null) {
+						this.x = 0;
+						this.y = 0;
+					} else {
+						this.x = x$1;
+						this.y = y$1;
+					}
+				}
+				PointD.prototype.getX = function() {
+					return this.x;
+				};
+				PointD.prototype.getY = function() {
+					return this.y;
+				};
+				PointD.prototype.setX = function(x$1) {
+					this.x = x$1;
+				};
+				PointD.prototype.setY = function(y$1) {
+					this.y = y$1;
+				};
+				PointD.prototype.getDifference = function(pt) {
+					return new DimensionD(this.x - pt.x, this.y - pt.y);
+				};
+				PointD.prototype.getCopy = function() {
+					return new PointD(this.x, this.y);
+				};
+				PointD.prototype.translate = function(dim) {
+					this.x += dim.width;
+					this.y += dim.height;
+					return this;
+				};
+				module$1.exports = PointD;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				var LGraphObject = __webpack_require__(2);
+				var Integer = __webpack_require__(10);
+				var LayoutConstants = __webpack_require__(0);
+				var LGraphManager = __webpack_require__(7);
+				var LNode = __webpack_require__(3);
+				var LEdge = __webpack_require__(1);
+				var RectangleD = __webpack_require__(13);
+				var Point$1 = __webpack_require__(12);
+				var LinkedList = __webpack_require__(11);
+				function LGraph(parent, obj2, vGraph) {
+					LGraphObject.call(this, vGraph);
+					this.estimatedSize = Integer.MIN_VALUE;
+					this.margin = LayoutConstants.DEFAULT_GRAPH_MARGIN;
+					this.edges = [];
+					this.nodes = [];
+					this.isConnected = false;
+					this.parent = parent;
+					if (obj2 != null && obj2 instanceof LGraphManager) this.graphManager = obj2;
+					else if (obj2 != null && obj2 instanceof Layout) this.graphManager = obj2.graphManager;
+				}
+				LGraph.prototype = Object.create(LGraphObject.prototype);
+				for (var prop in LGraphObject) LGraph[prop] = LGraphObject[prop];
+				LGraph.prototype.getNodes = function() {
+					return this.nodes;
+				};
+				LGraph.prototype.getEdges = function() {
+					return this.edges;
+				};
+				LGraph.prototype.getGraphManager = function() {
+					return this.graphManager;
+				};
+				LGraph.prototype.getParent = function() {
+					return this.parent;
+				};
+				LGraph.prototype.getLeft = function() {
+					return this.left;
+				};
+				LGraph.prototype.getRight = function() {
+					return this.right;
+				};
+				LGraph.prototype.getTop = function() {
+					return this.top;
+				};
+				LGraph.prototype.getBottom = function() {
+					return this.bottom;
+				};
+				LGraph.prototype.isConnected = function() {
+					return this.isConnected;
+				};
+				LGraph.prototype.add = function(obj1, sourceNode, targetNode) {
+					if (sourceNode == null && targetNode == null) {
+						var newNode = obj1;
+						if (this.graphManager == null) throw "Graph has no graph mgr!";
+						if (this.getNodes().indexOf(newNode) > -1) throw "Node already in graph!";
+						newNode.owner = this;
+						this.getNodes().push(newNode);
+						return newNode;
+					} else {
+						var newEdge = obj1;
+						if (!(this.getNodes().indexOf(sourceNode) > -1 && this.getNodes().indexOf(targetNode) > -1)) throw "Source or target not in graph!";
+						if (!(sourceNode.owner == targetNode.owner && sourceNode.owner == this)) throw "Both owners must be this graph!";
+						if (sourceNode.owner != targetNode.owner) return null;
+						newEdge.source = sourceNode;
+						newEdge.target = targetNode;
+						newEdge.isInterGraph = false;
+						this.getEdges().push(newEdge);
+						sourceNode.edges.push(newEdge);
+						if (targetNode != sourceNode) targetNode.edges.push(newEdge);
+						return newEdge;
+					}
+				};
+				LGraph.prototype.remove = function(obj) {
+					var node = obj;
+					if (obj instanceof LNode) {
+						if (node == null) throw "Node is null!";
+						if (!(node.owner != null && node.owner == this)) throw "Owner graph is invalid!";
+						if (this.graphManager == null) throw "Owner graph manager is invalid!";
+						var edgesToBeRemoved = node.edges.slice();
+						var edge;
+						var s = edgesToBeRemoved.length;
+						for (var i$1 = 0; i$1 < s; i$1++) {
+							edge = edgesToBeRemoved[i$1];
+							if (edge.isInterGraph) this.graphManager.remove(edge);
+							else edge.source.owner.remove(edge);
+						}
+						var index = this.nodes.indexOf(node);
+						if (index == -1) throw "Node not in owner node list!";
+						this.nodes.splice(index, 1);
+					} else if (obj instanceof LEdge) {
+						var edge = obj;
+						if (edge == null) throw "Edge is null!";
+						if (!(edge.source != null && edge.target != null)) throw "Source and/or target is null!";
+						if (!(edge.source.owner != null && edge.target.owner != null && edge.source.owner == this && edge.target.owner == this)) throw "Source and/or target owner is invalid!";
+						var sourceIndex = edge.source.edges.indexOf(edge);
+						var targetIndex = edge.target.edges.indexOf(edge);
+						if (!(sourceIndex > -1 && targetIndex > -1)) throw "Source and/or target doesn't know this edge!";
+						edge.source.edges.splice(sourceIndex, 1);
+						if (edge.target != edge.source) edge.target.edges.splice(targetIndex, 1);
+						var index = edge.source.owner.getEdges().indexOf(edge);
+						if (index == -1) throw "Not in owner's edge list!";
+						edge.source.owner.getEdges().splice(index, 1);
+					}
+				};
+				LGraph.prototype.updateLeftTop = function() {
+					var top = Integer.MAX_VALUE;
+					var left = Integer.MAX_VALUE;
+					var nodeTop;
+					var nodeLeft;
+					var margin;
+					var nodes = this.getNodes();
+					var s = nodes.length;
+					for (var i$1 = 0; i$1 < s; i$1++) {
+						var lNode = nodes[i$1];
+						nodeTop = lNode.getTop();
+						nodeLeft = lNode.getLeft();
+						if (top > nodeTop) top = nodeTop;
+						if (left > nodeLeft) left = nodeLeft;
+					}
+					if (top == Integer.MAX_VALUE) return null;
+					if (nodes[0].getParent().paddingLeft != void 0) margin = nodes[0].getParent().paddingLeft;
+					else margin = this.margin;
+					this.left = left - margin;
+					this.top = top - margin;
+					return new Point$1(this.left, this.top);
+				};
+				LGraph.prototype.updateBounds = function(recursive) {
+					var left = Integer.MAX_VALUE;
+					var right = -Integer.MAX_VALUE;
+					var top = Integer.MAX_VALUE;
+					var bottom = -Integer.MAX_VALUE;
+					var nodeLeft;
+					var nodeRight;
+					var nodeTop;
+					var nodeBottom;
+					var margin;
+					var nodes = this.nodes;
+					var s = nodes.length;
+					for (var i$1 = 0; i$1 < s; i$1++) {
+						var lNode = nodes[i$1];
+						if (recursive && lNode.child != null) lNode.updateBounds();
+						nodeLeft = lNode.getLeft();
+						nodeRight = lNode.getRight();
+						nodeTop = lNode.getTop();
+						nodeBottom = lNode.getBottom();
+						if (left > nodeLeft) left = nodeLeft;
+						if (right < nodeRight) right = nodeRight;
+						if (top > nodeTop) top = nodeTop;
+						if (bottom < nodeBottom) bottom = nodeBottom;
+					}
+					var boundingRect = new RectangleD(left, top, right - left, bottom - top);
+					if (left == Integer.MAX_VALUE) {
+						this.left = this.parent.getLeft();
+						this.right = this.parent.getRight();
+						this.top = this.parent.getTop();
+						this.bottom = this.parent.getBottom();
+					}
+					if (nodes[0].getParent().paddingLeft != void 0) margin = nodes[0].getParent().paddingLeft;
+					else margin = this.margin;
+					this.left = boundingRect.x - margin;
+					this.right = boundingRect.x + boundingRect.width + margin;
+					this.top = boundingRect.y - margin;
+					this.bottom = boundingRect.y + boundingRect.height + margin;
+				};
+				LGraph.calculateBounds = function(nodes) {
+					var left = Integer.MAX_VALUE;
+					var right = -Integer.MAX_VALUE;
+					var top = Integer.MAX_VALUE;
+					var bottom = -Integer.MAX_VALUE;
+					var nodeLeft;
+					var nodeRight;
+					var nodeTop;
+					var nodeBottom;
+					var s = nodes.length;
+					for (var i$1 = 0; i$1 < s; i$1++) {
+						var lNode = nodes[i$1];
+						nodeLeft = lNode.getLeft();
+						nodeRight = lNode.getRight();
+						nodeTop = lNode.getTop();
+						nodeBottom = lNode.getBottom();
+						if (left > nodeLeft) left = nodeLeft;
+						if (right < nodeRight) right = nodeRight;
+						if (top > nodeTop) top = nodeTop;
+						if (bottom < nodeBottom) bottom = nodeBottom;
+					}
+					var boundingRect = new RectangleD(left, top, right - left, bottom - top);
+					return boundingRect;
+				};
+				LGraph.prototype.getInclusionTreeDepth = function() {
+					if (this == this.graphManager.getRoot()) return 1;
+					else return this.parent.getInclusionTreeDepth();
+				};
+				LGraph.prototype.getEstimatedSize = function() {
+					if (this.estimatedSize == Integer.MIN_VALUE) throw "assert failed";
+					return this.estimatedSize;
+				};
+				LGraph.prototype.calcEstimatedSize = function() {
+					var size$1 = 0;
+					var nodes = this.nodes;
+					var s = nodes.length;
+					for (var i$1 = 0; i$1 < s; i$1++) {
+						var lNode = nodes[i$1];
+						size$1 += lNode.calcEstimatedSize();
+					}
+					if (size$1 == 0) this.estimatedSize = LayoutConstants.EMPTY_COMPOUND_NODE_SIZE;
+					else this.estimatedSize = size$1 / Math.sqrt(this.nodes.length);
+					return this.estimatedSize;
+				};
+				LGraph.prototype.updateConnected = function() {
+					var self$1 = this;
+					if (this.nodes.length == 0) {
+						this.isConnected = true;
+						return;
+					}
+					var queue = new LinkedList();
+					var visited = new Set();
+					var currentNode = this.nodes[0];
+					var neighborEdges;
+					var currentNeighbor;
+					var childrenOfNode = currentNode.withChildren();
+					childrenOfNode.forEach(function(node) {
+						queue.push(node);
+						visited.add(node);
+					});
+					while (queue.length !== 0) {
+						currentNode = queue.shift();
+						neighborEdges = currentNode.getEdges();
+						var size$1 = neighborEdges.length;
+						for (var i$1 = 0; i$1 < size$1; i$1++) {
+							var neighborEdge = neighborEdges[i$1];
+							currentNeighbor = neighborEdge.getOtherEndInGraph(currentNode, this);
+							if (currentNeighbor != null && !visited.has(currentNeighbor)) {
+								var childrenOfNeighbor = currentNeighbor.withChildren();
+								childrenOfNeighbor.forEach(function(node) {
+									queue.push(node);
+									visited.add(node);
+								});
+							}
+						}
+					}
+					this.isConnected = false;
+					if (visited.size >= this.nodes.length) {
+						var noOfVisitedInThisGraph = 0;
+						visited.forEach(function(visitedNode) {
+							if (visitedNode.owner == self$1) noOfVisitedInThisGraph++;
+						});
+						if (noOfVisitedInThisGraph == this.nodes.length) this.isConnected = true;
+					}
+				};
+				module$1.exports = LGraph;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				var LGraph;
+				var LEdge = __webpack_require__(1);
+				function LGraphManager(layout$2) {
+					LGraph = __webpack_require__(6);
+					this.layout = layout$2;
+					this.graphs = [];
+					this.edges = [];
+				}
+				LGraphManager.prototype.addRoot = function() {
+					var ngraph = this.layout.newGraph();
+					var nnode = this.layout.newNode(null);
+					var root$12 = this.add(ngraph, nnode);
+					this.setRootGraph(root$12);
+					return this.rootGraph;
+				};
+				LGraphManager.prototype.add = function(newGraph, parentNode, newEdge, sourceNode, targetNode) {
+					if (newEdge == null && sourceNode == null && targetNode == null) {
+						if (newGraph == null) throw "Graph is null!";
+						if (parentNode == null) throw "Parent node is null!";
+						if (this.graphs.indexOf(newGraph) > -1) throw "Graph already in this graph mgr!";
+						this.graphs.push(newGraph);
+						if (newGraph.parent != null) throw "Already has a parent!";
+						if (parentNode.child != null) throw "Already has a child!";
+						newGraph.parent = parentNode;
+						parentNode.child = newGraph;
+						return newGraph;
+					} else {
+						targetNode = newEdge;
+						sourceNode = parentNode;
+						newEdge = newGraph;
+						var sourceGraph = sourceNode.getOwner();
+						var targetGraph = targetNode.getOwner();
+						if (!(sourceGraph != null && sourceGraph.getGraphManager() == this)) throw "Source not in this graph mgr!";
+						if (!(targetGraph != null && targetGraph.getGraphManager() == this)) throw "Target not in this graph mgr!";
+						if (sourceGraph == targetGraph) {
+							newEdge.isInterGraph = false;
+							return sourceGraph.add(newEdge, sourceNode, targetNode);
+						} else {
+							newEdge.isInterGraph = true;
+							newEdge.source = sourceNode;
+							newEdge.target = targetNode;
+							if (this.edges.indexOf(newEdge) > -1) throw "Edge already in inter-graph edge list!";
+							this.edges.push(newEdge);
+							if (!(newEdge.source != null && newEdge.target != null)) throw "Edge source and/or target is null!";
+							if (!(newEdge.source.edges.indexOf(newEdge) == -1 && newEdge.target.edges.indexOf(newEdge) == -1)) throw "Edge already in source and/or target incidency list!";
+							newEdge.source.edges.push(newEdge);
+							newEdge.target.edges.push(newEdge);
+							return newEdge;
+						}
+					}
+				};
+				LGraphManager.prototype.remove = function(lObj) {
+					if (lObj instanceof LGraph) {
+						var graph = lObj;
+						if (graph.getGraphManager() != this) throw "Graph not in this graph mgr";
+						if (!(graph == this.rootGraph || graph.parent != null && graph.parent.graphManager == this)) throw "Invalid parent node!";
+						var edgesToBeRemoved = [];
+						edgesToBeRemoved = edgesToBeRemoved.concat(graph.getEdges());
+						var edge;
+						var s = edgesToBeRemoved.length;
+						for (var i$1 = 0; i$1 < s; i$1++) {
+							edge = edgesToBeRemoved[i$1];
+							graph.remove(edge);
+						}
+						var nodesToBeRemoved = [];
+						nodesToBeRemoved = nodesToBeRemoved.concat(graph.getNodes());
+						var node;
+						s = nodesToBeRemoved.length;
+						for (var i$1 = 0; i$1 < s; i$1++) {
+							node = nodesToBeRemoved[i$1];
+							graph.remove(node);
+						}
+						if (graph == this.rootGraph) this.setRootGraph(null);
+						var index = this.graphs.indexOf(graph);
+						this.graphs.splice(index, 1);
+						graph.parent = null;
+					} else if (lObj instanceof LEdge) {
+						edge = lObj;
+						if (edge == null) throw "Edge is null!";
+						if (!edge.isInterGraph) throw "Not an inter-graph edge!";
+						if (!(edge.source != null && edge.target != null)) throw "Source and/or target is null!";
+						if (!(edge.source.edges.indexOf(edge) != -1 && edge.target.edges.indexOf(edge) != -1)) throw "Source and/or target doesn't know this edge!";
+						var index = edge.source.edges.indexOf(edge);
+						edge.source.edges.splice(index, 1);
+						index = edge.target.edges.indexOf(edge);
+						edge.target.edges.splice(index, 1);
+						if (!(edge.source.owner != null && edge.source.owner.getGraphManager() != null)) throw "Edge owner graph or owner graph manager is null!";
+						if (edge.source.owner.getGraphManager().edges.indexOf(edge) == -1) throw "Not in owner graph manager's edge list!";
+						var index = edge.source.owner.getGraphManager().edges.indexOf(edge);
+						edge.source.owner.getGraphManager().edges.splice(index, 1);
+					}
+				};
+				LGraphManager.prototype.updateBounds = function() {
+					this.rootGraph.updateBounds(true);
+				};
+				LGraphManager.prototype.getGraphs = function() {
+					return this.graphs;
+				};
+				LGraphManager.prototype.getAllNodes = function() {
+					if (this.allNodes == null) {
+						var nodeList = [];
+						var graphs = this.getGraphs();
+						var s = graphs.length;
+						for (var i$1 = 0; i$1 < s; i$1++) nodeList = nodeList.concat(graphs[i$1].getNodes());
+						this.allNodes = nodeList;
+					}
+					return this.allNodes;
+				};
+				LGraphManager.prototype.resetAllNodes = function() {
+					this.allNodes = null;
+				};
+				LGraphManager.prototype.resetAllEdges = function() {
+					this.allEdges = null;
+				};
+				LGraphManager.prototype.resetAllNodesToApplyGravitation = function() {
+					this.allNodesToApplyGravitation = null;
+				};
+				LGraphManager.prototype.getAllEdges = function() {
+					if (this.allEdges == null) {
+						var edgeList = [];
+						var graphs = this.getGraphs();
+						var s = graphs.length;
+						for (var i$1 = 0; i$1 < graphs.length; i$1++) edgeList = edgeList.concat(graphs[i$1].getEdges());
+						edgeList = edgeList.concat(this.edges);
+						this.allEdges = edgeList;
+					}
+					return this.allEdges;
+				};
+				LGraphManager.prototype.getAllNodesToApplyGravitation = function() {
+					return this.allNodesToApplyGravitation;
+				};
+				LGraphManager.prototype.setAllNodesToApplyGravitation = function(nodeList) {
+					if (this.allNodesToApplyGravitation != null) throw "assert failed";
+					this.allNodesToApplyGravitation = nodeList;
+				};
+				LGraphManager.prototype.getRoot = function() {
+					return this.rootGraph;
+				};
+				LGraphManager.prototype.setRootGraph = function(graph) {
+					if (graph.getGraphManager() != this) throw "Root not in this graph mgr!";
+					this.rootGraph = graph;
+					if (graph.parent == null) graph.parent = this.layout.newNode("Root node");
+				};
+				LGraphManager.prototype.getLayout = function() {
+					return this.layout;
+				};
+				LGraphManager.prototype.isOneAncestorOfOther = function(firstNode, secondNode) {
+					if (!(firstNode != null && secondNode != null)) throw "assert failed";
+					if (firstNode == secondNode) return true;
+					var ownerGraph = firstNode.getOwner();
+					var parentNode;
+					do {
+						parentNode = ownerGraph.getParent();
+						if (parentNode == null) break;
+						if (parentNode == secondNode) return true;
+						ownerGraph = parentNode.getOwner();
+						if (ownerGraph == null) break;
+					} while (true);
+					ownerGraph = secondNode.getOwner();
+					do {
+						parentNode = ownerGraph.getParent();
+						if (parentNode == null) break;
+						if (parentNode == firstNode) return true;
+						ownerGraph = parentNode.getOwner();
+						if (ownerGraph == null) break;
+					} while (true);
+					return false;
+				};
+				LGraphManager.prototype.calcLowestCommonAncestors = function() {
+					var edge;
+					var sourceNode;
+					var targetNode;
+					var sourceAncestorGraph;
+					var targetAncestorGraph;
+					var edges = this.getAllEdges();
+					var s = edges.length;
+					for (var i$1 = 0; i$1 < s; i$1++) {
+						edge = edges[i$1];
+						sourceNode = edge.source;
+						targetNode = edge.target;
+						edge.lca = null;
+						edge.sourceInLca = sourceNode;
+						edge.targetInLca = targetNode;
+						if (sourceNode == targetNode) {
+							edge.lca = sourceNode.getOwner();
+							continue;
+						}
+						sourceAncestorGraph = sourceNode.getOwner();
+						while (edge.lca == null) {
+							edge.targetInLca = targetNode;
+							targetAncestorGraph = targetNode.getOwner();
+							while (edge.lca == null) {
+								if (targetAncestorGraph == sourceAncestorGraph) {
+									edge.lca = targetAncestorGraph;
+									break;
+								}
+								if (targetAncestorGraph == this.rootGraph) break;
+								if (edge.lca != null) throw "assert failed";
+								edge.targetInLca = targetAncestorGraph.getParent();
+								targetAncestorGraph = edge.targetInLca.getOwner();
+							}
+							if (sourceAncestorGraph == this.rootGraph) break;
+							if (edge.lca == null) {
+								edge.sourceInLca = sourceAncestorGraph.getParent();
+								sourceAncestorGraph = edge.sourceInLca.getOwner();
+							}
+						}
+						if (edge.lca == null) throw "assert failed";
+					}
+				};
+				LGraphManager.prototype.calcLowestCommonAncestor = function(firstNode, secondNode) {
+					if (firstNode == secondNode) return firstNode.getOwner();
+					var firstOwnerGraph = firstNode.getOwner();
+					do {
+						if (firstOwnerGraph == null) break;
+						var secondOwnerGraph = secondNode.getOwner();
+						do {
+							if (secondOwnerGraph == null) break;
+							if (secondOwnerGraph == firstOwnerGraph) return secondOwnerGraph;
+							secondOwnerGraph = secondOwnerGraph.getParent().getOwner();
+						} while (true);
+						firstOwnerGraph = firstOwnerGraph.getParent().getOwner();
+					} while (true);
+					return firstOwnerGraph;
+				};
+				LGraphManager.prototype.calcInclusionTreeDepths = function(graph, depth) {
+					if (graph == null && depth == null) {
+						graph = this.rootGraph;
+						depth = 1;
+					}
+					var node;
+					var nodes = graph.getNodes();
+					var s = nodes.length;
+					for (var i$1 = 0; i$1 < s; i$1++) {
+						node = nodes[i$1];
+						node.inclusionTreeDepth = depth;
+						if (node.child != null) this.calcInclusionTreeDepths(node.child, depth + 1);
+					}
+				};
+				LGraphManager.prototype.includesInvalidEdge = function() {
+					var edge;
+					var edgesToRemove = [];
+					var s = this.edges.length;
+					for (var i$1 = 0; i$1 < s; i$1++) {
+						edge = this.edges[i$1];
+						if (this.isOneAncestorOfOther(edge.source, edge.target)) edgesToRemove.push(edge);
+					}
+					for (var i$1 = 0; i$1 < edgesToRemove.length; i$1++) this.remove(edgesToRemove[i$1]);
+					return false;
+				};
+				module$1.exports = LGraphManager;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				/**
+				* This class maintains a list of static geometry related utility methods.
+				*
+				*
+				* Copyright: i-Vis Research Group, Bilkent University, 2007 - present
+				*/
+				var Point$1 = __webpack_require__(12);
+				function IGeometry() {}
+				/**
+				* This method calculates *half* the amount in x and y directions of the two
+				* input rectangles needed to separate them keeping their respective
+				* positioning, and returns the result in the input array. An input
+				* separation buffer added to the amount in both directions. We assume that
+				* the two rectangles do intersect.
+				*/
+				IGeometry.calcSeparationAmount = function(rectA, rectB, overlapAmount, separationBuffer) {
+					if (!rectA.intersects(rectB)) throw "assert failed";
+					var directions = new Array(2);
+					this.decideDirectionsForOverlappingNodes(rectA, rectB, directions);
+					overlapAmount[0] = Math.min(rectA.getRight(), rectB.getRight()) - Math.max(rectA.x, rectB.x);
+					overlapAmount[1] = Math.min(rectA.getBottom(), rectB.getBottom()) - Math.max(rectA.y, rectB.y);
+					if (rectA.getX() <= rectB.getX() && rectA.getRight() >= rectB.getRight()) overlapAmount[0] += Math.min(rectB.getX() - rectA.getX(), rectA.getRight() - rectB.getRight());
+					else if (rectB.getX() <= rectA.getX() && rectB.getRight() >= rectA.getRight()) overlapAmount[0] += Math.min(rectA.getX() - rectB.getX(), rectB.getRight() - rectA.getRight());
+					if (rectA.getY() <= rectB.getY() && rectA.getBottom() >= rectB.getBottom()) overlapAmount[1] += Math.min(rectB.getY() - rectA.getY(), rectA.getBottom() - rectB.getBottom());
+					else if (rectB.getY() <= rectA.getY() && rectB.getBottom() >= rectA.getBottom()) overlapAmount[1] += Math.min(rectA.getY() - rectB.getY(), rectB.getBottom() - rectA.getBottom());
+					var slope = Math.abs((rectB.getCenterY() - rectA.getCenterY()) / (rectB.getCenterX() - rectA.getCenterX()));
+					if (rectB.getCenterY() === rectA.getCenterY() && rectB.getCenterX() === rectA.getCenterX()) slope = 1;
+					var moveByY = slope * overlapAmount[0];
+					var moveByX = overlapAmount[1] / slope;
+					if (overlapAmount[0] < moveByX) moveByX = overlapAmount[0];
+					else moveByY = overlapAmount[1];
+					overlapAmount[0] = -1 * directions[0] * (moveByX / 2 + separationBuffer);
+					overlapAmount[1] = -1 * directions[1] * (moveByY / 2 + separationBuffer);
+				};
+				/**
+				* This method decides the separation direction of overlapping nodes
+				*
+				* if directions[0] = -1, then rectA goes left
+				* if directions[0] = 1,  then rectA goes right
+				* if directions[1] = -1, then rectA goes up
+				* if directions[1] = 1,  then rectA goes down
+				*/
+				IGeometry.decideDirectionsForOverlappingNodes = function(rectA, rectB, directions) {
+					if (rectA.getCenterX() < rectB.getCenterX()) directions[0] = -1;
+					else directions[0] = 1;
+					if (rectA.getCenterY() < rectB.getCenterY()) directions[1] = -1;
+					else directions[1] = 1;
+				};
+				/**
+				* This method calculates the intersection (clipping) points of the two
+				* input rectangles with line segment defined by the centers of these two
+				* rectangles. The clipping points are saved in the input double array and
+				* whether or not the two rectangles overlap is returned.
+				*/
+				IGeometry.getIntersection2 = function(rectA, rectB, result) {
+					var p1x = rectA.getCenterX();
+					var p1y = rectA.getCenterY();
+					var p2x = rectB.getCenterX();
+					var p2y = rectB.getCenterY();
+					if (rectA.intersects(rectB)) {
+						result[0] = p1x;
+						result[1] = p1y;
+						result[2] = p2x;
+						result[3] = p2y;
+						return true;
+					}
+					var topLeftAx = rectA.getX();
+					var topLeftAy = rectA.getY();
+					var topRightAx = rectA.getRight();
+					var bottomLeftAx = rectA.getX();
+					var bottomLeftAy = rectA.getBottom();
+					var bottomRightAx = rectA.getRight();
+					var halfWidthA = rectA.getWidthHalf();
+					var halfHeightA = rectA.getHeightHalf();
+					var topLeftBx = rectB.getX();
+					var topLeftBy = rectB.getY();
+					var topRightBx = rectB.getRight();
+					var bottomLeftBx = rectB.getX();
+					var bottomLeftBy = rectB.getBottom();
+					var bottomRightBx = rectB.getRight();
+					var halfWidthB = rectB.getWidthHalf();
+					var halfHeightB = rectB.getHeightHalf();
+					var clipPointAFound = false;
+					var clipPointBFound = false;
+					if (p1x === p2x) {
+						if (p1y > p2y) {
+							result[0] = p1x;
+							result[1] = topLeftAy;
+							result[2] = p2x;
+							result[3] = bottomLeftBy;
+							return false;
+						} else if (p1y < p2y) {
+							result[0] = p1x;
+							result[1] = bottomLeftAy;
+							result[2] = p2x;
+							result[3] = topLeftBy;
+							return false;
+						}
+					} else if (p1y === p2y) {
+						if (p1x > p2x) {
+							result[0] = topLeftAx;
+							result[1] = p1y;
+							result[2] = topRightBx;
+							result[3] = p2y;
+							return false;
+						} else if (p1x < p2x) {
+							result[0] = topRightAx;
+							result[1] = p1y;
+							result[2] = topLeftBx;
+							result[3] = p2y;
+							return false;
+						}
+					} else {
+						var slopeA = rectA.height / rectA.width;
+						var slopeB = rectB.height / rectB.width;
+						var slopePrime = (p2y - p1y) / (p2x - p1x);
+						var cardinalDirectionA = void 0;
+						var cardinalDirectionB = void 0;
+						var tempPointAx = void 0;
+						var tempPointAy = void 0;
+						var tempPointBx = void 0;
+						var tempPointBy = void 0;
+						if (-slopeA === slopePrime) if (p1x > p2x) {
+							result[0] = bottomLeftAx;
+							result[1] = bottomLeftAy;
+							clipPointAFound = true;
+						} else {
+							result[0] = topRightAx;
+							result[1] = topLeftAy;
+							clipPointAFound = true;
+						}
+						else if (slopeA === slopePrime) if (p1x > p2x) {
+							result[0] = topLeftAx;
+							result[1] = topLeftAy;
+							clipPointAFound = true;
+						} else {
+							result[0] = bottomRightAx;
+							result[1] = bottomLeftAy;
+							clipPointAFound = true;
+						}
+						if (-slopeB === slopePrime) if (p2x > p1x) {
+							result[2] = bottomLeftBx;
+							result[3] = bottomLeftBy;
+							clipPointBFound = true;
+						} else {
+							result[2] = topRightBx;
+							result[3] = topLeftBy;
+							clipPointBFound = true;
+						}
+						else if (slopeB === slopePrime) if (p2x > p1x) {
+							result[2] = topLeftBx;
+							result[3] = topLeftBy;
+							clipPointBFound = true;
+						} else {
+							result[2] = bottomRightBx;
+							result[3] = bottomLeftBy;
+							clipPointBFound = true;
+						}
+						if (clipPointAFound && clipPointBFound) return false;
+						if (p1x > p2x) if (p1y > p2y) {
+							cardinalDirectionA = this.getCardinalDirection(slopeA, slopePrime, 4);
+							cardinalDirectionB = this.getCardinalDirection(slopeB, slopePrime, 2);
+						} else {
+							cardinalDirectionA = this.getCardinalDirection(-slopeA, slopePrime, 3);
+							cardinalDirectionB = this.getCardinalDirection(-slopeB, slopePrime, 1);
+						}
+						else if (p1y > p2y) {
+							cardinalDirectionA = this.getCardinalDirection(-slopeA, slopePrime, 1);
+							cardinalDirectionB = this.getCardinalDirection(-slopeB, slopePrime, 3);
+						} else {
+							cardinalDirectionA = this.getCardinalDirection(slopeA, slopePrime, 2);
+							cardinalDirectionB = this.getCardinalDirection(slopeB, slopePrime, 4);
+						}
+						if (!clipPointAFound) switch (cardinalDirectionA) {
+							case 1:
+								tempPointAy = topLeftAy;
+								tempPointAx = p1x + -halfHeightA / slopePrime;
+								result[0] = tempPointAx;
+								result[1] = tempPointAy;
+								break;
+							case 2:
+								tempPointAx = bottomRightAx;
+								tempPointAy = p1y + halfWidthA * slopePrime;
+								result[0] = tempPointAx;
+								result[1] = tempPointAy;
+								break;
+							case 3:
+								tempPointAy = bottomLeftAy;
+								tempPointAx = p1x + halfHeightA / slopePrime;
+								result[0] = tempPointAx;
+								result[1] = tempPointAy;
+								break;
+							case 4:
+								tempPointAx = bottomLeftAx;
+								tempPointAy = p1y + -halfWidthA * slopePrime;
+								result[0] = tempPointAx;
+								result[1] = tempPointAy;
+								break;
+						}
+						if (!clipPointBFound) switch (cardinalDirectionB) {
+							case 1:
+								tempPointBy = topLeftBy;
+								tempPointBx = p2x + -halfHeightB / slopePrime;
+								result[2] = tempPointBx;
+								result[3] = tempPointBy;
+								break;
+							case 2:
+								tempPointBx = bottomRightBx;
+								tempPointBy = p2y + halfWidthB * slopePrime;
+								result[2] = tempPointBx;
+								result[3] = tempPointBy;
+								break;
+							case 3:
+								tempPointBy = bottomLeftBy;
+								tempPointBx = p2x + halfHeightB / slopePrime;
+								result[2] = tempPointBx;
+								result[3] = tempPointBy;
+								break;
+							case 4:
+								tempPointBx = bottomLeftBx;
+								tempPointBy = p2y + -halfWidthB * slopePrime;
+								result[2] = tempPointBx;
+								result[3] = tempPointBy;
+								break;
+						}
+					}
+					return false;
+				};
+				/**
+				* This method returns in which cardinal direction does input point stays
+				* 1: North
+				* 2: East
+				* 3: South
+				* 4: West
+				*/
+				IGeometry.getCardinalDirection = function(slope, slopePrime, line) {
+					if (slope > slopePrime) return line;
+					else return 1 + line % 4;
+				};
+				/**
+				* This method calculates the intersection of the two lines defined by
+				* point pairs (s1,s2) and (f1,f2).
+				*/
+				IGeometry.getIntersection = function(s1, s2, f1, f2) {
+					if (f2 == null) return this.getIntersection2(s1, s2, f1);
+					var x1 = s1.x;
+					var y1 = s1.y;
+					var x2 = s2.x;
+					var y2 = s2.y;
+					var x3 = f1.x;
+					var y3 = f1.y;
+					var x4 = f2.x;
+					var y4 = f2.y;
+					var x$1 = void 0, y$1 = void 0;
+					var a1 = void 0, a2 = void 0, b1 = void 0, b2 = void 0, c1 = void 0, c2 = void 0;
+					var denom = void 0;
+					a1 = y2 - y1;
+					b1 = x1 - x2;
+					c1 = x2 * y1 - x1 * y2;
+					a2 = y4 - y3;
+					b2 = x3 - x4;
+					c2 = x4 * y3 - x3 * y4;
+					denom = a1 * b2 - a2 * b1;
+					if (denom === 0) return null;
+					x$1 = (b1 * c2 - b2 * c1) / denom;
+					y$1 = (a2 * c1 - a1 * c2) / denom;
+					return new Point$1(x$1, y$1);
+				};
+				/**
+				* This method finds and returns the angle of the vector from the + x-axis
+				* in clockwise direction (compatible w/ Java coordinate system!).
+				*/
+				IGeometry.angleOfVector = function(Cx, Cy, Nx, Ny) {
+					var C_angle = void 0;
+					if (Cx !== Nx) {
+						C_angle = Math.atan((Ny - Cy) / (Nx - Cx));
+						if (Nx < Cx) C_angle += Math.PI;
+						else if (Ny < Cy) C_angle += this.TWO_PI;
+					} else if (Ny < Cy) C_angle = this.ONE_AND_HALF_PI;
+					else C_angle = this.HALF_PI;
+					return C_angle;
+				};
+				/**
+				* This method checks whether the given two line segments (one with point
+				* p1 and p2, the other with point p3 and p4) intersect at a point other
+				* than these points.
+				*/
+				IGeometry.doIntersect = function(p1, p2, p3, p4) {
+					var a = p1.x;
+					var b = p1.y;
+					var c = p2.x;
+					var d = p2.y;
+					var p$1 = p3.x;
+					var q = p3.y;
+					var r = p4.x;
+					var s = p4.y;
+					var det = (c - a) * (s - q) - (r - p$1) * (d - b);
+					if (det === 0) return false;
+					else {
+						var lambda = ((s - q) * (r - a) + (p$1 - r) * (s - b)) / det;
+						var gamma = ((b - d) * (r - a) + (c - a) * (s - b)) / det;
+						return 0 < lambda && lambda < 1 && 0 < gamma && gamma < 1;
+					}
+				};
+				/**
+				* This method checks and calculates the intersection of 
+				* a line segment and a circle.
+				*/
+				IGeometry.findCircleLineIntersections = function(Ex, Ey, Lx, Ly, Cx, Cy, r) {
+					var a = (Lx - Ex) * (Lx - Ex) + (Ly - Ey) * (Ly - Ey);
+					var b = 2 * ((Ex - Cx) * (Lx - Ex) + (Ey - Cy) * (Ly - Ey));
+					var c = (Ex - Cx) * (Ex - Cx) + (Ey - Cy) * (Ey - Cy) - r * r;
+					var disc = b * b - 4 * a * c;
+					if (disc >= 0) {
+						var t1 = (-b + Math.sqrt(b * b - 4 * a * c)) / (2 * a);
+						var t2 = (-b - Math.sqrt(b * b - 4 * a * c)) / (2 * a);
+						var intersections = null;
+						if (t1 >= 0 && t1 <= 1) return [t1];
+						if (t2 >= 0 && t2 <= 1) return [t2];
+						return intersections;
+					} else return null;
+				};
+				/**
+				* Some useful pre-calculated constants
+				*/
+				IGeometry.HALF_PI = .5 * Math.PI;
+				IGeometry.ONE_AND_HALF_PI = 1.5 * Math.PI;
+				IGeometry.TWO_PI = 2 * Math.PI;
+				IGeometry.THREE_PI = 3 * Math.PI;
+				module$1.exports = IGeometry;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				function IMath() {}
+				/**
+				* This method returns the sign of the input value.
+				*/
+				IMath.sign = function(value) {
+					if (value > 0) return 1;
+					else if (value < 0) return -1;
+					else return 0;
+				};
+				IMath.floor = function(value) {
+					return value < 0 ? Math.ceil(value) : Math.floor(value);
+				};
+				IMath.ceil = function(value) {
+					return value < 0 ? Math.floor(value) : Math.ceil(value);
+				};
+				module$1.exports = IMath;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				function Integer() {}
+				Integer.MAX_VALUE = 2147483647;
+				Integer.MIN_VALUE = -2147483648;
+				module$1.exports = Integer;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				var _createClass$1 = function() {
+					function defineProperties(target, props) {
+						for (var i$1 = 0; i$1 < props.length; i$1++) {
+							var descriptor = props[i$1];
+							descriptor.enumerable = descriptor.enumerable || false;
+							descriptor.configurable = true;
+							if ("value" in descriptor) descriptor.writable = true;
+							Object.defineProperty(target, descriptor.key, descriptor);
+						}
+					}
+					return function(Constructor, protoProps, staticProps) {
+						if (protoProps) defineProperties(Constructor.prototype, protoProps);
+						if (staticProps) defineProperties(Constructor, staticProps);
+						return Constructor;
+					};
+				}();
+				function _classCallCheck$1(instance$1, Constructor) {
+					if (!(instance$1 instanceof Constructor)) throw new TypeError("Cannot call a class as a function");
+				}
+				var nodeFrom = function nodeFrom$1(value) {
+					return {
+						value,
+						next: null,
+						prev: null
+					};
+				};
+				var add = function add$1(prev, node, next$1, list) {
+					if (prev !== null) prev.next = node;
+					else list.head = node;
+					if (next$1 !== null) next$1.prev = node;
+					else list.tail = node;
+					node.prev = prev;
+					node.next = next$1;
+					list.length++;
+					return node;
+				};
+				var _remove = function _remove$1(node, list) {
+					var prev = node.prev, next$1 = node.next;
+					if (prev !== null) prev.next = next$1;
+					else list.head = next$1;
+					if (next$1 !== null) next$1.prev = prev;
+					else list.tail = prev;
+					node.prev = node.next = null;
+					list.length--;
+					return node;
+				};
+				var LinkedList = function() {
+					function LinkedList$1(vals) {
+						var _this = this;
+						_classCallCheck$1(this, LinkedList$1);
+						this.length = 0;
+						this.head = null;
+						this.tail = null;
+						if (vals != null) vals.forEach(function(v) {
+							return _this.push(v);
+						});
+					}
+					_createClass$1(LinkedList$1, [
+						{
+							key: "size",
+							value: function size$1() {
+								return this.length;
+							}
+						},
+						{
+							key: "insertBefore",
+							value: function insertBefore(val, otherNode) {
+								return add(otherNode.prev, nodeFrom(val), otherNode, this);
+							}
+						},
+						{
+							key: "insertAfter",
+							value: function insertAfter(val, otherNode) {
+								return add(otherNode, nodeFrom(val), otherNode.next, this);
+							}
+						},
+						{
+							key: "insertNodeBefore",
+							value: function insertNodeBefore(newNode, otherNode) {
+								return add(otherNode.prev, newNode, otherNode, this);
+							}
+						},
+						{
+							key: "insertNodeAfter",
+							value: function insertNodeAfter(newNode, otherNode) {
+								return add(otherNode, newNode, otherNode.next, this);
+							}
+						},
+						{
+							key: "push",
+							value: function push$1(val) {
+								return add(this.tail, nodeFrom(val), null, this);
+							}
+						},
+						{
+							key: "unshift",
+							value: function unshift(val) {
+								return add(null, nodeFrom(val), this.head, this);
+							}
+						},
+						{
+							key: "remove",
+							value: function remove(node) {
+								return _remove(node, this);
+							}
+						},
+						{
+							key: "pop",
+							value: function pop() {
+								return _remove(this.tail, this).value;
+							}
+						},
+						{
+							key: "popNode",
+							value: function popNode() {
+								return _remove(this.tail, this);
+							}
+						},
+						{
+							key: "shift",
+							value: function shift() {
+								return _remove(this.head, this).value;
+							}
+						},
+						{
+							key: "shiftNode",
+							value: function shiftNode() {
+								return _remove(this.head, this);
+							}
+						},
+						{
+							key: "get_object_at",
+							value: function get_object_at(index) {
+								if (index <= this.length()) {
+									var i$1 = 1;
+									var current = this.head;
+									while (i$1 < index) {
+										current = current.next;
+										i$1++;
+									}
+									return current.value;
+								}
+							}
+						},
+						{
+							key: "set_object_at",
+							value: function set_object_at(index, value) {
+								if (index <= this.length()) {
+									var i$1 = 1;
+									var current = this.head;
+									while (i$1 < index) {
+										current = current.next;
+										i$1++;
+									}
+									current.value = value;
+								}
+							}
+						}
+					]);
+					return LinkedList$1;
+				}();
+				module$1.exports = LinkedList;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				function Point$1(x$1, y$1, p$1) {
+					this.x = null;
+					this.y = null;
+					if (x$1 == null && y$1 == null && p$1 == null) {
+						this.x = 0;
+						this.y = 0;
+					} else if (typeof x$1 == "number" && typeof y$1 == "number" && p$1 == null) {
+						this.x = x$1;
+						this.y = y$1;
+					} else if (x$1.constructor.name == "Point" && y$1 == null && p$1 == null) {
+						p$1 = x$1;
+						this.x = p$1.x;
+						this.y = p$1.y;
+					}
+				}
+				Point$1.prototype.getX = function() {
+					return this.x;
+				};
+				Point$1.prototype.getY = function() {
+					return this.y;
+				};
+				Point$1.prototype.getLocation = function() {
+					return new Point$1(this.x, this.y);
+				};
+				Point$1.prototype.setLocation = function(x$1, y$1, p$1) {
+					if (x$1.constructor.name == "Point" && y$1 == null && p$1 == null) {
+						p$1 = x$1;
+						this.setLocation(p$1.x, p$1.y);
+					} else if (typeof x$1 == "number" && typeof y$1 == "number" && p$1 == null) if (parseInt(x$1) == x$1 && parseInt(y$1) == y$1) this.move(x$1, y$1);
+					else {
+						this.x = Math.floor(x$1 + .5);
+						this.y = Math.floor(y$1 + .5);
+					}
+				};
+				Point$1.prototype.move = function(x$1, y$1) {
+					this.x = x$1;
+					this.y = y$1;
+				};
+				Point$1.prototype.translate = function(dx, dy) {
+					this.x += dx;
+					this.y += dy;
+				};
+				Point$1.prototype.equals = function(obj) {
+					if (obj.constructor.name == "Point") {
+						var pt = obj;
+						return this.x == pt.x && this.y == pt.y;
+					}
+					return this == obj;
+				};
+				Point$1.prototype.toString = function() {
+					return new Point$1().constructor.name + "[x=" + this.x + ",y=" + this.y + "]";
+				};
+				module$1.exports = Point$1;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				function RectangleD(x$1, y$1, width$1, height) {
+					this.x = 0;
+					this.y = 0;
+					this.width = 0;
+					this.height = 0;
+					if (x$1 != null && y$1 != null && width$1 != null && height != null) {
+						this.x = x$1;
+						this.y = y$1;
+						this.width = width$1;
+						this.height = height;
+					}
+				}
+				RectangleD.prototype.getX = function() {
+					return this.x;
+				};
+				RectangleD.prototype.setX = function(x$1) {
+					this.x = x$1;
+				};
+				RectangleD.prototype.getY = function() {
+					return this.y;
+				};
+				RectangleD.prototype.setY = function(y$1) {
+					this.y = y$1;
+				};
+				RectangleD.prototype.getWidth = function() {
+					return this.width;
+				};
+				RectangleD.prototype.setWidth = function(width$1) {
+					this.width = width$1;
+				};
+				RectangleD.prototype.getHeight = function() {
+					return this.height;
+				};
+				RectangleD.prototype.setHeight = function(height) {
+					this.height = height;
+				};
+				RectangleD.prototype.getRight = function() {
+					return this.x + this.width;
+				};
+				RectangleD.prototype.getBottom = function() {
+					return this.y + this.height;
+				};
+				RectangleD.prototype.intersects = function(a) {
+					if (this.getRight() < a.x) return false;
+					if (this.getBottom() < a.y) return false;
+					if (a.getRight() < this.x) return false;
+					if (a.getBottom() < this.y) return false;
+					return true;
+				};
+				RectangleD.prototype.getCenterX = function() {
+					return this.x + this.width / 2;
+				};
+				RectangleD.prototype.getMinX = function() {
+					return this.getX();
+				};
+				RectangleD.prototype.getMaxX = function() {
+					return this.getX() + this.width;
+				};
+				RectangleD.prototype.getCenterY = function() {
+					return this.y + this.height / 2;
+				};
+				RectangleD.prototype.getMinY = function() {
+					return this.getY();
+				};
+				RectangleD.prototype.getMaxY = function() {
+					return this.getY() + this.height;
+				};
+				RectangleD.prototype.getWidthHalf = function() {
+					return this.width / 2;
+				};
+				RectangleD.prototype.getHeightHalf = function() {
+					return this.height / 2;
+				};
+				module$1.exports = RectangleD;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				var _typeof$1 = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function(obj) {
+					return typeof obj;
+				} : function(obj) {
+					return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj;
+				};
+				function UniqueIDGeneretor() {}
+				UniqueIDGeneretor.lastID = 0;
+				UniqueIDGeneretor.createID = function(obj) {
+					if (UniqueIDGeneretor.isPrimitive(obj)) return obj;
+					if (obj.uniqueID != null) return obj.uniqueID;
+					obj.uniqueID = UniqueIDGeneretor.getString();
+					UniqueIDGeneretor.lastID++;
+					return obj.uniqueID;
+				};
+				UniqueIDGeneretor.getString = function(id) {
+					if (id == null) id = UniqueIDGeneretor.lastID;
+					return "Object#" + id;
+				};
+				UniqueIDGeneretor.isPrimitive = function(arg) {
+					var type = typeof arg === "undefined" ? "undefined" : _typeof$1(arg);
+					return arg == null || type != "object" && type != "function";
+				};
+				module$1.exports = UniqueIDGeneretor;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				function _toConsumableArray$1(arr) {
+					if (Array.isArray(arr)) {
+						for (var i$1 = 0, arr2 = Array(arr.length); i$1 < arr.length; i$1++) arr2[i$1] = arr[i$1];
+						return arr2;
+					} else return Array.from(arr);
+				}
+				var LayoutConstants = __webpack_require__(0);
+				var LGraphManager = __webpack_require__(7);
+				var LNode = __webpack_require__(3);
+				var LEdge = __webpack_require__(1);
+				var LGraph = __webpack_require__(6);
+				var PointD = __webpack_require__(5);
+				var Transform = __webpack_require__(17);
+				var Emitter$1 = __webpack_require__(29);
+				function Layout$1(isRemoteUse) {
+					Emitter$1.call(this);
+					this.layoutQuality = LayoutConstants.QUALITY;
+					this.createBendsAsNeeded = LayoutConstants.DEFAULT_CREATE_BENDS_AS_NEEDED;
+					this.incremental = LayoutConstants.DEFAULT_INCREMENTAL;
+					this.animationOnLayout = LayoutConstants.DEFAULT_ANIMATION_ON_LAYOUT;
+					this.animationDuringLayout = LayoutConstants.DEFAULT_ANIMATION_DURING_LAYOUT;
+					this.animationPeriod = LayoutConstants.DEFAULT_ANIMATION_PERIOD;
+					/**
+					
+					* Whether or not leaf nodes (non-compound nodes) are of uniform sizes. When
+					
+					* they are, both spring and repulsion forces between two leaf nodes can be
+					
+					* calculated without the expensive clipping point calculations, resulting
+					
+					* in major speed-up.
+					
+					*/
+					this.uniformLeafNodeSizes = LayoutConstants.DEFAULT_UNIFORM_LEAF_NODE_SIZES;
+					/**
+					
+					* This is used for creation of bendpoints by using dummy nodes and edges.
+					
+					* Maps an LEdge to its dummy bendpoint path.
+					
+					*/
+					this.edgeToDummyNodes = new Map();
+					this.graphManager = new LGraphManager(this);
+					this.isLayoutFinished = false;
+					this.isSubLayout = false;
+					this.isRemoteUse = false;
+					if (isRemoteUse != null) this.isRemoteUse = isRemoteUse;
+				}
+				Layout$1.RANDOM_SEED = 1;
+				Layout$1.prototype = Object.create(Emitter$1.prototype);
+				Layout$1.prototype.getGraphManager = function() {
+					return this.graphManager;
+				};
+				Layout$1.prototype.getAllNodes = function() {
+					return this.graphManager.getAllNodes();
+				};
+				Layout$1.prototype.getAllEdges = function() {
+					return this.graphManager.getAllEdges();
+				};
+				Layout$1.prototype.getAllNodesToApplyGravitation = function() {
+					return this.graphManager.getAllNodesToApplyGravitation();
+				};
+				Layout$1.prototype.newGraphManager = function() {
+					var gm = new LGraphManager(this);
+					this.graphManager = gm;
+					return gm;
+				};
+				Layout$1.prototype.newGraph = function(vGraph) {
+					return new LGraph(null, this.graphManager, vGraph);
+				};
+				Layout$1.prototype.newNode = function(vNode) {
+					return new LNode(this.graphManager, vNode);
+				};
+				Layout$1.prototype.newEdge = function(vEdge) {
+					return new LEdge(null, null, vEdge);
+				};
+				Layout$1.prototype.checkLayoutSuccess = function() {
+					return this.graphManager.getRoot() == null || this.graphManager.getRoot().getNodes().length == 0 || this.graphManager.includesInvalidEdge();
+				};
+				Layout$1.prototype.runLayout = function() {
+					this.isLayoutFinished = false;
+					if (this.tilingPreLayout) this.tilingPreLayout();
+					this.initParameters();
+					var isLayoutSuccessfull;
+					if (this.checkLayoutSuccess()) isLayoutSuccessfull = false;
+					else isLayoutSuccessfull = this.layout();
+					if (LayoutConstants.ANIMATE === "during") return false;
+					if (isLayoutSuccessfull) {
+						if (!this.isSubLayout) this.doPostLayout();
+					}
+					if (this.tilingPostLayout) this.tilingPostLayout();
+					this.isLayoutFinished = true;
+					return isLayoutSuccessfull;
+				};
+				/**
+				
+				* This method performs the operations required after layout.
+				
+				*/
+				Layout$1.prototype.doPostLayout = function() {
+					if (!this.incremental) this.transform();
+					this.update();
+				};
+				/**
+				
+				* This method updates the geometry of the target graph according to
+				
+				* calculated layout.
+				
+				*/
+				Layout$1.prototype.update2 = function() {
+					if (this.createBendsAsNeeded) {
+						this.createBendpointsFromDummyNodes();
+						this.graphManager.resetAllEdges();
+					}
+					if (!this.isRemoteUse) {
+						var edge;
+						var allEdges = this.graphManager.getAllEdges();
+						for (var i$1 = 0; i$1 < allEdges.length; i$1++) edge = allEdges[i$1];
+						var node;
+						var nodes = this.graphManager.getRoot().getNodes();
+						for (var i$1 = 0; i$1 < nodes.length; i$1++) node = nodes[i$1];
+						this.update(this.graphManager.getRoot());
+					}
+				};
+				Layout$1.prototype.update = function(obj) {
+					if (obj == null) this.update2();
+					else if (obj instanceof LNode) {
+						var node = obj;
+						if (node.getChild() != null) {
+							var nodes = node.getChild().getNodes();
+							for (var i$1 = 0; i$1 < nodes.length; i$1++) update(nodes[i$1]);
+						}
+						if (node.vGraphObject != null) {
+							var vNode = node.vGraphObject;
+							vNode.update(node);
+						}
+					} else if (obj instanceof LEdge) {
+						var edge = obj;
+						if (edge.vGraphObject != null) {
+							var vEdge = edge.vGraphObject;
+							vEdge.update(edge);
+						}
+					} else if (obj instanceof LGraph) {
+						var graph = obj;
+						if (graph.vGraphObject != null) {
+							var vGraph = graph.vGraphObject;
+							vGraph.update(graph);
+						}
+					}
+				};
+				/**
+				
+				* This method is used to set all layout parameters to default values
+				
+				* determined at compile time.
+				
+				*/
+				Layout$1.prototype.initParameters = function() {
+					if (!this.isSubLayout) {
+						this.layoutQuality = LayoutConstants.QUALITY;
+						this.animationDuringLayout = LayoutConstants.DEFAULT_ANIMATION_DURING_LAYOUT;
+						this.animationPeriod = LayoutConstants.DEFAULT_ANIMATION_PERIOD;
+						this.animationOnLayout = LayoutConstants.DEFAULT_ANIMATION_ON_LAYOUT;
+						this.incremental = LayoutConstants.DEFAULT_INCREMENTAL;
+						this.createBendsAsNeeded = LayoutConstants.DEFAULT_CREATE_BENDS_AS_NEEDED;
+						this.uniformLeafNodeSizes = LayoutConstants.DEFAULT_UNIFORM_LEAF_NODE_SIZES;
+					}
+					if (this.animationDuringLayout) this.animationOnLayout = false;
+				};
+				Layout$1.prototype.transform = function(newLeftTop) {
+					if (newLeftTop == void 0) this.transform(new PointD(0, 0));
+					else {
+						var trans = new Transform();
+						var leftTop = this.graphManager.getRoot().updateLeftTop();
+						if (leftTop != null) {
+							trans.setWorldOrgX(newLeftTop.x);
+							trans.setWorldOrgY(newLeftTop.y);
+							trans.setDeviceOrgX(leftTop.x);
+							trans.setDeviceOrgY(leftTop.y);
+							var nodes = this.getAllNodes();
+							var node;
+							for (var i$1 = 0; i$1 < nodes.length; i$1++) {
+								node = nodes[i$1];
+								node.transform(trans);
+							}
+						}
+					}
+				};
+				Layout$1.prototype.positionNodesRandomly = function(graph) {
+					if (graph == void 0) {
+						this.positionNodesRandomly(this.getGraphManager().getRoot());
+						this.getGraphManager().getRoot().updateBounds(true);
+					} else {
+						var lNode;
+						var childGraph;
+						var nodes = graph.getNodes();
+						for (var i$1 = 0; i$1 < nodes.length; i$1++) {
+							lNode = nodes[i$1];
+							childGraph = lNode.getChild();
+							if (childGraph == null) lNode.scatter();
+							else if (childGraph.getNodes().length == 0) lNode.scatter();
+							else {
+								this.positionNodesRandomly(childGraph);
+								lNode.updateBounds();
+							}
+						}
+					}
+				};
+				/**
+				
+				* This method returns a list of trees where each tree is represented as a
+				
+				* list of l-nodes. The method returns a list of size 0 when:
+				
+				* - The graph is not flat or
+				
+				* - One of the component(s) of the graph is not a tree.
+				
+				*/
+				Layout$1.prototype.getFlatForest = function() {
+					var flatForest = [];
+					var isForest = true;
+					var allNodes = this.graphManager.getRoot().getNodes();
+					var isFlat = true;
+					for (var i$1 = 0; i$1 < allNodes.length; i$1++) if (allNodes[i$1].getChild() != null) isFlat = false;
+					if (!isFlat) return flatForest;
+					var visited = new Set();
+					var toBeVisited = [];
+					var parents = new Map();
+					var unProcessedNodes = [];
+					unProcessedNodes = unProcessedNodes.concat(allNodes);
+					while (unProcessedNodes.length > 0 && isForest) {
+						toBeVisited.push(unProcessedNodes[0]);
+						while (toBeVisited.length > 0 && isForest) {
+							var currentNode = toBeVisited[0];
+							toBeVisited.splice(0, 1);
+							visited.add(currentNode);
+							var neighborEdges = currentNode.getEdges();
+							for (var i$1 = 0; i$1 < neighborEdges.length; i$1++) {
+								var currentNeighbor = neighborEdges[i$1].getOtherEnd(currentNode);
+								if (parents.get(currentNode) != currentNeighbor) if (!visited.has(currentNeighbor)) {
+									toBeVisited.push(currentNeighbor);
+									parents.set(currentNeighbor, currentNode);
+								} else {
+									isForest = false;
+									break;
+								}
+							}
+						}
+						if (!isForest) flatForest = [];
+						else {
+							var temp = [].concat(_toConsumableArray$1(visited));
+							flatForest.push(temp);
+							for (var i$1 = 0; i$1 < temp.length; i$1++) {
+								var value = temp[i$1];
+								var index = unProcessedNodes.indexOf(value);
+								if (index > -1) unProcessedNodes.splice(index, 1);
+							}
+							visited = new Set();
+							parents = new Map();
+						}
+					}
+					return flatForest;
+				};
+				/**
+				
+				* This method creates dummy nodes (an l-level node with minimal dimensions)
+				
+				* for the given edge (one per bendpoint). The existing l-level structure
+				
+				* is updated accordingly.
+				
+				*/
+				Layout$1.prototype.createDummyNodesForBendpoints = function(edge) {
+					var dummyNodes = [];
+					var prev = edge.source;
+					var graph = this.graphManager.calcLowestCommonAncestor(edge.source, edge.target);
+					for (var i$1 = 0; i$1 < edge.bendpoints.length; i$1++) {
+						var dummyNode = this.newNode(null);
+						dummyNode.setRect(new Point(0, 0), new Dimension(1, 1));
+						graph.add(dummyNode);
+						var dummyEdge = this.newEdge(null);
+						this.graphManager.add(dummyEdge, prev, dummyNode);
+						dummyNodes.add(dummyNode);
+						prev = dummyNode;
+					}
+					var dummyEdge = this.newEdge(null);
+					this.graphManager.add(dummyEdge, prev, edge.target);
+					this.edgeToDummyNodes.set(edge, dummyNodes);
+					if (edge.isInterGraph()) this.graphManager.remove(edge);
+					else graph.remove(edge);
+					return dummyNodes;
+				};
+				/**
+				
+				* This method creates bendpoints for edges from the dummy nodes
+				
+				* at l-level.
+				
+				*/
+				Layout$1.prototype.createBendpointsFromDummyNodes = function() {
+					var edges = [];
+					edges = edges.concat(this.graphManager.getAllEdges());
+					edges = [].concat(_toConsumableArray$1(this.edgeToDummyNodes.keys())).concat(edges);
+					for (var k = 0; k < edges.length; k++) {
+						var lEdge = edges[k];
+						if (lEdge.bendpoints.length > 0) {
+							var path = this.edgeToDummyNodes.get(lEdge);
+							for (var i$1 = 0; i$1 < path.length; i$1++) {
+								var dummyNode = path[i$1];
+								var p$1 = new PointD(dummyNode.getCenterX(), dummyNode.getCenterY());
+								var ebp = lEdge.bendpoints.get(i$1);
+								ebp.x = p$1.x;
+								ebp.y = p$1.y;
+								dummyNode.getOwner().remove(dummyNode);
+							}
+							this.graphManager.add(lEdge, lEdge.source, lEdge.target);
+						}
+					}
+				};
+				Layout$1.transform = function(sliderValue, defaultValue, minDiv, maxMul) {
+					if (minDiv != void 0 && maxMul != void 0) {
+						var value = defaultValue;
+						if (sliderValue <= 50) {
+							var minValue = defaultValue / minDiv;
+							value -= (defaultValue - minValue) / 50 * (50 - sliderValue);
+						} else {
+							var maxValue = defaultValue * maxMul;
+							value += (maxValue - defaultValue) / 50 * (sliderValue - 50);
+						}
+						return value;
+					} else {
+						var a, b;
+						if (sliderValue <= 50) {
+							a = 9 * defaultValue / 500;
+							b = defaultValue / 10;
+						} else {
+							a = 9 * defaultValue / 50;
+							b = -8 * defaultValue;
+						}
+						return a * sliderValue + b;
+					}
+				};
+				/**
+				
+				* This method finds and returns the center of the given nodes, assuming
+				
+				* that the given nodes form a tree in themselves.
+				
+				*/
+				Layout$1.findCenterOfTree = function(nodes) {
+					var list = [];
+					list = list.concat(nodes);
+					var removedNodes = [];
+					var remainingDegrees = new Map();
+					var foundCenter = false;
+					var centerNode = null;
+					if (list.length == 1 || list.length == 2) {
+						foundCenter = true;
+						centerNode = list[0];
+					}
+					for (var i$1 = 0; i$1 < list.length; i$1++) {
+						var node = list[i$1];
+						var degree = node.getNeighborsList().size;
+						remainingDegrees.set(node, node.getNeighborsList().size);
+						if (degree == 1) removedNodes.push(node);
+					}
+					var tempList = [];
+					tempList = tempList.concat(removedNodes);
+					while (!foundCenter) {
+						var tempList2 = [];
+						tempList2 = tempList2.concat(tempList);
+						tempList = [];
+						for (var i$1 = 0; i$1 < list.length; i$1++) {
+							var node = list[i$1];
+							var index = list.indexOf(node);
+							if (index >= 0) list.splice(index, 1);
+							var neighbours = node.getNeighborsList();
+							neighbours.forEach(function(neighbour) {
+								if (removedNodes.indexOf(neighbour) < 0) {
+									var otherDegree = remainingDegrees.get(neighbour);
+									var newDegree = otherDegree - 1;
+									if (newDegree == 1) tempList.push(neighbour);
+									remainingDegrees.set(neighbour, newDegree);
+								}
+							});
+						}
+						removedNodes = removedNodes.concat(tempList);
+						if (list.length == 1 || list.length == 2) {
+							foundCenter = true;
+							centerNode = list[0];
+						}
+					}
+					return centerNode;
+				};
+				/**
+				
+				* During the coarsening process, this layout may be referenced by two graph managers
+				
+				* this setter function grants access to change the currently being used graph manager
+				
+				*/
+				Layout$1.prototype.setGraphManager = function(gm) {
+					this.graphManager = gm;
+				};
+				module$1.exports = Layout$1;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				function RandomSeed() {}
+				RandomSeed.seed = 1;
+				RandomSeed.x = 0;
+				RandomSeed.nextDouble = function() {
+					RandomSeed.x = Math.sin(RandomSeed.seed++) * 1e4;
+					return RandomSeed.x - Math.floor(RandomSeed.x);
+				};
+				module$1.exports = RandomSeed;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				var PointD = __webpack_require__(5);
+				function Transform(x$1, y$1) {
+					this.lworldOrgX = 0;
+					this.lworldOrgY = 0;
+					this.ldeviceOrgX = 0;
+					this.ldeviceOrgY = 0;
+					this.lworldExtX = 1;
+					this.lworldExtY = 1;
+					this.ldeviceExtX = 1;
+					this.ldeviceExtY = 1;
+				}
+				Transform.prototype.getWorldOrgX = function() {
+					return this.lworldOrgX;
+				};
+				Transform.prototype.setWorldOrgX = function(wox) {
+					this.lworldOrgX = wox;
+				};
+				Transform.prototype.getWorldOrgY = function() {
+					return this.lworldOrgY;
+				};
+				Transform.prototype.setWorldOrgY = function(woy) {
+					this.lworldOrgY = woy;
+				};
+				Transform.prototype.getWorldExtX = function() {
+					return this.lworldExtX;
+				};
+				Transform.prototype.setWorldExtX = function(wex) {
+					this.lworldExtX = wex;
+				};
+				Transform.prototype.getWorldExtY = function() {
+					return this.lworldExtY;
+				};
+				Transform.prototype.setWorldExtY = function(wey) {
+					this.lworldExtY = wey;
+				};
+				Transform.prototype.getDeviceOrgX = function() {
+					return this.ldeviceOrgX;
+				};
+				Transform.prototype.setDeviceOrgX = function(dox) {
+					this.ldeviceOrgX = dox;
+				};
+				Transform.prototype.getDeviceOrgY = function() {
+					return this.ldeviceOrgY;
+				};
+				Transform.prototype.setDeviceOrgY = function(doy) {
+					this.ldeviceOrgY = doy;
+				};
+				Transform.prototype.getDeviceExtX = function() {
+					return this.ldeviceExtX;
+				};
+				Transform.prototype.setDeviceExtX = function(dex) {
+					this.ldeviceExtX = dex;
+				};
+				Transform.prototype.getDeviceExtY = function() {
+					return this.ldeviceExtY;
+				};
+				Transform.prototype.setDeviceExtY = function(dey) {
+					this.ldeviceExtY = dey;
+				};
+				Transform.prototype.transformX = function(x$1) {
+					var xDevice = 0;
+					var worldExtX = this.lworldExtX;
+					if (worldExtX != 0) xDevice = this.ldeviceOrgX + (x$1 - this.lworldOrgX) * this.ldeviceExtX / worldExtX;
+					return xDevice;
+				};
+				Transform.prototype.transformY = function(y$1) {
+					var yDevice = 0;
+					var worldExtY = this.lworldExtY;
+					if (worldExtY != 0) yDevice = this.ldeviceOrgY + (y$1 - this.lworldOrgY) * this.ldeviceExtY / worldExtY;
+					return yDevice;
+				};
+				Transform.prototype.inverseTransformX = function(x$1) {
+					var xWorld = 0;
+					var deviceExtX = this.ldeviceExtX;
+					if (deviceExtX != 0) xWorld = this.lworldOrgX + (x$1 - this.ldeviceOrgX) * this.lworldExtX / deviceExtX;
+					return xWorld;
+				};
+				Transform.prototype.inverseTransformY = function(y$1) {
+					var yWorld = 0;
+					var deviceExtY = this.ldeviceExtY;
+					if (deviceExtY != 0) yWorld = this.lworldOrgY + (y$1 - this.ldeviceOrgY) * this.lworldExtY / deviceExtY;
+					return yWorld;
+				};
+				Transform.prototype.inverseTransformPoint = function(inPoint) {
+					var outPoint = new PointD(this.inverseTransformX(inPoint.x), this.inverseTransformY(inPoint.y));
+					return outPoint;
+				};
+				module$1.exports = Transform;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				function _toConsumableArray$1(arr) {
+					if (Array.isArray(arr)) {
+						for (var i$1 = 0, arr2 = Array(arr.length); i$1 < arr.length; i$1++) arr2[i$1] = arr[i$1];
+						return arr2;
+					} else return Array.from(arr);
+				}
+				var Layout$1 = __webpack_require__(15);
+				var FDLayoutConstants = __webpack_require__(4);
+				var LayoutConstants = __webpack_require__(0);
+				var IGeometry = __webpack_require__(8);
+				var IMath = __webpack_require__(9);
+				function FDLayout() {
+					Layout$1.call(this);
+					this.useSmartIdealEdgeLengthCalculation = FDLayoutConstants.DEFAULT_USE_SMART_IDEAL_EDGE_LENGTH_CALCULATION;
+					this.gravityConstant = FDLayoutConstants.DEFAULT_GRAVITY_STRENGTH;
+					this.compoundGravityConstant = FDLayoutConstants.DEFAULT_COMPOUND_GRAVITY_STRENGTH;
+					this.gravityRangeFactor = FDLayoutConstants.DEFAULT_GRAVITY_RANGE_FACTOR;
+					this.compoundGravityRangeFactor = FDLayoutConstants.DEFAULT_COMPOUND_GRAVITY_RANGE_FACTOR;
+					this.displacementThresholdPerNode = 3 * FDLayoutConstants.DEFAULT_EDGE_LENGTH / 100;
+					this.coolingFactor = FDLayoutConstants.DEFAULT_COOLING_FACTOR_INCREMENTAL;
+					this.initialCoolingFactor = FDLayoutConstants.DEFAULT_COOLING_FACTOR_INCREMENTAL;
+					this.totalDisplacement = 0;
+					this.oldTotalDisplacement = 0;
+					this.maxIterations = FDLayoutConstants.MAX_ITERATIONS;
+				}
+				FDLayout.prototype = Object.create(Layout$1.prototype);
+				for (var prop in Layout$1) FDLayout[prop] = Layout$1[prop];
+				FDLayout.prototype.initParameters = function() {
+					Layout$1.prototype.initParameters.call(this, arguments);
+					this.totalIterations = 0;
+					this.notAnimatedIterations = 0;
+					this.useFRGridVariant = FDLayoutConstants.DEFAULT_USE_SMART_REPULSION_RANGE_CALCULATION;
+					this.grid = [];
+				};
+				FDLayout.prototype.calcIdealEdgeLengths = function() {
+					var edge;
+					var originalIdealLength;
+					var lcaDepth;
+					var source;
+					var target;
+					var sizeOfSourceInLca;
+					var sizeOfTargetInLca;
+					var allEdges = this.getGraphManager().getAllEdges();
+					for (var i$1 = 0; i$1 < allEdges.length; i$1++) {
+						edge = allEdges[i$1];
+						originalIdealLength = edge.idealLength;
+						if (edge.isInterGraph) {
+							source = edge.getSource();
+							target = edge.getTarget();
+							sizeOfSourceInLca = edge.getSourceInLca().getEstimatedSize();
+							sizeOfTargetInLca = edge.getTargetInLca().getEstimatedSize();
+							if (this.useSmartIdealEdgeLengthCalculation) edge.idealLength += sizeOfSourceInLca + sizeOfTargetInLca - 2 * LayoutConstants.SIMPLE_NODE_SIZE;
+							lcaDepth = edge.getLca().getInclusionTreeDepth();
+							edge.idealLength += originalIdealLength * FDLayoutConstants.PER_LEVEL_IDEAL_EDGE_LENGTH_FACTOR * (source.getInclusionTreeDepth() + target.getInclusionTreeDepth() - 2 * lcaDepth);
+						}
+					}
+				};
+				FDLayout.prototype.initSpringEmbedder = function() {
+					var s = this.getAllNodes().length;
+					if (this.incremental) {
+						if (s > FDLayoutConstants.ADAPTATION_LOWER_NODE_LIMIT) this.coolingFactor = Math.max(this.coolingFactor * FDLayoutConstants.COOLING_ADAPTATION_FACTOR, this.coolingFactor - (s - FDLayoutConstants.ADAPTATION_LOWER_NODE_LIMIT) / (FDLayoutConstants.ADAPTATION_UPPER_NODE_LIMIT - FDLayoutConstants.ADAPTATION_LOWER_NODE_LIMIT) * this.coolingFactor * (1 - FDLayoutConstants.COOLING_ADAPTATION_FACTOR));
+						this.maxNodeDisplacement = FDLayoutConstants.MAX_NODE_DISPLACEMENT_INCREMENTAL;
+					} else {
+						if (s > FDLayoutConstants.ADAPTATION_LOWER_NODE_LIMIT) this.coolingFactor = Math.max(FDLayoutConstants.COOLING_ADAPTATION_FACTOR, 1 - (s - FDLayoutConstants.ADAPTATION_LOWER_NODE_LIMIT) / (FDLayoutConstants.ADAPTATION_UPPER_NODE_LIMIT - FDLayoutConstants.ADAPTATION_LOWER_NODE_LIMIT) * (1 - FDLayoutConstants.COOLING_ADAPTATION_FACTOR));
+						else this.coolingFactor = 1;
+						this.initialCoolingFactor = this.coolingFactor;
+						this.maxNodeDisplacement = FDLayoutConstants.MAX_NODE_DISPLACEMENT;
+					}
+					this.maxIterations = Math.max(this.getAllNodes().length * 5, this.maxIterations);
+					this.displacementThresholdPerNode = 3 * FDLayoutConstants.DEFAULT_EDGE_LENGTH / 100;
+					this.totalDisplacementThreshold = this.displacementThresholdPerNode * this.getAllNodes().length;
+					this.repulsionRange = this.calcRepulsionRange();
+				};
+				FDLayout.prototype.calcSpringForces = function() {
+					var lEdges = this.getAllEdges();
+					var edge;
+					for (var i$1 = 0; i$1 < lEdges.length; i$1++) {
+						edge = lEdges[i$1];
+						this.calcSpringForce(edge, edge.idealLength);
+					}
+				};
+				FDLayout.prototype.calcRepulsionForces = function() {
+					var gridUpdateAllowed = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : true;
+					var forceToNodeSurroundingUpdate = arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : false;
+					var i$1, j;
+					var nodeA, nodeB;
+					var lNodes = this.getAllNodes();
+					var processedNodeSet;
+					if (this.useFRGridVariant) {
+						if (this.totalIterations % FDLayoutConstants.GRID_CALCULATION_CHECK_PERIOD == 1 && gridUpdateAllowed) this.updateGrid();
+						processedNodeSet = new Set();
+						for (i$1 = 0; i$1 < lNodes.length; i$1++) {
+							nodeA = lNodes[i$1];
+							this.calculateRepulsionForceOfANode(nodeA, processedNodeSet, gridUpdateAllowed, forceToNodeSurroundingUpdate);
+							processedNodeSet.add(nodeA);
+						}
+					} else for (i$1 = 0; i$1 < lNodes.length; i$1++) {
+						nodeA = lNodes[i$1];
+						for (j = i$1 + 1; j < lNodes.length; j++) {
+							nodeB = lNodes[j];
+							if (nodeA.getOwner() != nodeB.getOwner()) continue;
+							this.calcRepulsionForce(nodeA, nodeB);
+						}
+					}
+				};
+				FDLayout.prototype.calcGravitationalForces = function() {
+					var node;
+					var lNodes = this.getAllNodesToApplyGravitation();
+					for (var i$1 = 0; i$1 < lNodes.length; i$1++) {
+						node = lNodes[i$1];
+						this.calcGravitationalForce(node);
+					}
+				};
+				FDLayout.prototype.moveNodes = function() {
+					var lNodes = this.getAllNodes();
+					var node;
+					for (var i$1 = 0; i$1 < lNodes.length; i$1++) {
+						node = lNodes[i$1];
+						node.move();
+					}
+				};
+				FDLayout.prototype.calcSpringForce = function(edge, idealLength) {
+					var sourceNode = edge.getSource();
+					var targetNode = edge.getTarget();
+					var length;
+					var springForce;
+					var springForceX;
+					var springForceY;
+					if (this.uniformLeafNodeSizes && sourceNode.getChild() == null && targetNode.getChild() == null) edge.updateLengthSimple();
+					else {
+						edge.updateLength();
+						if (edge.isOverlapingSourceAndTarget) return;
+					}
+					length = edge.getLength();
+					if (length == 0) return;
+					springForce = edge.edgeElasticity * (length - idealLength);
+					springForceX = springForce * (edge.lengthX / length);
+					springForceY = springForce * (edge.lengthY / length);
+					sourceNode.springForceX += springForceX;
+					sourceNode.springForceY += springForceY;
+					targetNode.springForceX -= springForceX;
+					targetNode.springForceY -= springForceY;
+				};
+				FDLayout.prototype.calcRepulsionForce = function(nodeA, nodeB) {
+					var rectA = nodeA.getRect();
+					var rectB = nodeB.getRect();
+					var overlapAmount = new Array(2);
+					var clipPoints = new Array(4);
+					var distanceX;
+					var distanceY;
+					var distanceSquared;
+					var distance;
+					var repulsionForce;
+					var repulsionForceX;
+					var repulsionForceY;
+					if (rectA.intersects(rectB)) {
+						IGeometry.calcSeparationAmount(rectA, rectB, overlapAmount, FDLayoutConstants.DEFAULT_EDGE_LENGTH / 2);
+						repulsionForceX = 2 * overlapAmount[0];
+						repulsionForceY = 2 * overlapAmount[1];
+						var childrenConstant = nodeA.noOfChildren * nodeB.noOfChildren / (nodeA.noOfChildren + nodeB.noOfChildren);
+						nodeA.repulsionForceX -= childrenConstant * repulsionForceX;
+						nodeA.repulsionForceY -= childrenConstant * repulsionForceY;
+						nodeB.repulsionForceX += childrenConstant * repulsionForceX;
+						nodeB.repulsionForceY += childrenConstant * repulsionForceY;
+					} else {
+						if (this.uniformLeafNodeSizes && nodeA.getChild() == null && nodeB.getChild() == null) {
+							distanceX = rectB.getCenterX() - rectA.getCenterX();
+							distanceY = rectB.getCenterY() - rectA.getCenterY();
+						} else {
+							IGeometry.getIntersection(rectA, rectB, clipPoints);
+							distanceX = clipPoints[2] - clipPoints[0];
+							distanceY = clipPoints[3] - clipPoints[1];
+						}
+						if (Math.abs(distanceX) < FDLayoutConstants.MIN_REPULSION_DIST) distanceX = IMath.sign(distanceX) * FDLayoutConstants.MIN_REPULSION_DIST;
+						if (Math.abs(distanceY) < FDLayoutConstants.MIN_REPULSION_DIST) distanceY = IMath.sign(distanceY) * FDLayoutConstants.MIN_REPULSION_DIST;
+						distanceSquared = distanceX * distanceX + distanceY * distanceY;
+						distance = Math.sqrt(distanceSquared);
+						repulsionForce = (nodeA.nodeRepulsion / 2 + nodeB.nodeRepulsion / 2) * nodeA.noOfChildren * nodeB.noOfChildren / distanceSquared;
+						repulsionForceX = repulsionForce * distanceX / distance;
+						repulsionForceY = repulsionForce * distanceY / distance;
+						nodeA.repulsionForceX -= repulsionForceX;
+						nodeA.repulsionForceY -= repulsionForceY;
+						nodeB.repulsionForceX += repulsionForceX;
+						nodeB.repulsionForceY += repulsionForceY;
+					}
+				};
+				FDLayout.prototype.calcGravitationalForce = function(node) {
+					var ownerGraph;
+					var ownerCenterX;
+					var ownerCenterY;
+					var distanceX;
+					var distanceY;
+					var absDistanceX;
+					var absDistanceY;
+					var estimatedSize;
+					ownerGraph = node.getOwner();
+					ownerCenterX = (ownerGraph.getRight() + ownerGraph.getLeft()) / 2;
+					ownerCenterY = (ownerGraph.getTop() + ownerGraph.getBottom()) / 2;
+					distanceX = node.getCenterX() - ownerCenterX;
+					distanceY = node.getCenterY() - ownerCenterY;
+					absDistanceX = Math.abs(distanceX) + node.getWidth() / 2;
+					absDistanceY = Math.abs(distanceY) + node.getHeight() / 2;
+					if (node.getOwner() == this.graphManager.getRoot()) {
+						estimatedSize = ownerGraph.getEstimatedSize() * this.gravityRangeFactor;
+						if (absDistanceX > estimatedSize || absDistanceY > estimatedSize) {
+							node.gravitationForceX = -this.gravityConstant * distanceX;
+							node.gravitationForceY = -this.gravityConstant * distanceY;
+						}
+					} else {
+						estimatedSize = ownerGraph.getEstimatedSize() * this.compoundGravityRangeFactor;
+						if (absDistanceX > estimatedSize || absDistanceY > estimatedSize) {
+							node.gravitationForceX = -this.gravityConstant * distanceX * this.compoundGravityConstant;
+							node.gravitationForceY = -this.gravityConstant * distanceY * this.compoundGravityConstant;
+						}
+					}
+				};
+				FDLayout.prototype.isConverged = function() {
+					var converged;
+					var oscilating = false;
+					if (this.totalIterations > this.maxIterations / 3) oscilating = Math.abs(this.totalDisplacement - this.oldTotalDisplacement) < 2;
+					converged = this.totalDisplacement < this.totalDisplacementThreshold;
+					this.oldTotalDisplacement = this.totalDisplacement;
+					return converged || oscilating;
+				};
+				FDLayout.prototype.animate = function() {
+					if (this.animationDuringLayout && !this.isSubLayout) if (this.notAnimatedIterations == this.animationPeriod) {
+						this.update();
+						this.notAnimatedIterations = 0;
+					} else this.notAnimatedIterations++;
+				};
+				FDLayout.prototype.calcNoOfChildrenForAllNodes = function() {
+					var node;
+					var allNodes = this.graphManager.getAllNodes();
+					for (var i$1 = 0; i$1 < allNodes.length; i$1++) {
+						node = allNodes[i$1];
+						node.noOfChildren = node.getNoOfChildren();
+					}
+				};
+				FDLayout.prototype.calcGrid = function(graph) {
+					var sizeX = 0;
+					var sizeY = 0;
+					sizeX = parseInt(Math.ceil((graph.getRight() - graph.getLeft()) / this.repulsionRange));
+					sizeY = parseInt(Math.ceil((graph.getBottom() - graph.getTop()) / this.repulsionRange));
+					var grid = new Array(sizeX);
+					for (var i$1 = 0; i$1 < sizeX; i$1++) grid[i$1] = new Array(sizeY);
+					for (var i$1 = 0; i$1 < sizeX; i$1++) for (var j = 0; j < sizeY; j++) grid[i$1][j] = new Array();
+					return grid;
+				};
+				FDLayout.prototype.addNodeToGrid = function(v, left, top) {
+					var startX$1 = 0;
+					var finishX = 0;
+					var startY$1 = 0;
+					var finishY = 0;
+					startX$1 = parseInt(Math.floor((v.getRect().x - left) / this.repulsionRange));
+					finishX = parseInt(Math.floor((v.getRect().width + v.getRect().x - left) / this.repulsionRange));
+					startY$1 = parseInt(Math.floor((v.getRect().y - top) / this.repulsionRange));
+					finishY = parseInt(Math.floor((v.getRect().height + v.getRect().y - top) / this.repulsionRange));
+					for (var i$1 = startX$1; i$1 <= finishX; i$1++) for (var j = startY$1; j <= finishY; j++) {
+						this.grid[i$1][j].push(v);
+						v.setGridCoordinates(startX$1, finishX, startY$1, finishY);
+					}
+				};
+				FDLayout.prototype.updateGrid = function() {
+					var i$1;
+					var nodeA;
+					var lNodes = this.getAllNodes();
+					this.grid = this.calcGrid(this.graphManager.getRoot());
+					for (i$1 = 0; i$1 < lNodes.length; i$1++) {
+						nodeA = lNodes[i$1];
+						this.addNodeToGrid(nodeA, this.graphManager.getRoot().getLeft(), this.graphManager.getRoot().getTop());
+					}
+				};
+				FDLayout.prototype.calculateRepulsionForceOfANode = function(nodeA, processedNodeSet, gridUpdateAllowed, forceToNodeSurroundingUpdate) {
+					if (this.totalIterations % FDLayoutConstants.GRID_CALCULATION_CHECK_PERIOD == 1 && gridUpdateAllowed || forceToNodeSurroundingUpdate) {
+						var surrounding = new Set();
+						nodeA.surrounding = new Array();
+						var nodeB;
+						var grid = this.grid;
+						for (var i$1 = nodeA.startX - 1; i$1 < nodeA.finishX + 2; i$1++) for (var j = nodeA.startY - 1; j < nodeA.finishY + 2; j++) if (!(i$1 < 0 || j < 0 || i$1 >= grid.length || j >= grid[0].length)) for (var k = 0; k < grid[i$1][j].length; k++) {
+							nodeB = grid[i$1][j][k];
+							if (nodeA.getOwner() != nodeB.getOwner() || nodeA == nodeB) continue;
+							if (!processedNodeSet.has(nodeB) && !surrounding.has(nodeB)) {
+								var distanceX = Math.abs(nodeA.getCenterX() - nodeB.getCenterX()) - (nodeA.getWidth() / 2 + nodeB.getWidth() / 2);
+								var distanceY = Math.abs(nodeA.getCenterY() - nodeB.getCenterY()) - (nodeA.getHeight() / 2 + nodeB.getHeight() / 2);
+								if (distanceX <= this.repulsionRange && distanceY <= this.repulsionRange) surrounding.add(nodeB);
+							}
+						}
+						nodeA.surrounding = [].concat(_toConsumableArray$1(surrounding));
+					}
+					for (i$1 = 0; i$1 < nodeA.surrounding.length; i$1++) this.calcRepulsionForce(nodeA, nodeA.surrounding[i$1]);
+				};
+				FDLayout.prototype.calcRepulsionRange = function() {
+					return 0;
+				};
+				module$1.exports = FDLayout;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				var LEdge = __webpack_require__(1);
+				var FDLayoutConstants = __webpack_require__(4);
+				function FDLayoutEdge(source, target, vEdge) {
+					LEdge.call(this, source, target, vEdge);
+					this.idealLength = FDLayoutConstants.DEFAULT_EDGE_LENGTH;
+					this.edgeElasticity = FDLayoutConstants.DEFAULT_SPRING_STRENGTH;
+				}
+				FDLayoutEdge.prototype = Object.create(LEdge.prototype);
+				for (var prop in LEdge) FDLayoutEdge[prop] = LEdge[prop];
+				module$1.exports = FDLayoutEdge;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				var LNode = __webpack_require__(3);
+				var FDLayoutConstants = __webpack_require__(4);
+				function FDLayoutNode(gm, loc, size$1, vNode) {
+					LNode.call(this, gm, loc, size$1, vNode);
+					this.nodeRepulsion = FDLayoutConstants.DEFAULT_REPULSION_STRENGTH;
+					this.springForceX = 0;
+					this.springForceY = 0;
+					this.repulsionForceX = 0;
+					this.repulsionForceY = 0;
+					this.gravitationForceX = 0;
+					this.gravitationForceY = 0;
+					this.displacementX = 0;
+					this.displacementY = 0;
+					this.startX = 0;
+					this.finishX = 0;
+					this.startY = 0;
+					this.finishY = 0;
+					this.surrounding = [];
+				}
+				FDLayoutNode.prototype = Object.create(LNode.prototype);
+				for (var prop in LNode) FDLayoutNode[prop] = LNode[prop];
+				FDLayoutNode.prototype.setGridCoordinates = function(_startX, _finishX, _startY, _finishY) {
+					this.startX = _startX;
+					this.finishX = _finishX;
+					this.startY = _startY;
+					this.finishY = _finishY;
+				};
+				module$1.exports = FDLayoutNode;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				function DimensionD$1(width$1, height) {
+					this.width = 0;
+					this.height = 0;
+					if (width$1 !== null && height !== null) {
+						this.height = height;
+						this.width = width$1;
+					}
+				}
+				DimensionD$1.prototype.getWidth = function() {
+					return this.width;
+				};
+				DimensionD$1.prototype.setWidth = function(width$1) {
+					this.width = width$1;
+				};
+				DimensionD$1.prototype.getHeight = function() {
+					return this.height;
+				};
+				DimensionD$1.prototype.setHeight = function(height) {
+					this.height = height;
+				};
+				module$1.exports = DimensionD$1;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				var UniqueIDGeneretor = __webpack_require__(14);
+				function HashMap() {
+					this.map = {};
+					this.keys = [];
+				}
+				HashMap.prototype.put = function(key, value) {
+					var theId = UniqueIDGeneretor.createID(key);
+					if (!this.contains(theId)) {
+						this.map[theId] = value;
+						this.keys.push(key);
+					}
+				};
+				HashMap.prototype.contains = function(key) {
+					var theId = UniqueIDGeneretor.createID(key);
+					return this.map[key] != null;
+				};
+				HashMap.prototype.get = function(key) {
+					var theId = UniqueIDGeneretor.createID(key);
+					return this.map[theId];
+				};
+				HashMap.prototype.keySet = function() {
+					return this.keys;
+				};
+				module$1.exports = HashMap;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				var UniqueIDGeneretor = __webpack_require__(14);
+				function HashSet() {
+					this.set = {};
+				}
+				HashSet.prototype.add = function(obj) {
+					var theId = UniqueIDGeneretor.createID(obj);
+					if (!this.contains(theId)) this.set[theId] = obj;
+				};
+				HashSet.prototype.remove = function(obj) {
+					delete this.set[UniqueIDGeneretor.createID(obj)];
+				};
+				HashSet.prototype.clear = function() {
+					this.set = {};
+				};
+				HashSet.prototype.contains = function(obj) {
+					return this.set[UniqueIDGeneretor.createID(obj)] == obj;
+				};
+				HashSet.prototype.isEmpty = function() {
+					return this.size() === 0;
+				};
+				HashSet.prototype.size = function() {
+					return Object.keys(this.set).length;
+				};
+				HashSet.prototype.addAllTo = function(list) {
+					var keys$8 = Object.keys(this.set);
+					var length = keys$8.length;
+					for (var i$1 = 0; i$1 < length; i$1++) list.push(this.set[keys$8[i$1]]);
+				};
+				HashSet.prototype.size = function() {
+					return Object.keys(this.set).length;
+				};
+				HashSet.prototype.addAll = function(list) {
+					var s = list.length;
+					for (var i$1 = 0; i$1 < s; i$1++) {
+						var v = list[i$1];
+						this.add(v);
+					}
+				};
+				module$1.exports = HashSet;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				function Matrix() {}
+				/**
+				* matrix multiplication
+				* array1, array2 and result are 2d arrays
+				*/
+				Matrix.multMat = function(array1, array2) {
+					var result = [];
+					for (var i$1 = 0; i$1 < array1.length; i$1++) {
+						result[i$1] = [];
+						for (var j = 0; j < array2[0].length; j++) {
+							result[i$1][j] = 0;
+							for (var k = 0; k < array1[0].length; k++) result[i$1][j] += array1[i$1][k] * array2[k][j];
+						}
+					}
+					return result;
+				};
+				/**
+				* matrix transpose
+				* array and result are 2d arrays
+				*/
+				Matrix.transpose = function(array$1) {
+					var result = [];
+					for (var i$1 = 0; i$1 < array$1[0].length; i$1++) {
+						result[i$1] = [];
+						for (var j = 0; j < array$1.length; j++) result[i$1][j] = array$1[j][i$1];
+					}
+					return result;
+				};
+				/**
+				* multiply array with constant
+				* array and result are 1d arrays
+				*/
+				Matrix.multCons = function(array$1, constant$2) {
+					var result = [];
+					for (var i$1 = 0; i$1 < array$1.length; i$1++) result[i$1] = array$1[i$1] * constant$2;
+					return result;
+				};
+				/**
+				* substract two arrays
+				* array1, array2 and result are 1d arrays
+				*/
+				Matrix.minusOp = function(array1, array2) {
+					var result = [];
+					for (var i$1 = 0; i$1 < array1.length; i$1++) result[i$1] = array1[i$1] - array2[i$1];
+					return result;
+				};
+				/**
+				* dot product of two arrays with same size
+				* array1 and array2 are 1d arrays
+				*/
+				Matrix.dotProduct = function(array1, array2) {
+					var product = 0;
+					for (var i$1 = 0; i$1 < array1.length; i$1++) product += array1[i$1] * array2[i$1];
+					return product;
+				};
+				/**
+				* magnitude of an array
+				* array is 1d array
+				*/
+				Matrix.mag = function(array$1) {
+					return Math.sqrt(this.dotProduct(array$1, array$1));
+				};
+				/**
+				* normalization of an array
+				* array and result are 1d array
+				*/
+				Matrix.normalize = function(array$1) {
+					var result = [];
+					var magnitude = this.mag(array$1);
+					for (var i$1 = 0; i$1 < array$1.length; i$1++) result[i$1] = array$1[i$1] / magnitude;
+					return result;
+				};
+				/**
+				* multiply an array with centering matrix
+				* array and result are 1d array
+				*/
+				Matrix.multGamma = function(array$1) {
+					var result = [];
+					var sum = 0;
+					for (var i$1 = 0; i$1 < array$1.length; i$1++) sum += array$1[i$1];
+					sum *= -1 / array$1.length;
+					for (var _i = 0; _i < array$1.length; _i++) result[_i] = sum + array$1[_i];
+					return result;
+				};
+				/**
+				* a special matrix multiplication
+				* result = 0.5 * C * INV * C^T * array
+				* array and result are 1d, C and INV are 2d arrays
+				*/
+				Matrix.multL = function(array$1, C, INV) {
+					var result = [];
+					var temp1 = [];
+					var temp2 = [];
+					for (var i$1 = 0; i$1 < C[0].length; i$1++) {
+						var sum = 0;
+						for (var j = 0; j < C.length; j++) sum += -.5 * C[j][i$1] * array$1[j];
+						temp1[i$1] = sum;
+					}
+					for (var _i2 = 0; _i2 < INV.length; _i2++) {
+						var _sum = 0;
+						for (var _j = 0; _j < INV.length; _j++) _sum += INV[_i2][_j] * temp1[_j];
+						temp2[_i2] = _sum;
+					}
+					for (var _i3 = 0; _i3 < C.length; _i3++) {
+						var _sum2 = 0;
+						for (var _j2 = 0; _j2 < C[0].length; _j2++) _sum2 += C[_i3][_j2] * temp2[_j2];
+						result[_i3] = _sum2;
+					}
+					return result;
+				};
+				module$1.exports = Matrix;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				var _createClass$1 = function() {
+					function defineProperties(target, props) {
+						for (var i$1 = 0; i$1 < props.length; i$1++) {
+							var descriptor = props[i$1];
+							descriptor.enumerable = descriptor.enumerable || false;
+							descriptor.configurable = true;
+							if ("value" in descriptor) descriptor.writable = true;
+							Object.defineProperty(target, descriptor.key, descriptor);
+						}
+					}
+					return function(Constructor, protoProps, staticProps) {
+						if (protoProps) defineProperties(Constructor.prototype, protoProps);
+						if (staticProps) defineProperties(Constructor, staticProps);
+						return Constructor;
+					};
+				}();
+				function _classCallCheck$1(instance$1, Constructor) {
+					if (!(instance$1 instanceof Constructor)) throw new TypeError("Cannot call a class as a function");
+				}
+				/**
+				* A classic Quicksort algorithm with Hoare's partition
+				* - Works also on LinkedList objects
+				*
+				* Copyright: i-Vis Research Group, Bilkent University, 2007 - present
+				*/
+				var LinkedList = __webpack_require__(11);
+				var Quicksort = function() {
+					function Quicksort$1(A, compareFunction) {
+						_classCallCheck$1(this, Quicksort$1);
+						if (compareFunction !== null || compareFunction !== void 0) this.compareFunction = this._defaultCompareFunction;
+						var length = void 0;
+						if (A instanceof LinkedList) length = A.size();
+						else length = A.length;
+						this._quicksort(A, 0, length - 1);
+					}
+					_createClass$1(Quicksort$1, [
+						{
+							key: "_quicksort",
+							value: function _quicksort(A, p$1, r) {
+								if (p$1 < r) {
+									var q = this._partition(A, p$1, r);
+									this._quicksort(A, p$1, q);
+									this._quicksort(A, q + 1, r);
+								}
+							}
+						},
+						{
+							key: "_partition",
+							value: function _partition(A, p$1, r) {
+								var x$1 = this._get(A, p$1);
+								var i$1 = p$1;
+								var j = r;
+								while (true) {
+									while (this.compareFunction(x$1, this._get(A, j))) j--;
+									while (this.compareFunction(this._get(A, i$1), x$1)) i$1++;
+									if (i$1 < j) {
+										this._swap(A, i$1, j);
+										i$1++;
+										j--;
+									} else return j;
+								}
+							}
+						},
+						{
+							key: "_get",
+							value: function _get(object$1, index) {
+								if (object$1 instanceof LinkedList) return object$1.get_object_at(index);
+								else return object$1[index];
+							}
+						},
+						{
+							key: "_set",
+							value: function _set(object$1, index, value) {
+								if (object$1 instanceof LinkedList) object$1.set_object_at(index, value);
+								else object$1[index] = value;
+							}
+						},
+						{
+							key: "_swap",
+							value: function _swap(A, i$1, j) {
+								var temp = this._get(A, i$1);
+								this._set(A, i$1, this._get(A, j));
+								this._set(A, j, temp);
+							}
+						},
+						{
+							key: "_defaultCompareFunction",
+							value: function _defaultCompareFunction(a, b) {
+								return b > a;
+							}
+						}
+					]);
+					return Quicksort$1;
+				}();
+				module$1.exports = Quicksort;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				function SVD() {}
+				SVD.svd = function(A) {
+					this.U = null;
+					this.V = null;
+					this.s = null;
+					this.m = 0;
+					this.n = 0;
+					this.m = A.length;
+					this.n = A[0].length;
+					var nu = Math.min(this.m, this.n);
+					this.s = function(s) {
+						var a = [];
+						while (s-- > 0) a.push(0);
+						return a;
+					}(Math.min(this.m + 1, this.n));
+					this.U = function(dims) {
+						var allocate = function allocate$1(dims$1) {
+							if (dims$1.length == 0) return 0;
+							else {
+								var array$1 = [];
+								for (var i$2 = 0; i$2 < dims$1[0]; i$2++) array$1.push(allocate$1(dims$1.slice(1)));
+								return array$1;
+							}
+						};
+						return allocate(dims);
+					}([this.m, nu]);
+					this.V = function(dims) {
+						var allocate = function allocate$1(dims$1) {
+							if (dims$1.length == 0) return 0;
+							else {
+								var array$1 = [];
+								for (var i$2 = 0; i$2 < dims$1[0]; i$2++) array$1.push(allocate$1(dims$1.slice(1)));
+								return array$1;
+							}
+						};
+						return allocate(dims);
+					}([this.n, this.n]);
+					var e = function(s) {
+						var a = [];
+						while (s-- > 0) a.push(0);
+						return a;
+					}(this.n);
+					var work = function(s) {
+						var a = [];
+						while (s-- > 0) a.push(0);
+						return a;
+					}(this.m);
+					var wantu = true;
+					var wantv = true;
+					var nct = Math.min(this.m - 1, this.n);
+					var nrt = Math.max(0, Math.min(this.n - 2, this.m));
+					for (var k = 0; k < Math.max(nct, nrt); k++) {
+						if (k < nct) {
+							this.s[k] = 0;
+							for (var i$1 = k; i$1 < this.m; i$1++) this.s[k] = SVD.hypot(this.s[k], A[i$1][k]);
+							if (this.s[k] !== 0) {
+								if (A[k][k] < 0) this.s[k] = -this.s[k];
+								for (var _i = k; _i < this.m; _i++) A[_i][k] /= this.s[k];
+								A[k][k] += 1;
+							}
+							this.s[k] = -this.s[k];
+						}
+						for (var j = k + 1; j < this.n; j++) {
+							if (function(lhs, rhs) {
+								return lhs && rhs;
+							}(k < nct, this.s[k] !== 0)) {
+								var t$1 = 0;
+								for (var _i2 = k; _i2 < this.m; _i2++) t$1 += A[_i2][k] * A[_i2][j];
+								t$1 = -t$1 / A[k][k];
+								for (var _i3 = k; _i3 < this.m; _i3++) A[_i3][j] += t$1 * A[_i3][k];
+							}
+							e[j] = A[k][j];
+						}
+						if (function(lhs, rhs) {
+							return lhs && rhs;
+						}(wantu, k < nct)) for (var _i4 = k; _i4 < this.m; _i4++) this.U[_i4][k] = A[_i4][k];
+						if (k < nrt) {
+							e[k] = 0;
+							for (var _i5 = k + 1; _i5 < this.n; _i5++) e[k] = SVD.hypot(e[k], e[_i5]);
+							if (e[k] !== 0) {
+								if (e[k + 1] < 0) e[k] = -e[k];
+								for (var _i6 = k + 1; _i6 < this.n; _i6++) e[_i6] /= e[k];
+								e[k + 1] += 1;
+							}
+							e[k] = -e[k];
+							if (function(lhs, rhs) {
+								return lhs && rhs;
+							}(k + 1 < this.m, e[k] !== 0)) {
+								for (var _i7 = k + 1; _i7 < this.m; _i7++) work[_i7] = 0;
+								for (var _j = k + 1; _j < this.n; _j++) for (var _i8 = k + 1; _i8 < this.m; _i8++) work[_i8] += e[_j] * A[_i8][_j];
+								for (var _j2 = k + 1; _j2 < this.n; _j2++) {
+									var _t = -e[_j2] / e[k + 1];
+									for (var _i9 = k + 1; _i9 < this.m; _i9++) A[_i9][_j2] += _t * work[_i9];
+								}
+							}
+							if (wantv) for (var _i10 = k + 1; _i10 < this.n; _i10++) this.V[_i10][k] = e[_i10];
+						}
+					}
+					var p$1 = Math.min(this.n, this.m + 1);
+					if (nct < this.n) this.s[nct] = A[nct][nct];
+					if (this.m < p$1) this.s[p$1 - 1] = 0;
+					if (nrt + 1 < p$1) e[nrt] = A[nrt][p$1 - 1];
+					e[p$1 - 1] = 0;
+					if (wantu) {
+						for (var _j3 = nct; _j3 < nu; _j3++) {
+							for (var _i11 = 0; _i11 < this.m; _i11++) this.U[_i11][_j3] = 0;
+							this.U[_j3][_j3] = 1;
+						}
+						for (var _k = nct - 1; _k >= 0; _k--) if (this.s[_k] !== 0) {
+							for (var _j4 = _k + 1; _j4 < nu; _j4++) {
+								var _t2 = 0;
+								for (var _i12 = _k; _i12 < this.m; _i12++) _t2 += this.U[_i12][_k] * this.U[_i12][_j4];
+								_t2 = -_t2 / this.U[_k][_k];
+								for (var _i13 = _k; _i13 < this.m; _i13++) this.U[_i13][_j4] += _t2 * this.U[_i13][_k];
+							}
+							for (var _i14 = _k; _i14 < this.m; _i14++) this.U[_i14][_k] = -this.U[_i14][_k];
+							this.U[_k][_k] = 1 + this.U[_k][_k];
+							for (var _i15 = 0; _i15 < _k - 1; _i15++) this.U[_i15][_k] = 0;
+						} else {
+							for (var _i16 = 0; _i16 < this.m; _i16++) this.U[_i16][_k] = 0;
+							this.U[_k][_k] = 1;
+						}
+					}
+					if (wantv) for (var _k2 = this.n - 1; _k2 >= 0; _k2--) {
+						if (function(lhs, rhs) {
+							return lhs && rhs;
+						}(_k2 < nrt, e[_k2] !== 0)) for (var _j5 = _k2 + 1; _j5 < nu; _j5++) {
+							var _t3 = 0;
+							for (var _i17 = _k2 + 1; _i17 < this.n; _i17++) _t3 += this.V[_i17][_k2] * this.V[_i17][_j5];
+							_t3 = -_t3 / this.V[_k2 + 1][_k2];
+							for (var _i18 = _k2 + 1; _i18 < this.n; _i18++) this.V[_i18][_j5] += _t3 * this.V[_i18][_k2];
+						}
+						for (var _i19 = 0; _i19 < this.n; _i19++) this.V[_i19][_k2] = 0;
+						this.V[_k2][_k2] = 1;
+					}
+					var pp = p$1 - 1;
+					var iter = 0;
+					var eps = Math.pow(2, -52);
+					var tiny = Math.pow(2, -966);
+					while (p$1 > 0) {
+						var _k3 = void 0;
+						var kase = void 0;
+						for (_k3 = p$1 - 2; _k3 >= -1; _k3--) {
+							if (_k3 === -1) break;
+							if (Math.abs(e[_k3]) <= tiny + eps * (Math.abs(this.s[_k3]) + Math.abs(this.s[_k3 + 1]))) {
+								e[_k3] = 0;
+								break;
+							}
+						}
+						if (_k3 === p$1 - 2) kase = 4;
+						else {
+							var ks = void 0;
+							for (ks = p$1 - 1; ks >= _k3; ks--) {
+								if (ks === _k3) break;
+								var _t4 = (ks !== p$1 ? Math.abs(e[ks]) : 0) + (ks !== _k3 + 1 ? Math.abs(e[ks - 1]) : 0);
+								if (Math.abs(this.s[ks]) <= tiny + eps * _t4) {
+									this.s[ks] = 0;
+									break;
+								}
+							}
+							if (ks === _k3) kase = 3;
+							else if (ks === p$1 - 1) kase = 1;
+							else {
+								kase = 2;
+								_k3 = ks;
+							}
+						}
+						_k3++;
+						switch (kase) {
+							case 1:
+								{
+									var f = e[p$1 - 2];
+									e[p$1 - 2] = 0;
+									for (var _j6 = p$1 - 2; _j6 >= _k3; _j6--) {
+										var _t5 = SVD.hypot(this.s[_j6], f);
+										var cs = this.s[_j6] / _t5;
+										var sn = f / _t5;
+										this.s[_j6] = _t5;
+										if (_j6 !== _k3) {
+											f = -sn * e[_j6 - 1];
+											e[_j6 - 1] = cs * e[_j6 - 1];
+										}
+										if (wantv) for (var _i20 = 0; _i20 < this.n; _i20++) {
+											_t5 = cs * this.V[_i20][_j6] + sn * this.V[_i20][p$1 - 1];
+											this.V[_i20][p$1 - 1] = -sn * this.V[_i20][_j6] + cs * this.V[_i20][p$1 - 1];
+											this.V[_i20][_j6] = _t5;
+										}
+									}
+								}
+								break;
+							case 2:
+								{
+									var _f = e[_k3 - 1];
+									e[_k3 - 1] = 0;
+									for (var _j7 = _k3; _j7 < p$1; _j7++) {
+										var _t6 = SVD.hypot(this.s[_j7], _f);
+										var _cs = this.s[_j7] / _t6;
+										var _sn = _f / _t6;
+										this.s[_j7] = _t6;
+										_f = -_sn * e[_j7];
+										e[_j7] = _cs * e[_j7];
+										if (wantu) for (var _i21 = 0; _i21 < this.m; _i21++) {
+											_t6 = _cs * this.U[_i21][_j7] + _sn * this.U[_i21][_k3 - 1];
+											this.U[_i21][_k3 - 1] = -_sn * this.U[_i21][_j7] + _cs * this.U[_i21][_k3 - 1];
+											this.U[_i21][_j7] = _t6;
+										}
+									}
+								}
+								break;
+							case 3:
+								{
+									var scale$1 = Math.max(Math.max(Math.max(Math.max(Math.abs(this.s[p$1 - 1]), Math.abs(this.s[p$1 - 2])), Math.abs(e[p$1 - 2])), Math.abs(this.s[_k3])), Math.abs(e[_k3]));
+									var sp = this.s[p$1 - 1] / scale$1;
+									var spm1 = this.s[p$1 - 2] / scale$1;
+									var epm1 = e[p$1 - 2] / scale$1;
+									var sk = this.s[_k3] / scale$1;
+									var ek = e[_k3] / scale$1;
+									var b = ((spm1 + sp) * (spm1 - sp) + epm1 * epm1) / 2;
+									var c = sp * epm1 * (sp * epm1);
+									var shift = 0;
+									if (function(lhs, rhs) {
+										return lhs || rhs;
+									}(b !== 0, c !== 0)) {
+										shift = Math.sqrt(b * b + c);
+										if (b < 0) shift = -shift;
+										shift = c / (b + shift);
+									}
+									var _f2 = (sk + sp) * (sk - sp) + shift;
+									var g = sk * ek;
+									for (var _j8 = _k3; _j8 < p$1 - 1; _j8++) {
+										var _t7 = SVD.hypot(_f2, g);
+										var _cs2 = _f2 / _t7;
+										var _sn2 = g / _t7;
+										if (_j8 !== _k3) e[_j8 - 1] = _t7;
+										_f2 = _cs2 * this.s[_j8] + _sn2 * e[_j8];
+										e[_j8] = _cs2 * e[_j8] - _sn2 * this.s[_j8];
+										g = _sn2 * this.s[_j8 + 1];
+										this.s[_j8 + 1] = _cs2 * this.s[_j8 + 1];
+										if (wantv) for (var _i22 = 0; _i22 < this.n; _i22++) {
+											_t7 = _cs2 * this.V[_i22][_j8] + _sn2 * this.V[_i22][_j8 + 1];
+											this.V[_i22][_j8 + 1] = -_sn2 * this.V[_i22][_j8] + _cs2 * this.V[_i22][_j8 + 1];
+											this.V[_i22][_j8] = _t7;
+										}
+										_t7 = SVD.hypot(_f2, g);
+										_cs2 = _f2 / _t7;
+										_sn2 = g / _t7;
+										this.s[_j8] = _t7;
+										_f2 = _cs2 * e[_j8] + _sn2 * this.s[_j8 + 1];
+										this.s[_j8 + 1] = -_sn2 * e[_j8] + _cs2 * this.s[_j8 + 1];
+										g = _sn2 * e[_j8 + 1];
+										e[_j8 + 1] = _cs2 * e[_j8 + 1];
+										if (wantu && _j8 < this.m - 1) for (var _i23 = 0; _i23 < this.m; _i23++) {
+											_t7 = _cs2 * this.U[_i23][_j8] + _sn2 * this.U[_i23][_j8 + 1];
+											this.U[_i23][_j8 + 1] = -_sn2 * this.U[_i23][_j8] + _cs2 * this.U[_i23][_j8 + 1];
+											this.U[_i23][_j8] = _t7;
+										}
+									}
+									e[p$1 - 2] = _f2;
+									iter = iter + 1;
+								}
+								break;
+							case 4:
+								{
+									if (this.s[_k3] <= 0) {
+										this.s[_k3] = this.s[_k3] < 0 ? -this.s[_k3] : 0;
+										if (wantv) for (var _i24 = 0; _i24 <= pp; _i24++) this.V[_i24][_k3] = -this.V[_i24][_k3];
+									}
+									while (_k3 < pp) {
+										if (this.s[_k3] >= this.s[_k3 + 1]) break;
+										var _t8 = this.s[_k3];
+										this.s[_k3] = this.s[_k3 + 1];
+										this.s[_k3 + 1] = _t8;
+										if (wantv && _k3 < this.n - 1) for (var _i25 = 0; _i25 < this.n; _i25++) {
+											_t8 = this.V[_i25][_k3 + 1];
+											this.V[_i25][_k3 + 1] = this.V[_i25][_k3];
+											this.V[_i25][_k3] = _t8;
+										}
+										if (wantu && _k3 < this.m - 1) for (var _i26 = 0; _i26 < this.m; _i26++) {
+											_t8 = this.U[_i26][_k3 + 1];
+											this.U[_i26][_k3 + 1] = this.U[_i26][_k3];
+											this.U[_i26][_k3] = _t8;
+										}
+										_k3++;
+									}
+									iter = 0;
+									p$1--;
+								}
+								break;
+						}
+					}
+					var result = {
+						U: this.U,
+						V: this.V,
+						S: this.s
+					};
+					return result;
+				};
+				SVD.hypot = function(a, b) {
+					var r = void 0;
+					if (Math.abs(a) > Math.abs(b)) {
+						r = b / a;
+						r = Math.abs(a) * Math.sqrt(1 + r * r);
+					} else if (b != 0) {
+						r = a / b;
+						r = Math.abs(b) * Math.sqrt(1 + r * r);
+					} else r = 0;
+					return r;
+				};
+				module$1.exports = SVD;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				var _createClass$1 = function() {
+					function defineProperties(target, props) {
+						for (var i$1 = 0; i$1 < props.length; i$1++) {
+							var descriptor = props[i$1];
+							descriptor.enumerable = descriptor.enumerable || false;
+							descriptor.configurable = true;
+							if ("value" in descriptor) descriptor.writable = true;
+							Object.defineProperty(target, descriptor.key, descriptor);
+						}
+					}
+					return function(Constructor, protoProps, staticProps) {
+						if (protoProps) defineProperties(Constructor.prototype, protoProps);
+						if (staticProps) defineProperties(Constructor, staticProps);
+						return Constructor;
+					};
+				}();
+				function _classCallCheck$1(instance$1, Constructor) {
+					if (!(instance$1 instanceof Constructor)) throw new TypeError("Cannot call a class as a function");
+				}
+				/**
+				*   Needleman-Wunsch algorithm is an procedure to compute the optimal global alignment of two string
+				*   sequences by S.B.Needleman and C.D.Wunsch (1970).
+				*
+				*   Aside from the inputs, you can assign the scores for,
+				*   - Match: The two characters at the current index are same.
+				*   - Mismatch: The two characters at the current index are different.
+				*   - Insertion/Deletion(gaps): The best alignment involves one letter aligning to a gap in the other string.
+				*/
+				var NeedlemanWunsch = function() {
+					function NeedlemanWunsch$1(sequence1, sequence2) {
+						var match_score = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : 1;
+						var mismatch_penalty = arguments.length > 3 && arguments[3] !== void 0 ? arguments[3] : -1;
+						var gap_penalty = arguments.length > 4 && arguments[4] !== void 0 ? arguments[4] : -1;
+						_classCallCheck$1(this, NeedlemanWunsch$1);
+						this.sequence1 = sequence1;
+						this.sequence2 = sequence2;
+						this.match_score = match_score;
+						this.mismatch_penalty = mismatch_penalty;
+						this.gap_penalty = gap_penalty;
+						this.iMax = sequence1.length + 1;
+						this.jMax = sequence2.length + 1;
+						this.grid = new Array(this.iMax);
+						for (var i$1 = 0; i$1 < this.iMax; i$1++) {
+							this.grid[i$1] = new Array(this.jMax);
+							for (var j = 0; j < this.jMax; j++) this.grid[i$1][j] = 0;
+						}
+						this.tracebackGrid = new Array(this.iMax);
+						for (var _i = 0; _i < this.iMax; _i++) {
+							this.tracebackGrid[_i] = new Array(this.jMax);
+							for (var _j = 0; _j < this.jMax; _j++) this.tracebackGrid[_i][_j] = [
+								null,
+								null,
+								null
+							];
+						}
+						this.alignments = [];
+						this.score = -1;
+						this.computeGrids();
+					}
+					_createClass$1(NeedlemanWunsch$1, [
+						{
+							key: "getScore",
+							value: function getScore() {
+								return this.score;
+							}
+						},
+						{
+							key: "getAlignments",
+							value: function getAlignments() {
+								return this.alignments;
+							}
+						},
+						{
+							key: "computeGrids",
+							value: function computeGrids() {
+								for (var j = 1; j < this.jMax; j++) {
+									this.grid[0][j] = this.grid[0][j - 1] + this.gap_penalty;
+									this.tracebackGrid[0][j] = [
+										false,
+										false,
+										true
+									];
+								}
+								for (var i$1 = 1; i$1 < this.iMax; i$1++) {
+									this.grid[i$1][0] = this.grid[i$1 - 1][0] + this.gap_penalty;
+									this.tracebackGrid[i$1][0] = [
+										false,
+										true,
+										false
+									];
+								}
+								for (var _i2 = 1; _i2 < this.iMax; _i2++) for (var _j2 = 1; _j2 < this.jMax; _j2++) {
+									var diag = void 0;
+									if (this.sequence1[_i2 - 1] === this.sequence2[_j2 - 1]) diag = this.grid[_i2 - 1][_j2 - 1] + this.match_score;
+									else diag = this.grid[_i2 - 1][_j2 - 1] + this.mismatch_penalty;
+									var up = this.grid[_i2 - 1][_j2] + this.gap_penalty;
+									var left = this.grid[_i2][_j2 - 1] + this.gap_penalty;
+									var maxOf = [
+										diag,
+										up,
+										left
+									];
+									var indices = this.arrayAllMaxIndexes(maxOf);
+									this.grid[_i2][_j2] = maxOf[indices[0]];
+									this.tracebackGrid[_i2][_j2] = [
+										indices.includes(0),
+										indices.includes(1),
+										indices.includes(2)
+									];
+								}
+								this.score = this.grid[this.iMax - 1][this.jMax - 1];
+							}
+						},
+						{
+							key: "alignmentTraceback",
+							value: function alignmentTraceback() {
+								var inProcessAlignments = [];
+								inProcessAlignments.push({
+									pos: [this.sequence1.length, this.sequence2.length],
+									seq1: "",
+									seq2: ""
+								});
+								while (inProcessAlignments[0]) {
+									var current = inProcessAlignments[0];
+									var directions = this.tracebackGrid[current.pos[0]][current.pos[1]];
+									if (directions[0]) inProcessAlignments.push({
+										pos: [current.pos[0] - 1, current.pos[1] - 1],
+										seq1: this.sequence1[current.pos[0] - 1] + current.seq1,
+										seq2: this.sequence2[current.pos[1] - 1] + current.seq2
+									});
+									if (directions[1]) inProcessAlignments.push({
+										pos: [current.pos[0] - 1, current.pos[1]],
+										seq1: this.sequence1[current.pos[0] - 1] + current.seq1,
+										seq2: "-" + current.seq2
+									});
+									if (directions[2]) inProcessAlignments.push({
+										pos: [current.pos[0], current.pos[1] - 1],
+										seq1: "-" + current.seq1,
+										seq2: this.sequence2[current.pos[1] - 1] + current.seq2
+									});
+									if (current.pos[0] === 0 && current.pos[1] === 0) this.alignments.push({
+										sequence1: current.seq1,
+										sequence2: current.seq2
+									});
+									inProcessAlignments.shift();
+								}
+								return this.alignments;
+							}
+						},
+						{
+							key: "getAllIndexes",
+							value: function getAllIndexes(arr, val) {
+								var indexes = [], i$1 = -1;
+								while ((i$1 = arr.indexOf(val, i$1 + 1)) !== -1) indexes.push(i$1);
+								return indexes;
+							}
+						},
+						{
+							key: "arrayAllMaxIndexes",
+							value: function arrayAllMaxIndexes(array$1) {
+								return this.getAllIndexes(array$1, Math.max.apply(null, array$1));
+							}
+						}
+					]);
+					return NeedlemanWunsch$1;
+				}();
+				module$1.exports = NeedlemanWunsch;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				var layoutBase = function layoutBase$1() {
+					return;
+				};
+				layoutBase.FDLayout = __webpack_require__(18);
+				layoutBase.FDLayoutConstants = __webpack_require__(4);
+				layoutBase.FDLayoutEdge = __webpack_require__(19);
+				layoutBase.FDLayoutNode = __webpack_require__(20);
+				layoutBase.DimensionD = __webpack_require__(21);
+				layoutBase.HashMap = __webpack_require__(22);
+				layoutBase.HashSet = __webpack_require__(23);
+				layoutBase.IGeometry = __webpack_require__(8);
+				layoutBase.IMath = __webpack_require__(9);
+				layoutBase.Integer = __webpack_require__(10);
+				layoutBase.Point = __webpack_require__(12);
+				layoutBase.PointD = __webpack_require__(5);
+				layoutBase.RandomSeed = __webpack_require__(16);
+				layoutBase.RectangleD = __webpack_require__(13);
+				layoutBase.Transform = __webpack_require__(17);
+				layoutBase.UniqueIDGeneretor = __webpack_require__(14);
+				layoutBase.Quicksort = __webpack_require__(25);
+				layoutBase.LinkedList = __webpack_require__(11);
+				layoutBase.LGraphObject = __webpack_require__(2);
+				layoutBase.LGraph = __webpack_require__(6);
+				layoutBase.LEdge = __webpack_require__(1);
+				layoutBase.LGraphManager = __webpack_require__(7);
+				layoutBase.LNode = __webpack_require__(3);
+				layoutBase.Layout = __webpack_require__(15);
+				layoutBase.LayoutConstants = __webpack_require__(0);
+				layoutBase.NeedlemanWunsch = __webpack_require__(27);
+				layoutBase.Matrix = __webpack_require__(24);
+				layoutBase.SVD = __webpack_require__(26);
+				module$1.exports = layoutBase;
+			},
+			function(module$1, exports$1, __webpack_require__) {
+				"use strict";
+				function Emitter$1() {
+					this.listeners = [];
+				}
+				var p$1 = Emitter$1.prototype;
+				p$1.addListener = function(event$1, callback) {
+					this.listeners.push({
+						event: event$1,
+						callback
+					});
+				};
+				p$1.removeListener = function(event$1, callback) {
+					for (var i$1 = this.listeners.length; i$1 >= 0; i$1--) {
+						var l = this.listeners[i$1];
+						if (l.event === event$1 && l.callback === callback) this.listeners.splice(i$1, 1);
+					}
+				};
+				p$1.emit = function(event$1, data$2) {
+					for (var i$1 = 0; i$1 < this.listeners.length; i$1++) {
+						var l = this.listeners[i$1];
+						if (event$1 === l.event) l.callback(data$2);
+					}
+				};
+				module$1.exports = Emitter$1;
+			}
+		]);
+	});
+} });
+
+//#endregion
+//#region node_modules/.pnpm/cose-base@2.2.0/node_modules/cose-base/cose-base.js
+var require_cose_base = __commonJS({ "node_modules/.pnpm/cose-base@2.2.0/node_modules/cose-base/cose-base.js"(exports, module) {
+	(function webpackUniversalModuleDefinition(root$12, factory) {
+		if (typeof exports === "object" && typeof module === "object") module.exports = factory(require_layout_base());
+		else if (typeof define === "function" && define.amd) define(["layout-base"], factory);
+		else if (typeof exports === "object") exports["coseBase"] = factory(require_layout_base());
+		else root$12["coseBase"] = factory(root$12["layoutBase"]);
+	})(exports, function(__WEBPACK_EXTERNAL_MODULE__551__) {
+		return (() => {
+			"use strict";
+			var __webpack_modules__ = {
+				45: (module$1, __unused_webpack_exports, __webpack_require__$1) => {
+					var coseBase = {};
+					coseBase.layoutBase = __webpack_require__$1(551);
+					coseBase.CoSEConstants = __webpack_require__$1(806);
+					coseBase.CoSEEdge = __webpack_require__$1(767);
+					coseBase.CoSEGraph = __webpack_require__$1(880);
+					coseBase.CoSEGraphManager = __webpack_require__$1(578);
+					coseBase.CoSELayout = __webpack_require__$1(765);
+					coseBase.CoSENode = __webpack_require__$1(991);
+					coseBase.ConstraintHandler = __webpack_require__$1(902);
+					module$1.exports = coseBase;
+				},
+				806: (module$1, __unused_webpack_exports, __webpack_require__$1) => {
+					var FDLayoutConstants = __webpack_require__$1(551).FDLayoutConstants;
+					function CoSEConstants() {}
+					for (var prop in FDLayoutConstants) CoSEConstants[prop] = FDLayoutConstants[prop];
+					CoSEConstants.DEFAULT_USE_MULTI_LEVEL_SCALING = false;
+					CoSEConstants.DEFAULT_RADIAL_SEPARATION = FDLayoutConstants.DEFAULT_EDGE_LENGTH;
+					CoSEConstants.DEFAULT_COMPONENT_SEPERATION = 60;
+					CoSEConstants.TILE = true;
+					CoSEConstants.TILING_PADDING_VERTICAL = 10;
+					CoSEConstants.TILING_PADDING_HORIZONTAL = 10;
+					CoSEConstants.TRANSFORM_ON_CONSTRAINT_HANDLING = true;
+					CoSEConstants.ENFORCE_CONSTRAINTS = true;
+					CoSEConstants.APPLY_LAYOUT = true;
+					CoSEConstants.RELAX_MOVEMENT_ON_CONSTRAINTS = true;
+					CoSEConstants.TREE_REDUCTION_ON_INCREMENTAL = true;
+					CoSEConstants.PURE_INCREMENTAL = CoSEConstants.DEFAULT_INCREMENTAL;
+					module$1.exports = CoSEConstants;
+				},
+				767: (module$1, __unused_webpack_exports, __webpack_require__$1) => {
+					var FDLayoutEdge = __webpack_require__$1(551).FDLayoutEdge;
+					function CoSEEdge(source, target, vEdge) {
+						FDLayoutEdge.call(this, source, target, vEdge);
+					}
+					CoSEEdge.prototype = Object.create(FDLayoutEdge.prototype);
+					for (var prop in FDLayoutEdge) CoSEEdge[prop] = FDLayoutEdge[prop];
+					module$1.exports = CoSEEdge;
+				},
+				880: (module$1, __unused_webpack_exports, __webpack_require__$1) => {
+					var LGraph = __webpack_require__$1(551).LGraph;
+					function CoSEGraph(parent, graphMgr, vGraph) {
+						LGraph.call(this, parent, graphMgr, vGraph);
+					}
+					CoSEGraph.prototype = Object.create(LGraph.prototype);
+					for (var prop in LGraph) CoSEGraph[prop] = LGraph[prop];
+					module$1.exports = CoSEGraph;
+				},
+				578: (module$1, __unused_webpack_exports, __webpack_require__$1) => {
+					var LGraphManager = __webpack_require__$1(551).LGraphManager;
+					function CoSEGraphManager(layout$2) {
+						LGraphManager.call(this, layout$2);
+					}
+					CoSEGraphManager.prototype = Object.create(LGraphManager.prototype);
+					for (var prop in LGraphManager) CoSEGraphManager[prop] = LGraphManager[prop];
+					module$1.exports = CoSEGraphManager;
+				},
+				765: (module$1, __unused_webpack_exports, __webpack_require__$1) => {
+					var FDLayout = __webpack_require__$1(551).FDLayout;
+					var CoSEGraphManager = __webpack_require__$1(578);
+					var CoSEGraph = __webpack_require__$1(880);
+					var CoSENode = __webpack_require__$1(991);
+					var CoSEEdge = __webpack_require__$1(767);
+					var CoSEConstants = __webpack_require__$1(806);
+					var ConstraintHandler = __webpack_require__$1(902);
+					var FDLayoutConstants = __webpack_require__$1(551).FDLayoutConstants;
+					var LayoutConstants = __webpack_require__$1(551).LayoutConstants;
+					var Point$1 = __webpack_require__$1(551).Point;
+					var PointD = __webpack_require__$1(551).PointD;
+					var DimensionD$1 = __webpack_require__$1(551).DimensionD;
+					var Layout$1 = __webpack_require__$1(551).Layout;
+					var Integer = __webpack_require__$1(551).Integer;
+					var IGeometry = __webpack_require__$1(551).IGeometry;
+					var LGraph = __webpack_require__$1(551).LGraph;
+					var Transform = __webpack_require__$1(551).Transform;
+					var LinkedList = __webpack_require__$1(551).LinkedList;
+					function CoSELayout() {
+						FDLayout.call(this);
+						this.toBeTiled = {};
+						this.constraints = {};
+					}
+					CoSELayout.prototype = Object.create(FDLayout.prototype);
+					for (var prop in FDLayout) CoSELayout[prop] = FDLayout[prop];
+					CoSELayout.prototype.newGraphManager = function() {
+						var gm = new CoSEGraphManager(this);
+						this.graphManager = gm;
+						return gm;
+					};
+					CoSELayout.prototype.newGraph = function(vGraph) {
+						return new CoSEGraph(null, this.graphManager, vGraph);
+					};
+					CoSELayout.prototype.newNode = function(vNode) {
+						return new CoSENode(this.graphManager, vNode);
+					};
+					CoSELayout.prototype.newEdge = function(vEdge) {
+						return new CoSEEdge(null, null, vEdge);
+					};
+					CoSELayout.prototype.initParameters = function() {
+						FDLayout.prototype.initParameters.call(this, arguments);
+						if (!this.isSubLayout) {
+							if (CoSEConstants.DEFAULT_EDGE_LENGTH < 10) this.idealEdgeLength = 10;
+							else this.idealEdgeLength = CoSEConstants.DEFAULT_EDGE_LENGTH;
+							this.useSmartIdealEdgeLengthCalculation = CoSEConstants.DEFAULT_USE_SMART_IDEAL_EDGE_LENGTH_CALCULATION;
+							this.gravityConstant = FDLayoutConstants.DEFAULT_GRAVITY_STRENGTH;
+							this.compoundGravityConstant = FDLayoutConstants.DEFAULT_COMPOUND_GRAVITY_STRENGTH;
+							this.gravityRangeFactor = FDLayoutConstants.DEFAULT_GRAVITY_RANGE_FACTOR;
+							this.compoundGravityRangeFactor = FDLayoutConstants.DEFAULT_COMPOUND_GRAVITY_RANGE_FACTOR;
+							this.prunedNodesAll = [];
+							this.growTreeIterations = 0;
+							this.afterGrowthIterations = 0;
+							this.isTreeGrowing = false;
+							this.isGrowthFinished = false;
+						}
+					};
+					CoSELayout.prototype.initSpringEmbedder = function() {
+						FDLayout.prototype.initSpringEmbedder.call(this);
+						this.coolingCycle = 0;
+						this.maxCoolingCycle = this.maxIterations / FDLayoutConstants.CONVERGENCE_CHECK_PERIOD;
+						this.finalTemperature = .04;
+						this.coolingAdjuster = 1;
+					};
+					CoSELayout.prototype.layout = function() {
+						var createBendsAsNeeded = LayoutConstants.DEFAULT_CREATE_BENDS_AS_NEEDED;
+						if (createBendsAsNeeded) {
+							this.createBendpoints();
+							this.graphManager.resetAllEdges();
+						}
+						this.level = 0;
+						return this.classicLayout();
+					};
+					CoSELayout.prototype.classicLayout = function() {
+						this.nodesWithGravity = this.calculateNodesToApplyGravitationTo();
+						this.graphManager.setAllNodesToApplyGravitation(this.nodesWithGravity);
+						this.calcNoOfChildrenForAllNodes();
+						this.graphManager.calcLowestCommonAncestors();
+						this.graphManager.calcInclusionTreeDepths();
+						this.graphManager.getRoot().calcEstimatedSize();
+						this.calcIdealEdgeLengths();
+						if (!this.incremental) {
+							var forest = this.getFlatForest();
+							if (forest.length > 0) this.positionNodesRadially(forest);
+							else {
+								this.reduceTrees();
+								this.graphManager.resetAllNodesToApplyGravitation();
+								var allNodes = new Set(this.getAllNodes());
+								var intersection$1 = this.nodesWithGravity.filter(function(x$1) {
+									return allNodes.has(x$1);
+								});
+								this.graphManager.setAllNodesToApplyGravitation(intersection$1);
+								this.positionNodesRandomly();
+							}
+						} else if (CoSEConstants.TREE_REDUCTION_ON_INCREMENTAL) {
+							this.reduceTrees();
+							this.graphManager.resetAllNodesToApplyGravitation();
+							var allNodes = new Set(this.getAllNodes());
+							var intersection$1 = this.nodesWithGravity.filter(function(x$1) {
+								return allNodes.has(x$1);
+							});
+							this.graphManager.setAllNodesToApplyGravitation(intersection$1);
+						}
+						if (Object.keys(this.constraints).length > 0) {
+							ConstraintHandler.handleConstraints(this);
+							this.initConstraintVariables();
+						}
+						this.initSpringEmbedder();
+						if (CoSEConstants.APPLY_LAYOUT) this.runSpringEmbedder();
+						return true;
+					};
+					CoSELayout.prototype.tick = function() {
+						this.totalIterations++;
+						if (this.totalIterations === this.maxIterations && !this.isTreeGrowing && !this.isGrowthFinished) if (this.prunedNodesAll.length > 0) this.isTreeGrowing = true;
+						else return true;
+						if (this.totalIterations % FDLayoutConstants.CONVERGENCE_CHECK_PERIOD == 0 && !this.isTreeGrowing && !this.isGrowthFinished) {
+							if (this.isConverged()) if (this.prunedNodesAll.length > 0) this.isTreeGrowing = true;
+							else return true;
+							this.coolingCycle++;
+							if (this.layoutQuality == 0) this.coolingAdjuster = this.coolingCycle;
+							else if (this.layoutQuality == 1) this.coolingAdjuster = this.coolingCycle / 3;
+							this.coolingFactor = Math.max(this.initialCoolingFactor - Math.pow(this.coolingCycle, Math.log(100 * (this.initialCoolingFactor - this.finalTemperature)) / Math.log(this.maxCoolingCycle)) / 100 * this.coolingAdjuster, this.finalTemperature);
+							this.animationPeriod = Math.ceil(this.initialAnimationPeriod * Math.sqrt(this.coolingFactor));
+						}
+						if (this.isTreeGrowing) {
+							if (this.growTreeIterations % 10 == 0) if (this.prunedNodesAll.length > 0) {
+								this.graphManager.updateBounds();
+								this.updateGrid();
+								this.growTree(this.prunedNodesAll);
+								this.graphManager.resetAllNodesToApplyGravitation();
+								var allNodes = new Set(this.getAllNodes());
+								var intersection$1 = this.nodesWithGravity.filter(function(x$1) {
+									return allNodes.has(x$1);
+								});
+								this.graphManager.setAllNodesToApplyGravitation(intersection$1);
+								this.graphManager.updateBounds();
+								this.updateGrid();
+								if (CoSEConstants.PURE_INCREMENTAL) this.coolingFactor = FDLayoutConstants.DEFAULT_COOLING_FACTOR_INCREMENTAL / 2;
+								else this.coolingFactor = FDLayoutConstants.DEFAULT_COOLING_FACTOR_INCREMENTAL;
+							} else {
+								this.isTreeGrowing = false;
+								this.isGrowthFinished = true;
+							}
+							this.growTreeIterations++;
+						}
+						if (this.isGrowthFinished) {
+							if (this.isConverged()) return true;
+							if (this.afterGrowthIterations % 10 == 0) {
+								this.graphManager.updateBounds();
+								this.updateGrid();
+							}
+							if (CoSEConstants.PURE_INCREMENTAL) this.coolingFactor = FDLayoutConstants.DEFAULT_COOLING_FACTOR_INCREMENTAL / 2 * ((100 - this.afterGrowthIterations) / 100);
+							else this.coolingFactor = FDLayoutConstants.DEFAULT_COOLING_FACTOR_INCREMENTAL * ((100 - this.afterGrowthIterations) / 100);
+							this.afterGrowthIterations++;
+						}
+						var gridUpdateAllowed = !this.isTreeGrowing && !this.isGrowthFinished;
+						var forceToNodeSurroundingUpdate = this.growTreeIterations % 10 == 1 && this.isTreeGrowing || this.afterGrowthIterations % 10 == 1 && this.isGrowthFinished;
+						this.totalDisplacement = 0;
+						this.graphManager.updateBounds();
+						this.calcSpringForces();
+						this.calcRepulsionForces(gridUpdateAllowed, forceToNodeSurroundingUpdate);
+						this.calcGravitationalForces();
+						this.moveNodes();
+						this.animate();
+						return false;
+					};
+					CoSELayout.prototype.getPositionsData = function() {
+						var allNodes = this.graphManager.getAllNodes();
+						var pData = {};
+						for (var i$1 = 0; i$1 < allNodes.length; i$1++) {
+							var rect = allNodes[i$1].rect;
+							var id = allNodes[i$1].id;
+							pData[id] = {
+								id,
+								x: rect.getCenterX(),
+								y: rect.getCenterY(),
+								w: rect.width,
+								h: rect.height
+							};
+						}
+						return pData;
+					};
+					CoSELayout.prototype.runSpringEmbedder = function() {
+						this.initialAnimationPeriod = 25;
+						this.animationPeriod = this.initialAnimationPeriod;
+						var layoutEnded = false;
+						if (FDLayoutConstants.ANIMATE === "during") this.emit("layoutstarted");
+						else {
+							while (!layoutEnded) layoutEnded = this.tick();
+							this.graphManager.updateBounds();
+						}
+					};
+					CoSELayout.prototype.moveNodes = function() {
+						var lNodes = this.getAllNodes();
+						var node;
+						for (var i$1 = 0; i$1 < lNodes.length; i$1++) {
+							node = lNodes[i$1];
+							node.calculateDisplacement();
+						}
+						if (Object.keys(this.constraints).length > 0) this.updateDisplacements();
+						for (var i$1 = 0; i$1 < lNodes.length; i$1++) {
+							node = lNodes[i$1];
+							node.move();
+						}
+					};
+					CoSELayout.prototype.initConstraintVariables = function() {
+						var self$1 = this;
+						this.idToNodeMap = new Map();
+						this.fixedNodeSet = new Set();
+						var allNodes = this.graphManager.getAllNodes();
+						for (var i$1 = 0; i$1 < allNodes.length; i$1++) {
+							var node = allNodes[i$1];
+							this.idToNodeMap.set(node.id, node);
+						}
+						var calculateCompoundWeight = function calculateCompoundWeight$1(compoundNode) {
+							var nodes = compoundNode.getChild().getNodes();
+							var node$1;
+							var fixedNodeWeight$1 = 0;
+							for (var i$2 = 0; i$2 < nodes.length; i$2++) {
+								node$1 = nodes[i$2];
+								if (node$1.getChild() == null) {
+									if (self$1.fixedNodeSet.has(node$1.id)) fixedNodeWeight$1 += 100;
+								} else fixedNodeWeight$1 += calculateCompoundWeight$1(node$1);
+							}
+							return fixedNodeWeight$1;
+						};
+						if (this.constraints.fixedNodeConstraint) {
+							this.constraints.fixedNodeConstraint.forEach(function(nodeData) {
+								self$1.fixedNodeSet.add(nodeData.nodeId);
+							});
+							var allNodes = this.graphManager.getAllNodes();
+							var node;
+							for (var i$1 = 0; i$1 < allNodes.length; i$1++) {
+								node = allNodes[i$1];
+								if (node.getChild() != null) {
+									var fixedNodeWeight = calculateCompoundWeight(node);
+									if (fixedNodeWeight > 0) node.fixedNodeWeight = fixedNodeWeight;
+								}
+							}
+						}
+						if (this.constraints.relativePlacementConstraint) {
+							var nodeToDummyForVerticalAlignment = new Map();
+							var nodeToDummyForHorizontalAlignment = new Map();
+							this.dummyToNodeForVerticalAlignment = new Map();
+							this.dummyToNodeForHorizontalAlignment = new Map();
+							this.fixedNodesOnHorizontal = new Set();
+							this.fixedNodesOnVertical = new Set();
+							this.fixedNodeSet.forEach(function(nodeId) {
+								self$1.fixedNodesOnHorizontal.add(nodeId);
+								self$1.fixedNodesOnVertical.add(nodeId);
+							});
+							if (this.constraints.alignmentConstraint) {
+								if (this.constraints.alignmentConstraint.vertical) {
+									var verticalAlignment$1 = this.constraints.alignmentConstraint.vertical;
+									for (var i$1 = 0; i$1 < verticalAlignment$1.length; i$1++) {
+										this.dummyToNodeForVerticalAlignment.set("dummy" + i$1, []);
+										verticalAlignment$1[i$1].forEach(function(nodeId) {
+											nodeToDummyForVerticalAlignment.set(nodeId, "dummy" + i$1);
+											self$1.dummyToNodeForVerticalAlignment.get("dummy" + i$1).push(nodeId);
+											if (self$1.fixedNodeSet.has(nodeId)) self$1.fixedNodesOnHorizontal.add("dummy" + i$1);
+										});
+									}
+								}
+								if (this.constraints.alignmentConstraint.horizontal) {
+									var horizontalAlignment = this.constraints.alignmentConstraint.horizontal;
+									for (var i$1 = 0; i$1 < horizontalAlignment.length; i$1++) {
+										this.dummyToNodeForHorizontalAlignment.set("dummy" + i$1, []);
+										horizontalAlignment[i$1].forEach(function(nodeId) {
+											nodeToDummyForHorizontalAlignment.set(nodeId, "dummy" + i$1);
+											self$1.dummyToNodeForHorizontalAlignment.get("dummy" + i$1).push(nodeId);
+											if (self$1.fixedNodeSet.has(nodeId)) self$1.fixedNodesOnVertical.add("dummy" + i$1);
+										});
+									}
+								}
+							}
+							if (CoSEConstants.RELAX_MOVEMENT_ON_CONSTRAINTS) {
+								this.shuffle = function(array$1) {
+									var j, x$1, i$2;
+									for (i$2 = array$1.length - 1; i$2 >= 2 * array$1.length / 3; i$2--) {
+										j = Math.floor(Math.random() * (i$2 + 1));
+										x$1 = array$1[i$2];
+										array$1[i$2] = array$1[j];
+										array$1[j] = x$1;
+									}
+									return array$1;
+								};
+								this.nodesInRelativeHorizontal = [];
+								this.nodesInRelativeVertical = [];
+								this.nodeToRelativeConstraintMapHorizontal = new Map();
+								this.nodeToRelativeConstraintMapVertical = new Map();
+								this.nodeToTempPositionMapHorizontal = new Map();
+								this.nodeToTempPositionMapVertical = new Map();
+								this.constraints.relativePlacementConstraint.forEach(function(constraint) {
+									if (constraint.left) {
+										var nodeIdLeft = nodeToDummyForVerticalAlignment.has(constraint.left) ? nodeToDummyForVerticalAlignment.get(constraint.left) : constraint.left;
+										var nodeIdRight = nodeToDummyForVerticalAlignment.has(constraint.right) ? nodeToDummyForVerticalAlignment.get(constraint.right) : constraint.right;
+										if (!self$1.nodesInRelativeHorizontal.includes(nodeIdLeft)) {
+											self$1.nodesInRelativeHorizontal.push(nodeIdLeft);
+											self$1.nodeToRelativeConstraintMapHorizontal.set(nodeIdLeft, []);
+											if (self$1.dummyToNodeForVerticalAlignment.has(nodeIdLeft)) self$1.nodeToTempPositionMapHorizontal.set(nodeIdLeft, self$1.idToNodeMap.get(self$1.dummyToNodeForVerticalAlignment.get(nodeIdLeft)[0]).getCenterX());
+											else self$1.nodeToTempPositionMapHorizontal.set(nodeIdLeft, self$1.idToNodeMap.get(nodeIdLeft).getCenterX());
+										}
+										if (!self$1.nodesInRelativeHorizontal.includes(nodeIdRight)) {
+											self$1.nodesInRelativeHorizontal.push(nodeIdRight);
+											self$1.nodeToRelativeConstraintMapHorizontal.set(nodeIdRight, []);
+											if (self$1.dummyToNodeForVerticalAlignment.has(nodeIdRight)) self$1.nodeToTempPositionMapHorizontal.set(nodeIdRight, self$1.idToNodeMap.get(self$1.dummyToNodeForVerticalAlignment.get(nodeIdRight)[0]).getCenterX());
+											else self$1.nodeToTempPositionMapHorizontal.set(nodeIdRight, self$1.idToNodeMap.get(nodeIdRight).getCenterX());
+										}
+										self$1.nodeToRelativeConstraintMapHorizontal.get(nodeIdLeft).push({
+											right: nodeIdRight,
+											gap: constraint.gap
+										});
+										self$1.nodeToRelativeConstraintMapHorizontal.get(nodeIdRight).push({
+											left: nodeIdLeft,
+											gap: constraint.gap
+										});
+									} else {
+										var nodeIdTop = nodeToDummyForHorizontalAlignment.has(constraint.top) ? nodeToDummyForHorizontalAlignment.get(constraint.top) : constraint.top;
+										var nodeIdBottom = nodeToDummyForHorizontalAlignment.has(constraint.bottom) ? nodeToDummyForHorizontalAlignment.get(constraint.bottom) : constraint.bottom;
+										if (!self$1.nodesInRelativeVertical.includes(nodeIdTop)) {
+											self$1.nodesInRelativeVertical.push(nodeIdTop);
+											self$1.nodeToRelativeConstraintMapVertical.set(nodeIdTop, []);
+											if (self$1.dummyToNodeForHorizontalAlignment.has(nodeIdTop)) self$1.nodeToTempPositionMapVertical.set(nodeIdTop, self$1.idToNodeMap.get(self$1.dummyToNodeForHorizontalAlignment.get(nodeIdTop)[0]).getCenterY());
+											else self$1.nodeToTempPositionMapVertical.set(nodeIdTop, self$1.idToNodeMap.get(nodeIdTop).getCenterY());
+										}
+										if (!self$1.nodesInRelativeVertical.includes(nodeIdBottom)) {
+											self$1.nodesInRelativeVertical.push(nodeIdBottom);
+											self$1.nodeToRelativeConstraintMapVertical.set(nodeIdBottom, []);
+											if (self$1.dummyToNodeForHorizontalAlignment.has(nodeIdBottom)) self$1.nodeToTempPositionMapVertical.set(nodeIdBottom, self$1.idToNodeMap.get(self$1.dummyToNodeForHorizontalAlignment.get(nodeIdBottom)[0]).getCenterY());
+											else self$1.nodeToTempPositionMapVertical.set(nodeIdBottom, self$1.idToNodeMap.get(nodeIdBottom).getCenterY());
+										}
+										self$1.nodeToRelativeConstraintMapVertical.get(nodeIdTop).push({
+											bottom: nodeIdBottom,
+											gap: constraint.gap
+										});
+										self$1.nodeToRelativeConstraintMapVertical.get(nodeIdBottom).push({
+											top: nodeIdTop,
+											gap: constraint.gap
+										});
+									}
+								});
+							} else {
+								var subGraphOnHorizontal = new Map();
+								var subGraphOnVertical = new Map();
+								this.constraints.relativePlacementConstraint.forEach(function(constraint) {
+									if (constraint.left) {
+										var left = nodeToDummyForVerticalAlignment.has(constraint.left) ? nodeToDummyForVerticalAlignment.get(constraint.left) : constraint.left;
+										var right = nodeToDummyForVerticalAlignment.has(constraint.right) ? nodeToDummyForVerticalAlignment.get(constraint.right) : constraint.right;
+										if (subGraphOnHorizontal.has(left)) subGraphOnHorizontal.get(left).push(right);
+										else subGraphOnHorizontal.set(left, [right]);
+										if (subGraphOnHorizontal.has(right)) subGraphOnHorizontal.get(right).push(left);
+										else subGraphOnHorizontal.set(right, [left]);
+									} else {
+										var top = nodeToDummyForHorizontalAlignment.has(constraint.top) ? nodeToDummyForHorizontalAlignment.get(constraint.top) : constraint.top;
+										var bottom = nodeToDummyForHorizontalAlignment.has(constraint.bottom) ? nodeToDummyForHorizontalAlignment.get(constraint.bottom) : constraint.bottom;
+										if (subGraphOnVertical.has(top)) subGraphOnVertical.get(top).push(bottom);
+										else subGraphOnVertical.set(top, [bottom]);
+										if (subGraphOnVertical.has(bottom)) subGraphOnVertical.get(bottom).push(top);
+										else subGraphOnVertical.set(bottom, [top]);
+									}
+								});
+								var constructComponents = function constructComponents$1(graph, fixedNodes) {
+									var components$1 = [];
+									var isFixed = [];
+									var queue = new LinkedList();
+									var visited = new Set();
+									var count = 0;
+									graph.forEach(function(value, key) {
+										if (!visited.has(key)) {
+											components$1[count] = [];
+											isFixed[count] = false;
+											var currentNode = key;
+											queue.push(currentNode);
+											visited.add(currentNode);
+											components$1[count].push(currentNode);
+											while (queue.length != 0) {
+												currentNode = queue.shift();
+												if (fixedNodes.has(currentNode)) isFixed[count] = true;
+												var neighbors = graph.get(currentNode);
+												neighbors.forEach(function(neighbor) {
+													if (!visited.has(neighbor)) {
+														queue.push(neighbor);
+														visited.add(neighbor);
+														components$1[count].push(neighbor);
+													}
+												});
+											}
+											count++;
+										}
+									});
+									return {
+										components: components$1,
+										isFixed
+									};
+								};
+								var resultOnHorizontal = constructComponents(subGraphOnHorizontal, self$1.fixedNodesOnHorizontal);
+								this.componentsOnHorizontal = resultOnHorizontal.components;
+								this.fixedComponentsOnHorizontal = resultOnHorizontal.isFixed;
+								var resultOnVertical = constructComponents(subGraphOnVertical, self$1.fixedNodesOnVertical);
+								this.componentsOnVertical = resultOnVertical.components;
+								this.fixedComponentsOnVertical = resultOnVertical.isFixed;
+							}
+						}
+					};
+					CoSELayout.prototype.updateDisplacements = function() {
+						var self$1 = this;
+						if (this.constraints.fixedNodeConstraint) this.constraints.fixedNodeConstraint.forEach(function(nodeData) {
+							var fixedNode = self$1.idToNodeMap.get(nodeData.nodeId);
+							fixedNode.displacementX = 0;
+							fixedNode.displacementY = 0;
+						});
+						if (this.constraints.alignmentConstraint) {
+							if (this.constraints.alignmentConstraint.vertical) {
+								var allVerticalAlignments = this.constraints.alignmentConstraint.vertical;
+								for (var i$1 = 0; i$1 < allVerticalAlignments.length; i$1++) {
+									var totalDisplacementX = 0;
+									for (var j = 0; j < allVerticalAlignments[i$1].length; j++) {
+										if (this.fixedNodeSet.has(allVerticalAlignments[i$1][j])) {
+											totalDisplacementX = 0;
+											break;
+										}
+										totalDisplacementX += this.idToNodeMap.get(allVerticalAlignments[i$1][j]).displacementX;
+									}
+									var averageDisplacementX = totalDisplacementX / allVerticalAlignments[i$1].length;
+									for (var j = 0; j < allVerticalAlignments[i$1].length; j++) this.idToNodeMap.get(allVerticalAlignments[i$1][j]).displacementX = averageDisplacementX;
+								}
+							}
+							if (this.constraints.alignmentConstraint.horizontal) {
+								var allHorizontalAlignments = this.constraints.alignmentConstraint.horizontal;
+								for (var i$1 = 0; i$1 < allHorizontalAlignments.length; i$1++) {
+									var totalDisplacementY = 0;
+									for (var j = 0; j < allHorizontalAlignments[i$1].length; j++) {
+										if (this.fixedNodeSet.has(allHorizontalAlignments[i$1][j])) {
+											totalDisplacementY = 0;
+											break;
+										}
+										totalDisplacementY += this.idToNodeMap.get(allHorizontalAlignments[i$1][j]).displacementY;
+									}
+									var averageDisplacementY = totalDisplacementY / allHorizontalAlignments[i$1].length;
+									for (var j = 0; j < allHorizontalAlignments[i$1].length; j++) this.idToNodeMap.get(allHorizontalAlignments[i$1][j]).displacementY = averageDisplacementY;
+								}
+							}
+						}
+						if (this.constraints.relativePlacementConstraint) if (CoSEConstants.RELAX_MOVEMENT_ON_CONSTRAINTS) {
+							if (this.totalIterations % 10 == 0) {
+								this.shuffle(this.nodesInRelativeHorizontal);
+								this.shuffle(this.nodesInRelativeVertical);
+							}
+							this.nodesInRelativeHorizontal.forEach(function(nodeId) {
+								if (!self$1.fixedNodesOnHorizontal.has(nodeId)) {
+									var displacement = 0;
+									if (self$1.dummyToNodeForVerticalAlignment.has(nodeId)) displacement = self$1.idToNodeMap.get(self$1.dummyToNodeForVerticalAlignment.get(nodeId)[0]).displacementX;
+									else displacement = self$1.idToNodeMap.get(nodeId).displacementX;
+									self$1.nodeToRelativeConstraintMapHorizontal.get(nodeId).forEach(function(constraint) {
+										if (constraint.right) {
+											var diff = self$1.nodeToTempPositionMapHorizontal.get(constraint.right) - self$1.nodeToTempPositionMapHorizontal.get(nodeId) - displacement;
+											if (diff < constraint.gap) displacement -= constraint.gap - diff;
+										} else {
+											var diff = self$1.nodeToTempPositionMapHorizontal.get(nodeId) - self$1.nodeToTempPositionMapHorizontal.get(constraint.left) + displacement;
+											if (diff < constraint.gap) displacement += constraint.gap - diff;
+										}
+									});
+									self$1.nodeToTempPositionMapHorizontal.set(nodeId, self$1.nodeToTempPositionMapHorizontal.get(nodeId) + displacement);
+									if (self$1.dummyToNodeForVerticalAlignment.has(nodeId)) self$1.dummyToNodeForVerticalAlignment.get(nodeId).forEach(function(nodeId$1) {
+										self$1.idToNodeMap.get(nodeId$1).displacementX = displacement;
+									});
+									else self$1.idToNodeMap.get(nodeId).displacementX = displacement;
+								}
+							});
+							this.nodesInRelativeVertical.forEach(function(nodeId) {
+								if (!self$1.fixedNodesOnHorizontal.has(nodeId)) {
+									var displacement = 0;
+									if (self$1.dummyToNodeForHorizontalAlignment.has(nodeId)) displacement = self$1.idToNodeMap.get(self$1.dummyToNodeForHorizontalAlignment.get(nodeId)[0]).displacementY;
+									else displacement = self$1.idToNodeMap.get(nodeId).displacementY;
+									self$1.nodeToRelativeConstraintMapVertical.get(nodeId).forEach(function(constraint) {
+										if (constraint.bottom) {
+											var diff = self$1.nodeToTempPositionMapVertical.get(constraint.bottom) - self$1.nodeToTempPositionMapVertical.get(nodeId) - displacement;
+											if (diff < constraint.gap) displacement -= constraint.gap - diff;
+										} else {
+											var diff = self$1.nodeToTempPositionMapVertical.get(nodeId) - self$1.nodeToTempPositionMapVertical.get(constraint.top) + displacement;
+											if (diff < constraint.gap) displacement += constraint.gap - diff;
+										}
+									});
+									self$1.nodeToTempPositionMapVertical.set(nodeId, self$1.nodeToTempPositionMapVertical.get(nodeId) + displacement);
+									if (self$1.dummyToNodeForHorizontalAlignment.has(nodeId)) self$1.dummyToNodeForHorizontalAlignment.get(nodeId).forEach(function(nodeId$1) {
+										self$1.idToNodeMap.get(nodeId$1).displacementY = displacement;
+									});
+									else self$1.idToNodeMap.get(nodeId).displacementY = displacement;
+								}
+							});
+						} else {
+							for (var i$1 = 0; i$1 < this.componentsOnHorizontal.length; i$1++) {
+								var component = this.componentsOnHorizontal[i$1];
+								if (this.fixedComponentsOnHorizontal[i$1]) for (var j = 0; j < component.length; j++) if (this.dummyToNodeForVerticalAlignment.has(component[j])) this.dummyToNodeForVerticalAlignment.get(component[j]).forEach(function(nodeId) {
+									self$1.idToNodeMap.get(nodeId).displacementX = 0;
+								});
+								else this.idToNodeMap.get(component[j]).displacementX = 0;
+								else {
+									var sum = 0;
+									var count = 0;
+									for (var j = 0; j < component.length; j++) if (this.dummyToNodeForVerticalAlignment.has(component[j])) {
+										var actualNodes = this.dummyToNodeForVerticalAlignment.get(component[j]);
+										sum += actualNodes.length * this.idToNodeMap.get(actualNodes[0]).displacementX;
+										count += actualNodes.length;
+									} else {
+										sum += this.idToNodeMap.get(component[j]).displacementX;
+										count++;
+									}
+									var averageDisplacement = sum / count;
+									for (var j = 0; j < component.length; j++) if (this.dummyToNodeForVerticalAlignment.has(component[j])) this.dummyToNodeForVerticalAlignment.get(component[j]).forEach(function(nodeId) {
+										self$1.idToNodeMap.get(nodeId).displacementX = averageDisplacement;
+									});
+									else this.idToNodeMap.get(component[j]).displacementX = averageDisplacement;
+								}
+							}
+							for (var i$1 = 0; i$1 < this.componentsOnVertical.length; i$1++) {
+								var component = this.componentsOnVertical[i$1];
+								if (this.fixedComponentsOnVertical[i$1]) for (var j = 0; j < component.length; j++) if (this.dummyToNodeForHorizontalAlignment.has(component[j])) this.dummyToNodeForHorizontalAlignment.get(component[j]).forEach(function(nodeId) {
+									self$1.idToNodeMap.get(nodeId).displacementY = 0;
+								});
+								else this.idToNodeMap.get(component[j]).displacementY = 0;
+								else {
+									var sum = 0;
+									var count = 0;
+									for (var j = 0; j < component.length; j++) if (this.dummyToNodeForHorizontalAlignment.has(component[j])) {
+										var actualNodes = this.dummyToNodeForHorizontalAlignment.get(component[j]);
+										sum += actualNodes.length * this.idToNodeMap.get(actualNodes[0]).displacementY;
+										count += actualNodes.length;
+									} else {
+										sum += this.idToNodeMap.get(component[j]).displacementY;
+										count++;
+									}
+									var averageDisplacement = sum / count;
+									for (var j = 0; j < component.length; j++) if (this.dummyToNodeForHorizontalAlignment.has(component[j])) this.dummyToNodeForHorizontalAlignment.get(component[j]).forEach(function(nodeId) {
+										self$1.idToNodeMap.get(nodeId).displacementY = averageDisplacement;
+									});
+									else this.idToNodeMap.get(component[j]).displacementY = averageDisplacement;
+								}
+							}
+						}
+					};
+					CoSELayout.prototype.calculateNodesToApplyGravitationTo = function() {
+						var nodeList = [];
+						var graph;
+						var graphs = this.graphManager.getGraphs();
+						var size$1 = graphs.length;
+						var i$1;
+						for (i$1 = 0; i$1 < size$1; i$1++) {
+							graph = graphs[i$1];
+							graph.updateConnected();
+							if (!graph.isConnected) nodeList = nodeList.concat(graph.getNodes());
+						}
+						return nodeList;
+					};
+					CoSELayout.prototype.createBendpoints = function() {
+						var edges = [];
+						edges = edges.concat(this.graphManager.getAllEdges());
+						var visited = new Set();
+						var i$1;
+						for (i$1 = 0; i$1 < edges.length; i$1++) {
+							var edge = edges[i$1];
+							if (!visited.has(edge)) {
+								var source = edge.getSource();
+								var target = edge.getTarget();
+								if (source == target) {
+									edge.getBendpoints().push(new PointD());
+									edge.getBendpoints().push(new PointD());
+									this.createDummyNodesForBendpoints(edge);
+									visited.add(edge);
+								} else {
+									var edgeList = [];
+									edgeList = edgeList.concat(source.getEdgeListToNode(target));
+									edgeList = edgeList.concat(target.getEdgeListToNode(source));
+									if (!visited.has(edgeList[0])) {
+										if (edgeList.length > 1) {
+											var k;
+											for (k = 0; k < edgeList.length; k++) {
+												var multiEdge = edgeList[k];
+												multiEdge.getBendpoints().push(new PointD());
+												this.createDummyNodesForBendpoints(multiEdge);
+											}
+										}
+										edgeList.forEach(function(edge$1) {
+											visited.add(edge$1);
+										});
+									}
+								}
+							}
+							if (visited.size == edges.length) break;
+						}
+					};
+					CoSELayout.prototype.positionNodesRadially = function(forest) {
+						var currentStartingPoint = new Point$1(0, 0);
+						var numberOfColumns = Math.ceil(Math.sqrt(forest.length));
+						var height = 0;
+						var currentY = 0;
+						var currentX = 0;
+						var point = new PointD(0, 0);
+						for (var i$1 = 0; i$1 < forest.length; i$1++) {
+							if (i$1 % numberOfColumns == 0) {
+								currentX = 0;
+								currentY = height;
+								if (i$1 != 0) currentY += CoSEConstants.DEFAULT_COMPONENT_SEPERATION;
+								height = 0;
+							}
+							var tree = forest[i$1];
+							var centerNode = Layout$1.findCenterOfTree(tree);
+							currentStartingPoint.x = currentX;
+							currentStartingPoint.y = currentY;
+							point = CoSELayout.radialLayout(tree, centerNode, currentStartingPoint);
+							if (point.y > height) height = Math.floor(point.y);
+							currentX = Math.floor(point.x + CoSEConstants.DEFAULT_COMPONENT_SEPERATION);
+						}
+						this.transform(new PointD(LayoutConstants.WORLD_CENTER_X - point.x / 2, LayoutConstants.WORLD_CENTER_Y - point.y / 2));
+					};
+					CoSELayout.radialLayout = function(tree, centerNode, startingPoint) {
+						var radialSep = Math.max(this.maxDiagonalInTree(tree), CoSEConstants.DEFAULT_RADIAL_SEPARATION);
+						CoSELayout.branchRadialLayout(centerNode, null, 0, 359, 0, radialSep);
+						var bounds$1 = LGraph.calculateBounds(tree);
+						var transform$1 = new Transform();
+						transform$1.setDeviceOrgX(bounds$1.getMinX());
+						transform$1.setDeviceOrgY(bounds$1.getMinY());
+						transform$1.setWorldOrgX(startingPoint.x);
+						transform$1.setWorldOrgY(startingPoint.y);
+						for (var i$1 = 0; i$1 < tree.length; i$1++) {
+							var node = tree[i$1];
+							node.transform(transform$1);
+						}
+						var bottomRight = new PointD(bounds$1.getMaxX(), bounds$1.getMaxY());
+						return transform$1.inverseTransformPoint(bottomRight);
+					};
+					CoSELayout.branchRadialLayout = function(node, parentOfNode, startAngle, endAngle, distance, radialSeparation) {
+						var halfInterval = (endAngle - startAngle + 1) / 2;
+						if (halfInterval < 0) halfInterval += 180;
+						var nodeAngle = (halfInterval + startAngle) % 360;
+						var teta = nodeAngle * IGeometry.TWO_PI / 360;
+						var cos_teta = Math.cos(teta);
+						var x_ = distance * Math.cos(teta);
+						var y_ = distance * Math.sin(teta);
+						node.setCenter(x_, y_);
+						var neighborEdges = [];
+						neighborEdges = neighborEdges.concat(node.getEdges());
+						var childCount = neighborEdges.length;
+						if (parentOfNode != null) childCount--;
+						var branchCount = 0;
+						var incEdgesCount = neighborEdges.length;
+						var startIndex;
+						var edges = node.getEdgesBetween(parentOfNode);
+						while (edges.length > 1) {
+							var temp = edges[0];
+							edges.splice(0, 1);
+							var index = neighborEdges.indexOf(temp);
+							if (index >= 0) neighborEdges.splice(index, 1);
+							incEdgesCount--;
+							childCount--;
+						}
+						if (parentOfNode != null) startIndex = (neighborEdges.indexOf(edges[0]) + 1) % incEdgesCount;
+						else startIndex = 0;
+						var stepAngle = Math.abs(endAngle - startAngle) / childCount;
+						for (var i$1 = startIndex; branchCount != childCount; i$1 = ++i$1 % incEdgesCount) {
+							var currentNeighbor = neighborEdges[i$1].getOtherEnd(node);
+							if (currentNeighbor == parentOfNode) continue;
+							var childStartAngle = (startAngle + branchCount * stepAngle) % 360;
+							var childEndAngle = (childStartAngle + stepAngle) % 360;
+							CoSELayout.branchRadialLayout(currentNeighbor, node, childStartAngle, childEndAngle, distance + radialSeparation, radialSeparation);
+							branchCount++;
+						}
+					};
+					CoSELayout.maxDiagonalInTree = function(tree) {
+						var maxDiagonal = Integer.MIN_VALUE;
+						for (var i$1 = 0; i$1 < tree.length; i$1++) {
+							var node = tree[i$1];
+							var diagonal = node.getDiagonal();
+							if (diagonal > maxDiagonal) maxDiagonal = diagonal;
+						}
+						return maxDiagonal;
+					};
+					CoSELayout.prototype.calcRepulsionRange = function() {
+						return 2 * (this.level + 1) * this.idealEdgeLength;
+					};
+					CoSELayout.prototype.groupZeroDegreeMembers = function() {
+						var self$1 = this;
+						var tempMemberGroups = {};
+						this.memberGroups = {};
+						this.idToDummyNode = {};
+						var zeroDegree = [];
+						var allNodes = this.graphManager.getAllNodes();
+						for (var i$1 = 0; i$1 < allNodes.length; i$1++) {
+							var node = allNodes[i$1];
+							var parent = node.getParent();
+							if (this.getNodeDegreeWithChildren(node) === 0 && (parent.id == void 0 || !this.getToBeTiled(parent))) zeroDegree.push(node);
+						}
+						for (var i$1 = 0; i$1 < zeroDegree.length; i$1++) {
+							var node = zeroDegree[i$1];
+							var p_id = node.getParent().id;
+							if (typeof tempMemberGroups[p_id] === "undefined") tempMemberGroups[p_id] = [];
+							tempMemberGroups[p_id] = tempMemberGroups[p_id].concat(node);
+						}
+						Object.keys(tempMemberGroups).forEach(function(p_id$1) {
+							if (tempMemberGroups[p_id$1].length > 1) {
+								var dummyCompoundId = "DummyCompound_" + p_id$1;
+								self$1.memberGroups[dummyCompoundId] = tempMemberGroups[p_id$1];
+								var parent$1 = tempMemberGroups[p_id$1][0].getParent();
+								var dummyCompound = new CoSENode(self$1.graphManager);
+								dummyCompound.id = dummyCompoundId;
+								dummyCompound.paddingLeft = parent$1.paddingLeft || 0;
+								dummyCompound.paddingRight = parent$1.paddingRight || 0;
+								dummyCompound.paddingBottom = parent$1.paddingBottom || 0;
+								dummyCompound.paddingTop = parent$1.paddingTop || 0;
+								self$1.idToDummyNode[dummyCompoundId] = dummyCompound;
+								var dummyParentGraph = self$1.getGraphManager().add(self$1.newGraph(), dummyCompound);
+								var parentGraph = parent$1.getChild();
+								parentGraph.add(dummyCompound);
+								for (var i$2 = 0; i$2 < tempMemberGroups[p_id$1].length; i$2++) {
+									var node$1 = tempMemberGroups[p_id$1][i$2];
+									parentGraph.remove(node$1);
+									dummyParentGraph.add(node$1);
+								}
+							}
+						});
+					};
+					CoSELayout.prototype.clearCompounds = function() {
+						var childGraphMap = {};
+						var idToNode = {};
+						this.performDFSOnCompounds();
+						for (var i$1 = 0; i$1 < this.compoundOrder.length; i$1++) {
+							idToNode[this.compoundOrder[i$1].id] = this.compoundOrder[i$1];
+							childGraphMap[this.compoundOrder[i$1].id] = [].concat(this.compoundOrder[i$1].getChild().getNodes());
+							this.graphManager.remove(this.compoundOrder[i$1].getChild());
+							this.compoundOrder[i$1].child = null;
+						}
+						this.graphManager.resetAllNodes();
+						this.tileCompoundMembers(childGraphMap, idToNode);
+					};
+					CoSELayout.prototype.clearZeroDegreeMembers = function() {
+						var self$1 = this;
+						var tiledZeroDegreePack = this.tiledZeroDegreePack = [];
+						Object.keys(this.memberGroups).forEach(function(id) {
+							var compoundNode = self$1.idToDummyNode[id];
+							tiledZeroDegreePack[id] = self$1.tileNodes(self$1.memberGroups[id], compoundNode.paddingLeft + compoundNode.paddingRight);
+							compoundNode.rect.width = tiledZeroDegreePack[id].width;
+							compoundNode.rect.height = tiledZeroDegreePack[id].height;
+							compoundNode.setCenter(tiledZeroDegreePack[id].centerX, tiledZeroDegreePack[id].centerY);
+							compoundNode.labelMarginLeft = 0;
+							compoundNode.labelMarginTop = 0;
+							if (CoSEConstants.NODE_DIMENSIONS_INCLUDE_LABELS) {
+								var width$1 = compoundNode.rect.width;
+								var height = compoundNode.rect.height;
+								if (compoundNode.labelWidth) {
+									if (compoundNode.labelPosHorizontal == "left") {
+										compoundNode.rect.x -= compoundNode.labelWidth;
+										compoundNode.setWidth(width$1 + compoundNode.labelWidth);
+										compoundNode.labelMarginLeft = compoundNode.labelWidth;
+									} else if (compoundNode.labelPosHorizontal == "center" && compoundNode.labelWidth > width$1) {
+										compoundNode.rect.x -= (compoundNode.labelWidth - width$1) / 2;
+										compoundNode.setWidth(compoundNode.labelWidth);
+										compoundNode.labelMarginLeft = (compoundNode.labelWidth - width$1) / 2;
+									} else if (compoundNode.labelPosHorizontal == "right") compoundNode.setWidth(width$1 + compoundNode.labelWidth);
+								}
+								if (compoundNode.labelHeight) {
+									if (compoundNode.labelPosVertical == "top") {
+										compoundNode.rect.y -= compoundNode.labelHeight;
+										compoundNode.setHeight(height + compoundNode.labelHeight);
+										compoundNode.labelMarginTop = compoundNode.labelHeight;
+									} else if (compoundNode.labelPosVertical == "center" && compoundNode.labelHeight > height) {
+										compoundNode.rect.y -= (compoundNode.labelHeight - height) / 2;
+										compoundNode.setHeight(compoundNode.labelHeight);
+										compoundNode.labelMarginTop = (compoundNode.labelHeight - height) / 2;
+									} else if (compoundNode.labelPosVertical == "bottom") compoundNode.setHeight(height + compoundNode.labelHeight);
+								}
+							}
+						});
+					};
+					CoSELayout.prototype.repopulateCompounds = function() {
+						for (var i$1 = this.compoundOrder.length - 1; i$1 >= 0; i$1--) {
+							var lCompoundNode = this.compoundOrder[i$1];
+							var id = lCompoundNode.id;
+							var horizontalMargin = lCompoundNode.paddingLeft;
+							var verticalMargin = lCompoundNode.paddingTop;
+							var labelMarginLeft = lCompoundNode.labelMarginLeft;
+							var labelMarginTop = lCompoundNode.labelMarginTop;
+							this.adjustLocations(this.tiledMemberPack[id], lCompoundNode.rect.x, lCompoundNode.rect.y, horizontalMargin, verticalMargin, labelMarginLeft, labelMarginTop);
+						}
+					};
+					CoSELayout.prototype.repopulateZeroDegreeMembers = function() {
+						var self$1 = this;
+						var tiledPack = this.tiledZeroDegreePack;
+						Object.keys(tiledPack).forEach(function(id) {
+							var compoundNode = self$1.idToDummyNode[id];
+							var horizontalMargin = compoundNode.paddingLeft;
+							var verticalMargin = compoundNode.paddingTop;
+							var labelMarginLeft = compoundNode.labelMarginLeft;
+							var labelMarginTop = compoundNode.labelMarginTop;
+							self$1.adjustLocations(tiledPack[id], compoundNode.rect.x, compoundNode.rect.y, horizontalMargin, verticalMargin, labelMarginLeft, labelMarginTop);
+						});
+					};
+					CoSELayout.prototype.getToBeTiled = function(node) {
+						var id = node.id;
+						if (this.toBeTiled[id] != null) return this.toBeTiled[id];
+						var childGraph = node.getChild();
+						if (childGraph == null) {
+							this.toBeTiled[id] = false;
+							return false;
+						}
+						var children = childGraph.getNodes();
+						for (var i$1 = 0; i$1 < children.length; i$1++) {
+							var theChild = children[i$1];
+							if (this.getNodeDegree(theChild) > 0) {
+								this.toBeTiled[id] = false;
+								return false;
+							}
+							if (theChild.getChild() == null) {
+								this.toBeTiled[theChild.id] = false;
+								continue;
+							}
+							if (!this.getToBeTiled(theChild)) {
+								this.toBeTiled[id] = false;
+								return false;
+							}
+						}
+						this.toBeTiled[id] = true;
+						return true;
+					};
+					CoSELayout.prototype.getNodeDegree = function(node) {
+						var id = node.id;
+						var edges = node.getEdges();
+						var degree = 0;
+						for (var i$1 = 0; i$1 < edges.length; i$1++) {
+							var edge = edges[i$1];
+							if (edge.getSource().id !== edge.getTarget().id) degree = degree + 1;
+						}
+						return degree;
+					};
+					CoSELayout.prototype.getNodeDegreeWithChildren = function(node) {
+						var degree = this.getNodeDegree(node);
+						if (node.getChild() == null) return degree;
+						var children = node.getChild().getNodes();
+						for (var i$1 = 0; i$1 < children.length; i$1++) {
+							var child = children[i$1];
+							degree += this.getNodeDegreeWithChildren(child);
+						}
+						return degree;
+					};
+					CoSELayout.prototype.performDFSOnCompounds = function() {
+						this.compoundOrder = [];
+						this.fillCompexOrderByDFS(this.graphManager.getRoot().getNodes());
+					};
+					CoSELayout.prototype.fillCompexOrderByDFS = function(children) {
+						for (var i$1 = 0; i$1 < children.length; i$1++) {
+							var child = children[i$1];
+							if (child.getChild() != null) this.fillCompexOrderByDFS(child.getChild().getNodes());
+							if (this.getToBeTiled(child)) this.compoundOrder.push(child);
+						}
+					};
+					/**
+					* This method places each zero degree member wrt given (x,y) coordinates (top left).
+					*/
+					CoSELayout.prototype.adjustLocations = function(organization, x$1, y$1, compoundHorizontalMargin, compoundVerticalMargin, compoundLabelMarginLeft, compoundLabelMarginTop) {
+						x$1 += compoundHorizontalMargin + compoundLabelMarginLeft;
+						y$1 += compoundVerticalMargin + compoundLabelMarginTop;
+						var left = x$1;
+						for (var i$1 = 0; i$1 < organization.rows.length; i$1++) {
+							var row = organization.rows[i$1];
+							x$1 = left;
+							var maxHeight = 0;
+							for (var j = 0; j < row.length; j++) {
+								var lnode = row[j];
+								lnode.rect.x = x$1;
+								lnode.rect.y = y$1;
+								x$1 += lnode.rect.width + organization.horizontalPadding;
+								if (lnode.rect.height > maxHeight) maxHeight = lnode.rect.height;
+							}
+							y$1 += maxHeight + organization.verticalPadding;
+						}
+					};
+					CoSELayout.prototype.tileCompoundMembers = function(childGraphMap, idToNode) {
+						var self$1 = this;
+						this.tiledMemberPack = [];
+						Object.keys(childGraphMap).forEach(function(id) {
+							var compoundNode = idToNode[id];
+							self$1.tiledMemberPack[id] = self$1.tileNodes(childGraphMap[id], compoundNode.paddingLeft + compoundNode.paddingRight);
+							compoundNode.rect.width = self$1.tiledMemberPack[id].width;
+							compoundNode.rect.height = self$1.tiledMemberPack[id].height;
+							compoundNode.setCenter(self$1.tiledMemberPack[id].centerX, self$1.tiledMemberPack[id].centerY);
+							compoundNode.labelMarginLeft = 0;
+							compoundNode.labelMarginTop = 0;
+							if (CoSEConstants.NODE_DIMENSIONS_INCLUDE_LABELS) {
+								var width$1 = compoundNode.rect.width;
+								var height = compoundNode.rect.height;
+								if (compoundNode.labelWidth) {
+									if (compoundNode.labelPosHorizontal == "left") {
+										compoundNode.rect.x -= compoundNode.labelWidth;
+										compoundNode.setWidth(width$1 + compoundNode.labelWidth);
+										compoundNode.labelMarginLeft = compoundNode.labelWidth;
+									} else if (compoundNode.labelPosHorizontal == "center" && compoundNode.labelWidth > width$1) {
+										compoundNode.rect.x -= (compoundNode.labelWidth - width$1) / 2;
+										compoundNode.setWidth(compoundNode.labelWidth);
+										compoundNode.labelMarginLeft = (compoundNode.labelWidth - width$1) / 2;
+									} else if (compoundNode.labelPosHorizontal == "right") compoundNode.setWidth(width$1 + compoundNode.labelWidth);
+								}
+								if (compoundNode.labelHeight) {
+									if (compoundNode.labelPosVertical == "top") {
+										compoundNode.rect.y -= compoundNode.labelHeight;
+										compoundNode.setHeight(height + compoundNode.labelHeight);
+										compoundNode.labelMarginTop = compoundNode.labelHeight;
+									} else if (compoundNode.labelPosVertical == "center" && compoundNode.labelHeight > height) {
+										compoundNode.rect.y -= (compoundNode.labelHeight - height) / 2;
+										compoundNode.setHeight(compoundNode.labelHeight);
+										compoundNode.labelMarginTop = (compoundNode.labelHeight - height) / 2;
+									} else if (compoundNode.labelPosVertical == "bottom") compoundNode.setHeight(height + compoundNode.labelHeight);
+								}
+							}
+						});
+					};
+					CoSELayout.prototype.tileNodes = function(nodes, minWidth) {
+						var horizontalOrg = this.tileNodesByFavoringDim(nodes, minWidth, true);
+						var verticalOrg = this.tileNodesByFavoringDim(nodes, minWidth, false);
+						var horizontalRatio = this.getOrgRatio(horizontalOrg);
+						var verticalRatio = this.getOrgRatio(verticalOrg);
+						var bestOrg;
+						if (verticalRatio < horizontalRatio) bestOrg = verticalOrg;
+						else bestOrg = horizontalOrg;
+						return bestOrg;
+					};
+					CoSELayout.prototype.getOrgRatio = function(organization) {
+						var width$1 = organization.width;
+						var height = organization.height;
+						var ratio = width$1 / height;
+						if (ratio < 1) ratio = 1 / ratio;
+						return ratio;
+					};
+					CoSELayout.prototype.calcIdealRowWidth = function(members, favorHorizontalDim) {
+						var verticalPadding = CoSEConstants.TILING_PADDING_VERTICAL;
+						var horizontalPadding = CoSEConstants.TILING_PADDING_HORIZONTAL;
+						var membersSize = members.length;
+						var totalWidth = 0;
+						var totalHeight = 0;
+						var maxWidth = 0;
+						members.forEach(function(node) {
+							totalWidth += node.getWidth();
+							totalHeight += node.getHeight();
+							if (node.getWidth() > maxWidth) maxWidth = node.getWidth();
+						});
+						var averageWidth = totalWidth / membersSize;
+						var averageHeight = totalHeight / membersSize;
+						var delta = Math.pow(verticalPadding - horizontalPadding, 2) + 4 * (averageWidth + horizontalPadding) * (averageHeight + verticalPadding) * membersSize;
+						var horizontalCountDouble = (horizontalPadding - verticalPadding + Math.sqrt(delta)) / (2 * (averageWidth + horizontalPadding));
+						var horizontalCount;
+						if (favorHorizontalDim) {
+							horizontalCount = Math.ceil(horizontalCountDouble);
+							if (horizontalCount == horizontalCountDouble) horizontalCount++;
+						} else horizontalCount = Math.floor(horizontalCountDouble);
+						var idealWidth = horizontalCount * (averageWidth + horizontalPadding) - horizontalPadding;
+						if (maxWidth > idealWidth) idealWidth = maxWidth;
+						idealWidth += horizontalPadding * 2;
+						return idealWidth;
+					};
+					CoSELayout.prototype.tileNodesByFavoringDim = function(nodes, minWidth, favorHorizontalDim) {
+						var verticalPadding = CoSEConstants.TILING_PADDING_VERTICAL;
+						var horizontalPadding = CoSEConstants.TILING_PADDING_HORIZONTAL;
+						var tilingCompareBy = CoSEConstants.TILING_COMPARE_BY;
+						var organization = {
+							rows: [],
+							rowWidth: [],
+							rowHeight: [],
+							width: 0,
+							height: minWidth,
+							verticalPadding,
+							horizontalPadding,
+							centerX: 0,
+							centerY: 0
+						};
+						if (tilingCompareBy) organization.idealRowWidth = this.calcIdealRowWidth(nodes, favorHorizontalDim);
+						var getNodeArea = function getNodeArea$1(n) {
+							return n.rect.width * n.rect.height;
+						};
+						var areaCompareFcn = function areaCompareFcn$1(n1, n2) {
+							return getNodeArea(n2) - getNodeArea(n1);
+						};
+						nodes.sort(function(n1, n2) {
+							var cmpBy = areaCompareFcn;
+							if (organization.idealRowWidth) {
+								cmpBy = tilingCompareBy;
+								return cmpBy(n1.id, n2.id);
+							}
+							return cmpBy(n1, n2);
+						});
+						var sumCenterX = 0;
+						var sumCenterY = 0;
+						for (var i$1 = 0; i$1 < nodes.length; i$1++) {
+							var lNode = nodes[i$1];
+							sumCenterX += lNode.getCenterX();
+							sumCenterY += lNode.getCenterY();
+						}
+						organization.centerX = sumCenterX / nodes.length;
+						organization.centerY = sumCenterY / nodes.length;
+						for (var i$1 = 0; i$1 < nodes.length; i$1++) {
+							var lNode = nodes[i$1];
+							if (organization.rows.length == 0) this.insertNodeToRow(organization, lNode, 0, minWidth);
+							else if (this.canAddHorizontal(organization, lNode.rect.width, lNode.rect.height)) {
+								var rowIndex = organization.rows.length - 1;
+								if (!organization.idealRowWidth) rowIndex = this.getShortestRowIndex(organization);
+								this.insertNodeToRow(organization, lNode, rowIndex, minWidth);
+							} else this.insertNodeToRow(organization, lNode, organization.rows.length, minWidth);
+							this.shiftToLastRow(organization);
+						}
+						return organization;
+					};
+					CoSELayout.prototype.insertNodeToRow = function(organization, node, rowIndex, minWidth) {
+						var minCompoundSize = minWidth;
+						if (rowIndex == organization.rows.length) {
+							var secondDimension = [];
+							organization.rows.push(secondDimension);
+							organization.rowWidth.push(minCompoundSize);
+							organization.rowHeight.push(0);
+						}
+						var w = organization.rowWidth[rowIndex] + node.rect.width;
+						if (organization.rows[rowIndex].length > 0) w += organization.horizontalPadding;
+						organization.rowWidth[rowIndex] = w;
+						if (organization.width < w) organization.width = w;
+						var h = node.rect.height;
+						if (rowIndex > 0) h += organization.verticalPadding;
+						var extraHeight = 0;
+						if (h > organization.rowHeight[rowIndex]) {
+							extraHeight = organization.rowHeight[rowIndex];
+							organization.rowHeight[rowIndex] = h;
+							extraHeight = organization.rowHeight[rowIndex] - extraHeight;
+						}
+						organization.height += extraHeight;
+						organization.rows[rowIndex].push(node);
+					};
+					CoSELayout.prototype.getShortestRowIndex = function(organization) {
+						var r = -1;
+						var min$2 = Number.MAX_VALUE;
+						for (var i$1 = 0; i$1 < organization.rows.length; i$1++) if (organization.rowWidth[i$1] < min$2) {
+							r = i$1;
+							min$2 = organization.rowWidth[i$1];
+						}
+						return r;
+					};
+					CoSELayout.prototype.getLongestRowIndex = function(organization) {
+						var r = -1;
+						var max$2 = Number.MIN_VALUE;
+						for (var i$1 = 0; i$1 < organization.rows.length; i$1++) if (organization.rowWidth[i$1] > max$2) {
+							r = i$1;
+							max$2 = organization.rowWidth[i$1];
+						}
+						return r;
+					};
+					/**
+					* This method checks whether adding extra width to the organization violates
+					* the aspect ratio(1) or not.
+					*/
+					CoSELayout.prototype.canAddHorizontal = function(organization, extraWidth, extraHeight) {
+						if (organization.idealRowWidth) {
+							var lastRowIndex = organization.rows.length - 1;
+							var lastRowWidth = organization.rowWidth[lastRowIndex];
+							return lastRowWidth + extraWidth + organization.horizontalPadding <= organization.idealRowWidth;
+						}
+						var sri = this.getShortestRowIndex(organization);
+						if (sri < 0) return true;
+						var min$2 = organization.rowWidth[sri];
+						if (min$2 + organization.horizontalPadding + extraWidth <= organization.width) return true;
+						var hDiff = 0;
+						if (organization.rowHeight[sri] < extraHeight) {
+							if (sri > 0) hDiff = extraHeight + organization.verticalPadding - organization.rowHeight[sri];
+						}
+						var add_to_row_ratio;
+						if (organization.width - min$2 >= extraWidth + organization.horizontalPadding) add_to_row_ratio = (organization.height + hDiff) / (min$2 + extraWidth + organization.horizontalPadding);
+						else add_to_row_ratio = (organization.height + hDiff) / organization.width;
+						hDiff = extraHeight + organization.verticalPadding;
+						var add_new_row_ratio;
+						if (organization.width < extraWidth) add_new_row_ratio = (organization.height + hDiff) / extraWidth;
+						else add_new_row_ratio = (organization.height + hDiff) / organization.width;
+						if (add_new_row_ratio < 1) add_new_row_ratio = 1 / add_new_row_ratio;
+						if (add_to_row_ratio < 1) add_to_row_ratio = 1 / add_to_row_ratio;
+						return add_to_row_ratio < add_new_row_ratio;
+					};
+					CoSELayout.prototype.shiftToLastRow = function(organization) {
+						var longest = this.getLongestRowIndex(organization);
+						var last$1 = organization.rowWidth.length - 1;
+						var row = organization.rows[longest];
+						var node = row[row.length - 1];
+						var diff = node.width + organization.horizontalPadding;
+						if (organization.width - organization.rowWidth[last$1] > diff && longest != last$1) {
+							row.splice(-1, 1);
+							organization.rows[last$1].push(node);
+							organization.rowWidth[longest] = organization.rowWidth[longest] - diff;
+							organization.rowWidth[last$1] = organization.rowWidth[last$1] + diff;
+							organization.width = organization.rowWidth[instance.getLongestRowIndex(organization)];
+							var maxHeight = Number.MIN_VALUE;
+							for (var i$1 = 0; i$1 < row.length; i$1++) if (row[i$1].height > maxHeight) maxHeight = row[i$1].height;
+							if (longest > 0) maxHeight += organization.verticalPadding;
+							var prevTotal = organization.rowHeight[longest] + organization.rowHeight[last$1];
+							organization.rowHeight[longest] = maxHeight;
+							if (organization.rowHeight[last$1] < node.height + organization.verticalPadding) organization.rowHeight[last$1] = node.height + organization.verticalPadding;
+							var finalTotal = organization.rowHeight[longest] + organization.rowHeight[last$1];
+							organization.height += finalTotal - prevTotal;
+							this.shiftToLastRow(organization);
+						}
+					};
+					CoSELayout.prototype.tilingPreLayout = function() {
+						if (CoSEConstants.TILE) {
+							this.groupZeroDegreeMembers();
+							this.clearCompounds();
+							this.clearZeroDegreeMembers();
+						}
+					};
+					CoSELayout.prototype.tilingPostLayout = function() {
+						if (CoSEConstants.TILE) {
+							this.repopulateZeroDegreeMembers();
+							this.repopulateCompounds();
+						}
+					};
+					CoSELayout.prototype.reduceTrees = function() {
+						var prunedNodesAll = [];
+						var containsLeaf = true;
+						var node;
+						while (containsLeaf) {
+							var allNodes = this.graphManager.getAllNodes();
+							var prunedNodesInStepTemp = [];
+							containsLeaf = false;
+							for (var i$1 = 0; i$1 < allNodes.length; i$1++) {
+								node = allNodes[i$1];
+								if (node.getEdges().length == 1 && !node.getEdges()[0].isInterGraph && node.getChild() == null) {
+									if (CoSEConstants.PURE_INCREMENTAL) {
+										var otherEnd = node.getEdges()[0].getOtherEnd(node);
+										var relativePosition = new DimensionD$1(node.getCenterX() - otherEnd.getCenterX(), node.getCenterY() - otherEnd.getCenterY());
+										prunedNodesInStepTemp.push([
+											node,
+											node.getEdges()[0],
+											node.getOwner(),
+											relativePosition
+										]);
+									} else prunedNodesInStepTemp.push([
+										node,
+										node.getEdges()[0],
+										node.getOwner()
+									]);
+									containsLeaf = true;
+								}
+							}
+							if (containsLeaf == true) {
+								var prunedNodesInStep = [];
+								for (var j = 0; j < prunedNodesInStepTemp.length; j++) if (prunedNodesInStepTemp[j][0].getEdges().length == 1) {
+									prunedNodesInStep.push(prunedNodesInStepTemp[j]);
+									prunedNodesInStepTemp[j][0].getOwner().remove(prunedNodesInStepTemp[j][0]);
+								}
+								prunedNodesAll.push(prunedNodesInStep);
+								this.graphManager.resetAllNodes();
+								this.graphManager.resetAllEdges();
+							}
+						}
+						this.prunedNodesAll = prunedNodesAll;
+					};
+					CoSELayout.prototype.growTree = function(prunedNodesAll) {
+						var lengthOfPrunedNodesInStep = prunedNodesAll.length;
+						var prunedNodesInStep = prunedNodesAll[lengthOfPrunedNodesInStep - 1];
+						var nodeData;
+						for (var i$1 = 0; i$1 < prunedNodesInStep.length; i$1++) {
+							nodeData = prunedNodesInStep[i$1];
+							this.findPlaceforPrunedNode(nodeData);
+							nodeData[2].add(nodeData[0]);
+							nodeData[2].add(nodeData[1], nodeData[1].source, nodeData[1].target);
+						}
+						prunedNodesAll.splice(prunedNodesAll.length - 1, 1);
+						this.graphManager.resetAllNodes();
+						this.graphManager.resetAllEdges();
+					};
+					CoSELayout.prototype.findPlaceforPrunedNode = function(nodeData) {
+						var gridForPrunedNode;
+						var nodeToConnect;
+						var prunedNode = nodeData[0];
+						if (prunedNode == nodeData[1].source) nodeToConnect = nodeData[1].target;
+						else nodeToConnect = nodeData[1].source;
+						if (CoSEConstants.PURE_INCREMENTAL) prunedNode.setCenter(nodeToConnect.getCenterX() + nodeData[3].getWidth(), nodeToConnect.getCenterY() + nodeData[3].getHeight());
+						else {
+							var startGridX = nodeToConnect.startX;
+							var finishGridX = nodeToConnect.finishX;
+							var startGridY = nodeToConnect.startY;
+							var finishGridY = nodeToConnect.finishY;
+							var upNodeCount = 0;
+							var downNodeCount = 0;
+							var rightNodeCount = 0;
+							var leftNodeCount = 0;
+							var controlRegions = [
+								upNodeCount,
+								rightNodeCount,
+								downNodeCount,
+								leftNodeCount
+							];
+							if (startGridY > 0) for (var i$1 = startGridX; i$1 <= finishGridX; i$1++) controlRegions[0] += this.grid[i$1][startGridY - 1].length + this.grid[i$1][startGridY].length - 1;
+							if (finishGridX < this.grid.length - 1) for (var i$1 = startGridY; i$1 <= finishGridY; i$1++) controlRegions[1] += this.grid[finishGridX + 1][i$1].length + this.grid[finishGridX][i$1].length - 1;
+							if (finishGridY < this.grid[0].length - 1) for (var i$1 = startGridX; i$1 <= finishGridX; i$1++) controlRegions[2] += this.grid[i$1][finishGridY + 1].length + this.grid[i$1][finishGridY].length - 1;
+							if (startGridX > 0) for (var i$1 = startGridY; i$1 <= finishGridY; i$1++) controlRegions[3] += this.grid[startGridX - 1][i$1].length + this.grid[startGridX][i$1].length - 1;
+							var min$2 = Integer.MAX_VALUE;
+							var minCount;
+							var minIndex;
+							for (var j = 0; j < controlRegions.length; j++) if (controlRegions[j] < min$2) {
+								min$2 = controlRegions[j];
+								minCount = 1;
+								minIndex = j;
+							} else if (controlRegions[j] == min$2) minCount++;
+							if (minCount == 3 && min$2 == 0) {
+								if (controlRegions[0] == 0 && controlRegions[1] == 0 && controlRegions[2] == 0) gridForPrunedNode = 1;
+								else if (controlRegions[0] == 0 && controlRegions[1] == 0 && controlRegions[3] == 0) gridForPrunedNode = 0;
+								else if (controlRegions[0] == 0 && controlRegions[2] == 0 && controlRegions[3] == 0) gridForPrunedNode = 3;
+								else if (controlRegions[1] == 0 && controlRegions[2] == 0 && controlRegions[3] == 0) gridForPrunedNode = 2;
+							} else if (minCount == 2 && min$2 == 0) {
+								var random = Math.floor(Math.random() * 2);
+								if (controlRegions[0] == 0 && controlRegions[1] == 0) if (random == 0) gridForPrunedNode = 0;
+								else gridForPrunedNode = 1;
+								else if (controlRegions[0] == 0 && controlRegions[2] == 0) if (random == 0) gridForPrunedNode = 0;
+								else gridForPrunedNode = 2;
+								else if (controlRegions[0] == 0 && controlRegions[3] == 0) if (random == 0) gridForPrunedNode = 0;
+								else gridForPrunedNode = 3;
+								else if (controlRegions[1] == 0 && controlRegions[2] == 0) if (random == 0) gridForPrunedNode = 1;
+								else gridForPrunedNode = 2;
+								else if (controlRegions[1] == 0 && controlRegions[3] == 0) if (random == 0) gridForPrunedNode = 1;
+								else gridForPrunedNode = 3;
+								else if (random == 0) gridForPrunedNode = 2;
+								else gridForPrunedNode = 3;
+							} else if (minCount == 4 && min$2 == 0) {
+								var random = Math.floor(Math.random() * 4);
+								gridForPrunedNode = random;
+							} else gridForPrunedNode = minIndex;
+							if (gridForPrunedNode == 0) prunedNode.setCenter(nodeToConnect.getCenterX(), nodeToConnect.getCenterY() - nodeToConnect.getHeight() / 2 - FDLayoutConstants.DEFAULT_EDGE_LENGTH - prunedNode.getHeight() / 2);
+							else if (gridForPrunedNode == 1) prunedNode.setCenter(nodeToConnect.getCenterX() + nodeToConnect.getWidth() / 2 + FDLayoutConstants.DEFAULT_EDGE_LENGTH + prunedNode.getWidth() / 2, nodeToConnect.getCenterY());
+							else if (gridForPrunedNode == 2) prunedNode.setCenter(nodeToConnect.getCenterX(), nodeToConnect.getCenterY() + nodeToConnect.getHeight() / 2 + FDLayoutConstants.DEFAULT_EDGE_LENGTH + prunedNode.getHeight() / 2);
+							else prunedNode.setCenter(nodeToConnect.getCenterX() - nodeToConnect.getWidth() / 2 - FDLayoutConstants.DEFAULT_EDGE_LENGTH - prunedNode.getWidth() / 2, nodeToConnect.getCenterY());
+						}
+					};
+					module$1.exports = CoSELayout;
+				},
+				991: (module$1, __unused_webpack_exports, __webpack_require__$1) => {
+					var FDLayoutNode = __webpack_require__$1(551).FDLayoutNode;
+					var IMath = __webpack_require__$1(551).IMath;
+					function CoSENode(gm, loc, size$1, vNode) {
+						FDLayoutNode.call(this, gm, loc, size$1, vNode);
+					}
+					CoSENode.prototype = Object.create(FDLayoutNode.prototype);
+					for (var prop in FDLayoutNode) CoSENode[prop] = FDLayoutNode[prop];
+					CoSENode.prototype.calculateDisplacement = function() {
+						var layout$2 = this.graphManager.getLayout();
+						if (this.getChild() != null && this.fixedNodeWeight) {
+							this.displacementX += layout$2.coolingFactor * (this.springForceX + this.repulsionForceX + this.gravitationForceX) / this.fixedNodeWeight;
+							this.displacementY += layout$2.coolingFactor * (this.springForceY + this.repulsionForceY + this.gravitationForceY) / this.fixedNodeWeight;
+						} else {
+							this.displacementX += layout$2.coolingFactor * (this.springForceX + this.repulsionForceX + this.gravitationForceX) / this.noOfChildren;
+							this.displacementY += layout$2.coolingFactor * (this.springForceY + this.repulsionForceY + this.gravitationForceY) / this.noOfChildren;
+						}
+						if (Math.abs(this.displacementX) > layout$2.coolingFactor * layout$2.maxNodeDisplacement) this.displacementX = layout$2.coolingFactor * layout$2.maxNodeDisplacement * IMath.sign(this.displacementX);
+						if (Math.abs(this.displacementY) > layout$2.coolingFactor * layout$2.maxNodeDisplacement) this.displacementY = layout$2.coolingFactor * layout$2.maxNodeDisplacement * IMath.sign(this.displacementY);
+						if (this.child && this.child.getNodes().length > 0) this.propogateDisplacementToChildren(this.displacementX, this.displacementY);
+					};
+					CoSENode.prototype.propogateDisplacementToChildren = function(dX, dY) {
+						var nodes = this.getChild().getNodes();
+						var node;
+						for (var i$1 = 0; i$1 < nodes.length; i$1++) {
+							node = nodes[i$1];
+							if (node.getChild() == null) {
+								node.displacementX += dX;
+								node.displacementY += dY;
+							} else node.propogateDisplacementToChildren(dX, dY);
+						}
+					};
+					CoSENode.prototype.move = function() {
+						var layout$2 = this.graphManager.getLayout();
+						if (this.child == null || this.child.getNodes().length == 0) {
+							this.moveBy(this.displacementX, this.displacementY);
+							layout$2.totalDisplacement += Math.abs(this.displacementX) + Math.abs(this.displacementY);
+						}
+						this.springForceX = 0;
+						this.springForceY = 0;
+						this.repulsionForceX = 0;
+						this.repulsionForceY = 0;
+						this.gravitationForceX = 0;
+						this.gravitationForceY = 0;
+						this.displacementX = 0;
+						this.displacementY = 0;
+					};
+					CoSENode.prototype.setPred1 = function(pred1$1) {
+						this.pred1 = pred1$1;
+					};
+					CoSENode.prototype.getPred1 = function() {
+						return pred1;
+					};
+					CoSENode.prototype.getPred2 = function() {
+						return pred2;
+					};
+					CoSENode.prototype.setNext = function(next$1) {
+						this.next = next$1;
+					};
+					CoSENode.prototype.getNext = function() {
+						return next;
+					};
+					CoSENode.prototype.setProcessed = function(processed$1) {
+						this.processed = processed$1;
+					};
+					CoSENode.prototype.isProcessed = function() {
+						return processed;
+					};
+					module$1.exports = CoSENode;
+				},
+				902: (module$1, __unused_webpack_exports, __webpack_require__$1) => {
+					function _toConsumableArray$1(arr) {
+						if (Array.isArray(arr)) {
+							for (var i$1 = 0, arr2 = Array(arr.length); i$1 < arr.length; i$1++) arr2[i$1] = arr[i$1];
+							return arr2;
+						} else return Array.from(arr);
+					}
+					var CoSEConstants = __webpack_require__$1(806);
+					var LinkedList = __webpack_require__$1(551).LinkedList;
+					var Matrix = __webpack_require__$1(551).Matrix;
+					var SVD = __webpack_require__$1(551).SVD;
+					function ConstraintHandler() {}
+					ConstraintHandler.handleConstraints = function(layout$2) {
+						var constraints = {};
+						constraints.fixedNodeConstraint = layout$2.constraints.fixedNodeConstraint;
+						constraints.alignmentConstraint = layout$2.constraints.alignmentConstraint;
+						constraints.relativePlacementConstraint = layout$2.constraints.relativePlacementConstraint;
+						var idToNodeMap = new Map();
+						var nodeIndexes = new Map();
+						var xCoords = [];
+						var yCoords = [];
+						var allNodes = layout$2.getAllNodes();
+						var index = 0;
+						for (var i$1 = 0; i$1 < allNodes.length; i$1++) {
+							var node = allNodes[i$1];
+							if (node.getChild() == null) {
+								nodeIndexes.set(node.id, index++);
+								xCoords.push(node.getCenterX());
+								yCoords.push(node.getCenterY());
+								idToNodeMap.set(node.id, node);
+							}
+						}
+						if (constraints.relativePlacementConstraint) constraints.relativePlacementConstraint.forEach(function(constraint) {
+							if (!constraint.gap && constraint.gap != 0) if (constraint.left) constraint.gap = CoSEConstants.DEFAULT_EDGE_LENGTH + idToNodeMap.get(constraint.left).getWidth() / 2 + idToNodeMap.get(constraint.right).getWidth() / 2;
+							else constraint.gap = CoSEConstants.DEFAULT_EDGE_LENGTH + idToNodeMap.get(constraint.top).getHeight() / 2 + idToNodeMap.get(constraint.bottom).getHeight() / 2;
+						});
+						var calculatePositionDiff = function calculatePositionDiff$1(pos1, pos2) {
+							return {
+								x: pos1.x - pos2.x,
+								y: pos1.y - pos2.y
+							};
+						};
+						var calculateAvgPosition = function calculateAvgPosition$1(nodeIdSet) {
+							var xPosSum = 0;
+							var yPosSum = 0;
+							nodeIdSet.forEach(function(nodeId) {
+								xPosSum += xCoords[nodeIndexes.get(nodeId)];
+								yPosSum += yCoords[nodeIndexes.get(nodeId)];
+							});
+							return {
+								x: xPosSum / nodeIdSet.size,
+								y: yPosSum / nodeIdSet.size
+							};
+						};
+						var findAppropriatePositionForRelativePlacement = function findAppropriatePositionForRelativePlacement$1(graph, direction, fixedNodes$1, dummyPositions, componentSources) {
+							function setUnion(setA, setB) {
+								var union$1 = new Set(setA);
+								var _iteratorNormalCompletion = true;
+								var _didIteratorError = false;
+								var _iteratorError = void 0;
+								try {
+									for (var _iterator = setB[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+										var elem = _step.value;
+										union$1.add(elem);
+									}
+								} catch (err) {
+									_didIteratorError = true;
+									_iteratorError = err;
+								} finally {
+									try {
+										if (!_iteratorNormalCompletion && _iterator.return) _iterator.return();
+									} finally {
+										if (_didIteratorError) throw _iteratorError;
+									}
+								}
+								return union$1;
+							}
+							var inDegrees = new Map();
+							graph.forEach(function(value, key) {
+								inDegrees.set(key, 0);
+							});
+							graph.forEach(function(value, key) {
+								value.forEach(function(adjacent) {
+									inDegrees.set(adjacent.id, inDegrees.get(adjacent.id) + 1);
+								});
+							});
+							var positionMap = new Map();
+							var pastMap = new Map();
+							var queue = new LinkedList();
+							inDegrees.forEach(function(value, key) {
+								if (value == 0) {
+									queue.push(key);
+									if (!fixedNodes$1) if (direction == "horizontal") positionMap.set(key, nodeIndexes.has(key) ? xCoords[nodeIndexes.get(key)] : dummyPositions.get(key));
+									else positionMap.set(key, nodeIndexes.has(key) ? yCoords[nodeIndexes.get(key)] : dummyPositions.get(key));
+								} else positionMap.set(key, Number.NEGATIVE_INFINITY);
+								if (fixedNodes$1) pastMap.set(key, new Set([key]));
+							});
+							if (fixedNodes$1) componentSources.forEach(function(component) {
+								var fixedIds = [];
+								component.forEach(function(nodeId) {
+									if (fixedNodes$1.has(nodeId)) fixedIds.push(nodeId);
+								});
+								if (fixedIds.length > 0) {
+									var position$3 = 0;
+									fixedIds.forEach(function(fixedId) {
+										if (direction == "horizontal") {
+											positionMap.set(fixedId, nodeIndexes.has(fixedId) ? xCoords[nodeIndexes.get(fixedId)] : dummyPositions.get(fixedId));
+											position$3 += positionMap.get(fixedId);
+										} else {
+											positionMap.set(fixedId, nodeIndexes.has(fixedId) ? yCoords[nodeIndexes.get(fixedId)] : dummyPositions.get(fixedId));
+											position$3 += positionMap.get(fixedId);
+										}
+									});
+									position$3 = position$3 / fixedIds.length;
+									component.forEach(function(nodeId) {
+										if (!fixedNodes$1.has(nodeId)) positionMap.set(nodeId, position$3);
+									});
+								} else {
+									var _position = 0;
+									component.forEach(function(nodeId) {
+										if (direction == "horizontal") _position += nodeIndexes.has(nodeId) ? xCoords[nodeIndexes.get(nodeId)] : dummyPositions.get(nodeId);
+										else _position += nodeIndexes.has(nodeId) ? yCoords[nodeIndexes.get(nodeId)] : dummyPositions.get(nodeId);
+									});
+									_position = _position / component.length;
+									component.forEach(function(nodeId) {
+										positionMap.set(nodeId, _position);
+									});
+								}
+							});
+							var _loop = function _loop$1() {
+								var currentNode = queue.shift();
+								var neighbors = graph.get(currentNode);
+								neighbors.forEach(function(neighbor) {
+									if (positionMap.get(neighbor.id) < positionMap.get(currentNode) + neighbor.gap) if (fixedNodes$1 && fixedNodes$1.has(neighbor.id)) {
+										var fixedPosition = void 0;
+										if (direction == "horizontal") fixedPosition = nodeIndexes.has(neighbor.id) ? xCoords[nodeIndexes.get(neighbor.id)] : dummyPositions.get(neighbor.id);
+										else fixedPosition = nodeIndexes.has(neighbor.id) ? yCoords[nodeIndexes.get(neighbor.id)] : dummyPositions.get(neighbor.id);
+										positionMap.set(neighbor.id, fixedPosition);
+										if (fixedPosition < positionMap.get(currentNode) + neighbor.gap) {
+											var diff = positionMap.get(currentNode) + neighbor.gap - fixedPosition;
+											pastMap.get(currentNode).forEach(function(nodeId) {
+												positionMap.set(nodeId, positionMap.get(nodeId) - diff);
+											});
+										}
+									} else positionMap.set(neighbor.id, positionMap.get(currentNode) + neighbor.gap);
+									inDegrees.set(neighbor.id, inDegrees.get(neighbor.id) - 1);
+									if (inDegrees.get(neighbor.id) == 0) queue.push(neighbor.id);
+									if (fixedNodes$1) pastMap.set(neighbor.id, setUnion(pastMap.get(currentNode), pastMap.get(neighbor.id)));
+								});
+							};
+							while (queue.length != 0) _loop();
+							if (fixedNodes$1) {
+								var sinkNodes = new Set();
+								graph.forEach(function(value, key) {
+									if (value.length == 0) sinkNodes.add(key);
+								});
+								var _components = [];
+								pastMap.forEach(function(value, key) {
+									if (sinkNodes.has(key)) {
+										var isFixedComponent = false;
+										var _iteratorNormalCompletion2 = true;
+										var _didIteratorError2 = false;
+										var _iteratorError2 = void 0;
+										try {
+											for (var _iterator2 = value[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+												var nodeId = _step2.value;
+												if (fixedNodes$1.has(nodeId)) isFixedComponent = true;
+											}
+										} catch (err) {
+											_didIteratorError2 = true;
+											_iteratorError2 = err;
+										} finally {
+											try {
+												if (!_iteratorNormalCompletion2 && _iterator2.return) _iterator2.return();
+											} finally {
+												if (_didIteratorError2) throw _iteratorError2;
+											}
+										}
+										if (!isFixedComponent) {
+											var isExist = false;
+											var existAt = void 0;
+											_components.forEach(function(component, index$1) {
+												if (component.has([].concat(_toConsumableArray$1(value))[0])) {
+													isExist = true;
+													existAt = index$1;
+												}
+											});
+											if (!isExist) _components.push(new Set(value));
+											else value.forEach(function(ele) {
+												_components[existAt].add(ele);
+											});
+										}
+									}
+								});
+								_components.forEach(function(component, index$1) {
+									var minBefore = Number.POSITIVE_INFINITY;
+									var minAfter = Number.POSITIVE_INFINITY;
+									var maxBefore = Number.NEGATIVE_INFINITY;
+									var maxAfter = Number.NEGATIVE_INFINITY;
+									var _iteratorNormalCompletion3 = true;
+									var _didIteratorError3 = false;
+									var _iteratorError3 = void 0;
+									try {
+										for (var _iterator3 = component[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+											var nodeId = _step3.value;
+											var posBefore = void 0;
+											if (direction == "horizontal") posBefore = nodeIndexes.has(nodeId) ? xCoords[nodeIndexes.get(nodeId)] : dummyPositions.get(nodeId);
+											else posBefore = nodeIndexes.has(nodeId) ? yCoords[nodeIndexes.get(nodeId)] : dummyPositions.get(nodeId);
+											var posAfter = positionMap.get(nodeId);
+											if (posBefore < minBefore) minBefore = posBefore;
+											if (posBefore > maxBefore) maxBefore = posBefore;
+											if (posAfter < minAfter) minAfter = posAfter;
+											if (posAfter > maxAfter) maxAfter = posAfter;
+										}
+									} catch (err) {
+										_didIteratorError3 = true;
+										_iteratorError3 = err;
+									} finally {
+										try {
+											if (!_iteratorNormalCompletion3 && _iterator3.return) _iterator3.return();
+										} finally {
+											if (_didIteratorError3) throw _iteratorError3;
+										}
+									}
+									var diff = (minBefore + maxBefore) / 2 - (minAfter + maxAfter) / 2;
+									var _iteratorNormalCompletion4 = true;
+									var _didIteratorError4 = false;
+									var _iteratorError4 = void 0;
+									try {
+										for (var _iterator4 = component[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
+											var _nodeId = _step4.value;
+											positionMap.set(_nodeId, positionMap.get(_nodeId) + diff);
+										}
+									} catch (err) {
+										_didIteratorError4 = true;
+										_iteratorError4 = err;
+									} finally {
+										try {
+											if (!_iteratorNormalCompletion4 && _iterator4.return) _iterator4.return();
+										} finally {
+											if (_didIteratorError4) throw _iteratorError4;
+										}
+									}
+								});
+							}
+							return positionMap;
+						};
+						var applyReflectionForRelativePlacement = function applyReflectionForRelativePlacement$1(relativePlacementConstraints) {
+							var reflectOnY = 0, notReflectOnY = 0;
+							var reflectOnX = 0, notReflectOnX = 0;
+							relativePlacementConstraints.forEach(function(constraint) {
+								if (constraint.left) xCoords[nodeIndexes.get(constraint.left)] - xCoords[nodeIndexes.get(constraint.right)] >= 0 ? reflectOnY++ : notReflectOnY++;
+								else yCoords[nodeIndexes.get(constraint.top)] - yCoords[nodeIndexes.get(constraint.bottom)] >= 0 ? reflectOnX++ : notReflectOnX++;
+							});
+							if (reflectOnY > notReflectOnY && reflectOnX > notReflectOnX) for (var _i = 0; _i < nodeIndexes.size; _i++) {
+								xCoords[_i] = -1 * xCoords[_i];
+								yCoords[_i] = -1 * yCoords[_i];
+							}
+							else if (reflectOnY > notReflectOnY) for (var _i2 = 0; _i2 < nodeIndexes.size; _i2++) xCoords[_i2] = -1 * xCoords[_i2];
+							else if (reflectOnX > notReflectOnX) for (var _i3 = 0; _i3 < nodeIndexes.size; _i3++) yCoords[_i3] = -1 * yCoords[_i3];
+						};
+						var findComponents = function findComponents$1(graph) {
+							var components$2 = [];
+							var queue = new LinkedList();
+							var visited = new Set();
+							var count = 0;
+							graph.forEach(function(value, key) {
+								if (!visited.has(key)) {
+									components$2[count] = [];
+									var _currentNode = key;
+									queue.push(_currentNode);
+									visited.add(_currentNode);
+									components$2[count].push(_currentNode);
+									while (queue.length != 0) {
+										_currentNode = queue.shift();
+										var neighbors = graph.get(_currentNode);
+										neighbors.forEach(function(neighbor) {
+											if (!visited.has(neighbor.id)) {
+												queue.push(neighbor.id);
+												visited.add(neighbor.id);
+												components$2[count].push(neighbor.id);
+											}
+										});
+									}
+									count++;
+								}
+							});
+							return components$2;
+						};
+						var dagToUndirected = function dagToUndirected$1(dag$1) {
+							var undirected = new Map();
+							dag$1.forEach(function(value, key) {
+								undirected.set(key, []);
+							});
+							dag$1.forEach(function(value, key) {
+								value.forEach(function(adjacent) {
+									undirected.get(key).push(adjacent);
+									undirected.get(adjacent.id).push({
+										id: key,
+										gap: adjacent.gap,
+										direction: adjacent.direction
+									});
+								});
+							});
+							return undirected;
+						};
+						var dagToReversed = function dagToReversed$1(dag$1) {
+							var reversed = new Map();
+							dag$1.forEach(function(value, key) {
+								reversed.set(key, []);
+							});
+							dag$1.forEach(function(value, key) {
+								value.forEach(function(adjacent) {
+									reversed.get(adjacent.id).push({
+										id: key,
+										gap: adjacent.gap,
+										direction: adjacent.direction
+									});
+								});
+							});
+							return reversed;
+						};
+						/****  apply transformation to the initial draft layout to better align with constrained nodes ****/
+						var targetMatrix = [];
+						var sourceMatrix = [];
+						var standardTransformation = false;
+						var reflectionType = false;
+						var fixedNodes = new Set();
+						var dag = new Map();
+						var dagUndirected = new Map();
+						var components$1 = [];
+						if (constraints.fixedNodeConstraint) constraints.fixedNodeConstraint.forEach(function(nodeData) {
+							fixedNodes.add(nodeData.nodeId);
+						});
+						if (constraints.relativePlacementConstraint) {
+							constraints.relativePlacementConstraint.forEach(function(constraint) {
+								if (constraint.left) {
+									if (dag.has(constraint.left)) dag.get(constraint.left).push({
+										id: constraint.right,
+										gap: constraint.gap,
+										direction: "horizontal"
+									});
+									else dag.set(constraint.left, [{
+										id: constraint.right,
+										gap: constraint.gap,
+										direction: "horizontal"
+									}]);
+									if (!dag.has(constraint.right)) dag.set(constraint.right, []);
+								} else {
+									if (dag.has(constraint.top)) dag.get(constraint.top).push({
+										id: constraint.bottom,
+										gap: constraint.gap,
+										direction: "vertical"
+									});
+									else dag.set(constraint.top, [{
+										id: constraint.bottom,
+										gap: constraint.gap,
+										direction: "vertical"
+									}]);
+									if (!dag.has(constraint.bottom)) dag.set(constraint.bottom, []);
+								}
+							});
+							dagUndirected = dagToUndirected(dag);
+							components$1 = findComponents(dagUndirected);
+						}
+						if (CoSEConstants.TRANSFORM_ON_CONSTRAINT_HANDLING) {
+							if (constraints.fixedNodeConstraint && constraints.fixedNodeConstraint.length > 1) {
+								constraints.fixedNodeConstraint.forEach(function(nodeData, i$2) {
+									targetMatrix[i$2] = [nodeData.position.x, nodeData.position.y];
+									sourceMatrix[i$2] = [xCoords[nodeIndexes.get(nodeData.nodeId)], yCoords[nodeIndexes.get(nodeData.nodeId)]];
+								});
+								standardTransformation = true;
+							} else if (constraints.alignmentConstraint) (function() {
+								var count = 0;
+								if (constraints.alignmentConstraint.vertical) {
+									var verticalAlign = constraints.alignmentConstraint.vertical;
+									var _loop2 = function _loop2$1(_i4$1) {
+										var alignmentSet = new Set();
+										verticalAlign[_i4$1].forEach(function(nodeId) {
+											alignmentSet.add(nodeId);
+										});
+										var intersection$1 = new Set([].concat(_toConsumableArray$1(alignmentSet)).filter(function(x$1) {
+											return fixedNodes.has(x$1);
+										}));
+										var xPos = void 0;
+										if (intersection$1.size > 0) xPos = xCoords[nodeIndexes.get(intersection$1.values().next().value)];
+										else xPos = calculateAvgPosition(alignmentSet).x;
+										verticalAlign[_i4$1].forEach(function(nodeId) {
+											targetMatrix[count] = [xPos, yCoords[nodeIndexes.get(nodeId)]];
+											sourceMatrix[count] = [xCoords[nodeIndexes.get(nodeId)], yCoords[nodeIndexes.get(nodeId)]];
+											count++;
+										});
+									};
+									for (var _i4 = 0; _i4 < verticalAlign.length; _i4++) _loop2(_i4);
+									standardTransformation = true;
+								}
+								if (constraints.alignmentConstraint.horizontal) {
+									var horizontalAlign = constraints.alignmentConstraint.horizontal;
+									var _loop3 = function _loop3$1(_i5$1) {
+										var alignmentSet = new Set();
+										horizontalAlign[_i5$1].forEach(function(nodeId) {
+											alignmentSet.add(nodeId);
+										});
+										var intersection$1 = new Set([].concat(_toConsumableArray$1(alignmentSet)).filter(function(x$1) {
+											return fixedNodes.has(x$1);
+										}));
+										var yPos = void 0;
+										if (intersection$1.size > 0) yPos = xCoords[nodeIndexes.get(intersection$1.values().next().value)];
+										else yPos = calculateAvgPosition(alignmentSet).y;
+										horizontalAlign[_i5$1].forEach(function(nodeId) {
+											targetMatrix[count] = [xCoords[nodeIndexes.get(nodeId)], yPos];
+											sourceMatrix[count] = [xCoords[nodeIndexes.get(nodeId)], yCoords[nodeIndexes.get(nodeId)]];
+											count++;
+										});
+									};
+									for (var _i5 = 0; _i5 < horizontalAlign.length; _i5++) _loop3(_i5);
+									standardTransformation = true;
+								}
+								if (constraints.relativePlacementConstraint) reflectionType = true;
+							})();
+							else if (constraints.relativePlacementConstraint) {
+								var largestComponentSize = 0;
+								var largestComponentIndex = 0;
+								for (var _i6 = 0; _i6 < components$1.length; _i6++) if (components$1[_i6].length > largestComponentSize) {
+									largestComponentSize = components$1[_i6].length;
+									largestComponentIndex = _i6;
+								}
+								if (largestComponentSize < dagUndirected.size / 2) {
+									applyReflectionForRelativePlacement(constraints.relativePlacementConstraint);
+									standardTransformation = false;
+									reflectionType = false;
+								} else {
+									var subGraphOnHorizontal = new Map();
+									var subGraphOnVertical = new Map();
+									var constraintsInlargestComponent = [];
+									components$1[largestComponentIndex].forEach(function(nodeId) {
+										dag.get(nodeId).forEach(function(adjacent) {
+											if (adjacent.direction == "horizontal") {
+												if (subGraphOnHorizontal.has(nodeId)) subGraphOnHorizontal.get(nodeId).push(adjacent);
+												else subGraphOnHorizontal.set(nodeId, [adjacent]);
+												if (!subGraphOnHorizontal.has(adjacent.id)) subGraphOnHorizontal.set(adjacent.id, []);
+												constraintsInlargestComponent.push({
+													left: nodeId,
+													right: adjacent.id
+												});
+											} else {
+												if (subGraphOnVertical.has(nodeId)) subGraphOnVertical.get(nodeId).push(adjacent);
+												else subGraphOnVertical.set(nodeId, [adjacent]);
+												if (!subGraphOnVertical.has(adjacent.id)) subGraphOnVertical.set(adjacent.id, []);
+												constraintsInlargestComponent.push({
+													top: nodeId,
+													bottom: adjacent.id
+												});
+											}
+										});
+									});
+									applyReflectionForRelativePlacement(constraintsInlargestComponent);
+									reflectionType = false;
+									var positionMapHorizontal = findAppropriatePositionForRelativePlacement(subGraphOnHorizontal, "horizontal");
+									var positionMapVertical = findAppropriatePositionForRelativePlacement(subGraphOnVertical, "vertical");
+									components$1[largestComponentIndex].forEach(function(nodeId, i$2) {
+										sourceMatrix[i$2] = [xCoords[nodeIndexes.get(nodeId)], yCoords[nodeIndexes.get(nodeId)]];
+										targetMatrix[i$2] = [];
+										if (positionMapHorizontal.has(nodeId)) targetMatrix[i$2][0] = positionMapHorizontal.get(nodeId);
+										else targetMatrix[i$2][0] = xCoords[nodeIndexes.get(nodeId)];
+										if (positionMapVertical.has(nodeId)) targetMatrix[i$2][1] = positionMapVertical.get(nodeId);
+										else targetMatrix[i$2][1] = yCoords[nodeIndexes.get(nodeId)];
+									});
+									standardTransformation = true;
+								}
+							}
+							if (standardTransformation) {
+								var transformationMatrix = void 0;
+								var targetMatrixTranspose = Matrix.transpose(targetMatrix);
+								var sourceMatrixTranspose = Matrix.transpose(sourceMatrix);
+								for (var _i7 = 0; _i7 < targetMatrixTranspose.length; _i7++) {
+									targetMatrixTranspose[_i7] = Matrix.multGamma(targetMatrixTranspose[_i7]);
+									sourceMatrixTranspose[_i7] = Matrix.multGamma(sourceMatrixTranspose[_i7]);
+								}
+								var tempMatrix = Matrix.multMat(targetMatrixTranspose, Matrix.transpose(sourceMatrixTranspose));
+								var SVDResult = SVD.svd(tempMatrix);
+								transformationMatrix = Matrix.multMat(SVDResult.V, Matrix.transpose(SVDResult.U));
+								for (var _i8 = 0; _i8 < nodeIndexes.size; _i8++) {
+									var temp1 = [xCoords[_i8], yCoords[_i8]];
+									var temp2 = [transformationMatrix[0][0], transformationMatrix[1][0]];
+									var temp3 = [transformationMatrix[0][1], transformationMatrix[1][1]];
+									xCoords[_i8] = Matrix.dotProduct(temp1, temp2);
+									yCoords[_i8] = Matrix.dotProduct(temp1, temp3);
+								}
+								if (reflectionType) applyReflectionForRelativePlacement(constraints.relativePlacementConstraint);
+							}
+						}
+						if (CoSEConstants.ENFORCE_CONSTRAINTS) {
+							/****  enforce constraints on the transformed draft layout ****/
+							if (constraints.fixedNodeConstraint && constraints.fixedNodeConstraint.length > 0) {
+								var translationAmount = {
+									x: 0,
+									y: 0
+								};
+								constraints.fixedNodeConstraint.forEach(function(nodeData, i$2) {
+									var posInTheory = {
+										x: xCoords[nodeIndexes.get(nodeData.nodeId)],
+										y: yCoords[nodeIndexes.get(nodeData.nodeId)]
+									};
+									var posDesired = nodeData.position;
+									var posDiff = calculatePositionDiff(posDesired, posInTheory);
+									translationAmount.x += posDiff.x;
+									translationAmount.y += posDiff.y;
+								});
+								translationAmount.x /= constraints.fixedNodeConstraint.length;
+								translationAmount.y /= constraints.fixedNodeConstraint.length;
+								xCoords.forEach(function(value, i$2) {
+									xCoords[i$2] += translationAmount.x;
+								});
+								yCoords.forEach(function(value, i$2) {
+									yCoords[i$2] += translationAmount.y;
+								});
+								constraints.fixedNodeConstraint.forEach(function(nodeData) {
+									xCoords[nodeIndexes.get(nodeData.nodeId)] = nodeData.position.x;
+									yCoords[nodeIndexes.get(nodeData.nodeId)] = nodeData.position.y;
+								});
+							}
+							if (constraints.alignmentConstraint) {
+								if (constraints.alignmentConstraint.vertical) {
+									var xAlign = constraints.alignmentConstraint.vertical;
+									var _loop4 = function _loop4$1(_i9$1) {
+										var alignmentSet = new Set();
+										xAlign[_i9$1].forEach(function(nodeId) {
+											alignmentSet.add(nodeId);
+										});
+										var intersection$1 = new Set([].concat(_toConsumableArray$1(alignmentSet)).filter(function(x$1) {
+											return fixedNodes.has(x$1);
+										}));
+										var xPos = void 0;
+										if (intersection$1.size > 0) xPos = xCoords[nodeIndexes.get(intersection$1.values().next().value)];
+										else xPos = calculateAvgPosition(alignmentSet).x;
+										alignmentSet.forEach(function(nodeId) {
+											if (!fixedNodes.has(nodeId)) xCoords[nodeIndexes.get(nodeId)] = xPos;
+										});
+									};
+									for (var _i9 = 0; _i9 < xAlign.length; _i9++) _loop4(_i9);
+								}
+								if (constraints.alignmentConstraint.horizontal) {
+									var yAlign = constraints.alignmentConstraint.horizontal;
+									var _loop5 = function _loop5$1(_i10$1) {
+										var alignmentSet = new Set();
+										yAlign[_i10$1].forEach(function(nodeId) {
+											alignmentSet.add(nodeId);
+										});
+										var intersection$1 = new Set([].concat(_toConsumableArray$1(alignmentSet)).filter(function(x$1) {
+											return fixedNodes.has(x$1);
+										}));
+										var yPos = void 0;
+										if (intersection$1.size > 0) yPos = yCoords[nodeIndexes.get(intersection$1.values().next().value)];
+										else yPos = calculateAvgPosition(alignmentSet).y;
+										alignmentSet.forEach(function(nodeId) {
+											if (!fixedNodes.has(nodeId)) yCoords[nodeIndexes.get(nodeId)] = yPos;
+										});
+									};
+									for (var _i10 = 0; _i10 < yAlign.length; _i10++) _loop5(_i10);
+								}
+							}
+							if (constraints.relativePlacementConstraint) (function() {
+								var nodeToDummyForVerticalAlignment = new Map();
+								var nodeToDummyForHorizontalAlignment = new Map();
+								var dummyToNodeForVerticalAlignment = new Map();
+								var dummyToNodeForHorizontalAlignment = new Map();
+								var dummyPositionsForVerticalAlignment = new Map();
+								var dummyPositionsForHorizontalAlignment = new Map();
+								var fixedNodesOnHorizontal = new Set();
+								var fixedNodesOnVertical = new Set();
+								fixedNodes.forEach(function(nodeId$1) {
+									fixedNodesOnHorizontal.add(nodeId$1);
+									fixedNodesOnVertical.add(nodeId$1);
+								});
+								if (constraints.alignmentConstraint) {
+									if (constraints.alignmentConstraint.vertical) {
+										var verticalAlignment$1 = constraints.alignmentConstraint.vertical;
+										var _loop6 = function _loop6$1(_i11$1) {
+											dummyToNodeForVerticalAlignment.set("dummy" + _i11$1, []);
+											verticalAlignment$1[_i11$1].forEach(function(nodeId$1) {
+												nodeToDummyForVerticalAlignment.set(nodeId$1, "dummy" + _i11$1);
+												dummyToNodeForVerticalAlignment.get("dummy" + _i11$1).push(nodeId$1);
+												if (fixedNodes.has(nodeId$1)) fixedNodesOnHorizontal.add("dummy" + _i11$1);
+											});
+											dummyPositionsForVerticalAlignment.set("dummy" + _i11$1, xCoords[nodeIndexes.get(verticalAlignment$1[_i11$1][0])]);
+										};
+										for (var _i11 = 0; _i11 < verticalAlignment$1.length; _i11++) _loop6(_i11);
+									}
+									if (constraints.alignmentConstraint.horizontal) {
+										var horizontalAlignment = constraints.alignmentConstraint.horizontal;
+										var _loop7 = function _loop7$1(_i12$1) {
+											dummyToNodeForHorizontalAlignment.set("dummy" + _i12$1, []);
+											horizontalAlignment[_i12$1].forEach(function(nodeId$1) {
+												nodeToDummyForHorizontalAlignment.set(nodeId$1, "dummy" + _i12$1);
+												dummyToNodeForHorizontalAlignment.get("dummy" + _i12$1).push(nodeId$1);
+												if (fixedNodes.has(nodeId$1)) fixedNodesOnVertical.add("dummy" + _i12$1);
+											});
+											dummyPositionsForHorizontalAlignment.set("dummy" + _i12$1, yCoords[nodeIndexes.get(horizontalAlignment[_i12$1][0])]);
+										};
+										for (var _i12 = 0; _i12 < horizontalAlignment.length; _i12++) _loop7(_i12);
+									}
+								}
+								var dagOnHorizontal = new Map();
+								var dagOnVertical = new Map();
+								var _loop8 = function _loop8$1(nodeId$1) {
+									dag.get(nodeId$1).forEach(function(adjacent) {
+										var sourceId = void 0;
+										var targetNode = void 0;
+										if (adjacent["direction"] == "horizontal") {
+											sourceId = nodeToDummyForVerticalAlignment.get(nodeId$1) ? nodeToDummyForVerticalAlignment.get(nodeId$1) : nodeId$1;
+											if (nodeToDummyForVerticalAlignment.get(adjacent.id)) targetNode = {
+												id: nodeToDummyForVerticalAlignment.get(adjacent.id),
+												gap: adjacent.gap,
+												direction: adjacent.direction
+											};
+											else targetNode = adjacent;
+											if (dagOnHorizontal.has(sourceId)) dagOnHorizontal.get(sourceId).push(targetNode);
+											else dagOnHorizontal.set(sourceId, [targetNode]);
+											if (!dagOnHorizontal.has(targetNode.id)) dagOnHorizontal.set(targetNode.id, []);
+										} else {
+											sourceId = nodeToDummyForHorizontalAlignment.get(nodeId$1) ? nodeToDummyForHorizontalAlignment.get(nodeId$1) : nodeId$1;
+											if (nodeToDummyForHorizontalAlignment.get(adjacent.id)) targetNode = {
+												id: nodeToDummyForHorizontalAlignment.get(adjacent.id),
+												gap: adjacent.gap,
+												direction: adjacent.direction
+											};
+											else targetNode = adjacent;
+											if (dagOnVertical.has(sourceId)) dagOnVertical.get(sourceId).push(targetNode);
+											else dagOnVertical.set(sourceId, [targetNode]);
+											if (!dagOnVertical.has(targetNode.id)) dagOnVertical.set(targetNode.id, []);
+										}
+									});
+								};
+								var _iteratorNormalCompletion5 = true;
+								var _didIteratorError5 = false;
+								var _iteratorError5 = void 0;
+								try {
+									for (var _iterator5 = dag.keys()[Symbol.iterator](), _step5; !(_iteratorNormalCompletion5 = (_step5 = _iterator5.next()).done); _iteratorNormalCompletion5 = true) {
+										var nodeId = _step5.value;
+										_loop8(nodeId);
+									}
+								} catch (err) {
+									_didIteratorError5 = true;
+									_iteratorError5 = err;
+								} finally {
+									try {
+										if (!_iteratorNormalCompletion5 && _iterator5.return) _iterator5.return();
+									} finally {
+										if (_didIteratorError5) throw _iteratorError5;
+									}
+								}
+								var undirectedOnHorizontal = dagToUndirected(dagOnHorizontal);
+								var undirectedOnVertical = dagToUndirected(dagOnVertical);
+								var componentsOnHorizontal = findComponents(undirectedOnHorizontal);
+								var componentsOnVertical = findComponents(undirectedOnVertical);
+								var reversedDagOnHorizontal = dagToReversed(dagOnHorizontal);
+								var reversedDagOnVertical = dagToReversed(dagOnVertical);
+								var componentSourcesOnHorizontal = [];
+								var componentSourcesOnVertical = [];
+								componentsOnHorizontal.forEach(function(component, index$1) {
+									componentSourcesOnHorizontal[index$1] = [];
+									component.forEach(function(nodeId$1) {
+										if (reversedDagOnHorizontal.get(nodeId$1).length == 0) componentSourcesOnHorizontal[index$1].push(nodeId$1);
+									});
+								});
+								componentsOnVertical.forEach(function(component, index$1) {
+									componentSourcesOnVertical[index$1] = [];
+									component.forEach(function(nodeId$1) {
+										if (reversedDagOnVertical.get(nodeId$1).length == 0) componentSourcesOnVertical[index$1].push(nodeId$1);
+									});
+								});
+								var positionMapHorizontal$1 = findAppropriatePositionForRelativePlacement(dagOnHorizontal, "horizontal", fixedNodesOnHorizontal, dummyPositionsForVerticalAlignment, componentSourcesOnHorizontal);
+								var positionMapVertical$1 = findAppropriatePositionForRelativePlacement(dagOnVertical, "vertical", fixedNodesOnVertical, dummyPositionsForHorizontalAlignment, componentSourcesOnVertical);
+								var _loop9 = function _loop9$1(key$1) {
+									if (dummyToNodeForVerticalAlignment.get(key$1)) dummyToNodeForVerticalAlignment.get(key$1).forEach(function(nodeId$1) {
+										xCoords[nodeIndexes.get(nodeId$1)] = positionMapHorizontal$1.get(key$1);
+									});
+									else xCoords[nodeIndexes.get(key$1)] = positionMapHorizontal$1.get(key$1);
+								};
+								var _iteratorNormalCompletion6 = true;
+								var _didIteratorError6 = false;
+								var _iteratorError6 = void 0;
+								try {
+									for (var _iterator6 = positionMapHorizontal$1.keys()[Symbol.iterator](), _step6; !(_iteratorNormalCompletion6 = (_step6 = _iterator6.next()).done); _iteratorNormalCompletion6 = true) {
+										var key = _step6.value;
+										_loop9(key);
+									}
+								} catch (err) {
+									_didIteratorError6 = true;
+									_iteratorError6 = err;
+								} finally {
+									try {
+										if (!_iteratorNormalCompletion6 && _iterator6.return) _iterator6.return();
+									} finally {
+										if (_didIteratorError6) throw _iteratorError6;
+									}
+								}
+								var _loop10 = function _loop10$1(key$1) {
+									if (dummyToNodeForHorizontalAlignment.get(key$1)) dummyToNodeForHorizontalAlignment.get(key$1).forEach(function(nodeId$1) {
+										yCoords[nodeIndexes.get(nodeId$1)] = positionMapVertical$1.get(key$1);
+									});
+									else yCoords[nodeIndexes.get(key$1)] = positionMapVertical$1.get(key$1);
+								};
+								var _iteratorNormalCompletion7 = true;
+								var _didIteratorError7 = false;
+								var _iteratorError7 = void 0;
+								try {
+									for (var _iterator7 = positionMapVertical$1.keys()[Symbol.iterator](), _step7; !(_iteratorNormalCompletion7 = (_step7 = _iterator7.next()).done); _iteratorNormalCompletion7 = true) {
+										var key = _step7.value;
+										_loop10(key);
+									}
+								} catch (err) {
+									_didIteratorError7 = true;
+									_iteratorError7 = err;
+								} finally {
+									try {
+										if (!_iteratorNormalCompletion7 && _iterator7.return) _iterator7.return();
+									} finally {
+										if (_didIteratorError7) throw _iteratorError7;
+									}
+								}
+							})();
+						}
+						for (var _i13 = 0; _i13 < allNodes.length; _i13++) {
+							var _node = allNodes[_i13];
+							if (_node.getChild() == null) _node.setCenter(xCoords[nodeIndexes.get(_node.id)], yCoords[nodeIndexes.get(_node.id)]);
+						}
+					};
+					module$1.exports = ConstraintHandler;
+				},
+				551: (module$1) => {
+					module$1.exports = __WEBPACK_EXTERNAL_MODULE__551__;
+				}
+			};
+			var __webpack_module_cache__ = {};
+			function __webpack_require__(moduleId) {
+				var cachedModule = __webpack_module_cache__[moduleId];
+				if (cachedModule !== void 0) return cachedModule.exports;
+				var module$1 = __webpack_module_cache__[moduleId] = { exports: {} };
+				__webpack_modules__[moduleId](module$1, module$1.exports, __webpack_require__);
+				return module$1.exports;
+			}
+			var __webpack_exports__ = __webpack_require__(45);
+			return __webpack_exports__;
+		})();
+	});
+} });
+
+//#endregion
+//#region node_modules/.pnpm/cytoscape-fcose@2.2.0_cytoscape@3.34.2/node_modules/cytoscape-fcose/cytoscape-fcose.js
+var require_cytoscape_fcose = __commonJS({ "node_modules/.pnpm/cytoscape-fcose@2.2.0_cytoscape@3.34.2/node_modules/cytoscape-fcose/cytoscape-fcose.js"(exports, module) {
+	(function webpackUniversalModuleDefinition(root$12, factory) {
+		if (typeof exports === "object" && typeof module === "object") module.exports = factory(require_cose_base());
+		else if (typeof define === "function" && define.amd) define(["cose-base"], factory);
+		else if (typeof exports === "object") exports["cytoscapeFcose"] = factory(require_cose_base());
+		else root$12["cytoscapeFcose"] = factory(root$12["coseBase"]);
+	})(exports, function(__WEBPACK_EXTERNAL_MODULE__140__) {
+		return (() => {
+			"use strict";
+			var __webpack_modules__ = {
+				658: (module$1) => {
+					module$1.exports = Object.assign != null ? Object.assign.bind(Object) : function(tgt) {
+						for (var _len = arguments.length, srcs = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) srcs[_key - 1] = arguments[_key];
+						srcs.forEach(function(src) {
+							Object.keys(src).forEach(function(k) {
+								return tgt[k] = src[k];
+							});
+						});
+						return tgt;
+					};
+				},
+				548: (module$1, __unused_webpack_exports, __webpack_require__$1) => {
+					var _slicedToArray$1 = function() {
+						function sliceIterator(arr, i$1) {
+							var _arr = [];
+							var _n = true;
+							var _d = false;
+							var _e = void 0;
+							try {
+								for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) {
+									_arr.push(_s.value);
+									if (i$1 && _arr.length === i$1) break;
+								}
+							} catch (err) {
+								_d = true;
+								_e = err;
+							} finally {
+								try {
+									if (!_n && _i["return"]) _i["return"]();
+								} finally {
+									if (_d) throw _e;
+								}
+							}
+							return _arr;
+						}
+						return function(arr, i$1) {
+							if (Array.isArray(arr)) return arr;
+							else if (Symbol.iterator in Object(arr)) return sliceIterator(arr, i$1);
+							else throw new TypeError("Invalid attempt to destructure non-iterable instance");
+						};
+					}();
+					var LinkedList = __webpack_require__$1(140).layoutBase.LinkedList;
+					var auxiliary = {};
+					auxiliary.getTopMostNodes = function(nodes) {
+						var nodesMap = {};
+						for (var i$1 = 0; i$1 < nodes.length; i$1++) nodesMap[nodes[i$1].id()] = true;
+						var roots = nodes.filter(function(ele, i$2) {
+							if (typeof ele === "number") ele = i$2;
+							var parent = ele.parent()[0];
+							while (parent != null) {
+								if (nodesMap[parent.id()]) return false;
+								parent = parent.parent()[0];
+							}
+							return true;
+						});
+						return roots;
+					};
+					auxiliary.connectComponents = function(cy, eles, topMostNodes, dummyNodes) {
+						var queue = new LinkedList();
+						var visited = new Set();
+						var visitedTopMostNodes = [];
+						var currentNeighbor = void 0;
+						var minDegreeNode = void 0;
+						var minDegree = void 0;
+						var isConnected = false;
+						var count = 1;
+						var nodesConnectedToDummy = [];
+						var components$1 = [];
+						var _loop = function _loop$1() {
+							var cmpt = cy.collection();
+							components$1.push(cmpt);
+							var currentNode = topMostNodes[0];
+							var childrenOfCurrentNode = cy.collection();
+							childrenOfCurrentNode.merge(currentNode).merge(currentNode.descendants().intersection(eles));
+							visitedTopMostNodes.push(currentNode);
+							childrenOfCurrentNode.forEach(function(node) {
+								queue.push(node);
+								visited.add(node);
+								cmpt.merge(node);
+							});
+							var _loop2 = function _loop2$1() {
+								currentNode = queue.shift();
+								var neighborNodes = cy.collection();
+								currentNode.neighborhood().nodes().forEach(function(node) {
+									if (eles.intersection(currentNode.edgesWith(node)).length > 0) neighborNodes.merge(node);
+								});
+								for (var i$1 = 0; i$1 < neighborNodes.length; i$1++) {
+									var neighborNode = neighborNodes[i$1];
+									currentNeighbor = topMostNodes.intersection(neighborNode.union(neighborNode.ancestors()));
+									if (currentNeighbor != null && !visited.has(currentNeighbor[0])) {
+										var childrenOfNeighbor = currentNeighbor.union(currentNeighbor.descendants());
+										childrenOfNeighbor.forEach(function(node) {
+											queue.push(node);
+											visited.add(node);
+											cmpt.merge(node);
+											if (topMostNodes.has(node)) visitedTopMostNodes.push(node);
+										});
+									}
+								}
+							};
+							while (queue.length != 0) _loop2();
+							cmpt.forEach(function(node) {
+								eles.intersection(node.connectedEdges()).forEach(function(e) {
+									if (cmpt.has(e.source()) && cmpt.has(e.target())) cmpt.merge(e);
+								});
+							});
+							if (visitedTopMostNodes.length == topMostNodes.length) isConnected = true;
+							if (!isConnected || isConnected && count > 1) {
+								minDegreeNode = visitedTopMostNodes[0];
+								minDegree = minDegreeNode.connectedEdges().length;
+								visitedTopMostNodes.forEach(function(node) {
+									if (node.connectedEdges().length < minDegree) {
+										minDegree = node.connectedEdges().length;
+										minDegreeNode = node;
+									}
+								});
+								nodesConnectedToDummy.push(minDegreeNode.id());
+								var temp = cy.collection();
+								temp.merge(visitedTopMostNodes[0]);
+								visitedTopMostNodes.forEach(function(node) {
+									temp.merge(node);
+								});
+								visitedTopMostNodes = [];
+								topMostNodes = topMostNodes.difference(temp);
+								count++;
+							}
+						};
+						do
+							_loop();
+						while (!isConnected);
+						if (dummyNodes) {
+							if (nodesConnectedToDummy.length > 0) dummyNodes.set("dummy" + (dummyNodes.size + 1), nodesConnectedToDummy);
+						}
+						return components$1;
+					};
+					auxiliary.relocateComponent = function(originalCenter, componentResult, options) {
+						if (!options.fixedNodeConstraint) {
+							var minXCoord = Number.POSITIVE_INFINITY;
+							var maxXCoord = Number.NEGATIVE_INFINITY;
+							var minYCoord = Number.POSITIVE_INFINITY;
+							var maxYCoord = Number.NEGATIVE_INFINITY;
+							if (options.quality == "draft") {
+								var _iteratorNormalCompletion = true;
+								var _didIteratorError = false;
+								var _iteratorError = void 0;
+								try {
+									for (var _iterator = componentResult.nodeIndexes[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+										var _ref = _step.value;
+										var _ref2 = _slicedToArray$1(_ref, 2);
+										var key = _ref2[0];
+										var value = _ref2[1];
+										var cyNode = options.cy.getElementById(key);
+										if (cyNode) {
+											var nodeBB = cyNode.boundingBox();
+											var leftX = componentResult.xCoords[value] - nodeBB.w / 2;
+											var rightX = componentResult.xCoords[value] + nodeBB.w / 2;
+											var topY = componentResult.yCoords[value] - nodeBB.h / 2;
+											var bottomY = componentResult.yCoords[value] + nodeBB.h / 2;
+											if (leftX < minXCoord) minXCoord = leftX;
+											if (rightX > maxXCoord) maxXCoord = rightX;
+											if (topY < minYCoord) minYCoord = topY;
+											if (bottomY > maxYCoord) maxYCoord = bottomY;
+										}
+									}
+								} catch (err) {
+									_didIteratorError = true;
+									_iteratorError = err;
+								} finally {
+									try {
+										if (!_iteratorNormalCompletion && _iterator.return) _iterator.return();
+									} finally {
+										if (_didIteratorError) throw _iteratorError;
+									}
+								}
+								var diffOnX = originalCenter.x - (maxXCoord + minXCoord) / 2;
+								var diffOnY = originalCenter.y - (maxYCoord + minYCoord) / 2;
+								componentResult.xCoords = componentResult.xCoords.map(function(x$1) {
+									return x$1 + diffOnX;
+								});
+								componentResult.yCoords = componentResult.yCoords.map(function(y$1) {
+									return y$1 + diffOnY;
+								});
+							} else {
+								Object.keys(componentResult).forEach(function(item) {
+									var node = componentResult[item];
+									var leftX$1 = node.getRect().x;
+									var rightX$1 = node.getRect().x + node.getRect().width;
+									var topY$1 = node.getRect().y;
+									var bottomY$1 = node.getRect().y + node.getRect().height;
+									if (leftX$1 < minXCoord) minXCoord = leftX$1;
+									if (rightX$1 > maxXCoord) maxXCoord = rightX$1;
+									if (topY$1 < minYCoord) minYCoord = topY$1;
+									if (bottomY$1 > maxYCoord) maxYCoord = bottomY$1;
+								});
+								var _diffOnX = originalCenter.x - (maxXCoord + minXCoord) / 2;
+								var _diffOnY = originalCenter.y - (maxYCoord + minYCoord) / 2;
+								Object.keys(componentResult).forEach(function(item) {
+									var node = componentResult[item];
+									node.setCenter(node.getCenterX() + _diffOnX, node.getCenterY() + _diffOnY);
+								});
+							}
+						}
+					};
+					auxiliary.calcBoundingBox = function(parentNode, xCoords, yCoords, nodeIndexes) {
+						var left = Number.MAX_SAFE_INTEGER;
+						var right = Number.MIN_SAFE_INTEGER;
+						var top = Number.MAX_SAFE_INTEGER;
+						var bottom = Number.MIN_SAFE_INTEGER;
+						var nodeLeft = void 0;
+						var nodeRight = void 0;
+						var nodeTop = void 0;
+						var nodeBottom = void 0;
+						var nodes = parentNode.descendants().not(":parent");
+						var s = nodes.length;
+						for (var i$1 = 0; i$1 < s; i$1++) {
+							var node = nodes[i$1];
+							nodeLeft = xCoords[nodeIndexes.get(node.id())] - node.width() / 2;
+							nodeRight = xCoords[nodeIndexes.get(node.id())] + node.width() / 2;
+							nodeTop = yCoords[nodeIndexes.get(node.id())] - node.height() / 2;
+							nodeBottom = yCoords[nodeIndexes.get(node.id())] + node.height() / 2;
+							if (left > nodeLeft) left = nodeLeft;
+							if (right < nodeRight) right = nodeRight;
+							if (top > nodeTop) top = nodeTop;
+							if (bottom < nodeBottom) bottom = nodeBottom;
+						}
+						var boundingBox$1 = {};
+						boundingBox$1.topLeftX = left;
+						boundingBox$1.topLeftY = top;
+						boundingBox$1.width = right - left;
+						boundingBox$1.height = bottom - top;
+						return boundingBox$1;
+					};
+					auxiliary.calcParentsWithoutChildren = function(cy, eles) {
+						var parentsWithoutChildren = cy.collection();
+						eles.nodes(":parent").forEach(function(parent) {
+							var check = false;
+							parent.children().forEach(function(child) {
+								if (child.css("display") != "none") check = true;
+							});
+							if (!check) parentsWithoutChildren.merge(parent);
+						});
+						return parentsWithoutChildren;
+					};
+					module$1.exports = auxiliary;
+				},
+				816: (module$1, __unused_webpack_exports, __webpack_require__$1) => {
+					/**
+					The implementation of the postprocessing part that applies CoSE layout over the spectral layout
+					*/
+					var aux = __webpack_require__$1(548);
+					var CoSELayout = __webpack_require__$1(140).CoSELayout;
+					var CoSENode = __webpack_require__$1(140).CoSENode;
+					var PointD = __webpack_require__$1(140).layoutBase.PointD;
+					var DimensionD$1 = __webpack_require__$1(140).layoutBase.DimensionD;
+					var LayoutConstants = __webpack_require__$1(140).layoutBase.LayoutConstants;
+					var FDLayoutConstants = __webpack_require__$1(140).layoutBase.FDLayoutConstants;
+					var CoSEConstants = __webpack_require__$1(140).CoSEConstants;
+					var coseLayout = function coseLayout$1(options, spectralResult) {
+						var cy = options.cy;
+						var eles = options.eles;
+						var nodes = eles.nodes();
+						var edges = eles.edges();
+						var nodeIndexes = void 0;
+						var xCoords = void 0;
+						var yCoords = void 0;
+						var idToLNode = {};
+						if (options.randomize) {
+							nodeIndexes = spectralResult["nodeIndexes"];
+							xCoords = spectralResult["xCoords"];
+							yCoords = spectralResult["yCoords"];
+						}
+						var isFn = function isFn$1(fn$7) {
+							return typeof fn$7 === "function";
+						};
+						var optFn = function optFn$1(opt, ele) {
+							if (isFn(opt)) return opt(ele);
+							else return opt;
+						};
+						/**** Postprocessing functions ****/
+						var parentsWithoutChildren = aux.calcParentsWithoutChildren(cy, eles);
+						var processChildrenList = function processChildrenList$1(parent, children, layout$2, options$1) {
+							var size$1 = children.length;
+							for (var i$1 = 0; i$1 < size$1; i$1++) {
+								var theChild = children[i$1];
+								var children_of_children = null;
+								if (theChild.intersection(parentsWithoutChildren).length == 0) children_of_children = theChild.children();
+								var theNode = void 0;
+								var dimensions$1 = theChild.layoutDimensions({ nodeDimensionsIncludeLabels: options$1.nodeDimensionsIncludeLabels });
+								if (theChild.outerWidth() != null && theChild.outerHeight() != null) if (options$1.randomize) if (!theChild.isParent()) theNode = parent.add(new CoSENode(layout$2.graphManager, new PointD(xCoords[nodeIndexes.get(theChild.id())] - dimensions$1.w / 2, yCoords[nodeIndexes.get(theChild.id())] - dimensions$1.h / 2), new DimensionD$1(parseFloat(dimensions$1.w), parseFloat(dimensions$1.h))));
+								else {
+									var parentInfo = aux.calcBoundingBox(theChild, xCoords, yCoords, nodeIndexes);
+									if (theChild.intersection(parentsWithoutChildren).length == 0) theNode = parent.add(new CoSENode(layout$2.graphManager, new PointD(parentInfo.topLeftX, parentInfo.topLeftY), new DimensionD$1(parentInfo.width, parentInfo.height)));
+									else theNode = parent.add(new CoSENode(layout$2.graphManager, new PointD(parentInfo.topLeftX, parentInfo.topLeftY), new DimensionD$1(parseFloat(dimensions$1.w), parseFloat(dimensions$1.h))));
+								}
+								else theNode = parent.add(new CoSENode(layout$2.graphManager, new PointD(theChild.position("x") - dimensions$1.w / 2, theChild.position("y") - dimensions$1.h / 2), new DimensionD$1(parseFloat(dimensions$1.w), parseFloat(dimensions$1.h))));
+								else theNode = parent.add(new CoSENode(this.graphManager));
+								theNode.id = theChild.data("id");
+								theNode.nodeRepulsion = optFn(options$1.nodeRepulsion, theChild);
+								theNode.paddingLeft = parseInt(theChild.css("padding"));
+								theNode.paddingTop = parseInt(theChild.css("padding"));
+								theNode.paddingRight = parseInt(theChild.css("padding"));
+								theNode.paddingBottom = parseInt(theChild.css("padding"));
+								if (options$1.nodeDimensionsIncludeLabels) {
+									theNode.labelWidth = theChild.boundingBox({
+										includeLabels: true,
+										includeNodes: false,
+										includeOverlays: false
+									}).w;
+									theNode.labelHeight = theChild.boundingBox({
+										includeLabels: true,
+										includeNodes: false,
+										includeOverlays: false
+									}).h;
+									theNode.labelPosVertical = theChild.css("text-valign");
+									theNode.labelPosHorizontal = theChild.css("text-halign");
+								}
+								idToLNode[theChild.data("id")] = theNode;
+								if (isNaN(theNode.rect.x)) theNode.rect.x = 0;
+								if (isNaN(theNode.rect.y)) theNode.rect.y = 0;
+								if (children_of_children != null && children_of_children.length > 0) {
+									var theNewGraph = void 0;
+									theNewGraph = layout$2.getGraphManager().add(layout$2.newGraph(), theNode);
+									processChildrenList$1(theNewGraph, children_of_children, layout$2, options$1);
+								}
+							}
+						};
+						var processEdges = function processEdges$1(layout$2, gm$1, edges$1) {
+							var idealLengthTotal = 0;
+							var edgeCount = 0;
+							for (var i$1 = 0; i$1 < edges$1.length; i$1++) {
+								var edge = edges$1[i$1];
+								var sourceNode = idToLNode[edge.data("source")];
+								var targetNode = idToLNode[edge.data("target")];
+								if (sourceNode && targetNode && sourceNode !== targetNode && sourceNode.getEdgesBetween(targetNode).length == 0) {
+									var e1 = gm$1.add(layout$2.newEdge(), sourceNode, targetNode);
+									e1.id = edge.id();
+									e1.idealLength = optFn(options.idealEdgeLength, edge);
+									e1.edgeElasticity = optFn(options.edgeElasticity, edge);
+									idealLengthTotal += e1.idealLength;
+									edgeCount++;
+								}
+							}
+							if (options.idealEdgeLength != null) {
+								if (edgeCount > 0) CoSEConstants.DEFAULT_EDGE_LENGTH = FDLayoutConstants.DEFAULT_EDGE_LENGTH = idealLengthTotal / edgeCount;
+								else if (!isFn(options.idealEdgeLength)) CoSEConstants.DEFAULT_EDGE_LENGTH = FDLayoutConstants.DEFAULT_EDGE_LENGTH = options.idealEdgeLength;
+								else CoSEConstants.DEFAULT_EDGE_LENGTH = FDLayoutConstants.DEFAULT_EDGE_LENGTH = 50;
+								CoSEConstants.MIN_REPULSION_DIST = FDLayoutConstants.MIN_REPULSION_DIST = FDLayoutConstants.DEFAULT_EDGE_LENGTH / 10;
+								CoSEConstants.DEFAULT_RADIAL_SEPARATION = FDLayoutConstants.DEFAULT_EDGE_LENGTH;
+							}
+						};
+						var processConstraints = function processConstraints$1(layout$2, options$1) {
+							if (options$1.fixedNodeConstraint) layout$2.constraints["fixedNodeConstraint"] = options$1.fixedNodeConstraint;
+							if (options$1.alignmentConstraint) layout$2.constraints["alignmentConstraint"] = options$1.alignmentConstraint;
+							if (options$1.relativePlacementConstraint) layout$2.constraints["relativePlacementConstraint"] = options$1.relativePlacementConstraint;
+						};
+						/**** Apply postprocessing ****/
+						if (options.nestingFactor != null) CoSEConstants.PER_LEVEL_IDEAL_EDGE_LENGTH_FACTOR = FDLayoutConstants.PER_LEVEL_IDEAL_EDGE_LENGTH_FACTOR = options.nestingFactor;
+						if (options.gravity != null) CoSEConstants.DEFAULT_GRAVITY_STRENGTH = FDLayoutConstants.DEFAULT_GRAVITY_STRENGTH = options.gravity;
+						if (options.numIter != null) CoSEConstants.MAX_ITERATIONS = FDLayoutConstants.MAX_ITERATIONS = options.numIter;
+						if (options.gravityRange != null) CoSEConstants.DEFAULT_GRAVITY_RANGE_FACTOR = FDLayoutConstants.DEFAULT_GRAVITY_RANGE_FACTOR = options.gravityRange;
+						if (options.gravityCompound != null) CoSEConstants.DEFAULT_COMPOUND_GRAVITY_STRENGTH = FDLayoutConstants.DEFAULT_COMPOUND_GRAVITY_STRENGTH = options.gravityCompound;
+						if (options.gravityRangeCompound != null) CoSEConstants.DEFAULT_COMPOUND_GRAVITY_RANGE_FACTOR = FDLayoutConstants.DEFAULT_COMPOUND_GRAVITY_RANGE_FACTOR = options.gravityRangeCompound;
+						if (options.initialEnergyOnIncremental != null) CoSEConstants.DEFAULT_COOLING_FACTOR_INCREMENTAL = FDLayoutConstants.DEFAULT_COOLING_FACTOR_INCREMENTAL = options.initialEnergyOnIncremental;
+						if (options.tilingCompareBy != null) CoSEConstants.TILING_COMPARE_BY = options.tilingCompareBy;
+						if (options.quality == "proof") LayoutConstants.QUALITY = 2;
+						else LayoutConstants.QUALITY = 0;
+						CoSEConstants.NODE_DIMENSIONS_INCLUDE_LABELS = FDLayoutConstants.NODE_DIMENSIONS_INCLUDE_LABELS = LayoutConstants.NODE_DIMENSIONS_INCLUDE_LABELS = options.nodeDimensionsIncludeLabels;
+						CoSEConstants.DEFAULT_INCREMENTAL = FDLayoutConstants.DEFAULT_INCREMENTAL = LayoutConstants.DEFAULT_INCREMENTAL = !options.randomize;
+						CoSEConstants.ANIMATE = FDLayoutConstants.ANIMATE = LayoutConstants.ANIMATE = options.animate;
+						CoSEConstants.TILE = options.tile;
+						CoSEConstants.TILING_PADDING_VERTICAL = typeof options.tilingPaddingVertical === "function" ? options.tilingPaddingVertical.call() : options.tilingPaddingVertical;
+						CoSEConstants.TILING_PADDING_HORIZONTAL = typeof options.tilingPaddingHorizontal === "function" ? options.tilingPaddingHorizontal.call() : options.tilingPaddingHorizontal;
+						CoSEConstants.DEFAULT_INCREMENTAL = FDLayoutConstants.DEFAULT_INCREMENTAL = LayoutConstants.DEFAULT_INCREMENTAL = true;
+						CoSEConstants.PURE_INCREMENTAL = !options.randomize;
+						LayoutConstants.DEFAULT_UNIFORM_LEAF_NODE_SIZES = options.uniformNodeDimensions;
+						if (options.step == "transformed") {
+							CoSEConstants.TRANSFORM_ON_CONSTRAINT_HANDLING = true;
+							CoSEConstants.ENFORCE_CONSTRAINTS = false;
+							CoSEConstants.APPLY_LAYOUT = false;
+						}
+						if (options.step == "enforced") {
+							CoSEConstants.TRANSFORM_ON_CONSTRAINT_HANDLING = false;
+							CoSEConstants.ENFORCE_CONSTRAINTS = true;
+							CoSEConstants.APPLY_LAYOUT = false;
+						}
+						if (options.step == "cose") {
+							CoSEConstants.TRANSFORM_ON_CONSTRAINT_HANDLING = false;
+							CoSEConstants.ENFORCE_CONSTRAINTS = false;
+							CoSEConstants.APPLY_LAYOUT = true;
+						}
+						if (options.step == "all") {
+							if (options.randomize) CoSEConstants.TRANSFORM_ON_CONSTRAINT_HANDLING = true;
+							else CoSEConstants.TRANSFORM_ON_CONSTRAINT_HANDLING = false;
+							CoSEConstants.ENFORCE_CONSTRAINTS = true;
+							CoSEConstants.APPLY_LAYOUT = true;
+						}
+						if (options.fixedNodeConstraint || options.alignmentConstraint || options.relativePlacementConstraint) CoSEConstants.TREE_REDUCTION_ON_INCREMENTAL = false;
+						else CoSEConstants.TREE_REDUCTION_ON_INCREMENTAL = true;
+						var coseLayout$2 = new CoSELayout();
+						var gm = coseLayout$2.newGraphManager();
+						processChildrenList(gm.addRoot(), aux.getTopMostNodes(nodes), coseLayout$2, options);
+						processEdges(coseLayout$2, gm, edges);
+						processConstraints(coseLayout$2, options);
+						coseLayout$2.runLayout();
+						return idToLNode;
+					};
+					module$1.exports = { coseLayout };
+				},
+				212: (module$1, __unused_webpack_exports, __webpack_require__$1) => {
+					var _createClass$1 = function() {
+						function defineProperties(target, props) {
+							for (var i$1 = 0; i$1 < props.length; i$1++) {
+								var descriptor = props[i$1];
+								descriptor.enumerable = descriptor.enumerable || false;
+								descriptor.configurable = true;
+								if ("value" in descriptor) descriptor.writable = true;
+								Object.defineProperty(target, descriptor.key, descriptor);
+							}
+						}
+						return function(Constructor, protoProps, staticProps) {
+							if (protoProps) defineProperties(Constructor.prototype, protoProps);
+							if (staticProps) defineProperties(Constructor, staticProps);
+							return Constructor;
+						};
+					}();
+					function _classCallCheck$1(instance$1, Constructor) {
+						if (!(instance$1 instanceof Constructor)) throw new TypeError("Cannot call a class as a function");
+					}
+					/**
+					The implementation of the fcose layout algorithm
+					*/
+					var assign$3 = __webpack_require__$1(658);
+					var aux = __webpack_require__$1(548);
+					var _require = __webpack_require__$1(657), spectralLayout = _require.spectralLayout;
+					var _require2 = __webpack_require__$1(816), coseLayout = _require2.coseLayout;
+					var defaults$11 = Object.freeze({
+						quality: "default",
+						randomize: true,
+						animate: true,
+						animationDuration: 1e3,
+						animationEasing: void 0,
+						fit: true,
+						padding: 30,
+						nodeDimensionsIncludeLabels: false,
+						uniformNodeDimensions: false,
+						packComponents: true,
+						step: "all",
+						samplingType: true,
+						sampleSize: 25,
+						nodeSeparation: 75,
+						piTol: 1e-7,
+						nodeRepulsion: function nodeRepulsion$1(node) {
+							return 4500;
+						},
+						idealEdgeLength: function idealEdgeLength(edge) {
+							return 50;
+						},
+						edgeElasticity: function edgeElasticity(edge) {
+							return .45;
+						},
+						nestingFactor: .1,
+						gravity: .25,
+						numIter: 2500,
+						tile: true,
+						tilingCompareBy: void 0,
+						tilingPaddingVertical: 10,
+						tilingPaddingHorizontal: 10,
+						gravityRangeCompound: 1.5,
+						gravityCompound: 1,
+						gravityRange: 3.8,
+						initialEnergyOnIncremental: .3,
+						fixedNodeConstraint: void 0,
+						alignmentConstraint: void 0,
+						relativePlacementConstraint: void 0,
+						ready: function ready() {},
+						stop: function stop() {}
+					});
+					var Layout$1 = function() {
+						function Layout$2(options) {
+							_classCallCheck$1(this, Layout$2);
+							this.options = assign$3({}, defaults$11, options);
+						}
+						_createClass$1(Layout$2, [{
+							key: "run",
+							value: function run$3() {
+								var layout$2 = this;
+								var options = this.options;
+								var cy = options.cy;
+								var eles = options.eles;
+								var spectralResult = [];
+								var xCoords = void 0;
+								var yCoords = void 0;
+								var coseResult = [];
+								var components$1 = void 0;
+								var componentCenters = [];
+								if (options.fixedNodeConstraint && (!Array.isArray(options.fixedNodeConstraint) || options.fixedNodeConstraint.length == 0)) options.fixedNodeConstraint = void 0;
+								if (options.alignmentConstraint) {
+									if (options.alignmentConstraint.vertical && (!Array.isArray(options.alignmentConstraint.vertical) || options.alignmentConstraint.vertical.length == 0)) options.alignmentConstraint.vertical = void 0;
+									if (options.alignmentConstraint.horizontal && (!Array.isArray(options.alignmentConstraint.horizontal) || options.alignmentConstraint.horizontal.length == 0)) options.alignmentConstraint.horizontal = void 0;
+								}
+								if (options.relativePlacementConstraint && (!Array.isArray(options.relativePlacementConstraint) || options.relativePlacementConstraint.length == 0)) options.relativePlacementConstraint = void 0;
+								var constraintExist = options.fixedNodeConstraint || options.alignmentConstraint || options.relativePlacementConstraint;
+								if (constraintExist) {
+									options.tile = false;
+									options.packComponents = false;
+								}
+								var layUtil = void 0;
+								var packingEnabled = false;
+								if (cy.layoutUtilities && options.packComponents) {
+									layUtil = cy.layoutUtilities("get");
+									if (!layUtil) layUtil = cy.layoutUtilities();
+									packingEnabled = true;
+								}
+								if (eles.nodes().length > 0) if (!packingEnabled) {
+									var boundingBox$1 = options.eles.boundingBox();
+									componentCenters.push({
+										x: boundingBox$1.x1 + boundingBox$1.w / 2,
+										y: boundingBox$1.y1 + boundingBox$1.h / 2
+									});
+									if (options.randomize) {
+										var result = spectralLayout(options);
+										spectralResult.push(result);
+									}
+									if (options.quality == "default" || options.quality == "proof") {
+										coseResult.push(coseLayout(options, spectralResult[0]));
+										aux.relocateComponent(componentCenters[0], coseResult[0], options);
+									} else aux.relocateComponent(componentCenters[0], spectralResult[0], options);
+								} else {
+									var topMostNodes = aux.getTopMostNodes(options.eles.nodes());
+									components$1 = aux.connectComponents(cy, options.eles, topMostNodes);
+									components$1.forEach(function(component) {
+										var boundingBox$2 = component.boundingBox();
+										componentCenters.push({
+											x: boundingBox$2.x1 + boundingBox$2.w / 2,
+											y: boundingBox$2.y1 + boundingBox$2.h / 2
+										});
+									});
+									if (options.randomize) components$1.forEach(function(component) {
+										options.eles = component;
+										spectralResult.push(spectralLayout(options));
+									});
+									if (options.quality == "default" || options.quality == "proof") {
+										var toBeTiledNodes = cy.collection();
+										if (options.tile) {
+											var nodeIndexes = new Map();
+											var _xCoords = [];
+											var _yCoords = [];
+											var count = 0;
+											var tempSpectralResult = {
+												nodeIndexes,
+												xCoords: _xCoords,
+												yCoords: _yCoords
+											};
+											var indexesToBeDeleted = [];
+											components$1.forEach(function(component, index) {
+												if (component.edges().length == 0) {
+													component.nodes().forEach(function(node, i$2) {
+														toBeTiledNodes.merge(component.nodes()[i$2]);
+														if (!node.isParent()) {
+															tempSpectralResult.nodeIndexes.set(component.nodes()[i$2].id(), count++);
+															tempSpectralResult.xCoords.push(component.nodes()[0].position().x);
+															tempSpectralResult.yCoords.push(component.nodes()[0].position().y);
+														}
+													});
+													indexesToBeDeleted.push(index);
+												}
+											});
+											if (toBeTiledNodes.length > 1) {
+												var _boundingBox = toBeTiledNodes.boundingBox();
+												componentCenters.push({
+													x: _boundingBox.x1 + _boundingBox.w / 2,
+													y: _boundingBox.y1 + _boundingBox.h / 2
+												});
+												components$1.push(toBeTiledNodes);
+												spectralResult.push(tempSpectralResult);
+												for (var i$1 = indexesToBeDeleted.length - 1; i$1 >= 0; i$1--) {
+													components$1.splice(indexesToBeDeleted[i$1], 1);
+													spectralResult.splice(indexesToBeDeleted[i$1], 1);
+													componentCenters.splice(indexesToBeDeleted[i$1], 1);
+												}
+											}
+										}
+										components$1.forEach(function(component, index) {
+											options.eles = component;
+											coseResult.push(coseLayout(options, spectralResult[index]));
+											aux.relocateComponent(componentCenters[index], coseResult[index], options);
+										});
+									} else components$1.forEach(function(component, index) {
+										aux.relocateComponent(componentCenters[index], spectralResult[index], options);
+									});
+									var componentsEvaluated = new Set();
+									if (components$1.length > 1) {
+										var subgraphs = [];
+										var hiddenEles = eles.filter(function(ele) {
+											return ele.css("display") == "none";
+										});
+										components$1.forEach(function(component, index) {
+											var nodeIndexes$1 = void 0;
+											if (options.quality == "draft") nodeIndexes$1 = spectralResult[index].nodeIndexes;
+											if (component.nodes().not(hiddenEles).length > 0) {
+												var subgraph = {};
+												subgraph.edges = [];
+												subgraph.nodes = [];
+												var nodeIndex = void 0;
+												component.nodes().not(hiddenEles).forEach(function(node) {
+													if (options.quality == "draft") if (!node.isParent()) {
+														nodeIndex = nodeIndexes$1.get(node.id());
+														subgraph.nodes.push({
+															x: spectralResult[index].xCoords[nodeIndex] - node.boundingbox().w / 2,
+															y: spectralResult[index].yCoords[nodeIndex] - node.boundingbox().h / 2,
+															width: node.boundingbox().w,
+															height: node.boundingbox().h
+														});
+													} else {
+														var parentInfo = aux.calcBoundingBox(node, spectralResult[index].xCoords, spectralResult[index].yCoords, nodeIndexes$1);
+														subgraph.nodes.push({
+															x: parentInfo.topLeftX,
+															y: parentInfo.topLeftY,
+															width: parentInfo.width,
+															height: parentInfo.height
+														});
+													}
+													else if (coseResult[index][node.id()]) subgraph.nodes.push({
+														x: coseResult[index][node.id()].getLeft(),
+														y: coseResult[index][node.id()].getTop(),
+														width: coseResult[index][node.id()].getWidth(),
+														height: coseResult[index][node.id()].getHeight()
+													});
+												});
+												component.edges().forEach(function(edge) {
+													var source = edge.source();
+													var target = edge.target();
+													if (source.css("display") != "none" && target.css("display") != "none") {
+														if (options.quality == "draft") {
+															var sourceNodeIndex = nodeIndexes$1.get(source.id());
+															var targetNodeIndex = nodeIndexes$1.get(target.id());
+															var sourceCenter = [];
+															var targetCenter = [];
+															if (source.isParent()) {
+																var parentInfo = aux.calcBoundingBox(source, spectralResult[index].xCoords, spectralResult[index].yCoords, nodeIndexes$1);
+																sourceCenter.push(parentInfo.topLeftX + parentInfo.width / 2);
+																sourceCenter.push(parentInfo.topLeftY + parentInfo.height / 2);
+															} else {
+																sourceCenter.push(spectralResult[index].xCoords[sourceNodeIndex]);
+																sourceCenter.push(spectralResult[index].yCoords[sourceNodeIndex]);
+															}
+															if (target.isParent()) {
+																var _parentInfo = aux.calcBoundingBox(target, spectralResult[index].xCoords, spectralResult[index].yCoords, nodeIndexes$1);
+																targetCenter.push(_parentInfo.topLeftX + _parentInfo.width / 2);
+																targetCenter.push(_parentInfo.topLeftY + _parentInfo.height / 2);
+															} else {
+																targetCenter.push(spectralResult[index].xCoords[targetNodeIndex]);
+																targetCenter.push(spectralResult[index].yCoords[targetNodeIndex]);
+															}
+															subgraph.edges.push({
+																startX: sourceCenter[0],
+																startY: sourceCenter[1],
+																endX: targetCenter[0],
+																endY: targetCenter[1]
+															});
+														} else if (coseResult[index][source.id()] && coseResult[index][target.id()]) subgraph.edges.push({
+															startX: coseResult[index][source.id()].getCenterX(),
+															startY: coseResult[index][source.id()].getCenterY(),
+															endX: coseResult[index][target.id()].getCenterX(),
+															endY: coseResult[index][target.id()].getCenterY()
+														});
+													}
+												});
+												if (subgraph.nodes.length > 0) {
+													subgraphs.push(subgraph);
+													componentsEvaluated.add(index);
+												}
+											}
+										});
+										var shiftResult = layUtil.packComponents(subgraphs, options.randomize).shifts;
+										if (options.quality == "draft") spectralResult.forEach(function(result$1, index) {
+											var newXCoords = result$1.xCoords.map(function(x$1) {
+												return x$1 + shiftResult[index].dx;
+											});
+											var newYCoords = result$1.yCoords.map(function(y$1) {
+												return y$1 + shiftResult[index].dy;
+											});
+											result$1.xCoords = newXCoords;
+											result$1.yCoords = newYCoords;
+										});
+										else {
+											var _count = 0;
+											componentsEvaluated.forEach(function(index) {
+												Object.keys(coseResult[index]).forEach(function(item) {
+													var nodeRectangle = coseResult[index][item];
+													nodeRectangle.setCenter(nodeRectangle.getCenterX() + shiftResult[_count].dx, nodeRectangle.getCenterY() + shiftResult[_count].dy);
+												});
+												_count++;
+											});
+										}
+									}
+								}
+								var getPositions = function getPositions$1(ele, i$2) {
+									if (options.quality == "default" || options.quality == "proof") {
+										if (typeof ele === "number") ele = i$2;
+										var pos = void 0;
+										var node = void 0;
+										var theId = ele.data("id");
+										coseResult.forEach(function(result$1) {
+											if (theId in result$1) {
+												pos = {
+													x: result$1[theId].getRect().getCenterX(),
+													y: result$1[theId].getRect().getCenterY()
+												};
+												node = result$1[theId];
+											}
+										});
+										if (options.nodeDimensionsIncludeLabels) {
+											if (node.labelWidth) {
+												if (node.labelPosHorizontal == "left") pos.x += node.labelWidth / 2;
+												else if (node.labelPosHorizontal == "right") pos.x -= node.labelWidth / 2;
+											}
+											if (node.labelHeight) {
+												if (node.labelPosVertical == "top") pos.y += node.labelHeight / 2;
+												else if (node.labelPosVertical == "bottom") pos.y -= node.labelHeight / 2;
+											}
+										}
+										if (pos == void 0) pos = {
+											x: ele.position("x"),
+											y: ele.position("y")
+										};
+										return {
+											x: pos.x,
+											y: pos.y
+										};
+									} else {
+										var _pos = void 0;
+										spectralResult.forEach(function(result$1) {
+											var index = result$1.nodeIndexes.get(ele.id());
+											if (index != void 0) _pos = {
+												x: result$1.xCoords[index],
+												y: result$1.yCoords[index]
+											};
+										});
+										if (_pos == void 0) _pos = {
+											x: ele.position("x"),
+											y: ele.position("y")
+										};
+										return {
+											x: _pos.x,
+											y: _pos.y
+										};
+									}
+								};
+								if (options.quality == "default" || options.quality == "proof" || options.randomize) {
+									var parentsWithoutChildren = aux.calcParentsWithoutChildren(cy, eles);
+									var _hiddenEles = eles.filter(function(ele) {
+										return ele.css("display") == "none";
+									});
+									options.eles = eles.not(_hiddenEles);
+									eles.nodes().not(":parent").not(_hiddenEles).layoutPositions(layout$2, options, getPositions);
+									if (parentsWithoutChildren.length > 0) parentsWithoutChildren.forEach(function(ele) {
+										ele.position(getPositions(ele));
+									});
+								} else console.log("If randomize option is set to false, then quality option must be 'default' or 'proof'.");
+							}
+						}]);
+						return Layout$2;
+					}();
+					module$1.exports = Layout$1;
+				},
+				657: (module$1, __unused_webpack_exports, __webpack_require__$1) => {
+					/**
+					The implementation of the spectral layout that is the first part of the fcose layout algorithm
+					*/
+					var aux = __webpack_require__$1(548);
+					var Matrix = __webpack_require__$1(140).layoutBase.Matrix;
+					var SVD = __webpack_require__$1(140).layoutBase.SVD;
+					var spectralLayout = function spectralLayout$1(options) {
+						var cy = options.cy;
+						var eles = options.eles;
+						var nodes = eles.nodes();
+						var parentNodes = eles.nodes(":parent");
+						var dummyNodes = new Map();
+						var nodeIndexes = new Map();
+						var parentChildMap = new Map();
+						var allNodesNeighborhood = [];
+						var xCoords = [];
+						var yCoords = [];
+						var samplesColumn = [];
+						var minDistancesColumn = [];
+						var C = [];
+						var PHI = [];
+						var INV = [];
+						var firstSample = void 0;
+						var nodeSize = void 0;
+						var infinity = 1e8;
+						var small = 1e-9;
+						var piTol = options.piTol;
+						var samplingType = options.samplingType;
+						var nodeSeparation = options.nodeSeparation;
+						var sampleSize = void 0;
+						/**** Spectral-preprocessing functions ****/
+						/**** Spectral layout functions ****/
+						var randomSampleCR = function randomSampleCR$1() {
+							var sample$1 = 0;
+							var count = 0;
+							var flag = false;
+							while (count < sampleSize) {
+								sample$1 = Math.floor(Math.random() * nodeSize);
+								flag = false;
+								for (var i$2 = 0; i$2 < count; i$2++) if (samplesColumn[i$2] == sample$1) {
+									flag = true;
+									break;
+								}
+								if (!flag) {
+									samplesColumn[count] = sample$1;
+									count++;
+								} else continue;
+							}
+						};
+						var BFS = function BFS$1(pivot, index$1, samplingMethod) {
+							var path = [];
+							var front = 0;
+							var back = 0;
+							var current = 0;
+							var temp = void 0;
+							var distance = [];
+							var max_dist = 0;
+							var max_ind = 1;
+							for (var i$2 = 0; i$2 < nodeSize; i$2++) distance[i$2] = infinity;
+							path[back] = pivot;
+							distance[pivot] = 0;
+							while (back >= front) {
+								current = path[front++];
+								var neighbors = allNodesNeighborhood[current];
+								for (var _i = 0; _i < neighbors.length; _i++) {
+									temp = nodeIndexes.get(neighbors[_i]);
+									if (distance[temp] == infinity) {
+										distance[temp] = distance[current] + 1;
+										path[++back] = temp;
+									}
+								}
+								C[current][index$1] = distance[current] * nodeSeparation;
+							}
+							if (samplingMethod) {
+								for (var _i2 = 0; _i2 < nodeSize; _i2++) if (C[_i2][index$1] < minDistancesColumn[_i2]) minDistancesColumn[_i2] = C[_i2][index$1];
+								for (var _i3 = 0; _i3 < nodeSize; _i3++) if (minDistancesColumn[_i3] > max_dist) {
+									max_dist = minDistancesColumn[_i3];
+									max_ind = _i3;
+								}
+							}
+							return max_ind;
+						};
+						var allBFS = function allBFS$1(samplingMethod) {
+							var sample$1 = void 0;
+							if (!samplingMethod) {
+								randomSampleCR();
+								for (var i$2 = 0; i$2 < sampleSize; i$2++) BFS(samplesColumn[i$2], i$2, samplingMethod, false);
+							} else {
+								sample$1 = Math.floor(Math.random() * nodeSize);
+								firstSample = sample$1;
+								for (var _i4 = 0; _i4 < nodeSize; _i4++) minDistancesColumn[_i4] = infinity;
+								for (var _i5 = 0; _i5 < sampleSize; _i5++) {
+									samplesColumn[_i5] = sample$1;
+									sample$1 = BFS(sample$1, _i5, samplingMethod);
+								}
+							}
+							for (var _i6 = 0; _i6 < nodeSize; _i6++) for (var j = 0; j < sampleSize; j++) C[_i6][j] *= C[_i6][j];
+							for (var _i7 = 0; _i7 < sampleSize; _i7++) PHI[_i7] = [];
+							for (var _i8 = 0; _i8 < sampleSize; _i8++) for (var _j = 0; _j < sampleSize; _j++) PHI[_i8][_j] = C[samplesColumn[_j]][_i8];
+						};
+						var sample = function sample$1() {
+							var SVDResult = SVD.svd(PHI);
+							var a_q = SVDResult.S;
+							var a_u = SVDResult.U;
+							var a_v = SVDResult.V;
+							var max_s = a_q[0] * a_q[0] * a_q[0];
+							var a_Sig = [];
+							for (var i$2 = 0; i$2 < sampleSize; i$2++) {
+								a_Sig[i$2] = [];
+								for (var j = 0; j < sampleSize; j++) {
+									a_Sig[i$2][j] = 0;
+									if (i$2 == j) a_Sig[i$2][j] = a_q[i$2] / (a_q[i$2] * a_q[i$2] + max_s / (a_q[i$2] * a_q[i$2]));
+								}
+							}
+							INV = Matrix.multMat(Matrix.multMat(a_v, a_Sig), Matrix.transpose(a_u));
+						};
+						var powerIteration = function powerIteration$1() {
+							var theta1 = void 0;
+							var theta2 = void 0;
+							var Y1 = [];
+							var Y2 = [];
+							var V1 = [];
+							var V2 = [];
+							for (var i$2 = 0; i$2 < nodeSize; i$2++) {
+								Y1[i$2] = Math.random();
+								Y2[i$2] = Math.random();
+							}
+							Y1 = Matrix.normalize(Y1);
+							Y2 = Matrix.normalize(Y2);
+							var count = 0;
+							var current = small;
+							var previous = small;
+							var temp = void 0;
+							while (true) {
+								count++;
+								for (var _i9 = 0; _i9 < nodeSize; _i9++) V1[_i9] = Y1[_i9];
+								Y1 = Matrix.multGamma(Matrix.multL(Matrix.multGamma(V1), C, INV));
+								theta1 = Matrix.dotProduct(V1, Y1);
+								Y1 = Matrix.normalize(Y1);
+								current = Matrix.dotProduct(V1, Y1);
+								temp = Math.abs(current / previous);
+								if (temp <= 1 + piTol && temp >= 1) break;
+								previous = current;
+							}
+							for (var _i10 = 0; _i10 < nodeSize; _i10++) V1[_i10] = Y1[_i10];
+							count = 0;
+							previous = small;
+							while (true) {
+								count++;
+								for (var _i11 = 0; _i11 < nodeSize; _i11++) V2[_i11] = Y2[_i11];
+								V2 = Matrix.minusOp(V2, Matrix.multCons(V1, Matrix.dotProduct(V1, V2)));
+								Y2 = Matrix.multGamma(Matrix.multL(Matrix.multGamma(V2), C, INV));
+								theta2 = Matrix.dotProduct(V2, Y2);
+								Y2 = Matrix.normalize(Y2);
+								current = Matrix.dotProduct(V2, Y2);
+								temp = Math.abs(current / previous);
+								if (temp <= 1 + piTol && temp >= 1) break;
+								previous = current;
+							}
+							for (var _i12 = 0; _i12 < nodeSize; _i12++) V2[_i12] = Y2[_i12];
+							xCoords = Matrix.multCons(V1, Math.sqrt(Math.abs(theta1)));
+							yCoords = Matrix.multCons(V2, Math.sqrt(Math.abs(theta2)));
+						};
+						/**** Preparation for spectral layout (Preprocessing) ****/
+						aux.connectComponents(cy, eles, aux.getTopMostNodes(nodes), dummyNodes);
+						parentNodes.forEach(function(ele) {
+							aux.connectComponents(cy, eles, aux.getTopMostNodes(ele.descendants().intersection(eles)), dummyNodes);
+						});
+						var index = 0;
+						for (var i$1 = 0; i$1 < nodes.length; i$1++) if (!nodes[i$1].isParent()) nodeIndexes.set(nodes[i$1].id(), index++);
+						var _iteratorNormalCompletion = true;
+						var _didIteratorError = false;
+						var _iteratorError = void 0;
+						try {
+							for (var _iterator = dummyNodes.keys()[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+								var key = _step.value;
+								nodeIndexes.set(key, index++);
+							}
+						} catch (err) {
+							_didIteratorError = true;
+							_iteratorError = err;
+						} finally {
+							try {
+								if (!_iteratorNormalCompletion && _iterator.return) _iterator.return();
+							} finally {
+								if (_didIteratorError) throw _iteratorError;
+							}
+						}
+						for (var _i13 = 0; _i13 < nodeIndexes.size; _i13++) allNodesNeighborhood[_i13] = [];
+						parentNodes.forEach(function(ele) {
+							var children = ele.children().intersection(eles);
+							while (children.nodes(":childless").length == 0) children = children.nodes()[0].children().intersection(eles);
+							var index$1 = 0;
+							var min$2 = children.nodes(":childless")[0].connectedEdges().length;
+							children.nodes(":childless").forEach(function(ele2, i$2) {
+								if (ele2.connectedEdges().length < min$2) {
+									min$2 = ele2.connectedEdges().length;
+									index$1 = i$2;
+								}
+							});
+							parentChildMap.set(ele.id(), children.nodes(":childless")[index$1].id());
+						});
+						nodes.forEach(function(ele) {
+							var eleIndex = void 0;
+							if (ele.isParent()) eleIndex = nodeIndexes.get(parentChildMap.get(ele.id()));
+							else eleIndex = nodeIndexes.get(ele.id());
+							ele.neighborhood().nodes().forEach(function(node) {
+								if (eles.intersection(ele.edgesWith(node)).length > 0) if (node.isParent()) allNodesNeighborhood[eleIndex].push(parentChildMap.get(node.id()));
+								else allNodesNeighborhood[eleIndex].push(node.id());
+							});
+						});
+						var _loop = function _loop$1(_key$1) {
+							var eleIndex = nodeIndexes.get(_key$1);
+							var disconnectedId = void 0;
+							dummyNodes.get(_key$1).forEach(function(id) {
+								if (cy.getElementById(id).isParent()) disconnectedId = parentChildMap.get(id);
+								else disconnectedId = id;
+								allNodesNeighborhood[eleIndex].push(disconnectedId);
+								allNodesNeighborhood[nodeIndexes.get(disconnectedId)].push(_key$1);
+							});
+						};
+						var _iteratorNormalCompletion2 = true;
+						var _didIteratorError2 = false;
+						var _iteratorError2 = void 0;
+						try {
+							for (var _iterator2 = dummyNodes.keys()[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
+								var _key = _step2.value;
+								_loop(_key);
+							}
+						} catch (err) {
+							_didIteratorError2 = true;
+							_iteratorError2 = err;
+						} finally {
+							try {
+								if (!_iteratorNormalCompletion2 && _iterator2.return) _iterator2.return();
+							} finally {
+								if (_didIteratorError2) throw _iteratorError2;
+							}
+						}
+						nodeSize = nodeIndexes.size;
+						var spectralResult = void 0;
+						if (nodeSize > 2) {
+							sampleSize = nodeSize < options.sampleSize ? nodeSize : options.sampleSize;
+							for (var _i14 = 0; _i14 < nodeSize; _i14++) C[_i14] = [];
+							for (var _i15 = 0; _i15 < sampleSize; _i15++) INV[_i15] = [];
+							/**** Apply spectral layout ****/
+							if (options.quality == "draft" || options.step == "all") {
+								allBFS(samplingType);
+								sample();
+								powerIteration();
+								spectralResult = {
+									nodeIndexes,
+									xCoords,
+									yCoords
+								};
+							} else {
+								nodeIndexes.forEach(function(value, key$1) {
+									xCoords.push(cy.getElementById(key$1).position("x"));
+									yCoords.push(cy.getElementById(key$1).position("y"));
+								});
+								spectralResult = {
+									nodeIndexes,
+									xCoords,
+									yCoords
+								};
+							}
+							return spectralResult;
+						} else {
+							var iterator = nodeIndexes.keys();
+							var firstNode = cy.getElementById(iterator.next().value);
+							var firstNodePos = firstNode.position();
+							var firstNodeWidth = firstNode.outerWidth();
+							xCoords.push(firstNodePos.x);
+							yCoords.push(firstNodePos.y);
+							if (nodeSize == 2) {
+								var secondNode = cy.getElementById(iterator.next().value);
+								var secondNodeWidth = secondNode.outerWidth();
+								xCoords.push(firstNodePos.x + firstNodeWidth / 2 + secondNodeWidth / 2 + options.idealEdgeLength);
+								yCoords.push(firstNodePos.y);
+							}
+							spectralResult = {
+								nodeIndexes,
+								xCoords,
+								yCoords
+							};
+							return spectralResult;
+						}
+					};
+					module$1.exports = { spectralLayout };
+				},
+				579: (module$1, __unused_webpack_exports, __webpack_require__$1) => {
+					var impl$1 = __webpack_require__$1(212);
+					var register = function register$1(cytoscape$2) {
+						if (!cytoscape$2) return;
+						cytoscape$2("layout", "fcose", impl$1);
+					};
+					if (typeof cytoscape !== "undefined") register(cytoscape);
+					module$1.exports = register;
+				},
+				140: (module$1) => {
+					module$1.exports = __WEBPACK_EXTERNAL_MODULE__140__;
+				}
+			};
+			var __webpack_module_cache__ = {};
+			function __webpack_require__(moduleId) {
+				var cachedModule = __webpack_module_cache__[moduleId];
+				if (cachedModule !== void 0) return cachedModule.exports;
+				var module$1 = __webpack_module_cache__[moduleId] = { exports: {} };
+				__webpack_modules__[moduleId](module$1, module$1.exports, __webpack_require__);
+				return module$1.exports;
+			}
+			var __webpack_exports__ = __webpack_require__(579);
+			return __webpack_exports__;
+		})();
+	});
+} });
+var import_cytoscape_fcose = __toESM(require_cytoscape_fcose(), 1);
+
+//#endregion
+//#region src/shared/layoutUtils.ts
+function computeSmartSpacing(nodeCount, containerWidth, containerHeight) {
+	const containerArea = containerWidth * containerHeight;
+	const containerMinDim = Math.min(containerWidth, containerHeight);
+	const areaPerNode = containerArea / Math.max(nodeCount, 1);
+	const idealSpacing = Math.sqrt(areaPerNode);
+	let densityFactor;
+	if (nodeCount < LAYOUT$1.SMALL_NODE_THRESHOLD) densityFactor = LAYOUT$1.DENSITY_FACTOR_SMALL;
+	else if (nodeCount < LAYOUT$1.MEDIUM_NODE_THRESHOLD) densityFactor = LAYOUT$1.DENSITY_FACTOR_MEDIUM;
+	else if (nodeCount < LAYOUT$1.LARGE_NODE_THRESHOLD) densityFactor = LAYOUT$1.DENSITY_FACTOR_LARGE;
+	else densityFactor = .5;
+	const s = Math.max(40, idealSpacing * densityFactor);
+	return {
+		nodeRepulse: Math.min(s * s * 4, 2e4),
+		idealEdgeLength: s * 2,
+		rankSep: Math.min(Math.max(LAYOUT$1.MIN_RANK_SEP, s * .3), LAYOUT$1.MAX_RANK_SEP),
+		edgeSep: Math.min(Math.max(15, s * .15), 40),
+		nodeSep: Math.min(Math.max(20, s * .2), 40),
+		padding: Math.max(40, Math.min(120, containerMinDim * .05)),
+		minNodeSpacing: Math.max(LAYOUT$1.MIN_NODE_SPACING, s * .3),
+		spacingFactor: nodeCount < LAYOUT$1.SMALL_NODE_COUNT_THRESHOLD ? LAYOUT$1.SMALL_SPACING_FACTOR : nodeCount < LAYOUT$1.MEDIUM_NODE_COUNT_THRESHOLD ? LAYOUT$1.MEDIUM_SPACING_FACTOR : LAYOUT$1.LARGE_SPACING_FACTOR,
+		minGap: Math.max(30, s * .4),
+		incrementalRadius: Math.max(LAYOUT$1.INCREMENTAL_RADIUS_BASE, s * 1.5)
+	};
+}
+
+//#endregion
 //#region src/client/renderer/LayoutController.ts
 const log$7 = scoped("layout");
 var LayoutController = class {
@@ -45122,7 +51874,7 @@ var LayoutController = class {
 					this.workerLayoutResolve({});
 					this.workerLayoutResolve = null;
 				}
-			}, 1e4);
+			}, RENDERER.LAYOUT_TIMEOUT_MS);
 			this.workerLayoutResolve = (positions) => {
 				if (this.workerTimeout) {
 					clearTimeout(this.workerTimeout);
@@ -45155,7 +51907,7 @@ var LayoutController = class {
 				if (node.nonempty()) node.position(pos);
 			}
 		});
-		this.cy.fit(void 0, 80);
+		this.cy.fit(void 0, RENDERER.FIT_PADDING);
 		this.cachePositions();
 	}
 	applyLayout(layout$2) {
@@ -45165,10 +51917,10 @@ var LayoutController = class {
 			const nodeCount = this.cy.nodes().length;
 			let effectiveLayout = layout$2;
 			let animate = true;
-			if (nodeCount > 5e3) {
+			if (nodeCount > LAYOUT$1.GRID_FALLBACK_NODE_THRESHOLD) {
 				effectiveLayout = "grid";
 				animate = false;
-			} else if (nodeCount > 500 && layout$2 === "cose") {
+			} else if (nodeCount > LAYOUT$1.LARGE_NODE_THRESHOLD && (layout$2 === "cose" || layout$2 === "fcose")) {
 				effectiveLayout = "dagre";
 				animate = false;
 			}
@@ -45249,7 +52001,7 @@ var LayoutController = class {
 				animate: false
 			};
 			this.cy.layout(presetOptions).run();
-			if (layout$2 === "cose" || layout$2 === "dagre") {
+			if (layout$2 === "cose" || layout$2 === "fcose" || layout$2 === "dagre") {
 				const incrementalOptions = this.buildLayoutOptions(layout$2, false, newNodes.length);
 				if (incrementalOptions) {
 					const l = newNodes.layout(incrementalOptions);
@@ -45282,28 +52034,7 @@ var LayoutController = class {
 	computeSmartSpacing(nodeCount) {
 		const w = this.cy.width() || 800;
 		const h = this.cy.height() || 600;
-		const containerArea = w * h;
-		const containerMinDim = Math.min(w, h);
-		const areaPerNode = containerArea / Math.max(nodeCount, 1);
-		const idealSpacing = Math.sqrt(areaPerNode);
-		let densityFactor;
-		if (nodeCount < 50) densityFactor = 1.5;
-		else if (nodeCount < 200) densityFactor = 1;
-		else if (nodeCount < 500) densityFactor = .7;
-		else densityFactor = .5;
-		const s = Math.max(40, idealSpacing * densityFactor);
-		return {
-			nodeRepulse: Math.min(s * s * 4, 2e4),
-			idealEdgeLength: s * 2,
-			rankSep: Math.min(Math.max(30, s * .3), 80),
-			edgeSep: Math.min(Math.max(15, s * .15), 40),
-			nodeSep: Math.min(Math.max(20, s * .2), 40),
-			padding: Math.max(40, Math.min(120, containerMinDim * .05)),
-			minNodeSpacing: Math.max(20, s * .3),
-			spacingFactor: nodeCount < 100 ? 1.2 : nodeCount < 300 ? 1 : .8,
-			minGap: Math.max(30, s * .4),
-			incrementalRadius: Math.max(100, s * 1.5)
-		};
+		return computeSmartSpacing(nodeCount, w, h);
 	}
 	buildLayoutOptions(layout$2, animate, nodeCount) {
 		const sp = this.computeSmartSpacing(nodeCount);
@@ -45321,6 +52052,23 @@ var LayoutController = class {
 				tile: true,
 				padding: sp.padding,
 				avoidOverlap: true
+			};
+			case "fcose": return {
+				name: "fcose",
+				fit: true,
+				animate: false,
+				nodeRepulse: sp.nodeRepulse,
+				idealEdgeLength: sp.idealEdgeLength,
+				edgeElasticity: .05,
+				gravity: .02,
+				numIter: 2500,
+				randomize: true,
+				tile: true,
+				padding: sp.padding,
+				avoidOverlap: true,
+				quality: "default",
+				samplingType: true,
+				nodeSeparation: sp.minNodeSpacing
 			};
 			case "dagre": return {
 				name: "dagre",
@@ -45351,8 +52099,8 @@ var LayoutController = class {
 			};
 			case "radial": {
 				let maxDeg = 1;
-				if (nodeCount > 2e3) {
-					const sampleSize = Math.min(200, nodeCount);
+				if (nodeCount > LAYOUT$1.VERY_LARGE_NODE_THRESHOLD) {
+					const sampleSize = Math.min(LAYOUT$1.LAYOUT_SAMPLE_SIZE, nodeCount);
 					const step$2 = Math.max(1, Math.floor(nodeCount / sampleSize));
 					for (let i$1 = 0; i$1 < nodeCount; i$1 += step$2) {
 						const deg = this.cy.nodes()[i$1]?.degree() ?? 0;
@@ -45400,13 +52148,13 @@ var LayoutController = class {
 		if (nodes.length === 0) return;
 		const sp = this.computeSmartSpacing(nodes.length);
 		const minGap = sp.minGap;
-		const maxIterations = 15;
-		const skipThreshold = 5e3;
+		const maxIterations = LAYOUT$1.OVERLAP_MAX_ITERATIONS;
+		const skipThreshold = LAYOUT$1.OVERLAP_SKIP_THRESHOLD;
 		if (nodes.length > skipThreshold) {
-			this.cy.fit(void 0, 80);
+			this.cy.fit(void 0, RENDERER.FIT_PADDING);
 			return;
 		}
-		const cellSize = minGap * 4;
+		const cellSize = minGap * LAYOUT$1.OVERLAP_CELL_SIZE_MULTIPLIER;
 		let lastOverlapCount = Infinity;
 		let noImprovementCount = 0;
 		for (let iter = 0; iter < maxIterations; iter++) {
@@ -45502,7 +52250,7 @@ var LayoutController = class {
 				}
 			});
 		}
-		this.cy.fit(void 0, 80);
+		this.cy.fit(void 0, RENDERER.FIT_PADDING);
 	}
 	destroy() {
 		if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
@@ -45588,7 +52336,7 @@ var HighlightController = class {
 		});
 		this.selectedNodeId = id;
 	}
-	highlightCallChain(nodeId, maxDepth = 50) {
+	highlightCallChain(nodeId, maxDepth = HIGHLIGHT.CALL_CHAIN_MAX_DEPTH) {
 		this.cy.batch(() => {
 			this.cy.elements().removeClass("call-chain");
 			if (!nodeId) return;
@@ -45670,6 +52418,81 @@ var HighlightController = class {
 		for (const id of adjacency.keys()) if (!visited.has(id)) enter(id);
 		return cycles;
 	}
+	detectCyclesDetailed() {
+		const adjacency = new Map();
+		const edgeMap = new Map();
+		this.cy.edges().forEach((edge) => {
+			const s = edge.source().id();
+			const t$1 = edge.target().id();
+			const list = adjacency.get(s);
+			if (list) list.push(t$1);
+			else adjacency.set(s, [t$1]);
+			edgeMap.set(`${s}->${t$1}`, edge.id());
+		});
+		const visited = new Set();
+		const inStack = new Set();
+		const cycleList = [];
+		const seenCycleKeys = new Set();
+		const enter = (start) => {
+			const path = [];
+			const pathIndex = new Map();
+			const frames = [{
+				id: start,
+				neighbors: adjacency.get(start) ?? [],
+				next: 0
+			}];
+			visited.add(start);
+			inStack.add(start);
+			path.push(start);
+			pathIndex.set(start, 0);
+			while (frames.length > 0) {
+				const frame = frames[frames.length - 1];
+				if (frame.next >= frame.neighbors.length) {
+					inStack.delete(frame.id);
+					path.pop();
+					pathIndex.delete(frame.id);
+					frames.pop();
+					continue;
+				}
+				const target = frame.neighbors[frame.next++];
+				if (inStack.has(target)) {
+					const cycleStart = pathIndex.get(target);
+					if (cycleStart !== void 0) {
+						const cycleNodes = path.slice(cycleStart);
+						cycleNodes.push(target);
+						const cycleKey = [...cycleNodes].sort().join("|");
+						if (!seenCycleKeys.has(cycleKey)) {
+							seenCycleKeys.add(cycleKey);
+							const edges = [];
+							for (let i$1 = 0; i$1 < cycleNodes.length - 1; i$1++) {
+								const eId = edgeMap.get(`${cycleNodes[i$1]}->${cycleNodes[i$1 + 1]}`);
+								if (eId) edges.push(eId);
+							}
+							const closingEdge = edgeMap.get(`${cycleNodes[cycleNodes.length - 2]}->${target}`);
+							if (closingEdge && !edges.includes(closingEdge)) edges.push(closingEdge);
+							cycleList.push({
+								nodes: cycleNodes.slice(0, -1),
+								length: cycleNodes.length - 1,
+								edges
+							});
+						}
+					}
+				} else if (!visited.has(target)) {
+					visited.add(target);
+					inStack.add(target);
+					path.push(target);
+					pathIndex.set(target, path.length - 1);
+					frames.push({
+						id: target,
+						neighbors: adjacency.get(target) ?? [],
+						next: 0
+					});
+				}
+			}
+		};
+		for (const id of adjacency.keys()) if (!visited.has(id)) enter(id);
+		return cycleList;
+	}
 	highlightCycles(cycleIds) {
 		this.cy.batch(() => {
 			this.cy.elements().removeClass("cycle-highlight");
@@ -45679,7 +52502,25 @@ var HighlightController = class {
 			});
 		});
 	}
-	computeImpact(nodeId, maxDepth = 3) {
+	isolateCycles(cycleIds) {
+		this.cy.batch(() => {
+			this.cy.elements().removeClass("cycle-hidden");
+			this.cy.nodes().forEach((node) => {
+				if (!cycleIds.has(node.id())) node.addClass("cycle-hidden");
+			});
+			this.cy.edges().forEach((edge) => {
+				const srcIn = cycleIds.has(edge.source().id());
+				const tgtIn = cycleIds.has(edge.target().id());
+				if (!srcIn || !tgtIn) edge.addClass("cycle-hidden");
+			});
+		});
+	}
+	restoreIsolation() {
+		this.cy.batch(() => {
+			this.cy.elements().removeClass("cycle-hidden");
+		});
+	}
+	computeImpact(nodeId, maxDepth = HIGHLIGHT.IMPACT_MAX_DEPTH) {
 		const visited = new Map();
 		const queue = [{
 			id: nodeId,
@@ -45804,7 +52645,7 @@ var HighlightController = class {
 	}
 	destroy() {
 		this.cy.batch(() => {
-			this.cy.elements().removeClass("highlighted selected neighbor-highlight neighbor-dim call-chain cycle-highlight impact-d1 impact-d2 impact-d3 impact-source inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement");
+			this.cy.elements().removeClass("highlighted selected neighbor-highlight neighbor-dim call-chain cycle-highlight cycle-hidden impact-d1 impact-d2 impact-d3 impact-source inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement");
 		});
 		this.highlightedNodeIds.clear();
 		this.selectedNodeId = null;
@@ -45947,6 +52788,34 @@ var ViewportController = class {
 };
 
 //#endregion
+//#region src/shared/searchUtils.ts
+function parseSearchQuery(query) {
+	const requiredTerms = [];
+	const optionalTerms = [];
+	let exactPhrase = null;
+	const quotedMatch = query.match(/"([^"]+)"/);
+	if (quotedMatch) exactPhrase = quotedMatch[1].toLowerCase();
+	const remaining = query.replace(/"[^"]+"/g, " ").trim();
+	if (remaining) for (const token of remaining.split(/\s+/)) if (token.startsWith("+")) {
+		const term = token.slice(1).toLowerCase();
+		if (term) requiredTerms.push(term);
+	} else optionalTerms.push(token.toLowerCase());
+	if (exactPhrase && optionalTerms.length === 0 && requiredTerms.length === 0) optionalTerms.push(exactPhrase);
+	return {
+		requiredTerms,
+		optionalTerms,
+		exactPhrase
+	};
+}
+function matchSearchQuery(label, parsed) {
+	const lower = label.toLowerCase();
+	if (parsed.exactPhrase && !lower.includes(parsed.exactPhrase)) return false;
+	for (const term of parsed.requiredTerms) if (!lower.includes(term)) return false;
+	if (parsed.optionalTerms.length > 0) return parsed.optionalTerms.some((term) => lower.includes(term));
+	return true;
+}
+
+//#endregion
 //#region src/client/renderer/DataController.ts
 var DataController = class {
 	cy;
@@ -46058,7 +52927,7 @@ var DataController = class {
 			this.computeNodeWeights();
 			return;
 		}
-		const BATCH_SIZE = 200;
+		const BATCH_SIZE = DATA_CONTROLLER.BATCH_SIZE;
 		if (nodesToAdd.length <= BATCH_SIZE) {
 			this.cy.batch(() => {
 				for (const n of nodesToAdd) this.addNode(n);
@@ -46171,7 +53040,7 @@ var DataController = class {
 				return;
 			}
 			const { nodes, edges } = this.batchQueue;
-			const BATCH_SIZE = 200;
+			const BATCH_SIZE = DATA_CONTROLLER.BATCH_SIZE;
 			const batchNodes = nodes.slice(0, BATCH_SIZE);
 			const batchNodeIds = new Set(batchNodes.map((n) => n.id));
 			const batchEdges = edges.filter((e) => batchNodeIds.has(e.source) && batchNodeIds.has(e.target));
@@ -46203,12 +53072,14 @@ var DataController = class {
 			this.cy.nodes().forEach((node) => {
 				const isFiltered = hidden.has(node.id());
 				node.data("typeFiltered", isFiltered);
-				node.style("display", isFiltered ? "none" : "element");
+				const connectionFiltered = node.data("connectionFiltered") === true;
+				node.style("display", isFiltered || connectionFiltered ? "none" : "element");
 			});
 			this.cy.edges().forEach((edge) => {
 				const hiddenEdge = hidden.has(edge.source().id()) || hidden.has(edge.target().id());
 				edge.data("typeFiltered", hiddenEdge);
-				edge.style("display", hiddenEdge ? "none" : "element");
+				const connectionFiltered = edge.data("connectionFiltered") === true;
+				edge.style("display", hiddenEdge || connectionFiltered ? "none" : "element");
 			});
 		});
 	}
@@ -46232,7 +53103,8 @@ var DataController = class {
 				const edgeType = edge.data("type");
 				const visible = allowedEdgeTypes.has(edgeType);
 				edge.data("typeFiltered", !visible);
-				edge.style("display", visible ? "element" : "none");
+				const connectionFiltered = edge.data("connectionFiltered") === true;
+				edge.style("display", !visible || connectionFiltered ? "none" : "element");
 				if (visible) {
 					connectedNodeIds.add(edge.source().id());
 					connectedNodeIds.add(edge.target().id());
@@ -46241,7 +53113,52 @@ var DataController = class {
 			this.cy.nodes().forEach((node) => {
 				const isFiltered = !connectedNodeIds.has(node.id());
 				node.data("typeFiltered", isFiltered);
-				node.style("display", isFiltered ? "none" : "element");
+				const connectionFiltered = node.data("connectionFiltered") === true;
+				node.style("display", isFiltered || connectionFiltered ? "none" : "element");
+			});
+		});
+	}
+	applyConnectionFilters(fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes) {
+		const fanInCount = new Map();
+		const fanOutCount = new Map();
+		this.cy.edges().forEach((edge) => {
+			const source = edge.source().id();
+			const target = edge.target().id();
+			fanOutCount.set(source, (fanOutCount.get(source) ?? 0) + 1);
+			fanInCount.set(target, (fanInCount.get(target) ?? 0) + 1);
+		});
+		this.cy.batch(() => {
+			this.cy.nodes().forEach((node) => {
+				const isCluster = node.data("isCluster") === true;
+				let hidden = false;
+				if (!isCluster && fanInThreshold > 0) {
+					const inCount = fanInCount.get(node.id()) ?? 0;
+					if (inCount < fanInThreshold) hidden = true;
+				}
+				if (!isCluster && fanOutThreshold > 0) {
+					const outCount = fanOutCount.get(node.id()) ?? 0;
+					if (outCount < fanOutThreshold) hidden = true;
+				}
+				if (!isCluster && visibleNodeTypes.size > 0) {
+					const nodeType = node.data("type");
+					if (!visibleNodeTypes.has(nodeType)) hidden = true;
+				}
+				node.data("connectionFiltered", hidden);
+				const typeFiltered = node.data("typeFiltered") === true;
+				node.style("display", hidden || typeFiltered ? "none" : "element");
+			});
+			this.cy.edges().forEach((edge) => {
+				let hidden = false;
+				if (visibleEdgeTypes.size > 0) {
+					const edgeType = edge.data("type");
+					if (!visibleEdgeTypes.has(edgeType)) hidden = true;
+				}
+				const sourceHidden = edge.source().data("connectionFiltered") === true;
+				const targetHidden = edge.target().data("connectionFiltered") === true;
+				if (sourceHidden || targetHidden) hidden = true;
+				edge.data("connectionFiltered", hidden);
+				const typeFiltered = edge.data("typeFiltered") === true;
+				edge.style("display", hidden || typeFiltered ? "none" : "element");
 			});
 		});
 	}
@@ -46250,10 +53167,15 @@ var DataController = class {
 			this.cy.nodes().removeClass("search-match");
 			return 0;
 		}
-		const q = query.toLowerCase();
+		const { requiredTerms, optionalTerms, exactPhrase } = parseSearchQuery(query);
+		const matcher = (label) => matchSearchQuery(label, {
+			requiredTerms,
+			optionalTerms,
+			exactPhrase
+		});
 		let matches$2 = 0;
 		const matchedCyNodeIds = new Set();
-		for (const rawNode of this.rawNodesMap.values()) if (rawNode.label.toLowerCase().includes(q)) {
+		for (const rawNode of this.rawNodesMap.values()) if (matcher(rawNode.label)) {
 			matches$2++;
 			const visibleId = this.rawToVisibleMap.get(rawNode.id);
 			if (visibleId) {
@@ -46276,7 +53198,7 @@ var DataController = class {
 		}
 		if (matches$2 === 0) this.cy.nodes().forEach((node) => {
 			const label = node.data("label");
-			if (typeof label === "string" && label.toLowerCase().includes(q)) {
+			if (typeof label === "string" && matcher(label)) {
 				matchedCyNodeIds.add(node.id());
 				matches$2++;
 			}
@@ -46344,6 +53266,48 @@ var DataController = class {
 	exportJSON() {
 		return JSON.stringify(this.cy.json(), null, 2);
 	}
+	exportMermaid() {
+		const nodes = this.cy.nodes();
+		const edges = this.cy.edges();
+		if (nodes.length === 0) return "graph TD\n";
+		const nodeShapeMap = {
+			function: "($label$)",
+			class: "[$label$]",
+			variable: "(($label$))",
+			module: "{$label$}",
+			interface: "/$label$/"
+		};
+		const defaultShape = "[$label$]";
+		const edgeLabelMap = {
+			call: "call",
+			extend: "extend",
+			implement: "implement",
+			import: "import",
+			dependency: "dependency",
+			contains: "contains"
+		};
+		const lines = ["graph TD"];
+		const seenIds = new Set();
+		nodes.forEach((node) => {
+			const id = node.id().replace(/[^a-zA-Z0-9_]/g, "_");
+			if (seenIds.has(id)) return;
+			seenIds.add(id);
+			const label = String(node.data("label") ?? id).replace(/"/g, "'");
+			const type = String(node.data("type") ?? "");
+			const shape = nodeShapeMap[type] ?? defaultShape;
+			const shapeDef = shape.replace("$label$", `"${label}"`);
+			lines.push(`  ${id}${shapeDef}`);
+		});
+		edges.forEach((edge) => {
+			const sourceId = edge.source().id().replace(/[^a-zA-Z0-9_]/g, "_");
+			const targetId = edge.target().id().replace(/[^a-zA-Z0-9_]/g, "_");
+			const edgeType = String(edge.data("type") ?? "");
+			const label = edgeLabelMap[edgeType];
+			if (label) lines.push(`  ${sourceId} -->|${label}| ${targetId}`);
+			else lines.push(`  ${sourceId} --> ${targetId}`);
+		});
+		return lines.join("\n") + "\n";
+	}
 	exportPNG() {
 		return this.cy.png({
 			full: true,
@@ -46374,8 +53338,8 @@ var DataController = class {
 		const bbox = this.cy.elements().boundingBox();
 		const w = Math.ceil(bbox.w) + 160;
 		const h = Math.ceil(bbox.h) + 160;
-		const offsetX = -bbox.x1 + 80;
-		const offsetY = -bbox.y1 + 80;
+		const offsetX = -bbox.x1 + DATA_CONTROLLER.SVG_OFFSET;
+		const offsetY = -bbox.y1 + DATA_CONTROLLER.SVG_OFFSET;
 		const parts = [];
 		parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`);
 		edges.forEach((edge) => {
@@ -46642,7 +53606,7 @@ var PathFinder = class {
 		const targetNode = this.cy.getElementById(targetId);
 		if (sourceNode.empty() || targetNode.empty()) return null;
 		const nodeCount = this.cy.nodes().length;
-		if (nodeCount > 1e4) return null;
+		if (nodeCount > PATH_FINDER.MAX_NODES_FOR_DIJKSTRA) return null;
 		const dijkstra$2 = this.cy.elements().dijkstra({ root: sourceNode });
 		const pathToTarget = dijkstra$2.pathTo(targetNode);
 		if (pathToTarget.length === 0) return null;
@@ -46764,7 +53728,7 @@ var SpatialIndex = class {
 
 //#endregion
 //#region src/client/renderer/VirtualViewportController.ts
-const VIRTUAL_SCROLL_THRESHOLD = 2e3;
+const VIRTUAL_SCROLL_THRESHOLD = VIRTUAL_VIEWPORT.SCROLL_THRESHOLD;
 var VirtualViewportController = class {
 	cy;
 	enabled = false;
@@ -46831,7 +53795,7 @@ var VirtualViewportController = class {
 		const pan = this.cy.pan();
 		const width$1 = this.cy.width();
 		const height = this.cy.height();
-		const padding = 100;
+		const padding = VIRTUAL_VIEWPORT.PADDING;
 		const viewBounds = {
 			x1: -pan.x / zoom - padding,
 			y1: -pan.y / zoom - padding,
@@ -46894,11 +53858,15 @@ var VirtualViewportController = class {
 
 //#endregion
 //#region src/client/renderer/CytoscapeRenderer.ts
-function ensureDagreRegistered() {
+function ensureExtensionsRegistered() {
 	const cy = cytoscape$1;
 	if (!cy.__dagreRegistered) {
 		cytoscape$1.use(import_cytoscape_dagre.default);
 		cy.__dagreRegistered = true;
+	}
+	if (!cy.__fcoseRegistered) {
+		cytoscape$1.use(import_cytoscape_fcose.default);
+		cy.__fcoseRegistered = true;
 	}
 }
 var CytoscapeRenderer = class {
@@ -46918,12 +53886,12 @@ var CytoscapeRenderer = class {
 	}
 	init() {
 		if (this.cy) return;
-		ensureDagreRegistered();
+		ensureExtensionsRegistered();
 		try {
 			this.cy = cytoscape$1({
 				container: this.options.container,
-				minZoom: .02,
-				maxZoom: 3,
+				minZoom: RENDERER.MIN_ZOOM,
+				maxZoom: RENDERER.MAX_ZOOM,
 				style: [],
 				layout: { name: "cose" },
 				headless: false
@@ -46973,10 +53941,10 @@ var CytoscapeRenderer = class {
 		this.dataCtrl?.updateData(nodes, edges);
 		if (this.cy && nodes.length > 0) {
 			if (this.fitTimer !== null) clearTimeout(this.fitTimer);
-			const fitDelay = nodes.length > 500 ? 500 : 200;
+			const fitDelay = nodes.length > RENDERER.LARGE_GRAPH_NODE_THRESHOLD ? RENDERER.FIT_DELAY_LARGE : RENDERER.FIT_DELAY_SMALL;
 			this.fitTimer = setTimeout(() => {
 				this.fitTimer = null;
-				if (this.cy && this.cy.nodes().length > 0) this.cy.fit(void 0, 80);
+				if (this.cy && this.cy.nodes().length > 0) this.cy.fit(void 0, RENDERER.FIT_PADDING);
 			}, fitDelay);
 		}
 	}
@@ -47022,6 +53990,9 @@ var CytoscapeRenderer = class {
 	filterByGraphType(graphType) {
 		this.dataCtrl?.filterByGraphType(graphType);
 	}
+	applyConnectionFilters(fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes) {
+		this.dataCtrl?.applyConnectionFilters(fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes);
+	}
 	search(query) {
 		return this.dataCtrl?.search(query) ?? 0;
 	}
@@ -47034,8 +54005,17 @@ var CytoscapeRenderer = class {
 	detectCycles() {
 		return this.highlightCtrl?.detectCycles() ?? new Set();
 	}
+	detectCyclesDetailed() {
+		return this.highlightCtrl?.detectCyclesDetailed() ?? [];
+	}
 	highlightCycles(cycleIds) {
 		this.highlightCtrl?.highlightCycles(cycleIds);
+	}
+	isolateCycles(cycleIds) {
+		this.highlightCtrl?.isolateCycles(cycleIds);
+	}
+	restoreIsolation() {
+		this.highlightCtrl?.restoreIsolation();
 	}
 	highlightImpact(nodeId) {
 		this.highlightCtrl?.highlightImpact(nodeId);
@@ -47060,6 +54040,9 @@ var CytoscapeRenderer = class {
 	}
 	exportJSON() {
 		return this.dataCtrl?.exportJSON() ?? "";
+	}
+	exportMermaid() {
+		return this.dataCtrl?.exportMermaid() ?? "graph TD\n";
 	}
 	exportPNG() {
 		return this.dataCtrl?.exportPNG() ?? null;
@@ -47120,7 +54103,7 @@ var CytoscapeRenderer = class {
 //#endregion
 //#region src/client/hooks/useGraphRenderer.ts
 const log$6 = scoped("renderer-hook");
-function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterDepth, debouncedSearch, showCallChain, showCycles, showImpact, showInheritance, focusNodeId, callbacks, showCallChainRef) {
+function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterDepth, debouncedSearch, showCallChain, showCycles, cycleIsolation, showImpact, showInheritance, focusNodeId, callbacks, showCallChainRef, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes) {
 	const containerRef = useRef(null);
 	const rendererRef = useRef(null);
 	const [searchMatchCount, setSearchMatchCount] = useState(null);
@@ -47232,6 +54215,18 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 	useEffect(() => {
 		const r = rendererRef.current;
 		if (!r) return;
+		r.applyConnectionFilters(fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes);
+	}, [
+		fanInThreshold,
+		fanOutThreshold,
+		visibleNodeTypes,
+		visibleEdgeTypes,
+		nodes,
+		edges
+	]);
+	useEffect(() => {
+		const r = rendererRef.current;
+		if (!r) return;
 		setSearchMatchCount(debouncedSearch ? r.search(debouncedSearch) : null);
 	}, [debouncedSearch, nodes]);
 	useEffect(() => {
@@ -47248,6 +54243,14 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 			r.highlightCycles(cycles);
 		} else r.highlightCycles(new Set());
 	}, [showCycles]);
+	useEffect(() => {
+		const r = rendererRef.current;
+		if (!r) return;
+		if (cycleIsolation && showCycles) {
+			const cycles = r.detectCycles();
+			r.isolateCycles(cycles);
+		} else r.restoreIsolation();
+	}, [cycleIsolation, showCycles]);
 	useEffect(() => {
 		const r = rendererRef.current;
 		if (!r) return;
@@ -47286,6 +54289,10 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 			data$2 = renderer$1.exportSVG();
 			mimeType = "image/svg+xml";
 			extension$1 = "svg";
+		} else if (format === "mermaid") {
+			data$2 = renderer$1.exportMermaid();
+			mimeType = "text/plain";
+			extension$1 = "mmd";
 		} else data$2 = renderer$1.exportJSON();
 		if (data$2) {
 			const blob = new Blob([data$2], { type: mimeType });
@@ -47389,6 +54396,7 @@ const initialState = {
 	showSearch: false,
 	collapsed: false,
 	showCycles: false,
+	cycleIsolation: false,
 	showCallChain: false,
 	showImpact: false,
 	showInheritance: false,
@@ -47400,7 +54408,8 @@ const initialState = {
 	showRules: false,
 	showHotspot: false,
 	showGodModule: false,
-	showCoreFunction: false
+	showCoreFunction: false,
+	showFilterPanel: false
 };
 function reducer(state, action) {
 	switch (action.type) {
@@ -47414,10 +54423,10 @@ function reducer(state, action) {
 		case "set": {
 			const key = action.key;
 			const prev = state[key];
-			const next = typeof action.value === "function" ? action.value(prev) : action.value;
+			const next$1 = typeof action.value === "function" ? action.value(prev) : action.value;
 			return {
 				...state,
-				[key]: next
+				[key]: next$1
 			};
 		}
 	}
@@ -47436,6 +54445,7 @@ function usePanelState() {
 	const toggleSearch = useCallback(makeToggle("showSearch"), [makeToggle]);
 	const toggleCollapsed = useCallback(makeToggle("collapsed"), [makeToggle]);
 	const toggleCycles = useCallback(makeToggle("showCycles"), [makeToggle]);
+	const toggleCycleIsolation = useCallback(makeToggle("cycleIsolation"), [makeToggle]);
 	const toggleCallChain = useCallback(makeToggle("showCallChain"), [makeToggle]);
 	const toggleImpact = useCallback(makeToggle("showImpact"), [makeToggle]);
 	const toggleInheritance = useCallback(makeToggle("showInheritance"), [makeToggle]);
@@ -47448,10 +54458,12 @@ function usePanelState() {
 	const toggleHotspot = useCallback(makeToggle("showHotspot"), [makeToggle]);
 	const toggleGodModule = useCallback(makeToggle("showGodModule"), [makeToggle]);
 	const toggleCoreFunction = useCallback(makeToggle("showCoreFunction"), [makeToggle]);
+	const toggleFilterPanel = useCallback(makeToggle("showFilterPanel"), [makeToggle]);
 	const setShowSearch = useCallback(makeSet("showSearch"), [makeSet]);
 	const setShowImport = useCallback(makeSet("showImport"), [makeSet]);
 	const setShowCallChain = useCallback(makeSet("showCallChain"), [makeSet]);
 	const setShowCycles = useCallback(makeSet("showCycles"), [makeSet]);
+	const setShowCycleIsolation = useCallback(makeSet("cycleIsolation"), [makeSet]);
 	const setShowImpact = useCallback(makeSet("showImpact"), [makeSet]);
 	const setShowInheritance = useCallback(makeSet("showInheritance"), [makeSet]);
 	const setShowMiniMap = useCallback(makeSet("showMiniMap"), [makeSet]);
@@ -47462,11 +54474,13 @@ function usePanelState() {
 	const setShowHotspot = useCallback(makeSet("showHotspot"), [makeSet]);
 	const setShowGodModule = useCallback(makeSet("showGodModule"), [makeSet]);
 	const setShowCoreFunction = useCallback(makeSet("showCoreFunction"), [makeSet]);
+	const setShowFilterPanel = useCallback(makeSet("showFilterPanel"), [makeSet]);
 	return {
 		...state,
 		toggleSearch,
 		toggleCollapsed,
 		toggleCycles,
+		toggleCycleIsolation,
 		toggleCallChain,
 		toggleImpact,
 		toggleInheritance,
@@ -47479,10 +54493,12 @@ function usePanelState() {
 		toggleHotspot,
 		toggleGodModule,
 		toggleCoreFunction,
+		toggleFilterPanel,
 		setShowSearch,
 		setShowImport,
 		setShowCallChain,
 		setShowCycles,
+		setShowCycleIsolation,
 		setShowImpact,
 		setShowInheritance,
 		setShowMiniMap,
@@ -47493,10 +54509,12 @@ function usePanelState() {
 		setShowHotspot,
 		setShowGodModule,
 		setShowCoreFunction,
+		setShowFilterPanel,
 		toPanelControls: () => ({
 			showSearch: state.showSearch,
 			showCallChain: state.showCallChain,
 			showCycles: state.showCycles,
+			cycleIsolation: state.cycleIsolation,
 			showImpact: state.showImpact,
 			showInheritance: state.showInheritance,
 			showMiniMap: state.showMiniMap,
@@ -47508,9 +54526,11 @@ function usePanelState() {
 			showHotspot: state.showHotspot,
 			showGodModule: state.showGodModule,
 			showCoreFunction: state.showCoreFunction,
+			showFilterPanel: state.showFilterPanel,
 			onToggleSearch: toggleSearch,
 			onToggleCallChain: toggleCallChain,
 			onToggleCycles: toggleCycles,
+			onToggleCycleIsolation: toggleCycleIsolation,
 			onToggleImpact: toggleImpact,
 			onToggleInheritance: toggleInheritance,
 			onToggleMiniMap: toggleMiniMap,
@@ -47521,7 +54541,8 @@ function usePanelState() {
 			onToggleRules: toggleRules,
 			onToggleHotspot: toggleHotspot,
 			onToggleGodModule: toggleGodModule,
-			onToggleCoreFunction: toggleCoreFunction
+			onToggleCoreFunction: toggleCoreFunction,
+			onToggleFilterPanel: toggleFilterPanel
 		})
 	};
 }
@@ -47552,6 +54573,7 @@ function usePanelKeyboard(layout$2, setLayout, rendererRef, handlers) {
 		const cur = layoutRef.current;
 		const order$2 = [
 			"cose",
+			"fcose",
 			"dagre",
 			"circle",
 			"grid",
@@ -47559,8 +54581,8 @@ function usePanelKeyboard(layout$2, setLayout, rendererRef, handlers) {
 			"tree"
 		];
 		const idx = order$2.indexOf(cur);
-		const next = order$2[(idx + 1) % order$2.length];
-		setLayoutRef.current(next);
+		const next$1 = order$2[(idx + 1) % order$2.length];
+		setLayoutRef.current(next$1);
 	}, { ctrl: true });
 	useKeyboardShortcut("i", () => handlersRef.current.onToggleImport(), { ctrl: true });
 	useKeyboardShortcut("?", () => handlersRef.current.onToggleHelp(), { preventDefault: true });
@@ -47658,7 +54680,7 @@ function validateGraphData(raw) {
 //#endregion
 //#region src/client/api/index.ts
 const log$5 = scoped("client");
-const DEFAULT_TIMEOUT = 3e4;
+const DEFAULT_TIMEOUT = API.DEFAULT_TIMEOUT_MS;
 function fetchWithTimeout(url, options, timeoutMs = DEFAULT_TIMEOUT) {
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -47916,7 +54938,7 @@ const EDGE_WEIGHTS = {
 	dependency: .3,
 	contains: 0
 };
-const DEFAULT_MAX_MODULE_DEPTH = 3;
+const DEFAULT_MAX_MODULE_DEPTH = HEALTH_SCORE.DEFAULT_MAX_MODULE_DEPTH;
 var HealthScorer = class {
 	maxModuleDepth;
 	constructor(maxModuleDepth) {
@@ -47935,7 +54957,7 @@ var HealthScorer = class {
 		const cohesion = this.calculateCohesion(nodes, edges, moduleOfNode);
 		const cyclicDependencyRate = this.calculateCyclicDependencyRate(nodes, edges);
 		const modularity = this.calculateModularity(nodes, edges, moduleOfNode);
-		const overall = Math.round(coupling * .25 + cohesion * .25 + cyclicDependencyRate * .3 + modularity * .2);
+		const overall = Math.round(coupling * HEALTH_SCORE.WEIGHT_COUPLING + cohesion * HEALTH_SCORE.WEIGHT_COHESION + cyclicDependencyRate * HEALTH_SCORE.WEIGHT_CYCLIC + modularity * HEALTH_SCORE.WEIGHT_MODULARITY);
 		return {
 			coupling,
 			cohesion,
@@ -48821,7 +55843,7 @@ var HistoryManager = class {
 	undoStack = [];
 	redoStack = [];
 	maxHistory;
-	constructor(maxHistory = 50) {
+	constructor(maxHistory = HISTORY.DEFAULT_MAX_HISTORY) {
 		this.maxHistory = maxHistory;
 	}
 	push(snapshot) {
@@ -48929,11 +55951,11 @@ function useHistory() {
 		}
 	}, [updateFlags]);
 	const redo = useCallback(() => {
-		const next = managerRef.current.redo();
-		if (next) {
+		const next$1 = managerRef.current.redo();
+		if (next$1) {
 			isUndoRedoRef.current = true;
-			applySnapshot(next);
-			lastSnapshotRef.current = next;
+			applySnapshot(next$1);
+			lastSnapshotRef.current = next$1;
 			queueMicrotask(() => {
 				isUndoRedoRef.current = false;
 			});
@@ -49385,6 +56407,11 @@ const StarIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ jsx(
 	className,
 	children: /* @__PURE__ */ jsx("path", { d: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" })
 }));
+const FilterIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ jsx("svg", {
+	...base(size$1),
+	className,
+	children: /* @__PURE__ */ jsx("path", { d: "M22 3H2l8 9.46V19l4 2v-8.54L22 3z" })
+}));
 
 //#endregion
 //#region src/client/components/ImportPanel.tsx
@@ -49506,14 +56533,14 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 		t$1
 	]);
 	const handleToggleWatch = useCallback(() => {
-		const next = !watchEnabled;
-		onSetWatchEnabled(next);
+		const next$1 = !watchEnabled;
+		onSetWatchEnabled(next$1);
 		window.dispatchEvent(new CustomEvent("codegraph:toggle-watch", { detail: {
-			enabled: next,
+			enabled: next$1,
 			path: effectivePath
 		} }));
 		log$2.info("watch toggled", {
-			enabled: next,
+			enabled: next$1,
 			path: effectivePath
 		});
 	}, [
@@ -50080,6 +57107,7 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 //#region src/client/components/Toolbar.tsx
 const LAYOUTS = [
 	"cose",
+	"fcose",
 	"dagre",
 	"circle",
 	"grid",
@@ -50199,7 +57227,7 @@ function Toolbar(props) {
 		setShowExportMenu(false);
 	}, [onExport]);
 	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterDepth, viewMode, currentLayer, layerNames, collapsed, panelControls, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterDepthChange, onViewModeChange, onLayerChange, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll, onUndo, onRedo, canUndo, canRedo, hasSelectedFunction } = props;
-	const { showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport, showPathFind, showHealthScore, showRules, showHotspot, showGodModule, showCoreFunction, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onToggleCoreFunction } = panelControls;
+	const { showSearch, showCallChain, showCycles, cycleIsolation, showImpact, showInheritance, showMiniMap, showLegend, showImport, showPathFind, showHealthScore, showRules, showHotspot, showGodModule, showCoreFunction, showFilterPanel, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleCycleIsolation, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onToggleCoreFunction, onToggleFilterPanel } = panelControls;
 	return /* @__PURE__ */ jsxs("div", {
 		className: "graph-toolbar",
 		children: [
@@ -50328,25 +57356,36 @@ function Toolbar(props) {
 						className: "toolbar-group",
 						role: "group",
 						"aria-label": t$1("toolbar.dataGroup"),
-						children: [/* @__PURE__ */ jsx("button", {
-							className: "import-btn",
-							onClick: onToggleImport,
-							title: t$1("toolbar.import"),
-							"aria-label": t$1("toolbar.import"),
-							"aria-pressed": showImport,
-							children: /* @__PURE__ */ jsx(UploadIcon, { size: 15 })
-						}), /* @__PURE__ */ jsx("select", {
-							value: filterType,
-							onChange: (e) => onFilterChange(e.target.value),
-							className: "filter-select",
-							id: "filter-type",
-							name: "filter-type",
-							"aria-label": t$1("toolbar.filter"),
-							children: FILTER_KEYS.map((opt) => /* @__PURE__ */ jsx("option", {
-								value: opt.value,
-								children: t$1(opt.key)
-							}, opt.value))
-						})]
+						children: [
+							/* @__PURE__ */ jsx("button", {
+								className: "import-btn",
+								onClick: onToggleImport,
+								title: t$1("toolbar.import"),
+								"aria-label": t$1("toolbar.import"),
+								"aria-pressed": showImport,
+								children: /* @__PURE__ */ jsx(UploadIcon, { size: 15 })
+							}),
+							/* @__PURE__ */ jsx("select", {
+								value: filterType,
+								onChange: (e) => onFilterChange(e.target.value),
+								className: "filter-select",
+								id: "filter-type",
+								name: "filter-type",
+								"aria-label": t$1("toolbar.filter"),
+								children: FILTER_KEYS.map((opt) => /* @__PURE__ */ jsx("option", {
+									value: opt.value,
+									children: t$1(opt.key)
+								}, opt.value))
+							}),
+							/* @__PURE__ */ jsx("button", {
+								className: `filter-panel-btn ${showFilterPanel ? "active" : ""}`,
+								onClick: onToggleFilterPanel,
+								title: t$1("toolbar.filterPanel"),
+								"aria-label": t$1("toolbar.filterPanel"),
+								"aria-pressed": showFilterPanel,
+								children: /* @__PURE__ */ jsx(FilterIcon, { size: 15 })
+							})
+						]
 					}),
 					/* @__PURE__ */ jsx("span", {
 						className: "toolbar-separator",
@@ -50380,6 +57419,14 @@ function Toolbar(props) {
 								"aria-label": t$1("toolbar.cycles"),
 								"aria-pressed": showCycles,
 								children: /* @__PURE__ */ jsx(CycleIcon, { size: 15 })
+							}),
+							showCycles && /* @__PURE__ */ jsx("button", {
+								className: `isolate-btn ${cycleIsolation ? "active" : ""}`,
+								onClick: onToggleCycleIsolation,
+								title: t$1("toolbar.isolateCycles"),
+								"aria-label": t$1("toolbar.isolateCycles"),
+								"aria-pressed": cycleIsolation,
+								children: /* @__PURE__ */ jsx(FilterIcon, { size: 15 })
 							}),
 							/* @__PURE__ */ jsx("button", {
 								className: `impact-btn ${showImpact ? "active" : ""}`,
@@ -50554,6 +57601,11 @@ function Toolbar(props) {
 											onClick: () => handleExport("json"),
 											role: "menuitem",
 											children: t$1("export.json")
+										}),
+										/* @__PURE__ */ jsx("button", {
+											onClick: () => handleExport("mermaid"),
+											role: "menuitem",
+											children: t$1("export.mermaid")
 										})
 									]
 								})]
@@ -50764,12 +57816,12 @@ const TYPE_ICONS = {
 	type: "T"
 };
 const TYPE_COLORS = {
-	function: "var(--cg-success)",
-	class: "var(--cg-accent-hover)",
-	variable: "var(--cg-warning)",
-	module: "var(--cg-accent)",
-	interface: "var(--cg-text-secondary)",
-	type: "var(--cg-text-tertiary)"
+	function: "var(--cg-node-function)",
+	class: "var(--cg-node-class)",
+	variable: "var(--cg-node-variable)",
+	module: "var(--cg-node-module)",
+	interface: "var(--cg-node-interface)",
+	type: "var(--cg-node-type)"
 };
 const EXPANDABLE_TYPES = new Set([
 	"module",
@@ -51437,9 +58489,16 @@ function LoadingOverlay({ visible }) {
 
 //#endregion
 //#region src/client/components/ErrorOverlay.tsx
+function friendlyError(raw, t$1) {
+	if (raw.startsWith("Failed to load dependencies")) return t$1("error.loadDependencies");
+	if (raw.startsWith("Failed to load code graph data")) return t$1("error.loadGraphData");
+	if (raw.startsWith("Failed to load code graph")) return t$1("error.loadGraph");
+	return t$1("error.generic");
+}
 function ErrorOverlay({ error: error$1, onBack, onRetry }) {
 	const t$1 = useT();
 	if (!error$1) return null;
+	const message = friendlyError(error$1, t$1);
 	return /* @__PURE__ */ jsxs("div", {
 		className: "error-overlay",
 		role: "alert",
@@ -51448,7 +58507,7 @@ function ErrorOverlay({ error: error$1, onBack, onRetry }) {
 			children: [/* @__PURE__ */ jsx(AlertCircleIcon, {
 				size: 16,
 				className: "error-overlay-icon"
-			}), /* @__PURE__ */ jsx("span", { children: error$1 })]
+			}), /* @__PURE__ */ jsx("span", { children: message })]
 		}), (onBack || onRetry) && /* @__PURE__ */ jsxs("div", {
 			className: "error-overlay-actions",
 			children: [onRetry && /* @__PURE__ */ jsx("button", {
@@ -52280,6 +59339,193 @@ function CoreFunctionPanel({ coreFunctions, onClose, label, onSelectFunction }) 
 }
 
 //#endregion
+//#region src/client/components/FilterPanel.tsx
+const NODE_TYPES = [
+	"function",
+	"class",
+	"variable",
+	"module",
+	"interface"
+];
+const EDGE_TYPES = [
+	"call",
+	"extend",
+	"implement",
+	"import",
+	"dependency",
+	"contains"
+];
+function FilterPanel({ onClose }) {
+	const t$1 = useT();
+	const fanInThreshold = useGraphStore((s) => s.fanInThreshold);
+	const fanOutThreshold = useGraphStore((s) => s.fanOutThreshold);
+	const visibleNodeTypes = useGraphStore((s) => s.visibleNodeTypes);
+	const visibleEdgeTypes = useGraphStore((s) => s.visibleEdgeTypes);
+	const setFanInThreshold = useGraphStore((s) => s.setFanInThreshold);
+	const setFanOutThreshold = useGraphStore((s) => s.setFanOutThreshold);
+	const setVisibleNodeTypes = useGraphStore((s) => s.setVisibleNodeTypes);
+	const setVisibleEdgeTypes = useGraphStore((s) => s.setVisibleEdgeTypes);
+	const toggleNodeType = (type) => {
+		const next$1 = new Set(visibleNodeTypes);
+		if (next$1.has(type)) next$1.delete(type);
+		else next$1.add(type);
+		setVisibleNodeTypes(next$1);
+	};
+	const toggleEdgeType = (type) => {
+		const next$1 = new Set(visibleEdgeTypes);
+		if (next$1.has(type)) next$1.delete(type);
+		else next$1.add(type);
+		setVisibleEdgeTypes(next$1);
+	};
+	const resetAll = () => {
+		setFanInThreshold(0);
+		setFanOutThreshold(0);
+		setVisibleNodeTypes(new Set());
+		setVisibleEdgeTypes(new Set());
+	};
+	return /* @__PURE__ */ jsxs("div", {
+		className: "filter-panel",
+		role: "region",
+		"aria-label": t$1("filterPanel.title"),
+		children: [
+			/* @__PURE__ */ jsxs("div", {
+				className: "filter-panel-header",
+				children: [/* @__PURE__ */ jsx("span", {
+					className: "filter-panel-title",
+					children: t$1("filterPanel.title")
+				}), /* @__PURE__ */ jsx("button", {
+					className: "filter-panel-close",
+					onClick: onClose,
+					"aria-label": t$1("filterPanel.close"),
+					children: "×"
+				})]
+			}),
+			/* @__PURE__ */ jsxs("div", {
+				className: "filter-panel-section",
+				children: [
+					/* @__PURE__ */ jsx("div", {
+						className: "filter-section-label",
+						children: t$1("filterPanel.fanIn")
+					}),
+					/* @__PURE__ */ jsxs("div", {
+						className: "filter-slider-row",
+						children: [/* @__PURE__ */ jsx("input", {
+							type: "range",
+							min: 0,
+							max: 50,
+							value: fanInThreshold,
+							onChange: (e) => setFanInThreshold(Number(e.target.value)),
+							"aria-label": t$1("filterPanel.fanIn")
+						}), /* @__PURE__ */ jsx("span", {
+							className: "filter-slider-value",
+							children: fanInThreshold
+						})]
+					}),
+					/* @__PURE__ */ jsx("div", {
+						className: "filter-hint",
+						children: t$1("filterPanel.fanInHint")
+					})
+				]
+			}),
+			/* @__PURE__ */ jsxs("div", {
+				className: "filter-panel-section",
+				children: [
+					/* @__PURE__ */ jsx("div", {
+						className: "filter-section-label",
+						children: t$1("filterPanel.fanOut")
+					}),
+					/* @__PURE__ */ jsxs("div", {
+						className: "filter-slider-row",
+						children: [/* @__PURE__ */ jsx("input", {
+							type: "range",
+							min: 0,
+							max: 50,
+							value: fanOutThreshold,
+							onChange: (e) => setFanOutThreshold(Number(e.target.value)),
+							"aria-label": t$1("filterPanel.fanOut")
+						}), /* @__PURE__ */ jsx("span", {
+							className: "filter-slider-value",
+							children: fanOutThreshold
+						})]
+					}),
+					/* @__PURE__ */ jsx("div", {
+						className: "filter-hint",
+						children: t$1("filterPanel.fanOutHint")
+					})
+				]
+			}),
+			/* @__PURE__ */ jsxs("div", {
+				className: "filter-panel-section",
+				children: [/* @__PURE__ */ jsx("div", {
+					className: "filter-section-label",
+					children: t$1("filterPanel.nodeTypes")
+				}), /* @__PURE__ */ jsx("div", {
+					className: "filter-checkbox-grid",
+					children: NODE_TYPES.map((type) => /* @__PURE__ */ jsxs("label", {
+						className: "filter-checkbox-item",
+						children: [/* @__PURE__ */ jsx("input", {
+							type: "checkbox",
+							checked: visibleNodeTypes.has(type),
+							onChange: () => toggleNodeType(type)
+						}), /* @__PURE__ */ jsx("span", {
+							className: "filter-type-badge",
+							"data-type": type,
+							children: t$1(`filter.${type}`)
+						})]
+					}, type))
+				})]
+			}),
+			/* @__PURE__ */ jsxs("div", {
+				className: "filter-panel-section",
+				children: [/* @__PURE__ */ jsx("div", {
+					className: "filter-section-label",
+					children: t$1("filterPanel.edgeTypes")
+				}), /* @__PURE__ */ jsx("div", {
+					className: "filter-checkbox-grid",
+					children: EDGE_TYPES.map((type) => /* @__PURE__ */ jsxs("label", {
+						className: "filter-checkbox-item",
+						children: [/* @__PURE__ */ jsx("input", {
+							type: "checkbox",
+							checked: visibleEdgeTypes.has(type),
+							onChange: () => toggleEdgeType(type)
+						}), /* @__PURE__ */ jsx("span", {
+							className: "filter-edge-badge",
+							"data-type": type,
+							children: type
+						})]
+					}, type))
+				})]
+			}),
+			/* @__PURE__ */ jsxs("div", {
+				className: "filter-panel-section",
+				children: [/* @__PURE__ */ jsx("div", {
+					className: "filter-section-label",
+					children: t$1("filterPanel.title")
+				}), /* @__PURE__ */ jsxs("div", {
+					className: "filter-quick-actions",
+					children: [/* @__PURE__ */ jsx("button", {
+						className: "filter-quick-btn",
+						onClick: () => setFanInThreshold(fanInThreshold > 0 ? 0 : 1),
+						title: t$1("filterPanel.orphansHint"),
+						children: t$1("filterPanel.hideOrphans")
+					}), /* @__PURE__ */ jsx("button", {
+						className: "filter-quick-btn",
+						onClick: () => setFanOutThreshold(fanOutThreshold > 0 ? 0 : 1),
+						title: t$1("filterPanel.leavesHint"),
+						children: t$1("filterPanel.hideLeaves")
+					})]
+				})]
+			}),
+			/* @__PURE__ */ jsx("button", {
+				className: "filter-reset-btn",
+				onClick: resetAll,
+				children: t$1("filterPanel.reset")
+			})
+		]
+	});
+}
+
+//#endregion
 //#region src/client/components/MicroViewBar.tsx
 function MicroViewPrompt({ viewMode, selectFunctionPrompt, flowchartLabel, sequenceLabel, backToCodeLabel, onBackToCode }) {
 	const modeLabel = viewMode === "cfg" ? "CFG" : viewMode === "flowchart" ? flowchartLabel : sequenceLabel;
@@ -52967,7 +60213,7 @@ function GraphPanelInner({ className = "" }) {
 	const [thumbnail, setThumbnail] = useState(null);
 	const [viewportInfo, setViewportInfo] = useState(null);
 	const [focusNodeId, setFocusNodeId] = useState(null);
-	const { nodes, edges, rawNodes, rawEdges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, clusterDepth, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, expandedNodeIds, pathResult, focusDepth, ruleViolations, viewMode, selectedFunction, currentLayer, diagramData } = useGraphStore(useShallow((s) => ({
+	const { nodes, edges, rawNodes, rawEdges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, clusterDepth, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, expandedNodeIds, pathResult, focusDepth, ruleViolations, viewMode, selectedFunction, currentLayer, diagramData, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes } = useGraphStore(useShallow((s) => ({
 		nodes: s.nodes,
 		edges: s.edges,
 		rawNodes: s.rawNodes,
@@ -52999,7 +60245,11 @@ function GraphPanelInner({ className = "" }) {
 		viewMode: s.viewMode,
 		selectedFunction: s.selectedFunction,
 		currentLayer: s.currentLayer,
-		diagramData: s.diagramData
+		diagramData: s.diagramData,
+		fanInThreshold: s.fanInThreshold,
+		fanOutThreshold: s.fanOutThreshold,
+		visibleNodeTypes: s.visibleNodeTypes,
+		visibleEdgeTypes: s.visibleEdgeTypes
 	})));
 	const setLayout = useGraphStore((s) => s.setLayout);
 	const setTheme = useGraphStore((s) => s.setTheme);
@@ -53129,7 +60379,7 @@ function GraphPanelInner({ className = "" }) {
 			});
 		}
 	}, []);
-	const renderer$1 = useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterDepth, debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact, panel.showInheritance, focusNodeId, {
+	const renderer$1 = useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterDepth, debouncedSearch, panel.showCallChain, panel.showCycles, panel.cycleIsolation, panel.showImpact, panel.showInheritance, focusNodeId, {
 		onNodeTap: handleNodeTap,
 		onNodeDoubleTap: handleNodeDoubleTap,
 		onNodeHover: handleNodeHover,
@@ -53137,7 +60387,7 @@ function GraphPanelInner({ className = "" }) {
 		onEdgeTap: handleEdgeTap,
 		onEdgeHover: handleEdgeHover,
 		onEdgeHoverOut: handleEdgeHoverOut
-	}, showCallChainRef);
+	}, showCallChainRef, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes);
 	useEffect(() => {
 		getDataRef.current = {
 			getSelectedNodeData: () => renderer$1.rendererRef.current?.getSelectedNodeData() ?? null,
@@ -53430,8 +60680,8 @@ function GraphPanelInner({ className = "" }) {
 	]);
 	const searchResults = useMemo(() => {
 		if (!debouncedSearch) return [];
-		const q = debouncedSearch.toLowerCase();
-		return rawNodes.filter((n) => n.label.toLowerCase().includes(q)).slice(0, 50).map((n) => ({
+		const parsed = parseSearchQuery(debouncedSearch);
+		return rawNodes.filter((n) => matchSearchQuery(n.label, parsed)).slice(0, 50).map((n) => ({
 			id: n.id,
 			label: n.label,
 			type: n.type,
@@ -53655,6 +60905,7 @@ function GraphPanelInner({ className = "" }) {
 					renderer$1.rendererRef.current?.selectNode(NodeId(nodeId));
 				}
 			}) }),
+			panel.showFilterPanel && !isCollapsed && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(FilterPanel, { onClose: () => panel.setShowFilterPanel(false) }) }),
 			panel.showImpact && !isCollapsed && impactStats && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(ImpactPanel, {
 				impactStats,
 				label: t$1("toolbar.impact"),
@@ -53833,8 +61084,8 @@ function apply(ctx) {
 			if (prereqTimer !== null) clearTimeout(prereqTimer);
 		}, "codegraph: prereq timer cleanup");
 		checkStatus().then(() => {
-			prereqTimer = setTimeout(checkStatus, 3e3);
-		});
+			prereqTimer = setTimeout(checkStatus, POLLING.PREREQ_INITIAL_DELAY_MS);
+		}).catch((e) => log.warn("initial status check failed", e));
 		const prereqInterval = setInterval(async () => {
 			if (document.hidden) return;
 			const s = useGraphStore.getState();
@@ -53842,8 +61093,12 @@ function apply(ctx) {
 				clearInterval(prereqInterval);
 				return;
 			}
-			await checkStatus();
-		}, 3e4);
+			try {
+				await checkStatus();
+			} catch (e) {
+				log.warn("prereq polling failed", e);
+			}
+		}, POLLING.PREREQ_INTERVAL_MS);
 		ctx.effect(() => () => clearInterval(prereqInterval), "codegraph: prereq polling");
 	}
 	let lastDshWorkspace = "";
@@ -53896,22 +61151,26 @@ function apply(ctx) {
 		if (store.nodes.length === 0 && !store.isLoading) getWorkspaceAndScan();
 		const workspacePoll = setInterval(async () => {
 			if (document.hidden) return;
-			const { path: dshCurrent, list: dshList } = await fetchWorkspace();
-			if (dshCurrent && dshCurrent !== lastDshWorkspace) {
-				log.info("DSH workspace changed", {
-					from: lastDshWorkspace,
-					to: dshCurrent
-				});
-				lastDshWorkspace = dshCurrent;
-				const s = useGraphStore.getState();
-				s.setCurrentWorkspace(dshCurrent);
-				if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codegraph:workspace", { detail: { path: dshCurrent } }));
+			try {
+				const { path: dshCurrent, list: dshList } = await fetchWorkspace();
+				if (dshCurrent && dshCurrent !== lastDshWorkspace) {
+					log.info("DSH workspace changed", {
+						from: lastDshWorkspace,
+						to: dshCurrent
+					});
+					lastDshWorkspace = dshCurrent;
+					const s = useGraphStore.getState();
+					s.setCurrentWorkspace(dshCurrent);
+					if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codegraph:workspace", { detail: { path: dshCurrent } }));
+				}
+				for (const p$1 of dshList) {
+					const s = useGraphStore.getState();
+					if (!s.workspaceList.some((w) => w.path === p$1)) s.addWorkspace(p$1, p$1.split(/[\\/]/).pop() ?? p$1);
+				}
+			} catch (e) {
+				log.warn("workspace polling failed", e);
 			}
-			for (const p$1 of dshList) {
-				const s = useGraphStore.getState();
-				if (!s.workspaceList.some((w) => w.path === p$1)) s.addWorkspace(p$1, p$1.split(/[\\/]/).pop() ?? p$1);
-			}
-		}, 15e3);
+		}, POLLING.WORKSPACE_INTERVAL_MS);
 		ctx.effect(() => () => clearInterval(workspacePoll), "codegraph: workspace polling");
 	}
 	if (typeof window !== "undefined") {
@@ -53978,7 +61237,7 @@ function apply(ctx) {
 			const detail = e.detail;
 			const store = useGraphStore.getState();
 			store.setWatchEnabled(detail.enabled);
-			requestWatch(detail.enabled, detail.path);
+			requestWatch(detail.enabled, detail.path).catch((err) => log.warn("toggle-watch request failed", err));
 			log.info("toggle-watch forwarded", {
 				enabled: detail.enabled,
 				path: detail.path
@@ -54004,7 +61263,7 @@ function apply(ctx) {
 					store.setLoading(false);
 				});
 				log.info("workspace change forwarded", { path: detail.path });
-			}, 300);
+			}, POLLING.WORKSPACE_SCAN_DEBOUNCE_MS);
 		};
 		const installPluginListener = (e) => {
 			const detail = e.detail;

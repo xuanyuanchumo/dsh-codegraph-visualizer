@@ -1,6 +1,7 @@
 // Unit tests for Zustand graphStore — J6/J7/J9/J10 state management
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useGraphStore, type LayoutType } from '../../src/client/store/graphStore.ts';
+import { useGraphStore, disposeStore, type LayoutType } from '../../src/client/store/graphStore.ts';
+import type { GraphNode, GraphEdge } from '../../src/types/index.ts';
 import { makeNode, makeEdge } from '../helpers.ts';
 
 describe('graphStore (J6/J7/J10)', () => {
@@ -461,5 +462,311 @@ describe('graphStore (J6/J7/J10)', () => {
     expect(useGraphStore.getState().expandedNodeIds.has('cluster__crates__core')).toBe(true);
     useGraphStore.getState().collapseNode('cluster__crates__core');
     expect(useGraphStore.getState().expandedNodeIds.has('cluster__crates__core')).toBe(false);
+  });
+
+  // ── sanitizeGraphData edge cases ─────────────────────────────────────
+  it('should filter out nodes with missing required fields', () => {
+    const nodes = [
+      makeNode('n1', 'A', 'function', 'a.ts', 1),
+      { id: 'n2', label: '', type: 'function', filePath: 'b.ts', startLine: 1 } as any,
+      { id: 'n3', label: 'C', type: '', filePath: 'c.ts', startLine: 1 } as any,
+      { id: '', label: 'D', type: 'function', filePath: 'd.ts', startLine: 1 } as any,
+    ];
+    useGraphStore.getState().setGraphData(nodes, [], 'repo-1');
+    expect(useGraphStore.getState().nodes).toHaveLength(1);
+  });
+
+  it('should deduplicate nodes by id', () => {
+    const nodes = [
+      makeNode('n1', 'A', 'function', 'a.ts', 1),
+      makeNode('n1', 'A-dup', 'function', 'a.ts', 1),
+    ];
+    useGraphStore.getState().setGraphData(nodes, [], 'repo-1');
+    expect(useGraphStore.getState().rawNodes).toHaveLength(1);
+  });
+
+  it('should filter out self-loop edges', () => {
+    const nodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
+    const edges = [
+      makeEdge('e1', 'n1', 'n1', 'call'),
+      makeEdge('e2', 'n1', 'n2', 'call'),
+    ];
+    useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
+    expect(useGraphStore.getState().rawEdges).toHaveLength(0);
+  });
+
+  it('should filter out edges with dangling references', () => {
+    const nodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
+    const edges = [
+      makeEdge('e1', 'n1', 'nonexistent', 'call'),
+      makeEdge('e2', 'ghost', 'n1', 'call'),
+    ];
+    useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
+    expect(useGraphStore.getState().rawEdges).toHaveLength(0);
+  });
+
+  it('should deduplicate edges by id', () => {
+    const nodes = [
+      makeNode('n1', 'A', 'function', 'a.ts', 1),
+      makeNode('n2', 'B', 'function', 'b.ts', 1),
+    ];
+    const edges = [
+      makeEdge('e1', 'n1', 'n2', 'call'),
+      makeEdge('e1', 'n1', 'n2', 'call'),
+    ];
+    useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
+    expect(useGraphStore.getState().rawEdges).toHaveLength(1);
+  });
+
+  // ── setGraphData metadata ────────────────────────────────────────────
+  it('should store metadata: truncated, totalNodeCount, totalEdgeCount', () => {
+    const nodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
+    const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
+    useGraphStore.getState().setGraphData(nodes, edges, 'repo-1', {
+      truncated: true,
+      totalNodeCount: 500,
+      totalEdgeCount: 1000,
+    });
+    const s = useGraphStore.getState();
+    expect(s.truncated).toBe(true);
+    expect(s.totalNodeCount).toBe(500);
+    expect(s.totalEdgeCount).toBe(1000);
+  });
+
+  it('should default metadata counts to sanitized array lengths', () => {
+    const nodes = [
+      makeNode('n1', 'A', 'function', 'a.ts', 1),
+      makeNode('n2', 'B', 'function', 'b.ts', 1),
+    ];
+    const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
+    useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
+    const s = useGraphStore.getState();
+    expect(s.truncated).toBe(false);
+    expect(s.totalNodeCount).toBe(2);
+    expect(s.totalEdgeCount).toBe(1);
+  });
+
+  it('should clear healthScore and ruleViolations on new graph data', () => {
+    useGraphStore.getState().setHealthScore({ overall: 50 } as any);
+    useGraphStore.getState().setRuleViolations([{ ruleId: 'r1', nodeId: 'n1', message: 'x' }] as any);
+    useGraphStore.getState().setGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], [], 'repo-1');
+    expect(useGraphStore.getState().healthScore).toBeNull();
+    expect(useGraphStore.getState().ruleViolations).toEqual([]);
+  });
+
+  // ── callChainDepth ───────────────────────────────────────────────────
+  it('should set call chain depth', () => {
+    useGraphStore.getState().setCallChainDepth(5);
+    expect(useGraphStore.getState().callChainDepth).toBe(5);
+    useGraphStore.getState().setCallChainDepth(2);
+    expect(useGraphStore.getState().callChainDepth).toBe(2);
+  });
+
+  // ── fanIn/fanOut thresholds ──────────────────────────────────────────
+  it('should set fanIn threshold', () => {
+    useGraphStore.getState().setFanInThreshold(10);
+    expect(useGraphStore.getState().fanInThreshold).toBe(10);
+  });
+
+  it('should set fanOut threshold', () => {
+    useGraphStore.getState().setFanOutThreshold(5);
+    expect(useGraphStore.getState().fanOutThreshold).toBe(5);
+  });
+
+  // ── visibleNodeTypes / visibleEdgeTypes ──────────────────────────────
+  it('should set visible node types', () => {
+    const types = new Set<GraphNode['type']>(['function', 'class']);
+    useGraphStore.getState().setVisibleNodeTypes(types);
+    expect(useGraphStore.getState().visibleNodeTypes).toEqual(types);
+  });
+
+  it('should set visible edge types', () => {
+    const types = new Set<GraphEdge['type']>(['call', 'import']);
+    useGraphStore.getState().setVisibleEdgeTypes(types);
+    expect(useGraphStore.getState().visibleEdgeTypes).toEqual(types);
+  });
+
+  // ── selectedFunction ─────────────────────────────────────────────────
+  it('should set selected function', () => {
+    const fn = { nodeId: 'n1', filePath: 'src/a.ts', functionName: 'calculate' };
+    useGraphStore.getState().setSelectedFunction(fn);
+    expect(useGraphStore.getState().selectedFunction).toEqual(fn);
+    useGraphStore.getState().setSelectedFunction(null);
+    expect(useGraphStore.getState().selectedFunction).toBeNull();
+  });
+
+  // ── disposeStore ─────────────────────────────────────────────────────
+  it('disposeStore should clear loading failsafe timer', () => {
+    vi.useFakeTimers();
+    try {
+      useGraphStore.getState().setLoading(true);
+      disposeStore();
+      vi.advanceTimersByTime(20000);
+      expect(useGraphStore.getState().isLoading).toBe(true);
+    } finally {
+      vi.useRealTimers();
+      useGraphStore.getState().setLoading(false);
+    }
+  });
+
+  // ── setLayer ─────────────────────────────────────────────────────────
+  it('setLayer should not change layer if diagramData is null', () => {
+    useGraphStore.getState().setLayer(2);
+    expect(useGraphStore.getState().currentLayer).toBe(0);
+  });
+
+  it('setLayer should not change layer if out of range', () => {
+    useGraphStore.getState().setGraphData(
+      [makeNode('n1', 'A', 'function', 'a.ts', 1)],
+      [],
+      'repo-1',
+    );
+    useGraphStore.getState().setLayer(-1);
+    expect(useGraphStore.getState().currentLayer).toBe(0);
+    useGraphStore.getState().setLayer(99);
+    expect(useGraphStore.getState().currentLayer).toBe(0);
+  });
+
+  // ── setViewMode with layered mode ────────────────────────────────────
+  it('setViewMode to dependencies should switch viewMode', () => {
+    useGraphStore.getState().setGraphData(
+      [makeNode('n1', 'A', 'function', 'a.ts', 1)],
+      [],
+      'repo-1',
+    );
+    useGraphStore.getState().setViewMode('dependencies');
+    expect(useGraphStore.getState().viewMode).toBe('dependencies');
+  });
+
+  it('setViewMode back to code should restore raw nodes', () => {
+    const nodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
+    useGraphStore.getState().setGraphData(nodes, [], 'repo-1');
+    useGraphStore.getState().setViewMode('dependencies');
+    useGraphStore.getState().setViewMode('code');
+    expect(useGraphStore.getState().viewMode).toBe('code');
+  });
+
+  // ── setClusterDepth with layered view mode ───────────────────────────
+  it('setClusterDepth in layered view mode should only set depth without re-clustering', () => {
+    const nodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
+    useGraphStore.getState().setGraphData(nodes, [], 'repo-1');
+    useGraphStore.getState().setViewMode('dependencies');
+    const nodesBefore = useGraphStore.getState().nodes;
+    useGraphStore.getState().setClusterDepth(2);
+    expect(useGraphStore.getState().clusterDepth).toBe(2);
+    expect(useGraphStore.getState().nodes).toBe(nodesBefore);
+  });
+
+  // ── expandNode with viewMode-specific tracking ───────────────────────
+  it('expandNode should track expanded nodes per viewMode', () => {
+    const nodes = [
+      makeNode('m1', 'a.ts', 'module', 'crates/core/src/a.ts', 1),
+      makeNode('m2', 'b.ts', 'module', 'crates/api/src/b.ts', 1),
+    ];
+    useGraphStore.getState().setClusterDepth(0);
+    useGraphStore.getState().setGraphData(nodes, [], 'repo-1');
+    const clusterNodes = useGraphStore.getState().nodes.filter(n => 'isCluster' in n && n.isCluster);
+    const clusterId = clusterNodes[0]?.id ?? 'cluster__crates__core';
+    useGraphStore.getState().expandNode(clusterId);
+    expect(useGraphStore.getState().expandedNodeIds.has(clusterId)).toBe(true);
+    expect(useGraphStore.getState().expandedNodeIdsByViewMode['code']).toBeDefined();
+  });
+
+  // ── collapseAll clears expanded for current viewMode ─────────────────
+  it('collapseAll should clear expanded for current viewMode only', () => {
+    const nodes = [
+      makeNode('m1', 'a.ts', 'module', 'crates/core/src/a.ts', 1),
+      makeNode('m2', 'b.ts', 'module', 'crates/api/src/b.ts', 1),
+    ];
+    useGraphStore.getState().setClusterDepth(0);
+    useGraphStore.getState().setGraphData(nodes, [], 'repo-1');
+    useGraphStore.getState().expandNode('cluster__crates__core');
+    useGraphStore.getState().expandNode('cluster__crates__api');
+    useGraphStore.getState().collapseAll();
+    expect(useGraphStore.getState().expandedNodeIds.size).toBe(0);
+  });
+
+  // ── Persistence migration tests ──────────────────────────────────────
+  it('migrate v<3 should default workspaceList and currentWorkspace', () => {
+    const migrated = useGraphStore.persist.getOptions().migrate?.(
+      { layout: 'cose', theme: 'dark' } as any,
+      2,
+    ) as any;
+    expect(migrated.workspaceList).toEqual([]);
+    expect(migrated.currentWorkspace).toBe('.');
+  });
+
+  it('migrate v<5 should validate panelHeight >= 240 and panelWidth >= 320', () => {
+    const migrated = useGraphStore.persist.getOptions().migrate?.(
+      { panelHeight: 100, panelWidth: 100 } as any,
+      4,
+    ) as any;
+    expect(migrated.panelHeight).toBeNull();
+    expect(migrated.panelWidth).toBeNull();
+  });
+
+  it('migrate v<5 should keep valid panelHeight and panelWidth', () => {
+    const migrated = useGraphStore.persist.getOptions().migrate?.(
+      { panelHeight: 600, panelWidth: 800 } as any,
+      4,
+    ) as any;
+    expect(migrated.panelHeight).toBe(600);
+    expect(migrated.panelWidth).toBe(800);
+  });
+
+  it('migrate v<7 should map clusterLevel to clusterDepth', () => {
+    const migrated = useGraphStore.persist.getOptions().migrate?.(
+      { clusterLevel: 'file' } as any,
+      6,
+    ) as any;
+    expect(migrated.clusterDepth).toBe(1);
+  });
+
+  it('migrate v<7 should map clusterLevel "function" to depth 2', () => {
+    const migrated = useGraphStore.persist.getOptions().migrate?.(
+      { clusterLevel: 'function' } as any,
+      6,
+    ) as any;
+    expect(migrated.clusterDepth).toBe(2);
+  });
+
+  it('migrate v<7 should default unknown clusterLevel to depth 0', () => {
+    const migrated = useGraphStore.persist.getOptions().migrate?.(
+      { clusterLevel: 'unknown' } as any,
+      6,
+    ) as any;
+    expect(migrated.clusterDepth).toBe(0);
+  });
+
+  it('migrate should fall back to cose for invalid layout', () => {
+    const migrated = useGraphStore.persist.getOptions().migrate?.(
+      { layout: 'invalid' } as any,
+      7,
+    ) as any;
+    expect(migrated.layout).toBe('cose');
+  });
+
+  it('migrate should keep valid layout', () => {
+    const migrated = useGraphStore.persist.getOptions().migrate?.(
+      { layout: 'tree' } as any,
+      7,
+    ) as any;
+    expect(migrated.layout).toBe('tree');
+  });
+
+  it('migrate should normalize theme to dark for unknown values', () => {
+    const migrated = useGraphStore.persist.getOptions().migrate?.(
+      { theme: 'blue' } as any,
+      7,
+    ) as any;
+    expect(migrated.theme).toBe('dark');
+  });
+
+  it('migrate should keep light theme', () => {
+    const migrated = useGraphStore.persist.getOptions().migrate?.(
+      { theme: 'light' } as any,
+      7,
+    ) as any;
+    expect(migrated.theme).toBe('light');
   });
 });

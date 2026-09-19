@@ -13,6 +13,7 @@ export const en: Record<string, string> = {
   'toolbar.search': 'Search symbols (press /)',
   'toolbar.chain': 'Toggle call chain highlight (Ctrl+C)',
   'toolbar.cycles': 'Highlight circular dependencies',
+  'toolbar.isolateCycles': 'Isolate cycle subgraph',
   'toolbar.impact': 'Impact analysis - show dependents (Ctrl+E)',
   'toolbar.inheritance': 'Inheritance hierarchy - show extend/implement (Ctrl+H)',
   'toolbar.minimap': 'Toggle mini-map (Ctrl+M)',

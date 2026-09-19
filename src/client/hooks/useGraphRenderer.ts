@@ -43,6 +43,7 @@ export function useGraphRenderer(
   debouncedSearch: string,
   showCallChain: boolean,
   showCycles: boolean,
+  cycleIsolation: boolean,
   showImpact: boolean,
   showInheritance: boolean,
   focusNodeId: string | null,
@@ -206,6 +207,17 @@ export function useGraphRenderer(
     if (showCycles) { const cycles = r.detectCycles(); r.highlightCycles(cycles); }
     else { r.highlightCycles(new Set<string>()); }
   }, [showCycles]);
+
+  useEffect(() => {
+    const r = rendererRef.current;
+    if (!r) return;
+    if (cycleIsolation && showCycles) {
+      const cycles = r.detectCycles();
+      r.isolateCycles(cycles);
+    } else {
+      r.restoreIsolation();
+    }
+  }, [cycleIsolation, showCycles]);
 
   useEffect(() => {
     const r = rendererRef.current;

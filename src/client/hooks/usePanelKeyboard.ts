@@ -43,7 +43,7 @@ export function usePanelKeyboard(
   useKeyboardShortcut('m', () => handlersRef.current.onToggleMiniMap(), { ctrl: true });
   useKeyboardShortcut('l', () => {
     const cur = layoutRef.current;
-    const order: LayoutType[] = ['cose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
+    const order: LayoutType[] = ['cose', 'fcose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
     const idx = order.indexOf(cur);
     const next = order[(idx + 1) % order.length]!;
     setLayoutRef.current(next);

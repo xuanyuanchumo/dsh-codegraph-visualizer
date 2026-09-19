@@ -123,7 +123,7 @@ export class LayoutController {
       if (nodeCount > LAYOUT_CONST.GRID_FALLBACK_NODE_THRESHOLD) {
         effectiveLayout = 'grid';
         animate = false;
-      } else if (nodeCount > LAYOUT_CONST.LARGE_NODE_THRESHOLD && layout === 'cose') {
+      } else if (nodeCount > LAYOUT_CONST.LARGE_NODE_THRESHOLD && (layout === 'cose' || layout === 'fcose')) {
         effectiveLayout = 'dagre';
         animate = false;
       }
@@ -212,7 +212,7 @@ export class LayoutController {
 
       this.cy.layout(presetOptions).run();
 
-      if (layout === 'cose' || layout === 'dagre') {
+      if (layout === 'cose' || layout === 'fcose' || layout === 'dagre') {
         const incrementalOptions = this.buildLayoutOptions(layout, false, newNodes.length);
         if (incrementalOptions) {
           const l = newNodes.layout(incrementalOptions);
@@ -260,6 +260,14 @@ export class LayoutController {
           nodeRepulse: sp.nodeRepulse, idealEdgeLength: sp.idealEdgeLength,
           edgeElasticity: 0.05, gravity: 0.02, numIter: 2500,
           randomize: true, tile: true, padding: sp.padding, avoidOverlap: true,
+        } as LayoutOptions;
+      case 'fcose':
+        return {
+          name: 'fcose', fit: true, animate: false,
+          nodeRepulse: sp.nodeRepulse, idealEdgeLength: sp.idealEdgeLength,
+          edgeElasticity: 0.05, gravity: 0.02, numIter: 2500,
+          randomize: true, tile: true, padding: sp.padding, avoidOverlap: true,
+          quality: 'default', samplingType: true, nodeSeparation: sp.minNodeSpacing,
         } as LayoutOptions;
       case 'dagre':
         return {

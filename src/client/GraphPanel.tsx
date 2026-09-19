@@ -228,7 +228,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const renderer = useGraphRenderer(
     nodes, edges, rawNodes, layout, theme,
     highlightedNodeIds, selectedNodeId, filterType, graphType, clusterDepth,
-    debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact, panel.showInheritance, focusNodeId,
+    debouncedSearch, panel.showCallChain, panel.showCycles, panel.cycleIsolation, panel.showImpact, panel.showInheritance, focusNodeId,
     { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut, onEdgeTap: handleEdgeTap, onEdgeHover: handleEdgeHover, onEdgeHoverOut: handleEdgeHoverOut },
     showCallChainRef,
     fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes,

@@ -31,6 +31,7 @@ export default defineConfig({
         'src/client/renderer/VirtualViewportController.ts',
         'src/client/renderer/SequenceDiagramRenderer.tsx',
         'src/client/renderer/cytoscape-dagre.d.ts',
+        'src/client/renderer/cytoscape-fcose.d.ts',
         'src/client/renderer/styles/**',
         'src/client/hooks/**',
         'src/client/components/**',

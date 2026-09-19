@@ -414,6 +414,12 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       },
     },
     {
+      selector: '.cycle-hidden',
+      style: {
+        'display': 'none',
+      },
+    },
+    {
       selector: '.impact-source',
       style: {
         'border-width': 4,

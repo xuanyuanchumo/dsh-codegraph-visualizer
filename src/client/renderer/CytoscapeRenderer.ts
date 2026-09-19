@@ -1,5 +1,6 @@
 import cytoscape, { type Core } from 'cytoscape';
 import dagre from 'cytoscape-dagre';
+import fcose from 'cytoscape-fcose';
 import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
 import type { IRenderer, LayoutType, ThemeType } from './IRenderer.ts';
@@ -14,11 +15,15 @@ import { PathFinder, type PathResult } from './PathFinder.ts';
 import { VirtualViewportController } from './VirtualViewportController.ts';
 import { RENDERER } from '../../shared/constants.ts';
 
-function ensureDagreRegistered(): void {
-  const cy = cytoscape as unknown as { __dagreRegistered?: boolean };
+function ensureExtensionsRegistered(): void {
+  const cy = cytoscape as unknown as { __dagreRegistered?: boolean; __fcoseRegistered?: boolean };
   if (!cy.__dagreRegistered) {
     cytoscape.use(dagre);
     cy.__dagreRegistered = true;
+  }
+  if (!cy.__fcoseRegistered) {
+    cytoscape.use(fcose);
+    cy.__fcoseRegistered = true;
   }
 }
 
@@ -46,7 +51,7 @@ export class CytoscapeRenderer implements IRenderer {
 
   init(): void {
     if (this.cy) return;
-    ensureDagreRegistered();
+    ensureExtensionsRegistered();
 
     try {
       this.cy = cytoscape({
@@ -202,6 +207,14 @@ export class CytoscapeRenderer implements IRenderer {
 
   highlightCycles(cycleIds: Set<string>): void {
     this.highlightCtrl?.highlightCycles(cycleIds);
+  }
+
+  isolateCycles(cycleIds: Set<string>): void {
+    this.highlightCtrl?.isolateCycles(cycleIds);
+  }
+
+  restoreIsolation(): void {
+    this.highlightCtrl?.restoreIsolation();
   }
 
   highlightImpact(nodeId: NodeId | null): void {

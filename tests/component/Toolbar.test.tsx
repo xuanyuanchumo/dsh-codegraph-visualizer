@@ -29,6 +29,7 @@ function makePanelControls(overrides: Partial<PanelControls> = {}): PanelControl
     showSearch: false,
     showCallChain: false,
     showCycles: false,
+    cycleIsolation: false,
     showImpact: false,
     showInheritance: false,
     showMiniMap: false,
@@ -43,6 +44,7 @@ function makePanelControls(overrides: Partial<PanelControls> = {}): PanelControl
     onToggleSearch: noop,
     onToggleCallChain: noop,
     onToggleCycles: noop,
+    onToggleCycleIsolation: noop,
     onToggleImpact: noop,
     onToggleInheritance: noop,
     onToggleMiniMap: noop,
@@ -101,9 +103,9 @@ describe('Toolbar component', () => {
       const layoutGroup = screen.getByRole('group', { name: /layout/i });
       expect(layoutGroup).toBeTruthy();
       const buttons = layoutGroup.querySelectorAll('button');
-      expect(buttons.length).toBe(6);
+      expect(buttons.length).toBe(7);
       const labels = Array.from(buttons).map((b) => b.textContent);
-      expect(labels).toEqual(['cose', 'dagre', 'circle', 'grid', 'radial', 'tree']);
+      expect(labels).toEqual(['cose', 'fcose', 'dagre', 'circle', 'grid', 'radial', 'tree']);
     });
 
     it('marks the active layout button with active class and aria-pressed', () => {
