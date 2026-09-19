@@ -3,6 +3,8 @@ import { NodeId, type GraphNode, type GraphEdge } from '../../types/index.ts';
 import type { ClusterNode, ClusterEdge } from '../store/cluster/index.ts';
 import { getThemeColors } from './styles/ThemeStylesheet.ts';
 import type { ThemeType } from './IRenderer.ts';
+import { DATA_CONTROLLER } from '../../shared/constants.ts';
+import { parseSearchQuery, matchSearchQuery } from '../../shared/searchUtils.ts';
 
 export class DataController {
   private cy: Core;
@@ -144,7 +146,7 @@ export class DataController {
       return;
     }
 
-    const BATCH_SIZE = 200;
+    const BATCH_SIZE = DATA_CONTROLLER.BATCH_SIZE;
     if (nodesToAdd.length <= BATCH_SIZE) {
       this.cy.batch(() => {
         for (const n of nodesToAdd) this.addNode(n);
@@ -265,7 +267,7 @@ export class DataController {
     this.batchRaf = requestAnimationFrame(() => {
       if (!this.batchQueue) { this.batchRaf = null; return; }
       const { nodes, edges } = this.batchQueue;
-      const BATCH_SIZE = 200;
+      const BATCH_SIZE = DATA_CONTROLLER.BATCH_SIZE;
       const batchNodes = nodes.slice(0, BATCH_SIZE);
       const batchNodeIds = new Set(batchNodes.map((n) => n.id));
       const batchEdges = edges.filter((e) => batchNodeIds.has(e.source) && batchNodeIds.has(e.target));
@@ -301,12 +303,14 @@ export class DataController {
       this.cy.nodes().forEach((node) => {
         const isFiltered = hidden.has(node.id());
         node.data('typeFiltered', isFiltered);
-        node.style('display', isFiltered ? 'none' : 'element');
+        const connectionFiltered = node.data('connectionFiltered') === true;
+        node.style('display', (isFiltered || connectionFiltered) ? 'none' : 'element');
       });
       this.cy.edges().forEach((edge) => {
         const hiddenEdge = hidden.has(edge.source().id()) || hidden.has(edge.target().id());
         edge.data('typeFiltered', hiddenEdge);
-        edge.style('display', hiddenEdge ? 'none' : 'element');
+        const connectionFiltered = edge.data('connectionFiltered') === true;
+        edge.style('display', (hiddenEdge || connectionFiltered) ? 'none' : 'element');
       });
     });
   }
@@ -321,7 +325,6 @@ export class DataController {
       allowedEdgeTypes.add('call');
     } else if (graphType === 'dependency') {
       allowedEdgeTypes.add('import'); allowedEdgeTypes.add('dependency');
-
     }
 
     const connectedNodeIds = new Set<string>();
@@ -330,7 +333,8 @@ export class DataController {
         const edgeType = edge.data('type') as string;
         const visible = allowedEdgeTypes.has(edgeType);
         edge.data('typeFiltered', !visible);
-        edge.style('display', visible ? 'element' : 'none');
+        const connectionFiltered = edge.data('connectionFiltered') === true;
+        edge.style('display', (!visible || connectionFiltered) ? 'none' : 'element');
         if (visible) {
           connectedNodeIds.add(edge.source().id());
           connectedNodeIds.add(edge.target().id());
@@ -339,7 +343,67 @@ export class DataController {
       this.cy.nodes().forEach((node) => {
         const isFiltered = !connectedNodeIds.has(node.id());
         node.data('typeFiltered', isFiltered);
-        node.style('display', isFiltered ? 'none' : 'element');
+        const connectionFiltered = node.data('connectionFiltered') === true;
+        node.style('display', (isFiltered || connectionFiltered) ? 'none' : 'element');
+      });
+    });
+  }
+
+  applyConnectionFilters(
+    fanInThreshold: number,
+    fanOutThreshold: number,
+    visibleNodeTypes: Set<GraphNode['type']>,
+    visibleEdgeTypes: Set<GraphEdge['type']>,
+  ): void {
+    const fanInCount = new Map<string, number>();
+    const fanOutCount = new Map<string, number>();
+    this.cy.edges().forEach((edge) => {
+      const source = edge.source().id();
+      const target = edge.target().id();
+      fanOutCount.set(source, (fanOutCount.get(source) ?? 0) + 1);
+      fanInCount.set(target, (fanInCount.get(target) ?? 0) + 1);
+    });
+
+    this.cy.batch(() => {
+      this.cy.nodes().forEach((node) => {
+        const isCluster = node.data('isCluster') === true;
+        let hidden = false;
+
+        if (!isCluster && fanInThreshold > 0) {
+          const inCount = fanInCount.get(node.id()) ?? 0;
+          if (inCount < fanInThreshold) hidden = true;
+        }
+
+        if (!isCluster && fanOutThreshold > 0) {
+          const outCount = fanOutCount.get(node.id()) ?? 0;
+          if (outCount < fanOutThreshold) hidden = true;
+        }
+
+        if (!isCluster && visibleNodeTypes.size > 0) {
+          const nodeType = node.data('type') as GraphNode['type'];
+          if (!visibleNodeTypes.has(nodeType)) hidden = true;
+        }
+
+        node.data('connectionFiltered', hidden);
+        const typeFiltered = node.data('typeFiltered') === true;
+        node.style('display', (hidden || typeFiltered) ? 'none' : 'element');
+      });
+
+      this.cy.edges().forEach((edge) => {
+        let hidden = false;
+
+        if (visibleEdgeTypes.size > 0) {
+          const edgeType = edge.data('type') as GraphEdge['type'];
+          if (!visibleEdgeTypes.has(edgeType)) hidden = true;
+        }
+
+        const sourceHidden = edge.source().data('connectionFiltered') === true;
+        const targetHidden = edge.target().data('connectionFiltered') === true;
+        if (sourceHidden || targetHidden) hidden = true;
+
+        edge.data('connectionFiltered', hidden);
+        const typeFiltered = edge.data('typeFiltered') === true;
+        edge.style('display', (hidden || typeFiltered) ? 'none' : 'element');
       });
     });
   }
@@ -350,12 +414,14 @@ export class DataController {
       this.cy.nodes().removeClass('search-match');
       return 0;
     }
-    const q = query.toLowerCase();
+    const { requiredTerms, optionalTerms, exactPhrase } = parseSearchQuery(query);
+    const matcher = (label: string): boolean => matchSearchQuery(label, { requiredTerms, optionalTerms, exactPhrase });
+
     let matches = 0;
     const matchedCyNodeIds = new Set<string>();
 
     for (const rawNode of this.rawNodesMap.values()) {
-      if (rawNode.label.toLowerCase().includes(q)) {
+      if (matcher(rawNode.label)) {
         matches++;
         const visibleId = this.rawToVisibleMap.get(rawNode.id);
         if (visibleId) {
@@ -381,7 +447,7 @@ export class DataController {
     if (matches === 0) {
       this.cy.nodes().forEach((node) => {
         const label = node.data('label');
-        if (typeof label === 'string' && label.toLowerCase().includes(q)) {
+        if (typeof label === 'string' && matcher(label)) {
           matchedCyNodeIds.add(node.id());
           matches++;
         }
@@ -454,6 +520,58 @@ export class DataController {
     return JSON.stringify(this.cy.json(), null, 2);
   }
 
+  exportMermaid(): string {
+    const nodes = this.cy.nodes();
+    const edges = this.cy.edges();
+    if (nodes.length === 0) return 'graph TD\n';
+
+    const nodeShapeMap: Record<string, string> = {
+      function: '($label$)',
+      class: '[$label$]',
+      variable: '(($label$))',
+      module: '{$label$}',
+      interface: '/$label$/',
+    };
+    const defaultShape = '[$label$]';
+
+    const edgeLabelMap: Record<string, string> = {
+      call: 'call',
+      extend: 'extend',
+      implement: 'implement',
+      import: 'import',
+      dependency: 'dependency',
+      contains: 'contains',
+    };
+
+    const lines: string[] = ['graph TD'];
+    const seenIds = new Set<string>();
+
+    nodes.forEach((node) => {
+      const id = node.id().replace(/[^a-zA-Z0-9_]/g, '_');
+      if (seenIds.has(id)) return;
+      seenIds.add(id);
+      const label = String(node.data('label') ?? id).replace(/"/g, "'");
+      const type = String(node.data('type') ?? '');
+      const shape = nodeShapeMap[type] ?? defaultShape;
+      const shapeDef = shape.replace('$label$', `"${label}"`);
+      lines.push(`  ${id}${shapeDef}`);
+    });
+
+    edges.forEach((edge) => {
+      const sourceId = edge.source().id().replace(/[^a-zA-Z0-9_]/g, '_');
+      const targetId = edge.target().id().replace(/[^a-zA-Z0-9_]/g, '_');
+      const edgeType = String(edge.data('type') ?? '');
+      const label = edgeLabelMap[edgeType];
+      if (label) {
+        lines.push(`  ${sourceId} -->|${label}| ${targetId}`);
+      } else {
+        lines.push(`  ${sourceId} --> ${targetId}`);
+      }
+    });
+
+    return lines.join('\n') + '\n';
+  }
+
   exportPNG(): string | null {
     return this.cy.png({ full: true, scale: 2 });
   }
@@ -484,8 +602,8 @@ export class DataController {
     const bbox = this.cy.elements().boundingBox();
     const w = Math.ceil(bbox.w) + 160;
     const h = Math.ceil(bbox.h) + 160;
-    const offsetX = -bbox.x1 + 80;
-    const offsetY = -bbox.y1 + 80;
+    const offsetX = -bbox.x1 + DATA_CONTROLLER.SVG_OFFSET;
+    const offsetY = -bbox.y1 + DATA_CONTROLLER.SVG_OFFSET;
 
     const parts: string[] = [];
     parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">`);

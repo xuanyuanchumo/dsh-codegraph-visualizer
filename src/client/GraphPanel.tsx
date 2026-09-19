@@ -30,17 +30,22 @@ import { HotspotPanel } from './components/HotspotPanel.tsx';
 import { GodModulePanel } from './components/GodModulePanel.tsx';
 import { ImpactPanel } from './components/ImpactPanel.tsx';
 import { CoreFunctionPanel } from './components/CoreFunctionPanel.tsx';
+import { FilterPanel } from './components/FilterPanel.tsx';
 import { MicroViewPrompt, MicroFunctionBar } from './components/MicroViewBar.tsx';
 import { GraphIcon } from './components/Icons.tsx';
 
 import { SequenceDiagramRenderer } from './renderer/SequenceDiagramRenderer.tsx';
 import { scoped } from '../shared/Logger.ts';
+import { parseSearchQuery, matchSearchQuery } from '../shared/searchUtils.ts';
 import { useT } from './i18n/index.ts';
 import './styles/tokens.css';
 import './styles/layout.css';
 import './styles/overlays.css';
 import './styles/graph.css';
-import './styles/panels.css';
+import './styles/node-detail.css';
+import './styles/import-workspace.css';
+import './styles/path-finder.css';
+import './styles/analysis-panels.css';
 import './styles/responsive.css';
 import './styles/misc.css';
 
@@ -77,6 +82,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     initStatus, truncated, totalNodeCount, expandedNodeIds,
     pathResult, focusDepth, ruleViolations,
     viewMode, selectedFunction, currentLayer, diagramData,
+    fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes,
   } = useGraphStore(useShallow((s) => ({
     nodes: s.nodes, edges: s.edges, rawNodes: s.rawNodes, rawEdges: s.rawEdges,
     layout: s.layout, theme: s.theme,
@@ -92,6 +98,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     rules: s.rules, ruleViolations: s.ruleViolations,
     viewMode: s.viewMode, selectedFunction: s.selectedFunction,
     currentLayer: s.currentLayer, diagramData: s.diagramData,
+    fanInThreshold: s.fanInThreshold, fanOutThreshold: s.fanOutThreshold,
+    visibleNodeTypes: s.visibleNodeTypes, visibleEdgeTypes: s.visibleEdgeTypes,
   })));
 
   const setLayout = useGraphStore((s) => s.setLayout);
@@ -223,6 +231,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     debouncedSearch, panel.showCallChain, panel.showCycles, panel.showImpact, panel.showInheritance, focusNodeId,
     { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut, onEdgeTap: handleEdgeTap, onEdgeHover: handleEdgeHover, onEdgeHoverOut: handleEdgeHoverOut },
     showCallChainRef,
+    fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes,
   );
 
   useEffect(() => {
@@ -480,9 +489,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const searchResults = useMemo<SearchResultItem[]>(() => {
     if (!debouncedSearch) return [];
-    const q = debouncedSearch.toLowerCase();
+    const parsed = parseSearchQuery(debouncedSearch);
     return rawNodes
-      .filter((n) => n.label.toLowerCase().includes(q))
+      .filter((n) => matchSearchQuery(n.label, parsed))
       .slice(0, 50)
       .map((n) => ({ id: n.id, label: n.label, type: n.type, filePath: n.filePath }));
   }, [debouncedSearch, rawNodes]);
@@ -654,6 +663,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
             renderer.rendererRef.current?.focusOnNode(nodeId);
             renderer.rendererRef.current?.selectNode(NodeId(nodeId));
           }} /></GraphErrorBoundary>
+      )}
+
+      {panel.showFilterPanel && !isCollapsed && (
+        <GraphErrorBoundary><FilterPanel onClose={() => panel.setShowFilterPanel(false)} /></GraphErrorBoundary>
       )}
 
       {panel.showImpact && !isCollapsed && impactStats && (

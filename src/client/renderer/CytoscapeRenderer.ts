@@ -3,6 +3,7 @@ import dagre from 'cytoscape-dagre';
 import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
 import type { IRenderer, LayoutType, ThemeType } from './IRenderer.ts';
+import type { CycleInfo } from './HighlightController.ts';
 import { LayoutController } from './LayoutController.ts';
 import { HighlightController } from './HighlightController.ts';
 import { ViewportController } from './ViewportController.ts';
@@ -11,6 +12,7 @@ import { StyleController } from './StyleController.ts';
 import { InteractionController, type InteractionCallbacks } from './InteractionController.ts';
 import { PathFinder, type PathResult } from './PathFinder.ts';
 import { VirtualViewportController } from './VirtualViewportController.ts';
+import { RENDERER } from '../../shared/constants.ts';
 
 function ensureDagreRegistered(): void {
   const cy = cytoscape as unknown as { __dagreRegistered?: boolean };
@@ -49,8 +51,8 @@ export class CytoscapeRenderer implements IRenderer {
     try {
       this.cy = cytoscape({
         container: this.options.container,
-        minZoom: 0.02,
-        maxZoom: 3,
+        minZoom: RENDERER.MIN_ZOOM,
+        maxZoom: RENDERER.MAX_ZOOM,
         style: [],
         layout: { name: 'cose' },
         headless: false,
@@ -103,11 +105,11 @@ export class CytoscapeRenderer implements IRenderer {
     this.dataCtrl?.updateData(nodes, edges);
     if (this.cy && nodes.length > 0) {
       if (this.fitTimer !== null) clearTimeout(this.fitTimer);
-      const fitDelay = nodes.length > 500 ? 500 : 200;
+      const fitDelay = nodes.length > RENDERER.LARGE_GRAPH_NODE_THRESHOLD ? RENDERER.FIT_DELAY_LARGE : RENDERER.FIT_DELAY_SMALL;
       this.fitTimer = setTimeout(() => {
         this.fitTimer = null;
         if (this.cy && this.cy.nodes().length > 0) {
-          this.cy.fit(undefined, 80);
+          this.cy.fit(undefined, RENDERER.FIT_PADDING);
         }
       }, fitDelay);
     }
@@ -169,6 +171,15 @@ export class CytoscapeRenderer implements IRenderer {
     this.dataCtrl?.filterByGraphType(graphType);
   }
 
+  applyConnectionFilters(
+    fanInThreshold: number,
+    fanOutThreshold: number,
+    visibleNodeTypes: Set<GraphNode['type']>,
+    visibleEdgeTypes: Set<GraphEdge['type']>,
+  ): void {
+    this.dataCtrl?.applyConnectionFilters(fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes);
+  }
+
   search(query: string): number {
     return this.dataCtrl?.search(query) ?? 0;
   }
@@ -183,6 +194,10 @@ export class CytoscapeRenderer implements IRenderer {
 
   detectCycles(): Set<string> {
     return this.highlightCtrl?.detectCycles() ?? new Set();
+  }
+
+  detectCyclesDetailed(): CycleInfo[] {
+    return this.highlightCtrl?.detectCyclesDetailed() ?? [];
   }
 
   highlightCycles(cycleIds: Set<string>): void {
@@ -219,6 +234,10 @@ export class CytoscapeRenderer implements IRenderer {
 
   exportJSON(): string {
     return this.dataCtrl?.exportJSON() ?? '';
+  }
+
+  exportMermaid(): string {
+    return this.dataCtrl?.exportMermaid() ?? 'graph TD\n';
   }
 
   exportPNG(): string | null {

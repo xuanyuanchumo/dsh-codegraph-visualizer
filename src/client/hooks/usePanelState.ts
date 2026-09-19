@@ -17,6 +17,7 @@ export interface PanelState {
   showHotspot: boolean;
   showGodModule: boolean;
   showCoreFunction: boolean;
+  showFilterPanel: boolean;
   toggleSearch: () => void;
   toggleCollapsed: () => void;
   toggleCycles: () => void;
@@ -32,6 +33,7 @@ export interface PanelState {
   toggleHotspot: () => void;
   toggleGodModule: () => void;
   toggleCoreFunction: () => void;
+  toggleFilterPanel: () => void;
   setShowSearch: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowImport: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowCallChain: (v: boolean | ((prev: boolean) => boolean)) => void;
@@ -46,6 +48,7 @@ export interface PanelState {
   setShowHotspot: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowGodModule: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowCoreFunction: (v: boolean | ((prev: boolean) => boolean)) => void;
+  setShowFilterPanel: (v: boolean | ((prev: boolean) => boolean)) => void;
   toPanelControls: () => PanelControls;
 }
 
@@ -53,7 +56,7 @@ type PanelVisibilityKey =
   | 'showSearch' | 'showCycles' | 'showCallChain' | 'showImpact'
   | 'showInheritance' | 'showMiniMap' | 'showImport' | 'showLegend'
   | 'showPathFind' | 'showHealthScore' | 'showRules' | 'showHotspot'
-  | 'showGodModule' | 'showCoreFunction';
+  | 'showGodModule' | 'showCoreFunction' | 'showFilterPanel';
 
 interface PanelStateInternal {
   showSearch: boolean;
@@ -71,6 +74,7 @@ interface PanelStateInternal {
   showHotspot: boolean;
   showGodModule: boolean;
   showCoreFunction: boolean;
+  showFilterPanel: boolean;
 }
 
 type Action =
@@ -93,6 +97,7 @@ const initialState: PanelStateInternal = {
   showHotspot: false,
   showGodModule: false,
   showCoreFunction: false,
+  showFilterPanel: false,
 };
 
 function reducer(state: PanelStateInternal, action: Action): PanelStateInternal {
@@ -131,6 +136,7 @@ export function usePanelState(): PanelState {
   const toggleHotspot = useCallback(makeToggle('showHotspot'), [makeToggle]);
   const toggleGodModule = useCallback(makeToggle('showGodModule'), [makeToggle]);
   const toggleCoreFunction = useCallback(makeToggle('showCoreFunction'), [makeToggle]);
+  const toggleFilterPanel = useCallback(makeToggle('showFilterPanel'), [makeToggle]);
 
   const setShowSearch = useCallback(makeSet('showSearch'), [makeSet]);
   const setShowImport = useCallback(makeSet('showImport'), [makeSet]);
@@ -146,24 +152,25 @@ export function usePanelState(): PanelState {
   const setShowHotspot = useCallback(makeSet('showHotspot'), [makeSet]);
   const setShowGodModule = useCallback(makeSet('showGodModule'), [makeSet]);
   const setShowCoreFunction = useCallback(makeSet('showCoreFunction'), [makeSet]);
+  const setShowFilterPanel = useCallback(makeSet('showFilterPanel'), [makeSet]);
 
   return {
     ...state,
     toggleSearch, toggleCollapsed, toggleCycles, toggleCallChain, toggleImpact, toggleInheritance, toggleMiniMap, toggleImport, toggleLegend,
-    togglePathFind, toggleHealthScore, toggleRules, toggleHotspot, toggleGodModule, toggleCoreFunction,
+    togglePathFind, toggleHealthScore, toggleRules, toggleHotspot, toggleGodModule, toggleCoreFunction, toggleFilterPanel,
     setShowSearch, setShowImport, setShowCallChain, setShowCycles, setShowImpact, setShowInheritance, setShowMiniMap, setShowLegend,
-    setShowPathFind, setShowHealthScore, setShowRules, setShowHotspot, setShowGodModule, setShowCoreFunction,
+    setShowPathFind, setShowHealthScore, setShowRules, setShowHotspot, setShowGodModule, setShowCoreFunction, setShowFilterPanel,
     toPanelControls: () => ({
       showSearch: state.showSearch, showCallChain: state.showCallChain, showCycles: state.showCycles,
       showImpact: state.showImpact, showInheritance: state.showInheritance, showMiniMap: state.showMiniMap,
       showLegend: state.showLegend, showImport: state.showImport, showPathFind: state.showPathFind,
       showHealthScore: state.showHealthScore, showRules: state.showRules, showHotspot: state.showHotspot,
-      showGodModule: state.showGodModule, showCoreFunction: state.showCoreFunction,
+      showGodModule: state.showGodModule, showCoreFunction: state.showCoreFunction, showFilterPanel: state.showFilterPanel,
       onToggleSearch: toggleSearch, onToggleCallChain: toggleCallChain, onToggleCycles: toggleCycles,
       onToggleImpact: toggleImpact, onToggleInheritance: toggleInheritance, onToggleMiniMap: toggleMiniMap,
       onToggleLegend: toggleLegend, onToggleImport: toggleImport, onTogglePathFind: togglePathFind,
       onToggleHealthScore: toggleHealthScore, onToggleRules: toggleRules, onToggleHotspot: toggleHotspot,
-      onToggleGodModule: toggleGodModule, onToggleCoreFunction: toggleCoreFunction,
+      onToggleGodModule: toggleGodModule, onToggleCoreFunction: toggleCoreFunction, onToggleFilterPanel: toggleFilterPanel,
     }),
   };
 }

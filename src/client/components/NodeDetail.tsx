@@ -14,12 +14,12 @@ const TYPE_ICONS: Record<string, string> = {
 };
 
 const TYPE_COLORS: Record<string, string> = {
-  function: 'var(--cg-success)',
-  class: 'var(--cg-accent-hover)',
-  variable: 'var(--cg-warning)',
-  module: 'var(--cg-accent)',
-  interface: 'var(--cg-text-secondary)',
-  type: 'var(--cg-text-tertiary)',
+  function: 'var(--cg-node-function)',
+  class: 'var(--cg-node-class)',
+  variable: 'var(--cg-node-variable)',
+  module: 'var(--cg-node-module)',
+  interface: 'var(--cg-node-interface)',
+  type: 'var(--cg-node-type)',
 };
 
 const EXPANDABLE_TYPES = new Set(['module', 'class', 'interface']);

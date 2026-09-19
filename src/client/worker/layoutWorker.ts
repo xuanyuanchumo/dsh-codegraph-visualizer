@@ -1,5 +1,6 @@
 import cytoscape, { type LayoutOptions } from 'cytoscape';
 import dagre from 'cytoscape-dagre';
+import { computeSmartSpacing } from '../../shared/layoutUtils.ts';
 
 cytoscape.use(dagre);
 
@@ -14,29 +15,6 @@ export interface LayoutWorkerRequest {
 export interface LayoutWorkerResponse {
   positions: Record<string, { x: number; y: number }>;
   error?: string;
-}
-
-function computeSmartSpacing(nodeCount: number, w: number, h: number) {
-  const containerArea = w * h;
-  const containerMinDim = Math.min(w, h);
-  const areaPerNode = containerArea / Math.max(nodeCount, 1);
-  const idealSpacing = Math.sqrt(areaPerNode);
-  let densityFactor: number;
-  if (nodeCount < 50) densityFactor = 1.5;
-  else if (nodeCount < 200) densityFactor = 1.0;
-  else if (nodeCount < 500) densityFactor = 0.7;
-  else densityFactor = 0.5;
-  const s = Math.max(40, idealSpacing * densityFactor);
-  return {
-    nodeRepulse: s * s * 10,
-    idealEdgeLength: s * 2,
-    rankSep: Math.min(Math.max(30, s * 0.3), 80),
-    edgeSep: Math.min(Math.max(15, s * 0.15), 40),
-    nodeSep: Math.min(Math.max(20, s * 0.2), 40),
-    padding: Math.max(40, Math.min(120, containerMinDim * 0.05)),
-    minNodeSpacing: Math.max(20, s * 0.3),
-    spacingFactor: nodeCount < 100 ? 1.2 : nodeCount < 300 ? 1.0 : 0.8,
-  };
 }
 
 self.onmessage = (e: MessageEvent<LayoutWorkerRequest>) => {

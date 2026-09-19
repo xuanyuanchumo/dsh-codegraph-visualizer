@@ -2,6 +2,7 @@ import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
 import type { PathResult } from './PathFinder.ts';
 import type { LayoutType, ThemeType } from '../../shared/viewModeUtils.ts';
+import type { CycleInfo } from './HighlightController.ts';
 export type { LayoutType, ThemeType } from '../../shared/viewModeUtils.ts';
 
 export interface RendererCallbacks {
@@ -36,11 +37,18 @@ export interface IRenderer {
   selectNode(nodeId: NodeId | null): void;
   filterByType(type: string): void;
   filterByGraphType(graphType: 'all' | 'call' | 'dependency'): void;
+  applyConnectionFilters(
+    fanInThreshold: number,
+    fanOutThreshold: number,
+    visibleNodeTypes: Set<GraphNode['type']>,
+    visibleEdgeTypes: Set<GraphEdge['type']>,
+  ): void;
 
   search(query: string): number;
   focusOnNode(nodeId: string): void;
   highlightCallChain(nodeId: NodeId | null): void;
   detectCycles(): Set<string>;
+  detectCyclesDetailed(): CycleInfo[];
   highlightCycles(cycleIds: Set<string>): void;
   highlightImpact(nodeId: NodeId | null): void;
   getImpactStats(nodeId: NodeId): { d1: number; d2: number; d3: number; total: number } | null;
@@ -50,6 +58,7 @@ export interface IRenderer {
   getViewportInfo(): { zoom: number; pan: { x: number; y: number }; renderedSize: { w: number; h: number }; totalSize: { w: number; h: number } } | null;
   focusOnArea(x: number, y: number, zoom: number): void;
   exportJSON(): string;
+  exportMermaid(): string;
   exportPNG(): string | null;
   exportSVG(theme?: ThemeType): string | null;
   getSelectedNodeData(): GraphNode | ClusterNode | null;

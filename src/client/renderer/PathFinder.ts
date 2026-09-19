@@ -1,5 +1,6 @@
 import type { Core } from 'cytoscape';
 import { NodeId } from '../../types/index.ts';
+import { PATH_FINDER } from '../../shared/constants.ts';
 
 export interface PathResult {
   source: NodeId;
@@ -21,7 +22,7 @@ export class PathFinder {
     if (sourceNode.empty() || targetNode.empty()) return null;
 
     const nodeCount = this.cy.nodes().length;
-    if (nodeCount > 10000) return null;
+    if (nodeCount > PATH_FINDER.MAX_NODES_FOR_DIJKSTRA) return null;
 
     const dijkstra = this.cy.elements().dijkstra({ root: sourceNode });
     const pathToTarget = dijkstra.pathTo(targetNode);

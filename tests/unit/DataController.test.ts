@@ -30,15 +30,15 @@ function makeMockNode(id: string, data: Record<string, unknown> = {}) {
   };
 }
 
-function makeMockEdge(id: string, sourceId: string, targetId: string, data: Record<string, unknown> = {}) {
+function makeMockEdge(id: string, sourceId: string, targetId: string, data: Record<string, unknown> = {}, sourceNode?: any, targetNode?: any) {
   const classes = new Set<string>();
   const dataMap = new Map<string, unknown>(Object.entries(data));
-  const sourceNode = makeMockNode(sourceId);
-  const targetNode = makeMockNode(targetId);
+  const src = sourceNode ?? makeMockNode(sourceId);
+  const tgt = targetNode ?? makeMockNode(targetId);
   return {
     id: () => id,
-    source: () => sourceNode,
-    target: () => targetNode,
+    source: () => src,
+    target: () => tgt,
     data: vi.fn((key: string, value?: unknown) => {
       if (value !== undefined) { dataMap.set(key, value); return undefined; }
       return dataMap.get(key);
@@ -322,5 +322,117 @@ describe('DataController', () => {
     dc.updateData([makeGraphNode('a')], []);
     expect(() => dc.destroy()).not.toThrow();
     expect(dc.getNodeData('a')).toBeNull();
+  });
+
+  describe('applyConnectionFilters', () => {
+    it('with fanInThreshold=1 hides nodes with no incoming edges (orphans)', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false });
+      const nodeB = makeMockNode('b', { type: 'function', isCluster: false });
+      const nodeC = makeMockNode('c', { type: 'function', isCluster: false });
+      const edgeAB = makeMockEdge('e1', 'a', 'b', { type: 'call' }, nodeA, nodeB);
+      const cy = makeMockCy([nodeA, nodeB, nodeC], [edgeAB]);
+      const dc = new DataController(cy as any);
+      dc.applyConnectionFilters(1, 0, new Set(), new Set());
+      expect(nodeA.style).toHaveBeenCalledWith('display', 'none');
+      expect(nodeC.style).toHaveBeenCalledWith('display', 'none');
+      expect(nodeB.style).not.toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('with fanOutThreshold=1 hides nodes with no outgoing edges (leaves)', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false });
+      const nodeB = makeMockNode('b', { type: 'function', isCluster: false });
+      const nodeC = makeMockNode('c', { type: 'function', isCluster: false });
+      const edgeAB = makeMockEdge('e1', 'a', 'b', { type: 'call' }, nodeA, nodeB);
+      const cy = makeMockCy([nodeA, nodeB, nodeC], [edgeAB]);
+      const dc = new DataController(cy as any);
+      dc.applyConnectionFilters(0, 1, new Set(), new Set());
+      expect(nodeB.style).toHaveBeenCalledWith('display', 'none');
+      expect(nodeC.style).toHaveBeenCalledWith('display', 'none');
+      expect(nodeA.style).not.toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('with visibleNodeTypes hides non-matching node types', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false });
+      const nodeB = makeMockNode('b', { type: 'class', isCluster: false });
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const dc = new DataController(cy as any);
+      dc.applyConnectionFilters(0, 0, new Set(['function']), new Set());
+      expect(nodeB.style).toHaveBeenCalledWith('display', 'none');
+      expect(nodeA.style).not.toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('with visibleEdgeTypes hides non-matching edge types', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false });
+      const nodeB = makeMockNode('b', { type: 'function', isCluster: false });
+      const edgeCall = makeMockEdge('e1', 'a', 'b', { type: 'call' }, nodeA, nodeB);
+      const edgeImport = makeMockEdge('e2', 'a', 'b', { type: 'import' }, nodeA, nodeB);
+      const cy = makeMockCy([nodeA, nodeB], [edgeCall, edgeImport]);
+      const dc = new DataController(cy as any);
+      dc.applyConnectionFilters(0, 0, new Set(), new Set(['call']));
+      expect(edgeImport.style).toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('with all thresholds=0 and empty sets shows everything', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false });
+      const nodeB = makeMockNode('b', { type: 'class', isCluster: false });
+      const edgeAB = makeMockEdge('e1', 'a', 'b', { type: 'call' });
+      const cy = makeMockCy([nodeA, nodeB], [edgeAB]);
+      const dc = new DataController(cy as any);
+      dc.applyConnectionFilters(0, 0, new Set(), new Set());
+      expect(nodeA.style).not.toHaveBeenCalledWith('display', 'none');
+      expect(nodeB.style).not.toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('does not hide cluster nodes based on fanIn/fanOut thresholds', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const clusterNode = makeMockNode('cluster1', { type: 'module', isCluster: true });
+      const cy = makeMockCy([clusterNode], []);
+      const dc = new DataController(cy as any);
+      dc.applyConnectionFilters(5, 5, new Set(), new Set());
+      expect(clusterNode.style).not.toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('hides edges when source or target node is hidden by connection filter', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false });
+      const nodeB = makeMockNode('b', { type: 'function', isCluster: false });
+      const edgeAB = makeMockEdge('e1', 'a', 'b', { type: 'call' }, nodeA, nodeB);
+      const cy = makeMockCy([nodeA, nodeB], [edgeAB]);
+      const dc = new DataController(cy as any);
+      dc.applyConnectionFilters(1, 0, new Set(), new Set());
+      expect(edgeAB.style).toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('combines fanIn and fanOut thresholds correctly', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false });
+      const nodeB = makeMockNode('b', { type: 'function', isCluster: false });
+      const nodeC = makeMockNode('c', { type: 'function', isCluster: false });
+      const edgeAB = makeMockEdge('e1', 'a', 'b', { type: 'call' }, nodeA, nodeB);
+      const edgeBC = makeMockEdge('e2', 'b', 'c', { type: 'call' }, nodeB, nodeC);
+      const cy = makeMockCy([nodeA, nodeB, nodeC], [edgeAB, edgeBC]);
+      const dc = new DataController(cy as any);
+      dc.applyConnectionFilters(1, 1, new Set(), new Set());
+      expect(nodeA.style).toHaveBeenCalledWith('display', 'none');
+      expect(nodeC.style).toHaveBeenCalledWith('display', 'none');
+      expect(nodeB.style).not.toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('combines visibleNodeTypes with fanIn threshold', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false });
+      const nodeB = makeMockNode('b', { type: 'class', isCluster: false });
+      const edgeAB = makeMockEdge('e1', 'a', 'b', { type: 'call' }, nodeA, nodeB);
+      const cy = makeMockCy([nodeA, nodeB], [edgeAB]);
+      const dc = new DataController(cy as any);
+      dc.applyConnectionFilters(1, 0, new Set(['function']), new Set());
+      expect(nodeA.style).toHaveBeenCalledWith('display', 'none');
+      expect(nodeB.style).toHaveBeenCalledWith('display', 'none');
+    });
   });
 });

@@ -10,6 +10,7 @@ import { invalidateCssVarCache } from '../renderer/styles/ThemeStylesheet.ts';
 import { computeViewModeTransition } from './viewModeTransition.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { type LayoutType, type ThemeType, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
+import { POLLING } from '../../shared/constants.ts';
 
 const log = scoped('store');
 
@@ -41,7 +42,7 @@ export interface WorkspaceInfo {
   lastUsed: number;
 }
 
-const LOADING_FAILSAFE_MS = 15000;
+const LOADING_FAILSAFE_MS = POLLING.LOADING_FAILSAFE_MS;
 let loadingFailsafe: ReturnType<typeof setTimeout> | null = null;
 
 
@@ -213,6 +214,11 @@ interface GraphState {
 
   callChainDepth: number;
 
+  fanInThreshold: number;
+  fanOutThreshold: number;
+  visibleNodeTypes: Set<GraphNode['type']>;
+  visibleEdgeTypes: Set<GraphEdge['type']>;
+
   healthScore: HealthScore | null;
   rules: RuleDefinition[];
   ruleViolations: RuleViolation[];
@@ -250,6 +256,10 @@ interface GraphState {
   setPathResult: (path: NodeId[] | null) => void;
   setFocusDepth: (depth: number) => void;
   setCallChainDepth: (depth: number) => void;
+  setFanInThreshold: (threshold: number) => void;
+  setFanOutThreshold: (threshold: number) => void;
+  setVisibleNodeTypes: (types: Set<GraphNode['type']>) => void;
+  setVisibleEdgeTypes: (types: Set<GraphEdge['type']>) => void;
   assembleMultiFunction: (entryNodeId: string) => Promise<void>;
   setHealthScore: (score: HealthScore | null) => void;
   setRules: (rules: RuleDefinition[]) => void;
@@ -300,6 +310,10 @@ export const useGraphStore = create<GraphState>()(
       pathResult: null,
       focusDepth: 1,
       callChainDepth: 2,
+      fanInThreshold: 0,
+      fanOutThreshold: 0,
+      visibleNodeTypes: new Set<GraphNode['type']>(),
+      visibleEdgeTypes: new Set<GraphEdge['type']>(),
       healthScore: null,
       rules: [],
       ruleViolations: [],
@@ -477,6 +491,10 @@ export const useGraphStore = create<GraphState>()(
       setPathResult: (path) => set({ pathResult: path }),
       setFocusDepth: (depth) => set({ focusDepth: depth }),
       setCallChainDepth: (depth) => set({ callChainDepth: depth }),
+      setFanInThreshold: (threshold) => set({ fanInThreshold: threshold }),
+      setFanOutThreshold: (threshold) => set({ fanOutThreshold: threshold }),
+      setVisibleNodeTypes: (types) => set({ visibleNodeTypes: types }),
+      setVisibleEdgeTypes: (types) => set({ visibleEdgeTypes: types }),
       assembleMultiFunction: async (entryNodeId) => {
         const { rawNodes, rawEdges, callChainDepth, clusterDepth, expandedNodeIds } = useGraphStore.getState();
         const astFetcher = async (filePath: string) => {

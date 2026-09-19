@@ -25,7 +25,7 @@ export interface UseGraphRendererResult {
   rendererRef: React.RefObject<IRenderer | null>;
   searchMatchCount: number | null;
   setSearchMatchCount: (n: number | null) => void;
-  exportGraph: (format: 'png' | 'svg' | 'json') => void;
+  exportGraph: (format: 'png' | 'svg' | 'json' | 'mermaid') => void;
   updateTheme: (theme: ThemeType) => void;
 }
 
@@ -48,6 +48,10 @@ export function useGraphRenderer(
   focusNodeId: string | null,
   callbacks: GraphRendererCallbacks,
   showCallChainRef: React.RefObject<boolean>,
+  fanInThreshold: number,
+  fanOutThreshold: number,
+  visibleNodeTypes: Set<GraphNode['type']>,
+  visibleEdgeTypes: Set<GraphEdge['type']>,
 ): UseGraphRendererResult {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<IRenderer | null>(null);
@@ -180,6 +184,12 @@ export function useGraphRenderer(
   useEffect(() => {
     const r = rendererRef.current;
     if (!r) return;
+    r.applyConnectionFilters(fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes);
+  }, [fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, nodes, edges]);
+
+  useEffect(() => {
+    const r = rendererRef.current;
+    if (!r) return;
     setSearchMatchCount(debouncedSearch ? r.search(debouncedSearch) : null);
   }, [debouncedSearch, nodes]);
 
@@ -228,7 +238,7 @@ export function useGraphRenderer(
     }
   }, [nodes.length]);
 
-  const exportGraph = useCallback((format: 'png' | 'svg' | 'json') => {
+  const exportGraph = useCallback((format: 'png' | 'svg' | 'json' | 'mermaid') => {
     const renderer = rendererRef.current;
     if (!renderer) return;
     let data: string | null = null;
@@ -236,6 +246,7 @@ export function useGraphRenderer(
     let extension = 'json';
     if (format === 'png') { data = renderer.exportPNG(); mimeType = 'image/png'; extension = 'png'; }
     else if (format === 'svg') { data = renderer.exportSVG(); mimeType = 'image/svg+xml'; extension = 'svg'; }
+    else if (format === 'mermaid') { data = renderer.exportMermaid(); mimeType = 'text/plain'; extension = 'mmd'; }
     else { data = renderer.exportJSON(); }
     if (data) {
       const blob = new Blob([data], { type: mimeType });

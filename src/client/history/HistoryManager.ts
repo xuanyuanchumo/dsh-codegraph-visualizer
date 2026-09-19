@@ -1,5 +1,6 @@
 import type { LayoutType, GraphType } from '../store/graphStore.ts';
 import type { GraphNode, NodeId, ViewMode } from '../../types/index.ts';
+import { HISTORY } from '../../shared/constants.ts';
 
 export interface HistorySnapshot {
   layout: LayoutType;
@@ -16,7 +17,7 @@ export class HistoryManager {
   private redoStack: HistorySnapshot[] = [];
   private maxHistory: number;
 
-  constructor(maxHistory: number = 50) {
+  constructor(maxHistory: number = HISTORY.DEFAULT_MAX_HISTORY) {
     this.maxHistory = maxHistory;
   }
 

@@ -2,6 +2,7 @@ import type { Core, LayoutOptions } from 'cytoscape';
 import type { LayoutType } from './IRenderer.ts';
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { scoped } from '../../shared/Logger.ts';
+import { computeSmartSpacing, type SmartSpacing } from '../../shared/layoutUtils.ts';
 
 const log = scoped('layout');
 
@@ -243,36 +244,10 @@ export class LayoutController {
     });
   }
 
-  private computeSmartSpacing(nodeCount: number): {
-    nodeRepulse: number; idealEdgeLength: number;
-    rankSep: number; edgeSep: number; nodeSep: number;
-    padding: number; minNodeSpacing: number; spacingFactor: number;
-    minGap: number; incrementalRadius: number;
-  } {
+  private computeSmartSpacing(nodeCount: number): SmartSpacing {
     const w = this.cy.width() || 800;
     const h = this.cy.height() || 600;
-    const containerArea = w * h;
-    const containerMinDim = Math.min(w, h);
-    const areaPerNode = containerArea / Math.max(nodeCount, 1);
-    const idealSpacing = Math.sqrt(areaPerNode);
-    let densityFactor: number;
-    if (nodeCount < 50) densityFactor = 1.5;
-    else if (nodeCount < 200) densityFactor = 1.0;
-    else if (nodeCount < 500) densityFactor = 0.7;
-    else densityFactor = 0.5;
-    const s = Math.max(40, idealSpacing * densityFactor);
-    return {
-      nodeRepulse: Math.min(s * s * 4, 20000),
-      idealEdgeLength: s * 2,
-      rankSep: Math.min(Math.max(30, s * 0.3), 80),
-      edgeSep: Math.min(Math.max(15, s * 0.15), 40),
-      nodeSep: Math.min(Math.max(20, s * 0.2), 40),
-      padding: Math.max(40, Math.min(120, containerMinDim * 0.05)),
-      minNodeSpacing: Math.max(20, s * 0.3),
-      spacingFactor: nodeCount < 100 ? 1.2 : nodeCount < 300 ? 1.0 : 0.8,
-      minGap: Math.max(30, s * 0.4),
-      incrementalRadius: Math.max(100, s * 1.5),
-    };
+    return computeSmartSpacing(nodeCount, w, h);
   }
 
   private buildLayoutOptions(layout: LayoutType, animate: boolean, nodeCount: number): LayoutOptions | undefined {

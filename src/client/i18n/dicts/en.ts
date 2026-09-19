@@ -74,6 +74,10 @@ export const en: Record<string, string> = {
   // Error boundary
   'error.title': 'Something went wrong',
   'error.retry': 'Retry',
+  'error.loadDependencies': 'Unable to load dependency data. Please check your connection and try again.',
+  'error.loadGraphData': 'Unable to load code graph data. Please refresh the page.',
+  'error.loadGraph': 'Unable to load code graph. Please check the server status.',
+  'error.generic': 'An unexpected error occurred. Please try again.',
 
   // Node detail
   'detail.ariaLabel': 'Node details',
@@ -157,6 +161,7 @@ export const en: Record<string, string> = {
   'export.png': 'PNG',
   'export.svg': 'SVG',
   'export.json': 'JSON',
+  'export.mermaid': 'Mermaid',
 
   // Workspace
   'workspace.title': 'Workspace',
@@ -419,4 +424,20 @@ export const en: Record<string, string> = {
   'nav.closePanel': 'Close graph panel',
   'nav.searchSymbols': 'Code Graph: Search Symbols',
   'nav.togglePanel': 'Code Graph: Toggle Panel',
+
+  // Filter Panel
+  'filterPanel.title': 'Filter & Connections',
+  'filterPanel.close': 'Close filter panel',
+  'filterPanel.fanIn': 'Min Fan-In',
+  'filterPanel.fanOut': 'Min Fan-Out',
+  'filterPanel.fanInHint': 'Show only nodes with at least this many incoming connections',
+  'filterPanel.fanOutHint': 'Show only nodes with at least this many outgoing connections',
+  'filterPanel.nodeTypes': 'Visible Node Types',
+  'filterPanel.edgeTypes': 'Visible Edge Types',
+  'filterPanel.reset': 'Reset All Filters',
+  'filterPanel.hideOrphans': 'Hide Orphans',
+  'filterPanel.hideLeaves': 'Hide Leaves',
+  'filterPanel.orphansHint': 'Hide nodes with no incoming connections',
+  'filterPanel.leavesHint': 'Hide nodes with no outgoing connections',
+  'toolbar.filterPanel': 'Filter Panel',
 };

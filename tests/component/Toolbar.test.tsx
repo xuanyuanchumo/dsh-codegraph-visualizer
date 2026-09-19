@@ -54,6 +54,8 @@ function makePanelControls(overrides: Partial<PanelControls> = {}): PanelControl
     onToggleHotspot: noop,
     onToggleGodModule: noop,
     onToggleCoreFunction: noop,
+    showFilterPanel: false,
+    onToggleFilterPanel: noop,
     ...overrides,
   };
 }
@@ -470,7 +472,7 @@ describe('Toolbar component', () => {
       await user.click(exportBtn);
       expect(document.querySelector('.export-dropdown')).toBeTruthy();
       const menuItems = document.querySelectorAll('.export-dropdown button[role="menuitem"]');
-      expect(menuItems.length).toBe(3);
+      expect(menuItems.length).toBe(4);
     });
 
     it('calls onExport with png when png option is clicked', async () => {

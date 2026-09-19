@@ -2,13 +2,8 @@ import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { NodeId as makeNodeId, EdgeId } from '../../types/index.ts';
 import type { DiagramAssembler, AssembledDiagram } from './DiagramAssembler.ts';
 import { computeDepths } from './DiagramAssembler.ts';
+import { getTopLevelDir } from '../../shared/pathUtils.ts';
 
-function getTopLevelDir(filePath: string): string {
-  const normalized = filePath.replace(/\\/g, '/');
-  const parts = normalized.split('/');
-  if (parts.length <= 2) return '/';
-  return parts.slice(0, 2).join('/');
-}
 
 
 const DEPENDENCY_EDGE_TYPES = new Set(['import', 'dependency']);
@@ -23,7 +18,7 @@ export class DependencyAssembler implements DiagramAssembler {
     const dirTypeDist = new Map<string, Record<string, number>>();
 
     for (const n of nodes) {
-      const dir = getTopLevelDir(n.filePath);
+      const dir = getTopLevelDir(n.filePath, { simplified: true });
       if (!dirNodes.has(dir)) {
         dirNodes.set(dir, {
           id: makeNodeId(`depdir:${dir}`),
@@ -47,7 +42,7 @@ export class DependencyAssembler implements DiagramAssembler {
 
     const nodeIdToDir = new Map<string, string>();
     for (const n of nodes) {
-      nodeIdToDir.set(n.id, getTopLevelDir(n.filePath));
+      nodeIdToDir.set(n.id, getTopLevelDir(n.filePath, { simplified: true }));
     }
 
     const aggregatedEdges = new Map<string, { source: string; target: string; count: number; types: Set<string> }>();

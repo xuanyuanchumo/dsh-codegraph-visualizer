@@ -3,24 +3,13 @@ import type { GraphNode, GraphEdge } from '../../../types/index.ts';
 import type { ClusterNode, ClusterResult } from './types.ts';
 import { aggregateEdges } from './types.ts';
 import { detectCommunities } from './communityDetection.ts';
+import { CLUSTER } from '../../../shared/constants.ts';
+import { getTopLevelDir } from '../../../shared/pathUtils.ts';
 
-const MAX_VISIBLE_NODES = 2000;
-const SUBGROUP_THRESHOLD = 100;
-const MAX_NODES_PER_DIR_BEFORE_SUBGROUP = 500;
+const MAX_VISIBLE_NODES = CLUSTER.MAX_VISIBLE_NODES;
+const SUBGROUP_THRESHOLD = CLUSTER.SUBGROUP_THRESHOLD;
+const MAX_NODES_PER_DIR_BEFORE_SUBGROUP = CLUSTER.MAX_NODES_PER_DIR_BEFORE_SUBGROUP;
 
-function getTopLevelDir(filePath: string): string {
-  const parts = filePath.split(/[\\/]/);
-  if (parts.length <= 2) return filePath;
-  let startIdx = 0;
-  if (/^[A-Za-z]:$/.test(parts[0]!)) startIdx = 1;
-  if (parts[0] === 'crates' && parts.length >= 2) {
-    return `crates/${parts[1]}`;
-  }
-  if (parts[startIdx] === 'src' || parts[startIdx] === 'lib' || parts[startIdx] === 'app') {
-    return parts.slice(startIdx, startIdx + 2).join('/');
-  }
-  return parts.slice(startIdx, startIdx + 2).join('/');
-}
 
 function getDependencyGroup(node: GraphNode): string | null {
   const depType = node.properties?.depType;

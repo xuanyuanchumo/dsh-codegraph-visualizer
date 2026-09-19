@@ -13,6 +13,7 @@ import { fetchStatus, fetchGraphData, fetchWorkspace, requestScan, requestInit, 
 import { t } from './i18n/index.ts';
 import { resetI18nListeners } from './i18n/index.ts';
 import { disposeStore } from './store/graphStore.ts';
+import { POLLING } from '../shared/constants.ts';
 
 export { PLUGIN_VERSION };
 
@@ -177,15 +178,15 @@ export function apply(ctx: Context) {
       if (prereqTimer !== null) clearTimeout(prereqTimer);
     }, 'codegraph: prereq timer cleanup');
     checkStatus().then(() => {
-      prereqTimer = setTimeout(checkStatus, 3000);
-    });
+      prereqTimer = setTimeout(checkStatus, POLLING.PREREQ_INITIAL_DELAY_MS);
+    }).catch((e) => log.warn('initial status check failed', e));
 
     const prereqInterval = setInterval(async () => {
       if (document.hidden) return;
       const s = useGraphStore.getState();
       if (s.prerequisites.codegraph && s.prerequisites.lens) { clearInterval(prereqInterval); return; }
-      await checkStatus();
-    }, 30000);
+      try { await checkStatus(); } catch (e) { log.warn('prereq polling failed', e); }
+    }, POLLING.PREREQ_INTERVAL_MS);
     ctx.effect(() => () => clearInterval(prereqInterval), 'codegraph: prereq polling');
   }
 
@@ -237,21 +238,25 @@ export function apply(ctx: Context) {
 
     const workspacePoll = setInterval(async () => {
       if (document.hidden) return;
-      const { path: dshCurrent, list: dshList } = await fetchWorkspace();
-      if (dshCurrent && dshCurrent !== lastDshWorkspace) {
-        log.info('DSH workspace changed', { from: lastDshWorkspace, to: dshCurrent });
-        lastDshWorkspace = dshCurrent;
-        const s = useGraphStore.getState();
-        s.setCurrentWorkspace(dshCurrent);
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: dshCurrent } }));
+      try {
+        const { path: dshCurrent, list: dshList } = await fetchWorkspace();
+        if (dshCurrent && dshCurrent !== lastDshWorkspace) {
+          log.info('DSH workspace changed', { from: lastDshWorkspace, to: dshCurrent });
+          lastDshWorkspace = dshCurrent;
+          const s = useGraphStore.getState();
+          s.setCurrentWorkspace(dshCurrent);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: dshCurrent } }));
+          }
         }
+        for (const p of dshList) {
+          const s = useGraphStore.getState();
+          if (!s.workspaceList.some((w) => w.path === p)) { s.addWorkspace(p, p.split(/[\\/]/).pop() ?? p); }
+        }
+      } catch (e) {
+        log.warn('workspace polling failed', e);
       }
-      for (const p of dshList) {
-        const s = useGraphStore.getState();
-        if (!s.workspaceList.some((w) => w.path === p)) { s.addWorkspace(p, p.split(/[\\/]/).pop() ?? p); }
-      }
-    }, 15000);
+    }, POLLING.WORKSPACE_INTERVAL_MS);
     ctx.effect(() => () => clearInterval(workspacePoll), 'codegraph: workspace polling');
   }
 
@@ -316,7 +321,7 @@ export function apply(ctx: Context) {
       const detail = (e as CustomEvent).detail as { enabled: boolean; path: string };
       const store = useGraphStore.getState();
       store.setWatchEnabled(detail.enabled);
-      requestWatch(detail.enabled, detail.path);
+      requestWatch(detail.enabled, detail.path).catch((err) => log.warn('toggle-watch request failed', err));
       log.info('toggle-watch forwarded', { enabled: detail.enabled, path: detail.path });
     };
 
@@ -337,7 +342,7 @@ export function apply(ctx: Context) {
           store.setLoading(false);
         }).catch((e) => { log.warn('workspace scan failed', e); store.setLoading(false); });
         log.info('workspace change forwarded', { path: detail.path });
-      }, 300);
+      }, POLLING.WORKSPACE_SCAN_DEBOUNCE_MS);
     };
 
     const installPluginListener = (e: Event) => {

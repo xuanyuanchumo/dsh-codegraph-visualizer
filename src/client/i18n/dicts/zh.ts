@@ -74,6 +74,10 @@ export const zh: Record<string, string> = {
   // Error boundary
   'error.title': '出错了',
   'error.retry': '重试',
+  'error.loadDependencies': '无法加载依赖数据，请检查连接后重试。',
+  'error.loadGraphData': '无法加载代码图谱数据，请刷新页面。',
+  'error.loadGraph': '无法加载代码图谱，请检查服务器状态。',
+  'error.generic': '发生意外错误，请重试。',
 
   // Node detail
   'detail.ariaLabel': '节点详情',
@@ -156,6 +160,7 @@ export const zh: Record<string, string> = {
   'export.png': 'PNG',
   'export.svg': 'SVG',
   'export.json': 'JSON',
+  'export.mermaid': 'Mermaid',
 
   // Workspace
   'workspace.title': '工作区',
@@ -418,4 +423,20 @@ export const zh: Record<string, string> = {
   'nav.closePanel': '关闭图谱面板',
   'nav.searchSymbols': '代码图谱: 搜索符号',
   'nav.togglePanel': '代码图谱: 切换面板',
+
+  // 筛选面板
+  'filterPanel.title': '筛选与连接数',
+  'filterPanel.close': '关闭筛选面板',
+  'filterPanel.fanIn': '最小入度',
+  'filterPanel.fanOut': '最小出度',
+  'filterPanel.fanInHint': '仅显示入度达到此值的节点',
+  'filterPanel.fanOutHint': '仅显示出度达到此值的节点',
+  'filterPanel.nodeTypes': '可见节点类型',
+  'filterPanel.edgeTypes': '可见边类型',
+  'filterPanel.reset': '重置所有筛选',
+  'filterPanel.hideOrphans': '隐藏孤儿节点',
+  'filterPanel.hideLeaves': '隐藏叶子节点',
+  'filterPanel.orphansHint': '隐藏没有任何入边的节点',
+  'filterPanel.leavesHint': '隐藏没有任何出边的节点',
+  'toolbar.filterPanel': '筛选面板',
 };

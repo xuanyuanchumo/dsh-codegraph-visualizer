@@ -1,5 +1,6 @@
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { buildModuleMap } from './modulePath.ts';
+import { HEALTH_SCORE } from '../constants.ts';
 
 export interface HealthScore {
   coupling: number;
@@ -24,7 +25,7 @@ const EDGE_WEIGHTS: Record<GraphEdge['type'], number> = {
   contains: 0.0,
 };
 
-const DEFAULT_MAX_MODULE_DEPTH = 3;
+const DEFAULT_MAX_MODULE_DEPTH = HEALTH_SCORE.DEFAULT_MAX_MODULE_DEPTH;
 
 export class HealthScorer {
   private readonly maxModuleDepth: number;
@@ -45,7 +46,7 @@ export class HealthScorer {
     const cyclicDependencyRate = this.calculateCyclicDependencyRate(nodes, edges);
     const modularity = this.calculateModularity(nodes, edges, moduleOfNode);
     const overall = Math.round(
-      coupling * 0.25 + cohesion * 0.25 + cyclicDependencyRate * 0.30 + modularity * 0.20,
+      coupling * HEALTH_SCORE.WEIGHT_COUPLING + cohesion * HEALTH_SCORE.WEIGHT_COHESION + cyclicDependencyRate * HEALTH_SCORE.WEIGHT_CYCLIC + modularity * HEALTH_SCORE.WEIGHT_MODULARITY,
     );
 
     return { coupling, cohesion, cyclicDependencyRate, modularity, overall };

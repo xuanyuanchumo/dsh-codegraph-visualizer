@@ -1,10 +1,11 @@
 import { scoped } from '../../shared/Logger.ts';
 import type { GraphData } from '../../types/index.ts';
 import { validateGraphData } from '../validators.ts';
+import { API } from '../../shared/constants.ts';
 
 const log = scoped('client');
 
-const DEFAULT_TIMEOUT = 30000;
+const DEFAULT_TIMEOUT = API.DEFAULT_TIMEOUT_MS;
 
 function fetchWithTimeout(url: string, options?: RequestInit, timeoutMs: number = DEFAULT_TIMEOUT): Promise<Response> {
   const controller = new AbortController();

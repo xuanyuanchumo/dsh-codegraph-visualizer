@@ -1,5 +1,12 @@
 import type { Core } from 'cytoscape';
 import { NodeId } from '../../types/index.ts';
+import { HIGHLIGHT } from '../../shared/constants.ts';
+
+export interface CycleInfo {
+  nodes: string[];
+  length: number;
+  edges: string[];
+}
 
 export class HighlightController {
   private cy: Core;
@@ -75,7 +82,7 @@ export class HighlightController {
     this.selectedNodeId = id;
   }
 
-  highlightCallChain(nodeId: NodeId | null, maxDepth: number = 50): void {
+  highlightCallChain(nodeId: NodeId | null, maxDepth: number = HIGHLIGHT.CALL_CHAIN_MAX_DEPTH): void {
     this.cy.batch(() => {
       this.cy.elements().removeClass('call-chain');
       if (!nodeId) return;
@@ -161,6 +168,83 @@ export class HighlightController {
     return cycles;
   }
 
+  detectCyclesDetailed(): CycleInfo[] {
+    const adjacency = new Map<string, string[]>();
+    const edgeMap = new Map<string, string>();
+    this.cy.edges().forEach((edge) => {
+      const s = edge.source().id();
+      const t = edge.target().id();
+      const list = adjacency.get(s);
+      if (list) list.push(t);
+      else adjacency.set(s, [t]);
+      edgeMap.set(`${s}->${t}`, edge.id());
+    });
+
+    const visited = new Set<string>();
+    const inStack = new Set<string>();
+    const cycleList: CycleInfo[] = [];
+    const seenCycleKeys = new Set<string>();
+
+    const enter = (start: string): void => {
+      const path: string[] = [];
+      const pathIndex = new Map<string, number>();
+      const frames: Array<{ id: string; neighbors: string[]; next: number }> = [
+        { id: start, neighbors: adjacency.get(start) ?? [], next: 0 },
+      ];
+      visited.add(start);
+      inStack.add(start);
+      path.push(start);
+      pathIndex.set(start, 0);
+
+      while (frames.length > 0) {
+        const frame = frames[frames.length - 1]!;
+        if (frame.next >= frame.neighbors.length) {
+          inStack.delete(frame.id);
+          path.pop();
+          pathIndex.delete(frame.id);
+          frames.pop();
+          continue;
+        }
+        const target = frame.neighbors[frame.next++]!;
+        if (inStack.has(target)) {
+          const cycleStart = pathIndex.get(target);
+          if (cycleStart !== undefined) {
+            const cycleNodes = path.slice(cycleStart);
+            cycleNodes.push(target);
+            const cycleKey = [...cycleNodes].sort().join('|');
+            if (!seenCycleKeys.has(cycleKey)) {
+              seenCycleKeys.add(cycleKey);
+              const edges: string[] = [];
+              for (let i = 0; i < cycleNodes.length - 1; i++) {
+                const eId = edgeMap.get(`${cycleNodes[i]}->${cycleNodes[i + 1]}`);
+                if (eId) edges.push(eId);
+              }
+              const closingEdge = edgeMap.get(`${cycleNodes[cycleNodes.length - 2]}->${target}`);
+              if (closingEdge && !edges.includes(closingEdge)) edges.push(closingEdge);
+              cycleList.push({
+                nodes: cycleNodes.slice(0, -1),
+                length: cycleNodes.length - 1,
+                edges,
+              });
+            }
+          }
+        } else if (!visited.has(target)) {
+          visited.add(target);
+          inStack.add(target);
+          path.push(target);
+          pathIndex.set(target, path.length - 1);
+          frames.push({ id: target, neighbors: adjacency.get(target) ?? [], next: 0 });
+        }
+      }
+    };
+
+    for (const id of adjacency.keys()) {
+      if (!visited.has(id)) enter(id);
+    }
+
+    return cycleList;
+  }
+
   highlightCycles(cycleIds: Set<string>): void {
     this.cy.batch(() => {
       this.cy.elements().removeClass('cycle-highlight');
@@ -171,7 +255,7 @@ export class HighlightController {
     });
   }
 
-  private computeImpact(nodeId: NodeId, maxDepth: number = 3): Map<string, number> {
+  private computeImpact(nodeId: NodeId, maxDepth: number = HIGHLIGHT.IMPACT_MAX_DEPTH): Map<string, number> {
     const visited = new Map<string, number>();
     const queue: Array<{ id: string; depth: number }> = [{ id: nodeId, depth: 0 }];
     let head = 0;

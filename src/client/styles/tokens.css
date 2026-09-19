@@ -205,3 +205,13 @@ body[data-ds-dark-theme] .depth-select option {
   background: #232324;
   color: #f9fafb;
 }
+/* Theme transition — smooth color shift when toggling light/dark */
+.graph-panel,
+.graph-panel > *,
+.cg-floating-panel,
+.cg-floating-panel > * {
+  transition: background-color 280ms var(--cg-ease),
+              color 280ms var(--cg-ease),
+              border-color 280ms var(--cg-ease),
+              box-shadow 280ms var(--cg-ease);
+}

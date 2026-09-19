@@ -13,13 +13,14 @@ import type { VisualizerConfig } from './config.ts';
 import { parsePackageJson, parseCargoToml, parseGoMod, dependencyGraphToGraphData } from '../adapters/DependencyAdapter.ts';
 import { computeGraphDiff, diffToGraphData } from '../merger/DiffEngine.ts';
 import { TreeSitterAdapter } from '../adapters/TreeSitterAdapter.ts';
+import { API } from '../shared/constants.ts';
 
 const log = scoped('host');
 
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_DEFAULT = 60;
-const RATE_LIMIT_HEAVY = 10;
-const RATE_LIMIT_MAP_MAX = 10_000;
+const RATE_LIMIT_WINDOW_MS = API.RATE_LIMIT_WINDOW_MS;
+const RATE_LIMIT_DEFAULT = API.RATE_LIMIT_DEFAULT;
+const RATE_LIMIT_HEAVY = API.RATE_LIMIT_HEAVY;
+const RATE_LIMIT_MAP_MAX = API.RATE_LIMIT_MAP_MAX;
 const HEAVY_ENDPOINTS = new Set(['/api/v1/codegraph/scan', '/api/v1/codegraph/init', '/api/v1/codegraph/diff', '/api/v1/codegraph/ast', '/api/v1/codegraph/tree-sitter']);
 
 interface RateBucket { count: number; resetTime: number; }
@@ -210,6 +211,15 @@ function isSafeGitRef(ref: string): boolean {
   return true;
 }
 
+async function validatePathRealpath(scanPath: string): Promise<boolean> {
+  try {
+    const realPath = await fs.realpath(scanPath);
+    return isPathAllowed(realPath);
+  } catch {
+    return true;
+  }
+}
+
 export function registerRoutes(deps: RouteDeps): void {
   const { ctx, config } = deps;
   const invokeUpstream = createInvokeUpstream(ctx, config);
@@ -381,6 +391,7 @@ export function registerRoutes(deps: RouteDeps): void {
       if (handleCorsPreflight(req, res)) return;
       if (!requireMethod(req, res, 'POST')) return;
       logRequest(req, '/api/v1/codegraph/scan');
+      if (!checkRate(req, res, '/api/v1/codegraph/scan')) return;
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
@@ -392,6 +403,10 @@ export function registerRoutes(deps: RouteDeps): void {
         const scanPath = path && path !== '.' ? path : findWorkspacePath(ctx);
         if (scanPath && scanPath !== '.' && !isPathAllowed(scanPath)) {
           sendError(res, 403, 'Workspace path not allowed', req);
+          return;
+        }
+        if (scanPath && scanPath !== '.' && !await validatePathRealpath(scanPath)) {
+          sendError(res, 403, 'Access denied: symlink escape', req);
           return;
         }
         const repoId = scanPath || `workspace-${Date.now()}`;
@@ -456,6 +471,7 @@ export function registerRoutes(deps: RouteDeps): void {
       if (handleCorsPreflight(req, res)) return;
       if (!requireMethod(req, res, 'POST')) return;
       logRequest(req, '/api/v1/codegraph/init');
+      if (!checkRate(req, res, '/api/v1/codegraph/init')) return;
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
@@ -465,6 +481,14 @@ export function registerRoutes(deps: RouteDeps): void {
           return;
         }
         const initPath = path && path !== '.' ? path : findWorkspacePath(ctx);
+        if (initPath && initPath !== '.' && !isPathAllowed(initPath)) {
+          sendError(res, 403, 'Path not allowed', req);
+          return;
+        }
+        if (initPath && initPath !== '.' && !await validatePathRealpath(initPath)) {
+          sendError(res, 403, 'Access denied: symlink escape', req);
+          return;
+        }
         log.info('init requested', { path: initPath });
         const result = await invokeUpstream('codegraph_init', { path: initPath, force: true });
         const success = result !== null;
@@ -521,6 +545,14 @@ export function registerRoutes(deps: RouteDeps): void {
           return;
         }
         const watchPath = path && path !== '.' ? path : findWorkspacePath(ctx);
+        if (watchPath && watchPath !== '.' && !isPathAllowed(watchPath)) {
+          sendError(res, 403, 'Path not allowed', req);
+          return;
+        }
+        if (watchPath && watchPath !== '.' && !await validatePathRealpath(watchPath)) {
+          sendError(res, 403, 'Access denied: symlink escape', req);
+          return;
+        }
         ctx.emit('cg-viz/watch/toggle', { enabled: !!enabled, path: watchPath, timestamp: Date.now() });
         sendJson(res, 200, { success: true, enabled: !!enabled, path: watchPath }, req);
       } catch (e) {
@@ -612,6 +644,7 @@ export function registerRoutes(deps: RouteDeps): void {
       if (handleCorsPreflight(req, res)) return;
       if (!requireMethod(req, res, 'POST')) return;
       logRequest(req, '/api/v1/codegraph/diff');
+      if (!checkRate(req, res, '/api/v1/codegraph/diff')) return;
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
@@ -670,6 +703,7 @@ export function registerRoutes(deps: RouteDeps): void {
         if (handleCorsPreflight(req, res)) return;
         if (!requireMethod(req, res, 'POST')) return;
         logRequest(req, '/api/v1/codegraph/ast');
+        if (!checkRate(req, res, '/api/v1/codegraph/ast')) return;
         try {
           const body = await readBody(req, config.maxBodyBytes);
           const parsed = parseJsonBody(body);
@@ -728,6 +762,7 @@ export function registerRoutes(deps: RouteDeps): void {
         if (handleCorsPreflight(req, res)) return;
         if (!requireMethod(req, res, 'POST')) return;
         logRequest(req, '/api/v1/codegraph/tree-sitter');
+        if (!checkRate(req, res, '/api/v1/codegraph/tree-sitter')) return;
         try {
           const body = await readBody(req, config.maxBodyBytes);
           const parsed = parseJsonBody(body);

@@ -9,7 +9,7 @@ import {
   SunIcon, MoonIcon, DownloadIcon, ChevronDownIcon, ChevronUpIcon,
   UploadIcon, LayersIcon, ZapIcon, TreeIcon,
   PathIcon, HeartIcon, RuleIcon, FlameIcon, AlertCircleIcon,
-  UndoIcon, RedoIcon, StarIcon,
+  UndoIcon, RedoIcon, StarIcon, FilterIcon,
 } from './Icons.tsx';
 
 const LAYOUTS: LayoutType[] = ['cose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
@@ -64,6 +64,7 @@ export interface ToolbarVisibilityState {
   showHotspot: boolean;
   showGodModule: boolean;
   showCoreFunction: boolean;
+  showFilterPanel: boolean;
 }
 
 export interface ToolbarToggleHandlers {
@@ -81,6 +82,7 @@ export interface ToolbarToggleHandlers {
   onToggleHotspot: () => void;
   onToggleGodModule: () => void;
   onToggleCoreFunction: () => void;
+  onToggleFilterPanel: () => void;
 }
 
 export interface PanelControls extends ToolbarVisibilityState, ToolbarToggleHandlers {}
@@ -106,7 +108,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   onViewModeChange: (mode: ViewMode) => void;
   onLayerChange: (layer: number) => void;
   onRefresh: () => void;
-  onExport: (format: 'png' | 'svg' | 'json') => void;
+  onExport: (format: 'png' | 'svg' | 'json' | 'mermaid') => void;
   onCollapse: () => void;
   onCollapseAll?: () => void;
   onUndo?: () => void;
@@ -134,7 +136,7 @@ export function Toolbar(props: ToolbarProps) {
   }, [showExportMenu]);
 
   const onExport = props.onExport;
-  const handleExport = useCallback((format: 'png' | 'svg' | 'json') => {
+  const handleExport = useCallback((format: 'png' | 'svg' | 'json' | 'mermaid') => {
     onExport(format);
     setShowExportMenu(false);
   }, [onExport]);
@@ -151,9 +153,9 @@ export function Toolbar(props: ToolbarProps) {
 
   const {
     showSearch, showCallChain, showCycles, showImpact, showInheritance, showMiniMap, showLegend, showImport,
-    showPathFind, showHealthScore, showRules, showHotspot, showGodModule, showCoreFunction,
+    showPathFind, showHealthScore, showRules, showHotspot, showGodModule, showCoreFunction, showFilterPanel,
     onToggleSearch, onToggleCallChain, onToggleCycles, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend,
-    onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onToggleCoreFunction,
+    onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onToggleCoreFunction, onToggleFilterPanel,
   } = panelControls;
 
   return (
@@ -262,6 +264,10 @@ export function Toolbar(props: ToolbarProps) {
               <option key={opt.value} value={opt.value}>{t(opt.key)}</option>
             ))}
           </select>
+          <button className={`filter-panel-btn ${showFilterPanel ? 'active' : ''}`} onClick={onToggleFilterPanel}
+            title={t('toolbar.filterPanel')} aria-label={t('toolbar.filterPanel')} aria-pressed={showFilterPanel}>
+            <FilterIcon size={15} />
+          </button>
         </div>
 
         <span className="toolbar-separator" aria-hidden="true" />
@@ -325,6 +331,7 @@ export function Toolbar(props: ToolbarProps) {
                 <button onClick={() => handleExport('png')} role="menuitem">{t('export.png')}</button>
                 <button onClick={() => handleExport('svg')} role="menuitem">{t('export.svg')}</button>
                 <button onClick={() => handleExport('json')} role="menuitem">{t('export.json')}</button>
+                <button onClick={() => handleExport('mermaid')} role="menuitem">{t('export.mermaid')}</button>
               </div>
             )}
           </div>
