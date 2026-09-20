@@ -4,11 +4,16 @@ import fcose from 'cytoscape-fcose';
 import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
 import type { IRenderer, LayoutType, ThemeType, HeatmapMode } from './IRenderer.ts';
-import type { CycleInfo } from './HighlightController.ts';
+import type { CycleInfo } from './CycleDetector.ts';
 import { LayoutController } from './LayoutController.ts';
 import { HighlightController } from './HighlightController.ts';
+import { CycleDetector } from './CycleDetector.ts';
+import { ImpactAnalyzer } from './ImpactAnalyzer.ts';
 import { ViewportController } from './ViewportController.ts';
 import { DataController } from './DataController.ts';
+import { FilterController } from './FilterController.ts';
+import { SearchController } from './SearchController.ts';
+import { ExportController } from './ExportController.ts';
 import { StyleController } from './StyleController.ts';
 import { InteractionController, type InteractionCallbacks } from './InteractionController.ts';
 import { PathFinder, type PathResult } from './PathFinder.ts';
@@ -37,8 +42,13 @@ export class CytoscapeRenderer implements IRenderer {
   private options: CytoscapeRendererOptions;
   private layoutCtrl: LayoutController | null = null;
   private highlightCtrl: HighlightController | null = null;
+  private cycleDetector: CycleDetector | null = null;
+  private impactAnalyzer: ImpactAnalyzer | null = null;
   private viewportCtrl: ViewportController | null = null;
   private dataCtrl: DataController | null = null;
+  private filterCtrl: FilterController | null = null;
+  private searchCtrl: SearchController | null = null;
+  private exportCtrl: ExportController | null = null;
   private styleCtrl: StyleController | null = null;
   private interactionCtrl: InteractionController | null = null;
   private pathFinder: PathFinder | null = null;
@@ -69,8 +79,13 @@ export class CytoscapeRenderer implements IRenderer {
 
       this.layoutCtrl = new LayoutController(cy);
       this.highlightCtrl = new HighlightController(cy);
+      this.cycleDetector = new CycleDetector(cy);
+      this.impactAnalyzer = new ImpactAnalyzer(cy);
       this.viewportCtrl = new ViewportController(cy);
       this.dataCtrl = new DataController(cy);
+      this.filterCtrl = new FilterController(cy);
+      this.searchCtrl = new SearchController(cy, this.dataCtrl.getRawNodesMap(), this.dataCtrl.getRawToVisibleMap());
+      this.exportCtrl = new ExportController(cy);
       this.interactionCtrl = new InteractionController(cy, {
         onNodeTap: this.options.onNodeTap ?? (() => {}),
         onEdgeTap: this.options.onEdgeTap ?? (() => {}),
@@ -86,6 +101,11 @@ export class CytoscapeRenderer implements IRenderer {
       this.pathFinder?.destroy();
       this.virtualViewportCtrl?.destroy();
       this.interactionCtrl?.destroy();
+      this.exportCtrl?.destroy();
+      this.searchCtrl?.destroy();
+      this.filterCtrl?.destroy();
+      this.impactAnalyzer?.destroy();
+      this.cycleDetector?.destroy();
       this.highlightCtrl?.destroy();
       this.viewportCtrl?.destroy();
       this.layoutCtrl?.destroy();
@@ -96,6 +116,11 @@ export class CytoscapeRenderer implements IRenderer {
       this.pathFinder = null;
       this.virtualViewportCtrl = null;
       this.interactionCtrl = null;
+      this.exportCtrl = null;
+      this.searchCtrl = null;
+      this.filterCtrl = null;
+      this.impactAnalyzer = null;
+      this.cycleDetector = null;
       this.highlightCtrl = null;
       this.viewportCtrl = null;
       this.layoutCtrl = null;
@@ -169,11 +194,11 @@ export class CytoscapeRenderer implements IRenderer {
   }
 
   filterByType(type: string): void {
-    this.dataCtrl?.filterByType(type);
+    this.filterCtrl?.filterByType(type);
   }
 
   filterByGraphType(graphType: 'all' | 'call' | 'dependency'): void {
-    this.dataCtrl?.filterByGraphType(graphType);
+    this.filterCtrl?.filterByGraphType(graphType);
   }
 
   applyConnectionFilters(
@@ -182,11 +207,11 @@ export class CytoscapeRenderer implements IRenderer {
     visibleNodeTypes: Set<GraphNode['type']>,
     visibleEdgeTypes: Set<GraphEdge['type']>,
   ): void {
-    this.dataCtrl?.applyConnectionFilters(fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes);
+    this.filterCtrl?.applyConnectionFilters(fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes);
   }
 
   search(query: string): number {
-    return this.dataCtrl?.search(query) ?? 0;
+    return this.searchCtrl?.search(query) ?? 0;
   }
 
   focusOnNode(nodeId: string): void {
@@ -198,35 +223,35 @@ export class CytoscapeRenderer implements IRenderer {
   }
 
   detectCycles(): Set<string> {
-    return this.highlightCtrl?.detectCycles() ?? new Set();
+    return this.cycleDetector?.detectCycles() ?? new Set();
   }
 
   detectCyclesDetailed(): CycleInfo[] {
-    return this.highlightCtrl?.detectCyclesDetailed() ?? [];
+    return this.cycleDetector?.detectCyclesDetailed() ?? [];
   }
 
   highlightCycles(cycleIds: Set<string>): void {
-    this.highlightCtrl?.highlightCycles(cycleIds);
+    this.cycleDetector?.highlightCycles(cycleIds);
   }
 
   isolateCycles(cycleIds: Set<string>): void {
-    this.highlightCtrl?.isolateCycles(cycleIds);
+    this.cycleDetector?.isolateCycles(cycleIds);
   }
 
   relayoutCycles(cycleIds: Set<string>): void {
-    this.highlightCtrl?.relayoutCycles(cycleIds);
+    this.cycleDetector?.relayoutCycles(cycleIds);
   }
 
   restoreIsolation(): void {
-    this.highlightCtrl?.restoreIsolation();
+    this.cycleDetector?.restoreIsolation();
   }
 
   highlightImpact(nodeId: NodeId | null): void {
-    this.highlightCtrl?.highlightImpact(nodeId);
+    this.impactAnalyzer?.highlightImpact(nodeId);
   }
 
   getImpactStats(nodeId: NodeId): { d1: number; d2: number; d3: number; total: number } | null {
-    return this.highlightCtrl?.getImpactStats(nodeId) ?? null;
+    return this.impactAnalyzer?.getImpactStats(nodeId) ?? null;
   }
 
   highlightInheritance(nodeId: NodeId | null): void {
@@ -250,19 +275,19 @@ export class CytoscapeRenderer implements IRenderer {
   }
 
   exportJSON(): string {
-    return this.dataCtrl?.exportJSON() ?? '';
+    return this.exportCtrl?.exportJSON() ?? '';
   }
 
   exportMermaid(): string {
-    return this.dataCtrl?.exportMermaid() ?? 'graph TD\n';
+    return this.exportCtrl?.exportMermaid() ?? 'graph TD\n';
   }
 
   exportPNG(): string | null {
-    return this.dataCtrl?.exportPNG() ?? null;
+    return this.exportCtrl?.exportPNG() ?? null;
   }
 
   exportSVG(theme?: ThemeType): string | null {
-    return this.dataCtrl?.exportSVG(theme ?? this.options.theme) ?? null;
+    return this.exportCtrl?.exportSVG(theme ?? this.options.theme) ?? null;
   }
 
   getSelectedNodeData(): GraphNode | ClusterNode | null {
@@ -298,7 +323,12 @@ export class CytoscapeRenderer implements IRenderer {
     this.interactionCtrl?.destroy();
     this.layoutCtrl?.destroy();
     this.virtualViewportCtrl?.destroy();
+    this.exportCtrl?.destroy();
+    this.searchCtrl?.destroy();
+    this.filterCtrl?.destroy();
     this.dataCtrl?.destroy();
+    this.impactAnalyzer?.destroy();
+    this.cycleDetector?.destroy();
     this.highlightCtrl?.destroy();
     this.viewportCtrl?.destroy();
     this.styleCtrl?.destroy();
@@ -311,8 +341,13 @@ export class CytoscapeRenderer implements IRenderer {
     }
     this.layoutCtrl = null;
     this.highlightCtrl = null;
+    this.cycleDetector = null;
+    this.impactAnalyzer = null;
     this.viewportCtrl = null;
     this.dataCtrl = null;
+    this.filterCtrl = null;
+    this.searchCtrl = null;
+    this.exportCtrl = null;
     this.styleCtrl = null;
     this.interactionCtrl = null;
     this.pathFinder = null;

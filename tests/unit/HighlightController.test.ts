@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { NodeId } from '../../src/types/index.ts';
-import type { GraphNode, GraphEdge } from '../../src/types/index.ts';
 
 function makeMockNode(id: string, data: Record<string, unknown> = {}) {
   const classes = new Set<string>();
@@ -112,30 +111,8 @@ function makeMockCy(nodeList: any[] = [], edgeList: any[] = []) {
       removeClass: vi.fn(),
       data: vi.fn(),
     }),
-    add: vi.fn((spec: any) => {
-      if (spec.group === 'nodes') {
-        const node = makeMockNode(spec.data.id, spec.data);
-        nodeMap.set(spec.data.id, node);
-        nodeList.push(node);
-        elementsList.push(node);
-      } else if (spec.group === 'edges') {
-        const edge = makeMockEdge(spec.data.id, spec.data.source, spec.data.target, spec.data);
-        edgeMap.set(spec.data.id, edge);
-        edgeList.push(edge);
-        elementsList.push(edge);
-      }
-    }),
-    remove: vi.fn((els: any) => {
-      if (Array.isArray(els)) {
-        els.forEach(el => {
-          nodeMap.delete(el.id());
-          edgeMap.delete(el.id());
-        });
-      } else if (els && els.id) {
-        nodeMap.delete(els.id());
-        edgeMap.delete(els.id());
-      }
-    }),
+    add: vi.fn(),
+    remove: vi.fn(),
     json: vi.fn(() => ({ nodes: [], edges: [] })),
     _nodeMap: nodeMap,
     _edgeMap: edgeMap,
@@ -209,90 +186,6 @@ describe('HighlightController', () => {
     expect(nodeA.addClass.mock.calls.length).toBe(callCountBefore);
   });
 
-  it('detectCycles returns empty set when no cycles', async () => {
-    const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
-    const nodeA = makeMockNode('a');
-    const nodeB = makeMockNode('b');
-    const edge = makeMockEdge('e1', 'a', 'b');
-    const cy = makeMockCy([nodeA, nodeB], [edge]);
-    const hc = new HighlightController(cy as any);
-    const cycles = hc.detectCycles();
-    expect(cycles.size).toBe(0);
-  });
-
-  it('detectCycles finds a simple cycle', async () => {
-    const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
-    const nodeA = makeMockNode('a');
-    const nodeB = makeMockNode('b');
-    const edgeAB = makeMockEdge('e1', 'a', 'b');
-    const edgeBA = makeMockEdge('e2', 'b', 'a');
-    const cy = makeMockCy([nodeA, nodeB], [edgeAB, edgeBA]);
-    const hc = new HighlightController(cy as any);
-    const cycles = hc.detectCycles();
-    expect(cycles.size).toBeGreaterThan(0);
-    expect(cycles.has('a')).toBe(true);
-    expect(cycles.has('b')).toBe(true);
-  });
-
-  it('detectCycles finds self-loop', async () => {
-    const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
-    const nodeA = makeMockNode('a');
-    const edgeSelf = makeMockEdge('e1', 'a', 'a');
-    const cy = makeMockCy([nodeA], [edgeSelf]);
-    const hc = new HighlightController(cy as any);
-    const cycles = hc.detectCycles();
-    expect(cycles.has('a')).toBe(true);
-  });
-
-  it('highlightCycles adds cycle-highlight class to cycle nodes', async () => {
-    const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
-    const nodeA = makeMockNode('a');
-    const nodeB = makeMockNode('b');
-    const cy = makeMockCy([nodeA, nodeB], []);
-    const hc = new HighlightController(cy as any);
-    hc.highlightCycles(new Set(['a', 'b']));
-    expect(nodeA.addClass).toHaveBeenCalledWith('cycle-highlight');
-    expect(nodeB.addClass).toHaveBeenCalledWith('cycle-highlight');
-  });
-
-  it('isolateCycles adds cycle-hidden class to non-cycle nodes', async () => {
-    const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
-    const nodeA = makeMockNode('a');
-    const nodeB = makeMockNode('b');
-    const nodeC = makeMockNode('c');
-    const edgeAB = makeMockEdge('e1', 'a', 'b');
-    const edgeAC = makeMockEdge('e2', 'a', 'c');
-    const cy = makeMockCy([nodeA, nodeB, nodeC], [edgeAB, edgeAC]);
-    const hc = new HighlightController(cy as any);
-    hc.isolateCycles(new Set(['a', 'b']));
-    expect(nodeC.addClass).toHaveBeenCalledWith('cycle-hidden');
-    expect(edgeAC.addClass).toHaveBeenCalledWith('cycle-hidden');
-  });
-
-  it('isolateCycles does not hide cycle nodes or edges between cycle nodes', async () => {
-    const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
-    const nodeA = makeMockNode('a');
-    const nodeB = makeMockNode('b');
-    const edgeAB = makeMockEdge('e1', 'a', 'b');
-    const cy = makeMockCy([nodeA, nodeB], [edgeAB]);
-    const hc = new HighlightController(cy as any);
-    hc.isolateCycles(new Set(['a', 'b']));
-    expect(nodeA.addClass).not.toHaveBeenCalledWith('cycle-hidden');
-    expect(nodeB.addClass).not.toHaveBeenCalledWith('cycle-hidden');
-    expect(edgeAB.addClass).not.toHaveBeenCalledWith('cycle-hidden');
-  });
-
-  it('restoreIsolation removes cycle-hidden class from all elements', async () => {
-    const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
-    const nodeA = makeMockNode('a');
-    const nodeB = makeMockNode('b');
-    const cy = makeMockCy([nodeA, nodeB], []);
-    const hc = new HighlightController(cy as any);
-    hc.restoreIsolation();
-    expect(nodeA.removeClass).toHaveBeenCalledWith('cycle-hidden');
-    expect(nodeB.removeClass).toHaveBeenCalledWith('cycle-hidden');
-  });
-
   it('highlightCallChain adds call-chain class to node and outgoing edges', async () => {
     const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
     const nodeA = makeMockNode('a');
@@ -316,41 +209,6 @@ describe('HighlightController', () => {
     expect(nodeA.removeClass).toHaveBeenCalledWith('call-chain');
   });
 
-  it('getImpactStats returns null for non-existent node', async () => {
-    const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
-    const cy = makeMockCy([], []);
-    const hc = new HighlightController(cy as any);
-    expect(hc.getImpactStats(NodeId('nonexistent'))).toBeNull();
-  });
-
-  it('getImpactStats returns stats for existing node', async () => {
-    const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
-    const nodeA = makeMockNode('a');
-    const cy = makeMockCy([nodeA], []);
-    const hc = new HighlightController(cy as any);
-    const stats = hc.getImpactStats(NodeId('a'));
-    expect(stats).not.toBeNull();
-    expect(stats!.total).toBeGreaterThanOrEqual(0);
-  });
-
-  it('highlightImpact with null clears impact classes', async () => {
-    const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
-    const nodeA = makeMockNode('a');
-    const cy = makeMockCy([nodeA], []);
-    const hc = new HighlightController(cy as any);
-    hc.highlightImpact(null);
-    expect(nodeA.removeClass).toHaveBeenCalledWith('impact-d1 impact-d2 impact-d3 impact-source');
-  });
-
-  it('highlightImpact adds impact-source class to source node', async () => {
-    const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
-    const nodeA = makeMockNode('a');
-    const cy = makeMockCy([nodeA], []);
-    const hc = new HighlightController(cy as any);
-    hc.highlightImpact(NodeId('a'));
-    expect(nodeA.addClass).toHaveBeenCalledWith('impact-source');
-  });
-
   it('highlightInheritance with null clears inheritance classes', async () => {
     const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
     const nodeA = makeMockNode('a');
@@ -366,62 +224,6 @@ describe('HighlightController', () => {
     const hc = new HighlightController(cy as any);
     hc.highlightNodes([NodeId('a')]);
     expect(() => hc.destroy()).not.toThrow();
-  });
-
-  describe('detectCyclesDetailed', () => {
-    it('returns empty array when no cycles', async () => {
-      const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
-      const nodeA = makeMockNode('a');
-      const nodeB = makeMockNode('b');
-      const edge = makeMockEdge('e1', 'a', 'b');
-      const cy = makeMockCy([nodeA, nodeB], [edge]);
-      const hc = new HighlightController(cy as any);
-      const cycles = hc.detectCyclesDetailed();
-      expect(cycles.length).toBe(0);
-    });
-
-    it('finds a simple two-node cycle with nodes and edges', async () => {
-      const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
-      const nodeA = makeMockNode('a');
-      const nodeB = makeMockNode('b');
-      const edgeAB = makeMockEdge('e1', 'a', 'b');
-      const edgeBA = makeMockEdge('e2', 'b', 'a');
-      const cy = makeMockCy([nodeA, nodeB], [edgeAB, edgeBA]);
-      const hc = new HighlightController(cy as any);
-      const cycles = hc.detectCyclesDetailed();
-      expect(cycles.length).toBeGreaterThan(0);
-      const firstCycle = cycles[0]!;
-      expect(firstCycle.length).toBeGreaterThanOrEqual(2);
-      expect(firstCycle.nodes).toContain('a');
-      expect(firstCycle.nodes).toContain('b');
-      expect(firstCycle.edges.length).toBeGreaterThan(0);
-    });
-
-    it('finds a self-loop cycle', async () => {
-      const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
-      const nodeA = makeMockNode('a');
-      const edgeSelf = makeMockEdge('e1', 'a', 'a');
-      const cy = makeMockCy([nodeA], [edgeSelf]);
-      const hc = new HighlightController(cy as any);
-      const cycles = hc.detectCyclesDetailed();
-      expect(cycles.length).toBeGreaterThan(0);
-      expect(cycles[0]!.nodes).toContain('a');
-    });
-
-    it('deduplicates cycles with same nodes', async () => {
-      const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
-      const nodeA = makeMockNode('a');
-      const nodeB = makeMockNode('b');
-      const nodeC = makeMockNode('c');
-      const edgeAB = makeMockEdge('e1', 'a', 'b');
-      const edgeBC = makeMockEdge('e2', 'b', 'c');
-      const edgeCA = makeMockEdge('e3', 'c', 'a');
-      const cy = makeMockCy([nodeA, nodeB, nodeC], [edgeAB, edgeBC, edgeCA]);
-      const hc = new HighlightController(cy as any);
-      const cycles = hc.detectCyclesDetailed();
-      const uniqueKeys = new Set(cycles.map(c => [...c.nodes].sort().join('|')));
-      expect(uniqueKeys.size).toBe(cycles.length);
-    });
   });
 
   describe('selectNode neighbor highlighting', () => {
@@ -533,65 +335,6 @@ describe('HighlightController', () => {
       const hc = new HighlightController(cy as any);
       hc.highlightInheritance(null);
       expect(nodeA.removeClass).toHaveBeenCalledWith('inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement');
-    });
-  });
-
-  describe('highlightImpact with actual impact nodes', () => {
-    it('adds impact-d1 class to direct callers', async () => {
-      const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
-      const nodeA = makeMockNode('a');
-      const nodeB = makeMockNode('b');
-      const edgeBA = makeMockEdge('e1', 'b', 'a');
-      const cy = makeMockCy([nodeA, nodeB], [edgeBA]);
-      nodeA.incomers = vi.fn(() => ({
-        forEach: (cb: (e: any) => void) => { cb(edgeBA); },
-      }));
-      const hc = new HighlightController(cy as any);
-      hc.highlightImpact(NodeId('a'));
-      expect(nodeA.addClass).toHaveBeenCalledWith('impact-source');
-      expect(nodeB.addClass).toHaveBeenCalledWith('impact-d1');
-    });
-
-    it('getImpactStats returns d1 count for direct callers', async () => {
-      const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
-      const nodeA = makeMockNode('a');
-      const nodeB = makeMockNode('b');
-      const edgeBA = makeMockEdge('e1', 'b', 'a');
-      const cy = makeMockCy([nodeA, nodeB], [edgeBA]);
-      nodeA.incomers = vi.fn(() => ({
-        forEach: (cb: (e: any) => void) => { cb(edgeBA); },
-      }));
-      const hc = new HighlightController(cy as any);
-      const stats = hc.getImpactStats(NodeId('a'));
-      expect(stats).not.toBeNull();
-      expect(stats!.d1).toBeGreaterThanOrEqual(1);
-      expect(stats!.total).toBeGreaterThanOrEqual(1);
-    });
-  });
-
-  describe('relayoutCycles', () => {
-    it('calls layout with circle name on cycle nodes', async () => {
-      const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
-      const nodeA = makeMockNode('a');
-      const nodeB = makeMockNode('b');
-      const nodeC = makeMockNode('c');
-      const cy = makeMockCy([nodeA, nodeB, nodeC], []);
-      const hc = new HighlightController(cy as any);
-      hc.relayoutCycles(new Set(['a', 'b']));
-      const nodesCollection = cy.nodes.mock.results[0].value;
-      const filteredCollection = nodesCollection.filter.mock.results[0].value;
-      expect(filteredCollection.layout).toHaveBeenCalledWith(
-        expect.objectContaining({ name: 'circle' }),
-      );
-    });
-
-    it('does nothing when cycleIds is empty', async () => {
-      const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
-      const nodeA = makeMockNode('a');
-      const cy = makeMockCy([nodeA], []);
-      const hc = new HighlightController(cy as any);
-      hc.relayoutCycles(new Set());
-      expect(cy.nodes).not.toHaveBeenCalled();
     });
   });
 });

@@ -1,4 +1,4 @@
-import type { CycleInfo } from '../renderer/HighlightController.ts';
+import type { CycleInfo } from '../renderer/CycleDetector.ts';
 
 interface CyclePanelProps {
   cycles: CycleInfo[];
