@@ -1308,3 +1308,260 @@ describe('validatePathRealpath security', () => {
   });
 });
 
+describe('GET /health', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(isPathAllowed).mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+  });
+
+  it('returns 200 and healthy status when codegraph is available', () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 1);
+    const { res, state } = makeRes();
+    handler(makeReq('GET'), res);
+    expect(state.code).toBe(200);
+    const parsed = JSON.parse(state.body);
+    expect(parsed.status).toBe('healthy');
+    expect(parsed.codegraph).toBe(true);
+    expect(parsed.lens).toBe(true);
+    expect(parsed).toHaveProperty('hasGraphData');
+    expect(parsed).toHaveProperty('uptime');
+    expect(parsed).toHaveProperty('memory');
+    expect(parsed).toHaveProperty('timestamp');
+  });
+
+  it('returns 503 and degraded status when codegraph is not available', () => {
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: false, lens: true });
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 1);
+    const { res, state } = makeRes();
+    handler(makeReq('GET'), res);
+    expect(state.code).toBe(503);
+    const parsed = JSON.parse(state.body);
+    expect(parsed.status).toBe('degraded');
+    expect(parsed.codegraph).toBe(false);
+  });
+
+  it('returns 503 and unhealthy status on error', () => {
+    vi.mocked(checkPrerequisites).mockImplementation(() => {
+      throw new Error('check failed');
+    });
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 1);
+    const { res, state } = makeRes();
+    handler(makeReq('GET'), res);
+    expect(state.code).toBe(503);
+    const parsed = JSON.parse(state.body);
+    expect(parsed.status).toBe('unhealthy');
+    expect(parsed.error).toBe('check failed');
+  });
+
+  it('handles CORS preflight', () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 1);
+    const { res, state } = makeRes();
+    handler(makeReq('OPTIONS'), res);
+    expect(state.code).toBe(204);
+  });
+});
+
+describe('readBody - body too large', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig({ maxBodyBytes: 10 });
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(isPathAllowed).mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+  });
+
+  it('POST /scan returns 500 when request body exceeds maxBodyBytes', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 4);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', 'x'.repeat(100)), res);
+    expect(state.code).toBe(500);
+    expect(JSON.parse(state.body).error).toBe('Scan failed — check codegraph installation');
+  });
+
+  it('POST /init returns 500 when request body exceeds maxBodyBytes', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 5);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', 'x'.repeat(100)), res);
+    expect(state.code).toBe(500);
+    expect(JSON.parse(state.body).error).toBe('Initialization failed — is dsh-codegraph installed?');
+  });
+});
+
+describe('parseJsonBody - invalid body', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(isPathAllowed).mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+  });
+
+  it('POST /scan returns 500 when JSON body is an array', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 4);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', '[1,2,3]'), res);
+    expect(state.code).toBe(500);
+  });
+
+  it('POST /scan returns 500 when JSON body is a primitive string', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 4);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', '"hello"'), res);
+    expect(state.code).toBe(500);
+  });
+
+  it('POST /scan returns 500 when JSON body is a number', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 4);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', '42'), res);
+    expect(state.code).toBe(500);
+  });
+});
+
+describe('extractStringField - boundary tests', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(isPathAllowed).mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+  });
+
+  it('POST /scan falls back to workspace when path contains null byte', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 4);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ path: 'test\0path' })), res);
+    expect(state.code).toBe(200);
+    // extractStringField returns undefined for null byte, so falls back to workspace
+    expect(fetchMergedGraph).toHaveBeenCalledWith(expect.any(Function), '/test/workspace', 'both');
+  });
+
+  it('POST /scan falls back to workspace when path exceeds maxLength', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 4);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ path: 'a'.repeat(4097) })), res);
+    expect(state.code).toBe(200);
+    expect(fetchMergedGraph).toHaveBeenCalledWith(expect.any(Function), '/test/workspace', 'both');
+  });
+});
+
+describe('rate limiter - cleanup logic', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(isPathAllowed).mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+  });
+
+  it('cleans up expired buckets after RATE_LIMIT_WINDOW_MS', () => {
+    vi.useFakeTimers();
+    const now = Date.now();
+    vi.setSystemTime(now);
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 0); // /status route
+
+    // Exhaust rate limit for a unique IP
+    const uniqueIp = '10.1.1.1';
+    for (let i = 0; i < 60; i++) {
+      const { res, state } = makeRes();
+      handler(makeReq('GET', undefined, {}, uniqueIp), res);
+      expect(state.code).toBe(200);
+    }
+    // 61st request should be rate limited
+    const { res: resLimited, state: stateLimited } = makeRes();
+    handler(makeReq('GET', undefined, {}, uniqueIp), resLimited);
+    expect(stateLimited.code).toBe(429);
+
+    // Advance time past RATE_LIMIT_WINDOW_MS (60000ms)
+    vi.advanceTimersByTime(61000);
+
+    // After cleanup, the same IP should be able to make requests again
+    const { res: resAfter, state: stateAfter } = makeRes();
+    handler(makeReq('GET', undefined, {}, uniqueIp), resAfter);
+    expect(stateAfter.code).toBe(200);
+
+    vi.useRealTimers();
+  });
+
+  it('evicts oldest entry when RATE_LIMIT_MAP_MAX is exceeded', () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 0); // /status route
+
+    // Exhaust ip1's rate limit (60 requests)
+    const ip1 = '10.0.0.1';
+    for (let i = 0; i < 60; i++) {
+      const { res, state } = makeRes();
+      handler(makeReq('GET', undefined, {}, ip1), res);
+      expect(state.code).toBe(200);
+    }
+    // 61st request from ip1 should be rate limited
+    const { res: resLimited, state: stateLimited } = makeRes();
+    handler(makeReq('GET', undefined, {}, ip1), resLimited);
+    expect(stateLimited.code).toBe(429);
+
+    // Fill rateLimitMap with RATE_LIMIT_MAP_MAX (10000) entries
+    // ip1 is already in the map, so we need 9999 more unique IPs
+    for (let i = 2; i <= 10000; i++) {
+      const { res, state } = makeRes();
+      handler(makeReq('GET', undefined, {}, `10.0.0.${i}`), res);
+    }
+
+    // rateLimitMap now has 10000 entries (including ip1)
+    // Send request from a new IP - should evict ip1's bucket (oldest)
+    const { res: resNew, state: stateNew } = makeRes();
+    handler(makeReq('GET', undefined, {}, '10.0.0.10001'), resNew);
+    expect(stateNew.code).toBe(200);
+
+    // ip1's bucket was evicted, so it can make requests again
+    const { res: res1Again, state: state1Again } = makeRes();
+    handler(makeReq('GET', undefined, {}, ip1), res1Again);
+    expect(state1Again.code).toBe(200);
+  });
+});
+

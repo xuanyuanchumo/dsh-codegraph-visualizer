@@ -449,4 +449,138 @@ describe('DiffEngine (FR-24)', () => {
     expect(diff.removedEdges[0]!.id).toBe('e1');
     expect(diff.modifiedEdges).toHaveLength(0);
   });
+
+  // ---- deepEqual array boundary tests ----
+
+  it('deepEqual: arrays of different lengths are detected as different (modified)', () => {
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: [1, 2] })];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: [1, 2, 3] })];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(1);
+  });
+
+  it('deepEqual: arrays of same length but different elements are detected as different (modified)', () => {
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: [1, 2, 3] })];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: [1, 2, 4] })];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(1);
+  });
+
+  it('deepEqual: arrays with nested objects - equal arrays are not flagged as modified', () => {
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: [{ a: 1 }, { b: 2 }] })];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: [{ a: 1 }, { b: 2 }] })];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(0);
+  });
+
+  it('deepEqual: arrays with nested objects - different nested objects are detected (modified)', () => {
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: [{ a: 1 }, { b: 2 }] })];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: [{ a: 1 }, { b: 3 }] })];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(1);
+  });
+
+  it('deepEqual: empty arrays are equal (not modified)', () => {
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: [] })];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: [] })];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(0);
+  });
+
+  it('deepEqual: array vs non-array object returns false (modified)', () => {
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: [1, 2] })];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: { length: 2 } })];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(1);
+  });
+
+  // ---- deepEqual circular reference tests ----
+
+  it('deepEqual: circular references with same structure are equal (not modified)', () => {
+    const objA: Record<string, unknown> = {};
+    objA.self = objA;
+    const objB: Record<string, unknown> = {};
+    objB.self = objB;
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: objA })];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: objB })];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(0);
+  });
+
+  it('deepEqual: circular references with different structure are detected (modified)', () => {
+    const objA: Record<string, unknown> = {};
+    objA.self = objA;
+    const objC: Record<string, unknown> = {};
+    objC.self = {}; // different: points to a separate empty object, not itself
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: objA })];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { x: objC })];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(1);
+  });
+
+  // ---- deepEqual depth limit tests ----
+
+  it('deepEqual: objects within depth limit are compared normally (not modified)', () => {
+    let before: Record<string, unknown> = { value: 42 };
+    let after: Record<string, unknown> = { value: 42 };
+    // Create 40 levels of nesting (well within MAX_DEEP_EQUAL_DEPTH of 50)
+    for (let i = 0; i < 40; i++) {
+      before = { nested: before };
+      after = { nested: after };
+    }
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { deep: before })];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { deep: after })];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(0);
+  });
+
+  it('deepEqual: exceeds MAX_DEEP_EQUAL_DEPTH (50) returns false (modified)', () => {
+    let before: Record<string, unknown> = { value: 42 };
+    let after: Record<string, unknown> = { value: 42 };
+    // Create 55 levels of nesting (exceeds MAX_DEEP_EQUAL_DEPTH of 50)
+    for (let i = 0; i < 55; i++) {
+      before = { nested: before };
+      after = { nested: after };
+    }
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { deep: before })];
+    const afterNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1, { deep: after })];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.modifiedNodes).toHaveLength(1);
+  });
+
+  // ---- computeGraphDiff boundary tests ----
+
+  it('computeGraphDiff: only node changes with no edges', () => {
+    const beforeNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
+    const afterNodes = [
+      makeNode('n1', 'A-renamed', 'function', 'a.ts', 1),
+      makeNode('n2', 'B', 'class', 'b.ts', 5),
+    ];
+    const diff = computeGraphDiff(beforeNodes, [], afterNodes, []);
+    expect(diff.addedNodes).toHaveLength(1);
+    expect(diff.addedNodes[0]!.id).toBe('n2');
+    expect(diff.modifiedNodes).toHaveLength(1);
+    expect(diff.modifiedNodes[0]!.label).toBe('A-renamed');
+    expect(diff.removedNodes).toHaveLength(0);
+    expect(diff.addedEdges).toHaveLength(0);
+    expect(diff.removedEdges).toHaveLength(0);
+    expect(diff.modifiedEdges).toHaveLength(0);
+  });
+
+  it('computeGraphDiff: only edge changes with no nodes', () => {
+    const beforeEdges = [makeEdge('e1', 'n1', 'n2', 'call')];
+    const afterEdges = [
+      makeEdge('e1', 'n1', 'n2', 'import'),
+      makeEdge('e2', 'n3', 'n4', 'extend'),
+    ];
+    const diff = computeGraphDiff([], beforeEdges, [], afterEdges);
+    expect(diff.addedEdges).toHaveLength(1);
+    expect(diff.addedEdges[0]!.id).toBe('e2');
+    expect(diff.modifiedEdges).toHaveLength(1);
+    expect(diff.modifiedEdges[0]!.type).toBe('import');
+    expect(diff.removedEdges).toHaveLength(0);
+    expect(diff.addedNodes).toHaveLength(0);
+    expect(diff.removedNodes).toHaveLength(0);
+    expect(diff.modifiedNodes).toHaveLength(0);
+  });
 });

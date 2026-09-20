@@ -20,11 +20,11 @@ const log = scoped('host');
 export const name = 'dsh-codegraph-visualizer';
 export const inject = ['tools', 'webServer', 'sessions', 'workspaceRegistry'];
 
-export function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
+export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
   const config = resolveConfig(userConfig);
   setAllowedWorkspaceRoots(extractWorkspacePaths(ctx));
 
-  const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus, dispose: disposeGraphTools } = createGraphTools(ctx, { requestTimeout: config.requestTimeout });
+  const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus, dispose: disposeGraphTools } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout });
 
   ctx.effect(() => {
     const d1 = ctx.tools.register(graphStatus);

@@ -1,7 +1,7 @@
 // Service-layer tests for actual business logic (J3–J11 user journeys).
 import { describe, it, expect, beforeEach } from 'vitest';
 import { GraphDataMerger } from '../../src/merger/GraphDataMerger.ts';
-import { mapNodeKind, mapEdgeKind, resolveDbPath } from '../../src/adapters/CodeGraphAdapter.ts';
+
 import { coerceNode, coerceEdge, validateGraphData } from '../../src/client/validators.ts';
 import { resolveConfig, isPathAllowed, setAllowedWorkspaceRoots, DEFAULT_CONFIG } from '../../src/index.ts';
 import type { GraphNode, GraphEdge, AdapterResult } from '../../src/types/index.ts';
@@ -203,66 +203,6 @@ describe('GraphDataMerger.applyDelta() (J5 incremental)', () => {
   });
 });
 
-// ── CodeGraphAdapter mapping functions ──────────────────────────────────────
-
-describe('CodeGraphAdapter mapNodeKind/mapEdgeKind (J4 symbol resolution)', () => {
-  it('should map known node kinds correctly', () => {
-    expect(mapNodeKind('function')).toBe('function');
-    expect(mapNodeKind('method')).toBe('function');
-    expect(mapNodeKind('class')).toBe('class');
-    expect(mapNodeKind('interface')).toBe('interface');
-    expect(mapNodeKind('type_alias')).toBe('type');
-    expect(mapNodeKind('constant')).toBe('variable');
-    expect(mapNodeKind('variable')).toBe('variable');
-    expect(mapNodeKind('property')).toBe('variable');
-    expect(mapNodeKind('file')).toBe('module');
-    expect(mapNodeKind('import')).toBe('module');
-    expect(mapNodeKind('module')).toBe('module');
-  });
-
-  it('should default unknown node kinds to module', () => {
-    expect(mapNodeKind('unknown')).toBe('module');
-    expect(mapNodeKind('')).toBe('module');
-    expect(mapNodeKind('namespace')).toBe('module');
-  });
-
-  it('should map known edge kinds correctly', () => {
-    expect(mapEdgeKind('call')).toBe('call');
-    expect(mapEdgeKind('calls')).toBe('call');
-    expect(mapEdgeKind('import')).toBe('import');
-    expect(mapEdgeKind('imports')).toBe('import');
-    expect(mapEdgeKind('extend')).toBe('extend');
-    expect(mapEdgeKind('extends')).toBe('extend');
-    expect(mapEdgeKind('implement')).toBe('implement');
-    expect(mapEdgeKind('implements')).toBe('implement');
-    expect(mapEdgeKind('contains')).toBe('contains');
-    expect(mapEdgeKind('dependency')).toBe('dependency');
-    expect(mapEdgeKind('depends')).toBe('dependency');
-  });
-
-  it('should default unknown edge kinds to dependency', () => {
-    expect(mapEdgeKind('unknown')).toBe('dependency');
-    expect(mapEdgeKind('')).toBe('dependency');
-    expect(mapEdgeKind('references')).toBe('dependency');
-  });
-});
-
-describe('CodeGraphAdapter resolveDbPath (J11 adapter)', () => {
-  it('should resolve db path for a workspace', () => {
-    const path = resolveDbPath('/home/user/project');
-    expect(path).toContain('.codegraph');
-    expect(path).toContain('codegraph.db');
-    expect(path).toContain('home');
-    expect(path).toContain('user');
-    expect(path).toContain('project');
-  });
-
-  it('should use process.cwd() for empty or dot workspace', () => {
-    const dotPath = resolveDbPath('.');
-    const emptyPath = resolveDbPath('');
-    expect(dotPath).toBe(emptyPath);
-  });
-});
 
 // ── validators: coerceNode / coerceEdge / validateGraphData ─────────────────
 

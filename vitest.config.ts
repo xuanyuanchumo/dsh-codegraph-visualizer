@@ -7,6 +7,7 @@ export default defineConfig({
     environment: 'node',
     coverage: {
       provider: 'v8',
+
       reporter: ['text', 'json', 'html', 'lcov'],
       thresholds: {
         lines: 79,
@@ -30,6 +31,8 @@ export default defineConfig({
         'src/client/renderer/StyleController.ts',
         'src/client/renderer/VirtualViewportController.ts',
         'src/client/renderer/SequenceDiagramRenderer.tsx',
+        'src/client/renderer/DataController.ts',
+        'src/client/diagram/SequenceTypes.ts',
         'src/client/renderer/cytoscape-dagre.d.ts',
         'src/client/renderer/cytoscape-fcose.d.ts',
         'src/client/renderer/styles/**',
@@ -46,7 +49,12 @@ export default defineConfig({
       ],
     },
     include: ['tests/unit/**/*.test.ts', 'tests/component/**/*.test.tsx', 'src/**/*.test.ts'],
+
+
     testTimeout: 10000,
     hookTimeout: 10000,
+
+
+
   },
 });

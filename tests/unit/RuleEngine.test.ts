@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { RuleEngine, getPresetRules } from '../../src/shared/analysis/RuleEngine.ts';
-import type { RuleDefinition } from '../../src/shared/analysis/RuleEngine.ts';
+import type { RuleDefinition, RuleViolation } from '../../src/shared/analysis/RuleEngine.ts';
 import type { GraphEdge } from '../../src/types/index.ts';
+import { NodeId } from '../../src/types/index.ts';
+import type { RuleType } from '../../src/types/index.ts';
 import { makeNode, makeEdge } from '../helpers.ts';
 
 describe('RuleEngine', () => {
@@ -511,6 +513,393 @@ describe('RuleEngine', () => {
       expect(violations.length).toBe(2);
       expect(violations.some((v) => v.ruleId === 'max-in-2')).toBe(true);
       expect(violations.some((v) => v.ruleId === 'max-out-2')).toBe(true);
+    });
+  });
+
+  describe('check - unknown rule type', () => {
+    it('skips rules with no registered detector (no error)', () => {
+      const rule: RuleDefinition = {
+        id: 'unknown-type',
+        name: 'Unknown Type',
+        type: 'forbidden-edge' as RuleType,
+        params: {},
+        severity: 'warning',
+        enabled: true,
+      };
+      // Use a fresh engine and remove all detectors by overwriting with a no-op
+      const freshEngine = new RuleEngine();
+      // Register a custom detector for a type that the rule does not use
+      freshEngine.registerDetector('max-indegree', {
+        detect: () => [{ ruleId: 'custom', nodeId: NodeId('x'), message: 'custom', severity: 'warning' }],
+      });
+      // The rule type 'forbidden-edge' still has its original detector;
+      // instead, test with a truly unregistered type by casting
+      const unknownRule = { ...rule, type: 'nonexistent' as RuleType };
+      const nodes = [makeNode('a', 'A', 'function', 'src/a.ts', 1)];
+      const edges: GraphEdge[] = [];
+      const violations = freshEngine.check([unknownRule], nodes, edges);
+      expect(violations).toEqual([]);
+    });
+  });
+
+  describe('registerDetector - override', () => {
+    it('overwrites existing detector when registering same type', () => {
+      const freshEngine = new RuleEngine();
+      const customDetector = {
+        detect: (): RuleViolation[] => [
+          { ruleId: 'custom-detector', nodeId: NodeId('custom'), message: 'overridden', severity: 'error' },
+        ],
+      };
+      freshEngine.registerDetector('max-indegree', customDetector);
+      const rule: RuleDefinition = {
+        id: 'test-override',
+        name: 'Test Override',
+        type: 'max-indegree',
+        params: { threshold: 1 },
+        severity: 'warning',
+        enabled: true,
+      };
+      const nodes = [makeNode('a', 'A', 'function', 'src/a.ts', 1)];
+      const edges: GraphEdge[] = [];
+      const violations = freshEngine.check([rule], nodes, edges);
+      expect(violations).toHaveLength(1);
+      expect(violations[0]!.ruleId).toBe('custom-detector');
+      expect(violations[0]!.message).toBe('overridden');
+    });
+  });
+
+  describe('ForbiddenEdgeDetector - complex DFS', () => {
+    const rule: RuleDefinition = {
+      id: 'no-circular',
+      name: 'No Circular',
+      type: 'forbidden-edge',
+      params: { edgeTypes: ['call'] },
+      severity: 'error',
+      enabled: true,
+    };
+
+    it('deduplicates visited nodes across multiple entry points', () => {
+      // Graph: two entry points (a, d) both reach shared subgraph (b→c)
+      // a→b→c, d→b→c — b and c should only be visited once
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/c.ts', 1),
+        makeNode('d', 'D', 'function', 'src/d.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'b', 'c', 'call'),
+        makeEdge('e3', 'd', 'b', 'call'),
+      ];
+      const violations = engine.check([rule], nodes, edges);
+      // No cycles, should return empty
+      expect(violations).toEqual([]);
+    });
+
+    it('deduplicates cycleKey in complex graph with shared cycle', () => {
+      // Graph: a→b→c→a (cycle), and d→b (d enters the cycle from outside)
+      // The cycle a→b→c→a should only be reported once
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/c.ts', 1),
+        makeNode('d', 'D', 'function', 'src/d.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'b', 'c', 'call'),
+        makeEdge('e3', 'c', 'a', 'call'),
+        makeEdge('e4', 'd', 'b', 'call'),
+      ];
+      const violations = engine.check([rule], nodes, edges);
+      expect(violations).toHaveLength(1);
+      expect(violations[0]!.message).toContain('Circular dependency');
+    });
+
+    it('detects two distinct cycles in complex graph', () => {
+      // Graph with two separate cycles: a→b→a and c→d→c
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/c.ts', 1),
+        makeNode('d', 'D', 'function', 'src/d.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'b', 'a', 'call'),
+        makeEdge('e3', 'c', 'd', 'call'),
+        makeEdge('e4', 'd', 'c', 'call'),
+      ];
+      const violations = engine.check([rule], nodes, edges);
+      expect(violations).toHaveLength(2);
+      // Each violation should mention a circular dependency
+      expect(violations.every((v) => v.message.includes('Circular dependency'))).toBe(true);
+    });
+  });
+
+  describe('CrossLayerCallDetector - boundary cases', () => {
+    const rule: RuleDefinition = {
+      id: 'no-cross',
+      name: 'No Cross Layer',
+      type: 'cross-layer-call',
+      params: {
+        layers: { 'view': ['model'], 'model': ['view'] },
+        edgeType: 'call',
+      },
+      severity: 'error',
+      enabled: true,
+    };
+
+    it('assigns first matching layer when node matches multiple patterns', () => {
+      // With layers { 'view': ['model'], 'model': ['view'] }:
+      //   'view' layer patterns: ['model'] — matches path containing 'model'
+      //   'model' layer patterns: ['view'] — matches path containing 'view'
+      // Node vm (src/view/model/page.ts) matches both layers (path has both 'view' and 'model'),
+      // but gets 'view' (first in iteration order) because its patterns ['model'] match first.
+      // Node v (src/view/page.ts) only matches 'model' layer (path has 'view').
+      // So vm→v is view→model, which is a forbidden pair.
+      const nodes = [
+        makeNode('vm', 'VM', 'function', 'src/view/model/page.ts', 1),
+        makeNode('v', 'V', 'function', 'src/view/page.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'vm', 'v', 'call')];
+      const violations = engine.check([rule], nodes, edges);
+      expect(violations).toHaveLength(1);
+      expect(violations[0]!.message).toContain('view');
+      expect(violations[0]!.message).toContain('model');
+    });
+
+    it('matches layers with backslash path separators', () => {
+      const nodes = [
+        makeNode('v', 'View', 'function', 'src\\view\\page.ts', 1),
+        makeNode('m', 'Model', 'function', 'src\\model\\data.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'v', 'm', 'call')];
+      const violations = engine.check([rule], nodes, edges);
+      expect(violations).toHaveLength(1);
+      expect(violations[0]!.message).toContain('view');
+      expect(violations[0]!.message).toContain('model');
+    });
+  });
+
+  describe('MaxIndegreeDetector - boundary cases', () => {
+    it('does not report when indegree equals threshold exactly', () => {
+      const rule: RuleDefinition = {
+        id: 'max-in-eq',
+        name: 'Max In Equal',
+        type: 'max-indegree',
+        params: { threshold: 3 },
+        severity: 'warning',
+        enabled: true,
+      };
+      const nodes = [
+        makeNode('hub', 'Hub', 'function', 'src/hub.ts', 1),
+        makeNode('a', 'A', 'function', 'src/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/c.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'hub', 'call'),
+        makeEdge('e2', 'b', 'hub', 'call'),
+        makeEdge('e3', 'c', 'hub', 'call'),
+      ];
+      const violations = engine.check([rule], nodes, edges);
+      expect(violations).toEqual([]);
+    });
+
+    it('reports when indegree exceeds threshold by one', () => {
+      const rule: RuleDefinition = {
+        id: 'max-in-over',
+        name: 'Max In Over',
+        type: 'max-indegree',
+        params: { threshold: 3 },
+        severity: 'warning',
+        enabled: true,
+      };
+      const nodes = [
+        makeNode('hub', 'Hub', 'function', 'src/hub.ts', 1),
+        makeNode('a', 'A', 'function', 'src/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/c.ts', 1),
+        makeNode('d', 'D', 'function', 'src/d.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'hub', 'call'),
+        makeEdge('e2', 'b', 'hub', 'call'),
+        makeEdge('e3', 'c', 'hub', 'call'),
+        makeEdge('e4', 'd', 'hub', 'call'),
+      ];
+      const violations = engine.check([rule], nodes, edges);
+      expect(violations).toHaveLength(1);
+      expect(violations[0]!.message).toContain('indegree 4');
+      expect(violations[0]!.message).toContain('max 3');
+    });
+  });
+
+  describe('MaxOutdegreeDetector - boundary cases', () => {
+    it('does not report when outdegree equals threshold exactly', () => {
+      const rule: RuleDefinition = {
+        id: 'max-out-eq',
+        name: 'Max Out Equal',
+        type: 'max-outdegree',
+        params: { threshold: 3 },
+        severity: 'warning',
+        enabled: true,
+      };
+      const nodes = [
+        makeNode('hub', 'Hub', 'function', 'src/hub.ts', 1),
+        makeNode('a', 'A', 'function', 'src/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/c.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'hub', 'a', 'call'),
+        makeEdge('e2', 'hub', 'b', 'call'),
+        makeEdge('e3', 'hub', 'c', 'call'),
+      ];
+      const violations = engine.check([rule], nodes, edges);
+      expect(violations).toEqual([]);
+    });
+
+    it('reports when outdegree exceeds threshold by one', () => {
+      const rule: RuleDefinition = {
+        id: 'max-out-over',
+        name: 'Max Out Over',
+        type: 'max-outdegree',
+        params: { threshold: 3 },
+        severity: 'warning',
+        enabled: true,
+      };
+      const nodes = [
+        makeNode('hub', 'Hub', 'function', 'src/hub.ts', 1),
+        makeNode('a', 'A', 'function', 'src/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/c.ts', 1),
+        makeNode('d', 'D', 'function', 'src/d.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'hub', 'a', 'call'),
+        makeEdge('e2', 'hub', 'b', 'call'),
+        makeEdge('e3', 'hub', 'c', 'call'),
+        makeEdge('e4', 'hub', 'd', 'call'),
+      ];
+      const violations = engine.check([rule], nodes, edges);
+      expect(violations).toHaveLength(1);
+      expect(violations[0]!.message).toContain('outdegree 4');
+      expect(violations[0]!.message).toContain('max 3');
+    });
+  });
+
+  describe('RequiredEdgeDetector - edge source not in nodeMap', () => {
+    it('skips edges whose source node does not exist in nodes list', () => {
+      const rule: RuleDefinition = {
+        id: 'req-call',
+        name: 'Required Call',
+        type: 'required-edge',
+        params: { edgeType: 'call', sourceType: 'function' },
+        severity: 'warning',
+        enabled: true,
+      };
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/a.ts', 1),
+      ];
+      // edge source 'ghost' is not in nodes list — should be skipped (not counted as hasEdge)
+      const edges = [makeEdge('e1', 'ghost', 'a', 'call')];
+      const violations = engine.check([rule], nodes, edges);
+      // 'a' has no outgoing call edge, so it should be reported
+      expect(violations).toHaveLength(1);
+      expect(violations[0]!.message).toContain('A');
+    });
+  });
+
+  describe('CrossLayerCallDetector - default params', () => {
+    it('uses default empty layerMap when layers param is nullish', () => {
+      const rule: RuleDefinition = {
+        id: 'no-cross-default',
+        name: 'No Cross Layer Default',
+        type: 'cross-layer-call',
+        params: {},
+        severity: 'error',
+        enabled: true,
+      };
+      const nodes = [makeNode('a', 'A', 'function', 'src/a.ts', 1)];
+      const edges = [makeEdge('e1', 'a', 'a', 'call')];
+      const violations = engine.check([rule], nodes, edges);
+      expect(violations).toEqual([]);
+    });
+
+    it('uses default call edgeType when edgeType param is nullish', () => {
+      const rule: RuleDefinition = {
+        id: 'no-cross-default-edge',
+        name: 'No Cross Layer Default Edge',
+        type: 'cross-layer-call',
+        params: { layers: { 'view': ['model'], 'model': ['view'] } },
+        severity: 'error',
+        enabled: true,
+      };
+      // With this layerMap: path containing 'model' → 'view' layer, path containing 'view' → 'model' layer
+      // v (src/view/page.ts) → 'model' layer, m (src/model/data.ts) → 'view' layer
+      // v→m = model→view, which is forbidden
+      const nodes = [
+        makeNode('v', 'View', 'function', 'src/view/page.ts', 1),
+        makeNode('m', 'Model', 'function', 'src/model/data.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'v', 'm', 'call')];
+      const violations = engine.check([rule], nodes, edges);
+      expect(violations).toHaveLength(1);
+    });
+  });
+
+  describe('ForbiddenEdgeDetector - default edgeTypes and multi-edge nodes', () => {
+    it('uses default edgeTypes when not specified in params', () => {
+      const rule: RuleDefinition = {
+        id: 'no-circular-default',
+        name: 'No Circular Default',
+        type: 'forbidden-edge',
+        params: {},
+        severity: 'error',
+        enabled: true,
+      };
+      // Default edgeTypes should include 'call', 'import', 'dependency'
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/b.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'import'),
+        makeEdge('e2', 'b', 'a', 'import'),
+      ];
+      const violations = engine.check([rule], nodes, edges);
+      expect(violations).toHaveLength(1);
+      expect(violations[0]!.message).toContain('Circular dependency');
+    });
+
+    it('handles nodes with multiple outgoing edges of same type', () => {
+      const rule: RuleDefinition = {
+        id: 'no-circular-multi',
+        name: 'No Circular Multi',
+        type: 'forbidden-edge',
+        params: { edgeTypes: ['call'] },
+        severity: 'error',
+        enabled: true,
+      };
+      // Node 'a' has two outgoing call edges: a→b and a→c
+      // This exercises the `if (list) list.push(edge.target)` truthy branch
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/c.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'a', 'c', 'call'),
+        makeEdge('e3', 'c', 'a', 'call'),
+      ];
+      const violations = engine.check([rule], nodes, edges);
+      // a→c→a forms a cycle
+      expect(violations).toHaveLength(1);
+      expect(violations[0]!.message).toContain('Circular dependency');
     });
   });
 });

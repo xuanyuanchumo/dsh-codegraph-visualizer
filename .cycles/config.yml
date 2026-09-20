@@ -1,27 +1,27 @@
 project:
-  name: "my-project"
-  tech_stack: ["typescript"]
-  framework: ""
+  name: "dsh-codegraph-visualizer"
+  tech_stack: ["typescript", "react"]
+  framework: "DSH"
 
 macro_cycle:
   enabled_phases: [plan, design, build, test, deploy, maintain]
-  autonomy_level: L2
+  autonomy_level: L4
 
 build:
-  build_cmd: "npm run build"
-  typecheck_cmd: "npx tsc --noEmit"
-  lint_cmd: "npm run lint"
-  test_cmd: "npm test"
-  coverage_cmd: "npm test -- --coverage"
-  e2e_cmd: "npm run test:e2e"
-  hygiene_cmd: ""
+  build_cmd: "pnpm run build"
+  typecheck_cmd: "pnpm run typecheck"
+  lint_cmd: "pnpm run lint"
+  test_cmd: "pnpm run test"
+  coverage_cmd: "pnpm run test:coverage"
+  e2e_cmd: "pnpm run test:e2e"
+  hygiene_cmd: "pnpm run hygiene"
 
 layers:
-  - name: "Frontend"
+  - name: "Client UI"
     test_pattern: "src/**/*.test.ts"
     coverage_target: 80
-  - name: "Backend"
-    test_pattern: "tests/unit/**/*.test.ts"
+  - name: "Host 服务"
+    test_pattern: "packages/**/*.test.ts"
     coverage_target: 90
   - name: "Contract"
     test_pattern: "tests/types/**"
@@ -30,7 +30,7 @@ layers:
 evaluation:
   E1:
     name: "功能覆盖"
-    checklist_ref: "docs/feature-checklist.md"
+    checklist_ref: "docs/需求分析.md"
   E2:
     name: "架构健康"
     checklist_ref: ""
@@ -55,10 +55,70 @@ evaluation:
 
 journeys:
   J1:
-    name: "用户注册"
-    forward: "注册 → 验证 → 入库"
-    reverse: "重复注册、无效邮箱"
-    test_files: ["tests/e2e/register.spec.ts"]
+    name: "仓库导入与校验"
+    forward: "导入本地仓库 → FileValidator 校验 → 扫描入库"
+    reverse: "错误码契约全覆盖：INVALID_PATH、UNSUPPORTED_REPO、REPO_TOO_LARGE、CORRUPTED_REPO"
+    test_files: ["tests/e2e/local-repos.spec.ts"]
+  J2:
+    name: "图谱构建与可视化"
+    forward: "仓库扫描 → AST 解析 → 图谱生成 → 画布渲染"
+    reverse: "超大文件解析超时、循环依赖检测、图谱布局溢出"
+    test_files: []
+  J3:
+    name: "代码搜索"
+    forward: "关键词查询 → FTS5/倒排索引 → 结果定位"
+    reverse: "空索引、特殊字符注入面、搜索词过长"
+    test_files: []
+  J4:
+    name: "符号导航"
+    forward: "点击符号 → 跳转定义/引用"
+    reverse: "跨文件符号、未解析符号、动态导入"
+    test_files: []
+  J5:
+    name: "依赖分析"
+    forward: "生成依赖图 → 循环检测 → 高亮"
+    reverse: "深层嵌套依赖、外部依赖不可达"
+    test_files: []
+  J6:
+    name: "图谱布局与交互"
+    forward: "拖拽/缩放/筛选 → 布局更新"
+    reverse: "极端节点数(>10000)、布局算法超时"
+    test_files: []
+  J7:
+    name: "导出与分享"
+    forward: "选择格式 → 导出 → 下载"
+    reverse: "导出格式不支持、大图谱导出超时"
+    test_files: []
+  J8:
+    name: "主题与个性化"
+    forward: "主题切换 → 布局偏好 → 持久化"
+    reverse: "主题配置冲突、偏好重置"
+    test_files: []
+  J9:
+    name: "UI 与 Host 边界"
+    forward: "React 组件经 Host 服务取数 → 状态同步"
+    reverse: "Client 越权访问 Host 内部实现"
+    test_files: []
+  J10:
+    name: "异常恢复与容错"
+    forward: "断网/崩溃后重启 → 图谱与缓存恢复"
+    reverse: "缓存损坏、Wasm 实例初始化失败"
+    test_files: ["tests/e2e/chaos.spec.ts"]
+  J11:
+    name: "插件生命周期合规"
+    forward: "注册即 effect → dispose 清理 → 重载无泄漏"
+    reverse: "监听器泄漏、未清理 effect"
+    test_files: []
+  J12:
+    name: "大仓库性能"
+    forward: "万级文件仓库 → 渐进式构建 → 进度反馈"
+    reverse: "内存溢出、构建中断恢复"
+    test_files: ["tests/e2e/large-repo.spec.ts"]
+  J13:
+    name: "多仓库管理"
+    forward: "多仓库并存 → 切换/合并/对比"
+    reverse: "仓库间符号冲突、路径重复"
+    test_files: []
 
 gates:
   G0:
@@ -72,7 +132,7 @@ gates:
     journey_coverage: true
     chaos_coverage: true
   G3:
-    build_commands: ["npm run build"]
+    build_commands: ["pnpm run build"]
 
 human_gates:
   intent_accept:
@@ -97,10 +157,28 @@ control_bands:
     sigma_3: "act_via_pr"
 
 framework_alignment:
-  name: ""
-  rules: []
+  name: "DSH"
+  rules:
+    - "注册即 effect（ctx.effect()/ctx.on() 返回 disposer）"
+    - "waterfall 监听器必须调用 next()"
+    - "跨边界 ID 使用 Branded 类型"
+    - "事件经声明合并扩展"
+    - "封闭联合以 assertNever 收尾"
+    - "ESM only（包名引用 + .ts 本地导入）"
+    - "Host/Client 隔离（tsconfig.host/client 双面）"
+    - "能力缝三角色完整"
+    - "配置显式化 + misconfiguration fails loud"
 
-performance_baselines: []
+performance_baselines:
+  - metric: "图谱构建耗时"
+    target: "< 2s @ 1000 文件"
+    method: "vitest 计时（固定数据）"
+  - metric: "搜索查询时延"
+    target: "< 50ms @ 10^4 节点"
+    method: "vitest 单元计时"
+  - metric: "图谱渲染帧率"
+    target: ">= 30 FPS @ 1000 节点"
+    method: "Playwright performance API"
 
 vision_benchmarking:
   enabled: false

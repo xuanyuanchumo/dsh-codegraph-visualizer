@@ -918,4 +918,216 @@ describe('HealthScorer', () => {
       expect(score.modularity).toBeGreaterThan(50);
     });
   });
+
+  describe('calculateCoupling - boundary tests', () => {
+    it('returns 100 when all edge weights are zero (only contains edges across modules)', () => {
+      const nodes = [
+        makeNode('a', 'A', 'module', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod2/b.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'b', 'contains')];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.coupling).toBe(100);
+    });
+
+    it('returns 100 when modules.size <= 1 with cross-module-weighted edges', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'b', 'call')];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.coupling).toBe(100);
+    });
+  });
+
+  describe('calculateCyclicDependencyRate - complex graph tests', () => {
+    it('detects nested SCCs with shared nodes (a-b cycle + b-c cycle)', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/mod1/c.ts', 1),
+        makeNode('d', 'D', 'function', 'src/mod1/d.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'b', 'a', 'call'),
+        makeEdge('e3', 'b', 'c', 'call'),
+        makeEdge('e4', 'c', 'b', 'call'),
+        makeEdge('e5', 'c', 'd', 'call'),
+      ];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.cyclicDependencyRate).toBe(25);
+    });
+
+    it('handles multiple independent SCCs in a large connected component', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/mod1/c.ts', 1),
+        makeNode('d', 'D', 'function', 'src/mod1/d.ts', 1),
+        makeNode('e', 'E', 'function', 'src/mod1/e.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'b', 'a', 'call'),
+        makeEdge('e3', 'c', 'd', 'call'),
+        makeEdge('e4', 'd', 'c', 'call'),
+        makeEdge('e5', 'a', 'c', 'call'),
+        makeEdge('e6', 'e', 'a', 'call'),
+      ];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.cyclicDependencyRate).toBeLessThan(100);
+      expect(score.cyclicDependencyRate).toBe(20);
+    });
+
+    it('handles 3-node cycle connected to a 2-node cycle via one-way edge', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/mod1/c.ts', 1),
+        makeNode('d', 'D', 'function', 'src/mod1/d.ts', 1),
+        makeNode('e', 'E', 'function', 'src/mod1/e.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'b', 'c', 'call'),
+        makeEdge('e3', 'c', 'a', 'call'),
+        makeEdge('e4', 'd', 'e', 'call'),
+        makeEdge('e5', 'e', 'd', 'call'),
+        makeEdge('e6', 'c', 'd', 'call'),
+      ];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.cyclicDependencyRate).toBe(0);
+    });
+  });
+
+  describe('calculateModularity - boundary tests', () => {
+    it('returns exactly balanceScore when totalRelevantEdges === 0', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/mod2/c.ts', 1),
+        makeNode('d', 'D', 'function', 'src/mod2/d.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'contains'),
+        makeEdge('e2', 'c', 'd', 'contains'),
+      ];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.modularity).toBe(100);
+    });
+
+    it('returns separationScore of 0 when all edges are cross-module', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/mod2/c.ts', 1),
+        makeNode('d', 'D', 'function', 'src/mod2/d.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'c', 'call'),
+        makeEdge('e2', 'b', 'd', 'call'),
+      ];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.modularity).toBe(50);
+    });
+
+    it('returns high separationScore when all edges are intra-module', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/mod2/c.ts', 1),
+        makeNode('d', 'D', 'function', 'src/mod2/d.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'c', 'd', 'call'),
+      ];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.modularity).toBe(100);
+    });
+  });
+
+  describe('tarjanSCC - algorithm tests', () => {
+    it('handles single node with self-loop as cycle', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'a', 'call')];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.cyclicDependencyRate).toBe(0);
+    });
+
+    it('handles multiple disconnected SCCs', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/mod1/c.ts', 1),
+        makeNode('d', 'D', 'function', 'src/mod1/d.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'b', 'a', 'call'),
+        makeEdge('e3', 'c', 'd', 'call'),
+        makeEdge('e4', 'd', 'c', 'call'),
+      ];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.cyclicDependencyRate).toBe(0);
+    });
+
+    it('handles nested SCC lowLinks update (3-cycle + non-cycle branch)', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/mod1/c.ts', 1),
+        makeNode('d', 'D', 'function', 'src/mod1/d.ts', 1),
+        makeNode('e', 'E', 'function', 'src/mod1/e.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'b', 'c', 'call'),
+        makeEdge('e3', 'c', 'a', 'call'),
+        makeEdge('e4', 'a', 'd', 'call'),
+        makeEdge('e5', 'd', 'e', 'call'),
+      ];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.cyclicDependencyRate).toBe(40);
+    });
+
+    it('handles cross-edge to already-finished SCC (visited but not on stack)', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/mod1/c.ts', 1),
+        makeNode('d', 'D', 'function', 'src/mod1/d.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'b', 'c', 'call'),
+        makeEdge('e3', 'c', 'b', 'call'),
+        makeEdge('e4', 'a', 'd', 'call'),
+      ];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.cyclicDependencyRate).toBe(50);
+    });
+  });
+
+  describe('calculate - Math.round boundary value', () => {
+    it('produces overall at exact .5 boundary (rounds up to 53)', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod2/b.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'b', 'call')];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.coupling).toBe(50);
+      expect(score.cohesion).toBe(0);
+      expect(score.cyclicDependencyRate).toBe(100);
+      expect(score.modularity).toBe(50);
+      const unrounded = 50 * 0.25 + 0 * 0.25 + 100 * 0.30 + 50 * 0.20;
+      expect(unrounded).toBe(52.5);
+      expect(score.overall).toBe(53);
+    });
+  });
 });

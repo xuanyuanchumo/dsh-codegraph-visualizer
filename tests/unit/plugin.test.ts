@@ -1,4 +1,4 @@
-// Unit tests for Host plugin entry + createGraphTools — J1/J9/J11/J13 lifecycle
+﻿// Unit tests for Host plugin entry + createGraphTools — J1/J9/J11/J13 lifecycle
 // Note: tools now delegate to dsh-codegraph's codegraph_query/codegraph_impact/
 // codegraph_init/codegraph_status. Tests mock the adapter class so results
 // are deterministic regardless of the live .codegraph DB.
@@ -19,6 +19,21 @@ vi.mock('../../src/adapters/CodeGraphAdapter.ts', () => {
     CodeGraphAdapter: vi.fn().mockImplementation(() => ({
       fetchData: mockFetchData,
       source: 'codegraph' as const,
+    })),
+  };
+});
+
+vi.mock('../../src/adapters/LensAdapter.ts', () => {
+  const mockFetchData = vi.fn().mockResolvedValue({
+    nodes: [],
+    edges: [],
+    source: 'lens' as const,
+    timestamp: 1,
+  });
+  return {
+    LensAdapter: vi.fn().mockImplementation(() => ({
+      fetchData: mockFetchData,
+      source: 'lens' as const,
     })),
   };
 });
@@ -63,7 +78,7 @@ function makeMockCtx(): MockCtx {
 const mockExec = {
   deferContext: vi.fn(),
   concludeTurn: vi.fn(),
-} as unknown as Parameters<ReturnType<typeof createGraphTools>['graphStatus']['execute']>[1];
+} as unknown as Parameters<Awaited<ReturnType<typeof createGraphTools>>['graphStatus']['execute']>[1];
 
 function getMockFetchData() {
   const adapter = new CodeGraphAdapter();
@@ -78,8 +93,8 @@ describe('createGraphTools (J1/J9/J11)', () => {
     getMockFetchData().mockClear();
   });
 
-  it('should create 4 tools with correct names', () => {
-    const tools = createGraphTools(ctx);
+  it('should create 4 tools with correct names', async () => {
+    const tools = await createGraphTools(ctx);
     expect(tools.graphStatus.name).toBe('graph_status');
     expect(tools.graphData.name).toBe('graph_data');
     expect(tools.graphSymbol.name).toBe('graph_symbol');
@@ -93,7 +108,7 @@ describe('createGraphTools (J1/J9/J11)', () => {
       source: 'codegraph',
       timestamp: 1,
     });
-    const tools = createGraphTools(ctx);
+    const tools = await createGraphTools(ctx);
     const result = await tools.graphData.execute({ repoId: 'r1' }, mockExec);
     expect(result).toHaveProperty('nodes');
     expect(result).toHaveProperty('edges');
@@ -107,7 +122,7 @@ describe('createGraphTools (J1/J9/J11)', () => {
       source: 'codegraph',
       timestamp: 1,
     });
-    const tools = createGraphTools(ctx);
+    const tools = await createGraphTools(ctx);
     await tools.graphData.execute({ repoId: 'r1' }, mockExec);
     const result2 = await tools.graphData.execute({ repoId: 'r1' }, mockExec);
     expect(result2).toHaveProperty('nodes');
@@ -120,14 +135,14 @@ describe('createGraphTools (J1/J9/J11)', () => {
       }
       return { isError: false, value: null };
     });
-    const tools = createGraphTools(ctx);
+    const tools = await createGraphTools(ctx);
     const result = await tools.graphSymbol.execute({ symbolId: 's1' }, mockExec);
     expect(result).toHaveProperty('name', 'funcA');
   });
 
   it('graph_symbol should return null when symbol not found', async () => {
     ctx.tools.execute.mockResolvedValue({ isError: false, value: null });
-    const tools = createGraphTools(ctx);
+    const tools = await createGraphTools(ctx);
     const result = await tools.graphSymbol.execute({ symbolId: 'missing' }, mockExec);
     expect(result).toBeNull();
   });
@@ -139,7 +154,7 @@ describe('createGraphTools (J1/J9/J11)', () => {
       }
       return { isError: false, value: null };
     });
-    const tools = createGraphTools(ctx);
+    const tools = await createGraphTools(ctx);
     const result = await tools.graphImpact.execute({ symbolId: 's0' }, mockExec);
     expect(result).toEqual({ affected: ['s1', 's2'], depth: 2 });
   });
@@ -154,21 +169,21 @@ describe('createGraphTools (J1/J9/J11)', () => {
       }
       return { isError: false, value: null };
     });
-    const tools = createGraphTools(ctx);
+    const tools = await createGraphTools(ctx);
     const result = await tools.graphImpact.execute({ symbolId: 's0' }, mockExec);
     expect(result).toEqual({ affected: ['l1'], depth: 1 });
   });
 
   it('invoke should return null on upstream error', async () => {
     ctx.tools.execute.mockRejectedValue(new Error('timeout'));
-    const tools = createGraphTools(ctx);
+    const tools = await createGraphTools(ctx);
     const result = await tools.graphImpact.execute({ symbolId: 's0' }, mockExec);
     expect(result).toEqual({ affected: [], depth: 0 });
   });
 
   it('invoke should return null when result.isError', async () => {
     ctx.tools.execute.mockResolvedValue({ isError: true, value: null });
-    const tools = createGraphTools(ctx);
+    const tools = await createGraphTools(ctx);
     const result = await tools.graphSymbol.execute({ symbolId: 's0' }, mockExec);
     expect(result).toBeNull();
   });
@@ -178,7 +193,7 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
   it('should register 8 tools and 6 event listeners', async () => {
     const ctx = makeMockCtx();
     const { apply } = await import('../../src/index.ts');
-    apply(ctx);
+    await apply(ctx);
     expect(ctx.tools.register).toHaveBeenCalledTimes(8);
     expect(ctx.on).toHaveBeenCalledTimes(6);
     expect(ctx.on).toHaveBeenCalledWith('cg-viz/repo/imported', expect.any(Function));
@@ -195,7 +210,7 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     const handlers = new Map<string, (event: Record<string, unknown>) => void>();
     ctx.on.mockImplementation((name: string, fn: (e: unknown) => void) => { handlers.set(name, fn as (e: Record<string, unknown>) => void); });
     const { apply } = await import('../../src/index.ts');
-    apply(ctx);
+    await apply(ctx);
 
     handlers.get('cg-viz/repo/imported')!({ repoId: 'r1', path: '/x', timestamp: 123 });
     expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/updated', expect.objectContaining({ repoId: 'r1' }));
@@ -209,7 +224,7 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     const handlers = new Map<string, (event: Record<string, unknown>) => void>();
     ctx.on.mockImplementation((name: string, fn: (e: unknown) => void) => { handlers.set(name, fn as (e: Record<string, unknown>) => void); });
     const { apply } = await import('../../src/index.ts');
-    apply(ctx);
+    await apply(ctx);
     handlers.get('cg-viz/repo/request-scan')!({ path: '/tmp/repo', timestamp: 1 });
     await vi.waitFor(() => {
       expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/data', expect.objectContaining({ repoId: '/tmp/repo' }));
@@ -227,7 +242,7 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
       return { isError: false, value: null };
     });
     const { apply } = await import('../../src/index.ts');
-    apply(ctx);
+    await apply(ctx);
     handlers.get('cg-viz/graph/init')!({ path: '/tmp/repo', timestamp: 1 });
     await vi.waitFor(() => {
       expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/init-result', expect.objectContaining({ success: true }));
@@ -240,17 +255,17 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     ctx.on.mockImplementation((name: string, fn: (e: unknown) => void) => { handlers.set(name, fn as (e: Record<string, unknown>) => void); });
     ctx.tools.execute.mockResolvedValue({ isError: false, value: null });
     const { apply } = await import('../../src/index.ts');
-    apply(ctx);
+    await apply(ctx);
     handlers.get('cg-viz/graph/init')!({ path: '/tmp/repo', timestamp: 1 });
     await vi.waitFor(() => {
       expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/init-result', expect.objectContaining({ success: false }));
     });
   });
 
-  it('should emit prerequisite status on apply', () => {
+  it('should emit prerequisite status on apply', async () => {
     const ctx = makeMockCtx();
-    const { apply } = require('../../src/index.ts');
-    apply(ctx);
+    const { apply } = await import('../../src/index.ts');
+    await apply(ctx);
     expect(ctx.emit).toHaveBeenCalledWith('cg-viz/prerequisite/status', expect.objectContaining({
       codegraph: expect.any(Boolean),
       lens: expect.any(Boolean),
@@ -262,7 +277,7 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     const handlers = new Map<string, (event: Record<string, unknown>) => void>();
     ctx.on.mockImplementation((name: string, fn: (e: unknown) => void) => { handlers.set(name, fn as (e: Record<string, unknown>) => void); });
     const { apply } = await import('../../src/index.ts');
-    apply(ctx);
+    await apply(ctx);
     handlers.get('cg-viz/watch/toggle')!({ enabled: false, path: '/tmp/repo', timestamp: 1 });
     expect(ctx.emit).not.toHaveBeenCalledWith('cg-viz/graph/updated', expect.objectContaining({ repoId: '/tmp/repo' }));
   });
@@ -272,14 +287,14 @@ describe('apply() plugin entry (J13 lifecycle)', () => {
     const handlers = new Map<string, (event: Record<string, unknown>) => void>();
     ctx.on.mockImplementation((name: string, fn: (e: unknown) => void) => { handlers.set(name, fn as (e: Record<string, unknown>) => void); });
     const { apply } = await import('../../src/index.ts');
-    apply(ctx);
+    await apply(ctx);
     handlers.get('cg-viz/watch/toggle')!({ enabled: true, path: '/tmp/repo', timestamp: 1 });
   });
 
-  it('should register effect for cleanup', () => {
+  it('should register effect for cleanup', async () => {
     const ctx = makeMockCtx();
-    const { apply } = require('../../src/index.ts');
-    apply(ctx);
+    const { apply } = await import('../../src/index.ts');
+    await apply(ctx);
     expect(ctx.effect).toHaveBeenCalled();
   });
 });

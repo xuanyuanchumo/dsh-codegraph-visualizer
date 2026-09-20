@@ -24,7 +24,7 @@ function getDirLabel(dirPath: string): string {
   return parts[parts.length - 1] ?? dirPath;
 }
 
-function getFileLabel(filePath: string): string {
+export function getFileLabel(filePath: string): string {
   const parts = filePath.split(/[\\/]/);
   return parts[parts.length - 1] ?? filePath;
 }
@@ -52,7 +52,7 @@ function buildParentIndex(rawNodes: GraphNode[]): {
   return { parentToChildren, filePathToNodes };
 }
 
-function createSubgroupClusters(
+export function createSubgroupClusters(
   dirNodes: GraphNode[],
   dirEdges: GraphEdge[],
   dirPath: string,
@@ -103,7 +103,7 @@ function createSubgroupClusters(
   return { nodes: visibleNodes, nodeIdToVisibleId };
 }
 
-function parseExpandedNodeIds(expandedNodeIds: Set<string>): {
+export function parseExpandedNodeIds(expandedNodeIds: Set<string>): {
   expandedDirs: Set<string>;
   expandedFileClusters: Set<string>;
   expandedFuncClusters: Set<string>;
@@ -144,7 +144,7 @@ function buildDirMapping(rawNodes: GraphNode[]): {
   return { nodeToDir, dirToNodes };
 }
 
-function applyInitialDepth(
+export function applyInitialDepth(
   initialDepth: number,
   dirToNodes: Map<string, GraphNode[]>,
   rawNodes: GraphNode[],
@@ -343,7 +343,7 @@ export function computeProgressiveClusters(
   return { nodes: visibleNodes, edges: visibleEdges };
 }
 
-function enforceNodeLimit(
+export function enforceNodeLimit(
   visibleNodes: (GraphNode | ClusterNode)[],
   nodeIdToVisibleId: Map<string, string>,
   rawEdges: GraphEdge[],

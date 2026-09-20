@@ -7,7 +7,7 @@ import {
   renderGraphData,
   renderGraphSymbol,
   renderGraphImpact,
-} from '../../src/tools.ts';
+} from '../../src/graphUtils.ts';
 import { makeNode, makeEdge, makeGraphData } from '../helpers.ts';
 
 describe('tools pure functions', () => {
