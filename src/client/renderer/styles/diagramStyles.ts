@@ -608,6 +608,42 @@ export function buildDiagramStyles(ctx: StyleContext): cytoscape.StylesheetJson 
         'target-arrow-color': inhImplement,
       },
     },
+    {
+      selector: 'edge[diagramType="class"][type="association"]',
+      style: {
+        'target-arrow-shape': 'vee',
+        'line-style': 'solid',
+        'width': 1.5,
+        'line-color': c.edgeDefault,
+        'target-arrow-color': c.edgeDefault,
+      },
+    },
+    {
+      selector: 'edge[diagramType="class"][type="aggregation"]',
+      style: {
+        'source-arrow-shape': 'diamond',
+        'source-arrow-fill': 'hollow',
+        'target-arrow-shape': 'vee',
+        'line-style': 'solid',
+        'width': 2,
+        'line-color': readCssVar('--cg-edge-aggregation', isDark ? '#818cf8' : '#6366f1'),
+        'source-arrow-color': readCssVar('--cg-edge-aggregation', isDark ? '#818cf8' : '#6366f1'),
+        'target-arrow-color': readCssVar('--cg-edge-aggregation', isDark ? '#818cf8' : '#6366f1'),
+      },
+    },
+    {
+      selector: 'edge[diagramType="class"][type="composition"]',
+      style: {
+        'source-arrow-shape': 'diamond',
+        'source-arrow-fill': 'filled',
+        'target-arrow-shape': 'vee',
+        'line-style': 'solid',
+        'width': 2,
+        'line-color': readCssVar('--cg-edge-composition', isDark ? '#ec4899' : '#db2777'),
+        'source-arrow-color': readCssVar('--cg-edge-composition', isDark ? '#ec4899' : '#db2777'),
+        'target-arrow-color': readCssVar('--cg-edge-composition', isDark ? '#ec4899' : '#db2777'),
+      },
+    },
 
     // ===== UML Package Diagram =====
     {

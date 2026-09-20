@@ -35,14 +35,14 @@ describe('viewModeTransition', () => {
   describe('VIEW_MODE_LAYOUT', () => {
     it('should map each view mode to a layout type', () => {
       expect(VIEW_MODE_LAYOUT.code).toBe('cose');
-      expect(VIEW_MODE_LAYOUT.dependencies).toBe('dagre');
+      expect(VIEW_MODE_LAYOUT.dependencies).toBe('cose');
       expect(VIEW_MODE_LAYOUT.inheritance).toBe('tree');
       expect(VIEW_MODE_LAYOUT.callgraph).toBe('dagre');
       expect(VIEW_MODE_LAYOUT.package).toBe('tree');
       expect(VIEW_MODE_LAYOUT.class).toBe('dagre');
       expect(VIEW_MODE_LAYOUT.cfg).toBe('dagre');
       expect(VIEW_MODE_LAYOUT.flowchart).toBe('dagre');
-      expect(VIEW_MODE_LAYOUT.sequence).toBe('grid');
+      expect(VIEW_MODE_LAYOUT.sequence).toBe('cose');
     });
   });
 

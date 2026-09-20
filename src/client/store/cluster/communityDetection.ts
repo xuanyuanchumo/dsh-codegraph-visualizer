@@ -12,6 +12,18 @@ export interface CommunityGroup {
   nodes: GraphNode[];
 }
 
+function selectHighDegreeNodes(nodes: GraphNode[], edges: GraphEdge[], limit: number): GraphNode[] {
+  const degreeMap = new Map<string, number>();
+  for (const n of nodes) degreeMap.set(n.id, 0);
+  for (const e of edges) {
+    if (degreeMap.has(e.source)) degreeMap.set(e.source, (degreeMap.get(e.source) ?? 0) + 1);
+    if (degreeMap.has(e.target)) degreeMap.set(e.target, (degreeMap.get(e.target) ?? 0) + 1);
+  }
+  return [...nodes]
+    .sort((a, b) => (degreeMap.get(b.id) ?? 0) - (degreeMap.get(a.id) ?? 0))
+    .slice(0, limit);
+}
+
 export function detectCommunities(
   nodes: GraphNode[],
   edges: GraphEdge[],
@@ -23,7 +35,7 @@ export function detectCommunities(
   }
 
   const participatingNodes = nodes.length > MAX_NODES_FOR_LABEL_PROP
-    ? nodes.slice(0, MAX_NODES_FOR_LABEL_PROP)
+    ? selectHighDegreeNodes(nodes, edges, MAX_NODES_FOR_LABEL_PROP)
     : nodes;
   const participatingIds = new Set(participatingNodes.map((n) => n.id));
 

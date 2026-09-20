@@ -115,8 +115,15 @@ function getElseBody(node: ASTNode): ASTNode[] {
   return elseNode.children.filter(isStatement);
 }
 
+interface LoopContext {
+  condBlockId: string;
+  exitBlockId: string;
+  isSwitch: boolean;
+}
+
 export class CFGAssembler {
   private blockCounter = 0;
+  private loopStack: LoopContext[] = [];
 
   private nextBlockId(): string {
     return `cfg-block-${this.blockCounter++}`;
@@ -124,6 +131,7 @@ export class CFGAssembler {
 
   assemble(astRoot: ASTNode, filePath: string, functionName: string): AssembledDiagram {
     this.blockCounter = 0;
+    this.loopStack = [];
 
     const blocks: BasicBlock[] = [];
     const edges: CFGEdgeData[] = [];
@@ -151,7 +159,7 @@ export class CFGAssembler {
 
     const funcNode = findFunctionNode(astRoot, functionName);
     if (!funcNode) {
-      throw new Error(`Function "${functionName}" not found in AST of ${filePath}`);
+      return this.toAssembledDiagram({ blocks: [entryBlock], edges: [], entryBlockId: entryBlock.id, exitBlockIds: [exitBlock.id] }, filePath, functionName);
     }
     const targetChildren = getFunctionBody(funcNode);
 
@@ -263,10 +271,22 @@ export class CFGAssembler {
       return this.processThrow(node, currentId, exitId, blocks, edges, depth);
     }
     if (t === 'break_statement' || t === 'break') {
+      const loopCtx = this.loopStack[this.loopStack.length - 1];
+      if (loopCtx) {
+        edges.push({ source: currentId, target: loopCtx.exitBlockId, edgeType: 'break' });
+        return loopCtx.exitBlockId;
+      }
       edges.push({ source: currentId, target: exitId, edgeType: 'break' });
       return exitId;
     }
     if (t === 'continue_statement' || t === 'continue') {
+      for (let i = this.loopStack.length - 1; i >= 0; i--) {
+        const ctx = this.loopStack[i];
+        if (ctx && !ctx.isSwitch) {
+          edges.push({ source: currentId, target: ctx.condBlockId, edgeType: 'continue' });
+          return ctx.condBlockId;
+        }
+      }
       edges.push({ source: currentId, target: exitId, edgeType: 'continue' });
       return exitId;
     }
@@ -396,7 +416,9 @@ export class CFGAssembler {
     edges.push({ source: condBlock.id, target: bodyEntryId, edgeType: 'true', condition: condText });
 
     const edgeCountBefore = edges.length;
+    this.loopStack.push({ condBlockId: condBlock.id, exitBlockId: loopExitBlock.id, isSwitch: false });
     this.processStatements(body, bodyEntryId, condBlock.id, blocks, edges, depth + 1);
+    this.loopStack.pop();
 
     for (let i = edgeCountBefore; i < edges.length; i++) {
       const e = edges[i]!;
@@ -478,7 +500,9 @@ export class CFGAssembler {
       const caseBody = caseNode.children.filter((c) =>
         c.type !== 'identifier' && c.type !== 'number' && isStatement(c)
       );
+      this.loopStack.push({ condBlockId: condBlock.id, exitBlockId: mergeBlock.id, isSwitch: true });
       this.processStatements(caseBody, caseEntryId, mergeBlock.id, blocks, edges, depth + 1);
+      this.loopStack.pop();
     }
 
     if (!caseNodes.some((c) => c.type === 'default_statement' || c.type === 'default')) {

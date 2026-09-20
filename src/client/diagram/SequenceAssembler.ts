@@ -151,6 +151,7 @@ function getFinallyNode(node: ASTNode): ASTNode | null {
 
 export class SequenceAssembler {
   private seqCounter = 0;
+  private callStack: string[] = [];
 
   private nextId(prefix: string): string {
     return `${prefix}-${this.seqCounter++}`;
@@ -158,6 +159,7 @@ export class SequenceAssembler {
 
   assemble(astRoot: ASTNode, filePath: string, functionName: string): AssembledDiagram {
     this.seqCounter = 0;
+    this.callStack = [];
 
     const participants = new Map<string, Participant>();
     const messages: SequenceMessage[] = [];
@@ -177,7 +179,11 @@ export class SequenceAssembler {
 
     const funcNode = findFunctionNode(astRoot, functionName);
     if (!funcNode) {
-      throw new Error(`Function "${functionName}" not found in AST of ${filePath}`);
+      return this.toAssembledDiagram(
+        { participants: Array.from(participants.values()), messages, fragments: [], entryFunctionName: functionName },
+        filePath,
+        functionName,
+      );
     }
     const targetChildren = getFunctionBody(funcNode);
 
@@ -289,6 +295,10 @@ export class SequenceAssembler {
       if (participant) {
         participant.isDestroyed = true;
       }
+    }
+
+    if (!isSelf && !isCreate) {
+      this.callStack.push(targetId);
     }
 
     const msg: SequenceMessage = {
@@ -508,15 +518,21 @@ export class SequenceAssembler {
     participants: Map<string, Participant>,
     addMessage: (msg: SequenceMessage) => void,
   ): void {
+    const returnText = node.text.trim().substring(0, 30);
+    const lastCalledId = this.callStack.length > 0 ? this.callStack[this.callStack.length - 1]! : selfId;
+    if (this.callStack.length > 0) {
+      this.callStack.pop();
+    }
+
     const msg: SequenceMessage = {
       id: this.nextId('msg'),
       sequenceNumber: 0,
-      source: selfId,
+      source: lastCalledId,
       target: selfId,
       methodName: 'return',
-      arguments: [node.text.trim().substring(0, 30)],
+      arguments: [returnText],
       isAsync: false,
-      isSelfCall: true,
+      isSelfCall: lastCalledId === selfId,
       isReturn: true,
       isCreate: false,
       lineNumber: node.startPosition.row + 1,

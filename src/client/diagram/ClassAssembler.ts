@@ -3,7 +3,7 @@ import type { DiagramAssembler, AssembledDiagram } from './DiagramAssembler.ts';
 import { computeDepths } from './DiagramAssembler.ts';
 
 const CLASS_NODE_TYPES = new Set(['class', 'interface', 'type']);
-const CLASS_EDGE_TYPES = new Set(['extend', 'implement']);
+const CLASS_EDGE_TYPES = new Set(['extend', 'implement', 'association', 'aggregation', 'composition']);
 
 interface ClassMember {
   name: string;
@@ -96,46 +96,50 @@ export class ClassAssembler implements DiagramAssembler {
   ): Map<string, ClassMember[]> {
     const result = new Map<string, ClassMember[]>();
 
-    const classesByFile = new Map<string, GraphNode[]>();
-    for (const cls of classNodes) {
-      const list = classesByFile.get(cls.filePath) ?? [];
-      list.push(cls);
-      classesByFile.set(cls.filePath, list);
-    }
+    const classIdSet = new Set(classNodes.map((n) => n.id));
 
-    for (const [filePath, classes] of classesByFile) {
-      const sortedClasses = [...classes].sort(
-        (a, b) => (a.lineNumber ?? 0) - (b.lineNumber ?? 0),
-      );
+    for (const member of allNodes) {
+      if (member.type !== 'function' && member.type !== 'variable') continue;
+      if (CLASS_NODE_TYPES.has(member.type)) continue;
 
-      const fileMembers = allNodes.filter(
-        (n) =>
-          n.filePath === filePath &&
-          (n.type === 'function' || n.type === 'variable') &&
-          !CLASS_NODE_TYPES.has(n.type),
-      );
+      let assignedClass: GraphNode | null = null;
 
-      for (const member of fileMembers) {
-        let assignedClass: GraphNode | null = null;
-        for (let i = sortedClasses.length - 1; i >= 0; i--) {
-          const cls = sortedClasses[i];
-          if (cls && (cls.lineNumber ?? 0) <= (member.lineNumber ?? 0)) {
-            assignedClass = cls;
-            break;
+      if (member.parentId && classIdSet.has(member.parentId)) {
+        assignedClass = classNodes.find((n) => n.id === member.parentId) ?? null;
+      }
+
+      if (!assignedClass) {
+        const classesByFile = new Map<string, GraphNode[]>();
+        for (const cls of classNodes) {
+          const list = classesByFile.get(cls.filePath) ?? [];
+          list.push(cls);
+          classesByFile.set(cls.filePath, list);
+        }
+        const sameFileClasses = classesByFile.get(member.filePath);
+        if (sameFileClasses) {
+          const sortedClasses = [...sameFileClasses].sort(
+            (a, b) => (a.lineNumber ?? 0) - (b.lineNumber ?? 0),
+          );
+          for (let i = sortedClasses.length - 1; i >= 0; i--) {
+            const cls = sortedClasses[i];
+            if (cls && (cls.lineNumber ?? 0) <= (member.lineNumber ?? 0)) {
+              assignedClass = cls;
+              break;
+            }
           }
         }
+      }
 
-        if (assignedClass) {
-          const list = result.get(assignedClass.id) ?? [];
-          const isMethod = member.type === 'function';
-          list.push({
-            name: member.label,
-            type: isMethod ? 'method' : 'property',
-            ...(member.properties?.signature ? { signature: member.properties.signature as string } : {}),
-            visibility: this.inferVisibility(member),
-          });
-          result.set(assignedClass.id, list);
-        }
+      if (assignedClass) {
+        const list = result.get(assignedClass.id) ?? [];
+        const isMethod = member.type === 'function';
+        list.push({
+          name: member.label,
+          type: isMethod ? 'method' : 'property',
+          ...(member.properties?.signature ? { signature: member.properties.signature as string } : {}),
+          visibility: this.inferVisibility(member),
+        });
+        result.set(assignedClass.id, list);
       }
     }
 

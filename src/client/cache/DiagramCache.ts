@@ -3,7 +3,10 @@ import type { LayeredDiagram } from '../diagram/DiagramAssembler.ts';
 import type { ClusterResult } from '../store/cluster/index.ts';
 
 
-function computeDataHash(nodes: { id: string; type: string }[], edges: { id: string; source: string; target: string; type: string }[]): string {
+function computeDataHash(
+  nodes: { id: string; type: string; label?: string; filePath?: string; lineNumber?: number; parentId?: string; properties?: Record<string, unknown> }[],
+  edges: { id: string; source: string; target: string; type: string; properties?: Record<string, unknown> }[],
+): string {
   let nodeHash = 0x811c9dc5;
   for (const n of nodes) {
     for (let i = 0; i < n.id.length; i++) {
@@ -14,6 +17,41 @@ function computeDataHash(nodes: { id: string; type: string }[], edges: { id: str
     nodeHash = Math.imul(nodeHash, 0x01000193);
     for (let i = 0; i < n.type.length; i++) {
       nodeHash ^= n.type.charCodeAt(i);
+      nodeHash = Math.imul(nodeHash, 0x01000193);
+    }
+    nodeHash ^= ':'.charCodeAt(0);
+    nodeHash = Math.imul(nodeHash, 0x01000193);
+    const label = n.label ?? '';
+    for (let i = 0; i < label.length; i++) {
+      nodeHash ^= label.charCodeAt(i);
+      nodeHash = Math.imul(nodeHash, 0x01000193);
+    }
+    nodeHash ^= ':'.charCodeAt(0);
+    nodeHash = Math.imul(nodeHash, 0x01000193);
+    const filePath = n.filePath ?? '';
+    for (let i = 0; i < filePath.length; i++) {
+      nodeHash ^= filePath.charCodeAt(i);
+      nodeHash = Math.imul(nodeHash, 0x01000193);
+    }
+    nodeHash ^= ':'.charCodeAt(0);
+    nodeHash = Math.imul(nodeHash, 0x01000193);
+    const lineNum = String(n.lineNumber ?? 0);
+    for (let i = 0; i < lineNum.length; i++) {
+      nodeHash ^= lineNum.charCodeAt(i);
+      nodeHash = Math.imul(nodeHash, 0x01000193);
+    }
+    nodeHash ^= ':'.charCodeAt(0);
+    nodeHash = Math.imul(nodeHash, 0x01000193);
+    const parentId = n.parentId ?? '';
+    for (let i = 0; i < parentId.length; i++) {
+      nodeHash ^= parentId.charCodeAt(i);
+      nodeHash = Math.imul(nodeHash, 0x01000193);
+    }
+    nodeHash ^= ':'.charCodeAt(0);
+    nodeHash = Math.imul(nodeHash, 0x01000193);
+    const propsStr = n.properties ? JSON.stringify(n.properties) : '';
+    for (let i = 0; i < propsStr.length; i++) {
+      nodeHash ^= propsStr.charCodeAt(i);
       nodeHash = Math.imul(nodeHash, 0x01000193);
     }
     nodeHash ^= '|'.charCodeAt(0);
@@ -42,6 +80,13 @@ function computeDataHash(nodes: { id: string; type: string }[], edges: { id: str
     edgeHash = Math.imul(edgeHash, 0x01000193);
     for (let i = 0; i < e.type.length; i++) {
       edgeHash ^= e.type.charCodeAt(i);
+      edgeHash = Math.imul(edgeHash, 0x01000193);
+    }
+    edgeHash ^= ':'.charCodeAt(0);
+    edgeHash = Math.imul(edgeHash, 0x01000193);
+    const propsStr = e.properties ? JSON.stringify(e.properties) : '';
+    for (let i = 0; i < propsStr.length; i++) {
+      edgeHash ^= propsStr.charCodeAt(i);
       edgeHash = Math.imul(edgeHash, 0x01000193);
     }
     edgeHash ^= '|'.charCodeAt(0);

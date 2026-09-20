@@ -23,6 +23,9 @@ const EDGE_WEIGHTS: Record<GraphEdge['type'], number> = {
   import: 0.5,
   dependency: 0.3,
   contains: 0.0,
+  association: 0.6,
+  aggregation: 0.5,
+  composition: 0.7,
 };
 
 const DEFAULT_MAX_MODULE_DEPTH = HEALTH_SCORE.DEFAULT_MAX_MODULE_DEPTH;

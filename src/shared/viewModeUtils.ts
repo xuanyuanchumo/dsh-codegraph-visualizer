@@ -5,14 +5,14 @@ export type LayoutType = 'cose' | 'fcose' | 'dagre' | 'circle' | 'grid' | 'radia
 
 export const VIEW_MODE_LAYOUT: Record<ViewMode, LayoutType> = {
   code: 'cose',
-  dependencies: 'dagre',
+  dependencies: 'cose',
   inheritance: 'tree',
   callgraph: 'dagre',
   package: 'tree',
   class: 'dagre',
   cfg: 'dagre',
   flowchart: 'dagre',
-  sequence: 'grid',
+  sequence: 'cose',
 };
 
 export function isLayeredViewMode(mode: ViewMode): boolean {
