@@ -1,11 +1,11 @@
-
+import { memo } from 'react';
 import { useT } from '../i18n/index.ts';
 
 interface LoadingOverlayProps {
   visible: boolean;
 }
 
-export function LoadingOverlay({ visible }: LoadingOverlayProps) {
+export const LoadingOverlay = memo(function LoadingOverlay({ visible }: LoadingOverlayProps) {
   const t = useT();
   if (!visible) return null;
   return (
@@ -13,4 +13,4 @@ export function LoadingOverlay({ visible }: LoadingOverlayProps) {
       <div className="spinner" /><span>{t('state.loading')}</span>
     </div>
   );
-}
+});

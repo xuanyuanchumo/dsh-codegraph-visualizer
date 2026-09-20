@@ -1,4 +1,5 @@
 
+import { memo } from 'react';
 import { useT } from '../i18n/index.ts';
 import type { ViewMode } from '../../types/index.ts';
 
@@ -49,7 +50,7 @@ const VIEW_MODE_EDGE_FILTER: Record<ViewMode, Set<string>> = {
   sequence: new Set(['call']),
 };
 
-export function Legend({ viewMode, onClose }: LegendProps) {
+export const Legend = memo(function Legend({ viewMode, onClose }: LegendProps) {
   const t = useT();
   const nodeTypes = ALL_NODE_TYPES.filter((n) => VIEW_MODE_NODE_FILTER[viewMode]?.has(n.type) ?? true);
   const edgeTypes = ALL_EDGE_TYPES.filter((e) => VIEW_MODE_EDGE_FILTER[viewMode]?.has(e.type) ?? true);
@@ -82,4 +83,4 @@ export function Legend({ viewMode, onClose }: LegendProps) {
       </div>
     </div>
   );
-}
+});

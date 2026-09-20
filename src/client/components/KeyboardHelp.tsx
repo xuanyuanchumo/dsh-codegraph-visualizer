@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { useT } from '../i18n/index.ts';
 import { KEYBOARD_SHORTCUTS, formatShortcutKey } from '../hooks/usePanelKeyboard.ts';
 
@@ -7,7 +7,7 @@ interface KeyboardHelpProps {
   onClose: () => void;
 }
 
-export function KeyboardHelp({ visible, onClose }: KeyboardHelpProps) {
+export const KeyboardHelp = memo(function KeyboardHelp({ visible, onClose }: KeyboardHelpProps) {
   const t = useT();
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -60,4 +60,4 @@ export function KeyboardHelp({ visible, onClose }: KeyboardHelpProps) {
       </div>
     </div>
   );
-}
+});

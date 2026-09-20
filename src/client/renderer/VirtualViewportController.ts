@@ -97,6 +97,7 @@ export class VirtualViewportController {
       const node = this.cy.getElementById(id);
       if (node.nonempty() === false) continue;
       if (node.data('typeFiltered') === true) continue;
+      if (node.data('connectionFiltered') === true) continue;
       const p = node.position();
       const isVisible =
         p.x >= viewBounds.x1 &&
@@ -136,6 +137,10 @@ export class VirtualViewportController {
         if (node.empty()) continue;
         node.connectedEdges().forEach((edge) => {
           if (edge.data('typeFiltered') === true) {
+            edge.style('display', 'none');
+            return;
+          }
+          if (edge.data('connectionFiltered') === true) {
             edge.style('display', 'none');
             return;
           }

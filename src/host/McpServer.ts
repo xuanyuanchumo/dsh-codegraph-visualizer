@@ -71,6 +71,13 @@ export class McpServer {
         error: { code: -32600, message: 'Invalid Request: id must be string, number, or null' },
       };
     }
+    if (msg['jsonrpc'] !== '2.0') {
+      return {
+        jsonrpc: '2.0',
+        id,
+        error: { code: -32600, message: 'Invalid Request: jsonrpc must be "2.0"' },
+      };
+    }
 
     if (method === 'initialize') {
       return {
