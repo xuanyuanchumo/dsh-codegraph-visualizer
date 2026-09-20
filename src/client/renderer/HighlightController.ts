@@ -178,6 +178,12 @@ export class HighlightController {
   }
 
   detectCyclesDetailed(): CycleInfo[] {
+    const nodeCount = this.cy.nodes().length;
+    if (nodeCount > 10000) {
+      log.warn('detailed cycle detection skipped: graph too large', { nodeCount });
+      return [];
+    }
+
     const adjacency = new Map<string, string[]>();
     const edgeMap = new Map<string, string>();
     this.cy.edges().forEach((edge) => {
