@@ -717,7 +717,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           onClose={() => setContextMenu(null)}
           onFocusNode={(id) => { renderer.rendererRef.current?.focusOnNode(id); renderer.rendererRef.current?.selectNode(NodeId(id)); }}
           onIsolateNode={(id) => { renderer.rendererRef.current?.focusNeighborhood(NodeId(id)); }}
-          onHideNode={(id) => { renderer.rendererRef.current?.selectNode(null); }}
+          onHideNode={(_id) => { renderer.rendererRef.current?.selectNode(null); }}
           onExpandNode={(id) => { expandNode(id); }}
           onCollapseNode={(id) => { collapseNode(id); }}
           onFindPath={(id) => { panel.setShowPathFind(true); useGraphStore.getState().setPathStart(NodeId(id)); }}
