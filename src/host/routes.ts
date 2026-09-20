@@ -13,58 +13,15 @@ import type { VisualizerConfig } from './config.ts';
 import { parsePackageJson, parseCargoToml, parseGoMod, dependencyGraphToGraphData } from '../adapters/DependencyAdapter.ts';
 import { computeGraphDiff, diffToGraphData } from '../merger/DiffEngine.ts';
 import { TreeSitterAdapter } from '../adapters/TreeSitterAdapter.ts';
-import { API } from '../shared/constants.ts';
+import { createRateLimiter } from './RateLimiter.ts';
+import {
+  readBody, parseJsonBody, extractStringField, extractBooleanField,
+  isSafeGitRef, validatePathRealpath, buildCorsHeaders, handleCorsPreflight,
+  sendJson, sendError, requireMethod, checkRate, logRequest,
+  type CorsConfig,
+} from './HttpHelpers.ts';
 
 const log = scoped('host');
-
-const RATE_LIMIT_WINDOW_MS = API.RATE_LIMIT_WINDOW_MS;
-const RATE_LIMIT_DEFAULT = API.RATE_LIMIT_DEFAULT;
-const RATE_LIMIT_HEAVY = API.RATE_LIMIT_HEAVY;
-const RATE_LIMIT_MAP_MAX = API.RATE_LIMIT_MAP_MAX;
-const HEAVY_ENDPOINTS = new Set(['/api/v1/codegraph/scan', '/api/v1/codegraph/init', '/api/v1/codegraph/diff', '/api/v1/codegraph/ast', '/api/v1/codegraph/tree-sitter']);
-
-interface RateBucket { count: number; resetTime: number; }
-
-function createRateLimiter() {
-  const rateLimitMap = new Map<string, RateBucket>();
-  let lastCleanup = Date.now();
-
-  function check(ip: string, routePath: string): boolean {
-    const key = `${ip}:${routePath}`;
-    const limit = HEAVY_ENDPOINTS.has(routePath) ? RATE_LIMIT_HEAVY : RATE_LIMIT_DEFAULT;
-    const now = Date.now();
-    if (now - lastCleanup > RATE_LIMIT_WINDOW_MS) {
-      for (const [k, b] of rateLimitMap) {
-        if (now > b.resetTime) rateLimitMap.delete(k);
-      }
-      lastCleanup = now;
-    }
-    if (rateLimitMap.size >= RATE_LIMIT_MAP_MAX) {
-      const oldestKey = rateLimitMap.keys().next().value;
-      if (oldestKey !== undefined) rateLimitMap.delete(oldestKey);
-    }
-    const bucket = rateLimitMap.get(key);
-    if (!bucket || now > bucket.resetTime) {
-      rateLimitMap.set(key, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
-      return true;
-    }
-    if (bucket.count >= limit) return false;
-    bucket.count++;
-    return true;
-  }
-
-  function reset(): void {
-    rateLimitMap.clear();
-    lastCleanup = Date.now();
-  }
-
-  return { check, reset };
-}
-
-function getClientIp(req: IncomingMessage): string {
-  const socketAddr = req.socket?.remoteAddress;
-  return socketAddr ?? 'unknown';
-}
 
 export interface RouteDeps {
   ctx: Context;
@@ -161,155 +118,44 @@ export function registerService(deps: RouteDeps): void {
   }, 'codegraph: service registration');
 }
 
-
-function readBody(req: IncomingMessage, maxBodyBytes: number): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let body = '';
-    let totalBytes = 0;
-    req.on('data', (chunk?: Buffer) => {
-      if (!chunk) return;
-      totalBytes += chunk.length;
-      if (totalBytes > maxBodyBytes) {
-        req.destroy();
-        reject(new Error('Request body too large'));
-        return;
-      }
-      body += chunk.toString();
-    });
-    req.on('end', () => resolve(body));
-    req.on('error', reject);
-  });
+interface RouteContext {
+  deps: RouteDeps;
+  corsConfig: CorsConfig;
+  rateLimiter: ReturnType<typeof createRateLimiter>;
+  invokeUpstream: ReturnType<typeof createInvokeUpstream>;
 }
 
-function parseJsonBody(body: string): Record<string, unknown> {
-  const parsed = JSON.parse(body || '{}');
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error('Invalid JSON body: expected object');
-  }
-  return parsed as Record<string, unknown>;
-}
+function registerStatusRoute(rc: RouteContext): void {
+  const { deps, corsConfig, rateLimiter } = rc;
+  const { ctx } = deps;
+  const routePath = '/api/v1/codegraph/status';
 
-function extractStringField(obj: Record<string, unknown>, field: string, maxLength?: number): string | undefined {
-  const v = obj[field];
-  if (typeof v !== 'string') return undefined;
-  if (v.includes('\0')) return undefined;
-  if (maxLength !== undefined && v.length > maxLength) return undefined;
-  return v;
-}
-
-function extractBooleanField(obj: Record<string, unknown>, field: string): boolean | undefined {
-  const v = obj[field];
-  return typeof v === 'boolean' ? v : undefined;
-}
-
-
-const GIT_REF_PATTERN = /^[a-zA-Z0-9._/-]+$/;
-
-function isSafeGitRef(ref: string): boolean {
-  if (!GIT_REF_PATTERN.test(ref)) return false;
-  if (ref.includes('..')) return false;
-  return true;
-}
-
-async function validatePathRealpath(scanPath: string): Promise<boolean> {
-  try {
-    const realPath = await fs.realpath(scanPath);
-    return isPathAllowed(realPath);
-  } catch (e) {
-    log.warn('validatePathRealpath failed', e);
-    return false;
-  }
-}
-
-export function registerRoutes(deps: RouteDeps): void {
-  const { ctx, config } = deps;
-  const invokeUpstream = createInvokeUpstream(ctx, config);
-  const origins = config.allowedOrigins;
-  const rateLimiter = createRateLimiter();
-
-
-  const sendJson = (res: ServerResponse, code: number, data: unknown, req?: IncomingMessage): void => {
-    const headers: Record<string, string> = {
-      'content-type': 'application/json',
-      'access-control-allow-methods': 'GET, POST, OPTIONS',
-      'access-control-allow-headers': 'content-type, if-none-match',
-      'access-control-max-age': '86400',
-      'vary': 'Origin',
-    };
-    if (origins.length > 0) {
-      const reqOrigin = req?.headers?.['origin'];
-      if (typeof reqOrigin === 'string' && origins.includes(reqOrigin)) {
-        headers['access-control-allow-origin'] = reqOrigin;
-      }
-    }
-    res.writeHead(code, headers);
-    res.end(JSON.stringify(data));
-  };
-
-  const sendError = (res: ServerResponse, code: number, message: string, req?: IncomingMessage): void => {
-    sendJson(res, code, { success: false, error: message }, req);
-  };
-
-  const checkRate = (req: IncomingMessage, res: ServerResponse, routePath: string): boolean => {
-    if (!rateLimiter.check(getClientIp(req), routePath)) {
-      sendError(res, 429, 'Rate limit exceeded', req);
-      return false;
-    }
-    return true;
-  };
-
-  const handleCorsPreflight = (req: IncomingMessage, res: ServerResponse): boolean => {
-    if (req.method !== 'OPTIONS') return false;
-    const headers: Record<string, string> = {
-      'access-control-allow-methods': 'GET, POST, OPTIONS',
-      'access-control-allow-headers': 'content-type, if-none-match',
-      'access-control-max-age': '86400',
-      'vary': 'Origin',
-    };
-    if (origins.length > 0) {
-      const reqOrigin = req.headers?.['origin'];
-      if (typeof reqOrigin === 'string' && origins.includes(reqOrigin)) {
-        headers['access-control-allow-origin'] = reqOrigin;
-      }
-    }
-    res.writeHead(204, headers);
-    res.end();
-    return true;
-  };
-
-  const requireMethod = (req: IncomingMessage, res: ServerResponse, method: string): boolean => {
-    if (req.method === method) return true;
-    sendError(res, 405, `Method ${req.method} not allowed; expected ${method}`, req);
-    return false;
-  };
-
-  const logRequest = (req: IncomingMessage, routePath: string): void => {
-    log.info('request', { method: req.method, path: routePath, ip: getClientIp(req) });
-  };
-
-  // GET /api/v1/codegraph/status
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
-    path: '/api/v1/codegraph/status',
+    path: routePath,
     handler: (req: IncomingMessage, res: ServerResponse) => {
-      if (handleCorsPreflight(req, res)) return;
-      if (!requireMethod(req, res, 'GET')) return;
-      logRequest(req, '/api/v1/codegraph/status');
-
-      if (!checkRate(req, res, '/api/v1/codegraph/status')) return;
+      if (handleCorsPreflight(req, res, corsConfig)) return;
+      if (!requireMethod(req, res, 'GET', corsConfig)) return;
+      logRequest(req, routePath);
+      if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
       const status = checkPrerequisites(ctx);
-      sendJson(res, 200, { codegraph: status.codegraph, lens: status.lens }, req);
+      sendJson(res, 200, { codegraph: status.codegraph, lens: status.lens }, req, corsConfig);
     },
   }), 'codegraph: status route');
+}
 
-  // GET /api/v1/codegraph/health
+function registerHealthRoute(rc: RouteContext): void {
+  const { deps, corsConfig } = rc;
+  const { ctx } = deps;
+  const routePath = '/api/v1/codegraph/health';
+
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
-    path: '/api/v1/codegraph/health',
+    path: routePath,
     handler: (req: IncomingMessage, res: ServerResponse) => {
-      if (handleCorsPreflight(req, res)) return;
-      if (!requireMethod(req, res, 'GET')) return;
-      logRequest(req, '/api/v1/codegraph/health');
+      if (handleCorsPreflight(req, res, corsConfig)) return;
+      if (!requireMethod(req, res, 'GET', corsConfig)) return;
+      logRequest(req, routePath);
       try {
         const status = checkPrerequisites(ctx);
         const mem = process.memoryUsage();
@@ -321,111 +167,106 @@ export function registerRoutes(deps: RouteDeps): void {
           lens: status.lens,
           hasGraphData,
           uptime: process.uptime(),
-          memory: {
-            rss: mem.rss,
-            heapUsed: mem.heapUsed,
-            heapTotal: mem.heapTotal,
-          },
+          memory: { rss: mem.rss, heapUsed: mem.heapUsed, heapTotal: mem.heapTotal },
           timestamp: Date.now(),
-        }, req);
+        }, req, corsConfig);
       } catch (e) {
         sendJson(res, 503, {
           status: 'unhealthy',
           error: e instanceof Error ? e.message : String(e),
           timestamp: Date.now(),
-        }, req);
+        }, req, corsConfig);
       }
     },
   }), 'codegraph: health route');
+}
 
-  // GET /api/v1/codegraph/workspace
+function registerWorkspaceRoute(rc: RouteContext): void {
+  const { deps, corsConfig, rateLimiter } = rc;
+  const { ctx } = deps;
+  const routePath = '/api/v1/codegraph/workspace';
+
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
-    path: '/api/v1/codegraph/workspace',
+    path: routePath,
     handler: (req: IncomingMessage, res: ServerResponse) => {
-      if (handleCorsPreflight(req, res)) return;
-      if (!requireMethod(req, res, 'GET')) return;
-      logRequest(req, '/api/v1/codegraph/workspace');
-      if (!checkRate(req, res, '/api/v1/codegraph/workspace')) return;
+      if (handleCorsPreflight(req, res, corsConfig)) return;
+      if (!requireMethod(req, res, 'GET', corsConfig)) return;
+      logRequest(req, routePath);
+      if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
       const current = findWorkspacePath(ctx);
       const list = extractWorkspacePaths(ctx);
-      sendJson(res, 200, { path: current, list }, req);
+      sendJson(res, 200, { path: current, list }, req, corsConfig);
     },
   }), 'codegraph: workspace route');
+}
 
-  // GET /api/v1/codegraph/data
+function registerDataRoute(rc: RouteContext): void {
+  const { deps, corsConfig, rateLimiter } = rc;
+  const { ctx } = deps;
+  const routePath = '/api/v1/codegraph/data';
+
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
-    path: '/api/v1/codegraph/data',
+    path: routePath,
     handler: (req: IncomingMessage, res: ServerResponse) => {
-      if (handleCorsPreflight(req, res)) return;
-      if (!requireMethod(req, res, 'GET')) return;
-      logRequest(req, '/api/v1/codegraph/data');
-      if (!checkRate(req, res, '/api/v1/codegraph/data')) return;
+      if (handleCorsPreflight(req, res, corsConfig)) return;
+      if (!requireMethod(req, res, 'GET', corsConfig)) return;
+      logRequest(req, routePath);
+      if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
       const ifNoneMatch = req.headers['if-none-match'];
       const lastGraphData = deps.getLastGraphData();
       if (ifNoneMatch && lastGraphData) {
         const clientTimestamp = parseInt(String(ifNoneMatch), 10);
         if (clientTimestamp >= lastGraphData.metadata.timestamp) {
-          const corsHeaders: Record<string, string> = {
-            'etag': String(lastGraphData.metadata.timestamp),
-            'vary': 'Origin',
-          };
-          if (origins.length > 0) {
-            const reqOrigin = req.headers?.['origin'];
-            if (typeof reqOrigin === 'string' && origins.includes(reqOrigin)) {
-              corsHeaders['access-control-allow-origin'] = reqOrigin;
-            }
-          }
+          const corsHeaders = buildCorsHeaders(req, corsConfig);
+          corsHeaders['etag'] = String(lastGraphData.metadata.timestamp);
           res.writeHead(304, corsHeaders);
           res.end();
           return;
         }
       }
       if (lastGraphData) {
-        const dataHeaders: Record<string, string> = {
-          'content-type': 'application/json',
-          'etag': String(lastGraphData.metadata.timestamp),
-          'vary': 'Origin',
-        };
-        if (origins.length > 0) {
-          const reqOrigin = req.headers?.['origin'];
-          if (typeof reqOrigin === 'string' && origins.includes(reqOrigin)) {
-            dataHeaders['access-control-allow-origin'] = reqOrigin;
-          }
-        }
+        const dataHeaders = buildCorsHeaders(req, corsConfig);
+        dataHeaders['content-type'] = 'application/json';
+        dataHeaders['etag'] = String(lastGraphData.metadata.timestamp);
         res.writeHead(200, dataHeaders);
         res.end(JSON.stringify(lastGraphData));
       } else {
-        sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req);
+        sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req, corsConfig);
       }
     },
   }), 'codegraph: data route');
+}
 
-  // POST /api/v1/codegraph/scan
+function registerScanRoute(rc: RouteContext): void {
+  const { deps, corsConfig, rateLimiter, invokeUpstream } = rc;
+  const { ctx, config } = deps;
+  const routePath = '/api/v1/codegraph/scan';
+
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
-    path: '/api/v1/codegraph/scan',
+    path: routePath,
     handler: async (req: IncomingMessage, res: ServerResponse) => {
-      if (handleCorsPreflight(req, res)) return;
-      if (!requireMethod(req, res, 'POST')) return;
-      logRequest(req, '/api/v1/codegraph/scan');
-      if (!checkRate(req, res, '/api/v1/codegraph/scan')) return;
+      if (handleCorsPreflight(req, res, corsConfig)) return;
+      if (!requireMethod(req, res, 'POST', corsConfig)) return;
+      logRequest(req, routePath);
+      if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
-        const path = extractStringField(parsed, 'path', 4096);
-        if (path && path !== '.' && !isPathAllowed(path)) {
-          sendError(res, 403, 'Path not allowed', req);
+        const scanPathInput = extractStringField(parsed, 'path', 4096);
+        if (scanPathInput && scanPathInput !== '.' && !isPathAllowed(scanPathInput)) {
+          sendError(res, 403, 'Path not allowed', req, corsConfig);
           return;
         }
-        const scanPath = path && path !== '.' ? path : findWorkspacePath(ctx);
+        const scanPath = scanPathInput && scanPathInput !== '.' ? scanPathInput : findWorkspacePath(ctx);
         if (scanPath && scanPath !== '.' && !isPathAllowed(scanPath)) {
-          sendError(res, 403, 'Workspace path not allowed', req);
+          sendError(res, 403, 'Workspace path not allowed', req, corsConfig);
           return;
         }
         if (scanPath && scanPath !== '.' && !await validatePathRealpath(scanPath)) {
-          sendError(res, 403, 'Access denied: symlink escape', req);
+          sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
           return;
         }
         const repoId = scanPath || `workspace-${Date.now()}`;
@@ -434,14 +275,14 @@ export function registerRoutes(deps: RouteDeps): void {
         const cached = scanCache.get(scanPath);
         if (cached && Date.now() - cached.timestamp < config.scanCacheTtl) {
           deps.setLastGraphData(cached.data);
-          sendJson(res, 200, { success: true, ...cached.data }, req);
+          sendJson(res, 200, { success: true, ...cached.data }, req, corsConfig);
           return;
         }
 
         const inFlight = deps.getScanInFlight(scanPath);
         if (inFlight) {
           const data = await inFlight;
-          sendJson(res, 200, { success: true, ...data }, req);
+          sendJson(res, 200, { success: true, ...data }, req, corsConfig);
           return;
         }
 
@@ -470,42 +311,47 @@ export function registerRoutes(deps: RouteDeps): void {
             timestamp: data.metadata.timestamp,
           });
           log.info('scan completed', { repoId, nodes: data.metadata.nodeCount, edges: data.metadata.edgeCount });
-          sendJson(res, 200, { success: true, ...data }, req);
+          sendJson(res, 200, { success: true, ...data }, req, corsConfig);
         } catch (e) {
           deps.setScanInFlight(scanPath, null);
           throw e;
         }
       } catch (e) {
         log.error('scan failed', e);
-        sendError(res, 500, 'Scan failed — check codegraph installation', req);
+        sendError(res, 500, 'Scan failed — check codegraph installation', req, corsConfig);
       }
     },
   }), 'codegraph: scan route');
+}
 
-  // POST /api/v1/codegraph/init
+function registerInitRoute(rc: RouteContext): void {
+  const { deps, corsConfig, rateLimiter, invokeUpstream } = rc;
+  const { ctx, config } = deps;
+  const routePath = '/api/v1/codegraph/init';
+
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
-    path: '/api/v1/codegraph/init',
+    path: routePath,
     handler: async (req: IncomingMessage, res: ServerResponse) => {
-      if (handleCorsPreflight(req, res)) return;
-      if (!requireMethod(req, res, 'POST')) return;
-      logRequest(req, '/api/v1/codegraph/init');
-      if (!checkRate(req, res, '/api/v1/codegraph/init')) return;
+      if (handleCorsPreflight(req, res, corsConfig)) return;
+      if (!requireMethod(req, res, 'POST', corsConfig)) return;
+      logRequest(req, routePath);
+      if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
-        const path = extractStringField(parsed, 'path', 4096);
-        if (path && path !== '.' && !isPathAllowed(path)) {
-          sendError(res, 403, 'Path not allowed', req);
+        const pathInput = extractStringField(parsed, 'path', 4096);
+        if (pathInput && pathInput !== '.' && !isPathAllowed(pathInput)) {
+          sendError(res, 403, 'Path not allowed', req, corsConfig);
           return;
         }
-        const initPath = path && path !== '.' ? path : findWorkspacePath(ctx);
+        const initPath = pathInput && pathInput !== '.' ? pathInput : findWorkspacePath(ctx);
         if (initPath && initPath !== '.' && !isPathAllowed(initPath)) {
-          sendError(res, 403, 'Path not allowed', req);
+          sendError(res, 403, 'Path not allowed', req, corsConfig);
           return;
         }
         if (initPath && initPath !== '.' && !await validatePathRealpath(initPath)) {
-          sendError(res, 403, 'Access denied: symlink escape', req);
+          sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
           return;
         }
         log.info('init requested', { path: initPath });
@@ -531,77 +377,82 @@ export function registerRoutes(deps: RouteDeps): void {
             timestamp: data.metadata.timestamp,
           });
         }
-        sendJson(res, 200, initResult, req);
+        sendJson(res, 200, initResult, req, corsConfig);
       } catch (e) {
         log.error('init route failed', e);
-        const errorResult = {
-          success: false,
-          path: '',
-          message: 'Initialization failed',
-          timestamp: Date.now(),
-        };
+        const errorResult = { success: false, path: '', message: 'Initialization failed', timestamp: Date.now() };
         deps.setLastInitResult(errorResult);
-        sendError(res, 500, 'Initialization failed — is dsh-codegraph installed?', req);
+        sendError(res, 500, 'Initialization failed — is dsh-codegraph installed?', req, corsConfig);
       }
     },
   }), 'codegraph: init route');
+}
 
-  // POST /api/v1/codegraph/watch
+function registerWatchRoute(rc: RouteContext): void {
+  const { deps, corsConfig } = rc;
+  const { ctx, config } = deps;
+  const routePath = '/api/v1/codegraph/watch';
+
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
-    path: '/api/v1/codegraph/watch',
+    path: routePath,
     handler: async (req: IncomingMessage, res: ServerResponse) => {
-      if (handleCorsPreflight(req, res)) return;
-      if (!requireMethod(req, res, 'POST')) return;
-      logRequest(req, '/api/v1/codegraph/watch');
+      if (handleCorsPreflight(req, res, corsConfig)) return;
+      if (!requireMethod(req, res, 'POST', corsConfig)) return;
+      logRequest(req, routePath);
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
         const enabled = extractBooleanField(parsed, 'enabled');
-        const path = extractStringField(parsed, 'path', 4096);
-        if (path && path !== '.' && !isPathAllowed(path)) {
-          sendError(res, 403, 'Path not allowed', req);
+        const pathInput = extractStringField(parsed, 'path', 4096);
+        if (pathInput && pathInput !== '.' && !isPathAllowed(pathInput)) {
+          sendError(res, 403, 'Path not allowed', req, corsConfig);
           return;
         }
-        const watchPath = path && path !== '.' ? path : findWorkspacePath(ctx);
+        const watchPath = pathInput && pathInput !== '.' ? pathInput : findWorkspacePath(ctx);
         if (watchPath && watchPath !== '.' && !isPathAllowed(watchPath)) {
-          sendError(res, 403, 'Path not allowed', req);
+          sendError(res, 403, 'Path not allowed', req, corsConfig);
           return;
         }
         if (watchPath && watchPath !== '.' && !await validatePathRealpath(watchPath)) {
-          sendError(res, 403, 'Access denied: symlink escape', req);
+          sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
           return;
         }
         ctx.emit('cg-viz/watch/toggle', { enabled: !!enabled, path: watchPath, timestamp: Date.now() });
-        sendJson(res, 200, { success: true, enabled: !!enabled, path: watchPath }, req);
+        sendJson(res, 200, { success: true, enabled: !!enabled, path: watchPath }, req, corsConfig);
       } catch (e) {
         log.warn('watch route failed', e);
-        sendError(res, 500, 'Watch toggle failed', req);
+        sendError(res, 500, 'Watch toggle failed', req, corsConfig);
       }
     },
   }), 'codegraph: watch route');
+}
 
-  // GET /api/v1/codegraph/dependencies — FR-21 第三方依赖图谱
+function registerDependenciesRoute(rc: RouteContext): void {
+  const { deps, corsConfig, rateLimiter } = rc;
+  const { ctx } = deps;
+  const routePath = '/api/v1/codegraph/dependencies';
+
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
-    path: '/api/v1/codegraph/dependencies',
+    path: routePath,
     handler: async (req: IncomingMessage, res: ServerResponse) => {
-      if (handleCorsPreflight(req, res)) return;
-      if (!requireMethod(req, res, 'GET')) return;
-      logRequest(req, '/api/v1/codegraph/dependencies');
-      if (!checkRate(req, res, '/api/v1/codegraph/dependencies')) return;
+      if (handleCorsPreflight(req, res, corsConfig)) return;
+      if (!requireMethod(req, res, 'GET', corsConfig)) return;
+      logRequest(req, routePath);
+      if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
       try {
         const workspacePath = findWorkspacePath(ctx);
         if (!workspacePath) {
-          sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req);
+          sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req, corsConfig);
           return;
         }
         if (!isPathAllowed(workspacePath)) {
-          sendError(res, 403, 'Workspace path not allowed', req);
+          sendError(res, 403, 'Workspace path not allowed', req, corsConfig);
           return;
         }
         if (!await validatePathRealpath(workspacePath)) {
-          sendError(res, 403, 'Access denied: symlink escape', req);
+          sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
           return;
         }
 
@@ -651,48 +502,53 @@ export function registerRoutes(deps: RouteDeps): void {
             nodeCount: allDepNodes.length,
             edgeCount: allDepEdges.length,
           },
-        }, req);
+        }, req, corsConfig);
       } catch (e) {
         log.error('dependencies route failed', e);
-        sendError(res, 500, 'Internal server error', req);
+        sendError(res, 500, 'Internal server error', req, corsConfig);
       }
     },
   }), 'codegraph: dependencies route');
+}
 
-  // POST /api/v1/codegraph/diff — FR-24 版本对比图谱
+function registerDiffRoute(rc: RouteContext): void {
+  const { deps, corsConfig, rateLimiter, invokeUpstream } = rc;
+  const { ctx } = deps;
+  const routePath = '/api/v1/codegraph/diff';
+
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
-    path: '/api/v1/codegraph/diff',
+    path: routePath,
     handler: async (req: IncomingMessage, res: ServerResponse) => {
-      if (handleCorsPreflight(req, res)) return;
-      if (!requireMethod(req, res, 'POST')) return;
-      logRequest(req, '/api/v1/codegraph/diff');
-      if (!checkRate(req, res, '/api/v1/codegraph/diff')) return;
+      if (handleCorsPreflight(req, res, corsConfig)) return;
+      if (!requireMethod(req, res, 'POST', corsConfig)) return;
+      logRequest(req, routePath);
+      if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
       try {
-        const body = await readBody(req, config.maxBodyBytes);
+        const body = await readBody(req, deps.config.maxBodyBytes);
         const parsed = parseJsonBody(body);
         const fromCommit = extractStringField(parsed, 'from', 256);
         const toCommit = extractStringField(parsed, 'to', 256);
         if (!fromCommit || !toCommit) {
-          sendError(res, 400, 'from and to commits are required', req);
+          sendError(res, 400, 'from and to commits are required', req, corsConfig);
           return;
         }
         if (!isSafeGitRef(fromCommit) || !isSafeGitRef(toCommit)) {
-          sendError(res, 400, 'Invalid git ref format', req);
+          sendError(res, 400, 'Invalid git ref format', req, corsConfig);
           return;
         }
 
         const workspacePath = findWorkspacePath(ctx);
         if (!workspacePath) {
-          sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req);
+          sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req, corsConfig);
           return;
         }
         if (!isPathAllowed(workspacePath)) {
-          sendError(res, 403, 'Workspace path not allowed', req);
+          sendError(res, 403, 'Workspace path not allowed', req, corsConfig);
           return;
         }
         if (!await validatePathRealpath(workspacePath)) {
-          sendError(res, 403, 'Access denied: symlink escape', req);
+          sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
           return;
         }
 
@@ -703,120 +559,144 @@ export function registerRoutes(deps: RouteDeps): void {
         const { nodes, edges } = diffToGraphData(diff);
 
         sendJson(res, 200, {
-          nodes,
-          edges,
-          metadata: {
-            repoId: RepoId(workspacePath),
-            timestamp: Date.now(),
-            nodeCount: nodes.length,
-            edgeCount: edges.length,
-          },
-        }, req);
+          nodes, edges,
+          metadata: { repoId: RepoId(workspacePath), timestamp: Date.now(), nodeCount: nodes.length, edgeCount: edges.length },
+        }, req, corsConfig);
       } catch (e) {
         log.error('diff route failed', e);
-        sendError(res, 500, 'Graph diff failed — check git refs', req);
+        sendError(res, 500, 'Graph diff failed — check git refs', req, corsConfig);
       }
     },
   }), 'codegraph: diff route');
+}
 
-  const sharedTreeSitterAdapter = new TreeSitterAdapter();
+function registerAstRoute(rc: RouteContext, sharedTreeSitterAdapter: TreeSitterAdapter): void {
+  const { deps, corsConfig, rateLimiter } = rc;
+  const { ctx, config } = deps;
+  const routePath = '/api/v1/codegraph/ast';
 
-  // POST /api/v1/codegraph/ast — 获取文件 AST（用于微观图谱：CFG/流程图/时序图）
   ctx.effect(() => {
     return ctx.webServer.register({
       kind: 'exact',
-      path: '/api/v1/codegraph/ast',
+      path: routePath,
       handler: async (req: IncomingMessage, res: ServerResponse) => {
-        if (handleCorsPreflight(req, res)) return;
-        if (!requireMethod(req, res, 'POST')) return;
-        logRequest(req, '/api/v1/codegraph/ast');
-        if (!checkRate(req, res, '/api/v1/codegraph/ast')) return;
+        if (handleCorsPreflight(req, res, corsConfig)) return;
+        if (!requireMethod(req, res, 'POST', corsConfig)) return;
+        logRequest(req, routePath);
+        if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
         try {
           const body = await readBody(req, config.maxBodyBytes);
           const parsed = parseJsonBody(body);
           const filePath = extractStringField(parsed, 'filePath', 512);
           if (!filePath) {
-            sendError(res, 400, 'filePath is required', req);
+            sendError(res, 400, 'filePath is required', req, corsConfig);
             return;
           }
           const workspacePath = findWorkspacePath(ctx);
           if (!workspacePath) {
-            sendError(res, 400, 'No workspace path configured', req);
+            sendError(res, 400, 'No workspace path configured', req, corsConfig);
             return;
           }
           const fullPath = path.resolve(workspacePath, filePath);
           const normalizedWorkspace = path.normalize(workspacePath);
           if (!fullPath.startsWith(normalizedWorkspace + path.sep) && fullPath !== normalizedWorkspace) {
-            sendError(res, 403, 'Access denied: path outside workspace', req);
+            sendError(res, 403, 'Access denied: path outside workspace', req, corsConfig);
             return;
           }
           const realPath = await fs.realpath(fullPath);
           const realWorkspace = await fs.realpath(normalizedWorkspace);
           if (!realPath.startsWith(realWorkspace + path.sep) && realPath !== realWorkspace) {
-            sendError(res, 403, 'Access denied: symlink escape', req);
+            sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
             return;
           }
           if (!isPathAllowed(realPath)) {
-            sendError(res, 403, 'Access denied', req);
+            sendError(res, 403, 'Access denied', req, corsConfig);
             return;
           }
           const content = await fs.readFile(realPath, 'utf-8');
           const MAX_AST_CONTENT = 512 * 1024;
           if (content.length > MAX_AST_CONTENT) {
-            sendError(res, 413, `File too large for AST parsing (max ${MAX_AST_CONTENT} bytes)`, req);
+            sendError(res, 413, `File too large for AST parsing (max ${MAX_AST_CONTENT} bytes)`, req, corsConfig);
             return;
           }
           const astRoot = await sharedTreeSitterAdapter.parseToAst(filePath, content);
           if (!astRoot) {
-            sendError(res, 500, `AST parsing failed: parseToAst returned null for ${filePath}`, req);
+            sendError(res, 500, `AST parsing failed: parseToAst returned null for ${filePath}`, req, corsConfig);
             return;
           }
-          sendJson(res, 200, astRoot, req);
+          sendJson(res, 200, astRoot, req, corsConfig);
         } catch (e) {
           log.error('ast route failed', e);
-          sendError(res, 500, `AST parsing failed: ${e instanceof Error ? e.message : String(e)}`, req);
+          sendError(res, 500, `AST parsing failed: ${e instanceof Error ? e.message : String(e)}`, req, corsConfig);
         }
       },
     });
   }, 'codegraph: ast route');
+}
 
-  // POST /api/v1/codegraph/tree-sitter — FR-20 Tree-sitter 多语言解析
+function registerTreeSitterRoute(rc: RouteContext, sharedTreeSitterAdapter: TreeSitterAdapter): void {
+  const { deps, corsConfig, rateLimiter } = rc;
+  const { ctx, config } = deps;
+  const routePath = '/api/v1/codegraph/tree-sitter';
+
   ctx.effect(() => {
     return ctx.webServer.register({
       kind: 'exact',
-      path: '/api/v1/codegraph/tree-sitter',
+      path: routePath,
       handler: async (req: IncomingMessage, res: ServerResponse) => {
-        if (handleCorsPreflight(req, res)) return;
-        if (!requireMethod(req, res, 'POST')) return;
-        logRequest(req, '/api/v1/codegraph/tree-sitter');
-        if (!checkRate(req, res, '/api/v1/codegraph/tree-sitter')) return;
+        if (handleCorsPreflight(req, res, corsConfig)) return;
+        if (!requireMethod(req, res, 'POST', corsConfig)) return;
+        logRequest(req, routePath);
+        if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
         try {
           const body = await readBody(req, config.maxBodyBytes);
           const parsed = parseJsonBody(body);
           const filePath = extractStringField(parsed, 'filePath');
           const content = extractStringField(parsed, 'content');
           if (!filePath || !content) {
-            sendError(res, 400, 'filePath and content are required', req);
+            sendError(res, 400, 'filePath and content are required', req, corsConfig);
             return;
           }
           if (filePath.includes('..') || filePath.length > 512) {
-            sendError(res, 400, 'Invalid filePath', req);
+            sendError(res, 400, 'Invalid filePath', req, corsConfig);
             return;
           }
           const MAX_TREE_SITTER_CONTENT = 512 * 1024;
           if (content.length > MAX_TREE_SITTER_CONTENT) {
-            sendError(res, 413, `Content too large for tree-sitter parsing (max ${MAX_TREE_SITTER_CONTENT} bytes, got ${content.length})`, req);
+            sendError(res, 413, `Content too large for tree-sitter parsing (max ${MAX_TREE_SITTER_CONTENT} bytes, got ${content.length})`, req, corsConfig);
             return;
           }
           const result = await sharedTreeSitterAdapter.parseFile(filePath, content);
-          sendJson(res, 200, result, req);
+          sendJson(res, 200, result, req, corsConfig);
         } catch (e) {
           log.error('tree-sitter route failed', e);
-          sendError(res, 500, 'Internal server error', req);
+          sendError(res, 500, 'Internal server error', req, corsConfig);
         }
       },
     });
   }, 'codegraph: tree-sitter route');
+}
+
+export function registerRoutes(deps: RouteDeps): void {
+  const { ctx, config } = deps;
+  const invokeUpstream = createInvokeUpstream(ctx, config);
+  const corsConfig: CorsConfig = { origins: config.allowedOrigins };
+  const rateLimiter = createRateLimiter();
+  const sharedTreeSitterAdapter = new TreeSitterAdapter();
+
+  const rc: RouteContext = { deps, corsConfig, rateLimiter, invokeUpstream };
+
+  registerStatusRoute(rc);
+  registerHealthRoute(rc);
+  registerWorkspaceRoute(rc);
+  registerDataRoute(rc);
+  registerScanRoute(rc);
+  registerInitRoute(rc);
+  registerWatchRoute(rc);
+  registerDependenciesRoute(rc);
+  registerDiffRoute(rc);
+  registerAstRoute(rc, sharedTreeSitterAdapter);
+  registerTreeSitterRoute(rc, sharedTreeSitterAdapter);
 
   ctx.effect(() => () => rateLimiter.reset(), 'codegraph: rate limiter cleanup');
   ctx.effect(() => () => sharedTreeSitterAdapter.destroy(), 'codegraph: tree-sitter adapter cleanup');

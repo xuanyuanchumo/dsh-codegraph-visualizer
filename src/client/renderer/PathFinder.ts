@@ -1,12 +1,18 @@
 import type { Core } from 'cytoscape';
 import { NodeId } from '../../types/index.ts';
-import { PATH_FINDER } from '../../shared/constants.ts';
 
 export interface PathResult {
   source: NodeId;
   target: NodeId;
   path: NodeId[];
   length: number;
+}
+
+const BIDIRECTIONAL_BFS_LIMIT = 50000;
+
+interface AdjacencyMaps {
+  forward: Map<string, string[]>;
+  backward: Map<string, string[]>;
 }
 
 export class PathFinder {
@@ -21,20 +27,73 @@ export class PathFinder {
     const targetNode = this.cy.getElementById(targetId);
     if (sourceNode.empty() || targetNode.empty()) return null;
 
+    if (sourceId === targetId) {
+      return { source: sourceId, target: targetId, path: [sourceId], length: 0 };
+    }
+
     const nodeCount = this.cy.nodes().length;
-    if (nodeCount > PATH_FINDER.MAX_NODES_FOR_DIJKSTRA) return null;
+    if (nodeCount > BIDIRECTIONAL_BFS_LIMIT) return null;
 
-    const dijkstra = this.cy.elements().dijkstra({ root: sourceNode });
-    const pathToTarget = dijkstra.pathTo(targetNode);
+    const adjacency = this.buildAdjacencyMaps();
+    return this.bidirectionalBFS(sourceId, targetId, adjacency);
+  }
 
-    if (pathToTarget.length === 0) return null;
+  private buildAdjacencyMaps(): AdjacencyMaps {
+    const forward = new Map<string, string[]>();
+    const backward = new Map<string, string[]>();
 
-    const pathIds: NodeId[] = [];
-    pathToTarget.forEach((el) => {
-      if (el.isNode()) pathIds.push(NodeId(el.id()));
+    this.cy.edges().forEach((edge) => {
+      const s = edge.source().id();
+      const t = edge.target().id();
+
+      let fwdList = forward.get(s);
+      if (!fwdList) { fwdList = []; forward.set(s, fwdList); }
+      fwdList.push(t);
+
+      let bwdList = backward.get(t);
+      if (!bwdList) { bwdList = []; backward.set(t, bwdList); }
+      bwdList.push(s);
     });
 
-    if (pathIds.length === 0) return null;
+    return { forward, backward };
+  }
+
+  private bidirectionalBFS(sourceId: NodeId, targetId: NodeId, adjacency: AdjacencyMaps): PathResult | null {
+    const forwardVisited = new Map<string, string | null>();
+    const backwardVisited = new Map<string, string | null>();
+    const forwardQueue: string[] = [sourceId];
+    const backwardQueue: string[] = [targetId];
+    forwardVisited.set(sourceId, null);
+    backwardVisited.set(targetId, null);
+
+    let forwardHead = 0;
+    let backwardHead = 0;
+    let meetingPoint: string | null = null;
+
+    while (forwardHead < forwardQueue.length && backwardHead < backwardQueue.length) {
+      const fwdResult = this.bfsStep(forwardQueue, forwardHead, forwardVisited, backwardVisited, adjacency.forward);
+      forwardHead = fwdResult.newHead;
+      if (fwdResult.meetingNode) {
+        meetingPoint = fwdResult.meetingNode;
+        break;
+      }
+
+      const bwdResult = this.bfsStep(backwardQueue, backwardHead, backwardVisited, forwardVisited, adjacency.backward);
+      backwardHead = bwdResult.newHead;
+      if (bwdResult.meetingNode) {
+        meetingPoint = bwdResult.meetingNode;
+        break;
+      }
+    }
+
+    if (!meetingPoint) return null;
+
+    const forwardPath = this.reconstructPath(forwardVisited, meetingPoint, sourceId);
+    const backwardPath = this.reconstructPath(backwardVisited, meetingPoint, targetId);
+    backwardPath.reverse();
+    const fullPath = [...forwardPath, ...backwardPath.slice(1)];
+
+    const pathIds: NodeId[] = fullPath.map((id) => NodeId(id));
 
     return {
       source: sourceId,
@@ -42,6 +101,48 @@ export class PathFinder {
       path: pathIds,
       length: pathIds.length - 1,
     };
+  }
+
+  private bfsStep(
+    queue: string[],
+    head: number,
+    visited: Map<string, string | null>,
+    otherVisited: Map<string, string | null>,
+    adjacency: Map<string, string[]>,
+  ): { newHead: number; meetingNode: string | null } {
+    const currentId = queue[head];
+    head++;
+
+    if (!currentId) return { newHead: head, meetingNode: null };
+
+    const neighbors = adjacency.get(currentId) ?? [];
+    let meetingNode: string | null = null;
+
+    for (const neighborId of neighbors) {
+      if (!visited.has(neighborId)) {
+        visited.set(neighborId, currentId);
+        queue.push(neighborId);
+        if (otherVisited.has(neighborId)) {
+          meetingNode = neighborId;
+        }
+      }
+    }
+
+    return { newHead: head, meetingNode };
+  }
+
+  private reconstructPath(visited: Map<string, string | null>, meetingPoint: string, endpoint: string): string[] {
+    const path: string[] = [];
+    let current: string | null = meetingPoint;
+    while (current !== null) {
+      path.push(current);
+      current = visited.get(current) ?? null;
+    }
+    if (path[path.length - 1] !== endpoint) {
+      path.push(endpoint);
+    }
+    path.reverse();
+    return path;
   }
 
   highlightPath(path: NodeId[] | null): void {
