@@ -90,6 +90,12 @@
   --cg-role-leaf: #d97706;
   --cg-role-hub: #dc2626;
 
+  /* Heatmap gradient colors — light theme */
+  --cg-heatmap-stable: #10b981;
+  --cg-heatmap-unstable: #ef4444;
+  --cg-heatmap-low: #3b82f6;
+  --cg-heatmap-high: #ef4444;
+
   /* Typography — match DSH's actual font stack including CJK fonts */
   --cg-font-sans: var(--dsw-font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif);
   --cg-font-mono: var(--dsw-font-mono, "JetBrains Mono", "Fira Code", Consolas, "Microsoft YaHei", monospace);
@@ -200,6 +206,12 @@ body[data-ds-dark-theme] {
   --cg-role-orphan: #6b7280;
   --cg-role-leaf: #f59e0b;
   --cg-role-hub: #ef4444;
+
+  /* Heatmap gradient colors — dark theme */
+  --cg-heatmap-stable: #10b981;
+  --cg-heatmap-unstable: #ef4444;
+  --cg-heatmap-low: #60a5fa;
+  --cg-heatmap-high: #ef4444;
 
   --cg-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
   --cg-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);

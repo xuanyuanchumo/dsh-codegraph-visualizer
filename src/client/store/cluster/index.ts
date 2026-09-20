@@ -13,10 +13,11 @@ export function computeClusteredGraph(
   clusterLevel: string,
   expandedNodeIds: Set<string>,
   initialDepth: number = 0,
+  viewportWidth?: number,
 ): ClusterResult {
   const strategy = strategyRegistry.get(clusterLevel);
   if (!strategy) throw new Error(`Unknown cluster level: ${clusterLevel}`);
-  return strategy.compute(rawNodes, rawEdges, expandedNodeIds, initialDepth);
+  return strategy.compute(rawNodes, rawEdges, expandedNodeIds, initialDepth, viewportWidth);
 }
 
 export function registerClusterStrategy(level: string, strategy: ClusterStrategy): void {

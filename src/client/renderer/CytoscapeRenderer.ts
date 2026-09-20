@@ -3,7 +3,7 @@ import dagre from 'cytoscape-dagre';
 import fcose from 'cytoscape-fcose';
 import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
-import type { IRenderer, LayoutType, ThemeType } from './IRenderer.ts';
+import type { IRenderer, LayoutType, ThemeType, HeatmapMode } from './IRenderer.ts';
 import type { CycleInfo } from './HighlightController.ts';
 import { LayoutController } from './LayoutController.ts';
 import { HighlightController } from './HighlightController.ts';
@@ -284,6 +284,14 @@ export class CytoscapeRenderer implements IRenderer {
   updateTheme(theme: ThemeType): void {
     this.options.theme = theme;
     this.styleCtrl?.updateTheme(theme);
+  }
+
+  setHeatmapMode(mode: HeatmapMode): void {
+    this.styleCtrl?.setHeatmapMode(mode);
+  }
+
+  getHeatmapMode(): HeatmapMode {
+    return this.styleCtrl?.getHeatmapMode() ?? 'none';
   }
 
   destroy(): void {

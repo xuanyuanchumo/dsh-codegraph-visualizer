@@ -344,3 +344,48 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+/* Heatmap mode selector bar */
+.cg-heatmap-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: var(--cg-surface);
+  border-bottom: 1px solid var(--cg-border);
+  font-size: 11px;
+  z-index: 5;
+}
+
+.cg-heatmap-label {
+  color: var(--cg-text-secondary);
+  font-weight: 500;
+  margin-right: 2px;
+}
+
+.cg-heatmap-btn {
+  padding: 2px 8px;
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-xs);
+  background: transparent;
+  color: var(--cg-text-secondary);
+  cursor: pointer;
+  font-size: 11px;
+  transition: background var(--cg-transition), color var(--cg-transition), border-color var(--cg-transition);
+}
+
+.cg-heatmap-btn:hover {
+  background: var(--cg-surface-hover);
+  color: var(--cg-text);
+}
+
+.cg-heatmap-btn.active {
+  background: var(--cg-accent-soft);
+  border-color: var(--cg-accent);
+  color: var(--cg-accent);
+  font-weight: 600;
+}
+
+.cg-heatmap-btn:focus-visible {
+  outline: 2px solid var(--cg-accent);
+  outline-offset: 1px;
+}

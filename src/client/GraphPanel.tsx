@@ -89,6 +89,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     pathResult, focusDepth, ruleViolations,
     viewMode, selectedFunction, currentLayer, diagramData,
     fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes,
+    heatmapMode,
   } = useGraphStore(useShallow((s) => ({
     nodes: s.nodes, edges: s.edges, rawNodes: s.rawNodes, rawEdges: s.rawEdges,
     layout: s.layout, theme: s.theme,
@@ -105,6 +106,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     currentLayer: s.currentLayer, diagramData: s.diagramData,
     fanInThreshold: s.fanInThreshold, fanOutThreshold: s.fanOutThreshold,
     visibleNodeTypes: s.visibleNodeTypes, visibleEdgeTypes: s.visibleEdgeTypes,
+    heatmapMode: s.heatmapMode,
   })));
 
   const setLayout = useGraphStore((s) => s.setLayout);
@@ -128,6 +130,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const collapseAll = useGraphStore((s) => s.collapseAll);
   const setPathResult = useGraphStore((s) => s.setPathResult);
   const setFocusDepth = useGraphStore((s) => s.setFocusDepth);
+  const setHeatmapMode = useGraphStore((s) => s.setHeatmapMode);
   const assembleMicro = useGraphStore((s) => s.assembleMicro);
 
   const panelHeight = useGraphStore((s) => s.panelHeight);
@@ -237,6 +240,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut, onEdgeTap: handleEdgeTap, onEdgeHover: handleEdgeHover, onEdgeHoverOut: handleEdgeHoverOut, onNodeContextTap: (nodeId, pos) => setContextMenu({ nodeId, position: pos }) },
     showCallChainRef,
     fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes,
+    heatmapMode,
   );
 
   useEffect(() => {
@@ -563,6 +567,22 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         <PathBar onFindPath={handleFindPath} onClearPath={handleClearPath}
           pathResult={pathResult} pathLength={pathResult ? pathResult.length - 1 : null}
           onClose={() => panel.setShowPathFind(false)} />
+      )}
+
+      {!isCollapsed && !isMicroView && (
+        <div className="cg-heatmap-bar" role="group" aria-label="Heatmap mode">
+          <span className="cg-heatmap-label">Heatmap:</span>
+          {(['none', 'instability', 'lines', 'complexity'] as const).map((m) => (
+            <button
+              key={m}
+              className={`cg-heatmap-btn ${heatmapMode === m ? 'active' : ''}`}
+              onClick={() => setHeatmapMode(m)}
+              aria-pressed={heatmapMode === m}
+            >
+              {m === 'none' ? 'Off' : m === 'instability' ? 'Instability' : m === 'lines' ? 'Lines' : 'Complexity'}
+            </button>
+          ))}
+        </div>
       )}
 
       {focusNodeId && !isCollapsed && (

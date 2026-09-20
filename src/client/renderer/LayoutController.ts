@@ -268,14 +268,14 @@ export class LayoutController {
         return {
           name: 'cose', fit: true, animate: false,
           nodeRepulse: sp.nodeRepulse, idealEdgeLength: sp.idealEdgeLength,
-          edgeElasticity: 0.05, gravity: 0.02, numIter: 2500,
+          edgeElasticity: 0.05, gravity: 0.02, numIter: LAYOUT_CONST.COSE_NUM_ITER,
           randomize: true, tile: true, padding: sp.padding, avoidOverlap: true,
         } as LayoutOptions;
       case 'fcose':
         return {
           name: 'fcose', fit: true, animate: false,
           nodeRepulse: sp.nodeRepulse, idealEdgeLength: sp.idealEdgeLength,
-          edgeElasticity: 0.05, gravity: 0.02, numIter: 2500,
+          edgeElasticity: 0.05, gravity: 0.02, numIter: LAYOUT_CONST.COSE_NUM_ITER,
           randomize: true, tile: true, padding: sp.padding, avoidOverlap: true,
           quality: 'default', samplingType: true, nodeSeparation: sp.minNodeSpacing,
         } as LayoutOptions;

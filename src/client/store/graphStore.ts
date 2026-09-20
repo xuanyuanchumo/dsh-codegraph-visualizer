@@ -10,6 +10,7 @@ import { invalidateCssVarCache } from '../renderer/styles/ThemeStylesheet.ts';
 import { computeViewModeTransition } from './viewModeTransition.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { type LayoutType, type ThemeType, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
+import type { HeatmapMode } from '../renderer/IRenderer.ts';
 import { POLLING } from '../../shared/constants.ts';
 
 const log = scoped('store');
@@ -162,7 +163,7 @@ function applyClusterUpdate(
     set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: cached.nodes, edges: cached.edges });
     return;
   }
-  const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', newExpanded, clusterDepth);
+  const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', newExpanded, clusterDepth, useGraphStore.getState().panelWidth ?? undefined);
   clusterCache.set(dataHash, 'progressive', expandedKey, result);
   set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: result.nodes, edges: result.edges });
 }
@@ -219,6 +220,7 @@ interface GraphState {
   fanOutThreshold: number;
   visibleNodeTypes: Set<GraphNode['type']>;
   visibleEdgeTypes: Set<GraphEdge['type']>;
+  heatmapMode: HeatmapMode;
 
   healthScore: HealthScore | null;
   rules: RuleDefinition[];
@@ -261,6 +263,7 @@ interface GraphState {
   setFanOutThreshold: (threshold: number) => void;
   setVisibleNodeTypes: (types: Set<GraphNode['type']>) => void;
   setVisibleEdgeTypes: (types: Set<GraphEdge['type']>) => void;
+  setHeatmapMode: (mode: HeatmapMode) => void;
   assembleMultiFunction: (entryNodeId: string) => Promise<void>;
   setHealthScore: (score: HealthScore | null) => void;
   setRules: (rules: RuleDefinition[]) => void;
@@ -315,6 +318,7 @@ export const useGraphStore = create<GraphState>()(
       fanOutThreshold: 0,
       visibleNodeTypes: new Set<GraphNode['type']>(),
       visibleEdgeTypes: new Set<GraphEdge['type']>(),
+      heatmapMode: 'none' as HeatmapMode,
       healthScore: null,
       rules: [],
       ruleViolations: [],
@@ -359,7 +363,7 @@ export const useGraphStore = create<GraphState>()(
           });
           return;
         }
-        const result = computeClusteredGraph(displayNodes, displayEdges, 'progressive', expandedNodeIds, clusterDepth);
+        const result = computeClusteredGraph(displayNodes, displayEdges, 'progressive', expandedNodeIds, clusterDepth, useGraphStore.getState().panelWidth ?? undefined);
         set({
           rawNodes: sanitized.nodes, rawEdges: sanitized.edges,
           nodes: result.nodes, edges: result.edges,
@@ -429,7 +433,7 @@ export const useGraphStore = create<GraphState>()(
           set({ clusterDepth, nodes: cached.nodes, edges: cached.edges });
           return;
         }
-        const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', expandedNodeIds, clusterDepth);
+        const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', expandedNodeIds, clusterDepth, useGraphStore.getState().panelWidth ?? undefined);
         clusterCache.set(dataHash, 'progressive', expandedKey, result);
         set({ clusterDepth, nodes: result.nodes, edges: result.edges });
       },
@@ -497,6 +501,7 @@ export const useGraphStore = create<GraphState>()(
       setFanOutThreshold: (threshold) => set({ fanOutThreshold: threshold }),
       setVisibleNodeTypes: (types) => set({ visibleNodeTypes: types }),
       setVisibleEdgeTypes: (types) => set({ visibleEdgeTypes: types }),
+      setHeatmapMode: (mode) => set({ heatmapMode: mode }),
       assembleMultiFunction: async (entryNodeId) => {
         const { rawNodes, rawEdges, callChainDepth, clusterDepth, expandedNodeIds } = useGraphStore.getState();
         const astFetcher = async (filePath: string) => {
@@ -519,7 +524,7 @@ export const useGraphStore = create<GraphState>()(
             { depth: callChainDepth, maxFunctions: 20 },
           );
           if (result && result.diagram.nodes.length > 0) {
-            const clustered = computeClusteredGraph(result.diagram.nodes, result.diagram.edges, 'progressive', expandedNodeIds, clusterDepth);
+            const clustered = computeClusteredGraph(result.diagram.nodes, result.diagram.edges, 'progressive', expandedNodeIds, clusterDepth, useGraphStore.getState().panelWidth ?? undefined);
             set({
               diagramData: null,
               nodes: clustered.nodes,

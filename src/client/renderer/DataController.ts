@@ -656,8 +656,11 @@ export class DataController {
         const totalConnections = inDegree + outDegree;
         if (totalConnections > 0) {
           node.data('weight', Math.min(totalConnections, 10));
+          const instability = outDegree / totalConnections;
+          node.data('instability', instability);
         } else {
           node.removeData('weight');
+          node.removeData('instability');
         }
 
         if (inDegree === 0 && outDegree === 0) {

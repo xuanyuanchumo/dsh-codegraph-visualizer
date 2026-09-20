@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { CytoscapeRenderer } from '../renderer/CytoscapeRenderer.ts';
-import type { IRenderer, LayoutType, ThemeType } from '../renderer/IRenderer.ts';
+import type { IRenderer, LayoutType, ThemeType, HeatmapMode } from '../renderer/IRenderer.ts';
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { NodeId } from '../../types/index.ts';
 import type { ClusterNode, ClusterEdge } from '../store/cluster/index.ts';
 import { scoped } from '../../shared/Logger.ts';
+import { RENDERER } from '../../shared/constants.ts';
 
 type FilterType = GraphNode['type'] | 'all';
 
@@ -54,6 +55,7 @@ export function useGraphRenderer(
   fanOutThreshold: number,
   visibleNodeTypes: Set<GraphNode['type']>,
   visibleEdgeTypes: Set<GraphEdge['type']>,
+  heatmapMode: HeatmapMode,
 ): UseGraphRendererResult {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<IRenderer | null>(null);
@@ -132,8 +134,8 @@ export function useGraphRenderer(
     const currentCount = nodes.length;
     const prevCount = prevNodeCountRef.current;
     const isNewDataSet = prevCount === 0 && currentCount > 0;
-    const isIncremental = !isNewDataSet && currentCount > prevCount && currentCount - prevCount < 50;
-    const shouldUseWorker = currentCount > 500 && r.isWorkerLayoutAvailable() && !isWorkerInProgressRef.current;
+    const isIncremental = !isNewDataSet && currentCount > prevCount && currentCount - prevCount < RENDERER.INCREMENTAL_LAYOUT_THRESHOLD;
+    const shouldUseWorker = currentCount > RENDERER.WORKER_NODE_THRESHOLD && r.isWorkerLayoutAvailable() && !isWorkerInProgressRef.current;
 
     const timer = setTimeout(async () => {
       if (shouldUseWorker && !isNewDataSet) {
@@ -164,7 +166,7 @@ export function useGraphRenderer(
       }
       prevNodeCountRef.current = currentCount;
       prevNodeIdsRef.current = new Set(nodes.map((n) => n.id));
-    }, isIncremental ? 50 : 150);
+    }, isIncremental ? RENDERER.INCREMENTAL_LAYOUT_DELAY_MS : RENDERER.FULL_LAYOUT_DELAY_MS);
     return () => clearTimeout(timer);
   }, [layout, clusterDepth, nodes.length, edges.length]);
 
@@ -241,6 +243,10 @@ export function useGraphRenderer(
     if (focusNodeId) { r.focusNeighborhood(NodeId(focusNodeId)); }
     else { r.focusNeighborhood(null); }
   }, [focusNodeId]);
+
+  useEffect(() => {
+    rendererRef.current?.setHeatmapMode(heatmapMode);
+  }, [heatmapMode]);
 
   useEffect(() => {
     const r = rendererRef.current;

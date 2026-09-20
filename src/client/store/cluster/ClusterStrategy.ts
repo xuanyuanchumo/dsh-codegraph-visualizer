@@ -7,5 +7,6 @@ export interface ClusterStrategy {
     rawEdges: GraphEdge[],
     expandedNodeIds: Set<string>,
     initialDepth?: number,
+    viewportWidth?: number,
   ): ClusterResult;
 }

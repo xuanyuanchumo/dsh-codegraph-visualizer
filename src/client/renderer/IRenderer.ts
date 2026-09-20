@@ -5,6 +5,8 @@ import type { LayoutType, ThemeType } from '../../shared/viewModeUtils.ts';
 import type { CycleInfo } from './HighlightController.ts';
 export type { LayoutType, ThemeType } from '../../shared/viewModeUtils.ts';
 
+export type HeatmapMode = 'none' | 'instability' | 'lines' | 'complexity';
+
 export interface RendererCallbacks {
   onNodeTap?(nodeId: string): void;
   onEdgeTap?(edgeId: string, renderedPosition: { x: number; y: number }): void;
@@ -70,6 +72,8 @@ export interface IRenderer {
   getEdgeData(edgeId: string): GraphEdge | null;
   resize(): void;
   updateTheme(theme: ThemeType): void;
+  setHeatmapMode(mode: HeatmapMode): void;
+  getHeatmapMode(): HeatmapMode;
   destroy(): void;
 
   findPath(sourceId: NodeId, targetId: NodeId): PathResult | null;

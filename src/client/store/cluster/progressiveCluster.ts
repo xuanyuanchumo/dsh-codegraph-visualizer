@@ -3,7 +3,7 @@ import type { GraphNode, GraphEdge } from '../../../types/index.ts';
 import type { ClusterNode, ClusterResult } from './types.ts';
 import { aggregateEdges } from './types.ts';
 import { detectCommunities } from './communityDetection.ts';
-import { CLUSTER } from '../../../shared/constants.ts';
+import { CLUSTER, getDynamicMaxVisibleNodes, getAutoClusterDepth } from '../../../shared/constants.ts';
 import { getTopLevelDir } from '../../../shared/pathUtils.ts';
 
 const MAX_VISIBLE_NODES = CLUSTER.MAX_VISIBLE_NODES;
@@ -182,8 +182,17 @@ export function computeProgressiveClusters(
   rawEdges: GraphEdge[],
   expandedNodeIds: Set<string>,
   initialDepth: number = 0,
+  viewportWidth?: number,
 ): ClusterResult {
   if (rawNodes.length === 0) return { nodes: [], edges: [] };
+
+  const maxVisibleNodes = viewportWidth != null
+    ? getDynamicMaxVisibleNodes(viewportWidth)
+    : MAX_VISIBLE_NODES;
+
+  const effectiveDepth = viewportWidth != null
+    ? Math.max(initialDepth, getAutoClusterDepth(rawNodes.length, maxVisibleNodes))
+    : initialDepth;
 
   const { parentToChildren, filePathToNodes } = buildParentIndex(rawNodes);
 
@@ -196,7 +205,7 @@ export function computeProgressiveClusters(
 
   const { nodeToDir: _nodeToDir, dirToNodes } = buildDirMapping(rawNodes);
 
-  applyInitialDepth(initialDepth, dirToNodes, rawNodes, expandedDirs, expandedFileClusters);
+  applyInitialDepth(effectiveDepth, dirToNodes, rawNodes, expandedDirs, expandedFileClusters);
 
 
   const dirEdgeCache = new Map<string, GraphEdge[]>();
@@ -334,8 +343,8 @@ export function computeProgressiveClusters(
     }
   }
 
-  if (visibleNodes.length > MAX_VISIBLE_NODES) {
-    return enforceNodeLimit(visibleNodes, nodeIdToVisibleId, rawEdges);
+  if (visibleNodes.length > maxVisibleNodes) {
+    return enforceNodeLimit(visibleNodes, nodeIdToVisibleId, rawEdges, maxVisibleNodes);
   }
 
   const visibleEdges = aggregateEdges(rawEdges, nodeIdToVisibleId, 'cluster__');
@@ -347,6 +356,7 @@ export function enforceNodeLimit(
   visibleNodes: (GraphNode | ClusterNode)[],
   nodeIdToVisibleId: Map<string, string>,
   rawEdges: GraphEdge[],
+  maxVisibleNodes: number = MAX_VISIBLE_NODES,
 ): ClusterResult {
   const clusterNodes = visibleNodes.filter(
     (n): n is ClusterNode => 'isCluster' in n && n.isCluster === true,
@@ -357,7 +367,7 @@ export function enforceNodeLimit(
 
   const nodesToKeep = new Set<string>();
   const collapsedChildIds = new Set<string>();
-  const overLimit = visibleNodes.length - MAX_VISIBLE_NODES;
+  const overLimit = visibleNodes.length - maxVisibleNodes;
 
   const sortedClusters = [...clusterNodes].sort((a, b) => a.childCount - b.childCount);
   let collapsed = 0;

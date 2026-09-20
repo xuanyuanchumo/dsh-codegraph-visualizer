@@ -23,6 +23,32 @@ export const CLUSTER = {
   MAX_NODES_FOR_LABEL_PROP: 5000,
 } as const;
 
+export const DYNAMIC_CLUSTER = {
+  SMALL_SCREEN_WIDTH: 1200,
+  LARGE_SCREEN_WIDTH: 1920,
+  MAX_VISIBLE_NODES_SMALL: 1500,
+  MAX_VISIBLE_NODES_MEDIUM: 2000,
+  MAX_VISIBLE_NODES_LARGE: 3000,
+  AUTO_DEPTH_THRESHOLD_1: 3000,
+  AUTO_DEPTH_THRESHOLD_2: 10000,
+} as const;
+
+export function getDynamicMaxVisibleNodes(viewportWidth: number): number {
+  if (viewportWidth < DYNAMIC_CLUSTER.SMALL_SCREEN_WIDTH) {
+    return DYNAMIC_CLUSTER.MAX_VISIBLE_NODES_SMALL;
+  }
+  if (viewportWidth >= DYNAMIC_CLUSTER.LARGE_SCREEN_WIDTH) {
+    return DYNAMIC_CLUSTER.MAX_VISIBLE_NODES_LARGE;
+  }
+  return DYNAMIC_CLUSTER.MAX_VISIBLE_NODES_MEDIUM;
+}
+
+export function getAutoClusterDepth(nodeCount: number, maxVisibleNodes: number): number {
+  if (nodeCount > maxVisibleNodes * 5) return 2;
+  if (nodeCount > maxVisibleNodes * 1.5) return 1;
+  return 0;
+}
+
 export const PATH_FINDER = {
   MAX_NODES_FOR_DIJKSTRA: 10000,
 } as const;
@@ -94,6 +120,34 @@ export const VIRTUAL_VIEWPORT = {
 export const DATA_CONTROLLER = {
   BATCH_SIZE: 200,
   SVG_OFFSET: 80,
+} as const;
+
+export const LOD = {
+  MINIMAL_THRESHOLD_SMALL: 0.15,
+  MINIMAL_THRESHOLD_MEDIUM: 0.25,
+  MINIMAL_THRESHOLD_LARGE: 0.35,
+  COMPACT_THRESHOLD_SMALL: 0.4,
+  COMPACT_THRESHOLD_MEDIUM: 0.55,
+  COMPACT_THRESHOLD_LARGE: 0.7,
+  SMALL_NODE_COUNT: 100,
+  MEDIUM_NODE_COUNT: 500,
+  MINIMAL_NODE_SIZE: 8,
+  COMPACT_NODE_SIZE: 16,
+  MINIMAL_EDGE_WIDTH: 0.5,
+  COMPACT_EDGE_WIDTH: 1,
+  COMPACT_FONT_SIZE: 6,
+  TRANSITION_DURATION_MS: 200,
+} as const;
+
+export const HEATMAP = {
+  LINES_LOW: 50,
+  LINES_HIGH: 500,
+  COMPLEXITY_LOW: 5,
+  COMPLEXITY_HIGH: 20,
+  COLOR_STABLE: '#10b981',
+  COLOR_UNSTABLE: '#ef4444',
+  COLOR_LOW: '#3b82f6',
+  COLOR_HIGH: '#ef4444',
 } as const;
 
 export const VIEW_MODE = {

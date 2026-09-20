@@ -1,5 +1,6 @@
 import type { Core } from 'cytoscape';
 import type { NodeId } from '../../types/index.ts';
+import { RENDERER } from '../../shared/constants.ts';
 
 export class ViewportController {
   private cy: Core;
@@ -53,7 +54,7 @@ export class ViewportController {
       });
 
       this.cy.animate({
-        fit: { eles: this.cy.elements().filter((el) => relevant.has(el.id())), padding: 80 },
+        fit: { eles: this.cy.elements().filter((el) => relevant.has(el.id())), padding: RENDERER.FIT_PADDING },
         duration: 400,
       });
     });
@@ -97,7 +98,7 @@ export class ViewportController {
         }
       });
       this.cy.animate({
-        fit: { eles: this.cy.elements().filter((el) => relevant.has(el.id())), padding: 80 },
+        fit: { eles: this.cy.elements().filter((el) => relevant.has(el.id())), padding: RENDERER.FIT_PADDING },
         duration: 400,
       });
     });

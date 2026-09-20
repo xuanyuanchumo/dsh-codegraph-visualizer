@@ -1,6 +1,7 @@
 import type cytoscape from 'cytoscape';
 import type { ThemeType } from '../IRenderer.ts';
 import { buildDiagramStyles, type StyleContext } from './diagramStyles.ts';
+import { LAYOUT, LOD } from '../../../shared/constants.ts';
 
 export interface ThemeColors {
   nodeDefault: string;
@@ -55,6 +56,7 @@ function readCssVarCached(name: string, fallback: string): string {
       '--cg-cluster-hover-border', '--cg-cluster-edge', '--cg-cluster-edge-label-bg',
       '--cg-warning', '--cg-error', '--cg-success', '--cg-accent',
       '--cg-role-entry', '--cg-role-orphan', '--cg-role-leaf', '--cg-role-hub',
+      '--cg-heatmap-stable', '--cg-heatmap-unstable', '--cg-heatmap-low', '--cg-heatmap-high',
     ];
     for (const v of vars) {
       cssVarCache.set(v, style.getPropertyValue(v).trim());
@@ -100,7 +102,7 @@ export function getThemeColors(theme: ThemeType): ThemeColors {
 export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.StylesheetJson {
   const c = getThemeColors(theme);
   const isDark = theme === 'dark';
-  const isLargeGraph = nodeCount > 200;
+  const isLargeGraph = nodeCount > LAYOUT.MEDIUM_NODE_THRESHOLD;
 
   const hoverBorder = readCssVarCached('--cg-hover-border', isDark ? '#818cf8' : '#1a2230');
   const impactD1 = readCssVarCached('--cg-impact-d1', '#f59e0b');
@@ -161,7 +163,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
         'border-width': isLargeGraph ? 1 : 1.5,
         'border-color': c.border,
         'overlay-opacity': 0,
-        ...(isLargeGraph ? {} : { 'transition-property': 'background-color, border-color, border-width', 'transition-duration': 200 }),
+        ...(isLargeGraph ? {} : { 'transition-property': 'background-color, border-color, border-width', 'transition-duration': LOD.TRANSITION_DURATION_MS }),
       },
     },
     {
@@ -595,7 +597,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
         'height': 'mapData(childCount, 1, 3000, 40, 80)',
         'z-index': 5,
         'transition-property': 'background-color, border-color, border-width',
-        'transition-duration': 200,
+        'transition-duration': LOD.TRANSITION_DURATION_MS,
       },
     },
     {
