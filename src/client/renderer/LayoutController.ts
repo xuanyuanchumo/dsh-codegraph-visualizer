@@ -80,6 +80,12 @@ export class LayoutController {
           this.workerLayoutResolve({});
           this.workerLayoutResolve = null;
         }
+        if (this.worker) {
+          this.worker.terminate();
+          this.worker = null;
+          this.workerInitFailed = true;
+          log.warn('layout worker terminated due to timeout');
+        }
       }, RENDERER.LAYOUT_TIMEOUT_MS);
 
       this.workerLayoutResolve = (positions) => {

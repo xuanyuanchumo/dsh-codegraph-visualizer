@@ -5,9 +5,13 @@ import { getThemeColors } from './styles/ThemeStylesheet.ts';
 import type { ThemeType } from './IRenderer.ts';
 import { DATA_CONTROLLER } from '../../shared/constants.ts';
 import { parseSearchQuery, matchSearchQuery } from '../../shared/searchUtils.ts';
+import { scoped } from '../../shared/Logger.ts';
+
+const log = scoped('data-controller');
 
 export class DataController {
   private cy: Core;
+  private destroyed = false;
   private currentNodes: Map<string, GraphNode> = new Map();
   private currentEdges: Map<string, GraphEdge> = new Map();
   private rawNodesMap: Map<string, GraphNode> = new Map();
@@ -239,7 +243,10 @@ export class DataController {
   }
 
   private addEdge(e: GraphEdge): void {
-    if (this.cy.getElementById(e.source).empty() || this.cy.getElementById(e.target).empty()) return;
+    if (this.cy.getElementById(e.source).empty() || this.cy.getElementById(e.target).empty()) {
+      log.warn('edge dropped: missing endpoint', { edgeId: e.id, source: e.source, target: e.target });
+      return;
+    }
     const existing = this.cy.getElementById(e.id);
     if (existing.length > 0) {
       existing.remove();
@@ -657,6 +664,7 @@ export class DataController {
   }
 
   destroy(): void {
+    this.destroyed = true;
     if (this.batchRaf !== null) cancelAnimationFrame(this.batchRaf);
     this.batchRaf = null;
     this.batchQueue = null;

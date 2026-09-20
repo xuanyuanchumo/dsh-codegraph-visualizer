@@ -1,6 +1,9 @@
 import type { Core } from 'cytoscape';
 import { NodeId } from '../../types/index.ts';
 import { HIGHLIGHT } from '../../shared/constants.ts';
+import { scoped } from '../../shared/Logger.ts';
+
+const log = scoped('highlight');
 
 export interface CycleInfo {
   nodes: string[];
@@ -112,6 +115,12 @@ export class HighlightController {
 
   detectCycles(): Set<string> {
     const cycles = new Set<string>();
+
+    const nodeCount = this.cy.nodes().length;
+    if (nodeCount > 10000) {
+      log.warn('cycle detection skipped: graph too large', { nodeCount });
+      return cycles;
+    }
 
     const adjacency = new Map<string, string[]>();
     this.cy.edges().forEach((edge) => {

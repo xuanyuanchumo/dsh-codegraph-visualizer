@@ -165,7 +165,7 @@ export function useGraphRenderer(
       prevNodeIdsRef.current = new Set(nodes.map((n) => n.id));
     }, isIncremental ? 50 : 150);
     return () => clearTimeout(timer);
-  }, [layout, clusterDepth, nodes, edges]);
+  }, [layout, clusterDepth, nodes.length, edges.length]);
 
   useEffect(() => {
     const r = rendererRef.current;

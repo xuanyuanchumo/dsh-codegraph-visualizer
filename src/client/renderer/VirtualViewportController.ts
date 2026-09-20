@@ -32,8 +32,20 @@ export class VirtualViewportController {
     this.cy.off('viewport', this.handleViewportChange);
     this.cy.off('add remove', this.handleStructureChange);
     this.cy.batch(() => {
-      this.cy.nodes().forEach((n) => { n.style('display', 'element'); });
-      this.cy.edges().forEach((e) => { e.style('display', 'element'); });
+      this.cy.nodes().forEach((n) => {
+        if (n.data('typeFiltered') === true || n.data('connectionFiltered') === true) {
+          n.style('display', 'none');
+        } else {
+          n.style('display', 'element');
+        }
+      });
+      this.cy.edges().forEach((e) => {
+        if (e.data('typeFiltered') === true || e.data('connectionFiltered') === true) {
+          e.style('display', 'none');
+        } else {
+          e.style('display', 'element');
+        }
+      });
     });
     this.visibleNodeIds.clear();
     this.spatialIndex.clear();

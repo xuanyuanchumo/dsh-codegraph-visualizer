@@ -93,7 +93,7 @@ function computeDataHash(
     edgeHash = Math.imul(edgeHash, 0x01000193);
   }
 
-  return `${(nodeHash >>> 0).toString(16)}_${(edgeHash >>> 0).toString(16)}`;
+  return `${(nodeHash >>> 0).toString(16)}_${(edgeHash >>> 0).toString(16)}_${nodes.length}_${edges.length}`;
 }
 
 export class DiagramCache {
