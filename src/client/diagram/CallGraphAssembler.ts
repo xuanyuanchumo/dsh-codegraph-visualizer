@@ -109,27 +109,38 @@ export class CallGraphAssembler implements DiagramAssembler {
 
     const recursive = new Set<string>();
     const visited = new Set<string>();
-    const inStack = new Set<string>();
 
-    const dfs = (id: string): void => {
-      visited.add(id);
-      inStack.add(id);
+    for (const startNode of nodes) {
+      if (visited.has(startNode.id)) continue;
 
-      const neighbors = adjacency.get(id) ?? [];
-      for (const target of neighbors) {
-        if (inStack.has(target)) {
-          recursive.add(target);
-          recursive.add(id);
-        } else if (!visited.has(target)) {
-          dfs(target);
+      const stack: Array<{ id: string; neighborIdx: number }> = [];
+      const inStack = new Set<string>();
+
+      stack.push({ id: startNode.id, neighborIdx: 0 });
+      inStack.add(startNode.id);
+      visited.add(startNode.id);
+
+      while (stack.length > 0) {
+        const frame = stack[stack.length - 1]!;
+        const neighbors = adjacency.get(frame.id) ?? [];
+
+        if (frame.neighborIdx < neighbors.length) {
+          const target = neighbors[frame.neighborIdx]!;
+          frame.neighborIdx++;
+
+          if (inStack.has(target)) {
+            recursive.add(target);
+            recursive.add(frame.id);
+          } else if (!visited.has(target)) {
+            visited.add(target);
+            inStack.add(target);
+            stack.push({ id: target, neighborIdx: 0 });
+          }
+        } else {
+          inStack.delete(frame.id);
+          stack.pop();
         }
       }
-
-      inStack.delete(id);
-    };
-
-    for (const n of nodes) {
-      if (!visited.has(n.id)) dfs(n.id);
     }
 
     return recursive;

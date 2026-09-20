@@ -1,24 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { useT } from '../i18n/index.ts';
+import { KEYBOARD_SHORTCUTS, formatShortcutKey } from '../hooks/usePanelKeyboard.ts';
 
 interface KeyboardHelpProps {
   visible: boolean;
   onClose: () => void;
 }
-
-const SHORTCUTS = [
-  { key: '/', descKey: 'shortcut.search' },
-  { key: 'Esc', descKey: 'shortcut.closeAll' },
-  { key: 'Ctrl+C', descKey: 'shortcut.callChain' },
-  { key: 'Ctrl+E', descKey: 'shortcut.impact' },
-  { key: 'Ctrl+H', descKey: 'shortcut.inheritance' },
-  { key: 'Ctrl+M', descKey: 'shortcut.minimap' },
-  { key: 'Ctrl+L', descKey: 'shortcut.layout' },
-  { key: 'Ctrl+I', descKey: 'shortcut.import' },
-  { key: 'Ctrl+Z', descKey: 'shortcut.undo' },
-  { key: 'Ctrl+Y', descKey: 'shortcut.redo' },
-  { key: '?', descKey: 'shortcut.help' },
-];
 
 export function KeyboardHelp({ visible, onClose }: KeyboardHelpProps) {
   const t = useT();
@@ -63,9 +50,9 @@ export function KeyboardHelp({ visible, onClose }: KeyboardHelpProps) {
           <button className="keyboard-help-close" onClick={onClose} aria-label={t('shortcut.close')}>×</button>
         </div>
         <div className="keyboard-help-list">
-          {SHORTCUTS.map((s) => (
+          {KEYBOARD_SHORTCUTS.map((s) => (
             <div key={s.key} className="keyboard-help-item">
-              <kbd className="keyboard-help-key">{s.key}</kbd>
+              <kbd className="keyboard-help-key">{formatShortcutKey(s)}</kbd>
               <span className="keyboard-help-desc">{t(s.descKey)}</span>
             </div>
           ))}

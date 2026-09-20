@@ -184,55 +184,59 @@ export class TreeSitterAdapter {
     const makeId = (node: TreeSitterNode, label: string): string =>
       `${filePath}:${label}:${node.startPosition.row}`;
 
-    const walk = (node: TreeSitterNode, parentId?: string): void => {
-      if (!node) return;
-      const nodeType = node.type;
+    const walk = (rootNode: TreeSitterNode): void => {
+      const stack: Array<{ node: TreeSitterNode; parentId: string | undefined }> = [{ node: rootNode, parentId: undefined }];
+      while (stack.length > 0) {
+        const { node, parentId } = stack.pop()!;
+        if (!node) continue;
+        const nodeType = node.type;
 
-      let graphType: GraphNode['type'] | null = null;
-      if (FUNCTION_NODE_TYPES.has(nodeType)) {
-        graphType = 'function';
-      } else if (CLASS_NODE_TYPES.has(nodeType)) {
-        graphType = 'class';
-      } else if (VARIABLE_NODE_TYPES.has(nodeType)) {
-        graphType = 'variable';
-      } else if (IMPORT_NODE_TYPES.has(nodeType)) {
-        graphType = 'module';
-      }
-
-      let currentParentId: string | undefined = parentId;
-
-      if (graphType) {
-        const label = extractName(node);
-        const id = makeId(node, label);
-
-        if (!visited.has(id)) {
-          visited.add(id);
-          nodes.push({
-            id: NodeId(id),
-            label,
-            type: graphType,
-            filePath,
-            lineNumber: node.startPosition.row + 1,
-            properties: { source: 'tree-sitter', nodeType },
-            ...(parentId ? { parentId: NodeId(parentId) } : {}),
-          });
-
-          if (parentId) {
-            edges.push({
-              id: EdgeId(`tsedge:${parentId}->${id}`),
-              source: NodeId(parentId),
-              target: NodeId(id),
-              type: 'contains',
-              properties: {},
-            });
-          }
+        let graphType: GraphNode['type'] | null = null;
+        if (FUNCTION_NODE_TYPES.has(nodeType)) {
+          graphType = 'function';
+        } else if (CLASS_NODE_TYPES.has(nodeType)) {
+          graphType = 'class';
+        } else if (VARIABLE_NODE_TYPES.has(nodeType)) {
+          graphType = 'variable';
+        } else if (IMPORT_NODE_TYPES.has(nodeType)) {
+          graphType = 'module';
         }
-        currentParentId = id;
-      }
 
-      for (let i = 0; i < (node.childCount || 0); i++) {
-        const child = node.child(i);
-        if (child) walk(child, currentParentId);
+        let currentParentId: string | undefined = parentId;
+
+        if (graphType) {
+          const label = extractName(node);
+          const id = makeId(node, label);
+
+          if (!visited.has(id)) {
+            visited.add(id);
+            nodes.push({
+              id: NodeId(id),
+              label,
+              type: graphType,
+              filePath,
+              lineNumber: node.startPosition.row + 1,
+              properties: { source: 'tree-sitter', nodeType },
+              ...(parentId ? { parentId: NodeId(parentId) } : {}),
+            });
+
+            if (parentId) {
+              edges.push({
+                id: EdgeId(`tsedge:${parentId}->${id}`),
+                source: NodeId(parentId),
+                target: NodeId(id),
+                type: 'contains',
+                properties: {},
+              });
+            }
+          }
+          currentParentId = id;
+        }
+
+        for (let i = (node.childCount || 0) - 1; i >= 0; i--) {
+          const child = node.child(i);
+          if (child) stack.push({ node: child, parentId: currentParentId });
+        }
       }
     };
 
@@ -278,19 +282,35 @@ export class TreeSitterAdapter {
     }
   }
 
-  private convertToAstNode(node: TreeSitterNode): ASTNode {
-    const children: ASTNode[] = [];
-    for (let i = 0; i < (node.childCount || 0); i++) {
-      const child = node.child(i);
-      if (child) children.push(this.convertToAstNode(child));
-    }
-    return {
-      type: node.type,
-      text: node.text,
-      startPosition: { row: node.startPosition.row, column: node.startPosition.column },
-      endPosition: { row: node.endPosition.row, column: node.endPosition.column },
-      children,
+  private convertToAstNode(rootNode: TreeSitterNode): ASTNode {
+    const result: ASTNode = {
+      type: rootNode.type,
+      text: rootNode.text,
+      startPosition: { row: rootNode.startPosition.row, column: rootNode.startPosition.column },
+      endPosition: { row: rootNode.endPosition.row, column: rootNode.endPosition.column },
+      children: [],
     };
+    const stack: Array<{ tsNode: TreeSitterNode; astParent: ASTNode }> = [];
+    for (let i = (rootNode.childCount || 0) - 1; i >= 0; i--) {
+      const child = rootNode.child(i);
+      if (child) stack.push({ tsNode: child, astParent: result });
+    }
+    while (stack.length > 0) {
+      const { tsNode, astParent } = stack.pop()!;
+      const astNode: ASTNode = {
+        type: tsNode.type,
+        text: tsNode.text,
+        startPosition: { row: tsNode.startPosition.row, column: tsNode.startPosition.column },
+        endPosition: { row: tsNode.endPosition.row, column: tsNode.endPosition.column },
+        children: [],
+      };
+      astParent.children.push(astNode);
+      for (let i = (tsNode.childCount || 0) - 1; i >= 0; i--) {
+        const child = tsNode.child(i);
+        if (child) stack.push({ tsNode: child, astParent: astNode });
+      }
+    }
+    return result;
   }
 
   destroy(): void {

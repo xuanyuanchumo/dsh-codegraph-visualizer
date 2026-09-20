@@ -234,14 +234,18 @@ export class SequenceAssembler {
 
   private collectCalls(node: ASTNode, result: ASTNode[]): void {
     if (!node) return;
-    if (isCallExpression(node)) {
-      result.push(node);
-      return;
-    }
-    const children = node.children;
-    if (!children || !Array.isArray(children)) return;
-    for (const child of children) {
-      this.collectCalls(child, result);
+    const stack: ASTNode[] = [node];
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      if (isCallExpression(current)) {
+        result.push(current);
+        continue;
+      }
+      const children = current.children;
+      if (!children || !Array.isArray(children)) continue;
+      for (const child of children) {
+        stack.push(child);
+      }
     }
   }
 
@@ -294,7 +298,7 @@ export class SequenceAssembler {
       target: targetId,
       methodName,
       arguments: args,
-      isAsync: node.type.includes('await') || node.text.includes('await'),
+      isAsync: node.type === 'await_expression' || node.type === 'await',
       isSelfCall: isSelf && !isCreate,
       isReturn: false,
       isCreate,

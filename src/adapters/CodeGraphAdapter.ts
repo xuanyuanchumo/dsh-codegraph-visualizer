@@ -80,8 +80,9 @@ const NOISE_PATH_SEGMENTS = [
 ];
 
 function isNoisePath(filePath: string): boolean {
+  const segments = filePath.split(/[\\/]/);
   for (const seg of NOISE_PATH_SEGMENTS) {
-    if (filePath.includes(seg)) return true;
+    if (segments.includes(seg)) return true;
   }
   return false;
 }

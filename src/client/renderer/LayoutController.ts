@@ -192,14 +192,18 @@ export class LayoutController {
       }
 
       const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+      const newNodeIndexMap = new Map<string, number>();
+      for (let i = 0; i < newNodeIdArray.length; i++) {
+        newNodeIndexMap.set(newNodeIdArray[i]!, i);
+      }
 
       const presetOptions: LayoutOptions = {
         name: 'preset',
         positions: (node: { id: () => string }) => {
           const cached = this.positionCache.get(node.id());
           if (cached) return cached;
-          const idx = newNodeIdArray.indexOf(node.id());
-          if (idx === -1) return { x: cx, y: cy };
+          const idx = newNodeIndexMap.get(node.id());
+          if (idx === undefined) return { x: cx, y: cy };
           const radius = sp.incrementalRadius * Math.sqrt(idx + 1);
           const angle = idx * goldenAngle;
           return {

@@ -87,18 +87,15 @@ export class HealthScorer {
     if (modules.size <= 1) return 100;
 
     let totalInstability = 0;
-    let moduleCount = 0;
     for (const mod of modules) {
       const ce = (efferent.get(mod)?.size ?? 0);
       const ca = (afferent.get(mod)?.size ?? 0);
-      if (ce + ca === 0) continue;
-      const instability = ce / (ce + ca);
+      const instability = ce + ca === 0 ? 0 : ce / (ce + ca);
       totalInstability += instability;
-      moduleCount++;
     }
 
-    if (moduleCount === 0) return 100;
-    const avgInstability = totalInstability / moduleCount;
+    if (modules.size === 0) return 100;
+    const avgInstability = totalInstability / modules.size;
     return Math.round(Math.max(0, 100 - avgInstability * 100));
   }
 

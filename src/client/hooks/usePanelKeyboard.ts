@@ -17,6 +17,36 @@ export interface PanelKeyboardHandlers {
   onRedo?: () => void;
 }
 
+export interface ShortcutDef {
+  key: string;
+  descKey: string;
+  ctrl?: boolean;
+  shift?: boolean;
+  preventDefault?: boolean;
+}
+
+export const KEYBOARD_SHORTCUTS: ShortcutDef[] = [
+  { key: '/', descKey: 'shortcut.search', preventDefault: true },
+  { key: 'Escape', descKey: 'shortcut.closeAll' },
+  { key: 'C', descKey: 'shortcut.callChain', ctrl: true, shift: true },
+  { key: 'E', descKey: 'shortcut.impact', ctrl: true },
+  { key: 'H', descKey: 'shortcut.inheritance', ctrl: true },
+  { key: 'M', descKey: 'shortcut.minimap', ctrl: true },
+  { key: 'L', descKey: 'shortcut.layout', ctrl: true },
+  { key: 'I', descKey: 'shortcut.import', ctrl: true },
+  { key: 'Z', descKey: 'shortcut.undo', ctrl: true, preventDefault: true },
+  { key: 'Y', descKey: 'shortcut.redo', ctrl: true, preventDefault: true },
+  { key: '?', descKey: 'shortcut.help', preventDefault: true },
+];
+
+export function formatShortcutKey(s: ShortcutDef): string {
+  let label = '';
+  if (s.ctrl) label += 'Ctrl+';
+  if (s.shift) label += 'Shift+';
+  label += s.key;
+  return label;
+}
+
 export function usePanelKeyboard(
   layout: LayoutType,
   setLayout: (l: LayoutType) => void,
@@ -29,7 +59,6 @@ export function usePanelKeyboard(
   setLayoutRef.current = setLayout;
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
-
 
   useKeyboardShortcut('/', () => handlersRef.current.onToggleSearch(), { preventDefault: true });
   useKeyboardShortcut('Escape', () => {
@@ -53,3 +82,4 @@ export function usePanelKeyboard(
   useKeyboardShortcut('z', () => handlersRef.current.onUndo?.(), { ctrl: true, preventDefault: true });
   useKeyboardShortcut('y', () => handlersRef.current.onRedo?.(), { ctrl: true, preventDefault: true });
 }
+
