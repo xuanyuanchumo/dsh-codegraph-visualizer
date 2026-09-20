@@ -49,6 +49,26 @@ export function ContextMenu(props: ContextMenuProps) {
     };
   }, [props.onClose]);
 
+  useEffect(() => {
+    if (menuRef.current) {
+      const menu = menuRef.current;
+      const rect = menu.getBoundingClientRect();
+      const viewportW = window.innerWidth;
+      const viewportH = window.innerHeight;
+      if (rect.right > viewportW) {
+        menu.style.left = `${Math.max(0, props.position.x - rect.width)}px`;
+      }
+      if (rect.bottom > viewportH) {
+        menu.style.top = `${Math.max(0, props.position.y - rect.height)}px`;
+      }
+    }
+  }, [props.position.x, props.position.y]);
+
+  useEffect(() => {
+    const firstItem = menuRef.current?.querySelector<HTMLButtonElement>('.cg-context-menu-item:not([disabled])');
+    firstItem?.focus();
+  }, []);
+
   const actions: ContextMenuAction[] = [];
 
   actions.push({

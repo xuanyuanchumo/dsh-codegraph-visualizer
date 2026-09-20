@@ -1,6 +1,7 @@
 import type { Core } from 'cytoscape';
 import { NodeId } from '../../types/index.ts';
 import { HIGHLIGHT } from '../../shared/constants.ts';
+import { buildUndirectedAdjacencyMap } from './AdjacencyMapBuilder.ts';
 
 
 export class HighlightController {
@@ -16,19 +17,8 @@ export class HighlightController {
 
   private getAdjacencyMap(): Map<string, Set<string>> {
     if (this.adjacencyMap) return this.adjacencyMap;
-    const map = new Map<string, Set<string>>();
-    this.cy.edges().forEach((edge) => {
-      const s = edge.source().id();
-      const t = edge.target().id();
-      let neighbors = map.get(s);
-      if (!neighbors) { neighbors = new Set(); map.set(s, neighbors); }
-      neighbors.add(t);
-      neighbors = map.get(t);
-      if (!neighbors) { neighbors = new Set(); map.set(t, neighbors); }
-      neighbors.add(s);
-    });
-    this.adjacencyMap = map;
-    return map;
+    this.adjacencyMap = buildUndirectedAdjacencyMap(this.cy);
+    return this.adjacencyMap;
   }
 
   invalidateCache(): void {

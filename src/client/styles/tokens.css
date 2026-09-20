@@ -25,6 +25,7 @@
   --cg-warning: #f59e0b;
   --cg-error: #ef4444;
   --cg-info: #3b82f6;
+  --cg-cycle-highlight: #e74c3c;
 
   /* Node type semantic colors — light theme */
   --cg-node-default: #263148;
@@ -189,6 +190,7 @@ body[data-ds-dark-theme] {
 
   /* Highlight / analysis colors — dark theme */
   --cg-hover-border: #818cf8;
+  --cg-cycle-highlight: #ff6b6b;
   --cg-impact-d1: #f59e0b;
   --cg-impact-d2: #fbbf24;
   --cg-impact-d3: #fde68a;

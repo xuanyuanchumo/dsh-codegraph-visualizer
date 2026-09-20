@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import type { GraphNode } from '../../types/index.ts';
 import { useT } from '../i18n/index.ts';
 import { useGraphStore } from '../store/graphStore.ts';
@@ -34,7 +34,7 @@ interface NodeDetailProps {
   onAggregateCallChain?: (nodeId: string) => void;
 }
 
-export function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, onSelectFunction, onAggregateCallChain }: NodeDetailProps) {
+export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, onSelectFunction, onAggregateCallChain }: NodeDetailProps) {
   const t = useT();
   const rawNodes = useGraphStore((s) => s.rawNodes);
   const icon = TYPE_ICONS[node.type] ?? '?';
@@ -171,4 +171,4 @@ export function NodeDetail({ node, onClose, isExpanded, connectionCount, onColla
       )}
     </div>
   );
-}
+});

@@ -38,7 +38,7 @@ export function readCssVar(name: string, fallback: string): string {
 
 let cssVarCache: Map<string, string> | null = null;
 
-function readCssVarCached(name: string, fallback: string): string {
+export function readCssVarCached(name: string, fallback: string): string {
   if (typeof window === 'undefined') return fallback;
   if (!cssVarCache) {
     const style = getComputedStyle(document.body);
@@ -50,13 +50,16 @@ function readCssVarCached(name: string, fallback: string): string {
       '--cg-edge-default', '--cg-edge-call', '--cg-edge-import', '--cg-edge-extend',
       '--cg-edge-implement', '--cg-edge-dependency', '--cg-edge-contains',
       '--cg-edge-dep-prod', '--cg-edge-dep-dev', '--cg-edge-dep-peer', '--cg-edge-dep-optional',
-      '--cg-text', '--cg-border', '--cg-hover-border', '--cg-impact-d1', '--cg-impact-d2',
+      '--cg-text', '--cg-text-secondary', '--cg-text-tertiary', '--cg-border', '--cg-border-strong',
+      '--cg-hover-border', '--cg-impact-d1', '--cg-impact-d2',
       '--cg-impact-d3', '--cg-inheritance-extend', '--cg-inheritance-implement',
       '--cg-cluster-bg', '--cg-cluster-border', '--cg-cluster-hover-bg',
       '--cg-cluster-hover-border', '--cg-cluster-edge', '--cg-cluster-edge-label-bg',
-      '--cg-warning', '--cg-error', '--cg-success', '--cg-accent',
+      '--cg-warning', '--cg-error', '--cg-success', '--cg-accent', '--cg-accent-hover',
+      '--cg-accent-soft', '--cg-surface', '--cg-surface-hover', '--cg-surface-active',
       '--cg-role-entry', '--cg-role-orphan', '--cg-role-leaf', '--cg-role-hub',
       '--cg-heatmap-stable', '--cg-heatmap-unstable', '--cg-heatmap-low', '--cg-heatmap-high',
+      '--cg-cycle-highlight',
     ];
     for (const v of vars) {
       cssVarCache.set(v, style.getPropertyValue(v).trim());

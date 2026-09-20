@@ -1,5 +1,6 @@
 import type { Core } from 'cytoscape';
 import { NodeId } from '../../types/index.ts';
+import { buildDirectedAdjacencyMaps, type DirectedAdjacencyMaps } from './AdjacencyMapBuilder.ts';
 
 export interface PathResult {
   source: NodeId;
@@ -10,10 +11,6 @@ export interface PathResult {
 
 const BIDIRECTIONAL_BFS_LIMIT = 50000;
 
-interface AdjacencyMaps {
-  forward: Map<string, string[]>;
-  backward: Map<string, string[]>;
-}
 
 export class PathFinder {
   private cy: Core;
@@ -34,31 +31,11 @@ export class PathFinder {
     const nodeCount = this.cy.nodes().length;
     if (nodeCount > BIDIRECTIONAL_BFS_LIMIT) return null;
 
-    const adjacency = this.buildAdjacencyMaps();
+    const adjacency = buildDirectedAdjacencyMaps(this.cy);
     return this.bidirectionalBFS(sourceId, targetId, adjacency);
   }
 
-  private buildAdjacencyMaps(): AdjacencyMaps {
-    const forward = new Map<string, string[]>();
-    const backward = new Map<string, string[]>();
-
-    this.cy.edges().forEach((edge) => {
-      const s = edge.source().id();
-      const t = edge.target().id();
-
-      let fwdList = forward.get(s);
-      if (!fwdList) { fwdList = []; forward.set(s, fwdList); }
-      fwdList.push(t);
-
-      let bwdList = backward.get(t);
-      if (!bwdList) { bwdList = []; backward.set(t, bwdList); }
-      bwdList.push(s);
-    });
-
-    return { forward, backward };
-  }
-
-  private bidirectionalBFS(sourceId: NodeId, targetId: NodeId, adjacency: AdjacencyMaps): PathResult | null {
+  private bidirectionalBFS(sourceId: NodeId, targetId: NodeId, adjacency: DirectedAdjacencyMaps): PathResult | null {
     const forwardVisited = new Map<string, string | null>();
     const backwardVisited = new Map<string, string | null>();
     const forwardQueue: string[] = [sourceId];

@@ -2,6 +2,7 @@ import type { Core } from 'cytoscape';
 
 import { scoped } from '../../shared/Logger.ts';
 import { CYCLE_DETECTION } from '../../shared/constants.ts';
+import { buildForwardAdjacencyMap } from './AdjacencyMapBuilder.ts';
 
 const log = scoped('cycle-detector');
 
@@ -27,14 +28,7 @@ export class CycleDetector {
       return cycles;
     }
 
-    const adjacency = new Map<string, string[]>();
-    this.cy.edges().forEach((edge) => {
-      const s = edge.source().id();
-      const t = edge.target().id();
-      const list = adjacency.get(s);
-      if (list) list.push(t);
-      else adjacency.set(s, [t]);
-    });
+    const adjacency = buildForwardAdjacencyMap(this.cy);
 
     const visited = new Set<string>();
     const inStack = new Set<string>();
@@ -89,14 +83,11 @@ export class CycleDetector {
       return [];
     }
 
-    const adjacency = new Map<string, string[]>();
+    const adjacency = buildForwardAdjacencyMap(this.cy);
     const edgeMap = new Map<string, string>();
     this.cy.edges().forEach((edge) => {
       const s = edge.source().id();
       const t = edge.target().id();
-      const list = adjacency.get(s);
-      if (list) list.push(t);
-      else adjacency.set(s, [t]);
       edgeMap.set(`${s}->${t}`, edge.id());
     });
 

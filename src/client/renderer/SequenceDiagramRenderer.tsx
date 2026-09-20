@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState, useCallback, useEffect } from 'react';
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import type { ThemeType } from './IRenderer.ts';
-import { getThemeColors } from './styles/ThemeStylesheet.ts';
+import { getThemeColors, readCssVarCached } from './styles/ThemeStylesheet.ts';
 import { useT } from '../i18n/index.ts';
 
 interface SequenceDiagramRendererProps {
@@ -159,31 +159,33 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
   const [selectedMessage, setSelectedMessage] = useState<string | null>(null);
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
+  const pinchStartDistanceRef = useRef(0);
+  const pinchStartZoomRef = useRef(1);
 
   const isDark = theme === 'dark';
 
   const colors = useMemo(() => {
     const tc = getThemeColors(theme);
     return {
-      bg: isDark ? '#1e1e2e' : '#ffffff',
+      bg: readCssVarCached('--cg-surface', isDark ? '#1e1e2e' : '#ffffff'),
       text: tc.text,
-      textSecondary: isDark ? '#a0a0b0' : '#666666',
-      lifeline: isDark ? '#555570' : '#aaaaaa',
-      lifelineDashed: isDark ? '#444460' : '#bbbbbb',
+      textSecondary: readCssVarCached('--cg-text-secondary', isDark ? '#a0a0b0' : '#666666'),
+      lifeline: readCssVarCached('--cg-border-strong', isDark ? '#555570' : '#aaaaaa'),
+      lifelineDashed: readCssVarCached('--cg-border', isDark ? '#444460' : '#bbbbbb'),
       activation: tc.edgeCall,
-      activationBorder: isDark ? '#8899cc' : '#357abd',
+      activationBorder: readCssVarCached('--cg-accent', isDark ? '#8899cc' : '#357abd'),
       syncArrow: tc.text,
       asyncArrow: tc.edgeImport,
       returnArrow: tc.edgeExtend,
       selfCallArrow: tc.nodeType,
       createArrow: tc.edgeCall,
-      fragmentBg: isDark ? 'rgba(100,100,140,0.15)' : 'rgba(200,200,240,0.2)',
-      fragmentBorder: isDark ? '#7777aa' : '#9999cc',
-      fragmentLabelBg: isDark ? '#444466' : '#eeeeff',
-      participantBg: isDark ? '#2a2a3e' : '#f0f0f5',
-      participantBorder: isDark ? '#555570' : '#cccccc',
+      fragmentBg: readCssVarCached('--cg-accent-soft', isDark ? 'rgba(100,100,140,0.15)' : 'rgba(200,200,240,0.2)'),
+      fragmentBorder: readCssVarCached('--cg-accent-hover', isDark ? '#7777aa' : '#9999cc'),
+      fragmentLabelBg: readCssVarCached('--cg-surface-active', isDark ? '#444466' : '#eeeeff'),
+      participantBg: readCssVarCached('--cg-surface-hover', isDark ? '#2a2a3e' : '#f0f0f5'),
+      participantBorder: readCssVarCached('--cg-border-strong', isDark ? '#555570' : '#cccccc'),
       gridLine: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
-      highlightBg: isDark ? 'rgba(100,150,255,0.2)' : 'rgba(50,100,255,0.15)',
+      highlightBg: readCssVarCached('--cg-accent-soft', isDark ? 'rgba(100,150,255,0.2)' : 'rgba(50,100,255,0.15)'),
     };
   }, [isDark, theme]);
 
@@ -283,6 +285,38 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
     isDraggingRef.current = false;
   }, []);
 
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      isDraggingRef.current = true;
+      dragStartRef.current = { x: e.touches[0]!.clientX, y: e.touches[0]!.clientY, panX: pan.x, panY: pan.y };
+    } else if (e.touches.length === 2) {
+      isDraggingRef.current = false;
+      const dx = e.touches[0]!.clientX - e.touches[1]!.clientX;
+      const dy = e.touches[0]!.clientY - e.touches[1]!.clientY;
+      pinchStartDistanceRef.current = Math.sqrt(dx * dx + dy * dy);
+      pinchStartZoomRef.current = zoom;
+    }
+  }, [pan, zoom]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1 && isDraggingRef.current) {
+      const dx = e.touches[0]!.clientX - dragStartRef.current.x;
+      const dy = e.touches[0]!.clientY - dragStartRef.current.y;
+      setPan({ x: dragStartRef.current.panX + dx, y: dragStartRef.current.panY + dy });
+    } else if (e.touches.length === 2 && pinchStartDistanceRef.current > 0) {
+      const dx = e.touches[0]!.clientX - e.touches[1]!.clientX;
+      const dy = e.touches[0]!.clientY - e.touches[1]!.clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const scale = dist / pinchStartDistanceRef.current;
+      setZoom(Math.max(0.3, Math.min(3, pinchStartZoomRef.current * scale)));
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    isDraggingRef.current = false;
+    pinchStartDistanceRef.current = 0;
+  }, []);
+
   const handleResetView = useCallback(() => {
     setZoom(1);
     setPan({ x: 0, y: 0 });
@@ -336,6 +370,9 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
       <div
         style={{
