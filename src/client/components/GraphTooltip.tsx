@@ -1,4 +1,5 @@
 
+import { memo } from 'react';
 
 export interface TooltipData {
   x: number;
@@ -38,7 +39,7 @@ function clampPosition(x: number, y: number): { left: number; top: number } {
   };
 }
 
-export function GraphTooltip({ data }: GraphTooltipProps) {
+export const GraphTooltip = memo(function GraphTooltip({ data }: GraphTooltipProps) {
   const pos = clampPosition(data.x, data.y);
   if (isEdgeTooltip(data)) {
     return (
@@ -63,4 +64,4 @@ export function GraphTooltip({ data }: GraphTooltipProps) {
       )}
     </div>
   );
-}
+});

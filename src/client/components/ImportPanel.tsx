@@ -59,6 +59,28 @@ export function ImportPanel({
   useEffect(() => () => { timersRef.current.forEach(clearTimeout); }, []);
 
   const [copied, setCopied] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    const focusable = panel.querySelectorAll<HTMLElement>('button, input, textarea, [tabindex]:not([tabindex="-1"])');
+    if (focusable.length > 0) focusable[0]!.focus();
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || focusable.length === 0) return;
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    panel.addEventListener('keydown', handleKeyDown);
+    return () => panel.removeEventListener('keydown', handleKeyDown);
+  }, []);
   const copyInstallCmd = useCallback(async () => {
     try {
       await navigator.clipboard.writeText('dsh plugin --profile web add dsh-codegraph');
@@ -120,7 +142,7 @@ export function ImportPanel({
   }, [watchEnabled, onSetWatchEnabled, effectivePath]);
 
   return (
-    <div className="import-panel" role="dialog" aria-label={t('import.title')}>
+    <div className="import-panel" role="dialog" aria-modal="true" aria-label={t('import.title')} ref={panelRef}>
       <div className="import-header">
         <span className="import-title">{t('import.title')}</span>
         <button className="import-close" onClick={onClose} aria-label={t('import.close')}><CloseIcon size={16} /></button>

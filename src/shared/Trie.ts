@@ -47,11 +47,15 @@ export class Trie {
   }
 
   private collectAll(node: TrieNode, results: string[]): void {
-    if (node.isEnd && node.value !== null) {
-      results.push(node.value);
-    }
-    for (const child of node.children.values()) {
-      this.collectAll(child, results);
+    const stack: TrieNode[] = [node];
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      if (current.isEnd && current.value !== null) {
+        results.push(current.value);
+      }
+      for (const child of current.children.values()) {
+        stack.push(child);
+      }
     }
   }
 

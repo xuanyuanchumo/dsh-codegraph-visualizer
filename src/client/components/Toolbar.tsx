@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, memo } from 'react';
 import type { LayoutType, ThemeType, GraphType } from '../store/graphStore.ts';
 import type { GraphNode, ViewMode } from '../../types/index.ts';
 import type { WorkspaceSelectorProps } from './WorkspaceSelector.tsx';
@@ -120,7 +120,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   hasSelectedFunction?: boolean;
 }
 
-export function Toolbar(props: ToolbarProps) {
+export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   const t = useT();
   const lang = useLang();
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -350,4 +350,4 @@ export function Toolbar(props: ToolbarProps) {
       </div>
     </div>
   );
-}
+});

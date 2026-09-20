@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { useT } from '../i18n/index.ts';
 import { GraphIcon, UploadIcon, AlertIcon, CheckIcon, CopyIcon, ZapIcon } from './Icons.tsx';
 
@@ -8,7 +8,7 @@ interface EmptyStateProps {
   onScanWorkspace: () => void;
 }
 
-export function EmptyState({ prerequisites, onImport, onScanWorkspace }: EmptyStateProps) {
+export const EmptyState = memo(function EmptyState({ prerequisites, onImport, onScanWorkspace }: EmptyStateProps) {
   const t = useT();
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
   const [installing, setInstalling] = useState(false);
@@ -127,4 +127,4 @@ export function EmptyState({ prerequisites, onImport, onScanWorkspace }: EmptySt
       </div>
     </div>
   );
-}
+});

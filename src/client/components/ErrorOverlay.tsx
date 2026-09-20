@@ -1,4 +1,5 @@
 
+import { memo } from 'react';
 import { AlertCircleIcon } from './Icons.tsx';
 import { useT } from '../i18n/index.ts';
 
@@ -15,7 +16,7 @@ function friendlyError(raw: string, t: (k: string) => string): string {
   return t('error.generic');
 }
 
-export function ErrorOverlay({ error, onBack, onRetry }: ErrorOverlayProps) {
+export const ErrorOverlay = memo(function ErrorOverlay({ error, onBack, onRetry }: ErrorOverlayProps) {
   const t = useT();
   if (!error) return null;
   const message = friendlyError(error, t);
@@ -41,4 +42,4 @@ export function ErrorOverlay({ error, onBack, onRetry }: ErrorOverlayProps) {
       )}
     </div>
   );
-}
+});

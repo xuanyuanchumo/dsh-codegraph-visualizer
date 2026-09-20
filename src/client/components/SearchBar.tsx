@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, memo } from 'react';
 import { useT } from '../i18n/index.ts';
 import { SearchIcon, CloseIcon } from './Icons.tsx';
 
@@ -18,7 +18,7 @@ interface SearchBarProps {
   onSelectResult: (id: string) => void;
 }
 
-export function SearchBar({ query, matchCount, searchResults, onChange, onClose, onSelectResult }: SearchBarProps) {
+export const SearchBar = memo(function SearchBar({ query, matchCount, searchResults, onChange, onClose, onSelectResult }: SearchBarProps) {
   const t = useT();
   const [showResults, setShowResults] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -124,4 +124,4 @@ export function SearchBar({ query, matchCount, searchResults, onChange, onClose,
       )}
     </div>
   );
-}
+});

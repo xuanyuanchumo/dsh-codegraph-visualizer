@@ -443,4 +443,29 @@ export const zh: Record<string, string> = {
   'filterPanel.orphansHint': '隐藏没有任何入边的节点',
   'filterPanel.leavesHint': '隐藏没有任何出边的节点',
   'toolbar.filterPanel': '筛选面板',
+
+  // Context menu
+  'contextMenu.focus': '聚焦节点',
+  'contextMenu.isolate': '隔离（显示邻域）',
+  'contextMenu.hide': '隐藏节点',
+  'contextMenu.collapse': '折叠聚类',
+  'contextMenu.expand': '展开聚类',
+  'contextMenu.callChain': '高亮调用链',
+  'contextMenu.impact': '影响分析',
+  'contextMenu.findPath': '从此节点查找路径',
+
+  // Accessibility
+  'a11y.graphContainer': '代码图谱交互区域',
+  'a11y.selectedNode': '已选中节点',
+
+  // Heatmap labels
+  'heatmap.title': '热力图',
+  'heatmap.off': '关闭',
+  'heatmap.instability': '不稳定度',
+  'heatmap.lines': '代码行数',
+  'heatmap.complexity': '复杂度',
+
+  // Node detail badges
+  'detail.exportedBadge': 'EXP',
+  'detail.expandedBadge': 'OPEN',
 };

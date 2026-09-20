@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, memo } from 'react';
 import { useT } from '../i18n/index.ts';
 import { CloseIcon } from './Icons.tsx';
 
@@ -10,7 +10,7 @@ interface StatsPanelProps {
   onFocusArea?: (ratioX: number, ratioY: number) => void;
 }
 
-export function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusArea }: StatsPanelProps) {
+export const StatsPanel = memo(function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusArea }: StatsPanelProps) {
   const t = useT();
   const total = counts.function + counts.class + counts.variable + counts.module + counts.interface;
   const imgRef = useRef<HTMLImageElement>(null);
@@ -94,4 +94,4 @@ export function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusAr
       </div>
     </div>
   );
-}
+});

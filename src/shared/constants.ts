@@ -51,6 +51,7 @@ export function getAutoClusterDepth(nodeCount: number, maxVisibleNodes: number):
 
 export const PATH_FINDER = {
   MAX_NODES_FOR_DIJKSTRA: 10000,
+  MAX_NODES_FOR_BFS: 50000,
 } as const;
 
 export const HIGHLIGHT = {
@@ -149,6 +150,7 @@ export const HEATMAP = {
   COLOR_LOW: '#3b82f6',
   COLOR_HIGH: '#ef4444',
 } as const;
+
 
 export const CYCLE_DETECTION = {
   MAX_NODES_FOR_DETECTION: 10000,

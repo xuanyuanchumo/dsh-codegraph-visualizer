@@ -77,8 +77,8 @@ export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, 
       <div className="detail-header">
         <span className="detail-type-icon" style={{ color, borderColor: color }}>{icon}</span>
         <h3>{node.label}</h3>
-        {exported && <span className="detail-exported-badge">EXP</span>}
-        {isExpanded && <span className="detail-expanded-badge">OPEN</span>}
+      {exported && <span className="detail-exported-badge">{t('detail.exportedBadge')}</span>}
+      {isExpanded && <span className="detail-expanded-badge">{t('detail.expandedBadge')}</span>}
       </div>
       <div className="detail-row"><span className="detail-label">{t('detail.type')}</span><span className="detail-value">{node.type}</span></div>
       {kind && kind !== node.type && (

@@ -444,4 +444,29 @@ export const en: Record<string, string> = {
   'filterPanel.orphansHint': 'Hide nodes with no incoming connections',
   'filterPanel.leavesHint': 'Hide nodes with no outgoing connections',
   'toolbar.filterPanel': 'Filter Panel',
+
+  // Context menu
+  'contextMenu.focus': 'Focus Node',
+  'contextMenu.isolate': 'Isolate (Show Neighborhood)',
+  'contextMenu.hide': 'Hide Node',
+  'contextMenu.collapse': 'Collapse Cluster',
+  'contextMenu.expand': 'Expand Cluster',
+  'contextMenu.callChain': 'Highlight Call Chain',
+  'contextMenu.impact': 'Analyze Impact',
+  'contextMenu.findPath': 'Find Path From Here',
+
+  // Accessibility
+  'a11y.graphContainer': 'Code graph interactive area',
+  'a11y.selectedNode': 'Selected node',
+
+  // Heatmap labels
+  'heatmap.title': 'Heatmap',
+  'heatmap.off': 'Off',
+  'heatmap.instability': 'Instability',
+  'heatmap.lines': 'Lines',
+  'heatmap.complexity': 'Complexity',
+
+  // Node detail badges
+  'detail.exportedBadge': 'EXP',
+  'detail.expandedBadge': 'OPEN',
 };

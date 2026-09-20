@@ -541,9 +541,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   return (
     <div className={panelClassName} ref={panelRef} role="region" aria-label={t('panel.ariaLabel')}>
-      <div className="collapse-fab" onClick={panel.toggleCollapsed} role="button" tabIndex={0} aria-label={t('panel.expand')} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); panel.toggleCollapsed(); } }}>
+      <button className="collapse-fab" onClick={panel.toggleCollapsed} aria-label={t('panel.expand')}>
         <GraphIcon size={22} />
-      </div>
+      </button>
 
       <Toolbar
         statsText={statsText}
@@ -580,8 +580,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       )}
 
       {!isCollapsed && !isMicroView && (
-        <div className="cg-heatmap-bar" role="group" aria-label="Heatmap mode">
-          <span className="cg-heatmap-label">Heatmap:</span>
+        <div className="cg-heatmap-bar" role="group" aria-label={t('heatmap.title') ?? 'Heatmap mode'}>
+          <span className="cg-heatmap-label">{t('heatmap.title') ?? 'Heatmap'}:</span>
           {(['none', 'instability', 'lines', 'complexity'] as const).map((m) => (
             <button
               key={m}
@@ -589,7 +589,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
               onClick={() => setHeatmapMode(m)}
               aria-pressed={heatmapMode === m}
             >
-              {m === 'none' ? 'Off' : m === 'instability' ? 'Instability' : m === 'lines' ? 'Lines' : 'Complexity'}
+              {t(`heatmap.${m}`) ?? m}
             </button>
           ))}
         </div>

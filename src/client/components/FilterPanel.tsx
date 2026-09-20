@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
 import { useT } from '../i18n/index.ts';
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
@@ -10,7 +10,7 @@ interface FilterPanelProps {
   onClose: () => void;
 }
 
-export function FilterPanel({ onClose }: FilterPanelProps) {
+export const FilterPanel = memo(function FilterPanel({ onClose }: FilterPanelProps) {
   const t = useT();
   const fanInThreshold = useGraphStore((s) => s.fanInThreshold);
   const fanOutThreshold = useGraphStore((s) => s.fanOutThreshold);
@@ -136,4 +136,4 @@ export function FilterPanel({ onClose }: FilterPanelProps) {
       <button className="filter-reset-btn" onClick={resetAll}>{t('filterPanel.reset')}</button>
     </div>
   );
-}
+});

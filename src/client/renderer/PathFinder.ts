@@ -1,5 +1,6 @@
 import type { Core } from 'cytoscape';
 import { NodeId } from '../../types/index.ts';
+import { PATH_FINDER as PF_CONST } from '../../shared/constants.ts';
 import { buildDirectedAdjacencyMaps, type DirectedAdjacencyMaps } from './AdjacencyMapBuilder.ts';
 
 export interface PathResult {
@@ -9,7 +10,7 @@ export interface PathResult {
   length: number;
 }
 
-const BIDIRECTIONAL_BFS_LIMIT = 50000;
+const BIDIRECTIONAL_BFS_LIMIT = PF_CONST.MAX_NODES_FOR_BFS;
 
 
 export class PathFinder {

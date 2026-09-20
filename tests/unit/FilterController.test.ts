@@ -417,4 +417,137 @@ describe('FilterController', () => {
       expect(edgeAB.removeData).toHaveBeenCalledWith('connectionFiltered');
     });
   });
+
+  describe('empty graph', () => {
+    it('all methods handle empty graph without throwing', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const cy = makeMockCy([], []);
+      const fc = new FilterController(cy as any);
+      expect(() => fc.filterByType('all')).not.toThrow();
+      expect(() => fc.filterByType('function')).not.toThrow();
+      expect(() => fc.filterByGraphType('all')).not.toThrow();
+      expect(() => fc.filterByGraphType('call')).not.toThrow();
+      expect(() => fc.filterByGraphType('dependency')).not.toThrow();
+      expect(() => fc.applyConnectionFilters(1, 1, new Set(), new Set())).not.toThrow();
+      expect(() => fc.invalidateCache()).not.toThrow();
+      expect(() => fc.destroy()).not.toThrow();
+    });
+  });
+
+  describe('filterByType additional coverage', () => {
+    it('keeps matching type nodes visible with display=element', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false });
+      const cy = makeMockCy([nodeA], []);
+      const fc = new FilterController(cy as any);
+      fc.filterByType('function');
+      expect(nodeA.style).toHaveBeenCalledWith('display', 'element');
+    });
+
+    it('keeps edges visible when type=all and no connection filter applied', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false });
+      const nodeB = makeMockNode('b', { type: 'class', isCluster: false });
+      const edgeAB = makeMockEdge('e1', 'a', 'b', { type: 'call' }, nodeA, nodeB);
+      const cy = makeMockCy([nodeA, nodeB], [edgeAB]);
+      const fc = new FilterController(cy as any);
+      fc.filterByType('all');
+      expect(edgeAB.style).toHaveBeenCalledWith('display', 'element');
+    });
+  });
+
+  describe('filterByGraphType additional coverage', () => {
+    it('all mode shows all six standard edge types', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const nodeA = makeMockNode('a');
+      const nodeB = makeMockNode('b');
+      const edgeCall = makeMockEdge('e1', 'a', 'b', { type: 'call' }, nodeA, nodeB);
+      const edgeImport = makeMockEdge('e2', 'a', 'b', { type: 'import' }, nodeA, nodeB);
+      const edgeExtend = makeMockEdge('e3', 'a', 'b', { type: 'extend' }, nodeA, nodeB);
+      const edgeImplement = makeMockEdge('e4', 'a', 'b', { type: 'implement' }, nodeA, nodeB);
+      const edgeDependency = makeMockEdge('e5', 'a', 'b', { type: 'dependency' }, nodeA, nodeB);
+      const edgeContains = makeMockEdge('e6', 'a', 'b', { type: 'contains' }, nodeA, nodeB);
+      const cy = makeMockCy([nodeA, nodeB], [edgeCall, edgeImport, edgeExtend, edgeImplement, edgeDependency, edgeContains]);
+      const fc = new FilterController(cy as any);
+      fc.filterByGraphType('all');
+      expect(edgeCall.style).not.toHaveBeenCalledWith('display', 'none');
+      expect(edgeImport.style).not.toHaveBeenCalledWith('display', 'none');
+      expect(edgeExtend.style).not.toHaveBeenCalledWith('display', 'none');
+      expect(edgeImplement.style).not.toHaveBeenCalledWith('display', 'none');
+      expect(edgeDependency.style).not.toHaveBeenCalledWith('display', 'none');
+      expect(edgeContains.style).not.toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('all mode hides non-standard edge types like association', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const nodeA = makeMockNode('a');
+      const nodeB = makeMockNode('b');
+      const edgeAssociation = makeMockEdge('e1', 'a', 'b', { type: 'association' }, nodeA, nodeB);
+      const edgeAggregation = makeMockEdge('e2', 'a', 'b', { type: 'aggregation' }, nodeA, nodeB);
+      const edgeComposition = makeMockEdge('e3', 'a', 'b', { type: 'composition' }, nodeA, nodeB);
+      const cy = makeMockCy([nodeA, nodeB], [edgeAssociation, edgeAggregation, edgeComposition]);
+      const fc = new FilterController(cy as any);
+      fc.filterByGraphType('all');
+      expect(edgeAssociation.style).toHaveBeenCalledWith('display', 'none');
+      expect(edgeAggregation.style).toHaveBeenCalledWith('display', 'none');
+      expect(edgeComposition.style).toHaveBeenCalledWith('display', 'none');
+    });
+  });
+
+  describe('applyConnectionFilters additional coverage', () => {
+    it('cluster nodes are not affected by visibleNodeTypes filter', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const clusterNode = makeMockNode('cluster1', { type: 'module', isCluster: true });
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false });
+      const cy = makeMockCy([clusterNode, nodeA], []);
+      const fc = new FilterController(cy as any);
+      fc.applyConnectionFilters(0, 0, new Set(['class']), new Set());
+      expect(clusterNode.style).not.toHaveBeenCalledWith('display', 'none');
+      expect(nodeA.style).toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('fanIn threshold=0 does not filter by fanIn', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false });
+      const cy = makeMockCy([nodeA], []);
+      const fc = new FilterController(cy as any);
+      fc.applyConnectionFilters(0, 0, new Set(), new Set());
+      expect(nodeA.style).not.toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('combines fanIn, fanOut, visibleNodeTypes, and visibleEdgeTypes', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false });
+      const nodeB = makeMockNode('b', { type: 'class', isCluster: false });
+      const nodeC = makeMockNode('c', { type: 'variable', isCluster: false });
+      const edgeAB = makeMockEdge('e1', 'a', 'b', { type: 'call' }, nodeA, nodeB);
+      const edgeBC = makeMockEdge('e2', 'b', 'c', { type: 'import' }, nodeB, nodeC);
+      const cy = makeMockCy([nodeA, nodeB, nodeC], [edgeAB, edgeBC]);
+      const fc = new FilterController(cy as any);
+      fc.applyConnectionFilters(1, 1, new Set(['function', 'class']), new Set(['call']));
+      expect(nodeA.style).toHaveBeenCalledWith('display', 'none');
+      expect(edgeBC.style).toHaveBeenCalledWith('display', 'none');
+    });
+  });
+
+  describe('invalidateCache with data change', () => {
+    it('cache prevents recalculation, invalidateCache allows it', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false });
+      const nodeB = makeMockNode('b', { type: 'function', isCluster: false });
+      const nodeC = makeMockNode('c', { type: 'function', isCluster: false });
+      const edgeBA = makeMockEdge('e1', 'b', 'a', { type: 'call' }, nodeB, nodeA);
+      const edgeCA = makeMockEdge('e2', 'c', 'a', { type: 'call' }, nodeC, nodeA);
+      const edgeAB = makeMockEdge('e3', 'a', 'b', { type: 'call' }, nodeA, nodeB);
+      const cy = makeMockCy([nodeA, nodeB, nodeC], [edgeBA, edgeCA, edgeAB]);
+      const fc = new FilterController(cy as any);
+      fc.applyConnectionFilters(2, 0, new Set(), new Set());
+      expect(nodeB.style).toHaveBeenCalledWith('display', 'none');
+      fc.invalidateCache();
+      const edgeCB = makeMockEdge('e4', 'c', 'b', { type: 'call' }, nodeC, nodeB);
+      cy._edgeList.push(edgeCB);
+      fc.applyConnectionFilters(2, 0, new Set(), new Set());
+      expect(nodeB.style).toHaveBeenCalledWith('display', 'element');
+    });
+  });
 });
