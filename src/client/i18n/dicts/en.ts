@@ -288,6 +288,9 @@ export const en: Record<string, string> = {
   // Impact radius
   'impact.total': 'Total impacted nodes',
 
+  // Cycles
+  'cycles.empty': 'No circular dependencies detected',
+
   // History
   'toolbar.undo': 'Undo (Ctrl+Z)',
   'toolbar.redo': 'Redo (Ctrl+Y)',

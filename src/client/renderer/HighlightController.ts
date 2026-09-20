@@ -269,6 +269,21 @@ export class HighlightController {
     });
   }
 
+  relayoutCycles(cycleIds: Set<string>): void {
+    if (cycleIds.size === 0) return;
+    const visibleNodes = this.cy.nodes().filter((n) => cycleIds.has(n.id()));
+    if (visibleNodes.length === 0) return;
+    const layout = visibleNodes.layout({
+      name: 'circle',
+      fit: true,
+      padding: 50,
+      animate: true,
+      animationDuration: 300,
+      boundingBox: undefined,
+    });
+    layout.run();
+  }
+
   restoreIsolation(): void {
     this.cy.batch(() => {
       this.cy.elements().removeClass('cycle-hidden');

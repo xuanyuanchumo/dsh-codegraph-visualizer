@@ -29,6 +29,7 @@ import { FocusModeBar } from './components/FocusModeBar.tsx';
 import { HotspotPanel } from './components/HotspotPanel.tsx';
 import { GodModulePanel } from './components/GodModulePanel.tsx';
 import { ImpactPanel } from './components/ImpactPanel.tsx';
+import { CyclePanel } from './components/CyclePanel.tsx';
 import { CoreFunctionPanel } from './components/CoreFunctionPanel.tsx';
 import { FilterPanel } from './components/FilterPanel.tsx';
 import { MicroViewPrompt, MicroFunctionBar } from './components/MicroViewBar.tsx';
@@ -507,6 +508,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     for (const n of rawNodes) { if (n.type in counts) counts[n.type as keyof typeof counts]++; }
     return counts;
   }, [rawNodes]);
+
+  const cycleDetails = useMemo(() => {
+    if (!panel.showCycles) return [];
+    return renderer.rendererRef.current?.detectCyclesDetailed() ?? [];
+  }, [panel.showCycles, renderer.rendererRef, nodes.length, edges.length]);
   const panelClassName = useMemo(() =>
     `graph-panel resizable ${panel.collapsed ? 'collapsed' : ''} ${className}`.trim(),
     [panel.collapsed, className],
@@ -671,6 +677,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
       {panel.showImpact && !isCollapsed && impactStats && (
         <GraphErrorBoundary><ImpactPanel impactStats={impactStats} label={t('toolbar.impact')} totalLabel={t('impact.total')} /></GraphErrorBoundary>
+      )}
+
+      {panel.showCycles && !isCollapsed && cycleDetails.length > 0 && (
+        <GraphErrorBoundary><CyclePanel cycles={cycleDetails} label={t('toolbar.cycles')} emptyLabel={t('cycles.empty')} /></GraphErrorBoundary>
       )}
 
       {tooltip && <GraphTooltip data={tooltip} />}

@@ -213,6 +213,10 @@ export class CytoscapeRenderer implements IRenderer {
     this.highlightCtrl?.isolateCycles(cycleIds);
   }
 
+  relayoutCycles(cycleIds: Set<string>): void {
+    this.highlightCtrl?.relayoutCycles(cycleIds);
+  }
+
   restoreIsolation(): void {
     this.highlightCtrl?.restoreIsolation();
   }

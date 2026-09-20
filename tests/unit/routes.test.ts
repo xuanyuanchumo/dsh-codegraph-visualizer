@@ -1252,3 +1252,59 @@ describe('registerService (additional)', () => {
   });
 });
 
+describe('validatePathRealpath security', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    vi.mocked(isPathAllowed).mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(fs.realpath).mockResolvedValue('/test/workspace');
+  });
+
+  it('POST /scan returns 403 when realpath fails (symlink escape)', async () => {
+    vi.mocked(fs.realpath).mockRejectedValue(new Error('ENOENT'));
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 4);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ path: '/test/workspace' })), res);
+    expect(state.code).toBe(403);
+    expect(JSON.parse(state.body).error).toBe('Access denied: symlink escape');
+  });
+
+  it('POST /init returns 403 when realpath fails (symlink escape)', async () => {
+    vi.mocked(fs.realpath).mockRejectedValue(new Error('ENOENT'));
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 5);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ path: '/test/workspace' })), res);
+    expect(state.code).toBe(403);
+    expect(JSON.parse(state.body).error).toBe('Access denied: symlink escape');
+  });
+
+  it('POST /watch returns 403 when realpath fails (symlink escape)', async () => {
+    vi.mocked(fs.realpath).mockRejectedValue(new Error('ENOENT'));
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 6);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ enabled: true, path: '/test/workspace' })), res);
+    expect(state.code).toBe(403);
+    expect(JSON.parse(state.body).error).toBe('Access denied: symlink escape');
+  });
+
+  it('POST /scan succeeds when realpath resolves normally', async () => {
+    vi.mocked(fs.realpath).mockResolvedValue('/test/workspace');
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 4);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ path: '/test/workspace' })), res);
+    expect(state.code).toBe(200);
+  });
+});
+

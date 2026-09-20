@@ -1,5 +1,5 @@
 import type { Core, NodeDataDefinition } from 'cytoscape';
-import { NodeId, type GraphNode, type GraphEdge } from '../../types/index.ts';
+import { NodeId, safeString, safeNumber, safeBoolean, isNodeType, type GraphNode, type GraphEdge } from '../../types/index.ts';
 import type { ClusterNode, ClusterEdge } from '../store/cluster/index.ts';
 import { getThemeColors } from './styles/ThemeStylesheet.ts';
 import type { ThemeType } from './IRenderer.ts';
@@ -463,11 +463,12 @@ export class DataController {
   }
 
   private nodeFromCy(nodeId: string): GraphNode | ClusterNode | null {
+    if (!this.cy) return null;
     const cyNode = this.cy.getElementById(nodeId);
     if (cyNode.length === 0) return null;
     const data = cyNode.data();
     if (!data) return null;
-    const isCluster = data.isCluster === true;
+    const isCluster = safeBoolean(data.isCluster);
     const baseProps: Record<string, unknown> = {};
     for (const key of Object.keys(data)) {
       if (!['id', 'label', 'type', 'filePath', 'lineNumber', 'parent', 'isCluster', 'childCount'].includes(key)) {
@@ -476,28 +477,28 @@ export class DataController {
     }
     if (isCluster) {
       return {
-        id: NodeId(data.id as string),
-        label: (data.label as string) ?? data.id as string,
+        id: NodeId(safeString(data.id)),
+        label: safeString(data.label, safeString(data.id)),
         type: 'module',
-        filePath: (data.filePath as string) ?? '',
+        filePath: safeString(data.filePath),
         lineNumber: 0,
         properties: baseProps,
         isCluster: true,
-        childCount: (data.childCount as number) ?? 0,
+        childCount: safeNumber(data.childCount),
         childIds: [],
-        clusterPath: (data.filePath as string) ?? '',
+        clusterPath: safeString(data.filePath),
         clusterLevel: 'directory',
       };
     }
     const node: GraphNode = {
-      id: NodeId(data.id as string),
-      label: (data.label as string) ?? data.id as string,
-      type: ((data.type as string) ?? 'module') as GraphNode['type'],
-      filePath: (data.filePath as string) ?? '',
-      lineNumber: (data.lineNumber as number) ?? 0,
+      id: NodeId(safeString(data.id)),
+      label: safeString(data.label, safeString(data.id)),
+      type: isNodeType(data.type) ? data.type : 'module',
+      filePath: safeString(data.filePath),
+      lineNumber: safeNumber(data.lineNumber),
       properties: baseProps,
     };
-    if (data.parent) node.parentId = NodeId(data.parent as string);
+    if (data.parent) node.parentId = NodeId(safeString(data.parent));
     return node;
   }
 
@@ -664,6 +665,7 @@ export class DataController {
     this.rawNodesMap.clear();
     this.rawToVisibleMap.clear();
     this.lastAddedNodeIds.clear();
+    this.cy = null as unknown as Core;
   }
 }
 

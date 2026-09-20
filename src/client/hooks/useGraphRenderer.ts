@@ -214,6 +214,7 @@ export function useGraphRenderer(
     if (cycleIsolation && showCycles) {
       const cycles = r.detectCycles();
       r.isolateCycles(cycles);
+      r.relayoutCycles(cycles);
     } else {
       r.restoreIsolation();
     }

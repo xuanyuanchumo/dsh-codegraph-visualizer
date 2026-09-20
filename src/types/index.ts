@@ -13,6 +13,24 @@ export const SymbolId = (id: string): SymbolId => id as SymbolId;
 export const NodeId = (id: string): NodeId => id as NodeId;
 export const EdgeId = (id: string): EdgeId => id as EdgeId;
 
+const NODE_TYPES = ['function', 'class', 'variable', 'module', 'interface', 'type'] as const;
+
+export function isNodeType(value: unknown): value is GraphNode['type'] {
+  return typeof value === 'string' && (NODE_TYPES as readonly string[]).includes(value);
+}
+
+export function safeString(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
+export function safeNumber(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && !Number.isNaN(value) ? value : fallback;
+}
+
+export function safeBoolean(value: unknown, fallback = false): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
 export interface GraphNode {
   id: NodeId;
   label: string;

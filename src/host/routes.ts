@@ -215,8 +215,9 @@ async function validatePathRealpath(scanPath: string): Promise<boolean> {
   try {
     const realPath = await fs.realpath(scanPath);
     return isPathAllowed(realPath);
-  } catch {
-    return true;
+  } catch (e) {
+    log.warn('validatePathRealpath failed', e);
+    return false;
   }
 }
 

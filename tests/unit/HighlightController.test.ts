@@ -73,10 +73,11 @@ function makeMockCy(nodeList: any[] = [], edgeList: any[] = []) {
   const buildCollection = (items: any[]) => ({
     forEach: vi.fn((cb: (el: any) => void) => items.forEach(cb)),
     length: items.length,
-    filter: vi.fn((pred: (el: any) => boolean) => items.filter(pred)),
+    filter: vi.fn((pred: (el: any) => boolean) => buildCollection(items.filter(pred))),
     addClass: vi.fn((cls: string) => items.forEach(el => el.addClass(cls))),
     removeClass: vi.fn((cls: string) => items.forEach(el => el.removeClass(cls))),
     boundingBox: vi.fn(() => ({ x1: 0, y1: 0, x2: 100, y2: 100, w: 100, h: 100 })),
+    layout: vi.fn(() => ({ run: vi.fn(), one: vi.fn() })),
   });
 
   let elementsList = [...nodeList, ...edgeList];
@@ -565,6 +566,32 @@ describe('HighlightController', () => {
       expect(stats).not.toBeNull();
       expect(stats!.d1).toBeGreaterThanOrEqual(1);
       expect(stats!.total).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('relayoutCycles', () => {
+    it('calls layout with circle name on cycle nodes', async () => {
+      const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
+      const nodeA = makeMockNode('a');
+      const nodeB = makeMockNode('b');
+      const nodeC = makeMockNode('c');
+      const cy = makeMockCy([nodeA, nodeB, nodeC], []);
+      const hc = new HighlightController(cy as any);
+      hc.relayoutCycles(new Set(['a', 'b']));
+      const nodesCollection = cy.nodes.mock.results[0].value;
+      const filteredCollection = nodesCollection.filter.mock.results[0].value;
+      expect(filteredCollection.layout).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'circle' }),
+      );
+    });
+
+    it('does nothing when cycleIds is empty', async () => {
+      const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
+      const nodeA = makeMockNode('a');
+      const cy = makeMockCy([nodeA], []);
+      const hc = new HighlightController(cy as any);
+      hc.relayoutCycles(new Set());
+      expect(cy.nodes).not.toHaveBeenCalled();
     });
   });
 });

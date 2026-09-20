@@ -650,6 +650,91 @@
   color: var(--cg-text);
 }
 
+/* ---- Cycle details panel ------------------------------------------------ */
+
+.cycle-panel {
+  right: 12px;
+  bottom: calc(var(--cg-statusbar-h) + 12px);
+  top: auto;
+  width: 220px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.cycle-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--cg-cycle-highlight, #e74c3c);
+  color: #fff;
+  margin-left: 6px;
+}
+
+.cycle-empty {
+  font-size: 11px;
+  color: var(--cg-text-dim);
+  text-align: center;
+  padding: 12px 0;
+}
+
+.cycle-item {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--cg-border);
+}
+
+.cycle-item:last-child {
+  border-bottom: none;
+}
+
+.cycle-item-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.cycle-index {
+  font-family: var(--cg-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--cg-cycle-highlight, #e74c3c);
+}
+
+.cycle-length {
+  font-size: 10px;
+  color: var(--cg-text-dim);
+}
+
+.cycle-nodes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+}
+
+.cycle-node-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--cg-font-mono);
+  font-size: 9px;
+  color: var(--cg-text);
+  background: var(--cg-panel-bg-alt, rgba(128,128,128,0.1));
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.cycle-arrow {
+  font-size: 9px;
+  color: var(--cg-cycle-highlight, #e74c3c);
+  margin: 0 1px;
+}
+
 .filter-panel {
   position: absolute;
   top: 48px;

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NodeId, EdgeId } from '../../src/types/index.ts';
+import { NodeId, EdgeId, safeString, safeNumber, safeBoolean, isNodeType } from '../../src/types/index.ts';
 import type { GraphNode, GraphEdge } from '../../src/types/index.ts';
 
 function makeMockNode(id: string, data: Record<string, unknown> = {}) {
@@ -7,9 +7,12 @@ function makeMockNode(id: string, data: Record<string, unknown> = {}) {
   const dataMap = new Map<string, unknown>(Object.entries(data));
   return {
     id: () => id,
-    data: vi.fn((key: string, value?: unknown) => {
-      if (value !== undefined) { dataMap.set(key, value); return undefined; }
-      return dataMap.get(key);
+    data: vi.fn((key?: string, value?: unknown) => {
+      if (key === undefined && value === undefined) {
+        return Object.fromEntries(dataMap);
+      }
+      if (value !== undefined) { dataMap.set(key!, value); return undefined; }
+      return dataMap.get(key!);
     }),
     removeData: vi.fn((key: string) => dataMap.delete(key)),
     style: vi.fn(),
@@ -39,9 +42,12 @@ function makeMockEdge(id: string, sourceId: string, targetId: string, data: Reco
     id: () => id,
     source: () => src,
     target: () => tgt,
-    data: vi.fn((key: string, value?: unknown) => {
-      if (value !== undefined) { dataMap.set(key, value); return undefined; }
-      return dataMap.get(key);
+    data: vi.fn((key?: string, value?: unknown) => {
+      if (key === undefined && value === undefined) {
+        return Object.fromEntries(dataMap);
+      }
+      if (value !== undefined) { dataMap.set(key!, value); return undefined; }
+      return dataMap.get(key!);
     }),
     style: vi.fn(),
     addClass: vi.fn((cls: string) => classes.add(cls)),
@@ -545,6 +551,188 @@ describe('DataController', () => {
       dc.applyConnectionFilters(1, 0, new Set(['function']), new Set());
       expect(nodeA.style).toHaveBeenCalledWith('display', 'none');
       expect(nodeB.style).toHaveBeenCalledWith('display', 'none');
+    });
+  });
+
+  describe('nodeFromCy type safety', () => {
+    it('getNodeData returns valid GraphNode for well-formed cytoscape data', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const node = makeMockNode('n1', {
+        id: 'n1', label: 'MyFunc', type: 'function',
+        filePath: '/src/a.ts', lineNumber: 42, isCluster: false,
+      });
+      const cy = makeMockCy([node], []);
+      const dc = new DataController(cy as any);
+      const data = dc.getNodeData('n1');
+      expect(data).not.toBeNull();
+      expect(data!.id).toBe(NodeId('n1'));
+      expect(data!.label).toBe('MyFunc');
+      expect(data!.type).toBe('function');
+      expect(data!.filePath).toBe('/src/a.ts');
+      expect(data!.lineNumber).toBe(42);
+    });
+
+    it('getNodeData falls back to module type when type is invalid', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const node = makeMockNode('n1', {
+        id: 'n1', label: 'X', type: 'invalid_type',
+        filePath: '/src/a.ts', isCluster: false,
+      });
+      const cy = makeMockCy([node], []);
+      const dc = new DataController(cy as any);
+      const data = dc.getNodeData('n1');
+      expect(data).not.toBeNull();
+      expect(data!.type).toBe('module');
+    });
+
+    it('getNodeData falls back to module type when type is missing', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const node = makeMockNode('n1', {
+        id: 'n1', label: 'X', filePath: '/src/a.ts', isCluster: false,
+      });
+      const cy = makeMockCy([node], []);
+      const dc = new DataController(cy as any);
+      const data = dc.getNodeData('n1');
+      expect(data).not.toBeNull();
+      expect(data!.type).toBe('module');
+    });
+
+    it('getNodeData handles missing label by using id', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const node = makeMockNode('n1', {
+        id: 'n1', type: 'function', filePath: '/src/a.ts', isCluster: false,
+      });
+      const cy = makeMockCy([node], []);
+      const dc = new DataController(cy as any);
+      const data = dc.getNodeData('n1');
+      expect(data).not.toBeNull();
+      expect(data!.label).toBe('n1');
+    });
+
+    it('getNodeData handles non-number lineNumber gracefully', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const node = makeMockNode('n1', {
+        id: 'n1', label: 'X', type: 'function',
+        filePath: '/src/a.ts', lineNumber: 'not-a-number', isCluster: false,
+      });
+      const cy = makeMockCy([node], []);
+      const dc = new DataController(cy as any);
+      const data = dc.getNodeData('n1');
+      expect(data).not.toBeNull();
+      expect(data!.lineNumber).toBe(0);
+    });
+
+    it('getNodeData returns ClusterNode when isCluster is true', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const node = makeMockNode('cluster1', {
+        id: 'cluster1', label: 'mypkg', type: 'module',
+        filePath: '/src/mypkg', isCluster: true, childCount: 5,
+      });
+      const cy = makeMockCy([node], []);
+      const dc = new DataController(cy as any);
+      const data = dc.getNodeData('cluster1') as any;
+      expect(data).not.toBeNull();
+      expect(data.isCluster).toBe(true);
+      expect(data.childCount).toBe(5);
+      expect(data.clusterPath).toBe('/src/mypkg');
+    });
+
+    it('getNodeData handles non-boolean isCluster gracefully', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const node = makeMockNode('n1', {
+        id: 'n1', label: 'X', type: 'function',
+        filePath: '/src/a.ts', isCluster: 1,
+      });
+      const cy = makeMockCy([node], []);
+      const dc = new DataController(cy as any);
+      const data = dc.getNodeData('n1') as any;
+      expect(data).not.toBeNull();
+      expect(data.isCluster).toBeUndefined();
+      expect(data.type).toBe('function');
+    });
+
+    it('getNodeData returns null for non-existent node', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      const data = dc.getNodeData('nonexistent');
+      expect(data).toBeNull();
+    });
+
+    it('getNodeData handles parentId correctly', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const node = makeMockNode('child1', {
+        id: 'child1', label: 'Child', type: 'function',
+        filePath: '/src/a.ts', parent: 'parent1', isCluster: false,
+      });
+      const cy = makeMockCy([node], []);
+      const dc = new DataController(cy as any);
+      const data = dc.getNodeData('child1');
+      expect(data).not.toBeNull();
+      expect(data!.parentId).toBe(NodeId('parent1'));
+    });
+  });
+
+  describe('type guard functions', () => {
+    it('isNodeType validates correct node types', () => {
+      expect(isNodeType('function')).toBe(true);
+      expect(isNodeType('class')).toBe(true);
+      expect(isNodeType('variable')).toBe(true);
+      expect(isNodeType('module')).toBe(true);
+      expect(isNodeType('interface')).toBe(true);
+      expect(isNodeType('type')).toBe(true);
+    });
+
+    it('isNodeType rejects invalid node types', () => {
+      expect(isNodeType('invalid')).toBe(false);
+      expect(isNodeType('')).toBe(false);
+      expect(isNodeType(null)).toBe(false);
+      expect(isNodeType(undefined)).toBe(false);
+      expect(isNodeType(42)).toBe(false);
+    });
+
+    it('safeString returns value when string', () => {
+      expect(safeString('hello')).toBe('hello');
+      expect(safeString('hello', 'fallback')).toBe('hello');
+    });
+
+    it('safeString returns fallback when not string', () => {
+      expect(safeString(null)).toBe('');
+      expect(safeString(undefined)).toBe('');
+      expect(safeString(42)).toBe('');
+      expect(safeString(null, 'fallback')).toBe('fallback');
+      expect(safeString(undefined, 'fallback')).toBe('fallback');
+      expect(safeString(42, 'fallback')).toBe('fallback');
+    });
+
+    it('safeNumber returns value when number', () => {
+      expect(safeNumber(42)).toBe(42);
+      expect(safeNumber(0)).toBe(0);
+      expect(safeNumber(42, 99)).toBe(42);
+    });
+
+    it('safeNumber returns fallback when not number or NaN', () => {
+      expect(safeNumber(null)).toBe(0);
+      expect(safeNumber(undefined)).toBe(0);
+      expect(safeNumber('42')).toBe(0);
+      expect(safeNumber(NaN)).toBe(0);
+      expect(safeNumber(null, 99)).toBe(99);
+      expect(safeNumber('42', 99)).toBe(99);
+    });
+
+    it('safeBoolean returns value when boolean', () => {
+      expect(safeBoolean(true)).toBe(true);
+      expect(safeBoolean(false)).toBe(false);
+      expect(safeBoolean(true, false)).toBe(true);
+    });
+
+    it('safeBoolean returns fallback when not boolean', () => {
+      expect(safeBoolean(null)).toBe(false);
+      expect(safeBoolean(undefined)).toBe(false);
+      expect(safeBoolean(1)).toBe(false);
+      expect(safeBoolean('true')).toBe(false);
+      expect(safeBoolean(null, true)).toBe(true);
+      expect(safeBoolean(1, true)).toBe(true);
     });
   });
 });

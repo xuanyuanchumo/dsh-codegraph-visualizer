@@ -51,6 +51,7 @@ export interface IRenderer {
   detectCyclesDetailed(): CycleInfo[];
   highlightCycles(cycleIds: Set<string>): void;
   isolateCycles(cycleIds: Set<string>): void;
+  relayoutCycles(cycleIds: Set<string>): void;
   restoreIsolation(): void;
   highlightImpact(nodeId: NodeId | null): void;
   getImpactStats(nodeId: NodeId): { d1: number; d2: number; d3: number; total: number } | null;
