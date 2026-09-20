@@ -266,11 +266,15 @@ describe('McpServer (FR-46)', () => {
       expect(result.message).toBe('Symbol not found');
     });
 
-    it('unknown method returns null', async () => {
+    it('unknown method returns JSON-RPC -32601 error', async () => {
       const response = await (server as unknown as {
         handleMessage: (msg: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
       }).handleMessage({ jsonrpc: '2.0', id: 11, method: 'unknown_method' });
-      expect(response).toBeNull();
+      expect(response).toEqual({
+        jsonrpc: '2.0',
+        id: 11,
+        error: { code: -32601, message: 'Method not found: unknown_method' },
+      });
     });
 
     it('tools/call with handler throwing returns error -32603', async () => {

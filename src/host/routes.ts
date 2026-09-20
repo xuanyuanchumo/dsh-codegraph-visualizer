@@ -367,16 +367,34 @@ export function registerRoutes(deps: RouteDeps): void {
       if (ifNoneMatch && lastGraphData) {
         const clientTimestamp = parseInt(String(ifNoneMatch), 10);
         if (clientTimestamp >= lastGraphData.metadata.timestamp) {
-          res.writeHead(304, { 'etag': String(lastGraphData.metadata.timestamp) });
+          const corsHeaders: Record<string, string> = {
+            'etag': String(lastGraphData.metadata.timestamp),
+            'vary': 'Origin',
+          };
+          if (origins.length > 0) {
+            const reqOrigin = req.headers?.['origin'];
+            if (typeof reqOrigin === 'string' && origins.includes(reqOrigin)) {
+              corsHeaders['access-control-allow-origin'] = reqOrigin;
+            }
+          }
+          res.writeHead(304, corsHeaders);
           res.end();
           return;
         }
       }
       if (lastGraphData) {
-        res.writeHead(200, {
+        const dataHeaders: Record<string, string> = {
           'content-type': 'application/json',
           'etag': String(lastGraphData.metadata.timestamp),
-        });
+          'vary': 'Origin',
+        };
+        if (origins.length > 0) {
+          const reqOrigin = req.headers?.['origin'];
+          if (typeof reqOrigin === 'string' && origins.includes(reqOrigin)) {
+            dataHeaders['access-control-allow-origin'] = reqOrigin;
+          }
+        }
+        res.writeHead(200, dataHeaders);
         res.end(JSON.stringify(lastGraphData));
       } else {
         sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req);
@@ -582,6 +600,10 @@ export function registerRoutes(deps: RouteDeps): void {
           sendError(res, 403, 'Workspace path not allowed', req);
           return;
         }
+        if (!await validatePathRealpath(workspacePath)) {
+          sendError(res, 403, 'Access denied: symlink escape', req);
+          return;
+        }
 
         const allDepNodes: ReturnType<typeof dependencyGraphToGraphData>['nodes'] = [];
         const allDepEdges: ReturnType<typeof dependencyGraphToGraphData>['edges'] = [];
@@ -667,6 +689,10 @@ export function registerRoutes(deps: RouteDeps): void {
         }
         if (!isPathAllowed(workspacePath)) {
           sendError(res, 403, 'Workspace path not allowed', req);
+          return;
+        }
+        if (!await validatePathRealpath(workspacePath)) {
+          sendError(res, 403, 'Access denied: symlink escape', req);
           return;
         }
 

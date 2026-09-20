@@ -64,6 +64,13 @@ export class McpServer {
   private async handleMessage(msg: Record<string, unknown>): Promise<Record<string, unknown> | null> {
     const method = msg['method'] as string;
     const id = msg['id'];
+    if (id !== null && typeof id !== 'string' && typeof id !== 'number') {
+      return {
+        jsonrpc: '2.0',
+        id: null,
+        error: { code: -32600, message: 'Invalid Request: id must be string, number, or null' },
+      };
+    }
 
     if (method === 'initialize') {
       return {
@@ -101,6 +108,13 @@ export class McpServer {
         };
       }
       const toolName = typeof params['name'] === 'string' ? params['name'] : '';
+      if (!toolName) {
+        return {
+          jsonrpc: '2.0',
+          id,
+          error: { code: -32602, message: 'Invalid params: tool name is required and must be a non-empty string' },
+        };
+      }
       const args = (typeof params['arguments'] === 'object' && params['arguments'] !== null
         ? params['arguments'] as Record<string, unknown>
         : {});
@@ -128,7 +142,11 @@ export class McpServer {
       }
     }
 
-    return null;
+    return {
+      jsonrpc: '2.0',
+      id,
+      error: { code: -32601, message: `Method not found: ${method}` },
+    };
   }
 
   private registerGraphTools(getGraphData: () => GraphData | null): void {

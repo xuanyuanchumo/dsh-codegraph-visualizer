@@ -50,7 +50,8 @@
   .health-btn,
   .rules-btn,
   .hotspot-btn,
-  .godmodule-btn {
+  .godmodule-btn,
+  .corefunction-btn {
     width: 26px;
     height: 26px;
     font-size: 12px;
@@ -205,7 +206,8 @@
   .health-btn,
   .rules-btn,
   .hotspot-btn,
-  .godmodule-btn {
+  .godmodule-btn,
+  .corefunction-btn {
     min-width: 44px;
     min-height: 44px;
   }

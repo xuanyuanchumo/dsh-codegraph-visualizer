@@ -111,7 +111,7 @@ export function useGraphRenderer(
       renderer?.destroy();
       rendererRef.current = null;
     };
-  }, [callbacksRef, showCallChainRef]);
+  }, [callbacksRef, showCallChainRef, theme]);
 
   useEffect(() => {
     rendererRef.current?.updateData(nodes, edges);

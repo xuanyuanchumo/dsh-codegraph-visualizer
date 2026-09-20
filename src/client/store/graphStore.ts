@@ -20,6 +20,7 @@ export type { LayoutType, ThemeType } from '../../shared/viewModeUtils.ts';
 const diagramCache = new DiagramCache(10);
 const clusterCache = new ClusterCache(20);
 const callChainAggregator = new CallChainAggregator();
+let microAssemblyGeneration = 0;
 
 function detectInitialTheme(): ThemeType {
   if (typeof document === 'undefined') return 'dark';
@@ -265,7 +266,7 @@ interface GraphState {
   setRules: (rules: RuleDefinition[]) => void;
   setRuleViolations: (violations: RuleViolation[]) => void;
   setSelectedFunction: (fn: { nodeId: string; filePath: string; functionName: string } | null) => void;
-  assembleMicro: (viewMode: 'cfg' | 'flowchart' | 'sequence') => Promise<void>;
+  assembleMicro: (viewMode: 'cfg' | 'flowchart' | 'sequence', selectedFunctionOverride?: { nodeId: string; filePath: string; functionName: string } | null) => Promise<void>;
   setPanelSize: (height: number, width: number) => void;
   resetPanelSize: () => void;
 }
@@ -398,8 +399,9 @@ export const useGraphStore = create<GraphState>()(
         );
         if (result.needsMicroAssembly) {
           const { needsMicroAssembly: _, ...rest } = result;
+          const fn = useGraphStore.getState().selectedFunction;
           set(rest);
-          useGraphStore.getState().assembleMicro(viewMode as 'cfg' | 'flowchart' | 'sequence');
+          useGraphStore.getState().assembleMicro(viewMode as 'cfg' | 'flowchart' | 'sequence', fn);
           return;
         }
         const { needsMicroAssembly: _u, ...rest } = result;
@@ -539,14 +541,17 @@ export const useGraphStore = create<GraphState>()(
       setPanelSize: (height, width) => set({ panelHeight: height, panelWidth: width }),
       resetPanelSize: () => set({ panelHeight: null, panelWidth: null }),
       setSelectedFunction: (fn) => set({ selectedFunction: fn }),
-      assembleMicro: async (viewMode) => {
-        const { selectedFunction } = useGraphStore.getState();
+      assembleMicro: async (viewMode, selectedFunctionOverride) => {
+        const selectedFunction = selectedFunctionOverride ?? useGraphStore.getState().selectedFunction;
         if (!selectedFunction) return;
+        const gen = ++microAssemblyGeneration;
         set({ isLoading: true, error: null });
         try {
           const diagram = await assembleMicroDiagram(viewMode, selectedFunction.filePath, selectedFunction.functionName);
+          if (gen !== microAssemblyGeneration) return;
           set({ diagramData: null, nodes: diagram.nodes, edges: diagram.edges, isLoading: false });
         } catch (e) {
+          if (gen !== microAssemblyGeneration) return;
           const msg = e instanceof Error ? e.message : String(e);
           set({ isLoading: false, error: `${msg} — ${selectedFunction.functionName}` });
         }

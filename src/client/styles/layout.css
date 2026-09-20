@@ -396,7 +396,8 @@ body[data-ds-dark-theme] .type-badge.function {
 .health-btn,
 .rules-btn,
 .hotspot-btn,
-.godmodule-btn {
+.godmodule-btn,
+.corefunction-btn {
   width: 28px;
   height: 28px;
   display: flex;
@@ -432,7 +433,8 @@ body[data-ds-dark-theme] .type-badge.function {
 .health-btn:hover,
 .rules-btn:hover,
 .hotspot-btn:hover,
-.godmodule-btn:hover {
+.godmodule-btn:hover,
+.corefunction-btn:hover {
   background: var(--cg-surface-hover);
   border-color: var(--cg-accent);
   color: var(--cg-text);
@@ -459,7 +461,8 @@ body[data-ds-dark-theme] .type-badge.function {
 .health-btn:focus-visible,
 .rules-btn:focus-visible,
 .hotspot-btn:focus-visible,
-.godmodule-btn:focus-visible {
+.godmodule-btn:focus-visible,
+.corefunction-btn:focus-visible {
   outline: 2px solid var(--cg-accent);
   outline-offset: 2px;
 }
@@ -478,7 +481,8 @@ body[data-ds-dark-theme] .type-badge.function {
 .health-btn.active,
 .rules-btn.active,
 .hotspot-btn.active,
-.godmodule-btn.active {
+.godmodule-btn.active,
+.corefunction-btn.active {
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
   color: var(--cg-on-accent);
