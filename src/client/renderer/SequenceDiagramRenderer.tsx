@@ -235,6 +235,32 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
     return map;
   }, [messages]);
 
+  const activations = useMemo(() => {
+    const result: Array<{ participantId: string; startY: number; endY: number }> = [];
+    const activeStacks = new Map<string, number[]>();
+    for (const msg of messages) {
+      if (!msg.isReturn && !msg.isCreate) {
+        const stack = activeStacks.get(msg.target) ?? [];
+        stack.push(msg.y);
+        activeStacks.set(msg.target, stack);
+      }
+      if (msg.isReturn) {
+        const stack = activeStacks.get(msg.source);
+        if (stack && stack.length > 0) {
+          const startY = stack.pop()!;
+          result.push({ participantId: msg.source, startY, endY: msg.y });
+          activeStacks.set(msg.source, stack);
+        }
+      }
+    }
+    for (const [participantId, stack] of activeStacks) {
+      for (const startY of stack) {
+        result.push({ participantId, startY, endY: dimensions.lifelineBottom });
+      }
+    }
+    return result;
+  }, [messages, dimensions.lifelineBottom]);
+
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
     const delta = e.deltaY > 0 ? 0.9 : 1.1;
@@ -458,58 +484,23 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
             );
           })}
 
-          {(() => {
-            const activations: Array<{ participantId: string; startY: number; endY: number }> = [];
-            const activeStacks = new Map<string, number[]>();
-
-            for (const msg of messages) {
-              if (!msg.isReturn && !msg.isCreate) {
-                const stack = activeStacks.get(msg.target) ?? [];
-                stack.push(msg.y);
-                activeStacks.set(msg.target, stack);
-              }
-              if (msg.isReturn) {
-                const stack = activeStacks.get(msg.source);
-                if (stack && stack.length > 0) {
-                  const startY = stack.pop()!;
-                  activations.push({
-                    participantId: msg.source,
-                    startY,
-                    endY: msg.y,
-                  });
-                  activeStacks.set(msg.source, stack);
-                }
-              }
-            }
-
-            for (const [participantId, stack] of activeStacks) {
-              for (const startY of stack) {
-                activations.push({
-                  participantId,
-                  startY,
-                  endY: dimensions.lifelineBottom,
-                });
-              }
-            }
-
-            return activations.map((act, idx) => {
-              const p = participantMap.get(act.participantId);
-              if (!p) return null;
-              return (
-                <rect
-                  key={`act-${idx}`}
-                  x={p.x - LAYOUT.ACTIVATION_WIDTH / 2}
-                  y={act.startY - LAYOUT.MESSAGE_LABEL_HEIGHT / 2}
-                  width={LAYOUT.ACTIVATION_WIDTH}
-                  height={Math.max(act.endY - act.startY + LAYOUT.MESSAGE_LABEL_HEIGHT, 10)}
-                  fill={colors.activation}
-                  stroke={colors.activationBorder}
-                  strokeWidth={1}
-                  rx={1}
-                />
-              );
-            });
-          })()}
+          {activations.map((act, idx) => {
+            const p = participantMap.get(act.participantId);
+            if (!p) return null;
+            return (
+              <rect
+                key={`act-${idx}`}
+                x={p.x - LAYOUT.ACTIVATION_WIDTH / 2}
+                y={act.startY - LAYOUT.MESSAGE_LABEL_HEIGHT / 2}
+                width={LAYOUT.ACTIVATION_WIDTH}
+                height={Math.max(act.endY - act.startY + LAYOUT.MESSAGE_LABEL_HEIGHT, 10)}
+                fill={colors.activation}
+                stroke={colors.activationBorder}
+                strokeWidth={1}
+                rx={1}
+              />
+            );
+          })}
 
           {messages.map((msg) => {
             const sourceP = participantMap.get(msg.source);

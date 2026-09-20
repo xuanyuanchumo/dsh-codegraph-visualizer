@@ -43,9 +43,23 @@ export class DataController {
   }
 
   updateData(nodes: GraphNode[], edges: GraphEdge[]): void {
-    const newNodeIds = new Set<string>(nodes.map((n) => n.id));
-    const newEdgeIds = new Set<string>(edges.map((e) => e.id));
+    this.buildRawToVisibleMap(nodes);
+    const changes = this.detectChanges(nodes, edges);
+    if (!changes.hasNewNodes && !changes.hasStaleNodes && !changes.hasNewEdges && !changes.hasStaleEdges) {
+      const hasUpdatedNodes = this.detectPropertyChanges(nodes);
+      if (!hasUpdatedNodes) return;
+      this.applyIncrementalUpdates(nodes, edges);
+      this.computeNodeWeights();
+      return;
+    }
+    if (changes.hasStaleNodes) {
+      this.handleFullReset(nodes, edges);
+      return;
+    }
+    this.handleIncrementalUpdate(nodes, edges, changes);
+  }
 
+  private buildRawToVisibleMap(nodes: GraphNode[]): void {
     this.rawToVisibleMap.clear();
     for (const n of nodes) {
       if ('isCluster' in n && n.isCluster === true) {
@@ -57,7 +71,13 @@ export class DataController {
         this.rawToVisibleMap.set(n.id, n.id);
       }
     }
+  }
 
+  private detectChanges(nodes: GraphNode[], edges: GraphEdge[]): {
+    hasNewNodes: boolean; hasStaleNodes: boolean; hasNewEdges: boolean; hasStaleEdges: boolean;
+  } {
+    const newNodeIds = new Set<string>(nodes.map((n) => n.id));
+    const newEdgeIds = new Set<string>(edges.map((e) => e.id));
     const cyNodeCount = this.cy.nodes().length;
     const cyEdgeCount = this.cy.edges().length;
     const hasNewNodes = nodes.some((n) => !this.currentNodes.has(n.id));
@@ -74,48 +94,45 @@ export class DataController {
         if (!newEdgeIds.has(id)) { hasStaleEdges = true; break; }
       }
     }
+    return { hasNewNodes, hasStaleNodes, hasNewEdges, hasStaleEdges };
+  }
 
-    if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges) {
-      const hasUpdatedNodes = this.detectPropertyChanges(nodes);
-      if (!hasUpdatedNodes) return;
-      this.applyIncrementalUpdates(nodes, edges);
-      this.computeNodeWeights();
-      return;
-    }
+  private handleFullReset(nodes: GraphNode[], edges: GraphEdge[]): void {
+    this.cy.elements().remove();
+    this.currentNodes.clear();
+    this.currentEdges.clear();
+    this.lastAddedNodeIds.clear();
+    this.cy.batch(() => {
+      for (const n of nodes) {
+        this.addNode(n);
+        this.currentNodes.set(n.id, n);
+        this.lastAddedNodeIds.add(n.id);
+      }
+      for (const e of edges) {
+        this.addEdge(e);
+        this.currentEdges.set(e.id, e);
+      }
+    });
+    this.computeNodeWeights();
+  }
 
-    const needsFullReset = hasStaleNodes;
-
-    if (needsFullReset) {
-      this.cy.elements().remove();
-      this.currentNodes.clear();
-      this.currentEdges.clear();
-      this.lastAddedNodeIds.clear();
-      this.cy.batch(() => {
-        for (const n of nodes) {
-          this.addNode(n);
-          this.currentNodes.set(n.id, n);
-          this.lastAddedNodeIds.add(n.id);
-        }
-        for (const e of edges) {
-          this.addEdge(e);
-          this.currentEdges.set(e.id, e);
-        }
-      });
-      this.computeNodeWeights();
-      return;
-    }
-
+  private handleIncrementalUpdate(
+    nodes: GraphNode[], edges: GraphEdge[],
+    changes: { hasNewNodes: boolean; hasStaleNodes: boolean; hasNewEdges: boolean; hasStaleEdges: boolean },
+  ): void {
+    const newNodeIds = new Set<string>(nodes.map((n) => n.id));
+    const newEdgeIds = new Set<string>(edges.map((e) => e.id));
     const nodesToAdd: GraphNode[] = [];
     const edgesToAdd: GraphEdge[] = [];
 
-    if (hasStaleNodes) {
+    if (changes.hasStaleNodes) {
       const staleNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
       if (staleNodes.length > 0) this.cy.remove(staleNodes);
       for (const id of this.currentNodes.keys()) {
         if (!newNodeIds.has(id)) this.currentNodes.delete(id);
       }
     }
-    if (hasStaleEdges) {
+    if (changes.hasStaleEdges) {
       const staleEdges = this.cy.edges().filter((e) => !newEdgeIds.has(e.id()));
       if (staleEdges.length > 0) this.cy.remove(staleEdges);
       for (const id of this.currentEdges.keys()) {
@@ -153,7 +170,10 @@ export class DataController {
       this.computeNodeWeights();
       return;
     }
+    this.processBatchAdd(nodesToAdd, edgesToAdd);
+  }
 
+  private processBatchAdd(nodesToAdd: GraphNode[], edgesToAdd: GraphEdge[]): void {
     const BATCH_SIZE = DATA_CONTROLLER.BATCH_SIZE;
     if (nodesToAdd.length <= BATCH_SIZE) {
       this.cy.batch(() => {
@@ -163,7 +183,6 @@ export class DataController {
       this.computeNodeWeights();
       return;
     }
-
     const firstBatchNodes = nodesToAdd.slice(0, BATCH_SIZE);
     const firstBatchNodeIds = new Set(firstBatchNodes.map((n) => n.id));
     const firstBatchEdges = edgesToAdd.filter((e) => firstBatchNodeIds.has(e.source) && firstBatchNodeIds.has(e.target));

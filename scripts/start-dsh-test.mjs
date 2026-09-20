@@ -3,28 +3,29 @@
  * DSH Web 调试环境启动脚本（Windows）
  *
  * 用法:
- *   node start-dsh-test.mjs start   [--verbose] [--force] [timeout]  启动/复用环境
- *   node start-dsh-test.mjs stop                                     停止并等待端口释放
- *   node start-dsh-test.mjs restart [--verbose] [timeout]            强制重启
- *   node start-dsh-test.mjs status                                   查看运行状态
- *   node start-dsh-test.mjs check                                    仅端口评估，不启动/不杀进程
+ *   node start-dsh-test.mjs start   [--verbose] [--force] [--fresh-profile] [timeout]
+ *   node start-dsh-test.mjs stop
+ *   node start-dsh-test.mjs restart [--verbose] [timeout]
+ *   node start-dsh-test.mjs status
+ *   node start-dsh-test.mjs check
  *
- * 关键特性:
- *   - start 幂等：环境已就绪时不再重复启动，避免多开 Chrome / DSH
- *   - stop 优雅关闭 Chrome（WM_CLOSE → 超时兜底 /F），等待端口真正释放
- *   - 杀进程前按 PID 文件校验进程名（DSH→node/cmd，Chrome→chrome），避免 PID 复用误杀
- *   - 端口被非本环境进程占用时也校验进程名，防止误杀无关服务
- *   - DSH / Chrome 输出重定向日志文件，父进程退出后子进程不崩
- *   - waitForUrl 不使用 redirect:'manual'（302 不再误判）
- *   - waitForTarget 用 URL 解析精确匹配端口，避免 :30801 误命中 :3080
- *   - findChromeExe 判空 LOCALAPPDATA
- *   - 主流程 try/catch 回滚，任一步失败清理已启动进程
- *   - SIGINT 异步等待清理完成
+ * 本版修复（针对"浏览器无法正常启动"）:
+ *   - Chrome 不再使用 windowsHide（避免主窗口被隐藏）
+ *   - 回滚 / 超时时按"端口 PID"杀，而不是按 spawn PID（Chrome 是 multi-process）
+ *   - 去掉 --disable-logging，崩溃时能拿到日志
+ *   - 增加 --remote-allow-origins=*（Chrome 111+ 必需）
+ *   - 增加 --disable-session-crashed-bubble / --hide-crash-restore-bubble（避免恢复气泡卡启动）
+ *   - 增加 --new-window
+ *   - spawn 后校验 chromeProc.exitCode，早退立刻报错并回显日志尾部
+ *   - 等待 DevTools 超时 / 失败时回显 CHROME_LOG 尾部
+ *   - 提供 --fresh-profile：启动失败自动清空 profile 重试
+ *   - 幂等复用时若拿不到 DSH target 会告警而不是静默成功
+ *   - exit 前 sleep 300ms 让 detached 子进程稳定
  */
 import { spawn, execSync } from 'node:child_process';
 import {
   existsSync, writeFileSync, readFileSync, unlinkSync, mkdirSync,
-  openSync, closeSync,
+  openSync, closeSync, rmSync,
 } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,8 +50,7 @@ const CHROME_DEBUG_PORT = 9222;
 const CHROME_DEBUG_URL = `http://127.0.0.1:${CHROME_DEBUG_PORT}`;
 const USER_DATA_DIR = join(PROJECT_ROOT, 'test-results', 'chrome-debug-profile');
 
-// 进程名允许列表（小写、包含匹配）
-const DSH_PROC_NAMES = ['node', 'cmd'];       // .cmd 包装最终监听端口的通常是 node.exe
+const DSH_PROC_NAMES = ['node', 'cmd'];
 const CHROME_PROC_NAMES = ['chrome'];
 
 // ---------- 参数解析 ----------
@@ -59,6 +59,7 @@ const positional = args.filter(a => !a.startsWith('--'));
 const action = (positional[0] || 'start').toLowerCase();
 const verbose = args.includes('--verbose');
 const force = args.includes('--force');
+const freshProfile = args.includes('--fresh-profile');
 const timeoutArg = positional.find(a => /^\d+$/.test(a));
 const timeoutSeconds = timeoutArg ? parseInt(timeoutArg, 10) : 30;
 
@@ -72,6 +73,16 @@ function log(msg)  { console.log(`>>> ${msg}`); }
 function warn(msg) { console.warn(`!!! ${msg}`); }
 function dbg(msg)  { if (verbose) console.log(`    [debug] ${msg}`); }
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/** 读取日志文件末尾若干字符，用于失败诊断。 */
+function readLogTail(logFile, maxBytes = 4000) {
+  try {
+    if (!existsSync(logFile)) return null;
+    const buf = readFileSync(logFile);
+    const tail = buf.length > maxBytes ? buf.subarray(buf.length - maxBytes) : buf;
+    return tail.toString('utf8').trim();
+  } catch { return null; }
+}
 
 // ---------- 进程 / 端口工具 ----------
 function findPidByPort(port) {
@@ -88,7 +99,6 @@ function findPidByPort(port) {
 
 function isPortInUse(port) { return findPidByPort(port) !== null; }
 
-/** 通过 tasklist 获取进程名（小写，如 chrome.exe）。不存在返回 null。 */
 function getProcessName(pid) {
   const n = typeof pid === 'string' ? parseInt(pid, 10) : pid;
   if (!Number.isInteger(n) || n <= 0) return null;
@@ -101,21 +111,6 @@ function getProcessName(pid) {
   } catch { return null; }
 }
 
-/** 判断 PID 是否是期望进程名之一；进程不存在返回 false。 */
-function processNameMatches(pid, expectedNames) {
-  const name = getProcessName(pid);
-  if (!name) return false;
-  if (!expectedNames || expectedNames.length === 0) return true;
-  return expectedNames.some(e => name.includes(e.toLowerCase()));
-}
-
-/**
- * 按 PID 杀进程。
- * @param {number|string} pid
- * @param {{ expectNames?: string[], force?: boolean }} [opts]
- *   - expectNames: 若提供，进程名不匹配则拒绝
- *   - force: 是否加 /F（false 时仅发 WM_CLOSE 等优雅关闭）
- */
 function killProcess(pid, opts = {}) {
   const { expectNames = null, force = true } = opts;
   const n = typeof pid === 'string' ? parseInt(pid, 10) : pid;
@@ -158,18 +153,9 @@ function removePidFile(file) {
   try { unlinkSync(file); } catch { /* ignore */ }
 }
 
-/**
- * 按 PID 文件停止进程。三重校验:
- *  1. PID 文件格式
- *  2. 进程是否还存在（不存在直接清 PID 文件）
- *  3. 进程名是否匹配预期（不匹配视为陈旧 PID，清文件不杀）
- */
 function killByPidFile(pidFile, label, expectNames) {
   const pid = readPid(pidFile);
-  if (pid === null) {
-    removePidFile(pidFile);
-    return;
-  }
+  if (pid === null) { removePidFile(pidFile); return; }
 
   const procName = getProcessName(pid);
   if (!procName) {
@@ -193,10 +179,6 @@ function killByPidFile(pidFile, label, expectNames) {
   }
 }
 
-/**
- * spawn 并把 stdout/stderr 重定向到日志文件。
- * 父进程退出后子进程继续持有 fd，不会因为父进程 pipe 关闭而崩溃。
- */
 function spawnWithLog(command, argv, options, logFile) {
   mkdirSync(dirname(logFile), { recursive: true });
   let fd = -1;
@@ -259,7 +241,6 @@ async function waitForChromeDebug(timeoutMs = 15000) {
   return false;
 }
 
-/** 用 URL 解析精确匹配 DSH 目标，避免 :30801 误命中 :3080。 */
 function isDshUrl(url) {
   try {
     const u = new URL(url);
@@ -286,7 +267,6 @@ async function waitForTarget(timeoutMs = 20000) {
   return null;
 }
 
-/** 探测环境当前健康状态（不杀进程）。 */
 async function checkEnvironmentHealth() {
   const result = { dsh: false, chrome: false, chromeBrowser: null };
   try {
@@ -322,17 +302,19 @@ function findDshCmd() {
 
 function findChromeExe() {
   const localAppData = process.env.LOCALAPPDATA;
+  const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
+  const programFilesX86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
   const paths = [
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-    localAppData ? `${localAppData}\\Google\\Chrome\\Application\\chrome.exe` : null,
+    join(programFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    join(programFilesX86, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    localAppData ? join(localAppData, 'Google', 'Chrome', 'Application', 'chrome.exe') : null,
   ].filter(Boolean);
   for (const p of paths) { if (existsSync(p)) return p; }
   return null;
 }
 
 function cleanChromeLockFiles() {
-  const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+  const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket', 'lockfile'];
   for (const f of lockFiles) {
     const p = join(USER_DATA_DIR, f);
     if (existsSync(p)) {
@@ -341,26 +323,30 @@ function cleanChromeLockFiles() {
   }
 }
 
+function wipeChromeProfile() {
+  try {
+    if (existsSync(USER_DATA_DIR)) {
+      rmSync(USER_DATA_DIR, { recursive: true, force: true });
+      log(`已清空 Chrome profile: ${USER_DATA_DIR}`);
+    }
+  } catch (e) {
+    warn(`清空 profile 失败: ${e.message}`);
+  }
+}
+
 // ---------- 令牌管理 ----------
 function getOrCreateFixedToken() {
   try {
     if (existsSync(TOKEN_FILE)) {
       const saved = readFileSync(TOKEN_FILE, 'utf8').trim();
-      if (saved) {
-        dbg(`从 ${TOKEN_FILE} 复用固定令牌`);
-        return saved;
-      }
+      if (saved) { dbg(`从 ${TOKEN_FILE} 复用固定令牌`); return saved; }
     }
-  } catch (e) {
-    warn(`读取令牌文件失败: ${e.message}，将重新生成`);
-  }
+  } catch (e) { warn(`读取令牌文件失败: ${e.message}，将重新生成`); }
   const token = randomBytes(24).toString('hex');
   try {
     writeFileSync(TOKEN_FILE, token, { mode: 0o600 });
     log(`生成新的固定令牌并保存到 ${TOKEN_FILE}`);
-  } catch (e) {
-    warn(`写入令牌文件失败: ${e.message}，本次使用内存令牌`);
-  }
+  } catch (e) { warn(`写入令牌文件失败: ${e.message}，本次使用内存令牌`); }
   return token;
 }
 
@@ -380,10 +366,6 @@ function extractTokenUrlFromLog(logFile) {
 }
 
 // ---------- 启动前端口评估 ----------
-/**
- * 扫描业务端口，占用则清理旧进程。
- * 杀进程前会校验进程名（防止误杀无关服务）。
- */
 async function preflightPortCheck({ autoKill = true } = {}) {
   log('=== 启动前端口评估 ===');
   const conflicts = [];
@@ -411,7 +393,6 @@ async function preflightPortCheck({ autoKill = true } = {}) {
 
   log(`评估结果: ${conflicts.length} 个业务端口被占用，开始清理旧进程...`);
   for (const c of conflicts) {
-    // 校验进程名：避免误杀无关进程
     const expected = c.expectNames || [];
     const matches = expected.length === 0 || expected.some(e => c.procName.includes(e));
     if (!matches) {
@@ -437,21 +418,12 @@ async function preflightPortCheck({ autoKill = true } = {}) {
   return { ok: allFreed, conflicts };
 }
 
-// ---------- 停止 / 状态 ----------
-/**
- * 优雅关闭 Chrome：
- *  1. taskkill（不带 /F，发 WM_CLOSE）
- *  2. 等待最多 5s
- *  3. 未退出则 /F 强制
- */
+// ---------- 停止 ----------
 async function stopChromeGracefully() {
   const pidFromFile = readPid(CHROME_PID_FILE);
   const pidFromPort = findPidByPort(CHROME_DEBUG_PORT);
   const pid = pidFromFile || pidFromPort;
-  if (!pid) {
-    removePidFile(CHROME_PID_FILE);
-    return;
-  }
+  if (!pid) { removePidFile(CHROME_PID_FILE); return; }
 
   const name = getProcessName(pid);
   if (!name) {
@@ -466,10 +438,8 @@ async function stopChromeGracefully() {
   }
 
   log(`优雅关闭 Chrome (PID: ${pid})...`);
-  // 先发 WM_CLOSE，让 Chrome 正常退出（保存 profile、释放锁文件）
   killProcess(pid, { expectNames: CHROME_PROC_NAMES, force: false });
 
-  // 等待退出（最多 5 秒）
   const deadline = Date.now() + 5000;
   while (Date.now() < deadline) {
     await sleep(400);
@@ -483,18 +453,24 @@ async function stopChromeGracefully() {
   warn(`Chrome 未在 5 秒内退出，强制终止 (PID: ${pid})`);
   killProcess(pid, { expectNames: CHROME_PROC_NAMES, force: true });
 
-  // 再等 2 秒确保端口释放
-  await waitForPortFree(CHROME_DEBUG_PORT, 2000);
+  // 端口兜底：multi-process Chrome 可能由子进程持有 9222
+  const leftover = findPidByPort(CHROME_DEBUG_PORT);
+  if (leftover && leftover !== pid) {
+    const lname = getProcessName(leftover) || '?';
+    if (CHROME_PROC_NAMES.some(e => lname.includes(e))) {
+      warn(`Chrome 调试端口仍被 PID ${leftover} (${lname}) 占用，强制终止`);
+      killProcess(leftover, { expectNames: CHROME_PROC_NAMES, force: true });
+    }
+  }
+
+  await waitForPortFree(CHROME_DEBUG_PORT, 3000);
   removePidFile(CHROME_PID_FILE);
 }
 
 async function stopEnvironment() {
   log('开始清理环境...');
-
-  // 1) Chrome 优雅关闭（异步等待）
   await stopChromeGracefully();
 
-  // 2) DSH：先按 PID 文件杀，再按端口兜底
   killByPidFile(PID_FILE, 'DSH', DSH_PROC_NAMES);
   const dshPidLeft = findPidByPort(DSH_PORT);
   if (dshPidLeft) {
@@ -503,11 +479,9 @@ async function stopEnvironment() {
     killProcess(dshPidLeft, { force: true });
   }
 
-  // 3) 等待 DSH 端口释放
   const freed = await waitForPortFree(DSH_PORT, 5000);
   if (!freed) warn(`DSH 端口 ${DSH_PORT} 在 5s 内仍未释放`);
 
-  // 保留 TOKEN_FILE，重启后复用同一令牌
   log('清理完成。');
 }
 
@@ -525,6 +499,7 @@ function statusEnvironment() {
   console.log(`令牌文件:         ${TOKEN_FILE}`);
   console.log(`DSH 日志:         ${DSH_LOG}`);
   console.log(`Chrome 日志:      ${CHROME_LOG}`);
+  console.log(`Chrome profile:   ${USER_DATA_DIR}`);
 }
 
 // ---------- 启动 DSH ----------
@@ -538,7 +513,6 @@ async function startDsh() {
   log(`固定令牌已就绪 (${fixedToken.slice(0, 8)}...)`);
   log(`认证 URL: ${tokenUrl}`);
 
-  // 每次启动前清空日志，便于 ready 后精确提取 token URL
   try { unlinkSync(DSH_LOG); } catch { /* ignore */ }
 
   log(`启动 DSH Web 服务（注入固定令牌，超时 ${timeoutSeconds}s）...`);
@@ -562,7 +536,11 @@ async function startDsh() {
   const readyUrl = await waitForUrl([DSH_URL, DSH_URL_ALT], timeoutSeconds * 1000, dshProc);
   if (!readyUrl) {
     warn(`DSH Web 服务未能在 ${timeoutSeconds} 秒内就绪，请查看日志: ${DSH_LOG}`);
-    if (dshProc.pid) killProcess(dshProc.pid, { force: true });
+    const tail = readLogTail(DSH_LOG);
+    if (tail) warn(`DSH 日志尾部:\n${tail}`);
+    const pid = findPidByPort(DSH_PORT);
+    if (pid) killProcess(pid, { force: true });
+    else if (dshProc.pid) killProcess(dshProc.pid, { force: true });
     throw new Error('DSH 未就绪');
   }
   log(`DSH Web 服务已就绪 (${readyUrl})`);
@@ -573,16 +551,11 @@ async function startDsh() {
   else warn(`无法通过端口查找 PID，使用 spawn PID: ${dshProc.pid}`);
   writePidFile(PID_FILE, finalDshPid);
 
-  // ready 后从日志中提取 token URL
   let dshTokenUrl = tokenUrl;
   await sleep(300);
   const fromLog = extractTokenUrlFromLog(DSH_LOG);
-  if (fromLog) {
-    dshTokenUrl = fromLog;
-    dbg(`从日志捕获 token URL: ${dshTokenUrl}`);
-  } else {
-    dbg('日志中未找到 token URL，使用构造的认证 URL');
-  }
+  if (fromLog) { dshTokenUrl = fromLog; dbg(`从日志捕获 token URL: ${dshTokenUrl}`); }
+  else dbg('日志中未找到 token URL，使用构造的认证 URL');
 
   return { dshProc, finalDshPid, fixedToken, tokenUrl, dshTokenUrl };
 }
@@ -596,46 +569,84 @@ async function startChrome(chromeUrl) {
   if (!existsSync(USER_DATA_DIR)) mkdirSync(USER_DATA_DIR, { recursive: true });
   cleanChromeLockFiles();
 
-  // 每次启动前清空 Chrome 日志（与 DSH 一致）
   try { unlinkSync(CHROME_LOG); } catch { /* ignore */ }
 
   log(`启动 Chrome 调试实例 (端口 ${CHROME_DEBUG_PORT})...`);
   log(`Chrome 将打开: ${chromeUrl}`);
 
-  const chromeProc = spawnWithLog(chromeExe, [
+  // 关键参数说明：
+  //   --remote-debugging-port      暴露 DevTools 协议
+  //   --remote-allow-origins=*     Chrome 111+ 必需，否则 WS 握手被拒
+  //   --user-data-dir              独立 profile
+  //   --new-window                 新开窗口，避免复用已有窗口
+  //   --disable-session-crashed-bubble / --hide-crash-restore-bubble
+  //                                避免"恢复会话"气泡阻塞启动
+  //   --no-first-run / --no-default-browser-check
+  //                                跳过首启流程
+  const chromeArgs = [
     `--remote-debugging-port=${CHROME_DEBUG_PORT}`,
+    '--remote-allow-origins=*',
     `--user-data-dir=${USER_DATA_DIR}`,
     '--window-size=1440,900',
+    '--new-window',
     '--no-first-run',
     '--no-default-browser-check',
     '--disable-default-apps',
     '--disable-extensions',
-    '--disable-plugins',
     '--disable-sync',
     '--disable-background-networking',
     '--disable-client-side-phishing-detection',
     '--disable-crash-reporter',
-    '--disable-logging',
     '--disable-breakpad',
     '--no-pings',
-    '--disable-features=TranslateUI',
+    '--disable-features=TranslateUI,Translate',
+    '--disable-session-crashed-bubble',
+    '--hide-crash-restore-bubble',
     chromeUrl,
-  ], {
+  ];
+
+  dbg(`Chrome 参数:\n  ${chromeArgs.join('\n  ')}`);
+
+  // 注意：Chrome 是 GUI 应用，不要用 windowsHide（会隐藏主窗口）
+  const chromeProc = spawnWithLog(chromeExe, chromeArgs, {
     detached: true,
-    windowsHide: true,
+    // windowsHide: false —— 显式不写，保持默认 false
   }, CHROME_LOG);
 
   let spawnFailed = false;
-  chromeProc.once('error', e => { spawnFailed = true; warn(`Chrome spawn 失败: ${e.message}`); });
+  let spawnErr = null;
+  chromeProc.once('error', e => { spawnFailed = true; spawnErr = e; warn(`Chrome spawn 失败: ${e.message}`); });
+
   chromeProc.unref();
-  await sleep(500);
-  if (spawnFailed) throw new Error('Chrome spawn 失败');
+  await sleep(1500);
+
+  if (spawnFailed) {
+    throw new Error(`Chrome spawn 失败: ${spawnErr?.message || 'unknown'}`);
+  }
+
+  // 检测 Chrome 是否立即退出（例如 profile 损坏、被策略阻止）
+  if (chromeProc.exitCode !== null && chromeProc.exitCode !== 0) {
+    const tail = readLogTail(CHROME_LOG);
+    warn(`Chrome 启动后立即退出 (exitCode=${chromeProc.exitCode})`);
+    if (tail) warn(`Chrome 日志尾部:\n${tail}`);
+    throw new Error(`Chrome 异常退出 (code=${chromeProc.exitCode})`);
+  }
 
   log('等待 Chrome DevTools 协议就绪...');
-  const debugReady = await waitForChromeDebug(15000);
+  const debugReady = await waitForChromeDebug(20000);
   if (!debugReady) {
-    warn(`Chrome 调试端口未能在 15 秒内就绪，请查看日志: ${CHROME_LOG}`);
-    if (chromeProc.pid) killProcess(chromeProc.pid, { force: true });
+    const tail = readLogTail(CHROME_LOG);
+    warn(`Chrome 调试端口未能在 20 秒内就绪，请查看日志: ${CHROME_LOG}`);
+    if (tail) warn(`Chrome 日志尾部:\n${tail}`);
+
+    // 回滚：优先用端口 PID（multi-process Chrome 的实际监听者）
+    const pid = findPidByPort(CHROME_DEBUG_PORT);
+    if (pid) {
+      warn(`强制终止占用 ${CHROME_DEBUG_PORT} 的进程 PID ${pid}`);
+      killProcess(pid, { force: true });
+    } else if (chromeProc.pid) {
+      killProcess(chromeProc.pid, { force: true });
+    }
     throw new Error('Chrome DevTools 未就绪');
   }
   log('Chrome DevTools 协议已就绪');
@@ -657,6 +668,8 @@ function printConnectionInfo(dsh, chrome, dshTarget) {
   console.log(`Chrome DevTools: ${CHROME_DEBUG_URL}`);
   if (dshTarget) {
     console.log(`DSH 页面 WebSocket: ${dshTarget.webSocketDebuggerUrl}`);
+  } else {
+    console.log('DSH 页面 WebSocket: (未找到 DSH 页面，请手动在 Chrome 中打开)');
   }
   console.log(`DSH Web 服务: ${DSH_URL}`);
   if (dsh) {
@@ -674,19 +687,18 @@ function printConnectionInfo(dsh, chrome, dshTarget) {
 
 // ---------- 主流程 ----------
 async function startEnvironment() {
-  // 0) 幂等检查：环境已就绪时不再重复启动（除非 --force）
+  // 0) 幂等检查
   if (!force) {
     const health = await checkEnvironmentHealth();
     if (health.dsh && health.chrome) {
       log('检测到 DSH 与 Chrome 均已在运行，跳过启动（幂等复用）');
       log(`Chrome: ${health.chromeBrowser}`);
-      const dshTarget = await waitForTarget(5000);
+      const dshTarget = await waitForTarget(8000);
       if (dshTarget) {
         log(`DSH 页面目标已就绪: ${dshTarget.title || '(无标题)'}`);
       } else {
-        warn('已运行的 Chrome 中未找到 DSH 页面目标，可能需要手动刷新或重启');
+        warn('已运行的 Chrome 中未找到 DSH 页面目标，请手动刷新或使用 --force 重启');
       }
-      // 复用场景下不重读令牌，从 TOKEN_FILE 读取用于打印
       let token = null;
       try { token = existsSync(TOKEN_FILE) ? readFileSync(TOKEN_FILE, 'utf8').trim() : null; } catch {}
       printConnectionInfo(
@@ -694,6 +706,7 @@ async function startEnvironment() {
         { finalChromePid: findPidByPort(CHROME_DEBUG_PORT) },
         dshTarget,
       );
+      await sleep(300);
       process.exit(0);
     }
     if (health.dsh && !health.chrome) {
@@ -708,7 +721,11 @@ async function startEnvironment() {
           chrome = await startChrome(tokenUrl);
         } catch (e) {
           warn(`Chrome 启动失败: ${e.message}`);
-          process.exit(4);
+          // 只启动 Chrome 失败 → 清理并整体重启
+          warn('尝试完整重启环境...');
+          await stopEnvironment();
+          await sleep(1000);
+          return await startEnvironment();
         }
         log('等待 DSH 页面成为有效调试目标...');
         const dshTarget = await waitForTarget(20000);
@@ -718,15 +735,15 @@ async function startEnvironment() {
           { fixedToken: token, tokenUrl, finalDshPid: findPidByPort(DSH_PORT) },
           chrome, dshTarget,
         );
+        await sleep(300);
         process.exit(0);
       }
     }
-    // 其余情况（DSH 未运行）→ 走完整启动流程
   } else {
     log('--force 指定，强制完整重启流程');
   }
 
-  // 1) 启动前端口评估（自动清理旧进程；端口未释放则终止）
+  // 1) 端口评估
   const { ok } = await preflightPortCheck({ autoKill: true });
   if (!ok) {
     warn('端口评估未通过，终止启动');
@@ -743,17 +760,32 @@ async function startEnvironment() {
     process.exit(1);
   }
 
-  // 3) 启动 Chrome
+  // 3) 启动 Chrome（失败时可选 fresh-profile 重试一次）
   let chrome;
   try {
     chrome = await startChrome(dsh.dshTokenUrl || dsh.tokenUrl);
   } catch (e) {
-    warn(`Chrome 启动失败: ${e.message}，回滚 DSH`);
-    await stopEnvironment();
-    process.exit(4);
+    warn(`Chrome 启动失败: ${e.message}`);
+    if (freshProfile) {
+      warn('--fresh-profile：清空 profile 后重试一次');
+      try { await stopChromeGracefully(); } catch {}
+      wipeChromeProfile();
+      try {
+        chrome = await startChrome(dsh.dshTokenUrl || dsh.tokenUrl);
+        log('fresh-profile 重试成功');
+      } catch (e2) {
+        warn(`Chrome 重试仍失败: ${e2.message}，回滚 DSH`);
+        await stopEnvironment();
+        process.exit(4);
+      }
+    } else {
+      warn('提示：若怀疑 profile 损坏，可加 --fresh-profile 重试');
+      await stopEnvironment();
+      process.exit(4);
+    }
   }
 
-  // 4) 等待 DSH 页面成为有效调试目标
+  // 4) 等待 DSH 页面成为调试目标
   log('等待 DSH 页面成为有效调试目标...');
   const dshTarget = await waitForTarget(20000);
   if (!dshTarget) {
@@ -765,6 +797,7 @@ async function startEnvironment() {
   }
 
   printConnectionInfo(dsh, chrome, dshTarget);
+  await sleep(300); // 让 detached 子进程稳定
   process.exit(0);
 }
 
