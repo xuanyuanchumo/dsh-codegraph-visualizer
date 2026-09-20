@@ -1,5 +1,5 @@
 
-
+import { memo } from 'react';
 import { useT } from '../i18n/index.ts';
 
 interface MicroViewPromptProps {
@@ -11,7 +11,7 @@ interface MicroViewPromptProps {
   onBackToCode: () => void;
 }
 
-export function MicroViewPrompt({ viewMode, selectFunctionPrompt, flowchartLabel, sequenceLabel, backToCodeLabel, onBackToCode }: MicroViewPromptProps) {
+export const MicroViewPrompt = memo(function MicroViewPrompt({ viewMode, selectFunctionPrompt, flowchartLabel, sequenceLabel, backToCodeLabel, onBackToCode }: MicroViewPromptProps) {
   const modeLabel = viewMode === 'cfg' ? 'CFG' : viewMode === 'flowchart' ? flowchartLabel : sequenceLabel;
   return (
     <div className="micro-empty-prompt">
@@ -20,7 +20,7 @@ export function MicroViewPrompt({ viewMode, selectFunctionPrompt, flowchartLabel
       <button className="micro-empty-back-btn" onClick={onBackToCode}>{backToCodeLabel}</button>
     </div>
   );
-}
+})
 
 interface MicroFunctionBarProps {
   functionName: string;
@@ -29,7 +29,7 @@ interface MicroFunctionBarProps {
   onClose: () => void;
 }
 
-export function MicroFunctionBar({ functionName, filePath, viewMode, onClose }: MicroFunctionBarProps) {
+export const MicroFunctionBar = memo(function MicroFunctionBar({ functionName, filePath, viewMode, onClose }: MicroFunctionBarProps) {
   const t = useT();
   const modeLabel = viewMode === 'cfg' ? 'CFG' : viewMode === 'flowchart' ? t('viewMode.flowchart') : viewMode === 'sequence' ? t('viewMode.sequence') : '';
   const shortPath = filePath ? filePath.split(/[\\/]/).slice(-2).join('/') : '';
@@ -41,4 +41,4 @@ export function MicroFunctionBar({ functionName, filePath, viewMode, onClose }: 
       <button className="micro-function-close" onClick={onClose} aria-label={t('micro.closeView')}>✕</button>
     </div>
   );
-}
+})

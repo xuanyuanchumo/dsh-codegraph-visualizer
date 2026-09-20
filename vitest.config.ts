@@ -28,6 +28,7 @@ export default defineConfig({
         'src/client/renderer/IRenderer.ts',
         'src/client/renderer/InteractionController.ts',
         'src/client/renderer/ViewportController.ts',
+
         'src/client/renderer/StyleController.ts',
         'src/client/renderer/VirtualViewportController.ts',
         'src/client/renderer/SequenceDiagramRenderer.tsx',
@@ -36,8 +37,7 @@ export default defineConfig({
         'src/client/renderer/cytoscape-dagre.d.ts',
         'src/client/renderer/cytoscape-fcose.d.ts',
         'src/client/renderer/styles/**',
-        'src/client/hooks/**',
-        'src/client/components/**',
+
         'src/client/styles/**',
         'src/client/store/cluster/ClusterStrategy.ts',
         'src/generated/**',

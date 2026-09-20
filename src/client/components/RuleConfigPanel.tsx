@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, memo } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
 import { useT } from '../i18n/index.ts';
 import { CloseIcon, RuleIcon, AlertIcon } from './Icons.tsx';
@@ -10,7 +10,7 @@ interface RuleConfigPanelProps {
   onClose: () => void;
 }
 
-export function RuleConfigPanel({ violations, onCheckRules, onClose }: RuleConfigPanelProps) {
+export const RuleConfigPanel = memo(function RuleConfigPanel({ violations, onCheckRules, onClose }: RuleConfigPanelProps) {
   const t = useT();
   const rules = useGraphStore((s) => s.rules);
   const setRules = useGraphStore((s) => s.setRules);
@@ -83,4 +83,4 @@ export function RuleConfigPanel({ violations, onCheckRules, onClose }: RuleConfi
       </div>
     </div>
   );
-}
+})

@@ -1,4 +1,4 @@
-
+import { memo } from 'react';
 import { CloseIcon } from './Icons.tsx';
 import type { GodModule } from '../hooks/useAnalysisPanels.ts';
 
@@ -9,7 +9,7 @@ interface GodModulePanelProps {
   statsLabel: (nodes: number, edges: number) => string;
 }
 
-export function GodModulePanel({ godModules, onClose, label, statsLabel }: GodModulePanelProps) {
+export const GodModulePanel = memo(function GodModulePanel({ godModules, onClose, label, statsLabel }: GodModulePanelProps) {
   return (
     <div className="analysis-panel godmodule-panel" role="region" aria-label={label} aria-live="polite">
       <div className="analysis-panel-header">
@@ -27,4 +27,4 @@ export function GodModulePanel({ godModules, onClose, label, statsLabel }: GodMo
       </div>
     </div>
   );
-}
+})

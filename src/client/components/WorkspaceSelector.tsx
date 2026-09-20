@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useLayoutEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
 import type { WorkspaceInfo } from '../store/graphStore.ts';
 import { useT } from '../i18n/index.ts';
@@ -23,7 +23,7 @@ function formatRelativeTime(ts: number, t: (key: string, params?: Record<string,
 }
 
 
-export function WorkspaceSelector({
+export const WorkspaceSelector = memo(function WorkspaceSelector({
   currentWorkspace,
   workspaceList,
   onSwitchWorkspace,
@@ -206,4 +206,4 @@ export function WorkspaceSelector({
       )}
     </div>
   );
-}
+})

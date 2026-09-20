@@ -1,4 +1,4 @@
-
+import { memo } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
 import { useT } from '../i18n/index.ts';
 import { CloseIcon, ExpandIcon, ContractIcon, FocusIcon } from './Icons.tsx';
@@ -10,7 +10,7 @@ interface FocusModeBarProps {
   onExit: () => void;
 }
 
-export function FocusModeBar({ focusNodeId, onExpand, onContract, onExit }: FocusModeBarProps) {
+export const FocusModeBar = memo(function FocusModeBar({ focusNodeId, onExpand, onContract, onExit }: FocusModeBarProps) {
   const t = useT();
   const focusDepth = useGraphStore((s) => s.focusDepth);
   const focusLabel = useGraphStore((s) => {
@@ -36,4 +36,4 @@ export function FocusModeBar({ focusNodeId, onExpand, onContract, onExit }: Focu
       </button>
     </div>
   );
-}
+})

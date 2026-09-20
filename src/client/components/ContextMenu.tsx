@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState, memo } from 'react';
 import type { GraphNode } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
 import { useT } from '../i18n/index.ts';
@@ -28,9 +28,10 @@ export interface ContextMenuProps {
   onHighlightImpact: (nodeId: string) => void;
 }
 
-export function ContextMenu(props: ContextMenuProps) {
+export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
   const t = useT();
   const menuRef = useRef<HTMLDivElement>(null);
+  const [focusedIndex, setFocusedIndex] = useState(0);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -38,16 +39,49 @@ export function ContextMenu(props: ContextMenuProps) {
         props.onClose();
       }
     };
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') props.onClose();
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        props.onClose();
+        return;
+      }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setFocusedIndex((prev) => {
+          const items = menuRef.current?.querySelectorAll<HTMLButtonElement>('.cg-context-menu-item:not([disabled])');
+          if (!items || items.length === 0) return prev;
+          return (prev + 1) % items.length;
+        });
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setFocusedIndex((prev) => {
+          const items = menuRef.current?.querySelectorAll<HTMLButtonElement>('.cg-context-menu-item:not([disabled])');
+          if (!items || items.length === 0) return prev;
+          return (prev - 1 + items.length) % items.length;
+        });
+      }
+      if (e.key === 'Home') {
+        e.preventDefault();
+        setFocusedIndex(0);
+      }
+      if (e.key === 'End') {
+        e.preventDefault();
+        const items = menuRef.current?.querySelectorAll<HTMLButtonElement>('.cg-context-menu-item:not([disabled])');
+        if (items && items.length > 0) setFocusedIndex(items.length - 1);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscape);
+    document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('keydown', handleKeyDown);
     };
   }, [props.onClose]);
+
+  useEffect(() => {
+    const items = menuRef.current?.querySelectorAll<HTMLButtonElement>('.cg-context-menu-item:not([disabled])');
+    items?.[focusedIndex]?.focus();
+  }, [focusedIndex]);
 
   useEffect(() => {
     if (menuRef.current) {
@@ -64,28 +98,24 @@ export function ContextMenu(props: ContextMenuProps) {
     }
   }, [props.position.x, props.position.y]);
 
-  useEffect(() => {
-    const firstItem = menuRef.current?.querySelector<HTMLButtonElement>('.cg-context-menu-item:not([disabled])');
-    firstItem?.focus();
-  }, []);
 
   const actions: ContextMenuAction[] = [];
 
   actions.push({
     id: 'focus',
-    label: t('contextMenu.focus') ?? 'Focus Node',
+    label: t('contextMenu.focus'),
     onClick: () => { props.onFocusNode(props.nodeId); props.onClose(); },
   });
 
   actions.push({
     id: 'isolate',
-    label: t('contextMenu.isolate') ?? 'Isolate (Show Neighborhood)',
+    label: t('contextMenu.isolate'),
     onClick: () => { props.onIsolateNode(props.nodeId); props.onClose(); },
   });
 
   actions.push({
     id: 'hide',
-    label: t('contextMenu.hide') ?? 'Hide Node',
+    label: t('contextMenu.hide'),
     onClick: () => { props.onHideNode(props.nodeId); props.onClose(); },
   });
 
@@ -93,13 +123,13 @@ export function ContextMenu(props: ContextMenuProps) {
     if (props.isExpanded) {
       actions.push({
         id: 'collapse',
-        label: t('contextMenu.collapse') ?? 'Collapse Cluster',
+        label: t('contextMenu.collapse'),
         onClick: () => { props.onCollapseNode(props.nodeId); props.onClose(); },
       });
     } else {
       actions.push({
         id: 'expand',
-        label: t('contextMenu.expand') ?? 'Expand Cluster',
+        label: t('contextMenu.expand'),
         onClick: () => { props.onExpandNode(props.nodeId); props.onClose(); },
       });
     }
@@ -107,19 +137,19 @@ export function ContextMenu(props: ContextMenuProps) {
 
   actions.push({
     id: 'callChain',
-    label: t('contextMenu.callChain') ?? 'Highlight Call Chain',
+    label: t('contextMenu.callChain'),
     onClick: () => { props.onHighlightCallChain(props.nodeId); props.onClose(); },
   });
 
   actions.push({
     id: 'impact',
-    label: t('contextMenu.impact') ?? 'Analyze Impact',
+    label: t('contextMenu.impact'),
     onClick: () => { props.onHighlightImpact(props.nodeId); props.onClose(); },
   });
 
   actions.push({
     id: 'findPath',
-    label: t('contextMenu.findPath') ?? 'Find Path From Here',
+    label: t('contextMenu.findPath'),
     onClick: () => { props.onFindPath(props.nodeId); props.onClose(); },
   });
 
@@ -145,4 +175,4 @@ export function ContextMenu(props: ContextMenuProps) {
       ))}
     </div>
   );
-}
+})

@@ -469,4 +469,7 @@ export const en: Record<string, string> = {
   // Node detail badges
   'detail.exportedBadge': 'EXP',
   'detail.expandedBadge': 'OPEN',
+
+  // Cycle panel
+  'cycle.nodeCount': '{n} nodes',
 };

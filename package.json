@@ -33,8 +33,12 @@
     "prepublishOnly": "pnpm run build && pnpm run test"
   },
   "dependencies": {
+    "cytoscape": "^3.26.0",
+    "cytoscape-dagre": "^2.5.0",
+    "cytoscape-fcose": "^2.2.0",
     "tree-sitter-wasm": "^1.1.8",
-    "web-tree-sitter": "^0.27.0"
+    "web-tree-sitter": "^0.27.0",
+    "zustand": "^5.0.0"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
@@ -57,9 +61,7 @@
     "@vitejs/plugin-react": "^4.3.0",
     "@vitest/coverage-istanbul": "^3.2.7",
     "@vitest/coverage-v8": "^3.0.0",
-    "cytoscape": "^3.26.0",
-    "cytoscape-dagre": "^2.5.0",
-    "cytoscape-fcose": "^2.2.0",
+
     "jsdom": "^30.0.1",
     "oxlint": "^1.80.0",
     "playwright": "^1.62.1",
@@ -69,8 +71,7 @@
     "tsdown": "^0.10.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0",
-    "ws": "^8.21.3",
-    "zustand": "^5.0.0"
+    "ws": "^8.21.3"
   },
   "keywords": [
     "dsh",

@@ -50,7 +50,7 @@ export function getAutoClusterDepth(nodeCount: number, maxVisibleNodes: number):
 }
 
 export const PATH_FINDER = {
-  MAX_NODES_FOR_DIJKSTRA: 10000,
+
   MAX_NODES_FOR_BFS: 50000,
 } as const;
 

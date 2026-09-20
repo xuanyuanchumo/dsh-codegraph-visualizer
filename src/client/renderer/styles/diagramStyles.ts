@@ -1,6 +1,6 @@
 import type cytoscape from 'cytoscape';
-import type { ThemeColors } from './ThemeStylesheet.ts';
-import { readCssVar } from './ThemeStylesheet.ts';
+import type { ThemeColors } from './styleUtils.ts';
+import { readCssVar } from './styleUtils.ts';
 
 export interface StyleContext {
   c: ThemeColors;

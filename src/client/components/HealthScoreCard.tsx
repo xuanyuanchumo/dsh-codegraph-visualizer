@@ -1,4 +1,4 @@
-
+import { memo } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
 import { useT } from '../i18n/index.ts';
 import { CloseIcon, HeartIcon } from './Icons.tsx';
@@ -30,7 +30,7 @@ function DimensionBar({ name, score, description }: { name: string; score: numbe
   );
 }
 
-export function HealthScoreCard({ onClose }: HealthScoreCardProps) {
+export const HealthScoreCard = memo(function HealthScoreCard({ onClose }: HealthScoreCardProps) {
   const t = useT();
   const healthScore = useGraphStore((s) => s.healthScore);
 
@@ -78,4 +78,4 @@ export function HealthScoreCard({ onClose }: HealthScoreCardProps) {
       </div>
     </div>
   );
-}
+})

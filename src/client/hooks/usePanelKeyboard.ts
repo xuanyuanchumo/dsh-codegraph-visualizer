@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { useKeyboardShortcut } from './index.ts';
+import { useKeyboardShortcut } from './useKeyboardShortcut.ts';
 import type { LayoutType } from '../renderer/IRenderer.ts';
 import type { IRenderer } from '../renderer/IRenderer.ts';
 

@@ -95,7 +95,7 @@ describe('InteractionController', () => {
       const cy = makeMockCy();
       const callbacks = makeCallbacks();
       new InteractionController(cy as any, callbacks);
-      const handler = cy._handlers['tap:node'][0];
+      const handler = cy._handlers['tap:node']![0]!;
       const mockNode = makeMockNode('node1');
       handler({ target: mockNode });
       expect(callbacks.onNodeTap).toHaveBeenCalledWith('node1');
@@ -105,7 +105,7 @@ describe('InteractionController', () => {
       const cy = makeMockCy();
       const callbacks = makeCallbacks();
       new InteractionController(cy as any, callbacks);
-      const handler = cy._handlers['tap:edge'][0];
+      const handler = cy._handlers['tap:edge']![0]!;
       const mockEdge = makeMockEdge('edge1');
       handler({ target: mockEdge });
       expect(callbacks.onEdgeTap).toHaveBeenCalledWith('edge1', { x: 50, y: 60 });
@@ -115,7 +115,7 @@ describe('InteractionController', () => {
       const cy = makeMockCy();
       const callbacks = makeCallbacks();
       new InteractionController(cy as any, callbacks);
-      const handler = cy._handlers['dbltap:node'][0];
+      const handler = cy._handlers['dbltap:node']![0]!;
       const mockNode = makeMockNode('node2');
       handler({ target: mockNode });
       expect(callbacks.onNodeDoubleTap).toHaveBeenCalledWith('node2');
@@ -125,7 +125,7 @@ describe('InteractionController', () => {
       const cy = makeMockCy();
       const callbacks = makeCallbacks();
       new InteractionController(cy as any, callbacks);
-      const handler = cy._handlers['mouseover:node'][0];
+      const handler = cy._handlers['mouseover:node']![0]!;
       const mockNode = makeMockNode('node3');
       handler({ target: mockNode });
       expect(mockNode.addClass).toHaveBeenCalledWith('hovered');
@@ -136,7 +136,7 @@ describe('InteractionController', () => {
       const cy = makeMockCy();
       const callbacks = makeCallbacks();
       new InteractionController(cy as any, callbacks);
-      const handler = cy._handlers['mouseout:node'][0];
+      const handler = cy._handlers['mouseout:node']![0]!;
       const mockNode = makeMockNode('node4');
       handler({ target: mockNode });
       expect(mockNode.removeClass).toHaveBeenCalledWith('hovered');
@@ -147,7 +147,7 @@ describe('InteractionController', () => {
       const cy = makeMockCy();
       const callbacks = makeCallbacks();
       new InteractionController(cy as any, callbacks);
-      const handler = cy._handlers['mouseover:edge'][0];
+      const handler = cy._handlers['mouseover:edge']![0]!;
       const mockEdge = makeMockEdge('edge2');
       handler({ target: mockEdge });
       expect(mockEdge.addClass).toHaveBeenCalledWith('hovered');
@@ -158,7 +158,7 @@ describe('InteractionController', () => {
       const cy = makeMockCy();
       const callbacks = makeCallbacks();
       new InteractionController(cy as any, callbacks);
-      const handler = cy._handlers['mouseout:edge'][0];
+      const handler = cy._handlers['mouseout:edge']![0]!;
       const mockEdge = makeMockEdge('edge3');
       handler({ target: mockEdge });
       expect(mockEdge.removeClass).toHaveBeenCalledWith('hovered');
@@ -169,7 +169,7 @@ describe('InteractionController', () => {
       const cy = makeMockCy();
       const callbacks = makeCallbacks();
       new InteractionController(cy as any, callbacks);
-      const handler = cy._handlers['cxttap:node'][0];
+      const handler = cy._handlers['cxttap:node']![0]!;
       const mockNode = makeMockNode('node5');
       handler({ target: mockNode });
       expect(callbacks.onNodeContextTap).toHaveBeenCalledWith('node5', { x: 10, y: 20 });
@@ -181,7 +181,7 @@ describe('InteractionController', () => {
       const cy = makeMockCy();
       const callbacks: InteractionCallbacks = {};
       new InteractionController(cy as any, callbacks);
-      const handler = cy._handlers['tap:node'][0];
+      const handler = cy._handlers['tap:node']![0]!;
       const mockNode = makeMockNode('node6');
       expect(() => handler({ target: mockNode })).not.toThrow();
     });
@@ -194,7 +194,7 @@ describe('InteractionController', () => {
       const ctrl = new InteractionController(cy as any, callbacks1);
       const callbacks2 = makeCallbacks();
       ctrl.updateCallbacks(callbacks2);
-      const handler = cy._handlers['tap:node'][0];
+      const handler = cy._handlers['tap:node']![0]!;
       const mockNode = makeMockNode('node7');
       handler({ target: mockNode });
       expect(callbacks2.onNodeTap).toHaveBeenCalledWith('node7');

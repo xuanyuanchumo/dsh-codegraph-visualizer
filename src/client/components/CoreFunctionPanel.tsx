@@ -1,4 +1,4 @@
-
+import { memo } from 'react';
 import { CloseIcon } from './Icons.tsx';
 import { useT } from '../i18n/index.ts';
 import type { CoreFunction, CoreFunctionCategory } from '../../shared/analysis/CoreFunctionAnalyzer.ts';
@@ -17,7 +17,7 @@ const CATEGORY_COLORS: Record<CoreFunctionCategory, string> = {
   critical: '#f44336',
 };
 
-export function CoreFunctionPanel({ coreFunctions, onClose, label, onSelectFunction }: CoreFunctionPanelProps) {
+export const CoreFunctionPanel = memo(function CoreFunctionPanel({ coreFunctions, onClose, label, onSelectFunction }: CoreFunctionPanelProps) {
   const t = useT();
   const categoryLabel = (cat: CoreFunctionCategory): string => t(`coreFunction.category.${cat}`) ?? cat;
   const reasonLabel = (r: string): string => t(`coreFunction.reason.${r}`) ?? r;
@@ -52,14 +52,14 @@ export function CoreFunctionPanel({ coreFunctions, onClose, label, onSelectFunct
               ))}
             </div>
             <div className="core-function-stats">
-              <span title={t('coreFunction.inDegree') ?? '入度'}>in:{fn.inDegree}</span>
-              <span title={t('coreFunction.outDegree') ?? '出度'}>out:{fn.outDegree}</span>
-              <span title={t('coreFunction.influenceReach') ?? '影响范围'}>reach:{fn.influenceReach}</span>
-              <span title={t('coreFunction.callChainDepth') ?? '调用链深度'}>depth:{fn.callChainDepth}</span>
+              <span title={t('coreFunction.inDegree')}>in:{fn.inDegree}</span>
+              <span title={t('coreFunction.outDegree')}>out:{fn.outDegree}</span>
+              <span title={t('coreFunction.influenceReach')}>reach:{fn.influenceReach}</span>
+              <span title={t('coreFunction.callChainDepth')}>depth:{fn.callChainDepth}</span>
             </div>
           </div>
         ))}
       </div>
     </div>
   );
-}
+})

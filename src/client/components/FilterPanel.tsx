@@ -107,7 +107,7 @@ export const FilterPanel = memo(function FilterPanel({ onClose }: FilterPanelPro
                 checked={visibleEdgeTypes.has(type)}
                 onChange={() => toggleEdgeType(type)}
               />
-              <span className="filter-edge-badge" data-type={type}>{type}</span>
+              <span className="filter-edge-badge" data-type={type}>{t(`legend.${type}`)}</span>
             </label>
           ))}
         </div>

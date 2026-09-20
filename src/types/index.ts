@@ -4,12 +4,10 @@
 export type Branded<T, Brand> = T & { __brand: Brand };
 
 export type RepoId = Branded<string, 'RepoId'>;
-export type SymbolId = Branded<string, 'SymbolId'>;
 export type NodeId = Branded<string, 'NodeId'>;
 export type EdgeId = Branded<string, 'EdgeId'>;
 
 export const RepoId = (id: string): RepoId => id as RepoId;
-export const SymbolId = (id: string): SymbolId => id as SymbolId;
 export const NodeId = (id: string): NodeId => id as NodeId;
 export const EdgeId = (id: string): EdgeId => id as EdgeId;
 

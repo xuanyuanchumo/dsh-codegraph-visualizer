@@ -8,6 +8,7 @@ export { usePanelKeyboard } from './usePanelKeyboard.ts';
 export { useViewMode } from './useViewMode.ts';
 export { useAnalysisPanels } from './useAnalysisPanels.ts';
 export { useNodeSearch } from './useNodeSearch.ts';
+export { useKeyboardShortcut } from './useKeyboardShortcut.ts';
 
 /**
  * Debounce a value with a delay.
@@ -22,57 +23,6 @@ export function useDebounce<T>(value: T, delay: number): T {
   }, [value, delay]);
 
   return debounced;
-}
-
-/**
-
- * Keyboard shortcut handler.
- * Use case: Ctrl+L for layout switch, / for search, etc.
- */
-export function useKeyboardShortcut(
-  key: string,
-  callback: () => void,
-  options: {
-    ctrl?: boolean;
-    meta?: boolean;
-    alt?: boolean;
-    shift?: boolean;
-    preventDefault?: boolean;
-  } = {}
-): void {
-  const { ctrl = false, meta = false, alt = false, shift = false, preventDefault = true } = options;
-  const callbackRef = useRef(callback);
-  callbackRef.current = callback;
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Allow Escape and '/' in all contexts (including inputs)
-      const isEscape = e.key === 'Escape';
-      const isSlash = e.key === '/';
-      
-      // Skip other shortcuts when user is typing in an input/textarea
-      if (!isEscape && !isSlash) {
-        const tag = (e.target as HTMLElement)?.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      }
-
-      const keyMatch = e.key.toLowerCase() === key.toLowerCase();
-      const ctrlMatch = !ctrl || e.ctrlKey;
-      const metaMatch = !meta || e.metaKey;
-      const altMatch = !alt || e.altKey;
-      const shiftMatch = !shift || e.shiftKey;
-
-      if (keyMatch && ctrlMatch && metaMatch && altMatch && shiftMatch) {
-        if (preventDefault) e.preventDefault();
-        callbackRef.current();
-      }
-    };
-
-    // Listen on document to catch events after React's synthetic event system
-    // Use bubbling phase (not capture) to allow React to process events first
-    document.addEventListener('keydown', handleKeyDown, { passive: !preventDefault });
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [key, ctrl, meta, alt, shift, preventDefault]);
 }
 
 /**
@@ -101,3 +51,4 @@ export function usePolling(
     return () => clearInterval(id);
   }, [interval, enabled]);
 }
+

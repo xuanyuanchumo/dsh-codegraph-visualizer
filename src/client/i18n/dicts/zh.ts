@@ -468,4 +468,7 @@ export const zh: Record<string, string> = {
   // Node detail badges
   'detail.exportedBadge': 'EXP',
   'detail.expandedBadge': 'OPEN',
+
+  // Cycle panel
+  'cycle.nodeCount': '{n} 节点',
 };

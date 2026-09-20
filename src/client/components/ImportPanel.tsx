@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { scoped } from '../../shared/Logger.ts';
 import { useT } from '../i18n/index.ts';
 import { UploadIcon, FolderIcon, CloseIcon, AlertIcon, RefreshIcon, ZapIcon, WatchIcon } from './Icons.tsx';
@@ -36,7 +36,7 @@ function parseGraphJson(text: string): { nodes: GraphNode[]; edges: GraphEdge[];
   return { nodes, edges, repoId: repoId as RepoId };
 }
 
-export function ImportPanel({
+export const ImportPanel = memo(function ImportPanel({
   onClose,
   workspacePath,
   prerequisites,
@@ -239,4 +239,4 @@ export function ImportPanel({
       )}
     </div>
   );
-}
+})

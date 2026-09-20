@@ -1,4 +1,4 @@
-
+import { memo } from 'react';
 import type { ImpactStats } from '../hooks/useAnalysisPanels.ts';
 
 interface ImpactPanelProps {
@@ -7,7 +7,7 @@ interface ImpactPanelProps {
   totalLabel: string;
 }
 
-export function ImpactPanel({ impactStats, label, totalLabel }: ImpactPanelProps) {
+export const ImpactPanel = memo(function ImpactPanel({ impactStats, label, totalLabel }: ImpactPanelProps) {
   return (
     <div className="analysis-panel impact-panel" role="region" aria-label={label} aria-live="polite">
       <div className="analysis-panel-header">
@@ -30,4 +30,4 @@ export function ImpactPanel({ impactStats, label, totalLabel }: ImpactPanelProps
       </div>
     </div>
   );
-}
+})

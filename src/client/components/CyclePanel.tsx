@@ -1,3 +1,5 @@
+import { memo } from 'react';
+import { useT } from '../i18n/index.ts';
 import type { CycleInfo } from '../renderer/CycleDetector.ts';
 
 interface CyclePanelProps {
@@ -6,7 +8,8 @@ interface CyclePanelProps {
   emptyLabel: string;
 }
 
-export function CyclePanel({ cycles, label, emptyLabel }: CyclePanelProps) {
+export const CyclePanel = memo(function CyclePanel({ cycles, label, emptyLabel }: CyclePanelProps) {
+  const t = useT();
   return (
     <div className="analysis-panel cycle-panel" role="region" aria-label={label} aria-live="polite">
       <div className="analysis-panel-header">
@@ -21,7 +24,7 @@ export function CyclePanel({ cycles, label, emptyLabel }: CyclePanelProps) {
             <div key={i} className="cycle-item">
               <div className="cycle-item-header">
                 <span className="cycle-index">#{i + 1}</span>
-                <span className="cycle-length">{cycle.length} nodes</span>
+                <span className="cycle-length">{t('cycle.nodeCount').replace('{n}', String(cycle.length))}</span>
               </div>
               <div className="cycle-nodes">
                 {cycle.nodes.map((nodeId, j) => (
@@ -38,4 +41,4 @@ export function CyclePanel({ cycles, label, emptyLabel }: CyclePanelProps) {
       </div>
     </div>
   );
-}
+})

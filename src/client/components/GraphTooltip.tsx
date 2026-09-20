@@ -1,5 +1,6 @@
 
 import { memo } from 'react';
+import { useT } from '../i18n/index.ts';
 
 export interface TooltipData {
   x: number;
@@ -40,6 +41,7 @@ function clampPosition(x: number, y: number): { left: number; top: number } {
 }
 
 export const GraphTooltip = memo(function GraphTooltip({ data }: GraphTooltipProps) {
+  const t = useT();
   const pos = clampPosition(data.x, data.y);
   if (isEdgeTooltip(data)) {
     return (
@@ -47,7 +49,7 @@ export const GraphTooltip = memo(function GraphTooltip({ data }: GraphTooltipPro
         <div className="tooltip-edge-source">{data.sourceLabel}</div>
         <div className="tooltip-edge-arrow">→</div>
         <div className="tooltip-edge-target">{data.targetLabel}</div>
-        <span className="tooltip-type">{data.edgeType}</span>
+        <span className="tooltip-type">{t(`legend.${data.edgeType}`)}</span>
       </div>
     );
   }

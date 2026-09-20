@@ -1,4 +1,4 @@
-
+import { memo } from 'react';
 import { CloseIcon } from './Icons.tsx';
 import type { HotspotNode } from '../hooks/useAnalysisPanels.ts';
 import { useT } from '../i18n/index.ts';
@@ -9,7 +9,7 @@ interface HotspotPanelProps {
   label: string;
 }
 
-export function HotspotPanel({ hotspotNodes, onClose, label }: HotspotPanelProps) {
+export const HotspotPanel = memo(function HotspotPanel({ hotspotNodes, onClose, label }: HotspotPanelProps) {
   const t = useT();
   return (
     <div className="analysis-panel hotspot-panel" role="region" aria-label={label} aria-live="polite">
@@ -28,4 +28,4 @@ export function HotspotPanel({ hotspotNodes, onClose, label }: HotspotPanelProps
       </div>
     </div>
   );
-}
+})

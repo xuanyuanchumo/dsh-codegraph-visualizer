@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, memo } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
 import { useNodeSearch } from '../hooks/useNodeSearch.ts';
 import { useT } from '../i18n/index.ts';
@@ -13,7 +13,7 @@ interface PathBarProps {
   onClose: () => void;
 }
 
-export function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClose }: PathBarProps) {
+export const PathBar = memo(function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClose }: PathBarProps) {
   const t = useT();
   const pathStartId = useGraphStore((s) => s.pathStartId);
   const pathEndId = useGraphStore((s) => s.pathEndId);
@@ -116,4 +116,4 @@ export function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClo
       </div>
     </div>
   );
-}
+})
