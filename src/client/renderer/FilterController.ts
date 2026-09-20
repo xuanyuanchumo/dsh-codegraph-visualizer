@@ -3,9 +3,38 @@ import type { GraphNode, GraphEdge } from '../../types/index.ts';
 
 export class FilterController {
   private cy: Core;
+  private fanInCache: Map<string, number> | null = null;
+  private fanOutCache: Map<string, number> | null = null;
 
   constructor(cy: Core) {
     this.cy = cy;
+  }
+
+  private getFanInCount(): Map<string, number> {
+    if (this.fanInCache) return this.fanInCache;
+    const map = new Map<string, number>();
+    this.cy.edges().forEach((edge) => {
+      const target = edge.target().id();
+      map.set(target, (map.get(target) ?? 0) + 1);
+    });
+    this.fanInCache = map;
+    return map;
+  }
+
+  private getFanOutCount(): Map<string, number> {
+    if (this.fanOutCache) return this.fanOutCache;
+    const map = new Map<string, number>();
+    this.cy.edges().forEach((edge) => {
+      const source = edge.source().id();
+      map.set(source, (map.get(source) ?? 0) + 1);
+    });
+    this.fanOutCache = map;
+    return map;
+  }
+
+  invalidateCache(): void {
+    this.fanInCache = null;
+    this.fanOutCache = null;
   }
 
   filterByType(type: string): void {
@@ -72,14 +101,8 @@ export class FilterController {
     visibleNodeTypes: Set<GraphNode['type']>,
     visibleEdgeTypes: Set<GraphEdge['type']>,
   ): void {
-    const fanInCount = new Map<string, number>();
-    const fanOutCount = new Map<string, number>();
-    this.cy.edges().forEach((edge) => {
-      const source = edge.source().id();
-      const target = edge.target().id();
-      fanOutCount.set(source, (fanOutCount.get(source) ?? 0) + 1);
-      fanInCount.set(target, (fanInCount.get(target) ?? 0) + 1);
-    });
+    const fanInCount = this.getFanInCount();
+    const fanOutCount = this.getFanOutCount();
 
     this.cy.batch(() => {
       this.cy.nodes().forEach((node) => {

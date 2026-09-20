@@ -1,6 +1,7 @@
 import type { Core } from 'cytoscape';
 
 import { scoped } from '../../shared/Logger.ts';
+import { CYCLE_DETECTION } from '../../shared/constants.ts';
 
 const log = scoped('cycle-detector');
 
@@ -21,7 +22,7 @@ export class CycleDetector {
     const cycles = new Set<string>();
 
     const nodeCount = this.cy.nodes().length;
-    if (nodeCount > 10000) {
+    if (nodeCount > CYCLE_DETECTION.MAX_NODES_FOR_DETECTION) {
       log.warn('cycle detection skipped: graph too large', { nodeCount });
       return cycles;
     }
@@ -83,7 +84,7 @@ export class CycleDetector {
 
   detectCyclesDetailed(): CycleInfo[] {
     const nodeCount = this.cy.nodes().length;
-    if (nodeCount > 10000) {
+    if (nodeCount > CYCLE_DETECTION.MAX_NODES_FOR_DETECTION) {
       log.warn('detailed cycle detection skipped: graph too large', { nodeCount });
       return [];
     }

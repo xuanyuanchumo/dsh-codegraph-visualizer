@@ -133,6 +133,8 @@ export class CytoscapeRenderer implements IRenderer {
   updateData(nodes: GraphNode[], edges: GraphEdge[]): void {
     if (!this.cy) throw new Error('CytoscapeRenderer: init() must be called before updateData()');
     this.dataCtrl?.updateData(nodes, edges);
+    this.filterCtrl?.invalidateCache();
+    this.highlightCtrl?.invalidateCache();
     if (this.cy && nodes.length > 0) {
       if (this.fitTimer !== null) clearTimeout(this.fitTimer);
       const fitDelay = nodes.length > RENDERER.LARGE_GRAPH_NODE_THRESHOLD ? RENDERER.FIT_DELAY_LARGE : RENDERER.FIT_DELAY_SMALL;

@@ -4,7 +4,7 @@ import { useShallow } from 'zustand/shallow';
 import type { GraphNode, GraphEdge } from '../types/index.ts';
 import type { ClusterNode } from './store/cluster/index.ts';
 import { NodeId } from '../types/index.ts';
-import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard, useViewMode, useAnalysisPanels } from './hooks/index.ts';
+import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard, useViewMode, useAnalysisPanels, useNodeSearch } from './hooks/index.ts';
 import { useThemeSync } from './hooks/useThemeSync.ts';
 import { useHistory } from './hooks/useHistory.ts';
 import { useGraphCache } from './hooks/useGraphCache.ts';
@@ -38,7 +38,7 @@ import { GraphIcon } from './components/Icons.tsx';
 
 import { SequenceDiagramRenderer } from './renderer/SequenceDiagramRenderer.tsx';
 import { scoped } from '../shared/Logger.ts';
-import { parseSearchQuery, matchSearchQuery } from '../shared/searchUtils.ts';
+
 import { useT } from './i18n/index.ts';
 import './styles/tokens.css';
 import './styles/layout.css';
@@ -159,7 +159,21 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, [currentWorkspace, rawNodes, rawEdges, graphCache]);
 
   const debouncedSearch = useDebounce(searchQuery, 200);
+  const { search: searchNodes } = useNodeSearch(rawNodes);
   const showCallChainRef = useRef(panel.showCallChain);
+
+  const adjacencyMap = useMemo(() => {
+    const map = new Map<string, { in: number; out: number }>();
+    for (const edge of edges) {
+      const src = map.get(edge.source);
+      if (src) src.out++;
+      else map.set(edge.source, { in: 0, out: 1 });
+      const tgt = map.get(edge.target);
+      if (tgt) tgt.in++;
+      else map.set(edge.target, { in: 1, out: 0 });
+    }
+    return map;
+  }, [edges]);
   useEffect(() => { showCallChainRef.current = panel.showCallChain; }, [panel.showCallChain]);
 
   useEffect(() => {
@@ -197,11 +211,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const handleNodeHover = useCallback((nodeId: string, pos: { x: number; y: number }) => {
     const data = getDataRef.current?.getNodeData(nodeId);
     if (data) {
-      const linksIn = edges.filter((e) => e.target === nodeId).length;
-      const linksOut = edges.filter((e) => e.source === nodeId).length;
-      setTooltip({ x: pos.x, y: pos.y, name: data.label, path: `${data.filePath}:${data.lineNumber}`, type: data.type, linksIn, linksOut });
+      const counts = adjacencyMap.get(nodeId) ?? { in: 0, out: 0 };
+      setTooltip({ x: pos.x, y: pos.y, name: data.label, path: `${data.filePath}:${data.lineNumber}`, type: data.type, linksIn: counts.in, linksOut: counts.out });
     }
-  }, [edges]);
+  }, [adjacencyMap]);
 
   const handleNodeHoverOut = useCallback(() => setTooltip(null), []);
   const handleEdgeHover = useCallback((edgeId: string, pos: { x: number; y: number }) => {
@@ -498,12 +511,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const searchResults = useMemo<SearchResultItem[]>(() => {
     if (!debouncedSearch) return [];
-    const parsed = parseSearchQuery(debouncedSearch);
-    return rawNodes
-      .filter((n) => matchSearchQuery(n.label, parsed))
-      .slice(0, 50)
+    return searchNodes(debouncedSearch, 50)
       .map((n) => ({ id: n.id, label: n.label, type: n.type, filePath: n.filePath }));
-  }, [debouncedSearch, rawNodes]);
+  }, [debouncedSearch, searchNodes]);
 
   const handleSelectSearchResult = useCallback((id: string) => {
     setSelectedNode(NodeId(id));
@@ -635,7 +645,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       {selectedNodeData && !isCollapsed && (
         <NodeDetail node={selectedNodeData} onClose={handleCloseDetail}
           isExpanded={selectedNodeData ? expandedNodeIds.has(selectedNodeData.id) : false}
-          connectionCount={selectedNodeData ? edges.filter((e) => e.source === selectedNodeData.id || e.target === selectedNodeData.id).length : 0}
+          connectionCount={selectedNodeData ? (adjacencyMap.get(selectedNodeData.id)?.in ?? 0) + (adjacencyMap.get(selectedNodeData.id)?.out ?? 0) : 0}
           onCollapse={() => selectedNodeData && collapseNode(selectedNodeData.id)}
           onSelectFunction={(node, mode) => handleSelectFunction(node.id, node.filePath, node.label, mode)}
           onAggregateCallChain={handleAggregateCallChain} />

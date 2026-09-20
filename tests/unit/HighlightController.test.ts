@@ -313,6 +313,29 @@ describe('HighlightController', () => {
     });
   });
 
+  describe('adjacency map caching', () => {
+    it('invalidateCache does not throw', async () => {
+      const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
+      const nodeA = makeMockNode('a');
+      const cy = makeMockCy([nodeA], []);
+      const hc = new HighlightController(cy as any);
+      expect(() => hc.invalidateCache()).not.toThrow();
+    });
+
+    it('highlightNodes works after invalidateCache', async () => {
+      const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');
+      const nodeA = makeMockNode('a');
+      const nodeB = makeMockNode('b');
+      const edge = makeMockEdge('e1', 'a', 'b');
+      const cy = makeMockCy([nodeA, nodeB], [edge]);
+      const hc = new HighlightController(cy as any);
+      hc.highlightNodes([NodeId('a')]);
+      hc.invalidateCache();
+      hc.highlightNodes([NodeId('b')]);
+      expect(nodeB.addClass).toHaveBeenCalledWith('highlighted');
+    });
+  });
+
   describe('highlightInheritance with actual nodes', () => {
     it('adds inheritance-focus class to the focused node', async () => {
       const { HighlightController } = await import('../../src/client/renderer/HighlightController.ts');

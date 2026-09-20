@@ -8,9 +8,31 @@ export class HighlightController {
   private highlightedNodeIds: Set<string> = new Set();
   private selectedNodeId: string | null = null;
   private lastInheritanceRelevant: Set<string> = new Set();
+  private adjacencyMap: Map<string, Set<string>> | null = null;
 
   constructor(cy: Core) {
     this.cy = cy;
+  }
+
+  private getAdjacencyMap(): Map<string, Set<string>> {
+    if (this.adjacencyMap) return this.adjacencyMap;
+    const map = new Map<string, Set<string>>();
+    this.cy.edges().forEach((edge) => {
+      const s = edge.source().id();
+      const t = edge.target().id();
+      let neighbors = map.get(s);
+      if (!neighbors) { neighbors = new Set(); map.set(s, neighbors); }
+      neighbors.add(t);
+      neighbors = map.get(t);
+      if (!neighbors) { neighbors = new Set(); map.set(t, neighbors); }
+      neighbors.add(s);
+    });
+    this.adjacencyMap = map;
+    return map;
+  }
+
+  invalidateCache(): void {
+    this.adjacencyMap = null;
   }
 
   highlightNodes(nodeIds: NodeId[]): void {

@@ -150,6 +150,10 @@ export const HEATMAP = {
   COLOR_HIGH: '#ef4444',
 } as const;
 
+export const CYCLE_DETECTION = {
+  MAX_NODES_FOR_DETECTION: 10000,
+} as const;
+
 export const VIEW_MODE = {
   DEPTH_FILTER_LEVEL_1: 3,
 } as const;

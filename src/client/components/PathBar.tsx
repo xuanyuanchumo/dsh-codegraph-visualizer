@@ -1,5 +1,6 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
+import { useNodeSearch } from '../hooks/useNodeSearch.ts';
 import { useT } from '../i18n/index.ts';
 import { CloseIcon, PathIcon } from './Icons.tsx';
 import { NodeId } from '../../types/index.ts';
@@ -22,23 +23,12 @@ export function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClo
   const startLabel = useGraphStore((s) => pathStartId ? s.rawNodes.find((n) => n.id === pathStartId)?.label ?? pathStartId : null);
   const endLabel = useGraphStore((s) => pathEndId ? s.rawNodes.find((n) => n.id === pathEndId)?.label ?? pathEndId : null);
   const rawNodes = useGraphStore((s) => s.rawNodes);
+  const { search: searchNodes } = useNodeSearch(rawNodes);
   const [startQuery, setStartQuery] = useState('');
   const [endQuery, setEndQuery] = useState('');
 
-  const startMatches = useMemo(
-    () => {
-      if (!startQuery) return [];
-      return rawNodes.filter((n) => n.label.toLowerCase().includes(startQuery.toLowerCase())).slice(0, 10);
-    },
-    [startQuery, rawNodes],
-  );
-  const endMatches = useMemo(
-    () => {
-      if (!endQuery) return [];
-      return rawNodes.filter((n) => n.label.toLowerCase().includes(endQuery.toLowerCase())).slice(0, 10);
-    },
-    [endQuery, rawNodes],
-  );
+  const startMatches = searchNodes(startQuery, 10);
+  const endMatches = searchNodes(endQuery, 10);
 
   const handleFind = useCallback(() => {
     if (pathStartId && pathEndId) {

@@ -349,6 +349,35 @@ describe('FilterController', () => {
     });
   });
 
+  describe('fanIn/fanOut caching', () => {
+    it('caches fanIn/fanOut across multiple applyConnectionFilters calls', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false });
+      const nodeB = makeMockNode('b', { type: 'function', isCluster: false });
+      const edgeAB = makeMockEdge('e1', 'a', 'b', { type: 'call' }, nodeA, nodeB);
+      const cy = makeMockCy([nodeA, nodeB], [edgeAB]);
+      const fc = new FilterController(cy as any);
+      fc.applyConnectionFilters(1, 0, new Set(), new Set());
+      const edgesCallCountAfterFirst = cy.edges.mock.calls.length;
+      fc.applyConnectionFilters(2, 0, new Set(), new Set());
+      const edgesCallCountAfterSecond = cy.edges.mock.calls.length;
+      expect(edgesCallCountAfterSecond).toBeGreaterThan(edgesCallCountAfterFirst);
+    });
+
+    it('invalidateCache forces recalculation on next applyConnectionFilters', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false });
+      const nodeB = makeMockNode('b', { type: 'function', isCluster: false });
+      const edgeAB = makeMockEdge('e1', 'a', 'b', { type: 'call' }, nodeA, nodeB);
+      const cy = makeMockCy([nodeA, nodeB], [edgeAB]);
+      const fc = new FilterController(cy as any);
+      fc.applyConnectionFilters(1, 0, new Set(), new Set());
+      fc.invalidateCache();
+      fc.applyConnectionFilters(1, 0, new Set(), new Set());
+      expect(() => fc.applyConnectionFilters(1, 0, new Set(), new Set())).not.toThrow();
+    });
+  });
+
   describe('destroy', () => {
     it('restores display for all nodes and edges', async () => {
       const { FilterController } = await import('../../src/client/renderer/FilterController.ts');

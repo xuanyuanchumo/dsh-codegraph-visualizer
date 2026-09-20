@@ -7,6 +7,7 @@ export { usePanelState } from './usePanelState.ts';
 export { usePanelKeyboard } from './usePanelKeyboard.ts';
 export { useViewMode } from './useViewMode.ts';
 export { useAnalysisPanels } from './useAnalysisPanels.ts';
+export { useNodeSearch } from './useNodeSearch.ts';
 
 /**
  * Debounce a value with a delay.
