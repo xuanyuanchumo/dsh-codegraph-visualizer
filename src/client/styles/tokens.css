@@ -84,6 +84,12 @@
   --cg-cluster-edge: #263148;
   --cg-cluster-edge-label-bg: #f9fafb;
 
+  /* Node role semantic colors — light theme */
+  --cg-role-entry: #059669;
+  --cg-role-orphan: #9ca3af;
+  --cg-role-leaf: #d97706;
+  --cg-role-hub: #dc2626;
+
   /* Typography — match DSH's actual font stack including CJK fonts */
   --cg-font-sans: var(--dsw-font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif);
   --cg-font-mono: var(--dsw-font-mono, "JetBrains Mono", "Fira Code", Consolas, "Microsoft YaHei", monospace);
@@ -188,6 +194,12 @@ body[data-ds-dark-theme] {
   --cg-cluster-hover-border: #a5b4fc;
   --cg-cluster-edge: #818cf8;
   --cg-cluster-edge-label-bg: #232324;
+
+  /* Node role semantic colors — dark theme */
+  --cg-role-entry: #10b981;
+  --cg-role-orphan: #6b7280;
+  --cg-role-leaf: #f59e0b;
+  --cg-role-hub: #ef4444;
 
   --cg-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
   --cg-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);

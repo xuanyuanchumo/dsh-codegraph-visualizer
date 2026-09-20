@@ -8,6 +8,7 @@ export interface InteractionCallbacks {
   onNodeHoverOut?(): void;
   onEdgeHover?(edgeId: string, renderedPosition: { x: number; y: number }): void;
   onEdgeHoverOut?(): void;
+  onNodeContextTap?(nodeId: string, renderedPosition: { x: number; y: number }): void;
 }
 
 export class InteractionController {
@@ -52,6 +53,11 @@ export class InteractionController {
       evt.target.removeClass('hovered');
       this.callbacks.onEdgeHoverOut?.();
     });
+    this.cy.on('cxttap', 'node', (evt) => {
+      const node = evt.target;
+      const pos = node.renderedPosition();
+      this.callbacks.onNodeContextTap?.(node.id(), { x: pos.x, y: pos.y });
+    });
   }
 
   updateCallbacks(callbacks: InteractionCallbacks): void {
@@ -68,5 +74,6 @@ export class InteractionController {
     this.cy.off('mouseout', 'node');
     this.cy.off('mouseover', 'edge');
     this.cy.off('mouseout', 'edge');
+    this.cy.off('cxttap', 'node');
   }
 }

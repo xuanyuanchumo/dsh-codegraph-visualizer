@@ -13,6 +13,7 @@ export interface RendererCallbacks {
   onNodeHoverOut?(): void;
   onEdgeHover?(edgeId: string, renderedPosition: { x: number; y: number }): void;
   onEdgeHoverOut?(): void;
+  onNodeContextTap?(nodeId: string, renderedPosition: { x: number; y: number }): void;
 }
 
 export interface RendererOptions extends RendererCallbacks {

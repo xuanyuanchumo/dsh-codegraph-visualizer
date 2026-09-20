@@ -34,8 +34,8 @@ export {
 
 const log = scoped('tools');
 
-export type { UpstreamInvoker } from './adapters/CodeGraphAdapter.ts';
-import type { UpstreamInvoker } from './adapters/CodeGraphAdapter.ts';
+export type { UpstreamInvoker } from './adapters/IAdapter.ts';
+import type { UpstreamInvoker } from './adapters/IAdapter.ts';
 
 const GRAPH_CACHE_LIMIT = 8;
 

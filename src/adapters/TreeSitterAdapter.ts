@@ -1,6 +1,7 @@
 import { scoped } from '../shared/Logger.ts';
 import { NodeId, EdgeId } from '../types/index.ts';
-import type { GraphNode, GraphEdge, AdapterResult } from '../types/index.ts';
+import type { GraphNode, GraphEdge, AdapterResult, DataSourceType } from '../types/index.ts';
+import type { IAnalysisAdapter } from './IAdapter.ts';
 import type { ASTNode } from '../shared/CFGTypes.ts';
 
 const log = scoped('tree-sitter-adapter');
@@ -60,7 +61,8 @@ const IMPORT_NODE_TYPES = new Set([
   'import_statement', 'import_declaration', 'use_declaration',
 ]);
 
-export class TreeSitterAdapter {
+export class TreeSitterAdapter implements IAnalysisAdapter {
+  readonly source: DataSourceType = 'tree-sitter';
   private parser: TreeSitterParser | null = null;
   private loadedLanguages = new Set<SupportedLanguage>();
   private currentLanguage: TreeSitterLanguage | null = null;

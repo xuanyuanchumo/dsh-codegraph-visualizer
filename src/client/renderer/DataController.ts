@@ -659,6 +659,18 @@ export class DataController {
         } else {
           node.removeData('weight');
         }
+
+        if (inDegree === 0 && outDegree === 0) {
+          node.data('nodeRole', 'orphan');
+        } else if (inDegree === 0 && outDegree > 0) {
+          node.data('nodeRole', 'entry');
+        } else if (inDegree > 0 && outDegree === 0) {
+          node.data('nodeRole', 'leaf');
+        } else if (inDegree >= 5 || outDegree >= 5) {
+          node.data('nodeRole', 'hub');
+        } else {
+          node.removeData('nodeRole');
+        }
       });
     });
   }

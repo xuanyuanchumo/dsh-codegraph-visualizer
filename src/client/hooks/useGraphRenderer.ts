@@ -18,6 +18,7 @@ export interface GraphRendererCallbacks {
   onEdgeTap(edgeId: string, pos: { x: number; y: number }): void;
   onEdgeHover(edgeId: string, pos: { x: number; y: number }): void;
   onEdgeHoverOut(): void;
+  onNodeContextTap?(nodeId: string, pos: { x: number; y: number }): void;
 }
 
 export interface UseGraphRendererResult {

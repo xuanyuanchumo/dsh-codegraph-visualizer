@@ -1,7 +1,7 @@
 // LensAdapter - adapter for the optional dsh-tool-lens data source.
 import type { GraphNode, GraphEdge, AdapterResult, DataSourceType } from '../types/index.ts';
 import { NodeId, EdgeId } from '../types/index.ts';
-import type { UpstreamInvoker } from './CodeGraphAdapter.ts';
+import type { IDataAdapter, UpstreamInvoker } from './IAdapter.ts';
 import { scoped } from '../shared/Logger.ts';
 
 const log = scoped('lens-adapter');
@@ -23,8 +23,8 @@ interface LensToolResult {
 }
 
 
-export class LensAdapter {
-  private readonly source: DataSourceType = 'lens';
+export class LensAdapter implements IDataAdapter {
+  readonly source: DataSourceType = 'lens';
 
   async fetchData(repoId: string, invoke: UpstreamInvoker): Promise<AdapterResult> {
     try {

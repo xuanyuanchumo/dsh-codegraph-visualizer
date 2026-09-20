@@ -13,12 +13,13 @@ import { join, normalize } from 'node:path';
 import type { GraphNode, GraphEdge, AdapterResult, DataSourceType } from '../types/index.ts';
 import { NodeId, EdgeId } from '../types/index.ts';
 import { scoped } from '../shared/Logger.ts';
+import type { IDataAdapter, UpstreamInvoker } from './IAdapter.ts';
+
+export type { UpstreamInvoker } from './IAdapter.ts';
 
 const log = scoped('codegraph-adapter');
 
 const require = createRequire(import.meta.url);
-
-export type UpstreamInvoker = (tool: string, args: Record<string, unknown>) => Promise<unknown | null>;
 
 // ---- codegraph.db schema (upstream @colbymchenry/codegraph) ----------------
 
@@ -132,8 +133,8 @@ export function readGraphFromDb(dbPath: string): { nodes: DbNodeRow[]; edges: Db
   }
 }
 
-export class CodeGraphAdapter {
-  private readonly source: DataSourceType = 'codegraph';
+export class CodeGraphAdapter implements IDataAdapter {
+  readonly source: DataSourceType = 'codegraph';
 
   async fetchData(repoId: string, invoke: UpstreamInvoker): Promise<AdapterResult> {
     // Primary: direct SQLite read of the upstream index (single O(N+E) query).

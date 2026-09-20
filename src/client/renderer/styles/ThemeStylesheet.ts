@@ -54,6 +54,7 @@ function readCssVarCached(name: string, fallback: string): string {
       '--cg-cluster-bg', '--cg-cluster-border', '--cg-cluster-hover-bg',
       '--cg-cluster-hover-border', '--cg-cluster-edge', '--cg-cluster-edge-label-bg',
       '--cg-warning', '--cg-error', '--cg-success', '--cg-accent',
+      '--cg-role-entry', '--cg-role-orphan', '--cg-role-leaf', '--cg-role-hub',
     ];
     for (const v of vars) {
       cssVarCache.set(v, style.getPropertyValue(v).trim());
@@ -218,6 +219,39 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
     {
       selector: 'node[type="type"]',
       style: { 'shape': 'star', 'background-color': c.nodeType },
+    },
+    {
+      selector: 'node[nodeRole="entry"]',
+      style: {
+        'border-width': isLargeGraph ? 2 : 3,
+        'border-color': readCssVarCached('--cg-role-entry', isDark ? '#10b981' : '#059669'),
+        'border-style': 'solid',
+      },
+    },
+    {
+      selector: 'node[nodeRole="orphan"]',
+      style: {
+        'border-width': isLargeGraph ? 2 : 3,
+        'border-color': readCssVarCached('--cg-role-orphan', isDark ? '#6b7280' : '#9ca3af'),
+        'border-style': 'dashed',
+        'opacity': 0.6,
+      },
+    },
+    {
+      selector: 'node[nodeRole="leaf"]',
+      style: {
+        'border-width': isLargeGraph ? 2 : 3,
+        'border-color': readCssVarCached('--cg-role-leaf', isDark ? '#f59e0b' : '#d97706'),
+        'border-style': 'double',
+      },
+    },
+    {
+      selector: 'node[nodeRole="hub"]',
+      style: {
+        'border-width': isLargeGraph ? 3 : 4,
+        'border-color': readCssVarCached('--cg-role-hub', isDark ? '#ef4444' : '#dc2626'),
+        'border-style': 'solid',
+      },
     },
     {
       selector: 'node[depType="npm"]',

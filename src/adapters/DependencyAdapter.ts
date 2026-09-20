@@ -1,6 +1,9 @@
 import { scoped } from '../shared/Logger.ts';
-import type { GraphNode, GraphEdge } from '../types/index.ts';
+import type { GraphNode, GraphEdge, AdapterResult, DataSourceType } from '../types/index.ts';
 import { NodeId, EdgeId } from '../types/index.ts';
+import type { IDataAdapter } from './IAdapter.ts';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 
 const log = scoped('dep-adapter');
 
@@ -233,4 +236,42 @@ export function dependencyGraphToGraphData(depGraph: DependencyGraph): { nodes: 
     properties: { scope: e.scope },
   }));
   return { nodes, edges };
+}
+export class DependencyDataAdapter implements IDataAdapter {
+  readonly source: DataSourceType = 'codegraph';
+
+  async fetchData(repoId: string): Promise<AdapterResult> {
+    const allNodes: GraphNode[] = [];
+    const allEdges: GraphEdge[] = [];
+
+    const files: Array<{ name: string; parse: (content: string) => DependencyGraph }> = [
+      { name: 'package.json', parse: parsePackageJson },
+      { name: 'Cargo.toml', parse: parseCargoToml },
+      { name: 'go.mod', parse: parseGoMod },
+    ];
+
+    for (const { name, parse } of files) {
+      try {
+        const content = await readFile(join(repoId, name), 'utf-8');
+        const depGraph = parse(content);
+        const converted = dependencyGraphToGraphData(depGraph);
+        allNodes.push(...converted.nodes);
+        allEdges.push(...converted.edges);
+      } catch { /* file not found */ }
+    }
+
+    const dedupNodes = new Map<string, GraphNode>();
+    for (const n of allNodes) dedupNodes.set(n.id, n);
+    const dedupEdges = new Map<string, GraphEdge>();
+    for (const e of allEdges) {
+      if (e.source !== e.target) dedupEdges.set(e.id, e);
+    }
+
+    return {
+      nodes: [...dedupNodes.values()],
+      edges: [...dedupEdges.values()],
+      source: this.source,
+      timestamp: Date.now(),
+    };
+  }
 }

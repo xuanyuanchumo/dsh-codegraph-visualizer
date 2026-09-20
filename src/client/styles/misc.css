@@ -311,3 +311,36 @@
   overflow: hidden;
   position: relative;
 }
+/* Context menu — right-click node menu */
+.cg-context-menu {
+  min-width: 180px;
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.cg-context-menu-item {
+  display: block;
+  width: 100%;
+  padding: 6px 14px;
+  background: transparent;
+  border: none;
+  color: var(--cg-text);
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.4;
+  transition: background var(--cg-transition);
+}
+
+.cg-context-menu-item:hover:not(:disabled) {
+  background: var(--cg-surface-hover);
+}
+
+.cg-context-menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

@@ -50,6 +50,10 @@ export default defineConfig({
     },
     include: ['tests/unit/**/*.test.ts', 'tests/component/**/*.test.tsx', 'src/**/*.test.ts'],
 
+    environmentMatchGlobs: [
+      ['tests/component/**', 'jsdom'],
+    ],
+
 
     testTimeout: 10000,
     hookTimeout: 10000,

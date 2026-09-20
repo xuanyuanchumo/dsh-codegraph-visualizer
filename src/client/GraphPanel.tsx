@@ -19,6 +19,7 @@ import { NodeDetail } from './components/NodeDetail.tsx';
 import { StatsPanel } from './components/StatsPanel.tsx';
 import { EmptyState } from './components/EmptyState.tsx';
 import { GraphTooltip, type TooltipData, type EdgeTooltipData } from './components/GraphTooltip.tsx';
+import { ContextMenu } from './components/ContextMenu.tsx';
 import { LoadingOverlay } from './components/LoadingOverlay.tsx';
 import { ErrorOverlay } from './components/ErrorOverlay.tsx';
 import { KeyboardHelp } from './components/KeyboardHelp.tsx';
@@ -75,6 +76,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     totalSize: { w: number; h: number };
   } | null>(null);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    nodeId: string;
+    position: { x: number; y: number };
+  } | null>(null);
 
   const {
     nodes, edges, rawNodes, rawEdges, layout, theme, searchQuery, selectedNodeId,
@@ -229,7 +234,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     nodes, edges, rawNodes, layout, theme,
     highlightedNodeIds, selectedNodeId, filterType, graphType, clusterDepth,
     debouncedSearch, panel.showCallChain, panel.showCycles, panel.cycleIsolation, panel.showImpact, panel.showInheritance, focusNodeId,
-    { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut, onEdgeTap: handleEdgeTap, onEdgeHover: handleEdgeHover, onEdgeHoverOut: handleEdgeHoverOut },
+    { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut, onEdgeTap: handleEdgeTap, onEdgeHover: handleEdgeHover, onEdgeHoverOut: handleEdgeHoverOut, onNodeContextTap: (nodeId, pos) => setContextMenu({ nodeId, position: pos }) },
     showCallChainRef,
     fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes,
   );
@@ -682,6 +687,24 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         <GraphErrorBoundary><CyclePanel cycles={cycleDetails} label={t('toolbar.cycles')} emptyLabel={t('cycles.empty')} /></GraphErrorBoundary>
       )}
 
+      {contextMenu && (
+        <ContextMenu
+          nodeId={contextMenu.nodeId}
+          nodeData={getDataRef.current?.getNodeData(contextMenu.nodeId) ?? null}
+          position={contextMenu.position}
+          isCluster={expandedNodeIds.has(contextMenu.nodeId) || nodes.some((n) => n.id === contextMenu.nodeId && 'children' in n)}
+          isExpanded={expandedNodeIds.has(contextMenu.nodeId)}
+          onClose={() => setContextMenu(null)}
+          onFocusNode={(id) => { renderer.rendererRef.current?.focusOnNode(id); renderer.rendererRef.current?.selectNode(NodeId(id)); }}
+          onIsolateNode={(id) => { renderer.rendererRef.current?.focusNeighborhood(NodeId(id)); }}
+          onHideNode={(id) => { renderer.rendererRef.current?.selectNode(null); }}
+          onExpandNode={(id) => { expandNode(id); }}
+          onCollapseNode={(id) => { collapseNode(id); }}
+          onFindPath={(id) => { panel.setShowPathFind(true); useGraphStore.getState().setPathStart(NodeId(id)); }}
+          onHighlightCallChain={(id) => { panel.setShowCallChain(true); renderer.rendererRef.current?.highlightCallChain(NodeId(id)); }}
+          onHighlightImpact={(id) => { panel.setShowImpact(true); renderer.rendererRef.current?.highlightImpact(NodeId(id)); }}
+        />
+      )}
       {tooltip && <GraphTooltip data={tooltip} />}
       <KeyboardHelp visible={showHelp} onClose={() => setShowHelp(false)} />
       <StatusBar error={error} isLoading={isLoading} lastUpdated={lastUpdated}

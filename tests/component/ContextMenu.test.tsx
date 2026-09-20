@@ -1,0 +1,139 @@
+import { describe, it, expect, vi } from 'vitest';
+import { render, fireEvent, cleanup } from '@testing-library/react';
+import { ContextMenu } from '../../src/client/components/ContextMenu.tsx';
+
+const mockT = (key: string) => key;
+
+vi.mock('../../src/client/i18n/index.ts', () => ({
+  useT: () => mockT,
+}));
+
+describe('ContextMenu', () => {
+  const defaultProps = {
+    nodeId: 'node-1',
+    nodeData: null,
+    position: { x: 100, y: 200 },
+    isCluster: false,
+    isExpanded: false,
+    onClose: vi.fn(),
+    onFocusNode: vi.fn(),
+    onIsolateNode: vi.fn(),
+    onHideNode: vi.fn(),
+    onExpandNode: vi.fn(),
+    onCollapseNode: vi.fn(),
+    onFindPath: vi.fn(),
+    onHighlightCallChain: vi.fn(),
+    onHighlightImpact: vi.fn(),
+  };
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('应渲染所有基本菜单项', () => {
+    const { getByText } = render(<ContextMenu {...defaultProps} />);
+    expect(getByText('contextMenu.focus')).toBeTruthy();
+    expect(getByText('contextMenu.isolate')).toBeTruthy();
+    expect(getByText('contextMenu.hide')).toBeTruthy();
+    expect(getByText('contextMenu.callChain')).toBeTruthy();
+    expect(getByText('contextMenu.impact')).toBeTruthy();
+    expect(getByText('contextMenu.findPath')).toBeTruthy();
+  });
+
+  it('点击 Focus Node 应调用 onFocusNode 并关闭菜单', () => {
+    const { getByText } = render(<ContextMenu {...defaultProps} />);
+    fireEvent.click(getByText('contextMenu.focus'));
+    expect(defaultProps.onFocusNode).toHaveBeenCalledWith('node-1');
+    expect(defaultProps.onClose).toHaveBeenCalled();
+  });
+
+  it('点击 Isolate 应调用 onIsolateNode', () => {
+    const { getByText } = render(<ContextMenu {...defaultProps} />);
+    fireEvent.click(getByText('contextMenu.isolate'));
+    expect(defaultProps.onIsolateNode).toHaveBeenCalledWith('node-1');
+  });
+
+  it('点击 Hide Node 应调用 onHideNode', () => {
+    const { getByText } = render(<ContextMenu {...defaultProps} />);
+    fireEvent.click(getByText('contextMenu.hide'));
+    expect(defaultProps.onHideNode).toHaveBeenCalledWith('node-1');
+  });
+
+  it('点击 Call Chain 应调用 onHighlightCallChain', () => {
+    const { getByText } = render(<ContextMenu {...defaultProps} />);
+    fireEvent.click(getByText('contextMenu.callChain'));
+    expect(defaultProps.onHighlightCallChain).toHaveBeenCalledWith('node-1');
+  });
+
+  it('点击 Impact 应调用 onHighlightImpact', () => {
+    const { getByText } = render(<ContextMenu {...defaultProps} />);
+    fireEvent.click(getByText('contextMenu.impact'));
+    expect(defaultProps.onHighlightImpact).toHaveBeenCalledWith('node-1');
+  });
+
+  it('点击 Find Path 应调用 onFindPath', () => {
+    const { getByText } = render(<ContextMenu {...defaultProps} />);
+    fireEvent.click(getByText('contextMenu.findPath'));
+    expect(defaultProps.onFindPath).toHaveBeenCalledWith('node-1');
+  });
+
+  it('当 isCluster=true 且 isExpanded=false 时应显示 Expand Cluster', () => {
+    const { getByText } = render(
+      <ContextMenu {...defaultProps} isCluster={true} isExpanded={false} />
+    );
+    expect(getByText('contextMenu.expand')).toBeTruthy();
+  });
+
+  it('当 isCluster=true 且 isExpanded=true 时应显示 Collapse Cluster', () => {
+    const { getByText } = render(
+      <ContextMenu {...defaultProps} isCluster={true} isExpanded={true} />
+    );
+    expect(getByText('contextMenu.collapse')).toBeTruthy();
+  });
+
+  it('当 isCluster=false 时不应显示 Expand/Collapse', () => {
+    const { queryByText } = render(
+      <ContextMenu {...defaultProps} isCluster={false} />
+    );
+    expect(queryByText('contextMenu.expand')).toBeNull();
+    expect(queryByText('contextMenu.collapse')).toBeNull();
+  });
+
+  it('点击 Expand Cluster 应调用 onExpandNode', () => {
+    const { getByText } = render(
+      <ContextMenu {...defaultProps} isCluster={true} isExpanded={false} />
+    );
+    fireEvent.click(getByText('contextMenu.expand'));
+    expect(defaultProps.onExpandNode).toHaveBeenCalledWith('node-1');
+  });
+
+  it('点击 Collapse Cluster 应调用 onCollapseNode', () => {
+    const { getByText } = render(
+      <ContextMenu {...defaultProps} isCluster={true} isExpanded={true} />
+    );
+    fireEvent.click(getByText('contextMenu.collapse'));
+    expect(defaultProps.onCollapseNode).toHaveBeenCalledWith('node-1');
+  });
+
+  it('按 Escape 应关闭菜单', () => {
+    render(<ContextMenu {...defaultProps} />);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(defaultProps.onClose).toHaveBeenCalled();
+  });
+
+  it('点击菜单外部应关闭菜单', () => {
+    render(<ContextMenu {...defaultProps} />);
+    fireEvent.mouseDown(document.body);
+    expect(defaultProps.onClose).toHaveBeenCalled();
+  });
+
+  it('菜单应定位在指定位置', () => {
+    const { container } = render(
+      <ContextMenu {...defaultProps} position={{ x: 300, y: 400 }} />
+    );
+    const menu = container.querySelector('.cg-context-menu') as HTMLElement;
+    expect(menu.style.left).toBe('300px');
+    expect(menu.style.top).toBe('400px');
+  });
+});
