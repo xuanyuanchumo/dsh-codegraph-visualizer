@@ -24,6 +24,48 @@ import {
 
 const log = scoped('host');
 
+type RouteHandler = (req: IncomingMessage, res: ServerResponse) => Promise<void> | void;
+
+function withRouteMiddleware(
+  method: string,
+  routePath: string,
+  corsConfig: CorsConfig,
+  rateLimiter: ReturnType<typeof createRateLimiter>,
+  handler: RouteHandler,
+): RouteHandler {
+  return async (req, res) => {
+    if (handleCorsPreflight(req, res, corsConfig)) return;
+    if (!requireMethod(req, res, method, corsConfig)) return;
+    logRequest(req, routePath);
+    if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
+    await handler(req, res);
+  };
+}
+
+async function resolveAndValidatePath(
+  pathInput: string | undefined,
+  ctx: Context,
+  deps: RouteDeps,
+  req: IncomingMessage,
+  res: ServerResponse,
+  corsConfig: CorsConfig,
+): Promise<string | null> {
+  if (pathInput && pathInput !== '.' && !deps.securityManager.isPathAllowed(pathInput)) {
+    sendError(res, 403, 'Path not allowed', req, corsConfig);
+    return null;
+  }
+  const resolved = pathInput && pathInput !== '.' ? pathInput : findWorkspacePath(ctx);
+  if (resolved && resolved !== '.' && !deps.securityManager.isPathAllowed(resolved)) {
+    sendError(res, 403, 'Workspace path not allowed', req, corsConfig);
+    return null;
+  }
+  if (resolved && resolved !== '.' && !await validatePathRealpath(resolved, deps.securityManager)) {
+    sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
+    return null;
+  }
+  return resolved;
+}
+
 export interface RouteDeps {
   ctx: Context;
   config: VisualizerConfig;
@@ -153,14 +195,10 @@ function registerStatusRoute(rc: RouteContext): void {
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: routePath,
-    handler: (req: IncomingMessage, res: ServerResponse) => {
-      if (handleCorsPreflight(req, res, corsConfig)) return;
-      if (!requireMethod(req, res, 'GET', corsConfig)) return;
-      logRequest(req, routePath);
-      if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
+    handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, (req, res) => {
       const status = checkPrerequisites(ctx);
       sendJson(res, 200, { codegraph: status.codegraph, lens: status.lens }, req, corsConfig);
-    },
+    }),
   }), 'codegraph: status route');
 }
 
@@ -172,10 +210,7 @@ function registerHealthRoute(rc: RouteContext): void {
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: routePath,
-    handler: (req: IncomingMessage, res: ServerResponse) => {
-      if (handleCorsPreflight(req, res, corsConfig)) return;
-      if (!requireMethod(req, res, 'GET', corsConfig)) return;
-      logRequest(req, routePath);
+    handler: withRouteMiddleware('GET', routePath, corsConfig, rc.rateLimiter, (req, res) => {
       try {
         const status = checkPrerequisites(ctx);
         const mem = process.memoryUsage();
@@ -197,7 +232,7 @@ function registerHealthRoute(rc: RouteContext): void {
           timestamp: Date.now(),
         }, req, corsConfig);
       }
-    },
+    }),
   }), 'codegraph: health route');
 }
 
@@ -209,15 +244,11 @@ function registerWorkspaceRoute(rc: RouteContext): void {
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: routePath,
-    handler: (req: IncomingMessage, res: ServerResponse) => {
-      if (handleCorsPreflight(req, res, corsConfig)) return;
-      if (!requireMethod(req, res, 'GET', corsConfig)) return;
-      logRequest(req, routePath);
-      if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
+    handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, (req, res) => {
       const current = findWorkspacePath(ctx);
       const list = extractWorkspacePaths(ctx);
       sendJson(res, 200, { path: current, list }, req, corsConfig);
-    },
+    }),
   }), 'codegraph: workspace route');
 }
 
@@ -229,11 +260,7 @@ function registerDataRoute(rc: RouteContext): void {
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: routePath,
-    handler: (req: IncomingMessage, res: ServerResponse) => {
-      if (handleCorsPreflight(req, res, corsConfig)) return;
-      if (!requireMethod(req, res, 'GET', corsConfig)) return;
-      logRequest(req, routePath);
-      if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
+    handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, (req, res) => {
       const ifNoneMatch = req.headers['if-none-match'];
       const lastGraphData = deps.getLastGraphData();
       if (ifNoneMatch && lastGraphData) {
@@ -255,7 +282,7 @@ function registerDataRoute(rc: RouteContext): void {
       } else {
         sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req, corsConfig);
       }
-    },
+    }),
   }), 'codegraph: data route');
 }
 
@@ -267,28 +294,13 @@ function registerScanRoute(rc: RouteContext): void {
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: routePath,
-    handler: async (req: IncomingMessage, res: ServerResponse) => {
-      if (handleCorsPreflight(req, res, corsConfig)) return;
-      if (!requireMethod(req, res, 'POST', corsConfig)) return;
-      logRequest(req, routePath);
-      if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
+    handler: withRouteMiddleware('POST', routePath, corsConfig, rateLimiter, async (req, res) => {
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
         const scanPathInput = extractStringField(parsed, 'path', VALIDATION.MAX_PATH_LENGTH);
-        if (scanPathInput && scanPathInput !== '.' && !deps.securityManager.isPathAllowed(scanPathInput)) {
-          sendError(res, 403, 'Path not allowed', req, corsConfig);
-          return;
-        }
-        const scanPath = scanPathInput && scanPathInput !== '.' ? scanPathInput : findWorkspacePath(ctx);
-        if (scanPath && scanPath !== '.' && !deps.securityManager.isPathAllowed(scanPath)) {
-          sendError(res, 403, 'Workspace path not allowed', req, corsConfig);
-          return;
-        }
-        if (scanPath && scanPath !== '.' && !await validatePathRealpath(scanPath, deps.securityManager)) {
-          sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
-          return;
-        }
+        const scanPath = await resolveAndValidatePath(scanPathInput, ctx, deps, req, res, corsConfig);
+        if (scanPath === null) return;
         const repoId = scanPath || `workspace-${Date.now()}`;
         const scanCache = deps.getScanCache();
 
@@ -340,9 +352,10 @@ function registerScanRoute(rc: RouteContext): void {
         log.error('scan failed', e);
         sendError(res, 500, 'Scan failed — check codegraph installation', req, corsConfig);
       }
-    },
+    }),
   }), 'codegraph: scan route');
 }
+
 
 function registerInitRoute(rc: RouteContext): void {
   const { deps, corsConfig, rateLimiter, invokeUpstream } = rc;
@@ -352,28 +365,13 @@ function registerInitRoute(rc: RouteContext): void {
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: routePath,
-    handler: async (req: IncomingMessage, res: ServerResponse) => {
-      if (handleCorsPreflight(req, res, corsConfig)) return;
-      if (!requireMethod(req, res, 'POST', corsConfig)) return;
-      logRequest(req, routePath);
-      if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
+    handler: withRouteMiddleware('POST', routePath, corsConfig, rateLimiter, async (req, res) => {
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
         const pathInput = extractStringField(parsed, 'path', VALIDATION.MAX_PATH_LENGTH);
-        if (pathInput && pathInput !== '.' && !deps.securityManager.isPathAllowed(pathInput)) {
-          sendError(res, 403, 'Path not allowed', req, corsConfig);
-          return;
-        }
-        const initPath = pathInput && pathInput !== '.' ? pathInput : findWorkspacePath(ctx);
-        if (initPath && initPath !== '.' && !deps.securityManager.isPathAllowed(initPath)) {
-          sendError(res, 403, 'Path not allowed', req, corsConfig);
-          return;
-        }
-        if (initPath && initPath !== '.' && !await validatePathRealpath(initPath, deps.securityManager)) {
-          sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
-          return;
-        }
+        const initPath = await resolveAndValidatePath(pathInput, ctx, deps, req, res, corsConfig);
+        if (initPath === null) return;
         log.info('init requested', { path: initPath });
         const result = await invokeUpstream('codegraph_init', { path: initPath, force: true });
         const success = result !== null;
@@ -404,7 +402,7 @@ function registerInitRoute(rc: RouteContext): void {
         deps.setLastInitResult(errorResult);
         sendError(res, 500, 'Initialization failed — is dsh-codegraph installed?', req, corsConfig);
       }
-    },
+    }),
   }), 'codegraph: init route');
 }
 
@@ -416,35 +414,21 @@ function registerWatchRoute(rc: RouteContext): void {
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: routePath,
-    handler: async (req: IncomingMessage, res: ServerResponse) => {
-      if (handleCorsPreflight(req, res, corsConfig)) return;
-      if (!requireMethod(req, res, 'POST', corsConfig)) return;
-      logRequest(req, routePath);
+    handler: withRouteMiddleware('POST', routePath, corsConfig, rc.rateLimiter, async (req, res) => {
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
         const enabled = extractBooleanField(parsed, 'enabled');
         const pathInput = extractStringField(parsed, 'path', VALIDATION.MAX_PATH_LENGTH);
-        if (pathInput && pathInput !== '.' && !deps.securityManager.isPathAllowed(pathInput)) {
-          sendError(res, 403, 'Path not allowed', req, corsConfig);
-          return;
-        }
-        const watchPath = pathInput && pathInput !== '.' ? pathInput : findWorkspacePath(ctx);
-        if (watchPath && watchPath !== '.' && !deps.securityManager.isPathAllowed(watchPath)) {
-          sendError(res, 403, 'Path not allowed', req, corsConfig);
-          return;
-        }
-        if (watchPath && watchPath !== '.' && !await validatePathRealpath(watchPath, deps.securityManager)) {
-          sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
-          return;
-        }
+        const watchPath = await resolveAndValidatePath(pathInput, ctx, deps, req, res, corsConfig);
+        if (watchPath === null) return;
         ctx.emit('codegraph-visualizer/watch/toggle', { enabled: !!enabled, path: watchPath, timestamp: Date.now() });
         sendJson(res, 200, { success: true, enabled: !!enabled, path: watchPath }, req, corsConfig);
       } catch (e) {
         log.warn('watch route failed', e);
         sendError(res, 500, 'Watch toggle failed', req, corsConfig);
       }
-    },
+    }),
   }), 'codegraph: watch route');
 }
 
@@ -456,11 +440,7 @@ function registerDependenciesRoute(rc: RouteContext): void {
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: routePath,
-    handler: async (req: IncomingMessage, res: ServerResponse) => {
-      if (handleCorsPreflight(req, res, corsConfig)) return;
-      if (!requireMethod(req, res, 'GET', corsConfig)) return;
-      logRequest(req, routePath);
-      if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
+    handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, async (req, res) => {
       try {
         const workspacePath = findWorkspacePath(ctx);
         if (!workspacePath) {
@@ -527,7 +507,7 @@ function registerDependenciesRoute(rc: RouteContext): void {
         log.error('dependencies route failed', e);
         sendError(res, 500, 'Internal server error', req, corsConfig);
       }
-    },
+    }),
   }), 'codegraph: dependencies route');
 }
 
@@ -539,11 +519,7 @@ function registerDiffRoute(rc: RouteContext): void {
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: routePath,
-    handler: async (req: IncomingMessage, res: ServerResponse) => {
-      if (handleCorsPreflight(req, res, corsConfig)) return;
-      if (!requireMethod(req, res, 'POST', corsConfig)) return;
-      logRequest(req, routePath);
-      if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
+    handler: withRouteMiddleware('POST', routePath, corsConfig, rateLimiter, async (req, res) => {
       try {
         const body = await readBody(req, deps.config.maxBodyBytes);
         const parsed = parseJsonBody(body);
@@ -586,7 +562,7 @@ function registerDiffRoute(rc: RouteContext): void {
         log.error('diff route failed', e);
         sendError(res, 500, 'Graph diff failed — check git refs', req, corsConfig);
       }
-    },
+    }),
   }), 'codegraph: diff route');
 }
 
@@ -599,11 +575,7 @@ function registerAstRoute(rc: RouteContext, sharedTreeSitterAdapter: TreeSitterA
     return ctx.webServer.register({
       kind: 'exact',
       path: routePath,
-      handler: async (req: IncomingMessage, res: ServerResponse) => {
-        if (handleCorsPreflight(req, res, corsConfig)) return;
-        if (!requireMethod(req, res, 'POST', corsConfig)) return;
-        logRequest(req, routePath);
-        if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
+      handler: withRouteMiddleware('POST', routePath, corsConfig, rateLimiter, async (req, res) => {
         try {
           const body = await readBody(req, config.maxBodyBytes);
           const parsed = parseJsonBody(body);
@@ -649,7 +621,7 @@ function registerAstRoute(rc: RouteContext, sharedTreeSitterAdapter: TreeSitterA
           log.error('ast route failed', e);
           sendError(res, 500, `AST parsing failed: ${e instanceof Error ? e.message : String(e)}`, req, corsConfig);
         }
-      },
+      }),
     });
   }, 'codegraph: ast route');
 }
@@ -663,11 +635,7 @@ function registerTreeSitterRoute(rc: RouteContext, sharedTreeSitterAdapter: Tree
     return ctx.webServer.register({
       kind: 'exact',
       path: routePath,
-      handler: async (req: IncomingMessage, res: ServerResponse) => {
-        if (handleCorsPreflight(req, res, corsConfig)) return;
-        if (!requireMethod(req, res, 'POST', corsConfig)) return;
-        logRequest(req, routePath);
-        if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
+      handler: withRouteMiddleware('POST', routePath, corsConfig, rateLimiter, async (req, res) => {
         try {
           const body = await readBody(req, config.maxBodyBytes);
           const parsed = parseJsonBody(body);
@@ -692,7 +660,7 @@ function registerTreeSitterRoute(rc: RouteContext, sharedTreeSitterAdapter: Tree
           log.error('tree-sitter route failed', e);
           sendError(res, 500, 'Internal server error', req, corsConfig);
         }
-      },
+      }),
     });
   }, 'codegraph: tree-sitter route');
 }

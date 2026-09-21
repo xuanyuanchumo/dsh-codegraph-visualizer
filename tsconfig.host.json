@@ -22,6 +22,7 @@
     "src/merger/**/*",
     "src/types/**/*",
     "src/shared/**/*",
+    "src/host/**/*",
     "src/generated/**/*"
   ],
   "exclude": ["node_modules", "dist", "dist-host", "dist-client", "src/client", "tests"]
