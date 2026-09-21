@@ -200,7 +200,7 @@ export class LayoutController {
         }
       }
 
-      const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+      const goldenAngle = LAYOUT_CONST.GOLDEN_ANGLE;
       const newNodeIndexMap = new Map<string, number>();
       for (let i = 0; i < newNodeIdArray.length; i++) {
         newNodeIndexMap.set(newNodeIdArray[i]!, i);

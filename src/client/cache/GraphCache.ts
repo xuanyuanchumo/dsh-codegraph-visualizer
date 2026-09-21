@@ -14,7 +14,7 @@ export class GraphCache {
   private cache = new Map<string, CacheEntry>();
   private maxEntries: number;
 
-  constructor(maxEntries: number = 5) {
+  constructor(maxEntries: number = 15) {
     this.maxEntries = maxEntries;
   }
 

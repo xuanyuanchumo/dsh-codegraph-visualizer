@@ -125,7 +125,7 @@ describe('GraphCache (FR-53)', () => {
   let cache: GraphCache;
 
   beforeEach(() => {
-    cache = new GraphCache();
+    cache = new GraphCache(5);
   });
 
   it('should cache and retrieve graph data', () => {

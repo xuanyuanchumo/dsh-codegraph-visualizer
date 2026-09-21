@@ -2,7 +2,7 @@ import type { Core } from 'cytoscape';
 
 import { scoped } from '../../shared/Logger.ts';
 import { CYCLE_DETECTION } from '../../shared/constants.ts';
-import { buildForwardAdjacencyMap } from './AdjacencyMapBuilder.ts';
+import type { AdjacencyCache } from './AdjacencyCache.ts';
 
 const log = scoped('cycle-detector');
 
@@ -14,9 +14,39 @@ export interface CycleInfo {
 
 export class CycleDetector {
   private cy: Core;
+  private adjacencyCache: AdjacencyCache | null;
 
-  constructor(cy: Core) {
+  constructor(cy: Core, adjacencyCache?: AdjacencyCache) {
     this.cy = cy;
+    this.adjacencyCache = adjacencyCache ?? null;
+  }
+
+  private getForwardAdjacency(): Map<string, Set<string>> {
+    if (this.adjacencyCache) {
+      return this.adjacencyCache.getForwardAdjacency(this.cy);
+    }
+    const adjacency = new Map<string, Set<string>>();
+    this.cy.edges().forEach((edge) => {
+      const s = edge.source().id();
+      const t = edge.target().id();
+      let set = adjacency.get(s);
+      if (!set) { set = new Set(); adjacency.set(s, set); }
+      set.add(t);
+    });
+    return adjacency;
+  }
+
+  private getEdgeIdMap(): Map<string, string> {
+    if (this.adjacencyCache) {
+      return this.adjacencyCache.getEdgeIdMap(this.cy);
+    }
+    const edgeMap = new Map<string, string>();
+    this.cy.edges().forEach((edge) => {
+      const s = edge.source().id();
+      const t = edge.target().id();
+      edgeMap.set(`${s}->${t}`, edge.id());
+    });
+    return edgeMap;
   }
 
   detectCycles(): Set<string> {
@@ -28,7 +58,7 @@ export class CycleDetector {
       return cycles;
     }
 
-    const adjacency = buildForwardAdjacencyMap(this.cy);
+    const adjacency = this.getForwardAdjacency();
 
     const visited = new Set<string>();
     const inStack = new Set<string>();
@@ -37,7 +67,7 @@ export class CycleDetector {
       const path: string[] = [];
       const pathIndex = new Map<string, number>();
       const frames: Array<{ id: string; neighbors: string[]; next: number }> = [
-        { id: start, neighbors: adjacency.get(start) ?? [], next: 0 },
+        { id: start, neighbors: [...(adjacency.get(start) ?? [])], next: 0 },
       ];
       visited.add(start);
       inStack.add(start);
@@ -64,7 +94,7 @@ export class CycleDetector {
           inStack.add(target);
           path.push(target);
           pathIndex.set(target, path.length - 1);
-          frames.push({ id: target, neighbors: adjacency.get(target) ?? [], next: 0 });
+          frames.push({ id: target, neighbors: [...(adjacency.get(target) ?? [])], next: 0 });
         }
       }
     };
@@ -83,13 +113,8 @@ export class CycleDetector {
       return [];
     }
 
-    const adjacency = buildForwardAdjacencyMap(this.cy);
-    const edgeMap = new Map<string, string>();
-    this.cy.edges().forEach((edge) => {
-      const s = edge.source().id();
-      const t = edge.target().id();
-      edgeMap.set(`${s}->${t}`, edge.id());
-    });
+    const adjacency = this.getForwardAdjacency();
+    const edgeMap = this.getEdgeIdMap();
 
     const visited = new Set<string>();
     const inStack = new Set<string>();
@@ -100,7 +125,7 @@ export class CycleDetector {
       const path: string[] = [];
       const pathIndex = new Map<string, number>();
       const frames: Array<{ id: string; neighbors: string[]; next: number }> = [
-        { id: start, neighbors: adjacency.get(start) ?? [], next: 0 },
+        { id: start, neighbors: [...(adjacency.get(start) ?? [])], next: 0 },
       ];
       visited.add(start);
       inStack.add(start);
@@ -144,7 +169,7 @@ export class CycleDetector {
           inStack.add(target);
           path.push(target);
           pathIndex.set(target, path.length - 1);
-          frames.push({ id: target, neighbors: adjacency.get(target) ?? [], next: 0 });
+          frames.push({ id: target, neighbors: [...(adjacency.get(target) ?? [])], next: 0 });
         }
       }
     };
@@ -205,5 +230,6 @@ export class CycleDetector {
     this.cy.batch(() => {
       this.cy.elements().removeClass('cycle-highlight cycle-hidden');
     });
+    this.adjacencyCache = null;
   }
 }

@@ -440,7 +440,7 @@ export function enforceNodeLimit(
   const collapsedChildIds = new Set<string>();
   const overLimit = visibleNodes.length - maxVisibleNodes;
 
-  const sortedClusters = [...clusterNodes].sort((a, b) => a.childCount - b.childCount);
+  const sortedClusters = [...clusterNodes].sort((a, b) => b.childCount - a.childCount);
   let collapsed = 0;
   for (const cluster of sortedClusters) {
     if (collapsed >= overLimit) break;

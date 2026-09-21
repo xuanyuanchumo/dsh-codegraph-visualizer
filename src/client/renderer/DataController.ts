@@ -394,7 +394,7 @@ export class DataController {
         const outDegree = node.outdegree(false);
         const totalConnections = inDegree + outDegree;
         if (totalConnections > 0) {
-          node.data('weight', Math.min(totalConnections, 10));
+          node.data('weight', Math.min(totalConnections, DATA_CONTROLLER.MAX_WEIGHT));
           const instability = outDegree / totalConnections;
           node.data('instability', instability);
         } else {
@@ -408,7 +408,7 @@ export class DataController {
           node.data('nodeRole', 'entry');
         } else if (inDegree > 0 && outDegree === 0) {
           node.data('nodeRole', 'leaf');
-        } else if (inDegree >= 5 || outDegree >= 5) {
+        } else if (inDegree >= DATA_CONTROLLER.HUB_DEGREE_THRESHOLD || outDegree >= DATA_CONTROLLER.HUB_DEGREE_THRESHOLD) {
           node.data('nodeRole', 'hub');
         } else {
           node.removeData('nodeRole');

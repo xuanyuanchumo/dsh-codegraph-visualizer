@@ -1,7 +1,7 @@
 import type { Core } from 'cytoscape';
 import { NodeId } from '../../types/index.ts';
 import { PATH_FINDER as PF_CONST } from '../../shared/constants.ts';
-import { buildDirectedAdjacencyMaps, type DirectedAdjacencyMaps } from './AdjacencyMapBuilder.ts';
+import type { AdjacencyCache } from './AdjacencyCache.ts';
 
 export interface PathResult {
   source: NodeId;
@@ -12,12 +12,13 @@ export interface PathResult {
 
 const BIDIRECTIONAL_BFS_LIMIT = PF_CONST.MAX_NODES_FOR_BFS;
 
-
 export class PathFinder {
   private cy: Core;
+  private adjacencyCache: AdjacencyCache | null;
 
-  constructor(cy: Core) {
+  constructor(cy: Core, adjacencyCache?: AdjacencyCache) {
     this.cy = cy;
+    this.adjacencyCache = adjacencyCache ?? null;
   }
 
   findPath(sourceId: NodeId, targetId: NodeId): PathResult | null {
@@ -32,11 +33,34 @@ export class PathFinder {
     const nodeCount = this.cy.nodes().length;
     if (nodeCount > BIDIRECTIONAL_BFS_LIMIT) return null;
 
-    const adjacency = buildDirectedAdjacencyMaps(this.cy);
+    const adjacency = this.getDirectedAdjacency();
     return this.bidirectionalBFS(sourceId, targetId, adjacency);
   }
 
-  private bidirectionalBFS(sourceId: NodeId, targetId: NodeId, adjacency: DirectedAdjacencyMaps): PathResult | null {
+  private getDirectedAdjacency(): { forward: Map<string, Set<string>>; backward: Map<string, Set<string>> } {
+    if (this.adjacencyCache) {
+      return this.adjacencyCache.getDirectedAdjacency(this.cy);
+    }
+    const forward = new Map<string, Set<string>>();
+    const backward = new Map<string, Set<string>>();
+    this.cy.edges().forEach((edge) => {
+      const s = edge.source().id();
+      const t = edge.target().id();
+      let fwdSet = forward.get(s);
+      if (!fwdSet) { fwdSet = new Set(); forward.set(s, fwdSet); }
+      fwdSet.add(t);
+      let bwdSet = backward.get(t);
+      if (!bwdSet) { bwdSet = new Set(); backward.set(t, bwdSet); }
+      bwdSet.add(s);
+    });
+    return { forward, backward };
+  }
+
+  private bidirectionalBFS(
+    sourceId: NodeId,
+    targetId: NodeId,
+    adjacency: { forward: Map<string, Set<string>>; backward: Map<string, Set<string>> },
+  ): PathResult | null {
     const forwardVisited = new Map<string, string | null>();
     const backwardVisited = new Map<string, string | null>();
     const forwardQueue: string[] = [sourceId];
@@ -86,22 +110,24 @@ export class PathFinder {
     head: number,
     visited: Map<string, string | null>,
     otherVisited: Map<string, string | null>,
-    adjacency: Map<string, string[]>,
+    adjacency: Map<string, Set<string>>,
   ): { newHead: number; meetingNode: string | null } {
     const currentId = queue[head];
     head++;
 
     if (!currentId) return { newHead: head, meetingNode: null };
 
-    const neighbors = adjacency.get(currentId) ?? [];
+    const neighbors = adjacency.get(currentId);
     let meetingNode: string | null = null;
 
-    for (const neighborId of neighbors) {
-      if (!visited.has(neighborId)) {
-        visited.set(neighborId, currentId);
-        queue.push(neighborId);
-        if (otherVisited.has(neighborId)) {
-          meetingNode = neighborId;
+    if (neighbors) {
+      for (const neighborId of neighbors) {
+        if (!visited.has(neighborId)) {
+          visited.set(neighborId, currentId);
+          queue.push(neighborId);
+          if (otherVisited.has(neighborId)) {
+            meetingNode = neighborId;
+          }
         }
       }
     }
@@ -155,5 +181,7 @@ export class PathFinder {
     });
   }
 
-  destroy(): void {}
+  destroy(): void {
+    this.adjacencyCache = null;
+  }
 }

@@ -111,6 +111,9 @@ export const LAYOUT = {
   OVERLAP_MAX_ITERATIONS: 15,
   OVERLAP_SKIP_THRESHOLD: 5000,
   OVERLAP_CELL_SIZE_MULTIPLIER: 4,
+  GOLDEN_ANGLE: Math.PI * (3 - Math.sqrt(5)),
+  OVERLAP_PUSH_COEFFICIENT: 0.15,
+  OVERLAP_MIN_PUSH: 2,
 } as const;
 
 export const VIRTUAL_VIEWPORT = {
@@ -127,6 +130,8 @@ export const QUADTREE = {
 export const DATA_CONTROLLER = {
   BATCH_SIZE: 200,
   SVG_OFFSET: 80,
+  MAX_WEIGHT: 10,
+  HUB_DEGREE_THRESHOLD: 5,
 } as const;
 
 export const LOD = {

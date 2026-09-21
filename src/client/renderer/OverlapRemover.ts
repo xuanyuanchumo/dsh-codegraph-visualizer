@@ -75,8 +75,8 @@ export class OverlapRemover {
               overlapCount++;
               const overlapX = minDx - absDx;
               const overlapY = minDy - absDy;
-              const pushX = overlapX / 2 + Math.max(2, overlapX * 0.15);
-              const pushY = overlapY / 2 + Math.max(2, overlapY * 0.15);
+              const pushX = overlapX / 2 + Math.max(LAYOUT_CONST.OVERLAP_MIN_PUSH, overlapX * LAYOUT_CONST.OVERLAP_PUSH_COEFFICIENT);
+              const pushY = overlapY / 2 + Math.max(LAYOUT_CONST.OVERLAP_MIN_PUSH, overlapY * LAYOUT_CONST.OVERLAP_PUSH_COEFFICIENT);
               const signX = ddx >= 0 ? 1 : -1;
               const signY = ddy >= 0 ? 1 : -1;
               let da = displacements.get(a.id);

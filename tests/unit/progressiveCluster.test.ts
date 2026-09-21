@@ -573,12 +573,10 @@ describe('enforceNodeLimit', () => {
     expect(result.nodes.length).toBeLessThanOrEqual(5000);
   });
 
-  it('sorts clusters by childCount ascending before collapsing', () => {
-    // Create clusters with varying childCount to verify ascending sort
+  it('sorts clusters by childCount descending before collapsing', () => {
     const visibleNodes: (GraphNode | ClusterNode)[] = [];
     const nodeIdToVisibleId = new Map<string, string>();
 
-    // Create clusters in non-sorted order: childCount 10, 1, 5
     const cluster10: ClusterNode = {
       id: NodeId('big'),
       label: 'big',
@@ -633,12 +631,9 @@ describe('enforceNodeLimit', () => {
 
     const result = enforceNodeLimit(visibleNodes, nodeIdToVisibleId, []);
 
-    expect(nodeIdToVisibleId.get('smallChild0')).toBe('small');
-    for (let i = 0; i < 5; i++) {
-      expect(nodeIdToVisibleId.get(`midChild${i}`)).toBe('mid');
+    for (let i = 0; i < 10; i++) {
+      expect(nodeIdToVisibleId.get(`bigChild${i}`)).toBe('big');
     }
-    // big children should NOT be remapped (still mapped to themselves or original)
-    // They were never in nodeIdToVisibleId initially, so they won't be set
   });
 
   it('updates nodeIdToVisibleId correctly after collapsing', () => {

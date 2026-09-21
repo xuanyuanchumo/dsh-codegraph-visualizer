@@ -59,7 +59,7 @@ describe('Chaos: HistoryManager edge cases (FR-31)', () => {
 
 describe('Chaos: GraphCache LRU eviction under pressure (FR-53)', () => {
   it('should maintain exactly maxEntries under rapid insertions', () => {
-    const cache = new GraphCache();
+    const cache = new GraphCache(5);
     for (let i = 0; i < 100; i++) {
       cache.set(`repo-${i}`, [], []);
     }
@@ -69,7 +69,7 @@ describe('Chaos: GraphCache LRU eviction under pressure (FR-53)', () => {
   });
 
   it('should handle setLayoutPositions on evicted entry gracefully', () => {
-    const cache = new GraphCache();
+    const cache = new GraphCache(5);
     cache.set('repo-1', [], []);
     for (let i = 2; i < 7; i++) {
       cache.set(`repo-${i}`, [], []);
@@ -80,7 +80,7 @@ describe('Chaos: GraphCache LRU eviction under pressure (FR-53)', () => {
   });
 
   it('should preserve layout positions when updating existing entry', () => {
-    const cache = new GraphCache();
+    const cache = new GraphCache(5);
     const positions = new Map([['n1', { x: 100, y: 200 }]]);
     cache.set('repo-1', [makeNode('n1', 'A', 'function', 'a.ts', 1)], [], positions, 'cose');
     cache.set('repo-1', [makeNode('n1', 'A', 'function', 'a.ts', 1), makeNode('n2', 'B', 'class', 'b.ts', 5)], []);
