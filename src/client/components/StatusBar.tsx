@@ -11,8 +11,8 @@ interface StatusBarProps {
   workspaceName?: string;
   truncated?: boolean;
   totalNodeCount?: number;
-
   displayedNodeCount?: number;
+  performanceDegradations?: string[];
 }
 
 function formatTime(ts: number): string {
@@ -20,11 +20,21 @@ function formatTime(ts: number): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
 }
 
-export const StatusBar = memo(function StatusBar({ error, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount, displayedNodeCount }: StatusBarProps) {
+const DEGRADATION_KEYS: Record<string, string> = {
+  'cycle-detection-skipped': 'degradation.cycleDetectionSkipped',
+  'community-detection-sampled': 'degradation.communityDetectionSampled',
+  'large-graph-mode': 'degradation.largeGraphMode',
+};
+
+export const StatusBar = memo(function StatusBar({ error, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount, displayedNodeCount, performanceDegradations }: StatusBarProps) {
   const t = useT();
-  const statusDotClass = error ? 'status-dot error' : isLoading ? 'status-dot loading' : 'status-dot';
+  const statusDotClass = error ? 'cg-status-dot cg-error' : isLoading ? 'cg-status-dot cg-loading' : 'cg-status-dot';
   const statusText = error ? t('state.error') : isLoading ? t('state.loading') : t('state.ready');
   const wsName = workspaceName ? deriveWorkspaceName(workspaceName) : '';
+  const hasDegradations = performanceDegradations && performanceDegradations.length > 0;
+  const degradationLabels = hasDegradations
+    ? performanceDegradations!.map((key) => DEGRADATION_KEYS[key] ? t(DEGRADATION_KEYS[key]) : key).join(', ')
+    : '';
   return (
     <div className="cg-status-bar" role="status" aria-live="polite">
       <div className="cg-status-item">
@@ -36,10 +46,15 @@ export const StatusBar = memo(function StatusBar({ error, isLoading, lastUpdated
           ⚠ {t('state.truncated', { shown: displayedNodeCount ?? 0, total: totalNodeCount ?? 0 })}
         </span>
       ) : totalNodeCount && totalNodeCount > 0 ? (
-        <span className="status-complete" title={t('state.complete', { total: totalNodeCount })}>
+        <span className="cg-status-complete" title={t('state.complete', { total: totalNodeCount })}>
           ✓ {t('state.complete', { total: totalNodeCount })}
         </span>
       ) : null}
+      {hasDegradations && (
+        <span className="cg-status-degradation" title={t('degradation.tooltip')}>
+          ⚠ {degradationLabels}
+        </span>
+      )}
       {watchEnabled && <span className="cg-watch-indicator" title={t('import.watchOn')}>●</span>}
       <div className="cg-status-spacer" />
       <div className="cg-status-item">

@@ -59,4 +59,25 @@ describe('StatusBar component', () => {
     render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false} />);
     expect(screen.getByText(/无数据|no data/i)).toBeTruthy();
   });
+
+  it('shows degradation indicator when performanceDegradations is non-empty', () => {
+    render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false} performanceDegradations={['cycle-detection-skipped']} />);
+    expect(screen.getByText(/循环检测已跳过|cycle detection skipped/i)).toBeTruthy();
+  });
+
+  it('shows multiple degradation indicators joined by comma', () => {
+    render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false} performanceDegradations={['cycle-detection-skipped', 'large-graph-mode']} />);
+    expect(screen.getByText(/循环检测已跳过|cycle detection skipped/i)).toBeTruthy();
+    expect(screen.getByText(/大规模图谱模式|large graph mode/i)).toBeTruthy();
+  });
+
+  it('does not show degradation indicator when performanceDegradations is empty', () => {
+    render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false} performanceDegradations={[]} />);
+    expect(screen.queryByText(/循环检测已跳过|cycle detection skipped/i)).toBeNull();
+  });
+
+  it('does not show degradation indicator when performanceDegradations is undefined', () => {
+    render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false} />);
+    expect(screen.queryByText(/循环检测已跳过|cycle detection skipped/i)).toBeNull();
+  });
 });

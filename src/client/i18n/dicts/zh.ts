@@ -471,4 +471,10 @@ export const zh: Record<string, string> = {
 
   // Cycle panel
   'cycle.nodeCount': '{n} 节点',
+
+  // Performance degradation indicators
+  'degradation.cycleDetectionSkipped': '循环检测已跳过',
+  'degradation.communityDetectionSampled': '社区检测已采样',
+  'degradation.largeGraphMode': '大规模图谱模式',
+  'degradation.tooltip': '因图谱规模较大，部分分析功能已降级或跳过以保证性能',
 };

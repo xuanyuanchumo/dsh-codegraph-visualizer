@@ -733,6 +733,19 @@ body[data-ds-dark-theme] .cg-type-badge.cg-function {
   cursor: help;
 }
 
+.cg-status-bar .cg-status-degradation {
+  color: var(--cg-warning);
+  font-size: 11px;
+  padding: 0 4px;
+  border-left: 1px solid var(--cg-border);
+  margin-left: 4px;
+  cursor: help;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .cg-status-bar .cg-status-spacer {
   flex: 1;
 }

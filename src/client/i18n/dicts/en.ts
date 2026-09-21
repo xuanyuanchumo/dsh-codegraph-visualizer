@@ -472,4 +472,10 @@ export const en: Record<string, string> = {
 
   // Cycle panel
   'cycle.nodeCount': '{n} nodes',
+
+  // Performance degradation indicators
+  'degradation.cycleDetectionSkipped': 'Cycle detection skipped',
+  'degradation.communityDetectionSampled': 'Community detection sampled',
+  'degradation.largeGraphMode': 'Large graph mode',
+  'degradation.tooltip': 'Some analysis features have been degraded or skipped for performance due to graph size',
 };

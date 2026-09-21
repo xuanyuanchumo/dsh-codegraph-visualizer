@@ -3,6 +3,7 @@ import { persist, createJSONStorage, type StateStorage } from 'zustand/middlewar
 import type { GraphNode, GraphEdge, NodeId, HealthScore, RuleDefinition, RuleViolation, ViewMode } from '../../types/index.ts';
 import { computeClusteredGraph } from './cluster/index.ts';
 import type { ClusterNode, ClusterEdge } from './cluster/index.ts';
+import { tryIncrementalOrFull, type IncrementalClusterContext } from './cluster/incrementalCluster.ts';
 import { assembleDiagram, assembleMicroDiagram, type LayeredDiagram } from '../diagram/index.ts';
 import { CallChainAggregator } from '../diagram/CallChainAggregator.ts';
 import { DiagramCache, ClusterCache, computeDataHash } from '../cache/DiagramCache.ts';
@@ -11,7 +12,7 @@ import { computeViewModeTransition } from './viewModeTransition.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { type LayoutType, type ThemeType, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
 import type { HeatmapMode } from '../renderer/IRenderer.ts';
-import { POLLING } from '../../shared/constants.ts';
+import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, INCREMENTAL_CLUSTER, LOD } from '../../shared/constants.ts';
 
 const log = scoped('store');
 
@@ -22,6 +23,7 @@ const diagramCache = new DiagramCache(10);
 const clusterCache = new ClusterCache(20);
 const callChainAggregator = new CallChainAggregator();
 let microAssemblyGeneration = 0;
+let incrementalClusterCtx: IncrementalClusterContext | null = null;
 
 function detectInitialTheme(): ThemeType {
   if (typeof document === 'undefined') return 'dark';
@@ -123,6 +125,7 @@ function clearLoadingFailsafe(): void {
 export function disposeStore(): void {
   diagramCache.invalidate();
   clusterCache.invalidate();
+  incrementalClusterCtx = null;
   clearLoadingFailsafe();
 }
 
@@ -231,6 +234,11 @@ interface GraphState {
 
   selectedFunction: { nodeId: string; filePath: string; functionName: string } | null;
 
+  performanceDegradations: string[];
+
+  lodLevel: 'minimal' | 'compact' | 'full';
+  lodEnabled: boolean;
+
   setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata?: { truncated?: boolean; totalNodeCount?: number; totalEdgeCount?: number }) => void;
   setLayout: (layout: LayoutType) => void;
   setTheme: (theme: ThemeType) => void;
@@ -272,6 +280,10 @@ interface GraphState {
   assembleMicro: (viewMode: 'cfg' | 'flowchart' | 'sequence', selectedFunctionOverride?: { nodeId: string; filePath: string; functionName: string } | null) => Promise<void>;
   setPanelSize: (height: number, width: number) => void;
   resetPanelSize: () => void;
+  addDegradation: (key: string) => void;
+  clearDegradations: () => void;
+  setLODLevel: (level: 'minimal' | 'compact' | 'full') => void;
+  setLODEnabled: (enabled: boolean) => void;
 }
 
 export const useGraphStore = create<GraphState>()(
@@ -325,11 +337,24 @@ export const useGraphStore = create<GraphState>()(
       panelHeight: null,
       panelWidth: null,
       selectedFunction: null,
+      performanceDegradations: [],
+      lodLevel: 'full',
+      lodEnabled: false,
 
       setGraphData: (nodes, edges, repoId, metadata) => {
         clearLoadingFailsafe();
         const { clusterDepth, expandedNodeIds, viewMode, currentLayer } = useGraphStore.getState();
         const sanitized = sanitizeGraphData(nodes, edges);
+        const newDegradations: string[] = [];
+        if (sanitized.nodes.length > CYCLE_DETECTION.MAX_NODES_FOR_DETECTION) {
+          newDegradations.push('cycle-detection-skipped');
+        }
+        if (sanitized.nodes.length > CLUSTER.MAX_NODES_FOR_LABEL_PROP) {
+          newDegradations.push('community-detection-sampled');
+        }
+        if (sanitized.nodes.length > RENDERER.LARGE_GRAPH_NODE_THRESHOLD) {
+          newDegradations.push('large-graph-mode');
+        }
         let displayNodes = sanitized.nodes;
         let displayEdges = sanitized.edges;
         let diagramData: LayeredDiagram | null = null;
@@ -360,10 +385,31 @@ export const useGraphStore = create<GraphState>()(
             totalEdgeCount: metadata?.totalEdgeCount ?? sanitized.edges.length,
             healthScore: null,
             ruleViolations: [],
+            performanceDegradations: newDegradations,
           });
           return;
         }
-        const result = computeClusteredGraph(displayNodes, displayEdges, 'progressive', expandedNodeIds, clusterDepth, useGraphStore.getState().panelWidth ?? undefined);
+        const result = tryIncrementalOrFull(
+          incrementalClusterCtx,
+          displayNodes, displayEdges,
+          expandedNodeIds, clusterDepth,
+          useGraphStore.getState().panelWidth ?? undefined,
+        );
+        incrementalClusterCtx = {
+          prevResult: result,
+          prevNodeIdToVisibleId: new Map<string, string>(),
+          prevRawNodes: sanitized.nodes,
+          prevRawEdges: sanitized.edges,
+        };
+        for (const n of result.nodes) {
+          if ('isCluster' in n && n.isCluster) {
+            for (const childId of n.childIds) {
+              incrementalClusterCtx.prevNodeIdToVisibleId.set(childId, n.id);
+            }
+          } else {
+            incrementalClusterCtx.prevNodeIdToVisibleId.set(n.id, n.id);
+          }
+        }
         set({
           rawNodes: sanitized.nodes, rawEdges: sanitized.edges,
           nodes: result.nodes, edges: result.edges,
@@ -374,6 +420,7 @@ export const useGraphStore = create<GraphState>()(
           totalEdgeCount: metadata?.totalEdgeCount ?? sanitized.edges.length,
           healthScore: null,
           ruleViolations: [],
+          performanceDegradations: newDegradations,
         });
       },
       setLayout: (layout) => set({ layout }),
@@ -455,6 +502,7 @@ export const useGraphStore = create<GraphState>()(
       },
       clearGraph: () => {
         clearLoadingFailsafe();
+        incrementalClusterCtx = null;
         set({ nodes: [], edges: [], rawNodes: [], rawEdges: [], savedRawNodes: [], savedRawEdges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0, truncated: false, totalNodeCount: 0, totalEdgeCount: 0 });
       },
       setPrerequisites: (prerequisites) => set({ prerequisites }),
@@ -545,6 +593,53 @@ export const useGraphStore = create<GraphState>()(
       setRuleViolations: (violations) => set({ ruleViolations: violations }),
       setPanelSize: (height, width) => set({ panelHeight: height, panelWidth: width }),
       resetPanelSize: () => set({ panelHeight: null, panelWidth: null }),
+      addDegradation: (key) => set((s) => {
+        if (s.performanceDegradations.includes(key)) return s;
+        return { performanceDegradations: [...s.performanceDegradations, key] };
+      }),
+      clearDegradations: () => set({ performanceDegradations: [] }),
+      setLODLevel: (level) => {
+        const state = useGraphStore.getState();
+        if (state.lodLevel === level) return;
+        set({ lodLevel: level });
+        if (!state.lodEnabled) return;
+        if (isLayeredViewMode(state.viewMode)) return;
+        const lodDepth = level === 'minimal' ? LOD.MINIMAL_CLUSTER_DEPTH
+          : level === 'compact' ? LOD.COMPACT_CLUSTER_DEPTH
+          : state.clusterDepth;
+        const { rawNodes, rawEdges, expandedNodeIds } = state;
+        const result = tryIncrementalOrFull(
+          incrementalClusterCtx,
+          rawNodes, rawEdges,
+          expandedNodeIds, lodDepth,
+          state.panelWidth ?? undefined,
+        );
+        incrementalClusterCtx = {
+          prevResult: result,
+          prevNodeIdToVisibleId: new Map<string, string>(),
+          prevRawNodes: rawNodes,
+          prevRawEdges: rawEdges,
+        };
+        for (const n of result.nodes) {
+          if ('isCluster' in n && n.isCluster) {
+            for (const childId of n.childIds) {
+              incrementalClusterCtx.prevNodeIdToVisibleId.set(childId, n.id);
+            }
+          } else {
+            incrementalClusterCtx.prevNodeIdToVisibleId.set(n.id, n.id);
+          }
+        }
+        set({ nodes: result.nodes, edges: result.edges });
+      },
+      setLODEnabled: (enabled) => {
+        set({ lodEnabled: enabled });
+        if (!enabled) {
+          const state = useGraphStore.getState();
+          if (state.lodLevel !== 'full') {
+            useGraphStore.getState().setLODLevel('full');
+          }
+        }
+      },
       setSelectedFunction: (fn) => set({ selectedFunction: fn }),
       assembleMicro: async (viewMode, selectedFunctionOverride) => {
         const selectedFunction = selectedFunctionOverride ?? useGraphStore.getState().selectedFunction;

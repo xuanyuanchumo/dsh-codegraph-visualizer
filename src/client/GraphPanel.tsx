@@ -38,6 +38,7 @@ import { GraphIcon } from './components/Icons.tsx';
 
 import { SequenceDiagramRenderer } from './renderer/SequenceDiagramRenderer.tsx';
 import { scoped } from '../shared/Logger.ts';
+import { LOD } from '../shared/constants.ts';
 
 import { useT } from './i18n/index.ts';
 import './styles/tokens.css';
@@ -82,31 +83,61 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   } | null>(null);
 
   const {
-    nodes, edges, rawNodes, rawEdges, layout, theme, searchQuery, selectedNodeId,
-    highlightedNodeIds, filterType, graphType, clusterDepth, isLoading, error, lastUpdated,
-    prerequisites, watchEnabled, currentWorkspace, workspaceList,
-    initStatus, truncated, totalNodeCount, expandedNodeIds,
-    pathResult, focusDepth, ruleViolations,
-    viewMode, selectedFunction, currentLayer, diagramData,
+    nodes, edges, rawNodes, rawEdges,
+  } = useGraphStore(useShallow((s) => ({
+    nodes: s.nodes, edges: s.edges, rawNodes: s.rawNodes, rawEdges: s.rawEdges,
+  })));
+
+  const {
+    layout, theme, filterType, graphType, clusterDepth,
+    viewMode, currentLayer, diagramData,
+  } = useGraphStore(useShallow((s) => ({
+    layout: s.layout, theme: s.theme,
+    filterType: s.filterType, graphType: s.graphType, clusterDepth: s.clusterDepth,
+    viewMode: s.viewMode, currentLayer: s.currentLayer, diagramData: s.diagramData,
+  })));
+
+  const {
+    searchQuery, selectedNodeId, highlightedNodeIds, expandedNodeIds,
+    pathResult, focusDepth,
+  } = useGraphStore(useShallow((s) => ({
+    searchQuery: s.searchQuery, selectedNodeId: s.selectedNodeId,
+    highlightedNodeIds: s.highlightedNodeIds, expandedNodeIds: s.expandedNodeIds,
+    pathResult: s.pathResult, focusDepth: s.focusDepth,
+  })));
+
+  const {
+    isLoading, error, lastUpdated, truncated, totalNodeCount,
+    prerequisites, watchEnabled, initStatus,
+  } = useGraphStore(useShallow((s) => ({
+    isLoading: s.isLoading, error: s.error, lastUpdated: s.lastUpdated,
+    truncated: s.truncated, totalNodeCount: s.totalNodeCount,
+    prerequisites: s.prerequisites, watchEnabled: s.watchEnabled,
+    initStatus: s.initStatus,
+  })));
+
+  const {
+    currentWorkspace, workspaceList,
+  } = useGraphStore(useShallow((s) => ({
+    currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
+  })));
+
+  const {
+    ruleViolations, selectedFunction,
     fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes,
     heatmapMode,
   } = useGraphStore(useShallow((s) => ({
-    nodes: s.nodes, edges: s.edges, rawNodes: s.rawNodes, rawEdges: s.rawEdges,
-    layout: s.layout, theme: s.theme,
-    searchQuery: s.searchQuery, selectedNodeId: s.selectedNodeId,
-    highlightedNodeIds: s.highlightedNodeIds, filterType: s.filterType,
-    graphType: s.graphType, clusterDepth: s.clusterDepth,
-    isLoading: s.isLoading, error: s.error, lastUpdated: s.lastUpdated,
-    prerequisites: s.prerequisites, watchEnabled: s.watchEnabled,
-    currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
-    initStatus: s.initStatus, truncated: s.truncated, totalNodeCount: s.totalNodeCount,
-    expandedNodeIds: s.expandedNodeIds, pathResult: s.pathResult,
-    focusDepth: s.focusDepth, ruleViolations: s.ruleViolations,
-    viewMode: s.viewMode, selectedFunction: s.selectedFunction,
-    currentLayer: s.currentLayer, diagramData: s.diagramData,
+    ruleViolations: s.ruleViolations, selectedFunction: s.selectedFunction,
     fanInThreshold: s.fanInThreshold, fanOutThreshold: s.fanOutThreshold,
     visibleNodeTypes: s.visibleNodeTypes, visibleEdgeTypes: s.visibleEdgeTypes,
     heatmapMode: s.heatmapMode,
+  })));
+
+  const {
+    performanceDegradations, lodLevel, lodEnabled,
+  } = useGraphStore(useShallow((s) => ({
+    performanceDegradations: s.performanceDegradations,
+    lodLevel: s.lodLevel, lodEnabled: s.lodEnabled,
   })));
 
   const setLayout = useGraphStore((s) => s.setLayout);
@@ -131,6 +162,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const setPathResult = useGraphStore((s) => s.setPathResult);
   const setFocusDepth = useGraphStore((s) => s.setFocusDepth);
   const setHeatmapMode = useGraphStore((s) => s.setHeatmapMode);
+  const setLODLevel = useGraphStore((s) => s.setLODLevel);
+  const setLODEnabled = useGraphStore((s) => s.setLODEnabled);
   const assembleMicro = useGraphStore((s) => s.assembleMicro);
 
   const panelHeight = useGraphStore((s) => s.panelHeight);
@@ -284,6 +317,48 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, [renderer.rendererRef]);
 
   useThemeSync(renderer.updateTheme);
+
+  useEffect(() => {
+    if (!lodEnabled) return;
+    const r = renderer.rendererRef.current;
+    if (!r) return;
+    let rafId: number | null = null;
+    const computeLODFromZoom = (zoom: number) => {
+      const nodeCount = rawNodes.length;
+      let minimalThreshold: number;
+      let compactThreshold: number;
+      if (nodeCount < LOD.SMALL_NODE_COUNT) {
+        minimalThreshold = LOD.MINIMAL_THRESHOLD_SMALL;
+        compactThreshold = LOD.COMPACT_THRESHOLD_SMALL;
+      } else if (nodeCount < LOD.MEDIUM_NODE_COUNT) {
+        minimalThreshold = LOD.MINIMAL_THRESHOLD_MEDIUM;
+        compactThreshold = LOD.COMPACT_THRESHOLD_MEDIUM;
+      } else {
+        minimalThreshold = LOD.MINIMAL_THRESHOLD_LARGE;
+        compactThreshold = LOD.COMPACT_THRESHOLD_LARGE;
+      }
+      if (zoom < minimalThreshold) return 'minimal' as const;
+      if (zoom < compactThreshold) return 'compact' as const;
+      return 'full' as const;
+    };
+    const handleZoom = () => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        const cy = (r as unknown as { cy?: { zoom: () => number } }).cy;
+        if (!cy) return;
+        const newLevel = computeLODFromZoom(cy.zoom());
+        if (newLevel !== lodLevel) setLODLevel(newLevel);
+      });
+    };
+    const cy = (r as unknown as { cy?: { on: (evt: string, cb: () => void) => void; off: (evt: string, cb: () => void) => void } }).cy;
+    if (!cy) return;
+    cy.on('zoom', handleZoom);
+    return () => {
+      cy.off('zoom', handleZoom);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
+  }, [lodEnabled, lodLevel, rawNodes.length, renderer.rendererRef, setLODLevel]);
 
   usePanelResize(panelRef, renderer.rendererRef);
 
@@ -567,16 +642,16 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       />
 
       {panel.showSearch && !isCollapsed && (
-        <SearchBar query={searchQuery} matchCount={renderer.searchMatchCount}
+        <GraphErrorBoundary><SearchBar query={searchQuery} matchCount={renderer.searchMatchCount}
           searchResults={searchResults}
           onChange={setSearchQuery} onClose={() => panel.setShowSearch(false)}
-          onSelectResult={handleSelectSearchResult} />
+          onSelectResult={handleSelectSearchResult} /></GraphErrorBoundary>
       )}
 
       {panel.showPathFind && !isCollapsed && (
-        <PathBar onFindPath={handleFindPath} onClearPath={handleClearPath}
+        <GraphErrorBoundary><PathBar onFindPath={handleFindPath} onClearPath={handleClearPath}
           pathResult={pathResult} pathLength={pathResult ? pathResult.length - 1 : null}
-          onClose={() => panel.setShowPathFind(false)} />
+          onClose={() => panel.setShowPathFind(false)} /></GraphErrorBoundary>
       )}
 
       {!isCollapsed && !isMicroView && (
@@ -596,17 +671,17 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       )}
 
       {focusNodeId && !isCollapsed && (
-        <FocusModeBar focusNodeId={focusNodeId}
-          onExpand={handleFocusExpand} onContract={handleFocusContract} onExit={handleFocusExit} />
+        <GraphErrorBoundary><FocusModeBar focusNodeId={focusNodeId}
+          onExpand={handleFocusExpand} onContract={handleFocusContract} onExit={handleFocusExit} /></GraphErrorBoundary>
       )}
 
       {panel.showHealthScore && !isCollapsed && (
-        <HealthScoreCard onClose={() => panel.setShowHealthScore(false)} />
+        <GraphErrorBoundary><HealthScoreCard onClose={() => panel.setShowHealthScore(false)} /></GraphErrorBoundary>
       )}
 
       {panel.showRules && !isCollapsed && (
-        <RuleConfigPanel violations={ruleViolations} onCheckRules={handleRulesCheck}
-          onClose={() => panel.setShowRules(false)} />
+        <GraphErrorBoundary><RuleConfigPanel violations={ruleViolations} onCheckRules={handleRulesCheck}
+          onClose={() => panel.setShowRules(false)} /></GraphErrorBoundary>
       )}
 
       {isLoading && !isCollapsed && <LoadingOverlay visible={true} />}
@@ -636,20 +711,21 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       )}
 
       {panel.showImport && !isCollapsed && (
-        <ImportPanel onClose={() => panel.setShowImport(false)} workspacePath={currentWorkspace}
+        <GraphErrorBoundary><ImportPanel onClose={() => panel.setShowImport(false)} workspacePath={currentWorkspace}
           prerequisites={prerequisites} initStatus={initStatus} watchEnabled={watchEnabled}
           onSetGraphData={setGraphData} onSetLoading={setLoading} onSetError={setError}
-          onSetInitStatus={setInitStatus} onSetWatchEnabled={setWatchEnabled} />
+          onSetInitStatus={setInitStatus} onSetWatchEnabled={setWatchEnabled} /></GraphErrorBoundary>
       )}
 
       {selectedNodeData && !isCollapsed && (
-        <NodeDetail node={selectedNodeData} onClose={handleCloseDetail}
+        <GraphErrorBoundary><NodeDetail node={selectedNodeData} onClose={handleCloseDetail}
           isExpanded={selectedNodeData ? expandedNodeIds.has(selectedNodeData.id) : false}
           connectionCount={selectedNodeData ? (adjacencyMap.get(selectedNodeData.id)?.in ?? 0) + (adjacencyMap.get(selectedNodeData.id)?.out ?? 0) : 0}
           onCollapse={() => selectedNodeData && collapseNode(selectedNodeData.id)}
           onSelectFunction={(node, mode) => handleSelectFunction(node.id, node.filePath, node.label, mode)}
-          onAggregateCallChain={handleAggregateCallChain} />
+          onAggregateCallChain={handleAggregateCallChain} /></GraphErrorBoundary>
       )}
+
 
       <div className="cg-graph-container" ref={renderer.containerRef}
         role="application"
@@ -663,8 +739,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         </div>
       </div>
       {viewMode === 'sequence' && selectedFunction && !isCollapsed && (
-        <SequenceDiagramRenderer nodes={nodes} edges={edges} theme={theme}
-          onNodeTap={(id) => handleNodeTap(NodeId(id))} />
+        <GraphErrorBoundary><SequenceDiagramRenderer nodes={nodes} edges={edges} theme={theme}
+          onNodeTap={(id) => handleNodeTap(NodeId(id))} /></GraphErrorBoundary>
       )}
 
       {panel.showLegend && !isCollapsed && (
@@ -739,7 +815,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       <KeyboardHelp visible={showHelp} onClose={() => setShowHelp(false)} />
       <StatusBar error={error} isLoading={isLoading} lastUpdated={lastUpdated}
         watchEnabled={watchEnabled} workspaceName={currentWorkspace}
-        truncated={truncated} totalNodeCount={totalNodeCount} displayedNodeCount={nodes.length} />
+        truncated={truncated} totalNodeCount={totalNodeCount} displayedNodeCount={nodes.length}
+        performanceDegradations={performanceDegradations} />
       <div className="cg-resize-handle" title={t('panel.resetSize')} />
     </div>
   );

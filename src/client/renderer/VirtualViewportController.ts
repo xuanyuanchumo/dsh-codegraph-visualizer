@@ -1,5 +1,5 @@
 import type { Core } from 'cytoscape';
-import { SpatialIndex } from './SpatialIndex.ts';
+import { QuadTree } from './QuadTree.ts';
 import { VIRTUAL_VIEWPORT } from '../../shared/constants.ts';
 
 const VIRTUAL_SCROLL_THRESHOLD = VIRTUAL_VIEWPORT.SCROLL_THRESHOLD;
@@ -9,12 +9,12 @@ export class VirtualViewportController {
   private enabled = false;
   private rafId: number | null = null;
   private visibleNodeIds: Set<string> = new Set();
-  private spatialIndex: SpatialIndex;
+  private spatialIndex: QuadTree;
   private indexDirty = true;
 
   constructor(cy: Core) {
     this.cy = cy;
-    this.spatialIndex = new SpatialIndex(cy);
+    this.spatialIndex = new QuadTree(cy);
   }
 
   enable(): void {

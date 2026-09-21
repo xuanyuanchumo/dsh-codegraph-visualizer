@@ -118,6 +118,12 @@ export const VIRTUAL_VIEWPORT = {
   PADDING: 100,
 } as const;
 
+export const QUADTREE = {
+  MAX_NODES_PER_QUAD: 10,
+  MAX_DEPTH: 8,
+  INITIAL_BOUNDS: { x1: -100000, y1: -100000, x2: 100000, y2: 100000 },
+} as const;
+
 export const DATA_CONTROLLER = {
   BATCH_SIZE: 200,
   SVG_OFFSET: 80,
@@ -138,6 +144,8 @@ export const LOD = {
   COMPACT_EDGE_WIDTH: 1,
   COMPACT_FONT_SIZE: 6,
   TRANSITION_DURATION_MS: 200,
+  MINIMAL_CLUSTER_DEPTH: 0,
+  COMPACT_CLUSTER_DEPTH: 1,
 } as const;
 
 export const HEATMAP = {
@@ -154,6 +162,11 @@ export const HEATMAP = {
 
 export const CYCLE_DETECTION = {
   MAX_NODES_FOR_DETECTION: 10000,
+} as const;
+
+export const INCREMENTAL_CLUSTER = {
+  MAX_CHANGE_RATIO: 0.3,
+  MIN_PREV_NODES: 100,
 } as const;
 
 export const VIEW_MODE = {
