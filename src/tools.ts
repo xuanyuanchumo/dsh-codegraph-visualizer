@@ -10,6 +10,8 @@ import type { AdapterResult, GraphData, GraphUpdatedEvent, GraphDataEvent, Healt
 import { RepoId as makeRepoId, NodeId } from './types/index.ts';
 import { HealthScorer } from './shared/analysis/HealthScorer.ts';
 import { RuleEngine, type RuleDefinition } from './shared/analysis/RuleEngine.ts';
+import { buildForwardAdjacency } from './shared/analysis/AdjacencyList.ts';
+import { bfsShortestPath } from './shared/analysis/GraphBFS.ts';
 import { scoped } from './shared/Logger.ts';
 import {
   summarizeGraph,
@@ -185,11 +187,11 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
   const deps = await createGraphToolDeps();
 
   const emitUpdate = (event: GraphUpdatedEvent) => {
-    ctx.emit('cg-viz/graph/updated', event);
+    ctx.emit('codegraph-visualizer/graph/updated', event);
   };
 
   const emitData = (event: GraphDataEvent) => {
-    ctx.emit('cg-viz/graph/data', event);
+    ctx.emit('codegraph-visualizer/graph/data', event);
   };
 
   const graphStatus = defineTool({
@@ -276,37 +278,10 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         return null;
       }
       if (data.nodes.length > 10000) return { path: [], length: 0, truncated: true } as unknown as JsonValue;
-      const adjacency = new Map<string, string[]>();
-      for (const edge of data.edges) {
-        const list = adjacency.get(edge.source);
-        if (list) list.push(edge.target);
-        else adjacency.set(edge.source, [edge.target]);
-      }
-      const visited = new Set<string>([a.sourceSymbol]);
-      const predecessor = new Map<string, string>();
-      const queue: string[] = [a.sourceSymbol];
-      let head = 0;
-      while (head < queue.length) {
-        const id = queue[head++]!;
-        if (id === a.targetSymbol) {
-          const path: string[] = [];
-          let cur: string | undefined = id;
-          while (cur !== undefined) {
-            path.unshift(cur);
-            cur = predecessor.get(cur);
-          }
-          return { path, length: path.length - 1 } as unknown as JsonValue;
-        }
-        const neighbors = adjacency.get(id) ?? [];
-        for (const next of neighbors) {
-          if (!visited.has(next)) {
-            visited.add(next);
-            predecessor.set(next, id);
-            queue.push(next);
-          }
-        }
-      }
-      return null;
+      const adjacency = buildForwardAdjacency(data.edges);
+      const result = bfsShortestPath(adjacency, a.sourceSymbol, a.targetSymbol, data.nodes.length);
+      if (!result) return null;
+      return { path: result.path, length: result.length } as unknown as JsonValue;
     },
   });
 

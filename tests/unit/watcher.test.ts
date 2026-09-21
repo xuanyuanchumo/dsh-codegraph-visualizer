@@ -93,10 +93,10 @@ describe('registerEventListeners', () => {
       return vi.fn();
     });
     registerEventListeners(ctx, vi.fn());
-    const importedCb = onCallbacks.find((c) => c.event === 'cg-viz/repo/imported');
+    const importedCb = onCallbacks.find((c) => c.event === 'codegraph-visualizer/repo/imported');
     expect(importedCb).toBeDefined();
     importedCb!.cb({ repoId: 'r1', timestamp: 123 });
-    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/updated', { repoId: 'r1', nodeCount: 0, edgeCount: 0, timestamp: 123 });
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/graph/updated', { repoId: 'r1', nodeCount: 0, edgeCount: 0, timestamp: 123 });
   });
 
   it('repo scanned listener emits graph updated event', () => {
@@ -107,10 +107,10 @@ describe('registerEventListeners', () => {
       return vi.fn();
     });
     registerEventListeners(ctx, vi.fn());
-    const scannedCb = onCallbacks.find((c) => c.event === 'cg-viz/repo/scanned');
+    const scannedCb = onCallbacks.find((c) => c.event === 'codegraph-visualizer/repo/scanned');
     expect(scannedCb).toBeDefined();
     scannedCb!.cb({ repoId: 'r2', timestamp: 456 });
-    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/updated', { repoId: 'r2', nodeCount: 0, edgeCount: 0, timestamp: 456 });
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/graph/updated', { repoId: 'r2', nodeCount: 0, edgeCount: 0, timestamp: 456 });
   });
 
   it('request-scan listener calls scanAndPush', async () => {
@@ -123,10 +123,10 @@ describe('registerEventListeners', () => {
     const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     mockedFetchMergedGraph.mockResolvedValue(graphData);
     registerEventListeners(ctx, vi.fn());
-    const scanCb = onCallbacks.find((c) => c.event === 'cg-viz/repo/request-scan');
+    const scanCb = onCallbacks.find((c) => c.event === 'codegraph-visualizer/repo/request-scan');
     expect(scanCb).toBeDefined();
     await scanCb!.cb({ path: '/repo', timestamp: 1 });
-    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/updated', expect.objectContaining({ repoId: '/repo' }));
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/graph/updated', expect.objectContaining({ repoId: '/repo' }));
   });
 
   it('graph init listener emits init-result on success', async () => {
@@ -140,10 +140,10 @@ describe('registerEventListeners', () => {
     const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     mockedFetchMergedGraph.mockResolvedValue(graphData);
     registerEventListeners(ctx, invokeUpstream);
-    const initCb = onCallbacks.find((c) => c.event === 'cg-viz/graph/init');
+    const initCb = onCallbacks.find((c) => c.event === 'codegraph-visualizer/graph/init');
     expect(initCb).toBeDefined();
     await initCb!.cb({ path: '/repo', timestamp: 1 });
-    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/init-result', expect.objectContaining({ success: true }));
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/graph/init-result', expect.objectContaining({ success: true }));
   });
 
   it('graph init listener emits failed init-result when init returns null', async () => {
@@ -155,9 +155,9 @@ describe('registerEventListeners', () => {
     });
     const invokeUpstream = vi.fn().mockResolvedValue(null);
     registerEventListeners(ctx, invokeUpstream);
-    const initCb = onCallbacks.find((c) => c.event === 'cg-viz/graph/init');
+    const initCb = onCallbacks.find((c) => c.event === 'codegraph-visualizer/graph/init');
     await initCb!.cb({ path: '/repo', timestamp: 1 });
-    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/init-result', expect.objectContaining({ success: false }));
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/graph/init-result', expect.objectContaining({ success: false }));
   });
 
   it('graph init listener emits failed init-result on exception', async () => {
@@ -169,16 +169,16 @@ describe('registerEventListeners', () => {
     });
     const invokeUpstream = vi.fn().mockRejectedValue(new Error('init failed'));
     registerEventListeners(ctx, invokeUpstream);
-    const initCb = onCallbacks.find((c) => c.event === 'cg-viz/graph/init');
+    const initCb = onCallbacks.find((c) => c.event === 'codegraph-visualizer/graph/init');
     await initCb!.cb({ path: '/repo', timestamp: 1 });
-    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/init-result', expect.objectContaining({ success: false, message: 'Initialization failed' }));
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/graph/init-result', expect.objectContaining({ success: false, message: 'Initialization failed' }));
   });
 });
 // ── Helper: capture watch/toggle callback from registerWatcher ────────────
 function captureToggleCb(ctx: MockCtx): (e: { enabled: boolean; path: string; timestamp: number }) => void {
   let toggleCb: ((e: { enabled: boolean; path: string; timestamp: number }) => void) | null = null;
   ctx.on = vi.fn((event: string, cb: (e: unknown) => void) => {
-    if (event === 'cg-viz/watch/toggle') toggleCb = cb as typeof toggleCb;
+    if (event === 'codegraph-visualizer/watch/toggle') toggleCb = cb as typeof toggleCb;
     return vi.fn();
   });
   registerWatcher(ctx, config, vi.fn());
@@ -213,7 +213,7 @@ describe('scanAndPush error handling', () => {
     const ctx = makeMockCtx();
     const errorSpy = vi.spyOn(logger, 'error');
     mockedFetchMergedGraph.mockRejectedValue(new Error('fetch failed'));
-    const scanCb = captureEventCb(ctx, 'cg-viz/repo/request-scan');
+    const scanCb = captureEventCb(ctx, 'codegraph-visualizer/repo/request-scan');
     await scanCb({ path: '/repo', timestamp: 1 });
     expect(errorSpy).toHaveBeenCalledWith('host', 'scan failed', expect.any(Error));
   });
@@ -222,14 +222,14 @@ describe('scanAndPush error handling', () => {
     const ctx = makeMockCtx();
     const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     mockedFetchMergedGraph.mockResolvedValue(graphData);
-    const scanCb = captureEventCb(ctx, 'cg-viz/repo/request-scan');
+    const scanCb = captureEventCb(ctx, 'codegraph-visualizer/repo/request-scan');
     await scanCb({ path: '/repo', timestamp: 1 });
-    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/updated', expect.objectContaining({
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/graph/updated', expect.objectContaining({
       repoId: '/repo',
       nodeCount: 1,
       edgeCount: 0,
     }));
-    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/data', expect.objectContaining({
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/graph/data', expect.objectContaining({
       repoId: '/repo',
       nodes: graphData.nodes,
       edges: graphData.edges,
@@ -292,7 +292,7 @@ describe('closeActiveWatcher', () => {
       cleanupFn = fn() as (() => void) | null;
     });
     ctx.on = vi.fn((event: string, cb: (e: unknown) => void) => {
-      if (event === 'cg-viz/watch/toggle') toggleCb = cb as typeof toggleCb;
+      if (event === 'codegraph-visualizer/watch/toggle') toggleCb = cb as typeof toggleCb;
       return disposeSpy;
     });
     registerWatcher(ctx, config, vi.fn());
@@ -410,7 +410,7 @@ describe('file change callback filtering', () => {
     // Override the ctx.on to pass invokeUpstream into registerWatcher
     let toggleCb: ((e: { enabled: boolean; path: string; timestamp: number }) => void) | null = null;
     ctx.on = vi.fn((event: string, cb: (e: unknown) => void) => {
-      if (event === 'cg-viz/watch/toggle') toggleCb = cb as typeof toggleCb;
+      if (event === 'codegraph-visualizer/watch/toggle') toggleCb = cb as typeof toggleCb;
       return vi.fn();
     });
     registerWatcher(ctx, config, invokeUpstream);
@@ -429,7 +429,7 @@ describe('file change callback filtering', () => {
     mockedFetchMergedGraph.mockResolvedValue(graphData);
     let toggleCb: ((e: { enabled: boolean; path: string; timestamp: number }) => void) | null = null;
     ctx.on = vi.fn((event: string, cb: (e: unknown) => void) => {
-      if (event === 'cg-viz/watch/toggle') toggleCb = cb as typeof toggleCb;
+      if (event === 'codegraph-visualizer/watch/toggle') toggleCb = cb as typeof toggleCb;
       return vi.fn();
     });
     registerWatcher(ctx, config, invokeUpstream);
@@ -450,7 +450,7 @@ describe('file change callback filtering', () => {
     const invokeUpstream = vi.fn();
     let toggleCb: ((e: { enabled: boolean; path: string; timestamp: number }) => void) | null = null;
     ctx.on = vi.fn((event: string, cb: (e: unknown) => void) => {
-      if (event === 'cg-viz/watch/toggle') toggleCb = cb as typeof toggleCb;
+      if (event === 'codegraph-visualizer/watch/toggle') toggleCb = cb as typeof toggleCb;
       return vi.fn();
     });
     registerWatcher(ctx, config, invokeUpstream);
@@ -480,10 +480,10 @@ describe('scanAndPush with empty path', () => {
     const ctx = makeMockCtx();
     const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     mockedFetchMergedGraph.mockResolvedValue(graphData);
-    const scanCb = captureEventCb(ctx, 'cg-viz/repo/request-scan');
+    const scanCb = captureEventCb(ctx, 'codegraph-visualizer/repo/request-scan');
     await scanCb({ path: '', timestamp: 1 });
     expect(mockedFetchMergedGraph).toHaveBeenCalledWith(expect.any(Function), 'workspace-default', 'both');
-    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/updated', expect.objectContaining({
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/graph/updated', expect.objectContaining({
       repoId: 'workspace-default',
     }));
   });

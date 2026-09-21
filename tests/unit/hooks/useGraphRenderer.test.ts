@@ -125,32 +125,15 @@ function renderUseGraphRenderer(overrides: Record<string, any> = {}) {
     heatmapMode: 'none' as const,
   };
   const props = { ...defaults, ...overrides };
-  return renderHook(() => useGraphRenderer(
-    props.nodes,
-    props.edges,
-    props.rawNodes,
-    props.layout,
-    props.theme,
-    props.highlightedNodeIds,
-    props.selectedNodeId,
-    props.filterType,
-    props.graphType,
-    props.clusterDepth,
-    props.debouncedSearch,
-    props.showCallChain,
-    props.showCycles,
-    props.cycleIsolation,
-    props.showImpact,
-    props.showInheritance,
-    props.focusNodeId,
-    props.callbacks,
-    props.showCallChainRef,
-    props.fanInThreshold,
-    props.fanOutThreshold,
-    props.visibleNodeTypes,
-    props.visibleEdgeTypes,
-    props.heatmapMode,
-  ));
+  return renderHook(() => useGraphRenderer({
+    data: { nodes: props.nodes, edges: props.edges, rawNodes: props.rawNodes },
+    display: { layout: props.layout, theme: props.theme, clusterDepth: props.clusterDepth, heatmapMode: props.heatmapMode },
+    interaction: { highlightedNodeIds: props.highlightedNodeIds, selectedNodeId: props.selectedNodeId, focusNodeId: props.focusNodeId, debouncedSearch: props.debouncedSearch },
+    filters: { filterType: props.filterType, graphType: props.graphType, fanInThreshold: props.fanInThreshold, fanOutThreshold: props.fanOutThreshold, visibleNodeTypes: props.visibleNodeTypes, visibleEdgeTypes: props.visibleEdgeTypes },
+    analysis: { showCallChain: props.showCallChain, showCycles: props.showCycles, cycleIsolation: props.cycleIsolation, showImpact: props.showImpact, showInheritance: props.showInheritance },
+    callbacks: props.callbacks,
+    showCallChainRef: props.showCallChainRef,
+  }));
 }
 
 describe('useGraphRenderer', () => {

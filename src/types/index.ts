@@ -29,6 +29,8 @@ export function safeBoolean(value: unknown, fallback = false): boolean {
   return typeof value === 'boolean' ? value : fallback;
 }
 
+export type HeatmapMode = 'none' | 'instability' | 'lines' | 'complexity';
+
 export interface GraphNode {
   id: NodeId;
   label: string;
@@ -215,22 +217,22 @@ export interface PathResult {
 // `ctx.on(...)`. Keep them writer-only so consumers never redefine the contract.
 declare module '@deepseek-ai/cordis' {
   interface Events {
-    'cg-viz/repo/imported'(event: RepoImportedEvent): void;
-    'cg-viz/repo/scanned'(event: RepoScannedEvent): void;
-    'cg-viz/repo/request-scan'(event: RepoRequestScanEvent): void;
-    'cg-viz/graph/updated'(event: GraphUpdatedEvent): void;
-    'cg-viz/graph/data'(event: GraphDataEvent): void;
-    'cg-viz/source/open'(event: SourceOpenEvent): void;
-    'cg-viz/prerequisite/status'(event: PrerequisiteStatusEvent): void;
-    'cg-viz/prerequisite/request'(event: { timestamp: number }): void;
-    'cg-viz/graph/init'(event: GraphInitEvent): void;
-    'cg-viz/graph/init-result'(event: GraphInitResultEvent): void;
-    'cg-viz/watch/toggle'(event: WatchToggleEvent): void;
-    'cg-viz/watch/error'(event: { path: string; message: string; timestamp: number }): void;
-    'cg-viz/health/scored'(event: HealthScoreEvent): void;
-    'cg-viz/rules/violation'(event: RuleViolationEvent): void;
-    'cg-viz/path/found'(event: PathFoundEvent): void;
-    'cg-viz/focus/changed'(event: FocusChangedEvent): void;
+    'codegraph-visualizer/repo/imported'(event: RepoImportedEvent): void;
+    'codegraph-visualizer/repo/scanned'(event: RepoScannedEvent): void;
+    'codegraph-visualizer/repo/request-scan'(event: RepoRequestScanEvent): void;
+    'codegraph-visualizer/graph/updated'(event: GraphUpdatedEvent): void;
+    'codegraph-visualizer/graph/data'(event: GraphDataEvent): void;
+    'codegraph-visualizer/source/open'(event: SourceOpenEvent): void;
+    'codegraph-visualizer/prerequisite/status'(event: PrerequisiteStatusEvent): void;
+    'codegraph-visualizer/prerequisite/request'(event: { timestamp: number }): void;
+    'codegraph-visualizer/graph/init'(event: GraphInitEvent): void;
+    'codegraph-visualizer/graph/init-result'(event: GraphInitResultEvent): void;
+    'codegraph-visualizer/watch/toggle'(event: WatchToggleEvent): void;
+    'codegraph-visualizer/watch/error'(event: { path: string; message: string; timestamp: number }): void;
+    'codegraph-visualizer/health/scored'(event: HealthScoreEvent): void;
+    'codegraph-visualizer/rules/violation'(event: RuleViolationEvent): void;
+    'codegraph-visualizer/path/found'(event: PathFoundEvent): void;
+    'codegraph-visualizer/focus/changed'(event: FocusChangedEvent): void;
   }
   interface Context {
     webServer: WebServerService;

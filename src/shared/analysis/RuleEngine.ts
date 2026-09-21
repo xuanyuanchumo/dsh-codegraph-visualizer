@@ -1,5 +1,6 @@
 import type { GraphNode, GraphEdge, RuleType, RuleDefinition, RuleViolation } from '../../types/index.ts';
 import { NodeId, EdgeId } from '../../types/index.ts';
+import { buildFilteredForwardAdjacency } from './AdjacencyList.ts';
 
 export type { RuleType, RuleDefinition, RuleViolation };
 
@@ -90,13 +91,7 @@ class ForbiddenEdgeDetector implements RuleDetector {
     const violations: RuleViolation[] = [];
     const edgeTypes = (rule.params.edgeTypes as string[]) ?? ['call', 'import', 'dependency'];
 
-    const adjacency = new Map<string, string[]>();
-    for (const edge of edges) {
-      if (!edgeTypes.includes(edge.type)) continue;
-      const list = adjacency.get(edge.source);
-      if (list) list.push(edge.target);
-      else adjacency.set(edge.source, [edge.target]);
-    }
+    const adjacency = buildFilteredForwardAdjacency(edges, edgeTypes);
 
     const visited = new Set<string>();
     const inStack = new Set<string>();

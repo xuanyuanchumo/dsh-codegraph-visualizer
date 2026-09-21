@@ -119,7 +119,7 @@ export function registerService(deps: RouteDeps): void {
         return null;
       },
       onGraphUpdate: (callback: (data: GraphData) => void) => {
-        return ctx.on('cg-viz/graph/data', (event) => {
+        return ctx.on('codegraph-visualizer/graph/data', (event) => {
           callback({
             nodes: event.nodes as GraphNode[],
             edges: event.edges as GraphEdge[],
@@ -317,13 +317,13 @@ function registerScanRoute(rc: RouteContext): void {
             const oldest = scanCache.keys().next().value;
             if (oldest !== undefined) scanCache.delete(oldest);
           }
-          ctx.emit('cg-viz/graph/updated', {
+          ctx.emit('codegraph-visualizer/graph/updated', {
             repoId: RepoId(repoId),
             nodeCount: data.metadata.nodeCount,
             edgeCount: data.metadata.edgeCount,
             timestamp: data.metadata.timestamp,
           });
-          ctx.emit('cg-viz/graph/data', {
+          ctx.emit('codegraph-visualizer/graph/data', {
             repoId: RepoId(repoId),
             nodes: data.nodes,
             edges: data.edges,
@@ -383,13 +383,13 @@ function registerInitRoute(rc: RouteContext): void {
           timestamp: Date.now(),
         };
         deps.setLastInitResult(initResult);
-        ctx.emit('cg-viz/graph/init-result', initResult);
+        ctx.emit('codegraph-visualizer/graph/init-result', initResult);
         if (success) {
           const repoId = initPath || `workspace-${Date.now()}`;
           const raw = await fetchMergedGraph(invokeUpstream, repoId, 'both');
           const data = slimGraphData(raw, config.maxNodes);
           deps.setLastGraphData(data);
-          ctx.emit('cg-viz/graph/data', {
+          ctx.emit('codegraph-visualizer/graph/data', {
             repoId: RepoId(repoId),
             nodes: data.nodes,
             edges: data.edges,
@@ -437,7 +437,7 @@ function registerWatchRoute(rc: RouteContext): void {
           sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
           return;
         }
-        ctx.emit('cg-viz/watch/toggle', { enabled: !!enabled, path: watchPath, timestamp: Date.now() });
+        ctx.emit('codegraph-visualizer/watch/toggle', { enabled: !!enabled, path: watchPath, timestamp: Date.now() });
         sendJson(res, 200, { success: true, enabled: !!enabled, path: watchPath }, req, corsConfig);
       } catch (e) {
         log.warn('watch route failed', e);

@@ -1,5 +1,6 @@
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { buildModuleMap } from './modulePath.ts';
+import { buildFilteredForwardAdjacency } from './AdjacencyList.ts';
 import { HEALTH_SCORE } from '../constants.ts';
 
 export interface HealthScore {
@@ -149,14 +150,11 @@ export class HealthScorer {
 
   private calculateCyclicDependencyRate(nodes: GraphNode[], edges: GraphEdge[]): number {
     const cycleEdgeTypes: GraphEdge['type'][] = ['call', 'extend', 'implement', 'import'];
-    const adjacency = new Map<string, string[]>();
+    const adjacency = buildFilteredForwardAdjacency(edges, cycleEdgeTypes);
     const nodeIds = new Set<string>();
 
     for (const edge of edges) {
       if (!cycleEdgeTypes.includes(edge.type)) continue;
-      const list = adjacency.get(edge.source);
-      if (list) list.push(edge.target);
-      else adjacency.set(edge.source, [edge.target]);
       nodeIds.add(edge.source);
       nodeIds.add(edge.target);
     }

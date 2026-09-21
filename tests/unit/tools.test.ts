@@ -416,8 +416,8 @@ describe('createGraphTools', () => {
     const result = await tools.graphData.execute({ repoId: 'r1' }, mockExec);
     expect(result).toHaveProperty('nodes');
     expect(result).toHaveProperty('edges');
-    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/updated', expect.objectContaining({ repoId: 'r1' }));
-    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/data', expect.objectContaining({ repoId: 'r1' }));
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/graph/updated', expect.objectContaining({ repoId: 'r1' }));
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/graph/data', expect.objectContaining({ repoId: 'r1' }));
   });
 
   it('graph_data should use incremental delta on repeat calls', async () => {
@@ -442,7 +442,7 @@ describe('createGraphTools', () => {
     });
     const tools = await createGraphTools(ctx);
     await tools.graphData.execute({ repoId: 'r1', source: 'codegraph' }, mockExec);
-    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/graph/updated', expect.objectContaining({ repoId: 'r1' }));
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/graph/updated', expect.objectContaining({ repoId: 'r1' }));
   });
 
   it('graph_data render should format graph summary', async () => {

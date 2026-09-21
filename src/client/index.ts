@@ -277,7 +277,7 @@ export function apply(ctx: Context) {
     };
 
     const openSourceListener = (e: Event) => {
-      ctx.emit('cg-viz/source/open', (e as CustomEvent).detail as { filePath: string; lineNumber: number });
+      ctx.emit('codegraph-visualizer/source/open', (e as CustomEvent).detail as { filePath: string; lineNumber: number });
     };
 
     const importRepoListener = (e: Event) => {

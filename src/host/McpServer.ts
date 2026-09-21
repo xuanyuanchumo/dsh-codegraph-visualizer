@@ -2,6 +2,8 @@ import { createInterface } from 'node:readline';
 import { scoped } from '../shared/Logger.ts';
 import { PLUGIN_VERSION } from '../generated/version.ts';
 import type { GraphData, GraphNode, GraphEdge } from '../types/index.ts';
+import { buildBackwardAdjacency } from '../shared/analysis/AdjacencyList.ts';
+import { bfsFrontierExpansion } from '../shared/analysis/GraphBFS.ts';
 
 const log = scoped('mcp-server');
 const MAX_MESSAGE_LENGTH = 10 * 1024 * 1024;
@@ -237,31 +239,10 @@ export class McpServer {
         const targetNode = data.nodes.find((n: GraphNode) => n.label === symbol || n.label.endsWith(`.${symbol}`));
         if (!targetNode) return { impacted: [], message: 'Symbol not found' };
 
-        const reverseAdj = new Map<string, string[]>();
-        for (const edge of data.edges) {
-          const list = reverseAdj.get(edge.target);
-          if (list) list.push(edge.source);
-          else reverseAdj.set(edge.target, [edge.source]);
-        }
+        const reverseAdj = buildBackwardAdjacency(data.edges);
         const MAX_IMPACT_RESULTS = 500;
-        const impacted = new Set<string>();
-        let frontier = new Set<string>([targetNode.id]);
-        for (let d = 0; d < depth && impacted.size < MAX_IMPACT_RESULTS; d++) {
-          const nextFrontier = new Set<string>();
-          for (const id of frontier) {
-            if (impacted.size >= MAX_IMPACT_RESULTS) break;
-            const sources = reverseAdj.get(id) ?? [];
-            for (const src of sources) {
-              if (impacted.size >= MAX_IMPACT_RESULTS) break;
-              if (!impacted.has(src)) {
-                impacted.add(src);
-                nextFrontier.add(src);
-              }
-            }
-          }
-          frontier = nextFrontier;
-        }
-        return { impacted: Array.from(impacted), count: impacted.size, truncated: impacted.size >= MAX_IMPACT_RESULTS };
+        const result = bfsFrontierExpansion(reverseAdj, targetNode.id, depth, MAX_IMPACT_RESULTS);
+        return { impacted: result.impacted, count: result.count, truncated: result.truncated };
       },
     });
   }

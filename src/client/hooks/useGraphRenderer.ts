@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { CytoscapeRenderer } from '../renderer/CytoscapeRenderer.ts';
-import type { IRenderer, LayoutType, ThemeType, HeatmapMode } from '../renderer/IRenderer.ts';
-import type { GraphNode, GraphEdge } from '../../types/index.ts';
+import type { IRenderer, LayoutType, ThemeType } from '../renderer/IRenderer.ts';
+import type { GraphNode, GraphEdge, HeatmapMode } from '../../types/index.ts';
 import { NodeId } from '../../types/index.ts';
 import type { ClusterNode, ClusterEdge } from '../store/cluster/index.ts';
 import { scoped } from '../../shared/Logger.ts';
@@ -22,6 +22,53 @@ export interface GraphRendererCallbacks {
   onNodeContextTap?(nodeId: string, pos: { x: number; y: number }): void;
 }
 
+export interface GraphRendererData {
+  nodes: (GraphNode | ClusterNode)[];
+  edges: (GraphEdge | ClusterEdge)[];
+  rawNodes: GraphNode[];
+}
+
+export interface GraphRendererDisplay {
+  layout: LayoutType;
+  theme: ThemeType;
+  clusterDepth: number;
+  heatmapMode: HeatmapMode;
+}
+
+export interface GraphRendererInteraction {
+  highlightedNodeIds: NodeId[];
+  selectedNodeId: NodeId | null;
+  focusNodeId: string | null;
+  debouncedSearch: string;
+}
+
+export interface GraphRendererFilters {
+  filterType: FilterType;
+  graphType: 'all' | 'call' | 'dependency';
+  fanInThreshold: number;
+  fanOutThreshold: number;
+  visibleNodeTypes: Set<GraphNode['type']>;
+  visibleEdgeTypes: Set<GraphEdge['type']>;
+}
+
+export interface GraphRendererAnalysis {
+  showCallChain: boolean;
+  showCycles: boolean;
+  cycleIsolation: boolean;
+  showImpact: boolean;
+  showInheritance: boolean;
+}
+
+export interface GraphRendererConfig {
+  data: GraphRendererData;
+  display: GraphRendererDisplay;
+  interaction: GraphRendererInteraction;
+  filters: GraphRendererFilters;
+  analysis: GraphRendererAnalysis;
+  callbacks: GraphRendererCallbacks;
+  showCallChainRef: React.RefObject<boolean>;
+}
+
 export interface UseGraphRendererResult {
   containerRef: React.RefObject<HTMLDivElement | null>;
   rendererRef: React.RefObject<IRenderer | null>;
@@ -31,32 +78,14 @@ export interface UseGraphRendererResult {
   updateTheme: (theme: ThemeType) => void;
 }
 
-export function useGraphRenderer(
-  nodes: (GraphNode | ClusterNode)[],
-  edges: (GraphEdge | ClusterEdge)[],
-  rawNodes: GraphNode[],
-  layout: LayoutType,
-  theme: ThemeType,
-  highlightedNodeIds: NodeId[],
-  selectedNodeId: NodeId | null,
-  filterType: FilterType,
-  graphType: 'all' | 'call' | 'dependency',
-  clusterDepth: number,
-  debouncedSearch: string,
-  showCallChain: boolean,
-  showCycles: boolean,
-  cycleIsolation: boolean,
-  showImpact: boolean,
-  showInheritance: boolean,
-  focusNodeId: string | null,
-  callbacks: GraphRendererCallbacks,
-  showCallChainRef: React.RefObject<boolean>,
-  fanInThreshold: number,
-  fanOutThreshold: number,
-  visibleNodeTypes: Set<GraphNode['type']>,
-  visibleEdgeTypes: Set<GraphEdge['type']>,
-  heatmapMode: HeatmapMode,
-): UseGraphRendererResult {
+export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererResult {
+  const { data, display, interaction, filters, analysis, callbacks, showCallChainRef } = config;
+  const { nodes, edges, rawNodes } = data;
+  const { layout, theme, clusterDepth, heatmapMode } = display;
+  const { highlightedNodeIds, selectedNodeId, focusNodeId, debouncedSearch } = interaction;
+  const { filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes } = filters;
+  const { showCallChain, showCycles, cycleIsolation, showImpact, showInheritance } = analysis;
+
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<IRenderer | null>(null);
   const [searchMatchCount, setSearchMatchCount] = useState<number | null>(null);

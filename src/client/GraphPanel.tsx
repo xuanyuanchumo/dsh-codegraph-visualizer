@@ -291,15 +291,15 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     }
   }, []);
 
-  const renderer = useGraphRenderer(
-    nodes, edges, rawNodes, layout, theme,
-    highlightedNodeIds, selectedNodeId, filterType, graphType, clusterDepth,
-    debouncedSearch, panel.showCallChain, panel.showCycles, panel.cycleIsolation, panel.showImpact, panel.showInheritance, focusNodeId,
-    { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut, onEdgeTap: handleEdgeTap, onEdgeHover: handleEdgeHover, onEdgeHoverOut: handleEdgeHoverOut, onNodeContextTap: (nodeId, pos) => setContextMenu({ nodeId, position: pos }) },
+  const renderer = useGraphRenderer({
+    data: { nodes, edges, rawNodes },
+    display: { layout, theme, clusterDepth, heatmapMode },
+    interaction: { highlightedNodeIds, selectedNodeId, focusNodeId, debouncedSearch },
+    filters: { filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes },
+    analysis: { showCallChain: panel.showCallChain, showCycles: panel.showCycles, cycleIsolation: panel.cycleIsolation, showImpact: panel.showImpact, showInheritance: panel.showInheritance },
+    callbacks: { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut, onEdgeTap: handleEdgeTap, onEdgeHover: handleEdgeHover, onEdgeHoverOut: handleEdgeHoverOut, onNodeContextTap: (nodeId: string, pos: { x: number; y: number }) => setContextMenu({ nodeId, position: pos }) },
     showCallChainRef,
-    fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes,
-    heatmapMode,
-  );
+  });
 
   useEffect(() => {
     getDataRef.current = {

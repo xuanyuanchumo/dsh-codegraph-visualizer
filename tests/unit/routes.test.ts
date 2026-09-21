@@ -324,7 +324,7 @@ describe('registerRoutes', () => {
     const parsed = JSON.parse(state.body);
     expect(parsed.success).toBe(true);
     expect(parsed.enabled).toBe(true);
-    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/watch/toggle', expect.objectContaining({ enabled: true }));
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/watch/toggle', expect.objectContaining({ enabled: true }));
   });
 
   it('POST /watch returns 403 for disallowed path', async () => {
@@ -623,7 +623,7 @@ describe('registerService', () => {
     const service = ctx.provide.mock.calls[0]![1];
     const callback = vi.fn();
     service.onGraphUpdate(callback);
-    expect(ctx.on).toHaveBeenCalledWith('cg-viz/graph/data', expect.any(Function));
+    expect(ctx.on).toHaveBeenCalledWith('codegraph-visualizer/graph/data', expect.any(Function));
   });
 });
 
@@ -945,7 +945,7 @@ describe('POST /watch (additional)', () => {
     const parsed = JSON.parse(state.body);
     expect(parsed.success).toBe(true);
     expect(parsed.enabled).toBe(false);
-    expect(ctx.emit).toHaveBeenCalledWith('cg-viz/watch/toggle', expect.objectContaining({ enabled: false }));
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/watch/toggle', expect.objectContaining({ enabled: false }));
   });
 
   it('handles CORS preflight', async () => {
