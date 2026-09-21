@@ -189,13 +189,13 @@ export function useGraphRenderer(
     const r = rendererRef.current;
     if (!r) return;
     r.applyConnectionFilters(fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes);
-  }, [fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, nodes, edges]);
+  }, [fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, nodes.length, edges.length]);
 
   useEffect(() => {
     const r = rendererRef.current;
     if (!r) return;
     setSearchMatchCount(debouncedSearch ? r.search(debouncedSearch) : null);
-  }, [debouncedSearch, nodes]);
+  }, [debouncedSearch, nodes.length]);
 
   useEffect(() => {
     const r = rendererRef.current;

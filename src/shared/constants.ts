@@ -125,6 +125,7 @@ export const QUADTREE = {
   MAX_NODES_PER_QUAD: 10,
   MAX_DEPTH: 8,
   INITIAL_BOUNDS: { x1: -100000, y1: -100000, x2: 100000, y2: 100000 },
+  EXPAND_PADDING: 5000,
 } as const;
 
 export const DATA_CONTROLLER = {

@@ -143,8 +143,22 @@ export class QuadTree {
     this.root = new QuadNode({ ...QUADTREE.INITIAL_BOUNDS }, 0, this.maxNodesPerQuad, this.maxDepth);
   }
 
+  private ensureBoundsContain(x: number, y: number): void {
+    const b = this.root.bounds;
+    if (x >= b.x1 && x <= b.x2 && y >= b.y1 && y <= b.y2) return;
+    const newX1 = Math.min(b.x1, x - QUADTREE.EXPAND_PADDING);
+    const newY1 = Math.min(b.y1, y - QUADTREE.EXPAND_PADDING);
+    const newX2 = Math.max(b.x2, x + QUADTREE.EXPAND_PADDING);
+    const newY2 = Math.max(b.y2, y + QUADTREE.EXPAND_PADDING);
+    this.root = new QuadNode({ x1: newX1, y1: newY1, x2: newX2, y2: newY2 }, 0, this.maxNodesPerQuad, this.maxDepth);
+    for (const [id, pos] of this.nodePositions) {
+      this.root.insert({ id, x: pos.x, y: pos.y });
+    }
+  }
+
   insert(nodeId: string, x: number, y: number): void {
     this.nodePositions.set(nodeId, { x, y });
+    this.ensureBoundsContain(x, y);
     this.root.insert({ id: nodeId, x, y });
   }
 

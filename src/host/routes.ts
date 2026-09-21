@@ -39,7 +39,25 @@ export interface RouteDeps {
 export function slimGraphData(data: GraphData, maxNodes: number): GraphData {
   const cap = maxNodes;
   const truncated = data.nodes.length > cap;
-  const slimNodes = (truncated ? data.nodes.slice(0, cap) : data.nodes).map((n) => ({
+  let selectedNodes: typeof data.nodes;
+
+  if (truncated) {
+    const degreeMap = new Map<string, number>();
+    for (const n of data.nodes) degreeMap.set(n.id, 0);
+    for (const e of data.edges) {
+      if (e.source === e.target) continue;
+      const s = degreeMap.get(e.source);
+      const t = degreeMap.get(e.target);
+      if (s !== undefined) degreeMap.set(e.source, s + 1);
+      if (t !== undefined) degreeMap.set(e.target, t + 1);
+    }
+    const sorted = [...data.nodes].sort((a, b) => (degreeMap.get(b.id) ?? 0) - (degreeMap.get(a.id) ?? 0));
+    selectedNodes = sorted.slice(0, cap);
+  } else {
+    selectedNodes = data.nodes;
+  }
+
+  const slimNodes = selectedNodes.map((n) => ({
     id: n.id,
     label: n.label,
     type: n.type,

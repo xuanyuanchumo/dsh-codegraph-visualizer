@@ -172,10 +172,13 @@ export class VirtualViewportController {
       }
 
       const changedNodeIds = new Set<string>([...toShow, ...toHide]);
+      const processedEdgeIds = new Set<string>();
       for (const id of changedNodeIds) {
         const node = this.cy.getElementById(id);
         if (node.empty()) continue;
         node.connectedEdges().forEach((edge) => {
+          if (processedEdgeIds.has(edge.id())) return;
+          processedEdgeIds.add(edge.id());
           if (edge.data('typeFiltered') === true) {
             edge.style('display', 'none');
             return;
@@ -202,15 +205,18 @@ export class VirtualViewportController {
         });
       }
 
-      this.cy.edges().forEach((edge) => {
-        if (edge.style('display') !== 'element') return;
-        if (edge.data('typeFiltered') === true || edge.data('connectionFiltered') === true) return;
-        const sourceVisible = newVisible.has(edge.source().id());
-        const targetVisible = newVisible.has(edge.target().id());
-        if (!sourceVisible && !targetVisible) {
-          edge.style('display', 'none');
-        }
-      });
+      for (const id of toHide) {
+        const node = this.cy.getElementById(id);
+        if (node.empty()) continue;
+        node.connectedEdges().forEach((edge) => {
+          if (processedEdgeIds.has(edge.id())) return;
+          const sourceVisible = newVisible.has(edge.source().id());
+          const targetVisible = newVisible.has(edge.target().id());
+          if (!sourceVisible && !targetVisible) {
+            edge.style('display', 'none');
+          }
+        });
+      }
     });
 
     this.visibleNodeIds = newVisible;
