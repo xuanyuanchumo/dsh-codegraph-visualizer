@@ -80,4 +80,19 @@ describe('StatusBar component', () => {
     render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false} />);
     expect(screen.queryByText(/循环检测已跳过|cycle detection skipped/i)).toBeNull();
   });
+
+  it('renders GitHub feedback link with correct URL', () => {
+    render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false} />);
+    const link = screen.getByRole('link');
+    expect(link).toBeTruthy();
+    expect(link.getAttribute('href')).toBe('https://github.com/xuanyuanchumo/dsh-codegraph-visualizer');
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+  });
+
+  it('GitHub feedback link has accessibility label', () => {
+    render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false} />);
+    const link = screen.getByRole('link');
+    expect(link.getAttribute('aria-label')).toBeTruthy();
+  });
 });

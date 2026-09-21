@@ -2,6 +2,9 @@
 import { memo } from 'react';
 import { useT } from '../i18n/index.ts';
 import { deriveWorkspaceName } from '../utils/deriveName.ts';
+import { GithubIcon } from './Icons.tsx';
+
+const GITHUB_REPO_URL = 'https://github.com/xuanyuanchumo/dsh-codegraph-visualizer';
 
 interface StatusBarProps {
   error: string | null;
@@ -57,6 +60,16 @@ export const StatusBar = memo(function StatusBar({ error, isLoading, lastUpdated
       )}
       {watchEnabled && <span className="cg-watch-indicator" title={t('import.watchOn')}>●</span>}
       <div className="cg-status-spacer" />
+      <a
+        href={GITHUB_REPO_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="cg-status-github"
+        title={t('status.feedback')}
+        aria-label={t('status.feedback')}
+      >
+        <GithubIcon size={14} />
+      </a>
       <div className="cg-status-item">
         <span className="cg-status-time">
           {lastUpdated > 0 ? t('state.updated', { time: formatTime(lastUpdated) }) : t('state.noData')}

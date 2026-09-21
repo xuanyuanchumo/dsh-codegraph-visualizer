@@ -750,6 +750,20 @@ body[data-ds-dark-theme] .cg-type-badge.cg-function {
   flex: 1;
 }
 
+.cg-status-github {
+  display: flex;
+  align-items: center;
+  color: var(--cg-text-tertiary);
+  text-decoration: none;
+  padding: 0 4px;
+  border-radius: 3px;
+  transition: color 0.15s ease;
+}
+
+.cg-status-github:hover {
+  color: var(--cg-text);
+}
+
 .cg-status-bar .cg-status-time {
   color: var(--cg-text-tertiary);
   font-family: var(--cg-font-mono);

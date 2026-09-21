@@ -66,6 +66,7 @@ export const en: Record<string, string> = {
   'state.updated': 'Updated {time}',
   'state.truncated': 'Showing top {shown} of {total} nodes',
   'state.truncatedHint': 'Graph is truncated for performance. Showing most important nodes.',
+  'status.feedback': 'Feedback on GitHub',
 
   // Empty state
   'empty.title': 'No graph data yet',

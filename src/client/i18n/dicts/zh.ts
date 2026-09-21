@@ -66,6 +66,7 @@ export const zh: Record<string, string> = {
   'state.updated': '更新于 {time}',
   'state.truncated': '显示前 {shown}/{total} 节点',
   'state.truncatedHint': '图谱已截断以提升性能，仅显示最重要的节点。',
+  'status.feedback': '在 GitHub 上反馈',
 
   // Empty state
   'empty.title': '暂无图谱数据',
