@@ -2,6 +2,7 @@ import type { Core } from 'cytoscape';
 
 import { scoped } from '../../shared/Logger.ts';
 import { CYCLE_DETECTION } from '../../shared/constants.ts';
+import { detectCyclesDFS } from '../../shared/analysis/CycleDFS.ts';
 import type { AdjacencyCache } from './AdjacencyCache.ts';
 
 const log = scoped('cycle-detector');
@@ -58,49 +59,13 @@ export class CycleDetector {
       return cycles;
     }
 
-    const adjacency = this.getForwardAdjacency();
+    const adjacencySet = this.getForwardAdjacency();
+    const adjacency: Map<string, string[]> = new Map();
+    for (const [k, v] of adjacencySet) adjacency.set(k, [...v]);
 
-    const visited = new Set<string>();
-    const inStack = new Set<string>();
-
-    const enter = (start: string): void => {
-      const path: string[] = [];
-      const pathIndex = new Map<string, number>();
-      const frames: Array<{ id: string; neighbors: string[]; next: number }> = [
-        { id: start, neighbors: [...(adjacency.get(start) ?? [])], next: 0 },
-      ];
-      visited.add(start);
-      inStack.add(start);
-      path.push(start);
-      pathIndex.set(start, 0);
-
-      while (frames.length > 0) {
-        const frame = frames[frames.length - 1]!;
-        if (frame.next >= frame.neighbors.length) {
-          inStack.delete(frame.id);
-          path.pop();
-          pathIndex.delete(frame.id);
-          frames.pop();
-          continue;
-        }
-        const target = frame.neighbors[frame.next++]!;
-        if (inStack.has(target)) {
-          const cycleStart = pathIndex.get(target);
-          if (cycleStart !== undefined) {
-            for (let i = cycleStart; i < path.length; i++) cycles.add(path[i]!);
-          }
-        } else if (!visited.has(target)) {
-          visited.add(target);
-          inStack.add(target);
-          path.push(target);
-          pathIndex.set(target, path.length - 1);
-          frames.push({ id: target, neighbors: [...(adjacency.get(target) ?? [])], next: 0 });
-        }
-      }
-    };
-
-    for (const id of adjacency.keys()) {
-      if (!visited.has(id)) enter(id);
+    const detectedCycles = detectCyclesDFS(adjacency);
+    for (const cycle of detectedCycles) {
+      for (const nodeId of cycle) cycles.add(nodeId);
     }
 
     return cycles;

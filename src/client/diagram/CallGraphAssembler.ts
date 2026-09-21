@@ -1,6 +1,7 @@
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import type { DiagramAssembler, AssembledDiagram } from './DiagramAssembler.ts';
 import { computeDepths } from './DiagramAssembler.ts';
+import { buildForwardAdjacency } from '../../shared/analysis/AdjacencyList.ts';
 
 const CALL_NODE_TYPES = new Set(['function']);
 const CALL_EDGE_TYPES = new Set(['call']);
@@ -100,12 +101,7 @@ export class CallGraphAssembler implements DiagramAssembler {
   }
 
   private detectRecursion(nodes: GraphNode[], edges: GraphEdge[]): Set<string> {
-    const adjacency = new Map<string, string[]>();
-    for (const e of edges) {
-      const list = adjacency.get(e.source) ?? [];
-      list.push(e.target);
-      adjacency.set(e.source, list);
-    }
+    const adjacency = buildForwardAdjacency(edges);
 
     const recursive = new Set<string>();
     const visited = new Set<string>();

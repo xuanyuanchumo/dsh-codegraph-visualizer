@@ -1,5 +1,6 @@
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { NodeId } from '../../types/index.ts';
+import { CORE_FUNCTION } from '../constants.ts';
 
 export interface CoreFunction {
   nodeId: NodeId;
@@ -34,11 +35,11 @@ const ENTRY_PATTERNS = {
   cli: /^main$|^cli$|^run$|^start$|^bootstrap$|^init$/i,
 };
 
-const MIN_INDEGREE_HUB = 5;
-const MIN_OUTDEGREE_HUB = 5;
-const MIN_INFLUENCE_REACH = 10;
-const MIN_CALL_CHAIN_DEPTH = 3;
-const MAX_BFS_NODES = 500;
+const MIN_INDEGREE_HUB = CORE_FUNCTION.MIN_INDEGREE_HUB;
+const MIN_OUTDEGREE_HUB = CORE_FUNCTION.MIN_OUTDEGREE_HUB;
+const MIN_INFLUENCE_REACH = CORE_FUNCTION.MIN_INFLUENCE_REACH;
+const MIN_CALL_CHAIN_DEPTH = CORE_FUNCTION.MIN_CALL_CHAIN_DEPTH;
+const MAX_BFS_NODES = CORE_FUNCTION.MAX_BFS_NODES;
 
 export class CoreFunctionAnalyzer {
   analyze(nodes: GraphNode[], edges: GraphEdge[]): CoreFunction[] {

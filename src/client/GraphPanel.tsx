@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
-import { useGraphStore, type ThemeType } from './store/graphStore.ts';
+import { useGraphStore } from './store/graphStore.ts';
+import type { ThemeType } from './store/graphStore.ts';
 import { useShallow } from 'zustand/shallow';
 import type { GraphNode, GraphEdge } from '../types/index.ts';
 import type { ClusterNode } from './store/cluster/index.ts';

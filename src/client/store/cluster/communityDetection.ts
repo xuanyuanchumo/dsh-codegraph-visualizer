@@ -1,5 +1,6 @@
 import type { GraphNode, GraphEdge } from '../../../types/index.ts';
 import { CLUSTER } from '../../../shared/constants.ts';
+import { buildFilteredUndirectedAdjacency } from '../../../shared/analysis/AdjacencyList.ts';
 
 const MAX_NODES_FOR_LABEL_PROP = CLUSTER.MAX_NODES_FOR_LABEL_PROP;
 const MIN_NODES_FOR_SUBGROUP = CLUSTER.MIN_NODES_FOR_SUBGROUP;
@@ -39,13 +40,7 @@ export function detectCommunities(
     : nodes;
   const participatingIds = new Set(participatingNodes.map((n) => n.id));
 
-  const adjacency = new Map<string, Set<string>>();
-  for (const n of participatingNodes) adjacency.set(n.id, new Set());
-  for (const e of edges) {
-    if (!participatingIds.has(e.source) || !participatingIds.has(e.target)) continue;
-    adjacency.get(e.source)?.add(e.target);
-    adjacency.get(e.target)?.add(e.source);
-  }
+  const adjacency = buildFilteredUndirectedAdjacency(edges, participatingIds);
 
   const labels = new Map<string, string>();
   let nextLabel = 0;

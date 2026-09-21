@@ -30,6 +30,7 @@
   /* Node type semantic colors — light theme */
   --cg-node-default: #263148;
   --cg-node-function: #059669;
+  --cg-node-function-text: #047857;
   --cg-node-class: #1a2230;
   --cg-node-variable: #d97706;
   --cg-node-module: #db2777;
@@ -147,6 +148,7 @@ body[data-ds-dark-theme] {
   /* Node type semantic colors — dark theme */
   --cg-node-default: #6366f1;
   --cg-node-function: #10b981;
+  --cg-node-function-text: #34d399;
   --cg-node-class: #818cf8;
   --cg-node-variable: #f59e0b;
   --cg-node-module: #ec4899;

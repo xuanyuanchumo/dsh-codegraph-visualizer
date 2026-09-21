@@ -178,3 +178,10 @@ export const INCREMENTAL_CLUSTER = {
 export const VIEW_MODE = {
   DEPTH_FILTER_LEVEL_1: 3,
 } as const;
+export const CORE_FUNCTION = {
+  MIN_INDEGREE_HUB: 5,
+  MIN_OUTDEGREE_HUB: 5,
+  MIN_INFLUENCE_REACH: 10,
+  MIN_CALL_CHAIN_DEPTH: 3,
+  MAX_BFS_NODES: 500,
+} as const;

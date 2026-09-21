@@ -1,6 +1,7 @@
 import type { GraphNode, GraphEdge, RuleType, RuleDefinition, RuleViolation } from '../../types/index.ts';
 import { NodeId, EdgeId } from '../../types/index.ts';
 import { buildFilteredForwardAdjacency } from './AdjacencyList.ts';
+import { detectCyclesDFS } from './CycleDFS.ts';
 
 export type { RuleType, RuleDefinition, RuleViolation };
 
@@ -87,52 +88,22 @@ export class RuleEngine {
 }
 
 class ForbiddenEdgeDetector implements RuleDetector {
-  detect(rule: RuleDefinition, nodes: GraphNode[], edges: GraphEdge[]): RuleViolation[] {
+  detect(rule: RuleDefinition, _nodes: GraphNode[], edges: GraphEdge[]): RuleViolation[] {
     const violations: RuleViolation[] = [];
     const edgeTypes = (rule.params.edgeTypes as string[]) ?? ['call', 'import', 'dependency'];
 
     const adjacency = buildFilteredForwardAdjacency(edges, edgeTypes);
+    const cycles = detectCyclesDFS(adjacency);
 
-    const visited = new Set<string>();
-    const inStack = new Set<string>();
-    const reportedCycles = new Set<string>();
-
-    const enter = (start: string): void => {
-      const frames: Array<{ id: string; neighbors: string[]; next: number }> = [
-        { id: start, neighbors: adjacency.get(start) ?? [], next: 0 },
-      ];
-      visited.add(start);
-      inStack.add(start);
-
-      while (frames.length > 0) {
-        const frame = frames[frames.length - 1]!;
-        if (frame.next >= frame.neighbors.length) {
-          inStack.delete(frame.id);
-          frames.pop();
-          continue;
-        }
-        const target = frame.neighbors[frame.next++]!;
-        if (inStack.has(target)) {
-          const cycleKey = [target, ...frames.slice(frames.findIndex(f => f.id === target)).map(f => f.id)].sort().join('→');
-          if (!reportedCycles.has(cycleKey)) {
-            reportedCycles.add(cycleKey);
-            violations.push({
-              ruleId: rule.id,
-              nodeId: NodeId(target),
-              message: `Circular dependency detected involving: ${cycleKey}`,
-              severity: rule.severity,
-            });
-          }
-        } else if (!visited.has(target)) {
-          visited.add(target);
-          inStack.add(target);
-          frames.push({ id: target, neighbors: adjacency.get(target) ?? [], next: 0 });
-        }
-      }
-    };
-
-    for (const id of adjacency.keys()) {
-      if (!visited.has(id)) enter(id);
+    for (const cycle of cycles) {
+      const cycleKey = cycle.sort().join('→');
+      const firstNode = cycle[0] ?? '';
+      violations.push({
+        ruleId: rule.id,
+        nodeId: NodeId(firstNode),
+        message: `Circular dependency detected involving: ${cycleKey}`,
+        severity: rule.severity,
+      });
     }
 
     return violations;

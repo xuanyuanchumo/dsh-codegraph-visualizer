@@ -162,11 +162,11 @@
 
 .cg-type-badge.cg-function {
   background: color-mix(in srgb, var(--cg-success) 14%, transparent);
-  color: #047857;
+  color: var(--cg-node-function-text);
 }
 
 body[data-ds-dark-theme] .cg-type-badge.cg-function {
-  color: #34d399;
+  color: var(--cg-node-function-text);
 }
 
 .cg-type-badge.cg-class {
