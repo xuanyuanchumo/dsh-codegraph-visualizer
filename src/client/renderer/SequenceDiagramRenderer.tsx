@@ -360,7 +360,7 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
       ref={containerRef}
       className="cg-sequence-diagram-container"
       role="application"
-      aria-label={`${participants.length} participants, ${messages.length} messages`}
+      aria-label={t('sequence.ariaLabel', { participants: participants.length, messages: messages.length })}
       style={{
         background: colors.bg,
         cursor: isDraggingRef.current ? 'grabbing' : 'grab',

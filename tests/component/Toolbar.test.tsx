@@ -100,7 +100,7 @@ describe('Toolbar component', () => {
   describe('layout buttons', () => {
     it('renders all 6 layout buttons', () => {
       render(<Toolbar {...makeProps()} />);
-      const layoutGroup = screen.getByRole('group', { name: /layout/i });
+      const layoutGroup = screen.getByRole('group', { name: /布局切换|layout switcher/i });
       expect(layoutGroup).toBeTruthy();
       const buttons = layoutGroup.querySelectorAll('button');
       expect(buttons.length).toBe(7);
@@ -110,7 +110,7 @@ describe('Toolbar component', () => {
 
     it('marks the active layout button with active class and aria-pressed', () => {
       render(<Toolbar {...makeProps({ layout: 'dagre' })} />);
-      const layoutGroup = screen.getByRole('group', { name: /layout/i });
+      const layoutGroup = screen.getByRole('group', { name: /布局切换|layout switcher/i });
       const dagreBtn = Array.from(layoutGroup.querySelectorAll('button')).find(
         (b) => b.textContent === 'dagre',
       ) as HTMLButtonElement;
@@ -122,7 +122,7 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const onLayoutChange = vi.fn();
       render(<Toolbar {...makeProps({ onLayoutChange })} />);
-      const layoutGroup = screen.getByRole('group', { name: /layout/i });
+      const layoutGroup = screen.getByRole('group', { name: /布局切换|layout switcher/i });
       const circleBtn = Array.from(layoutGroup.querySelectorAll('button')).find(
         (b) => b.textContent === 'circle',
       ) as HTMLButtonElement;

@@ -39,6 +39,7 @@ export interface IRenderer {
   highlightNodes(nodeIds: NodeId[]): void;
   selectNode(nodeId: NodeId | null): void;
   hideNode(nodeId: NodeId): void;
+  showAllNodes(): void;
   getVisibleNodeCount(): number;
   filterByType(type: string): void;
   filterByGraphType(graphType: 'all' | 'call' | 'dependency'): void;

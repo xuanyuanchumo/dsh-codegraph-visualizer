@@ -9,6 +9,7 @@ import { createSecurityManager } from './host/security.ts';
 import { extractWorkspacePaths, checkPrerequisites } from './host/prerequisites.ts';
 import { createInvokeUpstream, registerRoutes, registerService } from './host/routes.ts';
 import { registerWatcher, registerEventListeners } from './host/watcher.ts';
+import { McpServer } from './host/McpServer.ts';
 
 export { PLUGIN_VERSION };
 export { resolveConfig, DEFAULT_CONFIG } from './host/config.ts';
@@ -105,6 +106,12 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   registerEventListeners(ctx, invokeUpstream);
   registerWatcher(ctx, config, invokeUpstream);
 
+  const mcpServer = new McpServer();
+  ctx.effect(() => {
+    mcpServer.start(() => lastGraphData);
+    return () => mcpServer.stop();
+  }, 'codegraph: MCP server');
+
   return () => {
     scanCache.clear();
     scanInFlightMap.clear();
@@ -112,5 +119,6 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
     lastInitResult = null;
     securityManager.reset();
     disposeGraphTools();
+    mcpServer.stop();
   };
 }

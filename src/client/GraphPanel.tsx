@@ -83,6 +83,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     position: { x: number; y: number };
   } | null>(null);
   const [visibleNodeCount, setVisibleNodeCount] = useState<number>(0);
+  const [hasHiddenNodes, setHasHiddenNodes] = useState<boolean>(false);
 
   const {
     nodes, edges, rawNodes, rawEdges,
@@ -448,6 +449,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   useEffect(() => {
     const count = renderer.rendererRef.current?.getVisibleNodeCount() ?? 0;
     setVisibleNodeCount(count);
+    setHasHiddenNodes(count < nodes.length);
   }, [filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, renderer.rendererRef, nodes]);
 
   useEffect(() => {
@@ -856,6 +858,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           onFocusNode={(id) => { renderer.rendererRef.current?.focusOnNode(id); renderer.rendererRef.current?.selectNode(NodeId(id)); }}
           onIsolateNode={(id) => { renderer.rendererRef.current?.focusNeighborhood(NodeId(id)); }}
           onHideNode={(id) => { renderer.rendererRef.current?.hideNode(NodeId(id)); }}
+          onShowAllNodes={() => { renderer.rendererRef.current?.showAllNodes(); }}
+          hasHiddenNodes={hasHiddenNodes}
           onExpandNode={(id) => { expandNode(id); }}
           onCollapseNode={(id) => { collapseNode(id); }}
           onFindPath={(id) => { panel.setShowPathFind(true); useGraphStore.getState().setPathStart(NodeId(id)); }}

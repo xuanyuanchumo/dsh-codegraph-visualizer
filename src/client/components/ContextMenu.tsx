@@ -17,10 +17,12 @@ export interface ContextMenuProps {
   position: { x: number; y: number };
   isCluster: boolean;
   isExpanded: boolean;
+  hasHiddenNodes: boolean;
   onClose: () => void;
   onFocusNode: (nodeId: string) => void;
   onIsolateNode: (nodeId: string) => void;
   onHideNode: (nodeId: string) => void;
+  onShowAllNodes: () => void;
   onExpandNode: (nodeId: string) => void;
   onCollapseNode: (nodeId: string) => void;
   onFindPath: (nodeId: string) => void;
@@ -118,6 +120,14 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
     label: t('contextMenu.hide'),
     onClick: () => { props.onHideNode(props.nodeId); props.onClose(); },
   });
+
+  if (props.hasHiddenNodes) {
+    actions.push({
+      id: 'showAll',
+      label: t('contextMenu.showAll'),
+      onClick: () => { props.onShowAllNodes(); props.onClose(); },
+    });
+  }
 
   if (props.isCluster) {
     if (props.isExpanded) {

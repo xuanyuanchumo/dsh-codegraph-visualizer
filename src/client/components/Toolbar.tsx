@@ -178,7 +178,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       </div>
 
       <div className="cg-toolbar-center">
-        <div className="cg-layout-buttons" role="group" aria-label="Layout switcher">
+        <div className="cg-layout-buttons" role="group" aria-label={t('toolbar.layoutSwitcher')}>
           {LAYOUTS.map((l) => (
             <button
               key={l}

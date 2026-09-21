@@ -27,6 +27,7 @@ export const zh: Record<string, string> = {
   'toolbar.export': '导出图谱',
   'toolbar.lang': '切换语言',
   'toolbar.layout': '切换至 {l} 布局 (Ctrl+L 循环)',
+  'toolbar.layoutSwitcher': '布局切换',
   'toolbar.graphType': '图谱类型切换',
   'toolbar.cluster': '展开深度',
   'toolbar.layer': '图谱层级',
@@ -320,6 +321,7 @@ export const zh: Record<string, string> = {
   'micro.selectFunctionPrompt': '请先在代码图谱中选择一个函数节点，然后切换到此视图',
   'micro.backToCode': '返回代码视图',
   'sequence.noData': '暂无时序图数据',
+  'sequence.ariaLabel': '{participants} 个参与者, {messages} 条消息',
   'micro.selectedFunction': '当前函数: {name}',
   'micro.clearSelection': '清除选择',
   'micro.loadFailed': '微观图谱加载失败',
@@ -456,6 +458,7 @@ export const zh: Record<string, string> = {
   'contextMenu.callChain': '高亮调用链',
   'contextMenu.impact': '影响分析',
   'contextMenu.findPath': '从此节点查找路径',
+  'contextMenu.showAll': '显示所有隐藏节点',
 
   // Accessibility
   'a11y.graphContainer': '代码图谱交互区域',

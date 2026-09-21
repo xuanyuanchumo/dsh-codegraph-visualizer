@@ -27,6 +27,7 @@ export const en: Record<string, string> = {
   'toolbar.export': 'Export graph',
   'toolbar.lang': 'Switch language',
   'toolbar.layout': 'Switch to {l} layout (Ctrl+L cycles)',
+  'toolbar.layoutSwitcher': 'Layout switcher',
   'toolbar.graphType': 'Graph type switcher',
   'toolbar.cluster': 'Expand depth',
   'toolbar.layer': 'Diagram layer',
@@ -321,6 +322,7 @@ export const en: Record<string, string> = {
   'micro.selectFunctionPrompt': 'Please select a function node in the code graph first, then switch to this view',
   'micro.backToCode': 'Back to Code View',
   'sequence.noData': 'No sequence data available',
+  'sequence.ariaLabel': '{participants} participants, {messages} messages',
   'micro.selectedFunction': 'Current function: {name}',
   'micro.clearSelection': 'Clear selection',
   'micro.loadFailed': 'Micro diagram load failed',
@@ -457,6 +459,7 @@ export const en: Record<string, string> = {
   'contextMenu.callChain': 'Highlight Call Chain',
   'contextMenu.impact': 'Analyze Impact',
   'contextMenu.findPath': 'Find Path From Here',
+  'contextMenu.showAll': 'Show All Hidden Nodes',
 
   // Accessibility
   'a11y.graphContainer': 'Code graph interactive area',
