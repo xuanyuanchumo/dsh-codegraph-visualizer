@@ -791,11 +791,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         )}
 
         {panel.showImpact && !isCollapsed && impactStats && (
-          <GraphErrorBoundary><ImpactPanel impactStats={impactStats} label={t('toolbar.impact')} totalLabel={t('impact.total')} /></GraphErrorBoundary>
+          <GraphErrorBoundary><ImpactPanel impactStats={impactStats} label={t('toolbar.impact')} totalLabel={t('impact.total')} onClose={() => panel.setShowImpact(false)} /></GraphErrorBoundary>
         )}
 
-        {panel.showCycles && !isCollapsed && cycleDetails.length > 2 && (
-          <GraphErrorBoundary><CyclePanel cycles={cycleDetails} label={t('toolbar.cycles')} emptyLabel={t('cycles.empty')} /></GraphErrorBoundary>
+        {panel.showCycles && !isCollapsed && cycleDetails.length > 0 && (
+          <GraphErrorBoundary><CyclePanel cycles={cycleDetails} label={t('toolbar.cycles')} emptyLabel={t('cycles.empty')} onClose={() => panel.setShowCycles(false)} /></GraphErrorBoundary>
         )}
       </div>
 
@@ -803,51 +803,6 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         <GraphErrorBoundary><Legend viewMode={viewMode} onClose={() => panel.setShowLegend(false)} /></GraphErrorBoundary>
       )}
 
-      {panel.showMiniMap && !isCollapsed && (
-        <GraphErrorBoundary><StatsPanel
-          counts={{
-            function: nodeTypeCounts.function, class: nodeTypeCounts.class,
-            variable: nodeTypeCounts.variable, module: nodeTypeCounts.module,
-            interface: nodeTypeCounts.interface,
-          }}
-          onClose={() => panel.setShowMiniMap(false)} thumbnail={thumbnail} viewportInfo={viewportInfo}
-          onFocusArea={(ratioX, ratioY) => {
-            const info = renderer.rendererRef.current?.getViewportInfo();
-            if (info) {
-              renderer.rendererRef.current?.focusOnArea(info.totalSize.w * ratioX, info.totalSize.h * ratioY, info.zoom);
-            }
-          }} /></GraphErrorBoundary>
-      )}
-
-      {panel.showHotspot && !isCollapsed && hotspotNodes.length > 0 && (
-        <GraphErrorBoundary><HotspotPanel hotspotNodes={hotspotNodes} onClose={() => panel.setShowHotspot(false)} label={t('toolbar.hotspot')} /></GraphErrorBoundary>
-      )}
-
-      {panel.showGodModule && !isCollapsed && godModules.length > 0 && (
-        <GraphErrorBoundary><GodModulePanel godModules={godModules} onClose={() => panel.setShowGodModule(false)}
-          label={t('toolbar.godModule')} statsLabel={(n, e) => t('godmodule.stats', { nodes: n, edges: e })} /></GraphErrorBoundary>
-      )}
-
-      {panel.showCoreFunction && !isCollapsed && coreFunctions.length > 0 && (
-        <GraphErrorBoundary><CoreFunctionPanel coreFunctions={coreFunctions} onClose={() => panel.setShowCoreFunction(false)}
-          label={t('toolbar.coreFunction')} onSelectFunction={(nodeId) => {
-            setSelectedNode(NodeId(nodeId));
-            renderer.rendererRef.current?.focusOnNode(nodeId);
-            renderer.rendererRef.current?.selectNode(NodeId(nodeId));
-          }} /></GraphErrorBoundary>
-      )}
-
-      {panel.showFilterPanel && !isCollapsed && (
-        <GraphErrorBoundary><FilterPanel onClose={() => panel.setShowFilterPanel(false)} /></GraphErrorBoundary>
-      )}
-
-      {panel.showImpact && !isCollapsed && impactStats && (
-        <GraphErrorBoundary><ImpactPanel impactStats={impactStats} label={t('toolbar.impact')} totalLabel={t('impact.total')} /></GraphErrorBoundary>
-      )}
-
-      {panel.showCycles && !isCollapsed && cycleDetails.length > 0 && (
-        <GraphErrorBoundary><CyclePanel cycles={cycleDetails} label={t('toolbar.cycles')} emptyLabel={t('cycles.empty')} /></GraphErrorBoundary>
-      )}
 
       {contextMenu && (
         <ContextMenu

@@ -131,5 +131,14 @@ export class ViewportController {
     this.cy.resize();
   }
 
-  destroy(): void {}
+  destroy(): void {
+    this.cy.batch(() => {
+      for (const id of this.dimmedNodeIds) {
+        const el = this.cy.getElementById(id);
+        if (el.nonempty()) el.removeClass('focus-dim');
+      }
+      this.dimmedNodeIds.clear();
+      this.cy.elements().removeClass('focus-highlight');
+    });
+  }
 }

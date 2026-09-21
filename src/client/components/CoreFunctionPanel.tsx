@@ -11,10 +11,10 @@ interface CoreFunctionPanelProps {
 }
 
 const CATEGORY_COLORS: Record<CoreFunctionCategory, string> = {
-  entry: '#4caf50',
-  hub: '#ff9800',
-  api: '#2196f3',
-  critical: '#f44336',
+  entry: 'var(--cg-node-function)',
+  hub: 'var(--cg-accent)',
+  api: 'var(--cg-node-interface)',
+  critical: 'var(--cg-node-class)',
 };
 
 export const CoreFunctionPanel = memo(function CoreFunctionPanel({ coreFunctions, onClose, label, onSelectFunction }: CoreFunctionPanelProps) {

@@ -5,13 +5,15 @@ interface ImpactPanelProps {
   impactStats: ImpactStats;
   label: string;
   totalLabel: string;
+  onClose?: () => void;
 }
 
-export const ImpactPanel = memo(function ImpactPanel({ impactStats, label, totalLabel }: ImpactPanelProps) {
+export const ImpactPanel = memo(function ImpactPanel({ impactStats, label, totalLabel, onClose }: ImpactPanelProps) {
   return (
     <div className="cg-analysis-panel cg-impact-panel" role="region" aria-label={label} aria-live="polite">
       <div className="cg-analysis-panel-header">
         <span>{label}</span>
+        {onClose && <button className="cg-analysis-panel-close" onClick={onClose} aria-label="Close">×</button>}
       </div>
       <div className="cg-analysis-panel-content">
         <div className="cg-impact-stat-row">

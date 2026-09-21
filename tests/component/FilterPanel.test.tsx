@@ -229,8 +229,8 @@ describe('FilterPanel component', () => {
       fireEvent.click(resetBtn);
       expect(setFanInThreshold).toHaveBeenCalledWith(0);
       expect(setFanOutThreshold).toHaveBeenCalledWith(0);
-      expect(setVisibleNodeTypes).toHaveBeenCalledWith(new Set());
-      expect(setVisibleEdgeTypes).toHaveBeenCalledWith(new Set());
+      expect(setVisibleNodeTypes).toHaveBeenCalledWith(new Set(['function', 'class', 'variable', 'module', 'interface']));
+      expect(setVisibleEdgeTypes).toHaveBeenCalledWith(new Set(['call', 'extend', 'implement', 'import', 'dependency', 'contains']));
     });
   });
 

@@ -38,8 +38,8 @@ export const FilterPanel = memo(function FilterPanel({ onClose }: FilterPanelPro
   const resetAll = () => {
     setFanInThreshold(0);
     setFanOutThreshold(0);
-    setVisibleNodeTypes(new Set());
-    setVisibleEdgeTypes(new Set());
+    setVisibleNodeTypes(new Set(NODE_TYPES));
+    setVisibleEdgeTypes(new Set(EDGE_TYPES));
   };
 
   return (

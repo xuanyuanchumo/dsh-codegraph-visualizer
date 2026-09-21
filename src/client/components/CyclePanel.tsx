@@ -6,15 +6,17 @@ interface CyclePanelProps {
   cycles: CycleInfo[];
   label: string;
   emptyLabel: string;
+  onClose?: () => void;
 }
 
-export const CyclePanel = memo(function CyclePanel({ cycles, label, emptyLabel }: CyclePanelProps) {
+export const CyclePanel = memo(function CyclePanel({ cycles, label, emptyLabel, onClose }: CyclePanelProps) {
   const t = useT();
   return (
     <div className="cg-analysis-panel cg-cycle-panel" role="region" aria-label={label} aria-live="polite">
       <div className="cg-analysis-panel-header">
         <span>{label}</span>
         <span className="cg-cycle-count-badge">{cycles.length}</span>
+        {onClose && <button className="cg-analysis-panel-close" onClick={onClose} aria-label="Close">×</button>}
       </div>
       <div className="cg-analysis-panel-content">
         {cycles.length === 0 ? (
