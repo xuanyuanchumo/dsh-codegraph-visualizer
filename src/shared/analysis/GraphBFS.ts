@@ -73,3 +73,23 @@ export function bfsFrontierExpansion(
     truncated: impacted.size >= maxResults,
   };
 }
+export function bfsReachCount(
+  adjacency: AdjacencyMap,
+  source: string,
+  maxNodes: number,
+): number {
+  const visited = new Set<string>([source]);
+  const queue: string[] = [source];
+  let head = 0;
+  while (head < queue.length && visited.size < maxNodes) {
+    const current = queue[head++]!;
+    const neighbors = adjacency.get(current) ?? [];
+    for (const target of neighbors) {
+      if (!visited.has(target)) {
+        visited.add(target);
+        queue.push(target);
+      }
+    }
+  }
+  return visited.size - 1;
+}

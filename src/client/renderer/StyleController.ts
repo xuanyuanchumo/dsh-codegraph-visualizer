@@ -1,5 +1,6 @@
 import type { Core, StylesheetJson } from 'cytoscape';
-import type { ThemeType, HeatmapMode } from './IRenderer.ts';
+import type { ThemeType } from './IRenderer.ts';
+import type { HeatmapMode } from '../../types/index.ts';
 import { buildStylesheet, invalidateCssVarCache } from './styles/ThemeStylesheet.ts';
 import { LOD, HEATMAP } from '../../shared/constants.ts';
 

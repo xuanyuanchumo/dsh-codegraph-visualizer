@@ -4,9 +4,10 @@ import { PLUGIN_VERSION } from '../generated/version.ts';
 import type { GraphData, GraphNode, GraphEdge } from '../types/index.ts';
 import { buildBackwardAdjacency } from '../shared/analysis/AdjacencyList.ts';
 import { bfsFrontierExpansion } from '../shared/analysis/GraphBFS.ts';
+import { MCP } from '../shared/constants.ts';
 
 const log = scoped('mcp-server');
-const MAX_MESSAGE_LENGTH = 10 * 1024 * 1024;
+const MAX_MESSAGE_LENGTH = MCP.MAX_MESSAGE_LENGTH;
 
 interface McpTool {
   name: string;
@@ -240,8 +241,7 @@ export class McpServer {
         if (!targetNode) return { impacted: [], message: 'Symbol not found' };
 
         const reverseAdj = buildBackwardAdjacency(data.edges);
-        const MAX_IMPACT_RESULTS = 500;
-        const result = bfsFrontierExpansion(reverseAdj, targetNode.id, depth, MAX_IMPACT_RESULTS);
+        const result = bfsFrontierExpansion(reverseAdj, targetNode.id, depth, MCP.MAX_IMPACT_RESULTS);
         return { impacted: result.impacted, count: result.count, truncated: result.truncated };
       },
     });

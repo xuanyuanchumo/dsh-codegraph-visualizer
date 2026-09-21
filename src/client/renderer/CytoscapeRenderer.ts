@@ -1,9 +1,9 @@
 import cytoscape, { type Core } from 'cytoscape';
 import dagre from 'cytoscape-dagre';
 import fcose from 'cytoscape-fcose';
-import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
+import type { GraphNode, GraphEdge, NodeId, HeatmapMode } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
-import type { IRenderer, LayoutType, ThemeType, HeatmapMode } from './IRenderer.ts';
+import type { IRenderer, LayoutType, ThemeType } from './IRenderer.ts';
 import type { CycleInfo } from './CycleDetector.ts';
 import { LayoutController } from './LayoutController.ts';
 import { HighlightController } from './HighlightController.ts';

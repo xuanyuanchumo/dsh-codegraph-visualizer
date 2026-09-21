@@ -185,3 +185,27 @@ export const CORE_FUNCTION = {
   MIN_CALL_CHAIN_DEPTH: 3,
   MAX_BFS_NODES: 500,
 } as const;
+export const MCP = {
+  MAX_MESSAGE_LENGTH: 10 * 1024 * 1024,
+  MAX_IMPACT_RESULTS: 500,
+} as const;
+
+export const CACHE = {
+  GRAPH_CACHE_LIMIT: 8,
+} as const;
+
+export const VALIDATION = {
+  MAX_PATH_LENGTH: 4096,
+  MAX_GIT_REF_LENGTH: 256,
+  MAX_FILEPATH_LENGTH: 512,
+} as const;
+
+export const AST = {
+  MAX_CONTENT_BYTES: 512 * 1024,
+  MAX_TREE_SITTER_CONTENT_BYTES: 512 * 1024,
+} as const;
+
+export const WATCHER = {
+  MAX_RETRIES: 3,
+  RETRY_BASE_DELAY_MS: 1000,
+} as const;

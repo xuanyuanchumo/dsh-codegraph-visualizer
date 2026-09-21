@@ -2,6 +2,7 @@ import { watch } from 'node:fs';
 import { platform } from 'node:os';
 import type { Context } from '@deepseek-ai/cordis';
 import { scoped } from '../shared/Logger.ts';
+import { WATCHER } from '../shared/constants.ts';
 import { fetchMergedGraph } from '../tools.ts';
 import { RepoId } from '../types/index.ts';
 import type { VisualizerConfig } from './config.ts';
@@ -40,8 +41,8 @@ export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUp
   let watchTimer: ReturnType<typeof setTimeout> | null = null;
   let activeWatcher: { close: () => void } | null = null;
   let retryCount = 0;
-  const MAX_RETRIES = 3;
-  const RETRY_BASE_DELAY = 1000;
+  const MAX_RETRIES = WATCHER.MAX_RETRIES;
+  const RETRY_BASE_DELAY = WATCHER.RETRY_BASE_DELAY_MS;
 
   const closeActiveWatcher = (): void => {
     if (activeWatcher) {

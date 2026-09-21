@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
-import type { GraphNode, GraphEdge, NodeId, HealthScore, RuleDefinition, RuleViolation, ViewMode } from '../../types/index.ts';
+import type { GraphNode, GraphEdge, NodeId, HealthScore, RuleDefinition, RuleViolation, ViewMode, HeatmapMode } from '../../types/index.ts';
 import { computeClusteredGraph } from './cluster/index.ts';
 import type { ClusterNode, ClusterEdge } from './cluster/index.ts';
 import { tryIncrementalOrFull, type IncrementalClusterContext } from './cluster/incrementalCluster.ts';
@@ -11,7 +11,7 @@ import { invalidateCssVarCache } from '../renderer/styles/ThemeStylesheet.ts';
 import { computeViewModeTransition } from './viewModeTransition.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { type LayoutType, type ThemeType, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
-import type { HeatmapMode } from '../renderer/IRenderer.ts';
+
 import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, LOD } from '../../shared/constants.ts';
 
 const log = scoped('store');

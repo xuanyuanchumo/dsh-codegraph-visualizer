@@ -3,6 +3,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { scoped } from '../shared/Logger.ts';
+import { VALIDATION, AST } from '../shared/constants.ts';
 import type { GraphData, GraphNode, GraphEdge, IncomingMessage, ServerResponse, IGraphVisualizerService } from '../types/index.ts';
 import { RepoId } from '../types/index.ts';
 import { fetchMergedGraph } from '../tools.ts';
@@ -274,7 +275,7 @@ function registerScanRoute(rc: RouteContext): void {
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
-        const scanPathInput = extractStringField(parsed, 'path', 4096);
+        const scanPathInput = extractStringField(parsed, 'path', VALIDATION.MAX_PATH_LENGTH);
         if (scanPathInput && scanPathInput !== '.' && !deps.securityManager.isPathAllowed(scanPathInput)) {
           sendError(res, 403, 'Path not allowed', req, corsConfig);
           return;
@@ -359,7 +360,7 @@ function registerInitRoute(rc: RouteContext): void {
       try {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
-        const pathInput = extractStringField(parsed, 'path', 4096);
+        const pathInput = extractStringField(parsed, 'path', VALIDATION.MAX_PATH_LENGTH);
         if (pathInput && pathInput !== '.' && !deps.securityManager.isPathAllowed(pathInput)) {
           sendError(res, 403, 'Path not allowed', req, corsConfig);
           return;
@@ -423,7 +424,7 @@ function registerWatchRoute(rc: RouteContext): void {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
         const enabled = extractBooleanField(parsed, 'enabled');
-        const pathInput = extractStringField(parsed, 'path', 4096);
+        const pathInput = extractStringField(parsed, 'path', VALIDATION.MAX_PATH_LENGTH);
         if (pathInput && pathInput !== '.' && !deps.securityManager.isPathAllowed(pathInput)) {
           sendError(res, 403, 'Path not allowed', req, corsConfig);
           return;
@@ -546,8 +547,8 @@ function registerDiffRoute(rc: RouteContext): void {
       try {
         const body = await readBody(req, deps.config.maxBodyBytes);
         const parsed = parseJsonBody(body);
-        const fromCommit = extractStringField(parsed, 'from', 256);
-        const toCommit = extractStringField(parsed, 'to', 256);
+        const fromCommit = extractStringField(parsed, 'from', VALIDATION.MAX_GIT_REF_LENGTH);
+        const toCommit = extractStringField(parsed, 'to', VALIDATION.MAX_GIT_REF_LENGTH);
         if (!fromCommit || !toCommit) {
           sendError(res, 400, 'from and to commits are required', req, corsConfig);
           return;
@@ -606,7 +607,7 @@ function registerAstRoute(rc: RouteContext, sharedTreeSitterAdapter: TreeSitterA
         try {
           const body = await readBody(req, config.maxBodyBytes);
           const parsed = parseJsonBody(body);
-          const filePath = extractStringField(parsed, 'filePath', 512);
+          const filePath = extractStringField(parsed, 'filePath', VALIDATION.MAX_FILEPATH_LENGTH);
           if (!filePath) {
             sendError(res, 400, 'filePath is required', req, corsConfig);
             return;
@@ -633,7 +634,7 @@ function registerAstRoute(rc: RouteContext, sharedTreeSitterAdapter: TreeSitterA
             return;
           }
           const content = await fs.readFile(realPath, 'utf-8');
-          const MAX_AST_CONTENT = 512 * 1024;
+          const MAX_AST_CONTENT = AST.MAX_CONTENT_BYTES;
           if (content.length > MAX_AST_CONTENT) {
             sendError(res, 413, `File too large for AST parsing (max ${MAX_AST_CONTENT} bytes)`, req, corsConfig);
             return;
@@ -676,11 +677,11 @@ function registerTreeSitterRoute(rc: RouteContext, sharedTreeSitterAdapter: Tree
             sendError(res, 400, 'filePath and content are required', req, corsConfig);
             return;
           }
-          if (filePath.includes('..') || filePath.length > 512) {
+          if (filePath.includes('..') || filePath.length > VALIDATION.MAX_FILEPATH_LENGTH) {
             sendError(res, 400, 'Invalid filePath', req, corsConfig);
             return;
           }
-          const MAX_TREE_SITTER_CONTENT = 512 * 1024;
+          const MAX_TREE_SITTER_CONTENT = AST.MAX_TREE_SITTER_CONTENT_BYTES;
           if (content.length > MAX_TREE_SITTER_CONTENT) {
             sendError(res, 413, `Content too large for tree-sitter parsing (max ${MAX_TREE_SITTER_CONTENT} bytes, got ${content.length})`, req, corsConfig);
             return;

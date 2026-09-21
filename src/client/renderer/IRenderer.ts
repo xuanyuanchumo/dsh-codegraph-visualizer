@@ -1,11 +1,11 @@
-import type { GraphNode, GraphEdge, NodeId } from '../../types/index.ts';
+import type { GraphNode, GraphEdge, NodeId, HeatmapMode } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
 import type { PathResult } from './PathFinder.ts';
 import type { LayoutType, ThemeType } from '../../shared/viewModeUtils.ts';
 import type { CycleInfo } from './CycleDetector.ts';
 export type { LayoutType, ThemeType } from '../../shared/viewModeUtils.ts';
 
-export type HeatmapMode = 'none' | 'instability' | 'lines' | 'complexity';
+export type { HeatmapMode } from '../../types/index.ts';
 
 export interface RendererCallbacks {
   onNodeTap?(nodeId: string): void;

@@ -13,6 +13,7 @@ import { RuleEngine, type RuleDefinition } from './shared/analysis/RuleEngine.ts
 import { buildForwardAdjacency } from './shared/analysis/AdjacencyList.ts';
 import { bfsShortestPath } from './shared/analysis/GraphBFS.ts';
 import { scoped } from './shared/Logger.ts';
+import { CACHE } from './shared/constants.ts';
 import {
   summarizeGraph,
   normalizeImpact,
@@ -39,7 +40,7 @@ const log = scoped('tools');
 export type { UpstreamInvoker } from './adapters/IAdapter.ts';
 import type { UpstreamInvoker } from './adapters/IAdapter.ts';
 
-const GRAPH_CACHE_LIMIT = 8;
+const GRAPH_CACHE_LIMIT = CACHE.GRAPH_CACHE_LIMIT;
 
 export interface GraphToolDeps {
   codegraphAdapter: CodeGraphAdapter;

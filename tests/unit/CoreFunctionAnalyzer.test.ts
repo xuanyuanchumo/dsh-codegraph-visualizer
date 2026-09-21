@@ -240,4 +240,205 @@ describe('CoreFunctionAnalyzer', () => {
     const result = analyzer.analyze(nodes, edges);
     expect(result.find((r) => r.nodeId === 'a')).toBeUndefined();
   });
+
+  it('identifies exported functions via is_exported: 1', () => {
+    const analyzer = new CoreFunctionAnalyzer();
+    const nodes = [
+      makeFunction('exp', 'exportedFunc', 'src/api.ts', { is_exported: 1 }),
+      makeFunction('internal', 'internalFunc'),
+    ];
+    const edges = [makeCall('exp', 'internal')];
+    const result = analyzer.analyze(nodes, edges);
+    const expFn = result.find((r) => r.nodeId === 'exp');
+    expect(expFn).toBeDefined();
+    expect(expFn!.reasons).toContain('exported');
+  });
+
+  it('classifies as critical when no specific pattern matches', () => {
+    const analyzer = new CoreFunctionAnalyzer();
+    const nodes = [
+      makeFunction('exp', 'someFunc', 'src/api.ts', { isExported: true }),
+    ];
+    const edges: GraphEdge[] = [];
+    const result = analyzer.analyze(nodes, edges);
+    const expFn = result.find((r) => r.nodeId === 'exp');
+    expect(expFn).toBeDefined();
+    expect(expFn!.category).toBe('critical');
+  });
+
+  it('skips self-loop edges', () => {
+    const analyzer = new CoreFunctionAnalyzer();
+    const nodes = [
+      makeFunction('self', 'selfLoop'),
+      makeFunction('target', 'target'),
+    ];
+    const edges = [
+      makeCall('self', 'self'),
+      makeCall('self', 'target'),
+    ];
+    const result = analyzer.analyze(nodes, edges);
+    const selfFn = result.find((r) => r.nodeId === 'self');
+    expect(selfFn).toBeDefined();
+    expect(selfFn!.outDegree).toBe(1);
+  });
+
+  it('handles circular call chains without infinite loop', () => {
+    const analyzer = new CoreFunctionAnalyzer();
+    const nodes = [
+      makeFunction('a', 'a'),
+      makeFunction('b', 'b'),
+      makeFunction('c', 'c'),
+    ];
+    const edges = [
+      makeCall('a', 'b'),
+      makeCall('b', 'c'),
+      makeCall('c', 'a'),
+    ];
+    const result = analyzer.analyze(nodes, edges);
+    expect(result.length).toBeGreaterThan(0);
+  });
+
+  it('respects MAX_BFS_NODES limit for influence reach', () => {
+    const analyzer = new CoreFunctionAnalyzer();
+    const nodes = [
+      makeFunction('root', 'root'),
+      ...Array.from({ length: 600 }, (_, i) => makeFunction(`n${i}`, `n${i}`)),
+    ];
+    const edges = [
+      ...Array.from({ length: 600 }, (_, i) => makeCall('root', `n${i}`)),
+    ];
+    const result = analyzer.analyze(nodes, edges);
+    const rootFn = result.find((r) => r.nodeId === 'root');
+    expect(rootFn).toBeDefined();
+    expect(rootFn!.influenceReach).toBeGreaterThan(0);
+  });
+
+  it('filters out non-function nodes from call edges', () => {
+    const analyzer = new CoreFunctionAnalyzer();
+    const nodes: GraphNode[] = [
+      makeFunction('fn', 'handler'),
+      { id: NodeId('cls'), label: 'ClassA', type: 'class', filePath: 'a.ts', lineNumber: 1, properties: {} },
+    ];
+    const edges = [
+      makeCall('fn', 'cls'),
+      makeCall('cls', 'fn'),
+    ];
+    const result = analyzer.analyze(nodes, edges);
+    const fnResult = result.find((r) => r.nodeId === 'fn');
+    expect(fnResult).toBeDefined();
+    expect(fnResult!.inDegree).toBe(0);
+    expect(fnResult!.outDegree).toBe(0);
+  });
+
+  it('identifies multiple reasons for a single function', () => {
+    const analyzer = new CoreFunctionAnalyzer();
+    const nodes = [
+      makeFunction('main', 'main', 'src/app.ts', { isExported: true }),
+      ...Array.from({ length: 6 }, (_, i) => makeFunction(`dep${i}`, `dep${i}`)),
+    ];
+    const edges = [
+      ...Array.from({ length: 6 }, (_, i) => makeCall('main', `dep${i}`)),
+    ];
+    const result = analyzer.analyze(nodes, edges);
+    const mainFn = result.find((r) => r.nodeId === 'main');
+    expect(mainFn).toBeDefined();
+    expect(mainFn!.reasons).toContain('cli-pattern');
+    expect(mainFn!.reasons).toContain('entry-point');
+    expect(mainFn!.reasons).toContain('exported');
+    expect(mainFn!.reasons).toContain('high-outdegree');
+  });
+
+  it('handler pattern takes precedence over cli pattern in classification', () => {
+    const analyzer = new CoreFunctionAnalyzer();
+    const nodes = [
+      makeFunction('h', 'handleRequest'),
+      makeFunction('target', 'target'),
+    ];
+    const edges = [makeCall('h', 'target')];
+    const result = analyzer.analyze(nodes, edges);
+    const hFn = result.find((r) => r.nodeId === 'h');
+    expect(hFn).toBeDefined();
+    expect(hFn!.category).toBe('api');
+  });
+
+  it('hub-function reason requires both indegree and outdegree >= threshold', () => {
+    const analyzer = new CoreFunctionAnalyzer();
+    const nodes = [
+      makeFunction('hub', 'hub'),
+      ...Array.from({ length: 6 }, (_, i) => makeFunction(`in${i}`, `in${i}`)),
+      makeFunction('out1', 'out1'),
+    ];
+    const edges = [
+      ...Array.from({ length: 6 }, (_, i) => makeCall(`in${i}`, 'hub')),
+      makeCall('hub', 'out1'),
+    ];
+    const result = analyzer.analyze(nodes, edges);
+    const hubFn = result.find((r) => r.nodeId === 'hub');
+    expect(hubFn).toBeDefined();
+    expect(hubFn!.reasons).not.toContain('hub-function');
+    expect(hubFn!.reasons).toContain('high-indegree');
+  });
+
+  it('score is capped for high-indegree', () => {
+    const analyzer = new CoreFunctionAnalyzer();
+    const nodes = [
+      makeFunction('hub', 'hub'),
+      ...Array.from({ length: 20 }, (_, i) => makeFunction(`in${i}`, `in${i}`)),
+      ...Array.from({ length: 6 }, (_, i) => makeFunction(`out${i}`, `out${i}`)),
+    ];
+    const edges = [
+      ...Array.from({ length: 20 }, (_, i) => makeCall(`in${i}`, 'hub')),
+      ...Array.from({ length: 6 }, (_, i) => makeCall('hub', `out${i}`)),
+    ];
+    const result = analyzer.analyze(nodes, edges);
+    const hubFn = result.find((r) => r.nodeId === 'hub');
+    expect(hubFn).toBeDefined();
+    expect(hubFn!.score).toBeLessThanOrEqual(200);
+  });
+
+  it('event pattern matches on* prefixed labels', () => {
+    const analyzer = new CoreFunctionAnalyzer();
+    const nodes = [
+      makeFunction('e1', 'onChange'),
+      makeFunction('e2', 'onSubmit'),
+      makeFunction('e3', 'onUpdate'),
+      makeFunction('target', 'target'),
+    ];
+    const edges = [
+      makeCall('e1', 'target'),
+      makeCall('e2', 'target'),
+      makeCall('e3', 'target'),
+    ];
+    const result = analyzer.analyze(nodes, edges);
+    for (const id of ['e1', 'e2', 'e3']) {
+      const fn = result.find((r) => r.nodeId === id);
+      expect(fn).toBeDefined();
+      expect(fn!.reasons).toContain('event-pattern');
+      expect(fn!.category).toBe('api');
+    }
+  });
+
+  it('returns correct CoreFunction structure', () => {
+    const analyzer = new CoreFunctionAnalyzer();
+    const nodes = [
+      makeFunction('main', 'main'),
+      makeFunction('helper', 'helper'),
+    ];
+    const edges = [makeCall('main', 'helper')];
+    const result = analyzer.analyze(nodes, edges);
+    const mainFn = result.find((r) => r.nodeId === 'main');
+    expect(mainFn).toBeDefined();
+    expect(mainFn).toHaveProperty('nodeId');
+    expect(mainFn).toHaveProperty('label');
+    expect(mainFn).toHaveProperty('filePath');
+    expect(mainFn).toHaveProperty('score');
+    expect(mainFn).toHaveProperty('reasons');
+    expect(mainFn).toHaveProperty('inDegree');
+    expect(mainFn).toHaveProperty('outDegree');
+    expect(mainFn).toHaveProperty('influenceReach');
+    expect(mainFn).toHaveProperty('callChainDepth');
+    expect(mainFn).toHaveProperty('category');
+    expect(mainFn!.label).toBe('main');
+    expect(mainFn!.filePath).toBe('src/app.ts');
+  });
 });

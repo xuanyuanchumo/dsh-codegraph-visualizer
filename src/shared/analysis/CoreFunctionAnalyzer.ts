@@ -1,6 +1,7 @@
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { NodeId } from '../../types/index.ts';
 import { CORE_FUNCTION } from '../constants.ts';
+import { bfsReachCount } from './GraphBFS.ts';
 
 export interface CoreFunction {
   nodeId: NodeId;
@@ -183,20 +184,7 @@ export class CoreFunctionAnalyzer {
   ): Map<string, number> {
     const reach = new Map<string, number>();
     for (const n of nodes) {
-      const visited = new Set<string>([n.id]);
-      const queue: string[] = [n.id];
-      let head = 0;
-      while (head < queue.length && visited.size < MAX_BFS_NODES) {
-        const current = queue[head++]!;
-        const neighbors = outEdges.get(current) ?? [];
-        for (const target of neighbors) {
-          if (!visited.has(target)) {
-            visited.add(target);
-            queue.push(target);
-          }
-        }
-      }
-      reach.set(n.id, visited.size - 1);
+      reach.set(n.id, bfsReachCount(outEdges, n.id, MAX_BFS_NODES));
     }
     return reach;
   }
