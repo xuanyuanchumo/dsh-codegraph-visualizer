@@ -12,7 +12,7 @@ import { computeViewModeTransition } from './viewModeTransition.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { type LayoutType, type ThemeType, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
 import type { HeatmapMode } from '../renderer/IRenderer.ts';
-import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, INCREMENTAL_CLUSTER, LOD } from '../../shared/constants.ts';
+import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, LOD } from '../../shared/constants.ts';
 
 const log = scoped('store');
 
@@ -342,42 +342,78 @@ export const useGraphStore = create<GraphState>()(
       lodEnabled: false,
 
       setGraphData: (nodes, edges, repoId, metadata) => {
-        clearLoadingFailsafe();
-        const { clusterDepth, expandedNodeIds, viewMode, currentLayer } = useGraphStore.getState();
-        const sanitized = sanitizeGraphData(nodes, edges);
-        const newDegradations: string[] = [];
-        if (sanitized.nodes.length > CYCLE_DETECTION.MAX_NODES_FOR_DETECTION) {
-          newDegradations.push('cycle-detection-skipped');
-        }
-        if (sanitized.nodes.length > CLUSTER.MAX_NODES_FOR_LABEL_PROP) {
-          newDegradations.push('community-detection-sampled');
-        }
-        if (sanitized.nodes.length > RENDERER.LARGE_GRAPH_NODE_THRESHOLD) {
-          newDegradations.push('large-graph-mode');
-        }
-        let displayNodes = sanitized.nodes;
-        let displayEdges = sanitized.edges;
-        let diagramData: LayeredDiagram | null = null;
-        const isLayeredView = isLayeredViewMode(viewMode);
-        if (isLayeredView) {
-          const dataHash = computeDataHash(sanitized.nodes, sanitized.edges);
-          const cached = diagramCache.get(viewMode, dataHash);
-          if (cached) {
-            diagramData = cached;
-          } else {
-            diagramData = assembleDiagram(viewMode, sanitized.nodes, sanitized.edges);
-            if (diagramData) diagramCache.set(viewMode, dataHash, diagramData);
+        try {
+          clearLoadingFailsafe();
+          const { clusterDepth, expandedNodeIds, viewMode, currentLayer } = useGraphStore.getState();
+          const sanitized = sanitizeGraphData(nodes, edges);
+          const newDegradations: string[] = [];
+          if (sanitized.nodes.length > CYCLE_DETECTION.MAX_NODES_FOR_DETECTION) {
+            newDegradations.push('cycle-detection-skipped');
           }
-          if (diagramData) {
-            const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
-            if (layer) {
-              displayNodes = layer.nodes;
-              displayEdges = layer.edges;
+          if (sanitized.nodes.length > CLUSTER.MAX_NODES_FOR_LABEL_PROP) {
+            newDegradations.push('community-detection-sampled');
+          }
+          if (sanitized.nodes.length > RENDERER.LARGE_GRAPH_NODE_THRESHOLD) {
+            newDegradations.push('large-graph-mode');
+          }
+          let displayNodes = sanitized.nodes;
+          let displayEdges = sanitized.edges;
+          let diagramData: LayeredDiagram | null = null;
+          const isLayeredView = isLayeredViewMode(viewMode);
+          if (isLayeredView) {
+            const dataHash = computeDataHash(sanitized.nodes, sanitized.edges);
+            const cached = diagramCache.get(viewMode, dataHash);
+            if (cached) {
+              diagramData = cached;
+            } else {
+              diagramData = assembleDiagram(viewMode, sanitized.nodes, sanitized.edges);
+              if (diagramData) diagramCache.set(viewMode, dataHash, diagramData);
+            }
+            if (diagramData) {
+              const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+              if (layer) {
+                displayNodes = layer.nodes;
+                displayEdges = layer.edges;
+              }
+            }
+            set({
+              rawNodes: sanitized.nodes, rawEdges: sanitized.edges,
+              nodes: displayNodes, edges: displayEdges,
+              diagramData,
+              repoId, error: null, isLoading: false, lastUpdated: Date.now(),
+              truncated: !!metadata?.truncated,
+              totalNodeCount: metadata?.totalNodeCount ?? sanitized.nodes.length,
+              totalEdgeCount: metadata?.totalEdgeCount ?? sanitized.edges.length,
+              healthScore: null,
+              ruleViolations: [],
+              performanceDegradations: newDegradations,
+            });
+            return;
+          }
+          const result = tryIncrementalOrFull(
+            incrementalClusterCtx,
+            displayNodes, displayEdges,
+            expandedNodeIds, clusterDepth,
+            useGraphStore.getState().panelWidth ?? undefined,
+          );
+          incrementalClusterCtx = {
+            prevResult: result,
+            prevNodeIdToVisibleId: new Map<string, string>(),
+            prevRawNodes: sanitized.nodes,
+            prevRawEdges: sanitized.edges,
+          };
+          for (const n of result.nodes) {
+            if ('isCluster' in n && n.isCluster) {
+              for (const childId of n.childIds) {
+                incrementalClusterCtx.prevNodeIdToVisibleId.set(childId, n.id);
+              }
+            } else {
+              incrementalClusterCtx.prevNodeIdToVisibleId.set(n.id, n.id);
             }
           }
           set({
             rawNodes: sanitized.nodes, rawEdges: sanitized.edges,
-            nodes: displayNodes, edges: displayEdges,
+            nodes: result.nodes, edges: result.edges,
             diagramData,
             repoId, error: null, isLoading: false, lastUpdated: Date.now(),
             truncated: !!metadata?.truncated,
@@ -387,41 +423,10 @@ export const useGraphStore = create<GraphState>()(
             ruleViolations: [],
             performanceDegradations: newDegradations,
           });
-          return;
+        } catch (err) {
+          log.error('setGraphData failed', { err });
+          set({ error: err instanceof Error ? err.message : String(err), isLoading: false });
         }
-        const result = tryIncrementalOrFull(
-          incrementalClusterCtx,
-          displayNodes, displayEdges,
-          expandedNodeIds, clusterDepth,
-          useGraphStore.getState().panelWidth ?? undefined,
-        );
-        incrementalClusterCtx = {
-          prevResult: result,
-          prevNodeIdToVisibleId: new Map<string, string>(),
-          prevRawNodes: sanitized.nodes,
-          prevRawEdges: sanitized.edges,
-        };
-        for (const n of result.nodes) {
-          if ('isCluster' in n && n.isCluster) {
-            for (const childId of n.childIds) {
-              incrementalClusterCtx.prevNodeIdToVisibleId.set(childId, n.id);
-            }
-          } else {
-            incrementalClusterCtx.prevNodeIdToVisibleId.set(n.id, n.id);
-          }
-        }
-        set({
-          rawNodes: sanitized.nodes, rawEdges: sanitized.edges,
-          nodes: result.nodes, edges: result.edges,
-          diagramData,
-          repoId, error: null, isLoading: false, lastUpdated: Date.now(),
-          truncated: !!metadata?.truncated,
-          totalNodeCount: metadata?.totalNodeCount ?? sanitized.nodes.length,
-          totalEdgeCount: metadata?.totalEdgeCount ?? sanitized.edges.length,
-          healthScore: null,
-          ruleViolations: [],
-          performanceDegradations: newDegradations,
-        });
       },
       setLayout: (layout) => set({ layout }),
       setTheme: (theme) => { invalidateCssVarCache(); set({ theme }); },

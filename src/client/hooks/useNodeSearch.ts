@@ -1,7 +1,7 @@
 import { useMemo, useCallback } from 'react';
 import { Trie } from '../../shared/Trie.ts';
 import { parseSearchQuery, matchSearchQuery } from '../../shared/searchUtils.ts';
-import type { GraphNode } from '../../types/index.ts';
+
 
 interface RawNodeLike {
   id: string;

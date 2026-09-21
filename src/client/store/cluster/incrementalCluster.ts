@@ -139,7 +139,7 @@ export function computeIncrementalClusters(
         nodeIdToVisibleId.set(n.id, n.id);
       }
     } else {
-      const primaryNode = dirNodes[0]!;
+
       const clusterNode: ClusterNode = {
         id: NodeId(clusterId),
         label: `${dir.split('/').pop() ?? dir} (${dirNodes.length})`,

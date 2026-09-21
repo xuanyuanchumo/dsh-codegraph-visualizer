@@ -422,4 +422,181 @@ describe('DataController', () => {
       expect(safeBoolean(1, true)).toBe(true);
     });
   });
+
+  describe('incremental update paths', () => {
+    it('updateData adds new nodes incrementally without full reset', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      dc.updateData([makeGraphNode('a')], []);
+      const initialAddCount = (cy.add as any).mock.calls.length;
+      dc.updateData([makeGraphNode('a'), makeGraphNode('b')], []);
+      expect(cy.add).toHaveBeenCalled();
+    });
+
+    it('updateData handles new edges in incremental update', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      const nodes = [makeGraphNode('a'), makeGraphNode('b')];
+      dc.updateData(nodes, []);
+      dc.updateData(nodes, [makeGraphEdge('e1', 'a', 'b')]);
+      expect(cy.add).toHaveBeenCalled();
+    });
+
+    it('updateData detects edge endpoint change and re-adds edge', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      const nodes = [makeGraphNode('a'), makeGraphNode('b'), makeGraphNode('c')];
+      dc.updateData(nodes, [makeGraphEdge('e1', 'a', 'b')]);
+      expect(() => dc.updateData(nodes, [makeGraphEdge('e1', 'a', 'c')])).not.toThrow();
+      expect(cy.batch).toHaveBeenCalled();
+    });
+
+    it('updateData updates edge properties incrementally', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      const nodes = [makeGraphNode('a'), makeGraphNode('b')];
+      const edge = { ...makeGraphEdge('e1', 'a', 'b'), properties: { weight: 1 } };
+      dc.updateData(nodes, [edge]);
+      const updatedEdge = { ...makeGraphEdge('e1', 'a', 'b'), properties: { weight: 5 } };
+      dc.updateData(nodes, [updatedEdge]);
+      expect(cy.batch).toHaveBeenCalled();
+    });
+
+    it('updateData handles stale edge removal', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      const nodes = [makeGraphNode('a'), makeGraphNode('b')];
+      dc.updateData(nodes, [makeGraphEdge('e1', 'a', 'b')]);
+      expect(() => dc.updateData(nodes, [])).not.toThrow();
+    });
+  });
+
+  describe('setRawNodes and raw maps', () => {
+    it('setRawNodes populates rawNodesMap', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      dc.setRawNodes([makeGraphNode('a'), makeGraphNode('b')]);
+      const map = dc.getRawNodesMap();
+      expect(map.size).toBe(2);
+      expect(map.has('a')).toBe(true);
+      expect(map.has('b')).toBe(true);
+    });
+
+    it('getRawToVisibleMap returns map after updateData', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      dc.updateData([makeGraphNode('a')], []);
+      const map = dc.getRawToVisibleMap();
+      expect(map.get('a')).toBe('a');
+    });
+  });
+
+  describe('getSelectedNodeData', () => {
+    it('returns null when no node is selected', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      expect(dc.getSelectedNodeData()).toBeNull();
+    });
+
+    it('returns node data when a node has selected class', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const node = makeMockNode('n1', {
+        id: 'n1', label: 'FuncA', type: 'function',
+        filePath: '/src/a.ts', lineNumber: 10, isCluster: false,
+      });
+      node.addClass('selected');
+      const selectedCollection = {
+        length: 1,
+        first: vi.fn(() => node),
+        forEach: vi.fn((cb: (el: any) => void) => cb(node)),
+      };
+      const cy = makeMockCy([node], []);
+      cy.nodes = vi.fn((selector?: string) => {
+        if (selector === '.selected') return selectedCollection;
+        return { forEach: vi.fn((cb: (el: any) => void) => cb(node)), length: 1 };
+      });
+      const dc = new DataController(cy as any);
+      dc.updateData([makeGraphNode('n1')], []);
+      const data = dc.getSelectedNodeData();
+      expect(data).not.toBeNull();
+    });
+  });
+
+  describe('computeNodeWeights roles', () => {
+    it('assigns orphan role to isolated nodes', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const node = makeMockNode('n1', {
+        id: 'n1', label: 'X', type: 'function',
+        filePath: '/src/a.ts', lineNumber: 0, isCluster: false,
+      });
+      node.indegree = vi.fn(() => 0);
+      node.outdegree = vi.fn(() => 0);
+      const cy = makeMockCy([node], []);
+      const dc = new DataController(cy as any);
+      dc.updateData([makeGraphNode('n1')], []);
+      expect((node.data as any).mock.calls.some((c: any[]) => c[0] === 'nodeRole' && c[1] === 'orphan')).toBe(true);
+    });
+
+    it('assigns entry role to nodes with only outgoing edges', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const node = makeMockNode('n1', {
+        id: 'n1', label: 'X', type: 'function',
+        filePath: '/src/a.ts', lineNumber: 0, isCluster: false,
+      });
+      node.indegree = vi.fn(() => 0);
+      node.outdegree = vi.fn(() => 3);
+      const cy = makeMockCy([node], []);
+      const dc = new DataController(cy as any);
+      dc.updateData([makeGraphNode('n1')], []);
+      expect((node.data as any).mock.calls.some((c: any[]) => c[0] === 'nodeRole' && c[1] === 'entry')).toBe(true);
+    });
+
+    it('assigns leaf role to nodes with only incoming edges', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const node = makeMockNode('n1', {
+        id: 'n1', label: 'X', type: 'function',
+        filePath: '/src/a.ts', lineNumber: 0, isCluster: false,
+      });
+      node.indegree = vi.fn(() => 5);
+      node.outdegree = vi.fn(() => 0);
+      const cy = makeMockCy([node], []);
+      const dc = new DataController(cy as any);
+      dc.updateData([makeGraphNode('n1')], []);
+      expect((node.data as any).mock.calls.some((c: any[]) => c[0] === 'nodeRole' && c[1] === 'leaf')).toBe(true);
+    });
+  });
+
+  describe('cluster node handling', () => {
+    it('buildRawToVisibleMap maps cluster children to cluster id', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      const clusterNode: any = {
+        id: NodeId('cluster1'),
+        label: 'mypkg (3)',
+        type: 'module',
+        filePath: '/src/mypkg',
+        lineNumber: 0,
+        properties: {},
+        isCluster: true,
+        childCount: 3,
+        childIds: ['child1', 'child2', 'child3'],
+        clusterPath: '/src/mypkg',
+        clusterLevel: 'directory',
+      };
+      dc.updateData([clusterNode], []);
+      const map = dc.getRawToVisibleMap();
+      expect(map.get('child1')).toBe('cluster1');
+      expect(map.get('child2')).toBe('cluster1');
+      expect(map.get('child3')).toBe('cluster1');
+    });
+  });
 });

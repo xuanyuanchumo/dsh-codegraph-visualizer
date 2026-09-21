@@ -163,7 +163,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const setFocusDepth = useGraphStore((s) => s.setFocusDepth);
   const setHeatmapMode = useGraphStore((s) => s.setHeatmapMode);
   const setLODLevel = useGraphStore((s) => s.setLODLevel);
-  const setLODEnabled = useGraphStore((s) => s.setLODEnabled);
+
   const assembleMicro = useGraphStore((s) => s.assembleMicro);
 
   const panelHeight = useGraphStore((s) => s.panelHeight);
@@ -230,9 +230,13 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, [addWorkspace]);
 
   const handleNodeTap = useCallback((id: NodeId) => {
-    setSelectedNode(id);
-    const data = getDataRef.current?.getNodeData(id) ?? null;
-    setSelectedNodeData(data);
+    try {
+      setSelectedNode(id);
+      const data = getDataRef.current?.getNodeData(id) ?? null;
+      setSelectedNodeData(data);
+    } catch (err) {
+      log.error('handleNodeTap failed', { id, err });
+    }
   }, [setSelectedNode]);
 
   const handleNodeDoubleTapRef = useRef<(nodeId: string) => void>(() => {});
@@ -242,10 +246,14 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, []);
 
   const handleNodeHover = useCallback((nodeId: string, pos: { x: number; y: number }) => {
-    const data = getDataRef.current?.getNodeData(nodeId);
-    if (data) {
-      const counts = adjacencyMap.get(nodeId) ?? { in: 0, out: 0 };
-      setTooltip({ x: pos.x, y: pos.y, name: data.label, path: `${data.filePath}:${data.lineNumber}`, type: data.type, linksIn: counts.in, linksOut: counts.out });
+    try {
+      const data = getDataRef.current?.getNodeData(nodeId);
+      if (data) {
+        const counts = adjacencyMap.get(nodeId) ?? { in: 0, out: 0 };
+        setTooltip({ x: pos.x, y: pos.y, name: data.label, path: `${data.filePath}:${data.lineNumber}`, type: data.type, linksIn: counts.in, linksOut: counts.out });
+      }
+    } catch (err) {
+      log.error('handleNodeHover failed', { nodeId, err });
     }
   }, [adjacencyMap]);
 
@@ -266,16 +274,20 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const handleEdgeHoverOut = useCallback(() => setTooltip(null), []);
 
   const handleEdgeTap = useCallback((edgeId: string, pos: { x: number; y: number }) => {
-    const edgeData = getDataRef.current?.getEdgeData(edgeId);
-    if (edgeData) {
-      const sourceNode = getDataRef.current?.getNodeData(edgeData.source);
-      const targetNode = getDataRef.current?.getNodeData(edgeData.target);
-      setTooltip({
-        x: pos.x, y: pos.y,
-        sourceLabel: sourceNode?.label ?? edgeData.source,
-        targetLabel: targetNode?.label ?? edgeData.target,
-        edgeType: edgeData.type,
-      });
+    try {
+      const edgeData = getDataRef.current?.getEdgeData(edgeId);
+      if (edgeData) {
+        const sourceNode = getDataRef.current?.getNodeData(edgeData.source);
+        const targetNode = getDataRef.current?.getNodeData(edgeData.target);
+        setTooltip({
+          x: pos.x, y: pos.y,
+          sourceLabel: sourceNode?.label ?? edgeData.source,
+          targetLabel: targetNode?.label ?? edgeData.target,
+          edgeType: edgeData.type,
+        });
+      }
+    } catch (err) {
+      log.error('handleEdgeTap failed', { edgeId, err });
     }
   }, []);
 
@@ -460,12 +472,16 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   useEffect(() => () => depsFetchAbortRef.current?.abort(), []);
 
   const handleThemeToggle = useCallback(() => {
-    const newTheme: ThemeType = theme === 'dark' ? 'light' : 'dark';
-    if (newTheme === 'dark') document.body.setAttribute('data-ds-dark-theme', '');
-    else document.body.removeAttribute('data-ds-dark-theme');
-    invalidateCssVarCache();
-    setTheme(newTheme);
-    renderer.updateTheme(newTheme);
+    try {
+      const newTheme: ThemeType = theme === 'dark' ? 'light' : 'dark';
+      if (newTheme === 'dark') document.body.setAttribute('data-ds-dark-theme', '');
+      else document.body.removeAttribute('data-ds-dark-theme');
+      invalidateCssVarCache();
+      setTheme(newTheme);
+      renderer.updateTheme(newTheme);
+    } catch (err) {
+      log.error('handleThemeToggle failed', { err });
+    }
   }, [theme, setTheme, renderer]);
 
   const handleCloseDetail = useCallback(() => {
@@ -487,24 +503,28 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   useEffect(() => {
     handleNodeDoubleTapRef.current = (nodeId: string) => {
-      const data = getDataRef.current?.getNodeData(nodeId);
-      const isClusterNode = data ? ('isCluster' in data && data.isCluster === true) : nodeId.startsWith('cluster__') || nodeId.startsWith('filecluster__') || nodeId.startsWith('subgroup__');
-      if (isClusterNode) {
-        const isExpanded = expandedNodeIds.has(nodeId);
-        if (isExpanded) collapseNode(nodeId);
-        else expandNode(nodeId);
-      } else if (data && data.type === 'function') {
-        setSelectedNode(NodeId(nodeId));
-        setSelectedNodeData(data);
-      } else {
-        setFocusNodeId((prev) => {
-          if (prev === nodeId) {
+      try {
+        const data = getDataRef.current?.getNodeData(nodeId);
+        const isClusterNode = data ? ('isCluster' in data && data.isCluster === true) : nodeId.startsWith('cluster__') || nodeId.startsWith('filecluster__') || nodeId.startsWith('subgroup__');
+        if (isClusterNode) {
+          const isExpanded = expandedNodeIds.has(nodeId);
+          if (isExpanded) collapseNode(nodeId);
+          else expandNode(nodeId);
+        } else if (data && data.type === 'function') {
+          setSelectedNode(NodeId(nodeId));
+          setSelectedNodeData(data);
+        } else {
+          setFocusNodeId((prev) => {
+            if (prev === nodeId) {
+              setSelectedNode(null);
+              return null;
+            }
             setSelectedNode(null);
-            return null;
-          }
-          setSelectedNode(null);
-          return nodeId;
-        });
+            return nodeId;
+          });
+        }
+      } catch (err) {
+        log.error('handleNodeDoubleTap failed', { nodeId, err });
       }
     };
   }, [expandedNodeIds, collapseNode, expandNode, handleSelectFunction, setSelectedNode]);
@@ -522,11 +542,16 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, [setLoading, currentWorkspace]);
 
   const handleFindPath = useCallback((sourceId: NodeId, targetId: NodeId) => {
-    const r = renderer.rendererRef.current;
-    if (!r) return;
-    const result = r.findPath(sourceId, targetId);
-    if (result) { setPathResult(result.path); r.highlightPath(result.path); }
-    else { setPathResult(null); r.highlightPath(null); }
+    try {
+      const r = renderer.rendererRef.current;
+      if (!r) return;
+      const result = r.findPath(sourceId, targetId);
+      if (result) { setPathResult(result.path); r.highlightPath(result.path); }
+      else { setPathResult(null); r.highlightPath(null); }
+    } catch (err) {
+      log.error('handleFindPath failed', { sourceId, targetId, err });
+      setPathResult(null);
+    }
   }, [renderer.rendererRef, setPathResult]);
 
   const handleClearPath = useCallback(() => {
@@ -591,9 +616,13 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, [debouncedSearch, searchNodes]);
 
   const handleSelectSearchResult = useCallback((id: string) => {
-    setSelectedNode(NodeId(id));
-    const data = getDataRef.current?.getNodeData(NodeId(id)) ?? null;
-    setSelectedNodeData(data);
+    try {
+      setSelectedNode(NodeId(id));
+      const data = getDataRef.current?.getNodeData(NodeId(id)) ?? null;
+      setSelectedNodeData(data);
+    } catch (err) {
+      log.error('handleSelectSearchResult failed', { id, err });
+    }
   }, [setSelectedNode]);
 
   const nodeTypeCounts = useMemo(() => {

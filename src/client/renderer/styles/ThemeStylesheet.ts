@@ -2,7 +2,7 @@ import type cytoscape from 'cytoscape';
 import type { ThemeType } from '../IRenderer.ts';
 import { buildDiagramStyles, type StyleContext } from './diagramStyles.ts';
 import { LAYOUT, LOD } from '../../../shared/constants.ts';
-import { type ThemeColors, readCssVar, readCssVarCached, invalidateCssVarCache } from './styleUtils.ts';
+import { type ThemeColors, readCssVar, readCssVarCached } from './styleUtils.ts';
 
 export { type ThemeColors, readCssVar, readCssVarCached, invalidateCssVarCache } from './styleUtils.ts';
 
