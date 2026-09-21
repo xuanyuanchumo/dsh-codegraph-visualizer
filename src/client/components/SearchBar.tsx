@@ -78,7 +78,7 @@ export const SearchBar = memo(function SearchBar({ query, matchCount, searchResu
   const displayResults = searchResults.slice(0, 10);
 
   return (
-    <div className="search-bar" ref={containerRef}>
+    <div className="cg-search-bar" ref={containerRef}>
       <SearchIcon size={14} className="search-bar-icon" />
       <input
         id="graph-search"
@@ -94,29 +94,29 @@ export const SearchBar = memo(function SearchBar({ query, matchCount, searchResu
       />
       <button onClick={onClose} aria-label={t('search.close')}><CloseIcon size={14} /></button>
       {query && matchCount !== null && (
-        <span className="search-hint" role="status" aria-live="polite">
+        <span className="cg-search-hint" role="status" aria-live="polite">
           {matchCount > 0
             ? t(matchCount === 1 ? 'search.match' : 'search.matches', { n: matchCount })
             : t('search.noMatch')}
         </span>
       )}
-      {!query && <span className="search-hint">{t('search.debounced')}</span>}
+      {!query && <span className="cg-search-hint">{t('search.debounced')}</span>}
       {showResults && query && searchResults.length > 0 && (
-        <ul className="search-results" role="listbox" ref={listRef}>
+        <ul className="cg-search-results" role="listbox" ref={listRef}>
           {displayResults.map((item, idx) => (
             <li key={item.id} role="option" aria-selected={idx === activeIndex}
-              className={`search-result-item ${idx === activeIndex ? 'active' : ''}`}
+              className={`cg-search-result-item ${idx === activeIndex ? 'cg-active' : ''}`}
               onClick={() => handleSelect(item.id)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSelect(item.id); }}
               tabIndex={0}
             >
-              <span className="search-result-type">{item.type}</span>
-              <span className="search-result-label">{item.label}</span>
-              <span className="search-result-path">{item.filePath}</span>
+              <span className="cg-search-result-type">{item.type}</span>
+              <span className="cg-search-result-label">{item.label}</span>
+              <span className="cg-search-result-path">{item.filePath}</span>
             </li>
           ))}
           {searchResults.length > 10 && (
-            <li className="search-result-more">
+            <li className="cg-search-result-more">
               {t('search.moreResults', { n: searchResults.length - 10 })}
             </li>
           )}

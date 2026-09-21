@@ -11,17 +11,17 @@ interface GodModulePanelProps {
 
 export const GodModulePanel = memo(function GodModulePanel({ godModules, onClose, label, statsLabel }: GodModulePanelProps) {
   return (
-    <div className="analysis-panel godmodule-panel" role="region" aria-label={label} aria-live="polite">
-      <div className="analysis-panel-header">
+    <div className="cg-analysis-panel godmodule-panel" role="region" aria-label={label} aria-live="polite">
+      <div className="cg-analysis-panel-header">
         <span>{label}</span>
         <button onClick={onClose} className="cg-close-btn"><CloseIcon size={14} /></button>
       </div>
-      <div className="analysis-panel-content">
+      <div className="cg-analysis-panel-content">
         {godModules.map((m) => (
-          <div key={m.modulePath} className="godmodule-item">
-            <div className="godmodule-path">{m.modulePath}</div>
-            <div className="godmodule-stats">{statsLabel(m.nodeCount, m.edgeCount)}</div>
-            <div className="godmodule-suggestion">{m.suggestion}</div>
+          <div key={m.modulePath} className="cg-godmodule-item">
+            <div className="cg-godmodule-path">{m.modulePath}</div>
+            <div className="cg-godmodule-stats">{statsLabel(m.nodeCount, m.edgeCount)}</div>
+            <div className="cg-godmodule-suggestion">{m.suggestion}</div>
           </div>
         ))}
       </div>

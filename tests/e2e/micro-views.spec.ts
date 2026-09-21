@@ -4,7 +4,7 @@ import { setupPluginPage } from './helpers.ts';
 test.describe('J40: CFG 控制流图查看', () => {
   test('should have CFG view mode button', async ({ page }) => {
     await setupPluginPage(page);
-    const cfgBtn = page.locator('.view-mode-btn--micro[data-mode="cfg"]');
+    const cfgBtn = page.locator('.cg-view-mode-btn--micro[data-mode="cfg"]');
     await expect(cfgBtn).toBeVisible().catch(() => {});
   });
 
@@ -18,7 +18,7 @@ test.describe('J40: CFG 控制流图查看', () => {
 test.describe('J41: 流程图查看', () => {
   test('should have flowchart view mode button', async ({ page }) => {
     await setupPluginPage(page);
-    const flowchartBtn = page.locator('.view-mode-btn--micro[data-mode="flowchart"]');
+    const flowchartBtn = page.locator('.cg-view-mode-btn--micro[data-mode="flowchart"]');
     await expect(flowchartBtn).toBeVisible().catch(() => {});
   });
 });
@@ -26,7 +26,7 @@ test.describe('J41: 流程图查看', () => {
 test.describe('J42: 时序图查看', () => {
   test('should have sequence view mode button', async ({ page }) => {
     await setupPluginPage(page);
-    const sequenceBtn = page.locator('.view-mode-btn--micro[data-mode="sequence"]');
+    const sequenceBtn = page.locator('.cg-view-mode-btn--micro[data-mode="sequence"]');
     await expect(sequenceBtn).toBeVisible().catch(() => {});
   });
 

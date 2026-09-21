@@ -1,43 +1,57 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { isPathAllowed, setAllowedWorkspaceRoots } from '../../src/index.ts';
+import { SecurityManager } from '../../src/host/security.ts';
 
-describe('isPathAllowed', () => {
+describe('SecurityManager.isPathAllowed', () => {
+  let sm: SecurityManager;
+
   beforeEach(() => {
-    setAllowedWorkspaceRoots([]);
+    sm = new SecurityManager();
+    sm.setAllowedWorkspaceRoots([]);
   });
 
   it('should return false for empty string', () => {
-    expect(isPathAllowed('')).toBe(false);
+    expect(sm.isPathAllowed('')).toBe(false);
   });
 
   it('should return true for "." when roots are set', () => {
-    setAllowedWorkspaceRoots(['C:\\Projects\\my-repo']);
-    expect(isPathAllowed('.')).toBe(true);
+    sm.setAllowedWorkspaceRoots(['C:\\Projects\\my-repo']);
+    expect(sm.isPathAllowed('.')).toBe(true);
   });
 
   it('should return false for "." when no roots are set (fail-closed)', () => {
-    expect(isPathAllowed('.')).toBe(false);
+    expect(sm.isPathAllowed('.')).toBe(false);
   });
 
   it('should return false for relative path containing ".."', () => {
-    expect(isPathAllowed('..')).toBe(false);
-    expect(isPathAllowed('../secret')).toBe(false);
+    expect(sm.isPathAllowed('..')).toBe(false);
+    expect(sm.isPathAllowed('../secret')).toBe(false);
   });
 
   it('should return false for absolute paths when no roots are set (fail-closed)', () => {
-    expect(isPathAllowed('C:\\Projects\\my-repo')).toBe(false);
-    expect(isPathAllowed('/etc/passwd')).toBe(false);
+    expect(sm.isPathAllowed('C:\\Projects\\my-repo')).toBe(false);
+    expect(sm.isPathAllowed('/etc/passwd')).toBe(false);
   });
 
   it('should allow absolute paths within allowed roots', () => {
-    setAllowedWorkspaceRoots(['C:\\Projects\\my-repo']);
-    expect(isPathAllowed('C:\\Projects\\my-repo')).toBe(true);
-    expect(isPathAllowed('C:\\Projects\\my-repo\\src')).toBe(true);
+    sm.setAllowedWorkspaceRoots(['C:\\Projects\\my-repo']);
+    expect(sm.isPathAllowed('C:\\Projects\\my-repo')).toBe(true);
+    expect(sm.isPathAllowed('C:\\Projects\\my-repo\\src')).toBe(true);
   });
 
   it('should reject absolute paths outside allowed roots', () => {
-    setAllowedWorkspaceRoots(['C:\\Projects\\my-repo']);
-    expect(isPathAllowed('C:\\Projects\\other-repo')).toBe(false);
-    expect(isPathAllowed('D:\\secret')).toBe(false);
+    sm.setAllowedWorkspaceRoots(['C:\\Projects\\my-repo']);
+    expect(sm.isPathAllowed('C:\\Projects\\other-repo')).toBe(false);
+    expect(sm.isPathAllowed('D:\\secret')).toBe(false);
+  });
+
+  it('should isolate instances (no global singleton)', () => {
+    const sm1 = new SecurityManager();
+    const sm2 = new SecurityManager();
+    sm1.setAllowedWorkspaceRoots(['/repo1']);
+    sm2.setAllowedWorkspaceRoots(['/repo2']);
+    expect(sm1.isPathAllowed('/repo1/src')).toBe(true);
+    expect(sm1.isPathAllowed('/repo2/src')).toBe(false);
+    expect(sm2.isPathAllowed('/repo2/src')).toBe(true);
+    expect(sm2.isPathAllowed('/repo1/src')).toBe(false);
   });
 });

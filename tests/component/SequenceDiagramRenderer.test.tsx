@@ -53,7 +53,7 @@ describe('SequenceDiagramRenderer component', () => {
     const { container } = render(
       <SequenceDiagramRenderer nodes={[]} edges={[]} theme="dark" onNodeTap={vi.fn()} />
     );
-    expect(container.querySelector('.seq-empty-state')).toBeTruthy();
+    expect(container.querySelector('.cg-seq-empty-state')).toBeTruthy();
   });
 
   it('renders participant boxes when participants exist', () => {
@@ -66,7 +66,7 @@ describe('SequenceDiagramRenderer component', () => {
     );
     const svg = container.querySelector('svg');
     expect(svg).toBeTruthy();
-    const participantGroups = container.querySelectorAll('.seq-participant-group');
+    const participantGroups = container.querySelectorAll('.cg-seq-participant-group');
     expect(participantGroups.length).toBe(2);
   });
 
@@ -82,7 +82,7 @@ describe('SequenceDiagramRenderer component', () => {
     const { container } = render(
       <SequenceDiagramRenderer nodes={nodes} edges={edges} theme="dark" />
     );
-    const messageGroups = container.querySelectorAll('.seq-message-group');
+    const messageGroups = container.querySelectorAll('.cg-seq-message-group');
     expect(messageGroups.length).toBe(2);
   });
 
@@ -112,7 +112,7 @@ describe('SequenceDiagramRenderer component', () => {
     const { container } = render(
       <SequenceDiagramRenderer nodes={nodes} edges={edges} theme="dark" />
     );
-    const fragmentGroups = container.querySelectorAll('.seq-fragment-group');
+    const fragmentGroups = container.querySelectorAll('.cg-seq-fragment-group');
     expect(fragmentGroups.length).toBe(1);
   });
 
@@ -137,9 +137,9 @@ describe('SequenceDiagramRenderer component', () => {
     const { container } = render(
       <SequenceDiagramRenderer nodes={nodes} edges={[]} theme="dark" />
     );
-    const zoomControls = container.querySelector('.seq-zoom-controls');
+    const zoomControls = container.querySelector('.cg-seq-zoom-controls');
     expect(zoomControls).toBeTruthy();
-    const buttons = container.querySelectorAll('.seq-zoom-btn');
+    const buttons = container.querySelectorAll('.cg-seq-zoom-btn');
     expect(buttons.length).toBe(3);
   });
 
@@ -148,7 +148,7 @@ describe('SequenceDiagramRenderer component', () => {
     const { container } = render(
       <SequenceDiagramRenderer nodes={nodes} edges={[]} theme="light" />
     );
-    const indicator = container.querySelector('.seq-zoom-indicator');
+    const indicator = container.querySelector('.cg-seq-zoom-indicator');
     expect(indicator).toBeTruthy();
     expect(indicator?.textContent).toContain('100');
   });
@@ -162,7 +162,7 @@ describe('SequenceDiagramRenderer component', () => {
     const { container } = render(
       <SequenceDiagramRenderer nodes={nodes} edges={[]} theme="dark" onNodeTap={onNodeTap} />
     );
-    const participantGroups = container.querySelectorAll('.seq-participant-group');
+    const participantGroups = container.querySelectorAll('.cg-seq-participant-group');
     fireEvent.click(participantGroups[0]!);
     expect(onNodeTap).toHaveBeenCalledWith('p1');
   });
@@ -176,10 +176,10 @@ describe('SequenceDiagramRenderer component', () => {
     const { container } = render(
       <SequenceDiagramRenderer nodes={nodes} edges={edges} theme="light" />
     );
-    const messageGroups = container.querySelectorAll('.seq-message-group');
+    const messageGroups = container.querySelectorAll('.cg-seq-message-group');
     expect(messageGroups.length).toBe(1);
     fireEvent.mouseEnter(messageGroups[0]!);
-    const lines = container.querySelectorAll('.seq-message-line');
+    const lines = container.querySelectorAll('.cg-seq-message-line');
     expect(lines.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -220,14 +220,14 @@ describe('SequenceDiagramRenderer component', () => {
     const { container: lightContainer } = render(
       <SequenceDiagramRenderer nodes={nodes} edges={[]} theme="light" />
     );
-    const lightBg = lightContainer.querySelector('.sequence-diagram-container');
+    const lightBg = lightContainer.querySelector('.cg-sequence-diagram-container');
     expect(lightBg).toBeTruthy();
     cleanup();
 
     const { container: darkContainer } = render(
       <SequenceDiagramRenderer nodes={nodes} edges={[]} theme="dark" />
     );
-    const darkBg = darkContainer.querySelector('.sequence-diagram-container');
+    const darkBg = darkContainer.querySelector('.cg-sequence-diagram-container');
     expect(darkBg).toBeTruthy();
   });
 

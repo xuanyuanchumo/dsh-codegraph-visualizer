@@ -112,10 +112,10 @@ describe('MicroViewPrompt component', () => {
         onBackToCode={vi.fn()}
       />
     );
-    expect(container.querySelector('.micro-empty-prompt')).toBeTruthy();
-    expect(container.querySelector('.micro-empty-icon')).toBeTruthy();
-    expect(container.querySelector('.micro-empty-text')).toBeTruthy();
-    expect(container.querySelector('.micro-empty-back-btn')).toBeTruthy();
+    expect(container.querySelector('.cg-micro-empty-prompt')).toBeTruthy();
+    expect(container.querySelector('.cg-micro-empty-icon')).toBeTruthy();
+    expect(container.querySelector('.cg-micro-empty-text')).toBeTruthy();
+    expect(container.querySelector('.cg-micro-empty-back-btn')).toBeTruthy();
   });
 });
 
@@ -163,7 +163,7 @@ describe('MicroFunctionBar component', () => {
         onClose={vi.fn()}
       />
     );
-    expect(container.querySelector('.micro-function-mode')).toBeNull();
+    expect(container.querySelector('.cg-micro-function-mode')).toBeNull();
   });
 
   it('does not render mode label when viewMode is undefined', () => {
@@ -173,7 +173,7 @@ describe('MicroFunctionBar component', () => {
         onClose={vi.fn()}
       />
     );
-    expect(container.querySelector('.micro-function-mode')).toBeNull();
+    expect(container.querySelector('.cg-micro-function-mode')).toBeNull();
   });
 
   it('displays functionName', () => {
@@ -219,7 +219,7 @@ describe('MicroFunctionBar component', () => {
         onClose={vi.fn()}
       />
     );
-    expect(container.querySelector('.micro-function-path')).toBeNull();
+    expect(container.querySelector('.cg-micro-function-path')).toBeNull();
   });
 
   it('calls onClose when close button is clicked', async () => {
@@ -232,7 +232,7 @@ describe('MicroFunctionBar component', () => {
         onClose={onClose}
       />
     );
-    const closeBtn = document.querySelector('.micro-function-close') as HTMLButtonElement;
+    const closeBtn = document.querySelector('.cg-micro-function-close') as HTMLButtonElement;
     expect(closeBtn).toBeTruthy();
     await user.click(closeBtn);
     expect(onClose).toHaveBeenCalledOnce();
@@ -246,7 +246,7 @@ describe('MicroFunctionBar component', () => {
         onClose={vi.fn()}
       />
     );
-    const closeBtn = document.querySelector('.micro-function-close') as HTMLButtonElement;
+    const closeBtn = document.querySelector('.cg-micro-function-close') as HTMLButtonElement;
     expect(closeBtn).toBeTruthy();
     // useT() defaults to zh dictionary, micro.closeView = '关闭微观视图'
     expect(closeBtn.getAttribute('aria-label')).toBe('关闭微观视图');
@@ -261,10 +261,10 @@ describe('MicroFunctionBar component', () => {
         onClose={vi.fn()}
       />
     );
-    expect(container.querySelector('.micro-function-bar')).toBeTruthy();
-    expect(container.querySelector('.micro-function-mode')).toBeTruthy();
-    expect(container.querySelector('.micro-function-name')).toBeTruthy();
-    expect(container.querySelector('.micro-function-path')).toBeTruthy();
-    expect(container.querySelector('.micro-function-close')).toBeTruthy();
+    expect(container.querySelector('.cg-micro-function-bar')).toBeTruthy();
+    expect(container.querySelector('.cg-micro-function-mode')).toBeTruthy();
+    expect(container.querySelector('.cg-micro-function-name')).toBeTruthy();
+    expect(container.querySelector('.cg-micro-function-path')).toBeTruthy();
+    expect(container.querySelector('.cg-micro-function-close')).toBeTruthy();
   });
 });

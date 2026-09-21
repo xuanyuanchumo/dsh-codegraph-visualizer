@@ -31,8 +31,8 @@ describe('RuleConfigPanel (FR-34) component', () => {
     render(<RuleConfigPanel violations={sampleViolations} onCheckRules={vi.fn()} onClose={vi.fn()} />);
     const checkboxes = screen.getAllByRole('checkbox');
     expect(checkboxes.length).toBe(getPresetRules().length);
-    const errorBadge = document.querySelector('.violation-badge.error');
-    const warningBadge = document.querySelector('.violation-badge.warning');
+    const errorBadge = document.querySelector('.cg-violation-badge.cg-error');
+    const warningBadge = document.querySelector('.cg-violation-badge.cg-warning');
     expect(errorBadge?.textContent).toBe('2');
     expect(warningBadge?.textContent).toBe('1');
   });
@@ -66,7 +66,7 @@ describe('RuleConfigPanel (FR-34) component', () => {
     render(<RuleConfigPanel violations={sampleViolations} onCheckRules={vi.fn()} onClose={vi.fn()} />);
     const items = screen.getAllByText(/violates/);
     expect(items.length).toBe(3);
-    const first = items[0]!.closest('.violation-item')!;
-    expect(first.className).toContain('error');
+    const first = items[0]!.closest('.cg-violation-item')!;
+    expect(first.className).toContain('cg-error');
   });
 });

@@ -4,82 +4,82 @@
  * Container queries respond to the PANEL width, not the viewport — the plugin
  * renders inside DSH panels whose width is unrelated to the window size. */
 @container graphpanel (max-width: 480px) {
-  .graph-panel {
+  .cg-graph-panel {
     border-radius: var(--cg-radius-sm);
   }
 
-  .graph-toolbar {
+  .cg-graph-toolbar {
     padding: 0 8px;
     gap: 4px;
   }
 
-  .toolbar-left {
+  .cg-toolbar-left {
     font-size: 11px;
   }
 
-  .toolbar-center {
+  .cg-toolbar-center {
     gap: 4px;
   }
 
-  .toolbar-right {
+  .cg-toolbar-right {
     gap: 4px;
   }
 
-  .layout-btn,
-  .graph-type-btn {
+  .cg-layout-btn,
+  .cg-graph-type-btn {
     padding: 3px 6px;
     font-size: 10px;
   }
 
-  .search-btn,
-  .theme-btn,
-  .export-btn,
-  .collapse-btn,
-  .chain-btn,
-  .cycle-btn,
-  .impact-btn,
-  .inheritance-btn,
-  .minimap-btn,
-  .refresh-btn,
-  .undo-btn,
-  .redo-btn,
-  .import-btn,
-  .legend-btn,
-  .lang-btn,
-  .pathfind-btn,
-  .health-btn,
-  .rules-btn,
-  .hotspot-btn,
-  .godmodule-btn,
-  .corefunction-btn {
+  .cg-search-btn,
+  .cg-theme-btn,
+  .cg-export-btn,
+  .cg-collapse-btn,
+  .cg-chain-btn,
+  .cg-cycle-btn,
+  .cg-impact-btn,
+  .cg-inheritance-btn,
+  .cg-minimap-btn,
+  .cg-refresh-btn,
+  .cg-undo-btn,
+  .cg-redo-btn,
+  .cg-import-btn,
+  .cg-legend-btn,
+  .cg-lang-btn,
+  .cg-pathfind-btn,
+  .cg-health-btn,
+  .cg-rules-btn,
+  .cg-hotspot-btn,
+  .cg-godmodule-btn,
+  .cg-corefunction-btn {
     width: 26px;
     height: 26px;
     font-size: 12px;
   }
 
-  .node-detail-panel {
+  .cg-node-detail-panel {
     width: calc(100% - 24px);
     left: 12px;
     top: 12px;
   }
 
-  .legend-panel {
+  .cg-legend-panel {
     width: 140px;
   }
 
-  .mini-map {
+  .cg-mini-map {
     width: 140px;
   }
 
-  .type-badge {
+  .cg-type-badge {
     display: none;
   }
 
-  .toolbar-separator {
+  .cg-toolbar-separator {
     display: none;
   }
 
-  .graph-type-buttons {
+  .cg-graph-type-buttons {
     display: none;
   }
 
@@ -87,42 +87,42 @@
 
 /* Medium panels (DSH sidebar medium width) */
 @container graphpanel (max-width: 768px) {
-  .graph-toolbar {
+  .cg-graph-toolbar {
     padding: 0 8px;
     gap: 6px;
   }
 
-  .toolbar-center {
+  .cg-toolbar-center {
     gap: 6px;
   }
 
-  .toolbar-right {
+  .cg-toolbar-right {
     gap: 6px;
   }
 
-  .layout-btn,
-  .graph-type-btn {
+  .cg-layout-btn,
+  .cg-graph-type-btn {
     padding: 3px 8px;
     font-size: 11px;
   }
 
-  .node-detail-panel {
+  .cg-node-detail-panel {
     width: 220px;
   }
 
-  .legend-panel {
+  .cg-legend-panel {
     width: 160px;
   }
 
-  .mini-map {
+  .cg-mini-map {
     width: 160px;
   }
 
-  .filter-select {
+  .cg-filter-select {
     font-size: 11px;
   }
 
-  .toolbar-separator {
+  .cg-toolbar-separator {
     margin: 0 2px;
   }
 
@@ -130,39 +130,39 @@
 
 /* Very small panels */
 @container graphpanel (max-width: 320px) {
-  .graph-toolbar {
+  .cg-graph-toolbar {
     gap: 2px;
   }
 
-  .layout-buttons,
-  .graph-type-buttons {
+  .cg-layout-buttons,
+  .cg-graph-type-buttons {
     padding: 1px;
   }
 
-  .layout-btn,
-  .graph-type-btn {
+  .cg-layout-btn,
+  .cg-graph-type-btn {
     padding: 2px 4px;
     font-size: 9px;
   }
 
-  .filter-select {
+  .cg-filter-select {
     padding: 3px 20px 3px 6px;
     font-size: 10px;
   }
 
-  .node-count {
+  .cg-node-count {
     font-size: 10px;
   }
 
-  .legend-panel,
-  .mini-map {
+  .cg-legend-panel,
+  .cg-mini-map {
     width: 120px;
   }
 }
 
 /* Large screens — allow fixed floating panel */
 @media (min-width: 1200px) {
-  .graph-panel.floating {
+  .cg-graph-panel.cg-floating {
     position: fixed;
     right: 16px;
     bottom: 16px;
@@ -185,36 +185,36 @@
 /* ---- Touch device adaptation --------------------------------------------- */
 
 @media (pointer: coarse) {
-  .layout-btn,
-  .graph-type-btn,
-  .search-btn,
-  .theme-btn,
-  .export-btn,
-  .collapse-btn,
-  .chain-btn,
-  .cycle-btn,
-  .impact-btn,
-  .inheritance-btn,
-  .minimap-btn,
-  .refresh-btn,
-  .undo-btn,
-  .redo-btn,
-  .import-btn,
-  .legend-btn,
-  .lang-btn,
-  .pathfind-btn,
-  .health-btn,
-  .rules-btn,
-  .hotspot-btn,
-  .godmodule-btn,
-  .corefunction-btn {
+  .cg-layout-btn,
+  .cg-graph-type-btn,
+  .cg-search-btn,
+  .cg-theme-btn,
+  .cg-export-btn,
+  .cg-collapse-btn,
+  .cg-chain-btn,
+  .cg-cycle-btn,
+  .cg-impact-btn,
+  .cg-inheritance-btn,
+  .cg-minimap-btn,
+  .cg-refresh-btn,
+  .cg-undo-btn,
+  .cg-redo-btn,
+  .cg-import-btn,
+  .cg-legend-btn,
+  .cg-lang-btn,
+  .cg-pathfind-btn,
+  .cg-health-btn,
+  .cg-rules-btn,
+  .cg-hotspot-btn,
+  .cg-godmodule-btn,
+  .cg-corefunction-btn {
     min-width: 44px;
     min-height: 44px;
   }
 
-  .node-detail-panel .close-btn,
-  .legend-close,
-  .import-close,
+  .cg-node-detail-panel .cg-close-btn,
+  .cg-legend-close,
+  .cg-import-close,
   .cg-close-btn {
     min-width: 44px;
     min-height: 44px;
@@ -223,35 +223,35 @@
 /* ---- Responsive for new components ---------------------------------------- */
 
 @container graphpanel (max-width: 480px) {
-  .path-bar,
-  .health-score-card,
-  .rule-panel {
+  .cg-path-bar,
+  .cg-health-score-card,
+  .cg-rule-panel {
     width: calc(100% - 24px);
   }
 
-  .analysis-panel {
+  .cg-analysis-panel {
     width: calc(100% - 24px);
   }
 
-  .focus-label {
+  .cg-focus-label {
     max-width: 120px;
   }
 }
 
 @container graphpanel (max-width: 768px) {
-  .path-bar {
+  .cg-path-bar {
     width: 240px;
   }
 
-  .health-score-card {
+  .cg-health-score-card {
     width: 220px;
   }
 
-  .rule-panel {
+  .cg-rule-panel {
     width: 240px;
   }
 
-  .analysis-panel {
+  .cg-analysis-panel {
     width: 200px;
   }
 }

@@ -226,6 +226,7 @@ declare module '@deepseek-ai/cordis' {
     'cg-viz/graph/init'(event: GraphInitEvent): void;
     'cg-viz/graph/init-result'(event: GraphInitResultEvent): void;
     'cg-viz/watch/toggle'(event: WatchToggleEvent): void;
+    'cg-viz/watch/error'(event: { path: string; message: string; timestamp: number }): void;
     'cg-viz/health/scored'(event: HealthScoreEvent): void;
     'cg-viz/rules/violation'(event: RuleViolationEvent): void;
     'cg-viz/path/found'(event: PathFoundEvent): void;

@@ -102,10 +102,10 @@ export const WorkspaceSelector = memo(function WorkspaceSelector({
   const hasExplicit = currentWorkspace !== '.' && !workspaceList.some((w) => w.path === currentWorkspace);
 
   return (
-    <div className="workspace-selector">
+    <div className="cg-workspace-selector">
       <button
         ref={triggerRef}
-        className="workspace-trigger"
+        className="cg-workspace-trigger"
         onClick={() => setOpen((v) => !v)}
         aria-label={t('workspace.switch')}
         aria-haspopup="listbox"
@@ -113,22 +113,22 @@ export const WorkspaceSelector = memo(function WorkspaceSelector({
         title={currentWorkspace}
       >
         <WorkspaceIcon size={14} />
-        <span className="workspace-name">{displayName}</span>
-        <ChevronDownIcon size={12} className="workspace-chevron" />
+        <span className="cg-workspace-name">{displayName}</span>
+        <ChevronDownIcon size={12} className="cg-workspace-chevron" />
       </button>
 
       {open && createPortal(
         <div
-          className="workspace-dropdown workspace-dropdown-portal"
+          className="cg-workspace-dropdown cg-workspace-dropdown-portal"
           role="listbox"
           aria-label={t('workspace.switch')}
           style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left }}
           ref={dropdownRef}
         >
-          <div className="workspace-dropdown-header">
+          <div className="cg-workspace-dropdown-header">
             <span>{t('workspace.current')}</span>
             <button
-              className="workspace-add-btn"
+              className="cg-workspace-add-btn"
               onClick={() => setAdding((v) => !v)}
               aria-label={t('workspace.add')}
               title={t('workspace.add')}
@@ -138,7 +138,7 @@ export const WorkspaceSelector = memo(function WorkspaceSelector({
           </div>
 
           {adding && (
-            <div className="workspace-add-form">
+            <div className="cg-workspace-add-form">
               <input
                 ref={inputRef}
                 id="workspace-add-path"
@@ -159,33 +159,33 @@ export const WorkspaceSelector = memo(function WorkspaceSelector({
             </div>
           )}
 
-          <div className="workspace-list">
+          <div className="cg-workspace-list">
             {hasExplicit && (
-              <div className="workspace-item current" role="option" aria-selected>
+              <div className="cg-workspace-item cg-current" role="option" aria-selected>
                 <FolderIcon size={14} />
-                <span className="workspace-item-name">{deriveName(currentWorkspace)}</span>
-                <span className="workspace-item-path">{currentWorkspace}</span>
-                <span className="workspace-item-badge">{t('workspace.active')}</span>
+                <span className="cg-workspace-item-name">{deriveName(currentWorkspace)}</span>
+                <span className="cg-workspace-item-path">{currentWorkspace}</span>
+                <span className="cg-workspace-item-badge">{t('workspace.active')}</span>
               </div>
             )}
 
             {workspaceList.map((ws) => (
               <div
                 key={ws.path}
-                className={`workspace-item ${ws.path === currentWorkspace ? 'current' : ''}`}
+                className={`cg-workspace-item ${ws.path === currentWorkspace ? 'cg-current' : ''}`}
                 role="option"
                 aria-selected={ws.path === currentWorkspace}
                 onClick={() => handleSwitch(ws.path)}
               >
                 <FolderIcon size={14} />
-                <span className="workspace-item-name">{ws.name}</span>
-                <span className="workspace-item-path">{ws.path}</span>
-                <span className="workspace-item-time">{formatRelativeTime(ws.lastUsed, t)}</span>
+                <span className="cg-workspace-item-name">{ws.name}</span>
+                <span className="cg-workspace-item-path">{ws.path}</span>
+                <span className="cg-workspace-item-time">{formatRelativeTime(ws.lastUsed, t)}</span>
                 {ws.path === currentWorkspace && (
-                  <span className="workspace-item-badge">{t('workspace.active')}</span>
+                  <span className="cg-workspace-item-badge">{t('workspace.active')}</span>
                 )}
                 <button
-                  className="workspace-item-remove"
+                  className="cg-workspace-item-remove"
                   onClick={(e) => handleRemove(e, ws.path)}
                   aria-label={t('workspace.remove')}
                   title={t('workspace.remove')}
@@ -196,7 +196,7 @@ export const WorkspaceSelector = memo(function WorkspaceSelector({
             ))}
 
             {!hasExplicit && workspaceList.length === 0 && (
-              <div className="workspace-empty">
+              <div className="cg-workspace-empty">
                 <span>{t('workspace.empty')}</span>
               </div>
             )}

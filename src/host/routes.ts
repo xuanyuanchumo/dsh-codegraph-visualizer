@@ -7,7 +7,7 @@ import type { GraphData, GraphNode, GraphEdge, IncomingMessage, ServerResponse, 
 import { RepoId } from '../types/index.ts';
 import { fetchMergedGraph } from '../tools.ts';
 import { createInvoke } from '../tools.ts';
-import { isPathAllowed } from './security.ts';
+import { SecurityManager } from './security.ts';
 import { findWorkspacePath, extractWorkspacePaths, checkPrerequisites } from './prerequisites.ts';
 import type { VisualizerConfig } from './config.ts';
 import { parsePackageJson, parseCargoToml, parseGoMod, dependencyGraphToGraphData } from '../adapters/DependencyAdapter.ts';
@@ -26,6 +26,7 @@ const log = scoped('host');
 export interface RouteDeps {
   ctx: Context;
   config: VisualizerConfig;
+  securityManager: SecurityManager;
   getLastGraphData: () => GraphData | null;
   setLastGraphData: (data: GraphData | null) => void;
   getLastInitResult: () => { success: boolean; path: string; message: string; timestamp: number } | null;
@@ -256,16 +257,16 @@ function registerScanRoute(rc: RouteContext): void {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
         const scanPathInput = extractStringField(parsed, 'path', 4096);
-        if (scanPathInput && scanPathInput !== '.' && !isPathAllowed(scanPathInput)) {
+        if (scanPathInput && scanPathInput !== '.' && !deps.securityManager.isPathAllowed(scanPathInput)) {
           sendError(res, 403, 'Path not allowed', req, corsConfig);
           return;
         }
         const scanPath = scanPathInput && scanPathInput !== '.' ? scanPathInput : findWorkspacePath(ctx);
-        if (scanPath && scanPath !== '.' && !isPathAllowed(scanPath)) {
+        if (scanPath && scanPath !== '.' && !deps.securityManager.isPathAllowed(scanPath)) {
           sendError(res, 403, 'Workspace path not allowed', req, corsConfig);
           return;
         }
-        if (scanPath && scanPath !== '.' && !await validatePathRealpath(scanPath)) {
+        if (scanPath && scanPath !== '.' && !await validatePathRealpath(scanPath, deps.securityManager)) {
           sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
           return;
         }
@@ -341,16 +342,16 @@ function registerInitRoute(rc: RouteContext): void {
         const body = await readBody(req, config.maxBodyBytes);
         const parsed = parseJsonBody(body);
         const pathInput = extractStringField(parsed, 'path', 4096);
-        if (pathInput && pathInput !== '.' && !isPathAllowed(pathInput)) {
+        if (pathInput && pathInput !== '.' && !deps.securityManager.isPathAllowed(pathInput)) {
           sendError(res, 403, 'Path not allowed', req, corsConfig);
           return;
         }
         const initPath = pathInput && pathInput !== '.' ? pathInput : findWorkspacePath(ctx);
-        if (initPath && initPath !== '.' && !isPathAllowed(initPath)) {
+        if (initPath && initPath !== '.' && !deps.securityManager.isPathAllowed(initPath)) {
           sendError(res, 403, 'Path not allowed', req, corsConfig);
           return;
         }
-        if (initPath && initPath !== '.' && !await validatePathRealpath(initPath)) {
+        if (initPath && initPath !== '.' && !await validatePathRealpath(initPath, deps.securityManager)) {
           sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
           return;
         }
@@ -405,16 +406,16 @@ function registerWatchRoute(rc: RouteContext): void {
         const parsed = parseJsonBody(body);
         const enabled = extractBooleanField(parsed, 'enabled');
         const pathInput = extractStringField(parsed, 'path', 4096);
-        if (pathInput && pathInput !== '.' && !isPathAllowed(pathInput)) {
+        if (pathInput && pathInput !== '.' && !deps.securityManager.isPathAllowed(pathInput)) {
           sendError(res, 403, 'Path not allowed', req, corsConfig);
           return;
         }
         const watchPath = pathInput && pathInput !== '.' ? pathInput : findWorkspacePath(ctx);
-        if (watchPath && watchPath !== '.' && !isPathAllowed(watchPath)) {
+        if (watchPath && watchPath !== '.' && !deps.securityManager.isPathAllowed(watchPath)) {
           sendError(res, 403, 'Path not allowed', req, corsConfig);
           return;
         }
-        if (watchPath && watchPath !== '.' && !await validatePathRealpath(watchPath)) {
+        if (watchPath && watchPath !== '.' && !await validatePathRealpath(watchPath, deps.securityManager)) {
           sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
           return;
         }
@@ -447,11 +448,11 @@ function registerDependenciesRoute(rc: RouteContext): void {
           sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req, corsConfig);
           return;
         }
-        if (!isPathAllowed(workspacePath)) {
+        if (!deps.securityManager.isPathAllowed(workspacePath)) {
           sendError(res, 403, 'Workspace path not allowed', req, corsConfig);
           return;
         }
-        if (!await validatePathRealpath(workspacePath)) {
+        if (!await validatePathRealpath(workspacePath, deps.securityManager)) {
           sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
           return;
         }
@@ -543,11 +544,11 @@ function registerDiffRoute(rc: RouteContext): void {
           sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req, corsConfig);
           return;
         }
-        if (!isPathAllowed(workspacePath)) {
+        if (!deps.securityManager.isPathAllowed(workspacePath)) {
           sendError(res, 403, 'Workspace path not allowed', req, corsConfig);
           return;
         }
-        if (!await validatePathRealpath(workspacePath)) {
+        if (!await validatePathRealpath(workspacePath, deps.securityManager)) {
           sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
           return;
         }
@@ -609,7 +610,7 @@ function registerAstRoute(rc: RouteContext, sharedTreeSitterAdapter: TreeSitterA
             sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
             return;
           }
-          if (!isPathAllowed(realPath)) {
+          if (!deps.securityManager.isPathAllowed(realPath)) {
             sendError(res, 403, 'Access denied', req, corsConfig);
             return;
           }

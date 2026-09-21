@@ -161,8 +161,8 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   } = panelControls;
 
   return (
-    <div className="graph-toolbar">
-      <div className="toolbar-left">
+    <div className="cg-graph-toolbar">
+      <div className="cg-toolbar-left">
         <WorkspaceSelector
           currentWorkspace={currentWorkspace}
           workspaceList={workspaceList}
@@ -170,51 +170,51 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           onAddWorkspace={onAddWorkspace}
           onRemoveWorkspace={onRemoveWorkspace}
         />
-        <span className="node-count">{statsText}</span>
-        {typeCounts.function > 0 && <span className="type-badge function">fn:{typeCounts.function}</span>}
-        {typeCounts.class > 0 && <span className="type-badge class">cls:{typeCounts.class}</span>}
-        {typeCounts.interface > 0 && <span className="type-badge interface">if:{typeCounts.interface}</span>}
-        {onCollapseAll && <button className="collapse-all-btn" onClick={onCollapseAll} title={t('detail.collapse')}>{t('detail.collapse')}</button>}
+        <span className="cg-node-count">{statsText}</span>
+        {typeCounts.function > 0 && <span className="cg-type-badge cg-function">fn:{typeCounts.function}</span>}
+        {typeCounts.class > 0 && <span className="cg-type-badge cg-class">cls:{typeCounts.class}</span>}
+        {typeCounts.interface > 0 && <span className="cg-type-badge cg-interface">if:{typeCounts.interface}</span>}
+        {onCollapseAll && <button className="cg-collapse-all-btn" onClick={onCollapseAll} title={t('detail.collapse')}>{t('detail.collapse')}</button>}
       </div>
 
-      <div className="toolbar-center">
-        <div className="layout-buttons" role="group" aria-label="Layout switcher">
+      <div className="cg-toolbar-center">
+        <div className="cg-layout-buttons" role="group" aria-label="Layout switcher">
           {LAYOUTS.map((l) => (
             <button
               key={l}
-              className={`layout-btn ${layout === l ? 'active' : ''}`}
+              className={`cg-layout-btn ${layout === l ? 'cg-active' : ''}`}
               onClick={() => onLayoutChange(l)}
               title={t('toolbar.layout', { l })}
               aria-pressed={layout === l}
             >{l}</button>
           ))}
         </div>
-        <div className="graph-type-buttons" role="group" aria-label={t('toolbar.graphType')}>
+        <div className="cg-graph-type-buttons" role="group" aria-label={t('toolbar.graphType')}>
           {GRAPH_TYPES.map((g) => (
             <button
               key={g.value}
-              className={`graph-type-btn ${graphType === g.value ? 'active' : ''}`}
+              className={`cg-graph-type-btn ${graphType === g.value ? 'cg-active' : ''}`}
               onClick={() => onGraphTypeChange(g.value)}
               title={t(g.key)}
               aria-pressed={graphType === g.value}
             >{t(g.key)}</button>
           ))}
         </div>
-        <div className="view-mode-buttons" role="group" aria-label={t('toolbar.graphType')}>
+        <div className="cg-view-mode-buttons" role="group" aria-label={t('toolbar.graphType')}>
           {MACRO_VIEW_MODES.map((m) => (
             <button
               key={m.value}
-              className={`view-mode-btn ${viewMode === m.value ? 'active' : ''}`}
+              className={`cg-view-mode-btn ${viewMode === m.value ? 'cg-active' : ''}`}
               onClick={() => onViewModeChange(m.value)}
               title={t(`toolbar.viewMode${m.value.charAt(0).toUpperCase() + m.value.slice(1)}`)}
               aria-pressed={viewMode === m.value}
             >{t(m.key)}</button>
           ))}
-          <span className="view-mode-divider" aria-hidden="true" />
+          <span className="cg-view-mode-divider" aria-hidden="true" />
           {MICRO_VIEW_MODES.map((m) => (
             <button
               key={m.value}
-              className={`view-mode-btn view-mode-btn--micro ${viewMode === m.value ? 'active' : ''}`}
+              className={`cg-view-mode-btn cg-view-mode-btn--micro ${viewMode === m.value ? 'cg-active' : ''}`}
               onClick={() => onViewModeChange(m.value)}
               title={t(`toolbar.viewMode${m.value.charAt(0).toUpperCase() + m.value.slice(1)}`)}
               aria-pressed={viewMode === m.value}
@@ -224,13 +224,13 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           ))}
         </div>
         {layerNames.length > 1 && (
-          <div className="layer-selector" role="group" aria-label={t('toolbar.layer')}>
+          <div className="cg-layer-selector" role="group" aria-label={t('toolbar.layer')}>
             {layerNames.map((name, idx) => {
               const translated = t(name) ?? name;
               return (
               <button
                 key={idx}
-                className={`layer-btn ${currentLayer === idx ? 'active' : ''}`}
+                className={`cg-layer-btn ${currentLayer === idx ? 'cg-active' : ''}`}
                 onClick={() => onLayerChange(idx)}
                 title={translated}
                 aria-pressed={currentLayer === idx}
@@ -243,7 +243,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           <select
             value={clusterDepth}
             onChange={(e) => onClusterDepthChange(Number(e.target.value))}
-            className="depth-select"
+            className="cg-depth-select"
             id="cluster-depth"
             name="cluster-depth"
             aria-label={t('toolbar.cluster')}
@@ -256,84 +256,84 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         )}
       </div>
 
-      <div className="toolbar-right">
-        <div className="toolbar-group" role="group" aria-label={t('toolbar.dataGroup')}>
-          <button className="import-btn" onClick={onToggleImport} title={t('toolbar.import')}
+      <div className="cg-toolbar-right">
+        <div className="cg-toolbar-group" role="group" aria-label={t('toolbar.dataGroup')}>
+          <button className="cg-import-btn" onClick={onToggleImport} title={t('toolbar.import')}
             aria-label={t('toolbar.import')} aria-pressed={showImport}><UploadIcon size={15} /></button>
           <select value={filterType} onChange={(e) => onFilterChange(e.target.value as GraphNode['type'] | 'all')}
-            className="filter-select" id="filter-type" name="filter-type" aria-label={t('toolbar.filter')}>
+            className="cg-filter-select" id="filter-type" name="filter-type" aria-label={t('toolbar.filter')}>
             {FILTER_KEYS.map((opt) => (
               <option key={opt.value} value={opt.value}>{t(opt.key)}</option>
             ))}
           </select>
-          <button className={`filter-panel-btn ${showFilterPanel ? 'active' : ''}`} onClick={onToggleFilterPanel}
+          <button className={`cg-filter-panel-btn ${showFilterPanel ? 'cg-active' : ''}`} onClick={onToggleFilterPanel}
             title={t('toolbar.filterPanel')} aria-label={t('toolbar.filterPanel')} aria-pressed={showFilterPanel}>
             <FilterIcon size={15} />
           </button>
         </div>
 
-        <span className="toolbar-separator" aria-hidden="true" />
+        <span className="cg-toolbar-separator" aria-hidden="true" />
 
-        <div className="toolbar-group" role="group" aria-label={t('toolbar.analysisGroup')}>
-          <button className={`search-btn ${showSearch ? 'active' : ''}`} onClick={onToggleSearch}
+        <div className="cg-toolbar-group" role="group" aria-label={t('toolbar.analysisGroup')}>
+          <button className={`cg-search-btn ${showSearch ? 'cg-active' : ''}`} onClick={onToggleSearch}
             title={t('toolbar.search')} aria-label={t('toolbar.search')} aria-expanded={showSearch}><SearchIcon size={15} /></button>
-          <button className={`chain-btn ${showCallChain ? 'active' : ''}`} onClick={onToggleCallChain}
+          <button className={`cg-chain-btn ${showCallChain ? 'cg-active' : ''}`} onClick={onToggleCallChain}
             title={t('toolbar.chain')} aria-label={t('toolbar.chain')} aria-pressed={showCallChain}><ChainIcon size={15} /></button>
-          <button className={`cycle-btn ${showCycles ? 'active' : ''}`} onClick={onToggleCycles}
+          <button className={`cg-cycle-btn ${showCycles ? 'cg-active' : ''}`} onClick={onToggleCycles}
             title={t('toolbar.cycles')} aria-label={t('toolbar.cycles')} aria-pressed={showCycles}><CycleIcon size={15} /></button>
           {showCycles && (
-            <button className={`isolate-btn ${cycleIsolation ? 'active' : ''}`} onClick={onToggleCycleIsolation}
+            <button className={`cg-isolate-btn ${cycleIsolation ? 'cg-active' : ''}`} onClick={onToggleCycleIsolation}
               title={t('toolbar.isolateCycles')} aria-label={t('toolbar.isolateCycles')} aria-pressed={cycleIsolation}><FilterIcon size={15} /></button>
           )}
-          <button className={`impact-btn ${showImpact ? 'active' : ''}`} onClick={onToggleImpact}
+          <button className={`cg-impact-btn ${showImpact ? 'cg-active' : ''}`} onClick={onToggleImpact}
             title={t('toolbar.impact')} aria-label={t('toolbar.impact')} aria-pressed={showImpact}><ZapIcon size={15} /></button>
-          <button className={`inheritance-btn ${showInheritance ? 'active' : ''}`} onClick={onToggleInheritance}
+          <button className={`cg-inheritance-btn ${showInheritance ? 'cg-active' : ''}`} onClick={onToggleInheritance}
             title={t('toolbar.inheritance')} aria-label={t('toolbar.inheritance')} aria-pressed={showInheritance}><TreeIcon size={15} /></button>
-          <button className={`pathfind-btn ${showPathFind ? 'active' : ''}`} onClick={onTogglePathFind}
+          <button className={`cg-pathfind-btn ${showPathFind ? 'cg-active' : ''}`} onClick={onTogglePathFind}
             title={t('toolbar.pathFind')} aria-label={t('toolbar.pathFind')} aria-pressed={showPathFind}><PathIcon size={15} /></button>
-          <button className={`health-btn ${showHealthScore ? 'active' : ''}`} onClick={onToggleHealthScore}
+          <button className={`cg-health-btn ${showHealthScore ? 'cg-active' : ''}`} onClick={onToggleHealthScore}
             title={t('toolbar.health')} aria-label={t('toolbar.health')} aria-pressed={showHealthScore}><HeartIcon size={15} /></button>
-          <button className={`rules-btn ${showRules ? 'active' : ''}`} onClick={onToggleRules}
+          <button className={`cg-rules-btn ${showRules ? 'cg-active' : ''}`} onClick={onToggleRules}
             title={t('toolbar.rules')} aria-label={t('toolbar.rules')} aria-pressed={showRules}><RuleIcon size={15} /></button>
-          <button className={`hotspot-btn ${showHotspot ? 'active' : ''}`} onClick={onToggleHotspot}
+          <button className={`cg-hotspot-btn ${showHotspot ? 'cg-active' : ''}`} onClick={onToggleHotspot}
             title={t('toolbar.hotspot')} aria-label={t('toolbar.hotspot')} aria-pressed={showHotspot}><FlameIcon size={15} /></button>
-          <button className={`godmodule-btn ${showGodModule ? 'active' : ''}`} onClick={onToggleGodModule}
+          <button className={`cg-godmodule-btn ${showGodModule ? 'cg-active' : ''}`} onClick={onToggleGodModule}
             title={t('toolbar.godModule')} aria-label={t('toolbar.godModule')} aria-pressed={showGodModule}><AlertCircleIcon size={15} /></button>
-          <button className={`corefunction-btn ${showCoreFunction ? 'active' : ''}`} onClick={onToggleCoreFunction}
+          <button className={`cg-corefunction-btn ${showCoreFunction ? 'cg-active' : ''}`} onClick={onToggleCoreFunction}
             title={t('toolbar.coreFunction')} aria-label={t('toolbar.coreFunction')} aria-pressed={showCoreFunction}><StarIcon size={15} /></button>
         </div>
 
-        <span className="toolbar-separator" aria-hidden="true" />
+        <span className="cg-toolbar-separator" aria-hidden="true" />
 
-        <div className="toolbar-group" role="group" aria-label={t('toolbar.viewGroup')}>
-          <button className={`minimap-btn ${showMiniMap ? 'active' : ''}`} onClick={onToggleMiniMap}
+        <div className="cg-toolbar-group" role="group" aria-label={t('toolbar.viewGroup')}>
+          <button className={`cg-minimap-btn ${showMiniMap ? 'cg-active' : ''}`} onClick={onToggleMiniMap}
             title={t('toolbar.minimap')} aria-label={t('toolbar.minimap')} aria-pressed={showMiniMap}><MapIcon size={15} /></button>
-          <button className={`legend-btn ${showLegend ? 'active' : ''}`} onClick={onToggleLegend}
+          <button className={`cg-legend-btn ${showLegend ? 'cg-active' : ''}`} onClick={onToggleLegend}
             title={t('toolbar.legend')} aria-label={t('toolbar.legend')} aria-pressed={showLegend}><LayersIcon size={15} /></button>
-          <button className="refresh-btn" onClick={onRefresh} title={t('toolbar.refresh')}
+          <button className="cg-refresh-btn" onClick={onRefresh} title={t('toolbar.refresh')}
             aria-label={t('toolbar.refresh')}><RefreshIcon size={15} /></button>
           {onUndo && (
-            <button className="undo-btn" onClick={onUndo} disabled={!canUndo} title={t('toolbar.undo')}
+            <button className="cg-undo-btn" onClick={onUndo} disabled={!canUndo} title={t('toolbar.undo')}
               aria-label={t('toolbar.undo')} aria-disabled={!canUndo}><UndoIcon size={15} /></button>
           )}
           {onRedo && (
-            <button className="redo-btn" onClick={onRedo} disabled={!canRedo} title={t('toolbar.redo')}
+            <button className="cg-redo-btn" onClick={onRedo} disabled={!canRedo} title={t('toolbar.redo')}
               aria-label={t('toolbar.redo')} aria-disabled={!canRedo}><RedoIcon size={15} /></button>
           )}
         </div>
 
-        <span className="toolbar-separator" aria-hidden="true" />
+        <span className="cg-toolbar-separator" aria-hidden="true" />
 
-        <div className="toolbar-group" role="group" aria-label={t('toolbar.settingsGroup')}>
-          <button className="theme-btn" onClick={onThemeToggle} title={t('toolbar.theme')}
+        <div className="cg-toolbar-group" role="group" aria-label={t('toolbar.settingsGroup')}>
+          <button className="cg-theme-btn" onClick={onThemeToggle} title={t('toolbar.theme')}
             aria-label={t('toolbar.theme')}>{theme === 'dark' ? <SunIcon size={15} /> : <MoonIcon size={15} />}</button>
-          <button className="lang-btn" onClick={toggleLang} title={t('toolbar.lang')}
-            aria-label={t('toolbar.lang')}><span className="lang-label">{lang === 'zh' ? '中' : 'EN'}</span></button>
-          <div className="export-menu" ref={exportMenuRef}>
-            <button className="export-btn" onClick={() => setShowExportMenu((v) => !v)} title={t('toolbar.export')}
+          <button className="cg-lang-btn" onClick={toggleLang} title={t('toolbar.lang')}
+            aria-label={t('toolbar.lang')}><span className="cg-lang-label">{lang === 'zh' ? '中' : 'EN'}</span></button>
+          <div className="cg-export-menu" ref={exportMenuRef}>
+            <button className="cg-export-btn" onClick={() => setShowExportMenu((v) => !v)} title={t('toolbar.export')}
               aria-label={t('toolbar.export')} aria-haspopup="menu" aria-expanded={showExportMenu}><DownloadIcon size={15} /></button>
             {showExportMenu && (
-              <div className="export-dropdown" role="menu">
+              <div className="cg-export-dropdown" role="menu">
                 <button onClick={() => handleExport('png')} role="menuitem">{t('export.png')}</button>
                 <button onClick={() => handleExport('svg')} role="menuitem">{t('export.svg')}</button>
                 <button onClick={() => handleExport('json')} role="menuitem">{t('export.json')}</button>
@@ -343,7 +343,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           </div>
         </div>
 
-        <button className="collapse-btn" onClick={onCollapse} title={collapsed ? t('panel.expand') : t('panel.collapse')}
+        <button className="cg-collapse-btn" onClick={onCollapse} title={collapsed ? t('panel.expand') : t('panel.collapse')}
           aria-label={collapsed ? t('panel.expandPanel') : t('panel.collapsePanel')}>
           {collapsed ? <ChevronUpIcon size={15} /> : <ChevronDownIcon size={15} />}
         </button>

@@ -21,20 +21,20 @@ export const ErrorOverlay = memo(function ErrorOverlay({ error, onBack, onRetry 
   if (!error) return null;
   const message = friendlyError(error, t);
   return (
-    <div className="error-overlay" role="alert">
-      <div className="error-overlay-content">
+    <div className="cg-error-overlay" role="alert">
+      <div className="cg-error-overlay-content">
         <AlertCircleIcon size={16} className="error-overlay-icon" />
         <span>{message}</span>
       </div>
       {(onBack || onRetry) && (
-        <div className="error-overlay-actions">
+        <div className="cg-error-overlay-actions">
           {onRetry && (
-            <button className="error-overlay-btn error-overlay-retry" onClick={onRetry}>
+            <button className="cg-error-overlay-btn cg-error-overlay-retry" onClick={onRetry}>
               {t('error.retry')}
             </button>
           )}
           {onBack && (
-            <button className="error-overlay-btn error-overlay-back" onClick={onBack}>
+            <button className="cg-error-overlay-btn cg-error-overlay-back" onClick={onBack}>
               {t('micro.backToCode')}
             </button>
           )}

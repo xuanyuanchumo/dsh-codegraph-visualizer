@@ -532,7 +532,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     return renderer.rendererRef.current?.detectCyclesDetailed() ?? [];
   }, [panel.showCycles, renderer.rendererRef, nodes.length, edges.length]);
   const panelClassName = useMemo(() =>
-    `graph-panel resizable ${panel.collapsed ? 'collapsed' : ''} ${className}`.trim(),
+    `cg-graph-panel cg-resizable ${panel.collapsed ? 'cg-collapsed' : ''} ${className}`.trim(),
     [panel.collapsed, className],
   );
 
@@ -541,7 +541,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   return (
     <div className={panelClassName} ref={panelRef} role="region" aria-label={t('panel.ariaLabel')}>
-      <button className="collapse-fab" onClick={panel.toggleCollapsed} aria-label={t('panel.expand')}>
+      <button className="cg-collapse-fab" onClick={panel.toggleCollapsed} aria-label={t('panel.expand')}>
         <GraphIcon size={22} />
       </button>
 
@@ -585,7 +585,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           {(['none', 'instability', 'lines', 'complexity'] as const).map((m) => (
             <button
               key={m}
-              className={`cg-heatmap-btn ${heatmapMode === m ? 'active' : ''}`}
+              className={`cg-heatmap-btn ${heatmapMode === m ? 'cg-active' : ''}`}
               onClick={() => setHeatmapMode(m)}
               aria-pressed={heatmapMode === m}
             >
@@ -651,7 +651,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           onAggregateCallChain={handleAggregateCallChain} />
       )}
 
-      <div className="graph-container" ref={renderer.containerRef}
+      <div className="cg-graph-container" ref={renderer.containerRef}
         role="application"
         aria-label={t('a11y.graphContainer') ?? `Code graph: ${nodes.length} nodes, ${edges.length} edges`}
         aria-describedby="cg-graph-live-region"
@@ -740,7 +740,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       <StatusBar error={error} isLoading={isLoading} lastUpdated={lastUpdated}
         watchEnabled={watchEnabled} workspaceName={currentWorkspace}
         truncated={truncated} totalNodeCount={totalNodeCount} displayedNodeCount={nodes.length} />
-      <div className="resize-handle" title={t('panel.resetSize')} />
+      <div className="cg-resize-handle" title={t('panel.resetSize')} />
     </div>
   );
 }

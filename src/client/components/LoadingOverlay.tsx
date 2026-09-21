@@ -9,8 +9,8 @@ export const LoadingOverlay = memo(function LoadingOverlay({ visible }: LoadingO
   const t = useT();
   if (!visible) return null;
   return (
-    <div className="loading-overlay" role="status" aria-live="polite">
-      <div className="spinner" /><span>{t('state.loading')}</span>
+    <div className="cg-loading-overlay" role="status" aria-live="polite">
+      <div className="cg-spinner" /><span>{t('state.loading')}</span>
     </div>
   );
 });

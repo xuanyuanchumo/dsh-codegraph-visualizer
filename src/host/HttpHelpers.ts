@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from '../types/index.ts';
-import { isPathAllowed } from './security.ts';
+import type { SecurityManager } from './security.ts';
 import { scoped } from '../shared/Logger.ts';
 
 const log = scoped('host');
@@ -58,10 +58,10 @@ export function isSafeGitRef(ref: string): boolean {
   return true;
 }
 
-export async function validatePathRealpath(scanPath: string): Promise<boolean> {
+export async function validatePathRealpath(scanPath: string, securityManager: SecurityManager): Promise<boolean> {
   try {
     const realPath = await fs.realpath(scanPath);
-    return isPathAllowed(realPath);
+    return securityManager.isPathAllowed(realPath);
   } catch (e) {
     log.warn('validatePathRealpath failed', e);
     return false;

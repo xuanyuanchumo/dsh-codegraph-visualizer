@@ -3,7 +3,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { GraphDataMerger } from '../../src/merger/GraphDataMerger.ts';
 
 import { coerceNode, coerceEdge, validateGraphData } from '../../src/client/validators.ts';
-import { resolveConfig, isPathAllowed, setAllowedWorkspaceRoots, DEFAULT_CONFIG } from '../../src/index.ts';
+import { resolveConfig, DEFAULT_CONFIG } from '../../src/index.ts';
+import { SecurityManager } from '../../src/host/security.ts';
 import type { GraphNode, GraphEdge, AdapterResult } from '../../src/types/index.ts';
 import { NodeId, EdgeId, RepoId } from '../../src/types/index.ts';
 import { makeNode, makeEdge, makeGraphData } from '../helpers.ts';
@@ -431,43 +432,46 @@ describe('resolveConfig (J10 settings)', () => {
   });
 });
 
-// ── isPathAllowed — path security ───────────────────────────────────────────
+// ── SecurityManager — path security ───────────────────────────────────────────
 
-describe('isPathAllowed (security)', () => {
+describe('SecurityManager.isPathAllowed (security)', () => {
+  let sm: SecurityManager;
+
   beforeEach(() => {
-    setAllowedWorkspaceRoots([]);
+    sm = new SecurityManager();
+    sm.setAllowedWorkspaceRoots([]);
   });
 
   it('should allow "." when roots are set, but reject empty path', () => {
-    setAllowedWorkspaceRoots(['/home/user/project']);
-    expect(isPathAllowed('.')).toBe(true);
-    expect(isPathAllowed('')).toBe(false);
+    sm.setAllowedWorkspaceRoots(['/home/user/project']);
+    expect(sm.isPathAllowed('.')).toBe(true);
+    expect(sm.isPathAllowed('')).toBe(false);
   });
 
   it('should reject relative paths', () => {
-    expect(isPathAllowed('relative/path')).toBe(false);
+    expect(sm.isPathAllowed('relative/path')).toBe(false);
   });
 
   it('should reject paths with .. traversal (when not normalized away)', () => {
-    expect(isPathAllowed('..')).toBe(false);
-    expect(isPathAllowed('../etc/passwd')).toBe(false);
+    expect(sm.isPathAllowed('..')).toBe(false);
+    expect(sm.isPathAllowed('../etc/passwd')).toBe(false);
   });
 
   it('should reject absolute paths when no roots are set (fail-closed)', () => {
-    expect(isPathAllowed('/home/user/project')).toBe(false);
-    expect(isPathAllowed('/etc/passwd')).toBe(false);
+    expect(sm.isPathAllowed('/home/user/project')).toBe(false);
+    expect(sm.isPathAllowed('/etc/passwd')).toBe(false);
   });
 
   it('should allow absolute paths within allowed roots', () => {
-    setAllowedWorkspaceRoots(['/home/user/project']);
-    expect(isPathAllowed('/home/user/project')).toBe(true);
-    expect(isPathAllowed('/home/user/project/src')).toBe(true);
+    sm.setAllowedWorkspaceRoots(['/home/user/project']);
+    expect(sm.isPathAllowed('/home/user/project')).toBe(true);
+    expect(sm.isPathAllowed('/home/user/project/src')).toBe(true);
   });
 
   it('should reject absolute paths outside allowed roots', () => {
-    setAllowedWorkspaceRoots(['/home/user/project']);
-    expect(isPathAllowed('/home/user/other')).toBe(false);
-    expect(isPathAllowed('/etc/passwd')).toBe(false);
+    sm.setAllowedWorkspaceRoots(['/home/user/project']);
+    expect(sm.isPathAllowed('/home/user/other')).toBe(false);
+    expect(sm.isPathAllowed('/etc/passwd')).toBe(false);
   });
 });
 

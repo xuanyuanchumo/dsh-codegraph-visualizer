@@ -20,7 +20,7 @@ interface State {
 function ErrorFallback({ error, onRetry }: { error: Error | null; onRetry: () => void }) {
   const t = useT();
   return (
-    <div className="error-boundary-fallback" role="alert">
+    <div className="cg-error-boundary-fallback" role="alert">
       <h3>{t('error.title')}</h3>
       <p>{error?.message}</p>
       <button onClick={onRetry} aria-label={t('error.retry')}>

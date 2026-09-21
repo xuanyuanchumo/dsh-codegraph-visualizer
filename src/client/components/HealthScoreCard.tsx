@@ -17,15 +17,15 @@ function scoreColor(score: number): string {
 function DimensionBar({ name, score, description }: { name: string; score: number; description: string }) {
   const t = useT();
   return (
-    <div className="health-dimension">
-      <div className="health-dimension-header">
-        <span className="health-dimension-name">{t(`health.${name}`)}</span>
-        <span className="health-dimension-score" style={{ color: scoreColor(score) }}>{score}</span>
+    <div className="cg-health-dimension">
+      <div className="cg-health-dimension-header">
+        <span className="cg-health-dimension-name">{t(`health.${name}`)}</span>
+        <span className="cg-health-dimension-score" style={{ color: scoreColor(score) }}>{score}</span>
       </div>
-      <div className="health-dimension-bar">
-        <div className="health-dimension-fill" style={{ width: `${score}%`, background: scoreColor(score) }} />
+      <div className="cg-health-dimension-bar">
+        <div className="cg-health-dimension-fill" style={{ width: `${score}%`, background: scoreColor(score) }} />
       </div>
-      <div className="health-dimension-desc">{description}</div>
+      <div className="cg-health-dimension-desc">{description}</div>
     </div>
   );
 }
@@ -36,15 +36,15 @@ export const HealthScoreCard = memo(function HealthScoreCard({ onClose }: Health
 
   if (!healthScore) {
     return (
-      <div className="health-score-card" role="region" aria-label={t('health.title')} aria-live="polite">
-        <div className="health-score-header">
+      <div className="cg-health-score-card" role="region" aria-label={t('health.title')} aria-live="polite">
+        <div className="cg-health-score-header">
           <HeartIcon size={14} />
           <span>{t('health.title')}</span>
           <button onClick={onClose} aria-label={t('health.close')} className="cg-close-btn">
             <CloseIcon size={14} />
           </button>
         </div>
-        <div className="health-score-empty">{t('health.noData')}</div>
+        <div className="cg-health-score-empty">{t('health.noData')}</div>
       </div>
     );
   }
@@ -57,21 +57,21 @@ export const HealthScoreCard = memo(function HealthScoreCard({ onClose }: Health
   ];
 
   return (
-    <div className="health-score-card" role="region" aria-label={t('health.title')} aria-live="polite">
-      <div className="health-score-header">
+    <div className="cg-health-score-card" role="region" aria-label={t('health.title')} aria-live="polite">
+      <div className="cg-health-score-header">
         <HeartIcon size={14} />
         <span>{t('health.title')}</span>
         <button onClick={onClose} aria-label={t('health.close')} className="cg-close-btn">
           <CloseIcon size={14} />
         </button>
       </div>
-      <div className="health-score-overall">
-        <div className="health-score-circle" style={{ borderColor: scoreColor(healthScore.overall) }}>
+      <div className="cg-health-score-overall">
+        <div className="cg-health-score-circle" style={{ borderColor: scoreColor(healthScore.overall) }}>
           <span style={{ color: scoreColor(healthScore.overall) }}>{healthScore.overall}</span>
         </div>
-        <span className="health-score-label">{t('health.overall')}</span>
+        <span className="cg-health-score-label">{t('health.overall')}</span>
       </div>
-      <div className="health-dimensions">
+      <div className="cg-health-dimensions">
         {dimensions.map((d) => (
           <DimensionBar key={d.name} name={d.name} score={d.score} description={d.description} />
         ))}

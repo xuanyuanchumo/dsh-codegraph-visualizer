@@ -1,6 +1,6 @@
 /* ---- PathBar (FR-25: Path Finding) ---------------------------------------- */
 
-.path-bar {
+.cg-path-bar {
   position: absolute;
   left: 12px;
   top: calc(var(--cg-toolbar-h) + 12px);
@@ -16,7 +16,7 @@
   animation: cg-slide-right 160ms var(--cg-ease-out);
 }
 
-.path-bar-header {
+.cg-path-bar-header {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -27,21 +27,21 @@
   border-bottom: 1px solid var(--cg-border);
 }
 
-.path-bar-content {
+.cg-path-bar-content {
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.path-input-group {
+.cg-path-input-group {
   display: flex;
   flex-direction: column;
   gap: 4px;
   position: relative;
 }
 
-.path-input-group label {
+.cg-path-input-group label {
   font-size: 10px;
   font-weight: 600;
   color: var(--cg-text-tertiary);
@@ -49,7 +49,7 @@
   letter-spacing: 0.04em;
 }
 
-.path-input-group input {
+.cg-path-input-group input {
   padding: 6px 10px;
   background: var(--cg-bg);
   border: 1px solid var(--cg-border);
@@ -61,16 +61,16 @@
   transition: border-color var(--cg-transition), box-shadow var(--cg-transition);
 }
 
-.path-input-group input:focus {
+.cg-path-input-group input:focus {
   border-color: var(--cg-accent);
   box-shadow: 0 0 0 3px var(--cg-accent-soft);
 }
 
-.path-input-group input::placeholder {
+.cg-path-input-group input::placeholder {
   color: var(--cg-text-tertiary);
 }
 
-.path-suggestions {
+.cg-path-suggestions {
   position: absolute;
   top: 100%;
   left: 0;
@@ -86,7 +86,7 @@
   animation: cg-dropdown-in 120ms var(--cg-ease-out);
 }
 
-.path-suggestions button {
+.cg-path-suggestions button {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -101,11 +101,11 @@
   transition: background var(--cg-transition);
 }
 
-.path-suggestions button:hover {
+.cg-path-suggestions button:hover {
   background: var(--cg-surface-hover);
 }
 
-.suggestion-type {
+.cg-suggestion-type {
   display: inline-block;
   padding: 1px 5px;
   border-radius: 3px;
@@ -117,13 +117,13 @@
   flex-shrink: 0;
 }
 
-.suggestion-label {
+.cg-suggestion-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.path-selected {
+.cg-path-selected {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -136,13 +136,13 @@
   font-weight: 500;
 }
 
-.path-actions {
+.cg-path-actions {
   display: flex;
   gap: 6px;
 }
 
-.path-find-btn,
-.path-clear-btn {
+.cg-path-find-btn,
+.cg-path-clear-btn {
   padding: 6px 14px;
   border: none;
   border-radius: var(--cg-radius-sm);
@@ -153,34 +153,34 @@
   transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
-.path-find-btn {
+.cg-path-find-btn {
   background: var(--cg-accent);
   color: var(--cg-on-accent);
   flex: 1;
 }
 
-.path-find-btn:hover:not(:disabled) {
+.cg-path-find-btn:hover:not(:disabled) {
   background: var(--cg-accent-hover);
   transform: translateY(-1px);
 }
 
-.path-find-btn:disabled {
+.cg-path-find-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.path-clear-btn {
+.cg-path-clear-btn {
   background: var(--cg-surface);
   color: var(--cg-text-secondary);
   border: 1px solid var(--cg-border);
 }
 
-.path-clear-btn:hover {
+.cg-path-clear-btn:hover {
   background: var(--cg-surface-hover);
   color: var(--cg-text);
 }
 
-.path-result {
+.cg-path-result {
   display: flex;
   gap: 12px;
   padding: 6px 10px;
@@ -193,7 +193,7 @@
 
 /* ---- FocusModeBar (FR-26/28: Focus Mode) ---------------------------------- */
 
-.focus-mode-bar {
+.cg-focus-mode-bar {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -206,7 +206,7 @@
   animation: cg-slide-down 160ms var(--cg-ease-out);
 }
 
-.focus-label {
+.cg-focus-label {
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -214,7 +214,7 @@
   max-width: 200px;
 }
 
-.focus-depth {
+.cg-focus-depth {
   font-family: var(--cg-font-mono);
   font-size: 11px;
   padding: 1px 6px;
@@ -224,9 +224,9 @@
   white-space: nowrap;
 }
 
-.focus-expand-btn,
-.focus-contract-btn,
-.focus-exit-btn {
+.cg-focus-expand-btn,
+.cg-focus-contract-btn,
+.cg-focus-exit-btn {
   width: 24px;
   height: 24px;
   display: flex;
@@ -242,24 +242,24 @@
   margin-left: auto;
 }
 
-.focus-expand-btn:hover,
-.focus-contract-btn:hover,
-.focus-exit-btn:hover {
+.cg-focus-expand-btn:hover,
+.cg-focus-contract-btn:hover,
+.cg-focus-exit-btn:hover {
   background: var(--cg-surface-hover);
   border-color: var(--cg-accent);
   color: var(--cg-accent);
 }
 
-.focus-expand-btn:first-of-type {
+.cg-focus-expand-btn:first-of-type {
   margin-left: auto;
 }
 
-.focus-contract-btn:disabled {
+.cg-focus-contract-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-.focus-exit-btn:hover {
+.cg-focus-exit-btn:hover {
   border-color: var(--cg-error);
   color: var(--cg-error);
 }

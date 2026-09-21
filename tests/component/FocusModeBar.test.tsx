@@ -54,7 +54,7 @@ describe('FocusModeBar (FR-26) component', () => {
     render(
       <FocusModeBar focusNodeId="n1" onExpand={vi.fn()} onContract={vi.fn()} onExit={vi.fn()} />
     );
-    const contractBtn = document.querySelector('.focus-contract-btn') as HTMLButtonElement;
+    const contractBtn = document.querySelector('.cg-focus-contract-btn') as HTMLButtonElement;
     expect(contractBtn).toBeTruthy();
     expect(contractBtn.disabled).toBe(true);
   });
@@ -64,7 +64,7 @@ describe('FocusModeBar (FR-26) component', () => {
     render(
       <FocusModeBar focusNodeId="n1" onExpand={vi.fn()} onContract={vi.fn()} onExit={vi.fn()} />
     );
-    const contractBtn = document.querySelector('.focus-contract-btn') as HTMLButtonElement;
+    const contractBtn = document.querySelector('.cg-focus-contract-btn') as HTMLButtonElement;
     expect(contractBtn).toBeTruthy();
     expect(contractBtn.disabled).toBe(false);
   });
@@ -78,9 +78,9 @@ describe('FocusModeBar (FR-26) component', () => {
     render(
       <FocusModeBar focusNodeId="n1" onExpand={onExpand} onContract={onContract} onExit={onExit} />
     );
-    const expandBtn = document.querySelector('.focus-expand-btn') as HTMLButtonElement;
-    const contractBtn = document.querySelector('.focus-contract-btn') as HTMLButtonElement;
-    const exitBtn = document.querySelector('.focus-exit-btn') as HTMLButtonElement;
+    const expandBtn = document.querySelector('.cg-focus-expand-btn') as HTMLButtonElement;
+    const contractBtn = document.querySelector('.cg-focus-contract-btn') as HTMLButtonElement;
+    const exitBtn = document.querySelector('.cg-focus-exit-btn') as HTMLButtonElement;
     await user.click(expandBtn);
     expect(onExpand).toHaveBeenCalledOnce();
     await user.click(contractBtn);

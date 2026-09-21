@@ -70,86 +70,86 @@ export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, 
   }, [node]);
 
   return (
-    <div className="node-detail-panel" role="complementary" aria-label={t('detail.ariaLabel')} aria-live="polite">
-      <button className="close-btn" onClick={onClose} aria-label={t('detail.close')}>
+    <div className="cg-node-detail-panel" role="complementary" aria-label={t('detail.ariaLabel')} aria-live="polite">
+      <button className="cg-close-btn" onClick={onClose} aria-label={t('detail.close')}>
         <CloseIcon size={14} />
       </button>
-      <div className="detail-header">
-        <span className="detail-type-icon" style={{ color, borderColor: color }}>{icon}</span>
+      <div className="cg-detail-header">
+        <span className="cg-detail-type-icon" style={{ color, borderColor: color }}>{icon}</span>
         <h3>{node.label}</h3>
-      {exported && <span className="detail-exported-badge">{t('detail.exportedBadge')}</span>}
-      {isExpanded && <span className="detail-expanded-badge">{t('detail.expandedBadge')}</span>}
+      {exported && <span className="cg-detail-exported-badge">{t('detail.exportedBadge')}</span>}
+      {isExpanded && <span className="cg-detail-expanded-badge">{t('detail.expandedBadge')}</span>}
       </div>
-      <div className="detail-row"><span className="detail-label">{t('detail.type')}</span><span className="detail-value">{node.type}</span></div>
+      <div className="cg-detail-row"><span className="cg-detail-label">{t('detail.type')}</span><span className="cg-detail-value">{node.type}</span></div>
       {kind && kind !== node.type && (
-        <div className="detail-row"><span className="detail-label">{t('detail.kind')}</span><span className="detail-value">{kind}</span></div>
+        <div className="cg-detail-row"><span className="cg-detail-label">{t('detail.kind')}</span><span className="cg-detail-value">{kind}</span></div>
       )}
-      <div className="detail-row"><span className="detail-label">{t('detail.file')}</span><span className="detail-value">{node.filePath}</span></div>
-      <div className="detail-row"><span className="detail-label">{t('detail.line')}</span><span className="detail-value">{node.lineNumber}</span></div>
+      <div className="cg-detail-row"><span className="cg-detail-label">{t('detail.file')}</span><span className="cg-detail-value">{node.filePath}</span></div>
+      <div className="cg-detail-row"><span className="cg-detail-label">{t('detail.line')}</span><span className="cg-detail-value">{node.lineNumber}</span></div>
       {connectionCount !== undefined && connectionCount > 0 && (
-        <div className="detail-row"><span className="detail-label">{t('detail.connections')}</span><span className="detail-value">{connectionCount}</span></div>
+        <div className="cg-detail-row"><span className="cg-detail-label">{t('detail.connections')}</span><span className="cg-detail-value">{connectionCount}</span></div>
       )}
       {signature && (
-        <div className="detail-signature">
-          <div className="detail-section-title">{t('detail.signature')}</div>
-          <code className="detail-code">{signature}</code>
+        <div className="cg-detail-signature">
+          <div className="cg-detail-section-title">{t('detail.signature')}</div>
+          <code className="cg-detail-code">{signature}</code>
         </div>
       )}
       {docstring && (
-        <div className="detail-docstring">
-          <div className="detail-section-title">{t('detail.docstring')}</div>
-          <pre className="detail-doc-text">{docstring}</pre>
+        <div className="cg-detail-docstring">
+          <div className="cg-detail-section-title">{t('detail.docstring')}</div>
+          <pre className="cg-detail-doc-text">{docstring}</pre>
         </div>
       )}
       {canExpand && !isExpanded && (
-        <div className="detail-expand-hint">
+        <div className="cg-detail-expand-hint">
           {t('detail.doubleClickExpand')}
         </div>
       )}
       {canExpand && isExpanded && onCollapse && (
-        <div className="detail-expand-hint detail-expand-hint--expanded">
+        <div className="cg-detail-expand-hint cg-detail-expand-hint--expanded">
           {t('detail.expanded')}
-          <button onClick={onCollapse} className="detail-collapse-btn">
+          <button onClick={onCollapse} className="cg-detail-collapse-btn">
             {t('detail.collapse')}
           </button>
         </div>
       )}
       {node.type === 'function' && onSelectFunction && (
-        <div className="detail-micro-actions">
-          <div className="detail-section-title">{t('detail.microViews')}</div>
-          <div className="detail-micro-btns">
-            <button className="detail-micro-btn" onClick={() => onSelectFunction(node, 'cfg')}>
+        <div className="cg-detail-micro-actions">
+          <div className="cg-detail-section-title">{t('detail.microViews')}</div>
+          <div className="cg-detail-micro-btns">
+            <button className="cg-detail-micro-btn" onClick={() => onSelectFunction(node, 'cfg')}>
               {t('viewMode.cfg')}
             </button>
-            <button className="detail-micro-btn" onClick={() => onSelectFunction(node, 'flowchart')}>
+            <button className="cg-detail-micro-btn" onClick={() => onSelectFunction(node, 'flowchart')}>
               {t('viewMode.flowchart')}
             </button>
-            <button className="detail-micro-btn" onClick={() => onSelectFunction(node, 'sequence')}>
+            <button className="cg-detail-micro-btn" onClick={() => onSelectFunction(node, 'sequence')}>
               {t('viewMode.sequence')}
             </button>
           </div>
           {onAggregateCallChain && (
-            <button className="detail-micro-btn detail-chain-btn" onClick={() => onAggregateCallChain(node.id)}>
+            <button className="cg-detail-micro-btn cg-detail-chain-btn" onClick={() => onAggregateCallChain(node.id)}>
               {t('detail.aggregateCallChain')}
             </button>
           )}
         </div>
       )}
       {isClusterNode && childFunctionNodes.length > 0 && onSelectFunction && (
-        <div className="detail-cluster-functions">
-          <div className="detail-section-title">{t('detail.functionsInCluster')} ({childFunctionNodes.length}{clusterChildCount > 50 ? '+' : ''})</div>
-          <div className="detail-function-list">
+        <div className="cg-detail-cluster-functions">
+          <div className="cg-detail-section-title">{t('detail.functionsInCluster')} ({childFunctionNodes.length}{clusterChildCount > 50 ? '+' : ''})</div>
+          <div className="cg-detail-function-list">
             {childFunctionNodes.map((fn) => (
-              <div className="detail-function-item" key={fn.id}>
-                <span className="detail-function-name" title={fn.filePath}>{fn.label}</span>
-                <div className="detail-function-micro-btns">
-                  <button className="detail-micro-btn detail-micro-btn--small" onClick={() => onSelectFunction(fn, 'cfg')}>
+              <div className="cg-detail-function-item" key={fn.id}>
+                <span className="cg-detail-function-name" title={fn.filePath}>{fn.label}</span>
+                <div className="cg-detail-function-micro-btns">
+                  <button className="cg-detail-micro-btn cg-detail-micro-btn--small" onClick={() => onSelectFunction(fn, 'cfg')}>
                     {t('viewMode.cfg')}
                   </button>
-                  <button className="detail-micro-btn detail-micro-btn--small" onClick={() => onSelectFunction(fn, 'flowchart')}>
+                  <button className="cg-detail-micro-btn cg-detail-micro-btn--small" onClick={() => onSelectFunction(fn, 'flowchart')}>
                     {t('viewMode.flowchart')}
                   </button>
-                  <button className="detail-micro-btn detail-micro-btn--small" onClick={() => onSelectFunction(fn, 'sequence')}>
+                  <button className="cg-detail-micro-btn cg-detail-micro-btn--small" onClick={() => onSelectFunction(fn, 'sequence')}>
                     {t('viewMode.sequence')}
                   </button>
                 </div>
@@ -159,12 +159,12 @@ export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, 
         </div>
       )}
       {extraProps.length > 0 && (
-        <div className="detail-extra">
-          <div className="detail-extra-title">{t('detail.properties')}</div>
+        <div className="cg-detail-extra">
+          <div className="cg-detail-extra-title">{t('detail.properties')}</div>
           {extraProps.map(([k, v]) => (
-            <div className="detail-row" key={k}>
-              <span className="detail-label">{k}</span>
-              <span className="detail-value">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
+            <div className="cg-detail-row" key={k}>
+              <span className="cg-detail-label">{k}</span>
+              <span className="cg-detail-value">{typeof v === 'object' ? JSON.stringify(v) : String(v)}</span>
             </div>
           ))}
         </div>

@@ -14,10 +14,10 @@ interface MicroViewPromptProps {
 export const MicroViewPrompt = memo(function MicroViewPrompt({ viewMode, selectFunctionPrompt, flowchartLabel, sequenceLabel, backToCodeLabel, onBackToCode }: MicroViewPromptProps) {
   const modeLabel = viewMode === 'cfg' ? 'CFG' : viewMode === 'flowchart' ? flowchartLabel : sequenceLabel;
   return (
-    <div className="micro-empty-prompt">
-      <div className="micro-empty-icon">{modeLabel}</div>
-      <div className="micro-empty-text">{selectFunctionPrompt}</div>
-      <button className="micro-empty-back-btn" onClick={onBackToCode}>{backToCodeLabel}</button>
+    <div className="cg-micro-empty-prompt">
+      <div className="cg-micro-empty-icon">{modeLabel}</div>
+      <div className="cg-micro-empty-text">{selectFunctionPrompt}</div>
+      <button className="cg-micro-empty-back-btn" onClick={onBackToCode}>{backToCodeLabel}</button>
     </div>
   );
 })
@@ -34,11 +34,11 @@ export const MicroFunctionBar = memo(function MicroFunctionBar({ functionName, f
   const modeLabel = viewMode === 'cfg' ? 'CFG' : viewMode === 'flowchart' ? t('viewMode.flowchart') : viewMode === 'sequence' ? t('viewMode.sequence') : '';
   const shortPath = filePath ? filePath.split(/[\\/]/).slice(-2).join('/') : '';
   return (
-    <div className="micro-function-bar">
-      {modeLabel && <span className="micro-function-mode">{modeLabel}</span>}
-      <span className="micro-function-name">{functionName}</span>
-      {shortPath && <span className="micro-function-path">{shortPath}</span>}
-      <button className="micro-function-close" onClick={onClose} aria-label={t('micro.closeView')}>✕</button>
+    <div className="cg-micro-function-bar">
+      {modeLabel && <span className="cg-micro-function-mode">{modeLabel}</span>}
+      <span className="cg-micro-function-name">{functionName}</span>
+      {shortPath && <span className="cg-micro-function-path">{shortPath}</span>}
+      <button className="cg-micro-function-close" onClick={onClose} aria-label={t('micro.closeView')}>✕</button>
     </div>
   );
 })

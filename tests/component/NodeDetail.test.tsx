@@ -62,7 +62,7 @@ describe('NodeDetail component', () => {
   it('renders type icon for function nodes', () => {
     const node = makeNode({ type: 'function' });
     render(<NodeDetail node={node} onClose={noop} />);
-    const iconEl = document.querySelector('.detail-type-icon');
+    const iconEl = document.querySelector('.cg-detail-type-icon');
     expect(iconEl).toBeTruthy();
     expect(iconEl?.textContent).toBe('fn');
   });
@@ -70,14 +70,14 @@ describe('NodeDetail component', () => {
   it('renders type icon for class nodes', () => {
     const node = makeNode({ type: 'class' });
     render(<NodeDetail node={node} onClose={noop} />);
-    const iconEl = document.querySelector('.detail-type-icon');
+    const iconEl = document.querySelector('.cg-detail-type-icon');
     expect(iconEl?.textContent).toBe('C');
   });
 
   it('renders type icon for type nodes', () => {
     const node = makeNode({ type: 'type' });
     render(<NodeDetail node={node} onClose={noop} />);
-    const iconEl = document.querySelector('.detail-type-icon');
+    const iconEl = document.querySelector('.cg-detail-type-icon');
     expect(iconEl?.textContent).toBe('T');
   });
 
@@ -116,7 +116,7 @@ describe('NodeDetail component', () => {
     const node = makeNode({ type: 'function' });
     render(<NodeDetail node={node} onClose={noop} onSelectFunction={noop} />);
 
-    const microBtns = document.querySelectorAll('.detail-micro-btns .detail-micro-btn');
+    const microBtns = document.querySelectorAll('.cg-detail-micro-btns .cg-detail-micro-btn');
     expect(microBtns.length).toBe(3);
     expect(microBtns[0]!.textContent).toBe('CFG');
     expect(microBtns[1]!.textContent).toBe('流程');
@@ -127,7 +127,7 @@ describe('NodeDetail component', () => {
     const node = makeNode({ type: 'class' });
     render(<NodeDetail node={node} onClose={noop} onSelectFunction={noop} />);
 
-    const microActions = document.querySelector('.detail-micro-actions');
+    const microActions = document.querySelector('.cg-detail-micro-actions');
     expect(microActions).toBeNull();
   });
 
@@ -135,7 +135,7 @@ describe('NodeDetail component', () => {
     const node = makeNode({ type: 'function' });
     render(<NodeDetail node={node} onClose={noop} />);
 
-    const microActions = document.querySelector('.detail-micro-actions');
+    const microActions = document.querySelector('.cg-detail-micro-actions');
     expect(microActions).toBeNull();
   });
 
@@ -146,7 +146,7 @@ describe('NodeDetail component', () => {
     const node = makeNode({ type: 'function' });
     render(<NodeDetail node={node} onClose={noop} onSelectFunction={onSelectFunction} />);
 
-    const microBtns = document.querySelectorAll('.detail-micro-btns .detail-micro-btn');
+    const microBtns = document.querySelectorAll('.cg-detail-micro-btns .cg-detail-micro-btn');
     await user.click(microBtns[0]!);
     expect(onSelectFunction).toHaveBeenCalledWith(node, 'cfg');
   });
@@ -157,7 +157,7 @@ describe('NodeDetail component', () => {
     const node = makeNode({ type: 'function' });
     render(<NodeDetail node={node} onClose={noop} onSelectFunction={onSelectFunction} />);
 
-    const microBtns = document.querySelectorAll('.detail-micro-btns .detail-micro-btn');
+    const microBtns = document.querySelectorAll('.cg-detail-micro-btns .cg-detail-micro-btn');
     await user.click(microBtns[1]!);
     expect(onSelectFunction).toHaveBeenCalledWith(node, 'flowchart');
   });
@@ -168,7 +168,7 @@ describe('NodeDetail component', () => {
     const node = makeNode({ type: 'function' });
     render(<NodeDetail node={node} onClose={noop} onSelectFunction={onSelectFunction} />);
 
-    const microBtns = document.querySelectorAll('.detail-micro-btns .detail-micro-btn');
+    const microBtns = document.querySelectorAll('.cg-detail-micro-btns .cg-detail-micro-btn');
     await user.click(microBtns[2]!);
     expect(onSelectFunction).toHaveBeenCalledWith(node, 'sequence');
   });
@@ -219,7 +219,7 @@ describe('NodeDetail component', () => {
 
     render(<NodeDetail node={clusterNode} onClose={noop} onSelectFunction={noop} />);
 
-    const clusterSection = document.querySelector('.detail-cluster-functions');
+    const clusterSection = document.querySelector('.cg-detail-cluster-functions');
     expect(clusterSection).toBeNull();
   });
 
@@ -227,7 +227,7 @@ describe('NodeDetail component', () => {
     const node = makeNode({ type: 'function' });
     render(<NodeDetail node={node} onClose={noop} onSelectFunction={noop} />);
 
-    const clusterSection = document.querySelector('.detail-cluster-functions');
+    const clusterSection = document.querySelector('.cg-detail-cluster-functions');
     expect(clusterSection).toBeNull();
   });
 
@@ -291,7 +291,7 @@ describe('NodeDetail component', () => {
 
     render(<NodeDetail node={clusterNode} onClose={noop} onSelectFunction={noop} />);
 
-    const titleEl = document.querySelector('.detail-cluster-functions .detail-section-title');
+    const titleEl = document.querySelector('.cg-detail-cluster-functions .cg-detail-section-title');
     expect(titleEl).toBeTruthy();
     expect(titleEl?.textContent).toContain('+');
   });
@@ -323,7 +323,7 @@ describe('NodeDetail component', () => {
 
     render(<NodeDetail node={clusterNode} onClose={noop} onSelectFunction={noop} />);
 
-    const functionItems = document.querySelectorAll('.detail-function-item');
+    const functionItems = document.querySelectorAll('.cg-detail-function-item');
     expect(functionItems.length).toBe(50);
   });
 
@@ -351,7 +351,7 @@ describe('NodeDetail component', () => {
 
     render(<NodeDetail node={clusterNode} onClose={noop} onSelectFunction={onSelectFunction} />);
 
-    const microBtns = document.querySelectorAll('.detail-function-micro-btns .detail-micro-btn');
+    const microBtns = document.querySelectorAll('.cg-detail-function-micro-btns .cg-detail-micro-btn');
     expect(microBtns.length).toBe(3);
 
     await user.click(microBtns[0]!); // CFG button
@@ -381,7 +381,7 @@ describe('NodeDetail component', () => {
 
     render(<NodeDetail node={clusterNode} onClose={noop} onSelectFunction={onSelectFunction} />);
 
-    const microBtns = document.querySelectorAll('.detail-function-micro-btns .detail-micro-btn');
+    const microBtns = document.querySelectorAll('.cg-detail-function-micro-btns .cg-detail-micro-btn');
     await user.click(microBtns[1]!); // Flowchart button
     expect(onSelectFunction).toHaveBeenCalledWith(childFn, 'flowchart');
   });
@@ -409,7 +409,7 @@ describe('NodeDetail component', () => {
 
     render(<NodeDetail node={clusterNode} onClose={noop} onSelectFunction={onSelectFunction} />);
 
-    const microBtns = document.querySelectorAll('.detail-function-micro-btns .detail-micro-btn');
+    const microBtns = document.querySelectorAll('.cg-detail-function-micro-btns .cg-detail-micro-btn');
     await user.click(microBtns[2]!); // Sequence button
     expect(onSelectFunction).toHaveBeenCalledWith(childFn, 'sequence');
   });
@@ -421,7 +421,7 @@ describe('NodeDetail component', () => {
     const node = makeNode();
     render(<NodeDetail node={node} onClose={onClose} />);
 
-    const closeBtn = document.querySelector('.close-btn') as HTMLElement;
+    const closeBtn = document.querySelector('.cg-close-btn') as HTMLElement;
     expect(closeBtn).toBeTruthy();
     await user.click(closeBtn);
     expect(onClose).toHaveBeenCalledOnce();
@@ -432,7 +432,7 @@ describe('NodeDetail component', () => {
     const node = makeNode({ type: 'module' });
     render(<NodeDetail node={node} onClose={noop} />);
 
-    const hint = document.querySelector('.detail-expand-hint');
+    const hint = document.querySelector('.cg-detail-expand-hint');
     expect(hint).toBeTruthy();
   });
 
@@ -441,7 +441,7 @@ describe('NodeDetail component', () => {
     const node = makeNode({ type: 'module' });
     render(<NodeDetail node={node} onClose={noop} isExpanded={true} onCollapse={onCollapse} />);
 
-    const collapseBtn = document.querySelector('.detail-collapse-btn') as HTMLElement;
+    const collapseBtn = document.querySelector('.cg-detail-collapse-btn') as HTMLElement;
     expect(collapseBtn).toBeTruthy();
   });
 
@@ -451,7 +451,7 @@ describe('NodeDetail component', () => {
     const node = makeNode({ type: 'module' });
     render(<NodeDetail node={node} onClose={noop} isExpanded={true} onCollapse={onCollapse} />);
 
-    const collapseBtn = document.querySelector('.detail-collapse-btn') as HTMLElement;
+    const collapseBtn = document.querySelector('.cg-detail-collapse-btn') as HTMLElement;
     await user.click(collapseBtn);
     expect(onCollapse).toHaveBeenCalledOnce();
   });
@@ -460,7 +460,7 @@ describe('NodeDetail component', () => {
     const node = makeNode({ type: 'module' });
     render(<NodeDetail node={node} onClose={noop} isExpanded={true} />);
 
-    const collapseBtn = document.querySelector('.detail-collapse-btn');
+    const collapseBtn = document.querySelector('.cg-detail-collapse-btn');
     expect(collapseBtn).toBeNull();
   });
 
@@ -468,7 +468,7 @@ describe('NodeDetail component', () => {
     const node = makeNode({ type: 'function' });
     render(<NodeDetail node={node} onClose={noop} />);
 
-    const hint = document.querySelector('.detail-expand-hint');
+    const hint = document.querySelector('.cg-detail-expand-hint');
     expect(hint).toBeNull();
   });
 
@@ -484,7 +484,7 @@ describe('NodeDetail component', () => {
       />,
     );
 
-    const chainBtn = document.querySelector('.detail-chain-btn');
+    const chainBtn = document.querySelector('.cg-detail-chain-btn');
     expect(chainBtn).toBeTruthy();
   });
 
@@ -501,7 +501,7 @@ describe('NodeDetail component', () => {
       />,
     );
 
-    const chainBtn = document.querySelector('.detail-chain-btn') as HTMLElement;
+    const chainBtn = document.querySelector('.cg-detail-chain-btn') as HTMLElement;
     await user.click(chainBtn);
     expect(onAggregateCallChain).toHaveBeenCalledWith('fn-42');
   });
@@ -510,7 +510,7 @@ describe('NodeDetail component', () => {
     const node = makeNode({ type: 'function' });
     render(<NodeDetail node={node} onClose={noop} onSelectFunction={noop} />);
 
-    const chainBtn = document.querySelector('.detail-chain-btn');
+    const chainBtn = document.querySelector('.cg-detail-chain-btn');
     expect(chainBtn).toBeNull();
   });
 
@@ -526,10 +526,10 @@ describe('NodeDetail component', () => {
     const node = makeNode();
     render(<NodeDetail node={node} onClose={noop} connectionCount={0} />);
 
-    const rows = document.querySelectorAll('.detail-row');
+    const rows = document.querySelectorAll('.cg-detail-row');
     let connectionsFound = false;
     rows.forEach((row) => {
-      const label = row.querySelector('.detail-label');
+      const label = row.querySelector('.cg-detail-label');
       if (label && label.textContent?.includes('连接数')) connectionsFound = true;
     });
     expect(connectionsFound).toBe(false);
@@ -539,10 +539,10 @@ describe('NodeDetail component', () => {
     const node = makeNode();
     render(<NodeDetail node={node} onClose={noop} />);
 
-    const rows = document.querySelectorAll('.detail-row');
+    const rows = document.querySelectorAll('.cg-detail-row');
     let connectionsFound = false;
     rows.forEach((row) => {
-      const label = row.querySelector('.detail-label');
+      const label = row.querySelector('.cg-detail-label');
       if (label && label.textContent?.includes('连接数')) connectionsFound = true;
     });
     expect(connectionsFound).toBe(false);
@@ -553,7 +553,7 @@ describe('NodeDetail component', () => {
     const node = makeNode({ properties: { signature: '(x: number) => string' } });
     render(<NodeDetail node={node} onClose={noop} />);
 
-    const sigSection = document.querySelector('.detail-signature');
+    const sigSection = document.querySelector('.cg-detail-signature');
     expect(sigSection).toBeTruthy();
     expect(screen.getByText('(x: number) => string')).toBeTruthy();
   });
@@ -562,7 +562,7 @@ describe('NodeDetail component', () => {
     const node = makeNode({ properties: {} });
     render(<NodeDetail node={node} onClose={noop} />);
 
-    const sigSection = document.querySelector('.detail-signature');
+    const sigSection = document.querySelector('.cg-detail-signature');
     expect(sigSection).toBeNull();
   });
 
@@ -571,7 +571,7 @@ describe('NodeDetail component', () => {
     const node = makeNode({ properties: { docstring: 'This is a test function' } });
     render(<NodeDetail node={node} onClose={noop} />);
 
-    const docSection = document.querySelector('.detail-docstring');
+    const docSection = document.querySelector('.cg-detail-docstring');
     expect(docSection).toBeTruthy();
     expect(screen.getByText('This is a test function')).toBeTruthy();
   });
@@ -580,7 +580,7 @@ describe('NodeDetail component', () => {
     const node = makeNode({ properties: {} });
     render(<NodeDetail node={node} onClose={noop} />);
 
-    const docSection = document.querySelector('.detail-docstring');
+    const docSection = document.querySelector('.cg-detail-docstring');
     expect(docSection).toBeNull();
   });
 
@@ -604,7 +604,7 @@ describe('NodeDetail component', () => {
     });
     render(<NodeDetail node={node} onClose={noop} />);
 
-    const extraSection = document.querySelector('.detail-extra');
+    const extraSection = document.querySelector('.cg-detail-extra');
     expect(extraSection).toBeNull();
   });
 
@@ -620,7 +620,7 @@ describe('NodeDetail component', () => {
     const node = makeNode();
     render(<NodeDetail node={node} onClose={noop} />);
 
-    const panel = document.querySelector('.node-detail-panel');
+    const panel = document.querySelector('.cg-node-detail-panel');
     expect(panel).toBeTruthy();
     expect(panel?.getAttribute('role')).toBe('complementary');
     expect(panel?.getAttribute('aria-live')).toBe('polite');
@@ -632,7 +632,7 @@ describe('NodeDetail component', () => {
       cleanup();
       const node = makeNode({ type });
       render(<NodeDetail node={node} onClose={noop} />);
-      const hint = document.querySelector('.detail-expand-hint');
+      const hint = document.querySelector('.cg-detail-expand-hint');
       expect(hint).toBeTruthy();
     }
   });
@@ -642,7 +642,7 @@ describe('NodeDetail component', () => {
       cleanup();
       const node = makeNode({ type });
       render(<NodeDetail node={node} onClose={noop} />);
-      const hint = document.querySelector('.detail-expand-hint');
+      const hint = document.querySelector('.cg-detail-expand-hint');
       expect(hint).toBeNull();
     }
   });

@@ -12,17 +12,17 @@ interface HotspotPanelProps {
 export const HotspotPanel = memo(function HotspotPanel({ hotspotNodes, onClose, label }: HotspotPanelProps) {
   const t = useT();
   return (
-    <div className="analysis-panel hotspot-panel" role="region" aria-label={label} aria-live="polite">
-      <div className="analysis-panel-header">
+    <div className="cg-analysis-panel hotspot-panel" role="region" aria-label={label} aria-live="polite">
+      <div className="cg-analysis-panel-header">
         <span>{label}</span>
         <button onClick={onClose} className="cg-close-btn" aria-label={t('hotspot.close')}><CloseIcon size={14} /></button>
       </div>
-      <div className="analysis-panel-content">
+      <div className="cg-analysis-panel-content">
         {hotspotNodes.slice(0, 20).map((h) => (
-          <div key={h.nodeId} className={`hotspot-item ${h.level}`}>
-            <span className="hotspot-level-badge">{h.level}</span>
-            <span className="hotspot-label">{h.label}</span>
-            <span className="hotspot-indegree">{h.indegree}</span>
+          <div key={h.nodeId} className={`cg-hotspot-item cg-${h.level}`}>
+            <span className="cg-hotspot-level-badge">{h.level}</span>
+            <span className="cg-hotspot-label">{h.label}</span>
+            <span className="cg-hotspot-indegree">{h.indegree}</span>
           </div>
         ))}
       </div>

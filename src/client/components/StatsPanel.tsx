@@ -47,8 +47,8 @@ export const StatsPanel = memo(function StatsPanel({ counts, onClose, thumbnail,
   };
 
   return (
-    <div className="mini-map" role="complementary" aria-label={t('minimap.title')}>
-      <div className="mini-map-header">
+    <div className="cg-mini-map" role="complementary" aria-label={t('minimap.title')}>
+      <div className="cg-mini-map-header">
         <span>{t('minimap.title')}</span>
         <button
           onClick={onClose}
@@ -58,9 +58,9 @@ export const StatsPanel = memo(function StatsPanel({ counts, onClose, thumbnail,
           <CloseIcon size={14} />
         </button>
       </div>
-      <div className="mini-map-content">
+      <div className="cg-mini-map-content">
         {thumbnail && (
-          <div className="mini-map-thumbnail">
+          <div className="cg-mini-map-thumbnail">
             <img
               ref={imgRef}
               src={thumbnail}
@@ -71,7 +71,7 @@ export const StatsPanel = memo(function StatsPanel({ counts, onClose, thumbnail,
             />
             {viewportBox && (
               <div
-                className="mini-map-viewport"
+                className="cg-mini-map-viewport"
                 style={{
                   position: 'absolute',
                   left: `${viewportBox.left}px`,
@@ -83,14 +83,14 @@ export const StatsPanel = memo(function StatsPanel({ counts, onClose, thumbnail,
             )}
           </div>
         )}
-        <div className="mini-map-stats">
-          <div><span className="dot" style={{ background: 'var(--cg-success)' }} />{t('minimap.functions')}: {counts.function}</div>
-          <div><span className="dot" style={{ background: 'var(--cg-accent)' }} />{t('minimap.classes')}: {counts.class}</div>
-          <div><span className="dot" style={{ background: 'var(--cg-warning)' }} />{t('minimap.variables')}: {counts.variable}</div>
-          <div><span className="dot" style={{ background: 'var(--cg-node-module)' }} />{t('minimap.modules')}: {counts.module}</div>
-          <div><span className="dot" style={{ background: 'var(--cg-node-interface)' }} />{t('minimap.interfaces')}: {counts.interface}</div>
+        <div className="cg-mini-map-stats">
+          <div><span className="cg-dot" style={{ background: 'var(--cg-success)' }} />{t('minimap.functions')}: {counts.function}</div>
+          <div><span className="cg-dot" style={{ background: 'var(--cg-accent)' }} />{t('minimap.classes')}: {counts.class}</div>
+          <div><span className="cg-dot" style={{ background: 'var(--cg-warning)' }} />{t('minimap.variables')}: {counts.variable}</div>
+          <div><span className="cg-dot" style={{ background: 'var(--cg-node-module)' }} />{t('minimap.modules')}: {counts.module}</div>
+          <div><span className="cg-dot" style={{ background: 'var(--cg-node-interface)' }} />{t('minimap.interfaces')}: {counts.interface}</div>
         </div>
-        <div className="mini-map-total">{t('minimap.total')}: {total}</div>
+        <div className="cg-mini-map-total">{t('minimap.total')}: {total}</div>
       </div>
     </div>
   );

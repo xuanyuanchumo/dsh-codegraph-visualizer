@@ -142,19 +142,19 @@ export const ImportPanel = memo(function ImportPanel({
   }, [watchEnabled, onSetWatchEnabled, effectivePath]);
 
   return (
-    <div className="import-panel" role="dialog" aria-modal="true" aria-label={t('import.title')} ref={panelRef}>
-      <div className="import-header">
-        <span className="import-title">{t('import.title')}</span>
-        <button className="import-close" onClick={onClose} aria-label={t('import.close')}><CloseIcon size={16} /></button>
+    <div className="cg-import-panel" role="dialog" aria-modal="true" aria-label={t('import.title')} ref={panelRef}>
+      <div className="cg-import-header">
+        <span className="cg-import-title">{t('import.title')}</span>
+        <button className="cg-import-close" onClick={onClose} aria-label={t('import.close')}><CloseIcon size={16} /></button>
       </div>
 
       {prereqMissing && (
-        <div className="prereq-warning" role="alert">
+        <div className="cg-prereq-warning" role="alert">
           <AlertIcon size={14} />
           <span>{t('import.prereqMissing')}</span>
-          <div className="prereq-install">
+          <div className="cg-prereq-install">
             <code>{t('import.prereqCmd', { cmd: 'dsh plugin --profile web add dsh-codegraph' })}</code>
-            <button className="prereq-copy" onClick={() => { void copyInstallCmd(); }} disabled={copied}
+            <button className="cg-prereq-copy" onClick={() => { void copyInstallCmd(); }} disabled={copied}
               aria-label={t('import.prereqCopy')}>
               {copied ? t('import.copied') : t('import.prereqCopy')}
             </button>
@@ -162,24 +162,24 @@ export const ImportPanel = memo(function ImportPanel({
         </div>
       )}
 
-      <div className="import-tabs" role="tablist">
-        <button className={tab === 'workspace' ? 'active' : ''} onClick={() => setTab('workspace')} role="tab" aria-selected={tab === 'workspace'}>
+      <div className="cg-import-tabs" role="tablist">
+        <button className={tab === 'workspace' ? 'cg-active' : ''} onClick={() => setTab('workspace')} role="tab" aria-selected={tab === 'workspace'}>
           <FolderIcon size={14} /> {t('import.workspace')}
         </button>
-        <button className={tab === 'paste' ? 'active' : ''} onClick={() => setTab('paste')} role="tab" aria-selected={tab === 'paste'}>
+        <button className={tab === 'paste' ? 'cg-active' : ''} onClick={() => setTab('paste')} role="tab" aria-selected={tab === 'paste'}>
           <UploadIcon size={14} /> {t('import.paste')}
         </button>
       </div>
 
-      <div className="import-body">
+      <div className="cg-import-body">
         {tab === 'workspace' && (
-          <div className="workspace-zone">
-            <div className="workspace-path-row">
-              <FolderIcon size={16} className="workspace-path-icon" />
-              <span className="workspace-path-label">{t('import.workspacePath')}</span>
+          <div className="cg-workspace-zone">
+            <div className="cg-workspace-path-row">
+              <FolderIcon size={16} className="cg-workspace-path-icon" />
+              <span className="cg-workspace-path-label">{t('import.workspacePath')}</span>
             </div>
             <input
-              className="workspace-path-input"
+              className="cg-workspace-path-input"
               id="import-workspace-path"
               name="import-workspace-path"
               type="text"
@@ -188,34 +188,34 @@ export const ImportPanel = memo(function ImportPanel({
               placeholder={workspacePath || '.'}
               aria-label={t('import.workspacePath')}
             />
-            <span className="workspace-hint">{t('import.workspaceHint')}</span>
+            <span className="cg-workspace-hint">{t('import.workspaceHint')}</span>
 
-            <div className="workspace-actions">
-              <button className="import-submit" onClick={handleWorkspaceScan} disabled={busy}>
+            <div className="cg-workspace-actions">
+              <button className="cg-import-submit" onClick={handleWorkspaceScan} disabled={busy}>
                 <RefreshIcon size={14} /> {busy ? t('import.scanning') : t('import.scanWorkspace')}
               </button>
-              <button className="import-submit secondary" onClick={handleInit} disabled={initStatus === 'initializing'}>
+              <button className="cg-import-submit cg-secondary" onClick={handleInit} disabled={initStatus === 'initializing'}>
                 <ZapIcon size={14} /> {initStatus === 'initializing' ? t('import.initializing') : t('import.initGraph')}
               </button>
             </div>
 
-            <button className={`watch-toggle ${watchEnabled ? 'active' : ''}`} onClick={handleToggleWatch}>
+            <button className={`cg-watch-toggle ${watchEnabled ? 'cg-active' : ''}`} onClick={handleToggleWatch}>
               <WatchIcon size={14} /> {watchEnabled ? t('import.watchOn') : t('import.watchOff')}
             </button>
 
             {initStatus === 'done' && (
-              <div className="init-feedback ok">{t('import.initSuccess')}</div>
+              <div className="cg-init-feedback cg-ok">{t('import.initSuccess')}</div>
             )}
             {initStatus === 'error' && (
-              <div className="init-feedback err">{t('import.initFailed')}</div>
+              <div className="cg-init-feedback cg-err">{t('import.initFailed')}</div>
             )}
           </div>
         )}
 
         {tab === 'paste' && (
-          <div className="paste-zone">
+          <div className="cg-paste-zone">
             <textarea
-              className="paste-input"
+              className="cg-paste-input"
               id="import-paste-json"
               name="import-paste-json"
               placeholder={t('import.pastePlaceholder')}
@@ -224,7 +224,7 @@ export const ImportPanel = memo(function ImportPanel({
               rows={8}
               aria-label={t('import.pastePlaceholder')}
             />
-            <button className="import-submit" onClick={handlePasteSubmit} disabled={busy}>
+            <button className="cg-import-submit" onClick={handlePasteSubmit} disabled={busy}>
               {busy ? t('import.importing') : t('import.importJson')}
             </button>
           </div>
@@ -232,7 +232,7 @@ export const ImportPanel = memo(function ImportPanel({
       </div>
 
       {feedback && (
-        <div className={`import-feedback ${feedback.kind}`} role="status">
+        <div className={`cg-import-feedback cg-${feedback.kind}`} role="status">
           {feedback.kind === 'err' && <AlertIcon size={14} />}
           <span>{feedback.msg}</span>
         </div>

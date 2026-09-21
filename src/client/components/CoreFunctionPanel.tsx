@@ -23,35 +23,35 @@ export const CoreFunctionPanel = memo(function CoreFunctionPanel({ coreFunctions
   const reasonLabel = (r: string): string => t(`coreFunction.reason.${r}`) ?? r;
 
   return (
-    <div className="analysis-panel core-function-panel" role="region" aria-label={label} aria-live="polite">
-      <div className="analysis-panel-header">
+    <div className="cg-analysis-panel core-function-panel" role="region" aria-label={label} aria-live="polite">
+      <div className="cg-analysis-panel-header">
         <span>{label}</span>
         <button onClick={onClose} className="cg-close-btn"><CloseIcon size={14} /></button>
       </div>
-      <div className="analysis-panel-content">
+      <div className="cg-analysis-panel-content">
         {coreFunctions.slice(0, 20).map((fn) => (
           <div
             key={fn.nodeId}
-            className="core-function-item"
+            className="cg-core-function-item"
             onClick={() => onSelectFunction(fn.nodeId)}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => { if (e.key === 'Enter') onSelectFunction(fn.nodeId); }}
           >
             <span
-              className="core-function-category-badge"
+              className="cg-core-function-category-badge"
               style={{ backgroundColor: CATEGORY_COLORS[fn.category] }}
             >
               {categoryLabel(fn.category)}
             </span>
-            <span className="core-function-label">{fn.label}</span>
-            <span className="core-function-score">{fn.score}</span>
-            <div className="core-function-reasons">
+            <span className="cg-core-function-label">{fn.label}</span>
+            <span className="cg-core-function-score">{fn.score}</span>
+            <div className="cg-core-function-reasons">
               {fn.reasons.map((r) => (
-                <span key={r} className="core-function-reason-tag">{reasonLabel(r)}</span>
+                <span key={r} className="cg-core-function-reason-tag">{reasonLabel(r)}</span>
               ))}
             </div>
-            <div className="core-function-stats">
+            <div className="cg-core-function-stats">
               <span title={t('coreFunction.inDegree')}>in:{fn.inDegree}</span>
               <span title={t('coreFunction.outDegree')}>out:{fn.outDegree}</span>
               <span title={t('coreFunction.influenceReach')}>reach:{fn.influenceReach}</span>

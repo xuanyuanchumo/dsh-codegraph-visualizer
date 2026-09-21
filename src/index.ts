@@ -5,7 +5,7 @@ import type { GraphData } from './types/index.ts';
 import { PLUGIN_VERSION } from './generated/version.ts';
 import { resolveConfig } from './host/config.ts';
 import type { VisualizerConfig } from './host/config.ts';
-import { setAllowedWorkspaceRoots, resetSecurityManager } from './host/security.ts';
+import { createSecurityManager } from './host/security.ts';
 import { extractWorkspacePaths, checkPrerequisites } from './host/prerequisites.ts';
 import { createInvokeUpstream, registerRoutes, registerService } from './host/routes.ts';
 import { registerWatcher, registerEventListeners } from './host/watcher.ts';
@@ -13,7 +13,7 @@ import { registerWatcher, registerEventListeners } from './host/watcher.ts';
 export { PLUGIN_VERSION };
 export { resolveConfig, DEFAULT_CONFIG } from './host/config.ts';
 export type { VisualizerConfig } from './host/config.ts';
-export { isPathAllowed, setAllowedWorkspaceRoots } from './host/security.ts';
+export { SecurityManager, createSecurityManager } from './host/security.ts';
 
 const log = scoped('host');
 
@@ -22,7 +22,8 @@ export const inject = ['tools', 'webServer', 'sessions', 'workspaceRegistry'];
 
 export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
   const config = resolveConfig(userConfig);
-  setAllowedWorkspaceRoots(extractWorkspacePaths(ctx));
+  const securityManager = createSecurityManager();
+  securityManager.setAllowedWorkspaceRoots(extractWorkspacePaths(ctx));
 
   const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus, dispose: disposeGraphTools } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout });
 
@@ -46,6 +47,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   const routeDeps = {
     ctx,
     config,
+    securityManager,
     getLastGraphData: () => lastGraphData,
     setLastGraphData: (data: GraphData | null) => { lastGraphData = data; },
     getLastInitResult: () => lastInitResult,
@@ -108,7 +110,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
     scanInFlightMap.clear();
     lastGraphData = null;
     lastInitResult = null;
-    resetSecurityManager();
+    securityManager.reset();
     disposeGraphTools();
   };
 }

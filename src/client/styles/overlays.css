@@ -1,6 +1,6 @@
 /* ---- Overlays (loading / error / empty) ---------------------------------- */
 
-.error-boundary-fallback {
+.cg-error-boundary-fallback {
   position: absolute;
   inset: 0;
   display: flex;
@@ -13,14 +13,14 @@
   padding: 24px;
 }
 
-.error-boundary-fallback h3 {
+.cg-error-boundary-fallback h3 {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
   color: var(--cg-error);
 }
 
-.error-boundary-fallback p {
+.cg-error-boundary-fallback p {
   margin: 0;
   font-size: 13px;
   color: var(--cg-text-secondary);
@@ -29,7 +29,7 @@
   word-break: break-word;
 }
 
-.error-boundary-fallback button {
+.cg-error-boundary-fallback button {
   padding: 6px 16px;
   border-radius: var(--cg-radius-xs);
   border: 1px solid var(--cg-border-strong);
@@ -40,13 +40,13 @@
   transition: background var(--cg-transition);
 }
 
-.error-boundary-fallback button:hover {
+.cg-error-boundary-fallback button:hover {
   background: var(--cg-surface-hover);
 }
 
-.loading-overlay,
-.error-overlay,
-.empty-state {
+.cg-loading-overlay,
+.cg-error-overlay,
+.cg-empty-state {
   position: absolute;
   inset: 0;
   display: flex;
@@ -58,20 +58,20 @@
   z-index: 5;
 }
 
-.loading-overlay {
+.cg-loading-overlay {
   opacity: 0.9;
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
 
-.spinner {
+.cg-spinner {
   width: 40px;
   height: 40px;
   position: relative;
 }
 
-.spinner::before,
-.spinner::after {
+.cg-spinner::before,
+.cg-spinner::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -79,13 +79,13 @@
   border: 2px solid transparent;
 }
 
-.spinner::before {
+.cg-spinner::before {
   border-top-color: var(--cg-accent);
   border-right-color: var(--cg-accent);
   animation: cg-spin 0.8s var(--cg-ease) infinite;
 }
 
-.spinner::after {
+.cg-spinner::after {
   border-bottom-color: var(--cg-accent-hover);
   border-left-color: var(--cg-accent-hover);
   animation: cg-spin 1.2s var(--cg-ease) infinite reverse;
@@ -101,35 +101,35 @@
   50% { opacity: 0.55; }
 }
 
-.loading-overlay span,
-.empty-state span {
+.cg-loading-overlay span,
+.cg-empty-state span {
   color: var(--cg-text-secondary);
   font-size: 13px;
 }
 
-.empty-state .empty-icon {
+.cg-empty-state .cg-empty-icon {
   font-size: 40px;
   opacity: 0.5;
 }
 
-.error-overlay span {
+.cg-error-overlay span {
   color: var(--cg-error);
   font-size: 13px;
 }
 
-.error-overlay-content {
+.cg-error-overlay-content {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.error-overlay-actions {
+.cg-error-overlay-actions {
   display: flex;
   gap: 8px;
   margin-top: 4px;
 }
 
-.error-overlay-btn {
+.cg-error-overlay-btn {
   padding: 6px 14px;
   border: 1px solid var(--cg-border);
   border-radius: var(--cg-radius-sm);
@@ -138,41 +138,41 @@
   transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition);
 }
 
-.error-overlay-retry {
+.cg-error-overlay-retry {
   background: var(--cg-surface);
   color: var(--cg-text);
 }
 
-.error-overlay-retry:hover {
+.cg-error-overlay-retry:hover {
   background: var(--cg-surface-hover);
   border-color: var(--cg-accent);
 }
 
-.error-overlay-back {
+.cg-error-overlay-back {
   background: var(--cg-accent);
   border-color: var(--cg-accent);
   color: var(--cg-on-accent);
 }
 
-.error-overlay-back:hover {
+.cg-error-overlay-back:hover {
   background: var(--cg-accent-hover);
   border-color: var(--cg-accent-hover);
 }
 /* ---- Empty state (enhanced) ---------------------------------------------- */
 
-.empty-state .empty-icon {
+.cg-empty-state .cg-empty-icon {
   font-size: 40px;
   opacity: 0.5;
   color: var(--cg-text-tertiary);
 }
 
-.empty-state .empty-title {
+.cg-empty-state .cg-empty-title {
   font-size: 15px;
   font-weight: 600;
   color: var(--cg-text);
 }
 
-.empty-state .empty-subtitle {
+.cg-empty-state .cg-empty-subtitle {
   font-size: 12px;
   color: var(--cg-text-secondary);
   max-width: 280px;
@@ -180,13 +180,13 @@
   line-height: 1.5;
 }
 
-.empty-actions {
+.cg-empty-actions {
   display: flex;
   gap: 10px;
   align-items: center;
 }
 
-.empty-import-btn {
+.cg-empty-import-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -203,13 +203,13 @@
   box-shadow: 0 2px 8px color-mix(in srgb, var(--cg-accent) 30%, transparent);
 }
 
-.empty-import-btn:hover {
+.cg-empty-import-btn:hover {
   background: var(--cg-accent-hover);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px color-mix(in srgb, var(--cg-accent) 40%, transparent);
 }
 
-.empty-scan-btn {
+.cg-empty-scan-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -225,12 +225,12 @@
   transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition), opacity var(--cg-transition);
 }
 
-.empty-scan-btn:hover {
+.cg-empty-scan-btn:hover {
   background: var(--cg-surface-hover);
   transform: translateY(-1px);
 }
 
-.empty-prereq-warning {
+.cg-empty-prereq-warning {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -245,7 +245,7 @@
   text-align: left;
 }
 
-.prereq-item {
+.cg-prereq-item {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -253,50 +253,50 @@
   border-top: 1px solid color-mix(in srgb, var(--cg-warning) 30%, transparent);
 }
 
-.prereq-item:first-of-type {
+.cg-prereq-item:first-of-type {
   border-top: none;
   padding-top: 4px;
 }
 
-.prereq-item-header {
+.cg-prereq-item-header {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.prereq-status-dot {
+.cg-prereq-status-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.prereq-status-dot.ok {
+.cg-prereq-status-dot.cg-ok {
   background: var(--cg-success);
 }
 
-.prereq-status-dot.missing {
+.cg-prereq-status-dot.cg-missing {
   background: var(--cg-error);
 }
 
-.prereq-item-label {
+.cg-prereq-item-label {
   font-weight: 600;
   color: var(--cg-text);
 }
 
-.prereq-item-status {
+.cg-prereq-item-status {
   font-size: 11px;
   color: var(--cg-error);
   margin-left: auto;
 }
 
-.prereq-item-desc {
+.cg-prereq-item-desc {
   font-size: 11px;
   color: var(--cg-text-tertiary);
   padding-left: 14px;
 }
 
-.watch-indicator {
+.cg-watch-indicator {
   color: var(--cg-success, #10b981);
   font-size: 8px;
   animation: cg-pulse 2s ease-in-out infinite;

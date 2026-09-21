@@ -344,8 +344,8 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
 
   if (participants.length === 0) {
     return (
-      <div ref={containerRef} className="sequence-diagram-container" style={{ background: colors.bg }}>
-        <div className="seq-empty-state">
+      <div ref={containerRef} className="cg-sequence-diagram-container" style={{ background: colors.bg }}>
+        <div className="cg-seq-empty-state">
           {t('sequence.noData')}
         </div>
       </div>
@@ -358,7 +358,7 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
   return (
     <div
       ref={containerRef}
-      className="sequence-diagram-container"
+      className="cg-sequence-diagram-container"
       role="application"
       aria-label={`${participants.length} participants, ${messages.length} messages`}
       style={{
@@ -417,7 +417,7 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
               : `${frag.type}${frag.condition ? ` [${frag.condition}]` : ''}`;
 
             return (
-              <g key={`frag-${frag.id}`} className="seq-fragment-group">
+              <g key={`frag-${frag.id}`} className="cg-seq-fragment-group">
                 <rect
                   x={fragX}
                   y={fragTop}
@@ -566,7 +566,7 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
               return (
                 <g
                   key={`msg-${msg.id}`}
-                  className="seq-message-group"
+                  className="cg-seq-message-group"
                   onClick={() => handleMessageClick(msg.id)}
                   onMouseEnter={() => setHoveredMessage(msg.id)}
                   onMouseLeave={() => setHoveredMessage(null)}
@@ -636,7 +636,7 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
             return (
               <g
                 key={`msg-${msg.id}`}
-                className="seq-message-group"
+                className="cg-seq-message-group"
                 onClick={() => handleMessageClick(msg.id)}
                 onMouseEnter={() => setHoveredMessage(msg.id)}
                 onMouseLeave={() => setHoveredMessage(null)}
@@ -653,7 +653,7 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
                   />
                 )}
                 <line
-                  className="seq-message-line"
+                  className="cg-seq-message-line"
                   x1={arrowStartX}
                   y1={msg.y}
                   x2={arrowEndX - arrowHeadDir * LAYOUT.ARROW_HEAD_SIZE}
@@ -703,13 +703,13 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
             return (
               <g
                 key={`participant-${p.id}`}
-                className="seq-participant-group"
+                className="cg-seq-participant-group"
                 onClick={() => handleParticipantClick(p.id)}
                 onMouseEnter={() => setHoveredParticipant(p.id)}
                 onMouseLeave={() => setHoveredParticipant(null)}
               >
                 <rect
-                  className="seq-participant-box"
+                  className="cg-seq-participant-box"
                   x={boxX}
                   y={boxY}
                   width={LAYOUT.PARTICIPANT_BOX_WIDTH}
@@ -766,13 +766,13 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
         </svg>
       </div>
 
-      <div className="seq-zoom-controls">
-        <button className="seq-zoom-btn" onClick={() => setZoom((z) => Math.min(3, z * 1.2))}>+</button>
-        <button className="seq-zoom-btn" onClick={() => setZoom((z) => Math.max(0.3, z * 0.8))}>−</button>
-        <button className="seq-zoom-btn seq-reset" onClick={handleResetView}>⟲</button>
+      <div className="cg-seq-zoom-controls">
+        <button className="cg-seq-zoom-btn" onClick={() => setZoom((z) => Math.min(3, z * 1.2))}>+</button>
+        <button className="cg-seq-zoom-btn" onClick={() => setZoom((z) => Math.max(0.3, z * 0.8))}>−</button>
+        <button className="cg-seq-zoom-btn cg-seq-reset" onClick={handleResetView}>⟲</button>
       </div>
 
-      <div className="seq-zoom-indicator">
+      <div className="cg-seq-zoom-indicator">
         {Math.round(zoom * 100)}%
       </div>
     </div>

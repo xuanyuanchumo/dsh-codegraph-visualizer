@@ -53,7 +53,7 @@ describe('SearchBar (FR-07) component', () => {
 
   it('shows debounced hint when query is empty', () => {
     render(<SearchBar query="" matchCount={null} searchResults={[]} onChange={noop} onClose={noop} onSelectResult={noop} />);
-    const hints = document.querySelectorAll('.search-hint');
+    const hints = document.querySelectorAll('.cg-search-hint');
     expect(hints.length).toBeGreaterThan(0);
   });
 

@@ -43,17 +43,17 @@ export const KeyboardHelp = memo(function KeyboardHelp({ visible, onClose }: Key
 
   if (!visible) return null;
   return (
-    <div className="keyboard-help-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={t('shortcut.title')}>
-      <div className="keyboard-help-panel" ref={panelRef} onClick={(e) => e.stopPropagation()}>
-        <div className="keyboard-help-header">
+    <div className="cg-keyboard-help-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={t('shortcut.title')}>
+      <div className="cg-keyboard-help-panel" ref={panelRef} onClick={(e) => e.stopPropagation()}>
+        <div className="cg-keyboard-help-header">
           <span>{t('shortcut.title')}</span>
-          <button className="keyboard-help-close" onClick={onClose} aria-label={t('shortcut.close')}>×</button>
+          <button className="cg-keyboard-help-close" onClick={onClose} aria-label={t('shortcut.close')}>×</button>
         </div>
-        <div className="keyboard-help-list">
+        <div className="cg-keyboard-help-list">
           {KEYBOARD_SHORTCUTS.map((s) => (
-            <div key={s.key} className="keyboard-help-item">
-              <kbd className="keyboard-help-key">{formatShortcutKey(s)}</kbd>
-              <span className="keyboard-help-desc">{t(s.descKey)}</span>
+            <div key={s.key} className="cg-keyboard-help-item">
+              <kbd className="cg-keyboard-help-key">{formatShortcutKey(s)}</kbd>
+              <span className="cg-keyboard-help-desc">{t(s.descKey)}</span>
             </div>
           ))}
         </div>

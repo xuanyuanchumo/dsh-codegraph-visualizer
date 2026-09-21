@@ -27,16 +27,6 @@ export class SecurityManager {
   }
 }
 
-const defaultManager = new SecurityManager();
-
-export function setAllowedWorkspaceRoots(roots: string[]): void {
-  defaultManager.setAllowedWorkspaceRoots(roots);
-}
-
-export function isPathAllowed(path: string): boolean {
-  return defaultManager.isPathAllowed(path);
-}
-
-export function resetSecurityManager(): void {
-  defaultManager.reset();
+export function createSecurityManager(): SecurityManager {
+  return new SecurityManager();
 }

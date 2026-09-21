@@ -46,16 +46,16 @@ export const PathBar = memo(function PathBar({ onFindPath, onClearPath, pathResu
   }, [setPathStart, setPathEnd, setPathResult, onClearPath]);
 
   return (
-    <div className="path-bar" role="region" aria-label={t('pathFind.title')}>
-      <div className="path-bar-header">
+    <div className="cg-path-bar" role="region" aria-label={t('pathFind.title')}>
+      <div className="cg-path-bar-header">
         <PathIcon size={14} />
         <span>{t('pathFind.title')}</span>
         <button onClick={onClose} aria-label={t('pathFind.close')} className="cg-close-btn">
           <CloseIcon size={14} />
         </button>
       </div>
-      <div className="path-bar-content">
-        <div className="path-input-group">
+      <div className="cg-path-bar-content">
+        <div className="cg-path-input-group">
           <label htmlFor="path-start-input">{t('pathFind.start')}</label>
           <input
             id="path-start-input"
@@ -66,18 +66,18 @@ export const PathBar = memo(function PathBar({ onFindPath, onClearPath, pathResu
             placeholder={t('pathFind.startPlaceholder')}
           />
           {startMatches.length > 0 && !pathStartId && (
-            <div className="path-suggestions">
+            <div className="cg-path-suggestions">
               {startMatches.map((n) => (
                 <button key={n.id} onClick={() => { setStartQuery(n.label); setPathStart(NodeId(n.id)); }}>
-                  <span className="suggestion-type">{n.type}</span>
-                  <span className="suggestion-label">{n.label}</span>
+                  <span className="cg-suggestion-type">{n.type}</span>
+                  <span className="cg-suggestion-label">{n.label}</span>
                 </button>
               ))}
             </div>
           )}
-          {pathStartId && <span className="path-selected">{startLabel}</span>}
+          {pathStartId && <span className="cg-path-selected">{startLabel}</span>}
         </div>
-        <div className="path-input-group">
+        <div className="cg-path-input-group">
           <label htmlFor="path-end-input">{t('pathFind.end')}</label>
           <input
             id="path-end-input"
@@ -88,27 +88,27 @@ export const PathBar = memo(function PathBar({ onFindPath, onClearPath, pathResu
             placeholder={t('pathFind.endPlaceholder')}
           />
           {endMatches.length > 0 && !pathEndId && (
-            <div className="path-suggestions">
+            <div className="cg-path-suggestions">
               {endMatches.map((n) => (
                 <button key={n.id} onClick={() => { setEndQuery(n.label); setPathEnd(NodeId(n.id)); }}>
-                  <span className="suggestion-type">{n.type}</span>
-                  <span className="suggestion-label">{n.label}</span>
+                  <span className="cg-suggestion-type">{n.type}</span>
+                  <span className="cg-suggestion-label">{n.label}</span>
                 </button>
               ))}
             </div>
           )}
-          {pathEndId && <span className="path-selected">{endLabel}</span>}
+          {pathEndId && <span className="cg-path-selected">{endLabel}</span>}
         </div>
-        <div className="path-actions">
-          <button onClick={handleFind} disabled={!pathStartId || !pathEndId} className="path-find-btn">
+        <div className="cg-path-actions">
+          <button onClick={handleFind} disabled={!pathStartId || !pathEndId} className="cg-path-find-btn">
             {t('pathFind.find')}
           </button>
-          <button onClick={handleClear} className="path-clear-btn">
+          <button onClick={handleClear} className="cg-path-clear-btn">
             {t('pathFind.clear')}
           </button>
         </div>
         {pathResult && (
-          <div className="path-result">
+          <div className="cg-path-result">
             <span>{t('pathFind.length')}: {pathLength}</span>
             <span>{t('pathFind.hops')}: {pathResult.length}</span>
           </div>

@@ -1,6 +1,6 @@
 /* ---- Node detail panel --------------------------------------------------- */
 
-.node-detail-panel {
+.cg-node-detail-panel {
   position: absolute;
   left: 12px;
   top: 12px;
@@ -23,7 +23,7 @@
   to { opacity: 1; transform: translateX(0); }
 }
 
-.node-detail-panel h3 {
+.cg-node-detail-panel h3 {
   margin: 0 0 10px;
   font-size: 14px;
   color: var(--cg-text);
@@ -31,19 +31,19 @@
   word-break: break-word;
 }
 
-.node-detail-panel .detail-header {
+.cg-node-detail-panel .cg-detail-header {
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 10px;
 }
 
-.node-detail-panel .detail-header h3 {
+.cg-node-detail-panel .cg-detail-header h3 {
   margin: 0;
   flex: 1;
 }
 
-.node-detail-panel .detail-type-icon {
+.cg-node-detail-panel .cg-detail-type-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -57,7 +57,7 @@
   flex-shrink: 0;
 }
 
-.node-detail-panel .detail-row {
+.cg-node-detail-panel .cg-detail-row {
   display: flex;
   justify-content: space-between;
   gap: 8px;
@@ -66,13 +66,13 @@
   border-bottom: 1px solid var(--cg-border);
 }
 
-.node-detail-panel .detail-label {
+.cg-node-detail-panel .cg-detail-label {
   color: var(--cg-text-secondary);
   flex-shrink: 0;
   font-weight: 500;
 }
 
-.node-detail-panel .detail-value {
+.cg-node-detail-panel .cg-detail-value {
   color: var(--cg-text);
   text-align: right;
   word-break: break-all;
@@ -80,7 +80,7 @@
   font-size: 11px;
 }
 
-.node-detail-panel .close-btn {
+.cg-node-detail-panel .cg-close-btn {
   position: absolute;
   top: 10px;
   right: 10px;
@@ -98,20 +98,20 @@
   justify-content: center;
 }
 
-.node-detail-panel .close-btn:hover {
+.cg-node-detail-panel .cg-close-btn:hover {
   background: var(--cg-surface-hover);
   color: var(--cg-text);
 }
 
 /* ---- Node detail extra properties ---------------------------------------- */
 
-.node-detail-panel .detail-extra {
+.cg-node-detail-panel .cg-detail-extra {
   margin-top: 10px;
   padding-top: 8px;
   border-top: 1px solid var(--cg-border);
 }
 
-.node-detail-panel .detail-extra-title {
+.cg-node-detail-panel .cg-detail-extra-title {
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
@@ -122,7 +122,7 @@
 
 /* ---- Expandable node indicators ------------------------------------------- */
 
-.node-detail-panel .detail-expand-hint {
+.cg-node-detail-panel .cg-detail-expand-hint {
   margin-top: 8px;
   padding: 6px 10px;
   background: var(--cg-accent-soft);
@@ -135,13 +135,13 @@
   gap: 6px;
 }
 
-.node-detail-panel .detail-connections {
+.cg-node-detail-panel .cg-detail-connections {
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--cg-border);
 }
 
-.node-detail-panel .detail-connections-title {
+.cg-node-detail-panel .cg-detail-connections-title {
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
@@ -150,7 +150,7 @@
   margin-bottom: 6px;
 }
 
-.node-detail-panel .detail-connection-item {
+.cg-node-detail-panel .cg-detail-connection-item {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -159,7 +159,7 @@
   color: var(--cg-text-secondary);
 }
 
-.node-detail-panel .detail-connection-type {
+.cg-node-detail-panel .cg-detail-connection-type {
   display: inline-block;
   padding: 1px 5px;
   border-radius: 3px;
@@ -171,7 +171,7 @@
   flex-shrink: 0;
 }
 
-.node-detail-panel .detail-connection-name {
+.cg-node-detail-panel .cg-detail-connection-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -179,7 +179,7 @@
 
 /* ---- Depth level indicator ------------------------------------------------ */
 
-.depth-level-indicator {
+.cg-depth-level-indicator {
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -193,21 +193,21 @@
   white-space: nowrap;
 }
 
-.depth-level-dot {
+.cg-depth-level-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--cg-accent);
 }
 
-.depth-level-dot.active {
+.cg-depth-level-dot.cg-active {
   background: var(--cg-success);
   box-shadow: 0 0 4px var(--cg-success);
 }
 
 /* ---- Expanded node badge in detail panel ---------------------------------- */
 
-.node-detail-panel .detail-expanded-badge {
+.cg-node-detail-panel .cg-detail-expanded-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -221,7 +221,7 @@
   margin-left: 6px;
 }
 
-.node-detail-panel .detail-exported-badge {
+.cg-node-detail-panel .cg-detail-exported-badge {
   display: inline-flex;
   align-items: center;
   padding: 2px 6px;
@@ -234,7 +234,7 @@
   margin-left: 6px;
 }
 
-.node-detail-panel .detail-signature {
+.cg-node-detail-panel .cg-detail-signature {
   margin: 8px 0;
   padding: 8px 10px;
   background: var(--cg-surface);
@@ -242,7 +242,7 @@
   border: 1px solid var(--cg-border);
 }
 
-.node-detail-panel .detail-section-title {
+.cg-node-detail-panel .cg-detail-section-title {
   font-size: 11px;
   font-weight: 600;
   color: var(--cg-text-tertiary);
@@ -251,7 +251,7 @@
   letter-spacing: 0.5px;
 }
 
-.node-detail-panel .detail-code {
+.cg-node-detail-panel .cg-detail-code {
   display: block;
   font-family: var(--cg-font-mono);
   font-size: 12px;
@@ -261,7 +261,7 @@
   line-height: 1.5;
 }
 
-.node-detail-panel .detail-docstring {
+.cg-node-detail-panel .cg-detail-docstring {
   margin: 8px 0;
   padding: 8px 10px;
   background: var(--cg-surface);
@@ -269,7 +269,7 @@
   border: 1px solid var(--cg-border);
 }
 
-.node-detail-panel .detail-doc-text {
+.cg-node-detail-panel .cg-detail-doc-text {
   font-family: var(--cg-font-sans);
   font-size: 12px;
   color: var(--cg-text-secondary);
@@ -281,17 +281,17 @@
   overflow-y: auto;
 }
 
-.node-detail-panel .detail-micro-actions {
+.cg-node-detail-panel .cg-detail-micro-actions {
   margin-top: 8px;
 }
 
-.node-detail-panel .detail-micro-btns {
+.cg-node-detail-panel .cg-detail-micro-btns {
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
 }
 
-.node-detail-panel .detail-micro-btn {
+.cg-node-detail-panel .cg-detail-micro-btn {
   padding: 4px 10px;
   border: 1px solid var(--cg-border);
   border-radius: var(--cg-radius-xs);
@@ -302,13 +302,13 @@
   transition: all var(--cg-transition);
 }
 
-.node-detail-panel .detail-micro-btn:hover {
+.cg-node-detail-panel .cg-detail-micro-btn:hover {
   background: var(--cg-surface-hover);
   color: var(--cg-text);
   border-color: var(--cg-accent);
 }
 
-.node-detail-panel .detail-chain-btn {
+.cg-node-detail-panel .cg-detail-chain-btn {
   margin-top: 4px;
   width: 100%;
   background: color-mix(in srgb, var(--cg-accent) 15%, transparent);
@@ -317,16 +317,16 @@
   font-weight: 600;
 }
 
-.node-detail-panel .detail-chain-btn:hover {
+.cg-node-detail-panel .cg-detail-chain-btn:hover {
   background: color-mix(in srgb, var(--cg-accent) 25%, transparent);
   border-color: var(--cg-accent);
 }
 
-.node-detail-panel .detail-cluster-functions {
+.cg-node-detail-panel .cg-detail-cluster-functions {
   margin-top: 8px;
 }
 
-.node-detail-panel .detail-function-list {
+.cg-node-detail-panel .cg-detail-function-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -334,7 +334,7 @@
   overflow-y: auto;
 }
 
-.node-detail-panel .detail-function-item {
+.cg-node-detail-panel .cg-detail-function-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -343,17 +343,17 @@
   border-radius: var(--cg-radius-xs);
 }
 
-.node-detail-panel .detail-function-micro-btns {
+.cg-node-detail-panel .cg-detail-function-micro-btns {
   display: inline-flex;
   gap: 2px;
   flex-shrink: 0;
 }
 
-.node-detail-panel .detail-function-item:hover {
+.cg-node-detail-panel .cg-detail-function-item:hover {
   background: var(--cg-surface-hover);
 }
 
-.node-detail-panel .detail-function-name {
+.cg-node-detail-panel .cg-detail-function-name {
   font-size: 11px;
   color: var(--cg-text-secondary);
   overflow: hidden;
@@ -362,14 +362,14 @@
   flex: 1;
 }
 
-.node-detail-panel .detail-micro-btn--small {
+.cg-node-detail-panel .cg-detail-micro-btn--small {
   padding: 2px 6px;
   font-size: 10px;
 }
 
 /* ---- Collapse-all button -------------------------------------------------- */
 
-.collapse-all-btn {
+.cg-collapse-all-btn {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -384,7 +384,7 @@
   white-space: nowrap;
 }
 
-.collapse-all-btn:hover {
+.cg-collapse-all-btn:hover {
   background: var(--cg-surface-hover);
   color: var(--cg-text);
   border-color: var(--cg-accent);

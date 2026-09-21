@@ -56,26 +56,26 @@ export const Legend = memo(function Legend({ viewMode, onClose }: LegendProps) {
   const edgeTypes = ALL_EDGE_TYPES.filter((e) => VIEW_MODE_EDGE_FILTER[viewMode]?.has(e.type) ?? true);
 
   return (
-    <div className="legend-panel" role="complementary" aria-label={t('legend.title')}>
-      <div className="legend-header">
+    <div className="cg-legend-panel" role="complementary" aria-label={t('legend.title')}>
+      <div className="cg-legend-header">
         <span>{t('legend.title')}</span>
-        <button className="legend-close" onClick={onClose} aria-label={t('legend.close')}>×</button>
+        <button className="cg-legend-close" onClick={onClose} aria-label={t('legend.close')}>×</button>
       </div>
-      <div className="legend-body">
+      <div className="cg-legend-body">
         <div className="legend-section">
-          <div className="legend-section-title">{t('legend.nodes')}</div>
+          <div className="cg-legend-section-title">{t('legend.nodes')}</div>
           {nodeTypes.map((n) => (
-            <div className="legend-row" key={n.type}>
-              <span className="legend-swatch" style={{ background: n.color }} />
+            <div className="cg-legend-row" key={n.type}>
+              <span className="cg-legend-swatch" style={{ background: n.color }} />
               <span>{t(n.key)}</span>
             </div>
           ))}
         </div>
         <div className="legend-section">
-          <div className="legend-section-title">{t('legend.edges')}</div>
+          <div className="cg-legend-section-title">{t('legend.edges')}</div>
           {edgeTypes.map((e) => (
-            <div className="legend-row" key={e.type}>
-              <span className="legend-line" style={{ borderTopStyle: e.style, borderTopColor: e.color }} />
+            <div className="cg-legend-row" key={e.type}>
+              <span className="cg-legend-line" style={{ borderTopStyle: e.style, borderTopColor: e.color }} />
               <span>{t(e.key)}</span>
             </div>
           ))}

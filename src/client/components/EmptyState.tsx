@@ -45,25 +45,25 @@ export const EmptyState = memo(function EmptyState({ prerequisites, onImport, on
   const anyMissing = codegraphMissing || lensMissing;
 
   return (
-    <div className="empty-state">
-      <GraphIcon size={48} className="empty-icon" />
-      <span className="empty-title">{t('empty.title')}</span>
-      <span className="empty-subtitle">{t('empty.subtitle')}</span>
+    <div className="cg-empty-state">
+      <GraphIcon size={48} className="cg-empty-icon" />
+      <span className="cg-empty-title">{t('empty.title')}</span>
+      <span className="cg-empty-subtitle">{t('empty.subtitle')}</span>
       {anyMissing && (
-        <div className="empty-prereq-warning">
+        <div className="cg-empty-prereq-warning">
           <div className="prereq-header">
             <AlertIcon size={14} />
             <span className="prereq-title">{t('empty.prereqTitle')}</span>
           </div>
 
           {codegraphMissing && (
-            <div className="prereq-item">
-              <div className="prereq-item-header">
-                <span className={`prereq-status-dot ${prerequisites.codegraph ? 'ok' : 'missing'}`} />
-                <span className="prereq-item-label">{t('prereq.codegraphLabel')}</span>
-                <span className="prereq-item-status">{t('prereq.notFound')}</span>
+            <div className="cg-prereq-item">
+              <div className="cg-prereq-item-header">
+                <span className={`cg-prereq-status-dot ${prerequisites.codegraph ? 'cg-ok' : 'cg-missing'}`} />
+                <span className="cg-prereq-item-label">{t('prereq.codegraphLabel')}</span>
+                <span className="cg-prereq-item-status">{t('prereq.notFound')}</span>
               </div>
-              <span className="prereq-item-desc">{t('prereq.codegraphDesc')}</span>
+              <span className="cg-prereq-item-desc">{t('prereq.codegraphDesc')}</span>
               <div className="prereq-cmd-row">
                 <code className="prereq-cmd">{t('prereq.installCodegraph')}</code>
                 <button
@@ -86,13 +86,13 @@ export const EmptyState = memo(function EmptyState({ prerequisites, onImport, on
           )}
 
           {lensMissing && (
-            <div className="prereq-item">
-              <div className="prereq-item-header">
-                <span className={`prereq-status-dot ${prerequisites.lens ? 'ok' : 'missing'}`} />
-                <span className="prereq-item-label">{t('prereq.lensLabel')}</span>
-                <span className="prereq-item-status">{t('prereq.notFound')}</span>
+            <div className="cg-prereq-item">
+              <div className="cg-prereq-item-header">
+                <span className={`cg-prereq-status-dot ${prerequisites.lens ? 'cg-ok' : 'cg-missing'}`} />
+                <span className="cg-prereq-item-label">{t('prereq.lensLabel')}</span>
+                <span className="cg-prereq-item-status">{t('prereq.notFound')}</span>
               </div>
-              <span className="prereq-item-desc">{t('prereq.lensDesc')}</span>
+              <span className="cg-prereq-item-desc">{t('prereq.lensDesc')}</span>
               <div className="prereq-cmd-row">
                 <code className="prereq-cmd">{t('prereq.installLens')}</code>
                 <button
@@ -117,11 +117,11 @@ export const EmptyState = memo(function EmptyState({ prerequisites, onImport, on
           {copiedCmd && <span className="prereq-copied">{t('empty.copied')}</span>}
         </div>
       )}
-      <div className="empty-actions">
-        <button className="empty-import-btn" onClick={onImport}>
+      <div className="cg-empty-actions">
+        <button className="cg-empty-import-btn" onClick={onImport}>
           <UploadIcon size={15} /> {t('empty.import')}
         </button>
-        <button className="empty-scan-btn" onClick={onScanWorkspace}>
+        <button className="cg-empty-scan-btn" onClick={onScanWorkspace}>
           <GraphIcon size={15} /> {t('empty.scanWorkspace')}
         </button>
       </div>

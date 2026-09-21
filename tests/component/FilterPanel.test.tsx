@@ -28,14 +28,14 @@ afterEach(() => {
 describe('FilterPanel component', () => {
   it('renders filter panel with title and close button', () => {
     render(<FilterPanel onClose={vi.fn()} />);
-    expect(document.querySelector('.filter-panel')).toBeTruthy();
-    expect(document.querySelector('.filter-panel-close')).toBeTruthy();
+    expect(document.querySelector('.cg-filter-panel')).toBeTruthy();
+    expect(document.querySelector('.cg-filter-panel-close')).toBeTruthy();
   });
 
   it('calls onClose when close button is clicked', async () => {
     const onClose = vi.fn();
     render(<FilterPanel onClose={onClose} />);
-    const closeBtn = document.querySelector('.filter-panel-close') as HTMLButtonElement;
+    const closeBtn = document.querySelector('.cg-filter-panel-close') as HTMLButtonElement;
     fireEvent.click(closeBtn);
     expect(onClose).toHaveBeenCalledOnce();
   });
@@ -85,7 +85,7 @@ describe('FilterPanel component', () => {
   describe('node type checkboxes', () => {
     it('renders all 5 node type checkboxes', () => {
       render(<FilterPanel onClose={vi.fn()} />);
-      const checkboxes = document.querySelectorAll('.filter-checkbox-item input[type="checkbox"]');
+      const checkboxes = document.querySelectorAll('.cg-filter-checkbox-item input[type="checkbox"]');
       const nodeCheckboxes = Array.from(checkboxes).slice(0, 5);
       expect(nodeCheckboxes.length).toBe(5);
     });
@@ -93,7 +93,7 @@ describe('FilterPanel component', () => {
     it('checkbox is checked when node type is in visibleNodeTypes', () => {
       useGraphStore.setState({ visibleNodeTypes: new Set(['function', 'class']) });
       render(<FilterPanel onClose={vi.fn()} />);
-      const checkboxes = document.querySelectorAll('.filter-checkbox-item input[type="checkbox"]');
+      const checkboxes = document.querySelectorAll('.cg-filter-checkbox-item input[type="checkbox"]');
       const functionCheckbox = checkboxes[0] as HTMLInputElement;
       const classCheckbox = checkboxes[1] as HTMLInputElement;
       expect(functionCheckbox.checked).toBe(true);
@@ -103,7 +103,7 @@ describe('FilterPanel component', () => {
     it('checkbox is unchecked when node type is not in visibleNodeTypes', () => {
       useGraphStore.setState({ visibleNodeTypes: new Set() });
       render(<FilterPanel onClose={vi.fn()} />);
-      const checkboxes = document.querySelectorAll('.filter-checkbox-item input[type="checkbox"]');
+      const checkboxes = document.querySelectorAll('.cg-filter-checkbox-item input[type="checkbox"]');
       const functionCheckbox = checkboxes[0] as HTMLInputElement;
       expect(functionCheckbox.checked).toBe(false);
     });
@@ -112,7 +112,7 @@ describe('FilterPanel component', () => {
       const setVisibleNodeTypes = vi.fn();
       useGraphStore.setState({ visibleNodeTypes: new Set(), setVisibleNodeTypes });
       render(<FilterPanel onClose={vi.fn()} />);
-      const checkboxes = document.querySelectorAll('.filter-checkbox-item input[type="checkbox"]');
+      const checkboxes = document.querySelectorAll('.cg-filter-checkbox-item input[type="checkbox"]');
       fireEvent.click(checkboxes[0]!);
       expect(setVisibleNodeTypes).toHaveBeenCalled();
       const newSet = setVisibleNodeTypes.mock.calls[0]![0] as Set<string>;
@@ -123,7 +123,7 @@ describe('FilterPanel component', () => {
       const setVisibleNodeTypes = vi.fn();
       useGraphStore.setState({ visibleNodeTypes: new Set(['function']), setVisibleNodeTypes });
       render(<FilterPanel onClose={vi.fn()} />);
-      const checkboxes = document.querySelectorAll('.filter-checkbox-item input[type="checkbox"]');
+      const checkboxes = document.querySelectorAll('.cg-filter-checkbox-item input[type="checkbox"]');
       fireEvent.click(checkboxes[0]!);
       expect(setVisibleNodeTypes).toHaveBeenCalled();
       const newSet = setVisibleNodeTypes.mock.calls[0]![0] as Set<string>;
@@ -134,7 +134,7 @@ describe('FilterPanel component', () => {
   describe('edge type checkboxes', () => {
     it('renders all 6 edge type checkboxes', () => {
       render(<FilterPanel onClose={vi.fn()} />);
-      const checkboxes = document.querySelectorAll('.filter-checkbox-item input[type="checkbox"]');
+      const checkboxes = document.querySelectorAll('.cg-filter-checkbox-item input[type="checkbox"]');
       const edgeCheckboxes = Array.from(checkboxes).slice(5);
       expect(edgeCheckboxes.length).toBe(6);
     });
@@ -142,7 +142,7 @@ describe('FilterPanel component', () => {
     it('checkbox is checked when edge type is in visibleEdgeTypes', () => {
       useGraphStore.setState({ visibleEdgeTypes: new Set(['call', 'extend']) });
       render(<FilterPanel onClose={vi.fn()} />);
-      const checkboxes = document.querySelectorAll('.filter-checkbox-item input[type="checkbox"]');
+      const checkboxes = document.querySelectorAll('.cg-filter-checkbox-item input[type="checkbox"]');
       const callCheckbox = checkboxes[5] as HTMLInputElement;
       expect(callCheckbox.checked).toBe(true);
     });
@@ -151,7 +151,7 @@ describe('FilterPanel component', () => {
       const setVisibleEdgeTypes = vi.fn();
       useGraphStore.setState({ visibleEdgeTypes: new Set(), setVisibleEdgeTypes });
       render(<FilterPanel onClose={vi.fn()} />);
-      const checkboxes = document.querySelectorAll('.filter-checkbox-item input[type="checkbox"]');
+      const checkboxes = document.querySelectorAll('.cg-filter-checkbox-item input[type="checkbox"]');
       fireEvent.click(checkboxes[5]!);
       expect(setVisibleEdgeTypes).toHaveBeenCalled();
       const newSet = setVisibleEdgeTypes.mock.calls[0]![0] as Set<string>;
@@ -162,7 +162,7 @@ describe('FilterPanel component', () => {
   describe('quick action buttons', () => {
     it('renders Hide Orphans and Hide Leaves buttons', () => {
       render(<FilterPanel onClose={vi.fn()} />);
-      const quickBtns = document.querySelectorAll('.filter-quick-btn');
+      const quickBtns = document.querySelectorAll('.cg-filter-quick-btn');
       expect(quickBtns.length).toBe(2);
     });
 
@@ -170,7 +170,7 @@ describe('FilterPanel component', () => {
       const setFanInThreshold = vi.fn();
       useGraphStore.setState({ fanInThreshold: 0, setFanInThreshold });
       render(<FilterPanel onClose={vi.fn()} />);
-      const orphanBtn = document.querySelectorAll('.filter-quick-btn')[0] as HTMLButtonElement;
+      const orphanBtn = document.querySelectorAll('.cg-filter-quick-btn')[0] as HTMLButtonElement;
       fireEvent.click(orphanBtn);
       expect(setFanInThreshold).toHaveBeenCalledWith(1);
     });
@@ -179,7 +179,7 @@ describe('FilterPanel component', () => {
       const setFanInThreshold = vi.fn();
       useGraphStore.setState({ fanInThreshold: 1, setFanInThreshold });
       render(<FilterPanel onClose={vi.fn()} />);
-      const orphanBtn = document.querySelectorAll('.filter-quick-btn')[0] as HTMLButtonElement;
+      const orphanBtn = document.querySelectorAll('.cg-filter-quick-btn')[0] as HTMLButtonElement;
       fireEvent.click(orphanBtn);
       expect(setFanInThreshold).toHaveBeenCalledWith(0);
     });
@@ -188,7 +188,7 @@ describe('FilterPanel component', () => {
       const setFanOutThreshold = vi.fn();
       useGraphStore.setState({ fanOutThreshold: 0, setFanOutThreshold });
       render(<FilterPanel onClose={vi.fn()} />);
-      const leavesBtn = document.querySelectorAll('.filter-quick-btn')[1] as HTMLButtonElement;
+      const leavesBtn = document.querySelectorAll('.cg-filter-quick-btn')[1] as HTMLButtonElement;
       fireEvent.click(leavesBtn);
       expect(setFanOutThreshold).toHaveBeenCalledWith(1);
     });
@@ -197,7 +197,7 @@ describe('FilterPanel component', () => {
       const setFanOutThreshold = vi.fn();
       useGraphStore.setState({ fanOutThreshold: 1, setFanOutThreshold });
       render(<FilterPanel onClose={vi.fn()} />);
-      const leavesBtn = document.querySelectorAll('.filter-quick-btn')[1] as HTMLButtonElement;
+      const leavesBtn = document.querySelectorAll('.cg-filter-quick-btn')[1] as HTMLButtonElement;
       fireEvent.click(leavesBtn);
       expect(setFanOutThreshold).toHaveBeenCalledWith(0);
     });
@@ -206,7 +206,7 @@ describe('FilterPanel component', () => {
   describe('reset button', () => {
     it('renders reset button', () => {
       render(<FilterPanel onClose={vi.fn()} />);
-      expect(document.querySelector('.filter-reset-btn')).toBeTruthy();
+      expect(document.querySelector('.cg-filter-reset-btn')).toBeTruthy();
     });
 
     it('calls all reset functions when clicked', () => {
@@ -225,7 +225,7 @@ describe('FilterPanel component', () => {
         setVisibleEdgeTypes,
       });
       render(<FilterPanel onClose={vi.fn()} />);
-      const resetBtn = document.querySelector('.filter-reset-btn') as HTMLButtonElement;
+      const resetBtn = document.querySelector('.cg-filter-reset-btn') as HTMLButtonElement;
       fireEvent.click(resetBtn);
       expect(setFanInThreshold).toHaveBeenCalledWith(0);
       expect(setFanOutThreshold).toHaveBeenCalledWith(0);

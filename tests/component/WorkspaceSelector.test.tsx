@@ -94,7 +94,7 @@ describe('WorkspaceSelector component', () => {
     render(<WorkspaceSelector {...makeProps()} />);
     const trigger = screen.getByRole('button', { name: /切换工作区/ });
     await user.click(trigger);
-    const dropdown = document.body.querySelector('.workspace-dropdown-portal');
+    const dropdown = document.body.querySelector('.cg-workspace-dropdown-portal');
     expect(dropdown).toBeTruthy();
   });
 

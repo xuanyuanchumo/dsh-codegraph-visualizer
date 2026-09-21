@@ -39,6 +39,9 @@ async function scanAndPush(
 export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUpstream: (tool: string, args: Record<string, unknown>) => Promise<unknown | null>): void {
   let watchTimer: ReturnType<typeof setTimeout> | null = null;
   let activeWatcher: { close: () => void } | null = null;
+  let retryCount = 0;
+  const MAX_RETRIES = 3;
+  const RETRY_BASE_DELAY = 1000;
 
   const closeActiveWatcher = (): void => {
     if (activeWatcher) {
@@ -46,6 +49,41 @@ export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUp
       activeWatcher = null;
     }
     if (watchTimer) { clearTimeout(watchTimer); watchTimer = null; }
+  };
+
+  const setupWatch = (watchPath: string): void => {
+    try {
+      const watchOpts = supportsRecursive ? { recursive: true } : {};
+      activeWatcher = watch(watchPath, watchOpts, (_eventType: string, filename: string | null) => {
+        if (!filename) return;
+        const segments = filename.split(/[\\/]/);
+        if (segments.includes('.codegraph')) return;
+        if (segments.includes('node_modules')) return;
+        if (segments.includes('.git')) return;
+
+        if (watchTimer) clearTimeout(watchTimer);
+        watchTimer = setTimeout(() => {
+          watchTimer = null;
+          if (!activeWatcher) return;
+          log.info('file changed, syncing + re-scanning', { filename });
+          invokeUpstream('codegraph_sync', { path: watchPath })
+            .then(() => scanAndPush(ctx, invokeUpstream, watchPath))
+            .catch((e) => log.error('watch re-scan failed', e));
+        }, config.watchDebounce);
+      });
+      retryCount = 0;
+    } catch (e) {
+      log.error('watch setup failed', e);
+      if (retryCount < MAX_RETRIES) {
+        retryCount++;
+        const delay = RETRY_BASE_DELAY * Math.pow(2, retryCount - 1);
+        log.info('retrying watch setup', { retryCount, delay, path: watchPath });
+        setTimeout(() => setupWatch(watchPath), delay);
+      } else {
+        log.error('watch setup exhausted retries', { path: watchPath });
+        ctx.emit('cg-viz/watch/error', { path: watchPath, message: 'Watch setup failed after retries', timestamp: Date.now() });
+      }
+    }
   };
 
   ctx.effect(() => {
@@ -58,28 +96,8 @@ export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUp
       }
 
       log.info('watch enabled', { path: event.path });
-      try {
-        const watchOpts = supportsRecursive ? { recursive: true } : {};
-        activeWatcher = watch(event.path, watchOpts, (_eventType: string, filename: string | null) => {
-          if (!filename) return;
-          const segments = filename.split(/[\\/]/);
-          if (segments.includes('.codegraph')) return;
-          if (segments.includes('node_modules')) return;
-          if (segments.includes('.git')) return;
-
-          if (watchTimer) clearTimeout(watchTimer);
-          watchTimer = setTimeout(() => {
-            watchTimer = null;
-            if (!activeWatcher) return;
-            log.info('file changed, syncing + re-scanning', { filename });
-            invokeUpstream('codegraph_sync', { path: event.path })
-              .then(() => scanAndPush(ctx, invokeUpstream, event.path))
-              .catch((e) => log.error('watch re-scan failed', e));
-          }, config.watchDebounce);
-        });
-      } catch (e) {
-        log.error('watch setup failed', e);
-      }
+      retryCount = 0;
+      setupWatch(event.path);
     });
     return () => {
       dispose();

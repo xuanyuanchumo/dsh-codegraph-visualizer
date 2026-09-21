@@ -46,22 +46,22 @@ export const GraphTooltip = memo(function GraphTooltip({ data }: GraphTooltipPro
   if (isEdgeTooltip(data)) {
     return (
       <div className="cg-tooltip" style={{ left: pos.left, top: pos.top }} role="tooltip">
-        <div className="tooltip-edge-source">{data.sourceLabel}</div>
-        <div className="tooltip-edge-arrow">→</div>
-        <div className="tooltip-edge-target">{data.targetLabel}</div>
-        <span className="tooltip-type">{t(`legend.${data.edgeType}`)}</span>
+        <div className="cg-tooltip-edge-source">{data.sourceLabel}</div>
+        <div className="cg-tooltip-edge-arrow">→</div>
+        <div className="cg-tooltip-edge-target">{data.targetLabel}</div>
+        <span className="cg-tooltip-type">{t(`legend.${data.edgeType}`)}</span>
       </div>
     );
   }
   return (
     <div className="cg-tooltip" style={{ left: pos.left, top: pos.top }} role="tooltip">
-      <div className="tooltip-name">{data.name}</div>
-      <div className="tooltip-path">{data.path}</div>
-      <span className="tooltip-type">{data.type}</span>
+      <div className="cg-tooltip-name">{data.name}</div>
+      <div className="cg-tooltip-path">{data.path}</div>
+      <span className="cg-tooltip-type">{data.type}</span>
       {(data.linksIn !== undefined || data.linksOut !== undefined) && (
-        <div className="tooltip-links">
-          {data.linksIn !== undefined && <span className="tooltip-links-in">in: {data.linksIn}</span>}
-          {data.linksOut !== undefined && <span className="tooltip-links-out">out: {data.linksOut}</span>}
+        <div className="cg-tooltip-links">
+          {data.linksIn !== undefined && <span className="cg-tooltip-links-in">in: {data.linksIn}</span>}
+          {data.linksOut !== undefined && <span className="cg-tooltip-links-out">out: {data.linksOut}</span>}
         </div>
       )}
     </div>

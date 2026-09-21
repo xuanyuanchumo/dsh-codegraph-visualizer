@@ -40,7 +40,7 @@ describe('HealthScoreCard (FR-32) component', () => {
   it('shows empty message when healthScore is null', () => {
     useGraphStore.setState({ healthScore: null });
     render(<HealthScoreCard onClose={vi.fn()} />);
-    const emptyEl = document.querySelector('.health-score-empty');
+    const emptyEl = document.querySelector('.cg-health-score-empty');
     expect(emptyEl).toBeTruthy();
     expect(emptyEl?.textContent).toBeTruthy();
   });
@@ -59,7 +59,7 @@ describe('HealthScoreCard (FR-32) component', () => {
       healthScore: { coupling: 85, cohesion: 90, cyclicDependencyRate: 95, modularity: 88, overall: 89 },
     });
     render(<HealthScoreCard onClose={vi.fn()} />);
-    const fills = document.querySelectorAll('.health-dimension-fill');
+    const fills = document.querySelectorAll('.cg-health-dimension-fill');
     expect(fills.length).toBe(4);
   });
 
@@ -68,7 +68,7 @@ describe('HealthScoreCard (FR-32) component', () => {
       healthScore: { coupling: 65, cohesion: 70, cyclicDependencyRate: 60, modularity: 75, overall: 67 },
     });
     render(<HealthScoreCard onClose={vi.fn()} />);
-    const fills = document.querySelectorAll('.health-dimension-fill');
+    const fills = document.querySelectorAll('.cg-health-dimension-fill');
     expect(fills.length).toBe(4);
   });
 
@@ -77,7 +77,7 @@ describe('HealthScoreCard (FR-32) component', () => {
       healthScore: { coupling: 40, cohesion: 35, cyclicDependencyRate: 50, modularity: 45, overall: 42 },
     });
     render(<HealthScoreCard onClose={vi.fn()} />);
-    const fills = document.querySelectorAll('.health-dimension-fill');
+    const fills = document.querySelectorAll('.cg-health-dimension-fill');
     expect(fills.length).toBe(4);
   });
 });

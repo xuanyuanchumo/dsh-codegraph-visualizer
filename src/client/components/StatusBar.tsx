@@ -26,13 +26,13 @@ export const StatusBar = memo(function StatusBar({ error, isLoading, lastUpdated
   const statusText = error ? t('state.error') : isLoading ? t('state.loading') : t('state.ready');
   const wsName = workspaceName ? deriveWorkspaceName(workspaceName) : '';
   return (
-    <div className="status-bar" role="status" aria-live="polite">
-      <div className="status-item">
+    <div className="cg-status-bar" role="status" aria-live="polite">
+      <div className="cg-status-item">
         <span className={statusDotClass} /><span>{statusText}</span>
       </div>
-      {wsName && <span className="status-workspace" title={workspaceName}>{wsName}</span>}
+      {wsName && <span className="cg-status-workspace" title={workspaceName}>{wsName}</span>}
       {truncated ? (
-        <span className="status-truncated" title={t('state.truncatedHint')}>
+        <span className="cg-status-truncated" title={t('state.truncatedHint')}>
           ⚠ {t('state.truncated', { shown: displayedNodeCount ?? 0, total: totalNodeCount ?? 0 })}
         </span>
       ) : totalNodeCount && totalNodeCount > 0 ? (
@@ -40,10 +40,10 @@ export const StatusBar = memo(function StatusBar({ error, isLoading, lastUpdated
           ✓ {t('state.complete', { total: totalNodeCount })}
         </span>
       ) : null}
-      {watchEnabled && <span className="watch-indicator" title={t('import.watchOn')}>●</span>}
-      <div className="status-spacer" />
-      <div className="status-item">
-        <span className="status-time">
+      {watchEnabled && <span className="cg-watch-indicator" title={t('import.watchOn')}>●</span>}
+      <div className="cg-status-spacer" />
+      <div className="cg-status-item">
+        <span className="cg-status-time">
           {lastUpdated > 0 ? t('state.updated', { time: formatTime(lastUpdated) }) : t('state.noData')}
         </span>
       </div>

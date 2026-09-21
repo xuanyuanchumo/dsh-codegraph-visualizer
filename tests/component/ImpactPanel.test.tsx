@@ -65,21 +65,21 @@ describe('ImpactPanel component', () => {
 
   it('applies correct CSS class names', () => {
     render(<ImpactPanel impactStats={sampleStats} label="Impact Analysis" totalLabel="Total" />);
-    expect(document.querySelector('.analysis-panel.impact-panel')).toBeTruthy();
-    expect(document.querySelector('.analysis-panel-header')).toBeTruthy();
-    expect(document.querySelector('.analysis-panel-content')).toBeTruthy();
-    expect(document.querySelectorAll('.impact-stat-row').length).toBe(3);
-    expect(document.querySelector('.impact-stat-badge.d1')).toBeTruthy();
-    expect(document.querySelector('.impact-stat-badge.d2')).toBeTruthy();
-    expect(document.querySelector('.impact-stat-badge.d3')).toBeTruthy();
-    expect(document.querySelectorAll('.impact-stat-count').length).toBe(3);
-    expect(document.querySelector('.impact-stat-total')).toBeTruthy();
+    expect(document.querySelector('.cg-analysis-panel.cg-impact-panel')).toBeTruthy();
+    expect(document.querySelector('.cg-analysis-panel-header')).toBeTruthy();
+    expect(document.querySelector('.cg-analysis-panel-content')).toBeTruthy();
+    expect(document.querySelectorAll('.cg-impact-stat-row').length).toBe(3);
+    expect(document.querySelector('.cg-impact-stat-badge.cg-d1')).toBeTruthy();
+    expect(document.querySelector('.cg-impact-stat-badge.cg-d2')).toBeTruthy();
+    expect(document.querySelector('.cg-impact-stat-badge.cg-d3')).toBeTruthy();
+    expect(document.querySelectorAll('.cg-impact-stat-count').length).toBe(3);
+    expect(document.querySelector('.cg-impact-stat-total')).toBeTruthy();
   });
 
   it('renders zero values correctly', () => {
     const zeroStats: ImpactStats = { d1: 0, d2: 0, d3: 0, total: 0 };
     render(<ImpactPanel impactStats={zeroStats} label="Impact Analysis" totalLabel="Total" />);
-    const counts = document.querySelectorAll('.impact-stat-count');
+    const counts = document.querySelectorAll('.cg-impact-stat-count');
     expect(counts[0]!.textContent).toBe('0');
     expect(counts[1]!.textContent).toBe('0');
     expect(counts[2]!.textContent).toBe('0');
@@ -97,20 +97,20 @@ describe('ImpactPanel component', () => {
 
   it('renders each stat row with badge and count paired correctly', () => {
     render(<ImpactPanel impactStats={sampleStats} label="Impact Analysis" totalLabel="Total" />);
-    const rows = document.querySelectorAll('.impact-stat-row');
+    const rows = document.querySelectorAll('.cg-impact-stat-row');
     expect(rows.length).toBe(3);
 
     // D1 row
-    expect(rows[0]!.querySelector('.impact-stat-badge.d1')?.textContent).toBe('D1');
-    expect(rows[0]!.querySelector('.impact-stat-count')?.textContent).toBe('5');
+    expect(rows[0]!.querySelector('.cg-impact-stat-badge.cg-d1')?.textContent).toBe('D1');
+    expect(rows[0]!.querySelector('.cg-impact-stat-count')?.textContent).toBe('5');
 
     // D2 row
-    expect(rows[1]!.querySelector('.impact-stat-badge.d2')?.textContent).toBe('D2');
-    expect(rows[1]!.querySelector('.impact-stat-count')?.textContent).toBe('12');
+    expect(rows[1]!.querySelector('.cg-impact-stat-badge.cg-d2')?.textContent).toBe('D2');
+    expect(rows[1]!.querySelector('.cg-impact-stat-count')?.textContent).toBe('12');
 
     // D3 row
-    expect(rows[2]!.querySelector('.impact-stat-badge.d3')?.textContent).toBe('D3');
-    expect(rows[2]!.querySelector('.impact-stat-count')?.textContent).toBe('8');
+    expect(rows[2]!.querySelector('.cg-impact-stat-badge.cg-d3')?.textContent).toBe('D3');
+    expect(rows[2]!.querySelector('.cg-impact-stat-count')?.textContent).toBe('8');
   });
 
   it('updates displayed values when impactStats prop changes', () => {

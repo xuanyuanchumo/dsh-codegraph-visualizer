@@ -135,7 +135,7 @@ describe('Toolbar component', () => {
   describe('graph type buttons', () => {
     it('renders all 3 graph type buttons', () => {
       render(<Toolbar {...makeProps()} />);
-      const graphTypeGroup = document.querySelector('.graph-type-buttons');
+      const graphTypeGroup = document.querySelector('.cg-graph-type-buttons');
       expect(graphTypeGroup).toBeTruthy();
       const buttons = graphTypeGroup!.querySelectorAll('button');
       expect(buttons.length).toBe(3);
@@ -143,7 +143,7 @@ describe('Toolbar component', () => {
 
     it('marks the active graph type button with active class', () => {
       render(<Toolbar {...makeProps({ graphType: 'call' })} />);
-      const graphTypeGroup = document.querySelector('.graph-type-buttons');
+      const graphTypeGroup = document.querySelector('.cg-graph-type-buttons');
       const callBtn = Array.from(graphTypeGroup!.querySelectorAll('button')).find(
         (b) => b.getAttribute('aria-pressed') === 'true',
       ) as HTMLButtonElement;
@@ -155,7 +155,7 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const onGraphTypeChange = vi.fn();
       render(<Toolbar {...makeProps({ onGraphTypeChange })} />);
-      const graphTypeGroup = document.querySelector('.graph-type-buttons');
+      const graphTypeGroup = document.querySelector('.cg-graph-type-buttons');
       const buttons = graphTypeGroup!.querySelectorAll('button');
       await user.click(buttons[1]!); // 'call' button
       expect(onGraphTypeChange).toHaveBeenCalledWith('call');
@@ -166,16 +166,16 @@ describe('Toolbar component', () => {
   describe('view mode buttons', () => {
     it('renders all 6 macro view mode buttons', () => {
       render(<Toolbar {...makeProps()} />);
-      const viewModeGroup = document.querySelector('.view-mode-buttons');
+      const viewModeGroup = document.querySelector('.cg-view-mode-buttons');
       expect(viewModeGroup).toBeTruthy();
-      const macroBtns = viewModeGroup!.querySelectorAll('.view-mode-btn:not(.view-mode-btn--micro)');
+      const macroBtns = viewModeGroup!.querySelectorAll('.cg-view-mode-btn:not(.cg-view-mode-btn--micro)');
       expect(macroBtns.length).toBe(6);
     });
 
     it('renders all 3 micro view mode buttons', () => {
       render(<Toolbar {...makeProps({ hasSelectedFunction: true })} />);
-      const viewModeGroup = document.querySelector('.view-mode-buttons');
-      const microBtns = viewModeGroup!.querySelectorAll('.view-mode-btn--micro');
+      const viewModeGroup = document.querySelector('.cg-view-mode-buttons');
+      const microBtns = viewModeGroup!.querySelectorAll('.cg-view-mode-btn--micro');
       expect(microBtns.length).toBe(3);
     });
 
@@ -183,8 +183,8 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const onViewModeChange = vi.fn();
       render(<Toolbar {...makeProps({ onViewModeChange })} />);
-      const viewModeGroup = document.querySelector('.view-mode-buttons');
-      const macroBtns = viewModeGroup!.querySelectorAll('.view-mode-btn:not(.view-mode-btn--micro)');
+      const viewModeGroup = document.querySelector('.cg-view-mode-buttons');
+      const macroBtns = viewModeGroup!.querySelectorAll('.cg-view-mode-btn:not(.cg-view-mode-btn--micro)');
       await user.click(macroBtns[1]!); // 'dependencies'
       expect(onViewModeChange).toHaveBeenCalledWith('dependencies');
     });
@@ -193,16 +193,16 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const onViewModeChange = vi.fn();
       render(<Toolbar {...makeProps({ hasSelectedFunction: true, onViewModeChange })} />);
-      const viewModeGroup = document.querySelector('.view-mode-buttons');
-      const microBtns = viewModeGroup!.querySelectorAll('.view-mode-btn--micro');
+      const viewModeGroup = document.querySelector('.cg-view-mode-buttons');
+      const microBtns = viewModeGroup!.querySelectorAll('.cg-view-mode-btn--micro');
       await user.click(microBtns[0]!); // 'cfg'
       expect(onViewModeChange).toHaveBeenCalledWith('cfg');
     });
 
     it('marks the active view mode button with active class', () => {
       render(<Toolbar {...makeProps({ viewMode: 'inheritance' })} />);
-      const viewModeGroup = document.querySelector('.view-mode-buttons');
-      const activeBtn = viewModeGroup!.querySelector('.view-mode-btn.active') as HTMLButtonElement;
+      const viewModeGroup = document.querySelector('.cg-view-mode-buttons');
+      const activeBtn = viewModeGroup!.querySelector('.cg-view-mode-btn.cg-active') as HTMLButtonElement;
       expect(activeBtn).toBeTruthy();
       expect(activeBtn.getAttribute('aria-pressed')).toBe('true');
     });
@@ -212,7 +212,7 @@ describe('Toolbar component', () => {
   describe('layer selector', () => {
     it('shows layer selector when layerNames has more than 1 entry', () => {
       render(<Toolbar {...makeProps({ layerNames: ['Layer0', 'Layer1', 'Layer2'] })} />);
-      const layerSelector = document.querySelector('.layer-selector');
+      const layerSelector = document.querySelector('.cg-layer-selector');
       expect(layerSelector).toBeTruthy();
       const layerBtns = layerSelector!.querySelectorAll('button');
       expect(layerBtns.length).toBe(3);
@@ -220,8 +220,8 @@ describe('Toolbar component', () => {
 
     it('marks the current layer button as active', () => {
       render(<Toolbar {...makeProps({ layerNames: ['L0', 'L1'], currentLayer: 1 })} />);
-      const layerSelector = document.querySelector('.layer-selector');
-      const activeBtn = layerSelector!.querySelector('.layer-btn.active') as HTMLButtonElement;
+      const layerSelector = document.querySelector('.cg-layer-selector');
+      const activeBtn = layerSelector!.querySelector('.cg-layer-btn.cg-active') as HTMLButtonElement;
       expect(activeBtn).toBeTruthy();
       expect(activeBtn.getAttribute('aria-pressed')).toBe('true');
     });
@@ -230,7 +230,7 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const onLayerChange = vi.fn();
       render(<Toolbar {...makeProps({ layerNames: ['L0', 'L1'], onLayerChange })} />);
-      const layerSelector = document.querySelector('.layer-selector');
+      const layerSelector = document.querySelector('.cg-layer-selector');
       const layerBtns = layerSelector!.querySelectorAll('button');
       await user.click(layerBtns[1]!);
       expect(onLayerChange).toHaveBeenCalledWith(1);
@@ -240,17 +240,17 @@ describe('Toolbar component', () => {
   // 6. 非分层视图模式下不显示层级选择器
   it('does not show layer selector when layerNames has 0 or 1 entry', () => {
     const { rerender } = render(<Toolbar {...makeProps({ layerNames: [] })} />);
-    expect(document.querySelector('.layer-selector')).toBeNull();
+    expect(document.querySelector('.cg-layer-selector')).toBeNull();
 
     rerender(<Toolbar {...makeProps({ layerNames: ['OnlyOne'] })} />);
-    expect(document.querySelector('.layer-selector')).toBeNull();
+    expect(document.querySelector('.cg-layer-selector')).toBeNull();
   });
 
   // 5. code 模式下显示聚类深度选择器
   describe('cluster depth selector', () => {
     it('shows cluster depth selector when viewMode is code', () => {
       render(<Toolbar {...makeProps({ viewMode: 'code' })} />);
-      const depthSelect = document.querySelector('.depth-select');
+      const depthSelect = document.querySelector('.cg-depth-select');
       expect(depthSelect).toBeTruthy();
       const options = depthSelect!.querySelectorAll('option');
       expect(options.length).toBe(3);
@@ -260,7 +260,7 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const onClusterDepthChange = vi.fn();
       render(<Toolbar {...makeProps({ viewMode: 'code', onClusterDepthChange })} />);
-      const depthSelect = document.querySelector('.depth-select') as HTMLSelectElement;
+      const depthSelect = document.querySelector('.cg-depth-select') as HTMLSelectElement;
       await user.selectOptions(depthSelect, '1');
       expect(onClusterDepthChange).toHaveBeenCalledWith(1);
     });
@@ -269,26 +269,26 @@ describe('Toolbar component', () => {
   // 7. 非 code 模式下不显示聚类深度选择器
   it('does not show cluster depth selector when viewMode is not code', () => {
     const { rerender } = render(<Toolbar {...makeProps({ viewMode: 'dependencies' })} />);
-    expect(document.querySelector('.depth-select')).toBeNull();
+    expect(document.querySelector('.cg-depth-select')).toBeNull();
 
     rerender(<Toolbar {...makeProps({ viewMode: 'callgraph' })} />);
-    expect(document.querySelector('.depth-select')).toBeNull();
+    expect(document.querySelector('.cg-depth-select')).toBeNull();
   });
 
   // 8. 分析工具按钮渲染和点击响应
   describe('analysis tool buttons', () => {
     const analysisButtons = [
-      { className: 'search-btn', handler: 'onToggleSearch', state: 'showSearch' },
-      { className: 'chain-btn', handler: 'onToggleCallChain', state: 'showCallChain' },
-      { className: 'cycle-btn', handler: 'onToggleCycles', state: 'showCycles' },
-      { className: 'impact-btn', handler: 'onToggleImpact', state: 'showImpact' },
-      { className: 'inheritance-btn', handler: 'onToggleInheritance', state: 'showInheritance' },
-      { className: 'pathfind-btn', handler: 'onTogglePathFind', state: 'showPathFind' },
-      { className: 'health-btn', handler: 'onToggleHealthScore', state: 'showHealthScore' },
-      { className: 'rules-btn', handler: 'onToggleRules', state: 'showRules' },
-      { className: 'hotspot-btn', handler: 'onToggleHotspot', state: 'showHotspot' },
-      { className: 'godmodule-btn', handler: 'onToggleGodModule', state: 'showGodModule' },
-      { className: 'corefunction-btn', handler: 'onToggleCoreFunction', state: 'showCoreFunction' },
+      { className: 'cg-search-btn', handler: 'onToggleSearch', state: 'showSearch' },
+      { className: 'cg-chain-btn', handler: 'onToggleCallChain', state: 'showCallChain' },
+      { className: 'cg-cycle-btn', handler: 'onToggleCycles', state: 'showCycles' },
+      { className: 'cg-impact-btn', handler: 'onToggleImpact', state: 'showImpact' },
+      { className: 'cg-inheritance-btn', handler: 'onToggleInheritance', state: 'showInheritance' },
+      { className: 'cg-pathfind-btn', handler: 'onTogglePathFind', state: 'showPathFind' },
+      { className: 'cg-health-btn', handler: 'onToggleHealthScore', state: 'showHealthScore' },
+      { className: 'cg-rules-btn', handler: 'onToggleRules', state: 'showRules' },
+      { className: 'cg-hotspot-btn', handler: 'onToggleHotspot', state: 'showHotspot' },
+      { className: 'cg-godmodule-btn', handler: 'onToggleGodModule', state: 'showGodModule' },
+      { className: 'cg-corefunction-btn', handler: 'onToggleCoreFunction', state: 'showCoreFunction' },
     ];
 
     it('renders all 11 analysis tool buttons', () => {
@@ -338,9 +338,9 @@ describe('Toolbar component', () => {
   describe('view tool buttons', () => {
     it('renders minimap, legend, and refresh buttons', () => {
       render(<Toolbar {...makeProps()} />);
-      expect(document.querySelector('.minimap-btn')).toBeTruthy();
-      expect(document.querySelector('.legend-btn')).toBeTruthy();
-      expect(document.querySelector('.refresh-btn')).toBeTruthy();
+      expect(document.querySelector('.cg-minimap-btn')).toBeTruthy();
+      expect(document.querySelector('.cg-legend-btn')).toBeTruthy();
+      expect(document.querySelector('.cg-refresh-btn')).toBeTruthy();
     });
 
     it('calls onToggleMiniMap when minimap button is clicked', async () => {
@@ -348,7 +348,7 @@ describe('Toolbar component', () => {
       const onToggleMiniMap = vi.fn();
       const panelControls = makePanelControls({ onToggleMiniMap });
       render(<Toolbar {...makeProps({ panelControls })} />);
-      await user.click(document.querySelector('.minimap-btn') as HTMLButtonElement);
+      await user.click(document.querySelector('.cg-minimap-btn') as HTMLButtonElement);
       expect(onToggleMiniMap).toHaveBeenCalledOnce();
     });
 
@@ -357,7 +357,7 @@ describe('Toolbar component', () => {
       const onToggleLegend = vi.fn();
       const panelControls = makePanelControls({ onToggleLegend });
       render(<Toolbar {...makeProps({ panelControls })} />);
-      await user.click(document.querySelector('.legend-btn') as HTMLButtonElement);
+      await user.click(document.querySelector('.cg-legend-btn') as HTMLButtonElement);
       expect(onToggleLegend).toHaveBeenCalledOnce();
     });
 
@@ -365,23 +365,23 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const onRefresh = vi.fn();
       render(<Toolbar {...makeProps({ onRefresh })} />);
-      await user.click(document.querySelector('.refresh-btn') as HTMLButtonElement);
+      await user.click(document.querySelector('.cg-refresh-btn') as HTMLButtonElement);
       expect(onRefresh).toHaveBeenCalledOnce();
     });
 
     it('renders undo button when onUndo is provided', () => {
       render(<Toolbar {...makeProps({ onUndo: noop, canUndo: true })} />);
-      expect(document.querySelector('.undo-btn')).toBeTruthy();
+      expect(document.querySelector('.cg-undo-btn')).toBeTruthy();
     });
 
     it('does not render undo button when onUndo is not provided', () => {
       render(<Toolbar {...makeProps()} />);
-      expect(document.querySelector('.undo-btn')).toBeNull();
+      expect(document.querySelector('.cg-undo-btn')).toBeNull();
     });
 
     it('disables undo button when canUndo is false', () => {
       render(<Toolbar {...makeProps({ onUndo: noop, canUndo: false })} />);
-      const undoBtn = document.querySelector('.undo-btn') as HTMLButtonElement;
+      const undoBtn = document.querySelector('.cg-undo-btn') as HTMLButtonElement;
       expect(undoBtn.disabled).toBe(true);
     });
 
@@ -389,23 +389,23 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const onUndo = vi.fn();
       render(<Toolbar {...makeProps({ onUndo, canUndo: true })} />);
-      await user.click(document.querySelector('.undo-btn') as HTMLButtonElement);
+      await user.click(document.querySelector('.cg-undo-btn') as HTMLButtonElement);
       expect(onUndo).toHaveBeenCalledOnce();
     });
 
     it('renders redo button when onRedo is provided', () => {
       render(<Toolbar {...makeProps({ onRedo: noop, canRedo: true })} />);
-      expect(document.querySelector('.redo-btn')).toBeTruthy();
+      expect(document.querySelector('.cg-redo-btn')).toBeTruthy();
     });
 
     it('does not render redo button when onRedo is not provided', () => {
       render(<Toolbar {...makeProps()} />);
-      expect(document.querySelector('.redo-btn')).toBeNull();
+      expect(document.querySelector('.cg-redo-btn')).toBeNull();
     });
 
     it('disables redo button when canRedo is false', () => {
       render(<Toolbar {...makeProps({ onRedo: noop, canRedo: false })} />);
-      const redoBtn = document.querySelector('.redo-btn') as HTMLButtonElement;
+      const redoBtn = document.querySelector('.cg-redo-btn') as HTMLButtonElement;
       expect(redoBtn.disabled).toBe(true);
     });
 
@@ -413,7 +413,7 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const onRedo = vi.fn();
       render(<Toolbar {...makeProps({ onRedo, canRedo: true })} />);
-      await user.click(document.querySelector('.redo-btn') as HTMLButtonElement);
+      await user.click(document.querySelector('.cg-redo-btn') as HTMLButtonElement);
       expect(onRedo).toHaveBeenCalledOnce();
     });
   });
@@ -422,14 +422,14 @@ describe('Toolbar component', () => {
   describe('theme toggle button', () => {
     it('renders theme button', () => {
       render(<Toolbar {...makeProps({ theme: 'dark' })} />);
-      expect(document.querySelector('.theme-btn')).toBeTruthy();
+      expect(document.querySelector('.cg-theme-btn')).toBeTruthy();
     });
 
     it('calls onThemeToggle when theme button is clicked', async () => {
       const user = userEvent.setup();
       const onThemeToggle = vi.fn();
       render(<Toolbar {...makeProps({ onThemeToggle })} />);
-      await user.click(document.querySelector('.theme-btn') as HTMLButtonElement);
+      await user.click(document.querySelector('.cg-theme-btn') as HTMLButtonElement);
       expect(onThemeToggle).toHaveBeenCalledOnce();
     });
   });
@@ -438,19 +438,19 @@ describe('Toolbar component', () => {
   describe('language toggle button', () => {
     it('renders language button with current language label', () => {
       render(<Toolbar {...makeProps()} />);
-      const langBtn = document.querySelector('.lang-btn');
+      const langBtn = document.querySelector('.cg-lang-btn');
       expect(langBtn).toBeTruthy();
-      const label = langBtn!.querySelector('.lang-label');
+      const label = langBtn!.querySelector('.cg-lang-label');
       expect(label).toBeTruthy();
     });
 
     it('toggles language when lang button is clicked', async () => {
       const user = userEvent.setup();
       render(<Toolbar {...makeProps()} />);
-      const langBtn = document.querySelector('.lang-btn') as HTMLButtonElement;
-      const labelBefore = langBtn.querySelector('.lang-label')!.textContent;
+      const langBtn = document.querySelector('.cg-lang-btn') as HTMLButtonElement;
+      const labelBefore = langBtn.querySelector('.cg-lang-label')!.textContent;
       await user.click(langBtn);
-      const labelAfter = langBtn.querySelector('.lang-label')!.textContent;
+      const labelAfter = langBtn.querySelector('.cg-lang-label')!.textContent;
       expect(labelBefore).not.toBe(labelAfter);
     });
   });
@@ -459,21 +459,21 @@ describe('Toolbar component', () => {
   describe('export menu', () => {
     it('renders export button', () => {
       render(<Toolbar {...makeProps()} />);
-      expect(document.querySelector('.export-btn')).toBeTruthy();
+      expect(document.querySelector('.cg-export-btn')).toBeTruthy();
     });
 
     it('does not show export dropdown initially', () => {
       render(<Toolbar {...makeProps()} />);
-      expect(document.querySelector('.export-dropdown')).toBeNull();
+      expect(document.querySelector('.cg-export-dropdown')).toBeNull();
     });
 
     it('shows export dropdown when export button is clicked', async () => {
       const user = userEvent.setup();
       render(<Toolbar {...makeProps()} />);
-      const exportBtn = document.querySelector('.export-btn') as HTMLButtonElement;
+      const exportBtn = document.querySelector('.cg-export-btn') as HTMLButtonElement;
       await user.click(exportBtn);
-      expect(document.querySelector('.export-dropdown')).toBeTruthy();
-      const menuItems = document.querySelectorAll('.export-dropdown button[role="menuitem"]');
+      expect(document.querySelector('.cg-export-dropdown')).toBeTruthy();
+      const menuItems = document.querySelectorAll('.cg-export-dropdown button[role="menuitem"]');
       expect(menuItems.length).toBe(4);
     });
 
@@ -481,8 +481,8 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const onExport = vi.fn();
       render(<Toolbar {...makeProps({ onExport })} />);
-      await user.click(document.querySelector('.export-btn') as HTMLButtonElement);
-      const menuItems = document.querySelectorAll('.export-dropdown button[role="menuitem"]');
+      await user.click(document.querySelector('.cg-export-btn') as HTMLButtonElement);
+      const menuItems = document.querySelectorAll('.cg-export-dropdown button[role="menuitem"]');
       await user.click(menuItems[0]!);
       expect(onExport).toHaveBeenCalledWith('png');
     });
@@ -491,8 +491,8 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const onExport = vi.fn();
       render(<Toolbar {...makeProps({ onExport })} />);
-      await user.click(document.querySelector('.export-btn') as HTMLButtonElement);
-      const menuItems = document.querySelectorAll('.export-dropdown button[role="menuitem"]');
+      await user.click(document.querySelector('.cg-export-btn') as HTMLButtonElement);
+      const menuItems = document.querySelectorAll('.cg-export-dropdown button[role="menuitem"]');
       await user.click(menuItems[1]!);
       expect(onExport).toHaveBeenCalledWith('svg');
     });
@@ -501,8 +501,8 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const onExport = vi.fn();
       render(<Toolbar {...makeProps({ onExport })} />);
-      await user.click(document.querySelector('.export-btn') as HTMLButtonElement);
-      const menuItems = document.querySelectorAll('.export-dropdown button[role="menuitem"]');
+      await user.click(document.querySelector('.cg-export-btn') as HTMLButtonElement);
+      const menuItems = document.querySelectorAll('.cg-export-dropdown button[role="menuitem"]');
       await user.click(menuItems[2]!);
       expect(onExport).toHaveBeenCalledWith('json');
     });
@@ -511,21 +511,21 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const onExport = vi.fn();
       render(<Toolbar {...makeProps({ onExport })} />);
-      await user.click(document.querySelector('.export-btn') as HTMLButtonElement);
-      const menuItems = document.querySelectorAll('.export-dropdown button[role="menuitem"]');
+      await user.click(document.querySelector('.cg-export-btn') as HTMLButtonElement);
+      const menuItems = document.querySelectorAll('.cg-export-dropdown button[role="menuitem"]');
       await user.click(menuItems[0]!);
-      expect(document.querySelector('.export-dropdown')).toBeNull();
+      expect(document.querySelector('.cg-export-dropdown')).toBeNull();
     });
 
     it('closes export dropdown when clicking outside', async () => {
       const user = userEvent.setup();
       render(<Toolbar {...makeProps()} />);
-      const exportBtn = document.querySelector('.export-btn') as HTMLButtonElement;
+      const exportBtn = document.querySelector('.cg-export-btn') as HTMLButtonElement;
       await user.click(exportBtn);
-      expect(document.querySelector('.export-dropdown')).toBeTruthy();
+      expect(document.querySelector('.cg-export-dropdown')).toBeTruthy();
       // Click outside the export menu
       await user.click(document.body);
-      expect(document.querySelector('.export-dropdown')).toBeNull();
+      expect(document.querySelector('.cg-export-dropdown')).toBeNull();
     });
   });
 
@@ -533,14 +533,14 @@ describe('Toolbar component', () => {
   describe('collapse button', () => {
     it('renders collapse button', () => {
       render(<Toolbar {...makeProps({ collapsed: false })} />);
-      expect(document.querySelector('.collapse-btn')).toBeTruthy();
+      expect(document.querySelector('.cg-collapse-btn')).toBeTruthy();
     });
 
     it('calls onCollapse when collapse button is clicked', async () => {
       const user = userEvent.setup();
       const onCollapse = vi.fn();
       render(<Toolbar {...makeProps({ onCollapse })} />);
-      await user.click(document.querySelector('.collapse-btn') as HTMLButtonElement);
+      await user.click(document.querySelector('.cg-collapse-btn') as HTMLButtonElement);
       expect(onCollapse).toHaveBeenCalledOnce();
     });
   });
@@ -549,7 +549,7 @@ describe('Toolbar component', () => {
   describe('micro view mode button disabled state', () => {
     it('disables micro view mode buttons when hasSelectedFunction is false or undefined', () => {
       const { rerender } = render(<Toolbar {...makeProps({ hasSelectedFunction: false })} />);
-      const microBtns = document.querySelectorAll('.view-mode-btn--micro');
+      const microBtns = document.querySelectorAll('.cg-view-mode-btn--micro');
       expect(microBtns.length).toBe(3);
       microBtns.forEach((btn) => {
         expect((btn as HTMLButtonElement).disabled).toBe(true);
@@ -557,7 +557,7 @@ describe('Toolbar component', () => {
       });
 
       rerender(<Toolbar {...makeProps()} />);
-      const microBtns2 = document.querySelectorAll('.view-mode-btn--micro');
+      const microBtns2 = document.querySelectorAll('.cg-view-mode-btn--micro');
       microBtns2.forEach((btn) => {
         expect((btn as HTMLButtonElement).disabled).toBe(true);
       });
@@ -565,7 +565,7 @@ describe('Toolbar component', () => {
 
     it('enables micro view mode buttons when hasSelectedFunction is true', () => {
       render(<Toolbar {...makeProps({ hasSelectedFunction: true })} />);
-      const microBtns = document.querySelectorAll('.view-mode-btn--micro');
+      const microBtns = document.querySelectorAll('.cg-view-mode-btn--micro');
       expect(microBtns.length).toBe(3);
       microBtns.forEach((btn) => {
         expect((btn as HTMLButtonElement).disabled).toBe(false);
@@ -578,7 +578,7 @@ describe('Toolbar component', () => {
   describe('layer name truncation', () => {
     it('displays full layer name when length <= 4', () => {
       render(<Toolbar {...makeProps({ layerNames: ['L0', 'L1'] })} />);
-      const layerSelector = document.querySelector('.layer-selector');
+      const layerSelector = document.querySelector('.cg-layer-selector');
       const btns = layerSelector!.querySelectorAll('button');
       expect(btns[0]!.textContent).toBe('L0');
       expect(btns[1]!.textContent).toBe('L1');
@@ -586,7 +586,7 @@ describe('Toolbar component', () => {
 
     it('truncates layer name to 3 characters when length > 4', () => {
       render(<Toolbar {...makeProps({ layerNames: ['LongLayerName', 'L1'] })} />);
-      const layerSelector = document.querySelector('.layer-selector');
+      const layerSelector = document.querySelector('.cg-layer-selector');
       const btn = layerSelector!.querySelector('button');
       expect(btn!.textContent).toBe('Lon');
     });
@@ -596,7 +596,7 @@ describe('Toolbar component', () => {
   describe('collapse button icon state', () => {
     it('shows ChevronDownIcon when not collapsed', () => {
       render(<Toolbar {...makeProps({ collapsed: false })} />);
-      const collapseBtn = document.querySelector('.collapse-btn') as HTMLButtonElement;
+      const collapseBtn = document.querySelector('.cg-collapse-btn') as HTMLButtonElement;
       expect(collapseBtn).toBeTruthy();
       // collapsed=false => shows ChevronDownIcon
       const svg = collapseBtn.querySelector('svg');
@@ -605,7 +605,7 @@ describe('Toolbar component', () => {
 
     it('shows ChevronUpIcon when collapsed', () => {
       render(<Toolbar {...makeProps({ collapsed: true })} />);
-      const collapseBtn = document.querySelector('.collapse-btn') as HTMLButtonElement;
+      const collapseBtn = document.querySelector('.cg-collapse-btn') as HTMLButtonElement;
       expect(collapseBtn).toBeTruthy();
       const svg = collapseBtn.querySelector('svg');
       expect(svg).toBeTruthy();
@@ -616,7 +616,7 @@ describe('Toolbar component', () => {
   describe('theme icon display', () => {
     it('renders SunIcon when theme is dark', () => {
       render(<Toolbar {...makeProps({ theme: 'dark' })} />);
-      const themeBtn = document.querySelector('.theme-btn');
+      const themeBtn = document.querySelector('.cg-theme-btn');
       expect(themeBtn).toBeTruthy();
       const svg = themeBtn!.querySelector('svg');
       expect(svg).toBeTruthy();
@@ -624,7 +624,7 @@ describe('Toolbar component', () => {
 
     it('renders MoonIcon when theme is light', () => {
       render(<Toolbar {...makeProps({ theme: 'light' })} />);
-      const themeBtn = document.querySelector('.theme-btn');
+      const themeBtn = document.querySelector('.cg-theme-btn');
       expect(themeBtn).toBeTruthy();
       const svg = themeBtn!.querySelector('svg');
       expect(svg).toBeTruthy();
@@ -657,7 +657,7 @@ describe('Toolbar component', () => {
   describe('filter type select', () => {
     it('renders filter select with all options', () => {
       render(<Toolbar {...makeProps()} />);
-      const filterSelect = document.querySelector('.filter-select') as HTMLSelectElement;
+      const filterSelect = document.querySelector('.cg-filter-select') as HTMLSelectElement;
       expect(filterSelect).toBeTruthy();
       const options = filterSelect.querySelectorAll('option');
       expect(options.length).toBe(6);
@@ -667,7 +667,7 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const onFilterChange = vi.fn();
       render(<Toolbar {...makeProps({ onFilterChange })} />);
-      const filterSelect = document.querySelector('.filter-select') as HTMLSelectElement;
+      const filterSelect = document.querySelector('.cg-filter-select') as HTMLSelectElement;
       await user.selectOptions(filterSelect, 'class');
       expect(onFilterChange).toHaveBeenCalledWith('class');
     });
@@ -677,7 +677,7 @@ describe('Toolbar component', () => {
   describe('import button', () => {
     it('renders import button', () => {
       render(<Toolbar {...makeProps()} />);
-      expect(document.querySelector('.import-btn')).toBeTruthy();
+      expect(document.querySelector('.cg-import-btn')).toBeTruthy();
     });
 
     it('calls onToggleImport when import button is clicked', async () => {
@@ -685,7 +685,7 @@ describe('Toolbar component', () => {
       const onToggleImport = vi.fn();
       const panelControls = makePanelControls({ onToggleImport });
       render(<Toolbar {...makeProps({ panelControls })} />);
-      await user.click(document.querySelector('.import-btn') as HTMLButtonElement);
+      await user.click(document.querySelector('.cg-import-btn') as HTMLButtonElement);
       expect(onToggleImport).toHaveBeenCalledOnce();
     });
   });
@@ -694,19 +694,19 @@ describe('Toolbar component', () => {
   describe('collapse-all button', () => {
     it('renders collapse-all button when onCollapseAll is provided', () => {
       render(<Toolbar {...makeProps({ onCollapseAll: noop })} />);
-      expect(document.querySelector('.collapse-all-btn')).toBeTruthy();
+      expect(document.querySelector('.cg-collapse-all-btn')).toBeTruthy();
     });
 
     it('does not render collapse-all button when onCollapseAll is not provided', () => {
       render(<Toolbar {...makeProps()} />);
-      expect(document.querySelector('.collapse-all-btn')).toBeNull();
+      expect(document.querySelector('.cg-collapse-all-btn')).toBeNull();
     });
 
     it('calls onCollapseAll when collapse-all button is clicked', async () => {
       const user = userEvent.setup();
       const onCollapseAll = vi.fn();
       render(<Toolbar {...makeProps({ onCollapseAll })} />);
-      await user.click(document.querySelector('.collapse-all-btn') as HTMLButtonElement);
+      await user.click(document.querySelector('.cg-collapse-all-btn') as HTMLButtonElement);
       expect(onCollapseAll).toHaveBeenCalledOnce();
     });
   });

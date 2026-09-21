@@ -368,10 +368,12 @@ export class DataController {
   }
 
   getNodeData(nodeId: string): GraphNode | ClusterNode | null {
+    if (this.destroyed) return null;
     return this.currentNodes.get(nodeId) ?? this.nodeFromCy(nodeId);
   }
 
   getEdgeData(edgeId: string): GraphEdge | null {
+    if (this.destroyed) return null;
     return this.currentEdges.get(edgeId) ?? null;
   }
 
@@ -425,6 +427,6 @@ export class DataController {
     this.rawNodesMap.clear();
     this.rawToVisibleMap.clear();
     this.lastAddedNodeIds.clear();
-    this.cy = null as unknown as Core;
+
   }
 }
