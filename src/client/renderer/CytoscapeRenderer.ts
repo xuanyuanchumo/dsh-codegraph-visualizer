@@ -217,6 +217,14 @@ export class CytoscapeRenderer implements IRenderer {
     this.highlightCtrl?.selectNode(nodeId);
   }
 
+  hideNode(nodeId: NodeId): void {
+    this.cy?.getElementById(nodeId).style('display', 'none');
+  }
+
+  getVisibleNodeCount(): number {
+    return this.cy?.nodes(':visible').length ?? 0;
+  }
+
   filterByType(type: string): void {
     this.filterCtrl?.filterByType(type);
   }

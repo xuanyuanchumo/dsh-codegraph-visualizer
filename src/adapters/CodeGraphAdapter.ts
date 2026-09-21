@@ -232,7 +232,7 @@ export class CodeGraphAdapter implements IDataAdapter {
         source: NodeId(e.source),
         target: NodeId(e.target),
         type: mappedType,
-        properties: e.line != null ? { line: e.line } : {},
+        properties: e.line !== null && e.line !== undefined ? { line: e.line } : {},
       });
     }
 

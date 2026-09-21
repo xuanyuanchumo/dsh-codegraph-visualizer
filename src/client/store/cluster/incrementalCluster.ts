@@ -67,11 +67,11 @@ export function computeIncrementalClusters(
     if (!prevIds.has(dir) && !newDirs.has(dir)) newDirs.add(dir);
   }
 
-  const maxVisibleNodes = viewportWidth != null
+  const maxVisibleNodes = viewportWidth !== null && viewportWidth !== undefined
     ? getDynamicMaxVisibleNodes(viewportWidth)
     : CLUSTER.MAX_VISIBLE_NODES;
 
-  const effectiveDepth = viewportWidth != null
+  const effectiveDepth = viewportWidth !== null && viewportWidth !== undefined
     ? Math.max(initialDepth, getAutoClusterDepth(newRawNodes.length, maxVisibleNodes))
     : initialDepth;
 

@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { useT } from '../i18n/index.ts';
 import { CloseIcon } from './Icons.tsx';
 import type { GodModule } from '../hooks/useAnalysisPanels.ts';
 
@@ -10,11 +11,12 @@ interface GodModulePanelProps {
 }
 
 export const GodModulePanel = memo(function GodModulePanel({ godModules, onClose, label, statsLabel }: GodModulePanelProps) {
+  const t = useT();
   return (
     <div className="cg-analysis-panel godmodule-panel" role="region" aria-label={label} aria-live="polite">
       <div className="cg-analysis-panel-header">
         <span>{label}</span>
-        <button onClick={onClose} className="cg-close-btn"><CloseIcon size={14} /></button>
+        <button onClick={onClose} className="cg-close-btn" aria-label={t('common.close')}><CloseIcon size={14} /></button>
       </div>
       <div className="cg-analysis-panel-content">
         {godModules.map((m) => (

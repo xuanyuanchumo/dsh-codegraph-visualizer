@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { useT } from '../i18n/index.ts';
 import type { ImpactStats } from '../hooks/useAnalysisPanels.ts';
 
 interface ImpactPanelProps {
@@ -9,11 +10,12 @@ interface ImpactPanelProps {
 }
 
 export const ImpactPanel = memo(function ImpactPanel({ impactStats, label, totalLabel, onClose }: ImpactPanelProps) {
+  const t = useT();
   return (
     <div className="cg-analysis-panel cg-impact-panel" role="region" aria-label={label} aria-live="polite">
       <div className="cg-analysis-panel-header">
         <span>{label}</span>
-        {onClose && <button className="cg-analysis-panel-close" onClick={onClose} aria-label="Close">×</button>}
+        {onClose && <button className="cg-analysis-panel-close" onClick={onClose} aria-label={t('common.close')}>×</button>}
       </div>
       <div className="cg-analysis-panel-content">
         <div className="cg-impact-stat-row">

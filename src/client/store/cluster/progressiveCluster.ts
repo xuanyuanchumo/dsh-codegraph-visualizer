@@ -375,11 +375,11 @@ export function computeProgressiveClusters(
 ): ClusterResult {
   if (rawNodes.length === 0) return { nodes: [], edges: [] };
 
-  const maxVisibleNodes = viewportWidth != null
+  const maxVisibleNodes = viewportWidth !== null && viewportWidth !== undefined
     ? getDynamicMaxVisibleNodes(viewportWidth)
     : MAX_VISIBLE_NODES;
 
-  const effectiveDepth = viewportWidth != null
+  const effectiveDepth = viewportWidth !== null && viewportWidth !== undefined
     ? Math.max(initialDepth, getAutoClusterDepth(rawNodes.length, maxVisibleNodes))
     : initialDepth;
 

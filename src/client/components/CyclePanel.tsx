@@ -16,7 +16,7 @@ export const CyclePanel = memo(function CyclePanel({ cycles, label, emptyLabel, 
       <div className="cg-analysis-panel-header">
         <span>{label}</span>
         <span className="cg-cycle-count-badge">{cycles.length}</span>
-        {onClose && <button className="cg-analysis-panel-close" onClick={onClose} aria-label="Close">×</button>}
+        {onClose && <button className="cg-analysis-panel-close" onClick={onClose} aria-label={t('common.close')}>×</button>}
       </div>
       <div className="cg-analysis-panel-content">
         {cycles.length === 0 ? (

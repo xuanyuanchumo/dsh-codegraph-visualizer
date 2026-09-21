@@ -82,6 +82,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     nodeId: string;
     position: { x: number; y: number };
   } | null>(null);
+  const [visibleNodeCount, setVisibleNodeCount] = useState<number>(0);
 
   const {
     nodes, edges, rawNodes, rawEdges,
@@ -445,6 +446,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   usePolling(requestRefresh, watchEnabled ? 10000 : 30000, !panel.collapsed);
 
   useEffect(() => {
+    const count = renderer.rendererRef.current?.getVisibleNodeCount() ?? 0;
+    setVisibleNodeCount(count);
+  }, [filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, renderer.rendererRef, nodes]);
+
+  useEffect(() => {
     if (!panel.showMiniMap || panel.collapsed) return;
     const updateMiniMap = () => {
       const r = renderer.rendererRef.current;
@@ -775,6 +781,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
             ? `${t('a11y.selectedNode') ?? 'Selected'}: ${selectedNodeData.label}, ${selectedNodeData.type}, ${selectedNodeData.filePath}:${selectedNodeData.lineNumber}`
             : ''}
         </div>
+        {nodes.length > 0 && visibleNodeCount === 0 && !isMicroView && (
+          <div className="cg-filter-empty-state" role="status">
+            {t('common.noVisibleNodes')}
+          </div>
+        )}
       </div>
       {viewMode === 'sequence' && selectedFunction && !isCollapsed && (
         <GraphErrorBoundary><SequenceDiagramRenderer nodes={nodes} edges={edges} theme={theme}
@@ -844,7 +855,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           onClose={() => setContextMenu(null)}
           onFocusNode={(id) => { renderer.rendererRef.current?.focusOnNode(id); renderer.rendererRef.current?.selectNode(NodeId(id)); }}
           onIsolateNode={(id) => { renderer.rendererRef.current?.focusNeighborhood(NodeId(id)); }}
-          onHideNode={(_id) => { renderer.rendererRef.current?.selectNode(null); }}
+          onHideNode={(id) => { renderer.rendererRef.current?.hideNode(NodeId(id)); }}
           onExpandNode={(id) => { expandNode(id); }}
           onCollapseNode={(id) => { collapseNode(id); }}
           onFindPath={(id) => { panel.setShowPathFind(true); useGraphStore.getState().setPathStart(NodeId(id)); }}

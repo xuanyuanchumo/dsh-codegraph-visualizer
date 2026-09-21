@@ -11,6 +11,20 @@
 .cg-graph-container canvas {
   display: block;
 }
+
+.cg-filter-empty-state {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--cg-text-secondary);
+  font-size: 14px;
+  text-align: center;
+  padding: 16px 24px;
+  background: var(--cg-bg-elevated);
+  border-radius: 8px;
+  pointer-events: none;
+}
 /* ---- Sequence diagram container ----------------------------------------- */
 
 .cg-sequence-diagram-container {

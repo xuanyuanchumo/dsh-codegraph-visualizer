@@ -66,6 +66,23 @@ async function resolveAndValidatePath(
   return resolved;
 }
 
+async function validateWorkspacePath(
+  ctx: Context,
+  deps: RouteDeps,
+): Promise<string | null> {
+  const workspacePath = findWorkspacePath(ctx);
+  if (!workspacePath) {
+    return null;
+  }
+  if (!deps.securityManager.isPathAllowed(workspacePath)) {
+    return '__denied__';
+  }
+  if (!await validatePathRealpath(workspacePath, deps.securityManager)) {
+    return '__denied__';
+  }
+  return workspacePath;
+}
+
 export interface RouteDeps {
   ctx: Context;
   config: VisualizerConfig;
@@ -442,17 +459,13 @@ function registerDependenciesRoute(rc: RouteContext): void {
     path: routePath,
     handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, async (req, res) => {
       try {
-        const workspacePath = findWorkspacePath(ctx);
-        if (!workspacePath) {
-          sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req, corsConfig);
-          return;
-        }
-        if (!deps.securityManager.isPathAllowed(workspacePath)) {
+        const workspacePath = await validateWorkspacePath(ctx, deps);
+        if (workspacePath === '__denied__') {
           sendError(res, 403, 'Workspace path not allowed', req, corsConfig);
           return;
         }
-        if (!await validatePathRealpath(workspacePath, deps.securityManager)) {
-          sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
+        if (!workspacePath) {
+          sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req, corsConfig);
           return;
         }
 
@@ -534,17 +547,13 @@ function registerDiffRoute(rc: RouteContext): void {
           return;
         }
 
-        const workspacePath = findWorkspacePath(ctx);
-        if (!workspacePath) {
-          sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req, corsConfig);
-          return;
-        }
-        if (!deps.securityManager.isPathAllowed(workspacePath)) {
+        const workspacePath = await validateWorkspacePath(ctx, deps);
+        if (workspacePath === '__denied__') {
           sendError(res, 403, 'Workspace path not allowed', req, corsConfig);
           return;
         }
-        if (!await validatePathRealpath(workspacePath, deps.securityManager)) {
-          sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
+        if (!workspacePath) {
+          sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req, corsConfig);
           return;
         }
 

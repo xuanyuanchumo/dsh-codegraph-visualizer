@@ -1,0 +1,30 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nickel-org/oxc/main/npm/oxlint/configuration_schema.json",
+  "rules": {
+    "no-explicit-any": "warn",
+    "no-empty": "warn",
+    "no-unused-vars": "warn",
+    "no-console": "off",
+    "eqeqeq": "error",
+    "no-var": "error",
+    "prefer-const": "error",
+    "no-unsafe-finally": "error",
+    "no-debugger": "error",
+    "no-duplicate-case": "error",
+    "no-irregular-whitespace": "error",
+    "no-sparse-arrays": "error",
+    "no-unreachable": "error",
+    "no-constant-condition": "warn",
+    "no-control-regex": "warn",
+    "no-dupe-keys": "error",
+    "no-regex-spaces": "error"
+  },
+  "ignorePatterns": [
+    "dist/",
+    "dist-host/",
+    "dist-client/",
+    "node_modules/",
+    "*.config.js",
+    "*.config.mjs"
+  ]
+}

@@ -13,7 +13,7 @@ import { RuleEngine, type RuleDefinition } from './shared/analysis/RuleEngine.ts
 import { buildForwardAdjacency } from './shared/analysis/AdjacencyList.ts';
 import { bfsShortestPath } from './shared/analysis/GraphBFS.ts';
 import { scoped } from './shared/Logger.ts';
-import { CACHE } from './shared/constants.ts';
+import { CACHE, PATH_FINDER } from './shared/constants.ts';
 import {
   summarizeGraph,
   normalizeImpact,
@@ -278,7 +278,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       if (!nodeIds.has(NodeId(a.sourceSymbol)) || !nodeIds.has(NodeId(a.targetSymbol))) {
         return null;
       }
-      if (data.nodes.length > 10000) return { path: [], length: 0, truncated: true } as unknown as JsonValue;
+      if (data.nodes.length > PATH_FINDER.MAX_NODES_FOR_BFS) return { path: [], length: 0, truncated: true } as unknown as JsonValue;
       const adjacency = buildForwardAdjacency(data.edges);
       const result = bfsShortestPath(adjacency, a.sourceSymbol, a.targetSymbol, data.nodes.length);
       if (!result) return null;

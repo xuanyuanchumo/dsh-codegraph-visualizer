@@ -464,6 +464,7 @@ export const zh: Record<string, string> = {
   // Heatmap labels
   'heatmap.title': '热力图',
   'heatmap.off': '关闭',
+  'heatmap.none': '关闭',
   'heatmap.instability': '不稳定度',
   'heatmap.lines': '代码行数',
   'heatmap.complexity': '复杂度',
@@ -480,4 +481,8 @@ export const zh: Record<string, string> = {
   'degradation.communityDetectionSampled': '社区检测已采样',
   'degradation.largeGraphMode': '大规模图谱模式',
   'degradation.tooltip': '因图谱规模较大，部分分析功能已降级或跳过以保证性能',
+
+  // 通用
+  'common.close': '关闭',
+  'common.noVisibleNodes': '当前筛选条件下无可见节点',
 };

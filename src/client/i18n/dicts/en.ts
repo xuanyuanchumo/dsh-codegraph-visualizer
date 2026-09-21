@@ -465,6 +465,7 @@ export const en: Record<string, string> = {
   // Heatmap labels
   'heatmap.title': 'Heatmap',
   'heatmap.off': 'Off',
+  'heatmap.none': 'Off',
   'heatmap.instability': 'Instability',
   'heatmap.lines': 'Lines',
   'heatmap.complexity': 'Complexity',
@@ -481,4 +482,8 @@ export const en: Record<string, string> = {
   'degradation.communityDetectionSampled': 'Community detection sampled',
   'degradation.largeGraphMode': 'Large graph mode',
   'degradation.tooltip': 'Some analysis features have been degraded or skipped for performance due to graph size',
+
+  // Common
+  'common.close': 'Close',
+  'common.noVisibleNodes': 'No nodes match the current filter',
 };
