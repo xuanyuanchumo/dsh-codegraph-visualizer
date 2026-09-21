@@ -12,7 +12,7 @@ import { computeViewModeTransition } from './viewModeTransition.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { type LayoutType, type ThemeType, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
 
-import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, LOD } from '../../shared/constants.ts';
+import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, LOD, UI } from '../../shared/constants.ts';
 
 const log = scoped('store');
 
@@ -521,7 +521,7 @@ export const useGraphStore = create<GraphState>()(
         const existing = s.workspaceList.filter((w) => w.path !== path);
         return {
           currentWorkspace: path,
-          workspaceList: [{ path, name: wsName, lastUsed: Date.now() }, ...existing].slice(0, 10),
+          workspaceList: [{ path, name: wsName, lastUsed: Date.now() }, ...existing].slice(0, UI.WORKSPACE_LIST_MAX),
         };
       }),
       removeWorkspace: (path) => set((s) => ({
@@ -557,7 +557,7 @@ export const useGraphStore = create<GraphState>()(
         try {
           const result = await callChainAggregator.aggregate(
             entryNodeId, rawNodes, rawEdges, astFetcher,
-            { depth: callChainDepth, maxFunctions: 20 },
+            { depth: callChainDepth, maxFunctions: UI.MAX_FUNCTIONS_PER_CLUSTER },
           );
           if (result && result.diagram.nodes.length > 0) {
             const clustered = computeClusteredGraph(result.diagram.nodes, result.diagram.edges, 'progressive', expandedNodeIds, clusterDepth, useGraphStore.getState().panelWidth ?? undefined);

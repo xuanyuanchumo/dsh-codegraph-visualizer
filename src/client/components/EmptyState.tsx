@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { useT } from '../i18n/index.ts';
+import { UI } from '../../shared/constants.ts';
 import { GraphIcon, UploadIcon, AlertIcon, CheckIcon, CopyIcon, ZapIcon } from './Icons.tsx';
 
 interface EmptyStateProps {
@@ -27,18 +28,25 @@ export const EmptyState = memo(function EmptyState({ prerequisites, onImport, on
       navigator.clipboard?.writeText(cmd);
       setCopiedCmd(cmd);
       if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-      copyTimerRef.current = setTimeout(() => setCopiedCmd(null), 2000);
+      copyTimerRef.current = setTimeout(() => setCopiedCmd(null), UI.COPY_HINT_TIMEOUT_MS);
     } catch { /* clipboard unavailable — best-effort */ }
   }, []);
 
   const handleInstall = useCallback((plugin: string) => {
-    setInstalling(true);
+    const cmd = plugin === 'dsh-codegraph' ? t('prereq.installCodegraph') : t('prereq.installLens');
+    try {
+      navigator.clipboard?.writeText(cmd);
+      setCopiedCmd(cmd);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopiedCmd(null), 3000);
+    } catch { /* clipboard unavailable — best-effort */ }
     window.dispatchEvent(new CustomEvent('codegraph:install-plugin', {
       detail: { plugin },
     }));
+    setInstalling(true);
     if (installTimerRef.current) clearTimeout(installTimerRef.current);
-    installTimerRef.current = setTimeout(() => setInstalling(false), 3000);
-  }, []);
+    installTimerRef.current = setTimeout(() => setInstalling(false), UI.INSTALL_HINT_TIMEOUT_MS);
+  }, [t]);
 
   const codegraphMissing = !prerequisites.codegraph;
   const lensMissing = !prerequisites.lens;
@@ -79,8 +87,9 @@ export const EmptyState = memo(function EmptyState({ prerequisites, onImport, on
                 className="prereq-install-btn"
                 onClick={() => handleInstall('dsh-codegraph')}
                 disabled={installing}
+                aria-label={installing ? t('prereq.detecting') : t('prereq.installTitle')}
               >
-                <ZapIcon size={14} /> {installing ? t('prereq.detecting') : t('prereq.installTitle')}
+                <ZapIcon size={14} /> {installing ? (copiedCmd === t('prereq.installCodegraph') ? t('empty.copied') : t('prereq.detecting')) : t('prereq.installTitle')}
               </button>
             </div>
           )}
@@ -108,8 +117,9 @@ export const EmptyState = memo(function EmptyState({ prerequisites, onImport, on
                 className="prereq-install-btn"
                 onClick={() => handleInstall('dsh-tool-lens')}
                 disabled={installing}
+                aria-label={installing ? t('prereq.detecting') : t('prereq.installTitle')}
               >
-                <ZapIcon size={14} /> {installing ? t('prereq.detecting') : t('prereq.installTitle')}
+                <ZapIcon size={14} /> {installing ? (copiedCmd === t('prereq.installLens') ? t('empty.copied') : t('prereq.detecting')) : t('prereq.installTitle')}
               </button>
             </div>
           )}

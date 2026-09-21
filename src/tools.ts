@@ -13,7 +13,7 @@ import { RuleEngine, type RuleDefinition } from './shared/analysis/RuleEngine.ts
 import { buildForwardAdjacency } from './shared/analysis/AdjacencyList.ts';
 import { bfsShortestPath } from './shared/analysis/GraphBFS.ts';
 import { scoped } from './shared/Logger.ts';
-import { CACHE, PATH_FINDER } from './shared/constants.ts';
+import { CACHE, PATH_FINDER, TOOL_MESSAGES } from './shared/constants.ts';
 import {
   summarizeGraph,
   normalizeImpact,
@@ -265,10 +265,10 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       render: (_args: unknown, value: unknown) => {
         const v = value as { path?: string[]; length?: number; truncated?: boolean } | null;
         if (!v || !v.path || v.path.length === 0) {
-          if (v?.truncated) return [{ type: 'text' as const, text: 'Graph too large (>10000 nodes) for path finding. Try filtering first.' }];
-          return [{ type: 'text' as const, text: 'No path found between the specified symbols.' }];
+          if (v?.truncated) return [{ type: 'text' as const, text: TOOL_MESSAGES.GRAPH_TOO_LARGE_FOR_PATH }];
+          return [{ type: 'text' as const, text: TOOL_MESSAGES.NO_PATH_FOUND }];
         }
-        return [{ type: 'text' as const, text: `Path found (${v.length} hops): ${v.path.join(' → ')}` }];
+        return [{ type: 'text' as const, text: `${TOOL_MESSAGES.PATH_FOUND} (${v.length} ${TOOL_MESSAGES.HOPS}): ${v.path.join(' → ')}` }];
       },
     },
     execute: async (args) => {
@@ -296,7 +296,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       schema: { type: 'json' },
       render: (_args: unknown, value: unknown) => {
         const v = value as HealthScore | null;
-        if (!v) return [{ type: 'text' as const, text: 'Insufficient data for health scoring.' }];
+        if (!v) return [{ type: 'text' as const, text: TOOL_MESSAGES.INSUFFICIENT_DATA }];
         return [{
           type: 'text' as const,
           text: `Architecture Health: ${v.overall}/100\n  Coupling: ${v.coupling}/100\n  Cohesion: ${v.cohesion}/100\n  Cyclic Dep Rate: ${v.cyclicDependencyRate}/100\n  Modularity: ${v.modularity}/100`,
@@ -326,9 +326,9 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       schema: { type: 'json' },
       render: (_args: unknown, value: unknown) => {
         const v = value as RuleViolation[] | null;
-        if (!v || v.length === 0) return [{ type: 'text' as const, text: 'No rule violations detected.' }];
+        if (!v || v.length === 0) return [{ type: 'text' as const, text: TOOL_MESSAGES.NO_VIOLATIONS }];
         const lines = v.slice(0, 20).map((r) => `  [${r.severity}] ${r.message}`);
-        return [{ type: 'text' as const, text: `${v.length} rule violations:\n${lines.join('\n')}` }];
+        return [{ type: 'text' as const, text: `${v.length} ${TOOL_MESSAGES.RULE_VIOLATIONS}\n${lines.join('\n')}` }];
       },
     },
     execute: async (args) => {

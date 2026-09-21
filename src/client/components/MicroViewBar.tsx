@@ -11,13 +11,14 @@ interface MicroViewPromptProps {
   onBackToCode: () => void;
 }
 
+
 export const MicroViewPrompt = memo(function MicroViewPrompt({ viewMode, selectFunctionPrompt, flowchartLabel, sequenceLabel, backToCodeLabel, onBackToCode }: MicroViewPromptProps) {
   const modeLabel = viewMode === 'cfg' ? 'CFG' : viewMode === 'flowchart' ? flowchartLabel : sequenceLabel;
   return (
     <div className="cg-micro-empty-prompt">
       <div className="cg-micro-empty-icon">{modeLabel}</div>
       <div className="cg-micro-empty-text">{selectFunctionPrompt}</div>
-      <button className="cg-micro-empty-back-btn" onClick={onBackToCode}>{backToCodeLabel}</button>
+      <button className="cg-micro-empty-back-btn" onClick={onBackToCode} aria-label={backToCodeLabel}>{backToCodeLabel}</button>
     </div>
   );
 })

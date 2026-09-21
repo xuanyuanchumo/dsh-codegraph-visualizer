@@ -118,13 +118,13 @@ export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, 
         <div className="cg-detail-micro-actions">
           <div className="cg-detail-section-title">{t('detail.microViews')}</div>
           <div className="cg-detail-micro-btns">
-            <button className="cg-detail-micro-btn" onClick={() => onSelectFunction(node, 'cfg')}>
+            <button className="cg-detail-micro-btn" onClick={() => onSelectFunction(node, 'cfg')} aria-label={t('toolbar.viewModeCfg')}>
               {t('viewMode.cfg')}
             </button>
-            <button className="cg-detail-micro-btn" onClick={() => onSelectFunction(node, 'flowchart')}>
+            <button className="cg-detail-micro-btn" onClick={() => onSelectFunction(node, 'flowchart')} aria-label={t('toolbar.viewModeFlowchart')}>
               {t('viewMode.flowchart')}
             </button>
-            <button className="cg-detail-micro-btn" onClick={() => onSelectFunction(node, 'sequence')}>
+            <button className="cg-detail-micro-btn" onClick={() => onSelectFunction(node, 'sequence')} aria-label={t('toolbar.viewModeSequence')}>
               {t('viewMode.sequence')}
             </button>
           </div>
@@ -148,13 +148,13 @@ export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, 
               <div className="cg-detail-function-item" key={fn.id}>
                 <span className="cg-detail-function-name" title={fn.filePath}>{fn.label}</span>
                 <div className="cg-detail-function-micro-btns">
-                  <button className="cg-detail-micro-btn cg-detail-micro-btn--small" onClick={() => onSelectFunction(fn, 'cfg')}>
+                  <button className="cg-detail-micro-btn cg-detail-micro-btn--small" onClick={() => onSelectFunction(fn, 'cfg')} aria-label={t('toolbar.viewModeCfg')}>
                     {t('viewMode.cfg')}
                   </button>
-                  <button className="cg-detail-micro-btn cg-detail-micro-btn--small" onClick={() => onSelectFunction(fn, 'flowchart')}>
+                  <button className="cg-detail-micro-btn cg-detail-micro-btn--small" onClick={() => onSelectFunction(fn, 'flowchart')} aria-label={t('toolbar.viewModeFlowchart')}>
                     {t('viewMode.flowchart')}
                   </button>
-                  <button className="cg-detail-micro-btn cg-detail-micro-btn--small" onClick={() => onSelectFunction(fn, 'sequence')}>
+                  <button className="cg-detail-micro-btn cg-detail-micro-btn--small" onClick={() => onSelectFunction(fn, 'sequence')} aria-label={t('toolbar.viewModeSequence')}>
                     {t('viewMode.sequence')}
                   </button>
                 </div>

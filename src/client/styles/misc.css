@@ -344,6 +344,13 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+
+.cg-context-menu-separator {
+  height: 1px;
+  margin: 2px 0;
+  background: var(--cg-border);
+}
+
 /* Heatmap mode selector bar */
 .cg-heatmap-bar {
   display: flex;
@@ -388,4 +395,12 @@
 .cg-heatmap-btn:focus-visible {
   outline: 2px solid var(--cg-accent);
   outline-offset: 1px;
+}
+.cg-heatmap-bar--collapsed {
+  padding: 2px 4px;
+}
+
+.cg-heatmap-btn--activate {
+  font-weight: 500;
+  color: var(--cg-text-secondary);
 }

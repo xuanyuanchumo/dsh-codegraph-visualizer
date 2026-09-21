@@ -40,6 +40,7 @@ import { GraphIcon } from './components/Icons.tsx';
 import { SequenceDiagramRenderer } from './renderer/SequenceDiagramRenderer.tsx';
 import { scoped } from '../shared/Logger.ts';
 import { LOD } from '../shared/constants.ts';
+import { UI } from '../shared/constants.ts';
 
 import { useT } from './i18n/index.ts';
 import './styles/tokens.css';
@@ -194,7 +195,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     }
   }, [currentWorkspace, rawNodes, rawEdges, graphCache]);
 
-  const debouncedSearch = useDebounce(searchQuery, 200);
+  const debouncedSearch = useDebounce(searchQuery, UI.SEARCH_DEBOUNCE_MS);
   const { search: searchNodes } = useNodeSearch(rawNodes);
   const showCallChainRef = useRef(panel.showCallChain);
 
@@ -381,8 +382,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     if (panel.collapsed) return;
     const panelEl = panelRef.current;
     if (!panelEl) return;
-    if (panelHeight !== null && panelHeight >= 240) panelEl.style.height = `${Math.min(panelHeight, window.innerHeight)}px`;
-    if (panelWidth !== null && panelWidth >= 320) panelEl.style.width = `${panelWidth}px`;
+    if (panelHeight !== null && panelHeight >= UI.MIN_PANEL_HEIGHT_PX) panelEl.style.height = `${Math.min(panelHeight, window.innerHeight)}px`;
+    if (panelWidth !== null && panelWidth >= UI.MIN_PANEL_WIDTH_PX) panelEl.style.width = `${panelWidth}px`;
     if (panelHeight !== null || panelWidth !== null) renderer.rendererRef.current?.resize();
   }, [panel.collapsed, panelHeight, panelWidth, renderer.rendererRef]);
 
@@ -396,7 +397,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     let depth = 0;
     while (ancestor && depth < 8) {
       const h = ancestor.getBoundingClientRect().height;
-      if (h >= 300) break;
+      if (h >= UI.ANCESTOR_MIN_HEIGHT_PX) break;
       ancestor = ancestor.parentElement;
       depth++;
     }
@@ -413,7 +414,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           panelEl.style.height = `${finalH}px`;
           renderer.rendererRef.current?.resize();
         }
-      }, 200);
+      }, UI.RESIZE_DEBOUNCE_MS);
     };
     applyAncestorHeight();
     const ro = new ResizeObserver(applyAncestorHeight);
@@ -444,7 +445,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const requestRefresh = useCallback(() => {
     window.dispatchEvent(new CustomEvent('codegraph:refresh', { detail: { incremental: true } }));
   }, []);
-  usePolling(requestRefresh, watchEnabled ? 10000 : 30000, !panel.collapsed);
+  usePolling(requestRefresh, watchEnabled ? UI.POLLING_INTERVAL_WATCH_MS : UI.POLLING_INTERVAL_IDLE_MS, !panel.collapsed);
 
   useEffect(() => {
     const count = renderer.rendererRef.current?.getVisibleNodeCount() ?? 0;
@@ -463,15 +464,14 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     updateMiniMap();
     let rafId: number | null = null;
     let lastUpdate = 0;
-    const MIN_INTERVAL = 500;
     const throttledUpdate = () => {
       const now = Date.now();
-      if (now - lastUpdate < MIN_INTERVAL) return;
+      if (now - lastUpdate < UI.MINIMAP_THROTTLE_MS) return;
       lastUpdate = now;
       if (rafId !== null) cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(updateMiniMap);
     };
-    const fallbackId = setInterval(throttledUpdate, 500);
+    const fallbackId = setInterval(throttledUpdate, UI.MINIMAP_UPDATE_INTERVAL_MS);
     return () => {
       if (rafId !== null) cancelAnimationFrame(rafId);
       clearInterval(fallbackId);
@@ -724,18 +724,31 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       </div>
 
       {!isCollapsed && !isMicroView && (
-        <div className="cg-heatmap-bar" role="group" aria-label={t('heatmap.title') ?? 'Heatmap mode'}>
-          <span className="cg-heatmap-label">{t('heatmap.title') ?? 'Heatmap'}:</span>
-          {(['none', 'instability', 'lines', 'complexity'] as const).map((m) => (
+        <div className={`cg-heatmap-bar ${heatmapMode === 'none' ? 'cg-heatmap-bar--collapsed' : ''}`} role="group" aria-label={t('heatmap.title') ?? 'Heatmap mode'}>
+          {heatmapMode === 'none' ? (
             <button
-              key={m}
-              className={`cg-heatmap-btn ${heatmapMode === m ? 'cg-active' : ''}`}
-              onClick={() => setHeatmapMode(m)}
-              aria-pressed={heatmapMode === m}
+              className="cg-heatmap-btn cg-heatmap-btn--activate"
+              onClick={() => setHeatmapMode('instability')}
+              aria-label={t('heatmap.title') ?? 'Heatmap'}
             >
-              {t(`heatmap.${m}`) ?? m}
+              {t('heatmap.title') ?? 'Heatmap'}
             </button>
-          ))}
+          ) : (
+            <>
+              <span className="cg-heatmap-label">{t('heatmap.title') ?? 'Heatmap'}:</span>
+              {(['none', 'instability', 'lines', 'complexity'] as const).map((m) => (
+                <button
+                  key={m}
+                  className={`cg-heatmap-btn ${heatmapMode === m ? 'cg-active' : ''}`}
+                  onClick={() => setHeatmapMode(m)}
+                  aria-pressed={heatmapMode === m}
+                  aria-label={t(`heatmap.${m}`) ?? m}
+                >
+                  {t(`heatmap.${m}`) ?? m}
+                </button>
+              ))}
+            </>
+          )}
         </div>
       )}
 

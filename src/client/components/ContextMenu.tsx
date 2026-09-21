@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, memo } from 'react';
+import React, { useEffect, useRef, useState, memo } from 'react';
 import type { GraphNode } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
 import { useT } from '../i18n/index.ts';
+import { UI } from '../../shared/constants.ts';
 
 export interface ContextMenuAction {
   id: string;
@@ -9,6 +10,7 @@ export interface ContextMenuAction {
   icon?: string;
   onClick: () => void;
   disabled?: boolean;
+  separatorAfter?: boolean;
 }
 
 export interface ContextMenuProps {
@@ -119,6 +121,7 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
     id: 'hide',
     label: t('contextMenu.hide'),
     onClick: () => { props.onHideNode(props.nodeId); props.onClose(); },
+    separatorAfter: true,
   });
 
   if (props.hasHiddenNodes) {
@@ -126,6 +129,7 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
       id: 'showAll',
       label: t('contextMenu.showAll'),
       onClick: () => { props.onShowAllNodes(); props.onClose(); },
+      separatorAfter: true,
     });
   }
 
@@ -161,27 +165,30 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
     id: 'findPath',
     label: t('contextMenu.findPath'),
     onClick: () => { props.onFindPath(props.nodeId); props.onClose(); },
+    separatorAfter: true,
   });
 
   const menuStyle: React.CSSProperties = {
     position: 'fixed',
     left: `${props.position.x}px`,
     top: `${props.position.y}px`,
-    zIndex: 10000,
+    zIndex: UI.CONTEXT_MENU_Z_INDEX,
   };
 
   return (
     <div className="cg-context-menu" ref={menuRef} style={menuStyle} role="menu">
       {actions.map((action) => (
-        <button
-          key={action.id}
-          className="cg-context-menu-item"
-          role="menuitem"
-          disabled={action.disabled}
-          onClick={action.onClick}
-        >
-          {action.label}
-        </button>
+        <React.Fragment key={action.id}>
+          <button
+            className="cg-context-menu-item"
+            role="menuitem"
+            disabled={action.disabled}
+            onClick={action.onClick}
+          >
+            {action.label}
+          </button>
+          {action.separatorAfter && <div className="cg-context-menu-separator" role="separator" />}
+        </React.Fragment>
       ))}
     </div>
   );

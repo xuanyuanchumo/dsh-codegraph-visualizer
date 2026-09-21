@@ -209,3 +209,28 @@ export const WATCHER = {
   MAX_RETRIES: 3,
   RETRY_BASE_DELAY_MS: 1000,
 } as const;
+export const UI = {
+  SEARCH_DEBOUNCE_MS: 200,
+  RESIZE_DEBOUNCE_MS: 200,
+  ANCESTOR_MIN_HEIGHT_PX: 300,
+  MIN_PANEL_HEIGHT_PX: 240,
+  MIN_PANEL_WIDTH_PX: 320,
+  POLLING_INTERVAL_WATCH_MS: 10000,
+  POLLING_INTERVAL_IDLE_MS: 30000,
+  MINIMAP_UPDATE_INTERVAL_MS: 500,
+  MINIMAP_THROTTLE_MS: 500,
+  COPY_HINT_TIMEOUT_MS: 2000,
+  INSTALL_HINT_TIMEOUT_MS: 3000,
+  CONTEXT_MENU_Z_INDEX: 10000,
+  WORKSPACE_LIST_MAX: 10,
+  MAX_FUNCTIONS_PER_CLUSTER: 50,
+} as const;
+export const TOOL_MESSAGES = {
+  NO_PATH_FOUND: 'No path found between the specified symbols.',
+  GRAPH_TOO_LARGE_FOR_PATH: 'Graph too large (>10000 nodes) for path finding. Try filtering first.',
+  PATH_FOUND: 'Path found',
+  HOPS: 'hops',
+  INSUFFICIENT_DATA: 'Insufficient data for health scoring.',
+  NO_VIOLATIONS: 'No rule violations detected.',
+  RULE_VIOLATIONS: 'rule violations:',
+} as const;
