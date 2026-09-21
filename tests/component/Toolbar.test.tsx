@@ -572,6 +572,21 @@ describe('Toolbar component', () => {
         expect(btn.getAttribute('aria-disabled')).toBe('false');
       });
     });
+
+    it('shows disabled tooltip when hasSelectedFunction is false', () => {
+      render(<Toolbar {...makeProps({ hasSelectedFunction: false })} />);
+      const microBtns = document.querySelectorAll('.cg-view-mode-btn--micro');
+      microBtns.forEach((btn) => {
+        expect(btn.getAttribute('title')).toBe('请先选中函数节点');
+      });
+    });
+
+    it('shows view mode tooltip when hasSelectedFunction is true', () => {
+      render(<Toolbar {...makeProps({ hasSelectedFunction: true })} />);
+      const microBtns = document.querySelectorAll('.cg-view-mode-btn--micro');
+      const cfgBtn = microBtns[0] as HTMLButtonElement;
+      expect(cfgBtn.getAttribute('title')).toContain('控制流');
+    });
   });
 
   // 额外覆盖：层级名截断逻辑

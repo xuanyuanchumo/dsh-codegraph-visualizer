@@ -531,14 +531,9 @@ describe('createSubgroupClusters', () => {
 
 describe('enforceNodeLimit', () => {
   it('collapses clusters when visibleNodes exceeds MAX_VISIBLE_NODES', () => {
-    // Create 2000 non-cluster nodes + 10 cluster nodes = 2010 total
-    // overLimit = 10
-    // Clusters sorted by childCount ascending: 1,2,3,4,5,6,7,8,9,10
-    // Collapse childCount=1 (collapsed=1), childCount=2 (3), childCount=3 (6), childCount=4 (10) -> stop
     const visibleNodes: (GraphNode | ClusterNode)[] = [];
     const nodeIdToVisibleId = new Map<string, string>();
 
-    // Create 10 cluster nodes with childCount 1..10
     let childIdx = 0;
     for (let c = 1; c <= 10; c++) {
       const childIds: NodeId[] = [];
@@ -562,25 +557,20 @@ describe('enforceNodeLimit', () => {
       nodeIdToVisibleId.set(`c${c}`, `c${c}`);
     }
 
-    // Create non-cluster nodes: 55 children + 1945 others = 2000
     for (let i = 0; i < 55; i++) {
       visibleNodes.push(makeNode(`child${i}`, `src/dir/file${i}.ts`));
       nodeIdToVisibleId.set(`child${i}`, `child${i}`);
     }
-    for (let i = 55; i < 2000; i++) {
+    for (let i = 55; i < 5000; i++) {
       visibleNodes.push(makeNode(`n${i}`, `src/dir/file${i}.ts`));
       nodeIdToVisibleId.set(`n${i}`, `n${i}`);
     }
 
-    expect(visibleNodes.length).toBe(2010);
+    expect(visibleNodes.length).toBe(5010);
 
     const result = enforceNodeLimit(visibleNodes, nodeIdToVisibleId, []);
 
-    // After collapsing 4 clusters (childCount 1+2+3+4=10=overLimit):
-    // - 10 child nodes removed from non-cluster nodes (child0..child9)
-    // - All 10 cluster nodes kept
-    // Final = 10 clusters + (2000 - 10) non-clusters = 2000
-    expect(result.nodes.length).toBeLessThanOrEqual(2000);
+    expect(result.nodes.length).toBeLessThanOrEqual(5000);
   });
 
   it('sorts clusters by childCount ascending before collapsing', () => {
@@ -634,29 +624,16 @@ describe('enforceNodeLimit', () => {
     nodeIdToVisibleId.set('small', 'small');
     nodeIdToVisibleId.set('mid', 'mid');
 
-    // Add enough non-cluster nodes to exceed MAX_VISIBLE_NODES
-    // Total visible = 3 clusters + N non-clusters > 2000
-    // overLimit = 3 + N - 2000
-    // We want overLimit = 2 so only the smallest cluster (childCount=1) is collapsed
-    // 3 + N - 2000 = 2 => N = 1999
-    for (let i = 0; i < 1999; i++) {
+    for (let i = 0; i < 4999; i++) {
       visibleNodes.push(makeNode(`n${i}`, `src/dir/file${i}.ts`));
       nodeIdToVisibleId.set(`n${i}`, `n${i}`);
     }
 
-    expect(visibleNodes.length).toBe(2002); // 3 + 1999
+    expect(visibleNodes.length).toBe(5002);
 
     const result = enforceNodeLimit(visibleNodes, nodeIdToVisibleId, []);
 
-    // overLimit = 2
-    // Sorted by childCount: small(1), mid(5), big(10)
-    // Collapse small: collapsed=1, 1 < 2, continue
-    // Collapse mid: collapsed=6, 6 >= 2, stop
-    // So small and mid are collapsed, big is not
-
-    // smallChild0 should be mapped to 'small'
     expect(nodeIdToVisibleId.get('smallChild0')).toBe('small');
-    // midChild0..4 should be mapped to 'mid'
     for (let i = 0; i < 5; i++) {
       expect(nodeIdToVisibleId.get(`midChild${i}`)).toBe('mid');
     }
@@ -684,33 +661,27 @@ describe('enforceNodeLimit', () => {
     };
     visibleNodes.push(cluster);
 
-    // 3 child nodes + 1997 other non-cluster nodes = 2000 non-cluster + 1 cluster = 2001
     for (let i = 0; i < 3; i++) {
       visibleNodes.push(makeNode(`kid${i}`, `src/dir/file${i}.ts`));
       nodeIdToVisibleId.set(`kid${i}`, `kid${i}`);
     }
-    for (let i = 3; i < 2000; i++) {
+    for (let i = 3; i < 5000; i++) {
       visibleNodes.push(makeNode(`n${i}`, `src/dir/file${i}.ts`));
       nodeIdToVisibleId.set(`n${i}`, `n${i}`);
     }
     nodeIdToVisibleId.set('cl1', 'cl1');
 
-    expect(visibleNodes.length).toBe(2001);
+    expect(visibleNodes.length).toBe(5001);
 
     const result = enforceNodeLimit(visibleNodes, nodeIdToVisibleId, []);
 
-    // overLimit = 1
-    // Collapse cluster (childCount=3): collapsed=3 >= 1
-    // All 3 children mapped to cluster ID
     expect(nodeIdToVisibleId.get('kid0')).toBe('cl1');
     expect(nodeIdToVisibleId.get('kid1')).toBe('cl1');
     expect(nodeIdToVisibleId.get('kid2')).toBe('cl1');
 
-    // Non-child nodes should still map to themselves
     expect(nodeIdToVisibleId.get('n3')).toBe('n3');
-    expect(nodeIdToVisibleId.get('n1999')).toBe('n1999');
+    expect(nodeIdToVisibleId.get('n4999')).toBe('n4999');
 
-    // Result should have <= 2000 nodes
-    expect(result.nodes.length).toBeLessThanOrEqual(2000);
+    expect(result.nodes.length).toBeLessThanOrEqual(5000);
   });
 });

@@ -71,6 +71,9 @@ export class CytoscapeRenderer implements IRenderer {
         style: [],
         layout: { name: 'cose' },
         headless: false,
+        hideEdgesOnViewport: true,
+        hideLabelsOnViewport: true,
+        textureOnViewport: false,
       });
 
       const cy = this.cy;

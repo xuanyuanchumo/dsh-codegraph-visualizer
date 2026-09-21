@@ -4,6 +4,34 @@ import { VIRTUAL_VIEWPORT } from '../../shared/constants.ts';
 
 const VIRTUAL_SCROLL_THRESHOLD = VIRTUAL_VIEWPORT.SCROLL_THRESHOLD;
 
+interface ViewBounds {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+export function edgeIntersectsViewport(
+  sourcePos: { x: number; y: number },
+  targetPos: { x: number; y: number },
+  bounds: ViewBounds,
+): boolean {
+  if (sourcePos.x >= bounds.x1 && sourcePos.x <= bounds.x2 &&
+      sourcePos.y >= bounds.y1 && sourcePos.y <= bounds.y2) return true;
+  if (targetPos.x >= bounds.x1 && targetPos.x <= bounds.x2 &&
+      targetPos.y >= bounds.y1 && targetPos.y <= bounds.y2) return true;
+  const dx = targetPos.x - sourcePos.x;
+  const dy = targetPos.y - sourcePos.y;
+  if (dx === 0 && dy === 0) return false;
+  const t1 = (bounds.x1 - sourcePos.x) / (dx || 1e-9);
+  const t2 = (bounds.x2 - sourcePos.x) / (dx || 1e-9);
+  const t3 = (bounds.y1 - sourcePos.y) / (dy || 1e-9);
+  const t4 = (bounds.y2 - sourcePos.y) / (dy || 1e-9);
+  const tmin = Math.max(Math.min(t1, t2), Math.min(t3, t4));
+  const tmax = Math.min(Math.max(t1, t2), Math.max(t3, t4));
+  return tmax >= 0 && tmin <= 1 && tmin <= tmax;
+}
+
 export class VirtualViewportController {
   private cy: Core;
   private enabled = false;
@@ -93,7 +121,7 @@ export class VirtualViewportController {
     const height = this.cy.height();
 
     const padding = VIRTUAL_VIEWPORT.PADDING;
-    const viewBounds = {
+    const viewBounds: ViewBounds = {
       x1: -pan.x / zoom - padding,
       y1: -pan.y / zoom - padding,
       x2: (-pan.x + width) / zoom + padding,
@@ -158,9 +186,31 @@ export class VirtualViewportController {
           }
           const sourceVisible = newVisible.has(edge.source().id());
           const targetVisible = newVisible.has(edge.target().id());
-          edge.style('display', sourceVisible && targetVisible ? 'element' : 'none');
+          if (sourceVisible && targetVisible) {
+            edge.style('display', 'element');
+          } else if (sourceVisible || targetVisible) {
+            const sp = edge.source().position();
+            const tp = edge.target().position();
+            if (edgeIntersectsViewport(sp, tp, viewBounds)) {
+              edge.style('display', 'element');
+            } else {
+              edge.style('display', 'none');
+            }
+          } else {
+            edge.style('display', 'none');
+          }
         });
       }
+
+      this.cy.edges().forEach((edge) => {
+        if (edge.style('display') !== 'element') return;
+        if (edge.data('typeFiltered') === true || edge.data('connectionFiltered') === true) return;
+        const sourceVisible = newVisible.has(edge.source().id());
+        const targetVisible = newVisible.has(edge.target().id());
+        if (!sourceVisible && !targetVisible) {
+          edge.style('display', 'none');
+        }
+      });
     });
 
     this.visibleNodeIds = newVisible;

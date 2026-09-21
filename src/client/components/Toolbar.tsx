@@ -216,7 +216,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
               key={m.value}
               className={`cg-view-mode-btn cg-view-mode-btn--micro ${viewMode === m.value ? 'cg-active' : ''}`}
               onClick={() => onViewModeChange(m.value)}
-              title={t(`toolbar.viewMode${m.value.charAt(0).toUpperCase() + m.value.slice(1)}`)}
+              title={hasSelectedFunction ? t(`toolbar.viewMode${m.value.charAt(0).toUpperCase() + m.value.slice(1)}`) : t('toolbar.microDisabled')}
               aria-pressed={viewMode === m.value}
               disabled={!hasSelectedFunction}
               aria-disabled={!hasSelectedFunction}

@@ -641,18 +641,49 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         onRemoveWorkspace={removeWorkspace}
       />
 
-      {panel.showSearch && !isCollapsed && (
-        <GraphErrorBoundary><SearchBar query={searchQuery} matchCount={renderer.searchMatchCount}
-          searchResults={searchResults}
-          onChange={setSearchQuery} onClose={() => panel.setShowSearch(false)}
-          onSelectResult={handleSelectSearchResult} /></GraphErrorBoundary>
-      )}
+      <div className="cg-panel-stack cg-panel-stack-left">
+        {panel.showSearch && !isCollapsed && (
+          <GraphErrorBoundary><SearchBar query={searchQuery} matchCount={renderer.searchMatchCount}
+            searchResults={searchResults}
+            onChange={setSearchQuery} onClose={() => panel.setShowSearch(false)}
+            onSelectResult={handleSelectSearchResult} /></GraphErrorBoundary>
+        )}
 
-      {panel.showPathFind && !isCollapsed && (
-        <GraphErrorBoundary><PathBar onFindPath={handleFindPath} onClearPath={handleClearPath}
-          pathResult={pathResult} pathLength={pathResult ? pathResult.length - 1 : null}
-          onClose={() => panel.setShowPathFind(false)} /></GraphErrorBoundary>
-      )}
+        {panel.showPathFind && !isCollapsed && (
+          <GraphErrorBoundary><PathBar onFindPath={handleFindPath} onClearPath={handleClearPath}
+            pathResult={pathResult} pathLength={pathResult ? pathResult.length - 1 : null}
+            onClose={() => panel.setShowPathFind(false)} /></GraphErrorBoundary>
+        )}
+
+        {panel.showHealthScore && !isCollapsed && (
+          <GraphErrorBoundary><HealthScoreCard onClose={() => panel.setShowHealthScore(false)} /></GraphErrorBoundary>
+        )}
+
+        {panel.showRules && !isCollapsed && (
+          <GraphErrorBoundary><RuleConfigPanel violations={ruleViolations} onCheckRules={handleRulesCheck}
+            onClose={() => panel.setShowRules(false)} /></GraphErrorBoundary>
+        )}
+
+        {selectedNodeData && !isCollapsed && (
+          <GraphErrorBoundary><NodeDetail node={selectedNodeData} onClose={handleCloseDetail}
+            isExpanded={selectedNodeData ? expandedNodeIds.has(selectedNodeData.id) : false}
+            connectionCount={selectedNodeData ? (adjacencyMap.get(selectedNodeData.id)?.in ?? 0) + (adjacencyMap.get(selectedNodeData.id)?.out ?? 0) : 0}
+            onCollapse={() => selectedNodeData && collapseNode(selectedNodeData.id)}
+            onSelectFunction={(node, mode) => handleSelectFunction(node.id, node.filePath, node.label, mode)}
+            onAggregateCallChain={handleAggregateCallChain} /></GraphErrorBoundary>
+        )}
+
+        {panel.showLegend && !isCollapsed && (
+          <GraphErrorBoundary><Legend viewMode={viewMode} onClose={() => panel.setShowLegend(false)} /></GraphErrorBoundary>
+        )}
+
+        {panel.showImport && !isCollapsed && (
+          <GraphErrorBoundary><ImportPanel onClose={() => panel.setShowImport(false)} workspacePath={currentWorkspace}
+            prerequisites={prerequisites} initStatus={initStatus} watchEnabled={watchEnabled}
+            onSetGraphData={setGraphData} onSetLoading={setLoading} onSetError={setError}
+            onSetInitStatus={setInitStatus} onSetWatchEnabled={setWatchEnabled} /></GraphErrorBoundary>
+        )}
+      </div>
 
       {!isCollapsed && !isMicroView && (
         <div className="cg-heatmap-bar" role="group" aria-label={t('heatmap.title') ?? 'Heatmap mode'}>
@@ -675,14 +706,6 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           onExpand={handleFocusExpand} onContract={handleFocusContract} onExit={handleFocusExit} /></GraphErrorBoundary>
       )}
 
-      {panel.showHealthScore && !isCollapsed && (
-        <GraphErrorBoundary><HealthScoreCard onClose={() => panel.setShowHealthScore(false)} /></GraphErrorBoundary>
-      )}
-
-      {panel.showRules && !isCollapsed && (
-        <GraphErrorBoundary><RuleConfigPanel violations={ruleViolations} onCheckRules={handleRulesCheck}
-          onClose={() => panel.setShowRules(false)} /></GraphErrorBoundary>
-      )}
 
       {isLoading && !isCollapsed && <LoadingOverlay visible={true} />}
       {error && !isCollapsed && (
@@ -710,21 +733,6 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         <EmptyState prerequisites={prerequisites} onImport={() => panel.setShowImport(true)} onScanWorkspace={handleScanWorkspace} />
       )}
 
-      {panel.showImport && !isCollapsed && (
-        <GraphErrorBoundary><ImportPanel onClose={() => panel.setShowImport(false)} workspacePath={currentWorkspace}
-          prerequisites={prerequisites} initStatus={initStatus} watchEnabled={watchEnabled}
-          onSetGraphData={setGraphData} onSetLoading={setLoading} onSetError={setError}
-          onSetInitStatus={setInitStatus} onSetWatchEnabled={setWatchEnabled} /></GraphErrorBoundary>
-      )}
-
-      {selectedNodeData && !isCollapsed && (
-        <GraphErrorBoundary><NodeDetail node={selectedNodeData} onClose={handleCloseDetail}
-          isExpanded={selectedNodeData ? expandedNodeIds.has(selectedNodeData.id) : false}
-          connectionCount={selectedNodeData ? (adjacencyMap.get(selectedNodeData.id)?.in ?? 0) + (adjacencyMap.get(selectedNodeData.id)?.out ?? 0) : 0}
-          onCollapse={() => selectedNodeData && collapseNode(selectedNodeData.id)}
-          onSelectFunction={(node, mode) => handleSelectFunction(node.id, node.filePath, node.label, mode)}
-          onAggregateCallChain={handleAggregateCallChain} /></GraphErrorBoundary>
-      )}
 
 
       <div className="cg-graph-container" ref={renderer.containerRef}
@@ -742,6 +750,54 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         <GraphErrorBoundary><SequenceDiagramRenderer nodes={nodes} edges={edges} theme={theme}
           onNodeTap={(id) => handleNodeTap(NodeId(id))} /></GraphErrorBoundary>
       )}
+
+      <div className="cg-panel-stack cg-panel-stack-right">
+        {panel.showMiniMap && !isCollapsed && (
+          <GraphErrorBoundary><StatsPanel
+            counts={{
+              function: nodeTypeCounts.function, class: nodeTypeCounts.class,
+              variable: nodeTypeCounts.variable, module: nodeTypeCounts.module,
+              interface: nodeTypeCounts.interface,
+            }}
+            onClose={() => panel.setShowMiniMap(false)} thumbnail={thumbnail} viewportInfo={viewportInfo}
+            onFocusArea={(ratioX, ratioY) => {
+              const info = renderer.rendererRef.current?.getViewportInfo();
+              if (info) {
+                renderer.rendererRef.current?.focusOnArea(info.totalSize.w * ratioX, info.totalSize.h * ratioY, info.zoom);
+              }
+            }} /></GraphErrorBoundary>
+        )}
+
+        {panel.showHotspot && !isCollapsed && hotspotNodes.length > 0 && (
+          <GraphErrorBoundary><HotspotPanel hotspotNodes={hotspotNodes} onClose={() => panel.setShowHotspot(false)} label={t('toolbar.hotspot')} /></GraphErrorBoundary>
+        )}
+
+        {panel.showGodModule && !isCollapsed && godModules.length > 0 && (
+          <GraphErrorBoundary><GodModulePanel godModules={godModules} onClose={() => panel.setShowGodModule(false)}
+            label={t('toolbar.godModule')} statsLabel={(n, e) => t('godmodule.stats', { nodes: n, edges: e })} /></GraphErrorBoundary>
+        )}
+
+        {panel.showCoreFunction && !isCollapsed && coreFunctions.length > 0 && (
+          <GraphErrorBoundary><CoreFunctionPanel coreFunctions={coreFunctions} onClose={() => panel.setShowCoreFunction(false)}
+            label={t('toolbar.coreFunction')} onSelectFunction={(nodeId) => {
+              setSelectedNode(NodeId(nodeId));
+              renderer.rendererRef.current?.focusOnNode(nodeId);
+              renderer.rendererRef.current?.selectNode(NodeId(nodeId));
+            }} /></GraphErrorBoundary>
+        )}
+
+        {panel.showFilterPanel && !isCollapsed && (
+          <GraphErrorBoundary><FilterPanel onClose={() => panel.setShowFilterPanel(false)} /></GraphErrorBoundary>
+        )}
+
+        {panel.showImpact && !isCollapsed && impactStats && (
+          <GraphErrorBoundary><ImpactPanel impactStats={impactStats} label={t('toolbar.impact')} totalLabel={t('impact.total')} /></GraphErrorBoundary>
+        )}
+
+        {panel.showCycles && !isCollapsed && cycleDetails.length > 2 && (
+          <GraphErrorBoundary><CyclePanel cycles={cycleDetails} label={t('toolbar.cycles')} emptyLabel={t('cycles.empty')} /></GraphErrorBoundary>
+        )}
+      </div>
 
       {panel.showLegend && !isCollapsed && (
         <GraphErrorBoundary><Legend viewMode={viewMode} onClose={() => panel.setShowLegend(false)} /></GraphErrorBoundary>

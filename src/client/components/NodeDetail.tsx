@@ -135,6 +135,11 @@ export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, 
           )}
         </div>
       )}
+      {node.type !== 'function' && !isClusterNode && onSelectFunction && (
+        <div className="cg-detail-micro-hint">
+          {t('detail.microHint')}
+        </div>
+      )}
       {isClusterNode && childFunctionNodes.length > 0 && onSelectFunction && (
         <div className="cg-detail-cluster-functions">
           <div className="cg-detail-section-title">{t('detail.functionsInCluster')} ({childFunctionNodes.length}{clusterChildCount > 50 ? '+' : ''})</div>

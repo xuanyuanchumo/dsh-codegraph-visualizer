@@ -59,13 +59,13 @@ function makeMockCy(nodeList: any[] = [], edgeList: any[] = []) {
 }
 
 describe('VirtualViewportController (FR-50)', () => {
-  it('shouldEnable returns true when nodeCount > 2000', () => {
+  it('shouldEnable returns true when nodeCount > 5000', () => {
     const cy = makeMockCy();
     const controller = new (class extends (require('../../src/client/renderer/VirtualViewportController.ts').VirtualViewportController) {
       constructor() { super(cy as any); }
     })();
-    expect(controller.shouldEnable(2001)).toBe(true);
-    expect(controller.shouldEnable(2000)).toBe(false);
+    expect(controller.shouldEnable(5001)).toBe(true);
+    expect(controller.shouldEnable(5000)).toBe(false);
     expect(controller.shouldEnable(100)).toBe(false);
   });
 
@@ -109,6 +109,50 @@ describe('VirtualViewportController (FR-50)', () => {
     controller.enable();
     controller.destroy();
     expect(controller.isEnabled()).toBe(false);
+  });
+});
+
+describe('edgeIntersectsViewport (TD-10)', () => {
+  const bounds = { x1: 0, y1: 0, x2: 100, y2: 100 };
+
+  it('returns true when both endpoints are inside viewport', () => {
+    const { edgeIntersectsViewport } = require('../../src/client/renderer/VirtualViewportController.ts');
+    expect(edgeIntersectsViewport({ x: 10, y: 10 }, { x: 50, y: 50 }, bounds)).toBe(true);
+  });
+
+  it('returns true when one endpoint is inside viewport', () => {
+    const { edgeIntersectsViewport } = require('../../src/client/renderer/VirtualViewportController.ts');
+    expect(edgeIntersectsViewport({ x: 10, y: 10 }, { x: 200, y: 200 }, bounds)).toBe(true);
+  });
+
+  it('returns true when edge crosses viewport without endpoints inside', () => {
+    const { edgeIntersectsViewport } = require('../../src/client/renderer/VirtualViewportController.ts');
+    expect(edgeIntersectsViewport({ x: -50, y: 50 }, { x: 150, y: 50 }, bounds)).toBe(true);
+  });
+
+  it('returns false when edge is entirely outside viewport', () => {
+    const { edgeIntersectsViewport } = require('../../src/client/renderer/VirtualViewportController.ts');
+    expect(edgeIntersectsViewport({ x: -100, y: -100 }, { x: -50, y: -50 }, bounds)).toBe(false);
+  });
+
+  it('returns false when edge is entirely to the right of viewport', () => {
+    const { edgeIntersectsViewport } = require('../../src/client/renderer/VirtualViewportController.ts');
+    expect(edgeIntersectsViewport({ x: 200, y: 10 }, { x: 300, y: 50 }, bounds)).toBe(false);
+  });
+
+  it('handles vertical edge crossing viewport', () => {
+    const { edgeIntersectsViewport } = require('../../src/client/renderer/VirtualViewportController.ts');
+    expect(edgeIntersectsViewport({ x: 50, y: -50 }, { x: 50, y: 150 }, bounds)).toBe(true);
+  });
+
+  it('handles degenerate edge (same point)', () => {
+    const { edgeIntersectsViewport } = require('../../src/client/renderer/VirtualViewportController.ts');
+    expect(edgeIntersectsViewport({ x: 50, y: 50 }, { x: 50, y: 50 }, bounds)).toBe(true);
+  });
+
+  it('handles degenerate edge outside viewport', () => {
+    const { edgeIntersectsViewport } = require('../../src/client/renderer/VirtualViewportController.ts');
+    expect(edgeIntersectsViewport({ x: 200, y: 200 }, { x: 200, y: 200 }, bounds)).toBe(false);
   });
 });
 

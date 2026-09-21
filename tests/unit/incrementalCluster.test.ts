@@ -117,7 +117,7 @@ describe('computeIncrementalClusters', () => {
 
   it('returns null when visible nodes exceed maxVisibleNodes', () => {
     const prevNodes: GraphNode[] = [];
-    for (let i = 0; i < 1600; i++) prevNodes.push(makeNode(`n${i}`, `src/file${i}.ts`));
+    for (let i = 0; i < 4600; i++) prevNodes.push(makeNode(`n${i}`, `src/file${i}.ts`));
     const prevEdges: GraphEdge[] = [];
     const result = computeProgressiveClusters(prevNodes, prevEdges, new Set(), 2);
     const nodeIdToVisibleId = new Map<string, string>();
@@ -131,7 +131,7 @@ describe('computeIncrementalClusters', () => {
     const ctx = buildContext(result, nodeIdToVisibleId, prevNodes, prevEdges);
 
     const newNodes: GraphNode[] = [...prevNodes];
-    for (let i = 1600; i < 1620; i++) newNodes.push(makeNode(`n${i}`, `src/file${i}.ts`));
+    for (let i = 4600; i < 4620; i++) newNodes.push(makeNode(`n${i}`, `src/file${i}.ts`));
     const incremental = computeIncrementalClusters(ctx, newNodes, prevEdges, new Set(), 2, 800);
     expect(incremental).toBeNull();
   });

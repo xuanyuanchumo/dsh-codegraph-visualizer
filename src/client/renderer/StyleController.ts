@@ -29,6 +29,43 @@ function getLODThresholds(nodeCount: number): LODThresholds {
   };
 }
 
+function getLODClassStyles(): StylesheetJson {
+  return [
+    {
+      selector: 'node.lod-minimal',
+      style: {
+        'label': '',
+        'width': LOD.MINIMAL_NODE_SIZE,
+        'height': LOD.MINIMAL_NODE_SIZE,
+        'border-width': 0,
+      },
+    },
+    {
+      selector: 'edge.lod-minimal',
+      style: {
+        'label': '',
+        'width': LOD.MINIMAL_EDGE_WIDTH,
+      },
+    },
+    {
+      selector: 'node.lod-compact',
+      style: {
+        'label': 'data(label)',
+        'font-size': LOD.COMPACT_FONT_SIZE,
+        'width': LOD.COMPACT_NODE_SIZE,
+        'height': LOD.COMPACT_NODE_SIZE,
+      },
+    },
+    {
+      selector: 'edge.lod-compact',
+      style: {
+        'label': '',
+        'width': LOD.COMPACT_EDGE_WIDTH,
+      },
+    },
+  ];
+}
+
 export class StyleController {
   private cy: Core;
   private theme: ThemeType;
@@ -37,6 +74,7 @@ export class StyleController {
   private heatmapMode: HeatmapMode = 'none';
   private cachedBaseStylesheet: StylesheetJson | null = null;
   private cachedNodeCount = -1;
+  private stylesheetApplied = false;
 
   constructor(cy: Core, theme: ThemeType) {
     this.cy = cy;
@@ -48,6 +86,7 @@ export class StyleController {
     if (this.cachedBaseStylesheet === null || nodeCount !== this.cachedNodeCount) {
       this.cachedBaseStylesheet = buildStylesheet(this.theme, nodeCount);
       this.cachedNodeCount = nodeCount;
+      this.stylesheetApplied = false;
     }
     return this.cachedBaseStylesheet;
   }
@@ -56,6 +95,7 @@ export class StyleController {
     this.theme = theme;
     this.cachedBaseStylesheet = null;
     invalidateCssVarCache();
+    this.stylesheetApplied = false;
     this.applyStylesheet();
   }
 
@@ -67,7 +107,7 @@ export class StyleController {
     if (this.lodEnabled) return;
     this.lodEnabled = true;
     this.currentLOD = this.computeLODLevel(this.cy.zoom());
-    this.applyStylesheet();
+    this.applyLODClasses();
     this.cy.on('zoom', this.handleZoomChange);
   }
 
@@ -76,7 +116,7 @@ export class StyleController {
     this.lodEnabled = false;
     this.cy.off('zoom', this.handleZoomChange);
     this.currentLOD = 'full';
-    this.applyStylesheet();
+    this.applyLODClasses();
   }
 
   isLODEnabled(): boolean {
@@ -86,6 +126,7 @@ export class StyleController {
   setHeatmapMode(mode: HeatmapMode): void {
     if (this.heatmapMode === mode) return;
     this.heatmapMode = mode;
+    this.stylesheetApplied = false;
     this.applyStylesheet();
   }
 
@@ -98,7 +139,7 @@ export class StyleController {
     const newLOD = this.computeLODLevel(zoom);
     if (newLOD !== this.currentLOD) {
       this.currentLOD = newLOD;
-      this.applyStylesheet();
+      this.applyLODClasses();
     }
   };
 
@@ -110,6 +151,7 @@ export class StyleController {
   }
 
   private applyStylesheet(): void {
+    if (this.stylesheetApplied) return;
     const baseStylesheet = this.getStylesheet();
     const transitionOverrides: StylesheetJson = [
       {
@@ -130,12 +172,28 @@ export class StyleController {
       },
     ];
     const heatmapOverrides = this.getHeatmapOverrides();
-    if (this.lodEnabled && this.currentLOD !== 'full') {
-      const lodOverrides = this.getLODOverrides(this.currentLOD);
-      this.cy.style().fromJson([...baseStylesheet, ...transitionOverrides, ...heatmapOverrides, ...lodOverrides]).update();
-    } else {
-      this.cy.style().fromJson([...baseStylesheet, ...transitionOverrides, ...heatmapOverrides]).update();
+    const lodClassStyles = getLODClassStyles();
+    this.cy.style().fromJson([...baseStylesheet, ...transitionOverrides, ...heatmapOverrides, ...lodClassStyles]).update();
+    this.stylesheetApplied = true;
+    if (this.lodEnabled) {
+      this.applyLODClasses();
     }
+  }
+
+  private applyLODClasses(): void {
+    const targetClass = this.lodEnabled ? this.currentLOD : 'full';
+    if (targetClass === 'full') {
+      this.cy.batch(() => {
+        this.cy.nodes().removeClass('lod-minimal lod-compact');
+        this.cy.edges().removeClass('lod-minimal lod-compact');
+      });
+      return;
+    }
+    const otherClass = targetClass === 'minimal' ? 'lod-compact' : 'lod-minimal';
+    this.cy.batch(() => {
+      this.cy.nodes().removeClass(otherClass).addClass(`lod-${targetClass}`);
+      this.cy.edges().removeClass(otherClass).addClass(`lod-${targetClass}`);
+    });
   }
 
   private getHeatmapOverrides(): StylesheetJson {
@@ -166,50 +224,6 @@ export class StyleController {
           selector: 'node[complexity]',
           style: {
             'background-color': `mapData(complexity, ${HEATMAP.COMPLEXITY_LOW}, ${HEATMAP.COMPLEXITY_HIGH}, ${HEATMAP.COLOR_STABLE}, ${HEATMAP.COLOR_UNSTABLE})`,
-          },
-        },
-      ];
-    }
-    return [];
-  }
-
-  private getLODOverrides(level: LODLevel): StylesheetJson {
-    if (level === 'minimal') {
-      return [
-        {
-          selector: 'node',
-          style: {
-            'label': '',
-            'width': LOD.MINIMAL_NODE_SIZE,
-            'height': LOD.MINIMAL_NODE_SIZE,
-            'border-width': 0,
-          },
-        },
-        {
-          selector: 'edge',
-          style: {
-            'label': '',
-            'width': LOD.MINIMAL_EDGE_WIDTH,
-          },
-        },
-      ];
-    }
-    if (level === 'compact') {
-      return [
-        {
-          selector: 'node',
-          style: {
-            'label': 'data(label)',
-            'font-size': LOD.COMPACT_FONT_SIZE,
-            'width': LOD.COMPACT_NODE_SIZE,
-            'height': LOD.COMPACT_NODE_SIZE,
-          },
-        },
-        {
-          selector: 'edge',
-          style: {
-            'label': '',
-            'width': LOD.COMPACT_EDGE_WIDTH,
           },
         },
       ];

@@ -805,3 +805,57 @@ body[data-ds-dark-theme] .cg-type-badge.cg-function {
 .cg-mini-map::-webkit-scrollbar-thumb:hover {
   background: var(--cg-text-tertiary);
 }
+/* ---- Panel stack containers (prevent overlapping) ------------------------- */
+
+.cg-panel-stack {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 7;
+  pointer-events: none;
+}
+
+.cg-panel-stack > * {
+  pointer-events: auto;
+}
+
+.cg-panel-stack-left {
+  left: 12px;
+  top: calc(var(--cg-toolbar-h) + 12px);
+  max-height: calc(100% - var(--cg-toolbar-h) - var(--cg-statusbar-h) - 24px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.cg-panel-stack-right {
+  right: 12px;
+  top: calc(var(--cg-toolbar-h) + 12px);
+  max-height: calc(100% - var(--cg-toolbar-h) - var(--cg-statusbar-h) - 24px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  align-items: flex-end;
+}
+
+.cg-panel-stack-left .cg-path-bar,
+.cg-panel-stack-left .cg-health-score-card,
+.cg-panel-stack-left .cg-rule-panel,
+.cg-panel-stack-left .cg-node-detail-panel,
+.cg-panel-stack-left .cg-legend-panel,
+.cg-panel-stack-left .cg-import-panel,
+.cg-panel-stack-left .cg-search-bar {
+  position: relative;
+  left: auto;
+  top: auto;
+}
+
+.cg-panel-stack-right .cg-analysis-panel,
+.cg-panel-stack-right .cg-impact-panel,
+.cg-panel-stack-right .cg-cycle-panel,
+.cg-panel-stack-right .cg-filter-panel,
+.cg-panel-stack-right .cg-mini-map {
+  position: relative;
+  right: auto;
+  top: auto;
+  bottom: auto;
+}

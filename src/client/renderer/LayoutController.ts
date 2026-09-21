@@ -278,9 +278,11 @@ export class LayoutController {
         return {
           name: 'fcose', fit: true, animate: false,
           nodeRepulse: sp.nodeRepulse, idealEdgeLength: sp.idealEdgeLength,
-          edgeElasticity: 0.05, gravity: 0.02, numIter: LAYOUT_CONST.COSE_NUM_ITER,
+          edgeElasticity: 0.05, gravity: 0.02,
+          numIter: nodeCount > 5000 ? 1000 : LAYOUT_CONST.COSE_NUM_ITER,
           randomize: true, tile: true, padding: sp.padding, avoidOverlap: true,
-          quality: 'default', samplingType: true, nodeSeparation: sp.minNodeSpacing,
+          quality: nodeCount > 5000 ? 'draft' : 'default',
+          samplingType: true, nodeSeparation: sp.minNodeSpacing,
         } as LayoutOptions;
       case 'dagre':
         return {

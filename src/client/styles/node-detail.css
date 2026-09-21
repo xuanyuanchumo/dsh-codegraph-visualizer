@@ -285,6 +285,17 @@
   margin-top: 8px;
 }
 
+.cg-node-detail-panel .cg-detail-micro-hint {
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: var(--cg-surface-hover);
+  border: 1px dashed var(--cg-border);
+  border-radius: var(--cg-radius-xs);
+  font-size: 11px;
+  color: var(--cg-text-tertiary);
+  text-align: center;
+}
+
 .cg-node-detail-panel .cg-detail-micro-btns {
   display: flex;
   gap: 4px;
