@@ -83,7 +83,7 @@ export class ExportController {
     return this.cy.png({ full: true, scale: 2 });
   }
 
-  exportSVG(theme: ThemeType = 'dark'): string | null {
+  exportSVG(theme: ThemeType): string | null {
     const nodes = this.cy.nodes();
     const edges = this.cy.edges();
     if (nodes.length === 0) return null;

@@ -297,7 +297,7 @@
 }
 
 .cg-watch-indicator {
-  color: var(--cg-success, #10b981);
+  color: var(--cg-success);
   font-size: 8px;
   animation: cg-pulse 2s ease-in-out infinite;
 }

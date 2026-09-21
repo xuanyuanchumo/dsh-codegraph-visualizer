@@ -284,7 +284,7 @@ describe('ExportController', () => {
       const { ExportController } = await import('../../src/client/renderer/ExportController.ts');
       const cy = makeMockCy([], []);
       const ec = new ExportController(cy as any);
-      expect(ec.exportSVG()).toBeNull();
+      expect(ec.exportSVG('dark')).toBeNull();
     });
 
     it('returns SVG string with nodes and edges', async () => {
@@ -294,7 +294,7 @@ describe('ExportController', () => {
       const edge = makeMockEdge('e1', 'a', 'b', { type: 'call' });
       const cy = makeMockCy([nodeA, nodeB], [edge]);
       const ec = new ExportController(cy as any);
-      const result = ec.exportSVG();
+      const result = ec.exportSVG('dark');
       expect(result).not.toBeNull();
       expect(result).toContain('<svg');
       expect(result).toContain('</svg>');
@@ -309,7 +309,7 @@ describe('ExportController', () => {
       const nodeA = makeMockNode('a', { label: '<script>alert("x")</script>', type: 'function' });
       const cy = makeMockCy([nodeA], []);
       const ec = new ExportController(cy as any);
-      const result = ec.exportSVG();
+      const result = ec.exportSVG('dark');
       expect(result).not.toBeNull();
       expect(result).toContain('&lt;script&gt;');
       expect(result).not.toContain('<script>');
@@ -320,7 +320,7 @@ describe('ExportController', () => {
       const nodeA = makeMockNode('a', { label: 'A', type: 'function' });
       const cy = makeMockCy([nodeA], []);
       const ec = new ExportController(cy as any);
-      const result = ec.exportSVG();
+      const result = ec.exportSVG('dark');
       expect(result).not.toBeNull();
       expect(result).toContain('<svg');
     });
