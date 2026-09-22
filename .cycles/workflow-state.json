@@ -1,12 +1,7 @@
 {
   "currentPhase": "plan",
-  "currentCycle": "cycle-34",
+  "currentCycle": "cycle-37",
   "phaseHistory": [
-    {
-      "cycle": "cycle-31",
-      "phase": "complete",
-      "result": "E2E选择器前缀系统性修复+J4/J5恢复+弱断言改造，2328测试通过"
-    },
     {
       "cycle": "cycle-32",
       "phase": "complete",
@@ -21,9 +16,19 @@
       "cycle": "cycle-34",
       "phase": "complete",
       "result": "C补充15个组件/hooks测试覆盖缺口(10组件+5hooks=119新测试)，2488测试通过"
+    },
+    {
+      "cycle": "cycle-35",
+      "phase": "complete",
+      "result": "控制器测试弱断言修复+覆盖率门限提升+FlowchartAssembler解耦，2488测试通过"
+    },
+    {
+      "cycle": "cycle-36",
+      "phase": "complete",
+      "result": "P0 disposeStore状态泄漏修复+P2静默catch改log.warn+DOM事件常量集中定义，2488测试通过"
     }
   ],
   "nodeStatus": {},
   "createdAt": "2026-09-21T14:25:00.105Z",
-  "updatedAt": "2026-09-22T15:10:00.000Z"
+  "updatedAt": "2026-09-23T00:30:00.000Z"
 }
