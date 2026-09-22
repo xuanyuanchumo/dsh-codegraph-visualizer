@@ -65,9 +65,9 @@ test.describe('Full user journey: API modal → plugin entry', () => {
     const collapseBtn = page.locator('.cg-collapse-btn');
     const panel = page.locator('.cg-graph-panel');
     await collapseBtn.click();
-    await expect(panel).toHaveClass(/collapsed/);
+    await expect(panel).toHaveClass(/cg-collapsed/);
     await page.locator('.cg-collapse-fab').click();
-    await expect(panel).not.toHaveClass(/collapsed/);
+    await expect(panel).not.toHaveClass(/cg-collapsed/);
   });
 
   test('should show node count in toolbar', async ({ page }) => {

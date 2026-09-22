@@ -452,4 +452,16 @@ export class CytoscapeRenderer implements IRenderer {
   clearLastError(): void {
     this.lastError = null;
   }
+
+  getZoom(): number {
+    return this.safeCallWithError('getZoom', () => this.cy?.zoom() ?? 1, 1);
+  }
+
+  onZoomChange(callback: () => void): () => void {
+    if (!this.cy) return () => {};
+    this.cy.on('zoom', callback);
+    return () => {
+      this.cy?.off('zoom', callback);
+    };
+  }
 }

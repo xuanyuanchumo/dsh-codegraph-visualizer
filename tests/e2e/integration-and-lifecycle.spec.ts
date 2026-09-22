@@ -24,11 +24,11 @@ test.describe('J13: 插件生命周期合规', () => {
     
     // Collapse
     await collapseBtn.click();
-    await expect(panel).toHaveClass(/collapsed/);
+    await expect(panel).toHaveClass(/cg-collapsed/);
     
     // Expand
     await page.locator('.cg-collapse-fab').click();
-    await expect(panel).not.toHaveClass(/collapsed/);
+    await expect(panel).not.toHaveClass(/cg-collapsed/);
   });
 
   test('should handle panel resize', async ({ page }) => {

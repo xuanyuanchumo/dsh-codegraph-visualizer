@@ -366,17 +366,13 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       if (rafId !== null) return;
       rafId = requestAnimationFrame(() => {
         rafId = null;
-        const cy = (r as unknown as { cy?: { zoom: () => number } }).cy;
-        if (!cy) return;
-        const newLevel = computeLODFromZoom(cy.zoom());
+        const newLevel = computeLODFromZoom(r.getZoom());
         if (newLevel !== lodLevel) setLODLevel(newLevel);
       });
     };
-    const cy = (r as unknown as { cy?: { on: (evt: string, cb: () => void) => void; off: (evt: string, cb: () => void) => void } }).cy;
-    if (!cy) return;
-    cy.on('zoom', handleZoom);
+    const disposeZoomListener = r.onZoomChange(handleZoom);
     return () => {
-      cy.off('zoom', handleZoom);
+      disposeZoomListener();
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
   }, [lodEnabled, lodLevel, rawNodes.length, renderer.rendererRef, setLODLevel]);

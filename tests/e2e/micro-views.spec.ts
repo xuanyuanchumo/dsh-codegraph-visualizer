@@ -68,7 +68,7 @@ test.describe('J45: 核心函数微观探索', () => {
 
   test('should show core function panel when enabled', async ({ page }) => {
     await setupPluginPage(page);
-    const coreFunctionPanel = page.locator('.core-function-panel');
+    const coreFunctionPanel = page.locator('.cg-core-function-panel');
     await expect(coreFunctionPanel).not.toBeVisible();
   });
 });

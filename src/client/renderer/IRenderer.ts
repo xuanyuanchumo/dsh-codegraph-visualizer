@@ -90,4 +90,6 @@ export interface IRenderer {
   filterByPath(includePattern: string | null, excludePattern: string | null): void;
   getLastError(): Error | null;
   clearLastError(): void;
+  getZoom(): number;
+  onZoomChange(callback: () => void): () => void;
 }
