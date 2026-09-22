@@ -84,4 +84,82 @@ describe('EmptyState', () => {
     expect(getByText('prereq.codegraphLabel')).toBeTruthy();
     expect(getByText('prereq.lensLabel')).toBeTruthy();
   });
+
+  it('点击复制按钮应调用 clipboard.writeText', () => {
+    const props = {
+      ...defaultProps,
+      prerequisites: { codegraph: false, lens: true },
+    };
+    const { container } = render(<EmptyState {...props} />);
+    const copyBtn = container.querySelector('.prereq-copy-btn')!;
+    fireEvent.click(copyBtn);
+    expect(mockWriteText).toHaveBeenCalled();
+  });
+
+  it('点击安装按钮应分发 codegraph:install-plugin 事件', () => {
+    const props = {
+      ...defaultProps,
+      prerequisites: { codegraph: false, lens: true },
+    };
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    const { container } = render(<EmptyState {...props} />);
+    const installBtn = container.querySelector('.prereq-install-btn')!;
+    fireEvent.click(installBtn);
+    expect(dispatchSpy).toHaveBeenCalled();
+    const event = dispatchSpy.mock.calls[0]![0] as CustomEvent;
+    expect(event.type).toBe('codegraph:install-plugin');
+    expect(event.detail.plugin).toBe('dsh-codegraph');
+  });
+
+  it('点击 lens 安装按钮应分发正确的 plugin 名称', () => {
+    const props = {
+      ...defaultProps,
+      prerequisites: { codegraph: true, lens: false },
+    };
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    const { container } = render(<EmptyState {...props} />);
+    const installBtn = container.querySelector('.prereq-install-btn')!;
+    fireEvent.click(installBtn);
+    const event = dispatchSpy.mock.calls[0]![0] as CustomEvent;
+    expect(event.detail.plugin).toBe('dsh-tool-lens');
+  });
+
+  it('clipboard 不可用时不抛错', () => {
+    vi.stubGlobal('navigator', { clipboard: undefined });
+    const props = {
+      ...defaultProps,
+      prerequisites: { codegraph: false, lens: true },
+    };
+    const { container } = render(<EmptyState {...props} />);
+    const copyBtn = container.querySelector('.prereq-copy-btn')!;
+    expect(() => fireEvent.click(copyBtn)).not.toThrow();
+    vi.stubGlobal('navigator', { clipboard: { writeText: mockWriteText } });
+  });
+
+  it('安装按钮点击后应显示 installing 状态', () => {
+    const props = {
+      ...defaultProps,
+      prerequisites: { codegraph: false, lens: true },
+    };
+    const { container } = render(<EmptyState {...props} />);
+    const installBtn = container.querySelector('.prereq-install-btn') as HTMLButtonElement;
+    fireEvent.click(installBtn);
+    expect(installBtn.disabled).toBe(true);
+  });
+
+  it('codegraph 缺失时状态点应为 cg-missing 类', () => {
+    const props = {
+      ...defaultProps,
+      prerequisites: { codegraph: false, lens: true },
+    };
+    const { container } = render(<EmptyState {...props} />);
+    const dot = container.querySelector('.cg-prereq-status-dot');
+    expect(dot?.classList.contains('cg-missing')).toBe(true);
+  });
+
+  it('应显示导入和扫描操作按钮', () => {
+    const { container } = render(<EmptyState {...defaultProps} />);
+    expect(container.querySelector('.cg-empty-import-btn')).toBeTruthy();
+    expect(container.querySelector('.cg-empty-scan-btn')).toBeTruthy();
+  });
 });

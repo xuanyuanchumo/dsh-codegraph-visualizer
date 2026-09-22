@@ -77,4 +77,70 @@ describe('StatsPanel', () => {
     const dots = container.querySelectorAll('.cg-dot');
     expect(dots.length).toBe(5);
   });
+
+  it('thumbnail 存在但 viewportInfo 为 null 时不显示视口框', () => {
+    const props = {
+      ...defaultProps,
+      thumbnail: 'data:image/png;base64,abc',
+      viewportInfo: null,
+    };
+    const { container } = render(<StatsPanel {...props} />);
+    expect(container.querySelector('.cg-mini-map-viewport')).toBeNull();
+  });
+
+  it('thumbnail 为空字符串时不显示缩略图', () => {
+    const props = {
+      ...defaultProps,
+      thumbnail: '',
+    };
+    const { container } = render(<StatsPanel {...props} />);
+    expect(container.querySelector('.cg-mini-map-thumbnail')).toBeNull();
+  });
+
+  it('所有计数为 0 时总数为 0', () => {
+    const props = {
+      ...defaultProps,
+      counts: { function: 0, class: 0, variable: 0, module: 0, interface: 0 },
+    };
+    const { getByText } = render(<StatsPanel {...props} />);
+    expect(getByText('minimap.total: 0')).toBeTruthy();
+  });
+
+  it('thumbnail 存在且 img 加载完成时应显示 img 元素', () => {
+    const props = {
+      ...defaultProps,
+      thumbnail: 'data:image/png;base64,abc',
+    };
+    const { container } = render(<StatsPanel {...props} />);
+    const img = container.querySelector('img');
+    expect(img).toBeTruthy();
+    expect(img?.getAttribute('alt')).toBe('minimap.title');
+  });
+
+  it('onFocusArea 存在时 img cursor 应为 crosshair', () => {
+    const props = {
+      ...defaultProps,
+      thumbnail: 'data:image/png;base64,abc',
+      onFocusArea: vi.fn(),
+    };
+    const { container } = render(<StatsPanel {...props} />);
+    const img = container.querySelector('img');
+    expect(img?.style.cursor).toBe('crosshair');
+  });
+
+  it('onFocusArea 不存在时 img cursor 应为 default', () => {
+    const props = {
+      ...defaultProps,
+      thumbnail: 'data:image/png;base64,abc',
+    };
+    const { container } = render(<StatsPanel {...props} />);
+    const img = container.querySelector('img');
+    expect(img?.style.cursor).toBe('default');
+  });
+
+  it('应显示所有五种类型的计数行', () => {
+    const { container } = render(<StatsPanel {...defaultProps} />);
+    const statRows = container.querySelectorAll('.cg-mini-map-stats > div');
+    expect(statRows.length).toBe(5);
+  });
 });

@@ -418,9 +418,15 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       }, UI.RESIZE_DEBOUNCE_MS);
     };
     applyAncestorHeight();
-    const ro = new ResizeObserver(applyAncestorHeight);
-    ro.observe(target);
-    return () => { ro.disconnect(); if (resizeTimer !== null) clearTimeout(resizeTimer); };
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(applyAncestorHeight);
+      ro.observe(target);
+      return () => { ro.disconnect(); if (resizeTimer !== null) clearTimeout(resizeTimer); };
+    } else {
+      const onWinResize = () => applyAncestorHeight();
+      window.addEventListener('resize', onWinResize);
+      return () => { window.removeEventListener('resize', onWinResize); if (resizeTimer !== null) clearTimeout(resizeTimer); };
+    }
   }, [panel.collapsed, panelHeight, renderer.rendererRef]);
 
   usePanelKeyboard(layout, setLayout, renderer.rendererRef, {

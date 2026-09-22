@@ -108,6 +108,7 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
     let renderer: CytoscapeRenderer | null = null;
     let ro: ResizeObserver | null = null;
     let initTimer: ReturnType<typeof setTimeout> | null = null;
+    let cleanupExtra: (() => void) | null = null;
 
     const initWhenReady = () => {
       const w = container.clientWidth;
@@ -132,10 +133,16 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
         rendererRef.current = renderer;
         log.info('renderer initialized', { theme, w, h });
 
-        ro = new ResizeObserver(() => {
-          rendererRef.current?.resize();
-        });
-        ro.observe(container);
+        if (typeof ResizeObserver !== 'undefined') {
+          ro = new ResizeObserver(() => {
+            rendererRef.current?.resize();
+          });
+          ro.observe(container);
+        } else {
+          const onResize = () => rendererRef.current?.resize();
+          window.addEventListener('resize', onResize);
+          cleanupExtra = () => window.removeEventListener('resize', onResize);
+        }
       } else {
         initTimer = setTimeout(initWhenReady, UI.INIT_RETRY_DELAY_MS);
       }
@@ -146,6 +153,7 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
     return () => {
       if (initTimer !== null) clearTimeout(initTimer);
       ro?.disconnect();
+      cleanupExtra?.();
       renderer?.destroy();
       rendererRef.current = null;
     };

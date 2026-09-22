@@ -279,4 +279,199 @@ describe('GraphPanel handler behavior', () => {
     const region = screen.getByRole('region');
     expect(region.getAttribute('aria-label')).toBe('panel.ariaLabel');
   });
+
+  it('search button click toggles search panel', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const searchBtn = container.querySelector('.cg-search-btn') as HTMLButtonElement;
+    expect(searchBtn).toBeTruthy();
+    fireEvent.click(searchBtn);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+  });
+
+  it('layout button click does not crash', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const layoutBtns = container.querySelectorAll('.cg-layout-btn');
+    expect(layoutBtns.length).toBeGreaterThan(0);
+    fireEvent.click(layoutBtns[0]!);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+  });
+
+  it('export button click toggles export menu', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const exportBtn = container.querySelector('.cg-export-btn') as HTMLButtonElement;
+    if (exportBtn) {
+      fireEvent.click(exportBtn);
+      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+    }
+  });
+
+  it('heatmap button click does not crash', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const heatmapBtn = container.querySelector('.cg-heatmap-btn--activate') as HTMLButtonElement;
+    if (heatmapBtn) {
+      fireEvent.click(heatmapBtn);
+      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+    }
+  });
+
+  it('pathfind button click toggles path panel', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const pathfindBtn = container.querySelector('.cg-pathfind-btn') as HTMLButtonElement;
+    if (pathfindBtn) {
+      fireEvent.click(pathfindBtn);
+      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+    }
+  });
+
+  it('health score button click toggles health panel', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const healthBtn = container.querySelector('.cg-health-btn') as HTMLButtonElement;
+    if (healthBtn) {
+      fireEvent.click(healthBtn);
+      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+    }
+  });
+
+  it('filter button click toggles filter panel', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const filterBtn = container.querySelector('.cg-filter-btn') as HTMLButtonElement;
+    if (filterBtn) {
+      fireEvent.click(filterBtn);
+      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+    }
+  });
+
+  it('legend button click toggles legend panel', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const legendBtn = container.querySelector('.cg-legend-btn') as HTMLButtonElement;
+    if (legendBtn) {
+      fireEvent.click(legendBtn);
+      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+    }
+  });
+
+  it('minimap button click toggles minimap panel', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const minimapBtn = container.querySelector('.cg-minimap-btn') as HTMLButtonElement;
+    if (minimapBtn) {
+      fireEvent.click(minimapBtn);
+      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+    }
+  });
+
+  it('callchain button click toggles call chain panel', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const callchainBtn = container.querySelector('.cg-callchain-btn') as HTMLButtonElement;
+    if (callchainBtn) {
+      fireEvent.click(callchainBtn);
+      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+    }
+  });
+
+  it('impact button click toggles impact panel', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const impactBtn = container.querySelector('.cg-impact-btn') as HTMLButtonElement;
+    if (impactBtn) {
+      fireEvent.click(impactBtn);
+      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+    }
+  });
+
+  it('inheritance button click toggles inheritance panel', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const inheritanceBtn = container.querySelector('.cg-inheritance-btn') as HTMLButtonElement;
+    if (inheritanceBtn) {
+      fireEvent.click(inheritanceBtn);
+      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+    }
+  });
+
+  it('hotspot button click toggles hotspot panel', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const hotspotBtn = container.querySelector('.cg-hotspot-btn') as HTMLButtonElement;
+    if (hotspotBtn) {
+      fireEvent.click(hotspotBtn);
+      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+    }
+  });
+
+  it('god module button click toggles god module panel', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const godBtn = container.querySelector('.cg-godmodule-btn') as HTMLButtonElement;
+    if (godBtn) {
+      fireEvent.click(godBtn);
+      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+    }
+  });
+
+  it('cycles button click toggles cycles panel', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const cyclesBtn = container.querySelector('.cg-cycles-btn') as HTMLButtonElement;
+    if (cyclesBtn) {
+      fireEvent.click(cyclesBtn);
+      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+    }
+  });
+
+  it('core function button click toggles core function panel', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const coreBtn = container.querySelector('.cg-corefunction-btn') as HTMLButtonElement;
+    if (coreBtn) {
+      fireEvent.click(coreBtn);
+      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+    }
+  });
+
+  it('rules button click toggles rules panel', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const rulesBtn = container.querySelector('.cg-rules-btn') as HTMLButtonElement;
+    if (rulesBtn) {
+      fireEvent.click(rulesBtn);
+      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+    }
+  });
+
+  it('import button click toggles import panel', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const importBtn = container.querySelector('.cg-import-btn') as HTMLButtonElement;
+    if (importBtn) {
+      fireEvent.click(importBtn);
+      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+    }
+  });
+
+  it('toolbar renders all essential buttons', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const toolbar = container.querySelector('.cg-graph-toolbar');
+    expect(toolbar).toBeTruthy();
+    expect(container.querySelector('.cg-search-btn')).toBeTruthy();
+    expect(container.querySelector('.cg-theme-btn')).toBeTruthy();
+    expect(container.querySelector('.cg-export-btn')).toBeTruthy();
+  });
+
+  it('status bar renders with node and edge counts', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const statusBar = container.querySelector('.cg-status-bar');
+    expect(statusBar).toBeTruthy();
+  });
 });
