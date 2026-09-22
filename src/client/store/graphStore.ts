@@ -149,6 +149,7 @@ export function disposeStore(): void {
   diagramCache.invalidate();
   clusterCache.invalidate();
   incrementalClusterCtx = null;
+  microAssemblyGeneration = 0;
   clearLoadingFailsafe();
 }
 

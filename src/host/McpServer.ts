@@ -51,7 +51,7 @@ export class McpServer {
             error: { code: -32700, message: 'Parse error' },
           };
           process.stdout.write(JSON.stringify(errorResponse) + '\n');
-        } catch { /* best-effort */ }
+        } catch (e) { log.warn('Failed to send MCP error response', e); }
       }
     });
 

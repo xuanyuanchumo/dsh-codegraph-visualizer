@@ -46,7 +46,7 @@ export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUp
 
   const closeActiveWatcher = (): void => {
     if (activeWatcher) {
-      try { activeWatcher.close(); } catch { /* best-effort */ }
+      try { activeWatcher.close(); } catch (e) { log.warn('Failed to close watcher', e); }
       activeWatcher = null;
     }
     if (watchTimer) { clearTimeout(watchTimer); watchTimer = null; }
