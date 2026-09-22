@@ -5,7 +5,7 @@ test.describe('J40: CFG 控制流图查看', () => {
   test('should have CFG view mode button', async ({ page }) => {
     await setupPluginPage(page);
     const cfgBtn = page.locator('.cg-view-mode-btn--micro[data-mode="cfg"]');
-    await expect(cfgBtn).toBeVisible().catch(() => {});
+    await expect(cfgBtn).toBeVisible();
   });
 
   test('should show micro view prompt when CFG mode selected without function', async ({ page }) => {
@@ -19,7 +19,7 @@ test.describe('J41: 流程图查看', () => {
   test('should have flowchart view mode button', async ({ page }) => {
     await setupPluginPage(page);
     const flowchartBtn = page.locator('.cg-view-mode-btn--micro[data-mode="flowchart"]');
-    await expect(flowchartBtn).toBeVisible().catch(() => {});
+    await expect(flowchartBtn).toBeVisible();
   });
 });
 
@@ -27,7 +27,7 @@ test.describe('J42: 时序图查看', () => {
   test('should have sequence view mode button', async ({ page }) => {
     await setupPluginPage(page);
     const sequenceBtn = page.locator('.cg-view-mode-btn--micro[data-mode="sequence"]');
-    await expect(sequenceBtn).toBeVisible().catch(() => {});
+    await expect(sequenceBtn).toBeVisible();
   });
 
   test('should render sequence diagram container when active', async ({ page }) => {
@@ -63,7 +63,7 @@ test.describe('J45: 核心函数微观探索', () => {
   test('should have core function button in toolbar', async ({ page }) => {
     await setupPluginPage(page);
     const coreFunctionBtn = page.locator('.corefunction-btn');
-    await expect(coreFunctionBtn).toBeVisible().catch(() => {});
+    await expect(coreFunctionBtn).toBeVisible();
   });
 
   test('should show core function panel when enabled', async ({ page }) => {

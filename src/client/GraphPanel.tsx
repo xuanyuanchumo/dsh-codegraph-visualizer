@@ -460,7 +460,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     const count = renderer.rendererRef.current?.getVisibleNodeCount() ?? 0;
     setVisibleNodeCount(count);
     setHasHiddenNodes(count < nodes.length);
-  }, [filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, renderer.rendererRef, nodes]);
+  }, [filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, renderer.rendererRef, nodes.length]);
 
   useEffect(() => {
     if (!panel.showMiniMap || panel.collapsed) return;
@@ -652,7 +652,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const cycleDetails = useMemo(() => {
     if (!panel.showCycles) return [];
     return renderer.rendererRef.current?.detectCyclesDetailed() ?? [];
-  }, [panel.showCycles, renderer.rendererRef, nodes.length, edges.length]);
+  }, [panel.showCycles, nodes.length, edges.length]);
   const panelClassName = useMemo(() =>
     `cg-graph-panel cg-resizable ${panel.collapsed ? 'cg-collapsed' : ''} ${className}`.trim(),
     [panel.collapsed, className],

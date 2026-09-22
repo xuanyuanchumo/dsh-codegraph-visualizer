@@ -1,4 +1,5 @@
 import type { ViewMode } from '../types/index.ts';
+import { assertNever } from './assertNever.ts';
 
 export type ThemeType = 'light' | 'dark';
 export type LayoutType = 'cose' | 'fcose' | 'dagre' | 'circle' | 'grid' | 'radial' | 'tree';
@@ -29,9 +30,7 @@ export function isLayeredViewMode(mode: ViewMode): boolean {
     case 'flowchart':
     case 'sequence':
       return false;
-    default: {
-      const _exhaustive: never = mode;
-      throw new Error(`Unhandled ViewMode: ${_exhaustive as string}`);
-    }
+    default:
+      return assertNever(mode);
   }
 }

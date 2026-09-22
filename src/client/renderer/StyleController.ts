@@ -3,6 +3,7 @@ import type { ThemeType } from './IRenderer.ts';
 import type { HeatmapMode } from '../../types/index.ts';
 import { buildStylesheet, invalidateCssVarCache } from './styles/ThemeStylesheet.ts';
 import { LOD, HEATMAP } from '../../shared/constants.ts';
+import { assertNever } from '../../shared/assertNever.ts';
 
 type LODLevel = 'minimal' | 'compact' | 'full';
 
@@ -270,7 +271,7 @@ export class StyleController {
         },
       ];
     }
-    return [];
+    return assertNever(this.heatmapMode);
   }
 
   destroy(): void {
