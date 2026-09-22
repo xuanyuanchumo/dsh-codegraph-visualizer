@@ -55,6 +55,18 @@ export function readCssVarCached(name: string, fallback: string): string {
       '--cg-role-entry', '--cg-role-orphan', '--cg-role-leaf', '--cg-role-hub',
       '--cg-heatmap-stable', '--cg-heatmap-unstable', '--cg-heatmap-low', '--cg-heatmap-high',
       '--cg-cycle-highlight',
+      '--cg-cluster-hue-0-bg', '--cg-cluster-hue-0-border',
+      '--cg-cluster-hue-1-bg', '--cg-cluster-hue-1-border',
+      '--cg-cluster-hue-2-bg', '--cg-cluster-hue-2-border',
+      '--cg-cluster-hue-3-bg', '--cg-cluster-hue-3-border',
+      '--cg-cluster-hue-4-bg', '--cg-cluster-hue-4-border',
+      '--cg-cluster-hue-5-bg', '--cg-cluster-hue-5-border',
+      '--cg-cluster-hue-6-bg', '--cg-cluster-hue-6-border',
+      '--cg-cluster-hue-7-bg', '--cg-cluster-hue-7-border',
+      '--cg-cluster-hue-8-bg', '--cg-cluster-hue-8-border',
+      '--cg-cluster-hue-9-bg', '--cg-cluster-hue-9-border',
+      '--cg-cluster-hue-10-bg', '--cg-cluster-hue-10-border',
+      '--cg-cluster-hue-11-bg', '--cg-cluster-hue-11-border',
     ];
     for (const v of vars) {
       cssVarCache.set(v, style.getPropertyValue(v).trim());

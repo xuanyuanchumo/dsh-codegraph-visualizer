@@ -3,6 +3,7 @@ import { scoped } from '../../shared/Logger.ts';
 import { useT } from '../i18n/index.ts';
 import { UploadIcon, FolderIcon, CloseIcon, AlertIcon, RefreshIcon, ZapIcon, WatchIcon } from './Icons.tsx';
 import { coerceNode, coerceEdge } from '../validators.ts';
+import { UI } from '../../shared/constants.ts';
 import type { GraphNode, GraphEdge, RepoId } from '../../types/index.ts';
 
 const log = scoped('import');
@@ -93,7 +94,7 @@ export const ImportPanel = memo(function ImportPanel({
     try {
       await navigator.clipboard.writeText('dsh plugin --profile web add dsh-codegraph');
       setCopied(true);
-      timersRef.current.push(setTimeout(() => setCopied(false), 1600));
+      timersRef.current.push(setTimeout(() => setCopied(false), UI.COPY_FEEDBACK_MS));
     } catch { /* clipboard unavailable — ignore */ }
   }, []);
 
@@ -109,7 +110,7 @@ export const ImportPanel = memo(function ImportPanel({
       onSetGraphData(nodes, edges, repoId);
       log.info(`imported from ${source}`, { nodes: nodes.length, edges: edges.length });
       setFeedback({ kind: 'ok', msg: t('import.imported', { nodes: nodes.length, edges: edges.length }) });
-      timersRef.current.push(setTimeout(onClose, 700));
+      timersRef.current.push(setTimeout(onClose, UI.IMPORT_CLOSE_DELAY_MS));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       log.error(`import failed from ${source}`, msg);

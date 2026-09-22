@@ -93,12 +93,13 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   })));
 
   const {
-    layout, theme, filterType, graphType, clusterDepth,
+    layout, dagreRankDir, theme, filterType, graphType, clusterDepth,
     viewMode, currentLayer, diagramData,
   } = useGraphStore(useShallow((s) => ({
     layout: s.layout, theme: s.theme,
     filterType: s.filterType, graphType: s.graphType, clusterDepth: s.clusterDepth,
     viewMode: s.viewMode, currentLayer: s.currentLayer, diagramData: s.diagramData,
+    dagreRankDir: s.dagreRankDir,
   })));
 
   const {
@@ -148,6 +149,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   })));
 
   const setLayout = useGraphStore((s) => s.setLayout);
+  const setDagreRankDir = useGraphStore((s) => s.setDagreRankDir);
   const setTheme = useGraphStore((s) => s.setTheme);
   const setSearchQuery = useGraphStore((s) => s.setSearchQuery);
   const setSelectedNode = useGraphStore((s) => s.setSelectedNode);
@@ -300,7 +302,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const renderer = useGraphRenderer({
     data: { nodes, edges, rawNodes },
-    display: { layout, theme, clusterDepth, heatmapMode },
+    display: { layout, dagreRankDir, theme, clusterDepth, heatmapMode },
     interaction: { highlightedNodeIds, selectedNodeId, focusNodeId, focusModeActive, focusModeNodeId, focusDepth, debouncedSearch },
     filters: { filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, pathFilterInclude, pathFilterExclude },
     analysis: { showCallChain: panel.showCallChain, showCycles: panel.showCycles, cycleIsolation: panel.cycleIsolation, showImpact: panel.showImpact, showInheritance: panel.showInheritance },
@@ -668,12 +670,13 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       <Toolbar
         statsText={statsText}
         typeCounts={{ function: nodeTypeCounts.function, class: nodeTypeCounts.class, interface: nodeTypeCounts.interface }}
-        layout={layout} theme={theme} filterType={filterType} graphType={graphType}
+        layout={layout} dagreRankDir={dagreRankDir} theme={theme} filterType={filterType} graphType={graphType}
         clusterDepth={clusterDepth} viewMode={viewMode} currentLayer={currentLayer}
         layerNames={diagramData?.layers.map((l) => l.name) ?? []}
         onLayerChange={setLayer} collapsed={panel.collapsed}
         panelControls={panel.toPanelControls()}
         onViewModeChange={handleViewModeChange} onLayoutChange={setLayout}
+        onDagreRankDirChange={setDagreRankDir}
         onThemeToggle={handleThemeToggle} onFilterChange={setFilterType}
         onGraphTypeChange={setGraphType} onClusterDepthChange={setClusterDepth}
         onRefresh={handleRefresh} onExport={renderer.exportGraph}

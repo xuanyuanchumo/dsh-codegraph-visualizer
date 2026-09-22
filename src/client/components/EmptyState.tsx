@@ -38,7 +38,7 @@ export const EmptyState = memo(function EmptyState({ prerequisites, onImport, on
       navigator.clipboard?.writeText(cmd);
       setCopiedCmd(cmd);
       if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-      copyTimerRef.current = setTimeout(() => setCopiedCmd(null), 3000);
+      copyTimerRef.current = setTimeout(() => setCopiedCmd(null), UI.INSTALL_HINT_TIMEOUT_MS);
     } catch { /* clipboard unavailable — best-effort */ }
     window.dispatchEvent(new CustomEvent('codegraph:install-plugin', {
       detail: { plugin },

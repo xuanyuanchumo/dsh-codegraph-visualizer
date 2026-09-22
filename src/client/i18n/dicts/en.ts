@@ -28,6 +28,7 @@ export const en: Record<string, string> = {
   'toolbar.lang': 'Switch language',
   'toolbar.layout': 'Switch to {l} layout (Ctrl+L cycles)',
   'toolbar.layoutSwitcher': 'Layout switcher',
+  'toolbar.rankDir': 'Dagre direction',
   'toolbar.graphType': 'Graph type switcher',
   'toolbar.cluster': 'Expand depth',
   'toolbar.layer': 'Diagram layer',

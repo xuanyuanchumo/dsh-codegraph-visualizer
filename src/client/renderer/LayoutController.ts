@@ -1,5 +1,5 @@
 import type { Core, LayoutOptions } from 'cytoscape';
-import type { LayoutType } from './IRenderer.ts';
+import type { LayoutType, RankDir } from '../../shared/viewModeUtils.ts';
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { computeSmartSpacing, type SmartSpacing } from '../../shared/layoutUtils.ts';
@@ -18,6 +18,7 @@ export class LayoutController {
 
   private workerTimeout: ReturnType<typeof setTimeout> | null = null;
   private overlapRemover: OverlapRemover;
+  rankDir: RankDir = 'TB';
 
   constructor(cy: Core) {
     this.cy = cy;
@@ -103,6 +104,7 @@ export class LayoutController {
         nodes: nodes.map((n) => ({ id: n.id, label: n.label, type: n.type })),
         edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, type: e.type })),
         layout,
+        rankDir: this.rankDir,
         containerWidth: this.cy.width() || 800,
         containerHeight: this.cy.height() || 600,
       });
@@ -286,7 +288,7 @@ export class LayoutController {
         } as LayoutOptions;
       case 'dagre':
         return {
-          name: 'dagre', fit: true, animate, rankDir: 'TB',
+          name: 'dagre', fit: true, animate, rankDir: this.rankDir,
           rankSep: sp.rankSep, edgeSep: sp.edgeSep, nodeSep: sp.nodeSep,
           ranker: 'tight-tree', padding: sp.padding,
         } as LayoutOptions;

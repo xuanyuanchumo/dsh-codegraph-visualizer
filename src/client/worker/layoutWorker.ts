@@ -10,6 +10,7 @@ export interface LayoutWorkerRequest {
   nodes: { id: string; label: string; type: string }[];
   edges: { id: string; source: string; target: string; type: string }[];
   layout: string;
+  rankDir?: string;
   containerWidth?: number;
   containerHeight?: number;
 }
@@ -20,7 +21,7 @@ export interface LayoutWorkerResponse {
 }
 
 self.onmessage = (e: MessageEvent<LayoutWorkerRequest>) => {
-  const { nodes, edges, layout, containerWidth = 800, containerHeight = 600 } = e.data;
+  const { nodes, edges, layout, rankDir = 'TB', containerWidth = 800, containerHeight = 600 } = e.data;
   try {
     const cy = cytoscape({
       headless: true,
@@ -40,7 +41,7 @@ self.onmessage = (e: MessageEvent<LayoutWorkerRequest>) => {
         options = { name: 'fcose', animate: false, nodeRepulse: () => sp.nodeRepulse, idealEdgeLength: () => sp.idealEdgeLength, edgeElasticity: 0.05, gravity: 0.02, numIter: 15000, randomize: true, tile: true, padding: sp.padding, avoidOverlap: true, quality: 'default', samplingType: true, nodeSeparation: sp.minNodeSpacing } as LayoutOptions;
         break;
       case 'dagre':
-        options = { name: 'dagre', animate: false, rankDir: 'TB', rankSep: sp.rankSep, edgeSep: sp.edgeSep, nodeSep: sp.nodeSep, ranker: 'tight-tree', padding: sp.padding } as LayoutOptions;
+        options = { name: 'dagre', animate: false, rankDir: rankDir as 'TB' | 'LR' | 'BT' | 'RL', rankSep: sp.rankSep, edgeSep: sp.edgeSep, nodeSep: sp.nodeSep, ranker: 'tight-tree', padding: sp.padding } as LayoutOptions;
         break;
       case 'circle':
         options = { name: 'circle', animate: false, padding: sp.padding } as LayoutOptions;

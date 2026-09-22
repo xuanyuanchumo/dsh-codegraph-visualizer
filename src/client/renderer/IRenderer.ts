@@ -1,9 +1,9 @@
 import type { GraphNode, GraphEdge, NodeId, HeatmapMode } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
 import type { PathResult } from './PathFinder.ts';
-import type { LayoutType, ThemeType } from '../../shared/viewModeUtils.ts';
+import type { LayoutType, ThemeType, RankDir } from '../../shared/viewModeUtils.ts';
 import type { CycleInfo } from './CycleDetector.ts';
-export type { LayoutType, ThemeType } from '../../shared/viewModeUtils.ts';
+export type { LayoutType, ThemeType, RankDir } from '../../shared/viewModeUtils.ts';
 
 export type { HeatmapMode } from '../../types/index.ts';
 
@@ -28,6 +28,7 @@ export interface IRenderer {
   updateData(nodes: GraphNode[], edges: GraphEdge[]): void;
   setRawNodes(rawNodes: GraphNode[]): void;
   applyLayout(layout: LayoutType): void;
+  setDagreRankDir(dir: RankDir): void;
   applyIncrementalLayout(layout: LayoutType, newNodeIds: Set<string>): void;
   isWorkerLayoutAvailable(): boolean;
   applyLayoutWithWorker(nodes: GraphNode[], edges: GraphEdge[], layout: LayoutType): Promise<Record<string, { x: number; y: number }>>;

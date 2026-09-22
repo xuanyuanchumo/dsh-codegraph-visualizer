@@ -2,6 +2,7 @@ import type { ViewMode } from '../types/index.ts';
 
 export type ThemeType = 'light' | 'dark';
 export type LayoutType = 'cose' | 'fcose' | 'dagre' | 'circle' | 'grid' | 'radial' | 'tree';
+export type RankDir = 'TB' | 'LR' | 'BT' | 'RL';
 
 export const VIEW_MODE_LAYOUT: Record<ViewMode, LayoutType> = {
   code: 'cose',

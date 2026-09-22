@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback, memo } from 'react';
-import type { LayoutType, ThemeType, GraphType } from '../store/graphStore.ts';
+import type { LayoutType, ThemeType, GraphType, RankDir } from '../store/graphStore.ts';
 import type { GraphNode, ViewMode } from '../../types/index.ts';
 import type { WorkspaceSelectorProps } from './WorkspaceSelector.tsx';
 import { useT, useLang, toggleLang } from '../i18n/index.ts';
@@ -20,6 +20,13 @@ const FILTER_KEYS: { value: GraphNode['type'] | 'all'; key: string }[] = [
   { value: 'variable', key: 'filter.variable' },
   { value: 'module', key: 'filter.module' },
   { value: 'interface', key: 'filter.interface' },
+];
+
+const RANK_DIRS: { value: RankDir; label: string }[] = [
+  { value: 'TB', label: 'TB' },
+  { value: 'LR', label: 'LR' },
+  { value: 'BT', label: 'BT' },
+  { value: 'RL', label: 'RL' },
 ];
 
 const GRAPH_TYPES: { value: GraphType; key: string }[] = [
@@ -93,6 +100,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   statsText: string;
   typeCounts: { function: number; class: number; interface: number };
   layout: LayoutType;
+  dagreRankDir: RankDir;
   theme: ThemeType;
   filterType: GraphNode['type'] | 'all';
   graphType: GraphType;
@@ -103,6 +111,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   collapsed: boolean;
   panelControls: PanelControls;
   onLayoutChange: (l: LayoutType) => void;
+  onDagreRankDirChange: (dir: RankDir) => void;
   onThemeToggle: () => void;
   onFilterChange: (f: GraphNode['type'] | 'all') => void;
   onGraphTypeChange: (g: GraphType) => void;
@@ -144,9 +153,9 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   }, [onExport]);
 
   const {
-    statsText, typeCounts, layout, theme, filterType, graphType, clusterDepth,
+    statsText, typeCounts, layout, dagreRankDir, theme, filterType, graphType, clusterDepth,
     viewMode, currentLayer, layerNames, collapsed, panelControls,
-    onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterDepthChange,
+    onLayoutChange, onDagreRankDirChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterDepthChange,
     onViewModeChange, onLayerChange,
     onRefresh, onCollapse,
     currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
@@ -189,6 +198,19 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
             >{l}</button>
           ))}
         </div>
+        {layout === 'dagre' && (
+          <div className="cg-rank-dir-buttons" role="group" aria-label="Dagre rank direction">
+            {RANK_DIRS.map((d) => (
+              <button
+                key={d.value}
+                className={`cg-rank-dir-btn ${dagreRankDir === d.value ? 'cg-active' : ''}`}
+                onClick={() => onDagreRankDirChange(d.value)}
+                title={d.label}
+                aria-pressed={dagreRankDir === d.value}
+              >{d.label}</button>
+            ))}
+          </div>
+        )}
         <div className="cg-graph-type-buttons" role="group" aria-label={t('toolbar.graphType')}>
           {GRAPH_TYPES.map((g) => (
             <button

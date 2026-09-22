@@ -539,51 +539,51 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
     },
     {
       selector: 'node[isCluster="true"][clusterHue="0"]',
-      style: { 'background-color': isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.10)', 'border-color': isDark ? '#818cf8' : '#6366f1' },
+      style: { 'background-color': readCssVarCached('--cg-cluster-hue-0-bg', isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-0-border', isDark ? '#818cf8' : '#6366f1') },
     },
     {
       selector: 'node[isCluster="true"][clusterHue="1"]',
-      style: { 'background-color': isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.10)', 'border-color': isDark ? '#34d399' : '#10b981' },
+      style: { 'background-color': readCssVarCached('--cg-cluster-hue-1-bg', isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-1-border', isDark ? '#34d399' : '#10b981') },
     },
     {
       selector: 'node[isCluster="true"][clusterHue="2"]',
-      style: { 'background-color': isDark ? 'rgba(236,72,153,0.15)' : 'rgba(236,72,153,0.10)', 'border-color': isDark ? '#f472b6' : '#ec4899' },
+      style: { 'background-color': readCssVarCached('--cg-cluster-hue-2-bg', isDark ? 'rgba(236,72,153,0.15)' : 'rgba(236,72,153,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-2-border', isDark ? '#f472b6' : '#ec4899') },
     },
     {
       selector: 'node[isCluster="true"][clusterHue="3"]',
-      style: { 'background-color': isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.10)', 'border-color': isDark ? '#fbbf24' : '#f59e0b' },
+      style: { 'background-color': readCssVarCached('--cg-cluster-hue-3-bg', isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-3-border', isDark ? '#fbbf24' : '#f59e0b') },
     },
     {
       selector: 'node[isCluster="true"][clusterHue="4"]',
-      style: { 'background-color': isDark ? 'rgba(6,182,212,0.15)' : 'rgba(6,182,212,0.10)', 'border-color': isDark ? '#22d3ee' : '#06b6d4' },
+      style: { 'background-color': readCssVarCached('--cg-cluster-hue-4-bg', isDark ? 'rgba(6,182,212,0.15)' : 'rgba(6,182,212,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-4-border', isDark ? '#22d3ee' : '#06b6d4') },
     },
     {
       selector: 'node[isCluster="true"][clusterHue="5"]',
-      style: { 'background-color': isDark ? 'rgba(168,85,247,0.15)' : 'rgba(168,85,247,0.10)', 'border-color': isDark ? '#a78bfa' : '#8b5cf6' },
+      style: { 'background-color': readCssVarCached('--cg-cluster-hue-5-bg', isDark ? 'rgba(168,85,247,0.15)' : 'rgba(168,85,247,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-5-border', isDark ? '#a78bfa' : '#8b5cf6') },
     },
     {
       selector: 'node[isCluster="true"][clusterHue="6"]',
-      style: { 'background-color': isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.10)', 'border-color': isDark ? '#f87171' : '#ef4444' },
+      style: { 'background-color': readCssVarCached('--cg-cluster-hue-6-bg', isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-6-border', isDark ? '#f87171' : '#ef4444') },
     },
     {
       selector: 'node[isCluster="true"][clusterHue="7"]',
-      style: { 'background-color': isDark ? 'rgba(132,204,22,0.15)' : 'rgba(132,204,22,0.10)', 'border-color': isDark ? '#a3e635' : '#84cc16' },
+      style: { 'background-color': readCssVarCached('--cg-cluster-hue-7-bg', isDark ? 'rgba(132,204,22,0.15)' : 'rgba(132,204,22,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-7-border', isDark ? '#a3e635' : '#84cc16') },
     },
     {
       selector: 'node[isCluster="true"][clusterHue="8"]',
-      style: { 'background-color': isDark ? 'rgba(251,113,133,0.15)' : 'rgba(251,113,133,0.10)', 'border-color': isDark ? '#fb7185' : '#f43f5e' },
+      style: { 'background-color': readCssVarCached('--cg-cluster-hue-8-bg', isDark ? 'rgba(251,113,133,0.15)' : 'rgba(251,113,133,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-8-border', isDark ? '#fb7185' : '#f43f5e') },
     },
     {
       selector: 'node[isCluster="true"][clusterHue="9"]',
-      style: { 'background-color': isDark ? 'rgba(96,165,250,0.15)' : 'rgba(96,165,250,0.10)', 'border-color': isDark ? '#60a5fa' : '#3b82f6' },
+      style: { 'background-color': readCssVarCached('--cg-cluster-hue-9-bg', isDark ? 'rgba(96,165,250,0.15)' : 'rgba(96,165,250,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-9-border', isDark ? '#60a5fa' : '#3b82f6') },
     },
     {
       selector: 'node[isCluster="true"][clusterHue="10"]',
-      style: { 'background-color': isDark ? 'rgba(52,211,153,0.15)' : 'rgba(52,211,153,0.10)', 'border-color': isDark ? '#34d399' : '#14b8a6' },
+      style: { 'background-color': readCssVarCached('--cg-cluster-hue-10-bg', isDark ? 'rgba(52,211,153,0.15)' : 'rgba(52,211,153,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-10-border', isDark ? '#34d399' : '#14b8a6') },
     },
     {
       selector: 'node[isCluster="true"][clusterHue="11"]',
-      style: { 'background-color': isDark ? 'rgba(251,191,36,0.15)' : 'rgba(251,191,36,0.10)', 'border-color': isDark ? '#fbbf24' : '#eab308' },
+      style: { 'background-color': readCssVarCached('--cg-cluster-hue-11-bg', isDark ? 'rgba(251,191,36,0.15)' : 'rgba(251,191,36,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-11-border', isDark ? '#fbbf24' : '#eab308') },
     },
     {
       selector: 'node[isCluster="true"].hovered',

@@ -15,7 +15,7 @@ export class ViewportController {
       this.cy.animate({
         center: { eles: node },
         zoom: Math.max(this.cy.zoom(), 1.2),
-        duration: 300,
+        duration: RENDERER.FOCUS_NODE_ANIMATION_MS,
       });
     }
   }
@@ -55,7 +55,7 @@ export class ViewportController {
 
       this.cy.animate({
         fit: { eles: this.cy.elements().filter((el) => relevant.has(el.id())), padding: RENDERER.FIT_PADDING },
-        duration: 400,
+        duration: RENDERER.NEIGHBORHOOD_ANIMATION_MS,
       });
     });
   }
@@ -99,7 +99,7 @@ export class ViewportController {
       });
       this.cy.animate({
         fit: { eles: this.cy.elements().filter((el) => relevant.has(el.id())), padding: RENDERER.FIT_PADDING },
-        duration: 400,
+        duration: RENDERER.NEIGHBORHOOD_ANIMATION_MS,
       });
     });
 

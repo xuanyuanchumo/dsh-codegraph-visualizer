@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { CytoscapeRenderer } from '../renderer/CytoscapeRenderer.ts';
-import type { IRenderer, LayoutType, ThemeType } from '../renderer/IRenderer.ts';
+import type { IRenderer, LayoutType, ThemeType, RankDir } from '../renderer/IRenderer.ts';
 import type { GraphNode, GraphEdge, HeatmapMode } from '../../types/index.ts';
 import { NodeId } from '../../types/index.ts';
 import type { ClusterNode, ClusterEdge } from '../store/cluster/index.ts';
 import { scoped } from '../../shared/Logger.ts';
-import { RENDERER } from '../../shared/constants.ts';
+import { RENDERER, UI } from '../../shared/constants.ts';
 
 type FilterType = GraphNode['type'] | 'all';
 
@@ -30,6 +30,7 @@ export interface GraphRendererData {
 
 export interface GraphRendererDisplay {
   layout: LayoutType;
+  dagreRankDir: RankDir;
   theme: ThemeType;
   clusterDepth: number;
   heatmapMode: HeatmapMode;
@@ -86,7 +87,7 @@ export interface UseGraphRendererResult {
 export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererResult {
   const { data, display, interaction, filters, analysis, callbacks, showCallChainRef } = config;
   const { nodes, edges, rawNodes } = data;
-  const { layout, theme, clusterDepth, heatmapMode } = display;
+  const { layout, dagreRankDir, theme, clusterDepth, heatmapMode } = display;
   const { highlightedNodeIds, selectedNodeId, focusNodeId, focusModeActive, focusModeNodeId, focusDepth, debouncedSearch } = interaction;
   const { filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, pathFilterInclude, pathFilterExclude } = filters;
   const { showCallChain, showCycles, cycleIsolation, showImpact, showInheritance } = analysis;
@@ -136,7 +137,7 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
         });
         ro.observe(container);
       } else {
-        initTimer = setTimeout(initWhenReady, 50);
+        initTimer = setTimeout(initWhenReady, UI.INIT_RETRY_DELAY_MS);
       }
     };
 
@@ -203,6 +204,13 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
     }, isIncremental ? RENDERER.INCREMENTAL_LAYOUT_DELAY_MS : RENDERER.FULL_LAYOUT_DELAY_MS);
     return () => clearTimeout(timer);
   }, [layout, clusterDepth, nodes.length, edges.length]);
+
+  useEffect(() => {
+    const r = rendererRef.current;
+    if (!r) return;
+    r.setDagreRankDir(dagreRankDir);
+    if (layout === 'dagre') r.applyLayout('dagre');
+  }, [dagreRankDir, layout]);
 
   useEffect(() => {
     const r = rendererRef.current;
@@ -321,7 +329,7 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = `codegraph-${Date.now()}.${extension}`; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setTimeout(() => URL.revokeObjectURL(url), UI.URL_REVOKE_DELAY_MS);
       log.info(`exported ${format}`);
     }
   }, []);

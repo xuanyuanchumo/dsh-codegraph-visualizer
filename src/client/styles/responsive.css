@@ -26,7 +26,8 @@
   }
 
   .cg-layout-btn,
-  .cg-graph-type-btn {
+  .cg-graph-type-btn,
+  .cg-rank-dir-btn {
     padding: 3px 6px;
     font-size: 10px;
   }

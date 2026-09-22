@@ -216,6 +216,40 @@ body[data-ds-dark-theme] .cg-type-badge.cg-function {
   box-shadow: var(--cg-shadow-active);
 }
 
+/* ---- Dagre rank direction switcher --------------------------------------- */
+
+.cg-rank-dir-buttons {
+  display: flex;
+  gap: 2px;
+  background: var(--cg-bg);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-sm);
+  padding: 2px;
+}
+
+.cg-rank-dir-btn {
+  padding: 3px 6px;
+  border: none;
+  background: transparent;
+  color: var(--cg-text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+  border-radius: var(--cg-radius-xs);
+  cursor: pointer;
+  transition: background var(--cg-transition), color var(--cg-transition);
+  font-family: var(--cg-font-sans);
+}
+
+.cg-rank-dir-btn:hover {
+  color: var(--cg-text);
+  background: var(--cg-surface-hover);
+}
+
+.cg-rank-dir-btn.cg-active {
+  color: var(--cg-on-accent);
+  background: var(--cg-accent);
+}
+
 /* ---- Graph type switcher (segmented control) ----------------------------- */
 
 .cg-graph-type-buttons {

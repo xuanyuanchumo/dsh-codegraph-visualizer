@@ -3,7 +3,7 @@ import dagre from 'cytoscape-dagre';
 import fcose from 'cytoscape-fcose';
 import type { GraphNode, GraphEdge, NodeId, HeatmapMode } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
-import type { IRenderer, LayoutType, ThemeType } from './IRenderer.ts';
+import type { IRenderer, LayoutType, ThemeType, RankDir } from './IRenderer.ts';
 import type { CycleInfo } from './CycleDetector.ts';
 import { LayoutController } from './LayoutController.ts';
 import { HighlightController } from './HighlightController.ts';
@@ -173,6 +173,10 @@ export class CytoscapeRenderer implements IRenderer {
     } catch (err) {
       log.error('applyLayout failed', err);
     }
+  }
+
+  setDagreRankDir(dir: RankDir): void {
+    if (this.layoutCtrl) this.layoutCtrl.rankDir = dir;
   }
 
   applyIncrementalLayout(layout: LayoutType, newNodeIds: Set<string>): void {

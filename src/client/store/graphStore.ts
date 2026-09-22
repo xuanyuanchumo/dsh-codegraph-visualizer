@@ -10,14 +10,14 @@ import { DiagramCache, ClusterCache, computeDataHash } from '../cache/DiagramCac
 import { invalidateCssVarCache } from '../renderer/styles/ThemeStylesheet.ts';
 import { computeViewModeTransition } from './viewModeTransition.ts';
 import { scoped } from '../../shared/Logger.ts';
-import { type LayoutType, type ThemeType, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
+import { type LayoutType, type ThemeType, type RankDir, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
 
 import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, LOD, UI } from '../../shared/constants.ts';
 
 const log = scoped('store');
 
 export type { ClusterNode, ClusterEdge } from './cluster/index.ts';
-export type { LayoutType, ThemeType } from '../../shared/viewModeUtils.ts';
+export type { LayoutType, ThemeType, RankDir } from '../../shared/viewModeUtils.ts';
 
 const diagramCache = new DiagramCache(10);
 const clusterCache = new ClusterCache(20);
@@ -185,6 +185,7 @@ interface GraphState {
   totalEdgeCount: number;
 
   layout: LayoutType;
+  dagreRankDir: RankDir;
   theme: ThemeType;
   searchQuery: string;
   selectedNodeId: NodeId | null;
@@ -246,6 +247,7 @@ interface GraphState {
 
   setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata?: { truncated?: boolean; totalNodeCount?: number; totalEdgeCount?: number }) => void;
   setLayout: (layout: LayoutType) => void;
+  setDagreRankDir: (dir: RankDir) => void;
   setTheme: (theme: ThemeType) => void;
   setSearchQuery: (query: string) => void;
   setSelectedNode: (nodeId: NodeId | null) => void;
@@ -307,6 +309,7 @@ export const useGraphStore = create<GraphState>()(
       totalNodeCount: 0,
       totalEdgeCount: 0,
       layout: 'cose',
+      dagreRankDir: 'TB',
       theme: detectInitialTheme(),
       searchQuery: '',
       selectedNodeId: null,
@@ -440,6 +443,7 @@ export const useGraphStore = create<GraphState>()(
         }
       },
       setLayout: (layout) => set({ layout }),
+      setDagreRankDir: (dagreRankDir) => set({ dagreRankDir }),
       setTheme: (theme) => { invalidateCssVarCache(); set({ theme }); },
       setSearchQuery: (searchQuery) => set({ searchQuery }),
       setSelectedNode: (selectedNodeId) => set({ selectedNodeId }),
@@ -670,7 +674,7 @@ export const useGraphStore = create<GraphState>()(
     }),
     {
       name: 'dsh-codegraph-visualizer/ui',
-      version: 7,
+      version: 8,
       storage: createJSONStorage(() =>
         typeof window !== 'undefined' ? window.localStorage : memoryStorage,
       ),
@@ -708,10 +712,15 @@ export const useGraphStore = create<GraphState>()(
           const depthMap: Record<string, number> = { directory: 0, file: 1, function: 2, progressive: 0, smart: 0 };
           result.clusterDepth = typeof oldLevel === 'string' ? (depthMap[oldLevel] ?? 0) : 0;
         }
+        if (version < 8) {
+          const validRankDirs = ['TB', 'LR', 'BT', 'RL'];
+          const savedRankDir = (p as { dagreRankDir?: string }).dagreRankDir;
+          (result as Record<string, unknown>).dagreRankDir = validRankDirs.includes(savedRankDir ?? '') ? savedRankDir : 'TB';
+        }
         return result;
       },
       partialize: (s) => ({
-        layout: s.layout, theme: s.theme, filterType: s.filterType,
+        layout: s.layout, dagreRankDir: s.dagreRankDir, theme: s.theme, filterType: s.filterType,
         graphType: s.graphType, clusterDepth: s.clusterDepth,
         currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
         rules: s.rules, focusDepth: s.focusDepth,

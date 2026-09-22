@@ -28,6 +28,7 @@ export const zh: Record<string, string> = {
   'toolbar.lang': '切换语言',
   'toolbar.layout': '切换至 {l} 布局 (Ctrl+L 循环)',
   'toolbar.layoutSwitcher': '布局切换',
+  'toolbar.rankDir': 'Dagre 方向',
   'toolbar.graphType': '图谱类型切换',
   'toolbar.cluster': '展开深度',
   'toolbar.layer': '图谱层级',
