@@ -154,33 +154,36 @@ describe('useGraphRenderer', () => {
   });
 
   describe('exportGraph', () => {
-    it('does not throw when renderer is null', () => {
+    it('returns undefined when renderer is null (no crash, no side effect)', () => {
       const { result } = renderUseGraphRenderer();
-      expect(() => result.current.exportGraph('json')).not.toThrow();
+      const returnValue = result.current.exportGraph('json');
+      expect(returnValue).toBeUndefined();
     });
 
-    it('does not throw when exporting png', () => {
+    it('handles png export gracefully when renderer is null', () => {
       const { result } = renderUseGraphRenderer();
-      expect(() => result.current.exportGraph('png')).not.toThrow();
+      expect(result.current.exportGraph('png')).toBeUndefined();
     });
 
-    it('does not throw when exporting svg', () => {
+    it('handles svg export gracefully when renderer is null', () => {
       const { result } = renderUseGraphRenderer();
-      expect(() => result.current.exportGraph('svg')).not.toThrow();
+      expect(result.current.exportGraph('svg')).toBeUndefined();
     });
 
-    it('does not throw when exporting mermaid', () => {
+    it('handles mermaid export gracefully when renderer is null', () => {
       const { result } = renderUseGraphRenderer();
-      expect(() => result.current.exportGraph('mermaid')).not.toThrow();
+      expect(result.current.exportGraph('mermaid')).toBeUndefined();
     });
   });
 
   describe('updateTheme', () => {
-    it('does not throw when renderer is null', () => {
+    it('does not crash when renderer is null', () => {
       const { result } = renderUseGraphRenderer();
       expect(() => result.current.updateTheme('light')).not.toThrow();
+      expect(result.current.rendererRef.current).toBeNull();
     });
   });
+
 
   describe('setSearchMatchCount', () => {
     it('updates searchMatchCount state', () => {

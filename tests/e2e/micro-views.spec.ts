@@ -10,7 +10,7 @@ test.describe('J40: CFG 控制流图查看', () => {
 
   test('should show micro view prompt when CFG mode selected without function', async ({ page }) => {
     await setupPluginPage(page);
-    const microPrompt = page.locator('.micro-empty-prompt');
+    const microPrompt = page.locator('.cg-micro-empty-prompt');
     await expect(microPrompt).not.toBeVisible();
   });
 });
@@ -32,7 +32,7 @@ test.describe('J42: 时序图查看', () => {
 
   test('should render sequence diagram container when active', async ({ page }) => {
     await setupPluginPage(page);
-    const seqContainer = page.locator('.sequence-diagram-container');
+    const seqContainer = page.locator('.cg-sequence-diagram-container');
     await expect(seqContainer).not.toBeVisible();
   });
 });
@@ -40,7 +40,7 @@ test.describe('J42: 时序图查看', () => {
 test.describe('J43: 微观图谱交互', () => {
   test('should support zoom controls in sequence diagram', async ({ page }) => {
     await setupPluginPage(page);
-    const zoomControls = page.locator('.seq-zoom-controls');
+    const zoomControls = page.locator('.cg-seq-zoom-controls');
     await expect(zoomControls).not.toBeVisible();
   });
 });
@@ -48,13 +48,13 @@ test.describe('J43: 微观图谱交互', () => {
 test.describe('J44: 微观-宏观切换', () => {
   test('should show back to code button in micro view', async ({ page }) => {
     await setupPluginPage(page);
-    const backBtn = page.locator('.micro-empty-back-btn');
+    const backBtn = page.locator('.cg-micro-empty-back-btn');
     await expect(backBtn).not.toBeVisible();
   });
 
   test('should return to code view when back button clicked', async ({ page }) => {
     await setupPluginPage(page);
-    const graphContainer = page.locator('.graph-container');
+    const graphContainer = page.locator('.cg-graph-container');
     await expect(graphContainer).toBeVisible();
   });
 });
@@ -62,7 +62,7 @@ test.describe('J44: 微观-宏观切换', () => {
 test.describe('J45: 核心函数微观探索', () => {
   test('should have core function button in toolbar', async ({ page }) => {
     await setupPluginPage(page);
-    const coreFunctionBtn = page.locator('.corefunction-btn');
+    const coreFunctionBtn = page.locator('.cg-corefunction-btn');
     await expect(coreFunctionBtn).toBeVisible();
   });
 

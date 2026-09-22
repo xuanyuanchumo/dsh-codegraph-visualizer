@@ -4,13 +4,13 @@ import { setupPluginPage } from './helpers.ts';
 test.describe('J35: 虚拟滚动', () => {
   test('should render graph container for large graphs', async ({ page }) => {
     await setupPluginPage(page);
-    const graphContainer = page.locator('.graph-container');
+    const graphContainer = page.locator('.cg-graph-container');
     await expect(graphContainer).toBeVisible();
   });
 
   test('should not crash with empty graph data', async ({ page }) => {
     await setupPluginPage(page);
-    const graphPanel = page.locator('.graph-panel');
+    const graphPanel = page.locator('.cg-graph-panel');
     await expect(graphPanel).toBeVisible();
   });
 });
@@ -18,7 +18,7 @@ test.describe('J35: 虚拟滚动', () => {
 test.describe('J36: 增量布局', () => {
   test('should support layout switching without full re-render', async ({ page }) => {
     await setupPluginPage(page);
-    const layoutBtns = page.locator('.layout-btn');
+    const layoutBtns = page.locator('.cg-layout-btn');
     const count = await layoutBtns.count();
     expect(count).toBeGreaterThan(0);
   });
@@ -27,13 +27,13 @@ test.describe('J36: 增量布局', () => {
 test.describe('J37: Web Worker 并行', () => {
   test('should have worker layout capability check', async ({ page }) => {
     await setupPluginPage(page);
-    const graphContainer = page.locator('.graph-container');
+    const graphContainer = page.locator('.cg-graph-container');
     await expect(graphContainer).toBeVisible();
   });
 
   test('should fallback to main-thread layout when worker unavailable', async ({ page }) => {
     await setupPluginPage(page);
-    const graphPanel = page.locator('.graph-panel');
+    const graphPanel = page.locator('.cg-graph-panel');
     await expect(graphPanel).toBeVisible();
   });
 });
