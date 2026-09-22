@@ -460,6 +460,137 @@ describe('ViewportController', () => {
     });
   });
 
+  describe('setFocusMode and clearFocusMode', () => {
+    it('isFocusModeActive returns false by default', () => {
+      const cy = makeMockCy();
+      const controller = new ViewportController(cy as any);
+      expect(controller.isFocusModeActive()).toBe(false);
+    });
+
+    it('setFocusMode with null nodeId does not activate focus mode', () => {
+      const nodeA = makeMockNode('a');
+      const cy = makeMockCy([nodeA], []);
+      const controller = new ViewportController(cy as any);
+      controller.setFocusMode(null, 1);
+      expect(controller.isFocusModeActive()).toBe(false);
+    });
+
+    it('setFocusMode activates focus mode and hides non-visible nodes', () => {
+      const nodeA = makeMockNode('a');
+      const nodeB = makeMockNode('b');
+      const nodeC = makeMockNode('c');
+      const edgeAB = makeMockEdge('e1', 'a', 'b');
+      nodeA._neighborhoodItems.push(edgeAB, nodeB);
+
+      const cy = makeMockCy([nodeA, nodeB, nodeC], [edgeAB]);
+      const controller = new ViewportController(cy as any);
+
+      controller.setFocusMode('a' as any, 1);
+      expect(controller.isFocusModeActive()).toBe(true);
+      expect(nodeC.style).toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('setFocusMode does not hide nodes with typeFiltered flag', () => {
+      const nodeA = makeMockNode('a');
+      const nodeB = makeMockNode('b');
+      const nodeC = makeMockNode('c', 0, 0, { typeFiltered: true });
+      const edgeAB = makeMockEdge('e1', 'a', 'b');
+      nodeA._neighborhoodItems.push(edgeAB, nodeB);
+
+      const cy = makeMockCy([nodeA, nodeB, nodeC], [edgeAB]);
+      const controller = new ViewportController(cy as any);
+
+      controller.setFocusMode('a' as any, 1);
+      expect(nodeC.style).not.toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('setFocusMode does not hide nodes with connectionFiltered flag', () => {
+      const nodeA = makeMockNode('a');
+      const nodeB = makeMockNode('b');
+      const nodeC = makeMockNode('c', 0, 0, { connectionFiltered: true });
+      const edgeAB = makeMockEdge('e1', 'a', 'b');
+      nodeA._neighborhoodItems.push(edgeAB, nodeB);
+
+      const cy = makeMockCy([nodeA, nodeB, nodeC], [edgeAB]);
+      const controller = new ViewportController(cy as any);
+
+      controller.setFocusMode('a' as any, 1);
+      expect(nodeC.style).not.toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('clearFocusMode restores hidden nodes to display element', () => {
+      const nodeA = makeMockNode('a');
+      const nodeB = makeMockNode('b');
+      const nodeC = makeMockNode('c');
+      const edgeAB = makeMockEdge('e1', 'a', 'b');
+      nodeA._neighborhoodItems.push(edgeAB, nodeB);
+
+      const cy = makeMockCy([nodeA, nodeB, nodeC], [edgeAB]);
+      const controller = new ViewportController(cy as any);
+
+      controller.setFocusMode('a' as any, 1);
+      controller.clearFocusMode();
+
+      expect(controller.isFocusModeActive()).toBe(false);
+      expect(nodeC.style).toHaveBeenCalledWith('display', 'element');
+    });
+
+    it('clearFocusMode is no-op when focus mode not active', () => {
+      const cy = makeMockCy();
+      const controller = new ViewportController(cy as any);
+      controller.clearFocusMode();
+      expect(controller.isFocusModeActive()).toBe(false);
+    });
+
+    it('clearFocusMode does not restore typeFiltered nodes', () => {
+      const nodeA = makeMockNode('a');
+      const nodeB = makeMockNode('b');
+      const nodeC = makeMockNode('c', 0, 0, { typeFiltered: true });
+      const edgeAB = makeMockEdge('e1', 'a', 'b');
+      nodeA._neighborhoodItems.push(edgeAB, nodeB);
+
+      const cy = makeMockCy([nodeA, nodeB, nodeC], [edgeAB]);
+      const controller = new ViewportController(cy as any);
+
+      controller.setFocusMode('a' as any, 1);
+      controller.clearFocusMode();
+
+      expect(nodeC.style).not.toHaveBeenCalledWith('display', 'element');
+    });
+
+    it('setFocusMode hides edges connected to non-visible nodes', () => {
+      const nodeA = makeMockNode('a');
+      const nodeB = makeMockNode('b');
+      const nodeC = makeMockNode('c');
+      const edgeAB = makeMockEdge('e1', 'a', 'b');
+      const edgeBC = makeMockEdge('e2', 'b', 'c');
+      nodeA._neighborhoodItems.push(edgeAB, nodeB);
+      nodeB._neighborhoodItems.push(edgeBC, nodeC);
+
+      const cy = makeMockCy([nodeA, nodeB, nodeC], [edgeAB, edgeBC]);
+      const controller = new ViewportController(cy as any);
+
+      controller.setFocusMode('a' as any, 1);
+      expect(edgeBC.style).toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('calling setFocusMode twice clears previous focus mode first', () => {
+      const nodeA = makeMockNode('a');
+      const nodeB = makeMockNode('b');
+      const nodeC = makeMockNode('c');
+      const edgeAB = makeMockEdge('e1', 'a', 'b');
+      nodeA._neighborhoodItems.push(edgeAB, nodeB);
+
+      const cy = makeMockCy([nodeA, nodeB, nodeC], [edgeAB]);
+      const controller = new ViewportController(cy as any);
+
+      controller.setFocusMode('a' as any, 1);
+      controller.setFocusMode('b' as any, 1);
+
+      expect(controller.isFocusModeActive()).toBe(true);
+    });
+  });
+
   describe('destroy', () => {
     it('cleans up without throwing', () => {
       const cy = makeMockCy();

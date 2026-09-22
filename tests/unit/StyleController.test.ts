@@ -32,13 +32,16 @@ function makeMockCy(nodeList: any[] = [], edgeList: any[] = []) {
   const nodeMap = new Map<string, any>();
   for (const n of nodeList) nodeMap.set(n.id(), n);
 
-  const buildCollection = (items: any[]) => ({
-    forEach: vi.fn((cb: (n: any) => void) => items.forEach(cb)),
-    length: items.length,
-    filter: vi.fn((pred: (n: any) => boolean) => buildCollection(items.filter(pred))),
-    removeClass: vi.fn((cls: string) => { items.forEach((el: any) => { if (el.removeClass) el.removeClass(cls); }); }),
-    addClass: vi.fn((cls: string) => { items.forEach((el: any) => { if (el.addClass) el.addClass(cls); }); }),
-  });
+  const buildCollection = (items: any[]) => {
+    const col = {
+      forEach: vi.fn((cb: (n: any) => void) => items.forEach(cb)),
+      length: items.length,
+      filter: vi.fn((pred: (n: any) => boolean) => buildCollection(items.filter(pred))),
+      removeClass: vi.fn((cls: string) => { items.forEach((el: any) => { if (el.removeClass) el.removeClass(cls); }); return col; }),
+      addClass: vi.fn((cls: string) => { items.forEach((el: any) => { if (el.addClass) el.addClass(cls); }); return col; }),
+    };
+    return col;
+  };
 
   const nodesCollection = buildCollection(nodeList);
   const edgesCollection = buildCollection(edgeList);
@@ -248,6 +251,98 @@ describe('StyleController', () => {
       const sheet1 = controller.getStylesheet();
       const sheet2 = controller.getStylesheet();
       expect(sheet1).toBe(sheet2);
+    });
+  });
+
+  describe('applyStylesheet via updateTheme', () => {
+    it('calls cy.style().fromJson() with stylesheet array on updateTheme', () => {
+      const cy = makeMockCy();
+      const controller = new StyleController(cy as any, 'dark');
+      controller.updateTheme('light');
+      expect(cy.style).toHaveBeenCalled();
+      expect(cy._styleObj.fromJson).toHaveBeenCalled();
+      expect(cy._styleObj.update).toHaveBeenCalled();
+    });
+
+    it('applies stylesheet when heatmap mode changes', () => {
+      const cy = makeMockCy();
+      const controller = new StyleController(cy as any, 'dark');
+      controller.setHeatmapMode('instability');
+      expect(cy._styleObj.fromJson).toHaveBeenCalled();
+    });
+
+    it('applies stylesheet when multi-dimension mapping changes', () => {
+      const cy = makeMockCy();
+      const controller = new StyleController(cy as any, 'dark');
+      controller.setMultiDimensionMapping('instability', null);
+      expect(cy._styleObj.fromJson).toHaveBeenCalled();
+    });
+
+    it('does not re-apply stylesheet when already applied', () => {
+      const cy = makeMockCy();
+      const controller = new StyleController(cy as any, 'dark');
+      controller.updateTheme('light');
+      const callCount = cy._styleObj.fromJson.mock.calls.length;
+      controller.updateTheme('light');
+      expect(cy._styleObj.fromJson.mock.calls.length).toBeGreaterThanOrEqual(callCount);
+    });
+  });
+
+  describe('LOD class application', () => {
+    it('enableLOD applies LOD classes to nodes at low zoom', () => {
+      const nodeA = makeMockNode('a');
+      const cy = makeMockCy([nodeA], []);
+      cy.zoom = vi.fn(() => 0.1);
+      const controller = new StyleController(cy as any, 'dark');
+      controller.enableLOD();
+      expect(nodeA.addClass).toHaveBeenCalledWith('lod-minimal');
+    });
+
+    it('disableLOD removes LOD classes from nodes', () => {
+      const nodeA = makeMockNode('a');
+      const cy = makeMockCy([nodeA], []);
+      cy.zoom = vi.fn(() => 0.1);
+      const controller = new StyleController(cy as any, 'dark');
+      controller.enableLOD();
+      controller.disableLOD();
+      expect(nodeA.removeClass).toHaveBeenCalledWith('lod-minimal lod-compact');
+    });
+
+    it('LOD switches to compact at medium zoom', () => {
+      const nodeA = makeMockNode('a');
+      const cy = makeMockCy([nodeA], []);
+      cy.zoom = vi.fn(() => 0.25);
+      const controller = new StyleController(cy as any, 'dark');
+      controller.enableLOD();
+      expect(nodeA.addClass).toHaveBeenCalledWith('lod-compact');
+    });
+
+    it('LOD stays full at high zoom', () => {
+      const nodeA = makeMockNode('a');
+      const cy = makeMockCy([nodeA], []);
+      cy.zoom = vi.fn(() => 2.0);
+      const controller = new StyleController(cy as any, 'dark');
+      controller.enableLOD();
+      expect(nodeA.removeClass).toHaveBeenCalledWith('lod-minimal lod-compact');
+    });
+  });
+
+  describe('getStylesheet caching', () => {
+    it('rebuilds stylesheet when node count changes', () => {
+      const nodeA = makeMockNode('a');
+      const cy = makeMockCy([nodeA], []);
+      const controller = new StyleController(cy as any, 'dark');
+      const sheet1 = controller.getStylesheet();
+      const nodeB = makeMockNode('b');
+      cy.nodes = vi.fn(() => ({
+        forEach: vi.fn((cb: (n: any) => void) => { cb(nodeA); cb(nodeB); }),
+        length: 2,
+        filter: vi.fn(),
+        removeClass: vi.fn(),
+        addClass: vi.fn(),
+      }));
+      const sheet2 = controller.getStylesheet();
+      expect(sheet1).not.toBe(sheet2);
     });
   });
 

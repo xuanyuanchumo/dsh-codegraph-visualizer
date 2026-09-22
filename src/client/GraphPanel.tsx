@@ -730,27 +730,27 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       </div>
 
       {!isCollapsed && !isMicroView && (
-        <div className={`cg-heatmap-bar ${heatmapMode === 'none' ? 'cg-heatmap-bar--collapsed' : ''}`} role="group" aria-label={t('heatmap.title') ?? 'Heatmap mode'}>
+        <div className={`cg-heatmap-bar ${heatmapMode === 'none' ? 'cg-heatmap-bar--collapsed' : ''}`} role="group" aria-label={t('heatmap.title')}>
           {heatmapMode === 'none' ? (
             <button
               className="cg-heatmap-btn cg-heatmap-btn--activate"
               onClick={() => setHeatmapMode('instability')}
-              aria-label={t('heatmap.title') ?? 'Heatmap'}
+              aria-label={t('heatmap.title')}
             >
-              {t('heatmap.title') ?? 'Heatmap'}
+              {t('heatmap.title')}
             </button>
           ) : (
             <>
-              <span className="cg-heatmap-label">{t('heatmap.title') ?? 'Heatmap'}:</span>
+              <span className="cg-heatmap-label">{t('heatmap.title')}:</span>
               {(['none', 'instability', 'lines', 'complexity'] as const).map((m) => (
                 <button
                   key={m}
                   className={`cg-heatmap-btn ${heatmapMode === m ? 'cg-active' : ''}`}
                   onClick={() => setHeatmapMode(m)}
                   aria-pressed={heatmapMode === m}
-                  aria-label={t(`heatmap.${m}`) ?? m}
+                  aria-label={t(`heatmap.${m}`)}
                 >
-                  {t(`heatmap.${m}`) ?? m}
+                  {t(`heatmap.${m}`)}
                 </button>
               ))}
             </>

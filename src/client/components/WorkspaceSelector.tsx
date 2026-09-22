@@ -4,6 +4,7 @@ import type { WorkspaceInfo } from '../store/graphStore.ts';
 import { useT } from '../i18n/index.ts';
 import { deriveWorkspaceName as deriveName } from '../utils/deriveName.ts';
 import { WorkspaceIcon, ChevronDownIcon, PlusIcon, CloseIcon, CheckIcon, FolderIcon } from './Icons.tsx';
+import { POLLING } from '../../shared/constants.ts';
 
 export interface WorkspaceSelectorProps {
   currentWorkspace: string;
@@ -42,7 +43,7 @@ export const WorkspaceSelector = memo(function WorkspaceSelector({
 
   useEffect(() => {
     if (!open) return;
-    const interval = setInterval(() => setTick((v) => v + 1), 30_000);
+    const interval = setInterval(() => setTick((v) => v + 1), POLLING.WORKSPACE_TICK_MS);
     return () => clearInterval(interval);
   }, [open]);
 

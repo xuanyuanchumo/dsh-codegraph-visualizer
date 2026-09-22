@@ -19,8 +19,8 @@ const CATEGORY_COLORS: Record<CoreFunctionCategory, string> = {
 
 export const CoreFunctionPanel = memo(function CoreFunctionPanel({ coreFunctions, onClose, label, onSelectFunction }: CoreFunctionPanelProps) {
   const t = useT();
-  const categoryLabel = (cat: CoreFunctionCategory): string => t(`coreFunction.category.${cat}`) ?? cat;
-  const reasonLabel = (r: string): string => t(`coreFunction.reason.${r}`) ?? r;
+  const categoryLabel = (cat: CoreFunctionCategory): string => t(`coreFunction.category.${cat}`);
+  const reasonLabel = (r: string): string => t(`coreFunction.reason.${r}`);
 
   return (
     <div className="cg-analysis-panel core-function-panel" role="region" aria-label={label} aria-live="polite">
@@ -36,7 +36,7 @@ export const CoreFunctionPanel = memo(function CoreFunctionPanel({ coreFunctions
             onClick={() => onSelectFunction(fn.nodeId)}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter') onSelectFunction(fn.nodeId); }}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectFunction(fn.nodeId); } }}
           >
             <span
               className="cg-core-function-category-badge"

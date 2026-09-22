@@ -28,7 +28,7 @@ export function computeSmartSpacing(nodeCount: number, containerWidth: number, c
   const s = Math.max(40, idealSpacing * densityFactor);
 
   return {
-    nodeRepulse: Math.min(s * s * 4, 20000),
+    nodeRepulse: Math.min(s * s * 4, LAYOUT.NODE_REPULSE_MAX),
     idealEdgeLength: s * 2,
     rankSep: Math.min(Math.max(LAYOUT.MIN_RANK_SEP, s * 0.3), LAYOUT.MAX_RANK_SEP),
     edgeSep: Math.min(Math.max(15, s * 0.15), 40),

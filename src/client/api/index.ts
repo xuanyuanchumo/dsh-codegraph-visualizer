@@ -53,7 +53,7 @@ export async function requestScan(path: string, maxNodes?: number): Promise<{ su
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ path, maxNodes }),
-    }, 60000);
+    }, API.SCAN_TIMEOUT_MS);
     if (!res.ok) return null;
     return await res.json();
   } catch (e) {
@@ -68,7 +68,7 @@ export async function requestInit(path: string): Promise<{ success: boolean; mes
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ path }),
-    }, 60000);
+    }, API.SCAN_TIMEOUT_MS);
     if (!res.ok) return null;
     return await res.json();
   } catch (e) {

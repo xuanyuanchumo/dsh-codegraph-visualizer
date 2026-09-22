@@ -199,7 +199,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           ))}
         </div>
         {layout === 'dagre' && (
-          <div className="cg-rank-dir-buttons" role="group" aria-label="Dagre rank direction">
+          <div className="cg-rank-dir-buttons" role="group" aria-label={t('toolbar.rankDir')}>
             {RANK_DIRS.map((d) => (
               <button
                 key={d.value}

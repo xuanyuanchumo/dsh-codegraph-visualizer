@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { Context } from '@deepseek-ai/cordis';
 import { scoped } from '../shared/Logger.ts';
+import { POLLING } from '../shared/constants.ts';
 
 const log = scoped('host');
 const execFileAsync = promisify(execFile);
@@ -9,7 +10,7 @@ const execFileAsync = promisify(execFile);
 export async function detectCodegraphCli(): Promise<boolean> {
   try {
     const cmd = process.platform === 'win32' ? 'codegraph.cmd' : 'codegraph';
-    await execFileAsync(cmd, ['--version'], { timeout: 3000, shell: process.platform === 'win32' });
+    await execFileAsync(cmd, ['--version'], { timeout: POLLING.PREREQ_CHECK_TIMEOUT_MS, shell: process.platform === 'win32' });
     return true;
   } catch (e) {
     log.warn('detectCodegraphCli failed', e);
