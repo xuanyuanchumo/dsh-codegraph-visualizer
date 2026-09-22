@@ -3,6 +3,7 @@ import { NodeId, EdgeId } from '../../types/index.ts';
 import type { AssembledDiagram } from './DiagramAssembler.ts';
 import type { ASTNode } from '../../shared/CFGTypes.ts';
 import { findFunctionNode, getFunctionBody } from '../../shared/CFGTypes.ts';
+import { isControlFlow, findElseNode, findConditionNode } from '../../shared/astUtils.ts';
 import type {
   Participant,
   ParticipantType,
@@ -17,17 +18,6 @@ import type {
 const CALL_NODE_TYPES = new Set([
   'call_expression', 'call', 'method_call', 'function_call',
   'await_expression', 'macro_invocation',
-]);
-
-const CONTROL_FLOW_TYPES = new Set([
-  'if_statement', 'if', 'if_expression',
-  'for_statement', 'for', 'for_expression', 'for_in_statement',
-  'while_statement', 'while', 'while_expression',
-  'switch_statement', 'switch', 'match_expression',
-  'try_statement', 'try',
-  'return_statement', 'return',
-  'throw_statement', 'throw', 'raise_statement', 'raise',
-  'break_statement', 'break', 'continue_statement', 'continue',
 ]);
 
 const DESTROY_METHODS = new Set([
@@ -47,9 +37,6 @@ function isCallExpression(node: ASTNode): boolean {
   return CALL_NODE_TYPES.has(node.type) || node.type.includes('call');
 }
 
-function isControlFlow(node: ASTNode): boolean {
-  return CONTROL_FLOW_TYPES.has(node.type);
-}
 
 function extractMethodName(node: ASTNode): string {
   const children = node.children;
@@ -99,9 +86,7 @@ function inferParticipantType(receiverName: string, _methodName: string): Partic
 }
 
 function getConditionText(node: ASTNode): string {
-  const condNode = node.children.find((c) =>
-    c.type === 'condition' || c.type === 'parenthesized_expression'
-  );
+  const condNode = findConditionNode(node);
   return condNode ? condNode.text.trim().substring(0, 40) : '';
 }
 
@@ -116,7 +101,7 @@ function getBodyChildren(node: ASTNode): ASTNode[] {
 }
 
 function getElseBody(node: ASTNode): ASTNode[] {
-  const elseNode = node.children.find((c) => c.type === 'else_clause' || c.type === 'else');
+  const elseNode = findElseNode(node);
   if (!elseNode) return [];
   const body = elseNode.children.find((c) => c.type === 'block' || c.type === 'statement_block');
   return body ? body.children : elseNode.children;

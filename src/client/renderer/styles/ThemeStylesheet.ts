@@ -80,6 +80,29 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
     accentColor,
   };
 
+  const CLUSTER_HUE_FALLBACKS = [
+    { darkBg: 'rgba(99,102,241,0.15)', darkBorder: '#818cf8', lightBg: 'rgba(99,102,241,0.10)', lightBorder: '#6366f1' },
+    { darkBg: 'rgba(16,185,129,0.15)', darkBorder: '#34d399', lightBg: 'rgba(16,185,129,0.10)', lightBorder: '#10b981' },
+    { darkBg: 'rgba(236,72,153,0.15)', darkBorder: '#f472b6', lightBg: 'rgba(236,72,153,0.10)', lightBorder: '#ec4899' },
+    { darkBg: 'rgba(245,158,11,0.15)', darkBorder: '#fbbf24', lightBg: 'rgba(245,158,11,0.10)', lightBorder: '#f59e0b' },
+    { darkBg: 'rgba(6,182,212,0.15)', darkBorder: '#22d3ee', lightBg: 'rgba(6,182,212,0.10)', lightBorder: '#06b6d4' },
+    { darkBg: 'rgba(168,85,247,0.15)', darkBorder: '#a78bfa', lightBg: 'rgba(168,85,247,0.10)', lightBorder: '#8b5cf6' },
+    { darkBg: 'rgba(239,68,68,0.15)', darkBorder: '#f87171', lightBg: 'rgba(239,68,68,0.10)', lightBorder: '#ef4444' },
+    { darkBg: 'rgba(132,204,22,0.15)', darkBorder: '#a3e635', lightBg: 'rgba(132,204,22,0.10)', lightBorder: '#84cc16' },
+    { darkBg: 'rgba(251,113,133,0.15)', darkBorder: '#fb7185', lightBg: 'rgba(251,113,133,0.10)', lightBorder: '#f43f5e' },
+    { darkBg: 'rgba(96,165,250,0.15)', darkBorder: '#60a5fa', lightBg: 'rgba(96,165,250,0.10)', lightBorder: '#3b82f6' },
+    { darkBg: 'rgba(52,211,153,0.15)', darkBorder: '#34d399', lightBg: 'rgba(52,211,153,0.10)', lightBorder: '#14b8a6' },
+    { darkBg: 'rgba(251,191,36,0.15)', darkBorder: '#fbbf24', lightBg: 'rgba(251,191,36,0.10)', lightBorder: '#eab308' },
+  ];
+
+  const clusterHueStyles = CLUSTER_HUE_FALLBACKS.map((fb, i) => ({
+    selector: `node[isCluster="true"][clusterHue="${i}"]`,
+    style: {
+      'background-color': readCssVarCached(`--cg-cluster-hue-${i}-bg`, isDark ? fb.darkBg : fb.lightBg),
+      'border-color': readCssVarCached(`--cg-cluster-hue-${i}-border`, isDark ? fb.darkBorder : fb.lightBorder),
+    },
+  }));
+
   return [
     {
       selector: 'node',
@@ -537,54 +560,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
         'transition-duration': LOD.TRANSITION_DURATION_MS,
       },
     },
-    {
-      selector: 'node[isCluster="true"][clusterHue="0"]',
-      style: { 'background-color': readCssVarCached('--cg-cluster-hue-0-bg', isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-0-border', isDark ? '#818cf8' : '#6366f1') },
-    },
-    {
-      selector: 'node[isCluster="true"][clusterHue="1"]',
-      style: { 'background-color': readCssVarCached('--cg-cluster-hue-1-bg', isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-1-border', isDark ? '#34d399' : '#10b981') },
-    },
-    {
-      selector: 'node[isCluster="true"][clusterHue="2"]',
-      style: { 'background-color': readCssVarCached('--cg-cluster-hue-2-bg', isDark ? 'rgba(236,72,153,0.15)' : 'rgba(236,72,153,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-2-border', isDark ? '#f472b6' : '#ec4899') },
-    },
-    {
-      selector: 'node[isCluster="true"][clusterHue="3"]',
-      style: { 'background-color': readCssVarCached('--cg-cluster-hue-3-bg', isDark ? 'rgba(245,158,11,0.15)' : 'rgba(245,158,11,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-3-border', isDark ? '#fbbf24' : '#f59e0b') },
-    },
-    {
-      selector: 'node[isCluster="true"][clusterHue="4"]',
-      style: { 'background-color': readCssVarCached('--cg-cluster-hue-4-bg', isDark ? 'rgba(6,182,212,0.15)' : 'rgba(6,182,212,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-4-border', isDark ? '#22d3ee' : '#06b6d4') },
-    },
-    {
-      selector: 'node[isCluster="true"][clusterHue="5"]',
-      style: { 'background-color': readCssVarCached('--cg-cluster-hue-5-bg', isDark ? 'rgba(168,85,247,0.15)' : 'rgba(168,85,247,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-5-border', isDark ? '#a78bfa' : '#8b5cf6') },
-    },
-    {
-      selector: 'node[isCluster="true"][clusterHue="6"]',
-      style: { 'background-color': readCssVarCached('--cg-cluster-hue-6-bg', isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-6-border', isDark ? '#f87171' : '#ef4444') },
-    },
-    {
-      selector: 'node[isCluster="true"][clusterHue="7"]',
-      style: { 'background-color': readCssVarCached('--cg-cluster-hue-7-bg', isDark ? 'rgba(132,204,22,0.15)' : 'rgba(132,204,22,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-7-border', isDark ? '#a3e635' : '#84cc16') },
-    },
-    {
-      selector: 'node[isCluster="true"][clusterHue="8"]',
-      style: { 'background-color': readCssVarCached('--cg-cluster-hue-8-bg', isDark ? 'rgba(251,113,133,0.15)' : 'rgba(251,113,133,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-8-border', isDark ? '#fb7185' : '#f43f5e') },
-    },
-    {
-      selector: 'node[isCluster="true"][clusterHue="9"]',
-      style: { 'background-color': readCssVarCached('--cg-cluster-hue-9-bg', isDark ? 'rgba(96,165,250,0.15)' : 'rgba(96,165,250,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-9-border', isDark ? '#60a5fa' : '#3b82f6') },
-    },
-    {
-      selector: 'node[isCluster="true"][clusterHue="10"]',
-      style: { 'background-color': readCssVarCached('--cg-cluster-hue-10-bg', isDark ? 'rgba(52,211,153,0.15)' : 'rgba(52,211,153,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-10-border', isDark ? '#34d399' : '#14b8a6') },
-    },
-    {
-      selector: 'node[isCluster="true"][clusterHue="11"]',
-      style: { 'background-color': readCssVarCached('--cg-cluster-hue-11-bg', isDark ? 'rgba(251,191,36,0.15)' : 'rgba(251,191,36,0.10)'), 'border-color': readCssVarCached('--cg-cluster-hue-11-border', isDark ? '#fbbf24' : '#eab308') },
-    },
+    ...clusterHueStyles,
     {
       selector: 'node[isCluster="true"].hovered',
 

@@ -3,22 +3,9 @@ import { NodeId, EdgeId } from '../../types/index.ts';
 import type { AssembledDiagram } from './DiagramAssembler.ts';
 import type { ASTNode, BasicBlock, StatementInfo, CFGEdgeData, CFGData } from '../../shared/CFGTypes.ts';
 import { findFunctionNode, getFunctionBody } from '../../shared/CFGTypes.ts';
+import { BASE_CONTROL_FLOW_TYPES, isControlFlow as isControlFlowBase, findElseNode } from '../../shared/astUtils.ts';
 
-const CONTROL_FLOW_TYPES = new Set([
-  'if_statement', 'if', 'if_expression',
-  'for_statement', 'for', 'for_expression', 'for_in_statement',
-  'while_statement', 'while', 'while_expression',
-  'switch_statement', 'switch', 'match_expression', 'match_arm',
-  'try_statement', 'try',
-  'return_statement', 'return',
-  'throw_statement', 'throw', 'raise_statement', 'raise',
-  'break_statement', 'break',
-  'continue_statement', 'continue',
-  'elif_clause', 'elif',
-  'except_clause', 'except',
-  'finally_clause', 'finally',
-  'catch_clause', 'catch',
-]);
+const CFG_CONTROL_FLOW_TYPES = new Set([...BASE_CONTROL_FLOW_TYPES, 'match_arm', 'elif_clause', 'elif', 'except_clause', 'except', 'finally_clause', 'finally', 'catch_clause', 'catch']);
 
 const STATEMENT_TYPES = new Set([
   'expression_statement', 'assignment', 'call', 'return_statement', 'return',
@@ -43,7 +30,7 @@ const STATEMENT_TYPES = new Set([
 
 
 function isControlFlow(node: ASTNode): boolean {
-  return CONTROL_FLOW_TYPES.has(node.type);
+  return isControlFlowBase(node, CFG_CONTROL_FLOW_TYPES);
 }
 
 function isStatement(node: ASTNode): boolean {
@@ -106,7 +93,7 @@ function getBodyChildren(node: ASTNode): ASTNode[] {
 }
 
 function getElseBody(node: ASTNode): ASTNode[] {
-  const elseNode = node.children.find((c) => c.type === 'else_clause' || c.type === 'else');
+  const elseNode = findElseNode(node);
   if (!elseNode) return [];
   const body = elseNode.children.find((c) =>
     c.type === 'block' || c.type === 'statement_block'

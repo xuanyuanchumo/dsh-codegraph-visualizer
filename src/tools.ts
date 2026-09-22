@@ -37,6 +37,10 @@ export {
 
 const log = scoped('tools');
 
+function toJsonValue<T>(value: T): JsonValue {
+  return value as unknown as JsonValue;
+}
+
 export type { UpstreamInvoker } from './adapters/IAdapter.ts';
 import type { UpstreamInvoker } from './adapters/IAdapter.ts';
 
@@ -162,22 +166,22 @@ export async function executeGraphData(
     edges: merged.edges,
     timestamp: merged.metadata.timestamp,
   });
-  return merged as unknown as JsonValue;
+  return toJsonValue(merged);
 }
 
 
 export async function executeGraphSymbol(args: { symbolId: string }, invoke: UpstreamInvoker) {
   const raw = await invoke('codegraph_query', { search: args.symbolId, limit: 1 });
-  return pickBestMatch(raw, args.symbolId) as JsonValue;
+  return toJsonValue(pickBestMatch(raw, args.symbolId));
 }
 
 
 export async function executeGraphImpact(args: { symbolId: string }, invoke: UpstreamInvoker) {
   const raw = await invoke('codegraph_impact', { symbol: args.symbolId, depth: 2 });
   const normalized = normalizeImpact(raw);
-  if (normalized) return normalized as JsonValue;
+  if (normalized) return toJsonValue(normalized);
   const lens = await invoke('lens_impact', { symbolId: args.symbolId });
-  return (lens ?? { affected: [], depth: 0 }) as JsonValue;
+  return toJsonValue(lens ?? { affected: [], depth: 0 });
 }
 
 // ── Tool factory ────────────────────────────────────────────────────────
@@ -278,11 +282,11 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       if (!nodeIds.has(NodeId(a.sourceSymbol)) || !nodeIds.has(NodeId(a.targetSymbol))) {
         return null;
       }
-      if (data.nodes.length > PATH_FINDER.MAX_NODES_FOR_BFS) return { path: [], length: 0, truncated: true } as unknown as JsonValue;
+      if (data.nodes.length > PATH_FINDER.MAX_NODES_FOR_BFS) return toJsonValue({ path: [], length: 0, truncated: true });
       const adjacency = buildForwardAdjacency(data.edges);
       const result = bfsShortestPath(adjacency, a.sourceSymbol, a.targetSymbol, data.nodes.length);
       if (!result) return null;
-      return { path: result.path, length: result.length } as unknown as JsonValue;
+      return toJsonValue({ path: result.path, length: result.length });
     },
   });
 
@@ -310,7 +314,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
 
       const scorer = new HealthScorer();
       const score = scorer.calculate(data.nodes, data.edges);
-      return score as unknown as JsonValue;
+      return toJsonValue(score);
     },
   });
 
@@ -347,7 +351,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       const engine = new RuleEngine();
       const violations = engine.check(rules, data.nodes, data.edges);
 
-      return violations as unknown as JsonValue;
+      return toJsonValue(violations);
     },
   });
 
@@ -380,7 +384,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         if (edge.source === a.symbolId) neighbors.add(edge.target);
         if (edge.target === a.symbolId) neighbors.add(edge.source);
       }
-      return { symbolId: a.symbolId, neighbors: [...neighbors] } as unknown as JsonValue;
+      return toJsonValue({ symbolId: a.symbolId, neighbors: [...neighbors] });
     },
   });
 
