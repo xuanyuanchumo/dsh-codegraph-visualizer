@@ -410,7 +410,7 @@ describe('assembleDiagram', () => {
         const result = assembleDiagram('cfg', [], []);
         expect(result).not.toBeNull();
         expect(result!.layers).toHaveLength(1);
-        expect(result!.layers[0]!.name).toBe('全部');
+        expect(result!.layers[0]!.name).toBe('graphType.all');
         expect(result!.layers[0]!.level).toBe(0);
         expect(result!.layers[0]!.nodes).toHaveLength(1);
       } finally {

@@ -799,7 +799,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         style={{ display: viewMode === 'sequence' && selectedFunction ? 'none' : undefined }}>
         <div id="cg-graph-live-region" className="cg-visually-hidden" role="status" aria-live="polite">
           {selectedNodeData
-            ? `${t('a11y.selectedNode') ?? 'Selected'}: ${selectedNodeData.label}, ${selectedNodeData.type}, ${selectedNodeData.filePath}:${selectedNodeData.lineNumber}`
+            ? `${t('a11y.selectedNode')}: ${selectedNodeData.label}, ${selectedNodeData.type}, ${selectedNodeData.filePath}:${selectedNodeData.lineNumber}`
             : ''}
         </div>
         {nodes.length > 0 && visibleNodeCount === 0 && !isMicroView && (

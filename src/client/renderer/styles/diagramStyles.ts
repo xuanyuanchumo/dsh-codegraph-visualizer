@@ -1,6 +1,7 @@
 import type cytoscape from 'cytoscape';
 import type { ThemeColors } from './styleUtils.ts';
 import { readCssVar } from './styleUtils.ts';
+import { COLORS } from '../../../shared/constants.ts';
 
 export interface StyleContext {
   c: ThemeColors;
@@ -390,7 +391,7 @@ export function buildDiagramStyles(ctx: StyleContext): cytoscape.StylesheetJson 
         'shape': 'round-rectangle',
         'background-color': 'rgba(0,0,0,0.03)',
         'border-width': 2,
-        'border-color': readCssVar('--cg-seq-fragment', isDark ? '#818cf8' : '#263148'),
+        'border-color': readCssVar('--cg-seq-fragment', isDark ? '#818cf8' : COLORS.PACKAGE_LIGHT),
         'border-style': 'dashed',
         'label': 'data(label)',
         'font-size': '9px',
@@ -658,7 +659,7 @@ export function buildDiagramStyles(ctx: StyleContext): cytoscape.StylesheetJson 
         'text-halign': 'center',
         'text-wrap': 'wrap',
         'text-max-width': '100px',
-        'background-color': readCssVar('--cg-node-package', isDark ? '#6366f1' : '#263148'),
+        'background-color': readCssVar('--cg-node-package', isDark ? '#6366f1' : COLORS.PACKAGE_LIGHT),
         'border-width': 2,
         'border-color': readCssVar('--cg-package-border', isDark ? '#818cf8' : '#1a2230'),
         'border-style': 'solid',
@@ -685,8 +686,8 @@ export function buildDiagramStyles(ctx: StyleContext): cytoscape.StylesheetJson 
       selector: 'edge[diagramType="package"]',
       style: {
         'width': 'mapData(aggregatedCount, 1, 50, 1.5, 5)',
-        'line-color': readCssVar('--cg-edge-package', isDark ? '#818cf8' : '#263148'),
-        'target-arrow-color': readCssVar('--cg-edge-package', isDark ? '#818cf8' : '#263148'),
+        'line-color': readCssVar('--cg-edge-package', isDark ? '#818cf8' : COLORS.PACKAGE_LIGHT),
+        'target-arrow-color': readCssVar('--cg-edge-package', isDark ? '#818cf8' : COLORS.PACKAGE_LIGHT),
         'target-arrow-shape': 'vee',
         'line-style': 'dashed',
         'curve-style': 'bezier',

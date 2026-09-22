@@ -1,7 +1,7 @@
 import type cytoscape from 'cytoscape';
 import type { ThemeType } from '../IRenderer.ts';
 import { buildDiagramStyles, type StyleContext } from './diagramStyles.ts';
-import { LAYOUT, LOD } from '../../../shared/constants.ts';
+import { LAYOUT, LOD, COLORS } from '../../../shared/constants.ts';
 import { type ThemeColors, readCssVar, readCssVarCached } from './styleUtils.ts';
 
 export { type ThemeColors, readCssVar, readCssVarCached, invalidateCssVarCache } from './styleUtils.ts';
@@ -9,7 +9,7 @@ export { type ThemeColors, readCssVar, readCssVarCached, invalidateCssVarCache }
 export function getThemeColors(theme: ThemeType): ThemeColors {
   const isDark = theme === 'dark';
   return {
-    nodeDefault: readCssVarCached('--cg-node-default', isDark ? '#6366f1' : '#263148'),
+    nodeDefault: readCssVarCached('--cg-node-default', isDark ? '#6366f1' : COLORS.PACKAGE_LIGHT),
     nodeFunction: readCssVarCached('--cg-node-function', isDark ? '#10b981' : '#059669'),
     nodeClass: readCssVarCached('--cg-node-class', isDark ? '#818cf8' : '#1a2230'),
     nodeVariable: readCssVarCached('--cg-node-variable', isDark ? '#f59e0b' : '#d97706'),
@@ -48,15 +48,15 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
   const inhExtend = readCssVarCached('--cg-inheritance-extend', isDark ? '#f472b6' : '#ec4899');
   const inhImplement = readCssVarCached('--cg-inheritance-implement', isDark ? '#2dd4bf' : '#14b8a6');
   const clusterBg = readCssVarCached('--cg-cluster-bg', isDark ? 'rgba(99,102,241,0.15)' : 'rgba(38,49,72,0.10)');
-  const clusterBorder = readCssVarCached('--cg-cluster-border', isDark ? '#818cf8' : '#263148');
+  const clusterBorder = readCssVarCached('--cg-cluster-border', isDark ? '#818cf8' : COLORS.PACKAGE_LIGHT);
   const clusterHoverBg = readCssVarCached('--cg-cluster-hover-bg', isDark ? 'rgba(99,102,241,0.35)' : 'rgba(38,49,72,0.25)');
   const clusterHoverBorder = readCssVarCached('--cg-cluster-hover-border', isDark ? '#a5b4fc' : '#1a2230');
-  const clusterEdge = readCssVarCached('--cg-cluster-edge', isDark ? '#818cf8' : '#263148');
-  const clusterEdgeLabelBg = readCssVarCached('--cg-cluster-edge-label-bg', isDark ? '#232324' : '#f9fafb');
+  const clusterEdge = readCssVarCached('--cg-cluster-edge', isDark ? '#818cf8' : COLORS.PACKAGE_LIGHT);
+  const clusterEdgeLabelBg = readCssVarCached('--cg-cluster-edge-label-bg', isDark ? COLORS.PACKAGE_DARK : '#f9fafb');
   const warningColor = readCssVarCached('--cg-warning', '#f59e0b');
   const errorColor = readCssVarCached('--cg-error', '#ef4444');
   const successColor = readCssVarCached('--cg-success', '#10b981');
-  const accentColor = readCssVarCached('--cg-accent', isDark ? '#6366f1' : '#263148');
+  const accentColor = readCssVarCached('--cg-accent', isDark ? '#6366f1' : COLORS.PACKAGE_LIGHT);
 
   const ctx: StyleContext = {
     c,
@@ -241,7 +241,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
         'curve-style': 'bezier',
         'opacity': 0.8,
         'overlay-opacity': 0,
-        'text-background-color': readCssVarCached('--cg-surface', isDark ? '#232324' : '#f9fafb'),
+        'text-background-color': readCssVarCached('--cg-surface', isDark ? COLORS.PACKAGE_DARK : '#f9fafb'),
         'text-background-opacity': 0.8,
         'text-background-padding': '2px',
         'text-background-shape': 'roundrectangle',
@@ -723,7 +723,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       selector: 'node[isPackage="true"]',
       style: {
         'shape': 'round-rectangle',
-        'background-color': readCssVar('--cg-node-package', isDark ? '#6366f1' : '#263148'),
+        'background-color': readCssVar('--cg-node-package', isDark ? '#6366f1' : COLORS.PACKAGE_LIGHT),
         'border-width': 2,
         'border-color': readCssVar('--cg-package-border', isDark ? '#818cf8' : '#1a2230'),
         'label': 'data(label)',
@@ -750,8 +750,8 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       selector: 'edge[isPackageEdge="true"]',
       style: {
         'width': 'mapData(aggregatedCount, 1, 50, 1.5, 5)',
-        'line-color': readCssVar('--cg-edge-package', isDark ? '#818cf8' : '#263148'),
-        'target-arrow-color': readCssVar('--cg-edge-package', isDark ? '#818cf8' : '#263148'),
+        'line-color': readCssVar('--cg-edge-package', isDark ? '#818cf8' : COLORS.PACKAGE_LIGHT),
+        'target-arrow-color': readCssVar('--cg-edge-package', isDark ? '#818cf8' : COLORS.PACKAGE_LIGHT),
         'target-arrow-shape': 'vee',
         'line-style': 'dashed',
         'curve-style': 'bezier',

@@ -3,6 +3,7 @@ import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import type { ThemeType } from './IRenderer.ts';
 import { getThemeColors, readCssVarCached } from './styles/ThemeStylesheet.ts';
 import { useT } from '../i18n/index.ts';
+import { COLORS } from '../../shared/constants.ts';
 
 interface SequenceDiagramRendererProps {
   nodes: GraphNode[];
@@ -167,13 +168,13 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
   const colors = useMemo(() => {
     const tc = getThemeColors(theme);
     return {
-      bg: readCssVarCached('--cg-surface', isDark ? '#232324' : '#f9fafb'),
+      bg: readCssVarCached('--cg-surface', isDark ? COLORS.PACKAGE_DARK : '#f9fafb'),
       text: tc.text,
       textSecondary: readCssVarCached('--cg-text-secondary', isDark ? '#cfd3d6' : '#61666b'),
       lifeline: readCssVarCached('--cg-border-strong', isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)'),
       lifelineDashed: readCssVarCached('--cg-border', isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'),
       activation: tc.edgeCall,
-      activationBorder: readCssVarCached('--cg-accent', isDark ? '#6366f1' : '#263148'),
+      activationBorder: readCssVarCached('--cg-accent', isDark ? '#6366f1' : COLORS.PACKAGE_LIGHT),
       syncArrow: tc.text,
       asyncArrow: tc.edgeImport,
       returnArrow: tc.edgeExtend,

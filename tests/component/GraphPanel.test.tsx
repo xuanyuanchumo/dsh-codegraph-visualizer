@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, afterEach, vi, beforeEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import React from 'react';
 
 class ResizeObserverMock {
@@ -201,5 +201,82 @@ describe('GraphPanel component', () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     expect(container).toBeTruthy();
+  });
+});
+describe('GraphPanel handler behavior', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    document.body.removeAttribute('data-ds-dark-theme');
+  });
+
+  it('handleThemeToggle: toggles data-ds-dark-theme on body when clicking theme button', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const themeBtn = container.querySelector('.cg-theme-btn') as HTMLButtonElement;
+    expect(themeBtn).toBeTruthy();
+    expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(false);
+    fireEvent.click(themeBtn);
+    expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(true);
+    fireEvent.click(themeBtn);
+    expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(false);
+  });
+
+  it('handleThemeToggle: calls invalidateCssVarCache on toggle', async () => {
+    const { invalidateCssVarCache } = await import('../../src/client/renderer/styles/ThemeStylesheet.ts');
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const themeBtn = container.querySelector('.cg-theme-btn') as HTMLButtonElement;
+    fireEvent.click(themeBtn);
+    expect(vi.mocked(invalidateCssVarCache)).toHaveBeenCalled();
+  });
+
+  it('handleCloseDetail: collapse FAB button is clickable', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const fab = container.querySelector('.cg-collapse-fab') as HTMLButtonElement;
+    expect(fab).toBeTruthy();
+    fireEvent.click(fab);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+  });
+
+  it('heatmap activate button: renders when heatmapMode is none', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const heatmapBtn = container.querySelector('.cg-heatmap-btn--activate');
+    expect(heatmapBtn).toBeTruthy();
+  });
+
+  it('lang button: triggers toggleLang when clicked', async () => {
+    const i18nModule = await import('../../src/client/i18n/index.ts');
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const langBtn = container.querySelector('.cg-lang-btn') as HTMLButtonElement;
+    expect(langBtn).toBeTruthy();
+    fireEvent.click(langBtn);
+    expect(vi.mocked(i18nModule.toggleLang)).toHaveBeenCalled();
+  });
+
+  it('graph container aria-label updates with viewMode and node/edge counts', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const graphContainer = container.querySelector('.cg-graph-container') as HTMLElement;
+    const ariaLabel = graphContainer.getAttribute('aria-label');
+    expect(ariaLabel).toContain('a11y.graphContainer');
+    expect(ariaLabel).toContain('a11y.nodes');
+    expect(ariaLabel).toContain('a11y.edges');
+  });
+
+  it('live region shows empty when no node selected', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const liveRegion = container.querySelector('#cg-graph-live-region') as HTMLElement;
+    expect(liveRegion.textContent?.trim()).toBe('');
+  });
+
+  it('panel has correct role and aria-label', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    render(React.createElement(GraphPanel));
+    const region = screen.getByRole('region');
+    expect(region.getAttribute('aria-label')).toBe('panel.ariaLabel');
   });
 });

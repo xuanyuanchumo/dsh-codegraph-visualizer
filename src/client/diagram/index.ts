@@ -119,7 +119,7 @@ function buildLayeredDiagram(
       viewMode,
       layers: [{
         level: 0,
-        name: '全部',
+        name: 'graphType.all',
         nodes: assembled.nodes,
         edges: assembled.edges,
         nodeIds: new Set(assembled.nodes.map((n) => n.id)),

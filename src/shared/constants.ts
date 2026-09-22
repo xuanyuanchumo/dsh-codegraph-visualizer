@@ -238,6 +238,11 @@ export const UI = {
   WORKSPACE_LIST_MAX: 10,
   MAX_FUNCTIONS_PER_CLUSTER: 50,
 } as const;
+export const COLORS = {
+  PACKAGE_LIGHT: '#263148',
+  PACKAGE_DARK: '#232324',
+  NODE_CLASS_LIGHT: '#1a2230',
+} as const;
 export const TOOL_MESSAGES = {
   NO_PATH_FOUND: 'No path found between the specified symbols.',
   GRAPH_TOO_LARGE_FOR_PATH: 'Graph too large (>10000 nodes) for path finding. Try filtering first.',
