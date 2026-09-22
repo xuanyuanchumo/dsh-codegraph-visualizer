@@ -167,7 +167,8 @@ describe('DataController', () => {
     const dc = new DataController(cy as any);
     const nodes = [makeGraphNode('a'), makeGraphNode('b')];
     dc.updateData(nodes, []);
-    expect(() => dc.updateData(nodes, [])).not.toThrow();
+    dc.updateData(nodes, []);
+    expect(cy.batch).toHaveBeenCalled();
   });
 
   it('updateData detects property changes and applies incremental updates', async () => {
@@ -186,7 +187,8 @@ describe('DataController', () => {
     const cy = makeMockCy([], []);
     const dc = new DataController(cy as any);
     dc.updateData([makeGraphNode('a'), makeGraphNode('b')], []);
-    expect(() => dc.updateData([makeGraphNode('a')], [])).not.toThrow();
+    dc.updateData([makeGraphNode('a')], []);
+    expect(cy.batch).toHaveBeenCalled();
   });
 
   it('addEdge skips when source node does not exist (dangling edge protection)', async () => {
@@ -237,7 +239,7 @@ describe('DataController', () => {
     const cy = makeMockCy([], []);
     const dc = new DataController(cy as any);
     dc.updateData([makeGraphNode('a')], []);
-    expect(() => dc.destroy()).not.toThrow();
+    dc.destroy();
     expect(dc.getNodeData('a')).toBeNull();
   });
 
@@ -450,7 +452,7 @@ describe('DataController', () => {
       const dc = new DataController(cy as any);
       const nodes = [makeGraphNode('a'), makeGraphNode('b'), makeGraphNode('c')];
       dc.updateData(nodes, [makeGraphEdge('e1', 'a', 'b')]);
-      expect(() => dc.updateData(nodes, [makeGraphEdge('e1', 'a', 'c')])).not.toThrow();
+      dc.updateData(nodes, [makeGraphEdge('e1', 'a', 'c')]);
       expect(cy.batch).toHaveBeenCalled();
     });
 
@@ -472,7 +474,8 @@ describe('DataController', () => {
       const dc = new DataController(cy as any);
       const nodes = [makeGraphNode('a'), makeGraphNode('b')];
       dc.updateData(nodes, [makeGraphEdge('e1', 'a', 'b')]);
-      expect(() => dc.updateData(nodes, [])).not.toThrow();
+      dc.updateData(nodes, []);
+      expect(cy.batch).toHaveBeenCalled();
     });
   });
 
