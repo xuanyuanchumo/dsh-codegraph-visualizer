@@ -1,15 +1,7 @@
 import type { Core } from 'cytoscape';
+import type { RendererCallbacks } from './IRenderer.ts';
 
-export interface InteractionCallbacks {
-  onNodeTap?(nodeId: string): void;
-  onEdgeTap?(edgeId: string, renderedPosition: { x: number; y: number }): void;
-  onNodeDoubleTap?(nodeId: string): void;
-  onNodeHover?(nodeId: string, renderedPosition: { x: number; y: number }): void;
-  onNodeHoverOut?(): void;
-  onEdgeHover?(edgeId: string, renderedPosition: { x: number; y: number }): void;
-  onEdgeHoverOut?(): void;
-  onNodeContextTap?(nodeId: string, renderedPosition: { x: number; y: number }): void;
-}
+export type InteractionCallbacks = RendererCallbacks;
 
 export class InteractionController {
   private cy: Core;

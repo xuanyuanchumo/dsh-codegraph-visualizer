@@ -142,7 +142,7 @@ describe('useGraphRenderer', () => {
   });
 
   describe('return value', () => {
-    it('returns containerRef, rendererRef, searchMatchCount, setSearchMatchCount, exportGraph, updateTheme', () => {
+    it('returns all expected fields with correct types', () => {
       const { result } = renderUseGraphRenderer();
       expect(result.current.containerRef).toBeDefined();
       expect(result.current.rendererRef).toBeDefined();
@@ -177,16 +177,15 @@ describe('useGraphRenderer', () => {
   });
 
   describe('updateTheme', () => {
-    it('does not crash when renderer is null', () => {
+    it('does not crash when renderer is null and rendererRef stays null', () => {
       const { result } = renderUseGraphRenderer();
-      expect(() => result.current.updateTheme('light')).not.toThrow();
+      result.current.updateTheme('light');
       expect(result.current.rendererRef.current).toBeNull();
     });
   });
 
-
   describe('setSearchMatchCount', () => {
-    it('updates searchMatchCount state', () => {
+    it('updates searchMatchCount state to a number', () => {
       const { result } = renderUseGraphRenderer();
       act(() => {
         result.current.setSearchMatchCount(5);
@@ -194,11 +193,12 @@ describe('useGraphRenderer', () => {
       expect(result.current.searchMatchCount).toBe(5);
     });
 
-    it('can set back to null', () => {
+    it('can set back to null after setting a number', () => {
       const { result } = renderUseGraphRenderer();
       act(() => {
         result.current.setSearchMatchCount(3);
       });
+      expect(result.current.searchMatchCount).toBe(3);
       act(() => {
         result.current.setSearchMatchCount(null);
       });
@@ -207,91 +207,107 @@ describe('useGraphRenderer', () => {
   });
 
   describe('with nodes and edges', () => {
-    it('handles non-empty node data without throwing', () => {
+    it('renders without error with non-empty node data', () => {
       const nodes = [makeNode('a'), makeNode('b')];
       const edges = [makeEdge('e1', 'a', 'b')];
-      expect(() => renderUseGraphRenderer({ nodes, edges })).not.toThrow();
+      const { result } = renderUseGraphRenderer({ nodes, edges });
+      expect(result.current.containerRef).toBeDefined();
     });
 
-    it('handles raw nodes without throwing', () => {
+    it('renders without error with raw nodes', () => {
       const rawNodes = [makeNode('a'), makeNode('b')];
-      expect(() => renderUseGraphRenderer({ rawNodes })).not.toThrow();
+      const { result } = renderUseGraphRenderer({ rawNodes });
+      expect(result.current.containerRef).toBeDefined();
     });
 
-    it('handles highlighted node ids', () => {
+    it('renders without error with highlighted node ids', () => {
       const highlightedNodeIds = [NodeId('a')];
-      expect(() => renderUseGraphRenderer({ highlightedNodeIds })).not.toThrow();
+      const { result } = renderUseGraphRenderer({ highlightedNodeIds });
+      expect(result.current.containerRef).toBeDefined();
     });
 
-    it('handles selected node id', () => {
+    it('renders without error with selected node id', () => {
       const selectedNodeId = NodeId('a');
-      expect(() => renderUseGraphRenderer({ selectedNodeId })).not.toThrow();
+      const { result } = renderUseGraphRenderer({ selectedNodeId });
+      expect(result.current.containerRef).toBeDefined();
     });
 
-    it('handles filter type', () => {
-      expect(() => renderUseGraphRenderer({ filterType: 'function' })).not.toThrow();
+    it('renders without error with filter type', () => {
+      const { result } = renderUseGraphRenderer({ filterType: 'function' });
+      expect(result.current.containerRef).toBeDefined();
     });
 
-    it('handles graph type filter', () => {
-      expect(() => renderUseGraphRenderer({ graphType: 'call' })).not.toThrow();
+    it('renders without error with graph type filter', () => {
+      const { result } = renderUseGraphRenderer({ graphType: 'call' });
+      expect(result.current.containerRef).toBeDefined();
     });
 
-    it('handles showCallChain with selectedNodeId', () => {
-      expect(() => renderUseGraphRenderer({
+    it('renders without error with showCallChain and selectedNodeId', () => {
+      const { result } = renderUseGraphRenderer({
         showCallChain: true,
         selectedNodeId: NodeId('a'),
-      })).not.toThrow();
+      });
+      expect(result.current.containerRef).toBeDefined();
     });
 
-    it('handles showCycles', () => {
-      expect(() => renderUseGraphRenderer({ showCycles: true })).not.toThrow();
+    it('renders without error with showCycles enabled', () => {
+      const { result } = renderUseGraphRenderer({ showCycles: true });
+      expect(result.current.containerRef).toBeDefined();
     });
 
-    it('handles cycleIsolation with showCycles', () => {
-      expect(() => renderUseGraphRenderer({
+    it('renders without error with cycleIsolation and showCycles', () => {
+      const { result } = renderUseGraphRenderer({
         cycleIsolation: true,
         showCycles: true,
-      })).not.toThrow();
+      });
+      expect(result.current.containerRef).toBeDefined();
     });
 
-    it('handles showImpact with selectedNodeId', () => {
-      expect(() => renderUseGraphRenderer({
+    it('renders without error with showImpact and selectedNodeId', () => {
+      const { result } = renderUseGraphRenderer({
         showImpact: true,
         selectedNodeId: NodeId('a'),
-      })).not.toThrow();
+      });
+      expect(result.current.containerRef).toBeDefined();
     });
 
-    it('handles showInheritance with selectedNodeId', () => {
-      expect(() => renderUseGraphRenderer({
+    it('renders without error with showInheritance and selectedNodeId', () => {
+      const { result } = renderUseGraphRenderer({
         showInheritance: true,
         selectedNodeId: NodeId('a'),
-      })).not.toThrow();
+      });
+      expect(result.current.containerRef).toBeDefined();
     });
 
-    it('handles focusNodeId', () => {
-      expect(() => renderUseGraphRenderer({ focusNodeId: 'a' })).not.toThrow();
+    it('renders without error with focusNodeId', () => {
+      const { result } = renderUseGraphRenderer({ focusNodeId: 'a' });
+      expect(result.current.containerRef).toBeDefined();
     });
 
-    it('handles heatmapMode', () => {
-      expect(() => renderUseGraphRenderer({ heatmapMode: 'instability' })).not.toThrow();
+    it('renders without error with heatmapMode', () => {
+      const { result } = renderUseGraphRenderer({ heatmapMode: 'instability' });
+      expect(result.current.containerRef).toBeDefined();
     });
 
-    it('handles debouncedSearch', () => {
-      expect(() => renderUseGraphRenderer({ debouncedSearch: 'test' })).not.toThrow();
+    it('renders without error with debouncedSearch', () => {
+      const { result } = renderUseGraphRenderer({ debouncedSearch: 'test' });
+      expect(result.current.containerRef).toBeDefined();
     });
 
-    it('handles fanInThreshold and fanOutThreshold', () => {
-      expect(() => renderUseGraphRenderer({
+    it('renders without error with fanInThreshold and fanOutThreshold', () => {
+      const { result } = renderUseGraphRenderer({
         fanInThreshold: 5,
         fanOutThreshold: 3,
-      })).not.toThrow();
+      });
+      expect(result.current.containerRef).toBeDefined();
     });
   });
 
   describe('theme change', () => {
-    it('does not throw when theme changes', () => {
-      const { rerender } = renderUseGraphRenderer({ theme: 'dark' });
-      expect(() => rerender()).not.toThrow();
+    it('survives theme rerender without error', () => {
+      const { rerender, result } = renderUseGraphRenderer({ theme: 'dark' });
+      rerender();
+      expect(result.current.containerRef).toBeDefined();
     });
   });
 });

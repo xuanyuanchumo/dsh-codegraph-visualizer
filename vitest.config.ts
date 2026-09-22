@@ -24,7 +24,7 @@ export default defineConfig({
         'src/types/**',
         'src/index.ts',
         'src/client/index.ts',
-        'src/client/GraphPanel.tsx',
+
         'src/client/renderer/IRenderer.ts',
         'src/client/renderer/SequenceDiagramRenderer.tsx',
         'src/client/diagram/SequenceTypes.ts',

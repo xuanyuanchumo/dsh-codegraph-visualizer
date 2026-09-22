@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+const { mockCy } = vi.hoisted(() => ({ mockCy: {} as any }));
+
 vi.mock('cytoscape', () => {
   const makeCollection = (items: any[] = []) => ({
     forEach: vi.fn((cb: (el: any) => void) => items.forEach(cb)),
@@ -51,7 +53,7 @@ vi.mock('cytoscape', () => {
     move: vi.fn(),
   });
 
-  const mockCy = {
+  Object.assign(mockCy, {
     nodes: vi.fn(() => makeCollection([])),
     edges: vi.fn(() => makeCollection([])),
     elements: vi.fn(() => makeCollection([])),
@@ -110,7 +112,7 @@ vi.mock('cytoscape', () => {
     background: vi.fn(() => ({ color: '#000' })),
     hasElementWithId: vi.fn(() => false),
     _makeCollection: makeCollection,
-  };
+  });
   const cytoscapeFn = vi.fn(() => mockCy);
   (cytoscapeFn as any).use = vi.fn();
   return { default: cytoscapeFn };
@@ -159,6 +161,7 @@ describe('CytoscapeRenderer', () => {
       return 0;
     }) as typeof requestAnimationFrame;
     globalThis.cancelAnimationFrame = vi.fn();
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
@@ -171,11 +174,12 @@ describe('CytoscapeRenderer', () => {
   });
 
   describe('constructor', () => {
-    it('constructs without throwing', () => {
-      expect(() => new CytoscapeRenderer({
+    it('creates an instance with correct options', () => {
+      renderer = new CytoscapeRenderer({
         container: makeContainer(),
         theme: 'dark',
-      })).not.toThrow();
+      });
+      expect(renderer).toBeInstanceOf(CytoscapeRenderer);
     });
   });
 
@@ -190,21 +194,25 @@ describe('CytoscapeRenderer', () => {
   });
 
   describe('init', () => {
-    it('initializes without throwing', () => {
-      renderer = new CytoscapeRenderer({
-        container: makeContainer(),
-        theme: 'dark',
-      });
-      expect(() => renderer!.init()).not.toThrow();
-    });
-
-    it('is idempotent (calling init twice does not throw)', () => {
+    it('initializes cytoscape instance and registers extensions', () => {
       renderer = new CytoscapeRenderer({
         container: makeContainer(),
         theme: 'dark',
       });
       renderer!.init();
-      expect(() => renderer!.init()).not.toThrow();
+      expect(mockCy.on).toHaveBeenCalled();
+      expect(mockCy.style).toHaveBeenCalled();
+    });
+
+    it('is idempotent (calling init twice does not create second cy instance)', () => {
+      renderer = new CytoscapeRenderer({
+        container: makeContainer(),
+        theme: 'dark',
+      });
+      renderer!.init();
+      const firstCallCount = mockCy.on.mock.calls.length;
+      renderer!.init();
+      expect(mockCy.on.mock.calls.length).toBe(firstCallCount);
     });
   });
 
@@ -215,38 +223,44 @@ describe('CytoscapeRenderer', () => {
         theme: 'dark',
       });
       renderer!.init();
+      vi.clearAllMocks();
     });
 
-    it('updateData delegates without throwing', () => {
+    it('updateData adds nodes and edges to cy', () => {
       const nodes = [makeNode('a'), makeNode('b')];
       const edges = [makeEdge('e1', 'a', 'b')];
-      expect(() => renderer!.updateData(nodes, edges)).not.toThrow();
+      renderer!.updateData(nodes, edges);
+      expect(mockCy.add).toHaveBeenCalled();
     });
 
-    it('setRawNodes delegates without throwing', () => {
-      expect(() => renderer!.setRawNodes([makeNode('a')])).not.toThrow();
+    it('setRawNodes stores raw node data without throwing', () => {
+      renderer!.setRawNodes([makeNode('a')]);
+      expect(mockCy.add).not.toHaveBeenCalled();
     });
 
-    it('applyLayout delegates without throwing', () => {
-      expect(() => renderer!.applyLayout('cose')).not.toThrow();
+    it('applyLayout triggers cytoscape layout', () => {
+      renderer!.applyLayout('cose');
+      expect(mockCy.layout).toHaveBeenCalled();
     });
 
-    it('applyIncrementalLayout delegates without throwing', () => {
-      expect(() => renderer!.applyIncrementalLayout('cose', new Set(['a']))).not.toThrow();
+    it('applyIncrementalLayout does not throw and produces no error', () => {
+      renderer!.applyIncrementalLayout('cose', new Set(['a']));
+      expect(renderer!.getLastError()).toBeNull();
     });
 
     it('isWorkerLayoutAvailable returns boolean', () => {
       expect(typeof renderer!.isWorkerLayoutAvailable()).toBe('boolean');
     });
 
-    it('applyLayoutWithWorker returns promise', async () => {
+    it('applyLayoutWithWorker returns promise that resolves', async () => {
       const result = renderer!.applyLayoutWithWorker([], [], 'cose');
       expect(result).toBeInstanceOf(Promise);
-      await result;
+      await expect(result).resolves.toBeDefined();
     });
 
-    it('applyWorkerLayout does not throw', () => {
-      expect(() => renderer!.applyWorkerLayout({})).not.toThrow();
+    it('applyWorkerLayout calls layout controller', () => {
+      renderer!.applyWorkerLayout({ a: { x: 0, y: 0 } });
+      expect(mockCy.nodes).toHaveBeenCalled();
     });
 
     it('enableVirtualScroll does not throw', () => {
@@ -265,159 +279,200 @@ describe('CytoscapeRenderer', () => {
       expect(typeof renderer!.shouldEnableVirtualScroll(100)).toBe('boolean');
     });
 
-    it('highlightNodes does not throw', () => {
-      expect(() => renderer!.highlightNodes([NodeId('a')])).not.toThrow();
+    it('highlightNodes does not throw and produces no error', () => {
+      renderer!.highlightNodes([NodeId('a')]);
+      expect(renderer!.getLastError()).toBeNull();
     });
 
-    it('selectNode does not throw', () => {
-      expect(() => renderer!.selectNode(NodeId('a'))).not.toThrow();
-      expect(() => renderer!.selectNode(null)).not.toThrow();
+    it('selectNode with valid id calls getElementById', () => {
+      renderer!.selectNode(NodeId('a'));
+      expect(mockCy.getElementById).toHaveBeenCalledWith('a');
     });
 
-    it('filterByType does not throw', () => {
-      expect(() => renderer!.filterByType('function')).not.toThrow();
+    it('selectNode with null does not call getElementById', () => {
+      renderer!.selectNode(null);
+      expect(mockCy.getElementById).not.toHaveBeenCalled();
     });
 
-    it('filterByGraphType does not throw', () => {
-      expect(() => renderer!.filterByGraphType('all')).not.toThrow();
+    it('filterByType calls cy nodes', () => {
+      renderer!.filterByType('function');
+      expect(mockCy.nodes).toHaveBeenCalled();
     });
 
-    it('applyConnectionFilters does not throw', () => {
-      expect(() => renderer!.applyConnectionFilters(0, 0, new Set(), new Set())).not.toThrow();
+    it('filterByGraphType does not throw and produces no error', () => {
+      renderer!.filterByGraphType('all');
+      expect(renderer!.getLastError()).toBeNull();
     });
 
-    it('search returns number', () => {
-      expect(typeof renderer!.search('test')).toBe('number');
+    it('applyConnectionFilters calls cy nodes and edges', () => {
+      renderer!.applyConnectionFilters(0, 0, new Set(), new Set());
+      expect(mockCy.nodes).toHaveBeenCalled();
     });
 
-    it('focusOnNode does not throw', () => {
-      expect(() => renderer!.focusOnNode('a')).not.toThrow();
+    it('search returns number (0 for empty graph)', () => {
+      expect(renderer!.search('test')).toBe(0);
     });
 
-    it('highlightCallChain does not throw', () => {
-      expect(() => renderer!.highlightCallChain(NodeId('a'))).not.toThrow();
+    it('focusOnNode calls viewport methods', () => {
+      renderer!.focusOnNode('a');
+      expect(mockCy.getElementById).toHaveBeenCalled();
+    });
+
+    it('highlightCallChain with valid id does not throw and produces no error', () => {
+      renderer!.highlightCallChain(NodeId('a'));
+      expect(renderer!.getLastError()).toBeNull();
+    });
+
+    it('highlightCallChain with null does not throw', () => {
       expect(() => renderer!.highlightCallChain(null)).not.toThrow();
     });
 
-    it('detectCycles returns Set', () => {
-      expect(renderer!.detectCycles()).toBeInstanceOf(Set);
+    it('detectCycles returns empty Set for empty graph', () => {
+      const result = renderer!.detectCycles();
+      expect(result).toBeInstanceOf(Set);
+      expect(result.size).toBe(0);
     });
 
-    it('detectCyclesDetailed returns array', () => {
-      expect(Array.isArray(renderer!.detectCyclesDetailed())).toBe(true);
+    it('detectCyclesDetailed returns empty array for empty graph', () => {
+      const result = renderer!.detectCyclesDetailed();
+      expect(Array.isArray(result)).toBe(true);
+      expect(result.length).toBe(0);
     });
 
-    it('highlightCycles does not throw', () => {
-      expect(() => renderer!.highlightCycles(new Set(['a']))).not.toThrow();
+    it('highlightCycles does not throw and produces no error', () => {
+      renderer!.highlightCycles(new Set(['a']));
+      expect(renderer!.getLastError()).toBeNull();
     });
 
-    it('isolateCycles does not throw', () => {
-      expect(() => renderer!.isolateCycles(new Set(['a']))).not.toThrow();
+    it('isolateCycles calls cy elements', () => {
+      renderer!.isolateCycles(new Set(['a']));
+      expect(mockCy.elements).toHaveBeenCalled();
     });
 
-    it('relayoutCycles does not throw', () => {
-      expect(() => renderer!.relayoutCycles(new Set(['a']))).not.toThrow();
+    it('relayoutCycles does not throw and produces no error', () => {
+      renderer!.relayoutCycles(new Set(['a']));
+      expect(renderer!.getLastError()).toBeNull();
     });
 
-    it('restoreIsolation does not throw', () => {
-      expect(() => renderer!.restoreIsolation()).not.toThrow();
+    it('restoreIsolation calls cy elements', () => {
+      renderer!.restoreIsolation();
+      expect(mockCy.elements).toHaveBeenCalled();
     });
 
-    it('highlightImpact does not throw', () => {
-      expect(() => renderer!.highlightImpact(NodeId('a'))).not.toThrow();
+    it('highlightImpact with valid id does not throw and produces no error', () => {
+      renderer!.highlightImpact(NodeId('a'));
+      expect(renderer!.getLastError()).toBeNull();
+    });
+
+    it('highlightImpact with null does not throw', () => {
       expect(() => renderer!.highlightImpact(null)).not.toThrow();
     });
 
-    it('getImpactStats returns null or object', () => {
+    it('getImpactStats returns null for non-existent node', () => {
       const result = renderer!.getImpactStats(NodeId('a'));
-      expect(result === null || typeof result === 'object').toBe(true);
+      expect(result).toBeNull();
     });
 
-    it('highlightInheritance does not throw', () => {
-      expect(() => renderer!.highlightInheritance(NodeId('a'))).not.toThrow();
+    it('highlightInheritance with valid id does not throw and produces no error', () => {
+      renderer!.highlightInheritance(NodeId('a'));
+      expect(renderer!.getLastError()).toBeNull();
+    });
+
+    it('highlightInheritance with null does not throw', () => {
       expect(() => renderer!.highlightInheritance(null)).not.toThrow();
     });
 
-    it('focusNeighborhood does not throw', () => {
-      expect(() => renderer!.focusNeighborhood(NodeId('a'))).not.toThrow();
+    it('focusNeighborhood with valid id calls cy methods', () => {
+      renderer!.focusNeighborhood(NodeId('a'));
+      expect(mockCy.getElementById).toHaveBeenCalled();
+    });
+
+    it('focusNeighborhood with null does not throw', () => {
       expect(() => renderer!.focusNeighborhood(null)).not.toThrow();
     });
 
-    it('getThumbnail returns null or string', () => {
-      const result = renderer!.getThumbnail();
-      expect(result === null || typeof result === 'string').toBe(true);
+    it('getThumbnail returns null (no real canvas in mock)', () => {
+      expect(renderer!.getThumbnail()).toBeNull();
     });
 
-    it('getViewportInfo returns null or object', () => {
+    it('getViewportInfo returns viewport data', () => {
       const result = renderer!.getViewportInfo();
-      expect(result === null || typeof result === 'object').toBe(true);
+      expect(result).not.toBeNull();
+      expect(result!.zoom).toBe(1);
     });
 
-    it('focusOnArea does not throw', () => {
-      expect(() => renderer!.focusOnArea(0, 0, 1)).not.toThrow();
+    it('focusOnArea does not throw and produces no error', () => {
+      renderer!.focusOnArea(0, 0, 1);
+      expect(renderer!.getLastError()).toBeNull();
     });
 
-    it('exportJSON returns string', () => {
-      expect(typeof renderer!.exportJSON()).toBe('string');
+    it('exportJSON returns valid JSON string', () => {
+      const result = renderer!.exportJSON();
+      expect(typeof result).toBe('string');
+      expect(() => JSON.parse(result)).not.toThrow();
     });
 
-    it('exportMermaid returns string', () => {
-      expect(typeof renderer!.exportMermaid()).toBe('string');
+    it('exportMermaid returns non-empty string', () => {
+      const result = renderer!.exportMermaid();
+      expect(typeof result).toBe('string');
+      expect(result.length).toBeGreaterThan(0);
     });
 
-    it('exportPNG returns null or string', () => {
-      const result = renderer!.exportPNG();
-      expect(result === null || typeof result === 'string').toBe(true);
+    it('exportPNG returns null (no real canvas in mock)', () => {
+      expect(renderer!.exportPNG()).toBeNull();
     });
 
-    it('exportSVG returns null or string', () => {
-      const result = renderer!.exportSVG();
-      expect(result === null || typeof result === 'string').toBe(true);
+    it('exportSVG returns null (no real canvas in mock)', () => {
+      expect(renderer!.exportSVG()).toBeNull();
     });
 
-    it('getSelectedNodeData returns null or object', () => {
-      const result = renderer!.getSelectedNodeData();
-      expect(result === null || typeof result === 'object').toBe(true);
+    it('getSelectedNodeData returns null when no node selected', () => {
+      expect(renderer!.getSelectedNodeData()).toBeNull();
     });
 
-    it('getNodeData returns null or object', () => {
-      const result = renderer!.getNodeData('a');
-      expect(result === null || typeof result === 'object').toBe(true);
+    it('getNodeData returns null for non-existent node', () => {
+      expect(renderer!.getNodeData('a')).toBeNull();
     });
 
-    it('getEdgeData returns null or object', () => {
-      const result = renderer!.getEdgeData('e1');
-      expect(result === null || typeof result === 'object').toBe(true);
+    it('getEdgeData returns null for non-existent edge', () => {
+      expect(renderer!.getEdgeData('e1')).toBeNull();
     });
 
-    it('resize does not throw', () => {
-      expect(() => renderer!.resize()).not.toThrow();
+    it('resize calls cy resize', () => {
+      renderer!.resize();
+      expect(mockCy.resize).toHaveBeenCalled();
     });
 
-    it('updateTheme does not throw', () => {
-      expect(() => renderer!.updateTheme('light')).not.toThrow();
+    it('updateTheme calls style controller update', () => {
+      renderer!.updateTheme('light');
+      expect(mockCy.style).toHaveBeenCalled();
     });
 
-    it('setHeatmapMode does not throw', () => {
-      expect(() => renderer!.setHeatmapMode('none')).not.toThrow();
+    it('setHeatmapMode does not throw and produces no error', () => {
+      renderer!.setHeatmapMode('none');
+      expect(renderer!.getLastError()).toBeNull();
     });
 
-    it('getHeatmapMode returns string', () => {
-      expect(typeof renderer!.getHeatmapMode()).toBe('string');
+    it('getHeatmapMode returns current mode', () => {
+      expect(renderer!.getHeatmapMode()).toBe('none');
     });
 
-    it('findPath returns null or object', () => {
-      const result = renderer!.findPath(NodeId('a'), NodeId('b'));
-      expect(result === null || typeof result === 'object').toBe(true);
+    it('findPath returns null for non-existent path', () => {
+      expect(renderer!.findPath(NodeId('a'), NodeId('b'))).toBeNull();
     });
 
-    it('highlightPath does not throw', () => {
-      expect(() => renderer!.highlightPath([NodeId('a'), NodeId('b')])).not.toThrow();
+    it('highlightPath with valid path does not throw and produces no error', () => {
+      renderer!.highlightPath([NodeId('a'), NodeId('b')]);
+      expect(renderer!.getLastError()).toBeNull();
+    });
+
+    it('highlightPath with null does not throw', () => {
       expect(() => renderer!.highlightPath(null)).not.toThrow();
     });
 
     it('expandNeighborhood returns Set', () => {
-      expect(renderer!.expandNeighborhood(NodeId('a'), 1)).toBeInstanceOf(Set);
+      const result = renderer!.expandNeighborhood(NodeId('a'), 1);
+      expect(result).toBeInstanceOf(Set);
     });
   });
 
@@ -430,16 +485,18 @@ describe('CytoscapeRenderer', () => {
       expect(() => renderer!.destroy()).not.toThrow();
     });
 
-    it('destroy after init does not throw', () => {
+    it('destroy after init calls cy.destroy', () => {
       renderer = new CytoscapeRenderer({
         container: makeContainer(),
         theme: 'dark',
       });
       renderer!.init();
-      expect(() => renderer!.destroy()).not.toThrow();
+      vi.clearAllMocks();
+      renderer!.destroy();
+      expect(mockCy.destroy).toHaveBeenCalled();
     });
 
-    it('destroy is idempotent', () => {
+    it('destroy is idempotent (second call does not throw)', () => {
       renderer = new CytoscapeRenderer({
         container: makeContainer(),
         theme: 'dark',
@@ -451,24 +508,28 @@ describe('CytoscapeRenderer', () => {
   });
 
   describe('updateTheme', () => {
-    it('updates theme without throwing', () => {
+    it('updates theme and applies new stylesheet', () => {
       renderer = new CytoscapeRenderer({
         container: makeContainer(),
         theme: 'dark',
       });
       renderer!.init();
-      expect(() => renderer!.updateTheme('light')).not.toThrow();
+      vi.clearAllMocks();
+      renderer!.updateTheme('light');
+      expect(mockCy.style).toHaveBeenCalled();
     });
   });
 
   describe('setHeatmapMode', () => {
-    it('sets heatmap mode without throwing', () => {
+    it('sets heatmap mode and updates styles', () => {
       renderer = new CytoscapeRenderer({
         container: makeContainer(),
         theme: 'dark',
       });
       renderer!.init();
-      expect(() => renderer!.setHeatmapMode('instability')).not.toThrow();
+      vi.clearAllMocks();
+      renderer!.setHeatmapMode('instability');
+      expect(mockCy.style).toHaveBeenCalled();
     });
   });
 });

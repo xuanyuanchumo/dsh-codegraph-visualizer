@@ -163,12 +163,11 @@ export async function runCli(args: string[]): Promise<void> {
   }, opts.workspace, 'both');
 
   if (data.nodes.length === 0 && data.edges.length === 0) {
-    console.error('No graph data available.');
-    console.error('The CLI reads from .codegraph/codegraph.db in the workspace.');
-    console.error('Ensure dsh-codegraph is installed and has been initialized:');
-    console.error('  1. Install: dsh plugin add dsh-codegraph');
-    console.error('  2. Initialize: run "codegraph init" in your workspace');
-    console.error('  3. Or run this command from within a DSH workspace session');
+    log.error('No graph data available. The CLI reads from .codegraph/codegraph.db in the workspace.');
+    log.error('Ensure dsh-codegraph is installed and has been initialized:');
+    log.error('  1. Install: dsh plugin add dsh-codegraph');
+    log.error('  2. Initialize: run "codegraph init" in your workspace');
+    log.error('  3. Or run this command from within a DSH workspace session');
     process.exit(1);
   }
 
@@ -184,7 +183,7 @@ export async function runCli(args: string[]): Promise<void> {
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
   runCli(process.argv.slice(2)).catch((e) => {
-    console.error('CLI failed:', e);
+    log.error('CLI failed:', e);
     process.exit(1);
   });
 }
