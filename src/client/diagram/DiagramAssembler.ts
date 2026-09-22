@@ -64,3 +64,20 @@ export function computeDepths(
 
   return depths;
 }
+export function buildAdjacencyMaps(edges: GraphEdge[]): {
+  outEdges: Map<string, GraphEdge[]>;
+  inEdges: Map<string, GraphEdge[]>;
+} {
+  const outEdges = new Map<string, GraphEdge[]>();
+  const inEdges = new Map<string, GraphEdge[]>();
+  for (const e of edges) {
+    const outList = outEdges.get(e.source) ?? [];
+    outList.push(e);
+    outEdges.set(e.source, outList);
+
+    const inList = inEdges.get(e.target) ?? [];
+    inList.push(e);
+    inEdges.set(e.target, inList);
+  }
+  return { outEdges, inEdges };
+}

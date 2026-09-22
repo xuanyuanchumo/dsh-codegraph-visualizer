@@ -1,6 +1,6 @@
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import type { DiagramAssembler, AssembledDiagram } from './DiagramAssembler.ts';
-import { computeDepths } from './DiagramAssembler.ts';
+import { computeDepths, buildAdjacencyMaps } from './DiagramAssembler.ts';
 
 const CLASS_NODE_TYPES = new Set(['class', 'interface', 'type']);
 const CLASS_EDGE_TYPES = new Set(['extend', 'implement', 'association', 'aggregation', 'composition']);
@@ -24,17 +24,7 @@ export class ClassAssembler implements DiagramAssembler {
 
     const membersByClass = this.associateMembers(classNodes, nodes);
 
-    const outEdges = new Map<string, GraphEdge[]>();
-    const inEdges = new Map<string, GraphEdge[]>();
-    for (const e of validEdges) {
-      const outList = outEdges.get(e.source) ?? [];
-      outList.push(e);
-      outEdges.set(e.source, outList);
-
-      const inList = inEdges.get(e.target) ?? [];
-      inList.push(e);
-      inEdges.set(e.target, inList);
-    }
+    const { outEdges, inEdges } = buildAdjacencyMaps(validEdges);
 
     const rootIds: string[] = [];
     for (const n of classNodes) {

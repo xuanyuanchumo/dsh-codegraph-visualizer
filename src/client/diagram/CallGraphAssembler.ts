@@ -1,6 +1,6 @@
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import type { DiagramAssembler, AssembledDiagram } from './DiagramAssembler.ts';
-import { computeDepths } from './DiagramAssembler.ts';
+import { computeDepths, buildAdjacencyMaps } from './DiagramAssembler.ts';
 import { buildForwardAdjacency } from '../../shared/analysis/AdjacencyList.ts';
 
 const CALL_NODE_TYPES = new Set(['function']);
@@ -23,17 +23,7 @@ export class CallGraphAssembler implements DiagramAssembler {
       (e) => nodeIds.has(e.source) && nodeIds.has(e.target),
     );
 
-    const outEdges = new Map<string, GraphEdge[]>();
-    const inEdges = new Map<string, GraphEdge[]>();
-    for (const e of validEdges) {
-      const outList = outEdges.get(e.source) ?? [];
-      outList.push(e);
-      outEdges.set(e.source, outList);
-
-      const inList = inEdges.get(e.target) ?? [];
-      inList.push(e);
-      inEdges.set(e.target, inList);
-    }
+    const { outEdges, inEdges } = buildAdjacencyMaps(validEdges);
 
     const inDegree = new Map<string, number>();
     const outDegree = new Map<string, number>();
