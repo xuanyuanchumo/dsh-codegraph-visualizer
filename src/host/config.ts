@@ -1,6 +1,6 @@
 import type { DataSourceType } from '../types/index.ts';
 
-const VALID_DATA_SOURCES = new Set<DataSourceType>(['auto', 'codegraph', 'lens', 'tree-sitter']);
+const VALID_DATA_SOURCES = new Set<DataSourceType>(['auto', 'codegraph', 'lens', 'tree-sitter', 'dependency']);
 const ORIGIN_PATTERN = /^https?:\/\/[a-zA-Z0-9.-]+(:\d+)?$/;
 
 export interface VisualizerConfig {

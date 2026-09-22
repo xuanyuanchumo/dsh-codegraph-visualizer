@@ -84,7 +84,7 @@ export interface CallGraphNodeProperties {
   isRecursive: boolean;
 }
 
-export type DataSourceType = 'auto' | 'codegraph' | 'lens' | 'tree-sitter';
+export type DataSourceType = 'auto' | 'codegraph' | 'lens' | 'tree-sitter' | 'dependency';
 
 export interface AdapterResult {
   nodes: GraphNode[];

@@ -382,21 +382,28 @@ export class CytoscapeRenderer implements IRenderer {
   }
 
   destroy(): void {
-    this.interactionCtrl?.destroy();
-    this.layoutCtrl?.destroy();
-    this.virtualViewportCtrl?.destroy();
-    this.exportCtrl?.destroy();
-    this.searchCtrl?.destroy();
-    this.filterCtrl?.destroy();
-    this.dataCtrl?.destroy();
-    this.impactAnalyzer?.destroy();
-    this.cycleDetector?.destroy();
-    this.highlightCtrl?.destroy();
-    this.viewportCtrl?.destroy();
-    this.styleCtrl?.destroy();
-    this.pathFinder?.destroy();
-    this.adjacencyCache?.destroy();
-    this.cy?.destroy();
+    const safeDestroy = (label: string, fn: () => void): void => {
+      try {
+        fn();
+      } catch (err) {
+        log.warn(`destroy: ${label} cleanup failed`, err);
+      }
+    };
+    safeDestroy('interactionCtrl', () => this.interactionCtrl?.destroy());
+    safeDestroy('layoutCtrl', () => this.layoutCtrl?.destroy());
+    safeDestroy('virtualViewportCtrl', () => this.virtualViewportCtrl?.destroy());
+    safeDestroy('exportCtrl', () => this.exportCtrl?.destroy());
+    safeDestroy('searchCtrl', () => this.searchCtrl?.destroy());
+    safeDestroy('filterCtrl', () => this.filterCtrl?.destroy());
+    safeDestroy('dataCtrl', () => this.dataCtrl?.destroy());
+    safeDestroy('impactAnalyzer', () => this.impactAnalyzer?.destroy());
+    safeDestroy('cycleDetector', () => this.cycleDetector?.destroy());
+    safeDestroy('highlightCtrl', () => this.highlightCtrl?.destroy());
+    safeDestroy('viewportCtrl', () => this.viewportCtrl?.destroy());
+    safeDestroy('styleCtrl', () => this.styleCtrl?.destroy());
+    safeDestroy('pathFinder', () => this.pathFinder?.destroy());
+    safeDestroy('adjacencyCache', () => this.adjacencyCache?.destroy());
+    safeDestroy('cy', () => this.cy?.destroy());
     this.cy = null;
     if (this.fitTimer !== null) {
       clearTimeout(this.fitTimer);

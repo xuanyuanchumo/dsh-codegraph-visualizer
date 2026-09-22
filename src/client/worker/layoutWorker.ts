@@ -1,4 +1,4 @@
-import cytoscape, { type LayoutOptions } from 'cytoscape';
+import cytoscape, { type Core, type LayoutOptions } from 'cytoscape';
 import dagre from 'cytoscape-dagre';
 import fcose from 'cytoscape-fcose';
 import { computeSmartSpacing } from '../../shared/layoutUtils.ts';
@@ -22,6 +22,7 @@ export interface LayoutWorkerResponse {
 
 self.onmessage = (e: MessageEvent<LayoutWorkerRequest>) => {
   const { nodes, edges, layout, rankDir = 'TB', containerWidth = 800, containerHeight = 600 } = e.data;
+  let cyRef: Core | null = null;
   try {
     const cy = cytoscape({
       headless: true,
@@ -30,6 +31,7 @@ self.onmessage = (e: MessageEvent<LayoutWorkerRequest>) => {
         ...edges.map((e2) => ({ group: 'edges' as const, data: { id: e2.id, source: e2.source, target: e2.target, type: e2.type } })),
       ],
     });
+    cyRef = cy;
 
     const sp = computeSmartSpacing(nodes.length, containerWidth, containerHeight);
     let options: LayoutOptions;
@@ -75,12 +77,12 @@ self.onmessage = (e: MessageEvent<LayoutWorkerRequest>) => {
       positions[n.id()] = { x: p.x, y: p.y };
     });
 
-    cy.destroy();
-
     const response: LayoutWorkerResponse = { positions };
     (self as unknown as Worker).postMessage(response);
   } catch (err) {
     const response: LayoutWorkerResponse = { positions: {}, error: err instanceof Error ? err.message : String(err) };
     (self as unknown as Worker).postMessage(response);
+  } finally {
+    cyRef?.destroy();
   }
 };

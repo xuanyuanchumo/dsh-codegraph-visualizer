@@ -72,12 +72,12 @@ function extractParticipants(nodes: GraphNode[]): ParticipantInfo[] {
     .map((n) => ({
       id: n.id,
       name: n.label,
-      type: n.properties['participantType'] as string,
+      type: (n.properties['participantType'] as string) ?? 'instance',
       className: n.properties['className'] as string | undefined,
-      lifelineStart: n.properties['lifelineStart'] as number,
-      lifelineEnd: n.properties['lifelineEnd'] as number,
-      isCreated: n.properties['isCreated'] as boolean,
-      isDestroyed: n.properties['isDestroyed'] as boolean,
+      lifelineStart: (n.properties['lifelineStart'] as number) ?? 0,
+      lifelineEnd: (n.properties['lifelineEnd'] as number) ?? 0,
+      isCreated: (n.properties['isCreated'] as boolean) ?? false,
+      isDestroyed: (n.properties['isDestroyed'] as boolean) ?? false,
       x: 0,
     }))
     .sort((a, b) => a.lifelineStart - b.lifelineStart);
@@ -88,16 +88,16 @@ function extractMessages(edges: GraphEdge[]): MessageInfo[] {
     .filter((e) => e.properties['sequenceNumber'] !== undefined)
     .map((e) => ({
       id: e.id,
-      sequenceNumber: e.properties['sequenceNumber'] as number,
+      sequenceNumber: (e.properties['sequenceNumber'] as number) ?? 0,
       source: e.source,
       target: e.target,
-      methodName: e.properties['methodName'] as string,
+      methodName: (e.properties['methodName'] as string) ?? '',
       arguments: (e.properties['arguments'] as string[]) ?? [],
-      isAsync: e.properties['isAsync'] as boolean,
-      isSelfCall: e.properties['isSelfCall'] as boolean,
-      isReturn: e.properties['isReturn'] as boolean,
-      isCreate: e.properties['isCreate'] as boolean,
-      lineNumber: e.properties['lineNumber'] as number,
+      isAsync: (e.properties['isAsync'] as boolean) ?? false,
+      isSelfCall: (e.properties['isSelfCall'] as boolean) ?? false,
+      isReturn: (e.properties['isReturn'] as boolean) ?? false,
+      isCreate: (e.properties['isCreate'] as boolean) ?? false,
+      lineNumber: (e.properties['lineNumber'] as number) ?? 0,
       y: 0,
     }))
     .sort((a, b) => a.sequenceNumber - b.sequenceNumber);
@@ -108,11 +108,11 @@ function extractFragments(nodes: GraphNode[]): FragmentInfo[] {
     .filter((n) => n.properties['isFragment'])
     .map((n) => ({
       id: n.id,
-      type: n.properties['fragmentType'] as string,
+      type: (n.properties['fragmentType'] as string) ?? 'alt',
       condition: n.properties['condition'] as string | undefined,
       loopConstraint: n.properties['loopConstraint'] as string | undefined,
-      startMessage: n.properties['startMessage'] as number,
-      endMessage: n.properties['endMessage'] as number,
+      startMessage: (n.properties['startMessage'] as number) ?? 0,
+      endMessage: (n.properties['endMessage'] as number) ?? 0,
       operands: (n.properties['operands'] as Array<{ guardCondition?: string; startMessage: number; endMessage: number }>) ?? [],
     }));
 }

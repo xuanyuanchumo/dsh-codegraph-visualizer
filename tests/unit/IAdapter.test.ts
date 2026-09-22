@@ -47,7 +47,7 @@ describe('IAdapter 统一抽象接口', () => {
   describe('IDataAdapter — DependencyDataAdapter', () => {
     it('应实现 IDataAdapter 接口', () => {
       const adapter = new DependencyDataAdapter();
-      expect(adapter.source).toBe('codegraph');
+      expect(adapter.source).toBe('dependency');
       expect(typeof adapter.fetchData).toBe('function');
     });
 
@@ -105,7 +105,7 @@ describe('IAdapter 统一抽象接口', () => {
 
     it('DependencyDataAdapter 可赋值给 IDataAdapter', () => {
       const adapter: IDataAdapter = new DependencyDataAdapter();
-      expect(adapter.source).toBe('codegraph');
+      expect(adapter.source).toBe('dependency');
     });
 
     it('TreeSitterAdapter 可赋值给 IAnalysisAdapter', () => {

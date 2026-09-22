@@ -238,7 +238,7 @@ export function dependencyGraphToGraphData(depGraph: DependencyGraph): { nodes: 
   return { nodes, edges };
 }
 export class DependencyDataAdapter implements IDataAdapter {
-  readonly source: DataSourceType = 'codegraph';
+  readonly source: DataSourceType = 'dependency';
 
   async fetchData(repoId: string): Promise<AdapterResult> {
     const allNodes: GraphNode[] = [];
