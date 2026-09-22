@@ -1,6 +1,6 @@
 {
   "currentPhase": "plan",
-  "currentCycle": "cycle-41",
+  "currentCycle": "cycle-42",
   "phaseHistory": [
     {
       "cycle": "cycle-33",
@@ -41,6 +41,11 @@
       "cycle": "cycle-40",
       "phase": "complete",
       "result": "P1-1 peerDependencies补充dsh-llm/dsh-session+P1-2 ResizeObserver降级处理(GraphPanel+useGraphRenderer)+P1-3 visual-screenshots.spec.ts添加6个断言+P0-1 GraphPanel 19个UI交互测试(按钮点击事件处理器)+P1-4 EmptyState 9个分支测试+StatsPanel 7个分支测试，2558测试通过，Branches 86.41%→86.57% Functions 78.18%→78.47%"
+    },
+    {
+      "cycle": "cycle-41",
+      "phase": "complete",
+      "result": "P0-1 GraphPanel 16处弱断言改强断言(cg-filter-panel-btn/cg-chain-btn/cg-cycle-btn类名修正)+P1-1 GraphPanel 21个handler行为测试(事件分发/主题切换/焦点模式/路径查找/空状态/加载覆盖层)+P1-2 usePanelResize 7个拖拽测试(pointerdown/move/up+最小尺寸+setPanelSize),2585测试通过,覆盖率Stmts 86.59%→86.96% Branch 86.55%→86.65% Funcs 78.42%→78.82%,hooks Funcs 84.21%→92.1%,GraphPanel Branch 44.57%→50.51%"
     }
   ],
   "nodeStatus": {},

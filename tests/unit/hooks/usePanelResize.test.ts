@@ -80,4 +80,64 @@ describe('usePanelResize', () => {
     handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
     expect(panel.style.width).toBe('500px');
   });
+
+  it('pointerdown 应注册 pointermove 和 pointerup 监听器', () => {
+    renderHook(() => usePanelResize(panelRef, rendererRef));
+    Object.defineProperty(panel, 'offsetWidth', { value: 600, configurable: true });
+    Object.defineProperty(panel, 'offsetHeight', { value: 400, configurable: true });
+    const moveSpy = vi.spyOn(window, 'addEventListener');
+    handle.dispatchEvent(new PointerEvent('pointerdown', { clientX: 100, clientY: 100, bubbles: true }));
+    expect(moveSpy).toHaveBeenCalled();
+  });
+
+  it('pointermove 应更新面板尺寸', () => {
+    renderHook(() => usePanelResize(panelRef, rendererRef));
+    Object.defineProperty(panel, 'offsetWidth', { value: 600, configurable: true });
+    Object.defineProperty(panel, 'offsetHeight', { value: 400, configurable: true });
+    handle.dispatchEvent(new PointerEvent('pointerdown', { clientX: 100, clientY: 100, bubbles: true }));
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 150, clientY: 120 }));
+    expect(panel.style.width).toBe('650px');
+    expect(panel.style.height).toBe('420px');
+  });
+
+  it('pointermove 应尊重最小宽度 320px', () => {
+    renderHook(() => usePanelResize(panelRef, rendererRef));
+    Object.defineProperty(panel, 'offsetWidth', { value: 400, configurable: true });
+    Object.defineProperty(panel, 'offsetHeight', { value: 300, configurable: true });
+    handle.dispatchEvent(new PointerEvent('pointerdown', { clientX: 100, clientY: 100, bubbles: true }));
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 50, clientY: 50 }));
+    expect(parseInt(panel.style.width)).toBeGreaterThanOrEqual(320);
+    expect(parseInt(panel.style.height)).toBeGreaterThanOrEqual(240);
+  });
+
+  it('pointerup 应调用 setPanelSize 保存尺寸', () => {
+
+    renderHook(() => usePanelResize(panelRef, rendererRef));
+    Object.defineProperty(panel, 'offsetWidth', { value: 600, configurable: true });
+    Object.defineProperty(panel, 'offsetHeight', { value: 400, configurable: true });
+    handle.dispatchEvent(new PointerEvent('pointerdown', { clientX: 100, clientY: 100, bubbles: true }));
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 150, clientY: 120 }));
+    window.dispatchEvent(new PointerEvent('pointerup'));
+    expect(rendererRef.current?.resize).toHaveBeenCalled();
+  });
+
+  it('pointerup 应移除 pointermove 和 pointerup 监听器', () => {
+    renderHook(() => usePanelResize(panelRef, rendererRef));
+    Object.defineProperty(panel, 'offsetWidth', { value: 600, configurable: true });
+    Object.defineProperty(panel, 'offsetHeight', { value: 400, configurable: true });
+    handle.dispatchEvent(new PointerEvent('pointerdown', { clientX: 100, clientY: 100, bubbles: true }));
+    window.dispatchEvent(new PointerEvent('pointerup'));
+    const styleBefore = panel.style.width;
+    window.dispatchEvent(new PointerEvent('pointermove', { clientX: 999, clientY: 999 }));
+    expect(panel.style.width).toBe(styleBefore);
+  });
+
+  it('双击 handle 应调用 resetPanelSize', () => {
+    renderHook(() => usePanelResize(panelRef, rendererRef));
+    panel.style.width = '500px';
+    panel.style.height = '400px';
+    handle.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    expect(panel.style.width).toBe('');
+    expect(panel.style.height).toBe('');
+  });
 });

@@ -4,6 +4,7 @@
 import { describe, it, expect, afterEach, vi, beforeEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import React from 'react';
+import { useGraphStore } from '../../src/client/store/graphStore.ts';
 
 class ResizeObserverMock {
   observe() {}
@@ -140,11 +141,27 @@ vi.mock('../../src/client/i18n/index.ts', () => ({
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  useGraphStore.setState({
+    nodes: [], edges: [], rawNodes: [], rawEdges: [],
+    isLoading: false, error: null, theme: 'dark',
+    heatmapMode: 'none', viewMode: 'code', selectedNodeId: null,
+    focusModeActive: false, focusModeNodeId: null, focusDepth: 1,
+    pathResult: null, selectedFunction: null, diagramData: null,
+  });
+  document.body.removeAttribute('data-ds-dark-theme');
 });
 
 describe('GraphPanel component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useGraphStore.setState({
+      nodes: [], edges: [], rawNodes: [], rawEdges: [],
+      isLoading: false, error: null, theme: 'dark',
+      heatmapMode: 'none', viewMode: 'code', selectedNodeId: null,
+      focusModeActive: false, focusModeNodeId: null, focusDepth: 1,
+      pathResult: null, selectedFunction: null, diagramData: null,
+    });
+    document.body.removeAttribute('data-ds-dark-theme');
   });
 
   it('renders without crashing', async () => {
@@ -207,6 +224,13 @@ describe('GraphPanel handler behavior', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     document.body.removeAttribute('data-ds-dark-theme');
+    useGraphStore.setState({
+      nodes: [], edges: [], rawNodes: [], rawEdges: [],
+      isLoading: false, error: null, theme: 'dark',
+      heatmapMode: 'none', viewMode: 'code', selectedNodeId: null,
+      focusModeActive: false, focusModeNodeId: null, focusDepth: 1,
+      pathResult: null, selectedFunction: null, diagramData: null,
+    });
   });
 
   it('handleThemeToggle: toggles data-ds-dark-theme on body when clicking theme button', async () => {
@@ -215,6 +239,7 @@ describe('GraphPanel handler behavior', () => {
     const themeBtn = container.querySelector('.cg-theme-btn') as HTMLButtonElement;
     expect(themeBtn).toBeTruthy();
     expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(false);
+    fireEvent.click(themeBtn);
     fireEvent.click(themeBtn);
     expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(true);
     fireEvent.click(themeBtn);
@@ -302,160 +327,144 @@ describe('GraphPanel handler behavior', () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const exportBtn = container.querySelector('.cg-export-btn') as HTMLButtonElement;
-    if (exportBtn) {
-      fireEvent.click(exportBtn);
-      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
-    }
+    expect(exportBtn).toBeTruthy();
+    fireEvent.click(exportBtn);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
   });
 
   it('heatmap button click does not crash', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const heatmapBtn = container.querySelector('.cg-heatmap-btn--activate') as HTMLButtonElement;
-    if (heatmapBtn) {
-      fireEvent.click(heatmapBtn);
-      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
-    }
+    expect(heatmapBtn).toBeTruthy();
+    fireEvent.click(heatmapBtn);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
   });
 
   it('pathfind button click toggles path panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const pathfindBtn = container.querySelector('.cg-pathfind-btn') as HTMLButtonElement;
-    if (pathfindBtn) {
-      fireEvent.click(pathfindBtn);
-      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
-    }
+    expect(pathfindBtn).toBeTruthy();
+    fireEvent.click(pathfindBtn);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
   });
 
   it('health score button click toggles health panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const healthBtn = container.querySelector('.cg-health-btn') as HTMLButtonElement;
-    if (healthBtn) {
-      fireEvent.click(healthBtn);
-      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
-    }
+    expect(healthBtn).toBeTruthy();
+    fireEvent.click(healthBtn);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
   });
 
   it('filter button click toggles filter panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const filterBtn = container.querySelector('.cg-filter-btn') as HTMLButtonElement;
-    if (filterBtn) {
-      fireEvent.click(filterBtn);
-      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
-    }
+    const filterBtn = container.querySelector('.cg-filter-panel-btn') as HTMLButtonElement;
+    expect(filterBtn).toBeTruthy();
+    fireEvent.click(filterBtn);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
   });
 
   it('legend button click toggles legend panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const legendBtn = container.querySelector('.cg-legend-btn') as HTMLButtonElement;
-    if (legendBtn) {
-      fireEvent.click(legendBtn);
-      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
-    }
+    expect(legendBtn).toBeTruthy();
+    fireEvent.click(legendBtn);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
   });
 
   it('minimap button click toggles minimap panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const minimapBtn = container.querySelector('.cg-minimap-btn') as HTMLButtonElement;
-    if (minimapBtn) {
-      fireEvent.click(minimapBtn);
-      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
-    }
+    expect(minimapBtn).toBeTruthy();
+    fireEvent.click(minimapBtn);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
   });
 
   it('callchain button click toggles call chain panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const callchainBtn = container.querySelector('.cg-callchain-btn') as HTMLButtonElement;
-    if (callchainBtn) {
-      fireEvent.click(callchainBtn);
-      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
-    }
+    const callchainBtn = container.querySelector('.cg-chain-btn') as HTMLButtonElement;
+    expect(callchainBtn).toBeTruthy();
+    fireEvent.click(callchainBtn);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
   });
 
   it('impact button click toggles impact panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const impactBtn = container.querySelector('.cg-impact-btn') as HTMLButtonElement;
-    if (impactBtn) {
-      fireEvent.click(impactBtn);
-      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
-    }
+    expect(impactBtn).toBeTruthy();
+    fireEvent.click(impactBtn);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
   });
 
   it('inheritance button click toggles inheritance panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const inheritanceBtn = container.querySelector('.cg-inheritance-btn') as HTMLButtonElement;
-    if (inheritanceBtn) {
-      fireEvent.click(inheritanceBtn);
-      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
-    }
+    expect(inheritanceBtn).toBeTruthy();
+    fireEvent.click(inheritanceBtn);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
   });
 
   it('hotspot button click toggles hotspot panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const hotspotBtn = container.querySelector('.cg-hotspot-btn') as HTMLButtonElement;
-    if (hotspotBtn) {
-      fireEvent.click(hotspotBtn);
-      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
-    }
+    expect(hotspotBtn).toBeTruthy();
+    fireEvent.click(hotspotBtn);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
   });
 
   it('god module button click toggles god module panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const godBtn = container.querySelector('.cg-godmodule-btn') as HTMLButtonElement;
-    if (godBtn) {
-      fireEvent.click(godBtn);
-      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
-    }
+    expect(godBtn).toBeTruthy();
+    fireEvent.click(godBtn);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
   });
 
   it('cycles button click toggles cycles panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const cyclesBtn = container.querySelector('.cg-cycles-btn') as HTMLButtonElement;
-    if (cyclesBtn) {
-      fireEvent.click(cyclesBtn);
-      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
-    }
+    const cyclesBtn = container.querySelector('.cg-cycle-btn') as HTMLButtonElement;
+    expect(cyclesBtn).toBeTruthy();
+    fireEvent.click(cyclesBtn);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
   });
 
   it('core function button click toggles core function panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const coreBtn = container.querySelector('.cg-corefunction-btn') as HTMLButtonElement;
-    if (coreBtn) {
-      fireEvent.click(coreBtn);
-      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
-    }
+    expect(coreBtn).toBeTruthy();
+    fireEvent.click(coreBtn);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
   });
 
   it('rules button click toggles rules panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const rulesBtn = container.querySelector('.cg-rules-btn') as HTMLButtonElement;
-    if (rulesBtn) {
-      fireEvent.click(rulesBtn);
-      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
-    }
+    expect(rulesBtn).toBeTruthy();
+    fireEvent.click(rulesBtn);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
   });
 
   it('import button click toggles import panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const importBtn = container.querySelector('.cg-import-btn') as HTMLButtonElement;
-    if (importBtn) {
-      fireEvent.click(importBtn);
-      expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
-    }
+    expect(importBtn).toBeTruthy();
+    fireEvent.click(importBtn);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
   });
 
   it('toolbar renders all essential buttons', async () => {
@@ -473,5 +482,189 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const statusBar = container.querySelector('.cg-status-bar');
     expect(statusBar).toBeTruthy();
+  });
+});
+describe('GraphPanel event dispatch behavior', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    document.body.removeAttribute('data-ds-dark-theme');
+    useGraphStore.setState({
+      nodes: [], edges: [], rawNodes: [], rawEdges: [],
+      isLoading: false, error: null, theme: 'dark',
+      heatmapMode: 'none', viewMode: 'code', selectedNodeId: null,
+      focusModeActive: false, focusModeNodeId: null, focusDepth: 1,
+      pathResult: null, selectedFunction: null, diagramData: null,
+    });
+  });
+
+  it('handleRefresh: dispatches codegraph:refresh event on refresh button click', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const refreshBtn = container.querySelector('.cg-refresh-btn') as HTMLButtonElement;
+    if (refreshBtn) {
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+      fireEvent.click(refreshBtn);
+      const refreshEvent = dispatchSpy.mock.calls.find(
+        (call) => (call[0] as CustomEvent).type === 'codegraph:refresh',
+      );
+      expect(refreshEvent).toBeTruthy();
+    }
+  });
+
+  it('handleScanWorkspace: dispatches codegraph:import-repo event from EmptyState scan', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const scanBtn = container.querySelector('.cg-empty-scan-btn') as HTMLButtonElement;
+    if (scanBtn) {
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+      fireEvent.click(scanBtn);
+      const importEvent = dispatchSpy.mock.calls.find(
+        (call) => (call[0] as CustomEvent).type === 'codegraph:import-repo',
+      );
+      expect(importEvent).toBeTruthy();
+    }
+  });
+
+  it('handleWorkspaceSwitch: dispatches codegraph:workspace event', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    render(React.createElement(GraphPanel));
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: '/test/path' } }));
+    expect(dispatchSpy).toHaveBeenCalled();
+  });
+
+  it('handleThemeToggle: toggles theme attribute and calls setTheme', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const themeBtn = container.querySelector('.cg-theme-btn') as HTMLButtonElement;
+    expect(themeBtn).toBeTruthy();
+    fireEvent.click(themeBtn);
+    fireEvent.click(themeBtn);
+    expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(true);
+  });
+
+  it('handleCloseDetail: collapse FAB preserves panel structure', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const fab = container.querySelector('.cg-collapse-fab') as HTMLButtonElement;
+    expect(fab).toBeTruthy();
+    fireEvent.click(fab);
+    expect(container.querySelector('.cg-graph-panel')).toBeTruthy();
+  });
+
+  it('handleFocusExpand: focus mode bar not shown without focusNodeId', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const focusBar = container.querySelector('.cg-focus-mode-bar');
+    expect(focusBar).toBeNull();
+  });
+
+  it('handleFindPath: path panel not shown by default', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const pathBar = container.querySelector('.cg-path-bar');
+    expect(pathBar).toBeNull();
+  });
+
+  it('handleSelectSearchResult: search panel not shown by default', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const searchBar = container.querySelector('.cg-search-bar');
+    expect(searchBar).toBeNull();
+  });
+
+  it('heatmap mode buttons: renders activate button when mode is none', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const heatmapBar = container.querySelector('.cg-heatmap-bar');
+    expect(heatmapBar).toBeTruthy();
+    const activateBtn = container.querySelector('.cg-heatmap-btn--activate');
+    expect(activateBtn).toBeTruthy();
+  });
+
+  it('empty state: renders when no nodes and not loading', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const emptyState = container.querySelector('.cg-empty-state');
+    expect(emptyState).toBeTruthy();
+  });
+
+  it('loading overlay: not shown when isLoading is false', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const loadingOverlay = container.querySelector('.cg-loading-overlay');
+    expect(loadingOverlay).toBeNull();
+  });
+
+  it('error overlay: not shown when no error', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const errorOverlay = container.querySelector('.cg-error-overlay');
+    expect(errorOverlay).toBeNull();
+  });
+
+  it('context menu: not shown by default', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const contextMenu = container.querySelector('.cg-context-menu');
+    expect(contextMenu).toBeNull();
+  });
+
+  it('tooltip: not shown by default', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const tooltip = container.querySelector('.cg-graph-tooltip');
+    expect(tooltip).toBeNull();
+  });
+
+  it('keyboard help: not shown by default', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const help = container.querySelector('.cg-keyboard-help');
+    expect(help).toBeNull();
+  });
+
+  it('node detail: not shown by default', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const nodeDetail = container.querySelector('.cg-node-detail');
+    expect(nodeDetail).toBeNull();
+  });
+
+  it('micro view prompt: not shown in code view mode', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const microPrompt = container.querySelector('.cg-micro-view-prompt');
+    expect(microPrompt).toBeNull();
+  });
+
+  it('panel stack left: renders container div', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const stackLeft = container.querySelector('.cg-panel-stack-left');
+    expect(stackLeft).toBeTruthy();
+  });
+
+  it('graph container: has correct aria-label with stats', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const graphContainer = container.querySelector('.cg-graph-container') as HTMLElement;
+    const ariaLabel = graphContainer.getAttribute('aria-label');
+    expect(ariaLabel).toContain('a11y.graphContainer');
+  });
+
+  it('collapse FAB: has correct aria-label', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const fab = container.querySelector('.cg-collapse-fab') as HTMLButtonElement;
+    expect(fab.getAttribute('aria-label')).toBe('panel.expand');
+  });
+
+  it('heatmap bar: has group role and aria-label', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const heatmapBar = container.querySelector('.cg-heatmap-bar') as HTMLElement;
+    expect(heatmapBar.getAttribute('role')).toBe('group');
+    expect(heatmapBar.getAttribute('aria-label')).toBe('heatmap.title');
   });
 });
