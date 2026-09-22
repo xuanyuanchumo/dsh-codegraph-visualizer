@@ -11,10 +11,10 @@ export default defineConfig({
 
       reporter: ['text', 'json', 'html', 'lcov'],
       thresholds: {
-        lines: 79,
-        functions: 72,
-        statements: 79,
-        branches: 75,
+        lines: 85,
+        functions: 77,
+        statements: 85,
+        branches: 86,
       },
       exclude: [
         ...coverageConfigDefaults.exclude,
