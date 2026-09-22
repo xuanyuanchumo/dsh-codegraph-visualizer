@@ -1,10 +1,10 @@
 {
   "$schema": "https://raw.githubusercontent.com/nickel-org/oxc/main/npm/oxlint/configuration_schema.json",
   "rules": {
-    "no-explicit-any": "warn",
+    "no-explicit-any": "error",
     "no-empty": "warn",
     "no-unused-vars": "warn",
-    "no-console": "off",
+    "no-console": "warn",
     "eqeqeq": "error",
     "no-var": "error",
     "prefer-const": "error",

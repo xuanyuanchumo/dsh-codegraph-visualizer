@@ -181,13 +181,15 @@ export function apply(ctx: Context) {
       prereqTimer = setTimeout(checkStatus, POLLING.PREREQ_INITIAL_DELAY_MS);
     }).catch((e) => log.warn('initial status check failed', e));
 
-    const prereqInterval = setInterval(async () => {
-      if (document.hidden) return;
-      const s = useGraphStore.getState();
-      if (s.prerequisites.codegraph && s.prerequisites.lens) { clearInterval(prereqInterval); return; }
-      try { await checkStatus(); } catch (e) { log.warn('prereq polling failed', e); }
-    }, POLLING.PREREQ_INTERVAL_MS);
-    ctx.effect(() => () => clearInterval(prereqInterval), 'codegraph: prereq polling');
+    ctx.effect(() => {
+      const prereqInterval = setInterval(async () => {
+        if (document.hidden) return;
+        const s = useGraphStore.getState();
+        if (s.prerequisites.codegraph && s.prerequisites.lens) { clearInterval(prereqInterval); return; }
+        try { await checkStatus(); } catch (e) { log.warn('prereq polling failed', e); }
+      }, POLLING.PREREQ_INTERVAL_MS);
+      return () => clearInterval(prereqInterval);
+    }, 'codegraph: prereq polling');
   }
 
   let lastDshWorkspace = '';
@@ -236,145 +238,150 @@ export function apply(ctx: Context) {
 
     if (store.nodes.length === 0 && !store.isLoading) { getWorkspaceAndScan(); }
 
-    const workspacePoll = setInterval(async () => {
-      if (document.hidden) return;
-      try {
-        const { path: dshCurrent, list: dshList } = await fetchWorkspace();
-        if (dshCurrent && dshCurrent !== lastDshWorkspace) {
-          log.info('DSH workspace changed', { from: lastDshWorkspace, to: dshCurrent });
-          lastDshWorkspace = dshCurrent;
-          const s = useGraphStore.getState();
-          s.setCurrentWorkspace(dshCurrent);
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: dshCurrent } }));
+    ctx.effect(() => {
+      const workspacePoll = setInterval(async () => {
+        if (document.hidden) return;
+        try {
+          const { path: dshCurrent, list: dshList } = await fetchWorkspace();
+          if (dshCurrent && dshCurrent !== lastDshWorkspace) {
+            log.info('DSH workspace changed', { from: lastDshWorkspace, to: dshCurrent });
+            lastDshWorkspace = dshCurrent;
+            const s = useGraphStore.getState();
+            s.setCurrentWorkspace(dshCurrent);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: dshCurrent } }));
+            }
           }
+          for (const p of dshList) {
+            const s = useGraphStore.getState();
+            if (!s.workspaceList.some((w) => w.path === p)) { s.addWorkspace(p, p.split(/[\\/]/).pop() ?? p); }
+          }
+        } catch (e) {
+          log.warn('workspace polling failed', e);
         }
-        for (const p of dshList) {
-          const s = useGraphStore.getState();
-          if (!s.workspaceList.some((w) => w.path === p)) { s.addWorkspace(p, p.split(/[\\/]/).pop() ?? p); }
-        }
-      } catch (e) {
-        log.warn('workspace polling failed', e);
-      }
-    }, POLLING.WORKSPACE_INTERVAL_MS);
-    ctx.effect(() => () => clearInterval(workspacePoll), 'codegraph: workspace polling');
+      }, POLLING.WORKSPACE_INTERVAL_MS);
+      return () => clearInterval(workspacePoll);
+    }, 'codegraph: workspace polling');
   }
 
   if (typeof window !== 'undefined') {
-    const refreshListener = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { incremental?: boolean } | undefined;
-      const store = useGraphStore.getState();
-      if (store.nodes.length > 0) {
-        if (detail?.incremental) {
-          fetch('/api/v1/codegraph/data', { headers: { 'if-none-match': String(store.lastUpdated) } })
-            .then((res) => { if (res.status === 304) return null; return res.json(); })
-            .then((data) => { if (data && data.nodes && data.nodes.length > 0) { store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata); } })
-            .catch((e) => log.warn('incremental graph fetch failed', e));
-        } else {
-          fetchGraphData().then((data) => { if (data) { store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata); } }).catch((e) => log.warn('graph fetch failed', e));
-        }
-      }
-    };
-
-    const openSourceListener = (e: Event) => {
-      ctx.emit('codegraph-visualizer/source/open', (e as CustomEvent).detail as { filePath: string; lineNumber: number });
-    };
-
-    const importRepoListener = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { path: string };
-      const store = useGraphStore.getState();
-      store.setLoading(true);
-      requestScan(detail.path).then((result) => {
-        if (result && result.success && result.nodes.length > 0) {
-          const validated = validateGraphData(result);
-          if (validated) {
-            store.setGraphData(validated.nodes, validated.edges, detail.path, validated.metadata);
-            log.info('import-repo completed', { path: detail.path, nodes: validated.nodes.length });
+    ctx.effect(() => {
+      const refreshListener = (e: Event) => {
+        const detail = (e as CustomEvent).detail as { incremental?: boolean } | undefined;
+        const store = useGraphStore.getState();
+        if (store.nodes.length > 0) {
+          if (detail?.incremental) {
+            fetch('/api/v1/codegraph/data', { headers: { 'if-none-match': String(store.lastUpdated) } })
+              .then((res) => { if (res.status === 304) return null; return res.json(); })
+              .then((data) => { if (data && data.nodes && data.nodes.length > 0) { store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata); } })
+              .catch((e) => log.warn('incremental graph fetch failed', e));
+          } else {
+            fetchGraphData().then((data) => { if (data) { store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata); } }).catch((e) => log.warn('graph fetch failed', e));
           }
         }
-        store.setLoading(false);
-      }).catch((e) => { log.warn('import-repo failed', e); store.setLoading(false); });
-      log.info('import-repo forwarded', { path: detail.path });
-    };
+      };
 
-    const initGraphListener = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { path: string };
-      const store = useGraphStore.getState();
-      store.setInitStatus('initializing');
-      requestInit(detail.path).then((result) => {
-        if (result) {
-          store.setInitStatus(result.success ? 'done' : 'error', result.message);
-          if (result.success) {
-            fetchGraphData().then((data) => {
-              if (data) { store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata); }
-            }).catch((e) => log.warn('post-init graph fetch failed', e));
-          }
-        } else {
-          store.setInitStatus('error', 'Request failed');
-        }
-        log.info('init result', { path: detail.path, success: result?.success });
-      }).catch((e) => { log.warn('init-graph failed', e); store.setInitStatus('error', String(e)); });
-      log.info('init-graph forwarded', { path: detail.path });
-    };
+      const openSourceListener = (e: Event) => {
+        ctx.emit('codegraph-visualizer/source/open', (e as CustomEvent).detail as { filePath: string; lineNumber: number });
+      };
 
-    const toggleWatchListener = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { enabled: boolean; path: string };
-      const store = useGraphStore.getState();
-      store.setWatchEnabled(detail.enabled);
-      requestWatch(detail.enabled, detail.path).catch((err) => log.warn('toggle-watch request failed', err));
-      log.info('toggle-watch forwarded', { enabled: detail.enabled, path: detail.path });
-    };
-
-    let workspaceScanTimer: ReturnType<typeof setTimeout> | null = null;
-    const workspaceListener = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { path: string };
-      const store = useGraphStore.getState();
-      store.setCurrentWorkspace(detail.path);
-      if (workspaceScanTimer) clearTimeout(workspaceScanTimer);
-      workspaceScanTimer = setTimeout(() => {
-        workspaceScanTimer = null;
+      const importRepoListener = (e: Event) => {
+        const detail = (e as CustomEvent).detail as { path: string };
+        const store = useGraphStore.getState();
         store.setLoading(true);
         requestScan(detail.path).then((result) => {
           if (result && result.success && result.nodes.length > 0) {
             const validated = validateGraphData(result);
-            if (validated) { store.setGraphData(validated.nodes, validated.edges, detail.path, validated.metadata); }
+            if (validated) {
+              store.setGraphData(validated.nodes, validated.edges, detail.path, validated.metadata);
+              log.info('import-repo completed', { path: detail.path, nodes: validated.nodes.length });
+            }
           }
           store.setLoading(false);
-        }).catch((e) => { log.warn('workspace scan failed', e); store.setLoading(false); });
-        log.info('workspace change forwarded', { path: detail.path });
-      }, POLLING.WORKSPACE_SCAN_DEBOUNCE_MS);
-    };
+        }).catch((e) => { log.warn('import-repo failed', e); store.setLoading(false); });
+        log.info('import-repo forwarded', { path: detail.path });
+      };
 
-    const installPluginListener = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { plugin: string };
-      log.info('install plugin requested', { plugin: detail.plugin });
-    };
+      const initGraphListener = (e: Event) => {
+        const detail = (e as CustomEvent).detail as { path: string };
+        const store = useGraphStore.getState();
+        store.setInitStatus('initializing');
+        requestInit(detail.path).then((result) => {
+          if (result) {
+            store.setInitStatus(result.success ? 'done' : 'error', result.message);
+            if (result.success) {
+              fetchGraphData().then((data) => {
+                if (data) { store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata); }
+              }).catch((e) => log.warn('post-init graph fetch failed', e));
+            }
+          } else {
+            store.setInitStatus('error', 'Request failed');
+          }
+          log.info('init result', { path: detail.path, success: result?.success });
+        }).catch((e) => { log.warn('init-graph failed', e); store.setInitStatus('error', String(e)); });
+        log.info('init-graph forwarded', { path: detail.path });
+      };
 
-    window.addEventListener('codegraph:refresh', refreshListener);
-    window.addEventListener('codegraph:open-source', openSourceListener);
-    window.addEventListener('codegraph:import-repo', importRepoListener);
-    window.addEventListener('codegraph:init-graph', initGraphListener);
-    window.addEventListener('codegraph:toggle-watch', toggleWatchListener);
-    window.addEventListener('codegraph:workspace', workspaceListener);
-    window.addEventListener('codegraph:install-plugin', installPluginListener);
+      const toggleWatchListener = (e: Event) => {
+        const detail = (e as CustomEvent).detail as { enabled: boolean; path: string };
+        const store = useGraphStore.getState();
+        store.setWatchEnabled(detail.enabled);
+        requestWatch(detail.enabled, detail.path).catch((err) => log.warn('toggle-watch request failed', err));
+        log.info('toggle-watch forwarded', { enabled: detail.enabled, path: detail.path });
+      };
 
-    const symbolSelectListener = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { symbol?: string; filePath?: string; lineNumber?: number };
-      if (detail?.symbol) {
-        window.dispatchEvent(new CustomEvent('codegraph:symbol-select', { detail }));
-      }
-    };
-    window.addEventListener('dsh:editor-symbol-select', symbolSelectListener);
+      let workspaceScanTimer: ReturnType<typeof setTimeout> | null = null;
+      const workspaceListener = (e: Event) => {
+        const detail = (e as CustomEvent).detail as { path: string };
+        const store = useGraphStore.getState();
+        store.setCurrentWorkspace(detail.path);
+        if (workspaceScanTimer) clearTimeout(workspaceScanTimer);
+        workspaceScanTimer = setTimeout(() => {
+          workspaceScanTimer = null;
+          store.setLoading(true);
+          requestScan(detail.path).then((result) => {
+            if (result && result.success && result.nodes.length > 0) {
+              const validated = validateGraphData(result);
+              if (validated) { store.setGraphData(validated.nodes, validated.edges, detail.path, validated.metadata); }
+            }
+            store.setLoading(false);
+          }).catch((e) => { log.warn('workspace scan failed', e); store.setLoading(false); });
+          log.info('workspace change forwarded', { path: detail.path });
+        }, POLLING.WORKSPACE_SCAN_DEBOUNCE_MS);
+      };
 
-    ctx.effect(() => () => {
-      window.removeEventListener('codegraph:refresh', refreshListener);
-      window.removeEventListener('codegraph:open-source', openSourceListener);
-      window.removeEventListener('codegraph:import-repo', importRepoListener);
-      window.removeEventListener('codegraph:init-graph', initGraphListener);
-      window.removeEventListener('codegraph:toggle-watch', toggleWatchListener);
-      window.removeEventListener('codegraph:workspace', workspaceListener);
-      window.removeEventListener('codegraph:install-plugin', installPluginListener);
-      window.removeEventListener('dsh:editor-symbol-select', symbolSelectListener);
+      const installPluginListener = (e: Event) => {
+        const detail = (e as CustomEvent).detail as { plugin: string };
+        log.info('install plugin requested', { plugin: detail.plugin });
+      };
+
+      const symbolSelectListener = (e: Event) => {
+        const detail = (e as CustomEvent).detail as { symbol?: string; filePath?: string; lineNumber?: number };
+        if (detail?.symbol) {
+          window.dispatchEvent(new CustomEvent('codegraph:symbol-select', { detail }));
+        }
+      };
+
+      window.addEventListener('codegraph:refresh', refreshListener);
+      window.addEventListener('codegraph:open-source', openSourceListener);
+      window.addEventListener('codegraph:import-repo', importRepoListener);
+      window.addEventListener('codegraph:init-graph', initGraphListener);
+      window.addEventListener('codegraph:toggle-watch', toggleWatchListener);
+      window.addEventListener('codegraph:workspace', workspaceListener);
+      window.addEventListener('codegraph:install-plugin', installPluginListener);
+      window.addEventListener('dsh:editor-symbol-select', symbolSelectListener);
+
+      return () => {
+        if (workspaceScanTimer) clearTimeout(workspaceScanTimer);
+        window.removeEventListener('codegraph:refresh', refreshListener);
+        window.removeEventListener('codegraph:open-source', openSourceListener);
+        window.removeEventListener('codegraph:import-repo', importRepoListener);
+        window.removeEventListener('codegraph:init-graph', initGraphListener);
+        window.removeEventListener('codegraph:toggle-watch', toggleWatchListener);
+        window.removeEventListener('codegraph:workspace', workspaceListener);
+        window.removeEventListener('codegraph:install-plugin', installPluginListener);
+        window.removeEventListener('dsh:editor-symbol-select', symbolSelectListener);
+      };
     }, 'codegraph: window event listeners');
   }
 

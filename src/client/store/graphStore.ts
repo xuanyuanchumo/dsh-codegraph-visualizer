@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import type { GraphNode, GraphEdge, NodeId, HealthScore, RuleDefinition, RuleViolation, ViewMode, HeatmapMode } from '../../types/index.ts';
 import { computeClusteredGraph } from './cluster/index.ts';
-import type { ClusterNode, ClusterEdge } from './cluster/index.ts';
+import type { ClusterNode, ClusterEdge, ClusterResult } from './cluster/index.ts';
 import { tryIncrementalOrFull, type IncrementalClusterContext } from './cluster/incrementalCluster.ts';
 import { assembleDiagram, assembleMicroDiagram, type LayeredDiagram } from '../diagram/index.ts';
 import { CallChainAggregator } from '../diagram/CallChainAggregator.ts';
@@ -48,6 +48,29 @@ export interface WorkspaceInfo {
 
 const LOADING_FAILSAFE_MS = POLLING.LOADING_FAILSAFE_MS;
 let loadingFailsafe: ReturnType<typeof setTimeout> | null = null;
+
+function updateIncrementalClusterCtx(
+  result: ClusterResult,
+  rawNodes: GraphNode[],
+  rawEdges: GraphEdge[],
+): void {
+  const nodeIdToVisibleId = new Map<string, string>();
+  for (const n of result.nodes) {
+    if ('isCluster' in n && n.isCluster) {
+      for (const childId of n.childIds) {
+        nodeIdToVisibleId.set(childId, n.id);
+      }
+    } else {
+      nodeIdToVisibleId.set(n.id, n.id);
+    }
+  }
+  incrementalClusterCtx = {
+    prevResult: result,
+    prevNodeIdToVisibleId: nodeIdToVisibleId,
+    prevRawNodes: rawNodes,
+    prevRawEdges: rawEdges,
+  };
+}
 
 
 
@@ -410,21 +433,7 @@ export const useGraphStore = create<GraphState>()(
             expandedNodeIds, clusterDepth,
             useGraphStore.getState().panelWidth ?? undefined,
           );
-          incrementalClusterCtx = {
-            prevResult: result,
-            prevNodeIdToVisibleId: new Map<string, string>(),
-            prevRawNodes: sanitized.nodes,
-            prevRawEdges: sanitized.edges,
-          };
-          for (const n of result.nodes) {
-            if ('isCluster' in n && n.isCluster) {
-              for (const childId of n.childIds) {
-                incrementalClusterCtx.prevNodeIdToVisibleId.set(childId, n.id);
-              }
-            } else {
-              incrementalClusterCtx.prevNodeIdToVisibleId.set(n.id, n.id);
-            }
-          }
+          updateIncrementalClusterCtx(result, sanitized.nodes, sanitized.edges);
           set({
             rawNodes: sanitized.nodes, rawEdges: sanitized.edges,
             nodes: result.nodes, edges: result.edges,
@@ -619,21 +628,7 @@ export const useGraphStore = create<GraphState>()(
           expandedNodeIds, lodDepth,
           state.panelWidth ?? undefined,
         );
-        incrementalClusterCtx = {
-          prevResult: result,
-          prevNodeIdToVisibleId: new Map<string, string>(),
-          prevRawNodes: rawNodes,
-          prevRawEdges: rawEdges,
-        };
-        for (const n of result.nodes) {
-          if ('isCluster' in n && n.isCluster) {
-            for (const childId of n.childIds) {
-              incrementalClusterCtx.prevNodeIdToVisibleId.set(childId, n.id);
-            }
-          } else {
-            incrementalClusterCtx.prevNodeIdToVisibleId.set(n.id, n.id);
-          }
-        }
+        updateIncrementalClusterCtx(result, rawNodes, rawEdges);
         set({ nodes: result.nodes, edges: result.edges });
       },
       setLODEnabled: (enabled) => {

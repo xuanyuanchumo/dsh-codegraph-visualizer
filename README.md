@@ -162,7 +162,7 @@ src/
 
 本项目遵循 DSH 插件开发规范九条红线：
 
-- [x] 插件入口 `src/index.ts` 使用 `definePlugin()` 注册
+- [x] 插件入口 `src/index.ts` 使用 Cordis 4 原生模式（`export const name` + `export const inject` + `export async function apply`）注册
 - [x] `dsh.bundle.patch` 指定 Cordis 补丁文件
 - [x] `dsh.client.platform` 为 `"web"`
 - [x] `dsh.client.inject` 声明运行时注入依赖
