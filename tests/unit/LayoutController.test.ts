@@ -272,6 +272,43 @@ describe('LayoutController', () => {
       expect(cy.layout).toHaveBeenCalled();
       controller.destroy();
     });
+
+    it('returns early when newNodeIds non-empty but no matching nodes in cy', () => {
+      const nodeA = makeMockNode('a', 50, 50);
+      const cy = makeMockCy([nodeA], []);
+      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+      controller.applyIncrementalLayout('cose', new Set(['nonexistent']));
+      expect(cy.layout).not.toHaveBeenCalled();
+      controller.destroy();
+    });
+
+    it('uses overlapRemover.remove for non-cose/fcose/dagre layouts', () => {
+      const nodeA = makeMockNode('a', 50, 50);
+      const nodeB = makeMockNode('b', 0, 0);
+      nodeB.connectedEdges = vi.fn(() => ({
+        forEach: vi.fn(),
+      }));
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+      controller.applyIncrementalLayout('grid', new Set(['b']));
+      expect(cy.layout).toHaveBeenCalled();
+      controller.destroy();
+    });
+
+    it('handles all new nodes with no existing nodes (anchorCount=0, existingNodes=0)', () => {
+      const nodeA = makeMockNode('a', 0, 0);
+      nodeA.connectedEdges = vi.fn(() => ({
+        forEach: vi.fn(),
+      }));
+      const cy = makeMockCy([nodeA], []);
+      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+      controller.applyIncrementalLayout('cose', new Set(['a']));
+      expect(cy.layout).toHaveBeenCalled();
+      controller.destroy();
+    });
   });
 
   describe('applyWorkerLayout', () => {
