@@ -67,7 +67,9 @@ describe('StyleController', () => {
   describe('constructor', () => {
     it('constructs without throwing', () => {
       const cy = makeMockCy();
-      expect(() => new StyleController(cy as any, 'dark')).not.toThrow();
+      const ctrl = new StyleController(cy as any, 'dark');
+      expect(ctrl).toBeInstanceOf(StyleController);
+      expect(ctrl.getTheme()).toBe('dark');
     });
   });
 

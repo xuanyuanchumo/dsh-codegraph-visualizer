@@ -71,7 +71,9 @@ describe('InteractionController', () => {
     it('constructs without throwing', () => {
       const cy = makeMockCy();
       const callbacks = makeCallbacks();
-      expect(() => new InteractionController(cy as any, callbacks)).not.toThrow();
+      const ctrl = new InteractionController(cy as any, callbacks);
+      expect(ctrl).toBeInstanceOf(InteractionController);
+      expect(cy.on).toHaveBeenCalled();
     });
 
     it('binds all event handlers on construction', () => {
@@ -183,7 +185,8 @@ describe('InteractionController', () => {
       new InteractionController(cy as any, callbacks);
       const handler = cy._handlers['tap:node']![0]!;
       const mockNode = makeMockNode('node6');
-      expect(() => handler({ target: mockNode })).not.toThrow();
+      handler({ target: mockNode });
+      expect(cy.on).toHaveBeenCalled();
     });
   });
 
@@ -235,7 +238,8 @@ describe('InteractionController', () => {
       const callbacks = makeCallbacks();
       const ctrl = new InteractionController(cy as any, callbacks);
       ctrl.destroy();
-      expect(() => ctrl.destroy()).not.toThrow();
+      ctrl.destroy();
+      expect(cy.off).toHaveBeenCalled();
     });
   });
 });

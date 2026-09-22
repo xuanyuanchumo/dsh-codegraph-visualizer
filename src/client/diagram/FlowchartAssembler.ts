@@ -105,8 +105,12 @@ function conditionToQuestion(condText: string): string {
 }
 
 export class FlowchartAssembler {
-  private cfgAssembler = new CFGAssembler();
+  private cfgAssembler: CFGAssembler;
   private fcCounter = 0;
+
+  constructor(cfgAssembler?: CFGAssembler) {
+    this.cfgAssembler = cfgAssembler ?? new CFGAssembler();
+  }
 
   private nextFcId(): string {
     return `fc-node-${this.fcCounter++}`;

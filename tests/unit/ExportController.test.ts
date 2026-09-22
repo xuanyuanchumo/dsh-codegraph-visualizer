@@ -336,10 +336,13 @@ describe('ExportController', () => {
     });
   });
 
-  it('destroy does not throw', async () => {
+  it('destroy cleans up without throwing', async () => {
     const { ExportController } = await import('../../src/client/renderer/ExportController.ts');
     const cy = makeMockCy([], []);
     const ec = new ExportController(cy as any);
-    expect(() => ec.destroy()).not.toThrow();
+    ec.destroy();
+    const result = ec.exportJSON();
+    expect(typeof result).toBe('string');
+    expect(() => JSON.parse(result)).not.toThrow();
   });
 });

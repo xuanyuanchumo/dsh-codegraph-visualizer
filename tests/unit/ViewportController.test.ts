@@ -119,7 +119,8 @@ describe('ViewportController', () => {
   describe('constructor', () => {
     it('constructs without throwing', () => {
       const cy = makeMockCy();
-      expect(() => new ViewportController(cy as any)).not.toThrow();
+      const ctrl = new ViewportController(cy as any);
+      expect(ctrl).toBeInstanceOf(ViewportController);
     });
   });
 
@@ -460,11 +461,11 @@ describe('ViewportController', () => {
   });
 
   describe('destroy', () => {
-    it('does not throw', () => {
+    it('cleans up without throwing', () => {
       const cy = makeMockCy();
       const controller = new ViewportController(cy as any);
-
-      expect(() => controller.destroy()).not.toThrow();
+      controller.destroy();
+      expect(cy.batch).toHaveBeenCalled();
     });
   });
 });

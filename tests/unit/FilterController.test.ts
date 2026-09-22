@@ -374,7 +374,8 @@ describe('FilterController', () => {
       fc.applyConnectionFilters(1, 0, new Set(), new Set());
       fc.invalidateCache();
       fc.applyConnectionFilters(1, 0, new Set(), new Set());
-      expect(() => fc.applyConnectionFilters(1, 0, new Set(), new Set())).not.toThrow();
+      fc.applyConnectionFilters(1, 0, new Set(), new Set());
+      expect(cy.nodes).toHaveBeenCalled();
     });
   });
 
@@ -423,14 +424,16 @@ describe('FilterController', () => {
       const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
       const cy = makeMockCy([], []);
       const fc = new FilterController(cy as any);
-      expect(() => fc.filterByType('all')).not.toThrow();
-      expect(() => fc.filterByType('function')).not.toThrow();
-      expect(() => fc.filterByGraphType('all')).not.toThrow();
-      expect(() => fc.filterByGraphType('call')).not.toThrow();
-      expect(() => fc.filterByGraphType('dependency')).not.toThrow();
-      expect(() => fc.applyConnectionFilters(1, 1, new Set(), new Set())).not.toThrow();
-      expect(() => fc.invalidateCache()).not.toThrow();
-      expect(() => fc.destroy()).not.toThrow();
+      fc.filterByType('all');
+      expect(cy.nodes).toHaveBeenCalled();
+      fc.filterByType('function');
+      fc.filterByGraphType('all');
+      fc.filterByGraphType('call');
+      fc.filterByGraphType('dependency');
+      fc.applyConnectionFilters(1, 1, new Set(), new Set());
+      fc.invalidateCache();
+      fc.destroy();
+      expect(cy.nodes).toHaveBeenCalled();
     });
   });
 

@@ -223,7 +223,8 @@ describe('HighlightController', () => {
     const cy = makeMockCy([], []);
     const hc = new HighlightController(cy as any);
     hc.highlightNodes([NodeId('a')]);
-    expect(() => hc.destroy()).not.toThrow();
+    hc.destroy();
+    expect(cy.batch).toHaveBeenCalled();
   });
 
   describe('selectNode neighbor highlighting', () => {
@@ -319,7 +320,9 @@ describe('HighlightController', () => {
       const nodeA = makeMockNode('a');
       const cy = makeMockCy([nodeA], []);
       const hc = new HighlightController(cy as any);
-      expect(() => hc.invalidateCache()).not.toThrow();
+      hc.invalidateCache();
+      hc.highlightNodes([NodeId('a')]);
+      expect(cy.batch).toHaveBeenCalled();
     });
 
     it('highlightNodes works after invalidateCache', async () => {

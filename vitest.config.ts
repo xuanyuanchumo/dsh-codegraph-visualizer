@@ -14,7 +14,7 @@ export default defineConfig({
         lines: 79,
         functions: 72,
         statements: 79,
-        branches: 65,
+        branches: 75,
       },
       exclude: [
         ...coverageConfigDefaults.exclude,
