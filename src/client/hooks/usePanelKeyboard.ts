@@ -15,6 +15,7 @@ export interface PanelKeyboardHandlers {
   onToggleHelp: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
+  onRefresh?: () => void;
 }
 
 export interface ShortcutDef {
@@ -27,6 +28,7 @@ export interface ShortcutDef {
 
 export const KEYBOARD_SHORTCUTS: ShortcutDef[] = [
   { key: '/', descKey: 'shortcut.search', preventDefault: true },
+  { key: 'f', descKey: 'shortcut.searchCtrlF', ctrl: true, preventDefault: true },
   { key: 'Escape', descKey: 'shortcut.closeAll' },
   { key: 'C', descKey: 'shortcut.callChain', ctrl: true, shift: true },
   { key: 'E', descKey: 'shortcut.impact', ctrl: true },
@@ -34,6 +36,7 @@ export const KEYBOARD_SHORTCUTS: ShortcutDef[] = [
   { key: 'M', descKey: 'shortcut.minimap', ctrl: true },
   { key: 'L', descKey: 'shortcut.layout', ctrl: true },
   { key: 'I', descKey: 'shortcut.import', ctrl: true },
+  { key: 'R', descKey: 'shortcut.refresh', ctrl: true, preventDefault: true },
   { key: 'Z', descKey: 'shortcut.undo', ctrl: true, preventDefault: true },
   { key: 'Y', descKey: 'shortcut.redo', ctrl: true, preventDefault: true },
   { key: '?', descKey: 'shortcut.help', preventDefault: true },
@@ -61,6 +64,7 @@ export function usePanelKeyboard(
   handlersRef.current = handlers;
 
   useKeyboardShortcut('/', () => handlersRef.current.onToggleSearch(), { preventDefault: true });
+  useKeyboardShortcut('f', () => handlersRef.current.onToggleSearch(), { ctrl: true, preventDefault: true });
   useKeyboardShortcut('Escape', () => {
     handlersRef.current.onCloseAll();
     rendererRef.current?.highlightCallChain(null);
@@ -78,6 +82,7 @@ export function usePanelKeyboard(
     setLayoutRef.current(next);
   }, { ctrl: true });
   useKeyboardShortcut('i', () => handlersRef.current.onToggleImport(), { ctrl: true });
+  useKeyboardShortcut('r', () => handlersRef.current.onRefresh?.(), { ctrl: true, preventDefault: true });
   useKeyboardShortcut('?', () => handlersRef.current.onToggleHelp(), { preventDefault: true });
   useKeyboardShortcut('z', () => handlersRef.current.onUndo?.(), { ctrl: true, preventDefault: true });
   useKeyboardShortcut('y', () => handlersRef.current.onRedo?.(), { ctrl: true, preventDefault: true });

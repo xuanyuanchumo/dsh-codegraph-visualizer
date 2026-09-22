@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
 import { useT } from '../i18n/index.ts';
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
@@ -20,6 +20,12 @@ export const FilterPanel = memo(function FilterPanel({ onClose }: FilterPanelPro
   const setFanOutThreshold = useGraphStore((s) => s.setFanOutThreshold);
   const setVisibleNodeTypes = useGraphStore((s) => s.setVisibleNodeTypes);
   const setVisibleEdgeTypes = useGraphStore((s) => s.setVisibleEdgeTypes);
+  const pathFilterInclude = useGraphStore((s) => s.pathFilterInclude);
+  const pathFilterExclude = useGraphStore((s) => s.pathFilterExclude);
+  const setPathFilter = useGraphStore((s) => s.setPathFilter);
+
+  const [includeInput, setIncludeInput] = useState(pathFilterInclude ?? '');
+  const [excludeInput, setExcludeInput] = useState(pathFilterExclude ?? '');
 
   const toggleNodeType = (type: GraphNode['type']) => {
     const next = new Set(visibleNodeTypes);
@@ -40,6 +46,21 @@ export const FilterPanel = memo(function FilterPanel({ onClose }: FilterPanelPro
     setFanOutThreshold(0);
     setVisibleNodeTypes(new Set(NODE_TYPES));
     setVisibleEdgeTypes(new Set(EDGE_TYPES));
+    setPathFilter(null, null);
+    setIncludeInput('');
+    setExcludeInput('');
+  };
+
+  const applyPathFilter = () => {
+    const inc = includeInput.trim() || null;
+    const exc = excludeInput.trim() || null;
+    setPathFilter(inc, exc);
+  };
+
+  const clearPathFilter = () => {
+    setIncludeInput('');
+    setExcludeInput('');
+    setPathFilter(null, null);
   };
 
   return (
@@ -47,6 +68,31 @@ export const FilterPanel = memo(function FilterPanel({ onClose }: FilterPanelPro
       <div className="cg-filter-panel-header">
         <span className="cg-filter-panel-title">{t('filterPanel.title')}</span>
         <button className="cg-filter-panel-close" onClick={onClose} aria-label={t('filterPanel.close')}>×</button>
+      </div>
+
+      <div className="cg-filter-panel-section">
+        <div className="cg-filter-section-label">{t('filterPanel.pathFilter')}</div>
+        <input
+          type="text"
+          className="cg-filter-path-input"
+          placeholder={t('filterPanel.includePlaceholder')}
+          value={includeInput}
+          onChange={(e) => setIncludeInput(e.target.value)}
+          aria-label={t('filterPanel.includeLabel')}
+        />
+        <input
+          type="text"
+          className="cg-filter-path-input"
+          placeholder={t('filterPanel.excludePlaceholder')}
+          value={excludeInput}
+          onChange={(e) => setExcludeInput(e.target.value)}
+          aria-label={t('filterPanel.excludeLabel')}
+        />
+        <div className="cg-filter-path-actions">
+          <button className="cg-filter-quick-btn" onClick={applyPathFilter}>{t('filterPanel.applyPath')}</button>
+          <button className="cg-filter-quick-btn" onClick={clearPathFilter}>{t('filterPanel.clearPath')}</button>
+        </div>
+        <div className="cg-filter-hint">{t('filterPanel.pathHint')}</div>
       </div>
 
       <div className="cg-filter-panel-section">

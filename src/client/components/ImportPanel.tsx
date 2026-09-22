@@ -60,6 +60,14 @@ export const ImportPanel = memo(function ImportPanel({
 
   const [copied, setCopied] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    triggerRef.current = document.activeElement as HTMLElement;
+    return () => {
+      triggerRef.current?.focus();
+    };
+  }, []);
 
   useEffect(() => {
     const panel = panelRef.current;

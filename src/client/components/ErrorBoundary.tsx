@@ -23,9 +23,14 @@ function ErrorFallback({ error, onRetry }: { error: Error | null; onRetry: () =>
     <div className="cg-error-boundary-fallback" role="alert">
       <h3>{t('error.title')}</h3>
       <p>{error?.message}</p>
-      <button onClick={onRetry} aria-label={t('error.retry')}>
-        {t('error.retry')}
-      </button>
+      <div className="cg-error-boundary-actions">
+        <button onClick={onRetry} aria-label={t('error.retry')}>
+          {t('error.retry')}
+        </button>
+        <a href="https://github.com/xuanyuanchumo/dsh-codegraph-visualizer/issues" target="_blank" rel="noopener noreferrer" className="cg-error-boundary-feedback">
+          {t('error.reportIssue')}
+        </a>
+      </div>
     </div>
   );
 }

@@ -16,7 +16,7 @@
   --cg-border-strong: var(--dsw-border-strong, rgba(0, 0, 0, 0.1));
   --cg-text: var(--dsw-fg, #0f1115);
   --cg-text-secondary: var(--dsw-fg-secondary, #61666b);
-  --cg-text-tertiary: var(--dsw-fg-tertiary, #5f6368);
+  --cg-text-tertiary: var(--dsw-fg-tertiary, #4d5156);
   --cg-accent: var(--dsw-accent, #263148);
   --cg-accent-hover: var(--dsw-accent-hover, #1a2230);
   --cg-accent-soft: var(--dsw-accent-soft, rgba(38, 49, 72, 0.1));

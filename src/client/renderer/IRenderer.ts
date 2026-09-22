@@ -77,9 +77,16 @@ export interface IRenderer {
   updateTheme(theme: ThemeType): void;
   setHeatmapMode(mode: HeatmapMode): void;
   getHeatmapMode(): HeatmapMode;
+  setMultiDimensionMapping(sizeMetric: string | null, colorMetric: string | null): void;
   destroy(): void;
 
   findPath(sourceId: NodeId, targetId: NodeId): PathResult | null;
   highlightPath(path: NodeId[] | null): void;
   expandNeighborhood(nodeId: NodeId, depth: number): Set<string>;
+  setFocusMode(nodeId: NodeId | null, depth: number): void;
+  clearFocusMode(): void;
+  isFocusModeActive(): boolean;
+  filterByPath(includePattern: string | null, excludePattern: string | null): void;
+  getLastError(): Error | null;
+  clearLastError(): void;
 }

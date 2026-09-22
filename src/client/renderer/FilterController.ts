@@ -50,13 +50,15 @@ export class FilterController {
         const isFiltered = hidden.has(node.id());
         node.data('typeFiltered', isFiltered);
         const connectionFiltered = node.data('connectionFiltered') === true;
-        node.style('display', (isFiltered || connectionFiltered) ? 'none' : 'element');
+        const pathFiltered = node.data('pathFiltered') === true;
+        node.style('display', (isFiltered || connectionFiltered || pathFiltered) ? 'none' : 'element');
       });
       this.cy.edges().forEach((edge) => {
         const hiddenEdge = hidden.has(edge.source().id()) || hidden.has(edge.target().id());
         edge.data('typeFiltered', hiddenEdge);
         const connectionFiltered = edge.data('connectionFiltered') === true;
-        edge.style('display', (hiddenEdge || connectionFiltered) ? 'none' : 'element');
+        const pathFiltered = edge.data('pathFiltered') === true;
+        edge.style('display', (hiddenEdge || connectionFiltered || pathFiltered) ? 'none' : 'element');
       });
     });
   }
@@ -80,7 +82,8 @@ export class FilterController {
         const visible = allowedEdgeTypes.has(edgeType);
         edge.data('typeFiltered', !visible);
         const connectionFiltered = edge.data('connectionFiltered') === true;
-        edge.style('display', (!visible || connectionFiltered) ? 'none' : 'element');
+        const pathFiltered = edge.data('pathFiltered') === true;
+        edge.style('display', (!visible || connectionFiltered || pathFiltered) ? 'none' : 'element');
         if (visible) {
           connectedNodeIds.add(edge.source().id());
           connectedNodeIds.add(edge.target().id());
@@ -90,7 +93,8 @@ export class FilterController {
         const isFiltered = !connectedNodeIds.has(node.id());
         node.data('typeFiltered', isFiltered);
         const connectionFiltered = node.data('connectionFiltered') === true;
-        node.style('display', (isFiltered || connectionFiltered) ? 'none' : 'element');
+        const pathFiltered = node.data('pathFiltered') === true;
+        node.style('display', (isFiltered || connectionFiltered || pathFiltered) ? 'none' : 'element');
       });
     });
   }
@@ -126,7 +130,8 @@ export class FilterController {
 
         node.data('connectionFiltered', hidden);
         const typeFiltered = node.data('typeFiltered') === true;
-        node.style('display', (hidden || typeFiltered) ? 'none' : 'element');
+        const pathFiltered = node.data('pathFiltered') === true;
+        node.style('display', (hidden || typeFiltered || pathFiltered) ? 'none' : 'element');
       });
 
       this.cy.edges().forEach((edge) => {
@@ -143,7 +148,8 @@ export class FilterController {
 
         edge.data('connectionFiltered', hidden);
         const typeFiltered = edge.data('typeFiltered') === true;
-        edge.style('display', (hidden || typeFiltered) ? 'none' : 'element');
+        const pathFiltered = edge.data('pathFiltered') === true;
+        edge.style('display', (hidden || typeFiltered || pathFiltered) ? 'none' : 'element');
       });
     });
   }
@@ -153,12 +159,49 @@ export class FilterController {
       this.cy.nodes().forEach((node) => {
         node.removeData('typeFiltered');
         node.removeData('connectionFiltered');
+        node.removeData('pathFiltered');
         node.style('display', 'element');
       });
       this.cy.edges().forEach((edge) => {
         edge.removeData('typeFiltered');
         edge.removeData('connectionFiltered');
+        edge.removeData('pathFiltered');
         edge.style('display', 'element');
+      });
+    });
+  }
+
+  filterByPath(includePattern: string | null, excludePattern: string | null): void {
+    const includeRe = includePattern ? new RegExp(includePattern) : null;
+    const excludeRe = excludePattern ? new RegExp(excludePattern) : null;
+
+    this.cy.batch(() => {
+      this.cy.nodes().forEach((node) => {
+        const isCluster = node.data('isCluster') === true;
+        if (isCluster) {
+          node.data('pathFiltered', false);
+          return;
+        }
+
+        const filePath = (node.data('filePath') as string) ?? '';
+        const shouldShow = (!includeRe || includeRe.test(filePath)) && (!excludeRe || !excludeRe.test(filePath));
+        node.data('pathFiltered', !shouldShow);
+
+        const typeFiltered = node.data('typeFiltered') === true;
+        const connectionFiltered = node.data('connectionFiltered') === true;
+        node.style('display', (!shouldShow || typeFiltered || connectionFiltered) ? 'none' : 'element');
+      });
+
+      this.cy.edges().forEach((edge) => {
+
+        const sourceHidden = edge.source().data('pathFiltered') === true;
+        const targetHidden = edge.target().data('pathFiltered') === true;
+        const hidden = sourceHidden || targetHidden;
+        edge.data('pathFiltered', hidden);
+
+        const typeFiltered = edge.data('typeFiltered') === true;
+        const connectionFiltered = edge.data('connectionFiltered') === true;
+        edge.style('display', (hidden || typeFiltered || connectionFiltered) ? 'none' : 'element');
       });
     });
   }

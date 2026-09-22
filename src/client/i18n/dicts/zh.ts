@@ -77,6 +77,7 @@ export const zh: Record<string, string> = {
   // Error boundary
   'error.title': '出错了',
   'error.retry': '重试',
+  'error.reportIssue': '反馈问题',
   'error.loadDependencies': '无法加载依赖数据，请检查连接后重试。',
   'error.loadGraphData': '无法加载代码图谱数据，请刷新页面。',
   'error.loadGraph': '无法加载代码图谱，请检查服务器状态。',
@@ -216,6 +217,7 @@ export const zh: Record<string, string> = {
   'shortcut.title': '键盘快捷键',
   'shortcut.close': '关闭',
   'shortcut.search': '搜索符号',
+  'shortcut.searchCtrlF': '搜索符号',
   'shortcut.closeAll': '关闭所有面板',
   'shortcut.callChain': '切换调用链',
   'shortcut.impact': '切换影响分析',
@@ -223,6 +225,7 @@ export const zh: Record<string, string> = {
   'shortcut.minimap': '切换缩略图',
   'shortcut.layout': '循环切换布局',
   'shortcut.import': '切换导入面板',
+  'shortcut.refresh': '刷新图谱',
   'shortcut.undo': '撤销操作',
   'shortcut.redo': '重做操作',
   'shortcut.help': '显示此帮助',
@@ -447,6 +450,14 @@ export const zh: Record<string, string> = {
   'filterPanel.hideLeaves': '隐藏叶子节点',
   'filterPanel.orphansHint': '隐藏没有任何入边的节点',
   'filterPanel.leavesHint': '隐藏没有任何出边的节点',
+  'filterPanel.pathFilter': '路径过滤',
+  'filterPanel.includePlaceholder': '包含路径 (正则表达式)',
+  'filterPanel.excludePlaceholder': '排除路径 (正则表达式)',
+  'filterPanel.includeLabel': '包含路径正则',
+  'filterPanel.excludeLabel': '排除路径正则',
+  'filterPanel.applyPath': '应用路径过滤',
+  'filterPanel.clearPath': '清除路径过滤',
+  'filterPanel.pathHint': '使用正则表达式过滤文件路径，仅显示匹配的节点',
   'toolbar.filterPanel': '筛选面板',
 
   // Context menu
@@ -459,10 +470,13 @@ export const zh: Record<string, string> = {
   'contextMenu.impact': '影响分析',
   'contextMenu.findPath': '从此节点查找路径',
   'contextMenu.showAll': '显示所有隐藏节点',
+  'contextMenu.openSource': '打开源码',
 
   // Accessibility
   'a11y.graphContainer': '代码图谱交互区域',
   'a11y.selectedNode': '已选中节点',
+  'a11y.nodes': '节点',
+  'a11y.edges': '边',
 
   // Heatmap labels
   'heatmap.title': '热力图',

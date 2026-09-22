@@ -10,6 +10,15 @@ interface KeyboardHelpProps {
 export const KeyboardHelp = memo(function KeyboardHelp({ visible, onClose }: KeyboardHelpProps) {
   const t = useT();
   const panelRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      triggerRef.current = document.activeElement as HTMLElement;
+    } else {
+      triggerRef.current?.focus();
+    }
+  }, [visible]);
 
   useEffect(() => {
     if (!visible) return;

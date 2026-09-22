@@ -39,6 +39,9 @@ export interface GraphRendererInteraction {
   highlightedNodeIds: NodeId[];
   selectedNodeId: NodeId | null;
   focusNodeId: string | null;
+  focusModeActive: boolean;
+  focusModeNodeId: NodeId | null;
+  focusDepth: number;
   debouncedSearch: string;
 }
 
@@ -49,6 +52,8 @@ export interface GraphRendererFilters {
   fanOutThreshold: number;
   visibleNodeTypes: Set<GraphNode['type']>;
   visibleEdgeTypes: Set<GraphEdge['type']>;
+  pathFilterInclude: string | null;
+  pathFilterExclude: string | null;
 }
 
 export interface GraphRendererAnalysis {
@@ -82,8 +87,8 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
   const { data, display, interaction, filters, analysis, callbacks, showCallChainRef } = config;
   const { nodes, edges, rawNodes } = data;
   const { layout, theme, clusterDepth, heatmapMode } = display;
-  const { highlightedNodeIds, selectedNodeId, focusNodeId, debouncedSearch } = interaction;
-  const { filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes } = filters;
+  const { highlightedNodeIds, selectedNodeId, focusNodeId, focusModeActive, focusModeNodeId, focusDepth, debouncedSearch } = interaction;
+  const { filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, pathFilterInclude, pathFilterExclude } = filters;
   const { showCallChain, showCycles, cycleIsolation, showImpact, showInheritance } = analysis;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -276,6 +281,20 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
   useEffect(() => {
     rendererRef.current?.setHeatmapMode(heatmapMode);
   }, [heatmapMode]);
+
+  useEffect(() => {
+    const r = rendererRef.current;
+    if (!r) return;
+    if (focusModeActive && focusModeNodeId) {
+      r.setFocusMode(focusModeNodeId, focusDepth);
+    } else {
+      r.clearFocusMode();
+    }
+  }, [focusModeActive, focusModeNodeId, focusDepth]);
+
+  useEffect(() => {
+    rendererRef.current?.filterByPath(pathFilterInclude, pathFilterExclude);
+  }, [pathFilterInclude, pathFilterExclude, nodes.length]);
 
   useEffect(() => {
     const r = rendererRef.current;

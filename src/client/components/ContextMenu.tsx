@@ -30,6 +30,7 @@ export interface ContextMenuProps {
   onFindPath: (nodeId: string) => void;
   onHighlightCallChain: (nodeId: string) => void;
   onHighlightImpact: (nodeId: string) => void;
+  onOpenSource: (nodeId: string) => void;
 }
 
 export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
@@ -166,6 +167,12 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
     label: t('contextMenu.findPath'),
     onClick: () => { props.onFindPath(props.nodeId); props.onClose(); },
     separatorAfter: true,
+  });
+
+  actions.push({
+    id: 'openSource',
+    label: t('contextMenu.openSource'),
+    onClick: () => { props.onOpenSource(props.nodeId); props.onClose(); },
   });
 
   const menuStyle: React.CSSProperties = {

@@ -128,8 +128,8 @@ function renderUseGraphRenderer(overrides: Record<string, any> = {}) {
   return renderHook(() => useGraphRenderer({
     data: { nodes: props.nodes, edges: props.edges, rawNodes: props.rawNodes },
     display: { layout: props.layout, theme: props.theme, clusterDepth: props.clusterDepth, heatmapMode: props.heatmapMode },
-    interaction: { highlightedNodeIds: props.highlightedNodeIds, selectedNodeId: props.selectedNodeId, focusNodeId: props.focusNodeId, debouncedSearch: props.debouncedSearch },
-    filters: { filterType: props.filterType, graphType: props.graphType, fanInThreshold: props.fanInThreshold, fanOutThreshold: props.fanOutThreshold, visibleNodeTypes: props.visibleNodeTypes, visibleEdgeTypes: props.visibleEdgeTypes },
+    interaction: { highlightedNodeIds: props.highlightedNodeIds, selectedNodeId: props.selectedNodeId, focusNodeId: props.focusNodeId, focusModeActive: false, focusModeNodeId: null, focusDepth: 1, debouncedSearch: props.debouncedSearch },
+    filters: { filterType: props.filterType, graphType: props.graphType, fanInThreshold: props.fanInThreshold, fanOutThreshold: props.fanOutThreshold, visibleNodeTypes: props.visibleNodeTypes, visibleEdgeTypes: props.visibleEdgeTypes, pathFilterInclude: null, pathFilterExclude: null },
     analysis: { showCallChain: props.showCallChain, showCycles: props.showCycles, cycleIsolation: props.cycleIsolation, showImpact: props.showImpact, showInheritance: props.showInheritance },
     callbacks: props.callbacks,
     showCallChainRef: props.showCallChainRef,

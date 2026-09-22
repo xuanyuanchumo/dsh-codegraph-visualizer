@@ -24,6 +24,14 @@ export const SearchBar = memo(function SearchBar({ query, matchCount, searchResu
   const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    triggerRef.current = document.activeElement as HTMLElement;
+    return () => {
+      triggerRef.current?.focus();
+    };
+  }, []);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {

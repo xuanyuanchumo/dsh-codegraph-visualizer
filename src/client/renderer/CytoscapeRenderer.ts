@@ -59,6 +59,7 @@ export class CytoscapeRenderer implements IRenderer {
   private virtualViewportCtrl: VirtualViewportController | null = null;
   private adjacencyCache: AdjacencyCache | null = null;
   private fitTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastError: Error | null = null;
 
   constructor(options: CytoscapeRendererOptions) {
     this.options = options;
@@ -158,6 +159,7 @@ export class CytoscapeRenderer implements IRenderer {
       }
     } catch (err) {
       log.error('updateData failed', err);
+      this.lastError = err instanceof Error ? err : new Error(String(err));
     }
   }
 
@@ -433,6 +435,14 @@ export class CytoscapeRenderer implements IRenderer {
     return this.styleCtrl?.getHeatmapMode() ?? 'none';
   }
 
+  setMultiDimensionMapping(sizeMetric: string | null, colorMetric: string | null): void {
+    try {
+      this.styleCtrl?.setMultiDimensionMapping(sizeMetric, colorMetric);
+    } catch (err) {
+      log.error('setMultiDimensionMapping failed', err);
+    }
+  }
+
   destroy(): void {
     this.interactionCtrl?.destroy();
     this.layoutCtrl?.destroy();
@@ -493,5 +503,42 @@ export class CytoscapeRenderer implements IRenderer {
       log.error('expandNeighborhood failed', err);
       return new Set();
     }
+  }
+
+  setFocusMode(nodeId: NodeId | null, depth: number): void {
+    try {
+      this.viewportCtrl?.setFocusMode(nodeId, depth);
+    } catch (err) {
+      log.error('setFocusMode failed', err);
+    }
+  }
+
+  clearFocusMode(): void {
+    try {
+      this.viewportCtrl?.clearFocusMode();
+    } catch (err) {
+      log.error('clearFocusMode failed', err);
+    }
+  }
+
+  isFocusModeActive(): boolean {
+    return this.viewportCtrl?.isFocusModeActive() ?? false;
+  }
+
+  filterByPath(includePattern: string | null, excludePattern: string | null): void {
+    try {
+      this.filterCtrl?.filterByPath(includePattern, excludePattern);
+    } catch (err) {
+      log.error('filterByPath failed', err);
+      this.lastError = err instanceof Error ? err : new Error(String(err));
+    }
+  }
+
+  getLastError(): Error | null {
+    return this.lastError;
+  }
+
+  clearLastError(): void {
+    this.lastError = null;
   }
 }

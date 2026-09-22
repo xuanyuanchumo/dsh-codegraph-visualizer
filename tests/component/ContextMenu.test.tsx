@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, fireEvent, cleanup } from '@testing-library/react';
 import { ContextMenu } from '../../src/client/components/ContextMenu.tsx';
 
@@ -15,15 +15,18 @@ describe('ContextMenu', () => {
     position: { x: 100, y: 200 },
     isCluster: false,
     isExpanded: false,
+    hasHiddenNodes: false,
     onClose: vi.fn(),
     onFocusNode: vi.fn(),
     onIsolateNode: vi.fn(),
     onHideNode: vi.fn(),
+    onShowAllNodes: vi.fn(),
     onExpandNode: vi.fn(),
     onCollapseNode: vi.fn(),
     onFindPath: vi.fn(),
     onHighlightCallChain: vi.fn(),
     onHighlightImpact: vi.fn(),
+    onOpenSource: vi.fn(),
   };
 
   afterEach(() => {

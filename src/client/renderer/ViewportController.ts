@@ -131,6 +131,83 @@ export class ViewportController {
     this.cy.resize();
   }
 
+  private focusModeActive = false;
+  private focusModeHiddenNodes: Set<string> = new Set();
+  private focusModeHiddenEdges: Set<string> = new Set();
+
+  setFocusMode(nodeId: NodeId | null, depth: number): void {
+    this.clearFocusMode();
+
+    if (!nodeId) {
+      this.focusModeActive = false;
+      return;
+    }
+
+    this.focusModeActive = true;
+    const visibleIds = this.expandNeighborhood(nodeId, depth);
+
+    this.cy.batch(() => {
+      this.cy.nodes().forEach((node) => {
+        if (!visibleIds.has(node.id())) {
+          const typeFiltered = node.data('typeFiltered') === true;
+          const connectionFiltered = node.data('connectionFiltered') === true;
+          if (!typeFiltered && !connectionFiltered) {
+            node.style('display', 'none');
+            this.focusModeHiddenNodes.add(node.id());
+          }
+        }
+      });
+
+      this.cy.edges().forEach((edge) => {
+        const s = edge.source().id();
+        const t = edge.target().id();
+        if (!visibleIds.has(s) || !visibleIds.has(t)) {
+          const typeFiltered = edge.data('typeFiltered') === true;
+          const connectionFiltered = edge.data('connectionFiltered') === true;
+          if (!typeFiltered && !connectionFiltered) {
+            edge.style('display', 'none');
+            this.focusModeHiddenEdges.add(edge.id());
+          }
+        }
+      });
+    });
+  }
+
+  clearFocusMode(): void {
+    if (!this.focusModeActive) return;
+
+    this.cy.batch(() => {
+      for (const id of this.focusModeHiddenNodes) {
+        const el = this.cy.getElementById(id);
+        if (el.nonempty()) {
+          const typeFiltered = el.data('typeFiltered') === true;
+          const connectionFiltered = el.data('connectionFiltered') === true;
+          if (!typeFiltered && !connectionFiltered) {
+            el.style('display', 'element');
+          }
+        }
+      }
+      for (const id of this.focusModeHiddenEdges) {
+        const el = this.cy.getElementById(id);
+        if (el.nonempty()) {
+          const typeFiltered = el.data('typeFiltered') === true;
+          const connectionFiltered = el.data('connectionFiltered') === true;
+          if (!typeFiltered && !connectionFiltered) {
+            el.style('display', 'element');
+          }
+        }
+      }
+    });
+
+    this.focusModeHiddenNodes.clear();
+    this.focusModeHiddenEdges.clear();
+    this.focusModeActive = false;
+  }
+
+  isFocusModeActive(): boolean {
+    return this.focusModeActive;
+  }
+
   destroy(): void {
     this.cy.batch(() => {
       for (const id of this.dimmedNodeIds) {
@@ -140,5 +217,8 @@ export class ViewportController {
       this.dimmedNodeIds.clear();
       this.cy.elements().removeClass('focus-highlight');
     });
+    this.focusModeHiddenNodes.clear();
+    this.focusModeHiddenEdges.clear();
+    this.focusModeActive = false;
   }
 }

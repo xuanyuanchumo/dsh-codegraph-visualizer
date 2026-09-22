@@ -46,6 +46,8 @@ function getLODClassStyles(): StylesheetJson {
       style: {
         'label': '',
         'width': LOD.MINIMAL_EDGE_WIDTH,
+        'curve-style': 'straight',
+        'line-opacity': 0.3,
       },
     },
     {
@@ -62,6 +64,7 @@ function getLODClassStyles(): StylesheetJson {
       style: {
         'label': '',
         'width': LOD.COMPACT_EDGE_WIDTH,
+        'curve-style': 'straight',
       },
     },
   ];
@@ -135,6 +138,20 @@ export class StyleController {
     return this.heatmapMode;
   }
 
+  private sizeMetric: string | null = null;
+  private colorMetric: string | null = null;
+
+  setMultiDimensionMapping(sizeMetric: string | null, colorMetric: string | null): void {
+    this.sizeMetric = sizeMetric;
+    this.colorMetric = colorMetric;
+    this.stylesheetApplied = false;
+    this.applyStylesheet();
+  }
+
+  getMultiDimensionMapping(): { sizeMetric: string | null; colorMetric: string | null } {
+    return { sizeMetric: this.sizeMetric, colorMetric: this.colorMetric };
+  }
+
   private handleZoomChange = (): void => {
     const zoom = this.cy.zoom();
     const newLOD = this.computeLODLevel(zoom);
@@ -173,12 +190,36 @@ export class StyleController {
       },
     ];
     const heatmapOverrides = this.getHeatmapOverrides();
+    const multiDimOverrides = this.getMultiDimensionOverrides();
     const lodClassStyles = getLODClassStyles();
-    this.cy.style().fromJson([...baseStylesheet, ...transitionOverrides, ...heatmapOverrides, ...lodClassStyles]).update();
+    this.cy.style().fromJson([...baseStylesheet, ...transitionOverrides, ...heatmapOverrides, ...multiDimOverrides, ...lodClassStyles]).update();
     this.stylesheetApplied = true;
     if (this.lodEnabled) {
       this.applyLODClasses();
     }
+  }
+
+  private getMultiDimensionOverrides(): StylesheetJson {
+    if (!this.sizeMetric && !this.colorMetric) return [];
+    const overrides: StylesheetJson = [];
+    if (this.sizeMetric) {
+      overrides.push({
+        selector: `node[${this.sizeMetric}]`,
+        style: {
+          'width': `mapData(${this.sizeMetric}, 0, 100, 16, 64)`,
+          'height': `mapData(${this.sizeMetric}, 0, 100, 16, 64)`,
+        },
+      });
+    }
+    if (this.colorMetric) {
+      overrides.push({
+        selector: `node[${this.colorMetric}]`,
+        style: {
+          'background-color': `mapData(${this.colorMetric}, 0, 100, ${HEATMAP.COLOR_STABLE}, ${HEATMAP.COLOR_UNSTABLE})`,
+        },
+      });
+    }
+    return overrides;
   }
 
   private applyLODClasses(): void {

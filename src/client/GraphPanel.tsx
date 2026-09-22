@@ -103,11 +103,14 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const {
     searchQuery, selectedNodeId, highlightedNodeIds, expandedNodeIds,
-    pathResult, focusDepth,
+    pathResult, focusDepth, focusModeActive, focusModeNodeId,
+    pathFilterInclude, pathFilterExclude,
   } = useGraphStore(useShallow((s) => ({
     searchQuery: s.searchQuery, selectedNodeId: s.selectedNodeId,
     highlightedNodeIds: s.highlightedNodeIds, expandedNodeIds: s.expandedNodeIds,
     pathResult: s.pathResult, focusDepth: s.focusDepth,
+    focusModeActive: s.focusModeActive, focusModeNodeId: s.focusModeNodeId,
+    pathFilterInclude: s.pathFilterInclude, pathFilterExclude: s.pathFilterExclude,
   })));
 
   const {
@@ -298,8 +301,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const renderer = useGraphRenderer({
     data: { nodes, edges, rawNodes },
     display: { layout, theme, clusterDepth, heatmapMode },
-    interaction: { highlightedNodeIds, selectedNodeId, focusNodeId, debouncedSearch },
-    filters: { filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes },
+    interaction: { highlightedNodeIds, selectedNodeId, focusNodeId, focusModeActive, focusModeNodeId, focusDepth, debouncedSearch },
+    filters: { filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, pathFilterInclude, pathFilterExclude },
     analysis: { showCallChain: panel.showCallChain, showCycles: panel.showCycles, cycleIsolation: panel.cycleIsolation, showImpact: panel.showImpact, showInheritance: panel.showInheritance },
     callbacks: { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut, onEdgeTap: handleEdgeTap, onEdgeHover: handleEdgeHover, onEdgeHoverOut: handleEdgeHoverOut, onNodeContextTap: (nodeId: string, pos: { x: number; y: number }) => setContextMenu({ nodeId, position: pos }) },
     showCallChainRef,
@@ -440,6 +443,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     onToggleHelp: () => setShowHelp((v) => !v),
     onUndo: history.undo,
     onRedo: history.redo,
+    onRefresh: () => {
+      setLoading(true);
+      window.dispatchEvent(new CustomEvent('codegraph:refresh', { detail: { incremental: false } }));
+    },
   });
 
   const requestRefresh = useCallback(() => {
@@ -788,7 +795,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
       <div className="cg-graph-container" ref={renderer.containerRef}
         role="application"
-        aria-label={t('a11y.graphContainer') ?? `Code graph: ${nodes.length} nodes, ${edges.length} edges`}
+        aria-label={t('a11y.graphContainer') + `: ${t(`viewMode.${viewMode}`)}, ${nodes.length} ${t('a11y.nodes')}, ${edges.length} ${t('a11y.edges')}`}
         aria-describedby="cg-graph-live-region"
         style={{ display: viewMode === 'sequence' && selectedFunction ? 'none' : undefined }}>
         <div id="cg-graph-live-region" className="cg-visually-hidden" role="status" aria-live="polite">
@@ -878,6 +885,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           onFindPath={(id) => { panel.setShowPathFind(true); useGraphStore.getState().setPathStart(NodeId(id)); }}
           onHighlightCallChain={(id) => { panel.setShowCallChain(true); renderer.rendererRef.current?.highlightCallChain(NodeId(id)); }}
           onHighlightImpact={(id) => { panel.setShowImpact(true); renderer.rendererRef.current?.highlightImpact(NodeId(id)); }}
+          onOpenSource={(id) => {
+            const data = getDataRef.current?.getNodeData(id);
+            if (data) {
+              window.dispatchEvent(new CustomEvent('codegraph:open-source', { detail: { filePath: data.filePath, lineNumber: data.lineNumber } }));
+            }
+          }}
         />
       )}
       {tooltip && <GraphTooltip data={tooltip} />}

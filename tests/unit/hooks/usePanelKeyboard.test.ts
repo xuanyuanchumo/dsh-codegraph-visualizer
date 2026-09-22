@@ -82,8 +82,8 @@ describe('formatShortcutKey', () => {
 });
 
 describe('KEYBOARD_SHORTCUTS', () => {
-  it('has 11 shortcuts', () => {
-    expect(KEYBOARD_SHORTCUTS).toHaveLength(11);
+  it('has 13 shortcuts', () => {
+    expect(KEYBOARD_SHORTCUTS).toHaveLength(13);
   });
 
   it('contains search shortcut with preventDefault', () => {

@@ -162,7 +162,8 @@ describe('FilterPanel component', () => {
   describe('quick action buttons', () => {
     it('renders Hide Orphans and Hide Leaves buttons', () => {
       render(<FilterPanel onClose={vi.fn()} />);
-      const quickBtns = document.querySelectorAll('.cg-filter-quick-btn');
+      const quickActions = document.querySelector('.cg-filter-quick-actions');
+      const quickBtns = quickActions?.querySelectorAll('.cg-filter-quick-btn') ?? [];
       expect(quickBtns.length).toBe(2);
     });
 
@@ -170,7 +171,8 @@ describe('FilterPanel component', () => {
       const setFanInThreshold = vi.fn();
       useGraphStore.setState({ fanInThreshold: 0, setFanInThreshold });
       render(<FilterPanel onClose={vi.fn()} />);
-      const orphanBtn = document.querySelectorAll('.cg-filter-quick-btn')[0] as HTMLButtonElement;
+      const quickActions = document.querySelector('.cg-filter-quick-actions');
+      const orphanBtn = quickActions?.querySelectorAll('.cg-filter-quick-btn')[0] as HTMLButtonElement;
       fireEvent.click(orphanBtn);
       expect(setFanInThreshold).toHaveBeenCalledWith(1);
     });
@@ -179,7 +181,8 @@ describe('FilterPanel component', () => {
       const setFanInThreshold = vi.fn();
       useGraphStore.setState({ fanInThreshold: 1, setFanInThreshold });
       render(<FilterPanel onClose={vi.fn()} />);
-      const orphanBtn = document.querySelectorAll('.cg-filter-quick-btn')[0] as HTMLButtonElement;
+      const quickActions = document.querySelector('.cg-filter-quick-actions');
+      const orphanBtn = quickActions?.querySelectorAll('.cg-filter-quick-btn')[0] as HTMLButtonElement;
       fireEvent.click(orphanBtn);
       expect(setFanInThreshold).toHaveBeenCalledWith(0);
     });
@@ -188,7 +191,8 @@ describe('FilterPanel component', () => {
       const setFanOutThreshold = vi.fn();
       useGraphStore.setState({ fanOutThreshold: 0, setFanOutThreshold });
       render(<FilterPanel onClose={vi.fn()} />);
-      const leavesBtn = document.querySelectorAll('.cg-filter-quick-btn')[1] as HTMLButtonElement;
+      const quickActions = document.querySelector('.cg-filter-quick-actions');
+      const leavesBtn = quickActions?.querySelectorAll('.cg-filter-quick-btn')[1] as HTMLButtonElement;
       fireEvent.click(leavesBtn);
       expect(setFanOutThreshold).toHaveBeenCalledWith(1);
     });
@@ -197,7 +201,8 @@ describe('FilterPanel component', () => {
       const setFanOutThreshold = vi.fn();
       useGraphStore.setState({ fanOutThreshold: 1, setFanOutThreshold });
       render(<FilterPanel onClose={vi.fn()} />);
-      const leavesBtn = document.querySelectorAll('.cg-filter-quick-btn')[1] as HTMLButtonElement;
+      const quickActions = document.querySelector('.cg-filter-quick-actions');
+      const leavesBtn = quickActions?.querySelectorAll('.cg-filter-quick-btn')[1] as HTMLButtonElement;
       fireEvent.click(leavesBtn);
       expect(setFanOutThreshold).toHaveBeenCalledWith(0);
     });
@@ -214,6 +219,7 @@ describe('FilterPanel component', () => {
       const setFanOutThreshold = vi.fn();
       const setVisibleNodeTypes = vi.fn();
       const setVisibleEdgeTypes = vi.fn();
+      const setPathFilter = vi.fn();
       useGraphStore.setState({
         fanInThreshold: 5,
         fanOutThreshold: 3,
@@ -223,6 +229,7 @@ describe('FilterPanel component', () => {
         setFanOutThreshold,
         setVisibleNodeTypes,
         setVisibleEdgeTypes,
+        setPathFilter,
       });
       render(<FilterPanel onClose={vi.fn()} />);
       const resetBtn = document.querySelector('.cg-filter-reset-btn') as HTMLButtonElement;
@@ -231,7 +238,9 @@ describe('FilterPanel component', () => {
       expect(setFanOutThreshold).toHaveBeenCalledWith(0);
       expect(setVisibleNodeTypes).toHaveBeenCalledWith(new Set(['function', 'class', 'variable', 'module', 'interface']));
       expect(setVisibleEdgeTypes).toHaveBeenCalledWith(new Set(['call', 'extend', 'implement', 'import', 'dependency', 'contains']));
+      expect(setPathFilter).toHaveBeenCalledWith(null, null);
     });
+
   });
 
   it('has accessible region with aria-label', () => {

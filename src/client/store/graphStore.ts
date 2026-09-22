@@ -216,6 +216,11 @@ interface GraphState {
   pathResult: NodeId[] | null;
 
   focusDepth: number;
+  focusModeActive: boolean;
+  focusModeNodeId: NodeId | null;
+
+  pathFilterInclude: string | null;
+  pathFilterExclude: string | null;
 
   callChainDepth: number;
 
@@ -266,6 +271,8 @@ interface GraphState {
   setPathEnd: (nodeId: NodeId | null) => void;
   setPathResult: (path: NodeId[] | null) => void;
   setFocusDepth: (depth: number) => void;
+  setFocusMode: (active: boolean, nodeId: NodeId | null) => void;
+  setPathFilter: (include: string | null, exclude: string | null) => void;
   setCallChainDepth: (depth: number) => void;
   setFanInThreshold: (threshold: number) => void;
   setFanOutThreshold: (threshold: number) => void;
@@ -325,6 +332,10 @@ export const useGraphStore = create<GraphState>()(
       pathEndId: null,
       pathResult: null,
       focusDepth: 1,
+      focusModeActive: false,
+      focusModeNodeId: null,
+      pathFilterInclude: null,
+      pathFilterExclude: null,
       callChainDepth: 2,
       fanInThreshold: 0,
       fanOutThreshold: 0,
@@ -532,6 +543,8 @@ export const useGraphStore = create<GraphState>()(
       setPathEnd: (nodeId) => set({ pathEndId: nodeId }),
       setPathResult: (path) => set({ pathResult: path }),
       setFocusDepth: (depth) => set({ focusDepth: depth }),
+      setFocusMode: (active, nodeId) => set({ focusModeActive: active, focusModeNodeId: nodeId }),
+      setPathFilter: (include, exclude) => set({ pathFilterInclude: include, pathFilterExclude: exclude }),
       setCallChainDepth: (depth) => set({ callChainDepth: depth }),
       setFanInThreshold: (threshold) => set({ fanInThreshold: threshold }),
       setFanOutThreshold: (threshold) => set({ fanOutThreshold: threshold }),

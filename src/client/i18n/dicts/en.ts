@@ -77,6 +77,7 @@ export const en: Record<string, string> = {
   // Error boundary
   'error.title': 'Something went wrong',
   'error.retry': 'Retry',
+  'error.reportIssue': 'Report Issue',
   'error.loadDependencies': 'Unable to load dependency data. Please check your connection and try again.',
   'error.loadGraphData': 'Unable to load code graph data. Please refresh the page.',
   'error.loadGraph': 'Unable to load code graph. Please check the server status.',
@@ -217,6 +218,7 @@ export const en: Record<string, string> = {
   'shortcut.title': 'Keyboard Shortcuts',
   'shortcut.close': 'Close',
   'shortcut.search': 'Search symbols',
+  'shortcut.searchCtrlF': 'Search symbols',
   'shortcut.closeAll': 'Close all panels',
   'shortcut.callChain': 'Toggle call chain',
   'shortcut.impact': 'Toggle impact analysis',
@@ -224,6 +226,7 @@ export const en: Record<string, string> = {
   'shortcut.minimap': 'Toggle mini-map',
   'shortcut.layout': 'Cycle layout',
   'shortcut.import': 'Toggle import panel',
+  'shortcut.refresh': 'Refresh graph',
   'shortcut.undo': 'Undo',
   'shortcut.redo': 'Redo',
   'shortcut.help': 'Show this help',
@@ -448,6 +451,14 @@ export const en: Record<string, string> = {
   'filterPanel.hideLeaves': 'Hide Leaves',
   'filterPanel.orphansHint': 'Hide nodes with no incoming connections',
   'filterPanel.leavesHint': 'Hide nodes with no outgoing connections',
+  'filterPanel.pathFilter': 'Path Filter',
+  'filterPanel.includePlaceholder': 'Include path (regex)',
+  'filterPanel.excludePlaceholder': 'Exclude path (regex)',
+  'filterPanel.includeLabel': 'Include path regex',
+  'filterPanel.excludeLabel': 'Exclude path regex',
+  'filterPanel.applyPath': 'Apply Path Filter',
+  'filterPanel.clearPath': 'Clear Path Filter',
+  'filterPanel.pathHint': 'Use regex to filter file paths, showing only matching nodes',
   'toolbar.filterPanel': 'Filter Panel',
 
   // Context menu
@@ -460,10 +471,13 @@ export const en: Record<string, string> = {
   'contextMenu.impact': 'Analyze Impact',
   'contextMenu.findPath': 'Find Path From Here',
   'contextMenu.showAll': 'Show All Hidden Nodes',
+  'contextMenu.openSource': 'Open Source',
 
   // Accessibility
   'a11y.graphContainer': 'Code graph interactive area',
   'a11y.selectedNode': 'Selected node',
+  'a11y.nodes': 'nodes',
+  'a11y.edges': 'edges',
 
   // Heatmap labels
   'heatmap.title': 'Heatmap',
