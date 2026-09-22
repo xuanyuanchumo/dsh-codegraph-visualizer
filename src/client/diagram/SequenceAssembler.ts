@@ -3,7 +3,7 @@ import { NodeId, EdgeId } from '../../types/index.ts';
 import type { AssembledDiagram } from './DiagramAssembler.ts';
 import type { ASTNode } from '../../shared/CFGTypes.ts';
 import { findFunctionNode, getFunctionBody } from '../../shared/CFGTypes.ts';
-import { isControlFlow, findElseNode, findConditionNode } from '../../shared/astUtils.ts';
+import { isControlFlow, findElseNode, findConditionNode, getBodyChildren as getBodyChildrenShared, getElseBody as getElseBodyShared } from '../../shared/astUtils.ts';
 import type {
   Participant,
   ParticipantType,
@@ -91,20 +91,11 @@ function getConditionText(node: ASTNode): string {
 }
 
 function getBodyChildren(node: ASTNode): ASTNode[] {
-  const body = node.children.find((c) =>
-    c.type === 'block' || c.type === 'statement_block' || c.type === 'body'
-  );
-  if (body) return body.children;
-  return node.children.filter((c) =>
-    c.type !== 'condition' && c.type !== 'parenthesized_expression'
-  );
+  return getBodyChildrenShared(node);
 }
 
 function getElseBody(node: ASTNode): ASTNode[] {
-  const elseNode = findElseNode(node);
-  if (!elseNode) return [];
-  const body = elseNode.children.find((c) => c.type === 'block' || c.type === 'statement_block');
-  return body ? body.children : elseNode.children;
+  return getElseBodyShared(node);
 }
 
 function getCaseNodes(node: ASTNode): ASTNode[] {

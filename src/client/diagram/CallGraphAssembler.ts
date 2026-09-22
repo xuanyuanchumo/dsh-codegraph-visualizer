@@ -1,6 +1,5 @@
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
-import type { DiagramAssembler, AssembledDiagram } from './DiagramAssembler.ts';
-import { computeDepths, buildAdjacencyMaps } from './DiagramAssembler.ts';
+import { BaseFilteringAssembler, type FilteringAssemblerConfig, type AssemblyContext } from './BaseFilteringAssembler.ts';
 import { buildForwardAdjacency } from '../../shared/analysis/AdjacencyList.ts';
 
 const CALL_NODE_TYPES = new Set(['function']);
@@ -13,66 +12,39 @@ const ENTRY_PATTERNS = {
   test: /^test|^it$|^describe$|^beforeEach$|^afterEach$/i,
 };
 
-export class CallGraphAssembler implements DiagramAssembler {
-  assemble(nodes: GraphNode[], edges: GraphEdge[]): AssembledDiagram {
-    const callNodes = nodes.filter((n) => CALL_NODE_TYPES.has(n.type));
-    const callEdges = edges.filter((e) => CALL_EDGE_TYPES.has(e.type));
+export class CallGraphAssembler extends BaseFilteringAssembler {
+  protected config: FilteringAssemblerConfig = {
+    nodeTypes: CALL_NODE_TYPES,
+    edgeTypes: CALL_EDGE_TYPES,
+    rootDirection: 'in-degree-zero',
+    depthDirection: 'target',
+  };
 
-    const nodeIds = new Set(callNodes.map((n) => n.id));
-    const validEdges = callEdges.filter(
-      (e) => nodeIds.has(e.source) && nodeIds.has(e.target),
-    );
+  private recursiveIds = new Set<string>();
 
-    const { outEdges, inEdges } = buildAdjacencyMaps(validEdges);
+  protected prepare(ctx: AssemblyContext): void {
+    this.recursiveIds = this.detectRecursion(ctx.filteredNodes, ctx.validEdges);
+  }
 
-    const inDegree = new Map<string, number>();
-    const outDegree = new Map<string, number>();
-    for (const n of callNodes) {
-      inDegree.set(n.id, (inEdges.get(n.id) ?? []).length);
-      outDegree.set(n.id, (outEdges.get(n.id) ?? []).length);
-    }
-
-    const rootIds: string[] = [];
-    for (const n of callNodes) {
-      if (inDegree.get(n.id) === 0) rootIds.push(n.id);
-    }
-
-    const recursiveIds = this.detectRecursion(callNodes, validEdges);
-    const depthMap = computeDepths(rootIds, outEdges, 'target');
-
-    const assembledNodes = callNodes.map((n) => {
-      const deg = inDegree.get(n.id) ?? 0;
-      const outDeg = outDegree.get(n.id) ?? 0;
-      const isEntry = deg === 0;
-      const entryType = isEntry ? this.classifyEntry(n) : 'none';
-      const entryPrefix = isEntry ? `\u00AB${entryType}\u00BB\n` : '';
-      const umlLabel = entryPrefix + n.label;
-
-      return {
-        ...n,
-        properties: {
-          ...n.properties,
-          depth: depthMap.get(n.id) ?? 0,
-          isEntry,
-          entryType,
-          inDegree: deg,
-          outDegree: outDeg,
-          isRecursive: recursiveIds.has(n.id),
-          umlLabel,
-        },
-      };
-    });
-
-    const maxDepth = Math.max(0, ...depthMap.values());
+  protected enrichNode(node: GraphNode, ctx: AssemblyContext): GraphNode {
+    const inDeg = (ctx.inEdges.get(node.id) ?? []).length;
+    const outDeg = (ctx.outEdges.get(node.id) ?? []).length;
+    const isEntry = inDeg === 0;
+    const entryType = isEntry ? this.classifyEntry(node) : 'none';
+    const entryPrefix = isEntry ? `\u00AB${entryType}\u00BB\n` : '';
+    const umlLabel = entryPrefix + node.label;
 
     return {
-      nodes: assembledNodes,
-      edges: validEdges,
-      metadata: {
-        rootIds,
-        maxDepth,
-        nodeCount: assembledNodes.length,
-        edgeCount: validEdges.length,
+      ...node,
+      properties: {
+        ...node.properties,
+        depth: ctx.depthMap.get(node.id) ?? 0,
+        isEntry,
+        entryType,
+        inDegree: inDeg,
+        outDegree: outDeg,
+        isRecursive: this.recursiveIds.has(node.id),
+        umlLabel,
       },
     };
   }
@@ -131,5 +103,4 @@ export class CallGraphAssembler implements DiagramAssembler {
 
     return recursive;
   }
-
 }

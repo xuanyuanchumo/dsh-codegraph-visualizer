@@ -1,6 +1,5 @@
-import type { GraphNode, GraphEdge } from '../../types/index.ts';
-import type { DiagramAssembler, AssembledDiagram } from './DiagramAssembler.ts';
-import { computeDepths, buildAdjacencyMaps } from './DiagramAssembler.ts';
+import type { GraphNode } from '../../types/index.ts';
+import { BaseFilteringAssembler, type FilteringAssemblerConfig, type AssemblyContext } from './BaseFilteringAssembler.ts';
 
 const CLASS_NODE_TYPES = new Set(['class', 'interface', 'type']);
 const CLASS_EDGE_TYPES = new Set(['extend', 'implement', 'association', 'aggregation', 'composition']);
@@ -12,70 +11,49 @@ interface ClassMember {
   visibility: 'public' | 'private' | 'protected';
 }
 
-export class ClassAssembler implements DiagramAssembler {
-  assemble(nodes: GraphNode[], edges: GraphEdge[]): AssembledDiagram {
-    const classNodes = nodes.filter((n) => CLASS_NODE_TYPES.has(n.type));
-    const classEdges = edges.filter((e) => CLASS_EDGE_TYPES.has(e.type));
+export class ClassAssembler extends BaseFilteringAssembler {
+  protected config: FilteringAssemblerConfig = {
+    nodeTypes: CLASS_NODE_TYPES,
+    edgeTypes: CLASS_EDGE_TYPES,
+    rootDirection: 'no-out-edges',
+    depthDirection: 'source',
+  };
 
-    const classIds = new Set(classNodes.map((n) => n.id));
-    const validEdges = classEdges.filter(
-      (e) => classIds.has(e.source) && classIds.has(e.target),
-    );
+  private membersByClass = new Map<string, ClassMember[]>();
 
-    const membersByClass = this.associateMembers(classNodes, nodes);
+  protected prepare(ctx: AssemblyContext): void {
+    this.membersByClass = this.associateMembers(ctx.filteredNodes, ctx.allNodes);
+  }
 
-    const { outEdges, inEdges } = buildAdjacencyMaps(validEdges);
+  protected enrichNode(node: GraphNode, ctx: AssemblyContext): GraphNode {
+    const members = this.membersByClass.get(node.id) ?? [];
+    const methodCount = members.filter((m) => m.type === 'method').length;
+    const propertyCount = members.filter((m) => m.type === 'property').length;
+    const parentEdges = ctx.outEdges.get(node.id) ?? [];
+    const childEdges = ctx.inEdges.get(node.id) ?? [];
 
-    const rootIds: string[] = [];
-    for (const n of classNodes) {
-      if (!outEdges.has(n.id)) rootIds.push(n.id);
-    }
+    const memberSignatures = members.slice(0, 10).map((m) => ({
+      name: m.name,
+      type: m.type,
+      visibility: m.visibility,
+      ...(m.signature ? { signature: m.signature } : {}),
+    }));
 
-    const depthMap = computeDepths(rootIds, inEdges, 'source');
-
-    const assembledNodes = classNodes.map((n) => {
-      const members = membersByClass.get(n.id) ?? [];
-      const methodCount = members.filter((m) => m.type === 'method').length;
-      const propertyCount = members.filter((m) => m.type === 'property').length;
-      const parentEdges = outEdges.get(n.id) ?? [];
-      const childEdges = inEdges.get(n.id) ?? [];
-
-      const memberSignatures = members.slice(0, 10).map((m) => ({
-        name: m.name,
-        type: m.type,
-        visibility: m.visibility,
-        ...(m.signature ? { signature: m.signature } : {}),
-      }));
-
-      const umlLabel = this.buildUmlLabel(n, members);
-
-      return {
-        ...n,
-        properties: {
-          ...n.properties,
-          depth: depthMap.get(n.id) ?? 0,
-          isRoot: !outEdges.has(n.id),
-          parentCount: parentEdges.length,
-          childCount: childEdges.length,
-          methodCount,
-          propertyCount,
-          members: memberSignatures,
-          umlLabel,
-          isAbstract: this.checkAbstract(n),
-        },
-      };
-    });
-
-    const maxDepth = Math.max(0, ...depthMap.values());
+    const umlLabel = this.buildUmlLabel(node, members);
 
     return {
-      nodes: assembledNodes,
-      edges: validEdges,
-      metadata: {
-        rootIds,
-        maxDepth,
-        nodeCount: assembledNodes.length,
-        edgeCount: validEdges.length,
+      ...node,
+      properties: {
+        ...node.properties,
+        depth: ctx.depthMap.get(node.id) ?? 0,
+        isRoot: !ctx.outEdges.has(node.id),
+        parentCount: parentEdges.length,
+        childCount: childEdges.length,
+        methodCount,
+        propertyCount,
+        members: memberSignatures,
+        umlLabel,
+        isAbstract: this.checkAbstract(node),
       },
     };
   }
@@ -85,7 +63,6 @@ export class ClassAssembler implements DiagramAssembler {
     allNodes: GraphNode[],
   ): Map<string, ClassMember[]> {
     const result = new Map<string, ClassMember[]>();
-
     const classIdSet = new Set(classNodes.map((n) => n.id));
 
     for (const member of allNodes) {
@@ -179,5 +156,4 @@ export class ClassAssembler implements DiagramAssembler {
 
     return parts.join('\n');
   }
-
 }

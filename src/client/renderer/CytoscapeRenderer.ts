@@ -61,6 +61,33 @@ export class CytoscapeRenderer implements IRenderer {
   private fitTimer: ReturnType<typeof setTimeout> | null = null;
   private lastError: Error | null = null;
 
+  private safeCall<T>(name: string, fn: () => T, fallback: T): T {
+    try {
+      return fn();
+    } catch (err) {
+      log.error(`${name} failed`, err);
+      return fallback;
+    }
+  }
+
+  private safeCallVoid(name: string, fn: () => void): void {
+    try {
+      fn();
+    } catch (err) {
+      log.error(`${name} failed`, err);
+    }
+  }
+
+  private safeCallWithError<T>(name: string, fn: () => T, fallback: T): T {
+    try {
+      return fn();
+    } catch (err) {
+      log.error(`${name} failed`, err);
+      this.lastError = err instanceof Error ? err : new Error(String(err));
+      return fallback;
+    }
+  }
+
   constructor(options: CytoscapeRendererOptions) {
     this.options = options;
   }
@@ -142,7 +169,7 @@ export class CytoscapeRenderer implements IRenderer {
 
   updateData(nodes: GraphNode[], edges: GraphEdge[]): void {
     if (!this.cy) throw new Error('CytoscapeRenderer: init() must be called before updateData()');
-    try {
+    this.safeCallWithError('updateData', () => {
       this.dataCtrl?.updateData(nodes, edges);
       this.adjacencyCache?.invalidate();
       this.filterCtrl?.invalidateCache();
@@ -157,10 +184,7 @@ export class CytoscapeRenderer implements IRenderer {
           }
         }, fitDelay);
       }
-    } catch (err) {
-      log.error('updateData failed', err);
-      this.lastError = err instanceof Error ? err : new Error(String(err));
-    }
+    }, undefined);
   }
 
   setRawNodes(rawNodes: GraphNode[]): void {
@@ -168,11 +192,7 @@ export class CytoscapeRenderer implements IRenderer {
   }
 
   applyLayout(layout: LayoutType): void {
-    try {
-      this.layoutCtrl?.applyLayout(layout);
-    } catch (err) {
-      log.error('applyLayout failed', err);
-    }
+    this.safeCallVoid('applyLayout', () => this.layoutCtrl?.applyLayout(layout));
   }
 
   setDagreRankDir(dir: RankDir): void {
@@ -180,11 +200,7 @@ export class CytoscapeRenderer implements IRenderer {
   }
 
   applyIncrementalLayout(layout: LayoutType, newNodeIds: Set<string>): void {
-    try {
-      this.layoutCtrl?.applyIncrementalLayout(layout, newNodeIds);
-    } catch (err) {
-      log.error('applyIncrementalLayout failed', err);
-    }
+    this.safeCallVoid('applyIncrementalLayout', () => this.layoutCtrl?.applyIncrementalLayout(layout, newNodeIds));
   }
 
   isWorkerLayoutAvailable(): boolean {
@@ -224,28 +240,15 @@ export class CytoscapeRenderer implements IRenderer {
   }
 
   hideNode(nodeId: NodeId): void {
-    try {
-      this.cy?.getElementById(nodeId).style('display', 'none');
-    } catch (err) {
-      log.error('hideNode failed', err);
-    }
+    this.safeCallVoid('hideNode', () => this.cy?.getElementById(nodeId).style('display', 'none'));
   }
 
   showAllNodes(): void {
-    try {
-      this.cy?.nodes().style('display', 'element');
-    } catch (err) {
-      log.error('showAllNodes failed', err);
-    }
+    this.safeCallVoid('showAllNodes', () => this.cy?.nodes().style('display', 'element'));
   }
 
   getVisibleNodeCount(): number {
-    try {
-      return this.cy?.nodes(':visible').length ?? 0;
-    } catch (err) {
-      log.error('getVisibleNodeCount failed', err);
-      return 0;
-    }
+    return this.safeCall('getVisibleNodeCount', () => this.cy?.nodes(':visible').length ?? 0, 0);
   }
 
   filterByType(type: string): void {
@@ -262,11 +265,7 @@ export class CytoscapeRenderer implements IRenderer {
     visibleNodeTypes: Set<GraphNode['type']>,
     visibleEdgeTypes: Set<GraphEdge['type']>,
   ): void {
-    try {
-      this.filterCtrl?.applyConnectionFilters(fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes);
-    } catch (err) {
-      log.error('applyConnectionFilters failed', err);
-    }
+    this.safeCallVoid('applyConnectionFilters', () => this.filterCtrl?.applyConnectionFilters(fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes));
   }
 
   search(query: string): number {
@@ -278,94 +277,47 @@ export class CytoscapeRenderer implements IRenderer {
   }
 
   highlightCallChain(nodeId: NodeId | null): void {
-    try {
-      this.highlightCtrl?.highlightCallChain(nodeId);
-    } catch (err) {
-      log.error('highlightCallChain failed', err);
-    }
+    this.safeCallVoid('highlightCallChain', () => this.highlightCtrl?.highlightCallChain(nodeId));
   }
 
   detectCycles(): Set<string> {
-    try {
-      return this.cycleDetector?.detectCycles() ?? new Set();
-    } catch (err) {
-      log.error('detectCycles failed', err);
-      return new Set();
-    }
+    return this.safeCall('detectCycles', () => this.cycleDetector?.detectCycles() ?? new Set(), new Set());
   }
 
   detectCyclesDetailed(): CycleInfo[] {
-    try {
-      return this.cycleDetector?.detectCyclesDetailed() ?? [];
-    } catch (err) {
-      log.error('detectCyclesDetailed failed', err);
-      return [];
-    }
+    return this.safeCall('detectCyclesDetailed', () => this.cycleDetector?.detectCyclesDetailed() ?? [], []);
   }
 
   highlightCycles(cycleIds: Set<string>): void {
-    try {
-      this.cycleDetector?.highlightCycles(cycleIds);
-    } catch (err) {
-      log.error('highlightCycles failed', err);
-    }
+    this.safeCallVoid('highlightCycles', () => this.cycleDetector?.highlightCycles(cycleIds));
   }
 
   isolateCycles(cycleIds: Set<string>): void {
-    try {
-      this.cycleDetector?.isolateCycles(cycleIds);
-    } catch (err) {
-      log.error('isolateCycles failed', err);
-    }
+    this.safeCallVoid('isolateCycles', () => this.cycleDetector?.isolateCycles(cycleIds));
   }
 
   relayoutCycles(cycleIds: Set<string>): void {
-    try {
-      this.cycleDetector?.relayoutCycles(cycleIds);
-    } catch (err) {
-      log.error('relayoutCycles failed', err);
-    }
+    this.safeCallVoid('relayoutCycles', () => this.cycleDetector?.relayoutCycles(cycleIds));
   }
 
   restoreIsolation(): void {
-    try {
-      this.cycleDetector?.restoreIsolation();
-    } catch (err) {
-      log.error('restoreIsolation failed', err);
-    }
+    this.safeCallVoid('restoreIsolation', () => this.cycleDetector?.restoreIsolation());
   }
 
   highlightImpact(nodeId: NodeId | null): void {
-    try {
-      this.impactAnalyzer?.highlightImpact(nodeId);
-    } catch (err) {
-      log.error('highlightImpact failed', err);
-    }
+    this.safeCallVoid('highlightImpact', () => this.impactAnalyzer?.highlightImpact(nodeId));
   }
 
   getImpactStats(nodeId: NodeId): { d1: number; d2: number; d3: number; total: number } | null {
-    try {
-      return this.impactAnalyzer?.getImpactStats(nodeId) ?? null;
-    } catch (err) {
-      log.error('getImpactStats failed', err);
-      return null;
-    }
+    return this.safeCall('getImpactStats', () => this.impactAnalyzer?.getImpactStats(nodeId) ?? null, null);
   }
 
   highlightInheritance(nodeId: NodeId | null): void {
-    try {
-      this.highlightCtrl?.highlightInheritance(nodeId);
-    } catch (err) {
-      log.error('highlightInheritance failed', err);
-    }
+    this.safeCallVoid('highlightInheritance', () => this.highlightCtrl?.highlightInheritance(nodeId));
   }
 
   focusNeighborhood(nodeId: NodeId | null): void {
-    try {
-      this.viewportCtrl?.focusNeighborhood(nodeId);
-    } catch (err) {
-      log.error('focusNeighborhood failed', err);
-    }
+    this.safeCallVoid('focusNeighborhood', () => this.viewportCtrl?.focusNeighborhood(nodeId));
   }
 
   getThumbnail(): string | null {
@@ -389,21 +341,11 @@ export class CytoscapeRenderer implements IRenderer {
   }
 
   exportPNG(): string | null {
-    try {
-      return this.exportCtrl?.exportPNG() ?? null;
-    } catch (err) {
-      log.error('exportPNG failed', err);
-      return null;
-    }
+    return this.safeCall('exportPNG', () => this.exportCtrl?.exportPNG() ?? null, null);
   }
 
   exportSVG(theme?: ThemeType): string | null {
-    try {
-      return this.exportCtrl?.exportSVG(theme ?? this.options.theme) ?? null;
-    } catch (err) {
-      log.error('exportSVG failed', err);
-      return null;
-    }
+    return this.safeCall('exportSVG', () => this.exportCtrl?.exportSVG(theme ?? this.options.theme) ?? null, null);
   }
 
   getSelectedNodeData(): GraphNode | ClusterNode | null {
@@ -419,11 +361,7 @@ export class CytoscapeRenderer implements IRenderer {
   }
 
   resize(): void {
-    try {
-      this.viewportCtrl?.resize();
-    } catch (err) {
-      log.error('resize failed', err);
-    }
+    this.safeCallVoid('resize', () => this.viewportCtrl?.resize());
   }
 
   updateTheme(theme: ThemeType): void {
@@ -440,11 +378,7 @@ export class CytoscapeRenderer implements IRenderer {
   }
 
   setMultiDimensionMapping(sizeMetric: string | null, colorMetric: string | null): void {
-    try {
-      this.styleCtrl?.setMultiDimensionMapping(sizeMetric, colorMetric);
-    } catch (err) {
-      log.error('setMultiDimensionMapping failed', err);
-    }
+    this.safeCallVoid('setMultiDimensionMapping', () => this.styleCtrl?.setMultiDimensionMapping(sizeMetric, colorMetric));
   }
 
   destroy(): void {
@@ -484,45 +418,23 @@ export class CytoscapeRenderer implements IRenderer {
   }
 
   findPath(sourceId: NodeId, targetId: NodeId): PathResult | null {
-    try {
-      return this.pathFinder?.findPath(sourceId, targetId) ?? null;
-    } catch (err) {
-      log.error('findPath failed', err);
-      return null;
-    }
+    return this.safeCall('findPath', () => this.pathFinder?.findPath(sourceId, targetId) ?? null, null);
   }
 
   highlightPath(path: NodeId[] | null): void {
-    try {
-      this.pathFinder?.highlightPath(path);
-    } catch (err) {
-      log.error('highlightPath failed', err);
-    }
+    this.safeCallVoid('highlightPath', () => this.pathFinder?.highlightPath(path));
   }
 
   expandNeighborhood(nodeId: NodeId, depth: number): Set<string> {
-    try {
-      return this.viewportCtrl?.expandNeighborhood(nodeId, depth) ?? new Set();
-    } catch (err) {
-      log.error('expandNeighborhood failed', err);
-      return new Set();
-    }
+    return this.safeCall('expandNeighborhood', () => this.viewportCtrl?.expandNeighborhood(nodeId, depth) ?? new Set(), new Set());
   }
 
   setFocusMode(nodeId: NodeId | null, depth: number): void {
-    try {
-      this.viewportCtrl?.setFocusMode(nodeId, depth);
-    } catch (err) {
-      log.error('setFocusMode failed', err);
-    }
+    this.safeCallVoid('setFocusMode', () => this.viewportCtrl?.setFocusMode(nodeId, depth));
   }
 
   clearFocusMode(): void {
-    try {
-      this.viewportCtrl?.clearFocusMode();
-    } catch (err) {
-      log.error('clearFocusMode failed', err);
-    }
+    this.safeCallVoid('clearFocusMode', () => this.viewportCtrl?.clearFocusMode());
   }
 
   isFocusModeActive(): boolean {
@@ -530,12 +442,7 @@ export class CytoscapeRenderer implements IRenderer {
   }
 
   filterByPath(includePattern: string | null, excludePattern: string | null): void {
-    try {
-      this.filterCtrl?.filterByPath(includePattern, excludePattern);
-    } catch (err) {
-      log.error('filterByPath failed', err);
-      this.lastError = err instanceof Error ? err : new Error(String(err));
-    }
+    this.safeCallWithError('filterByPath', () => this.filterCtrl?.filterByPath(includePattern, excludePattern), undefined);
   }
 
   getLastError(): Error | null {

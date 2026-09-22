@@ -1,67 +1,45 @@
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
-import type { DiagramAssembler, AssembledDiagram } from './DiagramAssembler.ts';
-import { computeDepths, buildAdjacencyMaps } from './DiagramAssembler.ts';
+import { BaseFilteringAssembler, type FilteringAssemblerConfig, type AssemblyContext } from './BaseFilteringAssembler.ts';
 
 const INHERITANCE_NODE_TYPES = new Set(['class', 'interface', 'type']);
 const INHERITANCE_EDGE_TYPES = new Set(['extend', 'implement']);
 
-export class InheritanceAssembler implements DiagramAssembler {
-  assemble(nodes: GraphNode[], edges: GraphEdge[]): AssembledDiagram {
-    const inheritanceNodes = nodes.filter((n) => INHERITANCE_NODE_TYPES.has(n.type));
-    const inheritanceEdges = edges.filter((e) => INHERITANCE_EDGE_TYPES.has(e.type));
+export class InheritanceAssembler extends BaseFilteringAssembler {
+  protected config: FilteringAssemblerConfig = {
+    nodeTypes: INHERITANCE_NODE_TYPES,
+    edgeTypes: INHERITANCE_EDGE_TYPES,
+    rootDirection: 'no-out-edges',
+    depthDirection: 'source',
+  };
 
-    const nodeIds = new Set(inheritanceNodes.map((n) => n.id));
-    const validEdges = inheritanceEdges.filter(
-      (e) => nodeIds.has(e.source) && nodeIds.has(e.target),
-    );
+  private descendantCounts = new Map<string, number>();
 
-    const { outEdges, inEdges } = buildAdjacencyMaps(validEdges);
+  protected prepare(ctx: AssemblyContext): void {
+    this.descendantCounts = this.computeDescendantCounts(ctx.rootIds, ctx.inEdges);
+  }
 
-    const rootIds: string[] = [];
-    for (const n of inheritanceNodes) {
-      if (!outEdges.has(n.id)) rootIds.push(n.id);
-    }
-
-    const depthMap = computeDepths(rootIds, inEdges, 'source');
-    const descendantCounts = this.computeDescendantCounts(rootIds, inEdges);
-
-    const assembledNodes = inheritanceNodes.map((n) => {
-      const parentEdges = outEdges.get(n.id) ?? [];
-      const childEdges = inEdges.get(n.id) ?? [];
-      const stereotype = n.type === 'interface' ? '\u00ABinterface\u00BB\n' : '';
-      const umlLabel = stereotype + n.label;
-      const isAbstract = n.type === 'interface' || (n.properties?.isAbstract === true) ||
-        (/^Abstract[A-Z]/.test(n.label) || /^I[A-Z][a-z]/.test(n.label) && n.type === 'class');
-
-      return {
-        ...n,
-        properties: {
-          ...n.properties,
-          depth: depthMap.get(n.id) ?? 0,
-          isRoot: !outEdges.has(n.id),
-          parentCount: parentEdges.length,
-          childCount: childEdges.length,
-          descendantCount: descendantCounts.get(n.id) ?? 0,
-          isAbstract,
-          umlLabel,
-        },
-      };
-    });
-
-    const maxDepth = Math.max(0, ...depthMap.values());
+  protected enrichNode(node: GraphNode, ctx: AssemblyContext): GraphNode {
+    const parentEdges = ctx.outEdges.get(node.id) ?? [];
+    const childEdges = ctx.inEdges.get(node.id) ?? [];
+    const stereotype = node.type === 'interface' ? `\u00ABinterface\u00BB\n` : '';
+    const umlLabel = stereotype + node.label;
+    const isAbstract = node.type === 'interface' || (node.properties?.isAbstract === true) ||
+      (/^Abstract[A-Z]/.test(node.label) || /^I[A-Z][a-z]/.test(node.label) && node.type === 'class');
 
     return {
-      nodes: assembledNodes,
-      edges: validEdges,
-      metadata: {
-        rootIds,
-        maxDepth,
-        nodeCount: assembledNodes.length,
-        edgeCount: validEdges.length,
+      ...node,
+      properties: {
+        ...node.properties,
+        depth: ctx.depthMap.get(node.id) ?? 0,
+        isRoot: !ctx.outEdges.has(node.id),
+        parentCount: parentEdges.length,
+        childCount: childEdges.length,
+        descendantCount: this.descendantCounts.get(node.id) ?? 0,
+        isAbstract,
+        umlLabel,
       },
     };
   }
-
 
   private computeDescendantCounts(
     rootIds: string[],

@@ -3,6 +3,7 @@ import { NodeId, EdgeId } from '../../types/index.ts';
 import type { AssembledDiagram } from './DiagramAssembler.ts';
 import type { ASTNode, StatementInfo } from '../../shared/CFGTypes.ts';
 import { CFGAssembler } from './CFGAssembler.ts';
+import { simplifyText as simplifyTextShared } from '../../shared/astUtils.ts';
 import { t } from '../i18n/index.ts';
 
 const PROCESS_KEYWORDS: Record<string, string> = {
@@ -85,9 +86,7 @@ function inferSemanticLabel(statements: StatementInfo[], blockLabel: string): st
 }
 
 function simplifyForLabel(text: string, maxLen = 20): string {
-  const trimmed = text.trim().replace(/\s+/g, ' ');
-  if (trimmed.length <= maxLen) return trimmed;
-  return trimmed.substring(0, maxLen - 3) + '...';
+  return simplifyTextShared(text, maxLen);
 }
 
 function conditionToQuestion(condText: string): string {

@@ -3,7 +3,7 @@ import { NodeId, EdgeId } from '../../types/index.ts';
 import type { AssembledDiagram } from './DiagramAssembler.ts';
 import type { ASTNode, BasicBlock, StatementInfo, CFGEdgeData, CFGData } from '../../shared/CFGTypes.ts';
 import { findFunctionNode, getFunctionBody } from '../../shared/CFGTypes.ts';
-import { BASE_CONTROL_FLOW_TYPES, isControlFlow as isControlFlowBase, findElseNode } from '../../shared/astUtils.ts';
+import { BASE_CONTROL_FLOW_TYPES, isControlFlow as isControlFlowBase, findElseNode, simplifyText as simplifyTextShared, getBodyChildren as getBodyChildrenShared, getElseBody as getElseBodyShared } from '../../shared/astUtils.ts';
 
 const CFG_CONTROL_FLOW_TYPES = new Set([...BASE_CONTROL_FLOW_TYPES, 'match_arm', 'elif_clause', 'elif', 'except_clause', 'except', 'finally_clause', 'finally', 'catch_clause', 'catch']);
 
@@ -54,9 +54,7 @@ function classifyStatement(node: ASTNode): StatementInfo['type'] {
 }
 
 function simplifyText(text: string, maxLen = 40): string {
-  const trimmed = text.trim().replace(/\s+/g, ' ');
-  if (trimmed.length <= maxLen) return trimmed;
-  return trimmed.substring(0, maxLen - 3) + '...';
+  return simplifyTextShared(text, maxLen);
 }
 
 function getConditionNode(node: ASTNode): ASTNode | null {
@@ -82,24 +80,11 @@ function getConditionNode(node: ASTNode): ASTNode | null {
 }
 
 function getBodyChildren(node: ASTNode): ASTNode[] {
-  const body = node.children.find((c) =>
-    c.type === 'block' || c.type === 'statement_block' || c.type === 'body' ||
-    c.type === 'compound_statement' || c.type === 'suite' || c.type === 'function_body'
-  );
-  if (body) return body.children.filter(isStatement);
-  return node.children.filter((c) =>
-    c.type !== 'condition' && c.type !== 'parenthesized_expression' && isStatement(c)
-  );
+  return getBodyChildrenShared(node, isStatement);
 }
 
 function getElseBody(node: ASTNode): ASTNode[] {
-  const elseNode = findElseNode(node);
-  if (!elseNode) return [];
-  const body = elseNode.children.find((c) =>
-    c.type === 'block' || c.type === 'statement_block'
-  );
-  if (body) return body.children.filter(isStatement);
-  return elseNode.children.filter(isStatement);
+  return getElseBodyShared(node, isStatement);
 }
 
 interface LoopContext {
