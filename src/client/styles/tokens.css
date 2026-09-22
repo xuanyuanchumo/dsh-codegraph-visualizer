@@ -12,6 +12,7 @@
   --cg-surface: var(--dsw-surface, #f9fafb);
   --cg-surface-hover: var(--dsw-surface-hover, #f3f4f6);
   --cg-surface-active: var(--dsw-surface-active, #e5e7eb);
+  --cg-bg-elevated: var(--dsw-bg-elevated, #ffffff);
   --cg-border: var(--dsw-border, rgba(0, 0, 0, 0.04));
   --cg-border-strong: var(--dsw-border-strong, rgba(0, 0, 0, 0.1));
   --cg-text: var(--dsw-fg, #0f1115);
@@ -161,6 +162,7 @@ body[data-ds-dark-theme] {
   --cg-surface: var(--dsw-surface, #232324);
   --cg-surface-hover: var(--dsw-surface-hover, #2a2a2c);
   --cg-surface-active: var(--dsw-surface-active, #333335);
+  --cg-bg-elevated: var(--dsw-bg-elevated, #2a2a2c);
   --cg-border: var(--dsw-border, rgba(255, 255, 255, 0.08));
   --cg-border-strong: var(--dsw-border-strong, rgba(255, 255, 255, 0.14));
   --cg-text: var(--dsw-fg, #f9fafb);

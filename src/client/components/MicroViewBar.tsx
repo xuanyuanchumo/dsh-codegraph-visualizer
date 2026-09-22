@@ -13,7 +13,8 @@ interface MicroViewPromptProps {
 
 
 export const MicroViewPrompt = memo(function MicroViewPrompt({ viewMode, selectFunctionPrompt, flowchartLabel, sequenceLabel, backToCodeLabel, onBackToCode }: MicroViewPromptProps) {
-  const modeLabel = viewMode === 'cfg' ? 'CFG' : viewMode === 'flowchart' ? flowchartLabel : sequenceLabel;
+  const t = useT();
+  const modeLabel = viewMode === 'cfg' ? t('viewMode.cfg') : viewMode === 'flowchart' ? flowchartLabel : sequenceLabel;
   return (
     <div className="cg-micro-empty-prompt">
       <div className="cg-micro-empty-icon">{modeLabel}</div>

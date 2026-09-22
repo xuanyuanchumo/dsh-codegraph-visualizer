@@ -640,10 +640,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       setSelectedNode(NodeId(id));
       const data = getDataRef.current?.getNodeData(NodeId(id)) ?? null;
       setSelectedNodeData(data);
+      panel.setShowSearch(false);
     } catch (err) {
       log.error('handleSelectSearchResult failed', { id, err });
     }
-  }, [setSelectedNode]);
+  }, [setSelectedNode, panel]);
 
   const nodeTypeCounts = useMemo(() => {
     const counts = { function: 0, class: 0, variable: 0, module: 0, interface: 0, type: 0 };

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, memo } from 'react';
+import React, { useEffect, useRef, useState, memo, useCallback } from 'react';
 import type { GraphNode } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
 import { useT } from '../i18n/index.ts';
@@ -38,15 +38,20 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [focusedIndex, setFocusedIndex] = useState(0);
 
+  const handleClose = useCallback(() => {
+    setFocusedIndex(0);
+    props.onClose();
+  }, [props.onClose]);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        props.onClose();
+        handleClose();
       }
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        props.onClose();
+        handleClose();
         return;
       }
       if (e.key === 'ArrowDown') {
@@ -81,7 +86,7 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [props.onClose]);
+  }, [handleClose]);
 
   useEffect(() => {
     const items = menuRef.current?.querySelectorAll<HTMLButtonElement>('.cg-context-menu-item:not([disabled])');
@@ -109,19 +114,19 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
   actions.push({
     id: 'focus',
     label: t('contextMenu.focus'),
-    onClick: () => { props.onFocusNode(props.nodeId); props.onClose(); },
+    onClick: () => { props.onFocusNode(props.nodeId); handleClose(); },
   });
 
   actions.push({
     id: 'isolate',
     label: t('contextMenu.isolate'),
-    onClick: () => { props.onIsolateNode(props.nodeId); props.onClose(); },
+    onClick: () => { props.onIsolateNode(props.nodeId); handleClose(); },
   });
 
   actions.push({
     id: 'hide',
     label: t('contextMenu.hide'),
-    onClick: () => { props.onHideNode(props.nodeId); props.onClose(); },
+    onClick: () => { props.onHideNode(props.nodeId); handleClose(); },
     separatorAfter: true,
   });
 
@@ -129,7 +134,7 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
     actions.push({
       id: 'showAll',
       label: t('contextMenu.showAll'),
-      onClick: () => { props.onShowAllNodes(); props.onClose(); },
+      onClick: () => { props.onShowAllNodes(); handleClose(); },
       separatorAfter: true,
     });
   }
@@ -139,13 +144,13 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
       actions.push({
         id: 'collapse',
         label: t('contextMenu.collapse'),
-        onClick: () => { props.onCollapseNode(props.nodeId); props.onClose(); },
+        onClick: () => { props.onCollapseNode(props.nodeId); handleClose(); },
       });
     } else {
       actions.push({
         id: 'expand',
         label: t('contextMenu.expand'),
-        onClick: () => { props.onExpandNode(props.nodeId); props.onClose(); },
+        onClick: () => { props.onExpandNode(props.nodeId); handleClose(); },
       });
     }
   }
@@ -153,26 +158,26 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
   actions.push({
     id: 'callChain',
     label: t('contextMenu.callChain'),
-    onClick: () => { props.onHighlightCallChain(props.nodeId); props.onClose(); },
+    onClick: () => { props.onHighlightCallChain(props.nodeId); handleClose(); },
   });
 
   actions.push({
     id: 'impact',
     label: t('contextMenu.impact'),
-    onClick: () => { props.onHighlightImpact(props.nodeId); props.onClose(); },
+    onClick: () => { props.onHighlightImpact(props.nodeId); handleClose(); },
   });
 
   actions.push({
     id: 'findPath',
     label: t('contextMenu.findPath'),
-    onClick: () => { props.onFindPath(props.nodeId); props.onClose(); },
+    onClick: () => { props.onFindPath(props.nodeId); handleClose(); },
     separatorAfter: true,
   });
 
   actions.push({
     id: 'openSource',
     label: t('contextMenu.openSource'),
-    onClick: () => { props.onOpenSource(props.nodeId); props.onClose(); },
+    onClick: () => { props.onOpenSource(props.nodeId); handleClose(); },
   });
 
   const menuStyle: React.CSSProperties = {
@@ -192,6 +197,7 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
             disabled={action.disabled}
             onClick={action.onClick}
           >
+            {action.icon && <span className="cg-context-menu-icon" aria-hidden="true">{action.icon}</span>}
             {action.label}
           </button>
           {action.separatorAfter && <div className="cg-context-menu-separator" role="separator" />}
