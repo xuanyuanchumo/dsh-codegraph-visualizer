@@ -1,9 +1,7 @@
 import type { Core } from 'cytoscape';
+import type { DirectedAdjacencyMaps } from '../../shared/analysis/AdjacencyList.ts';
 
-export interface DirectedAdjacencyMaps {
-  forward: Map<string, string[]>;
-  backward: Map<string, string[]>;
-}
+export type { DirectedAdjacencyMaps };
 
 export function buildUndirectedAdjacencyMap(cy: Core): Map<string, Set<string>> {
   const map = new Map<string, Set<string>>();

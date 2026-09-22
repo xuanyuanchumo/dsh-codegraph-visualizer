@@ -1,6 +1,7 @@
 import type { Core } from 'cytoscape';
 import { NodeId } from '../../types/index.ts';
 import { PATH_FINDER as PF_CONST } from '../../shared/constants.ts';
+import { buildDirectedAdjacencyMaps } from './AdjacencyMapBuilder.ts';
 import type { AdjacencyCache } from './AdjacencyCache.ts';
 
 export interface PathResult {
@@ -41,18 +42,11 @@ export class PathFinder {
     if (this.adjacencyCache) {
       return this.adjacencyCache.getDirectedAdjacency(this.cy);
     }
+    const directed = buildDirectedAdjacencyMaps(this.cy);
     const forward = new Map<string, Set<string>>();
     const backward = new Map<string, Set<string>>();
-    this.cy.edges().forEach((edge) => {
-      const s = edge.source().id();
-      const t = edge.target().id();
-      let fwdSet = forward.get(s);
-      if (!fwdSet) { fwdSet = new Set(); forward.set(s, fwdSet); }
-      fwdSet.add(t);
-      let bwdSet = backward.get(t);
-      if (!bwdSet) { bwdSet = new Set(); backward.set(t, bwdSet); }
-      bwdSet.add(s);
-    });
+    for (const [k, v] of directed.forward) forward.set(k, new Set(v));
+    for (const [k, v] of directed.backward) backward.set(k, new Set(v));
     return { forward, backward };
   }
 

@@ -121,9 +121,9 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
     {
       selector: ':parent',
       style: {
-        'background-color': isDark ? 'rgba(99,102,241,0.08)' : 'rgba(0,0,0,0.05)',
+        'background-color': readCssVarCached('--cg-accent-soft', isDark ? 'rgba(99,102,241,0.12)' : 'rgba(38,49,72,0.1)'),
         'border-width': 2,
-        'border-color': isDark ? 'rgba(129,140,248,0.3)' : c.border,
+        'border-color': readCssVarCached('--cg-border-strong', isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)'),
         'border-style': 'dashed',
         'label': 'data(label)',
         'font-size': '10px',
@@ -218,7 +218,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
         'curve-style': 'bezier',
         'opacity': 0.8,
         'overlay-opacity': 0,
-        'text-background-color': isDark ? '#1a1a1a' : '#ffffff',
+        'text-background-color': readCssVarCached('--cg-surface', isDark ? '#232324' : '#f9fafb'),
         'text-background-opacity': 0.8,
         'text-background-padding': '2px',
         'text-background-shape': 'roundrectangle',

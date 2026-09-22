@@ -167,25 +167,25 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
   const colors = useMemo(() => {
     const tc = getThemeColors(theme);
     return {
-      bg: readCssVarCached('--cg-surface', isDark ? '#1e1e2e' : '#ffffff'),
+      bg: readCssVarCached('--cg-surface', isDark ? '#232324' : '#f9fafb'),
       text: tc.text,
-      textSecondary: readCssVarCached('--cg-text-secondary', isDark ? '#a0a0b0' : '#666666'),
-      lifeline: readCssVarCached('--cg-border-strong', isDark ? '#555570' : '#aaaaaa'),
-      lifelineDashed: readCssVarCached('--cg-border', isDark ? '#444460' : '#bbbbbb'),
+      textSecondary: readCssVarCached('--cg-text-secondary', isDark ? '#cfd3d6' : '#61666b'),
+      lifeline: readCssVarCached('--cg-border-strong', isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)'),
+      lifelineDashed: readCssVarCached('--cg-border', isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'),
       activation: tc.edgeCall,
-      activationBorder: readCssVarCached('--cg-accent', isDark ? '#8899cc' : '#357abd'),
+      activationBorder: readCssVarCached('--cg-accent', isDark ? '#6366f1' : '#263148'),
       syncArrow: tc.text,
       asyncArrow: tc.edgeImport,
       returnArrow: tc.edgeExtend,
       selfCallArrow: tc.nodeType,
       createArrow: tc.edgeCall,
-      fragmentBg: readCssVarCached('--cg-accent-soft', isDark ? 'rgba(100,100,140,0.15)' : 'rgba(200,200,240,0.2)'),
-      fragmentBorder: readCssVarCached('--cg-accent-hover', isDark ? '#7777aa' : '#9999cc'),
-      fragmentLabelBg: readCssVarCached('--cg-surface-active', isDark ? '#444466' : '#eeeeff'),
-      participantBg: readCssVarCached('--cg-surface-hover', isDark ? '#2a2a3e' : '#f0f0f5'),
-      participantBorder: readCssVarCached('--cg-border-strong', isDark ? '#555570' : '#cccccc'),
+      fragmentBg: readCssVarCached('--cg-accent-soft', isDark ? 'rgba(99,102,241,0.12)' : 'rgba(38,49,72,0.1)'),
+      fragmentBorder: readCssVarCached('--cg-accent-hover', isDark ? '#5457e5' : '#1a2230'),
+      fragmentLabelBg: readCssVarCached('--cg-surface-active', isDark ? '#333335' : '#e5e7eb'),
+      participantBg: readCssVarCached('--cg-surface-hover', isDark ? '#2a2a2c' : '#f3f4f6'),
+      participantBorder: readCssVarCached('--cg-border-strong', isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)'),
       gridLine: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
-      highlightBg: readCssVarCached('--cg-accent-soft', isDark ? 'rgba(100,150,255,0.2)' : 'rgba(50,100,255,0.15)'),
+      highlightBg: readCssVarCached('--cg-accent-soft', isDark ? 'rgba(99,102,241,0.12)' : 'rgba(38,49,72,0.1)'),
     };
   }, [isDark, theme]);
 
