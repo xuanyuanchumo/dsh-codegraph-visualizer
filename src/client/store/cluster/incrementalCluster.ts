@@ -1,18 +1,11 @@
 import { NodeId } from '../../../types/index.ts';
 import type { GraphNode, GraphEdge } from '../../../types/index.ts';
 import type { ClusterNode, ClusterResult } from './types.ts';
-import { aggregateEdges } from './types.ts';
+import { aggregateEdges, getDependencyGroup } from './types.ts';
 import { getTopLevelDir } from '../../../shared/pathUtils.ts';
 import { INCREMENTAL_CLUSTER, CLUSTER, getDynamicMaxVisibleNodes, getAutoClusterDepth } from '../../../shared/constants.ts';
 import { computeProgressiveClusters } from './progressiveCluster.ts';
 
-function getDependencyGroup(node: GraphNode): string | null {
-  const depType = node.properties?.depType;
-  if (typeof depType === 'string') {
-    return `dep:${depType}`;
-  }
-  return null;
-}
 
 function getDirClusterId(dirPath: string): string {
   return `cluster__${dirPath.replace(/[/:\\]/g, '__')}`;

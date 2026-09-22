@@ -12,10 +12,12 @@ test.describe('J34: 语言切换', () => {
     await setupPluginPage(page);
     const langBtn = page.locator('.lang-btn');
     const initialText = await page.locator('.status-bar').textContent();
-    await langBtn.click({ timeout: 10000 }).catch(() => {});
+    await langBtn.click({ timeout: 10000 });
     const afterText = await page.locator('.status-bar').textContent();
-    const changed = initialText !== afterText;
-    expect(typeof changed).toBe('boolean');
+    expect(afterText).not.toBeNull();
+    if (initialText !== null && afterText !== null) {
+      expect(afterText).not.toBe(initialText);
+    }
   });
 
   test('should preserve graph labels when language changes', async ({ page }) => {

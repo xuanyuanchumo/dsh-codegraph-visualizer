@@ -25,7 +25,7 @@ test.describe('J24: 继承层次图', () => {
   test('should switch to inheritance view mode', async ({ page }) => {
     await setupPluginPage(page);
     const inheritanceBtn = page.locator('.view-mode-btn[data-mode="inheritance"]');
-    await expect(inheritanceBtn).toBeVisible().catch(() => {});
+    await expect(inheritanceBtn).toBeVisible({ timeout: 10000 });
   });
 
   test('should show layer selector in inheritance mode', async ({ page }) => {

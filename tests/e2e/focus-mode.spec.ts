@@ -47,6 +47,8 @@ test.describe('J31: 波及半径分析', () => {
   test('should show D1/D2/D3 depth badges in impact panel', async ({ page }) => {
     await setupPluginPage(page);
     const impactBtn = page.locator('.impact-btn');
-    await impactBtn.click({ timeout: 10000 }).catch(() => {});
+    await impactBtn.click({ timeout: 10000 });
+    const impactPanel = page.locator('.impact-panel');
+    await expect(impactPanel).toBeVisible({ timeout: 5000 });
   });
 });

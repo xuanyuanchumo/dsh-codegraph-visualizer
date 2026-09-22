@@ -3,7 +3,7 @@ import { NodeId, EdgeId } from '../../types/index.ts';
 import type { AssembledDiagram } from './DiagramAssembler.ts';
 import type { ASTNode } from '../../shared/CFGTypes.ts';
 import { findFunctionNode, getFunctionBody } from '../../shared/CFGTypes.ts';
-import { isControlFlow, findElseNode, findConditionNode, getBodyChildren as getBodyChildrenShared, getElseBody as getElseBodyShared } from '../../shared/astUtils.ts';
+import { isControlFlow, findConditionNode, getBodyChildren as getBodyChildrenShared, getElseBody as getElseBodyShared } from '../../shared/astUtils.ts';
 import type {
   Participant,
   ParticipantType,

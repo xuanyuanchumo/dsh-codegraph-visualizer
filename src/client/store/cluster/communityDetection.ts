@@ -13,7 +13,7 @@ export interface CommunityGroup {
   nodes: GraphNode[];
 }
 
-function selectHighDegreeNodes(nodes: GraphNode[], edges: GraphEdge[], limit: number): GraphNode[] {
+export function selectHighDegreeNodes(nodes: GraphNode[], edges: GraphEdge[], limit: number): GraphNode[] {
   const degreeMap = new Map<string, number>();
   for (const n of nodes) degreeMap.set(n.id, 0);
   for (const e of edges) {

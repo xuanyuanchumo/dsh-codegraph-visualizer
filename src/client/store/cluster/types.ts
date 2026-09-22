@@ -28,6 +28,14 @@ export interface EdgeAggregation {
   types: Set<string>;
 }
 
+export function getDependencyGroup(node: GraphNode): string | null {
+  const depType = node.properties?.depType;
+  if (typeof depType === 'string') {
+    return `dep:${depType}`;
+  }
+  return null;
+}
+
 export function aggregateEdges(
   rawEdges: GraphEdge[],
   nodeIdToVisibleId: Map<string, string>,

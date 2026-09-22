@@ -1,7 +1,7 @@
 import { NodeId } from '../../../types/index.ts';
 import type { GraphNode, GraphEdge } from '../../../types/index.ts';
 import type { ClusterNode, ClusterResult } from './types.ts';
-import { aggregateEdges } from './types.ts';
+import { aggregateEdges, getDependencyGroup } from './types.ts';
 import { detectCommunities } from './communityDetection.ts';
 import { CLUSTER, getDynamicMaxVisibleNodes, getAutoClusterDepth } from '../../../shared/constants.ts';
 import { getTopLevelDir } from '../../../shared/pathUtils.ts';
@@ -11,13 +11,6 @@ const SUBGROUP_THRESHOLD = CLUSTER.SUBGROUP_THRESHOLD;
 const MAX_NODES_PER_DIR_BEFORE_SUBGROUP = CLUSTER.MAX_NODES_PER_DIR_BEFORE_SUBGROUP;
 
 
-function getDependencyGroup(node: GraphNode): string | null {
-  const depType = node.properties?.depType;
-  if (typeof depType === 'string') {
-    return `dep:${depType}`;
-  }
-  return null;
-}
 
 function getDirLabel(dirPath: string): string {
   const parts = dirPath.split('/');
