@@ -390,6 +390,12 @@ export function apply(ctx: Context) {
     resetI18nListeners();
     resetLoggerListeners();
   }, 'codegraph: module-level state cleanup');
+
+  return () => {
+    disposeStore();
+    resetI18nListeners();
+    resetLoggerListeners();
+  };
 }
 
 

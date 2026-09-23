@@ -18,6 +18,7 @@
   "include": [
     "src/index.ts",
     "src/tools.ts",
+    "src/graphUtils.ts",
     "src/adapters/**/*",
     "src/merger/**/*",
     "src/types/**/*",

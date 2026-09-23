@@ -5,7 +5,7 @@ import path from 'node:path';
 import { scoped } from '../shared/Logger.ts';
 import { VALIDATION, AST } from '../shared/constants.ts';
 import type { GraphData, GraphNode, GraphEdge, IncomingMessage, ServerResponse, IGraphVisualizerService } from '../types/index.ts';
-import { RepoId } from '../types/index.ts';
+import { RepoId, NodeId, EdgeId } from '../types/index.ts';
 import { fetchMergedGraph } from '../tools.ts';
 import { createInvoke } from '../tools.ts';
 import { SecurityManager } from './security.ts';
@@ -66,6 +66,32 @@ async function resolveAndValidatePath(
   return resolved;
 }
 
+async function resolveAndValidateRelativePath(
+  relativePath: string,
+  ctx: Context,
+  deps: RouteDeps,
+  req: IncomingMessage,
+  res: ServerResponse,
+  corsConfig: CorsConfig,
+): Promise<string | null> {
+  const workspacePath = findWorkspacePath(ctx);
+  if (!workspacePath) {
+    sendError(res, 400, 'No workspace path configured', req, corsConfig);
+    return null;
+  }
+  const fullPath = path.resolve(workspacePath, relativePath);
+  const normalizedWorkspace = path.normalize(workspacePath);
+  if (!fullPath.startsWith(normalizedWorkspace + path.sep) && fullPath !== normalizedWorkspace) {
+    sendError(res, 403, 'Access denied: path outside workspace', req, corsConfig);
+    return null;
+  }
+  if (!await validatePathRealpath(fullPath, deps.securityManager)) {
+    sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
+    return null;
+  }
+  return fullPath;
+}
+
 async function validateWorkspacePath(
   ctx: Context,
   deps: RouteDeps,
@@ -118,7 +144,7 @@ export function slimGraphData(data: GraphData, maxNodes: number): GraphData {
   }
 
   const slimNodes = selectedNodes.map((n) => ({
-    id: n.id,
+    id: NodeId(n.id),
     label: n.label,
     type: n.type,
     filePath: n.filePath,
@@ -129,9 +155,9 @@ export function slimGraphData(data: GraphData, maxNodes: number): GraphData {
   const slimEdges = data.edges
     .filter((e) => allowedIds.has(e.source) && allowedIds.has(e.target) && e.source !== e.target)
     .map((e) => ({
-      id: e.id,
-      source: e.source,
-      target: e.target,
+      id: EdgeId(e.id),
+      source: NodeId(e.source),
+      target: NodeId(e.target),
       type: e.type,
       properties: e.properties ?? {},
     }));
@@ -593,27 +619,8 @@ function registerAstRoute(rc: RouteContext, sharedTreeSitterAdapter: TreeSitterA
             sendError(res, 400, 'filePath is required', req, corsConfig);
             return;
           }
-          const workspacePath = findWorkspacePath(ctx);
-          if (!workspacePath) {
-            sendError(res, 400, 'No workspace path configured', req, corsConfig);
-            return;
-          }
-          const fullPath = path.resolve(workspacePath, filePath);
-          const normalizedWorkspace = path.normalize(workspacePath);
-          if (!fullPath.startsWith(normalizedWorkspace + path.sep) && fullPath !== normalizedWorkspace) {
-            sendError(res, 403, 'Access denied: path outside workspace', req, corsConfig);
-            return;
-          }
-          const realPath = await fs.realpath(fullPath);
-          const realWorkspace = await fs.realpath(normalizedWorkspace);
-          if (!realPath.startsWith(realWorkspace + path.sep) && realPath !== realWorkspace) {
-            sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
-            return;
-          }
-          if (!deps.securityManager.isPathAllowed(realPath)) {
-            sendError(res, 403, 'Access denied', req, corsConfig);
-            return;
-          }
+          const realPath = await resolveAndValidateRelativePath(filePath, ctx, deps, req, res, corsConfig);
+          if (!realPath) return;
           const content = await fs.readFile(realPath, 'utf-8');
           const MAX_AST_CONTENT = AST.MAX_CONTENT_BYTES;
           if (content.length > MAX_AST_CONTENT) {
