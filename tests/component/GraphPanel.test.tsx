@@ -5,6 +5,7 @@ import { describe, it, expect, afterEach, vi, beforeEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import React from 'react';
 import { useGraphStore } from '../../src/client/store/graphStore.ts';
+import { useShallow } from 'zustand/shallow';
 
 class ResizeObserverMock {
   observe() {}
@@ -40,6 +41,9 @@ vi.mock('../../src/client/hooks/index.ts', () => ({
     setLODLevel: vi.fn(),
     setHeatmapMode: vi.fn(),
     applyIncrementalLayout: vi.fn(),
+    updateTheme: vi.fn(),
+    searchMatchCount: 0,
+    exportGraph: vi.fn(),
   })),
   usePanelResize: vi.fn(() => ({
     resizeHandleRef: { current: null },
@@ -101,6 +105,30 @@ vi.mock('../../src/client/hooks/index.ts', () => ({
     searchResults: [],
     searchInputRef: { current: null },
   })),
+  useGraphData: vi.fn(() => ({ nodes: [], edges: [], rawNodes: [], rawEdges: [] })),
+  useGraphDisplay: vi.fn(() => useGraphStore(useShallow((s: any) => ({
+    layout: s.layout, dagreRankDir: s.dagreRankDir, theme: s.theme,
+    filterType: s.filterType, graphType: s.graphType, clusterDepth: s.clusterDepth,
+    viewMode: s.viewMode, currentLayer: s.currentLayer, diagramData: s.diagramData,
+  })))),
+  useGraphInteraction: vi.fn(() => ({ searchQuery: '', selectedNodeId: null, highlightedNodeIds: [], expandedNodeIds: new Set(), pathResult: null, focusDepth: 1, focusModeActive: false, focusModeNodeId: null, pathFilterInclude: null, pathFilterExclude: null })),
+  useGraphStatus: vi.fn(() => ({ isLoading: false, error: null, lastUpdated: 0, truncated: false, totalNodeCount: 0, prerequisites: { codegraph: false, lens: false }, watchEnabled: false, initStatus: 'idle' })),
+  useGraphWorkspace: vi.fn(() => ({ currentWorkspace: '', workspaceList: [] })),
+  useGraphAnalysis: vi.fn(() => ({ ruleViolations: [], selectedFunction: null, fanInThreshold: 0, fanOutThreshold: 0, visibleNodeTypes: new Set(), visibleEdgeTypes: new Set(), heatmapMode: 'none' })),
+  useGraphPerformance: vi.fn(() => ({ performanceDegradations: [], lodLevel: 'full', lodEnabled: false })),
+  useGraphActions: vi.fn(() => {
+    const s = useGraphStore.getState();
+    return {
+      setLayout: s.setLayout, setDagreRankDir: s.setDagreRankDir, setTheme: s.setTheme, setSearchQuery: s.setSearchQuery,
+      setSelectedNode: s.setSelectedNode, setFilterType: s.setFilterType, setGraphType: s.setGraphType, setClusterDepth: s.setClusterDepth,
+      setLayer: s.setLayer, setLoading: s.setLoading, setCurrentWorkspace: s.setCurrentWorkspace, addWorkspace: s.addWorkspace,
+      removeWorkspace: s.removeWorkspace, setGraphData: s.setGraphData, setInitStatus: s.setInitStatus, setWatchEnabled: s.setWatchEnabled,
+      setError: s.setError, expandNode: s.expandNode, collapseNode: s.collapseNode, collapseAll: s.collapseAll,
+      setPathResult: s.setPathResult, setFocusDepth: s.setFocusDepth, setHeatmapMode: s.setHeatmapMode, setLODLevel: s.setLODLevel,
+      assembleMicro: s.assembleMicro,
+    };
+  }),
+  usePanelDimensions: vi.fn(() => ({ panelHeight: null, panelWidth: null })),
 }));
 
 vi.mock('../../src/client/hooks/useThemeSync.ts', () => ({

@@ -1,11 +1,13 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useGraphStore } from './store/graphStore.ts';
 import type { ThemeType } from './store/graphStore.ts';
-import { useShallow } from 'zustand/shallow';
+
 import type { GraphNode, GraphEdge } from '../types/index.ts';
 import type { ClusterNode } from './store/cluster/index.ts';
 import { NodeId } from '../types/index.ts';
-import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard, useViewMode, useAnalysisPanels, useNodeSearch } from './hooks/index.ts';
+import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard, useViewMode, useAnalysisPanels, useNodeSearch,
+  useGraphData, useGraphDisplay, useGraphInteraction, useGraphStatus, useGraphWorkspace, useGraphAnalysis, useGraphPerformance, useGraphActions, usePanelDimensions,
+} from './hooks/index.ts';
 import { useThemeSync } from './hooks/useThemeSync.ts';
 import { useHistory } from './hooks/useHistory.ts';
 import { useGraphCache } from './hooks/useGraphCache.ts';
@@ -86,97 +88,24 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const [visibleNodeCount, setVisibleNodeCount] = useState<number>(0);
   const [hasHiddenNodes, setHasHiddenNodes] = useState<boolean>(false);
 
-  const {
-    nodes, edges, rawNodes, rawEdges,
-  } = useGraphStore(useShallow((s) => ({
-    nodes: s.nodes, edges: s.edges, rawNodes: s.rawNodes, rawEdges: s.rawEdges,
-  })));
+  const { nodes, edges, rawNodes, rawEdges } = useGraphData();
+  const { layout, dagreRankDir, theme, filterType, graphType, clusterDepth, viewMode, currentLayer, diagramData } = useGraphDisplay();
+  const { searchQuery, selectedNodeId, highlightedNodeIds, expandedNodeIds, pathResult, focusDepth, focusModeActive, focusModeNodeId, pathFilterInclude, pathFilterExclude } = useGraphInteraction();
+  const { isLoading, error, lastUpdated, truncated, totalNodeCount, prerequisites, watchEnabled, initStatus } = useGraphStatus();
+  const { currentWorkspace, workspaceList } = useGraphWorkspace();
+  const { ruleViolations, selectedFunction, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, heatmapMode } = useGraphAnalysis();
+  const { performanceDegradations, lodLevel, lodEnabled } = useGraphPerformance();
+  const actions = useGraphActions();
+  const { panelHeight, panelWidth } = usePanelDimensions();
 
   const {
-    layout, dagreRankDir, theme, filterType, graphType, clusterDepth,
-    viewMode, currentLayer, diagramData,
-  } = useGraphStore(useShallow((s) => ({
-    layout: s.layout, theme: s.theme,
-    filterType: s.filterType, graphType: s.graphType, clusterDepth: s.clusterDepth,
-    viewMode: s.viewMode, currentLayer: s.currentLayer, diagramData: s.diagramData,
-    dagreRankDir: s.dagreRankDir,
-  })));
-
-  const {
-    searchQuery, selectedNodeId, highlightedNodeIds, expandedNodeIds,
-    pathResult, focusDepth, focusModeActive, focusModeNodeId,
-    pathFilterInclude, pathFilterExclude,
-  } = useGraphStore(useShallow((s) => ({
-    searchQuery: s.searchQuery, selectedNodeId: s.selectedNodeId,
-    highlightedNodeIds: s.highlightedNodeIds, expandedNodeIds: s.expandedNodeIds,
-    pathResult: s.pathResult, focusDepth: s.focusDepth,
-    focusModeActive: s.focusModeActive, focusModeNodeId: s.focusModeNodeId,
-    pathFilterInclude: s.pathFilterInclude, pathFilterExclude: s.pathFilterExclude,
-  })));
-
-  const {
-    isLoading, error, lastUpdated, truncated, totalNodeCount,
-    prerequisites, watchEnabled, initStatus,
-  } = useGraphStore(useShallow((s) => ({
-    isLoading: s.isLoading, error: s.error, lastUpdated: s.lastUpdated,
-    truncated: s.truncated, totalNodeCount: s.totalNodeCount,
-    prerequisites: s.prerequisites, watchEnabled: s.watchEnabled,
-    initStatus: s.initStatus,
-  })));
-
-  const {
-    currentWorkspace, workspaceList,
-  } = useGraphStore(useShallow((s) => ({
-    currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
-  })));
-
-  const {
-    ruleViolations, selectedFunction,
-    fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes,
-    heatmapMode,
-  } = useGraphStore(useShallow((s) => ({
-    ruleViolations: s.ruleViolations, selectedFunction: s.selectedFunction,
-    fanInThreshold: s.fanInThreshold, fanOutThreshold: s.fanOutThreshold,
-    visibleNodeTypes: s.visibleNodeTypes, visibleEdgeTypes: s.visibleEdgeTypes,
-    heatmapMode: s.heatmapMode,
-  })));
-
-  const {
-    performanceDegradations, lodLevel, lodEnabled,
-  } = useGraphStore(useShallow((s) => ({
-    performanceDegradations: s.performanceDegradations,
-    lodLevel: s.lodLevel, lodEnabled: s.lodEnabled,
-  })));
-
-  const setLayout = useGraphStore((s) => s.setLayout);
-  const setDagreRankDir = useGraphStore((s) => s.setDagreRankDir);
-  const setTheme = useGraphStore((s) => s.setTheme);
-  const setSearchQuery = useGraphStore((s) => s.setSearchQuery);
-  const setSelectedNode = useGraphStore((s) => s.setSelectedNode);
-  const setFilterType = useGraphStore((s) => s.setFilterType);
-  const setGraphType = useGraphStore((s) => s.setGraphType);
-  const setClusterDepth = useGraphStore((s) => s.setClusterDepth);
-  const setLayer = useGraphStore((s) => s.setLayer);
-  const setLoading = useGraphStore((s) => s.setLoading);
-  const setCurrentWorkspace = useGraphStore((s) => s.setCurrentWorkspace);
-  const addWorkspace = useGraphStore((s) => s.addWorkspace);
-  const removeWorkspace = useGraphStore((s) => s.removeWorkspace);
-  const setGraphData = useGraphStore((s) => s.setGraphData);
-  const setInitStatus = useGraphStore((s) => s.setInitStatus);
-  const setWatchEnabled = useGraphStore((s) => s.setWatchEnabled);
-  const setError = useGraphStore((s) => s.setError);
-  const expandNode = useGraphStore((s) => s.expandNode);
-  const collapseNode = useGraphStore((s) => s.collapseNode);
-  const collapseAll = useGraphStore((s) => s.collapseAll);
-  const setPathResult = useGraphStore((s) => s.setPathResult);
-  const setFocusDepth = useGraphStore((s) => s.setFocusDepth);
-  const setHeatmapMode = useGraphStore((s) => s.setHeatmapMode);
-  const setLODLevel = useGraphStore((s) => s.setLODLevel);
-
-  const assembleMicro = useGraphStore((s) => s.assembleMicro);
-
-  const panelHeight = useGraphStore((s) => s.panelHeight);
-  const panelWidth = useGraphStore((s) => s.panelWidth);
+    setLayout, setDagreRankDir, setTheme, setSearchQuery, setSelectedNode,
+    setFilterType, setGraphType, setClusterDepth, setLayer, setLoading,
+    setCurrentWorkspace, addWorkspace, removeWorkspace, setGraphData,
+    setInitStatus, setWatchEnabled, setError, expandNode, collapseNode,
+    collapseAll, setPathResult, setFocusDepth, setHeatmapMode, setLODLevel,
+    assembleMicro,
+  } = actions;
 
   const handleCollapseAll = useCallback(() => { collapseAll(); }, [collapseAll]);
 

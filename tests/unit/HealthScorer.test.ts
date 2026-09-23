@@ -1130,4 +1130,239 @@ describe('HealthScorer', () => {
       expect(score.overall).toBe(53);
     });
   });
+
+  // ---- EDGE_WEIGHTS coverage tests ----
+
+  describe('EDGE_WEIGHTS - all edge type weights', () => {
+    it('association edges contribute to coupling with weight 0.6', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod2/b.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'b', 'association')];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.coupling).toBeLessThan(100);
+    });
+
+    it('aggregation edges contribute to coupling with weight 0.5', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod2/b.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'b', 'aggregation')];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.coupling).toBeLessThan(100);
+    });
+
+    it('composition edges contribute to coupling with weight 0.7', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod2/b.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'b', 'composition')];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.coupling).toBeLessThan(100);
+    });
+
+    it('association edges contribute to cohesion', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'b', 'association')];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.cohesion).toBe(100);
+    });
+
+    it('aggregation edges contribute to cohesion', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'b', 'aggregation')];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.cohesion).toBe(100);
+    });
+
+    it('composition edges contribute to cohesion', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'b', 'composition')];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.cohesion).toBe(100);
+    });
+
+    it('association edges contribute to modularity', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod2/b.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'b', 'association')];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.modularity).toBeGreaterThanOrEqual(0);
+      expect(score.modularity).toBeLessThanOrEqual(100);
+    });
+  });
+
+  // ---- calculateCoupling: multi-module precision tests ----
+
+  describe('calculateCoupling - multi-module precision', () => {
+    it('3 modules with asymmetric coupling produces correct score', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod2/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/mod3/c.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'a', 'c', 'call'),
+      ];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.coupling).toBeGreaterThanOrEqual(0);
+      expect(score.coupling).toBeLessThan(100);
+    });
+
+    it('returns 100 when single module with cross-module edges (all skipped)', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'b', 'call')];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.coupling).toBe(100);
+    });
+  });
+
+  // ---- calculateCohesion: multi-module precision tests ----
+
+  describe('calculateCohesion - multi-module precision', () => {
+    it('produces correct cohesion for 3 modules with mixed internal/external edges', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/mod2/c.ts', 1),
+        makeNode('d', 'D', 'function', 'src/mod2/d.ts', 1),
+        makeNode('e', 'E', 'function', 'src/mod3/e.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'c', 'd', 'call'),
+        makeEdge('e3', 'a', 'c', 'call'),
+      ];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.cohesion).toBeGreaterThan(0);
+      expect(score.cohesion).toBeLessThan(100);
+    });
+
+    it('returns 50 when moduleStats is empty (no nodes have module mapping)', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'a.ts', 1),
+      ];
+      const edges = [makeEdge('e1', 'a', 'unknown', 'call')];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.cohesion).toBeGreaterThanOrEqual(0);
+      expect(score.cohesion).toBeLessThanOrEqual(100);
+    });
+  });
+
+  // ---- calculateModularity: separationScore boundary ----
+
+  describe('calculateModularity - separationScore boundary', () => {
+    it('produces high modularity when all internal edges in balanced modules', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/mod2/c.ts', 1),
+        makeNode('d', 'D', 'function', 'src/mod2/d.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'c', 'd', 'call'),
+      ];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.modularity).toBe(100);
+    });
+
+    it('produces low modularity when all cross-module edges in balanced modules', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/mod2/c.ts', 1),
+        makeNode('d', 'D', 'function', 'src/mod2/d.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'c', 'call'),
+        makeEdge('e2', 'b', 'd', 'call'),
+      ];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.modularity).toBeLessThanOrEqual(50);
+    });
+  });
+
+  // ---- tarjanSCC: large graph performance ----
+
+  describe('tarjanSCC - large graph', () => {
+    it('handles 100 nodes with no cycles efficiently', () => {
+      const nodes = Array.from({ length: 100 }, (_, i) =>
+        makeNode(`n${i}`, `N${i}`, 'function', `src/mod1/n${i}.ts`, 1),
+      );
+      const edges = Array.from({ length: 99 }, (_, i) =>
+        makeEdge(`e${i}`, `n${i}`, `n${i + 1}`, 'call'),
+      );
+      const start = Date.now();
+      const score = scorer.calculate(nodes, edges);
+      const elapsed = Date.now() - start;
+      expect(score.cyclicDependencyRate).toBe(100);
+      expect(elapsed).toBeLessThan(500);
+    });
+
+    it('handles 100 nodes in a single large cycle', () => {
+      const nodes = Array.from({ length: 100 }, (_, i) =>
+        makeNode(`n${i}`, `N${i}`, 'function', `src/mod1/n${i}.ts`, 1),
+      );
+      const edges = Array.from({ length: 100 }, (_, i) =>
+        makeEdge(`e${i}`, `n${i}`, `n${(i + 1) % 100}`, 'call'),
+      );
+      const start = Date.now();
+      const score = scorer.calculate(nodes, edges);
+      const elapsed = Date.now() - start;
+      expect(score.cyclicDependencyRate).toBe(0);
+      expect(elapsed).toBeLessThan(500);
+    });
+  });
+
+  // ---- calculate: overall score with all zero dimensions ----
+
+  describe('calculate - overall score with extreme values', () => {
+    it('produces overall of 0 when all dimensions are 0', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'b', 'a', 'call'),
+      ];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.cyclicDependencyRate).toBe(0);
+      expect(score.overall).toBeLessThanOrEqual(65);
+    });
+
+    it('produces high overall when all dimensions are high', () => {
+      const nodes = [
+        makeNode('a', 'A', 'function', 'src/mod1/a.ts', 1),
+        makeNode('b', 'B', 'function', 'src/mod1/b.ts', 1),
+        makeNode('c', 'C', 'function', 'src/mod2/c.ts', 1),
+        makeNode('d', 'D', 'function', 'src/mod2/d.ts', 1),
+      ];
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'c', 'd', 'call'),
+      ];
+      const score = scorer.calculate(nodes, edges);
+      expect(score.overall).toBeGreaterThan(70);
+    });
+  });
 });

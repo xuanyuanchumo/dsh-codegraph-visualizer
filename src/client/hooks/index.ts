@@ -9,6 +9,11 @@ export { useViewMode } from './useViewMode.ts';
 export { useAnalysisPanels } from './useAnalysisPanels.ts';
 export { useNodeSearch } from './useNodeSearch.ts';
 export { useKeyboardShortcut } from './useKeyboardShortcut.ts';
+export {
+  useGraphData, useGraphDisplay, useGraphInteraction, useGraphStatus,
+  useGraphWorkspace, useGraphAnalysis, useGraphPerformance, useGraphActions,
+  usePanelDimensions,
+} from './useGraphSelectors.ts';
 
 /**
  * Debounce a value with a delay.
