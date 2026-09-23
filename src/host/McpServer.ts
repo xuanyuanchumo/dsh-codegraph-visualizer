@@ -21,6 +21,8 @@ export class McpServer {
   private tools: Map<string, McpTool> = new Map();
   private running = false;
   private rl: ReturnType<typeof createInterface> | null = null;
+  private messageQueue: string[] = [];
+  private processing = false;
 
   registerTool(tool: McpTool): void {
     this.tools.set(tool.name, tool);
@@ -32,11 +34,29 @@ export class McpServer {
     this.rl = createInterface({ input: process.stdin, output: process.stdout });
     this.running = true;
 
-    this.rl.on('line', async (line: string) => {
+    this.rl.on('line', (line: string) => {
+      this.messageQueue.push(line);
+      void this.processQueue();
+    });
+
+    this.rl.on('close', () => {
+      this.running = false;
+      log.info('MCP server stopped');
+    });
+
+    log.info('MCP server started', { tools: this.tools.size });
+  }
+
+
+  private async processQueue(): Promise<void> {
+    if (this.processing) return;
+    this.processing = true;
+    while (this.messageQueue.length > 0) {
+      const line = this.messageQueue.shift()!;
       try {
         if (line.length > MAX_MESSAGE_LENGTH) {
           log.warn('MCP message too large, skipping', { length: line.length });
-          return;
+          continue;
         }
         const msg = JSON.parse(line);
         const response = await this.handleMessage(msg);
@@ -54,16 +74,9 @@ export class McpServer {
           process.stdout.write(JSON.stringify(errorResponse) + '\n');
         } catch (e) { log.warn('Failed to send MCP error response', e); }
       }
-    });
-
-    this.rl.on('close', () => {
-      this.running = false;
-      log.info('MCP server stopped');
-    });
-
-    log.info('MCP server started', { tools: this.tools.size });
+    }
+    this.processing = false;
   }
-
 
   private async handleMessage(msg: Record<string, unknown>): Promise<Record<string, unknown> | null> {
     const method = msg['method'] as string;

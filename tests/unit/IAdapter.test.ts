@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { CodeGraphAdapter } from '../../src/adapters/CodeGraphAdapter.ts';
 import { LensAdapter } from '../../src/adapters/LensAdapter.ts';
-import { DependencyDataAdapter } from '../../src/adapters/DependencyAdapter.ts';
+
 import { TreeSitterAdapter } from '../../src/adapters/TreeSitterAdapter.ts';
 import type { IDataAdapter, IAnalysisAdapter } from '../../src/adapters/IAdapter.ts';
 
@@ -44,29 +44,6 @@ describe('IAdapter 统一抽象接口', () => {
     });
   });
 
-  describe('IDataAdapter — DependencyDataAdapter', () => {
-    it('应实现 IDataAdapter 接口', () => {
-      const adapter = new DependencyDataAdapter();
-      expect(adapter.source).toBe('dependency');
-      expect(typeof adapter.fetchData).toBe('function');
-    });
-
-    it('fetchData 应返回 AdapterResult 结构', async () => {
-      const adapter = new DependencyDataAdapter();
-      const result = await adapter.fetchData('/nonexistent');
-      expect(result).toHaveProperty('nodes');
-      expect(result).toHaveProperty('edges');
-      expect(result).toHaveProperty('source');
-      expect(result).toHaveProperty('timestamp');
-    });
-
-    it('fetchData 不需要 invoke 参数', async () => {
-      const adapter = new DependencyDataAdapter();
-      const result = await adapter.fetchData('/nonexistent');
-      expect(result.nodes).toEqual([]);
-      expect(result.edges).toEqual([]);
-    });
-  });
 
   describe('IAnalysisAdapter — TreeSitterAdapter', () => {
     it('应实现 IAnalysisAdapter 接口', () => {
@@ -103,10 +80,6 @@ describe('IAdapter 统一抽象接口', () => {
       expect(adapter.source).toBe('lens');
     });
 
-    it('DependencyDataAdapter 可赋值给 IDataAdapter', () => {
-      const adapter: IDataAdapter = new DependencyDataAdapter();
-      expect(adapter.source).toBe('dependency');
-    });
 
     it('TreeSitterAdapter 可赋值给 IAnalysisAdapter', () => {
       const adapter: IAnalysisAdapter = new TreeSitterAdapter();

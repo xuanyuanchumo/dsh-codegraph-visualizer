@@ -14,6 +14,7 @@ import { t } from './i18n/index.ts';
 import { resetI18nListeners } from './i18n/index.ts';
 import { disposeStore } from './store/graphStore.ts';
 import { POLLING } from '../shared/constants.ts';
+import { DOM_EVENTS } from '../shared/domEvents.ts';
 
 export { PLUGIN_VERSION };
 
@@ -211,7 +212,7 @@ export function apply(ctx: Context) {
           }
         }
         if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: workspacePath } }));
+          window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path: workspacePath } }));
         }
         log.info('auto-import requested', { path: workspacePath });
         store.setLoading(true);
@@ -249,7 +250,7 @@ export function apply(ctx: Context) {
             const s = useGraphStore.getState();
             s.setCurrentWorkspace(dshCurrent);
             if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path: dshCurrent } }));
+              window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path: dshCurrent } }));
             }
           }
           for (const p of dshList) {
@@ -358,29 +359,29 @@ export function apply(ctx: Context) {
       const symbolSelectListener = (e: Event) => {
         const detail = (e as CustomEvent).detail as { symbol?: string; filePath?: string; lineNumber?: number };
         if (detail?.symbol) {
-          window.dispatchEvent(new CustomEvent('codegraph:symbol-select', { detail }));
+          window.dispatchEvent(new CustomEvent(DOM_EVENTS.SYMBOL_SELECT, { detail }));
         }
       };
 
-      window.addEventListener('codegraph:refresh', refreshListener);
-      window.addEventListener('codegraph:open-source', openSourceListener);
-      window.addEventListener('codegraph:import-repo', importRepoListener);
-      window.addEventListener('codegraph:init-graph', initGraphListener);
-      window.addEventListener('codegraph:toggle-watch', toggleWatchListener);
-      window.addEventListener('codegraph:workspace', workspaceListener);
-      window.addEventListener('codegraph:install-plugin', installPluginListener);
-      window.addEventListener('dsh:editor-symbol-select', symbolSelectListener);
+      window.addEventListener(DOM_EVENTS.REFRESH, refreshListener);
+      window.addEventListener(DOM_EVENTS.OPEN_SOURCE, openSourceListener);
+      window.addEventListener(DOM_EVENTS.IMPORT_REPO, importRepoListener);
+      window.addEventListener(DOM_EVENTS.INIT_GRAPH, initGraphListener);
+      window.addEventListener(DOM_EVENTS.TOGGLE_WATCH, toggleWatchListener);
+      window.addEventListener(DOM_EVENTS.WORKSPACE, workspaceListener);
+      window.addEventListener(DOM_EVENTS.INSTALL_PLUGIN, installPluginListener);
+      window.addEventListener(DOM_EVENTS.EDITOR_SYMBOL_SELECT, symbolSelectListener);
 
       return () => {
         if (workspaceScanTimer) clearTimeout(workspaceScanTimer);
-        window.removeEventListener('codegraph:refresh', refreshListener);
-        window.removeEventListener('codegraph:open-source', openSourceListener);
-        window.removeEventListener('codegraph:import-repo', importRepoListener);
-        window.removeEventListener('codegraph:init-graph', initGraphListener);
-        window.removeEventListener('codegraph:toggle-watch', toggleWatchListener);
-        window.removeEventListener('codegraph:workspace', workspaceListener);
-        window.removeEventListener('codegraph:install-plugin', installPluginListener);
-        window.removeEventListener('dsh:editor-symbol-select', symbolSelectListener);
+        window.removeEventListener(DOM_EVENTS.REFRESH, refreshListener);
+        window.removeEventListener(DOM_EVENTS.OPEN_SOURCE, openSourceListener);
+        window.removeEventListener(DOM_EVENTS.IMPORT_REPO, importRepoListener);
+        window.removeEventListener(DOM_EVENTS.INIT_GRAPH, initGraphListener);
+        window.removeEventListener(DOM_EVENTS.TOGGLE_WATCH, toggleWatchListener);
+        window.removeEventListener(DOM_EVENTS.WORKSPACE, workspaceListener);
+        window.removeEventListener(DOM_EVENTS.INSTALL_PLUGIN, installPluginListener);
+        window.removeEventListener(DOM_EVENTS.EDITOR_SYMBOL_SELECT, symbolSelectListener);
       };
     }, 'codegraph: window event listeners');
   }

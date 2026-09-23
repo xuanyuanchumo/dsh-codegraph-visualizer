@@ -245,7 +245,7 @@ export const COLORS = {
 } as const;
 export const TOOL_MESSAGES = {
   NO_PATH_FOUND: 'No path found between the specified symbols.',
-  GRAPH_TOO_LARGE_FOR_PATH: 'Graph too large (>10000 nodes) for path finding. Try filtering first.',
+  GRAPH_TOO_LARGE_FOR_PATH: 'Graph too large (>50000 nodes) for path finding. Try filtering first.',
   PATH_FOUND: 'Path found',
   HOPS: 'hops',
   INSUFFICIENT_DATA: 'Insufficient data for health scoring.',

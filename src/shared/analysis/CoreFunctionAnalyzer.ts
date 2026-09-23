@@ -42,6 +42,8 @@ const MIN_INFLUENCE_REACH = CORE_FUNCTION.MIN_INFLUENCE_REACH;
 const MIN_CALL_CHAIN_DEPTH = CORE_FUNCTION.MIN_CALL_CHAIN_DEPTH;
 const MAX_BFS_NODES = CORE_FUNCTION.MAX_BFS_NODES;
 
+const MAX_CALL_CHAIN_RECURSION_DEPTH = 500;
+
 export class CoreFunctionAnalyzer {
   analyze(nodes: GraphNode[], edges: GraphEdge[]): CoreFunction[] {
     if (nodes.length === 0) return [];
@@ -196,15 +198,16 @@ export class CoreFunctionAnalyzer {
     const memo = new Map<string, number>();
     const computing = new Set<string>();
 
-    const computeDepth = (id: string): number => {
+    const computeDepth = (id: string, currentDepth: number = 0): number => {
       if (memo.has(id)) return memo.get(id)!;
       if (computing.has(id)) return 0;
+      if (currentDepth >= MAX_CALL_CHAIN_RECURSION_DEPTH) return currentDepth;
 
       computing.add(id);
       const neighbors = outEdges.get(id) ?? [];
       let maxChildDepth = 0;
       for (const target of neighbors) {
-        const childDepth = computeDepth(target);
+        const childDepth = computeDepth(target, currentDepth + 1);
         if (childDepth > maxChildDepth) maxChildDepth = childDepth;
       }
       computing.delete(id);

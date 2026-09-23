@@ -103,6 +103,7 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
   }
 
   private async ensureLanguageLoaded(language: SupportedLanguage): Promise<boolean> {
+    if (!this.parser) return false;
     if (this.loadedLanguages.has(language)) return true;
     try {
       const langModule = await this.loadLanguageWasm(language);
