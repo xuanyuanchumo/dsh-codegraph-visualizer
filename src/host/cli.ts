@@ -38,11 +38,11 @@ function parseArgs(args: string[]): CliOptions {
       const f = args[++i];
       if (f === 'json' || f === 'html') opts.format = f;
     } else if (args[i] === '--help' || args[i] === '-h') {
-      console.log('Usage: dsh-codegraph-visualizer --report [options]');
-      console.log('Options:');
-      console.log('  -w, --workspace <path>  Workspace path (default: current directory)');
-      console.log('  -o, --output <name>     Output file name (default: codegraph-report)');
-      console.log('  -f, --format <format>   Output format: json or html (default: json)');
+      log.info('Usage: dsh-codegraph-visualizer --report [options]');
+      log.info('Options:');
+      log.info('  -w, --workspace <path>  Workspace path (default: current directory)');
+      log.info('  -o, --output <name>     Output file name (default: codegraph-report)');
+      log.info('  -f, --format <format>   Output format: json or html (default: json)');
       process.exit(0);
     }
   }
@@ -178,7 +178,7 @@ export async function runCli(args: string[]): Promise<void> {
   const outputPath = resolve(`${opts.output}.${opts.format}`);
   writeFileSync(outputPath, reportContent, 'utf-8');
   log.info('Report generated', { path: outputPath, format: opts.format });
-  console.log(`Report generated: ${outputPath}`);
+
 }
 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {

@@ -180,4 +180,128 @@ describe('QuadTree', () => {
     expect(result.size).toBe(1);
     expect(result.has('a')).toBe(true);
   });
+
+  it('expands bounds when node is outside initial bounds', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 10, 8);
+    tree.insert('far', 200000, 200000);
+    expect(tree.getNodeCount()).toBe(1);
+    const result = tree.query({ x1: 190000, y1: 190000, x2: 210000, y2: 210000 });
+    expect(result.has('far')).toBe(true);
+  });
+
+  it('expands bounds for negative coordinates beyond initial bounds', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 10, 8);
+    tree.insert('neg', -200000, -200000);
+    expect(tree.getNodeCount()).toBe(1);
+    const result = tree.query({ x1: -210000, y1: -210000, x2: -190000, y2: -190000 });
+    expect(result.has('neg')).toBe(true);
+  });
+
+  it('preserves existing nodes when bounds expand', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 10, 8);
+    tree.insert('inner', 50, 50);
+    tree.insert('outer', 200000, 200000);
+    expect(tree.getNodeCount()).toBe(2);
+    const innerResult = tree.query({ x1: 0, y1: 0, x2: 100, y2: 100 });
+    expect(innerResult.has('inner')).toBe(true);
+    const outerResult = tree.query({ x1: 190000, y1: 190000, x2: 210000, y2: 210000 });
+    expect(outerResult.has('outer')).toBe(true);
+  });
+
+  it('update triggers bounds expansion when new position is outside', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 10, 8);
+    tree.insert('a', 50, 50);
+    tree.update('a', 200000, 200000);
+    expect(tree.getNodeCount()).toBe(1);
+    const result = tree.query({ x1: 190000, y1: 190000, x2: 210000, y2: 210000 });
+    expect(result.has('a')).toBe(true);
+  });
+
+  it('removes node from subdivided tree correctly', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 2, 8);
+    tree.insert('a', 10, 10);
+    tree.insert('b', 20, 20);
+    tree.insert('c', 300, 300);
+    tree.remove('c');
+    expect(tree.getNodeCount()).toBe(2);
+    const result = tree.query({ x1: 0, y1: 0, x2: 100, y2: 100 });
+    expect(result.has('a')).toBe(true);
+    expect(result.has('b')).toBe(true);
+    expect(result.has('c')).toBe(false);
+  });
+
+  it('remove returns null for non-existent id in subdivided tree', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 2, 8);
+    tree.insert('a', 10, 10);
+    tree.insert('b', 20, 20);
+    tree.insert('c', 300, 300);
+    tree.remove('nonexistent');
+    expect(tree.getNodeCount()).toBe(3);
+  });
+
+  it('query skips non-intersecting child quadrants', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 2, 8);
+    tree.insert('a', 10, 10);
+    tree.insert('b', 50000, 50000);
+    tree.insert('c', -50000, -50000);
+    tree.insert('d', 50000, -50000);
+    const result = tree.query({ x1: 0, y1: 0, x2: 20, y2: 20 });
+    expect(result.size).toBe(1);
+    expect(result.has('a')).toBe(true);
+  });
+
+  it('rebuildFromCytoscape clears existing data and reinserts', () => {
+    const cy = makeMockCy([
+      { id: 'a', x: 50, y: 50 },
+      { id: 'b', x: 150, y: 150 },
+      { id: 'c', x: 250, y: 250 },
+    ]);
+    const tree = new QuadTree(cy, 10, 8);
+    tree.insert('old', 999, 999);
+    expect(tree.getNodeCount()).toBe(1);
+    tree.rebuildFromCytoscape();
+    expect(tree.getNodeCount()).toBe(3);
+    const oldResult = tree.query({ x1: 900, y1: 900, x2: 1100, y2: 1100 });
+    expect(oldResult.has('old')).toBe(false);
+  });
+
+  it('handles repeated insertions and removals without corruption', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 3, 4);
+    for (let i = 0; i < 20; i++) {
+      tree.insert(`n${i}`, i * 10, i * 10);
+    }
+    expect(tree.getNodeCount()).toBe(20);
+    for (let i = 0; i < 10; i++) {
+      tree.remove(`n${i}`);
+    }
+    expect(tree.getNodeCount()).toBe(10);
+    const result = tree.query({ x1: 100, y1: 100, x2: 200, y2: 200 });
+    expect(result.size).toBeGreaterThan(0);
+  });
+
+  it('query with bounds matching exactly one quadrant boundary', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 2, 8);
+    tree.insert('a', 0, 0);
+    tree.insert('b', 100000, 100000);
+    const midResult = tree.query({ x1: 0, y1: 0, x2: 0, y2: 0 });
+    expect(midResult.has('a')).toBe(true);
+  });
+
+  it('handles insert at exact boundary midpoints', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 1, 4);
+    tree.insert('a', 0, 0);
+    tree.insert('b', 1, 1);
+    tree.insert('c', -1, -1);
+    expect(tree.getNodeCount()).toBe(3);
+  });
 });
