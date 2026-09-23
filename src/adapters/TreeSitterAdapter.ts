@@ -102,6 +102,23 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
     return null;
   }
 
+  private async ensureLanguageLoaded(language: SupportedLanguage): Promise<boolean> {
+    if (this.loadedLanguages.has(language)) return true;
+    try {
+      const langModule = await this.loadLanguageWasm(language);
+      if (this.currentLanguage) {
+        try { (this.currentLanguage as unknown as { delete?: () => void }).delete?.(); } catch { /* old language cleanup */ }
+      }
+      this.parser!.setLanguage(langModule);
+      this.currentLanguage = langModule;
+      this.loadedLanguages.add(language);
+      return true;
+    } catch (e) {
+      log.warn(`Failed to load language: ${language}`, e);
+      return false;
+    }
+  }
+
   async parseFile(filePath: string, content: string): Promise<AdapterResult> {
     if (!this.parser) {
       await this.init();
@@ -115,19 +132,8 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
       return { nodes: [], edges: [], source: 'tree-sitter', timestamp: Date.now(), error: `Unsupported file: ${filePath}` };
     }
 
-    if (!this.loadedLanguages.has(language)) {
-      try {
-        const langModule = await this.loadLanguageWasm(language);
-        if (this.currentLanguage) {
-          try { (this.currentLanguage as unknown as { delete?: () => void }).delete?.(); } catch { /* old language cleanup */ }
-        }
-        this.parser.setLanguage(langModule);
-        this.currentLanguage = langModule;
-        this.loadedLanguages.add(language);
-      } catch (e) {
-        log.warn(`Failed to load language: ${language}`, e);
-        return { nodes: [], edges: [], source: 'tree-sitter', timestamp: Date.now(), error: `Failed to load ${language}` };
-      }
+    if (!await this.ensureLanguageLoaded(language)) {
+      return { nodes: [], edges: [], source: 'tree-sitter', timestamp: Date.now(), error: `Failed to load ${language}` };
     }
 
     try {
@@ -259,19 +265,9 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
       log.warn(`parseToAst: unsupported file extension: ${filePath}`);
       return null;
     }
-    if (!this.loadedLanguages.has(language)) {
-      try {
-        const langModule = await this.loadLanguageWasm(language);
-        if (this.currentLanguage) {
-          try { (this.currentLanguage as unknown as { delete?: () => void }).delete?.(); } catch { /* old language cleanup */ }
-        }
-        this.parser.setLanguage(langModule);
-        this.currentLanguage = langModule;
-        this.loadedLanguages.add(language);
-      } catch (e) {
-        log.warn(`parseToAst: failed to load language ${language}:`, e);
-        return null;
-      }
+    if (!await this.ensureLanguageLoaded(language)) {
+      log.warn(`parseToAst: failed to load language ${language}`);
+      return null;
     }
     try {
       const tree = this.parser.parse(content);

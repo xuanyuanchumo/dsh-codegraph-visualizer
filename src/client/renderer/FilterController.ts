@@ -171,9 +171,21 @@ export class FilterController {
     });
   }
 
+  private safeRegExp(pattern: string): RegExp | null {
+    try {
+      if (pattern.length > 100 || /(\+|\*|\{)\{/.test(pattern)) return null;
+      return new RegExp(pattern);
+    } catch {
+      return null;
+    }
+  }
+
   filterByPath(includePattern: string | null, excludePattern: string | null): void {
-    const includeRe = includePattern ? new RegExp(includePattern) : null;
-    const excludeRe = excludePattern ? new RegExp(excludePattern) : null;
+    const MAX_PATTERN_LENGTH = 200;
+    const includeRe = includePattern && includePattern.length <= MAX_PATTERN_LENGTH
+      ? this.safeRegExp(includePattern) : null;
+    const excludeRe = excludePattern && excludePattern.length <= MAX_PATTERN_LENGTH
+      ? this.safeRegExp(excludePattern) : null;
 
     this.cy.batch(() => {
       this.cy.nodes().forEach((node) => {

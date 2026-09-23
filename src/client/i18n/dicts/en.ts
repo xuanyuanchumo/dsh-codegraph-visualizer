@@ -304,7 +304,7 @@ export const en: Record<string, string> = {
 
   // View mode
   'toolbar.viewModeDeps': 'Switch to dependency graph view',
-  'toolbar.viewModeDependencies': 'Switch to dependency graph view',
+
   'toolbar.viewModeCode': 'Switch to code graph view',
   'toolbar.viewModeInheritance': 'Switch to inheritance tree view',
   'toolbar.viewModeCallgraph': 'Switch to call graph view',

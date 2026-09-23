@@ -175,9 +175,15 @@
 /* ---- Reduced motion ------------------------------------------------------ */
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  .cg-graph-panel *,
+  .cg-graph-panel *::before,
+  .cg-graph-panel *::after,
+  .cg-floating-panel *,
+  .cg-floating-panel *::before,
+  .cg-floating-panel *::after,
+  .cg-floating-container *,
+  .cg-floating-container *::before,
+  .cg-floating-container *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }

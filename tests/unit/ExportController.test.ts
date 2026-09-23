@@ -184,8 +184,8 @@ describe('ExportController', () => {
       const ec = new ExportController(cy as any);
       const result = ec.exportMermaid();
       expect(result).toContain('graph TD');
-      expect(result).toContain('a(');
-      expect(result).toContain('b[');
+      expect(result).toContain('na_0(');
+      expect(result).toContain('nb_1[');
       expect(result).toContain('"FuncA"');
       expect(result).toContain('"ClassB"');
     });
@@ -200,11 +200,11 @@ describe('ExportController', () => {
       const cy = makeMockCy([funcNode, classNode, varNode, modNode, ifaceNode], []);
       const ec = new ExportController(cy as any);
       const result = ec.exportMermaid();
-      expect(result).toContain('n1("fn")');
-      expect(result).toContain('n2["cls"]');
-      expect(result).toContain('n3(("var"))');
-      expect(result).toContain('n4{"mod"}');
-      expect(result).toContain('n5/"iface"/');
+      expect(result).toContain('nn1_0("fn")');
+      expect(result).toContain('nn2_1["cls"]');
+      expect(result).toContain('nn3_2(("var"))');
+      expect(result).toContain('nn4_3{"mod"}');
+      expect(result).toContain('nn5_4/"iface"/');
     });
 
     it('uses default shape for unknown node type', async () => {
@@ -213,7 +213,7 @@ describe('ExportController', () => {
       const cy = makeMockCy([unknownNode], []);
       const ec = new ExportController(cy as any);
       const result = ec.exportMermaid();
-      expect(result).toContain('n1["unknown"]');
+      expect(result).toContain('nn1_0["unknown"]');
     });
 
     it('exports edges with type labels', async () => {
@@ -224,7 +224,7 @@ describe('ExportController', () => {
       const cy = makeMockCy([nodeA, nodeB], [edge]);
       const ec = new ExportController(cy as any);
       const result = ec.exportMermaid();
-      expect(result).toContain('a -->|call| b');
+      expect(result).toContain('na_0 -->|call| nb_1');
     });
 
     it('exports edges without label for unknown edge type', async () => {
@@ -235,7 +235,7 @@ describe('ExportController', () => {
       const cy = makeMockCy([nodeA, nodeB], [edge]);
       const ec = new ExportController(cy as any);
       const result = ec.exportMermaid();
-      expect(result).toContain('a --> b');
+      expect(result).toContain('na_0 --> nb_1');
     });
 
     it('sanitizes node IDs with special characters', async () => {

@@ -303,7 +303,7 @@ export const zh: Record<string, string> = {
 
   // 视图模式
   'toolbar.viewModeDeps': '切换到依赖图谱视图',
-  'toolbar.viewModeDependencies': '切换到依赖图谱视图',
+
   'toolbar.viewModeCode': '切换到代码图谱视图',
   'toolbar.viewModeInheritance': '切换到继承树视图',
   'toolbar.viewModeCallgraph': '切换到调用图视图',

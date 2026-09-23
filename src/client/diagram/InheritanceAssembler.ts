@@ -23,8 +23,11 @@ export class InheritanceAssembler extends BaseFilteringAssembler {
     const childEdges = ctx.inEdges.get(node.id) ?? [];
     const stereotype = node.type === 'interface' ? `\u00ABinterface\u00BB\n` : '';
     const umlLabel = stereotype + node.label;
-    const isAbstract = node.type === 'interface' || (node.properties?.isAbstract === true) ||
-      (/^Abstract[A-Z]/.test(node.label) || /^I[A-Z][a-z]/.test(node.label) && node.type === 'class');
+    const isInterface = node.type === 'interface';
+    const hasAbstractProp = node.properties?.isAbstract === true;
+    const matchesAbstractPattern = /^Abstract[A-Z]/.test(node.label);
+    const matchesInterfacePattern = /^I[A-Z][a-z]/.test(node.label) && node.type === 'class';
+    const isAbstract = isInterface || hasAbstractProp || matchesAbstractPattern || matchesInterfacePattern;
 
     return {
       ...node,

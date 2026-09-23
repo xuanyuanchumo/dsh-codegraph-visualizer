@@ -51,22 +51,22 @@ export class ExportController {
     };
 
     const lines: string[] = ['graph TD'];
-    const seenIds = new Set<string>();
-
+    const idMap = new Map<string, string>();
+    let idCounter = 0;
     nodes.forEach((node) => {
-      const id = node.id().replace(/[^a-zA-Z0-9_]/g, '_');
-      if (seenIds.has(id)) return;
-      seenIds.add(id);
-      const label = String(node.data('label') ?? id).replace(/"/g, "'");
+      const rawId = node.id();
+      const safeId = 'n' + rawId.replace(/[^a-zA-Z0-9_]/g, '_') + '_' + (idCounter++);
+      idMap.set(rawId, safeId);
+      const label = String(node.data('label') ?? safeId).replace(/"/g, "'");
       const type = String(node.data('type') ?? '');
       const shape = nodeShapeMap[type] ?? defaultShape;
       const shapeDef = shape.replace('$label$', `"${label}"`);
-      lines.push(`  ${id}${shapeDef}`);
+      lines.push(`  ${safeId}${shapeDef}`);
     });
 
     edges.forEach((edge) => {
-      const sourceId = edge.source().id().replace(/[^a-zA-Z0-9_]/g, '_');
-      const targetId = edge.target().id().replace(/[^a-zA-Z0-9_]/g, '_');
+      const sourceId = idMap.get(edge.source().id()) ?? edge.source().id().replace(/[^a-zA-Z0-9_]/g, '_');
+      const targetId = idMap.get(edge.target().id()) ?? edge.target().id().replace(/[^a-zA-Z0-9_]/g, '_');
       const edgeType = String(edge.data('type') ?? '');
       const label = edgeLabelMap[edgeType];
       if (label) {

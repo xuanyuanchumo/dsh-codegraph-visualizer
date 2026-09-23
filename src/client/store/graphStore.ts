@@ -479,13 +479,13 @@ export const useGraphStore = create<GraphState>()(
 
         );
         if (result.needsMicroAssembly) {
-          const { needsMicroAssembly: _, ...rest } = result;
+          const { needsMicroAssembly: _discarded, ...rest } = result;
           const fn = useGraphStore.getState().selectedFunction;
           set(rest);
           useGraphStore.getState().assembleMicro(viewMode as 'cfg' | 'flowchart' | 'sequence', fn);
           return;
         }
-        const { needsMicroAssembly: _u, ...rest } = result;
+        const { needsMicroAssembly: _discarded2, ...rest } = result;
         set(rest);
       },
       setClusterDepth: (clusterDepth) => {

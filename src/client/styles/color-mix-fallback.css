@@ -1,0 +1,108 @@
+@supports not (color: color-mix(in srgb, red, blue)) {
+  .cg-layout-btn--active {
+    background: rgba(16, 185, 129, 0.14);
+  }
+  .cg-graph-type-btn--active {
+    background: rgba(13, 148, 136, 0.14);
+  }
+  .cg-search-btn--active {
+    background: rgba(38, 49, 72, 0.10);
+  }
+  .cg-status-dot--ready {
+    background: rgba(16, 185, 129, 0.80);
+    border-color: rgba(16, 185, 129, 0.30);
+  }
+  .cg-impact-bar--error,
+  .cg-health-bar--error {
+    background: rgba(239, 68, 68, 1.00);
+  }
+  .cg-impact-bar--warning,
+  .cg-health-bar--warning {
+    background: rgba(245, 158, 11, 1.00);
+  }
+  .cg-impact-bar--error-dim {
+    background: rgba(239, 68, 68, 0.80);
+  }
+  .cg-impact-bar--warning-dim {
+    background: rgba(245, 158, 11, 0.80);
+  }
+  .cg-rule-violation-item--error {
+    background: rgba(239, 68, 68, 0.80);
+  }
+  .cg-rule-violation-item--warning {
+    background: rgba(245, 158, 11, 0.80);
+  }
+  .cg-rule-violation-item--info {
+    background: rgba(59, 130, 246, 0.60);
+  }
+  .cg-health-card--error {
+    background: rgba(239, 68, 68, 0.60);
+    border: 1px solid rgba(239, 68, 68, 1.50);
+  }
+  .cg-health-card--error-header {
+    border-top: 1px solid rgba(239, 68, 68, 1.20);
+  }
+  .cg-accent-bg-20 {
+    background: rgba(38, 49, 72, 0.20);
+  }
+  .cg-node-detail-success {
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.30);
+  }
+  .cg-node-detail-accent {
+    background: rgba(38, 49, 72, 0.12);
+    border: 1px solid rgba(38, 49, 72, 0.30);
+  }
+  .cg-node-detail-accent-strong {
+    background: rgba(38, 49, 72, 0.15);
+    border-color: rgba(38, 49, 72, 0.40);
+  }
+  .cg-node-detail-accent-strongest {
+    background: rgba(38, 49, 72, 0.25);
+  }
+  .cg-import-success {
+    background: rgba(16, 185, 129, 0.10);
+  }
+  .cg-import-error {
+    background: rgba(239, 68, 68, 0.10);
+  }
+  .cg-import-warning {
+    background: rgba(245, 158, 11, 0.10);
+    border: 1px solid rgba(245, 158, 11, 0.30);
+  }
+  .cg-import-warning-dim {
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px dashed rgba(245, 158, 11, 0.40);
+  }
+  .cg-import-warning-text {
+    color: rgba(245, 158, 11, 0.85);
+  }
+  .cg-import-warning-border {
+    border: 1px solid rgba(245, 158, 11, 0.40);
+  }
+  .cg-import-warning-bg-20 {
+    background: rgba(245, 158, 11, 0.20);
+  }
+  .cg-import-success-dim {
+    background: rgba(16, 185, 129, 0.15);
+  }
+  .cg-import-error-dim {
+    background: rgba(239, 68, 68, 0.15);
+  }
+  .cg-import-error-bg-10 {
+    background: rgba(239, 68, 68, 0.10);
+  }
+  .cg-overlay-shadow-accent {
+    box-shadow: 0 2px 8px rgba(38, 49, 72, 0.30);
+  }
+  .cg-overlay-shadow-accent-strong {
+    box-shadow: 0 4px 12px rgba(38, 49, 72, 0.40);
+  }
+  .cg-overlay-warning {
+    background: rgba(245, 158, 11, 0.80);
+    border: 1px solid rgba(245, 158, 11, 1.00);
+  }
+  .cg-overlay-warning-border {
+    border-top: 1px solid rgba(245, 158, 11, 0.30);
+  }
+}

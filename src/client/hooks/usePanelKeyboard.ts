@@ -36,7 +36,7 @@ export const KEYBOARD_SHORTCUTS: ShortcutDef[] = [
   { key: 'M', descKey: 'shortcut.minimap', ctrl: true },
   { key: 'L', descKey: 'shortcut.layout', ctrl: true },
   { key: 'I', descKey: 'shortcut.import', ctrl: true },
-  { key: 'R', descKey: 'shortcut.refresh', ctrl: true, preventDefault: true },
+  { key: 'R', descKey: 'shortcut.refresh', ctrl: true, shift: true, preventDefault: true },
   { key: 'Z', descKey: 'shortcut.undo', ctrl: true, preventDefault: true },
   { key: 'Y', descKey: 'shortcut.redo', ctrl: true, preventDefault: true },
   { key: '?', descKey: 'shortcut.help', preventDefault: true },
@@ -82,7 +82,7 @@ export function usePanelKeyboard(
     setLayoutRef.current(next);
   }, { ctrl: true });
   useKeyboardShortcut('i', () => handlersRef.current.onToggleImport(), { ctrl: true });
-  useKeyboardShortcut('r', () => handlersRef.current.onRefresh?.(), { ctrl: true, preventDefault: true });
+  useKeyboardShortcut('r', () => handlersRef.current.onRefresh?.(), { ctrl: true, shift: true, preventDefault: true });
   useKeyboardShortcut('?', () => handlersRef.current.onToggleHelp(), { preventDefault: true });
   useKeyboardShortcut('z', () => handlersRef.current.onUndo?.(), { ctrl: true, preventDefault: true });
   useKeyboardShortcut('y', () => handlersRef.current.onRedo?.(), { ctrl: true, preventDefault: true });
