@@ -91,7 +91,7 @@ describe('EmptyState', () => {
       prerequisites: { codegraph: false, lens: true },
     };
     const { container } = render(<EmptyState {...props} />);
-    const copyBtn = container.querySelector('.prereq-copy-btn')!;
+    const copyBtn = container.querySelector('.cg-prereq-copy-btn')!;
     fireEvent.click(copyBtn);
     expect(mockWriteText).toHaveBeenCalled();
   });
@@ -103,7 +103,7 @@ describe('EmptyState', () => {
     };
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
     const { container } = render(<EmptyState {...props} />);
-    const installBtn = container.querySelector('.prereq-install-btn')!;
+    const installBtn = container.querySelector('.cg-prereq-install-btn')!;
     fireEvent.click(installBtn);
     expect(dispatchSpy).toHaveBeenCalled();
     const event = dispatchSpy.mock.calls[0]![0] as CustomEvent;
@@ -118,7 +118,7 @@ describe('EmptyState', () => {
     };
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
     const { container } = render(<EmptyState {...props} />);
-    const installBtn = container.querySelector('.prereq-install-btn')!;
+    const installBtn = container.querySelector('.cg-prereq-install-btn')!;
     fireEvent.click(installBtn);
     const event = dispatchSpy.mock.calls[0]![0] as CustomEvent;
     expect(event.detail.plugin).toBe('dsh-tool-lens');
@@ -131,7 +131,7 @@ describe('EmptyState', () => {
       prerequisites: { codegraph: false, lens: true },
     };
     const { container } = render(<EmptyState {...props} />);
-    const copyBtn = container.querySelector('.prereq-copy-btn')!;
+    const copyBtn = container.querySelector('.cg-prereq-copy-btn')!;
     expect(() => fireEvent.click(copyBtn)).not.toThrow();
     vi.stubGlobal('navigator', { clipboard: { writeText: mockWriteText } });
   });
@@ -142,7 +142,7 @@ describe('EmptyState', () => {
       prerequisites: { codegraph: false, lens: true },
     };
     const { container } = render(<EmptyState {...props} />);
-    const installBtn = container.querySelector('.prereq-install-btn') as HTMLButtonElement;
+    const installBtn = container.querySelector('.cg-prereq-install-btn') as HTMLButtonElement;
     fireEvent.click(installBtn);
     expect(installBtn.disabled).toBe(true);
   });

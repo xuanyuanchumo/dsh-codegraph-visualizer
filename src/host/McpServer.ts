@@ -2,6 +2,7 @@ import { createInterface } from 'node:readline';
 import { scoped } from '../shared/Logger.ts';
 import { PLUGIN_VERSION } from '../generated/version.ts';
 import type { GraphData, GraphNode, GraphEdge } from '../types/index.ts';
+import { safeString, safeNumber } from '../types/index.ts';
 import { buildBackwardAdjacency } from '../shared/analysis/AdjacencyList.ts';
 import { bfsFrontierExpansion } from '../shared/analysis/GraphBFS.ts';
 import { MCP } from '../shared/constants.ts';
@@ -183,7 +184,7 @@ export class McpServer {
       handler: async (args) => {
         const data = getGraphData();
         if (!data) return { nodes: [], edges: [] };
-        const limit = (args['limit'] as number) || 100;
+        const limit = safeNumber(args['limit'], 100);
         return {
           nodes: data.nodes.slice(0, limit).map((n: GraphNode) => ({ id: n.id, label: n.label, type: n.type, filePath: n.filePath })),
           edges: data.edges.slice(0, limit * 2).map((e: GraphEdge) => ({ source: e.source, target: e.target, type: e.type })),
@@ -206,7 +207,7 @@ export class McpServer {
       handler: async (args) => {
         const data = getGraphData();
         if (!data) return { results: [] };
-        const search = (args['search'] as string).toLowerCase();
+        const search = safeString(args['search']).toLowerCase();
         const exact: GraphNode[] = [];
         const partial: GraphNode[] = [];
         for (const n of data.nodes) {
@@ -234,8 +235,8 @@ export class McpServer {
       handler: async (args) => {
         const data = getGraphData();
         if (!data) return { impacted: [] };
-        const symbol = args['symbol'] as string;
-        const depth = (args['depth'] as number) || 2;
+        const symbol = safeString(args['symbol']);
+        const depth = safeNumber(args['depth'], 2);
 
         const targetNode = data.nodes.find((n: GraphNode) => n.label === symbol || n.label.endsWith(`.${symbol}`));
         if (!targetNode) return { impacted: [], message: 'Symbol not found' };

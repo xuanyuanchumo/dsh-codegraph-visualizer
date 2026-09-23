@@ -23,7 +23,7 @@ export const ErrorOverlay = memo(function ErrorOverlay({ error, onBack, onRetry 
   return (
     <div className="cg-error-overlay" role="alert">
       <div className="cg-error-overlay-content">
-        <AlertCircleIcon size={16} className="error-overlay-icon" />
+        <AlertCircleIcon size={16} className="cg-error-overlay-icon" />
         <span>{message}</span>
       </div>
       {(onBack || onRetry) && (

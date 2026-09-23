@@ -87,7 +87,7 @@ export const SearchBar = memo(function SearchBar({ query, matchCount, searchResu
 
   return (
     <div className="cg-search-bar" ref={containerRef}>
-      <SearchIcon size={14} className="search-bar-icon" />
+      <SearchIcon size={14} className="cg-search-bar-icon" />
       <input
         id="graph-search"
         name="graph-search"

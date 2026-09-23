@@ -479,7 +479,7 @@ function registerDependenciesRoute(rc: RouteContext): void {
           const converted = dependencyGraphToGraphData(depGraph);
           allDepNodes.push(...converted.nodes);
           allDepEdges.push(...converted.edges);
-        } catch { /* no package.json */ }
+        } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') log.warn('Failed to read package.json:', e); }
 
         const cargoTomlPath = path.join(workspacePath, 'Cargo.toml');
         try {
@@ -488,7 +488,7 @@ function registerDependenciesRoute(rc: RouteContext): void {
           const converted = dependencyGraphToGraphData(depGraph);
           allDepNodes.push(...converted.nodes);
           allDepEdges.push(...converted.edges);
-        } catch { /* no Cargo.toml */ }
+        } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') log.warn('Failed to read Cargo.toml:', e); }
 
         const goModPath = path.join(workspacePath, 'go.mod');
         try {
@@ -497,7 +497,7 @@ function registerDependenciesRoute(rc: RouteContext): void {
           const converted = dependencyGraphToGraphData(depGraph);
           allDepNodes.push(...converted.nodes);
           allDepEdges.push(...converted.edges);
-        } catch { /* no go.mod */ }
+        } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') log.warn('Failed to read go.mod:', e); }
 
         const dedupNodes = new Map<string, typeof allDepNodes[number]>();
         for (const n of allDepNodes) dedupNodes.set(n.id, n);

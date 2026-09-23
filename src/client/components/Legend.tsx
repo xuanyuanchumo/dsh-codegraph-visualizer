@@ -62,7 +62,7 @@ export const Legend = memo(function Legend({ viewMode, onClose }: LegendProps) {
         <button className="cg-legend-close" onClick={onClose} aria-label={t('legend.close')}>×</button>
       </div>
       <div className="cg-legend-body">
-        <div className="legend-section">
+        <div className="cg-legend-section">
           <div className="cg-legend-section-title">{t('legend.nodes')}</div>
           {nodeTypes.map((n) => (
             <div className="cg-legend-row" key={n.type}>
@@ -71,7 +71,7 @@ export const Legend = memo(function Legend({ viewMode, onClose }: LegendProps) {
             </div>
           ))}
         </div>
-        <div className="legend-section">
+        <div className="cg-legend-section">
           <div className="cg-legend-section-title">{t('legend.edges')}</div>
           {edgeTypes.map((e) => (
             <div className="cg-legend-row" key={e.type}>

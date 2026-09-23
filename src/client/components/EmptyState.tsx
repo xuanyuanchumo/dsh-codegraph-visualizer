@@ -59,9 +59,9 @@ export const EmptyState = memo(function EmptyState({ prerequisites, onImport, on
       <span className="cg-empty-subtitle">{t('empty.subtitle')}</span>
       {anyMissing && (
         <div className="cg-empty-prereq-warning">
-          <div className="prereq-header">
+          <div className="cg-prereq-header">
             <AlertIcon size={14} />
-            <span className="prereq-title">{t('empty.prereqTitle')}</span>
+            <span className="cg-prereq-title">{t('empty.prereqTitle')}</span>
           </div>
 
           {codegraphMissing && (
@@ -72,10 +72,10 @@ export const EmptyState = memo(function EmptyState({ prerequisites, onImport, on
                 <span className="cg-prereq-item-status">{t('prereq.notFound')}</span>
               </div>
               <span className="cg-prereq-item-desc">{t('prereq.codegraphDesc')}</span>
-              <div className="prereq-cmd-row">
-                <code className="prereq-cmd">{t('prereq.installCodegraph')}</code>
+              <div className="cg-prereq-cmd-row">
+                <code className="cg-prereq-cmd">{t('prereq.installCodegraph')}</code>
                 <button
-                  className="prereq-copy-btn"
+                  className="cg-prereq-copy-btn"
                   onClick={() => handleCopyCmd(t('prereq.installCodegraph'))}
                   aria-label={t('empty.copyCmd')}
                   title={t('empty.copyCmd')}
@@ -84,7 +84,7 @@ export const EmptyState = memo(function EmptyState({ prerequisites, onImport, on
                 </button>
               </div>
               <button
-                className="prereq-install-btn"
+                className="cg-prereq-install-btn"
                 onClick={() => handleInstall('dsh-codegraph')}
                 disabled={installing}
                 aria-label={installing ? t('prereq.detecting') : t('prereq.installTitle')}
@@ -102,10 +102,10 @@ export const EmptyState = memo(function EmptyState({ prerequisites, onImport, on
                 <span className="cg-prereq-item-status">{t('prereq.notFound')}</span>
               </div>
               <span className="cg-prereq-item-desc">{t('prereq.lensDesc')}</span>
-              <div className="prereq-cmd-row">
-                <code className="prereq-cmd">{t('prereq.installLens')}</code>
+              <div className="cg-prereq-cmd-row">
+                <code className="cg-prereq-cmd">{t('prereq.installLens')}</code>
                 <button
-                  className="prereq-copy-btn"
+                  className="cg-prereq-copy-btn"
                   onClick={() => handleCopyCmd(t('prereq.installLens'))}
                   aria-label={t('empty.copyCmd')}
                   title={t('empty.copyCmd')}
@@ -114,7 +114,7 @@ export const EmptyState = memo(function EmptyState({ prerequisites, onImport, on
                 </button>
               </div>
               <button
-                className="prereq-install-btn"
+                className="cg-prereq-install-btn"
                 onClick={() => handleInstall('dsh-tool-lens')}
                 disabled={installing}
                 aria-label={installing ? t('prereq.detecting') : t('prereq.installTitle')}
@@ -124,7 +124,7 @@ export const EmptyState = memo(function EmptyState({ prerequisites, onImport, on
             </div>
           )}
 
-          {copiedCmd && <span className="prereq-copied">{t('empty.copied')}</span>}
+          {copiedCmd && <span className="cg-prereq-copied">{t('empty.copied')}</span>}
         </div>
       )}
       <div className="cg-empty-actions">
