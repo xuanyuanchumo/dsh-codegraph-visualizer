@@ -13,9 +13,9 @@ describe('SecurityManager.isPathAllowed', () => {
     expect(sm.isPathAllowed('')).toBe(false);
   });
 
-  it('should return true for "." when roots are set', () => {
+  it('should return false for "." (relative paths always rejected)', () => {
     sm.setAllowedWorkspaceRoots(['C:\\Projects\\my-repo']);
-    expect(sm.isPathAllowed('.')).toBe(true);
+    expect(sm.isPathAllowed('.')).toBe(false);
   });
 
   it('should return false for "." when no roots are set (fail-closed)', () => {

@@ -41,11 +41,15 @@ export interface GraphNode {
   parentId?: NodeId;
 }
 
+export type EdgeDirection = 'forward' | 'backward' | 'bidirectional';
+
 export interface GraphEdge {
   id: EdgeId;
   source: NodeId;
   target: NodeId;
   type: 'call' | 'import' | 'extend' | 'implement' | 'dependency' | 'contains' | 'association' | 'aggregation' | 'composition';
+  direction?: EdgeDirection;
+  weight?: number;
   properties: Record<string, unknown>;
 }
 

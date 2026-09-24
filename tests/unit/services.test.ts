@@ -442,9 +442,9 @@ describe('SecurityManager.isPathAllowed (security)', () => {
     sm.setAllowedWorkspaceRoots([]);
   });
 
-  it('should allow "." when roots are set, but reject empty path', () => {
+  it('should reject "." and empty path (relative paths always rejected)', () => {
     sm.setAllowedWorkspaceRoots(['/home/user/project']);
-    expect(sm.isPathAllowed('.')).toBe(true);
+    expect(sm.isPathAllowed('.')).toBe(false);
     expect(sm.isPathAllowed('')).toBe(false);
   });
 

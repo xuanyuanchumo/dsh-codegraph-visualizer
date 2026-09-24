@@ -1,5 +1,5 @@
 import { NodeId, EdgeId, RepoId } from '../types/index.ts';
-import type { GraphNode, GraphEdge, GraphData } from '../types/index.ts';
+import type { GraphNode, GraphEdge, GraphData, EdgeDirection } from '../types/index.ts';
 
 export function coerceNode(raw: unknown, i: number): GraphNode | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -24,7 +24,10 @@ export function coerceEdge(raw: unknown, i: number): GraphEdge | null {
   const type = (['call', 'import', 'extend', 'implement', 'dependency', 'contains', 'association', 'aggregation', 'composition'].includes(o.type as string)
     ? o.type : 'dependency') as GraphEdge['type'];
   const properties = (o.properties && typeof o.properties === 'object' ? o.properties : {}) as Record<string, unknown>;
-  return { id: EdgeId(id), source: NodeId(source), target: NodeId(target), type, properties };
+  const direction = (['forward', 'backward', 'bidirectional'].includes(o.direction as string)
+    ? o.direction : 'forward') as EdgeDirection;
+  const weight = typeof o.weight === 'number' && o.weight >= 0 && o.weight <= 1 ? o.weight : 1;
+  return { id: EdgeId(id), source: NodeId(source), target: NodeId(target), type, direction, weight, properties };
 }
 
 export function validateGraphData(raw: unknown): GraphData | null {

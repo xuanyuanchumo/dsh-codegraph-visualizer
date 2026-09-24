@@ -12,7 +12,7 @@ export class SecurityManager {
     const normalized = normalize(path);
     if (normalized.includes('..')) return false;
     if (!isAbsolute(normalized)) {
-      if (normalized === '.' && this.allowedWorkspaceRoots.length > 0) return true;
+
       return false;
     }
     if (this.allowedWorkspaceRoots.length === 0) return false;
