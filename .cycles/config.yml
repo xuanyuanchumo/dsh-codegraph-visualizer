@@ -58,47 +58,47 @@ journeys:
     name: "仓库导入与校验"
     forward: "导入本地仓库 → FileValidator 校验 → 扫描入库"
     reverse: "错误码契约全覆盖：INVALID_PATH、UNSUPPORTED_REPO、REPO_TOO_LARGE、CORRUPTED_REPO"
-    test_files: ["tests/e2e/local-repos.spec.ts"]
+    test_files: ["tests/e2e/local-repos.spec.ts", "tests/unit/plugin.test.ts", "tests/unit/graphStore.test.ts"]
   J2:
     name: "图谱构建与可视化"
     forward: "仓库扫描 → AST 解析 → 图谱生成 → 画布渲染"
     reverse: "超大文件解析超时、循环依赖检测、图谱布局溢出"
-    test_files: []
+    test_files: ["tests/e2e/large-repo.spec.ts", "tests/e2e/user-journey.spec.ts"]
   J3:
     name: "代码搜索"
     forward: "关键词查询 → FTS5/倒排索引 → 结果定位"
     reverse: "空索引、特殊字符注入面、搜索词过长"
-    test_files: []
+    test_files: ["tests/e2e/search-and-analysis.spec.ts", "tests/unit/SearchController.test.ts"]
   J4:
     name: "符号导航"
     forward: "点击符号 → 跳转定义/引用"
     reverse: "跨文件符号、未解析符号、动态导入"
-    test_files: []
+    test_files: ["tests/e2e/search-and-analysis.spec.ts", "tests/unit/journeyReverseScenarios.test.ts"]
   J5:
     name: "依赖分析"
     forward: "生成依赖图 → 循环检测 → 高亮"
     reverse: "深层嵌套依赖、外部依赖不可达"
-    test_files: []
+    test_files: ["tests/e2e/search-and-analysis.spec.ts", "tests/unit/journeyReverseScenarios.test.ts"]
   J6:
     name: "图谱布局与交互"
     forward: "拖拽/缩放/筛选 → 布局更新"
     reverse: "极端节点数(>10000)、布局算法超时"
-    test_files: []
+    test_files: ["tests/e2e/user-journey.spec.ts", "tests/unit/LayoutController.test.ts"]
   J7:
     name: "导出与分享"
     forward: "选择格式 → 导出 → 下载"
     reverse: "导出格式不支持、大图谱导出超时"
-    test_files: []
+    test_files: ["tests/e2e/filter-and-export.spec.ts", "tests/unit/ExportController.test.ts"]
   J8:
     name: "主题与个性化"
     forward: "主题切换 → 布局偏好 → 持久化"
     reverse: "主题配置冲突、偏好重置"
-    test_files: []
+    test_files: ["tests/e2e/user-journey.spec.ts", "tests/e2e/i18n.spec.ts"]
   J9:
     name: "UI 与 Host 边界"
     forward: "React 组件经 Host 服务取数 → 状态同步"
     reverse: "Client 越权访问 Host 内部实现"
-    test_files: []
+    test_files: ["tests/e2e/integration-and-lifecycle.spec.ts", "tests/unit/services.test.ts"]
   J10:
     name: "异常恢复与容错"
     forward: "断网/崩溃后重启 → 图谱与缓存恢复"
@@ -108,7 +108,7 @@ journeys:
     name: "插件生命周期合规"
     forward: "注册即 effect → dispose 清理 → 重载无泄漏"
     reverse: "监听器泄漏、未清理 effect"
-    test_files: []
+    test_files: ["tests/e2e/integration-and-lifecycle.spec.ts", "tests/unit/plugin.test.ts"]
   J12:
     name: "大仓库性能"
     forward: "万级文件仓库 → 渐进式构建 → 进度反馈"
@@ -118,7 +118,7 @@ journeys:
     name: "多仓库管理"
     forward: "多仓库并存 → 切换/合并/对比"
     reverse: "仓库间符号冲突、路径重复"
-    test_files: []
+    test_files: ["tests/e2e/integration-and-lifecycle.spec.ts"]
 
 gates:
   G0:

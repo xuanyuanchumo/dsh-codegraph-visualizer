@@ -498,32 +498,22 @@ function registerDependenciesRoute(rc: RouteContext): void {
         const allDepNodes: ReturnType<typeof dependencyGraphToGraphData>['nodes'] = [];
         const allDepEdges: ReturnType<typeof dependencyGraphToGraphData>['edges'] = [];
 
-        const packageJsonPath = path.join(workspacePath, 'package.json');
-        try {
-          const content = await fs.readFile(packageJsonPath, 'utf-8');
-          const depGraph = parsePackageJson(content);
-          const converted = dependencyGraphToGraphData(depGraph);
-          allDepNodes.push(...converted.nodes);
-          allDepEdges.push(...converted.edges);
-        } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') log.warn('Failed to read package.json:', e); }
+        const depFiles: Array<{ filename: string; parser: (content: string) => ReturnType<typeof parsePackageJson> }> = [
+          { filename: 'package.json', parser: parsePackageJson },
+          { filename: 'Cargo.toml', parser: parseCargoToml },
+          { filename: 'go.mod', parser: parseGoMod },
+        ];
 
-        const cargoTomlPath = path.join(workspacePath, 'Cargo.toml');
-        try {
-          const content = await fs.readFile(cargoTomlPath, 'utf-8');
-          const depGraph = parseCargoToml(content);
-          const converted = dependencyGraphToGraphData(depGraph);
-          allDepNodes.push(...converted.nodes);
-          allDepEdges.push(...converted.edges);
-        } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') log.warn('Failed to read Cargo.toml:', e); }
-
-        const goModPath = path.join(workspacePath, 'go.mod');
-        try {
-          const content = await fs.readFile(goModPath, 'utf-8');
-          const depGraph = parseGoMod(content);
-          const converted = dependencyGraphToGraphData(depGraph);
-          allDepNodes.push(...converted.nodes);
-          allDepEdges.push(...converted.edges);
-        } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') log.warn('Failed to read go.mod:', e); }
+        for (const { filename, parser } of depFiles) {
+          try {
+            const filePath = path.join(workspacePath, filename);
+            const content = await fs.readFile(filePath, 'utf-8');
+            const depGraph = parser(content);
+            const converted = dependencyGraphToGraphData(depGraph);
+            allDepNodes.push(...converted.nodes);
+            allDepEdges.push(...converted.edges);
+          } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') log.warn(`Failed to read ${filename}:`, e); }
+        }
 
         const dedupNodes = new Map<string, typeof allDepNodes[number]>();
         for (const n of allDepNodes) dedupNodes.set(n.id, n);
