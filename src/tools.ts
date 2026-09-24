@@ -38,7 +38,7 @@ export {
 const log = scoped('tools');
 
 function toJsonValue<T>(value: T): JsonValue {
-  return value as unknown as JsonValue;
+  return JSON.parse(JSON.stringify(value)) as JsonValue;
 }
 
 export type { UpstreamInvoker } from './adapters/IAdapter.ts';

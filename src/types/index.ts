@@ -39,6 +39,10 @@ export interface GraphNode {
   lineNumber?: number;
   properties: Record<string, unknown>;
   parentId?: NodeId;
+  summary?: string;
+  tags?: string[];
+  complexity?: 'simple' | 'moderate' | 'complex';
+  layer?: string;
 }
 
 export type EdgeDirection = 'forward' | 'backward' | 'bidirectional';
@@ -65,6 +69,15 @@ export interface GraphData {
     totalNodeCount?: number;
     totalEdgeCount?: number;
   };
+  layers?: Layer[];
+}
+
+export interface Layer {
+  id: string;
+  name: string;
+  description?: string;
+  nodeIds: NodeId[];
+  color?: string;
 }
 
 export type ViewMode = 'code' | 'dependencies' | 'inheritance' | 'callgraph' | 'package' | 'class' | 'cfg' | 'flowchart' | 'sequence';
@@ -221,21 +234,85 @@ export interface PathResult {
 // `ctx.on(...)`. Keep them writer-only so consumers never redefine the contract.
 declare module '@deepseek-ai/cordis' {
   interface Events {
+    /**
+     * @mode serial
+     * @param event Repository imported into the workspace
+     */
     'codegraph-visualizer/repo/imported'(event: RepoImportedEvent): void;
+    /**
+     * @mode serial
+     * @param event Repository scan completed with file count
+     */
     'codegraph-visualizer/repo/scanned'(event: RepoScannedEvent): void;
+    /**
+     * @mode serial
+     * @param event Request to scan a repository at the given path
+     */
     'codegraph-visualizer/repo/request-scan'(event: RepoRequestScanEvent): void;
+    /**
+     * @mode serial
+     * @param event Graph updated with new node/edge counts
+     */
     'codegraph-visualizer/graph/updated'(event: GraphUpdatedEvent): void;
+    /**
+     * @mode serial
+     * @param event Full graph data payload for rendering
+     */
     'codegraph-visualizer/graph/data'(event: GraphDataEvent): void;
+    /**
+     * @mode serial
+     * @param event Request to open a source file at a specific line
+     */
     'codegraph-visualizer/source/open'(event: SourceOpenEvent): void;
+    /**
+     * @mode serial
+     * @param event Prerequisite service availability status changed
+     */
     'codegraph-visualizer/prerequisite/status'(event: PrerequisiteStatusEvent): void;
+    /**
+     * @mode serial
+     * @param event Request prerequisite status check
+     */
     'codegraph-visualizer/prerequisite/request'(event: { timestamp: number }): void;
+    /**
+     * @mode serial
+     * @param event Request to initialize graph for a repository path
+     */
     'codegraph-visualizer/graph/init'(event: GraphInitEvent): void;
+    /**
+     * @mode serial
+     * @param event Graph initialization result (success/failure)
+     */
     'codegraph-visualizer/graph/init-result'(event: GraphInitResultEvent): void;
+    /**
+     * @mode serial
+     * @param event File watcher toggle state changed
+     */
     'codegraph-visualizer/watch/toggle'(event: WatchToggleEvent): void;
+    /**
+     * @mode serial
+     * @param event File watcher error occurred
+     */
     'codegraph-visualizer/watch/error'(event: { path: string; message: string; timestamp: number }): void;
+    /**
+     * @mode serial
+     * @param event Architecture health score calculated
+     */
     'codegraph-visualizer/health/scored'(event: HealthScoreEvent): void;
+    /**
+     * @mode serial
+     * @param event Architecture rule violation detected
+     */
     'codegraph-visualizer/rules/violation'(event: RuleViolationEvent): void;
+    /**
+     * @mode serial
+     * @param event Shortest path found between two symbols
+     */
     'codegraph-visualizer/path/found'(event: PathFoundEvent): void;
+    /**
+     * @mode serial
+     * @param event Focus changed to a different node (or null to clear)
+     */
     'codegraph-visualizer/focus/changed'(event: FocusChangedEvent): void;
   }
   interface Context {

@@ -108,7 +108,7 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
     try {
       const langModule = await this.loadLanguageWasm(language);
       if (this.currentLanguage) {
-        try { (this.currentLanguage as unknown as { delete?: () => void }).delete?.(); } catch { /* old language cleanup */ }
+        try { (this.currentLanguage as unknown as { delete?: () => void }).delete?.(); } catch (e) { /* old language cleanup */ }
       }
       this.parser!.setLanguage(langModule);
       this.currentLanguage = langModule;
@@ -159,14 +159,14 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
         const { getWasmPath } = await import('tree-sitter-wasm');
         const absPath = getWasmPath(language);
         candidates.push(absPath);
-      } catch { /* tree-sitter-wasm not available */ }
+      } catch (e) { /* tree-sitter-wasm not available */ }
     }
 
     const doc = (globalThis as Record<string, unknown>).document as { baseURI?: string } | undefined;
     if (doc && doc.baseURI) {
-      try { candidates.push(new URL(`plugins/dsh-codegraph-visualizer/${wasmFile}`, doc.baseURI).href); } catch { /* URL resolution fallback */ }
-      try { candidates.push(new URL(`node_modules/web-tree-sitter/dist/${wasmFile}`, doc.baseURI).href); } catch { /* URL resolution fallback */ }
-      try { candidates.push(new URL(wasmFile, doc.baseURI).href); } catch { /* URL resolution fallback */ }
+      try { candidates.push(new URL(`plugins/dsh-codegraph-visualizer/${wasmFile}`, doc.baseURI).href); } catch (e) { /* URL resolution fallback */ }
+      try { candidates.push(new URL(`node_modules/web-tree-sitter/dist/${wasmFile}`, doc.baseURI).href); } catch (e) { /* URL resolution fallback */ }
+      try { candidates.push(new URL(wasmFile, doc.baseURI).href); } catch (e) { /* URL resolution fallback */ }
     }
 
     candidates.push(wasmFile);
@@ -174,7 +174,7 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
     for (const path of candidates) {
       try {
         return await (Language as unknown as TreeSitterLanguage).load(path);
-      } catch { /* try next candidate path */ }
+      } catch (e) { /* try next candidate path */ }
     }
     throw new Error(`Cannot load ${wasmFile} from any candidate path`);
   }

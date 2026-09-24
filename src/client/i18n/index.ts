@@ -17,7 +17,7 @@ function getStoredLang(): Lang {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     return stored === 'zh' || stored === 'en' ? stored : 'zh';
-  } catch { return 'zh'; }
+  } catch (e) { /* localStorage unavailable */ return 'zh'; }
 }
 
 export function getLang(): Lang { return currentLang; }
@@ -26,7 +26,7 @@ export function setLang(lang: Lang): void {
   if (lang === currentLang) return;
   currentLang = lang;
   if (typeof window !== 'undefined') {
-    try { window.localStorage.setItem(STORAGE_KEY, lang); } catch { /* storage unavailable */ }
+    try { window.localStorage.setItem(STORAGE_KEY, lang); } catch (e) { /* storage unavailable */ }
   }
   for (const fn of listeners) fn();
 }
