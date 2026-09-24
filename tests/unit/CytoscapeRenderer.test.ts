@@ -263,12 +263,15 @@ describe('CytoscapeRenderer', () => {
       expect(mockCy.nodes).toHaveBeenCalled();
     });
 
-    it('enableVirtualScroll does not throw', () => {
-      expect(() => renderer!.enableVirtualScroll()).not.toThrow();
+    it('enableVirtualScroll enables virtual scroll', () => {
+      renderer!.enableVirtualScroll();
+      expect(renderer!.isVirtualScrollEnabled()).toBe(true);
     });
 
-    it('disableVirtualScroll does not throw', () => {
-      expect(() => renderer!.disableVirtualScroll()).not.toThrow();
+    it('disableVirtualScroll disables virtual scroll', () => {
+      renderer!.enableVirtualScroll();
+      renderer!.disableVirtualScroll();
+      expect(renderer!.isVirtualScrollEnabled()).toBe(false);
     });
 
     it('isVirtualScrollEnabled returns boolean', () => {
@@ -323,8 +326,9 @@ describe('CytoscapeRenderer', () => {
       expect(renderer!.getLastError()).toBeNull();
     });
 
-    it('highlightCallChain with null does not throw', () => {
-      expect(() => renderer!.highlightCallChain(null)).not.toThrow();
+    it('highlightCallChain with null produces no error', () => {
+      renderer!.highlightCallChain(null);
+      expect(renderer!.getLastError()).toBeNull();
     });
 
     it('detectCycles returns empty Set for empty graph', () => {
@@ -364,8 +368,9 @@ describe('CytoscapeRenderer', () => {
       expect(renderer!.getLastError()).toBeNull();
     });
 
-    it('highlightImpact with null does not throw', () => {
-      expect(() => renderer!.highlightImpact(null)).not.toThrow();
+    it('highlightImpact with null produces no error', () => {
+      renderer!.highlightImpact(null);
+      expect(renderer!.getLastError()).toBeNull();
     });
 
     it('getImpactStats returns null for non-existent node', () => {
@@ -378,8 +383,9 @@ describe('CytoscapeRenderer', () => {
       expect(renderer!.getLastError()).toBeNull();
     });
 
-    it('highlightInheritance with null does not throw', () => {
-      expect(() => renderer!.highlightInheritance(null)).not.toThrow();
+    it('highlightInheritance with null produces no error', () => {
+      renderer!.highlightInheritance(null);
+      expect(renderer!.getLastError()).toBeNull();
     });
 
     it('focusNeighborhood with valid id calls cy methods', () => {
@@ -387,8 +393,9 @@ describe('CytoscapeRenderer', () => {
       expect(mockCy.getElementById).toHaveBeenCalled();
     });
 
-    it('focusNeighborhood with null does not throw', () => {
-      expect(() => renderer!.focusNeighborhood(null)).not.toThrow();
+    it('focusNeighborhood with null produces no error', () => {
+      renderer!.focusNeighborhood(null);
+      expect(renderer!.getLastError()).toBeNull();
     });
 
     it('getThumbnail returns null (no real canvas in mock)', () => {
@@ -409,7 +416,7 @@ describe('CytoscapeRenderer', () => {
     it('exportJSON returns valid JSON string', () => {
       const result = renderer!.exportJSON();
       expect(typeof result).toBe('string');
-      expect(() => JSON.parse(result)).not.toThrow();
+      expect(JSON.parse(result)).toEqual({ nodes: [], edges: [] });
     });
 
     it('exportMermaid returns non-empty string', () => {
@@ -466,8 +473,9 @@ describe('CytoscapeRenderer', () => {
       expect(renderer!.getLastError()).toBeNull();
     });
 
-    it('highlightPath with null does not throw', () => {
-      expect(() => renderer!.highlightPath(null)).not.toThrow();
+    it('highlightPath with null produces no error', () => {
+      renderer!.highlightPath(null);
+      expect(renderer!.getLastError()).toBeNull();
     });
 
     it('expandNeighborhood returns Set', () => {
@@ -477,12 +485,13 @@ describe('CytoscapeRenderer', () => {
   });
 
   describe('destroy', () => {
-    it('destroy without init does not throw', () => {
+    it('destroy without init does not call cy.destroy', () => {
       renderer = new CytoscapeRenderer({
         container: makeContainer(),
         theme: 'dark',
       });
-      expect(() => renderer!.destroy()).not.toThrow();
+      renderer!.destroy();
+      expect(mockCy.destroy).not.toHaveBeenCalled();
     });
 
     it('destroy after init calls cy.destroy', () => {
@@ -496,14 +505,16 @@ describe('CytoscapeRenderer', () => {
       expect(mockCy.destroy).toHaveBeenCalled();
     });
 
-    it('destroy is idempotent (second call does not throw)', () => {
+    it('destroy is idempotent (second call does not invoke cy.destroy again)', () => {
       renderer = new CytoscapeRenderer({
         container: makeContainer(),
         theme: 'dark',
       });
       renderer!.init();
       renderer!.destroy();
-      expect(() => renderer!.destroy()).not.toThrow();
+      vi.clearAllMocks();
+      renderer!.destroy();
+      expect(mockCy.destroy).not.toHaveBeenCalled();
     });
   });
 

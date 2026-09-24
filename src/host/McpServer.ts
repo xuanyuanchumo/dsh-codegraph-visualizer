@@ -5,7 +5,7 @@ import type { GraphData, GraphNode, GraphEdge } from '../types/index.ts';
 import { safeString, safeNumber } from '../types/index.ts';
 import { buildBackwardAdjacency } from '../shared/analysis/AdjacencyList.ts';
 import { bfsFrontierExpansion } from '../shared/analysis/GraphBFS.ts';
-import { MCP } from '../shared/constants.ts';
+import { MCP, ERROR_CODES } from '../shared/constants.ts';
 
 const log = scoped('mcp-server');
 const MAX_MESSAGE_LENGTH = MCP.MAX_MESSAGE_LENGTH;
@@ -252,7 +252,7 @@ export class McpServer {
         const depth = safeNumber(args['depth'], 2);
 
         const targetNode = data.nodes.find((n: GraphNode) => n.label === symbol || n.label.endsWith(`.${symbol}`));
-        if (!targetNode) return { impacted: [], message: 'Symbol not found' };
+        if (!targetNode) return { impacted: [], message: 'Symbol not found', errorCode: ERROR_CODES.SYMBOL_NOT_FOUND };
 
         const reverseAdj = buildBackwardAdjacency(data.edges);
         const result = bfsFrontierExpansion(reverseAdj, targetNode.id, depth, MCP.MAX_IMPACT_RESULTS);

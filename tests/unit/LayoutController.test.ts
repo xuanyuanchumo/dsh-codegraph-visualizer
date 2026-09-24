@@ -31,7 +31,7 @@ function makeMockEdge(id: string, sourceId: string, targetId: string) {
   };
 }
 
-function makeMockCy(nodeList: any[] = [], edgeList: any[] = []) {
+function makeMockCy(nodeList: any[] = [], edgeList: any[] = []): any {
   const nodeMap = new Map<string, any>();
   for (const n of nodeList) nodeMap.set(n.id(), n);
 
@@ -1159,6 +1159,861 @@ describe('LayoutController', () => {
       const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.applyIncrementalLayout('cose', new Set(['b']));
+      expect(cy.layout).toHaveBeenCalled();
+      controller.destroy();
+    });
+  });
+
+  describe('restoreCachedPositions direct test', () => {
+    it('applies cached positions to nodes when cache has entries', async () => {
+      const nodeA = makeMockNode('a', 0, 0);
+      const nodeB = makeMockNode('b', 0, 0);
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      (controller as any).positionCache.set('a', { x: 100, y: 200 });
+      (controller as any).positionCache.set('b', { x: 300, y: 400 });
+
+      nodeA.position.mockClear();
+      nodeB.position.mockClear();
+
+      (controller as any).restoreCachedPositions();
+
+      expect(nodeA.position).toHaveBeenCalledWith({ x: 100, y: 200 });
+      expect(nodeB.position).toHaveBeenCalledWith({ x: 300, y: 400 });
+      controller.destroy();
+    });
+
+    it('skips nodes not in cache during restore', async () => {
+      const nodeA = makeMockNode('a', 0, 0);
+      const nodeB = makeMockNode('b', 0, 0);
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      (controller as any).positionCache.set('a', { x: 100, y: 200 });
+
+      nodeA.position.mockClear();
+      nodeB.position.mockClear();
+
+      (controller as any).restoreCachedPositions();
+
+      expect(nodeA.position).toHaveBeenCalledWith({ x: 100, y: 200 });
+      expect(nodeB.position).not.toHaveBeenCalled();
+      controller.destroy();
+    });
+  });
+
+  describe('worker onmessage without pending resolve', () => {
+    it('does not throw when onmessage is called without pending resolve', async () => {
+      const originalDocument = globalThis.document;
+      let mockWorkerInstance: any;
+      class MockWorker {
+        onmessage: ((e: MessageEvent) => void) | null = null;
+        onerror: ((e: ErrorEvent) => void) | null = null;
+        postMessage = vi.fn();
+        terminate = vi.fn();
+        constructor() { mockWorkerInstance = this; }
+      }
+      globalThis.Worker = MockWorker as any;
+      globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
+
+      const cy = makeMockCy();
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      expect(() => {
+        mockWorkerInstance.onmessage({ data: { positions: { a: { x: 1, y: 2 } } } } as any);
+      }).not.toThrow();
+
+      controller.destroy();
+      globalThis.Worker = undefined as any;
+      globalThis.document = originalDocument;
+    });
+  });
+
+  describe('worker onerror fallback behavior', () => {
+    it('causes applyLayoutWithWorker to return empty object after onerror', async () => {
+      const originalDocument = globalThis.document;
+      let mockWorkerInstance: any;
+      class MockWorker {
+        onmessage: ((e: MessageEvent) => void) | null = null;
+        onerror: ((e: ErrorEvent) => void) | null = null;
+        postMessage = vi.fn();
+        terminate = vi.fn();
+        constructor() { mockWorkerInstance = this; }
+      }
+      globalThis.Worker = MockWorker as any;
+      globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
+
+      const cy = makeMockCy();
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      mockWorkerInstance.onerror({} as ErrorEvent);
+      expect(controller.isWorkerAvailable()).toBe(false);
+
+      const result = await controller.applyLayoutWithWorker([], [], 'cose');
+      expect(result).toEqual({});
+
+      controller.destroy();
+      globalThis.Worker = undefined as any;
+      globalThis.document = originalDocument;
+    });
+  });
+
+  describe('positions function branches in applyIncrementalLayout', () => {
+    it('returns cached position for cached nodes', async () => {
+      const nodeA = makeMockNode('a', 50, 60);
+      const nodeB = makeMockNode('b', 0, 0);
+      nodeB.connectedEdges = vi.fn(() => ({ forEach: vi.fn() }));
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      controller.applyIncrementalLayout('cose', new Set(['b']));
+
+      const presetCall = cy.layout.mock.calls.find((call: any) => call[0]?.name === 'preset');
+      expect(presetCall).toBeDefined();
+      const positionsFn = presetCall![0].positions;
+
+      // After applyIncrementalLayout, cachePositions cached all nodes
+      // nodeA's position() returns {x: 50, y: 60}
+      const result = positionsFn({ id: () => 'a' });
+      expect(result).toEqual({ x: 50, y: 60 });
+      controller.destroy();
+    });
+
+    it('returns spiral position for new nodes not in cache', async () => {
+      const nodeA = makeMockNode('a', 100, 100);
+      const nodeB = makeMockNode('b', 0, 0);
+      nodeB.connectedEdges = vi.fn(() => ({ forEach: vi.fn() }));
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      controller.applyIncrementalLayout('cose', new Set(['b']));
+
+      const presetCall = cy.layout.mock.calls.find((call: any) => call[0]?.name === 'preset');
+      const positionsFn = presetCall![0].positions;
+
+      // Remove 'b' from cache to test the new-node branch
+      (controller as any).positionCache.delete('b');
+
+      const result = positionsFn({ id: () => 'b' });
+      // 'b' is a new node (idx=0): x = cx + radius, y = cy (sin(0)=0)
+      // cx = 50, cy = 50 (boundingBox center of nodeA at 100,100)
+      // radius > 0, so x != cx
+      expect(result.x).not.toBe(50);
+      expect(result.y).toBe(50);
+      controller.destroy();
+    });
+
+    it('returns center position for non-new non-cached nodes', async () => {
+      const nodeA = makeMockNode('a', 100, 100);
+      const nodeB = makeMockNode('b', 0, 0);
+      nodeB.connectedEdges = vi.fn(() => ({ forEach: vi.fn() }));
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      controller.applyIncrementalLayout('cose', new Set(['b']));
+
+      const presetCall = cy.layout.mock.calls.find((call: any) => call[0]?.name === 'preset');
+      const positionsFn = presetCall![0].positions;
+
+      // Remove 'a' from cache to test the non-new non-cached branch
+      (controller as any).positionCache.delete('a');
+
+      const result = positionsFn({ id: () => 'a' });
+      // 'a' is not a new node and not in cache: returns center {cx, cy}
+      // cx = (0 + 100) / 2 = 50, cy = (0 + 100) / 2 = 50
+      expect(result).toEqual({ x: 50, y: 50 });
+      controller.destroy();
+    });
+  });
+
+  describe('circle layout radius computation', () => {
+    it('computes radius as min(width,height)/2 - padding', async () => {
+      const nodeA = makeMockNode('a');
+      const cy = makeMockCy([nodeA], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+      controller.applyLayout('circle');
+      const layoutArg = cy.layout.mock.calls[0]?.[0];
+      expect(typeof layoutArg?.radius).toBe('function');
+      // cy.width() = 800, cy.height() = 600, min = 600, 600/2 = 300
+      const padding = layoutArg.padding;
+      const expectedRadius = Math.min(800, 600) / 2 - padding;
+      expect(layoutArg.radius()).toBe(expectedRadius);
+      controller.destroy();
+    });
+  });
+
+  describe('concentric layout concentric function', () => {
+    it('returns node degree', async () => {
+      const nodeA = makeMockNode('a');
+      nodeA.degree = vi.fn(() => 7);
+      const cy = makeMockCy([nodeA], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+      controller.applyLayout('radial');
+      const layoutArg = cy.layout.mock.calls[0]?.[0];
+      expect(typeof layoutArg?.concentric).toBe('function');
+      const mockNode = { degree: () => 7 };
+      expect(layoutArg.concentric(mockNode)).toBe(7);
+      controller.destroy();
+    });
+  });
+
+  describe('concentric layout levelWidth computation', () => {
+    it('computes ceil(maxDeg/4) for small graphs', async () => {
+      const nodeA = makeMockNode('a');
+      nodeA.degree = vi.fn(() => 8);
+      const nodeB = makeMockNode('b');
+      nodeB.degree = vi.fn(() => 4);
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+      controller.applyLayout('radial');
+      const layoutArg = cy.layout.mock.calls[0]?.[0];
+      expect(typeof layoutArg?.levelWidth).toBe('function');
+      // maxDeg = 8, levelW = ceil(8/4) = 2
+      expect(layoutArg.levelWidth()).toBe(2);
+      controller.destroy();
+    });
+
+    it('has minimum value of 1 when maxDeg is small', async () => {
+      const nodeA = makeMockNode('a');
+      nodeA.degree = vi.fn(() => 1);
+      const cy = makeMockCy([nodeA], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+      controller.applyLayout('radial');
+      const layoutArg = cy.layout.mock.calls[0]?.[0];
+      // maxDeg = 1, levelW = max(1, ceil(1/4)) = max(1, 1) = 1
+      expect(layoutArg.levelWidth()).toBe(1);
+      controller.destroy();
+    });
+  });
+
+  describe('worker onmessage with pending resolve', () => {
+    it('resolves pending promise with worker positions', async () => {
+      const originalDocument = globalThis.document;
+      let mockWorkerInstance: any;
+      class MockWorker {
+        onmessage: ((e: MessageEvent) => void) | null = null;
+        onerror: ((e: ErrorEvent) => void) | null = null;
+        postMessage = vi.fn();
+        terminate = vi.fn();
+        constructor() { mockWorkerInstance = this; }
+      }
+      globalThis.Worker = MockWorker as any;
+      globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
+
+      const cy = makeMockCy();
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      const positionsPromise = controller.applyLayoutWithWorker(
+        [{ id: 'a', label: 'A', type: 'class' }] as any,
+        [{ id: 'e1', source: 'a', target: 'b', type: 'extends' }] as any,
+        'cose',
+      );
+
+      // Simulate worker responding with positions
+      mockWorkerInstance.onmessage({
+        data: { positions: { a: { x: 10, y: 20 } } },
+      } as any);
+
+      const result = await positionsPromise;
+      expect(result).toEqual({ a: { x: 10, y: 20 } });
+
+      controller.destroy();
+      globalThis.Worker = undefined as any;
+      globalThis.document = originalDocument;
+    });
+  });
+
+  describe('worker timeout fallback', () => {
+    it('resolves with empty object on timeout and terminates worker', async () => {
+      const originalDocument = globalThis.document;
+      let mockWorkerInstance: any;
+      class MockWorker {
+        onmessage: ((e: MessageEvent) => void) | null = null;
+        onerror: ((e: ErrorEvent) => void) | null = null;
+        postMessage = vi.fn();
+        terminate = vi.fn();
+        constructor() { mockWorkerInstance = this; }
+      }
+      globalThis.Worker = MockWorker as any;
+      globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
+
+      const cy = makeMockCy();
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      // Use vi.useFakeTimers to control timeout precisely
+      vi.useFakeTimers();
+      const timeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+
+      const positionsPromise = controller.applyLayoutWithWorker(
+        [{ id: 'a', label: 'A', type: 'class' }] as any,
+        [],
+        'cose',
+      );
+
+      // Advance time past LAYOUT_TIMEOUT_MS (10000ms)
+      vi.advanceTimersByTime(10001);
+
+      const result = await positionsPromise;
+      expect(result).toEqual({});
+      expect(mockWorkerInstance.terminate).toHaveBeenCalled();
+      expect(controller.isWorkerAvailable()).toBe(false);
+
+      vi.useRealTimers();
+      timeoutSpy.mockRestore();
+      controller.destroy();
+      globalThis.Worker = undefined as any;
+      globalThis.document = originalDocument;
+    });
+  });
+
+  describe('worker init catch block', () => {
+    it('sets workerInitFailed when Worker constructor throws', async () => {
+      const originalDocument = globalThis.document;
+      globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
+      const originalWorker = globalThis.Worker;
+
+      // Worker constructor throws
+      globalThis.Worker = class {
+        constructor() { throw new Error('Worker construction failed'); }
+      } as any;
+
+      const cy = makeMockCy();
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      expect(controller.isWorkerAvailable()).toBe(false);
+
+      globalThis.Worker = originalWorker;
+      globalThis.document = originalDocument;
+      controller.destroy();
+    });
+  });
+
+  describe('URL construction fallback', () => {
+    it('falls back when URL constructor throws', async () => {
+      const originalDocument = globalThis.document;
+      // Set baseURI to something that will cause URL constructor to throw
+      globalThis.document = { baseURI: 'invalid-url' } as any;
+
+      const cy = makeMockCy();
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      // Worker should not be created since URL construction failed
+      expect(controller.isWorkerAvailable()).toBe(false);
+
+      globalThis.document = originalDocument;
+      controller.destroy();
+    });
+  });
+
+  describe('applyLayout large graph grid fallback', () => {
+    it('uses grid layout when node count exceeds GRID_FALLBACK_NODE_THRESHOLD', async () => {
+      // Create 5001 mock nodes to exceed threshold
+      const nodeList: any[] = [];
+      for (let i = 0; i < 5001; i++) {
+        nodeList.push(makeMockNode(`n${i}`));
+      }
+      const cy = makeMockCy(nodeList, []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      controller.applyLayout('cose');
+
+      const layoutCall = cy.layout.mock.calls.find((c: any) => c[0]?.name === 'grid');
+      expect(layoutCall).toBeDefined();
+      expect(layoutCall![0].animate).toBe(false);
+
+      controller.destroy();
+    });
+
+    it('uses dagre fallback for cose/fcose when node count exceeds LARGE_NODE_THRESHOLD', async () => {
+      // Create 501 mock nodes (LARGE_NODE_THRESHOLD = 500)
+      const nodeList: any[] = [];
+      for (let i = 0; i < 501; i++) {
+        nodeList.push(makeMockNode(`n${i}`));
+      }
+      const cy = makeMockCy(nodeList, []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      controller.applyLayout('fcose');
+
+      const dagreCall = cy.layout.mock.calls.find((c: any) => c[0]?.name === 'dagre');
+      expect(dagreCall).toBeDefined();
+      expect(dagreCall![0].animate).toBe(false);
+
+      controller.destroy();
+    });
+  });
+
+  describe('applyWorkerLayout applies positions', () => {
+    it('applies worker positions to nodes and fits view', async () => {
+      const nodeA = makeMockNode('a', 0, 0);
+      const nodeB = makeMockNode('b', 0, 0);
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      nodeA.position.mockClear();
+      nodeB.position.mockClear();
+
+      controller.applyWorkerLayout({
+        a: { x: 100, y: 200 },
+        b: { x: 300, y: 400 },
+      });
+
+      expect(nodeA.position).toHaveBeenCalledWith({ x: 100, y: 200 });
+      expect(nodeB.position).toHaveBeenCalledWith({ x: 300, y: 400 });
+      expect(cy.fit).toHaveBeenCalled();
+
+      controller.destroy();
+    });
+
+    it('skips non-existent nodes in applyWorkerLayout', async () => {
+      const nodeA = makeMockNode('a', 0, 0);
+      const cy = makeMockCy([nodeA], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      nodeA.position.mockClear();
+
+      // 'b' does not exist in the graph
+      controller.applyWorkerLayout({
+        a: { x: 100, y: 200 },
+        b: { x: 300, y: 400 },
+      });
+
+      expect(nodeA.position).toHaveBeenCalledWith({ x: 100, y: 200 });
+      // cy.fit should still be called
+      expect(cy.fit).toHaveBeenCalled();
+
+      controller.destroy();
+    });
+  });
+
+  describe('applyIncrementalLayout anchor computation', () => {
+    it('computes anchor center from connected existing nodes', async () => {
+      const nodeA = makeMockNode('a', 100, 200);
+      const nodeB = makeMockNode('b', 300, 400);
+      const nodeC = makeMockNode('c', 0, 0);
+      const nodeD = makeMockNode('d', 0, 0);
+
+      // nodeC connects to nodeA via an edge
+      const mockEdge = {
+        id: () => 'e1',
+        source: () => nodeA,
+        target: () => nodeC,
+        style: vi.fn(),
+        data: vi.fn(),
+      };
+      nodeC.connectedEdges = vi.fn(() => ({
+        forEach: vi.fn((cb: (edge: any) => void) => cb(mockEdge)),
+        length: 1,
+      }));
+      nodeD.connectedEdges = vi.fn(() => ({ forEach: vi.fn(), length: 0 }));
+
+      const cy = makeMockCy([nodeA, nodeB, nodeC, nodeD], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      controller.applyIncrementalLayout('cose', new Set(['c', 'd']));
+
+      const presetCall = cy.layout.mock.calls.find((call: any) => call[0]?.name === 'preset');
+      expect(presetCall).toBeDefined();
+      const positionsFn = presetCall![0].positions;
+
+      // Remove 'd' from cache to test spiral branch
+      (controller as any).positionCache.delete('d');
+
+      // 'c' is idx=0, 'd' is idx=1
+      // anchor is nodeA at (100,200), so cx=100, cy=200
+      // For 'd' (idx=1): angle = 1 * goldenAngle ≈ 2.39996
+      // sin(2.39996) ≈ 0.6755, so y != cy=200
+      const result = positionsFn({ id: () => 'd' });
+      expect(result.x).not.toBe(100); // Should be offset by radius*cos(goldenAngle)
+      expect(result.y).not.toBe(200); // sin(goldenAngle) != 0
+
+      controller.destroy();
+    });
+
+    it('falls back to bounding box center when no connected existing nodes', async () => {
+      const nodeA = makeMockNode('a', 100, 100);
+      const nodeB = makeMockNode('b', 0, 0);
+      // nodeB has no connected edges to existing nodes
+      nodeB.connectedEdges = vi.fn(() => ({ forEach: vi.fn(), length: 0 }));
+
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      controller.applyIncrementalLayout('cose', new Set(['b']));
+
+      const presetCall = cy.layout.mock.calls.find((call: any) => call[0]?.name === 'preset');
+      const positionsFn = presetCall![0].positions;
+
+      (controller as any).positionCache.delete('b');
+
+      // No anchor nodes, so falls back to boundingBox of existing nodes
+      // boundingBox returns {x1:0, y1:0, x2:100, y2:100}, center = (50, 50)
+      const result = positionsFn({ id: () => 'b' });
+      // 'b' is idx=0, radius > 0, so x != cx=50
+      expect(result.x).not.toBe(50);
+
+      controller.destroy();
+    });
+
+    it('falls back to origin when no existing nodes at all', async () => {
+      const nodeA = makeMockNode('a', 0, 0);
+      nodeA.connectedEdges = vi.fn(() => ({ forEach: vi.fn(), length: 0 }));
+
+      const cy = makeMockCy([nodeA], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      // All nodes are new, so no existing nodes for bounding box
+      controller.applyIncrementalLayout('cose', new Set(['a']));
+
+      const presetCall = cy.layout.mock.calls.find((call: any) => call[0]?.name === 'preset');
+      const positionsFn = presetCall![0].positions;
+
+      (controller as any).positionCache.delete('a');
+
+      // No existing nodes, cx=0, cy=0
+      const result = positionsFn({ id: () => 'a' });
+      // idx=0, radius > 0, goldenAngle, so x = 0 + radius*cos(0) = radius
+      expect(result.x).toBeGreaterThan(0);
+      expect(result.y).toBeCloseTo(0, 5); // sin(0) = 0
+
+      controller.destroy();
+    });
+
+    it('skips empty new nodes in incremental layout', async () => {
+      const nodeA = makeMockNode('a', 100, 100);
+      const cy = makeMockCy([nodeA], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      // 'nonexistent' is not in the graph, getElementById returns empty node
+      controller.applyIncrementalLayout('cose', new Set(['nonexistent']));
+
+      // Should still run a layout (preset) since newNodes.length check happens
+      // but the anchor loop skips empty nodes
+      const presetCall = cy.layout.mock.calls.find((call: any) => call[0]?.name === 'preset');
+      // Since 'nonexistent' is not found, newNodes.length === 0, so early return
+      expect(presetCall).toBeUndefined();
+
+      controller.destroy();
+    });
+
+    it('runs incremental layout for non-cose/fcose/dagre layout types', async () => {
+      const nodeA = makeMockNode('a', 100, 100);
+      const nodeB = makeMockNode('b', 0, 0);
+      nodeB.connectedEdges = vi.fn(() => ({ forEach: vi.fn(), length: 0 }));
+
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      // 'grid' is not cose/fcose/dagre, so should go to else branch
+      controller.applyIncrementalLayout('grid', new Set(['b']));
+
+      // Should still call preset layout for positioning
+      const presetCall = cy.layout.mock.calls.find((call: any) => call[0]?.name === 'preset');
+      expect(presetCall).toBeDefined();
+
+      controller.destroy();
+    });
+  });
+
+  describe('buildLayoutOptions all layout types', () => {
+    it('builds fcose layout options with correct parameters', async () => {
+      const nodeA = makeMockNode('a');
+      const cy = makeMockCy([nodeA], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      controller.applyLayout('fcose');
+      const layoutArg = cy.layout.mock.calls[0]?.[0];
+      expect(layoutArg.name).toBe('fcose');
+      expect(layoutArg.fit).toBe(true);
+      expect(layoutArg.animate).toBe(false);
+      expect(layoutArg.edgeElasticity).toBe(0.05);
+      expect(layoutArg.gravity).toBe(0.02);
+      expect(layoutArg.randomize).toBe(true);
+      expect(layoutArg.tile).toBe(true);
+      expect(layoutArg.avoidOverlap).toBe(true);
+      expect(layoutArg.samplingType).toBe(true);
+
+      controller.destroy();
+    });
+
+    it('builds dagre layout options with rankDir and animate', async () => {
+      const nodeA = makeMockNode('a');
+      const cy = makeMockCy([nodeA], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      controller.rankDir = 'LR';
+      controller.applyLayout('dagre');
+      const layoutArg = cy.layout.mock.calls[0]?.[0];
+      expect(layoutArg.name).toBe('dagre');
+      expect(layoutArg.rankDir).toBe('LR');
+      expect(layoutArg.animate).toBe(true);
+      expect(layoutArg.ranker).toBe('tight-tree');
+
+      controller.destroy();
+    });
+
+    it('builds grid layout options with rows and cols', async () => {
+      const nodes: any[] = [];
+      for (let i = 0; i < 9; i++) nodes.push(makeMockNode(`n${i}`));
+      const cy = makeMockCy(nodes, []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      controller.applyLayout('grid');
+      const layoutArg = cy.layout.mock.calls[0]?.[0];
+      expect(layoutArg.name).toBe('grid');
+      expect(layoutArg.rows).toBe(Math.ceil(Math.sqrt(9)));
+      expect(layoutArg.cols).toBe(Math.ceil(Math.sqrt(9)));
+      expect(layoutArg.animate).toBe(false);
+
+      controller.destroy();
+    });
+
+    it('builds radial layout for very large graphs using sampling', async () => {
+      // Create 2001 nodes (VERY_LARGE_NODE_THRESHOLD = 2000)
+      const nodes: any[] = [];
+      for (let i = 0; i < 2001; i++) {
+        const n = makeMockNode(`n${i}`);
+        n.degree = vi.fn(() => 4);
+        nodes.push(n);
+      }
+      const cy = makeMockCy(nodes, []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      controller.applyLayout('radial');
+      const layoutArg = cy.layout.mock.calls[0]?.[0];
+      expect(layoutArg.name).toBe('concentric');
+      expect(typeof layoutArg.concentric).toBe('function');
+      expect(typeof layoutArg.levelWidth).toBe('function');
+      // maxDeg from sampling should be 4, levelW = ceil(4/4) = 1
+      expect(layoutArg.levelWidth()).toBeGreaterThanOrEqual(1);
+
+      controller.destroy();
+    });
+
+    it('builds tree layout with isRoot property nodes', async () => {
+      const nodeA = makeMockNode('a', 0, 0, { isRoot: true });
+      const nodeB = makeMockNode('b');
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      controller.applyLayout('tree');
+      const layoutArg = cy.layout.mock.calls[0]?.[0];
+      expect(layoutArg.name).toBe('breadthfirst');
+      expect(layoutArg.directed).toBe(true);
+
+      controller.destroy();
+    });
+
+    it('builds tree layout with roots fallback when no isRoot property', async () => {
+      const nodeA = makeMockNode('a');
+      nodeA.degree = vi.fn(() => 5);
+      const nodeB = makeMockNode('b');
+      nodeB.degree = vi.fn(() => 2);
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      controller.applyLayout('tree');
+      const layoutArg = cy.layout.mock.calls[0]?.[0];
+      expect(layoutArg.name).toBe('breadthfirst');
+      expect(layoutArg.directed).toBe(true);
+
+      controller.destroy();
+    });
+  });
+
+  describe('destroy with pending worker state', () => {
+    it('clears workerTimeout and resolves pending promise on destroy', async () => {
+      const originalDocument = globalThis.document;
+      let mockWorkerInstance: any;
+      class MockWorker {
+        onmessage: ((e: MessageEvent) => void) | null = null;
+        onerror: ((e: ErrorEvent) => void) | null = null;
+        postMessage = vi.fn();
+        terminate = vi.fn();
+        constructor() { mockWorkerInstance = this; }
+      }
+      globalThis.Worker = MockWorker as any;
+      globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
+
+      const cy = makeMockCy();
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      // Use fake timers so the timeout doesn't fire before we destroy
+      vi.useFakeTimers();
+
+      // Start a worker layout request (don't await — we'll destroy first)
+      const positionsPromise = controller.applyLayoutWithWorker(
+        [{ id: 'a', label: 'A', type: 'class' }] as any,
+        [],
+        'cose',
+      );
+
+      // Destroy while promise is pending
+      controller.destroy();
+
+      // The pending promise should resolve with empty object
+      const result = await positionsPromise;
+      expect(result).toEqual({});
+      expect(mockWorkerInstance.terminate).toHaveBeenCalled();
+
+      vi.useRealTimers();
+      globalThis.Worker = undefined as any;
+      globalThis.document = originalDocument;
+    });
+  });
+
+  describe('applyLayoutWithWorker without worker', () => {
+    it('returns empty object immediately when no worker available', async () => {
+      // Ensure clean environment — no Worker, no document
+      const originalWorker = globalThis.Worker;
+      const originalDocument = globalThis.document;
+      globalThis.Worker = undefined as any;
+      globalThis.document = undefined as any;
+
+      const cy = makeMockCy();
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      // No worker in environment
+      expect(controller.isWorkerAvailable()).toBe(false);
+      const result = await controller.applyLayoutWithWorker([], [], 'cose');
+      expect(result).toEqual({});
+
+      controller.destroy();
+      globalThis.Worker = originalWorker;
+      globalThis.document = originalDocument;
+    });
+  });
+
+  describe('fcose large graph quality and numIter', () => {
+    it('uses large numIter and draft quality for very large fcose graphs', async () => {
+      // Need > FCOSE_LARGE_NODE_THRESHOLD (5000) but < GRID_FALLBACK (5000)
+      // FCOSE_LARGE_NODE_THRESHOLD = 5000, so we need exactly 5001 nodes
+      // But GRID_FALLBACK is also 5000, so 5001 nodes would trigger grid fallback
+      // Instead test buildLayoutOptions directly
+      const nodes: any[] = [];
+      for (let i = 0; i < 5001; i++) nodes.push(makeMockNode(`n${i}`));
+      const cy = makeMockCy(nodes, []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      // Call buildLayoutOptions directly with fcose and large nodeCount
+      const options = (controller as any).buildLayoutOptions('fcose', false, 6000);
+      expect(options.name).toBe('fcose');
+      expect(options.numIter).toBe(1000); // FCOSE_LARGE_NUM_ITER
+      expect(options.quality).toBe('draft'); // FCOSE_LARGE_QUALITY
+
+      controller.destroy();
+    });
+
+    it('uses default numIter and quality for small fcose graphs', async () => {
+      const nodeA = makeMockNode('a');
+      const cy = makeMockCy([nodeA], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      const options = (controller as any).buildLayoutOptions('fcose', false, 10);
+      expect(options.name).toBe('fcose');
+      expect(options.numIter).toBe(2500); // COSE_NUM_ITER
+      expect(options.quality).toBe('default');
+
+      controller.destroy();
+    });
+  });
+
+  describe('circle layout with animate parameter', () => {
+    it('passes animate flag to circle layout', async () => {
+      const nodeA = makeMockNode('a');
+      const cy = makeMockCy([nodeA], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      const options = (controller as any).buildLayoutOptions('circle', true, 5);
+      expect(options.name).toBe('circle');
+      expect(options.animate).toBe(true);
+      expect(typeof options.radius).toBe('function');
+
+      controller.destroy();
+    });
+  });
+
+  describe('applyIncrementalLayout with empty newNodeIds', () => {
+    it('returns early without running layout when newNodeIds is empty', async () => {
+      const nodeA = makeMockNode('a');
+      const cy = makeMockCy([nodeA], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      cy.layout.mockClear();
+      controller.applyIncrementalLayout('cose', new Set());
+      expect(cy.layout).not.toHaveBeenCalled();
+
+      controller.destroy();
+    });
+  });
+
+  describe('applyLayout cancels pending raf', () => {
+    it('cancels previous animation frame when applyLayout called twice', async () => {
+      const nodeA = makeMockNode('a');
+      const cy = makeMockCy([nodeA], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy as any);
+
+      // First call schedules raf (which fires immediately in test env)
+      controller.applyLayout('cose');
+      // Second call should cancel the first raf
+      controller.applyLayout('cose');
+
+      expect(cy.layout).toHaveBeenCalled();
+      controller.destroy();
+    });
+  });
+
+  describe('applyIncrementalLayout cancels pending raf', () => {
+    it('cancels previous animation frame when applyIncrementalLayout called after applyLayout', async () => {
+      const nodeA = makeMockNode('a');
+      const nodeB = makeMockNode('b', 0, 0);
+      nodeB.connectedEdges = vi.fn(() => ({ forEach: vi.fn(), length: 0 }));
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      controller.applyLayout('cose');
+      controller.applyIncrementalLayout('cose', new Set(['b']));
+
+      // Both should have called layout
       expect(cy.layout).toHaveBeenCalled();
       controller.destroy();
     });

@@ -256,7 +256,7 @@ describe('registerRoutes', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '/etc/passwd' })), res);
     expect(state.code).toBe(403);
-    expect(JSON.parse(state.body).error).toBe('Path not allowed');
+    expect(JSON.parse(state.body).error).toBe('PATH_NOT_ALLOWED');
   });
 
   it('POST /scan returns 500 on fetch error', async () => {
@@ -266,7 +266,7 @@ describe('registerRoutes', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '.' })), res);
     expect(state.code).toBe(500);
-    expect(JSON.parse(state.body).error).toBe('Scan failed — check codegraph installation');
+    expect(JSON.parse(state.body).error).toBe('SCAN_FAILED');
   });
 
   it('POST /scan returns cached data when within TTL', async () => {
@@ -302,7 +302,7 @@ describe('registerRoutes', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '/etc' })), res);
     expect(state.code).toBe(403);
-    expect(JSON.parse(state.body).error).toBe('Path not allowed');
+    expect(JSON.parse(state.body).error).toBe('PATH_NOT_ALLOWED');
   });
 
   it('POST /init returns 500 on error', async () => {
@@ -312,7 +312,7 @@ describe('registerRoutes', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '.' })), res);
     expect(state.code).toBe(500);
-    expect(JSON.parse(state.body).error).toBe('Initialization failed — is dsh-codegraph installed?');
+    expect(JSON.parse(state.body).error).toBe('INIT_FAILED');
   });
 
   it('POST /watch toggles watch mode', async () => {
@@ -334,7 +334,7 @@ describe('registerRoutes', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ enabled: true, path: '/etc' })), res);
     expect(state.code).toBe(403);
-    expect(JSON.parse(state.body).error).toBe('Path not allowed');
+    expect(JSON.parse(state.body).error).toBe('PATH_NOT_ALLOWED');
   });
 
   it('POST /watch returns 500 on error', async () => {
@@ -351,7 +351,7 @@ describe('registerRoutes', () => {
     };
     await handler(req as unknown as IncomingMessage, res);
     expect(state.code).toBe(500);
-    expect(JSON.parse(state.body).error).toBe('Watch toggle failed');
+    expect(JSON.parse(state.body).error).toBe('WATCH_TOGGLE_FAILED');
   });
 
   it('GET /dependencies returns empty when no workspace', async () => {
@@ -372,7 +372,7 @@ describe('registerRoutes', () => {
     const { res, state } = makeRes();
     await handler(makeReq('GET'), res);
     expect(state.code).toBe(403);
-    expect(JSON.parse(state.body).error).toBe('Workspace path not allowed');
+    expect(JSON.parse(state.body).error).toBe('WORKSPACE_PATH_NOT_ALLOWED');
   });
 
   it('GET /dependencies returns dependency graph', async () => {
@@ -392,7 +392,7 @@ describe('registerRoutes', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ from: 'abc' })), res);
     expect(state.code).toBe(400);
-    expect(JSON.parse(state.body).error).toContain('required');
+    expect(JSON.parse(state.body).error).toBe('COMMITS_REQUIRED');
   });
 
   it('POST /diff returns 400 for invalid git ref', async () => {
@@ -401,7 +401,7 @@ describe('registerRoutes', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ from: 'bad;ref', to: 'main' })), res);
     expect(state.code).toBe(400);
-    expect(JSON.parse(state.body).error).toContain('Invalid git ref');
+    expect(JSON.parse(state.body).error).toBe('INVALID_GIT_REF');
   });
 
   it('POST /diff returns diff graph', async () => {
@@ -434,7 +434,7 @@ describe('registerRoutes', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ from: 'main', to: 'feature' })), res);
     expect(state.code).toBe(403);
-    expect(JSON.parse(state.body).error).toBe('Workspace path not allowed');
+    expect(JSON.parse(state.body).error).toBe('WORKSPACE_PATH_NOT_ALLOWED');
   });
 
   it('POST /tree-sitter parses content', async () => {
@@ -453,7 +453,7 @@ describe('registerRoutes', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ content: 'const x = 1;' })), res);
     expect(state.code).toBe(400);
-    expect(JSON.parse(state.body).error).toContain('required');
+    expect(JSON.parse(state.body).error).toBe('FILEPATH_AND_CONTENT_REQUIRED');
   });
 
   it('POST /tree-sitter returns 413 when content too large', async () => {
@@ -463,7 +463,7 @@ describe('registerRoutes', () => {
     const largeContent = 'x'.repeat(512 * 1024 + 1);
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts', content: largeContent })), res);
     expect(state.code).toBe(413);
-    expect(JSON.parse(state.body).error).toContain('too large');
+    expect(JSON.parse(state.body).error).toBe('CONTENT_TOO_LARGE');
   });
 
   it('POST /tree-sitter returns 500 on parse error', async () => {
@@ -475,7 +475,7 @@ describe('registerRoutes', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts', content: 'const x = 1;' })), res);
     expect(state.code).toBe(500);
-    expect(JSON.parse(state.body).error).toBe('Internal server error');
+    expect(JSON.parse(state.body).error).toBe('INTERNAL_ERROR');
   });
 });
 
@@ -716,7 +716,7 @@ describe('POST /ast', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({})), res);
     expect(state.code).toBe(400);
-    expect(JSON.parse(state.body).error).toContain('filePath is required');
+    expect(JSON.parse(state.body).error).toBe('FILEPATH_REQUIRED');
   });
 
   it('returns 400 when no workspace path configured', async () => {
@@ -726,7 +726,7 @@ describe('POST /ast', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
     expect(state.code).toBe(400);
-    expect(JSON.parse(state.body).error).toContain('No workspace path');
+    expect(JSON.parse(state.body).error).toBe('NO_WORKSPACE_PATH');
   });
 
   it('returns 403 when path outside workspace', async () => {
@@ -735,7 +735,7 @@ describe('POST /ast', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: '../../../etc/passwd' })), res);
     expect(state.code).toBe(403);
-    expect(JSON.parse(state.body).error).toContain('path outside workspace');
+    expect(JSON.parse(state.body).error).toBe('PATH_OUTSIDE_WORKSPACE');
   });
 
   it('returns 403 when isPathAllowed returns false', async () => {
@@ -745,7 +745,7 @@ describe('POST /ast', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
     expect(state.code).toBe(403);
-    expect(JSON.parse(state.body).error).toContain('Access denied');
+    expect(JSON.parse(state.body).error).toBe('SYMLINK_ESCAPE');
   });
 
   it('returns 413 when file content too large', async () => {
@@ -756,7 +756,7 @@ describe('POST /ast', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
     expect(state.code).toBe(413);
-    expect(JSON.parse(state.body).error).toContain('too large');
+    expect(JSON.parse(state.body).error).toBe('FILE_TOO_LARGE');
   });
 
   it('returns 500 when AST parsing returns null', async () => {
@@ -769,7 +769,7 @@ describe('POST /ast', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
     expect(state.code).toBe(500);
-    expect(JSON.parse(state.body).error).toContain('AST parsing failed');
+    expect(JSON.parse(state.body).error).toBe('AST_PARSE_FAILED');
   });
 
   it('returns 500 on file read error', async () => {
@@ -779,7 +779,7 @@ describe('POST /ast', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
     expect(state.code).toBe(500);
-    expect(JSON.parse(state.body).error).toContain('AST parsing failed');
+    expect(JSON.parse(state.body).error).toBe('AST_PARSE_FAILED');
   });
 });
 
@@ -808,7 +808,7 @@ describe('POST /tree-sitter (additional)', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: '../test.ts', content: 'const x = 1;' })), res);
     expect(state.code).toBe(400);
-    expect(JSON.parse(state.body).error).toContain('Invalid filePath');
+    expect(JSON.parse(state.body).error).toBe('INVALID_FILEPATH');
   });
 
   it('returns 400 when filePath exceeds 512 characters', async () => {
@@ -818,7 +818,7 @@ describe('POST /tree-sitter (additional)', () => {
     const longPath = 'a'.repeat(513);
     await handler(makeReq('POST', JSON.stringify({ filePath: longPath, content: 'const x = 1;' })), res);
     expect(state.code).toBe(400);
-    expect(JSON.parse(state.body).error).toContain('Invalid filePath');
+    expect(JSON.parse(state.body).error).toBe('INVALID_FILEPATH');
   });
 
   it('returns 400 when content missing', async () => {
@@ -827,7 +827,7 @@ describe('POST /tree-sitter (additional)', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
     expect(state.code).toBe(400);
-    expect(JSON.parse(state.body).error).toContain('required');
+    expect(JSON.parse(state.body).error).toBe('FILEPATH_AND_CONTENT_REQUIRED');
   });
 
   it('handles CORS preflight', async () => {
@@ -979,7 +979,7 @@ describe('POST /diff (additional)', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ from: 'main', to: 'feature' })), res);
     expect(state.code).toBe(500);
-    expect(JSON.parse(state.body).error).toBe('Graph diff failed — check git refs');
+    expect(JSON.parse(state.body).error).toBe('GRAPH_DIFF_FAILED');
   });
 
   it('handles CORS preflight', async () => {
@@ -996,7 +996,7 @@ describe('POST /diff (additional)', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({})), res);
     expect(state.code).toBe(400);
-    expect(JSON.parse(state.body).error).toContain('required');
+    expect(JSON.parse(state.body).error).toBe('COMMITS_REQUIRED');
   });
 
   it('rejects git ref containing ..', async () => {
@@ -1005,7 +1005,7 @@ describe('POST /diff (additional)', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ from: 'main..branch', to: 'feature' })), res);
     expect(state.code).toBe(400);
-    expect(JSON.parse(state.body).error).toContain('Invalid git ref');
+    expect(JSON.parse(state.body).error).toBe('INVALID_GIT_REF');
   });
 });
 
@@ -1143,7 +1143,7 @@ describe('GET /dependencies (additional)', () => {
     const { res, state } = makeRes();
     await handler(makeReq('GET'), res);
     expect(state.code).toBe(500);
-    expect(JSON.parse(state.body).error).toBe('Internal server error');
+    expect(JSON.parse(state.body).error).toBe('INTERNAL_ERROR');
   });
 });
 
@@ -1178,7 +1178,7 @@ describe('registerRoutes - rate limiting', () => {
     const { res: resLast, state: stateLast } = makeRes();
     handler(makeReq('GET', undefined, {}, uniqueIp), resLast);
     expect(stateLast.code).toBe(429);
-    expect(JSON.parse(stateLast.body).error).toBe('Rate limit exceeded');
+    expect(JSON.parse(stateLast.body).error).toBe('RATE_LIMIT_EXCEEDED');
   });
 });
 
@@ -1288,7 +1288,7 @@ describe('validatePathRealpath security', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '/test/workspace' })), res);
     expect(state.code).toBe(403);
-    expect(JSON.parse(state.body).error).toBe('Access denied: symlink escape');
+    expect(JSON.parse(state.body).error).toBe('SYMLINK_ESCAPE');
   });
 
   it('POST /init returns 403 when realpath fails (symlink escape)', async () => {
@@ -1298,7 +1298,7 @@ describe('validatePathRealpath security', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '/test/workspace' })), res);
     expect(state.code).toBe(403);
-    expect(JSON.parse(state.body).error).toBe('Access denied: symlink escape');
+    expect(JSON.parse(state.body).error).toBe('SYMLINK_ESCAPE');
   });
 
   it('POST /watch returns 403 when realpath fails (symlink escape)', async () => {
@@ -1308,7 +1308,7 @@ describe('validatePathRealpath security', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ enabled: true, path: '/test/workspace' })), res);
     expect(state.code).toBe(403);
-    expect(JSON.parse(state.body).error).toBe('Access denied: symlink escape');
+    expect(JSON.parse(state.body).error).toBe('SYMLINK_ESCAPE');
   });
 
   it('POST /scan succeeds when realpath resolves normally', async () => {
@@ -1408,7 +1408,7 @@ describe('readBody - body too large', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', 'x'.repeat(100)), res);
     expect(state.code).toBe(500);
-    expect(JSON.parse(state.body).error).toBe('Scan failed — check codegraph installation');
+    expect(JSON.parse(state.body).error).toBe('SCAN_FAILED');
   });
 
   it('POST /init returns 500 when request body exceeds maxBodyBytes', async () => {
@@ -1417,7 +1417,7 @@ describe('readBody - body too large', () => {
     const { res, state } = makeRes();
     await handler(makeReq('POST', 'x'.repeat(100)), res);
     expect(state.code).toBe(500);
-    expect(JSON.parse(state.body).error).toBe('Initialization failed — is dsh-codegraph installed?');
+    expect(JSON.parse(state.body).error).toBe('INIT_FAILED');
   });
 });
 

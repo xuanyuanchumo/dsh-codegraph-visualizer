@@ -908,3 +908,755 @@ describe('assembleMicroDiagram with unsupported view mode', () => {
     ).rejects.toThrow('Unsupported view mode: unknown');
   });
 });
+// ── nodeFilter functions ──────────────────────────────────────────────
+
+describe('nodeFilter functions', () => {
+  describe('inheritance', () => {
+    it('layer 0 includes nodes with depth <= 1', () => {
+      const defs = getLayerDefinitions('inheritance')!;
+      const depth0 = makeNode('a', 'class', 'A', 'src/a.ts', 1, { depth: 0 });
+      const depth1 = makeNode('b', 'class', 'B', 'src/b.ts', 1, { depth: 1 });
+      const depth2 = makeNode('c', 'class', 'C', 'src/c.ts', 1, { depth: 2 });
+      expect(defs[0]!.nodeFilter(depth0, [], [])).toBe(true);
+      expect(defs[0]!.nodeFilter(depth1, [], [])).toBe(true);
+      expect(defs[0]!.nodeFilter(depth2, [], [])).toBe(false);
+    });
+
+    it('layer 1 includes nodes with depth <= 3', () => {
+      const defs = getLayerDefinitions('inheritance')!;
+      const depth3 = makeNode('a', 'class', 'A', 'src/a.ts', 1, { depth: 3 });
+      const depth4 = makeNode('b', 'class', 'B', 'src/b.ts', 1, { depth: 4 });
+      expect(defs[1]!.nodeFilter(depth3, [], [])).toBe(true);
+      expect(defs[1]!.nodeFilter(depth4, [], [])).toBe(false);
+    });
+
+    it('layer 2 includes all nodes regardless of depth', () => {
+      const defs = getLayerDefinitions('inheritance')!;
+      const depth100 = makeNode('a', 'class', 'A', 'src/a.ts', 1, { depth: 100 });
+      expect(defs[2]!.nodeFilter(depth100, [], [])).toBe(true);
+    });
+  });
+
+  describe('callgraph', () => {
+    it('layer 0 includes entry nodes regardless of depth', () => {
+      const defs = getLayerDefinitions('callgraph')!;
+      const entry = makeNode('a', 'function', 'A', 'src/a.ts', 1, { isEntry: true, depth: 5 });
+      expect(defs[0]!.nodeFilter(entry, [], [])).toBe(true);
+    });
+
+    it('layer 0 includes non-entry nodes with depth <= 1', () => {
+      const defs = getLayerDefinitions('callgraph')!;
+      const depth0 = makeNode('b', 'function', 'B', 'src/b.ts', 1, { depth: 0 });
+      const depth1 = makeNode('c', 'function', 'C', 'src/c.ts', 1, { depth: 1 });
+      const depth2 = makeNode('d', 'function', 'D', 'src/d.ts', 1, { depth: 2 });
+      expect(defs[0]!.nodeFilter(depth0, [], [])).toBe(true);
+      expect(defs[0]!.nodeFilter(depth1, [], [])).toBe(true);
+      expect(defs[0]!.nodeFilter(depth2, [], [])).toBe(false);
+    });
+
+    it('layer 1 includes nodes with depth <= 3', () => {
+      const defs = getLayerDefinitions('callgraph')!;
+      const depth3 = makeNode('a', 'function', 'A', 'src/a.ts', 1, { depth: 3 });
+      const depth4 = makeNode('b', 'function', 'B', 'src/b.ts', 1, { depth: 4 });
+      expect(defs[1]!.nodeFilter(depth3, [], [])).toBe(true);
+      expect(defs[1]!.nodeFilter(depth4, [], [])).toBe(false);
+    });
+
+    it('layer 2 includes all nodes', () => {
+      const defs = getLayerDefinitions('callgraph')!;
+      const depth99 = makeNode('a', 'function', 'A', 'src/a.ts', 1, { depth: 99 });
+      expect(defs[2]!.nodeFilter(depth99, [], [])).toBe(true);
+    });
+  });
+
+  describe('package', () => {
+    it('layer 0 includes nodes with depth <= 1', () => {
+      const defs = getLayerDefinitions('package')!;
+      const depth0 = makeNode('a', 'module', 'A', 'src/a.ts', 1, { depth: 0 });
+      const depth2 = makeNode('b', 'module', 'B', 'src/b.ts', 1, { depth: 2 });
+      expect(defs[0]!.nodeFilter(depth0, [], [])).toBe(true);
+      expect(defs[0]!.nodeFilter(depth2, [], [])).toBe(false);
+    });
+
+    it('layer 1 includes nodes with depth <= 3', () => {
+      const defs = getLayerDefinitions('package')!;
+      const depth3 = makeNode('a', 'module', 'A', 'src/a.ts', 1, { depth: 3 });
+      const depth4 = makeNode('b', 'module', 'B', 'src/b.ts', 1, { depth: 4 });
+      expect(defs[1]!.nodeFilter(depth3, [], [])).toBe(true);
+      expect(defs[1]!.nodeFilter(depth4, [], [])).toBe(false);
+    });
+
+    it('layer 2 includes all nodes', () => {
+      const defs = getLayerDefinitions('package')!;
+      const depth50 = makeNode('a', 'module', 'A', 'src/a.ts', 1, { depth: 50 });
+      expect(defs[2]!.nodeFilter(depth50, [], [])).toBe(true);
+    });
+  });
+
+  describe('class', () => {
+    it('layer 0 includes nodes with depth <= 1', () => {
+      const defs = getLayerDefinitions('class')!;
+      const depth0 = makeNode('a', 'class', 'A', 'src/a.ts', 1, { depth: 0 });
+      const depth2 = makeNode('b', 'class', 'B', 'src/b.ts', 1, { depth: 2 });
+      expect(defs[0]!.nodeFilter(depth0, [], [])).toBe(true);
+      expect(defs[0]!.nodeFilter(depth2, [], [])).toBe(false);
+    });
+
+    it('layer 1 includes nodes with depth <= 3', () => {
+      const defs = getLayerDefinitions('class')!;
+      const depth3 = makeNode('a', 'class', 'A', 'src/a.ts', 1, { depth: 3 });
+      const depth4 = makeNode('b', 'class', 'B', 'src/b.ts', 1, { depth: 4 });
+      expect(defs[1]!.nodeFilter(depth3, [], [])).toBe(true);
+      expect(defs[1]!.nodeFilter(depth4, [], [])).toBe(false);
+    });
+
+    it('layer 2 includes all nodes', () => {
+      const defs = getLayerDefinitions('class')!;
+      const depth50 = makeNode('a', 'class', 'A', 'src/a.ts', 1, { depth: 50 });
+      expect(defs[2]!.nodeFilter(depth50, [], [])).toBe(true);
+    });
+  });
+
+  describe('code', () => {
+    it('all three layers include all nodes', () => {
+      const defs = getLayerDefinitions('code')!;
+      const anyNode = makeNode('a', 'function', 'A', 'src/a.ts', 1, { depth: 999 });
+      expect(defs[0]!.nodeFilter(anyNode, [], [])).toBe(true);
+      expect(defs[1]!.nodeFilter(anyNode, [], [])).toBe(true);
+      expect(defs[2]!.nodeFilter(anyNode, [], [])).toBe(true);
+    });
+  });
+
+  describe('dependencies', () => {
+    it('layer 0 includes nodes with depth <= 1', () => {
+      const defs = getLayerDefinitions('dependencies')!;
+      const depth0 = makeNode('a', 'function', 'A', 'src/a.ts', 1, { depth: 0 });
+      const depth2 = makeNode('b', 'function', 'B', 'src/b.ts', 1, { depth: 2 });
+      expect(defs[0]!.nodeFilter(depth0, [], [])).toBe(true);
+      expect(defs[0]!.nodeFilter(depth2, [], [])).toBe(false);
+    });
+
+    it('layer 1 includes nodes with depth <= 3', () => {
+      const defs = getLayerDefinitions('dependencies')!;
+      const depth3 = makeNode('a', 'function', 'A', 'src/a.ts', 1, { depth: 3 });
+      const depth4 = makeNode('b', 'function', 'B', 'src/b.ts', 1, { depth: 4 });
+      expect(defs[1]!.nodeFilter(depth3, [], [])).toBe(true);
+      expect(defs[1]!.nodeFilter(depth4, [], [])).toBe(false);
+    });
+
+    it('layer 2 includes all nodes', () => {
+      const defs = getLayerDefinitions('dependencies')!;
+      const depth50 = makeNode('a', 'function', 'A', 'src/a.ts', 1, { depth: 50 });
+      expect(defs[2]!.nodeFilter(depth50, [], [])).toBe(true);
+    });
+  });
+});
+
+// ── assembleDiagram dispatch for code/cfg/flowchart/sequence ──────────
+
+describe('assembleDiagram dispatch for code/cfg/flowchart/sequence', () => {
+  const nullAssembler: DiagramAssembler = {
+    assemble: () => null as unknown as AssembledDiagram,
+  };
+
+  beforeEach(() => {
+    registerMacroAssembler('code', nullAssembler);
+    registerMacroAssembler('cfg', nullAssembler);
+    registerMacroAssembler('flowchart', nullAssembler);
+    registerMacroAssembler('sequence', nullAssembler);
+  });
+
+  afterEach(() => {
+    registerMacroAssembler('code', nullAssembler);
+    registerMacroAssembler('cfg', nullAssembler);
+    registerMacroAssembler('flowchart', nullAssembler);
+    registerMacroAssembler('sequence', nullAssembler);
+  });
+
+  it('dispatches to code view mode assembler when registered', () => {
+    const customAssembler: DiagramAssembler = {
+      assemble: vi.fn((): AssembledDiagram => ({
+        nodes: [makeNode('code1', 'function', 'codeFunc', 'src/code.ts', 1)],
+        edges: [],
+        metadata: { rootIds: ['code1'], maxDepth: 0, nodeCount: 1, edgeCount: 0 },
+      })),
+    };
+    registerMacroAssembler('code', customAssembler);
+    const result = assembleDiagram('code', [], []);
+    expect(result).not.toBeNull();
+    expect(result!.viewMode).toBe('code');
+    expect(customAssembler.assemble).toHaveBeenCalledTimes(1);
+    expect(result!.allNodes).toHaveLength(1);
+    expect(result!.allNodes[0]!.id).toBe('code1');
+  });
+
+  it('dispatches to cfg view mode assembler when registered', () => {
+    const customAssembler: DiagramAssembler = {
+      assemble: vi.fn((): AssembledDiagram => ({
+        nodes: [makeNode('cfg1', 'function', 'cfgFunc', 'src/cfg.ts', 1)],
+        edges: [],
+        metadata: { rootIds: ['cfg1'], maxDepth: 0, nodeCount: 1, edgeCount: 0 },
+      })),
+    };
+    registerMacroAssembler('cfg', customAssembler);
+    const result = assembleDiagram('cfg', [], []);
+    expect(result).not.toBeNull();
+    expect(result!.viewMode).toBe('cfg');
+    expect(customAssembler.assemble).toHaveBeenCalledTimes(1);
+  });
+
+  it('dispatches to flowchart view mode assembler when registered', () => {
+    const customAssembler: DiagramAssembler = {
+      assemble: vi.fn((): AssembledDiagram => ({
+        nodes: [makeNode('fc1', 'function', 'fcFunc', 'src/fc.ts', 1)],
+        edges: [],
+        metadata: { rootIds: ['fc1'], maxDepth: 0, nodeCount: 1, edgeCount: 0 },
+      })),
+    };
+    registerMacroAssembler('flowchart', customAssembler);
+    const result = assembleDiagram('flowchart', [], []);
+    expect(result).not.toBeNull();
+    expect(result!.viewMode).toBe('flowchart');
+    expect(customAssembler.assemble).toHaveBeenCalledTimes(1);
+  });
+
+  it('dispatches to sequence view mode assembler when registered', () => {
+    const customAssembler: DiagramAssembler = {
+      assemble: vi.fn((): AssembledDiagram => ({
+        nodes: [makeNode('seq1', 'function', 'seqFunc', 'src/seq.ts', 1)],
+        edges: [],
+        metadata: { rootIds: ['seq1'], maxDepth: 0, nodeCount: 1, edgeCount: 0 },
+      })),
+    };
+    registerMacroAssembler('sequence', customAssembler);
+    const result = assembleDiagram('sequence', [], []);
+    expect(result).not.toBeNull();
+    expect(result!.viewMode).toBe('sequence');
+    expect(customAssembler.assemble).toHaveBeenCalledTimes(1);
+  });
+
+  it('tags nodes with diagramType for code view mode', () => {
+    const customAssembler: DiagramAssembler = {
+      assemble: vi.fn((): AssembledDiagram => ({
+        nodes: [makeNode('n1', 'function', 'func1', 'src/test.ts', 1)],
+        edges: [],
+        metadata: { rootIds: ['n1'], maxDepth: 0, nodeCount: 1, edgeCount: 0 },
+      })),
+    };
+    registerMacroAssembler('code', customAssembler);
+    const result = assembleDiagram('code', [], []);
+    expect(result).not.toBeNull();
+    expect(result!.allNodes[0]!.properties.diagramType).toBe('code');
+  });
+
+  it('tags edges with diagramType for flowchart view mode', () => {
+    const customAssembler: DiagramAssembler = {
+      assemble: vi.fn((): AssembledDiagram => ({
+        nodes: [makeNode('n1', 'function', 'func1', 'src/test.ts', 1)],
+        edges: [makeEdge('e1', 'n1', 'n1', 'call')],
+        metadata: { rootIds: ['n1'], maxDepth: 0, nodeCount: 1, edgeCount: 1 },
+      })),
+    };
+    registerMacroAssembler('flowchart', customAssembler);
+    const result = assembleDiagram('flowchart', [], []);
+    expect(result).not.toBeNull();
+    expect(result!.allEdges[0]!.properties.diagramType).toBe('flowchart');
+  });
+});
+
+// ── buildLayeredDiagram three-layer assembly ──────────────────────────
+
+describe('buildLayeredDiagram three-layer assembly', () => {
+  it('distributes nodes across three layers for inheritance by depth', () => {
+    const nodes = [
+      makeNode('root', 'class', 'Root', 'src/root.ts', 1, { depth: 0 }),
+      makeNode('child1', 'class', 'Child1', 'src/child1.ts', 1, { depth: 1 }),
+      makeNode('child2', 'class', 'Child2', 'src/child2.ts', 1, { depth: 2 }),
+      makeNode('child3', 'class', 'Child3', 'src/child3.ts', 1, { depth: 3 }),
+      makeNode('child4', 'class', 'Child4', 'src/child4.ts', 1, { depth: 4 }),
+    ];
+    const edges = [
+      makeEdge('e1', 'child1', 'root', 'extend'),
+      makeEdge('e2', 'child2', 'child1', 'extend'),
+      makeEdge('e3', 'child3', 'child2', 'extend'),
+      makeEdge('e4', 'child4', 'child3', 'extend'),
+    ];
+    const result = assembleDiagram('inheritance', nodes, edges);
+    expect(result).not.toBeNull();
+    expect(result!.layers[0]!.nodes).toHaveLength(2);
+    expect(result!.layers[1]!.nodes).toHaveLength(4);
+    expect(result!.layers[2]!.nodes).toHaveLength(5);
+  });
+
+  it('distributes edges across layers (only edges between layer nodes)', () => {
+    const nodes = [
+      makeNode('root', 'class', 'Root', 'src/root.ts', 1, { depth: 0 }),
+      makeNode('child1', 'class', 'Child1', 'src/child1.ts', 1, { depth: 1 }),
+      makeNode('child2', 'class', 'Child2', 'src/child2.ts', 1, { depth: 2 }),
+    ];
+    const edges = [
+      makeEdge('e1', 'child1', 'root', 'extend'),
+      makeEdge('e2', 'child2', 'child1', 'extend'),
+    ];
+    const result = assembleDiagram('inheritance', nodes, edges);
+    expect(result).not.toBeNull();
+    expect(result!.layers[0]!.edges).toHaveLength(1);
+    expect(result!.layers[0]!.edges[0]!.id).toBe('e1');
+    expect(result!.layers[1]!.edges).toHaveLength(2);
+    expect(result!.layers[2]!.edges).toHaveLength(2);
+  });
+
+  it('includes entry nodes in layer 0 for callgraph even when depth is high', () => {
+    const nodes = [
+      makeNode('entry', 'function', 'entry', 'src/entry.ts', 1),
+      makeNode('mid', 'function', 'mid', 'src/mid.ts', 1),
+      makeNode('deep', 'function', 'deep', 'src/deep.ts', 1),
+    ];
+    const edges = [
+      makeEdge('e1', 'entry', 'mid', 'call'),
+      makeEdge('e2', 'mid', 'deep', 'call'),
+    ];
+    const result = assembleDiagram('callgraph', nodes, edges);
+    expect(result).not.toBeNull();
+    const layer0Ids = result!.layers[0]!.nodes.map((n) => n.id);
+    expect(layer0Ids).toContain('entry');
+    expect(layer0Ids).not.toContain('deep');
+  });
+
+  it('creates single fallback layer when view mode has no layer definitions', () => {
+    const nullAssembler: DiagramAssembler = {
+      assemble: () => null as unknown as AssembledDiagram,
+    };
+    const customAssembler: DiagramAssembler = {
+      assemble: vi.fn((): AssembledDiagram => ({
+        nodes: [makeNode('n1', 'function', 'func1', 'src/test.ts', 1)],
+        edges: [makeEdge('e1', 'n1', 'n1', 'call')],
+        metadata: { rootIds: ['n1'], maxDepth: 0, nodeCount: 1, edgeCount: 1 },
+      })),
+    };
+    registerMacroAssembler('cfg', customAssembler);
+    try {
+      const result = assembleDiagram('cfg', [], []);
+      expect(result).not.toBeNull();
+      expect(result!.layers).toHaveLength(1);
+      expect(result!.layers[0]!.name).toBe('graphType.all');
+      expect(result!.layers[0]!.level).toBe(0);
+      expect(result!.layers[0]!.nodes).toHaveLength(1);
+      expect(result!.layers[0]!.edges).toHaveLength(1);
+    } finally {
+      registerMacroAssembler('cfg', nullAssembler);
+    }
+  });
+
+  it('builds layers with correct names for callgraph', () => {
+    const { nodes, edges } = makeCallGraphData();
+    const result = assembleDiagram('callgraph', nodes, edges);
+    expect(result).not.toBeNull();
+    expect(result!.layers[0]!.name).toBe('layer.callgraph.0');
+    expect(result!.layers[1]!.name).toBe('layer.callgraph.1');
+    expect(result!.layers[2]!.name).toBe('layer.callgraph.2');
+  });
+
+  it('builds layers with correct names for package', () => {
+    const { nodes, edges } = makePackageData();
+    const result = assembleDiagram('package', nodes, edges);
+    expect(result).not.toBeNull();
+    expect(result!.layers[0]!.name).toBe('layer.package.0');
+    expect(result!.layers[1]!.name).toBe('layer.package.1');
+    expect(result!.layers[2]!.name).toBe('layer.package.2');
+  });
+
+  it('builds layers with correct names for class', () => {
+    const { nodes, edges } = makeClassData();
+    const result = assembleDiagram('class', nodes, edges);
+    expect(result).not.toBeNull();
+    expect(result!.layers[0]!.name).toBe('layer.class.0');
+    expect(result!.layers[1]!.name).toBe('layer.class.1');
+    expect(result!.layers[2]!.name).toBe('layer.class.2');
+  });
+
+  it('builds layers with correct names for dependencies', () => {
+    const { nodes, edges } = makeDependencyData();
+    const result = assembleDiagram('dependencies', nodes, edges);
+    expect(result).not.toBeNull();
+    expect(result!.layers[0]!.name).toBe('layer.dependencies.0');
+    expect(result!.layers[1]!.name).toBe('layer.dependencies.1');
+    expect(result!.layers[2]!.name).toBe('layer.dependencies.2');
+  });
+
+  it('builds layers with correct names for code', () => {
+    const nullAssembler: DiagramAssembler = {
+      assemble: () => null as unknown as AssembledDiagram,
+    };
+    const customAssembler: DiagramAssembler = {
+      assemble: vi.fn((): AssembledDiagram => ({
+        nodes: [makeNode('n1', 'function', 'func1', 'src/test.ts', 1)],
+        edges: [],
+        metadata: { rootIds: ['n1'], maxDepth: 0, nodeCount: 1, edgeCount: 0 },
+      })),
+    };
+    registerMacroAssembler('code', customAssembler);
+    try {
+      const result = assembleDiagram('code', [], []);
+      expect(result).not.toBeNull();
+      expect(result!.layers[0]!.name).toBe('layer.code.0');
+      expect(result!.layers[1]!.name).toBe('layer.code.1');
+      expect(result!.layers[2]!.name).toBe('layer.code.2');
+    } finally {
+      registerMacroAssembler('code', nullAssembler);
+    }
+  });
+});
+
+// ── sliceByLayer ──────────────────────────────────────────────────────
+
+describe('sliceByLayer', () => {
+  it('filters nodes by depth threshold in each layer', () => {
+    const nodes = [
+      makeNode('A', 'class', 'A', 'src/A.ts', 1),
+      makeNode('B', 'class', 'B', 'src/B.ts', 1),
+      makeNode('C', 'class', 'C', 'src/C.ts', 1),
+      makeNode('D', 'class', 'D', 'src/D.ts', 1),
+      makeNode('E', 'class', 'E', 'src/E.ts', 1),
+    ];
+    const edges = [
+      makeEdge('e1', 'B', 'A', 'extend'),
+      makeEdge('e2', 'C', 'B', 'extend'),
+      makeEdge('e3', 'D', 'C', 'extend'),
+      makeEdge('e4', 'E', 'D', 'extend'),
+    ];
+    const result = assembleDiagram('inheritance', nodes, edges);
+    expect(result).not.toBeNull();
+    const layer0Ids = result!.layers[0]!.nodes.map((n) => n.id);
+    expect(layer0Ids).toEqual(['A', 'B']);
+    const layer1Ids = result!.layers[1]!.nodes.map((n) => n.id);
+    expect(layer1Ids).toEqual(['A', 'B', 'C', 'D']);
+    const layer2Ids = result!.layers[2]!.nodes.map((n) => n.id);
+    expect(layer2Ids).toEqual(['A', 'B', 'C', 'D', 'E']);
+  });
+
+  it('populates nodeIds and edgeIds sets correctly', () => {
+    const nodes = [
+      makeNode('a', 'class', 'A', 'src/a.ts', 1, { depth: 0 }),
+      makeNode('b', 'class', 'B', 'src/b.ts', 1, { depth: 1 }),
+    ];
+    const edges = [
+      makeEdge('e1', 'b', 'a', 'extend'),
+    ];
+    const result = assembleDiagram('inheritance', nodes, edges);
+    expect(result).not.toBeNull();
+    const layer0 = result!.layers[0]!;
+    expect(layer0.nodeIds.has(NodeId('a'))).toBe(true);
+    expect(layer0.nodeIds.has(NodeId('b'))).toBe(true);
+    expect(layer0.edgeIds.has(EdgeId('e1'))).toBe(true);
+  });
+
+  it('excludes edges where source or target is not in layer', () => {
+    const nodes = [
+      makeNode('a', 'class', 'A', 'src/a.ts', 1, { depth: 0 }),
+      makeNode('b', 'class', 'B', 'src/b.ts', 1, { depth: 1 }),
+      makeNode('c', 'class', 'C', 'src/c.ts', 1, { depth: 4 }),
+    ];
+    const edges = [
+      makeEdge('e1', 'b', 'a', 'extend'),
+      makeEdge('e2', 'c', 'b', 'extend'),
+    ];
+    const result = assembleDiagram('inheritance', nodes, edges);
+    expect(result).not.toBeNull();
+    expect(result!.layers[0]!.edges).toHaveLength(1);
+    expect(result!.layers[0]!.edges[0]!.id).toBe('e1');
+  });
+
+  it('includes all edges in layer 2 (all nodes present)', () => {
+    const nodes = [
+      makeNode('a', 'class', 'A', 'src/a.ts', 1, { depth: 0 }),
+      makeNode('b', 'class', 'B', 'src/b.ts', 1, { depth: 1 }),
+      makeNode('c', 'class', 'C', 'src/c.ts', 1, { depth: 4 }),
+    ];
+    const edges = [
+      makeEdge('e1', 'b', 'a', 'extend'),
+      makeEdge('e2', 'c', 'b', 'extend'),
+    ];
+    const result = assembleDiagram('inheritance', nodes, edges);
+    expect(result).not.toBeNull();
+    expect(result!.layers[2]!.edges).toHaveLength(2);
+  });
+});
+
+// ── getLayerDefinitions content validation ────────────────────────────
+
+describe('getLayerDefinitions content validation', () => {
+  it('returns correct layer names for inheritance', () => {
+    const defs = getLayerDefinitions('inheritance')!;
+    expect(defs[0]!.name).toBe('layer.inheritance.0');
+    expect(defs[1]!.name).toBe('layer.inheritance.1');
+    expect(defs[2]!.name).toBe('layer.inheritance.2');
+  });
+
+  it('returns correct layer names for callgraph', () => {
+    const defs = getLayerDefinitions('callgraph')!;
+    expect(defs[0]!.name).toBe('layer.callgraph.0');
+    expect(defs[1]!.name).toBe('layer.callgraph.1');
+    expect(defs[2]!.name).toBe('layer.callgraph.2');
+  });
+
+  it('returns correct layer names for package', () => {
+    const defs = getLayerDefinitions('package')!;
+    expect(defs[0]!.name).toBe('layer.package.0');
+    expect(defs[1]!.name).toBe('layer.package.1');
+    expect(defs[2]!.name).toBe('layer.package.2');
+  });
+
+  it('returns correct layer names for class', () => {
+    const defs = getLayerDefinitions('class')!;
+    expect(defs[0]!.name).toBe('layer.class.0');
+    expect(defs[1]!.name).toBe('layer.class.1');
+    expect(defs[2]!.name).toBe('layer.class.2');
+  });
+
+  it('returns correct layer names for code', () => {
+    const defs = getLayerDefinitions('code')!;
+    expect(defs[0]!.name).toBe('layer.code.0');
+    expect(defs[1]!.name).toBe('layer.code.1');
+    expect(defs[2]!.name).toBe('layer.code.2');
+  });
+
+  it('returns correct layer names for dependencies', () => {
+    const defs = getLayerDefinitions('dependencies')!;
+    expect(defs[0]!.name).toBe('layer.dependencies.0');
+    expect(defs[1]!.name).toBe('layer.dependencies.1');
+    expect(defs[2]!.name).toBe('layer.dependencies.2');
+  });
+});
+
+// ── getLayerData content validation ───────────────────────────────────
+
+describe('getLayerData content validation', () => {
+  it('returns layer with correct nodes for layer 0', () => {
+    const { nodes, edges } = makeInheritanceData();
+    const layered = assembleDiagram('inheritance', nodes, edges)!;
+    const layer0 = getLayerData(layered, 0);
+    expect(layer0).not.toBeNull();
+    expect(layer0!.nodes.length).toBeGreaterThan(0);
+    expect(layer0!.nodeIds.size).toBe(layer0!.nodes.length);
+  });
+
+  it('returns layer with correct edges for layer 2', () => {
+    const { nodes, edges } = makeInheritanceData();
+    const layered = assembleDiagram('inheritance', nodes, edges)!;
+    const layer2 = getLayerData(layered, 2);
+    expect(layer2).not.toBeNull();
+    expect(layer2!.edges).toHaveLength(2);
+    expect(layer2!.edgeIds.size).toBe(2);
+  });
+
+  it('returns layer with correct name for layer 1', () => {
+    const { nodes, edges } = makeInheritanceData();
+    const layered = assembleDiagram('inheritance', nodes, edges)!;
+    const layer1 = getLayerData(layered, 1);
+    expect(layer1).not.toBeNull();
+    expect(layer1!.name).toBe('layer.inheritance.1');
+  });
+});
+
+// ── registerMacroAssembler for new view modes ─────────────────────────
+
+describe('registerMacroAssembler for new view modes', () => {
+  const nullAssembler: DiagramAssembler = {
+    assemble: () => null as unknown as AssembledDiagram,
+  };
+
+  afterEach(() => {
+    registerMacroAssembler('code', nullAssembler);
+    registerMacroAssembler('cfg', nullAssembler);
+  });
+
+  it('registers a macro assembler for code view mode', () => {
+    const customAssembler: DiagramAssembler = {
+      assemble: vi.fn((): AssembledDiagram => ({
+        nodes: [makeNode('codeNode', 'function', 'codeFunc', 'src/code.ts', 1)],
+        edges: [],
+        metadata: { rootIds: ['codeNode'], maxDepth: 0, nodeCount: 1, edgeCount: 0 },
+      })),
+    };
+    registerMacroAssembler('code', customAssembler);
+    const result = assembleDiagram('code', [], []);
+    expect(result).not.toBeNull();
+    expect(result!.allNodes[0]!.id).toBe('codeNode');
+    expect(result!.allNodes[0]!.properties.diagramType).toBe('code');
+  });
+
+  it('registers a macro assembler for cfg view mode', () => {
+    const customAssembler: DiagramAssembler = {
+      assemble: vi.fn((): AssembledDiagram => ({
+        nodes: [makeNode('cfgNode', 'function', 'cfgFunc', 'src/cfg.ts', 1)],
+        edges: [],
+        metadata: { rootIds: ['cfgNode'], maxDepth: 0, nodeCount: 1, edgeCount: 0 },
+      })),
+    };
+    registerMacroAssembler('cfg', customAssembler);
+    const result = assembleDiagram('cfg', [], []);
+    expect(result).not.toBeNull();
+    expect(result!.allNodes[0]!.id).toBe('cfgNode');
+  });
+});
+
+// ── registerMicroAssembler for flowchart/sequence ─────────────────────
+
+describe('registerMicroAssembler for flowchart/sequence', () => {
+  const originalFlowchart = new FlowchartAssembler();
+  const originalSequence = new SequenceAssembler();
+
+  afterEach(() => {
+    registerMicroAssembler('flowchart', originalFlowchart);
+    registerMicroAssembler('sequence', originalSequence);
+  });
+
+  it('registers a custom flowchart micro assembler', () => {
+    const customAssembler = {
+      assemble: vi.fn((): AssembledDiagram => ({
+        nodes: [makeNode('customFc', 'function', 'customFc', 'src/custom.ts', 1)],
+        edges: [],
+        metadata: { rootIds: ['customFc'], maxDepth: 0, nodeCount: 1, edgeCount: 0 },
+      })),
+    };
+    registerMicroAssembler('flowchart', customAssembler);
+    const astRoot = makeAstNode('function_declaration', 'function f() {}', []);
+    const result = assembleFlowchart(astRoot, 'src/test.ts', 'f');
+    expect(customAssembler.assemble).toHaveBeenCalledTimes(1);
+    expect(result.nodes[0]!.id).toBe('customFc');
+  });
+
+  it('registers a custom sequence micro assembler', () => {
+    const customAssembler = {
+      assemble: vi.fn((): AssembledDiagram => ({
+        nodes: [makeNode('customSeq', 'function', 'customSeq', 'src/custom.ts', 1)],
+        edges: [],
+        metadata: { rootIds: ['customSeq'], maxDepth: 0, nodeCount: 1, edgeCount: 0 },
+      })),
+    };
+    registerMicroAssembler('sequence', customAssembler);
+    const astRoot = makeAstNode('function_declaration', 'function f() {}', []);
+    const result = assembleSequence(astRoot, 'src/test.ts', 'f');
+    expect(customAssembler.assemble).toHaveBeenCalledTimes(1);
+    expect(result.nodes[0]!.id).toBe('customSeq');
+  });
+});
+
+// ── assembleCFG with complex AST ──────────────────────────────────────
+
+describe('assembleCFG with complex AST', () => {
+  it('handles if-else statements', () => {
+    const astRoot = makeAstNode('function_declaration', 'function foo() { if (x) { return 1; } else { return 2; } }', [
+      makeAstNode('if_statement', 'if (x)', [
+        makeAstNode('return_statement', 'return 1', [], 1),
+      ]),
+      makeAstNode('else_clause', 'else', [
+        makeAstNode('return_statement', 'return 2', [], 2),
+      ]),
+    ]);
+    const result = assembleCFG(astRoot, 'src/foo.ts', 'foo');
+    expect(result.nodes.length).toBeGreaterThanOrEqual(2);
+    expect(result.edges.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('handles nested function calls', () => {
+    const astRoot = makeAstNode('function_declaration', 'function foo() { bar(); }', [
+      makeAstNode('expression_statement', 'bar()', [
+        makeAstNode('call_expression', 'bar()', [], 1),
+      ]),
+    ]);
+    const result = assembleCFG(astRoot, 'src/foo.ts', 'foo');
+    expect(result.nodes.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('sets metadata with nodeCount', () => {
+    const astRoot = makeAstNode('function_declaration', 'function myFunc() {}', []);
+    const result = assembleCFG(astRoot, 'src/myFunc.ts', 'myFunc');
+    expect(result.metadata).toBeDefined();
+    expect(result.metadata.nodeCount).toBeGreaterThan(0);
+  });
+});
+
+// ── assembleSequence with complex AST ─────────────────────────────────
+
+describe('assembleSequence with complex AST', () => {
+  it('handles function with method calls', () => {
+    const astRoot = makeAstNode('function_declaration', 'function foo() { obj.method(); }', [
+      makeAstNode('expression_statement', 'obj.method()', [
+        makeAstNode('call_expression', 'obj.method()', [], 1),
+      ]),
+    ]);
+    const result = assembleSequence(astRoot, 'src/foo.ts', 'foo');
+    expect(result.nodes.length).toBeGreaterThanOrEqual(1);
+    expect(result.edges).toBeDefined();
+  });
+
+  it('produces participant nodes for function calls', () => {
+    const astRoot = makeAstNode('function_declaration', 'function foo() { helper(); }', [
+      makeAstNode('expression_statement', 'helper()', [
+        makeAstNode('call_expression', 'helper()', [], 1),
+      ]),
+    ]);
+    const result = assembleSequence(astRoot, 'src/foo.ts', 'foo');
+    const participants = result.nodes.filter((n) => n.properties.participantType);
+    expect(participants.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('includes self participant with function name', () => {
+    const astRoot = makeAstNode('function_declaration', 'function myFunc() {}', []);
+    const result = assembleSequence(astRoot, 'src/myFunc.ts', 'myFunc');
+    const selfNode = result.nodes.find((n) => n.properties.participantType === 'self');
+    expect(selfNode).toBeDefined();
+  });
+});
+
+// ── assembleMicroDiagram additional scenarios ─────────────────────────
+
+describe('assembleMicroDiagram additional scenarios', () => {
+  const validAst: ASTNode = makeAstNode('function_declaration', 'function foo() { return 1; }', [
+    makeAstNode('return_statement', 'return 1', [], 1),
+  ]);
+
+  beforeEach(() => {
+    global.fetch = vi.fn() as unknown as typeof fetch;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns AssembledDiagram with metadata for cfg', async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(makeMockFetchResponse(validAst, true, 200));
+    const result = await assembleMicroDiagram('cfg', 'src/test.ts', 'foo');
+    expect(result.metadata).toBeDefined();
+    expect(result.metadata.nodeCount).toBeGreaterThan(0);
+  });
+
+  it('returns AssembledDiagram with metadata for flowchart', async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(makeMockFetchResponse(validAst, true, 200));
+    const result = await assembleMicroDiagram('flowchart', 'src/test.ts', 'foo');
+    expect(result.metadata).toBeDefined();
+    expect(result.metadata.nodeCount).toBeGreaterThan(0);
+  });
+
+  it('returns AssembledDiagram with metadata for sequence', async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(makeMockFetchResponse(validAst, true, 200));
+    const result = await assembleMicroDiagram('sequence', 'src/test.ts', 'foo');
+    expect(result.metadata).toBeDefined();
+    expect(result.metadata.nodeCount).toBeGreaterThan(0);
+  });
+
+  it('produces different node structures for cfg vs sequence', async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(makeMockFetchResponse(validAst, true, 200));
+    const cfgResult = await assembleMicroDiagram('cfg', 'src/test.ts', 'foo');
+
+    vi.mocked(global.fetch).mockResolvedValueOnce(makeMockFetchResponse(validAst, true, 200));
+    const seqResult = await assembleMicroDiagram('sequence', 'src/test.ts', 'foo');
+
+    const cfgHasEntry = cfgResult.nodes.some((n) => n.properties.isEntry === true);
+    const seqHasParticipant = seqResult.nodes.some((n) => n.properties.participantType !== undefined);
+    expect(cfgHasEntry).toBe(true);
+    expect(seqHasParticipant).toBe(true);
+  });
+});

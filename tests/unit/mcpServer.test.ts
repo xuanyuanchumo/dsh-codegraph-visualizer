@@ -264,6 +264,7 @@ describe('McpServer (FR-46)', () => {
         ((response!.result as { content: Array<{ text: string }> }).content[0]!.text),
       );
       expect(result.message).toBe('Symbol not found');
+      expect(result.errorCode).toBe('SYMBOL_NOT_FOUND');
     });
 
     it('unknown method returns JSON-RPC -32601 error', async () => {

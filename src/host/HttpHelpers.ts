@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from '../types/index.ts';
 import type { SecurityManager } from './security.ts';
 import { scoped } from '../shared/Logger.ts';
+import { ERROR_MESSAGES } from '../shared/constants.ts';
 
 const log = scoped('host');
 
@@ -105,19 +106,21 @@ export function sendJson(res: ServerResponse, code: number, data: unknown, req: 
   res.end(JSON.stringify(data));
 }
 
-export function sendError(res: ServerResponse, code: number, message: string, req: IncomingMessage | undefined, config: CorsConfig): void {
-  sendJson(res, code, { success: false, error: message }, req, config);
+export function sendError(res: ServerResponse, httpCode: number, errorCode: string, req: IncomingMessage | undefined, config: CorsConfig, detail?: string): void {
+  const baseMessage = ERROR_MESSAGES[errorCode]?.en ?? errorCode;
+  const message = detail ? `${baseMessage}: ${detail}` : baseMessage;
+  sendJson(res, httpCode, { success: false, error: errorCode, message }, req, config);
 }
 
 export function requireMethod(req: IncomingMessage, res: ServerResponse, method: string, config: CorsConfig): boolean {
   if (req.method === method) return true;
-  sendError(res, 405, `Method ${req.method} not allowed; expected ${method}`, req, config);
+  sendError(res, 405, 'METHOD_NOT_ALLOWED', req, config, `${req.method} not allowed; expected ${method}`);
   return false;
 }
 
 export function checkRate(req: IncomingMessage, res: ServerResponse, routePath: string, rateLimiter: ReturnType<typeof import('./RateLimiter.ts')['createRateLimiter']>, config: CorsConfig): boolean {
   if (!rateLimiter.check(getClientIp(req), routePath)) {
-    sendError(res, 429, 'Rate limit exceeded', req, config);
+    sendError(res, 429, 'RATE_LIMIT_EXCEEDED', req, config);
     return false;
   }
   return true;

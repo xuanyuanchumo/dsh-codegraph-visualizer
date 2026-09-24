@@ -2,7 +2,7 @@ import { watch } from 'node:fs';
 import { platform } from 'node:os';
 import type { Context } from '@deepseek-ai/cordis';
 import { scoped } from '../shared/Logger.ts';
-import { WATCHER } from '../shared/constants.ts';
+import { WATCHER, ERROR_CODES } from '../shared/constants.ts';
 import { fetchMergedGraph } from '../tools.ts';
 import { RepoId } from '../types/index.ts';
 import type { VisualizerConfig } from './config.ts';
@@ -82,7 +82,7 @@ export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUp
         setTimeout(() => setupWatch(watchPath), delay);
       } else {
         log.error('watch setup exhausted retries', { path: watchPath });
-        ctx.emit('codegraph-visualizer/watch/error', { path: watchPath, message: 'Watch setup failed after retries', timestamp: Date.now() });
+        ctx.emit('codegraph-visualizer/watch/error', { path: watchPath, message: 'Watch setup failed after retries', errorCode: ERROR_CODES.WATCH_SETUP_FAILED, timestamp: Date.now() });
       }
     }
   };
@@ -125,12 +125,14 @@ export function registerEventListeners(ctx: Context, invokeUpstream: (tool: stri
     try {
       const result = await invokeUpstream('codegraph_init', { path: event.path, force: true });
       const success = result !== null;
-      ctx.emit('codegraph-visualizer/graph/init-result', {
+      const initResult: { success: boolean; path: string; message: string; errorCode?: string; timestamp: number } = {
         success,
         path: event.path,
         message: success ? 'Graph initialized successfully' : 'Initialization failed — is dsh-codegraph installed?',
         timestamp: Date.now(),
-      });
+      };
+      if (!success) initResult.errorCode = ERROR_CODES.INIT_FAILED;
+      ctx.emit('codegraph-visualizer/graph/init-result', initResult);
       if (success) {
         await scanAndPush(ctx, invokeUpstream, event.path);
       }
@@ -140,6 +142,7 @@ export function registerEventListeners(ctx: Context, invokeUpstream: (tool: stri
         success: false,
         path: event.path,
         message: 'Initialization failed',
+        errorCode: ERROR_CODES.INIT_FAILED,
         timestamp: Date.now(),
       });
     }

@@ -2,10 +2,11 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, afterEach, vi, beforeEach } from 'vitest';
-import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, act } from '@testing-library/react';
 import React from 'react';
 import { useGraphStore } from '../../src/client/store/graphStore.ts';
 import { useShallow } from 'zustand/shallow';
+import { useGraphRenderer, useGraphInteraction, useGraphStatus, useGraphPerformance, useNodeSearch, usePanelState, useGraphWorkspace, useGraphData } from '../../src/client/hooks/index.ts';
 
 class ResizeObserverMock {
   observe() {}
@@ -961,5 +962,710 @@ describe('GraphPanel handler integration', () => {
     const { container } = render(React.createElement(GraphPanel));
     const liveRegion = container.querySelector('#cg-graph-live-region') as HTMLElement;
     expect(liveRegion?.getAttribute('role')).toBe('status');
+  });
+});
+describe('GraphPanel uncovered handler tests', () => {
+  let capturedCallbacks: any;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    document.body.removeAttribute('data-ds-dark-theme');
+    useGraphStore.setState({
+      nodes: [], edges: [], rawNodes: [], rawEdges: [],
+      isLoading: false, error: null, theme: 'dark',
+      heatmapMode: 'none', viewMode: 'code', selectedNodeId: null,
+      focusModeActive: false, focusModeNodeId: null, focusDepth: 1,
+      pathResult: null, selectedFunction: null, diagramData: null,
+      expandedNodeIds: new Set(), lodLevel: 'full',
+      pathStartId: null, pathEndId: null,
+    });
+    capturedCallbacks = {};
+  });
+
+  function setupRendererMockWithCallbacks(rendererCurrent: any) {
+    vi.mocked(useGraphRenderer).mockImplementation((opts: any) => {
+      capturedCallbacks = opts.callbacks;
+      return {
+        containerRef: { current: null },
+        rendererRef: { current: rendererCurrent },
+        initRenderer: vi.fn(),
+        destroyRenderer: vi.fn(),
+        updateData: vi.fn(),
+        applyLayout: vi.fn(),
+        selectNode: vi.fn(),
+        focusOnNode: vi.fn(),
+        focusNeighborhood: vi.fn(),
+        highlightCallChain: vi.fn(),
+        highlightImpact: vi.fn(),
+        highlightInheritance: vi.fn(),
+        getViewportInfo: vi.fn(() => null),
+        focusOnArea: vi.fn(),
+        exportPNG: vi.fn(),
+        exportSVG: vi.fn(),
+        setTheme: vi.fn(),
+        setFilter: vi.fn(),
+        setGraphType: vi.fn(),
+        setClusterDepth: vi.fn(),
+        setLODLevel: vi.fn(),
+        setHeatmapMode: vi.fn(),
+        applyIncrementalLayout: vi.fn(),
+        updateTheme: vi.fn(),
+        searchMatchCount: 0,
+        setSearchMatchCount: vi.fn(),
+        exportGraph: vi.fn(),
+      };
+    });
+  }
+
+  function createMockRenderer(nodeMap: Map<string, any>, edgeMap: Map<string, any>) {
+    return {
+      getNodeData: vi.fn((id: string) => nodeMap.get(id) ?? null),
+      getEdgeData: vi.fn((id: string) => edgeMap.get(id) ?? null),
+      getSelectedNodeData: vi.fn(() => null),
+      getZoom: vi.fn(() => 1),
+      onZoomChange: vi.fn(() => vi.fn()),
+      findPath: vi.fn(() => null),
+      highlightPath: vi.fn(),
+      expandNeighborhood: vi.fn(),
+      focusNeighborhood: vi.fn(),
+      focusOnNode: vi.fn(),
+      selectNode: vi.fn(),
+      getVisibleNodeCount: vi.fn(() => 0),
+      getThumbnail: vi.fn(() => null),
+      getViewportInfo: vi.fn(() => null),
+      resize: vi.fn(),
+      detectCyclesDetailed: vi.fn(() => []),
+      hideNode: vi.fn(),
+      showAllNodes: vi.fn(),
+    };
+  }
+
+  it('handleNodeTap: sets selectedNodeId in store', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const nodeData = { id: 'n1', label: 'myFunc', type: 'function', filePath: '/test.ts', lineNumber: 10 };
+    const mockRenderer = createMockRenderer(new Map([['n1', nodeData]]), new Map());
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    render(React.createElement(GraphPanel));
+
+    act(() => {
+      capturedCallbacks.onNodeTap('n1');
+    });
+
+    expect(useGraphStore.getState().selectedNodeId).toBe('n1');
+  });
+
+  it('handleNodeTap: sets selectedNodeId even when node data not found', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const mockRenderer = createMockRenderer(new Map(), new Map());
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    render(React.createElement(GraphPanel));
+
+    act(() => {
+      capturedCallbacks.onNodeTap('nonexistent');
+    });
+
+    expect(useGraphStore.getState().selectedNodeId).toBe('nonexistent');
+  });
+
+  it('handleNodeHover: sets tooltip with node data and adjacency counts', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const nodeData = { id: 'n1', label: 'myFunc', type: 'function', filePath: '/test.ts', lineNumber: 5 };
+    const mockRenderer = createMockRenderer(new Map([['n1', nodeData]]), new Map());
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    useGraphStore.setState({
+      edges: [{ id: 'e1', source: 'n1', target: 'n2', type: 'call' } as any],
+      rawEdges: [{ id: 'e1', source: 'n1', target: 'n2', type: 'call' } as any],
+    });
+
+    const { container } = render(React.createElement(GraphPanel));
+
+    act(() => {
+      capturedCallbacks.onNodeHover('n1', { x: 100, y: 100 });
+    });
+
+    const tooltip = container.querySelector('.cg-tooltip');
+    expect(tooltip).not.toBeNull();
+    expect(tooltip?.getAttribute('role')).toBe('tooltip');
+    expect(tooltip?.querySelector('.cg-tooltip-name')?.textContent).toBe('myFunc');
+  });
+
+  it('handleNodeHoverOut: clears tooltip after hover', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const nodeData = { id: 'n1', label: 'myFunc', type: 'function', filePath: '/test.ts', lineNumber: 5 };
+    const mockRenderer = createMockRenderer(new Map([['n1', nodeData]]), new Map());
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    useGraphStore.setState({
+      edges: [{ id: 'e1', source: 'n1', target: 'n2', type: 'call' } as any],
+    });
+
+    const { container } = render(React.createElement(GraphPanel));
+
+    act(() => {
+      capturedCallbacks.onNodeHover('n1', { x: 100, y: 100 });
+    });
+    expect(container.querySelector('.cg-tooltip')).not.toBeNull();
+
+    act(() => {
+      capturedCallbacks.onNodeHoverOut();
+    });
+    expect(container.querySelector('.cg-tooltip')).toBeNull();
+  });
+
+  it('handleEdgeHover: sets tooltip with edge source and target labels', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const sourceNode = { id: 'n1', label: 'sourceFunc', type: 'function', filePath: '/a.ts', lineNumber: 1 };
+    const targetNode = { id: 'n2', label: 'targetFunc', type: 'function', filePath: '/b.ts', lineNumber: 2 };
+    const edgeData = { id: 'e1', source: 'n1', target: 'n2', type: 'call' };
+    const mockRenderer = createMockRenderer(
+      new Map([['n1', sourceNode], ['n2', targetNode]]),
+      new Map([['e1', edgeData]]),
+    );
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    const { container } = render(React.createElement(GraphPanel));
+
+    act(() => {
+      capturedCallbacks.onEdgeHover('e1', { x: 200, y: 200 });
+    });
+
+    const tooltip = container.querySelector('.cg-tooltip');
+    expect(tooltip).not.toBeNull();
+    expect(tooltip?.querySelector('.cg-tooltip-edge-source')?.textContent).toBe('sourceFunc');
+    expect(tooltip?.querySelector('.cg-tooltip-edge-target')?.textContent).toBe('targetFunc');
+  });
+
+  it('handleEdgeHoverOut: clears tooltip after edge hover', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const sourceNode = { id: 'n1', label: 'src', type: 'function', filePath: '/a.ts', lineNumber: 1 };
+    const targetNode = { id: 'n2', label: 'tgt', type: 'function', filePath: '/b.ts', lineNumber: 2 };
+    const edgeData = { id: 'e1', source: 'n1', target: 'n2', type: 'call' };
+    const mockRenderer = createMockRenderer(
+      new Map([['n1', sourceNode], ['n2', targetNode]]),
+      new Map([['e1', edgeData]]),
+    );
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    const { container } = render(React.createElement(GraphPanel));
+
+    act(() => {
+      capturedCallbacks.onEdgeHover('e1', { x: 200, y: 200 });
+    });
+    expect(container.querySelector('.cg-tooltip')).not.toBeNull();
+
+    act(() => {
+      capturedCallbacks.onEdgeHoverOut();
+    });
+    expect(container.querySelector('.cg-tooltip')).toBeNull();
+  });
+
+  it('handleEdgeTap: sets tooltip with edge data on tap', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const sourceNode = { id: 'n1', label: 'callerFunc', type: 'function', filePath: '/a.ts', lineNumber: 1 };
+    const targetNode = { id: 'n2', label: 'calleeFunc', type: 'function', filePath: '/b.ts', lineNumber: 2 };
+    const edgeData = { id: 'e1', source: 'n1', target: 'n2', type: 'call' };
+    const mockRenderer = createMockRenderer(
+      new Map([['n1', sourceNode], ['n2', targetNode]]),
+      new Map([['e1', edgeData]]),
+    );
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    const { container } = render(React.createElement(GraphPanel));
+
+    act(() => {
+      capturedCallbacks.onEdgeTap('e1', { x: 150, y: 150 });
+    });
+
+    const tooltip = container.querySelector('.cg-tooltip');
+    expect(tooltip).not.toBeNull();
+    expect(tooltip?.querySelector('.cg-tooltip-edge-source')?.textContent).toBe('callerFunc');
+    expect(tooltip?.querySelector('.cg-tooltip-edge-target')?.textContent).toBe('calleeFunc');
+  });
+
+  it('handleNodeDoubleTap: expands cluster node when not expanded', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const clusterNode = { id: 'cluster__1', label: 'Cluster 1', type: 'module', filePath: '/cluster', isCluster: true };
+    const mockRenderer = createMockRenderer(new Map([['cluster__1', clusterNode]]), new Map());
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    render(React.createElement(GraphPanel));
+
+    act(() => {
+      capturedCallbacks.onNodeDoubleTap('cluster__1');
+    });
+
+    expect(useGraphStore.getState().expandedNodeIds.has('cluster__1')).toBe(true);
+  });
+
+  it('handleNodeDoubleTap: collapses cluster node when already expanded', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const clusterNode = { id: 'cluster__1', label: 'Cluster 1', type: 'module', filePath: '/cluster', isCluster: true };
+    const mockRenderer = createMockRenderer(new Map([['cluster__1', clusterNode]]), new Map());
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    useGraphStore.setState({ expandedNodeIds: new Set(['cluster__1']) });
+    vi.mocked(useGraphInteraction).mockReturnValue({
+      searchQuery: '', selectedNodeId: null, highlightedNodeIds: [],
+      expandedNodeIds: new Set(['cluster__1']), pathResult: null,
+      focusDepth: 1, focusModeActive: false, focusModeNodeId: null,
+      pathFilterInclude: null, pathFilterExclude: null,
+    });
+
+    render(React.createElement(GraphPanel));
+
+    act(() => {
+      capturedCallbacks.onNodeDoubleTap('cluster__1');
+    });
+
+    expect(useGraphStore.getState().expandedNodeIds.has('cluster__1')).toBe(false);
+  });
+
+  it('handleNodeDoubleTap: selects function node on double tap', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const funcNode = { id: 'fn1', label: 'myFunc', type: 'function', filePath: '/test.ts', lineNumber: 10 };
+    const mockRenderer = createMockRenderer(new Map([['fn1', funcNode]]), new Map());
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    render(React.createElement(GraphPanel));
+
+    act(() => {
+      capturedCallbacks.onNodeDoubleTap('fn1');
+    });
+
+    expect(useGraphStore.getState().selectedNodeId).toBe('fn1');
+  });
+
+  it('handleNodeDoubleTap: enters focus mode for non-cluster non-function node', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const classNode = { id: 'cls1', label: 'MyClass', type: 'class', filePath: '/test.ts', lineNumber: 1 };
+    const mockRenderer = createMockRenderer(new Map([['cls1', classNode]]), new Map());
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    const { container } = render(React.createElement(GraphPanel));
+
+    act(() => {
+      capturedCallbacks.onNodeDoubleTap('cls1');
+    });
+
+    const focusBar = container.querySelector('.cg-focus-mode-bar');
+    expect(focusBar).not.toBeNull();
+    expect(focusBar?.getAttribute('role')).toBe('region');
+  });
+
+  it('handleNodeDoubleTap: exits focus mode when double-tapping same node again', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const classNode = { id: 'cls1', label: 'MyClass', type: 'class', filePath: '/test.ts', lineNumber: 1 };
+    const mockRenderer = createMockRenderer(new Map([['cls1', classNode]]), new Map());
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    const { container } = render(React.createElement(GraphPanel));
+
+    act(() => {
+      capturedCallbacks.onNodeDoubleTap('cls1');
+    });
+    expect(container.querySelector('.cg-focus-mode-bar')).not.toBeNull();
+
+    act(() => {
+      capturedCallbacks.onNodeDoubleTap('cls1');
+    });
+    expect(container.querySelector('.cg-focus-mode-bar')).toBeNull();
+  });
+
+  it('handleFocusExpand: increments focusDepth via FocusModeBar expand button', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const classNode = { id: 'cls1', label: 'MyClass', type: 'class', filePath: '/test.ts', lineNumber: 1 };
+    const mockRenderer = createMockRenderer(new Map([['cls1', classNode]]), new Map());
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    const { container } = render(React.createElement(GraphPanel));
+
+    act(() => {
+      capturedCallbacks.onNodeDoubleTap('cls1');
+    });
+
+    const expandBtn = container.querySelector('.cg-focus-expand-btn') as HTMLButtonElement;
+    expect(expandBtn?.tagName).toBe('BUTTON');
+    fireEvent.click(expandBtn);
+
+    expect(useGraphStore.getState().focusDepth).toBe(2);
+  });
+
+  it('handleFocusContract: decrements focusDepth via FocusModeBar contract button', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const classNode = { id: 'cls1', label: 'MyClass', type: 'class', filePath: '/test.ts', lineNumber: 1 };
+    const mockRenderer = createMockRenderer(new Map([['cls1', classNode]]), new Map());
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    useGraphStore.setState({ focusDepth: 3 });
+    vi.mocked(useGraphInteraction).mockReturnValue({
+      searchQuery: '', selectedNodeId: null, highlightedNodeIds: [],
+      expandedNodeIds: new Set(), pathResult: null,
+      focusDepth: 3, focusModeActive: false, focusModeNodeId: null,
+      pathFilterInclude: null, pathFilterExclude: null,
+    });
+
+    const { container } = render(React.createElement(GraphPanel));
+
+    act(() => {
+      capturedCallbacks.onNodeDoubleTap('cls1');
+    });
+
+    const contractBtn = container.querySelector('.cg-focus-contract-btn') as HTMLButtonElement;
+    expect(contractBtn?.tagName).toBe('BUTTON');
+    fireEvent.click(contractBtn);
+
+    expect(useGraphStore.getState().focusDepth).toBe(2);
+  });
+
+  it('handleFocusExit: clears focus mode via FocusModeBar exit button', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const classNode = { id: 'cls1', label: 'MyClass', type: 'class', filePath: '/test.ts', lineNumber: 1 };
+    const mockRenderer = createMockRenderer(new Map([['cls1', classNode]]), new Map());
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    const { container } = render(React.createElement(GraphPanel));
+
+    act(() => {
+      capturedCallbacks.onNodeDoubleTap('cls1');
+    });
+    expect(container.querySelector('.cg-focus-mode-bar')).not.toBeNull();
+
+    const exitBtn = container.querySelector('.cg-focus-exit-btn') as HTMLButtonElement;
+    expect(exitBtn?.tagName).toBe('BUTTON');
+    fireEvent.click(exitBtn);
+
+    expect(container.querySelector('.cg-focus-mode-bar')).toBeNull();
+    expect(useGraphStore.getState().focusDepth).toBe(1);
+  });
+
+  it('handleWorkspaceAdd: adds workspace and dispatches events via WorkspaceSelector', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    const { container } = render(React.createElement(GraphPanel));
+
+    const trigger = container.querySelector('.cg-workspace-trigger') as HTMLButtonElement;
+    fireEvent.click(trigger);
+
+    const addBtn = document.querySelector('.cg-workspace-add-btn') as HTMLButtonElement;
+    fireEvent.click(addBtn);
+
+    const input = document.querySelector('#workspace-add-path') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '/new/repo/path' } });
+
+    const confirmBtn = document.querySelector('.cg-workspace-add-form button') as HTMLButtonElement;
+    fireEvent.click(confirmBtn);
+
+    expect(useGraphStore.getState().currentWorkspace).toBe('/new/repo/path');
+    expect(useGraphStore.getState().workspaceList.length).toBeGreaterThan(0);
+
+    const workspaceEvent = dispatchSpy.mock.calls.find(
+      (call) => (call[0] as CustomEvent).type === 'codegraph:workspace',
+    );
+    expect(workspaceEvent?.[0]).toBeInstanceOf(CustomEvent);
+
+    const importEvent = dispatchSpy.mock.calls.find(
+      (call) => (call[0] as CustomEvent).type === 'codegraph:import-repo',
+    );
+    expect(importEvent?.[0]).toBeInstanceOf(CustomEvent);
+  });
+
+  it('handleClearPath: clears path result via PathBar clear button', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    useGraphStore.setState({
+      pathResult: ['n1', 'n2', 'n3'] as any,
+      rawNodes: [
+        { id: 'n1', label: 'A', type: 'function', filePath: '/a.ts' } as any,
+        { id: 'n2', label: 'B', type: 'function', filePath: '/b.ts' } as any,
+      ],
+    });
+    vi.mocked(useGraphInteraction).mockReturnValue({
+      searchQuery: '', selectedNodeId: null, highlightedNodeIds: [],
+      expandedNodeIds: new Set(), pathResult: ['n1', 'n2', 'n3'] as any,
+      focusDepth: 1, focusModeActive: false, focusModeNodeId: null,
+      pathFilterInclude: null, pathFilterExclude: null,
+    });
+    vi.mocked(usePanelState).mockReturnValue({
+      showImport: false, showSearch: false, showLegend: false, showMiniMap: false,
+      showFilterPanel: false, showPathFind: true, showHealthScore: false,
+      showRules: false, showCallChain: false, showImpact: false,
+      showCycles: false, showHotspot: false, showGodModule: false,
+      showCoreFunction: false, showInheritance: false, cycleIsolation: false,
+      collapsed: false, isCollapsed: false,
+      toPanelControls: () => ({ showImport: false, showSearch: false, showLegend: false, showMiniMap: false, showFilterPanel: false, showPathFind: true, showHealthScore: false, showRules: false, showCallChain: false, showImpact: false, showCycles: false, showHotspot: false, showGodModule: false, showCoreFunction: false, cycleIsolation: false, showInheritance: false, onToggleSearch: vi.fn(), onToggleCallChain: vi.fn(), onToggleCycles: vi.fn(), onToggleCycleIsolation: vi.fn(), onToggleImpact: vi.fn(), onToggleInheritance: vi.fn(), onToggleMiniMap: vi.fn(), onToggleLegend: vi.fn(), onToggleImport: vi.fn(), onTogglePathFind: vi.fn(), onToggleHealthScore: vi.fn(), onToggleRules: vi.fn(), onToggleHotspot: vi.fn(), onToggleGodModule: vi.fn(), onToggleCoreFunction: vi.fn(), onToggleFilterPanel: vi.fn() }),
+      setShowImport: vi.fn(), setShowSearch: vi.fn(), setShowLegend: vi.fn(),
+      setShowMiniMap: vi.fn(), setShowFilterPanel: vi.fn(), setShowPathFind: vi.fn(),
+      setShowHealthScore: vi.fn(), setShowRules: vi.fn(), setShowCallChain: vi.fn(),
+      setShowImpact: vi.fn(), setShowCycles: vi.fn(), setShowHotspot: vi.fn(),
+      setShowGodModule: vi.fn(), setShowCoreFunction: vi.fn(),
+      setShowCycleIsolation: vi.fn(), setShowInheritance: vi.fn(),
+      toggleCollapsed: vi.fn(), toggleCollapse: vi.fn(),
+      toggleSearch: vi.fn(), toggleCycles: vi.fn(), toggleCycleIsolation: vi.fn(),
+      toggleCallChain: vi.fn(), toggleImpact: vi.fn(), toggleInheritance: vi.fn(),
+      toggleMiniMap: vi.fn(), toggleImport: vi.fn(), toggleLegend: vi.fn(),
+      togglePathFind: vi.fn(), toggleHealthScore: vi.fn(), toggleRules: vi.fn(),
+      toggleHotspot: vi.fn(), toggleGodModule: vi.fn(), toggleCoreFunction: vi.fn(),
+      toggleFilterPanel: vi.fn(),
+    } as any);
+
+    const { container } = render(React.createElement(GraphPanel));
+
+    const pathBar = container.querySelector('.cg-path-bar');
+    expect(pathBar).not.toBeNull();
+
+    const clearBtn = container.querySelector('.cg-path-clear-btn') as HTMLButtonElement;
+    expect(clearBtn?.tagName).toBe('BUTTON');
+    fireEvent.click(clearBtn);
+
+    expect(useGraphStore.getState().pathResult).toBeNull();
+  });
+
+  it('handleSelectSearchResult: selects node and closes search panel', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const nodeData = { id: 'n1', label: 'myFunc', type: 'function', filePath: '/test.ts', lineNumber: 5 };
+    const mockRenderer = createMockRenderer(new Map([['n1', nodeData]]), new Map());
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    useGraphStore.setState({
+      rawNodes: [{ id: 'n1', label: 'myFunc', type: 'function', filePath: '/test.ts' } as any],
+    });
+    vi.mocked(useGraphInteraction).mockReturnValue({
+      searchQuery: 'myFunc', selectedNodeId: null, highlightedNodeIds: [],
+      expandedNodeIds: new Set(), pathResult: null,
+      focusDepth: 1, focusModeActive: false, focusModeNodeId: null,
+      pathFilterInclude: null, pathFilterExclude: null,
+    });
+    vi.mocked(useNodeSearch).mockReturnValue({
+      search: vi.fn(() => [
+        { id: 'n1', label: 'myFunc', type: 'function', filePath: '/test.ts' },
+      ]),
+    } as any);
+    vi.mocked(usePanelState).mockReturnValue({
+      showImport: false, showSearch: true, showLegend: false, showMiniMap: false,
+      showFilterPanel: false, showPathFind: false, showHealthScore: false,
+      showRules: false, showCallChain: false, showImpact: false,
+      showCycles: false, showHotspot: false, showGodModule: false,
+      showCoreFunction: false, showInheritance: false, cycleIsolation: false,
+      collapsed: false, isCollapsed: false,
+      toPanelControls: () => ({ showImport: false, showSearch: true, showLegend: false, showMiniMap: false, showFilterPanel: false, showPathFind: false, showHealthScore: false, showRules: false, showCallChain: false, showImpact: false, showCycles: false, showHotspot: false, showGodModule: false, showCoreFunction: false, cycleIsolation: false, showInheritance: false, onToggleSearch: vi.fn(), onToggleCallChain: vi.fn(), onToggleCycles: vi.fn(), onToggleCycleIsolation: vi.fn(), onToggleImpact: vi.fn(), onToggleInheritance: vi.fn(), onToggleMiniMap: vi.fn(), onToggleLegend: vi.fn(), onToggleImport: vi.fn(), onTogglePathFind: vi.fn(), onToggleHealthScore: vi.fn(), onToggleRules: vi.fn(), onToggleHotspot: vi.fn(), onToggleGodModule: vi.fn(), onToggleCoreFunction: vi.fn(), onToggleFilterPanel: vi.fn() }),
+      setShowImport: vi.fn(), setShowSearch: vi.fn(), setShowLegend: vi.fn(),
+      setShowMiniMap: vi.fn(), setShowFilterPanel: vi.fn(), setShowPathFind: vi.fn(),
+      setShowHealthScore: vi.fn(), setShowRules: vi.fn(), setShowCallChain: vi.fn(),
+      setShowImpact: vi.fn(), setShowCycles: vi.fn(), setShowHotspot: vi.fn(),
+      setShowGodModule: vi.fn(), setShowCoreFunction: vi.fn(),
+      setShowCycleIsolation: vi.fn(), setShowInheritance: vi.fn(),
+      toggleCollapsed: vi.fn(), toggleCollapse: vi.fn(),
+      toggleSearch: vi.fn(), toggleCycles: vi.fn(), toggleCycleIsolation: vi.fn(),
+      toggleCallChain: vi.fn(), toggleImpact: vi.fn(), toggleInheritance: vi.fn(),
+      toggleMiniMap: vi.fn(), toggleImport: vi.fn(), toggleLegend: vi.fn(),
+      togglePathFind: vi.fn(), toggleHealthScore: vi.fn(), toggleRules: vi.fn(),
+      toggleHotspot: vi.fn(), toggleGodModule: vi.fn(), toggleCoreFunction: vi.fn(),
+      toggleFilterPanel: vi.fn(),
+    } as any);
+
+    const { container } = render(React.createElement(GraphPanel));
+
+    const searchBar = container.querySelector('.cg-search-bar');
+    expect(searchBar).not.toBeNull();
+
+    const resultItem = container.querySelector('.cg-search-result-item') as HTMLElement;
+    expect(resultItem).not.toBeNull();
+    fireEvent.click(resultItem);
+
+    expect(useGraphStore.getState().selectedNodeId).toBe('n1');
+  });
+
+  it('computeLODFromZoom: sets LOD to minimal when zoom is below threshold', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    let zoomCallback: (() => void) | null = null;
+    const mockRenderer = {
+      ...createMockRenderer(new Map(), new Map()),
+      getZoom: vi.fn(() => 0.1),
+      onZoomChange: vi.fn((cb: () => void) => {
+        zoomCallback = cb;
+        return vi.fn();
+      }),
+    };
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    vi.mocked(useGraphPerformance).mockReturnValue({
+      performanceDegradations: [], lodLevel: 'full', lodEnabled: true,
+    });
+
+    render(React.createElement(GraphPanel));
+
+    expect(zoomCallback).not.toBeNull();
+    act(() => {
+      zoomCallback!();
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(useGraphStore.getState().lodLevel).toBe('minimal');
+  });
+
+  it('computeLODFromZoom: sets LOD to compact when zoom is between thresholds', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    let zoomCallback: (() => void) | null = null;
+    const mockRenderer = {
+      ...createMockRenderer(new Map(), new Map()),
+      getZoom: vi.fn(() => 0.3),
+      onZoomChange: vi.fn((cb: () => void) => {
+        zoomCallback = cb;
+        return vi.fn();
+      }),
+    };
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    vi.mocked(useGraphPerformance).mockReturnValue({
+      performanceDegradations: [], lodLevel: 'full', lodEnabled: true,
+    });
+
+    render(React.createElement(GraphPanel));
+
+    expect(zoomCallback).not.toBeNull();
+    act(() => {
+      zoomCallback!();
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(useGraphStore.getState().lodLevel).toBe('compact');
+  });
+
+  it('computeLODFromZoom: keeps LOD as full when zoom is above thresholds', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    let zoomCallback: (() => void) | null = null;
+    const mockRenderer = {
+      ...createMockRenderer(new Map(), new Map()),
+      getZoom: vi.fn(() => 0.8),
+      onZoomChange: vi.fn((cb: () => void) => {
+        zoomCallback = cb;
+        return vi.fn();
+      }),
+    };
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    vi.mocked(useGraphPerformance).mockReturnValue({
+      performanceDegradations: [], lodLevel: 'full', lodEnabled: true,
+    });
+
+    render(React.createElement(GraphPanel));
+
+    expect(zoomCallback).not.toBeNull();
+    act(() => {
+      zoomCallback!();
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(useGraphStore.getState().lodLevel).toBe('full');
+  });
+
+  it('handleNodeContextTap: opens context menu with correct nodeId', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const nodeData = { id: 'n1', label: 'myFunc', type: 'function', filePath: '/test.ts', lineNumber: 5 };
+    const mockRenderer = createMockRenderer(new Map([['n1', nodeData]]), new Map());
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    const { container } = render(React.createElement(GraphPanel));
+
+    act(() => {
+      capturedCallbacks.onNodeContextTap('n1', { x: 300, y: 300 });
+    });
+
+    const contextMenu = container.querySelector('.cg-context-menu');
+    expect(contextMenu).not.toBeNull();
+    expect(contextMenu?.getAttribute('role')).toBe('menu');
+
+    const menuItems = contextMenu?.querySelectorAll('.cg-context-menu-item');
+    expect(menuItems?.length).toBeGreaterThan(0);
+  });
+
+  it('handleNodeContextTap: context menu closes on close action', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const nodeData = { id: 'n1', label: 'myFunc', type: 'function', filePath: '/test.ts', lineNumber: 5 };
+    const mockRenderer = createMockRenderer(new Map([['n1', nodeData]]), new Map());
+    setupRendererMockWithCallbacks(mockRenderer);
+
+    const { container } = render(React.createElement(GraphPanel));
+
+    act(() => {
+      capturedCallbacks.onNodeContextTap('n1', { x: 300, y: 300 });
+    });
+    expect(container.querySelector('.cg-context-menu')).not.toBeNull();
+
+    fireEvent.mouseDown(document.body);
+    expect(container.querySelector('.cg-context-menu')).toBeNull();
+  });
+
+  it('auto-scan: triggers scan when prerequisites are ready and workspace is set', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+    vi.mocked(useGraphStatus).mockReturnValue({
+      isLoading: false, error: null, lastUpdated: 0, truncated: false,
+      totalNodeCount: 0, prerequisites: { codegraph: true, lens: false },
+      watchEnabled: false, initStatus: 'idle',
+    });
+    vi.mocked(useGraphWorkspace).mockReturnValue({
+      currentWorkspace: '/test/workspace', workspaceList: [],
+    });
+
+    render(React.createElement(GraphPanel));
+
+    const importEvent = dispatchSpy.mock.calls.find(
+      (call) => (call[0] as CustomEvent).type === 'codegraph:import-repo',
+    );
+    expect(importEvent?.[0]).toBeInstanceOf(CustomEvent);
+    expect((importEvent?.[0] as CustomEvent).detail).toEqual({ path: '/test/workspace' });
+  });
+
+  it('auto-scan: does not trigger scan when prerequisites are not ready', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+    vi.mocked(useGraphStatus).mockReturnValue({
+      isLoading: false, error: null, lastUpdated: 0, truncated: false,
+      totalNodeCount: 0, prerequisites: { codegraph: false, lens: false },
+      watchEnabled: false, initStatus: 'idle',
+    });
+    vi.mocked(useGraphWorkspace).mockReturnValue({
+      currentWorkspace: '/test/workspace', workspaceList: [],
+    });
+
+    render(React.createElement(GraphPanel));
+
+    const importEvent = dispatchSpy.mock.calls.find(
+      (call) => (call[0] as CustomEvent).type === 'codegraph:import-repo',
+    );
+    expect(importEvent).toBeUndefined();
+  });
+
+  it('auto-scan: does not trigger scan when nodes already exist', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+    vi.mocked(useGraphStatus).mockReturnValue({
+      isLoading: false, error: null, lastUpdated: 0, truncated: false,
+      totalNodeCount: 1, prerequisites: { codegraph: true, lens: false },
+      watchEnabled: false, initStatus: 'idle',
+    });
+    vi.mocked(useGraphWorkspace).mockReturnValue({
+      currentWorkspace: '/test/workspace', workspaceList: [],
+    });
+    vi.mocked(useGraphData).mockReturnValue({
+      nodes: [{ id: 'n1', label: 'A', type: 'function', filePath: '/a.ts' } as any],
+      edges: [], rawNodes: [{ id: 'n1', label: 'A', type: 'function', filePath: '/a.ts' } as any], rawEdges: [],
+    });
+
+    render(React.createElement(GraphPanel));
+
+    const importEvent = dispatchSpy.mock.calls.find(
+      (call) => (call[0] as CustomEvent).type === 'codegraph:import-repo',
+    );
+    expect(importEvent).toBeUndefined();
   });
 });

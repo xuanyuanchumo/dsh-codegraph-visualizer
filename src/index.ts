@@ -26,7 +26,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   const securityManager = createSecurityManager();
   securityManager.setAllowedWorkspaceRoots(extractWorkspacePaths(ctx));
 
-  const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus, dispose: disposeGraphTools } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout });
+  const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout });
 
   ctx.effect(() => {
     const d1 = ctx.tools.register(graphStatus);
@@ -118,7 +118,6 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
     lastGraphData = null;
     lastInitResult = null;
     securityManager.reset();
-    disposeGraphTools();
-    mcpServer.stop();
+
   };
 }

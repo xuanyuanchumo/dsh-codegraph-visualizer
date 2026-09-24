@@ -3,7 +3,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { scoped } from '../shared/Logger.ts';
-import { VALIDATION, AST } from '../shared/constants.ts';
+import { VALIDATION, AST, ERROR_CODES } from '../shared/constants.ts';
 import type { GraphData, GraphNode, GraphEdge, IncomingMessage, ServerResponse, IGraphVisualizerService } from '../types/index.ts';
 import { RepoId, NodeId, EdgeId } from '../types/index.ts';
 import { fetchMergedGraph } from '../tools.ts';
@@ -51,16 +51,16 @@ async function resolveAndValidatePath(
   corsConfig: CorsConfig,
 ): Promise<string | null> {
   if (pathInput && pathInput !== '.' && !deps.securityManager.isPathAllowed(pathInput)) {
-    sendError(res, 403, 'Path not allowed', req, corsConfig);
+    sendError(res, 403, ERROR_CODES.PATH_NOT_ALLOWED, req, corsConfig);
     return null;
   }
   const resolved = pathInput && pathInput !== '.' ? pathInput : findWorkspacePath(ctx);
   if (resolved && resolved !== '.' && !deps.securityManager.isPathAllowed(resolved)) {
-    sendError(res, 403, 'Workspace path not allowed', req, corsConfig);
+    sendError(res, 403, ERROR_CODES.WORKSPACE_PATH_NOT_ALLOWED, req, corsConfig);
     return null;
   }
   if (resolved && resolved !== '.' && !await validatePathRealpath(resolved, deps.securityManager)) {
-    sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
+    sendError(res, 403, ERROR_CODES.SYMLINK_ESCAPE, req, corsConfig);
     return null;
   }
   return resolved;
@@ -76,17 +76,17 @@ async function resolveAndValidateRelativePath(
 ): Promise<string | null> {
   const workspacePath = findWorkspacePath(ctx);
   if (!workspacePath) {
-    sendError(res, 400, 'No workspace path configured', req, corsConfig);
+    sendError(res, 400, ERROR_CODES.NO_WORKSPACE_PATH, req, corsConfig);
     return null;
   }
   const fullPath = path.resolve(workspacePath, relativePath);
   const normalizedWorkspace = path.normalize(workspacePath);
   if (!fullPath.startsWith(normalizedWorkspace + path.sep) && fullPath !== normalizedWorkspace) {
-    sendError(res, 403, 'Access denied: path outside workspace', req, corsConfig);
+    sendError(res, 403, ERROR_CODES.PATH_OUTSIDE_WORKSPACE, req, corsConfig);
     return null;
   }
   if (!await validatePathRealpath(fullPath, deps.securityManager)) {
-    sendError(res, 403, 'Access denied: symlink escape', req, corsConfig);
+    sendError(res, 403, ERROR_CODES.SYMLINK_ESCAPE, req, corsConfig);
     return null;
   }
   return fullPath;
@@ -393,7 +393,7 @@ function registerScanRoute(rc: RouteContext): void {
         }
       } catch (e) {
         log.error('scan failed', e);
-        sendError(res, 500, 'Scan failed — check codegraph installation', req, corsConfig);
+        sendError(res, 500, ERROR_CODES.SCAN_FAILED, req, corsConfig);
       }
     }),
   }), 'codegraph: scan route');
@@ -443,7 +443,7 @@ function registerInitRoute(rc: RouteContext): void {
         log.error('init route failed', e);
         const errorResult = { success: false, path: '', message: 'Initialization failed', timestamp: Date.now() };
         deps.setLastInitResult(errorResult);
-        sendError(res, 500, 'Initialization failed — is dsh-codegraph installed?', req, corsConfig);
+        sendError(res, 500, ERROR_CODES.INIT_FAILED, req, corsConfig);
       }
     }),
   }), 'codegraph: init route');
@@ -469,7 +469,7 @@ function registerWatchRoute(rc: RouteContext): void {
         sendJson(res, 200, { success: true, enabled: !!enabled, path: watchPath }, req, corsConfig);
       } catch (e) {
         log.warn('watch route failed', e);
-        sendError(res, 500, 'Watch toggle failed', req, corsConfig);
+        sendError(res, 500, ERROR_CODES.WATCH_TOGGLE_FAILED, req, corsConfig);
       }
     }),
   }), 'codegraph: watch route');
@@ -487,7 +487,7 @@ function registerDependenciesRoute(rc: RouteContext): void {
       try {
         const workspacePath = await validateWorkspacePath(ctx, deps);
         if (workspacePath === '__denied__') {
-          sendError(res, 403, 'Workspace path not allowed', req, corsConfig);
+          sendError(res, 403, ERROR_CODES.WORKSPACE_PATH_NOT_ALLOWED, req, corsConfig);
           return;
         }
         if (!workspacePath) {
@@ -534,7 +534,7 @@ function registerDependenciesRoute(rc: RouteContext): void {
         }, req, corsConfig);
       } catch (e) {
         log.error('dependencies route failed', e);
-        sendError(res, 500, 'Internal server error', req, corsConfig);
+        sendError(res, 500, ERROR_CODES.INTERNAL_ERROR, req, corsConfig);
       }
     }),
   }), 'codegraph: dependencies route');
@@ -555,17 +555,17 @@ function registerDiffRoute(rc: RouteContext): void {
         const fromCommit = extractStringField(parsed, 'from', VALIDATION.MAX_GIT_REF_LENGTH);
         const toCommit = extractStringField(parsed, 'to', VALIDATION.MAX_GIT_REF_LENGTH);
         if (!fromCommit || !toCommit) {
-          sendError(res, 400, 'from and to commits are required', req, corsConfig);
+          sendError(res, 400, ERROR_CODES.COMMITS_REQUIRED, req, corsConfig);
           return;
         }
         if (!isSafeGitRef(fromCommit) || !isSafeGitRef(toCommit)) {
-          sendError(res, 400, 'Invalid git ref format', req, corsConfig);
+          sendError(res, 400, ERROR_CODES.INVALID_GIT_REF, req, corsConfig);
           return;
         }
 
         const workspacePath = await validateWorkspacePath(ctx, deps);
         if (workspacePath === '__denied__') {
-          sendError(res, 403, 'Workspace path not allowed', req, corsConfig);
+          sendError(res, 403, ERROR_CODES.WORKSPACE_PATH_NOT_ALLOWED, req, corsConfig);
           return;
         }
         if (!workspacePath) {
@@ -585,7 +585,7 @@ function registerDiffRoute(rc: RouteContext): void {
         }, req, corsConfig);
       } catch (e) {
         log.error('diff route failed', e);
-        sendError(res, 500, 'Graph diff failed — check git refs', req, corsConfig);
+        sendError(res, 500, ERROR_CODES.GRAPH_DIFF_FAILED, req, corsConfig);
       }
     }),
   }), 'codegraph: diff route');
@@ -606,7 +606,7 @@ function registerAstRoute(rc: RouteContext, sharedTreeSitterAdapter: TreeSitterA
           const parsed = parseJsonBody(body);
           const filePath = extractStringField(parsed, 'filePath', VALIDATION.MAX_FILEPATH_LENGTH);
           if (!filePath) {
-            sendError(res, 400, 'filePath is required', req, corsConfig);
+            sendError(res, 400, ERROR_CODES.FILEPATH_REQUIRED, req, corsConfig);
             return;
           }
           const realPath = await resolveAndValidateRelativePath(filePath, ctx, deps, req, res, corsConfig);
@@ -614,18 +614,18 @@ function registerAstRoute(rc: RouteContext, sharedTreeSitterAdapter: TreeSitterA
           const content = await fs.readFile(realPath, 'utf-8');
           const MAX_AST_CONTENT = AST.MAX_CONTENT_BYTES;
           if (content.length > MAX_AST_CONTENT) {
-            sendError(res, 413, `File too large for AST parsing (max ${MAX_AST_CONTENT} bytes)`, req, corsConfig);
+            sendError(res, 413, ERROR_CODES.FILE_TOO_LARGE, req, corsConfig, `max ${MAX_AST_CONTENT} bytes`);
             return;
           }
           const astRoot = await sharedTreeSitterAdapter.parseToAst(filePath, content);
           if (!astRoot) {
-            sendError(res, 500, `AST parsing failed: parseToAst returned null for ${filePath}`, req, corsConfig);
+            sendError(res, 500, ERROR_CODES.AST_PARSE_FAILED, req, corsConfig, `parseToAst returned null for ${filePath}`);
             return;
           }
           sendJson(res, 200, astRoot, req, corsConfig);
         } catch (e) {
           log.error('ast route failed', e);
-          sendError(res, 500, `AST parsing failed: ${e instanceof Error ? e.message : String(e)}`, req, corsConfig);
+          sendError(res, 500, ERROR_CODES.AST_PARSE_FAILED, req, corsConfig, e instanceof Error ? e.message : String(e));
         }
       }),
     });
@@ -648,23 +648,23 @@ function registerTreeSitterRoute(rc: RouteContext, sharedTreeSitterAdapter: Tree
           const filePath = extractStringField(parsed, 'filePath');
           const content = extractStringField(parsed, 'content');
           if (!filePath || !content) {
-            sendError(res, 400, 'filePath and content are required', req, corsConfig);
+            sendError(res, 400, ERROR_CODES.FILEPATH_AND_CONTENT_REQUIRED, req, corsConfig);
             return;
           }
           if (filePath.includes('..') || filePath.length > VALIDATION.MAX_FILEPATH_LENGTH) {
-            sendError(res, 400, 'Invalid filePath', req, corsConfig);
+            sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
             return;
           }
           const MAX_TREE_SITTER_CONTENT = AST.MAX_TREE_SITTER_CONTENT_BYTES;
           if (content.length > MAX_TREE_SITTER_CONTENT) {
-            sendError(res, 413, `Content too large for tree-sitter parsing (max ${MAX_TREE_SITTER_CONTENT} bytes, got ${content.length})`, req, corsConfig);
+            sendError(res, 413, ERROR_CODES.CONTENT_TOO_LARGE, req, corsConfig, `max ${MAX_TREE_SITTER_CONTENT} bytes, got ${content.length}`);
             return;
           }
           const result = await sharedTreeSitterAdapter.parseFile(filePath, content);
           sendJson(res, 200, result, req, corsConfig);
         } catch (e) {
           log.error('tree-sitter route failed', e);
-          sendError(res, 500, 'Internal server error', req, corsConfig);
+          sendError(res, 500, ERROR_CODES.INTERNAL_ERROR, req, corsConfig);
         }
       }),
     });

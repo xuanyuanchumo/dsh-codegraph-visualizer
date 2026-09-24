@@ -164,6 +164,7 @@ export interface GraphInitResultEvent {
   success: boolean;
   path: string;
   message: string;
+  errorCode?: string;
   timestamp: number;
 }
 
@@ -293,7 +294,7 @@ declare module '@deepseek-ai/cordis' {
      * @mode serial
      * @param event File watcher error occurred
      */
-    'codegraph-visualizer/watch/error'(event: { path: string; message: string; timestamp: number }): void;
+    'codegraph-visualizer/watch/error'(event: { path: string; message: string; errorCode?: string; timestamp: number }): void;
     /**
      * @mode serial
      * @param event Architecture health score calculated
