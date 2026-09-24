@@ -68,8 +68,7 @@ test.describe('J27: Keyboard Shortcuts (FR-17)', () => {
     const undoBtn = page.locator('.cg-undo-btn');
     await page.keyboard.press('Control+z', { delay: 50 });
     await page.waitForTimeout(300);
-    const isDisabled = await undoBtn.isDisabled().catch(() => true);
-    expect(typeof isDisabled).toBe('boolean');
+    await expect(undoBtn).toBeDisabled();
   });
 
   test('按 Ctrl+Y 应重做操作', async ({ page }) => {
@@ -77,7 +76,6 @@ test.describe('J27: Keyboard Shortcuts (FR-17)', () => {
     const redoBtn = page.locator('.cg-redo-btn');
     await page.keyboard.press('Control+y', { delay: 50 });
     await page.waitForTimeout(300);
-    const isDisabled = await redoBtn.isDisabled().catch(() => true);
-    expect(typeof isDisabled).toBe('boolean');
+    await expect(redoBtn).toBeDisabled();
   });
 });

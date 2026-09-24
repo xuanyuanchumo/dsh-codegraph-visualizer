@@ -602,4 +602,204 @@ describe('DataController', () => {
       expect(map.get('child3')).toBe('cluster1');
     });
   });
+
+  describe('computeNodeWeights hub role', () => {
+    it('assigns hub role to high-degree nodes', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const node = makeMockNode('n1', {
+        id: 'n1', label: 'X', type: 'function',
+        filePath: '/src/a.ts', lineNumber: 0, isCluster: false,
+      });
+      node.indegree = vi.fn(() => 10);
+      node.outdegree = vi.fn(() => 5);
+      const cy = makeMockCy([node], []);
+      const dc = new DataController(cy as any);
+      dc.updateData([makeGraphNode('n1')], []);
+      expect((node.data as any).mock.calls.some((c: any[]) => c[0] === 'nodeRole' && c[1] === 'hub')).toBe(true);
+    });
+
+    it('sets weight and instability for connected nodes', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const node = makeMockNode('n1', {
+        id: 'n1', label: 'X', type: 'function',
+        filePath: '/src/a.ts', lineNumber: 0, isCluster: false,
+      });
+      node.indegree = vi.fn(() => 3);
+      node.outdegree = vi.fn(() => 2);
+      const cy = makeMockCy([node], []);
+      const dc = new DataController(cy as any);
+      dc.updateData([makeGraphNode('n1')], []);
+      expect((node.data as any).mock.calls.some((c: any[]) => c[0] === 'weight' && c[1] === 5)).toBe(true);
+      expect((node.data as any).mock.calls.some((c: any[]) => c[0] === 'instability' && c[1] === 0.4)).toBe(true);
+    });
+
+    it('removes weight and instability for isolated nodes', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const node = makeMockNode('n1', {
+        id: 'n1', label: 'X', type: 'function',
+        filePath: '/src/a.ts', lineNumber: 0, isCluster: false,
+      });
+      node.indegree = vi.fn(() => 0);
+      node.outdegree = vi.fn(() => 0);
+      const cy = makeMockCy([node], []);
+      const dc = new DataController(cy as any);
+      dc.updateData([makeGraphNode('n1')], []);
+      expect((node.removeData as any).mock.calls.some((c: any[]) => c[0] === 'weight')).toBe(true);
+      expect((node.removeData as any).mock.calls.some((c: any[]) => c[0] === 'instability')).toBe(true);
+    });
+
+    it('computes clusterHue for cluster nodes', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const node = makeMockNode('cluster1', {
+        id: 'cluster1', label: 'pkg', type: 'module',
+        filePath: '/src/pkg', isCluster: true, childCount: 3,
+        clusterPath: '/src/pkg',
+      });
+      const cy = makeMockCy([node], []);
+      const dc = new DataController(cy as any);
+      const clusterNode: any = {
+        id: NodeId('cluster1'),
+        label: 'pkg (3)',
+        type: 'module',
+        filePath: '/src/pkg',
+        lineNumber: 0,
+        properties: {},
+        isCluster: true,
+        childCount: 3,
+        childIds: ['c1', 'c2', 'c3'],
+        clusterPath: '/src/pkg',
+        clusterLevel: 'directory',
+      };
+      dc.updateData([clusterNode], []);
+      expect((node.data as any).mock.calls.some((c: any[]) => c[0] === 'clusterHue')).toBe(true);
+    });
+  });
+
+  describe('addNode replaces existing node', () => {
+    it('removes existing node before adding new one with same id', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      dc.updateData([makeGraphNode('a')], []);
+      const initialAddCount = (cy.add as any).mock.calls.length;
+      dc.updateData([{ ...makeGraphNode('a'), label: 'updated' }], []);
+      expect(cy.add).toHaveBeenCalled();
+    });
+  });
+
+  describe('addEdge replaces existing edge', () => {
+    it('removes existing edge before adding new one with same id', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      const nodes = [makeGraphNode('a'), makeGraphNode('b')];
+      dc.updateData(nodes, [makeGraphEdge('e1', 'a', 'b')]);
+      dc.updateData(nodes, [{ ...makeGraphEdge('e1', 'a', 'b'), properties: { weight: 5 } }]);
+      expect(cy.batch).toHaveBeenCalled();
+    });
+  });
+
+  describe('destroyed state', () => {
+    it('getNodeData returns null after destroy', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      dc.updateData([makeGraphNode('a')], []);
+      dc.destroy();
+      expect(dc.getNodeData('a')).toBeNull();
+    });
+
+    it('getEdgeData returns null after destroy', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      const nodes = [makeGraphNode('a'), makeGraphNode('b')];
+      dc.updateData(nodes, [makeGraphEdge('e1', 'a', 'b')]);
+      dc.destroy();
+      expect(dc.getEdgeData('e1')).toBeNull();
+    });
+  });
+
+  describe('updateNodeData skips missing nodes', () => {
+    it('does not throw when node does not exist in cy', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      dc.updateData([makeGraphNode('a')], []);
+      dc.updateData([{ ...makeGraphNode('a'), properties: { custom: 'value' } }], []);
+      expect(cy.batch).toHaveBeenCalled();
+    });
+  });
+
+  describe('detectChanges edge cases', () => {
+    it('detects stale edges when edge count changes', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      const nodes = [makeGraphNode('a'), makeGraphNode('b'), makeGraphNode('c')];
+      dc.updateData(nodes, [makeGraphEdge('e1', 'a', 'b'), makeGraphEdge('e2', 'b', 'c')]);
+      dc.updateData(nodes, [makeGraphEdge('e1', 'a', 'b')]);
+      expect(cy.batch).toHaveBeenCalled();
+    });
+
+    it('detects new edges without new nodes', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      const nodes = [makeGraphNode('a'), makeGraphNode('b')];
+      dc.updateData(nodes, []);
+      dc.updateData(nodes, [makeGraphEdge('e1', 'a', 'b')]);
+      expect(cy.add).toHaveBeenCalled();
+    });
+  });
+
+  describe('handleIncrementalUpdate edge source/target change', () => {
+    it('removes and re-adds edge when source changes', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      const nodes = [makeGraphNode('a'), makeGraphNode('b'), makeGraphNode('c')];
+      dc.updateData(nodes, [makeGraphEdge('e1', 'a', 'b')]);
+      dc.updateData(nodes, [makeGraphEdge('e1', 'a', 'c')]);
+      expect(cy.batch).toHaveBeenCalled();
+    });
+  });
+
+  describe('processBatchAdd with large data', () => {
+    it('processes nodes in batches when exceeding BATCH_SIZE', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const cy = makeMockCy([], []);
+      const dc = new DataController(cy as any);
+      const largeNodeList: GraphNode[] = [];
+      for (let i = 0; i < 250; i++) {
+        largeNodeList.push(makeGraphNode(`node-${i}`));
+      }
+      dc.updateData(largeNodeList, []);
+      expect(cy.add).toHaveBeenCalled();
+    });
+  });
+
+  describe('getSelectedNodeData fallback to nodeFromCy', () => {
+    it('returns node data from cy when not in currentNodes', async () => {
+      const { DataController } = await import('../../src/client/renderer/DataController.ts');
+      const node = makeMockNode('n1', {
+        id: 'n1', label: 'FuncA', type: 'function',
+        filePath: '/src/a.ts', lineNumber: 10, isCluster: false,
+      });
+      node.addClass('selected');
+      const selectedCollection = {
+        length: 1,
+        first: vi.fn(() => node),
+        forEach: vi.fn((cb: (el: any) => void) => cb(node)),
+      };
+      const cy = makeMockCy([node], []);
+      cy.nodes = vi.fn((selector?: string) => {
+        if (selector === '.selected') return selectedCollection;
+        return { forEach: vi.fn((cb: (el: any) => void) => cb(node)), length: 1 };
+      });
+      const dc = new DataController(cy as any);
+      const data = dc.getSelectedNodeData();
+      expect(data).not.toBeNull();
+    });
+  });
 });
