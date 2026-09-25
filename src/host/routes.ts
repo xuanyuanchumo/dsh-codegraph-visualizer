@@ -596,8 +596,7 @@ function registerAstRoute(rc: RouteContext, sharedTreeSitterAdapter: TreeSitterA
   const { ctx, config } = deps;
   const routePath = '/api/v1/codegraph/ast';
 
-  ctx.effect(() => {
-    return ctx.webServer.register({
+  ctx.effect(() => ctx.webServer.register({
       kind: 'exact',
       path: routePath,
       handler: withRouteMiddleware('POST', routePath, corsConfig, rateLimiter, async (req, res) => {
@@ -628,8 +627,7 @@ function registerAstRoute(rc: RouteContext, sharedTreeSitterAdapter: TreeSitterA
           sendError(res, 500, ERROR_CODES.AST_PARSE_FAILED, req, corsConfig, e instanceof Error ? e.message : String(e));
         }
       }),
-    });
-  }, 'codegraph: ast route');
+    }), 'codegraph: ast route');
 }
 
 function registerTreeSitterRoute(rc: RouteContext, sharedTreeSitterAdapter: TreeSitterAdapter): void {
@@ -637,8 +635,7 @@ function registerTreeSitterRoute(rc: RouteContext, sharedTreeSitterAdapter: Tree
   const { ctx, config } = deps;
   const routePath = '/api/v1/codegraph/tree-sitter';
 
-  ctx.effect(() => {
-    return ctx.webServer.register({
+  ctx.effect(() => ctx.webServer.register({
       kind: 'exact',
       path: routePath,
       handler: withRouteMiddleware('POST', routePath, corsConfig, rateLimiter, async (req, res) => {
@@ -667,8 +664,7 @@ function registerTreeSitterRoute(rc: RouteContext, sharedTreeSitterAdapter: Tree
           sendError(res, 500, ERROR_CODES.INTERNAL_ERROR, req, corsConfig);
         }
       }),
-    });
-  }, 'codegraph: tree-sitter route');
+    }), 'codegraph: tree-sitter route');
 }
 
 export function registerRoutes(deps: RouteDeps): void {

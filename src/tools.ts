@@ -150,7 +150,7 @@ export async function executeGraphData(
 
   const cached = graphCache.get(args.repoId);
   const merged = cached
-    ? deps.merger.applyDelta(cached, { nodes: fresh.nodes, edges: fresh.edges, source: 'codegraph', timestamp: fresh.metadata.timestamp })
+    ? deps.merger.applyDelta(cached, { nodes: fresh.nodes, edges: fresh.edges, source: source === 'both' ? 'codegraph' : source, timestamp: fresh.metadata.timestamp })
     : fresh;
   cacheGraph(graphCache, args.repoId, merged);
 

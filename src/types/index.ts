@@ -7,9 +7,18 @@ export type RepoId = Branded<string, 'RepoId'>;
 export type NodeId = Branded<string, 'NodeId'>;
 export type EdgeId = Branded<string, 'EdgeId'>;
 
-export const RepoId = (id: string): RepoId => id as RepoId;
-export const NodeId = (id: string): NodeId => id as NodeId;
-export const EdgeId = (id: string): EdgeId => id as EdgeId;
+export const RepoId = (id: string): RepoId => {
+  if (!id || id.length === 0) throw new Error('RepoId: id must not be empty');
+  return id as RepoId;
+};
+export const NodeId = (id: string): NodeId => {
+  if (!id || id.length === 0) throw new Error('NodeId: id must not be empty');
+  return id as NodeId;
+};
+export const EdgeId = (id: string): EdgeId => {
+  if (!id || id.length === 0) throw new Error('EdgeId: id must not be empty');
+  return id as EdgeId;
+};
 
 const NODE_TYPES = ['function', 'class', 'variable', 'module', 'interface', 'type'] as const;
 
@@ -352,7 +361,7 @@ declare module '@deepseek-ai/cordis' {
 
 export interface IGraphVisualizerService {
   getCurrentGraph(): GraphData | null;
-  getGraphData(repoId: string): Promise<GraphData | null>;
+  getGraphData(repoId: RepoId): Promise<GraphData | null>;
   getSymbolDetail(symbolId: string): Promise<Record<string, unknown> | null>;
   getImpactAnalysis(symbolId: string): Promise<{ affected: string[]; depth: number } | null>;
   onGraphUpdate(callback: (data: GraphData) => void): () => void;

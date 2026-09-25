@@ -4,7 +4,7 @@ export class SecurityManager {
   private allowedWorkspaceRoots: string[] = [];
 
   setAllowedWorkspaceRoots(roots: string[]): void {
-    this.allowedWorkspaceRoots = roots.map(r => normalize(r));
+    this.allowedWorkspaceRoots = roots.map(r => normalize(r).toLowerCase());
   }
 
   isPathAllowed(path: string): boolean {
@@ -16,9 +16,10 @@ export class SecurityManager {
       return false;
     }
     if (this.allowedWorkspaceRoots.length === 0) return false;
+    const lowerNormalized = normalized.toLowerCase();
     return this.allowedWorkspaceRoots.some((root) =>
-      normalized === root ||
-      normalized.startsWith(root + sep)
+      lowerNormalized === root ||
+      lowerNormalized.startsWith(root + sep)
     );
   }
 
