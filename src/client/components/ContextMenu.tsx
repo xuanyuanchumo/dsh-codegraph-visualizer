@@ -145,12 +145,14 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
         id: 'collapse',
         label: t('contextMenu.collapse'),
         onClick: () => { props.onCollapseNode(props.nodeId); handleClose(); },
+        separatorAfter: true,
       });
     } else {
       actions.push({
         id: 'expand',
         label: t('contextMenu.expand'),
         onClick: () => { props.onExpandNode(props.nodeId); handleClose(); },
+        separatorAfter: true,
       });
     }
   }

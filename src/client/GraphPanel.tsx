@@ -8,6 +8,7 @@ import { NodeId } from '../types/index.ts';
 import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard, useViewMode, useAnalysisPanels, useNodeSearch,
   useGraphData, useGraphDisplay, useGraphInteraction, useGraphStatus, useGraphWorkspace, useGraphAnalysis, useGraphPerformance, useGraphActions, usePanelDimensions,
 } from './hooks/index.ts';
+import { readUrlExpand, restoreExpandedNodeIds, updateUrlExpand } from './utils/urlState.ts';
 import { useThemeSync } from './hooks/useThemeSync.ts';
 import { useHistory } from './hooks/useHistory.ts';
 import { useGraphCache } from './hooks/useGraphCache.ts';
@@ -128,6 +129,35 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       graphCache.cacheData(currentWorkspace, rawNodes, rawEdges);
     }
   }, [currentWorkspace, rawNodes, rawEdges, graphCache]);
+
+  const urlRestoredRef = useRef(false);
+  useEffect(() => {
+    if (urlRestoredRef.current) return;
+    if (rawNodes.length === 0) return;
+    const parsed = readUrlExpand();
+    if (parsed.expandedDirs.length === 0 && parsed.expandedFiles.length === 0 && parsed.expandedSymbols.length === 0 && parsed.expandedSubgroups.length === 0) {
+      urlRestoredRef.current = true;
+      return;
+    }
+    const restoredIds = restoreExpandedNodeIds(parsed);
+    const validIds = new Set<string>();
+    for (const id of restoredIds) {
+      const exists = rawNodes.some(n => n.id === id) || useGraphStore.getState().nodes.some(n => n.id === id);
+      if (exists) validIds.add(id);
+    }
+    if (validIds.size > 0) {
+      const store = useGraphStore.getState();
+      const newExpanded = new Set(store.expandedNodeIds);
+      for (const id of validIds) newExpanded.add(id);
+      store.expandNode([...validIds][0]!);
+    }
+    urlRestoredRef.current = true;
+  }, [rawNodes]);
+
+  useEffect(() => {
+    if (!urlRestoredRef.current) return;
+    updateUrlExpand(expandedNodeIds);
+  }, [expandedNodeIds]);
 
   const debouncedSearch = useDebounce(searchQuery, UI.SEARCH_DEBOUNCE_MS);
   const { search: searchNodes } = useNodeSearch(rawNodes);

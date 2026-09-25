@@ -36,6 +36,8 @@ export function getDependencyGroup(node: GraphNode): string | null {
   return null;
 }
 
+const EDGE_AGGREGATION_THRESHOLD = 20;
+
 export function aggregateEdges(
   rawEdges: GraphEdge[],
   nodeIdToVisibleId: Map<string, string>,
@@ -98,7 +100,19 @@ export function aggregateEdges(
     if (!sourceIsCluster && !targetIsCluster) {
       const edges = nonClusterEdges.get(key);
       if (edges) {
-        for (const e of edges) visibleEdges.push(e);
+        if (agg.count > EDGE_AGGREGATION_THRESHOLD) {
+          visibleEdges.push({
+            id: EdgeId(`clusteredge__${agg.source}__${agg.target}`),
+            source: NodeId(agg.source),
+            target: NodeId(agg.target),
+            type: (agg.types.size === 1 ? [...agg.types][0]! : 'dependency') as GraphEdge['type'],
+            properties: { aggregatedFromCount: agg.count },
+            isCluster: true,
+            aggregatedCount: agg.count,
+          });
+        } else {
+          for (const e of edges) visibleEdges.push(e);
+        }
       }
     } else {
       visibleEdges.push({
