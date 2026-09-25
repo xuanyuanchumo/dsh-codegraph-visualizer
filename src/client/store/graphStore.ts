@@ -8,6 +8,7 @@ import { tryIncrementalOrFull, type IncrementalClusterContext } from './cluster/
 import { assembleDiagram, assembleMicroDiagram, type LayeredDiagram } from '../diagram/index.ts';
 import { CallChainAggregator } from '../diagram/CallChainAggregator.ts';
 import { DiagramCache, ClusterCache, computeDataHash } from '../cache/DiagramCache.ts';
+import { IndexedDBCache } from '../cache/IndexedDBCache.ts';
 import { invalidateCssVarCache } from '../renderer/styles/ThemeStylesheet.ts';
 import { computeViewModeTransition } from './viewModeTransition.ts';
 import { scoped } from '../../shared/Logger.ts';
@@ -22,6 +23,7 @@ export type { LayoutType, ThemeType, RankDir } from '../../shared/viewModeUtils.
 
 const diagramCache = new DiagramCache(10);
 const clusterCache = new ClusterCache(20);
+let id: IndexedDBCache | null = null;
 const callChainAggregator = new CallChainAggregator();
 let microAssemblyGeneration = 0;
 let incrementalClusterCtx: IncrementalClusterContext | null = null;
@@ -152,6 +154,7 @@ export function disposeStore(): void {
   incrementalClusterCtx = null;
   microAssemblyGeneration = 0;
   clearLoadingFailsafe();
+  if (id) { id.close(); id = null; }
 }
 
 function applyClusterUpdate(
@@ -385,6 +388,12 @@ export const useGraphStore = create<GraphState>()(
       setGraphData: (nodes, edges, repoId, metadata) => {
         try {
           clearLoadingFailsafe();
+          if (id?.['repoId'] !== repoId) {
+            if (id) id.close();
+            id = new IndexedDBCache(repoId);
+            diagramCache.setPersistentBackend(id);
+            clusterCache.setPersistentBackend(id);
+          }
           const { clusterDepth, expandedNodeIds, viewMode, currentLayer } = useGraphStore.getState();
           const sanitized = sanitizeGraphData(nodes, edges);
           const newDegradations: string[] = [];

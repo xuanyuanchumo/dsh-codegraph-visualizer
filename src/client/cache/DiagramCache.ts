@@ -1,6 +1,7 @@
 import type { ViewMode } from '../../types/index.ts';
 import type { LayeredDiagram } from '../diagram/DiagramAssembler.ts';
 import type { ClusterResult } from '../store/cluster/index.ts';
+import { IndexedDBCache } from './IndexedDBCache.ts';
 
 
 function computeDataHash(
@@ -64,9 +65,14 @@ function computeDataHash(
 export class DiagramCache {
   private cache: Map<string, LayeredDiagram> = new Map();
   private maxEntries: number;
+  private idbCache: IndexedDBCache | null = null;
 
   constructor(maxEntries = 10) {
     this.maxEntries = maxEntries;
+  }
+
+  setPersistentBackend(idbCache: IndexedDBCache): void {
+    this.idbCache = idbCache;
   }
 
   get(viewMode: ViewMode, dataHash: string): LayeredDiagram | null {
@@ -88,6 +94,9 @@ export class DiagramCache {
       if (firstKey) this.cache.delete(firstKey);
     }
     this.cache.set(key, diagram);
+    if (this.idbCache) {
+      this.idbCache.setDiagram(key, diagram).catch(() => {});
+    }
   }
 
   invalidate(viewMode?: ViewMode): void {
@@ -97,6 +106,9 @@ export class DiagramCache {
       }
     } else {
       this.cache.clear();
+    }
+    if (this.idbCache) {
+      this.idbCache.invalidateDiagram(viewMode).catch(() => {});
     }
   }
 
@@ -108,9 +120,14 @@ export class DiagramCache {
 export class ClusterCache {
   private cache: Map<string, ClusterResult> = new Map();
   private maxEntries: number;
+  private idbCache: IndexedDBCache | null = null;
 
   constructor(maxEntries = 20) {
     this.maxEntries = maxEntries;
+  }
+
+  setPersistentBackend(idbCache: IndexedDBCache): void {
+    this.idbCache = idbCache;
   }
 
   get(
@@ -141,10 +158,16 @@ export class ClusterCache {
       if (firstKey) this.cache.delete(firstKey);
     }
     this.cache.set(key, result);
+    if (this.idbCache) {
+      this.idbCache.setCluster(key, result).catch(() => {});
+    }
   }
 
   invalidate(): void {
     this.cache.clear();
+    if (this.idbCache) {
+      this.idbCache.invalidateCluster().catch(() => {});
+    }
   }
 
   size(): number {
