@@ -9,7 +9,7 @@ import { resetLoggerListeners } from '../shared/Logger.ts';
 import type { GraphData } from '../types/index.ts';
 import { validateGraphData } from './validators.ts';
 import { PLUGIN_VERSION } from '../generated/version.ts';
-import { fetchStatus, fetchGraphData, fetchWorkspace, requestScan, requestInit, requestWatch } from './api/index.ts';
+import { fetchStatus, fetchGraphData, fetchGraphDataIncremental, fetchWorkspace, requestScan, requestInit, requestWatch } from './api/index.ts';
 import { t } from './i18n/index.ts';
 import { resetI18nListeners } from './i18n/index.ts';
 import { disposeStore } from './store/graphStore.ts';
@@ -272,8 +272,7 @@ export function apply(ctx: Context) {
         const store = useGraphStore.getState();
         if (store.nodes.length > 0) {
           if (detail?.incremental) {
-            fetch('/api/v1/codegraph/data', { headers: { 'if-none-match': String(store.lastUpdated) } })
-              .then((res) => { if (res.status === 304) return null; return res.json(); })
+            fetchGraphDataIncremental(store.lastUpdated)
               .then((data) => { if (data && data.nodes && data.nodes.length > 0) { store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata); } })
               .catch((e) => log.warn('incremental graph fetch failed', e));
           } else {

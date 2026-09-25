@@ -175,7 +175,7 @@ export class FilterController {
     try {
       if (pattern.length > 100 || /(\+|\*|\{)\{/.test(pattern)) return null;
       return new RegExp(pattern);
-    } catch { /* invalid regex pattern */
+    } catch (_e) { /* invalid regex pattern */
       return null;
     }
   }

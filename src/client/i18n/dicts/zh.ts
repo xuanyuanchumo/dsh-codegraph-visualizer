@@ -500,6 +500,23 @@ export const zh: Record<string, string> = {
   'degradation.largeGraphMode': '大规模图谱模式',
   'degradation.tooltip': '因图谱规模较大，部分分析功能已降级或跳过以保证性能',
 
+  // 导览功能
+  'toolbar.tour': '代码导览',
+  'tour.title': '代码导览',
+  'tour.close': '关闭导览',
+  'tour.empty': '暂无导览数据，请先加载代码图谱',
+  'tour.prev': '上一步',
+  'tour.next': '下一步',
+  'tour.dependencies': '依赖',
+  'tour.dependents': '被引用',
+  'tour.layer.entry': '入口',
+  'tour.layer.api': 'API',
+  'tour.layer.service': '业务',
+  'tour.layer.data': '数据',
+  'tour.layer.ui': '界面',
+  'tour.layer.utility': '工具',
+  'tour.layer.other': '其他',
+
   // 通用
   'common.close': '关闭',
   'common.noVisibleNodes': '当前筛选条件下无可见节点',

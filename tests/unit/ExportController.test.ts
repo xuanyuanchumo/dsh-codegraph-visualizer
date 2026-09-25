@@ -343,6 +343,7 @@ describe('ExportController', () => {
     ec.destroy();
     const result = ec.exportJSON();
     expect(typeof result).toBe('string');
-    expect(() => JSON.parse(result)).not.toThrow();
+    const parsed = JSON.parse(result);
+    expect(parsed).toEqual(expect.objectContaining({ nodes: expect.any(Array), edges: expect.any(Array) }));
   });
 });

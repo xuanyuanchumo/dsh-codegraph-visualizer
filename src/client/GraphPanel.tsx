@@ -38,6 +38,8 @@ import { ImpactPanel } from './components/ImpactPanel.tsx';
 import { CyclePanel } from './components/CyclePanel.tsx';
 import { CoreFunctionPanel } from './components/CoreFunctionPanel.tsx';
 import { FilterPanel } from './components/FilterPanel.tsx';
+import { TourPanel } from './components/TourPanel.tsx';
+import { buildTour } from '../shared/analysis/TourBuilder.ts';
 import { MicroViewPrompt, MicroFunctionBar } from './components/MicroViewBar.tsx';
 import { GraphIcon } from './components/Icons.tsx';
 
@@ -405,6 +407,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       panel.setShowImpact(false); panel.setShowInheritance(false); panel.setShowImport(false); panel.setShowLegend(false);
       panel.setShowPathFind(false); panel.setShowHealthScore(false); panel.setShowRules(false);
       panel.setShowHotspot(false); panel.setShowGodModule(false); panel.setShowCoreFunction(false);
+      panel.setShowFilterPanel(false); panel.setShowTour(false);
       setTooltip(null); setShowHelp(false); setFocusNodeId(null);
     },
     onToggleCallChain: panel.toggleCallChain,
@@ -641,6 +644,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     if (!panel.showCycles) return [];
     return renderer.rendererRef.current?.detectCyclesDetailed() ?? [];
   }, [panel.showCycles, nodes.length, edges.length]);
+
+  const tourData = useMemo(() => buildTour(rawNodes, rawEdges), [rawNodes, rawEdges]);
+
   const panelClassName = useMemo(() =>
     `cg-graph-panel cg-resizable ${panel.collapsed ? 'cg-collapsed' : ''} ${className}`.trim(),
     [panel.collapsed, className],
@@ -842,6 +848,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
         {panel.showFilterPanel && !isCollapsed && (
           <GraphErrorBoundary><FilterPanel onClose={() => panel.setShowFilterPanel(false)} /></GraphErrorBoundary>
+        )}
+
+        {panel.showTour && !isCollapsed && (
+          <GraphErrorBoundary><TourPanel tour={tourData} onClose={() => panel.setShowTour(false)} /></GraphErrorBoundary>
         )}
 
         {panel.showImpact && !isCollapsed && impactStats && (

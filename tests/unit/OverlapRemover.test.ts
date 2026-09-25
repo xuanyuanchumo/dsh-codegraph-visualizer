@@ -71,7 +71,9 @@ describe('OverlapRemover', () => {
   describe('constructor', () => {
     it('constructs without throwing', () => {
       const cy = makeMockCy();
-      expect(() => new OverlapRemover(cy)).not.toThrow();
+      const remover = new OverlapRemover(cy);
+      expect(remover).toBeDefined();
+      expect(typeof remover.remove).toBe('function');
     });
   });
 

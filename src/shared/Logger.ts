@@ -28,7 +28,7 @@ class LoggerImpl {
     if (this.buffer.length > RING_SIZE) this.buffer.splice(0, this.buffer.length - RING_SIZE);
     this.emit();
     const fn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
-    try { if (typeof fn === 'function') fn(`[codegraph:${scope}] ${message}`, data ?? ''); } catch { /* console unavailable */ }
+    try { if (typeof fn === 'function') fn(`[codegraph:${scope}] ${message}`, data ?? ''); } catch (_e) { /* console unavailable */ }
   }
 
   debug(scope: string, message: string, data?: unknown): void { this.log('debug', scope, message, data); }
@@ -52,7 +52,7 @@ class LoggerImpl {
   private emit(): void {
     if (this.listeners.size === 0) return;
     const snapshot = this.entries();
-    for (const fn of this.listeners) { try { fn(snapshot); } catch { /* listener fault */ } }
+    for (const fn of this.listeners) { try { fn(snapshot); } catch (_e) { /* listener fault */ } }
   }
 }
 

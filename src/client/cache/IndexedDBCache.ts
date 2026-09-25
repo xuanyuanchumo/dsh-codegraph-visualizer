@@ -53,7 +53,8 @@ export class IndexedDBCache {
         req.onsuccess = () => resolve(req.result ?? null);
         req.onerror = () => reject(req.error);
       });
-    } catch {
+    } catch (e) {
+      log.warn('IndexedDB getCluster failed', { key, error: e });
       return null;
     }
   }
@@ -67,8 +68,8 @@ export class IndexedDBCache {
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
       });
-    } catch {
-      // IndexedDB write failures are non-fatal
+    } catch (e) {
+      log.warn('IndexedDB setCluster failed', { key, error: e });
     }
   }
 
@@ -81,7 +82,8 @@ export class IndexedDBCache {
         req.onsuccess = () => resolve(req.result ?? null);
         req.onerror = () => reject(req.error);
       });
-    } catch {
+    } catch (e) {
+      log.warn('IndexedDB getDiagram failed', { key, error: e });
       return null;
     }
   }
@@ -95,8 +97,8 @@ export class IndexedDBCache {
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
       });
-    } catch {
-      // IndexedDB write failures are non-fatal
+    } catch (e) {
+      log.warn('IndexedDB setDiagram failed', { key, error: e });
     }
   }
 
@@ -109,8 +111,8 @@ export class IndexedDBCache {
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
       });
-    } catch {
-      // non-fatal
+    } catch (e) {
+      log.warn('IndexedDB invalidateCluster failed', { error: e });
     }
   }
 
@@ -141,8 +143,8 @@ export class IndexedDBCache {
           tx.onerror = () => reject(tx.error);
         });
       }
-    } catch {
-      // non-fatal
+    } catch (e) {
+      log.warn('IndexedDB invalidateDiagram failed', { viewMode, error: e });
     }
   }
 

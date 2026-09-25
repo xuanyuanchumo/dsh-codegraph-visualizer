@@ -286,6 +286,9 @@ export const ERROR_CODES = {
   METHOD_NOT_ALLOWED: 'METHOD_NOT_ALLOWED',
   RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
   SYMBOL_NOT_FOUND: 'SYMBOL_NOT_FOUND',
+  BODY_TOO_LARGE: 'BODY_TOO_LARGE',
+  INVALID_JSON_BODY: 'INVALID_JSON_BODY',
+  INVALID_CONFIG: 'INVALID_CONFIG',
 } as const;
 
 export const ERROR_MESSAGES: Record<string, { en: string; zh: string }> = {
@@ -311,4 +314,8 @@ export const ERROR_MESSAGES: Record<string, { en: string; zh: string }> = {
   METHOD_NOT_ALLOWED: { en: 'Method not allowed', zh: '请求方法不被允许' },
   RATE_LIMIT_EXCEEDED: { en: 'Rate limit exceeded', zh: '请求频率超限' },
   SYMBOL_NOT_FOUND: { en: 'Symbol not found', zh: '未找到符号' },
+  BODY_TOO_LARGE: { en: 'Request body too large', zh: '请求体过大' },
+  INVALID_JSON_BODY: { en: 'Invalid JSON body: expected object', zh: '无效的 JSON 请求体：应为对象' },
+  INVALID_CONFIG: { en: 'Invalid configuration', zh: '无效的配置' },
 };
+export const REPO_URL = 'https://github.com/xuanyuanchumo/dsh-codegraph-visualizer';

@@ -57,18 +57,16 @@ describe('usePanelResize', () => {
 
   it('panel 不存在时不应崩溃', () => {
     const emptyRef = { current: null };
-    expect(() => {
-      renderHook(() => usePanelResize(emptyRef, rendererRef));
-    }).not.toThrow();
+    const { result } = renderHook(() => usePanelResize(emptyRef, rendererRef));
+    expect(result.current).toBeUndefined();
   });
 
   it('resize-handle 不存在时不应崩溃', () => {
     const panelNoHandle = document.createElement('div');
     document.body.appendChild(panelNoHandle);
     const ref = { current: panelNoHandle };
-    expect(() => {
-      renderHook(() => usePanelResize(ref, rendererRef));
-    }).not.toThrow();
+    const { result } = renderHook(() => usePanelResize(ref, rendererRef));
+    expect(result.current).toBeUndefined();
     document.body.removeChild(panelNoHandle);
   });
 

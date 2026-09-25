@@ -107,7 +107,10 @@ describe('LayoutController', () => {
     it('constructs without throwing', () => {
       const cy = makeMockCy();
       const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
-      expect(() => new LayoutController(cy)).not.toThrow();
+      const controller = new LayoutController(cy);
+      expect(controller).toBeDefined();
+      expect(typeof controller.isWorkerAvailable).toBe('function');
+      controller.destroy();
     });
 
     it('isWorkerAvailable returns boolean', () => {
@@ -398,7 +401,8 @@ describe('LayoutController', () => {
       const cy = makeMockCy();
       const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
-      expect(() => controller.destroy()).not.toThrow();
+      controller.destroy();
+      expect(controller.isWorkerAvailable()).toBe(false);
     });
 
     it('isWorkerAvailable returns false after destroy', () => {
@@ -675,7 +679,8 @@ describe('LayoutController', () => {
       const controller = new LayoutController(cy);
       controller.applyWorkerLayout({ a: { x: 100, y: 200 } });
       controller.destroy();
-      expect(() => controller.applyWorkerLayout({})).not.toThrow();
+      controller.applyWorkerLayout({});
+      expect(controller.isWorkerAvailable()).toBe(false);
     });
 
     it('can be called multiple times safely', () => {
@@ -683,7 +688,8 @@ describe('LayoutController', () => {
       const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
       controller.destroy();
-      expect(() => controller.destroy()).not.toThrow();
+      controller.destroy();
+      expect(controller.isWorkerAvailable()).toBe(false);
     });
   });
 
@@ -1223,9 +1229,8 @@ describe('LayoutController', () => {
       const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
 
-      expect(() => {
-        mockWorkerInstance.onmessage({ data: { positions: { a: { x: 1, y: 2 } } } } as any);
-      }).not.toThrow();
+      mockWorkerInstance.onmessage({ data: { positions: { a: { x: 1, y: 2 } } } } as any);
+      expect(controller).toBeDefined();
 
       controller.destroy();
       globalThis.Worker = undefined as any;

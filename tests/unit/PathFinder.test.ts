@@ -223,6 +223,7 @@ describe('PathFinder', () => {
     const { PathFinder } = await import('../../src/client/renderer/PathFinder.ts');
     const cy = makeMockCy([], []);
     const pf = new PathFinder(cy as any);
-    expect(() => pf.destroy()).not.toThrow();
+    pf.destroy();
+    expect(pf).toBeDefined();
   });
 });

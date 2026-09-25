@@ -2,6 +2,7 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { useT } from '../i18n/index.ts';
 import { scoped } from '../../shared/Logger.ts';
+import { REPO_URL } from '../../shared/constants.ts';
 
 const log = scoped('boundary');
 
@@ -27,7 +28,7 @@ function ErrorFallback({ error, onRetry }: { error: Error | null; onRetry: () =>
         <button onClick={onRetry} aria-label={t('error.retry')}>
           {t('error.retry')}
         </button>
-        <a href="https://github.com/xuanyuanchumo/dsh-codegraph-visualizer/issues" target="_blank" rel="noopener noreferrer" className="cg-error-boundary-feedback">
+        <a href={`${REPO_URL}/issues`} target="_blank" rel="noopener noreferrer" className="cg-error-boundary-feedback">
           {t('error.reportIssue')}
         </a>
       </div>

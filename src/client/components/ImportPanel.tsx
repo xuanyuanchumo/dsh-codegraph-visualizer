@@ -95,7 +95,7 @@ export const ImportPanel = memo(function ImportPanel({
       await navigator.clipboard.writeText('dsh plugin --profile web add dsh-codegraph');
       setCopied(true);
       timersRef.current.push(setTimeout(() => setCopied(false), UI.COPY_FEEDBACK_MS));
-    } catch { /* clipboard unavailable — ignore */ }
+    } catch (_e) { /* clipboard unavailable — ignore */ }
   }, []);
 
   const effectivePath = customPath.trim() || workspacePath || '.';

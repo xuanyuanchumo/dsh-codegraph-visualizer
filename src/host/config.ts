@@ -1,4 +1,5 @@
 import type { DataSourceType } from '../types/index.ts';
+import { ERROR_CODES } from '../shared/constants.ts';
 
 const VALID_DATA_SOURCES = new Set<DataSourceType>(['auto', 'codegraph', 'lens', 'tree-sitter', 'dependency']);
 const ORIGIN_PATTERN = /^https?:\/\/[a-zA-Z0-9.-]+(:\d+)?$/;
@@ -62,7 +63,7 @@ export function resolveConfig(userConfig?: Partial<VisualizerConfig>): Visualize
     errors.push(`panelDefaultHeight (${config.panelDefaultHeight}) must be >= panelMinHeight (${config.panelMinHeight})`);
   }
   if (errors.length > 0) {
-    throw new Error(`[dsh-codegraph-visualizer] invalid config: ${errors.join('; ')}`);
+    throw new Error(`${ERROR_CODES.INVALID_CONFIG}: ${errors.join('; ')}`);
   }
   return config;
 }

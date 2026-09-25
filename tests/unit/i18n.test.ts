@@ -86,7 +86,9 @@ describe('i18n lang persistence (J10)', () => {
 
   it('t should fall back to English when zh key is missing', () => {
     setLang('zh');
-    expect(() => t('state.updated', { time: '10:00' })).not.toThrow();
+    const result = t('state.updated', { time: '10:00' });
+    expect(typeof result).toBe('string');
+    expect(result).toContain('10:00');
   });
 
   // ── Workspace i18n (cycle-14) ───────────────────────────────────────

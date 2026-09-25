@@ -77,6 +77,20 @@ export async function requestInit(path: string): Promise<{ success: boolean; mes
   }
 }
 
+export async function fetchGraphDataIncremental(lastUpdated: number): Promise<GraphData | null> {
+  try {
+    const res = await fetchWithTimeout('/api/v1/codegraph/data', {
+      headers: { 'if-none-match': String(lastUpdated) },
+    });
+    if (res.status === 304) return null;
+    if (!res.ok) return null;
+    return validateGraphData(await res.json());
+  } catch (e) {
+    log.warn('fetchGraphDataIncremental failed', { error: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
+}
+
 export async function requestWatch(enabled: boolean, path: string): Promise<boolean> {
   try {
     const res = await fetchWithTimeout('/api/v1/codegraph/watch', {

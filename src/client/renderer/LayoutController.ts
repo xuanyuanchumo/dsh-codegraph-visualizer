@@ -37,7 +37,7 @@ export class LayoutController {
       if (typeof document !== 'undefined' && document.baseURI) {
         try {
           workerUrl = new URL('plugins/dsh-codegraph-visualizer/worker/layoutWorker.js', document.baseURI).href;
-        } catch { /* URL construction fallback — try next candidate */ }
+        } catch (_e) { /* URL construction fallback — try next candidate */ }
       }
 
       if (workerUrl) {

@@ -47,7 +47,7 @@ export class McpServer {
     this.rl.on('error', (err: Error) => {
       log.error('MCP server stdin error', err);
       this.running = false;
-      try { this.rl?.close(); } catch { /* already closed */ }
+      try { this.rl?.close(); } catch (_e) { /* already closed */ }
       this.rl = null;
     });
 

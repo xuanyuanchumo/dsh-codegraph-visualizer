@@ -114,12 +114,15 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
     return () => mcpServer.stop();
   }, 'codegraph: MCP server');
 
-  return () => {
-    scanCache.clear();
-    scanInFlightMap.clear();
-    lastGraphData = null;
-    lastInitResult = null;
-    securityManager.reset();
+  ctx.effect(() => {
+    return () => {
+      scanCache.clear();
+      scanInFlightMap.clear();
+      lastGraphData = null;
+      lastInitResult = null;
+      securityManager.reset();
+    };
+  }, 'codegraph: state cleanup');
 
-  };
+  return () => {};
 }

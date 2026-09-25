@@ -501,6 +501,23 @@ export const en: Record<string, string> = {
   'degradation.largeGraphMode': 'Large graph mode',
   'degradation.tooltip': 'Some analysis features have been degraded or skipped for performance due to graph size',
 
+  // Tour feature
+  'toolbar.tour': 'Code Tour',
+  'tour.title': 'Code Tour',
+  'tour.close': 'Close tour',
+  'tour.empty': 'No tour data available, please load the code graph first',
+  'tour.prev': 'Previous',
+  'tour.next': 'Next',
+  'tour.dependencies': 'Dependencies',
+  'tour.dependents': 'Referenced by',
+  'tour.layer.entry': 'Entry',
+  'tour.layer.api': 'API',
+  'tour.layer.service': 'Service',
+  'tour.layer.data': 'Data',
+  'tour.layer.ui': 'UI',
+  'tour.layer.utility': 'Utility',
+  'tour.layer.other': 'Other',
+
   // Common
   'common.close': 'Close',
   'common.noVisibleNodes': 'No nodes match the current filter',

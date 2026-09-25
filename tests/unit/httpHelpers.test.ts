@@ -63,15 +63,15 @@ describe('parseJsonBody', () => {
   });
 
   it('should throw for JSON array', () => {
-    expect(() => parseJsonBody('[1,2,3]')).toThrow('expected object');
+    expect(() => parseJsonBody('[1,2,3]')).toThrow('INVALID_JSON_BODY');
   });
 
   it('should throw for JSON null', () => {
-    expect(() => parseJsonBody('null')).toThrow('expected object');
+    expect(() => parseJsonBody('null')).toThrow('INVALID_JSON_BODY');
   });
 
   it('should throw for JSON primitive', () => {
-    expect(() => parseJsonBody('"hello"')).toThrow('expected object');
+    expect(() => parseJsonBody('"hello"')).toThrow('INVALID_JSON_BODY');
   });
 
   it('should throw for invalid JSON', () => {

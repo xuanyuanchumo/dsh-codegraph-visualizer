@@ -23,7 +23,7 @@ export type { LayoutType, ThemeType, RankDir } from '../../shared/viewModeUtils.
 
 const diagramCache = new DiagramCache(10);
 const clusterCache = new ClusterCache(20);
-let id: IndexedDBCache | null = null;
+let persistentCache: IndexedDBCache | null = null;
 const callChainAggregator = new CallChainAggregator();
 let microAssemblyGeneration = 0;
 let incrementalClusterCtx: IncrementalClusterContext | null = null;
@@ -155,7 +155,7 @@ export function disposeStore(): void {
   incrementalClusterCtx = null;
   microAssemblyGeneration = 0;
   clearLoadingFailsafe();
-  if (id) { id.close(); id = null; }
+  if (persistentCache) { persistentCache.close(); persistentCache = null; }
 }
 
 function applyClusterUpdate(
@@ -389,11 +389,11 @@ export const useGraphStore = create<GraphState>()(
       setGraphData: (nodes, edges, repoId, metadata) => {
         try {
           clearLoadingFailsafe();
-          if (id?.['repoId'] !== repoId) {
-            if (id) id.close();
-            id = new IndexedDBCache(repoId);
-            diagramCache.setPersistentBackend(id);
-            clusterCache.setPersistentBackend(id);
+          if (persistentCache?.['repoId'] !== repoId) {
+            if (persistentCache) persistentCache.close();
+            persistentCache = new IndexedDBCache(repoId);
+            diagramCache.setPersistentBackend(persistentCache);
+            clusterCache.setPersistentBackend(persistentCache);
           }
           const { clusterDepth, expandedNodeIds, viewMode, currentLayer } = useGraphStore.getState();
           const sanitized = sanitizeGraphData(nodes, edges);

@@ -308,7 +308,8 @@ describe('VirtualViewportController', () => {
     it('can be called when not enabled', () => {
       const cy = makeMockCy();
       const ctrl = new VirtualViewportController(cy as any);
-      expect(() => ctrl.destroy()).not.toThrow();
+      ctrl.destroy();
+      expect(ctrl.isEnabled()).toBe(false);
     });
   });
 

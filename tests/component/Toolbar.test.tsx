@@ -58,6 +58,8 @@ function makePanelControls(overrides: Partial<PanelControls> = {}): PanelControl
     onToggleCoreFunction: noop,
     showFilterPanel: false,
     onToggleFilterPanel: noop,
+    showTour: false,
+    onToggleTour: noop,
     ...overrides,
   };
 }

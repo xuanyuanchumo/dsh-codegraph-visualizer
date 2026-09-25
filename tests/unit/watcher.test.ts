@@ -63,7 +63,7 @@ describe('registerWatcher', () => {
 
   it('registers effect without throwing', () => {
     const ctx = makeMockCtx();
-    expect(() => registerWatcher(ctx, config, vi.fn())).not.toThrow();
+    registerWatcher(ctx, config, vi.fn());
     expect(ctx.effect).toHaveBeenCalled();
   });
 
@@ -279,7 +279,7 @@ describe('closeActiveWatcher', () => {
     watcher.close.mockImplementation(() => { throw new Error('close failed'); });
     watchMock.callback!('change', 'src/file.ts');
     expect(vi.getTimerCount()).toBe(1);
-    expect(() => toggleCb({ enabled: false, path: '/repo', timestamp: 2 })).not.toThrow();
+    toggleCb({ enabled: false, path: '/repo', timestamp: 2 });
     expect(vi.getTimerCount()).toBe(0);
   });
 

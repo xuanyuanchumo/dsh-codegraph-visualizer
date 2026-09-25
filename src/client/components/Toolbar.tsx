@@ -91,6 +91,7 @@ export interface ToolbarVisibilityState {
   showGodModule: boolean;
   showCoreFunction: boolean;
   showFilterPanel: boolean;
+  showTour: boolean;
 }
 
 export interface ToolbarToggleHandlers {
@@ -110,6 +111,7 @@ export interface ToolbarToggleHandlers {
   onToggleGodModule: () => void;
   onToggleCoreFunction: () => void;
   onToggleFilterPanel: () => void;
+  onToggleTour: () => void;
 }
 
 export interface PanelControls extends ToolbarVisibilityState, ToolbarToggleHandlers {}
@@ -183,8 +185,10 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   const {
     showSearch, showCallChain, showCycles, cycleIsolation, showImpact, showInheritance, showMiniMap, showLegend, showImport,
     showPathFind, showHealthScore, showRules, showHotspot, showGodModule, showCoreFunction, showFilterPanel,
+    showTour,
     onToggleSearch, onToggleCallChain, onToggleCycles, onToggleCycleIsolation, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend,
     onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onToggleCoreFunction, onToggleFilterPanel,
+    onToggleTour,
   } = panelControls;
 
   const availablePanels = getAvailablePanels(getViewLayer(viewMode));
@@ -375,6 +379,8 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
             <button className={`cg-corefunction-btn ${showCoreFunction ? 'cg-active' : ''}`} onClick={onToggleCoreFunction}
               title={t('toolbar.coreFunction')} aria-label={t('toolbar.coreFunction')} aria-pressed={showCoreFunction}><StarIcon size={15} /></button>
           )}
+          <button className={`cg-tour-btn ${showTour ? 'cg-active' : ''}`} onClick={onToggleTour}
+            title={t('toolbar.tour')} aria-label={t('toolbar.tour')} aria-pressed={showTour}><StarIcon size={15} /></button>
         </div>
 
         <span className="cg-toolbar-separator" aria-hidden="true" />

@@ -52,8 +52,8 @@ describe('Logger (log management)', () => {
 
   it('should not throw when console is missing', () => {
     logger.minLevel = 'info';
-    expect(() => logger.warn('host', 'warn-message')).not.toThrow();
-    expect(() => logger.error('host', 'err-message')).not.toThrow();
+    expect(logger.warn('host', 'warn-message')).toBeUndefined();
+    expect(logger.error('host', 'err-message')).toBeUndefined();
   });
 });
 

@@ -4,7 +4,7 @@ import { useT } from '../i18n/index.ts';
 import { deriveWorkspaceName } from '../utils/deriveName.ts';
 import { GithubIcon } from './Icons.tsx';
 
-const GITHUB_REPO_URL = 'https://github.com/xuanyuanchumo/dsh-codegraph-visualizer';
+import { REPO_URL } from '../../shared/constants.ts';
 
 interface StatusBarProps {
   error: string | null;
@@ -61,7 +61,7 @@ export const StatusBar = memo(function StatusBar({ error, isLoading, lastUpdated
       {watchEnabled && <span className="cg-watch-indicator" title={t('import.watchOn')}>●</span>}
       <div className="cg-status-spacer" />
       <a
-        href={GITHUB_REPO_URL}
+        href={REPO_URL}
         target="_blank"
         rel="noopener noreferrer"
         className="cg-status-github"

@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from '../types/index.ts';
 import type { SecurityManager } from './security.ts';
 import { scoped } from '../shared/Logger.ts';
-import { ERROR_MESSAGES } from '../shared/constants.ts';
+import { ERROR_MESSAGES, ERROR_CODES } from '../shared/constants.ts';
 
 const log = scoped('host');
 
@@ -20,7 +20,7 @@ export function readBody(req: IncomingMessage, maxBodyBytes: number): Promise<st
       totalBytes += chunk.length;
       if (totalBytes > maxBodyBytes) {
         req.destroy();
-        reject(new Error('Request body too large'));
+        reject(new Error(ERROR_CODES.BODY_TOO_LARGE));
         return;
       }
       body += chunk.toString();
@@ -33,7 +33,7 @@ export function readBody(req: IncomingMessage, maxBodyBytes: number): Promise<st
 export function parseJsonBody(body: string): Record<string, unknown> {
   const parsed = JSON.parse(body || '{}');
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error('Invalid JSON body: expected object');
+    throw new Error(ERROR_CODES.INVALID_JSON_BODY);
   }
   return parsed as Record<string, unknown>;
 }
