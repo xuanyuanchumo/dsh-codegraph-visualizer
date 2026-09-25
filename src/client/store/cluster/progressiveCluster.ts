@@ -120,6 +120,40 @@ export function parseExpandedNodeIds(expandedNodeIds: Set<string>): {
   return { expandedDirs, expandedFileClusters, expandedFuncClusters, expandedSubgroups };
 }
 
+export function estimateExpandCost(nodeId: string, rawNodes: GraphNode[]): number {
+  if (nodeId.startsWith('subgroup__')) {
+    const parts = nodeId.split('__');
+    const dirPart = parts.slice(1, -1).join('__');
+    const clusterId = `cluster__${dirPart}`;
+    let count = 0;
+    for (const n of rawNodes) {
+      const depGroup = getDependencyGroup(n);
+      const dir = depGroup ?? (n.filePath ? getTopLevelDir(n.filePath) : n.id);
+      if (`cluster__${dir.replace(/[/:\\]/g, '__')}` === clusterId) count++;
+    }
+    return Math.max(0, count - 1);
+  }
+  if (nodeId.startsWith('cluster__')) {
+    const dirPath = nodeId.replace(/^cluster__/, '').replace(/__/g, '/');
+    let count = 0;
+    for (const n of rawNodes) {
+      const depGroup = getDependencyGroup(n);
+      const dir = depGroup ?? (n.filePath ? getTopLevelDir(n.filePath) : n.id);
+      if (dir === dirPath || dir.replace(/[/:\\]/g, '__') === nodeId.replace(/^cluster__/, '')) count++;
+    }
+    return Math.max(0, count - 1);
+  }
+  if (nodeId.startsWith('filecluster__')) {
+    const filePath = nodeId.replace(/^filecluster__file__/, '').replace(/__/g, '/');
+    let count = 0;
+    for (const n of rawNodes) {
+      if (n.filePath === filePath || n.filePath?.replace(/[/:\\]/g, '__') === nodeId.replace(/^filecluster__file__/, '')) count++;
+    }
+    return Math.max(0, count - 1);
+  }
+  return 0;
+}
+
 function buildDirMapping(rawNodes: GraphNode[]): {
   nodeToDir: Map<string, string>;
   dirToNodes: Map<string, GraphNode[]>;

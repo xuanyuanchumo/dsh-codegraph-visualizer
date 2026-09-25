@@ -3,6 +3,7 @@ import { persist, createJSONStorage, type StateStorage } from 'zustand/middlewar
 import type { GraphNode, GraphEdge, NodeId, HealthScore, RuleDefinition, RuleViolation, ViewMode, HeatmapMode } from '../../types/index.ts';
 import { computeClusteredGraph } from './cluster/index.ts';
 import type { ClusterNode, ClusterEdge, ClusterResult } from './cluster/index.ts';
+import { estimateExpandCost } from './cluster/progressiveCluster.ts';
 import { tryIncrementalOrFull, type IncrementalClusterContext } from './cluster/incrementalCluster.ts';
 import { assembleDiagram, assembleMicroDiagram, type LayeredDiagram } from '../diagram/index.ts';
 import { CallChainAggregator } from '../diagram/CallChainAggregator.ts';
@@ -12,7 +13,7 @@ import { computeViewModeTransition } from './viewModeTransition.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { type LayoutType, type ThemeType, type RankDir, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
 
-import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, LOD, UI } from '../../shared/constants.ts';
+import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, LOD, UI, getDynamicMaxVisibleNodes } from '../../shared/constants.ts';
 
 const log = scoped('store');
 
@@ -524,11 +525,29 @@ export const useGraphStore = create<GraphState>()(
       setInitStatus: (initStatus, initMessage = null) => set({ initStatus, initMessage }),
       setWatchEnabled: (watchEnabled) => set({ watchEnabled }),
       expandNode: (nodeId) => {
-        const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
-        const newExpanded = new Set(expandedNodeIds);
-        newExpanded.add(nodeId);
-        const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: newExpanded };
-        applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set);
+        const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, nodes, panelWidth } = useGraphStore.getState();
+        const cost = estimateExpandCost(nodeId, rawNodes);
+        const maxVisible = panelWidth !== null && panelWidth !== undefined
+          ? getDynamicMaxVisibleNodes(panelWidth)
+          : CLUSTER.MAX_VISIBLE_NODES;
+        const effectiveExpanded = new Set(expandedNodeIds);
+        effectiveExpanded.add(nodeId);
+        if (nodes.length + cost > maxVisible) {
+          const clusterNodes = nodes.filter((n): n is ClusterNode => 'isCluster' in n && n.isCluster === true);
+          const sorted = [...clusterNodes].sort((a, b) => b.childCount - a.childCount);
+          for (const cn of sorted) {
+            if (nodes.length + cost - cn.childCount <= maxVisible) {
+              effectiveExpanded.delete(cn.id);
+              break;
+            }
+            effectiveExpanded.delete(cn.id);
+          }
+        }
+        if (cost > CLUSTER.EXPAND_BUDGET_SINGLE) {
+          log.warn('expand budget exceeded', { nodeId, cost, budget: CLUSTER.EXPAND_BUDGET_SINGLE });
+        }
+        const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: effectiveExpanded };
+        applyClusterUpdate(effectiveExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set);
       },
       prefetchExpand: (nodeId) => {
         const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, viewMode, diagramData, currentLayer } = useGraphStore.getState();
