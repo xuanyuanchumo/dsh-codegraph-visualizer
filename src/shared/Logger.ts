@@ -1,5 +1,6 @@
 // Lightweight structured logger with an in-memory ring buffer for UI surfacing.
 // Ponytail: no deps, ~60 lines. Levels respect host console when available.
+/* eslint-disable no-console */
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -27,7 +28,7 @@ class LoggerImpl {
     if (this.buffer.length > RING_SIZE) this.buffer.splice(0, this.buffer.length - RING_SIZE);
     this.emit();
     const fn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
-    try { if (typeof fn === 'function') fn(`[codegraph:${scope}] ${message}`, data ?? ''); } catch (e) { /* console unavailable */ }
+    try { if (typeof fn === 'function') fn(`[codegraph:${scope}] ${message}`, data ?? ''); } catch { /* console unavailable */ }
   }
 
   debug(scope: string, message: string, data?: unknown): void { this.log('debug', scope, message, data); }
@@ -51,7 +52,7 @@ class LoggerImpl {
   private emit(): void {
     if (this.listeners.size === 0) return;
     const snapshot = this.entries();
-    for (const fn of this.listeners) { try { fn(snapshot); } catch (e) { /* listener fault */ } }
+    for (const fn of this.listeners) { try { fn(snapshot); } catch { /* listener fault */ } }
   }
 }
 

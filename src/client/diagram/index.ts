@@ -213,7 +213,7 @@ export async function assembleMicroDiagram(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filePath }),
     });
-  } catch (e) { /* network fetch failed */
+  } catch { /* network fetch failed */
     throw new Error(`Network error: unable to reach AST endpoint`);
   }
   if (!response.ok) {
@@ -230,7 +230,7 @@ export async function assembleMicroDiagram(
     if (status === 500) {
       const errorBody = await response.text();
       let serverMsg = '';
-      try { const parsed = JSON.parse(errorBody); serverMsg = parsed.error || ''; } catch (e) { /* JSON parse failed, use raw text */ serverMsg = errorBody; }
+      try { const parsed = JSON.parse(errorBody); serverMsg = parsed.error || ''; } catch { /* JSON parse failed, use raw text */ serverMsg = errorBody; }
       throw new Error(serverMsg || `AST parsing failed for "${filePath}"`);
     }
     throw new Error(`AST request failed (HTTP ${status})`);

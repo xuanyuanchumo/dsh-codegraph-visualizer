@@ -28,7 +28,7 @@ export function summarizeGraph(data: GraphData): string {
 
 export function normalizeImpact(raw: unknown): { affected: string[]; depth: number } | null {
   if (typeof raw === 'string') {
-    try { raw = JSON.parse(raw) as unknown; } catch (e) { /* JSON parse failed */ return null; }
+    try { raw = JSON.parse(raw) as unknown; } catch { /* JSON parse failed */ return null; }
   }
   if (!raw || typeof raw !== 'object') return null;
   const obj = raw as Record<string, unknown>;
@@ -47,7 +47,7 @@ export function normalizeImpact(raw: unknown): { affected: string[]; depth: numb
 export function pickBestMatch(raw: unknown, symbolId: string): Record<string, unknown> | null {
   let payload = raw;
   if (typeof payload === 'string') {
-    try { payload = JSON.parse(payload) as unknown; } catch (e) { /* JSON parse failed */ return null; }
+    try { payload = JSON.parse(payload) as unknown; } catch { /* JSON parse failed */ return null; }
   }
   const items = Array.isArray(payload)
     ? payload

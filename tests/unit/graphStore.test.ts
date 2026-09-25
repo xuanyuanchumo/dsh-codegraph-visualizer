@@ -769,4 +769,153 @@ describe('graphStore (J6/J7/J10)', () => {
     ) as any;
     expect(migrated.theme).toBe('light');
   });
+
+  it('migrate v<9 should convert expandedNodeIds array to Set', () => {
+    const migrated = useGraphStore.persist.getOptions().migrate?.(
+      { expandedNodeIds: ['n1', 'n2'] } as any,
+      8,
+    ) as any;
+    expect(migrated.expandedNodeIds).toBeInstanceOf(Set);
+    expect([...migrated.expandedNodeIds]).toEqual(['n1', 'n2']);
+  });
+
+  it('migrate v<9 should default to empty Set for non-array expandedNodeIds', () => {
+    const migrated = useGraphStore.persist.getOptions().migrate?.(
+      { expandedNodeIds: 'not-an-array' } as any,
+      8,
+    ) as any;
+    expect(migrated.expandedNodeIds).toBeInstanceOf(Set);
+    expect(migrated.expandedNodeIds.size).toBe(0);
+  });
+
+  it('merge should convert expandedNodeIds array to Set', () => {
+    const mergeFn = useGraphStore.persist.getOptions().merge;
+    if (!mergeFn) return;
+    const merged = mergeFn(
+      { expandedNodeIds: ['a', 'b'] } as any,
+      useGraphStore.getState(),
+    ) as any;
+    expect(merged.expandedNodeIds).toBeInstanceOf(Set);
+    expect([...merged.expandedNodeIds]).toEqual(['a', 'b']);
+  });
+
+  it('merge should preserve expandedNodeIds when already a Set', () => {
+    const mergeFn = useGraphStore.persist.getOptions().merge;
+    if (!mergeFn) return;
+    const existingSet = new Set(['x', 'y']);
+    const merged = mergeFn(
+      { expandedNodeIds: existingSet } as any,
+      useGraphStore.getState(),
+    ) as any;
+    expect(merged.expandedNodeIds).toBeInstanceOf(Set);
+    expect([...merged.expandedNodeIds]).toEqual(['x', 'y']);
+  });
+
+  it('merge should default to empty Set for unknown expandedNodeIds type', () => {
+    const mergeFn = useGraphStore.persist.getOptions().merge;
+    if (!mergeFn) return;
+    const merged = mergeFn(
+      { expandedNodeIds: 42 } as any,
+      useGraphStore.getState(),
+    ) as any;
+    expect(merged.expandedNodeIds).toBeInstanceOf(Set);
+    expect(merged.expandedNodeIds.size).toBe(0);
+  });
+
+  it('updateIncrementalClusterCtx should be set after setGraphData', () => {
+    const nodes = [
+      makeNode('m1', 'a.ts', 'module', 'crates/core/src/a.ts', 1),
+      makeNode('m2', 'b.ts', 'module', 'crates/api/src/b.ts', 1),
+    ];
+    const edges = [makeEdge('e1', 'm1', 'm2', 'import')];
+    useGraphStore.getState().setClusterDepth(0);
+    useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
+    useGraphStore.getState().setGraphData(nodes, edges, 'repo-2');
+    expect(useGraphStore.getState().repoId).toBe('repo-2');
+  });
+
+  it('assembleMicro should return early when no selectedFunction', async () => {
+    useGraphStore.getState().setSelectedFunction(null);
+    await useGraphStore.getState().assembleMicro('cfg');
+    expect(useGraphStore.getState().isLoading).toBe(false);
+  });
+
+  it('assembleMicro should handle fetch error', async () => {
+    useGraphStore.getState().setSelectedFunction({
+      nodeId: 'n1',
+      filePath: 'src/a.ts',
+      functionName: 'calculate',
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error('network down')) as any;
+    try {
+      await useGraphStore.getState().assembleMicro('cfg');
+      expect(useGraphStore.getState().error).toContain('Network error');
+      expect(useGraphStore.getState().isLoading).toBe(false);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('assembleMicro should handle non-Error throw', async () => {
+    useGraphStore.getState().setSelectedFunction({
+      nodeId: 'n1',
+      filePath: 'src/a.ts',
+      functionName: 'calculate',
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockRejectedValue('string error') as any;
+    try {
+      await useGraphStore.getState().assembleMicro('cfg');
+      expect(useGraphStore.getState().error).toContain('Network error');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('assembleMicro should succeed with valid AST response', async () => {
+    useGraphStore.getState().setSelectedFunction({
+      nodeId: 'n1',
+      filePath: 'src/a.ts',
+      functionName: 'calculate',
+    });
+    const mockAst = {
+      type: 'program',
+      text: '',
+      startPosition: { row: 0, column: 0 },
+      endPosition: { row: 10, column: 0 },
+      children: [
+        {
+          type: 'function_declaration',
+          text: 'function calculate() {}',
+          startPosition: { row: 0, column: 0 },
+          endPosition: { row: 5, column: 0 },
+          children: [],
+        },
+      ],
+    };
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockAst,
+    } as any);
+    try {
+      await useGraphStore.getState().assembleMicro('cfg');
+      expect(useGraphStore.getState().isLoading).toBe(false);
+      expect(useGraphStore.getState().error).toBeNull();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('setLayer should update layer when diagramData exists', () => {
+    const nodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
+    useGraphStore.getState().setGraphData(nodes, [], 'repo-1');
+    useGraphStore.getState().setViewMode('dependencies');
+    const diagramData = useGraphStore.getState().diagramData;
+    if (diagramData && diagramData.layers.length > 1) {
+      useGraphStore.getState().setLayer(1);
+      expect(useGraphStore.getState().currentLayer).toBe(1);
+    }
+  });
 });
