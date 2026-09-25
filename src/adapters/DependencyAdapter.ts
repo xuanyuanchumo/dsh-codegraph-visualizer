@@ -2,6 +2,7 @@ import { scoped } from '../shared/Logger.ts';
 import type { GraphNode, GraphEdge } from '../types/index.ts';
 import { NodeId, EdgeId } from '../types/index.ts';
 
+
 const log = scoped('dep-adapter');
 
 export interface DependencyNode {
@@ -235,6 +236,7 @@ export function dependencyGraphToGraphData(depGraph: DependencyGraph): { nodes: 
       filePath,
       lineNumber: 0,
       properties: { version: n.version, depType: n.type, isExternal: true },
+      layer: 'dependency',
     };
   });
   const edges: GraphEdge[] = depGraph.edges.map((e) => ({

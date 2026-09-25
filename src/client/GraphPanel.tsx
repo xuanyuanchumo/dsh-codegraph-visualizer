@@ -148,9 +148,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     }
     if (validIds.size > 0) {
       const store = useGraphStore.getState();
-      const newExpanded = new Set(store.expandedNodeIds);
-      for (const id of validIds) newExpanded.add(id);
-      store.expandNode([...validIds][0]!);
+      for (const id of validIds) {
+        store.expandNode(id);
+      }
     }
     urlRestoredRef.current = true;
   }, [rawNodes]);

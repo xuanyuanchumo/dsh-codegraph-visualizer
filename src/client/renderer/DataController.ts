@@ -255,6 +255,7 @@ export class DataController {
       parent: n.parentId as string | undefined,
       isCluster,
       childCount: isCluster ? (n as ClusterNode).childCount : 0,
+      layer: n.layer ?? 'core',
     } as NodeDataDefinition;
     if (n.properties) {
       for (const [key, value] of Object.entries(n.properties)) {

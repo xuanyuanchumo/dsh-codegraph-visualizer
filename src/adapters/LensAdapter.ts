@@ -3,6 +3,7 @@ import type { GraphNode, GraphEdge, AdapterResult, DataSourceType } from '../typ
 import { NodeId, EdgeId } from '../types/index.ts';
 import type { IDataAdapter, UpstreamInvoker } from './IAdapter.ts';
 import { scoped } from '../shared/Logger.ts';
+import { inferLayerFromPath } from '../shared/layerUtils.ts';
 
 const log = scoped('lens-adapter');
 
@@ -53,6 +54,7 @@ export class LensAdapter implements IDataAdapter {
           lineNumber: s.line,
           properties: { scope: s.scope },
           ...(parentId ? { parentId: NodeId(parentId) } : {}),
+          layer: inferLayerFromPath(s.file),
         };
       });
 

@@ -13,6 +13,7 @@ import { join, normalize } from 'node:path';
 import type { GraphNode, GraphEdge, AdapterResult, DataSourceType } from '../types/index.ts';
 import { NodeId, EdgeId } from '../types/index.ts';
 import { scoped } from '../shared/Logger.ts';
+import { inferLayerFromPath } from '../shared/layerUtils.ts';
 import type { IDataAdapter, UpstreamInvoker } from './IAdapter.ts';
 
 export type { UpstreamInvoker } from './IAdapter.ts';
@@ -160,6 +161,7 @@ export class CodeGraphAdapter implements IDataAdapter {
       filePath: f.path,
       lineNumber: 1,
       properties: { kind: 'file', language: f.language ?? null, index: i },
+      layer: inferLayerFromPath(f.path),
     }));
     return { nodes, edges: [], source: this.source, timestamp: Date.now() };
   }
@@ -208,6 +210,7 @@ export class CodeGraphAdapter implements IDataAdapter {
           exported: n.is_exported === 1,
         },
         ...(parentId ? { parentId: NodeId(parentId) } : {}),
+        layer: inferLayerFromPath(n.file_path),
       };
     });
 

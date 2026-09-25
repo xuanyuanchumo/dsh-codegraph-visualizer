@@ -6,6 +6,8 @@ interface RawNodeInfo {
   id: string;
   label: string;
   parentId?: string;
+  filePath?: string;
+  properties?: Record<string, unknown>;
 }
 
 export class SearchController {
@@ -42,6 +44,18 @@ export class SearchController {
     return true;
   }
 
+  private getNodeSearchText(rawNode: RawNodeInfo): string {
+    const parts = [rawNode.label];
+    if (rawNode.filePath) parts.push(rawNode.filePath);
+    if (rawNode.properties) {
+      const doc = rawNode.properties.docstring;
+      const sig = rawNode.properties.signature;
+      if (typeof doc === 'string') parts.push(doc);
+      if (typeof sig === 'string') parts.push(sig);
+    }
+    return parts.join(' ');
+  }
+
   search(query: string): number {
     if (!query) {
       this.cy.nodes().removeClass('search-match');
@@ -70,7 +84,7 @@ export class SearchController {
 
     if (matches === 0) {
       for (const rawNode of this.rawNodesMap.values()) {
-        if (matcher(rawNode.label)) {
+        if (matcher(this.getNodeSearchText(rawNode))) {
           matches++;
           this.mapToVisible(rawNode, matchedCyNodeIds);
         }
@@ -80,7 +94,11 @@ export class SearchController {
     if (matches === 0) {
       this.cy.nodes().forEach((node) => {
         const label = node.data('label');
-        if (typeof label === 'string' && matcher(label)) {
+        const filePath = node.data('filePath');
+        const searchText = typeof label === 'string' && typeof filePath === 'string'
+          ? `${label} ${filePath}`
+          : typeof label === 'string' ? label : '';
+        if (matcher(searchText)) {
           matchedCyNodeIds.add(node.id());
           matches++;
         }

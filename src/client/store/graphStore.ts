@@ -14,7 +14,7 @@ import { computeViewModeTransition } from './viewModeTransition.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { type LayoutType, type ThemeType, type RankDir, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
 
-import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, LOD, UI, getDynamicMaxVisibleNodes } from '../../shared/constants.ts';
+import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, LOD, UI, PREFETCH, FUNCTION_BODY, getDynamicMaxVisibleNodes } from '../../shared/constants.ts';
 
 const log = scoped('store');
 
@@ -27,6 +27,7 @@ let id: IndexedDBCache | null = null;
 const callChainAggregator = new CallChainAggregator();
 let microAssemblyGeneration = 0;
 let incrementalClusterCtx: IncrementalClusterContext | null = null;
+let prefetchInFlightCount = 0;
 
 function detectInitialTheme(): ThemeType {
   if (typeof document === 'undefined') return 'dark';
@@ -540,6 +541,16 @@ export const useGraphStore = create<GraphState>()(
           ? getDynamicMaxVisibleNodes(panelWidth)
           : CLUSTER.MAX_VISIBLE_NODES;
         const effectiveExpanded = new Set(expandedNodeIds);
+        const expandingFunctionBody = rawNodes.some((n) => n.id === nodeId && n.type === 'function');
+        if (expandingFunctionBody) {
+          const expandedFunctionBodies = [...effectiveExpanded].filter((id) =>
+            rawNodes.some((n) => n.id === id && n.type === 'function'),
+          );
+          while (expandedFunctionBodies.length >= FUNCTION_BODY.MAX_EXPANDED) {
+            const oldest = expandedFunctionBodies.shift()!;
+            effectiveExpanded.delete(oldest);
+          }
+        }
         effectiveExpanded.add(nodeId);
         if (nodes.length + cost > maxVisible) {
           const clusterNodes = nodes.filter((n): n is ClusterNode => 'isCluster' in n && n.isCluster === true);
@@ -559,9 +570,14 @@ export const useGraphStore = create<GraphState>()(
         applyClusterUpdate(effectiveExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set);
       },
       prefetchExpand: (nodeId) => {
+        if (prefetchInFlightCount >= PREFETCH.CONCURRENCY_LIMIT) return;
         const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, viewMode, diagramData, currentLayer } = useGraphStore.getState();
         if (isLayeredViewMode(viewMode)) return;
         if (expandedNodeIds.has(nodeId)) return;
+        const rawNode = rawNodes.find((n) => n.id === nodeId);
+        if (rawNode?.type === 'function') return;
+        const cost = estimateExpandCost(nodeId, rawNodes);
+        if (cost > PREFETCH.COST_THRESHOLD) return;
         const newExpanded = new Set(expandedNodeIds);
         newExpanded.add(nodeId);
         let sourceNodes = rawNodes;
@@ -577,8 +593,13 @@ export const useGraphStore = create<GraphState>()(
         const expandedKey = [...newExpanded].sort().join(',');
         const cacheLevel = `progressive:${clusterDepth}`;
         if (clusterCache.get(dataHash, cacheLevel, expandedKey)) return;
-        const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', newExpanded, clusterDepth, useGraphStore.getState().panelWidth ?? undefined);
-        clusterCache.set(dataHash, cacheLevel, expandedKey, result);
+        prefetchInFlightCount++;
+        try {
+          const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', newExpanded, clusterDepth, useGraphStore.getState().panelWidth ?? undefined);
+          clusterCache.set(dataHash, cacheLevel, expandedKey, result);
+        } finally {
+          prefetchInFlightCount--;
+        }
       },
       collapseNode: (nodeId) => {
         const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();

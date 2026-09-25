@@ -81,8 +81,20 @@ export class DiagramCache {
     if (value) {
       this.cache.delete(key);
       this.cache.set(key, value);
+      return value;
     }
-    return value ?? null;
+    if (this.idbCache) {
+      this.idbCache.getDiagram(key).then((diagram: unknown) => {
+        if (diagram && !this.cache.has(key)) {
+          if (this.cache.size >= this.maxEntries) {
+            const firstKey = this.cache.keys().next().value;
+            if (firstKey) this.cache.delete(firstKey);
+          }
+          this.cache.set(key, diagram as LayeredDiagram);
+        }
+      }).catch(() => {});
+    }
+    return null;
   }
 
   set(viewMode: ViewMode, dataHash: string, diagram: LayeredDiagram): void {
@@ -140,8 +152,20 @@ export class ClusterCache {
     if (value) {
       this.cache.delete(key);
       this.cache.set(key, value);
+      return value;
     }
-    return value ?? null;
+    if (this.idbCache) {
+      this.idbCache.getCluster(key).then((result: unknown) => {
+        if (result && !this.cache.has(key)) {
+          if (this.cache.size >= this.maxEntries) {
+            const firstKey = this.cache.keys().next().value;
+            if (firstKey) this.cache.delete(firstKey);
+          }
+          this.cache.set(key, result as ClusterResult);
+        }
+      }).catch(() => {});
+    }
+    return null;
   }
 
   set(

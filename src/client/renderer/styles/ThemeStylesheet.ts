@@ -3,6 +3,7 @@ import type { ThemeType } from '../IRenderer.ts';
 import { buildDiagramStyles, type StyleContext } from './diagramStyles.ts';
 import { LAYOUT, LOD, COLORS } from '../../../shared/constants.ts';
 import { type ThemeColors, readCssVar, readCssVarCached } from './styleUtils.ts';
+import { LAYER_COLORS, getLayerColor } from '../../../shared/layerUtils.ts';
 
 export { type ThemeColors, readCssVar, readCssVarCached, invalidateCssVarCache } from './styleUtils.ts';
 
@@ -182,7 +183,12 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
       selector: 'node[type="type"]',
       style: { 'shape': 'star', 'background-color': c.nodeType },
     },
+    ...Object.keys(LAYER_COLORS).map((layer) => ({
+      selector: `node[layer="${layer}"]`,
+      style: { 'border-color': getLayerColor(layer, isDark), 'border-width': isLargeGraph ? 2 : 3 },
+    })),
     {
+
       selector: 'node[nodeRole="entry"]',
       style: {
         'border-width': isLargeGraph ? 2 : 3,

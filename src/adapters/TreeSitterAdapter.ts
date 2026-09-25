@@ -3,6 +3,7 @@ import { NodeId, EdgeId } from '../types/index.ts';
 import type { GraphNode, GraphEdge, AdapterResult, DataSourceType } from '../types/index.ts';
 import type { IAnalysisAdapter } from './IAdapter.ts';
 import type { ASTNode } from '../shared/CFGTypes.ts';
+import { inferLayerFromPath } from '../shared/layerUtils.ts';
 
 const log = scoped('tree-sitter-adapter');
 
@@ -229,6 +230,7 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
               lineNumber: node.startPosition.row + 1,
               properties: { source: 'tree-sitter', nodeType },
               ...(parentId ? { parentId: NodeId(parentId) } : {}),
+              layer: inferLayerFromPath(filePath),
             });
 
             if (parentId) {

@@ -204,6 +204,16 @@ export const CACHE = {
   GRAPH_CACHE_LIMIT: 8,
 } as const;
 
+export const PREFETCH = {
+  CONCURRENCY_LIMIT: 2,
+  COST_THRESHOLD: 50,
+  HOVER_DEBOUNCE_MS: 300,
+} as const;
+
+export const FUNCTION_BODY = {
+  MAX_EXPANDED: 2,
+} as const;
+
 export const VALIDATION = {
   MAX_PATH_LENGTH: 4096,
   MAX_GIT_REF_LENGTH: 256,
