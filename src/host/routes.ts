@@ -8,6 +8,7 @@ import type { GraphData, GraphNode, GraphEdge, IncomingMessage, ServerResponse, 
 import { RepoId, NodeId, EdgeId } from '../types/index.ts';
 import { fetchMergedGraph } from '../tools.ts';
 import { createInvoke } from '../tools.ts';
+import type { UpstreamInvoker } from '../adapters/IAdapter.ts';
 import { SecurityManager } from './security.ts';
 import { findWorkspacePath, extractWorkspacePaths, checkPrerequisites } from './prerequisites.ts';
 import type { VisualizerConfig } from './config.ts';
@@ -113,6 +114,7 @@ export interface RouteDeps {
   ctx: Context;
   config: VisualizerConfig;
   securityManager: SecurityManager;
+  invokeUpstream?: UpstreamInvoker;
   getLastGraphData: () => GraphData | null;
   setLastGraphData: (data: GraphData | null) => void;
   getLastInitResult: () => { success: boolean; path: string; message: string; timestamp: number } | null;
@@ -181,7 +183,7 @@ export function createInvokeUpstream(ctx: Context, config: VisualizerConfig) {
 
 export function registerService(deps: RouteDeps): void {
   const { ctx, config } = deps;
-  const invokeUpstream = createInvokeUpstream(ctx, config);
+  const invokeUpstream = deps.invokeUpstream ?? createInvokeUpstream(ctx, config);
 
   ctx.effect(() => {
     const service: IGraphVisualizerService = {
@@ -669,7 +671,7 @@ function registerTreeSitterRoute(rc: RouteContext, sharedTreeSitterAdapter: Tree
 
 export function registerRoutes(deps: RouteDeps): void {
   const { ctx, config } = deps;
-  const invokeUpstream = createInvokeUpstream(ctx, config);
+  const invokeUpstream = deps.invokeUpstream ?? createInvokeUpstream(ctx, config);
   const corsConfig: CorsConfig = { origins: config.allowedOrigins };
   const rateLimiter = createRateLimiter();
   const sharedTreeSitterAdapter = new TreeSitterAdapter();

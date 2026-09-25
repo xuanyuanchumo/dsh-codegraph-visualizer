@@ -76,6 +76,18 @@ export function parseCargoToml(content: string): DependencyGraph {
     let inDepsSection = false;
     let pendingTableDep: { name: string; fields: string[] } | null = null;
     for (const line of lines) {
+      const tableDepHeaderMatch = line.match(/^\[dependencies\.([a-zA-Z0-9_-]+)\]/);
+      if (tableDepHeaderMatch) {
+        const depName = tableDepHeaderMatch[1]!;
+        const depId = `dep:${depName}`;
+        if (!seenIds.has(depId)) {
+          seenIds.add(depId);
+          nodes.push({ id: depId, name: depName, version: '0.0.0', type: 'cargo' });
+        }
+        edges.push({ source: rootId, target: depId, type: 'depends', scope: 'prod' });
+        inDepsSection = false;
+        continue;
+      }
       if (line.match(/^\[dependencies\]/)) { inDepsSection = true; continue; }
       if (line.match(/^\[/)) { inDepsSection = false; continue; }
       if (!inDepsSection) continue;

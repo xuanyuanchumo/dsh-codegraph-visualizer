@@ -45,10 +45,13 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   const scanInFlightMap = new Map<string, Promise<GraphData>>();
   const scanCache = new Map<string, { data: GraphData; timestamp: number }>();
 
+  const invokeUpstream = createInvokeUpstream(ctx, config);
+
   const routeDeps = {
     ctx,
     config,
     securityManager,
+    invokeUpstream,
     getLastGraphData: () => lastGraphData,
     setLastGraphData: (data: GraphData | null) => { lastGraphData = data; },
     getLastInitResult: () => lastInitResult,
@@ -64,7 +67,6 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   registerService(routeDeps);
   registerRoutes(routeDeps);
 
-  const invokeUpstream = createInvokeUpstream(ctx, config);
 
   let lastStatus = '';
   const emitPrereqStatus = () => {

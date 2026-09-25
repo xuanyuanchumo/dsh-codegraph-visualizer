@@ -110,7 +110,9 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
       if (this.currentLanguage) {
         try { (this.currentLanguage as unknown as { delete?: () => void }).delete?.(); } catch { /* old language cleanup */ }
       }
-      this.parser!.setLanguage(langModule);
+      const parser = this.parser;
+      if (!parser) return false;
+      parser.setLanguage(langModule);
       this.currentLanguage = langModule;
       this.loadedLanguages.add(language);
       return true;

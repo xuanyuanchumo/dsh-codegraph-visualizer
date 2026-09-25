@@ -5,6 +5,7 @@ import { scoped } from '../shared/Logger.ts';
 import { WATCHER, ERROR_CODES } from '../shared/constants.ts';
 import { fetchMergedGraph } from '../tools.ts';
 import { RepoId } from '../types/index.ts';
+import type { UpstreamInvoker } from '../adapters/IAdapter.ts';
 import type { VisualizerConfig } from './config.ts';
 
 const log = scoped('host');
@@ -12,7 +13,7 @@ const supportsRecursive = platform() === 'win32' || platform() === 'darwin';
 
 async function scanAndPush(
   ctx: Context,
-  invokeUpstream: (tool: string, args: Record<string, unknown>) => Promise<unknown | null>,
+  invokeUpstream: UpstreamInvoker,
   path: string,
 ): Promise<void> {
   log.info('scan requested', { path });
@@ -37,7 +38,7 @@ async function scanAndPush(
   }
 }
 
-export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUpstream: (tool: string, args: Record<string, unknown>) => Promise<unknown | null>): void {
+export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUpstream: UpstreamInvoker): void {
   let watchTimer: ReturnType<typeof setTimeout> | null = null;
   let activeWatcher: { close: () => void } | null = null;
   let retryCount = 0;
@@ -107,7 +108,7 @@ export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUp
   }, 'codegraph: watch toggle listener');
 }
 
-export function registerEventListeners(ctx: Context, invokeUpstream: (tool: string, args: Record<string, unknown>) => Promise<unknown | null>): void {
+export function registerEventListeners(ctx: Context, invokeUpstream: UpstreamInvoker): void {
   ctx.effect(() => ctx.on('codegraph-visualizer/repo/imported', (event) => {
     ctx.emit('codegraph-visualizer/graph/updated', { repoId: event.repoId, nodeCount: 0, edgeCount: 0, timestamp: event.timestamp });
   }), 'codegraph: repo imported listener');

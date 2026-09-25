@@ -44,6 +44,13 @@ export class McpServer {
       log.info('MCP server stopped');
     });
 
+    this.rl.on('error', (err: Error) => {
+      log.error('MCP server stdin error', err);
+      this.running = false;
+      try { this.rl?.close(); } catch { /* already closed */ }
+      this.rl = null;
+    });
+
     log.info('MCP server started', { tools: this.tools.size });
   }
 

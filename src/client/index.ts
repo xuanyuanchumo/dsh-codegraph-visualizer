@@ -386,11 +386,6 @@ export function apply(ctx: Context) {
     }, 'codegraph: window event listeners');
   }
 
-  ctx.effect(() => () => {
-    disposeStore();
-    resetI18nListeners();
-    resetLoggerListeners();
-  }, 'codegraph: module-level state cleanup');
 
   return () => {
     disposeStore();
