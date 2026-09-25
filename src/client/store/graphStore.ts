@@ -185,13 +185,14 @@ function applyClusterUpdate(
   }
   const dataHash = computeDataHash(sourceNodes, sourceEdges);
   const expandedKey = [...newExpanded].sort().join(',');
-  const cached = clusterCache.get(dataHash, 'progressive', expandedKey);
+  const cacheLevel = `progressive:${clusterDepth}`;
+  const cached = clusterCache.get(dataHash, cacheLevel, expandedKey);
   if (cached) {
     set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: cached.nodes, edges: cached.edges });
     return;
   }
   const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', newExpanded, clusterDepth, useGraphStore.getState().panelWidth ?? undefined);
-  clusterCache.set(dataHash, 'progressive', expandedKey, result);
+  clusterCache.set(dataHash, cacheLevel, expandedKey, result);
   set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: result.nodes, edges: result.edges });
 }
 
@@ -670,10 +671,18 @@ export const useGraphStore = create<GraphState>()(
     }),
     {
       name: 'dsh-codegraph-visualizer/ui',
-      version: 8,
+      version: 9,
       storage: createJSONStorage(() =>
         typeof window !== 'undefined' ? window.localStorage : memoryStorage,
       ),
+      merge: (persisted, current) => {
+        const p = persisted as Record<string, unknown>;
+        const raw = p.expandedNodeIds;
+        const expandedNodeIds = Array.isArray(raw)
+          ? new Set(raw as string[])
+          : raw instanceof Set ? (raw as Set<string>) : new Set<string>();
+        return { ...current, ...(persisted as object), expandedNodeIds } as GraphState;
+      },
       migrate: (persisted, version) => {
         const p = persisted as Partial<GraphState>;
         const layout = p.layout;
@@ -713,6 +722,12 @@ export const useGraphStore = create<GraphState>()(
           const savedRankDir = (p as { dagreRankDir?: string }).dagreRankDir;
           (result as Record<string, unknown>).dagreRankDir = validRankDirs.includes(savedRankDir ?? '') ? savedRankDir : 'TB';
         }
+        if (version < 9) {
+          const arr = (p as { expandedNodeIds?: unknown }).expandedNodeIds;
+          (result as Record<string, unknown>).expandedNodeIds = Array.isArray(arr)
+            ? new Set(arr as string[])
+            : new Set<string>();
+        }
         return result;
       },
       partialize: (s) => ({
@@ -721,6 +736,7 @@ export const useGraphStore = create<GraphState>()(
         currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
         rules: s.rules, focusDepth: s.focusDepth,
         panelHeight: s.panelHeight, panelWidth: s.panelWidth,
+        expandedNodeIds: [...s.expandedNodeIds] as unknown as Set<string>,
       }),
     },
   ),

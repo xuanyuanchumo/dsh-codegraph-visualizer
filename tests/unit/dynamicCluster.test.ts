@@ -36,9 +36,9 @@ describe('DYNAMIC_CLUSTER constants', () => {
   });
 
   it('should have different max visible nodes for different screen sizes', () => {
-    expect(DYNAMIC_CLUSTER.MAX_VISIBLE_NODES_SMALL).toBe(3000);
-    expect(DYNAMIC_CLUSTER.MAX_VISIBLE_NODES_MEDIUM).toBe(5000);
-    expect(DYNAMIC_CLUSTER.MAX_VISIBLE_NODES_LARGE).toBe(8000);
+    expect(DYNAMIC_CLUSTER.MAX_VISIBLE_NODES_SMALL).toBe(800);
+    expect(DYNAMIC_CLUSTER.MAX_VISIBLE_NODES_MEDIUM).toBe(1200);
+    expect(DYNAMIC_CLUSTER.MAX_VISIBLE_NODES_LARGE).toBe(1500);
   });
 });
 
