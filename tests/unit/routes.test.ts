@@ -98,10 +98,11 @@ function makeConfig(overrides: Partial<VisualizerConfig> = {}): VisualizerConfig
   };
 }
 
-function makeReq(method: string, body?: string, headers: Record<string, string> = {}, socketAddr?: string): IncomingMessage {
+function makeReq(method: string, body?: string, headers: Record<string, string> = {}, socketAddr?: string, url?: string): IncomingMessage {
   const req = {
     method,
     headers,
+    url: url ?? '/',
     socket: socketAddr ? { remoteAddress: socketAddr } : { remoteAddress: '127.0.0.1' },
     on: vi.fn((event: string, cb: (chunk?: unknown) => void) => {
       if (event === 'data' && body) cb(Buffer.from(body));
@@ -170,9 +171,9 @@ describe('registerRoutes', () => {
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
   });
 
-  it('registers all 11 routes', () => {
+  it('registers all 13 routes', () => {
     registerRoutes(deps);
-    expect(ctx.webServer.register).toHaveBeenCalledTimes(11);
+    expect(ctx.webServer.register).toHaveBeenCalledTimes(13);
   });
 
   it('GET /status returns prerequisites status', () => {
@@ -1575,6 +1576,89 @@ describe('rate limiter - cleanup logic', () => {
     const { res: res1Again, state: state1Again } = makeRes();
     handler(makeReq('GET', undefined, {}, ip1), res1Again);
     expect(state1Again.code).toBe(200);
+  });
+});
+
+describe('bootstrap route', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockClear();
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    mockIsPathAllowed.mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+  });
+
+  it('GET /bootstrap returns empty when no graph data', () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 11);
+    const { res, state } = makeRes();
+    handler(makeReq('GET'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.rootNodes).toEqual([]);
+    expect(body.topLevelNodes).toEqual([]);
+    expect(body.indexStatus).toBe('empty');
+  });
+
+  it('GET /bootstrap returns root nodes when graph data exists', () => {
+    const nodes = [
+      makeNode('root1', 'Root 1', 'module', '/src', 1),
+      makeNode('root2', 'Root 2', 'module', '/lib', 1),
+      makeNode('child1', 'Child 1', 'function', '/src/main.ts', 1, {}, 'root1'),
+    ];
+    const edges = [makeEdge('e1', 'root1', 'root2', 'dependency')];
+    deps.setLastGraphData(makeGraphData(nodes, edges));
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 11);
+    const { res, state } = makeRes();
+    handler(makeReq('GET'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.rootNodes).toHaveLength(2);
+    expect(body.topLevelNodes).toHaveLength(2);
+    expect(body.topLevelTotal).toBe(2);
+    expect(body.indexStatus).toBe('ready');
+    expect(body.metadata.totalNodeCount).toBe(3);
+  });
+});
+
+describe('node children route', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockClear();
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    mockIsPathAllowed.mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+  });
+
+  it('GET /children returns children of specified node', () => {
+    const parentNode = makeNode('parent', 'Parent', 'module', '/src', 1);
+    const child1 = makeNode('child1', 'Child 1', 'function', '/src/a.ts', 1, {}, 'parent');
+    const child2 = makeNode('child2', 'Child 2', 'class', '/src/b.ts', 1, {}, 'parent');
+    const otherNode = makeNode('other', 'Other', 'function', '/lib/c.ts', 1, {}, 'different-parent');
+
+    deps.setLastGraphData(makeGraphData([parentNode, child1, child2, otherNode], []));
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 12);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/children?nodeId=parent'), res);
+    expect(state.code).toBe(200);
   });
 });
 

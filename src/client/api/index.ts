@@ -1,7 +1,7 @@
 import { scoped } from '../../shared/Logger.ts';
-import type { GraphData } from '../../types/index.ts';
+import type { GraphData, GraphNode, GraphEdge } from '../../types/index.ts';
 import { validateGraphData } from '../validators.ts';
-import { API } from '../../shared/constants.ts';
+import { API, BOOTSTRAP } from '../../shared/constants.ts';
 
 const log = scoped('client');
 
@@ -11,6 +11,61 @@ function fetchWithTimeout(url: string, options?: RequestInit, timeoutMs: number 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
+export interface BootstrapData {
+  rootNodes: GraphNode[];
+  topLevelNodes: GraphNode[];
+  topLevelTotal: number;
+  edges: GraphEdge[];
+  indexStatus: 'ready' | 'building' | 'empty';
+  metadata: {
+    repoId: string;
+    timestamp: number;
+    totalNodeCount: number;
+    totalEdgeCount: number;
+  };
+}
+
+export async function fetchBootstrap(): Promise<BootstrapData | null> {
+  try {
+    const res = await fetchWithTimeout('/api/v1/codegraph/bootstrap');
+    if (!res.ok) return null;
+    const data = await res.json() as BootstrapData;
+    return {
+      rootNodes: data.rootNodes ?? [],
+      topLevelNodes: data.topLevelNodes ?? [],
+      topLevelTotal: data.topLevelTotal ?? 0,
+      edges: data.edges ?? [],
+      indexStatus: data.indexStatus ?? 'empty',
+      metadata: data.metadata ?? { repoId: '', timestamp: 0, totalNodeCount: 0, totalEdgeCount: 0 },
+    };
+  } catch (e) {
+    log.warn('fetchBootstrap failed', { error: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
+}
+
+export interface NodeChildrenData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  cursor: string | null;
+  total: number;
+}
+
+export async function fetchNodeChildren(nodeId: string, cursor?: string, limit?: number): Promise<NodeChildrenData | null> {
+  try {
+    const params = new URLSearchParams();
+    params.set('nodeId', nodeId);
+    if (cursor) params.set('cursor', cursor);
+    params.set('limit', String(limit ?? BOOTSTRAP.CHILDREN_PAGE_SIZE));
+    const res = await fetchWithTimeout(`/api/v1/codegraph/children?${params}`);
+    if (!res.ok) return null;
+    return await res.json() as NodeChildrenData;
+  } catch (e) {
+    log.warn('fetchNodeChildren failed', { nodeId, error: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
 }
 
 export async function fetchStatus(): Promise<{ codegraph: boolean; lens: boolean }> {

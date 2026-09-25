@@ -34,6 +34,44 @@ function detectInitialTheme(): ThemeType {
   return document.body.hasAttribute('data-ds-dark-theme') ? 'dark' : 'light';
 }
 
+function computeMaxVisible(panelWidth: number | null | undefined): number {
+  return panelWidth !== null && panelWidth !== undefined
+    ? getDynamicMaxVisibleNodes(panelWidth)
+    : CLUSTER.MAX_VISIBLE_NODES;
+}
+
+function enforceFunctionBodyBudget(
+  expanded: Set<string>,
+  rawNodes: GraphNode[],
+  maxExpanded: number,
+): void {
+  const expandedFunctionBodies = [...expanded].filter((id) =>
+    rawNodes.some((n) => n.id === id && n.type === 'function'),
+  );
+  while (expandedFunctionBodies.length > maxExpanded) {
+    const oldest = expandedFunctionBodies.shift()!;
+    expanded.delete(oldest);
+  }
+}
+
+function collapseExcessClusters(
+  nodes: (GraphNode | ClusterNode)[],
+  effectiveExpanded: Set<string>,
+  maxVisible: number,
+  costOffset: number,
+): void {
+  if (nodes.length + costOffset <= maxVisible) return;
+  const clusterNodes = nodes.filter((n): n is ClusterNode => 'isCluster' in n && n.isCluster === true);
+  const sorted = [...clusterNodes].sort((a, b) => b.childCount - a.childCount);
+  for (const cn of sorted) {
+    if (nodes.length + costOffset - cn.childCount <= maxVisible) {
+      effectiveExpanded.delete(cn.id);
+      break;
+    }
+    effectiveExpanded.delete(cn.id);
+  }
+}
+
 const memoryStorage: StateStorage = {
   getItem: () => null,
   setItem: () => {},
@@ -276,6 +314,7 @@ interface GraphState {
   lodEnabled: boolean;
 
   setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata?: { truncated?: boolean; totalNodeCount?: number; totalEdgeCount?: number }) => void;
+  setBootstrapData: (rootNodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata: { totalNodeCount: number; totalEdgeCount: number; timestamp: number }) => void;
   setLayout: (layout: LayoutType) => void;
   setDagreRankDir: (dir: RankDir) => void;
   setTheme: (theme: ThemeType) => void;
@@ -466,6 +505,36 @@ export const useGraphStore = create<GraphState>()(
           set({ error: err instanceof Error ? err.message : String(err), isLoading: false });
         }
       },
+      setBootstrapData: (rootNodes, edges, repoId, metadata) => {
+        try {
+          clearLoadingFailsafe();
+          incrementalClusterCtx = null;
+          const sanitized = sanitizeGraphData(rootNodes, edges);
+          set({
+            rawNodes: sanitized.nodes,
+            rawEdges: sanitized.edges,
+            nodes: sanitized.nodes,
+            edges: sanitized.edges,
+            diagramData: null,
+            repoId,
+            error: null,
+            isLoading: false,
+            lastUpdated: metadata.timestamp,
+            truncated: false,
+            totalNodeCount: metadata.totalNodeCount,
+            totalEdgeCount: metadata.totalEdgeCount,
+            healthScore: null,
+            ruleViolations: [],
+            performanceDegradations: [],
+            expandedNodeIds: new Set(),
+            expandedNodeIdsByViewMode: {},
+          });
+          log.info('bootstrap data set', { rootNodes: sanitized.nodes.length, totalNodeCount: metadata.totalNodeCount });
+        } catch (err) {
+          log.error('setBootstrapData failed', { err });
+          set({ error: err instanceof Error ? err.message : String(err), isLoading: false });
+        }
+      },
       setLayout: (layout) => set({ layout }),
       setDagreRankDir: (dagreRankDir) => set({ dagreRankDir }),
       setTheme: (theme) => { invalidateCssVarCache(); set({ theme }); },
@@ -538,32 +607,14 @@ export const useGraphStore = create<GraphState>()(
       expandNode: (nodeId) => {
         const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, nodes, panelWidth } = useGraphStore.getState();
         const cost = estimateExpandCost(nodeId, rawNodes);
-        const maxVisible = panelWidth !== null && panelWidth !== undefined
-          ? getDynamicMaxVisibleNodes(panelWidth)
-          : CLUSTER.MAX_VISIBLE_NODES;
+        const maxVisible = computeMaxVisible(panelWidth);
         const effectiveExpanded = new Set(expandedNodeIds);
         const expandingFunctionBody = rawNodes.some((n) => n.id === nodeId && n.type === 'function');
         if (expandingFunctionBody) {
-          const expandedFunctionBodies = [...effectiveExpanded].filter((id) =>
-            rawNodes.some((n) => n.id === id && n.type === 'function'),
-          );
-          while (expandedFunctionBodies.length >= FUNCTION_BODY.MAX_EXPANDED) {
-            const oldest = expandedFunctionBodies.shift()!;
-            effectiveExpanded.delete(oldest);
-          }
+          enforceFunctionBodyBudget(effectiveExpanded, rawNodes, FUNCTION_BODY.MAX_EXPANDED - 1);
         }
         effectiveExpanded.add(nodeId);
-        if (nodes.length + cost > maxVisible) {
-          const clusterNodes = nodes.filter((n): n is ClusterNode => 'isCluster' in n && n.isCluster === true);
-          const sorted = [...clusterNodes].sort((a, b) => b.childCount - a.childCount);
-          for (const cn of sorted) {
-            if (nodes.length + cost - cn.childCount <= maxVisible) {
-              effectiveExpanded.delete(cn.id);
-              break;
-            }
-            effectiveExpanded.delete(cn.id);
-          }
-        }
+        collapseExcessClusters(nodes, effectiveExpanded, maxVisible, cost);
         if (cost > CLUSTER.EXPAND_BUDGET_SINGLE) {
           log.warn('expand budget exceeded', { nodeId, cost, budget: CLUSTER.EXPAND_BUDGET_SINGLE });
         }
@@ -573,28 +624,13 @@ export const useGraphStore = create<GraphState>()(
       batchExpandNodes: (nodeIds) => {
         const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, nodes, panelWidth } = useGraphStore.getState();
         if (nodeIds.length === 0) return;
-        const maxVisible = panelWidth !== null && panelWidth !== undefined
-          ? getDynamicMaxVisibleNodes(panelWidth)
-          : CLUSTER.MAX_VISIBLE_NODES;
+        const maxVisible = computeMaxVisible(panelWidth);
         const effectiveExpanded = new Set(expandedNodeIds);
         for (const nodeId of nodeIds) {
           effectiveExpanded.add(nodeId);
         }
-        const expandedFunctionBodies = [...effectiveExpanded].filter((id) =>
-          rawNodes.some((n) => n.id === id && n.type === 'function'),
-        );
-        while (expandedFunctionBodies.length > FUNCTION_BODY.MAX_EXPANDED) {
-          const oldest = expandedFunctionBodies.shift()!;
-          effectiveExpanded.delete(oldest);
-        }
-        if (nodes.length > maxVisible) {
-          const clusterNodes = nodes.filter((n): n is ClusterNode => 'isCluster' in n && n.isCluster === true);
-          const sorted = [...clusterNodes].sort((a, b) => b.childCount - a.childCount);
-          for (const cn of sorted) {
-            if (nodes.length <= maxVisible) break;
-            effectiveExpanded.delete(cn.id);
-          }
-        }
+        enforceFunctionBodyBudget(effectiveExpanded, rawNodes, FUNCTION_BODY.MAX_EXPANDED);
+        collapseExcessClusters(nodes, effectiveExpanded, maxVisible, 0);
         const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: effectiveExpanded };
         applyClusterUpdate(effectiveExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set);
       },

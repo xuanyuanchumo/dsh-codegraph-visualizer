@@ -9,7 +9,7 @@ import { resetLoggerListeners } from '../shared/Logger.ts';
 import type { GraphData } from '../types/index.ts';
 import { validateGraphData } from './validators.ts';
 import { PLUGIN_VERSION } from '../generated/version.ts';
-import { fetchStatus, fetchGraphData, fetchGraphDataIncremental, fetchWorkspace, requestScan, requestInit, requestWatch } from './api/index.ts';
+import { fetchStatus, fetchGraphData, fetchGraphDataIncremental, fetchWorkspace, requestScan, requestInit, requestWatch, fetchBootstrap } from './api/index.ts';
 import { t } from './i18n/index.ts';
 import { resetI18nListeners } from './i18n/index.ts';
 import { disposeStore } from './store/graphStore.ts';
@@ -215,6 +215,18 @@ export function apply(ctx: Context) {
           window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path: workspacePath } }));
         }
         log.info('auto-import requested', { path: workspacePath });
+
+        const bootstrap = await fetchBootstrap();
+        if (bootstrap && bootstrap.topLevelNodes.length > 0) {
+          const s2 = useGraphStore.getState();
+          s2.setBootstrapData(bootstrap.topLevelNodes, bootstrap.edges, workspacePath, {
+            totalNodeCount: bootstrap.metadata.totalNodeCount,
+            totalEdgeCount: bootstrap.metadata.totalEdgeCount,
+            timestamp: bootstrap.metadata.timestamp,
+          });
+          log.info('bootstrap data loaded', { rootNodes: bootstrap.topLevelNodes.length, totalNodeCount: bootstrap.metadata.totalNodeCount });
+        }
+
         store.setLoading(true);
         try {
           const result = await requestScan(workspacePath);

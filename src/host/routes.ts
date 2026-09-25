@@ -3,7 +3,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { scoped } from '../shared/Logger.ts';
-import { VALIDATION, AST, ERROR_CODES } from '../shared/constants.ts';
+import { VALIDATION, AST, ERROR_CODES, BOOTSTRAP } from '../shared/constants.ts';
 import type { GraphData, GraphNode, GraphEdge, IncomingMessage, ServerResponse, IGraphVisualizerService } from '../types/index.ts';
 import { RepoId, NodeId, EdgeId } from '../types/index.ts';
 import { fetchMergedGraph } from '../tools.ts';
@@ -669,6 +669,94 @@ function registerTreeSitterRoute(rc: RouteContext, sharedTreeSitterAdapter: Tree
     }), 'codegraph: tree-sitter route');
 }
 
+function registerBootstrapRoute(rc: RouteContext): void {
+  const { deps, corsConfig, rateLimiter } = rc;
+  const { ctx } = deps;
+  const routePath = '/api/v1/codegraph/bootstrap';
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: routePath,
+    handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, (req, res) => {
+      const lastGraphData = deps.getLastGraphData();
+      if (!lastGraphData || lastGraphData.nodes.length === 0) {
+        sendJson(res, 200, {
+          rootNodes: [],
+          topLevelNodes: [],
+          topLevelTotal: 0,
+          edges: [],
+          indexStatus: 'empty',
+          metadata: { repoId: RepoId('empty'), timestamp: 0, totalNodeCount: 0, totalEdgeCount: 0 },
+        }, req, corsConfig);
+        return;
+      }
+
+      const rootNodes = lastGraphData.nodes.filter((n) => !n.parentId);
+      const topLevelNodes = rootNodes.slice(0, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
+      const topLevelIds = new Set(topLevelNodes.map((n) => n.id));
+      const rootEdges = lastGraphData.edges.filter(
+        (e) => topLevelIds.has(e.source) && topLevelIds.has(e.target),
+      );
+
+      sendJson(res, 200, {
+        rootNodes,
+        topLevelNodes,
+        topLevelTotal: rootNodes.length,
+        edges: rootEdges,
+        indexStatus: 'ready',
+        metadata: {
+          repoId: lastGraphData.metadata.repoId,
+          timestamp: lastGraphData.metadata.timestamp,
+          totalNodeCount: lastGraphData.metadata.totalNodeCount ?? lastGraphData.nodes.length,
+          totalEdgeCount: lastGraphData.metadata.totalEdgeCount ?? lastGraphData.edges.length,
+        },
+      }, req, corsConfig);
+    }),
+  }), 'codegraph: bootstrap route');
+}
+
+function registerNodeChildrenRoute(rc: RouteContext): void {
+  const { deps, corsConfig, rateLimiter } = rc;
+  const { ctx } = deps;
+  const routePath = '/api/v1/codegraph/children';
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: routePath,
+    handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, (req, res) => {
+      const url = new URL(req.url ?? '', `http://${req.headers.host ?? 'localhost'}`);
+      const nodeId = url.searchParams.get('nodeId');
+      if (!nodeId || nodeId.length > VALIDATION.MAX_PATH_LENGTH) {
+        sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
+        return;
+      }
+
+      const lastGraphData = deps.getLastGraphData();
+      if (!lastGraphData) {
+        sendJson(res, 200, { nodes: [], edges: [], cursor: null, total: 0 }, req, corsConfig);
+        return;
+      }
+
+      const cursor = parseInt(url.searchParams.get('cursor') ?? '0', 10) || 0;
+      const limit = parseInt(url.searchParams.get('limit') ?? String(BOOTSTRAP.CHILDREN_PAGE_SIZE), 10) || BOOTSTRAP.CHILDREN_PAGE_SIZE;
+
+      const children = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
+      const page = children.slice(cursor, cursor + limit);
+      const childIds = new Set(page.map((n) => n.id));
+      const childEdges = lastGraphData.edges.filter(
+        (e) => childIds.has(e.source) && childIds.has(e.target),
+      );
+
+      sendJson(res, 200, {
+        nodes: page,
+        edges: childEdges,
+        cursor: cursor + page.length < children.length ? String(cursor + page.length) : null,
+        total: children.length,
+      }, req, corsConfig);
+    }),
+  }), 'codegraph: node children route');
+}
+
 export function registerRoutes(deps: RouteDeps): void {
   const { ctx, config } = deps;
   const invokeUpstream = deps.invokeUpstream ?? createInvokeUpstream(ctx, config);
@@ -689,6 +777,8 @@ export function registerRoutes(deps: RouteDeps): void {
   registerDiffRoute(rc);
   registerAstRoute(rc, sharedTreeSitterAdapter);
   registerTreeSitterRoute(rc, sharedTreeSitterAdapter);
+  registerBootstrapRoute(rc);
+  registerNodeChildrenRoute(rc);
 
   ctx.effect(() => () => rateLimiter.reset(), 'codegraph: rate limiter cleanup');
   ctx.effect(() => () => sharedTreeSitterAdapter.destroy(), 'codegraph: tree-sitter adapter cleanup');
