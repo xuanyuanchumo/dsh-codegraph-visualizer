@@ -15,6 +15,7 @@ export interface GraphRendererCallbacks {
   onNodeTap(nodeId: NodeId): void;
   onNodeDoubleTap(nodeId: string): void;
   onNodeHover(nodeId: string, pos: { x: number; y: number }): void;
+  onNodeHoverPrefetch?(nodeId: string): void;
   onNodeHoverOut(): void;
   onEdgeTap(edgeId: string, pos: { x: number; y: number }): void;
   onEdgeHover(edgeId: string, pos: { x: number; y: number }): void;
@@ -124,6 +125,7 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
           },
           onNodeDoubleTap: (nodeId: string) => callbacksRef.current.onNodeDoubleTap(nodeId),
           onNodeHover: (nodeId: string, pos: { x: number; y: number }) => callbacksRef.current.onNodeHover(nodeId, pos),
+          onNodeHoverPrefetch: (nodeId: string) => callbacksRef.current.onNodeHoverPrefetch?.(nodeId),
           onNodeHoverOut: () => callbacksRef.current.onNodeHoverOut(),
           onEdgeTap: (edgeId: string, pos: { x: number; y: number }) => callbacksRef.current.onEdgeTap(edgeId, pos),
           onEdgeHover: (edgeId: string, pos: { x: number; y: number }) => callbacksRef.current.onEdgeHover(edgeId, pos),

@@ -289,6 +289,7 @@ interface GraphState {
   setInitStatus: (status: 'idle' | 'initializing' | 'done' | 'error', message?: string | null) => void;
   setWatchEnabled: (enabled: boolean) => void;
   expandNode: (nodeId: string) => void;
+  prefetchExpand: (nodeId: string) => void;
   collapseNode: (nodeId: string) => void;
   collapseAll: () => void;
   setCurrentWorkspace: (path: string) => void;
@@ -528,6 +529,28 @@ export const useGraphStore = create<GraphState>()(
         newExpanded.add(nodeId);
         const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: newExpanded };
         applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set);
+      },
+      prefetchExpand: (nodeId) => {
+        const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, viewMode, diagramData, currentLayer } = useGraphStore.getState();
+        if (isLayeredViewMode(viewMode)) return;
+        if (expandedNodeIds.has(nodeId)) return;
+        const newExpanded = new Set(expandedNodeIds);
+        newExpanded.add(nodeId);
+        let sourceNodes = rawNodes;
+        let sourceEdges = rawEdges;
+        if (diagramData) {
+          const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+          if (layer) {
+            sourceNodes = layer.nodes;
+            sourceEdges = layer.edges;
+          }
+        }
+        const dataHash = computeDataHash(sourceNodes, sourceEdges);
+        const expandedKey = [...newExpanded].sort().join(',');
+        const cacheLevel = `progressive:${clusterDepth}`;
+        if (clusterCache.get(dataHash, cacheLevel, expandedKey)) return;
+        const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', newExpanded, clusterDepth, useGraphStore.getState().panelWidth ?? undefined);
+        clusterCache.set(dataHash, cacheLevel, expandedKey, result);
       },
       collapseNode: (nodeId) => {
         const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();

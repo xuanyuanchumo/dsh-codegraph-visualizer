@@ -128,6 +128,7 @@ export class CytoscapeRenderer implements IRenderer {
         onEdgeTap: this.options.onEdgeTap ?? (() => {}),
         onNodeDoubleTap: this.options.onNodeDoubleTap ?? (() => {}),
         onNodeHover: this.options.onNodeHover ?? (() => {}),
+        ...(this.options.onNodeHoverPrefetch ? { onNodeHoverPrefetch: this.options.onNodeHoverPrefetch } : {}),
         onNodeHoverOut: this.options.onNodeHoverOut ?? (() => {}),
         onEdgeHover: this.options.onEdgeHover ?? (() => {}),
         onEdgeHoverOut: this.options.onEdgeHoverOut ?? (() => {}),

@@ -12,6 +12,7 @@ export interface RendererCallbacks {
   onEdgeTap?(edgeId: string, renderedPosition: { x: number; y: number }): void;
   onNodeDoubleTap?(nodeId: string): void;
   onNodeHover?(nodeId: string, renderedPosition: { x: number; y: number }): void;
+  onNodeHoverPrefetch?(nodeId: string): void;
   onNodeHoverOut?(): void;
   onEdgeHover?(edgeId: string, renderedPosition: { x: number; y: number }): void;
   onEdgeHoverOut?(): void;

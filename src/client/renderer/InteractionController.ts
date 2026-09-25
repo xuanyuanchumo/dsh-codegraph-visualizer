@@ -30,6 +30,7 @@ export class InteractionController {
       node.addClass('hovered');
       const pos = node.renderedPosition();
       this.callbacks.onNodeHover?.(node.id(), { x: pos.x, y: pos.y });
+      this.callbacks.onNodeHoverPrefetch?.(node.id());
     });
     this.cy.on('mouseout', 'node', (evt) => {
       evt.target.removeClass('hovered');

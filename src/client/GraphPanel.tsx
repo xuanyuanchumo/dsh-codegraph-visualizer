@@ -226,6 +226,15 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, [adjacencyMap]);
 
   const handleNodeHoverOut = useCallback(() => setTooltip(null), []);
+
+  const hoverPrefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleNodeHoverPrefetch = useCallback((nodeId: string) => {
+    if (hoverPrefetchTimerRef.current) clearTimeout(hoverPrefetchTimerRef.current);
+    hoverPrefetchTimerRef.current = setTimeout(() => {
+      useGraphStore.getState().prefetchExpand(nodeId);
+    }, 300);
+  }, []);
+  useEffect(() => () => { if (hoverPrefetchTimerRef.current) clearTimeout(hoverPrefetchTimerRef.current); }, []);
   const handleEdgeHover = useCallback((edgeId: string, pos: { x: number; y: number }) => {
     const edgeData = getDataRef.current?.getEdgeData(edgeId);
     if (edgeData) {
@@ -265,7 +274,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     interaction: { highlightedNodeIds, selectedNodeId, focusNodeId, focusModeActive, focusModeNodeId, focusDepth, debouncedSearch },
     filters: { filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, pathFilterInclude, pathFilterExclude },
     analysis: { showCallChain: panel.showCallChain, showCycles: panel.showCycles, cycleIsolation: panel.cycleIsolation, showImpact: panel.showImpact, showInheritance: panel.showInheritance },
-    callbacks: { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverOut: handleNodeHoverOut, onEdgeTap: handleEdgeTap, onEdgeHover: handleEdgeHover, onEdgeHoverOut: handleEdgeHoverOut, onNodeContextTap: (nodeId: string, pos: { x: number; y: number }) => setContextMenu({ nodeId, position: pos }) },
+    callbacks: { onNodeTap: handleNodeTap, onNodeDoubleTap: handleNodeDoubleTap, onNodeHover: handleNodeHover, onNodeHoverPrefetch: handleNodeHoverPrefetch, onNodeHoverOut: handleNodeHoverOut, onEdgeTap: handleEdgeTap, onEdgeHover: handleEdgeHover, onEdgeHoverOut: handleEdgeHoverOut, onNodeContextTap: (nodeId: string, pos: { x: number; y: number }) => setContextMenu({ nodeId, position: pos }) },
     showCallChainRef,
   });
 
