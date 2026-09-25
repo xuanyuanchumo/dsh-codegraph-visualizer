@@ -54,7 +54,7 @@ export function usePanelResize(
       rendererRef.current?.resize();
     };
 
-    const handle = panel.querySelector<HTMLElement>('.resize-handle');
+    const handle = panel.querySelector<HTMLElement>('.cg-resize-handle');
     if (handle) {
       handle.addEventListener('pointerdown', onPointerDown);
       handle.addEventListener('dblclick', onDoubleClick);

@@ -46,7 +46,7 @@ export class ViewportController {
         if (el.nonempty()) el.addClass('focus-highlight');
       });
 
-      this.cy.nodes().forEach((node) => {
+      this.cy.nodes(':visible').forEach((node) => {
         if (!relevant.has(node.id())) {
           node.addClass('focus-dim');
           this.dimmedNodeIds.add(node.id());
@@ -91,7 +91,7 @@ export class ViewportController {
         const el = this.cy.getElementById(id);
         if (el.nonempty()) el.addClass('focus-highlight');
       });
-      this.cy.nodes().forEach((node) => {
+      this.cy.nodes(':visible').forEach((node) => {
         if (!relevant.has(node.id())) {
           node.addClass('focus-dim');
           this.dimmedNodeIds.add(node.id());

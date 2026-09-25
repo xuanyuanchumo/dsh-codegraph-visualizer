@@ -74,10 +74,10 @@ export class HighlightController {
           selectedNode.neighborhood().forEach((el) => {
             if (el.isNode()) neighborIds.add(el.id());
           });
-          this.cy.nodes().forEach((n) => {
+          this.cy.nodes(':visible').forEach((n) => {
             if (!neighborIds.has(n.id())) n.addClass('neighbor-dim');
           });
-          this.cy.edges().forEach((e) => {
+          this.cy.edges(':visible').forEach((e) => {
             const srcIn = neighborIds.has(e.source().id());
             const tgtIn = neighborIds.has(e.target().id());
             if (!srcIn || !tgtIn) e.addClass('neighbor-dim');

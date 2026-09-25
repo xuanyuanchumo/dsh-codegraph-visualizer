@@ -132,6 +132,7 @@ export class CytoscapeRenderer implements IRenderer {
         onNodeHoverOut: this.options.onNodeHoverOut ?? (() => {}),
         onEdgeHover: this.options.onEdgeHover ?? (() => {}),
         onEdgeHoverOut: this.options.onEdgeHoverOut ?? (() => {}),
+        ...(this.options.onNodeContextTap ? { onNodeContextTap: this.options.onNodeContextTap } : {}),
       });
       this.pathFinder = new PathFinder(cy, this.adjacencyCache);
       this.virtualViewportCtrl = new VirtualViewportController(cy);

@@ -120,34 +120,75 @@ export function parseExpandedNodeIds(expandedNodeIds: Set<string>): {
   return { expandedDirs, expandedFileClusters, expandedFuncClusters, expandedSubgroups };
 }
 
+let _dirToNodesCache: Map<string, GraphNode[]> | null = null;
+let _fileToNodesCache: Map<string, GraphNode[]> | null = null;
+let _rawNodesRef: GraphNode[] | null = null;
+
+function getDirToNodesCache(rawNodes: GraphNode[]): Map<string, GraphNode[]> {
+  if (_rawNodesRef === rawNodes && _dirToNodesCache) return _dirToNodesCache;
+  _rawNodesRef = rawNodes;
+  _dirToNodesCache = new Map();
+  for (const n of rawNodes) {
+    const depGroup = getDependencyGroup(n);
+    const dir = depGroup ?? (n.filePath ? getTopLevelDir(n.filePath) : n.id);
+    const list = _dirToNodesCache.get(dir);
+    if (list) list.push(n);
+    else _dirToNodesCache.set(dir, [n]);
+  }
+  return _dirToNodesCache;
+}
+
+function getFileToNodesCache(rawNodes: GraphNode[]): Map<string, GraphNode[]> {
+  if (_rawNodesRef === rawNodes && _fileToNodesCache) return _fileToNodesCache;
+  _rawNodesRef = rawNodes;
+  _fileToNodesCache = new Map();
+  for (const n of rawNodes) {
+    if (n.filePath) {
+      const list = _fileToNodesCache.get(n.filePath);
+      if (list) list.push(n);
+      else _fileToNodesCache.set(n.filePath, [n]);
+    }
+  }
+  return _fileToNodesCache;
+}
+
+export function invalidateExpandCostCache(): void {
+  _dirToNodesCache = null;
+  _fileToNodesCache = null;
+  _rawNodesRef = null;
+}
+
 export function estimateExpandCost(nodeId: string, rawNodes: GraphNode[]): number {
   if (nodeId.startsWith('subgroup__')) {
     const parts = nodeId.split('__');
     const dirPart = parts.slice(1, -1).join('__');
     const clusterId = `cluster__${dirPart}`;
+    const cache = getDirToNodesCache(rawNodes);
     let count = 0;
-    for (const n of rawNodes) {
-      const depGroup = getDependencyGroup(n);
-      const dir = depGroup ?? (n.filePath ? getTopLevelDir(n.filePath) : n.id);
-      if (`cluster__${dir.replace(/[/:\\]/g, '__')}` === clusterId) count++;
+    for (const [dir, nodes] of cache) {
+      if (`cluster__${dir.replace(/[/:\\]/g, '__')}` === clusterId) count += nodes.length;
     }
     return Math.max(0, count - 1);
   }
   if (nodeId.startsWith('cluster__')) {
     const dirPath = nodeId.replace(/^cluster__/, '').replace(/__/g, '/');
+    const cache = getDirToNodesCache(rawNodes);
+    const nodes = cache.get(dirPath);
+    if (nodes) return Math.max(0, nodes.length - 1);
     let count = 0;
-    for (const n of rawNodes) {
-      const depGroup = getDependencyGroup(n);
-      const dir = depGroup ?? (n.filePath ? getTopLevelDir(n.filePath) : n.id);
-      if (dir === dirPath || dir.replace(/[/:\\]/g, '__') === nodeId.replace(/^cluster__/, '')) count++;
+    for (const [dir, dirNodes] of cache) {
+      if (dir.replace(/[/:\\]/g, '__') === nodeId.replace(/^cluster__/, '')) count += dirNodes.length;
     }
     return Math.max(0, count - 1);
   }
   if (nodeId.startsWith('filecluster__')) {
     const filePath = nodeId.replace(/^filecluster__file__/, '').replace(/__/g, '/');
+    const cache = getFileToNodesCache(rawNodes);
+    const nodes = cache.get(filePath);
+    if (nodes) return Math.max(0, nodes.length - 1);
     let count = 0;
-    for (const n of rawNodes) {
-      if (n.filePath === filePath || n.filePath?.replace(/[/:\\]/g, '__') === nodeId.replace(/^filecluster__file__/, '')) count++;
+    for (const [fp, fpNodes] of cache) {
+      if (fp.replace(/[/:\\]/g, '__') === nodeId.replace(/^filecluster__file__/, '')) count += fpNodes.length;
     }
     return Math.max(0, count - 1);
   }

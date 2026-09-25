@@ -1,4 +1,4 @@
-import { useReducer, useCallback } from 'react';
+import { useReducer, useCallback, useMemo } from 'react';
 import type { PanelControls } from '../components/Toolbar.tsx';
 
 export interface PanelState {
@@ -52,7 +52,7 @@ export interface PanelState {
   setShowGodModule: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowCoreFunction: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowFilterPanel: (v: boolean | ((prev: boolean) => boolean)) => void;
-  toPanelControls: () => PanelControls;
+  toPanelControls: PanelControls;
 }
 
 type PanelVisibilityKey =
@@ -167,7 +167,7 @@ export function usePanelState(): PanelState {
     togglePathFind, toggleHealthScore, toggleRules, toggleHotspot, toggleGodModule, toggleCoreFunction, toggleFilterPanel,
     setShowSearch, setShowImport, setShowCallChain, setShowCycles, setShowCycleIsolation, setShowImpact, setShowInheritance, setShowMiniMap, setShowLegend,
     setShowPathFind, setShowHealthScore, setShowRules, setShowHotspot, setShowGodModule, setShowCoreFunction, setShowFilterPanel,
-    toPanelControls: () => ({
+    toPanelControls: useMemo(() => ({
       showSearch: state.showSearch, showCallChain: state.showCallChain, showCycles: state.showCycles,
       cycleIsolation: state.cycleIsolation,
       showImpact: state.showImpact, showInheritance: state.showInheritance, showMiniMap: state.showMiniMap,
@@ -180,6 +180,15 @@ export function usePanelState(): PanelState {
       onToggleLegend: toggleLegend, onToggleImport: toggleImport, onTogglePathFind: togglePathFind,
       onToggleHealthScore: toggleHealthScore, onToggleRules: toggleRules, onToggleHotspot: toggleHotspot,
       onToggleGodModule: toggleGodModule, onToggleCoreFunction: toggleCoreFunction, onToggleFilterPanel: toggleFilterPanel,
-    }),
+    }), [
+      state.showSearch, state.showCallChain, state.showCycles, state.cycleIsolation,
+      state.showImpact, state.showInheritance, state.showMiniMap, state.showLegend,
+      state.showImport, state.showPathFind, state.showHealthScore, state.showRules,
+      state.showHotspot, state.showGodModule, state.showCoreFunction, state.showFilterPanel,
+      toggleSearch, toggleCallChain, toggleCycles, toggleCycleIsolation,
+      toggleImpact, toggleInheritance, toggleMiniMap, toggleLegend,
+      toggleImport, togglePathFind, toggleHealthScore, toggleRules,
+      toggleHotspot, toggleGodModule, toggleCoreFunction, toggleFilterPanel,
+    ]),
   };
 }

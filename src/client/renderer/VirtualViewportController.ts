@@ -205,19 +205,8 @@ export class VirtualViewportController {
         });
       }
 
-      for (const id of toHide) {
-        const node = this.cy.getElementById(id);
-        if (node.empty()) continue;
-        node.connectedEdges().forEach((edge) => {
-          if (processedEdgeIds.has(edge.id())) return;
-          const sourceVisible = newVisible.has(edge.source().id());
-          const targetVisible = newVisible.has(edge.target().id());
-          if (!sourceVisible && !targetVisible) {
-            edge.style('display', 'none');
-          }
-        });
-      }
     });
+
 
     this.visibleNodeIds = newVisible;
   }

@@ -21,7 +21,7 @@ describe('usePanelResize', () => {
   beforeEach(() => {
     panel = document.createElement('div');
     handle = document.createElement('div');
-    handle.className = 'resize-handle';
+    handle.className = 'cg-resize-handle';
     panel.appendChild(handle);
     document.body.appendChild(panel);
     panelRef = { current: panel };

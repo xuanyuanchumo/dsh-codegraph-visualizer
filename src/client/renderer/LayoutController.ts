@@ -15,6 +15,7 @@ export class LayoutController {
   private workerLayoutResolve: ((positions: Record<string, { x: number; y: number }>) => void) | null = null;
   private worker: Worker | null = null;
   private workerInitFailed = false;
+  private workerRetryCount = 0;
 
   private workerTimeout: ReturnType<typeof setTimeout> | null = null;
   private overlapRemover: OverlapRemover;
@@ -70,11 +71,24 @@ export class LayoutController {
     return this.worker !== null && !this.workerInitFailed;
   }
 
+  retryWorker(): void {
+    this.retryWorkerInit();
+  }
+
+  private retryWorkerInit(): void {
+    if (this.worker || !this.workerInitFailed) return;
+    if (this.workerRetryCount >= 3) return;
+    this.workerRetryCount++;
+    this.workerInitFailed = false;
+    this.initWorker();
+  }
+
   applyLayoutWithWorker(
     nodes: GraphNode[],
     edges: GraphEdge[],
     layout: LayoutType,
   ): Promise<Record<string, { x: number; y: number }>> {
+
     if (!this.worker) return Promise.resolve({});
 
     return new Promise((resolve) => {
@@ -88,7 +102,7 @@ export class LayoutController {
           this.worker.terminate();
           this.worker = null;
           this.workerInitFailed = true;
-          log.warn('layout worker terminated due to timeout');
+          log.warn('layout worker terminated due to timeout — will retry on next layout');
         }
       }, RENDERER.LAYOUT_TIMEOUT_MS);
 

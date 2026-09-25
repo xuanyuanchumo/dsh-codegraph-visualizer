@@ -662,7 +662,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         clusterDepth={clusterDepth} viewMode={viewMode} currentLayer={currentLayer}
         layerNames={diagramData?.layers.map((l) => l.name) ?? []}
         onLayerChange={setLayer} collapsed={panel.collapsed}
-        panelControls={panel.toPanelControls()}
+        panelControls={panel.toPanelControls}
         onViewModeChange={handleViewModeChange} onLayoutChange={setLayout}
         onDagreRankDirChange={setDagreRankDir}
         onThemeToggle={handleThemeToggle} onFilterChange={setFilterType}

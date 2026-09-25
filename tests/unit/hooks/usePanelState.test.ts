@@ -557,7 +557,7 @@ describe('usePanelState', () => {
 
   it('toPanelControls returns object with 16 boolean visibility fields all false initially', () => {
     const { result } = renderHook(() => usePanelState());
-    const controls = result.current.toPanelControls();
+    const controls = result.current.toPanelControls;
 
     expect(controls.showSearch).toBe(false);
     expect(controls.showCycles).toBe(false);
@@ -579,7 +579,7 @@ describe('usePanelState', () => {
 
   it('toPanelControls returns object with 16 onToggle callback functions', () => {
     const { result } = renderHook(() => usePanelState());
-    const controls = result.current.toPanelControls();
+    const controls = result.current.toPanelControls;
 
     expect(typeof controls.onToggleSearch).toBe('function');
     expect(typeof controls.onToggleCallChain).toBe('function');
@@ -601,14 +601,14 @@ describe('usePanelState', () => {
 
   it('toPanelControls does not include collapsed field', () => {
     const { result } = renderHook(() => usePanelState());
-    const controls = result.current.toPanelControls();
+    const controls = result.current.toPanelControls;
 
     expect((controls as any).collapsed).toBeUndefined();
   });
 
   it('toPanelControls onToggle callbacks toggle the corresponding state', () => {
     const { result } = renderHook(() => usePanelState());
-    const controls = result.current.toPanelControls();
+    const controls = result.current.toPanelControls;
 
     act(() => {
       controls.onToggleSearch();
@@ -630,7 +630,7 @@ describe('usePanelState', () => {
       result.current.toggleSearch();
     });
 
-    const controls = result.current.toPanelControls();
+    const controls = result.current.toPanelControls;
     expect(controls.showSearch).toBe(true);
   });
 
@@ -641,7 +641,7 @@ describe('usePanelState', () => {
       result.current.setShowImport(true);
     });
 
-    const controls = result.current.toPanelControls();
+    const controls = result.current.toPanelControls;
     expect(controls.showImport).toBe(true);
   });
 
