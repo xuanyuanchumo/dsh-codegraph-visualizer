@@ -4,6 +4,7 @@ import type { GraphNode, ViewMode } from '../../types/index.ts';
 import type { WorkspaceSelectorProps } from './WorkspaceSelector.tsx';
 import { useT, useLang, toggleLang } from '../i18n/index.ts';
 import { WorkspaceSelector } from './WorkspaceSelector.tsx';
+import { STRUCTURAL_VIEW_MODES, BEHAVIORAL_VIEW_MODES, BEHAVIORAL_MICRO_VIEW_MODES, getViewLayer, getAvailablePanels } from '../../shared/viewModeUtils.ts';
 import {
   SearchIcon, ChainIcon, CycleIcon, MapIcon, RefreshIcon,
   SunIcon, MoonIcon, DownloadIcon, ChevronDownIcon, ChevronUpIcon,
@@ -35,20 +36,37 @@ const GRAPH_TYPES: { value: GraphType; key: string }[] = [
   { value: 'dependency', key: 'graphType.dependency' },
 ];
 
-const MACRO_VIEW_MODES: { value: ViewMode; key: string }[] = [
-  { value: 'code', key: 'viewMode.code' },
-  { value: 'dependencies', key: 'viewMode.dependencies' },
-  { value: 'inheritance', key: 'viewMode.inheritance' },
-  { value: 'callgraph', key: 'viewMode.callgraph' },
-  { value: 'package', key: 'viewMode.package' },
-  { value: 'class', key: 'viewMode.class' },
-];
 
-const MICRO_VIEW_MODES: { value: ViewMode; key: string }[] = [
-  { value: 'cfg', key: 'viewMode.cfg' },
-  { value: 'flowchart', key: 'viewMode.flowchart' },
-  { value: 'sequence', key: 'viewMode.sequence' },
-];
+const STRUCTURAL_MODE_KEYS: Partial<Record<ViewMode, string>> = {
+  code: 'viewMode.code',
+};
+const BEHAVIORAL_MODE_KEYS: Partial<Record<ViewMode, string>> = {
+  dependencies: 'viewMode.dependencies',
+  inheritance: 'viewMode.inheritance',
+  callgraph: 'viewMode.callgraph',
+  package: 'viewMode.package',
+  class: 'viewMode.class',
+};
+const BEHAVIORAL_MICRO_MODE_KEYS: Partial<Record<ViewMode, string>> = {
+  cfg: 'viewMode.cfg',
+  flowchart: 'viewMode.flowchart',
+  sequence: 'viewMode.sequence',
+};
+const STRUCTURAL_TITLE_KEYS: Partial<Record<ViewMode, string>> = {
+  code: 'toolbar.viewModeCode',
+};
+const BEHAVIORAL_TITLE_KEYS: Partial<Record<ViewMode, string>> = {
+  dependencies: 'toolbar.viewModeDeps',
+  inheritance: 'toolbar.viewModeInheritance',
+  callgraph: 'toolbar.viewModeCallgraph',
+  package: 'toolbar.viewModePackage',
+  class: 'toolbar.viewModeClass',
+};
+const BEHAVIORAL_MICRO_TITLE_KEYS: Partial<Record<ViewMode, string>> = {
+  cfg: 'toolbar.viewModeCfg',
+  flowchart: 'toolbar.viewModeFlowchart',
+  sequence: 'toolbar.viewModeSequence',
+};
 
 const CLUSTER_DEPTHS: { value: number; key: string }[] = [
   { value: 0, key: 'clusterDepth.directory' },
@@ -169,6 +187,8 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
     onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onToggleCoreFunction, onToggleFilterPanel,
   } = panelControls;
 
+  const availablePanels = getAvailablePanels(getViewLayer(viewMode));
+
   return (
     <div className="cg-graph-toolbar">
       <div className="cg-toolbar-left">
@@ -223,26 +243,36 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           ))}
         </div>
         <div className="cg-view-mode-buttons" role="group" aria-label={t('toolbar.graphType')}>
-          {MACRO_VIEW_MODES.map((m) => (
+          {STRUCTURAL_VIEW_MODES.map((m) => (
             <button
-              key={m.value}
-              className={`cg-view-mode-btn ${viewMode === m.value ? 'cg-active' : ''}`}
-              onClick={() => onViewModeChange(m.value)}
-              title={t(`toolbar.viewMode${m.value.charAt(0).toUpperCase() + m.value.slice(1)}`)}
-              aria-pressed={viewMode === m.value}
-            >{t(m.key)}</button>
+              key={m}
+              className={`cg-view-mode-btn ${viewMode === m ? 'cg-active' : ''}`}
+              onClick={() => onViewModeChange(m)}
+              title={t(STRUCTURAL_TITLE_KEYS[m]!)}
+              aria-pressed={viewMode === m}
+            >{t(STRUCTURAL_MODE_KEYS[m]!)}</button>
           ))}
           <span className="cg-view-mode-divider" aria-hidden="true" />
-          {MICRO_VIEW_MODES.map((m) => (
+          {BEHAVIORAL_VIEW_MODES.map((m) => (
             <button
-              key={m.value}
-              className={`cg-view-mode-btn cg-view-mode-btn--micro ${viewMode === m.value ? 'cg-active' : ''}`}
-              onClick={() => onViewModeChange(m.value)}
-              title={hasSelectedFunction ? t(`toolbar.viewMode${m.value.charAt(0).toUpperCase() + m.value.slice(1)}`) : t('toolbar.microDisabled')}
-              aria-pressed={viewMode === m.value}
+              key={m}
+              className={`cg-view-mode-btn ${viewMode === m ? 'cg-active' : ''}`}
+              onClick={() => onViewModeChange(m)}
+              title={t(BEHAVIORAL_TITLE_KEYS[m]!)}
+              aria-pressed={viewMode === m}
+            >{t(BEHAVIORAL_MODE_KEYS[m]!)}</button>
+          ))}
+          <span className="cg-view-mode-divider" aria-hidden="true" />
+          {BEHAVIORAL_MICRO_VIEW_MODES.map((m) => (
+            <button
+              key={m}
+              className={`cg-view-mode-btn cg-view-mode-btn--micro ${viewMode === m ? 'cg-active' : ''}`}
+              onClick={() => onViewModeChange(m)}
+              title={hasSelectedFunction ? t(BEHAVIORAL_MICRO_TITLE_KEYS[m]!) : t('toolbar.microDisabled')}
+              aria-pressed={viewMode === m}
               disabled={!hasSelectedFunction}
               aria-disabled={!hasSelectedFunction}
-            >{t(m.key)}</button>
+            >{t(BEHAVIORAL_MICRO_MODE_KEYS[m]!)}</button>
           ))}
         </div>
         {layerNames.length > 1 && (
@@ -297,32 +327,54 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         <span className="cg-toolbar-separator" aria-hidden="true" />
 
         <div className="cg-toolbar-group" role="group" aria-label={t('toolbar.analysisGroup')}>
-          <button className={`cg-search-btn ${showSearch ? 'cg-active' : ''}`} onClick={onToggleSearch}
-            title={t('toolbar.search')} aria-label={t('toolbar.search')} aria-expanded={showSearch}><SearchIcon size={15} /></button>
-          <button className={`cg-chain-btn ${showCallChain ? 'cg-active' : ''}`} onClick={onToggleCallChain}
-            title={t('toolbar.chain')} aria-label={t('toolbar.chain')} aria-pressed={showCallChain}><ChainIcon size={15} /></button>
-          <button className={`cg-cycle-btn ${showCycles ? 'cg-active' : ''}`} onClick={onToggleCycles}
-            title={t('toolbar.cycles')} aria-label={t('toolbar.cycles')} aria-pressed={showCycles}><CycleIcon size={15} /></button>
+          {availablePanels.has('showSearch') && (
+            <button className={`cg-search-btn ${showSearch ? 'cg-active' : ''}`} onClick={onToggleSearch}
+              title={t('toolbar.search')} aria-label={t('toolbar.search')} aria-expanded={showSearch}><SearchIcon size={15} /></button>
+          )}
+          {availablePanels.has('showCallChain') && (
+            <button className={`cg-chain-btn ${showCallChain ? 'cg-active' : ''}`} onClick={onToggleCallChain}
+              title={t('toolbar.chain')} aria-label={t('toolbar.chain')} aria-pressed={showCallChain}><ChainIcon size={15} /></button>
+          )}
+          {availablePanels.has('showCycles') && (
+            <button className={`cg-cycle-btn ${showCycles ? 'cg-active' : ''}`} onClick={onToggleCycles}
+              title={t('toolbar.cycles')} aria-label={t('toolbar.cycles')} aria-pressed={showCycles}><CycleIcon size={15} /></button>
+          )}
           {showCycles && (
             <button className={`cg-isolate-btn ${cycleIsolation ? 'cg-active' : ''}`} onClick={onToggleCycleIsolation}
               title={t('toolbar.isolateCycles')} aria-label={t('toolbar.isolateCycles')} aria-pressed={cycleIsolation}><FilterIcon size={15} /></button>
           )}
-          <button className={`cg-impact-btn ${showImpact ? 'cg-active' : ''}`} onClick={onToggleImpact}
-            title={t('toolbar.impact')} aria-label={t('toolbar.impact')} aria-pressed={showImpact}><ZapIcon size={15} /></button>
-          <button className={`cg-inheritance-btn ${showInheritance ? 'cg-active' : ''}`} onClick={onToggleInheritance}
-            title={t('toolbar.inheritance')} aria-label={t('toolbar.inheritance')} aria-pressed={showInheritance}><TreeIcon size={15} /></button>
-          <button className={`cg-pathfind-btn ${showPathFind ? 'cg-active' : ''}`} onClick={onTogglePathFind}
-            title={t('toolbar.pathFind')} aria-label={t('toolbar.pathFind')} aria-pressed={showPathFind}><PathIcon size={15} /></button>
-          <button className={`cg-health-btn ${showHealthScore ? 'cg-active' : ''}`} onClick={onToggleHealthScore}
-            title={t('toolbar.health')} aria-label={t('toolbar.health')} aria-pressed={showHealthScore}><HeartIcon size={15} /></button>
-          <button className={`cg-rules-btn ${showRules ? 'cg-active' : ''}`} onClick={onToggleRules}
-            title={t('toolbar.rules')} aria-label={t('toolbar.rules')} aria-pressed={showRules}><RuleIcon size={15} /></button>
-          <button className={`cg-hotspot-btn ${showHotspot ? 'cg-active' : ''}`} onClick={onToggleHotspot}
-            title={t('toolbar.hotspot')} aria-label={t('toolbar.hotspot')} aria-pressed={showHotspot}><FlameIcon size={15} /></button>
-          <button className={`cg-godmodule-btn ${showGodModule ? 'cg-active' : ''}`} onClick={onToggleGodModule}
-            title={t('toolbar.godModule')} aria-label={t('toolbar.godModule')} aria-pressed={showGodModule}><AlertCircleIcon size={15} /></button>
-          <button className={`cg-corefunction-btn ${showCoreFunction ? 'cg-active' : ''}`} onClick={onToggleCoreFunction}
-            title={t('toolbar.coreFunction')} aria-label={t('toolbar.coreFunction')} aria-pressed={showCoreFunction}><StarIcon size={15} /></button>
+          {availablePanels.has('showImpact') && (
+            <button className={`cg-impact-btn ${showImpact ? 'cg-active' : ''}`} onClick={onToggleImpact}
+              title={t('toolbar.impact')} aria-label={t('toolbar.impact')} aria-pressed={showImpact}><ZapIcon size={15} /></button>
+          )}
+          {availablePanels.has('showInheritance') && (
+            <button className={`cg-inheritance-btn ${showInheritance ? 'cg-active' : ''}`} onClick={onToggleInheritance}
+              title={t('toolbar.inheritance')} aria-label={t('toolbar.inheritance')} aria-pressed={showInheritance}><TreeIcon size={15} /></button>
+          )}
+          {availablePanels.has('showPathFind') && (
+            <button className={`cg-pathfind-btn ${showPathFind ? 'cg-active' : ''}`} onClick={onTogglePathFind}
+              title={t('toolbar.pathFind')} aria-label={t('toolbar.pathFind')} aria-pressed={showPathFind}><PathIcon size={15} /></button>
+          )}
+          {availablePanels.has('showHealthScore') && (
+            <button className={`cg-health-btn ${showHealthScore ? 'cg-active' : ''}`} onClick={onToggleHealthScore}
+              title={t('toolbar.health')} aria-label={t('toolbar.health')} aria-pressed={showHealthScore}><HeartIcon size={15} /></button>
+          )}
+          {availablePanels.has('showRules') && (
+            <button className={`cg-rules-btn ${showRules ? 'cg-active' : ''}`} onClick={onToggleRules}
+              title={t('toolbar.rules')} aria-label={t('toolbar.rules')} aria-pressed={showRules}><RuleIcon size={15} /></button>
+          )}
+          {availablePanels.has('showHotspot') && (
+            <button className={`cg-hotspot-btn ${showHotspot ? 'cg-active' : ''}`} onClick={onToggleHotspot}
+              title={t('toolbar.hotspot')} aria-label={t('toolbar.hotspot')} aria-pressed={showHotspot}><FlameIcon size={15} /></button>
+          )}
+          {availablePanels.has('showGodModule') && (
+            <button className={`cg-godmodule-btn ${showGodModule ? 'cg-active' : ''}`} onClick={onToggleGodModule}
+              title={t('toolbar.godModule')} aria-label={t('toolbar.godModule')} aria-pressed={showGodModule}><AlertCircleIcon size={15} /></button>
+          )}
+          {availablePanels.has('showCoreFunction') && (
+            <button className={`cg-corefunction-btn ${showCoreFunction ? 'cg-active' : ''}`} onClick={onToggleCoreFunction}
+              title={t('toolbar.coreFunction')} aria-label={t('toolbar.coreFunction')} aria-pressed={showCoreFunction}><StarIcon size={15} /></button>
+          )}
         </div>
 
         <span className="cg-toolbar-separator" aria-hidden="true" />

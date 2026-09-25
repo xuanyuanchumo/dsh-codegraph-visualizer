@@ -279,34 +279,58 @@ describe('Toolbar component', () => {
 
   // 8. 分析工具按钮渲染和点击响应
   describe('analysis tool buttons', () => {
-    const analysisButtons = [
+    const structuralButtons = [
       { className: 'cg-search-btn', handler: 'onToggleSearch', state: 'showSearch' },
+      { className: 'cg-pathfind-btn', handler: 'onTogglePathFind', state: 'showPathFind' },
+      { className: 'cg-health-btn', handler: 'onToggleHealthScore', state: 'showHealthScore' },
+      { className: 'cg-rules-btn', handler: 'onToggleRules', state: 'showRules' },
+    ];
+    const behavioralButtons = [
       { className: 'cg-chain-btn', handler: 'onToggleCallChain', state: 'showCallChain' },
       { className: 'cg-cycle-btn', handler: 'onToggleCycles', state: 'showCycles' },
       { className: 'cg-impact-btn', handler: 'onToggleImpact', state: 'showImpact' },
       { className: 'cg-inheritance-btn', handler: 'onToggleInheritance', state: 'showInheritance' },
-      { className: 'cg-pathfind-btn', handler: 'onTogglePathFind', state: 'showPathFind' },
-      { className: 'cg-health-btn', handler: 'onToggleHealthScore', state: 'showHealthScore' },
-      { className: 'cg-rules-btn', handler: 'onToggleRules', state: 'showRules' },
       { className: 'cg-hotspot-btn', handler: 'onToggleHotspot', state: 'showHotspot' },
       { className: 'cg-godmodule-btn', handler: 'onToggleGodModule', state: 'showGodModule' },
       { className: 'cg-corefunction-btn', handler: 'onToggleCoreFunction', state: 'showCoreFunction' },
     ];
 
-    it('renders all 11 analysis tool buttons', () => {
-      render(<Toolbar {...makeProps()} />);
-      for (const { className } of analysisButtons) {
+    it('renders structural analysis buttons in code view mode', () => {
+      render(<Toolbar {...makeProps({ viewMode: 'code' })} />);
+      for (const { className } of structuralButtons) {
         const btn = document.querySelector(`.${className}`);
         expect(btn).toBeTruthy();
       }
     });
 
-    it('calls the correct toggle handler when each analysis button is clicked', async () => {
+    it('renders behavioral analysis buttons in callgraph view mode', () => {
+      render(<Toolbar {...makeProps({ viewMode: 'callgraph' })} />);
+      for (const { className } of behavioralButtons) {
+        const btn = document.querySelector(`.${className}`);
+        expect(btn).toBeTruthy();
+      }
+    });
+
+    it('hides behavioral analysis buttons in code view mode', () => {
+      render(<Toolbar {...makeProps({ viewMode: 'code' })} />);
+      for (const { className } of behavioralButtons) {
+        const btn = document.querySelector(`.${className}`);
+        expect(btn).toBeNull();
+      }
+    });
+
+    it('hides structural-only analysis buttons in callgraph view mode', () => {
+      render(<Toolbar {...makeProps({ viewMode: 'callgraph' })} />);
+      expect(document.querySelector('.cg-health-btn')).toBeNull();
+      expect(document.querySelector('.cg-rules-btn')).toBeNull();
+    });
+
+    it('calls the correct toggle handler when each structural analysis button is clicked', async () => {
       const user = userEvent.setup();
-      for (const { className, handler } of analysisButtons) {
+      for (const { className, handler } of structuralButtons) {
         const mockHandler = vi.fn();
         const panelControls = makePanelControls({ [handler]: mockHandler });
-        const { unmount } = render(<Toolbar {...makeProps({ panelControls })} />);
+        const { unmount } = render(<Toolbar {...makeProps({ viewMode: 'code', panelControls })} />);
         const btn = document.querySelector(`.${className}`) as HTMLButtonElement;
         await user.click(btn);
         expect(mockHandler).toHaveBeenCalledOnce();
@@ -314,22 +338,45 @@ describe('Toolbar component', () => {
       }
     });
 
-    it('shows active class when analysis panel visibility state is true', () => {
+    it('calls the correct toggle handler when each behavioral analysis button is clicked', async () => {
+      const user = userEvent.setup();
+      for (const { className, handler } of behavioralButtons) {
+        const mockHandler = vi.fn();
+        const panelControls = makePanelControls({ [handler]: mockHandler });
+        const { unmount } = render(<Toolbar {...makeProps({ viewMode: 'callgraph', panelControls })} />);
+        const btn = document.querySelector(`.${className}`) as HTMLButtonElement;
+        await user.click(btn);
+        expect(mockHandler).toHaveBeenCalledOnce();
+        unmount();
+      }
+    });
+
+    it('shows active class when structural analysis panel visibility state is true', () => {
       const panelControls = makePanelControls({
         showSearch: true,
+        showPathFind: true,
+        showHealthScore: true,
+        showRules: true,
+      });
+      render(<Toolbar {...makeProps({ viewMode: 'code', panelControls })} />);
+      for (const { className } of structuralButtons) {
+        const btn = document.querySelector(`.${className}`) as HTMLButtonElement;
+        expect(btn.className).toContain('active');
+      }
+    });
+
+    it('shows active class when behavioral analysis panel visibility state is true', () => {
+      const panelControls = makePanelControls({
         showCallChain: true,
         showCycles: true,
         showImpact: true,
         showInheritance: true,
-        showPathFind: true,
-        showHealthScore: true,
-        showRules: true,
         showHotspot: true,
         showGodModule: true,
         showCoreFunction: true,
       });
-      render(<Toolbar {...makeProps({ panelControls })} />);
-      for (const { className } of analysisButtons) {
+      render(<Toolbar {...makeProps({ viewMode: 'callgraph', panelControls })} />);
+      for (const { className } of behavioralButtons) {
         const btn = document.querySelector(`.${className}`) as HTMLButtonElement;
         expect(btn.className).toContain('active');
       }

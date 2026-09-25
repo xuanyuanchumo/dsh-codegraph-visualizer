@@ -9,6 +9,7 @@ import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelStat
   useGraphData, useGraphDisplay, useGraphInteraction, useGraphStatus, useGraphWorkspace, useGraphAnalysis, useGraphPerformance, useGraphActions, usePanelDimensions,
 } from './hooks/index.ts';
 import { readUrlExpand, restoreExpandedNodeIds, updateUrlExpand } from './utils/urlState.ts';
+import { getViewLayer, getAvailablePanels } from '../shared/viewModeUtils.ts';
 import { useThemeSync } from './hooks/useThemeSync.ts';
 import { useHistory } from './hooks/useHistory.ts';
 import { useGraphCache } from './hooks/useGraphCache.ts';
@@ -487,6 +488,22 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   useEffect(() => {
     setFocusNodeId(null);
+  }, [viewMode]);
+
+  useEffect(() => {
+    const layer = getViewLayer(viewMode);
+    const available = getAvailablePanels(layer);
+    if (!available.has('showCallChain') && panel.showCallChain) panel.setShowCallChain(false);
+    if (!available.has('showCycles') && panel.showCycles) panel.setShowCycles(false);
+    if (!available.has('showImpact') && panel.showImpact) panel.setShowImpact(false);
+    if (!available.has('showInheritance') && panel.showInheritance) panel.setShowInheritance(false);
+    if (!available.has('showHotspot') && panel.showHotspot) panel.setShowHotspot(false);
+    if (!available.has('showGodModule') && panel.showGodModule) panel.setShowGodModule(false);
+    if (!available.has('showCoreFunction') && panel.showCoreFunction) panel.setShowCoreFunction(false);
+    if (!available.has('showHealthScore') && panel.showHealthScore) panel.setShowHealthScore(false);
+    if (!available.has('showRules') && panel.showRules) panel.setShowRules(false);
+    if (!available.has('showImport') && panel.showImport) panel.setShowImport(false);
+    if (!available.has('showFilterPanel') && panel.showFilterPanel) panel.setShowFilterPanel(false);
   }, [viewMode]);
 
   useEffect(() => {

@@ -415,6 +415,7 @@ describe('GraphPanel handler behavior', () => {
   });
 
   it('callchain button click toggles call chain panel', async () => {
+    useGraphStore.setState({ viewMode: 'callgraph' });
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const callchainBtn = container.querySelector('.cg-chain-btn') as HTMLButtonElement;
@@ -424,6 +425,7 @@ describe('GraphPanel handler behavior', () => {
   });
 
   it('impact button click toggles impact panel', async () => {
+    useGraphStore.setState({ viewMode: 'callgraph' });
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const impactBtn = container.querySelector('.cg-impact-btn') as HTMLButtonElement;
@@ -433,6 +435,7 @@ describe('GraphPanel handler behavior', () => {
   });
 
   it('inheritance button click toggles inheritance panel', async () => {
+    useGraphStore.setState({ viewMode: 'callgraph' });
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const inheritanceBtn = container.querySelector('.cg-inheritance-btn') as HTMLButtonElement;
@@ -442,6 +445,7 @@ describe('GraphPanel handler behavior', () => {
   });
 
   it('hotspot button click toggles hotspot panel', async () => {
+    useGraphStore.setState({ viewMode: 'callgraph' });
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const hotspotBtn = container.querySelector('.cg-hotspot-btn') as HTMLButtonElement;
@@ -451,6 +455,7 @@ describe('GraphPanel handler behavior', () => {
   });
 
   it('god module button click toggles god module panel', async () => {
+    useGraphStore.setState({ viewMode: 'callgraph' });
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const godBtn = container.querySelector('.cg-godmodule-btn') as HTMLButtonElement;
@@ -460,6 +465,7 @@ describe('GraphPanel handler behavior', () => {
   });
 
   it('cycles button click toggles cycles panel', async () => {
+    useGraphStore.setState({ viewMode: 'callgraph' });
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const cyclesBtn = container.querySelector('.cg-cycle-btn') as HTMLButtonElement;
@@ -469,6 +475,7 @@ describe('GraphPanel handler behavior', () => {
   });
 
   it('core function button click toggles core function panel', async () => {
+    useGraphStore.setState({ viewMode: 'callgraph' });
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
     const coreBtn = container.querySelector('.cg-corefunction-btn') as HTMLButtonElement;
