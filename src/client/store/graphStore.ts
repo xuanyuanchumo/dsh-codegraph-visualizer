@@ -294,6 +294,7 @@ interface GraphState {
   setInitStatus: (status: 'idle' | 'initializing' | 'done' | 'error', message?: string | null) => void;
   setWatchEnabled: (enabled: boolean) => void;
   expandNode: (nodeId: string) => void;
+  batchExpandNodes: (nodeIds: string[]) => void;
   prefetchExpand: (nodeId: string) => void;
   collapseNode: (nodeId: string) => void;
   collapseAll: () => void;
@@ -373,8 +374,8 @@ export const useGraphStore = create<GraphState>()(
       callChainDepth: 2,
       fanInThreshold: 0,
       fanOutThreshold: 0,
-      visibleNodeTypes: new Set<GraphNode['type']>(),
-      visibleEdgeTypes: new Set<GraphEdge['type']>(),
+      visibleNodeTypes: new Set<GraphNode['type']>(['function', 'class', 'variable', 'module', 'interface']),
+      visibleEdgeTypes: new Set<GraphEdge['type']>(['call', 'extend', 'implement', 'import', 'dependency', 'contains']),
       heatmapMode: 'none' as HeatmapMode,
       healthScore: null,
       rules: [],
@@ -569,6 +570,34 @@ export const useGraphStore = create<GraphState>()(
         const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: effectiveExpanded };
         applyClusterUpdate(effectiveExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set);
       },
+      batchExpandNodes: (nodeIds) => {
+        const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, nodes, panelWidth } = useGraphStore.getState();
+        if (nodeIds.length === 0) return;
+        const maxVisible = panelWidth !== null && panelWidth !== undefined
+          ? getDynamicMaxVisibleNodes(panelWidth)
+          : CLUSTER.MAX_VISIBLE_NODES;
+        const effectiveExpanded = new Set(expandedNodeIds);
+        for (const nodeId of nodeIds) {
+          effectiveExpanded.add(nodeId);
+        }
+        const expandedFunctionBodies = [...effectiveExpanded].filter((id) =>
+          rawNodes.some((n) => n.id === id && n.type === 'function'),
+        );
+        while (expandedFunctionBodies.length > FUNCTION_BODY.MAX_EXPANDED) {
+          const oldest = expandedFunctionBodies.shift()!;
+          effectiveExpanded.delete(oldest);
+        }
+        if (nodes.length > maxVisible) {
+          const clusterNodes = nodes.filter((n): n is ClusterNode => 'isCluster' in n && n.isCluster === true);
+          const sorted = [...clusterNodes].sort((a, b) => b.childCount - a.childCount);
+          for (const cn of sorted) {
+            if (nodes.length <= maxVisible) break;
+            effectiveExpanded.delete(cn.id);
+          }
+        }
+        const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: effectiveExpanded };
+        applyClusterUpdate(effectiveExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set);
+      },
       prefetchExpand: (nodeId) => {
         if (prefetchInFlightCount >= PREFETCH.CONCURRENCY_LIMIT) return;
         const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, viewMode, diagramData, currentLayer } = useGraphStore.getState();
@@ -594,11 +623,18 @@ export const useGraphStore = create<GraphState>()(
         const cacheLevel = `progressive:${clusterDepth}`;
         if (clusterCache.get(dataHash, cacheLevel, expandedKey)) return;
         prefetchInFlightCount++;
-        try {
-          const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', newExpanded, clusterDepth, useGraphStore.getState().panelWidth ?? undefined);
-          clusterCache.set(dataHash, cacheLevel, expandedKey, result);
-        } finally {
-          prefetchInFlightCount--;
+        const runPrefetch = () => {
+          try {
+            const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', newExpanded, clusterDepth, useGraphStore.getState().panelWidth ?? undefined);
+            clusterCache.set(dataHash, cacheLevel, expandedKey, result);
+          } finally {
+            prefetchInFlightCount--;
+          }
+        };
+        if (typeof requestIdleCallback === 'function') {
+          requestIdleCallback(runPrefetch, { timeout: 2000 });
+        } else {
+          setTimeout(runPrefetch, 0);
         }
       },
       collapseNode: (nodeId) => {

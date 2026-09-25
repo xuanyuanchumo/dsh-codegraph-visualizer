@@ -460,6 +460,7 @@ export const en: Record<string, string> = {
   'filterPanel.applyPath': 'Apply Path Filter',
   'filterPanel.clearPath': 'Clear Path Filter',
   'filterPanel.pathHint': 'Use regex to filter file paths, showing only matching nodes',
+  'filterPanel.quickActions': 'Quick Actions',
   'toolbar.filterPanel': 'Filter Panel',
 
   // Context menu

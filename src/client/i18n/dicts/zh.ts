@@ -459,6 +459,7 @@ export const zh: Record<string, string> = {
   'filterPanel.applyPath': '应用路径过滤',
   'filterPanel.clearPath': '清除路径过滤',
   'filterPanel.pathHint': '使用正则表达式过滤文件路径，仅显示匹配的节点',
+  'filterPanel.quickActions': '快捷操作',
   'toolbar.filterPanel': '筛选面板',
 
   // Context menu

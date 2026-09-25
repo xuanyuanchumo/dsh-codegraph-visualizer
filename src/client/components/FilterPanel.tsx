@@ -160,7 +160,7 @@ export const FilterPanel = memo(function FilterPanel({ onClose }: FilterPanelPro
       </div>
 
       <div className="cg-filter-panel-section">
-        <div className="cg-filter-section-label">{t('filterPanel.title')}</div>
+        <div className="cg-filter-section-label">{t('filterPanel.quickActions')}</div>
         <div className="cg-filter-quick-actions">
           <button
             className="cg-filter-quick-btn"
