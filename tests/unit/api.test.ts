@@ -6,6 +6,9 @@ import {
   requestScan,
   requestInit,
   requestWatch,
+  fetchBootstrap,
+  fetchNodeChildren,
+  fetchGraphDataIncremental,
 } from '../../src/client/api/index.ts';
 
 describe('client api', () => {
@@ -210,6 +213,142 @@ describe('client api', () => {
       globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as unknown as typeof fetch;
       const result = await requestWatch(true, '/repo');
       expect(result).toBe(false);
+    });
+  });
+
+  describe('fetchBootstrap', () => {
+    it('returns parsed bootstrap data on success', async () => {
+      const bootstrapData = {
+        rootNodes: [{ id: 'r1', label: 'root', type: 'module', filePath: '/', lineNumber: 0, properties: {} }],
+        topLevelNodes: [{ id: 't1', label: 'top', type: 'directory', filePath: '/src', lineNumber: 0, properties: {} }],
+        topLevelTotal: 1,
+        edges: [],
+        indexStatus: 'ready',
+        metadata: { repoId: 'repo1', timestamp: 123, totalNodeCount: 100, totalEdgeCount: 50 },
+      };
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => bootstrapData,
+      }) as unknown as typeof fetch;
+      const result = await fetchBootstrap();
+      expect(result).not.toBeNull();
+      expect(result!.rootNodes).toHaveLength(1);
+      expect(result!.topLevelNodes).toHaveLength(1);
+      expect(result!.indexStatus).toBe('ready');
+    });
+
+    it('returns null when response not ok', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => null }) as unknown as typeof fetch;
+      const result = await fetchBootstrap();
+      expect(result).toBeNull();
+    });
+
+    it('returns null on fetch error', async () => {
+      globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as unknown as typeof fetch;
+      const result = await fetchBootstrap();
+      expect(result).toBeNull();
+    });
+
+    it('fills missing fields with defaults', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({}),
+      }) as unknown as typeof fetch;
+      const result = await fetchBootstrap();
+      expect(result).not.toBeNull();
+      expect(result!.rootNodes).toEqual([]);
+      expect(result!.topLevelNodes).toEqual([]);
+      expect(result!.topLevelTotal).toBe(0);
+      expect(result!.indexStatus).toBe('empty');
+      expect(result!.metadata).toEqual({ repoId: '', timestamp: 0, totalNodeCount: 0, totalEdgeCount: 0 });
+    });
+  });
+
+  describe('fetchNodeChildren', () => {
+    it('returns parsed children data on success', async () => {
+      const childrenData = {
+        nodes: [{ id: 'c1', label: 'child', type: 'function', filePath: '/src/a.ts', lineNumber: 1, properties: {} }],
+        edges: [],
+        cursor: 'next-page',
+        total: 10,
+      };
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => childrenData,
+      }) as unknown as typeof fetch;
+      const result = await fetchNodeChildren('node-1');
+      expect(result).not.toBeNull();
+      expect(result!.nodes).toHaveLength(1);
+      expect(result!.cursor).toBe('next-page');
+      expect(result!.total).toBe(10);
+    });
+
+    it('sends request with nodeId and default limit', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ nodes: [], edges: [], cursor: null, total: 0 }),
+      });
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
+      await fetchNodeChildren('node-1');
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/codegraph/children?'),
+        expect.anything(),
+      );
+      expect(mockFetch.mock.calls[0]![0]).toContain('nodeId=node-1');
+      expect(mockFetch.mock.calls[0]![0]).toContain('limit=50');
+    });
+
+    it('sends request with cursor and custom limit when provided', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ nodes: [], edges: [], cursor: null, total: 0 }),
+      });
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
+      await fetchNodeChildren('node-1', 'cursor-abc', 100);
+      expect(mockFetch.mock.calls[0]![0]).toContain('cursor=cursor-abc');
+      expect(mockFetch.mock.calls[0]![0]).toContain('limit=100');
+    });
+
+    it('returns null when response not ok', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => null }) as unknown as typeof fetch;
+      const result = await fetchNodeChildren('node-1');
+      expect(result).toBeNull();
+    });
+
+    it('returns null on fetch error', async () => {
+      globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as unknown as typeof fetch;
+      const result = await fetchNodeChildren('node-1');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('fetchGraphDataIncremental', () => {
+    it('returns null on 304 Not Modified', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ status: 304, ok: false }) as unknown as typeof fetch;
+      const result = await fetchGraphDataIncremental(123);
+      expect(result).toBeNull();
+    });
+
+    it('returns validated graph data on success', async () => {
+      const graphData = {
+        nodes: [{ id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} }],
+        edges: [],
+        metadata: { repoId: 'r1', timestamp: 2, nodeCount: 1, edgeCount: 0 },
+      };
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => graphData,
+      }) as unknown as typeof fetch;
+      const result = await fetchGraphDataIncremental(123);
+      expect(result).not.toBeNull();
+      expect(result!.nodes).toHaveLength(1);
+    });
+
+    it('returns null on fetch error', async () => {
+      globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as unknown as typeof fetch;
+      const result = await fetchGraphDataIncremental(123);
+      expect(result).toBeNull();
     });
   });
 });

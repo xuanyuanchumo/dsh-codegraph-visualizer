@@ -65,7 +65,7 @@ export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, 
 
   const extraProps = useMemo(() => {
     const knownKeys = new Set(['signature', 'docstring', 'exported', 'kind']);
-    return Object.entries(node.properties)
+    return Object.entries(node.properties ?? {})
       .filter(([k]) => !knownKeys.has(k)) as [string, unknown][];
   }, [node]);
 
