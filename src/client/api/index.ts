@@ -159,3 +159,44 @@ export async function requestWatch(enabled: boolean, path: string): Promise<bool
     return false;
   }
 }
+export interface FileOutlineData {
+  symbols: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export async function fetchFileOutline(nodeId: string): Promise<FileOutlineData | null> {
+  try {
+    const res = await fetchWithTimeout(`/api/v1/codegraph/files/${encodeURIComponent(nodeId)}/outline`);
+    if (!res.ok) return null;
+    const data = await res.json() as FileOutlineData;
+    return {
+      symbols: data.symbols ?? [],
+      edges: data.edges ?? [],
+    };
+  } catch (e) {
+    log.warn('fetchFileOutline failed', { nodeId, error: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
+}
+
+export interface SymbolASTData {
+  astNodes: GraphNode[];
+  astEdges: GraphEdge[];
+  sourceLines: string[];
+}
+
+export async function fetchSymbolAST(nodeId: string): Promise<SymbolASTData | null> {
+  try {
+    const res = await fetchWithTimeout(`/api/v1/codegraph/symbols/${encodeURIComponent(nodeId)}/ast`);
+    if (!res.ok) return null;
+    const data = await res.json() as SymbolASTData;
+    return {
+      astNodes: data.astNodes ?? [],
+      astEdges: data.astEdges ?? [],
+      sourceLines: data.sourceLines ?? [],
+    };
+  } catch (e) {
+    log.warn('fetchSymbolAST failed', { nodeId, error: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
+}

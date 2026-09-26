@@ -757,6 +757,82 @@ function registerNodeChildrenRoute(rc: RouteContext): void {
   }), 'codegraph: node children route');
 }
 
+function registerFileOutlineRoute(rc: RouteContext): void {
+  const { deps, corsConfig, rateLimiter } = rc;
+  const { ctx } = deps;
+  const routePath = '/api/v1/codegraph/files';
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'prefix',
+    path: routePath,
+    handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, (req, res) => {
+      const url = new URL(req.url ?? '', `http://${req.headers.host ?? 'localhost'}`);
+      const match = url.pathname.match(/^\/api\/v1\/codegraph\/files\/([^/]+)\/outline$/);
+      if (!match) {
+        sendError(res, 404, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
+        return;
+      }
+      const nodeId = decodeURIComponent(match[1] ?? '');
+      if (!nodeId || nodeId.length > VALIDATION.MAX_PATH_LENGTH) {
+        sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
+        return;
+      }
+
+      const lastGraphData = deps.getLastGraphData();
+      if (!lastGraphData) {
+        sendJson(res, 200, { symbols: [], edges: [] }, req, corsConfig);
+        return;
+      }
+
+      const symbols = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
+      const symbolIds = new Set(symbols.map((n) => n.id));
+      const symbolEdges = lastGraphData.edges.filter(
+        (e) => symbolIds.has(e.source) && symbolIds.has(e.target),
+      );
+
+      sendJson(res, 200, { symbols, edges: symbolEdges }, req, corsConfig);
+    }),
+  }), 'codegraph: file outline route');
+}
+
+function registerSymbolASTRoute(rc: RouteContext): void {
+  const { deps, corsConfig, rateLimiter } = rc;
+  const { ctx } = deps;
+  const routePath = '/api/v1/codegraph/symbols';
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'prefix',
+    path: routePath,
+    handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, (req, res) => {
+      const url = new URL(req.url ?? '', `http://${req.headers.host ?? 'localhost'}`);
+      const match = url.pathname.match(/^\/api\/v1\/codegraph\/symbols\/([^/]+)\/ast$/);
+      if (!match) {
+        sendError(res, 404, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
+        return;
+      }
+      const nodeId = decodeURIComponent(match[1] ?? '');
+      if (!nodeId || nodeId.length > VALIDATION.MAX_PATH_LENGTH) {
+        sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
+        return;
+      }
+
+      const lastGraphData = deps.getLastGraphData();
+      if (!lastGraphData) {
+        sendJson(res, 200, { astNodes: [], astEdges: [], sourceLines: [] }, req, corsConfig);
+        return;
+      }
+
+      const astNodes = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
+      const astNodeIds = new Set(astNodes.map((n) => n.id));
+      const astEdges = lastGraphData.edges.filter(
+        (e) => astNodeIds.has(e.source) && astNodeIds.has(e.target),
+      );
+
+      sendJson(res, 200, { astNodes, astEdges, sourceLines: [] }, req, corsConfig);
+    }),
+  }), 'codegraph: symbol AST route');
+}
+
 export function registerRoutes(deps: RouteDeps): void {
   const { ctx, config } = deps;
   const invokeUpstream = deps.invokeUpstream ?? createInvokeUpstream(ctx, config);
@@ -779,6 +855,8 @@ export function registerRoutes(deps: RouteDeps): void {
   registerTreeSitterRoute(rc, sharedTreeSitterAdapter);
   registerBootstrapRoute(rc);
   registerNodeChildrenRoute(rc);
+  registerFileOutlineRoute(rc);
+  registerSymbolASTRoute(rc);
 
   ctx.effect(() => () => rateLimiter.reset(), 'codegraph: rate limiter cleanup');
   ctx.effect(() => () => sharedTreeSitterAdapter.destroy(), 'codegraph: tree-sitter adapter cleanup');

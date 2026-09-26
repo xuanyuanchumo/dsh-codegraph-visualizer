@@ -278,6 +278,8 @@ interface GraphState {
   expandedNodeIds: Set<string>;
   expandedNodeIdsByViewMode: Record<string, Set<string>>;
   loadedChildrenByNodeId: Set<string>;
+  prefetchedNodeIds: Set<string>;
+  loadErrorsByNodeId: Map<string, string>;
 
   currentWorkspace: string;
   workspaceList: WorkspaceInfo[];
@@ -405,6 +407,8 @@ export const useGraphStore = create<GraphState>()(
       expandedNodeIds: new Set(),
       expandedNodeIdsByViewMode: {},
       loadedChildrenByNodeId: new Set(),
+      prefetchedNodeIds: new Set(),
+      loadErrorsByNodeId: new Map(),
       currentWorkspace: '.',
       workspaceList: [],
       pathStartId: null,
@@ -751,13 +755,31 @@ export const useGraphStore = create<GraphState>()(
       },
       prefetchExpand: (nodeId) => {
         if (prefetchInFlightCount >= PREFETCH.CONCURRENCY_LIMIT) return;
-        const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, viewMode, diagramData, currentLayer } = useGraphStore.getState();
+        const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, viewMode, diagramData, currentLayer, loadedChildrenByNodeId, prefetchedNodeIds } = useGraphStore.getState();
         if (isLayeredViewMode(viewMode)) return;
         if (expandedNodeIds.has(nodeId)) return;
+        if (prefetchedNodeIds.has(nodeId)) return;
         const rawNode = rawNodes.find((n) => n.id === nodeId);
         if (rawNode?.type === 'function') return;
         const cost = estimateExpandCost(nodeId, rawNodes);
         if (cost > PREFETCH.COST_THRESHOLD) return;
+
+        const newPrefetched = new Set(prefetchedNodeIds);
+        newPrefetched.add(nodeId);
+        set({ prefetchedNodeIds: newPrefetched });
+
+        if (!loadedChildrenByNodeId.has(nodeId)) {
+          prefetchInFlightCount++;
+          useGraphStore.getState().loadNodeChildren(nodeId).catch((err) => {
+            const s = useGraphStore.getState();
+            const newErrors = new Map(s.loadErrorsByNodeId);
+            newErrors.set(nodeId, err instanceof Error ? err.message : String(err));
+            set({ loadErrorsByNodeId: newErrors });
+          }).finally(() => {
+            prefetchInFlightCount--;
+          });
+        }
+
         const newExpanded = new Set(expandedNodeIds);
         newExpanded.add(nodeId);
         let sourceNodes = rawNodes;
