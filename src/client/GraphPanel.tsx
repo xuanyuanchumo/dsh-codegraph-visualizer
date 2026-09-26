@@ -144,13 +144,27 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     }
     const restoredIds = restoreExpandedNodeIds(parsed);
     const validIds = new Set<string>();
+    const missingIds = new Set<string>();
     for (const id of restoredIds) {
       const exists = rawNodes.some(n => n.id === id) || useGraphStore.getState().nodes.some(n => n.id === id);
       if (exists) validIds.add(id);
+      else missingIds.add(id);
     }
     if (validIds.size > 0) {
       const store = useGraphStore.getState();
       store.batchExpandNodes([...validIds]);
+    }
+    if (missingIds.size > 0) {
+      const store = useGraphStore.getState();
+      Promise.all([...missingIds].map(id => store.loadNodeChildren(id))).then(() => {
+        const state = useGraphStore.getState();
+        const loadedIds = [...missingIds].filter(id =>
+          state.rawNodes.some(n => n.id === id) || state.nodes.some(n => n.id === id)
+        );
+        if (loadedIds.length > 0) {
+          state.batchExpandNodes(loadedIds);
+        }
+      });
     }
     urlRestoredRef.current = true;
   }, [rawNodes]);

@@ -691,17 +691,17 @@ function registerBootstrapRoute(rc: RouteContext): void {
         return;
       }
 
-      const rootNodes = lastGraphData.nodes.filter((n) => !n.parentId);
-      const topLevelNodes = rootNodes.slice(0, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
+      const allRootNodes = lastGraphData.nodes.filter((n) => !n.parentId);
+      const topLevelNodes = allRootNodes.slice(0, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
       const topLevelIds = new Set(topLevelNodes.map((n) => n.id));
       const rootEdges = lastGraphData.edges.filter(
         (e) => topLevelIds.has(e.source) && topLevelIds.has(e.target),
       );
 
       sendJson(res, 200, {
-        rootNodes,
+        rootNodes: topLevelNodes,
         topLevelNodes,
-        topLevelTotal: rootNodes.length,
+        topLevelTotal: allRootNodes.length,
         edges: rootEdges,
         indexStatus: 'ready',
         metadata: {

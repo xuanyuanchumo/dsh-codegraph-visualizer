@@ -180,8 +180,8 @@ export class FilterController {
     try {
       if (pattern.length > MAX_PATTERN_LENGTH || /(\+|\*|\{)\{/.test(pattern)) return null;
       return new RegExp(pattern);
-    } catch (_e) {
-      log.warn('invalid regex pattern', _e);
+    } catch (e) {
+      log.warn('invalid regex pattern', e);
       return null;
     }
   }

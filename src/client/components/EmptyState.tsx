@@ -30,7 +30,7 @@ export const EmptyState = memo(function EmptyState({ prerequisites, onImport, on
       setCopiedCmd(cmd);
       if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
       copyTimerRef.current = setTimeout(() => setCopiedCmd(null), UI.COPY_HINT_TIMEOUT_MS);
-    } catch (_e) { /* clipboard unavailable — best-effort */ }
+    } catch { /* clipboard unavailable — best-effort */ }
   }, []);
 
   const handleInstall = useCallback((plugin: string) => {
@@ -40,7 +40,7 @@ export const EmptyState = memo(function EmptyState({ prerequisites, onImport, on
       setCopiedCmd(cmd);
       if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
       copyTimerRef.current = setTimeout(() => setCopiedCmd(null), UI.INSTALL_HINT_TIMEOUT_MS);
-    } catch (_e) { /* clipboard unavailable — best-effort */ }
+    } catch { /* clipboard unavailable — best-effort */ }
     window.dispatchEvent(new CustomEvent(DOM_EVENTS.INSTALL_PLUGIN, {
       detail: { plugin },
     }));
