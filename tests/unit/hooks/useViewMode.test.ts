@@ -187,6 +187,50 @@ describe('useViewMode', () => {
       expect(mockStoreState.setLoading).toHaveBeenCalledWith(false);
     });
 
+    it('should use bootstrap when loadBootstrap returns true and skip fetchGraphData', async () => {
+      mockStoreState.loadBootstrap.mockResolvedValue(true);
+
+      const { result } = renderViewModeHook('dependencies');
+
+      await act(async () => {
+        result.current.handleViewModeChange('code');
+      });
+
+      expect(mockStoreState.loadBootstrap).toHaveBeenCalledTimes(1);
+      expect(fetchGraphDataMock).not.toHaveBeenCalled();
+      expect(mockStoreState.setGraphType).toHaveBeenCalledWith('all');
+      expect(mockStoreState.setFilterType).toHaveBeenCalledWith('all');
+      expect(mockStoreState.setLoading).toHaveBeenCalledWith(true);
+      expect(mockStoreState.setViewMode).toHaveBeenCalledWith('code');
+      expect(mockStoreState.setLoading).toHaveBeenCalledWith(false);
+    });
+
+    it('should fall back to fetchGraphData when loadBootstrap throws', async () => {
+      mockStoreState.loadBootstrap.mockRejectedValue(new Error('bootstrap network error'));
+      const mockGraphData = makeGraphData(
+        [makeNode('n1', 'A', 'function', 'a.ts', 1)],
+        [],
+      );
+      fetchGraphDataMock.mockResolvedValue(mockGraphData);
+
+      const { result } = renderViewModeHook('dependencies');
+
+      await act(async () => {
+        result.current.handleViewModeChange('code');
+      });
+
+      expect(mockStoreState.loadBootstrap).toHaveBeenCalledTimes(1);
+      expect(fetchGraphDataMock).toHaveBeenCalledTimes(1);
+      expect(mockStoreState.setViewMode).toHaveBeenCalledWith('code');
+      expect(mockStoreState.setGraphData).toHaveBeenCalledWith(
+        mockGraphData.nodes,
+        mockGraphData.edges,
+        mockGraphData.metadata.repoId,
+        mockGraphData.metadata,
+      );
+      expect(mockStoreState.setLoading).toHaveBeenCalledWith(false);
+    });
+
     it('should abort previous dependencies fetch when switching to code mode', async () => {
       const abortSpy = vi.spyOn(AbortController.prototype, 'abort');
       const controller = new AbortController();
