@@ -464,7 +464,7 @@ const LAYOUT$1 = {
 	NODE_REPULSE_MAX: 2e4
 };
 const VIRTUAL_VIEWPORT = {
-	SCROLL_THRESHOLD: 5e3,
+	SCROLL_THRESHOLD: 2500,
 	PADDING: 100
 };
 const QUADTREE = {
@@ -2800,6 +2800,7 @@ const en = {
 	"micro.loadFailed": "Micro diagram load failed",
 	"micro.closeView": "Close micro view",
 	"stats.nodesEdges": "{nodes} nodes · {edges} edges",
+	"stats.functionBodyBudget": "{expanded}/{max} function bodies expanded",
 	"godmodule.stats": "{nodes} nodes · {edges} edges",
 	"search.moreResults": "+{n} more results",
 	"layer.inheritance.0": "Root Overview",
@@ -3238,6 +3239,7 @@ const zh = {
 	"micro.loadFailed": "微观图谱加载失败",
 	"micro.closeView": "关闭微观视图",
 	"stats.nodesEdges": "{nodes} 节点 · {edges} 边",
+	"stats.functionBodyBudget": "已展开 {expanded}/{max} 个函数体",
 	"godmodule.stats": "{nodes} 节点 · {edges} 边",
 	"search.moreResults": "还有 {n} 个结果",
 	"layer.inheritance.0": "根接口概览",
@@ -3414,7 +3416,7 @@ function getStoredLang() {
 	try {
 		const stored = window.localStorage.getItem(STORAGE_KEY);
 		return stored === "zh" || stored === "en" ? stored : "zh";
-	} catch (_e) {
+	} catch {
 		return "zh";
 	}
 }
@@ -3426,7 +3428,7 @@ function setLang(lang) {
 	currentLang = lang;
 	if (typeof window !== "undefined") try {
 		window.localStorage.setItem(STORAGE_KEY, lang);
-	} catch (_e) {}
+	} catch {}
 	for (const fn$7 of listeners) fn$7();
 }
 function toggleLang() {
@@ -4312,7 +4314,7 @@ var LoggerImpl = class {
 		const fn$7 = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
 		try {
 			if (typeof fn$7 === "function") fn$7(`[codegraph:${scope}] ${message}`, data$2 ?? "");
-		} catch (_e) {}
+		} catch {}
 	}
 	debug(scope, message, data$2) {
 		this.log("debug", scope, message, data$2);
@@ -4348,7 +4350,7 @@ var LoggerImpl = class {
 		const snapshot = this.entries();
 		for (const fn$7 of this.listeners) try {
 			fn$7(snapshot);
-		} catch (_e) {}
+		} catch {}
 	}
 };
 const logger = new LoggerImpl();
@@ -4562,8 +4564,8 @@ async function assembleMicroDiagram(viewMode, filePath, functionName) {
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ filePath })
 		});
-	} catch (_e) {
-		log$16.warn("AST fetch failed", _e);
+	} catch (e) {
+		log$16.warn("AST fetch failed", e);
 		throw new Error(`Network error: unable to reach AST endpoint`);
 	}
 	if (!response.ok) {
@@ -4577,8 +4579,8 @@ async function assembleMicroDiagram(viewMode, filePath, functionName) {
 			try {
 				const parsed = JSON.parse(errorBody);
 				serverMsg = parsed.error || "";
-			} catch (_e) {
-				log$16.warn("AST error body parse failed", _e);
+			} catch (e) {
+				log$16.warn("AST error body parse failed", e);
 				serverMsg = errorBody;
 			}
 			throw new Error(serverMsg || `AST parsing failed for "${filePath}"`);
@@ -7188,6 +7190,41 @@ async function requestWatch(enabled, path) {
 		return false;
 	}
 }
+async function fetchFileOutline(nodeId) {
+	try {
+		const res = await fetchWithTimeout(`/api/v1/codegraph/files/${encodeURIComponent(nodeId)}/outline`);
+		if (!res.ok) return null;
+		const data$2 = await res.json();
+		return {
+			symbols: data$2.symbols ?? [],
+			edges: data$2.edges ?? []
+		};
+	} catch (e) {
+		log$13.warn("fetchFileOutline failed", {
+			nodeId,
+			error: e instanceof Error ? e.message : String(e)
+		});
+		return null;
+	}
+}
+async function fetchSymbolAST(nodeId) {
+	try {
+		const res = await fetchWithTimeout(`/api/v1/codegraph/symbols/${encodeURIComponent(nodeId)}/ast`);
+		if (!res.ok) return null;
+		const data$2 = await res.json();
+		return {
+			astNodes: data$2.astNodes ?? [],
+			astEdges: data$2.astEdges ?? [],
+			sourceLines: data$2.sourceLines ?? []
+		};
+	} catch (e) {
+		log$13.warn("fetchSymbolAST failed", {
+			nodeId,
+			error: e instanceof Error ? e.message : String(e)
+		});
+		return null;
+	}
+}
 
 //#endregion
 //#region src/client/store/graphStore.ts
@@ -7398,6 +7435,8 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	expandedNodeIds: new Set(),
 	expandedNodeIdsByViewMode: {},
 	loadedChildrenByNodeId: new Set(),
+	prefetchedNodeIds: new Set(),
+	loadErrorsByNodeId: new Map(),
 	currentWorkspace: ".",
 	workspaceList: [],
 	pathStartId: null,
@@ -7680,6 +7719,79 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			[viewMode]: effectiveExpanded
 		};
 		applyClusterUpdate(effectiveExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set$1);
+		const node = rawNodes.find((n) => n.id === nodeId);
+		if (node) {
+			useGraphStore.getState().loadNodeChildren(nodeId).catch((err) => {
+				log$12.warn("expandNode: loadNodeChildren failed", {
+					nodeId,
+					err
+				});
+			});
+			if (node.type === "module") fetchFileOutline(nodeId).then((data$2) => {
+				if (data$2 && data$2.symbols.length > 0) {
+					const s = useGraphStore.getState();
+					const existingIds = new Set(s.rawNodes.map((n) => n.id));
+					const newSyms = data$2.symbols.filter((n) => !existingIds.has(n.id));
+					const existingEdgeIds = new Set(s.rawEdges.map((e) => e.id));
+					const newEdges = data$2.edges.filter((e) => !existingEdgeIds.has(e.id));
+					if (newSyms.length > 0 || newEdges.length > 0) {
+						const mergedRawNodes = [...s.rawNodes, ...newSyms];
+						const mergedRawEdges = [...s.rawEdges, ...newEdges];
+						const { clusterDepth: cd, expandedNodeIds: ei, panelWidth: pw } = s;
+						const result = tryIncrementalOrFull(incrementalClusterCtx, mergedRawNodes, mergedRawEdges, ei, cd, pw ?? void 0);
+						updateIncrementalClusterCtx(result, mergedRawNodes, mergedRawEdges);
+						set$1({
+							rawNodes: mergedRawNodes,
+							rawEdges: mergedRawEdges,
+							nodes: result.nodes,
+							edges: result.edges
+						});
+						log$12.info("file outline loaded", {
+							nodeId,
+							newSymbols: newSyms.length,
+							newEdges: newEdges.length
+						});
+					}
+				}
+			}).catch((err) => {
+				log$12.warn("expandNode: fetchFileOutline failed", {
+					nodeId,
+					err
+				});
+			});
+			if (node.type === "function") fetchSymbolAST(nodeId).then((data$2) => {
+				if (data$2 && data$2.astNodes.length > 0) {
+					const s = useGraphStore.getState();
+					const existingIds = new Set(s.rawNodes.map((n) => n.id));
+					const newAst = data$2.astNodes.filter((n) => !existingIds.has(n.id));
+					const existingEdgeIds = new Set(s.rawEdges.map((e) => e.id));
+					const newEdges = data$2.astEdges.filter((e) => !existingEdgeIds.has(e.id));
+					if (newAst.length > 0 || newEdges.length > 0) {
+						const mergedRawNodes = [...s.rawNodes, ...newAst];
+						const mergedRawEdges = [...s.rawEdges, ...newEdges];
+						const { clusterDepth: cd, expandedNodeIds: ei, panelWidth: pw } = s;
+						const result = tryIncrementalOrFull(incrementalClusterCtx, mergedRawNodes, mergedRawEdges, ei, cd, pw ?? void 0);
+						updateIncrementalClusterCtx(result, mergedRawNodes, mergedRawEdges);
+						set$1({
+							rawNodes: mergedRawNodes,
+							rawEdges: mergedRawEdges,
+							nodes: result.nodes,
+							edges: result.edges
+						});
+						log$12.info("symbol AST loaded", {
+							nodeId,
+							newAstNodes: newAst.length,
+							newEdges: newEdges.length
+						});
+					}
+				}
+			}).catch((err) => {
+				log$12.warn("expandNode: fetchSymbolAST failed", {
+					nodeId,
+					err
+				});
+			});
+		}
 	},
 	loadNodeChildren: async (nodeId) => {
 		const state = useGraphStore.getState();
@@ -7736,6 +7848,30 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			});
 		}
 	},
+	loadBootstrap: async () => {
+		try {
+			const data$2 = await fetchBootstrap();
+			if (!data$2 || data$2.topLevelNodes.length === 0) {
+				log$12.info("bootstrap returned empty, falling back to full load");
+				return false;
+			}
+			const state = useGraphStore.getState();
+			state.setBootstrapData(data$2.topLevelNodes, data$2.edges, data$2.metadata.repoId, {
+				totalNodeCount: data$2.metadata.totalNodeCount,
+				totalEdgeCount: data$2.metadata.totalEdgeCount,
+				timestamp: data$2.metadata.timestamp
+			});
+			log$12.info("bootstrap loaded", {
+				rootNodes: data$2.topLevelNodes.length,
+				totalNodeCount: data$2.metadata.totalNodeCount,
+				indexStatus: data$2.indexStatus
+			});
+			return true;
+		} catch (err) {
+			log$12.warn("loadBootstrap failed, falling back to full load", { err });
+			return false;
+		}
+	},
 	batchExpandNodes: (nodeIds) => {
 		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, nodes, panelWidth } = useGraphStore.getState();
 		if (nodeIds.length === 0) return;
@@ -7752,13 +7888,28 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	},
 	prefetchExpand: (nodeId) => {
 		if (prefetchInFlightCount >= PREFETCH.CONCURRENCY_LIMIT) return;
-		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, viewMode, diagramData, currentLayer } = useGraphStore.getState();
+		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, viewMode, diagramData, currentLayer, loadedChildrenByNodeId, prefetchedNodeIds } = useGraphStore.getState();
 		if (isLayeredViewMode(viewMode)) return;
 		if (expandedNodeIds.has(nodeId)) return;
+		if (prefetchedNodeIds.has(nodeId)) return;
 		const rawNode = rawNodes.find((n) => n.id === nodeId);
 		if (rawNode?.type === "function") return;
 		const cost = estimateExpandCost(nodeId, rawNodes);
 		if (cost > PREFETCH.COST_THRESHOLD) return;
+		const newPrefetched = new Set(prefetchedNodeIds);
+		newPrefetched.add(nodeId);
+		set$1({ prefetchedNodeIds: newPrefetched });
+		if (!loadedChildrenByNodeId.has(nodeId)) {
+			prefetchInFlightCount++;
+			useGraphStore.getState().loadNodeChildren(nodeId).catch((err) => {
+				const s = useGraphStore.getState();
+				const newErrors = new Map(s.loadErrorsByNodeId);
+				newErrors.set(nodeId, err instanceof Error ? err.message : String(err));
+				set$1({ loadErrorsByNodeId: newErrors });
+			}).finally(() => {
+				prefetchInFlightCount--;
+			});
+		}
 		const newExpanded = new Set(expandedNodeIds);
 		newExpanded.add(nodeId);
 		let sourceNodes = rawNodes;
@@ -53440,7 +53591,7 @@ var LayoutController = class {
 			let workerUrl = null;
 			if (typeof document !== "undefined" && document.baseURI) try {
 				workerUrl = new URL("plugins/dsh-codegraph-visualizer/worker/layoutWorker.js", document.baseURI).href;
-			} catch (_e) {}
+			} catch {}
 			if (workerUrl) this.worker = new Worker(workerUrl, { type: "module" });
 			if (this.worker) {
 				this.worker.onmessage = (e) => {
@@ -55013,8 +55164,8 @@ var FilterController = class {
 		try {
 			if (pattern.length > MAX_PATTERN_LENGTH || /(\+|\*|\{)\{/.test(pattern)) return null;
 			return new RegExp(pattern);
-		} catch (_e) {
-			log$8.warn("invalid regex pattern", _e);
+		} catch (e) {
+			log$8.warn("invalid regex pattern", e);
 			return null;
 		}
 	}
@@ -57386,16 +57537,37 @@ function useViewMode(viewMode, currentWorkspace, depsFetchAbortRef) {
 			setGraphType("all");
 			setFilterType("all");
 			setLoading(true);
-			fetchGraphData().then((data$2) => {
-				if (data$2) {
+			const loadBootstrap = useGraphStore.getState().loadBootstrap;
+			loadBootstrap().then((ok) => {
+				if (ok) {
 					setViewMode(newMode);
-					setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
-				} else setError("Failed to load code graph data");
-				setLoading(false);
+					setLoading(false);
+					return;
+				}
+				fetchGraphData().then((data$2) => {
+					if (data$2) {
+						setViewMode(newMode);
+						setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
+					} else setError("Failed to load code graph data");
+					setLoading(false);
+				}).catch((e) => {
+					log$5.warn("fetchGraphData failed", e);
+					setError(`Failed to load code graph: ${e.message}`);
+					setLoading(false);
+				});
 			}).catch((e) => {
-				log$5.warn("fetchGraphData failed", e);
-				setError(`Failed to load code graph: ${e.message}`);
-				setLoading(false);
+				log$5.warn("loadBootstrap failed", e);
+				fetchGraphData().then((data$2) => {
+					if (data$2) {
+						setViewMode(newMode);
+						setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
+					} else setError("Failed to load code graph data");
+					setLoading(false);
+				}).catch((e2) => {
+					log$5.warn("fetchGraphData failed", e2);
+					setError(`Failed to load code graph: ${e2.message}`);
+					setLoading(false);
+				});
 			});
 		} else {
 			depsFetchAbortRef.current?.abort();
@@ -59252,7 +59424,7 @@ const ImportPanel = memo(function ImportPanel$1({ onClose, workspacePath, prereq
 			await navigator.clipboard.writeText("dsh plugin --profile web add dsh-codegraph");
 			setCopied(true);
 			timersRef.current.push(setTimeout(() => setCopied(false), UI.COPY_FEEDBACK_MS));
-		} catch (_e) {}
+		} catch {}
 	}, []);
 	const effectivePath = customPath.trim() || workspacePath || ".";
 	const prereqMissing = !prerequisites.codegraph && !prerequisites.lens;
@@ -61117,7 +61289,7 @@ const EmptyState = memo(function EmptyState$1({ prerequisites, onImport, onScanW
 			setCopiedCmd(cmd);
 			if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
 			copyTimerRef.current = setTimeout(() => setCopiedCmd(null), UI.COPY_HINT_TIMEOUT_MS);
-		} catch (_e) {}
+		} catch {}
 	}, []);
 	const handleInstall = useCallback((plugin) => {
 		const cmd = plugin === "dsh-codegraph" ? t$1("prereq.installCodegraph") : t$1("prereq.installLens");
@@ -61126,7 +61298,7 @@ const EmptyState = memo(function EmptyState$1({ prerequisites, onImport, onScanW
 			setCopiedCmd(cmd);
 			if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
 			copyTimerRef.current = setTimeout(() => setCopiedCmd(null), UI.INSTALL_HINT_TIMEOUT_MS);
-		} catch (_e) {}
+		} catch {}
 		window.dispatchEvent(new CustomEvent(DOM_EVENTS.INSTALL_PLUGIN, { detail: { plugin } }));
 		setInstalling(true);
 		if (installTimerRef.current) clearTimeout(installTimerRef.current);
@@ -63780,13 +63952,23 @@ function GraphPanelInner({ className = "" }) {
 		}
 		const restoredIds = restoreExpandedNodeIds(parsed);
 		const validIds = new Set();
+		const missingIds = new Set();
 		for (const id of restoredIds) {
 			const exists = rawNodes.some((n) => n.id === id) || useGraphStore.getState().nodes.some((n) => n.id === id);
 			if (exists) validIds.add(id);
+			else missingIds.add(id);
 		}
 		if (validIds.size > 0) {
 			const store = useGraphStore.getState();
 			store.batchExpandNodes([...validIds]);
+		}
+		if (missingIds.size > 0) {
+			const store = useGraphStore.getState();
+			Promise.all([...missingIds].map((id) => store.loadNodeChildren(id))).then(() => {
+				const state = useGraphStore.getState();
+				const loadedIds = [...missingIds].filter((id) => state.rawNodes.some((n) => n.id === id) || state.nodes.some((n) => n.id === id));
+				if (loadedIds.length > 0) state.batchExpandNodes(loadedIds);
+			});
 		}
 		urlRestoredRef.current = true;
 	}, [rawNodes]);
@@ -64351,8 +64533,13 @@ function GraphPanelInner({ className = "" }) {
 		if (!prerequisites.codegraph) return;
 		if (!currentWorkspace) return;
 		hasAutoScannedRef.current = true;
-		log$1.info("auto-fill: triggering scan on first open", { path: currentWorkspace });
-		handleScanWorkspace();
+		log$1.info("auto-fill: triggering bootstrap on first open", { path: currentWorkspace });
+		useGraphStore.getState().loadBootstrap().then((ok) => {
+			if (!ok) {
+				log$1.info("auto-fill: bootstrap failed, falling back to scan", { path: currentWorkspace });
+				handleScanWorkspace();
+			}
+		});
 	}, [
 		panel.collapsed,
 		nodes.length,
@@ -64374,6 +64561,10 @@ function GraphPanelInner({ className = "" }) {
 		diagramData,
 		t$1
 	]);
+	const expandedFunctionBodyCount = useMemo(() => {
+		return [...expandedNodeIds].filter((id) => rawNodes.some((n) => n.id === id && n.type === "function")).length;
+	}, [expandedNodeIds, rawNodes]);
+	const showFunctionBodyBudget = expandedFunctionBodyCount > 0;
 	const searchResults = useMemo(() => {
 		if (!debouncedSearch) return [];
 		return searchNodes(debouncedSearch, 50).map((n) => ({
@@ -64555,6 +64746,15 @@ function GraphPanelInner({ className = "" }) {
 				onContract: handleFocusContract,
 				onExit: handleFocusExit
 			}) }),
+			showFunctionBodyBudget && !isCollapsed && /* @__PURE__ */ jsx("div", {
+				className: "cg-function-body-budget",
+				role: "status",
+				"aria-live": "polite",
+				children: t$1("stats.functionBodyBudget", {
+					expanded: expandedFunctionBodyCount,
+					max: FUNCTION_BODY.MAX_EXPANDED
+				})
+			}),
 			isLoading && !isCollapsed && /* @__PURE__ */ jsx(LoadingOverlay, { visible: true }),
 			error$1 && !isCollapsed && /* @__PURE__ */ jsx(ErrorOverlay, {
 				error: error$1,
@@ -64945,22 +65145,10 @@ function apply(ctx) {
 						rootNodes: bootstrap.topLevelNodes.length,
 						totalNodeCount: bootstrap.metadata.totalNodeCount
 					});
-					requestScan(workspacePath).then((result) => {
-						if (result && result.success && result.nodes.length > 0) {
-							const validated = validateGraphData(result);
-							if (validated) {
-								const s3 = useGraphStore.getState();
-								s3.setGraphData(validated.nodes, validated.edges, workspacePath, validated.metadata);
-								log.info("graph data received (background)", {
-									path: workspacePath,
-									nodes: validated.nodes.length,
-									edges: validated.edges.length
-								});
-							}
-						}
+					requestScan(workspacePath).then(() => {
+						useGraphStore.getState().setLoading(false);
 					}).catch((e) => {
 						log.warn("background scan failed", e);
-					}).finally(() => {
 						useGraphStore.getState().setLoading(false);
 					});
 					return;

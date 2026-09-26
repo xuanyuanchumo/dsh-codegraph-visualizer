@@ -198,4 +198,137 @@ describe('InheritanceAssembler', () => {
     expect(result.nodes.find((n) => n.id === 'A')?.properties.childCount).toBe(2);
     expect(result.nodes.find((n) => n.id === 'B')?.properties.childCount).toBe(0);
   });
+
+  it('marks node as abstract when isAbstract property is true', () => {
+    const nodes = [
+      makeNode('A', 'class', 'ClassA'),
+      makeNode('B', 'class', 'ClassB'),
+    ];
+    // Set isAbstract property on node A
+    nodes[0]!.properties = { isAbstract: true };
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    expect(result.nodes.find((n) => n.id === 'A')?.properties.isAbstract).toBe(true);
+    expect(result.nodes.find((n) => n.id === 'B')?.properties.isAbstract).toBe(false);
+  });
+
+  it('marks class as abstract when name matches I[A-Z][a-z] pattern', () => {
+    const nodes = [
+      makeNode('IController', 'class', 'IController'),
+      makeNode('Regular', 'class', 'Regular'),
+    ];
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    expect(result.nodes.find((n) => n.id === 'IController')?.properties.isAbstract).toBe(true);
+    expect(result.nodes.find((n) => n.id === 'Regular')?.properties.isAbstract).toBe(false);
+  });
+
+  it('marks class as abstract when name starts with Abstract[A-Z]', () => {
+    const nodes = [
+      makeNode('AbstractBase', 'class', 'AbstractBase'),
+      makeNode('NotAbstract', 'class', 'NotAbstract'),
+    ];
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    expect(result.nodes.find((n) => n.id === 'AbstractBase')?.properties.isAbstract).toBe(true);
+    expect(result.nodes.find((n) => n.id === 'NotAbstract')?.properties.isAbstract).toBe(false);
+  });
+
+  it('marks interface as abstract', () => {
+    const nodes = [
+      makeNode('IFace', 'interface', 'IFace'),
+    ];
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    expect(result.nodes.find((n) => n.id === 'IFace')?.properties.isAbstract).toBe(true);
+  });
+
+  it('sets umlLabel with interface stereotype', () => {
+    const nodes = [
+      makeNode('IFace', 'interface', 'IFace'),
+    ];
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    const ifaceNode = result.nodes.find((n) => n.id === 'IFace');
+    expect(ifaceNode?.properties.umlLabel).toContain('«interface»');
+    expect(ifaceNode?.properties.umlLabel).toContain('IFace');
+  });
+
+  it('sets umlLabel without stereotype for class', () => {
+    const nodes = [
+      makeNode('ClassA', 'class', 'ClassA'),
+    ];
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    const classNode = result.nodes.find((n) => n.id === 'ClassA');
+    expect(classNode?.properties.umlLabel).toBe('ClassA');
+    expect(classNode?.properties.umlLabel).not.toContain('«interface»');
+  });
+
+  it('computes descendant counts with cycle detection', () => {
+    // Create a cycle with a root: C is root, B extends C, A extends B, B extends A
+    // This triggers the visited.has(id) cycle detection branch in computeDescendantCounts
+    const nodes = [
+      makeNode('C', 'class', 'ClassC'),
+      makeNode('B', 'class', 'ClassB'),
+      makeNode('A', 'class', 'ClassA'),
+    ];
+    const edges = [
+      makeEdge('e1', 'B', 'C', 'extend'),
+      makeEdge('e2', 'A', 'B', 'extend'),
+      makeEdge('e3', 'B', 'A', 'extend'),
+    ];
+
+    const result = assembler.assemble(nodes, edges);
+
+    // C is root (no outgoing edges), so descendant counts should be computed
+    const descC = result.nodes.find((n) => n.id === 'C')?.properties.descendantCount;
+    expect(descC).toBeDefined();
+    // Should not infinite loop - cycle detection prevents it
+  });
+
+  it('sets parentCount and childCount for multiple inheritance', () => {
+    const nodes = [
+      makeNode('A', 'class', 'ClassA'),
+      makeNode('B', 'interface', 'IFaceB'),
+      makeNode('C', 'class', 'ClassC'),
+    ];
+    const edges = [
+      makeEdge('e1', 'C', 'A', 'extend'),
+      makeEdge('e2', 'C', 'B', 'implement'),
+    ];
+
+    const result = assembler.assemble(nodes, edges);
+
+    const nodeC = result.nodes.find((n) => n.id === 'C');
+    expect(nodeC?.properties.parentCount).toBe(2);
+    expect(nodeC?.properties.childCount).toBe(0);
+  });
+
+  it('handles type nodes in inheritance graph', () => {
+    const nodes = [
+      makeNode('TypeA', 'type', 'TypeA'),
+      makeNode('TypeB', 'type', 'TypeB'),
+    ];
+    const edges = [
+      makeEdge('e1', 'TypeB', 'TypeA', 'extend'),
+    ];
+
+    const result = assembler.assemble(nodes, edges);
+
+    expect(result.nodes).toHaveLength(2);
+    expect(result.metadata.rootIds).toEqual(['TypeA']);
+  });
 });

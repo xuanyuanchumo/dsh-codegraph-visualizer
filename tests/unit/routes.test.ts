@@ -1595,11 +1595,11 @@ describe('bootstrap route', () => {
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
   });
 
-  it('GET /bootstrap returns empty when no graph data', () => {
+  it('GET /bootstrap returns empty when no graph data', async () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 11);
     const { res, state } = makeRes();
-    handler(makeReq('GET'), res);
+    await handler(makeReq('GET'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.rootNodes).toEqual([]);

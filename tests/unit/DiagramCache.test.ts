@@ -339,3 +339,525 @@ describe('ClusterCache setPersistentBackend', () => {
     expect(mockIdb.invalidateCluster).toHaveBeenCalledTimes(1);
   });
 });
+describe('DiagramCache IndexedDB async load', () => {
+  it('loads diagram from IndexedDB into memory cache on get miss', async () => {
+    const cache = new DiagramCache(5);
+    const diagram = makeLayeredDiagram();
+    const mockIdb = {
+      getDiagram: vi.fn().mockResolvedValue(diagram),
+      setDiagram: vi.fn().mockResolvedValue(undefined),
+      invalidateDiagram: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+
+    // First get returns null (async load happens in background)
+    expect(cache.get('inheritance', 'hash1')).toBeNull();
+    // Wait for async IndexedDB load to complete
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Second get should return the diagram loaded from IndexedDB
+    expect(cache.get('inheritance', 'hash1')).toBe(diagram);
+    expect(mockIdb.getDiagram).toHaveBeenCalledWith('inheritance:hash1');
+  });
+
+  it('evicts oldest entry when loading from IndexedDB into full cache', async () => {
+    const cache = new DiagramCache(1);
+    const d1 = makeLayeredDiagram();
+    const d2 = makeLayeredDiagram();
+    const mockIdb = {
+      getDiagram: vi.fn().mockResolvedValue(d2),
+      setDiagram: vi.fn().mockResolvedValue(undefined),
+      invalidateDiagram: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+
+    // Fill cache to capacity
+    cache.set('inheritance', 'h1', d1);
+    expect(cache.size()).toBe(1);
+
+    // Trigger IndexedDB async load for a different key
+    cache.get('callgraph', 'h2');
+    await new Promise((r) => setTimeout(r, 10));
+
+    // d1 should have been evicted, d2 loaded from IndexedDB
+    expect(cache.get('inheritance', 'h1')).toBeNull();
+    expect(cache.get('callgraph', 'h2')).toBe(d2);
+  });
+
+  it('does not overwrite cache when IndexedDB load returns data but key already in cache', async () => {
+    const cache = new DiagramCache(5);
+    const d1 = makeLayeredDiagram();
+    const d2 = makeLayeredDiagram();
+    const mockIdb = {
+      getDiagram: vi.fn().mockResolvedValue(d2),
+      setDiagram: vi.fn().mockResolvedValue(undefined),
+      invalidateDiagram: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+
+    // Set d1 in memory cache
+    cache.set('inheritance', 'h1', d1);
+    // Trigger IndexedDB async load (returns d2) but d1 is already in cache
+    cache.get('inheritance', 'h1');
+    await new Promise((r) => setTimeout(r, 10));
+
+    // d1 should still be the cached value, not overwritten by d2
+    expect(cache.get('inheritance', 'h1')).toBe(d1);
+  });
+
+  it('handles IndexedDB get rejection gracefully', async () => {
+    const cache = new DiagramCache(5);
+    const mockIdb = {
+      getDiagram: vi.fn().mockRejectedValue(new Error('IndexedDB error')),
+      setDiagram: vi.fn().mockResolvedValue(undefined),
+      invalidateDiagram: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+
+    // Should not throw
+    expect(cache.get('inheritance', 'h1')).toBeNull();
+    await new Promise((r) => setTimeout(r, 10));
+    // Cache should still be empty
+    expect(cache.size()).toBe(0);
+  });
+});
+
+describe('ClusterCache IndexedDB async load', () => {
+  it('loads cluster result from IndexedDB into memory cache on get miss', async () => {
+    const cache = new ClusterCache(5);
+    const result = makeClusterResult();
+    const mockIdb = {
+      getCluster: vi.fn().mockResolvedValue(result),
+      setCluster: vi.fn().mockResolvedValue(undefined),
+      invalidateCluster: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+
+    // First get returns null (async load happens in background)
+    expect(cache.get('hash1', 'directory', '')).toBeNull();
+    // Wait for async IndexedDB load to complete
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Second get should return the result loaded from IndexedDB
+    expect(cache.get('hash1', 'directory', '')).toBe(result);
+    expect(mockIdb.getCluster).toHaveBeenCalledWith('hash1:directory:');
+  });
+
+  it('evicts oldest entry when loading from IndexedDB into full cache', async () => {
+    const cache = new ClusterCache(1);
+    const r1 = makeClusterResult();
+    const r2 = makeClusterResult();
+    const mockIdb = {
+      getCluster: vi.fn().mockResolvedValue(r2),
+      setCluster: vi.fn().mockResolvedValue(undefined),
+      invalidateCluster: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+
+    // Fill cache to capacity
+    cache.set('h1', 'directory', '', r1);
+    expect(cache.size()).toBe(1);
+
+    // Trigger IndexedDB async load for a different key
+    cache.get('h2', 'directory', '');
+    await new Promise((r) => setTimeout(r, 10));
+
+    // r1 should have been evicted, r2 loaded from IndexedDB
+    expect(cache.get('h1', 'directory', '')).toBeNull();
+    expect(cache.get('h2', 'directory', '')).toBe(r2);
+  });
+
+  it('does not overwrite cache when IndexedDB load returns data but key already in cache', async () => {
+    const cache = new ClusterCache(5);
+    const r1 = makeClusterResult();
+    const r2 = makeClusterResult();
+    const mockIdb = {
+      getCluster: vi.fn().mockResolvedValue(r2),
+      setCluster: vi.fn().mockResolvedValue(undefined),
+      invalidateCluster: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+
+    // Set r1 in memory cache
+    cache.set('h1', 'directory', '', r1);
+    // Trigger IndexedDB async load (returns r2) but r1 is already in cache
+    cache.get('h1', 'directory', '');
+    await new Promise((r) => setTimeout(r, 10));
+
+    // r1 should still be the cached value, not overwritten by r2
+    expect(cache.get('h1', 'directory', '')).toBe(r1);
+  });
+
+  it('handles IndexedDB get rejection gracefully', async () => {
+    const cache = new ClusterCache(5);
+    const mockIdb = {
+      getCluster: vi.fn().mockRejectedValue(new Error('IndexedDB error')),
+      setCluster: vi.fn().mockResolvedValue(undefined),
+      invalidateCluster: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+
+    // Should not throw
+    expect(cache.get('hash1', 'directory', '')).toBeNull();
+    await new Promise((r) => setTimeout(r, 10));
+    // Cache should still be empty
+    expect(cache.size()).toBe(0);
+  });
+});
+
+describe('computeDataHash additional coverage', () => {
+  it('produces different hashes for nodes with different parentId', () => {
+    const nodesA = [{ id: 'a', type: 'class', parentId: 'parent1' }];
+    const nodesB = [{ id: 'a', type: 'class', parentId: 'parent2' }];
+    expect(computeDataHash(nodesA, [])).not.toBe(computeDataHash(nodesB, []));
+  });
+
+  it('produces different hashes for node with parentId vs without', () => {
+    const nodesA = [{ id: 'a', type: 'class', parentId: 'parent1' }];
+    const nodesB = [{ id: 'a', type: 'class' }];
+    expect(computeDataHash(nodesA, [])).not.toBe(computeDataHash(nodesB, []));
+  });
+
+  it('produces different hashes for edges with different source', () => {
+    const edgesA = [{ id: 'e1', source: 'a', target: 'b', type: 'call' }];
+    const edgesB = [{ id: 'e1', source: 'c', target: 'b', type: 'call' }];
+    expect(computeDataHash([], edgesA)).not.toBe(computeDataHash([], edgesB));
+  });
+
+  it('produces different hashes for edges with different target', () => {
+    const edgesA = [{ id: 'e1', source: 'a', target: 'b', type: 'call' }];
+    const edgesB = [{ id: 'e1', source: 'a', target: 'd', type: 'call' }];
+    expect(computeDataHash([], edgesA)).not.toBe(computeDataHash([], edgesB));
+  });
+
+  it('produces different hashes for edges with different type', () => {
+    const edgesA = [{ id: 'e1', source: 'a', target: 'b', type: 'call' }];
+    const edgesB = [{ id: 'e1', source: 'a', target: 'b', type: 'inherit' }];
+    expect(computeDataHash([], edgesA)).not.toBe(computeDataHash([], edgesB));
+  });
+
+  it('produces different hashes for different number of nodes', () => {
+    const nodesA = [{ id: 'a', type: 'class' }];
+    const nodesB = [{ id: 'a', type: 'class' }, { id: 'b', type: 'function' }];
+    expect(computeDataHash(nodesA, [])).not.toBe(computeDataHash(nodesB, []));
+  });
+
+  it('produces different hashes for different number of edges', () => {
+    const edgesA = [{ id: 'e1', source: 'a', target: 'b', type: 'call' }];
+    const edgesB = [
+      { id: 'e1', source: 'a', target: 'b', type: 'call' },
+      { id: 'e2', source: 'c', target: 'd', type: 'call' },
+    ];
+    expect(computeDataHash([], edgesA)).not.toBe(computeDataHash([], edgesB));
+  });
+});
+
+describe('DiagramCache.size', () => {
+  it('returns 0 for empty cache', () => {
+    const cache = new DiagramCache(5);
+    expect(cache.size()).toBe(0);
+  });
+
+  it('returns correct count after entries added', () => {
+    const cache = new DiagramCache(5);
+    cache.set('inheritance', 'h1', makeLayeredDiagram());
+    cache.set('callgraph', 'h2', makeLayeredDiagram());
+    expect(cache.size()).toBe(2);
+  });
+
+  it('returns correct count after eviction', () => {
+    const cache = new DiagramCache(2);
+    cache.set('inheritance', 'h1', makeLayeredDiagram());
+    cache.set('callgraph', 'h2', makeLayeredDiagram());
+    cache.set('package', 'h3', makeLayeredDiagram());
+    expect(cache.size()).toBe(2);
+  });
+});
+
+describe('ClusterCache.size', () => {
+  it('returns 0 for empty cache', () => {
+    const cache = new ClusterCache(5);
+    expect(cache.size()).toBe(0);
+  });
+
+  it('returns correct count after entries added', () => {
+    const cache = new ClusterCache(5);
+    cache.set('h1', 'directory', '', makeClusterResult());
+    cache.set('h2', 'function', 'nodeA', makeClusterResult());
+    expect(cache.size()).toBe(2);
+  });
+
+  it('returns correct count after eviction', () => {
+    const cache = new ClusterCache(2);
+    cache.set('h1', 'directory', '', makeClusterResult());
+    cache.set('h2', 'directory', '', makeClusterResult());
+    cache.set('h3', 'directory', '', makeClusterResult());
+    expect(cache.size()).toBe(2);
+  });
+});
+
+describe('DiagramCache.invalidate with IndexedDB', () => {
+  it('clears only specified viewMode entries from memory and calls idbCache.invalidateDiagram', async () => {
+    const cache = new DiagramCache(5);
+    const mockIdb = {
+      getDiagram: vi.fn().mockResolvedValue(null),
+      setDiagram: vi.fn().mockResolvedValue(undefined),
+      invalidateDiagram: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    cache.set('inheritance', 'h1', makeLayeredDiagram());
+    cache.set('callgraph', 'h2', makeLayeredDiagram());
+
+    cache.invalidate('inheritance');
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(cache.size()).toBe(1);
+    expect(cache.get('callgraph', 'h2')).not.toBeNull();
+    expect(mockIdb.invalidateDiagram).toHaveBeenCalledWith('inheritance');
+  });
+});
+
+describe('ClusterCache.invalidate with IndexedDB', () => {
+  it('clears memory cache and calls idbCache.invalidateCluster', async () => {
+    const cache = new ClusterCache(5);
+    const mockIdb = {
+      getCluster: vi.fn().mockResolvedValue(null),
+      setCluster: vi.fn().mockResolvedValue(undefined),
+      invalidateCluster: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    cache.set('h1', 'directory', '', makeClusterResult());
+    cache.set('h2', 'function', 'nodeA', makeClusterResult());
+
+    cache.invalidate();
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(cache.size()).toBe(0);
+    expect(mockIdb.invalidateCluster).toHaveBeenCalledTimes(1);
+  });
+});
+describe('DiagramCache additional coverage', () => {
+  it('get with idbCache miss returns null and triggers async load', async () => {
+    const cache = new DiagramCache(5);
+    const mockIdb = {
+      getDiagram: vi.fn().mockResolvedValue(null),
+      setDiagram: vi.fn().mockResolvedValue(undefined),
+      invalidateDiagram: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    expect(cache.get('inheritance', 'h1')).toBeNull();
+    await new Promise((r) => setTimeout(r, 10));
+    // Async load completed but result was null, so cache should still be empty
+    expect(cache.size()).toBe(0);
+    expect(mockIdb.getDiagram).toHaveBeenCalledWith('inheritance:h1');
+  });
+
+  it('set with idbCache routes setDiagram call with correct key', async () => {
+    const cache = new DiagramCache(5);
+    const mockIdb = {
+      getDiagram: vi.fn().mockResolvedValue(null),
+      setDiagram: vi.fn().mockResolvedValue(undefined),
+      invalidateDiagram: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    const diagram = makeLayeredDiagram();
+    cache.set('callgraph', 'h2', diagram);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(mockIdb.setDiagram).toHaveBeenCalledWith('callgraph:h2', diagram);
+  });
+
+  it('set with idbCache rejection logs warning but does not throw', async () => {
+    const cache = new DiagramCache(5);
+    const mockIdb = {
+      getDiagram: vi.fn().mockResolvedValue(null),
+      setDiagram: vi.fn().mockRejectedValue(new Error('set fail')),
+      invalidateDiagram: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    cache.set('inheritance', 'h1', makeLayeredDiagram());
+    await new Promise((r) => setTimeout(r, 10));
+    // Cache should still have the entry in memory
+    expect(cache.size()).toBe(1);
+  });
+
+  it('invalidate with idbCache rejection logs warning but does not throw', async () => {
+    const cache = new DiagramCache(5);
+    const mockIdb = {
+      getDiagram: vi.fn().mockResolvedValue(null),
+      setDiagram: vi.fn().mockResolvedValue(undefined),
+      invalidateDiagram: vi.fn().mockRejectedValue(new Error('invalidate fail')),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    cache.set('inheritance', 'h1', makeLayeredDiagram());
+    cache.invalidate('inheritance');
+    await new Promise((r) => setTimeout(r, 10));
+    // Memory cache should still be cleared
+    expect(cache.size()).toBe(0);
+  });
+
+  it('invalidate all with idbCache rejection logs warning but does not throw', async () => {
+    const cache = new DiagramCache(5);
+    const mockIdb = {
+      getDiagram: vi.fn().mockResolvedValue(null),
+      setDiagram: vi.fn().mockResolvedValue(undefined),
+      invalidateDiagram: vi.fn().mockRejectedValue(new Error('invalidate all fail')),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    cache.set('inheritance', 'h1', makeLayeredDiagram());
+    cache.invalidate();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(cache.size()).toBe(0);
+  });
+
+  it('get with idbCache loads diagram and evicts when cache is full', async () => {
+    const cache = new DiagramCache(1);
+    const d1 = makeLayeredDiagram();
+    const d2 = makeLayeredDiagram();
+    const mockIdb = {
+      getDiagram: vi.fn().mockResolvedValue(d2),
+      setDiagram: vi.fn().mockResolvedValue(undefined),
+      invalidateDiagram: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    cache.set('inheritance', 'h1', d1);
+    expect(cache.size()).toBe(1);
+    // Trigger async load for a different key
+    cache.get('callgraph', 'h2');
+    await new Promise((r) => setTimeout(r, 10));
+    // d1 should have been evicted, d2 loaded from IndexedDB
+    expect(cache.get('inheritance', 'h1')).toBeNull();
+    expect(cache.get('callgraph', 'h2')).toBe(d2);
+  });
+
+  it('get with idbCache does not overwrite when key already exists in cache', async () => {
+    const cache = new DiagramCache(5);
+    const d1 = makeLayeredDiagram();
+    const d2 = makeLayeredDiagram();
+    const mockIdb = {
+      getDiagram: vi.fn().mockResolvedValue(d2),
+      setDiagram: vi.fn().mockResolvedValue(undefined),
+      invalidateDiagram: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    cache.set('inheritance', 'h1', d1);
+    // Trigger async load (returns d2) but d1 is already in cache
+    cache.get('inheritance', 'h1');
+    await new Promise((r) => setTimeout(r, 10));
+    // d1 should still be the cached value, not overwritten by d2
+    expect(cache.get('inheritance', 'h1')).toBe(d1);
+  });
+});
+
+describe('ClusterCache additional coverage', () => {
+  it('get with idbCache miss returns null and triggers async load', async () => {
+    const cache = new ClusterCache(5);
+    const mockIdb = {
+      getCluster: vi.fn().mockResolvedValue(null),
+      setCluster: vi.fn().mockResolvedValue(undefined),
+      invalidateCluster: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    expect(cache.get('h1', 'directory', '')).toBeNull();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(cache.size()).toBe(0);
+    expect(mockIdb.getCluster).toHaveBeenCalledWith('h1:directory:');
+  });
+
+  it('set with idbCache routes setCluster call with correct key', async () => {
+    const cache = new ClusterCache(5);
+    const mockIdb = {
+      getCluster: vi.fn().mockResolvedValue(null),
+      setCluster: vi.fn().mockResolvedValue(undefined),
+      invalidateCluster: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    const result = makeClusterResult();
+    cache.set('h1', 'directory', '', result);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(mockIdb.setCluster).toHaveBeenCalledWith('h1:directory:', result);
+  });
+
+  it('set with idbCache rejection logs warning but does not throw', async () => {
+    const cache = new ClusterCache(5);
+    const mockIdb = {
+      getCluster: vi.fn().mockResolvedValue(null),
+      setCluster: vi.fn().mockRejectedValue(new Error('set fail')),
+      invalidateCluster: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    cache.set('h1', 'directory', '', makeClusterResult());
+    await new Promise((r) => setTimeout(r, 10));
+    expect(cache.size()).toBe(1);
+  });
+
+  it('invalidate with idbCache rejection logs warning but does not throw', async () => {
+    const cache = new ClusterCache(5);
+    const mockIdb = {
+      getCluster: vi.fn().mockResolvedValue(null),
+      setCluster: vi.fn().mockResolvedValue(undefined),
+      invalidateCluster: vi.fn().mockRejectedValue(new Error('invalidate fail')),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    cache.set('h1', 'directory', '', makeClusterResult());
+    cache.invalidate();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(cache.size()).toBe(0);
+  });
+
+  it('get with idbCache loads result and evicts when cache is full', async () => {
+    const cache = new ClusterCache(1);
+    const r1 = makeClusterResult();
+    const r2 = makeClusterResult();
+    const mockIdb = {
+      getCluster: vi.fn().mockResolvedValue(r2),
+      setCluster: vi.fn().mockResolvedValue(undefined),
+      invalidateCluster: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    cache.set('h1', 'directory', '', r1);
+    expect(cache.size()).toBe(1);
+    cache.get('h2', 'directory', '');
+    await new Promise((r) => setTimeout(r, 10));
+    expect(cache.get('h1', 'directory', '')).toBeNull();
+    expect(cache.get('h2', 'directory', '')).toBe(r2);
+  });
+
+  it('get with idbCache does not overwrite when key already exists in cache', async () => {
+    const cache = new ClusterCache(5);
+    const r1 = makeClusterResult();
+    const r2 = makeClusterResult();
+    const mockIdb = {
+      getCluster: vi.fn().mockResolvedValue(r2),
+      setCluster: vi.fn().mockResolvedValue(undefined),
+      invalidateCluster: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    cache.set('h1', 'directory', '', r1);
+    cache.get('h1', 'directory', '');
+    await new Promise((r) => setTimeout(r, 10));
+    expect(cache.get('h1', 'directory', '')).toBe(r1);
+  });
+});

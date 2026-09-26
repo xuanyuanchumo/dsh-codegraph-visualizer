@@ -356,4 +356,75 @@ describe('QuadTree', () => {
     expect(result.has('c')).toBe(false);
     expect(result.has('d')).toBe(false);
   });
+
+  it('QuadNode.countEntries returns total entries in subdivided tree', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 2, 8);
+    tree.insert('a', 10, 10);
+    tree.insert('b', 20, 20);
+    tree.insert('c', 300, 300);
+    tree.insert('d', 400, 400);
+
+    // Access internal root to test countEntries on non-leaf node
+    const root = (tree as any).root;
+    expect(root.countEntries()).toBe(4);
+  });
+
+  it('QuadNode.countEntries returns 0 for empty leaf node', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 10, 8);
+    const root = (tree as any).root;
+    expect(root.countEntries()).toBe(0);
+  });
+
+  it('QuadNode.countEntries returns correct count after removals in subdivided tree', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 2, 8);
+    tree.insert('a', 10, 10);
+    tree.insert('b', 20, 20);
+    tree.insert('c', 300, 300);
+    tree.insert('d', 400, 400);
+    tree.remove('a');
+    tree.remove('c');
+
+    const root = (tree as any).root;
+    expect(root.countEntries()).toBe(2);
+  });
+
+  it('QuadNode.remove returns null when id not found in non-leaf node', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 2, 8);
+    tree.insert('a', 10, 10);
+    tree.insert('b', 20, 20);
+    tree.insert('c', 300, 300);
+
+    // Access internal root to test remove on non-leaf with non-existent id
+    const root = (tree as any).root;
+    const result = root.remove('nonexistent');
+    expect(result).toBeNull();
+  });
+
+  it('QuadNode.remove returns null when id not found in deep subdivided tree', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 1, 4);
+    tree.insert('a', 10, 10);
+    tree.insert('b', 20, 20);
+    tree.insert('c', 30, 30);
+
+    const root = (tree as any).root;
+    const result = root.remove('nonexistent');
+    expect(result).toBeNull();
+  });
+
+  it('QuadNode.countLeaves returns correct count for deep subdivision', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 1, 4);
+    tree.insert('a', 10, 10);
+    tree.insert('b', 20, 20);
+    tree.insert('c', 30, 30);
+    tree.insert('d', 40, 40);
+
+    const root = (tree as any).root;
+    expect(root.countLeaves()).toBeGreaterThan(1);
+  });
 });

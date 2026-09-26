@@ -9,6 +9,8 @@ import {
   fetchBootstrap,
   fetchNodeChildren,
   fetchGraphDataIncremental,
+  fetchFileOutline,
+  fetchSymbolAST,
 } from '../../src/client/api/index.ts';
 
 describe('client api', () => {
@@ -348,6 +350,115 @@ describe('client api', () => {
     it('returns null on fetch error', async () => {
       globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as unknown as typeof fetch;
       const result = await fetchGraphDataIncremental(123);
+      expect(result).toBeNull();
+    });
+
+    it('returns null when response not ok', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => null }) as unknown as typeof fetch;
+      const result = await fetchGraphDataIncremental(123);
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('fetchFileOutline', () => {
+    it('returns parsed outline data on success', async () => {
+      const outlineData = {
+        symbols: [{ id: 's1', label: 'funcA', type: 'function', filePath: '/src/a.ts', lineNumber: 1, properties: {} }],
+        edges: [{ id: 'e1', source: 's1', target: 's2', type: 'calls', properties: {} }],
+      };
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => outlineData,
+      }) as unknown as typeof fetch;
+      const result = await fetchFileOutline('file-1');
+      expect(result).not.toBeNull();
+      expect(result!.symbols).toHaveLength(1);
+      expect(result!.edges).toHaveLength(1);
+    });
+
+    it('encodes nodeId in the URL', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ symbols: [], edges: [] }),
+      });
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
+      await fetchFileOutline('path/to/file.ts');
+      expect(mockFetch.mock.calls[0]![0]).toBe('/api/v1/codegraph/files/path%2Fto%2Ffile.ts/outline');
+    });
+
+    it('fills missing symbols/edges with empty arrays', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({}),
+      }) as unknown as typeof fetch;
+      const result = await fetchFileOutline('file-1');
+      expect(result).not.toBeNull();
+      expect(result!.symbols).toEqual([]);
+      expect(result!.edges).toEqual([]);
+    });
+
+    it('returns null when response not ok', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => null }) as unknown as typeof fetch;
+      const result = await fetchFileOutline('file-1');
+      expect(result).toBeNull();
+    });
+
+    it('returns null on fetch error', async () => {
+      globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as unknown as typeof fetch;
+      const result = await fetchFileOutline('file-1');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('fetchSymbolAST', () => {
+    it('returns parsed AST data on success', async () => {
+      const astData = {
+        astNodes: [{ id: 'n1', label: 'node', type: 'function', filePath: '/src/a.ts', lineNumber: 1, properties: {} }],
+        astEdges: [{ id: 'e1', source: 'n1', target: 'n2', type: 'calls', properties: {} }],
+        sourceLines: ['line1', 'line2'],
+      };
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => astData,
+      }) as unknown as typeof fetch;
+      const result = await fetchSymbolAST('sym-1');
+      expect(result).not.toBeNull();
+      expect(result!.astNodes).toHaveLength(1);
+      expect(result!.astEdges).toHaveLength(1);
+      expect(result!.sourceLines).toEqual(['line1', 'line2']);
+    });
+
+    it('encodes nodeId in the URL', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ astNodes: [], astEdges: [], sourceLines: [] }),
+      });
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
+      await fetchSymbolAST('sym/with/slashes');
+      expect(mockFetch.mock.calls[0]![0]).toBe('/api/v1/codegraph/symbols/sym%2Fwith%2Fslashes/ast');
+    });
+
+    it('fills missing fields with empty arrays', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({}),
+      }) as unknown as typeof fetch;
+      const result = await fetchSymbolAST('sym-1');
+      expect(result).not.toBeNull();
+      expect(result!.astNodes).toEqual([]);
+      expect(result!.astEdges).toEqual([]);
+      expect(result!.sourceLines).toEqual([]);
+    });
+
+    it('returns null when response not ok', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => null }) as unknown as typeof fetch;
+      const result = await fetchSymbolAST('sym-1');
+      expect(result).toBeNull();
+    });
+
+    it('returns null on fetch error', async () => {
+      globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as unknown as typeof fetch;
+      const result = await fetchSymbolAST('sym-1');
       expect(result).toBeNull();
     });
   });

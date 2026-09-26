@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { aggregateEdges } from '../../src/client/store/cluster/types.ts';
-import { makeEdge } from '../helpers.ts';
-import type { GraphEdge } from '../../src/types/index.ts';
+import { aggregateEdges, getDependencyGroup } from '../../src/client/store/cluster/types.ts';
+import { makeEdge, makeNode } from '../helpers.ts';
+import type { GraphEdge, GraphNode } from '../../src/types/index.ts';
 
 describe('aggregateEdges', () => {
   it('skips edges when source or target not in nodeIdToVisibleId', () => {
@@ -131,5 +131,66 @@ describe('aggregateEdges', () => {
     expect(result).toHaveLength(1);
     expect(result[0]!.source).toBe('n1');
     expect(result[0]!.target).toBe('n2');
+  });
+
+  it('creates ClusterEdge when non-cluster edge count exceeds threshold (>20)', () => {
+    const edges: GraphEdge[] = [];
+    for (let i = 0; i < 25; i++) {
+      edges.push(makeEdge(`e${i}`, 'n1', 'n2', 'call'));
+    }
+    const nodeIdToVisibleId = new Map<string, string>([['n1', 'n1'], ['n2', 'n2']]);
+    const result = aggregateEdges(edges, nodeIdToVisibleId, 'dircluster__');
+    expect(result).toHaveLength(1);
+    const edge = result[0] as GraphEdge & { isCluster: boolean; aggregatedCount: number };
+    expect(edge.isCluster).toBe(true);
+    expect(edge.aggregatedCount).toBe(25);
+  });
+
+  it('keeps original edges when non-cluster edge count is at threshold (<=20)', () => {
+    const edges: GraphEdge[] = [];
+    for (let i = 0; i < 20; i++) {
+      edges.push(makeEdge(`e${i}`, 'n1', 'n2', 'call'));
+    }
+    const nodeIdToVisibleId = new Map<string, string>([['n1', 'n1'], ['n2', 'n2']]);
+    const result = aggregateEdges(edges, nodeIdToVisibleId, 'dircluster__');
+    expect(result).toHaveLength(20);
+    expect(result.every((e) => !('isCluster' in e) || !e.isCluster)).toBe(true);
+  });
+
+  it('creates ClusterEdge with funccluster prefix for non-cluster over threshold', () => {
+    const edges: GraphEdge[] = [];
+    for (let i = 0; i < 25; i++) {
+      edges.push(makeEdge(`e${i}`, 'n1', 'n2', 'call'));
+    }
+    const nodeIdToVisibleId = new Map<string, string>([['n1', 'n1'], ['n2', 'n2']]);
+    const result = aggregateEdges(edges, nodeIdToVisibleId, 'funccluster__');
+    expect(result).toHaveLength(1);
+    const edge = result[0] as GraphEdge & { isCluster: boolean };
+    expect(edge.isCluster).toBe(true);
+  });
+});
+
+describe('getDependencyGroup', () => {
+  it('returns dep group string when node has depType property', () => {
+    const node = makeNode('n1', 'lodash', 'module', 'package.json', 0);
+    node.properties = { depType: 'npm' };
+    expect(getDependencyGroup(node)).toBe('dep:npm');
+  });
+
+  it('returns null when node has no depType property', () => {
+    const node = makeNode('n1', 'foo', 'function', 'a.ts', 1);
+    expect(getDependencyGroup(node)).toBeNull();
+  });
+
+  it('returns null when depType is not a string', () => {
+    const node = makeNode('n1', 'foo', 'function', 'a.ts', 1);
+    node.properties = { depType: 123 };
+    expect(getDependencyGroup(node)).toBeNull();
+  });
+
+  it('returns null when properties is empty', () => {
+    const node = makeNode('n1', 'foo', 'function', 'a.ts', 1);
+    node.properties = {};
+    expect(getDependencyGroup(node)).toBeNull();
   });
 });

@@ -3,14 +3,14 @@ import { ClassAssembler } from '../../src/client/diagram/ClassAssembler.ts';
 import type { GraphNode, GraphEdge } from '../../src/types/index.ts';
 import { NodeId, EdgeId } from '../../src/types/index.ts';
 
-function makeNode(id: string, type: GraphNode['type'], label: string, filePath: string, lineNumber: number): GraphNode {
+function makeNode(id: string, type: GraphNode['type'], label: string, filePath: string, lineNumber: number, properties: Record<string, unknown> = {}): GraphNode {
   return {
     id: NodeId(id),
     label,
     type,
     filePath,
     lineNumber,
-    properties: {},
+    properties,
   };
 }
 
@@ -195,5 +195,257 @@ describe('ClassAssembler', () => {
     expect(result.nodes).toHaveLength(0);
     expect(result.edges).toHaveLength(0);
     expect(result.metadata.maxDepth).toBe(0);
+  });
+
+  it('associates members by parentId when available', () => {
+    const nodes = [
+      makeNode('ClassA', 'class', 'ClassA', 'src/a.ts', 5),
+      makeNode('method1', 'function', 'method1', 'src/a.ts', 10),
+    ];
+    // Set parentId on method1 to point to ClassA
+    nodes[1]!.parentId = NodeId('ClassA');
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    const classNode = result.nodes.find((n) => n.id === 'ClassA');
+    expect(classNode?.properties.methodCount).toBe(1);
+    expect(classNode?.properties.members).toHaveLength(1);
+  });
+
+  it('infers protected visibility for _ prefixed members', () => {
+    const nodes = [
+      makeNode('ClassA', 'class', 'ClassA', 'src/a.ts', 5),
+      makeNode('_method', 'function', '_method', 'src/a.ts', 10),
+    ];
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    const classNode = result.nodes.find((n) => n.id === 'ClassA');
+    const members = classNode?.properties.members as Array<{ visibility: string }>;
+    expect(members).toHaveLength(1);
+    expect(members[0]?.visibility).toBe('protected');
+  });
+
+  it('infers private visibility for __ prefixed members', () => {
+    const nodes = [
+      makeNode('ClassA', 'class', 'ClassA', 'src/a.ts', 5),
+      makeNode('__private', 'function', '__private', 'src/a.ts', 10),
+    ];
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    const classNode = result.nodes.find((n) => n.id === 'ClassA');
+    const members = classNode?.properties.members as Array<{ visibility: string }>;
+    expect(members).toHaveLength(1);
+    expect(members[0]?.visibility).toBe('private');
+  });
+
+  it('infers public visibility for exported members with isExported=1', () => {
+    const nodes = [
+      makeNode('ClassA', 'class', 'ClassA', 'src/a.ts', 5),
+      makeNode('exportedFn', 'function', 'exportedFn', 'src/a.ts', 10, { isExported: 1 }),
+    ];
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    const classNode = result.nodes.find((n) => n.id === 'ClassA');
+    const members = classNode?.properties.members as Array<{ visibility: string }>;
+    expect(members).toHaveLength(1);
+    expect(members[0]?.visibility).toBe('public');
+  });
+
+  it('infers private visibility for non-exported members', () => {
+    const nodes = [
+      makeNode('ClassA', 'class', 'ClassA', 'src/a.ts', 5),
+      makeNode('internalFn', 'function', 'internalFn', 'src/a.ts', 10),
+    ];
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    const classNode = result.nodes.find((n) => n.id === 'ClassA');
+    const members = classNode?.properties.members as Array<{ visibility: string }>;
+    expect(members).toHaveLength(1);
+    expect(members[0]?.visibility).toBe('private');
+  });
+
+  it('includes member signatures in memberSignatures', () => {
+    const nodes = [
+      makeNode('ClassA', 'class', 'ClassA', 'src/a.ts', 5),
+      makeNode('method1', 'function', 'method1', 'src/a.ts', 10, { signature: '(x: number)' }),
+    ];
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    const classNode = result.nodes.find((n) => n.id === 'ClassA');
+    const members = classNode?.properties.members as Array<{ signature?: string }>;
+    expect(members).toHaveLength(1);
+    expect(members[0]?.signature).toBe('(x: number)');
+  });
+
+  it('builds umlLabel with interface stereotype', () => {
+    const nodes = [
+      makeNode('IFace', 'interface', 'IFace', 'src/a.ts', 1),
+    ];
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    const ifaceNode = result.nodes.find((n) => n.id === 'IFace');
+    expect(ifaceNode?.properties.umlLabel).toContain('«interface»');
+    expect(ifaceNode?.properties.umlLabel).toContain('IFace');
+  });
+
+  it('builds umlLabel with property and method sections', () => {
+    const nodes = [
+      makeNode('ClassA', 'class', 'ClassA', 'src/a.ts', 5),
+      makeNode('_prop', 'variable', '_prop', 'src/a.ts', 8),
+      makeNode('method1', 'function', 'method1', 'src/a.ts', 10),
+    ];
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    const classNode = result.nodes.find((n) => n.id === 'ClassA');
+    const umlLabel = classNode?.properties.umlLabel as string;
+    // Should contain separator, property line with # (protected), method line
+    expect(umlLabel).toContain('#');
+    expect(umlLabel).toContain('_prop');
+    expect(umlLabel).toContain('method1');
+  });
+
+  it('builds umlLabel with public and private visibility markers', () => {
+    const nodes = [
+      makeNode('ClassA', 'class', 'ClassA', 'src/a.ts', 5),
+      makeNode('pubMethod', 'function', 'pubMethod', 'src/a.ts', 10, { isExported: true }),
+      makeNode('__privMethod', 'function', '__privMethod', 'src/a.ts', 15),
+    ];
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    const classNode = result.nodes.find((n) => n.id === 'ClassA');
+    const umlLabel = classNode?.properties.umlLabel as string;
+    expect(umlLabel).toContain('+');
+    expect(umlLabel).toContain('-');
+    expect(umlLabel).toContain('pubMethod');
+    expect(umlLabel).toContain('__privMethod');
+  });
+
+  it('marks interface as abstract', () => {
+    const nodes = [
+      makeNode('IFace', 'interface', 'IFace', 'src/a.ts', 1),
+    ];
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    expect(result.nodes.find((n) => n.id === 'IFace')?.properties.isAbstract).toBe(true);
+  });
+
+  it('does not mark regular class as abstract', () => {
+    const nodes = [
+      makeNode('Regular', 'class', 'Regular', 'src/a.ts', 1),
+    ];
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    expect(result.nodes.find((n) => n.id === 'Regular')?.properties.isAbstract).toBe(false);
+  });
+
+  it('associates properties (variable members) to classes', () => {
+    const nodes = [
+      makeNode('ClassA', 'class', 'ClassA', 'src/a.ts', 5),
+      makeNode('prop1', 'variable', 'prop1', 'src/a.ts', 8),
+    ];
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    const classNode = result.nodes.find((n) => n.id === 'ClassA');
+    expect(classNode?.properties.propertyCount).toBe(1);
+    expect(classNode?.properties.methodCount).toBe(0);
+  });
+
+  it('limits memberSignatures to 10 entries', () => {
+    const nodes = [
+      makeNode('ClassA', 'class', 'ClassA', 'src/a.ts', 5),
+    ];
+    // Add 12 function members
+    for (let i = 0; i < 12; i++) {
+      nodes.push(makeNode(`m${i}`, 'function', `m${i}`, 'src/a.ts', 10 + i));
+    }
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    const classNode = result.nodes.find((n) => n.id === 'ClassA');
+    const members = classNode?.properties.members as unknown[];
+    expect(members).toHaveLength(10);
+  });
+
+  it('skips member nodes whose type is in CLASS_NODE_TYPES', () => {
+    // A 'class' type node should not be associated as a member of another class
+    const nodes = [
+      makeNode('Outer', 'class', 'Outer', 'src/a.ts', 5),
+      makeNode('Inner', 'class', 'Inner', 'src/a.ts', 10),
+    ];
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    const outerNode = result.nodes.find((n) => n.id === 'Outer');
+    expect(outerNode?.properties.methodCount).toBe(0);
+    expect(outerNode?.properties.propertyCount).toBe(0);
+  });
+
+  it('sets isRoot to false for class with outgoing extend edge', () => {
+    const nodes = [
+      makeNode('A', 'class', 'ClassA', 'src/a.ts', 1),
+      makeNode('B', 'class', 'ClassB', 'src/b.ts', 1),
+    ];
+    const edges = [makeEdge('e1', 'B', 'A', 'extend')];
+
+    const result = assembler.assemble(nodes, edges);
+
+    expect(result.nodes.find((n) => n.id === 'A')?.properties.isRoot).toBe(true);
+    expect(result.nodes.find((n) => n.id === 'B')?.properties.isRoot).toBe(false);
+  });
+
+  it('builds umlLabel with property signature when available', () => {
+    const nodes = [
+      makeNode('ClassA', 'class', 'ClassA', 'src/a.ts', 5),
+      makeNode('prop1', 'variable', 'prop1', 'src/a.ts', 8, { signature: 'string' }),
+    ];
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    const classNode = result.nodes.find((n) => n.id === 'ClassA');
+    const umlLabel = classNode?.properties.umlLabel as string;
+    // Property line should contain ': string' suffix when signature is present
+    expect(umlLabel).toContain(': string');
+    expect(umlLabel).toContain('prop1');
+  });
+
+  it('builds umlLabel with method signature in parentheses', () => {
+    const nodes = [
+      makeNode('ClassA', 'class', 'ClassA', 'src/a.ts', 5),
+      makeNode('method1', 'function', 'method1', 'src/a.ts', 10, { signature: 'x: number, y: string' }),
+    ];
+    const edges: GraphEdge[] = [];
+
+    const result = assembler.assemble(nodes, edges);
+
+    const classNode = result.nodes.find((n) => n.id === 'ClassA');
+    const umlLabel = classNode?.properties.umlLabel as string;
+    // Method line should contain signature in parentheses
+    expect(umlLabel).toContain('method1(x: number, y: string)');
   });
 });

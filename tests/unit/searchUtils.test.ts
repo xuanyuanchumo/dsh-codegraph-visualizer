@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseSearchQuery, matchSearchQuery } from '../../src/shared/searchUtils.ts';
+import { parseSearchQuery, matchSearchQuery, fuzzyMatch, fuzzyScore } from '../../src/shared/searchUtils.ts';
 
 describe('parseSearchQuery', () => {
   it('parses simple single keyword as optional', () => {
@@ -115,5 +115,86 @@ describe('matchSearchQuery', () => {
   it('matches everything when query is empty', () => {
     const parsed = parseSearchQuery('');
     expect(matchSearchQuery('anything', parsed)).toBe(true);
+  });
+
+  it('uses fuzzyMatch for optional terms that are not exact substrings', () => {
+    const parsed = parseSearchQuery('fbr');
+    expect(matchSearchQuery('foobar', parsed)).toBe(true);
+  });
+});
+
+describe('fuzzyMatch', () => {
+  it('returns true for empty pattern', () => {
+    expect(fuzzyMatch('anything', '')).toBe(true);
+  });
+
+  it('returns false when pattern is longer than text', () => {
+    expect(fuzzyMatch('ab', 'abc')).toBe(false);
+  });
+
+  it('matches exact substring', () => {
+    expect(fuzzyMatch('foobar', 'bar')).toBe(true);
+  });
+
+  it('matches fuzzy subsequence', () => {
+    expect(fuzzyMatch('foobar', 'fbr')).toBe(true);
+  });
+
+  it('returns false for non-matching subsequence', () => {
+    expect(fuzzyMatch('foobar', 'xyz')).toBe(false);
+  });
+
+  it('matches single character', () => {
+    expect(fuzzyMatch('abc', 'a')).toBe(true);
+    expect(fuzzyMatch('abc', 'c')).toBe(true);
+  });
+
+  it('matches full pattern as subsequence', () => {
+    expect(fuzzyMatch('abcdefgh', 'aceh')).toBe(true);
+  });
+
+  it('returns false when characters are out of order', () => {
+    expect(fuzzyMatch('abc', 'ba')).toBe(false);
+  });
+});
+
+describe('fuzzyScore', () => {
+  it('returns 0 for empty pattern', () => {
+    expect(fuzzyScore('anything', '')).toBe(0);
+  });
+
+  it('returns high score for exact substring match', () => {
+    const score = fuzzyScore('foobar', 'bar');
+    expect(score).toBeGreaterThan(100);
+  });
+
+  it('returns 0 when pattern is not a subsequence', () => {
+    expect(fuzzyScore('abc', 'xyz')).toBe(0);
+  });
+
+  it('returns positive score for fuzzy subsequence match', () => {
+    const score = fuzzyScore('foobar', 'fbr');
+    expect(score).toBeGreaterThan(0);
+  });
+
+  it('gives higher score for consecutive matches', () => {
+    const consecutiveScore = fuzzyScore('abcdefgh', 'abc');
+    const scatteredScore = fuzzyScore('abcdefgh', 'adg');
+    expect(consecutiveScore).toBeGreaterThan(scatteredScore);
+  });
+
+  it('is case-insensitive', () => {
+    expect(fuzzyScore('FOOBAR', 'bar')).toBeGreaterThan(100);
+    expect(fuzzyScore('foobar', 'BAR')).toBeGreaterThan(100);
+  });
+
+  it('returns 0 for pattern longer than text', () => {
+    expect(fuzzyScore('ab', 'abc')).toBe(0);
+  });
+
+  it('rewards longer substring matches proportionally', () => {
+    const shortMatch = fuzzyScore('ab', 'ab');
+    const longMatch = fuzzyScore('abcdef', 'def');
+    expect(longMatch).toBeGreaterThan(0);
   });
 });

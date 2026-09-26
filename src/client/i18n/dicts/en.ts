@@ -332,6 +332,7 @@ export const en: Record<string, string> = {
   'micro.loadFailed': 'Micro diagram load failed',
   'micro.closeView': 'Close micro view',
   'stats.nodesEdges': '{nodes} nodes · {edges} edges',
+  'stats.functionBodyBudget': '{expanded}/{max} function bodies expanded',
   'godmodule.stats': '{nodes} nodes · {edges} edges',
   'search.moreResults': '+{n} more results',
 

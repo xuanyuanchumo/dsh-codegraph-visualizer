@@ -143,3 +143,80 @@ describe('Logger clearListeners', () => {
     expect(sub.mock.calls.length).toBe(callsBeforeClear);
   });
 });
+describe('Logger __CG_DEBUG initialization', () => {
+  it('should initialize minLevel to debug when __CG_DEBUG is true', async () => {
+    // Save original state
+    const origDebug = (globalThis as unknown as { __CG_DEBUG?: boolean }).__CG_DEBUG;
+    (globalThis as unknown as { __CG_DEBUG?: boolean }).__CG_DEBUG = true;
+
+    // Dynamic import to get a fresh module evaluation
+    vi.resetModules();
+    const mod = await import('../../src/shared/Logger.ts');
+    const freshLogger = mod.logger;
+
+    expect(freshLogger.minLevel).toBe('debug');
+
+    // Restore
+    (globalThis as unknown as { __CG_DEBUG?: boolean }).__CG_DEBUG = origDebug;
+    vi.resetModules();
+  });
+
+  it('should initialize minLevel to info when __CG_DEBUG is not set', async () => {
+    const origDebug = (globalThis as unknown as { __CG_DEBUG?: boolean }).__CG_DEBUG;
+    delete (globalThis as unknown as { __CG_DEBUG?: boolean }).__CG_DEBUG;
+
+    vi.resetModules();
+    const mod = await import('../../src/shared/Logger.ts');
+    const freshLogger = mod.logger;
+
+    expect(freshLogger.minLevel).toBe('info');
+
+    // Restore
+    (globalThis as unknown as { __CG_DEBUG?: boolean }).__CG_DEBUG = origDebug;
+    vi.resetModules();
+  });
+});
+
+describe('Logger error handling', () => {
+  beforeEach(() => {
+    logger.clear();
+    logger.clearListeners();
+    logger.minLevel = 'info';
+  });
+
+  it('should not throw when console.log throws', () => {
+    const originalLog = console.log;
+    console.log = vi.fn(() => { throw new Error('console broken'); });
+    expect(() => logger.info('host', 'msg')).not.toThrow();
+    console.log = originalLog;
+  });
+
+  it('should not throw when console.error throws', () => {
+    const originalError = console.error;
+    console.error = vi.fn(() => { throw new Error('console broken'); });
+    expect(() => logger.error('host', 'err')).not.toThrow();
+    console.error = originalError;
+  });
+
+  it('should not throw when console.warn throws', () => {
+    const originalWarn = console.warn;
+    console.warn = vi.fn(() => { throw new Error('console broken'); });
+    expect(() => logger.warn('host', 'warn')).not.toThrow();
+    console.warn = originalWarn;
+  });
+
+  it('should not throw when a listener throws during emit', () => {
+    let callCount = 0;
+    const badListener = vi.fn(() => {
+      callCount++;
+      if (callCount > 1) throw new Error('listener fault');
+    });
+    const goodListener = vi.fn();
+    logger.subscribe(badListener);
+    logger.subscribe(goodListener);
+    // badListener's initial call (callCount=1) does not throw;
+    // subsequent emit calls (callCount>1) throw but should be caught
+    expect(() => logger.info('host', 'msg')).not.toThrow();
+    expect(goodListener).toHaveBeenCalled();
+  });
+});

@@ -404,3 +404,13 @@
   font-weight: 500;
   color: var(--cg-text-secondary);
 }
+.cg-function-body-budget {
+  display: flex;
+  align-items: center;
+  padding: 2px 8px;
+  background: var(--cg-surface);
+  border-bottom: 1px solid var(--cg-border);
+  font-size: 11px;
+  color: var(--cg-text-secondary);
+  z-index: 5;
+}

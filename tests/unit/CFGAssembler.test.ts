@@ -1107,4 +1107,501 @@ describe('CFGAssembler', () => {
     const condNodes = result.nodes.filter((n) => n.properties.blockType === 'condition');
     expect(condNodes.length).toBe(1);
   });
+
+  // --- classifyStatement: assignment type ---
+
+  it('classifies assignment statements as declaration', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { x = 1; }', [
+      makeStatement('assignment', 'x = 1', 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const processNodes = result.nodes.filter(
+      (n) => n.properties.blockType === 'process' && n.properties.statements,
+    );
+    const allStmts = processNodes.flatMap(
+      (n) => (n.properties.statements as Array<{ type: string }>),
+    );
+    const declStmts = allStmts.filter((s) => s.type === 'declaration');
+    expect(declStmts.length).toBe(1);
+  });
+
+  // --- classifyStatement: default 'expression' for unknown types ---
+
+  it('classifies unknown statement types as expression', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { pass; }', [
+      makeStatement('pass_statement', 'pass', 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const processNodes = result.nodes.filter(
+      (n) => n.properties.blockType === 'process' && n.properties.statements,
+    );
+    const allStmts = processNodes.flatMap(
+      (n) => (n.properties.statements as Array<{ type: string }>),
+    );
+    const exprStmts = allStmts.filter((s) => s.type === 'expression');
+    expect(exprStmts.length).toBe(1);
+  });
+
+  // --- getConditionNode: if with comparison_expression child ---
+
+  it('finds condition node via comparison_expression for if statement', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { if (x > 0) { y = 1; } }', [
+      makeAstNode('if_statement', 'if (x > 0)', [
+        makeAstNode('comparison_expression', 'x > 0', [], 1),
+        makeAstNode('block', '', [makeStatement('expression_statement', 'y = 1', 2)], 2),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const condNodes = result.nodes.filter((n) => n.properties.blockType === 'condition');
+    expect(condNodes.length).toBe(1);
+    expect(condNodes[0]!.label).toContain('x > 0');
+  });
+
+  // --- getConditionNode: if without recognizable condition child ---
+
+  it('uses "if" as label when if statement has no recognizable condition child', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { if (x) { y = 1; } }', [
+      makeAstNode('if_statement', 'if (x)', [
+        makeAstNode('block', '', [makeStatement('expression_statement', 'y = 1', 1)]),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const condNodes = result.nodes.filter((n) => n.properties.blockType === 'condition');
+    expect(condNodes.length).toBe(1);
+    expect(condNodes[0]!.label).toBe('if');
+  });
+
+  // --- getConditionNode: while with binary_expression child ---
+
+  it('finds condition node via binary_expression for while statement', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { while (x > 0) { x--; } }', [
+      makeAstNode('while_statement', 'while (x > 0)', [
+        makeAstNode('binary_expression', 'x > 0', [], 1),
+        makeAstNode('block', '', [makeStatement('expression_statement', 'x--', 2)], 2),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const loopNodes = result.nodes.filter((n) => n.properties.blockType === 'loop');
+    expect(loopNodes.length).toBe(1);
+    expect(loopNodes[0]!.label).toContain('x > 0');
+  });
+
+  // --- getConditionNode: while without recognizable condition child ---
+
+  it('uses while type as label when while statement has no recognizable condition child', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { while (x) { x--; } }', [
+      makeAstNode('while_statement', 'while (x)', [
+        makeAstNode('block', '', [makeStatement('expression_statement', 'x--', 1)]),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const loopNodes = result.nodes.filter((n) => n.properties.blockType === 'loop');
+    expect(loopNodes.length).toBe(1);
+    expect(loopNodes[0]!.label).toBe('while_statement');
+  });
+
+  // --- getConditionNode: for with binary_expression child ---
+
+  it('finds condition node via binary_expression for for statement', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { for (i < 10) { x = i; } }', [
+      makeAstNode('for_statement', 'for (i < 10)', [
+        makeAstNode('binary_expression', 'i < 10', [], 1),
+        makeAstNode('block', '', [makeStatement('expression_statement', 'x = i', 2)], 2),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const loopNodes = result.nodes.filter((n) => n.properties.blockType === 'loop');
+    expect(loopNodes.length).toBe(1);
+    expect(loopNodes[0]!.label).toContain('i < 10');
+  });
+
+  // --- getConditionNode: for without recognizable condition child ---
+
+  it('uses for type as label when for statement has no recognizable condition child', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { for (x) { x = 1; } }', [
+      makeAstNode('for_statement', 'for (x)', [
+        makeAstNode('block', '', [makeStatement('expression_statement', 'x = 1', 1)]),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const loopNodes = result.nodes.filter((n) => n.properties.blockType === 'loop');
+    expect(loopNodes.length).toBe(1);
+    expect(loopNodes[0]!.label).toBe('for_statement');
+  });
+
+  // --- processControlFlow: default return for unrecognized control flow ---
+
+  it('processes elif_clause as control flow with default handling', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { elif (x < 0) { y = 1; } z = 2; }', [
+      makeAstNode('elif_clause', 'elif (x < 0)', [], 1),
+      makeStatement('expression_statement', 'z = 2', 2),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    // elif_clause is control flow but has no specific handler, so it falls through
+    // The subsequent statement should still be processed
+    const processNodes = result.nodes.filter(
+      (n) => n.properties.blockType === 'process' && n.properties.statements,
+    );
+    const allStmts = processNodes.flatMap(
+      (n) => (n.properties.statements as Array<{ text: string }>),
+    );
+    expect(allStmts.some((s) => s.text === 'z = 2')).toBe(true);
+  });
+
+  // --- processLoop: condNode is null ---
+
+  it('uses node type as condition text when loop has no recognizable condition child', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { while (x) { x--; } }', [
+      makeAstNode('while_statement', 'while (x)', [
+        makeAstNode('block', '', [makeStatement('expression_statement', 'x--', 1)]),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const loopNodes = result.nodes.filter((n) => n.properties.blockType === 'loop');
+    expect(loopNodes.length).toBe(1);
+    // When condNode is null, condText defaults to node.type
+    expect(loopNodes[0]!.label).toBe('while_statement');
+  });
+
+  // --- processSwitch: case label with string type ---
+
+  it('uses string type for case label in switch', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { switch (x) { case "hello": y = 1; } }', [
+      makeAstNode('switch_statement', 'switch (x)', [
+        makeAstNode('parenthesized_expression', 'x', [], 1),
+        makeAstNode('case_statement', 'case "hello":', [
+          makeAstNode('string', '"hello"', [], 2),
+          makeStatement('expression_statement', 'y = 1', 2),
+        ], 2),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const caseEdges = result.edges.filter((e) => e.properties.cfgEdgeType === 'case');
+    expect(caseEdges.length).toBe(1);
+    expect(caseEdges[0]!.properties.condition).toBe('"hello"');
+  });
+
+  // --- processSwitch: case label with literal_pattern type ---
+
+  it('uses literal_pattern for case label in match expression', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { match x { 1 => { y = 1; } } }', [
+      makeAstNode('match_expression', 'match x', [
+        makeAstNode('parenthesized_expression', 'x', [], 1),
+        makeAstNode('match_arm', '1 => { y = 1; }', [
+          makeAstNode('literal_pattern', '1', [], 2),
+          makeStatement('expression_statement', 'y = 1', 2),
+        ], 2),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const caseEdges = result.edges.filter((e) => e.properties.cfgEdgeType === 'case');
+    expect(caseEdges.length).toBe(1);
+    expect(caseEdges[0]!.properties.condition).toBe('1');
+  });
+
+  // --- processSwitch: case label with no recognizable child ---
+
+  it('uses "case" as label when case has no recognizable label child', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { switch (x) { case: y = 1; } }', [
+      makeAstNode('switch_statement', 'switch (x)', [
+        makeAstNode('parenthesized_expression', 'x', [], 1),
+        makeAstNode('case_statement', 'case:', [
+          makeStatement('expression_statement', 'y = 1', 2),
+        ], 2),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const caseEdges = result.edges.filter((e) => e.properties.cfgEdgeType === 'case');
+    expect(caseEdges.length).toBe(1);
+    expect(caseEdges[0]!.properties.condition).toBe('case');
+  });
+
+  // --- processTry: try without block body ---
+
+  it('handles try statement without block body', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { try { } catch (e) { y = 2; } }', [
+      makeAstNode('try_statement', 'try', [
+        // No block child - tryBody will be null
+        makeAstNode('catch_clause', 'catch (e)', [
+          makeAstNode('block', '', [makeStatement('expression_statement', 'y = 2', 2)], 2),
+        ], 2),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const tryNodes = result.nodes.filter((n) => n.properties.blockType === 'try');
+    expect(tryNodes.length).toBe(1);
+    const catchNodes = result.nodes.filter((n) => n.properties.blockType === 'catch');
+    expect(catchNodes.length).toBe(1);
+  });
+
+  // --- processTry: catch without block body ---
+
+  it('handles catch clause without block body', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { try { x = 1; } catch (e) { } }', [
+      makeAstNode('try_statement', 'try', [
+        makeAstNode('block', '', [makeStatement('expression_statement', 'x = 1', 1)], 1),
+        makeAstNode('catch_clause', 'catch (e)', [], 2),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const tryNodes = result.nodes.filter((n) => n.properties.blockType === 'try');
+    expect(tryNodes.length).toBe(1);
+    const catchNodes = result.nodes.filter((n) => n.properties.blockType === 'catch');
+    expect(catchNodes.length).toBe(1);
+  });
+
+  // --- processTry: finally without block body ---
+
+  it('handles finally clause without block body', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { try { x = 1; } finally { } }', [
+      makeAstNode('try_statement', 'try', [
+        makeAstNode('block', '', [makeStatement('expression_statement', 'x = 1', 1)], 1),
+        makeAstNode('finally_clause', 'finally', [], 3),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const finallyNodes = result.nodes.filter((n) => n.properties.blockType === 'finally');
+    expect(finallyNodes.length).toBe(1);
+  });
+
+  // --- continue inside switch without enclosing loop ---
+
+  it('continue inside switch without enclosing loop falls through to exit', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { switch (x) { case 1: continue; default: y = 0; } }', [
+      makeAstNode('switch_statement', 'switch (x)', [
+        makeAstNode('parenthesized_expression', 'x', [], 1),
+        makeAstNode('case_statement', 'case 1:', [
+          makeStatement('continue_statement', 'continue', 2),
+        ], 2),
+        makeAstNode('default_statement', 'default:', [
+          makeStatement('expression_statement', 'y = 0', 3),
+        ], 3),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const continueEdges = result.edges.filter((e) => e.properties.cfgEdgeType === 'continue');
+    expect(continueEdges.length).toBe(1);
+  });
+
+  // --- processSwitch: switch without condition child ---
+
+  it('uses "switch" as label when switch has no recognizable condition child', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { switch (x) { case 1: y = 1; } }', [
+      makeAstNode('switch_statement', 'switch (x)', [
+        makeAstNode('case_statement', 'case 1:', [
+          makeStatement('expression_statement', 'y = 1', 2),
+        ], 2),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const switchNodes = result.nodes.filter((n) => n.properties.blockType === 'switch');
+    expect(switchNodes.length).toBe(1);
+    expect(switchNodes[0]!.label).toBe('switch');
+  });
+
+  // --- processSwitch: match_arm with wildcard pattern as default ---
+
+  it('treats match_arm with wildcard_pattern as default case', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { match x { _ => { y = 0; } } }', [
+      makeAstNode('match_expression', 'match x', [
+        makeAstNode('parenthesized_expression', 'x', [], 1),
+        makeAstNode('match_arm', '_ => { y = 0; }', [
+          makeAstNode('wildcard_pattern', '_', [], 2),
+          makeStatement('expression_statement', 'y = 0', 2),
+        ], 2),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    // match_arm with wildcard_pattern is treated as default,
+    // plus an implicit default edge is added since no explicit default_statement exists
+    const defaultEdges = result.edges.filter((e) => e.properties.cfgEdgeType === 'default');
+    expect(defaultEdges.length).toBeGreaterThanOrEqual(1);
+    // At least one default edge should target the match_arm's case entry block
+    const switchNodes = result.nodes.filter((n) => n.properties.blockType === 'switch');
+    expect(switchNodes.length).toBe(1);
+  });
+
+  // --- processSwitch: case label with identifier type ---
+
+  it('uses identifier type for case label in switch', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { switch (x) { case foo: y = 1; } }', [
+      makeAstNode('switch_statement', 'switch (x)', [
+        makeAstNode('parenthesized_expression', 'x', [], 1),
+        makeAstNode('case_statement', 'case foo:', [
+          makeAstNode('identifier', 'foo', [], 2),
+          makeStatement('expression_statement', 'y = 1', 2),
+        ], 2),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const caseEdges = result.edges.filter((e) => e.properties.cfgEdgeType === 'case');
+    expect(caseEdges.length).toBe(1);
+    expect(caseEdges[0]!.properties.condition).toBe('foo');
+  });
+
+  // --- processSwitch: case label with number type ---
+
+  it('uses number type for case label in switch', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { switch (x) { case 42: y = 1; } }', [
+      makeAstNode('switch_statement', 'switch (x)', [
+        makeAstNode('parenthesized_expression', 'x', [], 1),
+        makeAstNode('case_statement', 'case 42:', [
+          makeAstNode('number', '42', [], 2),
+          makeStatement('expression_statement', 'y = 1', 2),
+        ], 2),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const caseEdges = result.edges.filter((e) => e.properties.cfgEdgeType === 'case');
+    expect(caseEdges.length).toBe(1);
+    expect(caseEdges[0]!.properties.condition).toBe('42');
+  });
+
+  // --- classifyStatement: await_expression type ---
+
+  it('classifies await_expression as call', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { await foo(); }', [
+      makeStatement('await_expression', 'await foo()', 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const processNodes = result.nodes.filter(
+      (n) => n.properties.blockType === 'process' && n.properties.statements,
+    );
+    const allStmts = processNodes.flatMap(
+      (n) => (n.properties.statements as Array<{ type: string }>),
+    );
+    const callStmts = allStmts.filter((s) => s.type === 'call');
+    expect(callStmts.length).toBe(1);
+  });
+
+  // --- classifyStatement: macro_invocation type ---
+
+  it('classifies macro_invocation as call', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { println!(); }', [
+      makeStatement('macro_invocation', 'println!()', 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const processNodes = result.nodes.filter(
+      (n) => n.properties.blockType === 'process' && n.properties.statements,
+    );
+    const allStmts = processNodes.flatMap(
+      (n) => (n.properties.statements as Array<{ type: string }>),
+    );
+    const callStmts = allStmts.filter((s) => s.type === 'call');
+    expect(callStmts.length).toBe(1);
+  });
+
+  // --- classifyStatement: variable_declaration type ---
+
+  it('classifies variable_declaration as declaration', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { var x = 1; }', [
+      makeStatement('variable_declaration', 'var x = 1', 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const processNodes = result.nodes.filter(
+      (n) => n.properties.blockType === 'process' && n.properties.statements,
+    );
+    const allStmts = processNodes.flatMap(
+      (n) => (n.properties.statements as Array<{ type: string }>),
+    );
+    const declStmts = allStmts.filter((s) => s.type === 'declaration');
+    expect(declStmts.length).toBe(1);
+  });
+
+  // --- classifyStatement: expression_statement type ---
+
+  it('classifies expression_statement as call', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { foo(); }', [
+      makeStatement('expression_statement', 'foo()', 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const processNodes = result.nodes.filter(
+      (n) => n.properties.blockType === 'process' && n.properties.statements,
+    );
+    const allStmts = processNodes.flatMap(
+      (n) => (n.properties.statements as Array<{ type: string }>),
+    );
+    const callStmts = allStmts.filter((s) => s.type === 'call');
+    expect(callStmts.length).toBe(1);
+  });
+
+  // --- processTry: try with statement_block instead of block ---
+
+  it('processes try with statement_block body type', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { try { x = 1; } catch (e) { y = 2; } }', [
+      makeAstNode('try_statement', 'try', [
+        makeAstNode('statement_block', '', [makeStatement('expression_statement', 'x = 1', 1)], 1),
+        makeAstNode('catch_clause', 'catch (e)', [
+          makeAstNode('statement_block', '', [makeStatement('expression_statement', 'y = 2', 2)], 2),
+        ], 2),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const tryNodes = result.nodes.filter((n) => n.properties.blockType === 'try');
+    expect(tryNodes.length).toBe(1);
+    const catchNodes = result.nodes.filter((n) => n.properties.blockType === 'catch');
+    expect(catchNodes.length).toBe(1);
+  });
+
+  // --- processTry: finally with statement_block body type ---
+
+  it('processes finally with statement_block body type', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { try { x = 1; } finally { z = 3; } }', [
+      makeAstNode('try_statement', 'try', [
+        makeAstNode('statement_block', '', [makeStatement('expression_statement', 'x = 1', 1)], 1),
+        makeAstNode('finally_clause', 'finally', [
+          makeAstNode('statement_block', '', [makeStatement('expression_statement', 'z = 3', 3)], 3),
+        ], 3),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const finallyNodes = result.nodes.filter((n) => n.properties.blockType === 'finally');
+    expect(finallyNodes.length).toBe(1);
+    const afterFinallyNodes = result.nodes.filter((n) => n.label === 'after-finally');
+    expect(afterFinallyNodes.length).toBe(1);
+  });
+
+  // --- processTry: catch with statement_block body type ---
+
+  it('processes catch with statement_block body type', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { try { x = 1; } catch (e) { y = 2; } }', [
+      makeAstNode('try_statement', 'try', [
+        makeAstNode('block', '', [makeStatement('expression_statement', 'x = 1', 1)], 1),
+        makeAstNode('catch_clause', 'catch (e)', [
+          makeAstNode('statement_block', '', [makeStatement('expression_statement', 'y = 2', 2)], 2),
+        ], 2),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const catchNodes = result.nodes.filter((n) => n.properties.blockType === 'catch');
+    expect(catchNodes.length).toBe(1);
+  });
 });

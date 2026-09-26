@@ -153,3 +153,16 @@ describe('STRUCTURAL_PANELS and BEHAVIORAL_PANELS', () => {
     expect(BEHAVIORAL_PANELS.has('showHotspot')).toBe(true);
   });
 });
+describe('assertNever branches', () => {
+  it('isLayeredViewMode throws on invalid ViewMode', () => {
+    expect(() => isLayeredViewMode('invalid' as ViewMode)).toThrow(/Unreachable/);
+  });
+
+  it('getViewLayer throws on invalid ViewMode', () => {
+    expect(() => getViewLayer('invalid' as ViewMode)).toThrow(/Unreachable/);
+  });
+
+  it('getAvailablePanels throws on invalid ViewLayer', () => {
+    expect(() => getAvailablePanels('invalid' as never)).toThrow(/Unreachable/);
+  });
+});

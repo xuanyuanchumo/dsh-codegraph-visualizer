@@ -46,7 +46,7 @@ import { GraphIcon } from './components/Icons.tsx';
 import { SequenceDiagramRenderer } from './renderer/SequenceDiagramRenderer.tsx';
 import { scoped } from '../shared/Logger.ts';
 import { DOM_EVENTS } from '../shared/domEvents.ts';
-import { LOD, UI, PREFETCH } from '../shared/constants.ts';
+import { LOD, UI, PREFETCH, FUNCTION_BODY } from '../shared/constants.ts';
 
 import { useT } from './i18n/index.ts';
 import './styles/tokens.css';
@@ -619,8 +619,13 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     if (!prerequisites.codegraph) return;
     if (!currentWorkspace) return;
     hasAutoScannedRef.current = true;
-    log.info('auto-fill: triggering scan on first open', { path: currentWorkspace });
-    handleScanWorkspace();
+    log.info('auto-fill: triggering bootstrap on first open', { path: currentWorkspace });
+    useGraphStore.getState().loadBootstrap().then((ok) => {
+      if (!ok) {
+        log.info('auto-fill: bootstrap failed, falling back to scan', { path: currentWorkspace });
+        handleScanWorkspace();
+      }
+    });
   }, [panel.collapsed, nodes.length, rawNodes.length, prerequisites.codegraph, currentWorkspace, handleScanWorkspace]);
 
   const statsText = useMemo(() => {
@@ -628,6 +633,14 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     const totalEdges = diagramData?.allEdges.length ?? edges.length;
     return t('stats.nodesEdges', { nodes: totalNodes, edges: totalEdges });
   }, [nodes.length, edges.length, diagramData, t]);
+
+  const expandedFunctionBodyCount = useMemo(() => {
+    return [...expandedNodeIds].filter((id) =>
+      rawNodes.some((n) => n.id === id && n.type === 'function'),
+    ).length;
+  }, [expandedNodeIds, rawNodes]);
+
+  const showFunctionBodyBudget = expandedFunctionBodyCount > 0;
 
   const searchResults = useMemo<SearchResultItem[]>(() => {
     if (!debouncedSearch) return [];
@@ -773,6 +786,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           onExpand={handleFocusExpand} onContract={handleFocusContract} onExit={handleFocusExit} /></GraphErrorBoundary>
       )}
 
+      {showFunctionBodyBudget && !isCollapsed && (
+        <div className="cg-function-body-budget" role="status" aria-live="polite">
+          {t('stats.functionBodyBudget', { expanded: expandedFunctionBodyCount, max: FUNCTION_BODY.MAX_EXPANDED })}
+        </div>
+      )}
 
       {isLoading && !isCollapsed && <LoadingOverlay visible={true} />}
       {error && !isCollapsed && (

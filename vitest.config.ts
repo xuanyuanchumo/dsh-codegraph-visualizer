@@ -8,7 +8,7 @@ export default defineConfig({
     environment: 'node',
     coverage: {
       provider: 'v8',
-
+      include: ['src/**'],
       reporter: ['text', 'json', 'html', 'lcov'],
       thresholds: {
         lines: 85,
@@ -26,6 +26,7 @@ export default defineConfig({
         'src/client/index.ts',
 
         'src/client/renderer/IRenderer.ts',
+
         'src/client/renderer/SequenceDiagramRenderer.tsx',
         'src/client/diagram/SequenceTypes.ts',
         'src/client/renderer/cytoscape-dagre.d.ts',

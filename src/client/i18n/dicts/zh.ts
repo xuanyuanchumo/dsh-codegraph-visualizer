@@ -331,6 +331,7 @@ export const zh: Record<string, string> = {
   'micro.loadFailed': '微观图谱加载失败',
   'micro.closeView': '关闭微观视图',
   'stats.nodesEdges': '{nodes} 节点 · {edges} 边',
+  'stats.functionBodyBudget': '已展开 {expanded}/{max} 个函数体',
   'godmodule.stats': '{nodes} 节点 · {edges} 边',
   'search.moreResults': '还有 {n} 个结果',
 

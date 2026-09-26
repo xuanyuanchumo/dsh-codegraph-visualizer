@@ -6,6 +6,8 @@ import {
   applyInitialDepth,
   createSubgroupClusters,
   enforceNodeLimit,
+  estimateExpandCost,
+  invalidateExpandCostCache,
 } from '../../src/client/store/cluster/progressiveCluster.ts';
 import { getTopLevelDir } from '../../src/shared/pathUtils.ts';
 import type { GraphNode, GraphEdge } from '../../src/types/index.ts';
@@ -678,5 +680,330 @@ describe('enforceNodeLimit', () => {
     expect(nodeIdToVisibleId.get('n4999')).toBe('n4999');
 
     expect(result.nodes.length).toBeLessThanOrEqual(5000);
+  });
+});
+describe('estimateExpandCost', () => {
+  it('returns 0 for unknown node ID prefix', () => {
+    const nodes = [makeNode('a', 'src/foo.ts')];
+    expect(estimateExpandCost('unknown_prefix__foo', nodes)).toBe(0);
+  });
+
+  it('estimates cost for cluster__ prefix (directory cluster)', () => {
+    const nodes = [
+      makeNode('a', 'src/components/A.tsx'),
+      makeNode('b', 'src/components/B.tsx'),
+      makeNode('c', 'src/components/C.tsx'),
+    ];
+    const cost = estimateExpandCost('cluster__src__components', nodes);
+    expect(cost).toBe(2);
+  });
+
+  it('estimates cost for filecluster__ prefix', () => {
+    const moduleNode = makeNode('file1', 'file1', 'module');
+    const funcNode1 = makeNode('func1', 'file1', 'function', 'file1');
+    const funcNode2 = makeNode('func2', 'file1', 'function', 'file1');
+    const nodes = [moduleNode, funcNode1, funcNode2];
+    const cost = estimateExpandCost('filecluster__file__file1', nodes);
+    expect(cost).toBe(2);
+  });
+
+  it('estimates cost for subgroup__ prefix', () => {
+    const nodes: GraphNode[] = [];
+    for (let i = 0; i < 10; i++) {
+      nodes.push(makeNode(`n${i}`, `src/bigdir/file${i}.ts`));
+    }
+    const cost = estimateExpandCost('subgroup__src__bigdir__c0', nodes);
+    expect(cost).toBeGreaterThanOrEqual(0);
+  });
+
+  it('returns 0 when directory has only 1 node', () => {
+    const nodes = [makeNode('a', 'src/solo/A.tsx')];
+    const cost = estimateExpandCost('cluster__src__solo', nodes);
+    expect(cost).toBe(0);
+  });
+
+  it('returns 0 for empty rawNodes', () => {
+    expect(estimateExpandCost('cluster__src__components', [])).toBe(0);
+  });
+});
+
+describe('invalidateExpandCostCache', () => {
+  it('does not throw when called', () => {
+    expect(() => invalidateExpandCostCache()).not.toThrow();
+  });
+
+  it('allows re-estimation after cache invalidation', () => {
+    const nodes = [
+      makeNode('a', 'src/components/A.tsx'),
+      makeNode('b', 'src/components/B.tsx'),
+    ];
+    const cost1 = estimateExpandCost('cluster__src__components', nodes);
+    invalidateExpandCostCache();
+    const cost2 = estimateExpandCost('cluster__src__components', nodes);
+    expect(cost1).toBe(cost2);
+  });
+});
+describe('computeProgressiveClusters with viewportWidth', () => {
+  it('uses Math.max for effectiveDepth when viewportWidth and initialDepth > 0', () => {
+    const nodes: GraphNode[] = [];
+    for (let i = 0; i < 2000; i++) {
+      nodes.push(makeNode(`n${i}`, `src/dir${i % 100}/file${i}.ts`));
+    }
+    const edges: GraphEdge[] = [];
+
+    // viewportWidth=800 → maxVisibleNodes=800
+    // nodeCount=2000 > 800*1.5=1200 → getAutoClusterDepth returns 1
+    // initialDepth=1 → Math.max(1, 1) = 1
+    const result = computeProgressiveClusters(nodes, edges, new Set(), 1, 800);
+    expect(result.nodes.length).toBeGreaterThan(0);
+  });
+
+  it('uses getAutoClusterDepth=2 when nodeCount > maxVisibleNodes*5', () => {
+    const nodes: GraphNode[] = [];
+    for (let i = 0; i < 5000; i++) {
+      nodes.push(makeNode(`n${i}`, `src/dir${i % 250}/file${i}.ts`));
+    }
+    const edges: GraphEdge[] = [];
+
+    // viewportWidth=800 → maxVisibleNodes=800
+    // nodeCount=5000 > 800*5=4000 → getAutoClusterDepth returns 2
+    // initialDepth=1 → Math.max(1, 2) = 2
+    const result = computeProgressiveClusters(nodes, edges, new Set(), 1, 800);
+    expect(result.nodes.length).toBeGreaterThan(0);
+  });
+
+  it('uses initialDepth when viewportWidth is provided but initialDepth is 0', () => {
+    const nodes = [
+      makeNode('a', 'src/components/A.tsx'),
+      makeNode('b', 'src/utils/B.ts'),
+    ];
+    const edges: GraphEdge[] = [];
+
+    // viewportWidth=1200, initialDepth=0
+    // effectiveDepth = 0 (because initialDepth=0, condition is false)
+    const result = computeProgressiveClusters(nodes, edges, new Set(), 0, 1200);
+    expect(result.nodes).toHaveLength(2);
+  });
+
+  it('triggers enforceNodeLimit when visibleNodes exceeds maxVisibleNodes', () => {
+    // Use small viewport to get maxVisibleNodes=800
+    // Create 1000 nodes in 50 directories, expand all directories
+    // Each node has unique filePath → 1000 file clusters > 800
+    // enforceNodeLimit is called but file clusters (childCount=1) are kept
+    // The function still returns a valid result
+    const nodes: GraphNode[] = [];
+    for (let i = 0; i < 1000; i++) {
+      nodes.push(makeNode(`n${i}`, `src/dir${i % 50}/file${i}.ts`));
+    }
+    const edges: GraphEdge[] = [];
+
+    const expandedDirs = new Set<string>();
+    for (let i = 0; i < 50; i++) {
+      expandedDirs.add(`cluster__src__dir${i}`);
+    }
+
+    const result = computeProgressiveClusters(nodes, edges, expandedDirs, 0, 800);
+    expect(result.nodes.length).toBeGreaterThan(0);
+    expect(result.edges).toBeDefined();
+  });
+});
+
+describe('estimateExpandCost file cache rebuild', () => {
+  it('rebuilds file cache after invalidation with filecluster__ prefix', () => {
+    const nodes = [
+      makeNode('file1', 'src/foo.ts', 'module'),
+      makeNode('func1', 'src/foo.ts', 'function', 'file1'),
+    ];
+
+    // First call to populate cache
+    estimateExpandCost('filecluster__file__src__foo__ts', nodes);
+
+    // Invalidate cache
+    invalidateExpandCostCache();
+
+    // Second call should rebuild cache (cover getFileToNodesCache loop body)
+    const cost = estimateExpandCost('filecluster__file__src__foo__ts', nodes);
+    expect(cost).toBeGreaterThanOrEqual(0);
+  });
+
+  it('handles filecluster__ with multiple nodes sharing same filePath', () => {
+    const nodes = [
+      makeNode('mod', 'src/bar.ts', 'module'),
+      makeNode('fn1', 'src/bar.ts', 'function', 'mod'),
+      makeNode('fn2', 'src/bar.ts', 'function', 'mod'),
+    ];
+
+    invalidateExpandCostCache();
+    // nodeId format: filecluster__file__ + filePath with / replaced by __ (but . preserved)
+    const cost = estimateExpandCost('filecluster__file__src__bar.ts', nodes);
+    expect(cost).toBe(2);
+  });
+});
+describe('computeProgressiveClusters expanded file cluster for module nodes', () => {
+  it('shows module node and children when file cluster is expanded', () => {
+    const moduleNode = makeNode('mod1', 'src/foo/bar.ts', 'module');
+    const funcNode = makeNode('fn1', 'src/foo/bar.ts', 'function', 'mod1');
+
+    const nodes = [moduleNode, funcNode];
+    const edges: GraphEdge[] = [];
+
+    const dirClusterId = 'cluster__src__foo';
+    // fileClusterId = filecluster__file__ + filePath with / replaced by __ (but . preserved)
+    const fileClusterId = 'filecluster__file__src__foo__bar.ts';
+
+    const result = computeProgressiveClusters(nodes, edges, new Set([dirClusterId, fileClusterId]), 0);
+
+    // Module node should be visible (expanded file cluster shows module + children)
+    expect(result.nodes.length).toBeGreaterThan(0);
+    const hasMod1 = result.nodes.some((n) => 'isCluster' in n === false && n.id === 'mod1');
+    expect(hasMod1).toBe(true);
+  });
+
+  it('shows module node without children when file cluster is expanded', () => {
+    const moduleNode = makeNode('solo_mod', 'src/solo/file.ts', 'module');
+
+    const nodes = [moduleNode];
+    const edges: GraphEdge[] = [];
+
+    const dirClusterId = 'cluster__src__solo';
+    const fileClusterId = 'filecluster__file__src__solo__file.ts';
+
+    const result = computeProgressiveClusters(nodes, edges, new Set([dirClusterId, fileClusterId]), 0);
+
+    expect(result.nodes.length).toBeGreaterThan(0);
+    const hasSoloMod = result.nodes.some((n) => 'isCluster' in n === false && n.id === 'solo_mod');
+    expect(hasSoloMod).toBe(true);
+  });
+});
+
+describe('computeProgressiveClusters node without filePath', () => {
+  it('handles non-module node without parentId and filePath in expanded directory', () => {
+    const node: GraphNode = {
+      id: NodeId('nofile'),
+      label: 'nofile',
+      type: 'function',
+      filePath: '',
+      lineNumber: 0,
+      properties: {},
+    };
+
+    // Node with empty filePath gets dir = n.id = 'nofile'
+    const dirClusterId = 'cluster__nofile';
+    const result = computeProgressiveClusters([node], [], new Set([dirClusterId]), 0);
+
+    expect(result.nodes.length).toBeGreaterThan(0);
+    expect(result.nodes.some((n) => 'isCluster' in n === false && n.id === 'nofile')).toBe(true);
+  });
+
+  it('handles non-module node with parentId but no filePath in expanded directory', () => {
+    const parentNode: GraphNode = {
+      id: NodeId('parent'),
+      label: 'parent',
+      type: 'function',
+      filePath: '',
+      lineNumber: 0,
+      properties: {},
+    };
+    const childNode: GraphNode = {
+      id: NodeId('child'),
+      label: 'child',
+      type: 'function',
+      filePath: '',
+      lineNumber: 0,
+      properties: {},
+      parentId: NodeId('parent'),
+    };
+
+    const nodes = [parentNode, childNode];
+    const edges: GraphEdge[] = [];
+
+    // Both nodes have empty filePath, so dir = n.id
+    // parentNode dir = 'parent', childNode dir = 'child'
+    // But childNode has parentId='parent', so in buildParentIndex, parentToChildren has 'parent' -> [childNode]
+    // In buildDirMapping, childNode's dir = 'child' (since no filePath, no depGroup)
+    const result = computeProgressiveClusters(nodes, edges, new Set(), 0);
+
+    expect(result.nodes.length).toBeGreaterThan(0);
+  });
+});
+describe('processModuleNodeExpanded/Collapsed edge cases', () => {
+  it('processModuleNodeExpanded with module node that has no children and no filePath', () => {
+    // Module node with no filePath: parentToChildren.get(n.id) = undefined, filePathToNodes.get('') = undefined
+    // childNodes = [] → enters else branch (lines 295-298)
+    const moduleNode: GraphNode = {
+      id: NodeId('lonely_mod'),
+      label: 'lonely_mod',
+      type: 'module',
+      filePath: '',
+      lineNumber: 0,
+      properties: {},
+    };
+
+    const dirClusterId = 'cluster__lonely_mod';
+    // fileClusterId = filecluster__file__ + (parentId ?? filePath ?? id).replace(/[/:\\]/g, '__')
+    // undefined ?? '' ?? 'lonely_mod' = '' (because '' is not null/undefined)
+    // ''.replace(/[/:\\]/g, '__') = ''
+    // fileClusterId = 'filecluster__file__'
+    const fileClusterId = 'filecluster__file__';
+
+    const result = computeProgressiveClusters(
+      [moduleNode],
+      [],
+      new Set([dirClusterId, fileClusterId]),
+      0,
+    );
+
+    expect(result.nodes.length).toBeGreaterThan(0);
+    expect(result.nodes.some((n) => 'isCluster' in n === false && n.id === 'lonely_mod')).toBe(true);
+  });
+
+  it('processModuleNodeCollapsed with module node that has no children', () => {
+    // Module node with filePath but no children: filteredChildren = [] → enters else branch (lines 331-333)
+    const moduleNode = makeNode('solo_mod2', 'src/solo2/file.ts', 'module');
+
+    const nodes = [moduleNode];
+    const edges: GraphEdge[] = [];
+
+    const dirClusterId = 'cluster__src__solo2';
+    // Don't expand file cluster - module node should be collapsed
+    const result = computeProgressiveClusters(nodes, edges, new Set([dirClusterId]), 0);
+
+    expect(result.nodes.length).toBeGreaterThan(0);
+    // Module node without children is shown directly (not as a cluster)
+    expect(result.nodes.some((n) => 'isCluster' in n === false && n.id === 'solo_mod2')).toBe(true);
+  });
+});
+describe('estimateExpandCost fallback paths', () => {
+  it('cluster__ fallback when dirPath not directly in cache', () => {
+    // Create nodes in a directory with __ in its name
+    // getTopLevelDir('src__foo/bar.ts') = 'src__foo/bar.ts' (2 segments)
+    // dir in cache = 'src__foo/bar.ts'
+    // nodeId = cluster__src__foo__bar.ts
+    // dirPath = src/foo/bar.ts (not in cache) → fallback path
+    // dir.replace(/[/:\\]/g, '__') = 'src__foo__bar.ts' matches nodeId.replace(/^cluster__/, '') = 'src__foo__bar.ts'
+    const nodes = [
+      makeNode('a', 'src__foo/bar.ts'),
+      makeNode('b', 'src__foo/bar.ts'),
+    ];
+
+    invalidateExpandCostCache();
+    const cost = estimateExpandCost('cluster__src__foo__bar.ts', nodes);
+    expect(cost).toBe(1); // 2 nodes - 1 = 1
+  });
+
+  it('filecluster__ fallback when filePath not directly in cache', () => {
+    // Create nodes with filePath containing __
+    // getFileToNodesCache key = 'src__foo/bar.ts'
+    // nodeId = filecluster__file__src__foo__bar.ts
+    // filePath = src/foo/bar.ts (not in cache) → fallback path
+    // fp.replace(/[/:\\]/g, '__') = 'src__foo__bar.ts' matches nodeId.replace(/^filecluster__file__/, '') = 'src__foo__bar.ts'
+    const nodes = [
+      makeNode('a', 'src__foo/bar.ts', 'module'),
+      makeNode('b', 'src__foo/bar.ts', 'function', 'a'),
+    ];
+
+    invalidateExpandCostCache();
+    const cost = estimateExpandCost('filecluster__file__src__foo__bar.ts', nodes);
+    expect(cost).toBeGreaterThanOrEqual(0);
   });
 });

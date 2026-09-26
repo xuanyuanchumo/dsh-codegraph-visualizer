@@ -285,4 +285,123 @@ describe('HierarchicalAssembler', () => {
     expect(nodeA?.properties.umlLabel).toContain('class: 1');
     expect(nodeA?.properties.umlLabel).toContain('function: 1');
   });
+
+  it('skips edges where source or target directory does not exist', () => {
+    // Create nodes in src/a and src/b, but edge references a node in src/c (no dir node)
+    const nodes = [
+      makeNode('f1', 'module', 'file1', 'src/a/file.ts'),
+      makeNode('f2', 'module', 'file2', 'src/b/file.ts'),
+    ];
+    // Edge from f1 to a non-existent node 'f3' in src/c
+    const edges = [
+      makeEdge('e1', 'f1', 'f3', 'import'),
+    ];
+
+    const result = assembler.assemble(nodes, edges);
+
+    // The edge should be skipped because f3's directory (src/c) has no dir node
+    expect(result.edges).toHaveLength(0);
+  });
+
+  it('generates umlLabel without type summary when all types excluded', () => {
+    class AllExcludedAssembler extends HierarchicalAssembler {
+      protected config: HierarchicalAssemblerConfig = {
+        nodePrefix: 'allexcl',
+        edgeIdPrefix: 'allexcl-edge',
+        isDirProperty: 'isAllExclDir',
+        isEdgeProperty: 'isAllExclEdge',
+        edgeTypes: new Set(['import']),
+        getDirectory: (filePath: string) => filePath.split('/')[0] || '/',
+        getLabel: (dir: string) => dir,
+        excludeTypesFromDist: new Set(['class', 'function', 'interface', 'variable', 'module', 'type']),
+      };
+    }
+
+    const allExcludedAssembler = new AllExcludedAssembler();
+    const nodes = [
+      makeNode('f1', 'class', 'ClassA', 'src/a/file.ts'),
+      makeNode('f2', 'function', 'funcB', 'src/b/file.ts'),
+    ];
+
+    const result = allExcludedAssembler.assemble(nodes, []);
+    const srcNode = result.nodes.find((n) => n.properties.directory === 'src');
+    // typeSummary should be empty, so umlLabel should not contain type info after "items"
+    expect(srcNode?.properties.umlLabel).toContain('2 items');
+    // Should not contain "class:" or "function:" since all types are excluded
+    expect(srcNode?.properties.umlLabel).not.toContain('class:');
+    expect(srcNode?.properties.umlLabel).not.toContain('function:');
+  });
+
+  it('sets isRoot to false for directory with incoming edges', () => {
+    const nodes = [
+      makeNode('f1', 'module', 'file1', 'src/a/file.ts'),
+      makeNode('f2', 'module', 'file2', 'src/b/file.ts'),
+      makeNode('f3', 'module', 'file3', 'src/c/file.ts'),
+    ];
+    const edges = [
+      makeEdge('e1', 'f1', 'f2', 'import'),
+      makeEdge('e2', 'f2', 'f3', 'import'),
+    ];
+
+    const result = assembler.assemble(nodes, edges);
+
+    const nodeA = result.nodes.find((n) => n.properties.directory === 'src/a');
+    const nodeB = result.nodes.find((n) => n.properties.directory === 'src/b');
+    const nodeC = result.nodes.find((n) => n.properties.directory === 'src/c');
+    expect(nodeA?.properties.isRoot).toBe(true);
+    expect(nodeB?.properties.isRoot).toBe(false);
+    expect(nodeC?.properties.isRoot).toBe(false);
+  });
+
+  it('computes maxDepth correctly for multi-level hierarchy', () => {
+    const nodes = [
+      makeNode('f1', 'module', 'file1', 'src/a/file.ts'),
+      makeNode('f2', 'module', 'file2', 'src/b/file.ts'),
+      makeNode('f3', 'module', 'file3', 'src/c/file.ts'),
+    ];
+    const edges = [
+      makeEdge('e1', 'f1', 'f2', 'import'),
+      makeEdge('e2', 'f2', 'f3', 'import'),
+    ];
+
+    const result = assembler.assemble(nodes, edges);
+
+    expect(result.metadata.maxDepth).toBe(2);
+  });
+
+  it('prefers import type when aggregated edges contain import', () => {
+    const nodes = [
+      makeNode('f1', 'module', 'file1', 'src/a/file.ts'),
+      makeNode('f2', 'module', 'file2', 'src/b/file.ts'),
+    ];
+    const edges = [
+      makeEdge('e1', 'f1', 'f2', 'import'),
+      makeEdge('e2', 'f1', 'f2', 'dependency'),
+    ];
+
+    const result = assembler.assemble(nodes, edges);
+
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]!.type).toBe('import');
+  });
+
+  it('aggregates multiple edges with different types between same dirs', () => {
+    const nodes = [
+      makeNode('f1', 'module', 'file1', 'src/a/file1.ts'),
+      makeNode('f2', 'module', 'file2', 'src/b/file1.ts'),
+      makeNode('f3', 'module', 'file3', 'src/b/file2.ts'),
+    ];
+    const edges = [
+      makeEdge('e1', 'f1', 'f2', 'import'),
+      makeEdge('e2', 'f1', 'f3', 'dependency'),
+    ];
+
+    const result = assembler.assemble(nodes, edges);
+
+    // Both edges go from src/a to src/b, so they should be aggregated into one
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]!.properties.aggregatedCount).toBe(2);
+    // import type should take precedence
+    expect(result.edges[0]!.type).toBe('import');
+  });
 });

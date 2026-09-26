@@ -59,13 +59,13 @@ function makeMockCy(nodeList: any[] = [], edgeList: any[] = []) {
 }
 
 describe('VirtualViewportController (FR-50)', () => {
-  it('shouldEnable returns true when nodeCount > 5000', () => {
+  it('shouldEnable returns true when nodeCount > SCROLL_THRESHOLD', () => {
     const cy = makeMockCy();
     const controller = new (class extends (require('../../src/client/renderer/VirtualViewportController.ts').VirtualViewportController) {
       constructor() { super(cy as any); }
     })();
-    expect(controller.shouldEnable(5001)).toBe(true);
-    expect(controller.shouldEnable(5000)).toBe(false);
+    expect(controller.shouldEnable(2501)).toBe(true);
+    expect(controller.shouldEnable(2500)).toBe(false);
     expect(controller.shouldEnable(100)).toBe(false);
   });
 

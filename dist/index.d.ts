@@ -323,7 +323,7 @@ declare function createSecurityManager(): SecurityManager;
 //# sourceMappingURL=security.d.ts.map
 declare const name = "dsh-codegraph-visualizer";
 declare const inject: string[];
-declare function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>): Promise<() => void>;
+declare function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>): Promise<void>;
 
 //#endregion
 //# sourceMappingURL=index.d.ts.map

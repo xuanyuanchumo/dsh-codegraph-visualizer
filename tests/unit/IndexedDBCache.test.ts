@@ -484,4 +484,189 @@ describe('IndexedDBCache', () => {
     expect(result2).toBeNull();
     expect(openCallCount).toBeGreaterThanOrEqual(2);
   });
+
+  it('openDB onupgradeneeded creates both object stores when neither exists', async () => {
+    // The default mockDB already triggers onupgradeneeded via mockIndexedDB.
+    // Verify that both stores were created.
+    await cache.setCluster('key1', { data: 1 });
+    expect(mockDB.createObjectStore).toHaveBeenCalledWith('cluster-cache');
+    expect(mockDB.createObjectStore).toHaveBeenCalledWith('diagram-cache');
+  });
+
+  it('openDB onupgradeneeded skips existing stores', async () => {
+    // Pre-populate storeNames so contains() returns true
+    mockDB.objectStoreNames.contains = vi.fn(() => true);
+    await cache.setCluster('key1', { data: 1 });
+    expect(mockDB.createObjectStore).not.toHaveBeenCalled();
+  });
+
+  it('close without opening db does nothing', () => {
+    const freshCache = new IndexedDBCache('no-open-repo');
+    // Should not throw
+    freshCache.close();
+  });
+
+  it('close after failed open does not throw', async () => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal('indexedDB', {
+      open: vi.fn(() => {
+        const req: { result: unknown; error: DOMException | null; onupgradeneeded: (() => void) | null; onsuccess: (() => void) | null; onerror: (() => void) | null } = { result: null, error: new DOMException('fail'), onupgradeneeded: null, onsuccess: null, onerror: null };
+        queueMicrotask(() => req.onerror?.());
+        return req;
+      }),
+    });
+    const failCache = new IndexedDBCache('close-after-fail');
+    await failCache.getCluster('key1').catch(() => {});
+    // Should not throw
+    failCache.close();
+  });
+
+  it('getDB reuses existing dbPromise on subsequent calls', async () => {
+    await cache.setCluster('key1', { data: 1 });
+    const openCallsBefore = (globalThis.indexedDB as any).open.mock.calls.length;
+    await cache.getCluster('key2');
+    const openCallsAfter = (globalThis.indexedDB as any).open.mock.calls.length;
+    // dbPromise should be reused, so open should not be called again
+    expect(openCallsAfter).toBe(openCallsBefore);
+  });
+
+  it('setCluster then getCluster returns correct data with multiple keys', async () => {
+    await cache.setCluster('key1', { data: 1 });
+    await cache.setCluster('key2', { data: 2 });
+    expect(await cache.getCluster('key1')).toEqual({ data: 1 });
+    expect(await cache.getCluster('key2')).toEqual({ data: 2 });
+  });
+
+  it('setDiagram then getDiagram returns correct data with multiple keys', async () => {
+    await cache.setDiagram('inheritance:h1', { layers: 1 });
+    await cache.setDiagram('callgraph:h2', { layers: 2 });
+    expect(await cache.getDiagram('inheritance:h1')).toEqual({ layers: 1 });
+    expect(await cache.getDiagram('callgraph:h2')).toEqual({ layers: 2 });
+  });
+
+  it('invalidateDiagram with viewMode deletes only matching keys', async () => {
+    await cache.setDiagram('inheritance:h1', { data: 1 });
+    await cache.setDiagram('inheritance:h2', { data: 2 });
+    await cache.setDiagram('callgraph:h3', { data: 3 });
+    await cache.invalidateDiagram('inheritance');
+    expect(await cache.getDiagram('inheritance:h1')).toBeNull();
+    expect(await cache.getDiagram('inheritance:h2')).toBeNull();
+    expect(await cache.getDiagram('callgraph:h3')).toEqual({ data: 3 });
+  });
+
+  it('invalidateDiagram with viewMode and matching keys triggers delete transaction', async () => {
+    await cache.setDiagram('inheritance:h1', { data: 1 });
+    await cache.setDiagram('inheritance:h2', { data: 2 });
+    await cache.invalidateDiagram('inheritance');
+    expect(await cache.getDiagram('inheritance:h1')).toBeNull();
+    expect(await cache.getDiagram('inheritance:h2')).toBeNull();
+  });
+
+  it('invalidateCluster after setCluster removes all entries', async () => {
+    await cache.setCluster('key1', { data: 1 });
+    await cache.setCluster('key2', { data: 2 });
+    await cache.invalidateCluster();
+    expect(await cache.getCluster('key1')).toBeNull();
+    expect(await cache.getCluster('key2')).toBeNull();
+  });
+
+  it('close after open resolves and closes db', async () => {
+    await cache.setCluster('key1', { data: 1 });
+    cache.close();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(mockDB.close).toHaveBeenCalled();
+  });
+
+  it('close when dbPromise rejects handles gracefully', async () => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal('indexedDB', {
+      open: vi.fn(() => {
+        const req: { result: unknown; error: DOMException | null; onupgradeneeded: (() => void) | null; onsuccess: (() => void) | null; onerror: (() => void) | null } = { result: null, error: new DOMException('fail'), onupgradeneeded: null, onsuccess: null, onerror: null };
+        queueMicrotask(() => req.onerror?.());
+        return req;
+      }),
+    });
+    const failCache = new IndexedDBCache('close-reject-repo');
+    await failCache.getCluster('key1').catch(() => {});
+    // close should not throw even though dbPromise rejected
+    failCache.close();
+  });
+
+  it('handles setCluster when getDB throws', async () => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal('indexedDB', {
+      open: vi.fn(() => {
+        const req: { result: unknown; error: DOMException | null; onupgradeneeded: (() => void) | null; onsuccess: (() => void) | null; onerror: (() => void) | null } = { result: null, error: new DOMException('fail'), onupgradeneeded: null, onsuccess: null, onerror: null };
+        queueMicrotask(() => req.onerror?.());
+        return req;
+      }),
+    });
+    const failCache = new IndexedDBCache('setcluster-faildb-repo');
+    await expect(failCache.setCluster('key1', { data: 1 })).resolves.toBeUndefined();
+  });
+
+  it('handles setDiagram when getDB throws', async () => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal('indexedDB', {
+      open: vi.fn(() => {
+        const req: { result: unknown; error: DOMException | null; onupgradeneeded: (() => void) | null; onsuccess: (() => void) | null; onerror: (() => void) | null } = { result: null, error: new DOMException('fail'), onupgradeneeded: null, onsuccess: null, onerror: null };
+        queueMicrotask(() => req.onerror?.());
+        return req;
+      }),
+    });
+    const failCache = new IndexedDBCache('setdiagram-faildb-repo');
+    await expect(failCache.setDiagram('key1', { data: 1 })).resolves.toBeUndefined();
+  });
+
+  it('handles invalidateCluster when getDB throws', async () => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal('indexedDB', {
+      open: vi.fn(() => {
+        const req: { result: unknown; error: DOMException | null; onupgradeneeded: (() => void) | null; onsuccess: (() => void) | null; onerror: (() => void) | null } = { result: null, error: new DOMException('fail'), onupgradeneeded: null, onsuccess: null, onerror: null };
+        queueMicrotask(() => req.onerror?.());
+        return req;
+      }),
+    });
+    const failCache = new IndexedDBCache('invalidatecluster-faildb-repo');
+    await expect(failCache.invalidateCluster()).resolves.toBeUndefined();
+  });
+
+  it('handles invalidateDiagram when getDB throws', async () => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal('indexedDB', {
+      open: vi.fn(() => {
+        const req: { result: unknown; error: DOMException | null; onupgradeneeded: (() => void) | null; onsuccess: (() => void) | null; onerror: (() => void) | null } = { result: null, error: new DOMException('fail'), onupgradeneeded: null, onsuccess: null, onerror: null };
+        queueMicrotask(() => req.onerror?.());
+        return req;
+      }),
+    });
+    const failCache = new IndexedDBCache('invalidatediagram-faildb-repo');
+    await expect(failCache.invalidateDiagram()).resolves.toBeUndefined();
+  });
+
+  it('handles invalidateDiagram with viewMode when getDB throws', async () => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal('indexedDB', {
+      open: vi.fn(() => {
+        const req: { result: unknown; error: DOMException | null; onupgradeneeded: (() => void) | null; onsuccess: (() => void) | null; onerror: (() => void) | null } = { result: null, error: new DOMException('fail'), onupgradeneeded: null, onsuccess: null, onerror: null };
+        queueMicrotask(() => req.onerror?.());
+        return req;
+      }),
+    });
+    const failCache = new IndexedDBCache('invalidatediagram-vm-faildb-repo');
+    await expect(failCache.invalidateDiagram('inheritance')).resolves.toBeUndefined();
+  });
+
+  it('handles getDiagram when getDB throws', async () => {
+    vi.unstubAllGlobals();
+    vi.stubGlobal('indexedDB', {
+      open: vi.fn(() => {
+        const req: { result: unknown; error: DOMException | null; onupgradeneeded: (() => void) | null; onsuccess: (() => void) | null; onerror: (() => void) | null } = { result: null, error: new DOMException('fail'), onupgradeneeded: null, onsuccess: null, onerror: null };
+        queueMicrotask(() => req.onerror?.());
+        return req;
+      }),
+    });
+    const failCache = new IndexedDBCache('getdiagram-faildb-repo');
+    expect(await failCache.getDiagram('key1')).toBeNull();
+  });
 });

@@ -150,4 +150,93 @@ describe('AdjacencyList', () => {
       expect(result.get('a')).toEqual(new Set());
     });
   });
+
+  describe('buildDirectedAdjacency additional cases', () => {
+    it('handles empty edges', () => {
+      const { forward, backward } = buildDirectedAdjacency([]);
+      expect(forward.size).toBe(0);
+      expect(backward.size).toBe(0);
+    });
+
+    it('handles multiple edges from same source', () => {
+      const edges = [
+        makeEdge('e1', 'a', 'b'),
+        makeEdge('e2', 'a', 'c'),
+        makeEdge('e3', 'a', 'd'),
+      ];
+      const { forward, backward } = buildDirectedAdjacency(edges);
+      expect(forward.get('a')).toEqual(['b', 'c', 'd']);
+      expect(backward.get('b')).toEqual(['a']);
+      expect(backward.get('c')).toEqual(['a']);
+      expect(backward.get('d')).toEqual(['a']);
+    });
+
+    it('handles self-loops in directed adjacency', () => {
+      const edges = [makeEdge('e1', 'a', 'a')];
+      const { forward, backward } = buildDirectedAdjacency(edges);
+      expect(forward.get('a')).toEqual(['a']);
+      expect(backward.get('a')).toEqual(['a']);
+    });
+  });
+
+  describe('buildUndirectedAdjacency additional cases', () => {
+    it('handles empty edges', () => {
+      const result = buildUndirectedAdjacency([]);
+      expect(result.size).toBe(0);
+    });
+
+    it('handles self-loops', () => {
+      const edges = [makeEdge('e1', 'a', 'a')];
+      const result = buildUndirectedAdjacency(edges);
+      expect(result.get('a')).toEqual(new Set(['a']));
+    });
+
+    it('handles multiple edges between same pair', () => {
+      const edges = [
+        makeEdge('e1', 'a', 'b'),
+        makeEdge('e2', 'a', 'b'),
+      ];
+      const result = buildUndirectedAdjacency(edges);
+      expect(result.get('a')).toEqual(new Set(['b']));
+      expect(result.get('b')).toEqual(new Set(['a']));
+    });
+  });
+
+  describe('buildFilteredForwardAdjacency additional cases', () => {
+    it('handles empty edges', () => {
+      const result = buildFilteredForwardAdjacency([], ['call']);
+      expect(result.size).toBe(0);
+    });
+
+    it('handles multiple edge types filter', () => {
+      const edges = [
+        makeEdge('e1', 'a', 'b', 'call'),
+        makeEdge('e2', 'a', 'c', 'import'),
+        makeEdge('e3', 'b', 'c', 'extend'),
+      ];
+      const result = buildFilteredForwardAdjacency(edges, ['call', 'import']);
+      expect(result.get('a')).toEqual(['b', 'c']);
+      expect(result.has('b')).toBe(false);
+    });
+  });
+
+  describe('buildFilteredUndirectedAdjacency additional cases', () => {
+    it('handles edges where both endpoints are in nodeIds', () => {
+      const edges = [
+        makeEdge('e1', 'a', 'b'),
+        makeEdge('e2', 'b', 'c'),
+      ];
+      const nodeIds = new Set(['a', 'b', 'c']);
+      const result = buildFilteredUndirectedAdjacency(edges, nodeIds);
+      expect(result.get('a')).toEqual(new Set(['b']));
+      expect(result.get('b')).toEqual(new Set(['a', 'c']));
+      expect(result.get('c')).toEqual(new Set(['b']));
+    });
+
+    it('handles empty nodeIds', () => {
+      const edges = [makeEdge('e1', 'a', 'b')];
+      const result = buildFilteredUndirectedAdjacency(edges, new Set());
+      expect(result.size).toBe(0);
+    });
+  });
 });

@@ -670,15 +670,39 @@ function registerTreeSitterRoute(rc: RouteContext, sharedTreeSitterAdapter: Tree
 }
 
 function registerBootstrapRoute(rc: RouteContext): void {
-  const { deps, corsConfig, rateLimiter } = rc;
-  const { ctx } = deps;
+  const { deps, corsConfig, rateLimiter, invokeUpstream } = rc;
+  const { ctx, config } = deps;
   const routePath = '/api/v1/codegraph/bootstrap';
 
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: routePath,
-    handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, (req, res) => {
-      const lastGraphData = deps.getLastGraphData();
+    handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, async (req, res) => {
+      let lastGraphData = deps.getLastGraphData();
+      if (!lastGraphData || lastGraphData.nodes.length === 0) {
+        try {
+          const workspacePath = findWorkspacePath(ctx);
+          if (workspacePath && invokeUpstream) {
+            const raw = await fetchMergedGraph(invokeUpstream, workspacePath, 'both');
+            lastGraphData = slimGraphData(raw, config.maxNodes);
+            deps.setLastGraphData(lastGraphData);
+          }
+        } catch (e) {
+          log.warn('bootstrap: failed to fetch from upstream', e);
+        }
+      }
+      if (!lastGraphData || lastGraphData.nodes.length === 0) {
+        try {
+          const workspacePath = findWorkspacePath(ctx);
+          if (workspacePath && deps.invokeUpstream) {
+            const raw = await fetchMergedGraph(deps.invokeUpstream, workspacePath, 'both');
+            lastGraphData = slimGraphData(raw, config.maxNodes);
+            deps.setLastGraphData(lastGraphData);
+          }
+        } catch (e) {
+          log.warn('bootstrap: failed to fetch from upstream', e);
+        }
+      }
       if (!lastGraphData || lastGraphData.nodes.length === 0) {
         sendJson(res, 200, {
           rootNodes: [],

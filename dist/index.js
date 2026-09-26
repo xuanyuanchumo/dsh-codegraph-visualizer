@@ -1,4 +1,4 @@
-import { EdgeId, NodeId, RepoId, inferLayerFromPath, safeNumber, safeString, scoped } from "./layerUtils-NtSKn7AW.js";
+import { EdgeId, NodeId, RepoId, inferLayerFromPath, safeNumber, safeString, scoped } from "./layerUtils-D2FWijsm.js";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { CallId } from "@deepseek-ai/dsh-llm";
 import path, { isAbsolute, normalize, sep } from "node:path";
@@ -226,13 +226,34 @@ const WATCHER = {
 	RETRY_BASE_DELAY_MS: 1e3
 };
 const TOOL_MESSAGES = {
-	NO_PATH_FOUND: "No path found between the specified symbols.",
-	GRAPH_TOO_LARGE_FOR_PATH: "Graph too large (>50000 nodes) for path finding. Try filtering first.",
-	PATH_FOUND: "Path found",
-	HOPS: "hops",
-	INSUFFICIENT_DATA: "Insufficient data for health scoring.",
-	NO_VIOLATIONS: "No rule violations detected.",
-	RULE_VIOLATIONS: "rule violations:"
+	NO_PATH_FOUND: {
+		en: "No path found between the specified symbols.",
+		zh: "未找到指定符号之间的路径。"
+	},
+	GRAPH_TOO_LARGE_FOR_PATH: {
+		en: "Graph too large (>50000 nodes) for path finding. Try filtering first.",
+		zh: "图谱过大（>50000 节点），无法进行路径查找。请先尝试筛选。"
+	},
+	PATH_FOUND: {
+		en: "Path found",
+		zh: "路径已找到"
+	},
+	HOPS: {
+		en: "hops",
+		zh: "跳"
+	},
+	INSUFFICIENT_DATA: {
+		en: "Insufficient data for health scoring.",
+		zh: "数据不足，无法进行健康评分。"
+	},
+	NO_VIOLATIONS: {
+		en: "No rule violations detected.",
+		zh: "未检测到规则违规。"
+	},
+	RULE_VIOLATIONS: {
+		en: "rule violations:",
+		zh: "条规则违规："
+	}
 };
 const ERROR_CODES = {
 	PATH_NOT_ALLOWED: "PATH_NOT_ALLOWED",
@@ -906,7 +927,7 @@ function summarizeGraph(data) {
 function normalizeImpact(raw) {
 	if (typeof raw === "string") try {
 		raw = JSON.parse(raw);
-	} catch (_e) {
+	} catch {
 		return null;
 	}
 	if (!raw || typeof raw !== "object") return null;
@@ -926,7 +947,7 @@ function pickBestMatch(raw, symbolId) {
 	let payload = raw;
 	if (typeof payload === "string") try {
 		payload = JSON.parse(payload);
-	} catch (_e) {
+	} catch {
 		return null;
 	}
 	const items = Array.isArray(payload) ? payload : payload?.results ?? payload?.nodes;
@@ -990,7 +1011,7 @@ function toJsonValue(value) {
 }
 const GRAPH_CACHE_LIMIT = CACHE.GRAPH_CACHE_LIMIT;
 async function createGraphToolDeps() {
-	const [{ CodeGraphAdapter: CGA }, { LensAdapter: LA }] = await Promise.all([import("./CodeGraphAdapter-ByXef8Dq.js"), import("./LensAdapter-4bQkqn2n.js")]);
+	const [{ CodeGraphAdapter: CGA }, { LensAdapter: LA }] = await Promise.all([import("./CodeGraphAdapter-CBi5SU0N.js"), import("./LensAdapter-C7mdpgzf.js")]);
 	return {
 		codegraphAdapter: new CGA(),
 		lensAdapter: new LA(),
@@ -1197,16 +1218,16 @@ const createGraphTools = async (ctx, options = {}) => {
 				if (!v || !v.path || v.path.length === 0) {
 					if (v?.truncated) return [{
 						type: "text",
-						text: TOOL_MESSAGES.GRAPH_TOO_LARGE_FOR_PATH
+						text: TOOL_MESSAGES.GRAPH_TOO_LARGE_FOR_PATH?.en ?? "Graph too large"
 					}];
 					return [{
 						type: "text",
-						text: TOOL_MESSAGES.NO_PATH_FOUND
+						text: TOOL_MESSAGES.NO_PATH_FOUND?.en ?? "No path found"
 					}];
 				}
 				return [{
 					type: "text",
-					text: `${TOOL_MESSAGES.PATH_FOUND} (${v.length} ${TOOL_MESSAGES.HOPS}): ${v.path.join(" → ")}`
+					text: `${TOOL_MESSAGES.PATH_FOUND?.en ?? "Path found"} (${v.length} ${TOOL_MESSAGES.HOPS?.en ?? "hops"}): ${v.path.join(" → ")}`
 				}];
 			}
 		},
@@ -1243,7 +1264,7 @@ const createGraphTools = async (ctx, options = {}) => {
 				const v = value;
 				if (!v) return [{
 					type: "text",
-					text: TOOL_MESSAGES.INSUFFICIENT_DATA
+					text: TOOL_MESSAGES.INSUFFICIENT_DATA?.en ?? "Insufficient data"
 				}];
 				return [{
 					type: "text",
@@ -1284,12 +1305,12 @@ const createGraphTools = async (ctx, options = {}) => {
 				const v = value;
 				if (!v || v.length === 0) return [{
 					type: "text",
-					text: TOOL_MESSAGES.NO_VIOLATIONS
+					text: TOOL_MESSAGES.NO_VIOLATIONS?.en ?? "No violations"
 				}];
 				const lines = v.slice(0, 20).map((r) => `  [${r.severity}] ${r.message}`);
 				return [{
 					type: "text",
-					text: `${v.length} ${TOOL_MESSAGES.RULE_VIOLATIONS}\n${lines.join("\n")}`
+					text: `${v.length} ${TOOL_MESSAGES.RULE_VIOLATIONS?.en ?? "rule violations:"}\n${lines.join("\n")}`
 				}];
 			}
 		},
@@ -2872,7 +2893,7 @@ function registerInitRoute(rc) {
 				const initResult = {
 					success,
 					path: initPath,
-					message: success ? "Graph initialized successfully" : "Initialization failed — is dsh-codegraph installed?",
+					message: success ? "Graph initialized successfully" : ERROR_MESSAGES.INIT_FAILED?.en ?? "Initialization failed",
 					timestamp: Date.now()
 				};
 				deps.setLastInitResult(initResult);
@@ -2895,7 +2916,7 @@ function registerInitRoute(rc) {
 				const errorResult = {
 					success: false,
 					path: "",
-					message: "Initialization failed",
+					message: ERROR_MESSAGES.INIT_FAILED?.en ?? "Initialization failed",
 					timestamp: Date.now()
 				};
 				deps.setLastInitResult(errorResult);
@@ -3143,14 +3164,34 @@ function registerTreeSitterRoute(rc, sharedTreeSitterAdapter) {
 	}), "codegraph: tree-sitter route");
 }
 function registerBootstrapRoute(rc) {
-	const { deps, corsConfig, rateLimiter } = rc;
-	const { ctx } = deps;
+	const { deps, corsConfig, rateLimiter, invokeUpstream } = rc;
+	const { ctx, config } = deps;
 	const routePath = "/api/v1/codegraph/bootstrap";
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
 		path: routePath,
-		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, (req, res) => {
-			const lastGraphData = deps.getLastGraphData();
+		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, async (req, res) => {
+			let lastGraphData = deps.getLastGraphData();
+			if (!lastGraphData || lastGraphData.nodes.length === 0) try {
+				const workspacePath = findWorkspacePath(ctx);
+				if (workspacePath && invokeUpstream) {
+					const raw = await fetchMergedGraph(invokeUpstream, workspacePath, "both");
+					lastGraphData = slimGraphData(raw, config.maxNodes);
+					deps.setLastGraphData(lastGraphData);
+				}
+			} catch (e) {
+				log$3.warn("bootstrap: failed to fetch from upstream", e);
+			}
+			if (!lastGraphData || lastGraphData.nodes.length === 0) try {
+				const workspacePath = findWorkspacePath(ctx);
+				if (workspacePath && deps.invokeUpstream) {
+					const raw = await fetchMergedGraph(deps.invokeUpstream, workspacePath, "both");
+					lastGraphData = slimGraphData(raw, config.maxNodes);
+					deps.setLastGraphData(lastGraphData);
+				}
+			} catch (e) {
+				log$3.warn("bootstrap: failed to fetch from upstream", e);
+			}
 			if (!lastGraphData || lastGraphData.nodes.length === 0) {
 				sendJson(res, 200, {
 					rootNodes: [],
@@ -3167,14 +3208,14 @@ function registerBootstrapRoute(rc) {
 				}, req, corsConfig);
 				return;
 			}
-			const rootNodes = lastGraphData.nodes.filter((n) => !n.parentId);
-			const topLevelNodes = rootNodes.slice(0, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
+			const allRootNodes = lastGraphData.nodes.filter((n) => !n.parentId);
+			const topLevelNodes = allRootNodes.slice(0, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
 			const topLevelIds = new Set(topLevelNodes.map((n) => n.id));
 			const rootEdges = lastGraphData.edges.filter((e) => topLevelIds.has(e.source) && topLevelIds.has(e.target));
 			sendJson(res, 200, {
-				rootNodes,
+				rootNodes: topLevelNodes,
 				topLevelNodes,
-				topLevelTotal: rootNodes.length,
+				topLevelTotal: allRootNodes.length,
 				edges: rootEdges,
 				indexStatus: "ready",
 				metadata: {
@@ -3226,6 +3267,82 @@ function registerNodeChildrenRoute(rc) {
 		})
 	}), "codegraph: node children route");
 }
+function registerFileOutlineRoute(rc) {
+	const { deps, corsConfig, rateLimiter } = rc;
+	const { ctx } = deps;
+	const routePath = "/api/v1/codegraph/files";
+	ctx.effect(() => ctx.webServer.register({
+		kind: "prefix",
+		path: routePath,
+		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, (req, res) => {
+			const url = new URL(req.url ?? "", `http://${req.headers.host ?? "localhost"}`);
+			const match = url.pathname.match(/^\/api\/v1\/codegraph\/files\/([^/]+)\/outline$/);
+			if (!match) {
+				sendError(res, 404, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
+				return;
+			}
+			const nodeId = decodeURIComponent(match[1] ?? "");
+			if (!nodeId || nodeId.length > VALIDATION.MAX_PATH_LENGTH) {
+				sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
+				return;
+			}
+			const lastGraphData = deps.getLastGraphData();
+			if (!lastGraphData) {
+				sendJson(res, 200, {
+					symbols: [],
+					edges: []
+				}, req, corsConfig);
+				return;
+			}
+			const symbols = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
+			const symbolIds = new Set(symbols.map((n) => n.id));
+			const symbolEdges = lastGraphData.edges.filter((e) => symbolIds.has(e.source) && symbolIds.has(e.target));
+			sendJson(res, 200, {
+				symbols,
+				edges: symbolEdges
+			}, req, corsConfig);
+		})
+	}), "codegraph: file outline route");
+}
+function registerSymbolASTRoute(rc) {
+	const { deps, corsConfig, rateLimiter } = rc;
+	const { ctx } = deps;
+	const routePath = "/api/v1/codegraph/symbols";
+	ctx.effect(() => ctx.webServer.register({
+		kind: "prefix",
+		path: routePath,
+		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, (req, res) => {
+			const url = new URL(req.url ?? "", `http://${req.headers.host ?? "localhost"}`);
+			const match = url.pathname.match(/^\/api\/v1\/codegraph\/symbols\/([^/]+)\/ast$/);
+			if (!match) {
+				sendError(res, 404, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
+				return;
+			}
+			const nodeId = decodeURIComponent(match[1] ?? "");
+			if (!nodeId || nodeId.length > VALIDATION.MAX_PATH_LENGTH) {
+				sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
+				return;
+			}
+			const lastGraphData = deps.getLastGraphData();
+			if (!lastGraphData) {
+				sendJson(res, 200, {
+					astNodes: [],
+					astEdges: [],
+					sourceLines: []
+				}, req, corsConfig);
+				return;
+			}
+			const astNodes = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
+			const astNodeIds = new Set(astNodes.map((n) => n.id));
+			const astEdges = lastGraphData.edges.filter((e) => astNodeIds.has(e.source) && astNodeIds.has(e.target));
+			sendJson(res, 200, {
+				astNodes,
+				astEdges,
+				sourceLines: []
+			}, req, corsConfig);
+		})
+	}), "codegraph: symbol AST route");
+}
 function registerRoutes(deps) {
 	const { ctx, config } = deps;
 	const invokeUpstream = deps.invokeUpstream ?? createInvokeUpstream(ctx, config);
@@ -3251,6 +3368,8 @@ function registerRoutes(deps) {
 	registerTreeSitterRoute(rc, sharedTreeSitterAdapter);
 	registerBootstrapRoute(rc);
 	registerNodeChildrenRoute(rc);
+	registerFileOutlineRoute(rc);
+	registerSymbolASTRoute(rc);
 	ctx.effect(() => () => rateLimiter.reset(), "codegraph: rate limiter cleanup");
 	ctx.effect(() => () => sharedTreeSitterAdapter.destroy(), "codegraph: tree-sitter adapter cleanup");
 }
@@ -3338,7 +3457,7 @@ function registerWatcher(ctx, config, invokeUpstream) {
 				log$2.error("watch setup exhausted retries", { path: watchPath });
 				ctx.emit("codegraph-visualizer/watch/error", {
 					path: watchPath,
-					message: "Watch setup failed after retries",
+					message: ERROR_MESSAGES.WATCH_SETUP_FAILED?.en ?? "Watch setup failed after retries",
 					errorCode: ERROR_CODES.WATCH_SETUP_FAILED,
 					timestamp: Date.now()
 				});
@@ -3393,7 +3512,7 @@ function registerEventListeners(ctx, invokeUpstream) {
 			const initResult = {
 				success,
 				path: event.path,
-				message: success ? "Graph initialized successfully" : "Initialization failed — is dsh-codegraph installed?",
+				message: success ? "Graph initialized successfully" : ERROR_MESSAGES.INIT_FAILED?.en ?? "Initialization failed",
 				timestamp: Date.now()
 			};
 			if (!success) initResult.errorCode = ERROR_CODES.INIT_FAILED;
@@ -3404,7 +3523,7 @@ function registerEventListeners(ctx, invokeUpstream) {
 			ctx.emit("codegraph-visualizer/graph/init-result", {
 				success: false,
 				path: event.path,
-				message: "Initialization failed",
+				message: ERROR_MESSAGES.INIT_FAILED?.en ?? "Initialization failed",
 				errorCode: ERROR_CODES.INIT_FAILED,
 				timestamp: Date.now()
 			});
@@ -3445,7 +3564,7 @@ var McpServer = class {
 			this.running = false;
 			try {
 				this.rl?.close();
-			} catch (_e) {}
+			} catch {}
 			this.rl = null;
 		});
 		log$1.info("MCP server started", { tools: this.tools.size });
@@ -3835,7 +3954,6 @@ async function apply(ctx, userConfig) {
 			securityManager.reset();
 		};
 	}, "codegraph: state cleanup");
-	return () => {};
 }
 
 //#endregion

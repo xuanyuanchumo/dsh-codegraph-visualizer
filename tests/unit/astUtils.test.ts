@@ -192,5 +192,33 @@ describe('astUtils', () => {
       const filtered = getElseBody(parent, (c) => c.type === 'return_statement');
       expect(filtered).toHaveLength(1);
     });
+
+    it('applies filter on else children directly when no block body', () => {
+      const elseNode = makeNode('else_clause', [makeNode('return_statement'), makeNode('expression')]);
+      const parent = makeNode('if_statement', [makeNode('condition'), elseNode]);
+      const filtered = getElseBody(parent, (c) => c.type === 'return_statement');
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0]?.type).toBe('return_statement');
+    });
+  });
+
+  describe('getBodyChildren fallback with filter', () => {
+    it('applies filter in fallback path when no body node found', () => {
+      const parent = makeNode('if_statement', [makeNode('condition'), makeNode('return_statement'), makeNode('expression')]);
+      const filtered = getBodyChildren(parent, (c) => c.type === 'return_statement');
+      expect(filtered).toHaveLength(1);
+      expect(filtered[0]?.type).toBe('return_statement');
+    });
+
+    it('filters out condition and parenthesized_expression in fallback without filter', () => {
+      const parent = makeNode('if_statement', [
+        makeNode('condition'),
+        makeNode('parenthesized_expression'),
+        makeNode('stmt1'),
+      ]);
+      const children = getBodyChildren(parent);
+      expect(children).toHaveLength(1);
+      expect(children[0]?.type).toBe('stmt1');
+    });
   });
 });

@@ -226,18 +226,10 @@ export function apply(ctx: Context) {
           });
           log.info('bootstrap data loaded', { rootNodes: bootstrap.topLevelNodes.length, totalNodeCount: bootstrap.metadata.totalNodeCount });
 
-          requestScan(workspacePath).then((result) => {
-            if (result && result.success && result.nodes.length > 0) {
-              const validated = validateGraphData(result);
-              if (validated) {
-                const s3 = useGraphStore.getState();
-                s3.setGraphData(validated.nodes, validated.edges, workspacePath, validated.metadata);
-                log.info('graph data received (background)', { path: workspacePath, nodes: validated.nodes.length, edges: validated.edges.length });
-              }
-            }
+          requestScan(workspacePath).then(() => {
+            useGraphStore.getState().setLoading(false);
           }).catch((e) => {
             log.warn('background scan failed', e);
-          }).finally(() => {
             useGraphStore.getState().setLoading(false);
           });
           return;

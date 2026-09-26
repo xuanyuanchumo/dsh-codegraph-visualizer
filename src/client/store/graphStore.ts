@@ -13,7 +13,7 @@ import { invalidateCssVarCache } from '../renderer/styles/ThemeStylesheet.ts';
 import { computeViewModeTransition } from './viewModeTransition.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { type LayoutType, type ThemeType, type RankDir, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
-import { fetchNodeChildren, fetchBootstrap } from '../api/index.ts';
+import { fetchNodeChildren, fetchBootstrap, fetchFileOutline, fetchSymbolAST } from '../api/index.ts';
 
 import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, LOD, UI, PREFETCH, FUNCTION_BODY, getDynamicMaxVisibleNodes } from '../../shared/constants.ts';
 
@@ -661,6 +661,65 @@ export const useGraphStore = create<GraphState>()(
         }
         const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: effectiveExpanded };
         applyClusterUpdate(effectiveExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set);
+
+        const node = rawNodes.find((n) => n.id === nodeId);
+        if (node) {
+          useGraphStore.getState().loadNodeChildren(nodeId).catch((err) => {
+            log.warn('expandNode: loadNodeChildren failed', { nodeId, err });
+          });
+          if (node.type === 'module') {
+            fetchFileOutline(nodeId).then((data) => {
+              if (data && data.symbols.length > 0) {
+                const s = useGraphStore.getState();
+                const existingIds = new Set(s.rawNodes.map((n) => n.id));
+                const newSyms = data.symbols.filter((n) => !existingIds.has(n.id));
+                const existingEdgeIds = new Set(s.rawEdges.map((e) => e.id));
+                const newEdges = data.edges.filter((e) => !existingEdgeIds.has(e.id));
+                if (newSyms.length > 0 || newEdges.length > 0) {
+                  const mergedRawNodes = [...s.rawNodes, ...newSyms];
+                  const mergedRawEdges = [...s.rawEdges, ...newEdges];
+                  const { clusterDepth: cd, expandedNodeIds: ei, panelWidth: pw } = s;
+                  const result = tryIncrementalOrFull(
+                    incrementalClusterCtx,
+                    mergedRawNodes, mergedRawEdges,
+                    ei, cd, pw ?? undefined,
+                  );
+                  updateIncrementalClusterCtx(result, mergedRawNodes, mergedRawEdges);
+                  set({ rawNodes: mergedRawNodes, rawEdges: mergedRawEdges, nodes: result.nodes, edges: result.edges });
+                  log.info('file outline loaded', { nodeId, newSymbols: newSyms.length, newEdges: newEdges.length });
+                }
+              }
+            }).catch((err) => {
+              log.warn('expandNode: fetchFileOutline failed', { nodeId, err });
+            });
+          }
+          if (node.type === 'function') {
+            fetchSymbolAST(nodeId).then((data) => {
+              if (data && data.astNodes.length > 0) {
+                const s = useGraphStore.getState();
+                const existingIds = new Set(s.rawNodes.map((n) => n.id));
+                const newAst = data.astNodes.filter((n) => !existingIds.has(n.id));
+                const existingEdgeIds = new Set(s.rawEdges.map((e) => e.id));
+                const newEdges = data.astEdges.filter((e) => !existingEdgeIds.has(e.id));
+                if (newAst.length > 0 || newEdges.length > 0) {
+                  const mergedRawNodes = [...s.rawNodes, ...newAst];
+                  const mergedRawEdges = [...s.rawEdges, ...newEdges];
+                  const { clusterDepth: cd, expandedNodeIds: ei, panelWidth: pw } = s;
+                  const result = tryIncrementalOrFull(
+                    incrementalClusterCtx,
+                    mergedRawNodes, mergedRawEdges,
+                    ei, cd, pw ?? undefined,
+                  );
+                  updateIncrementalClusterCtx(result, mergedRawNodes, mergedRawEdges);
+                  set({ rawNodes: mergedRawNodes, rawEdges: mergedRawEdges, nodes: result.nodes, edges: result.edges });
+                  log.info('symbol AST loaded', { nodeId, newAstNodes: newAst.length, newEdges: newEdges.length });
+                }
+              }
+            }).catch((err) => {
+              log.warn('expandNode: fetchSymbolAST failed', { nodeId, err });
+            });
+          }
+        }
       },
       loadNodeChildren: async (nodeId) => {
         const state = useGraphStore.getState();

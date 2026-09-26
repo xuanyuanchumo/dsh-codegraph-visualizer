@@ -319,5 +319,93 @@ describe('McpServer (FR-46)', () => {
       closeHandler();
       expect(server.isRunning()).toBe(false);
     });
+
+    it('should handle error event and set running to false', async () => {
+      mockRl.on.mockClear();
+      await server.start(() => null);
+      expect(server.isRunning()).toBe(true);
+      const errorHandler = mockRl.on.mock.calls.find(c => c[0] === 'error')![1] as (err: Error) => void;
+      errorHandler(new Error('test error'));
+      expect(server.isRunning()).toBe(false);
+    });
+  });
+
+  describe('handleMessage edge cases', () => {
+    it('tools/call with empty tool name returns error -32602', async () => {
+      await (server as unknown as { registerGraphTools: (fn: () => null) => void }).registerGraphTools(() => null);
+      const response = await (server as unknown as {
+        handleMessage: (msg: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
+      }).handleMessage({ jsonrpc: '2.0', id: 20, method: 'tools/call', params: { name: '', arguments: {} } });
+      expect(response).not.toBeNull();
+      expect((response!.error as { code: number }).code).toBe(-32602);
+    });
+
+    it('tools/call with missing name field returns error -32602', async () => {
+      await (server as unknown as { registerGraphTools: (fn: () => null) => void }).registerGraphTools(() => null);
+      const response = await (server as unknown as {
+        handleMessage: (msg: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
+      }).handleMessage({ jsonrpc: '2.0', id: 21, method: 'tools/call', params: { arguments: {} } });
+      expect(response).not.toBeNull();
+      expect((response!.error as { code: number }).code).toBe(-32602);
+    });
+
+    it('non-2.0 jsonrpc returns error -32600', async () => {
+      const response = await (server as unknown as {
+        handleMessage: (msg: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
+      }).handleMessage({ jsonrpc: '1.0', id: 22, method: 'initialize' });
+      expect(response).not.toBeNull();
+      expect((response!.error as { code: number }).code).toBe(-32600);
+    });
+
+    it('invalid id type returns error -32600', async () => {
+      const response = await (server as unknown as {
+        handleMessage: (msg: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
+      }).handleMessage({ jsonrpc: '2.0', id: { complex: true }, method: 'initialize' });
+      expect(response).not.toBeNull();
+      expect((response!.error as { code: number }).code).toBe(-32600);
+    });
+
+    it('null id is accepted', async () => {
+      await (server as unknown as { registerGraphTools: (fn: () => null) => void }).registerGraphTools(() => null);
+      const response = await (server as unknown as {
+        handleMessage: (msg: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
+      }).handleMessage({ jsonrpc: '2.0', id: null, method: 'initialize' });
+      expect(response).not.toBeNull();
+      expect(response!.result).toBeDefined();
+    });
+
+    it('graph_data with no data returns empty arrays', async () => {
+      await (server as unknown as { registerGraphTools: (fn: () => null) => void }).registerGraphTools(() => null);
+      const response = await (server as unknown as {
+        handleMessage: (msg: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
+      }).handleMessage({ jsonrpc: '2.0', id: 23, method: 'tools/call', params: { name: 'graph_data', arguments: {} } });
+      const result = JSON.parse(
+        ((response!.result as { content: Array<{ text: string }> }).content[0]!.text),
+      );
+      expect(result.nodes).toEqual([]);
+      expect(result.edges).toEqual([]);
+    });
+
+    it('graph_symbol with no data returns empty results', async () => {
+      await (server as unknown as { registerGraphTools: (fn: () => null) => void }).registerGraphTools(() => null);
+      const response = await (server as unknown as {
+        handleMessage: (msg: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
+      }).handleMessage({ jsonrpc: '2.0', id: 24, method: 'tools/call', params: { name: 'graph_symbol', arguments: { search: 'test' } } });
+      const result = JSON.parse(
+        ((response!.result as { content: Array<{ text: string }> }).content[0]!.text),
+      );
+      expect(result.results).toEqual([]);
+    });
+
+    it('graph_impact with no data returns empty impacted', async () => {
+      await (server as unknown as { registerGraphTools: (fn: () => null) => void }).registerGraphTools(() => null);
+      const response = await (server as unknown as {
+        handleMessage: (msg: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
+      }).handleMessage({ jsonrpc: '2.0', id: 25, method: 'tools/call', params: { name: 'graph_impact', arguments: { symbol: 'test' } } });
+      const result = JSON.parse(
+        ((response!.result as { content: Array<{ text: string }> }).content[0]!.text),
+      );
+      expect(result.impacted).toEqual([]);
+    });
   });
 });

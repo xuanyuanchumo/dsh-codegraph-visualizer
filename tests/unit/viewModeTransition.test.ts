@@ -1,21 +1,14 @@
-import { describe, it, expect, vi } from 'vitest';
-import { DiagramCache } from '../../src/client/cache/DiagramCache.ts';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { DiagramCache, computeDataHash } from '../../src/client/cache/DiagramCache.ts';
 import { makeNode, makeEdge } from '../helpers.ts';
 import type { GraphNode, GraphEdge, ViewMode } from '../../src/types/index.ts';
+import { computeViewModeTransition, VIEW_MODE_LAYOUT } from '../../src/client/store/viewModeTransition.ts';
+import { registerMacroAssembler } from '../../src/client/diagram/index.ts';
+import { DependencyAssembler } from '../../src/client/diagram/DependencyAssembler.ts';
+import { InheritanceAssembler } from '../../src/client/diagram/InheritanceAssembler.ts';
+import type { DiagramAssembler, AssembledDiagram } from '../../src/client/diagram/DiagramAssembler.ts';
 
-// Mock assembleDiagram so we can control when it returns null (fallback paths).
-// Default: delegate to the real implementation.
-vi.mock('../../src/client/diagram/index.ts', async (importOriginal) => {
-  const original = await importOriginal() as Record<string, unknown>;
-  return {
-    ...original,
-    assembleDiagram: vi.fn(original.assembleDiagram as (...args: unknown[]) => unknown),
-  };
-});
-
-// Import after mock so the mocked module is used.
-const { computeViewModeTransition, VIEW_MODE_LAYOUT } = await import('../../src/client/store/viewModeTransition.ts');
-const { assembleDiagram } = await import('../../src/client/diagram/index.ts');
+const nullAssembler: DiagramAssembler = { assemble: () => null as unknown as AssembledDiagram };
 
 function makeState(overrides: Partial<{
   rawNodes: GraphNode[];
@@ -225,7 +218,7 @@ describe('viewModeTransition', () => {
     });
 
     it('should fallback to raw nodes/edges when diagram is null', () => {
-      vi.mocked(assembleDiagram).mockReturnValueOnce(null);
+      registerMacroAssembler('dependencies', nullAssembler);
       const nodes = [makeNode('n1', 'FuncA', 'function', 'a.ts', 1)];
       const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
       const result = computeViewModeTransition(
@@ -237,6 +230,7 @@ describe('viewModeTransition', () => {
         }),
         new DiagramCache(10),
       );
+      registerMacroAssembler('dependencies', new DependencyAssembler());
       expect(result.viewMode).toBe('dependencies');
       expect(result.diagramData).toBeNull();
       expect(result.nodes).toEqual(nodes);
@@ -286,7 +280,7 @@ describe('viewModeTransition', () => {
     });
 
     it('should fallback to clustered graph when inheritance diagram is null', () => {
-      vi.mocked(assembleDiagram).mockReturnValueOnce(null);
+      registerMacroAssembler('inheritance', nullAssembler);
       const nodes = [makeNode('n1', 'FuncA', 'function', 'a.ts', 1)];
       const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
       const result = computeViewModeTransition(
@@ -298,13 +292,14 @@ describe('viewModeTransition', () => {
         }),
         new DiagramCache(10),
       );
+      registerMacroAssembler('inheritance', new InheritanceAssembler());
       expect(result.viewMode).toBe('inheritance');
       expect(result.diagramData).toBeNull();
       expect(result.nodes.length).toBeGreaterThan(0);
     });
 
     it('should use savedRawNodes in fallback when available', () => {
-      vi.mocked(assembleDiagram).mockReturnValueOnce(null);
+      registerMacroAssembler('inheritance', nullAssembler);
       const rawNodes = [makeNode('n1', 'FuncA', 'function', 'a.ts', 1)];
       const rawEdges = [makeEdge('e1', 'n1', 'n2', 'call')];
       const savedNodes = [
@@ -323,6 +318,7 @@ describe('viewModeTransition', () => {
         }),
         new DiagramCache(10),
       );
+      registerMacroAssembler('inheritance', new InheritanceAssembler());
       expect(result.viewMode).toBe('inheritance');
       expect(result.diagramData).toBeNull();
       expect(result.savedRawNodes).toEqual(savedNodes);
@@ -623,24 +619,29 @@ describe('viewModeTransition', () => {
 
   describe('computeViewModeTransition — getFirstLayerNodes fallback', () => {
     it('should use allNodes/allEdges when diagram has no layers', () => {
+      const cache = new DiagramCache(10);
+      const nodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
+      const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
+
+      const dataHash = computeDataHash(nodes, edges);
       const mockDiagram = {
         viewMode: 'dependencies' as ViewMode,
         layers: [],
         currentLayer: 0,
         expandedNodes: new Set<string>(),
-        allNodes: [makeNode('n1', 'A', 'function', 'a.ts', 1)],
-        allEdges: [makeEdge('e1', 'n1', 'n2', 'call')],
+        allNodes: nodes,
+        allEdges: edges,
         metadata: { rootIds: [], maxDepth: 0, nodeCount: 1, edgeCount: 1 },
       };
-      vi.mocked(assembleDiagram).mockReturnValueOnce(mockDiagram);
+      cache.set('dependencies', dataHash, mockDiagram);
       const result = computeViewModeTransition(
         'dependencies',
         makeState({
-          rawNodes: [makeNode('n1', 'A', 'function', 'a.ts', 1)],
-          rawEdges: [makeEdge('e1', 'n1', 'n2', 'call')],
+          rawNodes: nodes,
+          rawEdges: edges,
           viewMode: 'code',
         }),
-        new DiagramCache(10),
+        cache,
       );
       expect(result.diagramData).not.toBeNull();
       expect(result.nodes.length).toBe(1);

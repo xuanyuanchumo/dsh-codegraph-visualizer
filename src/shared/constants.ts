@@ -129,7 +129,7 @@ export const LAYOUT = {
 } as const;
 
 export const VIRTUAL_VIEWPORT = {
-  SCROLL_THRESHOLD: 5000,
+  SCROLL_THRESHOLD: 2500,
   PADDING: 100,
 } as const;
 

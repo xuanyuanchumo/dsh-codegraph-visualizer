@@ -39,9 +39,13 @@ vi.mock('../../../src/client/store/graphStore.ts', () => ({
   useGraphStore: useGraphStoreMock,
 }));
 
-vi.mock('../../../src/client/api/index.ts', () => ({
-  fetchGraphData: fetchGraphDataMock,
-}));
+vi.mock('../../../src/client/api/index.ts', async (importOriginal) => {
+  const original = await importOriginal() as Record<string, unknown>;
+  return {
+    ...original,
+    fetchGraphData: fetchGraphDataMock,
+  };
+});
 
 // ── Import after mocks are set up ───────────────────────────────────
 import { useViewMode } from '../../../src/client/hooks/useViewMode.ts';
