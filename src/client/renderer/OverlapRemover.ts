@@ -13,8 +13,8 @@ export class OverlapRemover {
     const nodes = this.cy.nodes();
     if (nodes.length === 0) return;
 
-    const w = this.cy.width() || 800;
-    const h = this.cy.height() || 600;
+    const w = this.cy.width() || RENDERER.DEFAULT_CONTAINER_WIDTH;
+    const h = this.cy.height() || RENDERER.DEFAULT_CONTAINER_HEIGHT;
     const sp = computeSmartSpacing(nodes.length, w, h);
     const minGap = sp.minGap;
     const maxIterations = LAYOUT_CONST.OVERLAP_MAX_ITERATIONS;

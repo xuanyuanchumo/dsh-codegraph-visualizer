@@ -4,6 +4,7 @@ import {
   buildBackwardAdjacency,
   buildDirectedAdjacency,
   buildUndirectedAdjacency,
+  buildFilteredUndirectedAdjacency,
   buildFilteredForwardAdjacency,
 } from '../../src/shared/analysis/AdjacencyList.ts';
 import type { GraphEdge } from '../../src/types/index.ts';
@@ -96,6 +97,57 @@ describe('AdjacencyList', () => {
       const edges = [makeEdge('e1', 'a', 'b', 'call')];
       const result = buildFilteredForwardAdjacency(edges, ['import']);
       expect(result.size).toBe(0);
+    });
+  });
+
+  describe('buildFilteredUndirectedAdjacency', () => {
+    it('builds filtered undirected adjacency for specified node IDs', () => {
+      const edges = [
+        makeEdge('e1', 'a', 'b'),
+        makeEdge('e2', 'b', 'c'),
+        makeEdge('e3', 'c', 'd'),
+      ];
+      const nodeIds = new Set(['a', 'b', 'c']);
+      const result = buildFilteredUndirectedAdjacency(edges, nodeIds);
+      expect(result.get('a')).toEqual(new Set(['b']));
+      expect(result.get('b')).toEqual(new Set(['a', 'c']));
+      expect(result.get('c')).toEqual(new Set(['b']));
+      expect(result.has('d')).toBe(false);
+    });
+
+    it('includes all nodeIds even those with no edges', () => {
+      const edges: GraphEdge[] = [];
+      const nodeIds = new Set(['a', 'b', 'c']);
+      const result = buildFilteredUndirectedAdjacency(edges, nodeIds);
+      expect(result.size).toBe(3);
+      expect(result.get('a')).toEqual(new Set());
+      expect(result.get('b')).toEqual(new Set());
+      expect(result.get('c')).toEqual(new Set());
+    });
+
+    it('skips edges where source or target is not in nodeIds', () => {
+      const edges = [
+        makeEdge('e1', 'a', 'b'),
+        makeEdge('e2', 'a', 'x'),
+        makeEdge('e3', 'y', 'b'),
+      ];
+      const nodeIds = new Set(['a', 'b']);
+      const result = buildFilteredUndirectedAdjacency(edges, nodeIds);
+      expect(result.get('a')).toEqual(new Set(['b']));
+      expect(result.get('b')).toEqual(new Set(['a']));
+    });
+
+    it('handles self-loops within filtered set', () => {
+      const edges = [makeEdge('e1', 'a', 'a')];
+      const nodeIds = new Set(['a']);
+      const result = buildFilteredUndirectedAdjacency(edges, nodeIds);
+      expect(result.get('a')).toEqual(new Set(['a']));
+    });
+
+    it('handles empty edges with non-empty nodeIds', () => {
+      const nodeIds = new Set(['a']);
+      const result = buildFilteredUndirectedAdjacency([], nodeIds);
+      expect(result.get('a')).toEqual(new Set());
     });
   });
 });

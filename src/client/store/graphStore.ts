@@ -13,6 +13,7 @@ import { invalidateCssVarCache } from '../renderer/styles/ThemeStylesheet.ts';
 import { computeViewModeTransition } from './viewModeTransition.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { type LayoutType, type ThemeType, type RankDir, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
+import { fetchNodeChildren } from '../api/index.ts';
 
 import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, LOD, UI, PREFETCH, FUNCTION_BODY, getDynamicMaxVisibleNodes } from '../../shared/constants.ts';
 
@@ -276,6 +277,7 @@ interface GraphState {
 
   expandedNodeIds: Set<string>;
   expandedNodeIdsByViewMode: Record<string, Set<string>>;
+  loadedChildrenByNodeId: Set<string>;
 
   currentWorkspace: string;
   workspaceList: WorkspaceInfo[];
@@ -333,6 +335,7 @@ interface GraphState {
   setInitStatus: (status: 'idle' | 'initializing' | 'done' | 'error', message?: string | null) => void;
   setWatchEnabled: (enabled: boolean) => void;
   expandNode: (nodeId: string) => void;
+  loadNodeChildren: (nodeId: string) => Promise<void>;
   batchExpandNodes: (nodeIds: string[]) => void;
   prefetchExpand: (nodeId: string) => void;
   collapseNode: (nodeId: string) => void;
@@ -400,6 +403,7 @@ export const useGraphStore = create<GraphState>()(
       watchEnabled: false,
       expandedNodeIds: new Set(),
       expandedNodeIdsByViewMode: {},
+      loadedChildrenByNodeId: new Set(),
       currentWorkspace: '.',
       workspaceList: [],
       pathStartId: null,
@@ -510,12 +514,44 @@ export const useGraphStore = create<GraphState>()(
           clearLoadingFailsafe();
           incrementalClusterCtx = null;
           const sanitized = sanitizeGraphData(rootNodes, edges);
+          const { clusterDepth, expandedNodeIds, viewMode, panelWidth } = useGraphStore.getState();
+          const isLayeredView = isLayeredViewMode(viewMode);
+          let displayNodes = sanitized.nodes;
+          let displayEdges = sanitized.edges;
+          let diagramData: LayeredDiagram | null = null;
+          if (isLayeredView) {
+            const dataHash = computeDataHash(sanitized.nodes, sanitized.edges);
+            const cached = diagramCache.get(viewMode, dataHash);
+            if (cached) {
+              diagramData = cached;
+            } else {
+              diagramData = assembleDiagram(viewMode, sanitized.nodes, sanitized.edges);
+              if (diagramData) diagramCache.set(viewMode, dataHash, diagramData);
+            }
+            if (diagramData) {
+              const layer = diagramData.layers[0];
+              if (layer) {
+                displayNodes = layer.nodes;
+                displayEdges = layer.edges;
+              }
+            }
+          } else {
+            const result = tryIncrementalOrFull(
+              incrementalClusterCtx,
+              sanitized.nodes, sanitized.edges,
+              expandedNodeIds, clusterDepth,
+              panelWidth ?? undefined,
+            );
+            updateIncrementalClusterCtx(result, sanitized.nodes, sanitized.edges);
+            displayNodes = result.nodes;
+            displayEdges = result.edges;
+          }
           set({
             rawNodes: sanitized.nodes,
             rawEdges: sanitized.edges,
-            nodes: sanitized.nodes,
-            edges: sanitized.edges,
-            diagramData: null,
+            nodes: displayNodes,
+            edges: displayEdges,
+            diagramData,
             repoId,
             error: null,
             isLoading: false,
@@ -620,6 +656,59 @@ export const useGraphStore = create<GraphState>()(
         }
         const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: effectiveExpanded };
         applyClusterUpdate(effectiveExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set);
+      },
+      loadNodeChildren: async (nodeId) => {
+        const state = useGraphStore.getState();
+        if (state.loadedChildrenByNodeId.has(nodeId)) return;
+        const hasChildren = state.rawNodes.some((n) => n.parentId === nodeId || n.id.startsWith(nodeId + '/'));
+        if (hasChildren) {
+          const newLoaded = new Set(state.loadedChildrenByNodeId);
+          newLoaded.add(nodeId);
+          set({ loadedChildrenByNodeId: newLoaded });
+          return;
+        }
+        try {
+          const data = await fetchNodeChildren(nodeId);
+          if (!data || data.nodes.length === 0) {
+            const newLoaded = new Set(state.loadedChildrenByNodeId);
+            newLoaded.add(nodeId);
+            set({ loadedChildrenByNodeId: newLoaded });
+            return;
+          }
+          const s2 = useGraphStore.getState();
+          const existingNodeIds = new Set(s2.rawNodes.map((n) => n.id));
+          const newNodes = data.nodes.filter((n) => !existingNodeIds.has(n.id));
+          const existingEdgeIds = new Set(s2.rawEdges.map((e) => e.id));
+          const newEdges = data.edges.filter((e) => !existingEdgeIds.has(e.id));
+          if (newNodes.length === 0 && newEdges.length === 0) {
+            const newLoaded = new Set(s2.loadedChildrenByNodeId);
+            newLoaded.add(nodeId);
+            set({ loadedChildrenByNodeId: newLoaded });
+            return;
+          }
+          const mergedRawNodes = [...s2.rawNodes, ...newNodes];
+          const mergedRawEdges = [...s2.rawEdges, ...newEdges];
+          const newLoaded = new Set(s2.loadedChildrenByNodeId);
+          newLoaded.add(nodeId);
+          const { clusterDepth, expandedNodeIds, panelWidth } = s2;
+          const result = tryIncrementalOrFull(
+            incrementalClusterCtx,
+            mergedRawNodes, mergedRawEdges,
+            expandedNodeIds, clusterDepth,
+            panelWidth ?? undefined,
+          );
+          updateIncrementalClusterCtx(result, mergedRawNodes, mergedRawEdges);
+          set({
+            rawNodes: mergedRawNodes,
+            rawEdges: mergedRawEdges,
+            nodes: result.nodes,
+            edges: result.edges,
+            loadedChildrenByNodeId: newLoaded,
+          });
+          log.info('node children loaded', { nodeId, newNodes: newNodes.length, newEdges: newEdges.length });
+        } catch (err) {
+          log.warn('loadNodeChildren failed', { nodeId, err });
+        }
       },
       batchExpandNodes: (nodeIds) => {
         const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, nodes, panelWidth } = useGraphStore.getState();

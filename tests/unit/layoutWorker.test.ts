@@ -4,6 +4,9 @@ interface LayoutWorkerRequest {
   nodes: { id: string; label: string; type: string }[];
   edges: { id: string; source: string; target: string; type: string }[];
   layout: string;
+  rankDir?: string;
+  containerWidth?: number;
+  containerHeight?: number;
 }
 
 interface LayoutWorkerResponse {
@@ -80,6 +83,24 @@ describe('layoutWorker', () => {
 
   it('computes positions for tree layout', () => {
     const response = sendMessage({ nodes: sampleNodes, edges: sampleEdges, layout: 'tree' });
+    expect(Object.keys(response.positions)).toHaveLength(3);
+    expect(response.error).toBeUndefined();
+  });
+
+  it('computes positions for fcose layout', () => {
+    const response = sendMessage({ nodes: sampleNodes, edges: sampleEdges, layout: 'fcose' });
+    expect(Object.keys(response.positions)).toHaveLength(3);
+    expect(response.error).toBeUndefined();
+  });
+
+  it('computes positions with custom rankDir for dagre', () => {
+    const response = sendMessage({ nodes: sampleNodes, edges: sampleEdges, layout: 'dagre', rankDir: 'LR' });
+    expect(Object.keys(response.positions)).toHaveLength(3);
+    expect(response.error).toBeUndefined();
+  });
+
+  it('computes positions with custom container dimensions', () => {
+    const response = sendMessage({ nodes: sampleNodes, edges: sampleEdges, layout: 'cose', containerWidth: 1200, containerHeight: 900 });
     expect(Object.keys(response.positions)).toHaveLength(3);
     expect(response.error).toBeUndefined();
   });

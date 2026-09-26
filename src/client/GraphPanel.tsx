@@ -45,8 +45,8 @@ import { GraphIcon } from './components/Icons.tsx';
 
 import { SequenceDiagramRenderer } from './renderer/SequenceDiagramRenderer.tsx';
 import { scoped } from '../shared/Logger.ts';
-import { LOD } from '../shared/constants.ts';
-import { UI } from '../shared/constants.ts';
+import { DOM_EVENTS } from '../shared/domEvents.ts';
+import { LOD, UI, PREFETCH } from '../shared/constants.ts';
 
 import { useT } from './i18n/index.ts';
 import './styles/tokens.css';
@@ -183,19 +183,19 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       const detail = (e as CustomEvent).detail as { path?: string };
       if (detail?.path) useGraphStore.getState().setCurrentWorkspace(detail.path);
     };
-    window.addEventListener('codegraph:workspace', handler);
-    return () => window.removeEventListener('codegraph:workspace', handler);
+    window.addEventListener(DOM_EVENTS.WORKSPACE, handler);
+    return () => window.removeEventListener(DOM_EVENTS.WORKSPACE, handler);
   }, []);
 
   const handleWorkspaceSwitch = useCallback((path: string) => {
     setCurrentWorkspace(path);
-    window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path } }));
+    window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path } }));
   }, [setCurrentWorkspace]);
 
   const handleWorkspaceAdd = useCallback((path: string) => {
     addWorkspace(path, path.split(/[\\/]/).pop() || path);
-    window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path } }));
-    window.dispatchEvent(new CustomEvent('codegraph:import-repo', { detail: { path } }));
+    window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path } }));
+    window.dispatchEvent(new CustomEvent(DOM_EVENTS.IMPORT_REPO, { detail: { path } }));
   }, [addWorkspace]);
 
   const handleNodeTap = useCallback((id: NodeId) => {
@@ -233,7 +233,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     if (hoverPrefetchTimerRef.current) clearTimeout(hoverPrefetchTimerRef.current);
     hoverPrefetchTimerRef.current = setTimeout(() => {
       useGraphStore.getState().prefetchExpand(nodeId);
-    }, 300);
+    }, PREFETCH.HOVER_DEBOUNCE_MS);
   }, []);
   useEffect(() => () => { if (hoverPrefetchTimerRef.current) clearTimeout(hoverPrefetchTimerRef.current); }, []);
   const handleEdgeHover = useCallback((edgeId: string, pos: { x: number; y: number }) => {
@@ -302,8 +302,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         renderer.rendererRef.current?.selectNode(NodeId(match.id));
       }
     };
-    window.addEventListener('codegraph:symbol-select', symbolHandler);
-    return () => window.removeEventListener('codegraph:symbol-select', symbolHandler);
+    window.addEventListener(DOM_EVENTS.SYMBOL_SELECT, symbolHandler);
+    return () => window.removeEventListener(DOM_EVENTS.SYMBOL_SELECT, symbolHandler);
   }, [renderer.rendererRef]);
 
   useThemeSync(renderer.updateTheme);
@@ -419,12 +419,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     onRedo: history.redo,
     onRefresh: () => {
       setLoading(true);
-      window.dispatchEvent(new CustomEvent('codegraph:refresh', { detail: { incremental: false } }));
+      window.dispatchEvent(new CustomEvent(DOM_EVENTS.REFRESH, { detail: { incremental: false } }));
     },
   });
 
   const requestRefresh = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('codegraph:refresh', { detail: { incremental: true } }));
+    window.dispatchEvent(new CustomEvent(DOM_EVENTS.REFRESH, { detail: { incremental: true } }));
   }, []);
   usePolling(requestRefresh, watchEnabled ? UI.POLLING_INTERVAL_WATCH_MS : UI.POLLING_INTERVAL_IDLE_MS, !panel.collapsed);
 
@@ -537,13 +537,13 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const handleRefresh = useCallback(() => {
     setLoading(true);
-    window.dispatchEvent(new CustomEvent('codegraph:refresh', { detail: { incremental: false } }));
+    window.dispatchEvent(new CustomEvent(DOM_EVENTS.REFRESH, { detail: { incremental: false } }));
     log.info('manual refresh (full)');
   }, [setLoading]);
 
   const handleScanWorkspace = useCallback(() => {
     setLoading(true);
-    window.dispatchEvent(new CustomEvent('codegraph:import-repo', { detail: { path: currentWorkspace || '.' } }));
+    window.dispatchEvent(new CustomEvent(DOM_EVENTS.IMPORT_REPO, { detail: { path: currentWorkspace || '.' } }));
     log.info('scan workspace from empty state', { path: currentWorkspace });
   }, [setLoading, currentWorkspace]);
 
@@ -887,7 +887,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           onOpenSource={(id) => {
             const data = getDataRef.current?.getNodeData(id);
             if (data) {
-              window.dispatchEvent(new CustomEvent('codegraph:open-source', { detail: { filePath: data.filePath, lineNumber: data.lineNumber } }));
+              window.dispatchEvent(new CustomEvent(DOM_EVENTS.OPEN_SOURCE, { detail: { filePath: data.filePath, lineNumber: data.lineNumber } }));
             }
           }}
         />

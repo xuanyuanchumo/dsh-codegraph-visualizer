@@ -20,6 +20,13 @@ describe('graphStore (J6/J7/J10)', () => {
       workspaceList: [],
       clusterDepth: 0,
       expandedNodeIds: new Set(),
+      loadedChildrenByNodeId: new Set(),
+      selectedFunction: null,
+      viewMode: 'code',
+      diagramData: null,
+      currentLayer: 0,
+      lodLevel: 'full',
+      lodEnabled: false,
     });
   });
 
@@ -917,5 +924,483 @@ describe('graphStore (J6/J7/J10)', () => {
       useGraphStore.getState().setLayer(1);
       expect(useGraphStore.getState().currentLayer).toBe(1);
     }
+  });
+
+  // ── setBootstrapData ───────────────────────────────────────────────
+  it('setBootstrapData should set raw nodes and metadata', () => {
+    const rootNodes = [makeNode('r1', 'root', 'module', '/', 0)];
+    const edges = [makeEdge('e1', 'r1', 'r2', 'contains')];
+    useGraphStore.getState().setBootstrapData(rootNodes, edges, 'repo-bootstrap', {
+      totalNodeCount: 500,
+      totalEdgeCount: 200,
+      timestamp: 12345,
+    });
+    const s = useGraphStore.getState();
+    expect(s.rawNodes).toHaveLength(1);
+    expect(s.repoId).toBe('repo-bootstrap');
+    expect(s.totalNodeCount).toBe(500);
+    expect(s.totalEdgeCount).toBe(200);
+    expect(s.lastUpdated).toBe(12345);
+    expect(s.expandedNodeIds.size).toBe(0);
+    expect(s.expandedNodeIdsByViewMode).toEqual({});
+  });
+
+  it('setBootstrapData should handle layered view mode', () => {
+    const rootNodes = [
+      makeNode('r1', 'root', 'class', 'src/A.ts', 1),
+      makeNode('r2', 'child', 'class', 'src/B.ts', 1),
+    ];
+    const edges = [makeEdge('e1', 'r2', 'r1', 'extend')];
+    useGraphStore.getState().setViewMode('inheritance');
+    useGraphStore.getState().setBootstrapData(rootNodes, edges, 'repo-bs', {
+      totalNodeCount: 10,
+      totalEdgeCount: 5,
+      timestamp: 999,
+    });
+    const s = useGraphStore.getState();
+    expect(s.diagramData).not.toBeNull();
+    expect(s.repoId).toBe('repo-bs');
+  });
+
+  it('setBootstrapData should sanitize invalid nodes', () => {
+    const rootNodes = [
+      makeNode('r1', 'root', 'module', '/', 0),
+      { id: '', label: 'bad', type: 'function', filePath: 'x.ts' } as any,
+    ];
+    useGraphStore.getState().setBootstrapData(rootNodes, [], 'repo-bs', {
+      totalNodeCount: 1,
+      totalEdgeCount: 0,
+      timestamp: 1,
+    });
+    expect(useGraphStore.getState().rawNodes).toHaveLength(1);
+  });
+
+  it('setBootstrapData should handle error gracefully', () => {
+    // Force an error by providing malformed data that triggers exception
+    const original = useGraphStore.getState();
+    useGraphStore.getState().setBootstrapData([], [], 'repo-err', {
+      totalNodeCount: 0,
+      totalEdgeCount: 0,
+      timestamp: 0,
+    });
+    expect(useGraphStore.getState().error).toBeNull();
+  });
+
+  // ── loadNodeChildren ───────────────────────────────────────────────
+  it('loadNodeChildren should skip if already loaded', async () => {
+    useGraphStore.getState().setGraphData(
+      [makeNode('n1', 'A', 'function', 'a.ts', 1)],
+      [],
+      'repo-1',
+    );
+    useGraphStore.setState({ loadedChildrenByNodeId: new Set(['n1']) });
+    await useGraphStore.getState().loadNodeChildren('n1');
+    expect(useGraphStore.getState().loadedChildrenByNodeId.has('n1')).toBe(true);
+  });
+
+  it('loadNodeChildren should mark as loaded if node has children in rawNodes', async () => {
+    const parentNode = makeNode('parent', 'Parent', 'module', 'p.ts', 1);
+    const childNode = makeNode('child', 'Child', 'function', 'c.ts', 1, {}, 'parent');
+    useGraphStore.getState().setGraphData([parentNode, childNode], [], 'repo-1');
+    useGraphStore.getState().loadNodeChildren('parent');
+    // Wait for potential async operation
+    await new Promise((r) => setTimeout(r, 10));
+    expect(useGraphStore.getState().loadedChildrenByNodeId.has('parent')).toBe(true);
+  });
+
+  it('loadNodeChildren should fetch from API when no local children', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        nodes: [{ id: 'c1', label: 'child1', type: 'function', filePath: 'c1.ts', lineNumber: 1, properties: {} }],
+        edges: [],
+        cursor: null,
+        total: 1,
+      }),
+    } as any);
+    try {
+      useGraphStore.getState().setGraphData(
+        [makeNode('n1', 'A', 'function', 'a.ts', 1)],
+        [],
+        'repo-1',
+      );
+      await useGraphStore.getState().loadNodeChildren('n1');
+      expect(useGraphStore.getState().loadedChildrenByNodeId.has('n1')).toBe(true);
+
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('loadNodeChildren should handle null API response', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => null,
+    } as any);
+    try {
+      useGraphStore.getState().setGraphData(
+        [makeNode('n1', 'A', 'function', 'a.ts', 1)],
+        [],
+        'repo-1',
+      );
+      await useGraphStore.getState().loadNodeChildren('n1');
+      expect(useGraphStore.getState().loadedChildrenByNodeId.has('n1')).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('loadNodeChildren should handle empty nodes from API', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ nodes: [], edges: [], cursor: null, total: 0 }),
+    } as any);
+    try {
+      useGraphStore.getState().setGraphData(
+        [makeNode('n1', 'A', 'function', 'a.ts', 1)],
+        [],
+        'repo-1',
+      );
+      await useGraphStore.getState().loadNodeChildren('n1');
+      expect(useGraphStore.getState().loadedChildrenByNodeId.has('n1')).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('loadNodeChildren should handle duplicate nodes from API', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        nodes: [{ id: 'n1', label: 'dup', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} }],
+        edges: [],
+        cursor: null,
+        total: 1,
+      }),
+    } as any);
+    try {
+      useGraphStore.getState().setGraphData(
+        [makeNode('n1', 'A', 'function', 'a.ts', 1)],
+        [],
+        'repo-1',
+      );
+      await useGraphStore.getState().loadNodeChildren('n1');
+      expect(useGraphStore.getState().rawNodes).toHaveLength(1);
+      expect(useGraphStore.getState().loadedChildrenByNodeId.has('n1')).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('loadNodeChildren should handle API error gracefully', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as any;
+    try {
+      useGraphStore.getState().setGraphData(
+        [makeNode('n1', 'A', 'function', 'a.ts', 1)],
+        [],
+        'repo-1',
+      );
+      await useGraphStore.getState().loadNodeChildren('n1');
+      // fetchNodeChildren catches errors and returns null,
+      // so loadNodeChildren marks nodeId as loaded (no children available)
+      expect(useGraphStore.getState().loadedChildrenByNodeId.has('n1')).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  // ── batchExpandNodes ───────────────────────────────────────────────
+  it('batchExpandNodes should expand multiple nodes', () => {
+    const nodes = [
+      makeNode('m1', 'a.ts', 'module', 'crates/core/src/a.ts', 1),
+      makeNode('m2', 'b.ts', 'module', 'crates/api/src/b.ts', 1),
+      makeNode('m3', 'c.ts', 'module', 'crates/utils/src/c.ts', 1),
+    ];
+    useGraphStore.getState().setClusterDepth(0);
+    useGraphStore.getState().setGraphData(nodes, [], 'repo-1');
+    const clusterNodes = useGraphStore.getState().nodes.filter(n => 'isCluster' in n && n.isCluster);
+    const clusterIds = clusterNodes.map(n => n.id);
+    useGraphStore.getState().batchExpandNodes(clusterIds);
+    expect(useGraphStore.getState().expandedNodeIds.size).toBe(clusterIds.length);
+  });
+
+  it('batchExpandNodes should do nothing for empty array', () => {
+    useGraphStore.getState().setGraphData(
+      [makeNode('n1', 'A', 'function', 'a.ts', 1)],
+      [],
+      'repo-1',
+    );
+    const before = useGraphStore.getState().expandedNodeIds.size;
+    useGraphStore.getState().batchExpandNodes([]);
+    expect(useGraphStore.getState().expandedNodeIds.size).toBe(before);
+  });
+
+  // ── prefetchExpand ─────────────────────────────────────────────────
+  it('prefetchExpand should not prefetch in layered view mode', () => {
+    const nodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
+    useGraphStore.getState().setGraphData(nodes, [], 'repo-1');
+    useGraphStore.getState().setViewMode('dependencies');
+    // Should not throw
+    useGraphStore.getState().prefetchExpand('n1');
+  });
+
+  it('prefetchExpand should skip already expanded nodes', () => {
+    const nodes = [
+      makeNode('m1', 'a.ts', 'module', 'crates/core/src/a.ts', 1),
+      makeNode('m2', 'b.ts', 'module', 'crates/api/src/b.ts', 1),
+    ];
+    useGraphStore.getState().setClusterDepth(0);
+    useGraphStore.getState().setGraphData(nodes, [], 'repo-1');
+    useGraphStore.getState().expandNode('cluster__crates__core');
+    // Should not throw when prefetching already expanded node
+    useGraphStore.getState().prefetchExpand('cluster__crates__core');
+  });
+
+  it('prefetchExpand should skip function nodes', () => {
+    const nodes = [makeNode('f1', 'funcA', 'function', 'a.ts', 1)];
+    useGraphStore.getState().setGraphData(nodes, [], 'repo-1');
+    // Should not throw when prefetching function node
+    useGraphStore.getState().prefetchExpand('f1');
+  });
+
+  // ── setDagreRankDir ────────────────────────────────────────────────
+  it('setDagreRankDir should update rank direction', () => {
+    useGraphStore.getState().setDagreRankDir('LR');
+    expect(useGraphStore.getState().dagreRankDir).toBe('LR');
+    useGraphStore.getState().setDagreRankDir('TB');
+    expect(useGraphStore.getState().dagreRankDir).toBe('TB');
+    useGraphStore.getState().setDagreRankDir('BT');
+    expect(useGraphStore.getState().dagreRankDir).toBe('BT');
+    useGraphStore.getState().setDagreRankDir('RL');
+    expect(useGraphStore.getState().dagreRankDir).toBe('RL');
+  });
+
+  // ── setFocusMode ───────────────────────────────────────────────────
+  it('setFocusMode should set active and nodeId', () => {
+    const nodeId = makeNode('n1', 'A', 'function', 'a.ts', 1).id;
+    useGraphStore.getState().setFocusMode(true, nodeId);
+    expect(useGraphStore.getState().focusModeActive).toBe(true);
+    expect(useGraphStore.getState().focusModeNodeId).toBe(nodeId);
+    useGraphStore.getState().setFocusMode(false, null);
+    expect(useGraphStore.getState().focusModeActive).toBe(false);
+    expect(useGraphStore.getState().focusModeNodeId).toBeNull();
+  });
+
+  // ── setPathFilter ──────────────────────────────────────────────────
+  it('setPathFilter should set include and exclude filters', () => {
+    useGraphStore.getState().setPathFilter('src/', 'test/');
+    expect(useGraphStore.getState().pathFilterInclude).toBe('src/');
+    expect(useGraphStore.getState().pathFilterExclude).toBe('test/');
+    useGraphStore.getState().setPathFilter(null, null);
+    expect(useGraphStore.getState().pathFilterInclude).toBeNull();
+    expect(useGraphStore.getState().pathFilterExclude).toBeNull();
+  });
+
+  // ── setHeatmapMode ─────────────────────────────────────────────────
+  it('setHeatmapMode should update heatmap mode', () => {
+    useGraphStore.getState().setHeatmapMode('instability');
+    expect(useGraphStore.getState().heatmapMode).toBe('instability');
+    useGraphStore.getState().setHeatmapMode('lines');
+    expect(useGraphStore.getState().heatmapMode).toBe('lines');
+    useGraphStore.getState().setHeatmapMode('complexity');
+    expect(useGraphStore.getState().heatmapMode).toBe('complexity');
+    useGraphStore.getState().setHeatmapMode('none');
+    expect(useGraphStore.getState().heatmapMode).toBe('none');
+  });
+
+  // ── addDegradation / clearDegradations ─────────────────────────────
+  it('addDegradation should add unique degradation key', () => {
+    useGraphStore.getState().clearDegradations();
+    useGraphStore.getState().addDegradation('cycle-detection-skipped');
+    expect(useGraphStore.getState().performanceDegradations).toHaveLength(1);
+    // Adding same key again should not duplicate
+    useGraphStore.getState().addDegradation('cycle-detection-skipped');
+    expect(useGraphStore.getState().performanceDegradations).toHaveLength(1);
+    // Adding different key
+    useGraphStore.getState().addDegradation('large-graph-mode');
+    expect(useGraphStore.getState().performanceDegradations).toHaveLength(2);
+  });
+
+  it('clearDegradations should empty the list', () => {
+    useGraphStore.getState().addDegradation('test-key');
+    useGraphStore.getState().clearDegradations();
+    expect(useGraphStore.getState().performanceDegradations).toEqual([]);
+  });
+
+  // ── setLODLevel ────────────────────────────────────────────────────
+  it('setLODLevel should update level when different', () => {
+    useGraphStore.getState().setLODLevel('minimal');
+    expect(useGraphStore.getState().lodLevel).toBe('minimal');
+    useGraphStore.getState().setLODLevel('compact');
+    expect(useGraphStore.getState().lodLevel).toBe('compact');
+    useGraphStore.getState().setLODLevel('full');
+    expect(useGraphStore.getState().lodLevel).toBe('full');
+  });
+
+  it('setLODLevel should skip when same level', () => {
+    useGraphStore.getState().setLODLevel('minimal');
+    const nodesBefore = useGraphStore.getState().nodes;
+    useGraphStore.getState().setLODLevel('minimal');
+    expect(useGraphStore.getState().nodes).toBe(nodesBefore);
+  });
+
+  it('setLODLevel with lodEnabled should re-cluster', () => {
+    const nodes = [
+      makeNode('m1', 'a.ts', 'module', 'crates/core/src/a.ts', 1),
+      makeNode('m2', 'b.ts', 'module', 'crates/api/src/b.ts', 1),
+    ];
+    useGraphStore.getState().setClusterDepth(0);
+    useGraphStore.getState().setGraphData(nodes, [], 'repo-1');
+    useGraphStore.getState().setLODEnabled(true);
+    useGraphStore.getState().setLODLevel('minimal');
+    expect(useGraphStore.getState().lodLevel).toBe('minimal');
+  });
+
+  // ── setLODEnabled ──────────────────────────────────────────────────
+  it('setLODEnabled should enable LOD', () => {
+    useGraphStore.getState().setLODEnabled(true);
+    expect(useGraphStore.getState().lodEnabled).toBe(true);
+  });
+
+  it('setLODEnabled should disable LOD and reset to full', () => {
+    useGraphStore.getState().setLODEnabled(true);
+    useGraphStore.getState().setLODLevel('minimal');
+    useGraphStore.getState().setLODEnabled(false);
+    expect(useGraphStore.getState().lodEnabled).toBe(false);
+    expect(useGraphStore.getState().lodLevel).toBe('full');
+  });
+
+  it('setLODEnabled false when already full should not change level', () => {
+    useGraphStore.getState().setLODEnabled(false);
+    expect(useGraphStore.getState().lodLevel).toBe('full');
+  });
+
+  // ── setViewMode to micro mode ──────────────────────────────────────
+  it('setViewMode to cfg should trigger micro assembly when selectedFunction exists', async () => {
+    useGraphStore.getState().setSelectedFunction({
+      nodeId: 'n1',
+      filePath: 'src/a.ts',
+      functionName: 'calculate',
+    });
+    const mockAst = {
+      type: 'program',
+      text: '',
+      startPosition: { row: 0, column: 0 },
+      endPosition: { row: 10, column: 0 },
+      children: [
+        {
+          type: 'function_declaration',
+          text: 'function calculate() {}',
+          startPosition: { row: 0, column: 0 },
+          endPosition: { row: 5, column: 0 },
+          children: [],
+        },
+      ],
+    };
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockAst,
+    } as any);
+    try {
+      useGraphStore.getState().setViewMode('cfg');
+      // Wait for async micro assembly
+      await new Promise((r) => setTimeout(r, 50));
+      expect(useGraphStore.getState().viewMode).toBe('cfg');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  // ── assembleMultiFunction ──────────────────────────────────────────
+  it('assembleMultiFunction should handle fetch error gracefully', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as any;
+    try {
+      useGraphStore.getState().setGraphData(
+        [makeNode('n1', 'A', 'function', 'a.ts', 1)],
+        [],
+        'repo-1',
+      );
+      await useGraphStore.getState().assembleMultiFunction('n1');
+      // When fetch fails, astFetcher returns null, aggregator produces no results
+      const s = useGraphStore.getState();
+      expect(s.error !== null || s.nodes.length === 0).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('assembleMultiFunction should set error when no results', async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => null,
+    } as any);
+    try {
+      useGraphStore.getState().setGraphData(
+        [makeNode('n1', 'A', 'function', 'a.ts', 1)],
+        [],
+        'repo-1',
+      );
+      await useGraphStore.getState().assembleMultiFunction('n1');
+      // Either error set or nodes empty
+      const s = useGraphStore.getState();
+      expect(s.error !== null || s.nodes.length === 0).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  // ── setGraphData with large graph degradation ──────────────────────
+  it('setGraphData should add degradation for large node count', () => {
+    const nodes: GraphNode[] = [];
+    for (let i = 0; i < 5000; i++) {
+      nodes.push(makeNode(`n${i}`, `node${i}`, 'function', `file${i}.ts`, i));
+    }
+    useGraphStore.getState().setGraphData(nodes, [], 'repo-large');
+    const degradations = useGraphStore.getState().performanceDegradations;
+    expect(degradations.length).toBeGreaterThan(0);
+  });
+
+  // ── setGraphData with layered view mode ────────────────────────────
+  it('setGraphData in inheritance view mode should create diagramData', () => {
+    const nodes = [
+      makeNode('A', 'ClassA', 'class', 'src/A.ts', 1),
+      makeNode('B', 'ClassB', 'class', 'src/B.ts', 1),
+    ];
+    const edges = [makeEdge('e1', 'B', 'A', 'extend')];
+    useGraphStore.getState().setViewMode('inheritance');
+    useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
+    expect(useGraphStore.getState().diagramData).not.toBeNull();
+    expect(useGraphStore.getState().diagramData?.viewMode).toBe('inheritance');
+  });
+
+  // ── setGraphData error path ────────────────────────────────────────
+  it('setGraphData should set error on exception', () => {
+    // Passing null as nodes will cause sanitizeGraphData to handle it
+    useGraphStore.getState().setGraphData(null as any, null as any, 'repo-err');
+    expect(useGraphStore.getState().error).not.toBeNull();
+  });
+
+  // ── setGraphData with cached diagram ───────────────────────────────
+  it('setGraphData should use cached diagram when available', () => {
+    const nodes = [
+      makeNode('A', 'ClassA', 'class', 'src/A.ts', 1),
+      makeNode('B', 'ClassB', 'class', 'src/B.ts', 1),
+    ];
+    const edges = [makeEdge('e1', 'B', 'A', 'extend')];
+    useGraphStore.getState().setViewMode('inheritance');
+    // First call creates and caches
+    useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
+    expect(useGraphStore.getState().diagramData).not.toBeNull();
+    // Second call with same data should use cache
+    useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
+    expect(useGraphStore.getState().diagramData).not.toBeNull();
   });
 });

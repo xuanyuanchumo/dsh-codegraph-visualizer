@@ -2,7 +2,7 @@ import cytoscape, { type Core, type LayoutOptions } from 'cytoscape';
 import dagre from 'cytoscape-dagre';
 import fcose from 'cytoscape-fcose';
 import { computeSmartSpacing } from '../../shared/layoutUtils.ts';
-import { LAYOUT } from '../../shared/constants.ts';
+import { LAYOUT, RENDERER } from '../../shared/constants.ts';
 
 cytoscape.use(dagre);
 cytoscape.use(fcose);
@@ -22,7 +22,7 @@ export interface LayoutWorkerResponse {
 }
 
 self.onmessage = (e: MessageEvent<LayoutWorkerRequest>) => {
-  const { nodes, edges, layout, rankDir = 'TB', containerWidth = 800, containerHeight = 600 } = e.data;
+  const { nodes, edges, layout, rankDir = 'TB', containerWidth = RENDERER.DEFAULT_CONTAINER_WIDTH, containerHeight = RENDERER.DEFAULT_CONTAINER_HEIGHT } = e.data;
   let cyRef: Core | null = null;
   try {
     const cy = cytoscape({

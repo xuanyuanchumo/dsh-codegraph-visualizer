@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { DiagramCache, ClusterCache, computeDataHash } from '../../src/client/cache/DiagramCache.ts';
 import type { LayeredDiagram } from '../../src/client/diagram/DiagramAssembler.ts';
 import type { ClusterResult } from '../../src/client/store/cluster/index.ts';
@@ -229,5 +229,106 @@ describe('ClusterCache', () => {
     expect(cache.size()).toBe(2);
     expect(cache.get('h2', 'directory', '')).toBe(r2New);
     expect(cache.get('h1', 'directory', '')).toBe(r1);
+  });
+});
+describe('DiagramCache setPersistentBackend', () => {
+  it('should set persistent backend without throwing', () => {
+    const cache = new DiagramCache(5);
+    const mockIdb = {
+      getDiagram: vi.fn().mockResolvedValue(null),
+      setDiagram: vi.fn().mockResolvedValue(undefined),
+      invalidateDiagram: vi.fn().mockResolvedValue(undefined),
+      getCluster: vi.fn().mockResolvedValue(null),
+      setCluster: vi.fn().mockResolvedValue(undefined),
+      invalidateCluster: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    expect(() => cache.setPersistentBackend(mockIdb)).not.toThrow();
+  });
+
+  it('should call idbCache.setDiagram on cache set when persistent backend is set', async () => {
+    const cache = new DiagramCache(5);
+    const mockIdb = {
+      getDiagram: vi.fn().mockResolvedValue(null),
+      setDiagram: vi.fn().mockResolvedValue(undefined),
+      invalidateDiagram: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    const diagram = makeLayeredDiagram();
+    cache.set('inheritance', 'hash1', diagram);
+    // Allow async operations to complete
+    await new Promise((r) => setTimeout(r, 10));
+    expect(mockIdb.setDiagram).toHaveBeenCalledTimes(1);
+  });
+
+  it('should call idbCache.invalidateDiagram on cache invalidate when persistent backend is set', async () => {
+    const cache = new DiagramCache(5);
+    const mockIdb = {
+      getDiagram: vi.fn().mockResolvedValue(null),
+      setDiagram: vi.fn().mockResolvedValue(undefined),
+      invalidateDiagram: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    cache.invalidate('inheritance');
+    await new Promise((r) => setTimeout(r, 10));
+    expect(mockIdb.invalidateDiagram).toHaveBeenCalledWith('inheritance');
+  });
+
+  it('should call idbCache.invalidateDiagram with undefined when invalidating all', async () => {
+    const cache = new DiagramCache(5);
+    const mockIdb = {
+      getDiagram: vi.fn().mockResolvedValue(null),
+      setDiagram: vi.fn().mockResolvedValue(undefined),
+      invalidateDiagram: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    cache.invalidate();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(mockIdb.invalidateDiagram).toHaveBeenCalledWith(undefined);
+  });
+});
+
+describe('ClusterCache setPersistentBackend', () => {
+  it('should set persistent backend without throwing', () => {
+    const cache = new ClusterCache(5);
+    const mockIdb = {
+      getCluster: vi.fn().mockResolvedValue(null),
+      setCluster: vi.fn().mockResolvedValue(undefined),
+      invalidateCluster: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    expect(() => cache.setPersistentBackend(mockIdb)).not.toThrow();
+  });
+
+  it('should call idbCache.setCluster on cache set when persistent backend is set', async () => {
+    const cache = new ClusterCache(5);
+    const mockIdb = {
+      getCluster: vi.fn().mockResolvedValue(null),
+      setCluster: vi.fn().mockResolvedValue(undefined),
+      invalidateCluster: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    const result = makeClusterResult();
+    cache.set('hash1', 'directory', '', result);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(mockIdb.setCluster).toHaveBeenCalledTimes(1);
+  });
+
+  it('should call idbCache.invalidateCluster on cache invalidate when persistent backend is set', async () => {
+    const cache = new ClusterCache(5);
+    const mockIdb = {
+      getCluster: vi.fn().mockResolvedValue(null),
+      setCluster: vi.fn().mockResolvedValue(undefined),
+      invalidateCluster: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+    } as any;
+    cache.setPersistentBackend(mockIdb);
+    cache.invalidate();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(mockIdb.invalidateCluster).toHaveBeenCalledTimes(1);
   });
 });

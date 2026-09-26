@@ -55,3 +55,21 @@ describe('SecurityManager.isPathAllowed', () => {
     expect(sm2.isPathAllowed('/repo1/src')).toBe(false);
   });
 });
+describe('SecurityManager.reset', () => {
+  it('clears all allowed workspace roots', () => {
+    const sm = new SecurityManager();
+    sm.setAllowedWorkspaceRoots(['C:\\Projects\\my-repo']);
+    expect(sm.isPathAllowed('C:\\Projects\\my-repo\\src')).toBe(true);
+    sm.reset();
+    expect(sm.isPathAllowed('C:\\Projects\\my-repo\\src')).toBe(false);
+  });
+
+  it('allows re-setting roots after reset', () => {
+    const sm = new SecurityManager();
+    sm.setAllowedWorkspaceRoots(['C:\\Projects\\my-repo']);
+    sm.reset();
+    sm.setAllowedWorkspaceRoots(['D:\\other-repo']);
+    expect(sm.isPathAllowed('D:\\other-repo\\src')).toBe(true);
+    expect(sm.isPathAllowed('C:\\Projects\\my-repo\\src')).toBe(false);
+  });
+});

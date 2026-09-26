@@ -786,4 +786,325 @@ describe('CFGAssembler', () => {
     );
     expect(returnExitNodes.length).toBe(2);
   });
+
+  // --- try/catch/finally ---
+
+  it('processes try/catch statement', () => {
+    const tryBody = makeAstNode('block', '', [makeStatement('expression_statement', 'x = 1', 1)]);
+    const catchBody = makeAstNode('block', '', [makeStatement('expression_statement', 'y = 2', 3)]);
+    const catchClause = makeAstNode('catch_clause', 'catch (e)', [catchBody]);
+    const astRoot = makeAstNode('function_declaration', 'function f() { try { x = 1; } catch (e) { y = 2; } }', [
+      makeAstNode('try_statement', 'try', [tryBody, catchClause]),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const tryNodes = result.nodes.filter((n) => n.properties.blockType === 'try');
+    expect(tryNodes.length).toBe(1);
+    const catchNodes = result.nodes.filter((n) => n.properties.blockType === 'catch');
+    expect(catchNodes.length).toBe(1);
+    const exceptionEdges = result.edges.filter((e) => e.properties.cfgEdgeType === 'exception');
+    expect(exceptionEdges.length).toBe(1);
+  });
+
+  it('processes try/catch/finally statement', () => {
+    const tryBody = makeAstNode('block', '', [makeStatement('expression_statement', 'x = 1', 1)]);
+    const catchBody = makeAstNode('block', '', [makeStatement('expression_statement', 'y = 2', 3)]);
+    const finallyBody = makeAstNode('block', '', [makeStatement('expression_statement', 'z = 3', 5)]);
+    const catchClause = makeAstNode('catch_clause', 'catch (e)', [catchBody]);
+    const finallyClause = makeAstNode('finally_clause', 'finally', [finallyBody]);
+    const astRoot = makeAstNode('function_declaration', 'function f() { try { x = 1; } catch (e) { y = 2; } finally { z = 3; } }', [
+      makeAstNode('try_statement', 'try', [tryBody, catchClause, finallyClause]),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const finallyNodes = result.nodes.filter((n) => n.properties.blockType === 'finally');
+    expect(finallyNodes.length).toBe(1);
+    const afterFinallyNodes = result.nodes.filter((n) => n.label === 'after-finally');
+    expect(afterFinallyNodes.length).toBe(1);
+  });
+
+  it('processes try with no catch (only finally)', () => {
+    const tryBody = makeAstNode('block', '', [makeStatement('expression_statement', 'x = 1', 1)]);
+    const finallyBody = makeAstNode('block', '', [makeStatement('expression_statement', 'z = 3', 3)]);
+    const finallyClause = makeAstNode('finally_clause', 'finally', [finallyBody]);
+    const astRoot = makeAstNode('function_declaration', 'function f() { try { x = 1; } finally { z = 3; } }', [
+      makeAstNode('try_statement', 'try', [tryBody, finallyClause]),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const finallyNodes = result.nodes.filter((n) => n.properties.blockType === 'finally');
+    expect(finallyNodes.length).toBe(1);
+  });
+
+  // --- throw/raise ---
+
+  it('processes throw statement', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { throw new Error(); }', [
+      makeStatement('throw_statement', 'throw new Error()', 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const throwNodes = result.nodes.filter((n) => n.label === 'throw');
+    expect(throwNodes.length).toBe(1);
+    const exceptionEdges = result.edges.filter((e) => e.properties.cfgEdgeType === 'exception');
+    expect(exceptionEdges.length).toBe(1);
+  });
+
+  it('processes raise statement (Python)', () => {
+    const astRoot = makeAstNode('function_definition', 'def f(): raise ValueError()', [
+      makeStatement('raise_statement', 'raise ValueError()', 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const throwNodes = result.nodes.filter((n) => n.label === 'throw');
+    expect(throwNodes.length).toBe(1);
+  });
+
+  // --- break/continue inside loops ---
+
+  it('processes break inside for loop', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { for (i = 0; i < 10; i++) { if (i == 5) { break; } } }', [
+      makeFor('i < 10', [
+        makeIf('i == 5', [makeStatement('break_statement', 'break', 2)]),
+      ]),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const breakEdges = result.edges.filter((e) => e.properties.cfgEdgeType === 'break');
+    expect(breakEdges.length).toBe(1);
+  });
+
+  it('processes continue inside for loop', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { for (i = 0; i < 10; i++) { if (i == 5) { continue; } } }', [
+      makeFor('i < 10', [
+        makeIf('i == 5', [makeStatement('continue_statement', 'continue', 2)]),
+      ]),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const continueEdges = result.edges.filter((e) => e.properties.cfgEdgeType === 'continue');
+    expect(continueEdges.length).toBe(1);
+  });
+
+  it('processes break inside while loop', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { while (true) { if (done) { break; } } }', [
+      makeWhile('true', [
+        makeIf('done', [makeStatement('break_statement', 'break', 2)]),
+      ]),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const breakEdges = result.edges.filter((e) => e.properties.cfgEdgeType === 'break');
+    expect(breakEdges.length).toBe(1);
+  });
+
+  it('processes continue inside while loop', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { while (true) { if (skip) { continue; } } }', [
+      makeWhile('true', [
+        makeIf('skip', [makeStatement('continue_statement', 'continue', 2)]),
+      ]),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const continueEdges = result.edges.filter((e) => e.properties.cfgEdgeType === 'continue');
+    expect(continueEdges.length).toBe(1);
+  });
+
+  it('break outside loop falls through to exit', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { break; }', [
+      makeStatement('break_statement', 'break', 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const breakEdges = result.edges.filter((e) => e.properties.cfgEdgeType === 'break');
+    expect(breakEdges.length).toBe(1);
+  });
+
+  it('continue outside loop falls through to exit', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { continue; }', [
+      makeStatement('continue_statement', 'continue', 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const continueEdges = result.edges.filter((e) => e.properties.cfgEdgeType === 'continue');
+    expect(continueEdges.length).toBe(1);
+  });
+
+  // --- switch with default ---
+
+  it('switch without default adds implicit default edge', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { switch (x) { case 1: y = 1; case 2: y = 2; } }', [
+      makeAstNode('switch_statement', 'switch (x)', [
+        makeAstNode('parenthesized_expression', 'x', [], 1),
+        makeAstNode('case_statement', 'case 1:', [
+          makeStatement('expression_statement', 'y = 1', 2),
+        ], 2),
+        makeAstNode('case_statement', 'case 2:', [
+          makeStatement('expression_statement', 'y = 2', 3),
+        ], 3),
+      ]),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const defaultEdges = result.edges.filter((e) => e.properties.cfgEdgeType === 'default');
+    expect(defaultEdges.length).toBe(1);
+  });
+
+  it('switch with match_arm (Rust)', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { match x { 1 => y = 1, _ => y = 0 } }', [
+      makeAstNode('match_expression', 'match x', [
+        makeAstNode('match_arm', '_ => y = 0', [
+          makeAstNode('wildcard_pattern', '_', [], 1),
+          makeStatement('expression_statement', 'y = 0', 1),
+        ]),
+      ]),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    expect(result.nodes.length).toBeGreaterThan(0);
+  });
+
+  // --- for_in statement ---
+
+  it('processes for_in statement (Python)', () => {
+    const astRoot = makeAstNode('function_definition', 'def f(): for x in items: print(x)', [
+      makeAstNode('for_in_statement', 'for x in items', [
+        makeAstNode('parenthesized_expression', 'x in items', [], 1),
+        makeAstNode('block', '', [makeStatement('expression_statement', 'print(x)', 1)]),
+      ]),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const loopNodes = result.nodes.filter((n) => n.properties.blockType === 'loop');
+    expect(loopNodes.length).toBe(1);
+  });
+
+  // --- if without condition node ---
+
+  it('if without recognizable condition uses "if" as label', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { if (x) { y = 1; } }', [
+      makeAstNode('if_statement', 'if (x)', [
+        makeAstNode('block', '', [makeStatement('expression_statement', 'y = 1', 1)]),
+      ]),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const condNodes = result.nodes.filter((n) => n.properties.blockType === 'condition');
+    expect(condNodes.length).toBe(1);
+  });
+
+  // --- function not found ---
+
+  it('returns entry-only diagram when function not found', () => {
+    const astRoot = makeAstNode('program', '', []);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'nonexistent');
+
+    expect(result.nodes.length).toBe(1);
+    expect(result.nodes[0]!.properties.isEntry).toBe(true);
+  });
+
+  // --- nested loops with break ---
+
+  it('break in nested loop targets innermost loop exit', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { for (i = 0; i < 10; i++) { for (j = 0; j < 10; j++) { if (j == 5) { break; } } } }', [
+      makeFor('i < 10', [
+        makeFor('j < 10', [
+          makeIf('j == 5', [makeStatement('break_statement', 'break', 3)]),
+        ]),
+      ]),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const breakEdges = result.edges.filter((e) => e.properties.cfgEdgeType === 'break');
+    expect(breakEdges.length).toBe(1);
+  });
+
+  // --- loop-back edge detection ---
+
+  it('converts fallthrough to loop-back edge for loops', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { for (i = 0; i < 10; i++) { x = i; } }', [
+      makeFor('i < 10', [makeStatement('expression_statement', 'x = i', 1)]),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const loopBackEdges = result.edges.filter((e) => e.properties.cfgEdgeType === 'loop-back');
+    expect(loopBackEdges.length).toBe(1);
+  });
+
+  // --- elif clause ---
+
+  it('processes elif clause as control flow', () => {
+    const astRoot = makeAstNode('function_definition', 'def f(): if x > 0: return 1; elif x < 0: return -1', [
+      makeAstNode('if_statement', 'if x > 0', [
+        makeAstNode('parenthesized_expression', 'x > 0', [], 1),
+        makeAstNode('block', '', [makeStatement('return_statement', 'return 1', 1)]),
+        makeAstNode('elif_clause', 'elif x < 0', [
+          makeAstNode('block', '', [makeStatement('return_statement', 'return -1', 2)]),
+        ]),
+      ]),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    expect(result.nodes.length).toBeGreaterThan(0);
+  });
+
+  // --- catch clause (Java/JS) ---
+
+  it('processes catch clause as control flow', () => {
+    const tryBody = makeAstNode('block', '', [makeStatement('expression_statement', 'x = 1', 1)]);
+    const catchBody = makeAstNode('block', '', [makeStatement('expression_statement', 'y = 2', 3)]);
+    const catchClause = makeAstNode('catch_clause', 'catch (e)', [catchBody]);
+    const astRoot = makeAstNode('function_declaration', 'function f() { try { x = 1 } catch(e) { y = 2 } }', [
+      makeAstNode('try_statement', 'try', [tryBody, catchClause]),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const catchNodes = result.nodes.filter((n) => n.properties.blockType === 'catch');
+    expect(catchNodes.length).toBe(1);
+  });
+
+  // --- finally clause (Python) ---
+
+  it('processes finally clause as control flow', () => {
+    const tryBody = makeAstNode('block', '', [makeStatement('expression_statement', 'x = 1', 1)]);
+    const finallyBody = makeAstNode('block', '', [makeStatement('expression_statement', 'z = 3', 3)]);
+    const finallyClause = makeAstNode('finally_clause', 'finally', [finallyBody]);
+    const astRoot = makeAstNode('function_definition', 'def@f(): try: x = 1; finally: z = 3', [
+      makeAstNode('try_statement', 'try', [tryBody, finallyClause]),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const finallyNodes = result.nodes.filter((n) => n.properties.blockType === 'finally');
+    expect(finallyNodes.length).toBe(1);
+  });
+
+  // --- while_expression ---
+
+  it('processes while_expression', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { while (x > 0) { x--; } }', [
+      makeAstNode('while_expression', 'while (x > 0)', [
+        makeAstNode('parenthesized_expression', 'x > 0', [], 1),
+        makeAstNode('block', '', [makeStatement('expression_statement', 'x--', 1)]),
+      ]),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const loopNodes = result.nodes.filter((n) => n.properties.blockType === 'loop');
+    expect(loopNodes.length).toBe(1);
+  });
+
+  // --- if_expression ---
+
+  it('processes if_expression', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { if (x > 0) { y = 1; } }', [
+      makeAstNode('if_expression', 'if (x > 0)', [
+        makeAstNode('parenthesized_expression', 'x > 0', [], 1),
+        makeAstNode('block', '', [makeStatement('expression_statement', 'y = 1', 1)]),
+      ]),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+
+    const condNodes = result.nodes.filter((n) => n.properties.blockType === 'condition');
+    expect(condNodes.length).toBe(1);
+  });
 });

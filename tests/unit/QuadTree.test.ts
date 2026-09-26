@@ -304,4 +304,56 @@ describe('QuadTree', () => {
     tree.insert('c', -1, -1);
     expect(tree.getNodeCount()).toBe(3);
   });
+
+  it('countEntries returns total entries in subdivided tree', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 2, 8);
+    tree.insert('a', 10, 10);
+    tree.insert('b', 20, 20);
+    tree.insert('c', 300, 300);
+    tree.insert('d', 400, 400);
+    expect(tree.getNodeCount()).toBe(4);
+  });
+
+  it('countEntries returns 0 for empty tree', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 10, 8);
+    expect(tree.getNodeCount()).toBe(0);
+  });
+
+  it('countEntries after removals in subdivided tree', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 2, 8);
+    tree.insert('a', 10, 10);
+    tree.insert('b', 20, 20);
+    tree.insert('c', 300, 300);
+    tree.insert('d', 400, 400);
+    tree.remove('a');
+    tree.remove('c');
+    expect(tree.getNodeCount()).toBe(2);
+  });
+
+  it('getCellCount reflects subdivision structure', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 2, 8);
+    tree.insert('a', 10, 10);
+    tree.insert('b', 20, 20);
+    tree.insert('c', 300, 300);
+    expect(tree.getCellCount()).toBeGreaterThan(1);
+  });
+
+  it('query returns correct results after subdivide and remove', () => {
+    const cy = makeMockCy([]);
+    const tree = new QuadTree(cy, 2, 8);
+    tree.insert('a', 10, 10);
+    tree.insert('b', 20, 20);
+    tree.insert('c', 300, 300);
+    tree.insert('d', 400, 400);
+    tree.remove('c');
+    const result = tree.query({ x1: 0, y1: 0, x2: 50, y2: 50 });
+    expect(result.has('a')).toBe(true);
+    expect(result.has('b')).toBe(true);
+    expect(result.has('c')).toBe(false);
+    expect(result.has('d')).toBe(false);
+  });
 });

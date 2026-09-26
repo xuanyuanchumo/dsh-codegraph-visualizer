@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { useT } from '../i18n/index.ts';
+import { DOM_EVENTS } from '../../shared/domEvents.ts';
 import { UI } from '../../shared/constants.ts';
 import { GraphIcon, UploadIcon, AlertIcon, CheckIcon, CopyIcon, ZapIcon } from './Icons.tsx';
 
@@ -40,7 +41,7 @@ export const EmptyState = memo(function EmptyState({ prerequisites, onImport, on
       if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
       copyTimerRef.current = setTimeout(() => setCopiedCmd(null), UI.INSTALL_HINT_TIMEOUT_MS);
     } catch (_e) { /* clipboard unavailable — best-effort */ }
-    window.dispatchEvent(new CustomEvent('codegraph:install-plugin', {
+    window.dispatchEvent(new CustomEvent(DOM_EVENTS.INSTALL_PLUGIN, {
       detail: { plugin },
     }));
     setInstalling(true);

@@ -2,6 +2,9 @@ import type { ViewMode } from '../../types/index.ts';
 import type { LayeredDiagram } from '../diagram/DiagramAssembler.ts';
 import type { ClusterResult } from '../store/cluster/index.ts';
 import { IndexedDBCache } from './IndexedDBCache.ts';
+import { scoped } from '../../shared/Logger.ts';
+
+const log = scoped('cache');
 
 
 function computeDataHash(
@@ -92,7 +95,7 @@ export class DiagramCache {
           }
           this.cache.set(key, diagram as LayeredDiagram);
         }
-      }).catch(() => {});
+      }).catch((e: unknown) => log.warn('IndexedDB diagram get failed', e));
     }
     return null;
   }
@@ -107,7 +110,7 @@ export class DiagramCache {
     }
     this.cache.set(key, diagram);
     if (this.idbCache) {
-      this.idbCache.setDiagram(key, diagram).catch(() => {});
+      this.idbCache.setDiagram(key, diagram).catch((e: unknown) => log.warn('IndexedDB diagram set failed', e));
     }
   }
 
@@ -120,7 +123,7 @@ export class DiagramCache {
       this.cache.clear();
     }
     if (this.idbCache) {
-      this.idbCache.invalidateDiagram(viewMode).catch(() => {});
+      this.idbCache.invalidateDiagram(viewMode).catch((e: unknown) => log.warn('IndexedDB diagram invalidate failed', e));
     }
   }
 
@@ -163,7 +166,7 @@ export class ClusterCache {
           }
           this.cache.set(key, result as ClusterResult);
         }
-      }).catch(() => {});
+      }).catch((e: unknown) => log.warn('IndexedDB cluster get failed', e));
     }
     return null;
   }
@@ -183,14 +186,14 @@ export class ClusterCache {
     }
     this.cache.set(key, result);
     if (this.idbCache) {
-      this.idbCache.setCluster(key, result).catch(() => {});
+      this.idbCache.setCluster(key, result).catch((e: unknown) => log.warn('IndexedDB cluster set failed', e));
     }
   }
 
   invalidate(): void {
     this.cache.clear();
     if (this.idbCache) {
-      this.idbCache.invalidateCluster().catch(() => {});
+      this.idbCache.invalidateCluster().catch((e: unknown) => log.warn('IndexedDB cluster invalidate failed', e));
     }
   }
 

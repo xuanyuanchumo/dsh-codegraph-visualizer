@@ -138,6 +138,59 @@ describe('coerceEdge', () => {
     const edge = coerceEdge({ id: 'e1', source: 'a', target: 'b', properties: 42 }, 0);
     expect(edge!.properties).toEqual({});
   });
+
+  it('should preserve valid direction values', () => {
+    for (const direction of ['forward', 'backward', 'bidirectional'] as const) {
+      const edge = coerceEdge({ id: 'e1', source: 'a', target: 'b', direction }, 0);
+      expect(edge!.direction).toBe(direction);
+    }
+  });
+
+  it('should fall back to forward for invalid direction', () => {
+    const edge = coerceEdge({ id: 'e1', source: 'a', target: 'b', direction: 'invalid' }, 0);
+    expect(edge!.direction).toBe('forward');
+  });
+
+  it('should default direction to forward when missing', () => {
+    const edge = coerceEdge({ id: 'e1', source: 'a', target: 'b' }, 0);
+    expect(edge!.direction).toBe('forward');
+  });
+
+  it('should preserve valid weight between 0 and 1', () => {
+    const edge1 = coerceEdge({ id: 'e1', source: 'a', target: 'b', weight: 0 }, 0);
+    expect(edge1!.weight).toBe(0);
+    const edge2 = coerceEdge({ id: 'e2', source: 'a', target: 'b', weight: 0.5 }, 0);
+    expect(edge2!.weight).toBe(0.5);
+    const edge3 = coerceEdge({ id: 'e3', source: 'a', target: 'b', weight: 1 }, 0);
+    expect(edge3!.weight).toBe(1);
+  });
+
+  it('should default weight to 1 when missing', () => {
+    const edge = coerceEdge({ id: 'e1', source: 'a', target: 'b' }, 0);
+    expect(edge!.weight).toBe(1);
+  });
+
+  it('should default weight to 1 when negative', () => {
+    const edge = coerceEdge({ id: 'e1', source: 'a', target: 'b', weight: -0.5 }, 0);
+    expect(edge!.weight).toBe(1);
+  });
+
+  it('should default weight to 1 when greater than 1', () => {
+    const edge = coerceEdge({ id: 'e1', source: 'a', target: 'b', weight: 2 }, 0);
+    expect(edge!.weight).toBe(1);
+  });
+
+  it('should default weight to 1 when not a number', () => {
+    const edge = coerceEdge({ id: 'e1', source: 'a', target: 'b', weight: 'heavy' }, 0);
+    expect(edge!.weight).toBe(1);
+  });
+
+  it('should preserve all valid edge types including association/aggregation/composition', () => {
+    for (const type of ['call', 'import', 'extend', 'implement', 'dependency', 'contains', 'association', 'aggregation', 'composition'] as const) {
+      const edge = coerceEdge({ id: 'e1', source: 'a', target: 'b', type }, 0);
+      expect(edge!.type).toBe(type);
+    }
+  });
 });
 
 describe('validateGraphData', () => {
@@ -219,5 +272,81 @@ describe('validateGraphData', () => {
     expect(result).not.toBeNull();
     expect(result!.nodes.length).toBe(1);
     expect(result!.edges.length).toBe(1);
+  });
+
+  it('should use metadata.truncated when it is a boolean', () => {
+    const result = validateGraphData({
+      nodes: [{ id: 'n1', label: 'x' }],
+      metadata: { truncated: true },
+    });
+    expect(result).not.toBeNull();
+    expect(result!.metadata.truncated).toBe(true);
+  });
+
+  it('should default truncated to false when not a boolean', () => {
+    const result = validateGraphData({
+      nodes: [{ id: 'n1', label: 'x' }],
+      metadata: { truncated: 'yes' },
+    });
+    expect(result).not.toBeNull();
+    expect(result!.metadata.truncated).toBe(false);
+  });
+
+  it('should default truncated to false when missing', () => {
+    const result = validateGraphData({
+      nodes: [{ id: 'n1', label: 'x' }],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.metadata.truncated).toBe(false);
+  });
+
+  it('should use metadata.totalNodeCount when it is a number', () => {
+    const result = validateGraphData({
+      nodes: [{ id: 'n1', label: 'x' }],
+      metadata: { totalNodeCount: 500 },
+    });
+    expect(result).not.toBeNull();
+    expect(result!.metadata.totalNodeCount).toBe(500);
+  });
+
+  it('should default totalNodeCount to nodes.length when not a number', () => {
+    const result = validateGraphData({
+      nodes: [{ id: 'n1', label: 'x' }, { id: 'n2', label: 'y' }],
+      metadata: { totalNodeCount: 'many' },
+    });
+    expect(result).not.toBeNull();
+    expect(result!.metadata.totalNodeCount).toBe(2);
+  });
+
+  it('should use metadata.totalEdgeCount when it is a number', () => {
+    const result = validateGraphData({
+      nodes: [{ id: 'n1', label: 'x' }],
+      edges: [{ id: 'e1', source: 'n1', target: 'n1' }],
+      metadata: { totalEdgeCount: 200 },
+    });
+    expect(result).not.toBeNull();
+    expect(result!.metadata.totalEdgeCount).toBe(200);
+  });
+
+  it('should default totalEdgeCount to edges.length when not a number', () => {
+    const result = validateGraphData({
+      nodes: [{ id: 'n1', label: 'x' }, { id: 'n2', label: 'y' }],
+      edges: [{ id: 'e1', source: 'n1', target: 'n2' }],
+      metadata: { totalEdgeCount: 'many' },
+    });
+    expect(result).not.toBeNull();
+    expect(result!.metadata.totalEdgeCount).toBe(1);
+  });
+
+  it('should filter edges with dangling source/target references', () => {
+    const result = validateGraphData({
+      nodes: [{ id: 'n1', label: 'x' }],
+      edges: [
+        { id: 'e1', source: 'n1', target: 'ghost' },
+        { id: 'e2', source: 'phantom', target: 'n1' },
+      ],
+    });
+    expect(result).not.toBeNull();
+    expect(result!.edges).toHaveLength(0);
   });
 });

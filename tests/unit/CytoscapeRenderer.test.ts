@@ -543,4 +543,192 @@ describe('CytoscapeRenderer', () => {
       expect(mockCy.style).toHaveBeenCalled();
     });
   });
+
+  // ── setDagreRankDir ───────────────────────────────────────────────────
+
+  describe('setDagreRankDir', () => {
+    it('sets dagre rank direction without throwing', () => {
+      renderer = new CytoscapeRenderer({
+        container: makeContainer(),
+        theme: 'dark',
+      });
+      renderer!.init();
+      expect(() => renderer!.setDagreRankDir('LR')).not.toThrow();
+    });
+  });
+
+  // ── hideNode ──────────────────────────────────────────────────────────
+
+  describe('hideNode', () => {
+    it('hides a node by setting display to none', () => {
+      renderer = new CytoscapeRenderer({
+        container: makeContainer(),
+        theme: 'dark',
+      });
+      renderer!.init();
+      vi.clearAllMocks();
+      renderer!.hideNode(NodeId('a'));
+      expect(mockCy.getElementById).toHaveBeenCalledWith('a');
+    });
+  });
+
+  // ── showAllNodes ──────────────────────────────────────────────────────
+
+  describe('showAllNodes', () => {
+    it('shows all nodes by setting display to element', () => {
+      renderer = new CytoscapeRenderer({
+        container: makeContainer(),
+        theme: 'dark',
+      });
+      renderer!.init();
+      vi.clearAllMocks();
+      renderer!.showAllNodes();
+      expect(mockCy.nodes).toHaveBeenCalled();
+    });
+  });
+
+  // ── getVisibleNodeCount ───────────────────────────────────────────────
+
+  describe('getVisibleNodeCount', () => {
+    it('returns visible node count', () => {
+      renderer = new CytoscapeRenderer({
+        container: makeContainer(),
+        theme: 'dark',
+      });
+      renderer!.init();
+      const count = renderer!.getVisibleNodeCount();
+      expect(typeof count).toBe('number');
+    });
+  });
+
+  // ── setMultiDimensionMapping ──────────────────────────────────────────
+
+  describe('setMultiDimensionMapping', () => {
+    it('sets multi dimension mapping without throwing', () => {
+      renderer = new CytoscapeRenderer({
+        container: makeContainer(),
+        theme: 'dark',
+      });
+      renderer!.init();
+      expect(() => renderer!.setMultiDimensionMapping('fanIn', 'complexity')).not.toThrow();
+    });
+  });
+
+  // ── setFocusMode ──────────────────────────────────────────────────────
+
+  describe('setFocusMode', () => {
+    it('sets focus mode without throwing', () => {
+      renderer = new CytoscapeRenderer({
+        container: makeContainer(),
+        theme: 'dark',
+      });
+      renderer!.init();
+      expect(() => renderer!.setFocusMode(NodeId('a'), 2)).not.toThrow();
+    });
+  });
+
+  // ── clearFocusMode ────────────────────────────────────────────────────
+
+  describe('clearFocusMode', () => {
+    it('clears focus mode without throwing', () => {
+      renderer = new CytoscapeRenderer({
+        container: makeContainer(),
+        theme: 'dark',
+      });
+      renderer!.init();
+      expect(() => renderer!.clearFocusMode()).not.toThrow();
+    });
+  });
+
+  // ── isFocusModeActive ─────────────────────────────────────────────────
+
+  describe('isFocusModeActive', () => {
+    it('returns boolean for focus mode active state', () => {
+      renderer = new CytoscapeRenderer({
+        container: makeContainer(),
+        theme: 'dark',
+      });
+      renderer!.init();
+      expect(typeof renderer!.isFocusModeActive()).toBe('boolean');
+    });
+  });
+
+  // ── filterByPath ──────────────────────────────────────────────────────
+
+  describe('filterByPath', () => {
+    it('filters by path without throwing', () => {
+      renderer = new CytoscapeRenderer({
+        container: makeContainer(),
+        theme: 'dark',
+      });
+      renderer!.init();
+      expect(() => renderer!.filterByPath('src/', null)).not.toThrow();
+    });
+
+    it('filters by path with exclude pattern without throwing', () => {
+      renderer = new CytoscapeRenderer({
+        container: makeContainer(),
+        theme: 'dark',
+      });
+      renderer!.init();
+      expect(() => renderer!.filterByPath('src/', 'test')).not.toThrow();
+    });
+  });
+
+  // ── clearLastError ────────────────────────────────────────────────────
+
+  describe('clearLastError', () => {
+    it('clears last error', () => {
+      renderer = new CytoscapeRenderer({
+        container: makeContainer(),
+        theme: 'dark',
+      });
+      renderer!.init();
+      renderer!.clearLastError();
+      expect(renderer!.getLastError()).toBeNull();
+    });
+  });
+
+  // ── getZoom ───────────────────────────────────────────────────────────
+
+  describe('getZoom', () => {
+    it('returns current zoom level', () => {
+      renderer = new CytoscapeRenderer({
+        container: makeContainer(),
+        theme: 'dark',
+      });
+      renderer!.init();
+      const zoom = renderer!.getZoom();
+      expect(typeof zoom).toBe('number');
+    });
+  });
+
+  // ── onZoomChange ──────────────────────────────────────────────────────
+
+  describe('onZoomChange', () => {
+    it('registers zoom change callback and returns disposer', () => {
+      renderer = new CytoscapeRenderer({
+        container: makeContainer(),
+        theme: 'dark',
+      });
+      renderer!.init();
+      vi.clearAllMocks();
+      const callback = vi.fn();
+      const disposer = renderer!.onZoomChange(callback);
+      expect(mockCy.on).toHaveBeenCalledWith('zoom', callback);
+      expect(typeof disposer).toBe('function');
+      disposer();
+      expect(mockCy.off).toHaveBeenCalledWith('zoom', callback);
+    });
+
+    it('returns noop disposer when cy is null', () => {
+      renderer = new CytoscapeRenderer({
+        container: makeContainer(),
+        theme: 'dark',
+      });
+      const disposer = renderer!.onZoomChange(vi.fn());
+      expect(typeof disposer).toBe('function');
+      disposer();
+    });
+  });
 });

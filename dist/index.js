@@ -1,1232 +1,14 @@
+import { EdgeId, NodeId, RepoId, inferLayerFromPath, safeNumber, safeString, scoped } from "./layerUtils-NtSKn7AW.js";
 import { defineTool } from "@deepseek-ai/dsh-tools";
-import { createRequire } from "node:module";
-import "@deepseek-ai/cordis";
-import { existsSync, watch } from "node:fs";
-import path, { isAbsolute, join, normalize, sep } from "node:path";
+import { CallId } from "@deepseek-ai/dsh-llm";
+import path, { isAbsolute, normalize, sep } from "node:path";
+import { platform } from "node:os";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import fs from "node:fs/promises";
-import { platform } from "node:os";
+import { watch } from "node:fs";
+import { createInterface } from "node:readline";
 
-//#region node_modules/.pnpm/@deepseek-ai+cosmokit@1.8.2/node_modules/@deepseek-ai/cosmokit/lib/index.js
-/** Return true when a value is `null` or `undefined`. */
-function isNullable(value) {
-	return value === null || value === void 0;
-}
-/** Return true for non-array object values. */
-function isPlainObject(data) {
-	return data && typeof data === "object" && !Array.isArray(data);
-}
-/** Filter object entries and return a new object. */
-function filterKeys(object, filter) {
-	return Object.fromEntries(Object.entries(object).filter(([key, value]) => filter(key, value)));
-}
-/** Map object values while preserving the original key set. */
-function mapValues(object, transform) {
-	return Object.fromEntries(Object.entries(object).map(([key, value]) => [key, transform(value, key)]));
-}
-/** Pick selected keys from an object, optionally including `undefined` values. */
-function pick(source, keys, forced) {
-	if (!keys) return { ...source };
-	const result = {};
-	for (const key of keys) if (forced || source[key] !== void 0) result[key] = source[key];
-	return result;
-}
-/** Test values using `instanceof` with a `toStringTag` fallback. */
-function is(type, value) {
-	if (arguments.length === 1) return (value$1) => is(type, value$1);
-	return type in globalThis && value instanceof globalThis[type] || Object.prototype.toString.call(value).slice(8, -1) === type;
-}
-function isArrayBufferLike(value) {
-	return is("ArrayBuffer", value) || is("SharedArrayBuffer", value);
-}
-function isArrayBufferSource(value) {
-	return isArrayBufferLike(value) || ArrayBuffer.isView(value);
-}
-/** Binary source detection and base64/hex conversion helpers. */
-var Binary;
-(function(Binary$1) {
-	Binary$1.is = isArrayBufferLike;
-	Binary$1.isSource = isArrayBufferSource;
-	function fromSource(source) {
-		if (ArrayBuffer.isView(source)) return source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength);
-		else return source;
-	}
-	Binary$1.fromSource = fromSource;
-	function toBase64(source) {
-		source = fromSource(source);
-		if (typeof Buffer !== "undefined") return Buffer.from(source).toString("base64");
-		let binary = "";
-		const bytes = new Uint8Array(source);
-		for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
-		return btoa(binary);
-	}
-	Binary$1.toBase64 = toBase64;
-	function fromBase64(source) {
-		if (typeof Buffer !== "undefined") return fromSource(Buffer.from(source, "base64"));
-		return Uint8Array.from(atob(source), (c) => c.charCodeAt(0));
-	}
-	Binary$1.fromBase64 = fromBase64;
-	function toHex(source) {
-		source = fromSource(source);
-		if (typeof Buffer !== "undefined") return Buffer.from(source).toString("hex");
-		return Array.from(new Uint8Array(source), (byte) => byte.toString(16).padStart(2, "0")).join("");
-	}
-	Binary$1.toHex = toHex;
-	function fromHex(source) {
-		if (typeof Buffer !== "undefined") return fromSource(Buffer.from(source, "hex"));
-		const hex = source.length % 2 === 0 ? source : source.slice(0, source.length - 1);
-		const buffer = [];
-		for (let i = 0; i < hex.length; i += 2) buffer.push(parseInt(`${hex[i]}${hex[i + 1]}`, 16));
-		return Uint8Array.from(buffer).buffer;
-	}
-	Binary$1.fromHex = fromHex;
-})(Binary || (Binary = {}));
-/** Decode a base64 string into binary data. */
-const base64ToArrayBuffer = Binary.fromBase64;
-/** Encode binary data as base64. */
-const arrayBufferToBase64 = Binary.toBase64;
-/** Decode a hex string into binary data. */
-const hexToArrayBuffer = Binary.fromHex;
-/** Encode binary data as hex. */
-const arrayBufferToHex = Binary.toHex;
-/** Deep-clone common JavaScript values while preserving prototypes and cycles. */
-function clone(source, refs = /* @__PURE__ */ new Map()) {
-	if (!source || typeof source !== "object") return source;
-	if (is("Date", source)) return new Date(source.valueOf());
-	if (is("RegExp", source)) return new RegExp(source.source, source.flags);
-	if (isArrayBufferLike(source)) return source.slice(0);
-	if (ArrayBuffer.isView(source)) return source.buffer.slice(source.byteOffset, source.byteOffset + source.byteLength);
-	const cached = refs.get(source);
-	if (cached) return cached;
-	if (Array.isArray(source)) {
-		const result$1 = [];
-		refs.set(source, result$1);
-		source.forEach((value, index) => {
-			result$1[index] = Reflect.apply(clone, null, [value, refs]);
-		});
-		return result$1;
-	}
-	const result = Object.create(Object.getPrototypeOf(source));
-	refs.set(source, result);
-	for (const key of Reflect.ownKeys(source)) {
-		const descriptor = { ...Reflect.getOwnPropertyDescriptor(source, key) };
-		if ("value" in descriptor) descriptor.value = Reflect.apply(clone, null, [descriptor.value, refs]);
-		Reflect.defineProperty(result, key, descriptor);
-	}
-	return result;
-}
-/** Deeply compare arrays, dates, regexps, buffers, and plain object fields. */
-function deepEqual$1(a, b, strict) {
-	if (a === b) return true;
-	if (!strict && isNullable(a) && isNullable(b)) return true;
-	if (typeof a !== typeof b) return false;
-	if (typeof a !== "object") return false;
-	if (!a || !b) return false;
-	function check(test, then) {
-		return test(a) ? test(b) ? then(a, b) : false : test(b) ? false : void 0;
-	}
-	return check(Array.isArray, (a$1, b$1) => a$1.length === b$1.length && a$1.every((item, index) => deepEqual$1(item, b$1[index]))) ?? check(is("Date"), (a$1, b$1) => a$1.valueOf() === b$1.valueOf()) ?? check(is("RegExp"), (a$1, b$1) => a$1.source === b$1.source && a$1.flags === b$1.flags) ?? check(isArrayBufferLike, (a$1, b$1) => {
-		if (a$1.byteLength !== b$1.byteLength) return false;
-		const viewA = new Uint8Array(a$1);
-		const viewB = new Uint8Array(b$1);
-		for (let i = 0; i < viewA.length; i++) if (viewA[i] !== viewB[i]) return false;
-		return true;
-	}) ?? Object.keys({
-		...a,
-		...b
-	}).every((key) => deepEqual$1(a[key], b[key], strict));
-}
-/** Time constants plus parsing and formatting helpers. */
-var Time;
-(function(Time$1) {
-	Time$1.millisecond = 1;
-	Time$1.second = 1e3;
-	Time$1.minute = Time$1.second * 60;
-	Time$1.hour = Time$1.minute * 60;
-	Time$1.day = Time$1.hour * 24;
-	Time$1.week = Time$1.day * 7;
-	let timezoneOffset = (/* @__PURE__ */ new Date()).getTimezoneOffset();
-	function setTimezoneOffset(offset) {
-		timezoneOffset = offset;
-	}
-	Time$1.setTimezoneOffset = setTimezoneOffset;
-	function getTimezoneOffset() {
-		return timezoneOffset;
-	}
-	Time$1.getTimezoneOffset = getTimezoneOffset;
-	function getDateNumber(date = /* @__PURE__ */ new Date(), offset) {
-		if (typeof date === "number") date = new Date(date);
-		if (offset === void 0) offset = timezoneOffset;
-		return Math.floor((date.valueOf() / Time$1.minute - offset) / 1440);
-	}
-	Time$1.getDateNumber = getDateNumber;
-	function fromDateNumber(value, offset) {
-		const date = new Date(value * Time$1.day);
-		if (offset === void 0) offset = timezoneOffset;
-		return new Date(+date + offset * Time$1.minute);
-	}
-	Time$1.fromDateNumber = fromDateNumber;
-	const numeric = /\d+(?:\.\d+)?/.source;
-	const timeRegExp = new RegExp(`^${[
-		"w(?:eek(?:s)?)?",
-		"d(?:ay(?:s)?)?",
-		"h(?:our(?:s)?)?",
-		"m(?:in(?:ute)?(?:s)?)?",
-		"s(?:ec(?:ond)?(?:s)?)?"
-	].map((unit) => `(${numeric}${unit})?`).join("")}$`);
-	function parseTime(source) {
-		const capture = timeRegExp.exec(source);
-		if (!capture) return 0;
-		return (parseFloat(capture[1]) * Time$1.week || 0) + (parseFloat(capture[2]) * Time$1.day || 0) + (parseFloat(capture[3]) * Time$1.hour || 0) + (parseFloat(capture[4]) * Time$1.minute || 0) + (parseFloat(capture[5]) * Time$1.second || 0);
-	}
-	Time$1.parseTime = parseTime;
-	function parseDate(date) {
-		const parsed = parseTime(date);
-		if (parsed) date = Date.now() + parsed;
-		else if (/^\d{1,2}(:\d{1,2}){1,2}$/.test(date)) date = `${(/* @__PURE__ */ new Date()).toLocaleDateString()}-${date}`;
-		else if (/^\d{1,2}-\d{1,2}-\d{1,2}(:\d{1,2}){1,2}$/.test(date)) date = `${(/* @__PURE__ */ new Date()).getFullYear()}-${date}`;
-		return date ? new Date(date) : /* @__PURE__ */ new Date();
-	}
-	Time$1.parseDate = parseDate;
-	function format(ms) {
-		const abs = Math.abs(ms);
-		if (abs >= Time$1.day - Time$1.hour / 2) return Math.round(ms / Time$1.day) + "d";
-		else if (abs >= Time$1.hour - Time$1.minute / 2) return Math.round(ms / Time$1.hour) + "h";
-		else if (abs >= Time$1.minute - Time$1.second / 2) return Math.round(ms / Time$1.minute) + "m";
-		else if (abs >= Time$1.second) return Math.round(ms / Time$1.second) + "s";
-		return ms + "ms";
-	}
-	Time$1.format = format;
-	function toDigits(source, length = 2) {
-		return source.toString().padStart(length, "0");
-	}
-	Time$1.toDigits = toDigits;
-	function template(template$1, time = /* @__PURE__ */ new Date()) {
-		return template$1.replace("yyyy", time.getFullYear().toString()).replace("yy", time.getFullYear().toString().slice(2)).replace("MM", toDigits(time.getMonth() + 1)).replace("dd", toDigits(time.getDate())).replace("hh", toDigits(time.getHours())).replace("mm", toDigits(time.getMinutes())).replace("ss", toDigits(time.getSeconds())).replace("SSS", toDigits(time.getMilliseconds(), 3));
-	}
-	Time$1.template = template;
-})(Time || (Time = {}));
-
-//#endregion
-//#region node_modules/.pnpm/@deepseek-ai+schemastery@3.18.1/node_modules/@deepseek-ai/schemastery/lib/index.mjs
-const kSchema = Symbol.for("schemastery");
-const kValidationError = Symbol.for("ValidationError");
-globalThis.__schemastery_index__ ??= 0;
-globalThis.__schemastery_refs__ = void 0;
-var ValidationError = class extends TypeError {
-	options;
-	name = "ValidationError";
-	constructor(message, options) {
-		let prefix = "$";
-		for (const segment of options.path || []) if (typeof segment === "string") prefix += "." + segment;
-		else if (typeof segment === "number") prefix += "[" + segment + "]";
-		else if (typeof segment === "symbol") prefix += `[Symbol(${segment.toString()})]`;
-		if (prefix.startsWith(".")) prefix = prefix.slice(1);
-		super((prefix === "$" ? "" : `${prefix} `) + message);
-		this.options = options;
-	}
-	static is(error) {
-		return !!error?.[kValidationError];
-	}
-};
-Object.defineProperty(ValidationError.prototype, kValidationError, { value: true });
-const Schema = function(options) {
-	const schema = function(data, options$1 = {}) {
-		return Schema.resolve(data, schema, options$1)[0];
-	};
-	if (options.refs) {
-		const refs = mapValues(options.refs, (options$1) => new Schema(options$1));
-		const getRef = (uid) => refs[uid];
-		for (const key in refs) {
-			const options$1 = refs[key];
-			options$1.sKey = getRef(options$1.sKey);
-			options$1.inner = getRef(options$1.inner);
-			options$1.list = options$1.list && options$1.list.map(getRef);
-			options$1.dict = options$1.dict && mapValues(options$1.dict, getRef);
-		}
-		return refs[options.uid];
-	}
-	Object.assign(schema, options);
-	if (typeof schema.callback === "string") try {
-		schema.callback = new Function("return " + schema.callback)();
-	} catch {}
-	Object.defineProperty(schema, "uid", { value: globalThis.__schemastery_index__++ });
-	Object.setPrototypeOf(schema, Schema.prototype);
-	schema.meta ||= {};
-	schema.toString = schema.toString.bind(schema);
-	return schema;
-};
-Schema.prototype = Object.create(Function.prototype);
-Schema.prototype[kSchema] = true;
-Object.defineProperty(Schema.prototype, "~standard", { get() {
-	return {
-		version: 1,
-		vendor: "schemastery",
-		validate: (value) => {
-			try {
-				return { value: Schema.resolve(value, this, {})[0] };
-			} catch (error) {
-				if (ValidationError.is(error)) return { issues: [{
-					message: error.message,
-					path: error.options.path
-				}] };
-				throw error;
-			}
-		}
-	};
-} });
-Schema.ValidationError = ValidationError;
-Schema.prototype.toJSON = function toJSON() {
-	if (globalThis.__schemastery_refs__) {
-		globalThis.__schemastery_refs__[this.uid] ??= JSON.parse(JSON.stringify({ ...this }));
-		return this.uid;
-	}
-	globalThis.__schemastery_refs__ = { [this.uid]: { ...this } };
-	globalThis.__schemastery_refs__[this.uid] = JSON.parse(JSON.stringify({ ...this }));
-	const result = {
-		uid: this.uid,
-		refs: globalThis.__schemastery_refs__
-	};
-	globalThis.__schemastery_refs__ = void 0;
-	return result;
-};
-Schema.prototype.set = function set(key, value) {
-	this.dict[key] = value;
-	return this;
-};
-Schema.prototype.push = function push(value) {
-	this.list.push(value);
-	return this;
-};
-function mergeDesc(original, messages) {
-	const result = typeof original === "string" ? { "": original } : { ...original };
-	for (const locale in messages) {
-		const value = messages[locale];
-		if (value?.$description || value?.$desc) result[locale] = value.$description || value.$desc;
-		else if (typeof value === "string") result[locale] = value;
-	}
-	return result;
-}
-function getInner(value) {
-	return value?.$value ?? value?.$inner;
-}
-function extractKeys(data) {
-	return filterKeys(data ?? {}, (key) => !key.startsWith("$"));
-}
-Schema.prototype.i18n = function i18n(messages) {
-	const schema = Schema(this);
-	const desc = mergeDesc(schema.meta.description, messages);
-	if (Object.keys(desc).length) schema.meta.description = desc;
-	if (schema.dict) schema.dict = mapValues(schema.dict, (inner, key) => {
-		return inner.i18n(mapValues(messages, (data) => getInner(data)?.[key] ?? data?.[key]));
-	});
-	if (schema.list) schema.list = schema.list.map((inner, index) => {
-		return inner.i18n(mapValues(messages, (data = {}) => {
-			if (Array.isArray(getInner(data))) return getInner(data)[index];
-			if (Array.isArray(data)) return data[index];
-			return extractKeys(data);
-		}));
-	});
-	if (schema.inner) schema.inner = schema.inner.i18n(mapValues(messages, (data) => {
-		if (getInner(data)) return getInner(data);
-		return extractKeys(data);
-	}));
-	if (schema.sKey) schema.sKey = schema.sKey.i18n(mapValues(messages, (data) => data?.$key));
-	return schema;
-};
-Schema.prototype.extra = function extra(key, value) {
-	const schema = Schema(this);
-	schema.meta = {
-		...schema.meta,
-		[key]: value
-	};
-	return schema;
-};
-for (const key of [
-	"required",
-	"disabled",
-	"collapse",
-	"hidden",
-	"loose"
-]) Object.assign(Schema.prototype, { [key](value = true) {
-	const schema = Schema(this);
-	schema.meta = {
-		...schema.meta,
-		[key]: value
-	};
-	return schema;
-} });
-Schema.prototype.deprecated = function deprecated() {
-	const schema = Schema(this);
-	schema.meta.badges ||= [];
-	schema.meta.badges.push({
-		text: "deprecated",
-		type: "danger"
-	});
-	return schema;
-};
-Schema.prototype.experimental = function experimental() {
-	const schema = Schema(this);
-	schema.meta.badges ||= [];
-	schema.meta.badges.push({
-		text: "experimental",
-		type: "warning"
-	});
-	return schema;
-};
-Schema.prototype.pattern = function pattern(regexp) {
-	const schema = Schema(this);
-	const pattern$1 = pick(regexp, ["source", "flags"]);
-	schema.meta = {
-		...schema.meta,
-		pattern: pattern$1
-	};
-	return schema;
-};
-Schema.prototype.simplify = function simplify(value) {
-	if (deepEqual$1(value, this.meta.default, this.type === "dict")) return null;
-	if (isNullable(value)) return value;
-	if (this.type === "object" || this.type === "dict") {
-		const result = {};
-		for (const key in value) {
-			const item = (this.type === "object" ? this.dict[key] : this.inner)?.simplify(value[key]);
-			if (this.type === "dict" || !isNullable(item)) result[key] = item;
-		}
-		if (deepEqual$1(result, this.meta.default, this.type === "dict")) return null;
-		return result;
-	} else if (this.type === "array" || this.type === "tuple") {
-		const result = [];
-		value.forEach((value$1, index) => {
-			const schema = this.type === "array" ? this.inner : this.list[index];
-			const item = schema ? schema.simplify(value$1) : value$1;
-			result.push(item);
-		});
-		return result;
-	} else if (this.type === "intersect") {
-		const result = {};
-		for (const item of this.list) Object.assign(result, item.simplify(value));
-		return result;
-	} else if (this.type === "union") for (const schema of this.list) try {
-		Schema.resolve(value, schema, {});
-		return schema.simplify(value);
-	} catch {}
-	return value;
-};
-Schema.prototype.toString = function toString(inline) {
-	return formatters[this.type]?.(this, inline) ?? `Schema<${this.type}>`;
-};
-Schema.prototype.role = function role(role$1, extra) {
-	const schema = Schema(this);
-	schema.meta = {
-		...schema.meta,
-		role: role$1,
-		extra
-	};
-	return schema;
-};
-for (const key of [
-	"default",
-	"link",
-	"comment",
-	"description",
-	"max",
-	"min",
-	"step"
-]) Object.assign(Schema.prototype, { [key](value) {
-	const schema = Schema(this);
-	schema.meta = {
-		...schema.meta,
-		[key]: value
-	};
-	return schema;
-} });
-const resolvers = {};
-Schema.extend = function extend(type, resolve) {
-	resolvers[type] = resolve;
-};
-Schema.resolve = function resolve(data, schema, options = {}, strict = false) {
-	if (!schema) return [data];
-	if (options.ignore?.(data, schema)) return [data];
-	if (isNullable(data) && schema.type !== "lazy") {
-		if (schema.meta.required) throw new ValidationError(`missing required value`, options);
-		let current = schema;
-		let fallback = schema.meta.default;
-		while (current?.type === "intersect" && isNullable(fallback)) {
-			current = current.list[0];
-			fallback = current?.meta.default;
-		}
-		if (isNullable(fallback)) return [data];
-		data = clone(fallback);
-	}
-	const callback = resolvers[schema.type];
-	if (!callback) throw new ValidationError(`unsupported type "${schema.type}"`, options);
-	try {
-		return callback(data, schema, options, strict);
-	} catch (error) {
-		if (!schema.meta.loose) throw error;
-		return [schema.meta.default];
-	}
-};
-Schema.from = function from(source) {
-	if (isNullable(source)) return Schema.any();
-	else if ([
-		"string",
-		"number",
-		"boolean"
-	].includes(typeof source)) return Schema.const(source).required();
-	else if (source[kSchema]) return source;
-	else if (typeof source === "function") switch (source) {
-		case String: return Schema.string().required();
-		case Number: return Schema.number().required();
-		case Boolean: return Schema.boolean().required();
-		case Function: return Schema.function().required();
-		default: return Schema.is(source).required();
-	}
-	else throw new TypeError(`cannot infer schema from ${source}`);
-};
-Schema.lazy = function lazy(builder) {
-	const toJSON = () => {
-		if (!schema.inner[kSchema]) {
-			schema.inner = schema.builder();
-			schema.inner.meta = {
-				...schema.meta,
-				...schema.inner.meta
-			};
-		}
-		return schema.inner.toJSON();
-	};
-	const schema = new Schema({
-		type: "lazy",
-		builder,
-		inner: { toJSON }
-	});
-	return schema;
-};
-Schema.natural = function natural() {
-	return Schema.number().step(1).min(0);
-};
-Schema.percent = function percent() {
-	return Schema.number().step(.01).min(0).max(1).role("slider");
-};
-Schema.date = function date() {
-	return Schema.union([Schema.is(Date), Schema.transform(Schema.string().role("datetime"), (value, options) => {
-		const date$1 = new Date(value);
-		if (isNaN(+date$1)) throw new ValidationError(`invalid date "${value}"`, options);
-		return date$1;
-	}, true)]);
-};
-Schema.regExp = function regExp(flag = "") {
-	return Schema.union([Schema.is(RegExp), Schema.transform(Schema.string().role("regexp", { flag }), (value, options) => {
-		try {
-			return new RegExp(value, flag);
-		} catch (e) {
-			throw new ValidationError(e.message, options);
-		}
-	}, true)]);
-};
-Schema.arrayBuffer = function arrayBuffer(encoding) {
-	return Schema.union([
-		Schema.is(ArrayBuffer),
-		Schema.is(SharedArrayBuffer),
-		Schema.transform(Schema.any(), (value, options) => {
-			if (Binary.isSource(value)) return Binary.fromSource(value);
-			throw new ValidationError(`expected ArrayBufferSource but got ${value}`, options);
-		}, true),
-		...encoding ? [Schema.transform(Schema.string(), (value, options) => {
-			try {
-				return encoding === "base64" ? Binary.fromBase64(value) : Binary.fromHex(value);
-			} catch (e) {
-				throw new ValidationError(e.message, options);
-			}
-		}, true)] : []
-	]);
-};
-Schema.extend("lazy", (data, schema, options, strict) => {
-	if (!schema.inner[kSchema]) {
-		schema.inner = schema.builder();
-		schema.inner.meta = {
-			...schema.meta,
-			...schema.inner.meta
-		};
-	}
-	return Schema.resolve(data, schema.inner, options, strict);
-});
-Schema.extend("any", (data) => {
-	return [data];
-});
-Schema.extend("never", (data, _, options) => {
-	throw new ValidationError(`expected nullable but got ${data}`, options);
-});
-Schema.extend("const", (data, { value }, options) => {
-	if (deepEqual$1(data, value)) return [value];
-	throw new ValidationError(`expected ${value} but got ${data}`, options);
-});
-function checkWithinRange(data, meta, description, options, skipMin = false) {
-	const { max = Infinity, min = -Infinity } = meta;
-	if (data > max) throw new ValidationError(`expected ${description} <= ${max} but got ${data}`, options);
-	if (data < min && !skipMin) throw new ValidationError(`expected ${description} >= ${min} but got ${data}`, options);
-}
-Schema.extend("string", (data, { meta }, options) => {
-	if (typeof data !== "string") throw new ValidationError(`expected string but got ${data}`, options);
-	if (meta.pattern) {
-		const regexp = new RegExp(meta.pattern.source, meta.pattern.flags);
-		if (!regexp.test(data)) throw new ValidationError(`expect string to match regexp ${regexp}`, options);
-	}
-	checkWithinRange(data.length, meta, "string length", options);
-	return [data];
-});
-function decimalShift(data, digits) {
-	const str = data.toString();
-	if (str.includes("e")) return data * Math.pow(10, digits);
-	const index = str.indexOf(".");
-	if (index === -1) return data * Math.pow(10, digits);
-	const frac = str.slice(index + 1);
-	const integer = str.slice(0, index);
-	if (frac.length <= digits) return +(integer + frac.padEnd(digits, "0"));
-	return +(integer + frac.slice(0, digits) + "." + frac.slice(digits));
-}
-function isMultipleOf(data, min, step) {
-	step = Math.abs(step);
-	if (!/^\d+\.\d+$/.test(step.toString())) return (data - min) % step === 0;
-	const index = step.toString().indexOf(".");
-	const digits = step.toString().slice(index + 1).length;
-	return Math.abs(decimalShift(data, digits) - decimalShift(min, digits)) % decimalShift(step, digits) === 0;
-}
-Schema.extend("number", (data, { meta }, options) => {
-	if (typeof data !== "number") throw new ValidationError(`expected number but got ${data}`, options);
-	checkWithinRange(data, meta, "number", options);
-	const { step } = meta;
-	if (step && !isMultipleOf(data, meta.min ?? 0, step)) throw new ValidationError(`expected number multiple of ${step} but got ${data}`, options);
-	return [data];
-});
-Schema.extend("boolean", (data, _, options) => {
-	if (typeof data === "boolean") return [data];
-	throw new ValidationError(`expected boolean but got ${data}`, options);
-});
-Schema.extend("bitset", (data, { bits, meta }, options) => {
-	let value = 0, keys = [];
-	if (typeof data === "number") {
-		value = data;
-		for (const key in bits) if (data & bits[key]) keys.push(key);
-	} else if (Array.isArray(data)) {
-		keys = data;
-		for (const key of keys) {
-			if (typeof key !== "string") throw new ValidationError(`expected string but got ${key}`, options);
-			if (key in bits) value |= bits[key];
-		}
-	} else throw new ValidationError(`expected number or array but got ${data}`, options);
-	if (value === meta.default) return [value];
-	return [value, keys];
-});
-Schema.extend("function", (data, _, options) => {
-	if (typeof data === "function") return [data];
-	throw new ValidationError(`expected function but got ${data}`, options);
-});
-Schema.extend("is", (data, { constructor }, options) => {
-	if (typeof constructor === "function") {
-		if (data instanceof constructor) return [data];
-		throw new ValidationError(`expected ${constructor.name} but got ${data}`, options);
-	} else {
-		if (isNullable(data)) throw new ValidationError(`expected ${constructor} but got ${data}`, options);
-		let prototype = Object.getPrototypeOf(data);
-		while (prototype) {
-			if (prototype.constructor?.name === constructor) return [data];
-			prototype = Object.getPrototypeOf(prototype);
-		}
-		throw new ValidationError(`expected ${constructor} but got ${data}`, options);
-	}
-});
-function property(data, key, schema, options) {
-	try {
-		const [value, adapted] = Schema.resolve(data[key], schema, {
-			...options,
-			path: [...options.path || [], key]
-		});
-		if (adapted !== void 0) data[key] = adapted;
-		return value;
-	} catch (e) {
-		if (!options?.autofix) throw e;
-		delete data[key];
-		return schema.meta.default;
-	}
-}
-Schema.extend("array", (data, { inner, meta }, options) => {
-	if (!Array.isArray(data)) throw new ValidationError(`expected array but got ${data}`, options);
-	checkWithinRange(data.length, meta, "array length", options, !isNullable(inner.meta.default));
-	return [data.map((_, index) => property(data, index, inner, options))];
-});
-Schema.extend("dict", (data, { inner, sKey }, options, strict) => {
-	if (!isPlainObject(data)) throw new ValidationError(`expected object but got ${data}`, options);
-	const result = {};
-	for (const key in data) {
-		let rKey;
-		try {
-			rKey = Schema.resolve(key, sKey, options)[0];
-		} catch (error) {
-			if (strict) continue;
-			throw error;
-		}
-		result[rKey] = property(data, key, inner, options);
-		data[rKey] = data[key];
-		if (key !== rKey) delete data[key];
-	}
-	return [result];
-});
-Schema.extend("tuple", (data, { list }, options, strict) => {
-	if (!Array.isArray(data)) throw new ValidationError(`expected array but got ${data}`, options);
-	const result = list.map((inner, index) => property(data, index, inner, options));
-	if (strict) return [result];
-	result.push(...data.slice(list.length));
-	return [result];
-});
-function merge(result, data) {
-	for (const key in data) {
-		if (key in result) continue;
-		result[key] = data[key];
-	}
-}
-Schema.extend("object", (data, { dict }, options, strict) => {
-	if (!isPlainObject(data)) throw new ValidationError(`expected object but got ${data}`, options);
-	const result = {};
-	for (const key in dict) {
-		const value = property(data, key, dict[key], options);
-		if (!isNullable(value) || key in data) result[key] = value;
-	}
-	if (!strict) merge(result, data);
-	return [result];
-});
-Schema.extend("union", (data, { list, toString }, options, strict) => {
-	const messages = [];
-	for (const inner of list) try {
-		return Schema.resolve(data, inner, options, strict);
-	} catch (error) {
-		messages.push(error);
-	}
-	throw new ValidationError(`expected ${toString()} but got ${JSON.stringify(data)}`, options);
-});
-Schema.extend("intersect", (data, { list, toString }, options, strict) => {
-	if (!list.length) return [data];
-	let result;
-	for (const inner of list) {
-		const value = Schema.resolve(data, inner, options, true)[0];
-		if (isNullable(value)) continue;
-		if (isNullable(result)) result = value;
-		else if (typeof result !== typeof value) throw new ValidationError(`expected ${toString()} but got ${JSON.stringify(data)}`, options);
-		else if (typeof value === "object") merge(result ??= {}, value);
-		else if (result !== value) throw new ValidationError(`expected ${toString()} but got ${JSON.stringify(data)}`, options);
-	}
-	if (!strict && isPlainObject(data)) merge(result, data);
-	return [result];
-});
-Schema.extend("transform", (data, { inner, callback, preserve }, options) => {
-	const [result, adapted = data] = Schema.resolve(data, inner, options, true);
-	if (preserve) return [callback(result)];
-	else return [callback(result), callback(adapted)];
-});
-const formatters = {};
-function defineMethod(name$1, keys, format) {
-	formatters[name$1] = format;
-	Object.assign(Schema, { [name$1](...args) {
-		const schema = new Schema({ type: name$1 });
-		keys.forEach((key, index) => {
-			switch (key) {
-				case "sKey":
-					schema.sKey = args[index] ?? Schema.string();
-					break;
-				case "inner":
-					schema.inner = Schema.from(args[index]);
-					break;
-				case "list":
-					schema.list = args[index].map(Schema.from);
-					break;
-				case "dict":
-					schema.dict = mapValues(args[index], Schema.from);
-					break;
-				case "bits":
-					schema.bits = {};
-					for (const key$1 in args[index]) {
-						if (typeof args[index][key$1] !== "number") continue;
-						schema.bits[key$1] = args[index][key$1];
-					}
-					break;
-				case "callback": {
-					const callback = schema.callback = args[index];
-					callback["toJSON"] ||= () => callback.toString();
-					break;
-				}
-				case "constructor": {
-					const constructor = schema.constructor = args[index];
-					if (typeof constructor === "function") constructor["toJSON"] ||= () => constructor["name"];
-					break;
-				}
-				default: schema[key] = args[index];
-			}
-		});
-		if (name$1 === "object" || name$1 === "dict") schema.meta.default = {};
-		else if (name$1 === "array" || name$1 === "tuple") schema.meta.default = [];
-		else if (name$1 === "bitset") schema.meta.default = 0;
-		return schema;
-	} });
-}
-defineMethod("is", ["constructor"], ({ constructor }) => {
-	if (typeof constructor === "function") return constructor.name;
-	else return constructor;
-});
-defineMethod("any", [], () => "any");
-defineMethod("never", [], () => "never");
-defineMethod("const", ["value"], ({ value }) => typeof value === "string" ? JSON.stringify(value) : value);
-defineMethod("string", [], () => "string");
-defineMethod("number", [], () => "number");
-defineMethod("boolean", [], () => "boolean");
-defineMethod("bitset", ["bits"], () => "bitset");
-defineMethod("function", [], () => "function");
-defineMethod("array", ["inner"], ({ inner }) => `${inner.toString(true)}[]`);
-defineMethod("dict", ["inner", "sKey"], ({ inner, sKey }) => `{ [key: ${sKey.toString()}]: ${inner.toString()} }`);
-defineMethod("tuple", ["list"], ({ list }) => `[${list.map((inner) => inner.toString()).join(", ")}]`);
-defineMethod("object", ["dict"], ({ dict }) => {
-	if (Object.keys(dict).length === 0) return "{}";
-	return `{ ${Object.entries(dict).map(([key, inner]) => {
-		return `${key}${inner.meta.required ? "" : "?"}: ${inner.toString()}`;
-	}).join(", ")} }`;
-});
-defineMethod("union", ["list"], ({ list }, inline) => {
-	const result = list.map(({ toString: format }) => format()).join(" | ");
-	return inline ? `(${result})` : result;
-});
-defineMethod("intersect", ["list"], ({ list }) => {
-	return `${list.map((inner) => inner.toString(true)).join(" & ")}`;
-});
-defineMethod("transform", [
-	"inner",
-	"callback",
-	"preserve"
-], ({ inner }, isInner) => inner.toString(isInner));
-
-//#endregion
-//#region node_modules/.pnpm/@deepseek-ai+dsh-timeout@0.1.1-rc.2_@deepseek-ai+cordis@4.0.1_@deepseek-ai+dsh-invariants@0.1_2yxulatypvfilrzvurumr2xwty/node_modules/@deepseek-ai/dsh-timeout/lib/index.js
-/** Largest delay Node schedules without clamping it to one millisecond. */
-const MAX_TIMER_DELAY_MS = 2147483647;
-
-//#endregion
-//#region node_modules/.pnpm/@deepseek-ai+dsh-llm@0.1.1-rc.2_@deepseek-ai+cordis@4.0.1_@deepseek-ai+dsh-attachment@0.1.1-r_x2n35l65jyhywzqyfdn334iwva/node_modules/@deepseek-ai/dsh-llm/lib/index.js
-/**
-* Brand a string as a {@link CallId}.
-* @param id - the provider-issued (or synthesized) call id.
-* @returns the same string, branded; no validation is performed.
-*/
-function CallId(id) {
-	return id;
-}
-/**
-* Canonical provider-neutral code for a response that completed normally but
-* carried no content blocks at all. Providers occasionally emit a degenerate
-* completion (a terminal stop with zero output); adapters classify it as this
-* failure instead of yielding an empty assistant message, because an empty
-* message silently ends the turn with nothing for the user or the loop to act
-* on. The attempt produced nothing durable, so retry policy treats it as safe
-* to repeat.
-*/
-const EMPTY_RESPONSE_CODE = "EMPTY_RESPONSE";
-/** Structured codes and plain phrases that explicitly name a context bound being exceeded. */
-const STRUCTURED_CONTEXT_OVERFLOW = new RegExp(String.raw`(?:^|[^a-z0-9])context[\s_-](?:length|window)[\s_-]` + String.raw`(?:exceed(?:ed|s)?|overflow(?:ed)?|limit[\s_-]exceeded)(?:$|[^a-z0-9])`, "i");
-/** Request-size wording that ties "too large" directly to model context capacity. */
-const TOO_LARGE_FOR_CONTEXT = new RegExp(String.raw`\b(?:request|prompt|input|messages?)\s+(?:is\s+|are\s+)?` + String.raw`too\s+(?:large|long)\s+for\s+(?:(?:this|the)\s+)?` + String.raw`(?:model(?:'s)?\s+)?context(?:\s+window)?\b`, "i");
-/** "Exceeds" wording is safe only when its object is explicitly the model context. */
-const EXCEEDS_MODEL_CONTEXT = new RegExp(String.raw`\b(?:input|prompt|request|messages?)\b.{0,40}` + String.raw`\b(?:exceed(?:s|ed)?|overflows?|is\s+larger\s+than)\b.{0,40}` + String.raw`\b(?:the\s+)?(?:model(?:'s)?\s+)?context(?:\s+(?:length|window))?\b`, "i");
-/**
-* Provider-owned request-retry policy configuration and resolution.
-*
-* Adapters expose one resolved policy per registered provider route; the
-* optional dsh-llm-retry plugin executes it on the agent's failed-step extension point.
-*
-* @module @deepseek-ai/dsh-llm/retry-policy
-*/
-const DEFAULT_MAX_RETRIES = 5;
-const DEFAULT_INITIAL_DELAY_MS = 500;
-const DEFAULT_MAX_DELAY_MS = 1e4;
-const DEFAULT_JITTER_RATIO = .1;
-const DEFAULT_RETRYABLE_CODES = Object.freeze([
-	EMPTY_RESPONSE_CODE,
-	"RATE_LIMIT",
-	"SERVER",
-	"TIMEOUT",
-	"TRANSPORT"
-]);
-const backoffSchema = Schema.object({
-	initialDelayMs: Schema.number().max(MAX_TIMER_DELAY_MS).default(DEFAULT_INITIAL_DELAY_MS),
-	maxDelayMs: Schema.number().max(MAX_TIMER_DELAY_MS).default(DEFAULT_MAX_DELAY_MS),
-	jitterRatio: Schema.number().min(0).max(1).default(DEFAULT_JITTER_RATIO)
-});
-const normalPolicySchema = Schema.object({
-	mode: Schema.const("normal").required(),
-	maxRetries: Schema.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(DEFAULT_MAX_RETRIES),
-	retryableCodes: Schema.array(Schema.string()).default([...DEFAULT_RETRYABLE_CODES]),
-	backoff: backoffSchema
-});
-const alwaysPolicySchema = Schema.object({
-	mode: Schema.const("always").required(),
-	backoff: backoffSchema
-});
-/** Cordis schema embedded by each concrete provider configuration. */
-const RetryPolicySchema = Schema.union([normalPolicySchema, alwaysPolicySchema]);
-/**
-* Centralize the non-secret product identity every provider request sends as `User-Agent`, keeping
-* adapters from drifting. See
-* `.agents/notes/implemented/architecture/2026-06-21-mandatory-app-attribution-headers.md`.
-*
-* App-attribution vocabulary for provider requests.
-* @module @deepseek-ai/dsh-llm/attribution
-*/
-const { version } = createRequire(import.meta.url)("../package.json");
-
-//#endregion
-//#region src/types/index.ts
-const RepoId = (id) => id;
-const NodeId = (id) => id;
-const EdgeId = (id) => id;
-
-//#endregion
-//#region src/shared/Logger.ts
-const LEVEL_ORDER = {
-	debug: 0,
-	info: 1,
-	warn: 2,
-	error: 3
-};
-const RING_SIZE = 200;
-var LoggerImpl = class {
-	buffer = [];
-	listeners = new Set();
-	minLevel = typeof globalThis !== "undefined" && globalThis.__CG_DEBUG ? "debug" : "info";
-	log(level, scope, message, data) {
-		if (LEVEL_ORDER[level] < LEVEL_ORDER[this.minLevel]) return;
-		const entry = {
-			ts: Date.now(),
-			level,
-			scope,
-			message,
-			data
-		};
-		this.buffer.push(entry);
-		if (this.buffer.length > RING_SIZE) this.buffer.splice(0, this.buffer.length - RING_SIZE);
-		this.emit();
-		const fn = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
-		try {
-			if (typeof fn === "function") fn(`[codegraph:${scope}] ${message}`, data ?? "");
-		} catch {}
-	}
-	debug(scope, message, data) {
-		this.log("debug", scope, message, data);
-	}
-	info(scope, message, data) {
-		this.log("info", scope, message, data);
-	}
-	warn(scope, message, data) {
-		this.log("warn", scope, message, data);
-	}
-	error(scope, message, data) {
-		this.log("error", scope, message, data);
-	}
-	entries() {
-		return this.buffer.slice();
-	}
-	clear() {
-		this.buffer = [];
-		this.emit();
-	}
-	subscribe(fn) {
-		this.listeners.add(fn);
-		fn(this.entries());
-		return () => {
-			this.listeners.delete(fn);
-		};
-	}
-	clearListeners() {
-		this.listeners.clear();
-	}
-	emit() {
-		if (this.listeners.size === 0) return;
-		const snapshot = this.entries();
-		for (const fn of this.listeners) try {
-			fn(snapshot);
-		} catch {}
-	}
-};
-const logger = new LoggerImpl();
-function scoped(scope) {
-	return {
-		debug: (m, d) => logger.debug(scope, m, d),
-		info: (m, d) => logger.info(scope, m, d),
-		warn: (m, d) => logger.warn(scope, m, d),
-		error: (m, d) => logger.error(scope, m, d)
-	};
-}
-
-//#endregion
-//#region src/adapters/CodeGraphAdapter.ts
-const log$8 = scoped("codegraph-adapter");
-const require = createRequire(import.meta.url);
-const NODE_KIND_MAP = {
-	function: "function",
-	method: "function",
-	class: "class",
-	interface: "interface",
-	type_alias: "type",
-	constant: "variable",
-	variable: "variable",
-	property: "variable",
-	file: "module",
-	import: "module",
-	module: "module"
-};
-const EDGE_KIND_MAP = {
-	call: "call",
-	calls: "call",
-	import: "import",
-	imports: "import",
-	extend: "extend",
-	extends: "extend",
-	implement: "implement",
-	implements: "implement",
-	contains: "contains",
-	dependency: "dependency",
-	depends: "dependency"
-};
-const FILTERED_EDGE_KINDS = new Set(["uses_var", "func_imports_local"]);
-const NOISE_PATH_SEGMENTS = [
-	"node_modules",
-	".git",
-	"vendor",
-	"__pycache__",
-	".venv",
-	"dist",
-	"build",
-	".next",
-	".nuxt",
-	".cache",
-	".turbo",
-	"coverage",
-	".pytest_cache"
-];
-function isNoisePath(filePath) {
-	for (const seg of NOISE_PATH_SEGMENTS) if (filePath.includes(seg)) return true;
-	return false;
-}
-const MAX_IMPORTS_PER_SOURCE = 20;
-function mapNodeKind(kind) {
-	return NODE_KIND_MAP[kind] ?? "module";
-}
-function mapEdgeKind(kind) {
-	return EDGE_KIND_MAP[kind] ?? "dependency";
-}
-/** Locate the .codegraph/codegraph.db for a workspace path. */
-function resolveDbPath(workspacePath) {
-	const root = workspacePath && workspacePath !== "." ? workspacePath : process.cwd();
-	const normalized = normalize(root);
-	if (normalized.includes("..")) throw new Error(`Invalid workspace path: ${workspacePath}`);
-	return join(normalized, ".codegraph", "codegraph.db");
-}
-/** Read the whole graph from a codegraph.db. Returns null when unreadable. */
-function readGraphFromDb(dbPath) {
-	if (!existsSync(dbPath)) return null;
-	try {
-		const { DatabaseSync } = require("node:sqlite");
-		const db = new DatabaseSync(dbPath, { readOnly: true });
-		try {
-			const nodes = db.prepare("SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes").all();
-			const edges = db.prepare("SELECT id, source, target, kind, line FROM edges").all();
-			return {
-				nodes,
-				edges
-			};
-		} finally {
-			db.close();
-		}
-	} catch (e) {
-		log$8.warn("readGraphFromDb failed", e);
-		return null;
-	}
-}
-var CodeGraphAdapter = class {
-	source = "codegraph";
-	async fetchData(repoId, invoke) {
-		const dbRows = readGraphFromDb(resolveDbPath(repoId));
-		if (dbRows && dbRows.nodes.length > 0) return this.toAdapterResult(dbRows.nodes, dbRows.edges);
-		const files = await invoke("codegraph_files", {
-			path: repoId,
-			format: "flat"
-		});
-		if (!files || typeof files !== "object") return {
-			nodes: [],
-			edges: [],
-			source: this.source,
-			timestamp: Date.now()
-		};
-		const rawFiles = this.extractFileList(files);
-		const nodes = rawFiles.filter((f) => !isNoisePath(f.path)).map((f, i) => ({
-			id: NodeId(`file:${f.path}`),
-			label: f.path.split("/").pop() ?? f.path,
-			type: "module",
-			filePath: f.path,
-			lineNumber: 1,
-			properties: {
-				kind: "file",
-				language: f.language ?? null,
-				index: i
-			}
-		}));
-		return {
-			nodes,
-			edges: [],
-			source: this.source,
-			timestamp: Date.now()
-		};
-	}
-	extractFileList(files) {
-		if (Array.isArray(files)) return files.flatMap((f) => {
-			if (typeof f === "string") return [{ path: f }];
-			const rec = f;
-			if (typeof rec.path === "string") return [{
-				path: rec.path,
-				language: rec.language
-			}];
-			return [];
-		});
-		const obj = files;
-		const inner = obj?.files ?? obj?.items;
-		return Array.isArray(inner) ? this.extractFileList(inner) : [];
-	}
-	toAdapterResult(dbNodes, dbEdges) {
-		const fileNodeIds = new Map();
-		for (const n of dbNodes) if (n.kind === "file" || n.kind === "module") fileNodeIds.set(n.file_path, n.id);
-		const nodes = dbNodes.filter((n) => n.name && n.file_path && !isNoisePath(n.file_path)).map((n) => {
-			const parentId = n.kind !== "file" && n.kind !== "module" && n.kind !== "import" ? fileNodeIds.get(n.file_path) ?? void 0 : void 0;
-			return {
-				id: NodeId(n.id),
-				label: n.name,
-				type: mapNodeKind(n.kind),
-				filePath: n.file_path,
-				lineNumber: n.start_line ?? 1,
-				properties: {
-					kind: n.kind,
-					...n.signature ? { signature: n.signature } : {},
-					...n.docstring ? { docstring: n.docstring } : {},
-					exported: n.is_exported === 1
-				},
-				...parentId ? { parentId: NodeId(parentId) } : {}
-			};
-		});
-		const validNodeIds = new Set(nodes.map((n) => n.id));
-		const filteredEdges = dbEdges.filter((e) => validNodeIds.has(e.source) && validNodeIds.has(e.target) && e.source !== e.target && !FILTERED_EDGE_KINDS.has(e.kind));
-		const importCountBySource = new Map();
-		const edges = [];
-		for (const e of filteredEdges) {
-			const mappedType = mapEdgeKind(e.kind);
-			if (mappedType === "import") {
-				const count = importCountBySource.get(e.source) ?? 0;
-				if (count >= MAX_IMPORTS_PER_SOURCE) continue;
-				importCountBySource.set(e.source, count + 1);
-			}
-			edges.push({
-				id: EdgeId(String(e.id)),
-				source: NodeId(e.source),
-				target: NodeId(e.target),
-				type: mappedType,
-				properties: e.line != null ? { line: e.line } : {}
-			});
-		}
-		return {
-			nodes,
-			edges,
-			source: this.source,
-			timestamp: Date.now()
-		};
-	}
-};
-
-//#endregion
-//#region src/adapters/LensAdapter.ts
-const log$7 = scoped("lens-adapter");
-var LensAdapter = class {
-	source = "lens";
-	async fetchData(repoId, invoke) {
-		try {
-			const raw = await invoke("lens_analyze", { repoId });
-			if (!raw) return {
-				nodes: [],
-				edges: [],
-				source: this.source,
-				timestamp: Date.now()
-			};
-			const symbols = Array.isArray(raw.symbols) ? raw.symbols : [];
-			const references = Array.isArray(raw.references) ? raw.references : [];
-			const fileNodeMap = new Map();
-			for (const s of symbols) if (s.category === "module" || s.category === "file") fileNodeMap.set(s.file, s.id);
-			const nodes = symbols.map((s) => {
-				const parentId = s.category !== "module" && s.category !== "file" ? fileNodeMap.get(s.file) : void 0;
-				return {
-					id: NodeId(s.id),
-					label: s.name,
-					type: this.mapCategory(s.category),
-					filePath: s.file,
-					lineNumber: s.line,
-					properties: { scope: s.scope },
-					...parentId ? { parentId: NodeId(parentId) } : {}
-				};
-			});
-			const edges = references.map((r) => {
-				const edgeType = this.mapRelation(r.relation);
-				return {
-					id: EdgeId(`${r.from}->${r.to}:${edgeType}`),
-					source: NodeId(r.from),
-					target: NodeId(r.to),
-					type: edgeType,
-					properties: {}
-				};
-			});
-			return {
-				nodes,
-				edges,
-				source: this.source,
-				timestamp: Date.now()
-			};
-		} catch (e) {
-			const errorMsg = e instanceof Error ? e.message : String(e);
-			log$7.warn("Lens fetchData failed — lens is optional, returning empty", e);
-			return {
-				nodes: [],
-				edges: [],
-				source: this.source,
-				timestamp: Date.now(),
-				error: errorMsg
-			};
-		}
-	}
-	mapCategory(cat) {
-		const map = {
-			function: "function",
-			class: "class",
-			variable: "variable",
-			module: "module",
-			interface: "interface",
-			type: "type"
-		};
-		return map[cat] ?? "module";
-	}
-	mapRelation(rel) {
-		const map = {
-			call: "call",
-			reference: "dependency",
-			import: "import",
-			extend: "extend",
-			implement: "implement"
-		};
-		return map[rel] ?? "dependency";
-	}
-};
-
-//#endregion
 //#region src/merger/GraphDataMerger.ts
 var GraphDataMerger = class {
 	merge(results, repoId) {
@@ -1341,13 +123,46 @@ function buildModuleMap(nodes, maxDepth) {
 }
 
 //#endregion
+//#region src/shared/analysis/AdjacencyList.ts
+function buildForwardAdjacency(edges) {
+	const map = new Map();
+	for (const edge of edges) {
+		const list = map.get(edge.source);
+		if (list) list.push(edge.target);
+		else map.set(edge.source, [edge.target]);
+	}
+	return map;
+}
+function buildBackwardAdjacency(edges) {
+	const map = new Map();
+	for (const edge of edges) {
+		const list = map.get(edge.target);
+		if (list) list.push(edge.source);
+		else map.set(edge.target, [edge.source]);
+	}
+	return map;
+}
+function buildFilteredForwardAdjacency(edges, edgeTypes) {
+	const map = new Map();
+	for (const edge of edges) {
+		if (!edgeTypes.includes(edge.type)) continue;
+		const list = map.get(edge.source);
+		if (list) list.push(edge.target);
+		else map.set(edge.source, [edge.target]);
+	}
+	return map;
+}
+
+//#endregion
 //#region src/shared/constants.ts
+const PATH_FINDER = { MAX_NODES_FOR_BFS: 5e4 };
 const API = {
 	DEFAULT_TIMEOUT_MS: 3e4,
 	RATE_LIMIT_WINDOW_MS: 6e4,
 	RATE_LIMIT_DEFAULT: 60,
 	RATE_LIMIT_HEAVY: 10,
-	RATE_LIMIT_MAP_MAX: 1e4
+	RATE_LIMIT_MAP_MAX: 1e4,
+	SCAN_TIMEOUT_MS: 6e4
 };
 const HEALTH_SCORE = {
 	WEIGHT_COUPLING: .25,
@@ -1355,6 +170,198 @@ const HEALTH_SCORE = {
 	WEIGHT_CYCLIC: .3,
 	WEIGHT_MODULARITY: .2,
 	DEFAULT_MAX_MODULE_DEPTH: 3
+};
+const LAYOUT = {
+	DENSITY_FACTOR_SMALL: 1.5,
+	DENSITY_FACTOR_MEDIUM: 1,
+	DENSITY_FACTOR_LARGE: .7,
+	SMALL_NODE_THRESHOLD: 50,
+	MEDIUM_NODE_THRESHOLD: 200,
+	LARGE_NODE_THRESHOLD: 500,
+	VERY_LARGE_NODE_THRESHOLD: 2e3,
+	LAYOUT_SAMPLE_SIZE: 200,
+	COSE_NUM_ITER: 2500,
+	COSE_LARGE_NUM_ITER: 15e3,
+	MAX_RANK_SEP: 80,
+	MIN_RANK_SEP: 30,
+	MIN_NODE_SPACING: 20,
+	SMALL_SPACING_FACTOR: 1.2,
+	MEDIUM_SPACING_FACTOR: 1,
+	LARGE_SPACING_FACTOR: .8,
+	SMALL_NODE_COUNT_THRESHOLD: 100,
+	MEDIUM_NODE_COUNT_THRESHOLD: 300,
+	INCREMENTAL_RADIUS_BASE: 100,
+	GRID_FALLBACK_NODE_THRESHOLD: 5e3,
+	OVERLAP_MAX_ITERATIONS: 15,
+	OVERLAP_SKIP_THRESHOLD: 5e3,
+	OVERLAP_CELL_SIZE_MULTIPLIER: 4,
+	GOLDEN_ANGLE: Math.PI * (3 - Math.sqrt(5)),
+	OVERLAP_PUSH_COEFFICIENT: .15,
+	OVERLAP_MIN_PUSH: 2,
+	FCOSE_LARGE_NODE_THRESHOLD: 5e3,
+	FCOSE_LARGE_NUM_ITER: 1e3,
+	FCOSE_LARGE_QUALITY: "draft",
+	NODE_REPULSE_MAX: 2e4
+};
+const MCP = {
+	MAX_MESSAGE_LENGTH: 10 * 1024 * 1024,
+	MAX_IMPACT_RESULTS: 500
+};
+const CACHE = { GRAPH_CACHE_LIMIT: 8 };
+const BOOTSTRAP = {
+	TOP_LEVEL_NODE_LIMIT: 50,
+	CHILDREN_PAGE_SIZE: 50
+};
+const VALIDATION = {
+	MAX_PATH_LENGTH: 4096,
+	MAX_GIT_REF_LENGTH: 256,
+	MAX_FILEPATH_LENGTH: 512
+};
+const AST = {
+	MAX_CONTENT_BYTES: 512 * 1024,
+	MAX_TREE_SITTER_CONTENT_BYTES: 512 * 1024
+};
+const WATCHER = {
+	MAX_RETRIES: 3,
+	RETRY_BASE_DELAY_MS: 1e3
+};
+const TOOL_MESSAGES = {
+	NO_PATH_FOUND: "No path found between the specified symbols.",
+	GRAPH_TOO_LARGE_FOR_PATH: "Graph too large (>50000 nodes) for path finding. Try filtering first.",
+	PATH_FOUND: "Path found",
+	HOPS: "hops",
+	INSUFFICIENT_DATA: "Insufficient data for health scoring.",
+	NO_VIOLATIONS: "No rule violations detected.",
+	RULE_VIOLATIONS: "rule violations:"
+};
+const ERROR_CODES = {
+	PATH_NOT_ALLOWED: "PATH_NOT_ALLOWED",
+	WORKSPACE_PATH_NOT_ALLOWED: "WORKSPACE_PATH_NOT_ALLOWED",
+	SYMLINK_ESCAPE: "SYMLINK_ESCAPE",
+	NO_WORKSPACE_PATH: "NO_WORKSPACE_PATH",
+	PATH_OUTSIDE_WORKSPACE: "PATH_OUTSIDE_WORKSPACE",
+	SCAN_FAILED: "SCAN_FAILED",
+	INIT_FAILED: "INIT_FAILED",
+	WATCH_TOGGLE_FAILED: "WATCH_TOGGLE_FAILED",
+	WATCH_SETUP_FAILED: "WATCH_SETUP_FAILED",
+	INTERNAL_ERROR: "INTERNAL_ERROR",
+	COMMITS_REQUIRED: "COMMITS_REQUIRED",
+	INVALID_GIT_REF: "INVALID_GIT_REF",
+	GRAPH_DIFF_FAILED: "GRAPH_DIFF_FAILED",
+	FILEPATH_REQUIRED: "FILEPATH_REQUIRED",
+	FILE_TOO_LARGE: "FILE_TOO_LARGE",
+	AST_PARSE_FAILED: "AST_PARSE_FAILED",
+	FILEPATH_AND_CONTENT_REQUIRED: "FILEPATH_AND_CONTENT_REQUIRED",
+	INVALID_FILEPATH: "INVALID_FILEPATH",
+	CONTENT_TOO_LARGE: "CONTENT_TOO_LARGE",
+	METHOD_NOT_ALLOWED: "METHOD_NOT_ALLOWED",
+	RATE_LIMIT_EXCEEDED: "RATE_LIMIT_EXCEEDED",
+	SYMBOL_NOT_FOUND: "SYMBOL_NOT_FOUND",
+	BODY_TOO_LARGE: "BODY_TOO_LARGE",
+	INVALID_JSON_BODY: "INVALID_JSON_BODY",
+	INVALID_CONFIG: "INVALID_CONFIG"
+};
+const ERROR_MESSAGES = {
+	PATH_NOT_ALLOWED: {
+		en: "Path not allowed",
+		zh: "路径不允许访问"
+	},
+	WORKSPACE_PATH_NOT_ALLOWED: {
+		en: "Workspace path not allowed",
+		zh: "工作区路径不允许访问"
+	},
+	SYMLINK_ESCAPE: {
+		en: "Access denied: symlink escape",
+		zh: "访问被拒绝：符号链接逃逸"
+	},
+	NO_WORKSPACE_PATH: {
+		en: "No workspace path configured",
+		zh: "未配置工作区路径"
+	},
+	PATH_OUTSIDE_WORKSPACE: {
+		en: "Access denied: path outside workspace",
+		zh: "访问被拒绝：路径超出工作区范围"
+	},
+	SCAN_FAILED: {
+		en: "Scan failed — check codegraph installation",
+		zh: "扫描失败 — 请检查 codegraph 安装"
+	},
+	INIT_FAILED: {
+		en: "Initialization failed — is dsh-codegraph installed?",
+		zh: "初始化失败 — dsh-codegraph 是否已安装？"
+	},
+	WATCH_TOGGLE_FAILED: {
+		en: "Watch toggle failed",
+		zh: "监听切换失败"
+	},
+	WATCH_SETUP_FAILED: {
+		en: "Watch setup failed after retries",
+		zh: "监听设置在重试后失败"
+	},
+	INTERNAL_ERROR: {
+		en: "Internal server error",
+		zh: "服务器内部错误"
+	},
+	COMMITS_REQUIRED: {
+		en: "from and to commits are required",
+		zh: "需要 from 和 to 提交参数"
+	},
+	INVALID_GIT_REF: {
+		en: "Invalid git ref format",
+		zh: "无效的 Git 引用格式"
+	},
+	GRAPH_DIFF_FAILED: {
+		en: "Graph diff failed — check git refs",
+		zh: "图谱差异计算失败 — 请检查 Git 引用"
+	},
+	FILEPATH_REQUIRED: {
+		en: "filePath is required",
+		zh: "filePath 参数为必填"
+	},
+	FILE_TOO_LARGE: {
+		en: "File too large for AST parsing",
+		zh: "文件过大，无法进行 AST 解析"
+	},
+	AST_PARSE_FAILED: {
+		en: "AST parsing failed",
+		zh: "AST 解析失败"
+	},
+	FILEPATH_AND_CONTENT_REQUIRED: {
+		en: "filePath and content are required",
+		zh: "filePath 和 content 参数为必填"
+	},
+	INVALID_FILEPATH: {
+		en: "Invalid filePath",
+		zh: "无效的 filePath"
+	},
+	CONTENT_TOO_LARGE: {
+		en: "Content too large for tree-sitter parsing",
+		zh: "内容过大，无法进行 tree-sitter 解析"
+	},
+	METHOD_NOT_ALLOWED: {
+		en: "Method not allowed",
+		zh: "请求方法不被允许"
+	},
+	RATE_LIMIT_EXCEEDED: {
+		en: "Rate limit exceeded",
+		zh: "请求频率超限"
+	},
+	SYMBOL_NOT_FOUND: {
+		en: "Symbol not found",
+		zh: "未找到符号"
+	},
+	BODY_TOO_LARGE: {
+		en: "Request body too large",
+		zh: "请求体过大"
+	},
+	INVALID_JSON_BODY: {
+		en: "Invalid JSON body: expected object",
+		zh: "无效的 JSON 请求体：应为对象"
+	},
+	INVALID_CONFIG: {
+		en: "Invalid configuration",
+		zh: "无效的配置"
+	}
 };
 
 //#endregion
@@ -1365,7 +372,10 @@ const EDGE_WEIGHTS = {
 	implement: .7,
 	import: .5,
 	dependency: .3,
-	contains: 0
+	contains: 0,
+	association: .6,
+	aggregation: .5,
+	composition: .7
 };
 const DEFAULT_MAX_MODULE_DEPTH = HEALTH_SCORE.DEFAULT_MAX_MODULE_DEPTH;
 var HealthScorer = class {
@@ -1445,17 +455,14 @@ var HealthScorer = class {
 		for (const m of moduleOfNode.values()) modules.add(m);
 		if (modules.size <= 1) return 100;
 		let totalInstability = 0;
-		let moduleCount = 0;
 		for (const mod of modules) {
 			const ce = efferent.get(mod)?.size ?? 0;
 			const ca = afferent.get(mod)?.size ?? 0;
-			if (ce + ca === 0) continue;
-			const instability = ce / (ce + ca);
+			const instability = ce + ca === 0 ? 0 : ce / (ce + ca);
 			totalInstability += instability;
-			moduleCount++;
 		}
-		if (moduleCount === 0) return 100;
-		const avgInstability = totalInstability / moduleCount;
+		if (modules.size === 0) return 100;
+		const avgInstability = totalInstability / modules.size;
 		return Math.round(Math.max(0, 100 - avgInstability * 100));
 	}
 	calculateCohesion(nodes, edges, moduleOfNode) {
@@ -1509,13 +516,10 @@ var HealthScorer = class {
 			"implement",
 			"import"
 		];
-		const adjacency = new Map();
+		const adjacency = buildFilteredForwardAdjacency(edges, cycleEdgeTypes);
 		const nodeIds = new Set();
 		for (const edge of edges) {
 			if (!cycleEdgeTypes.includes(edge.type)) continue;
-			const list = adjacency.get(edge.source);
-			if (list) list.push(edge.target);
-			else adjacency.set(edge.source, [edge.target]);
 			nodeIds.add(edge.source);
 			nodeIds.add(edge.target);
 		}
@@ -1619,6 +623,62 @@ var HealthScorer = class {
 };
 
 //#endregion
+//#region src/shared/analysis/CycleDFS.ts
+function detectCyclesDFS(adjacency) {
+	const visited = new Set();
+	const inStack = new Set();
+	const cycles = [];
+	const seenCycleKeys = new Set();
+	const enter = (start) => {
+		const path$1 = [];
+		const pathIndex = new Map();
+		const frames = [{
+			id: start,
+			neighbors: adjacency.get(start) ?? [],
+			next: 0
+		}];
+		visited.add(start);
+		inStack.add(start);
+		path$1.push(start);
+		pathIndex.set(start, 0);
+		while (frames.length > 0) {
+			const frame = frames[frames.length - 1];
+			if (frame.next >= frame.neighbors.length) {
+				inStack.delete(frame.id);
+				path$1.pop();
+				pathIndex.delete(frame.id);
+				frames.pop();
+				continue;
+			}
+			const target = frame.neighbors[frame.next++];
+			if (inStack.has(target)) {
+				const cycleStart = pathIndex.get(target);
+				if (cycleStart !== void 0) {
+					const cycleNodes = path$1.slice(cycleStart);
+					const cycleKey = [...cycleNodes, target].sort().join("|");
+					if (!seenCycleKeys.has(cycleKey)) {
+						seenCycleKeys.add(cycleKey);
+						cycles.push([...cycleNodes, target]);
+					}
+				}
+			} else if (!visited.has(target)) {
+				visited.add(target);
+				inStack.add(target);
+				path$1.push(target);
+				pathIndex.set(target, path$1.length - 1);
+				frames.push({
+					id: target,
+					neighbors: adjacency.get(target) ?? [],
+					next: 0
+				});
+			}
+		}
+	};
+	for (const id of adjacency.keys()) if (!visited.has(id)) enter(id);
+	return cycles;
+}
+
+//#endregion
 //#region src/shared/analysis/RuleEngine.ts
 var RuleEngine = class {
 	detectors = new Map();
@@ -1643,62 +703,25 @@ var RuleEngine = class {
 	}
 };
 var ForbiddenEdgeDetector = class {
-	detect(rule, nodes, edges) {
+	detect(rule, _nodes, edges) {
 		const violations = [];
 		const edgeTypes = rule.params.edgeTypes ?? [
 			"call",
 			"import",
 			"dependency"
 		];
-		const adjacency = new Map();
-		for (const edge of edges) {
-			if (!edgeTypes.includes(edge.type)) continue;
-			const list = adjacency.get(edge.source);
-			if (list) list.push(edge.target);
-			else adjacency.set(edge.source, [edge.target]);
+		const adjacency = buildFilteredForwardAdjacency(edges, edgeTypes);
+		const cycles = detectCyclesDFS(adjacency);
+		for (const cycle of cycles) {
+			const cycleKey = cycle.sort().join("→");
+			const firstNode = cycle[0] ?? "";
+			violations.push({
+				ruleId: rule.id,
+				nodeId: NodeId(firstNode),
+				message: `Circular dependency detected involving: ${cycleKey}`,
+				severity: rule.severity
+			});
 		}
-		const visited = new Set();
-		const inStack = new Set();
-		const reportedCycles = new Set();
-		const enter = (start) => {
-			const frames = [{
-				id: start,
-				neighbors: adjacency.get(start) ?? [],
-				next: 0
-			}];
-			visited.add(start);
-			inStack.add(start);
-			while (frames.length > 0) {
-				const frame = frames[frames.length - 1];
-				if (frame.next >= frame.neighbors.length) {
-					inStack.delete(frame.id);
-					frames.pop();
-					continue;
-				}
-				const target = frame.neighbors[frame.next++];
-				if (inStack.has(target)) {
-					const cycleKey = [target, ...frames.slice(frames.findIndex((f) => f.id === target)).map((f) => f.id)].sort().join("→");
-					if (!reportedCycles.has(cycleKey)) {
-						reportedCycles.add(cycleKey);
-						violations.push({
-							ruleId: rule.id,
-							nodeId: NodeId(target),
-							message: `Circular dependency detected involving: ${cycleKey}`,
-							severity: rule.severity
-						});
-					}
-				} else if (!visited.has(target)) {
-					visited.add(target);
-					inStack.add(target);
-					frames.push({
-						id: target,
-						neighbors: adjacency.get(target) ?? [],
-						next: 0
-					});
-				}
-			}
-		};
-		for (const id of adjacency.keys()) if (!visited.has(id)) enter(id);
 		return violations;
 	}
 };
@@ -1798,33 +821,73 @@ var CrossLayerCallDetector = class {
 };
 
 //#endregion
-//#region src/tools.ts
-const log$6 = scoped("tools");
-const GRAPH_CACHE_LIMIT = 8;
-function createGraphToolDeps() {
+//#region src/shared/analysis/GraphBFS.ts
+function bfsShortestPath(adjacency, source, target, maxNodes) {
+	if (source === target) return {
+		path: [source],
+		length: 0,
+		truncated: false
+	};
+	const visited = new Set([source]);
+	const predecessor = new Map();
+	const queue = [source];
+	let head = 0;
+	while (head < queue.length) {
+		if (visited.size > maxNodes) return {
+			path: [],
+			length: 0,
+			truncated: true
+		};
+		const id = queue[head++];
+		if (id === target) {
+			const path$1 = [];
+			let cur = id;
+			while (cur !== void 0) {
+				path$1.unshift(cur);
+				cur = predecessor.get(cur);
+			}
+			return {
+				path: path$1,
+				length: path$1.length - 1,
+				truncated: false
+			};
+		}
+		const neighbors = adjacency.get(id) ?? [];
+		for (const next of neighbors) if (!visited.has(next)) {
+			visited.add(next);
+			predecessor.set(next, id);
+			queue.push(next);
+		}
+	}
+	return null;
+}
+function bfsFrontierExpansion(reverseAdjacency, startNode, depth, maxResults) {
+	const impacted = new Set();
+	let frontier = new Set([startNode]);
+	for (let d = 0; d < depth && impacted.size < maxResults; d++) {
+		const nextFrontier = new Set();
+		for (const id of frontier) {
+			if (impacted.size >= maxResults) break;
+			const sources = reverseAdjacency.get(id) ?? [];
+			for (const src of sources) {
+				if (impacted.size >= maxResults) break;
+				if (!impacted.has(src)) {
+					impacted.add(src);
+					nextFrontier.add(src);
+				}
+			}
+		}
+		frontier = nextFrontier;
+	}
 	return {
-		codegraphAdapter: new CodeGraphAdapter(),
-		lensAdapter: new LensAdapter(),
-		merger: new GraphDataMerger()
+		impacted: Array.from(impacted),
+		count: impacted.size,
+		truncated: impacted.size >= maxResults
 	};
 }
-function cacheGraph(cache, repoId, data) {
-	cache.delete(repoId);
-	cache.set(repoId, data);
-	if (cache.size > GRAPH_CACHE_LIMIT) {
-		const oldest = cache.keys().next().value;
-		if (oldest !== void 0) cache.delete(oldest);
-	}
-}
-async function fetchMergedGraph(invoke, repoId, source = "both", deps) {
-	const d = deps ?? createGraphToolDeps();
-	const tasks = [];
-	if (source === "codegraph" || source === "both") tasks.push(d.codegraphAdapter.fetchData(repoId, invoke));
-	if (source === "lens" || source === "both") tasks.push(d.lensAdapter.fetchData(repoId, invoke));
-	const settled = await Promise.allSettled(tasks);
-	const results = settled.filter((r) => r.status === "fulfilled").map((r) => r.value);
-	return d.merger.merge(results, RepoId(repoId));
-}
+
+//#endregion
+//#region src/graphUtils.ts
 function summarizeGraph(data) {
 	const nodeByType = new Map();
 	const edgeByType = new Map();
@@ -1843,8 +906,7 @@ function summarizeGraph(data) {
 function normalizeImpact(raw) {
 	if (typeof raw === "string") try {
 		raw = JSON.parse(raw);
-	} catch {
-		log$6.warn("normalizeImpact: JSON.parse failed");
+	} catch (_e) {
 		return null;
 	}
 	if (!raw || typeof raw !== "object") return null;
@@ -1864,8 +926,7 @@ function pickBestMatch(raw, symbolId) {
 	let payload = raw;
 	if (typeof payload === "string") try {
 		payload = JSON.parse(payload);
-	} catch {
-		log$6.warn("normalizeCallers: JSON.parse failed");
+	} catch (_e) {
 		return null;
 	}
 	const items = Array.isArray(payload) ? payload : payload?.results ?? payload?.nodes;
@@ -1885,6 +946,74 @@ function pickBestMatch(raw, symbolId) {
 		signature: chosen.signature ?? null
 	};
 }
+function renderGraphStatus(_args, value) {
+	const v = value;
+	const srcInfo = v.sources ? ` [codegraph:${v.sources.codegraph ? "✓" : "✗"} lens:${v.sources.lens ? "✓" : "✗"}]` : "";
+	return [{
+		type: "text",
+		text: `Graph status: ${v.status} (${v.nodeCount} nodes, ${v.edgeCount} edges)${srcInfo}`
+	}];
+}
+function renderGraphData(_args, value) {
+	const data = value;
+	return [{
+		type: "text",
+		text: summarizeGraph(data)
+	}];
+}
+function renderGraphSymbol(_args, value) {
+	const v = value;
+	if (!v) return [{
+		type: "text",
+		text: "Symbol not found."
+	}];
+	return [{
+		type: "text",
+		text: `${v.name ?? v.symbolId ?? "?"} (${v.category ?? "unknown"}) @ ${v.file ?? "?"}:${v.line ?? "?"}`
+	}];
+}
+function renderGraphImpact(_args, value) {
+	const v = value;
+	const count = v.affected?.length ?? 0;
+	const list = v.affected?.slice(0, 10).join(", ") ?? "";
+	return [{
+		type: "text",
+		text: `Impact: ${count} symbols affected (depth ${v.depth ?? 0})${list ? `\n  ${list}` : ""}`
+	}];
+}
+
+//#endregion
+//#region src/tools.ts
+const log$8 = scoped("tools");
+function toJsonValue(value) {
+	return JSON.parse(JSON.stringify(value));
+}
+const GRAPH_CACHE_LIMIT = CACHE.GRAPH_CACHE_LIMIT;
+async function createGraphToolDeps() {
+	const [{ CodeGraphAdapter: CGA }, { LensAdapter: LA }] = await Promise.all([import("./CodeGraphAdapter-ByXef8Dq.js"), import("./LensAdapter-4bQkqn2n.js")]);
+	return {
+		codegraphAdapter: new CGA(),
+		lensAdapter: new LA(),
+		merger: new GraphDataMerger()
+	};
+}
+function cacheGraph(cache, repoId, data) {
+	cache.delete(repoId);
+	cache.set(repoId, data);
+	if (cache.size > GRAPH_CACHE_LIMIT) {
+		const oldest = cache.keys().next().value;
+		if (oldest !== void 0) cache.delete(oldest);
+	}
+}
+async function fetchMergedGraph(invoke, repoId, source = "both", deps) {
+	const d = deps ?? await createGraphToolDeps();
+	const tasks = [];
+	if (source === "codegraph" || source === "both") tasks.push(d.codegraphAdapter.fetchData(repoId, invoke));
+	if (source === "lens" || source === "both") tasks.push(d.lensAdapter.fetchData(repoId, invoke));
+	const settled = await Promise.allSettled(tasks);
+	const results = settled.filter((r) => r.status === "fulfilled").map((r) => r.value);
+	return d.merger.merge(results, RepoId(repoId));
+}
 function createInvoke(ctx, requestTimeout = 5e3) {
 	return async (tool, args) => {
 		try {
@@ -1897,21 +1026,13 @@ function createInvoke(ctx, requestTimeout = 5e3) {
 			if (result.isError) return null;
 			return result.value ?? null;
 		} catch (e) {
-			log$6.warn("createInvoke: tool execution failed", {
+			log$8.warn("createInvoke: tool execution failed", {
 				tool,
 				error: e
 			});
 			return null;
 		}
 	};
-}
-function renderGraphStatus(_args, value) {
-	const v = value;
-	const srcInfo = v.sources ? ` [codegraph:${v.sources.codegraph ? "✓" : "✗"} lens:${v.sources.lens ? "✓" : "✗"}]` : "";
-	return [{
-		type: "text",
-		text: `Graph status: ${v.status} (${v.nodeCount} nodes, ${v.edgeCount} edges)${srcInfo}`
-	}];
 }
 async function executeGraphStatus(args, invoke, deps) {
 	const [cgResult, lensResult] = await Promise.allSettled([deps.codegraphAdapter.fetchData(args.repoId, invoke), deps.lensAdapter.fetchData(args.repoId, invoke)]);
@@ -1927,13 +1048,6 @@ async function executeGraphStatus(args, invoke, deps) {
 		}
 	};
 }
-function renderGraphData(_args, value) {
-	const data = value;
-	return [{
-		type: "text",
-		text: summarizeGraph(data)
-	}];
-}
 async function executeGraphData(args, invoke, emitUpdate, emitData, graphCache, deps) {
 	const source = args.source ?? "both";
 	const fresh = await fetchMergedGraph(invoke, args.repoId, source, deps);
@@ -1941,7 +1055,7 @@ async function executeGraphData(args, invoke, emitUpdate, emitData, graphCache, 
 	const merged = cached ? deps.merger.applyDelta(cached, {
 		nodes: fresh.nodes,
 		edges: fresh.edges,
-		source: "codegraph",
+		source: source === "both" ? "codegraph" : source,
 		timestamp: fresh.metadata.timestamp
 	}) : fresh;
 	cacheGraph(graphCache, args.repoId, merged);
@@ -1957,34 +1071,14 @@ async function executeGraphData(args, invoke, emitUpdate, emitData, graphCache, 
 		edges: merged.edges,
 		timestamp: merged.metadata.timestamp
 	});
-	return merged;
-}
-function renderGraphSymbol(_args, value) {
-	const v = value;
-	if (!v) return [{
-		type: "text",
-		text: "Symbol not found."
-	}];
-	return [{
-		type: "text",
-		text: `${v.name ?? v.symbolId ?? "?"} (${v.category ?? "unknown"}) @ ${v.file ?? "?"}:${v.line ?? "?"}`
-	}];
+	return toJsonValue(merged);
 }
 async function executeGraphSymbol(args, invoke) {
 	const raw = await invoke("codegraph_query", {
 		search: args.symbolId,
 		limit: 1
 	});
-	return pickBestMatch(raw, args.symbolId);
-}
-function renderGraphImpact(_args, value) {
-	const v = value;
-	const count = v.affected?.length ?? 0;
-	const list = v.affected?.slice(0, 10).join(", ") ?? "";
-	return [{
-		type: "text",
-		text: `Impact: ${count} symbols affected (depth ${v.depth ?? 0})${list ? `\n  ${list}` : ""}`
-	}];
+	return toJsonValue(pickBestMatch(raw, args.symbolId));
 }
 async function executeGraphImpact(args, invoke) {
 	const raw = await invoke("codegraph_impact", {
@@ -1992,22 +1086,22 @@ async function executeGraphImpact(args, invoke) {
 		depth: 2
 	});
 	const normalized = normalizeImpact(raw);
-	if (normalized) return normalized;
+	if (normalized) return toJsonValue(normalized);
 	const lens = await invoke("lens_impact", { symbolId: args.symbolId });
-	return lens ?? {
+	return toJsonValue(lens ?? {
 		affected: [],
 		depth: 0
-	};
+	});
 }
-const createGraphTools = (ctx, options = {}) => {
+const createGraphTools = async (ctx, options = {}) => {
 	const invoke = createInvoke(ctx, options.requestTimeout);
 	const graphCache = new Map();
-	const deps = createGraphToolDeps();
+	const deps = await createGraphToolDeps();
 	const emitUpdate = (event) => {
-		ctx.emit("cg-viz/graph/updated", event);
+		ctx.emit("codegraph-visualizer/graph/updated", event);
 	};
 	const emitData = (event) => {
-		ctx.emit("cg-viz/graph/data", event);
+		ctx.emit("codegraph-visualizer/graph/data", event);
 	};
 	const graphStatus = defineTool({
 		name: "graph_status",
@@ -2103,16 +1197,16 @@ const createGraphTools = (ctx, options = {}) => {
 				if (!v || !v.path || v.path.length === 0) {
 					if (v?.truncated) return [{
 						type: "text",
-						text: "Graph too large (>10000 nodes) for path finding. Try filtering first."
+						text: TOOL_MESSAGES.GRAPH_TOO_LARGE_FOR_PATH
 					}];
 					return [{
 						type: "text",
-						text: "No path found between the specified symbols."
+						text: TOOL_MESSAGES.NO_PATH_FOUND
 					}];
 				}
 				return [{
 					type: "text",
-					text: `Path found (${v.length} hops): ${v.path.join(" → ")}`
+					text: `${TOOL_MESSAGES.PATH_FOUND} (${v.length} ${TOOL_MESSAGES.HOPS}): ${v.path.join(" → ")}`
 				}];
 			}
 		},
@@ -2121,43 +1215,18 @@ const createGraphTools = (ctx, options = {}) => {
 			const data = await fetchMergedGraph(invoke, a.repoId);
 			const nodeIds = new Set(data.nodes.map((n) => n.id));
 			if (!nodeIds.has(NodeId(a.sourceSymbol)) || !nodeIds.has(NodeId(a.targetSymbol))) return null;
-			if (data.nodes.length > 1e4) return {
+			if (data.nodes.length > PATH_FINDER.MAX_NODES_FOR_BFS) return toJsonValue({
 				path: [],
 				length: 0,
 				truncated: true
-			};
-			const adjacency = new Map();
-			for (const edge of data.edges) {
-				const list = adjacency.get(edge.source);
-				if (list) list.push(edge.target);
-				else adjacency.set(edge.source, [edge.target]);
-			}
-			const visited = new Set([a.sourceSymbol]);
-			const predecessor = new Map();
-			const queue = [a.sourceSymbol];
-			let head = 0;
-			while (head < queue.length) {
-				const id = queue[head++];
-				if (id === a.targetSymbol) {
-					const path$1 = [];
-					let cur = id;
-					while (cur !== void 0) {
-						path$1.unshift(cur);
-						cur = predecessor.get(cur);
-					}
-					return {
-						path: path$1,
-						length: path$1.length - 1
-					};
-				}
-				const neighbors = adjacency.get(id) ?? [];
-				for (const next of neighbors) if (!visited.has(next)) {
-					visited.add(next);
-					predecessor.set(next, id);
-					queue.push(next);
-				}
-			}
-			return null;
+			});
+			const adjacency = buildForwardAdjacency(data.edges);
+			const result = bfsShortestPath(adjacency, a.sourceSymbol, a.targetSymbol, data.nodes.length);
+			if (!result) return null;
+			return toJsonValue({
+				path: result.path,
+				length: result.length
+			});
 		}
 	});
 	const graphHealth = defineTool({
@@ -2174,7 +1243,7 @@ const createGraphTools = (ctx, options = {}) => {
 				const v = value;
 				if (!v) return [{
 					type: "text",
-					text: "Insufficient data for health scoring."
+					text: TOOL_MESSAGES.INSUFFICIENT_DATA
 				}];
 				return [{
 					type: "text",
@@ -2188,7 +1257,7 @@ const createGraphTools = (ctx, options = {}) => {
 			if (data.nodes.length === 0) return null;
 			const scorer = new HealthScorer();
 			const score = scorer.calculate(data.nodes, data.edges);
-			return score;
+			return toJsonValue(score);
 		}
 	});
 	const graphRulesCheck = defineTool({
@@ -2215,12 +1284,12 @@ const createGraphTools = (ctx, options = {}) => {
 				const v = value;
 				if (!v || v.length === 0) return [{
 					type: "text",
-					text: "No rule violations detected."
+					text: TOOL_MESSAGES.NO_VIOLATIONS
 				}];
 				const lines = v.slice(0, 20).map((r) => `  [${r.severity}] ${r.message}`);
 				return [{
 					type: "text",
-					text: `${v.length} rule violations:\n${lines.join("\n")}`
+					text: `${v.length} ${TOOL_MESSAGES.RULE_VIOLATIONS}\n${lines.join("\n")}`
 				}];
 			}
 		},
@@ -2247,7 +1316,7 @@ const createGraphTools = (ctx, options = {}) => {
 			}];
 			const engine = new RuleEngine();
 			const violations = engine.check(rules, data.nodes, data.edges);
-			return violations;
+			return toJsonValue(violations);
 		}
 	});
 	const graphFocus = defineTool({
@@ -2289,10 +1358,10 @@ const createGraphTools = (ctx, options = {}) => {
 				if (edge.source === a.symbolId) neighbors.add(edge.target);
 				if (edge.target === a.symbolId) neighbors.add(edge.source);
 			}
-			return {
+			return toJsonValue({
 				symbolId: a.symbolId,
 				neighbors: [...neighbors]
-			};
+			});
 		}
 	});
 	return {
@@ -2318,7 +1387,8 @@ const VALID_DATA_SOURCES = new Set([
 	"auto",
 	"codegraph",
 	"lens",
-	"tree-sitter"
+	"tree-sitter",
+	"dependency"
 ]);
 const ORIGIN_PATTERN = /^https?:\/\/[a-zA-Z0-9.-]+(:\d+)?$/;
 const DEFAULT_CONFIG = {
@@ -2355,46 +1425,42 @@ function resolveConfig(userConfig) {
 	];
 	for (const [field, value] of positiveFields) if (!Number.isFinite(value) || value <= 0) errors.push(`${field} must be a positive finite number, got ${String(value)}`);
 	if (config.panelDefaultHeight < config.panelMinHeight) errors.push(`panelDefaultHeight (${config.panelDefaultHeight}) must be >= panelMinHeight (${config.panelMinHeight})`);
-	if (errors.length > 0) throw new Error(`[dsh-codegraph-visualizer] invalid config: ${errors.join("; ")}`);
+	if (errors.length > 0) throw new Error(`${ERROR_CODES.INVALID_CONFIG}: ${errors.join("; ")}`);
 	return config;
 }
 
 //#endregion
 //#region src/host/security.ts
+const isCaseInsensitive = platform() === "win32";
+function normalizeForComparison(p) {
+	const n = normalize(p);
+	return isCaseInsensitive ? n.toLowerCase() : n;
+}
 var SecurityManager = class {
 	allowedWorkspaceRoots = [];
 	setAllowedWorkspaceRoots(roots) {
-		this.allowedWorkspaceRoots = roots.map((r) => normalize(r));
+		this.allowedWorkspaceRoots = roots.map((r) => normalizeForComparison(r));
 	}
 	isPathAllowed(path$1) {
 		if (!path$1) return false;
 		const normalized = normalize(path$1);
 		if (normalized.includes("..")) return false;
-		if (!isAbsolute(normalized)) {
-			if (normalized === "." && this.allowedWorkspaceRoots.length > 0) return true;
-			return false;
-		}
+		if (!isAbsolute(normalized)) return false;
 		if (this.allowedWorkspaceRoots.length === 0) return false;
-		return this.allowedWorkspaceRoots.some((root) => normalized === root || normalized.startsWith(root + sep));
+		const cmpPath = normalizeForComparison(normalized);
+		return this.allowedWorkspaceRoots.some((root) => cmpPath === root || cmpPath.startsWith(root + sep));
 	}
 	reset() {
 		this.allowedWorkspaceRoots = [];
 	}
 };
-const defaultManager = new SecurityManager();
-function setAllowedWorkspaceRoots(roots) {
-	defaultManager.setAllowedWorkspaceRoots(roots);
-}
-function isPathAllowed(path$1) {
-	return defaultManager.isPathAllowed(path$1);
-}
-function resetSecurityManager() {
-	defaultManager.reset();
+function createSecurityManager() {
+	return new SecurityManager();
 }
 
 //#endregion
 //#region src/host/prerequisites.ts
-const log$5 = scoped("host");
+const log$7 = scoped("host");
 const execFileAsync = promisify(execFile);
 function checkPrerequisites(ctx) {
 	try {
@@ -2405,7 +1471,7 @@ function checkPrerequisites(ctx) {
 			lens: !!lens
 		};
 	} catch (e) {
-		log$5.warn("checkPrerequisites failed", e);
+		log$7.warn("checkPrerequisites failed", e);
 		return {
 			codegraph: false,
 			lens: false
@@ -2427,7 +1493,7 @@ function extractWorkspacePaths(ctx) {
 			if (paths.length > 0) return paths;
 		}
 	} catch (e) {
-		log$5.warn("extractWorkspacePaths: workspaceRegistry failed", e);
+		log$7.warn("extractWorkspacePaths: workspaceRegistry failed", e);
 	}
 	try {
 		const sessions = getSessions(ctx);
@@ -2445,7 +1511,7 @@ function extractWorkspacePaths(ctx) {
 			if (paths.length > 0) return paths;
 		}
 	} catch (e) {
-		log$5.warn("extractWorkspacePaths: sessions failed", e);
+		log$7.warn("extractWorkspacePaths: sessions failed", e);
 	}
 	return [process.cwd()];
 }
@@ -2457,7 +1523,7 @@ function findWorkspacePath(ctx) {
 			if (workspaces.length > 0 && workspaces[0]?.path) return workspaces[0].path;
 		}
 	} catch (e) {
-		log$5.warn("findWorkspacePath: workspaceRegistry failed", e);
+		log$7.warn("findWorkspacePath: workspaceRegistry failed", e);
 	}
 	try {
 		const sessions = getSessions(ctx);
@@ -2469,14 +1535,14 @@ function findWorkspacePath(ctx) {
 			}
 		}
 	} catch (e) {
-		log$5.warn("findWorkspacePath: sessions failed", e);
+		log$7.warn("findWorkspacePath: sessions failed", e);
 	}
 	return process.cwd();
 }
 
 //#endregion
 //#region src/adapters/DependencyAdapter.ts
-const log$4 = scoped("dep-adapter");
+const log$6 = scoped("dep-adapter");
 function parsePackageJson(content) {
 	const nodes = [];
 	const edges = [];
@@ -2513,14 +1579,14 @@ function parsePackageJson(content) {
 		for (const { key, scope } of depSections) {
 			const deps = pkg[key];
 			if (!deps || typeof deps !== "object") continue;
-			for (const [name$1, version$1] of Object.entries(deps)) {
+			for (const [name$1, version] of Object.entries(deps)) {
 				const depId = `dep:${name$1}`;
 				if (!seenIds.has(depId)) {
 					seenIds.add(depId);
 					nodes.push({
 						id: depId,
 						name: name$1,
-						version: String(version$1),
+						version: String(version),
 						type: "npm"
 					});
 				}
@@ -2533,7 +1599,7 @@ function parsePackageJson(content) {
 			}
 		}
 	} catch (e) {
-		log$4.warn("parsePackageJson failed", e);
+		log$6.warn("parsePackageJson failed", e);
 	}
 	return {
 		nodes,
@@ -2565,6 +1631,28 @@ function parseCargoToml(content) {
 		let inDepsSection = false;
 		let pendingTableDep = null;
 		for (const line of lines) {
+			const tableDepHeaderMatch = line.match(/^\[dependencies\.([a-zA-Z0-9_-]+)\]/);
+			if (tableDepHeaderMatch) {
+				const depName = tableDepHeaderMatch[1];
+				const depId = `dep:${depName}`;
+				if (!seenIds.has(depId)) {
+					seenIds.add(depId);
+					nodes.push({
+						id: depId,
+						name: depName,
+						version: "0.0.0",
+						type: "cargo"
+					});
+				}
+				edges.push({
+					source: rootId,
+					target: depId,
+					type: "depends",
+					scope: "prod"
+				});
+				inDepsSection = false;
+				continue;
+			}
 			if (line.match(/^\[dependencies\]/)) {
 				inDepsSection = true;
 				continue;
@@ -2668,7 +1756,7 @@ function parseCargoToml(content) {
 			}
 		}
 	} catch (e) {
-		log$4.warn("parseCargoToml failed", e);
+		log$6.warn("parseCargoToml failed", e);
 	}
 	return {
 		nodes,
@@ -2758,7 +1846,7 @@ function parseGoMod(content) {
 			}
 		}
 	} catch (e) {
-		log$4.warn("parseGoMod failed", e);
+		log$6.warn("parseGoMod failed", e);
 	}
 	return {
 		nodes,
@@ -2784,7 +1872,8 @@ function dependencyGraphToGraphData(depGraph) {
 				version: n.version,
 				depType: n.type,
 				isExternal: true
-			}
+			},
+			layer: "dependency"
 		};
 	});
 	const edges = depGraph.edges.map((e) => ({
@@ -2917,7 +2006,7 @@ function diffToGraphData(diff) {
 
 //#endregion
 //#region src/adapters/TreeSitterAdapter.ts
-const log$3 = scoped("tree-sitter-adapter");
+const log$5 = scoped("tree-sitter-adapter");
 const SUPPORTED_LANGUAGES = [
 	"typescript",
 	"javascript",
@@ -2963,6 +2052,7 @@ const IMPORT_NODE_TYPES = new Set([
 	"use_declaration"
 ]);
 var TreeSitterAdapter = class TreeSitterAdapter {
+	source = "tree-sitter";
 	parser = null;
 	loadedLanguages = new Set();
 	currentLanguage = null;
@@ -2971,7 +2061,7 @@ var TreeSitterAdapter = class TreeSitterAdapter {
 	async init() {
 		if (this.parser) return;
 		if (this.initAttempts >= TreeSitterAdapter.MAX_INIT_ATTEMPTS) {
-			log$3.warn(`TreeSitter init skipped after ${this.initAttempts} failed attempts`);
+			log$5.warn(`TreeSitter init skipped after ${this.initAttempts} failed attempts`);
 			return;
 		}
 		this.initAttempts++;
@@ -2980,9 +2070,9 @@ var TreeSitterAdapter = class TreeSitterAdapter {
 			await Parser.init();
 			this.parser = new Parser();
 			this.initAttempts = 0;
-			log$3.info("TreeSitter parser initialized");
+			log$5.info("TreeSitter parser initialized");
 		} catch (e) {
-			log$3.warn(`Failed to init TreeSitter (attempt ${this.initAttempts}/${TreeSitterAdapter.MAX_INIT_ATTEMPTS})`, e);
+			log$5.warn(`Failed to init TreeSitter (attempt ${this.initAttempts}/${TreeSitterAdapter.MAX_INIT_ATTEMPTS})`, e);
 		}
 	}
 	isAvailable() {
@@ -2994,6 +2084,27 @@ var TreeSitterAdapter = class TreeSitterAdapter {
 	detectLanguage(filePath) {
 		for (const [ext, lang] of Object.entries(FILE_EXTENSIONS)) if (filePath.endsWith(ext)) return lang;
 		return null;
+	}
+	async ensureLanguageLoaded(language) {
+		if (!this.parser) return false;
+		if (this.loadedLanguages.has(language)) return true;
+		try {
+			const langModule = await this.loadLanguageWasm(language);
+			if (this.currentLanguage) try {
+				this.currentLanguage.delete?.();
+			} catch (e) {
+				log$5.debug("old language cleanup failed", { error: e });
+			}
+			const parser = this.parser;
+			if (!parser) return false;
+			parser.setLanguage(langModule);
+			this.currentLanguage = langModule;
+			this.loadedLanguages.add(language);
+			return true;
+		} catch (e) {
+			log$5.warn(`Failed to load language: ${language}`, e);
+			return false;
+		}
 	}
 	async parseFile(filePath, content) {
 		if (!this.parser) {
@@ -3014,24 +2125,13 @@ var TreeSitterAdapter = class TreeSitterAdapter {
 			timestamp: Date.now(),
 			error: `Unsupported file: ${filePath}`
 		};
-		if (!this.loadedLanguages.has(language)) try {
-			const langModule = await this.loadLanguageWasm(language);
-			if (this.currentLanguage) try {
-				this.currentLanguage.delete?.();
-			} catch {}
-			this.parser.setLanguage(langModule);
-			this.currentLanguage = langModule;
-			this.loadedLanguages.add(language);
-		} catch (e) {
-			log$3.warn(`Failed to load language: ${language}`, e);
-			return {
-				nodes: [],
-				edges: [],
-				source: "tree-sitter",
-				timestamp: Date.now(),
-				error: `Failed to load ${language}`
-			};
-		}
+		if (!await this.ensureLanguageLoaded(language)) return {
+			nodes: [],
+			edges: [],
+			source: "tree-sitter",
+			timestamp: Date.now(),
+			error: `Failed to load ${language}`
+		};
 		try {
 			const tree = this.parser.parse(content);
 			const { nodes, edges } = this.extractSymbols(tree.rootNode, filePath);
@@ -3043,7 +2143,7 @@ var TreeSitterAdapter = class TreeSitterAdapter {
 				timestamp: Date.now()
 			};
 		} catch (e) {
-			log$3.warn("parseFile failed", {
+			log$5.warn("parseFile failed", {
 				filePath,
 				error: e
 			});
@@ -3064,23 +2164,36 @@ var TreeSitterAdapter = class TreeSitterAdapter {
 			const { getWasmPath } = await import("tree-sitter-wasm");
 			const absPath = getWasmPath(language);
 			candidates.push(absPath);
-		} catch {}
+		} catch (e) {
+			log$5.debug("tree-sitter-wasm not available", { error: e });
+		}
 		const doc = globalThis.document;
 		if (doc && doc.baseURI) {
 			try {
 				candidates.push(new URL(`plugins/dsh-codegraph-visualizer/${wasmFile}`, doc.baseURI).href);
-			} catch {}
+			} catch (e) {
+				log$5.debug("URL resolution fallback", { error: e });
+			}
 			try {
 				candidates.push(new URL(`node_modules/web-tree-sitter/dist/${wasmFile}`, doc.baseURI).href);
-			} catch {}
+			} catch (e) {
+				log$5.debug("URL resolution fallback", { error: e });
+			}
 			try {
 				candidates.push(new URL(wasmFile, doc.baseURI).href);
-			} catch {}
+			} catch (e) {
+				log$5.debug("URL resolution fallback", { error: e });
+			}
 		}
 		candidates.push(wasmFile);
 		for (const path$1 of candidates) try {
 			return await Language.load(path$1);
-		} catch {}
+		} catch (e) {
+			log$5.debug("candidate path failed", {
+				path: path$1,
+				error: e
+			});
+		}
 		throw new Error(`Cannot load ${wasmFile} from any candidate path`);
 	}
 	extractSymbols(rootNode, filePath) {
@@ -3092,45 +2205,56 @@ var TreeSitterAdapter = class TreeSitterAdapter {
 			return nameNode ? nameNode.text : `<${node.type}>`;
 		};
 		const makeId = (node, label) => `${filePath}:${label}:${node.startPosition.row}`;
-		const walk = (node, parentId) => {
-			if (!node) return;
-			const nodeType = node.type;
-			let graphType = null;
-			if (FUNCTION_NODE_TYPES.has(nodeType)) graphType = "function";
-			else if (CLASS_NODE_TYPES.has(nodeType)) graphType = "class";
-			else if (VARIABLE_NODE_TYPES.has(nodeType)) graphType = "variable";
-			else if (IMPORT_NODE_TYPES.has(nodeType)) graphType = "module";
-			let currentParentId = parentId;
-			if (graphType) {
-				const label = extractName(node);
-				const id = makeId(node, label);
-				if (!visited.has(id)) {
-					visited.add(id);
-					nodes.push({
-						id: NodeId(id),
-						label,
-						type: graphType,
-						filePath,
-						lineNumber: node.startPosition.row + 1,
-						properties: {
-							source: "tree-sitter",
-							nodeType
-						},
-						...parentId ? { parentId: NodeId(parentId) } : {}
-					});
-					if (parentId) edges.push({
-						id: EdgeId(`tsedge:${parentId}->${id}`),
-						source: NodeId(parentId),
-						target: NodeId(id),
-						type: "contains",
-						properties: {}
+		const walk = (rootNode$1) => {
+			const stack = [{
+				node: rootNode$1,
+				parentId: void 0
+			}];
+			while (stack.length > 0) {
+				const { node, parentId } = stack.pop();
+				if (!node) continue;
+				const nodeType = node.type;
+				let graphType = null;
+				if (FUNCTION_NODE_TYPES.has(nodeType)) graphType = "function";
+				else if (CLASS_NODE_TYPES.has(nodeType)) graphType = "class";
+				else if (VARIABLE_NODE_TYPES.has(nodeType)) graphType = "variable";
+				else if (IMPORT_NODE_TYPES.has(nodeType)) graphType = "module";
+				let currentParentId = parentId;
+				if (graphType) {
+					const label = extractName(node);
+					const id = makeId(node, label);
+					if (!visited.has(id)) {
+						visited.add(id);
+						nodes.push({
+							id: NodeId(id),
+							label,
+							type: graphType,
+							filePath,
+							lineNumber: node.startPosition.row + 1,
+							properties: {
+								source: "tree-sitter",
+								nodeType
+							},
+							...parentId ? { parentId: NodeId(parentId) } : {},
+							layer: inferLayerFromPath(filePath)
+						});
+						if (parentId) edges.push({
+							id: EdgeId(`tsedge:${parentId}->${id}`),
+							source: NodeId(parentId),
+							target: NodeId(id),
+							type: "contains",
+							properties: {}
+						});
+					}
+					currentParentId = id;
+				}
+				for (let i = (node.childCount || 0) - 1; i >= 0; i--) {
+					const child = node.child(i);
+					if (child) stack.push({
+						node: child,
+						parentId: currentParentId
 					});
 				}
-				currentParentId = id;
-			}
-			for (let i = 0; i < (node.childCount || 0); i++) {
-				const child = node.child(i);
-				if (child) walk(child, currentParentId);
 			}
 		};
 		walk(rootNode);
@@ -3143,25 +2267,17 @@ var TreeSitterAdapter = class TreeSitterAdapter {
 		if (!this.parser) {
 			await this.init();
 			if (!this.parser) {
-				log$3.warn("parseToAst: parser not initialized after init()");
+				log$5.warn("parseToAst: parser not initialized after init()");
 				return null;
 			}
 		}
 		const language = this.detectLanguage(filePath);
 		if (!language) {
-			log$3.warn(`parseToAst: unsupported file extension: ${filePath}`);
+			log$5.warn(`parseToAst: unsupported file extension: ${filePath}`);
 			return null;
 		}
-		if (!this.loadedLanguages.has(language)) try {
-			const langModule = await this.loadLanguageWasm(language);
-			if (this.currentLanguage) try {
-				this.currentLanguage.delete?.();
-			} catch {}
-			this.parser.setLanguage(langModule);
-			this.currentLanguage = langModule;
-			this.loadedLanguages.add(language);
-		} catch (e) {
-			log$3.warn(`parseToAst: failed to load language ${language}:`, e);
+		if (!await this.ensureLanguageLoaded(language)) {
+			log$5.warn(`parseToAst: failed to load language ${language}`);
 			return null;
 		}
 		try {
@@ -3170,29 +2286,57 @@ var TreeSitterAdapter = class TreeSitterAdapter {
 			tree.delete();
 			return astRoot;
 		} catch (e) {
-			log$3.warn(`parseToAst: parse failed for ${filePath}:`, e);
+			log$5.warn(`parseToAst: parse failed for ${filePath}:`, e);
 			return null;
 		}
 	}
-	convertToAstNode(node) {
-		const children = [];
-		for (let i = 0; i < (node.childCount || 0); i++) {
-			const child = node.child(i);
-			if (child) children.push(this.convertToAstNode(child));
-		}
-		return {
-			type: node.type,
-			text: node.text,
+	convertToAstNode(rootNode) {
+		const result = {
+			type: rootNode.type,
+			text: rootNode.text,
 			startPosition: {
-				row: node.startPosition.row,
-				column: node.startPosition.column
+				row: rootNode.startPosition.row,
+				column: rootNode.startPosition.column
 			},
 			endPosition: {
-				row: node.endPosition.row,
-				column: node.endPosition.column
+				row: rootNode.endPosition.row,
+				column: rootNode.endPosition.column
 			},
-			children
+			children: []
 		};
+		const stack = [];
+		for (let i = (rootNode.childCount || 0) - 1; i >= 0; i--) {
+			const child = rootNode.child(i);
+			if (child) stack.push({
+				tsNode: child,
+				astParent: result
+			});
+		}
+		while (stack.length > 0) {
+			const { tsNode, astParent } = stack.pop();
+			const astNode = {
+				type: tsNode.type,
+				text: tsNode.text,
+				startPosition: {
+					row: tsNode.startPosition.row,
+					column: tsNode.startPosition.column
+				},
+				endPosition: {
+					row: tsNode.endPosition.row,
+					column: tsNode.endPosition.column
+				},
+				children: []
+			};
+			astParent.children.push(astNode);
+			for (let i = (tsNode.childCount || 0) - 1; i >= 0; i--) {
+				const child = tsNode.child(i);
+				if (child) stack.push({
+					tsNode: child,
+					astParent: astNode
+				});
+			}
+		}
+		return result;
 	}
 	destroy() {
 		this.parser?.delete();
@@ -3204,8 +2348,7 @@ var TreeSitterAdapter = class TreeSitterAdapter {
 };
 
 //#endregion
-//#region src/host/routes.ts
-const log$2 = scoped("host");
+//#region src/host/RateLimiter.ts
 const RATE_LIMIT_WINDOW_MS = API.RATE_LIMIT_WINDOW_MS;
 const RATE_LIMIT_DEFAULT = API.RATE_LIMIT_DEFAULT;
 const RATE_LIMIT_HEAVY = API.RATE_LIMIT_HEAVY;
@@ -3253,15 +2396,192 @@ function createRateLimiter() {
 		reset
 	};
 }
+
+//#endregion
+//#region src/host/HttpHelpers.ts
+const log$4 = scoped("host");
 function getClientIp(req) {
 	const socketAddr = req.socket?.remoteAddress;
 	return socketAddr ?? "unknown";
 }
+function readBody(req, maxBodyBytes) {
+	return new Promise((resolve, reject) => {
+		let body = "";
+		let totalBytes = 0;
+		req.on("data", (chunk) => {
+			if (!chunk) return;
+			totalBytes += chunk.length;
+			if (totalBytes > maxBodyBytes) {
+				req.destroy();
+				reject(new Error(ERROR_CODES.BODY_TOO_LARGE));
+				return;
+			}
+			body += chunk.toString();
+		});
+		req.on("end", () => resolve(body));
+		req.on("error", reject);
+	});
+}
+function parseJsonBody(body) {
+	const parsed = JSON.parse(body || "{}");
+	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error(ERROR_CODES.INVALID_JSON_BODY);
+	return parsed;
+}
+function extractStringField(obj, field, maxLength) {
+	const v = obj[field];
+	if (typeof v !== "string") return void 0;
+	if (v.includes("\0")) return void 0;
+	if (maxLength !== void 0 && v.length > maxLength) return void 0;
+	return v;
+}
+function extractBooleanField(obj, field) {
+	const v = obj[field];
+	return typeof v === "boolean" ? v : void 0;
+}
+const GIT_REF_PATTERN = /^[a-zA-Z0-9._/-]+$/;
+function isSafeGitRef(ref) {
+	if (!GIT_REF_PATTERN.test(ref)) return false;
+	if (ref.includes("..")) return false;
+	return true;
+}
+async function validatePathRealpath(scanPath, securityManager) {
+	try {
+		const realPath = await fs.realpath(scanPath);
+		return securityManager.isPathAllowed(realPath);
+	} catch (e) {
+		log$4.warn("validatePathRealpath failed", e);
+		return false;
+	}
+}
+function buildCorsHeaders(req, config) {
+	const headers = {
+		"access-control-allow-methods": "GET, POST, OPTIONS",
+		"access-control-allow-headers": "content-type, if-none-match",
+		"access-control-max-age": "86400",
+		"vary": "Origin"
+	};
+	if (config.origins.length > 0) {
+		const reqOrigin = req?.headers?.["origin"];
+		if (typeof reqOrigin === "string" && config.origins.includes(reqOrigin)) headers["access-control-allow-origin"] = reqOrigin;
+	}
+	return headers;
+}
+function handleCorsPreflight(req, res, config) {
+	if (req.method !== "OPTIONS") return false;
+	const headers = buildCorsHeaders(req, config);
+	res.writeHead(204, headers);
+	res.end();
+	return true;
+}
+function sendJson(res, code, data, req, config) {
+	const headers = {
+		"content-type": "application/json",
+		...buildCorsHeaders(req, config)
+	};
+	res.writeHead(code, headers);
+	res.end(JSON.stringify(data));
+}
+function sendError(res, httpCode, errorCode, req, config, detail) {
+	const baseMessage = ERROR_MESSAGES[errorCode]?.en ?? errorCode;
+	const message = detail ? `${baseMessage}: ${detail}` : baseMessage;
+	sendJson(res, httpCode, {
+		success: false,
+		error: errorCode,
+		message
+	}, req, config);
+}
+function requireMethod(req, res, method, config) {
+	if (req.method === method) return true;
+	sendError(res, 405, "METHOD_NOT_ALLOWED", req, config, `${req.method} not allowed; expected ${method}`);
+	return false;
+}
+function checkRate(req, res, routePath, rateLimiter, config) {
+	if (!rateLimiter.check(getClientIp(req), routePath)) {
+		sendError(res, 429, "RATE_LIMIT_EXCEEDED", req, config);
+		return false;
+	}
+	return true;
+}
+function logRequest(req, routePath) {
+	log$4.info("request", {
+		method: req.method,
+		path: routePath,
+		ip: getClientIp(req)
+	});
+}
+
+//#endregion
+//#region src/host/routes.ts
+const log$3 = scoped("host");
+function withRouteMiddleware(method, routePath, corsConfig, rateLimiter, handler) {
+	return async (req, res) => {
+		if (handleCorsPreflight(req, res, corsConfig)) return;
+		if (!requireMethod(req, res, method, corsConfig)) return;
+		logRequest(req, routePath);
+		if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
+		await handler(req, res);
+	};
+}
+async function resolveAndValidatePath(pathInput, ctx, deps, req, res, corsConfig) {
+	if (pathInput && pathInput !== "." && !deps.securityManager.isPathAllowed(pathInput)) {
+		sendError(res, 403, ERROR_CODES.PATH_NOT_ALLOWED, req, corsConfig);
+		return null;
+	}
+	const resolved = pathInput && pathInput !== "." ? pathInput : findWorkspacePath(ctx);
+	if (resolved && resolved !== "." && !deps.securityManager.isPathAllowed(resolved)) {
+		sendError(res, 403, ERROR_CODES.WORKSPACE_PATH_NOT_ALLOWED, req, corsConfig);
+		return null;
+	}
+	if (resolved && resolved !== "." && !await validatePathRealpath(resolved, deps.securityManager)) {
+		sendError(res, 403, ERROR_CODES.SYMLINK_ESCAPE, req, corsConfig);
+		return null;
+	}
+	return resolved;
+}
+async function resolveAndValidateRelativePath(relativePath, ctx, deps, req, res, corsConfig) {
+	const workspacePath = findWorkspacePath(ctx);
+	if (!workspacePath) {
+		sendError(res, 400, ERROR_CODES.NO_WORKSPACE_PATH, req, corsConfig);
+		return null;
+	}
+	const fullPath = path.resolve(workspacePath, relativePath);
+	const normalizedWorkspace = path.normalize(workspacePath);
+	if (!fullPath.startsWith(normalizedWorkspace + path.sep) && fullPath !== normalizedWorkspace) {
+		sendError(res, 403, ERROR_CODES.PATH_OUTSIDE_WORKSPACE, req, corsConfig);
+		return null;
+	}
+	if (!await validatePathRealpath(fullPath, deps.securityManager)) {
+		sendError(res, 403, ERROR_CODES.SYMLINK_ESCAPE, req, corsConfig);
+		return null;
+	}
+	return fullPath;
+}
+async function validateWorkspacePath(ctx, deps) {
+	const workspacePath = findWorkspacePath(ctx);
+	if (!workspacePath) return null;
+	if (!deps.securityManager.isPathAllowed(workspacePath)) return "__denied__";
+	if (!await validatePathRealpath(workspacePath, deps.securityManager)) return "__denied__";
+	return workspacePath;
+}
 function slimGraphData(data, maxNodes) {
 	const cap = maxNodes;
 	const truncated = data.nodes.length > cap;
-	const slimNodes = (truncated ? data.nodes.slice(0, cap) : data.nodes).map((n) => ({
-		id: n.id,
+	let selectedNodes;
+	if (truncated) {
+		const degreeMap = new Map();
+		for (const n of data.nodes) degreeMap.set(n.id, 0);
+		for (const e of data.edges) {
+			if (e.source === e.target) continue;
+			const s = degreeMap.get(e.source);
+			const t = degreeMap.get(e.target);
+			if (s !== void 0) degreeMap.set(e.source, s + 1);
+			if (t !== void 0) degreeMap.set(e.target, t + 1);
+		}
+		const sorted = [...data.nodes].sort((a, b) => (degreeMap.get(b.id) ?? 0) - (degreeMap.get(a.id) ?? 0));
+		selectedNodes = sorted.slice(0, cap);
+	} else selectedNodes = data.nodes;
+	const slimNodes = selectedNodes.map((n) => ({
+		id: NodeId(n.id),
 		label: n.label,
 		type: n.type,
 		filePath: n.filePath,
@@ -3270,9 +2590,9 @@ function slimGraphData(data, maxNodes) {
 	}));
 	const allowedIds = new Set(slimNodes.map((n) => n.id));
 	const slimEdges = data.edges.filter((e) => allowedIds.has(e.source) && allowedIds.has(e.target) && e.source !== e.target).map((e) => ({
-		id: e.id,
-		source: e.source,
-		target: e.target,
+		id: EdgeId(e.id),
+		source: NodeId(e.source),
+		target: NodeId(e.target),
 		type: e.type,
 		properties: e.properties ?? {}
 	}));
@@ -3294,7 +2614,7 @@ function createInvokeUpstream(ctx, config) {
 }
 function registerService(deps) {
 	const { ctx, config } = deps;
-	const invokeUpstream = createInvokeUpstream(ctx, config);
+	const invokeUpstream = deps.invokeUpstream ?? createInvokeUpstream(ctx, config);
 	ctx.effect(() => {
 		const service = {
 			getCurrentGraph: () => deps.getLastGraphData(),
@@ -3303,7 +2623,7 @@ function registerService(deps) {
 					const raw = await fetchMergedGraph(invokeUpstream, repoId, "both");
 					return slimGraphData(raw, config.maxNodes);
 				} catch (e) {
-					log$2.warn("getGraphData failed", e);
+					log$3.warn("getGraphData failed", e);
 					return null;
 				}
 			},
@@ -3324,7 +2644,7 @@ function registerService(deps) {
 				return null;
 			},
 			onGraphUpdate: (callback) => {
-				return ctx.on("cg-viz/graph/data", (event) => {
+				return ctx.on("codegraph-visualizer/graph/data", (event) => {
 					callback({
 						nodes: event.nodes,
 						edges: event.edges,
@@ -3341,137 +2661,30 @@ function registerService(deps) {
 		return ctx.provide("graphVisualizer", service);
 	}, "codegraph: service registration");
 }
-function readBody(req, maxBodyBytes) {
-	return new Promise((resolve, reject) => {
-		let body = "";
-		let totalBytes = 0;
-		req.on("data", (chunk) => {
-			if (!chunk) return;
-			totalBytes += chunk.length;
-			if (totalBytes > maxBodyBytes) {
-				req.destroy();
-				reject(new Error("Request body too large"));
-				return;
-			}
-			body += chunk.toString();
-		});
-		req.on("end", () => resolve(body));
-		req.on("error", reject);
-	});
-}
-function parseJsonBody(body) {
-	const parsed = JSON.parse(body || "{}");
-	if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("Invalid JSON body: expected object");
-	return parsed;
-}
-function extractStringField(obj, field, maxLength) {
-	const v = obj[field];
-	if (typeof v !== "string") return void 0;
-	if (v.includes("\0")) return void 0;
-	if (maxLength !== void 0 && v.length > maxLength) return void 0;
-	return v;
-}
-function extractBooleanField(obj, field) {
-	const v = obj[field];
-	return typeof v === "boolean" ? v : void 0;
-}
-const GIT_REF_PATTERN = /^[a-zA-Z0-9._/-]+$/;
-function isSafeGitRef(ref) {
-	if (!GIT_REF_PATTERN.test(ref)) return false;
-	if (ref.includes("..")) return false;
-	return true;
-}
-async function validatePathRealpath(scanPath) {
-	try {
-		const realPath = await fs.realpath(scanPath);
-		return isPathAllowed(realPath);
-	} catch {
-		return true;
-	}
-}
-function registerRoutes(deps) {
-	const { ctx, config } = deps;
-	const invokeUpstream = createInvokeUpstream(ctx, config);
-	const origins = config.allowedOrigins;
-	const rateLimiter = createRateLimiter();
-	const sendJson = (res, code, data, req) => {
-		const headers = {
-			"content-type": "application/json",
-			"access-control-allow-methods": "GET, POST, OPTIONS",
-			"access-control-allow-headers": "content-type, if-none-match",
-			"access-control-max-age": "86400",
-			"vary": "Origin"
-		};
-		if (origins.length > 0) {
-			const reqOrigin = req?.headers?.["origin"];
-			if (typeof reqOrigin === "string" && origins.includes(reqOrigin)) headers["access-control-allow-origin"] = reqOrigin;
-		}
-		res.writeHead(code, headers);
-		res.end(JSON.stringify(data));
-	};
-	const sendError = (res, code, message, req) => {
-		sendJson(res, code, {
-			success: false,
-			error: message
-		}, req);
-	};
-	const checkRate = (req, res, routePath) => {
-		if (!rateLimiter.check(getClientIp(req), routePath)) {
-			sendError(res, 429, "Rate limit exceeded", req);
-			return false;
-		}
-		return true;
-	};
-	const handleCorsPreflight = (req, res) => {
-		if (req.method !== "OPTIONS") return false;
-		const headers = {
-			"access-control-allow-methods": "GET, POST, OPTIONS",
-			"access-control-allow-headers": "content-type, if-none-match",
-			"access-control-max-age": "86400",
-			"vary": "Origin"
-		};
-		if (origins.length > 0) {
-			const reqOrigin = req.headers?.["origin"];
-			if (typeof reqOrigin === "string" && origins.includes(reqOrigin)) headers["access-control-allow-origin"] = reqOrigin;
-		}
-		res.writeHead(204, headers);
-		res.end();
-		return true;
-	};
-	const requireMethod = (req, res, method) => {
-		if (req.method === method) return true;
-		sendError(res, 405, `Method ${req.method} not allowed; expected ${method}`, req);
-		return false;
-	};
-	const logRequest = (req, routePath) => {
-		log$2.info("request", {
-			method: req.method,
-			path: routePath,
-			ip: getClientIp(req)
-		});
-	};
+function registerStatusRoute(rc) {
+	const { deps, corsConfig, rateLimiter } = rc;
+	const { ctx } = deps;
+	const routePath = "/api/v1/codegraph/status";
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
-		path: "/api/v1/codegraph/status",
-		handler: (req, res) => {
-			if (handleCorsPreflight(req, res)) return;
-			if (!requireMethod(req, res, "GET")) return;
-			logRequest(req, "/api/v1/codegraph/status");
-			if (!checkRate(req, res, "/api/v1/codegraph/status")) return;
+		path: routePath,
+		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, (req, res) => {
 			const status = checkPrerequisites(ctx);
 			sendJson(res, 200, {
 				codegraph: status.codegraph,
 				lens: status.lens
-			}, req);
-		}
+			}, req, corsConfig);
+		})
 	}), "codegraph: status route");
+}
+function registerHealthRoute(rc) {
+	const { deps, corsConfig } = rc;
+	const { ctx } = deps;
+	const routePath = "/api/v1/codegraph/health";
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
-		path: "/api/v1/codegraph/health",
-		handler: (req, res) => {
-			if (handleCorsPreflight(req, res)) return;
-			if (!requireMethod(req, res, "GET")) return;
-			logRequest(req, "/api/v1/codegraph/health");
+		path: routePath,
+		handler: withRouteMiddleware("GET", routePath, corsConfig, rc.rateLimiter, (req, res) => {
 			try {
 				const status = checkPrerequisites(ctx);
 				const mem = process.memoryUsage();
@@ -3489,55 +2702,59 @@ function registerRoutes(deps) {
 						heapTotal: mem.heapTotal
 					},
 					timestamp: Date.now()
-				}, req);
+				}, req, corsConfig);
 			} catch (e) {
 				sendJson(res, 503, {
 					status: "unhealthy",
 					error: e instanceof Error ? e.message : String(e),
 					timestamp: Date.now()
-				}, req);
+				}, req, corsConfig);
 			}
-		}
+		})
 	}), "codegraph: health route");
+}
+function registerWorkspaceRoute(rc) {
+	const { deps, corsConfig, rateLimiter } = rc;
+	const { ctx } = deps;
+	const routePath = "/api/v1/codegraph/workspace";
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
-		path: "/api/v1/codegraph/workspace",
-		handler: (req, res) => {
-			if (handleCorsPreflight(req, res)) return;
-			if (!requireMethod(req, res, "GET")) return;
-			logRequest(req, "/api/v1/codegraph/workspace");
-			if (!checkRate(req, res, "/api/v1/codegraph/workspace")) return;
+		path: routePath,
+		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, (req, res) => {
 			const current = findWorkspacePath(ctx);
 			const list = extractWorkspacePaths(ctx);
 			sendJson(res, 200, {
 				path: current,
 				list
-			}, req);
-		}
+			}, req, corsConfig);
+		})
 	}), "codegraph: workspace route");
+}
+function registerDataRoute(rc) {
+	const { deps, corsConfig, rateLimiter } = rc;
+	const { ctx } = deps;
+	const routePath = "/api/v1/codegraph/data";
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
-		path: "/api/v1/codegraph/data",
-		handler: (req, res) => {
-			if (handleCorsPreflight(req, res)) return;
-			if (!requireMethod(req, res, "GET")) return;
-			logRequest(req, "/api/v1/codegraph/data");
-			if (!checkRate(req, res, "/api/v1/codegraph/data")) return;
+		path: routePath,
+		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, (req, res) => {
 			const ifNoneMatch = req.headers["if-none-match"];
 			const lastGraphData = deps.getLastGraphData();
 			if (ifNoneMatch && lastGraphData) {
 				const clientTimestamp = parseInt(String(ifNoneMatch), 10);
 				if (clientTimestamp >= lastGraphData.metadata.timestamp) {
-					res.writeHead(304, { "etag": String(lastGraphData.metadata.timestamp) });
+					const corsHeaders = buildCorsHeaders(req, corsConfig);
+					corsHeaders["etag"] = String(lastGraphData.metadata.timestamp);
+					res.writeHead(304, corsHeaders);
 					res.end();
 					return;
 				}
 			}
 			if (lastGraphData) {
-				res.writeHead(200, {
-					"content-type": "application/json",
-					"etag": String(lastGraphData.metadata.timestamp)
-				});
+				const dataHeaders = buildCorsHeaders(req, corsConfig);
+				dataHeaders["content-type"] = "application/json";
+				dataHeaders["etag"] = String(lastGraphData.metadata.timestamp);
+				res.writeHead(200, dataHeaders);
 				res.end(JSON.stringify(lastGraphData));
 			} else sendJson(res, 200, {
 				nodes: [],
@@ -3548,34 +2765,24 @@ function registerRoutes(deps) {
 					nodeCount: 0,
 					edgeCount: 0
 				}
-			}, req);
-		}
+			}, req, corsConfig);
+		})
 	}), "codegraph: data route");
+}
+function registerScanRoute(rc) {
+	const { deps, corsConfig, rateLimiter, invokeUpstream } = rc;
+	const { ctx, config } = deps;
+	const routePath = "/api/v1/codegraph/scan";
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
-		path: "/api/v1/codegraph/scan",
-		handler: async (req, res) => {
-			if (handleCorsPreflight(req, res)) return;
-			if (!requireMethod(req, res, "POST")) return;
-			logRequest(req, "/api/v1/codegraph/scan");
-			if (!checkRate(req, res, "/api/v1/codegraph/scan")) return;
+		path: routePath,
+		handler: withRouteMiddleware("POST", routePath, corsConfig, rateLimiter, async (req, res) => {
 			try {
 				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
-				const path$1 = extractStringField(parsed, "path", 4096);
-				if (path$1 && path$1 !== "." && !isPathAllowed(path$1)) {
-					sendError(res, 403, "Path not allowed", req);
-					return;
-				}
-				const scanPath = path$1 && path$1 !== "." ? path$1 : findWorkspacePath(ctx);
-				if (scanPath && scanPath !== "." && !isPathAllowed(scanPath)) {
-					sendError(res, 403, "Workspace path not allowed", req);
-					return;
-				}
-				if (scanPath && scanPath !== "." && !await validatePathRealpath(scanPath)) {
-					sendError(res, 403, "Access denied: symlink escape", req);
-					return;
-				}
+				const scanPathInput = extractStringField(parsed, "path", VALIDATION.MAX_PATH_LENGTH);
+				const scanPath = await resolveAndValidatePath(scanPathInput, ctx, deps, req, res, corsConfig);
+				if (scanPath === null) return;
 				const repoId = scanPath || `workspace-${Date.now()}`;
 				const scanCache = deps.getScanCache();
 				const cached = scanCache.get(scanPath);
@@ -3584,7 +2791,7 @@ function registerRoutes(deps) {
 					sendJson(res, 200, {
 						success: true,
 						...cached.data
-					}, req);
+					}, req, corsConfig);
 					return;
 				}
 				const inFlight = deps.getScanInFlight(scanPath);
@@ -3593,7 +2800,7 @@ function registerRoutes(deps) {
 					sendJson(res, 200, {
 						success: true,
 						...data
-					}, req);
+					}, req, corsConfig);
 					return;
 				}
 				const scanPromise = fetchMergedGraph(invokeUpstream, repoId, "both").then((raw) => slimGraphData(raw, config.maxNodes));
@@ -3610,19 +2817,19 @@ function registerRoutes(deps) {
 						const oldest = scanCache.keys().next().value;
 						if (oldest !== void 0) scanCache.delete(oldest);
 					}
-					ctx.emit("cg-viz/graph/updated", {
+					ctx.emit("codegraph-visualizer/graph/updated", {
 						repoId: RepoId(repoId),
 						nodeCount: data.metadata.nodeCount,
 						edgeCount: data.metadata.edgeCount,
 						timestamp: data.metadata.timestamp
 					});
-					ctx.emit("cg-viz/graph/data", {
+					ctx.emit("codegraph-visualizer/graph/data", {
 						repoId: RepoId(repoId),
 						nodes: data.nodes,
 						edges: data.edges,
 						timestamp: data.metadata.timestamp
 					});
-					log$2.info("scan completed", {
+					log$3.info("scan completed", {
 						repoId,
 						nodes: data.metadata.nodeCount,
 						edges: data.metadata.edgeCount
@@ -3630,43 +2837,33 @@ function registerRoutes(deps) {
 					sendJson(res, 200, {
 						success: true,
 						...data
-					}, req);
+					}, req, corsConfig);
 				} catch (e) {
 					deps.setScanInFlight(scanPath, null);
 					throw e;
 				}
 			} catch (e) {
-				log$2.error("scan failed", e);
-				sendError(res, 500, "Scan failed — check codegraph installation", req);
+				log$3.error("scan failed", e);
+				sendError(res, 500, ERROR_CODES.SCAN_FAILED, req, corsConfig);
 			}
-		}
+		})
 	}), "codegraph: scan route");
+}
+function registerInitRoute(rc) {
+	const { deps, corsConfig, rateLimiter, invokeUpstream } = rc;
+	const { ctx, config } = deps;
+	const routePath = "/api/v1/codegraph/init";
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
-		path: "/api/v1/codegraph/init",
-		handler: async (req, res) => {
-			if (handleCorsPreflight(req, res)) return;
-			if (!requireMethod(req, res, "POST")) return;
-			logRequest(req, "/api/v1/codegraph/init");
-			if (!checkRate(req, res, "/api/v1/codegraph/init")) return;
+		path: routePath,
+		handler: withRouteMiddleware("POST", routePath, corsConfig, rateLimiter, async (req, res) => {
 			try {
 				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
-				const path$1 = extractStringField(parsed, "path", 4096);
-				if (path$1 && path$1 !== "." && !isPathAllowed(path$1)) {
-					sendError(res, 403, "Path not allowed", req);
-					return;
-				}
-				const initPath = path$1 && path$1 !== "." ? path$1 : findWorkspacePath(ctx);
-				if (initPath && initPath !== "." && !isPathAllowed(initPath)) {
-					sendError(res, 403, "Path not allowed", req);
-					return;
-				}
-				if (initPath && initPath !== "." && !await validatePathRealpath(initPath)) {
-					sendError(res, 403, "Access denied: symlink escape", req);
-					return;
-				}
-				log$2.info("init requested", { path: initPath });
+				const pathInput = extractStringField(parsed, "path", VALIDATION.MAX_PATH_LENGTH);
+				const initPath = await resolveAndValidatePath(pathInput, ctx, deps, req, res, corsConfig);
+				if (initPath === null) return;
+				log$3.info("init requested", { path: initPath });
 				const result = await invokeUpstream("codegraph_init", {
 					path: initPath,
 					force: true
@@ -3679,22 +2876,22 @@ function registerRoutes(deps) {
 					timestamp: Date.now()
 				};
 				deps.setLastInitResult(initResult);
-				ctx.emit("cg-viz/graph/init-result", initResult);
+				ctx.emit("codegraph-visualizer/graph/init-result", initResult);
 				if (success) {
 					const repoId = initPath || `workspace-${Date.now()}`;
 					const raw = await fetchMergedGraph(invokeUpstream, repoId, "both");
 					const data = slimGraphData(raw, config.maxNodes);
 					deps.setLastGraphData(data);
-					ctx.emit("cg-viz/graph/data", {
+					ctx.emit("codegraph-visualizer/graph/data", {
 						repoId: RepoId(repoId),
 						nodes: data.nodes,
 						edges: data.edges,
 						timestamp: data.metadata.timestamp
 					});
 				}
-				sendJson(res, 200, initResult, req);
+				sendJson(res, 200, initResult, req, corsConfig);
 			} catch (e) {
-				log$2.error("init route failed", e);
+				log$3.error("init route failed", e);
 				const errorResult = {
 					success: false,
 					path: "",
@@ -3702,36 +2899,27 @@ function registerRoutes(deps) {
 					timestamp: Date.now()
 				};
 				deps.setLastInitResult(errorResult);
-				sendError(res, 500, "Initialization failed — is dsh-codegraph installed?", req);
+				sendError(res, 500, ERROR_CODES.INIT_FAILED, req, corsConfig);
 			}
-		}
+		})
 	}), "codegraph: init route");
+}
+function registerWatchRoute(rc) {
+	const { deps, corsConfig } = rc;
+	const { ctx, config } = deps;
+	const routePath = "/api/v1/codegraph/watch";
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
-		path: "/api/v1/codegraph/watch",
-		handler: async (req, res) => {
-			if (handleCorsPreflight(req, res)) return;
-			if (!requireMethod(req, res, "POST")) return;
-			logRequest(req, "/api/v1/codegraph/watch");
+		path: routePath,
+		handler: withRouteMiddleware("POST", routePath, corsConfig, rc.rateLimiter, async (req, res) => {
 			try {
 				const body = await readBody(req, config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
 				const enabled = extractBooleanField(parsed, "enabled");
-				const path$1 = extractStringField(parsed, "path", 4096);
-				if (path$1 && path$1 !== "." && !isPathAllowed(path$1)) {
-					sendError(res, 403, "Path not allowed", req);
-					return;
-				}
-				const watchPath = path$1 && path$1 !== "." ? path$1 : findWorkspacePath(ctx);
-				if (watchPath && watchPath !== "." && !isPathAllowed(watchPath)) {
-					sendError(res, 403, "Path not allowed", req);
-					return;
-				}
-				if (watchPath && watchPath !== "." && !await validatePathRealpath(watchPath)) {
-					sendError(res, 403, "Access denied: symlink escape", req);
-					return;
-				}
-				ctx.emit("cg-viz/watch/toggle", {
+				const pathInput = extractStringField(parsed, "path", VALIDATION.MAX_PATH_LENGTH);
+				const watchPath = await resolveAndValidatePath(pathInput, ctx, deps, req, res, corsConfig);
+				if (watchPath === null) return;
+				ctx.emit("codegraph-visualizer/watch/toggle", {
 					enabled: !!enabled,
 					path: watchPath,
 					timestamp: Date.now()
@@ -3740,23 +2928,28 @@ function registerRoutes(deps) {
 					success: true,
 					enabled: !!enabled,
 					path: watchPath
-				}, req);
+				}, req, corsConfig);
 			} catch (e) {
-				log$2.warn("watch route failed", e);
-				sendError(res, 500, "Watch toggle failed", req);
+				log$3.warn("watch route failed", e);
+				sendError(res, 500, ERROR_CODES.WATCH_TOGGLE_FAILED, req, corsConfig);
 			}
-		}
+		})
 	}), "codegraph: watch route");
+}
+function registerDependenciesRoute(rc) {
+	const { deps, corsConfig, rateLimiter } = rc;
+	const { ctx } = deps;
+	const routePath = "/api/v1/codegraph/dependencies";
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
-		path: "/api/v1/codegraph/dependencies",
-		handler: async (req, res) => {
-			if (handleCorsPreflight(req, res)) return;
-			if (!requireMethod(req, res, "GET")) return;
-			logRequest(req, "/api/v1/codegraph/dependencies");
-			if (!checkRate(req, res, "/api/v1/codegraph/dependencies")) return;
+		path: routePath,
+		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, async (req, res) => {
 			try {
-				const workspacePath = findWorkspacePath(ctx);
+				const workspacePath = await validateWorkspacePath(ctx, deps);
+				if (workspacePath === "__denied__") {
+					sendError(res, 403, ERROR_CODES.WORKSPACE_PATH_NOT_ALLOWED, req, corsConfig);
+					return;
+				}
 				if (!workspacePath) {
 					sendJson(res, 200, {
 						nodes: [],
@@ -3767,39 +2960,35 @@ function registerRoutes(deps) {
 							nodeCount: 0,
 							edgeCount: 0
 						}
-					}, req);
-					return;
-				}
-				if (!isPathAllowed(workspacePath)) {
-					sendError(res, 403, "Workspace path not allowed", req);
+					}, req, corsConfig);
 					return;
 				}
 				const allDepNodes = [];
 				const allDepEdges = [];
-				const packageJsonPath = path.join(workspacePath, "package.json");
-				try {
-					const content = await fs.readFile(packageJsonPath, "utf-8");
-					const depGraph = parsePackageJson(content);
+				const depFiles = [
+					{
+						filename: "package.json",
+						parser: parsePackageJson
+					},
+					{
+						filename: "Cargo.toml",
+						parser: parseCargoToml
+					},
+					{
+						filename: "go.mod",
+						parser: parseGoMod
+					}
+				];
+				for (const { filename, parser } of depFiles) try {
+					const filePath = path.join(workspacePath, filename);
+					const content = await fs.readFile(filePath, "utf-8");
+					const depGraph = parser(content);
 					const converted = dependencyGraphToGraphData(depGraph);
 					allDepNodes.push(...converted.nodes);
 					allDepEdges.push(...converted.edges);
-				} catch {}
-				const cargoTomlPath = path.join(workspacePath, "Cargo.toml");
-				try {
-					const content = await fs.readFile(cargoTomlPath, "utf-8");
-					const depGraph = parseCargoToml(content);
-					const converted = dependencyGraphToGraphData(depGraph);
-					allDepNodes.push(...converted.nodes);
-					allDepEdges.push(...converted.edges);
-				} catch {}
-				const goModPath = path.join(workspacePath, "go.mod");
-				try {
-					const content = await fs.readFile(goModPath, "utf-8");
-					const depGraph = parseGoMod(content);
-					const converted = dependencyGraphToGraphData(depGraph);
-					allDepNodes.push(...converted.nodes);
-					allDepEdges.push(...converted.edges);
-				} catch {}
+				} catch (e) {
+					if (e.code !== "ENOENT") log$3.warn(`Failed to read ${filename}:`, e);
+				}
 				const dedupNodes = new Map();
 				for (const n of allDepNodes) dedupNodes.set(n.id, n);
 				const dedupEdges = new Map();
@@ -3813,35 +3002,40 @@ function registerRoutes(deps) {
 						nodeCount: allDepNodes.length,
 						edgeCount: allDepEdges.length
 					}
-				}, req);
+				}, req, corsConfig);
 			} catch (e) {
-				log$2.error("dependencies route failed", e);
-				sendError(res, 500, "Internal server error", req);
+				log$3.error("dependencies route failed", e);
+				sendError(res, 500, ERROR_CODES.INTERNAL_ERROR, req, corsConfig);
 			}
-		}
+		})
 	}), "codegraph: dependencies route");
+}
+function registerDiffRoute(rc) {
+	const { deps, corsConfig, rateLimiter, invokeUpstream } = rc;
+	const { ctx } = deps;
+	const routePath = "/api/v1/codegraph/diff";
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
-		path: "/api/v1/codegraph/diff",
-		handler: async (req, res) => {
-			if (handleCorsPreflight(req, res)) return;
-			if (!requireMethod(req, res, "POST")) return;
-			logRequest(req, "/api/v1/codegraph/diff");
-			if (!checkRate(req, res, "/api/v1/codegraph/diff")) return;
+		path: routePath,
+		handler: withRouteMiddleware("POST", routePath, corsConfig, rateLimiter, async (req, res) => {
 			try {
-				const body = await readBody(req, config.maxBodyBytes);
+				const body = await readBody(req, deps.config.maxBodyBytes);
 				const parsed = parseJsonBody(body);
-				const fromCommit = extractStringField(parsed, "from", 256);
-				const toCommit = extractStringField(parsed, "to", 256);
+				const fromCommit = extractStringField(parsed, "from", VALIDATION.MAX_GIT_REF_LENGTH);
+				const toCommit = extractStringField(parsed, "to", VALIDATION.MAX_GIT_REF_LENGTH);
 				if (!fromCommit || !toCommit) {
-					sendError(res, 400, "from and to commits are required", req);
+					sendError(res, 400, ERROR_CODES.COMMITS_REQUIRED, req, corsConfig);
 					return;
 				}
 				if (!isSafeGitRef(fromCommit) || !isSafeGitRef(toCommit)) {
-					sendError(res, 400, "Invalid git ref format", req);
+					sendError(res, 400, ERROR_CODES.INVALID_GIT_REF, req, corsConfig);
 					return;
 				}
-				const workspacePath = findWorkspacePath(ctx);
+				const workspacePath = await validateWorkspacePath(ctx, deps);
+				if (workspacePath === "__denied__") {
+					sendError(res, 403, ERROR_CODES.WORKSPACE_PATH_NOT_ALLOWED, req, corsConfig);
+					return;
+				}
 				if (!workspacePath) {
 					sendJson(res, 200, {
 						nodes: [],
@@ -3852,11 +3046,7 @@ function registerRoutes(deps) {
 							nodeCount: 0,
 							edgeCount: 0
 						}
-					}, req);
-					return;
-				}
-				if (!isPathAllowed(workspacePath)) {
-					sendError(res, 403, "Workspace path not allowed", req);
+					}, req, corsConfig);
 					return;
 				}
 				const beforeGraph = await fetchMergedGraph(invokeUpstream, `${workspacePath}@${fromCommit}`, "both");
@@ -3872,149 +3062,242 @@ function registerRoutes(deps) {
 						nodeCount: nodes.length,
 						edgeCount: edges.length
 					}
-				}, req);
+				}, req, corsConfig);
 			} catch (e) {
-				log$2.error("diff route failed", e);
-				sendError(res, 500, "Graph diff failed — check git refs", req);
+				log$3.error("diff route failed", e);
+				sendError(res, 500, ERROR_CODES.GRAPH_DIFF_FAILED, req, corsConfig);
 			}
-		}
+		})
 	}), "codegraph: diff route");
+}
+function registerAstRoute(rc, sharedTreeSitterAdapter) {
+	const { deps, corsConfig, rateLimiter } = rc;
+	const { ctx, config } = deps;
+	const routePath = "/api/v1/codegraph/ast";
+	ctx.effect(() => ctx.webServer.register({
+		kind: "exact",
+		path: routePath,
+		handler: withRouteMiddleware("POST", routePath, corsConfig, rateLimiter, async (req, res) => {
+			try {
+				const body = await readBody(req, config.maxBodyBytes);
+				const parsed = parseJsonBody(body);
+				const filePath = extractStringField(parsed, "filePath", VALIDATION.MAX_FILEPATH_LENGTH);
+				if (!filePath) {
+					sendError(res, 400, ERROR_CODES.FILEPATH_REQUIRED, req, corsConfig);
+					return;
+				}
+				const realPath = await resolveAndValidateRelativePath(filePath, ctx, deps, req, res, corsConfig);
+				if (!realPath) return;
+				const content = await fs.readFile(realPath, "utf-8");
+				const MAX_AST_CONTENT = AST.MAX_CONTENT_BYTES;
+				if (content.length > MAX_AST_CONTENT) {
+					sendError(res, 413, ERROR_CODES.FILE_TOO_LARGE, req, corsConfig, `max ${MAX_AST_CONTENT} bytes`);
+					return;
+				}
+				const astRoot = await sharedTreeSitterAdapter.parseToAst(filePath, content);
+				if (!astRoot) {
+					sendError(res, 500, ERROR_CODES.AST_PARSE_FAILED, req, corsConfig, `parseToAst returned null for ${filePath}`);
+					return;
+				}
+				sendJson(res, 200, astRoot, req, corsConfig);
+			} catch (e) {
+				log$3.error("ast route failed", e);
+				sendError(res, 500, ERROR_CODES.AST_PARSE_FAILED, req, corsConfig, e instanceof Error ? e.message : String(e));
+			}
+		})
+	}), "codegraph: ast route");
+}
+function registerTreeSitterRoute(rc, sharedTreeSitterAdapter) {
+	const { deps, corsConfig, rateLimiter } = rc;
+	const { ctx, config } = deps;
+	const routePath = "/api/v1/codegraph/tree-sitter";
+	ctx.effect(() => ctx.webServer.register({
+		kind: "exact",
+		path: routePath,
+		handler: withRouteMiddleware("POST", routePath, corsConfig, rateLimiter, async (req, res) => {
+			try {
+				const body = await readBody(req, config.maxBodyBytes);
+				const parsed = parseJsonBody(body);
+				const filePath = extractStringField(parsed, "filePath");
+				const content = extractStringField(parsed, "content");
+				if (!filePath || !content) {
+					sendError(res, 400, ERROR_CODES.FILEPATH_AND_CONTENT_REQUIRED, req, corsConfig);
+					return;
+				}
+				if (filePath.includes("..") || filePath.length > VALIDATION.MAX_FILEPATH_LENGTH) {
+					sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
+					return;
+				}
+				const MAX_TREE_SITTER_CONTENT = AST.MAX_TREE_SITTER_CONTENT_BYTES;
+				if (content.length > MAX_TREE_SITTER_CONTENT) {
+					sendError(res, 413, ERROR_CODES.CONTENT_TOO_LARGE, req, corsConfig, `max ${MAX_TREE_SITTER_CONTENT} bytes, got ${content.length}`);
+					return;
+				}
+				const result = await sharedTreeSitterAdapter.parseFile(filePath, content);
+				sendJson(res, 200, result, req, corsConfig);
+			} catch (e) {
+				log$3.error("tree-sitter route failed", e);
+				sendError(res, 500, ERROR_CODES.INTERNAL_ERROR, req, corsConfig);
+			}
+		})
+	}), "codegraph: tree-sitter route");
+}
+function registerBootstrapRoute(rc) {
+	const { deps, corsConfig, rateLimiter } = rc;
+	const { ctx } = deps;
+	const routePath = "/api/v1/codegraph/bootstrap";
+	ctx.effect(() => ctx.webServer.register({
+		kind: "exact",
+		path: routePath,
+		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, (req, res) => {
+			const lastGraphData = deps.getLastGraphData();
+			if (!lastGraphData || lastGraphData.nodes.length === 0) {
+				sendJson(res, 200, {
+					rootNodes: [],
+					topLevelNodes: [],
+					topLevelTotal: 0,
+					edges: [],
+					indexStatus: "empty",
+					metadata: {
+						repoId: RepoId("empty"),
+						timestamp: 0,
+						totalNodeCount: 0,
+						totalEdgeCount: 0
+					}
+				}, req, corsConfig);
+				return;
+			}
+			const rootNodes = lastGraphData.nodes.filter((n) => !n.parentId);
+			const topLevelNodes = rootNodes.slice(0, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
+			const topLevelIds = new Set(topLevelNodes.map((n) => n.id));
+			const rootEdges = lastGraphData.edges.filter((e) => topLevelIds.has(e.source) && topLevelIds.has(e.target));
+			sendJson(res, 200, {
+				rootNodes,
+				topLevelNodes,
+				topLevelTotal: rootNodes.length,
+				edges: rootEdges,
+				indexStatus: "ready",
+				metadata: {
+					repoId: lastGraphData.metadata.repoId,
+					timestamp: lastGraphData.metadata.timestamp,
+					totalNodeCount: lastGraphData.metadata.totalNodeCount ?? lastGraphData.nodes.length,
+					totalEdgeCount: lastGraphData.metadata.totalEdgeCount ?? lastGraphData.edges.length
+				}
+			}, req, corsConfig);
+		})
+	}), "codegraph: bootstrap route");
+}
+function registerNodeChildrenRoute(rc) {
+	const { deps, corsConfig, rateLimiter } = rc;
+	const { ctx } = deps;
+	const routePath = "/api/v1/codegraph/children";
+	ctx.effect(() => ctx.webServer.register({
+		kind: "exact",
+		path: routePath,
+		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, (req, res) => {
+			const url = new URL(req.url ?? "", `http://${req.headers.host ?? "localhost"}`);
+			const nodeId = url.searchParams.get("nodeId");
+			if (!nodeId || nodeId.length > VALIDATION.MAX_PATH_LENGTH) {
+				sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
+				return;
+			}
+			const lastGraphData = deps.getLastGraphData();
+			if (!lastGraphData) {
+				sendJson(res, 200, {
+					nodes: [],
+					edges: [],
+					cursor: null,
+					total: 0
+				}, req, corsConfig);
+				return;
+			}
+			const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10) || 0;
+			const limit = parseInt(url.searchParams.get("limit") ?? String(BOOTSTRAP.CHILDREN_PAGE_SIZE), 10) || BOOTSTRAP.CHILDREN_PAGE_SIZE;
+			const children = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
+			const page = children.slice(cursor, cursor + limit);
+			const childIds = new Set(page.map((n) => n.id));
+			const childEdges = lastGraphData.edges.filter((e) => childIds.has(e.source) && childIds.has(e.target));
+			sendJson(res, 200, {
+				nodes: page,
+				edges: childEdges,
+				cursor: cursor + page.length < children.length ? String(cursor + page.length) : null,
+				total: children.length
+			}, req, corsConfig);
+		})
+	}), "codegraph: node children route");
+}
+function registerRoutes(deps) {
+	const { ctx, config } = deps;
+	const invokeUpstream = deps.invokeUpstream ?? createInvokeUpstream(ctx, config);
+	const corsConfig = { origins: config.allowedOrigins };
+	const rateLimiter = createRateLimiter();
 	const sharedTreeSitterAdapter = new TreeSitterAdapter();
-	ctx.effect(() => {
-		return ctx.webServer.register({
-			kind: "exact",
-			path: "/api/v1/codegraph/ast",
-			handler: async (req, res) => {
-				if (handleCorsPreflight(req, res)) return;
-				if (!requireMethod(req, res, "POST")) return;
-				logRequest(req, "/api/v1/codegraph/ast");
-				if (!checkRate(req, res, "/api/v1/codegraph/ast")) return;
-				try {
-					const body = await readBody(req, config.maxBodyBytes);
-					const parsed = parseJsonBody(body);
-					const filePath = extractStringField(parsed, "filePath", 512);
-					if (!filePath) {
-						sendError(res, 400, "filePath is required", req);
-						return;
-					}
-					const workspacePath = findWorkspacePath(ctx);
-					if (!workspacePath) {
-						sendError(res, 400, "No workspace path configured", req);
-						return;
-					}
-					const fullPath = path.resolve(workspacePath, filePath);
-					const normalizedWorkspace = path.normalize(workspacePath);
-					if (!fullPath.startsWith(normalizedWorkspace + path.sep) && fullPath !== normalizedWorkspace) {
-						sendError(res, 403, "Access denied: path outside workspace", req);
-						return;
-					}
-					const realPath = await fs.realpath(fullPath);
-					const realWorkspace = await fs.realpath(normalizedWorkspace);
-					if (!realPath.startsWith(realWorkspace + path.sep) && realPath !== realWorkspace) {
-						sendError(res, 403, "Access denied: symlink escape", req);
-						return;
-					}
-					if (!isPathAllowed(realPath)) {
-						sendError(res, 403, "Access denied", req);
-						return;
-					}
-					const content = await fs.readFile(realPath, "utf-8");
-					const MAX_AST_CONTENT = 512 * 1024;
-					if (content.length > MAX_AST_CONTENT) {
-						sendError(res, 413, `File too large for AST parsing (max ${MAX_AST_CONTENT} bytes)`, req);
-						return;
-					}
-					const astRoot = await sharedTreeSitterAdapter.parseToAst(filePath, content);
-					if (!astRoot) {
-						sendError(res, 500, `AST parsing failed: parseToAst returned null for ${filePath}`, req);
-						return;
-					}
-					sendJson(res, 200, astRoot, req);
-				} catch (e) {
-					log$2.error("ast route failed", e);
-					sendError(res, 500, `AST parsing failed: ${e instanceof Error ? e.message : String(e)}`, req);
-				}
-			}
-		});
-	}, "codegraph: ast route");
-	ctx.effect(() => {
-		return ctx.webServer.register({
-			kind: "exact",
-			path: "/api/v1/codegraph/tree-sitter",
-			handler: async (req, res) => {
-				if (handleCorsPreflight(req, res)) return;
-				if (!requireMethod(req, res, "POST")) return;
-				logRequest(req, "/api/v1/codegraph/tree-sitter");
-				if (!checkRate(req, res, "/api/v1/codegraph/tree-sitter")) return;
-				try {
-					const body = await readBody(req, config.maxBodyBytes);
-					const parsed = parseJsonBody(body);
-					const filePath = extractStringField(parsed, "filePath");
-					const content = extractStringField(parsed, "content");
-					if (!filePath || !content) {
-						sendError(res, 400, "filePath and content are required", req);
-						return;
-					}
-					if (filePath.includes("..") || filePath.length > 512) {
-						sendError(res, 400, "Invalid filePath", req);
-						return;
-					}
-					const MAX_TREE_SITTER_CONTENT = 512 * 1024;
-					if (content.length > MAX_TREE_SITTER_CONTENT) {
-						sendError(res, 413, `Content too large for tree-sitter parsing (max ${MAX_TREE_SITTER_CONTENT} bytes, got ${content.length})`, req);
-						return;
-					}
-					const result = await sharedTreeSitterAdapter.parseFile(filePath, content);
-					sendJson(res, 200, result, req);
-				} catch (e) {
-					log$2.error("tree-sitter route failed", e);
-					sendError(res, 500, "Internal server error", req);
-				}
-			}
-		});
-	}, "codegraph: tree-sitter route");
+	const rc = {
+		deps,
+		corsConfig,
+		rateLimiter,
+		invokeUpstream
+	};
+	registerStatusRoute(rc);
+	registerHealthRoute(rc);
+	registerWorkspaceRoute(rc);
+	registerDataRoute(rc);
+	registerScanRoute(rc);
+	registerInitRoute(rc);
+	registerWatchRoute(rc);
+	registerDependenciesRoute(rc);
+	registerDiffRoute(rc);
+	registerAstRoute(rc, sharedTreeSitterAdapter);
+	registerTreeSitterRoute(rc, sharedTreeSitterAdapter);
+	registerBootstrapRoute(rc);
+	registerNodeChildrenRoute(rc);
 	ctx.effect(() => () => rateLimiter.reset(), "codegraph: rate limiter cleanup");
 	ctx.effect(() => () => sharedTreeSitterAdapter.destroy(), "codegraph: tree-sitter adapter cleanup");
 }
 
 //#endregion
 //#region src/host/watcher.ts
-const log$1 = scoped("host");
+const log$2 = scoped("host");
 const supportsRecursive = platform() === "win32" || platform() === "darwin";
 async function scanAndPush(ctx, invokeUpstream, path$1) {
-	log$1.info("scan requested", { path: path$1 });
+	log$2.info("scan requested", { path: path$1 });
 	try {
 		const repoId = path$1 || "workspace-default";
 		const data = await fetchMergedGraph(invokeUpstream, repoId, "both");
-		ctx.emit("cg-viz/graph/updated", {
+		ctx.emit("codegraph-visualizer/graph/updated", {
 			repoId: RepoId(repoId),
 			nodeCount: data.metadata.nodeCount,
 			edgeCount: data.metadata.edgeCount,
 			timestamp: data.metadata.timestamp
 		});
-		ctx.emit("cg-viz/graph/data", {
+		ctx.emit("codegraph-visualizer/graph/data", {
 			repoId: RepoId(repoId),
 			nodes: data.nodes,
 			edges: data.edges,
 			timestamp: data.metadata.timestamp
 		});
-		log$1.info("scan completed", {
+		log$2.info("scan completed", {
 			repoId,
 			nodes: data.metadata.nodeCount,
 			edges: data.metadata.edgeCount
 		});
 	} catch (e) {
-		log$1.error("scan failed", e);
+		log$2.error("scan failed", e);
 	}
 }
 function registerWatcher(ctx, config, invokeUpstream) {
 	let watchTimer = null;
 	let activeWatcher = null;
+	let retryCount = 0;
+	const MAX_RETRIES = WATCHER.MAX_RETRIES;
+	const RETRY_BASE_DELAY = WATCHER.RETRY_BASE_DELAY_MS;
 	const closeActiveWatcher = () => {
 		if (activeWatcher) {
 			try {
 				activeWatcher.close();
-			} catch {}
+			} catch (e) {
+				log$2.warn("Failed to close watcher", e);
+			}
 			activeWatcher = null;
 		}
 		if (watchTimer) {
@@ -4022,33 +3305,56 @@ function registerWatcher(ctx, config, invokeUpstream) {
 			watchTimer = null;
 		}
 	};
+	const setupWatch = (watchPath) => {
+		try {
+			const watchOpts = supportsRecursive ? { recursive: true } : {};
+			activeWatcher = watch(watchPath, watchOpts, (_eventType, filename) => {
+				if (!filename) return;
+				const segments = filename.split(/[\\/]/);
+				if (segments.includes(".codegraph")) return;
+				if (segments.includes("node_modules")) return;
+				if (segments.includes(".git")) return;
+				if (watchTimer) clearTimeout(watchTimer);
+				watchTimer = setTimeout(() => {
+					watchTimer = null;
+					if (!activeWatcher) return;
+					log$2.info("file changed, syncing + re-scanning", { filename });
+					invokeUpstream("codegraph_sync", { path: watchPath }).then(() => scanAndPush(ctx, invokeUpstream, watchPath)).catch((e) => log$2.error("watch re-scan failed", e));
+				}, config.watchDebounce);
+			});
+			retryCount = 0;
+		} catch (e) {
+			log$2.error("watch setup failed", e);
+			if (retryCount < MAX_RETRIES) {
+				retryCount++;
+				const delay = RETRY_BASE_DELAY * Math.pow(2, retryCount - 1);
+				log$2.info("retrying watch setup", {
+					retryCount,
+					delay,
+					path: watchPath
+				});
+				setTimeout(() => setupWatch(watchPath), delay);
+			} else {
+				log$2.error("watch setup exhausted retries", { path: watchPath });
+				ctx.emit("codegraph-visualizer/watch/error", {
+					path: watchPath,
+					message: "Watch setup failed after retries",
+					errorCode: ERROR_CODES.WATCH_SETUP_FAILED,
+					timestamp: Date.now()
+				});
+			}
+		}
+	};
 	ctx.effect(() => {
-		const dispose = ctx.on("cg-viz/watch/toggle", (event) => {
+		const dispose = ctx.on("codegraph-visualizer/watch/toggle", (event) => {
 			closeActiveWatcher();
 			if (!event.enabled) {
-				log$1.info("watch disabled");
+				log$2.info("watch disabled");
 				return;
 			}
-			log$1.info("watch enabled", { path: event.path });
-			try {
-				const watchOpts = supportsRecursive ? { recursive: true } : {};
-				activeWatcher = watch(event.path, watchOpts, (_eventType, filename) => {
-					if (!filename) return;
-					const segments = filename.split(/[\\/]/);
-					if (segments.includes(".codegraph")) return;
-					if (segments.includes("node_modules")) return;
-					if (segments.includes(".git")) return;
-					if (watchTimer) clearTimeout(watchTimer);
-					watchTimer = setTimeout(() => {
-						watchTimer = null;
-						if (!activeWatcher) return;
-						log$1.info("file changed, syncing + re-scanning", { filename });
-						invokeUpstream("codegraph_sync", { path: event.path }).then(() => scanAndPush(ctx, invokeUpstream, event.path)).catch((e) => log$1.error("watch re-scan failed", e));
-					}, config.watchDebounce);
-				});
-			} catch (e) {
-				log$1.error("watch setup failed", e);
-			}
+			log$2.info("watch enabled", { path: event.path });
+			retryCount = 0;
+			setupWatch(event.path);
 		});
 		return () => {
 			dispose();
@@ -4057,51 +3363,364 @@ function registerWatcher(ctx, config, invokeUpstream) {
 	}, "codegraph: watch toggle listener");
 }
 function registerEventListeners(ctx, invokeUpstream) {
-	ctx.effect(() => ctx.on("cg-viz/repo/imported", (event) => {
-		ctx.emit("cg-viz/graph/updated", {
+	ctx.effect(() => ctx.on("codegraph-visualizer/repo/imported", (event) => {
+		ctx.emit("codegraph-visualizer/graph/updated", {
 			repoId: event.repoId,
 			nodeCount: 0,
 			edgeCount: 0,
 			timestamp: event.timestamp
 		});
 	}), "codegraph: repo imported listener");
-	ctx.effect(() => ctx.on("cg-viz/repo/scanned", (event) => {
-		ctx.emit("cg-viz/graph/updated", {
+	ctx.effect(() => ctx.on("codegraph-visualizer/repo/scanned", (event) => {
+		ctx.emit("codegraph-visualizer/graph/updated", {
 			repoId: event.repoId,
 			nodeCount: 0,
 			edgeCount: 0,
 			timestamp: event.timestamp
 		});
 	}), "codegraph: repo scanned listener");
-	ctx.effect(() => ctx.on("cg-viz/repo/request-scan", async (event) => {
+	ctx.effect(() => ctx.on("codegraph-visualizer/repo/request-scan", async (event) => {
 		await scanAndPush(ctx, invokeUpstream, event.path);
 	}), "codegraph: repo request-scan listener");
-	ctx.effect(() => ctx.on("cg-viz/graph/init", async (event) => {
-		log$1.info("init requested", { path: event.path });
+	ctx.effect(() => ctx.on("codegraph-visualizer/graph/init", async (event) => {
+		log$2.info("init requested", { path: event.path });
 		try {
 			const result = await invokeUpstream("codegraph_init", {
 				path: event.path,
 				force: true
 			});
 			const success = result !== null;
-			ctx.emit("cg-viz/graph/init-result", {
+			const initResult = {
 				success,
 				path: event.path,
 				message: success ? "Graph initialized successfully" : "Initialization failed — is dsh-codegraph installed?",
 				timestamp: Date.now()
-			});
+			};
+			if (!success) initResult.errorCode = ERROR_CODES.INIT_FAILED;
+			ctx.emit("codegraph-visualizer/graph/init-result", initResult);
 			if (success) await scanAndPush(ctx, invokeUpstream, event.path);
 		} catch (e) {
-			log$1.warn("graph init failed", e);
-			ctx.emit("cg-viz/graph/init-result", {
+			log$2.warn("graph init failed", e);
+			ctx.emit("codegraph-visualizer/graph/init-result", {
 				success: false,
 				path: event.path,
 				message: "Initialization failed",
+				errorCode: ERROR_CODES.INIT_FAILED,
 				timestamp: Date.now()
 			});
 		}
 	}), "codegraph: graph init listener");
 }
+
+//#endregion
+//#region src/host/McpServer.ts
+const log$1 = scoped("mcp-server");
+const MAX_MESSAGE_LENGTH = MCP.MAX_MESSAGE_LENGTH;
+var McpServer = class {
+	tools = new Map();
+	running = false;
+	rl = null;
+	messageQueue = [];
+	processing = false;
+	registerTool(tool) {
+		this.tools.set(tool.name, tool);
+	}
+	async start(getGraphData) {
+		this.registerGraphTools(getGraphData);
+		this.rl = createInterface({
+			input: process.stdin,
+			output: process.stdout
+		});
+		this.running = true;
+		this.rl.on("line", (line) => {
+			this.messageQueue.push(line);
+			this.processQueue();
+		});
+		this.rl.on("close", () => {
+			this.running = false;
+			log$1.info("MCP server stopped");
+		});
+		this.rl.on("error", (err) => {
+			log$1.error("MCP server stdin error", err);
+			this.running = false;
+			try {
+				this.rl?.close();
+			} catch (_e) {}
+			this.rl = null;
+		});
+		log$1.info("MCP server started", { tools: this.tools.size });
+	}
+	async processQueue() {
+		if (this.processing) return;
+		this.processing = true;
+		while (this.messageQueue.length > 0) {
+			const line = this.messageQueue.shift();
+			try {
+				if (line.length > MAX_MESSAGE_LENGTH) {
+					log$1.warn("MCP message too large, skipping", { length: line.length });
+					continue;
+				}
+				const msg = JSON.parse(line);
+				const response = await this.handleMessage(msg);
+				if (response) process.stdout.write(JSON.stringify(response) + "\n");
+			} catch (e) {
+				log$1.warn("MCP message handling failed", e);
+				try {
+					const errorResponse = {
+						jsonrpc: "2.0",
+						id: null,
+						error: {
+							code: -32700,
+							message: "Parse error"
+						}
+					};
+					process.stdout.write(JSON.stringify(errorResponse) + "\n");
+				} catch (e$1) {
+					log$1.warn("Failed to send MCP error response", e$1);
+				}
+			}
+		}
+		this.processing = false;
+	}
+	async handleMessage(msg) {
+		const method = msg["method"];
+		const id = msg["id"];
+		if (id !== null && typeof id !== "string" && typeof id !== "number") return {
+			jsonrpc: "2.0",
+			id: null,
+			error: {
+				code: -32600,
+				message: "Invalid Request: id must be string, number, or null"
+			}
+		};
+		if (msg["jsonrpc"] !== "2.0") return {
+			jsonrpc: "2.0",
+			id,
+			error: {
+				code: -32600,
+				message: "Invalid Request: jsonrpc must be \"2.0\""
+			}
+		};
+		if (method === "initialize") return {
+			jsonrpc: "2.0",
+			id,
+			result: {
+				protocolVersion: "2024-11-05",
+				capabilities: { tools: {} },
+				serverInfo: {
+					name: "dsh-codegraph-visualizer",
+					version: PLUGIN_VERSION
+				}
+			}
+		};
+		if (method === "tools/list") return {
+			jsonrpc: "2.0",
+			id,
+			result: { tools: Array.from(this.tools.values()).map((t) => ({
+				name: t.name,
+				description: t.description,
+				inputSchema: t.inputSchema
+			})) }
+		};
+		if (method === "tools/call") {
+			const params = msg["params"];
+			if (typeof params !== "object" || params === null) return {
+				jsonrpc: "2.0",
+				id,
+				error: {
+					code: -32602,
+					message: "Invalid params: expected object"
+				}
+			};
+			const toolName = typeof params["name"] === "string" ? params["name"] : "";
+			if (!toolName) return {
+				jsonrpc: "2.0",
+				id,
+				error: {
+					code: -32602,
+					message: "Invalid params: tool name is required and must be a non-empty string"
+				}
+			};
+			const args = typeof params["arguments"] === "object" && params["arguments"] !== null ? params["arguments"] : {};
+			const tool = this.tools.get(toolName);
+			if (!tool) return {
+				jsonrpc: "2.0",
+				id,
+				error: {
+					code: -32601,
+					message: `Unknown tool: ${toolName}`
+				}
+			};
+			try {
+				const result = await tool.handler(args);
+				return {
+					jsonrpc: "2.0",
+					id,
+					result: { content: [{
+						type: "text",
+						text: JSON.stringify(result, null, 2)
+					}] }
+				};
+			} catch (e) {
+				return {
+					jsonrpc: "2.0",
+					id,
+					error: {
+						code: -32603,
+						message: e instanceof Error ? e.message : String(e)
+					}
+				};
+			}
+		}
+		return {
+			jsonrpc: "2.0",
+			id,
+			error: {
+				code: -32601,
+				message: `Method not found: ${method}`
+			}
+		};
+	}
+	registerGraphTools(getGraphData) {
+		this.registerTool({
+			name: "graph_status",
+			description: "Get the current graph status including node and edge counts",
+			inputSchema: {
+				type: "object",
+				properties: {}
+			},
+			handler: async () => {
+				const data = getGraphData();
+				if (!data) return {
+					status: "no data",
+					nodes: 0,
+					edges: 0
+				};
+				return {
+					status: "ready",
+					nodes: data.metadata.nodeCount,
+					edges: data.metadata.edgeCount
+				};
+			}
+		});
+		this.registerTool({
+			name: "graph_data",
+			description: "Get the full graph data (nodes and edges)",
+			inputSchema: {
+				type: "object",
+				properties: { limit: {
+					type: "number",
+					description: "Max nodes to return (default 100)"
+				} }
+			},
+			handler: async (args) => {
+				const data = getGraphData();
+				if (!data) return {
+					nodes: [],
+					edges: []
+				};
+				const limit = safeNumber(args["limit"], 100);
+				return {
+					nodes: data.nodes.slice(0, limit).map((n) => ({
+						id: n.id,
+						label: n.label,
+						type: n.type,
+						filePath: n.filePath
+					})),
+					edges: data.edges.slice(0, limit * 2).map((e) => ({
+						source: e.source,
+						target: e.target,
+						type: e.type
+					})),
+					totalNodes: data.metadata.nodeCount,
+					totalEdges: data.metadata.edgeCount
+				};
+			}
+		});
+		this.registerTool({
+			name: "graph_symbol",
+			description: "Search for symbols in the graph by name",
+			inputSchema: {
+				type: "object",
+				properties: { search: {
+					type: "string",
+					description: "Symbol name to search for"
+				} },
+				required: ["search"]
+			},
+			handler: async (args) => {
+				const data = getGraphData();
+				if (!data) return { results: [] };
+				const search = safeString(args["search"]).toLowerCase();
+				const exact = [];
+				const partial = [];
+				for (const n of data.nodes) {
+					const labelLower = n.label.toLowerCase();
+					if (labelLower === search) exact.push(n);
+					else if (labelLower.includes(search)) partial.push(n);
+				}
+				const results = [...exact, ...partial].slice(0, 20).map((n) => ({
+					id: n.id,
+					label: n.label,
+					type: n.type,
+					filePath: n.filePath,
+					lineNumber: n.lineNumber
+				}));
+				return {
+					results,
+					count: results.length
+				};
+			}
+		});
+		this.registerTool({
+			name: "graph_impact",
+			description: "Get impact analysis for a symbol (what depends on it)",
+			inputSchema: {
+				type: "object",
+				properties: {
+					symbol: {
+						type: "string",
+						description: "Symbol name to analyze"
+					},
+					depth: {
+						type: "number",
+						description: "Depth of impact analysis (default 2)"
+					}
+				},
+				required: ["symbol"]
+			},
+			handler: async (args) => {
+				const data = getGraphData();
+				if (!data) return { impacted: [] };
+				const symbol = safeString(args["symbol"]);
+				const depth = safeNumber(args["depth"], 2);
+				const targetNode = data.nodes.find((n) => n.label === symbol || n.label.endsWith(`.${symbol}`));
+				if (!targetNode) return {
+					impacted: [],
+					message: "Symbol not found",
+					errorCode: ERROR_CODES.SYMBOL_NOT_FOUND
+				};
+				const reverseAdj = buildBackwardAdjacency(data.edges);
+				const result = bfsFrontierExpansion(reverseAdj, targetNode.id, depth, MCP.MAX_IMPACT_RESULTS);
+				return {
+					impacted: result.impacted,
+					count: result.count,
+					truncated: result.truncated
+				};
+			}
+		});
+	}
+	stop() {
+		this.running = false;
+		if (this.rl) {
+			this.rl.close();
+			this.rl = null;
+		}
+	}
+	isRunning() {
+		return this.running;
+	}
+};
 
 //#endregion
 //#region src/index.ts
@@ -4113,10 +3732,11 @@ const inject = [
 	"sessions",
 	"workspaceRegistry"
 ];
-function apply(ctx, userConfig) {
+async function apply(ctx, userConfig) {
 	const config = resolveConfig(userConfig);
-	setAllowedWorkspaceRoots(extractWorkspacePaths(ctx));
-	const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus, dispose: disposeGraphTools } = createGraphTools(ctx, { requestTimeout: config.requestTimeout });
+	const securityManager = createSecurityManager();
+	securityManager.setAllowedWorkspaceRoots(extractWorkspacePaths(ctx));
+	const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout });
 	ctx.effect(() => {
 		const d1 = ctx.tools.register(graphStatus);
 		const d2 = ctx.tools.register(graphData);
@@ -4141,9 +3761,12 @@ function apply(ctx, userConfig) {
 	let lastInitResult = null;
 	const scanInFlightMap = new Map();
 	const scanCache = new Map();
+	const invokeUpstream = createInvokeUpstream(ctx, config);
 	const routeDeps = {
 		ctx,
 		config,
+		securityManager,
+		invokeUpstream,
 		getLastGraphData: () => lastGraphData,
 		setLastGraphData: (data) => {
 			lastGraphData = data;
@@ -4161,12 +3784,11 @@ function apply(ctx, userConfig) {
 	};
 	registerService(routeDeps);
 	registerRoutes(routeDeps);
-	const invokeUpstream = createInvokeUpstream(ctx, config);
 	let lastStatus = "";
 	const emitPrereqStatus = () => {
 		const status = checkPrerequisites(ctx);
 		const statusKey = `${status.codegraph}:${status.lens}`;
-		ctx.emit("cg-viz/prerequisite/status", {
+		ctx.emit("codegraph-visualizer/prerequisite/status", {
 			codegraph: status.codegraph,
 			lens: status.lens,
 			timestamp: Date.now()
@@ -4181,7 +3803,7 @@ function apply(ctx, userConfig) {
 		const prereqTimer = setInterval(() => {
 			const status = checkPrerequisites(ctx);
 			const statusKey = `${status.codegraph}:${status.lens}`;
-			ctx.emit("cg-viz/prerequisite/status", {
+			ctx.emit("codegraph-visualizer/prerequisite/status", {
 				codegraph: status.codegraph,
 				lens: status.lens,
 				timestamp: Date.now()
@@ -4194,21 +3816,28 @@ function apply(ctx, userConfig) {
 		}, config.prerequisiteRetryDelay);
 		return () => clearInterval(prereqTimer);
 	}, "codegraph: prereq re-check timer");
-	ctx.effect(() => ctx.on("cg-viz/prerequisite/request", () => {
+	ctx.effect(() => ctx.on("codegraph-visualizer/prerequisite/request", () => {
 		emitPrereqStatus();
 	}), "codegraph: prerequisite request listener");
 	registerEventListeners(ctx, invokeUpstream);
 	registerWatcher(ctx, config, invokeUpstream);
-	return () => {
-		scanCache.clear();
-		scanInFlightMap.clear();
-		lastGraphData = null;
-		lastInitResult = null;
-		resetSecurityManager();
-		disposeGraphTools();
-	};
+	const mcpServer = new McpServer();
+	ctx.effect(() => {
+		mcpServer.start(() => lastGraphData);
+		return () => mcpServer.stop();
+	}, "codegraph: MCP server");
+	ctx.effect(() => {
+		return () => {
+			scanCache.clear();
+			scanInFlightMap.clear();
+			lastGraphData = null;
+			lastInitResult = null;
+			securityManager.reset();
+		};
+	}, "codegraph: state cleanup");
+	return () => {};
 }
 
 //#endregion
-export { DEFAULT_CONFIG, PLUGIN_VERSION, apply, inject, isPathAllowed, name, resolveConfig, setAllowedWorkspaceRoots };
+export { DEFAULT_CONFIG, PLUGIN_VERSION, SecurityManager, apply, createSecurityManager, inject, name, resolveConfig };
 //# sourceMappingURL=index.js.map

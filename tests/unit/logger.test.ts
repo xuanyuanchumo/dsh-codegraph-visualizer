@@ -1,6 +1,6 @@
 // Unit tests for the structured Logger (error/log management, J13 no-leak)
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { logger, scoped } from '../../src/shared/Logger.ts';
+import { logger, scoped, resetLoggerListeners } from '../../src/shared/Logger.ts';
 
 describe('Logger (log management)', () => {
   beforeEach(() => {
@@ -83,5 +83,63 @@ describe('scoped logger factory', () => {
     log.info('with-data', { key: 'value' });
     const entries = logger.entries();
     expect(entries[0]?.data).toEqual({ key: 'value' });
+  });
+});
+describe('resetLoggerListeners', () => {
+  beforeEach(() => {
+    logger.clear();
+    logger.minLevel = 'info';
+  });
+
+  it('should remove all listeners', () => {
+    const sub1 = vi.fn();
+    const sub2 = vi.fn();
+    logger.subscribe(sub1);
+    logger.subscribe(sub2);
+    expect(sub1).toHaveBeenCalledTimes(1); // initial call
+    expect(sub2).toHaveBeenCalledTimes(1);
+
+    resetLoggerListeners();
+
+    logger.info('host', 'after-reset');
+    // No listeners should be called after reset
+    expect(sub1).toHaveBeenCalledTimes(1);
+    expect(sub2).toHaveBeenCalledTimes(1);
+  });
+
+  it('should allow subscribing again after reset', () => {
+    const sub1 = vi.fn();
+    logger.subscribe(sub1);
+    resetLoggerListeners();
+
+    const sub2 = vi.fn();
+    const dispose = logger.subscribe(sub2);
+    expect(sub2).toHaveBeenCalledTimes(1); // initial call
+
+    logger.info('host', 'new-message');
+    expect(sub2).toHaveBeenCalledTimes(2);
+
+    dispose();
+  });
+});
+
+describe('Logger clearListeners', () => {
+  beforeEach(() => {
+    logger.clear();
+    logger.minLevel = 'info';
+  });
+
+  it('should stop all subscriber notifications after clearListeners', () => {
+    const sub = vi.fn();
+    logger.subscribe(sub);
+    logger.info('host', 'before-clear');
+    expect(sub).toHaveBeenCalled();
+
+    logger.clearListeners();
+    logger.info('host', 'after-clear');
+    // sub should not receive the after-clear event
+    const callsBeforeClear = sub.mock.calls.length;
+    logger.info('host', 'another-after');
+    expect(sub.mock.calls.length).toBe(callsBeforeClear);
   });
 });

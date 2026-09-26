@@ -553,4 +553,122 @@ describe('FilterController', () => {
       expect(nodeB.style).toHaveBeenCalledWith('display', 'element');
     });
   });
+
+  describe('filterByPath', () => {
+    it('shows all nodes when both patterns are null', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false, filePath: 'src/a.ts' });
+      const nodeB = makeMockNode('b', { type: 'function', isCluster: false, filePath: 'src/b.ts' });
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const fc = new FilterController(cy as any);
+      fc.filterByPath(null, null);
+      expect(nodeA.style).not.toHaveBeenCalledWith('display', 'none');
+      expect(nodeB.style).not.toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('hides nodes not matching include pattern', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false, filePath: 'src/utils/a.ts' });
+      const nodeB = makeMockNode('b', { type: 'function', isCluster: false, filePath: 'src/services/b.ts' });
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const fc = new FilterController(cy as any);
+      fc.filterByPath('utils', null);
+      expect(nodeA.style).not.toHaveBeenCalledWith('display', 'none');
+      expect(nodeB.style).toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('hides nodes matching exclude pattern', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false, filePath: 'src/utils/a.ts' });
+      const nodeB = makeMockNode('b', { type: 'function', isCluster: false, filePath: 'src/services/b.ts' });
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const fc = new FilterController(cy as any);
+      fc.filterByPath(null, 'services');
+      expect(nodeA.style).not.toHaveBeenCalledWith('display', 'none');
+      expect(nodeB.style).toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('combines include and exclude patterns', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false, filePath: 'src/utils/a.ts' });
+      const nodeB = makeMockNode('b', { type: 'function', isCluster: false, filePath: 'src/utils/b.ts' });
+      const nodeC = makeMockNode('c', { type: 'function', isCluster: false, filePath: 'src/services/c.ts' });
+      const cy = makeMockCy([nodeA, nodeB, nodeC], []);
+      const fc = new FilterController(cy as any);
+      fc.filterByPath('utils', 'b\\.ts$');
+      expect(nodeA.style).not.toHaveBeenCalledWith('display', 'none');
+      expect(nodeB.style).toHaveBeenCalledWith('display', 'none');
+      expect(nodeC.style).toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('does not filter cluster nodes', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const clusterNode = makeMockNode('cluster1', { type: 'module', isCluster: true, filePath: 'src/cluster.ts' });
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false, filePath: 'src/a.ts' });
+      const cy = makeMockCy([clusterNode, nodeA], []);
+      const fc = new FilterController(cy as any);
+      fc.filterByPath('nonexistent', null);
+      expect(clusterNode.style).not.toHaveBeenCalledWith('display', 'none');
+      expect(nodeA.style).toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('handles invalid regex pattern gracefully', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false, filePath: 'src/a.ts' });
+      const cy = makeMockCy([nodeA], []);
+      const fc = new FilterController(cy as any);
+      fc.filterByPath('[invalid', null);
+      expect(nodeA.style).not.toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('handles pattern exceeding max length', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false, filePath: 'src/a.ts' });
+      const cy = makeMockCy([nodeA], []);
+      const fc = new FilterController(cy as any);
+      const longPattern = 'a'.repeat(201);
+      fc.filterByPath(longPattern, null);
+      expect(nodeA.style).not.toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('handles ReDoS-vulnerable pattern', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false, filePath: 'src/a.ts' });
+      const cy = makeMockCy([nodeA], []);
+      const fc = new FilterController(cy as any);
+      fc.filterByPath('{{', null);
+      expect(nodeA.style).not.toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('hides edges when source or target node is path-filtered', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false, filePath: 'src/utils/a.ts' });
+      const nodeB = makeMockNode('b', { type: 'function', isCluster: false, filePath: 'src/services/b.ts' });
+      const edgeAB = makeMockEdge('e1', 'a', 'b', { type: 'call' }, nodeA, nodeB);
+      const cy = makeMockCy([nodeA, nodeB], [edgeAB]);
+      const fc = new FilterController(cy as any);
+      fc.filterByPath('utils', null);
+      expect(edgeAB.style).toHaveBeenCalledWith('display', 'none');
+    });
+
+    it('shows edges when both endpoints are visible', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false, filePath: 'src/utils/a.ts' });
+      const nodeB = makeMockNode('b', { type: 'function', isCluster: false, filePath: 'src/utils/b.ts' });
+      const edgeAB = makeMockEdge('e1', 'a', 'b', { type: 'call' }, nodeA, nodeB);
+      const cy = makeMockCy([nodeA, nodeB], [edgeAB]);
+      const fc = new FilterController(cy as any);
+      fc.filterByPath('utils', null);
+      expect(edgeAB.style).toHaveBeenCalledWith('display', 'element');
+    });
+
+    it('handles node with no filePath data', async () => {
+      const { FilterController } = await import('../../src/client/renderer/FilterController.ts');
+      const nodeA = makeMockNode('a', { type: 'function', isCluster: false });
+      const cy = makeMockCy([nodeA], []);
+      const fc = new FilterController(cy as any);
+      fc.filterByPath('src', null);
+      expect(nodeA.style).toHaveBeenCalledWith('display', 'none');
+    });
+  });
 });

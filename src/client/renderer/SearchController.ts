@@ -1,5 +1,5 @@
 import type { Core } from 'cytoscape';
-import { parseSearchQuery, matchSearchQuery } from '../../shared/searchUtils.ts';
+import { parseSearchQuery, matchSearchQuery, fuzzyMatch } from '../../shared/searchUtils.ts';
 import { Trie } from '../../shared/Trie.ts';
 
 interface RawNodeInfo {
@@ -84,7 +84,8 @@ export class SearchController {
 
     if (matches === 0) {
       for (const rawNode of this.rawNodesMap.values()) {
-        if (matcher(this.getNodeSearchText(rawNode))) {
+        const searchText = this.getNodeSearchText(rawNode);
+        if (matcher(searchText) || fuzzyMatch(rawNode.label.toLowerCase(), query.trim().toLowerCase())) {
           matches++;
           this.mapToVisible(rawNode, matchedCyNodeIds);
         }

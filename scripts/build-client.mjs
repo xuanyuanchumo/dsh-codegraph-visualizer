@@ -9,7 +9,7 @@
  * signature. The dev server uses ESM dynamic import() so it needs the
  * plain ESM build.
  */
-import { renameSync, existsSync, mkdirSync, copyFileSync, readdirSync } from 'node:fs';
+import { renameSync, existsSync, mkdirSync, copyFileSync, readdirSync, rmSync } from 'node:fs';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join } from 'node:path';
@@ -25,6 +25,15 @@ async function run(cmd) {
 }
 
 async function main() {
+  console.log('[build-client] Step 0: clean dist/client and dist/client-cjs');
+  for (const dir of ['dist/client', 'dist/client-cjs']) {
+    if (existsSync(dir)) {
+      rmSync(dir, { recursive: true, force: true });
+      console.log(`  cleaned ${dir}`);
+    }
+  }
+  mkdirSync('dist/client', { recursive: true });
+
   console.log('[build-client] Step 1: ESM build -> dist/client/index.esm.js');
   await run('npx tsdown src/client/index.ts --format esm --outDir dist/client --platform browser --external react --external react-dom --external @deepseek-ai/cordis --external @deepseek-ai/dsh-client-runtime');
 

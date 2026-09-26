@@ -331,7 +331,7 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
     let mimeType = 'application/json';
     let extension = 'json';
     if (format === 'png') { data = renderer.exportPNG(); mimeType = 'image/png'; extension = 'png'; }
-    else if (format === 'svg') { data = renderer.exportSVG(); mimeType = 'image/svg+xml'; extension = 'svg'; }
+    else if (format === 'svg') { data = renderer.exportSVG(theme); mimeType = 'image/svg+xml'; extension = 'svg'; }
     else if (format === 'mermaid') { data = renderer.exportMermaid(); mimeType = 'text/plain'; extension = 'mmd'; }
     else { data = renderer.exportJSON(); }
     if (data) {

@@ -23,15 +23,22 @@ interface GraphNode {
   lineNumber?: number;
   properties: Record<string, unknown>;
   parentId?: NodeId;
+  summary?: string;
+  tags?: string[];
+  complexity?: 'simple' | 'moderate' | 'complex';
+  layer?: string;
 }
+type EdgeDirection = 'forward' | 'backward' | 'bidirectional';
 interface GraphEdge {
   id: EdgeId;
   source: NodeId;
   target: NodeId;
-  type: 'call' | 'import' | 'extend' | 'implement' | 'dependency' | 'contains';
+  type: 'call' | 'import' | 'extend' | 'implement' | 'dependency' | 'contains' | 'association' | 'aggregation' | 'composition';
+  direction?: EdgeDirection;
+  weight?: number;
   properties: Record<string, unknown>;
 }
-type DataSourceType = 'auto' | 'codegraph' | 'lens' | 'tree-sitter';
+type DataSourceType = 'auto' | 'codegraph' | 'lens' | 'tree-sitter' | 'dependency';
 interface GraphUpdatedEvent {
   repoId: RepoId;
   nodeCount: number;
@@ -75,6 +82,7 @@ interface GraphInitResultEvent {
   success: boolean;
   path: string;
   message: string;
+  errorCode?: string;
   timestamp: number;
 }
 interface WatchToggleEvent {
@@ -122,23 +130,93 @@ interface PathResult {
 }
 declare module '@deepseek-ai/cordis' {
   interface Events {
-    'cg-viz/repo/imported'(event: RepoImportedEvent): void;
-    'cg-viz/repo/scanned'(event: RepoScannedEvent): void;
-    'cg-viz/repo/request-scan'(event: RepoRequestScanEvent): void;
-    'cg-viz/graph/updated'(event: GraphUpdatedEvent): void;
-    'cg-viz/graph/data'(event: GraphDataEvent): void;
-    'cg-viz/source/open'(event: SourceOpenEvent): void;
-    'cg-viz/prerequisite/status'(event: PrerequisiteStatusEvent): void;
-    'cg-viz/prerequisite/request'(event: {
+    /**
+     * @mode serial
+     * @param event Repository imported into the workspace
+     */
+    'codegraph-visualizer/repo/imported'(event: RepoImportedEvent): void;
+    /**
+     * @mode serial
+     * @param event Repository scan completed with file count
+     */
+    'codegraph-visualizer/repo/scanned'(event: RepoScannedEvent): void;
+    /**
+     * @mode serial
+     * @param event Request to scan a repository at the given path
+     */
+    'codegraph-visualizer/repo/request-scan'(event: RepoRequestScanEvent): void;
+    /**
+     * @mode serial
+     * @param event Graph updated with new node/edge counts
+     */
+    'codegraph-visualizer/graph/updated'(event: GraphUpdatedEvent): void;
+    /**
+     * @mode serial
+     * @param event Full graph data payload for rendering
+     */
+    'codegraph-visualizer/graph/data'(event: GraphDataEvent): void;
+    /**
+     * @mode serial
+     * @param event Request to open a source file at a specific line
+     */
+    'codegraph-visualizer/source/open'(event: SourceOpenEvent): void;
+    /**
+     * @mode serial
+     * @param event Prerequisite service availability status changed
+     */
+    'codegraph-visualizer/prerequisite/status'(event: PrerequisiteStatusEvent): void;
+    /**
+     * @mode serial
+     * @param event Request prerequisite status check
+     */
+    'codegraph-visualizer/prerequisite/request'(event: {
       timestamp: number;
     }): void;
-    'cg-viz/graph/init'(event: GraphInitEvent): void;
-    'cg-viz/graph/init-result'(event: GraphInitResultEvent): void;
-    'cg-viz/watch/toggle'(event: WatchToggleEvent): void;
-    'cg-viz/health/scored'(event: HealthScoreEvent): void;
-    'cg-viz/rules/violation'(event: RuleViolationEvent): void;
-    'cg-viz/path/found'(event: PathFoundEvent): void;
-    'cg-viz/focus/changed'(event: FocusChangedEvent): void;
+    /**
+     * @mode serial
+     * @param event Request to initialize graph for a repository path
+     */
+    'codegraph-visualizer/graph/init'(event: GraphInitEvent): void;
+    /**
+     * @mode serial
+     * @param event Graph initialization result (success/failure)
+     */
+    'codegraph-visualizer/graph/init-result'(event: GraphInitResultEvent): void;
+    /**
+     * @mode serial
+     * @param event File watcher toggle state changed
+     */
+    'codegraph-visualizer/watch/toggle'(event: WatchToggleEvent): void;
+    /**
+     * @mode serial
+     * @param event File watcher error occurred
+     */
+    'codegraph-visualizer/watch/error'(event: {
+      path: string;
+      message: string;
+      errorCode?: string;
+      timestamp: number;
+    }): void;
+    /**
+     * @mode serial
+     * @param event Architecture health score calculated
+     */
+    'codegraph-visualizer/health/scored'(event: HealthScoreEvent): void;
+    /**
+     * @mode serial
+     * @param event Architecture rule violation detected
+     */
+    'codegraph-visualizer/rules/violation'(event: RuleViolationEvent): void;
+    /**
+     * @mode serial
+     * @param event Shortest path found between two symbols
+     */
+    'codegraph-visualizer/path/found'(event: PathFoundEvent): void;
+    /**
+     * @mode serial
+     * @param event Focus changed to a different node (or null to clear)
+     */
+    'codegraph-visualizer/focus/changed'(event: FocusChangedEvent): void;
   }
   interface Context {
     webServer: WebServerService;
@@ -232,17 +310,23 @@ declare function resolveConfig(userConfig?: Partial<VisualizerConfig>): Visualiz
 //#endregion
 //#region src/host/security.d.ts
 //# sourceMappingURL=config.d.ts.map
-declare function setAllowedWorkspaceRoots(roots: string[]): void;
-declare function isPathAllowed(path: string): boolean;
+declare class SecurityManager {
+  private allowedWorkspaceRoots;
+  setAllowedWorkspaceRoots(roots: string[]): void;
+  isPathAllowed(path: string): boolean;
+  reset(): void;
+}
+declare function createSecurityManager(): SecurityManager;
 
 //#endregion
 //#region src/index.d.ts
+//# sourceMappingURL=security.d.ts.map
 declare const name = "dsh-codegraph-visualizer";
 declare const inject: string[];
-declare function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>): () => void;
+declare function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>): Promise<() => void>;
 
 //#endregion
 //# sourceMappingURL=index.d.ts.map
 
-export { DEFAULT_CONFIG, PLUGIN_VERSION, VisualizerConfig, apply, inject, isPathAllowed, name, resolveConfig, setAllowedWorkspaceRoots };
+export { DEFAULT_CONFIG, PLUGIN_VERSION, SecurityManager, VisualizerConfig, apply, createSecurityManager, inject, name, resolveConfig };
 //# sourceMappingURL=index.d.ts.map

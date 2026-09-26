@@ -15,6 +15,9 @@ export type { Participant, ParticipantType, SequenceMessage, MessageType, Combin
 import type { GraphNode, GraphEdge, ViewMode } from '../../types/index.ts';
 import type { AssembledDiagram, DiagramLayer, LayeredDiagram, DiagramAssembler } from './DiagramAssembler.ts';
 import type { ASTNode } from '../../shared/CFGTypes.ts';
+import { scoped } from '../../shared/Logger.ts';
+
+const log = scoped('diagram');
 import { InheritanceAssembler } from './InheritanceAssembler.ts';
 import { CallGraphAssembler } from './CallGraphAssembler.ts';
 import { PackageAssembler } from './PackageAssembler.ts';
@@ -175,7 +178,9 @@ export function assembleCFG(
   filePath: string,
   functionName: string,
 ): AssembledDiagram {
-  return microAssemblerRegistry.get('cfg')!.assemble(astRoot, filePath, functionName);
+  const assembler = microAssemblerRegistry.get('cfg');
+  if (!assembler) throw new Error('CFG assembler not registered');
+  return assembler.assemble(astRoot, filePath, functionName);
 }
 
 export function assembleFlowchart(
@@ -183,7 +188,9 @@ export function assembleFlowchart(
   filePath: string,
   functionName: string,
 ): AssembledDiagram {
-  return microAssemblerRegistry.get('flowchart')!.assemble(astRoot, filePath, functionName);
+  const assembler = microAssemblerRegistry.get('flowchart');
+  if (!assembler) throw new Error('Flowchart assembler not registered');
+  return assembler.assemble(astRoot, filePath, functionName);
 }
 
 export function assembleSequence(
@@ -191,7 +198,9 @@ export function assembleSequence(
   filePath: string,
   functionName: string,
 ): AssembledDiagram {
-  return microAssemblerRegistry.get('sequence')!.assemble(astRoot, filePath, functionName);
+  const assembler = microAssemblerRegistry.get('sequence');
+  if (!assembler) throw new Error('Sequence assembler not registered');
+  return assembler.assemble(astRoot, filePath, functionName);
 }
 
 export async function assembleMicroDiagram(
@@ -213,7 +222,8 @@ export async function assembleMicroDiagram(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filePath }),
     });
-  } catch (_e) { /* network fetch failed */
+  } catch (_e) {
+    log.warn('AST fetch failed', _e);
     throw new Error(`Network error: unable to reach AST endpoint`);
   }
   if (!response.ok) {
@@ -230,7 +240,7 @@ export async function assembleMicroDiagram(
     if (status === 500) {
       const errorBody = await response.text();
       let serverMsg = '';
-      try { const parsed = JSON.parse(errorBody); serverMsg = parsed.error || ''; } catch (_e) { /* JSON parse failed, use raw text */ serverMsg = errorBody; }
+      try { const parsed = JSON.parse(errorBody); serverMsg = parsed.error || ''; } catch (_e) { log.warn('AST error body parse failed', _e); serverMsg = errorBody; }
       throw new Error(serverMsg || `AST parsing failed for "${filePath}"`);
     }
     throw new Error(`AST request failed (HTTP ${status})`);

@@ -91,6 +91,7 @@ export class LayoutController {
 
     if (!this.worker) return Promise.resolve({});
 
+    const worker = this.worker;
     return new Promise((resolve) => {
       this.workerTimeout = setTimeout(() => {
         if (this.workerLayoutResolve) {
@@ -114,13 +115,13 @@ export class LayoutController {
         resolve(positions);
       };
 
-      this.worker!.postMessage({
+      worker.postMessage({
         nodes: nodes.map((n) => ({ id: n.id, label: n.label, type: n.type })),
         edges: edges.map((e) => ({ id: e.id, source: e.source, target: e.target, type: e.type })),
         layout,
         rankDir: this.rankDir,
-        containerWidth: this.cy.width() || 800,
-        containerHeight: this.cy.height() || 600,
+        containerWidth: this.cy.width() || RENDERER.DEFAULT_CONTAINER_WIDTH,
+        containerHeight: this.cy.height() || RENDERER.DEFAULT_CONTAINER_HEIGHT,
       });
     });
   }
@@ -275,8 +276,8 @@ export class LayoutController {
   }
 
   private computeSmartSpacing(nodeCount: number): SmartSpacing {
-    const w = this.cy.width() || 800;
-    const h = this.cy.height() || 600;
+    const w = this.cy.width() || RENDERER.DEFAULT_CONTAINER_WIDTH;
+    const h = this.cy.height() || RENDERER.DEFAULT_CONTAINER_HEIGHT;
     return computeSmartSpacing(nodeCount, w, h);
   }
 

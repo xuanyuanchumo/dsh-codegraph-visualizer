@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import { scoped } from '../../shared/Logger.ts';
+import { DOM_EVENTS } from '../../shared/domEvents.ts';
 import { useT } from '../i18n/index.ts';
 import { UploadIcon, FolderIcon, CloseIcon, AlertIcon, RefreshIcon, ZapIcon, WatchIcon } from './Icons.tsx';
 import { coerceNode, coerceEdge } from '../validators.ts';
@@ -130,7 +131,7 @@ export const ImportPanel = memo(function ImportPanel({
     setBusy(true);
     setFeedback(null);
     onSetLoading(true);
-    window.dispatchEvent(new CustomEvent('codegraph:import-repo', { detail: { path: effectivePath } }));
+    window.dispatchEvent(new CustomEvent(DOM_EVENTS.IMPORT_REPO, { detail: { path: effectivePath } }));
     log.info('workspace scan requested', { path: effectivePath });
     setFeedback({ kind: 'ok', msg: t('import.requestedScan', { path: effectivePath }) });
   }, [effectivePath, onSetLoading, t]);
@@ -138,7 +139,7 @@ export const ImportPanel = memo(function ImportPanel({
   const handleInit = useCallback(() => {
     onSetInitStatus('initializing');
     setFeedback(null);
-    window.dispatchEvent(new CustomEvent('codegraph:init-graph', { detail: { path: effectivePath } }));
+    window.dispatchEvent(new CustomEvent(DOM_EVENTS.INIT_GRAPH, { detail: { path: effectivePath } }));
     log.info('init requested', { path: effectivePath });
     setFeedback({ kind: 'ok', msg: t('import.initStarted', { path: effectivePath }) });
   }, [effectivePath, onSetInitStatus, t]);
@@ -146,7 +147,7 @@ export const ImportPanel = memo(function ImportPanel({
   const handleToggleWatch = useCallback(() => {
     const next = !watchEnabled;
     onSetWatchEnabled(next);
-    window.dispatchEvent(new CustomEvent('codegraph:toggle-watch', { detail: { enabled: next, path: effectivePath } }));
+    window.dispatchEvent(new CustomEvent(DOM_EVENTS.TOGGLE_WATCH, { detail: { enabled: next, path: effectivePath } }));
     log.info('watch toggled', { enabled: next, path: effectivePath });
   }, [watchEnabled, onSetWatchEnabled, effectivePath]);
 

@@ -176,10 +176,12 @@ export function detectLouvainCommunities(
     for (const n of overflowNodes) overflowAdjacency.set(n.id, []);
     for (const e of edges) {
       if (overflowAdjacency.has(e.source) && participatingIds.has(e.target)) {
-        overflowAdjacency.get(e.source)!.push(e.target);
+        const arr = overflowAdjacency.get(e.source);
+        if (arr) arr.push(e.target);
       }
       if (overflowAdjacency.has(e.target) && participatingIds.has(e.source)) {
-        overflowAdjacency.get(e.target)!.push(e.source);
+        const arr = overflowAdjacency.get(e.target);
+        if (arr) arr.push(e.source);
       }
     }
 

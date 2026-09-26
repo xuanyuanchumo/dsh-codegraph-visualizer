@@ -201,4 +201,165 @@ describe('SequenceAssembler', () => {
     const altFragment = fragmentNodes.find((f) => f.properties.fragmentType === 'alt');
     expect(altFragment).toBeDefined();
   });
+
+  it('creates loop fragment for while statement', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { while (x > 0) { db.save(); } }', [
+      makeAstNode('while_statement', 'while (x > 0)', [
+        makeAstNode('parenthesized_expression', 'x > 0', [], 1),
+        makeAstNode('block', '', [makeCall('db', 'save', [], 2)], 2),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+    const fragmentNodes = result.nodes.filter((n) => n.properties.isFragment === true);
+    const loopFragment = fragmentNodes.find((f) => f.properties.fragmentType === 'loop');
+    expect(loopFragment).toBeDefined();
+  });
+
+  it('creates critical fragment for try-finally without catch', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { try { db.save(); } finally { cleanup(); } }', [
+      makeAstNode('try_statement', 'try { db.save(); } finally { cleanup(); }', [
+        makeAstNode('block', '', [makeCall('db', 'save', [], 1)], 1),
+        makeAstNode('finally_clause', 'finally', [
+          makeAstNode('block', '', [makeCall('cleanup', 'run', [], 2)], 2),
+        ], 2),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+    const fragmentNodes = result.nodes.filter((n) => n.properties.isFragment === true);
+    const criticalFragment = fragmentNodes.find((f) => f.properties.fragmentType === 'critical');
+    expect(criticalFragment).toBeDefined();
+  });
+
+  it('creates class participant for new expression', () => {
+    // new_expression needs to go through collectCalls -> processCall path
+    // Use call_expression with "new " in text to trigger isNewExpression
+    const astRoot = makeAstNode('function_declaration', 'function f() { new Service(); }', [
+      makeAstNode('expression_statement', 'new Service()', [
+        makeAstNode('call_expression', 'new Service()', [
+          makeAstNode('member_expression', 'Service', [
+            makeAstNode('identifier', 'Service', [], 1),
+          ], 1),
+          makeAstNode('arguments', '()', [], 1),
+        ], 1),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+    // The call_expression with "new " in text should create a participant
+    expect(result.nodes.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('marks participant as destroyed for dispose method call', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { svc.dispose(); }', [
+      makeCall('svc', 'dispose', [], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+    const destroyedParticipants = result.nodes.filter((n) => n.properties.isDestroyed === true);
+    expect(destroyedParticipants.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('creates self-call message for this.method()', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { this.helper(); }', [
+      makeAstNode('call_expression', 'this.helper()', [
+        makeAstNode('member_expression', 'this.helper', [
+          makeAstNode('this', 'this', [], 1),
+          makeAstNode('property_identifier', 'helper', [], 1),
+        ], 1),
+        makeAstNode('arguments', '()', [], 1),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+    const selfCallEdges = result.edges.filter((e) => e.properties.isSelfCall === true);
+    expect(selfCallEdges.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('creates async message for await expression', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { await db.query(); }', [
+      makeAstNode('await_expression', 'await db.query()', [
+        makeCall('db', 'query', [], 1),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+    const asyncEdges = result.edges.filter((e) => e.properties.isAsync === true);
+    expect(asyncEdges.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('handles function not found in AST', () => {
+    const astRoot = makeAstNode('program', '', [
+      makeAstNode('function_declaration', 'function other() {}', [], 0),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'nonexistent');
+    expect(result.nodes.length).toBeGreaterThanOrEqual(1);
+    const selfNode = result.nodes.find((n) => n.properties.participantType === 'self');
+    expect(selfNode).toBeDefined();
+    expect(selfNode?.label).toBe('nonexistent');
+  });
+
+  it('creates external participant for fetch call', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { fetch(url); }', [
+      makeCall('fetch', 'get', ['url'], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+    const externalParticipants = result.nodes.filter((n) => n.properties.participantType === 'external');
+    expect(externalParticipants.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('creates instance participant for lowercase receiver', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { repo.save(); }', [
+      makeCall('repo', 'save', [], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+    const instanceParticipants = result.nodes.filter((n) => n.properties.participantType === 'instance');
+    expect(instanceParticipants.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('collects nested calls from expression statements', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { result = process(data); }', [
+      makeAstNode('expression_statement', 'result = process(data)', [
+        makeAstNode('assignment_expression', 'result = process(data)', [
+          makeAstNode('identifier', 'result', [], 1),
+          makeAstNode('call_expression', 'process(data)', [
+            makeAstNode('identifier', 'process', [], 1),
+            makeAstNode('arguments', '(data)', [
+              makeAstNode('identifier', 'data', [], 1),
+            ], 1),
+          ], 1),
+        ], 1),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+    expect(result.edges.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('handles for_in statement', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { for (k in obj) { db.save(k); } }', [
+      makeAstNode('for_in_statement', 'for (k in obj)', [
+        makeAstNode('parenthesized_expression', 'k in obj', [], 1),
+        makeAstNode('block', '', [makeCall('db', 'save', ['k'], 2)], 2),
+      ], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+    const fragmentNodes = result.nodes.filter((n) => n.properties.isFragment === true);
+    const loopFragment = fragmentNodes.find((f) => f.properties.fragmentType === 'loop');
+    expect(loopFragment).toBeDefined();
+  });
+
+  it('creates className property for uppercase receiver', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { Service.process(); }', [
+      makeCall('Service', 'process', [], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+    const classParticipants = result.nodes.filter((n) => n.properties.participantType === 'class');
+    expect(classParticipants.length).toBeGreaterThanOrEqual(1);
+    expect(classParticipants[0]?.properties.className).toBe('Service');
+  });
+
+  it('handles raise statement as throw', () => {
+    const astRoot = makeAstNode('function_declaration', 'function f() { raise Error(); }', [
+      makeAstNode('raise_statement', 'raise Error()', [], 1),
+    ]);
+    const result = assembler.assemble(astRoot, 'src/f.ts', 'f');
+    const fragmentNodes = result.nodes.filter((n) => n.properties.isFragment === true);
+    const breakFragment = fragmentNodes.find((f) => f.properties.fragmentType === 'break');
+    expect(breakFragment).toBeDefined();
+  });
 });

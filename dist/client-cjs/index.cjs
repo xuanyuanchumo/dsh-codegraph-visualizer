@@ -233,12 +233,47 @@ const persist = persistImpl;
 
 //#endregion
 //#region src/types/index.ts
-const RepoId = (id) => id;
-const NodeId = (id) => id;
-const EdgeId = (id) => id;
+const RepoId = (id) => {
+	if (!id || id.length === 0) throw new Error("RepoId: id must not be empty");
+	return id;
+};
+const NodeId = (id) => {
+	if (!id || id.length === 0) throw new Error("NodeId: id must not be empty");
+	return id;
+};
+const EdgeId = (id) => {
+	if (!id || id.length === 0) throw new Error("EdgeId: id must not be empty");
+	return id;
+};
+const NODE_TYPES$1 = [
+	"function",
+	"class",
+	"variable",
+	"module",
+	"interface",
+	"type"
+];
+function isNodeType(value) {
+	return typeof value === "string" && NODE_TYPES$1.includes(value);
+}
+function safeString(value, fallback = "") {
+	return typeof value === "string" ? value : fallback;
+}
+function safeNumber(value, fallback = 0) {
+	return typeof value === "number" && !Number.isNaN(value) ? value : fallback;
+}
+function safeBoolean(value, fallback = false) {
+	return typeof value === "boolean" ? value : fallback;
+}
 
 //#endregion
 //#region src/client/store/cluster/types.ts
+function getDependencyGroup(node) {
+	const depType = node.properties?.depType;
+	if (typeof depType === "string") return `dep:${depType}`;
+	return null;
+}
+const EDGE_AGGREGATION_THRESHOLD = 20;
 function aggregateEdges(rawEdges, nodeIdToVisibleId, clusterPrefix) {
 	const aggregation = new Map();
 	for (const e of rawEdges) {
@@ -290,7 +325,16 @@ function aggregateEdges(rawEdges, nodeIdToVisibleId, clusterPrefix) {
 		const targetIsCluster = clusterPrefixes.some((p$1) => agg.target.startsWith(p$1));
 		if (!sourceIsCluster && !targetIsCluster) {
 			const edges = nonClusterEdges.get(key);
-			if (edges) for (const e of edges) visibleEdges.push(e);
+			if (edges) if (agg.count > EDGE_AGGREGATION_THRESHOLD) visibleEdges.push({
+				id: EdgeId(`clusteredge__${agg.source}__${agg.target}`),
+				source: NodeId(agg.source),
+				target: NodeId(agg.target),
+				type: agg.types.size === 1 ? [...agg.types][0] : "dependency",
+				properties: { aggregatedFromCount: agg.count },
+				isCluster: true,
+				aggregatedCount: agg.count
+			});
+			else for (const e of edges) visibleEdges.push(e);
 		} else visibleEdges.push({
 			id: EdgeId(`clusteredge__${agg.source}__${agg.target}`),
 			source: NodeId(agg.source),
@@ -317,19 +361,43 @@ const RENDERER = {
 	WORKER_NODE_THRESHOLD: 500,
 	INCREMENTAL_LAYOUT_THRESHOLD: 50,
 	INCREMENTAL_LAYOUT_DELAY_MS: 50,
-	FULL_LAYOUT_DELAY_MS: 150
+	FULL_LAYOUT_DELAY_MS: 150,
+	FOCUS_NODE_ANIMATION_MS: 300,
+	NEIGHBORHOOD_ANIMATION_MS: 400,
+	DEFAULT_CONTAINER_WIDTH: 800,
+	DEFAULT_CONTAINER_HEIGHT: 600
 };
 const CLUSTER = {
-	MAX_VISIBLE_NODES: 2e3,
+	MAX_VISIBLE_NODES: 1500,
 	SUBGROUP_THRESHOLD: 100,
 	MAX_NODES_PER_DIR_BEFORE_SUBGROUP: 500,
 	LARGE_NODE_THRESHOLD: 2e3,
 	MIN_NODES_FOR_SUBGROUP: 50,
 	MAX_ITERATIONS_LARGE: 3,
 	MAX_ITERATIONS_SMALL: 10,
-	MAX_NODES_FOR_LABEL_PROP: 5e3
+	MAX_NODES_FOR_LABEL_PROP: 5e3,
+	EXPAND_BUDGET_SINGLE: 300
 };
-const PATH_FINDER = { MAX_NODES_FOR_DIJKSTRA: 1e4 };
+const DYNAMIC_CLUSTER = {
+	SMALL_SCREEN_WIDTH: 1200,
+	LARGE_SCREEN_WIDTH: 1920,
+	MAX_VISIBLE_NODES_SMALL: 800,
+	MAX_VISIBLE_NODES_MEDIUM: 1200,
+	MAX_VISIBLE_NODES_LARGE: 1500,
+	AUTO_DEPTH_THRESHOLD_1: 3e3,
+	AUTO_DEPTH_THRESHOLD_2: 1e4
+};
+function getDynamicMaxVisibleNodes(viewportWidth) {
+	if (viewportWidth < DYNAMIC_CLUSTER.SMALL_SCREEN_WIDTH) return DYNAMIC_CLUSTER.MAX_VISIBLE_NODES_SMALL;
+	if (viewportWidth >= DYNAMIC_CLUSTER.LARGE_SCREEN_WIDTH) return DYNAMIC_CLUSTER.MAX_VISIBLE_NODES_LARGE;
+	return DYNAMIC_CLUSTER.MAX_VISIBLE_NODES_MEDIUM;
+}
+function getAutoClusterDepth(nodeCount, maxVisibleNodes) {
+	if (nodeCount > maxVisibleNodes * 5) return 2;
+	if (nodeCount > maxVisibleNodes * 1.5) return 1;
+	return 0;
+}
+const PATH_FINDER = { MAX_NODES_FOR_BFS: 5e4 };
 const HIGHLIGHT = {
 	CALL_CHAIN_MAX_DEPTH: 50,
 	IMPACT_MAX_DEPTH: 3
@@ -340,14 +408,17 @@ const POLLING = {
 	PREREQ_INTERVAL_MS: 3e4,
 	WORKSPACE_INTERVAL_MS: 15e3,
 	LOADING_FAILSAFE_MS: 15e3,
-	WORKSPACE_SCAN_DEBOUNCE_MS: 300
+	WORKSPACE_SCAN_DEBOUNCE_MS: 300,
+	PREREQ_CHECK_TIMEOUT_MS: 3e3,
+	WORKSPACE_TICK_MS: 3e4
 };
 const API = {
 	DEFAULT_TIMEOUT_MS: 3e4,
 	RATE_LIMIT_WINDOW_MS: 6e4,
 	RATE_LIMIT_DEFAULT: 60,
 	RATE_LIMIT_HEAVY: 10,
-	RATE_LIMIT_MAP_MAX: 1e4
+	RATE_LIMIT_MAP_MAX: 1e4,
+	SCAN_TIMEOUT_MS: 6e4
 };
 const HEALTH_SCORE = {
 	WEIGHT_COUPLING: .25,
@@ -379,16 +450,162 @@ const LAYOUT$1 = {
 	GRID_FALLBACK_NODE_THRESHOLD: 5e3,
 	OVERLAP_MAX_ITERATIONS: 15,
 	OVERLAP_SKIP_THRESHOLD: 5e3,
-	OVERLAP_CELL_SIZE_MULTIPLIER: 4
+	OVERLAP_CELL_SIZE_MULTIPLIER: 4,
+	GOLDEN_ANGLE: Math.PI * (3 - Math.sqrt(5)),
+	OVERLAP_PUSH_COEFFICIENT: .15,
+	OVERLAP_MIN_PUSH: 2,
+	FCOSE_LARGE_NODE_THRESHOLD: 5e3,
+	FCOSE_LARGE_NUM_ITER: 1e3,
+	FCOSE_LARGE_QUALITY: "draft",
+	NODE_REPULSE_MAX: 2e4
 };
 const VIRTUAL_VIEWPORT = {
-	SCROLL_THRESHOLD: 2e3,
+	SCROLL_THRESHOLD: 5e3,
 	PADDING: 100
+};
+const QUADTREE = {
+	MAX_NODES_PER_QUAD: 10,
+	MAX_DEPTH: 8,
+	INITIAL_BOUNDS: {
+		x1: -1e5,
+		y1: -1e5,
+		x2: 1e5,
+		y2: 1e5
+	},
+	EXPAND_PADDING: 5e3
 };
 const DATA_CONTROLLER = {
 	BATCH_SIZE: 200,
-	SVG_OFFSET: 80
+	SVG_OFFSET: 80,
+	MAX_WEIGHT: 10,
+	HUB_DEGREE_THRESHOLD: 5
 };
+const LOD = {
+	MINIMAL_THRESHOLD_SMALL: .15,
+	MINIMAL_THRESHOLD_MEDIUM: .25,
+	MINIMAL_THRESHOLD_LARGE: .35,
+	COMPACT_THRESHOLD_SMALL: .4,
+	COMPACT_THRESHOLD_MEDIUM: .55,
+	COMPACT_THRESHOLD_LARGE: .7,
+	SMALL_NODE_COUNT: 100,
+	MEDIUM_NODE_COUNT: 500,
+	MINIMAL_NODE_SIZE: 8,
+	COMPACT_NODE_SIZE: 16,
+	MINIMAL_EDGE_WIDTH: .5,
+	COMPACT_EDGE_WIDTH: 1,
+	COMPACT_FONT_SIZE: 6,
+	TRANSITION_DURATION_MS: 200,
+	MINIMAL_CLUSTER_DEPTH: 0,
+	COMPACT_CLUSTER_DEPTH: 1
+};
+const HEATMAP = {
+	LINES_LOW: 50,
+	LINES_HIGH: 500,
+	COMPLEXITY_LOW: 5,
+	COMPLEXITY_HIGH: 20,
+	COLOR_STABLE: "#10b981",
+	COLOR_UNSTABLE: "#ef4444",
+	COLOR_LOW: "#3b82f6",
+	COLOR_HIGH: "#ef4444"
+};
+const CYCLE_DETECTION = { MAX_NODES_FOR_DETECTION: 1e4 };
+const INCREMENTAL_CLUSTER = {
+	MAX_CHANGE_RATIO: .3,
+	MIN_PREV_NODES: 100
+};
+const CORE_FUNCTION = {
+	MIN_INDEGREE_HUB: 5,
+	MIN_OUTDEGREE_HUB: 5,
+	MIN_INFLUENCE_REACH: 10,
+	MIN_CALL_CHAIN_DEPTH: 3,
+	MAX_BFS_NODES: 500
+};
+const MCP = {
+	MAX_MESSAGE_LENGTH: 10 * 1024 * 1024,
+	MAX_IMPACT_RESULTS: 500
+};
+const PREFETCH = {
+	CONCURRENCY_LIMIT: 2,
+	COST_THRESHOLD: 50,
+	HOVER_DEBOUNCE_MS: 300
+};
+const BOOTSTRAP = {
+	TOP_LEVEL_NODE_LIMIT: 50,
+	CHILDREN_PAGE_SIZE: 50
+};
+const FUNCTION_BODY = { MAX_EXPANDED: 2 };
+const AST = {
+	MAX_CONTENT_BYTES: 512 * 1024,
+	MAX_TREE_SITTER_CONTENT_BYTES: 512 * 1024
+};
+const UI = {
+	SEARCH_DEBOUNCE_MS: 200,
+	RESIZE_DEBOUNCE_MS: 200,
+	ANCESTOR_MIN_HEIGHT_PX: 300,
+	MIN_PANEL_HEIGHT_PX: 240,
+	MIN_PANEL_WIDTH_PX: 320,
+	POLLING_INTERVAL_WATCH_MS: 1e4,
+	POLLING_INTERVAL_IDLE_MS: 3e4,
+	MINIMAP_UPDATE_INTERVAL_MS: 500,
+	MINIMAP_THROTTLE_MS: 500,
+	COPY_HINT_TIMEOUT_MS: 2e3,
+	INSTALL_HINT_TIMEOUT_MS: 3e3,
+	COPY_FEEDBACK_MS: 1600,
+	IMPORT_CLOSE_DELAY_MS: 700,
+	INIT_RETRY_DELAY_MS: 50,
+	URL_REVOKE_DELAY_MS: 1e3,
+	CONTEXT_MENU_Z_INDEX: 1e4,
+	WORKSPACE_LIST_MAX: 10,
+	MAX_FUNCTIONS_PER_CLUSTER: 50
+};
+const COLORS = {
+	PACKAGE_LIGHT: "#263148",
+	PACKAGE_DARK: "#232324",
+	NODE_CLASS_LIGHT: "#1a2230"
+};
+const REPO_URL = "https://github.com/xuanyuanchumo/dsh-codegraph-visualizer";
+
+//#endregion
+//#region src/shared/analysis/AdjacencyList.ts
+function buildForwardAdjacency(edges) {
+	const map$1 = new Map();
+	for (const edge of edges) {
+		const list = map$1.get(edge.source);
+		if (list) list.push(edge.target);
+		else map$1.set(edge.source, [edge.target]);
+	}
+	return map$1;
+}
+function buildFilteredUndirectedAdjacency(edges, nodeIds) {
+	const map$1 = new Map();
+	for (const id of nodeIds) map$1.set(id, new Set());
+	for (const edge of edges) {
+		if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) continue;
+		let neighbors = map$1.get(edge.source);
+		if (!neighbors) {
+			neighbors = new Set();
+			map$1.set(edge.source, neighbors);
+		}
+		neighbors.add(edge.target);
+		neighbors = map$1.get(edge.target);
+		if (!neighbors) {
+			neighbors = new Set();
+			map$1.set(edge.target, neighbors);
+		}
+		neighbors.add(edge.source);
+	}
+	return map$1;
+}
+function buildFilteredForwardAdjacency(edges, edgeTypes) {
+	const map$1 = new Map();
+	for (const edge of edges) {
+		if (!edgeTypes.includes(edge.type)) continue;
+		const list = map$1.get(edge.source);
+		if (list) list.push(edge.target);
+		else map$1.set(edge.source, [edge.target]);
+	}
+	return map$1;
+}
 
 //#endregion
 //#region src/client/store/cluster/communityDetection.ts
@@ -397,6 +614,15 @@ const MIN_NODES_FOR_SUBGROUP = CLUSTER.MIN_NODES_FOR_SUBGROUP;
 const MAX_ITERATIONS_LARGE = CLUSTER.MAX_ITERATIONS_LARGE;
 const MAX_ITERATIONS_SMALL = CLUSTER.MAX_ITERATIONS_SMALL;
 const LARGE_NODE_THRESHOLD = CLUSTER.LARGE_NODE_THRESHOLD;
+function selectHighDegreeNodes(nodes, edges, limit$1) {
+	const degreeMap = new Map();
+	for (const n of nodes) degreeMap.set(n.id, 0);
+	for (const e of edges) {
+		if (degreeMap.has(e.source)) degreeMap.set(e.source, (degreeMap.get(e.source) ?? 0) + 1);
+		if (degreeMap.has(e.target)) degreeMap.set(e.target, (degreeMap.get(e.target) ?? 0) + 1);
+	}
+	return [...nodes].sort((a, b) => (degreeMap.get(b.id) ?? 0) - (degreeMap.get(a.id) ?? 0)).slice(0, limit$1);
+}
 function detectCommunities(nodes, edges) {
 	if (nodes.length === 0) return new Map();
 	if (nodes.length < MIN_NODES_FOR_SUBGROUP) {
@@ -406,15 +632,9 @@ function detectCommunities(nodes, edges) {
 		};
 		return new Map([["all", group]]);
 	}
-	const participatingNodes = nodes.length > MAX_NODES_FOR_LABEL_PROP ? nodes.slice(0, MAX_NODES_FOR_LABEL_PROP) : nodes;
+	const participatingNodes = nodes.length > MAX_NODES_FOR_LABEL_PROP ? selectHighDegreeNodes(nodes, edges, MAX_NODES_FOR_LABEL_PROP) : nodes;
 	const participatingIds = new Set(participatingNodes.map((n) => n.id));
-	const adjacency = new Map();
-	for (const n of participatingNodes) adjacency.set(n.id, new Set());
-	for (const e of edges) {
-		if (!participatingIds.has(e.source) || !participatingIds.has(e.target)) continue;
-		adjacency.get(e.source)?.add(e.target);
-		adjacency.get(e.target)?.add(e.source);
-	}
+	const adjacency = buildFilteredUndirectedAdjacency(edges, participatingIds);
 	const labels = new Map();
 	let nextLabel = 0;
 	const sortedNodes = [...participatingNodes].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
@@ -461,8 +681,14 @@ function detectCommunities(nodes, edges) {
 		const overflowAdjacency = new Map();
 		for (const n of overflowNodes) overflowAdjacency.set(n.id, []);
 		for (const e of edges) {
-			if (overflowAdjacency.has(e.source) && participatingIds.has(e.target)) overflowAdjacency.get(e.source).push(e.target);
-			if (overflowAdjacency.has(e.target) && participatingIds.has(e.source)) overflowAdjacency.get(e.target).push(e.source);
+			if (overflowAdjacency.has(e.source) && participatingIds.has(e.target)) {
+				const arr = overflowAdjacency.get(e.source);
+				if (arr) arr.push(e.target);
+			}
+			if (overflowAdjacency.has(e.target) && participatingIds.has(e.source)) {
+				const arr = overflowAdjacency.get(e.target);
+				if (arr) arr.push(e.source);
+			}
 		}
 		for (const n of overflowNodes) {
 			const neighbors = overflowAdjacency.get(n.id) ?? [];
@@ -513,11 +739,6 @@ function getTopLevelDir(filePath, options) {
 const MAX_VISIBLE_NODES = CLUSTER.MAX_VISIBLE_NODES;
 const SUBGROUP_THRESHOLD = CLUSTER.SUBGROUP_THRESHOLD;
 const MAX_NODES_PER_DIR_BEFORE_SUBGROUP = CLUSTER.MAX_NODES_PER_DIR_BEFORE_SUBGROUP;
-function getDependencyGroup(node) {
-	const depType = node.properties?.depType;
-	if (typeof depType === "string") return `dep:${depType}`;
-	return null;
-}
 function getDirLabel(dirPath) {
 	const parts = dirPath.split("/");
 	return parts[parts.length - 1] ?? dirPath;
@@ -603,6 +824,63 @@ function parseExpandedNodeIds(expandedNodeIds) {
 		expandedSubgroups
 	};
 }
+let _dirToNodesCache = null;
+let _fileToNodesCache = null;
+let _rawNodesRef = null;
+function getDirToNodesCache(rawNodes) {
+	if (_rawNodesRef === rawNodes && _dirToNodesCache) return _dirToNodesCache;
+	_rawNodesRef = rawNodes;
+	_dirToNodesCache = new Map();
+	for (const n of rawNodes) {
+		const depGroup = getDependencyGroup(n);
+		const dir = depGroup ?? (n.filePath ? getTopLevelDir(n.filePath) : n.id);
+		const list = _dirToNodesCache.get(dir);
+		if (list) list.push(n);
+		else _dirToNodesCache.set(dir, [n]);
+	}
+	return _dirToNodesCache;
+}
+function getFileToNodesCache(rawNodes) {
+	if (_rawNodesRef === rawNodes && _fileToNodesCache) return _fileToNodesCache;
+	_rawNodesRef = rawNodes;
+	_fileToNodesCache = new Map();
+	for (const n of rawNodes) if (n.filePath) {
+		const list = _fileToNodesCache.get(n.filePath);
+		if (list) list.push(n);
+		else _fileToNodesCache.set(n.filePath, [n]);
+	}
+	return _fileToNodesCache;
+}
+function estimateExpandCost(nodeId, rawNodes) {
+	if (nodeId.startsWith("subgroup__")) {
+		const parts = nodeId.split("__");
+		const dirPart = parts.slice(1, -1).join("__");
+		const clusterId = `cluster__${dirPart}`;
+		const cache$1 = getDirToNodesCache(rawNodes);
+		let count = 0;
+		for (const [dir, nodes] of cache$1) if (`cluster__${dir.replace(/[/:\\]/g, "__")}` === clusterId) count += nodes.length;
+		return Math.max(0, count - 1);
+	}
+	if (nodeId.startsWith("cluster__")) {
+		const dirPath = nodeId.replace(/^cluster__/, "").replace(/__/g, "/");
+		const cache$1 = getDirToNodesCache(rawNodes);
+		const nodes = cache$1.get(dirPath);
+		if (nodes) return Math.max(0, nodes.length - 1);
+		let count = 0;
+		for (const [dir, dirNodes] of cache$1) if (dir.replace(/[/:\\]/g, "__") === nodeId.replace(/^cluster__/, "")) count += dirNodes.length;
+		return Math.max(0, count - 1);
+	}
+	if (nodeId.startsWith("filecluster__")) {
+		const filePath = nodeId.replace(/^filecluster__file__/, "").replace(/__/g, "/");
+		const cache$1 = getFileToNodesCache(rawNodes);
+		const nodes = cache$1.get(filePath);
+		if (nodes) return Math.max(0, nodes.length - 1);
+		let count = 0;
+		for (const [fp, fpNodes] of cache$1) if (fp.replace(/[/:\\]/g, "__") === nodeId.replace(/^filecluster__file__/, "")) count += fpNodes.length;
+		return Math.max(0, count - 1);
+	}
+	return 0;
+}
 function buildDirMapping(rawNodes) {
 	const nodeToDir = new Map();
 	const dirToNodes = new Map();
@@ -640,152 +918,173 @@ function applyInitialDepth(initialDepth, dirToNodes, rawNodes, expandedDirs, exp
 		}
 	}
 }
-function computeProgressiveClusters(rawNodes, rawEdges, expandedNodeIds, initialDepth = 0) {
+function createDirectoryCluster(dirPath, nodes, clusterId) {
+	const childIds = nodes.map((n) => n.id);
+	const clusterNode = {
+		id: NodeId(clusterId),
+		label: `${getDirLabel(dirPath)} (${nodes.length})`,
+		type: "module",
+		filePath: dirPath,
+		lineNumber: 0,
+		properties: {},
+		isCluster: true,
+		childCount: nodes.length,
+		childIds,
+		clusterPath: dirPath,
+		clusterLevel: "directory"
+	};
+	const nodeIdToVisibleId = new Map();
+	for (const n of nodes) nodeIdToVisibleId.set(n.id, clusterId);
+	return {
+		clusterNode,
+		nodeIdToVisibleId
+	};
+}
+function processModuleNodeExpanded(n, parentToChildren, filePathToNodes, visibleNodes, displayedIds, nodeIdToVisibleId) {
+	const childNodes = parentToChildren.get(n.id) ?? filePathToNodes.get(n.filePath) ?? [];
+	if (childNodes.length > 0) {
+		visibleNodes.push(n);
+		displayedIds.add(n.id);
+		nodeIdToVisibleId.set(n.id, n.id);
+		for (const child of childNodes) {
+			if (child.id === n.id) continue;
+			if (displayedIds.has(child.id)) continue;
+			visibleNodes.push(child);
+			displayedIds.add(child.id);
+			nodeIdToVisibleId.set(child.id, child.id);
+		}
+	} else {
+		visibleNodes.push(n);
+		displayedIds.add(n.id);
+		nodeIdToVisibleId.set(n.id, n.id);
+	}
+}
+function processModuleNodeCollapsed(n, parentToChildren, filePathToNodes, fileClusterId, visibleNodes, nodeIdToVisibleId) {
+	const childNodes = parentToChildren.get(n.id) ?? filePathToNodes.get(n.filePath) ?? [];
+	const filteredChildren = childNodes.filter((c) => c.id !== n.id);
+	if (filteredChildren.length > 0) {
+		nodeIdToVisibleId.set(n.id, fileClusterId);
+		for (const child of filteredChildren) nodeIdToVisibleId.set(child.id, fileClusterId);
+		const clusterNode = {
+			id: NodeId(fileClusterId),
+			label: `${n.label} (${filteredChildren.length + 1})`,
+			type: "module",
+			filePath: n.filePath,
+			lineNumber: 0,
+			properties: {},
+			isCluster: true,
+			childCount: filteredChildren.length + 1,
+			childIds: [n.id, ...filteredChildren.map((c) => c.id)],
+			clusterPath: n.filePath ?? n.id,
+			clusterLevel: "file"
+		};
+		visibleNodes.push(clusterNode);
+	} else {
+		visibleNodes.push(n);
+		nodeIdToVisibleId.set(n.id, n.id);
+	}
+}
+function processNonModuleNode(n, expandedFileClusters, visibleNodes, displayedIds, nodeIdToVisibleId, fileGroups) {
+	const parentFileId = n.parentId ?? n.filePath;
+	if (parentFileId) {
+		const fileClusterId = `filecluster__file__${parentFileId.replace(/[/:\\]/g, "__")}`;
+		if (expandedFileClusters.has(fileClusterId)) {
+			if (!displayedIds.has(n.id)) {
+				visibleNodes.push(n);
+				displayedIds.add(n.id);
+				nodeIdToVisibleId.set(n.id, n.id);
+			}
+		} else {
+			nodeIdToVisibleId.set(n.id, fileClusterId);
+			const list = fileGroups.get(fileClusterId);
+			if (list) list.push(n);
+			else fileGroups.set(fileClusterId, [n]);
+		}
+	} else {
+		visibleNodes.push(n);
+		displayedIds.add(n.id);
+		nodeIdToVisibleId.set(n.id, n.id);
+	}
+}
+function createFileClustersFromGroups(fileGroups, filePathToNodes, visibleNodes) {
+	for (const [fileClusterId, children] of fileGroups) {
+		const parentFileId = children[0]?.parentId ?? children[0]?.filePath ?? "";
+		const parentNode = filePathToNodes.get(parentFileId)?.[0];
+		const clusterNode = {
+			id: NodeId(fileClusterId),
+			label: `${parentNode?.label ?? getFileLabel(parentFileId)} (${children.length})`,
+			type: "module",
+			filePath: parentNode?.filePath ?? parentFileId,
+			lineNumber: 0,
+			properties: {},
+			isCluster: true,
+			childCount: children.length,
+			childIds: children.map((c) => c.id),
+			clusterPath: parentFileId,
+			clusterLevel: "file"
+		};
+		visibleNodes.push(clusterNode);
+	}
+}
+function clusterExpandedDirectory(dirPath, nodes, rawEdges, parentToChildren, filePathToNodes, expandedFileClusters, expandedSubgroups, dirEdgeCache, visibleNodes, displayedIds, nodeIdToVisibleId) {
+	if (nodes.length > MAX_NODES_PER_DIR_BEFORE_SUBGROUP) {
+		let dirEdges = dirEdgeCache.get(dirPath);
+		if (!dirEdges) {
+			const nodeIds = new Set(nodes.map((n) => n.id));
+			dirEdges = rawEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+			dirEdgeCache.set(dirPath, dirEdges);
+		}
+		const { nodes: subgroupNodes, nodeIdToVisibleId: subgroupMap } = createSubgroupClusters(nodes, dirEdges, dirPath, expandedSubgroups);
+		for (const n of subgroupNodes) visibleNodes.push(n);
+		for (const [rawId, visId] of subgroupMap) nodeIdToVisibleId.set(rawId, visId);
+	} else {
+		const fileGroups = new Map();
+		for (const n of nodes) if (n.type === "module") {
+			const fileClusterId = `filecluster__file__${(n.parentId ?? n.filePath ?? n.id).replace(/[/:\\]/g, "__")}`;
+			if (expandedFileClusters.has(fileClusterId)) processModuleNodeExpanded(n, parentToChildren, filePathToNodes, visibleNodes, displayedIds, nodeIdToVisibleId);
+			else processModuleNodeCollapsed(n, parentToChildren, filePathToNodes, fileClusterId, visibleNodes, nodeIdToVisibleId);
+		} else processNonModuleNode(n, expandedFileClusters, visibleNodes, displayedIds, nodeIdToVisibleId, fileGroups);
+		createFileClustersFromGroups(fileGroups, filePathToNodes, visibleNodes);
+	}
+}
+function computeProgressiveClusters(rawNodes, rawEdges, expandedNodeIds, initialDepth = 0, viewportWidth) {
 	if (rawNodes.length === 0) return {
 		nodes: [],
 		edges: []
 	};
+	const maxVisibleNodes = viewportWidth !== null && viewportWidth !== void 0 ? getDynamicMaxVisibleNodes(viewportWidth) : MAX_VISIBLE_NODES;
+	const effectiveDepth = initialDepth > 0 && viewportWidth !== null && viewportWidth !== void 0 ? Math.max(initialDepth, getAutoClusterDepth(rawNodes.length, maxVisibleNodes)) : initialDepth;
 	const { parentToChildren, filePathToNodes } = buildParentIndex(rawNodes);
 	const visibleNodes = [];
 	const nodeIdToVisibleId = new Map();
 	const displayedIds = new Set();
 	const { expandedDirs, expandedFileClusters, expandedFuncClusters: _expandedFuncClusters, expandedSubgroups } = parseExpandedNodeIds(expandedNodeIds);
 	const { nodeToDir: _nodeToDir, dirToNodes } = buildDirMapping(rawNodes);
-	applyInitialDepth(initialDepth, dirToNodes, rawNodes, expandedDirs, expandedFileClusters);
+	applyInitialDepth(effectiveDepth, dirToNodes, rawNodes, expandedDirs, expandedFileClusters);
 	const dirEdgeCache = new Map();
 	for (const [dirPath, nodes] of dirToNodes) {
 		const clusterId = `cluster__${dirPath.replace(/[/:\\]/g, "__")}`;
-		if (expandedDirs.has(clusterId) || expandedDirs.has(dirPath)) if (nodes.length > MAX_NODES_PER_DIR_BEFORE_SUBGROUP) {
-			let dirEdges = dirEdgeCache.get(dirPath);
-			if (!dirEdges) {
-				const nodeIds = new Set(nodes.map((n) => n.id));
-				dirEdges = rawEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
-				dirEdgeCache.set(dirPath, dirEdges);
-			}
-			const { nodes: subgroupNodes, nodeIdToVisibleId: subgroupMap } = createSubgroupClusters(nodes, dirEdges, dirPath, expandedSubgroups);
-			for (const n of subgroupNodes) visibleNodes.push(n);
-			for (const [rawId, visId] of subgroupMap) nodeIdToVisibleId.set(rawId, visId);
-		} else {
-			const fileGroups = new Map();
-			for (const n of nodes) if (n.type === "module") {
-				const fileClusterId = `filecluster__file__${(n.parentId ?? n.filePath ?? n.id).replace(/[/:\\]/g, "__")}`;
-				if (expandedFileClusters.has(fileClusterId)) {
-					const childNodes = parentToChildren.get(n.id) ?? filePathToNodes.get(n.filePath) ?? [];
-					if (childNodes.length > 0) {
-						visibleNodes.push(n);
-						displayedIds.add(n.id);
-						nodeIdToVisibleId.set(n.id, n.id);
-						for (const child of childNodes) {
-							if (child.id === n.id) continue;
-							if (displayedIds.has(child.id)) continue;
-							visibleNodes.push(child);
-							displayedIds.add(child.id);
-							nodeIdToVisibleId.set(child.id, child.id);
-						}
-					} else {
-						visibleNodes.push(n);
-						displayedIds.add(n.id);
-						nodeIdToVisibleId.set(n.id, n.id);
-					}
-				} else {
-					const childNodes = parentToChildren.get(n.id) ?? filePathToNodes.get(n.filePath) ?? [];
-					const filteredChildren = childNodes.filter((c) => c.id !== n.id);
-					if (filteredChildren.length > 0) {
-						nodeIdToVisibleId.set(n.id, fileClusterId);
-						for (const child of filteredChildren) nodeIdToVisibleId.set(child.id, fileClusterId);
-						const clusterNode = {
-							id: NodeId(fileClusterId),
-							label: `${n.label} (${filteredChildren.length + 1})`,
-							type: "module",
-							filePath: n.filePath,
-							lineNumber: 0,
-							properties: {},
-							isCluster: true,
-							childCount: filteredChildren.length + 1,
-							childIds: [n.id, ...filteredChildren.map((c) => c.id)],
-							clusterPath: n.filePath ?? n.id,
-							clusterLevel: "file"
-						};
-						visibleNodes.push(clusterNode);
-					} else {
-						visibleNodes.push(n);
-						nodeIdToVisibleId.set(n.id, n.id);
-					}
-				}
-			} else {
-				const parentFileId = n.parentId ?? n.filePath;
-				if (parentFileId) {
-					const fileClusterId = `filecluster__file__${parentFileId.replace(/[/:\\]/g, "__")}`;
-					if (expandedFileClusters.has(fileClusterId)) {
-						if (!displayedIds.has(n.id)) {
-							visibleNodes.push(n);
-							displayedIds.add(n.id);
-							nodeIdToVisibleId.set(n.id, n.id);
-						}
-					} else {
-						nodeIdToVisibleId.set(n.id, fileClusterId);
-						const list = fileGroups.get(fileClusterId);
-						if (list) list.push(n);
-						else fileGroups.set(fileClusterId, [n]);
-					}
-				} else {
-					visibleNodes.push(n);
-					displayedIds.add(n.id);
-					nodeIdToVisibleId.set(n.id, n.id);
-				}
-			}
-			for (const [fileClusterId, children] of fileGroups) {
-				const parentFileId = children[0]?.parentId ?? children[0]?.filePath ?? "";
-				const parentNode = filePathToNodes.get(parentFileId)?.[0];
-				const clusterNode = {
-					id: NodeId(fileClusterId),
-					label: `${parentNode?.label ?? getFileLabel(parentFileId)} (${children.length})`,
-					type: "module",
-					filePath: parentNode?.filePath ?? parentFileId,
-					lineNumber: 0,
-					properties: {},
-					isCluster: true,
-					childCount: children.length,
-					childIds: children.map((c) => c.id),
-					clusterPath: parentFileId,
-					clusterLevel: "file"
-				};
-				visibleNodes.push(clusterNode);
-			}
-		}
+		if (expandedDirs.has(clusterId) || expandedDirs.has(dirPath)) clusterExpandedDirectory(dirPath, nodes, rawEdges, parentToChildren, filePathToNodes, expandedFileClusters, expandedSubgroups, dirEdgeCache, visibleNodes, displayedIds, nodeIdToVisibleId);
 		else {
-			const childIds = nodes.map((n) => n.id);
-			const clusterNode = {
-				id: NodeId(clusterId),
-				label: `${getDirLabel(dirPath)} (${nodes.length})`,
-				type: "module",
-				filePath: dirPath,
-				lineNumber: 0,
-				properties: {},
-				isCluster: true,
-				childCount: nodes.length,
-				childIds,
-				clusterPath: dirPath,
-				clusterLevel: "directory"
-			};
+			const { clusterNode, nodeIdToVisibleId: dirMap } = createDirectoryCluster(dirPath, nodes, clusterId);
 			visibleNodes.push(clusterNode);
-			for (const n of nodes) nodeIdToVisibleId.set(n.id, clusterId);
+			for (const [rawId, visId] of dirMap) nodeIdToVisibleId.set(rawId, visId);
 		}
 	}
-	if (visibleNodes.length > MAX_VISIBLE_NODES) return enforceNodeLimit(visibleNodes, nodeIdToVisibleId, rawEdges);
+	if (visibleNodes.length > maxVisibleNodes) return enforceNodeLimit(visibleNodes, nodeIdToVisibleId, rawEdges, maxVisibleNodes);
 	const visibleEdges = aggregateEdges(rawEdges, nodeIdToVisibleId, "cluster__");
 	return {
 		nodes: visibleNodes,
 		edges: visibleEdges
 	};
 }
-function enforceNodeLimit(visibleNodes, nodeIdToVisibleId, rawEdges) {
+function enforceNodeLimit(visibleNodes, nodeIdToVisibleId, rawEdges, maxVisibleNodes = MAX_VISIBLE_NODES) {
 	const clusterNodes = visibleNodes.filter((n) => "isCluster" in n && n.isCluster === true);
 	const nonClusterNodes = visibleNodes.filter((n) => !("isCluster" in n && n.isCluster === true));
 	const nodesToKeep = new Set();
 	const collapsedChildIds = new Set();
-	const overLimit = visibleNodes.length - MAX_VISIBLE_NODES;
-	const sortedClusters = [...clusterNodes].sort((a, b) => a.childCount - b.childCount);
+	const overLimit = visibleNodes.length - maxVisibleNodes;
+	const sortedClusters = [...clusterNodes].sort((a, b) => b.childCount - a.childCount);
 	let collapsed = 0;
 	for (const cluster of sortedClusters) {
 		if (collapsed >= overLimit) break;
@@ -808,18 +1107,134 @@ function enforceNodeLimit(visibleNodes, nodeIdToVisibleId, rawEdges) {
 //#endregion
 //#region src/client/store/cluster/ProgressiveClusterStrategy.ts
 var ProgressiveClusterStrategy = class {
-	compute(rawNodes, rawEdges, expandedNodeIds, initialDepth = 0) {
-		return computeProgressiveClusters(rawNodes, rawEdges, expandedNodeIds, initialDepth);
+	compute(rawNodes, rawEdges, expandedNodeIds, initialDepth = 0, viewportWidth) {
+		return computeProgressiveClusters(rawNodes, rawEdges, expandedNodeIds, initialDepth, viewportWidth);
 	}
 };
 
 //#endregion
 //#region src/client/store/cluster/index.ts
 const strategyRegistry = new Map([["progressive", new ProgressiveClusterStrategy()]]);
-function computeClusteredGraph(rawNodes, rawEdges, clusterLevel, expandedNodeIds, initialDepth = 0) {
+function computeClusteredGraph(rawNodes, rawEdges, clusterLevel, expandedNodeIds, initialDepth = 0, viewportWidth) {
 	const strategy = strategyRegistry.get(clusterLevel);
 	if (!strategy) throw new Error(`Unknown cluster level: ${clusterLevel}`);
-	return strategy.compute(rawNodes, rawEdges, expandedNodeIds, initialDepth);
+	return strategy.compute(rawNodes, rawEdges, expandedNodeIds, initialDepth, viewportWidth);
+}
+
+//#endregion
+//#region src/client/store/cluster/incrementalCluster.ts
+function getDirClusterId(dirPath) {
+	return `cluster__${dirPath.replace(/[/:\\]/g, "__")}`;
+}
+function computeIncrementalClusters(ctx, newRawNodes, newRawEdges, expandedNodeIds, initialDepth, viewportWidth) {
+	const { prevResult, prevNodeIdToVisibleId, prevRawNodes } = ctx;
+	if (prevRawNodes.length < INCREMENTAL_CLUSTER.MIN_PREV_NODES) return null;
+	if (prevResult.nodes.length === 0) return null;
+	const prevIds = new Set(prevRawNodes.map((n) => n.id));
+	const newIds = new Set(newRawNodes.map((n) => n.id));
+	const addedNodes = [];
+	const removedIds = [];
+	for (const n of newRawNodes) if (!prevIds.has(n.id)) addedNodes.push(n);
+	for (const id of prevIds) if (!newIds.has(id)) removedIds.push(id);
+	const totalChanges = addedNodes.length + removedIds.length;
+	const changeRatio = totalChanges / Math.max(prevRawNodes.length, 1);
+	if (changeRatio > INCREMENTAL_CLUSTER.MAX_CHANGE_RATIO) return null;
+	const nodeIdToVisibleId = new Map(prevNodeIdToVisibleId);
+	for (const id of removedIds) nodeIdToVisibleId.delete(id);
+	const newDirs = new Set();
+	for (const node of addedNodes) {
+		const depGroup = getDependencyGroup(node);
+		const dir = depGroup ?? (node.filePath ? getTopLevelDir(node.filePath) : node.id);
+		const clusterId = getDirClusterId(dir);
+		nodeIdToVisibleId.set(node.id, clusterId);
+		if (!prevIds.has(dir) && !newDirs.has(dir)) newDirs.add(dir);
+	}
+	const maxVisibleNodes = viewportWidth !== null && viewportWidth !== void 0 ? getDynamicMaxVisibleNodes(viewportWidth) : CLUSTER.MAX_VISIBLE_NODES;
+	const effectiveDepth = initialDepth > 0 && viewportWidth !== null && viewportWidth !== void 0 ? Math.max(initialDepth, getAutoClusterDepth(newRawNodes.length, maxVisibleNodes)) : initialDepth;
+	const visibleNodes = [];
+	const clusterChildMap = new Map();
+	for (const n of newRawNodes) {
+		const visId = nodeIdToVisibleId.get(n.id);
+		if (!visId) continue;
+		if (visId === n.id) visibleNodes.push(n);
+		else {
+			const list = clusterChildMap.get(visId);
+			if (list) list.push(n);
+			else clusterChildMap.set(visId, [n]);
+		}
+	}
+	for (const [clusterId, children] of clusterChildMap) {
+		const isExpanded = expandedNodeIds.has(clusterId);
+		const prevCluster = prevResult.nodes.find((n) => "isCluster" in n && n.isCluster === true && n.id === clusterId);
+		if (isExpanded) {
+			if (children.length > CLUSTER.MAX_NODES_PER_DIR_BEFORE_SUBGROUP) return null;
+			for (const child of children) {
+				visibleNodes.push(child);
+				nodeIdToVisibleId.set(child.id, child.id);
+			}
+		} else {
+			const primaryNode = children[0];
+			const clusterNode = {
+				id: NodeId(clusterId),
+				label: prevCluster?.label ?? `${primaryNode?.label ?? clusterId} (${children.length})`,
+				type: prevCluster?.type ?? "module",
+				filePath: prevCluster?.filePath ?? primaryNode?.filePath ?? "",
+				lineNumber: 0,
+				properties: {},
+				isCluster: true,
+				childCount: children.length,
+				childIds: children.map((c) => c.id),
+				clusterPath: prevCluster?.clusterPath ?? clusterId,
+				clusterLevel: prevCluster?.clusterLevel ?? "directory"
+			};
+			visibleNodes.push(clusterNode);
+			for (const child of children) nodeIdToVisibleId.set(child.id, clusterId);
+		}
+	}
+	for (const dir of newDirs) {
+		const clusterId = getDirClusterId(dir);
+		if (clusterChildMap.has(clusterId)) continue;
+		const dirNodes = newRawNodes.filter((n) => {
+			const depGroup = getDependencyGroup(n);
+			const d = depGroup ?? (n.filePath ? getTopLevelDir(n.filePath) : n.id);
+			return d === dir;
+		});
+		if (dirNodes.length === 0) continue;
+		if (effectiveDepth >= 1 && expandedNodeIds.has(clusterId)) for (const n of dirNodes) {
+			visibleNodes.push(n);
+			nodeIdToVisibleId.set(n.id, n.id);
+		}
+		else {
+			const clusterNode = {
+				id: NodeId(clusterId),
+				label: `${dir.split("/").pop() ?? dir} (${dirNodes.length})`,
+				type: "module",
+				filePath: dir,
+				lineNumber: 0,
+				properties: {},
+				isCluster: true,
+				childCount: dirNodes.length,
+				childIds: dirNodes.map((n) => n.id),
+				clusterPath: dir,
+				clusterLevel: "directory"
+			};
+			visibleNodes.push(clusterNode);
+			for (const n of dirNodes) nodeIdToVisibleId.set(n.id, clusterId);
+		}
+	}
+	if (visibleNodes.length > maxVisibleNodes) return null;
+	const visibleEdges = aggregateEdges(newRawEdges, nodeIdToVisibleId, "cluster__");
+	return {
+		nodes: visibleNodes,
+		edges: visibleEdges
+	};
+}
+function tryIncrementalOrFull(ctx, newRawNodes, newRawEdges, expandedNodeIds, initialDepth, viewportWidth) {
+	if (ctx) {
+		const incremental = computeIncrementalClusters(ctx, newRawNodes, newRawEdges, expandedNodeIds, initialDepth, viewportWidth);
+		if (incremental) return incremental;
+	}
+	return computeProgressiveClusters(newRawNodes, newRawEdges, expandedNodeIds, initialDepth, viewportWidth);
 }
 
 //#endregion
@@ -846,55 +1261,49 @@ function computeDepths(rootIds, edges, direction) {
 	}
 	return depths;
 }
+function buildAdjacencyMaps$1(edges) {
+	const outEdges = new Map();
+	const inEdges = new Map();
+	for (const e of edges) {
+		const outList = outEdges.get(e.source) ?? [];
+		outList.push(e);
+		outEdges.set(e.source, outList);
+		const inList = inEdges.get(e.target) ?? [];
+		inList.push(e);
+		inEdges.set(e.target, inList);
+	}
+	return {
+		outEdges,
+		inEdges
+	};
+}
 
 //#endregion
-//#region src/client/diagram/InheritanceAssembler.ts
-const INHERITANCE_NODE_TYPES = new Set([
-	"class",
-	"interface",
-	"type"
-]);
-const INHERITANCE_EDGE_TYPES = new Set(["extend", "implement"]);
-var InheritanceAssembler = class {
+//#region src/client/diagram/BaseFilteringAssembler.ts
+var BaseFilteringAssembler = class {
+	prepare(_ctx) {}
 	assemble(nodes, edges) {
-		const inheritanceNodes = nodes.filter((n) => INHERITANCE_NODE_TYPES.has(n.type));
-		const inheritanceEdges = edges.filter((e) => INHERITANCE_EDGE_TYPES.has(e.type));
-		const nodeIds = new Set(inheritanceNodes.map((n) => n.id));
-		const validEdges = inheritanceEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
-		const outEdges = new Map();
-		const inEdges = new Map();
-		for (const e of validEdges) {
-			const outList = outEdges.get(e.source) ?? [];
-			outList.push(e);
-			outEdges.set(e.source, outList);
-			const inList = inEdges.get(e.target) ?? [];
-			inList.push(e);
-			inEdges.set(e.target, inList);
-		}
-		const rootIds = [];
-		for (const n of inheritanceNodes) if (!outEdges.has(n.id)) rootIds.push(n.id);
-		const depthMap = computeDepths(rootIds, inEdges, "source");
-		const descendantCounts = this.computeDescendantCounts(rootIds, inEdges);
-		const assembledNodes = inheritanceNodes.map((n) => {
-			const parentEdges = outEdges.get(n.id) ?? [];
-			const childEdges = inEdges.get(n.id) ?? [];
-			const stereotype = n.type === "interface" ? "«interface»\n" : "";
-			const umlLabel = stereotype + n.label;
-			const isAbstract = n.type === "interface" || n.properties?.isAbstract === true || /^Abstract[A-Z]/.test(n.label) || /^I[A-Z][a-z]/.test(n.label) && n.type === "class";
-			return {
-				...n,
-				properties: {
-					...n.properties,
-					depth: depthMap.get(n.id) ?? 0,
-					isRoot: !outEdges.has(n.id),
-					parentCount: parentEdges.length,
-					childCount: childEdges.length,
-					descendantCount: descendantCounts.get(n.id) ?? 0,
-					isAbstract,
-					umlLabel
-				}
-			};
-		});
+		const cfg = this.config;
+		const filteredNodes = nodes.filter((n) => cfg.nodeTypes.has(n.type));
+		const filteredEdges = edges.filter((e) => cfg.edgeTypes.has(e.type));
+		const nodeIds = new Set(filteredNodes.map((n) => n.id));
+		const validEdges = filteredEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+		const { outEdges, inEdges } = buildAdjacencyMaps$1(validEdges);
+		const rootIds = this.findRoots(filteredNodes, outEdges, inEdges);
+		const depthEdges = cfg.depthDirection === "source" ? inEdges : outEdges;
+		const depthMap = computeDepths(rootIds, depthEdges, cfg.depthDirection);
+		const ctx = {
+			outEdges,
+			inEdges,
+			depthMap,
+			rootIds,
+			allNodes: nodes,
+			allEdges: edges,
+			filteredNodes,
+			validEdges
+		};
+		this.prepare(ctx);
+		const assembledNodes = filteredNodes.map((n) => this.enrichNode(n, ctx));
 		const maxDepth = Math.max(0, ...depthMap.values());
 		return {
 			nodes: assembledNodes,
@@ -904,6 +1313,55 @@ var InheritanceAssembler = class {
 				maxDepth,
 				nodeCount: assembledNodes.length,
 				edgeCount: validEdges.length
+			}
+		};
+	}
+	findRoots(nodes, outEdges, inEdges) {
+		if (this.config.rootDirection === "in-degree-zero") return nodes.filter((n) => (inEdges.get(n.id) ?? []).length === 0).map((n) => n.id);
+		return nodes.filter((n) => !outEdges.has(n.id)).map((n) => n.id);
+	}
+};
+
+//#endregion
+//#region src/client/diagram/InheritanceAssembler.ts
+const INHERITANCE_NODE_TYPES = new Set([
+	"class",
+	"interface",
+	"type"
+]);
+const INHERITANCE_EDGE_TYPES = new Set(["extend", "implement"]);
+var InheritanceAssembler = class extends BaseFilteringAssembler {
+	config = {
+		nodeTypes: INHERITANCE_NODE_TYPES,
+		edgeTypes: INHERITANCE_EDGE_TYPES,
+		rootDirection: "no-out-edges",
+		depthDirection: "source"
+	};
+	descendantCounts = new Map();
+	prepare(ctx) {
+		this.descendantCounts = this.computeDescendantCounts(ctx.rootIds, ctx.inEdges);
+	}
+	enrichNode(node, ctx) {
+		const parentEdges = ctx.outEdges.get(node.id) ?? [];
+		const childEdges = ctx.inEdges.get(node.id) ?? [];
+		const stereotype = node.type === "interface" ? `\u00ABinterface\u00BB\n` : "";
+		const umlLabel = stereotype + node.label;
+		const isInterface = node.type === "interface";
+		const hasAbstractProp = node.properties?.isAbstract === true;
+		const matchesAbstractPattern = /^Abstract[A-Z]/.test(node.label);
+		const matchesInterfacePattern = /^I[A-Z][a-z]/.test(node.label) && node.type === "class";
+		const isAbstract = isInterface || hasAbstractProp || matchesAbstractPattern || matchesInterfacePattern;
+		return {
+			...node,
+			properties: {
+				...node.properties,
+				depth: ctx.depthMap.get(node.id) ?? 0,
+				isRoot: !ctx.outEdges.has(node.id),
+				parentCount: parentEdges.length,
+				childCount: childEdges.length,
+				descendantCount: this.descendantCounts.get(node.id) ?? 0,
+				isAbstract,
+				umlLabel
 			}
 		};
 	}
@@ -938,62 +1396,35 @@ const ENTRY_PATTERNS$1 = {
 	cli: /^main$|^cli$|^run$|^start$/i,
 	test: /^test|^it$|^describe$|^beforeEach$|^afterEach$/i
 };
-var CallGraphAssembler = class {
-	assemble(nodes, edges) {
-		const callNodes = nodes.filter((n) => CALL_NODE_TYPES$1.has(n.type));
-		const callEdges = edges.filter((e) => CALL_EDGE_TYPES.has(e.type));
-		const nodeIds = new Set(callNodes.map((n) => n.id));
-		const validEdges = callEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
-		const outEdges = new Map();
-		const inEdges = new Map();
-		for (const e of validEdges) {
-			const outList = outEdges.get(e.source) ?? [];
-			outList.push(e);
-			outEdges.set(e.source, outList);
-			const inList = inEdges.get(e.target) ?? [];
-			inList.push(e);
-			inEdges.set(e.target, inList);
-		}
-		const inDegree = new Map();
-		const outDegree = new Map();
-		for (const n of callNodes) {
-			inDegree.set(n.id, (inEdges.get(n.id) ?? []).length);
-			outDegree.set(n.id, (outEdges.get(n.id) ?? []).length);
-		}
-		const rootIds = [];
-		for (const n of callNodes) if (inDegree.get(n.id) === 0) rootIds.push(n.id);
-		const recursiveIds = this.detectRecursion(callNodes, validEdges);
-		const depthMap = computeDepths(rootIds, outEdges, "target");
-		const assembledNodes = callNodes.map((n) => {
-			const deg = inDegree.get(n.id) ?? 0;
-			const outDeg = outDegree.get(n.id) ?? 0;
-			const isEntry = deg === 0;
-			const entryType = isEntry ? this.classifyEntry(n) : "none";
-			const entryPrefix = isEntry ? `\u00AB${entryType}\u00BB\n` : "";
-			const umlLabel = entryPrefix + n.label;
-			return {
-				...n,
-				properties: {
-					...n.properties,
-					depth: depthMap.get(n.id) ?? 0,
-					isEntry,
-					entryType,
-					inDegree: deg,
-					outDegree: outDeg,
-					isRecursive: recursiveIds.has(n.id),
-					umlLabel
-				}
-			};
-		});
-		const maxDepth = Math.max(0, ...depthMap.values());
+var CallGraphAssembler = class extends BaseFilteringAssembler {
+	config = {
+		nodeTypes: CALL_NODE_TYPES$1,
+		edgeTypes: CALL_EDGE_TYPES,
+		rootDirection: "in-degree-zero",
+		depthDirection: "target"
+	};
+	recursiveIds = new Set();
+	prepare(ctx) {
+		this.recursiveIds = this.detectRecursion(ctx.filteredNodes, ctx.validEdges);
+	}
+	enrichNode(node, ctx) {
+		const inDeg = (ctx.inEdges.get(node.id) ?? []).length;
+		const outDeg = (ctx.outEdges.get(node.id) ?? []).length;
+		const isEntry = inDeg === 0;
+		const entryType = isEntry ? this.classifyEntry(node) : "none";
+		const entryPrefix = isEntry ? `\u00AB${entryType}\u00BB\n` : "";
+		const umlLabel = entryPrefix + node.label;
 		return {
-			nodes: assembledNodes,
-			edges: validEdges,
-			metadata: {
-				rootIds,
-				maxDepth,
-				nodeCount: assembledNodes.length,
-				edgeCount: validEdges.length
+			...node,
+			properties: {
+				...node.properties,
+				depth: ctx.depthMap.get(node.id) ?? 0,
+				isEntry,
+				entryType,
+				inDegree: inDeg,
+				outDegree: outDeg,
+				isRecursive: this.recursiveIds.has(node.id),
+				umlLabel
 			}
 		};
 	}
@@ -1008,27 +1439,163 @@ var CallGraphAssembler = class {
 		return "none";
 	}
 	detectRecursion(nodes, edges) {
-		const adjacency = new Map();
-		for (const e of edges) {
-			const list = adjacency.get(e.source) ?? [];
-			list.push(e.target);
-			adjacency.set(e.source, list);
-		}
+		const adjacency = buildForwardAdjacency(edges);
 		const recursive = new Set();
 		const visited = new Set();
-		const inStack = new Set();
-		const dfs$4 = (id) => {
-			visited.add(id);
-			inStack.add(id);
-			const neighbors = adjacency.get(id) ?? [];
-			for (const target of neighbors) if (inStack.has(target)) {
-				recursive.add(target);
-				recursive.add(id);
-			} else if (!visited.has(target)) dfs$4(target);
-			inStack.delete(id);
-		};
-		for (const n of nodes) if (!visited.has(n.id)) dfs$4(n.id);
+		for (const startNode of nodes) {
+			if (visited.has(startNode.id)) continue;
+			const stack = [];
+			const inStack = new Set();
+			stack.push({
+				id: startNode.id,
+				neighborIdx: 0
+			});
+			inStack.add(startNode.id);
+			visited.add(startNode.id);
+			while (stack.length > 0) {
+				const frame = stack[stack.length - 1];
+				const neighbors = adjacency.get(frame.id) ?? [];
+				if (frame.neighborIdx < neighbors.length) {
+					const target = neighbors[frame.neighborIdx];
+					frame.neighborIdx++;
+					if (inStack.has(target)) {
+						recursive.add(target);
+						recursive.add(frame.id);
+					} else if (!visited.has(target)) {
+						visited.add(target);
+						inStack.add(target);
+						stack.push({
+							id: target,
+							neighborIdx: 0
+						});
+					}
+				} else {
+					inStack.delete(frame.id);
+					stack.pop();
+				}
+			}
+		}
 		return recursive;
+	}
+};
+
+//#endregion
+//#region src/client/diagram/HierarchicalAssembler.ts
+const UML_SEPARATOR = "─".repeat(20);
+var HierarchicalAssembler = class {
+	assemble(nodes, edges) {
+		const cfg = this.config;
+		const filteredNodes = cfg.filterNodes ? cfg.filterNodes(nodes) : nodes;
+		const relevantEdges = edges.filter((e) => cfg.edgeTypes.has(e.type));
+		const dirNodes = new Map();
+		const dirChildCount = new Map();
+		const dirTypeDist = new Map();
+		for (const n of filteredNodes) {
+			const dir = cfg.getDirectory(n.filePath);
+			if (!dirNodes.has(dir)) {
+				dirNodes.set(dir, {
+					id: NodeId(`${cfg.nodePrefix}:${dir}`),
+					label: cfg.getLabel(dir),
+					type: "module",
+					filePath: dir,
+					lineNumber: 0,
+					properties: {
+						[cfg.isDirProperty]: true,
+						directory: dir
+					}
+				});
+				dirChildCount.set(dir, 0);
+				dirTypeDist.set(dir, {});
+			}
+			dirChildCount.set(dir, (dirChildCount.get(dir) ?? 0) + 1);
+			const dist$1 = dirTypeDist.get(dir);
+			if (!cfg.excludeTypesFromDist?.has(n.type)) dist$1[n.type] = (dist$1[n.type] ?? 0) + 1;
+		}
+		const nodeIdToDir = new Map();
+		for (const n of filteredNodes) nodeIdToDir.set(n.id, cfg.getDirectory(n.filePath));
+		const aggregatedEdges = new Map();
+		for (const e of relevantEdges) {
+			const sourceDir = nodeIdToDir.get(e.source);
+			const targetDir = nodeIdToDir.get(e.target);
+			if (!sourceDir || !targetDir || sourceDir === targetDir) continue;
+			const key = `${sourceDir}->${targetDir}`;
+			const existing = aggregatedEdges.get(key);
+			if (existing) {
+				existing.count++;
+				existing.types.add(e.type);
+			} else aggregatedEdges.set(key, {
+				source: sourceDir,
+				target: targetDir,
+				count: 1,
+				types: new Set([e.type])
+			});
+		}
+		const edgeList = [];
+		let edgeIdx = 0;
+		for (const [, agg] of aggregatedEdges) {
+			const sourceId = `${cfg.nodePrefix}:${agg.source}`;
+			const targetId = `${cfg.nodePrefix}:${agg.target}`;
+			if (!dirNodes.has(agg.source) || !dirNodes.has(agg.target)) continue;
+			edgeList.push({
+				id: EdgeId(`${cfg.edgeIdPrefix}:${edgeIdx++}`),
+				source: NodeId(sourceId),
+				target: NodeId(targetId),
+				type: agg.types.has("import") ? "import" : "dependency",
+				properties: {
+					aggregatedCount: agg.count,
+					[cfg.isEdgeProperty]: true
+				}
+			});
+		}
+		const inDegree = new Map();
+		const outDegree = new Map();
+		for (const e of edgeList) {
+			outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1);
+			inDegree.set(e.target, (inDegree.get(e.target) ?? 0) + 1);
+		}
+		const rootIds = [];
+		for (const [, dirNode] of dirNodes) if ((inDegree.get(dirNode.id) ?? 0) === 0) rootIds.push(dirNode.id);
+		const edgeMap = new Map();
+		for (const e of edgeList) {
+			const list = edgeMap.get(e.source) ?? [];
+			list.push(e);
+			edgeMap.set(e.source, list);
+		}
+		const depthMap = computeDepths(rootIds, edgeMap, "target");
+		const assembledNodes = [];
+		for (const [dir, dirNode] of dirNodes) {
+			const childCount = dirChildCount.get(dir) ?? 0;
+			const typeDist = dirTypeDist.get(dir) ?? {};
+			const inDeg = inDegree.get(dirNode.id) ?? 0;
+			const outDeg = outDegree.get(dirNode.id) ?? 0;
+			const depth = depthMap.get(dirNode.id) ?? 0;
+			const typeSummary = Object.entries(typeDist).map(([t$1, c]) => `${t$1}: ${c}`).join(", ");
+			const umlLabel = `${dirNode.label}\n${UML_SEPARATOR}\n${childCount} items${typeSummary ? "\n" + typeSummary : ""}`;
+			assembledNodes.push({
+				...dirNode,
+				properties: {
+					...dirNode.properties,
+					childCount,
+					typeDistribution: typeDist,
+					inDegree: inDeg,
+					outDegree: outDeg,
+					depth,
+					isRoot: inDeg === 0,
+					umlLabel
+				}
+			});
+		}
+		const maxDepth = Math.max(0, ...depthMap.values());
+		return {
+			nodes: assembledNodes,
+			edges: edgeList,
+			metadata: {
+				rootIds,
+				maxDepth,
+				nodeCount: assembledNodes.length,
+				edgeCount: edgeList.length
+			}
+		};
 	}
 };
 
@@ -1045,138 +1612,17 @@ function getPackageLabel(dir) {
 	const parts = dir.split("/");
 	return parts[parts.length - 1] ?? dir;
 }
-var PackageAssembler = class {
-	assemble(nodes, edges) {
-		const moduleNodes = nodes.filter((n) => n.type === "module");
-		const importEdges = edges.filter((e) => e.type === "import" || e.type === "dependency");
-		const packageNodes = new Map();
-		const packageChildCount = new Map();
-		const packageTypeDist = new Map();
-		for (const n of moduleNodes) {
-			const dir = getDirectory(n.filePath);
-			if (!packageNodes.has(dir)) {
-				packageNodes.set(dir, {
-					id: NodeId(`pkg:${dir}`),
-					label: getPackageLabel(dir),
-					type: "module",
-					filePath: dir,
-					lineNumber: 0,
-					properties: {
-						isPackage: true,
-						directory: dir
-					}
-				});
-				packageChildCount.set(dir, 0);
-				packageTypeDist.set(dir, {});
-			}
-			packageChildCount.set(dir, (packageChildCount.get(dir) ?? 0) + 1);
-		}
-		for (const n of nodes) {
-			if (n.type === "module") continue;
-			const dir = getDirectory(n.filePath);
-			if (!packageTypeDist.has(dir)) {
-				packageNodes.set(dir, {
-					id: NodeId(`pkg:${dir}`),
-					label: getPackageLabel(dir),
-					type: "module",
-					filePath: dir,
-					lineNumber: 0,
-					properties: {
-						isPackage: true,
-						directory: dir
-					}
-				});
-				packageChildCount.set(dir, 0);
-				packageTypeDist.set(dir, {});
-			}
-			const dist$1 = packageTypeDist.get(dir);
-			dist$1[n.type] = (dist$1[n.type] ?? 0) + 1;
-		}
-		const nodeIdToDir = new Map();
-		for (const n of nodes) nodeIdToDir.set(n.id, getDirectory(n.filePath));
-		const aggregatedEdges = new Map();
-		for (const e of importEdges) {
-			const sourceDir = nodeIdToDir.get(e.source);
-			const targetDir = nodeIdToDir.get(e.target);
-			if (!sourceDir || !targetDir || sourceDir === targetDir) continue;
-			const key = `${sourceDir}->${targetDir}`;
-			const existing = aggregatedEdges.get(key);
-			if (existing) {
-				existing.count++;
-				existing.types.add(e.type);
-			} else aggregatedEdges.set(key, {
-				source: sourceDir,
-				target: targetDir,
-				count: 1,
-				types: new Set([e.type])
-			});
-		}
-		const packageEdgeList = [];
-		let edgeIdx = 0;
-		for (const [, agg] of aggregatedEdges) {
-			const sourcePkgId = `pkg:${agg.source}`;
-			const targetPkgId = `pkg:${agg.target}`;
-			if (!packageNodes.has(agg.source) || !packageNodes.has(agg.target)) continue;
-			packageEdgeList.push({
-				id: EdgeId(`pkg-edge:${edgeIdx++}`),
-				source: NodeId(sourcePkgId),
-				target: NodeId(targetPkgId),
-				type: agg.types.has("import") ? "import" : "dependency",
-				properties: {
-					aggregatedCount: agg.count,
-					isPackageEdge: true
-				}
-			});
-		}
-		const inDegree = new Map();
-		const outDegree = new Map();
-		for (const e of packageEdgeList) {
-			outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1);
-			inDegree.set(e.target, (inDegree.get(e.target) ?? 0) + 1);
-		}
-		const rootIds = [];
-		for (const [, pkgNode] of packageNodes) if ((inDegree.get(pkgNode.id) ?? 0) === 0) rootIds.push(pkgNode.id);
-		const packageEdgeMap = new Map();
-		for (const e of packageEdgeList) {
-			const list = packageEdgeMap.get(e.source) ?? [];
-			list.push(e);
-			packageEdgeMap.set(e.source, list);
-		}
-		const depthMap = computeDepths(rootIds, packageEdgeMap, "target");
-		const assembledNodes = [];
-		for (const [dir, pkgNode] of packageNodes) {
-			const childCount = packageChildCount.get(dir) ?? 0;
-			const typeDist = packageTypeDist.get(dir) ?? {};
-			const inDeg = inDegree.get(pkgNode.id) ?? 0;
-			const outDeg = outDegree.get(pkgNode.id) ?? 0;
-			const depth = depthMap.get(pkgNode.id) ?? 0;
-			const typeSummary = Object.entries(typeDist).map(([t$1, c]) => `${t$1}: ${c}`).join(", ");
-			const umlLabel = `${pkgNode.label}\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n${childCount} items${typeSummary ? "\n" + typeSummary : ""}`;
-			assembledNodes.push({
-				...pkgNode,
-				properties: {
-					...pkgNode.properties,
-					childCount,
-					typeDistribution: typeDist,
-					inDegree: inDeg,
-					outDegree: outDeg,
-					depth,
-					isRoot: inDeg === 0,
-					umlLabel
-				}
-			});
-		}
-		return {
-			nodes: assembledNodes,
-			edges: packageEdgeList,
-			metadata: {
-				rootIds,
-				maxDepth: Math.max(0, ...depthMap.values()),
-				nodeCount: assembledNodes.length,
-				edgeCount: packageEdgeList.length
-			}
-		};
-	}
+var PackageAssembler = class extends HierarchicalAssembler {
+	config = {
+		nodePrefix: "pkg",
+		edgeIdPrefix: "pkg-edge",
+		isDirProperty: "isPackage",
+		isEdgeProperty: "isPackageEdge",
+		edgeTypes: new Set(["import", "dependency"]),
+		excludeTypesFromDist: new Set(["module"]),
+		getDirectory,
+		getLabel: getPackageLabel
+	};
 };
 
 //#endregion
@@ -1186,99 +1632,90 @@ const CLASS_NODE_TYPES = new Set([
 	"interface",
 	"type"
 ]);
-const CLASS_EDGE_TYPES = new Set(["extend", "implement"]);
-var ClassAssembler = class {
-	assemble(nodes, edges) {
-		const classNodes = nodes.filter((n) => CLASS_NODE_TYPES.has(n.type));
-		const classEdges = edges.filter((e) => CLASS_EDGE_TYPES.has(e.type));
-		const classIds = new Set(classNodes.map((n) => n.id));
-		const validEdges = classEdges.filter((e) => classIds.has(e.source) && classIds.has(e.target));
-		const membersByClass = this.associateMembers(classNodes, nodes);
-		const outEdges = new Map();
-		const inEdges = new Map();
-		for (const e of validEdges) {
-			const outList = outEdges.get(e.source) ?? [];
-			outList.push(e);
-			outEdges.set(e.source, outList);
-			const inList = inEdges.get(e.target) ?? [];
-			inList.push(e);
-			inEdges.set(e.target, inList);
-		}
-		const rootIds = [];
-		for (const n of classNodes) if (!outEdges.has(n.id)) rootIds.push(n.id);
-		const depthMap = computeDepths(rootIds, inEdges, "source");
-		const assembledNodes = classNodes.map((n) => {
-			const members = membersByClass.get(n.id) ?? [];
-			const methodCount = members.filter((m) => m.type === "method").length;
-			const propertyCount = members.filter((m) => m.type === "property").length;
-			const parentEdges = outEdges.get(n.id) ?? [];
-			const childEdges = inEdges.get(n.id) ?? [];
-			const memberSignatures = members.slice(0, 10).map((m) => ({
-				name: m.name,
-				type: m.type,
-				visibility: m.visibility,
-				...m.signature ? { signature: m.signature } : {}
-			}));
-			const umlLabel = this.buildUmlLabel(n, members);
-			return {
-				...n,
-				properties: {
-					...n.properties,
-					depth: depthMap.get(n.id) ?? 0,
-					isRoot: !outEdges.has(n.id),
-					parentCount: parentEdges.length,
-					childCount: childEdges.length,
-					methodCount,
-					propertyCount,
-					members: memberSignatures,
-					umlLabel,
-					isAbstract: this.checkAbstract(n)
-				}
-			};
-		});
-		const maxDepth = Math.max(0, ...depthMap.values());
+const CLASS_EDGE_TYPES = new Set([
+	"extend",
+	"implement",
+	"association",
+	"aggregation",
+	"composition"
+]);
+var ClassAssembler = class extends BaseFilteringAssembler {
+	config = {
+		nodeTypes: CLASS_NODE_TYPES,
+		edgeTypes: CLASS_EDGE_TYPES,
+		rootDirection: "no-out-edges",
+		depthDirection: "source"
+	};
+	membersByClass = new Map();
+	prepare(ctx) {
+		this.membersByClass = this.associateMembers(ctx.filteredNodes, ctx.allNodes);
+	}
+	enrichNode(node, ctx) {
+		const members = this.membersByClass.get(node.id) ?? [];
+		const methodCount = members.filter((m) => m.type === "method").length;
+		const propertyCount = members.filter((m) => m.type === "property").length;
+		const parentEdges = ctx.outEdges.get(node.id) ?? [];
+		const childEdges = ctx.inEdges.get(node.id) ?? [];
+		const memberSignatures = members.slice(0, 10).map((m) => ({
+			name: m.name,
+			type: m.type,
+			visibility: m.visibility,
+			...m.signature ? { signature: m.signature } : {}
+		}));
+		const umlLabel = this.buildUmlLabel(node, members);
 		return {
-			nodes: assembledNodes,
-			edges: validEdges,
-			metadata: {
-				rootIds,
-				maxDepth,
-				nodeCount: assembledNodes.length,
-				edgeCount: validEdges.length
+			...node,
+			properties: {
+				...node.properties,
+				depth: ctx.depthMap.get(node.id) ?? 0,
+				isRoot: !ctx.outEdges.has(node.id),
+				parentCount: parentEdges.length,
+				childCount: childEdges.length,
+				methodCount,
+				propertyCount,
+				members: memberSignatures,
+				umlLabel,
+				isAbstract: this.checkAbstract(node)
 			}
 		};
 	}
 	associateMembers(classNodes, allNodes) {
 		const result = new Map();
-		const classesByFile = new Map();
-		for (const cls of classNodes) {
-			const list = classesByFile.get(cls.filePath) ?? [];
-			list.push(cls);
-			classesByFile.set(cls.filePath, list);
-		}
-		for (const [filePath, classes] of classesByFile) {
-			const sortedClasses = [...classes].sort((a, b) => (a.lineNumber ?? 0) - (b.lineNumber ?? 0));
-			const fileMembers = allNodes.filter((n) => n.filePath === filePath && (n.type === "function" || n.type === "variable") && !CLASS_NODE_TYPES.has(n.type));
-			for (const member of fileMembers) {
-				let assignedClass = null;
-				for (let i$1 = sortedClasses.length - 1; i$1 >= 0; i$1--) {
-					const cls = sortedClasses[i$1];
-					if (cls && (cls.lineNumber ?? 0) <= (member.lineNumber ?? 0)) {
-						assignedClass = cls;
-						break;
+		const classIdSet = new Set(classNodes.map((n) => n.id));
+		for (const member of allNodes) {
+			if (member.type !== "function" && member.type !== "variable") continue;
+			if (CLASS_NODE_TYPES.has(member.type)) continue;
+			let assignedClass = null;
+			if (member.parentId && classIdSet.has(member.parentId)) assignedClass = classNodes.find((n) => n.id === member.parentId) ?? null;
+			if (!assignedClass) {
+				const classesByFile = new Map();
+				for (const cls of classNodes) {
+					const list = classesByFile.get(cls.filePath) ?? [];
+					list.push(cls);
+					classesByFile.set(cls.filePath, list);
+				}
+				const sameFileClasses = classesByFile.get(member.filePath);
+				if (sameFileClasses) {
+					const sortedClasses = [...sameFileClasses].sort((a, b) => (a.lineNumber ?? 0) - (b.lineNumber ?? 0));
+					for (let i$1 = sortedClasses.length - 1; i$1 >= 0; i$1--) {
+						const cls = sortedClasses[i$1];
+						if (cls && (cls.lineNumber ?? 0) <= (member.lineNumber ?? 0)) {
+							assignedClass = cls;
+							break;
+						}
 					}
 				}
-				if (assignedClass) {
-					const list = result.get(assignedClass.id) ?? [];
-					const isMethod = member.type === "function";
-					list.push({
-						name: member.label,
-						type: isMethod ? "method" : "property",
-						...member.properties?.signature ? { signature: member.properties.signature } : {},
-						visibility: this.inferVisibility(member)
-					});
-					result.set(assignedClass.id, list);
-				}
+			}
+			if (assignedClass) {
+				const list = result.get(assignedClass.id) ?? [];
+				const isMethod = member.type === "function";
+				list.push({
+					name: member.label,
+					type: isMethod ? "method" : "property",
+					...member.properties?.signature ? { signature: member.properties.signature } : {},
+					visibility: this.inferVisibility(member)
+				});
+				result.set(assignedClass.id, list);
 			}
 		}
 		return result;
@@ -1313,120 +1750,16 @@ var ClassAssembler = class {
 
 //#endregion
 //#region src/client/diagram/DependencyAssembler.ts
-const DEPENDENCY_EDGE_TYPES = new Set(["import", "dependency"]);
-var DependencyAssembler = class {
-	assemble(nodes, edges) {
-		const depEdges = edges.filter((e) => DEPENDENCY_EDGE_TYPES.has(e.type));
-		const dirNodes = new Map();
-		const dirChildCount = new Map();
-		const dirTypeDist = new Map();
-		for (const n of nodes) {
-			const dir = getTopLevelDir(n.filePath, { simplified: true });
-			if (!dirNodes.has(dir)) {
-				dirNodes.set(dir, {
-					id: NodeId(`depdir:${dir}`),
-					label: dir === "/" ? "root" : dir,
-					type: "module",
-					filePath: dir,
-					lineNumber: 0,
-					properties: {
-						isDependencyDir: true,
-						directory: dir
-					}
-				});
-				dirChildCount.set(dir, 0);
-				dirTypeDist.set(dir, {});
-			}
-			dirChildCount.set(dir, (dirChildCount.get(dir) ?? 0) + 1);
-			const dist$1 = dirTypeDist.get(dir);
-			dist$1[n.type] = (dist$1[n.type] ?? 0) + 1;
-		}
-		const nodeIdToDir = new Map();
-		for (const n of nodes) nodeIdToDir.set(n.id, getTopLevelDir(n.filePath, { simplified: true }));
-		const aggregatedEdges = new Map();
-		for (const e of depEdges) {
-			const sourceDir = nodeIdToDir.get(e.source);
-			const targetDir = nodeIdToDir.get(e.target);
-			if (!sourceDir || !targetDir || sourceDir === targetDir) continue;
-			const key = `${sourceDir}->${targetDir}`;
-			const existing = aggregatedEdges.get(key);
-			if (existing) {
-				existing.count++;
-				existing.types.add(e.type);
-			} else aggregatedEdges.set(key, {
-				source: sourceDir,
-				target: targetDir,
-				count: 1,
-				types: new Set([e.type])
-			});
-		}
-		const depEdgeList = [];
-		let edgeIdx = 0;
-		for (const [, agg] of aggregatedEdges) {
-			const sourceDirId = `depdir:${agg.source}`;
-			const targetDirId = `depdir:${agg.target}`;
-			if (!dirNodes.has(agg.source) || !dirNodes.has(agg.target)) continue;
-			depEdgeList.push({
-				id: EdgeId(`dep-edge:${edgeIdx++}`),
-				source: NodeId(sourceDirId),
-				target: NodeId(targetDirId),
-				type: agg.types.has("import") ? "import" : "dependency",
-				properties: {
-					aggregatedCount: agg.count,
-					isDependencyEdge: true
-				}
-			});
-		}
-		const inDegree = new Map();
-		const outDegree = new Map();
-		for (const e of depEdgeList) {
-			outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1);
-			inDegree.set(e.target, (inDegree.get(e.target) ?? 0) + 1);
-		}
-		const rootIds = [];
-		for (const [, dirNode] of dirNodes) if ((inDegree.get(dirNode.id) ?? 0) === 0) rootIds.push(dirNode.id);
-		const depEdgeMap = new Map();
-		for (const e of depEdgeList) {
-			const list = depEdgeMap.get(e.source) ?? [];
-			list.push(e);
-			depEdgeMap.set(e.source, list);
-		}
-		const depthMap = computeDepths(rootIds, depEdgeMap, "target");
-		const assembledNodes = [];
-		for (const [dir, dirNode] of dirNodes) {
-			const childCount = dirChildCount.get(dir) ?? 0;
-			const typeDist = dirTypeDist.get(dir) ?? {};
-			const inDeg = inDegree.get(dirNode.id) ?? 0;
-			const outDeg = outDegree.get(dirNode.id) ?? 0;
-			const depth = depthMap.get(dirNode.id) ?? 0;
-			const typeSummary = Object.entries(typeDist).map(([t$1, c]) => `${t$1}: ${c}`).join(", ");
-			const umlLabel = `${dirNode.label}\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n${childCount} items${typeSummary ? "\n" + typeSummary : ""}`;
-			assembledNodes.push({
-				...dirNode,
-				properties: {
-					...dirNode.properties,
-					childCount,
-					typeDistribution: typeDist,
-					inDegree: inDeg,
-					outDegree: outDeg,
-					depth,
-					isRoot: inDeg === 0,
-					umlLabel
-				}
-			});
-		}
-		const maxDepth = Math.max(0, ...depthMap.values());
-		return {
-			nodes: assembledNodes,
-			edges: depEdgeList,
-			metadata: {
-				rootIds,
-				maxDepth,
-				nodeCount: assembledNodes.length,
-				edgeCount: depEdgeList.length
-			}
-		};
-	}
+var DependencyAssembler = class extends HierarchicalAssembler {
+	config = {
+		nodePrefix: "depdir",
+		edgeIdPrefix: "dep-edge",
+		isDirProperty: "isDependencyDir",
+		isEdgeProperty: "isDependencyEdge",
+		edgeTypes: new Set(["import", "dependency"]),
+		getDirectory: (filePath) => getTopLevelDir(filePath, { simplified: true }),
+		getLabel: (dir) => dir === "/" ? "root" : dir
+	};
 };
 
 //#endregion
@@ -1479,8 +1812,8 @@ function getFunctionBody(funcNode) {
 }
 
 //#endregion
-//#region src/client/diagram/CFGAssembler.ts
-const CONTROL_FLOW_TYPES$1 = new Set([
+//#region src/shared/astUtils.ts
+const BASE_CONTROL_FLOW_TYPES = new Set([
 	"if_statement",
 	"if",
 	"if_expression",
@@ -1494,7 +1827,6 @@ const CONTROL_FLOW_TYPES$1 = new Set([
 	"switch_statement",
 	"switch",
 	"match_expression",
-	"match_arm",
 	"try_statement",
 	"try",
 	"return_statement",
@@ -1506,7 +1838,40 @@ const CONTROL_FLOW_TYPES$1 = new Set([
 	"break_statement",
 	"break",
 	"continue_statement",
-	"continue",
+	"continue"
+]);
+function isControlFlow$1(node, types = BASE_CONTROL_FLOW_TYPES) {
+	return types.has(node.type);
+}
+function findElseNode(node) {
+	return node.children.find((c) => c.type === "else_clause" || c.type === "else");
+}
+function findConditionNode(node) {
+	return node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression");
+}
+function simplifyText$1(text, maxLen = 40) {
+	const trimmed = text.trim().replace(/\s+/g, " ");
+	if (trimmed.length <= maxLen) return trimmed;
+	return trimmed.substring(0, maxLen - 3) + "...";
+}
+function getBodyChildren$2(node, filter$2) {
+	const body = node.children.find((c) => c.type === "block" || c.type === "statement_block" || c.type === "body" || c.type === "compound_statement" || c.type === "suite" || c.type === "function_body");
+	if (body) return filter$2 ? body.children.filter(filter$2) : body.children;
+	return node.children.filter((c) => c.type !== "condition" && c.type !== "parenthesized_expression" && (!filter$2 || filter$2(c)));
+}
+function getElseBody$2(node, filter$2) {
+	const elseNode = findElseNode(node);
+	if (!elseNode) return [];
+	const body = elseNode.children.find((c) => c.type === "block" || c.type === "statement_block");
+	if (body) return filter$2 ? body.children.filter(filter$2) : body.children;
+	return filter$2 ? elseNode.children.filter(filter$2) : elseNode.children;
+}
+
+//#endregion
+//#region src/client/diagram/CFGAssembler.ts
+const CFG_CONTROL_FLOW_TYPES = new Set([
+	...BASE_CONTROL_FLOW_TYPES,
+	"match_arm",
 	"elif_clause",
 	"elif",
 	"except_clause",
@@ -1565,8 +1930,8 @@ const STATEMENT_TYPES = new Set([
 	"await_expression",
 	"macro_invocation"
 ]);
-function isControlFlow$1(node) {
-	return CONTROL_FLOW_TYPES$1.has(node.type);
+function isControlFlow(node) {
+	return isControlFlow$1(node, CFG_CONTROL_FLOW_TYPES);
 }
 function isStatement(node) {
 	return STATEMENT_TYPES.has(node.type) || node.type.endsWith("_statement");
@@ -1583,9 +1948,7 @@ function classifyStatement(node) {
 	return "expression";
 }
 function simplifyText(text, maxLen = 40) {
-	const trimmed = text.trim().replace(/\s+/g, " ");
-	if (trimmed.length <= maxLen) return trimmed;
-	return trimmed.substring(0, maxLen - 3) + "...";
+	return simplifyText$1(text, maxLen);
 }
 function getConditionNode(node) {
 	if (node.type === "if_statement" || node.type === "if" || node.type === "if_expression") return node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression" || c.type === "binary_expression" || c.type === "comparison_expression") ?? null;
@@ -1594,24 +1957,20 @@ function getConditionNode(node) {
 	return null;
 }
 function getBodyChildren$1(node) {
-	const body = node.children.find((c) => c.type === "block" || c.type === "statement_block" || c.type === "body" || c.type === "compound_statement" || c.type === "suite" || c.type === "function_body");
-	if (body) return body.children.filter(isStatement);
-	return node.children.filter((c) => c.type !== "condition" && c.type !== "parenthesized_expression" && isStatement(c));
+	return getBodyChildren$2(node, isStatement);
 }
 function getElseBody$1(node) {
-	const elseNode = node.children.find((c) => c.type === "else_clause" || c.type === "else");
-	if (!elseNode) return [];
-	const body = elseNode.children.find((c) => c.type === "block" || c.type === "statement_block");
-	if (body) return body.children.filter(isStatement);
-	return elseNode.children.filter(isStatement);
+	return getElseBody$2(node, isStatement);
 }
 var CFGAssembler = class {
 	blockCounter = 0;
+	loopStack = [];
 	nextBlockId() {
 		return `cfg-block-${this.blockCounter++}`;
 	}
 	assemble(astRoot, filePath, functionName) {
 		this.blockCounter = 0;
+		this.loopStack = [];
 		const blocks = [];
 		const edges = [];
 		const entryBlock = {
@@ -1634,7 +1993,12 @@ var CFGAssembler = class {
 			depth: 0
 		};
 		const funcNode = findFunctionNode(astRoot, functionName);
-		if (!funcNode) throw new Error(`Function "${functionName}" not found in AST of ${filePath}`);
+		if (!funcNode) return this.toAssembledDiagram({
+			blocks: [entryBlock],
+			edges: [],
+			entryBlockId: entryBlock.id,
+			exitBlockIds: [exitBlock.id]
+		}, filePath, functionName);
 		const targetChildren = getFunctionBody(funcNode);
 		this.processStatements(targetChildren, entryBlock.id, exitBlock.id, blocks, edges, 1);
 		const hasExitEdge = edges.some((e) => e.target === exitBlock.id);
@@ -1678,7 +2042,7 @@ var CFGAssembler = class {
 		for (let i$1 = 0; i$1 < statements.length; i$1++) {
 			const stmt = statements[i$1];
 			if (!stmt) continue;
-			if (isControlFlow$1(stmt)) {
+			if (isControlFlow(stmt)) {
 				currentId = this.processControlFlow(stmt, currentId, exitId, blocks, edges, depth);
 				currentBlock = blocks.find((b) => b.id === currentId) ?? null;
 				if (!currentBlock) {
@@ -1718,6 +2082,15 @@ var CFGAssembler = class {
 		if (t$1 === "return_statement" || t$1 === "return") return this.processReturn(node, currentId, exitId, blocks, edges, depth);
 		if (t$1 === "throw_statement" || t$1 === "throw" || t$1 === "raise_statement" || t$1 === "raise") return this.processThrow(node, currentId, exitId, blocks, edges, depth);
 		if (t$1 === "break_statement" || t$1 === "break") {
+			const loopCtx = this.loopStack[this.loopStack.length - 1];
+			if (loopCtx) {
+				edges.push({
+					source: currentId,
+					target: loopCtx.exitBlockId,
+					edgeType: "break"
+				});
+				return loopCtx.exitBlockId;
+			}
 			edges.push({
 				source: currentId,
 				target: exitId,
@@ -1726,6 +2099,17 @@ var CFGAssembler = class {
 			return exitId;
 		}
 		if (t$1 === "continue_statement" || t$1 === "continue") {
+			for (let i$1 = this.loopStack.length - 1; i$1 >= 0; i$1--) {
+				const ctx = this.loopStack[i$1];
+				if (ctx && !ctx.isSwitch) {
+					edges.push({
+						source: currentId,
+						target: ctx.condBlockId,
+						edgeType: "continue"
+					});
+					return ctx.condBlockId;
+				}
+			}
 			edges.push({
 				source: currentId,
 				target: exitId,
@@ -1865,7 +2249,13 @@ var CFGAssembler = class {
 			condition: condText
 		});
 		const edgeCountBefore = edges.length;
+		this.loopStack.push({
+			condBlockId: condBlock.id,
+			exitBlockId: loopExitBlock.id,
+			isSwitch: false
+		});
 		this.processStatements(body, bodyEntryId, condBlock.id, blocks, edges, depth + 1);
+		this.loopStack.pop();
 		for (let i$1 = edgeCountBefore; i$1 < edges.length; i$1++) {
 			const e = edges[i$1];
 			if (e.target === condBlock.id && e.edgeType === "fallthrough") e.edgeType = "loop-back";
@@ -1932,7 +2322,13 @@ var CFGAssembler = class {
 				condition: caseLabel
 			});
 			const caseBody = caseNode.children.filter((c) => c.type !== "identifier" && c.type !== "number" && isStatement(c));
+			this.loopStack.push({
+				condBlockId: condBlock.id,
+				exitBlockId: mergeBlock.id,
+				isSwitch: true
+			});
 			this.processStatements(caseBody, caseEntryId, mergeBlock.id, blocks, edges, depth + 1);
+			this.loopStack.pop();
 		}
 		if (!caseNodes.some((c) => c.type === "default_statement" || c.type === "default")) edges.push({
 			source: condBlock.id,
@@ -2152,6 +2548,8 @@ const en = {
 	"toolbar.export": "Export graph",
 	"toolbar.lang": "Switch language",
 	"toolbar.layout": "Switch to {l} layout (Ctrl+L cycles)",
+	"toolbar.layoutSwitcher": "Layout switcher",
+	"toolbar.rankDir": "Dagre direction",
 	"toolbar.graphType": "Graph type switcher",
 	"toolbar.cluster": "Expand depth",
 	"toolbar.layer": "Diagram layer",
@@ -2180,11 +2578,13 @@ const en = {
 	"state.updated": "Updated {time}",
 	"state.truncated": "Showing top {shown} of {total} nodes",
 	"state.truncatedHint": "Graph is truncated for performance. Showing most important nodes.",
+	"status.feedback": "Feedback on GitHub",
 	"empty.title": "No graph data yet",
 	"empty.subtitle": "Import a .codegraph folder, paste graph data, or scan a repository.",
 	"empty.import": "Import Graph",
 	"error.title": "Something went wrong",
 	"error.retry": "Retry",
+	"error.reportIssue": "Report Issue",
 	"error.loadDependencies": "Unable to load dependency data. Please check your connection and try again.",
 	"error.loadGraphData": "Unable to load code graph data. Please refresh the page.",
 	"error.loadGraph": "Unable to load code graph. Please check the server status.",
@@ -2201,6 +2601,7 @@ const en = {
 	"detail.expanded": "Expanded",
 	"detail.collapse": "Collapse",
 	"detail.microViews": "Micro views",
+	"detail.microHint": "Select a function to view micro graphs",
 	"detail.aggregateCallChain": "Aggregate Call Chain",
 	"detail.functionsInCluster": "Functions in cluster",
 	"detail.signature": "Signature",
@@ -2303,6 +2704,7 @@ const en = {
 	"shortcut.title": "Keyboard Shortcuts",
 	"shortcut.close": "Close",
 	"shortcut.search": "Search symbols",
+	"shortcut.searchCtrlF": "Search symbols",
 	"shortcut.closeAll": "Close all panels",
 	"shortcut.callChain": "Toggle call chain",
 	"shortcut.impact": "Toggle impact analysis",
@@ -2310,6 +2712,7 @@ const en = {
 	"shortcut.minimap": "Toggle mini-map",
 	"shortcut.layout": "Cycle layout",
 	"shortcut.import": "Toggle import panel",
+	"shortcut.refresh": "Refresh graph",
 	"shortcut.undo": "Undo",
 	"shortcut.redo": "Redo",
 	"shortcut.help": "Show this help",
@@ -2362,10 +2765,10 @@ const en = {
 	"toolbar.coreFunction": "Core Function Analysis",
 	"hotspot.close": "Close hotspot analysis",
 	"impact.total": "Total impacted nodes",
+	"cycles.empty": "No circular dependencies detected",
 	"toolbar.undo": "Undo (Ctrl+Z)",
 	"toolbar.redo": "Redo (Ctrl+Y)",
 	"toolbar.viewModeDeps": "Switch to dependency graph view",
-	"toolbar.viewModeDependencies": "Switch to dependency graph view",
 	"toolbar.viewModeCode": "Switch to code graph view",
 	"toolbar.viewModeInheritance": "Switch to inheritance tree view",
 	"toolbar.viewModeCallgraph": "Switch to call graph view",
@@ -2374,6 +2777,7 @@ const en = {
 	"toolbar.viewModeCfg": "Switch to control flow graph view",
 	"toolbar.viewModeFlowchart": "Switch to flowchart view",
 	"toolbar.viewModeSequence": "Switch to sequence diagram view",
+	"toolbar.microDisabled": "Select a function node first",
 	"viewMode.code": "Code",
 	"viewMode.dependencies": "Deps",
 	"viewMode.inheritance": "Inherit",
@@ -2386,6 +2790,7 @@ const en = {
 	"micro.selectFunctionPrompt": "Please select a function node in the code graph first, then switch to this view",
 	"micro.backToCode": "Back to Code View",
 	"sequence.noData": "No sequence data available",
+	"sequence.ariaLabel": "{participants} participants, {messages} messages",
 	"micro.selectedFunction": "Current function: {name}",
 	"micro.clearSelection": "Clear selection",
 	"micro.loadFailed": "Micro diagram load failed",
@@ -2497,7 +2902,60 @@ const en = {
 	"filterPanel.hideLeaves": "Hide Leaves",
 	"filterPanel.orphansHint": "Hide nodes with no incoming connections",
 	"filterPanel.leavesHint": "Hide nodes with no outgoing connections",
-	"toolbar.filterPanel": "Filter Panel"
+	"filterPanel.pathFilter": "Path Filter",
+	"filterPanel.includePlaceholder": "Include path (regex)",
+	"filterPanel.excludePlaceholder": "Exclude path (regex)",
+	"filterPanel.includeLabel": "Include path regex",
+	"filterPanel.excludeLabel": "Exclude path regex",
+	"filterPanel.applyPath": "Apply Path Filter",
+	"filterPanel.clearPath": "Clear Path Filter",
+	"filterPanel.pathHint": "Use regex to filter file paths, showing only matching nodes",
+	"filterPanel.quickActions": "Quick Actions",
+	"toolbar.filterPanel": "Filter Panel",
+	"contextMenu.focus": "Focus Node",
+	"contextMenu.isolate": "Isolate (Show Neighborhood)",
+	"contextMenu.hide": "Hide Node",
+	"contextMenu.collapse": "Collapse Cluster",
+	"contextMenu.expand": "Expand Cluster",
+	"contextMenu.callChain": "Highlight Call Chain",
+	"contextMenu.impact": "Analyze Impact",
+	"contextMenu.findPath": "Find Path From Here",
+	"contextMenu.showAll": "Show All Hidden Nodes",
+	"contextMenu.openSource": "Open Source",
+	"a11y.graphContainer": "Code graph interactive area",
+	"a11y.selectedNode": "Selected node",
+	"a11y.nodes": "nodes",
+	"a11y.edges": "edges",
+	"heatmap.title": "Heatmap",
+	"heatmap.off": "Off",
+	"heatmap.none": "Off",
+	"heatmap.instability": "Instability",
+	"heatmap.lines": "Lines",
+	"heatmap.complexity": "Complexity",
+	"detail.exportedBadge": "EXP",
+	"detail.expandedBadge": "OPEN",
+	"cycle.nodeCount": "{n} nodes",
+	"degradation.cycleDetectionSkipped": "Cycle detection skipped",
+	"degradation.communityDetectionSampled": "Community detection sampled",
+	"degradation.largeGraphMode": "Large graph mode",
+	"degradation.tooltip": "Some analysis features have been degraded or skipped for performance due to graph size",
+	"toolbar.tour": "Code Tour",
+	"tour.title": "Code Tour",
+	"tour.close": "Close tour",
+	"tour.empty": "No tour data available, please load the code graph first",
+	"tour.prev": "Previous",
+	"tour.next": "Next",
+	"tour.dependencies": "Dependencies",
+	"tour.dependents": "Referenced by",
+	"tour.layer.entry": "Entry",
+	"tour.layer.api": "API",
+	"tour.layer.service": "Service",
+	"tour.layer.data": "Data",
+	"tour.layer.ui": "UI",
+	"tour.layer.utility": "Utility",
+	"tour.layer.other": "Other",
+	"common.close": "Close",
+	"common.noVisibleNodes": "No nodes match the current filter"
 };
 
 //#endregion
@@ -2528,6 +2986,8 @@ const zh = {
 	"toolbar.export": "导出图谱",
 	"toolbar.lang": "切换语言",
 	"toolbar.layout": "切换至 {l} 布局 (Ctrl+L 循环)",
+	"toolbar.layoutSwitcher": "布局切换",
+	"toolbar.rankDir": "Dagre 方向",
 	"toolbar.graphType": "图谱类型切换",
 	"toolbar.cluster": "展开深度",
 	"toolbar.layer": "图谱层级",
@@ -2556,11 +3016,13 @@ const zh = {
 	"state.updated": "更新于 {time}",
 	"state.truncated": "显示前 {shown}/{total} 节点",
 	"state.truncatedHint": "图谱已截断以提升性能，仅显示最重要的节点。",
+	"status.feedback": "在 GitHub 上反馈",
 	"empty.title": "暂无图谱数据",
 	"empty.subtitle": "导入 .codegraph 文件夹、粘贴图谱数据或扫描仓库。",
 	"empty.import": "导入图谱",
 	"error.title": "出错了",
 	"error.retry": "重试",
+	"error.reportIssue": "反馈问题",
 	"error.loadDependencies": "无法加载依赖数据，请检查连接后重试。",
 	"error.loadGraphData": "无法加载代码图谱数据，请刷新页面。",
 	"error.loadGraph": "无法加载代码图谱，请检查服务器状态。",
@@ -2577,6 +3039,7 @@ const zh = {
 	"detail.expanded": "已展开",
 	"detail.collapse": "收起",
 	"detail.microViews": "微观图谱",
+	"detail.microHint": "选中函数节点可查看微观图谱",
 	"detail.aggregateCallChain": "聚合调用链",
 	"detail.functionsInCluster": "聚类中的函数",
 	"detail.signature": "签名",
@@ -2679,6 +3142,7 @@ const zh = {
 	"shortcut.title": "键盘快捷键",
 	"shortcut.close": "关闭",
 	"shortcut.search": "搜索符号",
+	"shortcut.searchCtrlF": "搜索符号",
 	"shortcut.closeAll": "关闭所有面板",
 	"shortcut.callChain": "切换调用链",
 	"shortcut.impact": "切换影响分析",
@@ -2686,6 +3150,7 @@ const zh = {
 	"shortcut.minimap": "切换缩略图",
 	"shortcut.layout": "循环切换布局",
 	"shortcut.import": "切换导入面板",
+	"shortcut.refresh": "刷新图谱",
 	"shortcut.undo": "撤销操作",
 	"shortcut.redo": "重做操作",
 	"shortcut.help": "显示此帮助",
@@ -2738,10 +3203,10 @@ const zh = {
 	"toolbar.coreFunction": "核心函数识别",
 	"hotspot.close": "关闭热点分析",
 	"impact.total": "总影响节点",
+	"cycles.empty": "未检测到循环依赖",
 	"toolbar.undo": "撤销 (Ctrl+Z)",
 	"toolbar.redo": "重做 (Ctrl+Y)",
 	"toolbar.viewModeDeps": "切换到依赖图谱视图",
-	"toolbar.viewModeDependencies": "切换到依赖图谱视图",
 	"toolbar.viewModeCode": "切换到代码图谱视图",
 	"toolbar.viewModeInheritance": "切换到继承树视图",
 	"toolbar.viewModeCallgraph": "切换到调用图视图",
@@ -2750,6 +3215,7 @@ const zh = {
 	"toolbar.viewModeCfg": "切换到控制流图视图",
 	"toolbar.viewModeFlowchart": "切换到流程图视图",
 	"toolbar.viewModeSequence": "切换到时序图视图",
+	"toolbar.microDisabled": "请先选中函数节点",
 	"viewMode.code": "代码",
 	"viewMode.dependencies": "依赖",
 	"viewMode.inheritance": "继承",
@@ -2762,6 +3228,7 @@ const zh = {
 	"micro.selectFunctionPrompt": "请先在代码图谱中选择一个函数节点，然后切换到此视图",
 	"micro.backToCode": "返回代码视图",
 	"sequence.noData": "暂无时序图数据",
+	"sequence.ariaLabel": "{participants} 个参与者, {messages} 条消息",
 	"micro.selectedFunction": "当前函数: {name}",
 	"micro.clearSelection": "清除选择",
 	"micro.loadFailed": "微观图谱加载失败",
@@ -2873,7 +3340,60 @@ const zh = {
 	"filterPanel.hideLeaves": "隐藏叶子节点",
 	"filterPanel.orphansHint": "隐藏没有任何入边的节点",
 	"filterPanel.leavesHint": "隐藏没有任何出边的节点",
-	"toolbar.filterPanel": "筛选面板"
+	"filterPanel.pathFilter": "路径过滤",
+	"filterPanel.includePlaceholder": "包含路径 (正则表达式)",
+	"filterPanel.excludePlaceholder": "排除路径 (正则表达式)",
+	"filterPanel.includeLabel": "包含路径正则",
+	"filterPanel.excludeLabel": "排除路径正则",
+	"filterPanel.applyPath": "应用路径过滤",
+	"filterPanel.clearPath": "清除路径过滤",
+	"filterPanel.pathHint": "使用正则表达式过滤文件路径，仅显示匹配的节点",
+	"filterPanel.quickActions": "快捷操作",
+	"toolbar.filterPanel": "筛选面板",
+	"contextMenu.focus": "聚焦节点",
+	"contextMenu.isolate": "隔离（显示邻域）",
+	"contextMenu.hide": "隐藏节点",
+	"contextMenu.collapse": "折叠聚类",
+	"contextMenu.expand": "展开聚类",
+	"contextMenu.callChain": "高亮调用链",
+	"contextMenu.impact": "影响分析",
+	"contextMenu.findPath": "从此节点查找路径",
+	"contextMenu.showAll": "显示所有隐藏节点",
+	"contextMenu.openSource": "打开源码",
+	"a11y.graphContainer": "代码图谱交互区域",
+	"a11y.selectedNode": "已选中节点",
+	"a11y.nodes": "节点",
+	"a11y.edges": "边",
+	"heatmap.title": "热力图",
+	"heatmap.off": "关闭",
+	"heatmap.none": "关闭",
+	"heatmap.instability": "不稳定度",
+	"heatmap.lines": "代码行数",
+	"heatmap.complexity": "复杂度",
+	"detail.exportedBadge": "EXP",
+	"detail.expandedBadge": "OPEN",
+	"cycle.nodeCount": "{n} 节点",
+	"degradation.cycleDetectionSkipped": "循环检测已跳过",
+	"degradation.communityDetectionSampled": "社区检测已采样",
+	"degradation.largeGraphMode": "大规模图谱模式",
+	"degradation.tooltip": "因图谱规模较大，部分分析功能已降级或跳过以保证性能",
+	"toolbar.tour": "代码导览",
+	"tour.title": "代码导览",
+	"tour.close": "关闭导览",
+	"tour.empty": "暂无导览数据，请先加载代码图谱",
+	"tour.prev": "上一步",
+	"tour.next": "下一步",
+	"tour.dependencies": "依赖",
+	"tour.dependents": "被引用",
+	"tour.layer.entry": "入口",
+	"tour.layer.api": "API",
+	"tour.layer.service": "业务",
+	"tour.layer.data": "数据",
+	"tour.layer.ui": "界面",
+	"tour.layer.utility": "工具",
+	"tour.layer.other": "其他",
+	"common.close": "关闭",
+	"common.noVisibleNodes": "当前筛选条件下无可见节点"
 };
 
 //#endregion
@@ -2890,7 +3410,7 @@ function getStoredLang() {
 	try {
 		const stored = window.localStorage.getItem(STORAGE_KEY);
 		return stored === "zh" || stored === "en" ? stored : "zh";
-	} catch {
+	} catch (_e) {
 		return "zh";
 	}
 }
@@ -2902,7 +3422,7 @@ function setLang(lang) {
 	currentLang = lang;
 	if (typeof window !== "undefined") try {
 		window.localStorage.setItem(STORAGE_KEY, lang);
-	} catch {}
+	} catch (_e) {}
 	for (const fn$7 of listeners) fn$7();
 }
 function toggleLang() {
@@ -2985,9 +3505,7 @@ function inferSemanticLabel(statements, blockLabel) {
 	return t("flowchart.statementsCount", { n: statements.length });
 }
 function simplifyForLabel(text, maxLen = 20) {
-	const trimmed = text.trim().replace(/\s+/g, " ");
-	if (trimmed.length <= maxLen) return trimmed;
-	return trimmed.substring(0, maxLen - 3) + "...";
+	return simplifyText$1(text, maxLen);
 }
 function conditionToQuestion(condText) {
 	const trimmed = condText.trim();
@@ -2999,8 +3517,11 @@ function conditionToQuestion(condText) {
 	return `${trimmed}?`;
 }
 var FlowchartAssembler = class {
-	cfgAssembler = new CFGAssembler();
+	cfgAssembler;
 	fcCounter = 0;
+	constructor(cfgAssembler) {
+		this.cfgAssembler = cfgAssembler ?? new CFGAssembler();
+	}
 	nextFcId() {
 		return `fc-node-${this.fcCounter++}`;
 	}
@@ -3144,33 +3665,6 @@ const CALL_NODE_TYPES = new Set([
 	"await_expression",
 	"macro_invocation"
 ]);
-const CONTROL_FLOW_TYPES = new Set([
-	"if_statement",
-	"if",
-	"if_expression",
-	"for_statement",
-	"for",
-	"for_expression",
-	"for_in_statement",
-	"while_statement",
-	"while",
-	"while_expression",
-	"switch_statement",
-	"switch",
-	"match_expression",
-	"try_statement",
-	"try",
-	"return_statement",
-	"return",
-	"throw_statement",
-	"throw",
-	"raise_statement",
-	"raise",
-	"break_statement",
-	"break",
-	"continue_statement",
-	"continue"
-]);
 const DESTROY_METHODS = new Set([
 	"dispose",
 	"destroy",
@@ -3190,9 +3684,6 @@ function isDestroyMethod(methodName) {
 }
 function isCallExpression(node) {
 	return CALL_NODE_TYPES.has(node.type) || node.type.includes("call");
-}
-function isControlFlow(node) {
-	return CONTROL_FLOW_TYPES.has(node.type);
 }
 function extractMethodName(node) {
 	const children = node.children;
@@ -3233,19 +3724,14 @@ function inferParticipantType(receiverName, _methodName) {
 	return "instance";
 }
 function getConditionText(node) {
-	const condNode = node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression");
+	const condNode = findConditionNode(node);
 	return condNode ? condNode.text.trim().substring(0, 40) : "";
 }
 function getBodyChildren(node) {
-	const body = node.children.find((c) => c.type === "block" || c.type === "statement_block" || c.type === "body");
-	if (body) return body.children;
-	return node.children.filter((c) => c.type !== "condition" && c.type !== "parenthesized_expression");
+	return getBodyChildren$2(node);
 }
 function getElseBody(node) {
-	const elseNode = node.children.find((c) => c.type === "else_clause" || c.type === "else");
-	if (!elseNode) return [];
-	const body = elseNode.children.find((c) => c.type === "block" || c.type === "statement_block");
-	return body ? body.children : elseNode.children;
+	return getElseBody$2(node);
 }
 function getCaseNodes(node) {
 	return node.children.filter((c) => c.type === "case_statement" || c.type === "case" || c.type === "default_statement" || c.type === "default");
@@ -3266,11 +3752,13 @@ function getFinallyNode(node) {
 }
 var SequenceAssembler = class {
 	seqCounter = 0;
+	callStack = [];
 	nextId(prefix) {
 		return `${prefix}-${this.seqCounter++}`;
 	}
 	assemble(astRoot, filePath, functionName) {
 		this.seqCounter = 0;
+		this.callStack = [];
 		const participants = new Map();
 		const messages = [];
 		const fragments = [];
@@ -3286,7 +3774,12 @@ var SequenceAssembler = class {
 		};
 		participants.set(functionName, entryParticipant);
 		const funcNode = findFunctionNode(astRoot, functionName);
-		if (!funcNode) throw new Error(`Function "${functionName}" not found in AST of ${filePath}`);
+		if (!funcNode) return this.toAssembledDiagram({
+			participants: Array.from(participants.values()),
+			messages,
+			fragments: [],
+			entryFunctionName: functionName
+		}, filePath, functionName);
 		const targetChildren = getFunctionBody(funcNode);
 		this.processStatements(targetChildren, entryParticipant.id, participants, messages, fragments, (msg) => {
 			msg.sequenceNumber = messageSeq++;
@@ -3305,7 +3798,7 @@ var SequenceAssembler = class {
 		for (const stmt of statements) {
 			if (!stmt) continue;
 			if (isCallExpression(stmt)) this.processCall(stmt, selfId, participants, addMessage);
-			else if (isControlFlow(stmt)) this.processControlFlow(stmt, selfId, participants, messages, fragments, addMessage);
+			else if (isControlFlow$1(stmt)) this.processControlFlow(stmt, selfId, participants, messages, fragments, addMessage);
 			else {
 				const childCalls = [];
 				this.collectCalls(stmt, childCalls);
@@ -3315,13 +3808,17 @@ var SequenceAssembler = class {
 	}
 	collectCalls(node, result) {
 		if (!node) return;
-		if (isCallExpression(node)) {
-			result.push(node);
-			return;
+		const stack = [node];
+		while (stack.length > 0) {
+			const current = stack.pop();
+			if (isCallExpression(current)) {
+				result.push(current);
+				continue;
+			}
+			const children = current.children;
+			if (!children || !Array.isArray(children)) continue;
+			for (const child of children) stack.push(child);
 		}
-		const children = node.children;
-		if (!children || !Array.isArray(children)) return;
-		for (const child of children) this.collectCalls(child, result);
 	}
 	processCall(node, selfId, participants, addMessage) {
 		const methodName = extractMethodName(node);
@@ -3354,6 +3851,7 @@ var SequenceAssembler = class {
 			const participant = participants.get(receiverName || methodName);
 			if (participant) participant.isDestroyed = true;
 		}
+		if (!isSelf && !isCreate) this.callStack.push(targetId);
 		const msg = {
 			id: this.nextId("msg"),
 			sequenceNumber: 0,
@@ -3361,7 +3859,7 @@ var SequenceAssembler = class {
 			target: targetId,
 			methodName,
 			arguments: args,
-			isAsync: node.type.includes("await") || node.text.includes("await"),
+			isAsync: node.type === "await_expression" || node.type === "await",
 			isSelfCall: isSelf && !isCreate,
 			isReturn: false,
 			isCreate,
@@ -3516,15 +4014,18 @@ var SequenceAssembler = class {
 		}
 	}
 	processReturnMessage(node, selfId, participants, addMessage) {
+		const returnText = node.text.trim().substring(0, 30);
+		const lastCalledId = this.callStack.length > 0 ? this.callStack[this.callStack.length - 1] : selfId;
+		if (this.callStack.length > 0) this.callStack.pop();
 		const msg = {
 			id: this.nextId("msg"),
 			sequenceNumber: 0,
-			source: selfId,
+			source: lastCalledId,
 			target: selfId,
 			methodName: "return",
-			arguments: [node.text.trim().substring(0, 30)],
+			arguments: [returnText],
 			isAsync: false,
-			isSelfCall: true,
+			isSelfCall: lastCalledId === selfId,
 			isReturn: true,
 			isCreate: false,
 			lineNumber: node.startPosition.row + 1
@@ -3780,7 +4281,88 @@ var CallChainAggregator = class {
 };
 
 //#endregion
+//#region src/shared/Logger.ts
+const LEVEL_ORDER = {
+	debug: 0,
+	info: 1,
+	warn: 2,
+	error: 3
+};
+const RING_SIZE = 200;
+var LoggerImpl = class {
+	buffer = [];
+	listeners = new Set();
+	minLevel = typeof globalThis !== "undefined" && globalThis.__CG_DEBUG ? "debug" : "info";
+	log(level, scope, message, data$2) {
+		if (LEVEL_ORDER[level] < LEVEL_ORDER[this.minLevel]) return;
+		const entry = {
+			ts: Date.now(),
+			level,
+			scope,
+			message,
+			data: data$2
+		};
+		this.buffer.push(entry);
+		if (this.buffer.length > RING_SIZE) this.buffer.splice(0, this.buffer.length - RING_SIZE);
+		this.emit();
+		const fn$7 = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
+		try {
+			if (typeof fn$7 === "function") fn$7(`[codegraph:${scope}] ${message}`, data$2 ?? "");
+		} catch (_e) {}
+	}
+	debug(scope, message, data$2) {
+		this.log("debug", scope, message, data$2);
+	}
+	info(scope, message, data$2) {
+		this.log("info", scope, message, data$2);
+	}
+	warn(scope, message, data$2) {
+		this.log("warn", scope, message, data$2);
+	}
+	error(scope, message, data$2) {
+		this.log("error", scope, message, data$2);
+	}
+	entries() {
+		return this.buffer.slice();
+	}
+	clear() {
+		this.buffer = [];
+		this.emit();
+	}
+	subscribe(fn$7) {
+		this.listeners.add(fn$7);
+		fn$7(this.entries());
+		return () => {
+			this.listeners.delete(fn$7);
+		};
+	}
+	clearListeners() {
+		this.listeners.clear();
+	}
+	emit() {
+		if (this.listeners.size === 0) return;
+		const snapshot = this.entries();
+		for (const fn$7 of this.listeners) try {
+			fn$7(snapshot);
+		} catch (_e) {}
+	}
+};
+const logger = new LoggerImpl();
+function scoped(scope) {
+	return {
+		debug: (m, d) => logger.debug(scope, m, d),
+		info: (m, d) => logger.info(scope, m, d),
+		warn: (m, d) => logger.warn(scope, m, d),
+		error: (m, d) => logger.error(scope, m, d)
+	};
+}
+function resetLoggerListeners() {
+	logger.clearListeners();
+}
+
+//#endregion
 //#region src/client/diagram/index.ts
+const log$16 = scoped("diagram");
 const macroAssemblerRegistry = new Map([
 	["inheritance", new InheritanceAssembler()],
 	["callgraph", new CallGraphAssembler()],
@@ -3916,7 +4498,7 @@ function buildLayeredDiagram(viewMode, assembled) {
 		viewMode,
 		layers: [{
 			level: 0,
-			name: "全部",
+			name: "graphType.all",
 			nodes: assembled.nodes,
 			edges: assembled.edges,
 			nodeIds: new Set(assembled.nodes.map((n) => n.id)),
@@ -3976,7 +4558,8 @@ async function assembleMicroDiagram(viewMode, filePath, functionName) {
 			headers: { "Content-Type": "application/json" },
 			body: JSON.stringify({ filePath })
 		});
-	} catch {
+	} catch (_e) {
+		log$16.warn("AST fetch failed", _e);
 		throw new Error(`Network error: unable to reach AST endpoint`);
 	}
 	if (!response.ok) {
@@ -3990,7 +4573,8 @@ async function assembleMicroDiagram(viewMode, filePath, functionName) {
 			try {
 				const parsed = JSON.parse(errorBody);
 				serverMsg = parsed.error || "";
-			} catch {
+			} catch (_e) {
+				log$16.warn("AST error body parse failed", _e);
 				serverMsg = errorBody;
 			}
 			throw new Error(serverMsg || `AST parsing failed for "${filePath}"`);
@@ -4005,7 +4589,162 @@ async function assembleMicroDiagram(viewMode, filePath, functionName) {
 }
 
 //#endregion
+//#region src/client/cache/IndexedDBCache.ts
+const log$15 = scoped("indexeddb-cache");
+const DB_PREFIX = "codegraph-cache-";
+const DB_VERSION = 1;
+const CLUSTER_STORE = "cluster-cache";
+const DIAGRAM_STORE = "diagram-cache";
+function openDB(repoId) {
+	return new Promise((resolve, reject) => {
+		const dbName = `${DB_PREFIX}${repoId}`;
+		const request = indexedDB.open(dbName, DB_VERSION);
+		request.onupgradeneeded = () => {
+			const db = request.result;
+			if (!db.objectStoreNames.contains(CLUSTER_STORE)) db.createObjectStore(CLUSTER_STORE);
+			if (!db.objectStoreNames.contains(DIAGRAM_STORE)) db.createObjectStore(DIAGRAM_STORE);
+		};
+		request.onsuccess = () => resolve(request.result);
+		request.onerror = () => reject(request.error);
+	});
+}
+var IndexedDBCache = class {
+	dbPromise = null;
+	repoId;
+	constructor(repoId) {
+		this.repoId = repoId;
+	}
+	getDB() {
+		if (!this.dbPromise) this.dbPromise = openDB(this.repoId).catch((err) => {
+			log$15.warn("failed to open IndexedDB", {
+				repoId: this.repoId,
+				error: err
+			});
+			this.dbPromise = null;
+			throw err;
+		});
+		return this.dbPromise;
+	}
+	async getCluster(key) {
+		try {
+			const db = await this.getDB();
+			return await new Promise((resolve, reject) => {
+				const tx = db.transaction(CLUSTER_STORE, "readonly");
+				const req = tx.objectStore(CLUSTER_STORE).get(key);
+				req.onsuccess = () => resolve(req.result ?? null);
+				req.onerror = () => reject(req.error);
+			});
+		} catch (e) {
+			log$15.warn("IndexedDB getCluster failed", {
+				key,
+				error: e
+			});
+			return null;
+		}
+	}
+	async setCluster(key, value) {
+		try {
+			const db = await this.getDB();
+			await new Promise((resolve, reject) => {
+				const tx = db.transaction(CLUSTER_STORE, "readwrite");
+				tx.objectStore(CLUSTER_STORE).put(value, key);
+				tx.oncomplete = () => resolve();
+				tx.onerror = () => reject(tx.error);
+			});
+		} catch (e) {
+			log$15.warn("IndexedDB setCluster failed", {
+				key,
+				error: e
+			});
+		}
+	}
+	async getDiagram(key) {
+		try {
+			const db = await this.getDB();
+			return await new Promise((resolve, reject) => {
+				const tx = db.transaction(DIAGRAM_STORE, "readonly");
+				const req = tx.objectStore(DIAGRAM_STORE).get(key);
+				req.onsuccess = () => resolve(req.result ?? null);
+				req.onerror = () => reject(req.error);
+			});
+		} catch (e) {
+			log$15.warn("IndexedDB getDiagram failed", {
+				key,
+				error: e
+			});
+			return null;
+		}
+	}
+	async setDiagram(key, value) {
+		try {
+			const db = await this.getDB();
+			await new Promise((resolve, reject) => {
+				const tx = db.transaction(DIAGRAM_STORE, "readwrite");
+				tx.objectStore(DIAGRAM_STORE).put(value, key);
+				tx.oncomplete = () => resolve();
+				tx.onerror = () => reject(tx.error);
+			});
+		} catch (e) {
+			log$15.warn("IndexedDB setDiagram failed", {
+				key,
+				error: e
+			});
+		}
+	}
+	async invalidateCluster() {
+		try {
+			const db = await this.getDB();
+			await new Promise((resolve, reject) => {
+				const tx = db.transaction(CLUSTER_STORE, "readwrite");
+				tx.objectStore(CLUSTER_STORE).clear();
+				tx.oncomplete = () => resolve();
+				tx.onerror = () => reject(tx.error);
+			});
+		} catch (e) {
+			log$15.warn("IndexedDB invalidateCluster failed", { error: e });
+		}
+	}
+	async invalidateDiagram(viewMode) {
+		try {
+			const db = await this.getDB();
+			if (viewMode) {
+				const keys$8 = await new Promise((resolve, reject) => {
+					const tx = db.transaction(DIAGRAM_STORE, "readonly");
+					const req = tx.objectStore(DIAGRAM_STORE).getAllKeys();
+					req.onsuccess = () => resolve(req.result);
+					req.onerror = () => reject(req.error);
+				});
+				const matching$1 = keys$8.filter((k) => String(k).startsWith(`${viewMode}:`));
+				if (matching$1.length > 0) await new Promise((resolve, reject) => {
+					const tx = db.transaction(DIAGRAM_STORE, "readwrite");
+					for (const k of matching$1) tx.objectStore(DIAGRAM_STORE).delete(k);
+					tx.oncomplete = () => resolve();
+					tx.onerror = () => reject(tx.error);
+				});
+			} else await new Promise((resolve, reject) => {
+				const tx = db.transaction(DIAGRAM_STORE, "readwrite");
+				tx.objectStore(DIAGRAM_STORE).clear();
+				tx.oncomplete = () => resolve();
+				tx.onerror = () => reject(tx.error);
+			});
+		} catch (e) {
+			log$15.warn("IndexedDB invalidateDiagram failed", {
+				viewMode,
+				error: e
+			});
+		}
+	}
+	close() {
+		if (this.dbPromise) {
+			this.dbPromise.then((db) => db.close()).catch(() => {});
+			this.dbPromise = null;
+		}
+	}
+};
+
+//#endregion
 //#region src/client/cache/DiagramCache.ts
+const log$14 = scoped("cache");
 function computeDataHash(nodes, edges) {
 	let nodeHash = 2166136261;
 	for (const n of nodes) {
@@ -4017,6 +4756,13 @@ function computeDataHash(nodes, edges) {
 		nodeHash = Math.imul(nodeHash, 16777619);
 		for (let i$1 = 0; i$1 < n.type.length; i$1++) {
 			nodeHash ^= n.type.charCodeAt(i$1);
+			nodeHash = Math.imul(nodeHash, 16777619);
+		}
+		nodeHash ^= ":".charCodeAt(0);
+		nodeHash = Math.imul(nodeHash, 16777619);
+		const parentId = n.parentId ?? "";
+		for (let i$1 = 0; i$1 < parentId.length; i$1++) {
+			nodeHash ^= parentId.charCodeAt(i$1);
 			nodeHash = Math.imul(nodeHash, 16777619);
 		}
 		nodeHash ^= "|".charCodeAt(0);
@@ -4049,13 +4795,17 @@ function computeDataHash(nodes, edges) {
 		edgeHash ^= "|".charCodeAt(0);
 		edgeHash = Math.imul(edgeHash, 16777619);
 	}
-	return `${(nodeHash >>> 0).toString(16)}_${(edgeHash >>> 0).toString(16)}`;
+	return `${(nodeHash >>> 0).toString(16)}_${(edgeHash >>> 0).toString(16)}_${nodes.length}_${edges.length}`;
 }
 var DiagramCache = class {
 	cache = new Map();
 	maxEntries;
+	idbCache = null;
 	constructor(maxEntries = 10) {
 		this.maxEntries = maxEntries;
+	}
+	setPersistentBackend(idbCache) {
+		this.idbCache = idbCache;
 	}
 	get(viewMode, dataHash) {
 		const key = `${viewMode}:${dataHash}`;
@@ -4063,8 +4813,18 @@ var DiagramCache = class {
 		if (value) {
 			this.cache.delete(key);
 			this.cache.set(key, value);
+			return value;
 		}
-		return value ?? null;
+		if (this.idbCache) this.idbCache.getDiagram(key).then((diagram) => {
+			if (diagram && !this.cache.has(key)) {
+				if (this.cache.size >= this.maxEntries) {
+					const firstKey = this.cache.keys().next().value;
+					if (firstKey) this.cache.delete(firstKey);
+				}
+				this.cache.set(key, diagram);
+			}
+		}).catch((e) => log$14.warn("IndexedDB diagram get failed", e));
+		return null;
 	}
 	set(viewMode, dataHash, diagram) {
 		const key = `${viewMode}:${dataHash}`;
@@ -4074,11 +4834,13 @@ var DiagramCache = class {
 			if (firstKey) this.cache.delete(firstKey);
 		}
 		this.cache.set(key, diagram);
+		if (this.idbCache) this.idbCache.setDiagram(key, diagram).catch((e) => log$14.warn("IndexedDB diagram set failed", e));
 	}
 	invalidate(viewMode) {
 		if (viewMode) {
 			for (const key of this.cache.keys()) if (key.startsWith(`${viewMode}:`)) this.cache.delete(key);
 		} else this.cache.clear();
+		if (this.idbCache) this.idbCache.invalidateDiagram(viewMode).catch((e) => log$14.warn("IndexedDB diagram invalidate failed", e));
 	}
 	size() {
 		return this.cache.size;
@@ -4087,8 +4849,12 @@ var DiagramCache = class {
 var ClusterCache = class {
 	cache = new Map();
 	maxEntries;
+	idbCache = null;
 	constructor(maxEntries = 20) {
 		this.maxEntries = maxEntries;
+	}
+	setPersistentBackend(idbCache) {
+		this.idbCache = idbCache;
 	}
 	get(dataHash, level, expandedKey) {
 		const key = `${dataHash}:${level}:${expandedKey}`;
@@ -4096,8 +4862,18 @@ var ClusterCache = class {
 		if (value) {
 			this.cache.delete(key);
 			this.cache.set(key, value);
+			return value;
 		}
-		return value ?? null;
+		if (this.idbCache) this.idbCache.getCluster(key).then((result) => {
+			if (result && !this.cache.has(key)) {
+				if (this.cache.size >= this.maxEntries) {
+					const firstKey = this.cache.keys().next().value;
+					if (firstKey) this.cache.delete(firstKey);
+				}
+				this.cache.set(key, result);
+			}
+		}).catch((e) => log$14.warn("IndexedDB cluster get failed", e));
+		return null;
 	}
 	set(dataHash, level, expandedKey, result) {
 		const key = `${dataHash}:${level}:${expandedKey}`;
@@ -4107,14 +4883,120 @@ var ClusterCache = class {
 			if (firstKey) this.cache.delete(firstKey);
 		}
 		this.cache.set(key, result);
+		if (this.idbCache) this.idbCache.setCluster(key, result).catch((e) => log$14.warn("IndexedDB cluster set failed", e));
 	}
 	invalidate() {
 		this.cache.clear();
+		if (this.idbCache) this.idbCache.invalidateCluster().catch((e) => log$14.warn("IndexedDB cluster invalidate failed", e));
 	}
 	size() {
 		return this.cache.size;
 	}
 };
+
+//#endregion
+//#region src/client/renderer/styles/styleUtils.ts
+function readCssVar(name$1, fallback) {
+	if (typeof window === "undefined") return fallback;
+	const v = getComputedStyle(document.body).getPropertyValue(name$1).trim();
+	return v || fallback;
+}
+let cssVarCache = null;
+function readCssVarCached(name$1, fallback) {
+	if (typeof window === "undefined") return fallback;
+	if (!cssVarCache) {
+		const style = getComputedStyle(document.body);
+		cssVarCache = new Map();
+		const vars = [
+			"--cg-node-default",
+			"--cg-node-function",
+			"--cg-node-class",
+			"--cg-node-variable",
+			"--cg-node-module",
+			"--cg-node-interface",
+			"--cg-node-type",
+			"--cg-node-dep-npm",
+			"--cg-node-dep-cargo",
+			"--cg-node-dep-gomod",
+			"--cg-node-dep-pip",
+			"--cg-edge-default",
+			"--cg-edge-call",
+			"--cg-edge-import",
+			"--cg-edge-extend",
+			"--cg-edge-implement",
+			"--cg-edge-dependency",
+			"--cg-edge-contains",
+			"--cg-edge-dep-prod",
+			"--cg-edge-dep-dev",
+			"--cg-edge-dep-peer",
+			"--cg-edge-dep-optional",
+			"--cg-text",
+			"--cg-text-secondary",
+			"--cg-text-tertiary",
+			"--cg-border",
+			"--cg-border-strong",
+			"--cg-hover-border",
+			"--cg-impact-d1",
+			"--cg-impact-d2",
+			"--cg-impact-d3",
+			"--cg-inheritance-extend",
+			"--cg-inheritance-implement",
+			"--cg-cluster-bg",
+			"--cg-cluster-border",
+			"--cg-cluster-hover-bg",
+			"--cg-cluster-hover-border",
+			"--cg-cluster-edge",
+			"--cg-cluster-edge-label-bg",
+			"--cg-warning",
+			"--cg-error",
+			"--cg-success",
+			"--cg-accent",
+			"--cg-accent-hover",
+			"--cg-accent-soft",
+			"--cg-surface",
+			"--cg-surface-hover",
+			"--cg-surface-active",
+			"--cg-role-entry",
+			"--cg-role-orphan",
+			"--cg-role-leaf",
+			"--cg-role-hub",
+			"--cg-heatmap-stable",
+			"--cg-heatmap-unstable",
+			"--cg-heatmap-low",
+			"--cg-heatmap-high",
+			"--cg-cycle-highlight",
+			"--cg-cluster-hue-0-bg",
+			"--cg-cluster-hue-0-border",
+			"--cg-cluster-hue-1-bg",
+			"--cg-cluster-hue-1-border",
+			"--cg-cluster-hue-2-bg",
+			"--cg-cluster-hue-2-border",
+			"--cg-cluster-hue-3-bg",
+			"--cg-cluster-hue-3-border",
+			"--cg-cluster-hue-4-bg",
+			"--cg-cluster-hue-4-border",
+			"--cg-cluster-hue-5-bg",
+			"--cg-cluster-hue-5-border",
+			"--cg-cluster-hue-6-bg",
+			"--cg-cluster-hue-6-border",
+			"--cg-cluster-hue-7-bg",
+			"--cg-cluster-hue-7-border",
+			"--cg-cluster-hue-8-bg",
+			"--cg-cluster-hue-8-border",
+			"--cg-cluster-hue-9-bg",
+			"--cg-cluster-hue-9-border",
+			"--cg-cluster-hue-10-bg",
+			"--cg-cluster-hue-10-border",
+			"--cg-cluster-hue-11-bg",
+			"--cg-cluster-hue-11-border"
+		];
+		for (const v of vars) cssVarCache.set(v, style.getPropertyValue(v).trim());
+	}
+	return cssVarCache.get(name$1) || fallback;
+}
+function invalidateCssVarCache() {
+	cssVarCache = null;
+}
 
 //#endregion
 //#region src/client/renderer/styles/diagramStyles.ts
@@ -4484,7 +5366,7 @@ function buildDiagramStyles(ctx) {
 				"shape": "round-rectangle",
 				"background-color": "rgba(0,0,0,0.03)",
 				"border-width": 2,
-				"border-color": readCssVar("--cg-seq-fragment", isDark ? "#818cf8" : "#263148"),
+				"border-color": readCssVar("--cg-seq-fragment", isDark ? "#818cf8" : COLORS.PACKAGE_LIGHT),
 				"border-style": "dashed",
 				"label": "data(label)",
 				"font-size": "9px",
@@ -4689,6 +5571,42 @@ function buildDiagramStyles(ctx) {
 			}
 		},
 		{
+			selector: "edge[diagramType=\"class\"][type=\"association\"]",
+			style: {
+				"target-arrow-shape": "vee",
+				"line-style": "solid",
+				"width": 1.5,
+				"line-color": c.edgeDefault,
+				"target-arrow-color": c.edgeDefault
+			}
+		},
+		{
+			selector: "edge[diagramType=\"class\"][type=\"aggregation\"]",
+			style: {
+				"source-arrow-shape": "diamond",
+				"source-arrow-fill": "hollow",
+				"target-arrow-shape": "vee",
+				"line-style": "solid",
+				"width": 2,
+				"line-color": readCssVar("--cg-edge-aggregation", isDark ? "#818cf8" : "#6366f1"),
+				"source-arrow-color": readCssVar("--cg-edge-aggregation", isDark ? "#818cf8" : "#6366f1"),
+				"target-arrow-color": readCssVar("--cg-edge-aggregation", isDark ? "#818cf8" : "#6366f1")
+			}
+		},
+		{
+			selector: "edge[diagramType=\"class\"][type=\"composition\"]",
+			style: {
+				"source-arrow-shape": "diamond",
+				"source-arrow-fill": "filled",
+				"target-arrow-shape": "vee",
+				"line-style": "solid",
+				"width": 2,
+				"line-color": readCssVar("--cg-edge-composition", isDark ? "#ec4899" : "#db2777"),
+				"source-arrow-color": readCssVar("--cg-edge-composition", isDark ? "#ec4899" : "#db2777"),
+				"target-arrow-color": readCssVar("--cg-edge-composition", isDark ? "#ec4899" : "#db2777")
+			}
+		},
+		{
 			selector: "node[diagramType=\"package\"]",
 			style: {
 				"shape": "round-rectangle",
@@ -4700,7 +5618,7 @@ function buildDiagramStyles(ctx) {
 				"text-halign": "center",
 				"text-wrap": "wrap",
 				"text-max-width": "100px",
-				"background-color": readCssVar("--cg-node-package", isDark ? "#6366f1" : "#263148"),
+				"background-color": readCssVar("--cg-node-package", isDark ? "#6366f1" : COLORS.PACKAGE_LIGHT),
 				"border-width": 2,
 				"border-color": readCssVar("--cg-package-border", isDark ? "#818cf8" : "#1a2230"),
 				"border-style": "solid",
@@ -4727,8 +5645,8 @@ function buildDiagramStyles(ctx) {
 			selector: "edge[diagramType=\"package\"]",
 			style: {
 				"width": "mapData(aggregatedCount, 1, 50, 1.5, 5)",
-				"line-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : "#263148"),
-				"target-arrow-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : "#263148"),
+				"line-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : COLORS.PACKAGE_LIGHT),
+				"target-arrow-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : COLORS.PACKAGE_LIGHT),
 				"target-arrow-shape": "vee",
 				"line-style": "dashed",
 				"curve-style": "bezier",
@@ -4832,71 +5750,87 @@ function buildDiagramStyles(ctx) {
 }
 
 //#endregion
-//#region src/client/renderer/styles/ThemeStylesheet.ts
-function readCssVar(name$1, fallback) {
-	if (typeof window === "undefined") return fallback;
-	const v = getComputedStyle(document.body).getPropertyValue(name$1).trim();
-	return v || fallback;
-}
-let cssVarCache = null;
-function readCssVarCached(name$1, fallback) {
-	if (typeof window === "undefined") return fallback;
-	if (!cssVarCache) {
-		const style = getComputedStyle(document.body);
-		cssVarCache = new Map();
-		const vars = [
-			"--cg-node-default",
-			"--cg-node-function",
-			"--cg-node-class",
-			"--cg-node-variable",
-			"--cg-node-module",
-			"--cg-node-interface",
-			"--cg-node-type",
-			"--cg-node-dep-npm",
-			"--cg-node-dep-cargo",
-			"--cg-node-dep-gomod",
-			"--cg-node-dep-pip",
-			"--cg-edge-default",
-			"--cg-edge-call",
-			"--cg-edge-import",
-			"--cg-edge-extend",
-			"--cg-edge-implement",
-			"--cg-edge-dependency",
-			"--cg-edge-contains",
-			"--cg-edge-dep-prod",
-			"--cg-edge-dep-dev",
-			"--cg-edge-dep-peer",
-			"--cg-edge-dep-optional",
-			"--cg-text",
-			"--cg-border",
-			"--cg-hover-border",
-			"--cg-impact-d1",
-			"--cg-impact-d2",
-			"--cg-impact-d3",
-			"--cg-inheritance-extend",
-			"--cg-inheritance-implement",
-			"--cg-cluster-bg",
-			"--cg-cluster-border",
-			"--cg-cluster-hover-bg",
-			"--cg-cluster-hover-border",
-			"--cg-cluster-edge",
-			"--cg-cluster-edge-label-bg",
-			"--cg-warning",
-			"--cg-error",
-			"--cg-success",
-			"--cg-accent"
-		];
-		for (const v of vars) cssVarCache.set(v, style.getPropertyValue(v).trim());
+//#region src/shared/layerUtils.ts
+const LAYER_COLORS = {
+	controller: {
+		dark: "#60a5fa",
+		light: "#3b82f6"
+	},
+	service: {
+		dark: "#10b981",
+		light: "#059669"
+	},
+	data: {
+		dark: "#f59e0b",
+		light: "#d97706"
+	},
+	presentation: {
+		dark: "#ec4899",
+		light: "#db2777"
+	},
+	utility: {
+		dark: "#818cf8",
+		light: "#6366f1"
+	},
+	config: {
+		dark: "#a78bfa",
+		light: "#7c3aed"
+	},
+	test: {
+		dark: "#34d399",
+		light: "#14b8a6"
+	},
+	middleware: {
+		dark: "#fbbf24",
+		light: "#eab308"
+	},
+	adapter: {
+		dark: "#22d3ee",
+		light: "#06b6d4"
+	},
+	extension: {
+		dark: "#f472b6",
+		light: "#ec4899"
+	},
+	type: {
+		dark: "#a78bfa",
+		light: "#7c3aed"
+	},
+	asset: {
+		dark: "#fb7185",
+		light: "#f43f5e"
+	},
+	security: {
+		dark: "#ef4444",
+		light: "#dc2626"
+	},
+	database: {
+		dark: "#84cc16",
+		light: "#65a30d"
+	},
+	core: {
+		dark: "#6366f1",
+		light: "#4f46e5"
 	}
-	return cssVarCache.get(name$1) || fallback;
+};
+function getLayerColor(layer, isDark) {
+	const colors$1 = LAYER_COLORS[layer];
+	if (colors$1) return isDark ? colors$1.dark : colors$1.light;
+	const fallbackLayers = Object.values(LAYER_COLORS);
+	const idx = layer.charCodeAt(0) % fallbackLayers.length;
+	const fallback = fallbackLayers[idx] ?? {
+		dark: "#6366f1",
+		light: "#4f46e5"
+	};
+	return fallback[isDark ? "dark" : "light"];
 }
-function invalidateCssVarCache() {
-	cssVarCache = null;
-}
+
+//#endregion
+//#region src/client/renderer/styles/ThemeStylesheet.ts
 function getThemeColors(theme) {
 	const isDark = theme === "dark";
 	return {
-		nodeDefault: readCssVarCached("--cg-node-default", isDark ? "#6366f1" : "#263148"),
+		nodeDefault: readCssVarCached("--cg-node-default", isDark ? "#6366f1" : COLORS.PACKAGE_LIGHT),
 		nodeFunction: readCssVarCached("--cg-node-function", isDark ? "#10b981" : "#059669"),
 		nodeClass: readCssVarCached("--cg-node-class", isDark ? "#818cf8" : "#1a2230"),
 		nodeVariable: readCssVarCached("--cg-node-variable", isDark ? "#f59e0b" : "#d97706"),
@@ -4925,7 +5859,7 @@ function getThemeColors(theme) {
 function buildStylesheet(theme, nodeCount = 0) {
 	const c = getThemeColors(theme);
 	const isDark = theme === "dark";
-	const isLargeGraph = nodeCount > 200;
+	const isLargeGraph = nodeCount > LAYOUT$1.MEDIUM_NODE_THRESHOLD;
 	const hoverBorder = readCssVarCached("--cg-hover-border", isDark ? "#818cf8" : "#1a2230");
 	const impactD1 = readCssVarCached("--cg-impact-d1", "#f59e0b");
 	const impactD2 = readCssVarCached("--cg-impact-d2", "#fbbf24");
@@ -4933,15 +5867,15 @@ function buildStylesheet(theme, nodeCount = 0) {
 	const inhExtend = readCssVarCached("--cg-inheritance-extend", isDark ? "#f472b6" : "#ec4899");
 	const inhImplement = readCssVarCached("--cg-inheritance-implement", isDark ? "#2dd4bf" : "#14b8a6");
 	const clusterBg = readCssVarCached("--cg-cluster-bg", isDark ? "rgba(99,102,241,0.15)" : "rgba(38,49,72,0.10)");
-	const clusterBorder = readCssVarCached("--cg-cluster-border", isDark ? "#818cf8" : "#263148");
+	const clusterBorder = readCssVarCached("--cg-cluster-border", isDark ? "#818cf8" : COLORS.PACKAGE_LIGHT);
 	const clusterHoverBg = readCssVarCached("--cg-cluster-hover-bg", isDark ? "rgba(99,102,241,0.35)" : "rgba(38,49,72,0.25)");
 	const clusterHoverBorder = readCssVarCached("--cg-cluster-hover-border", isDark ? "#a5b4fc" : "#1a2230");
-	const clusterEdge = readCssVarCached("--cg-cluster-edge", isDark ? "#818cf8" : "#263148");
-	const clusterEdgeLabelBg = readCssVarCached("--cg-cluster-edge-label-bg", isDark ? "#232324" : "#f9fafb");
+	const clusterEdge = readCssVarCached("--cg-cluster-edge", isDark ? "#818cf8" : COLORS.PACKAGE_LIGHT);
+	const clusterEdgeLabelBg = readCssVarCached("--cg-cluster-edge-label-bg", isDark ? COLORS.PACKAGE_DARK : "#f9fafb");
 	const warningColor = readCssVarCached("--cg-warning", "#f59e0b");
 	const errorColor = readCssVarCached("--cg-error", "#ef4444");
 	const successColor = readCssVarCached("--cg-success", "#10b981");
-	const accentColor = readCssVarCached("--cg-accent", isDark ? "#6366f1" : "#263148");
+	const accentColor = readCssVarCached("--cg-accent", isDark ? "#6366f1" : COLORS.PACKAGE_LIGHT);
 	const ctx = {
 		c,
 		isDark,
@@ -4963,6 +5897,87 @@ function buildStylesheet(theme, nodeCount = 0) {
 		successColor,
 		accentColor
 	};
+	const CLUSTER_HUE_FALLBACKS = [
+		{
+			darkBg: "rgba(99,102,241,0.15)",
+			darkBorder: "#818cf8",
+			lightBg: "rgba(99,102,241,0.10)",
+			lightBorder: "#6366f1"
+		},
+		{
+			darkBg: "rgba(16,185,129,0.15)",
+			darkBorder: "#34d399",
+			lightBg: "rgba(16,185,129,0.10)",
+			lightBorder: "#10b981"
+		},
+		{
+			darkBg: "rgba(236,72,153,0.15)",
+			darkBorder: "#f472b6",
+			lightBg: "rgba(236,72,153,0.10)",
+			lightBorder: "#ec4899"
+		},
+		{
+			darkBg: "rgba(245,158,11,0.15)",
+			darkBorder: "#fbbf24",
+			lightBg: "rgba(245,158,11,0.10)",
+			lightBorder: "#f59e0b"
+		},
+		{
+			darkBg: "rgba(6,182,212,0.15)",
+			darkBorder: "#22d3ee",
+			lightBg: "rgba(6,182,212,0.10)",
+			lightBorder: "#06b6d4"
+		},
+		{
+			darkBg: "rgba(168,85,247,0.15)",
+			darkBorder: "#a78bfa",
+			lightBg: "rgba(168,85,247,0.10)",
+			lightBorder: "#8b5cf6"
+		},
+		{
+			darkBg: "rgba(239,68,68,0.15)",
+			darkBorder: "#f87171",
+			lightBg: "rgba(239,68,68,0.10)",
+			lightBorder: "#ef4444"
+		},
+		{
+			darkBg: "rgba(132,204,22,0.15)",
+			darkBorder: "#a3e635",
+			lightBg: "rgba(132,204,22,0.10)",
+			lightBorder: "#84cc16"
+		},
+		{
+			darkBg: "rgba(251,113,133,0.15)",
+			darkBorder: "#fb7185",
+			lightBg: "rgba(251,113,133,0.10)",
+			lightBorder: "#f43f5e"
+		},
+		{
+			darkBg: "rgba(96,165,250,0.15)",
+			darkBorder: "#60a5fa",
+			lightBg: "rgba(96,165,250,0.10)",
+			lightBorder: "#3b82f6"
+		},
+		{
+			darkBg: "rgba(52,211,153,0.15)",
+			darkBorder: "#34d399",
+			lightBg: "rgba(52,211,153,0.10)",
+			lightBorder: "#14b8a6"
+		},
+		{
+			darkBg: "rgba(251,191,36,0.15)",
+			darkBorder: "#fbbf24",
+			lightBg: "rgba(251,191,36,0.10)",
+			lightBorder: "#eab308"
+		}
+	];
+	const clusterHueStyles = CLUSTER_HUE_FALLBACKS.map((fb, i$1) => ({
+		selector: `node[isCluster="true"][clusterHue="${i$1}"]`,
+		style: {
+			"background-color": readCssVarCached(`--cg-cluster-hue-${i$1}-bg`, isDark ? fb.darkBg : fb.lightBg),
+			"border-color": readCssVarCached(`--cg-cluster-hue-${i$1}-border`, isDark ? fb.darkBorder : fb.lightBorder)
+		}
+	}));
 	return [
 		{
 			selector: "node",
@@ -4975,6 +5990,8 @@ function buildStylesheet(theme, nodeCount = 0) {
 				"text-halign": "center",
 				"text-wrap": "wrap",
 				"text-max-width": "70px",
+				"text-outline-color": c.nodeDefault,
+				"text-outline-width": 2,
 				"width": isLargeGraph ? 14 : 32,
 				"height": isLargeGraph ? 14 : 32,
 				"shape": "ellipse",
@@ -4983,7 +6000,7 @@ function buildStylesheet(theme, nodeCount = 0) {
 				"overlay-opacity": 0,
 				...isLargeGraph ? {} : {
 					"transition-property": "background-color, border-color, border-width",
-					"transition-duration": 200
+					"transition-duration": LOD.TRANSITION_DURATION_MS
 				}
 			}
 		},
@@ -5005,9 +6022,9 @@ function buildStylesheet(theme, nodeCount = 0) {
 		{
 			selector: ":parent",
 			style: {
-				"background-color": isDark ? "rgba(99,102,241,0.08)" : "rgba(0,0,0,0.05)",
+				"background-color": readCssVarCached("--cg-accent-soft", isDark ? "rgba(99,102,241,0.12)" : "rgba(38,49,72,0.1)"),
 				"border-width": 2,
-				"border-color": isDark ? "rgba(129,140,248,0.3)" : c.border,
+				"border-color": readCssVarCached("--cg-border-strong", isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.1)"),
 				"border-style": "dashed",
 				"label": "data(label)",
 				"font-size": "10px",
@@ -5061,6 +6078,46 @@ function buildStylesheet(theme, nodeCount = 0) {
 				"background-color": c.nodeType
 			}
 		},
+		...Object.keys(LAYER_COLORS).map((layer) => ({
+			selector: `node[layer="${layer}"]`,
+			style: {
+				"border-color": getLayerColor(layer, isDark),
+				"border-width": isLargeGraph ? 2 : 3
+			}
+		})),
+		{
+			selector: "node[nodeRole=\"entry\"]",
+			style: {
+				"border-width": isLargeGraph ? 2 : 3,
+				"border-color": readCssVarCached("--cg-role-entry", isDark ? "#10b981" : "#059669"),
+				"border-style": "solid"
+			}
+		},
+		{
+			selector: "node[nodeRole=\"orphan\"]",
+			style: {
+				"border-width": isLargeGraph ? 2 : 3,
+				"border-color": readCssVarCached("--cg-role-orphan", isDark ? "#6b7280" : "#9ca3af"),
+				"border-style": "dashed",
+				"opacity": .6
+			}
+		},
+		{
+			selector: "node[nodeRole=\"leaf\"]",
+			style: {
+				"border-width": isLargeGraph ? 2 : 3,
+				"border-color": readCssVarCached("--cg-role-leaf", isDark ? "#f59e0b" : "#d97706"),
+				"border-style": "double"
+			}
+		},
+		{
+			selector: "node[nodeRole=\"hub\"]",
+			style: {
+				"border-width": isLargeGraph ? 3 : 4,
+				"border-color": readCssVarCached("--cg-role-hub", isDark ? "#ef4444" : "#dc2626"),
+				"border-style": "solid"
+			}
+		},
 		{
 			selector: "node[depType=\"npm\"]",
 			style: {
@@ -5098,7 +6155,11 @@ function buildStylesheet(theme, nodeCount = 0) {
 				"target-arrow-shape": "triangle",
 				"curve-style": "bezier",
 				"opacity": .8,
-				"overlay-opacity": 0
+				"overlay-opacity": 0,
+				"text-background-color": readCssVarCached("--cg-surface", isDark ? COLORS.PACKAGE_DARK : "#f9fafb"),
+				"text-background-opacity": .8,
+				"text-background-padding": "2px",
+				"text-background-shape": "roundrectangle"
 			}
 		},
 		{
@@ -5401,93 +6462,10 @@ function buildStylesheet(theme, nodeCount = 0) {
 				"height": "mapData(childCount, 1, 3000, 40, 80)",
 				"z-index": 5,
 				"transition-property": "background-color, border-color, border-width",
-				"transition-duration": 200
+				"transition-duration": LOD.TRANSITION_DURATION_MS
 			}
 		},
-		{
-			selector: "node[isCluster=\"true\"][clusterHue=\"0\"]",
-			style: {
-				"background-color": isDark ? "rgba(99,102,241,0.15)" : "rgba(99,102,241,0.10)",
-				"border-color": isDark ? "#818cf8" : "#6366f1"
-			}
-		},
-		{
-			selector: "node[isCluster=\"true\"][clusterHue=\"1\"]",
-			style: {
-				"background-color": isDark ? "rgba(16,185,129,0.15)" : "rgba(16,185,129,0.10)",
-				"border-color": isDark ? "#34d399" : "#10b981"
-			}
-		},
-		{
-			selector: "node[isCluster=\"true\"][clusterHue=\"2\"]",
-			style: {
-				"background-color": isDark ? "rgba(236,72,153,0.15)" : "rgba(236,72,153,0.10)",
-				"border-color": isDark ? "#f472b6" : "#ec4899"
-			}
-		},
-		{
-			selector: "node[isCluster=\"true\"][clusterHue=\"3\"]",
-			style: {
-				"background-color": isDark ? "rgba(245,158,11,0.15)" : "rgba(245,158,11,0.10)",
-				"border-color": isDark ? "#fbbf24" : "#f59e0b"
-			}
-		},
-		{
-			selector: "node[isCluster=\"true\"][clusterHue=\"4\"]",
-			style: {
-				"background-color": isDark ? "rgba(6,182,212,0.15)" : "rgba(6,182,212,0.10)",
-				"border-color": isDark ? "#22d3ee" : "#06b6d4"
-			}
-		},
-		{
-			selector: "node[isCluster=\"true\"][clusterHue=\"5\"]",
-			style: {
-				"background-color": isDark ? "rgba(168,85,247,0.15)" : "rgba(168,85,247,0.10)",
-				"border-color": isDark ? "#a78bfa" : "#8b5cf6"
-			}
-		},
-		{
-			selector: "node[isCluster=\"true\"][clusterHue=\"6\"]",
-			style: {
-				"background-color": isDark ? "rgba(239,68,68,0.15)" : "rgba(239,68,68,0.10)",
-				"border-color": isDark ? "#f87171" : "#ef4444"
-			}
-		},
-		{
-			selector: "node[isCluster=\"true\"][clusterHue=\"7\"]",
-			style: {
-				"background-color": isDark ? "rgba(132,204,22,0.15)" : "rgba(132,204,22,0.10)",
-				"border-color": isDark ? "#a3e635" : "#84cc16"
-			}
-		},
-		{
-			selector: "node[isCluster=\"true\"][clusterHue=\"8\"]",
-			style: {
-				"background-color": isDark ? "rgba(251,113,133,0.15)" : "rgba(251,113,133,0.10)",
-				"border-color": isDark ? "#fb7185" : "#f43f5e"
-			}
-		},
-		{
-			selector: "node[isCluster=\"true\"][clusterHue=\"9\"]",
-			style: {
-				"background-color": isDark ? "rgba(96,165,250,0.15)" : "rgba(96,165,250,0.10)",
-				"border-color": isDark ? "#60a5fa" : "#3b82f6"
-			}
-		},
-		{
-			selector: "node[isCluster=\"true\"][clusterHue=\"10\"]",
-			style: {
-				"background-color": isDark ? "rgba(52,211,153,0.15)" : "rgba(52,211,153,0.10)",
-				"border-color": isDark ? "#34d399" : "#14b8a6"
-			}
-		},
-		{
-			selector: "node[isCluster=\"true\"][clusterHue=\"11\"]",
-			style: {
-				"background-color": isDark ? "rgba(251,191,36,0.15)" : "rgba(251,191,36,0.10)",
-				"border-color": isDark ? "#fbbf24" : "#eab308"
-			}
-		},
+		...clusterHueStyles,
 		{
 			selector: "node[isCluster=\"true\"].hovered",
 			style: {
@@ -5647,7 +6625,7 @@ function buildStylesheet(theme, nodeCount = 0) {
 			selector: "node[isPackage=\"true\"]",
 			style: {
 				"shape": "round-rectangle",
-				"background-color": readCssVar("--cg-node-package", isDark ? "#6366f1" : "#263148"),
+				"background-color": readCssVar("--cg-node-package", isDark ? "#6366f1" : COLORS.PACKAGE_LIGHT),
 				"border-width": 2,
 				"border-color": readCssVar("--cg-package-border", isDark ? "#818cf8" : "#1a2230"),
 				"label": "data(label)",
@@ -5674,8 +6652,8 @@ function buildStylesheet(theme, nodeCount = 0) {
 			selector: "edge[isPackageEdge=\"true\"]",
 			style: {
 				"width": "mapData(aggregatedCount, 1, 50, 1.5, 5)",
-				"line-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : "#263148"),
-				"target-arrow-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : "#263148"),
+				"line-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : COLORS.PACKAGE_LIGHT),
+				"target-arrow-color": readCssVar("--cg-edge-package", isDark ? "#818cf8" : COLORS.PACKAGE_LIGHT),
 				"target-arrow-shape": "vee",
 				"line-style": "dashed",
 				"curve-style": "bezier",
@@ -5723,17 +6701,23 @@ function buildStylesheet(theme, nodeCount = 0) {
 }
 
 //#endregion
+//#region src/shared/assertNever.ts
+function assertNever(value, message) {
+	throw new Error(message ?? `Unreachable: unexpected value ${JSON.stringify(value)}`);
+}
+
+//#endregion
 //#region src/shared/viewModeUtils.ts
 const VIEW_MODE_LAYOUT = {
 	code: "cose",
-	dependencies: "dagre",
+	dependencies: "cose",
 	inheritance: "tree",
 	callgraph: "dagre",
 	package: "tree",
 	class: "dagre",
 	cfg: "dagre",
 	flowchart: "dagre",
-	sequence: "grid"
+	sequence: "cose"
 };
 function isLayeredViewMode(mode) {
 	switch (mode) {
@@ -5746,10 +6730,65 @@ function isLayeredViewMode(mode) {
 		case "cfg":
 		case "flowchart":
 		case "sequence": return false;
-		default: {
-			const _exhaustive = mode;
-			throw new Error(`Unhandled ViewMode: ${_exhaustive}`);
-		}
+		default: return assertNever(mode);
+	}
+}
+function getViewLayer(mode) {
+	switch (mode) {
+		case "code": return "structural";
+		case "dependencies":
+		case "inheritance":
+		case "callgraph":
+		case "package":
+		case "class":
+		case "cfg":
+		case "flowchart":
+		case "sequence": return "behavioral";
+		default: return assertNever(mode);
+	}
+}
+const STRUCTURAL_VIEW_MODES = ["code"];
+const BEHAVIORAL_VIEW_MODES = [
+	"dependencies",
+	"inheritance",
+	"callgraph",
+	"package",
+	"class"
+];
+const BEHAVIORAL_MICRO_VIEW_MODES = [
+	"cfg",
+	"flowchart",
+	"sequence"
+];
+const STRUCTURAL_PANELS = new Set([
+	"showSearch",
+	"showPathFind",
+	"showHealthScore",
+	"showRules",
+	"showImport",
+	"showFilterPanel",
+	"showMiniMap",
+	"showLegend"
+]);
+const BEHAVIORAL_PANELS = new Set([
+	"showCallChain",
+	"showCycles",
+	"showImpact",
+	"showInheritance",
+	"showHotspot",
+	"showGodModule",
+	"showCoreFunction",
+	"showSearch",
+	"showPathFind",
+	"showMiniMap",
+	"showLegend"
+]);
+function getAvailablePanels(layer) {
+	switch (layer) {
+		case "structural": return STRUCTURAL_PANELS;
+		case "behavioral": return BEHAVIORAL_PANELS;
+		case "runtime": return new Set(["showMiniMap", "showLegend"]);
+		default: return assertNever(layer);
 	}
 }
 
@@ -5892,94 +6931,295 @@ function computeViewModeTransition(newViewMode, state, diagramCache$1) {
 }
 
 //#endregion
-//#region src/shared/Logger.ts
-const LEVEL_ORDER = {
-	debug: 0,
-	info: 1,
-	warn: 2,
-	error: 3
-};
-const RING_SIZE = 200;
-var LoggerImpl = class {
-	buffer = [];
-	listeners = new Set();
-	minLevel = typeof globalThis !== "undefined" && globalThis.__CG_DEBUG ? "debug" : "info";
-	log(level, scope, message, data$2) {
-		if (LEVEL_ORDER[level] < LEVEL_ORDER[this.minLevel]) return;
-		const entry = {
-			ts: Date.now(),
-			level,
-			scope,
-			message,
-			data: data$2
-		};
-		this.buffer.push(entry);
-		if (this.buffer.length > RING_SIZE) this.buffer.splice(0, this.buffer.length - RING_SIZE);
-		this.emit();
-		const fn$7 = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
-		try {
-			if (typeof fn$7 === "function") fn$7(`[codegraph:${scope}] ${message}`, data$2 ?? "");
-		} catch {}
-	}
-	debug(scope, message, data$2) {
-		this.log("debug", scope, message, data$2);
-	}
-	info(scope, message, data$2) {
-		this.log("info", scope, message, data$2);
-	}
-	warn(scope, message, data$2) {
-		this.log("warn", scope, message, data$2);
-	}
-	error(scope, message, data$2) {
-		this.log("error", scope, message, data$2);
-	}
-	entries() {
-		return this.buffer.slice();
-	}
-	clear() {
-		this.buffer = [];
-		this.emit();
-	}
-	subscribe(fn$7) {
-		this.listeners.add(fn$7);
-		fn$7(this.entries());
-		return () => {
-			this.listeners.delete(fn$7);
-		};
-	}
-	clearListeners() {
-		this.listeners.clear();
-	}
-	emit() {
-		if (this.listeners.size === 0) return;
-		const snapshot = this.entries();
-		for (const fn$7 of this.listeners) try {
-			fn$7(snapshot);
-		} catch {}
-	}
-};
-const logger = new LoggerImpl();
-function scoped(scope) {
+//#region src/client/validators.ts
+function coerceNode(raw, i$1) {
+	if (!raw || typeof raw !== "object") return null;
+	const o = raw;
+	const id = typeof o.id === "string" ? o.id : `node-${i$1}`;
+	const label = typeof o.label === "string" ? o.label : typeof o.name === "string" ? o.name : id;
+	const type = [
+		"function",
+		"class",
+		"variable",
+		"module",
+		"interface",
+		"type"
+	].includes(o.type) ? o.type : "variable";
+	const filePath = typeof o.filePath === "string" ? o.filePath : typeof o.file === "string" ? o.file : "";
+	const lineNumber = typeof o.lineNumber === "number" ? o.lineNumber : typeof o.line === "number" ? o.line : 0;
+	const properties = o.properties && typeof o.properties === "object" ? o.properties : {};
 	return {
-		debug: (m, d) => logger.debug(scope, m, d),
-		info: (m, d) => logger.info(scope, m, d),
-		warn: (m, d) => logger.warn(scope, m, d),
-		error: (m, d) => logger.error(scope, m, d)
+		id: NodeId(id),
+		label,
+		type,
+		filePath,
+		lineNumber,
+		properties
 	};
 }
-function resetLoggerListeners() {
-	logger.clearListeners();
+function coerceEdge(raw, i$1) {
+	if (!raw || typeof raw !== "object") return null;
+	const o = raw;
+	const id = typeof o.id === "string" ? o.id : `edge-${i$1}`;
+	const source = typeof o.source === "string" ? o.source : typeof o.from === "string" ? o.from : null;
+	const target = typeof o.target === "string" ? o.target : typeof o.to === "string" ? o.to : null;
+	if (!source || !target) return null;
+	const type = [
+		"call",
+		"import",
+		"extend",
+		"implement",
+		"dependency",
+		"contains",
+		"association",
+		"aggregation",
+		"composition"
+	].includes(o.type) ? o.type : "dependency";
+	const properties = o.properties && typeof o.properties === "object" ? o.properties : {};
+	const direction = [
+		"forward",
+		"backward",
+		"bidirectional"
+	].includes(o.direction) ? o.direction : "forward";
+	const weight = typeof o.weight === "number" && o.weight >= 0 && o.weight <= 1 ? o.weight : 1;
+	return {
+		id: EdgeId(id),
+		source: NodeId(source),
+		target: NodeId(target),
+		type,
+		direction,
+		weight,
+		properties
+	};
+}
+function validateGraphData(raw) {
+	if (!raw || typeof raw !== "object") return null;
+	const o = raw;
+	const rawNodes = Array.isArray(o.nodes) ? o.nodes : [];
+	const rawEdges = Array.isArray(o.edges) ? o.edges : [];
+	const nodes = rawNodes.map(coerceNode).filter((n) => n !== null);
+	if (nodes.length === 0) return null;
+	const nodeIds = new Set(nodes.map((n) => n.id));
+	const edges = rawEdges.map(coerceEdge).filter((e) => e !== null).filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+	const metadata = o.metadata;
+	const repoId = metadata?.repoId ?? `workspace-${Date.now()}`;
+	const timestamp = typeof metadata?.timestamp === "number" ? metadata.timestamp : Date.now();
+	const truncated = typeof metadata?.truncated === "boolean" ? metadata.truncated : false;
+	const totalNodeCount = typeof metadata?.totalNodeCount === "number" ? metadata.totalNodeCount : nodes.length;
+	const totalEdgeCount = typeof metadata?.totalEdgeCount === "number" ? metadata.totalEdgeCount : edges.length;
+	return {
+		nodes,
+		edges,
+		metadata: {
+			repoId: RepoId(repoId),
+			timestamp,
+			nodeCount: nodes.length,
+			edgeCount: edges.length,
+			truncated,
+			totalNodeCount,
+			totalEdgeCount
+		}
+	};
+}
+
+//#endregion
+//#region src/client/api/index.ts
+const log$13 = scoped("client");
+const DEFAULT_TIMEOUT = API.DEFAULT_TIMEOUT_MS;
+function fetchWithTimeout(url, options, timeoutMs = DEFAULT_TIMEOUT) {
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), timeoutMs);
+	return fetch(url, {
+		...options,
+		signal: controller.signal
+	}).finally(() => clearTimeout(timer));
+}
+async function fetchBootstrap() {
+	try {
+		const res = await fetchWithTimeout("/api/v1/codegraph/bootstrap");
+		if (!res.ok) return null;
+		const data$2 = await res.json();
+		return {
+			rootNodes: data$2.rootNodes ?? [],
+			topLevelNodes: data$2.topLevelNodes ?? [],
+			topLevelTotal: data$2.topLevelTotal ?? 0,
+			edges: data$2.edges ?? [],
+			indexStatus: data$2.indexStatus ?? "empty",
+			metadata: data$2.metadata ?? {
+				repoId: "",
+				timestamp: 0,
+				totalNodeCount: 0,
+				totalEdgeCount: 0
+			}
+		};
+	} catch (e) {
+		log$13.warn("fetchBootstrap failed", { error: e instanceof Error ? e.message : String(e) });
+		return null;
+	}
+}
+async function fetchNodeChildren(nodeId, cursor, limit$1) {
+	try {
+		const params = new URLSearchParams();
+		params.set("nodeId", nodeId);
+		if (cursor) params.set("cursor", cursor);
+		params.set("limit", String(limit$1 ?? BOOTSTRAP.CHILDREN_PAGE_SIZE));
+		const res = await fetchWithTimeout(`/api/v1/codegraph/children?${params}`);
+		if (!res.ok) return null;
+		return await res.json();
+	} catch (e) {
+		log$13.warn("fetchNodeChildren failed", {
+			nodeId,
+			error: e instanceof Error ? e.message : String(e)
+		});
+		return null;
+	}
+}
+async function fetchStatus() {
+	try {
+		const res = await fetchWithTimeout("/api/v1/codegraph/status");
+		if (!res.ok) return {
+			codegraph: false,
+			lens: false
+		};
+		return await res.json();
+	} catch (e) {
+		log$13.warn("fetchStatus failed", {
+			url: "/api/v1/codegraph/status",
+			error: e instanceof Error ? e.message : String(e)
+		});
+		return {
+			codegraph: false,
+			lens: false
+		};
+	}
+}
+async function fetchGraphData() {
+	try {
+		const res = await fetchWithTimeout("/api/v1/codegraph/data");
+		if (!res.ok) return null;
+		return validateGraphData(await res.json());
+	} catch (e) {
+		log$13.warn("fetchGraphData failed", {
+			url: "/api/v1/codegraph/data",
+			error: e instanceof Error ? e.message : String(e)
+		});
+		return null;
+	}
+}
+async function fetchWorkspace() {
+	try {
+		const res = await fetchWithTimeout("/api/v1/codegraph/workspace");
+		if (!res.ok) return {
+			path: ".",
+			list: []
+		};
+		const data$2 = await res.json();
+		return {
+			path: data$2.path ?? ".",
+			list: data$2.list ?? []
+		};
+	} catch (e) {
+		log$13.warn("fetchWorkspace failed", e);
+		return {
+			path: ".",
+			list: []
+		};
+	}
+}
+async function requestScan(path, maxNodes) {
+	try {
+		const res = await fetchWithTimeout("/api/v1/codegraph/scan", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				path,
+				maxNodes
+			})
+		}, API.SCAN_TIMEOUT_MS);
+		if (!res.ok) return null;
+		return await res.json();
+	} catch (e) {
+		log$13.warn("requestScan failed", e);
+		return null;
+	}
+}
+async function requestInit(path) {
+	try {
+		const res = await fetchWithTimeout("/api/v1/codegraph/init", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ path })
+		}, API.SCAN_TIMEOUT_MS);
+		if (!res.ok) return null;
+		return await res.json();
+	} catch (e) {
+		log$13.warn("requestInit failed", e);
+		return null;
+	}
+}
+async function fetchGraphDataIncremental(lastUpdated) {
+	try {
+		const res = await fetchWithTimeout("/api/v1/codegraph/data", { headers: { "if-none-match": String(lastUpdated) } });
+		if (res.status === 304) return null;
+		if (!res.ok) return null;
+		return validateGraphData(await res.json());
+	} catch (e) {
+		log$13.warn("fetchGraphDataIncremental failed", { error: e instanceof Error ? e.message : String(e) });
+		return null;
+	}
+}
+async function requestWatch(enabled, path) {
+	try {
+		const res = await fetchWithTimeout("/api/v1/codegraph/watch", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				enabled,
+				path
+			})
+		});
+		return res.ok;
+	} catch (e) {
+		log$13.warn("requestWatch failed", e);
+		return false;
+	}
 }
 
 //#endregion
 //#region src/client/store/graphStore.ts
-const log$8 = scoped("store");
+const log$12 = scoped("store");
 const diagramCache = new DiagramCache(10);
 const clusterCache = new ClusterCache(20);
+let persistentCache = null;
 const callChainAggregator = new CallChainAggregator();
+let microAssemblyGeneration = 0;
+let incrementalClusterCtx = null;
+let prefetchInFlightCount = 0;
 function detectInitialTheme() {
 	if (typeof document === "undefined") return "dark";
 	return document.body.hasAttribute("data-ds-dark-theme") ? "dark" : "light";
+}
+function computeMaxVisible(panelWidth) {
+	return panelWidth !== null && panelWidth !== void 0 ? getDynamicMaxVisibleNodes(panelWidth) : CLUSTER.MAX_VISIBLE_NODES;
+}
+function enforceFunctionBodyBudget(expanded, rawNodes, maxExpanded) {
+	const expandedFunctionBodies = [...expanded].filter((id) => rawNodes.some((n) => n.id === id && n.type === "function"));
+	while (expandedFunctionBodies.length > maxExpanded) {
+		const oldest = expandedFunctionBodies.shift();
+		expanded.delete(oldest);
+	}
+}
+function collapseExcessClusters(nodes, effectiveExpanded, maxVisible, costOffset) {
+	if (nodes.length + costOffset <= maxVisible) return;
+	const clusterNodes = nodes.filter((n) => "isCluster" in n && n.isCluster === true);
+	const sorted = [...clusterNodes].sort((a, b) => b.childCount - a.childCount);
+	for (const cn of sorted) {
+		if (nodes.length + costOffset - cn.childCount <= maxVisible) {
+			effectiveExpanded.delete(cn.id);
+			break;
+		}
+		effectiveExpanded.delete(cn.id);
+	}
 }
 const memoryStorage = {
 	getItem: () => null,
@@ -5988,6 +7228,17 @@ const memoryStorage = {
 };
 const LOADING_FAILSAFE_MS = POLLING.LOADING_FAILSAFE_MS;
 let loadingFailsafe = null;
+function updateIncrementalClusterCtx(result, rawNodes, rawEdges) {
+	const nodeIdToVisibleId = new Map();
+	for (const n of result.nodes) if ("isCluster" in n && n.isCluster) for (const childId of n.childIds) nodeIdToVisibleId.set(childId, n.id);
+	else nodeIdToVisibleId.set(n.id, n.id);
+	incrementalClusterCtx = {
+		prevResult: result,
+		prevNodeIdToVisibleId: nodeIdToVisibleId,
+		prevRawNodes: rawNodes,
+		prevRawEdges: rawEdges
+	};
+}
 function sanitizeGraphData(nodes, edges) {
 	const seenNodeIds = new Set();
 	const validNodes = [];
@@ -6052,7 +7303,13 @@ function clearLoadingFailsafe() {
 function disposeStore() {
 	diagramCache.invalidate();
 	clusterCache.invalidate();
+	incrementalClusterCtx = null;
+	microAssemblyGeneration = 0;
 	clearLoadingFailsafe();
+	if (persistentCache) {
+		persistentCache.close();
+		persistentCache = null;
+	}
 }
 function applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache$1, set$1) {
 	if (isLayeredViewMode(viewMode)) {
@@ -6081,7 +7338,8 @@ function applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagra
 	}
 	const dataHash = computeDataHash(sourceNodes, sourceEdges);
 	const expandedKey = [...newExpanded].sort().join(",");
-	const cached = clusterCache$1.get(dataHash, "progressive", expandedKey);
+	const cacheLevel = `progressive:${clusterDepth}`;
+	const cached = clusterCache$1.get(dataHash, cacheLevel, expandedKey);
 	if (cached) {
 		set$1({
 			expandedNodeIds: newExpanded,
@@ -6091,8 +7349,8 @@ function applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagra
 		});
 		return;
 	}
-	const result = computeClusteredGraph(sourceNodes, sourceEdges, "progressive", newExpanded, clusterDepth);
-	clusterCache$1.set(dataHash, "progressive", expandedKey, result);
+	const result = computeClusteredGraph(sourceNodes, sourceEdges, "progressive", newExpanded, clusterDepth, useGraphStore.getState().panelWidth ?? void 0);
+	clusterCache$1.set(dataHash, cacheLevel, expandedKey, result);
 	set$1({
 		expandedNodeIds: newExpanded,
 		expandedNodeIdsByViewMode: newExpandedByViewMode,
@@ -6112,6 +7370,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	totalNodeCount: 0,
 	totalEdgeCount: 0,
 	layout: "cose",
+	dagreRankDir: "TB",
 	theme: detectInitialTheme(),
 	searchQuery: "",
 	selectedNodeId: null,
@@ -6134,45 +7393,155 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	watchEnabled: false,
 	expandedNodeIds: new Set(),
 	expandedNodeIdsByViewMode: {},
+	loadedChildrenByNodeId: new Set(),
 	currentWorkspace: ".",
 	workspaceList: [],
 	pathStartId: null,
 	pathEndId: null,
 	pathResult: null,
 	focusDepth: 1,
+	focusModeActive: false,
+	focusModeNodeId: null,
+	pathFilterInclude: null,
+	pathFilterExclude: null,
 	callChainDepth: 2,
 	fanInThreshold: 0,
 	fanOutThreshold: 0,
-	visibleNodeTypes: new Set(),
-	visibleEdgeTypes: new Set(),
+	visibleNodeTypes: new Set([
+		"function",
+		"class",
+		"variable",
+		"module",
+		"interface"
+	]),
+	visibleEdgeTypes: new Set([
+		"call",
+		"extend",
+		"implement",
+		"import",
+		"dependency",
+		"contains"
+	]),
+	heatmapMode: "none",
 	healthScore: null,
 	rules: [],
 	ruleViolations: [],
 	panelHeight: null,
 	panelWidth: null,
 	selectedFunction: null,
+	performanceDegradations: [],
+	lodLevel: "full",
+	lodEnabled: false,
 	setGraphData: (nodes, edges, repoId, metadata) => {
-		clearLoadingFailsafe();
-		const { clusterDepth, expandedNodeIds, viewMode, currentLayer } = useGraphStore.getState();
-		const sanitized = sanitizeGraphData(nodes, edges);
-		let displayNodes = sanitized.nodes;
-		let displayEdges = sanitized.edges;
-		let diagramData = null;
-		const isLayeredView = isLayeredViewMode(viewMode);
-		if (isLayeredView) {
-			const dataHash = computeDataHash(sanitized.nodes, sanitized.edges);
-			const cached = diagramCache.get(viewMode, dataHash);
-			if (cached) diagramData = cached;
-			else {
-				diagramData = assembleDiagram(viewMode, sanitized.nodes, sanitized.edges);
-				if (diagramData) diagramCache.set(viewMode, dataHash, diagramData);
+		try {
+			clearLoadingFailsafe();
+			if (persistentCache?.["repoId"] !== repoId) {
+				if (persistentCache) persistentCache.close();
+				persistentCache = new IndexedDBCache(repoId);
+				diagramCache.setPersistentBackend(persistentCache);
+				clusterCache.setPersistentBackend(persistentCache);
 			}
-			if (diagramData) {
-				const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
-				if (layer) {
-					displayNodes = layer.nodes;
-					displayEdges = layer.edges;
+			const { clusterDepth, expandedNodeIds, viewMode, currentLayer } = useGraphStore.getState();
+			const sanitized = sanitizeGraphData(nodes, edges);
+			const newDegradations = [];
+			if (sanitized.nodes.length > CYCLE_DETECTION.MAX_NODES_FOR_DETECTION) newDegradations.push("cycle-detection-skipped");
+			if (sanitized.nodes.length > CLUSTER.MAX_NODES_FOR_LABEL_PROP) newDegradations.push("community-detection-sampled");
+			if (sanitized.nodes.length > RENDERER.LARGE_GRAPH_NODE_THRESHOLD) newDegradations.push("large-graph-mode");
+			let displayNodes = sanitized.nodes;
+			let displayEdges = sanitized.edges;
+			let diagramData = null;
+			const isLayeredView = isLayeredViewMode(viewMode);
+			if (isLayeredView) {
+				const dataHash = computeDataHash(sanitized.nodes, sanitized.edges);
+				const cached = diagramCache.get(viewMode, dataHash);
+				if (cached) diagramData = cached;
+				else {
+					diagramData = assembleDiagram(viewMode, sanitized.nodes, sanitized.edges);
+					if (diagramData) diagramCache.set(viewMode, dataHash, diagramData);
 				}
+				if (diagramData) {
+					const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+					if (layer) {
+						displayNodes = layer.nodes;
+						displayEdges = layer.edges;
+					}
+				}
+				set$1({
+					rawNodes: sanitized.nodes,
+					rawEdges: sanitized.edges,
+					nodes: displayNodes,
+					edges: displayEdges,
+					diagramData,
+					repoId,
+					error: null,
+					isLoading: false,
+					lastUpdated: Date.now(),
+					truncated: !!metadata?.truncated,
+					totalNodeCount: metadata?.totalNodeCount ?? sanitized.nodes.length,
+					totalEdgeCount: metadata?.totalEdgeCount ?? sanitized.edges.length,
+					healthScore: null,
+					ruleViolations: [],
+					performanceDegradations: newDegradations
+				});
+				return;
+			}
+			const result = tryIncrementalOrFull(incrementalClusterCtx, displayNodes, displayEdges, expandedNodeIds, clusterDepth, useGraphStore.getState().panelWidth ?? void 0);
+			updateIncrementalClusterCtx(result, sanitized.nodes, sanitized.edges);
+			set$1({
+				rawNodes: sanitized.nodes,
+				rawEdges: sanitized.edges,
+				nodes: result.nodes,
+				edges: result.edges,
+				diagramData,
+				repoId,
+				error: null,
+				isLoading: false,
+				lastUpdated: Date.now(),
+				truncated: !!metadata?.truncated,
+				totalNodeCount: metadata?.totalNodeCount ?? sanitized.nodes.length,
+				totalEdgeCount: metadata?.totalEdgeCount ?? sanitized.edges.length,
+				healthScore: null,
+				ruleViolations: [],
+				performanceDegradations: newDegradations
+			});
+		} catch (err) {
+			log$12.error("setGraphData failed", { err });
+			set$1({
+				error: err instanceof Error ? err.message : String(err),
+				isLoading: false
+			});
+		}
+	},
+	setBootstrapData: (rootNodes, edges, repoId, metadata) => {
+		try {
+			clearLoadingFailsafe();
+			incrementalClusterCtx = null;
+			const sanitized = sanitizeGraphData(rootNodes, edges);
+			const { clusterDepth, expandedNodeIds, viewMode, panelWidth } = useGraphStore.getState();
+			const isLayeredView = isLayeredViewMode(viewMode);
+			let displayNodes = sanitized.nodes;
+			let displayEdges = sanitized.edges;
+			let diagramData = null;
+			if (isLayeredView) {
+				const dataHash = computeDataHash(sanitized.nodes, sanitized.edges);
+				const cached = diagramCache.get(viewMode, dataHash);
+				if (cached) diagramData = cached;
+				else {
+					diagramData = assembleDiagram(viewMode, sanitized.nodes, sanitized.edges);
+					if (diagramData) diagramCache.set(viewMode, dataHash, diagramData);
+				}
+				if (diagramData) {
+					const layer = diagramData.layers[0];
+					if (layer) {
+						displayNodes = layer.nodes;
+						displayEdges = layer.edges;
+					}
+				}
+			} else {
+				const result = tryIncrementalOrFull(incrementalClusterCtx, sanitized.nodes, sanitized.edges, expandedNodeIds, clusterDepth, panelWidth ?? void 0);
+				updateIncrementalClusterCtx(result, sanitized.nodes, sanitized.edges);
+				displayNodes = result.nodes;
+				displayEdges = result.edges;
 			}
 			set$1({
 				rawNodes: sanitized.nodes,
@@ -6183,34 +7552,30 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				repoId,
 				error: null,
 				isLoading: false,
-				lastUpdated: Date.now(),
-				truncated: !!metadata?.truncated,
-				totalNodeCount: metadata?.totalNodeCount ?? sanitized.nodes.length,
-				totalEdgeCount: metadata?.totalEdgeCount ?? sanitized.edges.length,
+				lastUpdated: metadata.timestamp,
+				truncated: false,
+				totalNodeCount: metadata.totalNodeCount,
+				totalEdgeCount: metadata.totalEdgeCount,
 				healthScore: null,
-				ruleViolations: []
+				ruleViolations: [],
+				performanceDegradations: [],
+				expandedNodeIds: new Set(),
+				expandedNodeIdsByViewMode: {}
 			});
-			return;
+			log$12.info("bootstrap data set", {
+				rootNodes: sanitized.nodes.length,
+				totalNodeCount: metadata.totalNodeCount
+			});
+		} catch (err) {
+			log$12.error("setBootstrapData failed", { err });
+			set$1({
+				error: err instanceof Error ? err.message : String(err),
+				isLoading: false
+			});
 		}
-		const result = computeClusteredGraph(displayNodes, displayEdges, "progressive", expandedNodeIds, clusterDepth);
-		set$1({
-			rawNodes: sanitized.nodes,
-			rawEdges: sanitized.edges,
-			nodes: result.nodes,
-			edges: result.edges,
-			diagramData,
-			repoId,
-			error: null,
-			isLoading: false,
-			lastUpdated: Date.now(),
-			truncated: !!metadata?.truncated,
-			totalNodeCount: metadata?.totalNodeCount ?? sanitized.nodes.length,
-			totalEdgeCount: metadata?.totalEdgeCount ?? sanitized.edges.length,
-			healthScore: null,
-			ruleViolations: []
-		});
 	},
 	setLayout: (layout$2) => set$1({ layout: layout$2 }),
+	setDagreRankDir: (dagreRankDir) => set$1({ dagreRankDir }),
 	setTheme: (theme) => {
 		invalidateCssVarCache();
 		set$1({ theme });
@@ -6234,47 +7599,23 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			viewMode: state.viewMode
 		}, diagramCache);
 		if (result.needsMicroAssembly) {
-			const { needsMicroAssembly: _$36,...rest$1 } = result;
+			const { needsMicroAssembly: _discarded,...rest$1 } = result;
+			const fn$7 = useGraphStore.getState().selectedFunction;
 			set$1(rest$1);
-			useGraphStore.getState().assembleMicro(viewMode);
+			useGraphStore.getState().assembleMicro(viewMode, fn$7);
 			return;
 		}
-		const { needsMicroAssembly: _u,...rest } = result;
+		const { needsMicroAssembly: _discarded2,...rest } = result;
 		set$1(rest);
 	},
 	setClusterDepth: (clusterDepth) => {
-		const { rawNodes, rawEdges, expandedNodeIds, diagramData, currentLayer, viewMode } = useGraphStore.getState();
+		const { rawNodes, rawEdges, expandedNodeIds, expandedNodeIdsByViewMode, diagramData, currentLayer, viewMode } = useGraphStore.getState();
 		if (isLayeredViewMode(viewMode)) {
 			set$1({ clusterDepth });
 			return;
 		}
-		let sourceNodes = rawNodes;
-		let sourceEdges = rawEdges;
-		if (diagramData) {
-			const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
-			if (layer) {
-				sourceNodes = layer.nodes;
-				sourceEdges = layer.edges;
-			}
-		}
-		const dataHash = computeDataHash(sourceNodes, sourceEdges);
-		const expandedKey = [...expandedNodeIds].sort().join(",");
-		const cached = clusterCache.get(dataHash, "progressive", expandedKey);
-		if (cached) {
-			set$1({
-				clusterDepth,
-				nodes: cached.nodes,
-				edges: cached.edges
-			});
-			return;
-		}
-		const result = computeClusteredGraph(sourceNodes, sourceEdges, "progressive", expandedNodeIds, clusterDepth);
-		clusterCache.set(dataHash, "progressive", expandedKey, result);
-		set$1({
-			clusterDepth,
-			nodes: result.nodes,
-			edges: result.edges
-		});
+		applyClusterUpdate(expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set$1);
+		set$1({ clusterDepth });
 	},
 	setLoading: (isLoading) => {
 		clearLoadingFailsafe();
@@ -6293,6 +7634,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	},
 	clearGraph: () => {
 		clearLoadingFailsafe();
+		incrementalClusterCtx = null;
 		set$1({
 			nodes: [],
 			edges: [],
@@ -6316,14 +7658,129 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	}),
 	setWatchEnabled: (watchEnabled) => set$1({ watchEnabled }),
 	expandNode: (nodeId) => {
-		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
-		const newExpanded = new Set(expandedNodeIds);
-		newExpanded.add(nodeId);
+		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, nodes, panelWidth } = useGraphStore.getState();
+		const cost = estimateExpandCost(nodeId, rawNodes);
+		const maxVisible = computeMaxVisible(panelWidth);
+		const effectiveExpanded = new Set(expandedNodeIds);
+		const expandingFunctionBody = rawNodes.some((n) => n.id === nodeId && n.type === "function");
+		if (expandingFunctionBody) enforceFunctionBodyBudget(effectiveExpanded, rawNodes, FUNCTION_BODY.MAX_EXPANDED - 1);
+		effectiveExpanded.add(nodeId);
+		collapseExcessClusters(nodes, effectiveExpanded, maxVisible, cost);
+		if (cost > CLUSTER.EXPAND_BUDGET_SINGLE) log$12.warn("expand budget exceeded", {
+			nodeId,
+			cost,
+			budget: CLUSTER.EXPAND_BUDGET_SINGLE
+		});
 		const newExpandedByViewMode = {
 			...expandedNodeIdsByViewMode,
-			[viewMode]: newExpanded
+			[viewMode]: effectiveExpanded
 		};
-		applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set$1);
+		applyClusterUpdate(effectiveExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set$1);
+	},
+	loadNodeChildren: async (nodeId) => {
+		const state = useGraphStore.getState();
+		if (state.loadedChildrenByNodeId.has(nodeId)) return;
+		const hasChildren = state.rawNodes.some((n) => n.parentId === nodeId || n.id.startsWith(nodeId + "/"));
+		if (hasChildren) {
+			const newLoaded = new Set(state.loadedChildrenByNodeId);
+			newLoaded.add(nodeId);
+			set$1({ loadedChildrenByNodeId: newLoaded });
+			return;
+		}
+		try {
+			const data$2 = await fetchNodeChildren(nodeId);
+			if (!data$2 || data$2.nodes.length === 0) {
+				const newLoaded$1 = new Set(state.loadedChildrenByNodeId);
+				newLoaded$1.add(nodeId);
+				set$1({ loadedChildrenByNodeId: newLoaded$1 });
+				return;
+			}
+			const s2 = useGraphStore.getState();
+			const existingNodeIds = new Set(s2.rawNodes.map((n) => n.id));
+			const newNodes = data$2.nodes.filter((n) => !existingNodeIds.has(n.id));
+			const existingEdgeIds = new Set(s2.rawEdges.map((e) => e.id));
+			const newEdges = data$2.edges.filter((e) => !existingEdgeIds.has(e.id));
+			if (newNodes.length === 0 && newEdges.length === 0) {
+				const newLoaded$1 = new Set(s2.loadedChildrenByNodeId);
+				newLoaded$1.add(nodeId);
+				set$1({ loadedChildrenByNodeId: newLoaded$1 });
+				return;
+			}
+			const mergedRawNodes = [...s2.rawNodes, ...newNodes];
+			const mergedRawEdges = [...s2.rawEdges, ...newEdges];
+			const newLoaded = new Set(s2.loadedChildrenByNodeId);
+			newLoaded.add(nodeId);
+			const { clusterDepth, expandedNodeIds, panelWidth } = s2;
+			const result = tryIncrementalOrFull(incrementalClusterCtx, mergedRawNodes, mergedRawEdges, expandedNodeIds, clusterDepth, panelWidth ?? void 0);
+			updateIncrementalClusterCtx(result, mergedRawNodes, mergedRawEdges);
+			set$1({
+				rawNodes: mergedRawNodes,
+				rawEdges: mergedRawEdges,
+				nodes: result.nodes,
+				edges: result.edges,
+				loadedChildrenByNodeId: newLoaded
+			});
+			log$12.info("node children loaded", {
+				nodeId,
+				newNodes: newNodes.length,
+				newEdges: newEdges.length
+			});
+		} catch (err) {
+			log$12.warn("loadNodeChildren failed", {
+				nodeId,
+				err
+			});
+		}
+	},
+	batchExpandNodes: (nodeIds) => {
+		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, nodes, panelWidth } = useGraphStore.getState();
+		if (nodeIds.length === 0) return;
+		const maxVisible = computeMaxVisible(panelWidth);
+		const effectiveExpanded = new Set(expandedNodeIds);
+		for (const nodeId of nodeIds) effectiveExpanded.add(nodeId);
+		enforceFunctionBodyBudget(effectiveExpanded, rawNodes, FUNCTION_BODY.MAX_EXPANDED);
+		collapseExcessClusters(nodes, effectiveExpanded, maxVisible, 0);
+		const newExpandedByViewMode = {
+			...expandedNodeIdsByViewMode,
+			[viewMode]: effectiveExpanded
+		};
+		applyClusterUpdate(effectiveExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set$1);
+	},
+	prefetchExpand: (nodeId) => {
+		if (prefetchInFlightCount >= PREFETCH.CONCURRENCY_LIMIT) return;
+		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, viewMode, diagramData, currentLayer } = useGraphStore.getState();
+		if (isLayeredViewMode(viewMode)) return;
+		if (expandedNodeIds.has(nodeId)) return;
+		const rawNode = rawNodes.find((n) => n.id === nodeId);
+		if (rawNode?.type === "function") return;
+		const cost = estimateExpandCost(nodeId, rawNodes);
+		if (cost > PREFETCH.COST_THRESHOLD) return;
+		const newExpanded = new Set(expandedNodeIds);
+		newExpanded.add(nodeId);
+		let sourceNodes = rawNodes;
+		let sourceEdges = rawEdges;
+		if (diagramData) {
+			const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+			if (layer) {
+				sourceNodes = layer.nodes;
+				sourceEdges = layer.edges;
+			}
+		}
+		const dataHash = computeDataHash(sourceNodes, sourceEdges);
+		const expandedKey = [...newExpanded].sort().join(",");
+		const cacheLevel = `progressive:${clusterDepth}`;
+		if (clusterCache.get(dataHash, cacheLevel, expandedKey)) return;
+		prefetchInFlightCount++;
+		const runPrefetch = () => {
+			try {
+				const result = computeClusteredGraph(sourceNodes, sourceEdges, "progressive", newExpanded, clusterDepth, useGraphStore.getState().panelWidth ?? void 0);
+				clusterCache.set(dataHash, cacheLevel, expandedKey, result);
+			} finally {
+				prefetchInFlightCount--;
+			}
+		};
+		if (typeof requestIdleCallback === "function") requestIdleCallback(runPrefetch, { timeout: 2e3 });
+		else setTimeout(runPrefetch, 0);
 	},
 	collapseNode: (nodeId) => {
 		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
@@ -6353,7 +7810,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				path,
 				name: wsName,
 				lastUsed: Date.now()
-			}, ...existing].slice(0, 10)
+			}, ...existing].slice(0, UI.WORKSPACE_LIST_MAX)
 		};
 	}),
 	removeWorkspace: (path) => set$1((s) => ({
@@ -6364,11 +7821,20 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	setPathEnd: (nodeId) => set$1({ pathEndId: nodeId }),
 	setPathResult: (path) => set$1({ pathResult: path }),
 	setFocusDepth: (depth) => set$1({ focusDepth: depth }),
+	setFocusMode: (active, nodeId) => set$1({
+		focusModeActive: active,
+		focusModeNodeId: nodeId
+	}),
+	setPathFilter: (include, exclude) => set$1({
+		pathFilterInclude: include,
+		pathFilterExclude: exclude
+	}),
 	setCallChainDepth: (depth) => set$1({ callChainDepth: depth }),
 	setFanInThreshold: (threshold) => set$1({ fanInThreshold: threshold }),
 	setFanOutThreshold: (threshold) => set$1({ fanOutThreshold: threshold }),
 	setVisibleNodeTypes: (types) => set$1({ visibleNodeTypes: types }),
 	setVisibleEdgeTypes: (types) => set$1({ visibleEdgeTypes: types }),
+	setHeatmapMode: (mode) => set$1({ heatmapMode: mode }),
 	assembleMultiFunction: async (entryNodeId) => {
 		const { rawNodes, rawEdges, callChainDepth, clusterDepth, expandedNodeIds } = useGraphStore.getState();
 		const astFetcher = async (filePath) => {
@@ -6381,17 +7847,17 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				if (!response.ok) return null;
 				return await response.json();
 			} catch (e) {
-				log$8.warn("AST fetch failed", e);
+				log$12.warn("AST fetch failed", e);
 				return null;
 			}
 		};
 		try {
 			const result = await callChainAggregator.aggregate(entryNodeId, rawNodes, rawEdges, astFetcher, {
 				depth: callChainDepth,
-				maxFunctions: 20
+				maxFunctions: UI.MAX_FUNCTIONS_PER_CLUSTER
 			});
 			if (result && result.diagram.nodes.length > 0) {
-				const clustered = computeClusteredGraph(result.diagram.nodes, result.diagram.edges, "progressive", expandedNodeIds, clusterDepth);
+				const clustered = computeClusteredGraph(result.diagram.nodes, result.diagram.edges, "progressive", expandedNodeIds, clusterDepth, useGraphStore.getState().panelWidth ?? void 0);
 				set$1({
 					diagramData: null,
 					nodes: clustered.nodes,
@@ -6404,7 +7870,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				isLoading: false
 			});
 		} catch (e) {
-			log$8.warn("assembleMultiFunction failed", e);
+			log$12.warn("assembleMultiFunction failed", e);
 			set$1({
 				error: `Call chain aggregation failed: ${e instanceof Error ? e.message : String(e)}`,
 				isLoading: false
@@ -6422,16 +7888,45 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		panelHeight: null,
 		panelWidth: null
 	}),
+	addDegradation: (key) => set$1((s) => {
+		if (s.performanceDegradations.includes(key)) return s;
+		return { performanceDegradations: [...s.performanceDegradations, key] };
+	}),
+	clearDegradations: () => set$1({ performanceDegradations: [] }),
+	setLODLevel: (level) => {
+		const state = useGraphStore.getState();
+		if (state.lodLevel === level) return;
+		set$1({ lodLevel: level });
+		if (!state.lodEnabled) return;
+		if (isLayeredViewMode(state.viewMode)) return;
+		const lodDepth = level === "minimal" ? LOD.MINIMAL_CLUSTER_DEPTH : level === "compact" ? LOD.COMPACT_CLUSTER_DEPTH : state.clusterDepth;
+		const { rawNodes, rawEdges, expandedNodeIds } = state;
+		const result = tryIncrementalOrFull(incrementalClusterCtx, rawNodes, rawEdges, expandedNodeIds, lodDepth, state.panelWidth ?? void 0);
+		updateIncrementalClusterCtx(result, rawNodes, rawEdges);
+		set$1({
+			nodes: result.nodes,
+			edges: result.edges
+		});
+	},
+	setLODEnabled: (enabled) => {
+		set$1({ lodEnabled: enabled });
+		if (!enabled) {
+			const state = useGraphStore.getState();
+			if (state.lodLevel !== "full") useGraphStore.getState().setLODLevel("full");
+		}
+	},
 	setSelectedFunction: (fn$7) => set$1({ selectedFunction: fn$7 }),
-	assembleMicro: async (viewMode) => {
-		const { selectedFunction } = useGraphStore.getState();
+	assembleMicro: async (viewMode, selectedFunctionOverride) => {
+		const selectedFunction = selectedFunctionOverride ?? useGraphStore.getState().selectedFunction;
 		if (!selectedFunction) return;
+		const gen = ++microAssemblyGeneration;
 		set$1({
 			isLoading: true,
 			error: null
 		});
 		try {
 			const diagram = await assembleMicroDiagram(viewMode, selectedFunction.filePath, selectedFunction.functionName);
+			if (gen !== microAssemblyGeneration) return;
 			set$1({
 				diagramData: null,
 				nodes: diagram.nodes,
@@ -6439,6 +7934,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				isLoading: false
 			});
 		} catch (e) {
+			if (gen !== microAssemblyGeneration) return;
 			const msg = e instanceof Error ? e.message : String(e);
 			set$1({
 				isLoading: false,
@@ -6467,8 +7963,18 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	}
 }), {
 	name: "dsh-codegraph-visualizer/ui",
-	version: 7,
+	version: 9,
 	storage: createJSONStorage(() => typeof window !== "undefined" ? window.localStorage : memoryStorage),
+	merge: (persisted, current) => {
+		const p$1 = persisted;
+		const raw = p$1.expandedNodeIds;
+		const expandedNodeIds = Array.isArray(raw) ? new Set(raw) : raw instanceof Set ? raw : new Set();
+		return {
+			...current,
+			...persisted,
+			expandedNodeIds
+		};
+	},
 	migrate: (persisted, version$1) => {
 		const p$1 = persisted;
 		const layout$2 = p$1.layout;
@@ -6518,10 +8024,25 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			};
 			result.clusterDepth = typeof oldLevel === "string" ? depthMap[oldLevel] ?? 0 : 0;
 		}
+		if (version$1 < 8) {
+			const validRankDirs = [
+				"TB",
+				"LR",
+				"BT",
+				"RL"
+			];
+			const savedRankDir = p$1.dagreRankDir;
+			result.dagreRankDir = validRankDirs.includes(savedRankDir ?? "") ? savedRankDir : "TB";
+		}
+		if (version$1 < 9) {
+			const arr = p$1.expandedNodeIds;
+			result.expandedNodeIds = Array.isArray(arr) ? new Set(arr) : new Set();
+		}
 		return result;
 	},
 	partialize: (s) => ({
 		layout: s.layout,
+		dagreRankDir: s.dagreRankDir,
 		theme: s.theme,
 		filterType: s.filterType,
 		graphType: s.graphType,
@@ -6531,53 +8052,10 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		rules: s.rules,
 		focusDepth: s.focusDepth,
 		panelHeight: s.panelHeight,
-		panelWidth: s.panelWidth
+		panelWidth: s.panelWidth,
+		expandedNodeIds: [...s.expandedNodeIds]
 	})
 }));
-
-//#endregion
-//#region node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_react@19.2.8/node_modules/zustand/esm/vanilla/shallow.mjs
-const isIterable = (obj) => Symbol.iterator in obj;
-const hasIterableEntries = (value) => "entries" in value;
-const compareEntries = (valueA, valueB) => {
-	const mapA = valueA instanceof Map ? valueA : new Map(valueA.entries());
-	const mapB = valueB instanceof Map ? valueB : new Map(valueB.entries());
-	if (mapA.size !== mapB.size) return false;
-	for (const [key, value] of mapA) if (!mapB.has(key) || !Object.is(value, mapB.get(key))) return false;
-	return true;
-};
-const compareIterables = (valueA, valueB) => {
-	const iteratorA = valueA[Symbol.iterator]();
-	const iteratorB = valueB[Symbol.iterator]();
-	let nextA = iteratorA.next();
-	let nextB = iteratorB.next();
-	while (!nextA.done && !nextB.done) {
-		if (!Object.is(nextA.value, nextB.value)) return false;
-		nextA = iteratorA.next();
-		nextB = iteratorB.next();
-	}
-	return !!nextA.done && !!nextB.done;
-};
-function shallow(valueA, valueB) {
-	if (Object.is(valueA, valueB)) return true;
-	if (typeof valueA !== "object" || valueA === null || typeof valueB !== "object" || valueB === null) return false;
-	if (Object.getPrototypeOf(valueA) !== Object.getPrototypeOf(valueB)) return false;
-	if (isIterable(valueA) && isIterable(valueB)) {
-		if (hasIterableEntries(valueA) && hasIterableEntries(valueB)) return compareEntries(valueA, valueB);
-		return compareIterables(valueA, valueB);
-	}
-	return compareEntries({ entries: () => Object.entries(valueA) }, { entries: () => Object.entries(valueB) });
-}
-
-//#endregion
-//#region node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_react@19.2.8/node_modules/zustand/esm/react/shallow.mjs
-function useShallow(selector) {
-	const prev = react.default.useRef(void 0);
-	return (state) => {
-		const next$1 = selector(state);
-		return shallow(prev.current, next$1) ? prev.current : prev.current = next$1;
-	};
-}
 
 //#endregion
 //#region node_modules/.pnpm/cytoscape@3.34.2/node_modules/cytoscape/dist/cytoscape.esm.mjs
@@ -51801,7 +53279,7 @@ function computeSmartSpacing(nodeCount, containerWidth, containerHeight) {
 	else densityFactor = .5;
 	const s = Math.max(40, idealSpacing * densityFactor);
 	return {
-		nodeRepulse: Math.min(s * s * 4, 2e4),
+		nodeRepulse: Math.min(s * s * 4, LAYOUT$1.NODE_REPULSE_MAX),
 		idealEdgeLength: s * 2,
 		rankSep: Math.min(Math.max(LAYOUT$1.MIN_RANK_SEP, s * .3), LAYOUT$1.MAX_RANK_SEP),
 		edgeSep: Math.min(Math.max(15, s * .15), 40),
@@ -51815,8 +53293,128 @@ function computeSmartSpacing(nodeCount, containerWidth, containerHeight) {
 }
 
 //#endregion
+//#region src/client/renderer/OverlapRemover.ts
+var OverlapRemover = class {
+	cy;
+	constructor(cy) {
+		this.cy = cy;
+	}
+	remove() {
+		const nodes = this.cy.nodes();
+		if (nodes.length === 0) return;
+		const w = this.cy.width() || RENDERER.DEFAULT_CONTAINER_WIDTH;
+		const h = this.cy.height() || RENDERER.DEFAULT_CONTAINER_HEIGHT;
+		const sp = computeSmartSpacing(nodes.length, w, h);
+		const minGap = sp.minGap;
+		const maxIterations = LAYOUT$1.OVERLAP_MAX_ITERATIONS;
+		const skipThreshold = LAYOUT$1.OVERLAP_SKIP_THRESHOLD;
+		if (nodes.length > skipThreshold) {
+			this.cy.fit(void 0, RENDERER.FIT_PADDING);
+			return;
+		}
+		const cellSize = minGap * LAYOUT$1.OVERLAP_CELL_SIZE_MULTIPLIER;
+		let lastOverlapCount = Infinity;
+		let noImprovementCount = 0;
+		for (let iter = 0; iter < maxIterations; iter++) {
+			const positions = [];
+			nodes.forEach((n) => {
+				const p$1 = n.position();
+				positions.push({
+					id: n.id(),
+					x: p$1.x,
+					y: p$1.y,
+					w: n.width(),
+					h: n.height()
+				});
+			});
+			const grid = new Map();
+			for (let i$1 = 0; i$1 < positions.length; i$1++) {
+				const p$1 = positions[i$1];
+				const gx = Math.floor(p$1.x / cellSize);
+				const gy = Math.floor(p$1.y / cellSize);
+				for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+					const key = `${gx + dx},${gy + dy}`;
+					let bucket = grid.get(key);
+					if (!bucket) {
+						bucket = [];
+						grid.set(key, bucket);
+					}
+					bucket.push(i$1);
+				}
+			}
+			const displacements = new Map();
+			let overlapCount = 0;
+			const checked = new Set();
+			for (const [, bucket] of grid) for (let i$1 = 0; i$1 < bucket.length; i$1++) for (let j = i$1 + 1; j < bucket.length; j++) {
+				const ai = bucket[i$1];
+				const bi = bucket[j];
+				const pairKey = ai < bi ? `${ai}-${bi}` : `${bi}-${ai}`;
+				if (checked.has(pairKey)) continue;
+				checked.add(pairKey);
+				const a = positions[ai];
+				const b = positions[bi];
+				const ddx = b.x - a.x;
+				const ddy = b.y - a.y;
+				const minDx = (a.w + b.w) / 2 + minGap;
+				const minDy = (a.h + b.h) / 2 + minGap;
+				const absDx = Math.abs(ddx);
+				const absDy = Math.abs(ddy);
+				if (absDx < minDx && absDy < minDy) {
+					overlapCount++;
+					const overlapX = minDx - absDx;
+					const overlapY = minDy - absDy;
+					const pushX = overlapX / 2 + Math.max(LAYOUT$1.OVERLAP_MIN_PUSH, overlapX * LAYOUT$1.OVERLAP_PUSH_COEFFICIENT);
+					const pushY = overlapY / 2 + Math.max(LAYOUT$1.OVERLAP_MIN_PUSH, overlapY * LAYOUT$1.OVERLAP_PUSH_COEFFICIENT);
+					const signX = ddx >= 0 ? 1 : -1;
+					const signY = ddy >= 0 ? 1 : -1;
+					let da = displacements.get(a.id);
+					if (!da) {
+						da = {
+							dx: 0,
+							dy: 0
+						};
+						displacements.set(a.id, da);
+					}
+					let db = displacements.get(b.id);
+					if (!db) {
+						db = {
+							dx: 0,
+							dy: 0
+						};
+						displacements.set(b.id, db);
+					}
+					da.dx -= signX * pushX;
+					da.dy -= signY * pushY;
+					db.dx += signX * pushX;
+					db.dy += signY * pushY;
+				}
+			}
+			if (overlapCount === 0) break;
+			if (overlapCount >= lastOverlapCount) {
+				noImprovementCount++;
+				if (noImprovementCount >= 3) break;
+			} else noImprovementCount = 0;
+			lastOverlapCount = overlapCount;
+			this.cy.batch(() => {
+				for (const [id, d] of displacements) {
+					const node = this.cy.getElementById(id);
+					if (node.nonempty()) {
+						const p$1 = node.position();
+						node.position({
+							x: p$1.x + d.dx,
+							y: p$1.y + d.dy
+						});
+					}
+				}
+			});
+		}
+		this.cy.fit(void 0, RENDERER.FIT_PADDING);
+	}
+};
+
+//#endregion
 //#region src/client/renderer/LayoutController.ts
-const log$7 = scoped("layout");
+const log$11 = scoped("layout");
 var LayoutController = class {
 	cy;
 	layoutRaf = null;
@@ -51824,9 +53422,13 @@ var LayoutController = class {
 	workerLayoutResolve = null;
 	worker = null;
 	workerInitFailed = false;
+	workerRetryCount = 0;
 	workerTimeout = null;
+	overlapRemover;
+	rankDir = "TB";
 	constructor(cy) {
 		this.cy = cy;
+		this.overlapRemover = new OverlapRemover(cy);
 		this.initWorker();
 	}
 	initWorker() {
@@ -51834,7 +53436,7 @@ var LayoutController = class {
 			let workerUrl = null;
 			if (typeof document !== "undefined" && document.baseURI) try {
 				workerUrl = new URL("plugins/dsh-codegraph-visualizer/worker/layoutWorker.js", document.baseURI).href;
-			} catch {}
+			} catch (_e) {}
 			if (workerUrl) this.worker = new Worker(workerUrl, { type: "module" });
 			if (this.worker) {
 				this.worker.onmessage = (e) => {
@@ -51847,28 +53449,45 @@ var LayoutController = class {
 					this.worker?.terminate();
 					this.worker = null;
 					this.workerInitFailed = true;
-					log$7.warn("layout worker error — falling back to main-thread layout");
+					log$11.warn("layout worker error — falling back to main-thread layout");
 				};
 			} else {
 				this.workerInitFailed = true;
-				log$7.warn("layout worker not available — using main-thread layout");
+				log$11.warn("layout worker not available — using main-thread layout");
 			}
 		} catch (e) {
 			this.workerInitFailed = true;
-			log$7.warn("layout worker init failed — using main-thread layout", e);
+			log$11.warn("layout worker init failed — using main-thread layout", e);
 		}
 	}
 	isWorkerAvailable() {
 		return this.worker !== null && !this.workerInitFailed;
 	}
+	retryWorker() {
+		this.retryWorkerInit();
+	}
+	retryWorkerInit() {
+		if (this.worker || !this.workerInitFailed) return;
+		if (this.workerRetryCount >= 3) return;
+		this.workerRetryCount++;
+		this.workerInitFailed = false;
+		this.initWorker();
+	}
 	applyLayoutWithWorker(nodes, edges, layout$2) {
 		if (!this.worker) return Promise.resolve({});
+		const worker = this.worker;
 		return new Promise((resolve) => {
 			this.workerTimeout = setTimeout(() => {
 				if (this.workerLayoutResolve) {
-					log$7.warn("layout worker timeout — falling back to empty positions");
+					log$11.warn("layout worker timeout — falling back to empty positions");
 					this.workerLayoutResolve({});
 					this.workerLayoutResolve = null;
+				}
+				if (this.worker) {
+					this.worker.terminate();
+					this.worker = null;
+					this.workerInitFailed = true;
+					log$11.warn("layout worker terminated due to timeout — will retry on next layout");
 				}
 			}, RENDERER.LAYOUT_TIMEOUT_MS);
 			this.workerLayoutResolve = (positions) => {
@@ -51878,7 +53497,7 @@ var LayoutController = class {
 				}
 				resolve(positions);
 			};
-			this.worker.postMessage({
+			worker.postMessage({
 				nodes: nodes.map((n) => ({
 					id: n.id,
 					label: n.label,
@@ -51891,8 +53510,9 @@ var LayoutController = class {
 					type: e.type
 				})),
 				layout: layout$2,
-				containerWidth: this.cy.width() || 800,
-				containerHeight: this.cy.height() || 600
+				rankDir: this.rankDir,
+				containerWidth: this.cy.width() || RENDERER.DEFAULT_CONTAINER_WIDTH,
+				containerHeight: this.cy.height() || RENDERER.DEFAULT_CONTAINER_HEIGHT
 			});
 		});
 	}
@@ -51923,7 +53543,7 @@ var LayoutController = class {
 			const options = this.buildLayoutOptions(effectiveLayout, animate, nodeCount);
 			if (options) {
 				const l = this.cy.layout(options);
-				l.one("layoutstop", () => this.removeOverlaps());
+				l.one("layoutstop", () => this.overlapRemover.remove());
 				l.run();
 			}
 			this.layoutRaf = null;
@@ -51976,14 +53596,16 @@ var LayoutController = class {
 					cy = 0;
 				}
 			}
-			const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+			const goldenAngle = LAYOUT$1.GOLDEN_ANGLE;
+			const newNodeIndexMap = new Map();
+			for (let i$1 = 0; i$1 < newNodeIdArray.length; i$1++) newNodeIndexMap.set(newNodeIdArray[i$1], i$1);
 			const presetOptions = {
 				name: "preset",
 				positions: (node) => {
 					const cached = this.positionCache.get(node.id());
 					if (cached) return cached;
-					const idx = newNodeIdArray.indexOf(node.id());
-					if (idx === -1) return {
+					const idx = newNodeIndexMap.get(node.id());
+					if (idx === void 0) return {
 						x: cx,
 						y: cy
 					};
@@ -52001,10 +53623,10 @@ var LayoutController = class {
 				const incrementalOptions = this.buildLayoutOptions(layout$2, false, newNodes.length);
 				if (incrementalOptions) {
 					const l = newNodes.layout(incrementalOptions);
-					l.one("layoutstop", () => this.removeOverlaps());
+					l.one("layoutstop", () => this.overlapRemover.remove());
 					l.run();
 				}
-			} else this.removeOverlaps();
+			} else this.overlapRemover.remove();
 			this.cachePositions();
 			this.layoutRaf = null;
 		});
@@ -52028,8 +53650,8 @@ var LayoutController = class {
 		});
 	}
 	computeSmartSpacing(nodeCount) {
-		const w = this.cy.width() || 800;
-		const h = this.cy.height() || 600;
+		const w = this.cy.width() || RENDERER.DEFAULT_CONTAINER_WIDTH;
+		const h = this.cy.height() || RENDERER.DEFAULT_CONTAINER_HEIGHT;
 		return computeSmartSpacing(nodeCount, w, h);
 	}
 	buildLayoutOptions(layout$2, animate, nodeCount) {
@@ -52043,7 +53665,7 @@ var LayoutController = class {
 				idealEdgeLength: sp.idealEdgeLength,
 				edgeElasticity: .05,
 				gravity: .02,
-				numIter: 2500,
+				numIter: LAYOUT$1.COSE_NUM_ITER,
 				randomize: true,
 				tile: true,
 				padding: sp.padding,
@@ -52057,12 +53679,12 @@ var LayoutController = class {
 				idealEdgeLength: sp.idealEdgeLength,
 				edgeElasticity: .05,
 				gravity: .02,
-				numIter: 2500,
+				numIter: nodeCount > LAYOUT$1.FCOSE_LARGE_NODE_THRESHOLD ? LAYOUT$1.FCOSE_LARGE_NUM_ITER : LAYOUT$1.COSE_NUM_ITER,
 				randomize: true,
 				tile: true,
 				padding: sp.padding,
 				avoidOverlap: true,
-				quality: "default",
+				quality: nodeCount > LAYOUT$1.FCOSE_LARGE_NODE_THRESHOLD ? LAYOUT$1.FCOSE_LARGE_QUALITY : "default",
 				samplingType: true,
 				nodeSeparation: sp.minNodeSpacing
 			};
@@ -52070,7 +53692,7 @@ var LayoutController = class {
 				name: "dagre",
 				fit: true,
 				animate,
-				rankDir: "TB",
+				rankDir: this.rankDir,
 				rankSep: sp.rankSep,
 				edgeSep: sp.edgeSep,
 				nodeSep: sp.nodeSep,
@@ -52139,115 +53761,6 @@ var LayoutController = class {
 			}
 		}
 	}
-	removeOverlaps() {
-		const nodes = this.cy.nodes();
-		if (nodes.length === 0) return;
-		const sp = this.computeSmartSpacing(nodes.length);
-		const minGap = sp.minGap;
-		const maxIterations = LAYOUT$1.OVERLAP_MAX_ITERATIONS;
-		const skipThreshold = LAYOUT$1.OVERLAP_SKIP_THRESHOLD;
-		if (nodes.length > skipThreshold) {
-			this.cy.fit(void 0, RENDERER.FIT_PADDING);
-			return;
-		}
-		const cellSize = minGap * LAYOUT$1.OVERLAP_CELL_SIZE_MULTIPLIER;
-		let lastOverlapCount = Infinity;
-		let noImprovementCount = 0;
-		for (let iter = 0; iter < maxIterations; iter++) {
-			const positions = [];
-			nodes.forEach((n) => {
-				const p$1 = n.position();
-				positions.push({
-					id: n.id(),
-					x: p$1.x,
-					y: p$1.y,
-					w: n.width(),
-					h: n.height()
-				});
-			});
-			const grid = new Map();
-			for (let i$1 = 0; i$1 < positions.length; i$1++) {
-				const p$1 = positions[i$1];
-				const gx = Math.floor(p$1.x / cellSize);
-				const gy = Math.floor(p$1.y / cellSize);
-				for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
-					const key = `${gx + dx},${gy + dy}`;
-					let bucket = grid.get(key);
-					if (!bucket) {
-						bucket = [];
-						grid.set(key, bucket);
-					}
-					bucket.push(i$1);
-				}
-			}
-			const displacements = new Map();
-			let overlapCount = 0;
-			const checked = new Set();
-			for (const [, bucket] of grid) for (let i$1 = 0; i$1 < bucket.length; i$1++) for (let j = i$1 + 1; j < bucket.length; j++) {
-				const ai = bucket[i$1];
-				const bi = bucket[j];
-				const pairKey = ai < bi ? `${ai}-${bi}` : `${bi}-${ai}`;
-				if (checked.has(pairKey)) continue;
-				checked.add(pairKey);
-				const a = positions[ai];
-				const b = positions[bi];
-				const ddx = b.x - a.x;
-				const ddy = b.y - a.y;
-				const minDx = (a.w + b.w) / 2 + minGap;
-				const minDy = (a.h + b.h) / 2 + minGap;
-				const absDx = Math.abs(ddx);
-				const absDy = Math.abs(ddy);
-				if (absDx < minDx && absDy < minDy) {
-					overlapCount++;
-					const overlapX = minDx - absDx;
-					const overlapY = minDy - absDy;
-					const pushX = overlapX / 2 + Math.max(2, overlapX * .15);
-					const pushY = overlapY / 2 + Math.max(2, overlapY * .15);
-					const signX = ddx >= 0 ? 1 : -1;
-					const signY = ddy >= 0 ? 1 : -1;
-					let da = displacements.get(a.id);
-					if (!da) {
-						da = {
-							dx: 0,
-							dy: 0
-						};
-						displacements.set(a.id, da);
-					}
-					let db = displacements.get(b.id);
-					if (!db) {
-						db = {
-							dx: 0,
-							dy: 0
-						};
-						displacements.set(b.id, db);
-					}
-					da.dx -= signX * pushX;
-					da.dy -= signY * pushY;
-					db.dx += signX * pushX;
-					db.dy += signY * pushY;
-				}
-			}
-			if (overlapCount === 0) break;
-			if (overlapCount >= lastOverlapCount) {
-				noImprovementCount++;
-				if (noImprovementCount >= 3) break;
-			} else noImprovementCount = 0;
-			lastOverlapCount = overlapCount;
-			this.cy.batch(() => {
-				for (const [id, d] of displacements) {
-					const node = this.cy.getElementById(id);
-					if (node.nonempty()) {
-						const p$1 = node.position();
-						node.position({
-							x: p$1.x + d.dx,
-							y: p$1.y + d.dy
-						});
-					}
-				}
-			});
-		}
-		this.cy.fit(void 0, RENDERER.FIT_PADDING);
-	}
 	destroy() {
 		if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
 		this.layoutRaf = null;
@@ -52266,12 +53779,81 @@ var LayoutController = class {
 };
 
 //#endregion
+//#region src/client/renderer/AdjacencyMapBuilder.ts
+function buildUndirectedAdjacencyMap(cy) {
+	const map$1 = new Map();
+	cy.edges().forEach((edge) => {
+		const s = edge.source().id();
+		const t$1 = edge.target().id();
+		let neighbors = map$1.get(s);
+		if (!neighbors) {
+			neighbors = new Set();
+			map$1.set(s, neighbors);
+		}
+		neighbors.add(t$1);
+		neighbors = map$1.get(t$1);
+		if (!neighbors) {
+			neighbors = new Set();
+			map$1.set(t$1, neighbors);
+		}
+		neighbors.add(s);
+	});
+	return map$1;
+}
+function buildDirectedAdjacencyMaps(cy) {
+	const forward = new Map();
+	const backward = new Map();
+	cy.edges().forEach((edge) => {
+		const s = edge.source().id();
+		const t$1 = edge.target().id();
+		let fwdList = forward.get(s);
+		if (!fwdList) {
+			fwdList = [];
+			forward.set(s, fwdList);
+		}
+		fwdList.push(t$1);
+		let bwdList = backward.get(t$1);
+		if (!bwdList) {
+			bwdList = [];
+			backward.set(t$1, bwdList);
+		}
+		bwdList.push(s);
+	});
+	return {
+		forward,
+		backward
+	};
+}
+function buildForwardAdjacencyMap(cy) {
+	const adjacency = new Map();
+	cy.edges().forEach((edge) => {
+		const s = edge.source().id();
+		const t$1 = edge.target().id();
+		const list = adjacency.get(s);
+		if (list) list.push(t$1);
+		else adjacency.set(s, [t$1]);
+	});
+	return adjacency;
+}
+
+//#endregion
 //#region src/client/renderer/HighlightController.ts
 var HighlightController = class {
 	cy;
 	highlightedNodeIds = new Set();
+	selectedNodeId = null;
+	lastInheritanceRelevant = new Set();
+	adjacencyMap = null;
 	constructor(cy) {
 		this.cy = cy;
+	}
+	getAdjacencyMap() {
+		if (this.adjacencyMap) return this.adjacencyMap;
+		this.adjacencyMap = buildUndirectedAdjacencyMap(this.cy);
+		return this.adjacencyMap;
+	}
+	invalidateCache() {
+		this.adjacencyMap = null;
 	}
 	highlightNodes(nodeIds) {
 		const newSet = new Set(nodeIds);
@@ -52297,7 +53879,6 @@ var HighlightController = class {
 		});
 		this.highlightedNodeIds = newSet;
 	}
-	selectedNodeId = null;
 	selectNode(nodeId) {
 		const id = nodeId ?? null;
 		if (this.selectedNodeId === id) return;
@@ -52318,10 +53899,10 @@ var HighlightController = class {
 					selectedNode.neighborhood().forEach((el) => {
 						if (el.isNode()) neighborIds.add(el.id());
 					});
-					this.cy.nodes().forEach((n) => {
+					this.cy.nodes(":visible").forEach((n) => {
 						if (!neighborIds.has(n.id())) n.addClass("neighbor-dim");
 					});
-					this.cy.edges().forEach((e) => {
+					this.cy.edges(":visible").forEach((e) => {
 						const srcIn = neighborIds.has(e.source().id());
 						const tgtIn = neighborIds.has(e.target().id());
 						if (!srcIn || !tgtIn) e.addClass("neighbor-dim");
@@ -52361,217 +53942,6 @@ var HighlightController = class {
 			}
 		});
 	}
-	detectCycles() {
-		const cycles = new Set();
-		const adjacency = new Map();
-		this.cy.edges().forEach((edge) => {
-			const s = edge.source().id();
-			const t$1 = edge.target().id();
-			const list = adjacency.get(s);
-			if (list) list.push(t$1);
-			else adjacency.set(s, [t$1]);
-		});
-		const visited = new Set();
-		const inStack = new Set();
-		const enter = (start) => {
-			const path = [];
-			const pathIndex = new Map();
-			const frames = [{
-				id: start,
-				neighbors: adjacency.get(start) ?? [],
-				next: 0
-			}];
-			visited.add(start);
-			inStack.add(start);
-			path.push(start);
-			pathIndex.set(start, 0);
-			while (frames.length > 0) {
-				const frame = frames[frames.length - 1];
-				if (frame.next >= frame.neighbors.length) {
-					inStack.delete(frame.id);
-					path.pop();
-					pathIndex.delete(frame.id);
-					frames.pop();
-					continue;
-				}
-				const target = frame.neighbors[frame.next++];
-				if (inStack.has(target)) {
-					const cycleStart = pathIndex.get(target);
-					if (cycleStart !== void 0) for (let i$1 = cycleStart; i$1 < path.length; i$1++) cycles.add(path[i$1]);
-				} else if (!visited.has(target)) {
-					visited.add(target);
-					inStack.add(target);
-					path.push(target);
-					pathIndex.set(target, path.length - 1);
-					frames.push({
-						id: target,
-						neighbors: adjacency.get(target) ?? [],
-						next: 0
-					});
-				}
-			}
-		};
-		for (const id of adjacency.keys()) if (!visited.has(id)) enter(id);
-		return cycles;
-	}
-	detectCyclesDetailed() {
-		const adjacency = new Map();
-		const edgeMap = new Map();
-		this.cy.edges().forEach((edge) => {
-			const s = edge.source().id();
-			const t$1 = edge.target().id();
-			const list = adjacency.get(s);
-			if (list) list.push(t$1);
-			else adjacency.set(s, [t$1]);
-			edgeMap.set(`${s}->${t$1}`, edge.id());
-		});
-		const visited = new Set();
-		const inStack = new Set();
-		const cycleList = [];
-		const seenCycleKeys = new Set();
-		const enter = (start) => {
-			const path = [];
-			const pathIndex = new Map();
-			const frames = [{
-				id: start,
-				neighbors: adjacency.get(start) ?? [],
-				next: 0
-			}];
-			visited.add(start);
-			inStack.add(start);
-			path.push(start);
-			pathIndex.set(start, 0);
-			while (frames.length > 0) {
-				const frame = frames[frames.length - 1];
-				if (frame.next >= frame.neighbors.length) {
-					inStack.delete(frame.id);
-					path.pop();
-					pathIndex.delete(frame.id);
-					frames.pop();
-					continue;
-				}
-				const target = frame.neighbors[frame.next++];
-				if (inStack.has(target)) {
-					const cycleStart = pathIndex.get(target);
-					if (cycleStart !== void 0) {
-						const cycleNodes = path.slice(cycleStart);
-						cycleNodes.push(target);
-						const cycleKey = [...cycleNodes].sort().join("|");
-						if (!seenCycleKeys.has(cycleKey)) {
-							seenCycleKeys.add(cycleKey);
-							const edges = [];
-							for (let i$1 = 0; i$1 < cycleNodes.length - 1; i$1++) {
-								const eId = edgeMap.get(`${cycleNodes[i$1]}->${cycleNodes[i$1 + 1]}`);
-								if (eId) edges.push(eId);
-							}
-							const closingEdge = edgeMap.get(`${cycleNodes[cycleNodes.length - 2]}->${target}`);
-							if (closingEdge && !edges.includes(closingEdge)) edges.push(closingEdge);
-							cycleList.push({
-								nodes: cycleNodes.slice(0, -1),
-								length: cycleNodes.length - 1,
-								edges
-							});
-						}
-					}
-				} else if (!visited.has(target)) {
-					visited.add(target);
-					inStack.add(target);
-					path.push(target);
-					pathIndex.set(target, path.length - 1);
-					frames.push({
-						id: target,
-						neighbors: adjacency.get(target) ?? [],
-						next: 0
-					});
-				}
-			}
-		};
-		for (const id of adjacency.keys()) if (!visited.has(id)) enter(id);
-		return cycleList;
-	}
-	highlightCycles(cycleIds) {
-		this.cy.batch(() => {
-			this.cy.elements().removeClass("cycle-highlight");
-			cycleIds.forEach((id) => {
-				const node = this.cy.getElementById(id);
-				if (node.nonempty()) node.addClass("cycle-highlight");
-			});
-		});
-	}
-	isolateCycles(cycleIds) {
-		this.cy.batch(() => {
-			this.cy.elements().removeClass("cycle-hidden");
-			this.cy.nodes().forEach((node) => {
-				if (!cycleIds.has(node.id())) node.addClass("cycle-hidden");
-			});
-			this.cy.edges().forEach((edge) => {
-				const srcIn = cycleIds.has(edge.source().id());
-				const tgtIn = cycleIds.has(edge.target().id());
-				if (!srcIn || !tgtIn) edge.addClass("cycle-hidden");
-			});
-		});
-	}
-	restoreIsolation() {
-		this.cy.batch(() => {
-			this.cy.elements().removeClass("cycle-hidden");
-		});
-	}
-	computeImpact(nodeId, maxDepth = HIGHLIGHT.IMPACT_MAX_DEPTH) {
-		const visited = new Map();
-		const queue = [{
-			id: nodeId,
-			depth: 0
-		}];
-		let head = 0;
-		while (head < queue.length) {
-			const { id, depth } = queue[head++];
-			if (visited.has(id) && visited.get(id) <= depth) continue;
-			visited.set(id, depth);
-			if (depth < maxDepth) {
-				const node = this.cy.getElementById(id);
-				node.incomers().forEach((edge) => {
-					const src = edge.source().id();
-					if (!visited.has(src) || visited.get(src) > depth + 1) queue.push({
-						id: src,
-						depth: depth + 1
-					});
-				});
-			}
-		}
-		return visited;
-	}
-	highlightImpact(nodeId) {
-		this.cy.batch(() => {
-			this.cy.elements().removeClass("impact-d1 impact-d2 impact-d3 impact-source");
-			if (!nodeId) return;
-			const sourceNode = this.cy.getElementById(nodeId);
-			if (sourceNode.nonempty()) sourceNode.addClass("impact-source");
-			const visited = this.computeImpact(nodeId);
-			for (const [id, depth] of visited) if (depth > 0) {
-				const node = this.cy.getElementById(id);
-				if (node.nonempty()) {
-					const cls = depth <= 1 ? "impact-d1" : depth === 2 ? "impact-d2" : "impact-d3";
-					node.addClass(cls);
-				}
-			}
-		});
-	}
-	getImpactStats(nodeId) {
-		const sourceNode = this.cy.getElementById(nodeId);
-		if (sourceNode.empty()) return null;
-		const visited = this.computeImpact(nodeId);
-		let d1 = 0, d2 = 0, d3 = 0;
-		for (const depth of visited.values()) if (depth > 0) if (depth <= 1) d1++;
-		else if (depth === 2) d2++;
-		else d3++;
-		return {
-			d1,
-			d2,
-			d3,
-			total: d1 + d2 + d3
-		};
-	}
-	lastInheritanceRelevant = new Set();
 	highlightInheritance(nodeId) {
 		if (!nodeId) {
 			this.cy.batch(() => {
@@ -52641,11 +54011,253 @@ var HighlightController = class {
 	}
 	destroy() {
 		this.cy.batch(() => {
-			this.cy.elements().removeClass("highlighted selected neighbor-highlight neighbor-dim call-chain cycle-highlight cycle-hidden impact-d1 impact-d2 impact-d3 impact-source inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement");
+			this.cy.elements().removeClass("highlighted selected neighbor-highlight neighbor-dim call-chain inheritance-highlight inheritance-dim inheritance-focus inheritance-extend inheritance-implement");
 		});
 		this.highlightedNodeIds.clear();
 		this.selectedNodeId = null;
 		this.lastInheritanceRelevant.clear();
+	}
+};
+
+//#endregion
+//#region src/shared/analysis/CycleDFS.ts
+function detectCyclesDFS(adjacency) {
+	const visited = new Set();
+	const inStack = new Set();
+	const cycles = [];
+	const seenCycleKeys = new Set();
+	const enter = (start) => {
+		const path = [];
+		const pathIndex = new Map();
+		const frames = [{
+			id: start,
+			neighbors: adjacency.get(start) ?? [],
+			next: 0
+		}];
+		visited.add(start);
+		inStack.add(start);
+		path.push(start);
+		pathIndex.set(start, 0);
+		while (frames.length > 0) {
+			const frame = frames[frames.length - 1];
+			if (frame.next >= frame.neighbors.length) {
+				inStack.delete(frame.id);
+				path.pop();
+				pathIndex.delete(frame.id);
+				frames.pop();
+				continue;
+			}
+			const target = frame.neighbors[frame.next++];
+			if (inStack.has(target)) {
+				const cycleStart = pathIndex.get(target);
+				if (cycleStart !== void 0) {
+					const cycleNodes = path.slice(cycleStart);
+					const cycleKey = [...cycleNodes, target].sort().join("|");
+					if (!seenCycleKeys.has(cycleKey)) {
+						seenCycleKeys.add(cycleKey);
+						cycles.push([...cycleNodes, target]);
+					}
+				}
+			} else if (!visited.has(target)) {
+				visited.add(target);
+				inStack.add(target);
+				path.push(target);
+				pathIndex.set(target, path.length - 1);
+				frames.push({
+					id: target,
+					neighbors: adjacency.get(target) ?? [],
+					next: 0
+				});
+			}
+		}
+	};
+	for (const id of adjacency.keys()) if (!visited.has(id)) enter(id);
+	return cycles;
+}
+
+//#endregion
+//#region src/client/renderer/CycleDetector.ts
+const log$10 = scoped("cycle-detector");
+var CycleDetector = class {
+	cy;
+	adjacencyCache;
+	constructor(cy, adjacencyCache) {
+		this.cy = cy;
+		this.adjacencyCache = adjacencyCache ?? null;
+	}
+	getForwardAdjacency() {
+		if (this.adjacencyCache) return this.adjacencyCache.getForwardAdjacency(this.cy);
+		const fwdArray = buildForwardAdjacencyMap(this.cy);
+		const adjacency = new Map();
+		for (const [k, v] of fwdArray) adjacency.set(k, new Set(v));
+		return adjacency;
+	}
+	getEdgeIdMap() {
+		if (this.adjacencyCache) return this.adjacencyCache.getEdgeIdMap(this.cy);
+		const edgeMap = new Map();
+		this.cy.edges().forEach((edge) => {
+			const s = edge.source().id();
+			const t$1 = edge.target().id();
+			edgeMap.set(`${s}->${t$1}`, edge.id());
+		});
+		return edgeMap;
+	}
+	detectCycles() {
+		const cycles = new Set();
+		const nodeCount = this.cy.nodes().length;
+		if (nodeCount > CYCLE_DETECTION.MAX_NODES_FOR_DETECTION) {
+			log$10.warn("cycle detection skipped: graph too large", { nodeCount });
+			return cycles;
+		}
+		const adjacencySet = this.getForwardAdjacency();
+		const adjacency = new Map();
+		for (const [k, v] of adjacencySet) adjacency.set(k, [...v]);
+		const detectedCycles = detectCyclesDFS(adjacency);
+		for (const cycle of detectedCycles) for (const nodeId of cycle) cycles.add(nodeId);
+		return cycles;
+	}
+	detectCyclesDetailed() {
+		const nodeCount = this.cy.nodes().length;
+		if (nodeCount > CYCLE_DETECTION.MAX_NODES_FOR_DETECTION) {
+			log$10.warn("detailed cycle detection skipped: graph too large", { nodeCount });
+			return [];
+		}
+		const adjacencySet = this.getForwardAdjacency();
+		const adjacency = new Map();
+		for (const [k, v] of adjacencySet) adjacency.set(k, [...v]);
+		const edgeMap = this.getEdgeIdMap();
+		const detectedCycles = detectCyclesDFS(adjacency);
+		const cycleList = [];
+		for (const cycle of detectedCycles) {
+			const nodes = cycle.slice(0, -1);
+			const edges = [];
+			for (let i$1 = 0; i$1 < cycle.length - 1; i$1++) {
+				const eId = edgeMap.get(`${cycle[i$1]}->${cycle[i$1 + 1]}`);
+				if (eId) edges.push(eId);
+			}
+			cycleList.push({
+				nodes,
+				length: nodes.length,
+				edges
+			});
+		}
+		return cycleList;
+	}
+	highlightCycles(cycleIds) {
+		this.cy.batch(() => {
+			this.cy.elements().removeClass("cycle-highlight");
+			cycleIds.forEach((id) => {
+				const node = this.cy.getElementById(id);
+				if (node.nonempty()) node.addClass("cycle-highlight");
+			});
+		});
+	}
+	isolateCycles(cycleIds) {
+		this.cy.batch(() => {
+			this.cy.elements().removeClass("cycle-hidden");
+			this.cy.nodes().forEach((node) => {
+				if (!cycleIds.has(node.id())) node.addClass("cycle-hidden");
+			});
+			this.cy.edges().forEach((edge) => {
+				const srcIn = cycleIds.has(edge.source().id());
+				const tgtIn = cycleIds.has(edge.target().id());
+				if (!srcIn || !tgtIn) edge.addClass("cycle-hidden");
+			});
+		});
+	}
+	relayoutCycles(cycleIds) {
+		if (cycleIds.size === 0) return;
+		const visibleNodes = this.cy.nodes().filter((n) => cycleIds.has(n.id()));
+		if (visibleNodes.length === 0) return;
+		const layout$2 = visibleNodes.layout({
+			name: "circle",
+			fit: true,
+			padding: 50,
+			animate: true,
+			animationDuration: 300,
+			boundingBox: void 0
+		});
+		layout$2.run();
+	}
+	restoreIsolation() {
+		this.cy.batch(() => {
+			this.cy.elements().removeClass("cycle-hidden");
+		});
+	}
+	destroy() {
+		this.cy.batch(() => {
+			this.cy.elements().removeClass("cycle-highlight cycle-hidden");
+		});
+		this.adjacencyCache = null;
+	}
+};
+
+//#endregion
+//#region src/client/renderer/ImpactAnalyzer.ts
+var ImpactAnalyzer = class {
+	cy;
+	constructor(cy) {
+		this.cy = cy;
+	}
+	computeImpact(nodeId, maxDepth = HIGHLIGHT.IMPACT_MAX_DEPTH) {
+		const visited = new Map();
+		const queue = [{
+			id: nodeId,
+			depth: 0
+		}];
+		let head = 0;
+		while (head < queue.length) {
+			const { id, depth } = queue[head++];
+			if (visited.has(id) && visited.get(id) <= depth) continue;
+			visited.set(id, depth);
+			if (depth < maxDepth) {
+				const node = this.cy.getElementById(id);
+				node.incomers().forEach((edge) => {
+					const src = edge.source().id();
+					if (!visited.has(src) || visited.get(src) > depth + 1) queue.push({
+						id: src,
+						depth: depth + 1
+					});
+				});
+			}
+		}
+		return visited;
+	}
+	highlightImpact(nodeId) {
+		this.cy.batch(() => {
+			this.cy.elements().removeClass("impact-d1 impact-d2 impact-d3 impact-source");
+			if (!nodeId) return;
+			const sourceNode = this.cy.getElementById(nodeId);
+			if (sourceNode.nonempty()) sourceNode.addClass("impact-source");
+			const visited = this.computeImpact(nodeId);
+			for (const [id, depth] of visited) if (depth > 0) {
+				const node = this.cy.getElementById(id);
+				if (node.nonempty()) {
+					const cls = depth <= 1 ? "impact-d1" : depth === 2 ? "impact-d2" : "impact-d3";
+					node.addClass(cls);
+				}
+			}
+		});
+	}
+	getImpactStats(nodeId) {
+		const sourceNode = this.cy.getElementById(nodeId);
+		if (sourceNode.empty()) return null;
+		const visited = this.computeImpact(nodeId);
+		let d1 = 0, d2 = 0, d3 = 0;
+		for (const depth of visited.values()) if (depth > 0) if (depth <= 1) d1++;
+		else if (depth === 2) d2++;
+		else d3++;
+		return {
+			d1,
+			d2,
+			d3,
+			total: d1 + d2 + d3
+		};
+	}
+	destroy() {
+		this.cy.batch(() => {
+			this.cy.elements().removeClass("impact-d1 impact-d2 impact-d3 impact-source");
+		});
 	}
 };
 
@@ -52661,7 +54273,7 @@ var ViewportController = class {
 		if (node.nonempty()) this.cy.animate({
 			center: { eles: node },
 			zoom: Math.max(this.cy.zoom(), 1.2),
-			duration: 300
+			duration: RENDERER.FOCUS_NODE_ANIMATION_MS
 		});
 	}
 	dimmedNodeIds = new Set();
@@ -52684,7 +54296,7 @@ var ViewportController = class {
 				const el = this.cy.getElementById(id);
 				if (el.nonempty()) el.addClass("focus-highlight");
 			});
-			this.cy.nodes().forEach((node) => {
+			this.cy.nodes(":visible").forEach((node) => {
 				if (!relevant.has(node.id())) {
 					node.addClass("focus-dim");
 					this.dimmedNodeIds.add(node.id());
@@ -52693,9 +54305,9 @@ var ViewportController = class {
 			this.cy.animate({
 				fit: {
 					eles: this.cy.elements().filter((el) => relevant.has(el.id())),
-					padding: 80
+					padding: RENDERER.FIT_PADDING
 				},
-				duration: 400
+				duration: RENDERER.NEIGHBORHOOD_ANIMATION_MS
 			});
 		});
 	}
@@ -52728,7 +54340,7 @@ var ViewportController = class {
 				const el = this.cy.getElementById(id);
 				if (el.nonempty()) el.addClass("focus-highlight");
 			});
-			this.cy.nodes().forEach((node) => {
+			this.cy.nodes(":visible").forEach((node) => {
 				if (!relevant.has(node.id())) {
 					node.addClass("focus-dim");
 					this.dimmedNodeIds.add(node.id());
@@ -52737,9 +54349,9 @@ var ViewportController = class {
 			this.cy.animate({
 				fit: {
 					eles: this.cy.elements().filter((el) => relevant.has(el.id())),
-					padding: 80
+					padding: RENDERER.FIT_PADDING
 				},
-				duration: 400
+				duration: RENDERER.NEIGHBORHOOD_ANIMATION_MS
 			});
 		});
 		return relevant;
@@ -52780,41 +54392,90 @@ var ViewportController = class {
 	resize() {
 		this.cy.resize();
 	}
-	destroy() {}
+	focusModeActive = false;
+	focusModeHiddenNodes = new Set();
+	focusModeHiddenEdges = new Set();
+	setFocusMode(nodeId, depth) {
+		this.clearFocusMode();
+		if (!nodeId) {
+			this.focusModeActive = false;
+			return;
+		}
+		this.focusModeActive = true;
+		const visibleIds = this.expandNeighborhood(nodeId, depth);
+		this.cy.batch(() => {
+			this.cy.nodes().forEach((node) => {
+				if (!visibleIds.has(node.id())) {
+					const typeFiltered = node.data("typeFiltered") === true;
+					const connectionFiltered = node.data("connectionFiltered") === true;
+					if (!typeFiltered && !connectionFiltered) {
+						node.style("display", "none");
+						this.focusModeHiddenNodes.add(node.id());
+					}
+				}
+			});
+			this.cy.edges().forEach((edge) => {
+				const s = edge.source().id();
+				const t$1 = edge.target().id();
+				if (!visibleIds.has(s) || !visibleIds.has(t$1)) {
+					const typeFiltered = edge.data("typeFiltered") === true;
+					const connectionFiltered = edge.data("connectionFiltered") === true;
+					if (!typeFiltered && !connectionFiltered) {
+						edge.style("display", "none");
+						this.focusModeHiddenEdges.add(edge.id());
+					}
+				}
+			});
+		});
+	}
+	clearFocusMode() {
+		if (!this.focusModeActive) return;
+		this.cy.batch(() => {
+			for (const id of this.focusModeHiddenNodes) {
+				const el = this.cy.getElementById(id);
+				if (el.nonempty()) {
+					const typeFiltered = el.data("typeFiltered") === true;
+					const connectionFiltered = el.data("connectionFiltered") === true;
+					if (!typeFiltered && !connectionFiltered) el.style("display", "element");
+				}
+			}
+			for (const id of this.focusModeHiddenEdges) {
+				const el = this.cy.getElementById(id);
+				if (el.nonempty()) {
+					const typeFiltered = el.data("typeFiltered") === true;
+					const connectionFiltered = el.data("connectionFiltered") === true;
+					if (!typeFiltered && !connectionFiltered) el.style("display", "element");
+				}
+			}
+		});
+		this.focusModeHiddenNodes.clear();
+		this.focusModeHiddenEdges.clear();
+		this.focusModeActive = false;
+	}
+	isFocusModeActive() {
+		return this.focusModeActive;
+	}
+	destroy() {
+		this.cy.batch(() => {
+			for (const id of this.dimmedNodeIds) {
+				const el = this.cy.getElementById(id);
+				if (el.nonempty()) el.removeClass("focus-dim");
+			}
+			this.dimmedNodeIds.clear();
+			this.cy.elements().removeClass("focus-highlight");
+		});
+		this.focusModeHiddenNodes.clear();
+		this.focusModeHiddenEdges.clear();
+		this.focusModeActive = false;
+	}
 };
 
 //#endregion
-//#region src/shared/searchUtils.ts
-function parseSearchQuery(query) {
-	const requiredTerms = [];
-	const optionalTerms = [];
-	let exactPhrase = null;
-	const quotedMatch = query.match(/"([^"]+)"/);
-	if (quotedMatch) exactPhrase = quotedMatch[1].toLowerCase();
-	const remaining = query.replace(/"[^"]+"/g, " ").trim();
-	if (remaining) for (const token of remaining.split(/\s+/)) if (token.startsWith("+")) {
-		const term = token.slice(1).toLowerCase();
-		if (term) requiredTerms.push(term);
-	} else optionalTerms.push(token.toLowerCase());
-	if (exactPhrase && optionalTerms.length === 0 && requiredTerms.length === 0) optionalTerms.push(exactPhrase);
-	return {
-		requiredTerms,
-		optionalTerms,
-		exactPhrase
-	};
-}
-function matchSearchQuery(label, parsed) {
-	const lower = label.toLowerCase();
-	if (parsed.exactPhrase && !lower.includes(parsed.exactPhrase)) return false;
-	for (const term of parsed.requiredTerms) if (!lower.includes(term)) return false;
-	if (parsed.optionalTerms.length > 0) return parsed.optionalTerms.some((term) => lower.includes(term));
-	return true;
-}
-
-//#endregion
 //#region src/client/renderer/DataController.ts
+const log$9 = scoped("data-controller");
 var DataController = class {
 	cy;
+	destroyed = false;
 	currentNodes = new Map();
 	currentEdges = new Map();
 	rawNodesMap = new Map();
@@ -52831,18 +54492,42 @@ var DataController = class {
 	clearLastAddedNodeIds() {
 		this.lastAddedNodeIds.clear();
 	}
+	getRawNodesMap() {
+		return this.rawNodesMap;
+	}
+	getRawToVisibleMap() {
+		return this.rawToVisibleMap;
+	}
 	setRawNodes(rawNodes) {
 		this.rawNodesMap.clear();
 		for (const n of rawNodes) this.rawNodesMap.set(n.id, n);
 	}
 	updateData(nodes, edges) {
-		const newNodeIds = new Set(nodes.map((n) => n.id));
-		const newEdgeIds = new Set(edges.map((e) => e.id));
+		this.buildRawToVisibleMap(nodes);
+		const changes = this.detectChanges(nodes, edges);
+		if (!changes.hasNewNodes && !changes.hasStaleNodes && !changes.hasNewEdges && !changes.hasStaleEdges) {
+			const hasUpdatedNodes = this.detectPropertyChanges(nodes);
+			if (!hasUpdatedNodes) return;
+			this.applyIncrementalUpdates(nodes, edges);
+			this.computeNodeWeights();
+			return;
+		}
+		if (changes.hasStaleNodes) {
+			this.handleFullReset(nodes, edges);
+			return;
+		}
+		this.handleIncrementalUpdate(nodes, edges, changes);
+	}
+	buildRawToVisibleMap(nodes) {
 		this.rawToVisibleMap.clear();
 		for (const n of nodes) if ("isCluster" in n && n.isCluster === true) {
 			const clusterNode = n;
 			for (const childId of clusterNode.childIds) this.rawToVisibleMap.set(childId, n.id);
 		} else this.rawToVisibleMap.set(n.id, n.id);
+	}
+	detectChanges(nodes, edges) {
+		const newNodeIds = new Set(nodes.map((n) => n.id));
+		const newEdgeIds = new Set(edges.map((e) => e.id));
 		const cyNodeCount = this.cy.nodes().length;
 		const cyEdgeCount = this.cy.edges().length;
 		const hasNewNodes = nodes.some((n) => !this.currentNodes.has(n.id));
@@ -52861,41 +54546,42 @@ var DataController = class {
 				break;
 			}
 		}
-		if (!hasNewNodes && !hasStaleNodes && !hasNewEdges && !hasStaleEdges) {
-			const hasUpdatedNodes = this.detectPropertyChanges(nodes);
-			if (!hasUpdatedNodes) return;
-			this.applyIncrementalUpdates(nodes, edges);
-			this.computeNodeWeights();
-			return;
-		}
-		const needsFullReset = hasStaleNodes;
-		if (needsFullReset) {
-			this.cy.elements().remove();
-			this.currentNodes.clear();
-			this.currentEdges.clear();
-			this.lastAddedNodeIds.clear();
-			this.cy.batch(() => {
-				for (const n of nodes) {
-					this.addNode(n);
-					this.currentNodes.set(n.id, n);
-					this.lastAddedNodeIds.add(n.id);
-				}
-				for (const e of edges) {
-					this.addEdge(e);
-					this.currentEdges.set(e.id, e);
-				}
-			});
-			this.computeNodeWeights();
-			return;
-		}
+		return {
+			hasNewNodes,
+			hasStaleNodes,
+			hasNewEdges,
+			hasStaleEdges
+		};
+	}
+	handleFullReset(nodes, edges) {
+		this.cy.elements().remove();
+		this.currentNodes.clear();
+		this.currentEdges.clear();
+		this.lastAddedNodeIds.clear();
+		this.cy.batch(() => {
+			for (const n of nodes) {
+				this.addNode(n);
+				this.currentNodes.set(n.id, n);
+				this.lastAddedNodeIds.add(n.id);
+			}
+			for (const e of edges) {
+				this.addEdge(e);
+				this.currentEdges.set(e.id, e);
+			}
+		});
+		this.computeNodeWeights();
+	}
+	handleIncrementalUpdate(nodes, edges, changes) {
+		const newNodeIds = new Set(nodes.map((n) => n.id));
+		const newEdgeIds = new Set(edges.map((e) => e.id));
 		const nodesToAdd = [];
 		const edgesToAdd = [];
-		if (hasStaleNodes) {
+		if (changes.hasStaleNodes) {
 			const staleNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
 			if (staleNodes.length > 0) this.cy.remove(staleNodes);
 			for (const id of this.currentNodes.keys()) if (!newNodeIds.has(id)) this.currentNodes.delete(id);
 		}
-		if (hasStaleEdges) {
+		if (changes.hasStaleEdges) {
 			const staleEdges = this.cy.edges().filter((e) => !newEdgeIds.has(e.id()));
 			if (staleEdges.length > 0) this.cy.remove(staleEdges);
 			for (const id of this.currentEdges.keys()) if (!newEdgeIds.has(id)) this.currentEdges.delete(id);
@@ -52923,6 +54609,9 @@ var DataController = class {
 			this.computeNodeWeights();
 			return;
 		}
+		this.processBatchAdd(nodesToAdd, edgesToAdd);
+	}
+	processBatchAdd(nodesToAdd, edgesToAdd) {
 		const BATCH_SIZE = DATA_CONTROLLER.BATCH_SIZE;
 		if (nodesToAdd.length <= BATCH_SIZE) {
 			this.cy.batch(() => {
@@ -52998,7 +54687,8 @@ var DataController = class {
 			lineNumber: n.lineNumber,
 			parent: n.parentId,
 			isCluster,
-			childCount: isCluster ? n.childCount : 0
+			childCount: isCluster ? n.childCount : 0,
+			layer: n.layer ?? "core"
 		};
 		if (n.properties) for (const [key, value] of Object.entries(n.properties)) data$2[key] = value;
 		this.cy.add({
@@ -53007,7 +54697,14 @@ var DataController = class {
 		});
 	}
 	addEdge(e) {
-		if (this.cy.getElementById(e.source).empty() || this.cy.getElementById(e.target).empty()) return;
+		if (this.cy.getElementById(e.source).empty() || this.cy.getElementById(e.target).empty()) {
+			log$9.warn("edge dropped: missing endpoint", {
+				edgeId: e.id,
+				source: e.source,
+				target: e.target
+			});
+			return;
+		}
 		const existing = this.cy.getElementById(e.id);
 		if (existing.length > 0) existing.remove();
 		const isCluster = "isCluster" in e && e.isCluster === true;
@@ -53058,6 +54755,140 @@ var DataController = class {
 			this.batchRaf = null;
 		});
 	}
+	nodeFromCy(nodeId) {
+		if (!this.cy) return null;
+		const cyNode = this.cy.getElementById(nodeId);
+		if (cyNode.length === 0) return null;
+		const data$2 = cyNode.data();
+		if (!data$2) return null;
+		const isCluster = safeBoolean(data$2.isCluster);
+		const baseProps = {};
+		for (const key of Object.keys(data$2)) if (![
+			"id",
+			"label",
+			"type",
+			"filePath",
+			"lineNumber",
+			"parent",
+			"isCluster",
+			"childCount"
+		].includes(key)) baseProps[key] = data$2[key];
+		if (isCluster) return {
+			id: NodeId(safeString(data$2.id)),
+			label: safeString(data$2.label, safeString(data$2.id)),
+			type: "module",
+			filePath: safeString(data$2.filePath),
+			lineNumber: 0,
+			properties: baseProps,
+			isCluster: true,
+			childCount: safeNumber(data$2.childCount),
+			childIds: [],
+			clusterPath: safeString(data$2.filePath),
+			clusterLevel: "directory"
+		};
+		const node = {
+			id: NodeId(safeString(data$2.id)),
+			label: safeString(data$2.label, safeString(data$2.id)),
+			type: isNodeType(data$2.type) ? data$2.type : "module",
+			filePath: safeString(data$2.filePath),
+			lineNumber: safeNumber(data$2.lineNumber),
+			properties: baseProps
+		};
+		if (data$2.parent) node.parentId = NodeId(safeString(data$2.parent));
+		return node;
+	}
+	getSelectedNodeData() {
+		const selected = this.cy.nodes(".selected");
+		if (selected.length === 0) return null;
+		const id = selected.first().id();
+		return this.currentNodes.get(id) ?? this.nodeFromCy(id);
+	}
+	getNodeData(nodeId) {
+		if (this.destroyed) return null;
+		return this.currentNodes.get(nodeId) ?? this.nodeFromCy(nodeId);
+	}
+	getEdgeData(edgeId) {
+		if (this.destroyed) return null;
+		return this.currentEdges.get(edgeId) ?? null;
+	}
+	computeNodeWeights() {
+		this.cy.batch(() => {
+			this.cy.nodes().forEach((node) => {
+				const isCluster = node.data("isCluster") === true;
+				if (isCluster) {
+					const clusterPath = node.data("clusterPath") ?? node.id();
+					let hash = 0;
+					for (let i$1 = 0; i$1 < clusterPath.length; i$1++) hash = (hash << 5) - hash + clusterPath.charCodeAt(i$1) | 0;
+					node.data("clusterHue", Math.abs(hash) % 12);
+					return;
+				}
+				const inDegree = node.indegree(false);
+				const outDegree = node.outdegree(false);
+				const totalConnections = inDegree + outDegree;
+				if (totalConnections > 0) {
+					node.data("weight", Math.min(totalConnections, DATA_CONTROLLER.MAX_WEIGHT));
+					const instability = outDegree / totalConnections;
+					node.data("instability", instability);
+				} else {
+					node.removeData("weight");
+					node.removeData("instability");
+				}
+				if (inDegree === 0 && outDegree === 0) node.data("nodeRole", "orphan");
+				else if (inDegree === 0 && outDegree > 0) node.data("nodeRole", "entry");
+				else if (inDegree > 0 && outDegree === 0) node.data("nodeRole", "leaf");
+				else if (inDegree >= DATA_CONTROLLER.HUB_DEGREE_THRESHOLD || outDegree >= DATA_CONTROLLER.HUB_DEGREE_THRESHOLD) node.data("nodeRole", "hub");
+				else node.removeData("nodeRole");
+			});
+		});
+	}
+	destroy() {
+		this.destroyed = true;
+		if (this.batchRaf !== null) cancelAnimationFrame(this.batchRaf);
+		this.batchRaf = null;
+		this.batchQueue = null;
+		this.currentNodes.clear();
+		this.currentEdges.clear();
+		this.rawNodesMap.clear();
+		this.rawToVisibleMap.clear();
+		this.lastAddedNodeIds.clear();
+	}
+};
+
+//#endregion
+//#region src/client/renderer/FilterController.ts
+const log$8 = scoped("filter");
+const MAX_PATTERN_LENGTH = 200;
+var FilterController = class {
+	cy;
+	fanInCache = null;
+	fanOutCache = null;
+	constructor(cy) {
+		this.cy = cy;
+	}
+	getFanInCount() {
+		if (this.fanInCache) return this.fanInCache;
+		const map$1 = new Map();
+		this.cy.edges().forEach((edge) => {
+			const target = edge.target().id();
+			map$1.set(target, (map$1.get(target) ?? 0) + 1);
+		});
+		this.fanInCache = map$1;
+		return map$1;
+	}
+	getFanOutCount() {
+		if (this.fanOutCache) return this.fanOutCache;
+		const map$1 = new Map();
+		this.cy.edges().forEach((edge) => {
+			const source = edge.source().id();
+			map$1.set(source, (map$1.get(source) ?? 0) + 1);
+		});
+		this.fanOutCache = map$1;
+		return map$1;
+	}
+	invalidateCache() {
+		this.fanInCache = null;
+		this.fanOutCache = null;
+	}
 	filterByType(type) {
 		const hidden = new Set();
 		if (type !== "all") this.cy.nodes().forEach((node) => {
@@ -53069,13 +54900,15 @@ var DataController = class {
 				const isFiltered = hidden.has(node.id());
 				node.data("typeFiltered", isFiltered);
 				const connectionFiltered = node.data("connectionFiltered") === true;
-				node.style("display", isFiltered || connectionFiltered ? "none" : "element");
+				const pathFiltered = node.data("pathFiltered") === true;
+				node.style("display", isFiltered || connectionFiltered || pathFiltered ? "none" : "element");
 			});
 			this.cy.edges().forEach((edge) => {
 				const hiddenEdge = hidden.has(edge.source().id()) || hidden.has(edge.target().id());
 				edge.data("typeFiltered", hiddenEdge);
 				const connectionFiltered = edge.data("connectionFiltered") === true;
-				edge.style("display", hiddenEdge || connectionFiltered ? "none" : "element");
+				const pathFiltered = edge.data("pathFiltered") === true;
+				edge.style("display", hiddenEdge || connectionFiltered || pathFiltered ? "none" : "element");
 			});
 		});
 	}
@@ -53100,7 +54933,8 @@ var DataController = class {
 				const visible = allowedEdgeTypes.has(edgeType);
 				edge.data("typeFiltered", !visible);
 				const connectionFiltered = edge.data("connectionFiltered") === true;
-				edge.style("display", !visible || connectionFiltered ? "none" : "element");
+				const pathFiltered = edge.data("pathFiltered") === true;
+				edge.style("display", !visible || connectionFiltered || pathFiltered ? "none" : "element");
 				if (visible) {
 					connectedNodeIds.add(edge.source().id());
 					connectedNodeIds.add(edge.target().id());
@@ -53110,19 +54944,14 @@ var DataController = class {
 				const isFiltered = !connectedNodeIds.has(node.id());
 				node.data("typeFiltered", isFiltered);
 				const connectionFiltered = node.data("connectionFiltered") === true;
-				node.style("display", isFiltered || connectionFiltered ? "none" : "element");
+				const pathFiltered = node.data("pathFiltered") === true;
+				node.style("display", isFiltered || connectionFiltered || pathFiltered ? "none" : "element");
 			});
 		});
 	}
 	applyConnectionFilters(fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes) {
-		const fanInCount = new Map();
-		const fanOutCount = new Map();
-		this.cy.edges().forEach((edge) => {
-			const source = edge.source().id();
-			const target = edge.target().id();
-			fanOutCount.set(source, (fanOutCount.get(source) ?? 0) + 1);
-			fanInCount.set(target, (fanInCount.get(target) ?? 0) + 1);
-		});
+		const fanInCount = this.getFanInCount();
+		const fanOutCount = this.getFanOutCount();
 		this.cy.batch(() => {
 			this.cy.nodes().forEach((node) => {
 				const isCluster = node.data("isCluster") === true;
@@ -53141,7 +54970,8 @@ var DataController = class {
 				}
 				node.data("connectionFiltered", hidden);
 				const typeFiltered = node.data("typeFiltered") === true;
-				node.style("display", hidden || typeFiltered ? "none" : "element");
+				const pathFiltered = node.data("pathFiltered") === true;
+				node.style("display", hidden || typeFiltered || pathFiltered ? "none" : "element");
 			});
 			this.cy.edges().forEach((edge) => {
 				let hidden = false;
@@ -53154,9 +54984,199 @@ var DataController = class {
 				if (sourceHidden || targetHidden) hidden = true;
 				edge.data("connectionFiltered", hidden);
 				const typeFiltered = edge.data("typeFiltered") === true;
-				edge.style("display", hidden || typeFiltered ? "none" : "element");
+				const pathFiltered = edge.data("pathFiltered") === true;
+				edge.style("display", hidden || typeFiltered || pathFiltered ? "none" : "element");
 			});
 		});
+	}
+	destroy() {
+		this.cy.batch(() => {
+			this.cy.nodes().forEach((node) => {
+				node.removeData("typeFiltered");
+				node.removeData("connectionFiltered");
+				node.removeData("pathFiltered");
+				node.style("display", "element");
+			});
+			this.cy.edges().forEach((edge) => {
+				edge.removeData("typeFiltered");
+				edge.removeData("connectionFiltered");
+				edge.removeData("pathFiltered");
+				edge.style("display", "element");
+			});
+		});
+	}
+	safeRegExp(pattern) {
+		try {
+			if (pattern.length > MAX_PATTERN_LENGTH || /(\+|\*|\{)\{/.test(pattern)) return null;
+			return new RegExp(pattern);
+		} catch (_e) {
+			log$8.warn("invalid regex pattern", _e);
+			return null;
+		}
+	}
+	filterByPath(includePattern, excludePattern) {
+		const includeRe = includePattern && includePattern.length <= MAX_PATTERN_LENGTH ? this.safeRegExp(includePattern) : null;
+		const excludeRe = excludePattern && excludePattern.length <= MAX_PATTERN_LENGTH ? this.safeRegExp(excludePattern) : null;
+		this.cy.batch(() => {
+			this.cy.nodes().forEach((node) => {
+				const isCluster = node.data("isCluster") === true;
+				if (isCluster) {
+					node.data("pathFiltered", false);
+					return;
+				}
+				const filePath = node.data("filePath") ?? "";
+				const shouldShow = (!includeRe || includeRe.test(filePath)) && (!excludeRe || !excludeRe.test(filePath));
+				node.data("pathFiltered", !shouldShow);
+				const typeFiltered = node.data("typeFiltered") === true;
+				const connectionFiltered = node.data("connectionFiltered") === true;
+				node.style("display", !shouldShow || typeFiltered || connectionFiltered ? "none" : "element");
+			});
+			this.cy.edges().forEach((edge) => {
+				const sourceHidden = edge.source().data("pathFiltered") === true;
+				const targetHidden = edge.target().data("pathFiltered") === true;
+				const hidden = sourceHidden || targetHidden;
+				edge.data("pathFiltered", hidden);
+				const typeFiltered = edge.data("typeFiltered") === true;
+				const connectionFiltered = edge.data("connectionFiltered") === true;
+				edge.style("display", hidden || typeFiltered || connectionFiltered ? "none" : "element");
+			});
+		});
+	}
+};
+
+//#endregion
+//#region src/shared/searchUtils.ts
+function parseSearchQuery(query) {
+	const requiredTerms = [];
+	const optionalTerms = [];
+	let exactPhrase = null;
+	const quotedMatch = query.match(/"([^"]+)"/);
+	if (quotedMatch) exactPhrase = quotedMatch[1].toLowerCase();
+	const remaining = query.replace(/"[^"]+"/g, " ").trim();
+	if (remaining) for (const token of remaining.split(/\s+/)) if (token.startsWith("+")) {
+		const term = token.slice(1).toLowerCase();
+		if (term) requiredTerms.push(term);
+	} else optionalTerms.push(token.toLowerCase());
+	if (exactPhrase && optionalTerms.length === 0 && requiredTerms.length === 0) optionalTerms.push(exactPhrase);
+	return {
+		requiredTerms,
+		optionalTerms,
+		exactPhrase
+	};
+}
+function matchSearchQuery(label, parsed) {
+	const lower = label.toLowerCase();
+	if (parsed.exactPhrase && !lower.includes(parsed.exactPhrase)) return false;
+	for (const term of parsed.requiredTerms) if (!lower.includes(term)) return false;
+	if (parsed.optionalTerms.length > 0) return parsed.optionalTerms.some((term) => lower.includes(term) || fuzzyMatch(lower, term));
+	return true;
+}
+function fuzzyMatch(text, pattern) {
+	if (pattern.length === 0) return true;
+	if (pattern.length > text.length) return false;
+	let ti = 0;
+	let pi = 0;
+	while (ti < text.length && pi < pattern.length) {
+		if (text[ti] === pattern[pi]) pi++;
+		ti++;
+	}
+	return pi === pattern.length;
+}
+
+//#endregion
+//#region src/shared/Trie.ts
+var TrieNode = class {
+	children = new Map();
+	isEnd = false;
+	value = null;
+};
+var Trie = class {
+	root = new TrieNode();
+	insert(word) {
+		const lower = word.toLowerCase();
+		let node = this.root;
+		for (const char of lower) {
+			let child = node.children.get(char);
+			if (!child) {
+				child = new TrieNode();
+				node.children.set(char, child);
+			}
+			node = child;
+		}
+		node.isEnd = true;
+		node.value = word;
+	}
+	hasPrefix(prefix) {
+		const lower = prefix.toLowerCase();
+		let node = this.root;
+		for (const char of lower) {
+			const child = node.children.get(char);
+			if (!child) return false;
+			node = child;
+		}
+		return true;
+	}
+	search(prefix) {
+		const lower = prefix.toLowerCase();
+		let node = this.root;
+		for (const char of lower) {
+			const child = node.children.get(char);
+			if (!child) return [];
+			node = child;
+		}
+		const results = [];
+		this.collectAll(node, results);
+		return results;
+	}
+	collectAll(node, results) {
+		const stack = [node];
+		while (stack.length > 0) {
+			const current = stack.pop();
+			if (current.isEnd && current.value !== null) results.push(current.value);
+			for (const child of current.children.values()) stack.push(child);
+		}
+	}
+	clear() {
+		this.root = new TrieNode();
+	}
+};
+
+//#endregion
+//#region src/client/renderer/SearchController.ts
+var SearchController = class {
+	cy;
+	rawNodesMap;
+	rawToVisibleMap;
+	trie = new Trie();
+	trieBuilt = false;
+	constructor(cy, rawNodesMap, rawToVisibleMap) {
+		this.cy = cy;
+		this.rawNodesMap = rawNodesMap;
+		this.rawToVisibleMap = rawToVisibleMap;
+	}
+	buildTrieIfNeeded() {
+		if (this.trieBuilt) return;
+		this.trie.clear();
+		for (const rawNode of this.rawNodesMap.values()) this.trie.insert(rawNode.label);
+		this.trieBuilt = true;
+	}
+	isSimplePrefixQuery(query) {
+		const trimmed = query.trim();
+		if (trimmed.length === 0) return false;
+		if (trimmed.includes("\"") || trimmed.includes("+")) return false;
+		if (trimmed.includes(" ")) return false;
+		return true;
+	}
+	getNodeSearchText(rawNode) {
+		const parts = [rawNode.label];
+		if (rawNode.filePath) parts.push(rawNode.filePath);
+		if (rawNode.properties) {
+			const doc = rawNode.properties.docstring;
+			const sig = rawNode.properties.signature;
+			if (typeof doc === "string") parts.push(doc);
+			if (typeof sig === "string") parts.push(sig);
+		}
+		return parts.join(" ");
 	}
 	search(query) {
 		if (!query) {
@@ -53171,30 +55191,29 @@ var DataController = class {
 		});
 		let matches$2 = 0;
 		const matchedCyNodeIds = new Set();
-		for (const rawNode of this.rawNodesMap.values()) if (matcher(rawNode.label)) {
-			matches$2++;
-			const visibleId = this.rawToVisibleMap.get(rawNode.id);
-			if (visibleId) {
-				const cyNode = this.cy.getElementById(visibleId);
-				if (cyNode.length > 0) {
-					matchedCyNodeIds.add(visibleId);
-					continue;
+		if (this.isSimplePrefixQuery(query)) {
+			this.buildTrieIfNeeded();
+			const trieResults = this.trie.search(query.trim());
+			if (trieResults.length > 0) {
+				const resultSet = new Set(trieResults.map((s) => s.toLowerCase()));
+				for (const rawNode of this.rawNodesMap.values()) if (resultSet.has(rawNode.label.toLowerCase())) {
+					matches$2++;
+					this.mapToVisible(rawNode, matchedCyNodeIds);
 				}
 			}
-			let parentId = rawNode.parentId;
-			while (parentId) {
-				const cyNode = this.cy.getElementById(parentId);
-				if (cyNode.length > 0) {
-					matchedCyNodeIds.add(parentId);
-					break;
-				}
-				const parentRaw = this.rawNodesMap.get(parentId);
-				parentId = parentRaw?.parentId;
+		}
+		if (matches$2 === 0) for (const rawNode of this.rawNodesMap.values()) {
+			const searchText = this.getNodeSearchText(rawNode);
+			if (matcher(searchText) || fuzzyMatch(rawNode.label.toLowerCase(), query.trim().toLowerCase())) {
+				matches$2++;
+				this.mapToVisible(rawNode, matchedCyNodeIds);
 			}
 		}
 		if (matches$2 === 0) this.cy.nodes().forEach((node) => {
 			const label = node.data("label");
-			if (typeof label === "string" && matcher(label)) {
+			const filePath = node.data("filePath");
+			const searchText = typeof label === "string" && typeof filePath === "string" ? `${label} ${filePath}` : typeof label === "string" ? label : "";
+			if (matcher(searchText)) {
 				matchedCyNodeIds.add(node.id());
 				matches$2++;
 			}
@@ -53206,58 +55225,55 @@ var DataController = class {
 		});
 		return matches$2;
 	}
-	nodeFromCy(nodeId) {
-		const cyNode = this.cy.getElementById(nodeId);
-		if (cyNode.length === 0) return null;
-		const data$2 = cyNode.data();
-		if (!data$2) return null;
-		const isCluster = data$2.isCluster === true;
-		const baseProps = {};
-		for (const key of Object.keys(data$2)) if (![
-			"id",
-			"label",
-			"type",
-			"filePath",
-			"lineNumber",
-			"parent",
-			"isCluster",
-			"childCount"
-		].includes(key)) baseProps[key] = data$2[key];
-		if (isCluster) return {
-			id: NodeId(data$2.id),
-			label: data$2.label ?? data$2.id,
-			type: "module",
-			filePath: data$2.filePath ?? "",
-			lineNumber: 0,
-			properties: baseProps,
-			isCluster: true,
-			childCount: data$2.childCount ?? 0,
-			childIds: [],
-			clusterPath: data$2.filePath ?? "",
-			clusterLevel: "directory"
-		};
-		const node = {
-			id: NodeId(data$2.id),
-			label: data$2.label ?? data$2.id,
-			type: data$2.type ?? "module",
-			filePath: data$2.filePath ?? "",
-			lineNumber: data$2.lineNumber ?? 0,
-			properties: baseProps
-		};
-		if (data$2.parent) node.parentId = NodeId(data$2.parent);
-		return node;
+	mapToVisible(rawNode, matchedCyNodeIds) {
+		const visibleId = this.rawToVisibleMap.get(rawNode.id);
+		if (visibleId) {
+			const cyNode = this.cy.getElementById(visibleId);
+			if (cyNode.length > 0) {
+				matchedCyNodeIds.add(visibleId);
+				return;
+			}
+		}
+		let parentId = rawNode.parentId;
+		while (parentId) {
+			const cyNode = this.cy.getElementById(parentId);
+			if (cyNode.length > 0) {
+				matchedCyNodeIds.add(parentId);
+				break;
+			}
+			const parentRaw = this.rawNodesMap.get(parentId);
+			parentId = parentRaw?.parentId;
+		}
 	}
-	getSelectedNodeData() {
-		const selected = this.cy.nodes(".selected");
-		if (selected.length === 0) return null;
-		const id = selected.first().id();
-		return this.currentNodes.get(id) ?? this.nodeFromCy(id);
+	rebuildIndex() {
+		this.trieBuilt = false;
+		this.buildTrieIfNeeded();
 	}
-	getNodeData(nodeId) {
-		return this.currentNodes.get(nodeId) ?? this.nodeFromCy(nodeId);
+	destroy() {
+		this.cy.nodes().removeClass("search-match");
+		this.trie.clear();
+		this.trieBuilt = false;
 	}
-	getEdgeData(edgeId) {
-		return this.currentEdges.get(edgeId) ?? null;
+};
+
+//#endregion
+//#region src/client/renderer/ExportController.ts
+function escapeXml(s) {
+	return s.replace(/[<>&"']/g, (c) => {
+		switch (c) {
+			case "<": return "&lt;";
+			case ">": return "&gt;";
+			case "&": return "&amp;";
+			case "\"": return "&quot;";
+			case "'": return "&apos;";
+			default: return c;
+		}
+	});
+}
+var ExportController = class {
+	cy;
+	constructor(cy) {
+		this.cy = cy;
 	}
 	exportJSON() {
 		return JSON.stringify(this.cy.json(), null, 2);
@@ -53283,20 +55299,21 @@ var DataController = class {
 			contains: "contains"
 		};
 		const lines = ["graph TD"];
-		const seenIds = new Set();
+		const idMap = new Map();
+		let idCounter$1 = 0;
 		nodes.forEach((node) => {
-			const id = node.id().replace(/[^a-zA-Z0-9_]/g, "_");
-			if (seenIds.has(id)) return;
-			seenIds.add(id);
-			const label = String(node.data("label") ?? id).replace(/"/g, "'");
+			const rawId = node.id();
+			const safeId = "n" + rawId.replace(/[^a-zA-Z0-9_]/g, "_") + "_" + idCounter$1++;
+			idMap.set(rawId, safeId);
+			const label = String(node.data("label") ?? safeId).replace(/"/g, "'");
 			const type = String(node.data("type") ?? "");
 			const shape = nodeShapeMap[type] ?? defaultShape;
 			const shapeDef = shape.replace("$label$", `"${label}"`);
-			lines.push(`  ${id}${shapeDef}`);
+			lines.push(`  ${safeId}${shapeDef}`);
 		});
 		edges.forEach((edge) => {
-			const sourceId = edge.source().id().replace(/[^a-zA-Z0-9_]/g, "_");
-			const targetId = edge.target().id().replace(/[^a-zA-Z0-9_]/g, "_");
+			const sourceId = idMap.get(edge.source().id()) ?? edge.source().id().replace(/[^a-zA-Z0-9_]/g, "_");
+			const targetId = idMap.get(edge.target().id()) ?? edge.target().id().replace(/[^a-zA-Z0-9_]/g, "_");
 			const edgeType = String(edge.data("type") ?? "");
 			const label = edgeLabelMap[edgeType];
 			if (label) lines.push(`  ${sourceId} -->|${label}| ${targetId}`);
@@ -53310,7 +55327,7 @@ var DataController = class {
 			scale: 2
 		});
 	}
-	exportSVG(theme = "dark") {
+	exportSVG(theme) {
 		const nodes = this.cy.nodes();
 		const edges = this.cy.edges();
 		if (nodes.length === 0) return null;
@@ -53357,72 +55374,91 @@ var DataController = class {
 		parts.push("</svg>");
 		return parts.join("");
 	}
-	computeNodeWeights() {
-		this.cy.batch(() => {
-			this.cy.nodes().forEach((node) => {
-				const isCluster = node.data("isCluster") === true;
-				if (isCluster) {
-					const clusterPath = node.data("clusterPath") ?? node.id();
-					let hash = 0;
-					for (let i$1 = 0; i$1 < clusterPath.length; i$1++) hash = (hash << 5) - hash + clusterPath.charCodeAt(i$1) | 0;
-					node.data("clusterHue", Math.abs(hash) % 12);
-					return;
-				}
-				const inDegree = node.indegree(false);
-				const outDegree = node.outdegree(false);
-				const totalConnections = inDegree + outDegree;
-				if (totalConnections > 0) node.data("weight", Math.min(totalConnections, 10));
-				else node.removeData("weight");
-			});
-		});
-	}
-	destroy() {
-		if (this.batchRaf !== null) cancelAnimationFrame(this.batchRaf);
-		this.batchRaf = null;
-		this.batchQueue = null;
-		this.currentNodes.clear();
-		this.currentEdges.clear();
-		this.rawNodesMap.clear();
-		this.rawToVisibleMap.clear();
-		this.lastAddedNodeIds.clear();
-	}
+	destroy() {}
 };
-function escapeXml(s) {
-	return s.replace(/[<>&"']/g, (c) => {
-		switch (c) {
-			case "<": return "&lt;";
-			case ">": return "&gt;";
-			case "&": return "&amp;";
-			case "\"": return "&quot;";
-			case "'": return "&apos;";
-			default: return c;
-		}
-	});
-}
 
 //#endregion
 //#region src/client/renderer/StyleController.ts
-const LOD_ZOOM_THRESHOLDS = {
-	minimal: .2,
-	compact: .5,
-	full: 1
-};
+function getLODThresholds(nodeCount) {
+	if (nodeCount < LOD.SMALL_NODE_COUNT) return {
+		minimal: LOD.MINIMAL_THRESHOLD_SMALL,
+		compact: LOD.COMPACT_THRESHOLD_SMALL
+	};
+	if (nodeCount < LOD.MEDIUM_NODE_COUNT) return {
+		minimal: LOD.MINIMAL_THRESHOLD_MEDIUM,
+		compact: LOD.COMPACT_THRESHOLD_MEDIUM
+	};
+	return {
+		minimal: LOD.MINIMAL_THRESHOLD_LARGE,
+		compact: LOD.COMPACT_THRESHOLD_LARGE
+	};
+}
+function getLODClassStyles() {
+	return [
+		{
+			selector: "node.lod-minimal",
+			style: {
+				"label": "",
+				"width": LOD.MINIMAL_NODE_SIZE,
+				"height": LOD.MINIMAL_NODE_SIZE,
+				"border-width": 0
+			}
+		},
+		{
+			selector: "edge.lod-minimal",
+			style: {
+				"label": "",
+				"width": LOD.MINIMAL_EDGE_WIDTH,
+				"curve-style": "straight",
+				"line-opacity": .3
+			}
+		},
+		{
+			selector: "node.lod-compact",
+			style: {
+				"label": "data(label)",
+				"font-size": LOD.COMPACT_FONT_SIZE,
+				"width": LOD.COMPACT_NODE_SIZE,
+				"height": LOD.COMPACT_NODE_SIZE
+			}
+		},
+		{
+			selector: "edge.lod-compact",
+			style: {
+				"label": "",
+				"width": LOD.COMPACT_EDGE_WIDTH,
+				"curve-style": "straight"
+			}
+		}
+	];
+}
 var StyleController = class {
 	cy;
 	theme;
 	currentLOD = "full";
 	lodEnabled = false;
+	heatmapMode = "none";
+	cachedBaseStylesheet = null;
+	cachedNodeCount = -1;
+	stylesheetApplied = false;
 	constructor(cy, theme) {
 		this.cy = cy;
 		this.theme = theme;
 	}
 	getStylesheet() {
 		const nodeCount = this.cy.nodes().length;
-		return buildStylesheet(this.theme, nodeCount);
+		if (this.cachedBaseStylesheet === null || nodeCount !== this.cachedNodeCount) {
+			this.cachedBaseStylesheet = buildStylesheet(this.theme, nodeCount);
+			this.cachedNodeCount = nodeCount;
+			this.stylesheetApplied = false;
+		}
+		return this.cachedBaseStylesheet;
 	}
 	updateTheme(theme) {
 		this.theme = theme;
+		this.cachedBaseStylesheet = null;
 		invalidateCssVarCache();
+		this.stylesheetApplied = false;
 		this.applyStylesheet();
 	}
 	getTheme() {
@@ -53432,7 +55468,7 @@ var StyleController = class {
 		if (this.lodEnabled) return;
 		this.lodEnabled = true;
 		this.currentLOD = this.computeLODLevel(this.cy.zoom());
-		this.applyStylesheet();
+		this.applyLODClasses();
 		this.cy.on("zoom", this.handleZoomChange);
 	}
 	disableLOD() {
@@ -53440,82 +55476,125 @@ var StyleController = class {
 		this.lodEnabled = false;
 		this.cy.off("zoom", this.handleZoomChange);
 		this.currentLOD = "full";
-		this.applyStylesheet();
+		this.applyLODClasses();
 	}
 	isLODEnabled() {
 		return this.lodEnabled;
+	}
+	setHeatmapMode(mode) {
+		if (this.heatmapMode === mode) return;
+		this.heatmapMode = mode;
+		this.stylesheetApplied = false;
+		this.applyStylesheet();
+	}
+	getHeatmapMode() {
+		return this.heatmapMode;
+	}
+	sizeMetric = null;
+	colorMetric = null;
+	setMultiDimensionMapping(sizeMetric, colorMetric) {
+		this.sizeMetric = sizeMetric;
+		this.colorMetric = colorMetric;
+		this.stylesheetApplied = false;
+		this.applyStylesheet();
+	}
+	getMultiDimensionMapping() {
+		return {
+			sizeMetric: this.sizeMetric,
+			colorMetric: this.colorMetric
+		};
 	}
 	handleZoomChange = () => {
 		const zoom = this.cy.zoom();
 		const newLOD = this.computeLODLevel(zoom);
 		if (newLOD !== this.currentLOD) {
 			this.currentLOD = newLOD;
-			this.applyStylesheet();
+			this.applyLODClasses();
 		}
 	};
 	computeLODLevel(zoom) {
-		if (zoom < LOD_ZOOM_THRESHOLDS.minimal) return "minimal";
-		if (zoom < LOD_ZOOM_THRESHOLDS.compact) return "compact";
+		const thresholds = getLODThresholds(this.cy.nodes().length);
+		if (zoom < thresholds.minimal) return "minimal";
+		if (zoom < thresholds.compact) return "compact";
 		return "full";
 	}
 	applyStylesheet() {
+		if (this.stylesheetApplied) return;
 		const baseStylesheet = this.getStylesheet();
 		const transitionOverrides = [{
 			selector: "node",
 			style: {
 				"transition-property": "width, height, font-size, border-width",
-				"transition-duration": 200,
+				"transition-duration": LOD.TRANSITION_DURATION_MS,
 				"transition-timing-function": "ease-out"
 			}
 		}, {
 			selector: "edge",
 			style: {
 				"transition-property": "width",
-				"transition-duration": 200,
+				"transition-duration": LOD.TRANSITION_DURATION_MS,
 				"transition-timing-function": "ease-out"
 			}
 		}];
-		if (this.lodEnabled && this.currentLOD !== "full") {
-			const lodOverrides = this.getLODOverrides(this.currentLOD);
-			this.cy.style().fromJson([
-				...baseStylesheet,
-				...transitionOverrides,
-				...lodOverrides
-			]).update();
-		} else this.cy.style().fromJson([...baseStylesheet, ...transitionOverrides]).update();
+		const heatmapOverrides = this.getHeatmapOverrides();
+		const multiDimOverrides = this.getMultiDimensionOverrides();
+		const lodClassStyles = getLODClassStyles();
+		this.cy.style().fromJson([
+			...baseStylesheet,
+			...transitionOverrides,
+			...heatmapOverrides,
+			...multiDimOverrides,
+			...lodClassStyles
+		]).update();
+		this.stylesheetApplied = true;
+		if (this.lodEnabled) this.applyLODClasses();
 	}
-	getLODOverrides(level) {
-		if (level === "minimal") return [{
-			selector: "node",
+	getMultiDimensionOverrides() {
+		if (!this.sizeMetric && !this.colorMetric) return [];
+		const overrides = [];
+		if (this.sizeMetric) overrides.push({
+			selector: `node[${this.sizeMetric}]`,
 			style: {
-				"label": "",
-				"width": 8,
-				"height": 8,
-				"border-width": 0
+				"width": `mapData(${this.sizeMetric}, 0, 100, 16, 64)`,
+				"height": `mapData(${this.sizeMetric}, 0, 100, 16, 64)`
 			}
-		}, {
-			selector: "edge",
-			style: {
-				"label": "",
-				"width": .5
-			}
+		});
+		if (this.colorMetric) overrides.push({
+			selector: `node[${this.colorMetric}]`,
+			style: { "background-color": `mapData(${this.colorMetric}, 0, 100, ${HEATMAP.COLOR_STABLE}, ${HEATMAP.COLOR_UNSTABLE})` }
+		});
+		return overrides;
+	}
+	applyLODClasses() {
+		const targetClass = this.lodEnabled ? this.currentLOD : "full";
+		if (targetClass === "full") {
+			this.cy.batch(() => {
+				this.cy.nodes().removeClass("lod-minimal lod-compact");
+				this.cy.edges().removeClass("lod-minimal lod-compact");
+			});
+			return;
+		}
+		const otherClass = targetClass === "minimal" ? "lod-compact" : "lod-minimal";
+		this.cy.batch(() => {
+			this.cy.nodes().removeClass(otherClass).addClass(`lod-${targetClass}`);
+			this.cy.edges().removeClass(otherClass).addClass(`lod-${targetClass}`);
+		});
+	}
+	getHeatmapOverrides() {
+		if (this.heatmapMode === "none") return [];
+		if (this.heatmapMode === "instability") return [{
+			selector: "node[instability]",
+			style: { "background-color": `mapData(instability, 0, 1, ${HEATMAP.COLOR_STABLE}, ${HEATMAP.COLOR_UNSTABLE})` }
 		}];
-		if (level === "compact") return [{
-			selector: "node",
-			style: {
-				"label": "data(label)",
-				"font-size": 6,
-				"width": 16,
-				"height": 16
-			}
-		}, {
-			selector: "edge",
-			style: {
-				"label": "",
-				"width": 1
-			}
+		if (this.heatmapMode === "lines") return [{
+			selector: "node[linesOfCode]",
+			style: { "background-color": `mapData(linesOfCode, ${HEATMAP.LINES_LOW}, ${HEATMAP.LINES_HIGH}, ${HEATMAP.COLOR_LOW}, ${HEATMAP.COLOR_HIGH})` }
 		}];
-		return [];
+		if (this.heatmapMode === "complexity") return [{
+			selector: "node[complexity]",
+			style: { "background-color": `mapData(complexity, ${HEATMAP.COMPLEXITY_LOW}, ${HEATMAP.COMPLEXITY_HIGH}, ${HEATMAP.COLOR_STABLE}, ${HEATMAP.COLOR_UNSTABLE})` }
+		}];
+		return assertNever(this.heatmapMode);
 	}
 	destroy() {
 		this.disableLOD();
@@ -53555,6 +55634,7 @@ var InteractionController = class {
 				x: pos.x,
 				y: pos.y
 			});
+			this.callbacks.onNodeHoverPrefetch?.(node.id());
 		});
 		this.cy.on("mouseout", "node", (evt) => {
 			evt.target.removeClass("hovered");
@@ -53573,6 +55653,14 @@ var InteractionController = class {
 			evt.target.removeClass("hovered");
 			this.callbacks.onEdgeHoverOut?.();
 		});
+		this.cy.on("cxttap", "node", (evt) => {
+			const node = evt.target;
+			const pos = node.renderedPosition();
+			this.callbacks.onNodeContextTap?.(node.id(), {
+				x: pos.x,
+				y: pos.y
+			});
+		});
 	}
 	updateCallbacks(callbacks) {
 		this.callbacks = callbacks;
@@ -53587,36 +55675,115 @@ var InteractionController = class {
 		this.cy.off("mouseout", "node");
 		this.cy.off("mouseover", "edge");
 		this.cy.off("mouseout", "edge");
+		this.cy.off("cxttap", "node");
 	}
 };
 
 //#endregion
 //#region src/client/renderer/PathFinder.ts
+const BIDIRECTIONAL_BFS_LIMIT = PATH_FINDER.MAX_NODES_FOR_BFS;
 var PathFinder = class {
 	cy;
-	constructor(cy) {
+	adjacencyCache;
+	constructor(cy, adjacencyCache) {
 		this.cy = cy;
+		this.adjacencyCache = adjacencyCache ?? null;
 	}
 	findPath(sourceId, targetId) {
 		const sourceNode = this.cy.getElementById(sourceId);
 		const targetNode = this.cy.getElementById(targetId);
 		if (sourceNode.empty() || targetNode.empty()) return null;
+		if (sourceId === targetId) return {
+			source: sourceId,
+			target: targetId,
+			path: [sourceId],
+			length: 0
+		};
 		const nodeCount = this.cy.nodes().length;
-		if (nodeCount > PATH_FINDER.MAX_NODES_FOR_DIJKSTRA) return null;
-		const dijkstra$2 = this.cy.elements().dijkstra({ root: sourceNode });
-		const pathToTarget = dijkstra$2.pathTo(targetNode);
-		if (pathToTarget.length === 0) return null;
-		const pathIds = [];
-		pathToTarget.forEach((el) => {
-			if (el.isNode()) pathIds.push(NodeId(el.id()));
-		});
-		if (pathIds.length === 0) return null;
+		if (nodeCount > BIDIRECTIONAL_BFS_LIMIT) return null;
+		const adjacency = this.getDirectedAdjacency();
+		return this.bidirectionalBFS(sourceId, targetId, adjacency);
+	}
+	getDirectedAdjacency() {
+		if (this.adjacencyCache) return this.adjacencyCache.getDirectedAdjacency(this.cy);
+		const directed = buildDirectedAdjacencyMaps(this.cy);
+		const forward = new Map();
+		const backward = new Map();
+		for (const [k, v] of directed.forward) forward.set(k, new Set(v));
+		for (const [k, v] of directed.backward) backward.set(k, new Set(v));
+		return {
+			forward,
+			backward
+		};
+	}
+	bidirectionalBFS(sourceId, targetId, adjacency) {
+		const forwardVisited = new Map();
+		const backwardVisited = new Map();
+		const forwardQueue = [sourceId];
+		const backwardQueue = [targetId];
+		forwardVisited.set(sourceId, null);
+		backwardVisited.set(targetId, null);
+		let forwardHead = 0;
+		let backwardHead = 0;
+		let meetingPoint = null;
+		while (forwardHead < forwardQueue.length && backwardHead < backwardQueue.length) {
+			const fwdResult = this.bfsStep(forwardQueue, forwardHead, forwardVisited, backwardVisited, adjacency.forward);
+			forwardHead = fwdResult.newHead;
+			if (fwdResult.meetingNode) {
+				meetingPoint = fwdResult.meetingNode;
+				break;
+			}
+			const bwdResult = this.bfsStep(backwardQueue, backwardHead, backwardVisited, forwardVisited, adjacency.backward);
+			backwardHead = bwdResult.newHead;
+			if (bwdResult.meetingNode) {
+				meetingPoint = bwdResult.meetingNode;
+				break;
+			}
+		}
+		if (!meetingPoint) return null;
+		const forwardPath = this.reconstructPath(forwardVisited, meetingPoint, sourceId);
+		const backwardPath = this.reconstructPath(backwardVisited, meetingPoint, targetId);
+		backwardPath.reverse();
+		const fullPath = [...forwardPath, ...backwardPath.slice(1)];
+		const pathIds = fullPath.map((id) => NodeId(id));
 		return {
 			source: sourceId,
 			target: targetId,
 			path: pathIds,
 			length: pathIds.length - 1
 		};
+	}
+	bfsStep(queue, head, visited, otherVisited, adjacency) {
+		const currentId = queue[head];
+		head++;
+		if (!currentId) return {
+			newHead: head,
+			meetingNode: null
+		};
+		const neighbors = adjacency.get(currentId);
+		let meetingNode = null;
+		if (neighbors) {
+			for (const neighborId of neighbors) if (!visited.has(neighborId)) {
+				visited.set(neighborId, currentId);
+				queue.push(neighborId);
+				if (otherVisited.has(neighborId)) meetingNode = neighborId;
+			}
+		}
+		return {
+			newHead: head,
+			meetingNode
+		};
+	}
+	reconstructPath(visited, meetingPoint, endpoint) {
+		const path = [];
+		let current = meetingPoint;
+		while (current !== null) {
+			path.push(current);
+			current = visited.get(current) ?? null;
+		}
+		if (path[path.length - 1] !== endpoint) path.push(endpoint);
+		path.reverse();
+		return path;
 	}
 	highlightPath(path) {
 		this.cy.batch(() => {
@@ -53643,48 +55810,172 @@ var PathFinder = class {
 			});
 		});
 	}
-	destroy() {}
+	destroy() {
+		this.adjacencyCache = null;
+	}
 };
 
 //#endregion
-//#region src/client/renderer/SpatialIndex.ts
-var SpatialIndex = class {
-	cellSize;
-	grid = new Map();
+//#region src/client/renderer/QuadTree.ts
+var QuadNode = class QuadNode {
+	bounds;
+	depth;
+	maxNodesPerQuad;
+	maxDepth;
+	entries = [];
+	children = null;
+	constructor(bounds$1, depth, maxNodesPerQuad, maxDepth) {
+		this.bounds = bounds$1;
+		this.depth = depth;
+		this.maxNodesPerQuad = maxNodesPerQuad;
+		this.maxDepth = maxDepth;
+	}
+	isLeaf() {
+		return this.children === null;
+	}
+	shouldSubdivide() {
+		return this.entries.length > this.maxNodesPerQuad && this.depth < this.maxDepth && this.isLeaf();
+	}
+	subdivide() {
+		const { x1, y1, x2, y2 } = this.bounds;
+		const midX = (x1 + x2) / 2;
+		const midY = (y1 + y2) / 2;
+		this.children = [
+			new QuadNode({
+				x1,
+				y1,
+				x2: midX,
+				y2: midY
+			}, this.depth + 1, this.maxNodesPerQuad, this.maxDepth),
+			new QuadNode({
+				x1: midX,
+				y1,
+				x2,
+				y2: midY
+			}, this.depth + 1, this.maxNodesPerQuad, this.maxDepth),
+			new QuadNode({
+				x1,
+				y1: midY,
+				x2: midX,
+				y2
+			}, this.depth + 1, this.maxNodesPerQuad, this.maxDepth),
+			new QuadNode({
+				x1: midX,
+				y1: midY,
+				x2,
+				y2
+			}, this.depth + 1, this.maxNodesPerQuad, this.maxDepth)
+		];
+		const oldEntries = this.entries;
+		this.entries = [];
+		for (const entry of oldEntries) this.insertIntoChild(entry);
+	}
+	getQuadrant(x$1, y$1) {
+		const midX = (this.bounds.x1 + this.bounds.x2) / 2;
+		const midY = (this.bounds.y1 + this.bounds.y2) / 2;
+		if (x$1 < midX && y$1 < midY) return 0;
+		if (x$1 >= midX && y$1 < midY) return 1;
+		if (x$1 < midX && y$1 >= midY) return 2;
+		return 3;
+	}
+	insertIntoChild(entry) {
+		if (!this.children) return;
+		const idx = this.getQuadrant(entry.x, entry.y);
+		this.children[idx].insert(entry);
+	}
+	insert(entry) {
+		if (!this.isLeaf()) {
+			this.insertIntoChild(entry);
+			return;
+		}
+		this.entries.push(entry);
+		if (this.shouldSubdivide()) this.subdivide();
+	}
+	remove(id) {
+		if (!this.isLeaf()) {
+			for (const child of this.children) {
+				const removed$1 = child.remove(id);
+				if (removed$1) return removed$1;
+			}
+			return null;
+		}
+		const idx = this.entries.findIndex((e) => e.id === id);
+		if (idx === -1) return null;
+		const removed = this.entries[idx];
+		this.entries.splice(idx, 1);
+		return removed;
+	}
+	query(bounds$1, result) {
+		if (this.isLeaf()) {
+			for (const entry of this.entries) if (entry.x >= bounds$1.x1 && entry.x <= bounds$1.x2 && entry.y >= bounds$1.y1 && entry.y <= bounds$1.y2) result.add(entry.id);
+			return;
+		}
+		for (const child of this.children) {
+			if (child.bounds.x2 < bounds$1.x1 || child.bounds.x1 > bounds$1.x2 || child.bounds.y2 < bounds$1.y1 || child.bounds.y1 > bounds$1.y2) continue;
+			child.query(bounds$1, result);
+		}
+	}
+	countLeaves() {
+		if (this.isLeaf()) return 1;
+		let count = 0;
+		for (const child of this.children) count += child.countLeaves();
+		return count;
+	}
+	countEntries() {
+		if (this.isLeaf()) return this.entries.length;
+		let count = 0;
+		for (const child of this.children) count += child.countEntries();
+		return count;
+	}
+};
+var QuadTree = class {
+	root;
 	nodePositions = new Map();
 	cy;
-	constructor(cy, cellSize = 200) {
+	maxNodesPerQuad;
+	maxDepth;
+	constructor(cy, maxNodesPerQuad = QUADTREE.MAX_NODES_PER_QUAD, maxDepth = QUADTREE.MAX_DEPTH) {
 		this.cy = cy;
-		this.cellSize = cellSize;
+		this.maxNodesPerQuad = maxNodesPerQuad;
+		this.maxDepth = maxDepth;
+		this.root = new QuadNode({ ...QUADTREE.INITIAL_BOUNDS }, 0, this.maxNodesPerQuad, this.maxDepth);
 	}
-	cellKey(x$1, y$1) {
-		const cx = Math.floor(x$1 / this.cellSize);
-		const cy = Math.floor(y$1 / this.cellSize);
-		return `${cx},${cy}`;
+	ensureBoundsContain(x$1, y$1) {
+		const b = this.root.bounds;
+		if (x$1 >= b.x1 && x$1 <= b.x2 && y$1 >= b.y1 && y$1 <= b.y2) return;
+		const newX1 = Math.min(b.x1, x$1 - QUADTREE.EXPAND_PADDING);
+		const newY1 = Math.min(b.y1, y$1 - QUADTREE.EXPAND_PADDING);
+		const newX2 = Math.max(b.x2, x$1 + QUADTREE.EXPAND_PADDING);
+		const newY2 = Math.max(b.y2, y$1 + QUADTREE.EXPAND_PADDING);
+		this.root = new QuadNode({
+			x1: newX1,
+			y1: newY1,
+			x2: newX2,
+			y2: newY2
+		}, 0, this.maxNodesPerQuad, this.maxDepth);
+		for (const [id, pos] of this.nodePositions) this.root.insert({
+			id,
+			x: pos.x,
+			y: pos.y
+		});
 	}
 	insert(nodeId, x$1, y$1) {
 		this.nodePositions.set(nodeId, {
 			x: x$1,
 			y: y$1
 		});
-		const key = this.cellKey(x$1, y$1);
-		let bucket = this.grid.get(key);
-		if (!bucket) {
-			bucket = new Set();
-			this.grid.set(key, bucket);
-		}
-		bucket.add(nodeId);
+		this.ensureBoundsContain(x$1, y$1);
+		this.root.insert({
+			id: nodeId,
+			x: x$1,
+			y: y$1
+		});
 	}
 	remove(nodeId) {
 		const pos = this.nodePositions.get(nodeId);
 		if (!pos) return;
 		this.nodePositions.delete(nodeId);
-		const key = this.cellKey(pos.x, pos.y);
-		const bucket = this.grid.get(key);
-		if (bucket) {
-			bucket.delete(nodeId);
-			if (bucket.size === 0) this.grid.delete(key);
-		}
+		this.root.remove(nodeId);
 	}
 	update(nodeId, newX, newY) {
 		this.remove(nodeId);
@@ -53692,18 +55983,11 @@ var SpatialIndex = class {
 	}
 	query(bounds$1) {
 		const result = new Set();
-		const minX = Math.floor(bounds$1.x1 / this.cellSize);
-		const maxX = Math.floor(bounds$1.x2 / this.cellSize);
-		const minY = Math.floor(bounds$1.y1 / this.cellSize);
-		const maxY = Math.floor(bounds$1.y2 / this.cellSize);
-		for (let cx = minX; cx <= maxX; cx++) for (let cy = minY; cy <= maxY; cy++) {
-			const bucket = this.grid.get(`${cx},${cy}`);
-			if (bucket) for (const id of bucket) result.add(id);
-		}
+		this.root.query(bounds$1, result);
 		return result;
 	}
 	rebuildFromCytoscape() {
-		this.grid.clear();
+		this.root = new QuadNode({ ...QUADTREE.INITIAL_BOUNDS }, 0, this.maxNodesPerQuad, this.maxDepth);
 		this.nodePositions.clear();
 		this.cy.nodes().forEach((node) => {
 			const p$1 = node.position();
@@ -53711,13 +55995,13 @@ var SpatialIndex = class {
 		});
 	}
 	getCellCount() {
-		return this.grid.size;
+		return this.root.countLeaves();
 	}
 	getNodeCount() {
 		return this.nodePositions.size;
 	}
 	clear() {
-		this.grid.clear();
+		this.root = new QuadNode({ ...QUADTREE.INITIAL_BOUNDS }, 0, this.maxNodesPerQuad, this.maxDepth);
 		this.nodePositions.clear();
 	}
 };
@@ -53725,6 +56009,20 @@ var SpatialIndex = class {
 //#endregion
 //#region src/client/renderer/VirtualViewportController.ts
 const VIRTUAL_SCROLL_THRESHOLD = VIRTUAL_VIEWPORT.SCROLL_THRESHOLD;
+function edgeIntersectsViewport(sourcePos, targetPos, bounds$1) {
+	if (sourcePos.x >= bounds$1.x1 && sourcePos.x <= bounds$1.x2 && sourcePos.y >= bounds$1.y1 && sourcePos.y <= bounds$1.y2) return true;
+	if (targetPos.x >= bounds$1.x1 && targetPos.x <= bounds$1.x2 && targetPos.y >= bounds$1.y1 && targetPos.y <= bounds$1.y2) return true;
+	const dx = targetPos.x - sourcePos.x;
+	const dy = targetPos.y - sourcePos.y;
+	if (dx === 0 && dy === 0) return false;
+	const t1 = (bounds$1.x1 - sourcePos.x) / (dx || 1e-9);
+	const t2 = (bounds$1.x2 - sourcePos.x) / (dx || 1e-9);
+	const t3 = (bounds$1.y1 - sourcePos.y) / (dy || 1e-9);
+	const t4 = (bounds$1.y2 - sourcePos.y) / (dy || 1e-9);
+	const tmin = Math.max(Math.min(t1, t2), Math.min(t3, t4));
+	const tmax = Math.min(Math.max(t1, t2), Math.max(t3, t4));
+	return tmax >= 0 && tmin <= 1 && tmin <= tmax;
+}
 var VirtualViewportController = class {
 	cy;
 	enabled = false;
@@ -53734,7 +56032,7 @@ var VirtualViewportController = class {
 	indexDirty = true;
 	constructor(cy) {
 		this.cy = cy;
-		this.spatialIndex = new SpatialIndex(cy);
+		this.spatialIndex = new QuadTree(cy);
 	}
 	enable() {
 		if (this.enabled) return;
@@ -53751,10 +56049,12 @@ var VirtualViewportController = class {
 		this.cy.off("add remove", this.handleStructureChange);
 		this.cy.batch(() => {
 			this.cy.nodes().forEach((n) => {
-				n.style("display", "element");
+				if (n.data("typeFiltered") === true || n.data("connectionFiltered") === true) n.style("display", "none");
+				else n.style("display", "element");
 			});
 			this.cy.edges().forEach((e) => {
-				e.style("display", "element");
+				if (e.data("typeFiltered") === true || e.data("connectionFiltered") === true) e.style("display", "none");
+				else e.style("display", "element");
 			});
 		});
 		this.visibleNodeIds.clear();
@@ -53806,6 +56106,7 @@ var VirtualViewportController = class {
 			const node = this.cy.getElementById(id);
 			if (node.nonempty() === false) continue;
 			if (node.data("typeFiltered") === true) continue;
+			if (node.data("connectionFiltered") === true) continue;
 			const p$1 = node.position();
 			const isVisible = p$1.x >= viewBounds.x1 && p$1.x <= viewBounds.x2 && p$1.y >= viewBounds.y1 && p$1.y <= viewBounds.y2;
 			if (isVisible) {
@@ -53828,17 +56129,30 @@ var VirtualViewportController = class {
 				if (node.nonempty()) node.style("display", "none");
 			}
 			const changedNodeIds = new Set([...toShow, ...toHide]);
+			const processedEdgeIds = new Set();
 			for (const id of changedNodeIds) {
 				const node = this.cy.getElementById(id);
 				if (node.empty()) continue;
 				node.connectedEdges().forEach((edge) => {
+					if (processedEdgeIds.has(edge.id())) return;
+					processedEdgeIds.add(edge.id());
 					if (edge.data("typeFiltered") === true) {
+						edge.style("display", "none");
+						return;
+					}
+					if (edge.data("connectionFiltered") === true) {
 						edge.style("display", "none");
 						return;
 					}
 					const sourceVisible = newVisible.has(edge.source().id());
 					const targetVisible = newVisible.has(edge.target().id());
-					edge.style("display", sourceVisible && targetVisible ? "element" : "none");
+					if (sourceVisible && targetVisible) edge.style("display", "element");
+					else if (sourceVisible || targetVisible) {
+						const sp = edge.source().position();
+						const tp = edge.target().position();
+						if (edgeIntersectsViewport(sp, tp, viewBounds)) edge.style("display", "element");
+						else edge.style("display", "none");
+					} else edge.style("display", "none");
 				});
 			}
 		});
@@ -53853,7 +56167,91 @@ var VirtualViewportController = class {
 };
 
 //#endregion
+//#region src/client/renderer/AdjacencyCache.ts
+var AdjacencyCache = class {
+	forward = new Map();
+	backward = new Map();
+	undirected = new Map();
+	edgeIdMap = new Map();
+	valid = false;
+	invalidate() {
+		this.valid = false;
+	}
+	isValid() {
+		return this.valid;
+	}
+	rebuild(cy) {
+		this.forward.clear();
+		this.backward.clear();
+		this.undirected.clear();
+		this.edgeIdMap.clear();
+		cy.edges().forEach((edge) => {
+			const s = edge.source().id();
+			const t$1 = edge.target().id();
+			const eId = edge.id();
+			let fwdSet = this.forward.get(s);
+			if (!fwdSet) {
+				fwdSet = new Set();
+				this.forward.set(s, fwdSet);
+			}
+			fwdSet.add(t$1);
+			let bwdSet = this.backward.get(t$1);
+			if (!bwdSet) {
+				bwdSet = new Set();
+				this.backward.set(t$1, bwdSet);
+			}
+			bwdSet.add(s);
+			let undSet = this.undirected.get(s);
+			if (!undSet) {
+				undSet = new Set();
+				this.undirected.set(s, undSet);
+			}
+			undSet.add(t$1);
+			undSet = this.undirected.get(t$1);
+			if (!undSet) {
+				undSet = new Set();
+				this.undirected.set(t$1, undSet);
+			}
+			undSet.add(s);
+			this.edgeIdMap.set(`${s}->${t$1}`, eId);
+		});
+		this.valid = true;
+	}
+	getForwardAdjacency(cy) {
+		if (!this.valid) this.rebuild(cy);
+		return this.forward;
+	}
+	getBackwardAdjacency(cy) {
+		if (!this.valid) this.rebuild(cy);
+		return this.backward;
+	}
+	getDirectedAdjacency(cy) {
+		if (!this.valid) this.rebuild(cy);
+		return {
+			forward: this.forward,
+			backward: this.backward
+		};
+	}
+	getUndirectedAdjacency(cy) {
+		if (!this.valid) this.rebuild(cy);
+		return this.undirected;
+	}
+	getEdgeIdMap(cy) {
+		if (!this.valid) this.rebuild(cy);
+		return this.edgeIdMap;
+	}
+	destroy() {
+		this.forward.clear();
+		this.backward.clear();
+		this.undirected.clear();
+		this.edgeIdMap.clear();
+		this.valid = false;
+	}
+};
+
+//#endregion
 //#region src/client/renderer/CytoscapeRenderer.ts
+const log$7 = scoped("cytoscape-renderer");
 function ensureExtensionsRegistered() {
 	const cy = cytoscape$1;
 	if (!cy.__dagreRegistered) {
@@ -53870,13 +56268,44 @@ var CytoscapeRenderer = class {
 	options;
 	layoutCtrl = null;
 	highlightCtrl = null;
+	cycleDetector = null;
+	impactAnalyzer = null;
 	viewportCtrl = null;
 	dataCtrl = null;
+	filterCtrl = null;
+	searchCtrl = null;
+	exportCtrl = null;
 	styleCtrl = null;
 	interactionCtrl = null;
 	pathFinder = null;
 	virtualViewportCtrl = null;
+	adjacencyCache = null;
 	fitTimer = null;
+	lastError = null;
+	safeCall(name$1, fn$7, fallback) {
+		try {
+			return fn$7();
+		} catch (err) {
+			log$7.error(`${name$1} failed`, err);
+			return fallback;
+		}
+	}
+	safeCallVoid(name$1, fn$7) {
+		try {
+			fn$7();
+		} catch (err) {
+			log$7.error(`${name$1} failed`, err);
+		}
+	}
+	safeCallWithError(name$1, fn$7, fallback) {
+		try {
+			return fn$7();
+		} catch (err) {
+			log$7.error(`${name$1} failed`, err);
+			this.lastError = err instanceof Error ? err : new Error(String(err));
+			return fallback;
+		}
+	}
 	constructor(options) {
 		this.options = options;
 	}
@@ -53890,30 +56319,46 @@ var CytoscapeRenderer = class {
 				maxZoom: RENDERER.MAX_ZOOM,
 				style: [],
 				layout: { name: "cose" },
-				headless: false
+				headless: false,
+				hideEdgesOnViewport: true,
+				hideLabelsOnViewport: true,
+				textureOnViewport: false
 			});
 			const cy = this.cy;
+			this.adjacencyCache = new AdjacencyCache();
 			this.styleCtrl = new StyleController(cy, this.options.theme);
 			cy.style().fromJson(this.styleCtrl.getStylesheet()).update();
 			this.layoutCtrl = new LayoutController(cy);
 			this.highlightCtrl = new HighlightController(cy);
+			this.cycleDetector = new CycleDetector(cy, this.adjacencyCache);
+			this.impactAnalyzer = new ImpactAnalyzer(cy);
 			this.viewportCtrl = new ViewportController(cy);
 			this.dataCtrl = new DataController(cy);
+			this.filterCtrl = new FilterController(cy);
+			this.searchCtrl = new SearchController(cy, this.dataCtrl.getRawNodesMap(), this.dataCtrl.getRawToVisibleMap());
+			this.exportCtrl = new ExportController(cy);
 			this.interactionCtrl = new InteractionController(cy, {
 				onNodeTap: this.options.onNodeTap ?? (() => {}),
 				onEdgeTap: this.options.onEdgeTap ?? (() => {}),
 				onNodeDoubleTap: this.options.onNodeDoubleTap ?? (() => {}),
 				onNodeHover: this.options.onNodeHover ?? (() => {}),
+				...this.options.onNodeHoverPrefetch ? { onNodeHoverPrefetch: this.options.onNodeHoverPrefetch } : {},
 				onNodeHoverOut: this.options.onNodeHoverOut ?? (() => {}),
 				onEdgeHover: this.options.onEdgeHover ?? (() => {}),
-				onEdgeHoverOut: this.options.onEdgeHoverOut ?? (() => {})
+				onEdgeHoverOut: this.options.onEdgeHoverOut ?? (() => {}),
+				...this.options.onNodeContextTap ? { onNodeContextTap: this.options.onNodeContextTap } : {}
 			});
-			this.pathFinder = new PathFinder(cy);
+			this.pathFinder = new PathFinder(cy, this.adjacencyCache);
 			this.virtualViewportCtrl = new VirtualViewportController(cy);
 		} catch (err) {
 			this.pathFinder?.destroy();
 			this.virtualViewportCtrl?.destroy();
 			this.interactionCtrl?.destroy();
+			this.exportCtrl?.destroy();
+			this.searchCtrl?.destroy();
+			this.filterCtrl?.destroy();
+			this.impactAnalyzer?.destroy();
+			this.cycleDetector?.destroy();
 			this.highlightCtrl?.destroy();
 			this.viewportCtrl?.destroy();
 			this.layoutCtrl?.destroy();
@@ -53924,6 +56369,11 @@ var CytoscapeRenderer = class {
 			this.pathFinder = null;
 			this.virtualViewportCtrl = null;
 			this.interactionCtrl = null;
+			this.exportCtrl = null;
+			this.searchCtrl = null;
+			this.filterCtrl = null;
+			this.impactAnalyzer = null;
+			this.cycleDetector = null;
 			this.highlightCtrl = null;
 			this.viewportCtrl = null;
 			this.layoutCtrl = null;
@@ -53934,24 +56384,32 @@ var CytoscapeRenderer = class {
 	}
 	updateData(nodes, edges) {
 		if (!this.cy) throw new Error("CytoscapeRenderer: init() must be called before updateData()");
-		this.dataCtrl?.updateData(nodes, edges);
-		if (this.cy && nodes.length > 0) {
-			if (this.fitTimer !== null) clearTimeout(this.fitTimer);
-			const fitDelay = nodes.length > RENDERER.LARGE_GRAPH_NODE_THRESHOLD ? RENDERER.FIT_DELAY_LARGE : RENDERER.FIT_DELAY_SMALL;
-			this.fitTimer = setTimeout(() => {
-				this.fitTimer = null;
-				if (this.cy && this.cy.nodes().length > 0) this.cy.fit(void 0, RENDERER.FIT_PADDING);
-			}, fitDelay);
-		}
+		this.safeCallWithError("updateData", () => {
+			this.dataCtrl?.updateData(nodes, edges);
+			this.adjacencyCache?.invalidate();
+			this.filterCtrl?.invalidateCache();
+			this.highlightCtrl?.invalidateCache();
+			if (this.cy && nodes.length > 0) {
+				if (this.fitTimer !== null) clearTimeout(this.fitTimer);
+				const fitDelay = nodes.length > RENDERER.LARGE_GRAPH_NODE_THRESHOLD ? RENDERER.FIT_DELAY_LARGE : RENDERER.FIT_DELAY_SMALL;
+				this.fitTimer = setTimeout(() => {
+					this.fitTimer = null;
+					if (this.cy && this.cy.nodes().length > 0) this.cy.fit(void 0, RENDERER.FIT_PADDING);
+				}, fitDelay);
+			}
+		}, void 0);
 	}
 	setRawNodes(rawNodes) {
 		this.dataCtrl?.setRawNodes(rawNodes);
 	}
 	applyLayout(layout$2) {
-		this.layoutCtrl?.applyLayout(layout$2);
+		this.safeCallVoid("applyLayout", () => this.layoutCtrl?.applyLayout(layout$2));
+	}
+	setDagreRankDir(dir) {
+		if (this.layoutCtrl) this.layoutCtrl.rankDir = dir;
 	}
 	applyIncrementalLayout(layout$2, newNodeIds) {
-		this.layoutCtrl?.applyIncrementalLayout(layout$2, newNodeIds);
+		this.safeCallVoid("applyIncrementalLayout", () => this.layoutCtrl?.applyIncrementalLayout(layout$2, newNodeIds));
 	}
 	isWorkerLayoutAvailable() {
 		return this.layoutCtrl?.isWorkerAvailable() ?? false;
@@ -53980,50 +56438,62 @@ var CytoscapeRenderer = class {
 	selectNode(nodeId) {
 		this.highlightCtrl?.selectNode(nodeId);
 	}
+	hideNode(nodeId) {
+		this.safeCallVoid("hideNode", () => this.cy?.getElementById(nodeId).style("display", "none"));
+	}
+	showAllNodes() {
+		this.safeCallVoid("showAllNodes", () => this.cy?.nodes().style("display", "element"));
+	}
+	getVisibleNodeCount() {
+		return this.safeCall("getVisibleNodeCount", () => this.cy?.nodes(":visible").length ?? 0, 0);
+	}
 	filterByType(type) {
-		this.dataCtrl?.filterByType(type);
+		this.filterCtrl?.filterByType(type);
 	}
 	filterByGraphType(graphType) {
-		this.dataCtrl?.filterByGraphType(graphType);
+		this.filterCtrl?.filterByGraphType(graphType);
 	}
 	applyConnectionFilters(fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes) {
-		this.dataCtrl?.applyConnectionFilters(fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes);
+		this.safeCallVoid("applyConnectionFilters", () => this.filterCtrl?.applyConnectionFilters(fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes));
 	}
 	search(query) {
-		return this.dataCtrl?.search(query) ?? 0;
+		return this.searchCtrl?.search(query) ?? 0;
 	}
 	focusOnNode(nodeId) {
 		this.viewportCtrl?.focusOnNode(nodeId);
 	}
 	highlightCallChain(nodeId) {
-		this.highlightCtrl?.highlightCallChain(nodeId);
+		this.safeCallVoid("highlightCallChain", () => this.highlightCtrl?.highlightCallChain(nodeId));
 	}
 	detectCycles() {
-		return this.highlightCtrl?.detectCycles() ?? new Set();
+		return this.safeCall("detectCycles", () => this.cycleDetector?.detectCycles() ?? new Set(), new Set());
 	}
 	detectCyclesDetailed() {
-		return this.highlightCtrl?.detectCyclesDetailed() ?? [];
+		return this.safeCall("detectCyclesDetailed", () => this.cycleDetector?.detectCyclesDetailed() ?? [], []);
 	}
 	highlightCycles(cycleIds) {
-		this.highlightCtrl?.highlightCycles(cycleIds);
+		this.safeCallVoid("highlightCycles", () => this.cycleDetector?.highlightCycles(cycleIds));
 	}
 	isolateCycles(cycleIds) {
-		this.highlightCtrl?.isolateCycles(cycleIds);
+		this.safeCallVoid("isolateCycles", () => this.cycleDetector?.isolateCycles(cycleIds));
+	}
+	relayoutCycles(cycleIds) {
+		this.safeCallVoid("relayoutCycles", () => this.cycleDetector?.relayoutCycles(cycleIds));
 	}
 	restoreIsolation() {
-		this.highlightCtrl?.restoreIsolation();
+		this.safeCallVoid("restoreIsolation", () => this.cycleDetector?.restoreIsolation());
 	}
 	highlightImpact(nodeId) {
-		this.highlightCtrl?.highlightImpact(nodeId);
+		this.safeCallVoid("highlightImpact", () => this.impactAnalyzer?.highlightImpact(nodeId));
 	}
 	getImpactStats(nodeId) {
-		return this.highlightCtrl?.getImpactStats(nodeId) ?? null;
+		return this.safeCall("getImpactStats", () => this.impactAnalyzer?.getImpactStats(nodeId) ?? null, null);
 	}
 	highlightInheritance(nodeId) {
-		this.highlightCtrl?.highlightInheritance(nodeId);
+		this.safeCallVoid("highlightInheritance", () => this.highlightCtrl?.highlightInheritance(nodeId));
 	}
 	focusNeighborhood(nodeId) {
-		this.viewportCtrl?.focusNeighborhood(nodeId);
+		this.safeCallVoid("focusNeighborhood", () => this.viewportCtrl?.focusNeighborhood(nodeId));
 	}
 	getThumbnail() {
 		return this.viewportCtrl?.getThumbnail() ?? null;
@@ -54035,16 +56505,16 @@ var CytoscapeRenderer = class {
 		this.viewportCtrl?.focusOnArea(x$1, y$1, zoom);
 	}
 	exportJSON() {
-		return this.dataCtrl?.exportJSON() ?? "";
+		return this.exportCtrl?.exportJSON() ?? "";
 	}
 	exportMermaid() {
-		return this.dataCtrl?.exportMermaid() ?? "graph TD\n";
+		return this.exportCtrl?.exportMermaid() ?? "graph TD\n";
 	}
 	exportPNG() {
-		return this.dataCtrl?.exportPNG() ?? null;
+		return this.safeCall("exportPNG", () => this.exportCtrl?.exportPNG() ?? null, null);
 	}
 	exportSVG(theme) {
-		return this.dataCtrl?.exportSVG(theme ?? this.options.theme) ?? null;
+		return this.safeCall("exportSVG", () => this.exportCtrl?.exportSVG(theme ?? this.options.theme) ?? null, null);
 	}
 	getSelectedNodeData() {
 		return this.dataCtrl?.getSelectedNodeData() ?? null;
@@ -54056,22 +56526,44 @@ var CytoscapeRenderer = class {
 		return this.dataCtrl?.getEdgeData(edgeId) ?? null;
 	}
 	resize() {
-		this.viewportCtrl?.resize();
+		this.safeCallVoid("resize", () => this.viewportCtrl?.resize());
 	}
 	updateTheme(theme) {
 		this.options.theme = theme;
 		this.styleCtrl?.updateTheme(theme);
 	}
+	setHeatmapMode(mode) {
+		this.styleCtrl?.setHeatmapMode(mode);
+	}
+	getHeatmapMode() {
+		return this.styleCtrl?.getHeatmapMode() ?? "none";
+	}
+	setMultiDimensionMapping(sizeMetric, colorMetric) {
+		this.safeCallVoid("setMultiDimensionMapping", () => this.styleCtrl?.setMultiDimensionMapping(sizeMetric, colorMetric));
+	}
 	destroy() {
-		this.interactionCtrl?.destroy();
-		this.layoutCtrl?.destroy();
-		this.virtualViewportCtrl?.destroy();
-		this.dataCtrl?.destroy();
-		this.highlightCtrl?.destroy();
-		this.viewportCtrl?.destroy();
-		this.styleCtrl?.destroy();
-		this.pathFinder?.destroy();
-		this.cy?.destroy();
+		const safeDestroy = (label, fn$7) => {
+			try {
+				fn$7();
+			} catch (err) {
+				log$7.warn(`destroy: ${label} cleanup failed`, err);
+			}
+		};
+		safeDestroy("interactionCtrl", () => this.interactionCtrl?.destroy());
+		safeDestroy("layoutCtrl", () => this.layoutCtrl?.destroy());
+		safeDestroy("virtualViewportCtrl", () => this.virtualViewportCtrl?.destroy());
+		safeDestroy("exportCtrl", () => this.exportCtrl?.destroy());
+		safeDestroy("searchCtrl", () => this.searchCtrl?.destroy());
+		safeDestroy("filterCtrl", () => this.filterCtrl?.destroy());
+		safeDestroy("dataCtrl", () => this.dataCtrl?.destroy());
+		safeDestroy("impactAnalyzer", () => this.impactAnalyzer?.destroy());
+		safeDestroy("cycleDetector", () => this.cycleDetector?.destroy());
+		safeDestroy("highlightCtrl", () => this.highlightCtrl?.destroy());
+		safeDestroy("viewportCtrl", () => this.viewportCtrl?.destroy());
+		safeDestroy("styleCtrl", () => this.styleCtrl?.destroy());
+		safeDestroy("pathFinder", () => this.pathFinder?.destroy());
+		safeDestroy("adjacencyCache", () => this.adjacencyCache?.destroy());
+		safeDestroy("cy", () => this.cy?.destroy());
 		this.cy = null;
 		if (this.fitTimer !== null) {
 			clearTimeout(this.fitTimer);
@@ -54079,27 +56571,67 @@ var CytoscapeRenderer = class {
 		}
 		this.layoutCtrl = null;
 		this.highlightCtrl = null;
+		this.cycleDetector = null;
+		this.impactAnalyzer = null;
 		this.viewportCtrl = null;
 		this.dataCtrl = null;
+		this.filterCtrl = null;
+		this.searchCtrl = null;
+		this.exportCtrl = null;
 		this.styleCtrl = null;
 		this.interactionCtrl = null;
 		this.pathFinder = null;
+		this.adjacencyCache = null;
 	}
 	findPath(sourceId, targetId) {
-		return this.pathFinder?.findPath(sourceId, targetId) ?? null;
+		return this.safeCall("findPath", () => this.pathFinder?.findPath(sourceId, targetId) ?? null, null);
 	}
 	highlightPath(path) {
-		this.pathFinder?.highlightPath(path);
+		this.safeCallVoid("highlightPath", () => this.pathFinder?.highlightPath(path));
 	}
 	expandNeighborhood(nodeId, depth) {
-		return this.viewportCtrl?.expandNeighborhood(nodeId, depth) ?? new Set();
+		return this.safeCall("expandNeighborhood", () => this.viewportCtrl?.expandNeighborhood(nodeId, depth) ?? new Set(), new Set());
+	}
+	setFocusMode(nodeId, depth) {
+		this.safeCallVoid("setFocusMode", () => this.viewportCtrl?.setFocusMode(nodeId, depth));
+	}
+	clearFocusMode() {
+		this.safeCallVoid("clearFocusMode", () => this.viewportCtrl?.clearFocusMode());
+	}
+	isFocusModeActive() {
+		return this.viewportCtrl?.isFocusModeActive() ?? false;
+	}
+	filterByPath(includePattern, excludePattern) {
+		this.safeCallWithError("filterByPath", () => this.filterCtrl?.filterByPath(includePattern, excludePattern), void 0);
+	}
+	getLastError() {
+		return this.lastError;
+	}
+	clearLastError() {
+		this.lastError = null;
+	}
+	getZoom() {
+		return this.safeCallWithError("getZoom", () => this.cy?.zoom() ?? 1, 1);
+	}
+	onZoomChange(callback) {
+		if (!this.cy) return () => {};
+		this.cy.on("zoom", callback);
+		return () => {
+			this.cy?.off("zoom", callback);
+		};
 	}
 };
 
 //#endregion
 //#region src/client/hooks/useGraphRenderer.ts
 const log$6 = scoped("renderer-hook");
-function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterDepth, debouncedSearch, showCallChain, showCycles, cycleIsolation, showImpact, showInheritance, focusNodeId, callbacks, showCallChainRef, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes) {
+function useGraphRenderer(config) {
+	const { data: data$2, display, interaction, filters, analysis, callbacks, showCallChainRef } = config;
+	const { nodes, edges, rawNodes } = data$2;
+	const { layout: layout$2, dagreRankDir, theme, clusterDepth, heatmapMode } = display;
+	const { highlightedNodeIds, selectedNodeId, focusNodeId, focusModeActive, focusModeNodeId, focusDepth, debouncedSearch } = interaction;
+	const { filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, pathFilterInclude, pathFilterExclude } = filters;
+	const { showCallChain, showCycles, cycleIsolation, showImpact, showInheritance } = analysis;
 	const containerRef = (0, react.useRef)(null);
 	const rendererRef = (0, react.useRef)(null);
 	const [searchMatchCount, setSearchMatchCount] = (0, react.useState)(null);
@@ -54113,6 +56645,7 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 		let renderer$1 = null;
 		let ro = null;
 		let initTimer = null;
+		let cleanupExtra = null;
 		const initWhenReady = () => {
 			const w = container.clientWidth;
 			const h = container.clientHeight;
@@ -54127,6 +56660,7 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 					},
 					onNodeDoubleTap: (nodeId) => callbacksRef.current.onNodeDoubleTap(nodeId),
 					onNodeHover: (nodeId, pos) => callbacksRef.current.onNodeHover(nodeId, pos),
+					onNodeHoverPrefetch: (nodeId) => callbacksRef.current.onNodeHoverPrefetch?.(nodeId),
 					onNodeHoverOut: () => callbacksRef.current.onNodeHoverOut(),
 					onEdgeTap: (edgeId, pos) => callbacksRef.current.onEdgeTap(edgeId, pos),
 					onEdgeHover: (edgeId, pos) => callbacksRef.current.onEdgeHover(edgeId, pos),
@@ -54139,20 +56673,31 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 					w,
 					h
 				});
-				ro = new ResizeObserver(() => {
-					rendererRef.current?.resize();
-				});
-				ro.observe(container);
-			} else initTimer = setTimeout(initWhenReady, 50);
+				if (typeof ResizeObserver !== "undefined") {
+					ro = new ResizeObserver(() => {
+						rendererRef.current?.resize();
+					});
+					ro.observe(container);
+				} else {
+					const onResize = () => rendererRef.current?.resize();
+					window.addEventListener("resize", onResize);
+					cleanupExtra = () => window.removeEventListener("resize", onResize);
+				}
+			} else initTimer = setTimeout(initWhenReady, UI.INIT_RETRY_DELAY_MS);
 		};
 		initWhenReady();
 		return () => {
 			if (initTimer !== null) clearTimeout(initTimer);
 			ro?.disconnect();
+			cleanupExtra?.();
 			renderer$1?.destroy();
 			rendererRef.current = null;
 		};
-	}, [callbacksRef, showCallChainRef]);
+	}, [
+		callbacksRef,
+		showCallChainRef,
+		theme
+	]);
 	(0, react.useEffect)(() => {
 		rendererRef.current?.updateData(nodes, edges);
 	}, [nodes, edges]);
@@ -54168,8 +56713,8 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 		const currentCount = nodes.length;
 		const prevCount = prevNodeCountRef.current;
 		const isNewDataSet = prevCount === 0 && currentCount > 0;
-		const isIncremental = !isNewDataSet && currentCount > prevCount && currentCount - prevCount < 50;
-		const shouldUseWorker = currentCount > 500 && r.isWorkerLayoutAvailable() && !isWorkerInProgressRef.current;
+		const isIncremental = !isNewDataSet && currentCount > prevCount && currentCount - prevCount < RENDERER.INCREMENTAL_LAYOUT_THRESHOLD;
+		const shouldUseWorker = currentCount > RENDERER.WORKER_NODE_THRESHOLD && r.isWorkerLayoutAvailable() && !isWorkerInProgressRef.current;
 		const timer = setTimeout(async () => {
 			if (shouldUseWorker && !isNewDataSet) {
 				isWorkerInProgressRef.current = true;
@@ -54188,14 +56733,20 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 			} else r.applyLayout(layout$2);
 			prevNodeCountRef.current = currentCount;
 			prevNodeIdsRef.current = new Set(nodes.map((n) => n.id));
-		}, isIncremental ? 50 : 150);
+		}, isIncremental ? RENDERER.INCREMENTAL_LAYOUT_DELAY_MS : RENDERER.FULL_LAYOUT_DELAY_MS);
 		return () => clearTimeout(timer);
 	}, [
 		layout$2,
 		clusterDepth,
-		nodes,
-		edges
+		nodes.length,
+		edges.length
 	]);
+	(0, react.useEffect)(() => {
+		const r = rendererRef.current;
+		if (!r) return;
+		r.setDagreRankDir(dagreRankDir);
+		if (layout$2 === "dagre") r.applyLayout("dagre");
+	}, [dagreRankDir, layout$2]);
 	(0, react.useEffect)(() => {
 		const r = rendererRef.current;
 		if (!r) return;
@@ -54217,14 +56768,14 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 		fanOutThreshold,
 		visibleNodeTypes,
 		visibleEdgeTypes,
-		nodes,
-		edges
+		nodes.length,
+		edges.length
 	]);
 	(0, react.useEffect)(() => {
 		const r = rendererRef.current;
 		if (!r) return;
 		setSearchMatchCount(debouncedSearch ? r.search(debouncedSearch) : null);
-	}, [debouncedSearch, nodes]);
+	}, [debouncedSearch, nodes.length]);
 	(0, react.useEffect)(() => {
 		const r = rendererRef.current;
 		if (!r) return;
@@ -54245,6 +56796,7 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 		if (cycleIsolation && showCycles) {
 			const cycles = r.detectCycles();
 			r.isolateCycles(cycles);
+			r.relayoutCycles(cycles);
 		} else r.restoreIsolation();
 	}, [cycleIsolation, showCycles]);
 	(0, react.useEffect)(() => {
@@ -54266,6 +56818,26 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 		else r.focusNeighborhood(null);
 	}, [focusNodeId]);
 	(0, react.useEffect)(() => {
+		rendererRef.current?.setHeatmapMode(heatmapMode);
+	}, [heatmapMode]);
+	(0, react.useEffect)(() => {
+		const r = rendererRef.current;
+		if (!r) return;
+		if (focusModeActive && focusModeNodeId) r.setFocusMode(focusModeNodeId, focusDepth);
+		else r.clearFocusMode();
+	}, [
+		focusModeActive,
+		focusModeNodeId,
+		focusDepth
+	]);
+	(0, react.useEffect)(() => {
+		rendererRef.current?.filterByPath(pathFilterInclude, pathFilterExclude);
+	}, [
+		pathFilterInclude,
+		pathFilterExclude,
+		nodes.length
+	]);
+	(0, react.useEffect)(() => {
 		const r = rendererRef.current;
 		if (!r) return;
 		if (r.shouldEnableVirtualScroll(nodes.length) && !r.isVirtualScrollEnabled()) r.enableVirtualScroll();
@@ -54274,30 +56846,30 @@ function useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNo
 	const exportGraph = (0, react.useCallback)((format) => {
 		const renderer$1 = rendererRef.current;
 		if (!renderer$1) return;
-		let data$2 = null;
+		let data$3 = null;
 		let mimeType = "application/json";
 		let extension$1 = "json";
 		if (format === "png") {
-			data$2 = renderer$1.exportPNG();
+			data$3 = renderer$1.exportPNG();
 			mimeType = "image/png";
 			extension$1 = "png";
 		} else if (format === "svg") {
-			data$2 = renderer$1.exportSVG();
+			data$3 = renderer$1.exportSVG(theme);
 			mimeType = "image/svg+xml";
 			extension$1 = "svg";
 		} else if (format === "mermaid") {
-			data$2 = renderer$1.exportMermaid();
+			data$3 = renderer$1.exportMermaid();
 			mimeType = "text/plain";
 			extension$1 = "mmd";
-		} else data$2 = renderer$1.exportJSON();
-		if (data$2) {
-			const blob = new Blob([data$2], { type: mimeType });
+		} else data$3 = renderer$1.exportJSON();
+		if (data$3) {
+			const blob = new Blob([data$3], { type: mimeType });
 			const url = URL.createObjectURL(blob);
 			const a = document.createElement("a");
 			a.href = url;
 			a.download = `codegraph-${Date.now()}.${extension$1}`;
 			a.click();
-			setTimeout(() => URL.revokeObjectURL(url), 1e3);
+			setTimeout(() => URL.revokeObjectURL(url), UI.URL_REVOKE_DELAY_MS);
 			log$6.info(`exported ${format}`);
 		}
 	}, []);
@@ -54365,7 +56937,7 @@ function usePanelResize(panelRef, rendererRef) {
 			resetPanelSize();
 			rendererRef.current?.resize();
 		};
-		const handle = panel.querySelector(".resize-handle");
+		const handle = panel.querySelector(".cg-resize-handle");
 		if (handle) {
 			handle.addEventListener("pointerdown", onPointerDown);
 			handle.addEventListener("dblclick", onDoubleClick);
@@ -54405,7 +56977,8 @@ const initialState = {
 	showHotspot: false,
 	showGodModule: false,
 	showCoreFunction: false,
-	showFilterPanel: false
+	showFilterPanel: false,
+	showTour: false
 };
 function reducer(state, action) {
 	switch (action.type) {
@@ -54455,6 +57028,7 @@ function usePanelState() {
 	const toggleGodModule = (0, react.useCallback)(makeToggle("showGodModule"), [makeToggle]);
 	const toggleCoreFunction = (0, react.useCallback)(makeToggle("showCoreFunction"), [makeToggle]);
 	const toggleFilterPanel = (0, react.useCallback)(makeToggle("showFilterPanel"), [makeToggle]);
+	const toggleTour = (0, react.useCallback)(makeToggle("showTour"), [makeToggle]);
 	const setShowSearch = (0, react.useCallback)(makeSet("showSearch"), [makeSet]);
 	const setShowImport = (0, react.useCallback)(makeSet("showImport"), [makeSet]);
 	const setShowCallChain = (0, react.useCallback)(makeSet("showCallChain"), [makeSet]);
@@ -54471,6 +57045,7 @@ function usePanelState() {
 	const setShowGodModule = (0, react.useCallback)(makeSet("showGodModule"), [makeSet]);
 	const setShowCoreFunction = (0, react.useCallback)(makeSet("showCoreFunction"), [makeSet]);
 	const setShowFilterPanel = (0, react.useCallback)(makeSet("showFilterPanel"), [makeSet]);
+	const setShowTour = (0, react.useCallback)(makeSet("showTour"), [makeSet]);
 	return {
 		...state,
 		toggleSearch,
@@ -54490,6 +57065,7 @@ function usePanelState() {
 		toggleGodModule,
 		toggleCoreFunction,
 		toggleFilterPanel,
+		toggleTour,
 		setShowSearch,
 		setShowImport,
 		setShowCallChain,
@@ -54506,7 +57082,8 @@ function usePanelState() {
 		setShowGodModule,
 		setShowCoreFunction,
 		setShowFilterPanel,
-		toPanelControls: () => ({
+		setShowTour,
+		toPanelControls: (0, react.useMemo)(() => ({
 			showSearch: state.showSearch,
 			showCallChain: state.showCallChain,
 			showCycles: state.showCycles,
@@ -54523,6 +57100,7 @@ function usePanelState() {
 			showGodModule: state.showGodModule,
 			showCoreFunction: state.showCoreFunction,
 			showFilterPanel: state.showFilterPanel,
+			showTour: state.showTour,
 			onToggleSearch: toggleSearch,
 			onToggleCallChain: toggleCallChain,
 			onToggleCycles: toggleCycles,
@@ -54538,13 +57116,164 @@ function usePanelState() {
 			onToggleHotspot: toggleHotspot,
 			onToggleGodModule: toggleGodModule,
 			onToggleCoreFunction: toggleCoreFunction,
-			onToggleFilterPanel: toggleFilterPanel
-		})
+			onToggleFilterPanel: toggleFilterPanel,
+			onToggleTour: toggleTour
+		}), [
+			state.showSearch,
+			state.showCallChain,
+			state.showCycles,
+			state.cycleIsolation,
+			state.showImpact,
+			state.showInheritance,
+			state.showMiniMap,
+			state.showLegend,
+			state.showImport,
+			state.showPathFind,
+			state.showHealthScore,
+			state.showRules,
+			state.showHotspot,
+			state.showGodModule,
+			state.showCoreFunction,
+			state.showFilterPanel,
+			state.showTour,
+			toggleSearch,
+			toggleCallChain,
+			toggleCycles,
+			toggleCycleIsolation,
+			toggleImpact,
+			toggleInheritance,
+			toggleMiniMap,
+			toggleLegend,
+			toggleImport,
+			togglePathFind,
+			toggleHealthScore,
+			toggleRules,
+			toggleHotspot,
+			toggleGodModule,
+			toggleCoreFunction,
+			toggleFilterPanel,
+			toggleTour
+		])
 	};
 }
 
 //#endregion
+//#region src/client/hooks/useKeyboardShortcut.ts
+function useKeyboardShortcut(key, callback, options = {}) {
+	const { ctrl = false, meta: meta$1 = false, alt = false, shift = false, preventDefault = true } = options;
+	const callbackRef = (0, react.useRef)(callback);
+	callbackRef.current = callback;
+	(0, react.useEffect)(() => {
+		const handleKeyDown = (e) => {
+			const isEscape = e.key === "Escape";
+			const isSlash = e.key === "/";
+			if (!isEscape && !isSlash) {
+				const tag = e.target?.tagName;
+				if (tag === "INPUT" || tag === "TEXTAREA") return;
+			}
+			const keyMatch = e.key.toLowerCase() === key.toLowerCase();
+			const ctrlMatch = !ctrl || e.ctrlKey;
+			const metaMatch = !meta$1 || e.metaKey;
+			const altMatch = !alt || e.altKey;
+			const shiftMatch = !shift || e.shiftKey;
+			if (keyMatch && ctrlMatch && metaMatch && altMatch && shiftMatch) {
+				if (preventDefault) e.preventDefault();
+				callbackRef.current();
+			}
+		};
+		document.addEventListener("keydown", handleKeyDown, { passive: !preventDefault });
+		return () => document.removeEventListener("keydown", handleKeyDown);
+	}, [
+		key,
+		ctrl,
+		meta$1,
+		alt,
+		shift,
+		preventDefault
+	]);
+}
+
+//#endregion
 //#region src/client/hooks/usePanelKeyboard.ts
+const KEYBOARD_SHORTCUTS = [
+	{
+		key: "/",
+		descKey: "shortcut.search",
+		preventDefault: true
+	},
+	{
+		key: "f",
+		descKey: "shortcut.searchCtrlF",
+		ctrl: true,
+		preventDefault: true
+	},
+	{
+		key: "Escape",
+		descKey: "shortcut.closeAll"
+	},
+	{
+		key: "C",
+		descKey: "shortcut.callChain",
+		ctrl: true,
+		shift: true
+	},
+	{
+		key: "E",
+		descKey: "shortcut.impact",
+		ctrl: true
+	},
+	{
+		key: "H",
+		descKey: "shortcut.inheritance",
+		ctrl: true
+	},
+	{
+		key: "M",
+		descKey: "shortcut.minimap",
+		ctrl: true
+	},
+	{
+		key: "L",
+		descKey: "shortcut.layout",
+		ctrl: true
+	},
+	{
+		key: "I",
+		descKey: "shortcut.import",
+		ctrl: true
+	},
+	{
+		key: "R",
+		descKey: "shortcut.refresh",
+		ctrl: true,
+		shift: true,
+		preventDefault: true
+	},
+	{
+		key: "Z",
+		descKey: "shortcut.undo",
+		ctrl: true,
+		preventDefault: true
+	},
+	{
+		key: "Y",
+		descKey: "shortcut.redo",
+		ctrl: true,
+		preventDefault: true
+	},
+	{
+		key: "?",
+		descKey: "shortcut.help",
+		preventDefault: true
+	}
+];
+function formatShortcutKey(s) {
+	let label = "";
+	if (s.ctrl) label += "Ctrl+";
+	if (s.shift) label += "Shift+";
+	label += s.key;
+	return label;
+}
 function usePanelKeyboard(layout$2, setLayout, rendererRef, handlers) {
 	const layoutRef = (0, react.useRef)(layout$2);
 	layoutRef.current = layout$2;
@@ -54553,6 +57282,10 @@ function usePanelKeyboard(layout$2, setLayout, rendererRef, handlers) {
 	const handlersRef = (0, react.useRef)(handlers);
 	handlersRef.current = handlers;
 	useKeyboardShortcut("/", () => handlersRef.current.onToggleSearch(), { preventDefault: true });
+	useKeyboardShortcut("f", () => handlersRef.current.onToggleSearch(), {
+		ctrl: true,
+		preventDefault: true
+	});
 	useKeyboardShortcut("Escape", () => {
 		handlersRef.current.onCloseAll();
 		rendererRef.current?.highlightCallChain(null);
@@ -54581,6 +57314,11 @@ function usePanelKeyboard(layout$2, setLayout, rendererRef, handlers) {
 		setLayoutRef.current(next$1);
 	}, { ctrl: true });
 	useKeyboardShortcut("i", () => handlersRef.current.onToggleImport(), { ctrl: true });
+	useKeyboardShortcut("r", () => handlersRef.current.onRefresh?.(), {
+		ctrl: true,
+		shift: true,
+		preventDefault: true
+	});
 	useKeyboardShortcut("?", () => handlersRef.current.onToggleHelp(), { preventDefault: true });
 	useKeyboardShortcut("z", () => handlersRef.current.onUndo?.(), {
 		ctrl: true,
@@ -54593,201 +57331,8 @@ function usePanelKeyboard(layout$2, setLayout, rendererRef, handlers) {
 }
 
 //#endregion
-//#region src/client/validators.ts
-function coerceNode(raw, i$1) {
-	if (!raw || typeof raw !== "object") return null;
-	const o = raw;
-	const id = typeof o.id === "string" ? o.id : `node-${i$1}`;
-	const label = typeof o.label === "string" ? o.label : typeof o.name === "string" ? o.name : id;
-	const type = [
-		"function",
-		"class",
-		"variable",
-		"module",
-		"interface",
-		"type"
-	].includes(o.type) ? o.type : "variable";
-	const filePath = typeof o.filePath === "string" ? o.filePath : typeof o.file === "string" ? o.file : "";
-	const lineNumber = typeof o.lineNumber === "number" ? o.lineNumber : typeof o.line === "number" ? o.line : 0;
-	const properties = o.properties && typeof o.properties === "object" ? o.properties : {};
-	return {
-		id: NodeId(id),
-		label,
-		type,
-		filePath,
-		lineNumber,
-		properties
-	};
-}
-function coerceEdge(raw, i$1) {
-	if (!raw || typeof raw !== "object") return null;
-	const o = raw;
-	const id = typeof o.id === "string" ? o.id : `edge-${i$1}`;
-	const source = typeof o.source === "string" ? o.source : typeof o.from === "string" ? o.from : null;
-	const target = typeof o.target === "string" ? o.target : typeof o.to === "string" ? o.to : null;
-	if (!source || !target) return null;
-	const type = [
-		"call",
-		"import",
-		"extend",
-		"implement",
-		"dependency",
-		"contains"
-	].includes(o.type) ? o.type : "dependency";
-	const properties = o.properties && typeof o.properties === "object" ? o.properties : {};
-	return {
-		id: EdgeId(id),
-		source: NodeId(source),
-		target: NodeId(target),
-		type,
-		properties
-	};
-}
-function validateGraphData(raw) {
-	if (!raw || typeof raw !== "object") return null;
-	const o = raw;
-	const rawNodes = Array.isArray(o.nodes) ? o.nodes : [];
-	const rawEdges = Array.isArray(o.edges) ? o.edges : [];
-	const nodes = rawNodes.map(coerceNode).filter((n) => n !== null);
-	if (nodes.length === 0) return null;
-	const nodeIds = new Set(nodes.map((n) => n.id));
-	const edges = rawEdges.map(coerceEdge).filter((e) => e !== null).filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
-	const metadata = o.metadata;
-	const repoId = metadata?.repoId ?? `workspace-${Date.now()}`;
-	const timestamp = typeof metadata?.timestamp === "number" ? metadata.timestamp : Date.now();
-	const truncated = typeof metadata?.truncated === "boolean" ? metadata.truncated : false;
-	const totalNodeCount = typeof metadata?.totalNodeCount === "number" ? metadata.totalNodeCount : nodes.length;
-	const totalEdgeCount = typeof metadata?.totalEdgeCount === "number" ? metadata.totalEdgeCount : edges.length;
-	return {
-		nodes,
-		edges,
-		metadata: {
-			repoId: RepoId(repoId),
-			timestamp,
-			nodeCount: nodes.length,
-			edgeCount: edges.length,
-			truncated,
-			totalNodeCount,
-			totalEdgeCount
-		}
-	};
-}
-
-//#endregion
-//#region src/client/api/index.ts
-const log$5 = scoped("client");
-const DEFAULT_TIMEOUT = API.DEFAULT_TIMEOUT_MS;
-function fetchWithTimeout(url, options, timeoutMs = DEFAULT_TIMEOUT) {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-	return fetch(url, {
-		...options,
-		signal: controller.signal
-	}).finally(() => clearTimeout(timer));
-}
-async function fetchStatus() {
-	try {
-		const res = await fetchWithTimeout("/api/v1/codegraph/status");
-		if (!res.ok) return {
-			codegraph: false,
-			lens: false
-		};
-		return await res.json();
-	} catch (e) {
-		log$5.warn("fetchStatus failed", {
-			url: "/api/v1/codegraph/status",
-			error: e instanceof Error ? e.message : String(e)
-		});
-		return {
-			codegraph: false,
-			lens: false
-		};
-	}
-}
-async function fetchGraphData() {
-	try {
-		const res = await fetchWithTimeout("/api/v1/codegraph/data");
-		if (!res.ok) return null;
-		return validateGraphData(await res.json());
-	} catch (e) {
-		log$5.warn("fetchGraphData failed", {
-			url: "/api/v1/codegraph/data",
-			error: e instanceof Error ? e.message : String(e)
-		});
-		return null;
-	}
-}
-async function fetchWorkspace() {
-	try {
-		const res = await fetchWithTimeout("/api/v1/codegraph/workspace");
-		if (!res.ok) return {
-			path: ".",
-			list: []
-		};
-		const data$2 = await res.json();
-		return {
-			path: data$2.path ?? ".",
-			list: data$2.list ?? []
-		};
-	} catch (e) {
-		log$5.warn("fetchWorkspace failed", e);
-		return {
-			path: ".",
-			list: []
-		};
-	}
-}
-async function requestScan(path, maxNodes) {
-	try {
-		const res = await fetchWithTimeout("/api/v1/codegraph/scan", {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({
-				path,
-				maxNodes
-			})
-		}, 6e4);
-		if (!res.ok) return null;
-		return await res.json();
-	} catch (e) {
-		log$5.warn("requestScan failed", e);
-		return null;
-	}
-}
-async function requestInit(path) {
-	try {
-		const res = await fetchWithTimeout("/api/v1/codegraph/init", {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ path })
-		}, 6e4);
-		if (!res.ok) return null;
-		return await res.json();
-	} catch (e) {
-		log$5.warn("requestInit failed", e);
-		return null;
-	}
-}
-async function requestWatch(enabled, path) {
-	try {
-		const res = await fetchWithTimeout("/api/v1/codegraph/watch", {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({
-				enabled,
-				path
-			})
-		});
-		return res.ok;
-	} catch (e) {
-		log$5.warn("requestWatch failed", e);
-		return false;
-	}
-}
-
-//#endregion
 //#region src/client/hooks/useViewMode.ts
-const log$4 = scoped("viewMode");
+const log$5 = scoped("viewMode");
 const MICRO_MODES = [
 	"cfg",
 	"flowchart",
@@ -54844,7 +57389,7 @@ function useViewMode(viewMode, currentWorkspace, depsFetchAbortRef) {
 				} else setError("Failed to load code graph data");
 				setLoading(false);
 			}).catch((e) => {
-				log$4.warn("fetchGraphData failed", e);
+				log$5.warn("fetchGraphData failed", e);
 				setError(`Failed to load code graph: ${e.message}`);
 				setLoading(false);
 			});
@@ -54932,7 +57477,10 @@ const EDGE_WEIGHTS = {
 	implement: .7,
 	import: .5,
 	dependency: .3,
-	contains: 0
+	contains: 0,
+	association: .6,
+	aggregation: .5,
+	composition: .7
 };
 const DEFAULT_MAX_MODULE_DEPTH = HEALTH_SCORE.DEFAULT_MAX_MODULE_DEPTH;
 var HealthScorer = class {
@@ -55012,17 +57560,14 @@ var HealthScorer = class {
 		for (const m of moduleOfNode.values()) modules$1.add(m);
 		if (modules$1.size <= 1) return 100;
 		let totalInstability = 0;
-		let moduleCount = 0;
 		for (const mod of modules$1) {
 			const ce = efferent.get(mod)?.size ?? 0;
 			const ca = afferent.get(mod)?.size ?? 0;
-			if (ce + ca === 0) continue;
-			const instability = ce / (ce + ca);
+			const instability = ce + ca === 0 ? 0 : ce / (ce + ca);
 			totalInstability += instability;
-			moduleCount++;
 		}
-		if (moduleCount === 0) return 100;
-		const avgInstability = totalInstability / moduleCount;
+		if (modules$1.size === 0) return 100;
+		const avgInstability = totalInstability / modules$1.size;
 		return Math.round(Math.max(0, 100 - avgInstability * 100));
 	}
 	calculateCohesion(nodes, edges, moduleOfNode) {
@@ -55076,13 +57621,10 @@ var HealthScorer = class {
 			"implement",
 			"import"
 		];
-		const adjacency = new Map();
+		const adjacency = buildFilteredForwardAdjacency(edges, cycleEdgeTypes);
 		const nodeIds = new Set();
 		for (const edge of edges) {
 			if (!cycleEdgeTypes.includes(edge.type)) continue;
-			const list = adjacency.get(edge.source);
-			if (list) list.push(edge.target);
-			else adjacency.set(edge.source, [edge.target]);
 			nodeIds.add(edge.source);
 			nodeIds.add(edge.target);
 		}
@@ -55268,62 +57810,25 @@ var RuleEngine = class {
 	}
 };
 var ForbiddenEdgeDetector = class {
-	detect(rule, nodes, edges) {
+	detect(rule, _nodes, edges) {
 		const violations = [];
 		const edgeTypes = rule.params.edgeTypes ?? [
 			"call",
 			"import",
 			"dependency"
 		];
-		const adjacency = new Map();
-		for (const edge of edges) {
-			if (!edgeTypes.includes(edge.type)) continue;
-			const list = adjacency.get(edge.source);
-			if (list) list.push(edge.target);
-			else adjacency.set(edge.source, [edge.target]);
+		const adjacency = buildFilteredForwardAdjacency(edges, edgeTypes);
+		const cycles = detectCyclesDFS(adjacency);
+		for (const cycle of cycles) {
+			const cycleKey = cycle.sort().join("→");
+			const firstNode = cycle[0] ?? "";
+			violations.push({
+				ruleId: rule.id,
+				nodeId: NodeId(firstNode),
+				message: `Circular dependency detected involving: ${cycleKey}`,
+				severity: rule.severity
+			});
 		}
-		const visited = new Set();
-		const inStack = new Set();
-		const reportedCycles = new Set();
-		const enter = (start) => {
-			const frames = [{
-				id: start,
-				neighbors: adjacency.get(start) ?? [],
-				next: 0
-			}];
-			visited.add(start);
-			inStack.add(start);
-			while (frames.length > 0) {
-				const frame = frames[frames.length - 1];
-				if (frame.next >= frame.neighbors.length) {
-					inStack.delete(frame.id);
-					frames.pop();
-					continue;
-				}
-				const target = frame.neighbors[frame.next++];
-				if (inStack.has(target)) {
-					const cycleKey = [target, ...frames.slice(frames.findIndex((f) => f.id === target)).map((f) => f.id)].sort().join("→");
-					if (!reportedCycles.has(cycleKey)) {
-						reportedCycles.add(cycleKey);
-						violations.push({
-							ruleId: rule.id,
-							nodeId: NodeId(target),
-							message: `Circular dependency detected involving: ${cycleKey}`,
-							severity: rule.severity
-						});
-					}
-				} else if (!visited.has(target)) {
-					visited.add(target);
-					inStack.add(target);
-					frames.push({
-						id: target,
-						neighbors: adjacency.get(target) ?? [],
-						next: 0
-					});
-				}
-			}
-		};
-		for (const id of adjacency.keys()) if (!visited.has(id)) enter(id);
 		return violations;
 	}
 };
@@ -55485,17 +57990,35 @@ var GodModuleDetector = class {
 };
 
 //#endregion
+//#region src/shared/analysis/GraphBFS.ts
+function bfsReachCount(adjacency, source, maxNodes) {
+	const visited = new Set([source]);
+	const queue = [source];
+	let head = 0;
+	while (head < queue.length && visited.size < maxNodes) {
+		const current = queue[head++];
+		const neighbors = adjacency.get(current) ?? [];
+		for (const target of neighbors) if (!visited.has(target)) {
+			visited.add(target);
+			queue.push(target);
+		}
+	}
+	return visited.size - 1;
+}
+
+//#endregion
 //#region src/shared/analysis/CoreFunctionAnalyzer.ts
 const ENTRY_PATTERNS = {
 	handler: /handler|controller|route|middleware|endpoint|api/i,
 	event: /^on[A-Z]|^listen|^subscribe|^emit|^handle[A-Z]/i,
 	cli: /^main$|^cli$|^run$|^start$|^bootstrap$|^init$/i
 };
-const MIN_INDEGREE_HUB = 5;
-const MIN_OUTDEGREE_HUB = 5;
-const MIN_INFLUENCE_REACH = 10;
-const MIN_CALL_CHAIN_DEPTH = 3;
-const MAX_BFS_NODES = 500;
+const MIN_INDEGREE_HUB = CORE_FUNCTION.MIN_INDEGREE_HUB;
+const MIN_OUTDEGREE_HUB = CORE_FUNCTION.MIN_OUTDEGREE_HUB;
+const MIN_INFLUENCE_REACH = CORE_FUNCTION.MIN_INFLUENCE_REACH;
+const MIN_CALL_CHAIN_DEPTH = CORE_FUNCTION.MIN_CALL_CHAIN_DEPTH;
+const MAX_BFS_NODES = CORE_FUNCTION.MAX_BFS_NODES;
+const MAX_CALL_CHAIN_RECURSION_DEPTH = 500;
 var CoreFunctionAnalyzer = class {
 	analyze(nodes, edges) {
 		if (nodes.length === 0) return [];
@@ -55596,42 +58119,30 @@ var CoreFunctionAnalyzer = class {
 	}
 	computeInfluenceReach(nodes, outEdges) {
 		const reach = new Map();
-		for (const n of nodes) {
-			const visited = new Set([n.id]);
-			const queue = [n.id];
-			let head = 0;
-			while (head < queue.length && visited.size < MAX_BFS_NODES) {
-				const current = queue[head++];
-				const neighbors = outEdges.get(current) ?? [];
-				for (const target of neighbors) if (!visited.has(target)) {
-					visited.add(target);
-					queue.push(target);
-				}
-			}
-			reach.set(n.id, visited.size - 1);
-		}
+		for (const n of nodes) reach.set(n.id, bfsReachCount(outEdges, n.id, MAX_BFS_NODES));
 		return reach;
 	}
 	computeCallChainDepth(nodes, outEdges) {
-		const memo$1 = new Map();
+		const memo$27 = new Map();
 		const computing = new Set();
-		const computeDepth = (id) => {
-			if (memo$1.has(id)) return memo$1.get(id);
+		const computeDepth = (id, currentDepth = 0) => {
+			if (memo$27.has(id)) return memo$27.get(id);
 			if (computing.has(id)) return 0;
+			if (currentDepth >= MAX_CALL_CHAIN_RECURSION_DEPTH) return currentDepth;
 			computing.add(id);
 			const neighbors = outEdges.get(id) ?? [];
 			let maxChildDepth = 0;
 			for (const target of neighbors) {
-				const childDepth = computeDepth(target);
+				const childDepth = computeDepth(target, currentDepth + 1);
 				if (childDepth > maxChildDepth) maxChildDepth = childDepth;
 			}
 			computing.delete(id);
 			const result = maxChildDepth + 1;
-			memo$1.set(id, result);
+			memo$27.set(id, result);
 			return result;
 		};
 		for (const n of nodes) computeDepth(n.id);
-		return memo$1;
+		return memo$27;
 	}
 };
 
@@ -55730,6 +58241,197 @@ function useAnalysisPanels(rawNodes, rawEdges, showHealthScore, showRules, showH
 }
 
 //#endregion
+//#region src/client/hooks/useNodeSearch.ts
+function isSimplePrefixQuery(query) {
+	const trimmed = query.trim();
+	if (trimmed.length === 0) return false;
+	if (trimmed.includes("\"") || trimmed.includes("+")) return false;
+	if (trimmed.includes(" ")) return false;
+	return true;
+}
+function useNodeSearch(rawNodes) {
+	const trie = (0, react.useMemo)(() => {
+		const t$1 = new Trie();
+		for (const node of rawNodes) t$1.insert(node.label);
+		return t$1;
+	}, [rawNodes]);
+	const search = (0, react.useCallback)((query, limit$1 = 50) => {
+		if (!query.trim()) return [];
+		if (isSimplePrefixQuery(query)) {
+			const trieResults = trie.search(query.trim());
+			if (trieResults.length > 0) {
+				const resultSet = new Set(trieResults.map((s) => s.toLowerCase()));
+				const matched = [];
+				for (const node of rawNodes) if (resultSet.has(node.label.toLowerCase())) {
+					matched.push(node);
+					if (matched.length >= limit$1) break;
+				}
+				return matched;
+			}
+		}
+		const parsed = parseSearchQuery(query);
+		return rawNodes.filter((n) => matchSearchQuery(n.label, parsed)).slice(0, limit$1);
+	}, [trie, rawNodes]);
+	return {
+		search,
+		trie
+	};
+}
+
+//#endregion
+//#region node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_react@19.2.8/node_modules/zustand/esm/vanilla/shallow.mjs
+const isIterable = (obj) => Symbol.iterator in obj;
+const hasIterableEntries = (value) => "entries" in value;
+const compareEntries = (valueA, valueB) => {
+	const mapA = valueA instanceof Map ? valueA : new Map(valueA.entries());
+	const mapB = valueB instanceof Map ? valueB : new Map(valueB.entries());
+	if (mapA.size !== mapB.size) return false;
+	for (const [key, value] of mapA) if (!mapB.has(key) || !Object.is(value, mapB.get(key))) return false;
+	return true;
+};
+const compareIterables = (valueA, valueB) => {
+	const iteratorA = valueA[Symbol.iterator]();
+	const iteratorB = valueB[Symbol.iterator]();
+	let nextA = iteratorA.next();
+	let nextB = iteratorB.next();
+	while (!nextA.done && !nextB.done) {
+		if (!Object.is(nextA.value, nextB.value)) return false;
+		nextA = iteratorA.next();
+		nextB = iteratorB.next();
+	}
+	return !!nextA.done && !!nextB.done;
+};
+function shallow(valueA, valueB) {
+	if (Object.is(valueA, valueB)) return true;
+	if (typeof valueA !== "object" || valueA === null || typeof valueB !== "object" || valueB === null) return false;
+	if (Object.getPrototypeOf(valueA) !== Object.getPrototypeOf(valueB)) return false;
+	if (isIterable(valueA) && isIterable(valueB)) {
+		if (hasIterableEntries(valueA) && hasIterableEntries(valueB)) return compareEntries(valueA, valueB);
+		return compareIterables(valueA, valueB);
+	}
+	return compareEntries({ entries: () => Object.entries(valueA) }, { entries: () => Object.entries(valueB) });
+}
+
+//#endregion
+//#region node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_react@19.2.8/node_modules/zustand/esm/react/shallow.mjs
+function useShallow(selector) {
+	const prev = react.default.useRef(void 0);
+	return (state) => {
+		const next$1 = selector(state);
+		return shallow(prev.current, next$1) ? prev.current : prev.current = next$1;
+	};
+}
+
+//#endregion
+//#region src/client/hooks/useGraphSelectors.ts
+function useGraphData() {
+	return useGraphStore(useShallow((s) => ({
+		nodes: s.nodes,
+		edges: s.edges,
+		rawNodes: s.rawNodes,
+		rawEdges: s.rawEdges
+	})));
+}
+function useGraphDisplay() {
+	return useGraphStore(useShallow((s) => ({
+		layout: s.layout,
+		theme: s.theme,
+		filterType: s.filterType,
+		graphType: s.graphType,
+		clusterDepth: s.clusterDepth,
+		viewMode: s.viewMode,
+		currentLayer: s.currentLayer,
+		diagramData: s.diagramData,
+		dagreRankDir: s.dagreRankDir
+	})));
+}
+function useGraphInteraction() {
+	return useGraphStore(useShallow((s) => ({
+		searchQuery: s.searchQuery,
+		selectedNodeId: s.selectedNodeId,
+		highlightedNodeIds: s.highlightedNodeIds,
+		expandedNodeIds: s.expandedNodeIds,
+		pathResult: s.pathResult,
+		focusDepth: s.focusDepth,
+		focusModeActive: s.focusModeActive,
+		focusModeNodeId: s.focusModeNodeId,
+		pathFilterInclude: s.pathFilterInclude,
+		pathFilterExclude: s.pathFilterExclude
+	})));
+}
+function useGraphStatus() {
+	return useGraphStore(useShallow((s) => ({
+		isLoading: s.isLoading,
+		error: s.error,
+		lastUpdated: s.lastUpdated,
+		truncated: s.truncated,
+		totalNodeCount: s.totalNodeCount,
+		prerequisites: s.prerequisites,
+		watchEnabled: s.watchEnabled,
+		initStatus: s.initStatus
+	})));
+}
+function useGraphWorkspace() {
+	return useGraphStore(useShallow((s) => ({
+		currentWorkspace: s.currentWorkspace,
+		workspaceList: s.workspaceList
+	})));
+}
+function useGraphAnalysis() {
+	return useGraphStore(useShallow((s) => ({
+		ruleViolations: s.ruleViolations,
+		selectedFunction: s.selectedFunction,
+		fanInThreshold: s.fanInThreshold,
+		fanOutThreshold: s.fanOutThreshold,
+		visibleNodeTypes: s.visibleNodeTypes,
+		visibleEdgeTypes: s.visibleEdgeTypes,
+		heatmapMode: s.heatmapMode
+	})));
+}
+function useGraphPerformance() {
+	return useGraphStore(useShallow((s) => ({
+		performanceDegradations: s.performanceDegradations,
+		lodLevel: s.lodLevel,
+		lodEnabled: s.lodEnabled
+	})));
+}
+function useGraphActions() {
+	return {
+		setLayout: useGraphStore((s) => s.setLayout),
+		setDagreRankDir: useGraphStore((s) => s.setDagreRankDir),
+		setTheme: useGraphStore((s) => s.setTheme),
+		setSearchQuery: useGraphStore((s) => s.setSearchQuery),
+		setSelectedNode: useGraphStore((s) => s.setSelectedNode),
+		setFilterType: useGraphStore((s) => s.setFilterType),
+		setGraphType: useGraphStore((s) => s.setGraphType),
+		setClusterDepth: useGraphStore((s) => s.setClusterDepth),
+		setLayer: useGraphStore((s) => s.setLayer),
+		setLoading: useGraphStore((s) => s.setLoading),
+		setCurrentWorkspace: useGraphStore((s) => s.setCurrentWorkspace),
+		addWorkspace: useGraphStore((s) => s.addWorkspace),
+		removeWorkspace: useGraphStore((s) => s.removeWorkspace),
+		setGraphData: useGraphStore((s) => s.setGraphData),
+		setInitStatus: useGraphStore((s) => s.setInitStatus),
+		setWatchEnabled: useGraphStore((s) => s.setWatchEnabled),
+		setError: useGraphStore((s) => s.setError),
+		expandNode: useGraphStore((s) => s.expandNode),
+		collapseNode: useGraphStore((s) => s.collapseNode),
+		collapseAll: useGraphStore((s) => s.collapseAll),
+		setPathResult: useGraphStore((s) => s.setPathResult),
+		setFocusDepth: useGraphStore((s) => s.setFocusDepth),
+		setHeatmapMode: useGraphStore((s) => s.setHeatmapMode),
+		setLODLevel: useGraphStore((s) => s.setLODLevel),
+		assembleMicro: useGraphStore((s) => s.assembleMicro)
+	};
+}
+function usePanelDimensions() {
+	return {
+		panelHeight: useGraphStore((s) => s.panelHeight),
+		panelWidth: useGraphStore((s) => s.panelWidth)
+	};
+}
+
+//#endregion
 //#region src/client/hooks/index.ts
 /**
 
@@ -55745,48 +58447,6 @@ function useDebounce(value, delay) {
 		return () => clearTimeout(id);
 	}, [value, delay]);
 	return debounced;
-}
-/**
-
-
-
-* Keyboard shortcut handler.
-
-* Use case: Ctrl+L for layout switch, / for search, etc.
-
-*/
-function useKeyboardShortcut(key, callback, options = {}) {
-	const { ctrl = false, meta: meta$1 = false, alt = false, shift = false, preventDefault = true } = options;
-	const callbackRef = (0, react.useRef)(callback);
-	callbackRef.current = callback;
-	(0, react.useEffect)(() => {
-		const handleKeyDown = (e) => {
-			const isEscape = e.key === "Escape";
-			const isSlash = e.key === "/";
-			if (!isEscape && !isSlash) {
-				const tag = e.target?.tagName;
-				if (tag === "INPUT" || tag === "TEXTAREA") return;
-			}
-			const keyMatch = e.key.toLowerCase() === key.toLowerCase();
-			const ctrlMatch = !ctrl || e.ctrlKey;
-			const metaMatch = !meta$1 || e.metaKey;
-			const altMatch = !alt || e.altKey;
-			const shiftMatch = !shift || e.shiftKey;
-			if (keyMatch && ctrlMatch && metaMatch && altMatch && shiftMatch) {
-				if (preventDefault) e.preventDefault();
-				callbackRef.current();
-			}
-		};
-		document.addEventListener("keydown", handleKeyDown, { passive: !preventDefault });
-		return () => document.removeEventListener("keydown", handleKeyDown);
-	}, [
-		key,
-		ctrl,
-		meta$1,
-		alt,
-		shift,
-		preventDefault
-	]);
 }
 /**
 
@@ -55809,6 +58469,88 @@ function usePolling(callback, interval, enabled = true) {
 		}, interval);
 		return () => clearInterval(id);
 	}, [interval, enabled]);
+}
+
+//#endregion
+//#region src/client/utils/urlState.ts
+const log$4 = scoped("url-state");
+const MAX_URL_LENGTH = 2e3;
+const PREFIX_DIR = "d:";
+const PREFIX_FILE = "f:";
+const PREFIX_SYMBOL = "s:";
+const PREFIX_SUBGROUP = "g:";
+function parseExpandUrl(search) {
+	const result = {
+		expandedDirs: [],
+		expandedFiles: [],
+		expandedSymbols: [],
+		expandedSubgroups: []
+	};
+	if (!search) return result;
+	const params = new URLSearchParams(search);
+	const expand$1 = params.get("expand");
+	if (!expand$1) return result;
+	const parts = expand$1.split(",");
+	for (const part of parts) if (part.startsWith(PREFIX_DIR)) result.expandedDirs.push(part.slice(PREFIX_DIR.length));
+	else if (part.startsWith(PREFIX_FILE)) result.expandedFiles.push(part.slice(PREFIX_FILE.length));
+	else if (part.startsWith(PREFIX_SYMBOL)) result.expandedSymbols.push(part.slice(PREFIX_SYMBOL.length));
+	else if (part.startsWith(PREFIX_SUBGROUP)) result.expandedSubgroups.push(part.slice(PREFIX_SUBGROUP.length));
+	return result;
+}
+function classifyNodeId(nodeId) {
+	if (nodeId.startsWith("cluster__")) return "dir";
+	if (nodeId.startsWith("filecluster__")) return "file";
+	if (nodeId.startsWith("subgroup__")) return "subgroup";
+	if (nodeId.includes("#") || nodeId.includes("::")) return "symbol";
+	return "other";
+}
+function buildExpandParam(expandedNodeIds) {
+	const parts = [];
+	for (const id of expandedNodeIds) {
+		const kind = classifyNodeId(id);
+		if (kind === "dir") {
+			const path = id.replace(/^cluster__/, "");
+			parts.push(`${PREFIX_DIR}${path}`);
+		} else if (kind === "file") {
+			const path = id.replace(/^filecluster__/, "");
+			parts.push(`${PREFIX_FILE}${path}`);
+		} else if (kind === "subgroup") {
+			const path = id.replace(/^subgroup__/, "");
+			parts.push(`${PREFIX_SUBGROUP}${path}`);
+		} else if (kind === "symbol") parts.push(`${PREFIX_SYMBOL}${id}`);
+	}
+	return parts.join(",");
+}
+function updateUrlExpand(expandedNodeIds) {
+	if (typeof window === "undefined") return;
+	const expandParam = buildExpandParam(expandedNodeIds);
+	const url = new URL(window.location.href);
+	if (expandParam) url.searchParams.set("expand", expandParam);
+	else url.searchParams.delete("expand");
+	const urlString = url.toString();
+	if (urlString.length > MAX_URL_LENGTH) {
+		const trimmed = expandParam.split(",").filter((p$1) => !p$1.startsWith(PREFIX_SYMBOL));
+		url.searchParams.set("expand", trimmed.join(","));
+		log$4.warn("URL too long, trimmed symbol-level expansions");
+	}
+	window.history.replaceState(null, "", url.toString());
+}
+function readUrlExpand() {
+	if (typeof window === "undefined") return {
+		expandedDirs: [],
+		expandedFiles: [],
+		expandedSymbols: [],
+		expandedSubgroups: []
+	};
+	return parseExpandUrl(window.location.search);
+}
+function restoreExpandedNodeIds(parsed) {
+	const ids = new Set();
+	for (const dir of parsed.expandedDirs) ids.add(`cluster__${dir}`);
+	for (const file of parsed.expandedFiles) ids.add(`filecluster__${file}`);
+	for (const subgroup of parsed.expandedSubgroups) ids.add(`subgroup__${subgroup}`);
+	for (const symbol of parsed.expandedSymbols) ids.add(symbol);
+	return ids;
 }
 
 //#endregion
@@ -55978,7 +58720,7 @@ function useHistory() {
 var GraphCache = class {
 	cache = new Map();
 	maxEntries;
-	constructor(maxEntries = 5) {
+	constructor(maxEntries = 15) {
 		this.maxEntries = maxEntries;
 	}
 	get(repoId) {
@@ -56058,15 +58800,24 @@ const log$3 = scoped("boundary");
 function ErrorFallback({ error: error$1, onRetry }) {
 	const t$1 = useT();
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "error-boundary-fallback",
+		className: "cg-error-boundary-fallback",
 		role: "alert",
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h3", { children: t$1("error.title") }),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("p", { children: error$1?.message }),
-			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-				onClick: onRetry,
-				"aria-label": t$1("error.retry"),
-				children: t$1("error.retry")
+			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "cg-error-boundary-actions",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+					onClick: onRetry,
+					"aria-label": t$1("error.retry"),
+					children: t$1("error.retry")
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("a", {
+					href: `${REPO_URL}/issues`,
+					target: "_blank",
+					rel: "noopener noreferrer",
+					className: "cg-error-boundary-feedback",
+					children: t$1("error.reportIssue")
+				})]
 			})
 		]
 	});
@@ -56110,6 +58861,20 @@ var GraphErrorBoundary = class extends react.Component {
 };
 
 //#endregion
+//#region src/shared/domEvents.ts
+const DOM_EVENTS = {
+	REFRESH: "codegraph:refresh",
+	OPEN_SOURCE: "codegraph:open-source",
+	IMPORT_REPO: "codegraph:import-repo",
+	INIT_GRAPH: "codegraph:init-graph",
+	TOGGLE_WATCH: "codegraph:toggle-watch",
+	WORKSPACE: "codegraph:workspace",
+	INSTALL_PLUGIN: "codegraph:install-plugin",
+	SYMBOL_SELECT: "codegraph:symbol-select",
+	EDITOR_SYMBOL_SELECT: "dsh:editor-symbol-select"
+};
+
+//#endregion
 //#region src/client/components/Icons.tsx
 const base = (size$1) => ({
 	width: size$1,
@@ -56119,12 +58884,13 @@ const base = (size$1) => ({
 	stroke: "currentColor",
 	strokeWidth: 2,
 	strokeLinecap: "round",
-	strokeLinejoin: "round"
+	strokeLinejoin: "round",
+	"aria-hidden": true
 });
-function memo(Component$1) {
+function memo$26(Component$1) {
 	return react.default.memo(Component$1);
 }
-const GraphIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const GraphIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -56147,7 +58913,7 @@ const GraphIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0,
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 12v4" })
 	]
 }));
-const SearchIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const SearchIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -56156,12 +58922,12 @@ const SearchIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0
 		r: "7"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m21 21-4.3-4.3" })]
 }));
-const ChainIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const ChainIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" })]
 }));
-const CycleIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const CycleIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -56171,7 +58937,7 @@ const CycleIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0,
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 13v1a4 4 0 0 1-4 4H3" })
 	]
 }));
-const MapIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const MapIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -56180,7 +58946,7 @@ const MapIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, r
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M15 6v14" })
 	]
 }));
-const RefreshIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const RefreshIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -56190,7 +58956,7 @@ const RefreshIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 21v-5h5" })
 	]
 }));
-const SunIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const SunIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -56199,12 +58965,12 @@ const SunIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, r
 		r: "4"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" })]
 }));
-const MoonIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const MoonIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" })
 }));
-const DownloadIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const DownloadIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -56213,22 +58979,22 @@ const DownloadIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ 
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 15V3" })
 	]
 }));
-const ChevronDownIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ChevronDownIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m6 9 6 6 6-6" })
 }));
-const ChevronUpIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ChevronUpIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m18 15-6-6-6 6" })
 }));
-const CloseIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const CloseIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M18 6 6 18M6 6l12 12" })
 }));
-const UploadIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const UploadIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -56237,17 +59003,17 @@ const UploadIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 3v12" })
 	]
 }));
-const FolderIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const FolderIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" })
 }));
-const AlertIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const AlertIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 9v4M12 17h.01" })]
 }));
-const LayersIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const LayersIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -56256,12 +59022,12 @@ const LayersIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m3 17 9 5 9-5" })
 	]
 }));
-const ZapIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ZapIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M13 2 3 14h9l-1 8 10-12h-9l1-8Z" })
 }));
-const WatchIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const WatchIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -56274,22 +59040,22 @@ const WatchIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0,
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M9 1h6M9 23h6" })
 	]
 }));
-const WorkspaceIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const WorkspaceIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" })
 }));
-const PlusIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const PlusIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 5v14M5 12h14" })
 }));
-const CheckIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const CheckIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M20 6 9 17l-5-5" })
 }));
-const CopyIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const CopyIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
@@ -56300,7 +59066,7 @@ const CopyIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, 
 		rx: "2"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" })]
 }));
-const TreeIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const TreeIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -56328,7 +59094,7 @@ const TreeIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, 
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 6v4M12 10H5v4M12 10h7v4M5 14v4M19 14v4" })
 	]
 }));
-const PathIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const PathIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -56345,22 +59111,22 @@ const PathIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, 
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M5 7v4a4 4 0 0 0 4 4h6a4 4 0 0 1 4 4" })
 	]
 }));
-const HeartIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const HeartIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z" })
 }));
-const RuleIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const RuleIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M9 11l3 3L22 4" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" })]
 }));
-const FlameIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const FlameIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5Z" })
 }));
-const AlertCircleIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const AlertCircleIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -56369,17 +59135,17 @@ const AlertCircleIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ 
 		r: "10"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 8v4M12 16h.01" })]
 }));
-const ExpandIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ExpandIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 21H3M21 3H3M9 9l3-3 3 3M9 15l3 3 3-3" })
 }));
-const ContractIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ContractIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 21H3M21 3H3M15 9l-3-3-3 3M15 15l-3 3-3-3" })
 }));
-const FocusIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const FocusIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -56388,25 +59154,34 @@ const FocusIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0,
 		r: "3"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4l1.4-1.4M17 7l1.4-1.4" })]
 }));
-const UndoIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const UndoIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 7v6h6" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 13a9 9 0 1 0 3-7.7L3 8" })]
 }));
-const RedoIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const RedoIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 7v6h-6" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 13a9 9 0 1 1-3-7.7L21 8" })]
 }));
-const StarIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const StarIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" })
 }));
-const FilterIcon = memo(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const FilterIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M22 3H2l8 9.46V19l4 2v-8.54L22 3z" })
+}));
+const GithubIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+	width: size$1,
+	height: size$1,
+	viewBox: "0 0 24 24",
+	fill: "currentColor",
+	className,
+	"aria-hidden": "true",
+	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.09 1.84 1.24 1.84 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.34-5.47-5.95 0-1.31.47-2.39 1.24-3.23-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.92 1.24 3.23 0 4.62-2.81 5.64-5.49 5.94.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12.01 12.01 0 0 0 24 12.5C24 5.87 18.63.5 12 .5Z" })
 }));
 
 //#endregion
@@ -56428,7 +59203,7 @@ function parseGraphJson(text) {
 		repoId
 	};
 }
-function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchEnabled, onSetGraphData, onSetLoading, onSetError, onSetInitStatus, onSetWatchEnabled }) {
+const ImportPanel = (0, react.memo)(function ImportPanel$1({ onClose, workspacePath, prerequisites, initStatus, watchEnabled, onSetGraphData, onSetLoading, onSetError, onSetInitStatus, onSetWatchEnabled }) {
 	const t$1 = useT();
 	const [tab, setTab] = (0, react.useState)("workspace");
 	const [pasteText, setPasteText] = (0, react.useState)("");
@@ -56440,12 +59215,40 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 		timersRef.current.forEach(clearTimeout);
 	}, []);
 	const [copied, setCopied] = (0, react.useState)(false);
+	const panelRef = (0, react.useRef)(null);
+	const triggerRef = (0, react.useRef)(null);
+	(0, react.useEffect)(() => {
+		triggerRef.current = document.activeElement;
+		return () => {
+			triggerRef.current?.focus();
+		};
+	}, []);
+	(0, react.useEffect)(() => {
+		const panel = panelRef.current;
+		if (!panel) return;
+		const focusable = panel.querySelectorAll("button, input, textarea, [tabindex]:not([tabindex=\"-1\"])");
+		if (focusable.length > 0) focusable[0].focus();
+		const handleKeyDown = (e) => {
+			if (e.key !== "Tab" || focusable.length === 0) return;
+			const first = focusable[0];
+			const last$1 = focusable[focusable.length - 1];
+			if (e.shiftKey && document.activeElement === first) {
+				e.preventDefault();
+				last$1.focus();
+			} else if (!e.shiftKey && document.activeElement === last$1) {
+				e.preventDefault();
+				first.focus();
+			}
+		};
+		panel.addEventListener("keydown", handleKeyDown);
+		return () => panel.removeEventListener("keydown", handleKeyDown);
+	}, []);
 	const copyInstallCmd = (0, react.useCallback)(async () => {
 		try {
 			await navigator.clipboard.writeText("dsh plugin --profile web add dsh-codegraph");
 			setCopied(true);
-			timersRef.current.push(setTimeout(() => setCopied(false), 1600));
-		} catch {}
+			timersRef.current.push(setTimeout(() => setCopied(false), UI.COPY_FEEDBACK_MS));
+		} catch (_e) {}
 	}, []);
 	const effectivePath = customPath.trim() || workspacePath || ".";
 	const prereqMissing = !prerequisites.codegraph && !prerequisites.lens;
@@ -56467,7 +59270,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 					edges: edges.length
 				})
 			});
-			timersRef.current.push(setTimeout(onClose, 700));
+			timersRef.current.push(setTimeout(onClose, UI.IMPORT_CLOSE_DELAY_MS));
 		} catch (e) {
 			const msg = e instanceof Error ? e.message : String(e);
 			log$2.error(`import failed from ${source}`, msg);
@@ -56503,7 +59306,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 		setBusy(true);
 		setFeedback(null);
 		onSetLoading(true);
-		window.dispatchEvent(new CustomEvent("codegraph:import-repo", { detail: { path: effectivePath } }));
+		window.dispatchEvent(new CustomEvent(DOM_EVENTS.IMPORT_REPO, { detail: { path: effectivePath } }));
 		log$2.info("workspace scan requested", { path: effectivePath });
 		setFeedback({
 			kind: "ok",
@@ -56517,7 +59320,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 	const handleInit = (0, react.useCallback)(() => {
 		onSetInitStatus("initializing");
 		setFeedback(null);
-		window.dispatchEvent(new CustomEvent("codegraph:init-graph", { detail: { path: effectivePath } }));
+		window.dispatchEvent(new CustomEvent(DOM_EVENTS.INIT_GRAPH, { detail: { path: effectivePath } }));
 		log$2.info("init requested", { path: effectivePath });
 		setFeedback({
 			kind: "ok",
@@ -56531,7 +59334,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 	const handleToggleWatch = (0, react.useCallback)(() => {
 		const next$1 = !watchEnabled;
 		onSetWatchEnabled(next$1);
-		window.dispatchEvent(new CustomEvent("codegraph:toggle-watch", { detail: {
+		window.dispatchEvent(new CustomEvent(DOM_EVENTS.TOGGLE_WATCH, { detail: {
 			enabled: next$1,
 			path: effectivePath
 		} }));
@@ -56545,32 +59348,34 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 		effectivePath
 	]);
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "import-panel",
+		className: "cg-import-panel",
 		role: "dialog",
+		"aria-modal": "true",
 		"aria-label": t$1("import.title"),
+		ref: panelRef,
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "import-header",
+				className: "cg-import-header",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "import-title",
+					className: "cg-import-title",
 					children: t$1("import.title")
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-					className: "import-close",
+					className: "cg-import-close",
 					onClick: onClose,
 					"aria-label": t$1("import.close"),
 					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CloseIcon, { size: 16 })
 				})]
 			}),
 			prereqMissing && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "prereq-warning",
+				className: "cg-prereq-warning",
 				role: "alert",
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(AlertIcon, { size: 14 }),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("import.prereqMissing") }),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: "prereq-install",
+						className: "cg-prereq-install",
 						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("code", { children: t$1("import.prereqCmd", { cmd: "dsh plugin --profile web add dsh-codegraph" }) }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-							className: "prereq-copy",
+							className: "cg-prereq-copy",
 							onClick: () => {
 								copyInstallCmd();
 							},
@@ -56582,10 +59387,10 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 				]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "import-tabs",
+				className: "cg-import-tabs",
 				role: "tablist",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-					className: tab === "workspace" ? "active" : "",
+					className: tab === "workspace" ? "cg-active" : "",
 					onClick: () => setTab("workspace"),
 					role: "tab",
 					"aria-selected": tab === "workspace",
@@ -56595,7 +59400,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 						t$1("import.workspace")
 					]
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-					className: tab === "paste" ? "active" : "",
+					className: tab === "paste" ? "cg-active" : "",
 					onClick: () => setTab("paste"),
 					role: "tab",
 					"aria-selected": tab === "paste",
@@ -56607,22 +59412,22 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 				})]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "import-body",
+				className: "cg-import-body",
 				children: [tab === "workspace" && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "workspace-zone",
+					className: "cg-workspace-zone",
 					children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: "workspace-path-row",
+							className: "cg-workspace-path-row",
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(FolderIcon, {
 								size: 16,
-								className: "workspace-path-icon"
+								className: "cg-workspace-path-icon"
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: "workspace-path-label",
+								className: "cg-workspace-path-label",
 								children: t$1("import.workspacePath")
 							})]
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-							className: "workspace-path-input",
+							className: "cg-workspace-path-input",
 							id: "import-workspace-path",
 							name: "import-workspace-path",
 							type: "text",
@@ -56632,13 +59437,13 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 							"aria-label": t$1("import.workspacePath")
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: "workspace-hint",
+							className: "cg-workspace-hint",
 							children: t$1("import.workspaceHint")
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: "workspace-actions",
+							className: "cg-workspace-actions",
 							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-								className: "import-submit",
+								className: "cg-import-submit",
 								onClick: handleWorkspaceScan,
 								disabled: busy,
 								children: [
@@ -56647,7 +59452,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 									busy ? t$1("import.scanning") : t$1("import.scanWorkspace")
 								]
 							}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-								className: "import-submit secondary",
+								className: "cg-import-submit cg-secondary",
 								onClick: handleInit,
 								disabled: initStatus === "initializing",
 								children: [
@@ -56658,7 +59463,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 							})]
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-							className: `watch-toggle ${watchEnabled ? "active" : ""}`,
+							className: `cg-watch-toggle ${watchEnabled ? "cg-active" : ""}`,
 							onClick: handleToggleWatch,
 							children: [
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(WatchIcon, { size: 14 }),
@@ -56667,18 +59472,18 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 							]
 						}),
 						initStatus === "done" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							className: "init-feedback ok",
+							className: "cg-init-feedback cg-ok",
 							children: t$1("import.initSuccess")
 						}),
 						initStatus === "error" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							className: "init-feedback err",
+							className: "cg-init-feedback cg-err",
 							children: t$1("import.initFailed")
 						})
 					]
 				}), tab === "paste" && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "paste-zone",
+					className: "cg-paste-zone",
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("textarea", {
-						className: "paste-input",
+						className: "cg-paste-input",
 						id: "import-paste-json",
 						name: "import-paste-json",
 						placeholder: t$1("import.pastePlaceholder"),
@@ -56687,7 +59492,7 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 						rows: 8,
 						"aria-label": t$1("import.pastePlaceholder")
 					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-						className: "import-submit",
+						className: "cg-import-submit",
 						onClick: handlePasteSubmit,
 						disabled: busy,
 						children: busy ? t$1("import.importing") : t$1("import.importJson")
@@ -56695,13 +59500,13 @@ function ImportPanel({ onClose, workspacePath, prerequisites, initStatus, watchE
 				})]
 			}),
 			feedback && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: `import-feedback ${feedback.kind}`,
+				className: `cg-import-feedback cg-${feedback.kind}`,
 				role: "status",
 				children: [feedback.kind === "err" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(AlertIcon, { size: 14 }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: feedback.msg })]
 			})
 		]
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/Legend.tsx
@@ -56834,45 +59639,45 @@ const VIEW_MODE_EDGE_FILTER = {
 	flowchart: new Set(["call"]),
 	sequence: new Set(["call"])
 };
-function Legend({ viewMode, onClose }) {
+const Legend = (0, react.memo)(function Legend$1({ viewMode, onClose }) {
 	const t$1 = useT();
 	const nodeTypes = ALL_NODE_TYPES.filter((n) => VIEW_MODE_NODE_FILTER[viewMode]?.has(n.type) ?? true);
 	const edgeTypes = ALL_EDGE_TYPES.filter((e) => VIEW_MODE_EDGE_FILTER[viewMode]?.has(e.type) ?? true);
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "legend-panel",
+		className: "cg-legend-panel",
 		role: "complementary",
 		"aria-label": t$1("legend.title"),
 		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-			className: "legend-header",
+			className: "cg-legend-header",
 			children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("legend.title") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-				className: "legend-close",
+				className: "cg-legend-close",
 				onClick: onClose,
 				"aria-label": t$1("legend.close"),
 				children: "×"
 			})]
 		}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-			className: "legend-body",
+			className: "cg-legend-body",
 			children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "legend-section",
+				className: "cg-legend-section",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "legend-section-title",
+					className: "cg-legend-section-title",
 					children: t$1("legend.nodes")
 				}), nodeTypes.map((n) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "legend-row",
+					className: "cg-legend-row",
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "legend-swatch",
+						className: "cg-legend-swatch",
 						style: { background: n.color }
 					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1(n.key) })]
 				}, n.type))]
 			}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "legend-section",
+				className: "cg-legend-section",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "legend-section-title",
+					className: "cg-legend-section-title",
 					children: t$1("legend.edges")
 				}), edgeTypes.map((e) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "legend-row",
+					className: "cg-legend-row",
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "legend-line",
+						className: "cg-legend-line",
 						style: {
 							borderTopStyle: e.style,
 							borderTopColor: e.color
@@ -56882,7 +59687,7 @@ function Legend({ viewMode, onClose }) {
 			})]
 		})]
 	});
-}
+});
 
 //#endregion
 //#region src/client/utils/deriveName.ts
@@ -56902,7 +59707,7 @@ function formatRelativeTime(ts, t$1) {
 	if (diff < 864e5) return t$1("workspace.timeHoursAgo", { n: Math.floor(diff / 36e5) });
 	return t$1("workspace.timeDaysAgo", { n: Math.floor(diff / 864e5) });
 }
-function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace }) {
+const WorkspaceSelector = (0, react.memo)(function WorkspaceSelector$1({ currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace }) {
 	const t$1 = useT();
 	const [open, setOpen] = (0, react.useState)(false);
 	const [adding, setAdding] = (0, react.useState)(false);
@@ -56917,7 +59722,7 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 	});
 	(0, react.useEffect)(() => {
 		if (!open) return;
-		const interval = setInterval(() => setTick((v) => v + 1), 3e4);
+		const interval = setInterval(() => setTick((v) => v + 1), POLLING.WORKSPACE_TICK_MS);
 		return () => clearInterval(interval);
 	}, [open]);
 	(0, react.useLayoutEffect)(() => {
@@ -56967,10 +59772,10 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 	const displayName = currentWorkspace === "." ? t$1("workspace.default") : deriveWorkspaceName(currentWorkspace);
 	const hasExplicit = currentWorkspace !== "." && !workspaceList.some((w) => w.path === currentWorkspace);
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "workspace-selector",
+		className: "cg-workspace-selector",
 		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 			ref: triggerRef,
-			className: "workspace-trigger",
+			className: "cg-workspace-trigger",
 			onClick: () => setOpen((v) => !v),
 			"aria-label": t$1("workspace.switch"),
 			"aria-haspopup": "listbox",
@@ -56979,16 +59784,16 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 			children: [
 				/* @__PURE__ */ (0, react_jsx_runtime.jsx)(WorkspaceIcon, { size: 14 }),
 				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "workspace-name",
+					className: "cg-workspace-name",
 					children: displayName
 				}),
 				/* @__PURE__ */ (0, react_jsx_runtime.jsx)(ChevronDownIcon, {
 					size: 12,
-					className: "workspace-chevron"
+					className: "cg-workspace-chevron"
 				})
 			]
 		}), open && (0, react_dom.createPortal)(/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-			className: "workspace-dropdown workspace-dropdown-portal",
+			className: "cg-workspace-dropdown cg-workspace-dropdown-portal",
 			role: "listbox",
 			"aria-label": t$1("workspace.switch"),
 			style: {
@@ -56999,9 +59804,9 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 			ref: dropdownRef,
 			children: [
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "workspace-dropdown-header",
+					className: "cg-workspace-dropdown-header",
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("workspace.current") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-						className: "workspace-add-btn",
+						className: "cg-workspace-add-btn",
 						onClick: () => setAdding((v) => !v),
 						"aria-label": t$1("workspace.add"),
 						title: t$1("workspace.add"),
@@ -57009,7 +59814,7 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 					})]
 				}),
 				adding && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "workspace-add-form",
+					className: "cg-workspace-add-form",
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 						ref: inputRef,
 						id: "workspace-add-path",
@@ -57034,53 +59839,53 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 					})]
 				}),
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "workspace-list",
+					className: "cg-workspace-list",
 					children: [
 						hasExplicit && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: "workspace-item current",
+							className: "cg-workspace-item cg-current",
 							role: "option",
 							"aria-selected": true,
 							children: [
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(FolderIcon, { size: 14 }),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: "workspace-item-name",
+									className: "cg-workspace-item-name",
 									children: deriveWorkspaceName(currentWorkspace)
 								}),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: "workspace-item-path",
+									className: "cg-workspace-item-path",
 									children: currentWorkspace
 								}),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: "workspace-item-badge",
+									className: "cg-workspace-item-badge",
 									children: t$1("workspace.active")
 								})
 							]
 						}),
 						workspaceList.map((ws) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: `workspace-item ${ws.path === currentWorkspace ? "current" : ""}`,
+							className: `cg-workspace-item ${ws.path === currentWorkspace ? "cg-current" : ""}`,
 							role: "option",
 							"aria-selected": ws.path === currentWorkspace,
 							onClick: () => handleSwitch(ws.path),
 							children: [
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)(FolderIcon, { size: 14 }),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: "workspace-item-name",
+									className: "cg-workspace-item-name",
 									children: ws.name
 								}),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: "workspace-item-path",
+									className: "cg-workspace-item-path",
 									children: ws.path
 								}),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: "workspace-item-time",
+									className: "cg-workspace-item-time",
 									children: formatRelativeTime(ws.lastUsed, t$1)
 								}),
 								ws.path === currentWorkspace && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: "workspace-item-badge",
+									className: "cg-workspace-item-badge",
 									children: t$1("workspace.active")
 								}),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									className: "workspace-item-remove",
+									className: "cg-workspace-item-remove",
 									onClick: (e) => handleRemove(e, ws.path),
 									"aria-label": t$1("workspace.remove"),
 									title: t$1("workspace.remove"),
@@ -57089,7 +59894,7 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 							]
 						}, ws.path)),
 						!hasExplicit && workspaceList.length === 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							className: "workspace-empty",
+							className: "cg-workspace-empty",
 							children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("workspace.empty") })
 						})
 					]
@@ -57097,7 +59902,7 @@ function WorkspaceSelector({ currentWorkspace, workspaceList, onSwitchWorkspace,
 			]
 		}), document.body)]
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/Toolbar.tsx
@@ -57136,6 +59941,24 @@ const FILTER_KEYS = [
 		key: "filter.interface"
 	}
 ];
+const RANK_DIRS = [
+	{
+		value: "TB",
+		label: "TB"
+	},
+	{
+		value: "LR",
+		label: "LR"
+	},
+	{
+		value: "BT",
+		label: "BT"
+	},
+	{
+		value: "RL",
+		label: "RL"
+	}
+];
 const GRAPH_TYPES = [
 	{
 		value: "all",
@@ -57150,46 +59973,32 @@ const GRAPH_TYPES = [
 		key: "graphType.dependency"
 	}
 ];
-const MACRO_VIEW_MODES = [
-	{
-		value: "code",
-		key: "viewMode.code"
-	},
-	{
-		value: "dependencies",
-		key: "viewMode.dependencies"
-	},
-	{
-		value: "inheritance",
-		key: "viewMode.inheritance"
-	},
-	{
-		value: "callgraph",
-		key: "viewMode.callgraph"
-	},
-	{
-		value: "package",
-		key: "viewMode.package"
-	},
-	{
-		value: "class",
-		key: "viewMode.class"
-	}
-];
-const MICRO_VIEW_MODES = [
-	{
-		value: "cfg",
-		key: "viewMode.cfg"
-	},
-	{
-		value: "flowchart",
-		key: "viewMode.flowchart"
-	},
-	{
-		value: "sequence",
-		key: "viewMode.sequence"
-	}
-];
+const STRUCTURAL_MODE_KEYS = { code: "viewMode.code" };
+const BEHAVIORAL_MODE_KEYS = {
+	dependencies: "viewMode.dependencies",
+	inheritance: "viewMode.inheritance",
+	callgraph: "viewMode.callgraph",
+	package: "viewMode.package",
+	class: "viewMode.class"
+};
+const BEHAVIORAL_MICRO_MODE_KEYS = {
+	cfg: "viewMode.cfg",
+	flowchart: "viewMode.flowchart",
+	sequence: "viewMode.sequence"
+};
+const STRUCTURAL_TITLE_KEYS = { code: "toolbar.viewModeCode" };
+const BEHAVIORAL_TITLE_KEYS = {
+	dependencies: "toolbar.viewModeDeps",
+	inheritance: "toolbar.viewModeInheritance",
+	callgraph: "toolbar.viewModeCallgraph",
+	package: "toolbar.viewModePackage",
+	class: "toolbar.viewModeClass"
+};
+const BEHAVIORAL_MICRO_TITLE_KEYS = {
+	cfg: "toolbar.viewModeCfg",
+	flowchart: "toolbar.viewModeFlowchart",
+	sequence: "toolbar.viewModeSequence"
+};
 const CLUSTER_DEPTHS = [
 	{
 		value: 0,
@@ -57204,7 +60013,7 @@ const CLUSTER_DEPTHS = [
 		key: "clusterDepth.function"
 	}
 ];
-function Toolbar(props) {
+const Toolbar = (0, react.memo)(function Toolbar$1(props) {
 	const t$1 = useT();
 	const lang = useLang();
 	const exportMenuRef = (0, react.useRef)(null);
@@ -57222,13 +60031,14 @@ function Toolbar(props) {
 		onExport(format);
 		setShowExportMenu(false);
 	}, [onExport]);
-	const { statsText, typeCounts, layout: layout$2, theme, filterType, graphType, clusterDepth, viewMode, currentLayer, layerNames, collapsed, panelControls, onLayoutChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterDepthChange, onViewModeChange, onLayerChange, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll, onUndo, onRedo, canUndo, canRedo, hasSelectedFunction } = props;
-	const { showSearch, showCallChain, showCycles, cycleIsolation, showImpact, showInheritance, showMiniMap, showLegend, showImport, showPathFind, showHealthScore, showRules, showHotspot, showGodModule, showCoreFunction, showFilterPanel, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleCycleIsolation, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onToggleCoreFunction, onToggleFilterPanel } = panelControls;
+	const { statsText, typeCounts, layout: layout$2, dagreRankDir, theme, filterType, graphType, clusterDepth, viewMode, currentLayer, layerNames, collapsed, panelControls, onLayoutChange, onDagreRankDirChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterDepthChange, onViewModeChange, onLayerChange, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll, onUndo, onRedo, canUndo, canRedo, hasSelectedFunction } = props;
+	const { showSearch, showCallChain, showCycles, cycleIsolation, showImpact, showInheritance, showMiniMap, showLegend, showImport, showPathFind, showHealthScore, showRules, showHotspot, showGodModule, showCoreFunction, showFilterPanel, showTour, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleCycleIsolation, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onToggleCoreFunction, onToggleFilterPanel, onToggleTour } = panelControls;
+	const availablePanels = getAvailablePanels(getViewLayer(viewMode));
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "graph-toolbar",
+		className: "cg-graph-toolbar",
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "toolbar-left",
+				className: "cg-toolbar-left",
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(WorkspaceSelector, {
 						currentWorkspace,
@@ -57238,23 +60048,23 @@ function Toolbar(props) {
 						onRemoveWorkspace
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "node-count",
+						className: "cg-node-count",
 						children: statsText
 					}),
 					typeCounts.function > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-						className: "type-badge function",
+						className: "cg-type-badge cg-function",
 						children: ["fn:", typeCounts.function]
 					}),
 					typeCounts.class > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-						className: "type-badge class",
+						className: "cg-type-badge cg-class",
 						children: ["cls:", typeCounts.class]
 					}),
 					typeCounts.interface > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-						className: "type-badge interface",
+						className: "cg-type-badge cg-interface",
 						children: ["if:", typeCounts.interface]
 					}),
 					onCollapseAll && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-						className: "collapse-all-btn",
+						className: "cg-collapse-all-btn",
 						onClick: onCollapseAll,
 						title: t$1("detail.collapse"),
 						children: t$1("detail.collapse")
@@ -57262,26 +60072,38 @@ function Toolbar(props) {
 				]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "toolbar-center",
+				className: "cg-toolbar-center",
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "layout-buttons",
+						className: "cg-layout-buttons",
 						role: "group",
-						"aria-label": "Layout switcher",
+						"aria-label": t$1("toolbar.layoutSwitcher"),
 						children: LAYOUTS.map((l) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-							className: `layout-btn ${layout$2 === l ? "active" : ""}`,
+							className: `cg-layout-btn ${layout$2 === l ? "cg-active" : ""}`,
 							onClick: () => onLayoutChange(l),
 							title: t$1("toolbar.layout", { l }),
 							"aria-pressed": layout$2 === l,
 							children: l
 						}, l))
 					}),
+					layout$2 === "dagre" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "cg-rank-dir-buttons",
+						role: "group",
+						"aria-label": t$1("toolbar.rankDir"),
+						children: RANK_DIRS.map((d) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							className: `cg-rank-dir-btn ${dagreRankDir === d.value ? "cg-active" : ""}`,
+							onClick: () => onDagreRankDirChange(d.value),
+							title: d.label,
+							"aria-pressed": dagreRankDir === d.value,
+							children: d.label
+						}, d.value))
+					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "graph-type-buttons",
+						className: "cg-graph-type-buttons",
 						role: "group",
 						"aria-label": t$1("toolbar.graphType"),
 						children: GRAPH_TYPES.map((g) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-							className: `graph-type-btn ${graphType === g.value ? "active" : ""}`,
+							className: `cg-graph-type-btn ${graphType === g.value ? "cg-active" : ""}`,
 							onClick: () => onGraphTypeChange(g.value),
 							title: t$1(g.key),
 							"aria-pressed": graphType === g.value,
@@ -57289,40 +60111,51 @@ function Toolbar(props) {
 						}, g.value))
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: "view-mode-buttons",
+						className: "cg-view-mode-buttons",
 						role: "group",
 						"aria-label": t$1("toolbar.graphType"),
 						children: [
-							MACRO_VIEW_MODES.map((m) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `view-mode-btn ${viewMode === m.value ? "active" : ""}`,
-								onClick: () => onViewModeChange(m.value),
-								title: t$1(`toolbar.viewMode${m.value.charAt(0).toUpperCase() + m.value.slice(1)}`),
-								"aria-pressed": viewMode === m.value,
-								children: t$1(m.key)
-							}, m.value)),
+							STRUCTURAL_VIEW_MODES.map((m) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `cg-view-mode-btn ${viewMode === m ? "cg-active" : ""}`,
+								onClick: () => onViewModeChange(m),
+								title: t$1(STRUCTURAL_TITLE_KEYS[m]),
+								"aria-pressed": viewMode === m,
+								children: t$1(STRUCTURAL_MODE_KEYS[m])
+							}, m)),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: "view-mode-divider",
+								className: "cg-view-mode-divider",
 								"aria-hidden": "true"
 							}),
-							MICRO_VIEW_MODES.map((m) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `view-mode-btn view-mode-btn--micro ${viewMode === m.value ? "active" : ""}`,
-								onClick: () => onViewModeChange(m.value),
-								title: t$1(`toolbar.viewMode${m.value.charAt(0).toUpperCase() + m.value.slice(1)}`),
-								"aria-pressed": viewMode === m.value,
+							BEHAVIORAL_VIEW_MODES.map((m) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `cg-view-mode-btn ${viewMode === m ? "cg-active" : ""}`,
+								onClick: () => onViewModeChange(m),
+								title: t$1(BEHAVIORAL_TITLE_KEYS[m]),
+								"aria-pressed": viewMode === m,
+								children: t$1(BEHAVIORAL_MODE_KEYS[m])
+							}, m)),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: "cg-view-mode-divider",
+								"aria-hidden": "true"
+							}),
+							BEHAVIORAL_MICRO_VIEW_MODES.map((m) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `cg-view-mode-btn cg-view-mode-btn--micro ${viewMode === m ? "cg-active" : ""}`,
+								onClick: () => onViewModeChange(m),
+								title: hasSelectedFunction ? t$1(BEHAVIORAL_MICRO_TITLE_KEYS[m]) : t$1("toolbar.microDisabled"),
+								"aria-pressed": viewMode === m,
 								disabled: !hasSelectedFunction,
 								"aria-disabled": !hasSelectedFunction,
-								children: t$1(m.key)
-							}, m.value))
+								children: t$1(BEHAVIORAL_MICRO_MODE_KEYS[m])
+							}, m))
 						]
 					}),
 					layerNames.length > 1 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "layer-selector",
+						className: "cg-layer-selector",
 						role: "group",
 						"aria-label": t$1("toolbar.layer"),
 						children: layerNames.map((name$1, idx) => {
 							const translated = t$1(name$1) ?? name$1;
 							return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `layer-btn ${currentLayer === idx ? "active" : ""}`,
+								className: `cg-layer-btn ${currentLayer === idx ? "cg-active" : ""}`,
 								onClick: () => onLayerChange(idx),
 								title: translated,
 								"aria-pressed": currentLayer === idx,
@@ -57333,7 +60166,7 @@ function Toolbar(props) {
 					viewMode === "code" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
 						value: clusterDepth,
 						onChange: (e) => onClusterDepthChange(Number(e.target.value)),
-						className: "depth-select",
+						className: "cg-depth-select",
 						id: "cluster-depth",
 						name: "cluster-depth",
 						"aria-label": t$1("toolbar.cluster"),
@@ -57346,15 +60179,15 @@ function Toolbar(props) {
 				]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "toolbar-right",
+				className: "cg-toolbar-right",
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: "toolbar-group",
+						className: "cg-toolbar-group",
 						role: "group",
 						"aria-label": t$1("toolbar.dataGroup"),
 						children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: "import-btn",
+								className: "cg-import-btn",
 								onClick: onToggleImport,
 								title: t$1("toolbar.import"),
 								"aria-label": t$1("toolbar.import"),
@@ -57364,7 +60197,7 @@ function Toolbar(props) {
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("select", {
 								value: filterType,
 								onChange: (e) => onFilterChange(e.target.value),
-								className: "filter-select",
+								className: "cg-filter-select",
 								id: "filter-type",
 								name: "filter-type",
 								"aria-label": t$1("toolbar.filter"),
@@ -57374,7 +60207,7 @@ function Toolbar(props) {
 								}, opt.value))
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `filter-panel-btn ${showFilterPanel ? "active" : ""}`,
+								className: `cg-filter-panel-btn ${showFilterPanel ? "cg-active" : ""}`,
 								onClick: onToggleFilterPanel,
 								title: t$1("toolbar.filterPanel"),
 								"aria-label": t$1("toolbar.filterPanel"),
@@ -57384,32 +60217,32 @@ function Toolbar(props) {
 						]
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "toolbar-separator",
+						className: "cg-toolbar-separator",
 						"aria-hidden": "true"
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: "toolbar-group",
+						className: "cg-toolbar-group",
 						role: "group",
 						"aria-label": t$1("toolbar.analysisGroup"),
 						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `search-btn ${showSearch ? "active" : ""}`,
+							availablePanels.has("showSearch") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `cg-search-btn ${showSearch ? "cg-active" : ""}`,
 								onClick: onToggleSearch,
 								title: t$1("toolbar.search"),
 								"aria-label": t$1("toolbar.search"),
 								"aria-expanded": showSearch,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SearchIcon, { size: 15 })
 							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `chain-btn ${showCallChain ? "active" : ""}`,
+							availablePanels.has("showCallChain") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `cg-chain-btn ${showCallChain ? "cg-active" : ""}`,
 								onClick: onToggleCallChain,
 								title: t$1("toolbar.chain"),
 								"aria-label": t$1("toolbar.chain"),
 								"aria-pressed": showCallChain,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ChainIcon, { size: 15 })
 							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `cycle-btn ${showCycles ? "active" : ""}`,
+							availablePanels.has("showCycles") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `cg-cycle-btn ${showCycles ? "cg-active" : ""}`,
 								onClick: onToggleCycles,
 								title: t$1("toolbar.cycles"),
 								"aria-label": t$1("toolbar.cycles"),
@@ -57417,90 +60250,98 @@ function Toolbar(props) {
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CycleIcon, { size: 15 })
 							}),
 							showCycles && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `isolate-btn ${cycleIsolation ? "active" : ""}`,
+								className: `cg-isolate-btn ${cycleIsolation ? "cg-active" : ""}`,
 								onClick: onToggleCycleIsolation,
 								title: t$1("toolbar.isolateCycles"),
 								"aria-label": t$1("toolbar.isolateCycles"),
 								"aria-pressed": cycleIsolation,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(FilterIcon, { size: 15 })
 							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `impact-btn ${showImpact ? "active" : ""}`,
+							availablePanels.has("showImpact") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `cg-impact-btn ${showImpact ? "cg-active" : ""}`,
 								onClick: onToggleImpact,
 								title: t$1("toolbar.impact"),
 								"aria-label": t$1("toolbar.impact"),
 								"aria-pressed": showImpact,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ZapIcon, { size: 15 })
 							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `inheritance-btn ${showInheritance ? "active" : ""}`,
+							availablePanels.has("showInheritance") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `cg-inheritance-btn ${showInheritance ? "cg-active" : ""}`,
 								onClick: onToggleInheritance,
 								title: t$1("toolbar.inheritance"),
 								"aria-label": t$1("toolbar.inheritance"),
 								"aria-pressed": showInheritance,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TreeIcon, { size: 15 })
 							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `pathfind-btn ${showPathFind ? "active" : ""}`,
+							availablePanels.has("showPathFind") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `cg-pathfind-btn ${showPathFind ? "cg-active" : ""}`,
 								onClick: onTogglePathFind,
 								title: t$1("toolbar.pathFind"),
 								"aria-label": t$1("toolbar.pathFind"),
 								"aria-pressed": showPathFind,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PathIcon, { size: 15 })
 							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `health-btn ${showHealthScore ? "active" : ""}`,
+							availablePanels.has("showHealthScore") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `cg-health-btn ${showHealthScore ? "cg-active" : ""}`,
 								onClick: onToggleHealthScore,
 								title: t$1("toolbar.health"),
 								"aria-label": t$1("toolbar.health"),
 								"aria-pressed": showHealthScore,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(HeartIcon, { size: 15 })
 							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `rules-btn ${showRules ? "active" : ""}`,
+							availablePanels.has("showRules") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `cg-rules-btn ${showRules ? "cg-active" : ""}`,
 								onClick: onToggleRules,
 								title: t$1("toolbar.rules"),
 								"aria-label": t$1("toolbar.rules"),
 								"aria-pressed": showRules,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RuleIcon, { size: 15 })
 							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `hotspot-btn ${showHotspot ? "active" : ""}`,
+							availablePanels.has("showHotspot") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `cg-hotspot-btn ${showHotspot ? "cg-active" : ""}`,
 								onClick: onToggleHotspot,
 								title: t$1("toolbar.hotspot"),
 								"aria-label": t$1("toolbar.hotspot"),
 								"aria-pressed": showHotspot,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(FlameIcon, { size: 15 })
 							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `godmodule-btn ${showGodModule ? "active" : ""}`,
+							availablePanels.has("showGodModule") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `cg-godmodule-btn ${showGodModule ? "cg-active" : ""}`,
 								onClick: onToggleGodModule,
 								title: t$1("toolbar.godModule"),
 								"aria-label": t$1("toolbar.godModule"),
 								"aria-pressed": showGodModule,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(AlertCircleIcon, { size: 15 })
 							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `corefunction-btn ${showCoreFunction ? "active" : ""}`,
+							availablePanels.has("showCoreFunction") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `cg-corefunction-btn ${showCoreFunction ? "cg-active" : ""}`,
 								onClick: onToggleCoreFunction,
 								title: t$1("toolbar.coreFunction"),
 								"aria-label": t$1("toolbar.coreFunction"),
 								"aria-pressed": showCoreFunction,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(StarIcon, { size: 15 })
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `cg-tour-btn ${showTour ? "cg-active" : ""}`,
+								onClick: onToggleTour,
+								title: t$1("toolbar.tour"),
+								"aria-label": t$1("toolbar.tour"),
+								"aria-pressed": showTour,
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(StarIcon, { size: 15 })
 							})
 						]
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "toolbar-separator",
+						className: "cg-toolbar-separator",
 						"aria-hidden": "true"
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: "toolbar-group",
+						className: "cg-toolbar-group",
 						role: "group",
 						"aria-label": t$1("toolbar.viewGroup"),
 						children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `minimap-btn ${showMiniMap ? "active" : ""}`,
+								className: `cg-minimap-btn ${showMiniMap ? "cg-active" : ""}`,
 								onClick: onToggleMiniMap,
 								title: t$1("toolbar.minimap"),
 								"aria-label": t$1("toolbar.minimap"),
@@ -57508,7 +60349,7 @@ function Toolbar(props) {
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(MapIcon, { size: 15 })
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `legend-btn ${showLegend ? "active" : ""}`,
+								className: `cg-legend-btn ${showLegend ? "cg-active" : ""}`,
 								onClick: onToggleLegend,
 								title: t$1("toolbar.legend"),
 								"aria-label": t$1("toolbar.legend"),
@@ -57516,14 +60357,14 @@ function Toolbar(props) {
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LayersIcon, { size: 15 })
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: "refresh-btn",
+								className: "cg-refresh-btn",
 								onClick: onRefresh,
 								title: t$1("toolbar.refresh"),
 								"aria-label": t$1("toolbar.refresh"),
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RefreshIcon, { size: 15 })
 							}),
 							onUndo && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: "undo-btn",
+								className: "cg-undo-btn",
 								onClick: onUndo,
 								disabled: !canUndo,
 								title: t$1("toolbar.undo"),
@@ -57532,7 +60373,7 @@ function Toolbar(props) {
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(UndoIcon, { size: 15 })
 							}),
 							onRedo && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: "redo-btn",
+								className: "cg-redo-btn",
 								onClick: onRedo,
 								disabled: !canRedo,
 								title: t$1("toolbar.redo"),
@@ -57543,36 +60384,36 @@ function Toolbar(props) {
 						]
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "toolbar-separator",
+						className: "cg-toolbar-separator",
 						"aria-hidden": "true"
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: "toolbar-group",
+						className: "cg-toolbar-group",
 						role: "group",
 						"aria-label": t$1("toolbar.settingsGroup"),
 						children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: "theme-btn",
+								className: "cg-theme-btn",
 								onClick: onThemeToggle,
 								title: t$1("toolbar.theme"),
 								"aria-label": t$1("toolbar.theme"),
 								children: theme === "dark" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SunIcon, { size: 15 }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(MoonIcon, { size: 15 })
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: "lang-btn",
+								className: "cg-lang-btn",
 								onClick: toggleLang,
 								title: t$1("toolbar.lang"),
 								"aria-label": t$1("toolbar.lang"),
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: "lang-label",
+									className: "cg-lang-label",
 									children: lang === "zh" ? "中" : "EN"
 								})
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: "export-menu",
+								className: "cg-export-menu",
 								ref: exportMenuRef,
 								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									className: "export-btn",
+									className: "cg-export-btn",
 									onClick: () => setShowExportMenu((v) => !v),
 									title: t$1("toolbar.export"),
 									"aria-label": t$1("toolbar.export"),
@@ -57580,7 +60421,7 @@ function Toolbar(props) {
 									"aria-expanded": showExportMenu,
 									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(DownloadIcon, { size: 15 })
 								}), showExportMenu && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-									className: "export-dropdown",
+									className: "cg-export-dropdown",
 									role: "menu",
 									children: [
 										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
@@ -57609,7 +60450,7 @@ function Toolbar(props) {
 						]
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-						className: "collapse-btn",
+						className: "cg-collapse-btn",
 						onClick: onCollapse,
 						title: collapsed ? t$1("panel.expand") : t$1("panel.collapse"),
 						"aria-label": collapsed ? t$1("panel.expandPanel") : t$1("panel.collapsePanel"),
@@ -57619,16 +60460,23 @@ function Toolbar(props) {
 			})
 		]
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/SearchBar.tsx
-function SearchBar({ query, matchCount, searchResults, onChange, onClose, onSelectResult }) {
+const SearchBar = (0, react.memo)(function SearchBar$1({ query, matchCount, searchResults, onChange, onClose, onSelectResult }) {
 	const t$1 = useT();
 	const [showResults, setShowResults] = (0, react.useState)(false);
 	const [activeIndex, setActiveIndex] = (0, react.useState)(-1);
 	const containerRef = (0, react.useRef)(null);
 	const listRef = (0, react.useRef)(null);
+	const triggerRef = (0, react.useRef)(null);
+	(0, react.useEffect)(() => {
+		triggerRef.current = document.activeElement;
+		return () => {
+			triggerRef.current?.focus();
+		};
+	}, []);
 	(0, react.useEffect)(() => {
 		const handler = (e) => {
 			if (containerRef.current && !containerRef.current.contains(e.target)) setShowResults(false);
@@ -57674,12 +60522,12 @@ function SearchBar({ query, matchCount, searchResults, onChange, onClose, onSele
 	};
 	const displayResults = searchResults.slice(0, 10);
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "search-bar",
+		className: "cg-search-bar",
 		ref: containerRef,
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SearchIcon, {
 				size: 14,
-				className: "search-bar-icon"
+				className: "cg-search-bar-icon"
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 				id: "graph-search",
@@ -57702,23 +60550,23 @@ function SearchBar({ query, matchCount, searchResults, onChange, onClose, onSele
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CloseIcon, { size: 14 })
 			}),
 			query && matchCount !== null && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-				className: "search-hint",
+				className: "cg-search-hint",
 				role: "status",
 				"aria-live": "polite",
 				children: matchCount > 0 ? t$1(matchCount === 1 ? "search.match" : "search.matches", { n: matchCount }) : t$1("search.noMatch")
 			}),
 			!query && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-				className: "search-hint",
+				className: "cg-search-hint",
 				children: t$1("search.debounced")
 			}),
 			showResults && query && searchResults.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("ul", {
-				className: "search-results",
+				className: "cg-search-results",
 				role: "listbox",
 				ref: listRef,
 				children: [displayResults.map((item, idx) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", {
 					role: "option",
 					"aria-selected": idx === activeIndex,
-					className: `search-result-item ${idx === activeIndex ? "active" : ""}`,
+					className: `cg-search-result-item ${idx === activeIndex ? "cg-active" : ""}`,
 					onClick: () => handleSelect(item.id),
 					onKeyDown: (e) => {
 						if (e.key === "Enter") handleSelect(item.id);
@@ -57726,26 +60574,26 @@ function SearchBar({ query, matchCount, searchResults, onChange, onClose, onSele
 					tabIndex: 0,
 					children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: "search-result-type",
+							className: "cg-search-result-type",
 							children: item.type
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: "search-result-label",
+							className: "cg-search-result-label",
 							children: item.label
 						}),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: "search-result-path",
+							className: "cg-search-result-path",
 							children: item.filePath
 						})
 					]
 				}, item.id)), searchResults.length > 10 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("li", {
-					className: "search-result-more",
+					className: "cg-search-result-more",
 					children: t$1("search.moreResults", { n: searchResults.length - 10 })
 				})]
 			})
 		]
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/StatusBar.tsx
@@ -57753,53 +60601,74 @@ function formatTime(ts) {
 	const d = new Date(ts);
 	return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
 }
-function StatusBar({ error: error$1, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount, displayedNodeCount }) {
+const DEGRADATION_KEYS = {
+	"cycle-detection-skipped": "degradation.cycleDetectionSkipped",
+	"community-detection-sampled": "degradation.communityDetectionSampled",
+	"large-graph-mode": "degradation.largeGraphMode"
+};
+const StatusBar = (0, react.memo)(function StatusBar$1({ error: error$1, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount, displayedNodeCount, performanceDegradations }) {
 	const t$1 = useT();
-	const statusDotClass = error$1 ? "status-dot error" : isLoading ? "status-dot loading" : "status-dot";
+	const statusDotClass = error$1 ? "cg-status-dot cg-error" : isLoading ? "cg-status-dot cg-loading" : "cg-status-dot";
 	const statusText = error$1 ? t$1("state.error") : isLoading ? t$1("state.loading") : t$1("state.ready");
 	const wsName = workspaceName ? deriveWorkspaceName(workspaceName) : "";
+	const hasDegradations = performanceDegradations && performanceDegradations.length > 0;
+	const degradationLabels = hasDegradations ? performanceDegradations.map((key) => DEGRADATION_KEYS[key] ? t$1(DEGRADATION_KEYS[key]) : key).join(", ") : "";
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "status-bar",
+		className: "cg-status-bar",
 		role: "status",
 		"aria-live": "polite",
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "status-item",
+				className: "cg-status-item",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: statusDotClass }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: statusText })]
 			}),
 			wsName && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-				className: "status-workspace",
+				className: "cg-status-workspace",
 				title: workspaceName,
 				children: wsName
 			}),
 			truncated ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-				className: "status-truncated",
+				className: "cg-status-truncated",
 				title: t$1("state.truncatedHint"),
 				children: ["⚠ ", t$1("state.truncated", {
 					shown: displayedNodeCount ?? 0,
 					total: totalNodeCount ?? 0
 				})]
 			}) : totalNodeCount && totalNodeCount > 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-				className: "status-complete",
+				className: "cg-status-complete",
 				title: t$1("state.complete", { total: totalNodeCount }),
 				children: ["✓ ", t$1("state.complete", { total: totalNodeCount })]
 			}) : null,
+			hasDegradations && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+				className: "cg-status-degradation",
+				title: t$1("degradation.tooltip"),
+				children: ["⚠ ", degradationLabels]
+			}),
 			watchEnabled && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-				className: "watch-indicator",
+				className: "cg-watch-indicator",
 				title: t$1("import.watchOn"),
 				children: "●"
 			}),
-			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: "status-spacer" }),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: "cg-status-spacer" }),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("a", {
+				href: REPO_URL,
+				target: "_blank",
+				rel: "noopener noreferrer",
+				className: "cg-status-github",
+				title: t$1("status.feedback"),
+				"aria-label": t$1("status.feedback"),
+				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GithubIcon, { size: 14 })
+			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				className: "status-item",
+				className: "cg-status-item",
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "status-time",
+					className: "cg-status-time",
 					children: lastUpdated > 0 ? t$1("state.updated", { time: formatTime(lastUpdated) }) : t$1("state.noData")
 				})
 			})
 		]
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/NodeDetail.tsx
@@ -57824,7 +60693,7 @@ const EXPANDABLE_TYPES = new Set([
 	"class",
 	"interface"
 ]);
-function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, onSelectFunction, onAggregateCallChain }) {
+const NodeDetail = (0, react.memo)(function NodeDetail$1({ node, onClose, isExpanded, connectionCount, onCollapse, onSelectFunction, onAggregateCallChain }) {
 	const t$1 = useT();
 	const rawNodes = useGraphStore((s) => s.rawNodes);
 	const icon = TYPE_ICONS[node.type] ?? "?";
@@ -57858,25 +60727,25 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, on
 			"exported",
 			"kind"
 		]);
-		return Object.entries(node.properties).filter(([k]) => !knownKeys.has(k));
+		return Object.entries(node.properties ?? {}).filter(([k]) => !knownKeys.has(k));
 	}, [node]);
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "node-detail-panel",
+		className: "cg-node-detail-panel",
 		role: "complementary",
 		"aria-label": t$1("detail.ariaLabel"),
 		"aria-live": "polite",
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-				className: "close-btn",
+				className: "cg-close-btn",
 				onClick: onClose,
 				"aria-label": t$1("detail.close"),
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CloseIcon, { size: 14 })
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "detail-header",
+				className: "cg-detail-header",
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "detail-type-icon",
+						className: "cg-detail-type-icon",
 						style: {
 							color,
 							borderColor: color
@@ -57885,135 +60754,142 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, on
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("h3", { children: node.label }),
 					exported && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "detail-exported-badge",
-						children: "EXP"
+						className: "cg-detail-exported-badge",
+						children: t$1("detail.exportedBadge")
 					}),
 					isExpanded && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "detail-expanded-badge",
-						children: "OPEN"
+						className: "cg-detail-expanded-badge",
+						children: t$1("detail.expandedBadge")
 					})
 				]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "detail-row",
+				className: "cg-detail-row",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "detail-label",
+					className: "cg-detail-label",
 					children: t$1("detail.type")
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "detail-value",
+					className: "cg-detail-value",
 					children: node.type
 				})]
 			}),
 			kind && kind !== node.type && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "detail-row",
+				className: "cg-detail-row",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "detail-label",
+					className: "cg-detail-label",
 					children: t$1("detail.kind")
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "detail-value",
+					className: "cg-detail-value",
 					children: kind
 				})]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "detail-row",
+				className: "cg-detail-row",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "detail-label",
+					className: "cg-detail-label",
 					children: t$1("detail.file")
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "detail-value",
+					className: "cg-detail-value",
 					children: node.filePath
 				})]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "detail-row",
+				className: "cg-detail-row",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "detail-label",
+					className: "cg-detail-label",
 					children: t$1("detail.line")
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "detail-value",
+					className: "cg-detail-value",
 					children: node.lineNumber
 				})]
 			}),
 			connectionCount !== void 0 && connectionCount > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "detail-row",
+				className: "cg-detail-row",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "detail-label",
+					className: "cg-detail-label",
 					children: t$1("detail.connections")
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "detail-value",
+					className: "cg-detail-value",
 					children: connectionCount
 				})]
 			}),
 			signature && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "detail-signature",
+				className: "cg-detail-signature",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "detail-section-title",
+					className: "cg-detail-section-title",
 					children: t$1("detail.signature")
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("code", {
-					className: "detail-code",
+					className: "cg-detail-code",
 					children: signature
 				})]
 			}),
 			docstring && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "detail-docstring",
+				className: "cg-detail-docstring",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "detail-section-title",
+					className: "cg-detail-section-title",
 					children: t$1("detail.docstring")
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("pre", {
-					className: "detail-doc-text",
+					className: "cg-detail-doc-text",
 					children: docstring
 				})]
 			}),
 			canExpand && !isExpanded && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				className: "detail-expand-hint",
+				className: "cg-detail-expand-hint",
 				children: t$1("detail.doubleClickExpand")
 			}),
 			canExpand && isExpanded && onCollapse && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "detail-expand-hint detail-expand-hint--expanded",
+				className: "cg-detail-expand-hint cg-detail-expand-hint--expanded",
 				children: [t$1("detail.expanded"), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 					onClick: onCollapse,
-					className: "detail-collapse-btn",
+					className: "cg-detail-collapse-btn",
 					children: t$1("detail.collapse")
 				})]
 			}),
 			node.type === "function" && onSelectFunction && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "detail-micro-actions",
+				className: "cg-detail-micro-actions",
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "detail-section-title",
+						className: "cg-detail-section-title",
 						children: t$1("detail.microViews")
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: "detail-micro-btns",
+						className: "cg-detail-micro-btns",
 						children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: "detail-micro-btn",
+								className: "cg-detail-micro-btn",
 								onClick: () => onSelectFunction(node, "cfg"),
+								"aria-label": t$1("toolbar.viewModeCfg"),
 								children: t$1("viewMode.cfg")
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: "detail-micro-btn",
+								className: "cg-detail-micro-btn",
 								onClick: () => onSelectFunction(node, "flowchart"),
+								"aria-label": t$1("toolbar.viewModeFlowchart"),
 								children: t$1("viewMode.flowchart")
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: "detail-micro-btn",
+								className: "cg-detail-micro-btn",
 								onClick: () => onSelectFunction(node, "sequence"),
+								"aria-label": t$1("toolbar.viewModeSequence"),
 								children: t$1("viewMode.sequence")
 							})
 						]
 					}),
 					onAggregateCallChain && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-						className: "detail-micro-btn detail-chain-btn",
+						className: "cg-detail-micro-btn cg-detail-chain-btn",
 						onClick: () => onAggregateCallChain(node.id),
 						children: t$1("detail.aggregateCallChain")
 					})
 				]
 			}),
+			node.type !== "function" && !isClusterNode && onSelectFunction && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				className: "cg-detail-micro-hint",
+				children: t$1("detail.microHint")
+			}),
 			isClusterNode && childFunctionNodes.length > 0 && onSelectFunction && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "detail-cluster-functions",
+				className: "cg-detail-cluster-functions",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "detail-section-title",
+					className: "cg-detail-section-title",
 					children: [
 						t$1("detail.functionsInCluster"),
 						" (",
@@ -58022,29 +60898,32 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, on
 						")"
 					]
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "detail-function-list",
+					className: "cg-detail-function-list",
 					children: childFunctionNodes.map((fn$7) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: "detail-function-item",
+						className: "cg-detail-function-item",
 						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: "detail-function-name",
+							className: "cg-detail-function-name",
 							title: fn$7.filePath,
 							children: fn$7.label
 						}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-							className: "detail-function-micro-btns",
+							className: "cg-detail-function-micro-btns",
 							children: [
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									className: "detail-micro-btn detail-micro-btn--small",
+									className: "cg-detail-micro-btn cg-detail-micro-btn--small",
 									onClick: () => onSelectFunction(fn$7, "cfg"),
+									"aria-label": t$1("toolbar.viewModeCfg"),
 									children: t$1("viewMode.cfg")
 								}),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									className: "detail-micro-btn detail-micro-btn--small",
+									className: "cg-detail-micro-btn cg-detail-micro-btn--small",
 									onClick: () => onSelectFunction(fn$7, "flowchart"),
+									"aria-label": t$1("toolbar.viewModeFlowchart"),
 									children: t$1("viewMode.flowchart")
 								}),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									className: "detail-micro-btn detail-micro-btn--small",
+									className: "cg-detail-micro-btn cg-detail-micro-btn--small",
 									onClick: () => onSelectFunction(fn$7, "sequence"),
+									"aria-label": t$1("toolbar.viewModeSequence"),
 									children: t$1("viewMode.sequence")
 								})
 							]
@@ -58053,28 +60932,28 @@ function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, on
 				})]
 			}),
 			extraProps.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "detail-extra",
+				className: "cg-detail-extra",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "detail-extra-title",
+					className: "cg-detail-extra-title",
 					children: t$1("detail.properties")
 				}), extraProps.map(([k, v]) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "detail-row",
+					className: "cg-detail-row",
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "detail-label",
+						className: "cg-detail-label",
 						children: k
 					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "detail-value",
+						className: "cg-detail-value",
 						children: typeof v === "object" ? JSON.stringify(v) : String(v)
 					})]
 				}, k))]
 			})
 		]
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/StatsPanel.tsx
-function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusArea }) {
+const StatsPanel = (0, react.memo)(function StatsPanel$1({ counts, onClose, thumbnail, viewportInfo, onFocusArea }) {
 	const t$1 = useT();
 	const total = counts.function + counts.class + counts.variable + counts.module + counts.interface;
 	const imgRef = (0, react.useRef)(null);
@@ -58112,11 +60991,11 @@ function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusArea }) {
 		onFocusArea(ratioX, ratioY);
 	};
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "mini-map",
+		className: "cg-mini-map",
 		role: "complementary",
 		"aria-label": t$1("minimap.title"),
 		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-			className: "mini-map-header",
+			className: "cg-mini-map-header",
 			children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("minimap.title") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 				onClick: onClose,
 				"aria-label": t$1("minimap.close"),
@@ -58124,10 +61003,10 @@ function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusArea }) {
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CloseIcon, { size: 14 })
 			})]
 		}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-			className: "mini-map-content",
+			className: "cg-mini-map-content",
 			children: [
 				thumbnail && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "mini-map-thumbnail",
+					className: "cg-mini-map-thumbnail",
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("img", {
 						ref: imgRef,
 						src: thumbnail,
@@ -58141,7 +61020,7 @@ function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusArea }) {
 							cursor: onFocusArea ? "crosshair" : "default"
 						}
 					}), viewportBox && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "mini-map-viewport",
+						className: "cg-mini-map-viewport",
 						style: {
 							position: "absolute",
 							left: `${viewportBox.left}px`,
@@ -58152,11 +61031,11 @@ function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusArea }) {
 					})]
 				}),
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "mini-map-stats",
+					className: "cg-mini-map-stats",
 					children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: "dot",
+								className: "cg-dot",
 								style: { background: "var(--cg-success)" }
 							}),
 							t$1("minimap.functions"),
@@ -58165,7 +61044,7 @@ function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusArea }) {
 						] }),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: "dot",
+								className: "cg-dot",
 								style: { background: "var(--cg-accent)" }
 							}),
 							t$1("minimap.classes"),
@@ -58174,7 +61053,7 @@ function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusArea }) {
 						] }),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: "dot",
+								className: "cg-dot",
 								style: { background: "var(--cg-warning)" }
 							}),
 							t$1("minimap.variables"),
@@ -58183,7 +61062,7 @@ function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusArea }) {
 						] }),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: "dot",
+								className: "cg-dot",
 								style: { background: "var(--cg-node-module)" }
 							}),
 							t$1("minimap.modules"),
@@ -58192,7 +61071,7 @@ function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusArea }) {
 						] }),
 						/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", { children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: "dot",
+								className: "cg-dot",
 								style: { background: "var(--cg-node-interface)" }
 							}),
 							t$1("minimap.interfaces"),
@@ -58202,7 +61081,7 @@ function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusArea }) {
 					]
 				}),
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "mini-map-total",
+					className: "cg-mini-map-total",
 					children: [
 						t$1("minimap.total"),
 						": ",
@@ -58212,11 +61091,11 @@ function StatsPanel({ counts, onClose, thumbnail, viewportInfo, onFocusArea }) {
 			]
 		})]
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/EmptyState.tsx
-function EmptyState({ prerequisites, onImport, onScanWorkspace }) {
+const EmptyState = (0, react.memo)(function EmptyState$1({ prerequisites, onImport, onScanWorkspace }) {
 	const t$1 = useT();
 	const [copiedCmd, setCopiedCmd] = (0, react.useState)(null);
 	const [installing, setInstalling] = (0, react.useState)(false);
@@ -58233,71 +61112,78 @@ function EmptyState({ prerequisites, onImport, onScanWorkspace }) {
 			navigator.clipboard?.writeText(cmd);
 			setCopiedCmd(cmd);
 			if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-			copyTimerRef.current = setTimeout(() => setCopiedCmd(null), 2e3);
-		} catch {}
+			copyTimerRef.current = setTimeout(() => setCopiedCmd(null), UI.COPY_HINT_TIMEOUT_MS);
+		} catch (_e) {}
 	}, []);
 	const handleInstall = (0, react.useCallback)((plugin) => {
+		const cmd = plugin === "dsh-codegraph" ? t$1("prereq.installCodegraph") : t$1("prereq.installLens");
+		try {
+			navigator.clipboard?.writeText(cmd);
+			setCopiedCmd(cmd);
+			if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+			copyTimerRef.current = setTimeout(() => setCopiedCmd(null), UI.INSTALL_HINT_TIMEOUT_MS);
+		} catch (_e) {}
+		window.dispatchEvent(new CustomEvent(DOM_EVENTS.INSTALL_PLUGIN, { detail: { plugin } }));
 		setInstalling(true);
-		window.dispatchEvent(new CustomEvent("codegraph:install-plugin", { detail: { plugin } }));
 		if (installTimerRef.current) clearTimeout(installTimerRef.current);
-		installTimerRef.current = setTimeout(() => setInstalling(false), 3e3);
-	}, []);
+		installTimerRef.current = setTimeout(() => setInstalling(false), UI.INSTALL_HINT_TIMEOUT_MS);
+	}, [t$1]);
 	const codegraphMissing = !prerequisites.codegraph;
 	const lensMissing = !prerequisites.lens;
 	const anyMissing = codegraphMissing || lensMissing;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "empty-state",
+		className: "cg-empty-state",
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphIcon, {
 				size: 48,
-				className: "empty-icon"
+				className: "cg-empty-icon"
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-				className: "empty-title",
+				className: "cg-empty-title",
 				children: t$1("empty.title")
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-				className: "empty-subtitle",
+				className: "cg-empty-subtitle",
 				children: t$1("empty.subtitle")
 			}),
 			anyMissing && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "empty-prereq-warning",
+				className: "cg-empty-prereq-warning",
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: "prereq-header",
+						className: "cg-prereq-header",
 						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(AlertIcon, { size: 14 }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: "prereq-title",
+							className: "cg-prereq-title",
 							children: t$1("empty.prereqTitle")
 						})]
 					}),
 					codegraphMissing && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: "prereq-item",
+						className: "cg-prereq-item",
 						children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: "prereq-item-header",
+								className: "cg-prereq-item-header",
 								children: [
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: `prereq-status-dot ${prerequisites.codegraph ? "ok" : "missing"}` }),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: `cg-prereq-status-dot ${prerequisites.codegraph ? "cg-ok" : "cg-missing"}` }),
 									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-										className: "prereq-item-label",
+										className: "cg-prereq-item-label",
 										children: t$1("prereq.codegraphLabel")
 									}),
 									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-										className: "prereq-item-status",
+										className: "cg-prereq-item-status",
 										children: t$1("prereq.notFound")
 									})
 								]
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: "prereq-item-desc",
+								className: "cg-prereq-item-desc",
 								children: t$1("prereq.codegraphDesc")
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: "prereq-cmd-row",
+								className: "cg-prereq-cmd-row",
 								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("code", {
-									className: "prereq-cmd",
+									className: "cg-prereq-cmd",
 									children: t$1("prereq.installCodegraph")
 								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									className: "prereq-copy-btn",
+									className: "cg-prereq-copy-btn",
 									onClick: () => handleCopyCmd(t$1("prereq.installCodegraph")),
 									"aria-label": t$1("empty.copyCmd"),
 									title: t$1("empty.copyCmd"),
@@ -58305,45 +61191,46 @@ function EmptyState({ prerequisites, onImport, onScanWorkspace }) {
 								})]
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-								className: "prereq-install-btn",
+								className: "cg-prereq-install-btn",
 								onClick: () => handleInstall("dsh-codegraph"),
 								disabled: installing,
+								"aria-label": installing ? t$1("prereq.detecting") : t$1("prereq.installTitle"),
 								children: [
 									/* @__PURE__ */ (0, react_jsx_runtime.jsx)(ZapIcon, { size: 14 }),
 									" ",
-									installing ? t$1("prereq.detecting") : t$1("prereq.installTitle")
+									installing ? copiedCmd === t$1("prereq.installCodegraph") ? t$1("empty.copied") : t$1("prereq.detecting") : t$1("prereq.installTitle")
 								]
 							})
 						]
 					}),
 					lensMissing && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: "prereq-item",
+						className: "cg-prereq-item",
 						children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: "prereq-item-header",
+								className: "cg-prereq-item-header",
 								children: [
-									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: `prereq-status-dot ${prerequisites.lens ? "ok" : "missing"}` }),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { className: `cg-prereq-status-dot ${prerequisites.lens ? "cg-ok" : "cg-missing"}` }),
 									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-										className: "prereq-item-label",
+										className: "cg-prereq-item-label",
 										children: t$1("prereq.lensLabel")
 									}),
 									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-										className: "prereq-item-status",
+										className: "cg-prereq-item-status",
 										children: t$1("prereq.notFound")
 									})
 								]
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: "prereq-item-desc",
+								className: "cg-prereq-item-desc",
 								children: t$1("prereq.lensDesc")
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: "prereq-cmd-row",
+								className: "cg-prereq-cmd-row",
 								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("code", {
-									className: "prereq-cmd",
+									className: "cg-prereq-cmd",
 									children: t$1("prereq.installLens")
 								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									className: "prereq-copy-btn",
+									className: "cg-prereq-copy-btn",
 									onClick: () => handleCopyCmd(t$1("prereq.installLens")),
 									"aria-label": t$1("empty.copyCmd"),
 									title: t$1("empty.copyCmd"),
@@ -58351,27 +61238,28 @@ function EmptyState({ prerequisites, onImport, onScanWorkspace }) {
 								})]
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-								className: "prereq-install-btn",
+								className: "cg-prereq-install-btn",
 								onClick: () => handleInstall("dsh-tool-lens"),
 								disabled: installing,
+								"aria-label": installing ? t$1("prereq.detecting") : t$1("prereq.installTitle"),
 								children: [
 									/* @__PURE__ */ (0, react_jsx_runtime.jsx)(ZapIcon, { size: 14 }),
 									" ",
-									installing ? t$1("prereq.detecting") : t$1("prereq.installTitle")
+									installing ? copiedCmd === t$1("prereq.installLens") ? t$1("empty.copied") : t$1("prereq.detecting") : t$1("prereq.installTitle")
 								]
 							})
 						]
 					}),
 					copiedCmd && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "prereq-copied",
+						className: "cg-prereq-copied",
 						children: t$1("empty.copied")
 					})
 				]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "empty-actions",
+				className: "cg-empty-actions",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-					className: "empty-import-btn",
+					className: "cg-empty-import-btn",
 					onClick: onImport,
 					children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(UploadIcon, { size: 15 }),
@@ -58379,7 +61267,7 @@ function EmptyState({ prerequisites, onImport, onScanWorkspace }) {
 						t$1("empty.import")
 					]
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
-					className: "empty-scan-btn",
+					className: "cg-empty-scan-btn",
 					onClick: onScanWorkspace,
 					children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphIcon, { size: 15 }),
@@ -58390,7 +61278,7 @@ function EmptyState({ prerequisites, onImport, onScanWorkspace }) {
 			})
 		]
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/GraphTooltip.tsx
@@ -58408,7 +61296,8 @@ function clampPosition(x$1, y$1) {
 		top: Math.min(y$1 + offset, Math.max(offset, maxY))
 	};
 }
-function GraphTooltip({ data: data$2 }) {
+const GraphTooltip = (0, react.memo)(function GraphTooltip$1({ data: data$2 }) {
+	const t$1 = useT();
 	const pos = clampPosition(data$2.x, data$2.y);
 	if (isEdgeTooltip(data$2)) return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "cg-tooltip",
@@ -58419,20 +61308,20 @@ function GraphTooltip({ data: data$2 }) {
 		role: "tooltip",
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				className: "tooltip-edge-source",
+				className: "cg-tooltip-edge-source",
 				children: data$2.sourceLabel
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				className: "tooltip-edge-arrow",
+				className: "cg-tooltip-edge-arrow",
 				children: "→"
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				className: "tooltip-edge-target",
+				className: "cg-tooltip-edge-target",
 				children: data$2.targetLabel
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-				className: "tooltip-type",
-				children: data$2.edgeType
+				className: "cg-tooltip-type",
+				children: t$1(`legend.${data$2.edgeType}`)
 			})
 		]
 	});
@@ -58445,43 +61334,223 @@ function GraphTooltip({ data: data$2 }) {
 		role: "tooltip",
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				className: "tooltip-name",
+				className: "cg-tooltip-name",
 				children: data$2.name
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				className: "tooltip-path",
+				className: "cg-tooltip-path",
 				children: data$2.path
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-				className: "tooltip-type",
+				className: "cg-tooltip-type",
 				children: data$2.type
 			}),
 			(data$2.linksIn !== void 0 || data$2.linksOut !== void 0) && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "tooltip-links",
+				className: "cg-tooltip-links",
 				children: [data$2.linksIn !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-					className: "tooltip-links-in",
+					className: "cg-tooltip-links-in",
 					children: ["in: ", data$2.linksIn]
 				}), data$2.linksOut !== void 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-					className: "tooltip-links-out",
+					className: "cg-tooltip-links-out",
 					children: ["out: ", data$2.linksOut]
 				})]
 			})
 		]
 	});
-}
+});
+
+//#endregion
+//#region src/client/components/ContextMenu.tsx
+const ContextMenu = (0, react.memo)(function ContextMenu$1(props) {
+	const t$1 = useT();
+	const menuRef = (0, react.useRef)(null);
+	const [focusedIndex, setFocusedIndex] = (0, react.useState)(0);
+	const handleClose = (0, react.useCallback)(() => {
+		setFocusedIndex(0);
+		props.onClose();
+	}, [props.onClose]);
+	(0, react.useEffect)(() => {
+		const handleClickOutside = (e) => {
+			if (menuRef.current && !menuRef.current.contains(e.target)) handleClose();
+		};
+		const handleKeyDown = (e) => {
+			if (e.key === "Escape") {
+				handleClose();
+				return;
+			}
+			if (e.key === "ArrowDown") {
+				e.preventDefault();
+				setFocusedIndex((prev) => {
+					const items = menuRef.current?.querySelectorAll(".cg-context-menu-item:not([disabled])");
+					if (!items || items.length === 0) return prev;
+					return (prev + 1) % items.length;
+				});
+			}
+			if (e.key === "ArrowUp") {
+				e.preventDefault();
+				setFocusedIndex((prev) => {
+					const items = menuRef.current?.querySelectorAll(".cg-context-menu-item:not([disabled])");
+					if (!items || items.length === 0) return prev;
+					return (prev - 1 + items.length) % items.length;
+				});
+			}
+			if (e.key === "Home") {
+				e.preventDefault();
+				setFocusedIndex(0);
+			}
+			if (e.key === "End") {
+				e.preventDefault();
+				const items = menuRef.current?.querySelectorAll(".cg-context-menu-item:not([disabled])");
+				if (items && items.length > 0) setFocusedIndex(items.length - 1);
+			}
+		};
+		document.addEventListener("mousedown", handleClickOutside);
+		document.addEventListener("keydown", handleKeyDown);
+		return () => {
+			document.removeEventListener("mousedown", handleClickOutside);
+			document.removeEventListener("keydown", handleKeyDown);
+		};
+	}, [handleClose]);
+	(0, react.useEffect)(() => {
+		const items = menuRef.current?.querySelectorAll(".cg-context-menu-item:not([disabled])");
+		items?.[focusedIndex]?.focus();
+	}, [focusedIndex]);
+	(0, react.useEffect)(() => {
+		if (menuRef.current) {
+			const menu = menuRef.current;
+			const rect = menu.getBoundingClientRect();
+			const viewportW = window.innerWidth;
+			const viewportH = window.innerHeight;
+			if (rect.right > viewportW) menu.style.left = `${Math.max(0, props.position.x - rect.width)}px`;
+			if (rect.bottom > viewportH) menu.style.top = `${Math.max(0, props.position.y - rect.height)}px`;
+		}
+	}, [props.position.x, props.position.y]);
+	const actions = [];
+	actions.push({
+		id: "focus",
+		label: t$1("contextMenu.focus"),
+		onClick: () => {
+			props.onFocusNode(props.nodeId);
+			handleClose();
+		}
+	});
+	actions.push({
+		id: "isolate",
+		label: t$1("contextMenu.isolate"),
+		onClick: () => {
+			props.onIsolateNode(props.nodeId);
+			handleClose();
+		}
+	});
+	actions.push({
+		id: "hide",
+		label: t$1("contextMenu.hide"),
+		onClick: () => {
+			props.onHideNode(props.nodeId);
+			handleClose();
+		},
+		separatorAfter: true
+	});
+	if (props.hasHiddenNodes) actions.push({
+		id: "showAll",
+		label: t$1("contextMenu.showAll"),
+		onClick: () => {
+			props.onShowAllNodes();
+			handleClose();
+		},
+		separatorAfter: true
+	});
+	if (props.isCluster) if (props.isExpanded) actions.push({
+		id: "collapse",
+		label: t$1("contextMenu.collapse"),
+		onClick: () => {
+			props.onCollapseNode(props.nodeId);
+			handleClose();
+		},
+		separatorAfter: true
+	});
+	else actions.push({
+		id: "expand",
+		label: t$1("contextMenu.expand"),
+		onClick: () => {
+			props.onExpandNode(props.nodeId);
+			handleClose();
+		},
+		separatorAfter: true
+	});
+	actions.push({
+		id: "callChain",
+		label: t$1("contextMenu.callChain"),
+		onClick: () => {
+			props.onHighlightCallChain(props.nodeId);
+			handleClose();
+		}
+	});
+	actions.push({
+		id: "impact",
+		label: t$1("contextMenu.impact"),
+		onClick: () => {
+			props.onHighlightImpact(props.nodeId);
+			handleClose();
+		}
+	});
+	actions.push({
+		id: "findPath",
+		label: t$1("contextMenu.findPath"),
+		onClick: () => {
+			props.onFindPath(props.nodeId);
+			handleClose();
+		},
+		separatorAfter: true
+	});
+	actions.push({
+		id: "openSource",
+		label: t$1("contextMenu.openSource"),
+		onClick: () => {
+			props.onOpenSource(props.nodeId);
+			handleClose();
+		}
+	});
+	const menuStyle = {
+		position: "fixed",
+		left: `${props.position.x}px`,
+		top: `${props.position.y}px`,
+		zIndex: UI.CONTEXT_MENU_Z_INDEX
+	};
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+		className: "cg-context-menu",
+		ref: menuRef,
+		style: menuStyle,
+		role: "menu",
+		children: actions.map((action) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react.default.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+			className: "cg-context-menu-item",
+			role: "menuitem",
+			disabled: action.disabled,
+			onClick: action.onClick,
+			children: [action.icon && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+				className: "cg-context-menu-icon",
+				"aria-hidden": "true",
+				children: action.icon
+			}), action.label]
+		}), action.separatorAfter && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+			className: "cg-context-menu-separator",
+			role: "separator"
+		})] }, action.id))
+	});
+});
 
 //#endregion
 //#region src/client/components/LoadingOverlay.tsx
-function LoadingOverlay({ visible }) {
+const LoadingOverlay = (0, react.memo)(function LoadingOverlay$1({ visible }) {
 	const t$1 = useT();
 	if (!visible) return null;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "loading-overlay",
+		className: "cg-loading-overlay",
 		role: "status",
 		"aria-live": "polite",
-		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: "spinner" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("state.loading") })]
+		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: "cg-spinner" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("state.loading") })]
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/ErrorOverlay.tsx
@@ -58491,85 +61560,44 @@ function friendlyError(raw, t$1) {
 	if (raw.startsWith("Failed to load code graph")) return t$1("error.loadGraph");
 	return t$1("error.generic");
 }
-function ErrorOverlay({ error: error$1, onBack, onRetry }) {
+const ErrorOverlay = (0, react.memo)(function ErrorOverlay$1({ error: error$1, onBack, onRetry }) {
 	const t$1 = useT();
 	if (!error$1) return null;
 	const message = friendlyError(error$1, t$1);
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "error-overlay",
+		className: "cg-error-overlay",
 		role: "alert",
 		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-			className: "error-overlay-content",
+			className: "cg-error-overlay-content",
 			children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(AlertCircleIcon, {
 				size: 16,
-				className: "error-overlay-icon"
+				className: "cg-error-overlay-icon"
 			}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: message })]
 		}), (onBack || onRetry) && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-			className: "error-overlay-actions",
+			className: "cg-error-overlay-actions",
 			children: [onRetry && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-				className: "error-overlay-btn error-overlay-retry",
+				className: "cg-error-overlay-btn cg-error-overlay-retry",
 				onClick: onRetry,
 				children: t$1("error.retry")
 			}), onBack && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-				className: "error-overlay-btn error-overlay-back",
+				className: "cg-error-overlay-btn cg-error-overlay-back",
 				onClick: onBack,
 				children: t$1("micro.backToCode")
 			})]
 		})]
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/KeyboardHelp.tsx
-const SHORTCUTS = [
-	{
-		key: "/",
-		descKey: "shortcut.search"
-	},
-	{
-		key: "Esc",
-		descKey: "shortcut.closeAll"
-	},
-	{
-		key: "Ctrl+C",
-		descKey: "shortcut.callChain"
-	},
-	{
-		key: "Ctrl+E",
-		descKey: "shortcut.impact"
-	},
-	{
-		key: "Ctrl+H",
-		descKey: "shortcut.inheritance"
-	},
-	{
-		key: "Ctrl+M",
-		descKey: "shortcut.minimap"
-	},
-	{
-		key: "Ctrl+L",
-		descKey: "shortcut.layout"
-	},
-	{
-		key: "Ctrl+I",
-		descKey: "shortcut.import"
-	},
-	{
-		key: "Ctrl+Z",
-		descKey: "shortcut.undo"
-	},
-	{
-		key: "Ctrl+Y",
-		descKey: "shortcut.redo"
-	},
-	{
-		key: "?",
-		descKey: "shortcut.help"
-	}
-];
-function KeyboardHelp({ visible, onClose }) {
+const KeyboardHelp = (0, react.memo)(function KeyboardHelp$1({ visible, onClose }) {
 	const t$1 = useT();
 	const panelRef = (0, react.useRef)(null);
+	const triggerRef = (0, react.useRef)(null);
+	(0, react.useEffect)(() => {
+		if (visible) triggerRef.current = document.activeElement;
+		else triggerRef.current?.focus();
+	}, [visible]);
 	(0, react.useEffect)(() => {
 		if (!visible) return;
 		const panel = panelRef.current;
@@ -58600,43 +61628,43 @@ function KeyboardHelp({ visible, onClose }) {
 	}, [visible, onClose]);
 	if (!visible) return null;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-		className: "keyboard-help-overlay",
+		className: "cg-keyboard-help-overlay",
 		onClick: onClose,
 		role: "dialog",
 		"aria-modal": "true",
 		"aria-label": t$1("shortcut.title"),
 		children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-			className: "keyboard-help-panel",
+			className: "cg-keyboard-help-panel",
 			ref: panelRef,
 			onClick: (e) => e.stopPropagation(),
 			children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "keyboard-help-header",
+				className: "cg-keyboard-help-header",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("shortcut.title") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-					className: "keyboard-help-close",
+					className: "cg-keyboard-help-close",
 					onClick: onClose,
 					"aria-label": t$1("shortcut.close"),
 					children: "×"
 				})]
 			}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				className: "keyboard-help-list",
-				children: SHORTCUTS.map((s) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "keyboard-help-item",
+				className: "cg-keyboard-help-list",
+				children: KEYBOARD_SHORTCUTS.map((s) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: "cg-keyboard-help-item",
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("kbd", {
-						className: "keyboard-help-key",
-						children: s.key
+						className: "cg-keyboard-help-key",
+						children: formatShortcutKey(s)
 					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "keyboard-help-desc",
+						className: "cg-keyboard-help-desc",
 						children: t$1(s.descKey)
 					})]
 				}, s.key))
 			})]
 		})
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/PathBar.tsx
-function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClose }) {
+const PathBar = (0, react.memo)(function PathBar$1({ onFindPath, onClearPath, pathResult, pathLength, onClose }) {
 	const t$1 = useT();
 	const pathStartId = useGraphStore((s) => s.pathStartId);
 	const pathEndId = useGraphStore((s) => s.pathEndId);
@@ -58646,16 +61674,11 @@ function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClose }) {
 	const startLabel = useGraphStore((s) => pathStartId ? s.rawNodes.find((n) => n.id === pathStartId)?.label ?? pathStartId : null);
 	const endLabel = useGraphStore((s) => pathEndId ? s.rawNodes.find((n) => n.id === pathEndId)?.label ?? pathEndId : null);
 	const rawNodes = useGraphStore((s) => s.rawNodes);
+	const { search: searchNodes } = useNodeSearch(rawNodes);
 	const [startQuery, setStartQuery] = (0, react.useState)("");
 	const [endQuery, setEndQuery] = (0, react.useState)("");
-	const startMatches = (0, react.useMemo)(() => {
-		if (!startQuery) return [];
-		return rawNodes.filter((n) => n.label.toLowerCase().includes(startQuery.toLowerCase())).slice(0, 10);
-	}, [startQuery, rawNodes]);
-	const endMatches = (0, react.useMemo)(() => {
-		if (!endQuery) return [];
-		return rawNodes.filter((n) => n.label.toLowerCase().includes(endQuery.toLowerCase())).slice(0, 10);
-	}, [endQuery, rawNodes]);
+	const startMatches = searchNodes(startQuery, 10);
+	const endMatches = searchNodes(endQuery, 10);
 	const handleFind = (0, react.useCallback)(() => {
 		if (pathStartId && pathEndId) onFindPath(pathStartId, pathEndId);
 	}, [
@@ -58677,11 +61700,11 @@ function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClose }) {
 		onClearPath
 	]);
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "path-bar",
+		className: "cg-path-bar",
 		role: "region",
 		"aria-label": t$1("pathFind.title"),
 		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-			className: "path-bar-header",
+			className: "cg-path-bar-header",
 			children: [
 				/* @__PURE__ */ (0, react_jsx_runtime.jsx)(PathIcon, { size: 14 }),
 				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("pathFind.title") }),
@@ -58693,10 +61716,10 @@ function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClose }) {
 				})
 			]
 		}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-			className: "path-bar-content",
+			className: "cg-path-bar-content",
 			children: [
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "path-input-group",
+					className: "cg-path-input-group",
 					children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", {
 							htmlFor: "path-start-input",
@@ -58714,29 +61737,29 @@ function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClose }) {
 							placeholder: t$1("pathFind.startPlaceholder")
 						}),
 						startMatches.length > 0 && !pathStartId && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							className: "path-suggestions",
+							className: "cg-path-suggestions",
 							children: startMatches.map((n) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 								onClick: () => {
 									setStartQuery(n.label);
 									setPathStart(NodeId(n.id));
 								},
 								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: "suggestion-type",
+									className: "cg-suggestion-type",
 									children: n.type
 								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: "suggestion-label",
+									className: "cg-suggestion-label",
 									children: n.label
 								})]
 							}, n.id))
 						}),
 						pathStartId && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: "path-selected",
+							className: "cg-path-selected",
 							children: startLabel
 						})
 					]
 				}),
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "path-input-group",
+					className: "cg-path-input-group",
 					children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("label", {
 							htmlFor: "path-end-input",
@@ -58754,42 +61777,42 @@ function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClose }) {
 							placeholder: t$1("pathFind.endPlaceholder")
 						}),
 						endMatches.length > 0 && !pathEndId && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							className: "path-suggestions",
+							className: "cg-path-suggestions",
 							children: endMatches.map((n) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 								onClick: () => {
 									setEndQuery(n.label);
 									setPathEnd(NodeId(n.id));
 								},
 								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: "suggestion-type",
+									className: "cg-suggestion-type",
 									children: n.type
 								}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: "suggestion-label",
+									className: "cg-suggestion-label",
 									children: n.label
 								})]
 							}, n.id))
 						}),
 						pathEndId && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: "path-selected",
+							className: "cg-path-selected",
 							children: endLabel
 						})
 					]
 				}),
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "path-actions",
+					className: "cg-path-actions",
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 						onClick: handleFind,
 						disabled: !pathStartId || !pathEndId,
-						className: "path-find-btn",
+						className: "cg-path-find-btn",
 						children: t$1("pathFind.find")
 					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 						onClick: handleClear,
-						className: "path-clear-btn",
+						className: "cg-path-clear-btn",
 						children: t$1("pathFind.clear")
 					})]
 				}),
 				pathResult && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "path-result",
+					className: "cg-path-result",
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", { children: [
 						t$1("pathFind.length"),
 						": ",
@@ -58803,7 +61826,7 @@ function PathBar({ onFindPath, onClearPath, pathResult, pathLength, onClose }) {
 			]
 		})]
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/HealthScoreCard.tsx
@@ -58815,23 +61838,23 @@ function scoreColor(score) {
 function DimensionBar({ name: name$1, score, description }) {
 	const t$1 = useT();
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "health-dimension",
+		className: "cg-health-dimension",
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "health-dimension-header",
+				className: "cg-health-dimension-header",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "health-dimension-name",
+					className: "cg-health-dimension-name",
 					children: t$1(`health.${name$1}`)
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "health-dimension-score",
+					className: "cg-health-dimension-score",
 					style: { color: scoreColor(score) },
 					children: score
 				})]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				className: "health-dimension-bar",
+				className: "cg-health-dimension-bar",
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "health-dimension-fill",
+					className: "cg-health-dimension-fill",
 					style: {
 						width: `${score}%`,
 						background: scoreColor(score)
@@ -58839,22 +61862,22 @@ function DimensionBar({ name: name$1, score, description }) {
 				})
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				className: "health-dimension-desc",
+				className: "cg-health-dimension-desc",
 				children: description
 			})
 		]
 	});
 }
-function HealthScoreCard({ onClose }) {
+const HealthScoreCard = (0, react.memo)(function HealthScoreCard$1({ onClose }) {
 	const t$1 = useT();
 	const healthScore = useGraphStore((s) => s.healthScore);
 	if (!healthScore) return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "health-score-card",
+		className: "cg-health-score-card",
 		role: "region",
 		"aria-label": t$1("health.title"),
 		"aria-live": "polite",
 		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-			className: "health-score-header",
+			className: "cg-health-score-header",
 			children: [
 				/* @__PURE__ */ (0, react_jsx_runtime.jsx)(HeartIcon, { size: 14 }),
 				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("health.title") }),
@@ -58866,7 +61889,7 @@ function HealthScoreCard({ onClose }) {
 				})
 			]
 		}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-			className: "health-score-empty",
+			className: "cg-health-score-empty",
 			children: t$1("health.noData")
 		})]
 	});
@@ -58893,13 +61916,13 @@ function HealthScoreCard({ onClose }) {
 		}
 	];
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "health-score-card",
+		className: "cg-health-score-card",
 		role: "region",
 		"aria-label": t$1("health.title"),
 		"aria-live": "polite",
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "health-score-header",
+				className: "cg-health-score-header",
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(HeartIcon, { size: 14 }),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("health.title") }),
@@ -58912,21 +61935,21 @@ function HealthScoreCard({ onClose }) {
 				]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "health-score-overall",
+				className: "cg-health-score-overall",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "health-score-circle",
+					className: "cg-health-score-circle",
 					style: { borderColor: scoreColor(healthScore.overall) },
 					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 						style: { color: scoreColor(healthScore.overall) },
 						children: healthScore.overall
 					})
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "health-score-label",
+					className: "cg-health-score-label",
 					children: t$1("health.overall")
 				})]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				className: "health-dimensions",
+				className: "cg-health-dimensions",
 				children: dimensions$1.map((d) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)(DimensionBar, {
 					name: d.name,
 					score: d.score,
@@ -58935,11 +61958,11 @@ function HealthScoreCard({ onClose }) {
 			})
 		]
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/RuleConfigPanel.tsx
-function RuleConfigPanel({ violations, onCheckRules, onClose }) {
+const RuleConfigPanel = (0, react.memo)(function RuleConfigPanel$1({ violations, onCheckRules, onClose }) {
 	const t$1 = useT();
 	const rules = useGraphStore((s) => s.rules);
 	const setRules = useGraphStore((s) => s.setRules);
@@ -58957,11 +61980,11 @@ function RuleConfigPanel({ violations, onCheckRules, onClose }) {
 	const errorCount = violations.filter((v) => v.severity === "error").length;
 	const warningCount = violations.filter((v) => v.severity === "warning").length;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "rule-panel",
+		className: "cg-rule-panel",
 		role: "region",
 		"aria-label": t$1("rules.title"),
 		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-			className: "rule-panel-header",
+			className: "cg-rule-panel-header",
 			children: [
 				/* @__PURE__ */ (0, react_jsx_runtime.jsx)(RuleIcon, { size: 14 }),
 				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("rules.title") }),
@@ -58973,26 +61996,26 @@ function RuleConfigPanel({ violations, onCheckRules, onClose }) {
 				})
 			]
 		}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-			className: "rule-panel-content",
+			className: "cg-rule-panel-content",
 			children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "rule-config-section",
+				className: "cg-rule-config-section",
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: "rule-config-header",
+						className: "cg-rule-config-header",
 						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("rules.config") }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 							onClick: handleLoadPresets,
-							className: "rule-preset-btn",
+							className: "cg-rule-preset-btn",
 							children: t$1("rules.loadPresets")
 						})]
 					}),
 					rules.length === 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "rule-empty",
+						className: "cg-rule-empty",
 						children: t$1("rules.noRules")
 					}),
 					rules.map((rule) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "rule-item",
+						className: "cg-rule-item",
 						children: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-							className: "rule-toggle",
+							className: "cg-rule-toggle",
 							children: [
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 									type: "checkbox",
@@ -59000,11 +62023,11 @@ function RuleConfigPanel({ violations, onCheckRules, onClose }) {
 									onChange: () => handleToggleRule(rule.id)
 								}),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: "rule-name",
+									className: "cg-rule-name",
 									children: rule.name
 								}),
 								/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-									className: `rule-severity ${rule.severity}`,
+									className: `cg-rule-severity cg-${rule.severity}`,
 									children: rule.severity
 								})
 							]
@@ -59013,14 +62036,14 @@ function RuleConfigPanel({ violations, onCheckRules, onClose }) {
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 						onClick: onCheckRules,
 						disabled: rules.filter((r) => r.enabled).length === 0,
-						className: "rule-check-btn",
+						className: "cg-rule-check-btn",
 						children: t$1("rules.check")
 					})
 				]
 			}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "rule-violations-section",
+				className: "cg-rule-violations-section",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "rule-violations-header",
+					className: "cg-rule-violations-header",
 					onClick: () => setShowViolations((v) => !v),
 					role: "button",
 					tabIndex: 0,
@@ -59033,23 +62056,23 @@ function RuleConfigPanel({ violations, onCheckRules, onClose }) {
 					children: [
 						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("rules.violations") }),
 						errorCount > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: "violation-badge error",
+							className: "cg-violation-badge cg-error",
 							children: errorCount
 						}),
 						warningCount > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: "violation-badge warning",
+							className: "cg-violation-badge cg-warning",
 							children: warningCount
 						})
 					]
 				}), showViolations && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "rule-violations-list",
+					className: "cg-rule-violations-list",
 					children: [violations.length === 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "rule-empty",
+						className: "cg-rule-empty",
 						children: t$1("rules.noViolations")
 					}), violations.map((v) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: `violation-item ${v.severity}`,
+						className: `cg-violation-item cg-${v.severity}`,
 						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(AlertIcon, { size: 12 }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: "violation-message",
+							className: "cg-violation-message",
 							children: v.message
 						})]
 					}, `${v.ruleId}-${v.edgeId ?? v.nodeId ?? v.message}`))]
@@ -59057,11 +62080,11 @@ function RuleConfigPanel({ violations, onCheckRules, onClose }) {
 			})]
 		})]
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/FocusModeBar.tsx
-function FocusModeBar({ focusNodeId, onExpand, onContract, onExit }) {
+const FocusModeBar = (0, react.memo)(function FocusModeBar$1({ focusNodeId, onExpand, onContract, onExit }) {
 	const t$1 = useT();
 	const focusDepth = useGraphStore((s) => s.focusDepth);
 	const focusLabel = useGraphStore((s) => {
@@ -59070,13 +62093,13 @@ function FocusModeBar({ focusNodeId, onExpand, onContract, onExit }) {
 	});
 	if (!focusNodeId) return null;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "focus-mode-bar",
+		className: "cg-focus-mode-bar",
 		role: "region",
 		"aria-label": t$1("focus.title"),
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)(FocusIcon, { size: 14 }),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-				className: "focus-label",
+				className: "cg-focus-label",
 				children: [
 					t$1("focus.mode"),
 					": ",
@@ -59084,7 +62107,7 @@ function FocusModeBar({ focusNodeId, onExpand, onContract, onExit }) {
 				]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-				className: "focus-depth",
+				className: "cg-focus-depth",
 				children: [
 					t$1("focus.depth"),
 					": ",
@@ -59093,14 +62116,14 @@ function FocusModeBar({ focusNodeId, onExpand, onContract, onExit }) {
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 				onClick: onExpand,
-				className: "focus-expand-btn",
+				className: "cg-focus-expand-btn",
 				title: t$1("focus.expand"),
 				"aria-label": t$1("focus.expand"),
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ExpandIcon, { size: 14 })
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 				onClick: onContract,
-				className: "focus-contract-btn",
+				className: "cg-focus-contract-btn",
 				title: t$1("focus.contract"),
 				"aria-label": t$1("focus.contract"),
 				disabled: focusDepth <= 1,
@@ -59108,26 +62131,26 @@ function FocusModeBar({ focusNodeId, onExpand, onContract, onExit }) {
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 				onClick: onExit,
-				className: "focus-exit-btn",
+				className: "cg-focus-exit-btn",
 				title: t$1("focus.exit"),
 				"aria-label": t$1("focus.exit"),
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CloseIcon, { size: 14 })
 			})
 		]
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/HotspotPanel.tsx
-function HotspotPanel({ hotspotNodes, onClose, label }) {
+const HotspotPanel = (0, react.memo)(function HotspotPanel$1({ hotspotNodes, onClose, label }) {
 	const t$1 = useT();
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "analysis-panel hotspot-panel",
+		className: "cg-analysis-panel hotspot-panel",
 		role: "region",
 		"aria-label": label,
 		"aria-live": "polite",
 		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-			className: "analysis-panel-header",
+			className: "cg-analysis-panel-header",
 			children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: label }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 				onClick: onClose,
 				className: "cg-close-btn",
@@ -59135,112 +62158,120 @@ function HotspotPanel({ hotspotNodes, onClose, label }) {
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CloseIcon, { size: 14 })
 			})]
 		}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-			className: "analysis-panel-content",
+			className: "cg-analysis-panel-content",
 			children: hotspotNodes.slice(0, 20).map((h) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: `hotspot-item ${h.level}`,
+				className: `cg-hotspot-item cg-${h.level}`,
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "hotspot-level-badge",
+						className: "cg-hotspot-level-badge",
 						children: h.level
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "hotspot-label",
+						className: "cg-hotspot-label",
 						children: h.label
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "hotspot-indegree",
+						className: "cg-hotspot-indegree",
 						children: h.indegree
 					})
 				]
 			}, h.nodeId))
 		})]
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/GodModulePanel.tsx
-function GodModulePanel({ godModules, onClose, label, statsLabel }) {
+const GodModulePanel = (0, react.memo)(function GodModulePanel$1({ godModules, onClose, label, statsLabel }) {
+	const t$1 = useT();
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "analysis-panel godmodule-panel",
+		className: "cg-analysis-panel godmodule-panel",
 		role: "region",
 		"aria-label": label,
 		"aria-live": "polite",
 		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-			className: "analysis-panel-header",
+			className: "cg-analysis-panel-header",
 			children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: label }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 				onClick: onClose,
 				className: "cg-close-btn",
+				"aria-label": t$1("common.close"),
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CloseIcon, { size: 14 })
 			})]
 		}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-			className: "analysis-panel-content",
+			className: "cg-analysis-panel-content",
 			children: godModules.map((m) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "godmodule-item",
+				className: "cg-godmodule-item",
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "godmodule-path",
+						className: "cg-godmodule-path",
 						children: m.modulePath
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "godmodule-stats",
+						className: "cg-godmodule-stats",
 						children: statsLabel(m.nodeCount, m.edgeCount)
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "godmodule-suggestion",
+						className: "cg-godmodule-suggestion",
 						children: m.suggestion
 					})
 				]
 			}, m.modulePath))
 		})]
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/ImpactPanel.tsx
-function ImpactPanel({ impactStats, label, totalLabel }) {
+const ImpactPanel = (0, react.memo)(function ImpactPanel$1({ impactStats, label, totalLabel, onClose }) {
+	const t$1 = useT();
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "analysis-panel impact-panel",
+		className: "cg-analysis-panel cg-impact-panel",
 		role: "region",
 		"aria-label": label,
 		"aria-live": "polite",
-		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-			className: "analysis-panel-header",
-			children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: label })
+		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			className: "cg-analysis-panel-header",
+			children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: label }), onClose && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+				className: "cg-analysis-panel-close",
+				onClick: onClose,
+				"aria-label": t$1("common.close"),
+				children: "×"
+			})]
 		}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-			className: "analysis-panel-content",
+			className: "cg-analysis-panel-content",
 			children: [
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "impact-stat-row",
+					className: "cg-impact-stat-row",
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "impact-stat-badge d1",
+						className: "cg-impact-stat-badge cg-d1",
 						children: "D1"
 					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "impact-stat-count",
+						className: "cg-impact-stat-count",
 						children: impactStats.d1
 					})]
 				}),
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "impact-stat-row",
+					className: "cg-impact-stat-row",
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "impact-stat-badge d2",
+						className: "cg-impact-stat-badge cg-d2",
 						children: "D2"
 					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "impact-stat-count",
+						className: "cg-impact-stat-count",
 						children: impactStats.d2
 					})]
 				}),
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "impact-stat-row",
+					className: "cg-impact-stat-row",
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "impact-stat-badge d3",
+						className: "cg-impact-stat-badge cg-d3",
 						children: "D3"
 					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "impact-stat-count",
+						className: "cg-impact-stat-count",
 						children: impactStats.d3
 					})]
 				}),
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "impact-stat-total",
+					className: "cg-impact-stat-total",
 					children: [
 						totalLabel,
 						": ",
@@ -59250,80 +62281,141 @@ function ImpactPanel({ impactStats, label, totalLabel }) {
 			]
 		})]
 	});
-}
+});
 
 //#endregion
-//#region src/client/components/CoreFunctionPanel.tsx
-const CATEGORY_COLORS = {
-	entry: "#4caf50",
-	hub: "#ff9800",
-	api: "#2196f3",
-	critical: "#f44336"
-};
-function CoreFunctionPanel({ coreFunctions, onClose, label, onSelectFunction }) {
+//#region src/client/components/CyclePanel.tsx
+const CyclePanel = (0, react.memo)(function CyclePanel$1({ cycles, label, emptyLabel, onClose }) {
 	const t$1 = useT();
-	const categoryLabel = (cat) => t$1(`coreFunction.category.${cat}`) ?? cat;
-	const reasonLabel = (r) => t$1(`coreFunction.reason.${r}`) ?? r;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "analysis-panel core-function-panel",
+		className: "cg-analysis-panel cg-cycle-panel",
 		role: "region",
 		"aria-label": label,
 		"aria-live": "polite",
 		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-			className: "analysis-panel-header",
+			className: "cg-analysis-panel-header",
+			children: [
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: label }),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "cg-cycle-count-badge",
+					children: cycles.length
+				}),
+				onClose && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+					className: "cg-analysis-panel-close",
+					onClick: onClose,
+					"aria-label": t$1("common.close"),
+					children: "×"
+				})
+			]
+		}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+			className: "cg-analysis-panel-content",
+			children: cycles.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				className: "cg-cycle-empty",
+				children: emptyLabel
+			}) : cycles.map((cycle, i$1) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "cg-cycle-item",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: "cg-cycle-item-header",
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+						className: "cg-cycle-index",
+						children: ["#", i$1 + 1]
+					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: "cg-cycle-length",
+						children: t$1("cycle.nodeCount").replace("{n}", String(cycle.length))
+					})]
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: "cg-cycle-nodes",
+					children: [cycle.nodes.map((nodeId, j) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+						className: "cg-cycle-node-tag",
+						children: [nodeId, j < cycle.nodes.length - 1 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "cg-cycle-arrow",
+							children: "→"
+						})]
+					}, j)), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: "cg-cycle-arrow",
+						children: "↺"
+					})]
+				})]
+			}, i$1))
+		})]
+	});
+});
+
+//#endregion
+//#region src/client/components/CoreFunctionPanel.tsx
+const CATEGORY_COLORS = {
+	entry: "var(--cg-node-function)",
+	hub: "var(--cg-accent)",
+	api: "var(--cg-node-interface)",
+	critical: "var(--cg-node-class)"
+};
+const CoreFunctionPanel = (0, react.memo)(function CoreFunctionPanel$1({ coreFunctions, onClose, label, onSelectFunction }) {
+	const t$1 = useT();
+	const categoryLabel = (cat) => t$1(`coreFunction.category.${cat}`);
+	const reasonLabel = (r) => t$1(`coreFunction.reason.${r}`);
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+		className: "cg-analysis-panel core-function-panel",
+		role: "region",
+		"aria-label": label,
+		"aria-live": "polite",
+		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			className: "cg-analysis-panel-header",
 			children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: label }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 				onClick: onClose,
 				className: "cg-close-btn",
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CloseIcon, { size: 14 })
 			})]
 		}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-			className: "analysis-panel-content",
+			className: "cg-analysis-panel-content",
 			children: coreFunctions.slice(0, 20).map((fn$7) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "core-function-item",
+				className: "cg-core-function-item",
 				onClick: () => onSelectFunction(fn$7.nodeId),
 				role: "button",
 				tabIndex: 0,
 				onKeyDown: (e) => {
-					if (e.key === "Enter") onSelectFunction(fn$7.nodeId);
+					if (e.key === "Enter" || e.key === " ") {
+						e.preventDefault();
+						onSelectFunction(fn$7.nodeId);
+					}
 				},
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "core-function-category-badge",
+						className: "cg-core-function-category-badge",
 						style: { backgroundColor: CATEGORY_COLORS[fn$7.category] },
 						children: categoryLabel(fn$7.category)
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "core-function-label",
+						className: "cg-core-function-label",
 						children: fn$7.label
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "core-function-score",
+						className: "cg-core-function-score",
 						children: fn$7.score
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "core-function-reasons",
+						className: "cg-core-function-reasons",
 						children: fn$7.reasons.map((r) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: "core-function-reason-tag",
+							className: "cg-core-function-reason-tag",
 							children: reasonLabel(r)
 						}, r))
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: "core-function-stats",
+						className: "cg-core-function-stats",
 						children: [
 							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-								title: t$1("coreFunction.inDegree") ?? "入度",
+								title: t$1("coreFunction.inDegree"),
 								children: ["in:", fn$7.inDegree]
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-								title: t$1("coreFunction.outDegree") ?? "出度",
+								title: t$1("coreFunction.outDegree"),
 								children: ["out:", fn$7.outDegree]
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-								title: t$1("coreFunction.influenceReach") ?? "影响范围",
+								title: t$1("coreFunction.influenceReach"),
 								children: ["reach:", fn$7.influenceReach]
 							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-								title: t$1("coreFunction.callChainDepth") ?? "调用链深度",
+								title: t$1("coreFunction.callChainDepth"),
 								children: ["depth:", fn$7.callChainDepth]
 							})
 						]
@@ -59332,7 +62424,7 @@ function CoreFunctionPanel({ coreFunctions, onClose, label, onSelectFunction }) 
 			}, fn$7.nodeId))
 		})]
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/FilterPanel.tsx
@@ -59351,7 +62443,7 @@ const EDGE_TYPES = [
 	"dependency",
 	"contains"
 ];
-function FilterPanel({ onClose }) {
+const FilterPanel = (0, react.memo)(function FilterPanel$1({ onClose }) {
 	const t$1 = useT();
 	const fanInThreshold = useGraphStore((s) => s.fanInThreshold);
 	const fanOutThreshold = useGraphStore((s) => s.fanOutThreshold);
@@ -59361,6 +62453,11 @@ function FilterPanel({ onClose }) {
 	const setFanOutThreshold = useGraphStore((s) => s.setFanOutThreshold);
 	const setVisibleNodeTypes = useGraphStore((s) => s.setVisibleNodeTypes);
 	const setVisibleEdgeTypes = useGraphStore((s) => s.setVisibleEdgeTypes);
+	const pathFilterInclude = useGraphStore((s) => s.pathFilterInclude);
+	const pathFilterExclude = useGraphStore((s) => s.pathFilterExclude);
+	const setPathFilter = useGraphStore((s) => s.setPathFilter);
+	const [includeInput, setIncludeInput] = (0, react.useState)(pathFilterInclude ?? "");
+	const [excludeInput, setExcludeInput] = (0, react.useState)(pathFilterExclude ?? "");
 	const toggleNodeType = (type) => {
 		const next$1 = new Set(visibleNodeTypes);
 		if (next$1.has(type)) next$1.delete(type);
@@ -59376,35 +62473,89 @@ function FilterPanel({ onClose }) {
 	const resetAll = () => {
 		setFanInThreshold(0);
 		setFanOutThreshold(0);
-		setVisibleNodeTypes(new Set());
-		setVisibleEdgeTypes(new Set());
+		setVisibleNodeTypes(new Set(NODE_TYPES));
+		setVisibleEdgeTypes(new Set(EDGE_TYPES));
+		setPathFilter(null, null);
+		setIncludeInput("");
+		setExcludeInput("");
+	};
+	const applyPathFilter = () => {
+		const inc = includeInput.trim() || null;
+		const exc = excludeInput.trim() || null;
+		setPathFilter(inc, exc);
+	};
+	const clearPathFilter = () => {
+		setIncludeInput("");
+		setExcludeInput("");
+		setPathFilter(null, null);
 	};
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "filter-panel",
+		className: "cg-filter-panel",
 		role: "region",
 		"aria-label": t$1("filterPanel.title"),
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "filter-panel-header",
+				className: "cg-filter-panel-header",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-					className: "filter-panel-title",
+					className: "cg-filter-panel-title",
 					children: t$1("filterPanel.title")
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-					className: "filter-panel-close",
+					className: "cg-filter-panel-close",
 					onClick: onClose,
 					"aria-label": t$1("filterPanel.close"),
 					children: "×"
 				})]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "filter-panel-section",
+				className: "cg-filter-panel-section",
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "filter-section-label",
+						className: "cg-filter-section-label",
+						children: t$1("filterPanel.pathFilter")
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+						type: "text",
+						className: "cg-filter-path-input",
+						placeholder: t$1("filterPanel.includePlaceholder"),
+						value: includeInput,
+						onChange: (e) => setIncludeInput(e.target.value),
+						"aria-label": t$1("filterPanel.includeLabel")
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+						type: "text",
+						className: "cg-filter-path-input",
+						placeholder: t$1("filterPanel.excludePlaceholder"),
+						value: excludeInput,
+						onChange: (e) => setExcludeInput(e.target.value),
+						"aria-label": t$1("filterPanel.excludeLabel")
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: "cg-filter-path-actions",
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							className: "cg-filter-quick-btn",
+							onClick: applyPathFilter,
+							children: t$1("filterPanel.applyPath")
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							className: "cg-filter-quick-btn",
+							onClick: clearPathFilter,
+							children: t$1("filterPanel.clearPath")
+						})]
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "cg-filter-hint",
+						children: t$1("filterPanel.pathHint")
+					})
+				]
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "cg-filter-panel-section",
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "cg-filter-section-label",
 						children: t$1("filterPanel.fanIn")
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: "filter-slider-row",
+						className: "cg-filter-slider-row",
 						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 							type: "range",
 							min: 0,
@@ -59413,25 +62564,25 @@ function FilterPanel({ onClose }) {
 							onChange: (e) => setFanInThreshold(Number(e.target.value)),
 							"aria-label": t$1("filterPanel.fanIn")
 						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: "filter-slider-value",
+							className: "cg-filter-slider-value",
 							children: fanInThreshold
 						})]
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "filter-hint",
+						className: "cg-filter-hint",
 						children: t$1("filterPanel.fanInHint")
 					})
 				]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "filter-panel-section",
+				className: "cg-filter-panel-section",
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "filter-section-label",
+						className: "cg-filter-section-label",
 						children: t$1("filterPanel.fanOut")
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: "filter-slider-row",
+						className: "cg-filter-slider-row",
 						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 							type: "range",
 							min: 0,
@@ -59440,31 +62591,31 @@ function FilterPanel({ onClose }) {
 							onChange: (e) => setFanOutThreshold(Number(e.target.value)),
 							"aria-label": t$1("filterPanel.fanOut")
 						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: "filter-slider-value",
+							className: "cg-filter-slider-value",
 							children: fanOutThreshold
 						})]
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "filter-hint",
+						className: "cg-filter-hint",
 						children: t$1("filterPanel.fanOutHint")
 					})
 				]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "filter-panel-section",
+				className: "cg-filter-panel-section",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "filter-section-label",
+					className: "cg-filter-section-label",
 					children: t$1("filterPanel.nodeTypes")
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "filter-checkbox-grid",
+					className: "cg-filter-checkbox-grid",
 					children: NODE_TYPES.map((type) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-						className: "filter-checkbox-item",
+						className: "cg-filter-checkbox-item",
 						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 							type: "checkbox",
 							checked: visibleNodeTypes.has(type),
 							onChange: () => toggleNodeType(type)
 						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: "filter-type-badge",
+							className: "cg-filter-type-badge",
 							"data-type": type,
 							children: t$1(`filter.${type}`)
 						})]
@@ -59472,40 +62623,40 @@ function FilterPanel({ onClose }) {
 				})]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "filter-panel-section",
+				className: "cg-filter-panel-section",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "filter-section-label",
+					className: "cg-filter-section-label",
 					children: t$1("filterPanel.edgeTypes")
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "filter-checkbox-grid",
+					className: "cg-filter-checkbox-grid",
 					children: EDGE_TYPES.map((type) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-						className: "filter-checkbox-item",
+						className: "cg-filter-checkbox-item",
 						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
 							type: "checkbox",
 							checked: visibleEdgeTypes.has(type),
 							onChange: () => toggleEdgeType(type)
 						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: "filter-edge-badge",
+							className: "cg-filter-edge-badge",
 							"data-type": type,
-							children: type
+							children: t$1(`legend.${type}`)
 						})]
 					}, type))
 				})]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "filter-panel-section",
+				className: "cg-filter-panel-section",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-					className: "filter-section-label",
-					children: t$1("filterPanel.title")
+					className: "cg-filter-section-label",
+					children: t$1("filterPanel.quickActions")
 				}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "filter-quick-actions",
+					className: "cg-filter-quick-actions",
 					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-						className: "filter-quick-btn",
+						className: "cg-filter-quick-btn",
 						onClick: () => setFanInThreshold(fanInThreshold > 0 ? 0 : 1),
 						title: t$1("filterPanel.orphansHint"),
 						children: t$1("filterPanel.hideOrphans")
 					}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-						className: "filter-quick-btn",
+						className: "cg-filter-quick-btn",
 						onClick: () => setFanOutThreshold(fanOutThreshold > 0 ? 0 : 1),
 						title: t$1("filterPanel.leavesHint"),
 						children: t$1("filterPanel.hideLeaves")
@@ -59513,65 +62664,384 @@ function FilterPanel({ onClose }) {
 				})]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-				className: "filter-reset-btn",
+				className: "cg-filter-reset-btn",
 				onClick: resetAll,
 				children: t$1("filterPanel.reset")
 			})
 		]
 	});
+});
+
+//#endregion
+//#region src/client/components/TourPanel.tsx
+const TourPanel = (0, react.memo)(function TourPanel$1({ tour, onClose }) {
+	const t$1 = useT();
+	const [currentStepIndex, setCurrentStepIndex] = (0, react.useState)(0);
+	const setSelectedNode = useGraphStore((s) => s.setSelectedNode);
+	const currentStep = tour.steps[currentStepIndex] ?? null;
+	const totalSteps = tour.steps.length;
+	const isFirst = currentStepIndex === 0;
+	const isLast = currentStepIndex === totalSteps - 1;
+	const handleNext = (0, react.useCallback)(() => {
+		if (isLast) return;
+		const nextIndex = currentStepIndex + 1;
+		setCurrentStepIndex(nextIndex);
+		const nextStep = tour.steps[nextIndex];
+		if (nextStep) setSelectedNode(NodeId(nextStep.nodeId));
+	}, [
+		currentStepIndex,
+		isLast,
+		tour.steps,
+		setSelectedNode
+	]);
+	const handlePrev = (0, react.useCallback)(() => {
+		if (isFirst) return;
+		const prevIndex = currentStepIndex - 1;
+		setCurrentStepIndex(prevIndex);
+		const prevStep = tour.steps[prevIndex];
+		if (prevStep) setSelectedNode(NodeId(prevStep.nodeId));
+	}, [
+		currentStepIndex,
+		isFirst,
+		tour.steps,
+		setSelectedNode
+	]);
+	const handleStepClick = (0, react.useCallback)((index) => {
+		setCurrentStepIndex(index);
+		const step$2 = tour.steps[index];
+		if (step$2) setSelectedNode(NodeId(step$2.nodeId));
+	}, [tour.steps, setSelectedNode]);
+	if (!currentStep) return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+		className: "cg-tour-panel",
+		role: "region",
+		"aria-label": t$1("tour.title"),
+		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			className: "cg-tour-panel-header",
+			children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+				className: "cg-tour-panel-title",
+				children: t$1("tour.title")
+			}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+				className: "cg-tour-panel-close",
+				onClick: onClose,
+				"aria-label": t$1("tour.close"),
+				children: "×"
+			})]
+		}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+			className: "cg-tour-empty",
+			children: t$1("tour.empty")
+		})]
+	});
+	const layerLabel = t$1(`tour.layer.${currentStep.layer}`);
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+		className: "cg-tour-panel",
+		role: "region",
+		"aria-label": t$1("tour.title"),
+		children: [
+			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "cg-tour-panel-header",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "cg-tour-panel-title",
+					children: t$1("tour.title")
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+					className: "cg-tour-panel-close",
+					onClick: onClose,
+					"aria-label": t$1("tour.close"),
+					children: "×"
+				})]
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "cg-tour-progress",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+					className: "cg-tour-progress-text",
+					children: [
+						currentStepIndex + 1,
+						" / ",
+						totalSteps
+					]
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: "cg-tour-progress-bar",
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "cg-tour-progress-fill",
+						style: { width: `${(currentStepIndex + 1) / totalSteps * 100}%` }
+					})
+				})]
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "cg-tour-step-detail",
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "cg-tour-step-layer",
+						"data-layer": currentStep.layer,
+						children: layerLabel
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "cg-tour-step-title",
+						children: currentStep.title
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "cg-tour-step-description",
+						children: currentStep.description
+					}),
+					currentStep.filePath && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "cg-tour-step-path",
+						children: currentStep.filePath
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: "cg-tour-step-meta",
+						children: [currentStep.dependencies.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+							className: "cg-tour-meta-item",
+							children: [
+								t$1("tour.dependencies"),
+								": ",
+								currentStep.dependencies.length
+							]
+						}), currentStep.dependents.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+							className: "cg-tour-meta-item",
+							children: [
+								t$1("tour.dependents"),
+								": ",
+								currentStep.dependents.length
+							]
+						})]
+					})
+				]
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				className: "cg-tour-step-list",
+				children: tour.steps.map((step$2, index) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+					className: `cg-tour-step-item ${index === currentStepIndex ? "cg-active" : ""}`,
+					onClick: () => handleStepClick(index),
+					"aria-current": index === currentStepIndex ? "step" : void 0,
+					children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "cg-tour-step-number",
+							children: index + 1
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "cg-tour-step-label",
+							children: step$2.title
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "cg-tour-step-layer-badge",
+							"data-layer": step$2.layer,
+							children: t$1(`tour.layer.${step$2.layer}`)
+						})
+					]
+				}, step$2.id))
+			}),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "cg-tour-nav",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+					className: "cg-tour-nav-btn cg-tour-nav-prev",
+					onClick: handlePrev,
+					disabled: isFirst,
+					"aria-label": t$1("tour.prev"),
+					children: t$1("tour.prev")
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+					className: "cg-tour-nav-btn cg-tour-nav-next",
+					onClick: handleNext,
+					disabled: isLast,
+					"aria-label": t$1("tour.next"),
+					children: t$1("tour.next")
+				})]
+			})
+		]
+	});
+});
+
+//#endregion
+//#region src/shared/analysis/TourBuilder.ts
+const ENTRY_NAME_PATTERNS = [
+	"main",
+	"index",
+	"app",
+	"entry",
+	"start",
+	"server",
+	"cli"
+];
+const LAYER_ORDER = [
+	"entry",
+	"api",
+	"service",
+	"data",
+	"ui",
+	"utility",
+	"other"
+];
+function classifyLayer(node) {
+	const path = node.filePath?.toLowerCase() ?? "";
+	const name$1 = node.label?.toLowerCase() ?? "";
+	if (ENTRY_NAME_PATTERNS.some((p$1) => name$1.includes(p$1) || path.includes(p$1))) return "entry";
+	if (path.includes("api") || path.includes("route") || path.includes("controller")) return "api";
+	if (path.includes("service") || path.includes("business") || path.includes("domain")) return "service";
+	if (path.includes("data") || path.includes("model") || path.includes("db") || path.includes("repository")) return "data";
+	if (path.includes("ui") || path.includes("component") || path.includes("view") || path.includes("page")) return "ui";
+	if (path.includes("util") || path.includes("helper") || path.includes("common") || path.includes("shared")) return "utility";
+	return "other";
+}
+function buildAdjacencyMaps(edges) {
+	const outMap = new Map();
+	const inMap = new Map();
+	for (const edge of edges) {
+		const out = outMap.get(edge.source) ?? [];
+		out.push(edge.target);
+		outMap.set(edge.source, out);
+		const inc = inMap.get(edge.target) ?? [];
+		inc.push(edge.source);
+		inMap.set(edge.target, inc);
+	}
+	return {
+		outMap,
+		inMap
+	};
+}
+function findEntryPoints(nodes, inMap) {
+	const noIncoming = nodes.filter((n) => !inMap.has(n.id) || inMap.get(n.id).length === 0);
+	if (noIncoming.length > 0) return noIncoming.map((n) => n.id);
+	const named = nodes.filter((n) => ENTRY_NAME_PATTERNS.some((p$1) => n.label?.toLowerCase().includes(p$1)));
+	if (named.length > 0) return named.map((n) => n.id);
+	return nodes.slice(0, 5).map((n) => n.id);
+}
+function topologicalSort(nodeIds, outMap, inMap) {
+	const inDegree = new Map();
+	const queue = [];
+	const result = [];
+	const visited = new Set();
+	for (const id of nodeIds) {
+		const deg = inMap.get(id)?.length ?? 0;
+		inDegree.set(id, deg);
+		if (deg === 0) queue.push(id);
+	}
+	while (queue.length > 0) {
+		const current = queue.shift();
+		if (visited.has(current)) continue;
+		visited.add(current);
+		result.push(current);
+		const neighbors = outMap.get(current) ?? [];
+		for (const neighbor of neighbors) {
+			if (!nodeIds.includes(neighbor)) continue;
+			const deg = (inDegree.get(neighbor) ?? 1) - 1;
+			inDegree.set(neighbor, deg);
+			if (deg <= 0 && !visited.has(neighbor)) queue.push(neighbor);
+		}
+	}
+	for (const id of nodeIds) if (!visited.has(id)) result.push(id);
+	return result;
+}
+function generateDescription(node, deps, dependents) {
+	const parts = [];
+	const typeLabel = node.type === "function" ? "函数" : node.type === "class" ? "类" : node.type === "module" ? "模块" : node.type === "interface" ? "接口" : "变量";
+	parts.push(`${typeLabel} ${node.label}`);
+	if (node.filePath) parts.push(`位于 ${node.filePath}`);
+	if (deps.length > 0) parts.push(`依赖 ${deps.length} 个其他节点`);
+	if (dependents.length > 0) parts.push(`被 ${dependents.length} 个节点引用`);
+	if (deps.length === 0 && dependents.length === 0) parts.push("独立节点，无依赖关系");
+	return parts.join("，");
+}
+function buildTour(nodes, edges, maxSteps = 30) {
+	if (nodes.length === 0) return {
+		steps: [],
+		totalSteps: 0,
+		entryPoints: []
+	};
+	const { outMap, inMap } = buildAdjacencyMaps(edges);
+	const entryPoints = findEntryPoints(nodes, inMap);
+	const allNodeIds = nodes.map((n) => n.id);
+	const sortedIds = topologicalSort(allNodeIds, outMap, inMap);
+	const nodeMap = new Map();
+	for (const n of nodes) nodeMap.set(n.id, n);
+	const layerGroups = new Map();
+	for (const id of sortedIds) {
+		const node = nodeMap.get(id);
+		if (!node) continue;
+		const layer = classifyLayer(node);
+		const group = layerGroups.get(layer) ?? [];
+		group.push(id);
+		layerGroups.set(layer, group);
+	}
+	const orderedIds = [];
+	for (const layer of LAYER_ORDER) {
+		const ids = layerGroups.get(layer) ?? [];
+		orderedIds.push(...ids);
+	}
+	const limitedIds = orderedIds.slice(0, maxSteps);
+	const steps = limitedIds.map((id) => {
+		const node = nodeMap.get(id);
+		const deps = outMap.get(id) ?? [];
+		const dependents = inMap.get(id) ?? [];
+		return {
+			id: `tour-${id}`,
+			title: node.label,
+			description: generateDescription(node, deps, dependents),
+			nodeId: id,
+			nodeType: node.type,
+			filePath: node.filePath ?? "",
+			dependencies: deps,
+			dependents,
+			layer: classifyLayer(node)
+		};
+	});
+	return {
+		steps,
+		totalSteps: steps.length,
+		entryPoints
+	};
 }
 
 //#endregion
 //#region src/client/components/MicroViewBar.tsx
-function MicroViewPrompt({ viewMode, selectFunctionPrompt, flowchartLabel, sequenceLabel, backToCodeLabel, onBackToCode }) {
-	const modeLabel = viewMode === "cfg" ? "CFG" : viewMode === "flowchart" ? flowchartLabel : sequenceLabel;
+const MicroViewPrompt = (0, react.memo)(function MicroViewPrompt$1({ viewMode, selectFunctionPrompt, flowchartLabel, sequenceLabel, backToCodeLabel, onBackToCode }) {
+	const t$1 = useT();
+	const modeLabel = viewMode === "cfg" ? t$1("viewMode.cfg") : viewMode === "flowchart" ? flowchartLabel : sequenceLabel;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "micro-empty-prompt",
+		className: "cg-micro-empty-prompt",
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				className: "micro-empty-icon",
+				className: "cg-micro-empty-icon",
 				children: modeLabel
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				className: "micro-empty-text",
+				className: "cg-micro-empty-text",
 				children: selectFunctionPrompt
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-				className: "micro-empty-back-btn",
+				className: "cg-micro-empty-back-btn",
 				onClick: onBackToCode,
+				"aria-label": backToCodeLabel,
 				children: backToCodeLabel
 			})
 		]
 	});
-}
-function MicroFunctionBar({ functionName, filePath, viewMode, onClose }) {
+});
+const MicroFunctionBar = (0, react.memo)(function MicroFunctionBar$1({ functionName, filePath, viewMode, onClose }) {
 	const t$1 = useT();
 	const modeLabel = viewMode === "cfg" ? "CFG" : viewMode === "flowchart" ? t$1("viewMode.flowchart") : viewMode === "sequence" ? t$1("viewMode.sequence") : "";
 	const shortPath = filePath ? filePath.split(/[\\/]/).slice(-2).join("/") : "";
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "micro-function-bar",
+		className: "cg-micro-function-bar",
 		children: [
 			modeLabel && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-				className: "micro-function-mode",
+				className: "cg-micro-function-mode",
 				children: modeLabel
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-				className: "micro-function-name",
+				className: "cg-micro-function-name",
 				children: functionName
 			}),
 			shortPath && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-				className: "micro-function-path",
+				className: "cg-micro-function-path",
 				children: shortPath
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-				className: "micro-function-close",
+				className: "cg-micro-function-close",
 				onClick: onClose,
 				"aria-label": t$1("micro.closeView"),
 				children: "✕"
 			})
 		]
 	});
-}
+});
 
 //#endregion
 //#region src/client/renderer/SequenceDiagramRenderer.tsx
@@ -59596,39 +63066,39 @@ function extractParticipants(nodes) {
 	return nodes.filter((n) => n.properties["participantType"] && !n.properties["isFragment"]).map((n) => ({
 		id: n.id,
 		name: n.label,
-		type: n.properties["participantType"],
+		type: n.properties["participantType"] ?? "instance",
 		className: n.properties["className"],
-		lifelineStart: n.properties["lifelineStart"],
-		lifelineEnd: n.properties["lifelineEnd"],
-		isCreated: n.properties["isCreated"],
-		isDestroyed: n.properties["isDestroyed"],
+		lifelineStart: n.properties["lifelineStart"] ?? 0,
+		lifelineEnd: n.properties["lifelineEnd"] ?? 0,
+		isCreated: n.properties["isCreated"] ?? false,
+		isDestroyed: n.properties["isDestroyed"] ?? false,
 		x: 0
 	})).sort((a, b) => a.lifelineStart - b.lifelineStart);
 }
 function extractMessages(edges) {
 	return edges.filter((e) => e.properties["sequenceNumber"] !== void 0).map((e) => ({
 		id: e.id,
-		sequenceNumber: e.properties["sequenceNumber"],
+		sequenceNumber: e.properties["sequenceNumber"] ?? 0,
 		source: e.source,
 		target: e.target,
-		methodName: e.properties["methodName"],
+		methodName: e.properties["methodName"] ?? "",
 		arguments: e.properties["arguments"] ?? [],
-		isAsync: e.properties["isAsync"],
-		isSelfCall: e.properties["isSelfCall"],
-		isReturn: e.properties["isReturn"],
-		isCreate: e.properties["isCreate"],
-		lineNumber: e.properties["lineNumber"],
+		isAsync: e.properties["isAsync"] ?? false,
+		isSelfCall: e.properties["isSelfCall"] ?? false,
+		isReturn: e.properties["isReturn"] ?? false,
+		isCreate: e.properties["isCreate"] ?? false,
+		lineNumber: e.properties["lineNumber"] ?? 0,
 		y: 0
 	})).sort((a, b) => a.sequenceNumber - b.sequenceNumber);
 }
 function extractFragments(nodes) {
 	return nodes.filter((n) => n.properties["isFragment"]).map((n) => ({
 		id: n.id,
-		type: n.properties["fragmentType"],
+		type: n.properties["fragmentType"] ?? "alt",
 		condition: n.properties["condition"],
 		loopConstraint: n.properties["loopConstraint"],
-		startMessage: n.properties["startMessage"],
-		endMessage: n.properties["endMessage"],
+		startMessage: n.properties["startMessage"] ?? 0,
+		endMessage: n.properties["endMessage"] ?? 0,
 		operands: n.properties["operands"] ?? []
 	}));
 }
@@ -59674,29 +63144,31 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 		panX: 0,
 		panY: 0
 	});
+	const pinchStartDistanceRef = (0, react.useRef)(0);
+	const pinchStartZoomRef = (0, react.useRef)(1);
 	const isDark = theme === "dark";
 	const colors$1 = (0, react.useMemo)(() => {
 		const tc = getThemeColors(theme);
 		return {
-			bg: isDark ? "#1e1e2e" : "#ffffff",
+			bg: readCssVarCached("--cg-surface", isDark ? COLORS.PACKAGE_DARK : "#f9fafb"),
 			text: tc.text,
-			textSecondary: isDark ? "#a0a0b0" : "#666666",
-			lifeline: isDark ? "#555570" : "#aaaaaa",
-			lifelineDashed: isDark ? "#444460" : "#bbbbbb",
+			textSecondary: readCssVarCached("--cg-text-secondary", isDark ? "#cfd3d6" : "#61666b"),
+			lifeline: readCssVarCached("--cg-border-strong", isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.1)"),
+			lifelineDashed: readCssVarCached("--cg-border", isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)"),
 			activation: tc.edgeCall,
-			activationBorder: isDark ? "#8899cc" : "#357abd",
+			activationBorder: readCssVarCached("--cg-accent", isDark ? "#6366f1" : COLORS.PACKAGE_LIGHT),
 			syncArrow: tc.text,
 			asyncArrow: tc.edgeImport,
 			returnArrow: tc.edgeExtend,
 			selfCallArrow: tc.nodeType,
 			createArrow: tc.edgeCall,
-			fragmentBg: isDark ? "rgba(100,100,140,0.15)" : "rgba(200,200,240,0.2)",
-			fragmentBorder: isDark ? "#7777aa" : "#9999cc",
-			fragmentLabelBg: isDark ? "#444466" : "#eeeeff",
-			participantBg: isDark ? "#2a2a3e" : "#f0f0f5",
-			participantBorder: isDark ? "#555570" : "#cccccc",
+			fragmentBg: readCssVarCached("--cg-accent-soft", isDark ? "rgba(99,102,241,0.12)" : "rgba(38,49,72,0.1)"),
+			fragmentBorder: readCssVarCached("--cg-accent-hover", isDark ? "#5457e5" : "#1a2230"),
+			fragmentLabelBg: readCssVarCached("--cg-surface-active", isDark ? "#333335" : "#e5e7eb"),
+			participantBg: readCssVarCached("--cg-surface-hover", isDark ? "#2a2a2c" : "#f3f4f6"),
+			participantBorder: readCssVarCached("--cg-border-strong", isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.1)"),
 			gridLine: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)",
-			highlightBg: isDark ? "rgba(100,150,255,0.2)" : "rgba(50,100,255,0.15)"
+			highlightBg: readCssVarCached("--cg-accent-soft", isDark ? "rgba(99,102,241,0.12)" : "rgba(38,49,72,0.1)")
 		};
 	}, [isDark, theme]);
 	const { participants, messages, fragments, dimensions: dimensions$1 } = (0, react.useMemo)(() => {
@@ -59741,6 +63213,35 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 		for (const m of messages) map$1.set(m.sequenceNumber, m.y);
 		return map$1;
 	}, [messages]);
+	const activations = (0, react.useMemo)(() => {
+		const result = [];
+		const activeStacks = new Map();
+		for (const msg of messages) {
+			if (!msg.isReturn && !msg.isCreate) {
+				const stack = activeStacks.get(msg.target) ?? [];
+				stack.push(msg.y);
+				activeStacks.set(msg.target, stack);
+			}
+			if (msg.isReturn) {
+				const stack = activeStacks.get(msg.source);
+				if (stack && stack.length > 0) {
+					const startY$1 = stack.pop();
+					result.push({
+						participantId: msg.source,
+						startY: startY$1,
+						endY: msg.y
+					});
+					activeStacks.set(msg.source, stack);
+				}
+			}
+		}
+		for (const [participantId, stack] of activeStacks) for (const startY$1 of stack) result.push({
+			participantId,
+			startY: startY$1,
+			endY: dimensions$1.lifelineBottom
+		});
+		return result;
+	}, [messages, dimensions$1.lifelineBottom]);
 	const handleWheel = (0, react.useCallback)((e) => {
 		e.preventDefault();
 		const delta = e.deltaY > 0 ? .9 : 1.1;
@@ -59766,6 +63267,43 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 	}, []);
 	const handleMouseUp = (0, react.useCallback)(() => {
 		isDraggingRef.current = false;
+	}, []);
+	const handleTouchStart = (0, react.useCallback)((e) => {
+		if (e.touches.length === 1) {
+			isDraggingRef.current = true;
+			dragStartRef.current = {
+				x: e.touches[0].clientX,
+				y: e.touches[0].clientY,
+				panX: pan.x,
+				panY: pan.y
+			};
+		} else if (e.touches.length === 2) {
+			isDraggingRef.current = false;
+			const dx = e.touches[0].clientX - e.touches[1].clientX;
+			const dy = e.touches[0].clientY - e.touches[1].clientY;
+			pinchStartDistanceRef.current = Math.sqrt(dx * dx + dy * dy);
+			pinchStartZoomRef.current = zoom;
+		}
+	}, [pan, zoom]);
+	const handleTouchMove = (0, react.useCallback)((e) => {
+		if (e.touches.length === 1 && isDraggingRef.current) {
+			const dx = e.touches[0].clientX - dragStartRef.current.x;
+			const dy = e.touches[0].clientY - dragStartRef.current.y;
+			setPan({
+				x: dragStartRef.current.panX + dx,
+				y: dragStartRef.current.panY + dy
+			});
+		} else if (e.touches.length === 2 && pinchStartDistanceRef.current > 0) {
+			const dx = e.touches[0].clientX - e.touches[1].clientX;
+			const dy = e.touches[0].clientY - e.touches[1].clientY;
+			const dist$1 = Math.sqrt(dx * dx + dy * dy);
+			const scale$1 = dist$1 / pinchStartDistanceRef.current;
+			setZoom(Math.max(.3, Math.min(3, pinchStartZoomRef.current * scale$1)));
+		}
+	}, []);
+	const handleTouchEnd = (0, react.useCallback)(() => {
+		isDraggingRef.current = false;
+		pinchStartDistanceRef.current = 0;
 	}, []);
 	const handleResetView = (0, react.useCallback)(() => {
 		setZoom(1);
@@ -59794,10 +63332,10 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 	}, [nodes, edges]);
 	if (participants.length === 0) return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 		ref: containerRef,
-		className: "sequence-diagram-container",
+		className: "cg-sequence-diagram-container",
 		style: { background: colors$1.bg },
 		children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-			className: "seq-empty-state",
+			className: "cg-seq-empty-state",
 			children: t$1("sequence.noData")
 		})
 	});
@@ -59805,9 +63343,12 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 	const svgHeight = dimensions$1.height;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		ref: containerRef,
-		className: "sequence-diagram-container",
+		className: "cg-sequence-diagram-container",
 		role: "application",
-		"aria-label": `${participants.length} participants, ${messages.length} messages`,
+		"aria-label": t$1("sequence.ariaLabel", {
+			participants: participants.length,
+			messages: messages.length
+		}),
 		style: {
 			background: colors$1.bg,
 			cursor: isDraggingRef.current ? "grabbing" : "grab"
@@ -59817,6 +63358,9 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 		onMouseMove: handleMouseMove,
 		onMouseUp: handleMouseUp,
 		onMouseLeave: handleMouseUp,
+		onTouchStart: handleTouchStart,
+		onTouchMove: handleTouchMove,
+		onTouchEnd: handleTouchEnd,
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 				style: {
@@ -59851,7 +63395,7 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 							const fragX = LAYOUT.SVG_PADDING_X;
 							const label = frag.type === "loop" ? `loop${frag.loopConstraint ? ` [${frag.loopConstraint}]` : ""}` : `${frag.type}${frag.condition ? ` [${frag.condition}]` : ""}`;
 							return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", {
-								className: "seq-fragment-group",
+								className: "cg-seq-fragment-group",
 								children: [
 									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
 										x: fragX,
@@ -59936,48 +63480,20 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 								strokeWidth: 2
 							})] })] }, `lifeline-${p$1.id}`);
 						}),
-						(() => {
-							const activations = [];
-							const activeStacks = new Map();
-							for (const msg of messages) {
-								if (!msg.isReturn && !msg.isCreate) {
-									const stack = activeStacks.get(msg.target) ?? [];
-									stack.push(msg.y);
-									activeStacks.set(msg.target, stack);
-								}
-								if (msg.isReturn) {
-									const stack = activeStacks.get(msg.source);
-									if (stack && stack.length > 0) {
-										const startY$1 = stack.pop();
-										activations.push({
-											participantId: msg.source,
-											startY: startY$1,
-											endY: msg.y
-										});
-										activeStacks.set(msg.source, stack);
-									}
-								}
-							}
-							for (const [participantId, stack] of activeStacks) for (const startY$1 of stack) activations.push({
-								participantId,
-								startY: startY$1,
-								endY: dimensions$1.lifelineBottom
-							});
-							return activations.map((act, idx) => {
-								const p$1 = participantMap.get(act.participantId);
-								if (!p$1) return null;
-								return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
-									x: p$1.x - LAYOUT.ACTIVATION_WIDTH / 2,
-									y: act.startY - LAYOUT.MESSAGE_LABEL_HEIGHT / 2,
-									width: LAYOUT.ACTIVATION_WIDTH,
-									height: Math.max(act.endY - act.startY + LAYOUT.MESSAGE_LABEL_HEIGHT, 10),
-									fill: colors$1.activation,
-									stroke: colors$1.activationBorder,
-									strokeWidth: 1,
-									rx: 1
-								}, `act-${idx}`);
-							});
-						})(),
+						activations.map((act, idx) => {
+							const p$1 = participantMap.get(act.participantId);
+							if (!p$1) return null;
+							return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
+								x: p$1.x - LAYOUT.ACTIVATION_WIDTH / 2,
+								y: act.startY - LAYOUT.MESSAGE_LABEL_HEIGHT / 2,
+								width: LAYOUT.ACTIVATION_WIDTH,
+								height: Math.max(act.endY - act.startY + LAYOUT.MESSAGE_LABEL_HEIGHT, 10),
+								fill: colors$1.activation,
+								stroke: colors$1.activationBorder,
+								strokeWidth: 1,
+								rx: 1
+							}, `act-${idx}`);
+						}),
 						messages.map((msg) => {
 							const sourceP = participantMap.get(msg.source);
 							const targetP = participantMap.get(msg.target);
@@ -59991,7 +63507,7 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 								const loopEndY = msg.y + LAYOUT.SELF_CALL_HEIGHT / 2;
 								const loopWidth = LAYOUT.SELF_CALL_WIDTH;
 								return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", {
-									className: "seq-message-group",
+									className: "cg-seq-message-group",
 									onClick: () => handleMessageClick(msg.id),
 									onMouseEnter: () => setHoveredMessage(msg.id),
 									onMouseLeave: () => setHoveredMessage(null),
@@ -60048,7 +63564,7 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 							const seqLabel = `${msg.sequenceNumber}: ${truncateLabel(msg.methodName, 120)}`;
 							const argLabel = formatArguments(msg.arguments);
 							return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", {
-								className: "seq-message-group",
+								className: "cg-seq-message-group",
 								onClick: () => handleMessageClick(msg.id),
 								onMouseEnter: () => setHoveredMessage(msg.id),
 								onMouseLeave: () => setHoveredMessage(null),
@@ -60063,7 +63579,7 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 										rx: 2
 									}),
 									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("line", {
-										className: "seq-message-line",
+										className: "cg-seq-message-line",
 										x1: arrowStartX,
 										y1: msg.y,
 										x2: arrowEndX - arrowHeadDir * LAYOUT.ARROW_HEAD_SIZE,
@@ -60105,13 +63621,13 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 							const boxY = LAYOUT.SVG_PADDING_TOP;
 							const isHovered = hoveredParticipant === p$1.id;
 							return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("g", {
-								className: "seq-participant-group",
+								className: "cg-seq-participant-group",
 								onClick: () => handleParticipantClick(p$1.id),
 								onMouseEnter: () => setHoveredParticipant(p$1.id),
 								onMouseLeave: () => setHoveredParticipant(null),
 								children: [
 									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
-										className: "seq-participant-box",
+										className: "cg-seq-participant-box",
 										x: boxX,
 										y: boxY,
 										width: LAYOUT.PARTICIPANT_BOX_WIDTH,
@@ -60168,27 +63684,27 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 				})
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "seq-zoom-controls",
+				className: "cg-seq-zoom-controls",
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-						className: "seq-zoom-btn",
+						className: "cg-seq-zoom-btn",
 						onClick: () => setZoom((z) => Math.min(3, z * 1.2)),
 						children: "+"
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-						className: "seq-zoom-btn",
+						className: "cg-seq-zoom-btn",
 						onClick: () => setZoom((z) => Math.max(.3, z * .8)),
 						children: "−"
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-						className: "seq-zoom-btn seq-reset",
+						className: "cg-seq-zoom-btn cg-seq-reset",
 						onClick: handleResetView,
 						children: "⟲"
 					})
 				]
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-				className: "seq-zoom-indicator",
+				className: "cg-seq-zoom-indicator",
 				children: [Math.round(zoom * 100), "%"]
 			})
 		]
@@ -60209,68 +63725,19 @@ function GraphPanelInner({ className = "" }) {
 	const [thumbnail, setThumbnail] = (0, react.useState)(null);
 	const [viewportInfo, setViewportInfo] = (0, react.useState)(null);
 	const [focusNodeId, setFocusNodeId] = (0, react.useState)(null);
-	const { nodes, edges, rawNodes, rawEdges, layout: layout$2, theme, searchQuery, selectedNodeId, highlightedNodeIds, filterType, graphType, clusterDepth, isLoading, error: error$1, lastUpdated, prerequisites, watchEnabled, currentWorkspace, workspaceList, initStatus, truncated, totalNodeCount, expandedNodeIds, pathResult, focusDepth, ruleViolations, viewMode, selectedFunction, currentLayer, diagramData, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes } = useGraphStore(useShallow((s) => ({
-		nodes: s.nodes,
-		edges: s.edges,
-		rawNodes: s.rawNodes,
-		rawEdges: s.rawEdges,
-		layout: s.layout,
-		theme: s.theme,
-		searchQuery: s.searchQuery,
-		selectedNodeId: s.selectedNodeId,
-		highlightedNodeIds: s.highlightedNodeIds,
-		filterType: s.filterType,
-		graphType: s.graphType,
-		clusterDepth: s.clusterDepth,
-		isLoading: s.isLoading,
-		error: s.error,
-		lastUpdated: s.lastUpdated,
-		prerequisites: s.prerequisites,
-		watchEnabled: s.watchEnabled,
-		currentWorkspace: s.currentWorkspace,
-		workspaceList: s.workspaceList,
-		initStatus: s.initStatus,
-		truncated: s.truncated,
-		totalNodeCount: s.totalNodeCount,
-		expandedNodeIds: s.expandedNodeIds,
-		pathResult: s.pathResult,
-		focusDepth: s.focusDepth,
-		healthScore: s.healthScore,
-		rules: s.rules,
-		ruleViolations: s.ruleViolations,
-		viewMode: s.viewMode,
-		selectedFunction: s.selectedFunction,
-		currentLayer: s.currentLayer,
-		diagramData: s.diagramData,
-		fanInThreshold: s.fanInThreshold,
-		fanOutThreshold: s.fanOutThreshold,
-		visibleNodeTypes: s.visibleNodeTypes,
-		visibleEdgeTypes: s.visibleEdgeTypes
-	})));
-	const setLayout = useGraphStore((s) => s.setLayout);
-	const setTheme = useGraphStore((s) => s.setTheme);
-	const setSearchQuery = useGraphStore((s) => s.setSearchQuery);
-	const setSelectedNode = useGraphStore((s) => s.setSelectedNode);
-	const setFilterType = useGraphStore((s) => s.setFilterType);
-	const setGraphType = useGraphStore((s) => s.setGraphType);
-	const setClusterDepth = useGraphStore((s) => s.setClusterDepth);
-	const setLayer = useGraphStore((s) => s.setLayer);
-	const setLoading = useGraphStore((s) => s.setLoading);
-	const setCurrentWorkspace = useGraphStore((s) => s.setCurrentWorkspace);
-	const addWorkspace = useGraphStore((s) => s.addWorkspace);
-	const removeWorkspace = useGraphStore((s) => s.removeWorkspace);
-	const setGraphData = useGraphStore((s) => s.setGraphData);
-	const setInitStatus = useGraphStore((s) => s.setInitStatus);
-	const setWatchEnabled = useGraphStore((s) => s.setWatchEnabled);
-	const setError = useGraphStore((s) => s.setError);
-	const expandNode = useGraphStore((s) => s.expandNode);
-	const collapseNode = useGraphStore((s) => s.collapseNode);
-	const collapseAll = useGraphStore((s) => s.collapseAll);
-	const setPathResult = useGraphStore((s) => s.setPathResult);
-	const setFocusDepth = useGraphStore((s) => s.setFocusDepth);
-	const assembleMicro = useGraphStore((s) => s.assembleMicro);
-	const panelHeight = useGraphStore((s) => s.panelHeight);
-	const panelWidth = useGraphStore((s) => s.panelWidth);
+	const [contextMenu, setContextMenu] = (0, react.useState)(null);
+	const [visibleNodeCount, setVisibleNodeCount] = (0, react.useState)(0);
+	const [hasHiddenNodes, setHasHiddenNodes] = (0, react.useState)(false);
+	const { nodes, edges, rawNodes, rawEdges } = useGraphData();
+	const { layout: layout$2, dagreRankDir, theme, filterType, graphType, clusterDepth, viewMode, currentLayer, diagramData } = useGraphDisplay();
+	const { searchQuery, selectedNodeId, highlightedNodeIds, expandedNodeIds, pathResult, focusDepth, focusModeActive, focusModeNodeId, pathFilterInclude, pathFilterExclude } = useGraphInteraction();
+	const { isLoading, error: error$1, lastUpdated, truncated, totalNodeCount, prerequisites, watchEnabled, initStatus } = useGraphStatus();
+	const { currentWorkspace, workspaceList } = useGraphWorkspace();
+	const { ruleViolations, selectedFunction, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, heatmapMode } = useGraphAnalysis();
+	const { performanceDegradations, lodLevel, lodEnabled } = useGraphPerformance();
+	const actions = useGraphActions();
+	const { panelHeight, panelWidth } = usePanelDimensions();
+	const { setLayout, setDagreRankDir, setTheme, setSearchQuery, setSelectedNode, setFilterType, setGraphType, setClusterDepth, setLayer, setLoading, setCurrentWorkspace, addWorkspace, removeWorkspace, setGraphData, setInitStatus, setWatchEnabled, setError, expandNode, collapseNode, collapseAll, setPathResult, setFocusDepth, setHeatmapMode, setLODLevel, assembleMicro } = actions;
 	const handleCollapseAll = (0, react.useCallback)(() => {
 		collapseAll();
 	}, [collapseAll]);
@@ -60298,8 +63765,52 @@ function GraphPanelInner({ className = "" }) {
 		rawEdges,
 		graphCache
 	]);
-	const debouncedSearch = useDebounce(searchQuery, 200);
+	const urlRestoredRef = (0, react.useRef)(false);
+	(0, react.useEffect)(() => {
+		if (urlRestoredRef.current) return;
+		if (rawNodes.length === 0) return;
+		const parsed = readUrlExpand();
+		if (parsed.expandedDirs.length === 0 && parsed.expandedFiles.length === 0 && parsed.expandedSymbols.length === 0 && parsed.expandedSubgroups.length === 0) {
+			urlRestoredRef.current = true;
+			return;
+		}
+		const restoredIds = restoreExpandedNodeIds(parsed);
+		const validIds = new Set();
+		for (const id of restoredIds) {
+			const exists = rawNodes.some((n) => n.id === id) || useGraphStore.getState().nodes.some((n) => n.id === id);
+			if (exists) validIds.add(id);
+		}
+		if (validIds.size > 0) {
+			const store = useGraphStore.getState();
+			store.batchExpandNodes([...validIds]);
+		}
+		urlRestoredRef.current = true;
+	}, [rawNodes]);
+	(0, react.useEffect)(() => {
+		if (!urlRestoredRef.current) return;
+		updateUrlExpand(expandedNodeIds);
+	}, [expandedNodeIds]);
+	const debouncedSearch = useDebounce(searchQuery, UI.SEARCH_DEBOUNCE_MS);
+	const { search: searchNodes } = useNodeSearch(rawNodes);
 	const showCallChainRef = (0, react.useRef)(panel.showCallChain);
+	const adjacencyMap = (0, react.useMemo)(() => {
+		const map$1 = new Map();
+		for (const edge of edges) {
+			const src = map$1.get(edge.source);
+			if (src) src.out++;
+			else map$1.set(edge.source, {
+				in: 0,
+				out: 1
+			});
+			const tgt = map$1.get(edge.target);
+			if (tgt) tgt.in++;
+			else map$1.set(edge.target, {
+				in: 1,
+				out: 0
+			});
+		}
+		return map$1;
+	}, [edges]);
 	(0, react.useEffect)(() => {
 		showCallChainRef.current = panel.showCallChain;
 	}, [panel.showCallChain]);
@@ -60308,44 +63819,70 @@ function GraphPanelInner({ className = "" }) {
 			const detail = e.detail;
 			if (detail?.path) useGraphStore.getState().setCurrentWorkspace(detail.path);
 		};
-		window.addEventListener("codegraph:workspace", handler);
-		return () => window.removeEventListener("codegraph:workspace", handler);
+		window.addEventListener(DOM_EVENTS.WORKSPACE, handler);
+		return () => window.removeEventListener(DOM_EVENTS.WORKSPACE, handler);
 	}, []);
 	const handleWorkspaceSwitch = (0, react.useCallback)((path) => {
 		setCurrentWorkspace(path);
-		window.dispatchEvent(new CustomEvent("codegraph:workspace", { detail: { path } }));
+		window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path } }));
 	}, [setCurrentWorkspace]);
 	const handleWorkspaceAdd = (0, react.useCallback)((path) => {
 		addWorkspace(path, path.split(/[\\/]/).pop() || path);
-		window.dispatchEvent(new CustomEvent("codegraph:workspace", { detail: { path } }));
-		window.dispatchEvent(new CustomEvent("codegraph:import-repo", { detail: { path } }));
+		window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path } }));
+		window.dispatchEvent(new CustomEvent(DOM_EVENTS.IMPORT_REPO, { detail: { path } }));
 	}, [addWorkspace]);
 	const handleNodeTap = (0, react.useCallback)((id) => {
-		setSelectedNode(id);
-		const data$2 = getDataRef.current?.getNodeData(id) ?? null;
-		setSelectedNodeData(data$2);
+		try {
+			setSelectedNode(id);
+			const data$2 = getDataRef.current?.getNodeData(id) ?? null;
+			setSelectedNodeData(data$2);
+		} catch (err) {
+			log$1.error("handleNodeTap failed", {
+				id,
+				err
+			});
+		}
 	}, [setSelectedNode]);
 	const handleNodeDoubleTapRef = (0, react.useRef)(() => {});
 	const handleNodeDoubleTap = (0, react.useCallback)((nodeId) => {
 		handleNodeDoubleTapRef.current(nodeId);
 	}, []);
 	const handleNodeHover = (0, react.useCallback)((nodeId, pos) => {
-		const data$2 = getDataRef.current?.getNodeData(nodeId);
-		if (data$2) {
-			const linksIn = edges.filter((e) => e.target === nodeId).length;
-			const linksOut = edges.filter((e) => e.source === nodeId).length;
-			setTooltip({
-				x: pos.x,
-				y: pos.y,
-				name: data$2.label,
-				path: `${data$2.filePath}:${data$2.lineNumber}`,
-				type: data$2.type,
-				linksIn,
-				linksOut
+		try {
+			const data$2 = getDataRef.current?.getNodeData(nodeId);
+			if (data$2) {
+				const counts = adjacencyMap.get(nodeId) ?? {
+					in: 0,
+					out: 0
+				};
+				setTooltip({
+					x: pos.x,
+					y: pos.y,
+					name: data$2.label,
+					path: `${data$2.filePath}:${data$2.lineNumber}`,
+					type: data$2.type,
+					linksIn: counts.in,
+					linksOut: counts.out
+				});
+			}
+		} catch (err) {
+			log$1.error("handleNodeHover failed", {
+				nodeId,
+				err
 			});
 		}
-	}, [edges]);
+	}, [adjacencyMap]);
 	const handleNodeHoverOut = (0, react.useCallback)(() => setTooltip(null), []);
+	const hoverPrefetchTimerRef = (0, react.useRef)(null);
+	const handleNodeHoverPrefetch = (0, react.useCallback)((nodeId) => {
+		if (hoverPrefetchTimerRef.current) clearTimeout(hoverPrefetchTimerRef.current);
+		hoverPrefetchTimerRef.current = setTimeout(() => {
+			useGraphStore.getState().prefetchExpand(nodeId);
+		}, PREFETCH.HOVER_DEBOUNCE_MS);
+	}, []);
+	(0, react.useEffect)(() => () => {
+		if (hoverPrefetchTimerRef.current) clearTimeout(hoverPrefetchTimerRef.current);
+	}, []);
 	const handleEdgeHover = (0, react.useCallback)((edgeId, pos) => {
 		const edgeData = getDataRef.current?.getEdgeData(edgeId);
 		if (edgeData) {
@@ -60362,28 +63899,81 @@ function GraphPanelInner({ className = "" }) {
 	}, []);
 	const handleEdgeHoverOut = (0, react.useCallback)(() => setTooltip(null), []);
 	const handleEdgeTap = (0, react.useCallback)((edgeId, pos) => {
-		const edgeData = getDataRef.current?.getEdgeData(edgeId);
-		if (edgeData) {
-			const sourceNode = getDataRef.current?.getNodeData(edgeData.source);
-			const targetNode = getDataRef.current?.getNodeData(edgeData.target);
-			setTooltip({
-				x: pos.x,
-				y: pos.y,
-				sourceLabel: sourceNode?.label ?? edgeData.source,
-				targetLabel: targetNode?.label ?? edgeData.target,
-				edgeType: edgeData.type
+		try {
+			const edgeData = getDataRef.current?.getEdgeData(edgeId);
+			if (edgeData) {
+				const sourceNode = getDataRef.current?.getNodeData(edgeData.source);
+				const targetNode = getDataRef.current?.getNodeData(edgeData.target);
+				setTooltip({
+					x: pos.x,
+					y: pos.y,
+					sourceLabel: sourceNode?.label ?? edgeData.source,
+					targetLabel: targetNode?.label ?? edgeData.target,
+					edgeType: edgeData.type
+				});
+			}
+		} catch (err) {
+			log$1.error("handleEdgeTap failed", {
+				edgeId,
+				err
 			});
 		}
 	}, []);
-	const renderer$1 = useGraphRenderer(nodes, edges, rawNodes, layout$2, theme, highlightedNodeIds, selectedNodeId, filterType, graphType, clusterDepth, debouncedSearch, panel.showCallChain, panel.showCycles, panel.cycleIsolation, panel.showImpact, panel.showInheritance, focusNodeId, {
-		onNodeTap: handleNodeTap,
-		onNodeDoubleTap: handleNodeDoubleTap,
-		onNodeHover: handleNodeHover,
-		onNodeHoverOut: handleNodeHoverOut,
-		onEdgeTap: handleEdgeTap,
-		onEdgeHover: handleEdgeHover,
-		onEdgeHoverOut: handleEdgeHoverOut
-	}, showCallChainRef, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes);
+	const renderer$1 = useGraphRenderer({
+		data: {
+			nodes,
+			edges,
+			rawNodes
+		},
+		display: {
+			layout: layout$2,
+			dagreRankDir,
+			theme,
+			clusterDepth,
+			heatmapMode
+		},
+		interaction: {
+			highlightedNodeIds,
+			selectedNodeId,
+			focusNodeId,
+			focusModeActive,
+			focusModeNodeId,
+			focusDepth,
+			debouncedSearch
+		},
+		filters: {
+			filterType,
+			graphType,
+			fanInThreshold,
+			fanOutThreshold,
+			visibleNodeTypes,
+			visibleEdgeTypes,
+			pathFilterInclude,
+			pathFilterExclude
+		},
+		analysis: {
+			showCallChain: panel.showCallChain,
+			showCycles: panel.showCycles,
+			cycleIsolation: panel.cycleIsolation,
+			showImpact: panel.showImpact,
+			showInheritance: panel.showInheritance
+		},
+		callbacks: {
+			onNodeTap: handleNodeTap,
+			onNodeDoubleTap: handleNodeDoubleTap,
+			onNodeHover: handleNodeHover,
+			onNodeHoverPrefetch: handleNodeHoverPrefetch,
+			onNodeHoverOut: handleNodeHoverOut,
+			onEdgeTap: handleEdgeTap,
+			onEdgeHover: handleEdgeHover,
+			onEdgeHoverOut: handleEdgeHoverOut,
+			onNodeContextTap: (nodeId, pos) => setContextMenu({
+				nodeId,
+				position: pos
+			})
+		},
+		showCallChainRef
+	});
 	(0, react.useEffect)(() => {
 		getDataRef.current = {
 			getSelectedNodeData: () => renderer$1.rendererRef.current?.getSelectedNodeData() ?? null,
@@ -60404,17 +63994,60 @@ function GraphPanelInner({ className = "" }) {
 				renderer$1.rendererRef.current?.selectNode(NodeId(match$1.id));
 			}
 		};
-		window.addEventListener("codegraph:symbol-select", symbolHandler);
-		return () => window.removeEventListener("codegraph:symbol-select", symbolHandler);
+		window.addEventListener(DOM_EVENTS.SYMBOL_SELECT, symbolHandler);
+		return () => window.removeEventListener(DOM_EVENTS.SYMBOL_SELECT, symbolHandler);
 	}, [renderer$1.rendererRef]);
 	useThemeSync(renderer$1.updateTheme);
+	(0, react.useEffect)(() => {
+		if (!lodEnabled) return;
+		const r = renderer$1.rendererRef.current;
+		if (!r) return;
+		let rafId = null;
+		const computeLODFromZoom = (zoom) => {
+			const nodeCount = rawNodes.length;
+			let minimalThreshold;
+			let compactThreshold;
+			if (nodeCount < LOD.SMALL_NODE_COUNT) {
+				minimalThreshold = LOD.MINIMAL_THRESHOLD_SMALL;
+				compactThreshold = LOD.COMPACT_THRESHOLD_SMALL;
+			} else if (nodeCount < LOD.MEDIUM_NODE_COUNT) {
+				minimalThreshold = LOD.MINIMAL_THRESHOLD_MEDIUM;
+				compactThreshold = LOD.COMPACT_THRESHOLD_MEDIUM;
+			} else {
+				minimalThreshold = LOD.MINIMAL_THRESHOLD_LARGE;
+				compactThreshold = LOD.COMPACT_THRESHOLD_LARGE;
+			}
+			if (zoom < minimalThreshold) return "minimal";
+			if (zoom < compactThreshold) return "compact";
+			return "full";
+		};
+		const handleZoom = () => {
+			if (rafId !== null) return;
+			rafId = requestAnimationFrame(() => {
+				rafId = null;
+				const newLevel = computeLODFromZoom(r.getZoom());
+				if (newLevel !== lodLevel) setLODLevel(newLevel);
+			});
+		};
+		const disposeZoomListener = r.onZoomChange(handleZoom);
+		return () => {
+			disposeZoomListener();
+			if (rafId !== null) cancelAnimationFrame(rafId);
+		};
+	}, [
+		lodEnabled,
+		lodLevel,
+		rawNodes.length,
+		renderer$1.rendererRef,
+		setLODLevel
+	]);
 	usePanelResize(panelRef, renderer$1.rendererRef);
 	(0, react.useEffect)(() => {
 		if (panel.collapsed) return;
 		const panelEl = panelRef.current;
 		if (!panelEl) return;
-		if (panelHeight !== null && panelHeight >= 240) panelEl.style.height = `${Math.min(panelHeight, window.innerHeight)}px`;
-		if (panelWidth !== null && panelWidth >= 320) panelEl.style.width = `${panelWidth}px`;
+		if (panelHeight !== null && panelHeight >= UI.MIN_PANEL_HEIGHT_PX) panelEl.style.height = `${Math.min(panelHeight, window.innerHeight)}px`;
+		if (panelWidth !== null && panelWidth >= UI.MIN_PANEL_WIDTH_PX) panelEl.style.width = `${panelWidth}px`;
 		if (panelHeight !== null || panelWidth !== null) renderer$1.rendererRef.current?.resize();
 	}, [
 		panel.collapsed,
@@ -60432,7 +64065,7 @@ function GraphPanelInner({ className = "" }) {
 		let depth = 0;
 		while (ancestor && depth < 8) {
 			const h = ancestor.getBoundingClientRect().height;
-			if (h >= 300) break;
+			if (h >= UI.ANCESTOR_MIN_HEIGHT_PX) break;
 			ancestor = ancestor.parentElement;
 			depth++;
 		}
@@ -60449,15 +64082,24 @@ function GraphPanelInner({ className = "" }) {
 					panelEl.style.height = `${finalH}px`;
 					renderer$1.rendererRef.current?.resize();
 				}
-			}, 200);
+			}, UI.RESIZE_DEBOUNCE_MS);
 		};
 		applyAncestorHeight();
-		const ro = new ResizeObserver(applyAncestorHeight);
-		ro.observe(target);
-		return () => {
-			ro.disconnect();
-			if (resizeTimer !== null) clearTimeout(resizeTimer);
-		};
+		if (typeof ResizeObserver !== "undefined") {
+			const ro = new ResizeObserver(applyAncestorHeight);
+			ro.observe(target);
+			return () => {
+				ro.disconnect();
+				if (resizeTimer !== null) clearTimeout(resizeTimer);
+			};
+		} else {
+			const onWinResize = () => applyAncestorHeight();
+			window.addEventListener("resize", onWinResize);
+			return () => {
+				window.removeEventListener("resize", onWinResize);
+				if (resizeTimer !== null) clearTimeout(resizeTimer);
+			};
+		}
 	}, [
 		panel.collapsed,
 		panelHeight,
@@ -60479,6 +64121,8 @@ function GraphPanelInner({ className = "" }) {
 			panel.setShowHotspot(false);
 			panel.setShowGodModule(false);
 			panel.setShowCoreFunction(false);
+			panel.setShowFilterPanel(false);
+			panel.setShowTour(false);
 			setTooltip(null);
 			setShowHelp(false);
 			setFocusNodeId(null);
@@ -60491,12 +64135,30 @@ function GraphPanelInner({ className = "" }) {
 		onToggleImport: panel.toggleImport,
 		onToggleHelp: () => setShowHelp((v) => !v),
 		onUndo: history.undo,
-		onRedo: history.redo
+		onRedo: history.redo,
+		onRefresh: () => {
+			setLoading(true);
+			window.dispatchEvent(new CustomEvent(DOM_EVENTS.REFRESH, { detail: { incremental: false } }));
+		}
 	});
 	const requestRefresh = (0, react.useCallback)(() => {
-		window.dispatchEvent(new CustomEvent("codegraph:refresh", { detail: { incremental: true } }));
+		window.dispatchEvent(new CustomEvent(DOM_EVENTS.REFRESH, { detail: { incremental: true } }));
 	}, []);
-	usePolling(requestRefresh, watchEnabled ? 1e4 : 3e4, !panel.collapsed);
+	usePolling(requestRefresh, watchEnabled ? UI.POLLING_INTERVAL_WATCH_MS : UI.POLLING_INTERVAL_IDLE_MS, !panel.collapsed);
+	(0, react.useEffect)(() => {
+		const count = renderer$1.rendererRef.current?.getVisibleNodeCount() ?? 0;
+		setVisibleNodeCount(count);
+		setHasHiddenNodes(count < nodes.length);
+	}, [
+		filterType,
+		graphType,
+		fanInThreshold,
+		fanOutThreshold,
+		visibleNodeTypes,
+		visibleEdgeTypes,
+		renderer$1.rendererRef,
+		nodes.length
+	]);
 	(0, react.useEffect)(() => {
 		if (!panel.showMiniMap || panel.collapsed) return;
 		const updateMiniMap = () => {
@@ -60508,15 +64170,14 @@ function GraphPanelInner({ className = "" }) {
 		updateMiniMap();
 		let rafId = null;
 		let lastUpdate = 0;
-		const MIN_INTERVAL = 500;
 		const throttledUpdate = () => {
 			const now$1 = Date.now();
-			if (now$1 - lastUpdate < MIN_INTERVAL) return;
+			if (now$1 - lastUpdate < UI.MINIMAP_THROTTLE_MS) return;
 			lastUpdate = now$1;
 			if (rafId !== null) cancelAnimationFrame(rafId);
 			rafId = requestAnimationFrame(updateMiniMap);
 		};
-		const fallbackId = setInterval(throttledUpdate, 500);
+		const fallbackId = setInterval(throttledUpdate, UI.MINIMAP_UPDATE_INTERVAL_MS);
 		return () => {
 			if (rafId !== null) cancelAnimationFrame(rafId);
 			clearInterval(fallbackId);
@@ -60530,12 +64191,16 @@ function GraphPanelInner({ className = "" }) {
 	]);
 	(0, react.useEffect)(() => () => depsFetchAbortRef.current?.abort(), []);
 	const handleThemeToggle = (0, react.useCallback)(() => {
-		const newTheme = theme === "dark" ? "light" : "dark";
-		if (newTheme === "dark") document.body.setAttribute("data-ds-dark-theme", "");
-		else document.body.removeAttribute("data-ds-dark-theme");
-		invalidateCssVarCache();
-		setTheme(newTheme);
-		renderer$1.updateTheme(newTheme);
+		try {
+			const newTheme = theme === "dark" ? "light" : "dark";
+			if (newTheme === "dark") document.body.setAttribute("data-ds-dark-theme", "");
+			else document.body.removeAttribute("data-ds-dark-theme");
+			invalidateCssVarCache();
+			setTheme(newTheme);
+			renderer$1.updateTheme(newTheme);
+		} catch (err) {
+			log$1.error("handleThemeToggle failed", { err });
+		}
 	}, [
 		theme,
 		setTheme,
@@ -60554,24 +64219,46 @@ function GraphPanelInner({ className = "" }) {
 		setFocusNodeId(null);
 	}, [viewMode]);
 	(0, react.useEffect)(() => {
+		const layer = getViewLayer(viewMode);
+		const available = getAvailablePanels(layer);
+		if (!available.has("showCallChain") && panel.showCallChain) panel.setShowCallChain(false);
+		if (!available.has("showCycles") && panel.showCycles) panel.setShowCycles(false);
+		if (!available.has("showImpact") && panel.showImpact) panel.setShowImpact(false);
+		if (!available.has("showInheritance") && panel.showInheritance) panel.setShowInheritance(false);
+		if (!available.has("showHotspot") && panel.showHotspot) panel.setShowHotspot(false);
+		if (!available.has("showGodModule") && panel.showGodModule) panel.setShowGodModule(false);
+		if (!available.has("showCoreFunction") && panel.showCoreFunction) panel.setShowCoreFunction(false);
+		if (!available.has("showHealthScore") && panel.showHealthScore) panel.setShowHealthScore(false);
+		if (!available.has("showRules") && panel.showRules) panel.setShowRules(false);
+		if (!available.has("showImport") && panel.showImport) panel.setShowImport(false);
+		if (!available.has("showFilterPanel") && panel.showFilterPanel) panel.setShowFilterPanel(false);
+	}, [viewMode]);
+	(0, react.useEffect)(() => {
 		handleNodeDoubleTapRef.current = (nodeId) => {
-			const data$2 = getDataRef.current?.getNodeData(nodeId);
-			const isClusterNode = data$2 ? "isCluster" in data$2 && data$2.isCluster === true : nodeId.startsWith("cluster__") || nodeId.startsWith("filecluster__") || nodeId.startsWith("subgroup__");
-			if (isClusterNode) {
-				const isExpanded = expandedNodeIds.has(nodeId);
-				if (isExpanded) collapseNode(nodeId);
-				else expandNode(nodeId);
-			} else if (data$2 && data$2.type === "function") {
-				setSelectedNode(NodeId(nodeId));
-				setSelectedNodeData(data$2);
-			} else setFocusNodeId((prev) => {
-				if (prev === nodeId) {
+			try {
+				const data$2 = getDataRef.current?.getNodeData(nodeId);
+				const isClusterNode = data$2 ? "isCluster" in data$2 && data$2.isCluster === true : nodeId.startsWith("cluster__") || nodeId.startsWith("filecluster__") || nodeId.startsWith("subgroup__");
+				if (isClusterNode) {
+					const isExpanded = expandedNodeIds.has(nodeId);
+					if (isExpanded) collapseNode(nodeId);
+					else expandNode(nodeId);
+				} else if (data$2 && data$2.type === "function") {
+					setSelectedNode(NodeId(nodeId));
+					setSelectedNodeData(data$2);
+				} else setFocusNodeId((prev) => {
+					if (prev === nodeId) {
+						setSelectedNode(null);
+						return null;
+					}
 					setSelectedNode(null);
-					return null;
-				}
-				setSelectedNode(null);
-				return nodeId;
-			});
+					return nodeId;
+				});
+			} catch (err) {
+				log$1.error("handleNodeDoubleTap failed", {
+					nodeId,
+					err
+				});
+			}
 		};
 	}, [
 		expandedNodeIds,
@@ -60582,24 +64269,33 @@ function GraphPanelInner({ className = "" }) {
 	]);
 	const handleRefresh = (0, react.useCallback)(() => {
 		setLoading(true);
-		window.dispatchEvent(new CustomEvent("codegraph:refresh", { detail: { incremental: false } }));
+		window.dispatchEvent(new CustomEvent(DOM_EVENTS.REFRESH, { detail: { incremental: false } }));
 		log$1.info("manual refresh (full)");
 	}, [setLoading]);
 	const handleScanWorkspace = (0, react.useCallback)(() => {
 		setLoading(true);
-		window.dispatchEvent(new CustomEvent("codegraph:import-repo", { detail: { path: currentWorkspace || "." } }));
+		window.dispatchEvent(new CustomEvent(DOM_EVENTS.IMPORT_REPO, { detail: { path: currentWorkspace || "." } }));
 		log$1.info("scan workspace from empty state", { path: currentWorkspace });
 	}, [setLoading, currentWorkspace]);
 	const handleFindPath = (0, react.useCallback)((sourceId, targetId) => {
-		const r = renderer$1.rendererRef.current;
-		if (!r) return;
-		const result = r.findPath(sourceId, targetId);
-		if (result) {
-			setPathResult(result.path);
-			r.highlightPath(result.path);
-		} else {
+		try {
+			const r = renderer$1.rendererRef.current;
+			if (!r) return;
+			const result = r.findPath(sourceId, targetId);
+			if (result) {
+				setPathResult(result.path);
+				r.highlightPath(result.path);
+			} else {
+				setPathResult(null);
+				r.highlightPath(null);
+			}
+		} catch (err) {
+			log$1.error("handleFindPath failed", {
+				sourceId,
+				targetId,
+				err
+			});
 			setPathResult(null);
-			r.highlightPath(null);
 		}
 	}, [renderer$1.rendererRef, setPathResult]);
 	const handleClearPath = (0, react.useCallback)(() => {
@@ -60676,19 +64372,26 @@ function GraphPanelInner({ className = "" }) {
 	]);
 	const searchResults = (0, react.useMemo)(() => {
 		if (!debouncedSearch) return [];
-		const parsed = parseSearchQuery(debouncedSearch);
-		return rawNodes.filter((n) => matchSearchQuery(n.label, parsed)).slice(0, 50).map((n) => ({
+		return searchNodes(debouncedSearch, 50).map((n) => ({
 			id: n.id,
 			label: n.label,
 			type: n.type,
 			filePath: n.filePath
 		}));
-	}, [debouncedSearch, rawNodes]);
+	}, [debouncedSearch, searchNodes]);
 	const handleSelectSearchResult = (0, react.useCallback)((id) => {
-		setSelectedNode(NodeId(id));
-		const data$2 = getDataRef.current?.getNodeData(NodeId(id)) ?? null;
-		setSelectedNodeData(data$2);
-	}, [setSelectedNode]);
+		try {
+			setSelectedNode(NodeId(id));
+			const data$2 = getDataRef.current?.getNodeData(NodeId(id)) ?? null;
+			setSelectedNodeData(data$2);
+			panel.setShowSearch(false);
+		} catch (err) {
+			log$1.error("handleSelectSearchResult failed", {
+				id,
+				err
+			});
+		}
+	}, [setSelectedNode, panel]);
 	const nodeTypeCounts = (0, react.useMemo)(() => {
 		const counts = {
 			function: 0,
@@ -60701,7 +64404,16 @@ function GraphPanelInner({ className = "" }) {
 		for (const n of rawNodes) if (n.type in counts) counts[n.type]++;
 		return counts;
 	}, [rawNodes]);
-	const panelClassName = (0, react.useMemo)(() => `graph-panel resizable ${panel.collapsed ? "collapsed" : ""} ${className}`.trim(), [panel.collapsed, className]);
+	const cycleDetails = (0, react.useMemo)(() => {
+		if (!panel.showCycles) return [];
+		return renderer$1.rendererRef.current?.detectCyclesDetailed() ?? [];
+	}, [
+		panel.showCycles,
+		nodes.length,
+		edges.length
+	]);
+	const tourData = (0, react.useMemo)(() => buildTour(rawNodes, rawEdges), [rawNodes, rawEdges]);
+	const panelClassName = (0, react.useMemo)(() => `cg-graph-panel cg-resizable ${panel.collapsed ? "cg-collapsed" : ""} ${className}`.trim(), [panel.collapsed, className]);
 	const isCollapsed = panel.collapsed;
 	const isMicroView = viewMode === "cfg" || viewMode === "flowchart" || viewMode === "sequence";
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -60710,18 +64422,10 @@ function GraphPanelInner({ className = "" }) {
 		role: "region",
 		"aria-label": t$1("panel.ariaLabel"),
 		children: [
-			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				className: "collapse-fab",
+			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+				className: "cg-collapse-fab",
 				onClick: panel.toggleCollapsed,
-				role: "button",
-				tabIndex: 0,
 				"aria-label": t$1("panel.expand"),
-				onKeyDown: (e) => {
-					if (e.key === "Enter" || e.key === " ") {
-						e.preventDefault();
-						panel.toggleCollapsed();
-					}
-				},
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphIcon, { size: 22 })
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Toolbar, {
@@ -60732,6 +64436,7 @@ function GraphPanelInner({ className = "" }) {
 					interface: nodeTypeCounts.interface
 				},
 				layout: layout$2,
+				dagreRankDir,
 				theme,
 				filterType,
 				graphType,
@@ -60741,9 +64446,10 @@ function GraphPanelInner({ className = "" }) {
 				layerNames: diagramData?.layers.map((l) => l.name) ?? [],
 				onLayerChange: setLayer,
 				collapsed: panel.collapsed,
-				panelControls: panel.toPanelControls(),
+				panelControls: panel.toPanelControls,
 				onViewModeChange: handleViewModeChange,
 				onLayoutChange: setLayout,
+				onDagreRankDirChange: setDagreRankDir,
 				onThemeToggle: handleThemeToggle,
 				onFilterChange: setFilterType,
 				onGraphTypeChange: setGraphType,
@@ -60763,33 +64469,88 @@ function GraphPanelInner({ className = "" }) {
 				onAddWorkspace: handleWorkspaceAdd,
 				onRemoveWorkspace: removeWorkspace
 			}),
-			panel.showSearch && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SearchBar, {
-				query: searchQuery,
-				matchCount: renderer$1.searchMatchCount,
-				searchResults,
-				onChange: setSearchQuery,
-				onClose: () => panel.setShowSearch(false),
-				onSelectResult: handleSelectSearchResult
+			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "cg-panel-stack cg-panel-stack-left",
+				children: [
+					panel.showSearch && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SearchBar, {
+						query: searchQuery,
+						matchCount: renderer$1.searchMatchCount,
+						searchResults,
+						onChange: setSearchQuery,
+						onClose: () => panel.setShowSearch(false),
+						onSelectResult: handleSelectSearchResult
+					}) }),
+					panel.showPathFind && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PathBar, {
+						onFindPath: handleFindPath,
+						onClearPath: handleClearPath,
+						pathResult,
+						pathLength: pathResult ? pathResult.length - 1 : null,
+						onClose: () => panel.setShowPathFind(false)
+					}) }),
+					panel.showHealthScore && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(HealthScoreCard, { onClose: () => panel.setShowHealthScore(false) }) }),
+					panel.showRules && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RuleConfigPanel, {
+						violations: ruleViolations,
+						onCheckRules: handleRulesCheck,
+						onClose: () => panel.setShowRules(false)
+					}) }),
+					selectedNodeData && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(NodeDetail, {
+						node: selectedNodeData,
+						onClose: handleCloseDetail,
+						isExpanded: selectedNodeData ? expandedNodeIds.has(selectedNodeData.id) : false,
+						connectionCount: selectedNodeData ? (adjacencyMap.get(selectedNodeData.id)?.in ?? 0) + (adjacencyMap.get(selectedNodeData.id)?.out ?? 0) : 0,
+						onCollapse: () => selectedNodeData && collapseNode(selectedNodeData.id),
+						onSelectFunction: (node, mode) => handleSelectFunction(node.id, node.filePath, node.label, mode),
+						onAggregateCallChain: handleAggregateCallChain
+					}) }),
+					panel.showLegend && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Legend, {
+						viewMode,
+						onClose: () => panel.setShowLegend(false)
+					}) }),
+					panel.showImport && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ImportPanel, {
+						onClose: () => panel.setShowImport(false),
+						workspacePath: currentWorkspace,
+						prerequisites,
+						initStatus,
+						watchEnabled,
+						onSetGraphData: setGraphData,
+						onSetLoading: setLoading,
+						onSetError: setError,
+						onSetInitStatus: setInitStatus,
+						onSetWatchEnabled: setWatchEnabled
+					}) })
+				]
 			}),
-			panel.showPathFind && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PathBar, {
-				onFindPath: handleFindPath,
-				onClearPath: handleClearPath,
-				pathResult,
-				pathLength: pathResult ? pathResult.length - 1 : null,
-				onClose: () => panel.setShowPathFind(false)
+			!isCollapsed && !isMicroView && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				className: `cg-heatmap-bar ${heatmapMode === "none" ? "cg-heatmap-bar--collapsed" : ""}`,
+				role: "group",
+				"aria-label": t$1("heatmap.title"),
+				children: heatmapMode === "none" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+					className: "cg-heatmap-btn cg-heatmap-btn--activate",
+					onClick: () => setHeatmapMode("instability"),
+					"aria-label": t$1("heatmap.title"),
+					children: t$1("heatmap.title")
+				}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+					className: "cg-heatmap-label",
+					children: [t$1("heatmap.title"), ":"]
+				}), [
+					"none",
+					"instability",
+					"lines",
+					"complexity"
+				].map((m) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+					className: `cg-heatmap-btn ${heatmapMode === m ? "cg-active" : ""}`,
+					onClick: () => setHeatmapMode(m),
+					"aria-pressed": heatmapMode === m,
+					"aria-label": t$1(`heatmap.${m}`),
+					children: t$1(`heatmap.${m}`)
+				}, m))] })
 			}),
-			focusNodeId && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(FocusModeBar, {
+			focusNodeId && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(FocusModeBar, {
 				focusNodeId,
 				onExpand: handleFocusExpand,
 				onContract: handleFocusContract,
 				onExit: handleFocusExit
-			}),
-			panel.showHealthScore && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(HealthScoreCard, { onClose: () => panel.setShowHealthScore(false) }),
-			panel.showRules && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RuleConfigPanel, {
-				violations: ruleViolations,
-				onCheckRules: handleRulesCheck,
-				onClose: () => panel.setShowRules(false)
-			}),
+			}) }),
 			isLoading && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(LoadingOverlay, { visible: true }),
 			error$1 && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ErrorOverlay, {
 				error: error$1,
@@ -60815,98 +64576,144 @@ function GraphPanelInner({ className = "" }) {
 				onImport: () => panel.setShowImport(true),
 				onScanWorkspace: handleScanWorkspace
 			}),
-			panel.showImport && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ImportPanel, {
-				onClose: () => panel.setShowImport(false),
-				workspacePath: currentWorkspace,
-				prerequisites,
-				initStatus,
-				watchEnabled,
-				onSetGraphData: setGraphData,
-				onSetLoading: setLoading,
-				onSetError: setError,
-				onSetInitStatus: setInitStatus,
-				onSetWatchEnabled: setWatchEnabled
-			}),
-			selectedNodeData && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(NodeDetail, {
-				node: selectedNodeData,
-				onClose: handleCloseDetail,
-				isExpanded: selectedNodeData ? expandedNodeIds.has(selectedNodeData.id) : false,
-				connectionCount: selectedNodeData ? edges.filter((e) => e.source === selectedNodeData.id || e.target === selectedNodeData.id).length : 0,
-				onCollapse: () => selectedNodeData && collapseNode(selectedNodeData.id),
-				onSelectFunction: (node, mode) => handleSelectFunction(node.id, node.filePath, node.label, mode),
-				onAggregateCallChain: handleAggregateCallChain
-			}),
-			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				className: "graph-container",
+			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "cg-graph-container",
 				ref: renderer$1.containerRef,
 				role: "application",
-				"aria-label": t$1("a11y.graphContainer") ?? `Code graph: ${nodes.length} nodes, ${edges.length} edges`,
+				"aria-label": t$1("a11y.graphContainer") + `: ${t$1(`viewMode.${viewMode}`)}, ${nodes.length} ${t$1("a11y.nodes")}, ${edges.length} ${t$1("a11y.edges")}`,
 				"aria-describedby": "cg-graph-live-region",
 				style: { display: viewMode === "sequence" && selectedFunction ? "none" : void 0 },
-				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 					id: "cg-graph-live-region",
 					className: "cg-visually-hidden",
 					role: "status",
 					"aria-live": "polite",
-					children: selectedNodeData ? `${t$1("a11y.selectedNode") ?? "Selected"}: ${selectedNodeData.label}, ${selectedNodeData.type}, ${selectedNodeData.filePath}:${selectedNodeData.lineNumber}` : ""
-				})
+					children: selectedNodeData ? `${t$1("a11y.selectedNode")}: ${selectedNodeData.label}, ${selectedNodeData.type}, ${selectedNodeData.filePath}:${selectedNodeData.lineNumber}` : ""
+				}), nodes.length > 0 && visibleNodeCount === 0 && !isMicroView && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: "cg-filter-empty-state",
+					role: "status",
+					children: t$1("common.noVisibleNodes")
+				})]
 			}),
-			viewMode === "sequence" && selectedFunction && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SequenceDiagramRenderer, {
+			viewMode === "sequence" && selectedFunction && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SequenceDiagramRenderer, {
 				nodes,
 				edges,
 				theme,
 				onNodeTap: (id) => handleNodeTap(NodeId(id))
+			}) }),
+			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "cg-panel-stack cg-panel-stack-right",
+				children: [
+					panel.showMiniMap && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(StatsPanel, {
+						counts: {
+							function: nodeTypeCounts.function,
+							class: nodeTypeCounts.class,
+							variable: nodeTypeCounts.variable,
+							module: nodeTypeCounts.module,
+							interface: nodeTypeCounts.interface
+						},
+						onClose: () => panel.setShowMiniMap(false),
+						thumbnail,
+						viewportInfo,
+						onFocusArea: (ratioX, ratioY) => {
+							const info = renderer$1.rendererRef.current?.getViewportInfo();
+							if (info) renderer$1.rendererRef.current?.focusOnArea(info.totalSize.w * ratioX, info.totalSize.h * ratioY, info.zoom);
+						}
+					}) }),
+					panel.showHotspot && !isCollapsed && hotspotNodes.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(HotspotPanel, {
+						hotspotNodes,
+						onClose: () => panel.setShowHotspot(false),
+						label: t$1("toolbar.hotspot")
+					}) }),
+					panel.showGodModule && !isCollapsed && godModules.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GodModulePanel, {
+						godModules,
+						onClose: () => panel.setShowGodModule(false),
+						label: t$1("toolbar.godModule"),
+						statsLabel: (n, e) => t$1("godmodule.stats", {
+							nodes: n,
+							edges: e
+						})
+					}) }),
+					panel.showCoreFunction && !isCollapsed && coreFunctions.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CoreFunctionPanel, {
+						coreFunctions,
+						onClose: () => panel.setShowCoreFunction(false),
+						label: t$1("toolbar.coreFunction"),
+						onSelectFunction: (nodeId) => {
+							setSelectedNode(NodeId(nodeId));
+							renderer$1.rendererRef.current?.focusOnNode(nodeId);
+							renderer$1.rendererRef.current?.selectNode(NodeId(nodeId));
+						}
+					}) }),
+					panel.showFilterPanel && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(FilterPanel, { onClose: () => panel.setShowFilterPanel(false) }) }),
+					panel.showTour && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TourPanel, {
+						tour: tourData,
+						onClose: () => panel.setShowTour(false)
+					}) }),
+					panel.showImpact && !isCollapsed && impactStats && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ImpactPanel, {
+						impactStats,
+						label: t$1("toolbar.impact"),
+						totalLabel: t$1("impact.total"),
+						onClose: () => panel.setShowImpact(false)
+					}) }),
+					panel.showCycles && !isCollapsed && cycleDetails.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CyclePanel, {
+						cycles: cycleDetails,
+						label: t$1("toolbar.cycles"),
+						emptyLabel: t$1("cycles.empty"),
+						onClose: () => panel.setShowCycles(false)
+					}) })
+				]
 			}),
 			panel.showLegend && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Legend, {
 				viewMode,
 				onClose: () => panel.setShowLegend(false)
 			}) }),
-			panel.showMiniMap && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(StatsPanel, {
-				counts: {
-					function: nodeTypeCounts.function,
-					class: nodeTypeCounts.class,
-					variable: nodeTypeCounts.variable,
-					module: nodeTypeCounts.module,
-					interface: nodeTypeCounts.interface
+			contextMenu && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ContextMenu, {
+				nodeId: contextMenu.nodeId,
+				nodeData: getDataRef.current?.getNodeData(contextMenu.nodeId) ?? null,
+				position: contextMenu.position,
+				isCluster: expandedNodeIds.has(contextMenu.nodeId) || nodes.some((n) => n.id === contextMenu.nodeId && "children" in n),
+				isExpanded: expandedNodeIds.has(contextMenu.nodeId),
+				onClose: () => setContextMenu(null),
+				onFocusNode: (id) => {
+					renderer$1.rendererRef.current?.focusOnNode(id);
+					renderer$1.rendererRef.current?.selectNode(NodeId(id));
 				},
-				onClose: () => panel.setShowMiniMap(false),
-				thumbnail,
-				viewportInfo,
-				onFocusArea: (ratioX, ratioY) => {
-					const info = renderer$1.rendererRef.current?.getViewportInfo();
-					if (info) renderer$1.rendererRef.current?.focusOnArea(info.totalSize.w * ratioX, info.totalSize.h * ratioY, info.zoom);
+				onIsolateNode: (id) => {
+					renderer$1.rendererRef.current?.focusNeighborhood(NodeId(id));
+				},
+				onHideNode: (id) => {
+					renderer$1.rendererRef.current?.hideNode(NodeId(id));
+				},
+				onShowAllNodes: () => {
+					renderer$1.rendererRef.current?.showAllNodes();
+				},
+				hasHiddenNodes,
+				onExpandNode: (id) => {
+					expandNode(id);
+				},
+				onCollapseNode: (id) => {
+					collapseNode(id);
+				},
+				onFindPath: (id) => {
+					panel.setShowPathFind(true);
+					useGraphStore.getState().setPathStart(NodeId(id));
+				},
+				onHighlightCallChain: (id) => {
+					panel.setShowCallChain(true);
+					renderer$1.rendererRef.current?.highlightCallChain(NodeId(id));
+				},
+				onHighlightImpact: (id) => {
+					panel.setShowImpact(true);
+					renderer$1.rendererRef.current?.highlightImpact(NodeId(id));
+				},
+				onOpenSource: (id) => {
+					const data$2 = getDataRef.current?.getNodeData(id);
+					if (data$2) window.dispatchEvent(new CustomEvent(DOM_EVENTS.OPEN_SOURCE, { detail: {
+						filePath: data$2.filePath,
+						lineNumber: data$2.lineNumber
+					} }));
 				}
-			}) }),
-			panel.showHotspot && !isCollapsed && hotspotNodes.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(HotspotPanel, {
-				hotspotNodes,
-				onClose: () => panel.setShowHotspot(false),
-				label: t$1("toolbar.hotspot")
-			}) }),
-			panel.showGodModule && !isCollapsed && godModules.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GodModulePanel, {
-				godModules,
-				onClose: () => panel.setShowGodModule(false),
-				label: t$1("toolbar.godModule"),
-				statsLabel: (n, e) => t$1("godmodule.stats", {
-					nodes: n,
-					edges: e
-				})
-			}) }),
-			panel.showCoreFunction && !isCollapsed && coreFunctions.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CoreFunctionPanel, {
-				coreFunctions,
-				onClose: () => panel.setShowCoreFunction(false),
-				label: t$1("toolbar.coreFunction"),
-				onSelectFunction: (nodeId) => {
-					setSelectedNode(NodeId(nodeId));
-					renderer$1.rendererRef.current?.focusOnNode(nodeId);
-					renderer$1.rendererRef.current?.selectNode(NodeId(nodeId));
-				}
-			}) }),
-			panel.showFilterPanel && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(FilterPanel, { onClose: () => panel.setShowFilterPanel(false) }) }),
-			panel.showImpact && !isCollapsed && impactStats && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ImpactPanel, {
-				impactStats,
-				label: t$1("toolbar.impact"),
-				totalLabel: t$1("impact.total")
-			}) }),
+			}),
 			tooltip && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphTooltip, { data: tooltip }),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)(KeyboardHelp, {
 				visible: showHelp,
@@ -60920,10 +64727,11 @@ function GraphPanelInner({ className = "" }) {
 				workspaceName: currentWorkspace,
 				truncated,
 				totalNodeCount,
-				displayedNodeCount: nodes.length
+				displayedNodeCount: nodes.length,
+				performanceDegradations
 			}),
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				className: "resize-handle",
+				className: "cg-resize-handle",
 				title: t$1("panel.resetSize")
 			})
 		]
@@ -61082,20 +64890,22 @@ function apply(ctx) {
 		checkStatus().then(() => {
 			prereqTimer = setTimeout(checkStatus, POLLING.PREREQ_INITIAL_DELAY_MS);
 		}).catch((e) => log.warn("initial status check failed", e));
-		const prereqInterval = setInterval(async () => {
-			if (document.hidden) return;
-			const s = useGraphStore.getState();
-			if (s.prerequisites.codegraph && s.prerequisites.lens) {
-				clearInterval(prereqInterval);
-				return;
-			}
-			try {
-				await checkStatus();
-			} catch (e) {
-				log.warn("prereq polling failed", e);
-			}
-		}, POLLING.PREREQ_INTERVAL_MS);
-		ctx.effect(() => () => clearInterval(prereqInterval), "codegraph: prereq polling");
+		ctx.effect(() => {
+			const prereqInterval = setInterval(async () => {
+				if (document.hidden) return;
+				const s = useGraphStore.getState();
+				if (s.prerequisites.codegraph && s.prerequisites.lens) {
+					clearInterval(prereqInterval);
+					return;
+				}
+				try {
+					await checkStatus();
+				} catch (e) {
+					log.warn("prereq polling failed", e);
+				}
+			}, POLLING.PREREQ_INTERVAL_MS);
+			return () => clearInterval(prereqInterval);
+		}, "codegraph: prereq polling");
 	}
 	let lastDshWorkspace = "";
 	let scanInProgress = false;
@@ -61117,8 +64927,40 @@ function apply(ctx) {
 					}));
 					for (const wi of workspaceInfos) if (!s.workspaceList.some((w) => w.path === wi.path)) s.addWorkspace(wi.path, wi.name);
 				}
-				if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codegraph:workspace", { detail: { path: workspacePath } }));
+				if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path: workspacePath } }));
 				log.info("auto-import requested", { path: workspacePath });
+				const bootstrap = await fetchBootstrap();
+				if (bootstrap && bootstrap.topLevelNodes.length > 0) {
+					const s2 = useGraphStore.getState();
+					s2.setBootstrapData(bootstrap.topLevelNodes, bootstrap.edges, workspacePath, {
+						totalNodeCount: bootstrap.metadata.totalNodeCount,
+						totalEdgeCount: bootstrap.metadata.totalEdgeCount,
+						timestamp: bootstrap.metadata.timestamp
+					});
+					log.info("bootstrap data loaded", {
+						rootNodes: bootstrap.topLevelNodes.length,
+						totalNodeCount: bootstrap.metadata.totalNodeCount
+					});
+					requestScan(workspacePath).then((result) => {
+						if (result && result.success && result.nodes.length > 0) {
+							const validated = validateGraphData(result);
+							if (validated) {
+								const s3 = useGraphStore.getState();
+								s3.setGraphData(validated.nodes, validated.edges, workspacePath, validated.metadata);
+								log.info("graph data received (background)", {
+									path: workspacePath,
+									nodes: validated.nodes.length,
+									edges: validated.edges.length
+								});
+							}
+						}
+					}).catch((e) => {
+						log.warn("background scan failed", e);
+					}).finally(() => {
+						useGraphStore.getState().setLoading(false);
+					});
+					return;
+				}
 				store.setLoading(true);
 				try {
 					const result = await requestScan(workspacePath);
@@ -61145,38 +64987,37 @@ function apply(ctx) {
 			}
 		};
 		if (store.nodes.length === 0 && !store.isLoading) getWorkspaceAndScan();
-		const workspacePoll = setInterval(async () => {
-			if (document.hidden) return;
-			try {
-				const { path: dshCurrent, list: dshList } = await fetchWorkspace();
-				if (dshCurrent && dshCurrent !== lastDshWorkspace) {
-					log.info("DSH workspace changed", {
-						from: lastDshWorkspace,
-						to: dshCurrent
-					});
-					lastDshWorkspace = dshCurrent;
-					const s = useGraphStore.getState();
-					s.setCurrentWorkspace(dshCurrent);
-					if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("codegraph:workspace", { detail: { path: dshCurrent } }));
+		ctx.effect(() => {
+			const workspacePoll = setInterval(async () => {
+				if (document.hidden) return;
+				try {
+					const { path: dshCurrent, list: dshList } = await fetchWorkspace();
+					if (dshCurrent && dshCurrent !== lastDshWorkspace) {
+						log.info("DSH workspace changed", {
+							from: lastDshWorkspace,
+							to: dshCurrent
+						});
+						lastDshWorkspace = dshCurrent;
+						const s = useGraphStore.getState();
+						s.setCurrentWorkspace(dshCurrent);
+						if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path: dshCurrent } }));
+					}
+					for (const p$1 of dshList) {
+						const s = useGraphStore.getState();
+						if (!s.workspaceList.some((w) => w.path === p$1)) s.addWorkspace(p$1, p$1.split(/[\\/]/).pop() ?? p$1);
+					}
+				} catch (e) {
+					log.warn("workspace polling failed", e);
 				}
-				for (const p$1 of dshList) {
-					const s = useGraphStore.getState();
-					if (!s.workspaceList.some((w) => w.path === p$1)) s.addWorkspace(p$1, p$1.split(/[\\/]/).pop() ?? p$1);
-				}
-			} catch (e) {
-				log.warn("workspace polling failed", e);
-			}
-		}, POLLING.WORKSPACE_INTERVAL_MS);
-		ctx.effect(() => () => clearInterval(workspacePoll), "codegraph: workspace polling");
+			}, POLLING.WORKSPACE_INTERVAL_MS);
+			return () => clearInterval(workspacePoll);
+		}, "codegraph: workspace polling");
 	}
-	if (typeof window !== "undefined") {
+	if (typeof window !== "undefined") ctx.effect(() => {
 		const refreshListener = (e) => {
 			const detail = e.detail;
 			const store = useGraphStore.getState();
-			if (store.nodes.length > 0) if (detail?.incremental) fetch("/api/v1/codegraph/data", { headers: { "if-none-match": String(store.lastUpdated) } }).then((res) => {
-				if (res.status === 304) return null;
-				return res.json();
-			}).then((data$2) => {
+			if (store.nodes.length > 0) if (detail?.incremental) fetchGraphDataIncremental(store.lastUpdated).then((data$2) => {
 				if (data$2 && data$2.nodes && data$2.nodes.length > 0) store.setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
 			}).catch((e$1) => log.warn("incremental graph fetch failed", e$1));
 			else fetchGraphData().then((data$2) => {
@@ -61184,7 +65025,7 @@ function apply(ctx) {
 			}).catch((e$1) => log.warn("graph fetch failed", e$1));
 		};
 		const openSourceListener = (e) => {
-			ctx.emit("cg-viz/source/open", e.detail);
+			ctx.emit("codegraph-visualizer/source/open", e.detail);
 		};
 		const importRepoListener = (e) => {
 			const detail = e.detail;
@@ -61265,34 +65106,35 @@ function apply(ctx) {
 			const detail = e.detail;
 			log.info("install plugin requested", { plugin: detail.plugin });
 		};
-		window.addEventListener("codegraph:refresh", refreshListener);
-		window.addEventListener("codegraph:open-source", openSourceListener);
-		window.addEventListener("codegraph:import-repo", importRepoListener);
-		window.addEventListener("codegraph:init-graph", initGraphListener);
-		window.addEventListener("codegraph:toggle-watch", toggleWatchListener);
-		window.addEventListener("codegraph:workspace", workspaceListener);
-		window.addEventListener("codegraph:install-plugin", installPluginListener);
 		const symbolSelectListener = (e) => {
 			const detail = e.detail;
-			if (detail?.symbol) window.dispatchEvent(new CustomEvent("codegraph:symbol-select", { detail }));
+			if (detail?.symbol) window.dispatchEvent(new CustomEvent(DOM_EVENTS.SYMBOL_SELECT, { detail }));
 		};
-		window.addEventListener("dsh:editor-symbol-select", symbolSelectListener);
-		ctx.effect(() => () => {
-			window.removeEventListener("codegraph:refresh", refreshListener);
-			window.removeEventListener("codegraph:open-source", openSourceListener);
-			window.removeEventListener("codegraph:import-repo", importRepoListener);
-			window.removeEventListener("codegraph:init-graph", initGraphListener);
-			window.removeEventListener("codegraph:toggle-watch", toggleWatchListener);
-			window.removeEventListener("codegraph:workspace", workspaceListener);
-			window.removeEventListener("codegraph:install-plugin", installPluginListener);
-			window.removeEventListener("dsh:editor-symbol-select", symbolSelectListener);
-		}, "codegraph: window event listeners");
-	}
-	ctx.effect(() => () => {
+		window.addEventListener(DOM_EVENTS.REFRESH, refreshListener);
+		window.addEventListener(DOM_EVENTS.OPEN_SOURCE, openSourceListener);
+		window.addEventListener(DOM_EVENTS.IMPORT_REPO, importRepoListener);
+		window.addEventListener(DOM_EVENTS.INIT_GRAPH, initGraphListener);
+		window.addEventListener(DOM_EVENTS.TOGGLE_WATCH, toggleWatchListener);
+		window.addEventListener(DOM_EVENTS.WORKSPACE, workspaceListener);
+		window.addEventListener(DOM_EVENTS.INSTALL_PLUGIN, installPluginListener);
+		window.addEventListener(DOM_EVENTS.EDITOR_SYMBOL_SELECT, symbolSelectListener);
+		return () => {
+			if (workspaceScanTimer) clearTimeout(workspaceScanTimer);
+			window.removeEventListener(DOM_EVENTS.REFRESH, refreshListener);
+			window.removeEventListener(DOM_EVENTS.OPEN_SOURCE, openSourceListener);
+			window.removeEventListener(DOM_EVENTS.IMPORT_REPO, importRepoListener);
+			window.removeEventListener(DOM_EVENTS.INIT_GRAPH, initGraphListener);
+			window.removeEventListener(DOM_EVENTS.TOGGLE_WATCH, toggleWatchListener);
+			window.removeEventListener(DOM_EVENTS.WORKSPACE, workspaceListener);
+			window.removeEventListener(DOM_EVENTS.INSTALL_PLUGIN, installPluginListener);
+			window.removeEventListener(DOM_EVENTS.EDITOR_SYMBOL_SELECT, symbolSelectListener);
+		};
+	}, "codegraph: window event listeners");
+	return () => {
 		disposeStore();
 		resetI18nListeners();
 		resetLoggerListeners();
-	}, "codegraph: module-level state cleanup");
+	};
 }
 
 //#endregion

@@ -479,4 +479,196 @@ describe('LayoutController - extended coverage', () => {
       controller.destroy();
     });
   });
+
+  describe('retryWorker', () => {
+    it('retries worker initialization after failure', () => {
+      const originalDocument = globalThis.document;
+      let workerInstances: any[] = [];
+      let initShouldFail = true;
+
+      globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
+      globalThis.Worker = class {
+        onmessage: ((e: MessageEvent) => void) | null = null;
+        onerror: ((e: ErrorEvent) => void) | null = null;
+        postMessage = vi.fn();
+        terminate = vi.fn();
+        constructor() {
+          if (initShouldFail) {
+            throw new Error('Worker init failed');
+          }
+          workerInstances.push(this);
+        }
+      } as any;
+
+      const cy = makeMockCy();
+      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+      expect(controller.isWorkerAvailable()).toBe(false);
+
+      initShouldFail = false;
+      workerInstances = [];
+      controller.retryWorker();
+      expect(controller.isWorkerAvailable()).toBe(true);
+      expect(workerInstances.length).toBe(1);
+
+      controller.destroy();
+      globalThis.Worker = undefined as any;
+      globalThis.document = originalDocument;
+    });
+
+    it('does not retry when worker is already available', () => {
+      const originalDocument = globalThis.document;
+      let workerInstances: any[] = [];
+
+      globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
+      globalThis.Worker = class {
+        onmessage: ((e: MessageEvent) => void) | null = null;
+        onerror: ((e: ErrorEvent) => void) | null = null;
+        postMessage = vi.fn();
+        terminate = vi.fn();
+        constructor() { workerInstances.push(this); }
+      } as any;
+
+      const cy = makeMockCy();
+      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+      expect(workerInstances.length).toBe(1);
+
+      controller.retryWorker();
+      expect(workerInstances.length).toBe(1);
+
+      controller.destroy();
+      globalThis.Worker = undefined as any;
+      globalThis.document = originalDocument;
+    });
+
+    it('does not retry when workerInitFailed is false and worker is null', () => {
+      const originalDocument = globalThis.document;
+      globalThis.document = undefined as any;
+
+      const cy = makeMockCy();
+      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+      expect(controller.isWorkerAvailable()).toBe(false);
+
+      controller.retryWorker();
+      expect(controller.isWorkerAvailable()).toBe(false);
+
+      controller.destroy();
+      globalThis.document = originalDocument;
+    });
+
+    it('stops retrying after 3 failed attempts', () => {
+      const originalDocument = globalThis.document;
+      let workerConstructCount = 0;
+
+      globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
+      globalThis.Worker = class {
+        onmessage: ((e: MessageEvent) => void) | null = null;
+        onerror: ((e: ErrorEvent) => void) | null = null;
+        postMessage = vi.fn();
+        terminate = vi.fn();
+        constructor() {
+          workerConstructCount++;
+          throw new Error('Always fail');
+        }
+      } as any;
+
+      const cy = makeMockCy();
+      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+      const initialConstructCount = workerConstructCount;
+
+      controller.retryWorker();
+      expect(workerConstructCount).toBe(initialConstructCount + 1);
+
+      controller.retryWorker();
+      expect(workerConstructCount).toBe(initialConstructCount + 2);
+
+      controller.retryWorker();
+      expect(workerConstructCount).toBe(initialConstructCount + 3);
+
+      controller.retryWorker();
+      expect(workerConstructCount).toBe(initialConstructCount + 3);
+
+      controller.destroy();
+      globalThis.Worker = undefined as any;
+      globalThis.document = originalDocument;
+    });
+  });
+
+  describe('applyLayoutWithWorker - with active worker', () => {
+    it('posts message to worker and resolves with positions', async () => {
+      const originalDocument = globalThis.document;
+      let mockWorkerInstance: any;
+
+      globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
+      globalThis.Worker = class {
+        onmessage: ((e: MessageEvent) => void) | null = null;
+        onerror: ((e: ErrorEvent) => void) | null = null;
+        postMessage = vi.fn();
+        terminate = vi.fn();
+        constructor() { mockWorkerInstance = this; }
+      } as any;
+
+      const nodeA = makeMockNode('a');
+      const cy = makeMockCy([nodeA], []);
+      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      const promise = controller.applyLayoutWithWorker(
+        [{ id: 'a', label: 'A', type: 'function' }],
+        [{ id: 'e1', source: 'a', target: 'a', type: 'call' }],
+        'cose',
+      );
+
+      expect(mockWorkerInstance.postMessage).toHaveBeenCalledTimes(1);
+      const postedData = mockWorkerInstance.postMessage.mock.calls[0][0];
+      expect(postedData.layout).toBe('cose');
+      expect(postedData.nodes).toHaveLength(1);
+      expect(postedData.edges).toHaveLength(1);
+
+      mockWorkerInstance.onmessage({ data: { positions: { a: { x: 100, y: 200 } } } });
+
+      const result = await promise;
+      expect(result).toEqual({ a: { x: 100, y: 200 } });
+
+      controller.destroy();
+      globalThis.Worker = undefined as any;
+      globalThis.document = originalDocument;
+    });
+
+    it('times out and returns empty positions when worker does not respond', async () => {
+      vi.useFakeTimers();
+      const originalDocument = globalThis.document;
+      let mockWorkerInstance: any;
+
+      globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
+      globalThis.Worker = class {
+        onmessage: ((e: MessageEvent) => void) | null = null;
+        onerror: ((e: ErrorEvent) => void) | null = null;
+        postMessage = vi.fn();
+        terminate = vi.fn();
+        constructor() { mockWorkerInstance = this; }
+      } as any;
+
+      const nodeA = makeMockNode('a');
+      const cy = makeMockCy([nodeA], []);
+      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      const promise = controller.applyLayoutWithWorker([], [], 'cose');
+
+      vi.advanceTimersByTime(30001);
+
+      const result = await promise;
+      expect(result).toEqual({});
+      expect(mockWorkerInstance.terminate).toHaveBeenCalled();
+
+      controller.destroy();
+      vi.useRealTimers();
+      globalThis.Worker = undefined as any;
+      globalThis.document = originalDocument;
+    });
+  });
 });
