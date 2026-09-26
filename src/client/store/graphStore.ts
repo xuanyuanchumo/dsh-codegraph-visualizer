@@ -13,7 +13,7 @@ import { invalidateCssVarCache } from '../renderer/styles/ThemeStylesheet.ts';
 import { computeViewModeTransition } from './viewModeTransition.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { type LayoutType, type ThemeType, type RankDir, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
-import { fetchNodeChildren } from '../api/index.ts';
+import { fetchNodeChildren, fetchBootstrap } from '../api/index.ts';
 
 import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, LOD, UI, PREFETCH, FUNCTION_BODY, getDynamicMaxVisibleNodes } from '../../shared/constants.ts';
 
@@ -336,6 +336,7 @@ interface GraphState {
   setWatchEnabled: (enabled: boolean) => void;
   expandNode: (nodeId: string) => void;
   loadNodeChildren: (nodeId: string) => Promise<void>;
+  loadBootstrap: () => Promise<boolean>;
   batchExpandNodes: (nodeIds: string[]) => void;
   prefetchExpand: (nodeId: string) => void;
   collapseNode: (nodeId: string) => void;
@@ -708,6 +709,31 @@ export const useGraphStore = create<GraphState>()(
           log.info('node children loaded', { nodeId, newNodes: newNodes.length, newEdges: newEdges.length });
         } catch (err) {
           log.warn('loadNodeChildren failed', { nodeId, err });
+        }
+      },
+      loadBootstrap: async () => {
+        try {
+          const data = await fetchBootstrap();
+          if (!data || data.topLevelNodes.length === 0) {
+            log.info('bootstrap returned empty, falling back to full load');
+            return false;
+          }
+          const state = useGraphStore.getState();
+          state.setBootstrapData(
+            data.topLevelNodes,
+            data.edges,
+            data.metadata.repoId,
+            { totalNodeCount: data.metadata.totalNodeCount, totalEdgeCount: data.metadata.totalEdgeCount, timestamp: data.metadata.timestamp },
+          );
+          log.info('bootstrap loaded', {
+            rootNodes: data.topLevelNodes.length,
+            totalNodeCount: data.metadata.totalNodeCount,
+            indexStatus: data.indexStatus,
+          });
+          return true;
+        } catch (err) {
+          log.warn('loadBootstrap failed, falling back to full load', { err });
+          return false;
         }
       },
       batchExpandNodes: (nodeIds) => {

@@ -192,8 +192,11 @@ describe('IndexedDBCache', () => {
     expect(r2).toEqual({ data: 2 });
   });
 
-  it('close does not throw', () => {
-    expect(() => cache.close()).not.toThrow();
+  it('close calls database close method after db is opened', async () => {
+    await cache.setCluster('key1', { data: 1 });
+    cache.close();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(mockDB.close).toHaveBeenCalled();
   });
 
   it('close after operations closes the database', async () => {

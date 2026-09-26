@@ -58,15 +58,34 @@ export function useViewMode(
       setGraphType('all');
       setFilterType('all');
       setLoading(true);
-      fetchGraphData().then((data) => {
-        if (data) {
+      const loadBootstrap = useGraphStore.getState().loadBootstrap;
+      loadBootstrap().then((ok) => {
+        if (ok) {
           setViewMode(newMode);
-          setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata);
-        } else {
-          setError('Failed to load code graph data');
+          setLoading(false);
+          return;
         }
-        setLoading(false);
-      }).catch((e) => { log.warn('fetchGraphData failed', e); setError(`Failed to load code graph: ${e.message}`); setLoading(false); });
+        fetchGraphData().then((data) => {
+          if (data) {
+            setViewMode(newMode);
+            setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata);
+          } else {
+            setError('Failed to load code graph data');
+          }
+          setLoading(false);
+        }).catch((e) => { log.warn('fetchGraphData failed', e); setError(`Failed to load code graph: ${e.message}`); setLoading(false); });
+      }).catch((e) => {
+        log.warn('loadBootstrap failed', e);
+        fetchGraphData().then((data) => {
+          if (data) {
+            setViewMode(newMode);
+            setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata);
+          } else {
+            setError('Failed to load code graph data');
+          }
+          setLoading(false);
+        }).catch((e2) => { log.warn('fetchGraphData failed', e2); setError(`Failed to load code graph: ${e2.message}`); setLoading(false); });
+      });
     } else {
       depsFetchAbortRef.current?.abort();
       setGraphType('all');

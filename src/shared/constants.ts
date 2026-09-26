@@ -261,15 +261,15 @@ export const COLORS = {
   PACKAGE_DARK: '#232324',
   NODE_CLASS_LIGHT: '#1a2230',
 } as const;
-export const TOOL_MESSAGES = {
-  NO_PATH_FOUND: 'No path found between the specified symbols.',
-  GRAPH_TOO_LARGE_FOR_PATH: 'Graph too large (>50000 nodes) for path finding. Try filtering first.',
-  PATH_FOUND: 'Path found',
-  HOPS: 'hops',
-  INSUFFICIENT_DATA: 'Insufficient data for health scoring.',
-  NO_VIOLATIONS: 'No rule violations detected.',
-  RULE_VIOLATIONS: 'rule violations:',
-} as const;
+export const TOOL_MESSAGES: Record<string, { en: string; zh: string }> = {
+  NO_PATH_FOUND: { en: 'No path found between the specified symbols.', zh: '未找到指定符号之间的路径。' },
+  GRAPH_TOO_LARGE_FOR_PATH: { en: 'Graph too large (>50000 nodes) for path finding. Try filtering first.', zh: '图谱过大（>50000 节点），无法进行路径查找。请先尝试筛选。' },
+  PATH_FOUND: { en: 'Path found', zh: '路径已找到' },
+  HOPS: { en: 'hops', zh: '跳' },
+  INSUFFICIENT_DATA: { en: 'Insufficient data for health scoring.', zh: '数据不足，无法进行健康评分。' },
+  NO_VIOLATIONS: { en: 'No rule violations detected.', zh: '未检测到规则违规。' },
+  RULE_VIOLATIONS: { en: 'rule violations:', zh: '条规则违规：' },
+};
 export const ERROR_CODES = {
   PATH_NOT_ALLOWED: 'PATH_NOT_ALLOWED',
   WORKSPACE_PATH_NOT_ALLOWED: 'WORKSPACE_PATH_NOT_ALLOWED',

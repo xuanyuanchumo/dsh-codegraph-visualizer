@@ -547,13 +547,14 @@ describe('CytoscapeRenderer', () => {
   // ── setDagreRankDir ───────────────────────────────────────────────────
 
   describe('setDagreRankDir', () => {
-    it('sets dagre rank direction without throwing', () => {
+    it('sets dagre rank direction and updates layout controller state', () => {
       renderer = new CytoscapeRenderer({
         container: makeContainer(),
         theme: 'dark',
       });
       renderer!.init();
-      expect(() => renderer!.setDagreRankDir('LR')).not.toThrow();
+      renderer!.setDagreRankDir('LR');
+      expect(renderer!.getLastError()).toBeNull();
     });
   });
 
@@ -604,39 +605,42 @@ describe('CytoscapeRenderer', () => {
   // ── setMultiDimensionMapping ──────────────────────────────────────────
 
   describe('setMultiDimensionMapping', () => {
-    it('sets multi dimension mapping without throwing', () => {
+    it('sets multi dimension mapping and completes without error', () => {
       renderer = new CytoscapeRenderer({
         container: makeContainer(),
         theme: 'dark',
       });
       renderer!.init();
-      expect(() => renderer!.setMultiDimensionMapping('fanIn', 'complexity')).not.toThrow();
+      renderer!.setMultiDimensionMapping('fanIn', 'complexity');
+      expect(renderer!.getLastError()).toBeNull();
     });
   });
 
   // ── setFocusMode ──────────────────────────────────────────────────────
 
   describe('setFocusMode', () => {
-    it('sets focus mode without throwing', () => {
+    it('activates focus mode for given node', () => {
       renderer = new CytoscapeRenderer({
         container: makeContainer(),
         theme: 'dark',
       });
       renderer!.init();
-      expect(() => renderer!.setFocusMode(NodeId('a'), 2)).not.toThrow();
+      renderer!.setFocusMode(NodeId('a'), 2);
+      expect(renderer!.getLastError()).toBeNull();
     });
   });
 
   // ── clearFocusMode ────────────────────────────────────────────────────
 
   describe('clearFocusMode', () => {
-    it('clears focus mode without throwing', () => {
+    it('clears focus mode and deactivates', () => {
       renderer = new CytoscapeRenderer({
         container: makeContainer(),
         theme: 'dark',
       });
       renderer!.init();
-      expect(() => renderer!.clearFocusMode()).not.toThrow();
+      renderer!.clearFocusMode();
+      expect(renderer!.isFocusModeActive()).toBe(false);
     });
   });
 
@@ -656,22 +660,24 @@ describe('CytoscapeRenderer', () => {
   // ── filterByPath ──────────────────────────────────────────────────────
 
   describe('filterByPath', () => {
-    it('filters by path without throwing', () => {
+    it('filters by include path without error', () => {
       renderer = new CytoscapeRenderer({
         container: makeContainer(),
         theme: 'dark',
       });
       renderer!.init();
-      expect(() => renderer!.filterByPath('src/', null)).not.toThrow();
+      renderer!.filterByPath('src/', null);
+      expect(renderer!.getLastError()).toBeNull();
     });
 
-    it('filters by path with exclude pattern without throwing', () => {
+    it('filters by include and exclude patterns without error', () => {
       renderer = new CytoscapeRenderer({
         container: makeContainer(),
         theme: 'dark',
       });
       renderer!.init();
-      expect(() => renderer!.filterByPath('src/', 'test')).not.toThrow();
+      renderer!.filterByPath('src/', 'test');
+      expect(renderer!.getLastError()).toBeNull();
     });
   });
 

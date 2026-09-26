@@ -3,7 +3,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { scoped } from '../shared/Logger.ts';
-import { VALIDATION, AST, ERROR_CODES, BOOTSTRAP } from '../shared/constants.ts';
+import { VALIDATION, AST, ERROR_CODES, ERROR_MESSAGES, BOOTSTRAP } from '../shared/constants.ts';
 import type { GraphData, GraphNode, GraphEdge, IncomingMessage, ServerResponse, IGraphVisualizerService } from '../types/index.ts';
 import { RepoId, NodeId, EdgeId } from '../types/index.ts';
 import { fetchMergedGraph } from '../tools.ts';
@@ -423,7 +423,7 @@ function registerInitRoute(rc: RouteContext): void {
         const initResult = {
           success,
           path: initPath,
-          message: success ? 'Graph initialized successfully' : 'Initialization failed — is dsh-codegraph installed?',
+          message: success ? 'Graph initialized successfully' : (ERROR_MESSAGES.INIT_FAILED?.en ?? 'Initialization failed'),
           timestamp: Date.now(),
         };
         deps.setLastInitResult(initResult);
@@ -443,7 +443,7 @@ function registerInitRoute(rc: RouteContext): void {
         sendJson(res, 200, initResult, req, corsConfig);
       } catch (e) {
         log.error('init route failed', e);
-        const errorResult = { success: false, path: '', message: 'Initialization failed', timestamp: Date.now() };
+        const errorResult = { success: false, path: '', message: ERROR_MESSAGES.INIT_FAILED?.en ?? 'Initialization failed', timestamp: Date.now() };
         deps.setLastInitResult(errorResult);
         sendError(res, 500, ERROR_CODES.INIT_FAILED, req, corsConfig);
       }

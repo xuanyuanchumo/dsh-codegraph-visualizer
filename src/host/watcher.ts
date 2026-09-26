@@ -2,7 +2,7 @@ import { watch } from 'node:fs';
 import { platform } from 'node:os';
 import type { Context } from '@deepseek-ai/cordis';
 import { scoped } from '../shared/Logger.ts';
-import { WATCHER, ERROR_CODES } from '../shared/constants.ts';
+import { WATCHER, ERROR_CODES, ERROR_MESSAGES } from '../shared/constants.ts';
 import { fetchMergedGraph } from '../tools.ts';
 import { RepoId } from '../types/index.ts';
 import type { UpstreamInvoker } from '../adapters/IAdapter.ts';
@@ -83,7 +83,7 @@ export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUp
         setTimeout(() => setupWatch(watchPath), delay);
       } else {
         log.error('watch setup exhausted retries', { path: watchPath });
-        ctx.emit('codegraph-visualizer/watch/error', { path: watchPath, message: 'Watch setup failed after retries', errorCode: ERROR_CODES.WATCH_SETUP_FAILED, timestamp: Date.now() });
+        ctx.emit('codegraph-visualizer/watch/error', { path: watchPath, message: ERROR_MESSAGES.WATCH_SETUP_FAILED?.en ?? 'Watch setup failed after retries', errorCode: ERROR_CODES.WATCH_SETUP_FAILED, timestamp: Date.now() });
       }
     }
   };
@@ -129,7 +129,7 @@ export function registerEventListeners(ctx: Context, invokeUpstream: UpstreamInv
       const initResult: { success: boolean; path: string; message: string; errorCode?: string; timestamp: number } = {
         success,
         path: event.path,
-        message: success ? 'Graph initialized successfully' : 'Initialization failed — is dsh-codegraph installed?',
+        message: success ? 'Graph initialized successfully' : (ERROR_MESSAGES.INIT_FAILED?.en ?? 'Initialization failed'),
         timestamp: Date.now(),
       };
       if (!success) initResult.errorCode = ERROR_CODES.INIT_FAILED;
@@ -142,7 +142,7 @@ export function registerEventListeners(ctx: Context, invokeUpstream: UpstreamInv
       ctx.emit('codegraph-visualizer/graph/init-result', {
         success: false,
         path: event.path,
-        message: 'Initialization failed',
+        message: ERROR_MESSAGES.INIT_FAILED?.en ?? 'Initialization failed',
         errorCode: ERROR_CODES.INIT_FAILED,
         timestamp: Date.now(),
       });

@@ -6,7 +6,7 @@ import type { ViewMode } from '../../../src/types/index.ts';
 import { makeNode, makeEdge, makeGraphData } from '../../helpers.ts';
 
 // ── Use vi.hoisted to define mocks that vi.mock factories can reference ──
-const { mockStoreState, useGraphStoreMock, fetchGraphDataMock } = vi.hoisted(() => {
+const { mockStoreState, useGraphStoreMock, fetchGraphDataMock, loadBootstrapMock } = vi.hoisted(() => {
   const storeState = {
     setViewMode: vi.fn(),
     setLoading: vi.fn(),
@@ -18,6 +18,8 @@ const { mockStoreState, useGraphStoreMock, fetchGraphDataMock } = vi.hoisted(() 
     setSelectedNode: vi.fn(),
     setHighlightedNodes: vi.fn(),
     assembleMultiFunction: vi.fn(),
+    setBootstrapData: vi.fn(),
+    loadBootstrap: vi.fn(),
   };
 
   const storeMock = Object.assign(
@@ -29,6 +31,7 @@ const { mockStoreState, useGraphStoreMock, fetchGraphDataMock } = vi.hoisted(() 
     mockStoreState: storeState,
     useGraphStoreMock: storeMock,
     fetchGraphDataMock: vi.fn(),
+    loadBootstrapMock: storeState.loadBootstrap,
   };
 });
 
@@ -68,6 +71,9 @@ describe('useViewMode', () => {
     mockStoreState.setSelectedNode.mockReset();
     mockStoreState.setHighlightedNodes.mockReset();
     mockStoreState.assembleMultiFunction.mockReset();
+    mockStoreState.setBootstrapData.mockReset();
+    mockStoreState.loadBootstrap.mockReset();
+    mockStoreState.loadBootstrap.mockResolvedValue(false);
     fetchGraphDataMock.mockReset();
     useGraphStoreMock.getState.mockReset();
     useGraphStoreMock.getState.mockReturnValue(mockStoreState);

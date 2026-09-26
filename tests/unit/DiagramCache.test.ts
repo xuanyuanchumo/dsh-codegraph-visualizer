@@ -232,7 +232,7 @@ describe('ClusterCache', () => {
   });
 });
 describe('DiagramCache setPersistentBackend', () => {
-  it('should set persistent backend without throwing', () => {
+  it('should set persistent backend and route set operations through it', async () => {
     const cache = new DiagramCache(5);
     const mockIdb = {
       getDiagram: vi.fn().mockResolvedValue(null),
@@ -243,7 +243,11 @@ describe('DiagramCache setPersistentBackend', () => {
       invalidateCluster: vi.fn().mockResolvedValue(undefined),
       close: vi.fn(),
     } as any;
-    expect(() => cache.setPersistentBackend(mockIdb)).not.toThrow();
+    cache.setPersistentBackend(mockIdb);
+    const diagram = makeLayeredDiagram();
+    cache.set('inheritance', 'hash1', diagram);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(mockIdb.setDiagram).toHaveBeenCalledTimes(1);
   });
 
   it('should call idbCache.setDiagram on cache set when persistent backend is set', async () => {
@@ -292,7 +296,7 @@ describe('DiagramCache setPersistentBackend', () => {
 });
 
 describe('ClusterCache setPersistentBackend', () => {
-  it('should set persistent backend without throwing', () => {
+  it('should set persistent backend and route cluster operations through it', async () => {
     const cache = new ClusterCache(5);
     const mockIdb = {
       getCluster: vi.fn().mockResolvedValue(null),
@@ -300,7 +304,10 @@ describe('ClusterCache setPersistentBackend', () => {
       invalidateCluster: vi.fn().mockResolvedValue(undefined),
       close: vi.fn(),
     } as any;
-    expect(() => cache.setPersistentBackend(mockIdb)).not.toThrow();
+    cache.setPersistentBackend(mockIdb);
+    cache.set('hash1', 'level1', 'expanded1', { nodes: [], edges: [] } as any);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(mockIdb.setCluster).toHaveBeenCalledTimes(1);
   });
 
   it('should call idbCache.setCluster on cache set when persistent backend is set', async () => {

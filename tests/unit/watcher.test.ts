@@ -171,7 +171,7 @@ describe('registerEventListeners', () => {
     registerEventListeners(ctx, invokeUpstream);
     const initCb = onCallbacks.find((c) => c.event === 'codegraph-visualizer/graph/init');
     await initCb!.cb({ path: '/repo', timestamp: 1 });
-    expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/graph/init-result', expect.objectContaining({ success: false, message: 'Initialization failed' }));
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/graph/init-result', expect.objectContaining({ success: false, errorCode: 'INIT_FAILED' }));
   });
 });
 // ── Helper: capture watch/toggle callback from registerWatcher ────────────

@@ -269,10 +269,10 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       render: (_args: unknown, value: unknown) => {
         const v = value as { path?: string[]; length?: number; truncated?: boolean } | null;
         if (!v || !v.path || v.path.length === 0) {
-          if (v?.truncated) return [{ type: 'text' as const, text: TOOL_MESSAGES.GRAPH_TOO_LARGE_FOR_PATH }];
-          return [{ type: 'text' as const, text: TOOL_MESSAGES.NO_PATH_FOUND }];
+          if (v?.truncated) return [{ type: 'text' as const, text: TOOL_MESSAGES.GRAPH_TOO_LARGE_FOR_PATH?.en ?? 'Graph too large' }];
+          return [{ type: 'text' as const, text: TOOL_MESSAGES.NO_PATH_FOUND?.en ?? 'No path found' }];
         }
-        return [{ type: 'text' as const, text: `${TOOL_MESSAGES.PATH_FOUND} (${v.length} ${TOOL_MESSAGES.HOPS}): ${v.path.join(' → ')}` }];
+        return [{ type: 'text' as const, text: `${TOOL_MESSAGES.PATH_FOUND?.en ?? 'Path found'} (${v.length} ${TOOL_MESSAGES.HOPS?.en ?? 'hops'}): ${v.path.join(' → ')}` }];
       },
     },
     execute: async (args) => {
@@ -300,7 +300,7 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       schema: { type: 'json' },
       render: (_args: unknown, value: unknown) => {
         const v = value as HealthScore | null;
-        if (!v) return [{ type: 'text' as const, text: TOOL_MESSAGES.INSUFFICIENT_DATA }];
+        if (!v) return [{ type: 'text' as const, text: TOOL_MESSAGES.INSUFFICIENT_DATA?.en ?? 'Insufficient data' }];
         return [{
           type: 'text' as const,
           text: `Architecture Health: ${v.overall}/100\n  Coupling: ${v.coupling}/100\n  Cohesion: ${v.cohesion}/100\n  Cyclic Dep Rate: ${v.cyclicDependencyRate}/100\n  Modularity: ${v.modularity}/100`,
@@ -330,9 +330,9 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       schema: { type: 'json' },
       render: (_args: unknown, value: unknown) => {
         const v = value as RuleViolation[] | null;
-        if (!v || v.length === 0) return [{ type: 'text' as const, text: TOOL_MESSAGES.NO_VIOLATIONS }];
+        if (!v || v.length === 0) return [{ type: 'text' as const, text: TOOL_MESSAGES.NO_VIOLATIONS?.en ?? 'No violations' }];
         const lines = v.slice(0, 20).map((r) => `  [${r.severity}] ${r.message}`);
-        return [{ type: 'text' as const, text: `${v.length} ${TOOL_MESSAGES.RULE_VIOLATIONS}\n${lines.join('\n')}` }];
+        return [{ type: 'text' as const, text: `${v.length} ${TOOL_MESSAGES.RULE_VIOLATIONS?.en ?? 'rule violations:'}\n${lines.join('\n')}` }];
       },
     },
     execute: async (args) => {

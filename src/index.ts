@@ -124,5 +124,5 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
     };
   }, 'codegraph: state cleanup');
 
-  return () => {};
+
 }
