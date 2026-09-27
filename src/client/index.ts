@@ -9,7 +9,7 @@ import { resetLoggerListeners } from '../shared/Logger.ts';
 import type { GraphData } from '../types/index.ts';
 import { validateGraphData } from './validators.ts';
 import { PLUGIN_VERSION } from '../generated/version.ts';
-import { fetchStatus, fetchGraphData, fetchGraphDataIncremental, fetchWorkspace, requestScan, requestInit, requestWatch, fetchBootstrap } from './api/index.ts';
+import { fetchStatus, fetchGraphDataIncremental, fetchWorkspace, requestScan, requestInit, requestWatch, fetchBootstrap } from './api/index.ts';
 import { t } from './i18n/index.ts';
 import { resetI18nListeners } from './i18n/index.ts';
 import { disposeStore } from './store/graphStore.ts';
@@ -225,30 +225,12 @@ export function apply(ctx: Context) {
             timestamp: bootstrap.metadata.timestamp,
           });
           log.info('bootstrap data loaded', { rootNodes: bootstrap.topLevelNodes.length, totalNodeCount: bootstrap.metadata.totalNodeCount });
-
-          requestScan(workspacePath).then(() => {
-            useGraphStore.getState().setLoading(false);
-          }).catch((e) => {
-            log.warn('background scan failed', e);
-            useGraphStore.getState().setLoading(false);
-          });
+          useGraphStore.getState().setLoading(false);
           return;
         }
 
-        store.setLoading(true);
-        try {
-          const result = await requestScan(workspacePath);
-          if (result && result.success && result.nodes.length > 0) {
-            const validated = validateGraphData(result);
-            if (validated) {
-              const s2 = useGraphStore.getState();
-              s2.setGraphData(validated.nodes, validated.edges, workspacePath, validated.metadata);
-              log.info('graph data received', { path: workspacePath, nodes: validated.nodes.length, edges: validated.edges.length });
-            }
-          }
-        } finally {
-          useGraphStore.getState().setLoading(false);
-        }
+        log.info('bootstrap returned no data, showing empty state');
+        useGraphStore.getState().setLoading(false);
       } catch (e) {
         log.warn('getWorkspaceAndScan failed', e);
         useGraphStore.getState().setLoading(false);
@@ -296,7 +278,9 @@ export function apply(ctx: Context) {
               .then((data) => { if (data && data.nodes && data.nodes.length > 0) { store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata); } })
               .catch((e) => log.warn('incremental graph fetch failed', e));
           } else {
-            fetchGraphData().then((data) => { if (data) { store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata); } }).catch((e) => log.warn('graph fetch failed', e));
+            store.loadBootstrap().then((ok) => {
+              if (!ok) log.warn('bootstrap refresh failed');
+            }).catch((e) => log.warn('bootstrap refresh failed', e));
           }
         }
       };
@@ -330,9 +314,9 @@ export function apply(ctx: Context) {
           if (result) {
             store.setInitStatus(result.success ? 'done' : 'error', result.message);
             if (result.success) {
-              fetchGraphData().then((data) => {
-                if (data) { store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata); }
-              }).catch((e) => log.warn('post-init graph fetch failed', e));
+              store.loadBootstrap().then((ok) => {
+                if (!ok) log.warn('post-init bootstrap failed');
+              }).catch((e) => log.warn('post-init bootstrap failed', e));
             }
           } else {
             store.setInitStatus('error', 'Request failed');

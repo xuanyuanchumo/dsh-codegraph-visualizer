@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
 import type { ViewMode } from '../../types/index.ts';
-import { fetchGraphData } from '../api/index.ts';
+
 import { scoped } from '../../shared/Logger.ts';
 
 const log = scoped('viewMode');
@@ -62,29 +62,14 @@ export function useViewMode(
       loadBootstrap().then((ok) => {
         if (ok) {
           setViewMode(newMode);
-          setLoading(false);
-          return;
+        } else {
+          setError('Failed to load code graph data');
         }
-        fetchGraphData().then((data) => {
-          if (data) {
-            setViewMode(newMode);
-            setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata);
-          } else {
-            setError('Failed to load code graph data');
-          }
-          setLoading(false);
-        }).catch((e) => { log.warn('fetchGraphData failed', e); setError(`Failed to load code graph: ${e.message}`); setLoading(false); });
+        setLoading(false);
       }).catch((e) => {
         log.warn('loadBootstrap failed', e);
-        fetchGraphData().then((data) => {
-          if (data) {
-            setViewMode(newMode);
-            setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata);
-          } else {
-            setError('Failed to load code graph data');
-          }
-          setLoading(false);
-        }).catch((e2) => { log.warn('fetchGraphData failed', e2); setError(`Failed to load code graph: ${e2.message}`); setLoading(false); });
+        setError(`Failed to load code graph: ${e.message}`);
+        setLoading(false);
       });
     } else {
       depsFetchAbortRef.current?.abort();

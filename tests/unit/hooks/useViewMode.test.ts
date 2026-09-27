@@ -6,7 +6,7 @@ import type { ViewMode } from '../../../src/types/index.ts';
 import { makeNode, makeEdge, makeGraphData } from '../../helpers.ts';
 
 // ── Use vi.hoisted to define mocks that vi.mock factories can reference ──
-const { mockStoreState, useGraphStoreMock, fetchGraphDataMock, loadBootstrapMock } = vi.hoisted(() => {
+const { mockStoreState, useGraphStoreMock } = vi.hoisted(() => {
   const storeState = {
     setViewMode: vi.fn(),
     setLoading: vi.fn(),
@@ -30,8 +30,7 @@ const { mockStoreState, useGraphStoreMock, fetchGraphDataMock, loadBootstrapMock
   return {
     mockStoreState: storeState,
     useGraphStoreMock: storeMock,
-    fetchGraphDataMock: vi.fn(),
-    loadBootstrapMock: storeState.loadBootstrap,
+
   };
 });
 
@@ -39,13 +38,6 @@ vi.mock('../../../src/client/store/graphStore.ts', () => ({
   useGraphStore: useGraphStoreMock,
 }));
 
-vi.mock('../../../src/client/api/index.ts', async (importOriginal) => {
-  const original = await importOriginal() as Record<string, unknown>;
-  return {
-    ...original,
-    fetchGraphData: fetchGraphDataMock,
-  };
-});
 
 // ── Import after mocks are set up ───────────────────────────────────
 import { useViewMode } from '../../../src/client/hooks/useViewMode.ts';
@@ -78,7 +70,7 @@ describe('useViewMode', () => {
     mockStoreState.setBootstrapData.mockReset();
     mockStoreState.loadBootstrap.mockReset();
     mockStoreState.loadBootstrap.mockResolvedValue(false);
-    fetchGraphDataMock.mockReset();
+
     useGraphStoreMock.getState.mockReset();
     useGraphStoreMock.getState.mockReturnValue(mockStoreState);
     useGraphStoreMock.mockImplementation((selector: (s: typeof mockStoreState) => unknown) =>
@@ -137,12 +129,8 @@ describe('useViewMode', () => {
 
     // ── code mode ───────────────────────────────────────────────────
 
-    it('should switch to code mode and fetch graph data successfully', async () => {
-      const mockGraphData = makeGraphData(
-        [makeNode('n1', 'A', 'function', 'a.ts', 1)],
-        [makeEdge('e1', 'n1', 'n2', 'call')],
-      );
-      fetchGraphDataMock.mockResolvedValue(mockGraphData);
+    it('should switch to code mode via bootstrap successfully', async () => {
+      mockStoreState.loadBootstrap.mockResolvedValue(true);
 
       const { result } = renderViewModeHook('dependencies');
 
@@ -150,22 +138,16 @@ describe('useViewMode', () => {
         result.current.handleViewModeChange('code');
       });
 
-      expect(fetchGraphDataMock).toHaveBeenCalledTimes(1);
+      expect(mockStoreState.loadBootstrap).toHaveBeenCalledTimes(1);
       expect(mockStoreState.setGraphType).toHaveBeenCalledWith('all');
       expect(mockStoreState.setFilterType).toHaveBeenCalledWith('all');
       expect(mockStoreState.setLoading).toHaveBeenCalledWith(true);
       expect(mockStoreState.setViewMode).toHaveBeenCalledWith('code');
-      expect(mockStoreState.setGraphData).toHaveBeenCalledWith(
-        mockGraphData.nodes,
-        mockGraphData.edges,
-        mockGraphData.metadata.repoId,
-        mockGraphData.metadata,
-      );
       expect(mockStoreState.setLoading).toHaveBeenCalledWith(false);
     });
 
-    it('should set error when fetchGraphData returns null', async () => {
-      fetchGraphDataMock.mockResolvedValue(null);
+    it('should set error when loadBootstrap returns false', async () => {
+      mockStoreState.loadBootstrap.mockResolvedValue(false);
 
       const { result } = renderViewModeHook('dependencies');
 
@@ -178,8 +160,8 @@ describe('useViewMode', () => {
       expect(mockStoreState.setViewMode).not.toHaveBeenCalled();
     });
 
-    it('should set error when fetchGraphData throws', async () => {
-      fetchGraphDataMock.mockRejectedValue(new Error('Network error'));
+    it('should set error when loadBootstrap throws', async () => {
+      mockStoreState.loadBootstrap.mockRejectedValue(new Error('Network error'));
 
       const { result } = renderViewModeHook('dependencies');
 
@@ -201,7 +183,7 @@ describe('useViewMode', () => {
       });
 
       expect(mockStoreState.loadBootstrap).toHaveBeenCalledTimes(1);
-      expect(fetchGraphDataMock).not.toHaveBeenCalled();
+
       expect(mockStoreState.setGraphType).toHaveBeenCalledWith('all');
       expect(mockStoreState.setFilterType).toHaveBeenCalledWith('all');
       expect(mockStoreState.setLoading).toHaveBeenCalledWith(true);
@@ -209,13 +191,8 @@ describe('useViewMode', () => {
       expect(mockStoreState.setLoading).toHaveBeenCalledWith(false);
     });
 
-    it('should fall back to fetchGraphData when loadBootstrap throws', async () => {
+    it('should set error when loadBootstrap throws', async () => {
       mockStoreState.loadBootstrap.mockRejectedValue(new Error('bootstrap network error'));
-      const mockGraphData = makeGraphData(
-        [makeNode('n1', 'A', 'function', 'a.ts', 1)],
-        [],
-      );
-      fetchGraphDataMock.mockResolvedValue(mockGraphData);
 
       const { result } = renderViewModeHook('dependencies');
 
@@ -224,14 +201,7 @@ describe('useViewMode', () => {
       });
 
       expect(mockStoreState.loadBootstrap).toHaveBeenCalledTimes(1);
-      expect(fetchGraphDataMock).toHaveBeenCalledTimes(1);
-      expect(mockStoreState.setViewMode).toHaveBeenCalledWith('code');
-      expect(mockStoreState.setGraphData).toHaveBeenCalledWith(
-        mockGraphData.nodes,
-        mockGraphData.edges,
-        mockGraphData.metadata.repoId,
-        mockGraphData.metadata,
-      );
+      expect(mockStoreState.setError).toHaveBeenCalledWith('Failed to load code graph: bootstrap network error');
       expect(mockStoreState.setLoading).toHaveBeenCalledWith(false);
     });
 
@@ -240,9 +210,7 @@ describe('useViewMode', () => {
       const controller = new AbortController();
       depsFetchAbortRef.current = controller;
 
-      fetchGraphDataMock.mockResolvedValue(
-        makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []),
-      );
+      mockStoreState.loadBootstrap.mockResolvedValue(true);
 
       const { result } = renderViewModeHook('dependencies');
 
@@ -394,7 +362,7 @@ describe('useViewMode', () => {
       });
 
       expect(mockFetch).not.toHaveBeenCalled();
-      expect(fetchGraphDataMock).not.toHaveBeenCalled();
+
       expect(mockStoreState.setGraphType).toHaveBeenCalledWith('all');
       expect(mockStoreState.setFilterType).toHaveBeenCalledWith('all');
       expect(mockStoreState.setSelectedFunction).toHaveBeenCalledWith(null);
@@ -729,12 +697,8 @@ describe('useViewMode', () => {
       expect(mockStoreState.setViewMode).toHaveBeenLastCalledWith('code');
     });
 
-    it('should handle a full dependencies → code workflow with data fetch', async () => {
-      const mockGraphData = makeGraphData(
-        [makeNode('n1', 'A', 'function', 'a.ts', 1)],
-        [makeEdge('e1', 'n1', 'n2', 'call')],
-      );
-      fetchGraphDataMock.mockResolvedValue(mockGraphData);
+    it('should handle a full dependencies → code workflow via bootstrap', async () => {
+      mockStoreState.loadBootstrap.mockResolvedValue(true);
 
       const { result } = renderViewModeHook('dependencies');
 
@@ -742,14 +706,9 @@ describe('useViewMode', () => {
         result.current.handleViewModeChange('code');
       });
 
-      expect(fetchGraphDataMock).toHaveBeenCalled();
+      expect(mockStoreState.loadBootstrap).toHaveBeenCalled();
       expect(mockStoreState.setViewMode).toHaveBeenCalledWith('code');
-      expect(mockStoreState.setGraphData).toHaveBeenCalledWith(
-        mockGraphData.nodes,
-        mockGraphData.edges,
-        mockGraphData.metadata.repoId,
-        mockGraphData.metadata,
-      );
+      expect(mockStoreState.setLoading).toHaveBeenCalledWith(false);
     });
 
     it('should handle switching through multiple macro view modes', () => {
