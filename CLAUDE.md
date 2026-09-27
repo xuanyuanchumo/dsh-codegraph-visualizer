@@ -32,3 +32,12 @@
 - disposeStore must clean up prefetchAbortControllers and prefetchInFlightCount to prevent memory leaks
 - fuzzyScore with empty pattern returns 1 (matches everything) to stay consistent with fuzzyMatch semantics
 - Routes data endpoint has no built-in size limit — must check payload size and slim if exceeding API.DATA_RESPONSE_MAX_BYTES
+- ctx.slots.inject() returns a disposer — must save and track it alongside other disposers, not discard the return value
+- color-mix() CSS function needs rgba fallback in a separate file — every usage must have a corresponding fallback entry in color-mix-fallback.css
+- @container CSS Container Queries need @supports not (container-type: inline-size) fallback for older browsers
+- betterSidebar.registerTab() may not return a disposer — must guard with typeof dispose === 'function' before calling
+- prefetchExpand uses requestIdleCallback/setTimeout — must save the handle and cancel it in disposeStore to prevent stale writes after dispose
+- LayoutController worker timeout must auto-retry via retryWorkerInit() — never set workerInitFailed=true on timeout, or worker layout is permanently disabled
+- DataController.processBatchQueue RAF callback must check this.destroyed at the top — destroy() may be called before the RAF fires
+- FilterController.safeRegExp must check for nested quantifiers (e.g. (a+)+, (a*)*) — simple length checks are insufficient for ReDoS prevention
+- readEdgesFromDb file scope must NOT use LIMIT/OFFSET per IN-clause batch — query all edges then slice in memory, because SQL OFFSET applies to the whole result set not per-batch
