@@ -32,6 +32,7 @@ let incrementalClusterCtx: IncrementalClusterContext | null = null;
 let prefetchInFlightCount = 0;
 const prefetchAbortControllers = new Map<string, AbortController>();
 let expandGeneration = 0;
+let prefetchIdleHandle: ReturnType<typeof requestIdleCallback> | ReturnType<typeof setTimeout> | null = null;
 
 function detectInitialTheme(): ThemeType {
   if (typeof document === 'undefined') return 'dark';
@@ -223,6 +224,11 @@ export function disposeStore(): void {
   for (const controller of prefetchAbortControllers.values()) controller.abort();
   prefetchAbortControllers.clear();
   prefetchInFlightCount = 0;
+  if (prefetchIdleHandle !== null) {
+    if (typeof cancelIdleCallback === 'function') cancelIdleCallback(prefetchIdleHandle as number);
+    else clearTimeout(prefetchIdleHandle as ReturnType<typeof setTimeout>);
+    prefetchIdleHandle = null;
+  }
   diagramCache.invalidate();
   clusterCache.invalidate();
   incrementalClusterCtx = null;
@@ -917,9 +923,9 @@ export const useGraphStore = create<GraphState>()(
           }
         };
         if (typeof requestIdleCallback === 'function') {
-          requestIdleCallback(runPrefetch, { timeout: 2000 });
+          prefetchIdleHandle = requestIdleCallback(runPrefetch, { timeout: 2000 });
         } else {
-          setTimeout(runPrefetch, 0);
+          prefetchIdleHandle = setTimeout(runPrefetch, 0);
         }
       },
       collapseNode: (nodeId) => {

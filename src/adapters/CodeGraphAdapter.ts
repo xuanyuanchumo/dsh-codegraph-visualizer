@@ -248,19 +248,18 @@ export function readEdgesFromDb(dbPath: string, nodeId: string, scope: 'file' | 
       const idList = nodeIds.map(n => n.id);
       if (idList.length === 0) return { edges: [], total: 0 };
       const batchSize = SQLITE.MAX_IN_PARAMS;
-      let total = 0;
       const allEdges: DbEdgeRow[] = [];
       for (let i = 0; i < idList.length; i += batchSize) {
         const batch = idList.slice(i, i + batchSize);
         const placeholders = batch.map(() => '?').join(',');
-        const batchTotal = (db.prepare(`SELECT COUNT(*) as cnt FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders})`).get(...batch, ...batch) as { cnt: number }).cnt;
-        total += batchTotal;
         const batchEdges = db.prepare(
-          `SELECT id, source, target, kind, line FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders}) LIMIT ? OFFSET ?`,
-        ).all(...batch, ...batch, limit, cursor) as unknown as DbEdgeRow[];
+          `SELECT id, source, target, kind, line FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders})`,
+        ).all(...batch, ...batch) as unknown as DbEdgeRow[];
         allEdges.push(...batchEdges);
       }
-      return { edges: allEdges, total };
+      const total = allEdges.length;
+      const pagedEdges = allEdges.slice(cursor, cursor + limit);
+      return { edges: pagedEdges, total };
     } finally {
       db.close();
     }

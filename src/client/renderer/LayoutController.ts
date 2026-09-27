@@ -102,8 +102,8 @@ export class LayoutController {
         if (this.worker) {
           this.worker.terminate();
           this.worker = null;
-          this.workerInitFailed = true;
-          log.warn('layout worker terminated due to timeout — will retry on next layout');
+          log.warn('layout worker terminated due to timeout — will auto-retry');
+          this.retryWorkerInit();
         }
       }, RENDERER.LAYOUT_TIMEOUT_MS);
 

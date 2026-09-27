@@ -303,6 +303,7 @@ export class DataController {
     if (this.batchRaf !== null) cancelAnimationFrame(this.batchRaf);
 
     this.batchRaf = requestAnimationFrame(() => {
+      if (this.destroyed) { this.batchRaf = null; return; }
       if (!this.batchQueue) { this.batchRaf = null; return; }
       const { nodes, edges } = this.batchQueue;
       const BATCH_SIZE = DATA_CONTROLLER.BATCH_SIZE;

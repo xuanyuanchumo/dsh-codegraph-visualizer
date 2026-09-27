@@ -177,7 +177,11 @@ export class FilterController {
 
   private safeRegExp(pattern: string): RegExp | null {
     try {
-      if (pattern.length > FILTER.MAX_PATTERN_LENGTH || /(\+|\*|\{)\{/.test(pattern)) return null;
+      if (pattern.length > FILTER.MAX_PATTERN_LENGTH) return null;
+      if (/(\+|\*|\?)\1/.test(pattern)) return null;
+      if (/\([^()]*[+*?][^()]*\)[+*?]/.test(pattern)) return null;
+      if (/\([^()]*[+*?][^()]*\)\{/.test(pattern)) return null;
+      if (/(\+|\*|\{)\{/.test(pattern)) return null;
       return new RegExp(pattern);
     } catch (e) {
       log.warn('invalid regex pattern', e);

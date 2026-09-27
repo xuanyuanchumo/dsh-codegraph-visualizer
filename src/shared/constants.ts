@@ -154,6 +154,7 @@ export const EXPORT = {
 
 export const FILTER = {
   MAX_PATTERN_LENGTH: 200,
+  MAX_NESTED_QUANTIFIER_DEPTH: 2,
 } as const;
 
 export const DATA_CONTROLLER = {
