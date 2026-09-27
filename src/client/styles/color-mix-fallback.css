@@ -105,4 +105,34 @@
   .cg-overlay-warning-border {
     border-top: 1px solid rgba(245, 158, 11, 0.30);
   }
+  .cg-type-badge.cg-function {
+    background: rgba(16, 185, 129, 0.14);
+  }
+  .cg-type-badge.cg-interface {
+    background: rgba(13, 148, 136, 0.14);
+  }
+  body[data-ds-dark-theme] .cg-type-badge.cg-interface {
+    background: rgba(20, 184, 166, 0.14);
+  }
+  .cg-mini-map-viewport {
+    background: rgba(38, 49, 72, 0.10);
+  }
+  body[data-ds-dark-theme] .cg-mini-map-viewport {
+    background: rgba(99, 102, 241, 0.10);
+  }
+  .cg-rule-severity.cg-error {
+    background: rgba(239, 68, 68, 1.00);
+  }
+  .cg-rule-severity.cg-warning {
+    background: rgba(245, 158, 11, 1.00);
+  }
+  .cg-health-card--error {
+    border: 1px solid rgba(239, 68, 68, 1.00);
+  }
+  .cg-health-card--error-header {
+    border-top: 1px solid rgba(239, 68, 68, 1.00);
+  }
+  .cg-import-warning-text {
+    color: rgba(245, 158, 11, 0.85);
+  }
 }

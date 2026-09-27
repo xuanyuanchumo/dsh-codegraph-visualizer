@@ -60,7 +60,7 @@ export function init(container: HTMLElement, initialData?: GraphData): () => voi
   return () => root.unmount();
 }
 
-export function apply(ctx: Context) {
+export function apply(ctx: Context): () => void {
   let panelVisible = false;
   let navButtonRegistered = false;
   let renderFloating: () => void = () => {};
@@ -98,10 +98,10 @@ export function apply(ctx: Context) {
       });
       if (typeof dispose === 'function') {
         ctx.effect(() => dispose, 'codegraph: better-sidebar tab');
+        navButtonRegistered = true;
       } else {
-        log.warn('better-sidebar registerTab did not return a disposer');
+        log.warn('better-sidebar registerTab did not return a disposer, falling back to slots');
       }
-      navButtonRegistered = true;
     }
   } catch (e) {
     log.warn('better-sidebar registration failed', e);
@@ -109,7 +109,7 @@ export function apply(ctx: Context) {
 
   if (!navButtonRegistered) {
     try {
-      ctx.slots.inject('sidebar.footer.action', () => {
+      const injectDisposer = ctx.slots.inject('sidebar.footer.action', () => {
         trackSlotDisposer(
           ctx.slots.register(
             { name: 'sidebar.footer.action', id: 'codegraph-visualizer', order: 10, label: () => t('nav.title') },
@@ -117,6 +117,7 @@ export function apply(ctx: Context) {
           ),
         );
       });
+      trackSlotDisposer(injectDisposer);
       navButtonRegistered = true;
     } catch (e) {
       log.warn('sidebar.footer.action slot failed', e);

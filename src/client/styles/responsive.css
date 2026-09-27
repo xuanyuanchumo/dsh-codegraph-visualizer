@@ -262,3 +262,157 @@
     width: 200px;
   }
 }
+/* ---- Container Queries fallback ------------------------------------------- */
+@supports not (container-type: inline-size) {
+  @media (max-width: 480px) {
+    .cg-graph-panel {
+      border-radius: var(--cg-radius-sm);
+    }
+    .cg-graph-toolbar {
+      padding: 0 8px;
+      gap: 4px;
+    }
+    .cg-toolbar-left {
+      font-size: 11px;
+    }
+    .cg-toolbar-center {
+      gap: 4px;
+    }
+    .cg-toolbar-right {
+      gap: 4px;
+    }
+    .cg-layout-btn,
+    .cg-graph-type-btn,
+    .cg-rank-dir-btn {
+      padding: 3px 6px;
+      font-size: 10px;
+    }
+    .cg-search-btn,
+    .cg-theme-btn,
+    .cg-export-btn,
+    .cg-collapse-btn,
+    .cg-chain-btn,
+    .cg-cycle-btn,
+    .cg-impact-btn,
+    .cg-inheritance-btn,
+    .cg-minimap-btn,
+    .cg-refresh-btn,
+    .cg-undo-btn,
+    .cg-redo-btn,
+    .cg-import-btn,
+    .cg-legend-btn,
+    .cg-lang-btn,
+    .cg-pathfind-btn,
+    .cg-health-btn,
+    .cg-rules-btn,
+    .cg-hotspot-btn,
+    .cg-godmodule-btn,
+    .cg-corefunction-btn {
+      width: 26px;
+      height: 26px;
+      font-size: 12px;
+    }
+    .cg-node-detail-panel {
+      width: calc(100% - 24px);
+      left: 12px;
+      top: 12px;
+    }
+    .cg-legend-panel {
+      width: 140px;
+    }
+    .cg-mini-map {
+      width: 140px;
+    }
+    .cg-type-badge {
+      display: none;
+    }
+    .cg-toolbar-separator {
+      display: none;
+    }
+    .cg-graph-type-buttons {
+      display: none;
+    }
+    .cg-path-bar,
+    .cg-health-score-card,
+    .cg-rule-panel {
+      width: calc(100% - 24px);
+    }
+    .cg-analysis-panel {
+      width: calc(100% - 24px);
+    }
+    .cg-focus-label {
+      max-width: 120px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .cg-graph-toolbar {
+      padding: 0 8px;
+      gap: 6px;
+    }
+    .cg-toolbar-center {
+      gap: 6px;
+    }
+    .cg-toolbar-right {
+      gap: 6px;
+    }
+    .cg-layout-btn,
+    .cg-graph-type-btn {
+      padding: 3px 8px;
+      font-size: 11px;
+    }
+    .cg-node-detail-panel {
+      width: 220px;
+    }
+    .cg-legend-panel {
+      width: 160px;
+    }
+    .cg-mini-map {
+      width: 160px;
+    }
+    .cg-filter-select {
+      font-size: 11px;
+    }
+    .cg-toolbar-separator {
+      margin: 0 2px;
+    }
+    .cg-path-bar {
+      width: 240px;
+    }
+    .cg-health-score-card {
+      width: 220px;
+    }
+    .cg-rule-panel {
+      width: 240px;
+    }
+    .cg-analysis-panel {
+      width: 200px;
+    }
+  }
+
+  @media (max-width: 320px) {
+    .cg-graph-toolbar {
+      gap: 2px;
+    }
+    .cg-layout-buttons,
+    .cg-graph-type-buttons {
+      padding: 1px;
+    }
+    .cg-layout-btn,
+    .cg-graph-type-btn {
+      padding: 2px 4px;
+      font-size: 9px;
+    }
+    .cg-filter-select {
+      padding: 3px 20px 3px 6px;
+      font-size: 10px;
+    }
+    .cg-node-count {
+      font-size: 10px;
+    }
+    .cg-legend-panel,
+    .cg-mini-map {
+      width: 120px;
+    }
+  }
+}
