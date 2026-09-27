@@ -3,8 +3,9 @@ import { memo } from 'react';
 import { useT } from '../i18n/index.ts';
 import { deriveWorkspaceName } from '../utils/deriveName.ts';
 import { GithubIcon } from './Icons.tsx';
+import { useGraphStore } from '../store/graphStore.ts';
 
-import { REPO_URL } from '../../shared/constants.ts';
+import { REPO_URL, FUNCTION_BODY } from '../../shared/constants.ts';
 
 interface StatusBarProps {
   error: string | null;
@@ -38,6 +39,16 @@ export const StatusBar = memo(function StatusBar({ error, isLoading, lastUpdated
   const degradationLabels = hasDegradations
     ? performanceDegradations!.map((key) => DEGRADATION_KEYS[key] ? t(DEGRADATION_KEYS[key]) : key).join(', ')
     : '';
+
+  // P1-2: Function body expansion budget display
+  const expandedNodeIds = useGraphStore(s => s.expandedNodeIds);
+  const rawNodes = useGraphStore(s => s.rawNodes);
+  const expandedFunctionCount = [...expandedNodeIds].filter(id =>
+    rawNodes.some(n => n.id === id && n.type === 'function')
+  ).length;
+  const totalFunctionCount = rawNodes.filter(n => n.type === 'function').length;
+  const showFunctionBudget = expandedFunctionCount > 0 || (totalFunctionCount > FUNCTION_BODY.MAX_EXPANDED && expandedNodeIds.size > 0);
+
   return (
     <div className="cg-status-bar" role="status" aria-live="polite">
       <div className="cg-status-item">
@@ -53,6 +64,11 @@ export const StatusBar = memo(function StatusBar({ error, isLoading, lastUpdated
           ✓ {t('state.complete', { total: totalNodeCount })}
         </span>
       ) : null}
+      {showFunctionBudget && (
+        <span className="cg-status-function-budget" title={t('state.functionBudget', { expanded: expandedFunctionCount, total: totalFunctionCount })}>
+          {t('state.functionBudget', { expanded: expandedFunctionCount, total: totalFunctionCount })}
+        </span>
+      )}
       {hasDegradations && (
         <span className="cg-status-degradation" title={t('degradation.tooltip')}>
           ⚠ {degradationLabels}

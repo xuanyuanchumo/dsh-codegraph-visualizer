@@ -1,7 +1,7 @@
 import type { Core } from 'cytoscape';
 import { getThemeColors } from './styles/ThemeStylesheet.ts';
 import type { ThemeType } from './IRenderer.ts';
-import { DATA_CONTROLLER } from '../../shared/constants.ts';
+import { DATA_CONTROLLER, EXPORT } from '../../shared/constants.ts';
 
 function escapeXml(s: string): string {
   return s.replace(/[<>&"']/g, (c) => {
@@ -107,8 +107,8 @@ export class ExportController {
     };
 
     const bbox = this.cy.elements().boundingBox();
-    const w = Math.ceil(bbox.w) + 160;
-    const h = Math.ceil(bbox.h) + 160;
+    const w = Math.ceil(bbox.w) + EXPORT.SVG_PADDING;
+    const h = Math.ceil(bbox.h) + EXPORT.SVG_PADDING;
     const offsetX = -bbox.x1 + DATA_CONTROLLER.SVG_OFFSET;
     const offsetY = -bbox.y1 + DATA_CONTROLLER.SVG_OFFSET;
 

@@ -8,7 +8,7 @@ import { NodeId } from '../types/index.ts';
 import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard, useViewMode, useAnalysisPanels, useNodeSearch,
   useGraphData, useGraphDisplay, useGraphInteraction, useGraphStatus, useGraphWorkspace, useGraphAnalysis, useGraphPerformance, useGraphActions, usePanelDimensions,
 } from './hooks/index.ts';
-import { readUrlExpand, restoreExpandedNodeIds, updateUrlExpand } from './utils/urlState.ts';
+import { readUrlExpand, updateUrlExpand } from './utils/urlState.ts';
 import { getViewLayer, getAvailablePanels } from '../shared/viewModeUtils.ts';
 import { useThemeSync } from './hooks/useThemeSync.ts';
 import { useHistory } from './hooks/useHistory.ts';
@@ -142,31 +142,49 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       urlRestoredRef.current = true;
       return;
     }
-    const restoredIds = restoreExpandedNodeIds(parsed);
-    const validIds = new Set<string>();
-    const missingIds = new Set<string>();
-    for (const id of restoredIds) {
-      const exists = rawNodes.some(n => n.id === id) || useGraphStore.getState().nodes.some(n => n.id === id);
-      if (exists) validIds.add(id);
-      else missingIds.add(id);
-    }
-    if (validIds.size > 0) {
-      const store = useGraphStore.getState();
-      store.batchExpandNodes([...validIds]);
-    }
-    if (missingIds.size > 0) {
-      const store = useGraphStore.getState();
-      Promise.all([...missingIds].map(id => store.loadNodeChildren(id))).then(() => {
-        const state = useGraphStore.getState();
-        const loadedIds = [...missingIds].filter(id =>
-          state.rawNodes.some(n => n.id === id) || state.nodes.some(n => n.id === id)
-        );
-        if (loadedIds.length > 0) {
-          state.batchExpandNodes(loadedIds);
+
+
+    // P0-3: Sequential level-by-level restoration
+    // Process dirs → files → symbols → subgroups, each level waits for previous to complete
+    const restoreSequentially = async () => {
+      const levels: Array<{ ids: string[]; label: string }> = [
+        { ids: parsed.expandedDirs.map(d => `cluster__${d}`), label: 'dirs' },
+        { ids: parsed.expandedFiles.map(f => `filecluster__${f}`), label: 'files' },
+        { ids: parsed.expandedSymbols, label: 'symbols' },
+        { ids: parsed.expandedSubgroups.map(g => `subgroup__${g}`), label: 'subgroups' },
+      ];
+
+      for (const level of levels) {
+        if (level.ids.length === 0) continue;
+        const validIds: string[] = [];
+        const missingIds: string[] = [];
+        for (const id of level.ids) {
+          const state = useGraphStore.getState();
+          const exists = state.rawNodes.some(n => n.id === id) || state.nodes.some(n => n.id === id);
+          if (exists) validIds.push(id);
+          else missingIds.push(id);
         }
-      });
-    }
-    urlRestoredRef.current = true;
+        if (validIds.length > 0) {
+          useGraphStore.getState().batchExpandNodes(validIds);
+        }
+        // Load missing nodes one by one (sequential, not parallel)
+        for (const id of missingIds) {
+          await useGraphStore.getState().loadNodeChildren(id);
+          const state = useGraphStore.getState();
+          const loaded = state.rawNodes.some(n => n.id === id) || state.nodes.some(n => n.id === id);
+          if (loaded) {
+            useGraphStore.getState().batchExpandNodes([id]);
+          }
+        }
+      }
+    };
+
+    restoreSequentially().then(() => {
+      urlRestoredRef.current = true;
+    }).catch(err => {
+      log.warn('URL restore failed', { err });
+      urlRestoredRef.current = true;
+    });
   }, [rawNodes]);
 
   useEffect(() => {
@@ -379,7 +397,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     if (hasUserOverride) return;
     let ancestor: HTMLElement | null = panelEl.parentElement;
     let depth = 0;
-    while (ancestor && depth < 8) {
+    while (ancestor && depth < UI.ANCESTOR_SEARCH_MAX_DEPTH) {
       const h = ancestor.getBoundingClientRect().height;
       if (h >= UI.ANCESTOR_MIN_HEIGHT_PX) break;
       ancestor = ancestor.parentElement;

@@ -15,7 +15,7 @@ import { scoped } from '../../shared/Logger.ts';
 import { type LayoutType, type ThemeType, type RankDir, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
 import { fetchNodeChildren, fetchBootstrap, fetchFileOutline, fetchSymbolAST } from '../api/index.ts';
 
-import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, LOD, UI, PREFETCH, FUNCTION_BODY, getDynamicMaxVisibleNodes } from '../../shared/constants.ts';
+import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, LOD, UI, PREFETCH, FUNCTION_BODY, SYMBOL_AST, getDynamicMaxVisibleNodes } from '../../shared/constants.ts';
 
 const log = scoped('store');
 
@@ -25,10 +25,13 @@ export type { LayoutType, ThemeType, RankDir } from '../../shared/viewModeUtils.
 const diagramCache = new DiagramCache(10);
 const clusterCache = new ClusterCache(20);
 let persistentCache: IndexedDBCache | null = null;
+let persistentCacheRepoId: string | null = null;
 const callChainAggregator = new CallChainAggregator();
 let microAssemblyGeneration = 0;
 let incrementalClusterCtx: IncrementalClusterContext | null = null;
 let prefetchInFlightCount = 0;
+const prefetchAbortControllers = new Map<string, AbortController>();
+let expandGeneration = 0;
 
 function detectInitialTheme(): ThemeType {
   if (typeof document === 'undefined') return 'dark';
@@ -60,11 +63,13 @@ function collapseExcessClusters(
   effectiveExpanded: Set<string>,
   maxVisible: number,
   costOffset: number,
+  pinnedIds?: Set<string>,
 ): void {
   if (nodes.length + costOffset <= maxVisible) return;
   const clusterNodes = nodes.filter((n): n is ClusterNode => 'isCluster' in n && n.isCluster === true);
   const sorted = [...clusterNodes].sort((a, b) => b.childCount - a.childCount);
   for (const cn of sorted) {
+    if (pinnedIds?.has(cn.id)) continue;
     if (nodes.length + costOffset - cn.childCount <= maxVisible) {
       effectiveExpanded.delete(cn.id);
       break;
@@ -189,12 +194,16 @@ function clearLoadingFailsafe(): void {
 }
 
 export function disposeStore(): void {
+  for (const controller of prefetchAbortControllers.values()) controller.abort();
+  prefetchAbortControllers.clear();
+  prefetchInFlightCount = 0;
   diagramCache.invalidate();
   clusterCache.invalidate();
   incrementalClusterCtx = null;
   microAssemblyGeneration = 0;
   clearLoadingFailsafe();
   if (persistentCache) { persistentCache.close(); persistentCache = null; }
+  persistentCacheRepoId = null;
 }
 
 function applyClusterUpdate(
@@ -280,6 +289,8 @@ interface GraphState {
   loadedChildrenByNodeId: Set<string>;
   prefetchedNodeIds: Set<string>;
   loadErrorsByNodeId: Map<string, string>;
+  pendingRequests: Map<string, AbortController>;
+  pinnedIds: Set<string>;
 
   currentWorkspace: string;
   workspaceList: WorkspaceInfo[];
@@ -337,7 +348,7 @@ interface GraphState {
   setInitStatus: (status: 'idle' | 'initializing' | 'done' | 'error', message?: string | null) => void;
   setWatchEnabled: (enabled: boolean) => void;
   expandNode: (nodeId: string) => void;
-  loadNodeChildren: (nodeId: string) => Promise<void>;
+  loadNodeChildren: (nodeId: string, options?: { signal?: AbortSignal }) => Promise<void>;
   loadBootstrap: () => Promise<boolean>;
   batchExpandNodes: (nodeIds: string[]) => void;
   prefetchExpand: (nodeId: string) => void;
@@ -370,6 +381,9 @@ interface GraphState {
   clearDegradations: () => void;
   setLODLevel: (level: 'minimal' | 'compact' | 'full') => void;
   setLODEnabled: (enabled: boolean) => void;
+  pinNode: (nodeId: string) => void;
+  unpinNode: (nodeId: string) => void;
+  cancelPendingRequest: (nodeId: string) => void;
 }
 
 export const useGraphStore = create<GraphState>()(
@@ -409,6 +423,8 @@ export const useGraphStore = create<GraphState>()(
       loadedChildrenByNodeId: new Set(),
       prefetchedNodeIds: new Set(),
       loadErrorsByNodeId: new Map(),
+      pendingRequests: new Map(),
+      pinnedIds: new Set(),
       currentWorkspace: '.',
       workspaceList: [],
       pathStartId: null,
@@ -438,9 +454,10 @@ export const useGraphStore = create<GraphState>()(
       setGraphData: (nodes, edges, repoId, metadata) => {
         try {
           clearLoadingFailsafe();
-          if (persistentCache?.['repoId'] !== repoId) {
+          if (persistentCacheRepoId !== repoId) {
             if (persistentCache) persistentCache.close();
             persistentCache = new IndexedDBCache(repoId);
+            persistentCacheRepoId = repoId;
             diagramCache.setPersistentBackend(persistentCache);
             clusterCache.setPersistentBackend(persistentCache);
           }
@@ -647,6 +664,7 @@ export const useGraphStore = create<GraphState>()(
       setWatchEnabled: (watchEnabled) => set({ watchEnabled }),
       expandNode: (nodeId) => {
         const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, nodes, panelWidth } = useGraphStore.getState();
+        const gen = ++expandGeneration;
         const cost = estimateExpandCost(nodeId, rawNodes);
         const maxVisible = computeMaxVisible(panelWidth);
         const effectiveExpanded = new Set(expandedNodeIds);
@@ -655,7 +673,7 @@ export const useGraphStore = create<GraphState>()(
           enforceFunctionBodyBudget(effectiveExpanded, rawNodes, FUNCTION_BODY.MAX_EXPANDED - 1);
         }
         effectiveExpanded.add(nodeId);
-        collapseExcessClusters(nodes, effectiveExpanded, maxVisible, cost);
+        collapseExcessClusters(nodes, effectiveExpanded, maxVisible, cost, useGraphStore.getState().pinnedIds);
         if (cost > CLUSTER.EXPAND_BUDGET_SINGLE) {
           log.warn('expand budget exceeded', { nodeId, cost, budget: CLUSTER.EXPAND_BUDGET_SINGLE });
         }
@@ -669,6 +687,7 @@ export const useGraphStore = create<GraphState>()(
           });
           if (node.type === 'module') {
             fetchFileOutline(nodeId).then((data) => {
+              if (gen !== expandGeneration) return;
               if (data && data.symbols.length > 0) {
                 const s = useGraphStore.getState();
                 const existingIds = new Set(s.rawNodes.map((n) => n.id));
@@ -695,12 +714,25 @@ export const useGraphStore = create<GraphState>()(
           }
           if (node.type === 'function') {
             fetchSymbolAST(nodeId).then((data) => {
+              if (gen !== expandGeneration) return;
               if (data && data.astNodes.length > 0) {
+                // P1-1: Single-symbol AST node budget — truncate if exceeds limit
+                const truncatedAstNodes = data.astNodes.length > SYMBOL_AST.MAX_NODES
+                  ? data.astNodes.slice(0, SYMBOL_AST.MAX_NODES)
+                  : data.astNodes;
+                const truncatedSourceLines = data.sourceLines.length > SYMBOL_AST.MAX_SOURCE_LINES
+                  ? data.sourceLines.slice(0, SYMBOL_AST.MAX_SOURCE_LINES)
+                  : data.sourceLines;
+                const astNodeIds = new Set(truncatedAstNodes.map(n => n.id));
+                const truncatedAstEdges = data.astEdges.filter(e => astNodeIds.has(e.source) && astNodeIds.has(e.target));
+                if (truncatedAstNodes.length < data.astNodes.length) {
+                  log.warn('symbol AST truncated', { nodeId, original: data.astNodes.length, truncated: truncatedAstNodes.length });
+                }
                 const s = useGraphStore.getState();
                 const existingIds = new Set(s.rawNodes.map((n) => n.id));
-                const newAst = data.astNodes.filter((n) => !existingIds.has(n.id));
+                const newAst = truncatedAstNodes.filter((n) => !existingIds.has(n.id));
                 const existingEdgeIds = new Set(s.rawEdges.map((e) => e.id));
-                const newEdges = data.astEdges.filter((e) => !existingEdgeIds.has(e.id));
+                const newEdges = truncatedAstEdges.filter((e) => !existingEdgeIds.has(e.id));
                 if (newAst.length > 0 || newEdges.length > 0) {
                   const mergedRawNodes = [...s.rawNodes, ...newAst];
                   const mergedRawEdges = [...s.rawEdges, ...newEdges];
@@ -712,7 +744,7 @@ export const useGraphStore = create<GraphState>()(
                   );
                   updateIncrementalClusterCtx(result, mergedRawNodes, mergedRawEdges);
                   set({ rawNodes: mergedRawNodes, rawEdges: mergedRawEdges, nodes: result.nodes, edges: result.edges });
-                  log.info('symbol AST loaded', { nodeId, newAstNodes: newAst.length, newEdges: newEdges.length });
+                  log.info('symbol AST loaded', { nodeId, newAstNodes: newAst.length, newEdges: newEdges.length, sourceLines: truncatedSourceLines.length });
                 }
               }
             }).catch((err) => {
@@ -721,7 +753,7 @@ export const useGraphStore = create<GraphState>()(
           }
         }
       },
-      loadNodeChildren: async (nodeId) => {
+      loadNodeChildren: async (nodeId, options) => {
         const state = useGraphStore.getState();
         if (state.loadedChildrenByNodeId.has(nodeId)) return;
         const hasChildren = state.rawNodes.some((n) => n.parentId === nodeId || n.id.startsWith(nodeId + '/'));
@@ -731,12 +763,19 @@ export const useGraphStore = create<GraphState>()(
           set({ loadedChildrenByNodeId: newLoaded });
           return;
         }
+        const controller = new AbortController();
+        const newPending = new Map(state.pendingRequests);
+        newPending.set(nodeId, controller);
+        set({ pendingRequests: newPending });
         try {
-          const data = await fetchNodeChildren(nodeId);
+          const signal = options?.signal ?? controller.signal;
+          const data = await fetchNodeChildren(nodeId, undefined, undefined, signal);
           if (!data || data.nodes.length === 0) {
             const newLoaded = new Set(state.loadedChildrenByNodeId);
             newLoaded.add(nodeId);
-            set({ loadedChildrenByNodeId: newLoaded });
+            const clearedPending = new Map(useGraphStore.getState().pendingRequests);
+            clearedPending.delete(nodeId);
+            set({ loadedChildrenByNodeId: newLoaded, pendingRequests: clearedPending });
             return;
           }
           const s2 = useGraphStore.getState();
@@ -747,13 +786,17 @@ export const useGraphStore = create<GraphState>()(
           if (newNodes.length === 0 && newEdges.length === 0) {
             const newLoaded = new Set(s2.loadedChildrenByNodeId);
             newLoaded.add(nodeId);
-            set({ loadedChildrenByNodeId: newLoaded });
+            const clearedPending = new Map(s2.pendingRequests);
+            clearedPending.delete(nodeId);
+            set({ loadedChildrenByNodeId: newLoaded, pendingRequests: clearedPending });
             return;
           }
           const mergedRawNodes = [...s2.rawNodes, ...newNodes];
           const mergedRawEdges = [...s2.rawEdges, ...newEdges];
           const newLoaded = new Set(s2.loadedChildrenByNodeId);
           newLoaded.add(nodeId);
+          const clearedPending = new Map(s2.pendingRequests);
+          clearedPending.delete(nodeId);
           const { clusterDepth, expandedNodeIds, panelWidth } = s2;
           const result = tryIncrementalOrFull(
             incrementalClusterCtx,
@@ -768,9 +811,19 @@ export const useGraphStore = create<GraphState>()(
             nodes: result.nodes,
             edges: result.edges,
             loadedChildrenByNodeId: newLoaded,
+            pendingRequests: clearedPending,
           });
           log.info('node children loaded', { nodeId, newNodes: newNodes.length, newEdges: newEdges.length });
         } catch (err) {
+          const clearedPending = new Map(useGraphStore.getState().pendingRequests);
+          clearedPending.delete(nodeId);
+          if (err instanceof DOMException && err.name === 'AbortError') {
+            set({ pendingRequests: clearedPending });
+            return;
+          }
+          const newErrors = new Map(useGraphStore.getState().loadErrorsByNodeId);
+          newErrors.set(nodeId, err instanceof Error ? err.message : String(err));
+          set({ pendingRequests: clearedPending, loadErrorsByNodeId: newErrors });
           log.warn('loadNodeChildren failed', { nodeId, err });
         }
       },
@@ -808,7 +861,7 @@ export const useGraphStore = create<GraphState>()(
           effectiveExpanded.add(nodeId);
         }
         enforceFunctionBodyBudget(effectiveExpanded, rawNodes, FUNCTION_BODY.MAX_EXPANDED);
-        collapseExcessClusters(nodes, effectiveExpanded, maxVisible, 0);
+        collapseExcessClusters(nodes, effectiveExpanded, maxVisible, 0, useGraphStore.getState().pinnedIds);
         const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: effectiveExpanded };
         applyClusterUpdate(effectiveExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set);
       },
@@ -823,19 +876,27 @@ export const useGraphStore = create<GraphState>()(
         const cost = estimateExpandCost(nodeId, rawNodes);
         if (cost > PREFETCH.COST_THRESHOLD) return;
 
+        // P0-4: Abort any previous prefetch for this node, then create new controller
+        const prevController = prefetchAbortControllers.get(nodeId);
+        if (prevController) prevController.abort();
+        const controller = new AbortController();
+        prefetchAbortControllers.set(nodeId, controller);
+
         const newPrefetched = new Set(prefetchedNodeIds);
         newPrefetched.add(nodeId);
         set({ prefetchedNodeIds: newPrefetched });
 
         if (!loadedChildrenByNodeId.has(nodeId)) {
           prefetchInFlightCount++;
-          useGraphStore.getState().loadNodeChildren(nodeId).catch((err) => {
+          useGraphStore.getState().loadNodeChildren(nodeId, { signal: controller.signal }).catch((err) => {
+            if (err instanceof DOMException && err.name === 'AbortError') return;
             const s = useGraphStore.getState();
             const newErrors = new Map(s.loadErrorsByNodeId);
             newErrors.set(nodeId, err instanceof Error ? err.message : String(err));
             set({ loadErrorsByNodeId: newErrors });
           }).finally(() => {
             prefetchInFlightCount--;
+            prefetchAbortControllers.delete(nodeId);
           });
         }
 
@@ -857,6 +918,7 @@ export const useGraphStore = create<GraphState>()(
         prefetchInFlightCount++;
         const runPrefetch = () => {
           try {
+            if (controller.signal.aborted) return;
             const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', newExpanded, clusterDepth, useGraphStore.getState().panelWidth ?? undefined);
             clusterCache.set(dataHash, cacheLevel, expandedKey, result);
           } finally {
@@ -870,16 +932,18 @@ export const useGraphStore = create<GraphState>()(
         }
       },
       collapseNode: (nodeId) => {
-        const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
+        const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, pinnedIds } = useGraphStore.getState();
+        if (pinnedIds.has(nodeId)) return;
         const newExpanded = new Set(expandedNodeIds);
         newExpanded.delete(nodeId);
         const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: newExpanded };
         applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set);
       },
       collapseAll: () => {
-        const { rawNodes, rawEdges, clusterDepth, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
-        const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: new Set<string>() };
-        applyClusterUpdate(new Set(), newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set);
+        const { rawNodes, rawEdges, clusterDepth, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, pinnedIds } = useGraphStore.getState();
+        const newExpanded = new Set(pinnedIds);
+        const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: newExpanded };
+        applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set);
       },
       setCurrentWorkspace: (path) => set({ currentWorkspace: path }),
       addWorkspace: (path, name) => set((s) => {
@@ -996,6 +1060,28 @@ export const useGraphStore = create<GraphState>()(
           if (gen !== microAssemblyGeneration) return;
           const msg = e instanceof Error ? e.message : String(e);
           set({ isLoading: false, error: `${msg} — ${selectedFunction.functionName}` });
+        }
+      },
+      pinNode: (nodeId) => {
+        const { pinnedIds } = useGraphStore.getState();
+        const newPinned = new Set(pinnedIds);
+        newPinned.add(nodeId);
+        set({ pinnedIds: newPinned });
+      },
+      unpinNode: (nodeId) => {
+        const { pinnedIds } = useGraphStore.getState();
+        const newPinned = new Set(pinnedIds);
+        newPinned.delete(nodeId);
+        set({ pinnedIds: newPinned });
+      },
+      cancelPendingRequest: (nodeId) => {
+        const { pendingRequests } = useGraphStore.getState();
+        const controller = pendingRequests.get(nodeId);
+        if (controller) {
+          controller.abort();
+          const newPending = new Map(pendingRequests);
+          newPending.delete(nodeId);
+          set({ pendingRequests: newPending });
         }
       },
       setLayer: (layer) => {

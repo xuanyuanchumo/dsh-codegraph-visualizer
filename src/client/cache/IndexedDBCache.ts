@@ -3,9 +3,12 @@ import { scoped } from '../../shared/Logger.ts';
 const log = scoped('indexeddb-cache');
 
 const DB_PREFIX = 'codegraph-cache-';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const CLUSTER_STORE = 'cluster-cache';
 const DIAGRAM_STORE = 'diagram-cache';
+const OUTLINE_STORE = 'outline-cache';
+const AST_STORE = 'ast-cache';
+const EDGES_STORE = 'edges-cache';
 
 function openDB(repoId: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -18,6 +21,15 @@ function openDB(repoId: string): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(DIAGRAM_STORE)) {
         db.createObjectStore(DIAGRAM_STORE);
+      }
+      if (!db.objectStoreNames.contains(OUTLINE_STORE)) {
+        db.createObjectStore(OUTLINE_STORE);
+      }
+      if (!db.objectStoreNames.contains(AST_STORE)) {
+        db.createObjectStore(AST_STORE);
+      }
+      if (!db.objectStoreNames.contains(EDGES_STORE)) {
+        db.createObjectStore(EDGES_STORE);
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -145,6 +157,61 @@ export class IndexedDBCache {
       }
     } catch (e) {
       log.warn('IndexedDB invalidateDiagram failed', { viewMode, error: e });
+    }
+  }
+
+  // P1-4: Outline/AST/Edges persistent cache
+  async getOutline(nodeId: string): Promise<unknown | null> {
+    return this.getFromStore(OUTLINE_STORE, nodeId);
+  }
+
+  async setOutline(nodeId: string, value: unknown): Promise<void> {
+    return this.setToStore(OUTLINE_STORE, nodeId, value);
+  }
+
+  async getAST(nodeId: string): Promise<unknown | null> {
+    return this.getFromStore(AST_STORE, nodeId);
+  }
+
+  async setAST(nodeId: string, value: unknown): Promise<void> {
+    return this.setToStore(AST_STORE, nodeId, value);
+  }
+
+  async getEdges(key: string): Promise<unknown | null> {
+    return this.getFromStore(EDGES_STORE, key);
+  }
+
+  async setEdges(key: string, value: unknown): Promise<void> {
+    return this.setToStore(EDGES_STORE, key, value);
+  }
+
+  private async getFromStore(storeName: string, key: string): Promise<unknown | null> {
+    try {
+      const db = await this.getDB();
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readonly');
+        const req = tx.objectStore(storeName).get(key);
+        req.onsuccess = () => resolve(req.result ?? null);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (e) {
+      log.warn(`IndexedDB getFromStore(${storeName}) failed`, { key, error: e });
+      return null;
+    }
+  }
+
+
+  private async setToStore(storeName: string, key: string, value: unknown): Promise<void> {
+    try {
+      const db = await this.getDB();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        tx.objectStore(storeName).put(value, key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch (e) {
+      log.warn(`IndexedDB setToStore(${storeName}) failed`, { key, error: e });
     }
   }
 

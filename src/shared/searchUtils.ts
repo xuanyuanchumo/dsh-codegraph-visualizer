@@ -60,7 +60,7 @@ export function fuzzyMatch(text: string, pattern: string): boolean {
 }
 
 export function fuzzyScore(text: string, pattern: string): number {
-  if (pattern.length === 0) return 0;
+  if (pattern.length === 0) return 1;
   const lower = text.toLowerCase();
   const pat = pattern.toLowerCase();
   if (lower.includes(pat)) {

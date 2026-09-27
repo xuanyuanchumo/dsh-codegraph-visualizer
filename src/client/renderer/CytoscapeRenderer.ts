@@ -66,6 +66,7 @@ export class CytoscapeRenderer implements IRenderer {
       return fn();
     } catch (err) {
       log.error(`${name} failed`, err);
+      this.lastError = err instanceof Error ? err : new Error(String(err));
       return fallback;
     }
   }
@@ -75,6 +76,7 @@ export class CytoscapeRenderer implements IRenderer {
       fn();
     } catch (err) {
       log.error(`${name} failed`, err);
+      this.lastError = err instanceof Error ? err : new Error(String(err));
     }
   }
 

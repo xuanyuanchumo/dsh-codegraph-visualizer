@@ -172,6 +172,55 @@ export function readNodeChildrenFromDb(dbPath: string, parentId: string, cursor:
   }
 }
 
+export function readFileOutlineFromDb(dbPath: string, fileId: string): { nodes: DbNodeRow[]; total: number } | null {
+  if (!existsSync(dbPath)) return null;
+  try {
+    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite');
+    const db = new DatabaseSync(dbPath, { readOnly: true });
+    try {
+      const filePathRow = db.prepare('SELECT file_path FROM nodes WHERE id = ?').get(fileId) as { file_path: string } | undefined;
+      if (!filePathRow) return { nodes: [], total: 0 };
+      const filePath = filePathRow.file_path;
+      const total = (db.prepare('SELECT COUNT(*) as cnt FROM nodes WHERE file_path = ? AND kind NOT IN (\'file\', \'module\', \'import\')').get(filePath) as { cnt: number }).cnt;
+      const nodes = db.prepare(
+        'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE file_path = ? AND kind NOT IN (\'file\', \'module\', \'import\')',
+      ).all(filePath) as unknown as DbNodeRow[];
+      return { nodes, total };
+    } finally {
+      db.close();
+    }
+  } catch (e) {
+    log.warn('readFileOutlineFromDb failed', e);
+    return null;
+  }
+}
+
+export function readSymbolASTFromDb(dbPath: string, symbolId: string): { nodes: DbNodeRow[]; total: number } | null {
+  if (!existsSync(dbPath)) return null;
+  try {
+    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite');
+    const db = new DatabaseSync(dbPath, { readOnly: true });
+    try {
+      const symbolRow = db.prepare('SELECT file_path, start_line FROM nodes WHERE id = ?').get(symbolId) as { file_path: string; start_line: number } | undefined;
+      if (!symbolRow) return { nodes: [], total: 0 };
+      const total = (db.prepare('SELECT COUNT(*) as cnt FROM edges WHERE source = ?').get(symbolId) as { cnt: number }).cnt;
+      const calleeIds = db.prepare('SELECT target FROM edges WHERE source = ?').all(symbolId) as { target: string }[];
+      if (calleeIds.length === 0) return { nodes: [], total: 0 };
+      const idList = calleeIds.map(r => r.target);
+      const placeholders = idList.map(() => '?').join(',');
+      const nodes = db.prepare(
+        `SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE id IN (${placeholders})`,
+      ).all(...idList) as unknown as DbNodeRow[];
+      return { nodes, total };
+    } finally {
+      db.close();
+    }
+  } catch (e) {
+    log.warn('readSymbolASTFromDb failed', e);
+    return null;
+  }
+}
+
 export function readEdgesFromDb(dbPath: string, nodeId: string, scope: 'file' | 'symbol', cursor: number, limit: number): { edges: DbEdgeRow[]; total: number } | null {
   if (!existsSync(dbPath)) return null;
   try {

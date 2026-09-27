@@ -102,6 +102,8 @@ export const zh: Record<string, string> = {
   'detail.functionsInCluster': '聚类中的函数',
   'detail.signature': '签名',
   'detail.docstring': '文档字符串',
+  'detail.functionBodyBudget': '函数体展开预算: {expanded}/{max}',
+  'detail.functionBodyBudgetHint': '最多同时展开 {max} 个函数体，最早的将自动折叠。',
 
   // Mini-map
   'minimap.title': '概览',
@@ -236,6 +238,7 @@ export const zh: Record<string, string> = {
   'edge.tooltip.target': '目标节点',
   'edge.tooltip.type': '关系类型',
   'state.complete': '图谱完整 ({total} 节点)',
+  'state.functionBudget': '已展开 {expanded}/{total} 个函数体',
 
   // 路径查找
   'pathFind.title': '路径查找',

@@ -53,16 +53,19 @@ export interface NodeChildrenData {
   total: number;
 }
 
-export async function fetchNodeChildren(nodeId: string, cursor?: string, limit?: number): Promise<NodeChildrenData | null> {
+export async function fetchNodeChildren(nodeId: string, cursor?: string, limit?: number, signal?: AbortSignal): Promise<NodeChildrenData | null> {
   try {
     const params = new URLSearchParams();
     params.set('nodeId', nodeId);
     if (cursor) params.set('cursor', cursor);
     params.set('limit', String(limit ?? BOOTSTRAP.CHILDREN_PAGE_SIZE));
-    const res = await fetchWithTimeout(`/api/v1/codegraph/children?${params}`);
+    const options: RequestInit = {};
+    if (signal) options.signal = signal;
+    const res = await fetchWithTimeout(`/api/v1/codegraph/children?${params}`, options);
     if (!res.ok) return null;
     return await res.json() as NodeChildrenData;
   } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return null;
     log.warn('fetchNodeChildren failed', { nodeId, error: e instanceof Error ? e.message : String(e) });
     return null;
   }

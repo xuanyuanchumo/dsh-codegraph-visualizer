@@ -1,10 +1,9 @@
 import type { Core } from 'cytoscape';
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { scoped } from '../../shared/Logger.ts';
+import { FILTER } from '../../shared/constants.ts';
 
 const log = scoped('filter');
-
-const MAX_PATTERN_LENGTH = 200;
 
 export class FilterController {
   private cy: Core;
@@ -178,7 +177,7 @@ export class FilterController {
 
   private safeRegExp(pattern: string): RegExp | null {
     try {
-      if (pattern.length > MAX_PATTERN_LENGTH || /(\+|\*|\{)\{/.test(pattern)) return null;
+      if (pattern.length > FILTER.MAX_PATTERN_LENGTH || /(\+|\*|\{)\{/.test(pattern)) return null;
       return new RegExp(pattern);
     } catch (e) {
       log.warn('invalid regex pattern', e);
@@ -187,9 +186,9 @@ export class FilterController {
   }
 
   filterByPath(includePattern: string | null, excludePattern: string | null): void {
-    const includeRe = includePattern && includePattern.length <= MAX_PATTERN_LENGTH
+    const includeRe = includePattern && includePattern.length <= FILTER.MAX_PATTERN_LENGTH
       ? this.safeRegExp(includePattern) : null;
-    const excludeRe = excludePattern && excludePattern.length <= MAX_PATTERN_LENGTH
+    const excludeRe = excludePattern && excludePattern.length <= FILTER.MAX_PATTERN_LENGTH
       ? this.safeRegExp(excludePattern) : null;
 
     this.cy.batch(() => {

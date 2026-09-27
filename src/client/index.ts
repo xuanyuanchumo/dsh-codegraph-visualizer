@@ -50,13 +50,14 @@ function FloatingGraphPanel({ onClose }: { onClose: () => void }) {
   );
 }
 
-export function init(container: HTMLElement, initialData?: GraphData): void {
+export function init(container: HTMLElement, initialData?: GraphData): () => void {
   const root = ReactDOM.createRoot(container);
   if (initialData) {
     const store = useGraphStore.getState();
     store.setGraphData(initialData.nodes, initialData.edges, initialData.metadata.repoId, initialData.metadata);
   }
   root.render(React.createElement(GraphPanel));
+  return () => root.unmount();
 }
 
 export function apply(ctx: Context) {
@@ -95,7 +96,11 @@ export function apply(ctx: Context) {
           return visible ? React.createElement(GraphPanel) : null;
         },
       });
-      ctx.effect(() => dispose, 'codegraph: better-sidebar tab');
+      if (typeof dispose === 'function') {
+        ctx.effect(() => dispose, 'codegraph: better-sidebar tab');
+      } else {
+        log.warn('better-sidebar registerTab did not return a disposer');
+      }
       navButtonRegistered = true;
     }
   } catch (e) {
@@ -118,7 +123,7 @@ export function apply(ctx: Context) {
     }
   }
 
-  if (typeof document !== 'undefined') {
+  if (!navButtonRegistered && typeof document !== 'undefined') {
     const floatingContainer = document.createElement('div');
     floatingContainer.className = 'cg-floating-container';
     floatingContainer.setAttribute('data-visible', 'false');
@@ -164,6 +169,7 @@ export function apply(ctx: Context) {
   {
     let lastStatusKey = '';
     let prereqTimer: ReturnType<typeof setTimeout> | null = null;
+    let prereqDisposed = false;
     const checkStatus = async () => {
       const status = await fetchStatus();
       const store = useGraphStore.getState();
@@ -176,10 +182,15 @@ export function apply(ctx: Context) {
       return status;
     };
     ctx.effect(() => () => {
+      prereqDisposed = true;
       if (prereqTimer !== null) clearTimeout(prereqTimer);
     }, 'codegraph: prereq timer cleanup');
     checkStatus().then(() => {
-      prereqTimer = setTimeout(checkStatus, POLLING.PREREQ_INITIAL_DELAY_MS);
+      if (prereqDisposed) return;
+      prereqTimer = setTimeout(() => {
+        if (prereqDisposed) return;
+        checkStatus().catch((e) => log.warn('prereq delayed check failed', e));
+      }, POLLING.PREREQ_INITIAL_DELAY_MS);
     }).catch((e) => log.warn('initial status check failed', e));
 
     ctx.effect(() => {

@@ -1595,7 +1595,7 @@ describe('bootstrap route', () => {
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
   });
 
-  it('GET /bootstrap returns empty when no graph data', async () => {
+  it('GET /bootstrap returns building status when no graph data', async () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 11);
     const { res, state } = makeRes();
@@ -1604,7 +1604,7 @@ describe('bootstrap route', () => {
     const body = JSON.parse(state.body);
     expect(body.rootNodes).toEqual([]);
     expect(body.topLevelNodes).toEqual([]);
-    expect(body.indexStatus).toBe('empty');
+    expect(body.indexStatus).toBe('building');
   });
 
   it('GET /bootstrap returns root nodes when graph data exists', () => {

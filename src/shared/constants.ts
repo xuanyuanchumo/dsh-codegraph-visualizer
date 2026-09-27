@@ -140,6 +140,14 @@ export const QUADTREE = {
   EXPAND_PADDING: 5000,
 } as const;
 
+export const EXPORT = {
+  SVG_PADDING: 160,
+} as const;
+
+export const FILTER = {
+  MAX_PATTERN_LENGTH: 200,
+} as const;
+
 export const DATA_CONTROLLER = {
   BATCH_SIZE: 200,
   SVG_OFFSET: 80,
@@ -221,6 +229,16 @@ export const FUNCTION_BODY = {
   MAX_EXPANDED: 2,
 } as const;
 
+export const SYMBOL_AST = {
+  MAX_NODES: 800,
+  MAX_SOURCE_LINES: 1500,
+} as const;
+
+export const EDGES_AGGREGATION = {
+  THRESHOLD: 20,
+  PAGE_SIZE: 500,
+} as const;
+
 export const VALIDATION = {
   MAX_PATH_LENGTH: 4096,
   MAX_GIT_REF_LENGTH: 256,
@@ -240,6 +258,7 @@ export const UI = {
   SEARCH_DEBOUNCE_MS: 200,
   RESIZE_DEBOUNCE_MS: 200,
   ANCESTOR_MIN_HEIGHT_PX: 300,
+  ANCESTOR_SEARCH_MAX_DEPTH: 8,
   MIN_PANEL_HEIGHT_PX: 240,
   MIN_PANEL_WIDTH_PX: 320,
   POLLING_INTERVAL_WATCH_MS: 10000,

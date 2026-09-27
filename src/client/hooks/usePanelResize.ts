@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react';
 import type { IRenderer } from '../renderer/IRenderer.ts';
 import { useGraphStore } from '../store/graphStore.ts';
+import { UI } from '../../shared/constants.ts';
 
-const MIN_WIDTH = 320;
-const MIN_HEIGHT = 240;
+const MIN_WIDTH = UI.MIN_PANEL_WIDTH_PX;
+const MIN_HEIGHT = UI.MIN_PANEL_HEIGHT_PX;
 
 export function usePanelResize(
   panelRef: React.RefObject<HTMLDivElement | null>,

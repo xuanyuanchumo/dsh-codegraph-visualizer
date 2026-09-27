@@ -853,8 +853,9 @@ describe('CytoscapeRenderer', () => {
       // Make cy.layout throw to trigger safeCallVoid catch in applyLayout
       mockCy.layout = vi.fn(() => { throw new Error('layout failed'); }) as any;
       renderer!.applyLayout('cose');
-      // Should not throw, error is swallowed
-      expect(renderer!.getLastError()).toBeNull();
+      // Should not throw, error is swallowed but lastError is set
+      expect(renderer!.getLastError()).not.toBeNull();
+      expect(renderer!.getLastError()?.message).toBe('layout failed');
     });
 
     it('safeCallWithError catches error and sets lastError (updateData)', () => {

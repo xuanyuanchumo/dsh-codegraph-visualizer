@@ -102,6 +102,8 @@ export const en: Record<string, string> = {
   'detail.functionsInCluster': 'Functions in cluster',
   'detail.signature': 'Signature',
   'detail.docstring': 'Docstring',
+  'detail.functionBodyBudget': 'Function body budget: {expanded}/{max}',
+  'detail.functionBodyBudgetHint': 'Only {max} function bodies can be expanded simultaneously. Oldest will be auto-collapsed.',
 
   // Mini-map
   'minimap.title': 'Overview',
@@ -237,6 +239,7 @@ export const en: Record<string, string> = {
   'edge.tooltip.target': 'Target',
   'edge.tooltip.type': 'Relationship',
   'state.complete': 'Graph is complete ({total} nodes)',
+  'state.functionBudget': 'Expanded {expanded}/{total} function bodies',
 
   // Path finding
   'pathFind.title': 'Path Finder',

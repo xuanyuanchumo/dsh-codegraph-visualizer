@@ -159,8 +159,8 @@ describe('fuzzyMatch', () => {
 });
 
 describe('fuzzyScore', () => {
-  it('returns 0 for empty pattern', () => {
-    expect(fuzzyScore('anything', '')).toBe(0);
+  it('returns positive score for empty pattern (matches everything)', () => {
+    expect(fuzzyScore('anything', '')).toBe(1);
   });
 
   it('returns high score for exact substring match', () => {

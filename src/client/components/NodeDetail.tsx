@@ -3,6 +3,7 @@ import type { GraphNode } from '../../types/index.ts';
 import { useT } from '../i18n/index.ts';
 import { useGraphStore } from '../store/graphStore.ts';
 import { CloseIcon } from './Icons.tsx';
+import { FUNCTION_BODY } from '../../shared/constants.ts';
 
 const TYPE_ICONS: Record<string, string> = {
   function: 'fn',
@@ -37,9 +38,22 @@ interface NodeDetailProps {
 export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, onSelectFunction, onAggregateCallChain }: NodeDetailProps) {
   const t = useT();
   const rawNodes = useGraphStore((s) => s.rawNodes);
+  const expandedNodeIds = useGraphStore((s) => s.expandedNodeIds);
   const icon = TYPE_ICONS[node.type] ?? '?';
   const color = TYPE_COLORS[node.type] ?? 'var(--cg-accent)';
   const canExpand = EXPANDABLE_TYPES.has(node.type);
+
+  const expandedFunctionBodyCount = useMemo(() => {
+    const functionIdSet = new Set<string>();
+    for (const n of rawNodes) {
+      if (n.type === 'function') functionIdSet.add(n.id as string);
+    }
+    let count = 0;
+    for (const id of expandedNodeIds) {
+      if (functionIdSet.has(id)) count++;
+    }
+    return count;
+  }, [rawNodes, expandedNodeIds]);
 
   const isClusterNode = 'isCluster' in node && node.isCluster === true;
   const clusterChildCount = isClusterNode ? (node as { childCount?: number }).childCount ?? 0 : 0;
@@ -116,6 +130,22 @@ export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, 
       )}
       {node.type === 'function' && onSelectFunction && (
         <div className="cg-detail-micro-actions">
+          <div className="cg-detail-function-body-budget" role="status" aria-live="polite">
+            <span className="cg-detail-budget-label">
+              {t('detail.functionBodyBudget', { expanded: expandedFunctionBodyCount, max: FUNCTION_BODY.MAX_EXPANDED })}
+            </span>
+            <div className="cg-detail-budget-bar" aria-hidden="true">
+              <div
+                className="cg-detail-budget-fill"
+                style={{ width: `${Math.min(expandedFunctionBodyCount / FUNCTION_BODY.MAX_EXPANDED * 100, 100)}%` }}
+              />
+            </div>
+            {expandedFunctionBodyCount >= FUNCTION_BODY.MAX_EXPANDED && (
+              <span className="cg-detail-budget-hint">
+                {t('detail.functionBodyBudgetHint', { max: FUNCTION_BODY.MAX_EXPANDED })}
+              </span>
+            )}
+          </div>
           <div className="cg-detail-section-title">{t('detail.microViews')}</div>
           <div className="cg-detail-micro-btns">
             <button className="cg-detail-micro-btn" onClick={() => onSelectFunction(node, 'cfg')} aria-label={t('toolbar.viewModeCfg')}>

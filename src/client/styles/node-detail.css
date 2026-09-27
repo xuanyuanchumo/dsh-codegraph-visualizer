@@ -285,6 +285,42 @@
   margin-top: 8px;
 }
 
+.cg-node-detail-panel .cg-detail-function-body-budget {
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  background: var(--cg-surface-hover);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-xs);
+}
+
+.cg-node-detail-panel .cg-detail-budget-label {
+  font-size: 11px;
+  color: var(--cg-text-secondary);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.cg-node-detail-panel .cg-detail-budget-bar {
+  height: 4px;
+  background: var(--cg-surface);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.cg-node-detail-panel .cg-detail-budget-fill {
+  height: 100%;
+  background: var(--cg-accent);
+  border-radius: 2px;
+  transition: width var(--cg-transition);
+}
+
+.cg-node-detail-panel .cg-detail-budget-hint {
+  font-size: 10px;
+  color: var(--cg-text-tertiary);
+  display: block;
+  margin-top: 4px;
+}
+
 .cg-node-detail-panel .cg-detail-micro-hint {
   margin-top: 8px;
   padding: 6px 10px;

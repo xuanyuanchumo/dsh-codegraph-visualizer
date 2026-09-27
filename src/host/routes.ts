@@ -3,7 +3,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { scoped } from '../shared/Logger.ts';
-import { VALIDATION, AST, ERROR_CODES, ERROR_MESSAGES, BOOTSTRAP } from '../shared/constants.ts';
+import { VALIDATION, AST, ERROR_CODES, ERROR_MESSAGES, BOOTSTRAP, EDGES_AGGREGATION } from '../shared/constants.ts';
 import type { GraphData, GraphNode, GraphEdge, IncomingMessage, ServerResponse, IGraphVisualizerService } from '../types/index.ts';
 import { RepoId, NodeId, EdgeId } from '../types/index.ts';
 import { fetchMergedGraph } from '../tools.ts';
@@ -13,7 +13,7 @@ import { SecurityManager } from './security.ts';
 import { findWorkspacePath, extractWorkspacePaths, checkPrerequisites } from './prerequisites.ts';
 import type { VisualizerConfig } from './config.ts';
 import { parsePackageJson, parseCargoToml, parseGoMod, dependencyGraphToGraphData } from '../adapters/DependencyAdapter.ts';
-import { resolveDbPath, readTopLevelNodesFromDb, readNodeChildrenFromDb, readEdgesFromDb, readEdgesForNodesFromDb, mapNodeKind, mapEdgeKind, isNoisePath, FILTERED_EDGE_KINDS } from '../adapters/CodeGraphAdapter.ts';
+import { resolveDbPath, readTopLevelNodesFromDb, readNodeChildrenFromDb, readFileOutlineFromDb, readSymbolASTFromDb, readEdgesFromDb, readEdgesForNodesFromDb, mapNodeKind, mapEdgeKind, isNoisePath, FILTERED_EDGE_KINDS } from '../adapters/CodeGraphAdapter.ts';
 import { inferLayerFromPath } from '../shared/layerUtils.ts';
 import { computeGraphDiff, diffToGraphData } from '../merger/DiffEngine.ts';
 import { TreeSitterAdapter } from '../adapters/TreeSitterAdapter.ts';
@@ -372,7 +372,7 @@ function registerScanRoute(rc: RouteContext): void {
         deps.setScanInFlight(scanPath, scanPromise);
         try {
           const data = await scanPromise;
-          deps.setScanInFlight(scanPath, null);
+
           deps.setLastGraphData(data);
           scanCache.set(scanPath, { data, timestamp: Date.now() });
           if (scanCache.size > config.scanCacheLimit) {
@@ -393,9 +393,9 @@ function registerScanRoute(rc: RouteContext): void {
           });
           log.info('scan completed', { repoId, nodes: data.metadata.nodeCount, edges: data.metadata.edgeCount });
           sendJson(res, 200, { success: true, ...data }, req, corsConfig);
-        } catch (e) {
+
+        } finally {
           deps.setScanInFlight(scanPath, null);
-          throw e;
         }
       } catch (e) {
         log.error('scan failed', e);
@@ -674,115 +674,116 @@ function registerTreeSitterRoute(rc: RouteContext, sharedTreeSitterAdapter: Tree
 }
 
 function registerBootstrapRoute(rc: RouteContext): void {
-  const { deps, corsConfig, rateLimiter, invokeUpstream } = rc;
-  const { ctx, config } = deps;
+  const { deps, corsConfig, rateLimiter } = rc;
+  const { ctx } = deps;
   const routePath = '/api/v1/codegraph/bootstrap';
 
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: routePath,
     handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, async (req, res) => {
-      let lastGraphData = deps.getLastGraphData();
-      if (!lastGraphData || lastGraphData.nodes.length === 0) {
-        try {
-          const workspacePath = findWorkspacePath(ctx);
-          if (workspacePath && invokeUpstream) {
-            const raw = await fetchMergedGraph(invokeUpstream, workspacePath, 'both');
-            lastGraphData = slimGraphData(raw, config.maxNodes);
-            deps.setLastGraphData(lastGraphData);
-          }
-        } catch (e) {
-          log.warn('bootstrap: failed to fetch from upstream', e);
+      const workspacePath = findWorkspacePath(ctx);
+
+      // P1-5: ETag support — check If-None-Match before processing
+      const ifNoneMatch = req.headers['if-none-match'];
+      const cachedData = deps.getLastGraphData();
+      if (ifNoneMatch && cachedData) {
+        const clientEtag = String(ifNoneMatch);
+        const serverEtag = String(cachedData.metadata.timestamp);
+        if (clientEtag === serverEtag) {
+          const corsHeaders = buildCorsHeaders(req, corsConfig);
+          corsHeaders['etag'] = serverEtag;
+          res.writeHead(304, corsHeaders);
+          res.end();
+          return;
         }
       }
-      if (!lastGraphData || lastGraphData.nodes.length === 0) {
-        try {
-          const workspacePath = findWorkspacePath(ctx);
-          if (workspacePath && deps.invokeUpstream) {
-            const raw = await fetchMergedGraph(deps.invokeUpstream, workspacePath, 'both');
-            lastGraphData = slimGraphData(raw, config.maxNodes);
-            deps.setLastGraphData(lastGraphData);
-          }
-        } catch (e) {
-          log.warn('bootstrap: failed to fetch from upstream', e);
-        }
-      }
-      if (!lastGraphData || lastGraphData.nodes.length === 0) {
-        const workspacePath = findWorkspacePath(ctx);
-        if (workspacePath) {
-          const dbPath = resolveDbPath(workspacePath);
-          const dbResult = readTopLevelNodesFromDb(dbPath, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
-          if (dbResult && dbResult.nodes.length > 0) {
-            const topLevelNodes = dbResult.nodes
-              .filter((n) => n.name && n.file_path && !isNoisePath(n.file_path))
-              .map((n) => ({
-                id: NodeId(n.id),
-                label: n.name,
-                type: mapNodeKind(n.kind),
-                filePath: n.file_path,
-                lineNumber: n.start_line ?? 1,
-                properties: {
-                  kind: n.kind,
-                  ...(n.signature ? { signature: n.signature } : {}),
-                  ...(n.docstring ? { docstring: n.docstring } : {}),
-                  exported: n.is_exported === 1,
-                },
-                layer: inferLayerFromPath(n.file_path),
-              }));
-            const topLevelIds = new Set(topLevelNodes.map((n) => n.id));
-            const dbEdges = readEdgesForNodesFromDb(dbPath, [...topLevelIds]);
-            const rootEdges = dbEdges.map((e) => ({
-              id: EdgeId(String(e.id)),
-              source: NodeId(e.source),
-              target: NodeId(e.target),
-              type: mapEdgeKind(e.kind),
-              properties: e.line !== null && e.line !== undefined ? { line: e.line } : {},
-            }));
-            sendJson(res, 200, {
-              rootNodes: topLevelNodes,
-              topLevelNodes,
-              topLevelTotal: dbResult.total,
-              edges: rootEdges,
-              indexStatus: 'ready',
-              metadata: {
-                repoId: RepoId(workspacePath),
-                timestamp: Date.now(),
-                totalNodeCount: dbResult.total,
-                totalEdgeCount: 0,
+
+      // P0-1: DB-first — try SQLite direct read for true sharded query
+      if (workspacePath) {
+        const dbPath = resolveDbPath(workspacePath);
+        const dbResult = readTopLevelNodesFromDb(dbPath, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
+        if (dbResult && dbResult.nodes.length > 0) {
+          const topLevelNodes = dbResult.nodes
+            .filter((n) => n.name && n.file_path && !isNoisePath(n.file_path))
+            .map((n) => ({
+              id: NodeId(n.id),
+              label: n.name,
+              type: mapNodeKind(n.kind),
+              filePath: n.file_path,
+              lineNumber: n.start_line ?? 1,
+              properties: {
+                kind: n.kind,
+                ...(n.signature ? { signature: n.signature } : {}),
+                ...(n.docstring ? { docstring: n.docstring } : {}),
+                exported: n.is_exported === 1,
               },
-            }, req, corsConfig);
-            return;
-          }
+              layer: inferLayerFromPath(n.file_path),
+            }));
+          const topLevelIds = new Set(topLevelNodes.map((n) => n.id));
+          const dbEdges = readEdgesForNodesFromDb(dbPath, [...topLevelIds]);
+          const rootEdges = dbEdges.map((e) => ({
+            id: EdgeId(String(e.id)),
+            source: NodeId(e.source),
+            target: NodeId(e.target),
+            type: mapEdgeKind(e.kind),
+            properties: e.line !== null && e.line !== undefined ? { line: e.line } : {},
+          }));
+          sendJson(res, 200, {
+            rootNodes: topLevelNodes,
+            topLevelNodes,
+            topLevelTotal: dbResult.total,
+            edges: rootEdges,
+            indexStatus: 'ready',
+            metadata: {
+              repoId: RepoId(workspacePath),
+              timestamp: Date.now(),
+              totalNodeCount: dbResult.total,
+              totalEdgeCount: 0,
+            },
+          }, req, corsConfig);
+          return;
         }
+      }
+
+      // Memory cache acceleration — only if DB was unavailable
+      const lastGraphData = deps.getLastGraphData();
+      if (lastGraphData && lastGraphData.nodes.length > 0) {
+        const allRootNodes = lastGraphData.nodes.filter((n) => !n.parentId);
+        const topLevelNodes = allRootNodes.slice(0, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
+        const topLevelIds = new Set(topLevelNodes.map((n) => n.id));
+        const rootEdges = lastGraphData.edges.filter(
+          (e) => topLevelIds.has(e.source) && topLevelIds.has(e.target),
+        );
+
         sendJson(res, 200, {
-          rootNodes: [],
-          topLevelNodes: [],
-          topLevelTotal: 0,
-          edges: [],
-          indexStatus: 'empty',
-          metadata: { repoId: RepoId('empty'), timestamp: 0, totalNodeCount: 0, totalEdgeCount: 0 },
+          rootNodes: topLevelNodes,
+          topLevelNodes,
+          topLevelTotal: allRootNodes.length,
+          edges: rootEdges,
+          indexStatus: 'ready',
+          metadata: {
+            repoId: lastGraphData.metadata.repoId,
+            timestamp: lastGraphData.metadata.timestamp,
+            totalNodeCount: lastGraphData.metadata.totalNodeCount ?? lastGraphData.nodes.length,
+            totalEdgeCount: lastGraphData.metadata.totalEdgeCount ?? lastGraphData.edges.length,
+          },
         }, req, corsConfig);
         return;
       }
 
-      const allRootNodes = lastGraphData.nodes.filter((n) => !n.parentId);
-      const topLevelNodes = allRootNodes.slice(0, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
-      const topLevelIds = new Set(topLevelNodes.map((n) => n.id));
-      const rootEdges = lastGraphData.edges.filter(
-        (e) => topLevelIds.has(e.source) && topLevelIds.has(e.target),
-      );
-
+      // P0-2: No data available — return skeleton immediately, do NOT block on upstream fetch
       sendJson(res, 200, {
-        rootNodes: topLevelNodes,
-        topLevelNodes,
-        topLevelTotal: allRootNodes.length,
-        edges: rootEdges,
-        indexStatus: 'ready',
+        rootNodes: [],
+        topLevelNodes: [],
+        topLevelTotal: 0,
+        edges: [],
+        indexStatus: 'building',
         metadata: {
-          repoId: lastGraphData.metadata.repoId,
-          timestamp: lastGraphData.metadata.timestamp,
-          totalNodeCount: lastGraphData.metadata.totalNodeCount ?? lastGraphData.nodes.length,
-          totalEdgeCount: lastGraphData.metadata.totalEdgeCount ?? lastGraphData.edges.length,
+          repoId: RepoId(workspacePath ?? 'empty'),
+          timestamp: Date.now(),
+          totalNodeCount: 0,
+          totalEdgeCount: 0,
         },
       }, req, corsConfig);
     }),
@@ -805,27 +806,25 @@ function registerNodeChildrenRoute(rc: RouteContext): void {
         return;
       }
 
-      const lastGraphData = deps.getLastGraphData();
       const cursor = parseInt(url.searchParams.get('cursor') ?? '0', 10) || 0;
       const limit = parseInt(url.searchParams.get('limit') ?? String(BOOTSTRAP.CHILDREN_PAGE_SIZE), 10) || BOOTSTRAP.CHILDREN_PAGE_SIZE;
 
-      if (lastGraphData && lastGraphData.nodes.length > 0) {
-        const children = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
-        const page = children.slice(cursor, cursor + limit);
-        const childIds = new Set(page.map((n) => n.id));
-        const childEdges = lastGraphData.edges.filter(
-          (e) => childIds.has(e.source) && childIds.has(e.target),
-        );
-
-        sendJson(res, 200, {
-          nodes: page,
-          edges: childEdges,
-          cursor: cursor + page.length < children.length ? String(cursor + page.length) : null,
-          total: children.length,
-        }, req, corsConfig);
-        return;
+      // P1-5: ETag support — check If-None-Match before processing
+      const ifNoneMatch = req.headers['if-none-match'];
+      const cachedData = deps.getLastGraphData();
+      if (ifNoneMatch && cachedData) {
+        const clientEtag = String(ifNoneMatch);
+        const serverEtag = String(cachedData.metadata.timestamp);
+        if (clientEtag === serverEtag) {
+          const corsHeaders = buildCorsHeaders(req, corsConfig);
+          corsHeaders['etag'] = serverEtag;
+          res.writeHead(304, corsHeaders);
+          res.end();
+          return;
+        }
       }
 
+      // P0-1: DB-first — try SQLite direct read for true sharded query
       const workspacePath = findWorkspacePath(ctx);
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
@@ -867,6 +866,25 @@ function registerNodeChildrenRoute(rc: RouteContext): void {
         }
       }
 
+      // Memory cache acceleration — only if DB was unavailable
+      const lastGraphData = deps.getLastGraphData();
+      if (lastGraphData && lastGraphData.nodes.length > 0) {
+        const children = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
+        const page = children.slice(cursor, cursor + limit);
+        const childIds = new Set(page.map((n) => n.id));
+        const childEdges = lastGraphData.edges.filter(
+          (e) => childIds.has(e.source) && childIds.has(e.target),
+        );
+
+        sendJson(res, 200, {
+          nodes: page,
+          edges: childEdges,
+          cursor: cursor + page.length < children.length ? String(cursor + page.length) : null,
+          total: children.length,
+        }, req, corsConfig);
+        return;
+      }
+
       sendJson(res, 200, { nodes: [], edges: [], cursor: null, total: 0 }, req, corsConfig);
     }),
   }), 'codegraph: node children route');
@@ -893,6 +911,59 @@ function registerFileOutlineRoute(rc: RouteContext): void {
         return;
       }
 
+      // P1-5: ETag support — check If-None-Match before processing
+      const ifNoneMatch = req.headers['if-none-match'];
+      const cachedData = deps.getLastGraphData();
+      if (ifNoneMatch && cachedData) {
+        const clientEtag = String(ifNoneMatch);
+        const serverEtag = String(cachedData.metadata.timestamp);
+        if (clientEtag === serverEtag) {
+          const corsHeaders = buildCorsHeaders(req, corsConfig);
+          corsHeaders['etag'] = serverEtag;
+          res.writeHead(304, corsHeaders);
+          res.end();
+          return;
+        }
+      }
+
+      // DB-first: try SQLite direct read
+      const workspacePath = findWorkspacePath(ctx);
+      if (workspacePath) {
+        const dbPath = resolveDbPath(workspacePath);
+        const dbResult = readFileOutlineFromDb(dbPath, nodeId);
+        if (dbResult && dbResult.nodes.length > 0) {
+          const symbols = dbResult.nodes
+            .filter((n) => n.name && n.file_path && !isNoisePath(n.file_path))
+            .map((n) => ({
+              id: NodeId(n.id),
+              label: n.name,
+              type: mapNodeKind(n.kind),
+              filePath: n.file_path,
+              lineNumber: n.start_line ?? 1,
+              properties: {
+                kind: n.kind,
+                ...(n.signature ? { signature: n.signature } : {}),
+                ...(n.docstring ? { docstring: n.docstring } : {}),
+                exported: n.is_exported === 1,
+              },
+              parentId: NodeId(nodeId),
+              layer: inferLayerFromPath(n.file_path),
+            }));
+          const symbolIds = new Set(symbols.map((n) => n.id));
+          const dbEdges = readEdgesForNodesFromDb(dbPath, [...symbolIds]);
+          const symbolEdges = dbEdges.map((e) => ({
+            id: EdgeId(String(e.id)),
+            source: NodeId(e.source),
+            target: NodeId(e.target),
+            type: mapEdgeKind(e.kind),
+            properties: e.line !== null && e.line !== undefined ? { line: e.line } : {},
+          }));
+          sendJson(res, 200, { symbols, edges: symbolEdges }, req, corsConfig);
+          return;
+        }
+      }
+
+      // Memory cache fallback
       const lastGraphData = deps.getLastGraphData();
       if (!lastGraphData) {
         sendJson(res, 200, { symbols: [], edges: [] }, req, corsConfig);
@@ -931,6 +1002,59 @@ function registerSymbolASTRoute(rc: RouteContext): void {
         return;
       }
 
+      // P1-5: ETag support — check If-None-Match before processing
+      const ifNoneMatch = req.headers['if-none-match'];
+      const cachedData = deps.getLastGraphData();
+      if (ifNoneMatch && cachedData) {
+        const clientEtag = String(ifNoneMatch);
+        const serverEtag = String(cachedData.metadata.timestamp);
+        if (clientEtag === serverEtag) {
+          const corsHeaders = buildCorsHeaders(req, corsConfig);
+          corsHeaders['etag'] = serverEtag;
+          res.writeHead(304, corsHeaders);
+          res.end();
+          return;
+        }
+      }
+
+      // DB-first: try SQLite direct read
+      const workspacePath = findWorkspacePath(ctx);
+      if (workspacePath) {
+        const dbPath = resolveDbPath(workspacePath);
+        const dbResult = readSymbolASTFromDb(dbPath, nodeId);
+        if (dbResult && dbResult.nodes.length > 0) {
+          const astNodes = dbResult.nodes
+            .filter((n) => n.name && n.file_path && !isNoisePath(n.file_path))
+            .map((n) => ({
+              id: NodeId(n.id),
+              label: n.name,
+              type: mapNodeKind(n.kind),
+              filePath: n.file_path,
+              lineNumber: n.start_line ?? 1,
+              properties: {
+                kind: n.kind,
+                ...(n.signature ? { signature: n.signature } : {}),
+                ...(n.docstring ? { docstring: n.docstring } : {}),
+                exported: n.is_exported === 1,
+              },
+              parentId: NodeId(nodeId),
+              layer: inferLayerFromPath(n.file_path),
+            }));
+          const astNodeIds = new Set(astNodes.map((n) => n.id));
+          const dbEdges = readEdgesForNodesFromDb(dbPath, [...astNodeIds]);
+          const astEdges = dbEdges.map((e) => ({
+            id: EdgeId(String(e.id)),
+            source: NodeId(e.source),
+            target: NodeId(e.target),
+            type: mapEdgeKind(e.kind),
+            properties: e.line !== null && e.line !== undefined ? { line: e.line } : {},
+          }));
+          sendJson(res, 200, { astNodes, astEdges, sourceLines: [] }, req, corsConfig);
+          return;
+        }
+      }
+
+      // Memory cache fallback
       const lastGraphData = deps.getLastGraphData();
       if (!lastGraphData) {
         sendJson(res, 200, { astNodes: [], astEdges: [], sourceLines: [] }, req, corsConfig);
@@ -961,11 +1085,27 @@ function registerEdgesRoute(rc: RouteContext): void {
       const fromId = url.searchParams.get('from') ?? '';
       const scope = url.searchParams.get('scope') ?? 'file';
       const cursor = parseInt(url.searchParams.get('cursor') ?? '0', 10);
-      const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '500', 10), 500);
+      const limit = Math.min(parseInt(url.searchParams.get('limit') ?? String(EDGES_AGGREGATION.PAGE_SIZE), 10), EDGES_AGGREGATION.PAGE_SIZE);
+      const aggregated = url.searchParams.get('aggregated') === '1';
 
       if (!fromId || fromId.length > VALIDATION.MAX_PATH_LENGTH) {
         sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
         return;
+      }
+
+      // P1-5: ETag support — check If-None-Match before processing
+      const ifNoneMatch = req.headers['if-none-match'];
+      const cachedData = deps.getLastGraphData();
+      if (ifNoneMatch && cachedData) {
+        const clientEtag = String(ifNoneMatch);
+        const serverEtag = String(cachedData.metadata.timestamp);
+        if (clientEtag === serverEtag) {
+          const corsHeaders = buildCorsHeaders(req, corsConfig);
+          corsHeaders['etag'] = serverEtag;
+          res.writeHead(304, corsHeaders);
+          res.end();
+          return;
+        }
       }
 
       const lastGraphData = deps.getLastGraphData();
@@ -975,14 +1115,45 @@ function registerEdgesRoute(rc: RouteContext): void {
           filteredEdges = lastGraphData.edges.filter((e) => e.source === fromId || e.target === fromId);
         } else {
           const nodeIds = new Set<string>();
+          const nodeFilePaths = new Map<string, string>();
           for (const n of lastGraphData.nodes) {
             if (n.filePath === fromId || n.id === fromId) {
               nodeIds.add(n.id);
+              nodeFilePaths.set(n.id, n.filePath);
             }
           }
           filteredEdges = lastGraphData.edges.filter(
             (e) => nodeIds.has(e.source) || nodeIds.has(e.target),
           );
+
+          // P1-3: Aggregate cross-file edges when count exceeds threshold
+          if (!aggregated && filteredEdges.length > EDGES_AGGREGATION.THRESHOLD) {
+            const filePairCounts = new Map<string, number>();
+            for (const e of filteredEdges) {
+              const srcFile = nodeFilePaths.get(e.source) ?? lastGraphData.nodes.find(n => n.id === e.source)?.filePath ?? '?';
+              const tgtFile = nodeFilePaths.get(e.target) ?? lastGraphData.nodes.find(n => n.id === e.target)?.filePath ?? '?';
+              const pairKey = srcFile < tgtFile ? `${srcFile}→${tgtFile}` : `${tgtFile}→${srcFile}`;
+              filePairCounts.set(pairKey, (filePairCounts.get(pairKey) ?? 0) + 1);
+            }
+            const aggregatedEdges = [...filePairCounts.entries()].map(([pairKey, count]) => {
+              const [fileA, fileB] = pairKey.split('→');
+              return {
+                id: EdgeId(`agg:${pairKey}`),
+                source: NodeId(fromId),
+                target: NodeId(fileA === fromId ? (fileB ?? fromId) : (fileA ?? fromId)),
+                type: 'dependency' as const,
+                properties: { aggregated: true, count, filePair: pairKey },
+              };
+            });
+            sendJson(res, 200, {
+              edges: aggregatedEdges,
+              total: aggregatedEdges.length,
+              cursor: 0,
+              hasMore: false,
+              aggregated: true,
+            }, req, corsConfig);
+            return;
+          }
         }
 
         const total = filteredEdges.length;
