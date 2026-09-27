@@ -139,7 +139,7 @@ interface ToolbarProps extends WorkspaceSelectorProps {
   onViewModeChange: (mode: ViewMode) => void;
   onLayerChange: (layer: number) => void;
   onRefresh: () => void;
-  onExport: (format: 'png' | 'svg' | 'json' | 'mermaid') => void;
+  onExport: (format: 'png' | 'svg' | 'json' | 'mermaid' | 'graphml' | 'jsonld') => void;
   onCollapse: () => void;
   onCollapseAll?: () => void;
   onUndo?: () => void;
@@ -167,7 +167,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   }, [showExportMenu]);
 
   const onExport = props.onExport;
-  const handleExport = useCallback((format: 'png' | 'svg' | 'json' | 'mermaid') => {
+  const handleExport = useCallback((format: 'png' | 'svg' | 'json' | 'mermaid' | 'graphml' | 'jsonld') => {
     onExport(format);
     setShowExportMenu(false);
   }, [onExport]);
@@ -418,6 +418,8 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
                 <button onClick={() => handleExport('svg')} role="menuitem">{t('export.svg')}</button>
                 <button onClick={() => handleExport('json')} role="menuitem">{t('export.json')}</button>
                 <button onClick={() => handleExport('mermaid')} role="menuitem">{t('export.mermaid')}</button>
+                <button onClick={() => handleExport('graphml')} role="menuitem">{t('export.graphml')}</button>
+                <button onClick={() => handleExport('jsonld')} role="menuitem">{t('export.jsonld')}</button>
               </div>
             )}
           </div>

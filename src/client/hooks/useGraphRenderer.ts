@@ -81,7 +81,7 @@ export interface UseGraphRendererResult {
   rendererRef: React.RefObject<IRenderer | null>;
   searchMatchCount: number | null;
   setSearchMatchCount: (n: number | null) => void;
-  exportGraph: (format: 'png' | 'svg' | 'json' | 'mermaid') => void;
+  exportGraph: (format: 'png' | 'svg' | 'json' | 'mermaid' | 'graphml' | 'jsonld') => void;
   updateTheme: (theme: ThemeType) => void;
 }
 
@@ -324,7 +324,7 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
     }
   }, [nodes.length]);
 
-  const exportGraph = useCallback((format: 'png' | 'svg' | 'json' | 'mermaid') => {
+  const exportGraph = useCallback((format: 'png' | 'svg' | 'json' | 'mermaid' | 'graphml' | 'jsonld') => {
     const renderer = rendererRef.current;
     if (!renderer) return;
     let data: string | null = null;
@@ -333,6 +333,8 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
     if (format === 'png') { data = renderer.exportPNG(); mimeType = 'image/png'; extension = 'png'; }
     else if (format === 'svg') { data = renderer.exportSVG(theme); mimeType = 'image/svg+xml'; extension = 'svg'; }
     else if (format === 'mermaid') { data = renderer.exportMermaid(); mimeType = 'text/plain'; extension = 'mmd'; }
+    else if (format === 'graphml') { data = renderer.exportGraphML(); mimeType = 'application/xml'; extension = 'graphml'; }
+    else if (format === 'jsonld') { data = renderer.exportJSONLD(); mimeType = 'application/ld+json'; extension = 'jsonld'; }
     else { data = renderer.exportJSON(); }
     if (data) {
       const blob = new Blob([data], { type: mimeType });

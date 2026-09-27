@@ -3343,6 +3343,52 @@ function registerSymbolASTRoute(rc) {
 		})
 	}), "codegraph: symbol AST route");
 }
+function registerEdgesRoute(rc) {
+	const { deps, corsConfig, rateLimiter } = rc;
+	const { ctx } = deps;
+	const routePath = "/api/v1/codegraph/edges";
+	ctx.effect(() => ctx.webServer.register({
+		kind: "prefix",
+		path: routePath,
+		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, (req, res) => {
+			const url = new URL(req.url ?? "", `http://${req.headers.host ?? "localhost"}`);
+			const fromId = url.searchParams.get("from") ?? "";
+			const scope = url.searchParams.get("scope") ?? "file";
+			const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
+			const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "500", 10), 500);
+			if (!fromId || fromId.length > VALIDATION.MAX_PATH_LENGTH) {
+				sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
+				return;
+			}
+			const lastGraphData = deps.getLastGraphData();
+			if (!lastGraphData) {
+				sendJson(res, 200, {
+					edges: [],
+					total: 0,
+					cursor: 0,
+					hasMore: false
+				}, req, corsConfig);
+				return;
+			}
+			let filteredEdges;
+			if (scope === "symbol") filteredEdges = lastGraphData.edges.filter((e) => e.source === fromId || e.target === fromId);
+			else {
+				const nodeIds = new Set();
+				for (const n of lastGraphData.nodes) if (n.filePath === fromId || n.id === fromId) nodeIds.add(n.id);
+				filteredEdges = lastGraphData.edges.filter((e) => nodeIds.has(e.source) || nodeIds.has(e.target));
+			}
+			const total = filteredEdges.length;
+			const pagedEdges = filteredEdges.slice(cursor, cursor + limit);
+			const hasMore = cursor + limit < total;
+			sendJson(res, 200, {
+				edges: pagedEdges,
+				total,
+				cursor: cursor + limit,
+				hasMore
+			}, req, corsConfig);
+		})
+	}), "codegraph: edges route");
+}
 function registerRoutes(deps) {
 	const { ctx, config } = deps;
 	const invokeUpstream = deps.invokeUpstream ?? createInvokeUpstream(ctx, config);
@@ -3370,6 +3416,7 @@ function registerRoutes(deps) {
 	registerNodeChildrenRoute(rc);
 	registerFileOutlineRoute(rc);
 	registerSymbolASTRoute(rc);
+	registerEdgesRoute(rc);
 	ctx.effect(() => () => rateLimiter.reset(), "codegraph: rate limiter cleanup");
 	ctx.effect(() => () => sharedTreeSitterAdapter.destroy(), "codegraph: tree-sitter adapter cleanup");
 }

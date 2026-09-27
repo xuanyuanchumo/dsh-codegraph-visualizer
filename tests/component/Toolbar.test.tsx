@@ -525,7 +525,7 @@ describe('Toolbar component', () => {
       await user.click(exportBtn);
       expect(document.querySelector('.cg-export-dropdown')).toBeTruthy();
       const menuItems = document.querySelectorAll('.cg-export-dropdown button[role="menuitem"]');
-      expect(menuItems.length).toBe(4);
+      expect(menuItems.length).toBe(6);
     });
 
     it('calls onExport with png when png option is clicked', async () => {

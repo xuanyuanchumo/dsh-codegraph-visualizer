@@ -11,6 +11,7 @@ import {
   fetchGraphDataIncremental,
   fetchFileOutline,
   fetchSymbolAST,
+  fetchEdges,
 } from '../../src/client/api/index.ts';
 
 describe('client api', () => {
@@ -459,6 +460,63 @@ describe('client api', () => {
     it('returns null on fetch error', async () => {
       globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as unknown as typeof fetch;
       const result = await fetchSymbolAST('sym-1');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('fetchEdges', () => {
+    it('returns parsed edges data on success', async () => {
+      const edgesData = {
+        edges: [{ id: 'e1', source: 'n1', target: 'n2', type: 'call', properties: {} }],
+        total: 10,
+        cursor: 5,
+        hasMore: true,
+      };
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => edgesData,
+      }) as unknown as typeof fetch;
+      const result = await fetchEdges('node-1');
+      expect(result).not.toBeNull();
+      expect(result!.edges).toHaveLength(1);
+      expect(result!.total).toBe(10);
+      expect(result!.cursor).toBe(5);
+      expect(result!.hasMore).toBe(true);
+    });
+
+    it('sends request with from and default scope/limit', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ edges: [], total: 0, cursor: 0, hasMore: false }),
+      });
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
+      await fetchEdges('node-1');
+      expect(mockFetch.mock.calls[0]![0]).toContain('from=node-1');
+      expect(mockFetch.mock.calls[0]![0]).toContain('scope=file');
+      expect(mockFetch.mock.calls[0]![0]).toContain('limit=500');
+    });
+
+    it('sends request with symbol scope and custom cursor/limit', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ edges: [], total: 0, cursor: 0, hasMore: false }),
+      });
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
+      await fetchEdges('node-1', 'symbol', 100, 200);
+      expect(mockFetch.mock.calls[0]![0]).toContain('scope=symbol');
+      expect(mockFetch.mock.calls[0]![0]).toContain('cursor=100');
+      expect(mockFetch.mock.calls[0]![0]).toContain('limit=200');
+    });
+
+    it('returns null when response not ok', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => null }) as unknown as typeof fetch;
+      const result = await fetchEdges('node-1');
+      expect(result).toBeNull();
+    });
+
+    it('returns null on fetch error', async () => {
+      globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as unknown as typeof fetch;
+      const result = await fetchEdges('node-1');
       expect(result).toBeNull();
     });
   });

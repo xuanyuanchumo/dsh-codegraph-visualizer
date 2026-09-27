@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import { useDebounce, usePolling } from '../../src/client/hooks/index.ts';
 
 describe('useDebounce', () => {
   beforeEach(() => {
@@ -10,14 +11,12 @@ describe('useDebounce', () => {
     vi.useRealTimers();
   });
 
-  it('returns initial value immediately', async () => {
-    const { useDebounce } = await import('../../src/client/hooks/index.ts');
+  it('returns initial value immediately', () => {
     const { result } = renderHook(() => useDebounce('initial', 300));
     expect(result.current).toBe('initial');
   });
 
-  it('updates value after delay', async () => {
-    const { useDebounce } = await import('../../src/client/hooks/index.ts');
+  it('updates value after delay', () => {
     const { result, rerender } = renderHook(({ value, delay }) => useDebounce(value, delay), {
       initialProps: { value: 'first', delay: 300 },
     });
@@ -27,8 +26,7 @@ describe('useDebounce', () => {
     expect(result.current).toBe('second');
   });
 
-  it('does not update before delay expires', async () => {
-    const { useDebounce } = await import('../../src/client/hooks/index.ts');
+  it('does not update before delay expires', () => {
     const { result, rerender } = renderHook(({ value, delay }) => useDebounce(value, delay), {
       initialProps: { value: 'first', delay: 500 },
     });
@@ -37,8 +35,7 @@ describe('useDebounce', () => {
     expect(result.current).toBe('first');
   });
 
-  it('resets timer on rapid changes', async () => {
-    const { useDebounce } = await import('../../src/client/hooks/index.ts');
+  it('resets timer on rapid changes', () => {
     const { result, rerender } = renderHook(({ value, delay }) => useDebounce(value, delay), {
       initialProps: { value: 'a', delay: 300 },
     });
@@ -51,8 +48,7 @@ describe('useDebounce', () => {
     expect(result.current).toBe('c');
   });
 
-  it('clears timeout on unmount', async () => {
-    const { useDebounce } = await import('../../src/client/hooks/index.ts');
+  it('clears timeout on unmount', () => {
     const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
     const { unmount } = renderHook(() => useDebounce('value', 300));
     unmount();
@@ -60,8 +56,7 @@ describe('useDebounce', () => {
     clearTimeoutSpy.mockRestore();
   });
 
-  it('handles zero delay', async () => {
-    const { useDebounce } = await import('../../src/client/hooks/index.ts');
+  it('handles zero delay', () => {
     const { result, rerender } = renderHook(({ value, delay }) => useDebounce(value, delay), {
       initialProps: { value: 'first', delay: 0 },
     });
@@ -80,8 +75,7 @@ describe('usePolling', () => {
     vi.useRealTimers();
   });
 
-  it('calls callback at specified interval', async () => {
-    const { usePolling } = await import('../../src/client/hooks/index.ts');
+  it('calls callback at specified interval', () => {
     const callback = vi.fn();
     renderHook(() => usePolling(callback, 1000));
     act(() => { vi.advanceTimersByTime(1000); });
@@ -90,24 +84,21 @@ describe('usePolling', () => {
     expect(callback).toHaveBeenCalledTimes(2);
   });
 
-  it('does not call callback when disabled', async () => {
-    const { usePolling } = await import('../../src/client/hooks/index.ts');
+  it('does not call callback when disabled', () => {
     const callback = vi.fn();
     renderHook(() => usePolling(callback, 1000, false));
     act(() => { vi.advanceTimersByTime(5000); });
     expect(callback).not.toHaveBeenCalled();
   });
 
-  it('does not call callback when interval is zero or negative', async () => {
-    const { usePolling } = await import('../../src/client/hooks/index.ts');
+  it('does not call callback when interval is zero or negative', () => {
     const callback = vi.fn();
     renderHook(() => usePolling(callback, 0));
     act(() => { vi.advanceTimersByTime(5000); });
     expect(callback).not.toHaveBeenCalled();
   });
 
-  it('clears interval on unmount', async () => {
-    const { usePolling } = await import('../../src/client/hooks/index.ts');
+  it('clears interval on unmount', () => {
     const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
     const callback = vi.fn();
     const { unmount } = renderHook(() => usePolling(callback, 1000));
@@ -116,8 +107,7 @@ describe('usePolling', () => {
     clearIntervalSpy.mockRestore();
   });
 
-  it('skips callback when document is hidden', async () => {
-    const { usePolling } = await import('../../src/client/hooks/index.ts');
+  it('skips callback when document is hidden', () => {
     const callback = vi.fn();
     const hiddenGetter = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
     renderHook(() => usePolling(callback, 1000));
@@ -129,8 +119,7 @@ describe('usePolling', () => {
     hiddenGetter.mockRestore();
   });
 
-  it('uses latest callback via ref without resetting interval', async () => {
-    const { usePolling } = await import('../../src/client/hooks/index.ts');
+  it('uses latest callback via ref without resetting interval', () => {
     const callback1 = vi.fn();
     const callback2 = vi.fn();
     const { rerender } = renderHook(({ cb }) => usePolling(cb, 1000), {

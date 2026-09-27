@@ -350,6 +350,14 @@ export class CytoscapeRenderer implements IRenderer {
     return this.safeCall('exportSVG', () => this.exportCtrl?.exportSVG(theme ?? this.options.theme) ?? null, null);
   }
 
+  exportGraphML(): string {
+    return this.safeCall('exportGraphML', () => this.exportCtrl?.exportGraphML() ?? '', '');
+  }
+
+  exportJSONLD(): string {
+    return this.safeCall('exportJSONLD', () => this.exportCtrl?.exportJSONLD() ?? '', '');
+  }
+
   getSelectedNodeData(): GraphNode | ClusterNode | null {
     return this.dataCtrl?.getSelectedNodeData() ?? null;
   }

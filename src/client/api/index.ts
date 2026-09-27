@@ -200,3 +200,25 @@ export async function fetchSymbolAST(nodeId: string): Promise<SymbolASTData | nu
     return null;
   }
 }
+export interface EdgesData {
+  edges: GraphEdge[];
+  total: number;
+  cursor: number;
+  hasMore: boolean;
+}
+
+export async function fetchEdges(fromId: string, scope: 'file' | 'symbol' = 'file', cursor?: number, limit?: number): Promise<EdgesData | null> {
+  try {
+    const params = new URLSearchParams();
+    params.set('from', fromId);
+    params.set('scope', scope);
+    if (cursor !== undefined) params.set('cursor', String(cursor));
+    params.set('limit', String(limit ?? 500));
+    const res = await fetchWithTimeout(`/api/v1/codegraph/edges?${params}`);
+    if (!res.ok) return null;
+    return await res.json() as EdgesData;
+  } catch (e) {
+    log.warn('fetchEdges failed', { fromId, scope, error: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
+}

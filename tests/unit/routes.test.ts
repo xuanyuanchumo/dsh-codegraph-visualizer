@@ -171,9 +171,9 @@ describe('registerRoutes', () => {
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
   });
 
-  it('registers all 15 routes', () => {
+  it('registers all 16 routes', () => {
     registerRoutes(deps);
-    expect(ctx.webServer.register).toHaveBeenCalledTimes(15);
+    expect(ctx.webServer.register).toHaveBeenCalledTimes(16);
   });
 
   it('GET /status returns prerequisites status', () => {

@@ -167,6 +167,8 @@ export const zh: Record<string, string> = {
   'export.svg': 'SVG',
   'export.json': 'JSON',
   'export.mermaid': 'Mermaid',
+  'export.graphml': 'GraphML',
+  'export.jsonld': 'JSON-LD',
 
   // Workspace
   'workspace.title': '工作区',

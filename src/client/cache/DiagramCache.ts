@@ -86,16 +86,31 @@ export class DiagramCache {
       this.cache.set(key, value);
       return value;
     }
+    return null;
+  }
+
+  async getAsync(viewMode: ViewMode, dataHash: string): Promise<LayeredDiagram | null> {
+    const key = `${viewMode}:${dataHash}`;
+    const value = this.cache.get(key);
+    if (value) {
+      this.cache.delete(key);
+      this.cache.set(key, value);
+      return value;
+    }
     if (this.idbCache) {
-      this.idbCache.getDiagram(key).then((diagram: unknown) => {
+      try {
+        const diagram = await this.idbCache.getDiagram(key);
         if (diagram && !this.cache.has(key)) {
           if (this.cache.size >= this.maxEntries) {
             const firstKey = this.cache.keys().next().value;
             if (firstKey) this.cache.delete(firstKey);
           }
           this.cache.set(key, diagram as LayeredDiagram);
+          return diagram as LayeredDiagram;
         }
-      }).catch((e: unknown) => log.warn('IndexedDB diagram get failed', e));
+      } catch (e) {
+        log.warn('IndexedDB diagram getAsync failed', e);
+      }
     }
     return null;
   }
@@ -157,16 +172,35 @@ export class ClusterCache {
       this.cache.set(key, value);
       return value;
     }
+    return null;
+  }
+
+  async getAsync(
+    dataHash: string,
+    level: string,
+    expandedKey: string,
+  ): Promise<ClusterResult | null> {
+    const key = `${dataHash}:${level}:${expandedKey}`;
+    const value = this.cache.get(key);
+    if (value) {
+      this.cache.delete(key);
+      this.cache.set(key, value);
+      return value;
+    }
     if (this.idbCache) {
-      this.idbCache.getCluster(key).then((result: unknown) => {
+      try {
+        const result = await this.idbCache.getCluster(key);
         if (result && !this.cache.has(key)) {
           if (this.cache.size >= this.maxEntries) {
             const firstKey = this.cache.keys().next().value;
             if (firstKey) this.cache.delete(firstKey);
           }
           this.cache.set(key, result as ClusterResult);
+          return result as ClusterResult;
         }
-      }).catch((e: unknown) => log.warn('IndexedDB cluster get failed', e));
+      } catch (e) {
+        log.warn('IndexedDB cluster getAsync failed', e);
+      }
     }
     return null;
   }

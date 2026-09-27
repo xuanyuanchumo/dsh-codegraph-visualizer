@@ -340,7 +340,7 @@ describe('ClusterCache setPersistentBackend', () => {
   });
 });
 describe('DiagramCache IndexedDB async load', () => {
-  it('loads diagram from IndexedDB into memory cache on get miss', async () => {
+  it('loads diagram from IndexedDB via getAsync on memory miss', async () => {
     const cache = new DiagramCache(5);
     const diagram = makeLayeredDiagram();
     const mockIdb = {
@@ -351,17 +351,14 @@ describe('DiagramCache IndexedDB async load', () => {
     } as any;
     cache.setPersistentBackend(mockIdb);
 
-    // First get returns null (async load happens in background)
     expect(cache.get('inheritance', 'hash1')).toBeNull();
-    // Wait for async IndexedDB load to complete
-    await new Promise((r) => setTimeout(r, 10));
-
-    // Second get should return the diagram loaded from IndexedDB
-    expect(cache.get('inheritance', 'hash1')).toBe(diagram);
+    const result = await cache.getAsync('inheritance', 'hash1');
+    expect(result).toBe(diagram);
     expect(mockIdb.getDiagram).toHaveBeenCalledWith('inheritance:hash1');
+    expect(cache.get('inheritance', 'hash1')).toBe(diagram);
   });
 
-  it('evicts oldest entry when loading from IndexedDB into full cache', async () => {
+  it('evicts oldest entry when loading from IndexedDB into full cache via getAsync', async () => {
     const cache = new DiagramCache(1);
     const d1 = makeLayeredDiagram();
     const d2 = makeLayeredDiagram();
@@ -373,15 +370,11 @@ describe('DiagramCache IndexedDB async load', () => {
     } as any;
     cache.setPersistentBackend(mockIdb);
 
-    // Fill cache to capacity
     cache.set('inheritance', 'h1', d1);
     expect(cache.size()).toBe(1);
 
-    // Trigger IndexedDB async load for a different key
-    cache.get('callgraph', 'h2');
-    await new Promise((r) => setTimeout(r, 10));
-
-    // d1 should have been evicted, d2 loaded from IndexedDB
+    const result = await cache.getAsync('callgraph', 'h2');
+    expect(result).toBe(d2);
     expect(cache.get('inheritance', 'h1')).toBeNull();
     expect(cache.get('callgraph', 'h2')).toBe(d2);
   });
@@ -398,17 +391,12 @@ describe('DiagramCache IndexedDB async load', () => {
     } as any;
     cache.setPersistentBackend(mockIdb);
 
-    // Set d1 in memory cache
     cache.set('inheritance', 'h1', d1);
-    // Trigger IndexedDB async load (returns d2) but d1 is already in cache
-    cache.get('inheritance', 'h1');
-    await new Promise((r) => setTimeout(r, 10));
-
-    // d1 should still be the cached value, not overwritten by d2
-    expect(cache.get('inheritance', 'h1')).toBe(d1);
+    const result = await cache.getAsync('inheritance', 'h1');
+    expect(result).toBe(d1);
   });
 
-  it('handles IndexedDB get rejection gracefully', async () => {
+  it('handles IndexedDB get rejection gracefully via getAsync', async () => {
     const cache = new DiagramCache(5);
     const mockIdb = {
       getDiagram: vi.fn().mockRejectedValue(new Error('IndexedDB error')),
@@ -418,16 +406,15 @@ describe('DiagramCache IndexedDB async load', () => {
     } as any;
     cache.setPersistentBackend(mockIdb);
 
-    // Should not throw
     expect(cache.get('inheritance', 'h1')).toBeNull();
-    await new Promise((r) => setTimeout(r, 10));
-    // Cache should still be empty
+    const result = await cache.getAsync('inheritance', 'h1');
+    expect(result).toBeNull();
     expect(cache.size()).toBe(0);
   });
 });
 
 describe('ClusterCache IndexedDB async load', () => {
-  it('loads cluster result from IndexedDB into memory cache on get miss', async () => {
+  it('loads cluster result from IndexedDB via getAsync on memory miss', async () => {
     const cache = new ClusterCache(5);
     const result = makeClusterResult();
     const mockIdb = {
@@ -438,17 +425,14 @@ describe('ClusterCache IndexedDB async load', () => {
     } as any;
     cache.setPersistentBackend(mockIdb);
 
-    // First get returns null (async load happens in background)
     expect(cache.get('hash1', 'directory', '')).toBeNull();
-    // Wait for async IndexedDB load to complete
-    await new Promise((r) => setTimeout(r, 10));
-
-    // Second get should return the result loaded from IndexedDB
-    expect(cache.get('hash1', 'directory', '')).toBe(result);
+    const loaded = await cache.getAsync('hash1', 'directory', '');
+    expect(loaded).toBe(result);
     expect(mockIdb.getCluster).toHaveBeenCalledWith('hash1:directory:');
+    expect(cache.get('hash1', 'directory', '')).toBe(result);
   });
 
-  it('evicts oldest entry when loading from IndexedDB into full cache', async () => {
+  it('evicts oldest entry when loading from IndexedDB into full cache via getAsync', async () => {
     const cache = new ClusterCache(1);
     const r1 = makeClusterResult();
     const r2 = makeClusterResult();
@@ -460,15 +444,11 @@ describe('ClusterCache IndexedDB async load', () => {
     } as any;
     cache.setPersistentBackend(mockIdb);
 
-    // Fill cache to capacity
     cache.set('h1', 'directory', '', r1);
     expect(cache.size()).toBe(1);
 
-    // Trigger IndexedDB async load for a different key
-    cache.get('h2', 'directory', '');
-    await new Promise((r) => setTimeout(r, 10));
-
-    // r1 should have been evicted, r2 loaded from IndexedDB
+    const loaded = await cache.getAsync('h2', 'directory', '');
+    expect(loaded).toBe(r2);
     expect(cache.get('h1', 'directory', '')).toBeNull();
     expect(cache.get('h2', 'directory', '')).toBe(r2);
   });
@@ -485,17 +465,12 @@ describe('ClusterCache IndexedDB async load', () => {
     } as any;
     cache.setPersistentBackend(mockIdb);
 
-    // Set r1 in memory cache
     cache.set('h1', 'directory', '', r1);
-    // Trigger IndexedDB async load (returns r2) but r1 is already in cache
-    cache.get('h1', 'directory', '');
-    await new Promise((r) => setTimeout(r, 10));
-
-    // r1 should still be the cached value, not overwritten by r2
-    expect(cache.get('h1', 'directory', '')).toBe(r1);
+    const loaded = await cache.getAsync('h1', 'directory', '');
+    expect(loaded).toBe(r1);
   });
 
-  it('handles IndexedDB get rejection gracefully', async () => {
+  it('handles IndexedDB get rejection gracefully via getAsync', async () => {
     const cache = new ClusterCache(5);
     const mockIdb = {
       getCluster: vi.fn().mockRejectedValue(new Error('IndexedDB error')),
@@ -505,10 +480,9 @@ describe('ClusterCache IndexedDB async load', () => {
     } as any;
     cache.setPersistentBackend(mockIdb);
 
-    // Should not throw
     expect(cache.get('hash1', 'directory', '')).toBeNull();
-    await new Promise((r) => setTimeout(r, 10));
-    // Cache should still be empty
+    const loaded = await cache.getAsync('hash1', 'directory', '');
+    expect(loaded).toBeNull();
     expect(cache.size()).toBe(0);
   });
 });
@@ -647,7 +621,7 @@ describe('ClusterCache.invalidate with IndexedDB', () => {
   });
 });
 describe('DiagramCache additional coverage', () => {
-  it('get with idbCache miss returns null and triggers async load', async () => {
+  it('get with idbCache miss returns null, getAsync returns null', async () => {
     const cache = new DiagramCache(5);
     const mockIdb = {
       getDiagram: vi.fn().mockResolvedValue(null),
@@ -657,8 +631,8 @@ describe('DiagramCache additional coverage', () => {
     } as any;
     cache.setPersistentBackend(mockIdb);
     expect(cache.get('inheritance', 'h1')).toBeNull();
-    await new Promise((r) => setTimeout(r, 10));
-    // Async load completed but result was null, so cache should still be empty
+    const result = await cache.getAsync('inheritance', 'h1');
+    expect(result).toBeNull();
     expect(cache.size()).toBe(0);
     expect(mockIdb.getDiagram).toHaveBeenCalledWith('inheritance:h1');
   });
@@ -724,7 +698,7 @@ describe('DiagramCache additional coverage', () => {
     expect(cache.size()).toBe(0);
   });
 
-  it('get with idbCache loads diagram and evicts when cache is full', async () => {
+  it('getAsync with idbCache loads diagram and evicts when cache is full', async () => {
     const cache = new DiagramCache(1);
     const d1 = makeLayeredDiagram();
     const d2 = makeLayeredDiagram();
@@ -737,15 +711,13 @@ describe('DiagramCache additional coverage', () => {
     cache.setPersistentBackend(mockIdb);
     cache.set('inheritance', 'h1', d1);
     expect(cache.size()).toBe(1);
-    // Trigger async load for a different key
-    cache.get('callgraph', 'h2');
-    await new Promise((r) => setTimeout(r, 10));
-    // d1 should have been evicted, d2 loaded from IndexedDB
+    const result = await cache.getAsync('callgraph', 'h2');
+    expect(result).toBe(d2);
     expect(cache.get('inheritance', 'h1')).toBeNull();
     expect(cache.get('callgraph', 'h2')).toBe(d2);
   });
 
-  it('get with idbCache does not overwrite when key already exists in cache', async () => {
+  it('getAsync does not overwrite when key already exists in cache', async () => {
     const cache = new DiagramCache(5);
     const d1 = makeLayeredDiagram();
     const d2 = makeLayeredDiagram();
@@ -757,16 +729,13 @@ describe('DiagramCache additional coverage', () => {
     } as any;
     cache.setPersistentBackend(mockIdb);
     cache.set('inheritance', 'h1', d1);
-    // Trigger async load (returns d2) but d1 is already in cache
-    cache.get('inheritance', 'h1');
-    await new Promise((r) => setTimeout(r, 10));
-    // d1 should still be the cached value, not overwritten by d2
-    expect(cache.get('inheritance', 'h1')).toBe(d1);
+    const result = await cache.getAsync('inheritance', 'h1');
+    expect(result).toBe(d1);
   });
 });
 
 describe('ClusterCache additional coverage', () => {
-  it('get with idbCache miss returns null and triggers async load', async () => {
+  it('get with idbCache miss returns null, getAsync returns null', async () => {
     const cache = new ClusterCache(5);
     const mockIdb = {
       getCluster: vi.fn().mockResolvedValue(null),
@@ -776,7 +745,8 @@ describe('ClusterCache additional coverage', () => {
     } as any;
     cache.setPersistentBackend(mockIdb);
     expect(cache.get('h1', 'directory', '')).toBeNull();
-    await new Promise((r) => setTimeout(r, 10));
+    const result = await cache.getAsync('h1', 'directory', '');
+    expect(result).toBeNull();
     expect(cache.size()).toBe(0);
     expect(mockIdb.getCluster).toHaveBeenCalledWith('h1:directory:');
   });
@@ -825,7 +795,7 @@ describe('ClusterCache additional coverage', () => {
     expect(cache.size()).toBe(0);
   });
 
-  it('get with idbCache loads result and evicts when cache is full', async () => {
+  it('getAsync with idbCache loads result and evicts when cache is full', async () => {
     const cache = new ClusterCache(1);
     const r1 = makeClusterResult();
     const r2 = makeClusterResult();
@@ -838,13 +808,13 @@ describe('ClusterCache additional coverage', () => {
     cache.setPersistentBackend(mockIdb);
     cache.set('h1', 'directory', '', r1);
     expect(cache.size()).toBe(1);
-    cache.get('h2', 'directory', '');
-    await new Promise((r) => setTimeout(r, 10));
+    const result = await cache.getAsync('h2', 'directory', '');
+    expect(result).toBe(r2);
     expect(cache.get('h1', 'directory', '')).toBeNull();
     expect(cache.get('h2', 'directory', '')).toBe(r2);
   });
 
-  it('get with idbCache does not overwrite when key already exists in cache', async () => {
+  it('getAsync does not overwrite when key already exists in cache', async () => {
     const cache = new ClusterCache(5);
     const r1 = makeClusterResult();
     const r2 = makeClusterResult();
@@ -856,8 +826,7 @@ describe('ClusterCache additional coverage', () => {
     } as any;
     cache.setPersistentBackend(mockIdb);
     cache.set('h1', 'directory', '', r1);
-    cache.get('h1', 'directory', '');
-    await new Promise((r) => setTimeout(r, 10));
-    expect(cache.get('h1', 'directory', '')).toBe(r1);
+    const result = await cache.getAsync('h1', 'directory', '');
+    expect(result).toBe(r1);
   });
 });

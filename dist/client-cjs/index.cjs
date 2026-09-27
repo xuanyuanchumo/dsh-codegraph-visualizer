@@ -4817,15 +4817,29 @@ var DiagramCache = class {
 			this.cache.set(key, value);
 			return value;
 		}
-		if (this.idbCache) this.idbCache.getDiagram(key).then((diagram) => {
+		return null;
+	}
+	async getAsync(viewMode, dataHash) {
+		const key = `${viewMode}:${dataHash}`;
+		const value = this.cache.get(key);
+		if (value) {
+			this.cache.delete(key);
+			this.cache.set(key, value);
+			return value;
+		}
+		if (this.idbCache) try {
+			const diagram = await this.idbCache.getDiagram(key);
 			if (diagram && !this.cache.has(key)) {
 				if (this.cache.size >= this.maxEntries) {
 					const firstKey = this.cache.keys().next().value;
 					if (firstKey) this.cache.delete(firstKey);
 				}
 				this.cache.set(key, diagram);
+				return diagram;
 			}
-		}).catch((e) => log$14.warn("IndexedDB diagram get failed", e));
+		} catch (e) {
+			log$14.warn("IndexedDB diagram getAsync failed", e);
+		}
 		return null;
 	}
 	set(viewMode, dataHash, diagram) {
@@ -4866,15 +4880,29 @@ var ClusterCache = class {
 			this.cache.set(key, value);
 			return value;
 		}
-		if (this.idbCache) this.idbCache.getCluster(key).then((result) => {
+		return null;
+	}
+	async getAsync(dataHash, level, expandedKey) {
+		const key = `${dataHash}:${level}:${expandedKey}`;
+		const value = this.cache.get(key);
+		if (value) {
+			this.cache.delete(key);
+			this.cache.set(key, value);
+			return value;
+		}
+		if (this.idbCache) try {
+			const result = await this.idbCache.getCluster(key);
 			if (result && !this.cache.has(key)) {
 				if (this.cache.size >= this.maxEntries) {
 					const firstKey = this.cache.keys().next().value;
 					if (firstKey) this.cache.delete(firstKey);
 				}
 				this.cache.set(key, result);
+				return result;
 			}
-		}).catch((e) => log$14.warn("IndexedDB cluster get failed", e));
+		} catch (e) {
+			log$14.warn("IndexedDB cluster getAsync failed", e);
+		}
 		return null;
 	}
 	set(dataHash, level, expandedKey, result) {

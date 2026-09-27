@@ -137,5 +137,96 @@ export class ExportController {
     return parts.join('');
   }
 
+  exportGraphML(): string {
+    const nodes = this.cy.nodes();
+    const edges = this.cy.edges();
+    if (nodes.length === 0) return '<?xml version="1.0" encoding="UTF-8"?>\n<graphml xmlns="http://graphml.graphdrawing.org/xmlns">\n</graphml>';
+
+    const parts: string[] = [];
+    parts.push('<?xml version="1.0" encoding="UTF-8"?>');
+    parts.push('<graphml xmlns="http://graphml.graphdrawing.org/xmlns">');
+    parts.push('  <key id="label" for="node" attr.name="label" attr.type="string"/>');
+    parts.push('  <key id="type" for="node" attr.name="type" attr.type="string"/>');
+    parts.push('  <key id="filePath" for="node" attr.name="filePath" attr.type="string"/>');
+    parts.push('  <key id="edgeType" for="edge" attr.name="type" attr.type="string"/>');
+    parts.push('  <graph id="G" edgedefault="directed">');
+
+    nodes.forEach((node) => {
+      const id = escapeXml(node.id());
+      const label = escapeXml(String(node.data('label') ?? ''));
+      const type = escapeXml(String(node.data('type') ?? ''));
+      const filePath = escapeXml(String(node.data('filePath') ?? ''));
+      parts.push(`    <node id="${id}">`);
+      parts.push(`      <data key="label">${label}</data>`);
+      parts.push(`      <data key="type">${type}</data>`);
+      if (filePath) parts.push(`      <data key="filePath">${filePath}</data>`);
+      parts.push('    </node>');
+    });
+
+    edges.forEach((edge) => {
+      const id = escapeXml(edge.id());
+      const source = escapeXml(edge.source().id());
+      const target = escapeXml(edge.target().id());
+      const edgeType = escapeXml(String(edge.data('type') ?? ''));
+      parts.push(`    <edge id="${id}" source="${source}" target="${target}">`);
+      parts.push(`      <data key="edgeType">${edgeType}</data>`);
+      parts.push('    </edge>');
+    });
+
+    parts.push('  </graph>');
+    parts.push('</graphml>');
+    return parts.join('\n');
+  }
+
+  exportJSONLD(): string {
+    const nodes = this.cy.nodes();
+    const edges = this.cy.edges();
+    if (nodes.length === 0) return JSON.stringify({ '@context': {}, '@graph': [] }, null, 2);
+
+    const context: Record<string, string> = {
+      '@vocab': 'https://codegraph.visualizer/ns/',
+      label: 'rdfs:label',
+      type: 'rdf:type',
+      filePath: 'codegraph:filePath',
+      source: 'codegraph:source',
+      target: 'codegraph:target',
+      edgeType: 'codegraph:edgeType',
+    };
+
+    const nodeTypes: Record<string, string> = {
+      function: 'codegraph:Function',
+      class: 'codegraph:Class',
+      variable: 'codegraph:Variable',
+      module: 'codegraph:Module',
+      interface: 'codegraph:Interface',
+      type: 'codegraph:Type',
+    };
+
+    const graph: Record<string, unknown>[] = [];
+
+    nodes.forEach((node) => {
+      const entry: Record<string, unknown> = {
+        '@id': `node:${node.id()}`,
+        '@type': nodeTypes[String(node.data('type') ?? '')] ?? 'codegraph:Node',
+        label: String(node.data('label') ?? node.id()),
+      };
+      const filePath = String(node.data('filePath') ?? '');
+      if (filePath) entry.filePath = filePath;
+      graph.push(entry);
+    });
+
+    edges.forEach((edge) => {
+      graph.push({
+        '@id': `edge:${edge.id()}`,
+        '@type': 'codegraph:Edge',
+        source: `node:${edge.source().id()}`,
+        target: `node:${edge.target().id()}`,
+        edgeType: String(edge.data('type') ?? ''),
+      });
+    });
+
+    return JSON.stringify({ '@context': context, '@graph': graph }, null, 2);
+  }
+
   destroy(): void {}
 }

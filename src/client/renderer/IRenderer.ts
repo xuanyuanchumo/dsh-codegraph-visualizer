@@ -72,6 +72,8 @@ export interface IRenderer {
   exportMermaid(): string;
   exportPNG(): string | null;
   exportSVG(theme?: ThemeType): string | null;
+  exportGraphML(): string;
+  exportJSONLD(): string;
   getSelectedNodeData(): GraphNode | ClusterNode | null;
   getNodeData(nodeId: string): GraphNode | ClusterNode | null;
   getEdgeData(edgeId: string): GraphEdge | null;
