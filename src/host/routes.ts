@@ -13,6 +13,8 @@ import { SecurityManager } from './security.ts';
 import { findWorkspacePath, extractWorkspacePaths, checkPrerequisites } from './prerequisites.ts';
 import type { VisualizerConfig } from './config.ts';
 import { parsePackageJson, parseCargoToml, parseGoMod, dependencyGraphToGraphData } from '../adapters/DependencyAdapter.ts';
+import { resolveDbPath, readTopLevelNodesFromDb, readNodeChildrenFromDb, readEdgesFromDb, readEdgesForNodesFromDb, mapNodeKind, mapEdgeKind, isNoisePath, FILTERED_EDGE_KINDS } from '../adapters/CodeGraphAdapter.ts';
+import { inferLayerFromPath } from '../shared/layerUtils.ts';
 import { computeGraphDiff, diffToGraphData } from '../merger/DiffEngine.ts';
 import { TreeSitterAdapter } from '../adapters/TreeSitterAdapter.ts';
 import { createRateLimiter } from './RateLimiter.ts';
@@ -152,6 +154,8 @@ export function slimGraphData(data: GraphData, maxNodes: number): GraphData {
     filePath: n.filePath,
     lineNumber: n.lineNumber,
     properties: n.properties ?? {},
+    ...(n.parentId ? { parentId: NodeId(n.parentId) } : {}),
+    ...(n.layer ? { layer: n.layer } : {}),
   }));
   const allowedIds = new Set(slimNodes.map((n) => n.id));
   const slimEdges = data.edges
@@ -704,6 +708,52 @@ function registerBootstrapRoute(rc: RouteContext): void {
         }
       }
       if (!lastGraphData || lastGraphData.nodes.length === 0) {
+        const workspacePath = findWorkspacePath(ctx);
+        if (workspacePath) {
+          const dbPath = resolveDbPath(workspacePath);
+          const dbResult = readTopLevelNodesFromDb(dbPath, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
+          if (dbResult && dbResult.nodes.length > 0) {
+            const topLevelNodes = dbResult.nodes
+              .filter((n) => n.name && n.file_path && !isNoisePath(n.file_path))
+              .map((n) => ({
+                id: NodeId(n.id),
+                label: n.name,
+                type: mapNodeKind(n.kind),
+                filePath: n.file_path,
+                lineNumber: n.start_line ?? 1,
+                properties: {
+                  kind: n.kind,
+                  ...(n.signature ? { signature: n.signature } : {}),
+                  ...(n.docstring ? { docstring: n.docstring } : {}),
+                  exported: n.is_exported === 1,
+                },
+                layer: inferLayerFromPath(n.file_path),
+              }));
+            const topLevelIds = new Set(topLevelNodes.map((n) => n.id));
+            const dbEdges = readEdgesForNodesFromDb(dbPath, [...topLevelIds]);
+            const rootEdges = dbEdges.map((e) => ({
+              id: EdgeId(String(e.id)),
+              source: NodeId(e.source),
+              target: NodeId(e.target),
+              type: mapEdgeKind(e.kind),
+              properties: e.line !== null && e.line !== undefined ? { line: e.line } : {},
+            }));
+            sendJson(res, 200, {
+              rootNodes: topLevelNodes,
+              topLevelNodes,
+              topLevelTotal: dbResult.total,
+              edges: rootEdges,
+              indexStatus: 'ready',
+              metadata: {
+                repoId: RepoId(workspacePath),
+                timestamp: Date.now(),
+                totalNodeCount: dbResult.total,
+                totalEdgeCount: 0,
+              },
+            }, req, corsConfig);
+            return;
+          }
+        }
         sendJson(res, 200, {
           rootNodes: [],
           topLevelNodes: [],
@@ -756,27 +806,68 @@ function registerNodeChildrenRoute(rc: RouteContext): void {
       }
 
       const lastGraphData = deps.getLastGraphData();
-      if (!lastGraphData) {
-        sendJson(res, 200, { nodes: [], edges: [], cursor: null, total: 0 }, req, corsConfig);
-        return;
-      }
-
       const cursor = parseInt(url.searchParams.get('cursor') ?? '0', 10) || 0;
       const limit = parseInt(url.searchParams.get('limit') ?? String(BOOTSTRAP.CHILDREN_PAGE_SIZE), 10) || BOOTSTRAP.CHILDREN_PAGE_SIZE;
 
-      const children = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
-      const page = children.slice(cursor, cursor + limit);
-      const childIds = new Set(page.map((n) => n.id));
-      const childEdges = lastGraphData.edges.filter(
-        (e) => childIds.has(e.source) && childIds.has(e.target),
-      );
+      if (lastGraphData && lastGraphData.nodes.length > 0) {
+        const children = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
+        const page = children.slice(cursor, cursor + limit);
+        const childIds = new Set(page.map((n) => n.id));
+        const childEdges = lastGraphData.edges.filter(
+          (e) => childIds.has(e.source) && childIds.has(e.target),
+        );
 
-      sendJson(res, 200, {
-        nodes: page,
-        edges: childEdges,
-        cursor: cursor + page.length < children.length ? String(cursor + page.length) : null,
-        total: children.length,
-      }, req, corsConfig);
+        sendJson(res, 200, {
+          nodes: page,
+          edges: childEdges,
+          cursor: cursor + page.length < children.length ? String(cursor + page.length) : null,
+          total: children.length,
+        }, req, corsConfig);
+        return;
+      }
+
+      const workspacePath = findWorkspacePath(ctx);
+      if (workspacePath) {
+        const dbPath = resolveDbPath(workspacePath);
+        const dbResult = readNodeChildrenFromDb(dbPath, nodeId, cursor, limit);
+        if (dbResult && dbResult.nodes.length > 0) {
+          const page = dbResult.nodes
+            .filter((n) => n.name && n.file_path && !isNoisePath(n.file_path))
+            .map((n) => ({
+              id: NodeId(n.id),
+              label: n.name,
+              type: mapNodeKind(n.kind),
+              filePath: n.file_path,
+              lineNumber: n.start_line ?? 1,
+              properties: {
+                kind: n.kind,
+                ...(n.signature ? { signature: n.signature } : {}),
+                ...(n.docstring ? { docstring: n.docstring } : {}),
+                exported: n.is_exported === 1,
+              },
+              parentId: NodeId(nodeId),
+              layer: inferLayerFromPath(n.file_path),
+            }));
+          const childIds = page.map((n) => n.id);
+          const dbEdges = readEdgesForNodesFromDb(dbPath, childIds);
+          const childEdges = dbEdges.map((e) => ({
+            id: EdgeId(String(e.id)),
+            source: NodeId(e.source),
+            target: NodeId(e.target),
+            type: mapEdgeKind(e.kind),
+            properties: e.line !== null && e.line !== undefined ? { line: e.line } : {},
+          }));
+          sendJson(res, 200, {
+            nodes: page,
+            edges: childEdges,
+            cursor: cursor + page.length < dbResult.total ? String(cursor + page.length) : null,
+            total: dbResult.total,
+          }, req, corsConfig);
+          return;
+        }
+      }
+
+      sendJson(res, 200, { nodes: [], edges: [], cursor: null, total: 0 }, req, corsConfig);
     }),
   }), 'codegraph: node children route');
 }
@@ -878,31 +969,55 @@ function registerEdgesRoute(rc: RouteContext): void {
       }
 
       const lastGraphData = deps.getLastGraphData();
-      if (!lastGraphData) {
-        sendJson(res, 200, { edges: [], total: 0, cursor: 0, hasMore: false }, req, corsConfig);
+      if (lastGraphData && lastGraphData.nodes.length > 0) {
+        let filteredEdges: GraphEdge[];
+        if (scope === 'symbol') {
+          filteredEdges = lastGraphData.edges.filter((e) => e.source === fromId || e.target === fromId);
+        } else {
+          const nodeIds = new Set<string>();
+          for (const n of lastGraphData.nodes) {
+            if (n.filePath === fromId || n.id === fromId) {
+              nodeIds.add(n.id);
+            }
+          }
+          filteredEdges = lastGraphData.edges.filter(
+            (e) => nodeIds.has(e.source) || nodeIds.has(e.target),
+          );
+        }
+
+        const total = filteredEdges.length;
+        const pagedEdges = filteredEdges.slice(cursor, cursor + limit);
+        const hasMore = cursor + limit < total;
+
+        sendJson(res, 200, { edges: pagedEdges, total, cursor: cursor + limit, hasMore }, req, corsConfig);
         return;
       }
 
-      let filteredEdges: GraphEdge[];
-      if (scope === 'symbol') {
-        filteredEdges = lastGraphData.edges.filter((e) => e.source === fromId || e.target === fromId);
-      } else {
-        const nodeIds = new Set<string>();
-        for (const n of lastGraphData.nodes) {
-          if (n.filePath === fromId || n.id === fromId) {
-            nodeIds.add(n.id);
-          }
+      const workspacePath = findWorkspacePath(ctx);
+      if (workspacePath) {
+        const dbPath = resolveDbPath(workspacePath);
+        const dbResult = readEdgesFromDb(dbPath, fromId, scope as 'file' | 'symbol', cursor, limit);
+        if (dbResult) {
+          const pagedEdges = dbResult.edges
+            .filter((e) => e.source !== e.target && !FILTERED_EDGE_KINDS.has(e.kind))
+            .map((e) => ({
+              id: EdgeId(String(e.id)),
+              source: NodeId(e.source),
+              target: NodeId(e.target),
+              type: mapEdgeKind(e.kind),
+              properties: e.line !== null && e.line !== undefined ? { line: e.line } : {},
+            }));
+          sendJson(res, 200, {
+            edges: pagedEdges,
+            total: dbResult.total,
+            cursor: cursor + pagedEdges.length,
+            hasMore: cursor + limit < dbResult.total,
+          }, req, corsConfig);
+          return;
         }
-        filteredEdges = lastGraphData.edges.filter(
-          (e) => nodeIds.has(e.source) || nodeIds.has(e.target),
-        );
       }
 
-      const total = filteredEdges.length;
-      const pagedEdges = filteredEdges.slice(cursor, cursor + limit);
-      const hasMore = cursor + limit < total;
-
-      sendJson(res, 200, { edges: pagedEdges, total, cursor: cursor + limit, hasMore }, req, corsConfig);
+      sendJson(res, 200, { edges: [], total: 0, cursor: 0, hasMore: false }, req, corsConfig);
     }),
   }), 'codegraph: edges route');
 }

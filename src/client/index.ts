@@ -7,9 +7,9 @@ import { GraphIcon } from './components/Icons.tsx';
 import { scoped } from '../shared/Logger.ts';
 import { resetLoggerListeners } from '../shared/Logger.ts';
 import type { GraphData } from '../types/index.ts';
-import { validateGraphData } from './validators.ts';
+
 import { PLUGIN_VERSION } from '../generated/version.ts';
-import { fetchStatus, fetchGraphDataIncremental, fetchWorkspace, requestScan, requestInit, requestWatch, fetchBootstrap } from './api/index.ts';
+import { fetchStatus, fetchGraphDataIncremental, fetchWorkspace, requestInit, requestWatch, fetchBootstrap } from './api/index.ts';
 import { t } from './i18n/index.ts';
 import { resetI18nListeners } from './i18n/index.ts';
 import { disposeStore } from './store/graphStore.ts';
@@ -293,13 +293,10 @@ export function apply(ctx: Context) {
         const detail = (e as CustomEvent).detail as { path: string };
         const store = useGraphStore.getState();
         store.setLoading(true);
-        requestScan(detail.path).then((result) => {
-          if (result && result.success && result.nodes.length > 0) {
-            const validated = validateGraphData(result);
-            if (validated) {
-              store.setGraphData(validated.nodes, validated.edges, detail.path, validated.metadata);
-              log.info('import-repo completed', { path: detail.path, nodes: validated.nodes.length });
-            }
+        store.loadBootstrap().then((ok) => {
+          if (!ok) {
+            log.warn('import-repo bootstrap failed');
+            store.setError('Failed to load code graph data');
           }
           store.setLoading(false);
         }).catch((e) => { log.warn('import-repo failed', e); store.setLoading(false); });
@@ -343,10 +340,10 @@ export function apply(ctx: Context) {
         workspaceScanTimer = setTimeout(() => {
           workspaceScanTimer = null;
           store.setLoading(true);
-          requestScan(detail.path).then((result) => {
-            if (result && result.success && result.nodes.length > 0) {
-              const validated = validateGraphData(result);
-              if (validated) { store.setGraphData(validated.nodes, validated.edges, detail.path, validated.metadata); }
+          store.loadBootstrap().then((ok) => {
+            if (!ok) {
+              log.warn('workspace change bootstrap failed');
+              store.setError('Failed to load code graph data');
             }
             store.setLoading(false);
           }).catch((e) => { log.warn('workspace scan failed', e); store.setLoading(false); });
