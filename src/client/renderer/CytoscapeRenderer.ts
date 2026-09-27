@@ -193,6 +193,7 @@ export class CytoscapeRenderer implements IRenderer {
 
   setRawNodes(rawNodes: GraphNode[]): void {
     this.dataCtrl?.setRawNodes(rawNodes);
+    this.searchCtrl?.rebuildIndex();
   }
 
   applyLayout(layout: LayoutType): void {

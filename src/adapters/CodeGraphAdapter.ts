@@ -14,6 +14,7 @@ import type { GraphNode, GraphEdge, AdapterResult, DataSourceType } from '../typ
 import { NodeId, EdgeId } from '../types/index.ts';
 import { scoped } from '../shared/Logger.ts';
 import { inferLayerFromPath } from '../shared/layerUtils.ts';
+import { SQLITE } from '../shared/constants.ts';
 import type { IDataAdapter, UpstreamInvoker } from './IAdapter.ts';
 
 export type { UpstreamInvoker } from './IAdapter.ts';
@@ -207,11 +208,17 @@ export function readSymbolASTFromDb(dbPath: string, symbolId: string): { nodes: 
       const calleeIds = db.prepare('SELECT target FROM edges WHERE source = ?').all(symbolId) as { target: string }[];
       if (calleeIds.length === 0) return { nodes: [], total: 0 };
       const idList = calleeIds.map(r => r.target);
-      const placeholders = idList.map(() => '?').join(',');
-      const nodes = db.prepare(
-        `SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE id IN (${placeholders})`,
-      ).all(...idList) as unknown as DbNodeRow[];
-      return { nodes, total };
+      const allNodes: DbNodeRow[] = [];
+      const batchSize = SQLITE.MAX_IN_PARAMS;
+      for (let i = 0; i < idList.length; i += batchSize) {
+        const batch = idList.slice(i, i + batchSize);
+        const placeholders = batch.map(() => '?').join(',');
+        const batchNodes = db.prepare(
+          `SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE id IN (${placeholders})`,
+        ).all(...batch) as unknown as DbNodeRow[];
+        allNodes.push(...batchNodes);
+      }
+      return { nodes: allNodes, total };
     } finally {
       db.close();
     }
@@ -240,12 +247,20 @@ export function readEdgesFromDb(dbPath: string, nodeId: string, scope: 'file' | 
       const nodeIds = db.prepare('SELECT id FROM nodes WHERE file_path = ?').all(filePath) as { id: string }[];
       const idList = nodeIds.map(n => n.id);
       if (idList.length === 0) return { edges: [], total: 0 };
-      const placeholders = idList.map(() => '?').join(',');
-      const total = (db.prepare(`SELECT COUNT(*) as cnt FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders})`).get(...idList, ...idList) as { cnt: number }).cnt;
-      const edges = db.prepare(
-        `SELECT id, source, target, kind, line FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders}) LIMIT ? OFFSET ?`,
-      ).all(...idList, ...idList, limit, cursor) as unknown as DbEdgeRow[];
-      return { edges, total };
+      const batchSize = SQLITE.MAX_IN_PARAMS;
+      let total = 0;
+      const allEdges: DbEdgeRow[] = [];
+      for (let i = 0; i < idList.length; i += batchSize) {
+        const batch = idList.slice(i, i + batchSize);
+        const placeholders = batch.map(() => '?').join(',');
+        const batchTotal = (db.prepare(`SELECT COUNT(*) as cnt FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders})`).get(...batch, ...batch) as { cnt: number }).cnt;
+        total += batchTotal;
+        const batchEdges = db.prepare(
+          `SELECT id, source, target, kind, line FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders}) LIMIT ? OFFSET ?`,
+        ).all(...batch, ...batch, limit, cursor) as unknown as DbEdgeRow[];
+        allEdges.push(...batchEdges);
+      }
+      return { edges: allEdges, total };
     } finally {
       db.close();
     }
@@ -261,11 +276,17 @@ export function readEdgesForNodesFromDb(dbPath: string, nodeIds: string[]): DbEd
     const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite');
     const db = new DatabaseSync(dbPath, { readOnly: true });
     try {
-      const placeholders = nodeIds.map(() => '?').join(',');
-      const edges = db.prepare(
-        `SELECT id, source, target, kind, line FROM edges WHERE (source IN (${placeholders}) AND target IN (${placeholders}))`,
-      ).all(...nodeIds, ...nodeIds) as unknown as DbEdgeRow[];
-      return edges;
+      const allEdges: DbEdgeRow[] = [];
+      const batchSize = SQLITE.MAX_IN_PARAMS;
+      for (let i = 0; i < nodeIds.length; i += batchSize) {
+        const batch = nodeIds.slice(i, i + batchSize);
+        const placeholders = batch.map(() => '?').join(',');
+        const edges = db.prepare(
+          `SELECT id, source, target, kind, line FROM edges WHERE (source IN (${placeholders}) AND target IN (${placeholders}))`,
+        ).all(...batch, ...batch) as unknown as DbEdgeRow[];
+        allEdges.push(...edges);
+      }
+      return allEdges;
     } finally {
       db.close();
     }

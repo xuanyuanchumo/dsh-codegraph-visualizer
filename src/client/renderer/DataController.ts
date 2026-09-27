@@ -109,8 +109,9 @@ export class DataController {
         this.lastAddedNodeIds.add(n.id);
       }
       for (const e of edges) {
-        this.addEdge(e);
-        this.currentEdges.set(e.id, e);
+        if (this.addEdge(e)) {
+          this.currentEdges.set(e.id, e);
+        }
       }
     });
     this.computeNodeWeights();
@@ -150,7 +151,9 @@ export class DataController {
       this.currentNodes.set(n.id, n);
     }
     for (const e of edges) {
-      if (!this.currentEdges.has(e.id)) edgesToAdd.push(e);
+      if (!this.currentEdges.has(e.id)) {
+        edgesToAdd.push(e);
+      }
       else {
         const existing = this.currentEdges.get(e.id);
         const cyEdge = this.cy.getElementById(e.id);
@@ -178,7 +181,9 @@ export class DataController {
     if (nodesToAdd.length <= BATCH_SIZE) {
       this.cy.batch(() => {
         for (const n of nodesToAdd) this.addNode(n);
-        for (const e of edgesToAdd) this.addEdge(e);
+        for (const e of edgesToAdd) {
+          if (this.addEdge(e)) this.currentEdges.set(e.id, e);
+        }
       });
       this.computeNodeWeights();
       return;
@@ -192,7 +197,9 @@ export class DataController {
 
     this.cy.batch(() => {
       for (const n of firstBatchNodes) this.addNode(n);
-      for (const e of firstBatchEdges) this.addEdge(e);
+      for (const e of firstBatchEdges) {
+        if (this.addEdge(e)) this.currentEdges.set(e.id, e);
+      }
     });
 
     this.batchQueue = { nodes: remainingNodes, edges: remainingEdges };
@@ -265,10 +272,10 @@ export class DataController {
     this.cy.add({ group: 'nodes', data });
   }
 
-  private addEdge(e: GraphEdge): void {
+  private addEdge(e: GraphEdge): boolean {
     if (this.cy.getElementById(e.source).empty() || this.cy.getElementById(e.target).empty()) {
       log.warn('edge dropped: missing endpoint', { edgeId: e.id, source: e.source, target: e.target });
-      return;
+      return false;
     }
     const existing = this.cy.getElementById(e.id);
     if (existing.length > 0) {
@@ -288,6 +295,7 @@ export class DataController {
       }
     }
     this.cy.add({ group: 'edges', data });
+    return true;
   }
 
   private processBatchQueue(): void {
@@ -307,7 +315,9 @@ export class DataController {
 
       this.cy.batch(() => {
         for (const n of batchNodes) this.addNode(n);
-        for (const e of batchEdges) this.addEdge(e);
+        for (const e of batchEdges) {
+          if (this.addEdge(e)) this.currentEdges.set(e.id, e);
+        }
       });
 
       if (leftoverNodes.length > 0) {

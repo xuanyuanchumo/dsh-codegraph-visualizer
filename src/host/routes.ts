@@ -3,7 +3,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { scoped } from '../shared/Logger.ts';
-import { VALIDATION, AST, ERROR_CODES, ERROR_MESSAGES, BOOTSTRAP, EDGES_AGGREGATION } from '../shared/constants.ts';
+import { VALIDATION, AST, ERROR_CODES, ERROR_MESSAGES, BOOTSTRAP, EDGES_AGGREGATION, API } from '../shared/constants.ts';
 import type { GraphData, GraphNode, GraphEdge, IncomingMessage, ServerResponse, IGraphVisualizerService } from '../types/index.ts';
 import { RepoId, NodeId, EdgeId } from '../types/index.ts';
 import { fetchMergedGraph } from '../tools.ts';
@@ -110,6 +110,23 @@ async function validateWorkspacePath(
     return '__denied__';
   }
   return workspacePath;
+}
+
+function checkEtag(
+  req: IncomingMessage,
+  res: ServerResponse,
+  corsConfig: CorsConfig,
+  serverEtag: string,
+): boolean {
+  const ifNoneMatch = req.headers['if-none-match'];
+  if (!ifNoneMatch) return false;
+  const clientEtag = String(ifNoneMatch);
+  if (clientEtag !== serverEtag) return false;
+  const corsHeaders = buildCorsHeaders(req, corsConfig);
+  corsHeaders['etag'] = serverEtag;
+  res.writeHead(304, corsHeaders);
+  res.end();
+  return true;
 }
 
 export interface RouteDeps {
@@ -310,24 +327,28 @@ function registerDataRoute(rc: RouteContext): void {
     kind: 'exact',
     path: routePath,
     handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, (req, res) => {
-      const ifNoneMatch = req.headers['if-none-match'];
       const lastGraphData = deps.getLastGraphData();
-      if (ifNoneMatch && lastGraphData) {
-        const clientTimestamp = parseInt(String(ifNoneMatch), 10);
-        if (clientTimestamp >= lastGraphData.metadata.timestamp) {
-          const corsHeaders = buildCorsHeaders(req, corsConfig);
-          corsHeaders['etag'] = String(lastGraphData.metadata.timestamp);
-          res.writeHead(304, corsHeaders);
-          res.end();
-          return;
-        }
+      if (lastGraphData && checkEtag(req, res, corsConfig, String(lastGraphData.metadata.timestamp))) {
+        return;
       }
       if (lastGraphData) {
-        const dataHeaders = buildCorsHeaders(req, corsConfig);
-        dataHeaders['content-type'] = 'application/json';
-        dataHeaders['etag'] = String(lastGraphData.metadata.timestamp);
-        res.writeHead(200, dataHeaders);
-        res.end(JSON.stringify(lastGraphData));
+        const payload = JSON.stringify(lastGraphData);
+        if (payload.length > API.DATA_RESPONSE_MAX_BYTES) {
+          const slimmed = slimGraphData(lastGraphData, API.DATA_RESPONSE_SLIM_NODES);
+          const slimPayload = JSON.stringify(slimmed);
+          const dataHeaders = buildCorsHeaders(req, corsConfig);
+          dataHeaders['content-type'] = 'application/json';
+          dataHeaders['etag'] = String(lastGraphData.metadata.timestamp);
+          dataHeaders['x-truncated'] = '1';
+          res.writeHead(200, dataHeaders);
+          res.end(slimPayload);
+        } else {
+          const dataHeaders = buildCorsHeaders(req, corsConfig);
+          dataHeaders['content-type'] = 'application/json';
+          dataHeaders['etag'] = String(lastGraphData.metadata.timestamp);
+          res.writeHead(200, dataHeaders);
+          res.end(payload);
+        }
       } else {
         sendJson(res, 200, { nodes: [], edges: [], metadata: { repoId: RepoId('empty'), timestamp: 0, nodeCount: 0, edgeCount: 0 } }, req, corsConfig);
       }
@@ -684,19 +705,9 @@ function registerBootstrapRoute(rc: RouteContext): void {
     handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, async (req, res) => {
       const workspacePath = findWorkspacePath(ctx);
 
-      // P1-5: ETag support — check If-None-Match before processing
-      const ifNoneMatch = req.headers['if-none-match'];
       const cachedData = deps.getLastGraphData();
-      if (ifNoneMatch && cachedData) {
-        const clientEtag = String(ifNoneMatch);
-        const serverEtag = String(cachedData.metadata.timestamp);
-        if (clientEtag === serverEtag) {
-          const corsHeaders = buildCorsHeaders(req, corsConfig);
-          corsHeaders['etag'] = serverEtag;
-          res.writeHead(304, corsHeaders);
-          res.end();
-          return;
-        }
+      if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) {
+        return;
       }
 
       // P0-1: DB-first — try SQLite direct read for true sharded query
@@ -809,19 +820,9 @@ function registerNodeChildrenRoute(rc: RouteContext): void {
       const cursor = parseInt(url.searchParams.get('cursor') ?? '0', 10) || 0;
       const limit = parseInt(url.searchParams.get('limit') ?? String(BOOTSTRAP.CHILDREN_PAGE_SIZE), 10) || BOOTSTRAP.CHILDREN_PAGE_SIZE;
 
-      // P1-5: ETag support — check If-None-Match before processing
-      const ifNoneMatch = req.headers['if-none-match'];
       const cachedData = deps.getLastGraphData();
-      if (ifNoneMatch && cachedData) {
-        const clientEtag = String(ifNoneMatch);
-        const serverEtag = String(cachedData.metadata.timestamp);
-        if (clientEtag === serverEtag) {
-          const corsHeaders = buildCorsHeaders(req, corsConfig);
-          corsHeaders['etag'] = serverEtag;
-          res.writeHead(304, corsHeaders);
-          res.end();
-          return;
-        }
+      if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) {
+        return;
       }
 
       // P0-1: DB-first — try SQLite direct read for true sharded query
@@ -911,19 +912,9 @@ function registerFileOutlineRoute(rc: RouteContext): void {
         return;
       }
 
-      // P1-5: ETag support — check If-None-Match before processing
-      const ifNoneMatch = req.headers['if-none-match'];
       const cachedData = deps.getLastGraphData();
-      if (ifNoneMatch && cachedData) {
-        const clientEtag = String(ifNoneMatch);
-        const serverEtag = String(cachedData.metadata.timestamp);
-        if (clientEtag === serverEtag) {
-          const corsHeaders = buildCorsHeaders(req, corsConfig);
-          corsHeaders['etag'] = serverEtag;
-          res.writeHead(304, corsHeaders);
-          res.end();
-          return;
-        }
+      if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) {
+        return;
       }
 
       // DB-first: try SQLite direct read
@@ -1002,19 +993,9 @@ function registerSymbolASTRoute(rc: RouteContext): void {
         return;
       }
 
-      // P1-5: ETag support — check If-None-Match before processing
-      const ifNoneMatch = req.headers['if-none-match'];
       const cachedData = deps.getLastGraphData();
-      if (ifNoneMatch && cachedData) {
-        const clientEtag = String(ifNoneMatch);
-        const serverEtag = String(cachedData.metadata.timestamp);
-        if (clientEtag === serverEtag) {
-          const corsHeaders = buildCorsHeaders(req, corsConfig);
-          corsHeaders['etag'] = serverEtag;
-          res.writeHead(304, corsHeaders);
-          res.end();
-          return;
-        }
+      if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) {
+        return;
       }
 
       // DB-first: try SQLite direct read
@@ -1093,19 +1074,9 @@ function registerEdgesRoute(rc: RouteContext): void {
         return;
       }
 
-      // P1-5: ETag support — check If-None-Match before processing
-      const ifNoneMatch = req.headers['if-none-match'];
       const cachedData = deps.getLastGraphData();
-      if (ifNoneMatch && cachedData) {
-        const clientEtag = String(ifNoneMatch);
-        const serverEtag = String(cachedData.metadata.timestamp);
-        if (clientEtag === serverEtag) {
-          const corsHeaders = buildCorsHeaders(req, corsConfig);
-          corsHeaders['etag'] = serverEtag;
-          res.writeHead(304, corsHeaders);
-          res.end();
-          return;
-        }
+      if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) {
+        return;
       }
 
       const lastGraphData = deps.getLastGraphData();

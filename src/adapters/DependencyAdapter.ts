@@ -24,6 +24,13 @@ export interface DependencyGraph {
   edges: DependencyEdge[];
 }
 
+const SEMVER_RE = /^\d+\.\d+\.\d+/;
+
+function sanitizeVersion(raw: unknown): string {
+  const v = String(raw ?? '');
+  return SEMVER_RE.test(v) ? v : '0.0.0';
+}
+
 export function parsePackageJson(content: string): DependencyGraph {
   const nodes: DependencyNode[] = [];
   const edges: DependencyEdge[] = [];
@@ -32,7 +39,7 @@ export function parsePackageJson(content: string): DependencyGraph {
     const pkg = JSON.parse(content);
     const rootName = pkg.name || 'root';
     const rootId = `dep:${rootName}`;
-    nodes.push({ id: rootId, name: rootName, version: pkg.version || '0.0.0', type: 'npm' });
+    nodes.push({ id: rootId, name: rootName, version: sanitizeVersion(pkg.version), type: 'npm' });
     seenIds.add(rootId);
 
     const depSections: Array<{ key: string; scope: DependencyEdge['scope'] }> = [
@@ -48,7 +55,7 @@ export function parsePackageJson(content: string): DependencyGraph {
         const depId = `dep:${name}`;
         if (!seenIds.has(depId)) {
           seenIds.add(depId);
-          nodes.push({ id: depId, name, version: String(version), type: 'npm' });
+          nodes.push({ id: depId, name, version: sanitizeVersion(version), type: 'npm' });
         }
         edges.push({ source: rootId, target: depId, type: 'depends', scope });
       }

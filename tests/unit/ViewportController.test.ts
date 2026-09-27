@@ -372,7 +372,7 @@ describe('ViewportController', () => {
       const controller = new ViewportController(cy as any);
 
       const result = controller.getThumbnail();
-      expect(cy.png).toHaveBeenCalledWith({ full: true, scale: 0.15, bg: 'transparent' });
+      expect(cy.png).toHaveBeenCalledWith({ full: true, scale: expect.any(Number), bg: 'transparent' });
       expect(result).toBe('data:image/png;base64,mockThumbnail');
     });
 

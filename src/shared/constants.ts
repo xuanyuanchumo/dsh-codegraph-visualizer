@@ -85,6 +85,8 @@ export const API = {
   RATE_LIMIT_HEAVY: 10,
   RATE_LIMIT_MAP_MAX: 10000,
   SCAN_TIMEOUT_MS: 60000,
+  DATA_RESPONSE_MAX_BYTES: 5 * 1024 * 1024,
+  DATA_RESPONSE_SLIM_NODES: 500,
 } as const;
 
 export const HEALTH_SCORE = {
@@ -126,6 +128,12 @@ export const LAYOUT = {
   FCOSE_LARGE_NUM_ITER: 1000,
   FCOSE_LARGE_QUALITY: 'draft' as const,
   NODE_REPULSE_MAX: 20000,
+} as const;
+
+export const VIEWPORT = {
+  THUMBNAIL_TARGET_WIDTH: 200,
+  THUMBNAIL_MIN_SCALE: 0.05,
+  THUMBNAIL_MAX_SCALE: 0.3,
 } as const;
 
 export const VIRTUAL_VIEWPORT = {
@@ -232,6 +240,10 @@ export const FUNCTION_BODY = {
 export const SYMBOL_AST = {
   MAX_NODES: 800,
   MAX_SOURCE_LINES: 1500,
+} as const;
+
+export const SQLITE = {
+  MAX_IN_PARAMS: 500,
 } as const;
 
 export const EDGES_AGGREGATION = {

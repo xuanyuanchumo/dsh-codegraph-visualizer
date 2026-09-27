@@ -1,6 +1,6 @@
 import type { Core } from 'cytoscape';
 import type { NodeId } from '../../types/index.ts';
-import { RENDERER } from '../../shared/constants.ts';
+import { RENDERER, VIEWPORT } from '../../shared/constants.ts';
 
 export class ViewportController {
   private cy: Core;
@@ -107,7 +107,11 @@ export class ViewportController {
   }
 
   getThumbnail(): string | null {
-    return this.cy.png({ full: true, scale: 0.15, bg: 'transparent' });
+    const bounds = this.cy.elements().boundingBox();
+    const graphWidth = Math.max(bounds.w, 1);
+    const dynamicScale = VIEWPORT.THUMBNAIL_TARGET_WIDTH / graphWidth;
+    const scale = Math.min(Math.max(dynamicScale, VIEWPORT.THUMBNAIL_MIN_SCALE), VIEWPORT.THUMBNAIL_MAX_SCALE);
+    return this.cy.png({ full: true, scale, bg: 'transparent' });
   }
 
   getViewportInfo(): { zoom: number; pan: { x: number; y: number }; renderedSize: { w: number; h: number }; totalSize: { w: number; h: number } } | null {

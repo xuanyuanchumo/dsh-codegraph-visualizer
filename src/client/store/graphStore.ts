@@ -120,6 +120,32 @@ function updateIncrementalClusterCtx(
   };
 }
 
+function mergeAndRecluster(
+  newNodes: GraphNode[],
+  newEdges: GraphEdge[],
+  set: (partial: Partial<GraphState>) => void,
+  logLabel: string,
+  logDetail: Record<string, unknown>,
+): void {
+  const s = useGraphStore.getState();
+  const existingIds = new Set(s.rawNodes.map((n) => n.id));
+  const filteredNodes = newNodes.filter((n) => !existingIds.has(n.id));
+  const existingEdgeIds = new Set(s.rawEdges.map((e) => e.id));
+  const filteredEdges = newEdges.filter((e) => !existingEdgeIds.has(e.id));
+  if (filteredNodes.length === 0 && filteredEdges.length === 0) return;
+  const mergedRawNodes = [...s.rawNodes, ...filteredNodes];
+  const mergedRawEdges = [...s.rawEdges, ...filteredEdges];
+  const { clusterDepth: cd, expandedNodeIds: ei, panelWidth: pw } = s;
+  const result = tryIncrementalOrFull(
+    incrementalClusterCtx,
+    mergedRawNodes, mergedRawEdges,
+    ei, cd, pw ?? undefined,
+  );
+  updateIncrementalClusterCtx(result, mergedRawNodes, mergedRawEdges);
+  set({ rawNodes: mergedRawNodes, rawEdges: mergedRawEdges, nodes: result.nodes, edges: result.edges });
+  log.info(logLabel, { ...logDetail, newNodes: filteredNodes.length, newEdges: filteredEdges.length });
+}
+
 
 
 function sanitizeGraphData(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
@@ -689,24 +715,7 @@ export const useGraphStore = create<GraphState>()(
             fetchFileOutline(nodeId).then((data) => {
               if (gen !== expandGeneration) return;
               if (data && data.symbols.length > 0) {
-                const s = useGraphStore.getState();
-                const existingIds = new Set(s.rawNodes.map((n) => n.id));
-                const newSyms = data.symbols.filter((n) => !existingIds.has(n.id));
-                const existingEdgeIds = new Set(s.rawEdges.map((e) => e.id));
-                const newEdges = data.edges.filter((e) => !existingEdgeIds.has(e.id));
-                if (newSyms.length > 0 || newEdges.length > 0) {
-                  const mergedRawNodes = [...s.rawNodes, ...newSyms];
-                  const mergedRawEdges = [...s.rawEdges, ...newEdges];
-                  const { clusterDepth: cd, expandedNodeIds: ei, panelWidth: pw } = s;
-                  const result = tryIncrementalOrFull(
-                    incrementalClusterCtx,
-                    mergedRawNodes, mergedRawEdges,
-                    ei, cd, pw ?? undefined,
-                  );
-                  updateIncrementalClusterCtx(result, mergedRawNodes, mergedRawEdges);
-                  set({ rawNodes: mergedRawNodes, rawEdges: mergedRawEdges, nodes: result.nodes, edges: result.edges });
-                  log.info('file outline loaded', { nodeId, newSymbols: newSyms.length, newEdges: newEdges.length });
-                }
+                mergeAndRecluster(data.symbols, data.edges, set, 'file outline loaded', { nodeId });
               }
             }).catch((err) => {
               log.warn('expandNode: fetchFileOutline failed', { nodeId, err });
@@ -716,7 +725,6 @@ export const useGraphStore = create<GraphState>()(
             fetchSymbolAST(nodeId).then((data) => {
               if (gen !== expandGeneration) return;
               if (data && data.astNodes.length > 0) {
-                // P1-1: Single-symbol AST node budget — truncate if exceeds limit
                 const truncatedAstNodes = data.astNodes.length > SYMBOL_AST.MAX_NODES
                   ? data.astNodes.slice(0, SYMBOL_AST.MAX_NODES)
                   : data.astNodes;
@@ -728,24 +736,7 @@ export const useGraphStore = create<GraphState>()(
                 if (truncatedAstNodes.length < data.astNodes.length) {
                   log.warn('symbol AST truncated', { nodeId, original: data.astNodes.length, truncated: truncatedAstNodes.length });
                 }
-                const s = useGraphStore.getState();
-                const existingIds = new Set(s.rawNodes.map((n) => n.id));
-                const newAst = truncatedAstNodes.filter((n) => !existingIds.has(n.id));
-                const existingEdgeIds = new Set(s.rawEdges.map((e) => e.id));
-                const newEdges = truncatedAstEdges.filter((e) => !existingEdgeIds.has(e.id));
-                if (newAst.length > 0 || newEdges.length > 0) {
-                  const mergedRawNodes = [...s.rawNodes, ...newAst];
-                  const mergedRawEdges = [...s.rawEdges, ...newEdges];
-                  const { clusterDepth: cd, expandedNodeIds: ei, panelWidth: pw } = s;
-                  const result = tryIncrementalOrFull(
-                    incrementalClusterCtx,
-                    mergedRawNodes, mergedRawEdges,
-                    ei, cd, pw ?? undefined,
-                  );
-                  updateIncrementalClusterCtx(result, mergedRawNodes, mergedRawEdges);
-                  set({ rawNodes: mergedRawNodes, rawEdges: mergedRawEdges, nodes: result.nodes, edges: result.edges });
-                  log.info('symbol AST loaded', { nodeId, newAstNodes: newAst.length, newEdges: newEdges.length, sourceLines: truncatedSourceLines.length });
-                }
+                mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, set, 'symbol AST loaded', { nodeId, sourceLines: truncatedSourceLines.length });
               }
             }).catch((err) => {
               log.warn('expandNode: fetchSymbolAST failed', { nodeId, err });
