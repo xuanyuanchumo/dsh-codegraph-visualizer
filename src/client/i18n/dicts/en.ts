@@ -293,6 +293,7 @@ export const en: Record<string, string> = {
   'toolbar.hotspot': 'Hotspot Analysis',
   'toolbar.godModule': 'God Module Detection',
   'toolbar.coreFunction': 'Core Function Analysis',
+  'toolbar.deadCode': 'Dead Code Detection',
 
   // Hotspot panel
   'hotspot.close': 'Close hotspot analysis',
@@ -380,6 +381,15 @@ export const en: Record<string, string> = {
   'coreFunction.outDegree': 'Out-Degree',
   'coreFunction.influenceReach': 'Influence Reach',
   'coreFunction.callChainDepth': 'Call Chain Depth',
+
+  // Dead code
+  'deadcode.filterAll': 'All',
+  'deadcode.unreachable': 'Unreachable',
+  'deadcode.noIncoming': 'No Incoming',
+  'deadcode.orphan': 'Orphan',
+  'deadcode.confirmed': 'Confirmed',
+  'deadcode.suspected': 'Suspected',
+  'deadcode.empty': 'No dead code detected',
 
   // Flowchart node labels
   'flowchart.start': 'Start',

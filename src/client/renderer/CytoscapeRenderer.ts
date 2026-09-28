@@ -475,4 +475,28 @@ export class CytoscapeRenderer implements IRenderer {
       this.cy?.off('zoom', callback);
     };
   }
+
+  markDeadCode(nodeIds: Set<string>): void {
+    if (!this.cy) return;
+    this.cy.batch(() => {
+      this.cy!.nodes().forEach((node) => {
+        if (nodeIds.has(node.id())) {
+          node.addClass('dead-code');
+        }
+      });
+      this.cy!.edges().forEach((edge) => {
+        if (nodeIds.has(edge.source().id()) && nodeIds.has(edge.target().id())) {
+          edge.addClass('dead-code-edge');
+        }
+      });
+    });
+  }
+
+  clearDeadCodeMarks(): void {
+    if (!this.cy) return;
+    this.cy.batch(() => {
+      this.cy!.nodes().removeClass('dead-code dead-code-suspected');
+      this.cy!.edges().removeClass('dead-code-edge');
+    });
+  }
 }

@@ -60,15 +60,18 @@ export const BEHAVIORAL_MICRO_VIEW_MODES: ViewMode[] = ['cfg', 'flowchart', 'seq
 export type AnalysisPanelKey =
   | 'showSearch' | 'showPathFind' | 'showHealthScore' | 'showRules' | 'showImport' | 'showFilterPanel'
   | 'showCallChain' | 'showCycles' | 'showImpact' | 'showInheritance' | 'showHotspot' | 'showGodModule' | 'showCoreFunction'
+  | 'showDeadCode'
   | 'showMiniMap' | 'showLegend';
 
 export const STRUCTURAL_PANELS: Set<AnalysisPanelKey> = new Set([
   'showSearch', 'showPathFind', 'showHealthScore', 'showRules', 'showImport', 'showFilterPanel',
+  'showDeadCode',
   'showMiniMap', 'showLegend',
 ]);
 
 export const BEHAVIORAL_PANELS: Set<AnalysisPanelKey> = new Set([
   'showCallChain', 'showCycles', 'showImpact', 'showInheritance', 'showHotspot', 'showGodModule', 'showCoreFunction',
+  'showDeadCode',
   'showSearch', 'showPathFind', 'showMiniMap', 'showLegend',
 ]);
 

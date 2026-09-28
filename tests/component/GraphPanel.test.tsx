@@ -1050,6 +1050,8 @@ describe('GraphPanel uncovered handler tests', () => {
       detectCyclesDetailed: vi.fn(() => []),
       hideNode: vi.fn(),
       showAllNodes: vi.fn(),
+      markDeadCode: vi.fn(),
+      clearDeadCodeMarks: vi.fn(),
     };
   }
 
@@ -1766,6 +1768,8 @@ describe('GraphPanel context menu callback tests', () => {
       highlightCallChain: vi.fn(),
       highlightImpact: vi.fn(),
       getImpactStats: vi.fn(() => null),
+      markDeadCode: vi.fn(),
+      clearDeadCodeMarks: vi.fn(),
     };
   }
 
@@ -2035,6 +2039,8 @@ describe('GraphPanel keyboard handler callback tests', () => {
       highlightCallChain: vi.fn(),
       highlightImpact: vi.fn(),
       getImpactStats: vi.fn(() => null),
+      markDeadCode: vi.fn(),
+      clearDeadCodeMarks: vi.fn(),
     };
   }
 
@@ -2218,6 +2224,8 @@ describe('GraphPanel panel callback tests', () => {
       highlightCallChain: vi.fn(),
       highlightImpact: vi.fn(),
       getImpactStats: vi.fn(() => null),
+      markDeadCode: vi.fn(),
+      clearDeadCodeMarks: vi.fn(),
     };
   }
 
@@ -2825,6 +2833,8 @@ describe('GraphPanel onClose callback tests', () => {
       highlightCallChain: vi.fn(),
       highlightImpact: vi.fn(),
       getImpactStats: vi.fn(() => null),
+      markDeadCode: vi.fn(),
+      clearDeadCodeMarks: vi.fn(),
     };
   }
 
@@ -2835,6 +2845,7 @@ describe('GraphPanel onClose callback tests', () => {
       showRules: false, showCallChain: false, showImpact: false,
       showCycles: false, showHotspot: false, showGodModule: false,
       showCoreFunction: false, showInheritance: false, cycleIsolation: false,
+      showDeadCode: false,
       collapsed: false, isCollapsed: false, showTour: false,
       toPanelControls: {
         showImport: false, showSearch: false, showLegend: false, showMiniMap: false,
@@ -2842,11 +2853,13 @@ describe('GraphPanel onClose callback tests', () => {
         showRules: false, showCallChain: false, showImpact: false,
         showCycles: false, showHotspot: false, showGodModule: false,
         showCoreFunction: false, cycleIsolation: false, showInheritance: false, showTour: false,
+        showDeadCode: false,
         onToggleSearch: vi.fn(), onToggleCallChain: vi.fn(), onToggleCycles: vi.fn(),
         onToggleCycleIsolation: vi.fn(), onToggleImpact: vi.fn(), onToggleInheritance: vi.fn(),
         onToggleMiniMap: vi.fn(), onToggleLegend: vi.fn(), onToggleImport: vi.fn(),
         onTogglePathFind: vi.fn(), onToggleHealthScore: vi.fn(), onToggleRules: vi.fn(),
         onToggleHotspot: vi.fn(), onToggleGodModule: vi.fn(), onToggleCoreFunction: vi.fn(),
+        onToggleDeadCode: vi.fn(),
         onToggleFilterPanel: vi.fn(),
       },
       setShowImport: vi.fn(), setShowSearch: vi.fn(), setShowLegend: vi.fn(),
@@ -2854,6 +2867,7 @@ describe('GraphPanel onClose callback tests', () => {
       setShowHealthScore: vi.fn(), setShowRules: vi.fn(), setShowCallChain: vi.fn(),
       setShowImpact: vi.fn(), setShowCycles: vi.fn(), setShowHotspot: vi.fn(),
       setShowGodModule: vi.fn(), setShowCoreFunction: vi.fn(),
+      setShowDeadCode: vi.fn(),
       setShowCycleIsolation: vi.fn(), setShowInheritance: vi.fn(), setShowTour: vi.fn(),
       toggleCollapsed: vi.fn(), toggleCollapse: vi.fn(),
       toggleSearch: vi.fn(), toggleCycles: vi.fn(), toggleCycleIsolation: vi.fn(),

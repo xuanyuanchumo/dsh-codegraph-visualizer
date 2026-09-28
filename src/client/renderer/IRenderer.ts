@@ -95,4 +95,6 @@ export interface IRenderer {
   clearLastError(): void;
   getZoom(): number;
   onZoomChange(callback: () => void): () => void;
+  markDeadCode(nodeIds: Set<string>): void;
+  clearDeadCodeMarks(): void;
 }

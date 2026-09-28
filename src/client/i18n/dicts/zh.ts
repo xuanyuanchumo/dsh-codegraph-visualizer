@@ -292,6 +292,7 @@ export const zh: Record<string, string> = {
   'toolbar.hotspot': '热点分析',
   'toolbar.godModule': 'God Module 检测',
   'toolbar.coreFunction': '核心函数识别',
+  'toolbar.deadCode': '死代码检测',
 
   // Hotspot panel
   'hotspot.close': '关闭热点分析',
@@ -379,6 +380,15 @@ export const zh: Record<string, string> = {
   'coreFunction.outDegree': '出度',
   'coreFunction.influenceReach': '影响范围',
   'coreFunction.callChainDepth': '调用链深度',
+
+  // Dead code
+  'deadcode.filterAll': '全部',
+  'deadcode.unreachable': '不可达',
+  'deadcode.noIncoming': '无调用者',
+  'deadcode.orphan': '孤立子图',
+  'deadcode.confirmed': '确认',
+  'deadcode.suspected': '疑似',
+  'deadcode.empty': '未检测到死代码',
 
   // Flowchart node labels
   'flowchart.start': '开始',

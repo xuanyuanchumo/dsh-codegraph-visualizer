@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import type { GraphNode, GraphEdge, NodeId, HealthScore, RuleDefinition, RuleViolation, ViewMode, HeatmapMode } from '../../types/index.ts';
+import type { DeadCodeResult } from '../../shared/analysis/DeadCodeAnalyzer.ts';
 import { computeClusteredGraph } from './cluster/index.ts';
 import type { ClusterNode, ClusterEdge, ClusterResult } from './cluster/index.ts';
 import { estimateExpandCost, invalidateExpandCostCache } from './cluster/progressiveCluster.ts';
@@ -352,6 +353,8 @@ interface GraphState {
   healthScore: HealthScore | null;
   rules: RuleDefinition[];
   ruleViolations: RuleViolation[];
+  deadCodeResult: DeadCodeResult | null;
+  deadCodeModeActive: boolean;
 
   panelHeight: number | null;
   panelWidth: number | null;
@@ -408,6 +411,8 @@ interface GraphState {
   setHealthScore: (score: HealthScore | null) => void;
   setRules: (rules: RuleDefinition[]) => void;
   setRuleViolations: (violations: RuleViolation[]) => void;
+  setDeadCodeResult: (result: DeadCodeResult | null) => void;
+  setDeadCodeModeActive: (active: boolean) => void;
   setSelectedFunction: (fn: { nodeId: string; filePath: string; functionName: string } | null) => void;
   assembleMicro: (viewMode: 'cfg' | 'flowchart' | 'sequence', selectedFunctionOverride?: { nodeId: string; filePath: string; functionName: string } | null) => Promise<void>;
   setPanelSize: (height: number, width: number) => void;
@@ -479,6 +484,8 @@ export const useGraphStore = create<GraphState>()(
       healthScore: null,
       rules: [],
       ruleViolations: [],
+      deadCodeResult: null,
+      deadCodeModeActive: false,
       panelHeight: null,
       panelWidth: null,
       selectedFunction: null,
@@ -1013,6 +1020,8 @@ export const useGraphStore = create<GraphState>()(
       setHealthScore: (score) => set({ healthScore: score }),
       setRules: (rules) => set({ rules }),
       setRuleViolations: (violations) => set({ ruleViolations: violations }),
+      setDeadCodeResult: (result) => set({ deadCodeResult: result }),
+      setDeadCodeModeActive: (active) => set({ deadCodeModeActive: active }),
       setPanelSize: (height, width) => set({ panelHeight: height, panelWidth: width }),
       resetPanelSize: () => set({ panelHeight: null, panelWidth: null }),
       addDegradation: (key) => set((s) => {

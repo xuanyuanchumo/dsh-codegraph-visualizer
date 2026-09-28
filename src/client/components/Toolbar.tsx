@@ -10,7 +10,7 @@ import {
   SunIcon, MoonIcon, DownloadIcon, ChevronDownIcon, ChevronUpIcon,
   UploadIcon, LayersIcon, ZapIcon, TreeIcon,
   PathIcon, HeartIcon, RuleIcon, FlameIcon, AlertCircleIcon,
-  UndoIcon, RedoIcon, StarIcon, FilterIcon,
+  UndoIcon, RedoIcon, StarIcon, FilterIcon, GhostIcon,
 } from './Icons.tsx';
 
 const LAYOUTS: LayoutType[] = ['cose', 'fcose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
@@ -90,6 +90,7 @@ export interface ToolbarVisibilityState {
   showHotspot: boolean;
   showGodModule: boolean;
   showCoreFunction: boolean;
+  showDeadCode: boolean;
   showFilterPanel: boolean;
   showTour: boolean;
 }
@@ -110,6 +111,7 @@ export interface ToolbarToggleHandlers {
   onToggleHotspot: () => void;
   onToggleGodModule: () => void;
   onToggleCoreFunction: () => void;
+  onToggleDeadCode: () => void;
   onToggleFilterPanel: () => void;
   onToggleTour: () => void;
 }
@@ -184,10 +186,10 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
 
   const {
     showSearch, showCallChain, showCycles, cycleIsolation, showImpact, showInheritance, showMiniMap, showLegend, showImport,
-    showPathFind, showHealthScore, showRules, showHotspot, showGodModule, showCoreFunction, showFilterPanel,
+    showPathFind, showHealthScore, showRules, showHotspot, showGodModule, showCoreFunction, showDeadCode, showFilterPanel,
     showTour,
     onToggleSearch, onToggleCallChain, onToggleCycles, onToggleCycleIsolation, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend,
-    onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onToggleCoreFunction, onToggleFilterPanel,
+    onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onToggleCoreFunction, onToggleDeadCode, onToggleFilterPanel,
     onToggleTour,
   } = panelControls;
 
@@ -378,6 +380,10 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           {availablePanels.has('showCoreFunction') && (
             <button className={`cg-corefunction-btn ${showCoreFunction ? 'cg-active' : ''}`} onClick={onToggleCoreFunction}
               title={t('toolbar.coreFunction')} aria-label={t('toolbar.coreFunction')} aria-pressed={showCoreFunction}><StarIcon size={15} /></button>
+          )}
+          {availablePanels.has('showDeadCode') && (
+            <button className={`cg-deadcode-btn ${showDeadCode ? 'cg-active' : ''}`} onClick={onToggleDeadCode}
+              title={t('toolbar.deadCode')} aria-label={t('toolbar.deadCode')} aria-pressed={showDeadCode}><GhostIcon size={15} /></button>
           )}
           <button className={`cg-tour-btn ${showTour ? 'cg-active' : ''}`} onClick={onToggleTour}
             title={t('toolbar.tour')} aria-label={t('toolbar.tour')} aria-pressed={showTour}><StarIcon size={15} /></button>

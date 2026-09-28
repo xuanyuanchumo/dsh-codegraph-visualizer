@@ -37,6 +37,7 @@ import { GodModulePanel } from './components/GodModulePanel.tsx';
 import { ImpactPanel } from './components/ImpactPanel.tsx';
 import { CyclePanel } from './components/CyclePanel.tsx';
 import { CoreFunctionPanel } from './components/CoreFunctionPanel.tsx';
+import { DeadCodePanel } from './components/DeadCodePanel.tsx';
 import { FilterPanel } from './components/FilterPanel.tsx';
 import { TourPanel } from './components/TourPanel.tsx';
 import { buildTour } from '../shared/analysis/TourBuilder.ts';
@@ -533,6 +534,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     if (!available.has('showHotspot') && panel.showHotspot) panel.setShowHotspot(false);
     if (!available.has('showGodModule') && panel.showGodModule) panel.setShowGodModule(false);
     if (!available.has('showCoreFunction') && panel.showCoreFunction) panel.setShowCoreFunction(false);
+    if (!available.has('showDeadCode') && panel.showDeadCode) panel.setShowDeadCode(false);
     if (!available.has('showHealthScore') && panel.showHealthScore) panel.setShowHealthScore(false);
     if (!available.has('showRules') && panel.showRules) panel.setShowRules(false);
     if (!available.has('showImport') && panel.showImport) panel.setShowImport(false);
@@ -623,11 +625,21 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     return renderer.rendererRef.current?.getImpactStats(selectedNodeId) ?? null;
   }, [renderer.rendererRef, selectedNodeId]);
 
-  const { handleRulesCheck, hotspotNodes, godModules, impactStats, coreFunctions } = useAnalysisPanels(
+  const { handleRulesCheck, hotspotNodes, godModules, impactStats, coreFunctions, deadCodeResult } = useAnalysisPanels(
     rawNodes, rawEdges,
     panel.showHealthScore, panel.showRules, panel.showHotspot, panel.showGodModule,
-    panel.showImpact, selectedNodeId, getImpactStats, panel.showCoreFunction,
+    panel.showImpact, selectedNodeId, getImpactStats, panel.showCoreFunction, panel.showDeadCode,
   );
+
+  useEffect(() => {
+    const r = renderer.rendererRef.current;
+    if (!r) return;
+    if (panel.showDeadCode && deadCodeResult) {
+      r.markDeadCode(new Set(deadCodeResult.unreachableNodes));
+    } else {
+      r.clearDeadCodeMarks();
+    }
+  }, [panel.showDeadCode, deadCodeResult, renderer.rendererRef]);
 
   const hasAutoScannedRef = useRef(false);
   useEffect(() => {
@@ -888,6 +900,15 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         {panel.showCoreFunction && !isCollapsed && coreFunctions.length > 0 && (
           <GraphErrorBoundary><CoreFunctionPanel coreFunctions={coreFunctions} onClose={() => panel.setShowCoreFunction(false)}
             label={t('toolbar.coreFunction')} onSelectFunction={(nodeId) => {
+              setSelectedNode(NodeId(nodeId));
+              renderer.rendererRef.current?.focusOnNode(nodeId);
+              renderer.rendererRef.current?.selectNode(NodeId(nodeId));
+            }} /></GraphErrorBoundary>
+        )}
+
+        {panel.showDeadCode && !isCollapsed && deadCodeResult && deadCodeResult.deadNodes.length > 0 && (
+          <GraphErrorBoundary><DeadCodePanel result={deadCodeResult} onClose={() => panel.setShowDeadCode(false)}
+            label={t('toolbar.deadCode')} onSelectNode={(nodeId) => {
               setSelectedNode(NodeId(nodeId));
               renderer.rendererRef.current?.focusOnNode(nodeId);
               renderer.rendererRef.current?.selectNode(NodeId(nodeId));

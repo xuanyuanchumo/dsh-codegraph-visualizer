@@ -30,6 +30,7 @@ describe('HistoryManager (FR-31)', () => {
 
   it('should push snapshot and enable undo', () => {
     manager.push(makeSnapshot());
+
     expect(manager.canUndo()).toBe(true);
     expect(manager.canRedo()).toBe(false);
   });
