@@ -41,3 +41,6 @@
 - DataController.processBatchQueue RAF callback must check this.destroyed at the top — destroy() may be called before the RAF fires
 - FilterController.safeRegExp must check for nested quantifiers (e.g. (a+)+, (a*)*) — simple length checks are insufficient for ReDoS prevention
 - readEdgesFromDb file scope must NOT use LIMIT/OFFSET per IN-clause batch — query all edges then slice in memory, because SQL OFFSET applies to the whole result set not per-batch
+- VirtualViewportController.handleStructureChange must schedule updateVisibility via RAF, not just set indexDirty — otherwise new nodes won't be indexed until next viewport change
+- assembleMultiFunction must use fetchWithTimeout (not bare fetch) and check multiAssemblyGeneration before applying state — bare fetch has no timeout and no stale-write protection
+- progressiveCluster module-level caches (_dirToNodesCache/_fileToNodesCache) must be invalidated in disposeStore via invalidateExpandCostCache() — otherwise they hold stale rawNodes references
