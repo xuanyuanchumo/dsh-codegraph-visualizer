@@ -15,6 +15,7 @@ import { computeViewModeTransition } from './viewModeTransition.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { type LayoutType, type ThemeType, type RankDir, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
 import { fetchNodeChildren, fetchBootstrap, fetchFileOutline, fetchSymbolAST, fetchWithTimeout } from '../api/index.ts';
+import { readUrlExpand, restoreExpandedNodeIds } from '../utils/urlState.ts';
 
 import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, LOD, UI, PREFETCH, FUNCTION_BODY, SYMBOL_AST, getDynamicMaxVisibleNodes } from '../../shared/constants.ts';
 
@@ -424,6 +425,7 @@ interface GraphState {
   pinNode: (nodeId: string) => void;
   unpinNode: (nodeId: string) => void;
   cancelPendingRequest: (nodeId: string) => void;
+  restoreFromUrl: () => Promise<void>;
 }
 
 export const useGraphStore = create<GraphState>()(
@@ -728,35 +730,73 @@ export const useGraphStore = create<GraphState>()(
             log.warn('expandNode: loadNodeChildren failed', { nodeId, err });
           });
           if (node.type === 'module') {
-            fetchFileOutline(nodeId).then((data) => {
-              if (gen !== expandGeneration) return;
-              if (data && data.symbols.length > 0) {
-                mergeAndRecluster(data.symbols, data.edges, set, 'file outline loaded', { nodeId });
+            (async () => {
+              if (persistentCache) {
+                const cached = await persistentCache.getOutline(nodeId);
+                if (cached && gen === expandGeneration) {
+                  const data = cached as { symbols: GraphNode[]; edges: GraphEdge[] };
+                  if (data.symbols.length > 0) {
+                    mergeAndRecluster(data.symbols, data.edges, set, 'file outline loaded (cache)', { nodeId });
+                    return;
+                  }
+                }
               }
-            }).catch((err) => {
-              log.warn('expandNode: fetchFileOutline failed', { nodeId, err });
-            });
+              fetchFileOutline(nodeId).then(async (data) => {
+                if (gen !== expandGeneration) return;
+                if (data && data.symbols.length > 0) {
+                  mergeAndRecluster(data.symbols, data.edges, set, 'file outline loaded', { nodeId });
+                  if (persistentCache) {
+                    await persistentCache.setOutline(nodeId, data);
+                  }
+                }
+              }).catch((err) => {
+                log.warn('expandNode: fetchFileOutline failed', { nodeId, err });
+              });
+            })();
           }
           if (node.type === 'function') {
-            fetchSymbolAST(nodeId).then((data) => {
-              if (gen !== expandGeneration) return;
-              if (data && data.astNodes.length > 0) {
-                const truncatedAstNodes = data.astNodes.length > SYMBOL_AST.MAX_NODES
-                  ? data.astNodes.slice(0, SYMBOL_AST.MAX_NODES)
-                  : data.astNodes;
-                const truncatedSourceLines = data.sourceLines.length > SYMBOL_AST.MAX_SOURCE_LINES
-                  ? data.sourceLines.slice(0, SYMBOL_AST.MAX_SOURCE_LINES)
-                  : data.sourceLines;
-                const astNodeIds = new Set(truncatedAstNodes.map(n => n.id));
-                const truncatedAstEdges = data.astEdges.filter(e => astNodeIds.has(e.source) && astNodeIds.has(e.target));
-                if (truncatedAstNodes.length < data.astNodes.length) {
-                  log.warn('symbol AST truncated', { nodeId, original: data.astNodes.length, truncated: truncatedAstNodes.length });
+            (async () => {
+              if (persistentCache) {
+                const cached = await persistentCache.getAST(nodeId);
+                if (cached && gen === expandGeneration) {
+                  const data = cached as { astNodes: GraphNode[]; astEdges: GraphEdge[]; sourceLines: string[] };
+                  if (data.astNodes.length > 0) {
+                    const truncatedAstNodes = data.astNodes.length > SYMBOL_AST.MAX_NODES
+                      ? data.astNodes.slice(0, SYMBOL_AST.MAX_NODES)
+                      : data.astNodes;
+                    const truncatedSourceLines = data.sourceLines.length > SYMBOL_AST.MAX_SOURCE_LINES
+                      ? data.sourceLines.slice(0, SYMBOL_AST.MAX_SOURCE_LINES)
+                      : data.sourceLines;
+                    const astNodeIds = new Set(truncatedAstNodes.map(n => n.id));
+                    const truncatedAstEdges = data.astEdges.filter(e => astNodeIds.has(e.source) && astNodeIds.has(e.target));
+                    mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, set, 'symbol AST loaded (cache)', { nodeId, sourceLines: truncatedSourceLines.length });
+                    return;
+                  }
                 }
-                mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, set, 'symbol AST loaded', { nodeId, sourceLines: truncatedSourceLines.length });
               }
-            }).catch((err) => {
-              log.warn('expandNode: fetchSymbolAST failed', { nodeId, err });
-            });
+              fetchSymbolAST(nodeId).then(async (data) => {
+                if (gen !== expandGeneration) return;
+                if (data && data.astNodes.length > 0) {
+                  const truncatedAstNodes = data.astNodes.length > SYMBOL_AST.MAX_NODES
+                    ? data.astNodes.slice(0, SYMBOL_AST.MAX_NODES)
+                    : data.astNodes;
+                  const truncatedSourceLines = data.sourceLines.length > SYMBOL_AST.MAX_SOURCE_LINES
+                    ? data.sourceLines.slice(0, SYMBOL_AST.MAX_SOURCE_LINES)
+                    : data.sourceLines;
+                  const astNodeIds = new Set(truncatedAstNodes.map(n => n.id));
+                  const truncatedAstEdges = data.astEdges.filter(e => astNodeIds.has(e.source) && astNodeIds.has(e.target));
+                  if (truncatedAstNodes.length < data.astNodes.length) {
+                    log.warn('symbol AST truncated', { nodeId, original: data.astNodes.length, truncated: truncatedAstNodes.length });
+                  }
+                  mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, set, 'symbol AST loaded', { nodeId, sourceLines: truncatedSourceLines.length });
+                  if (persistentCache) {
+                    await persistentCache.setAST(nodeId, data);
+                  }
+                }
+              }).catch((err) => {
+                log.warn('expandNode: fetchSymbolAST failed', { nodeId, err });
+              });
+            })();
           }
         }
       },
@@ -1102,6 +1142,30 @@ export const useGraphStore = create<GraphState>()(
           newPending.delete(nodeId);
           set({ pendingRequests: newPending });
         }
+      },
+      restoreFromUrl: async () => {
+        if (typeof window === 'undefined') return;
+        const parsed = readUrlExpand();
+        if (parsed.expandedDirs.length === 0 && parsed.expandedFiles.length === 0 && parsed.expandedSymbols.length === 0) return;
+        const allIds = restoreExpandedNodeIds(parsed);
+        const sortedIds = [...allIds].sort((a, b) => {
+          const depthA = a.split('/').length;
+          const depthB = b.split('/').length;
+          return depthA - depthB;
+        });
+        for (const nodeId of sortedIds) {
+          const state = useGraphStore.getState();
+          const exists = state.rawNodes.some((n) => n.id === nodeId);
+          if (!exists) {
+            const parentId = nodeId.includes('/') ? nodeId.substring(0, nodeId.lastIndexOf('/')) : null;
+            if (parentId && !state.loadedChildrenByNodeId.has(parentId)) {
+              await state.loadNodeChildren(parentId).catch(() => {});
+            }
+          }
+          state.expandNode(nodeId);
+          await new Promise((r) => setTimeout(r, 50));
+        }
+        log.info('URL restore completed', { restoredCount: sortedIds.length });
       },
       setLayer: (layer) => {
         const { diagramData, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, currentLayer } = useGraphStore.getState();

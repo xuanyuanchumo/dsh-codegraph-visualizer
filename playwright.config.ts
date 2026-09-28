@@ -25,6 +25,12 @@ export default defineConfig({
         browserName: 'chromium',
       },
     },
+    {
+      name: 'firefox',
+      use: {
+        browserName: 'firefox',
+      },
+    },
   ],
   webServer: {
     command: 'pnpm run build:client && pnpm run dev',

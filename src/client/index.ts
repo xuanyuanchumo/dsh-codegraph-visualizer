@@ -238,6 +238,9 @@ export function apply(ctx: Context): () => void {
           });
           log.info('bootstrap data loaded', { rootNodes: bootstrap.topLevelNodes.length, totalNodeCount: bootstrap.metadata.totalNodeCount });
           useGraphStore.getState().setLoading(false);
+          useGraphStore.getState().restoreFromUrl().catch((err) => {
+            log.warn('URL restore failed', { err });
+          });
           return;
         }
 

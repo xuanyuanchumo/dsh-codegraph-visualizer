@@ -7383,8 +7383,90 @@ async function fetchSymbolAST(nodeId) {
 }
 
 //#endregion
+//#region src/client/utils/urlState.ts
+const log$12 = scoped("url-state");
+const MAX_URL_LENGTH = 2e3;
+const PREFIX_DIR = "d:";
+const PREFIX_FILE = "f:";
+const PREFIX_SYMBOL = "s:";
+const PREFIX_SUBGROUP = "g:";
+function parseExpandUrl(search) {
+	const result = {
+		expandedDirs: [],
+		expandedFiles: [],
+		expandedSymbols: [],
+		expandedSubgroups: []
+	};
+	if (!search) return result;
+	const params = new URLSearchParams(search);
+	const expand$1 = params.get("expand");
+	if (!expand$1) return result;
+	const parts = expand$1.split(",");
+	for (const part of parts) if (part.startsWith(PREFIX_DIR)) result.expandedDirs.push(part.slice(PREFIX_DIR.length));
+	else if (part.startsWith(PREFIX_FILE)) result.expandedFiles.push(part.slice(PREFIX_FILE.length));
+	else if (part.startsWith(PREFIX_SYMBOL)) result.expandedSymbols.push(part.slice(PREFIX_SYMBOL.length));
+	else if (part.startsWith(PREFIX_SUBGROUP)) result.expandedSubgroups.push(part.slice(PREFIX_SUBGROUP.length));
+	return result;
+}
+function classifyNodeId(nodeId) {
+	if (nodeId.startsWith("cluster__")) return "dir";
+	if (nodeId.startsWith("filecluster__")) return "file";
+	if (nodeId.startsWith("subgroup__")) return "subgroup";
+	if (nodeId.includes("#") || nodeId.includes("::")) return "symbol";
+	return "other";
+}
+function buildExpandParam(expandedNodeIds) {
+	const parts = [];
+	for (const id of expandedNodeIds) {
+		const kind = classifyNodeId(id);
+		if (kind === "dir") {
+			const path = id.replace(/^cluster__/, "");
+			parts.push(`${PREFIX_DIR}${path}`);
+		} else if (kind === "file") {
+			const path = id.replace(/^filecluster__/, "");
+			parts.push(`${PREFIX_FILE}${path}`);
+		} else if (kind === "subgroup") {
+			const path = id.replace(/^subgroup__/, "");
+			parts.push(`${PREFIX_SUBGROUP}${path}`);
+		} else if (kind === "symbol") parts.push(`${PREFIX_SYMBOL}${id}`);
+	}
+	return parts.join(",");
+}
+function updateUrlExpand(expandedNodeIds) {
+	if (typeof window === "undefined") return;
+	const expandParam = buildExpandParam(expandedNodeIds);
+	const url = new URL(window.location.href);
+	if (expandParam) url.searchParams.set("expand", expandParam);
+	else url.searchParams.delete("expand");
+	const urlString = url.toString();
+	if (urlString.length > MAX_URL_LENGTH) {
+		const trimmed = expandParam.split(",").filter((p$1) => !p$1.startsWith(PREFIX_SYMBOL));
+		url.searchParams.set("expand", trimmed.join(","));
+		log$12.warn("URL too long, trimmed symbol-level expansions");
+	}
+	window.history.replaceState(null, "", url.toString());
+}
+function readUrlExpand() {
+	if (typeof window === "undefined") return {
+		expandedDirs: [],
+		expandedFiles: [],
+		expandedSymbols: [],
+		expandedSubgroups: []
+	};
+	return parseExpandUrl(window.location.search);
+}
+function restoreExpandedNodeIds(parsed) {
+	const ids = new Set();
+	for (const dir of parsed.expandedDirs) ids.add(`cluster__${dir}`);
+	for (const file of parsed.expandedFiles) ids.add(`filecluster__${file}`);
+	for (const subgroup of parsed.expandedSubgroups) ids.add(`subgroup__${subgroup}`);
+	for (const symbol of parsed.expandedSymbols) ids.add(symbol);
+	return ids;
+}
+
+//#endregion
 //#region src/client/store/graphStore.ts
-const log$12 = scoped("store");
+const log$11 = scoped("store");
 const diagramCache = new DiagramCache(10);
 const clusterCache = new ClusterCache(20);
 let persistentCache = null;
@@ -7460,7 +7542,7 @@ function mergeAndRecluster(newNodes, newEdges, set$1, logLabel, logDetail) {
 		nodes: result.nodes,
 		edges: result.edges
 	});
-	log$12.info(logLabel, {
+	log$11.info(logLabel, {
 		...logDetail,
 		newNodes: filteredNodes.length,
 		newEdges: filteredEdges.length
@@ -7750,7 +7832,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				performanceDegradations: newDegradations
 			});
 		} catch (err) {
-			log$12.error("setGraphData failed", { err });
+			log$11.error("setGraphData failed", { err });
 			set$1({
 				error: err instanceof Error ? err.message : String(err),
 				isLoading: false
@@ -7807,12 +7889,12 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				expandedNodeIds: new Set(),
 				expandedNodeIdsByViewMode: {}
 			});
-			log$12.info("bootstrap data set", {
+			log$11.info("bootstrap data set", {
 				rootNodes: sanitized.nodes.length,
 				totalNodeCount: metadata.totalNodeCount
 			});
 		} catch (err) {
-			log$12.error("setBootstrapData failed", { err });
+			log$11.error("setBootstrapData failed", { err });
 			set$1({
 				error: err instanceof Error ? err.message : String(err),
 				isLoading: false
@@ -7912,7 +7994,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		if (expandingFunctionBody) enforceFunctionBodyBudget(effectiveExpanded, rawNodes, FUNCTION_BODY.MAX_EXPANDED - 1);
 		effectiveExpanded.add(nodeId);
 		collapseExcessClusters(nodes, effectiveExpanded, maxVisible, cost, useGraphStore.getState().pinnedIds);
-		if (cost > CLUSTER.EXPAND_BUDGET_SINGLE) log$12.warn("expand budget exceeded", {
+		if (cost > CLUSTER.EXPAND_BUDGET_SINGLE) log$11.warn("expand budget exceeded", {
 			nodeId,
 			cost,
 			budget: CLUSTER.EXPAND_BUDGET_SINGLE
@@ -7925,43 +8007,78 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		const node = rawNodes.find((n) => n.id === nodeId);
 		if (node) {
 			useGraphStore.getState().loadNodeChildren(nodeId).catch((err) => {
-				log$12.warn("expandNode: loadNodeChildren failed", {
+				log$11.warn("expandNode: loadNodeChildren failed", {
 					nodeId,
 					err
 				});
 			});
-			if (node.type === "module") fetchFileOutline(nodeId).then((data$2) => {
-				if (gen !== expandGeneration) return;
-				if (data$2 && data$2.symbols.length > 0) mergeAndRecluster(data$2.symbols, data$2.edges, set$1, "file outline loaded", { nodeId });
-			}).catch((err) => {
-				log$12.warn("expandNode: fetchFileOutline failed", {
-					nodeId,
-					err
-				});
-			});
-			if (node.type === "function") fetchSymbolAST(nodeId).then((data$2) => {
-				if (gen !== expandGeneration) return;
-				if (data$2 && data$2.astNodes.length > 0) {
-					const truncatedAstNodes = data$2.astNodes.length > SYMBOL_AST.MAX_NODES ? data$2.astNodes.slice(0, SYMBOL_AST.MAX_NODES) : data$2.astNodes;
-					const truncatedSourceLines = data$2.sourceLines.length > SYMBOL_AST.MAX_SOURCE_LINES ? data$2.sourceLines.slice(0, SYMBOL_AST.MAX_SOURCE_LINES) : data$2.sourceLines;
-					const astNodeIds = new Set(truncatedAstNodes.map((n) => n.id));
-					const truncatedAstEdges = data$2.astEdges.filter((e) => astNodeIds.has(e.source) && astNodeIds.has(e.target));
-					if (truncatedAstNodes.length < data$2.astNodes.length) log$12.warn("symbol AST truncated", {
-						nodeId,
-						original: data$2.astNodes.length,
-						truncated: truncatedAstNodes.length
-					});
-					mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, set$1, "symbol AST loaded", {
-						nodeId,
-						sourceLines: truncatedSourceLines.length
-					});
+			if (node.type === "module") (async () => {
+				if (persistentCache) {
+					const cached = await persistentCache.getOutline(nodeId);
+					if (cached && gen === expandGeneration) {
+						const data$2 = cached;
+						if (data$2.symbols.length > 0) {
+							mergeAndRecluster(data$2.symbols, data$2.edges, set$1, "file outline loaded (cache)", { nodeId });
+							return;
+						}
+					}
 				}
-			}).catch((err) => {
-				log$12.warn("expandNode: fetchSymbolAST failed", {
-					nodeId,
-					err
+				fetchFileOutline(nodeId).then(async (data$2) => {
+					if (gen !== expandGeneration) return;
+					if (data$2 && data$2.symbols.length > 0) {
+						mergeAndRecluster(data$2.symbols, data$2.edges, set$1, "file outline loaded", { nodeId });
+						if (persistentCache) await persistentCache.setOutline(nodeId, data$2);
+					}
+				}).catch((err) => {
+					log$11.warn("expandNode: fetchFileOutline failed", {
+						nodeId,
+						err
+					});
 				});
-			});
+			})();
+			if (node.type === "function") (async () => {
+				if (persistentCache) {
+					const cached = await persistentCache.getAST(nodeId);
+					if (cached && gen === expandGeneration) {
+						const data$2 = cached;
+						if (data$2.astNodes.length > 0) {
+							const truncatedAstNodes = data$2.astNodes.length > SYMBOL_AST.MAX_NODES ? data$2.astNodes.slice(0, SYMBOL_AST.MAX_NODES) : data$2.astNodes;
+							const truncatedSourceLines = data$2.sourceLines.length > SYMBOL_AST.MAX_SOURCE_LINES ? data$2.sourceLines.slice(0, SYMBOL_AST.MAX_SOURCE_LINES) : data$2.sourceLines;
+							const astNodeIds = new Set(truncatedAstNodes.map((n) => n.id));
+							const truncatedAstEdges = data$2.astEdges.filter((e) => astNodeIds.has(e.source) && astNodeIds.has(e.target));
+							mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, set$1, "symbol AST loaded (cache)", {
+								nodeId,
+								sourceLines: truncatedSourceLines.length
+							});
+							return;
+						}
+					}
+				}
+				fetchSymbolAST(nodeId).then(async (data$2) => {
+					if (gen !== expandGeneration) return;
+					if (data$2 && data$2.astNodes.length > 0) {
+						const truncatedAstNodes = data$2.astNodes.length > SYMBOL_AST.MAX_NODES ? data$2.astNodes.slice(0, SYMBOL_AST.MAX_NODES) : data$2.astNodes;
+						const truncatedSourceLines = data$2.sourceLines.length > SYMBOL_AST.MAX_SOURCE_LINES ? data$2.sourceLines.slice(0, SYMBOL_AST.MAX_SOURCE_LINES) : data$2.sourceLines;
+						const astNodeIds = new Set(truncatedAstNodes.map((n) => n.id));
+						const truncatedAstEdges = data$2.astEdges.filter((e) => astNodeIds.has(e.source) && astNodeIds.has(e.target));
+						if (truncatedAstNodes.length < data$2.astNodes.length) log$11.warn("symbol AST truncated", {
+							nodeId,
+							original: data$2.astNodes.length,
+							truncated: truncatedAstNodes.length
+						});
+						mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, set$1, "symbol AST loaded", {
+							nodeId,
+							sourceLines: truncatedSourceLines.length
+						});
+						if (persistentCache) await persistentCache.setAST(nodeId, data$2);
+					}
+				}).catch((err) => {
+					log$11.warn("expandNode: fetchSymbolAST failed", {
+						nodeId,
+						err
+					});
+				});
+			})();
 		}
 	},
 	loadNodeChildren: async (nodeId, options) => {
@@ -8025,7 +8142,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				loadedChildrenByNodeId: newLoaded,
 				pendingRequests: clearedPending
 			});
-			log$12.info("node children loaded", {
+			log$11.info("node children loaded", {
 				nodeId,
 				newNodes: newNodes.length,
 				newEdges: newEdges.length
@@ -8043,7 +8160,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				pendingRequests: clearedPending,
 				loadErrorsByNodeId: newErrors
 			});
-			log$12.warn("loadNodeChildren failed", {
+			log$11.warn("loadNodeChildren failed", {
 				nodeId,
 				err
 			});
@@ -8053,7 +8170,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		try {
 			const data$2 = await fetchBootstrap();
 			if (!data$2 || data$2.topLevelNodes.length === 0) {
-				log$12.info("bootstrap returned empty, falling back to full load");
+				log$11.info("bootstrap returned empty, falling back to full load");
 				return false;
 			}
 			const state = useGraphStore.getState();
@@ -8062,14 +8179,14 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				totalEdgeCount: data$2.metadata.totalEdgeCount,
 				timestamp: data$2.metadata.timestamp
 			});
-			log$12.info("bootstrap loaded", {
+			log$11.info("bootstrap loaded", {
 				rootNodes: data$2.topLevelNodes.length,
 				totalNodeCount: data$2.metadata.totalNodeCount,
 				indexStatus: data$2.indexStatus
 			});
 			return true;
 		} catch (err) {
-			log$12.warn("loadBootstrap failed, falling back to full load", { err });
+			log$11.warn("loadBootstrap failed, falling back to full load", { err });
 			return false;
 		}
 	},
@@ -8218,7 +8335,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				if (!response.ok) return null;
 				return await response.json();
 			} catch (e) {
-				log$12.warn("AST fetch failed", e);
+				log$11.warn("AST fetch failed", e);
 				return null;
 			}
 		};
@@ -8242,7 +8359,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				isLoading: false
 			});
 		} catch (e) {
-			log$12.warn("assembleMultiFunction failed", e);
+			log$11.warn("assembleMultiFunction failed", e);
 			set$1({
 				error: `Call chain aggregation failed: ${e instanceof Error ? e.message : String(e)}`,
 				isLoading: false
@@ -8337,6 +8454,28 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			newPending.delete(nodeId);
 			set$1({ pendingRequests: newPending });
 		}
+	},
+	restoreFromUrl: async () => {
+		if (typeof window === "undefined") return;
+		const parsed = readUrlExpand();
+		if (parsed.expandedDirs.length === 0 && parsed.expandedFiles.length === 0 && parsed.expandedSymbols.length === 0) return;
+		const allIds = restoreExpandedNodeIds(parsed);
+		const sortedIds = [...allIds].sort((a, b) => {
+			const depthA = a.split("/").length;
+			const depthB = b.split("/").length;
+			return depthA - depthB;
+		});
+		for (const nodeId of sortedIds) {
+			const state = useGraphStore.getState();
+			const exists = state.rawNodes.some((n) => n.id === nodeId);
+			if (!exists) {
+				const parentId = nodeId.includes("/") ? nodeId.substring(0, nodeId.lastIndexOf("/")) : null;
+				if (parentId && !state.loadedChildrenByNodeId.has(parentId)) await state.loadNodeChildren(parentId).catch(() => {});
+			}
+			state.expandNode(nodeId);
+			await new Promise((r) => setTimeout(r, 50));
+		}
+		log$11.info("URL restore completed", { restoredCount: sortedIds.length });
 	},
 	setLayer: (layer) => {
 		const { diagramData, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, currentLayer } = useGraphStore.getState();
@@ -53810,7 +53949,7 @@ var OverlapRemover = class {
 
 //#endregion
 //#region src/client/renderer/LayoutController.ts
-const log$11 = scoped("layout");
+const log$10 = scoped("layout");
 var LayoutController = class {
 	cy;
 	layoutRaf = null;
@@ -53846,15 +53985,15 @@ var LayoutController = class {
 					this.worker?.terminate();
 					this.worker = null;
 					this.workerInitFailed = true;
-					log$11.warn("layout worker error — falling back to main-thread layout");
+					log$10.warn("layout worker error — falling back to main-thread layout");
 				};
 			} else {
 				this.workerInitFailed = true;
-				log$11.warn("layout worker not available — using main-thread layout");
+				log$10.warn("layout worker not available — using main-thread layout");
 			}
 		} catch (e) {
 			this.workerInitFailed = true;
-			log$11.warn("layout worker init failed — using main-thread layout", e);
+			log$10.warn("layout worker init failed — using main-thread layout", e);
 		}
 	}
 	isWorkerAvailable() {
@@ -53875,7 +54014,7 @@ var LayoutController = class {
 		const worker = this.worker;
 		return new Promise((resolve) => {
 			this.workerTimeout = setTimeout(() => {
-				log$11.warn("layout worker timeout — falling back to empty positions");
+				log$10.warn("layout worker timeout — falling back to empty positions");
 				if (this.workerLayoutResolve) {
 					this.workerLayoutResolve({});
 					this.workerLayoutResolve = null;
@@ -53883,7 +54022,7 @@ var LayoutController = class {
 				if (this.worker) {
 					this.worker.terminate();
 					this.worker = null;
-					log$11.warn("layout worker terminated due to timeout — will auto-retry");
+					log$10.warn("layout worker terminated due to timeout — will auto-retry");
 					this.retryWorkerInit();
 				}
 			}, RENDERER.LAYOUT_TIMEOUT_MS);
@@ -54474,7 +54613,7 @@ function detectCyclesDFS(adjacency) {
 
 //#endregion
 //#region src/client/renderer/CycleDetector.ts
-const log$10 = scoped("cycle-detector");
+const log$9 = scoped("cycle-detector");
 var CycleDetector = class {
 	cy;
 	adjacencyCache;
@@ -54503,7 +54642,7 @@ var CycleDetector = class {
 		const cycles = new Set();
 		const nodeCount = this.cy.nodes().length;
 		if (nodeCount > CYCLE_DETECTION.MAX_NODES_FOR_DETECTION) {
-			log$10.warn("cycle detection skipped: graph too large", { nodeCount });
+			log$9.warn("cycle detection skipped: graph too large", { nodeCount });
 			return cycles;
 		}
 		const adjacencySet = this.getForwardAdjacency();
@@ -54516,7 +54655,7 @@ var CycleDetector = class {
 	detectCyclesDetailed() {
 		const nodeCount = this.cy.nodes().length;
 		if (nodeCount > CYCLE_DETECTION.MAX_NODES_FOR_DETECTION) {
-			log$10.warn("detailed cycle detection skipped: graph too large", { nodeCount });
+			log$9.warn("detailed cycle detection skipped: graph too large", { nodeCount });
 			return [];
 		}
 		const adjacencySet = this.getForwardAdjacency();
@@ -54873,7 +55012,7 @@ var ViewportController = class {
 
 //#endregion
 //#region src/client/renderer/DataController.ts
-const log$9 = scoped("data-controller");
+const log$8 = scoped("data-controller");
 var DataController = class {
 	cy;
 	destroyed = false;
@@ -55096,7 +55235,7 @@ var DataController = class {
 	}
 	addEdge(e) {
 		if (this.cy.getElementById(e.source).empty() || this.cy.getElementById(e.target).empty()) {
-			log$9.warn("edge dropped: missing endpoint", {
+			log$8.warn("edge dropped: missing endpoint", {
 				edgeId: e.id,
 				source: e.source,
 				target: e.target
@@ -55259,7 +55398,7 @@ var DataController = class {
 
 //#endregion
 //#region src/client/renderer/FilterController.ts
-const log$8 = scoped("filter");
+const log$7 = scoped("filter");
 var FilterController = class {
 	cy;
 	fanInCache = null;
@@ -55415,7 +55554,7 @@ var FilterController = class {
 			if (/(\+|\*|\{)\{/.test(pattern)) return null;
 			return new RegExp(pattern);
 		} catch (e) {
-			log$8.warn("invalid regex pattern", e);
+			log$7.warn("invalid regex pattern", e);
 			return null;
 		}
 	}
@@ -56781,7 +56920,7 @@ var AdjacencyCache = class {
 
 //#endregion
 //#region src/client/renderer/CytoscapeRenderer.ts
-const log$7 = scoped("cytoscape-renderer");
+const log$6 = scoped("cytoscape-renderer");
 function ensureExtensionsRegistered() {
 	const cy = cytoscape$1;
 	if (!cy.__dagreRegistered) {
@@ -56816,7 +56955,7 @@ var CytoscapeRenderer = class {
 		try {
 			return fn$7();
 		} catch (err) {
-			log$7.error(`${name$1} failed`, err);
+			log$6.error(`${name$1} failed`, err);
 			this.lastError = err instanceof Error ? err : new Error(String(err));
 			return fallback;
 		}
@@ -56825,7 +56964,7 @@ var CytoscapeRenderer = class {
 		try {
 			fn$7();
 		} catch (err) {
-			log$7.error(`${name$1} failed`, err);
+			log$6.error(`${name$1} failed`, err);
 			this.lastError = err instanceof Error ? err : new Error(String(err));
 		}
 	}
@@ -57076,7 +57215,7 @@ var CytoscapeRenderer = class {
 			try {
 				fn$7();
 			} catch (err) {
-				log$7.warn(`destroy: ${label} cleanup failed`, err);
+				log$6.warn(`destroy: ${label} cleanup failed`, err);
 			}
 		};
 		safeDestroy("interactionCtrl", () => this.interactionCtrl?.destroy());
@@ -57172,7 +57311,7 @@ var CytoscapeRenderer = class {
 
 //#endregion
 //#region src/client/hooks/useGraphRenderer.ts
-const log$6 = scoped("renderer-hook");
+const log$5 = scoped("renderer-hook");
 function useGraphRenderer(config) {
 	const { data: data$2, display, interaction, filters, analysis, callbacks, showCallChainRef } = config;
 	const { nodes, edges, rawNodes } = data$2;
@@ -57216,7 +57355,7 @@ function useGraphRenderer(config) {
 				});
 				renderer$1.init();
 				rendererRef.current = renderer$1;
-				log$6.info("renderer initialized", {
+				log$5.info("renderer initialized", {
 					theme,
 					w,
 					h
@@ -57426,7 +57565,7 @@ function useGraphRenderer(config) {
 			a.download = `codegraph-${Date.now()}.${extension$1}`;
 			a.click();
 			setTimeout(() => URL.revokeObjectURL(url), UI.URL_REVOKE_DELAY_MS);
-			log$6.info(`exported ${format}`);
+			log$5.info(`exported ${format}`);
 		}
 	}, []);
 	const updateTheme = (0, react.useCallback)((newTheme) => {
@@ -57897,7 +58036,7 @@ function usePanelKeyboard(layout$2, setLayout, rendererRef, handlers) {
 
 //#endregion
 //#region src/client/hooks/useViewMode.ts
-const log$5 = scoped("viewMode");
+const log$4 = scoped("viewMode");
 const MICRO_MODES = [
 	"cfg",
 	"flowchart",
@@ -57953,7 +58092,7 @@ function useViewMode(viewMode, currentWorkspace, depsFetchAbortRef) {
 				else setError("Failed to load code graph data");
 				setLoading(false);
 			}).catch((e) => {
-				log$5.warn("loadBootstrap failed", e);
+				log$4.warn("loadBootstrap failed", e);
 				setError(`Failed to load code graph: ${e.message}`);
 				setLoading(false);
 			});
@@ -59179,80 +59318,6 @@ function usePolling(callback, interval, enabled = true) {
 		}, interval);
 		return () => clearInterval(id);
 	}, [interval, enabled]);
-}
-
-//#endregion
-//#region src/client/utils/urlState.ts
-const log$4 = scoped("url-state");
-const MAX_URL_LENGTH = 2e3;
-const PREFIX_DIR = "d:";
-const PREFIX_FILE = "f:";
-const PREFIX_SYMBOL = "s:";
-const PREFIX_SUBGROUP = "g:";
-function parseExpandUrl(search) {
-	const result = {
-		expandedDirs: [],
-		expandedFiles: [],
-		expandedSymbols: [],
-		expandedSubgroups: []
-	};
-	if (!search) return result;
-	const params = new URLSearchParams(search);
-	const expand$1 = params.get("expand");
-	if (!expand$1) return result;
-	const parts = expand$1.split(",");
-	for (const part of parts) if (part.startsWith(PREFIX_DIR)) result.expandedDirs.push(part.slice(PREFIX_DIR.length));
-	else if (part.startsWith(PREFIX_FILE)) result.expandedFiles.push(part.slice(PREFIX_FILE.length));
-	else if (part.startsWith(PREFIX_SYMBOL)) result.expandedSymbols.push(part.slice(PREFIX_SYMBOL.length));
-	else if (part.startsWith(PREFIX_SUBGROUP)) result.expandedSubgroups.push(part.slice(PREFIX_SUBGROUP.length));
-	return result;
-}
-function classifyNodeId(nodeId) {
-	if (nodeId.startsWith("cluster__")) return "dir";
-	if (nodeId.startsWith("filecluster__")) return "file";
-	if (nodeId.startsWith("subgroup__")) return "subgroup";
-	if (nodeId.includes("#") || nodeId.includes("::")) return "symbol";
-	return "other";
-}
-function buildExpandParam(expandedNodeIds) {
-	const parts = [];
-	for (const id of expandedNodeIds) {
-		const kind = classifyNodeId(id);
-		if (kind === "dir") {
-			const path = id.replace(/^cluster__/, "");
-			parts.push(`${PREFIX_DIR}${path}`);
-		} else if (kind === "file") {
-			const path = id.replace(/^filecluster__/, "");
-			parts.push(`${PREFIX_FILE}${path}`);
-		} else if (kind === "subgroup") {
-			const path = id.replace(/^subgroup__/, "");
-			parts.push(`${PREFIX_SUBGROUP}${path}`);
-		} else if (kind === "symbol") parts.push(`${PREFIX_SYMBOL}${id}`);
-	}
-	return parts.join(",");
-}
-function updateUrlExpand(expandedNodeIds) {
-	if (typeof window === "undefined") return;
-	const expandParam = buildExpandParam(expandedNodeIds);
-	const url = new URL(window.location.href);
-	if (expandParam) url.searchParams.set("expand", expandParam);
-	else url.searchParams.delete("expand");
-	const urlString = url.toString();
-	if (urlString.length > MAX_URL_LENGTH) {
-		const trimmed = expandParam.split(",").filter((p$1) => !p$1.startsWith(PREFIX_SYMBOL));
-		url.searchParams.set("expand", trimmed.join(","));
-		log$4.warn("URL too long, trimmed symbol-level expansions");
-	}
-	window.history.replaceState(null, "", url.toString());
-}
-function readUrlExpand() {
-	if (typeof window === "undefined") return {
-		expandedDirs: [],
-		expandedFiles: [],
-		expandedSymbols: [],
-		expandedSubgroups: []
-	};
-	return parseExpandUrl(window.location.search);
 }
 
 //#endregion
@@ -65930,6 +65995,9 @@ function apply(ctx) {
 						totalNodeCount: bootstrap.metadata.totalNodeCount
 					});
 					useGraphStore.getState().setLoading(false);
+					useGraphStore.getState().restoreFromUrl().catch((err) => {
+						log.warn("URL restore failed", { err });
+					});
 					return;
 				}
 				log.info("bootstrap returned no data, showing empty state");
