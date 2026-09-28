@@ -100,6 +100,7 @@ export const zh: Record<string, string> = {
   'detail.microHint': '选中函数节点可查看微观图谱',
   'detail.aggregateCallChain': '聚合调用链',
   'detail.functionsInCluster': '聚类中的函数',
+  'detail.moreFunctions': '还有 {count} 个函数未显示',
   'detail.signature': '签名',
   'detail.docstring': '文档字符串',
   'detail.functionBodyBudget': '函数体展开预算: {expanded}/{max}',

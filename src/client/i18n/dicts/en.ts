@@ -100,6 +100,7 @@ export const en: Record<string, string> = {
   'detail.microHint': 'Select a function to view micro graphs',
   'detail.aggregateCallChain': 'Aggregate Call Chain',
   'detail.functionsInCluster': 'Functions in cluster',
+  'detail.moreFunctions': '{count} more functions not shown',
   'detail.signature': 'Signature',
   'detail.docstring': 'Docstring',
   'detail.functionBodyBudget': 'Function body budget: {expanded}/{max}',

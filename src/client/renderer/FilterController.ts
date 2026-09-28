@@ -179,14 +179,51 @@ export class FilterController {
     try {
       if (pattern.length > FILTER.MAX_PATTERN_LENGTH) return null;
       if (/(\+|\*|\?)\1/.test(pattern)) return null;
-      if (/\([^()]*[+*?][^()]*\)[+*?]/.test(pattern)) return null;
-      if (/\([^()]*[+*?][^()]*\)\{/.test(pattern)) return null;
+      if (this.hasNestedQuantifier(pattern, FILTER.MAX_NESTED_QUANTIFIER_DEPTH)) return null;
       if (/(\+|\*|\{)\{/.test(pattern)) return null;
       return new RegExp(pattern);
     } catch (e) {
       log.warn('invalid regex pattern', e);
       return null;
     }
+  }
+
+  private hasNestedQuantifier(pattern: string, maxDepth: number): boolean {
+    let depth = 0;
+    const quantifierAtDepth: number[] = [];
+    for (let i = 0; i < pattern.length; i++) {
+      const ch = pattern[i];
+      if (ch === '(') {
+        depth++;
+        quantifierAtDepth.push(0);
+      } else if (ch === ')') {
+        const hadQuantifierInside = quantifierAtDepth.pop() ?? 0;
+        depth--;
+        if (depth >= 1 && hadQuantifierInside > 0) {
+          const nextCh = pattern[i + 1];
+          if (nextCh && (nextCh === '+' || nextCh === '*' || nextCh === '?' || nextCh === '{')) {
+            return true;
+          }
+        }
+        if (depth >= 1 && quantifierAtDepth.length > 0) {
+          const top = quantifierAtDepth[quantifierAtDepth.length - 1];
+          if (top !== undefined) quantifierAtDepth[quantifierAtDepth.length - 1] = top + hadQuantifierInside;
+        }
+      } else if (ch && (ch === '+' || ch === '*' || ch === '?')) {
+        if (depth >= 1 && quantifierAtDepth.length > 0) {
+          const top = quantifierAtDepth[quantifierAtDepth.length - 1];
+          if (top !== undefined) quantifierAtDepth[quantifierAtDepth.length - 1] = top + 1;
+        }
+        if (depth >= maxDepth) return true;
+      } else if (ch === '{') {
+        if (depth >= 1 && quantifierAtDepth.length > 0) {
+          const top = quantifierAtDepth[quantifierAtDepth.length - 1];
+          if (top !== undefined) quantifierAtDepth[quantifierAtDepth.length - 1] = top + 1;
+        }
+        if (depth >= maxDepth) return true;
+      }
+    }
+    return false;
   }
 
   filterByPath(includePattern: string | null, excludePattern: string | null): void {

@@ -160,13 +160,15 @@ export class DataController {
         if (cyEdge.length > 0 && existing && (existing.source !== e.source || existing.target !== e.target)) {
           this.cy.remove(cyEdge);
           edgesToAdd.push(e);
-        } else if (cyEdge.length > 0 && e.properties) {
-          for (const [key, value] of Object.entries(e.properties)) {
-            cyEdge.data(key, value);
+        } else {
+          if (cyEdge.length > 0 && e.properties) {
+            for (const [key, value] of Object.entries(e.properties)) {
+              cyEdge.data(key, value);
+            }
           }
+          this.currentEdges.set(e.id, e);
         }
       }
-      this.currentEdges.set(e.id, e);
     }
 
     if (nodesToAdd.length === 0 && edgesToAdd.length === 0) {

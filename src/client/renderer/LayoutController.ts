@@ -45,6 +45,7 @@ export class LayoutController {
       }
 
       if (this.worker) {
+        this.workerRetryCount = 0;
         this.worker.onmessage = (e: MessageEvent<{ positions: Record<string, { x: number; y: number }> }>) => {
           if (this.workerLayoutResolve) {
             this.workerLayoutResolve(e.data.positions);

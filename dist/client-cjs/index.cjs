@@ -418,7 +418,9 @@ const API = {
 	RATE_LIMIT_DEFAULT: 60,
 	RATE_LIMIT_HEAVY: 10,
 	RATE_LIMIT_MAP_MAX: 1e4,
-	SCAN_TIMEOUT_MS: 6e4
+	SCAN_TIMEOUT_MS: 6e4,
+	DATA_RESPONSE_MAX_BYTES: 5 * 1024 * 1024,
+	DATA_RESPONSE_SLIM_NODES: 500
 };
 const HEALTH_SCORE = {
 	WEIGHT_COUPLING: .25,
@@ -459,6 +461,11 @@ const LAYOUT$1 = {
 	FCOSE_LARGE_QUALITY: "draft",
 	NODE_REPULSE_MAX: 2e4
 };
+const VIEWPORT = {
+	THUMBNAIL_TARGET_WIDTH: 200,
+	THUMBNAIL_MIN_SCALE: .05,
+	THUMBNAIL_MAX_SCALE: .3
+};
 const VIRTUAL_VIEWPORT = {
 	SCROLL_THRESHOLD: 2500,
 	PADDING: 100
@@ -473,6 +480,11 @@ const QUADTREE = {
 		y2: 1e5
 	},
 	EXPAND_PADDING: 5e3
+};
+const EXPORT = { SVG_PADDING: 160 };
+const FILTER = {
+	MAX_PATTERN_LENGTH: 200,
+	MAX_NESTED_QUANTIFIER_DEPTH: 2
 };
 const DATA_CONTROLLER = {
 	BATCH_SIZE: 200,
@@ -534,6 +546,10 @@ const BOOTSTRAP = {
 	CHILDREN_PAGE_SIZE: 50
 };
 const FUNCTION_BODY = { MAX_EXPANDED: 2 };
+const SYMBOL_AST = {
+	MAX_NODES: 800,
+	MAX_SOURCE_LINES: 1500
+};
 const AST = {
 	MAX_CONTENT_BYTES: 512 * 1024,
 	MAX_TREE_SITTER_CONTENT_BYTES: 512 * 1024
@@ -542,6 +558,7 @@ const UI = {
 	SEARCH_DEBOUNCE_MS: 200,
 	RESIZE_DEBOUNCE_MS: 200,
 	ANCESTOR_MIN_HEIGHT_PX: 300,
+	ANCESTOR_SEARCH_MAX_DEPTH: 8,
 	MIN_PANEL_HEIGHT_PX: 240,
 	MIN_PANEL_WIDTH_PX: 320,
 	POLLING_INTERVAL_WATCH_MS: 1e4,
@@ -575,6 +592,28 @@ function buildForwardAdjacency(edges) {
 		else map$1.set(edge.source, [edge.target]);
 	}
 	return map$1;
+}
+function buildDirectedAdjacency(edges) {
+	const forward = new Map();
+	const backward = new Map();
+	for (const edge of edges) {
+		let fwdList = forward.get(edge.source);
+		if (!fwdList) {
+			fwdList = [];
+			forward.set(edge.source, fwdList);
+		}
+		fwdList.push(edge.target);
+		let bwdList = backward.get(edge.target);
+		if (!bwdList) {
+			bwdList = [];
+			backward.set(edge.target, bwdList);
+		}
+		bwdList.push(edge.source);
+	}
+	return {
+		forward,
+		backward
+	};
 }
 function buildFilteredUndirectedAdjacency(edges, nodeIds) {
 	const map$1 = new Map();
@@ -850,6 +889,11 @@ function getFileToNodesCache(rawNodes) {
 		else _fileToNodesCache.set(n.filePath, [n]);
 	}
 	return _fileToNodesCache;
+}
+function invalidateExpandCostCache() {
+	_dirToNodesCache = null;
+	_fileToNodesCache = null;
+	_rawNodesRef = null;
 }
 function estimateExpandCost(nodeId, rawNodes) {
 	if (nodeId.startsWith("subgroup__")) {
@@ -1390,7 +1434,7 @@ var InheritanceAssembler = class extends BaseFilteringAssembler {
 //#region src/client/diagram/CallGraphAssembler.ts
 const CALL_NODE_TYPES$1 = new Set(["function"]);
 const CALL_EDGE_TYPES = new Set(["call"]);
-const ENTRY_PATTERNS$1 = {
+const ENTRY_PATTERNS$2 = {
 	handler: /handler|controller|route|middleware|endpoint/i,
 	event: /^on[A-Z]|^listen|^subscribe|^emit/i,
 	cli: /^main$|^cli$|^run$|^start$/i,
@@ -1432,10 +1476,10 @@ var CallGraphAssembler = class extends BaseFilteringAssembler {
 		const isExported = node.properties?.isExported === true || node.properties?.is_exported === 1;
 		if (isExported) return "export";
 		const name$1 = node.label;
-		if (ENTRY_PATTERNS$1.handler.test(name$1)) return "handler";
-		if (ENTRY_PATTERNS$1.event.test(name$1)) return "event";
-		if (ENTRY_PATTERNS$1.cli.test(name$1)) return "cli";
-		if (ENTRY_PATTERNS$1.test.test(name$1)) return "test";
+		if (ENTRY_PATTERNS$2.handler.test(name$1)) return "handler";
+		if (ENTRY_PATTERNS$2.event.test(name$1)) return "event";
+		if (ENTRY_PATTERNS$2.cli.test(name$1)) return "cli";
+		if (ENTRY_PATTERNS$2.test.test(name$1)) return "test";
 		return "none";
 	}
 	detectRecursion(nodes, edges) {
@@ -2604,8 +2648,11 @@ const en = {
 	"detail.microHint": "Select a function to view micro graphs",
 	"detail.aggregateCallChain": "Aggregate Call Chain",
 	"detail.functionsInCluster": "Functions in cluster",
+	"detail.moreFunctions": "{count} more functions not shown",
 	"detail.signature": "Signature",
 	"detail.docstring": "Docstring",
+	"detail.functionBodyBudget": "Function body budget: {expanded}/{max}",
+	"detail.functionBodyBudgetHint": "Only {max} function bodies can be expanded simultaneously. Oldest will be auto-collapsed.",
 	"minimap.title": "Overview",
 	"minimap.close": "Close mini-map",
 	"minimap.functions": "Functions",
@@ -2663,6 +2710,8 @@ const en = {
 	"export.svg": "SVG",
 	"export.json": "JSON",
 	"export.mermaid": "Mermaid",
+	"export.graphml": "GraphML",
+	"export.jsonld": "JSON-LD",
 	"workspace.title": "Workspace",
 	"workspace.current": "Current Workspace",
 	"workspace.switch": "Switch Workspace",
@@ -2720,6 +2769,7 @@ const en = {
 	"edge.tooltip.target": "Target",
 	"edge.tooltip.type": "Relationship",
 	"state.complete": "Graph is complete ({total} nodes)",
+	"state.functionBudget": "Expanded {expanded}/{total} function bodies",
 	"pathFind.title": "Path Finder",
 	"pathFind.close": "Close path finder",
 	"pathFind.start": "Start",
@@ -2763,6 +2813,7 @@ const en = {
 	"toolbar.hotspot": "Hotspot Analysis",
 	"toolbar.godModule": "God Module Detection",
 	"toolbar.coreFunction": "Core Function Analysis",
+	"toolbar.deadCode": "Dead Code Detection",
 	"hotspot.close": "Close hotspot analysis",
 	"impact.total": "Total impacted nodes",
 	"cycles.empty": "No circular dependencies detected",
@@ -2835,6 +2886,13 @@ const en = {
 	"coreFunction.outDegree": "Out-Degree",
 	"coreFunction.influenceReach": "Influence Reach",
 	"coreFunction.callChainDepth": "Call Chain Depth",
+	"deadcode.filterAll": "All",
+	"deadcode.unreachable": "Unreachable",
+	"deadcode.noIncoming": "No Incoming",
+	"deadcode.orphan": "Orphan",
+	"deadcode.confirmed": "Confirmed",
+	"deadcode.suspected": "Suspected",
+	"deadcode.empty": "No dead code detected",
 	"flowchart.start": "Start",
 	"flowchart.end": "End",
 	"flowchart.errorExit": "Error Exit",
@@ -3043,8 +3101,11 @@ const zh = {
 	"detail.microHint": "选中函数节点可查看微观图谱",
 	"detail.aggregateCallChain": "聚合调用链",
 	"detail.functionsInCluster": "聚类中的函数",
+	"detail.moreFunctions": "还有 {count} 个函数未显示",
 	"detail.signature": "签名",
 	"detail.docstring": "文档字符串",
+	"detail.functionBodyBudget": "函数体展开预算: {expanded}/{max}",
+	"detail.functionBodyBudgetHint": "最多同时展开 {max} 个函数体，最早的将自动折叠。",
 	"minimap.title": "概览",
 	"minimap.close": "关闭缩略图",
 	"minimap.functions": "函数",
@@ -3102,6 +3163,8 @@ const zh = {
 	"export.svg": "SVG",
 	"export.json": "JSON",
 	"export.mermaid": "Mermaid",
+	"export.graphml": "GraphML",
+	"export.jsonld": "JSON-LD",
 	"workspace.title": "工作区",
 	"workspace.current": "当前工作区",
 	"workspace.switch": "切换工作区",
@@ -3159,6 +3222,7 @@ const zh = {
 	"edge.tooltip.target": "目标节点",
 	"edge.tooltip.type": "关系类型",
 	"state.complete": "图谱完整 ({total} 节点)",
+	"state.functionBudget": "已展开 {expanded}/{total} 个函数体",
 	"pathFind.title": "路径查找",
 	"pathFind.close": "关闭路径查找",
 	"pathFind.start": "起点",
@@ -3202,6 +3266,7 @@ const zh = {
 	"toolbar.hotspot": "热点分析",
 	"toolbar.godModule": "God Module 检测",
 	"toolbar.coreFunction": "核心函数识别",
+	"toolbar.deadCode": "死代码检测",
 	"hotspot.close": "关闭热点分析",
 	"impact.total": "总影响节点",
 	"cycles.empty": "未检测到循环依赖",
@@ -3274,6 +3339,13 @@ const zh = {
 	"coreFunction.outDegree": "出度",
 	"coreFunction.influenceReach": "影响范围",
 	"coreFunction.callChainDepth": "调用链深度",
+	"deadcode.filterAll": "全部",
+	"deadcode.unreachable": "不可达",
+	"deadcode.noIncoming": "无调用者",
+	"deadcode.orphan": "孤立子图",
+	"deadcode.confirmed": "确认",
+	"deadcode.suspected": "疑似",
+	"deadcode.empty": "未检测到死代码",
 	"flowchart.start": "开始",
 	"flowchart.end": "结束",
 	"flowchart.errorExit": "异常退出",
@@ -4594,9 +4666,12 @@ async function assembleMicroDiagram(viewMode, filePath, functionName) {
 //#region src/client/cache/IndexedDBCache.ts
 const log$15 = scoped("indexeddb-cache");
 const DB_PREFIX = "codegraph-cache-";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const CLUSTER_STORE = "cluster-cache";
 const DIAGRAM_STORE = "diagram-cache";
+const OUTLINE_STORE = "outline-cache";
+const AST_STORE = "ast-cache";
+const EDGES_STORE = "edges-cache";
 function openDB(repoId) {
 	return new Promise((resolve, reject) => {
 		const dbName = `${DB_PREFIX}${repoId}`;
@@ -4605,6 +4680,9 @@ function openDB(repoId) {
 			const db = request.result;
 			if (!db.objectStoreNames.contains(CLUSTER_STORE)) db.createObjectStore(CLUSTER_STORE);
 			if (!db.objectStoreNames.contains(DIAGRAM_STORE)) db.createObjectStore(DIAGRAM_STORE);
+			if (!db.objectStoreNames.contains(OUTLINE_STORE)) db.createObjectStore(OUTLINE_STORE);
+			if (!db.objectStoreNames.contains(AST_STORE)) db.createObjectStore(AST_STORE);
+			if (!db.objectStoreNames.contains(EDGES_STORE)) db.createObjectStore(EDGES_STORE);
 		};
 		request.onsuccess = () => resolve(request.result);
 		request.onerror = () => reject(request.error);
@@ -4732,6 +4810,57 @@ var IndexedDBCache = class {
 		} catch (e) {
 			log$15.warn("IndexedDB invalidateDiagram failed", {
 				viewMode,
+				error: e
+			});
+		}
+	}
+	async getOutline(nodeId) {
+		return this.getFromStore(OUTLINE_STORE, nodeId);
+	}
+	async setOutline(nodeId, value) {
+		return this.setToStore(OUTLINE_STORE, nodeId, value);
+	}
+	async getAST(nodeId) {
+		return this.getFromStore(AST_STORE, nodeId);
+	}
+	async setAST(nodeId, value) {
+		return this.setToStore(AST_STORE, nodeId, value);
+	}
+	async getEdges(key) {
+		return this.getFromStore(EDGES_STORE, key);
+	}
+	async setEdges(key, value) {
+		return this.setToStore(EDGES_STORE, key, value);
+	}
+	async getFromStore(storeName, key) {
+		try {
+			const db = await this.getDB();
+			return await new Promise((resolve, reject) => {
+				const tx = db.transaction(storeName, "readonly");
+				const req = tx.objectStore(storeName).get(key);
+				req.onsuccess = () => resolve(req.result ?? null);
+				req.onerror = () => reject(req.error);
+			});
+		} catch (e) {
+			log$15.warn(`IndexedDB getFromStore(${storeName}) failed`, {
+				key,
+				error: e
+			});
+			return null;
+		}
+	}
+	async setToStore(storeName, key, value) {
+		try {
+			const db = await this.getDB();
+			await new Promise((resolve, reject) => {
+				const tx = db.transaction(storeName, "readwrite");
+				tx.objectStore(storeName).put(value, key);
+				tx.oncomplete = () => resolve();
+				tx.onerror = () => reject(tx.error);
+			});
+		} catch (e) {
+			log$15.warn(`IndexedDB setToStore(${storeName}) failed`, {
+				key,
 				error: e
 			});
 		}
@@ -6149,6 +6278,34 @@ function buildStylesheet(theme, nodeCount = 0) {
 			}
 		},
 		{
+			selector: "node.dead-code",
+			style: {
+				"background-color": readCssVarCached("--cg-dead-code", isDark ? "#6b7280" : "#9ca3af"),
+				"border-style": "dashed",
+				"border-color": readCssVarCached("--cg-dead-code-border", isDark ? "#4b5563" : "#6b7280"),
+				"border-width": 2,
+				"opacity": .5
+			}
+		},
+		{
+			selector: "node.dead-code-suspected",
+			style: {
+				"background-color": readCssVarCached("--cg-dead-code-suspected", isDark ? "#9ca3af" : "#d1d5db"),
+				"border-style": "dotted",
+				"border-color": readCssVarCached("--cg-dead-code-suspected-border", isDark ? "#6b7280" : "#9ca3af"),
+				"border-width": 1,
+				"opacity": .7
+			}
+		},
+		{
+			selector: "edge.dead-code-edge",
+			style: {
+				"line-color": readCssVarCached("--cg-dead-code", isDark ? "#6b7280" : "#9ca3af"),
+				"line-style": "dashed",
+				"opacity": .3
+			}
+		},
+		{
 			selector: "node[depType=\"npm\"]",
 			style: {
 				"shape": "round-rectangle",
@@ -6797,6 +6954,7 @@ const STRUCTURAL_PANELS = new Set([
 	"showRules",
 	"showImport",
 	"showFilterPanel",
+	"showDeadCode",
 	"showMiniMap",
 	"showLegend"
 ]);
@@ -6808,6 +6966,7 @@ const BEHAVIORAL_PANELS = new Set([
 	"showHotspot",
 	"showGodModule",
 	"showCoreFunction",
+	"showDeadCode",
 	"showSearch",
 	"showPathFind",
 	"showMiniMap",
@@ -7087,16 +7246,19 @@ async function fetchBootstrap() {
 		return null;
 	}
 }
-async function fetchNodeChildren(nodeId, cursor, limit$1) {
+async function fetchNodeChildren(nodeId, cursor, limit$1, signal) {
 	try {
 		const params = new URLSearchParams();
 		params.set("nodeId", nodeId);
 		if (cursor) params.set("cursor", cursor);
 		params.set("limit", String(limit$1 ?? BOOTSTRAP.CHILDREN_PAGE_SIZE));
-		const res = await fetchWithTimeout(`/api/v1/codegraph/children?${params}`);
+		const options = {};
+		if (signal) options.signal = signal;
+		const res = await fetchWithTimeout(`/api/v1/codegraph/children?${params}`, options);
 		if (!res.ok) return null;
 		return await res.json();
 	} catch (e) {
+		if (e instanceof DOMException && e.name === "AbortError") return null;
 		log$13.warn("fetchNodeChildren failed", {
 			nodeId,
 			error: e instanceof Error ? e.message : String(e)
@@ -7123,19 +7285,6 @@ async function fetchStatus() {
 		};
 	}
 }
-async function fetchGraphData() {
-	try {
-		const res = await fetchWithTimeout("/api/v1/codegraph/data");
-		if (!res.ok) return null;
-		return validateGraphData(await res.json());
-	} catch (e) {
-		log$13.warn("fetchGraphData failed", {
-			url: "/api/v1/codegraph/data",
-			error: e instanceof Error ? e.message : String(e)
-		});
-		return null;
-	}
-}
 async function fetchWorkspace() {
 	try {
 		const res = await fetchWithTimeout("/api/v1/codegraph/workspace");
@@ -7154,23 +7303,6 @@ async function fetchWorkspace() {
 			path: ".",
 			list: []
 		};
-	}
-}
-async function requestScan(path, maxNodes) {
-	try {
-		const res = await fetchWithTimeout("/api/v1/codegraph/scan", {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({
-				path,
-				maxNodes
-			})
-		}, API.SCAN_TIMEOUT_MS);
-		if (!res.ok) return null;
-		return await res.json();
-	} catch (e) {
-		log$13.warn("requestScan failed", e);
-		return null;
 	}
 }
 async function requestInit(path) {
@@ -7256,10 +7388,15 @@ const log$12 = scoped("store");
 const diagramCache = new DiagramCache(10);
 const clusterCache = new ClusterCache(20);
 let persistentCache = null;
+let persistentCacheRepoId = null;
 const callChainAggregator = new CallChainAggregator();
 let microAssemblyGeneration = 0;
+let multiAssemblyGeneration = 0;
 let incrementalClusterCtx = null;
 let prefetchInFlightCount = 0;
+const prefetchAbortControllers = new Map();
+let expandGeneration = 0;
+let prefetchIdleHandle = null;
 function detectInitialTheme() {
 	if (typeof document === "undefined") return "dark";
 	return document.body.hasAttribute("data-ds-dark-theme") ? "dark" : "light";
@@ -7274,11 +7411,12 @@ function enforceFunctionBodyBudget(expanded, rawNodes, maxExpanded) {
 		expanded.delete(oldest);
 	}
 }
-function collapseExcessClusters(nodes, effectiveExpanded, maxVisible, costOffset) {
+function collapseExcessClusters(nodes, effectiveExpanded, maxVisible, costOffset, pinnedIds) {
 	if (nodes.length + costOffset <= maxVisible) return;
 	const clusterNodes = nodes.filter((n) => "isCluster" in n && n.isCluster === true);
 	const sorted = [...clusterNodes].sort((a, b) => b.childCount - a.childCount);
 	for (const cn of sorted) {
+		if (pinnedIds?.has(cn.id)) continue;
 		if (nodes.length + costOffset - cn.childCount <= maxVisible) {
 			effectiveExpanded.delete(cn.id);
 			break;
@@ -7303,6 +7441,30 @@ function updateIncrementalClusterCtx(result, rawNodes, rawEdges) {
 		prevRawNodes: rawNodes,
 		prevRawEdges: rawEdges
 	};
+}
+function mergeAndRecluster(newNodes, newEdges, set$1, logLabel, logDetail) {
+	const s = useGraphStore.getState();
+	const existingIds = new Set(s.rawNodes.map((n) => n.id));
+	const filteredNodes = newNodes.filter((n) => !existingIds.has(n.id));
+	const existingEdgeIds = new Set(s.rawEdges.map((e) => e.id));
+	const filteredEdges = newEdges.filter((e) => !existingEdgeIds.has(e.id));
+	if (filteredNodes.length === 0 && filteredEdges.length === 0) return;
+	const mergedRawNodes = [...s.rawNodes, ...filteredNodes];
+	const mergedRawEdges = [...s.rawEdges, ...filteredEdges];
+	const { clusterDepth: cd, expandedNodeIds: ei, panelWidth: pw } = s;
+	const result = tryIncrementalOrFull(incrementalClusterCtx, mergedRawNodes, mergedRawEdges, ei, cd, pw ?? void 0);
+	updateIncrementalClusterCtx(result, mergedRawNodes, mergedRawEdges);
+	set$1({
+		rawNodes: mergedRawNodes,
+		rawEdges: mergedRawEdges,
+		nodes: result.nodes,
+		edges: result.edges
+	});
+	log$12.info(logLabel, {
+		...logDetail,
+		newNodes: filteredNodes.length,
+		newEdges: filteredEdges.length
+	});
 }
 function sanitizeGraphData(nodes, edges) {
 	const seenNodeIds = new Set();
@@ -7366,15 +7528,26 @@ function clearLoadingFailsafe() {
 	}
 }
 function disposeStore() {
+	for (const controller of prefetchAbortControllers.values()) controller.abort();
+	prefetchAbortControllers.clear();
+	prefetchInFlightCount = 0;
+	if (prefetchIdleHandle !== null) {
+		if (typeof cancelIdleCallback === "function") cancelIdleCallback(prefetchIdleHandle);
+		else clearTimeout(prefetchIdleHandle);
+		prefetchIdleHandle = null;
+	}
 	diagramCache.invalidate();
 	clusterCache.invalidate();
 	incrementalClusterCtx = null;
+	invalidateExpandCostCache();
 	microAssemblyGeneration = 0;
+	multiAssemblyGeneration = 0;
 	clearLoadingFailsafe();
 	if (persistentCache) {
 		persistentCache.close();
 		persistentCache = null;
 	}
+	persistentCacheRepoId = null;
 }
 function applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache$1, set$1) {
 	if (isLayeredViewMode(viewMode)) {
@@ -7461,6 +7634,8 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	loadedChildrenByNodeId: new Set(),
 	prefetchedNodeIds: new Set(),
 	loadErrorsByNodeId: new Map(),
+	pendingRequests: new Map(),
+	pinnedIds: new Set(),
 	currentWorkspace: ".",
 	workspaceList: [],
 	pathStartId: null,
@@ -7493,6 +7668,8 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	healthScore: null,
 	rules: [],
 	ruleViolations: [],
+	deadCodeResult: null,
+	deadCodeModeActive: false,
 	panelHeight: null,
 	panelWidth: null,
 	selectedFunction: null,
@@ -7502,9 +7679,10 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	setGraphData: (nodes, edges, repoId, metadata) => {
 		try {
 			clearLoadingFailsafe();
-			if (persistentCache?.["repoId"] !== repoId) {
+			if (persistentCacheRepoId !== repoId) {
 				if (persistentCache) persistentCache.close();
 				persistentCache = new IndexedDBCache(repoId);
+				persistentCacheRepoId = repoId;
 				diagramCache.setPersistentBackend(persistentCache);
 				clusterCache.setPersistentBackend(persistentCache);
 			}
@@ -7726,13 +7904,14 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	setWatchEnabled: (watchEnabled) => set$1({ watchEnabled }),
 	expandNode: (nodeId) => {
 		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, nodes, panelWidth } = useGraphStore.getState();
+		const gen = ++expandGeneration;
 		const cost = estimateExpandCost(nodeId, rawNodes);
 		const maxVisible = computeMaxVisible(panelWidth);
 		const effectiveExpanded = new Set(expandedNodeIds);
 		const expandingFunctionBody = rawNodes.some((n) => n.id === nodeId && n.type === "function");
 		if (expandingFunctionBody) enforceFunctionBodyBudget(effectiveExpanded, rawNodes, FUNCTION_BODY.MAX_EXPANDED - 1);
 		effectiveExpanded.add(nodeId);
-		collapseExcessClusters(nodes, effectiveExpanded, maxVisible, cost);
+		collapseExcessClusters(nodes, effectiveExpanded, maxVisible, cost, useGraphStore.getState().pinnedIds);
 		if (cost > CLUSTER.EXPAND_BUDGET_SINGLE) log$12.warn("expand budget exceeded", {
 			nodeId,
 			cost,
@@ -7752,31 +7931,8 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				});
 			});
 			if (node.type === "module") fetchFileOutline(nodeId).then((data$2) => {
-				if (data$2 && data$2.symbols.length > 0) {
-					const s = useGraphStore.getState();
-					const existingIds = new Set(s.rawNodes.map((n) => n.id));
-					const newSyms = data$2.symbols.filter((n) => !existingIds.has(n.id));
-					const existingEdgeIds = new Set(s.rawEdges.map((e) => e.id));
-					const newEdges = data$2.edges.filter((e) => !existingEdgeIds.has(e.id));
-					if (newSyms.length > 0 || newEdges.length > 0) {
-						const mergedRawNodes = [...s.rawNodes, ...newSyms];
-						const mergedRawEdges = [...s.rawEdges, ...newEdges];
-						const { clusterDepth: cd, expandedNodeIds: ei, panelWidth: pw } = s;
-						const result = tryIncrementalOrFull(incrementalClusterCtx, mergedRawNodes, mergedRawEdges, ei, cd, pw ?? void 0);
-						updateIncrementalClusterCtx(result, mergedRawNodes, mergedRawEdges);
-						set$1({
-							rawNodes: mergedRawNodes,
-							rawEdges: mergedRawEdges,
-							nodes: result.nodes,
-							edges: result.edges
-						});
-						log$12.info("file outline loaded", {
-							nodeId,
-							newSymbols: newSyms.length,
-							newEdges: newEdges.length
-						});
-					}
-				}
+				if (gen !== expandGeneration) return;
+				if (data$2 && data$2.symbols.length > 0) mergeAndRecluster(data$2.symbols, data$2.edges, set$1, "file outline loaded", { nodeId });
 			}).catch((err) => {
 				log$12.warn("expandNode: fetchFileOutline failed", {
 					nodeId,
@@ -7784,30 +7940,21 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				});
 			});
 			if (node.type === "function") fetchSymbolAST(nodeId).then((data$2) => {
+				if (gen !== expandGeneration) return;
 				if (data$2 && data$2.astNodes.length > 0) {
-					const s = useGraphStore.getState();
-					const existingIds = new Set(s.rawNodes.map((n) => n.id));
-					const newAst = data$2.astNodes.filter((n) => !existingIds.has(n.id));
-					const existingEdgeIds = new Set(s.rawEdges.map((e) => e.id));
-					const newEdges = data$2.astEdges.filter((e) => !existingEdgeIds.has(e.id));
-					if (newAst.length > 0 || newEdges.length > 0) {
-						const mergedRawNodes = [...s.rawNodes, ...newAst];
-						const mergedRawEdges = [...s.rawEdges, ...newEdges];
-						const { clusterDepth: cd, expandedNodeIds: ei, panelWidth: pw } = s;
-						const result = tryIncrementalOrFull(incrementalClusterCtx, mergedRawNodes, mergedRawEdges, ei, cd, pw ?? void 0);
-						updateIncrementalClusterCtx(result, mergedRawNodes, mergedRawEdges);
-						set$1({
-							rawNodes: mergedRawNodes,
-							rawEdges: mergedRawEdges,
-							nodes: result.nodes,
-							edges: result.edges
-						});
-						log$12.info("symbol AST loaded", {
-							nodeId,
-							newAstNodes: newAst.length,
-							newEdges: newEdges.length
-						});
-					}
+					const truncatedAstNodes = data$2.astNodes.length > SYMBOL_AST.MAX_NODES ? data$2.astNodes.slice(0, SYMBOL_AST.MAX_NODES) : data$2.astNodes;
+					const truncatedSourceLines = data$2.sourceLines.length > SYMBOL_AST.MAX_SOURCE_LINES ? data$2.sourceLines.slice(0, SYMBOL_AST.MAX_SOURCE_LINES) : data$2.sourceLines;
+					const astNodeIds = new Set(truncatedAstNodes.map((n) => n.id));
+					const truncatedAstEdges = data$2.astEdges.filter((e) => astNodeIds.has(e.source) && astNodeIds.has(e.target));
+					if (truncatedAstNodes.length < data$2.astNodes.length) log$12.warn("symbol AST truncated", {
+						nodeId,
+						original: data$2.astNodes.length,
+						truncated: truncatedAstNodes.length
+					});
+					mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, set$1, "symbol AST loaded", {
+						nodeId,
+						sourceLines: truncatedSourceLines.length
+					});
 				}
 			}).catch((err) => {
 				log$12.warn("expandNode: fetchSymbolAST failed", {
@@ -7817,7 +7964,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			});
 		}
 	},
-	loadNodeChildren: async (nodeId) => {
+	loadNodeChildren: async (nodeId, options) => {
 		const state = useGraphStore.getState();
 		if (state.loadedChildrenByNodeId.has(nodeId)) return;
 		const hasChildren = state.rawNodes.some((n) => n.parentId === nodeId || n.id.startsWith(nodeId + "/"));
@@ -7827,12 +7974,22 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			set$1({ loadedChildrenByNodeId: newLoaded });
 			return;
 		}
+		const controller = new AbortController();
+		const newPending = new Map(state.pendingRequests);
+		newPending.set(nodeId, controller);
+		set$1({ pendingRequests: newPending });
 		try {
-			const data$2 = await fetchNodeChildren(nodeId);
+			const signal = options?.signal ?? controller.signal;
+			const data$2 = await fetchNodeChildren(nodeId, void 0, void 0, signal);
 			if (!data$2 || data$2.nodes.length === 0) {
 				const newLoaded$1 = new Set(state.loadedChildrenByNodeId);
 				newLoaded$1.add(nodeId);
-				set$1({ loadedChildrenByNodeId: newLoaded$1 });
+				const clearedPending$1 = new Map(useGraphStore.getState().pendingRequests);
+				clearedPending$1.delete(nodeId);
+				set$1({
+					loadedChildrenByNodeId: newLoaded$1,
+					pendingRequests: clearedPending$1
+				});
 				return;
 			}
 			const s2 = useGraphStore.getState();
@@ -7843,13 +8000,20 @@ const useGraphStore = create$1()(persist((set$1) => ({
 			if (newNodes.length === 0 && newEdges.length === 0) {
 				const newLoaded$1 = new Set(s2.loadedChildrenByNodeId);
 				newLoaded$1.add(nodeId);
-				set$1({ loadedChildrenByNodeId: newLoaded$1 });
+				const clearedPending$1 = new Map(s2.pendingRequests);
+				clearedPending$1.delete(nodeId);
+				set$1({
+					loadedChildrenByNodeId: newLoaded$1,
+					pendingRequests: clearedPending$1
+				});
 				return;
 			}
 			const mergedRawNodes = [...s2.rawNodes, ...newNodes];
 			const mergedRawEdges = [...s2.rawEdges, ...newEdges];
 			const newLoaded = new Set(s2.loadedChildrenByNodeId);
 			newLoaded.add(nodeId);
+			const clearedPending = new Map(s2.pendingRequests);
+			clearedPending.delete(nodeId);
 			const { clusterDepth, expandedNodeIds, panelWidth } = s2;
 			const result = tryIncrementalOrFull(incrementalClusterCtx, mergedRawNodes, mergedRawEdges, expandedNodeIds, clusterDepth, panelWidth ?? void 0);
 			updateIncrementalClusterCtx(result, mergedRawNodes, mergedRawEdges);
@@ -7858,7 +8022,8 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				rawEdges: mergedRawEdges,
 				nodes: result.nodes,
 				edges: result.edges,
-				loadedChildrenByNodeId: newLoaded
+				loadedChildrenByNodeId: newLoaded,
+				pendingRequests: clearedPending
 			});
 			log$12.info("node children loaded", {
 				nodeId,
@@ -7866,6 +8031,18 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				newEdges: newEdges.length
 			});
 		} catch (err) {
+			const clearedPending = new Map(useGraphStore.getState().pendingRequests);
+			clearedPending.delete(nodeId);
+			if (err instanceof DOMException && err.name === "AbortError") {
+				set$1({ pendingRequests: clearedPending });
+				return;
+			}
+			const newErrors = new Map(useGraphStore.getState().loadErrorsByNodeId);
+			newErrors.set(nodeId, err instanceof Error ? err.message : String(err));
+			set$1({
+				pendingRequests: clearedPending,
+				loadErrorsByNodeId: newErrors
+			});
 			log$12.warn("loadNodeChildren failed", {
 				nodeId,
 				err
@@ -7903,7 +8080,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		const effectiveExpanded = new Set(expandedNodeIds);
 		for (const nodeId of nodeIds) effectiveExpanded.add(nodeId);
 		enforceFunctionBodyBudget(effectiveExpanded, rawNodes, FUNCTION_BODY.MAX_EXPANDED);
-		collapseExcessClusters(nodes, effectiveExpanded, maxVisible, 0);
+		collapseExcessClusters(nodes, effectiveExpanded, maxVisible, 0, useGraphStore.getState().pinnedIds);
 		const newExpandedByViewMode = {
 			...expandedNodeIdsByViewMode,
 			[viewMode]: effectiveExpanded
@@ -7920,18 +8097,24 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		if (rawNode?.type === "function") return;
 		const cost = estimateExpandCost(nodeId, rawNodes);
 		if (cost > PREFETCH.COST_THRESHOLD) return;
+		const prevController = prefetchAbortControllers.get(nodeId);
+		if (prevController) prevController.abort();
+		const controller = new AbortController();
+		prefetchAbortControllers.set(nodeId, controller);
 		const newPrefetched = new Set(prefetchedNodeIds);
 		newPrefetched.add(nodeId);
 		set$1({ prefetchedNodeIds: newPrefetched });
 		if (!loadedChildrenByNodeId.has(nodeId)) {
 			prefetchInFlightCount++;
-			useGraphStore.getState().loadNodeChildren(nodeId).catch((err) => {
+			useGraphStore.getState().loadNodeChildren(nodeId, { signal: controller.signal }).catch((err) => {
+				if (err instanceof DOMException && err.name === "AbortError") return;
 				const s = useGraphStore.getState();
 				const newErrors = new Map(s.loadErrorsByNodeId);
 				newErrors.set(nodeId, err instanceof Error ? err.message : String(err));
 				set$1({ loadErrorsByNodeId: newErrors });
 			}).finally(() => {
 				prefetchInFlightCount--;
+				prefetchAbortControllers.delete(nodeId);
 			});
 		}
 		const newExpanded = new Set(expandedNodeIds);
@@ -7952,17 +8135,24 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		prefetchInFlightCount++;
 		const runPrefetch = () => {
 			try {
+				if (controller.signal.aborted) return;
 				const result = computeClusteredGraph(sourceNodes, sourceEdges, "progressive", newExpanded, clusterDepth, useGraphStore.getState().panelWidth ?? void 0);
 				clusterCache.set(dataHash, cacheLevel, expandedKey, result);
 			} finally {
 				prefetchInFlightCount--;
 			}
 		};
-		if (typeof requestIdleCallback === "function") requestIdleCallback(runPrefetch, { timeout: 2e3 });
-		else setTimeout(runPrefetch, 0);
+		if (prefetchIdleHandle !== null) {
+			if (typeof cancelIdleCallback === "function" && typeof prefetchIdleHandle === "number") cancelIdleCallback(prefetchIdleHandle);
+			else clearTimeout(prefetchIdleHandle);
+			prefetchIdleHandle = null;
+		}
+		if (typeof requestIdleCallback === "function") prefetchIdleHandle = requestIdleCallback(runPrefetch, { timeout: 2e3 });
+		else prefetchIdleHandle = setTimeout(runPrefetch, 0);
 	},
 	collapseNode: (nodeId) => {
-		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
+		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, pinnedIds } = useGraphStore.getState();
+		if (pinnedIds.has(nodeId)) return;
 		const newExpanded = new Set(expandedNodeIds);
 		newExpanded.delete(nodeId);
 		const newExpandedByViewMode = {
@@ -7972,12 +8162,13 @@ const useGraphStore = create$1()(persist((set$1) => ({
 		applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set$1);
 	},
 	collapseAll: () => {
-		const { rawNodes, rawEdges, clusterDepth, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer } = useGraphStore.getState();
+		const { rawNodes, rawEdges, clusterDepth, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, pinnedIds } = useGraphStore.getState();
+		const newExpanded = new Set(pinnedIds);
 		const newExpandedByViewMode = {
 			...expandedNodeIdsByViewMode,
-			[viewMode]: new Set()
+			[viewMode]: newExpanded
 		};
-		applyClusterUpdate(new Set(), newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set$1);
+		applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set$1);
 	},
 	setCurrentWorkspace: (path) => set$1({ currentWorkspace: path }),
 	addWorkspace: (path, name$1) => set$1((s) => {
@@ -8016,9 +8207,10 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	setHeatmapMode: (mode) => set$1({ heatmapMode: mode }),
 	assembleMultiFunction: async (entryNodeId) => {
 		const { rawNodes, rawEdges, callChainDepth, clusterDepth, expandedNodeIds } = useGraphStore.getState();
+		const gen = ++multiAssemblyGeneration;
 		const astFetcher = async (filePath) => {
 			try {
-				const response = await fetch("/api/v1/codegraph/ast", {
+				const response = await fetchWithTimeout("/api/v1/codegraph/ast", {
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
 					body: JSON.stringify({ filePath })
@@ -8035,6 +8227,7 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				depth: callChainDepth,
 				maxFunctions: UI.MAX_FUNCTIONS_PER_CLUSTER
 			});
+			if (gen !== multiAssemblyGeneration) return;
 			if (result && result.diagram.nodes.length > 0) {
 				const clustered = computeClusteredGraph(result.diagram.nodes, result.diagram.edges, "progressive", expandedNodeIds, clusterDepth, useGraphStore.getState().panelWidth ?? void 0);
 				set$1({
@@ -8059,6 +8252,8 @@ const useGraphStore = create$1()(persist((set$1) => ({
 	setHealthScore: (score) => set$1({ healthScore: score }),
 	setRules: (rules) => set$1({ rules }),
 	setRuleViolations: (violations) => set$1({ ruleViolations: violations }),
+	setDeadCodeResult: (result) => set$1({ deadCodeResult: result }),
+	setDeadCodeModeActive: (active) => set$1({ deadCodeModeActive: active }),
 	setPanelSize: (height, width$1) => set$1({
 		panelHeight: height,
 		panelWidth: width$1
@@ -8119,6 +8314,28 @@ const useGraphStore = create$1()(persist((set$1) => ({
 				isLoading: false,
 				error: `${msg} — ${selectedFunction.functionName}`
 			});
+		}
+	},
+	pinNode: (nodeId) => {
+		const { pinnedIds } = useGraphStore.getState();
+		const newPinned = new Set(pinnedIds);
+		newPinned.add(nodeId);
+		set$1({ pinnedIds: newPinned });
+	},
+	unpinNode: (nodeId) => {
+		const { pinnedIds } = useGraphStore.getState();
+		const newPinned = new Set(pinnedIds);
+		newPinned.delete(nodeId);
+		set$1({ pinnedIds: newPinned });
+	},
+	cancelPendingRequest: (nodeId) => {
+		const { pendingRequests } = useGraphStore.getState();
+		const controller = pendingRequests.get(nodeId);
+		if (controller) {
+			controller.abort();
+			const newPending = new Map(pendingRequests);
+			newPending.delete(nodeId);
+			set$1({ pendingRequests: newPending });
 		}
 	},
 	setLayer: (layer) => {
@@ -53618,6 +53835,7 @@ var LayoutController = class {
 			} catch {}
 			if (workerUrl) this.worker = new Worker(workerUrl, { type: "module" });
 			if (this.worker) {
+				this.workerRetryCount = 0;
 				this.worker.onmessage = (e) => {
 					if (this.workerLayoutResolve) {
 						this.workerLayoutResolve(e.data.positions);
@@ -53657,16 +53875,16 @@ var LayoutController = class {
 		const worker = this.worker;
 		return new Promise((resolve) => {
 			this.workerTimeout = setTimeout(() => {
+				log$11.warn("layout worker timeout — falling back to empty positions");
 				if (this.workerLayoutResolve) {
-					log$11.warn("layout worker timeout — falling back to empty positions");
 					this.workerLayoutResolve({});
 					this.workerLayoutResolve = null;
 				}
 				if (this.worker) {
 					this.worker.terminate();
 					this.worker = null;
-					this.workerInitFailed = true;
-					log$11.warn("layout worker terminated due to timeout — will retry on next layout");
+					log$11.warn("layout worker terminated due to timeout — will auto-retry");
+					this.retryWorkerInit();
 				}
 			}, RENDERER.LAYOUT_TIMEOUT_MS);
 			this.workerLayoutResolve = (positions) => {
@@ -54536,9 +54754,13 @@ var ViewportController = class {
 		return relevant;
 	}
 	getThumbnail() {
+		const bounds$1 = this.cy.elements().boundingBox();
+		const graphWidth = Math.max(bounds$1.w, 1);
+		const dynamicScale = VIEWPORT.THUMBNAIL_TARGET_WIDTH / graphWidth;
+		const scale$1 = Math.min(Math.max(dynamicScale, VIEWPORT.THUMBNAIL_MIN_SCALE), VIEWPORT.THUMBNAIL_MAX_SCALE);
 		return this.cy.png({
 			full: true,
-			scale: .15,
+			scale: scale$1,
 			bg: "transparent"
 		});
 	}
@@ -54743,10 +54965,7 @@ var DataController = class {
 				this.currentNodes.set(n.id, n);
 				this.lastAddedNodeIds.add(n.id);
 			}
-			for (const e of edges) {
-				this.addEdge(e);
-				this.currentEdges.set(e.id, e);
-			}
+			for (const e of edges) if (this.addEdge(e)) this.currentEdges.set(e.id, e);
 		});
 		this.computeNodeWeights();
 	}
@@ -54772,17 +54991,17 @@ var DataController = class {
 			} else this.updateNodeData(n);
 			this.currentNodes.set(n.id, n);
 		}
-		for (const e of edges) {
-			if (!this.currentEdges.has(e.id)) edgesToAdd.push(e);
-			else {
-				const existing = this.currentEdges.get(e.id);
-				const cyEdge = this.cy.getElementById(e.id);
-				if (cyEdge.length > 0 && existing && (existing.source !== e.source || existing.target !== e.target)) {
-					this.cy.remove(cyEdge);
-					edgesToAdd.push(e);
-				} else if (cyEdge.length > 0 && e.properties) for (const [key, value] of Object.entries(e.properties)) cyEdge.data(key, value);
+		for (const e of edges) if (!this.currentEdges.has(e.id)) edgesToAdd.push(e);
+		else {
+			const existing = this.currentEdges.get(e.id);
+			const cyEdge = this.cy.getElementById(e.id);
+			if (cyEdge.length > 0 && existing && (existing.source !== e.source || existing.target !== e.target)) {
+				this.cy.remove(cyEdge);
+				edgesToAdd.push(e);
+			} else {
+				if (cyEdge.length > 0 && e.properties) for (const [key, value] of Object.entries(e.properties)) cyEdge.data(key, value);
+				this.currentEdges.set(e.id, e);
 			}
-			this.currentEdges.set(e.id, e);
 		}
 		if (nodesToAdd.length === 0 && edgesToAdd.length === 0) {
 			this.computeNodeWeights();
@@ -54795,7 +55014,7 @@ var DataController = class {
 		if (nodesToAdd.length <= BATCH_SIZE) {
 			this.cy.batch(() => {
 				for (const n of nodesToAdd) this.addNode(n);
-				for (const e of edgesToAdd) this.addEdge(e);
+				for (const e of edgesToAdd) if (this.addEdge(e)) this.currentEdges.set(e.id, e);
 			});
 			this.computeNodeWeights();
 			return;
@@ -54808,7 +55027,7 @@ var DataController = class {
 		const remainingEdges = edgesToAdd.filter((e) => !firstBatchEdgeIds.has(e.id));
 		this.cy.batch(() => {
 			for (const n of firstBatchNodes) this.addNode(n);
-			for (const e of firstBatchEdges) this.addEdge(e);
+			for (const e of firstBatchEdges) if (this.addEdge(e)) this.currentEdges.set(e.id, e);
 		});
 		this.batchQueue = {
 			nodes: remainingNodes,
@@ -54882,7 +55101,7 @@ var DataController = class {
 				source: e.source,
 				target: e.target
 			});
-			return;
+			return false;
 		}
 		const existing = this.cy.getElementById(e.id);
 		if (existing.length > 0) existing.remove();
@@ -54902,11 +55121,16 @@ var DataController = class {
 			group: "edges",
 			data: data$2
 		});
+		return true;
 	}
 	processBatchQueue() {
 		if (!this.batchQueue) return;
 		if (this.batchRaf !== null) cancelAnimationFrame(this.batchRaf);
 		this.batchRaf = requestAnimationFrame(() => {
+			if (this.destroyed) {
+				this.batchRaf = null;
+				return;
+			}
 			if (!this.batchQueue) {
 				this.batchRaf = null;
 				return;
@@ -54921,7 +55145,7 @@ var DataController = class {
 			const leftoverEdges = edges.filter((e) => !batchEdgeIds.has(e.id));
 			this.cy.batch(() => {
 				for (const n of batchNodes) this.addNode(n);
-				for (const e of batchEdges) this.addEdge(e);
+				for (const e of batchEdges) if (this.addEdge(e)) this.currentEdges.set(e.id, e);
 			});
 			if (leftoverNodes.length > 0) {
 				this.batchQueue = {
@@ -55036,7 +55260,6 @@ var DataController = class {
 //#endregion
 //#region src/client/renderer/FilterController.ts
 const log$8 = scoped("filter");
-const MAX_PATTERN_LENGTH = 200;
 var FilterController = class {
 	cy;
 	fanInCache = null;
@@ -55186,16 +55409,54 @@ var FilterController = class {
 	}
 	safeRegExp(pattern) {
 		try {
-			if (pattern.length > MAX_PATTERN_LENGTH || /(\+|\*|\{)\{/.test(pattern)) return null;
+			if (pattern.length > FILTER.MAX_PATTERN_LENGTH) return null;
+			if (/(\+|\*|\?)\1/.test(pattern)) return null;
+			if (this.hasNestedQuantifier(pattern, FILTER.MAX_NESTED_QUANTIFIER_DEPTH)) return null;
+			if (/(\+|\*|\{)\{/.test(pattern)) return null;
 			return new RegExp(pattern);
 		} catch (e) {
 			log$8.warn("invalid regex pattern", e);
 			return null;
 		}
 	}
+	hasNestedQuantifier(pattern, maxDepth) {
+		let depth = 0;
+		const quantifierAtDepth = [];
+		for (let i$1 = 0; i$1 < pattern.length; i$1++) {
+			const ch = pattern[i$1];
+			if (ch === "(") {
+				depth++;
+				quantifierAtDepth.push(0);
+			} else if (ch === ")") {
+				const hadQuantifierInside = quantifierAtDepth.pop() ?? 0;
+				depth--;
+				if (depth >= 1 && hadQuantifierInside > 0) {
+					const nextCh = pattern[i$1 + 1];
+					if (nextCh && (nextCh === "+" || nextCh === "*" || nextCh === "?" || nextCh === "{")) return true;
+				}
+				if (depth >= 1 && quantifierAtDepth.length > 0) {
+					const top = quantifierAtDepth[quantifierAtDepth.length - 1];
+					if (top !== void 0) quantifierAtDepth[quantifierAtDepth.length - 1] = top + hadQuantifierInside;
+				}
+			} else if (ch && (ch === "+" || ch === "*" || ch === "?")) {
+				if (depth >= 1 && quantifierAtDepth.length > 0) {
+					const top = quantifierAtDepth[quantifierAtDepth.length - 1];
+					if (top !== void 0) quantifierAtDepth[quantifierAtDepth.length - 1] = top + 1;
+				}
+				if (depth >= maxDepth) return true;
+			} else if (ch === "{") {
+				if (depth >= 1 && quantifierAtDepth.length > 0) {
+					const top = quantifierAtDepth[quantifierAtDepth.length - 1];
+					if (top !== void 0) quantifierAtDepth[quantifierAtDepth.length - 1] = top + 1;
+				}
+				if (depth >= maxDepth) return true;
+			}
+		}
+		return false;
+	}
 	filterByPath(includePattern, excludePattern) {
-		const includeRe = includePattern && includePattern.length <= MAX_PATTERN_LENGTH ? this.safeRegExp(includePattern) : null;
-		const excludeRe = excludePattern && excludePattern.length <= MAX_PATTERN_LENGTH ? this.safeRegExp(excludePattern) : null;
+		const includeRe = includePattern && includePattern.length <= FILTER.MAX_PATTERN_LENGTH ? this.safeRegExp(includePattern) : null;
+		const excludeRe = excludePattern && excludePattern.length <= FILTER.MAX_PATTERN_LENGTH ? this.safeRegExp(excludePattern) : null;
 		this.cy.batch(() => {
 			this.cy.nodes().forEach((node) => {
 				const isCluster = node.data("isCluster") === true;
@@ -55528,8 +55789,8 @@ var ExportController = class {
 			contains: colors$1.edgeContains
 		};
 		const bbox = this.cy.elements().boundingBox();
-		const w = Math.ceil(bbox.w) + 160;
-		const h = Math.ceil(bbox.h) + 160;
+		const w = Math.ceil(bbox.w) + EXPORT.SVG_PADDING;
+		const h = Math.ceil(bbox.h) + EXPORT.SVG_PADDING;
 		const offsetX = -bbox.x1 + DATA_CONTROLLER.SVG_OFFSET;
 		const offsetY = -bbox.y1 + DATA_CONTROLLER.SVG_OFFSET;
 		const parts = [];
@@ -55552,6 +55813,91 @@ var ExportController = class {
 		});
 		parts.push("</svg>");
 		return parts.join("");
+	}
+	exportGraphML() {
+		const nodes = this.cy.nodes();
+		const edges = this.cy.edges();
+		if (nodes.length === 0) return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\">\n</graphml>";
+		const parts = [];
+		parts.push("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
+		parts.push("<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\">");
+		parts.push("  <key id=\"label\" for=\"node\" attr.name=\"label\" attr.type=\"string\"/>");
+		parts.push("  <key id=\"type\" for=\"node\" attr.name=\"type\" attr.type=\"string\"/>");
+		parts.push("  <key id=\"filePath\" for=\"node\" attr.name=\"filePath\" attr.type=\"string\"/>");
+		parts.push("  <key id=\"edgeType\" for=\"edge\" attr.name=\"type\" attr.type=\"string\"/>");
+		parts.push("  <graph id=\"G\" edgedefault=\"directed\">");
+		nodes.forEach((node) => {
+			const id = escapeXml(node.id());
+			const label = escapeXml(String(node.data("label") ?? ""));
+			const type = escapeXml(String(node.data("type") ?? ""));
+			const filePath = escapeXml(String(node.data("filePath") ?? ""));
+			parts.push(`    <node id="${id}">`);
+			parts.push(`      <data key="label">${label}</data>`);
+			parts.push(`      <data key="type">${type}</data>`);
+			if (filePath) parts.push(`      <data key="filePath">${filePath}</data>`);
+			parts.push("    </node>");
+		});
+		edges.forEach((edge) => {
+			const id = escapeXml(edge.id());
+			const source = escapeXml(edge.source().id());
+			const target = escapeXml(edge.target().id());
+			const edgeType = escapeXml(String(edge.data("type") ?? ""));
+			parts.push(`    <edge id="${id}" source="${source}" target="${target}">`);
+			parts.push(`      <data key="edgeType">${edgeType}</data>`);
+			parts.push("    </edge>");
+		});
+		parts.push("  </graph>");
+		parts.push("</graphml>");
+		return parts.join("\n");
+	}
+	exportJSONLD() {
+		const nodes = this.cy.nodes();
+		const edges = this.cy.edges();
+		if (nodes.length === 0) return JSON.stringify({
+			"@context": {},
+			"@graph": []
+		}, null, 2);
+		const context = {
+			"@vocab": "https://codegraph.visualizer/ns/",
+			label: "rdfs:label",
+			type: "rdf:type",
+			filePath: "codegraph:filePath",
+			source: "codegraph:source",
+			target: "codegraph:target",
+			edgeType: "codegraph:edgeType"
+		};
+		const nodeTypes = {
+			function: "codegraph:Function",
+			class: "codegraph:Class",
+			variable: "codegraph:Variable",
+			module: "codegraph:Module",
+			interface: "codegraph:Interface",
+			type: "codegraph:Type"
+		};
+		const graph = [];
+		nodes.forEach((node) => {
+			const entry = {
+				"@id": `node:${node.id()}`,
+				"@type": nodeTypes[String(node.data("type") ?? "")] ?? "codegraph:Node",
+				label: String(node.data("label") ?? node.id())
+			};
+			const filePath = String(node.data("filePath") ?? "");
+			if (filePath) entry.filePath = filePath;
+			graph.push(entry);
+		});
+		edges.forEach((edge) => {
+			graph.push({
+				"@id": `edge:${edge.id()}`,
+				"@type": "codegraph:Edge",
+				source: `node:${edge.source().id()}`,
+				target: `node:${edge.target().id()}`,
+				edgeType: String(edge.data("type") ?? "")
+			});
+		});
+		return JSON.stringify({
+			"@context": context,
+			"@graph": graph
+		}, null, 2);
 	}
 	destroy() {}
 };
@@ -56250,6 +56596,11 @@ var VirtualViewportController = class {
 	}
 	handleStructureChange = () => {
 		this.indexDirty = true;
+		if (this.rafId !== null) return;
+		this.rafId = requestAnimationFrame(() => {
+			this.updateVisibility();
+			this.rafId = null;
+		});
 	};
 	rebuildIndex() {
 		if (!this.indexDirty) return;
@@ -56466,6 +56817,7 @@ var CytoscapeRenderer = class {
 			return fn$7();
 		} catch (err) {
 			log$7.error(`${name$1} failed`, err);
+			this.lastError = err instanceof Error ? err : new Error(String(err));
 			return fallback;
 		}
 	}
@@ -56474,15 +56826,7 @@ var CytoscapeRenderer = class {
 			fn$7();
 		} catch (err) {
 			log$7.error(`${name$1} failed`, err);
-		}
-	}
-	safeCallWithError(name$1, fn$7, fallback) {
-		try {
-			return fn$7();
-		} catch (err) {
-			log$7.error(`${name$1} failed`, err);
 			this.lastError = err instanceof Error ? err : new Error(String(err));
-			return fallback;
 		}
 	}
 	constructor(options) {
@@ -56563,7 +56907,7 @@ var CytoscapeRenderer = class {
 	}
 	updateData(nodes, edges) {
 		if (!this.cy) throw new Error("CytoscapeRenderer: init() must be called before updateData()");
-		this.safeCallWithError("updateData", () => {
+		this.safeCall("updateData", () => {
 			this.dataCtrl?.updateData(nodes, edges);
 			this.adjacencyCache?.invalidate();
 			this.filterCtrl?.invalidateCache();
@@ -56580,6 +56924,7 @@ var CytoscapeRenderer = class {
 	}
 	setRawNodes(rawNodes) {
 		this.dataCtrl?.setRawNodes(rawNodes);
+		this.searchCtrl?.rebuildIndex();
 	}
 	applyLayout(layout$2) {
 		this.safeCallVoid("applyLayout", () => this.layoutCtrl?.applyLayout(layout$2));
@@ -56695,6 +57040,12 @@ var CytoscapeRenderer = class {
 	exportSVG(theme) {
 		return this.safeCall("exportSVG", () => this.exportCtrl?.exportSVG(theme ?? this.options.theme) ?? null, null);
 	}
+	exportGraphML() {
+		return this.safeCall("exportGraphML", () => this.exportCtrl?.exportGraphML() ?? "", "");
+	}
+	exportJSONLD() {
+		return this.safeCall("exportJSONLD", () => this.exportCtrl?.exportJSONLD() ?? "", "");
+	}
 	getSelectedNodeData() {
 		return this.dataCtrl?.getSelectedNodeData() ?? null;
 	}
@@ -56781,7 +57132,7 @@ var CytoscapeRenderer = class {
 		return this.viewportCtrl?.isFocusModeActive() ?? false;
 	}
 	filterByPath(includePattern, excludePattern) {
-		this.safeCallWithError("filterByPath", () => this.filterCtrl?.filterByPath(includePattern, excludePattern), void 0);
+		this.safeCall("filterByPath", () => this.filterCtrl?.filterByPath(includePattern, excludePattern), void 0);
 	}
 	getLastError() {
 		return this.lastError;
@@ -56790,7 +57141,7 @@ var CytoscapeRenderer = class {
 		this.lastError = null;
 	}
 	getZoom() {
-		return this.safeCallWithError("getZoom", () => this.cy?.zoom() ?? 1, 1);
+		return this.safeCall("getZoom", () => this.cy?.zoom() ?? 1, 1);
 	}
 	onZoomChange(callback) {
 		if (!this.cy) return () => {};
@@ -56798,6 +57149,24 @@ var CytoscapeRenderer = class {
 		return () => {
 			this.cy?.off("zoom", callback);
 		};
+	}
+	markDeadCode(nodeIds) {
+		if (!this.cy) return;
+		this.cy.batch(() => {
+			this.cy.nodes().forEach((node) => {
+				if (nodeIds.has(node.id())) node.addClass("dead-code");
+			});
+			this.cy.edges().forEach((edge) => {
+				if (nodeIds.has(edge.source().id()) && nodeIds.has(edge.target().id())) edge.addClass("dead-code-edge");
+			});
+		});
+	}
+	clearDeadCodeMarks() {
+		if (!this.cy) return;
+		this.cy.batch(() => {
+			this.cy.nodes().removeClass("dead-code dead-code-suspected");
+			this.cy.edges().removeClass("dead-code-edge");
+		});
 	}
 };
 
@@ -57040,6 +57409,14 @@ function useGraphRenderer(config) {
 			data$3 = renderer$1.exportMermaid();
 			mimeType = "text/plain";
 			extension$1 = "mmd";
+		} else if (format === "graphml") {
+			data$3 = renderer$1.exportGraphML();
+			mimeType = "application/xml";
+			extension$1 = "graphml";
+		} else if (format === "jsonld") {
+			data$3 = renderer$1.exportJSONLD();
+			mimeType = "application/ld+json";
+			extension$1 = "jsonld";
 		} else data$3 = renderer$1.exportJSON();
 		if (data$3) {
 			const blob = new Blob([data$3], { type: mimeType });
@@ -57071,8 +57448,8 @@ function useGraphRenderer(config) {
 
 //#endregion
 //#region src/client/hooks/usePanelResize.ts
-const MIN_WIDTH = 320;
-const MIN_HEIGHT = 240;
+const MIN_WIDTH = UI.MIN_PANEL_WIDTH_PX;
+const MIN_HEIGHT = UI.MIN_PANEL_HEIGHT_PX;
 function usePanelResize(panelRef, rendererRef) {
 	const savedRef = (0, react.useRef)(null);
 	const setPanelSize = useGraphStore((s) => s.setPanelSize);
@@ -57156,6 +57533,7 @@ const initialState = {
 	showHotspot: false,
 	showGodModule: false,
 	showCoreFunction: false,
+	showDeadCode: false,
 	showFilterPanel: false,
 	showTour: false
 };
@@ -57206,6 +57584,7 @@ function usePanelState() {
 	const toggleHotspot = (0, react.useCallback)(makeToggle("showHotspot"), [makeToggle]);
 	const toggleGodModule = (0, react.useCallback)(makeToggle("showGodModule"), [makeToggle]);
 	const toggleCoreFunction = (0, react.useCallback)(makeToggle("showCoreFunction"), [makeToggle]);
+	const toggleDeadCode = (0, react.useCallback)(makeToggle("showDeadCode"), [makeToggle]);
 	const toggleFilterPanel = (0, react.useCallback)(makeToggle("showFilterPanel"), [makeToggle]);
 	const toggleTour = (0, react.useCallback)(makeToggle("showTour"), [makeToggle]);
 	const setShowSearch = (0, react.useCallback)(makeSet("showSearch"), [makeSet]);
@@ -57223,6 +57602,7 @@ function usePanelState() {
 	const setShowHotspot = (0, react.useCallback)(makeSet("showHotspot"), [makeSet]);
 	const setShowGodModule = (0, react.useCallback)(makeSet("showGodModule"), [makeSet]);
 	const setShowCoreFunction = (0, react.useCallback)(makeSet("showCoreFunction"), [makeSet]);
+	const setShowDeadCode = (0, react.useCallback)(makeSet("showDeadCode"), [makeSet]);
 	const setShowFilterPanel = (0, react.useCallback)(makeSet("showFilterPanel"), [makeSet]);
 	const setShowTour = (0, react.useCallback)(makeSet("showTour"), [makeSet]);
 	return {
@@ -57243,6 +57623,7 @@ function usePanelState() {
 		toggleHotspot,
 		toggleGodModule,
 		toggleCoreFunction,
+		toggleDeadCode,
 		toggleFilterPanel,
 		toggleTour,
 		setShowSearch,
@@ -57260,6 +57641,7 @@ function usePanelState() {
 		setShowHotspot,
 		setShowGodModule,
 		setShowCoreFunction,
+		setShowDeadCode,
 		setShowFilterPanel,
 		setShowTour,
 		toPanelControls: (0, react.useMemo)(() => ({
@@ -57278,6 +57660,7 @@ function usePanelState() {
 			showHotspot: state.showHotspot,
 			showGodModule: state.showGodModule,
 			showCoreFunction: state.showCoreFunction,
+			showDeadCode: state.showDeadCode,
 			showFilterPanel: state.showFilterPanel,
 			showTour: state.showTour,
 			onToggleSearch: toggleSearch,
@@ -57295,6 +57678,7 @@ function usePanelState() {
 			onToggleHotspot: toggleHotspot,
 			onToggleGodModule: toggleGodModule,
 			onToggleCoreFunction: toggleCoreFunction,
+			onToggleDeadCode: toggleDeadCode,
 			onToggleFilterPanel: toggleFilterPanel,
 			onToggleTour: toggleTour
 		}), [
@@ -57313,6 +57697,7 @@ function usePanelState() {
 			state.showHotspot,
 			state.showGodModule,
 			state.showCoreFunction,
+			state.showDeadCode,
 			state.showFilterPanel,
 			state.showTour,
 			toggleSearch,
@@ -57330,6 +57715,7 @@ function usePanelState() {
 			toggleHotspot,
 			toggleGodModule,
 			toggleCoreFunction,
+			toggleDeadCode,
 			toggleFilterPanel,
 			toggleTour
 		])
@@ -57563,35 +57949,13 @@ function useViewMode(viewMode, currentWorkspace, depsFetchAbortRef) {
 			setLoading(true);
 			const loadBootstrap = useGraphStore.getState().loadBootstrap;
 			loadBootstrap().then((ok) => {
-				if (ok) {
-					setViewMode(newMode);
-					setLoading(false);
-					return;
-				}
-				fetchGraphData().then((data$2) => {
-					if (data$2) {
-						setViewMode(newMode);
-						setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
-					} else setError("Failed to load code graph data");
-					setLoading(false);
-				}).catch((e) => {
-					log$5.warn("fetchGraphData failed", e);
-					setError(`Failed to load code graph: ${e.message}`);
-					setLoading(false);
-				});
+				if (ok) setViewMode(newMode);
+				else setError("Failed to load code graph data");
+				setLoading(false);
 			}).catch((e) => {
 				log$5.warn("loadBootstrap failed", e);
-				fetchGraphData().then((data$2) => {
-					if (data$2) {
-						setViewMode(newMode);
-						setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
-					} else setError("Failed to load code graph data");
-					setLoading(false);
-				}).catch((e2) => {
-					log$5.warn("fetchGraphData failed", e2);
-					setError(`Failed to load code graph: ${e2.message}`);
-					setLoading(false);
-				});
+				setError(`Failed to load code graph: ${e.message}`);
+				setLoading(false);
 			});
 		} else {
 			depsFetchAbortRef.current?.abort();
@@ -58208,7 +58572,7 @@ function bfsReachCount(adjacency, source, maxNodes) {
 
 //#endregion
 //#region src/shared/analysis/CoreFunctionAnalyzer.ts
-const ENTRY_PATTERNS = {
+const ENTRY_PATTERNS$1 = {
 	handler: /handler|controller|route|middleware|endpoint|api/i,
 	event: /^on[A-Z]|^listen|^subscribe|^emit|^handle[A-Z]/i,
 	cli: /^main$|^cli$|^run$|^start$|^bootstrap$|^init$/i
@@ -58270,15 +58634,15 @@ var CoreFunctionAnalyzer = class {
 				reasons.push("exported");
 				score += 10;
 			}
-			if (ENTRY_PATTERNS.handler.test(n.label)) {
+			if (ENTRY_PATTERNS$1.handler.test(n.label)) {
 				reasons.push("handler-pattern");
 				score += 20;
 			}
-			if (ENTRY_PATTERNS.event.test(n.label)) {
+			if (ENTRY_PATTERNS$1.event.test(n.label)) {
 				reasons.push("event-pattern");
 				score += 15;
 			}
-			if (ENTRY_PATTERNS.cli.test(n.label)) {
+			if (ENTRY_PATTERNS$1.cli.test(n.label)) {
 				reasons.push("cli-pattern");
 				score += 25;
 			}
@@ -58323,10 +58687,10 @@ var CoreFunctionAnalyzer = class {
 		return reach;
 	}
 	computeCallChainDepth(nodes, outEdges) {
-		const memo$27 = new Map();
+		const memo$28 = new Map();
 		const computing = new Set();
 		const computeDepth = (id, currentDepth = 0) => {
-			if (memo$27.has(id)) return memo$27.get(id);
+			if (memo$28.has(id)) return memo$28.get(id);
 			if (computing.has(id)) return 0;
 			if (currentDepth >= MAX_CALL_CHAIN_RECURSION_DEPTH) return currentDepth;
 			computing.add(id);
@@ -58338,22 +58702,157 @@ var CoreFunctionAnalyzer = class {
 			}
 			computing.delete(id);
 			const result = maxChildDepth + 1;
-			memo$27.set(id, result);
+			memo$28.set(id, result);
 			return result;
 		};
 		for (const n of nodes) computeDepth(n.id);
-		return memo$27;
+		return memo$28;
+	}
+};
+
+//#endregion
+//#region src/shared/analysis/DeadCodeAnalyzer.ts
+const ENTRY_PATTERNS = {
+	handler: /handler|controller|route|middleware|endpoint|api/i,
+	event: /^on[A-Z]|^listen|^subscribe|^emit|^handle[A-Z]/i,
+	cli: /^main$|^cli$|^run$|^start$|^bootstrap$|^init$/i,
+	test: /^test|^it$|^describe$|^beforeEach$|^afterEach$/i
+};
+function isEntryPoint(node) {
+	if (node.type === "module") return true;
+	if (node.properties?.isExported === true || node.properties?.is_exported === 1) return true;
+	if (node.properties?.isEntry === true) return true;
+	if (ENTRY_PATTERNS.handler.test(node.label)) return true;
+	if (ENTRY_PATTERNS.event.test(node.label)) return true;
+	if (ENTRY_PATTERNS.cli.test(node.label)) return true;
+	if (ENTRY_PATTERNS.test.test(node.label)) return true;
+	return false;
+}
+var DeadCodeAnalyzer = class {
+	analyze(nodes, edges) {
+		if (nodes.length === 0) return this.emptyResult();
+		const { forward, backward } = buildDirectedAdjacency(edges);
+		const inDegree = new Map();
+		const outDegree = new Map();
+		for (const n of nodes) {
+			inDegree.set(n.id, (backward.get(n.id) ?? []).length);
+			outDegree.set(n.id, (forward.get(n.id) ?? []).length);
+		}
+		const entryNodeIds = [];
+		for (const n of nodes) if (isEntryPoint(n)) entryNodeIds.push(n.id);
+		const reachable = this.bfsReachable(forward, entryNodeIds);
+		const deadNodes = [];
+		const unreachableNodes = [];
+		for (const n of nodes) {
+			if (reachable.has(n.id)) continue;
+			unreachableNodes.push(NodeId(n.id));
+			const indeg = inDegree.get(n.id) ?? 0;
+			const outdeg = outDegree.get(n.id) ?? 0;
+			let category;
+			let confidence;
+			let reason;
+			if (indeg === 0 && !isEntryPoint(n)) {
+				category = "no-incoming";
+				confidence = "suspected";
+				reason = "No incoming edges and not an entry point";
+			} else if (indeg > 0) {
+				category = "orphan";
+				confidence = "confirmed";
+				reason = `Has ${indeg} incoming edge(s) but unreachable from any entry point`;
+			} else {
+				category = "unreachable";
+				confidence = "confirmed";
+				reason = "Unreachable from any entry point";
+			}
+			deadNodes.push({
+				nodeId: NodeId(n.id),
+				label: n.label,
+				filePath: n.filePath,
+				type: n.type,
+				category,
+				confidence,
+				inDegree: indeg,
+				outDegree: outdeg,
+				reason
+			});
+		}
+		deadNodes.sort((a, b) => {
+			if (a.confidence !== b.confidence) return a.confidence === "confirmed" ? -1 : 1;
+			return a.inDegree - b.inDegree;
+		});
+		return {
+			deadNodes,
+			entryNodes: entryNodeIds.map((id) => NodeId(id)),
+			unreachableNodes,
+			stats: this.computeStats(deadNodes)
+		};
+	}
+	bfsReachable(forward, entryNodeIds) {
+		const visited = new Set();
+		const queue = [];
+		for (const entry of entryNodeIds) if (!visited.has(entry)) {
+			visited.add(entry);
+			queue.push(entry);
+		}
+		let head = 0;
+		while (head < queue.length) {
+			const current = queue[head++];
+			const neighbors = forward.get(current) ?? [];
+			for (const next$1 of neighbors) if (!visited.has(next$1)) {
+				visited.add(next$1);
+				queue.push(next$1);
+			}
+		}
+		return visited;
+	}
+	computeStats(deadNodes) {
+		const byCategory = {
+			unreachable: 0,
+			"no-incoming": 0,
+			orphan: 0
+		};
+		let confirmed = 0;
+		let suspected = 0;
+		for (const d of deadNodes) {
+			byCategory[d.category]++;
+			if (d.confidence === "confirmed") confirmed++;
+			else suspected++;
+		}
+		return {
+			total: deadNodes.length,
+			confirmed,
+			suspected,
+			byCategory
+		};
+	}
+	emptyResult() {
+		return {
+			deadNodes: [],
+			entryNodes: [],
+			unreachableNodes: [],
+			stats: {
+				total: 0,
+				confirmed: 0,
+				suspected: 0,
+				byCategory: {
+					unreachable: 0,
+					"no-incoming": 0,
+					orphan: 0
+				}
+			}
+		};
 	}
 };
 
 //#endregion
 //#region src/client/hooks/useAnalysisPanels.ts
-function useAnalysisPanels(rawNodes, rawEdges, showHealthScore, showRules, showHotspot, showGodModule, showImpact, selectedNodeId, getImpactStats, showCoreFunction = false) {
+function useAnalysisPanels(rawNodes, rawEdges, showHealthScore, showRules, showHotspot, showGodModule, showImpact, selectedNodeId, getImpactStats, showCoreFunction = false, showDeadCode = false) {
 	const healthScorer = (0, react.useMemo)(() => new HealthScorer(), []);
 	const ruleEngine = (0, react.useMemo)(() => new RuleEngine(), []);
 	const hotspotAnalyzer = (0, react.useMemo)(() => new HotspotAnalyzer(), []);
 	const godModuleDetector = (0, react.useMemo)(() => new GodModuleDetector(), []);
 	const coreFunctionAnalyzer = (0, react.useMemo)(() => new CoreFunctionAnalyzer(), []);
+	const deadCodeAnalyzer = (0, react.useMemo)(() => new DeadCodeAnalyzer(), []);
 	const setHealthScore = useGraphStore((s) => s.setHealthScore);
 	const setRules = useGraphStore((s) => s.setRules);
 	const setRuleViolations = useGraphStore((s) => s.setRuleViolations);
@@ -58362,6 +58861,7 @@ function useAnalysisPanels(rawNodes, rawEdges, showHealthScore, showRules, showH
 	const [godModules, setGodModules] = (0, react.useState)([]);
 	const [impactStats, setImpactStats] = (0, react.useState)(null);
 	const [coreFunctions, setCoreFunctions] = (0, react.useState)([]);
+	const [deadCodeResult, setDeadCodeResult] = (0, react.useState)(null);
 	const handleHealthCheck = (0, react.useCallback)(() => {
 		const score = healthScorer.calculate(rawNodes, rawEdges);
 		setHealthScore(score);
@@ -58430,13 +58930,23 @@ function useAnalysisPanels(rawNodes, rawEdges, showHealthScore, showRules, showH
 		rawEdges,
 		coreFunctionAnalyzer
 	]);
+	(0, react.useEffect)(() => {
+		if (showDeadCode && rawNodes.length > 0) setDeadCodeResult(deadCodeAnalyzer.analyze(rawNodes, rawEdges));
+		else setDeadCodeResult(null);
+	}, [
+		showDeadCode,
+		rawNodes,
+		rawEdges,
+		deadCodeAnalyzer
+	]);
 	return {
 		handleHealthCheck,
 		handleRulesCheck,
 		hotspotNodes,
 		godModules,
 		impactStats,
-		coreFunctions
+		coreFunctions,
+		deadCodeResult
 	};
 }
 
@@ -58743,14 +59253,6 @@ function readUrlExpand() {
 		expandedSubgroups: []
 	};
 	return parseExpandUrl(window.location.search);
-}
-function restoreExpandedNodeIds(parsed) {
-	const ids = new Set();
-	for (const dir of parsed.expandedDirs) ids.add(`cluster__${dir}`);
-	for (const file of parsed.expandedFiles) ids.add(`filecluster__${file}`);
-	for (const subgroup of parsed.expandedSubgroups) ids.add(`subgroup__${subgroup}`);
-	for (const symbol of parsed.expandedSymbols) ids.add(symbol);
-	return ids;
 }
 
 //#endregion
@@ -59087,10 +59589,10 @@ const base = (size$1) => ({
 	strokeLinejoin: "round",
 	"aria-hidden": true
 });
-function memo$26(Component$1) {
+function memo$27(Component$1) {
 	return react.default.memo(Component$1);
 }
-const GraphIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const GraphIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59113,7 +59615,7 @@ const GraphIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ 
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 12v4" })
 	]
 }));
-const SearchIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const SearchIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -59122,12 +59624,12 @@ const SearchIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */
 		r: "7"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m21 21-4.3-4.3" })]
 }));
-const ChainIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const ChainIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" })]
 }));
-const CycleIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const CycleIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59137,7 +59639,7 @@ const CycleIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ 
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 13v1a4 4 0 0 1-4 4H3" })
 	]
 }));
-const MapIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const MapIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59146,7 +59648,7 @@ const MapIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M15 6v14" })
 	]
 }));
-const RefreshIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const RefreshIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59156,7 +59658,7 @@ const RefreshIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ *
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 21v-5h5" })
 	]
 }));
-const SunIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const SunIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -59165,12 +59667,12 @@ const SunIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0
 		r: "4"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" })]
 }));
-const MoonIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const MoonIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" })
 }));
-const DownloadIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const DownloadIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59179,22 +59681,22 @@ const DownloadIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ 
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 15V3" })
 	]
 }));
-const ChevronDownIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ChevronDownIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m6 9 6 6 6-6" })
 }));
-const ChevronUpIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ChevronUpIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m18 15-6-6-6 6" })
 }));
-const CloseIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const CloseIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M18 6 6 18M6 6l12 12" })
 }));
-const UploadIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const UploadIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59203,17 +59705,17 @@ const UploadIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 3v12" })
 	]
 }));
-const FolderIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const FolderIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" })
 }));
-const AlertIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const AlertIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 9v4M12 17h.01" })]
 }));
-const LayersIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const LayersIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59222,12 +59724,12 @@ const LayersIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m3 17 9 5 9-5" })
 	]
 }));
-const ZapIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ZapIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M13 2 3 14h9l-1 8 10-12h-9l1-8Z" })
 }));
-const WatchIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const WatchIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59240,22 +59742,22 @@ const WatchIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ 
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M9 1h6M9 23h6" })
 	]
 }));
-const WorkspaceIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const WorkspaceIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" })
 }));
-const PlusIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const PlusIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 5v14M5 12h14" })
 }));
-const CheckIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const CheckIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M20 6 9 17l-5-5" })
 }));
-const CopyIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const CopyIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
@@ -59266,7 +59768,7 @@ const CopyIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (
 		rx: "2"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" })]
 }));
-const TreeIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const TreeIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59294,7 +59796,7 @@ const TreeIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 6v4M12 10H5v4M12 10h7v4M5 14v4M19 14v4" })
 	]
 }));
-const PathIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const PathIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59311,22 +59813,22 @@ const PathIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M5 7v4a4 4 0 0 0 4 4h6a4 4 0 0 1 4 4" })
 	]
 }));
-const HeartIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const HeartIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z" })
 }));
-const RuleIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const RuleIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M9 11l3 3L22 4" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" })]
 }));
-const FlameIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const FlameIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5Z" })
 }));
-const AlertCircleIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const AlertCircleIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -59335,17 +59837,17 @@ const AlertCircleIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE
 		r: "10"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 8v4M12 16h.01" })]
 }));
-const ExpandIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ExpandIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 21H3M21 3H3M9 9l3-3 3 3M9 15l3 3 3-3" })
 }));
-const ContractIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ContractIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 21H3M21 3H3M15 9l-3-3-3 3M15 15l-3 3-3-3" })
 }));
-const FocusIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const FocusIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -59354,27 +59856,27 @@ const FocusIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ 
 		r: "3"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4l1.4-1.4M17 7l1.4-1.4" })]
 }));
-const UndoIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const UndoIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 7v6h6" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 13a9 9 0 1 0 3-7.7L3 8" })]
 }));
-const RedoIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const RedoIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 7v6h-6" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 13a9 9 0 1 1-3-7.7L21 8" })]
 }));
-const StarIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const StarIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" })
 }));
-const FilterIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const FilterIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M22 3H2l8 9.46V19l4 2v-8.54L22 3z" })
 }));
-const GithubIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const GithubIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	width: size$1,
 	height: size$1,
 	viewBox: "0 0 24 24",
@@ -59382,6 +59884,11 @@ const GithubIcon = memo$26(({ size: size$1 = 16, className }) => /* @__PURE__ */
 	className,
 	"aria-hidden": "true",
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.09 1.84 1.24 1.84 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.34-5.47-5.95 0-1.31.47-2.39 1.24-3.23-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.92 1.24 3.23 0 4.62-2.81 5.64-5.49 5.94.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12.01 12.01 0 0 0 24 12.5C24 5.87 18.63.5 12 .5Z" })
+}));
+const GhostIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+	...base(size$1),
+	className,
+	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M9 10h.01M15 10h.01M12 2a8 8 0 0 0-8 8v12l3-3 3 3 2-2 2 2 3-3 3 3V10a8 8 0 0 0-8-8z" })
 }));
 
 //#endregion
@@ -60232,7 +60739,7 @@ const Toolbar = (0, react.memo)(function Toolbar$1(props) {
 		setShowExportMenu(false);
 	}, [onExport]);
 	const { statsText, typeCounts, layout: layout$2, dagreRankDir, theme, filterType, graphType, clusterDepth, viewMode, currentLayer, layerNames, collapsed, panelControls, onLayoutChange, onDagreRankDirChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterDepthChange, onViewModeChange, onLayerChange, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll, onUndo, onRedo, canUndo, canRedo, hasSelectedFunction } = props;
-	const { showSearch, showCallChain, showCycles, cycleIsolation, showImpact, showInheritance, showMiniMap, showLegend, showImport, showPathFind, showHealthScore, showRules, showHotspot, showGodModule, showCoreFunction, showFilterPanel, showTour, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleCycleIsolation, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onToggleCoreFunction, onToggleFilterPanel, onToggleTour } = panelControls;
+	const { showSearch, showCallChain, showCycles, cycleIsolation, showImpact, showInheritance, showMiniMap, showLegend, showImport, showPathFind, showHealthScore, showRules, showHotspot, showGodModule, showCoreFunction, showDeadCode, showFilterPanel, showTour, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleCycleIsolation, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onToggleCoreFunction, onToggleDeadCode, onToggleFilterPanel, onToggleTour } = panelControls;
 	const availablePanels = getAvailablePanels(getViewLayer(viewMode));
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "cg-graph-toolbar",
@@ -60521,6 +61028,14 @@ const Toolbar = (0, react.memo)(function Toolbar$1(props) {
 								"aria-pressed": showCoreFunction,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(StarIcon, { size: 15 })
 							}),
+							availablePanels.has("showDeadCode") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `cg-deadcode-btn ${showDeadCode ? "cg-active" : ""}`,
+								onClick: onToggleDeadCode,
+								title: t$1("toolbar.deadCode"),
+								"aria-label": t$1("toolbar.deadCode"),
+								"aria-pressed": showDeadCode,
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GhostIcon, { size: 15 })
+							}),
 							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								className: `cg-tour-btn ${showTour ? "cg-active" : ""}`,
 								onClick: onToggleTour,
@@ -60643,6 +61158,16 @@ const Toolbar = (0, react.memo)(function Toolbar$1(props) {
 											onClick: () => handleExport("mermaid"),
 											role: "menuitem",
 											children: t$1("export.mermaid")
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+											onClick: () => handleExport("graphml"),
+											role: "menuitem",
+											children: t$1("export.graphml")
+										}),
+										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+											onClick: () => handleExport("jsonld"),
+											role: "menuitem",
+											children: t$1("export.jsonld")
 										})
 									]
 								})]
@@ -60813,6 +61338,11 @@ const StatusBar = (0, react.memo)(function StatusBar$1({ error: error$1, isLoadi
 	const wsName = workspaceName ? deriveWorkspaceName(workspaceName) : "";
 	const hasDegradations = performanceDegradations && performanceDegradations.length > 0;
 	const degradationLabels = hasDegradations ? performanceDegradations.map((key) => DEGRADATION_KEYS[key] ? t$1(DEGRADATION_KEYS[key]) : key).join(", ") : "";
+	const expandedNodeIds = useGraphStore((s) => s.expandedNodeIds);
+	const rawNodes = useGraphStore((s) => s.rawNodes);
+	const expandedFunctionCount = [...expandedNodeIds].filter((id) => rawNodes.some((n) => n.id === id && n.type === "function")).length;
+	const totalFunctionCount = rawNodes.filter((n) => n.type === "function").length;
+	const showFunctionBudget = expandedFunctionCount > 0 || totalFunctionCount > FUNCTION_BODY.MAX_EXPANDED && expandedNodeIds.size > 0;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "cg-status-bar",
 		role: "status",
@@ -60839,6 +61369,17 @@ const StatusBar = (0, react.memo)(function StatusBar$1({ error: error$1, isLoadi
 				title: t$1("state.complete", { total: totalNodeCount }),
 				children: ["✓ ", t$1("state.complete", { total: totalNodeCount })]
 			}) : null,
+			showFunctionBudget && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+				className: "cg-status-function-budget",
+				title: t$1("state.functionBudget", {
+					expanded: expandedFunctionCount,
+					total: totalFunctionCount
+				}),
+				children: t$1("state.functionBudget", {
+					expanded: expandedFunctionCount,
+					total: totalFunctionCount
+				})
+			}),
 			hasDegradations && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
 				className: "cg-status-degradation",
 				title: t$1("degradation.tooltip"),
@@ -60896,9 +61437,17 @@ const EXPANDABLE_TYPES = new Set([
 const NodeDetail = (0, react.memo)(function NodeDetail$1({ node, onClose, isExpanded, connectionCount, onCollapse, onSelectFunction, onAggregateCallChain }) {
 	const t$1 = useT();
 	const rawNodes = useGraphStore((s) => s.rawNodes);
+	const expandedNodeIds = useGraphStore((s) => s.expandedNodeIds);
 	const icon = TYPE_ICONS[node.type] ?? "?";
 	const color = TYPE_COLORS[node.type] ?? "var(--cg-accent)";
 	const canExpand = EXPANDABLE_TYPES.has(node.type);
+	const expandedFunctionBodyCount = (0, react.useMemo)(() => {
+		const functionIdSet = new Set();
+		for (const n of rawNodes) if (n.type === "function") functionIdSet.add(n.id);
+		let count = 0;
+		for (const id of expandedNodeIds) if (functionIdSet.has(id)) count++;
+		return count;
+	}, [rawNodes, expandedNodeIds]);
 	const isClusterNode = "isCluster" in node && node.isCluster === true;
 	const clusterChildCount = isClusterNode ? node.childCount ?? 0 : 0;
 	const clusterChildIds = isClusterNode ? node.childIds ?? [] : [];
@@ -60910,12 +61459,14 @@ const NodeDetail = (0, react.memo)(function NodeDetail$1({ node, onClose, isExpa
 			const child = nodeMap.get(id);
 			if (child && child.type === "function") result.push(child);
 		}
-		return result.slice(0, 50);
+		return result;
 	}, [
 		isClusterNode,
 		clusterChildIds,
 		rawNodes
 	]);
+	const displayedChildFunctions = childFunctionNodes.slice(0, 50);
+	const hiddenChildFunctionCount = childFunctionNodes.length - displayedChildFunctions.length;
 	const signature = node.properties?.signature;
 	const docstring = node.properties?.docstring;
 	const exported = node.properties?.exported;
@@ -61048,6 +61599,32 @@ const NodeDetail = (0, react.memo)(function NodeDetail$1({ node, onClose, isExpa
 			node.type === "function" && onSelectFunction && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: "cg-detail-micro-actions",
 				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: "cg-detail-function-body-budget",
+						role: "status",
+						"aria-live": "polite",
+						children: [
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: "cg-detail-budget-label",
+								children: t$1("detail.functionBodyBudget", {
+									expanded: expandedFunctionBodyCount,
+									max: FUNCTION_BODY.MAX_EXPANDED
+								})
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								className: "cg-detail-budget-bar",
+								"aria-hidden": "true",
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+									className: "cg-detail-budget-fill",
+									style: { width: `${Math.min(expandedFunctionBodyCount / FUNCTION_BODY.MAX_EXPANDED * 100, 100)}%` }
+								})
+							}),
+							expandedFunctionBodyCount >= FUNCTION_BODY.MAX_EXPANDED && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+								className: "cg-detail-budget-hint",
+								children: t$1("detail.functionBodyBudgetHint", { max: FUNCTION_BODY.MAX_EXPANDED })
+							})
+						]
+					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 						className: "cg-detail-section-title",
 						children: t$1("detail.microViews")
@@ -61086,7 +61663,7 @@ const NodeDetail = (0, react.memo)(function NodeDetail$1({ node, onClose, isExpa
 				className: "cg-detail-micro-hint",
 				children: t$1("detail.microHint")
 			}),
-			isClusterNode && childFunctionNodes.length > 0 && onSelectFunction && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			isClusterNode && displayedChildFunctions.length > 0 && onSelectFunction && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: "cg-detail-cluster-functions",
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: "cg-detail-section-title",
@@ -61097,9 +61674,9 @@ const NodeDetail = (0, react.memo)(function NodeDetail$1({ node, onClose, isExpa
 						clusterChildCount > 50 ? "+" : "",
 						")"
 					]
-				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: "cg-detail-function-list",
-					children: childFunctionNodes.map((fn$7) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					children: [displayedChildFunctions.map((fn$7) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 						className: "cg-detail-function-item",
 						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 							className: "cg-detail-function-name",
@@ -61128,7 +61705,10 @@ const NodeDetail = (0, react.memo)(function NodeDetail$1({ node, onClose, isExpa
 								})
 							]
 						})]
-					}, fn$7.id))
+					}, fn$7.id)), hiddenChildFunctionCount > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: "cg-detail-function-truncated",
+						children: t$1("detail.moreFunctions", { count: hiddenChildFunctionCount })
+					})]
 				})]
 			}),
 			extraProps.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -62627,6 +63207,132 @@ const CoreFunctionPanel = (0, react.memo)(function CoreFunctionPanel$1({ coreFun
 });
 
 //#endregion
+//#region src/client/components/DeadCodePanel.tsx
+const DeadCodePanel = (0, react.memo)(function DeadCodePanel$1({ result, onClose, label, onSelectNode }) {
+	const t$1 = useT();
+	const [filter$2, setFilter] = (0, react.useState)("all");
+	const [confidenceFilter, setConfidenceFilter] = (0, react.useState)("all");
+	const filtered = result.deadNodes.filter((d) => {
+		if (filter$2 !== "all" && d.category !== filter$2) return false;
+		if (confidenceFilter !== "all" && d.confidence !== confidenceFilter) return false;
+		return true;
+	});
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+		className: "cg-analysis-panel cg-deadcode-panel",
+		role: "region",
+		"aria-label": label,
+		"aria-live": "polite",
+		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			className: "cg-analysis-panel-header",
+			children: [
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: label }),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "cg-deadcode-count-badge",
+					children: result.stats.total
+				}),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+					onClick: onClose,
+					className: "cg-close-btn",
+					"aria-label": t$1("common.close"),
+					children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CloseIcon, { size: 14 })
+				})
+			]
+		}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+			className: "cg-analysis-panel-content",
+			children: [
+				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: "cg-deadcode-stats",
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: "cg-deadcode-stat-row",
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "cg-deadcode-stat-badge cg-confirmed",
+							children: t$1("deadcode.confirmed")
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "cg-deadcode-stat-count",
+							children: result.stats.confirmed
+						})]
+					}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+						className: "cg-deadcode-stat-row",
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "cg-deadcode-stat-badge cg-suspected",
+							children: t$1("deadcode.suspected")
+						}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "cg-deadcode-stat-count",
+							children: result.stats.suspected
+						})]
+					})]
+				}),
+				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: "cg-deadcode-filters",
+					children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("select", {
+						value: filter$2,
+						onChange: (e) => setFilter(e.target.value),
+						children: [
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+								value: "all",
+								children: t$1("deadcode.filterAll")
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+								value: "unreachable",
+								children: t$1("deadcode.unreachable")
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+								value: "no-incoming",
+								children: t$1("deadcode.noIncoming")
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+								value: "orphan",
+								children: t$1("deadcode.orphan")
+							})
+						]
+					}), /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("select", {
+						value: confidenceFilter,
+						onChange: (e) => setConfidenceFilter(e.target.value),
+						children: [
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+								value: "all",
+								children: t$1("deadcode.filterAll")
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+								value: "confirmed",
+								children: t$1("deadcode.confirmed")
+							}),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("option", {
+								value: "suspected",
+								children: t$1("deadcode.suspected")
+							})
+						]
+					})]
+				}),
+				filtered.length === 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+					className: "cg-deadcode-empty",
+					children: t$1("deadcode.empty")
+				}) : filtered.slice(0, 50).map((d) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+					className: `cg-deadcode-item cg-${d.confidence}`,
+					onClick: () => onSelectNode?.(d.nodeId),
+					role: "button",
+					tabIndex: 0,
+					children: [
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: `cg-deadcode-category-badge cg-${d.category}`,
+							children: d.category
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "cg-deadcode-label",
+							children: d.label
+						}),
+						/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "cg-deadcode-filepath",
+							children: d.filePath
+						})
+					]
+				}, d.nodeId))
+			]
+		})]
+	});
+});
+
+//#endregion
 //#region src/client/components/FilterPanel.tsx
 const NODE_TYPES = [
 	"function",
@@ -63974,27 +64680,50 @@ function GraphPanelInner({ className = "" }) {
 			urlRestoredRef.current = true;
 			return;
 		}
-		const restoredIds = restoreExpandedNodeIds(parsed);
-		const validIds = new Set();
-		const missingIds = new Set();
-		for (const id of restoredIds) {
-			const exists = rawNodes.some((n) => n.id === id) || useGraphStore.getState().nodes.some((n) => n.id === id);
-			if (exists) validIds.add(id);
-			else missingIds.add(id);
-		}
-		if (validIds.size > 0) {
-			const store = useGraphStore.getState();
-			store.batchExpandNodes([...validIds]);
-		}
-		if (missingIds.size > 0) {
-			const store = useGraphStore.getState();
-			Promise.all([...missingIds].map((id) => store.loadNodeChildren(id))).then(() => {
-				const state = useGraphStore.getState();
-				const loadedIds = [...missingIds].filter((id) => state.rawNodes.some((n) => n.id === id) || state.nodes.some((n) => n.id === id));
-				if (loadedIds.length > 0) state.batchExpandNodes(loadedIds);
-			});
-		}
-		urlRestoredRef.current = true;
+		const restoreSequentially = async () => {
+			const levels = [
+				{
+					ids: parsed.expandedDirs.map((d) => `cluster__${d}`),
+					label: "dirs"
+				},
+				{
+					ids: parsed.expandedFiles.map((f) => `filecluster__${f}`),
+					label: "files"
+				},
+				{
+					ids: parsed.expandedSymbols,
+					label: "symbols"
+				},
+				{
+					ids: parsed.expandedSubgroups.map((g) => `subgroup__${g}`),
+					label: "subgroups"
+				}
+			];
+			for (const level of levels) {
+				if (level.ids.length === 0) continue;
+				const validIds = [];
+				const missingIds = [];
+				for (const id of level.ids) {
+					const state = useGraphStore.getState();
+					const exists = state.rawNodes.some((n) => n.id === id) || state.nodes.some((n) => n.id === id);
+					if (exists) validIds.push(id);
+					else missingIds.push(id);
+				}
+				if (validIds.length > 0) useGraphStore.getState().batchExpandNodes(validIds);
+				for (const id of missingIds) {
+					await useGraphStore.getState().loadNodeChildren(id);
+					const state = useGraphStore.getState();
+					const loaded = state.rawNodes.some((n) => n.id === id) || state.nodes.some((n) => n.id === id);
+					if (loaded) useGraphStore.getState().batchExpandNodes([id]);
+				}
+			}
+		};
+		restoreSequentially().then(() => {
+			urlRestoredRef.current = true;
+		}).catch((err) => {
+			log$1.warn("URL restore failed", { err });
+			urlRestoredRef.current = true;
+		});
 	}, [rawNodes]);
 	(0, react.useEffect)(() => {
 		if (!urlRestoredRef.current) return;
@@ -64273,7 +65002,7 @@ function GraphPanelInner({ className = "" }) {
 		if (hasUserOverride) return;
 		let ancestor = panelEl.parentElement;
 		let depth = 0;
-		while (ancestor && depth < 8) {
+		while (ancestor && depth < UI.ANCESTOR_SEARCH_MAX_DEPTH) {
 			const h = ancestor.getBoundingClientRect().height;
 			if (h >= UI.ANCESTOR_MIN_HEIGHT_PX) break;
 			ancestor = ancestor.parentElement;
@@ -64438,6 +65167,7 @@ function GraphPanelInner({ className = "" }) {
 		if (!available.has("showHotspot") && panel.showHotspot) panel.setShowHotspot(false);
 		if (!available.has("showGodModule") && panel.showGodModule) panel.setShowGodModule(false);
 		if (!available.has("showCoreFunction") && panel.showCoreFunction) panel.setShowCoreFunction(false);
+		if (!available.has("showDeadCode") && panel.showDeadCode) panel.setShowDeadCode(false);
 		if (!available.has("showHealthScore") && panel.showHealthScore) panel.setShowHealthScore(false);
 		if (!available.has("showRules") && panel.showRules) panel.setShowRules(false);
 		if (!available.has("showImport") && panel.showImport) panel.setShowImport(false);
@@ -64548,7 +65278,17 @@ function GraphPanelInner({ className = "" }) {
 		if (!selectedNodeId) return null;
 		return renderer$1.rendererRef.current?.getImpactStats(selectedNodeId) ?? null;
 	}, [renderer$1.rendererRef, selectedNodeId]);
-	const { handleRulesCheck, hotspotNodes, godModules, impactStats, coreFunctions } = useAnalysisPanels(rawNodes, rawEdges, panel.showHealthScore, panel.showRules, panel.showHotspot, panel.showGodModule, panel.showImpact, selectedNodeId, getImpactStats, panel.showCoreFunction);
+	const { handleRulesCheck, hotspotNodes, godModules, impactStats, coreFunctions, deadCodeResult } = useAnalysisPanels(rawNodes, rawEdges, panel.showHealthScore, panel.showRules, panel.showHotspot, panel.showGodModule, panel.showImpact, selectedNodeId, getImpactStats, panel.showCoreFunction, panel.showDeadCode);
+	(0, react.useEffect)(() => {
+		const r = renderer$1.rendererRef.current;
+		if (!r) return;
+		if (panel.showDeadCode && deadCodeResult) r.markDeadCode(new Set(deadCodeResult.unreachableNodes));
+		else r.clearDeadCodeMarks();
+	}, [
+		panel.showDeadCode,
+		deadCodeResult,
+		renderer$1.rendererRef
+	]);
 	const hasAutoScannedRef = (0, react.useRef)(false);
 	(0, react.useEffect)(() => {
 		if (hasAutoScannedRef.current) return;
@@ -64872,6 +65612,16 @@ function GraphPanelInner({ className = "" }) {
 							renderer$1.rendererRef.current?.selectNode(NodeId(nodeId));
 						}
 					}) }),
+					panel.showDeadCode && !isCollapsed && deadCodeResult && deadCodeResult.deadNodes.length > 0 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(DeadCodePanel, {
+						result: deadCodeResult,
+						onClose: () => panel.setShowDeadCode(false),
+						label: t$1("toolbar.deadCode"),
+						onSelectNode: (nodeId) => {
+							setSelectedNode(NodeId(nodeId));
+							renderer$1.rendererRef.current?.focusOnNode(nodeId);
+							renderer$1.rendererRef.current?.selectNode(NodeId(nodeId));
+						}
+					}) }),
 					panel.showFilterPanel && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(FilterPanel, { onClose: () => panel.setShowFilterPanel(false) }) }),
 					panel.showTour && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TourPanel, {
 						tour: tourData,
@@ -65000,6 +65750,7 @@ function init(container, initialData) {
 		store.setGraphData(initialData.nodes, initialData.edges, initialData.metadata.repoId, initialData.metadata);
 	}
 	root$12.render(react.default.createElement(GraphPanel));
+	return () => root$12.unmount();
 }
 function apply(ctx) {
 	let panelVisible = false;
@@ -65033,14 +65784,16 @@ function apply(ctx) {
 					return visible ? react.default.createElement(GraphPanel) : null;
 				}
 			});
-			ctx.effect(() => dispose, "codegraph: better-sidebar tab");
-			navButtonRegistered = true;
+			if (typeof dispose === "function") {
+				ctx.effect(() => dispose, "codegraph: better-sidebar tab");
+				navButtonRegistered = true;
+			} else log.warn("better-sidebar registerTab did not return a disposer, falling back to slots");
 		}
 	} catch (e) {
 		log.warn("better-sidebar registration failed", e);
 	}
 	if (!navButtonRegistered) try {
-		ctx.slots.inject("sidebar.footer.action", () => {
+		const injectDisposer = ctx.slots.inject("sidebar.footer.action", () => {
 			trackSlotDisposer(ctx.slots.register({
 				name: "sidebar.footer.action",
 				id: "codegraph-visualizer",
@@ -65051,11 +65804,12 @@ function apply(ctx) {
 				active: panelVisible
 			})));
 		});
+		trackSlotDisposer(injectDisposer);
 		navButtonRegistered = true;
 	} catch (e) {
 		log.warn("sidebar.footer.action slot failed", e);
 	}
-	if (typeof document !== "undefined") {
+	if (!navButtonRegistered && typeof document !== "undefined") {
 		const floatingContainer = document.createElement("div");
 		floatingContainer.className = "cg-floating-container";
 		floatingContainer.setAttribute("data-visible", "false");
@@ -65098,6 +65852,7 @@ function apply(ctx) {
 	{
 		let lastStatusKey = "";
 		let prereqTimer = null;
+		let prereqDisposed = false;
 		const checkStatus = async () => {
 			const status = await fetchStatus();
 			const store = useGraphStore.getState();
@@ -65113,10 +65868,15 @@ function apply(ctx) {
 			return status;
 		};
 		ctx.effect(() => () => {
+			prereqDisposed = true;
 			if (prereqTimer !== null) clearTimeout(prereqTimer);
 		}, "codegraph: prereq timer cleanup");
 		checkStatus().then(() => {
-			prereqTimer = setTimeout(checkStatus, POLLING.PREREQ_INITIAL_DELAY_MS);
+			if (prereqDisposed) return;
+			prereqTimer = setTimeout(() => {
+				if (prereqDisposed) return;
+				checkStatus().catch((e) => log.warn("prereq delayed check failed", e));
+			}, POLLING.PREREQ_INITIAL_DELAY_MS);
 		}).catch((e) => log.warn("initial status check failed", e));
 		ctx.effect(() => {
 			const prereqInterval = setInterval(async () => {
@@ -65169,32 +65929,11 @@ function apply(ctx) {
 						rootNodes: bootstrap.topLevelNodes.length,
 						totalNodeCount: bootstrap.metadata.totalNodeCount
 					});
-					requestScan(workspacePath).then(() => {
-						useGraphStore.getState().setLoading(false);
-					}).catch((e) => {
-						log.warn("background scan failed", e);
-						useGraphStore.getState().setLoading(false);
-					});
+					useGraphStore.getState().setLoading(false);
 					return;
 				}
-				store.setLoading(true);
-				try {
-					const result = await requestScan(workspacePath);
-					if (result && result.success && result.nodes.length > 0) {
-						const validated = validateGraphData(result);
-						if (validated) {
-							const s2 = useGraphStore.getState();
-							s2.setGraphData(validated.nodes, validated.edges, workspacePath, validated.metadata);
-							log.info("graph data received", {
-								path: workspacePath,
-								nodes: validated.nodes.length,
-								edges: validated.edges.length
-							});
-						}
-					}
-				} finally {
-					useGraphStore.getState().setLoading(false);
-				}
+				log.info("bootstrap returned no data, showing empty state");
+				useGraphStore.getState().setLoading(false);
 			} catch (e) {
 				log.warn("getWorkspaceAndScan failed", e);
 				useGraphStore.getState().setLoading(false);
@@ -65236,9 +65975,9 @@ function apply(ctx) {
 			if (store.nodes.length > 0) if (detail?.incremental) fetchGraphDataIncremental(store.lastUpdated).then((data$2) => {
 				if (data$2 && data$2.nodes && data$2.nodes.length > 0) store.setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
 			}).catch((e$1) => log.warn("incremental graph fetch failed", e$1));
-			else fetchGraphData().then((data$2) => {
-				if (data$2) store.setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
-			}).catch((e$1) => log.warn("graph fetch failed", e$1));
+			else store.loadBootstrap().then((ok) => {
+				if (!ok) log.warn("bootstrap refresh failed");
+			}).catch((e$1) => log.warn("bootstrap refresh failed", e$1));
 		};
 		const openSourceListener = (e) => {
 			ctx.emit("codegraph-visualizer/source/open", e.detail);
@@ -65247,16 +65986,10 @@ function apply(ctx) {
 			const detail = e.detail;
 			const store = useGraphStore.getState();
 			store.setLoading(true);
-			requestScan(detail.path).then((result) => {
-				if (result && result.success && result.nodes.length > 0) {
-					const validated = validateGraphData(result);
-					if (validated) {
-						store.setGraphData(validated.nodes, validated.edges, detail.path, validated.metadata);
-						log.info("import-repo completed", {
-							path: detail.path,
-							nodes: validated.nodes.length
-						});
-					}
+			store.loadBootstrap().then((ok) => {
+				if (!ok) {
+					log.warn("import-repo bootstrap failed");
+					store.setError("Failed to load code graph data");
 				}
 				store.setLoading(false);
 			}).catch((e$1) => {
@@ -65272,9 +66005,9 @@ function apply(ctx) {
 			requestInit(detail.path).then((result) => {
 				if (result) {
 					store.setInitStatus(result.success ? "done" : "error", result.message);
-					if (result.success) fetchGraphData().then((data$2) => {
-						if (data$2) store.setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
-					}).catch((e$1) => log.warn("post-init graph fetch failed", e$1));
+					if (result.success) store.loadBootstrap().then((ok) => {
+						if (!ok) log.warn("post-init bootstrap failed");
+					}).catch((e$1) => log.warn("post-init bootstrap failed", e$1));
 				} else store.setInitStatus("error", "Request failed");
 				log.info("init result", {
 					path: detail.path,
@@ -65305,10 +66038,10 @@ function apply(ctx) {
 			workspaceScanTimer = setTimeout(() => {
 				workspaceScanTimer = null;
 				store.setLoading(true);
-				requestScan(detail.path).then((result) => {
-					if (result && result.success && result.nodes.length > 0) {
-						const validated = validateGraphData(result);
-						if (validated) store.setGraphData(validated.nodes, validated.edges, detail.path, validated.metadata);
+				store.loadBootstrap().then((ok) => {
+					if (!ok) {
+						log.warn("workspace change bootstrap failed");
+						store.setError("Failed to load code graph data");
 					}
 					store.setLoading(false);
 				}).catch((e$1) => {

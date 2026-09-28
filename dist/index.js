@@ -1,4 +1,5 @@
 import { EdgeId, NodeId, RepoId, inferLayerFromPath, safeNumber, safeString, scoped } from "./layerUtils-D2FWijsm.js";
+import { API, AST, BOOTSTRAP, CACHE, EDGES_AGGREGATION, ERROR_CODES, ERROR_MESSAGES, FILTERED_EDGE_KINDS, HEALTH_SCORE, MCP, PATH_FINDER, TOOL_MESSAGES, VALIDATION, WATCHER, isNoisePath, mapEdgeKind, mapNodeKind, readEdgesForNodesFromDb, readEdgesFromDb, readFileOutlineFromDb, readNodeChildrenFromDb, readSymbolASTFromDb, readTopLevelNodesFromDb, resolveDbPath } from "./CodeGraphAdapter-CIc0Y9OY.js";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { CallId } from "@deepseek-ai/dsh-llm";
 import path, { isAbsolute, normalize, sep } from "node:path";
@@ -152,238 +153,6 @@ function buildFilteredForwardAdjacency(edges, edgeTypes) {
 	}
 	return map;
 }
-
-//#endregion
-//#region src/shared/constants.ts
-const PATH_FINDER = { MAX_NODES_FOR_BFS: 5e4 };
-const API = {
-	DEFAULT_TIMEOUT_MS: 3e4,
-	RATE_LIMIT_WINDOW_MS: 6e4,
-	RATE_LIMIT_DEFAULT: 60,
-	RATE_LIMIT_HEAVY: 10,
-	RATE_LIMIT_MAP_MAX: 1e4,
-	SCAN_TIMEOUT_MS: 6e4
-};
-const HEALTH_SCORE = {
-	WEIGHT_COUPLING: .25,
-	WEIGHT_COHESION: .25,
-	WEIGHT_CYCLIC: .3,
-	WEIGHT_MODULARITY: .2,
-	DEFAULT_MAX_MODULE_DEPTH: 3
-};
-const LAYOUT = {
-	DENSITY_FACTOR_SMALL: 1.5,
-	DENSITY_FACTOR_MEDIUM: 1,
-	DENSITY_FACTOR_LARGE: .7,
-	SMALL_NODE_THRESHOLD: 50,
-	MEDIUM_NODE_THRESHOLD: 200,
-	LARGE_NODE_THRESHOLD: 500,
-	VERY_LARGE_NODE_THRESHOLD: 2e3,
-	LAYOUT_SAMPLE_SIZE: 200,
-	COSE_NUM_ITER: 2500,
-	COSE_LARGE_NUM_ITER: 15e3,
-	MAX_RANK_SEP: 80,
-	MIN_RANK_SEP: 30,
-	MIN_NODE_SPACING: 20,
-	SMALL_SPACING_FACTOR: 1.2,
-	MEDIUM_SPACING_FACTOR: 1,
-	LARGE_SPACING_FACTOR: .8,
-	SMALL_NODE_COUNT_THRESHOLD: 100,
-	MEDIUM_NODE_COUNT_THRESHOLD: 300,
-	INCREMENTAL_RADIUS_BASE: 100,
-	GRID_FALLBACK_NODE_THRESHOLD: 5e3,
-	OVERLAP_MAX_ITERATIONS: 15,
-	OVERLAP_SKIP_THRESHOLD: 5e3,
-	OVERLAP_CELL_SIZE_MULTIPLIER: 4,
-	GOLDEN_ANGLE: Math.PI * (3 - Math.sqrt(5)),
-	OVERLAP_PUSH_COEFFICIENT: .15,
-	OVERLAP_MIN_PUSH: 2,
-	FCOSE_LARGE_NODE_THRESHOLD: 5e3,
-	FCOSE_LARGE_NUM_ITER: 1e3,
-	FCOSE_LARGE_QUALITY: "draft",
-	NODE_REPULSE_MAX: 2e4
-};
-const MCP = {
-	MAX_MESSAGE_LENGTH: 10 * 1024 * 1024,
-	MAX_IMPACT_RESULTS: 500
-};
-const CACHE = { GRAPH_CACHE_LIMIT: 8 };
-const BOOTSTRAP = {
-	TOP_LEVEL_NODE_LIMIT: 50,
-	CHILDREN_PAGE_SIZE: 50
-};
-const VALIDATION = {
-	MAX_PATH_LENGTH: 4096,
-	MAX_GIT_REF_LENGTH: 256,
-	MAX_FILEPATH_LENGTH: 512
-};
-const AST = {
-	MAX_CONTENT_BYTES: 512 * 1024,
-	MAX_TREE_SITTER_CONTENT_BYTES: 512 * 1024
-};
-const WATCHER = {
-	MAX_RETRIES: 3,
-	RETRY_BASE_DELAY_MS: 1e3
-};
-const TOOL_MESSAGES = {
-	NO_PATH_FOUND: {
-		en: "No path found between the specified symbols.",
-		zh: "未找到指定符号之间的路径。"
-	},
-	GRAPH_TOO_LARGE_FOR_PATH: {
-		en: "Graph too large (>50000 nodes) for path finding. Try filtering first.",
-		zh: "图谱过大（>50000 节点），无法进行路径查找。请先尝试筛选。"
-	},
-	PATH_FOUND: {
-		en: "Path found",
-		zh: "路径已找到"
-	},
-	HOPS: {
-		en: "hops",
-		zh: "跳"
-	},
-	INSUFFICIENT_DATA: {
-		en: "Insufficient data for health scoring.",
-		zh: "数据不足，无法进行健康评分。"
-	},
-	NO_VIOLATIONS: {
-		en: "No rule violations detected.",
-		zh: "未检测到规则违规。"
-	},
-	RULE_VIOLATIONS: {
-		en: "rule violations:",
-		zh: "条规则违规："
-	}
-};
-const ERROR_CODES = {
-	PATH_NOT_ALLOWED: "PATH_NOT_ALLOWED",
-	WORKSPACE_PATH_NOT_ALLOWED: "WORKSPACE_PATH_NOT_ALLOWED",
-	SYMLINK_ESCAPE: "SYMLINK_ESCAPE",
-	NO_WORKSPACE_PATH: "NO_WORKSPACE_PATH",
-	PATH_OUTSIDE_WORKSPACE: "PATH_OUTSIDE_WORKSPACE",
-	SCAN_FAILED: "SCAN_FAILED",
-	INIT_FAILED: "INIT_FAILED",
-	WATCH_TOGGLE_FAILED: "WATCH_TOGGLE_FAILED",
-	WATCH_SETUP_FAILED: "WATCH_SETUP_FAILED",
-	INTERNAL_ERROR: "INTERNAL_ERROR",
-	COMMITS_REQUIRED: "COMMITS_REQUIRED",
-	INVALID_GIT_REF: "INVALID_GIT_REF",
-	GRAPH_DIFF_FAILED: "GRAPH_DIFF_FAILED",
-	FILEPATH_REQUIRED: "FILEPATH_REQUIRED",
-	FILE_TOO_LARGE: "FILE_TOO_LARGE",
-	AST_PARSE_FAILED: "AST_PARSE_FAILED",
-	FILEPATH_AND_CONTENT_REQUIRED: "FILEPATH_AND_CONTENT_REQUIRED",
-	INVALID_FILEPATH: "INVALID_FILEPATH",
-	CONTENT_TOO_LARGE: "CONTENT_TOO_LARGE",
-	METHOD_NOT_ALLOWED: "METHOD_NOT_ALLOWED",
-	RATE_LIMIT_EXCEEDED: "RATE_LIMIT_EXCEEDED",
-	SYMBOL_NOT_FOUND: "SYMBOL_NOT_FOUND",
-	BODY_TOO_LARGE: "BODY_TOO_LARGE",
-	INVALID_JSON_BODY: "INVALID_JSON_BODY",
-	INVALID_CONFIG: "INVALID_CONFIG"
-};
-const ERROR_MESSAGES = {
-	PATH_NOT_ALLOWED: {
-		en: "Path not allowed",
-		zh: "路径不允许访问"
-	},
-	WORKSPACE_PATH_NOT_ALLOWED: {
-		en: "Workspace path not allowed",
-		zh: "工作区路径不允许访问"
-	},
-	SYMLINK_ESCAPE: {
-		en: "Access denied: symlink escape",
-		zh: "访问被拒绝：符号链接逃逸"
-	},
-	NO_WORKSPACE_PATH: {
-		en: "No workspace path configured",
-		zh: "未配置工作区路径"
-	},
-	PATH_OUTSIDE_WORKSPACE: {
-		en: "Access denied: path outside workspace",
-		zh: "访问被拒绝：路径超出工作区范围"
-	},
-	SCAN_FAILED: {
-		en: "Scan failed — check codegraph installation",
-		zh: "扫描失败 — 请检查 codegraph 安装"
-	},
-	INIT_FAILED: {
-		en: "Initialization failed — is dsh-codegraph installed?",
-		zh: "初始化失败 — dsh-codegraph 是否已安装？"
-	},
-	WATCH_TOGGLE_FAILED: {
-		en: "Watch toggle failed",
-		zh: "监听切换失败"
-	},
-	WATCH_SETUP_FAILED: {
-		en: "Watch setup failed after retries",
-		zh: "监听设置在重试后失败"
-	},
-	INTERNAL_ERROR: {
-		en: "Internal server error",
-		zh: "服务器内部错误"
-	},
-	COMMITS_REQUIRED: {
-		en: "from and to commits are required",
-		zh: "需要 from 和 to 提交参数"
-	},
-	INVALID_GIT_REF: {
-		en: "Invalid git ref format",
-		zh: "无效的 Git 引用格式"
-	},
-	GRAPH_DIFF_FAILED: {
-		en: "Graph diff failed — check git refs",
-		zh: "图谱差异计算失败 — 请检查 Git 引用"
-	},
-	FILEPATH_REQUIRED: {
-		en: "filePath is required",
-		zh: "filePath 参数为必填"
-	},
-	FILE_TOO_LARGE: {
-		en: "File too large for AST parsing",
-		zh: "文件过大，无法进行 AST 解析"
-	},
-	AST_PARSE_FAILED: {
-		en: "AST parsing failed",
-		zh: "AST 解析失败"
-	},
-	FILEPATH_AND_CONTENT_REQUIRED: {
-		en: "filePath and content are required",
-		zh: "filePath 和 content 参数为必填"
-	},
-	INVALID_FILEPATH: {
-		en: "Invalid filePath",
-		zh: "无效的 filePath"
-	},
-	CONTENT_TOO_LARGE: {
-		en: "Content too large for tree-sitter parsing",
-		zh: "内容过大，无法进行 tree-sitter 解析"
-	},
-	METHOD_NOT_ALLOWED: {
-		en: "Method not allowed",
-		zh: "请求方法不被允许"
-	},
-	RATE_LIMIT_EXCEEDED: {
-		en: "Rate limit exceeded",
-		zh: "请求频率超限"
-	},
-	SYMBOL_NOT_FOUND: {
-		en: "Symbol not found",
-		zh: "未找到符号"
-	},
-	BODY_TOO_LARGE: {
-		en: "Request body too large",
-		zh: "请求体过大"
-	},
-	INVALID_JSON_BODY: {
-		en: "Invalid JSON body: expected object",
-		zh: "无效的 JSON 请求体：应为对象"
-	},
-	INVALID_CONFIG: {
-		en: "Invalid configuration",
-		zh: "无效的配置"
-	}
-};
 
 //#endregion
 //#region src/shared/analysis/HealthScorer.ts
@@ -1011,7 +780,7 @@ function toJsonValue(value) {
 }
 const GRAPH_CACHE_LIMIT = CACHE.GRAPH_CACHE_LIMIT;
 async function createGraphToolDeps() {
-	const [{ CodeGraphAdapter: CGA }, { LensAdapter: LA }] = await Promise.all([import("./CodeGraphAdapter-CBi5SU0N.js"), import("./LensAdapter-C7mdpgzf.js")]);
+	const [{ CodeGraphAdapter: CGA }, { LensAdapter: LA }] = await Promise.all([import("./CodeGraphAdapter-DmYjEqFj.js"), import("./LensAdapter-BxOzq9tj.js")]);
 	return {
 		codegraphAdapter: new CGA(),
 		lensAdapter: new LA(),
@@ -1564,6 +1333,11 @@ function findWorkspacePath(ctx) {
 //#endregion
 //#region src/adapters/DependencyAdapter.ts
 const log$6 = scoped("dep-adapter");
+const SEMVER_RE = /^\d+\.\d+\.\d+/;
+function sanitizeVersion(raw) {
+	const v = String(raw ?? "");
+	return SEMVER_RE.test(v) ? v : "0.0.0";
+}
 function parsePackageJson(content) {
 	const nodes = [];
 	const edges = [];
@@ -1575,7 +1349,7 @@ function parsePackageJson(content) {
 		nodes.push({
 			id: rootId,
 			name: rootName,
-			version: pkg.version || "0.0.0",
+			version: sanitizeVersion(pkg.version),
 			type: "npm"
 		});
 		seenIds.add(rootId);
@@ -1607,7 +1381,7 @@ function parsePackageJson(content) {
 					nodes.push({
 						id: depId,
 						name: name$1,
-						version: String(version),
+						version: sanitizeVersion(version),
 						type: "npm"
 					});
 				}
@@ -2584,6 +2358,17 @@ async function validateWorkspacePath(ctx, deps) {
 	if (!await validatePathRealpath(workspacePath, deps.securityManager)) return "__denied__";
 	return workspacePath;
 }
+function checkEtag(req, res, corsConfig, serverEtag) {
+	const ifNoneMatch = req.headers["if-none-match"];
+	if (!ifNoneMatch) return false;
+	const clientEtag = String(ifNoneMatch);
+	if (clientEtag !== serverEtag) return false;
+	const corsHeaders = buildCorsHeaders(req, corsConfig);
+	corsHeaders["etag"] = serverEtag;
+	res.writeHead(304, corsHeaders);
+	res.end();
+	return true;
+}
 function slimGraphData(data, maxNodes) {
 	const cap = maxNodes;
 	const truncated = data.nodes.length > cap;
@@ -2607,7 +2392,9 @@ function slimGraphData(data, maxNodes) {
 		type: n.type,
 		filePath: n.filePath,
 		lineNumber: n.lineNumber,
-		properties: n.properties ?? {}
+		properties: n.properties ?? {},
+		...n.parentId ? { parentId: NodeId(n.parentId) } : {},
+		...n.layer ? { layer: n.layer } : {}
 	}));
 	const allowedIds = new Set(slimNodes.map((n) => n.id));
 	const slimEdges = data.edges.filter((e) => allowedIds.has(e.source) && allowedIds.has(e.target) && e.source !== e.target).map((e) => ({
@@ -2759,24 +2546,26 @@ function registerDataRoute(rc) {
 		kind: "exact",
 		path: routePath,
 		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, (req, res) => {
-			const ifNoneMatch = req.headers["if-none-match"];
 			const lastGraphData = deps.getLastGraphData();
-			if (ifNoneMatch && lastGraphData) {
-				const clientTimestamp = parseInt(String(ifNoneMatch), 10);
-				if (clientTimestamp >= lastGraphData.metadata.timestamp) {
-					const corsHeaders = buildCorsHeaders(req, corsConfig);
-					corsHeaders["etag"] = String(lastGraphData.metadata.timestamp);
-					res.writeHead(304, corsHeaders);
-					res.end();
-					return;
-				}
-			}
+			if (lastGraphData && checkEtag(req, res, corsConfig, String(lastGraphData.metadata.timestamp))) return;
 			if (lastGraphData) {
-				const dataHeaders = buildCorsHeaders(req, corsConfig);
-				dataHeaders["content-type"] = "application/json";
-				dataHeaders["etag"] = String(lastGraphData.metadata.timestamp);
-				res.writeHead(200, dataHeaders);
-				res.end(JSON.stringify(lastGraphData));
+				const payload = JSON.stringify(lastGraphData);
+				if (payload.length > API.DATA_RESPONSE_MAX_BYTES) {
+					const slimmed = slimGraphData(lastGraphData, API.DATA_RESPONSE_SLIM_NODES);
+					const slimPayload = JSON.stringify(slimmed);
+					const dataHeaders = buildCorsHeaders(req, corsConfig);
+					dataHeaders["content-type"] = "application/json";
+					dataHeaders["etag"] = String(lastGraphData.metadata.timestamp);
+					dataHeaders["x-truncated"] = "1";
+					res.writeHead(200, dataHeaders);
+					res.end(slimPayload);
+				} else {
+					const dataHeaders = buildCorsHeaders(req, corsConfig);
+					dataHeaders["content-type"] = "application/json";
+					dataHeaders["etag"] = String(lastGraphData.metadata.timestamp);
+					res.writeHead(200, dataHeaders);
+					res.end(payload);
+				}
 			} else sendJson(res, 200, {
 				nodes: [],
 				edges: [],
@@ -2828,7 +2617,6 @@ function registerScanRoute(rc) {
 				deps.setScanInFlight(scanPath, scanPromise);
 				try {
 					const data = await scanPromise;
-					deps.setScanInFlight(scanPath, null);
 					deps.setLastGraphData(data);
 					scanCache.set(scanPath, {
 						data,
@@ -2855,13 +2643,27 @@ function registerScanRoute(rc) {
 						nodes: data.metadata.nodeCount,
 						edges: data.metadata.edgeCount
 					});
-					sendJson(res, 200, {
+					const scanPayload = JSON.stringify({
+						success: true,
+						...data
+					});
+					if (scanPayload.length > API.DATA_RESPONSE_MAX_BYTES) {
+						const slimmed = slimGraphData(data, API.DATA_RESPONSE_SLIM_NODES);
+						const slimPayload = JSON.stringify({
+							success: true,
+							...slimmed
+						});
+						const scanHeaders = buildCorsHeaders(req, corsConfig);
+						scanHeaders["content-type"] = "application/json";
+						scanHeaders["x-truncated"] = "1";
+						res.writeHead(200, scanHeaders);
+						res.end(slimPayload);
+					} else sendJson(res, 200, {
 						success: true,
 						...data
 					}, req, corsConfig);
-				} catch (e) {
+				} finally {
 					deps.setScanInFlight(scanPath, null);
-					throw e;
 				}
 			} catch (e) {
 				log$3.error("scan failed", e);
@@ -3164,65 +2966,91 @@ function registerTreeSitterRoute(rc, sharedTreeSitterAdapter) {
 	}), "codegraph: tree-sitter route");
 }
 function registerBootstrapRoute(rc) {
-	const { deps, corsConfig, rateLimiter, invokeUpstream } = rc;
-	const { ctx, config } = deps;
+	const { deps, corsConfig, rateLimiter } = rc;
+	const { ctx } = deps;
 	const routePath = "/api/v1/codegraph/bootstrap";
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
 		path: routePath,
 		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, async (req, res) => {
-			let lastGraphData = deps.getLastGraphData();
-			if (!lastGraphData || lastGraphData.nodes.length === 0) try {
-				const workspacePath = findWorkspacePath(ctx);
-				if (workspacePath && invokeUpstream) {
-					const raw = await fetchMergedGraph(invokeUpstream, workspacePath, "both");
-					lastGraphData = slimGraphData(raw, config.maxNodes);
-					deps.setLastGraphData(lastGraphData);
+			const workspacePath = findWorkspacePath(ctx);
+			const cachedData = deps.getLastGraphData();
+			if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) return;
+			if (workspacePath) {
+				const dbPath = resolveDbPath(workspacePath);
+				const dbResult = readTopLevelNodesFromDb(dbPath, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
+				if (dbResult && dbResult.nodes.length > 0) {
+					const topLevelNodes = dbResult.nodes.filter((n) => n.name && n.file_path && !isNoisePath(n.file_path)).map((n) => ({
+						id: NodeId(n.id),
+						label: n.name,
+						type: mapNodeKind(n.kind),
+						filePath: n.file_path,
+						lineNumber: n.start_line ?? 1,
+						properties: {
+							kind: n.kind,
+							...n.signature ? { signature: n.signature } : {},
+							...n.docstring ? { docstring: n.docstring } : {},
+							exported: n.is_exported === 1
+						},
+						layer: inferLayerFromPath(n.file_path)
+					}));
+					const topLevelIds = new Set(topLevelNodes.map((n) => n.id));
+					const dbEdges = readEdgesForNodesFromDb(dbPath, [...topLevelIds]);
+					const rootEdges = dbEdges.map((e) => ({
+						id: EdgeId(String(e.id)),
+						source: NodeId(e.source),
+						target: NodeId(e.target),
+						type: mapEdgeKind(e.kind),
+						properties: e.line !== null && e.line !== void 0 ? { line: e.line } : {}
+					}));
+					sendJson(res, 200, {
+						rootNodes: topLevelNodes,
+						topLevelNodes,
+						topLevelTotal: dbResult.total,
+						edges: rootEdges,
+						indexStatus: "ready",
+						metadata: {
+							repoId: RepoId(workspacePath),
+							timestamp: Date.now(),
+							totalNodeCount: dbResult.total,
+							totalEdgeCount: 0
+						}
+					}, req, corsConfig);
+					return;
 				}
-			} catch (e) {
-				log$3.warn("bootstrap: failed to fetch from upstream", e);
 			}
-			if (!lastGraphData || lastGraphData.nodes.length === 0) try {
-				const workspacePath = findWorkspacePath(ctx);
-				if (workspacePath && deps.invokeUpstream) {
-					const raw = await fetchMergedGraph(deps.invokeUpstream, workspacePath, "both");
-					lastGraphData = slimGraphData(raw, config.maxNodes);
-					deps.setLastGraphData(lastGraphData);
-				}
-			} catch (e) {
-				log$3.warn("bootstrap: failed to fetch from upstream", e);
-			}
-			if (!lastGraphData || lastGraphData.nodes.length === 0) {
+			const lastGraphData = deps.getLastGraphData();
+			if (lastGraphData && lastGraphData.nodes.length > 0) {
+				const allRootNodes = lastGraphData.nodes.filter((n) => !n.parentId);
+				const topLevelNodes = allRootNodes.slice(0, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
+				const topLevelIds = new Set(topLevelNodes.map((n) => n.id));
+				const rootEdges = lastGraphData.edges.filter((e) => topLevelIds.has(e.source) && topLevelIds.has(e.target));
 				sendJson(res, 200, {
-					rootNodes: [],
-					topLevelNodes: [],
-					topLevelTotal: 0,
-					edges: [],
-					indexStatus: "empty",
+					rootNodes: topLevelNodes,
+					topLevelNodes,
+					topLevelTotal: allRootNodes.length,
+					edges: rootEdges,
+					indexStatus: "ready",
 					metadata: {
-						repoId: RepoId("empty"),
-						timestamp: 0,
-						totalNodeCount: 0,
-						totalEdgeCount: 0
+						repoId: lastGraphData.metadata.repoId,
+						timestamp: lastGraphData.metadata.timestamp,
+						totalNodeCount: lastGraphData.metadata.totalNodeCount ?? lastGraphData.nodes.length,
+						totalEdgeCount: lastGraphData.metadata.totalEdgeCount ?? lastGraphData.edges.length
 					}
 				}, req, corsConfig);
 				return;
 			}
-			const allRootNodes = lastGraphData.nodes.filter((n) => !n.parentId);
-			const topLevelNodes = allRootNodes.slice(0, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
-			const topLevelIds = new Set(topLevelNodes.map((n) => n.id));
-			const rootEdges = lastGraphData.edges.filter((e) => topLevelIds.has(e.source) && topLevelIds.has(e.target));
 			sendJson(res, 200, {
-				rootNodes: topLevelNodes,
-				topLevelNodes,
-				topLevelTotal: allRootNodes.length,
-				edges: rootEdges,
-				indexStatus: "ready",
+				rootNodes: [],
+				topLevelNodes: [],
+				topLevelTotal: 0,
+				edges: [],
+				indexStatus: "building",
 				metadata: {
-					repoId: lastGraphData.metadata.repoId,
-					timestamp: lastGraphData.metadata.timestamp,
-					totalNodeCount: lastGraphData.metadata.totalNodeCount ?? lastGraphData.nodes.length,
-					totalEdgeCount: lastGraphData.metadata.totalEdgeCount ?? lastGraphData.edges.length
+					repoId: RepoId(workspacePath ?? "empty"),
+					timestamp: Date.now(),
+					totalNodeCount: 0,
+					totalEdgeCount: 0
 				}
 			}, req, corsConfig);
 		})
@@ -3242,27 +3070,67 @@ function registerNodeChildrenRoute(rc) {
 				sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
 				return;
 			}
+			const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10) || 0;
+			const limit = parseInt(url.searchParams.get("limit") ?? String(BOOTSTRAP.CHILDREN_PAGE_SIZE), 10) || BOOTSTRAP.CHILDREN_PAGE_SIZE;
+			const cachedData = deps.getLastGraphData();
+			if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) return;
+			const workspacePath = findWorkspacePath(ctx);
+			if (workspacePath) {
+				const dbPath = resolveDbPath(workspacePath);
+				const dbResult = readNodeChildrenFromDb(dbPath, nodeId, cursor, limit);
+				if (dbResult && dbResult.nodes.length > 0) {
+					const page = dbResult.nodes.filter((n) => n.name && n.file_path && !isNoisePath(n.file_path)).map((n) => ({
+						id: NodeId(n.id),
+						label: n.name,
+						type: mapNodeKind(n.kind),
+						filePath: n.file_path,
+						lineNumber: n.start_line ?? 1,
+						properties: {
+							kind: n.kind,
+							...n.signature ? { signature: n.signature } : {},
+							...n.docstring ? { docstring: n.docstring } : {},
+							exported: n.is_exported === 1
+						},
+						parentId: NodeId(nodeId),
+						layer: inferLayerFromPath(n.file_path)
+					}));
+					const childIds = page.map((n) => n.id);
+					const dbEdges = readEdgesForNodesFromDb(dbPath, childIds);
+					const childEdges = dbEdges.map((e) => ({
+						id: EdgeId(String(e.id)),
+						source: NodeId(e.source),
+						target: NodeId(e.target),
+						type: mapEdgeKind(e.kind),
+						properties: e.line !== null && e.line !== void 0 ? { line: e.line } : {}
+					}));
+					sendJson(res, 200, {
+						nodes: page,
+						edges: childEdges,
+						cursor: cursor + page.length < dbResult.total ? String(cursor + page.length) : null,
+						total: dbResult.total
+					}, req, corsConfig);
+					return;
+				}
+			}
 			const lastGraphData = deps.getLastGraphData();
-			if (!lastGraphData) {
+			if (lastGraphData && lastGraphData.nodes.length > 0) {
+				const children = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
+				const page = children.slice(cursor, cursor + limit);
+				const childIds = new Set(page.map((n) => n.id));
+				const childEdges = lastGraphData.edges.filter((e) => childIds.has(e.source) && childIds.has(e.target));
 				sendJson(res, 200, {
-					nodes: [],
-					edges: [],
-					cursor: null,
-					total: 0
+					nodes: page,
+					edges: childEdges,
+					cursor: cursor + page.length < children.length ? String(cursor + page.length) : null,
+					total: children.length
 				}, req, corsConfig);
 				return;
 			}
-			const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10) || 0;
-			const limit = parseInt(url.searchParams.get("limit") ?? String(BOOTSTRAP.CHILDREN_PAGE_SIZE), 10) || BOOTSTRAP.CHILDREN_PAGE_SIZE;
-			const children = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
-			const page = children.slice(cursor, cursor + limit);
-			const childIds = new Set(page.map((n) => n.id));
-			const childEdges = lastGraphData.edges.filter((e) => childIds.has(e.source) && childIds.has(e.target));
 			sendJson(res, 200, {
-				nodes: page,
-				edges: childEdges,
-				cursor: cursor + page.length < children.length ? String(cursor + page.length) : null,
-				total: children.length
+				nodes: [],
+				edges: [],
+				cursor: null,
+				total: 0
 			}, req, corsConfig);
 		})
 	}), "codegraph: node children route");
@@ -3285,6 +3153,44 @@ function registerFileOutlineRoute(rc) {
 			if (!nodeId || nodeId.length > VALIDATION.MAX_PATH_LENGTH) {
 				sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
 				return;
+			}
+			const cachedData = deps.getLastGraphData();
+			if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) return;
+			const workspacePath = findWorkspacePath(ctx);
+			if (workspacePath) {
+				const dbPath = resolveDbPath(workspacePath);
+				const dbResult = readFileOutlineFromDb(dbPath, nodeId);
+				if (dbResult && dbResult.nodes.length > 0) {
+					const symbols$1 = dbResult.nodes.filter((n) => n.name && n.file_path && !isNoisePath(n.file_path)).map((n) => ({
+						id: NodeId(n.id),
+						label: n.name,
+						type: mapNodeKind(n.kind),
+						filePath: n.file_path,
+						lineNumber: n.start_line ?? 1,
+						properties: {
+							kind: n.kind,
+							...n.signature ? { signature: n.signature } : {},
+							...n.docstring ? { docstring: n.docstring } : {},
+							exported: n.is_exported === 1
+						},
+						parentId: NodeId(nodeId),
+						layer: inferLayerFromPath(n.file_path)
+					}));
+					const symbolIds$1 = new Set(symbols$1.map((n) => n.id));
+					const dbEdges = readEdgesForNodesFromDb(dbPath, [...symbolIds$1]);
+					const symbolEdges$1 = dbEdges.map((e) => ({
+						id: EdgeId(String(e.id)),
+						source: NodeId(e.source),
+						target: NodeId(e.target),
+						type: mapEdgeKind(e.kind),
+						properties: e.line !== null && e.line !== void 0 ? { line: e.line } : {}
+					}));
+					sendJson(res, 200, {
+						symbols: symbols$1,
+						edges: symbolEdges$1
+					}, req, corsConfig);
+					return;
+				}
 			}
 			const lastGraphData = deps.getLastGraphData();
 			if (!lastGraphData) {
@@ -3323,6 +3229,45 @@ function registerSymbolASTRoute(rc) {
 				sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
 				return;
 			}
+			const cachedData = deps.getLastGraphData();
+			if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) return;
+			const workspacePath = findWorkspacePath(ctx);
+			if (workspacePath) {
+				const dbPath = resolveDbPath(workspacePath);
+				const dbResult = readSymbolASTFromDb(dbPath, nodeId);
+				if (dbResult && dbResult.nodes.length > 0) {
+					const astNodes$1 = dbResult.nodes.filter((n) => n.name && n.file_path && !isNoisePath(n.file_path)).map((n) => ({
+						id: NodeId(n.id),
+						label: n.name,
+						type: mapNodeKind(n.kind),
+						filePath: n.file_path,
+						lineNumber: n.start_line ?? 1,
+						properties: {
+							kind: n.kind,
+							...n.signature ? { signature: n.signature } : {},
+							...n.docstring ? { docstring: n.docstring } : {},
+							exported: n.is_exported === 1
+						},
+						parentId: NodeId(nodeId),
+						layer: inferLayerFromPath(n.file_path)
+					}));
+					const astNodeIds$1 = new Set(astNodes$1.map((n) => n.id));
+					const dbEdges = readEdgesForNodesFromDb(dbPath, [...astNodeIds$1]);
+					const astEdges$1 = dbEdges.map((e) => ({
+						id: EdgeId(String(e.id)),
+						source: NodeId(e.source),
+						target: NodeId(e.target),
+						type: mapEdgeKind(e.kind),
+						properties: e.line !== null && e.line !== void 0 ? { line: e.line } : {}
+					}));
+					sendJson(res, 200, {
+						astNodes: astNodes$1,
+						astEdges: astEdges$1,
+						sourceLines: []
+					}, req, corsConfig);
+					return;
+				}
+			}
 			const lastGraphData = deps.getLastGraphData();
 			if (!lastGraphData) {
 				sendJson(res, 200, {
@@ -3355,36 +3300,95 @@ function registerEdgesRoute(rc) {
 			const fromId = url.searchParams.get("from") ?? "";
 			const scope = url.searchParams.get("scope") ?? "file";
 			const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10);
-			const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "500", 10), 500);
+			const limit = Math.min(parseInt(url.searchParams.get("limit") ?? String(EDGES_AGGREGATION.PAGE_SIZE), 10), EDGES_AGGREGATION.PAGE_SIZE);
+			const aggregated = url.searchParams.get("aggregated") === "1";
 			if (!fromId || fromId.length > VALIDATION.MAX_PATH_LENGTH) {
 				sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
 				return;
 			}
+			const cachedData = deps.getLastGraphData();
+			if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) return;
 			const lastGraphData = deps.getLastGraphData();
-			if (!lastGraphData) {
+			if (lastGraphData && lastGraphData.nodes.length > 0) {
+				let filteredEdges;
+				if (scope === "symbol") filteredEdges = lastGraphData.edges.filter((e) => e.source === fromId || e.target === fromId);
+				else {
+					const nodeIds = new Set();
+					const nodeFilePaths = new Map();
+					for (const n of lastGraphData.nodes) if (n.filePath === fromId || n.id === fromId) {
+						nodeIds.add(n.id);
+						nodeFilePaths.set(n.id, n.filePath);
+					}
+					filteredEdges = lastGraphData.edges.filter((e) => nodeIds.has(e.source) || nodeIds.has(e.target));
+					if (!aggregated && filteredEdges.length > EDGES_AGGREGATION.THRESHOLD) {
+						const filePairCounts = new Map();
+						for (const e of filteredEdges) {
+							const srcFile = nodeFilePaths.get(e.source) ?? lastGraphData.nodes.find((n) => n.id === e.source)?.filePath ?? "?";
+							const tgtFile = nodeFilePaths.get(e.target) ?? lastGraphData.nodes.find((n) => n.id === e.target)?.filePath ?? "?";
+							const pairKey = srcFile < tgtFile ? `${srcFile}→${tgtFile}` : `${tgtFile}→${srcFile}`;
+							filePairCounts.set(pairKey, (filePairCounts.get(pairKey) ?? 0) + 1);
+						}
+						const aggregatedEdges = [...filePairCounts.entries()].map(([pairKey, count]) => {
+							const [fileA, fileB] = pairKey.split("→");
+							return {
+								id: EdgeId(`agg:${pairKey}`),
+								source: NodeId(fromId),
+								target: NodeId(fileA === fromId ? fileB ?? fromId : fileA ?? fromId),
+								type: "dependency",
+								properties: {
+									aggregated: true,
+									count,
+									filePair: pairKey
+								}
+							};
+						});
+						sendJson(res, 200, {
+							edges: aggregatedEdges,
+							total: aggregatedEdges.length,
+							cursor: 0,
+							hasMore: false,
+							aggregated: true
+						}, req, corsConfig);
+						return;
+					}
+				}
+				const total = filteredEdges.length;
+				const pagedEdges = filteredEdges.slice(cursor, cursor + limit);
+				const hasMore = cursor + limit < total;
 				sendJson(res, 200, {
-					edges: [],
-					total: 0,
-					cursor: 0,
-					hasMore: false
+					edges: pagedEdges,
+					total,
+					cursor: cursor + limit,
+					hasMore
 				}, req, corsConfig);
 				return;
 			}
-			let filteredEdges;
-			if (scope === "symbol") filteredEdges = lastGraphData.edges.filter((e) => e.source === fromId || e.target === fromId);
-			else {
-				const nodeIds = new Set();
-				for (const n of lastGraphData.nodes) if (n.filePath === fromId || n.id === fromId) nodeIds.add(n.id);
-				filteredEdges = lastGraphData.edges.filter((e) => nodeIds.has(e.source) || nodeIds.has(e.target));
+			const workspacePath = findWorkspacePath(ctx);
+			if (workspacePath) {
+				const dbPath = resolveDbPath(workspacePath);
+				const dbResult = readEdgesFromDb(dbPath, fromId, scope, cursor, limit);
+				if (dbResult) {
+					const pagedEdges = dbResult.edges.filter((e) => e.source !== e.target && !FILTERED_EDGE_KINDS.has(e.kind)).map((e) => ({
+						id: EdgeId(String(e.id)),
+						source: NodeId(e.source),
+						target: NodeId(e.target),
+						type: mapEdgeKind(e.kind),
+						properties: e.line !== null && e.line !== void 0 ? { line: e.line } : {}
+					}));
+					sendJson(res, 200, {
+						edges: pagedEdges,
+						total: dbResult.total,
+						cursor: cursor + pagedEdges.length,
+						hasMore: cursor + limit < dbResult.total
+					}, req, corsConfig);
+					return;
+				}
 			}
-			const total = filteredEdges.length;
-			const pagedEdges = filteredEdges.slice(cursor, cursor + limit);
-			const hasMore = cursor + limit < total;
 			sendJson(res, 200, {
-				edges: pagedEdges,
-				total,
-				cursor: cursor + limit,
-				hasMore
+				edges: [],
+				total: 0,
+				cursor: 0,
+				hasMore: false
 			}, req, corsConfig);
 		})
 	}), "codegraph: edges route");

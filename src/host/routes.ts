@@ -413,7 +413,18 @@ function registerScanRoute(rc: RouteContext): void {
             timestamp: data.metadata.timestamp,
           });
           log.info('scan completed', { repoId, nodes: data.metadata.nodeCount, edges: data.metadata.edgeCount });
-          sendJson(res, 200, { success: true, ...data }, req, corsConfig);
+          const scanPayload = JSON.stringify({ success: true, ...data });
+          if (scanPayload.length > API.DATA_RESPONSE_MAX_BYTES) {
+            const slimmed = slimGraphData(data, API.DATA_RESPONSE_SLIM_NODES);
+            const slimPayload = JSON.stringify({ success: true, ...slimmed });
+            const scanHeaders = buildCorsHeaders(req, corsConfig);
+            scanHeaders['content-type'] = 'application/json';
+            scanHeaders['x-truncated'] = '1';
+            res.writeHead(200, scanHeaders);
+            res.end(slimPayload);
+          } else {
+            sendJson(res, 200, { success: true, ...data }, req, corsConfig);
+          }
 
         } finally {
           deps.setScanInFlight(scanPath, null);

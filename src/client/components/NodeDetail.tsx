@@ -69,8 +69,11 @@ export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, 
         result.push(child);
       }
     }
-    return result.slice(0, 50);
+    return result;
   }, [isClusterNode, clusterChildIds, rawNodes]);
+
+  const displayedChildFunctions = childFunctionNodes.slice(0, 50);
+  const hiddenChildFunctionCount = childFunctionNodes.length - displayedChildFunctions.length;
 
   const signature = node.properties?.signature as string | undefined;
   const docstring = node.properties?.docstring as string | undefined;
@@ -170,11 +173,11 @@ export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, 
           {t('detail.microHint')}
         </div>
       )}
-      {isClusterNode && childFunctionNodes.length > 0 && onSelectFunction && (
+      {isClusterNode && displayedChildFunctions.length > 0 && onSelectFunction && (
         <div className="cg-detail-cluster-functions">
           <div className="cg-detail-section-title">{t('detail.functionsInCluster')} ({childFunctionNodes.length}{clusterChildCount > 50 ? '+' : ''})</div>
           <div className="cg-detail-function-list">
-            {childFunctionNodes.map((fn) => (
+            {displayedChildFunctions.map((fn) => (
               <div className="cg-detail-function-item" key={fn.id}>
                 <span className="cg-detail-function-name" title={fn.filePath}>{fn.label}</span>
                 <div className="cg-detail-function-micro-btns">
@@ -190,6 +193,9 @@ export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, 
                 </div>
               </div>
             ))}
+            {hiddenChildFunctionCount > 0 && (
+              <div className="cg-detail-function-truncated">{t('detail.moreFunctions', { count: hiddenChildFunctionCount })}</div>
+            )}
           </div>
         </div>
       )}

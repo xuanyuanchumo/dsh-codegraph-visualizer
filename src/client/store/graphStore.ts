@@ -932,6 +932,14 @@ export const useGraphStore = create<GraphState>()(
             prefetchInFlightCount--;
           }
         };
+        if (prefetchIdleHandle !== null) {
+          if (typeof cancelIdleCallback === 'function' && typeof prefetchIdleHandle === 'number') {
+            cancelIdleCallback(prefetchIdleHandle);
+          } else {
+            clearTimeout(prefetchIdleHandle as ReturnType<typeof setTimeout>);
+          }
+          prefetchIdleHandle = null;
+        }
         if (typeof requestIdleCallback === 'function') {
           prefetchIdleHandle = requestIdleCallback(runPrefetch, { timeout: 2000 });
         } else {
