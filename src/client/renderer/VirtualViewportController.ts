@@ -92,6 +92,11 @@ export class VirtualViewportController {
 
   private handleStructureChange = (): void => {
     this.indexDirty = true;
+    if (this.rafId !== null) return;
+    this.rafId = requestAnimationFrame(() => {
+      this.updateVisibility();
+      this.rafId = null;
+    });
   };
 
   private rebuildIndex(): void {

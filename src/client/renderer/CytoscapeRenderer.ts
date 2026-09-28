@@ -80,15 +80,6 @@ export class CytoscapeRenderer implements IRenderer {
     }
   }
 
-  private safeCallWithError<T>(name: string, fn: () => T, fallback: T): T {
-    try {
-      return fn();
-    } catch (err) {
-      log.error(`${name} failed`, err);
-      this.lastError = err instanceof Error ? err : new Error(String(err));
-      return fallback;
-    }
-  }
 
   constructor(options: CytoscapeRendererOptions) {
     this.options = options;
@@ -173,7 +164,7 @@ export class CytoscapeRenderer implements IRenderer {
 
   updateData(nodes: GraphNode[], edges: GraphEdge[]): void {
     if (!this.cy) throw new Error('CytoscapeRenderer: init() must be called before updateData()');
-    this.safeCallWithError('updateData', () => {
+    this.safeCall('updateData', () => {
       this.dataCtrl?.updateData(nodes, edges);
       this.adjacencyCache?.invalidate();
       this.filterCtrl?.invalidateCache();
@@ -462,7 +453,7 @@ export class CytoscapeRenderer implements IRenderer {
   }
 
   filterByPath(includePattern: string | null, excludePattern: string | null): void {
-    this.safeCallWithError('filterByPath', () => this.filterCtrl?.filterByPath(includePattern, excludePattern), undefined);
+    this.safeCall('filterByPath', () => this.filterCtrl?.filterByPath(includePattern, excludePattern), undefined);
   }
 
   getLastError(): Error | null {
@@ -474,7 +465,7 @@ export class CytoscapeRenderer implements IRenderer {
   }
 
   getZoom(): number {
-    return this.safeCallWithError('getZoom', () => this.cy?.zoom() ?? 1, 1);
+    return this.safeCall('getZoom', () => this.cy?.zoom() ?? 1, 1);
   }
 
   onZoomChange(callback: () => void): () => void {

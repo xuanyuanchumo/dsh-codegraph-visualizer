@@ -3,7 +3,7 @@ import { persist, createJSONStorage, type StateStorage } from 'zustand/middlewar
 import type { GraphNode, GraphEdge, NodeId, HealthScore, RuleDefinition, RuleViolation, ViewMode, HeatmapMode } from '../../types/index.ts';
 import { computeClusteredGraph } from './cluster/index.ts';
 import type { ClusterNode, ClusterEdge, ClusterResult } from './cluster/index.ts';
-import { estimateExpandCost } from './cluster/progressiveCluster.ts';
+import { estimateExpandCost, invalidateExpandCostCache } from './cluster/progressiveCluster.ts';
 import { tryIncrementalOrFull, type IncrementalClusterContext } from './cluster/incrementalCluster.ts';
 import { assembleDiagram, assembleMicroDiagram, type LayeredDiagram } from '../diagram/index.ts';
 import { CallChainAggregator } from '../diagram/CallChainAggregator.ts';
@@ -13,7 +13,7 @@ import { invalidateCssVarCache } from '../renderer/styles/ThemeStylesheet.ts';
 import { computeViewModeTransition } from './viewModeTransition.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { type LayoutType, type ThemeType, type RankDir, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
-import { fetchNodeChildren, fetchBootstrap, fetchFileOutline, fetchSymbolAST } from '../api/index.ts';
+import { fetchNodeChildren, fetchBootstrap, fetchFileOutline, fetchSymbolAST, fetchWithTimeout } from '../api/index.ts';
 
 import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, LOD, UI, PREFETCH, FUNCTION_BODY, SYMBOL_AST, getDynamicMaxVisibleNodes } from '../../shared/constants.ts';
 
@@ -28,6 +28,7 @@ let persistentCache: IndexedDBCache | null = null;
 let persistentCacheRepoId: string | null = null;
 const callChainAggregator = new CallChainAggregator();
 let microAssemblyGeneration = 0;
+let multiAssemblyGeneration = 0;
 let incrementalClusterCtx: IncrementalClusterContext | null = null;
 let prefetchInFlightCount = 0;
 const prefetchAbortControllers = new Map<string, AbortController>();
@@ -232,7 +233,9 @@ export function disposeStore(): void {
   diagramCache.invalidate();
   clusterCache.invalidate();
   incrementalClusterCtx = null;
+  invalidateExpandCostCache();
   microAssemblyGeneration = 0;
+  multiAssemblyGeneration = 0;
   clearLoadingFailsafe();
   if (persistentCache) { persistentCache.close(); persistentCache = null; }
   persistentCacheRepoId = null;
@@ -969,9 +972,10 @@ export const useGraphStore = create<GraphState>()(
       setHeatmapMode: (mode) => set({ heatmapMode: mode }),
       assembleMultiFunction: async (entryNodeId) => {
         const { rawNodes, rawEdges, callChainDepth, clusterDepth, expandedNodeIds } = useGraphStore.getState();
+        const gen = ++multiAssemblyGeneration;
         const astFetcher = async (filePath: string) => {
           try {
-            const response = await fetch('/api/v1/codegraph/ast', {
+            const response = await fetchWithTimeout('/api/v1/codegraph/ast', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ filePath }),
@@ -988,6 +992,7 @@ export const useGraphStore = create<GraphState>()(
             entryNodeId, rawNodes, rawEdges, astFetcher,
             { depth: callChainDepth, maxFunctions: UI.MAX_FUNCTIONS_PER_CLUSTER },
           );
+          if (gen !== multiAssemblyGeneration) return;
           if (result && result.diagram.nodes.length > 0) {
             const clustered = computeClusteredGraph(result.diagram.nodes, result.diagram.edges, 'progressive', expandedNodeIds, clusterDepth, useGraphStore.getState().panelWidth ?? undefined);
             set({

@@ -858,7 +858,7 @@ describe('CytoscapeRenderer', () => {
       expect(renderer!.getLastError()?.message).toBe('layout failed');
     });
 
-    it('safeCallWithError catches error and sets lastError (updateData)', () => {
+    it('safeCall catches error and sets lastError (updateData)', () => {
       renderer = new CytoscapeRenderer({
         container: makeContainer(),
         theme: 'dark',
@@ -866,14 +866,14 @@ describe('CytoscapeRenderer', () => {
       renderer!.init();
       vi.clearAllMocks();
 
-      // Make cy.add throw to trigger safeCallWithError catch in updateData
+      // Make cy.add throw to trigger safeCall catch in updateData
       mockCy.add = vi.fn(() => { throw new Error('add failed'); }) as any;
       renderer!.updateData([makeNode('a')], []);
       expect(renderer!.getLastError()).not.toBeNull();
       expect(renderer!.getLastError()?.message).toBe('add failed');
     });
 
-    it('safeCallWithError catches non-Error thrown value', () => {
+    it('safeCall catches non-Error thrown value', () => {
       renderer = new CytoscapeRenderer({
         container: makeContainer(),
         theme: 'dark',
