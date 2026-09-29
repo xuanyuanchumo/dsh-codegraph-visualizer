@@ -22,7 +22,7 @@ export { PLUGIN_VERSION };
 const log = scoped('client');
 
 export const name = 'dsh-codegraph-visualizer-client';
-export const inject = ['slots'];
+export const inject = ['slots', 'betterSidebar'];
 
 function SidebarNavButton({ onClick, active }: { onClick: () => void; active: boolean }) {
   return React.createElement('button', {

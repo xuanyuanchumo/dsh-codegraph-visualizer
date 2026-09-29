@@ -115,8 +115,8 @@
       "platform": "web",
       "immediately": true,
       "inject": [
-
-        "@deepseek-ai/dsh-client-connection"
+        "@deepseek-ai/dsh-client-connection",
+        "dsh-better-sidebar"
       ]
     },
     "optionalPlugins": [
