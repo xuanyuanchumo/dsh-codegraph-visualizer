@@ -51,6 +51,8 @@ const { mockRenderer } = vi.hoisted(() => ({
     updateTheme: vi.fn(),
     setHeatmapMode: vi.fn(),
     getHeatmapMode: vi.fn(() => 'none'),
+    setTodoMarkerMode: vi.fn(),
+    getTodoMarkerMode: vi.fn(() => 'none'),
     findPath: vi.fn(() => null),
     highlightPath: vi.fn(),
     expandNeighborhood: vi.fn(() => new Set()),
@@ -133,11 +135,12 @@ function makeConfig(overrides: Record<string, any> = {}) {
     pathFilterInclude: null as string | null,
     pathFilterExclude: null as string | null,
     heatmapMode: 'none' as const,
+    todoMarkerMode: 'none' as const,
   };
   const p = { ...defaults, ...overrides };
   return {
     data: { nodes: p.nodes, edges: p.edges, rawNodes: p.rawNodes },
-    display: { layout: p.layout, dagreRankDir: p.dagreRankDir, theme: p.theme, clusterDepth: p.clusterDepth, heatmapMode: p.heatmapMode },
+    display: { layout: p.layout, dagreRankDir: p.dagreRankDir, theme: p.theme, clusterDepth: p.clusterDepth, heatmapMode: p.heatmapMode, todoMarkerMode: p.todoMarkerMode },
     interaction: { highlightedNodeIds: p.highlightedNodeIds, selectedNodeId: p.selectedNodeId, focusNodeId: p.focusNodeId, focusModeActive: p.focusModeActive, focusModeNodeId: p.focusModeNodeId, focusDepth: p.focusDepth, debouncedSearch: p.debouncedSearch },
     filters: { filterType: p.filterType, graphType: p.graphType, fanInThreshold: p.fanInThreshold, fanOutThreshold: p.fanOutThreshold, visibleNodeTypes: p.visibleNodeTypes, visibleEdgeTypes: p.visibleEdgeTypes, pathFilterInclude: p.pathFilterInclude, pathFilterExclude: p.pathFilterExclude },
     analysis: { showCallChain: p.showCallChain, showCycles: p.showCycles, cycleIsolation: p.cycleIsolation, showImpact: p.showImpact, showInheritance: p.showInheritance },

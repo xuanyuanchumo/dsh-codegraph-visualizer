@@ -1,8 +1,8 @@
 import type { Core, StylesheetJson } from 'cytoscape';
 import type { ThemeType } from './IRenderer.ts';
-import type { HeatmapMode } from '../../types/index.ts';
+import type { HeatmapMode, TodoMarkerMode } from '../../types/index.ts';
 import { buildStylesheet, invalidateCssVarCache } from './styles/ThemeStylesheet.ts';
-import { LOD, HEATMAP } from '../../shared/constants.ts';
+import { LOD, HEATMAP, TODO_MARKER } from '../../shared/constants.ts';
 import { assertNever } from '../../shared/assertNever.ts';
 
 type LODLevel = 'minimal' | 'compact' | 'full';
@@ -77,6 +77,7 @@ export class StyleController {
   private currentLOD: LODLevel = 'full';
   private lodEnabled = false;
   private heatmapMode: HeatmapMode = 'none';
+  private todoMarkerMode: TodoMarkerMode = 'none';
   private cachedBaseStylesheet: StylesheetJson | null = null;
   private cachedNodeCount = -1;
   private stylesheetApplied = false;
@@ -139,6 +140,17 @@ export class StyleController {
     return this.heatmapMode;
   }
 
+  setTodoMarkerMode(mode: TodoMarkerMode): void {
+    if (this.todoMarkerMode === mode) return;
+    this.todoMarkerMode = mode;
+    this.stylesheetApplied = false;
+    this.applyStylesheet();
+  }
+
+  getTodoMarkerMode(): TodoMarkerMode {
+    return this.todoMarkerMode;
+  }
+
   private sizeMetric: string | null = null;
   private colorMetric: string | null = null;
 
@@ -192,8 +204,9 @@ export class StyleController {
     ];
     const heatmapOverrides = this.getHeatmapOverrides();
     const multiDimOverrides = this.getMultiDimensionOverrides();
+    const todoMarkerOverrides = this.getTodoMarkerOverrides();
     const lodClassStyles = getLODClassStyles();
-    this.cy.style().fromJson([...baseStylesheet, ...transitionOverrides, ...heatmapOverrides, ...multiDimOverrides, ...lodClassStyles]).update();
+    this.cy.style().fromJson([...baseStylesheet, ...transitionOverrides, ...heatmapOverrides, ...multiDimOverrides, ...todoMarkerOverrides, ...lodClassStyles]).update();
     this.stylesheetApplied = true;
     if (this.lodEnabled) {
       this.applyLODClasses();
@@ -272,6 +285,42 @@ export class StyleController {
       ];
     }
     return assertNever(this.heatmapMode);
+  }
+
+  private getTodoMarkerOverrides(): StylesheetJson {
+    if (this.todoMarkerMode === 'none') return [];
+    const overrides: StylesheetJson = [];
+    if (this.todoMarkerMode === 'todo' || this.todoMarkerMode === 'all') {
+      overrides.push({
+        selector: 'node[hasTodoFixme]',
+        style: {
+          'border-width': TODO_MARKER.BORDER_WIDTH,
+          'border-style': TODO_MARKER.BORDER_STYLE,
+          'border-color': TODO_MARKER.COLOR_TODO,
+        },
+      });
+    }
+    if (this.todoMarkerMode === 'fixme' || this.todoMarkerMode === 'all') {
+      overrides.push({
+        selector: 'node[fixmeCount]',
+        style: {
+          'border-width': TODO_MARKER.BORDER_WIDTH,
+          'border-style': TODO_MARKER.BORDER_STYLE,
+          'border-color': TODO_MARKER.COLOR_FIXME,
+        },
+      });
+    }
+    if (this.todoMarkerMode === 'all') {
+      overrides.push({
+        selector: 'node[todoCount]',
+        style: {
+          'border-width': TODO_MARKER.BORDER_WIDTH,
+          'border-style': TODO_MARKER.BORDER_STYLE,
+          'border-color': TODO_MARKER.COLOR_BOTH,
+        },
+      });
+    }
+    return overrides;
   }
 
   destroy(): void {

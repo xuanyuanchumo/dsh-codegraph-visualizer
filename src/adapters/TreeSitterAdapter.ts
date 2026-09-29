@@ -61,6 +61,8 @@ const VARIABLE_NODE_TYPES = new Set([
 const IMPORT_NODE_TYPES = new Set([
   'import_statement', 'import_declaration', 'use_declaration',
 ]);
+const COMMENT_NODE_TYPES = new Set(['comment', 'line_comment', 'block_comment']);
+const TODO_PATTERNS = /\b(TODO|FIXME|HACK|XXX|BUG)\b/g;
 
 export class TreeSitterAdapter implements IAnalysisAdapter {
   readonly source: DataSourceType = 'tree-sitter';
@@ -186,6 +188,7 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
     const nodes: GraphNode[] = [];
     const edges: GraphEdge[] = [];
     const visited = new Set<string>();
+    const nodeMap = new Map<string, GraphNode>();
 
     const extractName = (node: TreeSitterNode): string => {
       const nameNode = node.childForFieldName?.('name') ||
@@ -222,7 +225,7 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
 
           if (!visited.has(id)) {
             visited.add(id);
-            nodes.push({
+            const graphNode: GraphNode = {
               id: NodeId(id),
               label,
               type: graphType,
@@ -231,7 +234,9 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
               properties: { source: 'tree-sitter', nodeType },
               ...(parentId ? { parentId: NodeId(parentId) } : {}),
               layer: inferLayerFromPath(filePath),
-            });
+            };
+            nodes.push(graphNode);
+            nodeMap.set(id, graphNode);
 
             if (parentId) {
               edges.push({
@@ -244,6 +249,30 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
             }
           }
           currentParentId = id;
+        }
+
+        if (COMMENT_NODE_TYPES.has(nodeType)) {
+          const text = node.text;
+          const matches = text.match(TODO_PATTERNS);
+          if (matches && parentId) {
+            const parentNode = nodeMap.get(parentId);
+            if (parentNode) {
+              const hasTodo = matches.some((m) => m === 'TODO');
+              const hasFixme = matches.some((m) => m === 'FIXME');
+              const existingTags = parentNode.tags ?? [];
+              const newTags: string[] = [];
+              if (hasTodo && !existingTags.includes('todo')) newTags.push('todo');
+              if (hasFixme && !existingTags.includes('fixme')) newTags.push('fixme');
+              if (newTags.length > 0) {
+                parentNode.tags = [...existingTags, ...newTags];
+              }
+              const existingTodoCount = (parentNode.properties.todoCount as number) ?? 0;
+              const existingFixmeCount = (parentNode.properties.fixmeCount as number) ?? 0;
+              if (hasTodo) parentNode.properties.todoCount = existingTodoCount + 1;
+              if (hasFixme) parentNode.properties.fixmeCount = existingFixmeCount + 1;
+              parentNode.properties.hasTodoFixme = true;
+            }
+          }
         }
 
         for (let i = (node.childCount || 0) - 1; i >= 0; i--) {

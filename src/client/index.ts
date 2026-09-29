@@ -15,6 +15,7 @@ import { resetI18nListeners } from './i18n/index.ts';
 import { disposeStore } from './store/graphStore.ts';
 import { POLLING } from '../shared/constants.ts';
 import { DOM_EVENTS } from '../shared/domEvents.ts';
+import type { LayoutType } from '../shared/viewModeUtils.ts';
 
 export { PLUGIN_VERSION };
 
@@ -84,6 +85,7 @@ export function apply(ctx: Context): () => void {
   let panelVisible = false;
   let navButtonRegistered = false;
   let renderFloating: () => void = () => {};
+  let betterSidebarApi: Context['betterSidebar'] | undefined;
   const slotDisposers: Array<() => void> = [];
   const trackSlotDisposer = (d: (() => void) | void): void => {
     if (typeof d === 'function') slotDisposers.push(d);
@@ -93,7 +95,21 @@ export function apply(ctx: Context): () => void {
     slotDisposers.length = 0;
   }, 'codegraph: slot registrations cleanup');
 
+  const openSidebarTab = (): void => {
+    if (betterSidebarApi) {
+      try {
+        betterSidebarApi.openTab({ type: 'codegraph-visualizer' });
+      } catch (e) {
+        log.warn('betterSidebar.openTab failed', e);
+      }
+    }
+  };
+
   const togglePanel = (): void => {
+    if (betterSidebarApi && !panelVisible) {
+      openSidebarTab();
+      return;
+    }
     panelVisible = !panelVisible;
     const container = document.querySelector('.cg-floating-container');
     if (container) {
@@ -103,16 +119,17 @@ export function apply(ctx: Context): () => void {
   };
 
   try {
-    const betterSidebar = ctx.get('betterSidebar') as Context['betterSidebar'] | undefined;
-    if (betterSidebar) {
-      const dispose = betterSidebar.registerTab({
+    betterSidebarApi = ctx.get('betterSidebar') as Context['betterSidebar'] | undefined;
+    if (betterSidebarApi) {
+      const dispose = betterSidebarApi.registerTab({
         id: 'codegraph-visualizer',
-        title: t('nav.title'),
+        title: () => t('nav.title'),
         icon: (size: number) => React.createElement(GraphIcon, { size }),
         order: 50,
         single: true,
         component: ({ visible }: { visible: boolean }) => {
           panelVisible = visible;
+          useGraphStore.getState().setPanelVisible(visible);
           return visible ? React.createElement(GraphPanel) : null;
         },
       });
@@ -190,7 +207,10 @@ export function apply(ctx: Context): () => void {
       const d1 = spotlight.registerCommand({
         id: 'codegraph-search',
         title: t('nav.searchSymbols'),
-        handler: () => { window.dispatchEvent(new KeyboardEvent('keydown', { key: '/' })); },
+        handler: () => {
+          openSidebarTab();
+          window.dispatchEvent(new KeyboardEvent('keydown', { key: '/' }));
+        },
       });
       if (typeof d1 === 'function') ctx.effect(() => d1, 'codegraph: spotlight search cmd');
       const d2 = spotlight.registerCommand({
@@ -199,6 +219,37 @@ export function apply(ctx: Context): () => void {
         handler: () => togglePanel(),
       });
       if (typeof d2 === 'function') ctx.effect(() => d2, 'codegraph: spotlight toggle cmd');
+      const d3 = spotlight.registerCommand({
+        id: 'codegraph-layout',
+        title: t('nav.switchLayout'),
+        handler: () => {
+          openSidebarTab();
+          const store = useGraphStore.getState();
+          const layouts: LayoutType[] = ['cose', 'fcose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
+          const currentIdx = layouts.indexOf(store.layout);
+          const nextIdx = currentIdx >= 0 ? (currentIdx + 1) % layouts.length : 0;
+          store.setLayout(layouts[nextIdx] ?? 'cose');
+        },
+      });
+      if (typeof d3 === 'function') ctx.effect(() => d3, 'codegraph: spotlight layout cmd');
+      const d4 = spotlight.registerCommand({
+        id: 'codegraph-filter',
+        title: t('nav.toggleFilter'),
+        handler: () => {
+          openSidebarTab();
+          window.dispatchEvent(new CustomEvent(DOM_EVENTS.TOGGLE_FILTER_PANEL));
+        },
+      });
+      if (typeof d4 === 'function') ctx.effect(() => d4, 'codegraph: spotlight filter cmd');
+      const d5 = spotlight.registerCommand({
+        id: 'codegraph-export',
+        title: t('nav.exportGraph'),
+        handler: () => {
+          openSidebarTab();
+          window.dispatchEvent(new CustomEvent(DOM_EVENTS.TOGGLE_EXPORT_MENU));
+        },
+      });
+      if (typeof d5 === 'function') ctx.effect(() => d5, 'codegraph: spotlight export cmd');
     }
   } catch (e) {
     log.warn('spotlight registration failed', e);
@@ -438,6 +489,40 @@ export function apply(ctx: Context): () => void {
     }, 'codegraph: window event listeners');
   }
 
+  if (typeof window !== 'undefined') {
+    ctx.effect(() => {
+      const themeObserver = new MutationObserver(() => {
+        const isDark = document.body.hasAttribute('data-ds-dark-theme');
+        const store = useGraphStore.getState();
+        if (store.theme !== (isDark ? 'dark' : 'light')) {
+          store.setTheme(isDark ? 'dark' : 'light');
+          window.dispatchEvent(new CustomEvent(DOM_EVENTS.THEME_CHANGED, { detail: { theme: isDark ? 'dark' : 'light' } }));
+          log.info('theme changed via DSH host', { theme: isDark ? 'dark' : 'light' });
+        }
+      });
+      themeObserver.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] });
+      return () => themeObserver.disconnect();
+    }, 'codegraph: theme observer');
+  }
+
+  if (typeof window !== 'undefined') {
+    ctx.effect(() => {
+      const toggleFilterListener = () => {
+        const filterBtn = document.querySelector('.cg-filter-panel-btn') as HTMLButtonElement | null;
+        if (filterBtn) filterBtn.click();
+      };
+      const toggleExportListener = () => {
+        const exportBtn = document.querySelector('.cg-export-btn') as HTMLButtonElement | null;
+        if (exportBtn) exportBtn.click();
+      };
+      window.addEventListener(DOM_EVENTS.TOGGLE_FILTER_PANEL, toggleFilterListener);
+      window.addEventListener(DOM_EVENTS.TOGGLE_EXPORT_MENU, toggleExportListener);
+      return () => {
+        window.removeEventListener(DOM_EVENTS.TOGGLE_FILTER_PANEL, toggleFilterListener);
+        window.removeEventListener(DOM_EVENTS.TOGGLE_EXPORT_MENU, toggleExportListener);
+      };
+    }, 'codegraph: spotlight event bridge');
+  }
 
   return () => {
     disposeStore();

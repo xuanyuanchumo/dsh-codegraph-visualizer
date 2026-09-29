@@ -1,7 +1,7 @@
 import cytoscape, { type Core } from 'cytoscape';
 import dagre from 'cytoscape-dagre';
 import fcose from 'cytoscape-fcose';
-import type { GraphNode, GraphEdge, NodeId, HeatmapMode } from '../../types/index.ts';
+import type { GraphNode, GraphEdge, NodeId, HeatmapMode, TodoMarkerMode } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
 import type { IRenderer, LayoutType, ThemeType, RankDir } from './IRenderer.ts';
 import type { CycleInfo } from './CycleDetector.ts';
@@ -387,6 +387,14 @@ export class CytoscapeRenderer implements IRenderer {
 
   getHeatmapMode(): HeatmapMode {
     return this.styleCtrl?.getHeatmapMode() ?? 'none';
+  }
+
+  setTodoMarkerMode(mode: TodoMarkerMode): void {
+    this.styleCtrl?.setTodoMarkerMode(mode);
+  }
+
+  getTodoMarkerMode(): TodoMarkerMode {
+    return this.styleCtrl?.getTodoMarkerMode() ?? 'none';
   }
 
   setMultiDimensionMapping(sizeMetric: string | null, colorMetric: string | null): void {

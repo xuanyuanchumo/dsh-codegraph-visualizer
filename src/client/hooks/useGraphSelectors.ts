@@ -47,6 +47,7 @@ export function useGraphAnalysis() {
     fanInThreshold: s.fanInThreshold, fanOutThreshold: s.fanOutThreshold,
     visibleNodeTypes: s.visibleNodeTypes, visibleEdgeTypes: s.visibleEdgeTypes,
     heatmapMode: s.heatmapMode,
+    todoMarkerMode: s.todoMarkerMode,
   })));
 }
 
@@ -82,6 +83,7 @@ export function useGraphActions() {
     setPathResult: useGraphStore((s) => s.setPathResult),
     setFocusDepth: useGraphStore((s) => s.setFocusDepth),
     setHeatmapMode: useGraphStore((s) => s.setHeatmapMode),
+    setTodoMarkerMode: useGraphStore((s) => s.setTodoMarkerMode),
     setLODLevel: useGraphStore((s) => s.setLODLevel),
     assembleMicro: useGraphStore((s) => s.assembleMicro),
   };

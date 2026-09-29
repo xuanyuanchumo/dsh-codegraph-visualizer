@@ -185,8 +185,8 @@ describe('ExportController', () => {
       const ec = new ExportController(cy as any);
       const result = ec.exportMermaid();
       expect(result).toContain('graph TD');
-      expect(result).toContain('na(');
-      expect(result).toContain('nb[');
+      expect(result).toContain('na["FuncA"]');
+      expect(result).toContain('nb["ClassB"]');
       expect(result).toContain('"FuncA"');
       expect(result).toContain('"ClassB"');
     });
@@ -201,11 +201,11 @@ describe('ExportController', () => {
       const cy = makeMockCy([funcNode, classNode, varNode, modNode, ifaceNode], []);
       const ec = new ExportController(cy as any);
       const result = ec.exportMermaid();
-      expect(result).toContain('nn1("fn")');
-      expect(result).toContain('nn2["cls"]');
-      expect(result).toContain('nn3(("var"))');
-      expect(result).toContain('nn4{"mod"}');
-      expect(result).toContain('nn5/"iface"/');
+      expect(result).toContain('nn1["fn"]@{ shape: process }');
+      expect(result).toContain('nn2["cls"]@{ shape: rect }');
+      expect(result).toContain('nn3["var"]@{ shape: process }');
+      expect(result).toContain('nn4["mod"]@{ shape: folder }');
+      expect(result).toContain('nn5["iface"]@{ shape: document }');
     });
 
     it('uses default shape for unknown node type', async () => {
@@ -214,7 +214,7 @@ describe('ExportController', () => {
       const cy = makeMockCy([unknownNode], []);
       const ec = new ExportController(cy as any);
       const result = ec.exportMermaid();
-      expect(result).toContain('nn1["unknown"]');
+      expect(result).toContain('nn1["unknown"]@{ shape: rect }');
     });
 
     it('exports edges with type labels', async () => {

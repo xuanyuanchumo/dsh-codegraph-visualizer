@@ -1,11 +1,11 @@
-import type { GraphNode, GraphEdge, NodeId, HeatmapMode } from '../../types/index.ts';
+import type { GraphNode, GraphEdge, NodeId, HeatmapMode, TodoMarkerMode } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
 import type { PathResult } from './PathFinder.ts';
 import type { LayoutType, ThemeType, RankDir } from '../../shared/viewModeUtils.ts';
 import type { CycleInfo } from './CycleDetector.ts';
 export type { LayoutType, ThemeType, RankDir } from '../../shared/viewModeUtils.ts';
 
-export type { HeatmapMode } from '../../types/index.ts';
+export type { HeatmapMode, TodoMarkerMode } from '../../types/index.ts';
 
 export interface RendererCallbacks {
   onNodeTap?(nodeId: string): void;
@@ -83,6 +83,8 @@ export interface IRenderer {
   updateTheme(theme: ThemeType): void;
   setHeatmapMode(mode: HeatmapMode): void;
   getHeatmapMode(): HeatmapMode;
+  setTodoMarkerMode(mode: TodoMarkerMode): void;
+  getTodoMarkerMode(): TodoMarkerMode;
   setMultiDimensionMapping(sizeMetric: string | null, colorMetric: string | null): void;
   destroy(): void;
 

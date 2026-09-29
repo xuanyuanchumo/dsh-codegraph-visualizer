@@ -194,6 +194,14 @@ export const HEATMAP = {
   COLOR_HIGH: '#ef4444',
 } as const;
 
+export const TODO_MARKER = {
+  COLOR_TODO: '#f59e0b',
+  COLOR_FIXME: '#ef4444',
+  COLOR_BOTH: '#dc2626',
+  BORDER_WIDTH: 3,
+  BORDER_STYLE: 'double',
+} as const;
+
 
 export const CYCLE_DETECTION = {
   MAX_NODES_FOR_DETECTION: 10000,

@@ -98,7 +98,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const { searchQuery, selectedNodeId, highlightedNodeIds, expandedNodeIds, pathResult, focusDepth, focusModeActive, focusModeNodeId, pathFilterInclude, pathFilterExclude } = useGraphInteraction();
   const { isLoading, error, lastUpdated, truncated, totalNodeCount, prerequisites, watchEnabled, initStatus } = useGraphStatus();
   const { currentWorkspace, workspaceList } = useGraphWorkspace();
-  const { ruleViolations, selectedFunction, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, heatmapMode } = useGraphAnalysis();
+  const { ruleViolations, selectedFunction, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, heatmapMode, todoMarkerMode } = useGraphAnalysis();
   const { performanceDegradations, lodLevel, lodEnabled } = useGraphPerformance();
   const actions = useGraphActions();
   const { panelHeight, panelWidth } = usePanelDimensions();
@@ -108,7 +108,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     setFilterType, setGraphType, setClusterDepth, setLayer, setLoading,
     setCurrentWorkspace, addWorkspace, removeWorkspace, setGraphData,
     setInitStatus, setWatchEnabled, setError, expandNode, collapseNode,
-    collapseAll, setPathResult, setFocusDepth, setHeatmapMode, setLODLevel,
+    collapseAll, setPathResult, setFocusDepth, setHeatmapMode, setTodoMarkerMode, setLODLevel,
     assembleMicro,
   } = actions;
 
@@ -304,7 +304,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const renderer = useGraphRenderer({
     data: { nodes, edges, rawNodes },
-    display: { layout, dagreRankDir, theme, clusterDepth, heatmapMode },
+    display: { layout, dagreRankDir, theme, clusterDepth, heatmapMode, todoMarkerMode },
     interaction: { highlightedNodeIds, selectedNodeId, focusNodeId, focusModeActive, focusModeNodeId, focusDepth, debouncedSearch },
     filters: { filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, pathFilterInclude, pathFilterExclude },
     analysis: { showCallChain: panel.showCallChain, showCycles: panel.showCycles, cycleIsolation: panel.cycleIsolation, showImpact: panel.showImpact, showInheritance: panel.showInheritance },
@@ -804,6 +804,35 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
                   aria-label={t(`heatmap.${m}`)}
                 >
                   {t(`heatmap.${m}`)}
+                </button>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+
+      {!isCollapsed && !isMicroView && (
+        <div className={`cg-todo-marker-bar ${todoMarkerMode === 'none' ? 'cg-todo-marker-bar--collapsed' : ''}`} role="group" aria-label={t('todoMarker.title')}>
+          {todoMarkerMode === 'none' ? (
+            <button
+              className="cg-todo-marker-btn cg-todo-marker-btn--activate"
+              onClick={() => setTodoMarkerMode('all')}
+              aria-label={t('todoMarker.title')}
+            >
+              {t('todoMarker.title')}
+            </button>
+          ) : (
+            <>
+              <span className="cg-todo-marker-label">{t('todoMarker.title')}:</span>
+              {(['none', 'todo', 'fixme', 'all'] as const).map((m) => (
+                <button
+                  key={m}
+                  className={`cg-todo-marker-btn ${todoMarkerMode === m ? 'cg-active' : ''}`}
+                  onClick={() => setTodoMarkerMode(m)}
+                  aria-pressed={todoMarkerMode === m}
+                  aria-label={t(`todoMarker.${m}`)}
+                >
+                  {t(`todoMarker.${m}`)}
                 </button>
               ))}
             </>

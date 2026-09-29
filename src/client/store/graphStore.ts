@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
-import type { GraphNode, GraphEdge, NodeId, HealthScore, RuleDefinition, RuleViolation, ViewMode, HeatmapMode } from '../../types/index.ts';
+import type { GraphNode, GraphEdge, NodeId, HealthScore, RuleDefinition, RuleViolation, ViewMode, HeatmapMode, TodoMarkerMode } from '../../types/index.ts';
 import type { DeadCodeResult } from '../../shared/analysis/DeadCodeAnalyzer.ts';
 import { computeClusteredGraph } from './cluster/index.ts';
 import type { ClusterNode, ClusterEdge, ClusterResult } from './cluster/index.ts';
@@ -332,6 +332,7 @@ interface GraphState {
 
   prerequisites: { codegraph: boolean; lens: boolean; builtin: boolean };
   integrationMode: 'sidebar' | 'slot' | 'floating' | 'unknown';
+  panelVisible: boolean;
   initStatus: 'idle' | 'initializing' | 'done' | 'error';
   initMessage: string | null;
   watchEnabled: boolean;
@@ -365,6 +366,7 @@ interface GraphState {
   visibleNodeTypes: Set<GraphNode['type']>;
   visibleEdgeTypes: Set<GraphEdge['type']>;
   heatmapMode: HeatmapMode;
+  todoMarkerMode: TodoMarkerMode;
 
   healthScore: HealthScore | null;
   rules: RuleDefinition[];
@@ -400,6 +402,7 @@ interface GraphState {
   clearGraph: () => void;
   setPrerequisites: (status: { codegraph: boolean; lens: boolean; builtin: boolean }) => void;
   setIntegrationMode: (mode: 'sidebar' | 'slot' | 'floating' | 'unknown') => void;
+  setPanelVisible: (visible: boolean) => void;
   setInitStatus: (status: 'idle' | 'initializing' | 'done' | 'error', message?: string | null) => void;
   setWatchEnabled: (enabled: boolean) => void;
   expandNode: (nodeId: string) => void;
@@ -424,6 +427,7 @@ interface GraphState {
   setVisibleNodeTypes: (types: Set<GraphNode['type']>) => void;
   setVisibleEdgeTypes: (types: Set<GraphEdge['type']>) => void;
   setHeatmapMode: (mode: HeatmapMode) => void;
+  setTodoMarkerMode: (mode: TodoMarkerMode) => void;
   assembleMultiFunction: (entryNodeId: string) => Promise<void>;
   setHealthScore: (score: HealthScore | null) => void;
   setRules: (rules: RuleDefinition[]) => void;
@@ -474,6 +478,7 @@ export const useGraphStore = create<GraphState>()(
       lastUpdated: 0,
       prerequisites: { codegraph: false, lens: false, builtin: true },
       integrationMode: 'unknown',
+      panelVisible: true,
       initStatus: 'idle',
       initMessage: null,
       watchEnabled: false,
@@ -500,6 +505,7 @@ export const useGraphStore = create<GraphState>()(
       visibleNodeTypes: new Set<GraphNode['type']>(['function', 'class', 'variable', 'module', 'interface']),
       visibleEdgeTypes: new Set<GraphEdge['type']>(['call', 'extend', 'implement', 'import', 'dependency', 'contains']),
       heatmapMode: 'none' as HeatmapMode,
+      todoMarkerMode: 'none' as TodoMarkerMode,
       healthScore: null,
       rules: [],
       ruleViolations: [],
@@ -737,6 +743,19 @@ export const useGraphStore = create<GraphState>()(
       },
       setPrerequisites: (prerequisites) => set({ prerequisites }),
       setIntegrationMode: (integrationMode) => set({ integrationMode }),
+      setPanelVisible: (panelVisible) => {
+        set({ panelVisible });
+        if (!panelVisible) {
+          for (const controller of prefetchAbortControllers.values()) controller.abort();
+          prefetchAbortControllers.clear();
+          prefetchInFlightCount = 0;
+          if (prefetchIdleHandle !== null) {
+            if (typeof cancelIdleCallback !== 'undefined') cancelIdleCallback(prefetchIdleHandle as number);
+            else clearTimeout(prefetchIdleHandle as ReturnType<typeof setTimeout>);
+            prefetchIdleHandle = null;
+          }
+        }
+      },
       setInitStatus: (initStatus, initMessage = null) => set({ initStatus, initMessage }),
       setWatchEnabled: (watchEnabled) => set({ watchEnabled }),
       expandNode: (nodeId) => {
@@ -1065,6 +1084,7 @@ export const useGraphStore = create<GraphState>()(
       setVisibleNodeTypes: (types) => set({ visibleNodeTypes: types }),
       setVisibleEdgeTypes: (types) => set({ visibleEdgeTypes: types }),
       setHeatmapMode: (mode) => set({ heatmapMode: mode }),
+      setTodoMarkerMode: (mode) => set({ todoMarkerMode: mode }),
       assembleMultiFunction: async (entryNodeId) => {
         const { rawNodes, rawEdges, callChainDepth, clusterDepth, expandedNodeIds } = useGraphStore.getState();
         const gen = ++multiAssemblyGeneration;

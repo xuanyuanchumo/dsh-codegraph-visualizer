@@ -1,5 +1,6 @@
 // GraphDataMerger - multi-source aggregation with dedup + delta merge.
 import type { GraphNode, GraphEdge, GraphData, AdapterResult, RepoId } from '../types/index.ts';
+import { sanitizeGraphData } from '../shared/GraphValidator.ts';
 
 export class GraphDataMerger {
   merge(results: AdapterResult[], repoId: RepoId): GraphData {
@@ -39,7 +40,7 @@ export class GraphDataMerger {
       }
     }
 
-    return {
+    const rawData = {
       nodes: Array.from(nodes.values()),
       edges: Array.from(edges.values()),
       metadata: {
@@ -49,6 +50,19 @@ export class GraphDataMerger {
         edgeCount: edges.size,
       },
     };
+
+    const { data, issues } = sanitizeGraphData(rawData);
+    if (issues.length > 0) {
+      const dropped = issues.filter((i: { level: string }) => i.level === 'dropped').length;
+      const autoCorrected = issues.filter((i: { level: string }) => i.level === 'auto-corrected').length;
+      if (dropped > 0 || autoCorrected > 0) {
+        data.metadata.nodeCount = data.nodes.length;
+        data.metadata.edgeCount = data.edges.length;
+      }
+    }
+
+
+    return data;
   }
 
   // Delta merge for incremental heat-updates.

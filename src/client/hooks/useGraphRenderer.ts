@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { CytoscapeRenderer } from '../renderer/CytoscapeRenderer.ts';
 import type { IRenderer, LayoutType, ThemeType, RankDir } from '../renderer/IRenderer.ts';
-import type { GraphNode, GraphEdge, HeatmapMode } from '../../types/index.ts';
+import type { GraphNode, GraphEdge, HeatmapMode, TodoMarkerMode } from '../../types/index.ts';
 import { NodeId } from '../../types/index.ts';
 import type { ClusterNode, ClusterEdge } from '../store/cluster/index.ts';
 import { scoped } from '../../shared/Logger.ts';
@@ -35,6 +35,7 @@ export interface GraphRendererDisplay {
   theme: ThemeType;
   clusterDepth: number;
   heatmapMode: HeatmapMode;
+  todoMarkerMode: TodoMarkerMode;
 }
 
 export interface GraphRendererInteraction {
@@ -88,7 +89,7 @@ export interface UseGraphRendererResult {
 export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererResult {
   const { data, display, interaction, filters, analysis, callbacks, showCallChainRef } = config;
   const { nodes, edges, rawNodes } = data;
-  const { layout, dagreRankDir, theme, clusterDepth, heatmapMode } = display;
+  const { layout, dagreRankDir, theme, clusterDepth, heatmapMode, todoMarkerMode } = display;
   const { highlightedNodeIds, selectedNodeId, focusNodeId, focusModeActive, focusModeNodeId, focusDepth, debouncedSearch } = interaction;
   const { filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, pathFilterInclude, pathFilterExclude } = filters;
   const { showCallChain, showCycles, cycleIsolation, showImpact, showInheritance } = analysis;
@@ -299,6 +300,10 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
   useEffect(() => {
     rendererRef.current?.setHeatmapMode(heatmapMode);
   }, [heatmapMode]);
+
+  useEffect(() => {
+    rendererRef.current?.setTodoMarkerMode(todoMarkerMode);
+  }, [todoMarkerMode]);
 
   useEffect(() => {
     const r = rendererRef.current;

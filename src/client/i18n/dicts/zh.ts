@@ -467,6 +467,9 @@ export const zh: Record<string, string> = {
   'nav.modeSidebar': '侧边栏',
   'nav.modeSlot': '插槽',
   'nav.modeFloating': '浮动面板',
+  'nav.switchLayout': '代码图谱: 切换布局',
+  'nav.toggleFilter': '代码图谱: 切换筛选',
+  'nav.exportGraph': '代码图谱: 导出图谱',
 
   // 筛选面板
   'filterPanel.title': '筛选与连接数',
@@ -518,6 +521,13 @@ export const zh: Record<string, string> = {
   'heatmap.instability': '不稳定度',
   'heatmap.lines': '代码行数',
   'heatmap.complexity': '复杂度',
+
+  // TODO/FIXME 标记
+  'todoMarker.title': 'TODO/FIXME',
+  'todoMarker.none': '关闭',
+  'todoMarker.todo': 'TODO',
+  'todoMarker.fixme': 'FIXME',
+  'todoMarker.all': '全部',
 
   // Node detail badges
   'detail.exportedBadge': 'EXP',

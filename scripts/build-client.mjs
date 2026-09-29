@@ -46,8 +46,8 @@ async function main() {
   console.log('[build-client] Step 2: CJS build -> dist/client-cjs/index.cjs');
   await run('npx tsdown src/client/index.ts --format cjs --outDir dist/client-cjs --platform browser --external react --external react-dom --external @deepseek-ai/cordis --external @deepseek-ai/dsh-client-runtime');
 
-  console.log('[build-client] Step 3: wrap CJS in __ModuleLoader__.load -> dist/client/index.js');
-  await run('node scripts/wrap-client-bundle.mjs dist/client-cjs/index.cjs dist/client/index.js dsh-codegraph-visualizer');
+  console.log('[build-client] Step 3: wrap CJS in __ModuleLoader__.load -> dist/client.js');
+  await run('node scripts/wrap-client-bundle.mjs dist/client-cjs/index.cjs dist/client.js dsh-codegraph-visualizer');
 
   console.log('[build-client] Step 4: copy tree-sitter WASM files -> dist/client/');
   const wasmSourceDir = join(root, 'node_modules', 'tree-sitter-wasm', 'out');

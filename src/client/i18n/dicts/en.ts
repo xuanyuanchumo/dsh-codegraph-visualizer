@@ -468,6 +468,9 @@ export const en: Record<string, string> = {
   'nav.modeSidebar': 'Sidebar',
   'nav.modeSlot': 'Slot',
   'nav.modeFloating': 'Floating',
+  'nav.switchLayout': 'Code Graph: Switch Layout',
+  'nav.toggleFilter': 'Code Graph: Toggle Filter',
+  'nav.exportGraph': 'Code Graph: Export Graph',
 
   // Filter Panel
   'filterPanel.title': 'Filter & Connections',
@@ -519,6 +522,13 @@ export const en: Record<string, string> = {
   'heatmap.instability': 'Instability',
   'heatmap.lines': 'Lines',
   'heatmap.complexity': 'Complexity',
+
+  // TODO/FIXME Markers
+  'todoMarker.title': 'TODO/FIXME',
+  'todoMarker.none': 'Off',
+  'todoMarker.todo': 'TODO',
+  'todoMarker.fixme': 'FIXME',
+  'todoMarker.all': 'All',
 
   // Node detail badges
   'detail.exportedBadge': 'EXP',

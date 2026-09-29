@@ -39,6 +39,7 @@ export function safeBoolean(value: unknown, fallback = false): boolean {
 }
 
 export type HeatmapMode = 'none' | 'instability' | 'lines' | 'complexity';
+export type TodoMarkerMode = 'none' | 'todo' | 'fixme' | 'all';
 
 export interface GraphNode {
   id: NodeId;

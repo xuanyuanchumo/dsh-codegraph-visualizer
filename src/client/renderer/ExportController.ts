@@ -33,14 +33,14 @@ export class ExportController {
     if (nodes.length === 0) return 'graph TD\n';
 
     const nodeShapeMap: Record<string, string> = {
-      function: '($label$)',
-      class: '[$label$]',
-      variable: '(($label$))',
-      module: '{$label$}',
-      interface: '/$label$/',
-      type: '[$label$]',
+      function: 'process',
+      class: 'rect',
+      variable: 'process',
+      module: 'folder',
+      interface: 'document',
+      type: 'document',
     };
-    const defaultShape = '[$label$]';
+    const defaultShape = 'rect';
 
     const edgeLabelMap: Record<string, string> = {
       call: 'call',
@@ -68,6 +68,8 @@ export class ExportController {
     const lines: string[] = [`graph ${rankDir}`];
     const idMap = new Map<string, string>();
 
+    const moduleGroups = new Map<string, string[]>();
+
     nodes.forEach((node) => {
       const rawId = node.id();
       const safeId = 'n' + rawId.replace(/[^a-zA-Z0-9_]/g, '_');
@@ -76,9 +78,26 @@ export class ExportController {
       if (label.length > 40) label = label.slice(0, 37) + '...';
       const type = String(node.data('type') ?? '');
       const shape = nodeShapeMap[type] ?? defaultShape;
-      const shapeDef = shape.replace('$label$', `"${label}"`);
-      lines.push(`  ${safeId}${shapeDef}`);
+      lines.push(`  ${safeId}["${label}"]@{ shape: ${shape} }`);
+
+      const filePath = String(node.data('filePath') ?? '');
+      if (filePath && type !== 'module') {
+        const dir = filePath.split(/[\\/]/).slice(0, -1).join('/') || 'root';
+        if (!moduleGroups.has(dir)) moduleGroups.set(dir, []);
+        moduleGroups.get(dir)!.push(safeId);
+      }
     });
+
+    for (const [dir, memberIds] of moduleGroups) {
+      if (memberIds.length < 2) continue;
+      const subgraphId = 'sub_' + dir.replace(/[^a-zA-Z0-9_]/g, '_');
+      lines.push(`  subgraph ${subgraphId} ["${dir}"]`);
+      lines.push(`    direction LR`);
+      for (const memberId of memberIds) {
+        lines.push(`    ${memberId}`);
+      }
+      lines.push(`  end`);
+    }
 
     edges.forEach((edge) => {
       const sourceId = idMap.get(edge.source().id()) ?? edge.source().id().replace(/[^a-zA-Z0-9_]/g, '_');
