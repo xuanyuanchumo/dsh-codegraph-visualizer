@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectCommunities } from '../../src/client/store/cluster/communityDetection.ts';
+import { detectCommunities, selectHighDegreeNodes } from '../../src/client/store/cluster/communityDetection.ts';
 import type { CommunityGroup } from '../../src/client/store/cluster/communityDetection.ts';
 import type { GraphNode, GraphEdge } from '../../src/types/index.ts';
 import { NodeId, EdgeId } from '../../src/types/index.ts';
@@ -624,5 +624,53 @@ describe('detectCommunities', () => {
       totalNodes += group.nodes.length;
     }
     expect(totalNodes).toBe(5001);
+  });
+});
+describe('selectHighDegreeNodes', () => {
+  it('returns nodes sorted by degree in descending order', () => {
+    const nodes = [makeNode('a'), makeNode('b'), makeNode('c'), makeNode('d')];
+    const edges = [
+      makeEdge('e1', 'a', 'b'),
+      makeEdge('e2', 'a', 'c'),
+      makeEdge('e3', 'a', 'd'),
+      makeEdge('e4', 'b', 'c'),
+    ];
+    const result = selectHighDegreeNodes(nodes, edges, 2);
+    expect(result).toHaveLength(2);
+    // 'a' has degree 3, 'b' has degree 2, 'c' has degree 2, 'd' has degree 1
+    expect(result[0].id).toBe(NodeId('a'));
+    expect(result[1].id).toBe(NodeId('b'));
+  });
+
+  it('returns all nodes when limit exceeds node count', () => {
+    const nodes = [makeNode('a'), makeNode('b')];
+    const edges = [makeEdge('e1', 'a', 'b')];
+    const result = selectHighDegreeNodes(nodes, edges, 10);
+    expect(result).toHaveLength(2);
+  });
+
+  it('handles empty nodes and edges', () => {
+    const result = selectHighDegreeNodes([], [], 5);
+    expect(result).toHaveLength(0);
+  });
+
+  it('handles nodes with zero degree', () => {
+    const nodes = [makeNode('a'), makeNode('b'), makeNode('c')];
+    const edges: GraphEdge[] = [];
+    const result = selectHighDegreeNodes(nodes, edges, 2);
+    expect(result).toHaveLength(2);
+  });
+
+  it('handles edges referencing non-existent nodes', () => {
+    const nodes = [makeNode('a'), makeNode('b')];
+    const edges = [
+      makeEdge('e1', 'a', 'b'),
+      makeEdge('e2', 'a', 'ghost'),
+      makeEdge('e3', 'ghost', 'b'),
+    ];
+    const result = selectHighDegreeNodes(nodes, edges, 2);
+    expect(result).toHaveLength(2);
+    // 'a' has degree 2 (e1 + e2), 'b' has degree 2 (e1 + e3)
+    expect(result[0].id).toBe(NodeId('a'));
   });
 });

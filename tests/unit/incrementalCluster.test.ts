@@ -377,6 +377,221 @@ describe('computeIncrementalClusters', () => {
     );
     expect(incremental).toBeNull();
   });
+
+  it('uses prevCluster label/type/filePath when cluster exists in prevResult', () => {
+    const prevNodes: GraphNode[] = [];
+    // Use 3-segment paths so getTopLevelDir returns 'src/utils'
+    for (let i = 0; i < 200; i++) prevNodes.push(makeNode(`n${i}`, `src/utils/file${i}.ts`));
+    const prevEdges: GraphEdge[] = [makeEdge('e1', 'n0', 'n1')];
+    const result = computeProgressiveClusters(prevNodes, prevEdges, new Set(), 0);
+    const nodeIdToVisibleId = new Map<string, string>();
+    for (const n of result.nodes) {
+      if ('isCluster' in n && n.isCluster) {
+        for (const childId of n.childIds) nodeIdToVisibleId.set(childId, n.id);
+      } else {
+        nodeIdToVisibleId.set(n.id, n.id);
+      }
+    }
+    const ctx = buildContext(result, nodeIdToVisibleId, prevNodes, prevEdges);
+
+    // Add a new node to the same directory - the cluster should already exist in prevResult
+    const newNodes = [...prevNodes, makeNode('n200', 'src/utils/file200.ts')];
+    const incremental = computeIncrementalClusters(ctx, newNodes, prevEdges, new Set(), 0);
+    expect(incremental).not.toBeNull();
+    // The cluster should exist and use prevCluster's label
+    const cluster = incremental!.nodes.find(n =>
+      'isCluster' in n && n.isCluster && n.id === 'cluster__src__utils'
+    ) as ClusterNode | undefined;
+    expect(cluster).toBeDefined();
+    expect(cluster!.label).toBeDefined();
+    expect(cluster!.type).toBe('module');
+  });
+
+  it('skips newDir when clusterId already in clusterChildMap', () => {
+    const prevNodes: GraphNode[] = [];
+    // Use 3-segment paths so getTopLevelDir returns 'src/utils'
+    for (let i = 0; i < 200; i++) prevNodes.push(makeNode(`n${i}`, `src/utils/file${i}.ts`));
+    const prevEdges: GraphEdge[] = [makeEdge('e1', 'n0', 'n1')];
+    const result = computeProgressiveClusters(prevNodes, prevEdges, new Set(), 0);
+    const nodeIdToVisibleId = new Map<string, string>();
+    for (const n of result.nodes) {
+      if ('isCluster' in n && n.isCluster) {
+        for (const childId of n.childIds) nodeIdToVisibleId.set(childId, n.id);
+      } else {
+        nodeIdToVisibleId.set(n.id, n.id);
+      }
+    }
+    const ctx = buildContext(result, nodeIdToVisibleId, prevNodes, prevEdges);
+
+    // Add a new node in the same directory - cluster__src__utils already exists
+    const newNodes = [...prevNodes, makeNode('n200', 'src/utils/file200.ts')];
+    const incremental = computeIncrementalClusters(ctx, newNodes, prevEdges, new Set(), 0);
+    expect(incremental).not.toBeNull();
+    // Should have exactly one cluster for 'src/utils' (not duplicated from newDirs)
+    const srcClusters = incremental!.nodes.filter(n =>
+      'isCluster' in n && n.isCluster && n.id === 'cluster__src__utils'
+    );
+    expect(srcClusters.length).toBe(1);
+  });
+
+  it('handles multiple new directories with different paths', () => {
+    const prevNodes: GraphNode[] = [];
+    for (let i = 0; i < 200; i++) prevNodes.push(makeNode(`n${i}`, `src/utils/file${i}.ts`));
+    const prevEdges: GraphEdge[] = [];
+    const result = computeProgressiveClusters(prevNodes, prevEdges, new Set(), 0);
+    const nodeIdToVisibleId = new Map<string, string>();
+    for (const n of result.nodes) {
+      if ('isCluster' in n && n.isCluster) {
+        for (const childId of n.childIds) nodeIdToVisibleId.set(childId, n.id);
+      } else {
+        nodeIdToVisibleId.set(n.id, n.id);
+      }
+    }
+    const ctx = buildContext(result, nodeIdToVisibleId, prevNodes, prevEdges);
+
+    // Add nodes in two new 3-segment directories
+    const newNodes = [
+      ...prevNodes,
+      makeNode('n200', 'lib/helpers/file200.ts'),
+      makeNode('n201', 'lib/helpers/file201.ts'),
+      makeNode('n202', 'test/mocks/file202.ts'),
+    ];
+    const incremental = computeIncrementalClusters(ctx, newNodes, prevEdges, new Set(), 0);
+    expect(incremental).not.toBeNull();
+    // Should have clusters for both 'lib/helpers' and 'test/mocks' directories
+    const libCluster = incremental!.nodes.find(n =>
+      'isCluster' in n && n.isCluster && n.id === 'cluster__lib__helpers'
+    ) as ClusterNode | undefined;
+    const testCluster = incremental!.nodes.find(n =>
+      'isCluster' in n && n.isCluster && n.id === 'cluster__test__mocks'
+    ) as ClusterNode | undefined;
+    expect(libCluster).toBeDefined();
+    expect(libCluster!.childCount).toBe(2);
+    expect(testCluster).toBeDefined();
+    expect(testCluster!.childCount).toBe(1);
+  });
+
+  it('expands new directory cluster with effectiveDepth >= 1', () => {
+    const prevNodes: GraphNode[] = [];
+    for (let i = 0; i < 200; i++) prevNodes.push(makeNode(`n${i}`, `src/utils/file${i}.ts`));
+    const prevEdges: GraphEdge[] = [makeEdge('e1', 'n0', 'n1')];
+    const result = computeProgressiveClusters(prevNodes, prevEdges, new Set(), 0);
+    const nodeIdToVisibleId = new Map<string, string>();
+    for (const n of result.nodes) {
+      if ('isCluster' in n && n.isCluster) {
+        for (const childId of n.childIds) nodeIdToVisibleId.set(childId, n.id);
+      } else {
+        nodeIdToVisibleId.set(n.id, n.id);
+      }
+    }
+    const ctx = buildContext(result, nodeIdToVisibleId, prevNodes, prevEdges);
+
+    const newNodes = [...prevNodes, makeNode('n200', 'lib/helpers/file200.ts')];
+    const incremental = computeIncrementalClusters(
+      ctx, newNodes, prevEdges, new Set(['cluster__lib__helpers']), 1,
+    );
+    expect(incremental).not.toBeNull();
+    // When expanded with effectiveDepth >= 1, individual nodes should be visible
+    const libNode = incremental!.nodes.find(n => n.id === 'n200');
+    expect(libNode).toBeDefined();
+    expect(!('isCluster' in libNode! && libNode!.isCluster)).toBe(true);
+  });
+
+  it('handles viewportWidth with initialDepth = 0 (no auto depth)', () => {
+    const prevNodes: GraphNode[] = [];
+    for (let i = 0; i < 200; i++) prevNodes.push(makeNode(`n${i}`, `src/file${i}.ts`));
+    const prevEdges: GraphEdge[] = [makeEdge('e1', 'n0', 'n1')];
+    const result = computeProgressiveClusters(prevNodes, prevEdges, new Set(), 0);
+    const nodeIdToVisibleId = new Map<string, string>();
+    for (const n of result.nodes) {
+      if ('isCluster' in n && n.isCluster) {
+        for (const childId of n.childIds) nodeIdToVisibleId.set(childId, n.id);
+      } else {
+        nodeIdToVisibleId.set(n.id, n.id);
+      }
+    }
+    const ctx = buildContext(result, nodeIdToVisibleId, prevNodes, prevEdges);
+
+    const newNodes = [...prevNodes, makeNode('n200', 'src/file200.ts')];
+    const incremental = computeIncrementalClusters(ctx, newNodes, prevEdges, new Set(), 0, 800);
+    expect(incremental).not.toBeNull();
+    expect(incremental!.nodes.length).toBeGreaterThan(0);
+  });
+
+  it('handles removed nodes with incremental update', () => {
+    const prevNodes: GraphNode[] = [];
+    for (let i = 0; i < 200; i++) prevNodes.push(makeNode(`n${i}`, `src/file${i}.ts`));
+    const prevEdges: GraphEdge[] = [makeEdge('e1', 'n0', 'n1'), makeEdge('e2', 'n1', 'n2')];
+    const result = computeProgressiveClusters(prevNodes, prevEdges, new Set(), 0);
+    const nodeIdToVisibleId = new Map<string, string>();
+    for (const n of result.nodes) {
+      if ('isCluster' in n && n.isCluster) {
+        for (const childId of n.childIds) nodeIdToVisibleId.set(childId, n.id);
+      } else {
+        nodeIdToVisibleId.set(n.id, n.id);
+      }
+    }
+    const ctx = buildContext(result, nodeIdToVisibleId, prevNodes, prevEdges);
+
+    // Remove a few nodes
+    const newNodes = prevNodes.filter(n => n.id !== 'n0' && n.id !== 'n1');
+    const newEdges = prevEdges.filter(e => e.source !== 'n0' && e.target !== 'n0' && e.source !== 'n1' && e.target !== 'n1');
+    const incremental = computeIncrementalClusters(ctx, newNodes, newEdges, new Set(), 0);
+    expect(incremental).not.toBeNull();
+    expect(incremental!.nodes.length).toBeGreaterThan(0);
+  });
+
+  it('handles both added and removed nodes simultaneously', () => {
+    const prevNodes: GraphNode[] = [];
+    for (let i = 0; i < 200; i++) prevNodes.push(makeNode(`n${i}`, `src/file${i}.ts`));
+    const prevEdges: GraphEdge[] = [makeEdge('e1', 'n0', 'n1')];
+    const result = computeProgressiveClusters(prevNodes, prevEdges, new Set(), 0);
+    const nodeIdToVisibleId = new Map<string, string>();
+    for (const n of result.nodes) {
+      if ('isCluster' in n && n.isCluster) {
+        for (const childId of n.childIds) nodeIdToVisibleId.set(childId, n.id);
+      } else {
+        nodeIdToVisibleId.set(n.id, n.id);
+      }
+    }
+    const ctx = buildContext(result, nodeIdToVisibleId, prevNodes, prevEdges);
+
+    // Remove n0 and add n200
+    const newNodes = [...prevNodes.filter(n => n.id !== 'n0'), makeNode('n200', 'src/file200.ts')];
+    const incremental = computeIncrementalClusters(ctx, newNodes, prevEdges, new Set(), 0);
+    expect(incremental).not.toBeNull();
+  });
+
+  it('creates cluster with correct label from dir name in newDirs', () => {
+    const prevNodes: GraphNode[] = [];
+    for (let i = 0; i < 200; i++) prevNodes.push(makeNode(`n${i}`, `src/utils/file${i}.ts`));
+    const prevEdges: GraphEdge[] = [];
+    const result = computeProgressiveClusters(prevNodes, prevEdges, new Set(), 0);
+    const nodeIdToVisibleId = new Map<string, string>();
+    for (const n of result.nodes) {
+      if ('isCluster' in n && n.isCluster) {
+        for (const childId of n.childIds) nodeIdToVisibleId.set(childId, n.id);
+      } else {
+        nodeIdToVisibleId.set(n.id, n.id);
+      }
+    }
+    const ctx = buildContext(result, nodeIdToVisibleId, prevNodes, prevEdges);
+
+    // Use node ID that equals clusterId so it's treated as standalone (not in clusterChildMap)
+    // This forces the newDirs loop to create the cluster
+    // getTopLevelDir('components/ui/Button.tsx') = 'components/ui'
+    // getDirClusterId('components/ui') = 'cluster__components__ui'
+    const newNodes = [...prevNodes, makeNode('cluster__components__ui', 'components/ui/Button.tsx')];
+    const incremental = computeIncrementalClusters(ctx, newNodes, prevEdges, new Set(), 0);
+    expect(incremental).not.toBeNull();
+    const compCluster = incremental!.nodes.find(n =>
+      'isCluster' in n && n.isCluster && n.id === 'cluster__components__ui'
+    ) as ClusterNode | undefined;
+    expect(compCluster).toBeDefined();
+    expect(compCluster!.label).toBe('ui (1)');
+    expect(compCluster!.filePath).toBe('components/ui');
+    expect(compCluster!.clusterLevel).toBe('directory');
+  });
 });
 
 describe('tryIncrementalOrFull', () => {

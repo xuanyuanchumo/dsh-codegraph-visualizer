@@ -47,6 +47,27 @@ vi.mock('node:fs/promises', () => ({
   },
 }));
 
+const mockReadEdgesFromDb = vi.fn();
+const mockReadFileOutlineFromDb = vi.fn();
+const mockReadSymbolASTFromDb = vi.fn();
+const mockReadEdgesForNodesFromDb = vi.fn();
+
+vi.mock('../../src/adapters/CodeGraphAdapter.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/adapters/CodeGraphAdapter.ts')>();
+  // Default: delegate to real implementation. Tests override via mockReturnValue.
+  mockReadEdgesFromDb.mockImplementation((...args: Parameters<typeof actual.readEdgesFromDb>) => actual.readEdgesFromDb(...args));
+  mockReadFileOutlineFromDb.mockImplementation((...args: Parameters<typeof actual.readFileOutlineFromDb>) => actual.readFileOutlineFromDb(...args));
+  mockReadSymbolASTFromDb.mockImplementation((...args: Parameters<typeof actual.readSymbolASTFromDb>) => actual.readSymbolASTFromDb(...args));
+  mockReadEdgesForNodesFromDb.mockImplementation((...args: Parameters<typeof actual.readEdgesForNodesFromDb>) => actual.readEdgesForNodesFromDb(...args));
+  return {
+    ...actual,
+    readEdgesFromDb: mockReadEdgesFromDb,
+    readFileOutlineFromDb: mockReadFileOutlineFromDb,
+    readSymbolASTFromDb: mockReadSymbolASTFromDb,
+    readEdgesForNodesFromDb: mockReadEdgesForNodesFromDb,
+  };
+});
+
 const { registerRoutes, registerService, slimGraphData } = await import('../../src/host/routes.ts');
 const { fetchMergedGraph, createInvoke } = await import('../../src/tools.ts');
 const { SecurityManager } = await import('../../src/host/security.ts');
@@ -57,7 +78,7 @@ const { TreeSitterAdapter } = await import('../../src/adapters/TreeSitterAdapter
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import type { GraphData } from '../../src/types/index.ts';
+import type { GraphData, GraphNode, GraphEdge } from '../../src/types/index.ts';
 import { makeNode, makeEdge, makeGraphData } from '../helpers.ts';
 import type { VisualizerConfig } from '../../src/host/config.ts';
 
@@ -1659,6 +1680,567 @@ describe('node children route', () => {
     const { res, state } = makeRes();
     handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/children?nodeId=parent'), res);
     expect(state.code).toBe(200);
+  });
+});
+
+describe('file outline route (index 13)', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockClear();
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    mockIsPathAllowed.mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+  });
+
+  it('GET /files/{nodeId}/outline returns 404 for invalid path', () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 13);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/files/invalid'), res);
+    expect(state.code).toBe(404);
+  });
+
+  it('GET /files/{nodeId}/outline returns 404 for empty nodeId in path', () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 13);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/files//outline'), res);
+    expect(state.code).toBe(404);
+  });
+
+  it('GET /files/{nodeId}/outline returns symbols from cached data', () => {
+    const fileNode = makeNode('file1', 'main.ts', 'module', '/src/main.ts', 1);
+    const sym1 = makeNode('sym1', 'foo', 'function', '/src/main.ts', 10, {}, 'file1');
+    const sym2 = makeNode('sym2', 'bar', 'class', '/src/main.ts', 20, {}, 'file1');
+    const otherSym = makeNode('sym3', 'baz', 'function', '/src/other.ts', 5, {}, 'file2');
+    const edges = [makeEdge('e1', 'sym1', 'sym2', 'call')];
+    deps.setLastGraphData(makeGraphData([fileNode, sym1, sym2, otherSym], edges));
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 13);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/files/file1/outline'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.symbols).toHaveLength(2);
+    expect(body.symbols[0].id).toBe('sym1');
+    expect(body.symbols[1].id).toBe('sym2');
+    expect(body.edges).toHaveLength(1);
+  });
+
+  it('GET /files/{nodeId}/outline returns empty when no cached data', () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 13);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/files/file1/outline'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.symbols).toEqual([]);
+    expect(body.edges).toEqual([]);
+  });
+
+  it('GET /files/{nodeId}/outline returns 304 when etag matches', () => {
+    const graphData = makeGraphData([makeNode('file1', 'main.ts', 'module', '/src/main.ts', 1)], []);
+    deps.setLastGraphData(graphData);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 13);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': String(graphData.metadata.timestamp) }, undefined, '/api/v1/codegraph/files/file1/outline'), res);
+    expect(state.code).toBe(304);
+  });
+});
+
+describe('symbol AST route (index 14)', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockClear();
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    mockIsPathAllowed.mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+  });
+
+  it('GET /symbols/{nodeId}/ast returns 404 for invalid path', () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 14);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/symbols/invalid'), res);
+    expect(state.code).toBe(404);
+  });
+
+  it('GET /symbols/{nodeId}/ast returns 404 for empty nodeId in path', () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 14);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/symbols//ast'), res);
+    expect(state.code).toBe(404);
+  });
+
+  it('GET /symbols/{nodeId}/ast returns AST nodes from cached data', () => {
+    const symNode = makeNode('sym1', 'foo', 'function', '/src/main.ts', 1);
+    const ast1 = makeNode('ast1', 'var1', 'variable', '/src/main.ts', 10, {}, 'sym1');
+    const ast2 = makeNode('ast2', 'var2', 'variable', '/src/main.ts', 20, {}, 'sym1');
+    const otherAst = makeNode('ast3', 'var3', 'variable', '/src/other.ts', 5, {}, 'sym2');
+    const edges = [makeEdge('e1', 'ast1', 'ast2', 'call')];
+    deps.setLastGraphData(makeGraphData([symNode, ast1, ast2, otherAst], edges));
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 14);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/symbols/sym1/ast'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.astNodes).toHaveLength(2);
+    expect(body.astNodes[0].id).toBe('ast1');
+    expect(body.astNodes[1].id).toBe('ast2');
+    expect(body.astEdges).toHaveLength(1);
+  });
+
+  it('GET /symbols/{nodeId}/ast returns empty when no cached data', () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 14);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/symbols/sym1/ast'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.astNodes).toEqual([]);
+    expect(body.astEdges).toEqual([]);
+    expect(body.sourceLines).toEqual([]);
+  });
+
+  it('GET /symbols/{nodeId}/ast returns 304 when etag matches', () => {
+    const graphData = makeGraphData([makeNode('sym1', 'foo', 'function', '/src/main.ts', 1)], []);
+    deps.setLastGraphData(graphData);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 14);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': String(graphData.metadata.timestamp) }, undefined, '/api/v1/codegraph/symbols/sym1/ast'), res);
+    expect(state.code).toBe(304);
+  });
+});
+
+describe('edges route (index 15)', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockClear();
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    mockIsPathAllowed.mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+  });
+
+  it('GET /edges returns 400 when fromId is missing', () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges'), res);
+    expect(state.code).toBe(400);
+    expect(JSON.parse(state.body).error).toBe('INVALID_FILEPATH');
+  });
+
+  it('GET /edges returns 400 when fromId exceeds max length', () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    const longFrom = 'a'.repeat(4097);
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, `/api/v1/codegraph/edges?from=${longFrom}`), res);
+    expect(state.code).toBe(400);
+    expect(JSON.parse(state.body).error).toBe('INVALID_FILEPATH');
+  });
+
+  it('GET /edges returns empty edges when no cached data', () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=somefile.ts'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.edges).toEqual([]);
+    expect(body.total).toBe(0);
+    expect(body.hasMore).toBe(false);
+  });
+
+  it('GET /edges returns edges with scope=file from cached data', () => {
+    const node1 = makeNode('n1', 'A', 'function', 'src/main.ts', 1);
+    const node2 = makeNode('n2', 'B', 'function', 'src/main.ts', 10);
+    const node3 = makeNode('n3', 'C', 'function', 'lib/util.ts', 5);
+    const edges = [
+      makeEdge('e1', 'n1', 'n2', 'call'),
+      makeEdge('e2', 'n1', 'n3', 'call'),
+      makeEdge('e3', 'n2', 'n3', 'call'),
+    ];
+    deps.setLastGraphData(makeGraphData([node1, node2, node3], edges));
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&scope=file'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.edges.length).toBeGreaterThan(0);
+    expect(body.total).toBeGreaterThan(0);
+  });
+
+  it('GET /edges returns edges with scope=symbol from cached data', () => {
+    const node1 = makeNode('n1', 'A', 'function', 'src/main.ts', 1);
+    const node2 = makeNode('n2', 'B', 'function', 'src/main.ts', 10);
+    const node3 = makeNode('n3', 'C', 'function', 'lib/util.ts', 5);
+    const edges = [
+      makeEdge('e1', 'n1', 'n2', 'call'),
+      makeEdge('e2', 'n1', 'n3', 'call'),
+      makeEdge('e3', 'n2', 'n3', 'call'),
+    ];
+    deps.setLastGraphData(makeGraphData([node1, node2, node3], edges));
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=n1&scope=symbol'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.edges.length).toBeGreaterThan(0);
+    // scope=symbol filters edges where source or target equals fromId
+    expect(body.total).toBe(2); // e1 (n1->n2) and e2 (n1->n3)
+  });
+
+  it('GET /edges returns 304 when etag matches', () => {
+    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'src/main.ts', 1)], []);
+    deps.setLastGraphData(graphData);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': String(graphData.metadata.timestamp) }, undefined, '/api/v1/codegraph/edges?from=src/main.ts'), res);
+    expect(state.code).toBe(304);
+  });
+
+  it('GET /edges supports pagination with cursor and limit', () => {
+    // Use fewer than 20 edges to avoid aggregation
+    const nodes: GraphNode[] = [];
+    const edges: GraphEdge[] = [];
+    for (let i = 0; i < 15; i++) {
+      nodes.push(makeNode(`n${i}`, `N${i}`, 'function', 'src/main.ts', i));
+    }
+    for (let i = 0; i < 14; i++) {
+      edges.push(makeEdge(`e${i}`, `n${i}`, `n${i + 1}`, 'call'));
+    }
+    deps.setLastGraphData(makeGraphData(nodes, edges));
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&scope=file&cursor=0&limit=10'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.edges.length).toBe(10);
+    expect(body.hasMore).toBe(true);
+    expect(body.cursor).toBe(10);
+  });
+
+  it('GET /edges returns aggregated edges when count exceeds threshold', () => {
+    // Create enough edges to exceed EDGES_AGGREGATION.THRESHOLD (20)
+    const nodes: GraphNode[] = [];
+    const edges: GraphEdge[] = [];
+    // Nodes in the same file
+    for (let i = 0; i < 25; i++) {
+      nodes.push(makeNode(`n${i}`, `N${i}`, 'function', 'src/main.ts', i));
+    }
+    // Nodes in a different file
+    for (let i = 25; i < 50; i++) {
+      nodes.push(makeNode(`n${i}`, `N${i}`, 'function', 'lib/util.ts', i));
+    }
+    // Create 25 edges from src/main.ts nodes to lib/util.ts nodes
+    for (let i = 0; i < 25; i++) {
+      edges.push(makeEdge(`e${i}`, `n${i}`, `n${i + 25}`, 'call'));
+    }
+    deps.setLastGraphData(makeGraphData(nodes, edges));
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&scope=file'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.aggregated).toBe(true);
+    expect(body.hasMore).toBe(false);
+    expect(body.edges.length).toBeGreaterThan(0);
+    // Aggregated edges should have aggregated: true in properties
+    expect(body.edges[0].properties.aggregated).toBe(true);
+  });
+
+  it('GET /edges does not aggregate when aggregated=1 is set', () => {
+    const nodes: GraphNode[] = [];
+    const edges: GraphEdge[] = [];
+    for (let i = 0; i < 25; i++) {
+      nodes.push(makeNode(`n${i}`, `N${i}`, 'function', 'src/main.ts', i));
+    }
+    for (let i = 25; i < 50; i++) {
+      nodes.push(makeNode(`n${i}`, `N${i}`, 'function', 'lib/util.ts', i));
+    }
+    for (let i = 0; i < 25; i++) {
+      edges.push(makeEdge(`e${i}`, `n${i}`, `n${i + 25}`, 'call'));
+    }
+    deps.setLastGraphData(makeGraphData(nodes, edges));
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&scope=file&aggregated=1'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.aggregated).toBeUndefined();
+    expect(body.edges.length).toBe(25);
+  });
+
+  it('GET /edges returns empty when fromId matches no nodes (scope=file)', () => {
+    const node1 = makeNode('n1', 'A', 'function', 'src/main.ts', 1);
+    const node2 = makeNode('n2', 'B', 'function', 'lib/util.ts', 5);
+    const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
+    deps.setLastGraphData(makeGraphData([node1, node2], edges));
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=nonexistent.ts&scope=file'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.edges).toEqual([]);
+    expect(body.total).toBe(0);
+  });
+
+  it('GET /edges returns empty when fromId matches no nodes (scope=symbol)', () => {
+    const node1 = makeNode('n1', 'A', 'function', 'src/main.ts', 1);
+    const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
+    deps.setLastGraphData(makeGraphData([node1], edges));
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=nonexistent&scope=symbol'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.edges).toEqual([]);
+    expect(body.total).toBe(0);
+  });
+
+  it('GET /edges uses default scope=file when scope not specified', () => {
+    const node1 = makeNode('n1', 'A', 'function', 'src/main.ts', 1);
+    const node2 = makeNode('n2', 'B', 'function', 'src/main.ts', 10);
+    const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
+    deps.setLastGraphData(makeGraphData([node1, node2], edges));
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.edges.length).toBeGreaterThan(0);
+  });
+
+  it('GET /edges matches by node id when fromId equals a node id (scope=file)', () => {
+    const node1 = makeNode('n1', 'A', 'function', 'src/main.ts', 1);
+    const node2 = makeNode('n2', 'B', 'function', 'src/main.ts', 10);
+    const node3 = makeNode('n3', 'C', 'function', 'lib/util.ts', 5);
+    const edges = [
+      makeEdge('e1', 'n1', 'n2', 'call'),
+      makeEdge('e2', 'n2', 'n3', 'call'),
+    ];
+    deps.setLastGraphData(makeGraphData([node1, node2, node3], edges));
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=n1&scope=file'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.edges.length).toBeGreaterThan(0);
+  });
+});
+
+describe('edges route - DB fallback paths (index 15)', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockClear();
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    mockIsPathAllowed.mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    mockReadEdgesFromDb.mockReturnValue(null);
+    mockReadFileOutlineFromDb.mockReturnValue(null);
+    mockReadSymbolASTFromDb.mockReturnValue(null);
+    mockReadEdgesForNodesFromDb.mockReturnValue([]);
+  });
+
+  it('GET /edges returns edges from DB when no cached data', () => {
+    mockReadEdgesFromDb.mockReturnValue({
+      edges: [
+        { id: 1, source: 'nodeA', target: 'nodeB', kind: 'call', line: 5 },
+        { id: 2, source: 'nodeB', target: 'nodeC', kind: 'import', line: null },
+      ],
+      total: 2,
+    });
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=nodeA&scope=symbol'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.edges.length).toBe(2);
+    expect(body.total).toBe(2);
+    expect(body.edges[0].source).toBe('nodeA');
+    expect(body.edges[0].target).toBe('nodeB');
+    expect(body.edges[0].type).toBe('call');
+  });
+
+  it('GET /edges filters self-loops and filtered edge kinds from DB', () => {
+    mockReadEdgesFromDb.mockReturnValue({
+      edges: [
+        { id: 1, source: 'nodeA', target: 'nodeA', kind: 'call', line: 5 },  // self-loop
+        { id: 2, source: 'nodeA', target: 'nodeB', kind: 'uses_var', line: 3 },  // filtered kind
+        { id: 3, source: 'nodeA', target: 'nodeC', kind: 'call', line: null },
+      ],
+      total: 3,
+    });
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=nodeA&scope=symbol'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.edges.length).toBe(1);
+    expect(body.edges[0].source).toBe('nodeA');
+    expect(body.edges[0].target).toBe('nodeC');
+  });
+
+  it('GET /edges returns empty when DB returns null and no cached data', () => {
+    mockReadEdgesFromDb.mockReturnValue(null);
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=nodeA&scope=symbol'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.edges).toEqual([]);
+    expect(body.total).toBe(0);
+  });
+});
+
+describe('file outline route - DB fallback (index 13)', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockClear();
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    mockIsPathAllowed.mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    mockReadFileOutlineFromDb.mockReturnValue(null);
+    mockReadEdgesForNodesFromDb.mockReturnValue([]);
+  });
+
+  it('GET /files/{nodeId}/outline returns symbols from DB', () => {
+    mockReadFileOutlineFromDb.mockReturnValue({
+      nodes: [
+        { id: 'sym1', kind: 'function', name: 'foo', file_path: 'src/main.ts', start_line: 10, signature: 'foo()', docstring: null, is_exported: 1 },
+        { id: 'sym2', kind: 'class', name: 'Bar', file_path: 'src/main.ts', start_line: 20, signature: null, docstring: 'A class', is_exported: 0 },
+      ],
+      total: 2,
+    });
+    mockReadEdgesForNodesFromDb.mockReturnValue([
+      { id: 1, source: 'sym1', target: 'sym2', kind: 'call', line: 15 },
+    ]);
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 13);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/files/file1/outline'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.symbols.length).toBe(2);
+    expect(body.symbols[0].id).toBe('sym1');
+    expect(body.symbols[0].label).toBe('foo');
+    expect(body.symbols[0].properties.signature).toBe('foo()');
+    expect(body.symbols[0].properties.exported).toBe(true);
+    expect(body.symbols[1].properties.docstring).toBe('A class');
+    expect(body.symbols[1].properties.exported).toBe(false);
+    expect(body.edges.length).toBe(1);
+  });
+});
+
+describe('symbol AST route - DB fallback (index 14)', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    vi.mocked(fetchMergedGraph).mockClear();
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+    mockIsPathAllowed.mockReturnValue(true);
+    vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    mockReadSymbolASTFromDb.mockReturnValue(null);
+    mockReadEdgesForNodesFromDb.mockReturnValue([]);
+  });
+
+  it('GET /symbols/{nodeId}/ast returns AST nodes from DB', () => {
+    mockReadSymbolASTFromDb.mockReturnValue({
+      nodes: [
+        { id: 'ast1', kind: 'variable', name: 'var1', file_path: 'src/main.ts', start_line: 10, signature: null, docstring: null, is_exported: 0 },
+        { id: 'ast2', kind: 'variable', name: 'var2', file_path: 'src/main.ts', start_line: 20, signature: null, docstring: null, is_exported: 0 },
+      ],
+      total: 2,
+    });
+    mockReadEdgesForNodesFromDb.mockReturnValue([
+      { id: 1, source: 'ast1', target: 'ast2', kind: 'call', line: 15 },
+    ]);
+
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 14);
+    const { res, state } = makeRes();
+    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/symbols/sym1/ast'), res);
+    expect(state.code).toBe(200);
+    const body = JSON.parse(state.body);
+    expect(body.astNodes.length).toBe(2);
+    expect(body.astNodes[0].id).toBe('ast1');
+    expect(body.astNodes[0].label).toBe('var1');
+    expect(body.astNodes[0].parentId).toBe('sym1');
+    expect(body.astEdges.length).toBe(1);
   });
 });
 
