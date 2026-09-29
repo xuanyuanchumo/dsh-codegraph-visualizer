@@ -34,6 +34,7 @@ let multiAssemblyGeneration = 0;
 let incrementalClusterCtx: IncrementalClusterContext | null = null;
 let prefetchInFlightCount = 0;
 const prefetchAbortControllers = new Map<string, AbortController>();
+const expandAbortControllers = new Map<string, AbortController>();
 let expandGeneration = 0;
 let restoreGeneration = 0;
 let restoreTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
@@ -229,6 +230,8 @@ export function disposeStore(): void {
   for (const controller of prefetchAbortControllers.values()) controller.abort();
   prefetchAbortControllers.clear();
   prefetchInFlightCount = 0;
+  for (const controller of expandAbortControllers.values()) controller.abort();
+  expandAbortControllers.clear();
   if (prefetchIdleHandle !== null) {
     if (typeof cancelIdleCallback === 'function') cancelIdleCallback(prefetchIdleHandle as number);
     else clearTimeout(prefetchIdleHandle as ReturnType<typeof setTimeout>);
@@ -509,6 +512,9 @@ export const useGraphStore = create<GraphState>()(
       setGraphData: (nodes, edges, repoId, metadata) => {
         try {
           clearLoadingFailsafe();
+          expandGeneration++;
+          const prevPending = useGraphStore.getState().pendingRequests;
+          for (const controller of prevPending.values()) controller.abort();
           if (persistentCacheRepoId !== repoId) {
             if (persistentCache) persistentCache.close();
             persistentCache = new IndexedDBCache(repoId);
@@ -559,6 +565,8 @@ export const useGraphStore = create<GraphState>()(
               healthScore: null,
               ruleViolations: [],
               performanceDegradations: newDegradations,
+              pendingRequests: new Map(),
+              loadErrorsByNodeId: new Map(),
             });
             return;
           }
@@ -580,6 +588,8 @@ export const useGraphStore = create<GraphState>()(
             healthScore: null,
             ruleViolations: [],
             performanceDegradations: newDegradations,
+            pendingRequests: new Map(),
+            loadErrorsByNodeId: new Map(),
           });
         } catch (err) {
           log.error('setGraphData failed', { err });
@@ -589,6 +599,9 @@ export const useGraphStore = create<GraphState>()(
       setBootstrapData: (rootNodes, edges, repoId, metadata) => {
         try {
           clearLoadingFailsafe();
+          expandGeneration++;
+          const prevPending = useGraphStore.getState().pendingRequests;
+          for (const controller of prevPending.values()) controller.abort();
           incrementalClusterCtx = null;
           const sanitized = sanitizeGraphData(rootNodes, edges);
           const { clusterDepth, expandedNodeIds, viewMode, panelWidth } = useGraphStore.getState();
@@ -641,7 +654,8 @@ export const useGraphStore = create<GraphState>()(
             performanceDegradations: [],
             expandedNodeIds: new Set(),
             expandedNodeIdsByViewMode: {},
-
+            pendingRequests: new Map(),
+            loadErrorsByNodeId: new Map(),
           });
           log.info('bootstrap data set', { rootNodes: sanitized.nodes.length, totalNodeCount: metadata.totalNodeCount });
         } catch (err) {
@@ -712,8 +726,11 @@ export const useGraphStore = create<GraphState>()(
       },
       clearGraph: () => {
         clearLoadingFailsafe();
+        expandGeneration++;
+        const prevPending = useGraphStore.getState().pendingRequests;
+        for (const controller of prevPending.values()) controller.abort();
         incrementalClusterCtx = null;
-        set({ nodes: [], edges: [], rawNodes: [], rawEdges: [], savedRawNodes: [], savedRawEdges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0, truncated: false, totalNodeCount: 0, totalEdgeCount: 0 });
+        set({ nodes: [], edges: [], rawNodes: [], rawEdges: [], savedRawNodes: [], savedRawEdges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0, truncated: false, totalNodeCount: 0, totalEdgeCount: 0, pendingRequests: new Map(), loadErrorsByNodeId: new Map() });
       },
       setPrerequisites: (prerequisites) => set({ prerequisites }),
       setInitStatus: (initStatus, initMessage = null) => set({ initStatus, initMessage }),
@@ -738,8 +755,15 @@ export const useGraphStore = create<GraphState>()(
 
         const node = rawNodes.find((n) => n.id === nodeId);
         if (node) {
-          useGraphStore.getState().loadNodeChildren(nodeId).catch((err) => {
+          const prevExpandController = expandAbortControllers.get(nodeId);
+          if (prevExpandController) prevExpandController.abort();
+          const expandController = new AbortController();
+          expandAbortControllers.set(nodeId, expandController);
+          useGraphStore.getState().loadNodeChildren(nodeId, { signal: expandController.signal }).catch((err) => {
+            if (err instanceof DOMException && err.name === 'AbortError') return;
             log.warn('expandNode: loadNodeChildren failed', { nodeId, err });
+          }).finally(() => {
+            expandAbortControllers.delete(nodeId);
           });
           if (node.type === 'module') {
             (async () => {
