@@ -56,9 +56,8 @@ function enforceFunctionBodyBudget(
   rawNodes: GraphNode[],
   maxExpanded: number,
 ): void {
-  const expandedFunctionBodies = [...expanded].filter((id) =>
-    rawNodes.some((n) => n.id === id && n.type === 'function'),
-  );
+  const functionIdSet = new Set(rawNodes.filter(n => n.type === 'function').map(n => n.id as string));
+  const expandedFunctionBodies = [...expanded].filter(id => functionIdSet.has(id));
   while (expandedFunctionBodies.length > maxExpanded) {
     const oldest = expandedFunctionBodies.shift()!;
     expanded.delete(oldest);
@@ -698,15 +697,12 @@ export const useGraphStore = create<GraphState>()(
           diagramCache,
 
         );
-        if (result.needsMicroAssembly) {
-          const { needsMicroAssembly: _discarded, ...rest } = result;
-          const fn = useGraphStore.getState().selectedFunction;
-          set(rest);
-          useGraphStore.getState().assembleMicro(viewMode as 'cfg' | 'flowchart' | 'sequence', fn);
-          return;
-        }
-        const { needsMicroAssembly: _discarded2, ...rest } = result;
+        const { needsMicroAssembly, ...rest } = result;
         set(rest);
+        if (needsMicroAssembly) {
+          const fn = useGraphStore.getState().selectedFunction;
+          useGraphStore.getState().assembleMicro(viewMode as 'cfg' | 'flowchart' | 'sequence', fn);
+        }
       },
       setClusterDepth: (clusterDepth) => {
         const { rawNodes, rawEdges, expandedNodeIds, expandedNodeIdsByViewMode, diagramData, currentLayer, viewMode } = useGraphStore.getState();
@@ -1317,7 +1313,7 @@ export const useGraphStore = create<GraphState>()(
         currentWorkspace: s.currentWorkspace, workspaceList: s.workspaceList,
         rules: s.rules, focusDepth: s.focusDepth,
         panelHeight: s.panelHeight, panelWidth: s.panelWidth,
-        expandedNodeIds: [...s.expandedNodeIds] as unknown as Set<string>,
+        expandedNodeIds: [...s.expandedNodeIds],
       }),
     },
   ),

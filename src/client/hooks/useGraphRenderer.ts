@@ -214,7 +214,7 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
       prevNodeIdsRef.current = new Set(nodes.map((n) => n.id));
     }, isIncremental ? RENDERER.INCREMENTAL_LAYOUT_DELAY_MS : RENDERER.FULL_LAYOUT_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [layout, clusterDepth, nodes.length, edges.length]);
+  }, [layout, clusterDepth, nodes, edges]);
 
   useEffect(() => {
     const r = rendererRef.current;

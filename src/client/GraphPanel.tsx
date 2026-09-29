@@ -659,9 +659,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, [nodes.length, edges.length, diagramData, t]);
 
   const expandedFunctionBodyCount = useMemo(() => {
-    return [...expandedNodeIds].filter((id) =>
-      rawNodes.some((n) => n.id === id && n.type === 'function'),
-    ).length;
+    const functionIdSet = new Set(rawNodes.filter(n => n.type === 'function').map(n => n.id as string));
+    return [...expandedNodeIds].filter(id => functionIdSet.has(id)).length;
   }, [expandedNodeIds, rawNodes]);
 
   const showFunctionBodyBudget = expandedFunctionBodyCount > 0;
@@ -692,7 +691,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const cycleDetails = useMemo(() => {
     if (!panel.showCycles) return [];
     return renderer.rendererRef.current?.detectCyclesDetailed() ?? [];
-  }, [panel.showCycles, nodes.length, edges.length]);
+  }, [panel.showCycles, nodes.length, edges.length, renderer.rendererRef]);
 
   const tourData = useMemo(() => buildTour(rawNodes, rawEdges), [rawNodes, rawEdges]);
 

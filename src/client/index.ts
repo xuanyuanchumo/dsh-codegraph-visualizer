@@ -100,7 +100,7 @@ export function apply(ctx: Context): () => void {
   const openSidebarTab = (): void => {
     if (betterSidebarApi) {
       try {
-        betterSidebarApi.openTab({ type: 'codegraph-visualizer', target: 'bottom' });
+        betterSidebarApi.openTab({ type: 'codegraph-visualizer' });
       } catch (e) {
         log.warn('betterSidebar.openTab failed', e);
       }
@@ -135,15 +135,16 @@ export function apply(ctx: Context): () => void {
           if (s.nodes.length === 0) return null;
           return s.nodes.length > 99 ? '99+' : s.nodes.length;
         },
-        onOpen: () => {
-          log.info('better-sidebar tab opened');
+        onOpen: (tab: unknown, scope: unknown) => {
+          log.info('better-sidebar tab opened', { tabId: (tab as { id?: string })?.id, scope });
           useGraphStore.getState().setPanelVisible(true);
         },
-        onActivate: () => {
+        onActivate: (tab: unknown, scope: unknown) => {
+          log.info('better-sidebar tab activated', { tabId: (tab as { id?: string })?.id, scope });
           useGraphStore.getState().setPanelVisible(true);
         },
-        onClose: () => {
-          log.info('better-sidebar tab closed');
+        onClose: (tab: unknown, scope: unknown) => {
+          log.info('better-sidebar tab closed', { tabId: (tab as { id?: string })?.id, scope });
           useGraphStore.getState().setPanelVisible(false);
         },
         component: (props: {
@@ -338,6 +339,7 @@ export function apply(ctx: Context): () => void {
     ctx.effect(() => {
       const prereqInterval = setInterval(async () => {
         if (document.hidden) return;
+        if (!useGraphStore.getState().panelVisible) return;
         const s = useGraphStore.getState();
         if (s.prerequisites.codegraph && s.prerequisites.lens) { clearInterval(prereqInterval); return; }
         try { await checkStatus(); } catch (e) { log.warn('prereq polling failed', e); }
@@ -400,6 +402,7 @@ export function apply(ctx: Context): () => void {
     ctx.effect(() => {
       const workspacePoll = setInterval(async () => {
         if (document.hidden) return;
+        if (!useGraphStore.getState().panelVisible) return;
         try {
           const { path: dshCurrent, list: dshList } = await fetchWorkspace();
           if (dshCurrent && dshCurrent !== lastDshWorkspace) {
