@@ -41,6 +41,7 @@ async function scanAndPush(
 export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUpstream: UpstreamInvoker): void {
   let watchTimer: ReturnType<typeof setTimeout> | null = null;
   let activeWatcher: { close: () => void } | null = null;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
   let retryCount = 0;
   const MAX_RETRIES = WATCHER.MAX_RETRIES;
   const RETRY_BASE_DELAY = WATCHER.RETRY_BASE_DELAY_MS;
@@ -51,6 +52,7 @@ export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUp
       activeWatcher = null;
     }
     if (watchTimer) { clearTimeout(watchTimer); watchTimer = null; }
+    if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
   };
 
   const setupWatch = (watchPath: string): void => {
@@ -80,7 +82,7 @@ export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUp
         retryCount++;
         const delay = RETRY_BASE_DELAY * Math.pow(2, retryCount - 1);
         log.info('retrying watch setup', { retryCount, delay, path: watchPath });
-        setTimeout(() => setupWatch(watchPath), delay);
+        retryTimer = setTimeout(() => setupWatch(watchPath), delay);
       } else {
         log.error('watch setup exhausted retries', { path: watchPath });
         ctx.emit('codegraph-visualizer/watch/error', { path: watchPath, message: ERROR_MESSAGES.WATCH_SETUP_FAILED?.en ?? 'Watch setup failed after retries', errorCode: ERROR_CODES.WATCH_SETUP_FAILED, timestamp: Date.now() });

@@ -62,6 +62,7 @@ export const DeadCodePanel = memo(function DeadCodePanel({ result, onClose, labe
               key={d.nodeId}
               className={`cg-deadcode-item cg-${d.confidence}`}
               onClick={() => onSelectNode?.(d.nodeId)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelectNode?.(d.nodeId); } }}
               role="button"
               tabIndex={0}
             >

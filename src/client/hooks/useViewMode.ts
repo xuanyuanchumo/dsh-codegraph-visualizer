@@ -3,6 +3,7 @@ import { useGraphStore } from '../store/graphStore.ts';
 import type { ViewMode } from '../../types/index.ts';
 
 import { scoped } from '../../shared/Logger.ts';
+import { fetchWithTimeout } from '../api/index.ts';
 
 const log = scoped('viewMode');
 
@@ -42,7 +43,7 @@ export function useViewMode(
       const controller = new AbortController();
       depsFetchAbortRef.current?.abort();
       depsFetchAbortRef.current = controller;
-      fetch('/api/v1/codegraph/dependencies', { signal: controller.signal })
+      fetchWithTimeout('/api/v1/codegraph/dependencies', { signal: controller.signal })
         .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
         .then((data) => {
           if (controller.signal.aborted) return;

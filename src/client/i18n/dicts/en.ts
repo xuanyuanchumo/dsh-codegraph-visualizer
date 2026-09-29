@@ -254,6 +254,8 @@ export const en: Record<string, string> = {
   'pathFind.length': 'Path length',
   'pathFind.hops': 'Hops',
   'pathFind.noPath': 'Unreachable',
+  'pathFind.startSuggestions': 'Start suggestions',
+  'pathFind.endSuggestions': 'End suggestions',
 
   // Health score
   'health.title': 'Architecture Health Score',
@@ -338,6 +340,7 @@ export const en: Record<string, string> = {
   'micro.clearSelection': 'Clear selection',
   'micro.loadFailed': 'Micro diagram load failed',
   'micro.closeView': 'Close micro view',
+  'micro.functionBar': 'Micro view toolbar',
   'stats.nodesEdges': '{nodes} nodes · {edges} edges',
   'stats.functionBodyBudget': '{expanded}/{max} function bodies expanded',
   'godmodule.stats': '{nodes} nodes · {edges} edges',

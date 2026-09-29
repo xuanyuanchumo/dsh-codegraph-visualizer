@@ -253,6 +253,8 @@ export const zh: Record<string, string> = {
   'pathFind.length': '路径长度',
   'pathFind.hops': '经过节点',
   'pathFind.noPath': '不可达',
+  'pathFind.startSuggestions': '起点建议列表',
+  'pathFind.endSuggestions': '终点建议列表',
 
   // 健康评分
   'health.title': '架构健康评分',
@@ -337,6 +339,7 @@ export const zh: Record<string, string> = {
   'micro.clearSelection': '清除选择',
   'micro.loadFailed': '微观图谱加载失败',
   'micro.closeView': '关闭微观视图',
+  'micro.functionBar': '微观视图工具栏',
   'stats.nodesEdges': '{nodes} 节点 · {edges} 边',
   'stats.functionBodyBudget': '已展开 {expanded}/{max} 个函数体',
   'godmodule.stats': '{nodes} 节点 · {edges} 边',

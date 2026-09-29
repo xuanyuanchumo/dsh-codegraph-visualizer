@@ -35,6 +35,8 @@ let incrementalClusterCtx: IncrementalClusterContext | null = null;
 let prefetchInFlightCount = 0;
 const prefetchAbortControllers = new Map<string, AbortController>();
 let expandGeneration = 0;
+let restoreGeneration = 0;
+let restoreTimeoutHandle: ReturnType<typeof setTimeout> | null = null;
 let prefetchIdleHandle: ReturnType<typeof requestIdleCallback> | ReturnType<typeof setTimeout> | null = null;
 
 function detectInitialTheme(): ThemeType {
@@ -232,12 +234,21 @@ export function disposeStore(): void {
     else clearTimeout(prefetchIdleHandle as ReturnType<typeof setTimeout>);
     prefetchIdleHandle = null;
   }
+  const state = useGraphStore.getState();
+  for (const controller of state.pendingRequests.values()) controller.abort();
+  useGraphStore.setState({ pendingRequests: new Map() });
+  if (restoreTimeoutHandle !== null) {
+    clearTimeout(restoreTimeoutHandle);
+    restoreTimeoutHandle = null;
+  }
+  restoreGeneration++;
   diagramCache.invalidate();
   clusterCache.invalidate();
   incrementalClusterCtx = null;
   invalidateExpandCostCache();
   microAssemblyGeneration = 0;
   multiAssemblyGeneration = 0;
+  expandGeneration = 0;
   clearLoadingFailsafe();
   if (persistentCache) { persistentCache.close(); persistentCache = null; }
   persistentCacheRepoId = null;
@@ -630,6 +641,7 @@ export const useGraphStore = create<GraphState>()(
             performanceDegradations: [],
             expandedNodeIds: new Set(),
             expandedNodeIdsByViewMode: {},
+
           });
           log.info('bootstrap data set', { rootNodes: sanitized.nodes.length, totalNodeCount: metadata.totalNodeCount });
         } catch (err) {
@@ -1153,18 +1165,30 @@ export const useGraphStore = create<GraphState>()(
           const depthB = b.split('/').length;
           return depthA - depthB;
         });
+        const gen = ++restoreGeneration;
         for (const nodeId of sortedIds) {
+          if (gen !== restoreGeneration) return;
           const state = useGraphStore.getState();
           const exists = state.rawNodes.some((n) => n.id === nodeId);
           if (!exists) {
             const parentId = nodeId.includes('/') ? nodeId.substring(0, nodeId.lastIndexOf('/')) : null;
             if (parentId && !state.loadedChildrenByNodeId.has(parentId)) {
-              await state.loadNodeChildren(parentId).catch(() => {});
+              await state.loadNodeChildren(parentId).catch((err) => {
+                if (!(err instanceof DOMException && err.name === 'AbortError')) {
+                  log.warn('restoreFromUrl: loadNodeChildren failed', { parentId, err });
+                }
+              });
             }
           }
+          if (gen !== restoreGeneration) return;
           state.expandNode(nodeId);
-          await new Promise((r) => setTimeout(r, 50));
+          await new Promise<void>((r) => { restoreTimeoutHandle = setTimeout(r, 50); });
+          if (gen !== restoreGeneration) {
+            if (restoreTimeoutHandle !== null) { clearTimeout(restoreTimeoutHandle); restoreTimeoutHandle = null; }
+            return;
+          }
         }
+        restoreTimeoutHandle = null;
         log.info('URL restore completed', { restoredCount: sortedIds.length });
       },
       setLayer: (layer) => {

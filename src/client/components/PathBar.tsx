@@ -66,9 +66,9 @@ export const PathBar = memo(function PathBar({ onFindPath, onClearPath, pathResu
             placeholder={t('pathFind.startPlaceholder')}
           />
           {startMatches.length > 0 && !pathStartId && (
-            <div className="cg-path-suggestions">
+            <div className="cg-path-suggestions" role="listbox" aria-label={t('pathFind.startSuggestions')}>
               {startMatches.map((n) => (
-                <button key={n.id} onClick={() => { setStartQuery(n.label); setPathStart(NodeId(n.id)); }}>
+                <button key={n.id} role="option" aria-selected={false} onClick={() => { setStartQuery(n.label); setPathStart(NodeId(n.id)); }}>
                   <span className="cg-suggestion-type">{n.type}</span>
                   <span className="cg-suggestion-label">{n.label}</span>
                 </button>
@@ -88,9 +88,9 @@ export const PathBar = memo(function PathBar({ onFindPath, onClearPath, pathResu
             placeholder={t('pathFind.endPlaceholder')}
           />
           {endMatches.length > 0 && !pathEndId && (
-            <div className="cg-path-suggestions">
+            <div className="cg-path-suggestions" role="listbox" aria-label={t('pathFind.endSuggestions')}>
               {endMatches.map((n) => (
-                <button key={n.id} onClick={() => { setEndQuery(n.label); setPathEnd(NodeId(n.id)); }}>
+                <button key={n.id} role="option" aria-selected={false} onClick={() => { setEndQuery(n.label); setPathEnd(NodeId(n.id)); }}>
                   <span className="cg-suggestion-type">{n.type}</span>
                   <span className="cg-suggestion-label">{n.label}</span>
                 </button>

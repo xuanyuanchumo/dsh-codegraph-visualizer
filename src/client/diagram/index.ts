@@ -16,6 +16,7 @@ import type { GraphNode, GraphEdge, ViewMode } from '../../types/index.ts';
 import type { AssembledDiagram, DiagramLayer, LayeredDiagram, DiagramAssembler } from './DiagramAssembler.ts';
 import type { ASTNode } from '../../shared/CFGTypes.ts';
 import { scoped } from '../../shared/Logger.ts';
+import { fetchWithTimeout } from '../api/index.ts';
 
 const log = scoped('diagram');
 import { InheritanceAssembler } from './InheritanceAssembler.ts';
@@ -217,7 +218,7 @@ export async function assembleMicroDiagram(
 
   let response: Response;
   try {
-    response = await fetch('/api/v1/codegraph/ast', {
+    response = await fetchWithTimeout('/api/v1/codegraph/ast', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filePath }),

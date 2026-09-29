@@ -33,10 +33,10 @@ interface MicroFunctionBarProps {
 
 export const MicroFunctionBar = memo(function MicroFunctionBar({ functionName, filePath, viewMode, onClose }: MicroFunctionBarProps) {
   const t = useT();
-  const modeLabel = viewMode === 'cfg' ? 'CFG' : viewMode === 'flowchart' ? t('viewMode.flowchart') : viewMode === 'sequence' ? t('viewMode.sequence') : '';
+  const modeLabel = viewMode === 'cfg' ? t('viewMode.cfg') : viewMode === 'flowchart' ? t('viewMode.flowchart') : viewMode === 'sequence' ? t('viewMode.sequence') : '';
   const shortPath = filePath ? filePath.split(/[\\/]/).slice(-2).join('/') : '';
   return (
-    <div className="cg-micro-function-bar">
+    <div className="cg-micro-function-bar" role="region" aria-label={t('micro.functionBar')}>
       {modeLabel && <span className="cg-micro-function-mode">{modeLabel}</span>}
       <span className="cg-micro-function-name">{functionName}</span>
       {shortPath && <span className="cg-micro-function-path">{shortPath}</span>}
