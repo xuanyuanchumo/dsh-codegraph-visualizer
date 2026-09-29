@@ -86,6 +86,8 @@ export function apply(ctx: Context): () => void {
   let navButtonRegistered = false;
   let renderFloating: () => void = () => {};
   let betterSidebarApi: Context['betterSidebar'] | undefined;
+  let _betterSidebarTabId: string | undefined;
+  let sidebarStateDisposer: (() => void) | undefined;
   const slotDisposers: Array<() => void> = [];
   const trackSlotDisposer = (d: (() => void) | void): void => {
     if (typeof d === 'function') slotDisposers.push(d);
@@ -98,7 +100,7 @@ export function apply(ctx: Context): () => void {
   const openSidebarTab = (): void => {
     if (betterSidebarApi) {
       try {
-        betterSidebarApi.openTab({ type: 'codegraph-visualizer' });
+        betterSidebarApi.openTab({ type: 'codegraph-visualizer', target: 'bottom' });
       } catch (e) {
         log.warn('betterSidebar.openTab failed', e);
       }
@@ -124,19 +126,70 @@ export function apply(ctx: Context): () => void {
       const dispose = betterSidebarApi.registerTab({
         id: 'codegraph-visualizer',
         title: () => t('nav.title'),
+        description: () => t('nav.description'),
         icon: (size: number) => React.createElement(GraphIcon, { size }),
         order: 50,
         single: true,
-        component: ({ visible }: { visible: boolean }) => {
-          panelVisible = visible;
-          useGraphStore.getState().setPanelVisible(visible);
-          return visible ? React.createElement(GraphPanel) : null;
+        badge: () => {
+          const s = useGraphStore.getState();
+          if (s.nodes.length === 0) return null;
+          return s.nodes.length > 99 ? '99+' : s.nodes.length;
+        },
+        onOpen: () => {
+          log.info('better-sidebar tab opened');
+          useGraphStore.getState().setPanelVisible(true);
+        },
+        onActivate: () => {
+          useGraphStore.getState().setPanelVisible(true);
+        },
+        onClose: () => {
+          log.info('better-sidebar tab closed');
+          useGraphStore.getState().setPanelVisible(false);
+        },
+        component: (props: {
+          ctx: Context;
+          visible: boolean;
+          tab: { id: string; title: string; path?: string };
+        }) => {
+          panelVisible = props.visible;
+          useGraphStore.getState().setPanelVisible(props.visible);
+          if (props.tab?.id) _betterSidebarTabId = props.tab.id;
+          return React.createElement(
+            'div',
+            {
+              style: {
+                display: props.visible ? 'block' : 'none',
+                width: '100%',
+                height: '100%',
+              },
+              'data-cg-sidebar-visible': String(props.visible),
+            },
+            React.createElement(GraphPanel),
+          );
         },
       });
       if (typeof dispose === 'function') {
         ctx.effect(() => dispose, 'codegraph: better-sidebar tab');
         navButtonRegistered = true;
         useGraphStore.getState().setIntegrationMode('sidebar');
+        try {
+          sidebarStateDisposer = betterSidebarApi.subscribeState(() => {
+            const snapshot = betterSidebarApi?.getSnapshot();
+            if (snapshot?.state) {
+              const isVisible = snapshot.state.activePane === 'codegraph-visualizer' ||
+                snapshot.state.bottomOpen;
+              if (isVisible !== panelVisible) {
+                panelVisible = isVisible;
+                useGraphStore.getState().setPanelVisible(isVisible);
+              }
+            }
+          });
+          if (sidebarStateDisposer) {
+            ctx.effect(() => sidebarStateDisposer!, 'codegraph: sidebar state subscription');
+          }
+        } catch (e) {
+          log.warn('better-sidebar subscribeState failed', e);
+        }
       } else {
         log.warn('better-sidebar registerTab did not return a disposer, falling back to slots');
       }
@@ -522,6 +575,17 @@ export function apply(ctx: Context): () => void {
         window.removeEventListener(DOM_EVENTS.TOGGLE_EXPORT_MENU, toggleExportListener);
       };
     }, 'codegraph: spotlight event bridge');
+  }
+
+  if (typeof window !== 'undefined') {
+    ctx.effect(() => {
+      const rejectionHandler = (e: PromiseRejectionEvent) => {
+        log.warn('unhandled promise rejection', e.reason);
+        e.preventDefault();
+      };
+      window.addEventListener('unhandledrejection', rejectionHandler);
+      return () => window.removeEventListener('unhandledrejection', rejectionHandler);
+    }, 'codegraph: unhandled rejection handler');
   }
 
   return () => {

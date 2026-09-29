@@ -342,12 +342,41 @@ declare module '@deepseek-ai/cordis' {
       registerTab(descriptor: {
         id: string;
         title: string | (() => string);
+        description?: string | (() => string);
         icon?: unknown;
         order?: number;
         single?: boolean;
-        component: (props: { visible: boolean }) => unknown;
+        hidden?: boolean;
+        badge?: (ctx: Context, scope: unknown, state: unknown) => string | number | null | undefined;
+        onOpen?: (tab: unknown, scope: unknown) => void;
+        onActivate?: (tab: unknown, scope: unknown) => void;
+        onClose?: (tab: unknown, scope: unknown) => void;
+        component: (props: {
+          ctx: Context;
+          store: unknown;
+          scope: unknown;
+          tab: { id: string; title: string; path?: string };
+          visible: boolean;
+          expanded?: string[];
+          revealed?: string[];
+        }) => unknown;
       }): () => void;
-      openTab(seed: { type: string }): void;
+      openTab(seed: { type: string; title?: string; path?: string; target?: 'right' | 'bottom' }): void;
+      closeTab(tabId: string, scope?: unknown): void;
+      activateTab(tabId: string, scope?: unknown): void;
+      updateTab(tabId: string, patch: { title?: string; path?: string; meta?: unknown }): void;
+      subscribeState(listener: () => void): () => void;
+      getSnapshot(): {
+        sessionId: string | undefined;
+        state: {
+          activePane: string | null;
+          bottomOpen: boolean;
+          bottomHeight: number;
+          expanded: string[];
+          revealed: string[];
+        } | undefined;
+        prefs: unknown;
+      };
     };
     spotlight?: {
       registerCommand(cmd: { id: string; title: string; handler: () => void }): (() => void) | void;

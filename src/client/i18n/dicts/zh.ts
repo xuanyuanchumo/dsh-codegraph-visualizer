@@ -457,6 +457,7 @@ export const zh: Record<string, string> = {
 
   // 导航
   'nav.title': '代码图谱',
+  'nav.description': '可视化代码结构与依赖关系',
   'nav.ariaLabel': '代码图谱',
   'nav.closePanel': '关闭图谱面板',
   'nav.minimizePanel': '最小化面板',

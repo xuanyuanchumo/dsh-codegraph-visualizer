@@ -476,20 +476,14 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       setViewportInfo(r.getViewportInfo());
     };
     updateMiniMap();
-    let rafId: number | null = null;
     let lastUpdate = 0;
-    const throttledUpdate = () => {
+    const intervalId = setInterval(() => {
       const now = Date.now();
       if (now - lastUpdate < UI.MINIMAP_THROTTLE_MS) return;
       lastUpdate = now;
-      if (rafId !== null) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(updateMiniMap);
-    };
-    const fallbackId = setInterval(throttledUpdate, UI.MINIMAP_UPDATE_INTERVAL_MS);
-    return () => {
-      if (rafId !== null) cancelAnimationFrame(rafId);
-      clearInterval(fallbackId);
-    };
+      updateMiniMap();
+    }, UI.MINIMAP_UPDATE_INTERVAL_MS);
+    return () => clearInterval(intervalId);
   }, [panel.showMiniMap, panel.collapsed, renderer.rendererRef, nodes.length, layout]);
 
   useEffect(() => () => depsFetchAbortRef.current?.abort(), []);

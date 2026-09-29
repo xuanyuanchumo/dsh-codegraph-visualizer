@@ -458,6 +458,7 @@ export const en: Record<string, string> = {
 
   // Navigation
   'nav.title': 'Code Graph',
+  'nav.description': 'Visualize code structure and dependencies',
   'nav.ariaLabel': 'Code Graph',
   'nav.closePanel': 'Close graph panel',
   'nav.minimizePanel': 'Minimize panel',

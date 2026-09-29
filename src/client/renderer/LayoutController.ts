@@ -55,8 +55,8 @@ export class LayoutController {
         this.worker.onerror = () => {
           this.worker?.terminate();
           this.worker = null;
-          this.workerInitFailed = true;
-          log.warn('layout worker error — falling back to main-thread layout');
+          log.warn('layout worker error — will auto-retry');
+          this.retryWorkerInit();
         };
       } else {
         this.workerInitFailed = true;

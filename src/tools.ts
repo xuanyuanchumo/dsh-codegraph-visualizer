@@ -1,8 +1,8 @@
 // Graph tool definitions: adapters + merger wrapped as DSH `defineTool` tools.
 import type { Context } from '@deepseek-ai/cordis';
 import { defineTool } from '@deepseek-ai/dsh-tools';
-import { CallId } from '@deepseek-ai/dsh-llm';
-import type { JsonValue } from '@deepseek-ai/dsh-session';
+import { ToolCallId } from '@deepseek-ai/dsh-llm';
+
 import type { CodeGraphAdapter } from './adapters/CodeGraphAdapter.ts';
 import type { LensAdapter } from './adapters/LensAdapter.ts';
 import { GraphDataMerger } from './merger/GraphDataMerger.ts';
@@ -36,6 +36,8 @@ export {
 };
 
 const log = scoped('tools');
+
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 function toJsonValue<T>(value: T): JsonValue {
   return JSON.parse(JSON.stringify(value)) as JsonValue;
@@ -105,7 +107,7 @@ export function createInvoke(ctx: Context, requestTimeout = 5000): UpstreamInvok
   return async (tool, args) => {
     try {
       const result = await ctx.tools.execute({
-        callId: CallId(`codegraph:${tool}`),
+        callId: ToolCallId(`codegraph:${tool}`),
         name: tool,
         arguments: args,
         signal: AbortSignal.timeout(requestTimeout),
