@@ -170,7 +170,9 @@ export const en: Record<string, string> = {
   'export.png': 'PNG',
   'export.svg': 'SVG',
   'export.json': 'JSON',
-  'export.mermaid': 'Mermaid',
+  'export.mermaid': 'Mermaid Flowchart',
+  'export.mermaidSeq': 'Mermaid Sequence',
+  'export.mermaidClass': 'Mermaid Class',
   'export.graphml': 'GraphML',
   'export.jsonld': 'JSON-LD',
 
@@ -200,7 +202,7 @@ export const en: Record<string, string> = {
   'prereq.notFound': 'Not detected',
   'prereq.codegraphLabel': 'dsh-codegraph',
   'prereq.lensLabel': 'dsh-tool-lens',
-  'prereq.codegraphDesc': 'Required for code graph data — provides 20+ language support and incremental indexing.',
+  'prereq.codegraphDesc': 'Recommended — provides 20+ language support and incremental indexing. Built-in analysis available without it.',
   'prereq.lensDesc': 'Optional — provides AST-precise analysis and impact detection.',
 
   // Graph initialization
@@ -214,11 +216,14 @@ export const en: Record<string, string> = {
   'graph.hotUpdateOff': 'Auto refresh: OFF',
 
   // Enhanced empty state
-  'empty.prereqTitle': 'Prerequisite Plugin Required',
-  'empty.prereqDesc': 'Install dsh-codegraph or dsh-tool-lens for full functionality:',
+  'empty.prereqTitle': 'Recommended Prerequisite Plugins',
+  'empty.prereqDesc': 'Install dsh-codegraph or dsh-tool-lens for a more complete code graph:',
   'empty.copyCmd': 'Copy install command',
   'empty.copied': 'Copied!',
   'empty.scanWorkspace': 'Scan Current Workspace',
+  'empty.useBuiltin': 'Use Built-in Analysis',
+  'empty.degradedMode': 'Degraded Mode — using built-in TreeSitter and dependency analysis',
+  'empty.degradedHint': 'Built-in analysis provides basic code structure parsing without additional plugins.',
 
   // Keyboard shortcuts
   'shortcut.title': 'Keyboard Shortcuts',
@@ -455,8 +460,14 @@ export const en: Record<string, string> = {
   'nav.title': 'Code Graph',
   'nav.ariaLabel': 'Code Graph',
   'nav.closePanel': 'Close graph panel',
+  'nav.minimizePanel': 'Minimize panel',
+  'nav.restorePanel': 'Restore panel',
   'nav.searchSymbols': 'Code Graph: Search Symbols',
   'nav.togglePanel': 'Code Graph: Toggle Panel',
+  'nav.integrationMode': 'Integration mode',
+  'nav.modeSidebar': 'Sidebar',
+  'nav.modeSlot': 'Slot',
+  'nav.modeFloating': 'Floating',
 
   // Filter Panel
   'filterPanel.title': 'Filter & Connections',

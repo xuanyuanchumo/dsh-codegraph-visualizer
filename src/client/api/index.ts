@@ -71,14 +71,15 @@ export async function fetchNodeChildren(nodeId: string, cursor?: string, limit?:
   }
 }
 
-export async function fetchStatus(): Promise<{ codegraph: boolean; lens: boolean }> {
+export async function fetchStatus(): Promise<{ codegraph: boolean; lens: boolean; builtin: boolean }> {
   try {
     const res = await fetchWithTimeout('/api/v1/codegraph/status');
-    if (!res.ok) return { codegraph: false, lens: false };
-    return await res.json();
+    if (!res.ok) return { codegraph: false, lens: false, builtin: true };
+    const data = await res.json();
+    return { codegraph: !!data.codegraph, lens: !!data.lens, builtin: data.builtin ?? true };
   } catch (e) {
     log.warn('fetchStatus failed', { url: '/api/v1/codegraph/status', error: e instanceof Error ? e.message : String(e) });
-    return { codegraph: false, lens: false };
+    return { codegraph: false, lens: false, builtin: true };
   }
 }
 

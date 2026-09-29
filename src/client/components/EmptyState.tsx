@@ -5,7 +5,7 @@ import { UI } from '../../shared/constants.ts';
 import { GraphIcon, UploadIcon, AlertIcon, CheckIcon, CopyIcon, ZapIcon } from './Icons.tsx';
 
 interface EmptyStateProps {
-  prerequisites: { codegraph: boolean; lens: boolean };
+  prerequisites: { codegraph: boolean; lens: boolean; builtin?: boolean };
   onImport: () => void;
   onScanWorkspace: () => void;
 }
@@ -52,12 +52,20 @@ export const EmptyState = memo(function EmptyState({ prerequisites, onImport, on
   const codegraphMissing = !prerequisites.codegraph;
   const lensMissing = !prerequisites.lens;
   const anyMissing = codegraphMissing || lensMissing;
+  const allMissing = codegraphMissing && lensMissing;
+  const hasBuiltin = prerequisites.builtin ?? true;
 
   return (
     <div className="cg-empty-state">
       <GraphIcon size={48} className="cg-empty-icon" />
       <span className="cg-empty-title">{t('empty.title')}</span>
       <span className="cg-empty-subtitle">{t('empty.subtitle')}</span>
+      {allMissing && hasBuiltin && (
+        <div className="cg-empty-degraded-notice">
+          <span className="cg-degraded-label">{t('empty.degradedMode')}</span>
+          <span className="cg-degraded-hint">{t('empty.degradedHint')}</span>
+        </div>
+      )}
       {anyMissing && (
         <div className="cg-empty-prereq-warning">
           <div className="cg-prereq-header">

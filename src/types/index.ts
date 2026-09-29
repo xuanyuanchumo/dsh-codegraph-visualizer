@@ -161,6 +161,7 @@ export interface SourceOpenEvent {
 export interface PrerequisiteStatusEvent {
   codegraph: boolean;
   lens: boolean;
+  builtin: boolean;
   timestamp: number;
 }
 

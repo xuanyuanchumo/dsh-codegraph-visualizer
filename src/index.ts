@@ -10,6 +10,7 @@ import { extractWorkspacePaths, checkPrerequisites } from './host/prerequisites.
 import { createInvokeUpstream, registerRoutes, registerService } from './host/routes.ts';
 import { registerWatcher, registerEventListeners } from './host/watcher.ts';
 import { McpServer } from './host/McpServer.ts';
+import { closeAllDbConnections } from './adapters/CodeGraphAdapter.ts';
 
 export { PLUGIN_VERSION };
 export { resolveConfig, DEFAULT_CONFIG } from './host/config.ts';
@@ -71,10 +72,11 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   let lastStatus = '';
   const emitPrereqStatus = () => {
     const status = checkPrerequisites(ctx);
-    const statusKey = `${status.codegraph}:${status.lens}`;
+    const statusKey = `${status.codegraph}:${status.lens}:${status.builtin}`;
     ctx.emit('codegraph-visualizer/prerequisite/status', {
       codegraph: status.codegraph,
       lens: status.lens,
+      builtin: status.builtin,
       timestamp: Date.now(),
     });
     if (statusKey !== lastStatus) {
@@ -84,19 +86,23 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   };
   emitPrereqStatus();
   ctx.effect(() => {
+    let pollCount = 0;
+    const MAX_POLLS = 6;
     const prereqTimer = setInterval(() => {
+      pollCount++;
       const status = checkPrerequisites(ctx);
-      const statusKey = `${status.codegraph}:${status.lens}`;
+      const statusKey = `${status.codegraph}:${status.lens}:${status.builtin}`;
       ctx.emit('codegraph-visualizer/prerequisite/status', {
         codegraph: status.codegraph,
         lens: status.lens,
+        builtin: status.builtin,
         timestamp: Date.now(),
       });
       if (statusKey !== lastStatus) {
         log.info('prerequisite status', status);
         lastStatus = statusKey;
       }
-      if (status.codegraph && status.lens) clearInterval(prereqTimer);
+      if (status.codegraph || status.lens || pollCount >= MAX_POLLS) clearInterval(prereqTimer);
     }, config.prerequisiteRetryDelay);
     return () => clearInterval(prereqTimer);
   }, 'codegraph: prereq re-check timer');
@@ -121,6 +127,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
       lastGraphData = null;
       lastInitResult = null;
       securityManager.reset();
+      closeAllDbConnections();
     };
   }, 'codegraph: state cleanup');
 

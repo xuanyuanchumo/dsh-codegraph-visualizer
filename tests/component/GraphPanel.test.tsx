@@ -117,7 +117,7 @@ vi.mock('../../src/client/hooks/index.ts', () => ({
     viewMode: s.viewMode, currentLayer: s.currentLayer, diagramData: s.diagramData,
   })))),
   useGraphInteraction: vi.fn(() => ({ searchQuery: '', selectedNodeId: null, highlightedNodeIds: [], expandedNodeIds: new Set(), pathResult: null, focusDepth: 1, focusModeActive: false, focusModeNodeId: null, pathFilterInclude: null, pathFilterExclude: null })),
-  useGraphStatus: vi.fn(() => ({ isLoading: false, error: null, lastUpdated: 0, truncated: false, totalNodeCount: 0, prerequisites: { codegraph: false, lens: false }, watchEnabled: false, initStatus: 'idle' })),
+  useGraphStatus: vi.fn(() => ({ isLoading: false, error: null, lastUpdated: 0, truncated: false, totalNodeCount: 0, prerequisites: { codegraph: false, lens: false, builtin: true }, watchEnabled: false, initStatus: 'idle' })),
   useGraphWorkspace: vi.fn(() => ({ currentWorkspace: '', workspaceList: [] })),
   useGraphAnalysis: vi.fn(() => ({ ruleViolations: [], selectedFunction: null, fanInThreshold: 0, fanOutThreshold: 0, visibleNodeTypes: new Set(), visibleEdgeTypes: new Set(), heatmapMode: 'none' })),
   useGraphPerformance: vi.fn(() => ({ performanceDegradations: [], lodLevel: 'full', lodEnabled: false })),
@@ -1623,7 +1623,7 @@ describe('GraphPanel uncovered handler tests', () => {
 
     vi.mocked(useGraphStatus).mockReturnValue({
       isLoading: false, error: null, lastUpdated: 0, truncated: false,
-      totalNodeCount: 0, prerequisites: { codegraph: true, lens: false },
+      totalNodeCount: 0, prerequisites: { codegraph: true, lens: false, builtin: true },
       watchEnabled: false, initStatus: 'idle',
     });
     vi.mocked(useGraphWorkspace).mockReturnValue({
@@ -1642,7 +1642,7 @@ describe('GraphPanel uncovered handler tests', () => {
 
     vi.mocked(useGraphStatus).mockReturnValue({
       isLoading: false, error: null, lastUpdated: 0, truncated: false,
-      totalNodeCount: 0, prerequisites: { codegraph: false, lens: false },
+      totalNodeCount: 0, prerequisites: { codegraph: false, lens: false, builtin: true },
       watchEnabled: false, initStatus: 'idle',
     });
     vi.mocked(useGraphWorkspace).mockReturnValue({
@@ -1663,7 +1663,7 @@ describe('GraphPanel uncovered handler tests', () => {
 
     vi.mocked(useGraphStatus).mockReturnValue({
       isLoading: false, error: null, lastUpdated: 0, truncated: false,
-      totalNodeCount: 1, prerequisites: { codegraph: true, lens: false },
+      totalNodeCount: 1, prerequisites: { codegraph: true, lens: false, builtin: true },
       watchEnabled: false, initStatus: 'idle',
     });
     vi.mocked(useGraphWorkspace).mockReturnValue({
@@ -2748,7 +2748,7 @@ describe('GraphPanel panel callback tests', () => {
     } as any);
     vi.mocked(useGraphStatus).mockReturnValue({
       isLoading: false, error: 'Test error', lastUpdated: 0, truncated: false,
-      totalNodeCount: 0, prerequisites: { codegraph: false, lens: false },
+      totalNodeCount: 0, prerequisites: { codegraph: false, lens: false, builtin: true },
       watchEnabled: false, initStatus: 'idle',
     });
 
@@ -3273,7 +3273,7 @@ describe('GraphPanel onClose callback tests', () => {
     } as any);
     vi.mocked(useGraphStatus).mockReturnValue({
       isLoading: false, error: 'Test error', lastUpdated: 0, truncated: false,
-      totalNodeCount: 0, prerequisites: { codegraph: false, lens: false },
+      totalNodeCount: 0, prerequisites: { codegraph: false, lens: false, builtin: true },
       watchEnabled: false, initStatus: 'idle',
     });
 

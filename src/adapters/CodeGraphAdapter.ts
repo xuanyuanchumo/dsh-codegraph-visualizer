@@ -23,6 +23,39 @@ const log = scoped('codegraph-adapter');
 
 const require = createRequire(import.meta.url);
 
+// ---- DB connection pool ---------------------------------------------------
+
+type SqliteDb = {
+  prepare(sql: string): { all(...params: unknown[]): unknown[]; get(...params: unknown[]): unknown };
+  close(): void;
+};
+
+const dbPool = new Map<string, SqliteDb>();
+
+function getDbConnection(dbPath: string): SqliteDb | null {
+  if (!existsSync(dbPath)) return null;
+  let db = dbPool.get(dbPath);
+  if (!db) {
+    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite');
+    db = new DatabaseSync(dbPath, { readOnly: true }) as unknown as SqliteDb;
+    dbPool.set(dbPath, db);
+    log.info('db pool: opened connection', { dbPath });
+  }
+  return db;
+}
+
+export function closeAllDbConnections(): void {
+  for (const [path, db] of dbPool.entries()) {
+    try {
+      db.close();
+    } catch (e) {
+      log.warn('db pool: close failed', { path, error: e });
+    }
+  }
+  dbPool.clear();
+  log.info('db pool: all connections closed');
+}
+
 // ---- codegraph.db schema (upstream @colbymchenry/codegraph) ----------------
 
 interface DbNodeRow {
@@ -112,21 +145,16 @@ export function resolveDbPath(workspacePath: string): string {
 
 /** Read the whole graph from a codegraph.db. Returns null when unreadable. */
 export function readGraphFromDb(dbPath: string): { nodes: DbNodeRow[]; edges: DbEdgeRow[] } | null {
-  if (!existsSync(dbPath)) return null;
+  const db = getDbConnection(dbPath);
+  if (!db) return null;
   try {
-    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite');
-    const db = new DatabaseSync(dbPath, { readOnly: true });
-    try {
-      const nodes = db.prepare(
-        'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes',
-      ).all() as unknown as DbNodeRow[];
-      const edges = db.prepare(
-        'SELECT id, source, target, kind, line FROM edges',
-      ).all() as unknown as DbEdgeRow[];
-      return { nodes, edges };
-    } finally {
-      db.close();
-    }
+    const nodes = db.prepare(
+      'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes',
+    ).all() as unknown as DbNodeRow[];
+    const edges = db.prepare(
+      'SELECT id, source, target, kind, line FROM edges',
+    ).all() as unknown as DbEdgeRow[];
+    return { nodes, edges };
   } catch (e) {
     log.warn('readGraphFromDb failed', e);
     return null;
@@ -134,19 +162,14 @@ export function readGraphFromDb(dbPath: string): { nodes: DbNodeRow[]; edges: Db
 }
 
 export function readTopLevelNodesFromDb(dbPath: string, limit: number): { nodes: DbNodeRow[]; total: number } | null {
-  if (!existsSync(dbPath)) return null;
+  const db = getDbConnection(dbPath);
+  if (!db) return null;
   try {
-    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite');
-    const db = new DatabaseSync(dbPath, { readOnly: true });
-    try {
-      const total = (db.prepare('SELECT COUNT(*) as cnt FROM nodes WHERE kind IN (\'file\', \'module\', \'import\')').get() as { cnt: number }).cnt;
-      const nodes = db.prepare(
-        'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE kind IN (\'file\', \'module\', \'import\') LIMIT ?',
-      ).all(limit) as unknown as DbNodeRow[];
-      return { nodes, total };
-    } finally {
-      db.close();
-    }
+    const total = (db.prepare('SELECT COUNT(*) as cnt FROM nodes WHERE kind IN (\'file\', \'module\', \'import\')').get() as { cnt: number }).cnt;
+    const nodes = db.prepare(
+      'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE kind IN (\'file\', \'module\', \'import\') LIMIT ?',
+    ).all(limit) as unknown as DbNodeRow[];
+    return { nodes, total };
   } catch (e) {
     log.warn('readTopLevelNodesFromDb failed', e);
     return null;
@@ -154,19 +177,14 @@ export function readTopLevelNodesFromDb(dbPath: string, limit: number): { nodes:
 }
 
 export function readNodeChildrenFromDb(dbPath: string, parentId: string, cursor: number, limit: number): { nodes: DbNodeRow[]; total: number } | null {
-  if (!existsSync(dbPath)) return null;
+  const db = getDbConnection(dbPath);
+  if (!db) return null;
   try {
-    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite');
-    const db = new DatabaseSync(dbPath, { readOnly: true });
-    try {
-      const total = (db.prepare('SELECT COUNT(*) as cnt FROM nodes WHERE file_path = (SELECT file_path FROM nodes WHERE id = ?)').get(parentId) as { cnt: number }).cnt;
-      const nodes = db.prepare(
-        'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE file_path = (SELECT file_path FROM nodes WHERE id = ?) AND kind NOT IN (\'file\', \'module\', \'import\') LIMIT ? OFFSET ?',
-      ).all(parentId, limit, cursor) as unknown as DbNodeRow[];
-      return { nodes, total };
-    } finally {
-      db.close();
-    }
+    const total = (db.prepare('SELECT COUNT(*) as cnt FROM nodes WHERE file_path = (SELECT file_path FROM nodes WHERE id = ?)').get(parentId) as { cnt: number }).cnt;
+    const nodes = db.prepare(
+      'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE file_path = (SELECT file_path FROM nodes WHERE id = ?) AND kind NOT IN (\'file\', \'module\', \'import\') LIMIT ? OFFSET ?',
+    ).all(parentId, limit, cursor) as unknown as DbNodeRow[];
+    return { nodes, total };
   } catch (e) {
     log.warn('readNodeChildrenFromDb failed', e);
     return null;
@@ -174,22 +192,17 @@ export function readNodeChildrenFromDb(dbPath: string, parentId: string, cursor:
 }
 
 export function readFileOutlineFromDb(dbPath: string, fileId: string): { nodes: DbNodeRow[]; total: number } | null {
-  if (!existsSync(dbPath)) return null;
+  const db = getDbConnection(dbPath);
+  if (!db) return null;
   try {
-    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite');
-    const db = new DatabaseSync(dbPath, { readOnly: true });
-    try {
-      const filePathRow = db.prepare('SELECT file_path FROM nodes WHERE id = ?').get(fileId) as { file_path: string } | undefined;
-      if (!filePathRow) return { nodes: [], total: 0 };
-      const filePath = filePathRow.file_path;
-      const total = (db.prepare('SELECT COUNT(*) as cnt FROM nodes WHERE file_path = ? AND kind NOT IN (\'file\', \'module\', \'import\')').get(filePath) as { cnt: number }).cnt;
-      const nodes = db.prepare(
-        'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE file_path = ? AND kind NOT IN (\'file\', \'module\', \'import\')',
-      ).all(filePath) as unknown as DbNodeRow[];
-      return { nodes, total };
-    } finally {
-      db.close();
-    }
+    const filePathRow = db.prepare('SELECT file_path FROM nodes WHERE id = ?').get(fileId) as { file_path: string } | undefined;
+    if (!filePathRow) return { nodes: [], total: 0 };
+    const filePath = filePathRow.file_path;
+    const total = (db.prepare('SELECT COUNT(*) as cnt FROM nodes WHERE file_path = ? AND kind NOT IN (\'file\', \'module\', \'import\')').get(filePath) as { cnt: number }).cnt;
+    const nodes = db.prepare(
+      'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE file_path = ? AND kind NOT IN (\'file\', \'module\', \'import\')',
+    ).all(filePath) as unknown as DbNodeRow[];
+    return { nodes, total };
   } catch (e) {
     log.warn('readFileOutlineFromDb failed', e);
     return null;
@@ -197,31 +210,26 @@ export function readFileOutlineFromDb(dbPath: string, fileId: string): { nodes: 
 }
 
 export function readSymbolASTFromDb(dbPath: string, symbolId: string): { nodes: DbNodeRow[]; total: number } | null {
-  if (!existsSync(dbPath)) return null;
+  const db = getDbConnection(dbPath);
+  if (!db) return null;
   try {
-    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite');
-    const db = new DatabaseSync(dbPath, { readOnly: true });
-    try {
-      const symbolRow = db.prepare('SELECT file_path, start_line FROM nodes WHERE id = ?').get(symbolId) as { file_path: string; start_line: number } | undefined;
-      if (!symbolRow) return { nodes: [], total: 0 };
-      const total = (db.prepare('SELECT COUNT(*) as cnt FROM edges WHERE source = ?').get(symbolId) as { cnt: number }).cnt;
-      const calleeIds = db.prepare('SELECT target FROM edges WHERE source = ?').all(symbolId) as { target: string }[];
-      if (calleeIds.length === 0) return { nodes: [], total: 0 };
-      const idList = calleeIds.map(r => r.target);
-      const allNodes: DbNodeRow[] = [];
-      const batchSize = SQLITE.MAX_IN_PARAMS;
-      for (let i = 0; i < idList.length; i += batchSize) {
-        const batch = idList.slice(i, i + batchSize);
-        const placeholders = batch.map(() => '?').join(',');
-        const batchNodes = db.prepare(
-          `SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE id IN (${placeholders})`,
-        ).all(...batch) as unknown as DbNodeRow[];
-        allNodes.push(...batchNodes);
-      }
-      return { nodes: allNodes, total };
-    } finally {
-      db.close();
+    const symbolRow = db.prepare('SELECT file_path, start_line FROM nodes WHERE id = ?').get(symbolId) as { file_path: string; start_line: number } | undefined;
+    if (!symbolRow) return { nodes: [], total: 0 };
+    const total = (db.prepare('SELECT COUNT(*) as cnt FROM edges WHERE source = ?').get(symbolId) as { cnt: number }).cnt;
+    const calleeIds = db.prepare('SELECT target FROM edges WHERE source = ?').all(symbolId) as { target: string }[];
+    if (calleeIds.length === 0) return { nodes: [], total: 0 };
+    const idList = calleeIds.map(r => r.target);
+    const allNodes: DbNodeRow[] = [];
+    const batchSize = SQLITE.MAX_IN_PARAMS;
+    for (let i = 0; i < idList.length; i += batchSize) {
+      const batch = idList.slice(i, i + batchSize);
+      const placeholders = batch.map(() => '?').join(',');
+      const batchNodes = db.prepare(
+        `SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE id IN (${placeholders})`,
+      ).all(...batch) as unknown as DbNodeRow[];
+      allNodes.push(...batchNodes);
     }
+    return { nodes: allNodes, total };
   } catch (e) {
     log.warn('readSymbolASTFromDb failed', e);
     return null;
@@ -229,40 +237,35 @@ export function readSymbolASTFromDb(dbPath: string, symbolId: string): { nodes: 
 }
 
 export function readEdgesFromDb(dbPath: string, nodeId: string, scope: 'file' | 'symbol', cursor: number, limit: number): { edges: DbEdgeRow[]; total: number } | null {
-  if (!existsSync(dbPath)) return null;
+  const db = getDbConnection(dbPath);
+  if (!db) return null;
   try {
-    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite');
-    const db = new DatabaseSync(dbPath, { readOnly: true });
-    try {
-      if (scope === 'symbol') {
-        const total = (db.prepare('SELECT COUNT(*) as cnt FROM edges WHERE source = ? OR target = ?').get(nodeId, nodeId) as { cnt: number }).cnt;
-        const edges = db.prepare(
-          'SELECT id, source, target, kind, line FROM edges WHERE source = ? OR target = ? LIMIT ? OFFSET ?',
-        ).all(nodeId, nodeId, limit, cursor) as unknown as DbEdgeRow[];
-        return { edges, total };
-      }
-      const filePathResult = db.prepare('SELECT file_path FROM nodes WHERE id = ?').get(nodeId) as { file_path: string } | undefined;
-      if (!filePathResult) return { edges: [], total: 0 };
-      const filePath = filePathResult.file_path;
-      const nodeIds = db.prepare('SELECT id FROM nodes WHERE file_path = ?').all(filePath) as { id: string }[];
-      const idList = nodeIds.map(n => n.id);
-      if (idList.length === 0) return { edges: [], total: 0 };
-      const batchSize = SQLITE.MAX_IN_PARAMS;
-      const allEdges: DbEdgeRow[] = [];
-      for (let i = 0; i < idList.length; i += batchSize) {
-        const batch = idList.slice(i, i + batchSize);
-        const placeholders = batch.map(() => '?').join(',');
-        const batchEdges = db.prepare(
-          `SELECT id, source, target, kind, line FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders})`,
-        ).all(...batch, ...batch) as unknown as DbEdgeRow[];
-        allEdges.push(...batchEdges);
-      }
-      const total = allEdges.length;
-      const pagedEdges = allEdges.slice(cursor, cursor + limit);
-      return { edges: pagedEdges, total };
-    } finally {
-      db.close();
+    if (scope === 'symbol') {
+      const total = (db.prepare('SELECT COUNT(*) as cnt FROM edges WHERE source = ? OR target = ?').get(nodeId, nodeId) as { cnt: number }).cnt;
+      const edges = db.prepare(
+        'SELECT id, source, target, kind, line FROM edges WHERE source = ? OR target = ? LIMIT ? OFFSET ?',
+      ).all(nodeId, nodeId, limit, cursor) as unknown as DbEdgeRow[];
+      return { edges, total };
     }
+    const filePathResult = db.prepare('SELECT file_path FROM nodes WHERE id = ?').get(nodeId) as { file_path: string } | undefined;
+    if (!filePathResult) return { edges: [], total: 0 };
+    const filePath = filePathResult.file_path;
+    const nodeIds = db.prepare('SELECT id FROM nodes WHERE file_path = ?').all(filePath) as { id: string }[];
+    const idList = nodeIds.map(n => n.id);
+    if (idList.length === 0) return { edges: [], total: 0 };
+    const batchSize = SQLITE.MAX_IN_PARAMS;
+    const allEdges: DbEdgeRow[] = [];
+    for (let i = 0; i < idList.length; i += batchSize) {
+      const batch = idList.slice(i, i + batchSize);
+      const placeholders = batch.map(() => '?').join(',');
+      const batchEdges = db.prepare(
+        `SELECT id, source, target, kind, line FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders})`,
+      ).all(...batch, ...batch) as unknown as DbEdgeRow[];
+      allEdges.push(...batchEdges);
+    }
+    const total = allEdges.length;
+    const pagedEdges = allEdges.slice(cursor, cursor + limit);
+    return { edges: pagedEdges, total };
   } catch (e) {
     log.warn('readEdgesFromDb failed', e);
     return null;
@@ -270,25 +273,21 @@ export function readEdgesFromDb(dbPath: string, nodeId: string, scope: 'file' | 
 }
 
 export function readEdgesForNodesFromDb(dbPath: string, nodeIds: string[]): DbEdgeRow[] {
-  if (!existsSync(dbPath) || nodeIds.length === 0) return [];
+  if (nodeIds.length === 0) return [];
+  const db = getDbConnection(dbPath);
+  if (!db) return [];
   try {
-    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite');
-    const db = new DatabaseSync(dbPath, { readOnly: true });
-    try {
-      const allEdges: DbEdgeRow[] = [];
-      const batchSize = SQLITE.MAX_IN_PARAMS;
-      for (let i = 0; i < nodeIds.length; i += batchSize) {
-        const batch = nodeIds.slice(i, i + batchSize);
-        const placeholders = batch.map(() => '?').join(',');
-        const edges = db.prepare(
-          `SELECT id, source, target, kind, line FROM edges WHERE (source IN (${placeholders}) AND target IN (${placeholders}))`,
-        ).all(...batch, ...batch) as unknown as DbEdgeRow[];
-        allEdges.push(...edges);
-      }
-      return allEdges;
-    } finally {
-      db.close();
+    const allEdges: DbEdgeRow[] = [];
+    const batchSize = SQLITE.MAX_IN_PARAMS;
+    for (let i = 0; i < nodeIds.length; i += batchSize) {
+      const batch = nodeIds.slice(i, i + batchSize);
+      const placeholders = batch.map(() => '?').join(',');
+      const edges = db.prepare(
+        `SELECT id, source, target, kind, line FROM edges WHERE (source IN (${placeholders}) AND target IN (${placeholders}))`,
+      ).all(...batch, ...batch) as unknown as DbEdgeRow[];
+      allEdges.push(...edges);
     }
+    return allEdges;
   } catch (e) {
     log.warn('readEdgesForNodesFromDb failed', e);
     return [];

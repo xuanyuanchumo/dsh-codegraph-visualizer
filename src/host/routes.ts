@@ -263,7 +263,7 @@ function registerStatusRoute(rc: RouteContext): void {
     path: routePath,
     handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, (req, res) => {
       const status = checkPrerequisites(ctx);
-      sendJson(res, 200, { codegraph: status.codegraph, lens: status.lens }, req, corsConfig);
+      sendJson(res, 200, { codegraph: status.codegraph, lens: status.lens, builtin: status.builtin }, req, corsConfig);
     }),
   }), 'codegraph: status route');
 }
@@ -281,11 +281,12 @@ function registerHealthRoute(rc: RouteContext): void {
         const status = checkPrerequisites(ctx);
         const mem = process.memoryUsage();
         const hasGraphData = deps.getLastGraphData() !== null;
-        const healthy = status.codegraph;
+        const healthy = status.codegraph || status.lens || status.builtin;
         sendJson(res, healthy ? 200 : 503, {
           status: healthy ? 'healthy' : 'degraded',
           codegraph: status.codegraph,
           lens: status.lens,
+          builtin: status.builtin,
           hasGraphData,
           uptime: process.uptime(),
           memory: { rss: mem.rss, heapUsed: mem.heapUsed, heapTotal: mem.heapTotal },

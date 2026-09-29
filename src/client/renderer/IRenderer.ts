@@ -70,6 +70,8 @@ export interface IRenderer {
   focusOnArea(x: number, y: number, zoom: number): void;
   exportJSON(): string;
   exportMermaid(): string;
+  exportMermaidSequence(): string;
+  exportMermaidClass(): string;
   exportPNG(): string | null;
   exportSVG(theme?: ThemeType): string | null;
   exportGraphML(): string;

@@ -32,22 +32,42 @@ function SidebarNavButton({ onClick, active }: { onClick: () => void; active: bo
   }, React.createElement(GraphIcon, { size: 18 }));
 }
 
-function FloatingGraphPanel({ onClose }: { onClose: () => void }) {
+function FloatingGraphPanel({ onClose, onMinimize }: { onClose: () => void; onMinimize: () => void }) {
   return React.createElement('div', { className: 'cg-floating-overlay' },
     React.createElement('div', { className: 'cg-floating-panel' },
       React.createElement('div', { className: 'cg-floating-header' },
-        React.createElement('span', { className: 'cg-floating-title' }, t('nav.title')),
-        React.createElement('button', {
-          onClick: onClose,
-          className: 'cg-floating-close',
-          'aria-label': t('nav.closePanel'),
-        }, '\u00d7'),
+        React.createElement('div', { className: 'cg-floating-header-left' },
+          React.createElement('span', { className: 'cg-floating-title' }, t('nav.title')),
+          React.createElement('span', { className: 'cg-floating-mode-badge' }, t('nav.modeFloating')),
+        ),
+        React.createElement('div', { className: 'cg-floating-header-actions' },
+          React.createElement('button', {
+            onClick: onMinimize,
+            className: 'cg-floating-minimize',
+            'aria-label': t('nav.minimizePanel'),
+            title: t('nav.minimizePanel'),
+          }, '\u2013'),
+          React.createElement('button', {
+            onClick: onClose,
+            className: 'cg-floating-close',
+            'aria-label': t('nav.closePanel'),
+          }, '\u00d7'),
+        ),
       ),
       React.createElement('div', { className: 'cg-floating-content' },
         React.createElement(GraphPanel),
       ),
     ),
   );
+}
+
+function MinimizedFloatingButton({ onRestore }: { onRestore: () => void }) {
+  return React.createElement('button', {
+    onClick: onRestore,
+    className: 'cg-floating-minimized-btn',
+    'aria-label': t('nav.restorePanel'),
+    title: t('nav.restorePanel'),
+  }, React.createElement(GraphIcon, { size: 20 }));
 }
 
 export function init(container: HTMLElement, initialData?: GraphData): () => void {
@@ -99,6 +119,7 @@ export function apply(ctx: Context): () => void {
       if (typeof dispose === 'function') {
         ctx.effect(() => dispose, 'codegraph: better-sidebar tab');
         navButtonRegistered = true;
+        useGraphStore.getState().setIntegrationMode('sidebar');
       } else {
         log.warn('better-sidebar registerTab did not return a disposer, falling back to slots');
       }
@@ -119,12 +140,14 @@ export function apply(ctx: Context): () => void {
       });
       trackSlotDisposer(injectDisposer);
       navButtonRegistered = true;
+      useGraphStore.getState().setIntegrationMode('slot');
     } catch (e) {
       log.warn('sidebar.footer.action slot failed', e);
     }
   }
 
   if (!navButtonRegistered && typeof document !== 'undefined') {
+    let floatingMinimized = false;
     const floatingContainer = document.createElement('div');
     floatingContainer.className = 'cg-floating-container';
     floatingContainer.setAttribute('data-visible', 'false');
@@ -132,14 +155,28 @@ export function apply(ctx: Context): () => void {
     const floatingRoot = ReactDOM.createRoot(floatingContainer);
 
     renderFloating = () => {
-      floatingRoot.render(
-        panelVisible
-          ? React.createElement(FloatingGraphPanel, { onClose: () => { panelVisible = false; floatingContainer.setAttribute('data-visible', 'false'); renderFloating(); } })
-          : null,
-      );
+      if (!panelVisible) {
+        floatingRoot.render(null);
+        return;
+      }
+      if (floatingMinimized) {
+        floatingRoot.render(
+          React.createElement(MinimizedFloatingButton, {
+            onRestore: () => { floatingMinimized = false; renderFloating(); },
+          }),
+        );
+      } else {
+        floatingRoot.render(
+          React.createElement(FloatingGraphPanel, {
+            onClose: () => { panelVisible = false; floatingContainer.setAttribute('data-visible', 'false'); renderFloating(); },
+            onMinimize: () => { floatingMinimized = true; renderFloating(); },
+          }),
+        );
+      }
     };
 
     renderFloating();
+    useGraphStore.getState().setIntegrationMode('floating');
 
     ctx.effect(() => () => {
       floatingRoot.unmount();
@@ -174,7 +211,7 @@ export function apply(ctx: Context): () => void {
     const checkStatus = async () => {
       const status = await fetchStatus();
       const store = useGraphStore.getState();
-      store.setPrerequisites({ codegraph: status.codegraph, lens: status.lens });
+      store.setPrerequisites({ codegraph: status.codegraph, lens: status.lens, builtin: status.builtin ?? true });
       const statusKey = `${status.codegraph}:${status.lens}`;
       if (statusKey !== lastStatusKey) {
         log.info('prerequisite status', status);

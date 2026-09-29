@@ -51,7 +51,7 @@ describe('checkPrerequisites', () => {
       tools: { get: vi.fn(() => undefined) },
     } as unknown as MockCtx;
     const result = checkPrerequisites(ctx);
-    expect(result).toEqual({ codegraph: false, lens: false });
+    expect(result).toEqual({ codegraph: false, lens: false, builtin: true });
   });
 
   it('returns both false when ctx.tools.get throws', () => {
@@ -59,7 +59,7 @@ describe('checkPrerequisites', () => {
       tools: { get: vi.fn(() => { throw new Error('boom'); }) },
     } as unknown as MockCtx;
     const result = checkPrerequisites(ctx);
-    expect(result).toEqual({ codegraph: false, lens: false });
+    expect(result).toEqual({ codegraph: false, lens: false, builtin: true });
   });
 });
 

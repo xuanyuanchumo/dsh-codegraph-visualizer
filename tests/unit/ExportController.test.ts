@@ -134,6 +134,7 @@ function makeMockCy(nodeList: any[] = [], edgeList: any[] = []) {
     }),
     json: vi.fn(() => ({ nodes: [], edges: [] })),
     png: vi.fn(() => 'data:image/png;base64,mock'),
+    data: vi.fn((key?: string) => { if (key === 'rankDir') return undefined; return undefined; }),
     _nodeMap: nodeMap,
     _edgeMap: edgeMap,
     _nodeList: nodeList,
@@ -184,8 +185,8 @@ describe('ExportController', () => {
       const ec = new ExportController(cy as any);
       const result = ec.exportMermaid();
       expect(result).toContain('graph TD');
-      expect(result).toContain('na_0(');
-      expect(result).toContain('nb_1[');
+      expect(result).toContain('na(');
+      expect(result).toContain('nb[');
       expect(result).toContain('"FuncA"');
       expect(result).toContain('"ClassB"');
     });
@@ -200,11 +201,11 @@ describe('ExportController', () => {
       const cy = makeMockCy([funcNode, classNode, varNode, modNode, ifaceNode], []);
       const ec = new ExportController(cy as any);
       const result = ec.exportMermaid();
-      expect(result).toContain('nn1_0("fn")');
-      expect(result).toContain('nn2_1["cls"]');
-      expect(result).toContain('nn3_2(("var"))');
-      expect(result).toContain('nn4_3{"mod"}');
-      expect(result).toContain('nn5_4/"iface"/');
+      expect(result).toContain('nn1("fn")');
+      expect(result).toContain('nn2["cls"]');
+      expect(result).toContain('nn3(("var"))');
+      expect(result).toContain('nn4{"mod"}');
+      expect(result).toContain('nn5/"iface"/');
     });
 
     it('uses default shape for unknown node type', async () => {
@@ -213,7 +214,7 @@ describe('ExportController', () => {
       const cy = makeMockCy([unknownNode], []);
       const ec = new ExportController(cy as any);
       const result = ec.exportMermaid();
-      expect(result).toContain('nn1_0["unknown"]');
+      expect(result).toContain('nn1["unknown"]');
     });
 
     it('exports edges with type labels', async () => {
@@ -224,7 +225,7 @@ describe('ExportController', () => {
       const cy = makeMockCy([nodeA, nodeB], [edge]);
       const ec = new ExportController(cy as any);
       const result = ec.exportMermaid();
-      expect(result).toContain('na_0 -->|call| nb_1');
+      expect(result).toContain('na -->|call| nb');
     });
 
     it('exports edges without label for unknown edge type', async () => {
@@ -235,7 +236,7 @@ describe('ExportController', () => {
       const cy = makeMockCy([nodeA, nodeB], [edge]);
       const ec = new ExportController(cy as any);
       const result = ec.exportMermaid();
-      expect(result).toContain('na_0 --> nb_1');
+      expect(result).toContain('na --> nb');
     });
 
     it('sanitizes node IDs with special characters', async () => {
@@ -244,7 +245,7 @@ describe('ExportController', () => {
       const cy = makeMockCy([nodeA], []);
       const ec = new ExportController(cy as any);
       const result = ec.exportMermaid();
-      expect(result).toContain('src_file_ts');
+      expect(result).toContain('nsrc_file_ts');
     });
 
     it('escapes double quotes in labels', async () => {
@@ -271,8 +272,8 @@ describe('ExportController', () => {
       const ec = new ExportController(cy as any);
       const result = ec.exportMermaid();
       expect(result).toContain('-->|call|');
-      expect(result).toContain('-->|extend|');
-      expect(result).toContain('-->|implement|');
+      expect(result).toContain('-.->|extend|');
+      expect(result).toContain('-.->|implement|');
       expect(result).toContain('-->|import|');
       expect(result).toContain('-->|dependency|');
       expect(result).toContain('-->|contains|');

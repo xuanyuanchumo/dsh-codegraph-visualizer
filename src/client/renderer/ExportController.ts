@@ -38,6 +38,7 @@ export class ExportController {
       variable: '(($label$))',
       module: '{$label$}',
       interface: '/$label$/',
+      type: '[$label$]',
     };
     const defaultShape = '[$label$]';
 
@@ -48,16 +49,31 @@ export class ExportController {
       import: 'import',
       dependency: 'dependency',
       contains: 'contains',
+      association: 'assoc',
+      aggregation: 'aggr',
+      composition: 'comp',
     };
 
-    const lines: string[] = ['graph TD'];
+    const edgeStyleMap: Record<string, string> = {
+      extend: '-.->',
+      implement: '-.->',
+      aggregation: '--o',
+      composition: '--*',
+      association: '-->',
+    };
+
+    const dirMap: Record<string, string> = { TB: 'TD', LR: 'LR', BT: 'BT', RL: 'RL' };
+    const rankDir = dirMap[String(this.cy.data('rankDir') ?? 'TB')] ?? 'TD';
+
+    const lines: string[] = [`graph ${rankDir}`];
     const idMap = new Map<string, string>();
-    let idCounter = 0;
+
     nodes.forEach((node) => {
       const rawId = node.id();
-      const safeId = 'n' + rawId.replace(/[^a-zA-Z0-9_]/g, '_') + '_' + (idCounter++);
+      const safeId = 'n' + rawId.replace(/[^a-zA-Z0-9_]/g, '_');
       idMap.set(rawId, safeId);
-      const label = String(node.data('label') ?? safeId).replace(/"/g, "'");
+      let label = String(node.data('label') ?? safeId).replace(/"/g, "'");
+      if (label.length > 40) label = label.slice(0, 37) + '...';
       const type = String(node.data('type') ?? '');
       const shape = nodeShapeMap[type] ?? defaultShape;
       const shapeDef = shape.replace('$label$', `"${label}"`);
@@ -68,11 +84,100 @@ export class ExportController {
       const sourceId = idMap.get(edge.source().id()) ?? edge.source().id().replace(/[^a-zA-Z0-9_]/g, '_');
       const targetId = idMap.get(edge.target().id()) ?? edge.target().id().replace(/[^a-zA-Z0-9_]/g, '_');
       const edgeType = String(edge.data('type') ?? '');
+      const direction = String(edge.data('direction') ?? 'unidirectional');
       const label = edgeLabelMap[edgeType];
+      const arrow = edgeStyleMap[edgeType] ?? '-->';
+      const bidir = direction === 'bidirectional' ? '<' : '';
       if (label) {
-        lines.push(`  ${sourceId} -->|${label}| ${targetId}`);
+        lines.push(`  ${sourceId} ${bidir}${arrow}|${label}| ${targetId}`);
       } else {
-        lines.push(`  ${sourceId} --> ${targetId}`);
+        lines.push(`  ${sourceId} ${bidir}${arrow} ${targetId}`);
+      }
+    });
+
+    return lines.join('\n') + '\n';
+  }
+
+  exportMermaidSequence(): string {
+    const nodes = this.cy.nodes();
+    const edges = this.cy.edges();
+    if (nodes.length === 0) return 'sequenceDiagram\n';
+
+    const callEdges = edges.filter((e) => String(e.data('type') ?? '') === 'call');
+    if (callEdges.length === 0) return 'sequenceDiagram\n';
+
+    const participants = new Set<string>();
+    callEdges.forEach((edge) => {
+      participants.add(edge.source().id());
+      participants.add(edge.target().id());
+    });
+
+    const idMap = new Map<string, string>();
+    let pCounter = 0;
+    const lines: string[] = ['sequenceDiagram'];
+
+    participants.forEach((pid) => {
+      const node = this.cy.getElementById(pid);
+      const label = String(node.data('label') ?? pid).replace(/"/g, "'");
+      const safeName = 'P' + (pCounter++);
+      idMap.set(pid, safeName);
+      lines.push(`  participant ${safeName} as "${label}"`);
+    });
+
+    callEdges.forEach((edge) => {
+      const sourceId = idMap.get(edge.source().id()) ?? 'P?';
+      const targetId = idMap.get(edge.target().id()) ?? 'P?';
+
+      lines.push(`  ${sourceId}->>+${targetId}: call`);
+      lines.push(`  ${targetId}-->>-${sourceId}: return`);
+    });
+
+    return lines.join('\n') + '\n';
+  }
+
+  exportMermaidClass(): string {
+    const nodes = this.cy.nodes();
+    const edges = this.cy.edges();
+    if (nodes.length === 0) return 'classDiagram\n';
+
+    const classNodes = nodes.filter((n) => {
+      const t = String(n.data('type') ?? '');
+      return t === 'class' || t === 'interface';
+    });
+    if (classNodes.length === 0) return 'classDiagram\n';
+
+    const inheritanceEdges = edges.filter((e) => {
+      const t = String(e.data('type') ?? '');
+      return t === 'extend' || t === 'implement';
+    });
+
+    const idMap = new Map<string, string>();
+    const lines: string[] = ['classDiagram'];
+
+    classNodes.forEach((node) => {
+      const rawId = node.id();
+      const safeId = 'C' + rawId.replace(/[^a-zA-Z0-9_]/g, '_');
+      idMap.set(rawId, safeId);
+
+      const type = String(node.data('type') ?? '');
+      if (type === 'interface') {
+        lines.push(`  class ${safeId} {`);
+        lines.push(`    <<interface>>`);
+        lines.push(`  }`);
+      } else {
+        lines.push(`  class ${safeId}`);
+      }
+    });
+
+    inheritanceEdges.forEach((edge) => {
+      const sourceId = idMap.get(edge.source().id());
+      const targetId = idMap.get(edge.target().id());
+      if (!sourceId || !targetId) return;
+      const edgeType = String(edge.data('type') ?? '');
+      if (edgeType === 'extend') {
+        lines.push(`  ${sourceId} <|-- ${targetId}`);
+      } else if (edgeType === 'implement') {
+        lines.push(`  ${sourceId} <|.. ${targetId}`);
       }
     });
 

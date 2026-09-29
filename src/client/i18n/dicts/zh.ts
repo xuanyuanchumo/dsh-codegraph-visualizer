@@ -169,7 +169,9 @@ export const zh: Record<string, string> = {
   'export.png': 'PNG',
   'export.svg': 'SVG',
   'export.json': 'JSON',
-  'export.mermaid': 'Mermaid',
+  'export.mermaid': 'Mermaid 流程图',
+  'export.mermaidSeq': 'Mermaid 时序图',
+  'export.mermaidClass': 'Mermaid 类图',
   'export.graphml': 'GraphML',
   'export.jsonld': 'JSON-LD',
 
@@ -199,7 +201,7 @@ export const zh: Record<string, string> = {
   'prereq.notFound': '未检测到',
   'prereq.codegraphLabel': 'dsh-codegraph',
   'prereq.lensLabel': 'dsh-tool-lens',
-  'prereq.codegraphDesc': '必需 — 提供 20+ 语言支持和增量索引。',
+  'prereq.codegraphDesc': '推荐 — 提供 20+ 语言支持和增量索引。未安装时可使用内置分析能力。',
   'prereq.lensDesc': '可选 — 提供 AST 精准分析和影响检测。',
 
   // 图谱初始化
@@ -213,11 +215,14 @@ export const zh: Record<string, string> = {
   'graph.hotUpdateOff': '自动刷新: 关闭',
 
   // 增强空状态
-  'empty.prereqTitle': '需要前置插件',
-  'empty.prereqDesc': '安装 dsh-codegraph 或 dsh-tool-lens 以获得完整功能：',
+  'empty.prereqTitle': '推荐安装前置插件',
+  'empty.prereqDesc': '安装 dsh-codegraph 或 dsh-tool-lens 以获得更完整的代码图谱：',
   'empty.copyCmd': '复制安装命令',
   'empty.copied': '已复制！',
   'empty.scanWorkspace': '扫描当前工作区',
+  'empty.useBuiltin': '使用内置分析',
+  'empty.degradedMode': '降级模式 — 使用内置 TreeSitter 和依赖分析',
+  'empty.degradedHint': '内置分析支持基础代码结构解析，无需安装额外插件。',
 
   // 键盘快捷键
   'shortcut.title': '键盘快捷键',
@@ -454,8 +459,14 @@ export const zh: Record<string, string> = {
   'nav.title': '代码图谱',
   'nav.ariaLabel': '代码图谱',
   'nav.closePanel': '关闭图谱面板',
+  'nav.minimizePanel': '最小化面板',
+  'nav.restorePanel': '恢复面板',
   'nav.searchSymbols': '代码图谱: 搜索符号',
   'nav.togglePanel': '代码图谱: 切换面板',
+  'nav.integrationMode': '集成模式',
+  'nav.modeSidebar': '侧边栏',
+  'nav.modeSlot': '插槽',
+  'nav.modeFloating': '浮动面板',
 
   // 筛选面板
   'filterPanel.title': '筛选与连接数',

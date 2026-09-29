@@ -114,6 +114,10 @@
         "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-connection"
       ]
-    }
+    },
+    "optionalPlugins": [
+      "dsh-codegraph",
+      "dsh-tool-lens"
+    ]
   }
 }

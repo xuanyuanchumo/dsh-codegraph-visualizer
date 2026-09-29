@@ -26,22 +26,22 @@ describe('client api', () => {
     it('returns parsed status on success', async () => {
       globalThis.fetch = vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => ({ codegraph: true, lens: false }),
+        json: async () => ({ codegraph: true, lens: false, builtin: true }),
       }) as unknown as typeof fetch;
       const result = await fetchStatus();
-      expect(result).toEqual({ codegraph: true, lens: false });
+      expect(result).toEqual({ codegraph: true, lens: false, builtin: true });
     });
 
     it('returns false/false when response not ok', async () => {
       globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }) as unknown as typeof fetch;
       const result = await fetchStatus();
-      expect(result).toEqual({ codegraph: false, lens: false });
+      expect(result).toEqual({ codegraph: false, lens: false, builtin: true });
     });
 
     it('returns false/false on fetch error', async () => {
       globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as unknown as typeof fetch;
       const result = await fetchStatus();
-      expect(result).toEqual({ codegraph: false, lens: false });
+      expect(result).toEqual({ codegraph: false, lens: false, builtin: true });
     });
   });
 

@@ -330,7 +330,8 @@ interface GraphState {
   error: string | null;
   lastUpdated: number;
 
-  prerequisites: { codegraph: boolean; lens: boolean };
+  prerequisites: { codegraph: boolean; lens: boolean; builtin: boolean };
+  integrationMode: 'sidebar' | 'slot' | 'floating' | 'unknown';
   initStatus: 'idle' | 'initializing' | 'done' | 'error';
   initMessage: string | null;
   watchEnabled: boolean;
@@ -397,7 +398,8 @@ interface GraphState {
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clearGraph: () => void;
-  setPrerequisites: (status: { codegraph: boolean; lens: boolean }) => void;
+  setPrerequisites: (status: { codegraph: boolean; lens: boolean; builtin: boolean }) => void;
+  setIntegrationMode: (mode: 'sidebar' | 'slot' | 'floating' | 'unknown') => void;
   setInitStatus: (status: 'idle' | 'initializing' | 'done' | 'error', message?: string | null) => void;
   setWatchEnabled: (enabled: boolean) => void;
   expandNode: (nodeId: string) => void;
@@ -470,7 +472,8 @@ export const useGraphStore = create<GraphState>()(
       isLoading: false,
       error: null,
       lastUpdated: 0,
-      prerequisites: { codegraph: false, lens: false },
+      prerequisites: { codegraph: false, lens: false, builtin: true },
+      integrationMode: 'unknown',
       initStatus: 'idle',
       initMessage: null,
       watchEnabled: false,
@@ -733,6 +736,7 @@ export const useGraphStore = create<GraphState>()(
         set({ nodes: [], edges: [], rawNodes: [], rawEdges: [], savedRawNodes: [], savedRawEdges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0, truncated: false, totalNodeCount: 0, totalEdgeCount: 0, pendingRequests: new Map(), loadErrorsByNodeId: new Map() });
       },
       setPrerequisites: (prerequisites) => set({ prerequisites }),
+      setIntegrationMode: (integrationMode) => set({ integrationMode }),
       setInitStatus: (initStatus, initMessage = null) => set({ initStatus, initMessage }),
       setWatchEnabled: (watchEnabled) => set({ watchEnabled }),
       expandNode: (nodeId) => {

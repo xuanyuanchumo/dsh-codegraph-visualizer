@@ -24,7 +24,7 @@ vi.mock('../../src/host/security.ts', () => ({
 vi.mock('../../src/host/prerequisites.ts', () => ({
   findWorkspacePath: vi.fn(() => '/test/workspace'),
   extractWorkspacePaths: vi.fn(() => ['/test/workspace']),
-  checkPrerequisites: vi.fn(() => ({ codegraph: true, lens: true })),
+  checkPrerequisites: vi.fn(() => ({ codegraph: true, lens: true, builtin: true })),
 }));
 
 vi.mock('../../src/adapters/DependencyAdapter.ts', () => ({
@@ -189,7 +189,7 @@ describe('registerRoutes', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('registers all 16 routes', () => {
@@ -203,7 +203,7 @@ describe('registerRoutes', () => {
     const { res, state } = makeRes();
     handler(makeReq('GET'), res);
     expect(state.code).toBe(200);
-    expect(JSON.parse(state.body)).toEqual({ codegraph: true, lens: true });
+    expect(JSON.parse(state.body)).toEqual({ codegraph: true, lens: true, builtin: true });
   });
 
   it('GET /status handles CORS preflight', () => {
@@ -513,7 +513,7 @@ describe('registerRoutes - CORS', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('sets CORS header for matching origin', () => {
@@ -706,7 +706,7 @@ describe('POST /ast', () => {
     mockIsPathAllowed.mockReturnValue(true);
     // Use platform-appropriate workspace path so path.resolve/normalize checks pass
     vi.mocked(findWorkspacePath).mockReturnValue(path.resolve('D:\\test\\workspace'));
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
     vi.mocked(TreeSitterAdapter).mockImplementation(() => ({
       parseFile: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
       parseToAst: vi.fn().mockResolvedValue({ type: 'program', children: [] }),
@@ -817,7 +817,7 @@ describe('POST /tree-sitter (additional)', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
     vi.mocked(TreeSitterAdapter).mockImplementation(() => ({
       parseFile: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
       parseToAst: vi.fn().mockResolvedValue({ type: 'program' }),
@@ -874,7 +874,7 @@ describe('POST /scan (additional)', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('returns in-flight data when a scan is already running', async () => {
@@ -918,7 +918,7 @@ describe('POST /init (additional)', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('returns failure result when invokeUpstream returns null', async () => {
@@ -955,7 +955,7 @@ describe('POST /watch (additional)', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('toggles watch mode off when enabled is false', async () => {
@@ -991,7 +991,7 @@ describe('POST /diff (additional)', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('returns 500 on fetch error', async () => {
@@ -1043,7 +1043,7 @@ describe('GET /data (additional)', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('returns empty graph when if-none-match present but no cached data', () => {
@@ -1089,7 +1089,7 @@ describe('GET /workspace (additional)', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('handles CORS preflight', () => {
@@ -1113,7 +1113,7 @@ describe('GET /dependencies (additional)', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('handles CORS preflight', async () => {
@@ -1181,7 +1181,7 @@ describe('registerRoutes - rate limiting', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('returns 429 when rate limit exceeded for /status', () => {
@@ -1216,7 +1216,7 @@ describe('registerRoutes - CORS (additional)', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('does not set CORS header for non-matching origin', () => {
@@ -1299,7 +1299,7 @@ describe('validatePathRealpath security', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
     vi.mocked(fs.realpath).mockResolvedValue('/test/workspace');
   });
 
@@ -1355,7 +1355,7 @@ describe('GET /health', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('returns 200 and healthy status when codegraph is available', () => {
@@ -1374,16 +1374,17 @@ describe('GET /health', () => {
     expect(parsed).toHaveProperty('timestamp');
   });
 
-  it('returns 503 and degraded status when codegraph is not available', () => {
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: false, lens: true });
+  it('returns 200 and degraded status when codegraph is not available but builtin is', () => {
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: false, lens: false, builtin: true });
     registerRoutes(deps);
     const handler = getHandler(ctx, 1);
     const { res, state } = makeRes();
     handler(makeReq('GET'), res);
-    expect(state.code).toBe(503);
+    expect(state.code).toBe(200);
     const parsed = JSON.parse(state.body);
-    expect(parsed.status).toBe('degraded');
+    expect(parsed.status).toBe('healthy');
     expect(parsed.codegraph).toBe(false);
+    expect(parsed.builtin).toBe(true);
   });
 
   it('returns 503 and unhealthy status on error', () => {
@@ -1421,7 +1422,7 @@ describe('readBody - body too large', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('POST /scan returns 500 when request body exceeds maxBodyBytes', async () => {
@@ -1455,7 +1456,7 @@ describe('parseJsonBody - invalid body', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('POST /scan returns 500 when JSON body is an array', async () => {
@@ -1495,7 +1496,7 @@ describe('extractStringField - boundary tests', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('POST /scan falls back to workspace when path contains null byte', async () => {
@@ -1530,7 +1531,7 @@ describe('rate limiter - cleanup logic', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('cleans up expired buckets after RATE_LIMIT_WINDOW_MS', () => {
@@ -1613,7 +1614,7 @@ describe('bootstrap route', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('GET /bootstrap returns building status when no graph data', async () => {
@@ -1664,7 +1665,7 @@ describe('node children route', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('GET /children returns children of specified node', () => {
@@ -1696,7 +1697,7 @@ describe('file outline route (index 13)', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('GET /files/{nodeId}/outline returns 404 for invalid path', () => {
@@ -1770,7 +1771,7 @@ describe('symbol AST route (index 14)', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('GET /symbols/{nodeId}/ast returns 404 for invalid path', () => {
@@ -1845,7 +1846,7 @@ describe('edges route (index 15)', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
   it('GET /edges returns 400 when fromId is missing', () => {
@@ -2089,7 +2090,7 @@ describe('edges route - DB fallback paths (index 15)', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
     mockReadEdgesFromDb.mockReturnValue(null);
     mockReadFileOutlineFromDb.mockReturnValue(null);
     mockReadSymbolASTFromDb.mockReturnValue(null);
@@ -2166,7 +2167,7 @@ describe('file outline route - DB fallback (index 13)', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
     mockReadFileOutlineFromDb.mockReturnValue(null);
     mockReadEdgesForNodesFromDb.mockReturnValue([]);
   });
@@ -2213,7 +2214,7 @@ describe('symbol AST route - DB fallback (index 14)', () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
     mockIsPathAllowed.mockReturnValue(true);
     vi.mocked(findWorkspacePath).mockReturnValue('/test/workspace');
-    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true });
+    vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
     mockReadSymbolASTFromDb.mockReturnValue(null);
     mockReadEdgesForNodesFromDb.mockReturnValue([]);
   });

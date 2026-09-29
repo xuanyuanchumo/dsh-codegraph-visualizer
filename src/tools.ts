@@ -76,22 +76,26 @@ function cacheGraph(cache: Map<string, GraphData>, repoId: string, data: GraphDa
 export async function fetchMergedGraph(
   invoke: UpstreamInvoker,
   repoId: string,
-  source: 'codegraph' | 'lens' | 'both' = 'both',
+  source: 'codegraph' | 'lens' | 'both' | 'auto' = 'both',
   deps?: GraphToolDeps,
 ): Promise<GraphData> {
   const d = deps ?? await createGraphToolDeps();
   const tasks: Promise<AdapterResult>[] = [];
-  if (source === 'codegraph' || source === 'both') {
+  if (source === 'codegraph' || source === 'both' || source === 'auto') {
     tasks.push(d.codegraphAdapter.fetchData(repoId, invoke));
   }
-  if (source === 'lens' || source === 'both') {
+  if (source === 'lens' || source === 'both' || source === 'auto') {
     tasks.push(d.lensAdapter.fetchData(repoId, invoke));
   }
   const settled = await Promise.allSettled(tasks);
   const results: AdapterResult[] = settled
     .filter((r): r is PromiseFulfilledResult<AdapterResult> => r.status === 'fulfilled')
     .map((r) => r.value);
-  return d.merger.merge(results, makeRepoId(repoId));
+  const merged = d.merger.merge(results, makeRepoId(repoId));
+  if (source === 'auto' && merged.nodes.length === 0) {
+    log.info('fetchMergedGraph: auto mode — external sources returned empty, built-in analysis always available');
+  }
+  return merged;
 }
 
 
@@ -219,8 +223,8 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       repoId: { type: 'string', required: true, description: 'Repository id.' },
       source: {
         type: 'string',
-        enum: ['codegraph', 'lens', 'both'],
-        description: 'Data source; defaults to both.',
+        enum: ['codegraph', 'lens', 'both', 'auto'],
+        description: 'Data source; defaults to both. Use auto for graceful degradation to built-in analysis.',
       },
     },
     output: {

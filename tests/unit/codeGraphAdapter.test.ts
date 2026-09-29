@@ -6,6 +6,7 @@ import {
   mapEdgeKind,
   resolveDbPath,
   readGraphFromDb,
+  closeAllDbConnections,
 } from '../../src/adapters/CodeGraphAdapter.ts';
 import type { UpstreamInvoker } from '../../src/adapters/CodeGraphAdapter.ts';
 import { createRequire } from 'node:module';
@@ -239,6 +240,7 @@ describe('readGraphFromDb', () => {
   });
 
   afterEach(() => {
+    closeAllDbConnections();
     rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -275,6 +277,7 @@ describe('CodeGraphAdapter with real DB', () => {
   });
 
   afterEach(() => {
+    closeAllDbConnections();
     rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -393,6 +396,7 @@ describe('CodeGraphAdapter - isNoisePath filtering', () => {
       expect(result.nodes).toHaveLength(1);
       expect(result.nodes[0]?.label).toBe('cleanFn');
     } finally {
+      closeAllDbConnections();
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
@@ -419,6 +423,7 @@ describe('CodeGraphAdapter - toAdapterResult edge filtering', () => {
       const result = await adapter.fetchData(tempDir, invoke);
       expect(result.edges).toHaveLength(0);
     } finally {
+      closeAllDbConnections();
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
@@ -447,6 +452,7 @@ describe('CodeGraphAdapter - toAdapterResult edge filtering', () => {
       expect(result.edges).toHaveLength(1);
       expect(result.edges[0]?.type).toBe('call');
     } finally {
+      closeAllDbConnections();
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
@@ -476,6 +482,7 @@ describe('CodeGraphAdapter - toAdapterResult edge filtering', () => {
       const importEdges = result.edges.filter((e) => e.type === 'import');
       expect(importEdges).toHaveLength(20);
     } finally {
+      closeAllDbConnections();
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
@@ -503,6 +510,7 @@ describe('CodeGraphAdapter - toAdapterResult edge filtering', () => {
       const fileNode = result.nodes.find((n) => n.label === 'main.ts');
       expect(fileNode?.parentId).toBeUndefined();
     } finally {
+      closeAllDbConnections();
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
@@ -528,6 +536,7 @@ describe('CodeGraphAdapter - toAdapterResult edge filtering', () => {
       const impNode = result.nodes.find((n) => n.label === 'react');
       expect(impNode?.parentId).toBeUndefined();
     } finally {
+      closeAllDbConnections();
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
@@ -557,6 +566,7 @@ describe('CodeGraphAdapter - toAdapterResult edge filtering', () => {
       const containsEdge = result.edges.find((e) => e.type === 'contains');
       expect(containsEdge?.properties).toEqual({});
     } finally {
+      closeAllDbConnections();
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
@@ -581,6 +591,7 @@ describe('CodeGraphAdapter - toAdapterResult edge filtering', () => {
       expect(result.nodes[0]?.type).toBe('module');
       expect(result.nodes[0]?.parentId).toBeUndefined();
     } finally {
+      closeAllDbConnections();
       rmSync(tempDir, { recursive: true, force: true });
     }
   });

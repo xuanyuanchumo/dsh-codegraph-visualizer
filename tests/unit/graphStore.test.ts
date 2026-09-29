@@ -180,9 +180,9 @@ describe('graphStore (J6/J7/J10)', () => {
   });
 
   it('should track prerequisites (J11 data source detection)', () => {
-    useGraphStore.getState().setPrerequisites({ codegraph: true, lens: false });
+    useGraphStore.getState().setPrerequisites({ codegraph: true, lens: false, builtin: true });
     const s = useGraphStore.getState();
-    expect(s.prerequisites).toEqual({ codegraph: true, lens: false });
+    expect(s.prerequisites).toEqual({ codegraph: true, lens: false, builtin: true });
   });
 
   it('should track init status lifecycle (J1 init)', () => {

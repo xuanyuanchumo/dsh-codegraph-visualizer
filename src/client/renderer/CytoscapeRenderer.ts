@@ -336,6 +336,14 @@ export class CytoscapeRenderer implements IRenderer {
     return this.exportCtrl?.exportMermaid() ?? 'graph TD\n';
   }
 
+  exportMermaidSequence(): string {
+    return this.exportCtrl?.exportMermaidSequence() ?? 'sequenceDiagram\n';
+  }
+
+  exportMermaidClass(): string {
+    return this.exportCtrl?.exportMermaidClass() ?? 'classDiagram\n';
+  }
+
   exportPNG(): string | null {
     return this.safeCall('exportPNG', () => this.exportCtrl?.exportPNG() ?? null, null);
   }

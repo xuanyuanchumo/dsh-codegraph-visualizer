@@ -18,14 +18,14 @@ export async function detectCodegraphCli(): Promise<boolean> {
   }
 }
 
-export function checkPrerequisites(ctx: Context): { codegraph: boolean; lens: boolean } {
+export function checkPrerequisites(ctx: Context): { codegraph: boolean; lens: boolean; builtin: boolean } {
   try {
     const cg = ctx.tools.get('codegraph_status') ?? ctx.tools.get('codegraph_graph') ?? ctx.tools.get('codegraph_query');
     const lens = ctx.tools.get('lens_analyze');
-    return { codegraph: !!cg, lens: !!lens };
+    return { codegraph: !!cg, lens: !!lens, builtin: true };
   } catch (e) {
     log.warn('checkPrerequisites failed', e);
-    return { codegraph: false, lens: false };
+    return { codegraph: false, lens: false, builtin: true };
   }
 }
 

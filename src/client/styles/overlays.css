@@ -301,3 +301,123 @@
   font-size: 8px;
   animation: cg-pulse 2s ease-in-out infinite;
 }
+/* ---- Degraded mode notice ------------------------------------------------ */
+
+.cg-empty-degraded-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--cg-accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--cg-accent) 30%, transparent);
+  border-radius: var(--cg-radius-sm);
+  max-width: 400px;
+  text-align: left;
+}
+
+.cg-degraded-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cg-accent);
+}
+
+.cg-degraded-hint {
+  font-size: 11px;
+  color: var(--cg-text-secondary);
+  line-height: 1.4;
+}
+
+/* ---- Prereq warning header / title --------------------------------------- */
+
+.cg-prereq-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cg-prereq-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cg-text);
+}
+
+/* ---- Prereq command row -------------------------------------------------- */
+
+.cg-prereq-cmd-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.cg-prereq-cmd {
+  flex: 1;
+  font-family: var(--cg-font-mono, monospace);
+  font-size: 11px;
+  padding: 4px 8px;
+  background: color-mix(in srgb, var(--cg-surface) 80%, transparent);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-xs);
+  color: var(--cg-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cg-prereq-copy-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-xs);
+  color: var(--cg-text-secondary);
+  cursor: pointer;
+  transition: background var(--cg-transition), border-color var(--cg-transition), color var(--cg-transition);
+}
+
+.cg-prereq-copy-btn:hover {
+  background: var(--cg-surface-hover);
+  border-color: var(--cg-accent);
+  color: var(--cg-accent);
+}
+
+/* ---- Prereq install button ----------------------------------------------- */
+
+.cg-prereq-install-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  margin-top: 6px;
+  background: var(--cg-accent);
+  color: var(--cg-on-accent);
+  border: none;
+  border-radius: var(--cg-radius-xs);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--cg-font-sans);
+  cursor: pointer;
+  transition: background var(--cg-transition), opacity var(--cg-transition);
+}
+
+.cg-prereq-install-btn:hover:not(:disabled) {
+  background: var(--cg-accent-hover);
+}
+
+.cg-prereq-install-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ---- Prereq copied hint -------------------------------------------------- */
+
+.cg-prereq-copied {
+  font-size: 11px;
+  color: var(--cg-success);
+  text-align: center;
+}

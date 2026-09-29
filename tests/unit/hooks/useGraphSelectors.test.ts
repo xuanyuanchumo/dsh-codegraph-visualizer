@@ -23,7 +23,7 @@ describe('useGraphSelectors', () => {
       pathFilterInclude: null, pathFilterExclude: null,
       isLoading: false, error: null, lastUpdated: 0, truncated: false,
       totalNodeCount: 0, totalEdgeCount: 0,
-      prerequisites: { codegraph: false, lens: false },
+      prerequisites: { codegraph: false, lens: false, builtin: true },
       watchEnabled: false, initStatus: 'idle', initMessage: null,
       currentWorkspace: '', workspaceList: [],
       pathStartId: null, pathEndId: null,

@@ -638,8 +638,8 @@ describe('selectHighDegreeNodes', () => {
     const result = selectHighDegreeNodes(nodes, edges, 2);
     expect(result).toHaveLength(2);
     // 'a' has degree 3, 'b' has degree 2, 'c' has degree 2, 'd' has degree 1
-    expect(result[0].id).toBe(NodeId('a'));
-    expect(result[1].id).toBe(NodeId('b'));
+    expect(result[0]?.id).toBe(NodeId('a'));
+    expect(result[1]?.id).toBe(NodeId('b'));
   });
 
   it('returns all nodes when limit exceeds node count', () => {
@@ -671,6 +671,6 @@ describe('selectHighDegreeNodes', () => {
     const result = selectHighDegreeNodes(nodes, edges, 2);
     expect(result).toHaveLength(2);
     // 'a' has degree 2 (e1 + e2), 'b' has degree 2 (e1 + e3)
-    expect(result[0].id).toBe(NodeId('a'));
+    expect(result[0]?.id).toBe(NodeId('a'));
   });
 });
