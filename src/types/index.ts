@@ -382,6 +382,17 @@ declare module '@deepseek-ai/cordis' {
       registerCommand(cmd: { id: string; title: string; handler: () => void }): (() => void) | void;
     };
 
+    sidebarRightTabs?: {
+      register(definition: {
+        id: string;
+        kind: string;
+        patterns?: string[];
+        priority?: 'extension' | 'builtin' | 'fallback';
+        canOpen?: (address: string) => boolean;
+        title?: (address: string) => string;
+      }): (() => void) | void;
+    };
+
     workspaceRegistry?: {
       list?(): Array<{ path?: string }>;
     };

@@ -111,7 +111,7 @@
       "patch": "./cordis.patch.yml"
     },
     "client": {
-      "platform": "web",
+      "platform": ["web", "desktop"],
       "immediately": true,
       "inject": [
         "@deepseek-ai/dsh-client-connection",

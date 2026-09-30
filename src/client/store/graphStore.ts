@@ -331,7 +331,7 @@ interface GraphState {
   lastUpdated: number;
 
   prerequisites: { codegraph: boolean; lens: boolean; builtin: boolean };
-  integrationMode: 'sidebar' | 'slot' | 'floating' | 'unknown';
+  integrationMode: 'sidebar' | 'slot' | 'floating' | 'unknown' | 'sidebar-right';
   panelVisible: boolean;
   urlRestored: boolean;
   initStatus: 'idle' | 'initializing' | 'done' | 'error';
@@ -402,7 +402,7 @@ interface GraphState {
   setError: (error: string | null) => void;
   clearGraph: () => void;
   setPrerequisites: (status: { codegraph: boolean; lens: boolean; builtin: boolean }) => void;
-  setIntegrationMode: (mode: 'sidebar' | 'slot' | 'floating' | 'unknown') => void;
+  setIntegrationMode: (mode: 'sidebar' | 'slot' | 'floating' | 'unknown' | 'sidebar-right') => void;
   setPanelVisible: (visible: boolean) => void;
   setInitStatus: (status: 'idle' | 'initializing' | 'done' | 'error', message?: string | null) => void;
   setWatchEnabled: (enabled: boolean) => void;

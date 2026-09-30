@@ -201,6 +201,37 @@ export function apply(ctx: Context): () => void {
 
   if (!navButtonRegistered) {
     try {
+      const sidebarRightTabs = ctx.get('sidebarRightTabs') as Context['sidebarRightTabs'] | undefined;
+      if (sidebarRightTabs) {
+        const disposeTabType = sidebarRightTabs.register({
+          id: 'dsh-codegraph-visualizer',
+          kind: 'codegraph',
+          patterns: [],
+          priority: 'extension',
+          canOpen: () => true,
+          title: () => t('nav.title'),
+        });
+        if (typeof disposeTabType === 'function') {
+          ctx.effect(() => disposeTabType, 'codegraph: sidebarRightTabs type');
+        }
+        const disposeSlot = ctx.slots.inject('sidebar.right.pane.tab', () => {
+          return ctx.slots.register(
+            { name: 'sidebar.right.pane.tab', id: 'dsh-codegraph-visualizer' },
+            () => React.createElement(GraphPanel),
+          );
+        });
+        trackSlotDisposer(disposeSlot);
+        navButtonRegistered = true;
+        useGraphStore.getState().setIntegrationMode('sidebar-right');
+        log.info('sidebarRightTabs registration succeeded');
+      }
+    } catch (e) {
+      log.warn('sidebarRightTabs registration failed', e);
+    }
+  }
+
+  if (!navButtonRegistered) {
+    try {
       const injectDisposer = ctx.slots.inject('sidebar.footer.action', () => {
         trackSlotDisposer(
           ctx.slots.register(
