@@ -353,12 +353,12 @@ describe('GraphPanel handler behavior', () => {
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
   });
 
-  it('layout button click does not crash', async () => {
+  it('layout dropdown button click does not crash', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const layoutBtns = container.querySelectorAll('.cg-layout-btn');
-    expect(layoutBtns.length).toBeGreaterThan(0);
-    fireEvent.click(layoutBtns[0]!);
+    const layoutBtn = container.querySelector('.cg-layout-dropdown-btn');
+    expect(layoutBtn).toBeTruthy();
+    fireEvent.click(layoutBtn!);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
   });
 

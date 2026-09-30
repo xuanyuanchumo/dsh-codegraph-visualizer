@@ -158,9 +158,11 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const analysisMenuRef = useRef<HTMLDivElement>(null);
   const qualityMenuRef = useRef<HTMLDivElement>(null);
+  const layoutMenuRef = useRef<HTMLDivElement>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showAnalysisMenu, setShowAnalysisMenu] = useState(false);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
+  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -173,12 +175,15 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       if (qualityMenuRef.current && !qualityMenuRef.current.contains(e.target as Node)) {
         setShowQualityMenu(false);
       }
+      if (layoutMenuRef.current && !layoutMenuRef.current.contains(e.target as Node)) {
+        setShowLayoutMenu(false);
+      }
     };
-    if (showExportMenu || showAnalysisMenu || showQualityMenu) {
+    if (showExportMenu || showAnalysisMenu || showQualityMenu || showLayoutMenu) {
       document.addEventListener('mousedown', onDocClick);
       return () => document.removeEventListener('mousedown', onDocClick);
     }
-  }, [showExportMenu, showAnalysisMenu, showQualityMenu]);
+  }, [showExportMenu, showAnalysisMenu, showQualityMenu, showLayoutMenu]);
 
   const onExport = props.onExport;
   const handleExport = useCallback((format: 'png' | 'svg' | 'json' | 'mermaid' | 'mermaid-seq' | 'mermaid-class' | 'graphml' | 'jsonld') => {
@@ -225,30 +230,31 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       </div>
 
       <div className="cg-toolbar-center">
-        <div className="cg-layout-buttons" role="group" aria-label={t('toolbar.layoutSwitcher')}>
-          {LAYOUTS.map((l) => (
-            <button
-              key={l}
-              className={`cg-layout-btn ${layout === l ? 'cg-active' : ''}`}
-              onClick={() => onLayoutChange(l)}
-              title={t('toolbar.layout', { l })}
-              aria-pressed={layout === l}
-            >{l}</button>
-          ))}
+        <div className="cg-dropdown-menu" ref={layoutMenuRef}>
+          <button className={`cg-layout-dropdown-btn ${showLayoutMenu ? 'cg-active' : ''}`} onClick={() => setShowLayoutMenu((v) => !v)}
+            title={t('toolbar.layoutSwitcher')} aria-label={t('toolbar.layoutSwitcher')} aria-expanded={showLayoutMenu}>
+            {layout}<ChevronDownIcon size={12} />
+          </button>
+          {showLayoutMenu && (
+            <div className="cg-dropdown-content cg-layout-dropdown">
+              {LAYOUTS.map((l) => (
+                <button key={l} className={`cg-dropdown-item ${layout === l ? 'cg-active' : ''}`}
+                  onClick={() => { onLayoutChange(l); if (l !== 'dagre') setShowLayoutMenu(false); }}
+                  aria-pressed={layout === l}>{l}</button>
+              ))}
+              {layout === 'dagre' && (
+                <>
+                  <div className="cg-dropdown-separator" />
+                  {RANK_DIRS.map((d) => (
+                    <button key={d.value} className={`cg-dropdown-item ${dagreRankDir === d.value ? 'cg-active' : ''}`}
+                      onClick={() => { onDagreRankDirChange(d.value); setShowLayoutMenu(false); }}
+                      aria-pressed={dagreRankDir === d.value}>{d.label}</button>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
         </div>
-        {layout === 'dagre' && (
-          <div className="cg-rank-dir-buttons" role="group" aria-label={t('toolbar.rankDir')}>
-            {RANK_DIRS.map((d) => (
-              <button
-                key={d.value}
-                className={`cg-rank-dir-btn ${dagreRankDir === d.value ? 'cg-active' : ''}`}
-                onClick={() => onDagreRankDirChange(d.value)}
-                title={d.label}
-                aria-pressed={dagreRankDir === d.value}
-              >{d.label}</button>
-            ))}
-          </div>
-        )}
         <div className="cg-graph-type-buttons" role="group" aria-label={t('toolbar.graphType')}>
           {GRAPH_TYPES.map((g) => (
             <button

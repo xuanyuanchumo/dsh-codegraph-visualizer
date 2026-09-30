@@ -103,33 +103,46 @@ function makeProps(overrides: Record<string, unknown> = {}) {
 
 describe('Toolbar component', () => {
   // 1. 渲染所有布局按钮并响应点击
-  describe('layout buttons', () => {
-    it('renders all 6 layout buttons', () => {
+  describe('layout dropdown', () => {
+    it('renders layout dropdown button with current layout', () => {
       render(<Toolbar {...makeProps()} />);
-      const layoutGroup = screen.getByRole('group', { name: /布局切换|layout switcher/i });
-      expect(layoutGroup).toBeTruthy();
-      const buttons = layoutGroup.querySelectorAll('button');
-      expect(buttons.length).toBe(7);
-      const labels = Array.from(buttons).map((b) => b.textContent);
+      const dropdownBtn = document.querySelector('.cg-layout-dropdown-btn');
+      expect(dropdownBtn).toBeTruthy();
+      expect(dropdownBtn!.textContent).toContain('cose');
+    });
+
+    it('opens layout dropdown and shows all layout options', async () => {
+      const user = userEvent.setup();
+      render(<Toolbar {...makeProps()} />);
+      const dropdownBtn = document.querySelector('.cg-layout-dropdown-btn') as HTMLButtonElement;
+      await user.click(dropdownBtn);
+      const dropdown = document.querySelector('.cg-layout-dropdown');
+      expect(dropdown).toBeTruthy();
+      const items = dropdown!.querySelectorAll('button');
+      expect(items.length).toBe(7);
+      const labels = Array.from(items).map((b) => b.textContent);
       expect(labels).toEqual(['cose', 'fcose', 'dagre', 'circle', 'grid', 'radial', 'tree']);
     });
 
-    it('marks the active layout button with active class and aria-pressed', () => {
+    it('marks the active layout option with active class', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ layout: 'dagre' })} />);
-      const layoutGroup = screen.getByRole('group', { name: /布局切换|layout switcher/i });
-      const dagreBtn = Array.from(layoutGroup.querySelectorAll('button')).find(
+      const dropdownBtn = document.querySelector('.cg-layout-dropdown-btn') as HTMLButtonElement;
+      await user.click(dropdownBtn);
+      const dagreBtn = Array.from(document.querySelectorAll('.cg-layout-dropdown button')).find(
         (b) => b.textContent === 'dagre',
       ) as HTMLButtonElement;
       expect(dagreBtn.className).toContain('active');
       expect(dagreBtn.getAttribute('aria-pressed')).toBe('true');
     });
 
-    it('calls onLayoutChange when a layout button is clicked', async () => {
+    it('calls onLayoutChange when a layout option is clicked', async () => {
       const user = userEvent.setup();
       const onLayoutChange = vi.fn();
       render(<Toolbar {...makeProps({ onLayoutChange })} />);
-      const layoutGroup = screen.getByRole('group', { name: /布局切换|layout switcher/i });
-      const circleBtn = Array.from(layoutGroup.querySelectorAll('button')).find(
+      const dropdownBtn = document.querySelector('.cg-layout-dropdown-btn') as HTMLButtonElement;
+      await user.click(dropdownBtn);
+      const circleBtn = Array.from(document.querySelectorAll('.cg-layout-dropdown button')).find(
         (b) => b.textContent === 'circle',
       ) as HTMLButtonElement;
       await user.click(circleBtn);
@@ -854,30 +867,48 @@ describe('Toolbar component', () => {
     });
   });
 
-  describe('dagre rank-dir buttons', () => {
-    it('renders rank-dir buttons when layout is dagre', () => {
+  describe('dagre rank-dir in layout dropdown', () => {
+    it('shows rank-dir options when layout is dagre and dropdown is open', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ layout: 'dagre' })} />);
-      const rankDirGroup = document.querySelector('.cg-rank-dir-buttons');
-      expect(rankDirGroup).toBeTruthy();
-      const buttons = rankDirGroup!.querySelectorAll('button');
-      expect(buttons.length).toBeGreaterThan(0);
+      const dropdownBtn = document.querySelector('.cg-layout-dropdown-btn') as HTMLButtonElement;
+      await user.click(dropdownBtn);
+      const dropdown = document.querySelector('.cg-layout-dropdown');
+      expect(dropdown).toBeTruthy();
+      const separator = dropdown!.querySelector('.cg-dropdown-separator');
+      expect(separator).toBeTruthy();
+      const rankItems = Array.from(dropdown!.querySelectorAll('button')).filter(
+        (b) => ['TB', 'LR', 'BT', 'RL'].includes(b.textContent ?? ''),
+      );
+      expect(rankItems.length).toBe(4);
     });
 
-    it('calls onDagreRankDirChange when a rank-dir button is clicked', async () => {
+    it('calls onDagreRankDirChange when a rank-dir option is clicked', async () => {
       const user = userEvent.setup();
       const onDagreRankDirChange = vi.fn();
       render(<Toolbar {...makeProps({ layout: 'dagre', onDagreRankDirChange })} />);
-      const rankDirGroup = document.querySelector('.cg-rank-dir-buttons');
-      const firstBtn = rankDirGroup!.querySelector('button') as HTMLButtonElement;
-      await user.click(firstBtn);
-      expect(onDagreRankDirChange).toHaveBeenCalled();
+      const dropdownBtn = document.querySelector('.cg-layout-dropdown-btn') as HTMLButtonElement;
+      await user.click(dropdownBtn);
+      const tbBtn = Array.from(document.querySelectorAll('.cg-layout-dropdown button')).find(
+        (b) => b.textContent === 'TB',
+      ) as HTMLButtonElement;
+      await user.click(tbBtn);
+      expect(onDagreRankDirChange).toHaveBeenCalledWith('TB');
     });
 
-    it('does not render rank-dir buttons when layout is not dagre', () => {
+    it('does not show rank-dir options when layout is not dagre', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ layout: 'cose' })} />);
-      expect(document.querySelector('.cg-rank-dir-buttons')).toBeNull();
+      const dropdownBtn = document.querySelector('.cg-layout-dropdown-btn') as HTMLButtonElement;
+      await user.click(dropdownBtn);
+      const dropdown = document.querySelector('.cg-layout-dropdown');
+      const rankItems = dropdown ? Array.from(dropdown.querySelectorAll('button')).filter(
+        (b) => ['TB', 'LR', 'BT', 'RL'].includes(b.textContent ?? ''),
+      ) : [];
+      expect(rankItems.length).toBe(0);
     });
   });
+
 
   describe('export menu', () => {
     it('opens export dropdown when export button is clicked', async () => {
