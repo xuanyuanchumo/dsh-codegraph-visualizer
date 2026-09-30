@@ -10,7 +10,19 @@ const DEFAULT_TIMEOUT = API.DEFAULT_TIMEOUT_MS;
 export function fetchWithTimeout(url: string, options?: RequestInit, timeoutMs: number = DEFAULT_TIMEOUT): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+  const externalSignal = options?.signal;
+  const onExternalAbort = () => controller.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort();
+    } else {
+      externalSignal.addEventListener('abort', onExternalAbort, { once: true });
+    }
+  }
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => {
+    clearTimeout(timer);
+    if (externalSignal) externalSignal.removeEventListener('abort', onExternalAbort);
+  });
 }
 
 export interface BootstrapData {
@@ -27,9 +39,11 @@ export interface BootstrapData {
   };
 }
 
-export async function fetchBootstrap(): Promise<BootstrapData | null> {
+export async function fetchBootstrap(signal?: AbortSignal): Promise<BootstrapData | null> {
   try {
-    const res = await fetchWithTimeout('/api/v1/codegraph/bootstrap');
+    const options: RequestInit = {};
+    if (signal) options.signal = signal;
+    const res = await fetchWithTimeout('/api/v1/codegraph/bootstrap', options);
     if (!res.ok) return null;
     const data = await res.json() as BootstrapData;
     return {
@@ -41,6 +55,7 @@ export async function fetchBootstrap(): Promise<BootstrapData | null> {
       metadata: data.metadata ?? { repoId: '', timestamp: 0, totalNodeCount: 0, totalEdgeCount: 0 },
     };
   } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return null;
     log.warn('fetchBootstrap failed', { error: e instanceof Error ? e.message : String(e) });
     return null;
   }
@@ -168,9 +183,11 @@ export interface FileOutlineData {
   edges: GraphEdge[];
 }
 
-export async function fetchFileOutline(nodeId: string): Promise<FileOutlineData | null> {
+export async function fetchFileOutline(nodeId: string, signal?: AbortSignal): Promise<FileOutlineData | null> {
   try {
-    const res = await fetchWithTimeout(`/api/v1/codegraph/files/${encodeURIComponent(nodeId)}/outline`);
+    const options: RequestInit = {};
+    if (signal) options.signal = signal;
+    const res = await fetchWithTimeout(`/api/v1/codegraph/files/${encodeURIComponent(nodeId)}/outline`, options);
     if (!res.ok) return null;
     const data = await res.json() as FileOutlineData;
     return {
@@ -178,6 +195,7 @@ export async function fetchFileOutline(nodeId: string): Promise<FileOutlineData 
       edges: data.edges ?? [],
     };
   } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return null;
     log.warn('fetchFileOutline failed', { nodeId, error: e instanceof Error ? e.message : String(e) });
     return null;
   }
@@ -189,9 +207,11 @@ export interface SymbolASTData {
   sourceLines: string[];
 }
 
-export async function fetchSymbolAST(nodeId: string): Promise<SymbolASTData | null> {
+export async function fetchSymbolAST(nodeId: string, signal?: AbortSignal): Promise<SymbolASTData | null> {
   try {
-    const res = await fetchWithTimeout(`/api/v1/codegraph/symbols/${encodeURIComponent(nodeId)}/ast`);
+    const options: RequestInit = {};
+    if (signal) options.signal = signal;
+    const res = await fetchWithTimeout(`/api/v1/codegraph/symbols/${encodeURIComponent(nodeId)}/ast`, options);
     if (!res.ok) return null;
     const data = await res.json() as SymbolASTData;
     return {
@@ -200,6 +220,7 @@ export async function fetchSymbolAST(nodeId: string): Promise<SymbolASTData | nu
       sourceLines: data.sourceLines ?? [],
     };
   } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return null;
     log.warn('fetchSymbolAST failed', { nodeId, error: e instanceof Error ? e.message : String(e) });
     return null;
   }
@@ -211,17 +232,20 @@ export interface EdgesData {
   hasMore: boolean;
 }
 
-export async function fetchEdges(fromId: string, scope: 'file' | 'symbol' = 'file', cursor?: number, limit?: number): Promise<EdgesData | null> {
+export async function fetchEdges(fromId: string, scope: 'file' | 'symbol' = 'file', cursor?: number, limit?: number, signal?: AbortSignal): Promise<EdgesData | null> {
   try {
     const params = new URLSearchParams();
     params.set('from', fromId);
     params.set('scope', scope);
     if (cursor !== undefined) params.set('cursor', String(cursor));
     params.set('limit', String(limit ?? 500));
-    const res = await fetchWithTimeout(`/api/v1/codegraph/edges?${params}`);
+    const options: RequestInit = {};
+    if (signal) options.signal = signal;
+    const res = await fetchWithTimeout(`/api/v1/codegraph/edges?${params}`, options);
     if (!res.ok) return null;
     return await res.json() as EdgesData;
   } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return null;
     log.warn('fetchEdges failed', { fromId, scope, error: e instanceof Error ? e.message : String(e) });
     return null;
   }

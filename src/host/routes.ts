@@ -13,7 +13,7 @@ import { SecurityManager } from './security.ts';
 import { findWorkspacePath, extractWorkspacePaths, checkPrerequisites } from './prerequisites.ts';
 import type { VisualizerConfig } from './config.ts';
 import { parsePackageJson, parseCargoToml, parseGoMod, dependencyGraphToGraphData } from '../adapters/DependencyAdapter.ts';
-import { resolveDbPath, readTopLevelNodesFromDb, readNodeChildrenFromDb, readFileOutlineFromDb, readSymbolASTFromDb, readEdgesFromDb, readEdgesForNodesFromDb, mapNodeKind, mapEdgeKind, isNoisePath, FILTERED_EDGE_KINDS } from '../adapters/CodeGraphAdapter.ts';
+import { resolveDbPath, readTopLevelNodesFromDb, readNodeChildrenFromDb, readFileOutlineFromDb, readSymbolASTFromDb, readEdgesFromDb, readEdgesForNodesFromDb, countEdgesInDb, mapNodeKind, mapEdgeKind, isNoisePath, FILTERED_EDGE_KINDS } from '../adapters/CodeGraphAdapter.ts';
 import { inferLayerFromPath } from '../shared/layerUtils.ts';
 import { computeGraphDiff, diffToGraphData } from '../merger/DiffEngine.ts';
 import { TreeSitterAdapter } from '../adapters/TreeSitterAdapter.ts';
@@ -762,7 +762,7 @@ function registerBootstrapRoute(rc: RouteContext): void {
               repoId: RepoId(workspacePath),
               timestamp: Date.now(),
               totalNodeCount: dbResult.total,
-              totalEdgeCount: 0,
+              totalEdgeCount: countEdgesInDb(dbPath),
             },
           }, req, corsConfig);
           return;
@@ -1091,6 +1091,32 @@ function registerEdgesRoute(rc: RouteContext): void {
         return;
       }
 
+      // DB-first — try SQLite direct read, consistent with other routes
+      const workspacePath = findWorkspacePath(ctx);
+      if (workspacePath) {
+        const dbPath = resolveDbPath(workspacePath);
+        const dbResult = readEdgesFromDb(dbPath, fromId, scope as 'file' | 'symbol', cursor, limit);
+        if (dbResult) {
+          const pagedEdges = dbResult.edges
+            .filter((e) => e.source !== e.target && !FILTERED_EDGE_KINDS.has(e.kind))
+            .map((e) => ({
+              id: EdgeId(String(e.id)),
+              source: NodeId(e.source),
+              target: NodeId(e.target),
+              type: mapEdgeKind(e.kind),
+              properties: e.line !== null && e.line !== undefined ? { line: e.line } : {},
+            }));
+          sendJson(res, 200, {
+            edges: pagedEdges,
+            total: dbResult.total,
+            cursor: cursor + pagedEdges.length,
+            hasMore: cursor + limit < dbResult.total,
+          }, req, corsConfig);
+          return;
+        }
+      }
+
+      // Memory cache fallback — only if DB was unavailable
       const lastGraphData = deps.getLastGraphData();
       if (lastGraphData && lastGraphData.nodes.length > 0) {
         let filteredEdges: GraphEdge[];
@@ -1145,30 +1171,6 @@ function registerEdgesRoute(rc: RouteContext): void {
 
         sendJson(res, 200, { edges: pagedEdges, total, cursor: cursor + limit, hasMore }, req, corsConfig);
         return;
-      }
-
-      const workspacePath = findWorkspacePath(ctx);
-      if (workspacePath) {
-        const dbPath = resolveDbPath(workspacePath);
-        const dbResult = readEdgesFromDb(dbPath, fromId, scope as 'file' | 'symbol', cursor, limit);
-        if (dbResult) {
-          const pagedEdges = dbResult.edges
-            .filter((e) => e.source !== e.target && !FILTERED_EDGE_KINDS.has(e.kind))
-            .map((e) => ({
-              id: EdgeId(String(e.id)),
-              source: NodeId(e.source),
-              target: NodeId(e.target),
-              type: mapEdgeKind(e.kind),
-              properties: e.line !== null && e.line !== undefined ? { line: e.line } : {},
-            }));
-          sendJson(res, 200, {
-            edges: pagedEdges,
-            total: dbResult.total,
-            cursor: cursor + pagedEdges.length,
-            hasMore: cursor + limit < dbResult.total,
-          }, req, corsConfig);
-          return;
-        }
       }
 
       sendJson(res, 200, { edges: [], total: 0, cursor: 0, hasMore: false }, req, corsConfig);

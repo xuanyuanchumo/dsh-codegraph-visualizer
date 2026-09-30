@@ -31,6 +31,16 @@ export class ExportController {
     const nodes = this.cy.nodes();
     const edges = this.cy.edges();
     if (nodes.length === 0) return 'graph TD\n';
+    if (nodes.length > EXPORT.MERMAID_MAX_NODES) {
+      const topNodes = nodes.sort((a, b) => b.degree() - a.degree()).slice(0, EXPORT.MERMAID_MAX_NODES);
+      const topNodeIds = new Set(topNodes.map((n) => n.id()));
+      const filteredEdges = edges.filter((e) => topNodeIds.has(e.source().id()) && topNodeIds.has(e.target().id())).slice(0, EXPORT.MERMAID_MAX_EDGES);
+      return this._buildMermaidGraph(topNodes, filteredEdges);
+    }
+    return this._buildMermaidGraph(nodes, edges);
+  }
+
+  private _buildMermaidGraph(nodes: ReturnType<Core['nodes']>, edges: ReturnType<Core['edges']>): string {
 
     const nodeShapeMap: Record<string, string> = {
       function: 'process',
@@ -143,13 +153,20 @@ export class ExportController {
       lines.push(`  participant ${safeName} as "${label}"`);
     });
 
-    callEdges.forEach((edge) => {
+    const limitedCallEdges = callEdges.slice(0, EXPORT.MERMAID_MAX_SEQUENCE_MESSAGES);
+
+    limitedCallEdges.forEach((edge) => {
       const sourceId = idMap.get(edge.source().id()) ?? 'P?';
       const targetId = idMap.get(edge.target().id()) ?? 'P?';
 
       lines.push(`  ${sourceId}->>+${targetId}: call`);
       lines.push(`  ${targetId}-->>-${sourceId}: return`);
     });
+
+    if (callEdges.length > EXPORT.MERMAID_MAX_SEQUENCE_MESSAGES) {
+      const firstParticipant = idMap.get([...participants][0] ?? '') ?? 'P0';
+      lines.push(`  Note over ${firstParticipant}: ${callEdges.length - EXPORT.MERMAID_MAX_SEQUENCE_MESSAGES} more calls truncated`);
+    }
 
     return lines.join('\n') + '\n';
   }

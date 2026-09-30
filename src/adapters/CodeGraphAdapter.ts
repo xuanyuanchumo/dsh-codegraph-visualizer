@@ -48,13 +48,25 @@ export function closeAllDbConnections(): void {
   for (const [path, db] of dbPool.entries()) {
     try {
       db.close();
-    } catch (e) {
-      log.warn('db pool: close failed', { path, error: e });
+    } catch {
+      // ignore
     }
   }
   dbPool.clear();
   log.info('db pool: all connections closed');
 }
+
+export function countEdgesInDb(dbPath: string): number {
+  const db = getDbConnection(dbPath);
+  if (!db) return 0;
+  try {
+    const result = db.prepare('SELECT COUNT(*) as cnt FROM edges').get() as { cnt: number } | undefined;
+    return result?.cnt ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 
 // ---- codegraph.db schema (upstream @colbymchenry/codegraph) ----------------
 

@@ -749,6 +749,9 @@ export const useGraphStore = create<GraphState>()(
           prefetchInFlightCount = 0;
           for (const controller of expandAbortControllers.values()) controller.abort();
           expandAbortControllers.clear();
+          const state = useGraphStore.getState();
+          for (const controller of state.pendingRequests.values()) controller.abort();
+          state.pendingRequests.clear();
           if (prefetchIdleHandle !== null) {
             if (typeof cancelIdleCallback !== 'undefined') cancelIdleCallback(prefetchIdleHandle as number);
             else clearTimeout(prefetchIdleHandle as ReturnType<typeof setTimeout>);
@@ -800,7 +803,7 @@ export const useGraphStore = create<GraphState>()(
                   }
                 }
               }
-              fetchFileOutline(nodeId).then(async (data) => {
+              fetchFileOutline(nodeId, expandController.signal).then(async (data) => {
                 if (gen !== expandGeneration) return;
                 if (data && data.symbols.length > 0) {
                   mergeAndRecluster(data.symbols, data.edges, set, 'file outline loaded', { nodeId });
@@ -833,7 +836,7 @@ export const useGraphStore = create<GraphState>()(
                   }
                 }
               }
-              fetchSymbolAST(nodeId).then(async (data) => {
+              fetchSymbolAST(nodeId, expandController.signal).then(async (data) => {
                 if (gen !== expandGeneration) return;
                 if (data && data.astNodes.length > 0) {
                   const truncatedAstNodes = data.astNodes.length > SYMBOL_AST.MAX_NODES
@@ -1214,24 +1217,26 @@ export const useGraphStore = create<GraphState>()(
           return depthA - depthB;
         });
         const gen = ++restoreGeneration;
+        const restoreController = new AbortController();
         for (const nodeId of sortedIds) {
-          if (gen !== restoreGeneration) return;
+          if (gen !== restoreGeneration) { restoreController.abort(); return; }
           const state = useGraphStore.getState();
           const exists = state.rawNodes.some((n) => n.id === nodeId);
           if (!exists) {
             const parentId = nodeId.includes('/') ? nodeId.substring(0, nodeId.lastIndexOf('/')) : null;
             if (parentId && !state.loadedChildrenByNodeId.has(parentId)) {
-              await state.loadNodeChildren(parentId).catch((err) => {
+              await state.loadNodeChildren(parentId, { signal: restoreController.signal }).catch((err) => {
                 if (!(err instanceof DOMException && err.name === 'AbortError')) {
                   log.warn('restoreFromUrl: loadNodeChildren failed', { parentId, err });
                 }
               });
             }
           }
-          if (gen !== restoreGeneration) return;
+          if (gen !== restoreGeneration) { restoreController.abort(); return; }
           state.expandNode(nodeId);
           await new Promise<void>((r) => { restoreTimeoutHandle = setTimeout(r, 50); });
           if (gen !== restoreGeneration) {
+            restoreController.abort();
             if (restoreTimeoutHandle !== null) { clearTimeout(restoreTimeoutHandle); restoreTimeoutHandle = null; }
             return;
           }

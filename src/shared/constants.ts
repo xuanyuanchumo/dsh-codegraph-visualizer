@@ -151,6 +151,9 @@ export const QUADTREE = {
 
 export const EXPORT = {
   SVG_PADDING: 160,
+  MERMAID_MAX_NODES: 500,
+  MERMAID_MAX_EDGES: 800,
+  MERMAID_MAX_SEQUENCE_MESSAGES: 100,
 } as const;
 
 export const FILTER = {
@@ -253,7 +256,7 @@ export const SYMBOL_AST = {
 } as const;
 
 export const SQLITE = {
-  MAX_IN_PARAMS: 500,
+  MAX_IN_PARAMS: 900,
 } as const;
 
 export const EDGES_AGGREGATION = {
