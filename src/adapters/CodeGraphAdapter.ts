@@ -77,6 +77,42 @@ interface DbEdgeRow {
   line: number | null;
 }
 
+function isDbNodeRow(row: unknown): row is DbNodeRow {
+  if (typeof row !== 'object' || row === null) return false;
+  const r = row as Record<string, unknown>;
+  return typeof r.id === 'string' && typeof r.kind === 'string' &&
+    typeof r.name === 'string' && typeof r.file_path === 'string';
+}
+
+function isDbEdgeRow(row: unknown): row is DbEdgeRow {
+  if (typeof row !== 'object' || row === null) return false;
+  const r = row as Record<string, unknown>;
+  return typeof r.source === 'string' && typeof r.target === 'string' &&
+    typeof r.kind === 'string';
+}
+
+function validateNodeRows(rows: unknown[]): DbNodeRow[] {
+  const valid: DbNodeRow[] = [];
+  let skipped = 0;
+  for (const row of rows) {
+    if (isDbNodeRow(row)) valid.push(row);
+    else skipped++;
+  }
+  if (skipped > 0) log.warn('db node rows: skipped invalid rows', { skipped, total: rows.length });
+  return valid;
+}
+
+function validateEdgeRows(rows: unknown[]): DbEdgeRow[] {
+  const valid: DbEdgeRow[] = [];
+  let skipped = 0;
+  for (const row of rows) {
+    if (isDbEdgeRow(row)) valid.push(row);
+    else skipped++;
+  }
+  if (skipped > 0) log.warn('db edge rows: skipped invalid rows', { skipped, total: rows.length });
+  return valid;
+}
+
 const NODE_KIND_MAP: Record<string, GraphNode['type']> = {
   function: 'function',
   method: 'function',
@@ -148,12 +184,12 @@ export function readGraphFromDb(dbPath: string): { nodes: DbNodeRow[]; edges: Db
   const db = getDbConnection(dbPath);
   if (!db) return null;
   try {
-    const nodes = db.prepare(
+    const nodes = validateNodeRows(db.prepare(
       'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes',
-    ).all() as unknown as DbNodeRow[];
-    const edges = db.prepare(
+    ).all());
+    const edges = validateEdgeRows(db.prepare(
       'SELECT id, source, target, kind, line FROM edges',
-    ).all() as unknown as DbEdgeRow[];
+    ).all());
     return { nodes, edges };
   } catch (e) {
     log.warn('readGraphFromDb failed', e);
@@ -166,9 +202,9 @@ export function readTopLevelNodesFromDb(dbPath: string, limit: number): { nodes:
   if (!db) return null;
   try {
     const total = (db.prepare('SELECT COUNT(*) as cnt FROM nodes WHERE kind IN (\'file\', \'module\', \'import\')').get() as { cnt: number }).cnt;
-    const nodes = db.prepare(
+    const nodes = validateNodeRows(db.prepare(
       'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE kind IN (\'file\', \'module\', \'import\') LIMIT ?',
-    ).all(limit) as unknown as DbNodeRow[];
+    ).all(limit));
     return { nodes, total };
   } catch (e) {
     log.warn('readTopLevelNodesFromDb failed', e);
@@ -181,9 +217,9 @@ export function readNodeChildrenFromDb(dbPath: string, parentId: string, cursor:
   if (!db) return null;
   try {
     const total = (db.prepare('SELECT COUNT(*) as cnt FROM nodes WHERE file_path = (SELECT file_path FROM nodes WHERE id = ?)').get(parentId) as { cnt: number }).cnt;
-    const nodes = db.prepare(
+    const nodes = validateNodeRows(db.prepare(
       'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE file_path = (SELECT file_path FROM nodes WHERE id = ?) AND kind NOT IN (\'file\', \'module\', \'import\') LIMIT ? OFFSET ?',
-    ).all(parentId, limit, cursor) as unknown as DbNodeRow[];
+    ).all(parentId, limit, cursor));
     return { nodes, total };
   } catch (e) {
     log.warn('readNodeChildrenFromDb failed', e);
@@ -199,9 +235,9 @@ export function readFileOutlineFromDb(dbPath: string, fileId: string): { nodes: 
     if (!filePathRow) return { nodes: [], total: 0 };
     const filePath = filePathRow.file_path;
     const total = (db.prepare('SELECT COUNT(*) as cnt FROM nodes WHERE file_path = ? AND kind NOT IN (\'file\', \'module\', \'import\')').get(filePath) as { cnt: number }).cnt;
-    const nodes = db.prepare(
+    const nodes = validateNodeRows(db.prepare(
       'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE file_path = ? AND kind NOT IN (\'file\', \'module\', \'import\')',
-    ).all(filePath) as unknown as DbNodeRow[];
+    ).all(filePath));
     return { nodes, total };
   } catch (e) {
     log.warn('readFileOutlineFromDb failed', e);
@@ -224,9 +260,9 @@ export function readSymbolASTFromDb(dbPath: string, symbolId: string): { nodes: 
     for (let i = 0; i < idList.length; i += batchSize) {
       const batch = idList.slice(i, i + batchSize);
       const placeholders = batch.map(() => '?').join(',');
-      const batchNodes = db.prepare(
+      const batchNodes = validateNodeRows(db.prepare(
         `SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE id IN (${placeholders})`,
-      ).all(...batch) as unknown as DbNodeRow[];
+      ).all(...batch));
       allNodes.push(...batchNodes);
     }
     return { nodes: allNodes, total };
@@ -242,9 +278,9 @@ export function readEdgesFromDb(dbPath: string, nodeId: string, scope: 'file' | 
   try {
     if (scope === 'symbol') {
       const total = (db.prepare('SELECT COUNT(*) as cnt FROM edges WHERE source = ? OR target = ?').get(nodeId, nodeId) as { cnt: number }).cnt;
-      const edges = db.prepare(
+      const edges = validateEdgeRows(db.prepare(
         'SELECT id, source, target, kind, line FROM edges WHERE source = ? OR target = ? LIMIT ? OFFSET ?',
-      ).all(nodeId, nodeId, limit, cursor) as unknown as DbEdgeRow[];
+      ).all(nodeId, nodeId, limit, cursor));
       return { edges, total };
     }
     const filePathResult = db.prepare('SELECT file_path FROM nodes WHERE id = ?').get(nodeId) as { file_path: string } | undefined;
@@ -258,9 +294,9 @@ export function readEdgesFromDb(dbPath: string, nodeId: string, scope: 'file' | 
     for (let i = 0; i < idList.length; i += batchSize) {
       const batch = idList.slice(i, i + batchSize);
       const placeholders = batch.map(() => '?').join(',');
-      const batchEdges = db.prepare(
+      const batchEdges = validateEdgeRows(db.prepare(
         `SELECT id, source, target, kind, line FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders})`,
-      ).all(...batch, ...batch) as unknown as DbEdgeRow[];
+      ).all(...batch, ...batch));
       allEdges.push(...batchEdges);
     }
     const total = allEdges.length;
@@ -282,9 +318,9 @@ export function readEdgesForNodesFromDb(dbPath: string, nodeIds: string[]): DbEd
     for (let i = 0; i < nodeIds.length; i += batchSize) {
       const batch = nodeIds.slice(i, i + batchSize);
       const placeholders = batch.map(() => '?').join(',');
-      const edges = db.prepare(
+      const edges = validateEdgeRows(db.prepare(
         `SELECT id, source, target, kind, line FROM edges WHERE (source IN (${placeholders}) AND target IN (${placeholders}))`,
-      ).all(...batch, ...batch) as unknown as DbEdgeRow[];
+      ).all(...batch, ...batch));
       allEdges.push(...edges);
     }
     return allEdges;
