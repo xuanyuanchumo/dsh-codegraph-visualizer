@@ -3,6 +3,7 @@ import type { GraphNode, GraphEdge, AdapterResult } from '../types/index.ts';
 import { NodeId, EdgeId } from '../types/index.ts';
 import type { IDataAdapter, UpstreamInvoker } from './IAdapter.ts';
 import type { TreeSitterAdapter } from './TreeSitterAdapter.ts';
+import { FILE_SYSTEM } from '../shared/constants.ts';
 
 const log = scoped('fs-adapter');
 
@@ -18,7 +19,6 @@ const IGNORED_DIRS = new Set([
   'coverage', '.cache', '.codegraph',
 ]);
 
-const MAX_FILES = 500;
 
 function getLanguageFromExt(ext: string): string {
   const langMap: Record<string, string> = {
@@ -72,7 +72,7 @@ export class FileSystemAdapter implements IDataAdapter {
     let fileCount = 0;
 
     const scanDir = (dirPath: string, parentId?: string): void => {
-      if (fileCount >= MAX_FILES) return;
+      if (fileCount >= FILE_SYSTEM.MAX_FILES) return;
       if (visitedDirs.has(dirPath)) return;
       visitedDirs.add(dirPath);
 
@@ -84,7 +84,7 @@ export class FileSystemAdapter implements IDataAdapter {
       }
 
       for (const entry of entries) {
-        if (fileCount >= MAX_FILES) break;
+        if (fileCount >= FILE_SYSTEM.MAX_FILES) break;
         const fullPath = dirPath.endsWith('/') ? dirPath + entry : `${dirPath}/${entry}`;
         const baseName = entry.split('/').pop() ?? entry;
 

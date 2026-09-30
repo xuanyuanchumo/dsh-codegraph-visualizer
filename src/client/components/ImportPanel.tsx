@@ -4,12 +4,11 @@ import { DOM_EVENTS } from '../../shared/domEvents.ts';
 import { useT } from '../i18n/index.ts';
 import { UploadIcon, FolderIcon, CloseIcon, AlertIcon, RefreshIcon, ZapIcon, WatchIcon } from './Icons.tsx';
 import { coerceNode, coerceEdge } from '../validators.ts';
-import { UI } from '../../shared/constants.ts';
+import { UI, IMPORT } from '../../shared/constants.ts';
 import type { GraphNode, GraphEdge, RepoId } from '../../types/index.ts';
 
 const log = scoped('import');
 
-const MAX_PASTE_BYTES = 10 * 1024 * 1024;
 
 type ImportTab = 'workspace' | 'paste';
 
@@ -106,7 +105,7 @@ export const ImportPanel = memo(function ImportPanel({
     setBusy(true);
     setFeedback(null);
     try {
-      if (text.length > MAX_PASTE_BYTES) throw new Error(`JSON exceeds ${MAX_PASTE_BYTES / 1024 / 1024}MB limit`);
+      if (text.length > IMPORT.MAX_PASTE_BYTES) throw new Error(`JSON exceeds ${IMPORT.MAX_PASTE_BYTES / 1024 / 1024}MB limit`);
       const { nodes, edges, repoId } = parseGraphJson(text);
       onSetGraphData(nodes, edges, repoId);
       log.info(`imported from ${source}`, { nodes: nodes.length, edges: edges.length });

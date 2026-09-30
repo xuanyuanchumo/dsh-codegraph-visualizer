@@ -768,9 +768,9 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
       </div>
 
       <div className="cg-seq-zoom-controls">
-        <button className="cg-seq-zoom-btn" onClick={() => setZoom((z) => Math.min(3, z * 1.2))}>+</button>
-        <button className="cg-seq-zoom-btn" onClick={() => setZoom((z) => Math.max(0.3, z * 0.8))}>−</button>
-        <button className="cg-seq-zoom-btn cg-seq-reset" onClick={handleResetView}>⟲</button>
+        <button className="cg-seq-zoom-btn" aria-label={t('sequence.zoomIn')} onClick={() => setZoom((z) => Math.min(3, z * 1.2))}>+</button>
+        <button className="cg-seq-zoom-btn" aria-label={t('sequence.zoomOut')} onClick={() => setZoom((z) => Math.max(0.3, z * 0.8))}>−</button>
+        <button className="cg-seq-zoom-btn cg-seq-reset" aria-label={t('sequence.resetView')} onClick={handleResetView}>⟲</button>
       </div>
 
       <div className="cg-seq-zoom-indicator">

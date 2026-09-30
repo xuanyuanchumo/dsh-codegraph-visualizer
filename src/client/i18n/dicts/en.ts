@@ -83,6 +83,8 @@ export const en: Record<string, string> = {
   'error.loadGraphData': 'Unable to load code graph data. Please refresh the page.',
   'error.loadGraph': 'Unable to load code graph. Please check the server status.',
   'error.generic': 'An unexpected error occurred. Please try again.',
+  'error.callChainEmpty': 'Call chain aggregation produced no results — the selected function may have no callable targets or AST parsing failed.',
+  'error.callChainFailed': 'Call chain aggregation failed. Please try again.',
 
   // Node detail
   'detail.ariaLabel': 'Node details',
@@ -326,6 +328,9 @@ export const en: Record<string, string> = {
   'micro.backToCode': 'Back to Code View',
   'sequence.noData': 'No sequence data available',
   'sequence.ariaLabel': '{participants} participants, {messages} messages',
+  'sequence.zoomIn': 'Zoom in',
+  'sequence.zoomOut': 'Zoom out',
+  'sequence.resetView': 'Reset view',
 
   'micro.closeView': 'Close micro view',
   'micro.functionBar': 'Micro view toolbar',

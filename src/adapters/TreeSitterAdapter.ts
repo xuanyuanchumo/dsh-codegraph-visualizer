@@ -4,6 +4,7 @@ import type { GraphNode, GraphEdge, AdapterResult, DataSourceType } from '../typ
 import type { IAnalysisAdapter } from './IAdapter.ts';
 import type { ASTNode } from '../shared/CFGTypes.ts';
 import { inferLayerFromPath } from '../shared/layerUtils.ts';
+import { TREE_SITTER } from '../shared/constants.ts';
 
 const log = scoped('tree-sitter-adapter');
 
@@ -164,10 +165,9 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
     const allNodes: GraphNode[] = [];
     const allEdges: GraphEdge[] = [];
     const errors: string[] = [];
-    const BATCH_SIZE = 20;
 
-    for (let i = 0; i < files.length; i += BATCH_SIZE) {
-      const batch = files.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < files.length; i += TREE_SITTER.BATCH_SIZE) {
+      const batch = files.slice(i, i + TREE_SITTER.BATCH_SIZE);
       const results = await Promise.all(
         batch.map(async (file) => {
           const language = this.detectLanguage(file.filePath);

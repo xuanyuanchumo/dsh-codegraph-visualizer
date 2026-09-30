@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
+import { useT } from '../i18n/index.ts';
 import type { ViewMode } from '../../types/index.ts';
 
 import { scoped } from '../../shared/Logger.ts';
@@ -28,6 +29,7 @@ export function useViewMode(
   const setSelectedFunction = useGraphStore((s) => s.setSelectedFunction);
   const setSelectedNode = useGraphStore((s) => s.setSelectedNode);
   const setHighlightedNodes = useGraphStore((s) => s.setHighlightedNodes);
+  const t = useT();
   const prevMacroViewModeRef = useRef<ViewMode>('code');
 
   const handleViewModeChange = useCallback((newMode: ViewMode) => {
@@ -52,7 +54,7 @@ export function useViewMode(
             setGraphData(data.nodes, data.edges, data.metadata?.repoId || currentWorkspace);
           }
         })
-        .catch((err) => { if (!controller.signal.aborted) setError(`Failed to load dependencies: ${err.message}`); })
+        .catch(() => { if (!controller.signal.aborted) setError(t('error.loadDependencies')); })
         .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     } else if (newMode === 'code') {
       depsFetchAbortRef.current?.abort();
@@ -64,12 +66,12 @@ export function useViewMode(
         if (ok) {
           setViewMode(newMode);
         } else {
-          setError('Failed to load code graph data');
+          setError(t('error.loadGraphData'));
         }
         setLoading(false);
       }).catch((e) => {
         log.warn('loadBootstrap failed', e);
-        setError(`Failed to load code graph: ${e.message}`);
+        setError(t('error.loadGraph'));
         setLoading(false);
       });
     } else {

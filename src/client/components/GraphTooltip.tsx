@@ -1,6 +1,7 @@
 
 import { memo } from 'react';
 import { useT } from '../i18n/index.ts';
+import { TOOLTIP } from '../../shared/constants.ts';
 
 export interface TooltipData {
   x: number;
@@ -29,14 +30,11 @@ function isEdgeTooltip(data: TooltipData | EdgeTooltipData): data is EdgeTooltip
 }
 
 function clampPosition(x: number, y: number): { left: number; top: number } {
-  const offset = 15;
-  const tooltipWidth = 200;
-  const tooltipHeight = 80;
-  const maxX = window.innerWidth - tooltipWidth - offset;
-  const maxY = window.innerHeight - tooltipHeight - offset;
+  const maxX = window.innerWidth - TOOLTIP.WIDTH - TOOLTIP.OFFSET;
+  const maxY = window.innerHeight - TOOLTIP.HEIGHT - TOOLTIP.OFFSET;
   return {
-    left: Math.min(x + offset, Math.max(offset, maxX)),
-    top: Math.min(y + offset, Math.max(offset, maxY)),
+    left: Math.min(x + TOOLTIP.OFFSET, Math.max(TOOLTIP.OFFSET, maxX)),
+    top: Math.min(y + TOOLTIP.OFFSET, Math.max(TOOLTIP.OFFSET, maxY)),
   };
 }
 

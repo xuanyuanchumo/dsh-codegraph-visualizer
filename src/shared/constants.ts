@@ -370,3 +370,52 @@ export const ERROR_MESSAGES: Record<string, { en: string; zh: string }> = {
   INVALID_CONFIG: { en: 'Invalid configuration', zh: '无效的配置' },
 };
 export const REPO_URL = 'https://github.com/xuanyuanchumo/dsh-codegraph-visualizer';
+export const IMPORT = {
+  MAX_PASTE_BYTES: 10 * 1024 * 1024,
+} as const;
+
+export const TOOLTIP = {
+  OFFSET: 15,
+  WIDTH: 200,
+  HEIGHT: 80,
+} as const;
+
+export const URL_STATE = {
+  MAX_LENGTH: 2000,
+} as const;
+
+export const DIFF_ENGINE = {
+  MAX_DEEP_EQUAL_DEPTH: 50,
+} as const;
+
+export const CORE_FUNCTION_ANALYZER = {
+  MAX_CALL_CHAIN_RECURSION_DEPTH: 500,
+} as const;
+
+export const CALL_CHAIN = {
+  MAX_FUNCTIONS: 20,
+} as const;
+
+export const FILE_SYSTEM = {
+  MAX_FILES: 500,
+} as const;
+
+export const CODEGRAPH_ADAPTER = {
+  MAX_IMPORTS_PER_SOURCE: 20,
+} as const;
+
+export const TREE_SITTER = {
+  BATCH_SIZE: 20,
+} as const;
+
+export const INDEXED_DB = {
+  DB_VERSION: 2,
+} as const;
+
+export const LOGGER = {
+  RING_SIZE: 200,
+} as const;
+
+export const LOUVAIN = {
+  MAX_ITERATIONS: 30,
+} as const;

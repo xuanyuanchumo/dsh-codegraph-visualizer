@@ -16,6 +16,7 @@ import { scoped } from '../../shared/Logger.ts';
 import { type LayoutType, type ThemeType, type RankDir, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
 import { fetchNodeChildren, fetchBootstrap, fetchFileOutline, fetchSymbolAST, fetchWithTimeout } from '../api/index.ts';
 import { readUrlExpand, restoreExpandedNodeIds } from '../utils/urlState.ts';
+import { t } from '../i18n/index.ts';
 
 import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, LOD, UI, PREFETCH, FUNCTION_BODY, SYMBOL_AST, getDynamicMaxVisibleNodes } from '../../shared/constants.ts';
 
@@ -1121,11 +1122,11 @@ export const useGraphStore = create<GraphState>()(
               error: null,
             });
           } else {
-            set({ error: 'Call chain aggregation produced no results — the selected function may have no callable targets or AST parsing failed.', isLoading: false });
+            set({ error: t('error.callChainEmpty'), isLoading: false });
           }
         } catch (e) {
           log.warn('assembleMultiFunction failed', e);
-          set({ error: `Call chain aggregation failed: ${e instanceof Error ? e.message : String(e)}`, isLoading: false });
+          set({ error: t('error.callChainFailed'), isLoading: false });
         }
       },
       setHealthScore: (score) => set({ healthScore: score }),

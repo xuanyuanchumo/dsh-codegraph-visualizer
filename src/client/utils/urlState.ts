@@ -1,8 +1,9 @@
 import { scoped } from '../../shared/Logger.ts';
+import { URL_STATE } from '../../shared/constants.ts';
 
 const log = scoped('url-state');
 
-const MAX_URL_LENGTH = 2000;
+
 const PREFIX_DIR = 'd:';
 const PREFIX_FILE = 'f:';
 const PREFIX_SYMBOL = 's:';
@@ -79,7 +80,7 @@ export function updateUrlExpand(expandedNodeIds: Set<string>): void {
     url.searchParams.delete('expand');
   }
   const urlString = url.toString();
-  if (urlString.length > MAX_URL_LENGTH) {
+  if (urlString.length > URL_STATE.MAX_LENGTH) {
     const trimmed = expandParam.split(',').filter(p => !p.startsWith(PREFIX_SYMBOL));
     url.searchParams.set('expand', trimmed.join(','));
     log.warn('URL too long, trimmed symbol-level expansions');

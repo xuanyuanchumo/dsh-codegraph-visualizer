@@ -1,12 +1,12 @@
 import type { GraphNode, GraphEdge } from '../types/index.ts';
+import { DIFF_ENGINE } from '../shared/constants.ts';
 
-const MAX_DEEP_EQUAL_DEPTH = 50;
 
 function deepEqual(a: unknown, b: unknown, seen?: Map<unknown, unknown>, depth?: number): boolean {
   if (a === b) return true;
   if (a === null || b === null) return false;
   if (typeof a !== 'object' || typeof b !== 'object') return false;
-  if (depth !== undefined && depth > MAX_DEEP_EQUAL_DEPTH) return false;
+  if (depth !== undefined && depth > DIFF_ENGINE.MAX_DEEP_EQUAL_DEPTH) return false;
   if (Array.isArray(a) || Array.isArray(b)) {
     if (!Array.isArray(a) || !Array.isArray(b)) return false;
     if (a.length !== b.length) return false;

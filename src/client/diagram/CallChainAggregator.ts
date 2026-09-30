@@ -3,9 +3,9 @@ import { NodeId, EdgeId } from '../../types/index.ts';
 import type { AssembledDiagram } from './DiagramAssembler.ts';
 import type { ASTNode } from '../../shared/CFGTypes.ts';
 import { CFGAssembler } from './CFGAssembler.ts';
+import { CALL_CHAIN } from '../../shared/constants.ts';
 
 
-const MAX_FUNCTIONS = 20;
 
 export interface CallChainAggregateOptions {
   depth: number;
@@ -27,7 +27,7 @@ export class CallChainAggregator {
     nodes: GraphNode[],
     edges: GraphEdge[],
     astFetcher: (filePath: string) => Promise<ASTNode | null>,
-    options: CallChainAggregateOptions = { depth: 2, maxFunctions: MAX_FUNCTIONS },
+    options: CallChainAggregateOptions = { depth: 2, maxFunctions: CALL_CHAIN.MAX_FUNCTIONS },
   ): Promise<CallChainResult | null> {
     const entryNode = nodes.find((n) => n.id === entryNodeId);
     if (!entryNode || entryNode.type !== 'function') return null;

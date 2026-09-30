@@ -14,7 +14,7 @@ import type { GraphNode, GraphEdge, AdapterResult, DataSourceType } from '../typ
 import { NodeId, EdgeId } from '../types/index.ts';
 import { scoped } from '../shared/Logger.ts';
 import { inferLayerFromPath } from '../shared/layerUtils.ts';
-import { SQLITE } from '../shared/constants.ts';
+import { SQLITE, CODEGRAPH_ADAPTER } from '../shared/constants.ts';
 import type { IDataAdapter, UpstreamInvoker } from './IAdapter.ts';
 
 export type { UpstreamInvoker } from './IAdapter.ts';
@@ -45,7 +45,7 @@ function getDbConnection(dbPath: string): SqliteDb | null {
 }
 
 export function closeAllDbConnections(): void {
-  for (const [path, db] of dbPool.entries()) {
+  for (const [, db] of dbPool.entries()) {
     try {
       db.close();
     } catch {
@@ -171,7 +171,6 @@ export function isNoisePath(filePath: string): boolean {
   return false;
 }
 
-const MAX_IMPORTS_PER_SOURCE = 20;
 
 export function mapNodeKind(kind: string): GraphNode['type'] {
   return NODE_KIND_MAP[kind] ?? 'module';
@@ -435,7 +434,7 @@ export class CodeGraphAdapter implements IDataAdapter {
       const mappedType = mapEdgeKind(e.kind);
       if (mappedType === 'import') {
         const count = importCountBySource.get(e.source) ?? 0;
-        if (count >= MAX_IMPORTS_PER_SOURCE) continue;
+        if (count >= CODEGRAPH_ADAPTER.MAX_IMPORTS_PER_SOURCE) continue;
         importCountBySource.set(e.source, count + 1);
       }
       edges.push({

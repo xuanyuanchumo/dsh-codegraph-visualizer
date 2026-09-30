@@ -2476,7 +2476,7 @@ describe('GraphPanel panel callback tests', () => {
     const { container } = render(React.createElement(GraphPanel));
 
     // CoreFunctionPanel should be visible
-    const corePanel = container.querySelector('.core-function-panel');
+    const corePanel = container.querySelector('.cg-core-function-panel');
     expect(corePanel).not.toBeNull();
 
     // Click on a core function item
@@ -3061,7 +3061,7 @@ describe('GraphPanel onClose callback tests', () => {
     vi.mocked(usePanelState).mockReturnValue(panelState as any);
 
     const { container } = render(React.createElement(GraphPanel));
-    const corePanel = container.querySelector('.core-function-panel');
+    const corePanel = container.querySelector('.cg-core-function-panel');
     expect(corePanel).not.toBeNull();
     const closeBtn = corePanel?.querySelector('.cg-close-btn') as HTMLButtonElement;
     expect(closeBtn).toBeTruthy();

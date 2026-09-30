@@ -1,9 +1,10 @@
 import { scoped } from '../../shared/Logger.ts';
+import { INDEXED_DB } from '../../shared/constants.ts';
 
 const log = scoped('indexeddb-cache');
 
 const DB_PREFIX = 'codegraph-cache-';
-const DB_VERSION = 2;
+
 const CLUSTER_STORE = 'cluster-cache';
 const DIAGRAM_STORE = 'diagram-cache';
 const OUTLINE_STORE = 'outline-cache';
@@ -13,7 +14,7 @@ const EDGES_STORE = 'edges-cache';
 function openDB(repoId: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const dbName = `${DB_PREFIX}${repoId}`;
-    const request = indexedDB.open(dbName, DB_VERSION);
+    const request = indexedDB.open(dbName, INDEXED_DB.DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(CLUSTER_STORE)) {

@@ -1,5 +1,5 @@
 import type { GraphNode, GraphEdge } from '../../../types/index.ts';
-import { CLUSTER } from '../../../shared/constants.ts';
+import { CLUSTER, LOUVAIN } from '../../../shared/constants.ts';
 import { buildFilteredUndirectedAdjacency } from '../../../shared/analysis/AdjacencyList.ts';
 import { selectHighDegreeNodes } from './communityDetection.ts';
 
@@ -10,8 +10,6 @@ export interface LouvainCommunity {
 
 const MAX_NODES_FOR_LOUVAIN = CLUSTER.MAX_NODES_FOR_LABEL_PROP;
 const MIN_NODES_FOR_LOUVAIN = CLUSTER.MIN_NODES_FOR_SUBGROUP;
-const MAX_ITERATIONS = 30;
-
 
 interface CommunityData {
   totalDegree: number;
@@ -88,7 +86,7 @@ export function detectLouvainCommunities(
 
   let improved = true;
   let iteration = 0;
-  while (improved && iteration < MAX_ITERATIONS) {
+  while (improved && iteration < LOUVAIN.MAX_ITERATIONS) {
     improved = false;
     iteration++;
 

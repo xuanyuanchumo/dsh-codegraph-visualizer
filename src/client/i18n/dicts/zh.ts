@@ -83,6 +83,8 @@ export const zh: Record<string, string> = {
   'error.loadGraphData': '无法加载代码图谱数据，请刷新页面。',
   'error.loadGraph': '无法加载代码图谱，请检查服务器状态。',
   'error.generic': '发生意外错误，请重试。',
+  'error.callChainEmpty': '调用链聚合无结果 — 所选函数可能没有可调用目标或 AST 解析失败。',
+  'error.callChainFailed': '调用链聚合失败，请重试。',
 
   // Node detail
   'detail.ariaLabel': '节点详情',
@@ -325,6 +327,9 @@ export const zh: Record<string, string> = {
   'micro.backToCode': '返回代码视图',
   'sequence.noData': '暂无时序图数据',
   'sequence.ariaLabel': '{participants} 个参与者, {messages} 条消息',
+  'sequence.zoomIn': '放大',
+  'sequence.zoomOut': '缩小',
+  'sequence.resetView': '重置视图',
 
   'micro.closeView': '关闭微观视图',
   'micro.functionBar': '微观视图工具栏',

@@ -132,7 +132,7 @@ describe('CoreFunctionPanel', () => {
     const { container } = render(
       <CoreFunctionPanel {...defaultProps} coreFunctions={[]} />
     );
-    expect(container.querySelector('.core-function-panel')).toBeTruthy();
+    expect(container.querySelector('.cg-core-function-panel')).toBeTruthy();
   });
 
   it('按 Enter 键应调用 onSelectFunction', () => {

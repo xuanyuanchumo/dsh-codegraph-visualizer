@@ -455,7 +455,7 @@ export function apply(ctx: Context): () => void {
         store.loadBootstrap().then((ok) => {
           if (!ok) {
             log.warn('import-repo bootstrap failed');
-            store.setError('Failed to load code graph data');
+            store.setError(t('error.loadGraphData'));
           }
           store.setLoading(false);
         }).catch((e) => { log.warn('import-repo failed', e); store.setLoading(false); });
@@ -475,7 +475,7 @@ export function apply(ctx: Context): () => void {
               }).catch((e) => log.warn('post-init bootstrap failed', e));
             }
           } else {
-            store.setInitStatus('error', 'Request failed');
+            store.setInitStatus('error', t('error.generic'));
           }
           log.info('init result', { path: detail.path, success: result?.success });
         }).catch((e) => { log.warn('init-graph failed', e); store.setInitStatus('error', String(e)); });
@@ -502,7 +502,7 @@ export function apply(ctx: Context): () => void {
           store.loadBootstrap().then((ok) => {
             if (!ok) {
               log.warn('workspace change bootstrap failed');
-              store.setError('Failed to load code graph data');
+              store.setError(t('error.loadGraphData'));
             }
             store.setLoading(false);
           }).catch((e) => { log.warn('workspace scan failed', e); store.setLoading(false); });

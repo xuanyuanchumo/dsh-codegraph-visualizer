@@ -2109,7 +2109,7 @@ describe('graphStore (J6/J7/J10)', () => {
       const s = useGraphStore.getState();
       // Should set the "no results" error message
       expect(s.error).not.toBeNull();
-      expect(s.error).toContain('no results');
+      expect(s.error).toContain('聚合无结果');
     } finally {
       globalThis.fetch = originalFetch;
     }

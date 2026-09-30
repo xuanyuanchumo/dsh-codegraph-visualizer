@@ -155,7 +155,7 @@ describe('useViewMode', () => {
         result.current.handleViewModeChange('code');
       });
 
-      expect(mockStoreState.setError).toHaveBeenCalledWith('Failed to load code graph data');
+      expect(mockStoreState.setError).toHaveBeenCalledWith('无法加载代码图谱数据，请刷新页面。');
       expect(mockStoreState.setLoading).toHaveBeenCalledWith(false);
       expect(mockStoreState.setViewMode).not.toHaveBeenCalled();
     });
@@ -169,7 +169,7 @@ describe('useViewMode', () => {
         result.current.handleViewModeChange('code');
       });
 
-      expect(mockStoreState.setError).toHaveBeenCalledWith('Failed to load code graph: Network error');
+      expect(mockStoreState.setError).toHaveBeenCalledWith('无法加载代码图谱，请检查服务器状态。');
       expect(mockStoreState.setLoading).toHaveBeenCalledWith(false);
     });
 
@@ -201,7 +201,7 @@ describe('useViewMode', () => {
       });
 
       expect(mockStoreState.loadBootstrap).toHaveBeenCalledTimes(1);
-      expect(mockStoreState.setError).toHaveBeenCalledWith('Failed to load code graph: bootstrap network error');
+      expect(mockStoreState.setError).toHaveBeenCalledWith('无法加载代码图谱，请检查服务器状态。');
       expect(mockStoreState.setLoading).toHaveBeenCalledWith(false);
     });
 
@@ -308,7 +308,7 @@ describe('useViewMode', () => {
 
       await waitFor(() => {
         expect(mockStoreState.setError).toHaveBeenCalledWith(
-          'Failed to load dependencies: HTTP 500',
+          '无法加载依赖数据，请检查连接后重试。',
         );
       });
       expect(mockStoreState.setLoading).toHaveBeenCalledWith(false);
@@ -325,7 +325,7 @@ describe('useViewMode', () => {
 
       await waitFor(() => {
         expect(mockStoreState.setError).toHaveBeenCalledWith(
-          'Failed to load dependencies: Connection refused',
+          '无法加载依赖数据，请检查连接后重试。',
         );
       });
       expect(mockStoreState.setLoading).toHaveBeenCalledWith(false);

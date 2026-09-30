@@ -23,10 +23,10 @@ export const CoreFunctionPanel = memo(function CoreFunctionPanel({ coreFunctions
   const reasonLabel = (r: string): string => t(`coreFunction.reason.${r}`);
 
   return (
-    <div className="cg-analysis-panel core-function-panel" role="region" aria-label={label} aria-live="polite">
+    <div className="cg-analysis-panel cg-core-function-panel" role="region" aria-label={label} aria-live="polite">
       <div className="cg-analysis-panel-header">
         <span>{label}</span>
-        <button onClick={onClose} className="cg-close-btn"><CloseIcon size={14} /></button>
+        <button onClick={onClose} className="cg-close-btn" aria-label={t('common.close')}><CloseIcon size={14} /></button>
       </div>
       <div className="cg-analysis-panel-content">
         {coreFunctions.slice(0, 20).map((fn) => (

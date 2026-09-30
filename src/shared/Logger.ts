@@ -2,6 +2,8 @@
 // Ponytail: no deps, ~60 lines. Levels respect host console when available.
 /* eslint-disable no-console */
 
+import { LOGGER } from './constants.ts';
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface LogEntry {
@@ -13,7 +15,7 @@ export interface LogEntry {
 }
 
 const LEVEL_ORDER: Record<LogLevel, number> = { debug: 0, info: 1, warn: 2, error: 3 };
-const RING_SIZE = 200;
+
 
 class LoggerImpl {
   private buffer: LogEntry[] = [];
@@ -25,7 +27,7 @@ class LoggerImpl {
     if (LEVEL_ORDER[level] < LEVEL_ORDER[this.minLevel]) return;
     const entry: LogEntry = { ts: Date.now(), level, scope, message, data };
     this.buffer.push(entry);
-    if (this.buffer.length > RING_SIZE) this.buffer.splice(0, this.buffer.length - RING_SIZE);
+    if (this.buffer.length > LOGGER.RING_SIZE) this.buffer.splice(0, this.buffer.length - LOGGER.RING_SIZE);
     this.emit();
     const fn = level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
     try { if (typeof fn === 'function') fn(`[codegraph:${scope}] ${message}`, data ?? ''); } catch { /* console unavailable */ }
