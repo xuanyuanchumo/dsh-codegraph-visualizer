@@ -148,4 +148,71 @@ describe('TreeSitterAdapter (FR-20)', () => {
     expect(adapter.detectLanguage('foo.mjs')).toBe('javascript');
     expect(adapter.detectLanguage('foo.cjs')).toBe('javascript');
   });
+
+  it('batchScan returns empty result when parser not initialized and init fails', async () => {
+    const result = await adapter.batchScan([]);
+    expect(result.nodes).toEqual([]);
+    expect(result.edges).toEqual([]);
+    expect(result.source).toBe('tree-sitter');
+  });
+
+  it('batchScan processes files and returns nodes', async () => {
+    await adapter.init();
+    const result = await adapter.batchScan([
+      { filePath: 'foo.ts', content: 'function bar() { return 1; }' },
+    ]);
+    expect(result.source).toBe('tree-sitter');
+    expect(result.nodes.length).toBeGreaterThan(0);
+  });
+
+  it('batchScan skips unsupported file extensions', async () => {
+    await adapter.init();
+    const result = await adapter.batchScan([
+      { filePath: 'foo.txt', content: 'not code' },
+    ]);
+    expect(result.nodes).toHaveLength(0);
+  });
+
+  it('batchScan handles multiple files in batches', async () => {
+    await adapter.init();
+    const files = [];
+    for (let i = 0; i < 25; i++) {
+      files.push({ filePath: `file${i}.ts`, content: `function f${i}() {}` });
+    }
+    const result = await adapter.batchScan(files);
+    expect(result.source).toBe('tree-sitter');
+    expect(result.nodes.length).toBeGreaterThan(0);
+  });
+
+  it('batchScan handles parse errors gracefully', async () => {
+    await adapter.init();
+    const result = await adapter.batchScan([
+      { filePath: 'foo.ts', content: 'function {{{invalid' },
+    ]);
+    expect(result.source).toBe('tree-sitter');
+  });
+
+
+  it('parseToAst returns null for unsupported extension after init', async () => {
+    await adapter.init();
+    const result = await adapter.parseToAst('foo.txt', 'content');
+    expect(result).toBeNull();
+  });
+
+  it('init respects MAX_INIT_ATTEMPTS limit', async () => {
+    const freshAdapter = new TreeSitterAdapter();
+    freshAdapter.destroy();
+    await freshAdapter.init();
+    await freshAdapter.init();
+    await freshAdapter.init();
+    await freshAdapter.init();
+  });
+
+  it('destroy resets initAttempts', async () => {
+    await adapter.init();
+    adapter.destroy();
+    expect(adapter.isAvailable()).toBe(false);
+    await adapter.init();
+    expect(adapter.isAvailable()).toBe(true);
+  });
 });

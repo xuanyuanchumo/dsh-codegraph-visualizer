@@ -26,6 +26,7 @@ export default defineConfig({
         'src/client/index.ts',
 
         'src/client/renderer/IRenderer.ts',
+        'src/adapters/IAdapter.ts',
 
         'src/client/renderer/SequenceDiagramRenderer.tsx',
         'src/client/diagram/SequenceTypes.ts',

@@ -154,4 +154,62 @@ describe('FileSystemAdapter', () => {
     expect(pyNode?.properties.language).toBe('python');
     expect(rsNode?.properties.language).toBe('rust');
   });
+
+  it('setTreeSitterAdapter stores the adapter reference', () => {
+    const adapter = new FileSystemAdapter();
+    const { TreeSitterAdapter } = require('../../src/adapters/TreeSitterAdapter.ts');
+    const tsAdapter = new TreeSitterAdapter();
+    adapter.setTreeSitterAdapter(tsAdapter);
+  });
+
+  it('fetchDataWithSymbols returns empty when no filesystem', async () => {
+    const adapter = new FileSystemAdapter();
+    const result = await adapter.fetchDataWithSymbols('/repo');
+    expect(result.nodes).toHaveLength(0);
+    expect(result.edges).toHaveLength(0);
+  });
+
+  it('fetchDataWithSymbols returns structure-only when no tree-sitter adapter', async () => {
+    const fs = createMockFs({
+      '/repo/src': ['/repo/src/main.ts'],
+      '/repo/src/main.ts': 'export function main() {}',
+    });
+    const adapter = new FileSystemAdapter();
+    adapter.setFileSystem(fs);
+    const result = await adapter.fetchDataWithSymbols('/repo');
+    expect(result.nodes.length).toBeGreaterThan(0);
+  });
+
+  it('fetchDataWithSymbols merges structure and symbol nodes', async () => {
+    const fs = createMockFs({
+      '/repo/src': ['/repo/src/main.ts'],
+      '/repo/src/main.ts': 'function bar() { return 1; }',
+    });
+    const adapter = new FileSystemAdapter();
+    adapter.setFileSystem(fs);
+    const { TreeSitterAdapter } = require('../../src/adapters/TreeSitterAdapter.ts');
+    const tsAdapter = new TreeSitterAdapter();
+    await tsAdapter.init();
+    adapter.setTreeSitterAdapter(tsAdapter);
+    const result = await adapter.fetchDataWithSymbols('/repo');
+    expect(result.nodes.length).toBeGreaterThan(0);
+    const symbolNodes = result.nodes.filter(n => n.properties.source === 'tree-sitter');
+    expect(symbolNodes.length).toBeGreaterThan(0);
+  });
+
+  it('fetchDataWithSymbols adds contains edges from file to symbols', async () => {
+    const fs = createMockFs({
+      '/repo/src': ['/repo/src/main.ts'],
+      '/repo/src/main.ts': 'function bar() { return 1; }',
+    });
+    const adapter = new FileSystemAdapter();
+    adapter.setFileSystem(fs);
+    const { TreeSitterAdapter } = require('../../src/adapters/TreeSitterAdapter.ts');
+    const tsAdapter = new TreeSitterAdapter();
+    await tsAdapter.init();
+    adapter.setTreeSitterAdapter(tsAdapter);
+    const result = await adapter.fetchDataWithSymbols('/repo');
+    const symContainsEdges = result.edges.filter(e => e.id.startsWith('symcontains:'));
+    expect(symContainsEdges.length).toBeGreaterThan(0);
+  });
 });
