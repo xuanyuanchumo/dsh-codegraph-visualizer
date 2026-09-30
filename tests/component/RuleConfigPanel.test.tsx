@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import React from 'react';
 
@@ -68,5 +68,30 @@ describe('RuleConfigPanel (FR-34) component', () => {
     expect(items.length).toBe(3);
     const first = items[0]!.closest('.cg-violation-item')!;
     expect(first.className).toContain('cg-error');
+  });
+
+  it('toggles showViolations on violations header click', () => {
+    render(<RuleConfigPanel violations={sampleViolations} onCheckRules={vi.fn()} onClose={vi.fn()} />);
+    const header = document.querySelector('.cg-rule-violations-header') as HTMLElement;
+    expect(header).toBeTruthy();
+    expect(document.querySelector('.cg-rule-violations-list')).toBeTruthy();
+    fireEvent.click(header);
+    expect(document.querySelector('.cg-rule-violations-list')).toBeNull();
+  });
+
+  it('toggles showViolations on Enter key', () => {
+    render(<RuleConfigPanel violations={sampleViolations} onCheckRules={vi.fn()} onClose={vi.fn()} />);
+    const header = document.querySelector('.cg-rule-violations-header') as HTMLElement;
+    expect(document.querySelector('.cg-rule-violations-list')).toBeTruthy();
+    fireEvent.keyDown(header, { key: 'Enter' });
+    expect(document.querySelector('.cg-rule-violations-list')).toBeNull();
+  });
+
+  it('toggles showViolations on Space key', () => {
+    render(<RuleConfigPanel violations={sampleViolations} onCheckRules={vi.fn()} onClose={vi.fn()} />);
+    const header = document.querySelector('.cg-rule-violations-header') as HTMLElement;
+    expect(document.querySelector('.cg-rule-violations-list')).toBeTruthy();
+    fireEvent.keyDown(header, { key: ' ' });
+    expect(document.querySelector('.cg-rule-violations-list')).toBeNull();
   });
 });

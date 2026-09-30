@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import React from 'react';
 
@@ -78,6 +78,17 @@ describe('SearchBar (FR-07) component', () => {
     render(<SearchBar query="Graph" matchCount={1} searchResults={results} onChange={noop} onClose={noop} onSelectResult={onSelectResult} />);
     const option = screen.getByRole('option');
     await user.click(option);
+    expect(onSelectResult).toHaveBeenCalledWith('n1');
+  });
+
+  it('calls onSelectResult when Enter is pressed on a result item', () => {
+    const onSelectResult = vi.fn();
+    const results = [
+      { id: 'n1', label: 'GraphPanel', type: 'function', filePath: 'src/GraphPanel.tsx' },
+    ];
+    render(<SearchBar query="Graph" matchCount={1} searchResults={results} onChange={noop} onClose={noop} onSelectResult={onSelectResult} />);
+    const option = screen.getByRole('option');
+    fireEvent.keyDown(option, { key: 'Enter' });
     expect(onSelectResult).toHaveBeenCalledWith('n1');
   });
 

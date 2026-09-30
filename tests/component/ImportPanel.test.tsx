@@ -306,4 +306,21 @@ describe('ImportPanel component', () => {
       expect(panel!.getAttribute('aria-modal')).toBe('true');
     });
   });
+
+  describe('copy install command', () => {
+    it('renders copy button when prerequisites are missing', () => {
+      render(<ImportPanel {...makeProps({ prerequisites: { codegraph: false, lens: false } })} />);
+      expect(document.querySelector('.cg-prereq-copy')).toBeTruthy();
+    });
+
+    it('calls clipboard.writeText when copy button is clicked', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText } });
+      render(<ImportPanel {...makeProps({ prerequisites: { codegraph: false, lens: false } })} />);
+      const copyBtn = document.querySelector('.cg-prereq-copy') as HTMLButtonElement;
+      fireEvent.click(copyBtn);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(writeText).toHaveBeenCalledWith('dsh plugin --profile web add dsh-codegraph');
+    });
+  });
 });

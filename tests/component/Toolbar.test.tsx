@@ -778,4 +778,84 @@ describe('Toolbar component', () => {
       expect(onCollapseAll).toHaveBeenCalledOnce();
     });
   });
+
+  describe('dagre rank-dir buttons', () => {
+    it('renders rank-dir buttons when layout is dagre', () => {
+      render(<Toolbar {...makeProps({ layout: 'dagre' })} />);
+      const rankDirGroup = document.querySelector('.cg-rank-dir-buttons');
+      expect(rankDirGroup).toBeTruthy();
+      const buttons = rankDirGroup!.querySelectorAll('button');
+      expect(buttons.length).toBeGreaterThan(0);
+    });
+
+    it('calls onDagreRankDirChange when a rank-dir button is clicked', async () => {
+      const user = userEvent.setup();
+      const onDagreRankDirChange = vi.fn();
+      render(<Toolbar {...makeProps({ layout: 'dagre', onDagreRankDirChange })} />);
+      const rankDirGroup = document.querySelector('.cg-rank-dir-buttons');
+      const firstBtn = rankDirGroup!.querySelector('button') as HTMLButtonElement;
+      await user.click(firstBtn);
+      expect(onDagreRankDirChange).toHaveBeenCalled();
+    });
+
+    it('does not render rank-dir buttons when layout is not dagre', () => {
+      render(<Toolbar {...makeProps({ layout: 'cose' })} />);
+      expect(document.querySelector('.cg-rank-dir-buttons')).toBeNull();
+    });
+  });
+
+  describe('export menu', () => {
+    it('opens export dropdown when export button is clicked', async () => {
+      const user = userEvent.setup();
+      render(<Toolbar {...makeProps()} />);
+      const exportBtn = document.querySelector('.cg-export-btn') as HTMLButtonElement;
+      await user.click(exportBtn);
+      expect(document.querySelector('.cg-export-dropdown')).toBeTruthy();
+    });
+
+    it('calls handleExport with png when png button is clicked', async () => {
+      const user = userEvent.setup();
+      const onExport = vi.fn();
+      render(<Toolbar {...makeProps({ onExport })} />);
+      const exportBtn = document.querySelector('.cg-export-btn') as HTMLButtonElement;
+      await user.click(exportBtn);
+      const menuItems = document.querySelectorAll('.cg-export-dropdown button');
+      expect(menuItems.length).toBeGreaterThan(0);
+      await user.click(menuItems[0]!);
+      expect(onExport).toHaveBeenCalledWith('png');
+    });
+
+    it('calls handleExport with svg when svg button is clicked', async () => {
+      const user = userEvent.setup();
+      const onExport = vi.fn();
+      render(<Toolbar {...makeProps({ onExport })} />);
+      const exportBtn = document.querySelector('.cg-export-btn') as HTMLButtonElement;
+      await user.click(exportBtn);
+      const menuItems = document.querySelectorAll('.cg-export-dropdown button');
+      await user.click(menuItems[1]!);
+      expect(onExport).toHaveBeenCalledWith('svg');
+    });
+
+    it('calls handleExport with json when json button is clicked', async () => {
+      const user = userEvent.setup();
+      const onExport = vi.fn();
+      render(<Toolbar {...makeProps({ onExport })} />);
+      const exportBtn = document.querySelector('.cg-export-btn') as HTMLButtonElement;
+      await user.click(exportBtn);
+      const menuItems = document.querySelectorAll('.cg-export-dropdown button');
+      await user.click(menuItems[2]!);
+      expect(onExport).toHaveBeenCalledWith('json');
+    });
+
+    it('calls handleExport with mermaid when mermaid button is clicked', async () => {
+      const user = userEvent.setup();
+      const onExport = vi.fn();
+      render(<Toolbar {...makeProps({ onExport })} />);
+      const exportBtn = document.querySelector('.cg-export-btn') as HTMLButtonElement;
+      await user.click(exportBtn);
+      const menuItems = document.querySelectorAll('.cg-export-dropdown button');
+      await user.click(menuItems[3]!);
+      expect(onExport).toHaveBeenCalledWith('mermaid');
+    });
+  });
 });

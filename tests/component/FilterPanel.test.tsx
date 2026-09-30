@@ -249,4 +249,36 @@ describe('FilterPanel component', () => {
     expect(region).toBeTruthy();
     expect(region!.getAttribute('aria-label')).toBeTruthy();
   });
+
+  describe('path filter', () => {
+    it('applyPathFilter calls setPathFilter with trimmed include/exclude', () => {
+      const setPathFilter = vi.fn();
+      useGraphStore.setState({ setPathFilter });
+      render(<FilterPanel onClose={vi.fn()} />);
+      const inputs = document.querySelectorAll('.cg-filter-path-input');
+      fireEvent.change(inputs[0]!, { target: { value: 'src/api' } });
+      fireEvent.change(inputs[1]!, { target: { value: 'node_modules' } });
+      const applyBtn = document.querySelector('.cg-filter-path-actions .cg-filter-quick-btn');
+      fireEvent.click(applyBtn!);
+      expect(setPathFilter).toHaveBeenCalledWith('src/api', 'node_modules');
+    });
+
+    it('applyPathFilter calls setPathFilter with null for empty inputs', () => {
+      const setPathFilter = vi.fn();
+      useGraphStore.setState({ setPathFilter });
+      render(<FilterPanel onClose={vi.fn()} />);
+      const applyBtn = document.querySelector('.cg-filter-path-actions .cg-filter-quick-btn');
+      fireEvent.click(applyBtn!);
+      expect(setPathFilter).toHaveBeenCalledWith(null, null);
+    });
+
+    it('clearPathFilter resets inputs and calls setPathFilter with null', () => {
+      const setPathFilter = vi.fn();
+      useGraphStore.setState({ setPathFilter, pathFilterInclude: 'src', pathFilterExclude: 'test' });
+      render(<FilterPanel onClose={vi.fn()} />);
+      const clearBtn = document.querySelectorAll('.cg-filter-path-actions .cg-filter-quick-btn')[1];
+      fireEvent.click(clearBtn!);
+      expect(setPathFilter).toHaveBeenCalledWith(null, null);
+    });
+  });
 });

@@ -62,4 +62,21 @@ describe('KeyboardHelp', () => {
     const kbdElements = container.querySelectorAll('kbd');
     expect(kbdElements.length).toBeGreaterThan(0);
   });
+
+  it('Escape 键应调用 onClose', () => {
+    const onClose = vi.fn();
+    const { container } = render(<KeyboardHelp visible={true} onClose={onClose} />);
+    const panel = container.querySelector('.cg-keyboard-help-panel') as HTMLElement;
+    expect(panel).toBeTruthy();
+    fireEvent.keyDown(panel, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('点击 overlay 应调用 onClose', () => {
+    const onClose = vi.fn();
+    const { container } = render(<KeyboardHelp visible={true} onClose={onClose} />);
+    const overlay = container.querySelector('.cg-keyboard-help-overlay') as HTMLElement;
+    fireEvent.click(overlay);
+    expect(onClose).toHaveBeenCalled();
+  });
 });

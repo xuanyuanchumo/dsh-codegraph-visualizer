@@ -1039,3 +1039,12 @@ describe('render functions', () => {
   });
 });
 
+describe('createGraphTools dispose', () => {
+  it('dispose should clear graphCache without throwing', async () => {
+    const ctx = makeMockCtx();
+    const tools = await createGraphTools(ctx);
+    expect(typeof tools.dispose).toBe('function');
+    expect(() => tools.dispose()).not.toThrow();
+  });
+});
+

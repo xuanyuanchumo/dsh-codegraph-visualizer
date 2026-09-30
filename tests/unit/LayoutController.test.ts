@@ -2023,4 +2023,14 @@ describe('LayoutController', () => {
       controller.destroy();
     });
   });
+
+  describe('retryWorker', () => {
+    it('calls retryWorker without throwing when worker not failed', async () => {
+      const cy = makeMockCy();
+      const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+      expect(() => controller.retryWorker()).not.toThrow();
+      controller.destroy();
+    });
+  });
 });

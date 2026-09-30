@@ -135,6 +135,27 @@ describe('CoreFunctionPanel', () => {
     expect(container.querySelector('.core-function-panel')).toBeTruthy();
   });
 
+  it('按 Enter 键应调用 onSelectFunction', () => {
+    const onSelectFunction = vi.fn();
+    const { container } = render(
+      <CoreFunctionPanel {...defaultProps} onSelectFunction={onSelectFunction} />
+    );
+    const items = container.querySelectorAll('.cg-core-function-item');
+    expect(items.length).toBeGreaterThan(0);
+    fireEvent.keyDown(items[0]!, { key: 'Enter' });
+    expect(onSelectFunction).toHaveBeenCalledWith('fn-1');
+  });
+
+  it('按 Space 键应调用 onSelectFunction', () => {
+    const onSelectFunction = vi.fn();
+    const { container } = render(
+      <CoreFunctionPanel {...defaultProps} onSelectFunction={onSelectFunction} />
+    );
+    const items = container.querySelectorAll('.cg-core-function-item');
+    fireEvent.keyDown(items[0]!, { key: ' ' });
+    expect(onSelectFunction).toHaveBeenCalledWith('fn-1');
+  });
+
   it('超过20个函数时只显示前20个', () => {
     const many: CoreFunction[] = Array.from({ length: 25 }, (_, i) => ({
       nodeId: `fn-${i}` as never,

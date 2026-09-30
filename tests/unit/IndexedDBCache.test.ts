@@ -669,4 +669,46 @@ describe('IndexedDBCache', () => {
     const failCache = new IndexedDBCache('getdiagram-faildb-repo');
     expect(await failCache.getDiagram('key1')).toBeNull();
   });
+
+  describe('outline cache (getFromStore/setToStore)', () => {
+    it('setOutline and getOutline round-trip', async () => {
+      const data = { functions: ['fn1', 'fn2'] };
+      await cache.setOutline('node1', data);
+      const result = await cache.getOutline('node1');
+      expect(result).toEqual(data);
+    });
+
+    it('getOutline returns null for missing key', async () => {
+      const result = await cache.getOutline('nonexistent');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('AST cache (getFromStore/setToStore)', () => {
+    it('setAST and getAST round-trip', async () => {
+      const data = { type: 'FunctionDeclaration', body: [] };
+      await cache.setAST('node1', data);
+      const result = await cache.getAST('node1');
+      expect(result).toEqual(data);
+    });
+
+    it('getAST returns null for missing key', async () => {
+      const result = await cache.getAST('nonexistent');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('edges cache (getFromStore/setToStore)', () => {
+    it('setEdges and getEdges round-trip', async () => {
+      const data = [{ source: 'a', target: 'b' }];
+      await cache.setEdges('key1', data);
+      const result = await cache.getEdges('key1');
+      expect(result).toEqual(data);
+    });
+
+    it('getEdges returns null for missing key', async () => {
+      const result = await cache.getEdges('nonexistent');
+      expect(result).toBeNull();
+    });
+  });
 });

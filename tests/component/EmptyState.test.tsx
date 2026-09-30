@@ -96,6 +96,17 @@ describe('EmptyState', () => {
     expect(mockWriteText).toHaveBeenCalled();
   });
 
+  it('点击 lens 复制按钮应调用 clipboard.writeText', () => {
+    const props = {
+      ...defaultProps,
+      prerequisites: { codegraph: true, lens: false },
+    };
+    const { container } = render(<EmptyState {...props} />);
+    const copyBtn = container.querySelector('.cg-prereq-copy-btn')!;
+    fireEvent.click(copyBtn);
+    expect(mockWriteText).toHaveBeenCalledWith('prereq.installLens');
+  });
+
   it('点击安装按钮应分发 codegraph:install-plugin 事件', () => {
     const props = {
       ...defaultProps,

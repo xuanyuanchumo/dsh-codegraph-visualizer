@@ -143,4 +143,29 @@ describe('StatsPanel', () => {
     const statRows = container.querySelectorAll('.cg-mini-map-stats > div');
     expect(statRows.length).toBe(5);
   });
+
+  it('img onLoad fires without error', () => {
+    const props = {
+      ...defaultProps,
+      thumbnail: 'data:image/png;base64,abc',
+      viewportInfo: { zoom: 1, pan: { x: 0, y: 0 }, renderedSize: { w: 100, h: 100 }, totalSize: { w: 200, h: 200 } },
+    };
+    const { container } = render(<StatsPanel {...props} />);
+    const img = container.querySelector('img') as HTMLImageElement;
+    expect(img).toBeTruthy();
+    expect(() => fireEvent.load(img)).not.toThrow();
+  });
+
+  it('handleThumbnailClick calls onFocusArea with ratio', () => {
+    const onFocusArea = vi.fn();
+    const props = {
+      ...defaultProps,
+      thumbnail: 'data:image/png;base64,abc',
+      onFocusArea,
+    };
+    const { container } = render(<StatsPanel {...props} />);
+    const img = container.querySelector('img') as HTMLImageElement;
+    fireEvent.click(img, { clientX: 50, clientY: 50 });
+    expect(onFocusArea).toHaveBeenCalled();
+  });
 });

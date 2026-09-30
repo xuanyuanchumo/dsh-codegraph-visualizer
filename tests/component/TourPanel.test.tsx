@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import React from 'react';
 
@@ -167,5 +167,16 @@ describe('TourPanel component', () => {
     ]);
     render(<TourPanel tour={tourWithDependents} onClose={vi.fn()} />);
     expect(screen.getByText(/被引用/)).toBeTruthy();
+  });
+
+  it('calls handleStepClick when step list item is clicked', async () => {
+    const setSelectedNode = vi.fn();
+    useGraphStore.setState({ setSelectedNode });
+    render(<TourPanel tour={sampleTour} onClose={vi.fn()} />);
+    const stepItems = document.querySelectorAll('.cg-tour-step-item');
+    expect(stepItems.length).toBe(3);
+    fireEvent.click(stepItems[1]!);
+    expect(screen.getByText('2 / 3')).toBeTruthy();
+    expect(setSelectedNode).toHaveBeenCalled();
   });
 });
