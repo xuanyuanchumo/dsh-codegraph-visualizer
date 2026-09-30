@@ -22,7 +22,7 @@ export { PLUGIN_VERSION };
 const log = scoped('client');
 
 export const name = 'dsh-codegraph-visualizer-client';
-export const inject = ['slots', 'betterSidebar'];
+export const inject = ['slots', 'betterSidebar', 'sidebarRightTabs'];
 
 function SidebarNavButton({ onClick, active }: { onClick: () => void; active: boolean }) {
   return React.createElement('button', {
@@ -121,117 +121,125 @@ export function apply(ctx: Context): () => void {
   };
 
   try {
-    betterSidebarApi = ctx.get('betterSidebar') as Context['betterSidebar'] | undefined;
-    if (betterSidebarApi) {
-      const dispose = betterSidebarApi.registerTab({
-        id: 'codegraph-visualizer',
-        title: () => t('nav.title'),
-        description: () => t('nav.description'),
-        icon: (size: number) => React.createElement(GraphIcon, { size }),
-        order: 50,
-        single: true,
-        badge: () => {
-          const s = useGraphStore.getState();
-          if (s.nodes.length === 0) return null;
-          return s.nodes.length > 99 ? '99+' : s.nodes.length;
-        },
-        onOpen: (tab: unknown, scope: unknown) => {
-          log.info('better-sidebar tab opened', { tabId: (tab as { id?: string })?.id, scope });
-          useGraphStore.getState().setPanelVisible(true);
-        },
-        onActivate: (tab: unknown, scope: unknown) => {
-          log.info('better-sidebar tab activated', { tabId: (tab as { id?: string })?.id, scope });
-          useGraphStore.getState().setPanelVisible(true);
-        },
-        onClose: (tab: unknown, scope: unknown) => {
-          log.info('better-sidebar tab closed', { tabId: (tab as { id?: string })?.id, scope });
-          useGraphStore.getState().setPanelVisible(false);
-        },
-        component: (props: {
-          ctx: Context;
-          visible: boolean;
-          tab: { id: string; title: string; path?: string };
-        }) => {
-          panelVisible = props.visible;
-          useGraphStore.getState().setPanelVisible(props.visible);
-          if (props.tab?.id) _betterSidebarTabId = props.tab.id;
-          return React.createElement(
-            'div',
-            {
-              style: {
-                display: props.visible ? 'block' : 'none',
-                width: '100%',
-                height: '100%',
-              },
-              'data-cg-sidebar-visible': String(props.visible),
-            },
-            React.createElement(GraphPanel),
-          );
-        },
-      });
-      if (typeof dispose === 'function') {
-        ctx.effect(() => dispose, 'codegraph: better-sidebar tab');
-        navButtonRegistered = true;
-        useGraphStore.getState().setIntegrationMode('sidebar');
-        try {
-          sidebarStateDisposer = betterSidebarApi.subscribeState(() => {
-            const snapshot = betterSidebarApi?.getSnapshot();
-            if (snapshot?.state) {
-              const isVisible = snapshot.state.activePane === 'codegraph-visualizer' ||
-                snapshot.state.bottomOpen;
-              if (isVisible !== panelVisible) {
-                panelVisible = isVisible;
-                useGraphStore.getState().setPanelVisible(isVisible);
-              }
-            }
-          });
-          if (sidebarStateDisposer) {
-            ctx.effect(() => sidebarStateDisposer!, 'codegraph: sidebar state subscription');
-          }
-        } catch (e) {
-          log.warn('better-sidebar subscribeState failed', e);
-        }
-      } else {
-        log.warn('better-sidebar registerTab did not return a disposer, falling back to slots');
+    const seatDispose = ctx.inject(['sidebarRightTabs'], (injected: Map<string, unknown>) => {
+      const tabs = injected.get('sidebarRightTabs') as Context['sidebarRightTabs'] | undefined;
+      if (!tabs) {
+        log.warn('sidebarRightTabs injected but undefined');
+        return;
       }
-    }
+      log.info('sidebarRightTabs injected via ctx.inject, registering...');
+
+      const typeDispose = tabs.register({
+        id: 'dsh-codegraph-visualizer',
+        kind: 'codegraph',
+        priority: 'extension',
+        canOpen: () => true,
+        title: () => t('nav.title'),
+      });
+      if (typeof typeDispose === 'function') slotDisposers.push(typeDispose);
+
+      const bodyDispose = ctx.slots.inject('sidebar.right.pane.tab', () => {
+        const regResult = ctx.slots.register(
+          { name: 'sidebar.right.pane.tab', key: 'dsh-codegraph-visualizer' },
+          GraphPanel,
+        );
+        if (typeof regResult === 'function') slotDisposers.push(regResult);
+      });
+      if (typeof bodyDispose === 'function') slotDisposers.push(bodyDispose);
+
+      navButtonRegistered = true;
+      useGraphStore.getState().setIntegrationMode('sidebar-right');
+      log.info('sidebarRightTabs registration succeeded');
+    });
+    if (typeof seatDispose === 'function') slotDisposers.push(seatDispose);
   } catch (e) {
-    log.warn('better-sidebar registration failed', e);
+    log.error('sidebarRightTabs ctx.inject failed', e);
   }
 
   if (!navButtonRegistered) {
     try {
-      const sidebarRightTabs = ctx.get('sidebarRightTabs') as Context['sidebarRightTabs'] | undefined;
-      if (sidebarRightTabs) {
-        const disposeTabType = sidebarRightTabs.register({
-          id: 'dsh-codegraph-visualizer',
-          kind: 'codegraph',
-          patterns: [],
-          priority: 'extension',
-          canOpen: () => true,
+      betterSidebarApi = ctx.get('betterSidebar') as Context['betterSidebar'] | undefined;
+      if (betterSidebarApi) {
+        const dispose = betterSidebarApi.registerTab({
+          id: 'codegraph-visualizer',
           title: () => t('nav.title'),
+          description: () => t('nav.description'),
+          icon: (size: number) => React.createElement(GraphIcon, { size }),
+          order: 50,
+          single: true,
+          badge: () => {
+            const s = useGraphStore.getState();
+            if (s.nodes.length === 0) return null;
+            return s.nodes.length > 99 ? '99+' : s.nodes.length;
+          },
+          onOpen: (tab: unknown, scope: unknown) => {
+            log.info('better-sidebar tab opened', { tabId: (tab as { id?: string })?.id, scope });
+            useGraphStore.getState().setPanelVisible(true);
+          },
+          onActivate: (tab: unknown, scope: unknown) => {
+            log.info('better-sidebar tab activated', { tabId: (tab as { id?: string })?.id, scope });
+            useGraphStore.getState().setPanelVisible(true);
+          },
+          onClose: (tab: unknown, scope: unknown) => {
+            log.info('better-sidebar tab closed', { tabId: (tab as { id?: string })?.id, scope });
+            useGraphStore.getState().setPanelVisible(false);
+          },
+          component: (props: {
+            ctx: Context;
+            visible: boolean;
+            tab: { id: string; title: string; path?: string };
+          }) => {
+            panelVisible = props.visible;
+            useGraphStore.getState().setPanelVisible(props.visible);
+            if (props.tab?.id) _betterSidebarTabId = props.tab.id;
+            return React.createElement(
+              'div',
+              {
+                style: {
+                  display: props.visible ? 'block' : 'none',
+                  width: '100%',
+                  height: '100%',
+                },
+                'data-cg-sidebar-visible': String(props.visible),
+              },
+              React.createElement(GraphPanel),
+            );
+          },
         });
-        if (typeof disposeTabType === 'function') {
-          ctx.effect(() => disposeTabType, 'codegraph: sidebarRightTabs type');
+        if (typeof dispose === 'function') {
+          ctx.effect(() => dispose, 'codegraph: better-sidebar tab');
+          navButtonRegistered = true;
+          useGraphStore.getState().setIntegrationMode('sidebar');
+          try {
+            sidebarStateDisposer = betterSidebarApi.subscribeState(() => {
+              const snapshot = betterSidebarApi?.getSnapshot();
+              if (snapshot?.state) {
+                const isVisible = snapshot.state.activePane === 'codegraph-visualizer' ||
+                  snapshot.state.bottomOpen;
+                if (isVisible !== panelVisible) {
+                  panelVisible = isVisible;
+                  useGraphStore.getState().setPanelVisible(isVisible);
+                }
+              }
+            });
+            if (sidebarStateDisposer) {
+              ctx.effect(() => sidebarStateDisposer!, 'codegraph: sidebar state subscription');
+            }
+          } catch (e) {
+            log.warn('better-sidebar subscribeState failed', e);
+          }
+        } else {
+          log.warn('better-sidebar registerTab did not return a disposer, falling back to slots');
         }
-        const disposeSlot = ctx.slots.inject('sidebar.right.pane.tab', () => {
-          return ctx.slots.register(
-            { name: 'sidebar.right.pane.tab', id: 'dsh-codegraph-visualizer' },
-            () => React.createElement(GraphPanel),
-          );
-        });
-        trackSlotDisposer(disposeSlot);
-        navButtonRegistered = true;
-        useGraphStore.getState().setIntegrationMode('sidebar-right');
-        log.info('sidebarRightTabs registration succeeded');
       }
     } catch (e) {
-      log.warn('sidebarRightTabs registration failed', e);
+      log.warn('better-sidebar registration failed', e);
     }
   }
 
   if (!navButtonRegistered) {
     try {
+
       const injectDisposer = ctx.slots.inject('sidebar.footer.action', () => {
         trackSlotDisposer(
           ctx.slots.register(

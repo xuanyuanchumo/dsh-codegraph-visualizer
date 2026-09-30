@@ -334,9 +334,10 @@ declare module '@deepseek-ai/cordis' {
     on<K extends keyof Events>(name: K, listener: Events[K]): () => boolean;
     get(name: string, strict?: boolean): unknown;
     provide(name: string, service: unknown): () => void;
+    inject(deps: string[], callback: (injected: Map<string, unknown>) => void): (() => void) | void;
     slots: {
-      inject(slotName: string, callback: () => void): void;
-      register(options: { name: string; id: string; order?: number; label?: () => string }, component?: unknown): (() => void) | void;
+      inject(slotName: string, callback: () => void): (() => void) | void;
+      register(options: { name: string; id?: string; key?: string; order?: number; label?: () => string; inject?: (...args: unknown[]) => unknown }, component?: unknown): (() => void) | void;
     };
     betterSidebar?: {
       registerTab(descriptor: {
