@@ -159,10 +159,12 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   const analysisMenuRef = useRef<HTMLDivElement>(null);
   const qualityMenuRef = useRef<HTMLDivElement>(null);
   const layoutMenuRef = useRef<HTMLDivElement>(null);
+  const viewMenuRef = useRef<HTMLDivElement>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showAnalysisMenu, setShowAnalysisMenu] = useState(false);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
+  const [showViewMenu, setShowViewMenu] = useState(false);
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
@@ -178,12 +180,15 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       if (layoutMenuRef.current && !layoutMenuRef.current.contains(e.target as Node)) {
         setShowLayoutMenu(false);
       }
+      if (viewMenuRef.current && !viewMenuRef.current.contains(e.target as Node)) {
+        setShowViewMenu(false);
+      }
     };
-    if (showExportMenu || showAnalysisMenu || showQualityMenu || showLayoutMenu) {
+    if (showExportMenu || showAnalysisMenu || showQualityMenu || showLayoutMenu || showViewMenu) {
       document.addEventListener('mousedown', onDocClick);
       return () => document.removeEventListener('mousedown', onDocClick);
     }
-  }, [showExportMenu, showAnalysisMenu, showQualityMenu, showLayoutMenu]);
+  }, [showExportMenu, showAnalysisMenu, showQualityMenu, showLayoutMenu, showViewMenu]);
 
   const onExport = props.onExport;
   const handleExport = useCallback((format: 'png' | 'svg' | 'json' | 'mermaid' | 'mermaid-seq' | 'mermaid-class' | 'graphml' | 'jsonld') => {
@@ -255,49 +260,47 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
             </div>
           )}
         </div>
-        <div className="cg-graph-type-buttons" role="group" aria-label={t('toolbar.graphType')}>
-          {GRAPH_TYPES.map((g) => (
-            <button
-              key={g.value}
-              className={`cg-graph-type-btn ${graphType === g.value ? 'cg-active' : ''}`}
-              onClick={() => onGraphTypeChange(g.value)}
-              title={t(g.key)}
-              aria-pressed={graphType === g.value}
-            >{t(g.key)}</button>
-          ))}
-        </div>
-        <div className="cg-view-mode-buttons" role="group" aria-label={t('toolbar.graphType')}>
-          {STRUCTURAL_VIEW_MODES.map((m) => (
-            <button
-              key={m}
-              className={`cg-view-mode-btn ${viewMode === m ? 'cg-active' : ''}`}
-              onClick={() => onViewModeChange(m)}
-              title={t(STRUCTURAL_TITLE_KEYS[m]!)}
-              aria-pressed={viewMode === m}
-            >{t(STRUCTURAL_MODE_KEYS[m]!)}</button>
-          ))}
-          <span className="cg-view-mode-divider" aria-hidden="true" />
-          {BEHAVIORAL_VIEW_MODES.map((m) => (
-            <button
-              key={m}
-              className={`cg-view-mode-btn ${viewMode === m ? 'cg-active' : ''}`}
-              onClick={() => onViewModeChange(m)}
-              title={t(BEHAVIORAL_TITLE_KEYS[m]!)}
-              aria-pressed={viewMode === m}
-            >{t(BEHAVIORAL_MODE_KEYS[m]!)}</button>
-          ))}
-          <span className="cg-view-mode-divider" aria-hidden="true" />
-          {BEHAVIORAL_MICRO_VIEW_MODES.map((m) => (
-            <button
-              key={m}
-              className={`cg-view-mode-btn cg-view-mode-btn--micro ${viewMode === m ? 'cg-active' : ''}`}
-              onClick={() => onViewModeChange(m)}
-              title={hasSelectedFunction ? t(BEHAVIORAL_MICRO_TITLE_KEYS[m]!) : t('toolbar.microDisabled')}
-              aria-pressed={viewMode === m}
-              disabled={!hasSelectedFunction}
-              aria-disabled={!hasSelectedFunction}
-            >{t(BEHAVIORAL_MICRO_MODE_KEYS[m]!)}</button>
-          ))}
+        <div className="cg-dropdown-menu" ref={viewMenuRef}>
+          <button className={`cg-view-dropdown-btn ${showViewMenu ? 'cg-active' : ''}`} onClick={() => setShowViewMenu((v) => !v)}
+            title={t('toolbar.viewMode')} aria-label={t('toolbar.viewMode')} aria-expanded={showViewMenu}>
+            {t(STRUCTURAL_MODE_KEYS[viewMode] ?? BEHAVIORAL_MODE_KEYS[viewMode] ?? BEHAVIORAL_MICRO_MODE_KEYS[viewMode] ?? 'toolbar.viewMode')}<ChevronDownIcon size={12} />
+          </button>
+          {showViewMenu && (
+            <div className="cg-dropdown-content cg-view-dropdown">
+              <div className="cg-dropdown-section-label">{t('toolbar.graphType')}</div>
+              {GRAPH_TYPES.map((g) => (
+                <button key={g.value} className={`cg-dropdown-item ${graphType === g.value ? 'cg-active' : ''}`}
+                  onClick={() => { onGraphTypeChange(g.value); }}
+                  aria-pressed={graphType === g.value}>{t(g.key)}</button>
+              ))}
+              <div className="cg-dropdown-separator" />
+              <div className="cg-dropdown-section-label">{t('toolbar.viewModeStructural')}</div>
+              {STRUCTURAL_VIEW_MODES.map((m) => (
+                <button key={m} className={`cg-dropdown-item ${viewMode === m ? 'cg-active' : ''}`}
+                  onClick={() => { onViewModeChange(m); setShowViewMenu(false); }}
+                  title={t(STRUCTURAL_TITLE_KEYS[m]!)}
+                  aria-pressed={viewMode === m}>{t(STRUCTURAL_MODE_KEYS[m]!)}</button>
+              ))}
+              <div className="cg-dropdown-separator" />
+              <div className="cg-dropdown-section-label">{t('toolbar.viewModeBehavioral')}</div>
+              {BEHAVIORAL_VIEW_MODES.map((m) => (
+                <button key={m} className={`cg-dropdown-item ${viewMode === m ? 'cg-active' : ''}`}
+                  onClick={() => { onViewModeChange(m); setShowViewMenu(false); }}
+                  title={t(BEHAVIORAL_TITLE_KEYS[m]!)}
+                  aria-pressed={viewMode === m}>{t(BEHAVIORAL_MODE_KEYS[m]!)}</button>
+              ))}
+              <div className="cg-dropdown-separator" />
+              <div className="cg-dropdown-section-label">{t('toolbar.viewModeMicro')}</div>
+              {BEHAVIORAL_MICRO_VIEW_MODES.map((m) => (
+                <button key={m} className={`cg-dropdown-item ${viewMode === m ? 'cg-active' : ''}`}
+                  onClick={() => { onViewModeChange(m); setShowViewMenu(false); }}
+                  title={hasSelectedFunction ? t(BEHAVIORAL_MICRO_TITLE_KEYS[m]!) : t('toolbar.microDisabled')}
+                  aria-pressed={viewMode === m}
+                  disabled={!hasSelectedFunction}
+                  aria-disabled={!hasSelectedFunction}>{t(BEHAVIORAL_MICRO_MODE_KEYS[m]!)}</button>
+              ))}
+            </div>
+          )}
         </div>
         {layerNames.length > 1 && (
           <div className="cg-layer-selector" role="group" aria-label={t('toolbar.layer')}>

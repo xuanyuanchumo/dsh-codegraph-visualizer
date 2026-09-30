@@ -32,6 +32,10 @@ export const en: Record<string, string> = {
   'toolbar.layoutSwitcher': 'Layout switcher',
   'toolbar.rankDir': 'Dagre direction',
   'toolbar.graphType': 'Graph type switcher',
+  'toolbar.viewMode': 'View mode',
+  'toolbar.viewModeStructural': 'Structural',
+  'toolbar.viewModeBehavioral': 'Behavioral',
+  'toolbar.viewModeMicro': 'Micro (select a function)',
   'toolbar.cluster': 'Expand depth',
   'toolbar.layer': 'Diagram layer',
 

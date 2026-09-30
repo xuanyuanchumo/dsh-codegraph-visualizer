@@ -32,6 +32,10 @@ export const zh: Record<string, string> = {
   'toolbar.layoutSwitcher': '布局切换',
   'toolbar.rankDir': 'Dagre 方向',
   'toolbar.graphType': '图谱类型切换',
+  'toolbar.viewMode': '视图模式',
+  'toolbar.viewModeStructural': '结构视图',
+  'toolbar.viewModeBehavioral': '行为视图',
+  'toolbar.viewModeMicro': '微观视图（需选中函数）',
   'toolbar.cluster': '展开深度',
   'toolbar.layer': '图谱层级',
 

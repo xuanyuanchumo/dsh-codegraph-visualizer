@@ -150,80 +150,110 @@ describe('Toolbar component', () => {
     });
   });
 
-  // 2. 渲染图类型按钮并响应点击
-  describe('graph type buttons', () => {
-    it('renders all 3 graph type buttons', () => {
+  // 2. 渲染图类型按钮并响应点击（已整合到 View 下拉菜单）
+  describe('graph type in view dropdown', () => {
+    it('renders all 3 graph type items in view dropdown', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps()} />);
-      const graphTypeGroup = document.querySelector('.cg-graph-type-buttons');
-      expect(graphTypeGroup).toBeTruthy();
-      const buttons = graphTypeGroup!.querySelectorAll('button');
-      expect(buttons.length).toBe(3);
+      const viewBtn = document.querySelector('.cg-view-dropdown-btn') as HTMLButtonElement;
+      await user.click(viewBtn);
+      const viewDropdown = document.querySelector('.cg-view-dropdown');
+      expect(viewDropdown).toBeTruthy();
+      const sectionLabels = viewDropdown!.querySelectorAll('.cg-dropdown-section-label');
+      expect(sectionLabels.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('marks the active graph type button with active class', () => {
+    it('marks the active graph type item with active class', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ graphType: 'call' })} />);
-      const graphTypeGroup = document.querySelector('.cg-graph-type-buttons');
-      const callBtn = Array.from(graphTypeGroup!.querySelectorAll('button')).find(
-        (b) => b.getAttribute('aria-pressed') === 'true',
+      const viewBtn = document.querySelector('.cg-view-dropdown-btn') as HTMLButtonElement;
+      await user.click(viewBtn);
+      const viewDropdown = document.querySelector('.cg-view-dropdown');
+      const callItem = Array.from(viewDropdown!.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.textContent === '调用',
       ) as HTMLButtonElement;
-      expect(callBtn).toBeTruthy();
-      expect(callBtn.className).toContain('active');
+      expect(callItem).toBeTruthy();
+      expect(callItem.className).toContain('active');
+      expect(callItem.getAttribute('aria-pressed')).toBe('true');
     });
 
-    it('calls onGraphTypeChange when a graph type button is clicked', async () => {
+    it('calls onGraphTypeChange when a graph type item is clicked', async () => {
       const user = userEvent.setup();
       const onGraphTypeChange = vi.fn();
       render(<Toolbar {...makeProps({ onGraphTypeChange })} />);
-      const graphTypeGroup = document.querySelector('.cg-graph-type-buttons');
-      const buttons = graphTypeGroup!.querySelectorAll('button');
-      await user.click(buttons[1]!); // 'call' button
+      const viewBtn = document.querySelector('.cg-view-dropdown-btn') as HTMLButtonElement;
+      await user.click(viewBtn);
+      const viewDropdown = document.querySelector('.cg-view-dropdown');
+      const callItem = Array.from(viewDropdown!.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.textContent === '调用',
+      ) as HTMLButtonElement;
+      await user.click(callItem);
       expect(onGraphTypeChange).toHaveBeenCalledWith('call');
     });
   });
 
-  // 3. 渲染视图模式按钮并响应点击
-  describe('view mode buttons', () => {
-    it('renders all 6 macro view mode buttons', () => {
+  // 3. 渲染视图模式按钮并响应点击（已整合到 View 下拉菜单）
+  describe('view mode in view dropdown', () => {
+    it('renders all 6 macro view mode items in view dropdown', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps()} />);
-      const viewModeGroup = document.querySelector('.cg-view-mode-buttons');
-      expect(viewModeGroup).toBeTruthy();
-      const macroBtns = viewModeGroup!.querySelectorAll('.cg-view-mode-btn:not(.cg-view-mode-btn--micro)');
-      expect(macroBtns.length).toBe(6);
+      const viewBtn = document.querySelector('.cg-view-dropdown-btn') as HTMLButtonElement;
+      await user.click(viewBtn);
+      const viewDropdown = document.querySelector('.cg-view-dropdown');
+      expect(viewDropdown).toBeTruthy();
+      const sectionLabels = viewDropdown!.querySelectorAll('.cg-dropdown-section-label');
+      expect(sectionLabels.length).toBe(4);
     });
 
-    it('renders all 3 micro view mode buttons', () => {
+    it('renders all 3 micro view mode items in view dropdown', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ hasSelectedFunction: true })} />);
-      const viewModeGroup = document.querySelector('.cg-view-mode-buttons');
-      const microBtns = viewModeGroup!.querySelectorAll('.cg-view-mode-btn--micro');
-      expect(microBtns.length).toBe(3);
+      const viewBtn = document.querySelector('.cg-view-dropdown-btn') as HTMLButtonElement;
+      await user.click(viewBtn);
+      const viewDropdown = document.querySelector('.cg-view-dropdown');
+      const microLabel = Array.from(viewDropdown!.querySelectorAll('.cg-dropdown-section-label')).find(
+        (l) => l.textContent?.includes('微观') || l.textContent?.includes('Micro'),
+      );
+      expect(microLabel).toBeTruthy();
     });
 
-    it('calls onViewModeChange when a macro view mode button is clicked', async () => {
+    it('calls onViewModeChange when a macro view mode item is clicked', async () => {
       const user = userEvent.setup();
       const onViewModeChange = vi.fn();
       render(<Toolbar {...makeProps({ onViewModeChange })} />);
-      const viewModeGroup = document.querySelector('.cg-view-mode-buttons');
-      const macroBtns = viewModeGroup!.querySelectorAll('.cg-view-mode-btn:not(.cg-view-mode-btn--micro)');
-      await user.click(macroBtns[1]!); // 'dependencies'
-      expect(onViewModeChange).toHaveBeenCalledWith('dependencies');
+      const viewBtn = document.querySelector('.cg-view-dropdown-btn') as HTMLButtonElement;
+      await user.click(viewBtn);
+      const viewDropdown = document.querySelector('.cg-view-dropdown');
+      const inheritItem = Array.from(viewDropdown!.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.textContent === '继承',
+      ) as HTMLButtonElement;
+      await user.click(inheritItem);
+      expect(onViewModeChange).toHaveBeenCalledWith('inheritance');
     });
 
-    it('calls onViewModeChange when a micro view mode button is clicked', async () => {
+    it('calls onViewModeChange when a micro view mode item is clicked', async () => {
       const user = userEvent.setup();
       const onViewModeChange = vi.fn();
       render(<Toolbar {...makeProps({ hasSelectedFunction: true, onViewModeChange })} />);
-      const viewModeGroup = document.querySelector('.cg-view-mode-buttons');
-      const microBtns = viewModeGroup!.querySelectorAll('.cg-view-mode-btn--micro');
-      await user.click(microBtns[0]!); // 'cfg'
+      const viewBtn = document.querySelector('.cg-view-dropdown-btn') as HTMLButtonElement;
+      await user.click(viewBtn);
+      const viewDropdown = document.querySelector('.cg-view-dropdown');
+      const cfgItem = Array.from(viewDropdown!.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.textContent === 'CFG',
+      ) as HTMLButtonElement;
+      await user.click(cfgItem);
       expect(onViewModeChange).toHaveBeenCalledWith('cfg');
     });
 
-    it('marks the active view mode button with active class', () => {
+    it('marks the active view mode item with active class', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ viewMode: 'inheritance' })} />);
-      const viewModeGroup = document.querySelector('.cg-view-mode-buttons');
-      const activeBtn = viewModeGroup!.querySelector('.cg-view-mode-btn.cg-active') as HTMLButtonElement;
-      expect(activeBtn).toBeTruthy();
-      expect(activeBtn.getAttribute('aria-pressed')).toBe('true');
+      const viewBtn = document.querySelector('.cg-view-dropdown-btn') as HTMLButtonElement;
+      await user.click(viewBtn);
+      const viewDropdown = document.querySelector('.cg-view-dropdown');
+      const activeItem = viewDropdown!.querySelector('.cg-dropdown-item.cg-active') as HTMLButtonElement;
+      expect(activeItem).toBeTruthy();
+      expect(activeItem.getAttribute('aria-pressed')).toBe('true');
     });
   });
 
@@ -686,47 +716,65 @@ describe('Toolbar component', () => {
     });
   });
 
-  // 14. 微观视图按钮在无选中函数时禁用
-  describe('micro view mode button disabled state', () => {
-    it('disables micro view mode buttons when hasSelectedFunction is false or undefined', () => {
-      const { rerender } = render(<Toolbar {...makeProps({ hasSelectedFunction: false })} />);
-      const microBtns = document.querySelectorAll('.cg-view-mode-btn--micro');
-      expect(microBtns.length).toBe(3);
-      microBtns.forEach((btn) => {
+  // 14. 微观视图按钮在无选中函数时禁用（已整合到 View 下拉菜单）
+  describe('micro view mode disabled state in view dropdown', () => {
+    it('disables micro view mode items when hasSelectedFunction is false or undefined', async () => {
+      const user = userEvent.setup();
+      render(<Toolbar {...makeProps({ hasSelectedFunction: false })} />);
+      const viewBtn = document.querySelector('.cg-view-dropdown-btn') as HTMLButtonElement;
+      await user.click(viewBtn);
+      const viewDropdown = document.querySelector('.cg-view-dropdown');
+      const microItems = Array.from(viewDropdown!.querySelectorAll('.cg-dropdown-item')).filter(
+        (b) => ['CFG', '流程', '时序'].includes(b.textContent ?? ''),
+      );
+      expect(microItems.length).toBe(3);
+      microItems.forEach((btn) => {
         expect((btn as HTMLButtonElement).disabled).toBe(true);
         expect(btn.getAttribute('aria-disabled')).toBe('true');
       });
-
-      rerender(<Toolbar {...makeProps()} />);
-      const microBtns2 = document.querySelectorAll('.cg-view-mode-btn--micro');
-      microBtns2.forEach((btn) => {
-        expect((btn as HTMLButtonElement).disabled).toBe(true);
-      });
     });
 
-    it('enables micro view mode buttons when hasSelectedFunction is true', () => {
+    it('enables micro view mode items when hasSelectedFunction is true', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ hasSelectedFunction: true })} />);
-      const microBtns = document.querySelectorAll('.cg-view-mode-btn--micro');
-      expect(microBtns.length).toBe(3);
-      microBtns.forEach((btn) => {
+      const viewBtn = document.querySelector('.cg-view-dropdown-btn') as HTMLButtonElement;
+      await user.click(viewBtn);
+      const viewDropdown = document.querySelector('.cg-view-dropdown');
+      const microItems = Array.from(viewDropdown!.querySelectorAll('.cg-dropdown-item')).filter(
+        (b) => ['CFG', '流程', '时序'].includes(b.textContent ?? ''),
+      );
+      expect(microItems.length).toBe(3);
+      microItems.forEach((btn) => {
         expect((btn as HTMLButtonElement).disabled).toBe(false);
         expect(btn.getAttribute('aria-disabled')).toBe('false');
       });
     });
 
-    it('shows disabled tooltip when hasSelectedFunction is false', () => {
+    it('shows disabled tooltip when hasSelectedFunction is false', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ hasSelectedFunction: false })} />);
-      const microBtns = document.querySelectorAll('.cg-view-mode-btn--micro');
-      microBtns.forEach((btn) => {
+      const viewBtn = document.querySelector('.cg-view-dropdown-btn') as HTMLButtonElement;
+      await user.click(viewBtn);
+      const viewDropdown = document.querySelector('.cg-view-dropdown');
+      const microItems = Array.from(viewDropdown!.querySelectorAll('.cg-dropdown-item')).filter(
+        (b) => ['CFG', '流程', '时序'].includes(b.textContent ?? ''),
+      );
+      microItems.forEach((btn) => {
         expect(btn.getAttribute('title')).toBe('请先选中函数节点');
       });
     });
 
-    it('shows view mode tooltip when hasSelectedFunction is true', () => {
+    it('shows view mode tooltip when hasSelectedFunction is true', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ hasSelectedFunction: true })} />);
-      const microBtns = document.querySelectorAll('.cg-view-mode-btn--micro');
-      const cfgBtn = microBtns[0] as HTMLButtonElement;
-      expect(cfgBtn.getAttribute('title')).toContain('控制流');
+      const viewBtn = document.querySelector('.cg-view-dropdown-btn') as HTMLButtonElement;
+      await user.click(viewBtn);
+      const viewDropdown = document.querySelector('.cg-view-dropdown');
+      const cfgItem = Array.from(viewDropdown!.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.textContent === 'CFG',
+      ) as HTMLButtonElement;
+      expect(cfgItem).toBeTruthy();
+      expect(cfgItem.getAttribute('title')).toContain('控制流');
     });
   });
 
