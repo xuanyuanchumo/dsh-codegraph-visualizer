@@ -13,6 +13,7 @@ import { RuleEngine, type RuleDefinition } from './shared/analysis/RuleEngine.ts
 import { buildForwardAdjacency } from './shared/analysis/AdjacencyList.ts';
 import { bfsShortestPath } from './shared/analysis/GraphBFS.ts';
 import { scoped } from './shared/Logger.ts';
+import type { ApiCompatLayer, ToolNameMapping } from './host/compat/ApiCompatLayer.ts';
 import { CACHE, PATH_FINDER, TOOL_MESSAGES, API } from './shared/constants.ts';
 import {
   summarizeGraph,
@@ -103,19 +104,24 @@ export async function fetchMergedGraph(
 
 // ── Extracted execute/render functions for testability ──────────────────
 
-export function createInvoke(ctx: Context, requestTimeout: number = API.INVOKE_DEFAULT_TIMEOUT_MS): UpstreamInvoker {
+export function createInvoke(ctx: Context, requestTimeout: number = API.INVOKE_DEFAULT_TIMEOUT_MS, apiCompat?: ApiCompatLayer): UpstreamInvoker {
   return async (tool, args) => {
+    let resolvedName = tool;
+    if (apiCompat) {
+      const mapped = apiCompat.getAvailableToolName(ctx, tool as keyof ToolNameMapping);
+      if (mapped) resolvedName = mapped;
+    }
     try {
       const result = await ctx.tools.execute({
-        callId: ToolCallId(`codegraph:${tool}`),
-        name: tool,
+        callId: ToolCallId(`codegraph:${resolvedName}`),
+        name: resolvedName,
         arguments: args,
         signal: AbortSignal.timeout(requestTimeout),
       });
       if (result.isError) return null;
       return result.value ?? null;
     } catch (e) {
-      log.warn('createInvoke: tool execution failed', { tool, error: e });
+      log.warn('createInvoke: tool execution failed', { tool: resolvedName, error: e });
       return null;
     }
   };

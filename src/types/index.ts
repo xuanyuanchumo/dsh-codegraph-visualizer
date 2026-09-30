@@ -361,7 +361,7 @@ declare module '@deepseek-ai/cordis' {
           expanded?: string[];
           revealed?: string[];
         }) => unknown;
-      }): () => void;
+      }): (() => void) | void;
       openTab(seed: { type: string; title?: string; path?: string; target?: 'right' | 'bottom' }): void;
       closeTab(tabId: string, scope?: unknown): void;
       activateTab(tabId: string, scope?: unknown): void;

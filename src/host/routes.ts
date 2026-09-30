@@ -201,8 +201,8 @@ export function slimGraphData(data: GraphData, maxNodes: number): GraphData {
   };
 }
 
-export function createInvokeUpstream(ctx: Context, config: VisualizerConfig) {
-  return createInvoke(ctx, config.requestTimeout);
+export function createInvokeUpstream(ctx: Context, config: VisualizerConfig, apiCompat?: ApiCompatLayer) {
+  return createInvoke(ctx, config.requestTimeout, apiCompat);
 }
 
 export function registerService(deps: RouteDeps): void {

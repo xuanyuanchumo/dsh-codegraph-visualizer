@@ -52,7 +52,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   const scanInFlightMap = new Map<string, Promise<GraphData>>();
   const scanCache = new Map<string, { data: GraphData; timestamp: number }>();
 
-  const invokeUpstream = createInvokeUpstream(ctx, config);
+  const invokeUpstream = createInvokeUpstream(ctx, config, apiCompat);
 
   const routeDeps = {
     ctx,
