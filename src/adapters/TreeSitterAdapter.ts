@@ -153,6 +153,57 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
     }
   }
 
+  async batchScan(files: Array<{ filePath: string; content: string }>): Promise<AdapterResult> {
+    if (!this.parser) {
+      await this.init();
+      if (!this.parser) {
+        return { nodes: [], edges: [], source: 'tree-sitter', timestamp: Date.now(), error: 'Parser not initialized' };
+      }
+    }
+
+    const allNodes: GraphNode[] = [];
+    const allEdges: GraphEdge[] = [];
+    const errors: string[] = [];
+    const BATCH_SIZE = 20;
+
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      const batch = files.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(
+        batch.map(async (file) => {
+          const language = this.detectLanguage(file.filePath);
+          if (!language) return null;
+          if (!await this.ensureLanguageLoaded(language)) return null;
+          try {
+            const tree = this.parser!.parse(file.content);
+            const { nodes, edges } = this.extractSymbols(tree.rootNode, file.filePath);
+            tree.delete();
+            return { nodes, edges };
+          } catch (e) {
+            errors.push(`${file.filePath}: ${String(e)}`);
+            return null;
+          }
+        })
+      );
+
+      for (const result of results) {
+        if (result) {
+          allNodes.push(...result.nodes);
+          allEdges.push(...result.edges);
+        }
+      }
+    }
+
+    log.info(`batchScan: ${files.length} files, ${allNodes.length} nodes, ${allEdges.length} edges, ${errors.length} errors`);
+
+    return {
+      nodes: allNodes,
+      edges: allEdges,
+      source: 'tree-sitter',
+      timestamp: Date.now(),
+      ...(errors.length > 0 ? { error: errors.join('; ') } : {}),
+    };
+  }
+
   private async loadLanguageWasm(language: SupportedLanguage): Promise<TreeSitterLanguage> {
     const wasmFile = `tree-sitter-${language}.wasm`;
     const { Language } = await import('web-tree-sitter');

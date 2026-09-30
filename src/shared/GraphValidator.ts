@@ -1,5 +1,6 @@
 import type { GraphNode, GraphEdge, GraphData, NodeId, EdgeId, RepoId, EdgeDirection, Layer } from '../types/index.ts';
 import { scoped } from './Logger.ts';
+import { normalizeNodeType, normalizeEdgeType } from './AliasMapper.ts';
 
 const log = scoped('validator');
 
@@ -17,50 +18,6 @@ export interface ValidationResult {
   issues: GraphIssue[];
 }
 
-const NODE_TYPE_ALIASES: Record<string, GraphNode['type']> = {
-  func: 'function',
-  fn: 'function',
-  method: 'function',
-  cls: 'class',
-  mod: 'module',
-  file: 'module',
-  pkg: 'module',
-  package: 'module',
-  iface: 'interface',
-  typ: 'type',
-  enum: 'type',
-  const: 'variable',
-  var: 'variable',
-  let: 'variable',
-};
-
-const EDGE_TYPE_ALIASES: Record<string, GraphEdge['type']> = {
-  calls: 'call',
-  invoke: 'call',
-  invokes: 'call',
-  imports: 'import',
-  import_from: 'import',
-  extends: 'extend',
-  inherits: 'extend',
-  inherit: 'extend',
-  implements: 'implement',
-  implements_interface: 'implement',
-  depends: 'dependency',
-  depends_on: 'dependency',
-  uses: 'dependency',
-  contains_node: 'contains',
-  owns: 'contains',
-  has: 'contains',
-  assoc: 'association',
-  related: 'association',
-  aggregates: 'aggregation',
-  aggregate: 'aggregation',
-  composes: 'composition',
-  compose: 'composition',
-};
-
-const VALID_NODE_TYPES = new Set(['function', 'class', 'variable', 'module', 'interface', 'type']);
-const VALID_EDGE_TYPES = new Set(['call', 'import', 'extend', 'implement', 'dependency', 'contains', 'association', 'aggregation', 'composition']);
 
 function sanitizeNode(raw: unknown): unknown {
   if (raw === null || raw === undefined) return null;
@@ -83,21 +40,6 @@ function sanitizeEdge(raw: unknown): unknown {
   return edge;
 }
 
-function normalizeNodeType(type: unknown): GraphNode['type'] | null {
-  if (typeof type !== 'string') return null;
-  if (VALID_NODE_TYPES.has(type as GraphNode['type'])) return type as GraphNode['type'];
-  const alias = NODE_TYPE_ALIASES[type];
-  if (alias) return alias;
-  return null;
-}
-
-function normalizeEdgeType(type: unknown): GraphEdge['type'] | null {
-  if (typeof type !== 'string') return null;
-  if (VALID_EDGE_TYPES.has(type as GraphEdge['type'])) return type as GraphEdge['type'];
-  const alias = EDGE_TYPE_ALIASES[type];
-  if (alias) return alias;
-  return null;
-}
 
 function autoFixNode(raw: Record<string, unknown>, issues: GraphIssue[], path: string): GraphNode | null {
   const id = raw.id;
@@ -285,8 +227,8 @@ export function validateGraphData(raw: unknown): ValidationResult {
     issues.push({ level: 'auto-corrected', category: 'data', message: 'edges is not an array, defaulting to empty', path: 'edges' });
   }
 
-  const sanitizedNodes = rawNodes.map((n, i) => sanitizeNode(n)).filter((n): n is Record<string, unknown> => n !== null);
-  const sanitizedEdges = rawEdges.map((e, i) => sanitizeEdge(e)).filter((e): e is Record<string, unknown> => e !== null);
+  const sanitizedNodes = rawNodes.map(n => sanitizeNode(n)).filter((n): n is Record<string, unknown> => n !== null);
+  const sanitizedEdges = rawEdges.map(e => sanitizeEdge(e)).filter((e): e is Record<string, unknown> => e !== null);
 
   const fixedNodes: GraphNode[] = [];
   for (const sanitizedNode of sanitizedNodes) {

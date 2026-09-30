@@ -31,7 +31,7 @@ export function useGraphStatus() {
     isLoading: s.isLoading, error: s.error, lastUpdated: s.lastUpdated,
     truncated: s.truncated, totalNodeCount: s.totalNodeCount,
     prerequisites: s.prerequisites, watchEnabled: s.watchEnabled,
-    initStatus: s.initStatus, urlRestored: s.urlRestored,
+    initStatus: s.initStatus, urlRestored: s.urlRestored, panelVisible: s.panelVisible,
   })));
 }
 

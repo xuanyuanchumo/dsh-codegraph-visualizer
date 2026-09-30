@@ -747,6 +747,8 @@ export const useGraphStore = create<GraphState>()(
           for (const controller of prefetchAbortControllers.values()) controller.abort();
           prefetchAbortControllers.clear();
           prefetchInFlightCount = 0;
+          for (const controller of expandAbortControllers.values()) controller.abort();
+          expandAbortControllers.clear();
           if (prefetchIdleHandle !== null) {
             if (typeof cancelIdleCallback !== 'undefined') cancelIdleCallback(prefetchIdleHandle as number);
             else clearTimeout(prefetchIdleHandle as ReturnType<typeof setTimeout>);

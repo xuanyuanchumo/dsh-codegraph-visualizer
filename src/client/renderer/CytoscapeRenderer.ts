@@ -515,4 +515,24 @@ export class CytoscapeRenderer implements IRenderer {
       this.cy!.edges().removeClass('dead-code-edge');
     });
   }
+
+  pauseAnimations(): void {
+    if (!this.cy) return;
+    try {
+      this.cy.stop();
+      this.cy.nodes().stop();
+      this.cy.edges().stop();
+    } catch (e) {
+      log.warn('pauseAnimations failed', e);
+    }
+  }
+
+  resumeAnimations(): void {
+    if (!this.cy) return;
+    try {
+      this.cy.resize();
+    } catch (e) {
+      log.warn('resumeAnimations failed', e);
+    }
+  }
 }

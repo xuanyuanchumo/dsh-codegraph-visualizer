@@ -2,6 +2,7 @@ import { scoped } from '../shared/Logger.ts';
 import type { GraphNode, GraphEdge, AdapterResult } from '../types/index.ts';
 import { NodeId, EdgeId } from '../types/index.ts';
 import type { IDataAdapter, UpstreamInvoker } from './IAdapter.ts';
+import type { TreeSitterAdapter } from './TreeSitterAdapter.ts';
 
 const log = scoped('fs-adapter');
 
@@ -49,9 +50,14 @@ export interface FileSystemApi {
 export class FileSystemAdapter implements IDataAdapter {
   readonly source = 'tree-sitter' as const;
   private fs: FileSystemApi | null = null;
+  private treeSitterAdapter: TreeSitterAdapter | null = null;
 
   setFileSystem(fs: FileSystemApi): void {
     this.fs = fs;
+  }
+
+  setTreeSitterAdapter(adapter: TreeSitterAdapter): void {
+    this.treeSitterAdapter = adapter;
   }
 
   async fetchData(repoId: string, _invoke?: UpstreamInvoker): Promise<AdapterResult> {
@@ -147,6 +153,64 @@ export class FileSystemAdapter implements IDataAdapter {
     return {
       nodes,
       edges,
+      source: this.source,
+      timestamp: Date.now(),
+    };
+  }
+
+  async fetchDataWithSymbols(repoId: string, _invoke?: UpstreamInvoker): Promise<AdapterResult> {
+    if (!this.fs) {
+      log.warn('no filesystem available');
+      return { nodes: [], edges: [], source: this.source, timestamp: Date.now() };
+    }
+
+    const structureResult = await this.fetchData(repoId, _invoke);
+    if (!this.treeSitterAdapter) {
+      log.info('no tree-sitter adapter attached, returning structure-only result');
+      return structureResult;
+    }
+
+    const filesToParse: Array<{ filePath: string; content: string }> = [];
+    const CODE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.py', '.java', '.rs', '.go']);
+
+    for (const node of structureResult.nodes) {
+      if (node.type !== 'module' && node.type !== 'variable') continue;
+      const ext = '.' + (node.filePath?.split('.').pop() ?? '');
+      if (!CODE_EXTENSIONS.has(ext)) continue;
+      try {
+        const content = this.fs.readFile(node.filePath);
+        filesToParse.push({ filePath: node.filePath, content });
+      } catch {
+        log.debug(`could not read file: ${node.filePath}`);
+      }
+    }
+
+    if (filesToParse.length === 0) {
+      return structureResult;
+    }
+
+    log.info(`parsing ${filesToParse.length} files with tree-sitter`);
+    const symbolResult = await this.treeSitterAdapter.batchScan(filesToParse);
+
+    const allNodes = [...structureResult.nodes, ...symbolResult.nodes];
+    const allEdges = [...structureResult.edges, ...symbolResult.edges];
+
+    for (const symbolNode of symbolResult.nodes) {
+      const fileNodeId = `file:${symbolNode.filePath}`;
+      allEdges.push({
+        id: EdgeId(`symcontains:${fileNodeId}:${symbolNode.id}`),
+        source: NodeId(fileNodeId),
+        target: symbolNode.id,
+        type: 'contains',
+        properties: {},
+      });
+    }
+
+    log.info(`fetchDataWithSymbols: ${allNodes.length} nodes (${structureResult.nodes.length} structure + ${symbolResult.nodes.length} symbols), ${allEdges.length} edges`);
+
+    return {
+      nodes: allNodes,
+      edges: allEdges,
       source: this.source,
       timestamp: Date.now(),
     };

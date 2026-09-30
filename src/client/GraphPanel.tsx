@@ -96,7 +96,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const { nodes, edges, rawNodes, rawEdges } = useGraphData();
   const { layout, dagreRankDir, theme, filterType, graphType, clusterDepth, viewMode, currentLayer, diagramData } = useGraphDisplay();
   const { searchQuery, selectedNodeId, highlightedNodeIds, expandedNodeIds, pathResult, focusDepth, focusModeActive, focusModeNodeId, pathFilterInclude, pathFilterExclude } = useGraphInteraction();
-  const { isLoading, error, lastUpdated, truncated, totalNodeCount, prerequisites, watchEnabled, initStatus, urlRestored } = useGraphStatus();
+  const { isLoading, error, lastUpdated, truncated, totalNodeCount, prerequisites, watchEnabled, initStatus, urlRestored, panelVisible } = useGraphStatus();
   const { currentWorkspace, workspaceList } = useGraphWorkspace();
   const { ruleViolations, selectedFunction, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, heatmapMode, todoMarkerMode } = useGraphAnalysis();
   const { performanceDegradations, lodLevel, lodEnabled } = useGraphPerformance();
@@ -376,6 +376,16 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       return () => { window.removeEventListener('resize', onWinResize); if (resizeTimer !== null) clearTimeout(resizeTimer); };
     }
   }, [panel.collapsed, panelHeight, renderer.rendererRef]);
+
+  useEffect(() => {
+    const r = renderer.rendererRef.current;
+    if (!r) return;
+    if (panelVisible) {
+      r.resumeAnimations();
+    } else {
+      r.pauseAnimations();
+    }
+  }, [panelVisible, renderer.rendererRef]);
 
   usePanelKeyboard(layout, setLayout, renderer.rendererRef, {
     onToggleSearch: panel.toggleSearch,

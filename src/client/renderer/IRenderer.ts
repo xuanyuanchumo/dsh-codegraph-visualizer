@@ -101,4 +101,6 @@ export interface IRenderer {
   onZoomChange(callback: () => void): () => void;
   markDeadCode(nodeIds: Set<string>): void;
   clearDeadCodeMarks(): void;
+  pauseAnimations(): void;
+  resumeAnimations(): void;
 }
