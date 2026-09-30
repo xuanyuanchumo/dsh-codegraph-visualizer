@@ -11,12 +11,15 @@ import type { VisualizerConfig } from './config.ts';
 const log = scoped('host');
 const supportsRecursive = platform() === 'win32' || platform() === 'darwin';
 
+const MAX_CHANGED_FILES_TRACK = 100;
+
 async function scanAndPush(
   ctx: Context,
   invokeUpstream: UpstreamInvoker,
   path: string,
+  changedFiles?: string[],
 ): Promise<void> {
-  log.info('scan requested', { path });
+  log.info('scan requested', { path, incremental: changedFiles !== undefined });
   try {
     const repoId = path || 'workspace-default';
     const data = await fetchMergedGraph(invokeUpstream, repoId, 'both');
@@ -25,14 +28,16 @@ async function scanAndPush(
       nodeCount: data.metadata.nodeCount,
       edgeCount: data.metadata.edgeCount,
       timestamp: data.metadata.timestamp,
+      ...(changedFiles ? { changedFiles } : {}),
     });
     ctx.emit('codegraph-visualizer/graph/data', {
       repoId: RepoId(repoId),
       nodes: data.nodes,
       edges: data.edges,
       timestamp: data.metadata.timestamp,
+      ...(changedFiles ? { changedFiles } : {}),
     });
-    log.info('scan completed', { repoId, nodes: data.metadata.nodeCount, edges: data.metadata.edgeCount });
+    log.info('scan completed', { repoId, nodes: data.metadata.nodeCount, edges: data.metadata.edgeCount, changedFiles: changedFiles?.length ?? 0 });
   } catch (e) {
     log.error('scan failed', e);
   }
@@ -45,6 +50,7 @@ export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUp
   let retryCount = 0;
   const MAX_RETRIES = WATCHER.MAX_RETRIES;
   const RETRY_BASE_DELAY = WATCHER.RETRY_BASE_DELAY_MS;
+  const changedFilesSet = new Set<string>();
 
   const closeActiveWatcher = (): void => {
     if (activeWatcher) {
@@ -53,6 +59,7 @@ export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUp
     }
     if (watchTimer) { clearTimeout(watchTimer); watchTimer = null; }
     if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+    changedFilesSet.clear();
   };
 
   const setupWatch = (watchPath: string): void => {
@@ -65,13 +72,20 @@ export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUp
         if (segments.includes('node_modules')) return;
         if (segments.includes('.git')) return;
 
+        changedFilesSet.add(filename);
+        if (changedFilesSet.size > MAX_CHANGED_FILES_TRACK) {
+          changedFilesSet.clear();
+        }
+
         if (watchTimer) clearTimeout(watchTimer);
         watchTimer = setTimeout(() => {
           watchTimer = null;
           if (!activeWatcher) return;
-          log.info('file changed, syncing + re-scanning', { filename });
+          const changedFiles = [...changedFilesSet];
+          changedFilesSet.clear();
+          log.info('file changed, syncing + re-scanning', { count: changedFiles.length, files: changedFiles.slice(0, 5) });
           invokeUpstream('codegraph_sync', { path: watchPath })
-            .then(() => scanAndPush(ctx, invokeUpstream, watchPath))
+            .then(() => scanAndPush(ctx, invokeUpstream, watchPath, changedFiles))
             .catch((e) => log.error('watch re-scan failed', e));
         }, config.watchDebounce);
       });
