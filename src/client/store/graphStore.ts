@@ -332,6 +332,7 @@ interface GraphState {
   prerequisites: { codegraph: boolean; lens: boolean; builtin: boolean };
   integrationMode: 'sidebar' | 'slot' | 'floating' | 'unknown';
   panelVisible: boolean;
+  urlRestored: boolean;
   initStatus: 'idle' | 'initializing' | 'done' | 'error';
   initMessage: string | null;
   watchEnabled: boolean;
@@ -478,6 +479,7 @@ export const useGraphStore = create<GraphState>()(
       prerequisites: { codegraph: false, lens: false, builtin: true },
       integrationMode: 'unknown',
       panelVisible: true,
+      urlRestored: false,
       initStatus: 'idle',
       initMessage: null,
       watchEnabled: false,
@@ -1233,6 +1235,7 @@ export const useGraphStore = create<GraphState>()(
           }
         }
         restoreTimeoutHandle = null;
+        set({ urlRestored: true });
         log.info('URL restore completed', { restoredCount: sortedIds.length });
       },
       setLayer: (layer) => {

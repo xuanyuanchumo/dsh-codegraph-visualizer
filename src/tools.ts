@@ -13,7 +13,7 @@ import { RuleEngine, type RuleDefinition } from './shared/analysis/RuleEngine.ts
 import { buildForwardAdjacency } from './shared/analysis/AdjacencyList.ts';
 import { bfsShortestPath } from './shared/analysis/GraphBFS.ts';
 import { scoped } from './shared/Logger.ts';
-import { CACHE, PATH_FINDER, TOOL_MESSAGES } from './shared/constants.ts';
+import { CACHE, PATH_FINDER, TOOL_MESSAGES, API } from './shared/constants.ts';
 import {
   summarizeGraph,
   normalizeImpact,
@@ -103,7 +103,7 @@ export async function fetchMergedGraph(
 
 // ── Extracted execute/render functions for testability ──────────────────
 
-export function createInvoke(ctx: Context, requestTimeout = 5000): UpstreamInvoker {
+export function createInvoke(ctx: Context, requestTimeout: number = API.INVOKE_DEFAULT_TIMEOUT_MS): UpstreamInvoker {
   return async (tool, args) => {
     try {
       const result = await ctx.tools.execute({

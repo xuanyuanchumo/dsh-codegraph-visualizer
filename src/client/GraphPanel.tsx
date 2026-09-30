@@ -8,7 +8,7 @@ import { NodeId } from '../types/index.ts';
 import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard, useViewMode, useAnalysisPanels, useNodeSearch,
   useGraphData, useGraphDisplay, useGraphInteraction, useGraphStatus, useGraphWorkspace, useGraphAnalysis, useGraphPerformance, useGraphActions, usePanelDimensions,
 } from './hooks/index.ts';
-import { readUrlExpand, updateUrlExpand } from './utils/urlState.ts';
+import { updateUrlExpand } from './utils/urlState.ts';
 import { getViewLayer, getAvailablePanels } from '../shared/viewModeUtils.ts';
 import { useThemeSync } from './hooks/useThemeSync.ts';
 import { useHistory } from './hooks/useHistory.ts';
@@ -96,7 +96,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const { nodes, edges, rawNodes, rawEdges } = useGraphData();
   const { layout, dagreRankDir, theme, filterType, graphType, clusterDepth, viewMode, currentLayer, diagramData } = useGraphDisplay();
   const { searchQuery, selectedNodeId, highlightedNodeIds, expandedNodeIds, pathResult, focusDepth, focusModeActive, focusModeNodeId, pathFilterInclude, pathFilterExclude } = useGraphInteraction();
-  const { isLoading, error, lastUpdated, truncated, totalNodeCount, prerequisites, watchEnabled, initStatus } = useGraphStatus();
+  const { isLoading, error, lastUpdated, truncated, totalNodeCount, prerequisites, watchEnabled, initStatus, urlRestored } = useGraphStatus();
   const { currentWorkspace, workspaceList } = useGraphWorkspace();
   const { ruleViolations, selectedFunction, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, heatmapMode, todoMarkerMode } = useGraphAnalysis();
   const { performanceDegradations, lodLevel, lodEnabled } = useGraphPerformance();
@@ -134,64 +134,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     }
   }, [currentWorkspace, rawNodes, rawEdges, graphCache]);
 
-  const urlRestoredRef = useRef(false);
   useEffect(() => {
-    if (urlRestoredRef.current) return;
-    if (rawNodes.length === 0) return;
-    const parsed = readUrlExpand();
-    if (parsed.expandedDirs.length === 0 && parsed.expandedFiles.length === 0 && parsed.expandedSymbols.length === 0 && parsed.expandedSubgroups.length === 0) {
-      urlRestoredRef.current = true;
-      return;
-    }
-
-
-    // P0-3: Sequential level-by-level restoration
-    // Process dirs → files → symbols → subgroups, each level waits for previous to complete
-    const restoreSequentially = async () => {
-      const levels: Array<{ ids: string[]; label: string }> = [
-        { ids: parsed.expandedDirs.map(d => `cluster__${d}`), label: 'dirs' },
-        { ids: parsed.expandedFiles.map(f => `filecluster__${f}`), label: 'files' },
-        { ids: parsed.expandedSymbols, label: 'symbols' },
-        { ids: parsed.expandedSubgroups.map(g => `subgroup__${g}`), label: 'subgroups' },
-      ];
-
-      for (const level of levels) {
-        if (level.ids.length === 0) continue;
-        const validIds: string[] = [];
-        const missingIds: string[] = [];
-        for (const id of level.ids) {
-          const state = useGraphStore.getState();
-          const exists = state.rawNodes.some(n => n.id === id) || state.nodes.some(n => n.id === id);
-          if (exists) validIds.push(id);
-          else missingIds.push(id);
-        }
-        if (validIds.length > 0) {
-          useGraphStore.getState().batchExpandNodes(validIds);
-        }
-        // Load missing nodes one by one (sequential, not parallel)
-        for (const id of missingIds) {
-          await useGraphStore.getState().loadNodeChildren(id);
-          const state = useGraphStore.getState();
-          const loaded = state.rawNodes.some(n => n.id === id) || state.nodes.some(n => n.id === id);
-          if (loaded) {
-            useGraphStore.getState().batchExpandNodes([id]);
-          }
-        }
-      }
-    };
-
-    restoreSequentially().then(() => {
-      urlRestoredRef.current = true;
-    }).catch(err => {
-      log.warn('URL restore failed', { err });
-      urlRestoredRef.current = true;
-    });
-  }, [rawNodes]);
-
-  useEffect(() => {
-    if (!urlRestoredRef.current) return;
+    if (!urlRestored) return;
     updateUrlExpand(expandedNodeIds);
-  }, [expandedNodeIds]);
+  }, [expandedNodeIds, urlRestored]);
 
   const debouncedSearch = useDebounce(searchQuery, UI.SEARCH_DEBOUNCE_MS);
   const { search: searchNodes } = useNodeSearch(rawNodes);
