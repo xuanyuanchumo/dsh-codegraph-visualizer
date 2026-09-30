@@ -13,6 +13,7 @@ import { IndexedDBCache } from '../cache/IndexedDBCache.ts';
 import { invalidateCssVarCache } from '../renderer/styles/ThemeStylesheet.ts';
 import { computeViewModeTransition } from './viewModeTransition.ts';
 import { scoped } from '../../shared/Logger.ts';
+import { sanitizeTypedGraph } from '../../shared/GraphValidator.ts';
 import { type LayoutType, type ThemeType, type RankDir, isLayeredViewMode } from '../../shared/viewModeUtils.ts';
 import { fetchNodeChildren, fetchBootstrap, fetchFileOutline, fetchSymbolAST, fetchWithTimeout } from '../api/index.ts';
 import { readUrlExpand, restoreExpandedNodeIds } from '../utils/urlState.ts';
@@ -155,30 +156,6 @@ function mergeAndRecluster(
 
 
 
-function sanitizeGraphData(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
-  const seenNodeIds = new Set<string>();
-  const validNodes: GraphNode[] = [];
-  for (const node of nodes) {
-    if (!node || !node.id || !node.label || !node.type || !node.filePath) continue;
-    if (seenNodeIds.has(node.id)) continue;
-    seenNodeIds.add(node.id);
-    validNodes.push(node);
-  }
-
-  const nodeIdSet = new Set(validNodes.map((n) => n.id));
-  const seenEdgeIds = new Set<string>();
-  const validEdges: GraphEdge[] = [];
-  for (const edge of edges) {
-    if (!edge || !edge.id || !edge.source || !edge.target) continue;
-    if (edge.source === edge.target) continue;
-    if (!nodeIdSet.has(edge.source) || !nodeIdSet.has(edge.target)) continue;
-    if (seenEdgeIds.has(edge.id)) continue;
-    seenEdgeIds.add(edge.id);
-    validEdges.push(edge);
-  }
-
-  return { nodes: validNodes, edges: validEdges };
-}
 
 function computeLayeredExpandedView(
   diagramData: LayeredDiagram,
@@ -534,7 +511,7 @@ export const useGraphStore = create<GraphState>()(
             clusterCache.setPersistentBackend(persistentCache);
           }
           const { clusterDepth, expandedNodeIds, viewMode, currentLayer } = useGraphStore.getState();
-          const sanitized = sanitizeGraphData(nodes, edges);
+          const sanitized = sanitizeTypedGraph(nodes, edges);
           const newDegradations: string[] = [];
           if (sanitized.nodes.length > CYCLE_DETECTION.MAX_NODES_FOR_DETECTION) {
             newDegradations.push('cycle-detection-skipped');
@@ -614,7 +591,7 @@ export const useGraphStore = create<GraphState>()(
           const prevPending = useGraphStore.getState().pendingRequests;
           for (const controller of prevPending.values()) controller.abort();
           incrementalClusterCtx = null;
-          const sanitized = sanitizeGraphData(rootNodes, edges);
+          const sanitized = sanitizeTypedGraph(rootNodes, edges);
           const { clusterDepth, expandedNodeIds, viewMode, panelWidth } = useGraphStore.getState();
           const isLayeredView = isLayeredViewMode(viewMode);
           let displayNodes = sanitized.nodes;

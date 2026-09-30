@@ -1,6 +1,6 @@
 import { scoped } from '../../shared/Logger.ts';
 import type { GraphData, GraphNode, GraphEdge } from '../../types/index.ts';
-import { validateGraphData } from '../validators.ts';
+import { coerceGraphData } from '../../shared/GraphValidator.ts';
 import { API, BOOTSTRAP } from '../../shared/constants.ts';
 
 const log = scoped('client');
@@ -102,7 +102,7 @@ export async function fetchGraphData(): Promise<GraphData | null> {
   try {
     const res = await fetchWithTimeout('/api/v1/codegraph/data');
     if (!res.ok) return null;
-    return validateGraphData(await res.json());
+    return coerceGraphData(await res.json());
   } catch (e) {
     log.warn('fetchGraphData failed', { url: '/api/v1/codegraph/data', error: e instanceof Error ? e.message : String(e) });
     return null;
@@ -158,7 +158,7 @@ export async function fetchGraphDataIncremental(lastUpdated: number): Promise<Gr
     });
     if (res.status === 304) return null;
     if (!res.ok) return null;
-    return validateGraphData(await res.json());
+    return coerceGraphData(await res.json());
   } catch (e) {
     log.warn('fetchGraphDataIncremental failed', { error: e instanceof Error ? e.message : String(e) });
     return null;

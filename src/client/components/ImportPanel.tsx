@@ -3,7 +3,7 @@ import { scoped } from '../../shared/Logger.ts';
 import { DOM_EVENTS } from '../../shared/domEvents.ts';
 import { useT } from '../i18n/index.ts';
 import { UploadIcon, FolderIcon, CloseIcon, AlertIcon, RefreshIcon, ZapIcon, WatchIcon } from './Icons.tsx';
-import { coerceNode, coerceEdge } from '../validators.ts';
+import { coerceNode, coerceEdge } from '../../shared/GraphValidator.ts';
 import { UI, IMPORT } from '../../shared/constants.ts';
 import type { GraphNode, GraphEdge, RepoId } from '../../types/index.ts';
 

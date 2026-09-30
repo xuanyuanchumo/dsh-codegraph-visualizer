@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { coerceNode, coerceEdge, validateGraphData } from '../../src/client/validators.ts';
+import { coerceNode, coerceEdge, coerceGraphData } from '../../src/shared/GraphValidator.ts';
 
 describe('coerceNode', () => {
   it('should return null for non-object raw', () => {
@@ -193,31 +193,31 @@ describe('coerceEdge', () => {
   });
 });
 
-describe('validateGraphData', () => {
+describe('coerceGraphData', () => {
   it('should return null for non-object raw', () => {
-    expect(validateGraphData(null)).toBeNull();
-    expect(validateGraphData(undefined)).toBeNull();
-    expect(validateGraphData('string')).toBeNull();
-    expect(validateGraphData(42)).toBeNull();
+    expect(coerceGraphData(null)).toBeNull();
+    expect(coerceGraphData(undefined)).toBeNull();
+    expect(coerceGraphData('string')).toBeNull();
+    expect(coerceGraphData(42)).toBeNull();
   });
 
   it('should fall back to empty arrays for non-array nodes/edges', () => {
-    const result = validateGraphData({ nodes: 'bad', edges: 'bad' });
+    const result = coerceGraphData({ nodes: 'bad', edges: 'bad' });
     expect(result).toBeNull();
   });
 
   it('should return null when no valid nodes after filtering', () => {
-    const result = validateGraphData({ nodes: [], edges: [] });
+    const result = coerceGraphData({ nodes: [], edges: [] });
     expect(result).toBeNull();
   });
 
   it('should return null when all nodes are invalid', () => {
-    const result = validateGraphData({ nodes: [null, 'bad', 42], edges: [] });
+    const result = coerceGraphData({ nodes: [null, 'bad', 42], edges: [] });
     expect(result).toBeNull();
   });
 
   it('should use metadata.repoId when provided', () => {
-    const result = validateGraphData({
+    const result = coerceGraphData({
       nodes: [{ id: 'n1', label: 'x' }],
       metadata: { repoId: 'my-repo' },
     });
@@ -226,7 +226,7 @@ describe('validateGraphData', () => {
   });
 
   it('should generate default repoId when missing', () => {
-    const result = validateGraphData({
+    const result = coerceGraphData({
       nodes: [{ id: 'n1', label: 'x' }],
     });
     expect(result).not.toBeNull();
@@ -234,7 +234,7 @@ describe('validateGraphData', () => {
   });
 
   it('should use metadata.timestamp when it is a number', () => {
-    const result = validateGraphData({
+    const result = coerceGraphData({
       nodes: [{ id: 'n1', label: 'x' }],
       metadata: { timestamp: 12345 },
     });
@@ -244,7 +244,7 @@ describe('validateGraphData', () => {
 
   it('should use Date.now() when timestamp is not a number', () => {
     const before = Date.now();
-    const result = validateGraphData({
+    const result = coerceGraphData({
       nodes: [{ id: 'n1', label: 'x' }],
       metadata: { timestamp: 'bad' },
     });
@@ -255,7 +255,7 @@ describe('validateGraphData', () => {
   });
 
   it('should correctly calculate nodeCount and edgeCount', () => {
-    const result = validateGraphData({
+    const result = coerceGraphData({
       nodes: [{ id: 'n1', label: 'a' }, { id: 'n2', label: 'b' }],
       edges: [{ id: 'e1', source: 'n1', target: 'n2' }],
     });
@@ -265,7 +265,7 @@ describe('validateGraphData', () => {
   });
 
   it('should filter out invalid nodes and edges', () => {
-    const result = validateGraphData({
+    const result = coerceGraphData({
       nodes: [{ id: 'n1', label: 'a' }, null, 'bad'],
       edges: [{ id: 'e1', source: 'n1', target: 'n1' }, null],
     });
@@ -275,7 +275,7 @@ describe('validateGraphData', () => {
   });
 
   it('should use metadata.truncated when it is a boolean', () => {
-    const result = validateGraphData({
+    const result = coerceGraphData({
       nodes: [{ id: 'n1', label: 'x' }],
       metadata: { truncated: true },
     });
@@ -284,7 +284,7 @@ describe('validateGraphData', () => {
   });
 
   it('should default truncated to false when not a boolean', () => {
-    const result = validateGraphData({
+    const result = coerceGraphData({
       nodes: [{ id: 'n1', label: 'x' }],
       metadata: { truncated: 'yes' },
     });
@@ -293,7 +293,7 @@ describe('validateGraphData', () => {
   });
 
   it('should default truncated to false when missing', () => {
-    const result = validateGraphData({
+    const result = coerceGraphData({
       nodes: [{ id: 'n1', label: 'x' }],
     });
     expect(result).not.toBeNull();
@@ -301,7 +301,7 @@ describe('validateGraphData', () => {
   });
 
   it('should use metadata.totalNodeCount when it is a number', () => {
-    const result = validateGraphData({
+    const result = coerceGraphData({
       nodes: [{ id: 'n1', label: 'x' }],
       metadata: { totalNodeCount: 500 },
     });
@@ -310,7 +310,7 @@ describe('validateGraphData', () => {
   });
 
   it('should default totalNodeCount to nodes.length when not a number', () => {
-    const result = validateGraphData({
+    const result = coerceGraphData({
       nodes: [{ id: 'n1', label: 'x' }, { id: 'n2', label: 'y' }],
       metadata: { totalNodeCount: 'many' },
     });
@@ -319,7 +319,7 @@ describe('validateGraphData', () => {
   });
 
   it('should use metadata.totalEdgeCount when it is a number', () => {
-    const result = validateGraphData({
+    const result = coerceGraphData({
       nodes: [{ id: 'n1', label: 'x' }],
       edges: [{ id: 'e1', source: 'n1', target: 'n1' }],
       metadata: { totalEdgeCount: 200 },
@@ -329,7 +329,7 @@ describe('validateGraphData', () => {
   });
 
   it('should default totalEdgeCount to edges.length when not a number', () => {
-    const result = validateGraphData({
+    const result = coerceGraphData({
       nodes: [{ id: 'n1', label: 'x' }, { id: 'n2', label: 'y' }],
       edges: [{ id: 'e1', source: 'n1', target: 'n2' }],
       metadata: { totalEdgeCount: 'many' },
@@ -339,7 +339,7 @@ describe('validateGraphData', () => {
   });
 
   it('should filter edges with dangling source/target references', () => {
-    const result = validateGraphData({
+    const result = coerceGraphData({
       nodes: [{ id: 'n1', label: 'x' }],
       edges: [
         { id: 'e1', source: 'n1', target: 'ghost' },

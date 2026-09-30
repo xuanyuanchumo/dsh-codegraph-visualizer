@@ -1,4 +1,5 @@
-import type { GraphNode, GraphEdge, GraphData, NodeId, EdgeId, RepoId, EdgeDirection, Layer } from '../types/index.ts';
+import { NodeId, EdgeId, RepoId } from '../types/index.ts';
+import type { GraphNode, GraphEdge, GraphData, EdgeDirection, Layer } from '../types/index.ts';
 import { scoped } from './Logger.ts';
 import { normalizeNodeType, normalizeEdgeType } from './AliasMapper.ts';
 
@@ -16,6 +17,94 @@ export interface GraphIssue {
 export interface ValidationResult {
   data: GraphData;
   issues: GraphIssue[];
+}
+
+export function coerceNode(raw: unknown, i: number): GraphNode | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const id = typeof o.id === 'string' ? o.id : `node-${i}`;
+  const label = typeof o.label === 'string' ? o.label : typeof o.name === 'string' ? o.name : id;
+  const type = normalizeNodeType(o.type) ?? 'variable';
+  const filePath = typeof o.filePath === 'string' ? o.filePath : typeof o.file === 'string' ? o.file : '';
+  const lineNumber = typeof o.lineNumber === 'number' ? o.lineNumber : typeof o.line === 'number' ? o.line : 0;
+  const properties = (o.properties && typeof o.properties === 'object' ? o.properties : {}) as Record<string, unknown>;
+  return { id: NodeId(id), label, type, filePath, lineNumber, properties };
+}
+
+export function coerceEdge(raw: unknown, i: number): GraphEdge | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const id = typeof o.id === 'string' ? o.id : `edge-${i}`;
+  const source = typeof o.source === 'string' ? o.source : typeof o.from === 'string' ? o.from : null;
+  const target = typeof o.target === 'string' ? o.target : typeof o.to === 'string' ? o.to : null;
+  if (!source || !target) return null;
+  const type = normalizeEdgeType(o.type) ?? 'dependency';
+  const properties = (o.properties && typeof o.properties === 'object' ? o.properties : {}) as Record<string, unknown>;
+  const direction: EdgeDirection = o.direction === 'forward' || o.direction === 'backward' || o.direction === 'bidirectional' ? (o.direction as EdgeDirection) : 'forward';
+  const weight = typeof o.weight === 'number' && o.weight >= 0 && o.weight <= 1 ? o.weight : 1;
+  return { id: EdgeId(id), source: NodeId(source), target: NodeId(target), type, direction, weight, properties };
+}
+
+export function coerceGraphData(raw: unknown): GraphData | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const rawNodes = Array.isArray(o.nodes) ? o.nodes : [];
+  const rawEdges = Array.isArray(o.edges) ? o.edges : [];
+  const nodes = rawNodes.map(coerceNode).filter((n): n is GraphNode => n !== null);
+  if (nodes.length === 0) return null;
+  const nodeIds = new Set(nodes.map((n) => n.id));
+  const edges = rawEdges
+    .map(coerceEdge)
+    .filter((e): e is GraphEdge => e !== null)
+    .filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+  const metadata = o.metadata as Record<string, unknown> | undefined;
+  const repoId = (metadata?.repoId as string | undefined) ?? `workspace-${Date.now()}`;
+  const timestamp = typeof metadata?.timestamp === 'number' ? metadata.timestamp : Date.now();
+  const truncated = typeof metadata?.truncated === 'boolean' ? metadata.truncated : false;
+  const totalNodeCount = typeof metadata?.totalNodeCount === 'number' ? metadata.totalNodeCount : nodes.length;
+  const totalEdgeCount = typeof metadata?.totalEdgeCount === 'number' ? metadata.totalEdgeCount : edges.length;
+  return {
+    nodes,
+    edges,
+    metadata: {
+      repoId: RepoId(repoId),
+      timestamp,
+      nodeCount: nodes.length,
+      edgeCount: edges.length,
+      truncated,
+      totalNodeCount,
+      totalEdgeCount,
+    },
+  };
+}
+
+export function filterSelfLoopEdges(edges: GraphEdge[]): GraphEdge[] {
+  return edges.filter((e) => e.source !== e.target);
+}
+
+export function sanitizeTypedGraph(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  const seenNodeIds = new Set<string>();
+  const validNodes: GraphNode[] = [];
+  for (const node of nodes) {
+    if (!node || !node.id || !node.label || !node.type || !node.filePath) continue;
+    if (seenNodeIds.has(node.id)) continue;
+    seenNodeIds.add(node.id);
+    validNodes.push(node);
+  }
+
+  const nodeIdSet = new Set(validNodes.map((n) => n.id));
+  const seenEdgeIds = new Set<string>();
+  const validEdges: GraphEdge[] = [];
+  for (const edge of edges) {
+    if (!edge || !edge.id || !edge.source || !edge.target) continue;
+    if (edge.source === edge.target) continue;
+    if (!nodeIdSet.has(edge.source) || !nodeIdSet.has(edge.target)) continue;
+    if (seenEdgeIds.has(edge.id)) continue;
+    seenEdgeIds.add(edge.id);
+    validEdges.push(edge);
+  }
+
+  return { nodes: validNodes, edges: validEdges };
 }
 
 
@@ -59,12 +148,12 @@ function autoFixNode(raw: Record<string, unknown>, issues: GraphIssue[], path: s
     issues.push({ level: 'auto-corrected', category: 'node', message: `unknown type "${raw.type}", defaulting to "function"`, path: `${path}.type` });
   }
 
-  const filePath = typeof raw.filePath === 'string' ? raw.filePath : '';
+  const filePath = typeof raw.filePath === 'string' ? raw.filePath : typeof raw.file === 'string' ? raw.file : '';
   if (raw.filePath !== filePath) {
     issues.push({ level: 'auto-corrected', category: 'node', message: 'filePath missing, defaulting to empty', path: `${path}.filePath` });
   }
 
-  const lineNumber = typeof raw.lineNumber === 'number' && !Number.isNaN(raw.lineNumber) ? raw.lineNumber : undefined;
+  const lineNumber = typeof raw.lineNumber === 'number' && !Number.isNaN(raw.lineNumber) ? raw.lineNumber : typeof raw.line === 'number' && !Number.isNaN(raw.line) ? raw.line : undefined;
   const properties = (raw.properties && typeof raw.properties === 'object') ? raw.properties as Record<string, unknown> : {};
   const parentId = typeof raw.parentId === 'string' && raw.parentId.length > 0 ? raw.parentId as NodeId : undefined;
   const summary = typeof raw.summary === 'string' ? raw.summary : undefined;
@@ -96,13 +185,13 @@ function autoFixEdge(raw: Record<string, unknown>, issues: GraphIssue[], path: s
     return null;
   }
 
-  const source = raw.source;
+  const source = raw.source ?? raw.from;
   if (typeof source !== 'string' || source.length === 0) {
     issues.push({ level: 'dropped', category: 'edge', message: 'missing or invalid source', path });
     return null;
   }
 
-  const target = raw.target;
+  const target = raw.target ?? raw.to;
   if (typeof target !== 'string' || target.length === 0) {
     issues.push({ level: 'dropped', category: 'edge', message: 'missing or invalid target', path });
     return null;

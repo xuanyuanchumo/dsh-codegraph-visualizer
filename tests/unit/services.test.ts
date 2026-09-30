@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { GraphDataMerger } from '../../src/merger/GraphDataMerger.ts';
 
-import { coerceNode, coerceEdge, validateGraphData } from '../../src/client/validators.ts';
+import { coerceNode, coerceEdge, coerceGraphData } from '../../src/shared/GraphValidator.ts';
 import { resolveConfig, DEFAULT_CONFIG } from '../../src/index.ts';
 import { SecurityManager } from '../../src/host/security.ts';
 import type { GraphNode, GraphEdge, AdapterResult } from '../../src/types/index.ts';
@@ -319,7 +319,7 @@ describe('validators coerceEdge (J5 dependency)', () => {
   });
 });
 
-describe('validators validateGraphData (J8 export)', () => {
+describe('validators coerceGraphData (J8 export)', () => {
   it('should validate well-formed graph data', () => {
     const raw = {
       nodes: [
@@ -329,7 +329,7 @@ describe('validators validateGraphData (J8 export)', () => {
       edges: [{ id: 'e1', source: 'n1', target: 'n2', type: 'call' }],
       metadata: { repoId: 'repo', timestamp: 1000 },
     };
-    const result = validateGraphData(raw);
+    const result = coerceGraphData(raw);
     expect(result).not.toBeNull();
     expect(result?.nodes).toHaveLength(2);
     expect(result?.edges).toHaveLength(1);
@@ -339,13 +339,13 @@ describe('validators validateGraphData (J8 export)', () => {
 
   it('should return null for empty nodes array', () => {
     const raw = { nodes: [], edges: [] };
-    expect(validateGraphData(raw)).toBeNull();
+    expect(coerceGraphData(raw)).toBeNull();
   });
 
   it('should return null for non-object input', () => {
-    expect(validateGraphData(null)).toBeNull();
-    expect(validateGraphData(undefined)).toBeNull();
-    expect(validateGraphData('string')).toBeNull();
+    expect(coerceGraphData(null)).toBeNull();
+    expect(coerceGraphData(undefined)).toBeNull();
+    expect(coerceGraphData('string')).toBeNull();
   });
 
   it('should default missing metadata fields', () => {
@@ -353,7 +353,7 @@ describe('validators validateGraphData (J8 export)', () => {
       nodes: [{ id: 'n1', label: 'a', type: 'function' }],
       edges: [],
     };
-    const result = validateGraphData(raw);
+    const result = coerceGraphData(raw);
     expect(result?.metadata.truncated).toBe(false);
     expect(result?.metadata.totalNodeCount).toBe(1);
     expect(result?.metadata.totalEdgeCount).toBe(0);
@@ -372,7 +372,7 @@ describe('validators validateGraphData (J8 export)', () => {
         null,
       ],
     };
-    const result = validateGraphData(raw);
+    const result = coerceGraphData(raw);
     expect(result?.nodes).toHaveLength(1);
     expect(result?.edges).toHaveLength(1);
   });
