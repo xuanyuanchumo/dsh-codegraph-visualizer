@@ -430,11 +430,13 @@ export interface IncomingMessage {
   on(event: 'data', handler: (chunk: Buffer) => void): void;
   on(event: 'end', handler: () => void): void;
   on(event: 'error', handler: (err: Error) => void): void;
+  on(event: 'close', handler: () => void): void;
   destroy(): void;
 }
 
 export interface ServerResponse {
   writeHead(code: number, headers?: Record<string, string>): void;
+  write(data: string): boolean;
   end(data?: string): void;
 }
 

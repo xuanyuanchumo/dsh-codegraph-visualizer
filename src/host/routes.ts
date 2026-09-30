@@ -1090,6 +1090,69 @@ function registerEdgesRoute(rc: RouteContext): void {
   }), 'codegraph: edges route');
 }
 
+function registerEventsRoute(rc: RouteContext): void {
+  const { deps, corsConfig } = rc;
+  const { ctx } = deps;
+  const routePath = '/api/v1/codegraph/events';
+
+  ctx.effect(() => ctx.webServer.register({
+    kind: 'exact',
+    path: routePath,
+    handler: (req, res) => {
+      if (handleCorsPreflight(req, res, corsConfig)) return;
+      if (!requireMethod(req, res, 'GET', corsConfig)) return;
+      logRequest(req, routePath);
+
+      const corsHeaders = buildCorsHeaders(req, corsConfig);
+      res.writeHead(200, {
+        ...corsHeaders,
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      });
+      res.write(': connected\n\n');
+
+      const sendEvent = (event: string, data: unknown) => {
+        res.write(`event: ${event}\n`);
+        res.write(`data: ${JSON.stringify(data)}\n\n`);
+      };
+
+      const disposers: Array<() => boolean> = [];
+
+      disposers.push(ctx.on('codegraph-visualizer/graph/updated', (event: { repoId?: string; nodeCount?: number; edgeCount?: number; timestamp?: number; changedFiles?: string[] }) => {
+        sendEvent('graph-updated', event);
+      }));
+      disposers.push(ctx.on('codegraph-visualizer/graph/data', (event: { repoId?: string; nodes?: unknown[]; edges?: unknown[]; timestamp?: number; changedFiles?: string[] }) => {
+        sendEvent('graph-data', event);
+      }));
+      disposers.push(ctx.on('codegraph-visualizer/repo/imported', (event: { repoId?: string; timestamp?: number }) => {
+        sendEvent('repo-imported', event);
+      }));
+      disposers.push(ctx.on('codegraph-visualizer/repo/scanned', (event: { repoId?: string; timestamp?: number }) => {
+        sendEvent('repo-scanned', event);
+      }));
+      disposers.push(ctx.on('codegraph-visualizer/graph/init-result', (event: { success?: boolean; path?: string; message?: string; timestamp?: number }) => {
+        sendEvent('init-result', event);
+      }));
+
+      const heartbeat = setInterval(() => {
+        res.write(': heartbeat\n\n');
+      }, 30000);
+
+      const cleanup = () => {
+        clearInterval(heartbeat);
+        for (const dispose of disposers) {
+          try { dispose(); } catch { /* already disposed */ }
+        }
+      };
+
+      req.on('close', cleanup);
+      req.on('error', cleanup);
+    },
+  }), 'codegraph: events SSE route');
+}
+
 export function registerRoutes(deps: RouteDeps): void {
   const { ctx, config } = deps;
   const invokeUpstream = deps.invokeUpstream ?? createInvokeUpstream(ctx, config);
@@ -1115,6 +1178,7 @@ export function registerRoutes(deps: RouteDeps): void {
   registerFileOutlineRoute(rc);
   registerSymbolASTRoute(rc);
   registerEdgesRoute(rc);
+  registerEventsRoute(rc);
 
   ctx.effect(() => () => rateLimiter.reset(), 'codegraph: rate limiter cleanup');
   ctx.effect(() => () => sharedTreeSitterAdapter.destroy(), 'codegraph: tree-sitter adapter cleanup');
