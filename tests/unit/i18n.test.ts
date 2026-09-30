@@ -94,7 +94,6 @@ describe('i18n lang persistence (J10)', () => {
   // ── Workspace i18n (cycle-14) ───────────────────────────────────────
   it('should translate workspace keys in zh', () => {
     setLang('zh');
-    expect(t('workspace.title')).toBe('工作区');
     expect(t('workspace.current')).toBe('当前工作区');
     expect(t('workspace.switch')).toBe('切换工作区');
     expect(t('workspace.add')).toBe('添加工作区');
@@ -104,7 +103,6 @@ describe('i18n lang persistence (J10)', () => {
 
   it('should translate workspace keys in en', () => {
     setLang('en');
-    expect(t('workspace.title')).toBe('Workspace');
     expect(t('workspace.current')).toBe('Current Workspace');
     expect(t('workspace.switch')).toBe('Switch Workspace');
     expect(t('workspace.add')).toBe('Add Workspace');

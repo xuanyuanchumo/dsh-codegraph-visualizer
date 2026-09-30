@@ -70,4 +70,69 @@ test.describe('J39: View Mode Layered Navigation (FR-14)', () => {
     await expect(inheritanceBtn).toHaveClass(/cg-active/);
     await expect(callChainBtn).not.toHaveClass(/cg-active/);
   });
+
+  test('J39: 切换到继承视图后应显示 Layer 选择器', async ({ page }) => {
+    await setupPluginPage(page);
+    const inheritanceViewBtn = page.locator('.cg-view-mode-btn', { hasText: /inherit|继承/i });
+    await inheritanceViewBtn.click();
+    await page.waitForTimeout(500);
+    const layerSelector = page.locator('.cg-layer-selector');
+    await expect(layerSelector).toBeVisible({ timeout: 5000 });
+    const layerBtns = page.locator('.cg-layer-btn');
+    await expect(layerBtns).toHaveCount(3);
+  });
+
+  test('J39: Layer 2 完整图应比 Layer 0 显示更多节点', async ({ page }) => {
+    await setupPluginPage(page);
+    const inheritanceViewBtn = page.locator('.cg-view-mode-btn', { hasText: /inherit|继承/i });
+    await inheritanceViewBtn.click();
+    await page.waitForTimeout(500);
+    const layerBtns = page.locator('.cg-layer-btn');
+    await expect(layerBtns.nth(0)).toHaveClass(/cg-active/);
+    const layer0NodeCount = await page.evaluate(() => {
+      const cy = (window as any).__cytoscape;
+      return cy ? cy.nodes().length : 0;
+    });
+    await layerBtns.nth(2).click();
+    await page.waitForTimeout(500);
+    const layer2NodeCount = await page.evaluate(() => {
+      const cy = (window as any).__cytoscape;
+      return cy ? cy.nodes().length : 0;
+    });
+    expect(layer2NodeCount).toBeGreaterThanOrEqual(layer0NodeCount);
+  });
+
+  test('J39: 切换到包视图应激活 package 模式', async ({ page }) => {
+    await setupPluginPage(page);
+    const packageBtn = page.locator('.cg-view-mode-btn', { hasText: /pkg|包/i });
+    await packageBtn.click();
+    await page.waitForTimeout(500);
+    await expect(packageBtn).toHaveClass(/cg-active/);
+    const layerSelector = page.locator('.cg-layer-selector');
+    await expect(layerSelector).toBeVisible({ timeout: 5000 });
+  });
+
+  test('J39: 切换到类视图应激活 class 模式', async ({ page }) => {
+    await setupPluginPage(page);
+    const classBtn = page.locator('.cg-view-mode-btn', { hasText: /class|类图/i });
+    await classBtn.click();
+    await page.waitForTimeout(500);
+    await expect(classBtn).toHaveClass(/cg-active/);
+    const layerSelector = page.locator('.cg-layer-selector');
+    await expect(layerSelector).toBeVisible({ timeout: 5000 });
+  });
+
+  test('J39: Layer 切换后图谱容器仍可见', async ({ page }) => {
+    await setupPluginPage(page);
+    const depBtn = page.locator('.cg-view-mode-btn', { hasText: /dep|依赖/i });
+    await depBtn.click();
+    await page.waitForTimeout(500);
+    const layerBtns = page.locator('.cg-layer-btn');
+    for (let i = 0; i < 3; i++) {
+      await layerBtns.nth(i).click();
+      await page.waitForTimeout(300);
+      const graphContainer = page.locator('.cg-graph-container');
+      await expect(graphContainer).toBeVisible();
+    }
+  });
 });

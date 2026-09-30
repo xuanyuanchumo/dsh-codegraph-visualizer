@@ -128,13 +128,10 @@ export const zh: Record<string, string> = {
   'import.pastePlaceholder': '在此粘贴图谱 JSON，例如 {"nodes":[...],"edges":[...]}',
   'import.importJson': '导入 JSON',
   'import.importing': '导入中…',
-  'import.fileTooLarge': '文件过大 (最大 10 MB)',
   'import.pasteFirst': '请先粘贴 JSON',
-  'import.enterPath': '请输入仓库路径',
   'import.imported': '已导入 {nodes} 节点 · {edges} 边',
   'import.importFailed': '导入失败: {msg}',
   'import.requestedScan': '已请求扫描 {path}',
-  'import.fileReadError': '文件读取错误',
   'import.prereqMissing': '未检测到前置插件 (dsh-codegraph 或 dsh-tool-lens)。请安装其一以获得完整功能。',
   'import.prereqCmd': '{cmd}',
   'import.prereqCopy': '复制安装命令',
@@ -176,16 +173,14 @@ export const zh: Record<string, string> = {
   'export.jsonld': 'JSON-LD',
 
   // Workspace
-  'workspace.title': '工作区',
+
   'workspace.current': '当前工作区',
   'workspace.switch': '切换工作区',
   'workspace.add': '添加工作区',
   'workspace.remove': '移除',
   'workspace.empty': '暂无工作区',
   'workspace.namePlaceholder': '工作区路径或名称',
-  'workspace.addHint': '输入路径后按回车添加',
   'workspace.active': '活跃',
-  'workspace.lastUsed': '上次使用',
   'workspace.default': '默认',
   'workspace.timeJustNow': '刚刚',
   'workspace.timeMinutesAgo': '{n}分钟前',
@@ -197,7 +192,7 @@ export const zh: Record<string, string> = {
   'prereq.installLens': 'dsh plugin --profile web add dsh-tool-lens',
   'prereq.installTitle': '安装前置插件',
   'prereq.detecting': '正在检测前置插件…',
-  'prereq.found': '已检测到前置插件',
+
   'prereq.notFound': '未检测到',
   'prereq.codegraphLabel': 'dsh-codegraph',
   'prereq.lensLabel': 'dsh-tool-lens',
@@ -205,22 +200,14 @@ export const zh: Record<string, string> = {
   'prereq.lensDesc': '可选 — 提供 AST 精准分析和影响检测。',
 
   // 图谱初始化
-  'graph.init': '初始化图谱',
-  'graph.initializing': '正在初始化图谱…',
-  'graph.initSuccess': '图谱初始化成功',
-  'graph.initFailed': '初始化失败',
-  'graph.refresh': '刷新',
-  'graph.hotUpdate': '热更新',
-  'graph.hotUpdateOn': '自动刷新: 开启',
-  'graph.hotUpdateOff': '自动刷新: 关闭',
 
   // 增强空状态
   'empty.prereqTitle': '推荐安装前置插件',
-  'empty.prereqDesc': '安装 dsh-codegraph 或 dsh-tool-lens 以获得更完整的代码图谱：',
+
   'empty.copyCmd': '复制安装命令',
   'empty.copied': '已复制！',
   'empty.scanWorkspace': '扫描当前工作区',
-  'empty.useBuiltin': '使用内置分析',
+
   'empty.degradedMode': '降级模式 — 使用内置 TreeSitter 和依赖分析',
   'empty.degradedHint': '内置分析支持基础代码结构解析，无需安装额外插件。',
 
@@ -240,9 +227,7 @@ export const zh: Record<string, string> = {
   'shortcut.undo': '撤销操作',
   'shortcut.redo': '重做操作',
   'shortcut.help': '显示此帮助',
-  'edge.tooltip.source': '源节点',
-  'edge.tooltip.target': '目标节点',
-  'edge.tooltip.type': '关系类型',
+
   'state.complete': '图谱完整 ({total} 节点)',
   'state.functionBudget': '已展开 {expanded}/{total} 个函数体',
 
@@ -257,7 +242,7 @@ export const zh: Record<string, string> = {
   'pathFind.clear': '清除',
   'pathFind.length': '路径长度',
   'pathFind.hops': '经过节点',
-  'pathFind.noPath': '不可达',
+
   'pathFind.startSuggestions': '起点建议列表',
   'pathFind.endSuggestions': '终点建议列表',
 
@@ -340,9 +325,7 @@ export const zh: Record<string, string> = {
   'micro.backToCode': '返回代码视图',
   'sequence.noData': '暂无时序图数据',
   'sequence.ariaLabel': '{participants} 个参与者, {messages} 条消息',
-  'micro.selectedFunction': '当前函数: {name}',
-  'micro.clearSelection': '清除选择',
-  'micro.loadFailed': '微观图谱加载失败',
+
   'micro.closeView': '关闭微观视图',
   'micro.functionBar': '微观视图工具栏',
   'stats.nodesEdges': '{nodes} 节点 · {edges} 边',
@@ -464,9 +447,7 @@ export const zh: Record<string, string> = {
   'nav.restorePanel': '恢复面板',
   'nav.searchSymbols': '代码图谱: 搜索符号',
   'nav.togglePanel': '代码图谱: 切换面板',
-  'nav.integrationMode': '集成模式',
-  'nav.modeSidebar': '侧边栏',
-  'nav.modeSlot': '插槽',
+
   'nav.modeFloating': '浮动面板',
   'nav.switchLayout': '代码图谱: 切换布局',
   'nav.toggleFilter': '代码图谱: 切换筛选',

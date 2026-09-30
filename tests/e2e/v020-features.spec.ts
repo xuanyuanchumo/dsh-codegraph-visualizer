@@ -161,16 +161,81 @@ test.describe('v0.2.0 Feature: Graph Type Switch (FR-21)', () => {
 test.describe('v0.2.0 Feature: Cluster Level (FR-42)', () => {
   test('should change cluster level to function', async ({ page }) => {
     await setupPluginPage(page);
-    const clusterSelect = page.locator('#cluster-level');
-    await clusterSelect.selectOption('function');
-    await expect(clusterSelect).toHaveValue('function');
+    const clusterSelect = page.locator('#cluster-depth');
+    await clusterSelect.selectOption('2');
+    await expect(clusterSelect).toHaveValue('2');
   });
 
-  test('should change cluster level to smart', async ({ page }) => {
+  test('should change cluster level to file', async ({ page }) => {
     await setupPluginPage(page);
-    const clusterSelect = page.locator('#cluster-level');
-    await clusterSelect.selectOption('smart');
-    await expect(clusterSelect).toHaveValue('smart');
+    const clusterSelect = page.locator('#cluster-depth');
+    await clusterSelect.selectOption('1');
+    await expect(clusterSelect).toHaveValue('1');
+  });
+
+  test('should have directory cluster level as default', async ({ page }) => {
+    await setupPluginPage(page);
+    const clusterSelect = page.locator('#cluster-depth');
+    await expect(clusterSelect).toHaveValue('0');
+  });
+
+  test('J25: switching cluster depth should keep graph visible', async ({ page }) => {
+    await setupPluginPage(page);
+    const clusterSelect = page.locator('#cluster-depth');
+    await clusterSelect.selectOption('1');
+    await page.waitForTimeout(500);
+    const graphContainer = page.locator('.cg-graph-container');
+    await expect(graphContainer).toBeVisible();
+    await clusterSelect.selectOption('2');
+    await page.waitForTimeout(500);
+    await expect(graphContainer).toBeVisible();
+    await clusterSelect.selectOption('0');
+    await page.waitForTimeout(500);
+    await expect(graphContainer).toBeVisible();
+  });
+
+  test('J25: cluster nodes should be present in directory depth', async ({ page }) => {
+    await setupPluginPage(page);
+    await page.waitForTimeout(1000);
+    const clusterNodeCount = await page.evaluate(() => {
+      const cy = (window as any).__cytoscape;
+      if (!cy) return 0;
+      return cy.nodes('[isCluster = "true"]').length;
+    });
+    expect(clusterNodeCount).toBeGreaterThan(0);
+  });
+
+  test('J25: double-clicking cluster node should expand it', async ({ page }) => {
+    await setupPluginPage(page);
+    await page.waitForTimeout(1000);
+    const clusterNodeId = await page.evaluate(() => {
+      const cy = (window as any).__cytoscape;
+      if (!cy) return null;
+      const clusterNode = cy.nodes('[isCluster = "true"]').first();
+      if (clusterNode.length === 0) return null;
+      return clusterNode.id();
+    });
+    if (!clusterNodeId) {
+      test.skip(true, 'No cluster nodes found');
+      return;
+    }
+    const beforeCount = await page.evaluate(() => {
+      const cy = (window as any).__cytoscape;
+      return cy ? cy.nodes().length : 0;
+    });
+    await page.evaluate((id) => {
+      const cy = (window as any).__cytoscape;
+      if (cy) {
+        const node = cy.getElementById(id);
+        node.emit('dbltap');
+      }
+    }, clusterNodeId);
+    await page.waitForTimeout(1000);
+    const afterCount = await page.evaluate(() => {
+      const cy = (window as any).__cytoscape;
+      return cy ? cy.nodes().length : 0;
+    });
+    expect(afterCount).toBeGreaterThanOrEqual(beforeCount);
   });
 });
 

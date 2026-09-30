@@ -129,13 +129,10 @@ export const en: Record<string, string> = {
   'import.importJson': 'Import JSON',
   'import.importing': 'Importing…',
 
-  'import.fileTooLarge': 'File too large (max 10 MB)',
   'import.pasteFirst': 'Paste JSON first',
-  'import.enterPath': 'Enter a repository path',
   'import.imported': 'Imported {nodes} nodes · {edges} edges',
   'import.importFailed': 'Import failed: {msg}',
   'import.requestedScan': 'Requested scan of {path}',
-  'import.fileReadError': 'File read error',
   'import.prereqMissing': 'Prerequisite plugins (dsh-codegraph or dsh-tool-lens) not detected. Install one for full functionality.',
   'import.prereqCmd': '{cmd}',
   'import.prereqCopy': 'Copy install command',
@@ -177,16 +174,14 @@ export const en: Record<string, string> = {
   'export.jsonld': 'JSON-LD',
 
   // Workspace
-  'workspace.title': 'Workspace',
+
   'workspace.current': 'Current Workspace',
   'workspace.switch': 'Switch Workspace',
   'workspace.add': 'Add Workspace',
   'workspace.remove': 'Remove',
   'workspace.empty': 'No workspaces yet',
   'workspace.namePlaceholder': 'Workspace path or name',
-  'workspace.addHint': 'Enter a path and press Enter to add',
   'workspace.active': 'Active',
-  'workspace.lastUsed': 'Last used',
   'workspace.default': 'Default',
   'workspace.timeJustNow': 'just now',
   'workspace.timeMinutesAgo': '{n}m ago',
@@ -198,7 +193,7 @@ export const en: Record<string, string> = {
   'prereq.installLens': 'dsh plugin --profile web add dsh-tool-lens',
   'prereq.installTitle': 'Install Prerequisite Plugin',
   'prereq.detecting': 'Detecting prerequisite plugins…',
-  'prereq.found': 'Prerequisite plugin detected',
+
   'prereq.notFound': 'Not detected',
   'prereq.codegraphLabel': 'dsh-codegraph',
   'prereq.lensLabel': 'dsh-tool-lens',
@@ -206,22 +201,14 @@ export const en: Record<string, string> = {
   'prereq.lensDesc': 'Optional — provides AST-precise analysis and impact detection.',
 
   // Graph initialization
-  'graph.init': 'Initialize Graph',
-  'graph.initializing': 'Initializing graph…',
-  'graph.initSuccess': 'Graph initialized successfully',
-  'graph.initFailed': 'Initialization failed',
-  'graph.refresh': 'Refresh',
-  'graph.hotUpdate': 'Hot Update',
-  'graph.hotUpdateOn': 'Auto refresh: ON',
-  'graph.hotUpdateOff': 'Auto refresh: OFF',
 
   // Enhanced empty state
   'empty.prereqTitle': 'Recommended Prerequisite Plugins',
-  'empty.prereqDesc': 'Install dsh-codegraph or dsh-tool-lens for a more complete code graph:',
+
   'empty.copyCmd': 'Copy install command',
   'empty.copied': 'Copied!',
   'empty.scanWorkspace': 'Scan Current Workspace',
-  'empty.useBuiltin': 'Use Built-in Analysis',
+
   'empty.degradedMode': 'Degraded Mode — using built-in TreeSitter and dependency analysis',
   'empty.degradedHint': 'Built-in analysis provides basic code structure parsing without additional plugins.',
 
@@ -241,9 +228,7 @@ export const en: Record<string, string> = {
   'shortcut.undo': 'Undo',
   'shortcut.redo': 'Redo',
   'shortcut.help': 'Show this help',
-  'edge.tooltip.source': 'Source',
-  'edge.tooltip.target': 'Target',
-  'edge.tooltip.type': 'Relationship',
+
   'state.complete': 'Graph is complete ({total} nodes)',
   'state.functionBudget': 'Expanded {expanded}/{total} function bodies',
 
@@ -258,7 +243,7 @@ export const en: Record<string, string> = {
   'pathFind.clear': 'Clear',
   'pathFind.length': 'Path length',
   'pathFind.hops': 'Hops',
-  'pathFind.noPath': 'Unreachable',
+
   'pathFind.startSuggestions': 'Start suggestions',
   'pathFind.endSuggestions': 'End suggestions',
 
@@ -341,9 +326,7 @@ export const en: Record<string, string> = {
   'micro.backToCode': 'Back to Code View',
   'sequence.noData': 'No sequence data available',
   'sequence.ariaLabel': '{participants} participants, {messages} messages',
-  'micro.selectedFunction': 'Current function: {name}',
-  'micro.clearSelection': 'Clear selection',
-  'micro.loadFailed': 'Micro diagram load failed',
+
   'micro.closeView': 'Close micro view',
   'micro.functionBar': 'Micro view toolbar',
   'stats.nodesEdges': '{nodes} nodes · {edges} edges',
@@ -465,9 +448,7 @@ export const en: Record<string, string> = {
   'nav.restorePanel': 'Restore panel',
   'nav.searchSymbols': 'Code Graph: Search Symbols',
   'nav.togglePanel': 'Code Graph: Toggle Panel',
-  'nav.integrationMode': 'Integration mode',
-  'nav.modeSidebar': 'Sidebar',
-  'nav.modeSlot': 'Slot',
+
   'nav.modeFloating': 'Floating',
   'nav.switchLayout': 'Code Graph: Switch Layout',
   'nav.toggleFilter': 'Code Graph: Toggle Filter',
