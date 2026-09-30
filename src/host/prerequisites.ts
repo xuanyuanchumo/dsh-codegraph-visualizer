@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 import type { Context } from '@deepseek-ai/cordis';
 import { scoped } from '../shared/Logger.ts';
 import { POLLING } from '../shared/constants.ts';
+import type { ApiCompatLayer } from './compat/index.ts';
 
 const log = scoped('host');
 const execFileAsync = promisify(execFile);
@@ -18,10 +19,22 @@ export async function detectCodegraphCli(): Promise<boolean> {
   }
 }
 
-export function checkPrerequisites(ctx: Context): { codegraph: boolean; lens: boolean; builtin: boolean } {
+export function checkPrerequisites(ctx: Context, apiCompat?: ApiCompatLayer): { codegraph: boolean; lens: boolean; builtin: boolean } {
   try {
-    const cg = ctx.tools.get('codegraph_status') ?? ctx.tools.get('codegraph_graph') ?? ctx.tools.get('codegraph_query');
-    const lens = ctx.tools.get('lens_analyze');
+    let cg: unknown = null;
+    if (apiCompat) {
+      const toolName = apiCompat.getAvailableToolName(ctx, 'codegraphStatus');
+      if (toolName) cg = ctx.tools.get(toolName);
+    } else {
+      cg = ctx.tools.get('codegraph_status') ?? ctx.tools.get('codegraph_graph') ?? ctx.tools.get('codegraph_query');
+    }
+    let lens: unknown = null;
+    if (apiCompat) {
+      const lensName = apiCompat.getAvailableToolName(ctx, 'lensAnalyze');
+      if (lensName) lens = ctx.tools.get(lensName);
+    } else {
+      lens = ctx.tools.get('lens_analyze');
+    }
     return { codegraph: !!cg, lens: !!lens, builtin: true };
   } catch (e) {
     log.warn('checkPrerequisites failed', e);

@@ -11,6 +11,8 @@ import { createInvokeUpstream, registerRoutes, registerService } from './host/ro
 import { registerWatcher, registerEventListeners } from './host/watcher.ts';
 import { McpServer } from './host/McpServer.ts';
 import { closeAllDbConnections } from './adapters/CodeGraphAdapter.ts';
+import { detectHostVersion, createFeatureFlags, createApiCompatLayer } from './host/compat/index.ts';
+
 
 export { PLUGIN_VERSION };
 export { resolveConfig, DEFAULT_CONFIG } from './host/config.ts';
@@ -26,6 +28,10 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   const config = resolveConfig(userConfig);
   const securityManager = createSecurityManager();
   securityManager.setAllowedWorkspaceRoots(extractWorkspacePaths(ctx));
+
+  const hostVersionInfo = detectHostVersion(ctx);
+  const featureFlags = createFeatureFlags(hostVersionInfo);
+  const apiCompat = createApiCompatLayer(hostVersionInfo);
 
   const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout });
 
@@ -53,6 +59,8 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
     config,
     securityManager,
     invokeUpstream,
+    apiCompat,
+    featureFlags,
     getLastGraphData: () => lastGraphData,
     setLastGraphData: (data: GraphData | null) => { lastGraphData = data; },
     getLastInitResult: () => lastInitResult,
@@ -71,7 +79,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
 
   let lastStatus = '';
   const emitPrereqStatus = () => {
-    const status = checkPrerequisites(ctx);
+    const status = checkPrerequisites(ctx, apiCompat);
     const statusKey = `${status.codegraph}:${status.lens}:${status.builtin}`;
     ctx.emit('codegraph-visualizer/prerequisite/status', {
       codegraph: status.codegraph,
@@ -90,7 +98,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
     const MAX_POLLS = 6;
     const prereqTimer = setInterval(() => {
       pollCount++;
-      const status = checkPrerequisites(ctx);
+      const status = checkPrerequisites(ctx, apiCompat);
       const statusKey = `${status.codegraph}:${status.lens}:${status.builtin}`;
       ctx.emit('codegraph-visualizer/prerequisite/status', {
         codegraph: status.codegraph,

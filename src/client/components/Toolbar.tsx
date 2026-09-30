@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, memo } from 'react';
+import React, { useRef, useEffect, useCallback, memo, useState } from 'react';
 import type { LayoutType, ThemeType, GraphType, RankDir } from '../store/graphStore.ts';
 import type { GraphNode, ViewMode } from '../../types/index.ts';
 import type { WorkspaceSelectorProps } from './WorkspaceSelector.tsx';
@@ -11,6 +11,7 @@ import {
   UploadIcon, LayersIcon, ZapIcon, TreeIcon,
   PathIcon, HeartIcon, RuleIcon, FlameIcon, AlertCircleIcon,
   UndoIcon, RedoIcon, StarIcon, FilterIcon, GhostIcon,
+
 } from './Icons.tsx';
 
 const LAYOUTS: LayoutType[] = ['cose', 'fcose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
@@ -155,18 +156,29 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   const t = useT();
   const lang = useLang();
   const exportMenuRef = useRef<HTMLDivElement>(null);
-  const [showExportMenu, setShowExportMenu] = React.useState(false);
+  const analysisMenuRef = useRef<HTMLDivElement>(null);
+  const qualityMenuRef = useRef<HTMLDivElement>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showAnalysisMenu, setShowAnalysisMenu] = useState(false);
+  const [showQualityMenu, setShowQualityMenu] = useState(false);
 
   useEffect(() => {
-    if (!showExportMenu) return;
     const onDocClick = (e: MouseEvent) => {
       if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
         setShowExportMenu(false);
       }
+      if (analysisMenuRef.current && !analysisMenuRef.current.contains(e.target as Node)) {
+        setShowAnalysisMenu(false);
+      }
+      if (qualityMenuRef.current && !qualityMenuRef.current.contains(e.target as Node)) {
+        setShowQualityMenu(false);
+      }
     };
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, [showExportMenu]);
+    if (showExportMenu || showAnalysisMenu || showQualityMenu) {
+      document.addEventListener('mousedown', onDocClick);
+      return () => document.removeEventListener('mousedown', onDocClick);
+    }
+  }, [showExportMenu, showAnalysisMenu, showQualityMenu]);
 
   const onExport = props.onExport;
   const handleExport = useCallback((format: 'png' | 'svg' | 'json' | 'mermaid' | 'mermaid-seq' | 'mermaid-class' | 'graphml' | 'jsonld') => {
@@ -333,58 +345,106 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         <span className="cg-toolbar-separator" aria-hidden="true" />
 
         <div className="cg-toolbar-group" role="group" aria-label={t('toolbar.analysisGroup')}>
-          {availablePanels.has('showSearch') && (
-            <button className={`cg-search-btn ${showSearch ? 'cg-active' : ''}`} onClick={onToggleSearch}
-              title={t('toolbar.search')} aria-label={t('toolbar.search')} aria-expanded={showSearch}><SearchIcon size={15} /></button>
-          )}
-          {availablePanels.has('showCallChain') && (
-            <button className={`cg-chain-btn ${showCallChain ? 'cg-active' : ''}`} onClick={onToggleCallChain}
-              title={t('toolbar.chain')} aria-label={t('toolbar.chain')} aria-pressed={showCallChain}><ChainIcon size={15} /></button>
-          )}
-          {availablePanels.has('showCycles') && (
-            <button className={`cg-cycle-btn ${showCycles ? 'cg-active' : ''}`} onClick={onToggleCycles}
-              title={t('toolbar.cycles')} aria-label={t('toolbar.cycles')} aria-pressed={showCycles}><CycleIcon size={15} /></button>
-          )}
-          {showCycles && (
-            <button className={`cg-isolate-btn ${cycleIsolation ? 'cg-active' : ''}`} onClick={onToggleCycleIsolation}
-              title={t('toolbar.isolateCycles')} aria-label={t('toolbar.isolateCycles')} aria-pressed={cycleIsolation}><FilterIcon size={15} /></button>
-          )}
-          {availablePanels.has('showImpact') && (
-            <button className={`cg-impact-btn ${showImpact ? 'cg-active' : ''}`} onClick={onToggleImpact}
-              title={t('toolbar.impact')} aria-label={t('toolbar.impact')} aria-pressed={showImpact}><ZapIcon size={15} /></button>
-          )}
-          {availablePanels.has('showInheritance') && (
-            <button className={`cg-inheritance-btn ${showInheritance ? 'cg-active' : ''}`} onClick={onToggleInheritance}
-              title={t('toolbar.inheritance')} aria-label={t('toolbar.inheritance')} aria-pressed={showInheritance}><TreeIcon size={15} /></button>
-          )}
-          {availablePanels.has('showPathFind') && (
-            <button className={`cg-pathfind-btn ${showPathFind ? 'cg-active' : ''}`} onClick={onTogglePathFind}
-              title={t('toolbar.pathFind')} aria-label={t('toolbar.pathFind')} aria-pressed={showPathFind}><PathIcon size={15} /></button>
-          )}
-          {availablePanels.has('showHealthScore') && (
-            <button className={`cg-health-btn ${showHealthScore ? 'cg-active' : ''}`} onClick={onToggleHealthScore}
-              title={t('toolbar.health')} aria-label={t('toolbar.health')} aria-pressed={showHealthScore}><HeartIcon size={15} /></button>
-          )}
-          {availablePanels.has('showRules') && (
-            <button className={`cg-rules-btn ${showRules ? 'cg-active' : ''}`} onClick={onToggleRules}
-              title={t('toolbar.rules')} aria-label={t('toolbar.rules')} aria-pressed={showRules}><RuleIcon size={15} /></button>
-          )}
-          {availablePanels.has('showHotspot') && (
-            <button className={`cg-hotspot-btn ${showHotspot ? 'cg-active' : ''}`} onClick={onToggleHotspot}
-              title={t('toolbar.hotspot')} aria-label={t('toolbar.hotspot')} aria-pressed={showHotspot}><FlameIcon size={15} /></button>
-          )}
-          {availablePanels.has('showGodModule') && (
-            <button className={`cg-godmodule-btn ${showGodModule ? 'cg-active' : ''}`} onClick={onToggleGodModule}
-              title={t('toolbar.godModule')} aria-label={t('toolbar.godModule')} aria-pressed={showGodModule}><AlertCircleIcon size={15} /></button>
-          )}
-          {availablePanels.has('showCoreFunction') && (
-            <button className={`cg-corefunction-btn ${showCoreFunction ? 'cg-active' : ''}`} onClick={onToggleCoreFunction}
-              title={t('toolbar.coreFunction')} aria-label={t('toolbar.coreFunction')} aria-pressed={showCoreFunction}><StarIcon size={15} /></button>
-          )}
-          {availablePanels.has('showDeadCode') && (
-            <button className={`cg-deadcode-btn ${showDeadCode ? 'cg-active' : ''}`} onClick={onToggleDeadCode}
-              title={t('toolbar.deadCode')} aria-label={t('toolbar.deadCode')} aria-pressed={showDeadCode}><GhostIcon size={15} /></button>
-          )}
+          <div className="cg-dropdown-menu" ref={analysisMenuRef}>
+            <button className={`cg-analysis-dropdown-btn ${showAnalysisMenu ? 'cg-active' : ''}`} onClick={() => setShowAnalysisMenu((v) => !v)}
+              title={t('toolbar.analysis')} aria-label={t('toolbar.analysis')} aria-haspopup="menu" aria-expanded={showAnalysisMenu}>
+              <SearchIcon size={15} /><ChevronDownIcon size={10} />
+            </button>
+            {showAnalysisMenu && (
+              <div className="cg-dropdown-content" role="menu">
+                {availablePanels.has('showSearch') && (
+                  <button className={`cg-dropdown-item cg-search-btn ${showSearch ? 'cg-active' : ''}`} onClick={() => { onToggleSearch(); setShowAnalysisMenu(false); }}
+                    role="menuitemcheckbox" aria-checked={showSearch} title={t('toolbar.search')}>
+                    <SearchIcon size={14} /><span>{t('toolbar.search')}</span>
+                  </button>
+                )}
+                {availablePanels.has('showCallChain') && (
+                  <button className={`cg-dropdown-item cg-chain-btn ${showCallChain ? 'cg-active' : ''}`} onClick={() => { onToggleCallChain(); setShowAnalysisMenu(false); }}
+                    role="menuitemcheckbox" aria-checked={showCallChain} title={t('toolbar.chain')}>
+                    <ChainIcon size={14} /><span>{t('toolbar.chain')}</span>
+                  </button>
+                )}
+                {availablePanels.has('showCycles') && (
+                  <button className={`cg-dropdown-item cg-cycle-btn ${showCycles ? 'cg-active' : ''}`} onClick={() => { onToggleCycles(); setShowAnalysisMenu(false); }}
+                    role="menuitemcheckbox" aria-checked={showCycles} title={t('toolbar.cycles')}>
+                    <CycleIcon size={14} /><span>{t('toolbar.cycles')}</span>
+                  </button>
+                )}
+                {showCycles && (
+                  <button className={`cg-dropdown-item cg-isolate-btn ${cycleIsolation ? 'cg-active' : ''}`} onClick={() => { onToggleCycleIsolation(); setShowAnalysisMenu(false); }}
+                    role="menuitemcheckbox" aria-checked={cycleIsolation} title={t('toolbar.isolateCycles')}>
+                    <FilterIcon size={14} /><span>{t('toolbar.isolateCycles')}</span>
+                  </button>
+                )}
+                {availablePanels.has('showImpact') && (
+                  <button className={`cg-dropdown-item cg-impact-btn ${showImpact ? 'cg-active' : ''}`} onClick={() => { onToggleImpact(); setShowAnalysisMenu(false); }}
+                    role="menuitemcheckbox" aria-checked={showImpact} title={t('toolbar.impact')}>
+                    <ZapIcon size={14} /><span>{t('toolbar.impact')}</span>
+                  </button>
+                )}
+                {availablePanels.has('showInheritance') && (
+                  <button className={`cg-dropdown-item cg-inheritance-btn ${showInheritance ? 'cg-active' : ''}`} onClick={() => { onToggleInheritance(); setShowAnalysisMenu(false); }}
+                    role="menuitemcheckbox" aria-checked={showInheritance} title={t('toolbar.inheritance')}>
+                    <TreeIcon size={14} /><span>{t('toolbar.inheritance')}</span>
+                  </button>
+                )}
+                {availablePanels.has('showPathFind') && (
+                  <button className={`cg-dropdown-item cg-pathfind-btn ${showPathFind ? 'cg-active' : ''}`} onClick={() => { onTogglePathFind(); setShowAnalysisMenu(false); }}
+                    role="menuitemcheckbox" aria-checked={showPathFind} title={t('toolbar.pathFind')}>
+                    <PathIcon size={14} /><span>{t('toolbar.pathFind')}</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="cg-dropdown-menu" ref={qualityMenuRef}>
+            <button className={`cg-quality-dropdown-btn ${showQualityMenu ? 'cg-active' : ''}`} onClick={() => setShowQualityMenu((v) => !v)}
+              title={t('toolbar.quality')} aria-label={t('toolbar.quality')} aria-haspopup="menu" aria-expanded={showQualityMenu}>
+              <HeartIcon size={15} /><ChevronDownIcon size={10} />
+            </button>
+            {showQualityMenu && (
+              <div className="cg-dropdown-content" role="menu">
+                {availablePanels.has('showHealthScore') && (
+                  <button className={`cg-dropdown-item cg-health-btn ${showHealthScore ? 'cg-active' : ''}`} onClick={() => { onToggleHealthScore(); setShowQualityMenu(false); }}
+                    role="menuitemcheckbox" aria-checked={showHealthScore} title={t('toolbar.health')}>
+                    <HeartIcon size={14} /><span>{t('toolbar.health')}</span>
+                  </button>
+                )}
+                {availablePanels.has('showRules') && (
+                  <button className={`cg-dropdown-item cg-rules-btn ${showRules ? 'cg-active' : ''}`} onClick={() => { onToggleRules(); setShowQualityMenu(false); }}
+                    role="menuitemcheckbox" aria-checked={showRules} title={t('toolbar.rules')}>
+                    <RuleIcon size={14} /><span>{t('toolbar.rules')}</span>
+                  </button>
+                )}
+                {availablePanels.has('showHotspot') && (
+                  <button className={`cg-dropdown-item cg-hotspot-btn ${showHotspot ? 'cg-active' : ''}`} onClick={() => { onToggleHotspot(); setShowQualityMenu(false); }}
+                    role="menuitemcheckbox" aria-checked={showHotspot} title={t('toolbar.hotspot')}>
+                    <FlameIcon size={14} /><span>{t('toolbar.hotspot')}</span>
+                  </button>
+                )}
+                {availablePanels.has('showGodModule') && (
+                  <button className={`cg-dropdown-item cg-godmodule-btn ${showGodModule ? 'cg-active' : ''}`} onClick={() => { onToggleGodModule(); setShowQualityMenu(false); }}
+                    role="menuitemcheckbox" aria-checked={showGodModule} title={t('toolbar.godModule')}>
+                    <AlertCircleIcon size={14} /><span>{t('toolbar.godModule')}</span>
+                  </button>
+                )}
+                {availablePanels.has('showCoreFunction') && (
+                  <button className={`cg-dropdown-item cg-corefunction-btn ${showCoreFunction ? 'cg-active' : ''}`} onClick={() => { onToggleCoreFunction(); setShowQualityMenu(false); }}
+                    role="menuitemcheckbox" aria-checked={showCoreFunction} title={t('toolbar.coreFunction')}>
+                    <StarIcon size={14} /><span>{t('toolbar.coreFunction')}</span>
+                  </button>
+                )}
+                {availablePanels.has('showDeadCode') && (
+                  <button className={`cg-dropdown-item cg-deadcode-btn ${showDeadCode ? 'cg-active' : ''}`} onClick={() => { onToggleDeadCode(); setShowQualityMenu(false); }}
+                    role="menuitemcheckbox" aria-checked={showDeadCode} title={t('toolbar.deadCode')}>
+                    <GhostIcon size={14} /><span>{t('toolbar.deadCode')}</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
           <button className={`cg-tour-btn ${showTour ? 'cg-active' : ''}`} onClick={onToggleTour}
             title={t('toolbar.tour')} aria-label={t('toolbar.tour')} aria-pressed={showTour}><StarIcon size={15} /></button>
         </div>

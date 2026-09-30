@@ -286,6 +286,8 @@ describe('Toolbar component', () => {
     const structuralButtons = [
       { className: 'cg-search-btn', handler: 'onToggleSearch', state: 'showSearch' },
       { className: 'cg-pathfind-btn', handler: 'onTogglePathFind', state: 'showPathFind' },
+    ];
+    const structuralQualityButtons = [
       { className: 'cg-health-btn', handler: 'onToggleHealthScore', state: 'showHealthScore' },
       { className: 'cg-rules-btn', handler: 'onToggleRules', state: 'showRules' },
     ];
@@ -294,98 +296,171 @@ describe('Toolbar component', () => {
       { className: 'cg-cycle-btn', handler: 'onToggleCycles', state: 'showCycles' },
       { className: 'cg-impact-btn', handler: 'onToggleImpact', state: 'showImpact' },
       { className: 'cg-inheritance-btn', handler: 'onToggleInheritance', state: 'showInheritance' },
+    ];
+    const behavioralQualityButtons = [
       { className: 'cg-hotspot-btn', handler: 'onToggleHotspot', state: 'showHotspot' },
       { className: 'cg-godmodule-btn', handler: 'onToggleGodModule', state: 'showGodModule' },
       { className: 'cg-corefunction-btn', handler: 'onToggleCoreFunction', state: 'showCoreFunction' },
     ];
 
-    it('renders structural analysis buttons in code view mode', () => {
+    async function openAnalysisDropdown(user: ReturnType<typeof userEvent.setup>) {
+      const btn = document.querySelector('.cg-analysis-dropdown-btn') as HTMLButtonElement;
+      await user.click(btn);
+    }
+
+    async function openQualityDropdown(user: ReturnType<typeof userEvent.setup>) {
+      const btn = document.querySelector('.cg-quality-dropdown-btn') as HTMLButtonElement;
+      await user.click(btn);
+    }
+
+    it('renders analysis dropdown button in code view mode', () => {
       render(<Toolbar {...makeProps({ viewMode: 'code' })} />);
-      for (const { className } of structuralButtons) {
-        const btn = document.querySelector(`.${className}`);
-        expect(btn).toBeTruthy();
-      }
+      expect(document.querySelector('.cg-analysis-dropdown-btn')).toBeTruthy();
+      expect(document.querySelector('.cg-quality-dropdown-btn')).toBeTruthy();
     });
 
-    it('renders behavioral analysis buttons in callgraph view mode', () => {
+    it('renders analysis dropdown button in callgraph view mode', () => {
       render(<Toolbar {...makeProps({ viewMode: 'callgraph' })} />);
-      for (const { className } of behavioralButtons) {
-        const btn = document.querySelector(`.${className}`);
-        expect(btn).toBeTruthy();
-      }
+      expect(document.querySelector('.cg-analysis-dropdown-btn')).toBeTruthy();
+      expect(document.querySelector('.cg-quality-dropdown-btn')).toBeTruthy();
     });
 
-    it('hides behavioral analysis buttons in code view mode', () => {
+    it('shows analysis dropdown items when dropdown is opened', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ viewMode: 'code' })} />);
-      for (const { className } of behavioralButtons) {
-        const btn = document.querySelector(`.${className}`);
-        expect(btn).toBeNull();
-      }
+      await openAnalysisDropdown(user);
+      expect(document.querySelector('.cg-dropdown-content')).toBeTruthy();
+      const items = document.querySelectorAll('.cg-dropdown-item');
+      expect(items.length).toBeGreaterThan(0);
     });
 
-    it('hides structural-only analysis buttons in callgraph view mode', () => {
-      render(<Toolbar {...makeProps({ viewMode: 'callgraph' })} />);
-      expect(document.querySelector('.cg-health-btn')).toBeNull();
-      expect(document.querySelector('.cg-rules-btn')).toBeNull();
-    });
-
-    it('calls the correct toggle handler when each structural analysis button is clicked', async () => {
+    it('shows quality dropdown items when dropdown is opened', async () => {
       const user = userEvent.setup();
-      for (const { className, handler } of structuralButtons) {
-        const mockHandler = vi.fn();
-        const panelControls = makePanelControls({ [handler]: mockHandler });
-        const { unmount } = render(<Toolbar {...makeProps({ viewMode: 'code', panelControls })} />);
-        const btn = document.querySelector(`.${className}`) as HTMLButtonElement;
-        await user.click(btn);
-        expect(mockHandler).toHaveBeenCalledOnce();
-        unmount();
-      }
+      render(<Toolbar {...makeProps({ viewMode: 'code' })} />);
+      await openQualityDropdown(user);
+      expect(document.querySelector('.cg-dropdown-content')).toBeTruthy();
+      const items = document.querySelectorAll('.cg-dropdown-item');
+      expect(items.length).toBeGreaterThan(0);
     });
 
-    it('calls the correct toggle handler when each behavioral analysis button is clicked', async () => {
+    it('hides analysis dropdown items by default', () => {
+      render(<Toolbar {...makeProps({ viewMode: 'code' })} />);
+      expect(document.querySelector('.cg-dropdown-content')).toBeNull();
+    });
+
+    it('calls onToggleSearch when search dropdown item is clicked', async () => {
       const user = userEvent.setup();
-      for (const { className, handler } of behavioralButtons) {
-        const mockHandler = vi.fn();
-        const panelControls = makePanelControls({ [handler]: mockHandler });
-        const { unmount } = render(<Toolbar {...makeProps({ viewMode: 'callgraph', panelControls })} />);
-        const btn = document.querySelector(`.${className}`) as HTMLButtonElement;
-        await user.click(btn);
-        expect(mockHandler).toHaveBeenCalledOnce();
-        unmount();
-      }
-    });
-
-    it('shows active class when structural analysis panel visibility state is true', () => {
-      const panelControls = makePanelControls({
-        showSearch: true,
-        showPathFind: true,
-        showHealthScore: true,
-        showRules: true,
-      });
+      const onToggleSearch = vi.fn();
+      const panelControls = makePanelControls({ onToggleSearch });
       render(<Toolbar {...makeProps({ viewMode: 'code', panelControls })} />);
-      for (const { className } of structuralButtons) {
-        const btn = document.querySelector(`.${className}`) as HTMLButtonElement;
-        expect(btn.className).toContain('active');
-      }
+      const dropdownBtn = document.querySelector('.cg-analysis-dropdown-btn') as HTMLButtonElement;
+      await user.click(dropdownBtn);
+      const searchItem = document.querySelector('.cg-search-btn') as HTMLButtonElement;
+      expect(searchItem).toBeTruthy();
+      await user.click(searchItem);
+      expect(onToggleSearch).toHaveBeenCalledOnce();
     });
 
-    it('shows active class when behavioral analysis panel visibility state is true', () => {
-      const panelControls = makePanelControls({
-        showCallChain: true,
-        showCycles: true,
-        showImpact: true,
-        showInheritance: true,
-        showHotspot: true,
-        showGodModule: true,
-        showCoreFunction: true,
-      });
+    it('calls onToggleCallChain when chain dropdown item is clicked', async () => {
+      const user = userEvent.setup();
+      const onToggleCallChain = vi.fn();
+      const panelControls = makePanelControls({ onToggleCallChain });
       render(<Toolbar {...makeProps({ viewMode: 'callgraph', panelControls })} />);
-      for (const { className } of behavioralButtons) {
-        const btn = document.querySelector(`.${className}`) as HTMLButtonElement;
-        expect(btn.className).toContain('active');
-      }
+      const dropdownBtn = document.querySelector('.cg-analysis-dropdown-btn') as HTMLButtonElement;
+      await user.click(dropdownBtn);
+      const chainItem = document.querySelector('.cg-chain-btn') as HTMLButtonElement;
+      expect(chainItem).toBeTruthy();
+      await user.click(chainItem);
+      expect(onToggleCallChain).toHaveBeenCalledOnce();
+    });
+
+    it('calls onToggleHealthScore when health dropdown item is clicked', async () => {
+      const user = userEvent.setup();
+      const onToggleHealthScore = vi.fn();
+      const panelControls = makePanelControls({ onToggleHealthScore });
+      render(<Toolbar {...makeProps({ viewMode: 'code', panelControls })} />);
+      const dropdownBtn = document.querySelector('.cg-quality-dropdown-btn') as HTMLButtonElement;
+      await user.click(dropdownBtn);
+      const healthItem = document.querySelector('.cg-health-btn') as HTMLButtonElement;
+      expect(healthItem).toBeTruthy();
+      await user.click(healthItem);
+      expect(onToggleHealthScore).toHaveBeenCalledOnce();
+    });
+
+    it('calls onToggleHotspot when hotspot dropdown item is clicked', async () => {
+      const user = userEvent.setup();
+      const onToggleHotspot = vi.fn();
+      const panelControls = makePanelControls({ onToggleHotspot });
+      render(<Toolbar {...makeProps({ viewMode: 'callgraph', panelControls })} />);
+      const dropdownBtn = document.querySelector('.cg-quality-dropdown-btn') as HTMLButtonElement;
+      await user.click(dropdownBtn);
+      const hotspotItem = document.querySelector('.cg-hotspot-btn') as HTMLButtonElement;
+      expect(hotspotItem).toBeTruthy();
+      await user.click(hotspotItem);
+      expect(onToggleHotspot).toHaveBeenCalledOnce();
+    });
+
+    it('shows active class when search panel is active in code view', async () => {
+      const user = userEvent.setup();
+      const panelControls = makePanelControls({ showSearch: true });
+      render(<Toolbar {...makeProps({ viewMode: 'code', panelControls })} />);
+      await openAnalysisDropdown(user);
+      const btn = document.querySelector('.cg-search-btn') as HTMLButtonElement;
+      expect(btn).toBeTruthy();
+      expect(btn.className).toContain('active');
+    });
+
+    it('shows active class when health panel is active in code view', async () => {
+      const user = userEvent.setup();
+      const panelControls = makePanelControls({ showHealthScore: true });
+      render(<Toolbar {...makeProps({ viewMode: 'code', panelControls })} />);
+      await openQualityDropdown(user);
+      const btn = document.querySelector('.cg-health-btn') as HTMLButtonElement;
+      expect(btn).toBeTruthy();
+      expect(btn.className).toContain('active');
+    });
+
+    it('shows active class when call chain panel is active in callgraph view', async () => {
+      const user = userEvent.setup();
+      const panelControls = makePanelControls({ showCallChain: true });
+      render(<Toolbar {...makeProps({ viewMode: 'callgraph', panelControls })} />);
+      await openAnalysisDropdown(user);
+      const btn = document.querySelector('.cg-chain-btn') as HTMLButtonElement;
+      expect(btn).toBeTruthy();
+      expect(btn.className).toContain('active');
+    });
+
+    it('shows active class when hotspot panel is active in callgraph view', async () => {
+      const user = userEvent.setup();
+      const panelControls = makePanelControls({ showHotspot: true });
+      render(<Toolbar {...makeProps({ viewMode: 'callgraph', panelControls })} />);
+      await openQualityDropdown(user);
+      const btn = document.querySelector('.cg-hotspot-btn') as HTMLButtonElement;
+      expect(btn).toBeTruthy();
+      expect(btn.className).toContain('active');
+    });
+
+    it('closes analysis dropdown after clicking an item', async () => {
+      const user = userEvent.setup();
+      render(<Toolbar {...makeProps({ viewMode: 'code' })} />);
+      await openAnalysisDropdown(user);
+      expect(document.querySelector('.cg-dropdown-content')).toBeTruthy();
+      const item = document.querySelector('.cg-dropdown-item') as HTMLButtonElement;
+      await user.click(item);
+      expect(document.querySelector('.cg-dropdown-content')).toBeNull();
+    });
+
+    it('closes quality dropdown after clicking an item', async () => {
+      const user = userEvent.setup();
+      render(<Toolbar {...makeProps({ viewMode: 'code' })} />);
+      await openQualityDropdown(user);
+      expect(document.querySelector('.cg-dropdown-content')).toBeTruthy();
+      const item = document.querySelector('.cg-dropdown-item') as HTMLButtonElement;
+      await user.click(item);
+      expect(document.querySelector('.cg-dropdown-content')).toBeNull();
     });
   });
+
 
   // 9. 视图工具按钮渲染和点击响应
   describe('view tool buttons', () => {

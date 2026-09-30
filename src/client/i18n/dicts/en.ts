@@ -21,6 +21,8 @@ export const en: Record<string, string> = {
   'toolbar.refresh': 'Refresh graph',
   'toolbar.dataGroup': 'Data controls',
   'toolbar.analysisGroup': 'Analysis tools',
+  'toolbar.analysis': 'Analysis',
+  'toolbar.quality': 'Quality',
   'toolbar.viewGroup': 'View controls',
   'toolbar.settingsGroup': 'Settings',
   'toolbar.theme': 'Toggle theme',

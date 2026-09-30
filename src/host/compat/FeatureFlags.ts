@@ -1,0 +1,67 @@
+import type { HostVersionInfo } from './HostVersionDetector.ts';
+import { scoped } from '../../shared/Logger.ts';
+
+const log = scoped('host:compat');
+
+export interface FeatureFlags {
+  incrementalBootstrap: boolean;
+  workspaceRegistry: boolean;
+  sessionsApi: boolean;
+  betterSidebar: boolean;
+  spotlight: boolean;
+  remoteWebUi: boolean;
+  mcpServer: boolean;
+  rateLimiting: boolean;
+  treeSitterWasm: boolean;
+  healthScore: boolean;
+  rulesCheck: boolean;
+  multiWorkspace: boolean;
+}
+
+const GEN1_FLAGS: FeatureFlags = {
+  incrementalBootstrap: false,
+  workspaceRegistry: false,
+  sessionsApi: true,
+  betterSidebar: false,
+  spotlight: false,
+  remoteWebUi: false,
+  mcpServer: true,
+  rateLimiting: true,
+  treeSitterWasm: true,
+  healthScore: true,
+  rulesCheck: true,
+  multiWorkspace: false,
+};
+
+const GEN2_FLAGS: FeatureFlags = {
+  incrementalBootstrap: true,
+  workspaceRegistry: true,
+  sessionsApi: true,
+  betterSidebar: true,
+  spotlight: true,
+  remoteWebUi: true,
+  mcpServer: true,
+  rateLimiting: true,
+  treeSitterWasm: true,
+  healthScore: true,
+  rulesCheck: true,
+  multiWorkspace: true,
+};
+
+const UNKNOWN_FLAGS: FeatureFlags = {
+  ...GEN2_FLAGS,
+  incrementalBootstrap: false,
+  remoteWebUi: false,
+};
+
+export function createFeatureFlags(info: HostVersionInfo): FeatureFlags {
+  const flags = info.generation === 'gen1' ? GEN1_FLAGS
+    : info.generation === 'gen2' ? GEN2_FLAGS
+    : UNKNOWN_FLAGS;
+  log.info('feature flags resolved', { generation: info.generation, flags });
+  return flags;
+}
+
+export function hasFlag(flags: FeatureFlags, key: keyof FeatureFlags): boolean {
+  return flags[key];
+}

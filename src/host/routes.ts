@@ -12,6 +12,7 @@ import type { UpstreamInvoker } from '../adapters/IAdapter.ts';
 import { SecurityManager } from './security.ts';
 import { findWorkspacePath, extractWorkspacePaths, checkPrerequisites } from './prerequisites.ts';
 import type { VisualizerConfig } from './config.ts';
+import type { ApiCompatLayer, FeatureFlags } from './compat/index.ts';
 import { parsePackageJson, parseCargoToml, parseGoMod, dependencyGraphToGraphData } from '../adapters/DependencyAdapter.ts';
 import { resolveDbPath, readTopLevelNodesFromDb, readNodeChildrenFromDb, readFileOutlineFromDb, readSymbolASTFromDb, readEdgesFromDb, readEdgesForNodesFromDb, countEdgesInDb, mapNodeKind, mapEdgeKind, isNoisePath, FILTERED_EDGE_KINDS } from '../adapters/CodeGraphAdapter.ts';
 import { inferLayerFromPath } from '../shared/layerUtils.ts';
@@ -134,6 +135,8 @@ export interface RouteDeps {
   config: VisualizerConfig;
   securityManager: SecurityManager;
   invokeUpstream?: UpstreamInvoker;
+  apiCompat?: ApiCompatLayer;
+  featureFlags?: FeatureFlags;
   getLastGraphData: () => GraphData | null;
   setLastGraphData: (data: GraphData | null) => void;
   getLastInitResult: () => { success: boolean; path: string; message: string; timestamp: number } | null;

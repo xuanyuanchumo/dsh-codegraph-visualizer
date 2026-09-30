@@ -222,3 +222,15 @@ export const GhostIcon = memo(({ size = 16, className }: IconProps) => (
     <path d="M9 10h.01M15 10h.01M12 2a8 8 0 0 0-8 8v12l3-3 3 3 2-2 2 2 3-3 3 3V10a8 8 0 0 0-8-8z" />
   </svg>
 ));
+
+export const MoreIcon = memo(({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <circle cx="12" cy="5" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="12" cy="19" r="1.5" />
+  </svg>
+));
+
+export const WrenchIcon = memo(({ size = 16, className }: IconProps) => (
+  <svg {...base(size)} className={className}>
+    <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-2.5 2.5-2.5Z" />
+  </svg>
+));
