@@ -14,8 +14,9 @@ import { findWorkspacePath, extractWorkspacePaths, checkPrerequisites } from './
 import type { VisualizerConfig } from './config.ts';
 import type { ApiCompatLayer, FeatureFlags } from './compat/index.ts';
 import { parsePackageJson, parseCargoToml, parseGoMod, dependencyGraphToGraphData } from '../adapters/DependencyAdapter.ts';
-import { resolveDbPath, readTopLevelNodesFromDb, readNodeChildrenFromDb, readFileOutlineFromDb, readSymbolASTFromDb, readEdgesFromDb, readEdgesForNodesFromDb, countEdgesInDb, mapNodeKind, mapEdgeKind, isNoisePath, FILTERED_EDGE_KINDS } from '../adapters/CodeGraphAdapter.ts';
-import { inferLayerFromPath } from '../shared/layerUtils.ts';
+import { resolveDbPath, readTopLevelNodesFromDb, readNodeChildrenFromDb, readFileOutlineFromDb, readSymbolASTFromDb, readEdgesFromDb, readEdgesForNodesFromDb, countEdgesInDb, FILTERED_EDGE_KINDS } from '../adapters/CodeGraphAdapter.ts';
+import { mapDbNodesToGraphNodes, mapDbEdgesToGraphEdges } from './DbMapper.ts';
+
 import { computeGraphDiff, diffToGraphData } from '../merger/DiffEngine.ts';
 import { TreeSitterAdapter } from '../adapters/TreeSitterAdapter.ts';
 import { createRateLimiter } from './RateLimiter.ts';
@@ -730,31 +731,10 @@ function registerBootstrapRoute(rc: RouteContext): void {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readTopLevelNodesFromDb(dbPath, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
         if (dbResult && dbResult.nodes.length > 0) {
-          const topLevelNodes = dbResult.nodes
-            .filter((n) => n.name && n.file_path && !isNoisePath(n.file_path))
-            .map((n) => ({
-              id: NodeId(n.id),
-              label: n.name,
-              type: mapNodeKind(n.kind),
-              filePath: n.file_path,
-              lineNumber: n.start_line ?? 1,
-              properties: {
-                kind: n.kind,
-                ...(n.signature ? { signature: n.signature } : {}),
-                ...(n.docstring ? { docstring: n.docstring } : {}),
-                exported: n.is_exported === 1,
-              },
-              layer: inferLayerFromPath(n.file_path),
-            }));
+          const topLevelNodes = mapDbNodesToGraphNodes(dbResult.nodes);
           const topLevelIds = new Set(topLevelNodes.map((n) => n.id));
           const dbEdges = readEdgesForNodesFromDb(dbPath, [...topLevelIds]);
-          const rootEdges = dbEdges.map((e) => ({
-            id: EdgeId(String(e.id)),
-            source: NodeId(e.source),
-            target: NodeId(e.target),
-            type: mapEdgeKind(e.kind),
-            properties: e.line !== null && e.line !== undefined ? { line: e.line } : {},
-          }));
+          const rootEdges = mapDbEdgesToGraphEdges(dbEdges);
           sendJson(res, 200, {
             rootNodes: topLevelNodes,
             topLevelNodes,
@@ -846,32 +826,11 @@ function registerNodeChildrenRoute(rc: RouteContext): void {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readNodeChildrenFromDb(dbPath, nodeId, cursor, limit);
         if (dbResult && dbResult.nodes.length > 0) {
-          const page = dbResult.nodes
-            .filter((n) => n.name && n.file_path && !isNoisePath(n.file_path))
-            .map((n) => ({
-              id: NodeId(n.id),
-              label: n.name,
-              type: mapNodeKind(n.kind),
-              filePath: n.file_path,
-              lineNumber: n.start_line ?? 1,
-              properties: {
-                kind: n.kind,
-                ...(n.signature ? { signature: n.signature } : {}),
-                ...(n.docstring ? { docstring: n.docstring } : {}),
-                exported: n.is_exported === 1,
-              },
-              parentId: NodeId(nodeId),
-              layer: inferLayerFromPath(n.file_path),
-            }));
+          const page = mapDbNodesToGraphNodes(dbResult.nodes, nodeId);
           const childIds = page.map((n) => n.id);
           const dbEdges = readEdgesForNodesFromDb(dbPath, childIds);
-          const childEdges = dbEdges.map((e) => ({
-            id: EdgeId(String(e.id)),
-            source: NodeId(e.source),
-            target: NodeId(e.target),
-            type: mapEdgeKind(e.kind),
-            properties: e.line !== null && e.line !== undefined ? { line: e.line } : {},
-          }));
+          const childEdges = mapDbEdgesToGraphEdges(dbEdges);
+
           sendJson(res, 200, {
             nodes: page,
             edges: childEdges,
@@ -938,32 +897,10 @@ function registerFileOutlineRoute(rc: RouteContext): void {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readFileOutlineFromDb(dbPath, nodeId);
         if (dbResult && dbResult.nodes.length > 0) {
-          const symbols = dbResult.nodes
-            .filter((n) => n.name && n.file_path && !isNoisePath(n.file_path))
-            .map((n) => ({
-              id: NodeId(n.id),
-              label: n.name,
-              type: mapNodeKind(n.kind),
-              filePath: n.file_path,
-              lineNumber: n.start_line ?? 1,
-              properties: {
-                kind: n.kind,
-                ...(n.signature ? { signature: n.signature } : {}),
-                ...(n.docstring ? { docstring: n.docstring } : {}),
-                exported: n.is_exported === 1,
-              },
-              parentId: NodeId(nodeId),
-              layer: inferLayerFromPath(n.file_path),
-            }));
+          const symbols = mapDbNodesToGraphNodes(dbResult.nodes, nodeId);
           const symbolIds = new Set(symbols.map((n) => n.id));
           const dbEdges = readEdgesForNodesFromDb(dbPath, [...symbolIds]);
-          const symbolEdges = dbEdges.map((e) => ({
-            id: EdgeId(String(e.id)),
-            source: NodeId(e.source),
-            target: NodeId(e.target),
-            type: mapEdgeKind(e.kind),
-            properties: e.line !== null && e.line !== undefined ? { line: e.line } : {},
-          }));
+          const symbolEdges = mapDbEdgesToGraphEdges(dbEdges);
           sendJson(res, 200, { symbols, edges: symbolEdges }, req, corsConfig);
           return;
         }
@@ -1019,32 +956,10 @@ function registerSymbolASTRoute(rc: RouteContext): void {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readSymbolASTFromDb(dbPath, nodeId);
         if (dbResult && dbResult.nodes.length > 0) {
-          const astNodes = dbResult.nodes
-            .filter((n) => n.name && n.file_path && !isNoisePath(n.file_path))
-            .map((n) => ({
-              id: NodeId(n.id),
-              label: n.name,
-              type: mapNodeKind(n.kind),
-              filePath: n.file_path,
-              lineNumber: n.start_line ?? 1,
-              properties: {
-                kind: n.kind,
-                ...(n.signature ? { signature: n.signature } : {}),
-                ...(n.docstring ? { docstring: n.docstring } : {}),
-                exported: n.is_exported === 1,
-              },
-              parentId: NodeId(nodeId),
-              layer: inferLayerFromPath(n.file_path),
-            }));
+          const astNodes = mapDbNodesToGraphNodes(dbResult.nodes, nodeId);
           const astNodeIds = new Set(astNodes.map((n) => n.id));
           const dbEdges = readEdgesForNodesFromDb(dbPath, [...astNodeIds]);
-          const astEdges = dbEdges.map((e) => ({
-            id: EdgeId(String(e.id)),
-            source: NodeId(e.source),
-            target: NodeId(e.target),
-            type: mapEdgeKind(e.kind),
-            properties: e.line !== null && e.line !== undefined ? { line: e.line } : {},
-          }));
+          const astEdges = mapDbEdgesToGraphEdges(dbEdges);
           sendJson(res, 200, { astNodes, astEdges, sourceLines: [] }, req, corsConfig);
           return;
         }
@@ -1100,15 +1015,9 @@ function registerEdgesRoute(rc: RouteContext): void {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readEdgesFromDb(dbPath, fromId, scope as 'file' | 'symbol', cursor, limit);
         if (dbResult) {
-          const pagedEdges = dbResult.edges
-            .filter((e) => e.source !== e.target && !FILTERED_EDGE_KINDS.has(e.kind))
-            .map((e) => ({
-              id: EdgeId(String(e.id)),
-              source: NodeId(e.source),
-              target: NodeId(e.target),
-              type: mapEdgeKind(e.kind),
-              properties: e.line !== null && e.line !== undefined ? { line: e.line } : {},
-            }));
+          const pagedEdges = mapDbEdgesToGraphEdges(
+            dbResult.edges.filter((e) => e.source !== e.target && !FILTERED_EDGE_KINDS.has(e.kind)),
+          );
           sendJson(res, 200, {
             edges: pagedEdges,
             total: dbResult.total,
