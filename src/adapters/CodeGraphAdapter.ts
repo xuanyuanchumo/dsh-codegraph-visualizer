@@ -31,16 +31,29 @@ type SqliteDb = {
 };
 
 const dbPool = new Map<string, SqliteDb>();
+const MAX_DB_POOL_SIZE = 5;
 
 function getDbConnection(dbPath: string): SqliteDb | null {
   if (!existsSync(dbPath)) return null;
-  let db = dbPool.get(dbPath);
-  if (!db) {
-    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite');
-    db = new DatabaseSync(dbPath, { readOnly: true }) as unknown as SqliteDb;
-    dbPool.set(dbPath, db);
-    log.info('db pool: opened connection', { dbPath });
+  const existing = dbPool.get(dbPath);
+  if (existing) {
+    dbPool.delete(dbPath);
+    dbPool.set(dbPath, existing);
+    return existing;
   }
+  if (dbPool.size >= MAX_DB_POOL_SIZE) {
+    const oldest = dbPool.keys().next().value;
+    if (oldest !== undefined) {
+      const oldDb = dbPool.get(oldest);
+      dbPool.delete(oldest);
+      try { oldDb?.close(); } catch { /* ignore */ }
+      log.info('db pool: evicted connection', { dbPath: oldest });
+    }
+  }
+  const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite');
+  const db = new DatabaseSync(dbPath, { readOnly: true }) as unknown as SqliteDb;
+  dbPool.set(dbPath, db);
+  log.info('db pool: opened connection', { dbPath, poolSize: dbPool.size });
   return db;
 }
 

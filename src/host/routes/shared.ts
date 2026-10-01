@@ -13,6 +13,7 @@ import { findWorkspacePath } from '../prerequisites.ts';
 import type { VisualizerConfig } from '../config.ts';
 import type { ApiCompatLayer, FeatureFlags } from '../compat/index.ts';
 import { createRateLimiter } from '../RateLimiter.ts';
+import type { GraphRepository } from '../db/GraphRepository.ts';
 import {
   validatePathRealpath, buildCorsHeaders, handleCorsPreflight,
   sendError, requireMethod, checkRate, logRequest,
@@ -148,6 +149,7 @@ export interface RouteDeps {
   getScanCache: () => Map<string, { data: GraphData; timestamp: number }>;
   getScanInFlight: (path: string) => Promise<GraphData> | null;
   setScanInFlight: (path: string, p: Promise<GraphData> | null) => void;
+  graphRepo?: GraphRepository | undefined;
 }
 
 export function slimGraphData(data: GraphData, maxNodes: number): GraphData {
@@ -295,6 +297,13 @@ export function triggerBackgroundBuild(
   scanPromise.then(data => {
     deps.setLastGraphData(data);
     deps.getScanCache().set(workspacePath, { data, timestamp: Date.now() });
+    if (deps.graphRepo?.isReady()) {
+      try {
+        const hash = `${data.metadata.nodeCount}:${data.metadata.edgeCount}:${data.metadata.timestamp}`;
+        const serialized = Buffer.from(JSON.stringify({ n: data.nodes.length, e: data.edges.length, t: data.metadata.timestamp }), 'utf-8');
+        deps.graphRepo.saveSnapshot(repoId, hash, data.metadata.nodeCount, data.metadata.edgeCount, serialized);
+      } catch (e) { log.warn('snapshot save failed', e); }
+    }
     const { ctx } = deps;
     ctx.emit('codegraph-visualizer/graph/updated', {
       repoId: RepoId(repoId),

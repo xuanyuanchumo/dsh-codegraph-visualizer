@@ -306,6 +306,7 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
           clearTimeout(internals.prefetchIdleHandle as ReturnType<typeof setTimeout>);
         }
         internals.prefetchIdleHandle = null;
+        internals.prefetchInFlightCount--;
       }
       if (typeof requestIdleCallback === 'function') {
         internals.prefetchIdleHandle = requestIdleCallback(runPrefetch, { timeout: 2000 });

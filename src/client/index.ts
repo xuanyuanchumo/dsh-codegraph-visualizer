@@ -4,6 +4,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import { GraphPanel } from './GraphPanel.tsx';
 import { useGraphStore } from './store/graphStore.ts';
 import { GraphIcon } from './components/Icons.tsx';
+import { GraphErrorBoundary } from './components/ErrorBoundary.tsx';
 import { scoped } from '../shared/Logger.ts';
 import { resetLoggerListeners } from '../shared/Logger.ts';
 import type { GraphData } from '../types/index.ts';
@@ -58,7 +59,7 @@ function FloatingGraphPanel({ onClose, onMinimize }: { onClose: () => void; onMi
         ),
       ),
       React.createElement('div', { className: 'cg-floating-content' },
-        React.createElement(GraphPanel),
+        React.createElement(GraphErrorBoundary, null, React.createElement(GraphPanel)),
       ),
     ),
   );
@@ -79,7 +80,7 @@ export function init(container: HTMLElement, initialData?: GraphData): () => voi
     const store = useGraphStore.getState();
     store.setGraphData(initialData.nodes, initialData.edges, initialData.metadata.repoId, initialData.metadata);
   }
-  root.render(React.createElement(GraphPanel));
+  root.render(React.createElement(GraphErrorBoundary, null, React.createElement(GraphPanel)));
   return () => root.unmount();
 }
 
@@ -209,7 +210,7 @@ export function apply(ctx: Context): () => void {
                 },
                 'data-cg-sidebar-visible': String(props.visible),
               },
-              React.createElement(GraphPanel),
+              React.createElement(GraphErrorBoundary, null, React.createElement(GraphPanel)),
             );
           },
         });
@@ -734,6 +735,7 @@ export function apply(ctx: Context): () => void {
   }
 
   return () => {
+    scanInProgress = false;
     disposeStore();
     resetI18nListeners();
     resetLoggerListeners();

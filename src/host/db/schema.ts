@@ -11,6 +11,7 @@ export const graphSnapshots = sqliteTable('graph_snapshots', {
 }, (t) => ({
   repoIdx: index('idx_snapshots_repo').on(t.repoId),
   repoHashUniq: uniqueIndex('idx_snapshots_repo_hash').on(t.repoId, t.snapshotHash),
+  repoCreatedIdx: index('idx_snapshots_repo_created').on(t.repoId, t.createdAt),
 }));
 
 export const analysisResults = sqliteTable('analysis_results', {
@@ -23,6 +24,7 @@ export const analysisResults = sqliteTable('analysis_results', {
 }, (t) => ({
   repoTypeIdx: index('idx_analysis_repo_type').on(t.repoId, t.analysisType),
   repoTypeNodeUniq: uniqueIndex('idx_analysis_repo_type_node').on(t.repoId, t.analysisType, t.targetNode),
+  repoTypeCreatedIdx: index('idx_analysis_repo_type_created').on(t.repoId, t.analysisType, t.createdAt),
 }));
 
 export const userPreferences = sqliteTable('user_preferences', {
@@ -41,6 +43,7 @@ export const layoutPresets = sqliteTable('layout_presets', {
 }, (t) => ({
   repoIdx: index('idx_layout_presets_repo').on(t.repoId),
   repoNameUniq: uniqueIndex('idx_layout_presets_repo_name').on(t.repoId, t.name),
+  repoCreatedIdx: index('idx_layout_presets_repo_created').on(t.repoId, t.createdAt),
 }));
 
 export type GraphSnapshot = typeof graphSnapshots.$inferSelect;

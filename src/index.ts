@@ -78,6 +78,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
       if (p === null) scanInFlightMap.delete(path);
       else scanInFlightMap.set(path, p);
     },
+    graphRepo: repoReady ? graphRepo : undefined,
   };
 
   registerService(routeDeps);

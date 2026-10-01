@@ -53,10 +53,13 @@ const MIGRATION_SQL = [
   `CREATE TABLE IF NOT EXISTS layout_presets (id INTEGER PRIMARY KEY AUTOINCREMENT, repo_id TEXT NOT NULL, name TEXT NOT NULL, layout_type TEXT NOT NULL, positions TEXT NOT NULL, created_at INTEGER NOT NULL DEFAULT 0)`,
   `CREATE INDEX IF NOT EXISTS idx_snapshots_repo ON graph_snapshots(repo_id)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_snapshots_repo_hash ON graph_snapshots(repo_id, snapshot_hash)`,
+  `CREATE INDEX IF NOT EXISTS idx_snapshots_repo_created ON graph_snapshots(repo_id, created_at)`,
   `CREATE INDEX IF NOT EXISTS idx_analysis_repo_type ON analysis_results(repo_id, analysis_type)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_analysis_repo_type_node ON analysis_results(repo_id, analysis_type, IFNULL(target_node, ''))`,
+  `CREATE INDEX IF NOT EXISTS idx_analysis_repo_type_created ON analysis_results(repo_id, analysis_type, created_at)`,
   `CREATE INDEX IF NOT EXISTS idx_layout_presets_repo ON layout_presets(repo_id)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_layout_presets_repo_name ON layout_presets(repo_id, name)`,
+  `CREATE INDEX IF NOT EXISTS idx_layout_presets_repo_created ON layout_presets(repo_id, created_at)`,
 ];
 
 export class GraphRepository {
