@@ -1,8 +1,8 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useGraphStore } from './store/graphStore.ts';
-import type { ThemeType } from './store/graphStore.ts';
+import type { ThemeType, GraphType } from './store/graphStore.ts';
 
-import type { GraphNode, GraphEdge } from '../types/index.ts';
+import type { GraphNode, GraphEdge, ViewMode } from '../types/index.ts';
 import type { ClusterNode } from './store/cluster/index.ts';
 import { NodeId } from '../types/index.ts';
 import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard, useViewMode, useAnalysisPanels, useNodeSearch,
@@ -668,20 +668,34 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       <Toolbar
         statsText={statsText}
         typeCounts={{ function: nodeTypeCounts.function, class: nodeTypeCounts.class, interface: nodeTypeCounts.interface }}
-        layout={layout} dagreRankDir={dagreRankDir} theme={theme} filterType={filterType} graphType={graphType}
-        clusterDepth={clusterDepth} viewMode={viewMode} currentLayer={currentLayer}
-        layerNames={diagramData?.layers.map((l) => l.name) ?? []}
-        onLayerChange={setLayer} collapsed={panel.collapsed}
+        theme={theme}
+        collapsed={panel.collapsed}
         panelControls={panel.toPanelControls}
-        onViewModeChange={handleViewModeChange} onLayoutChange={setLayout}
-        onDagreRankDirChange={setDagreRankDir}
-        onThemeToggle={handleThemeToggle} onFilterChange={setFilterType}
-        onGraphTypeChange={setGraphType} onClusterDepthChange={setClusterDepth}
-        onRefresh={handleRefresh} onExport={renderer.exportGraph}
-        onCollapse={panel.toggleCollapsed} onCollapseAll={handleCollapseAll}
-        onUndo={history.undo} onRedo={history.redo}
-        canUndo={history.canUndo} canRedo={history.canRedo}
-        hasSelectedFunction={!!selectedFunction}
+        layoutConfig={{
+          layout, dagreRankDir, clusterDepth,
+          onChange: (field, value) => {
+            if (field === 'layout') setLayout(value as typeof layout);
+            else if (field === 'dagreRankDir') setDagreRankDir(value as typeof dagreRankDir);
+            else if (field === 'clusterDepth') setClusterDepth(value as number);
+          },
+        }}
+        viewConfig={{
+          viewMode, graphType, filterType, currentLayer,
+          layerNames: diagramData?.layers.map((l) => l.name) ?? [],
+          hasSelectedFunction: !!selectedFunction,
+          onChange: (field, value) => {
+            if (field === 'viewMode') handleViewModeChange(value as ViewMode);
+            else if (field === 'graphType') setGraphType(value as GraphType);
+            else if (field === 'filterType') setFilterType(value as GraphNode['type'] | 'all');
+            else if (field === 'layer') setLayer(value as number);
+          },
+        }}
+        history={{ undo: history.undo, redo: history.redo, canUndo: history.canUndo, canRedo: history.canRedo }}
+        onThemeToggle={handleThemeToggle}
+        onRefresh={handleRefresh}
+        onExport={renderer.exportGraph}
+        onCollapse={panel.toggleCollapsed}
+        onCollapseAll={handleCollapseAll}
         currentWorkspace={currentWorkspace} workspaceList={workspaceList}
         onSwitchWorkspace={handleWorkspaceSwitch} onAddWorkspace={handleWorkspaceAdd}
         onRemoveWorkspace={removeWorkspace}

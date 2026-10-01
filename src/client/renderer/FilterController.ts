@@ -173,6 +173,7 @@ export class FilterController {
         edge.style('display', 'element');
       });
     });
+    this.invalidateCache();
   }
 
   private safeRegExp(pattern: string): RegExp | null {

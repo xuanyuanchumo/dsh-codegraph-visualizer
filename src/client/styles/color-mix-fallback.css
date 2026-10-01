@@ -135,4 +135,117 @@
   .cg-import-warning-text {
     color: rgba(245, 158, 11, 0.85);
   }
+  .cg-violation-badge.cg-error {
+    background: rgba(239, 68, 68, 1.00);
+  }
+  .cg-violation-badge.cg-warning {
+    background: rgba(245, 158, 11, 1.00);
+  }
+  .cg-violation-item.cg-error {
+    background: rgba(239, 68, 68, 0.80);
+  }
+  .cg-violation-item.cg-warning {
+    background: rgba(245, 158, 11, 0.80);
+  }
+  .cg-hotspot-item.cg-critical {
+    background: rgba(239, 68, 68, 0.80);
+  }
+  .cg-hotspot-item.cg-high {
+    background: rgba(245, 158, 11, 0.80);
+  }
+  .cg-hotspot-item.cg-medium {
+    background: rgba(59, 130, 246, 0.60);
+  }
+  .cg-godmodule-item {
+    background: rgba(239, 68, 68, 0.60);
+    border: 1px solid rgba(239, 68, 68, 1.00);
+  }
+  .cg-godmodule-suggestion {
+    border-top: 1px solid rgba(239, 68, 68, 1.00);
+  }
+  .cg-core-function-reason-tag {
+    background: rgba(38, 49, 72, 0.20);
+  }
+  .cg-corefunction-btn.cg-active {
+    background: rgba(38, 49, 72, 0.20);
+  }
+  .cg-init-feedback.cg-ok {
+    background: rgba(16, 185, 129, 0.10);
+  }
+  .cg-init-feedback.cg-err {
+    background: rgba(239, 68, 68, 0.10);
+  }
+  .cg-prereq-warning {
+    background: rgba(245, 158, 11, 0.10);
+    border: 1px solid rgba(245, 158, 11, 0.30);
+  }
+  .cg-prereq-install code {
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px dashed rgba(245, 158, 11, 0.40);
+    color: rgba(247, 173, 48, 1.00);
+  }
+  .cg-prereq-copy {
+    border: 1px solid rgba(245, 158, 11, 0.40);
+  }
+  .cg-prereq-copy:hover {
+    background: rgba(245, 158, 11, 0.20);
+  }
+  .cg-import-feedback.cg-ok {
+    background: rgba(16, 185, 129, 0.15);
+  }
+  .cg-import-feedback.cg-err {
+    background: rgba(239, 68, 68, 0.15);
+  }
+  .cg-workspace-item-remove:hover {
+    background: rgba(239, 68, 68, 0.10);
+  }
+  .cg-detail-expand-hint--expanded {
+    background: rgba(16, 185, 129, 0.80);
+    border-color: rgba(16, 185, 129, 0.30);
+  }
+  .cg-floating-mode-badge {
+    background: rgba(38, 49, 72, 0.15);
+    border: 1px solid rgba(38, 49, 72, 0.30);
+  }
+  .cg-floating-minimized-btn {
+    box-shadow: 0 4px 12px rgba(38, 49, 72, 0.40);
+  }
+  .cg-floating-minimized-btn:hover {
+    box-shadow: 0 6px 16px rgba(38, 49, 72, 0.50);
+  }
+  .cg-node-detail-panel .cg-detail-expanded-badge {
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.30);
+  }
+  .cg-node-detail-panel .cg-detail-exported-badge {
+    background: rgba(38, 49, 72, 0.12);
+    border: 1px solid rgba(38, 49, 72, 0.30);
+  }
+  .cg-node-detail-panel .cg-detail-chain-btn {
+    background: rgba(38, 49, 72, 0.15);
+    border-color: rgba(38, 49, 72, 0.40);
+  }
+  .cg-node-detail-panel .cg-detail-chain-btn:hover {
+    background: rgba(38, 49, 72, 0.25);
+  }
+  .cg-empty-import-btn {
+    box-shadow: 0 2px 8px rgba(38, 49, 72, 0.30);
+  }
+  .cg-empty-import-btn:hover {
+    box-shadow: 0 4px 12px rgba(38, 49, 72, 0.40);
+  }
+  .cg-empty-prereq-warning {
+    background: rgba(245, 158, 11, 0.80);
+    border: 1px solid rgba(245, 158, 11, 1.00);
+  }
+  .cg-prereq-item {
+    border-top: 1px solid rgba(245, 158, 11, 0.30);
+  }
+  .cg-empty-degraded-notice {
+    background: rgba(38, 49, 72, 0.10);
+    border: 1px solid rgba(38, 49, 72, 0.30);
+  }
+  .cg-prereq-cmd {
+    background: rgba(249, 250, 251, 0.80);
+  }
 }

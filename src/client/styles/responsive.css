@@ -587,43 +587,6 @@
     .cg-tour-btn {
       display: none;
     }
-  }
-
-  @media (max-width: 600px) {
-    .cg-tour-btn,
-    .cg-minimap-btn {
-      display: none;
-    }
-    .cg-toolbar-left .cg-type-badge {
-      display: none;
-    }
-  }
-    .cg-toolbar-center {
-      gap: 6px;
-    }
-    .cg-toolbar-right {
-      gap: 6px;
-    }
-    .cg-layout-btn,
-    .cg-graph-type-btn {
-      padding: 3px 8px;
-      font-size: 11px;
-    }
-    .cg-node-detail-panel {
-      width: 220px;
-    }
-    .cg-legend-panel {
-      width: 160px;
-    }
-    .cg-mini-map {
-      width: 160px;
-    }
-    .cg-filter-select {
-      font-size: 11px;
-    }
-    .cg-toolbar-separator {
-      margin: 0 2px;
-    }
     .cg-path-bar {
       width: 240px;
     }
@@ -635,6 +598,16 @@
     }
     .cg-analysis-panel {
       width: 200px;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .cg-tour-btn,
+    .cg-minimap-btn {
+      display: none;
+    }
+    .cg-toolbar-left .cg-type-badge {
+      display: none;
     }
   }
 
@@ -721,6 +694,34 @@
     }
     .cg-mini-map {
       max-height: 100px;
+    }
+  }
+
+  @media (max-height: 240px) {
+    .cg-graph-toolbar {
+      flex-wrap: wrap;
+      padding: 2px;
+    }
+    .cg-toolbar-left,
+    .cg-toolbar-center,
+    .cg-toolbar-right {
+      flex-wrap: wrap;
+      gap: 2px;
+    }
+    .cg-layout-buttons {
+      display: none;
+    }
+    .cg-rank-dir-buttons {
+      display: none;
+    }
+    .cg-cluster-depth-buttons {
+      display: none;
+    }
+    .cg-node-detail-panel {
+      width: calc(100% - 8px);
+      left: 4px;
+      top: 4px;
+      max-height: calc(100% - 40px);
     }
   }
 }

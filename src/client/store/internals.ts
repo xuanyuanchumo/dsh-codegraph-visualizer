@@ -32,6 +32,7 @@ export const internals = {
   expandGeneration: 0,
   restoreGeneration: 0,
   restoreTimeoutHandle: null as ReturnType<typeof setTimeout> | null,
+  restoreAbortController: null as AbortController | null,
   prefetchIdleHandle: null as ReturnType<typeof requestIdleCallback> | ReturnType<typeof setTimeout> | null,
   loadingFailsafe: null as ReturnType<typeof setTimeout> | null,
 };

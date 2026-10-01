@@ -44,6 +44,10 @@ export function disposeStore(): void {
     clearTimeout(internals.restoreTimeoutHandle);
     internals.restoreTimeoutHandle = null;
   }
+  if (internals.restoreAbortController) {
+    internals.restoreAbortController.abort();
+    internals.restoreAbortController = null;
+  }
   internals.restoreGeneration++;
   diagramCache.invalidate();
   clusterCache.invalidate();

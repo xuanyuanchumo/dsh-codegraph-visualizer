@@ -1,4 +1,4 @@
-import { Context } from "@deepseek-ai/cordis";
+import { Context as Context$1 } from "@deepseek-ai/cordis";
 
 //#region src/generated/version.d.ts
 declare const PLUGIN_VERSION = "0.2.0";
@@ -72,6 +72,7 @@ interface SourceOpenEvent {
 interface PrerequisiteStatusEvent {
   codegraph: boolean;
   lens: boolean;
+  builtin: boolean;
   timestamp: number;
 }
 interface GraphInitEvent {
@@ -225,35 +226,86 @@ declare module '@deepseek-ai/cordis' {
     on<K extends keyof Events>(name: K, listener: Events[K]): () => boolean;
     get(name: string, strict?: boolean): unknown;
     provide(name: string, service: unknown): () => void;
+    inject(deps: string[], callback: (injected: Map<string, unknown>) => void): (() => void) | void;
     slots: {
-      inject(slotName: string, callback: () => void): void;
+      inject(slotName: string, callback: () => void): (() => void) | void;
       register(options: {
         name: string;
-        id: string;
+        id?: string;
+        key?: string;
         order?: number;
         label?: () => string;
+        inject?: (...args: unknown[]) => unknown;
       }, component?: unknown): (() => void) | void;
     };
     betterSidebar?: {
       registerTab(descriptor: {
         id: string;
         title: string | (() => string);
+        description?: string | (() => string);
         icon?: unknown;
         order?: number;
         single?: boolean;
+        hidden?: boolean;
+        badge?: (ctx: Context, scope: unknown, state: unknown) => string | number | null | undefined;
+        onOpen?: (tab: unknown, scope: unknown) => void;
+        onActivate?: (tab: unknown, scope: unknown) => void;
+        onClose?: (tab: unknown, scope: unknown) => void;
         component: (props: {
+          ctx: Context;
+          store: unknown;
+          scope: unknown;
+          tab: {
+            id: string;
+            title: string;
+            path?: string;
+          };
           visible: boolean;
+          expanded?: string[];
+          revealed?: string[];
         }) => unknown;
-      }): () => void;
+      }): (() => void) | void;
       openTab(seed: {
         type: string;
+        title?: string;
+        path?: string;
+        target?: 'right' | 'bottom';
       }): void;
+      closeTab(tabId: string, scope?: unknown): void;
+      activateTab(tabId: string, scope?: unknown): void;
+      updateTab(tabId: string, patch: {
+        title?: string;
+        path?: string;
+        meta?: unknown;
+      }): void;
+      subscribeState(listener: () => void): () => void;
+      getSnapshot(): {
+        sessionId: string | undefined;
+        state: {
+          activePane: string | null;
+          bottomOpen: boolean;
+          bottomHeight: number;
+          expanded: string[];
+          revealed: string[];
+        } | undefined;
+        prefs: unknown;
+      };
     };
     spotlight?: {
       registerCommand(cmd: {
         id: string;
         title: string;
         handler: () => void;
+      }): (() => void) | void;
+    };
+    sidebarRightTabs?: {
+      register(definition: {
+        id: string;
+        kind: string;
+        patterns?: string[];
+        priority?: 'extension' | 'builtin' | 'fallback';
+        canOpen?: (address: string) => boolean;
+        title?: (address: string) => string;
       }): (() => void) | void;
     };
     workspaceRegistry?: {
@@ -282,10 +334,12 @@ interface IncomingMessage {
   on(event: 'data', handler: (chunk: Buffer) => void): void;
   on(event: 'end', handler: () => void): void;
   on(event: 'error', handler: (err: Error) => void): void;
+  on(event: 'close', handler: () => void): void;
   destroy(): void;
 }
 interface ServerResponse {
   writeHead(code: number, headers?: Record<string, string>): void;
+  write(data: string): boolean;
   end(data?: string): void;
 } //#endregion
 //#region src/host/config.d.ts
@@ -323,7 +377,7 @@ declare function createSecurityManager(): SecurityManager;
 //# sourceMappingURL=security.d.ts.map
 declare const name = "dsh-codegraph-visualizer";
 declare const inject: string[];
-declare function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>): Promise<void>;
+declare function apply(ctx: Context$1, userConfig?: Partial<VisualizerConfig>): Promise<void>;
 
 //#endregion
 //# sourceMappingURL=index.d.ts.map

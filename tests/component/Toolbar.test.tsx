@@ -6,8 +6,8 @@ import { render, screen, cleanup } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import React from 'react';
 
-import { Toolbar, type PanelControls } from '../../src/client/components/Toolbar.tsx';
-import type { LayoutType, ThemeType, GraphType } from '../../src/client/store/graphStore.ts';
+import { Toolbar, type PanelControls, type ToolbarLayoutConfig, type ToolbarViewConfig, type ToolbarHistory } from '../../src/client/components/Toolbar.tsx';
+import type { LayoutType, ThemeType, GraphType, RankDir } from '../../src/client/store/graphStore.ts';
 import type { GraphNode, ViewMode } from '../../src/types/index.ts';
 import type { WorkspaceInfo } from '../../src/client/store/graphStore.ts';
 import { setLang, resetI18nListeners } from '../../src/client/i18n/index.ts';
@@ -66,29 +66,68 @@ function makePanelControls(overrides: Partial<PanelControls> = {}): PanelControl
   };
 }
 
+const OLD_LAYOUT_KEYS = ['layout', 'dagreRankDir', 'clusterDepth', 'onLayoutChange', 'onDagreRankDirChange', 'onClusterDepthChange'] as const;
+const OLD_VIEW_KEYS = ['viewMode', 'graphType', 'filterType', 'currentLayer', 'layerNames', 'hasSelectedFunction', 'onViewModeChange', 'onGraphTypeChange', 'onFilterChange', 'onLayerChange'] as const;
+const OLD_HISTORY_KEYS = ['onUndo', 'onRedo', 'canUndo', 'canRedo'] as const;
+const ALL_OLD_KEYS = new Set<string>([...OLD_LAYOUT_KEYS, ...OLD_VIEW_KEYS, ...OLD_HISTORY_KEYS]);
+
 function makeProps(overrides: Record<string, unknown> = {}) {
+  const onLayoutChange = (overrides.onLayoutChange as typeof noop) ?? noop;
+  const onDagreRankDirChange = (overrides.onDagreRankDirChange as typeof noop) ?? noop;
+  const onClusterDepthChange = (overrides.onClusterDepthChange as typeof noop) ?? noop;
+  const onViewModeChange = (overrides.onViewModeChange as typeof noop) ?? noop;
+  const onGraphTypeChange = (overrides.onGraphTypeChange as typeof noop) ?? noop;
+  const onFilterChange = (overrides.onFilterChange as typeof noop) ?? noop;
+  const onLayerChange = (overrides.onLayerChange as typeof noop) ?? noop;
+
+  const layoutConfig: ToolbarLayoutConfig = {
+    layout: (overrides.layout as LayoutType) ?? 'cose',
+    dagreRankDir: (overrides.dagreRankDir as RankDir) ?? 'TB',
+    clusterDepth: (overrides.clusterDepth as number) ?? 0,
+    onChange: (field, value) => {
+      if (field === 'layout') onLayoutChange(value as LayoutType);
+      else if (field === 'dagreRankDir') onDagreRankDirChange(value as RankDir);
+      else if (field === 'clusterDepth') onClusterDepthChange(value as number);
+    },
+  };
+
+  const viewConfig: ToolbarViewConfig = {
+    viewMode: (overrides.viewMode as ViewMode) ?? 'code',
+    graphType: (overrides.graphType as GraphType) ?? 'all',
+    filterType: (overrides.filterType as GraphNode['type'] | 'all') ?? 'all',
+    currentLayer: (overrides.currentLayer as number) ?? 0,
+    layerNames: (overrides.layerNames as string[]) ?? [],
+    hasSelectedFunction: overrides.hasSelectedFunction as boolean | undefined,
+    onChange: (field, value) => {
+      if (field === 'viewMode') onViewModeChange(value as ViewMode);
+      else if (field === 'graphType') onGraphTypeChange(value as GraphType);
+      else if (field === 'filterType') onFilterChange(value as GraphNode['type'] | 'all');
+      else if (field === 'layer') onLayerChange(value as number);
+    },
+  };
+
+  const history: ToolbarHistory = {
+    undo: overrides.onUndo as typeof noop | undefined,
+    redo: overrides.onRedo as typeof noop | undefined,
+    canUndo: overrides.canUndo as boolean | undefined,
+    canRedo: overrides.canRedo as boolean | undefined,
+  };
+
+  const restOverrides: Record<string, unknown> = {};
+  for (const key of Object.keys(overrides)) {
+    if (!ALL_OLD_KEYS.has(key)) restOverrides[key] = overrides[key];
+  }
+
   return {
     statsText: '50 nodes',
     typeCounts: { function: 10, class: 5, interface: 3 },
-    layout: 'cose' as LayoutType,
-    dagreRankDir: 'TB' as const,
     theme: 'dark' as ThemeType,
-    filterType: 'all' as GraphNode['type'] | 'all',
-    graphType: 'all' as GraphType,
-    clusterDepth: 0,
-    viewMode: 'code' as ViewMode,
-    currentLayer: 0,
-    layerNames: [],
     collapsed: false,
     panelControls: makePanelControls(),
-    onLayoutChange: noop,
-    onDagreRankDirChange: noop,
+    layoutConfig,
+    viewConfig,
+    history,
     onThemeToggle: noop,
-    onFilterChange: noop,
-    onGraphTypeChange: noop,
-    onClusterDepthChange: noop,
-    onViewModeChange: noop,
-    onLayerChange: noop,
     onRefresh: noop,
     onExport: noop,
     onCollapse: noop,
@@ -97,7 +136,7 @@ function makeProps(overrides: Record<string, unknown> = {}) {
     onSwitchWorkspace: noop,
     onAddWorkspace: noop,
     onRemoveWorkspace: noop,
-    ...overrides,
+    ...restOverrides,
   };
 }
 

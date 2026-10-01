@@ -360,7 +360,8 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
         return depthA - depthB;
       });
       const gen = ++internals.restoreGeneration;
-      const restoreController = new AbortController();
+      if (internals.restoreAbortController) internals.restoreAbortController.abort();
+      const restoreController = internals.restoreAbortController = new AbortController();
       for (const nodeId of sortedIds) {
         if (gen !== internals.restoreGeneration) { restoreController.abort(); return; }
         const state = _get();

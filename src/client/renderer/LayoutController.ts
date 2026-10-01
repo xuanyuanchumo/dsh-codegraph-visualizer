@@ -94,6 +94,11 @@ export class LayoutController {
     if (!this.worker) return Promise.resolve({});
 
     const worker = this.worker;
+    if (this.workerLayoutResolve) {
+      if (this.workerTimeout) { clearTimeout(this.workerTimeout); this.workerTimeout = null; }
+      this.workerLayoutResolve({});
+      this.workerLayoutResolve = null;
+    }
     return new Promise((resolve) => {
       this.workerTimeout = setTimeout(() => {
         log.warn('layout worker timeout — falling back to empty positions');

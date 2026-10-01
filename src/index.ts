@@ -37,7 +37,8 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   const workspacePaths = extractWorkspacePaths(ctx);
   const primaryWorkspace = workspacePaths[0] ?? process.cwd();
   const graphRepo = new GraphRepository(primaryWorkspace);
-  graphRepo.init();
+  const repoReady = graphRepo.init();
+  if (!repoReady) { log.warn('graph repository init failed, persistence disabled'); }
 
   const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout, apiCompat });
 

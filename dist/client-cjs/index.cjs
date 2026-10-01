@@ -29,7 +29,7 @@ const react_dom_client = __toESM(require("react-dom/client"));
 const react_jsx_runtime = __toESM(require("react/jsx-runtime"));
 const react_dom = __toESM(require("react-dom"));
 
-//#region node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_react@19.2.8/node_modules/zustand/esm/vanilla.mjs
+//#region node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_immer@10.2.0_react@19.2.8_use-sync-external-store@1.2.0_react@19.2.8_/node_modules/zustand/esm/vanilla.mjs
 const createStoreImpl = (createState) => {
 	let state;
 	const listeners$1 = /* @__PURE__ */ new Set();
@@ -41,7 +41,7 @@ const createStoreImpl = (createState) => {
 			listeners$1.forEach((listener) => listener(state, previousState));
 		}
 	};
-	const getState = () => state;
+	const getState$1 = () => state;
 	const getInitialState = () => initialState$1;
 	const subscribe$1 = (listener) => {
 		listeners$1.add(listener);
@@ -49,17 +49,17 @@ const createStoreImpl = (createState) => {
 	};
 	const api = {
 		setState,
-		getState,
+		getState: getState$1,
 		getInitialState,
 		subscribe: subscribe$1
 	};
-	const initialState$1 = state = createState(setState, getState, api);
+	const initialState$1 = state = createState(setState, getState$1, api);
 	return api;
 };
 const createStore = (createState) => createState ? createStoreImpl(createState) : createStoreImpl;
 
 //#endregion
-//#region node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_react@19.2.8/node_modules/zustand/esm/react.mjs
+//#region node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_immer@10.2.0_react@19.2.8_use-sync-external-store@1.2.0_react@19.2.8_/node_modules/zustand/esm/react.mjs
 const identity$9 = (arg) => arg;
 function useStore(api, selector = identity$9) {
 	const slice = react.default.useSyncExternalStore(api.subscribe, react.default.useCallback(() => selector(api.getState()), [api, selector]), react.default.useCallback(() => selector(api.getInitialState()), [api, selector]));
@@ -75,7 +75,7 @@ const createImpl = (createState) => {
 const create$1 = (createState) => createState ? createImpl(createState) : createImpl;
 
 //#endregion
-//#region node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_react@19.2.8/node_modules/zustand/esm/middleware.mjs
+//#region node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_immer@10.2.0_react@19.2.8_use-sync-external-store@1.2.0_react@19.2.8_/node_modules/zustand/esm/middleware.mjs
 function createJSONStorage(getStorage, options) {
 	let storage;
 	try {
@@ -420,7 +420,8 @@ const API = {
 	RATE_LIMIT_MAP_MAX: 1e4,
 	SCAN_TIMEOUT_MS: 6e4,
 	DATA_RESPONSE_MAX_BYTES: 5 * 1024 * 1024,
-	DATA_RESPONSE_SLIM_NODES: 500
+	DATA_RESPONSE_SLIM_NODES: 500,
+	INVOKE_DEFAULT_TIMEOUT_MS: 5e3
 };
 const HEALTH_SCORE = {
 	WEIGHT_COUPLING: .25,
@@ -481,7 +482,12 @@ const QUADTREE = {
 	},
 	EXPAND_PADDING: 5e3
 };
-const EXPORT = { SVG_PADDING: 160 };
+const EXPORT = {
+	SVG_PADDING: 160,
+	MERMAID_MAX_NODES: 500,
+	MERMAID_MAX_EDGES: 800,
+	MERMAID_MAX_SEQUENCE_MESSAGES: 100
+};
 const FILTER = {
 	MAX_PATTERN_LENGTH: 200,
 	MAX_NESTED_QUANTIFIER_DEPTH: 2
@@ -519,6 +525,13 @@ const HEATMAP = {
 	COLOR_UNSTABLE: "#ef4444",
 	COLOR_LOW: "#3b82f6",
 	COLOR_HIGH: "#ef4444"
+};
+const TODO_MARKER = {
+	COLOR_TODO: "#f59e0b",
+	COLOR_FIXME: "#ef4444",
+	COLOR_BOTH: "#dc2626",
+	BORDER_WIDTH: 3,
+	BORDER_STYLE: "double"
 };
 const CYCLE_DETECTION = { MAX_NODES_FOR_DETECTION: 1e4 };
 const INCREMENTAL_CLUSTER = {
@@ -581,6 +594,43 @@ const COLORS = {
 	NODE_CLASS_LIGHT: "#1a2230"
 };
 const REPO_URL = "https://github.com/xuanyuanchumo/dsh-codegraph-visualizer";
+const IMPORT = { MAX_PASTE_BYTES: 10 * 1024 * 1024 };
+const TOOLTIP = {
+	OFFSET: 15,
+	WIDTH: 200,
+	HEIGHT: 80
+};
+const URL_STATE = { MAX_LENGTH: 2e3 };
+const CORE_FUNCTION_ANALYZER = { MAX_CALL_CHAIN_RECURSION_DEPTH: 500 };
+const CALL_CHAIN = { MAX_FUNCTIONS: 20 };
+const INDEXED_DB = {
+	DB_VERSION: 2,
+	TTL: {
+		CLUSTER_MS: 30 * 60 * 1e3,
+		DIAGRAM_MS: 60 * 60 * 1e3,
+		OUTLINE_MS: 24 * 60 * 60 * 1e3,
+		AST_MS: 24 * 60 * 60 * 1e3,
+		EDGES_MS: 30 * 60 * 1e3
+	},
+	CAPACITY: {
+		HIGH_WATERMARK: .85,
+		LOW_WATERMARK: .7
+	},
+	BATCH: { MAX_ENTRIES: 500 }
+};
+const LOGGER = { RING_SIZE: 200 };
+const PERF = {
+	CLUSTER_WARN_MS: 500,
+	CLUSTER_DEGRADE_MS: 2e3,
+	LAYOUT_WARN_MS: 300,
+	LAYOUT_DEGRADE_MS: 5e3,
+	RENDER_WARN_MS: 100,
+	RENDER_DEGRADE_MS: 1e3,
+	DIAGRAM_WARN_MS: 200,
+	DIAGRAM_DEGRADE_MS: 1e3,
+	AST_FETCH_WARN_MS: 1e3,
+	AST_FETCH_DEGRADE_MS: 5e3
+};
 
 //#endregion
 //#region src/shared/analysis/AdjacencyList.ts
@@ -1282,3079 +1332,6 @@ function tryIncrementalOrFull(ctx, newRawNodes, newRawEdges, expandedNodeIds, in
 }
 
 //#endregion
-//#region src/client/diagram/DiagramAssembler.ts
-function computeDepths(rootIds, edges, direction) {
-	const depths = new Map();
-	const queue = rootIds.map((id) => ({
-		id,
-		depth: 0
-	}));
-	let head = 0;
-	while (head < queue.length) {
-		const { id, depth } = queue[head++];
-		if (depths.has(id) && depths.get(id) <= depth) continue;
-		depths.set(id, depth);
-		const edgeList = edges.get(id) ?? [];
-		for (const edge of edgeList) {
-			const nextId = direction === "source" ? edge.source : edge.target;
-			if (!depths.has(nextId) || depths.get(nextId) > depth + 1) queue.push({
-				id: nextId,
-				depth: depth + 1
-			});
-		}
-	}
-	return depths;
-}
-function buildAdjacencyMaps$1(edges) {
-	const outEdges = new Map();
-	const inEdges = new Map();
-	for (const e of edges) {
-		const outList = outEdges.get(e.source) ?? [];
-		outList.push(e);
-		outEdges.set(e.source, outList);
-		const inList = inEdges.get(e.target) ?? [];
-		inList.push(e);
-		inEdges.set(e.target, inList);
-	}
-	return {
-		outEdges,
-		inEdges
-	};
-}
-
-//#endregion
-//#region src/client/diagram/BaseFilteringAssembler.ts
-var BaseFilteringAssembler = class {
-	prepare(_ctx) {}
-	assemble(nodes, edges) {
-		const cfg = this.config;
-		const filteredNodes = nodes.filter((n) => cfg.nodeTypes.has(n.type));
-		const filteredEdges = edges.filter((e) => cfg.edgeTypes.has(e.type));
-		const nodeIds = new Set(filteredNodes.map((n) => n.id));
-		const validEdges = filteredEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
-		const { outEdges, inEdges } = buildAdjacencyMaps$1(validEdges);
-		const rootIds = this.findRoots(filteredNodes, outEdges, inEdges);
-		const depthEdges = cfg.depthDirection === "source" ? inEdges : outEdges;
-		const depthMap = computeDepths(rootIds, depthEdges, cfg.depthDirection);
-		const ctx = {
-			outEdges,
-			inEdges,
-			depthMap,
-			rootIds,
-			allNodes: nodes,
-			allEdges: edges,
-			filteredNodes,
-			validEdges
-		};
-		this.prepare(ctx);
-		const assembledNodes = filteredNodes.map((n) => this.enrichNode(n, ctx));
-		const maxDepth = Math.max(0, ...depthMap.values());
-		return {
-			nodes: assembledNodes,
-			edges: validEdges,
-			metadata: {
-				rootIds,
-				maxDepth,
-				nodeCount: assembledNodes.length,
-				edgeCount: validEdges.length
-			}
-		};
-	}
-	findRoots(nodes, outEdges, inEdges) {
-		if (this.config.rootDirection === "in-degree-zero") return nodes.filter((n) => (inEdges.get(n.id) ?? []).length === 0).map((n) => n.id);
-		return nodes.filter((n) => !outEdges.has(n.id)).map((n) => n.id);
-	}
-};
-
-//#endregion
-//#region src/client/diagram/InheritanceAssembler.ts
-const INHERITANCE_NODE_TYPES = new Set([
-	"class",
-	"interface",
-	"type"
-]);
-const INHERITANCE_EDGE_TYPES = new Set(["extend", "implement"]);
-var InheritanceAssembler = class extends BaseFilteringAssembler {
-	config = {
-		nodeTypes: INHERITANCE_NODE_TYPES,
-		edgeTypes: INHERITANCE_EDGE_TYPES,
-		rootDirection: "no-out-edges",
-		depthDirection: "source"
-	};
-	descendantCounts = new Map();
-	prepare(ctx) {
-		this.descendantCounts = this.computeDescendantCounts(ctx.rootIds, ctx.inEdges);
-	}
-	enrichNode(node, ctx) {
-		const parentEdges = ctx.outEdges.get(node.id) ?? [];
-		const childEdges = ctx.inEdges.get(node.id) ?? [];
-		const stereotype = node.type === "interface" ? `\u00ABinterface\u00BB\n` : "";
-		const umlLabel = stereotype + node.label;
-		const isInterface = node.type === "interface";
-		const hasAbstractProp = node.properties?.isAbstract === true;
-		const matchesAbstractPattern = /^Abstract[A-Z]/.test(node.label);
-		const matchesInterfacePattern = /^I[A-Z][a-z]/.test(node.label) && node.type === "class";
-		const isAbstract = isInterface || hasAbstractProp || matchesAbstractPattern || matchesInterfacePattern;
-		return {
-			...node,
-			properties: {
-				...node.properties,
-				depth: ctx.depthMap.get(node.id) ?? 0,
-				isRoot: !ctx.outEdges.has(node.id),
-				parentCount: parentEdges.length,
-				childCount: childEdges.length,
-				descendantCount: this.descendantCounts.get(node.id) ?? 0,
-				isAbstract,
-				umlLabel
-			}
-		};
-	}
-	computeDescendantCounts(rootIds, inEdges) {
-		const counts = new Map();
-		const countDescendants = (id, visited) => {
-			if (counts.has(id)) return counts.get(id);
-			if (visited.has(id)) return 0;
-			visited.add(id);
-			const children = inEdges.get(id) ?? [];
-			const childSet = new Set();
-			let total = 0;
-			for (const edge of children) if (!childSet.has(edge.source)) {
-				childSet.add(edge.source);
-				total += 1 + countDescendants(edge.source, visited);
-			}
-			counts.set(id, total);
-			return total;
-		};
-		for (const rootId of rootIds) countDescendants(rootId, new Set());
-		return counts;
-	}
-};
-
-//#endregion
-//#region src/client/diagram/CallGraphAssembler.ts
-const CALL_NODE_TYPES$1 = new Set(["function"]);
-const CALL_EDGE_TYPES = new Set(["call"]);
-const ENTRY_PATTERNS$2 = {
-	handler: /handler|controller|route|middleware|endpoint/i,
-	event: /^on[A-Z]|^listen|^subscribe|^emit/i,
-	cli: /^main$|^cli$|^run$|^start$/i,
-	test: /^test|^it$|^describe$|^beforeEach$|^afterEach$/i
-};
-var CallGraphAssembler = class extends BaseFilteringAssembler {
-	config = {
-		nodeTypes: CALL_NODE_TYPES$1,
-		edgeTypes: CALL_EDGE_TYPES,
-		rootDirection: "in-degree-zero",
-		depthDirection: "target"
-	};
-	recursiveIds = new Set();
-	prepare(ctx) {
-		this.recursiveIds = this.detectRecursion(ctx.filteredNodes, ctx.validEdges);
-	}
-	enrichNode(node, ctx) {
-		const inDeg = (ctx.inEdges.get(node.id) ?? []).length;
-		const outDeg = (ctx.outEdges.get(node.id) ?? []).length;
-		const isEntry = inDeg === 0;
-		const entryType = isEntry ? this.classifyEntry(node) : "none";
-		const entryPrefix = isEntry ? `\u00AB${entryType}\u00BB\n` : "";
-		const umlLabel = entryPrefix + node.label;
-		return {
-			...node,
-			properties: {
-				...node.properties,
-				depth: ctx.depthMap.get(node.id) ?? 0,
-				isEntry,
-				entryType,
-				inDegree: inDeg,
-				outDegree: outDeg,
-				isRecursive: this.recursiveIds.has(node.id),
-				umlLabel
-			}
-		};
-	}
-	classifyEntry(node) {
-		const isExported = node.properties?.isExported === true || node.properties?.is_exported === 1;
-		if (isExported) return "export";
-		const name$1 = node.label;
-		if (ENTRY_PATTERNS$2.handler.test(name$1)) return "handler";
-		if (ENTRY_PATTERNS$2.event.test(name$1)) return "event";
-		if (ENTRY_PATTERNS$2.cli.test(name$1)) return "cli";
-		if (ENTRY_PATTERNS$2.test.test(name$1)) return "test";
-		return "none";
-	}
-	detectRecursion(nodes, edges) {
-		const adjacency = buildForwardAdjacency(edges);
-		const recursive = new Set();
-		const visited = new Set();
-		for (const startNode of nodes) {
-			if (visited.has(startNode.id)) continue;
-			const stack = [];
-			const inStack = new Set();
-			stack.push({
-				id: startNode.id,
-				neighborIdx: 0
-			});
-			inStack.add(startNode.id);
-			visited.add(startNode.id);
-			while (stack.length > 0) {
-				const frame = stack[stack.length - 1];
-				const neighbors = adjacency.get(frame.id) ?? [];
-				if (frame.neighborIdx < neighbors.length) {
-					const target = neighbors[frame.neighborIdx];
-					frame.neighborIdx++;
-					if (inStack.has(target)) {
-						recursive.add(target);
-						recursive.add(frame.id);
-					} else if (!visited.has(target)) {
-						visited.add(target);
-						inStack.add(target);
-						stack.push({
-							id: target,
-							neighborIdx: 0
-						});
-					}
-				} else {
-					inStack.delete(frame.id);
-					stack.pop();
-				}
-			}
-		}
-		return recursive;
-	}
-};
-
-//#endregion
-//#region src/client/diagram/HierarchicalAssembler.ts
-const UML_SEPARATOR = "─".repeat(20);
-var HierarchicalAssembler = class {
-	assemble(nodes, edges) {
-		const cfg = this.config;
-		const filteredNodes = cfg.filterNodes ? cfg.filterNodes(nodes) : nodes;
-		const relevantEdges = edges.filter((e) => cfg.edgeTypes.has(e.type));
-		const dirNodes = new Map();
-		const dirChildCount = new Map();
-		const dirTypeDist = new Map();
-		for (const n of filteredNodes) {
-			const dir = cfg.getDirectory(n.filePath);
-			if (!dirNodes.has(dir)) {
-				dirNodes.set(dir, {
-					id: NodeId(`${cfg.nodePrefix}:${dir}`),
-					label: cfg.getLabel(dir),
-					type: "module",
-					filePath: dir,
-					lineNumber: 0,
-					properties: {
-						[cfg.isDirProperty]: true,
-						directory: dir
-					}
-				});
-				dirChildCount.set(dir, 0);
-				dirTypeDist.set(dir, {});
-			}
-			dirChildCount.set(dir, (dirChildCount.get(dir) ?? 0) + 1);
-			const dist$1 = dirTypeDist.get(dir);
-			if (!cfg.excludeTypesFromDist?.has(n.type)) dist$1[n.type] = (dist$1[n.type] ?? 0) + 1;
-		}
-		const nodeIdToDir = new Map();
-		for (const n of filteredNodes) nodeIdToDir.set(n.id, cfg.getDirectory(n.filePath));
-		const aggregatedEdges = new Map();
-		for (const e of relevantEdges) {
-			const sourceDir = nodeIdToDir.get(e.source);
-			const targetDir = nodeIdToDir.get(e.target);
-			if (!sourceDir || !targetDir || sourceDir === targetDir) continue;
-			const key = `${sourceDir}->${targetDir}`;
-			const existing = aggregatedEdges.get(key);
-			if (existing) {
-				existing.count++;
-				existing.types.add(e.type);
-			} else aggregatedEdges.set(key, {
-				source: sourceDir,
-				target: targetDir,
-				count: 1,
-				types: new Set([e.type])
-			});
-		}
-		const edgeList = [];
-		let edgeIdx = 0;
-		for (const [, agg] of aggregatedEdges) {
-			const sourceId = `${cfg.nodePrefix}:${agg.source}`;
-			const targetId = `${cfg.nodePrefix}:${agg.target}`;
-			if (!dirNodes.has(agg.source) || !dirNodes.has(agg.target)) continue;
-			edgeList.push({
-				id: EdgeId(`${cfg.edgeIdPrefix}:${edgeIdx++}`),
-				source: NodeId(sourceId),
-				target: NodeId(targetId),
-				type: agg.types.has("import") ? "import" : "dependency",
-				properties: {
-					aggregatedCount: agg.count,
-					[cfg.isEdgeProperty]: true
-				}
-			});
-		}
-		const inDegree = new Map();
-		const outDegree = new Map();
-		for (const e of edgeList) {
-			outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1);
-			inDegree.set(e.target, (inDegree.get(e.target) ?? 0) + 1);
-		}
-		const rootIds = [];
-		for (const [, dirNode] of dirNodes) if ((inDegree.get(dirNode.id) ?? 0) === 0) rootIds.push(dirNode.id);
-		const edgeMap = new Map();
-		for (const e of edgeList) {
-			const list = edgeMap.get(e.source) ?? [];
-			list.push(e);
-			edgeMap.set(e.source, list);
-		}
-		const depthMap = computeDepths(rootIds, edgeMap, "target");
-		const assembledNodes = [];
-		for (const [dir, dirNode] of dirNodes) {
-			const childCount = dirChildCount.get(dir) ?? 0;
-			const typeDist = dirTypeDist.get(dir) ?? {};
-			const inDeg = inDegree.get(dirNode.id) ?? 0;
-			const outDeg = outDegree.get(dirNode.id) ?? 0;
-			const depth = depthMap.get(dirNode.id) ?? 0;
-			const typeSummary = Object.entries(typeDist).map(([t$1, c]) => `${t$1}: ${c}`).join(", ");
-			const umlLabel = `${dirNode.label}\n${UML_SEPARATOR}\n${childCount} items${typeSummary ? "\n" + typeSummary : ""}`;
-			assembledNodes.push({
-				...dirNode,
-				properties: {
-					...dirNode.properties,
-					childCount,
-					typeDistribution: typeDist,
-					inDegree: inDeg,
-					outDegree: outDeg,
-					depth,
-					isRoot: inDeg === 0,
-					umlLabel
-				}
-			});
-		}
-		const maxDepth = Math.max(0, ...depthMap.values());
-		return {
-			nodes: assembledNodes,
-			edges: edgeList,
-			metadata: {
-				rootIds,
-				maxDepth,
-				nodeCount: assembledNodes.length,
-				edgeCount: edgeList.length
-			}
-		};
-	}
-};
-
-//#endregion
-//#region src/client/diagram/PackageAssembler.ts
-function getDirectory(filePath) {
-	const normalized = filePath.replace(/\\/g, "/");
-	const lastSlash = normalized.lastIndexOf("/");
-	if (lastSlash <= 0) return "/";
-	return normalized.substring(0, lastSlash);
-}
-function getPackageLabel(dir) {
-	if (dir === "/") return "root";
-	const parts = dir.split("/");
-	return parts[parts.length - 1] ?? dir;
-}
-var PackageAssembler = class extends HierarchicalAssembler {
-	config = {
-		nodePrefix: "pkg",
-		edgeIdPrefix: "pkg-edge",
-		isDirProperty: "isPackage",
-		isEdgeProperty: "isPackageEdge",
-		edgeTypes: new Set(["import", "dependency"]),
-		excludeTypesFromDist: new Set(["module"]),
-		getDirectory,
-		getLabel: getPackageLabel
-	};
-};
-
-//#endregion
-//#region src/client/diagram/ClassAssembler.ts
-const CLASS_NODE_TYPES = new Set([
-	"class",
-	"interface",
-	"type"
-]);
-const CLASS_EDGE_TYPES = new Set([
-	"extend",
-	"implement",
-	"association",
-	"aggregation",
-	"composition"
-]);
-var ClassAssembler = class extends BaseFilteringAssembler {
-	config = {
-		nodeTypes: CLASS_NODE_TYPES,
-		edgeTypes: CLASS_EDGE_TYPES,
-		rootDirection: "no-out-edges",
-		depthDirection: "source"
-	};
-	membersByClass = new Map();
-	prepare(ctx) {
-		this.membersByClass = this.associateMembers(ctx.filteredNodes, ctx.allNodes);
-	}
-	enrichNode(node, ctx) {
-		const members = this.membersByClass.get(node.id) ?? [];
-		const methodCount = members.filter((m) => m.type === "method").length;
-		const propertyCount = members.filter((m) => m.type === "property").length;
-		const parentEdges = ctx.outEdges.get(node.id) ?? [];
-		const childEdges = ctx.inEdges.get(node.id) ?? [];
-		const memberSignatures = members.slice(0, 10).map((m) => ({
-			name: m.name,
-			type: m.type,
-			visibility: m.visibility,
-			...m.signature ? { signature: m.signature } : {}
-		}));
-		const umlLabel = this.buildUmlLabel(node, members);
-		return {
-			...node,
-			properties: {
-				...node.properties,
-				depth: ctx.depthMap.get(node.id) ?? 0,
-				isRoot: !ctx.outEdges.has(node.id),
-				parentCount: parentEdges.length,
-				childCount: childEdges.length,
-				methodCount,
-				propertyCount,
-				members: memberSignatures,
-				umlLabel,
-				isAbstract: this.checkAbstract(node)
-			}
-		};
-	}
-	associateMembers(classNodes, allNodes) {
-		const result = new Map();
-		const classIdSet = new Set(classNodes.map((n) => n.id));
-		for (const member of allNodes) {
-			if (member.type !== "function" && member.type !== "variable") continue;
-			if (CLASS_NODE_TYPES.has(member.type)) continue;
-			let assignedClass = null;
-			if (member.parentId && classIdSet.has(member.parentId)) assignedClass = classNodes.find((n) => n.id === member.parentId) ?? null;
-			if (!assignedClass) {
-				const classesByFile = new Map();
-				for (const cls of classNodes) {
-					const list = classesByFile.get(cls.filePath) ?? [];
-					list.push(cls);
-					classesByFile.set(cls.filePath, list);
-				}
-				const sameFileClasses = classesByFile.get(member.filePath);
-				if (sameFileClasses) {
-					const sortedClasses = [...sameFileClasses].sort((a, b) => (a.lineNumber ?? 0) - (b.lineNumber ?? 0));
-					for (let i$1 = sortedClasses.length - 1; i$1 >= 0; i$1--) {
-						const cls = sortedClasses[i$1];
-						if (cls && (cls.lineNumber ?? 0) <= (member.lineNumber ?? 0)) {
-							assignedClass = cls;
-							break;
-						}
-					}
-				}
-			}
-			if (assignedClass) {
-				const list = result.get(assignedClass.id) ?? [];
-				const isMethod = member.type === "function";
-				list.push({
-					name: member.label,
-					type: isMethod ? "method" : "property",
-					...member.properties?.signature ? { signature: member.properties.signature } : {},
-					visibility: this.inferVisibility(member)
-				});
-				result.set(assignedClass.id, list);
-			}
-		}
-		return result;
-	}
-	inferVisibility(node) {
-		const name$1 = node.label;
-		if (name$1.startsWith("_") && !name$1.startsWith("__")) return "protected";
-		if (name$1.startsWith("__")) return "private";
-		const exported = node.properties?.exported ?? node.properties?.isExported;
-		if (exported === true || exported === 1) return "public";
-		return "private";
-	}
-	checkAbstract(node) {
-		const name$1 = node.label;
-		return name$1.startsWith("Abstract") || name$1.startsWith("I") && node.type === "interface";
-	}
-	buildUmlLabel(node, members) {
-		const visMark = (v) => v === "public" ? "+" : v === "private" ? "-" : "#";
-		const stereotype = node.type === "interface" ? `\u00ABinterface\u00BB\n` : "";
-		const header = stereotype + node.label;
-		const properties = members.filter((m) => m.type === "property");
-		const methods = members.filter((m) => m.type === "method");
-		const propLines = properties.slice(0, 5).map((m) => `${visMark(m.visibility)} ${m.name}${m.signature ? ": " + m.signature : ""}`);
-		const methodLines = methods.slice(0, 8).map((m) => `${visMark(m.visibility)} ${m.name}(${m.signature ?? ""})`);
-		const sep$1 = "─".repeat(20);
-		const parts = [header];
-		if (propLines.length > 0) parts.push(sep$1, ...propLines);
-		if (methodLines.length > 0) parts.push(sep$1, ...methodLines);
-		return parts.join("\n");
-	}
-};
-
-//#endregion
-//#region src/client/diagram/DependencyAssembler.ts
-var DependencyAssembler = class extends HierarchicalAssembler {
-	config = {
-		nodePrefix: "depdir",
-		edgeIdPrefix: "dep-edge",
-		isDirProperty: "isDependencyDir",
-		isEdgeProperty: "isDependencyEdge",
-		edgeTypes: new Set(["import", "dependency"]),
-		getDirectory: (filePath) => getTopLevelDir(filePath, { simplified: true }),
-		getLabel: (dir) => dir === "/" ? "root" : dir
-	};
-};
-
-//#endregion
-//#region src/shared/CFGTypes.ts
-const FUNCTION_NODE_TYPES = new Set([
-	"function_declaration",
-	"function_definition",
-	"method_declaration",
-	"method_definition",
-	"arrow_function",
-	"function_item",
-	"constructor_declaration",
-	"destructor_declaration",
-	"function_expression",
-	"generator_function_declaration",
-	"generator_function",
-	"async_function_declaration",
-	"async_function_expression",
-	"async_arrow_function",
-	"function_signature",
-	"method_signature"
-]);
-const BODY_NODE_TYPES = new Set([
-	"block",
-	"statement_block",
-	"body",
-	"compound_statement",
-	"function_body",
-	"method_body",
-	"suite"
-]);
-function findFunctionNode(astRoot, functionName) {
-	const normalizedTarget = functionName.replace(/^.*\./, "");
-	const matchNode = (node) => {
-		if (FUNCTION_NODE_TYPES.has(node.type)) {
-			const nameNode = node.children.find((c) => c.type === "identifier" || c.type === "property_identifier" || c.type === "name");
-			if (!nameNode || nameNode.text === functionName || nameNode.text === normalizedTarget) return node;
-		}
-		for (const child of node.children) {
-			const found = matchNode(child);
-			if (found) return found;
-		}
-		return null;
-	};
-	return matchNode(astRoot);
-}
-function getFunctionBody(funcNode) {
-	const body = funcNode.children.find((c) => BODY_NODE_TYPES.has(c.type));
-	return body ? body.children : funcNode.children;
-}
-
-//#endregion
-//#region src/shared/astUtils.ts
-const BASE_CONTROL_FLOW_TYPES = new Set([
-	"if_statement",
-	"if",
-	"if_expression",
-	"for_statement",
-	"for",
-	"for_expression",
-	"for_in_statement",
-	"while_statement",
-	"while",
-	"while_expression",
-	"switch_statement",
-	"switch",
-	"match_expression",
-	"try_statement",
-	"try",
-	"return_statement",
-	"return",
-	"throw_statement",
-	"throw",
-	"raise_statement",
-	"raise",
-	"break_statement",
-	"break",
-	"continue_statement",
-	"continue"
-]);
-function isControlFlow$1(node, types = BASE_CONTROL_FLOW_TYPES) {
-	return types.has(node.type);
-}
-function findElseNode(node) {
-	return node.children.find((c) => c.type === "else_clause" || c.type === "else");
-}
-function findConditionNode(node) {
-	return node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression");
-}
-function simplifyText$1(text, maxLen = 40) {
-	const trimmed = text.trim().replace(/\s+/g, " ");
-	if (trimmed.length <= maxLen) return trimmed;
-	return trimmed.substring(0, maxLen - 3) + "...";
-}
-function getBodyChildren$2(node, filter$2) {
-	const body = node.children.find((c) => c.type === "block" || c.type === "statement_block" || c.type === "body" || c.type === "compound_statement" || c.type === "suite" || c.type === "function_body");
-	if (body) return filter$2 ? body.children.filter(filter$2) : body.children;
-	return node.children.filter((c) => c.type !== "condition" && c.type !== "parenthesized_expression" && (!filter$2 || filter$2(c)));
-}
-function getElseBody$2(node, filter$2) {
-	const elseNode = findElseNode(node);
-	if (!elseNode) return [];
-	const body = elseNode.children.find((c) => c.type === "block" || c.type === "statement_block");
-	if (body) return filter$2 ? body.children.filter(filter$2) : body.children;
-	return filter$2 ? elseNode.children.filter(filter$2) : elseNode.children;
-}
-
-//#endregion
-//#region src/client/diagram/CFGAssembler.ts
-const CFG_CONTROL_FLOW_TYPES = new Set([
-	...BASE_CONTROL_FLOW_TYPES,
-	"match_arm",
-	"elif_clause",
-	"elif",
-	"except_clause",
-	"except",
-	"finally_clause",
-	"finally",
-	"catch_clause",
-	"catch"
-]);
-const STATEMENT_TYPES = new Set([
-	"expression_statement",
-	"assignment",
-	"call",
-	"return_statement",
-	"return",
-	"throw_statement",
-	"throw",
-	"raise_statement",
-	"raise",
-	"break_statement",
-	"break",
-	"continue_statement",
-	"continue",
-	"declaration",
-	"variable_declaration",
-	"const_declaration",
-	"let_declaration",
-	"lexical_declaration",
-	"if_statement",
-	"if",
-	"if_expression",
-	"for_statement",
-	"for",
-	"for_expression",
-	"for_in_statement",
-	"while_statement",
-	"while",
-	"while_expression",
-	"switch_statement",
-	"switch",
-	"match_expression",
-	"try_statement",
-	"try",
-	"import_statement",
-	"import_declaration",
-	"use_declaration",
-	"export_statement",
-	"pass_statement",
-	"pass",
-	"assert_statement",
-	"assert",
-	"with_statement",
-	"with",
-	"yield_statement",
-	"yield",
-	"await_expression",
-	"macro_invocation"
-]);
-function isControlFlow(node) {
-	return isControlFlow$1(node, CFG_CONTROL_FLOW_TYPES);
-}
-function isStatement(node) {
-	return STATEMENT_TYPES.has(node.type) || node.type.endsWith("_statement");
-}
-function classifyStatement(node) {
-	const t$1 = node.type;
-	if (t$1 === "return_statement" || t$1 === "return") return "return";
-	if (t$1 === "throw_statement" || t$1 === "throw" || t$1 === "raise_statement" || t$1 === "raise") return "throw";
-	if (t$1 === "break_statement" || t$1 === "break") return "break";
-	if (t$1 === "continue_statement" || t$1 === "continue") return "continue";
-	if (t$1 === "if_statement" || t$1 === "if" || t$1 === "if_expression" || t$1 === "for_statement" || t$1 === "for" || t$1 === "for_expression" || t$1 === "for_in_statement" || t$1 === "while_statement" || t$1 === "while" || t$1 === "while_expression" || t$1 === "switch_statement" || t$1 === "switch" || t$1 === "match_expression" || t$1 === "try_statement" || t$1 === "try") return "condition";
-	if (t$1.includes("declaration") || t$1 === "assignment" || t$1 === "lexical_declaration") return "declaration";
-	if (t$1 === "call" || t$1 === "expression_statement" || t$1 === "await_expression" || t$1 === "macro_invocation") return "call";
-	return "expression";
-}
-function simplifyText(text, maxLen = 40) {
-	return simplifyText$1(text, maxLen);
-}
-function getConditionNode(node) {
-	if (node.type === "if_statement" || node.type === "if" || node.type === "if_expression") return node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression" || c.type === "binary_expression" || c.type === "comparison_expression") ?? null;
-	if (node.type === "while_statement" || node.type === "while" || node.type === "while_expression") return node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression" || c.type === "binary_expression") ?? null;
-	if (node.type === "for_statement" || node.type === "for" || node.type === "for_expression" || node.type === "for_in_statement") return node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression" || c.type === "for_header" || c.type === "binary_expression") ?? null;
-	return null;
-}
-function getBodyChildren$1(node) {
-	return getBodyChildren$2(node, isStatement);
-}
-function getElseBody$1(node) {
-	return getElseBody$2(node, isStatement);
-}
-var CFGAssembler = class {
-	blockCounter = 0;
-	loopStack = [];
-	nextBlockId() {
-		return `cfg-block-${this.blockCounter++}`;
-	}
-	assemble(astRoot, filePath, functionName) {
-		this.blockCounter = 0;
-		this.loopStack = [];
-		const blocks = [];
-		const edges = [];
-		const entryBlock = {
-			id: this.nextBlockId(),
-			label: "Entry",
-			statements: [],
-			isEntry: true,
-			isExit: false,
-			blockType: "entry",
-			depth: 0
-		};
-		blocks.push(entryBlock);
-		const exitBlock = {
-			id: this.nextBlockId(),
-			label: "Exit",
-			statements: [],
-			isEntry: false,
-			isExit: true,
-			blockType: "exit",
-			depth: 0
-		};
-		const funcNode = findFunctionNode(astRoot, functionName);
-		if (!funcNode) return this.toAssembledDiagram({
-			blocks: [entryBlock],
-			edges: [],
-			entryBlockId: entryBlock.id,
-			exitBlockIds: [exitBlock.id]
-		}, filePath, functionName);
-		const targetChildren = getFunctionBody(funcNode);
-		this.processStatements(targetChildren, entryBlock.id, exitBlock.id, blocks, edges, 1);
-		const hasExitEdge = edges.some((e) => e.target === exitBlock.id);
-		if (!hasExitEdge) {
-			const lastBlock = blocks[blocks.length - 1];
-			if (lastBlock && !lastBlock.isExit) edges.push({
-				source: lastBlock.id,
-				target: exitBlock.id,
-				edgeType: "fallthrough"
-			});
-		}
-		blocks.push(exitBlock);
-		const cfgData = {
-			blocks,
-			edges,
-			entryBlockId: entryBlock.id,
-			exitBlockIds: blocks.filter((b) => b.isExit).map((b) => b.id)
-		};
-		return this.toAssembledDiagram(cfgData, filePath, functionName);
-	}
-	processStatements(statements, entryId, exitId, blocks, edges, depth) {
-		if (statements.length === 0) {
-			edges.push({
-				source: entryId,
-				target: exitId,
-				edgeType: "fallthrough"
-			});
-			return entryId;
-		}
-		let currentId = entryId;
-		let currentBlock = blocks.find((b) => b.id === currentId) ?? null;
-		if (!currentBlock || currentBlock.isEntry) {
-			currentBlock = this.createProcessBlock(blocks, depth);
-			edges.push({
-				source: entryId,
-				target: currentBlock.id,
-				edgeType: "fallthrough"
-			});
-			currentId = currentBlock.id;
-		}
-		for (let i$1 = 0; i$1 < statements.length; i$1++) {
-			const stmt = statements[i$1];
-			if (!stmt) continue;
-			if (isControlFlow(stmt)) {
-				currentId = this.processControlFlow(stmt, currentId, exitId, blocks, edges, depth);
-				currentBlock = blocks.find((b) => b.id === currentId) ?? null;
-				if (!currentBlock) {
-					currentBlock = this.createProcessBlock(blocks, depth);
-					currentId = currentBlock.id;
-				}
-			} else {
-				if (!currentBlock || currentBlock.blockType !== "process") {
-					currentBlock = this.createProcessBlock(blocks, depth);
-					edges.push({
-						source: currentId,
-						target: currentBlock.id,
-						edgeType: "fallthrough"
-					});
-					currentId = currentBlock.id;
-				}
-				currentBlock.statements.push({
-					type: classifyStatement(stmt),
-					text: simplifyText(stmt.text),
-					line: stmt.startPosition.row + 1
-				});
-			}
-		}
-		if (currentId !== exitId) edges.push({
-			source: currentId,
-			target: exitId,
-			edgeType: "fallthrough"
-		});
-		return currentId;
-	}
-	processControlFlow(node, currentId, exitId, blocks, edges, depth) {
-		const t$1 = node.type;
-		if (t$1 === "if_statement" || t$1 === "if" || t$1 === "if_expression") return this.processIf(node, currentId, exitId, blocks, edges, depth);
-		if (t$1 === "for_statement" || t$1 === "for" || t$1 === "for_expression" || t$1 === "for_in_statement" || t$1 === "while_statement" || t$1 === "while" || t$1 === "while_expression") return this.processLoop(node, currentId, exitId, blocks, edges, depth);
-		if (t$1 === "switch_statement" || t$1 === "switch" || t$1 === "match_expression") return this.processSwitch(node, currentId, exitId, blocks, edges, depth);
-		if (t$1 === "try_statement" || t$1 === "try") return this.processTry(node, currentId, exitId, blocks, edges, depth);
-		if (t$1 === "return_statement" || t$1 === "return") return this.processReturn(node, currentId, exitId, blocks, edges, depth);
-		if (t$1 === "throw_statement" || t$1 === "throw" || t$1 === "raise_statement" || t$1 === "raise") return this.processThrow(node, currentId, exitId, blocks, edges, depth);
-		if (t$1 === "break_statement" || t$1 === "break") {
-			const loopCtx = this.loopStack[this.loopStack.length - 1];
-			if (loopCtx) {
-				edges.push({
-					source: currentId,
-					target: loopCtx.exitBlockId,
-					edgeType: "break"
-				});
-				return loopCtx.exitBlockId;
-			}
-			edges.push({
-				source: currentId,
-				target: exitId,
-				edgeType: "break"
-			});
-			return exitId;
-		}
-		if (t$1 === "continue_statement" || t$1 === "continue") {
-			for (let i$1 = this.loopStack.length - 1; i$1 >= 0; i$1--) {
-				const ctx = this.loopStack[i$1];
-				if (ctx && !ctx.isSwitch) {
-					edges.push({
-						source: currentId,
-						target: ctx.condBlockId,
-						edgeType: "continue"
-					});
-					return ctx.condBlockId;
-				}
-			}
-			edges.push({
-				source: currentId,
-				target: exitId,
-				edgeType: "continue"
-			});
-			return exitId;
-		}
-		return currentId;
-	}
-	processIf(node, currentId, exitId, blocks, edges, depth) {
-		const condNode = getConditionNode(node);
-		const condText = condNode ? simplifyText(condNode.text) : "if";
-		const condBlock = {
-			id: this.nextBlockId(),
-			label: condText,
-			statements: [{
-				type: "condition",
-				text: condText,
-				line: node.startPosition.row + 1
-			}],
-			isEntry: false,
-			isExit: false,
-			blockType: "condition",
-			depth
-		};
-		blocks.push(condBlock);
-		edges.push({
-			source: currentId,
-			target: condBlock.id,
-			edgeType: "fallthrough"
-		});
-		const mergeBlock = {
-			id: this.nextBlockId(),
-			label: "merge",
-			statements: [],
-			isEntry: false,
-			isExit: false,
-			blockType: "process",
-			depth
-		};
-		blocks.push(mergeBlock);
-		const trueBody = getBodyChildren$1(node);
-		const trueEntryId = this.nextBlockId();
-		const trueEntry = {
-			id: trueEntryId,
-			label: "true",
-			statements: [],
-			isEntry: false,
-			isExit: false,
-			blockType: "process",
-			depth: depth + 1
-		};
-		blocks.push(trueEntry);
-		edges.push({
-			source: condBlock.id,
-			target: trueEntryId,
-			edgeType: "true",
-			condition: condText
-		});
-		this.processStatements(trueBody, trueEntryId, mergeBlock.id, blocks, edges, depth + 1);
-		const elseBody = getElseBody$1(node);
-		if (elseBody.length > 0) {
-			const falseEntryId = this.nextBlockId();
-			const falseEntry = {
-				id: falseEntryId,
-				label: "false",
-				statements: [],
-				isEntry: false,
-				isExit: false,
-				blockType: "process",
-				depth: depth + 1
-			};
-			blocks.push(falseEntry);
-			edges.push({
-				source: condBlock.id,
-				target: falseEntryId,
-				edgeType: "false",
-				condition: condText
-			});
-			this.processStatements(elseBody, falseEntryId, mergeBlock.id, blocks, edges, depth + 1);
-		} else edges.push({
-			source: condBlock.id,
-			target: mergeBlock.id,
-			edgeType: "false",
-			condition: condText
-		});
-		return mergeBlock.id;
-	}
-	processLoop(node, currentId, exitId, blocks, edges, depth) {
-		const condNode = getConditionNode(node);
-		const condText = condNode ? simplifyText(condNode.text) : node.type;
-		const condBlock = {
-			id: this.nextBlockId(),
-			label: condText,
-			statements: [{
-				type: "condition",
-				text: condText,
-				line: node.startPosition.row + 1
-			}],
-			isEntry: false,
-			isExit: false,
-			blockType: "loop",
-			depth
-		};
-		blocks.push(condBlock);
-		edges.push({
-			source: currentId,
-			target: condBlock.id,
-			edgeType: "fallthrough"
-		});
-		const loopExitBlock = {
-			id: this.nextBlockId(),
-			label: "loop-exit",
-			statements: [],
-			isEntry: false,
-			isExit: false,
-			blockType: "process",
-			depth
-		};
-		blocks.push(loopExitBlock);
-		const body = getBodyChildren$1(node);
-		const bodyEntryId = this.nextBlockId();
-		const bodyEntry = {
-			id: bodyEntryId,
-			label: "loop-body",
-			statements: [],
-			isEntry: false,
-			isExit: false,
-			blockType: "process",
-			depth: depth + 1
-		};
-		blocks.push(bodyEntry);
-		edges.push({
-			source: condBlock.id,
-			target: bodyEntryId,
-			edgeType: "true",
-			condition: condText
-		});
-		const edgeCountBefore = edges.length;
-		this.loopStack.push({
-			condBlockId: condBlock.id,
-			exitBlockId: loopExitBlock.id,
-			isSwitch: false
-		});
-		this.processStatements(body, bodyEntryId, condBlock.id, blocks, edges, depth + 1);
-		this.loopStack.pop();
-		for (let i$1 = edgeCountBefore; i$1 < edges.length; i$1++) {
-			const e = edges[i$1];
-			if (e.target === condBlock.id && e.edgeType === "fallthrough") e.edgeType = "loop-back";
-		}
-		edges.push({
-			source: condBlock.id,
-			target: loopExitBlock.id,
-			edgeType: "false",
-			condition: condText
-		});
-		return loopExitBlock.id;
-	}
-	processSwitch(node, currentId, exitId, blocks, edges, depth) {
-		const condNode = node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression");
-		const condText = condNode ? simplifyText(condNode.text) : "switch";
-		const condBlock = {
-			id: this.nextBlockId(),
-			label: condText,
-			statements: [{
-				type: "condition",
-				text: condText,
-				line: node.startPosition.row + 1
-			}],
-			isEntry: false,
-			isExit: false,
-			blockType: "switch",
-			depth
-		};
-		blocks.push(condBlock);
-		edges.push({
-			source: currentId,
-			target: condBlock.id,
-			edgeType: "fallthrough"
-		});
-		const mergeBlock = {
-			id: this.nextBlockId(),
-			label: "switch-merge",
-			statements: [],
-			isEntry: false,
-			isExit: false,
-			blockType: "process",
-			depth
-		};
-		blocks.push(mergeBlock);
-		const caseNodes = node.children.filter((c) => c.type === "case_statement" || c.type === "case" || c.type === "default_statement" || c.type === "default" || c.type === "match_arm");
-		for (const caseNode of caseNodes) {
-			const isDefault = caseNode.type === "default_statement" || caseNode.type === "default" || caseNode.type === "match_arm" && caseNode.children.some((c) => c.type === "wildcard_pattern" || c.text === "_");
-			const caseLabel = isDefault ? "default" : caseNode.children.find((c) => c.type === "identifier" || c.type === "number" || c.type === "string" || c.type === "literal_pattern")?.text ?? "case";
-			const caseEntryId = this.nextBlockId();
-			const caseEntry = {
-				id: caseEntryId,
-				label: caseLabel,
-				statements: [],
-				isEntry: false,
-				isExit: false,
-				blockType: "process",
-				depth: depth + 1
-			};
-			blocks.push(caseEntry);
-			edges.push({
-				source: condBlock.id,
-				target: caseEntryId,
-				edgeType: isDefault ? "default" : "case",
-				condition: caseLabel
-			});
-			const caseBody = caseNode.children.filter((c) => c.type !== "identifier" && c.type !== "number" && isStatement(c));
-			this.loopStack.push({
-				condBlockId: condBlock.id,
-				exitBlockId: mergeBlock.id,
-				isSwitch: true
-			});
-			this.processStatements(caseBody, caseEntryId, mergeBlock.id, blocks, edges, depth + 1);
-			this.loopStack.pop();
-		}
-		if (!caseNodes.some((c) => c.type === "default_statement" || c.type === "default")) edges.push({
-			source: condBlock.id,
-			target: mergeBlock.id,
-			edgeType: "default"
-		});
-		return mergeBlock.id;
-	}
-	processTry(node, currentId, exitId, blocks, edges, depth) {
-		const tryBlock = {
-			id: this.nextBlockId(),
-			label: "try",
-			statements: [],
-			isEntry: false,
-			isExit: false,
-			blockType: "try",
-			depth
-		};
-		blocks.push(tryBlock);
-		edges.push({
-			source: currentId,
-			target: tryBlock.id,
-			edgeType: "fallthrough"
-		});
-		const tryBody = node.children.find((c) => c.type === "block" || c.type === "statement_block");
-		const tryStmts = tryBody ? tryBody.children.filter(isStatement) : [];
-		const mergeBlock = {
-			id: this.nextBlockId(),
-			label: "try-merge",
-			statements: [],
-			isEntry: false,
-			isExit: false,
-			blockType: "process",
-			depth
-		};
-		blocks.push(mergeBlock);
-		this.processStatements(tryStmts, tryBlock.id, mergeBlock.id, blocks, edges, depth + 1);
-		const catchNodes = node.children.filter((c) => c.type === "catch_clause" || c.type === "catch");
-		for (const catchNode of catchNodes) {
-			const catchBlock = {
-				id: this.nextBlockId(),
-				label: "catch",
-				statements: [],
-				isEntry: false,
-				isExit: false,
-				blockType: "catch",
-				depth
-			};
-			blocks.push(catchBlock);
-			edges.push({
-				source: tryBlock.id,
-				target: catchBlock.id,
-				edgeType: "exception"
-			});
-			const catchBody = catchNode.children.find((c) => c.type === "block" || c.type === "statement_block");
-			const catchStmts = catchBody ? catchBody.children.filter(isStatement) : [];
-			this.processStatements(catchStmts, catchBlock.id, mergeBlock.id, blocks, edges, depth + 1);
-		}
-		const finallyNode = node.children.find((c) => c.type === "finally_clause" || c.type === "finally");
-		if (finallyNode) {
-			const finallyBlock = {
-				id: this.nextBlockId(),
-				label: "finally",
-				statements: [],
-				isEntry: false,
-				isExit: false,
-				blockType: "finally",
-				depth
-			};
-			blocks.push(finallyBlock);
-			edges.push({
-				source: mergeBlock.id,
-				target: finallyBlock.id,
-				edgeType: "fallthrough"
-			});
-			const finallyBody = finallyNode.children.find((c) => c.type === "block" || c.type === "statement_block");
-			const finallyStmts = finallyBody ? finallyBody.children.filter(isStatement) : [];
-			const afterFinally = {
-				id: this.nextBlockId(),
-				label: "after-finally",
-				statements: [],
-				isEntry: false,
-				isExit: false,
-				blockType: "process",
-				depth
-			};
-			blocks.push(afterFinally);
-			this.processStatements(finallyStmts, finallyBlock.id, afterFinally.id, blocks, edges, depth + 1);
-			return afterFinally.id;
-		}
-		return mergeBlock.id;
-	}
-	processReturn(node, currentId, exitId, blocks, edges, depth) {
-		const exitBlock = {
-			id: this.nextBlockId(),
-			label: "return",
-			statements: [{
-				type: "return",
-				text: simplifyText(node.text),
-				line: node.startPosition.row + 1
-			}],
-			isEntry: false,
-			isExit: true,
-			blockType: "exit",
-			depth
-		};
-		blocks.push(exitBlock);
-		edges.push({
-			source: currentId,
-			target: exitBlock.id,
-			edgeType: "fallthrough"
-		});
-		return exitBlock.id;
-	}
-	processThrow(node, currentId, exitId, blocks, edges, depth) {
-		const exitBlock = {
-			id: this.nextBlockId(),
-			label: "throw",
-			statements: [{
-				type: "throw",
-				text: simplifyText(node.text),
-				line: node.startPosition.row + 1
-			}],
-			isEntry: false,
-			isExit: true,
-			blockType: "exit",
-			depth
-		};
-		blocks.push(exitBlock);
-		edges.push({
-			source: currentId,
-			target: exitBlock.id,
-			edgeType: "exception"
-		});
-		return exitBlock.id;
-	}
-	createProcessBlock(blocks, depth) {
-		const block = {
-			id: this.nextBlockId(),
-			label: "",
-			statements: [],
-			isEntry: false,
-			isExit: false,
-			blockType: "process",
-			depth
-		};
-		blocks.push(block);
-		return block;
-	}
-	toAssembledDiagram(cfgData, filePath, functionName) {
-		const nodes = cfgData.blocks.map((block) => {
-			const label = block.isEntry ? "Entry" : block.isExit ? block.label || "Exit" : block.statements.length > 0 ? block.statements[0].text : block.label || block.blockType;
-			return {
-				id: NodeId(block.id),
-				label,
-				type: "function",
-				filePath,
-				lineNumber: block.statements[0]?.line ?? 0,
-				properties: {
-					isEntry: block.isEntry,
-					isExit: block.isExit,
-					blockType: block.blockType,
-					depth: block.depth,
-					statements: block.statements,
-					cfgFunction: functionName
-				}
-			};
-		});
-		const edges = cfgData.edges.map((edge, idx) => ({
-			id: EdgeId(`cfg-edge-${idx}`),
-			source: NodeId(edge.source),
-			target: NodeId(edge.target),
-			type: "call",
-			properties: {
-				cfgEdgeType: edge.edgeType,
-				...edge.condition ? { condition: edge.condition } : {}
-			}
-		}));
-		return {
-			nodes,
-			edges,
-			metadata: {
-				rootIds: [cfgData.entryBlockId],
-				maxDepth: Math.max(0, ...nodes.map((n) => n.properties.depth ?? 0)),
-				nodeCount: nodes.length,
-				edgeCount: edges.length
-			}
-		};
-	}
-};
-
-//#endregion
-//#region src/client/i18n/dicts/en.ts
-const en = {
-	"panel.ariaLabel": "Code graph visualizer",
-	"panel.expand": "Expand graph panel",
-	"panel.collapse": "Collapse",
-	"panel.expandPanel": "Expand panel",
-	"panel.collapsePanel": "Collapse panel",
-	"panel.resetSize": "Double-click to reset to responsive fill",
-	"toolbar.import": "Import graph (Ctrl+I)",
-	"toolbar.filter": "Filter by node type",
-	"toolbar.search": "Search symbols (press /)",
-	"toolbar.chain": "Toggle call chain highlight (Ctrl+C)",
-	"toolbar.cycles": "Highlight circular dependencies",
-	"toolbar.isolateCycles": "Isolate cycle subgraph",
-	"toolbar.impact": "Impact analysis - show dependents (Ctrl+E)",
-	"toolbar.inheritance": "Inheritance hierarchy - show extend/implement (Ctrl+H)",
-	"toolbar.minimap": "Toggle mini-map (Ctrl+M)",
-	"toolbar.legend": "Toggle legend",
-	"toolbar.refresh": "Refresh graph",
-	"toolbar.dataGroup": "Data controls",
-	"toolbar.analysisGroup": "Analysis tools",
-	"toolbar.viewGroup": "View controls",
-	"toolbar.settingsGroup": "Settings",
-	"toolbar.theme": "Toggle theme",
-	"toolbar.export": "Export graph",
-	"toolbar.lang": "Switch language",
-	"toolbar.layout": "Switch to {l} layout (Ctrl+L cycles)",
-	"toolbar.layoutSwitcher": "Layout switcher",
-	"toolbar.rankDir": "Dagre direction",
-	"toolbar.graphType": "Graph type switcher",
-	"toolbar.cluster": "Expand depth",
-	"toolbar.layer": "Diagram layer",
-	"clusterDepth.directory": "Directory",
-	"clusterDepth.file": "File",
-	"clusterDepth.function": "Function",
-	"filter.all": "All Types",
-	"filter.function": "Functions",
-	"filter.class": "Classes",
-	"filter.variable": "Variables",
-	"filter.module": "Modules",
-	"filter.interface": "Interfaces",
-	"graphType.all": "All",
-	"graphType.call": "Calls",
-	"graphType.dependency": "Deps",
-	"search.placeholder": "Search symbols…",
-	"search.close": "Close search",
-	"search.noMatch": "No matching symbols",
-	"search.match": "{n} match",
-	"search.matches": "{n} matches",
-	"search.debounced": "debounced 200ms",
-	"state.loading": "Loading graph…",
-	"state.ready": "Ready",
-	"state.error": "Error",
-	"state.noData": "No data",
-	"state.updated": "Updated {time}",
-	"state.truncated": "Showing top {shown} of {total} nodes",
-	"state.truncatedHint": "Graph is truncated for performance. Showing most important nodes.",
-	"status.feedback": "Feedback on GitHub",
-	"empty.title": "No graph data yet",
-	"empty.subtitle": "Import a .codegraph folder, paste graph data, or scan a repository.",
-	"empty.import": "Import Graph",
-	"error.title": "Something went wrong",
-	"error.retry": "Retry",
-	"error.reportIssue": "Report Issue",
-	"error.loadDependencies": "Unable to load dependency data. Please check your connection and try again.",
-	"error.loadGraphData": "Unable to load code graph data. Please refresh the page.",
-	"error.loadGraph": "Unable to load code graph. Please check the server status.",
-	"error.generic": "An unexpected error occurred. Please try again.",
-	"detail.ariaLabel": "Node details",
-	"detail.close": "Close details",
-	"detail.type": "Type",
-	"detail.kind": "Kind",
-	"detail.file": "File",
-	"detail.line": "Line",
-	"detail.properties": "Properties",
-	"detail.connections": "Connections",
-	"detail.doubleClickExpand": "Double-click to expand related nodes",
-	"detail.expanded": "Expanded",
-	"detail.collapse": "Collapse",
-	"detail.microViews": "Micro views",
-	"detail.microHint": "Select a function to view micro graphs",
-	"detail.aggregateCallChain": "Aggregate Call Chain",
-	"detail.functionsInCluster": "Functions in cluster",
-	"detail.moreFunctions": "{count} more functions not shown",
-	"detail.signature": "Signature",
-	"detail.docstring": "Docstring",
-	"detail.functionBodyBudget": "Function body budget: {expanded}/{max}",
-	"detail.functionBodyBudgetHint": "Only {max} function bodies can be expanded simultaneously. Oldest will be auto-collapsed.",
-	"minimap.title": "Overview",
-	"minimap.close": "Close mini-map",
-	"minimap.functions": "Functions",
-	"minimap.classes": "Classes",
-	"minimap.variables": "Variables",
-	"minimap.modules": "Modules",
-	"minimap.interfaces": "Interfaces",
-	"minimap.total": "Total",
-	"import.title": "Import Graph",
-	"import.close": "Close import",
-	"import.workspace": "Workspace",
-	"import.paste": "Paste",
-	"import.workspacePath": "Current workspace path",
-	"import.workspaceHint": "Scan the current DSH workspace for .codegraph database",
-	"import.scanWorkspace": "Scan Workspace",
-	"import.scanning": "Scanning…",
-	"import.pastePlaceholder": "Paste graph JSON here, e.g. {\"nodes\":[...],\"edges\":[...]}",
-	"import.importJson": "Import JSON",
-	"import.importing": "Importing…",
-	"import.fileTooLarge": "File too large (max 10 MB)",
-	"import.pasteFirst": "Paste JSON first",
-	"import.enterPath": "Enter a repository path",
-	"import.imported": "Imported {nodes} nodes · {edges} edges",
-	"import.importFailed": "Import failed: {msg}",
-	"import.requestedScan": "Requested scan of {path}",
-	"import.fileReadError": "File read error",
-	"import.prereqMissing": "Prerequisite plugins (dsh-codegraph or dsh-tool-lens) not detected. Install one for full functionality.",
-	"import.prereqCmd": "{cmd}",
-	"import.prereqCopy": "Copy install command",
-	"import.copied": "Copied",
-	"import.initGraph": "Initialize Graph",
-	"import.initializing": "Initializing…",
-	"import.initStarted": "Initializing graph for {path}",
-	"import.initSuccess": "Graph initialized successfully",
-	"import.initFailed": "Initialization failed — check prerequisite plugins",
-	"import.watchOn": "Auto Refresh: ON",
-	"import.watchOff": "Auto Refresh: OFF",
-	"legend.title": "Legend",
-	"legend.close": "Close legend",
-	"legend.nodes": "Nodes",
-	"legend.edges": "Edges",
-	"legend.function": "Function",
-	"legend.class": "Class",
-	"legend.variable": "Variable",
-	"legend.module": "Module",
-	"legend.interface": "Interface",
-	"legend.type": "Type",
-	"legend.call": "calls",
-	"legend.import": "imports",
-	"legend.extend": "extends",
-	"legend.implement": "implements",
-	"legend.dependency": "depends on",
-	"legend.contains": "contains",
-	"export.png": "PNG",
-	"export.svg": "SVG",
-	"export.json": "JSON",
-	"export.mermaid": "Mermaid",
-	"export.graphml": "GraphML",
-	"export.jsonld": "JSON-LD",
-	"workspace.title": "Workspace",
-	"workspace.current": "Current Workspace",
-	"workspace.switch": "Switch Workspace",
-	"workspace.add": "Add Workspace",
-	"workspace.remove": "Remove",
-	"workspace.empty": "No workspaces yet",
-	"workspace.namePlaceholder": "Workspace path or name",
-	"workspace.addHint": "Enter a path and press Enter to add",
-	"workspace.active": "Active",
-	"workspace.lastUsed": "Last used",
-	"workspace.default": "Default",
-	"workspace.timeJustNow": "just now",
-	"workspace.timeMinutesAgo": "{n}m ago",
-	"workspace.timeHoursAgo": "{n}h ago",
-	"workspace.timeDaysAgo": "{n}d ago",
-	"prereq.installCodegraph": "dsh plugin --profile web add dsh-codegraph",
-	"prereq.installLens": "dsh plugin --profile web add dsh-tool-lens",
-	"prereq.installTitle": "Install Prerequisite Plugin",
-	"prereq.detecting": "Detecting prerequisite plugins…",
-	"prereq.found": "Prerequisite plugin detected",
-	"prereq.notFound": "Not detected",
-	"prereq.codegraphLabel": "dsh-codegraph",
-	"prereq.lensLabel": "dsh-tool-lens",
-	"prereq.codegraphDesc": "Required for code graph data — provides 20+ language support and incremental indexing.",
-	"prereq.lensDesc": "Optional — provides AST-precise analysis and impact detection.",
-	"graph.init": "Initialize Graph",
-	"graph.initializing": "Initializing graph…",
-	"graph.initSuccess": "Graph initialized successfully",
-	"graph.initFailed": "Initialization failed",
-	"graph.refresh": "Refresh",
-	"graph.hotUpdate": "Hot Update",
-	"graph.hotUpdateOn": "Auto refresh: ON",
-	"graph.hotUpdateOff": "Auto refresh: OFF",
-	"empty.prereqTitle": "Prerequisite Plugin Required",
-	"empty.prereqDesc": "Install dsh-codegraph or dsh-tool-lens for full functionality:",
-	"empty.copyCmd": "Copy install command",
-	"empty.copied": "Copied!",
-	"empty.scanWorkspace": "Scan Current Workspace",
-	"shortcut.title": "Keyboard Shortcuts",
-	"shortcut.close": "Close",
-	"shortcut.search": "Search symbols",
-	"shortcut.searchCtrlF": "Search symbols",
-	"shortcut.closeAll": "Close all panels",
-	"shortcut.callChain": "Toggle call chain",
-	"shortcut.impact": "Toggle impact analysis",
-	"shortcut.inheritance": "Toggle inheritance hierarchy",
-	"shortcut.minimap": "Toggle mini-map",
-	"shortcut.layout": "Cycle layout",
-	"shortcut.import": "Toggle import panel",
-	"shortcut.refresh": "Refresh graph",
-	"shortcut.undo": "Undo",
-	"shortcut.redo": "Redo",
-	"shortcut.help": "Show this help",
-	"edge.tooltip.source": "Source",
-	"edge.tooltip.target": "Target",
-	"edge.tooltip.type": "Relationship",
-	"state.complete": "Graph is complete ({total} nodes)",
-	"state.functionBudget": "Expanded {expanded}/{total} function bodies",
-	"pathFind.title": "Path Finder",
-	"pathFind.close": "Close path finder",
-	"pathFind.start": "Start",
-	"pathFind.end": "End",
-	"pathFind.startPlaceholder": "Search start symbol…",
-	"pathFind.endPlaceholder": "Search end symbol…",
-	"pathFind.find": "Find Path",
-	"pathFind.clear": "Clear",
-	"pathFind.length": "Path length",
-	"pathFind.hops": "Hops",
-	"pathFind.noPath": "Unreachable",
-	"health.title": "Architecture Health Score",
-	"health.close": "Close health score",
-	"health.noData": "Click \"Check\" to calculate score",
-	"health.overall": "Overall",
-	"health.coupling": "Coupling",
-	"health.cohesion": "Cohesion",
-	"health.cyclicDependencyRate": "Cyclic Dep Rate",
-	"health.modularity": "Modularity",
-	"health.couplingDesc": "Lower inter-module coupling is better",
-	"health.cohesionDesc": "Higher intra-module cohesion is better",
-	"health.cyclicDesc": "Fewer circular dependencies is better",
-	"health.modularityDesc": "Better module separation is better",
-	"rules.title": "Rule Engine",
-	"rules.close": "Close rule engine",
-	"rules.config": "Rule Configuration",
-	"rules.loadPresets": "Load Preset Rules",
-	"rules.noRules": "No rules yet, click \"Load Preset Rules\"",
-	"rules.check": "Check Violations",
-	"rules.violations": "Violations",
-	"rules.noViolations": "No violations",
-	"focus.title": "Focus Mode",
-	"focus.mode": "Focus",
-	"focus.depth": "Depth",
-	"focus.expand": "Expand next layer",
-	"focus.contract": "Contract one layer",
-	"focus.exit": "Exit focus",
-	"toolbar.pathFind": "Path Finder",
-	"toolbar.health": "Architecture Health Score",
-	"toolbar.rules": "Rule Engine",
-	"toolbar.hotspot": "Hotspot Analysis",
-	"toolbar.godModule": "God Module Detection",
-	"toolbar.coreFunction": "Core Function Analysis",
-	"toolbar.deadCode": "Dead Code Detection",
-	"hotspot.close": "Close hotspot analysis",
-	"impact.total": "Total impacted nodes",
-	"cycles.empty": "No circular dependencies detected",
-	"toolbar.undo": "Undo (Ctrl+Z)",
-	"toolbar.redo": "Redo (Ctrl+Y)",
-	"toolbar.viewModeDeps": "Switch to dependency graph view",
-	"toolbar.viewModeCode": "Switch to code graph view",
-	"toolbar.viewModeInheritance": "Switch to inheritance tree view",
-	"toolbar.viewModeCallgraph": "Switch to call graph view",
-	"toolbar.viewModePackage": "Switch to package/component diagram view",
-	"toolbar.viewModeClass": "Switch to class diagram view",
-	"toolbar.viewModeCfg": "Switch to control flow graph view",
-	"toolbar.viewModeFlowchart": "Switch to flowchart view",
-	"toolbar.viewModeSequence": "Switch to sequence diagram view",
-	"toolbar.microDisabled": "Select a function node first",
-	"viewMode.code": "Code",
-	"viewMode.dependencies": "Deps",
-	"viewMode.inheritance": "Inherit",
-	"viewMode.callgraph": "Call",
-	"viewMode.package": "Pkg",
-	"viewMode.class": "Class",
-	"viewMode.cfg": "CFG",
-	"viewMode.flowchart": "Flow",
-	"viewMode.sequence": "Seq",
-	"micro.selectFunctionPrompt": "Please select a function node in the code graph first, then switch to this view",
-	"micro.backToCode": "Back to Code View",
-	"sequence.noData": "No sequence data available",
-	"sequence.ariaLabel": "{participants} participants, {messages} messages",
-	"micro.selectedFunction": "Current function: {name}",
-	"micro.clearSelection": "Clear selection",
-	"micro.loadFailed": "Micro diagram load failed",
-	"micro.closeView": "Close micro view",
-	"stats.nodesEdges": "{nodes} nodes · {edges} edges",
-	"stats.functionBodyBudget": "{expanded}/{max} function bodies expanded",
-	"godmodule.stats": "{nodes} nodes · {edges} edges",
-	"search.moreResults": "+{n} more results",
-	"layer.inheritance.0": "Root Overview",
-	"layer.inheritance.1": "2-Level Depth",
-	"layer.inheritance.2": "Full Tree",
-	"layer.callgraph.0": "Entry Functions",
-	"layer.callgraph.1": "2-Level Calls",
-	"layer.callgraph.2": "Full Call Graph",
-	"layer.package.0": "Top Packages",
-	"layer.package.1": "Sub Packages",
-	"layer.package.2": "Package Modules",
-	"layer.class.0": "Class Overview",
-	"layer.class.1": "Class Relations",
-	"layer.class.2": "Full Class Diagram",
-	"layer.code.0": "Directory Cluster",
-	"layer.code.1": "File Cluster",
-	"layer.code.2": "All Nodes",
-	"layer.dependencies.0": "Directory Deps",
-	"layer.dependencies.1": "File Dependencies",
-	"layer.dependencies.2": "Module Dependencies",
-	"coreFunction.category.entry": "Entry",
-	"coreFunction.category.hub": "Hub",
-	"coreFunction.category.api": "API",
-	"coreFunction.category.critical": "Critical",
-	"coreFunction.reason.high-indegree": "High In-Degree",
-	"coreFunction.reason.high-outdegree": "High Out-Degree",
-	"coreFunction.reason.entry-point": "Entry Point",
-	"coreFunction.reason.exported": "Exported",
-	"coreFunction.reason.handler-pattern": "Handler",
-	"coreFunction.reason.event-pattern": "Event",
-	"coreFunction.reason.cli-pattern": "CLI",
-	"coreFunction.reason.large-influence": "Large Influence",
-	"coreFunction.reason.deep-call-chain": "Deep Call Chain",
-	"coreFunction.reason.hub-function": "Hub Function",
-	"coreFunction.inDegree": "In-Degree",
-	"coreFunction.outDegree": "Out-Degree",
-	"coreFunction.influenceReach": "Influence Reach",
-	"coreFunction.callChainDepth": "Call Chain Depth",
-	"deadcode.filterAll": "All",
-	"deadcode.unreachable": "Unreachable",
-	"deadcode.noIncoming": "No Incoming",
-	"deadcode.orphan": "Orphan",
-	"deadcode.confirmed": "Confirmed",
-	"deadcode.suspected": "Suspected",
-	"deadcode.empty": "No dead code detected",
-	"flowchart.start": "Start",
-	"flowchart.end": "End",
-	"flowchart.errorExit": "Error Exit",
-	"flowchart.tryBlock": "Try",
-	"flowchart.catchBlock": "Catch",
-	"flowchart.finallyBlock": "Finally",
-	"flowchart.returnResult": "Return",
-	"flowchart.throwException": "Throw",
-	"flowchart.loopPrefix": "Loop: {cond}",
-	"flowchart.switchPrefix": "switch: {expr}",
-	"flowchart.statementsCount": "{n} statements",
-	"flowchart.edge.yes": "Yes",
-	"flowchart.edge.no": "No",
-	"flowchart.edge.loop": "Loop",
-	"flowchart.edge.error": "Error",
-	"flowchart.edge.default": "Default",
-	"flowchart.edge.break": "Break",
-	"flowchart.edge.continue": "Continue",
-	"flowchart.semantic.init": "Initialize",
-	"flowchart.semantic.prepare": "Prepare Data",
-	"flowchart.semantic.load": "Load Data",
-	"flowchart.semantic.save": "Save Data",
-	"flowchart.semantic.fetch": "Fetch Data",
-	"flowchart.semantic.find": "Find",
-	"flowchart.semantic.create": "Create",
-	"flowchart.semantic.update": "Update",
-	"flowchart.semantic.delete": "Delete",
-	"flowchart.semantic.validate": "Validate",
-	"flowchart.semantic.check": "Check",
-	"flowchart.semantic.parse": "Parse",
-	"flowchart.semantic.format": "Format",
-	"flowchart.semantic.transform": "Transform",
-	"flowchart.semantic.render": "Render",
-	"flowchart.semantic.compute": "Compute",
-	"flowchart.semantic.build": "Build",
-	"flowchart.semantic.register": "Register",
-	"flowchart.semantic.cleanup": "Cleanup",
-	"flowchart.semantic.destroy": "Destroy",
-	"flowchart.semantic.start": "Start",
-	"flowchart.semantic.stop": "Stop",
-	"flowchart.semantic.handle": "Handle",
-	"flowchart.semantic.send": "Send",
-	"flowchart.semantic.receive": "Receive",
-	"flowchart.semantic.read": "Read",
-	"flowchart.semantic.write": "Write",
-	"flowchart.semantic.log": "Log",
-	"flowchart.semantic.notify": "Notify",
-	"flowchart.semantic.dispatch": "Dispatch",
-	"flowchart.semantic.resolve": "Resolve",
-	"flowchart.semantic.reject": "Reject",
-	"nav.title": "Code Graph",
-	"nav.ariaLabel": "Code Graph",
-	"nav.closePanel": "Close graph panel",
-	"nav.searchSymbols": "Code Graph: Search Symbols",
-	"nav.togglePanel": "Code Graph: Toggle Panel",
-	"filterPanel.title": "Filter & Connections",
-	"filterPanel.close": "Close filter panel",
-	"filterPanel.fanIn": "Min Fan-In",
-	"filterPanel.fanOut": "Min Fan-Out",
-	"filterPanel.fanInHint": "Show only nodes with at least this many incoming connections",
-	"filterPanel.fanOutHint": "Show only nodes with at least this many outgoing connections",
-	"filterPanel.nodeTypes": "Visible Node Types",
-	"filterPanel.edgeTypes": "Visible Edge Types",
-	"filterPanel.reset": "Reset All Filters",
-	"filterPanel.hideOrphans": "Hide Orphans",
-	"filterPanel.hideLeaves": "Hide Leaves",
-	"filterPanel.orphansHint": "Hide nodes with no incoming connections",
-	"filterPanel.leavesHint": "Hide nodes with no outgoing connections",
-	"filterPanel.pathFilter": "Path Filter",
-	"filterPanel.includePlaceholder": "Include path (regex)",
-	"filterPanel.excludePlaceholder": "Exclude path (regex)",
-	"filterPanel.includeLabel": "Include path regex",
-	"filterPanel.excludeLabel": "Exclude path regex",
-	"filterPanel.applyPath": "Apply Path Filter",
-	"filterPanel.clearPath": "Clear Path Filter",
-	"filterPanel.pathHint": "Use regex to filter file paths, showing only matching nodes",
-	"filterPanel.quickActions": "Quick Actions",
-	"toolbar.filterPanel": "Filter Panel",
-	"contextMenu.focus": "Focus Node",
-	"contextMenu.isolate": "Isolate (Show Neighborhood)",
-	"contextMenu.hide": "Hide Node",
-	"contextMenu.collapse": "Collapse Cluster",
-	"contextMenu.expand": "Expand Cluster",
-	"contextMenu.callChain": "Highlight Call Chain",
-	"contextMenu.impact": "Analyze Impact",
-	"contextMenu.findPath": "Find Path From Here",
-	"contextMenu.showAll": "Show All Hidden Nodes",
-	"contextMenu.openSource": "Open Source",
-	"a11y.graphContainer": "Code graph interactive area",
-	"a11y.selectedNode": "Selected node",
-	"a11y.nodes": "nodes",
-	"a11y.edges": "edges",
-	"heatmap.title": "Heatmap",
-	"heatmap.off": "Off",
-	"heatmap.none": "Off",
-	"heatmap.instability": "Instability",
-	"heatmap.lines": "Lines",
-	"heatmap.complexity": "Complexity",
-	"detail.exportedBadge": "EXP",
-	"detail.expandedBadge": "OPEN",
-	"cycle.nodeCount": "{n} nodes",
-	"degradation.cycleDetectionSkipped": "Cycle detection skipped",
-	"degradation.communityDetectionSampled": "Community detection sampled",
-	"degradation.largeGraphMode": "Large graph mode",
-	"degradation.tooltip": "Some analysis features have been degraded or skipped for performance due to graph size",
-	"toolbar.tour": "Code Tour",
-	"tour.title": "Code Tour",
-	"tour.close": "Close tour",
-	"tour.empty": "No tour data available, please load the code graph first",
-	"tour.prev": "Previous",
-	"tour.next": "Next",
-	"tour.dependencies": "Dependencies",
-	"tour.dependents": "Referenced by",
-	"tour.layer.entry": "Entry",
-	"tour.layer.api": "API",
-	"tour.layer.service": "Service",
-	"tour.layer.data": "Data",
-	"tour.layer.ui": "UI",
-	"tour.layer.utility": "Utility",
-	"tour.layer.other": "Other",
-	"common.close": "Close",
-	"common.noVisibleNodes": "No nodes match the current filter"
-};
-
-//#endregion
-//#region src/client/i18n/dicts/zh.ts
-const zh = {
-	"panel.ariaLabel": "代码图谱可视化",
-	"panel.expand": "展开图谱面板",
-	"panel.collapse": "折叠",
-	"panel.expandPanel": "展开面板",
-	"panel.collapsePanel": "折叠面板",
-	"panel.resetSize": "双击恢复响应式填充",
-	"toolbar.import": "导入图谱 (Ctrl+I)",
-	"toolbar.filter": "按节点类型筛选",
-	"toolbar.search": "搜索符号 (按 /)",
-	"toolbar.chain": "切换调用链高亮 (Ctrl+C)",
-	"toolbar.cycles": "高亮循环依赖",
-	"toolbar.isolateCycles": "隔离循环依赖子图",
-	"toolbar.impact": "影响分析 - 显示依赖者 (Ctrl+E)",
-	"toolbar.inheritance": "继承层次 - 显示继承/实现关系 (Ctrl+H)",
-	"toolbar.minimap": "切换缩略图 (Ctrl+M)",
-	"toolbar.legend": "切换图例",
-	"toolbar.refresh": "刷新图谱",
-	"toolbar.dataGroup": "数据控制",
-	"toolbar.analysisGroup": "分析工具",
-	"toolbar.viewGroup": "视图控制",
-	"toolbar.settingsGroup": "设置",
-	"toolbar.theme": "切换主题",
-	"toolbar.export": "导出图谱",
-	"toolbar.lang": "切换语言",
-	"toolbar.layout": "切换至 {l} 布局 (Ctrl+L 循环)",
-	"toolbar.layoutSwitcher": "布局切换",
-	"toolbar.rankDir": "Dagre 方向",
-	"toolbar.graphType": "图谱类型切换",
-	"toolbar.cluster": "展开深度",
-	"toolbar.layer": "图谱层级",
-	"clusterDepth.directory": "目录级",
-	"clusterDepth.file": "文件级",
-	"clusterDepth.function": "函数级",
-	"filter.all": "全部类型",
-	"filter.function": "函数",
-	"filter.class": "类",
-	"filter.variable": "变量",
-	"filter.module": "模块",
-	"filter.interface": "接口",
-	"graphType.all": "全部",
-	"graphType.call": "调用",
-	"graphType.dependency": "依赖",
-	"search.placeholder": "搜索符号…",
-	"search.close": "关闭搜索",
-	"search.noMatch": "无匹配符号",
-	"search.match": "{n} 个匹配",
-	"search.matches": "{n} 个匹配",
-	"search.debounced": "防抖 200ms",
-	"state.loading": "加载图谱中…",
-	"state.ready": "就绪",
-	"state.error": "错误",
-	"state.noData": "无数据",
-	"state.updated": "更新于 {time}",
-	"state.truncated": "显示前 {shown}/{total} 节点",
-	"state.truncatedHint": "图谱已截断以提升性能，仅显示最重要的节点。",
-	"status.feedback": "在 GitHub 上反馈",
-	"empty.title": "暂无图谱数据",
-	"empty.subtitle": "导入 .codegraph 文件夹、粘贴图谱数据或扫描仓库。",
-	"empty.import": "导入图谱",
-	"error.title": "出错了",
-	"error.retry": "重试",
-	"error.reportIssue": "反馈问题",
-	"error.loadDependencies": "无法加载依赖数据，请检查连接后重试。",
-	"error.loadGraphData": "无法加载代码图谱数据，请刷新页面。",
-	"error.loadGraph": "无法加载代码图谱，请检查服务器状态。",
-	"error.generic": "发生意外错误，请重试。",
-	"detail.ariaLabel": "节点详情",
-	"detail.close": "关闭详情",
-	"detail.type": "类型",
-	"detail.kind": "类别",
-	"detail.file": "文件",
-	"detail.line": "行号",
-	"detail.properties": "属性",
-	"detail.connections": "连接数",
-	"detail.doubleClickExpand": "双击展开相关节点",
-	"detail.expanded": "已展开",
-	"detail.collapse": "收起",
-	"detail.microViews": "微观图谱",
-	"detail.microHint": "选中函数节点可查看微观图谱",
-	"detail.aggregateCallChain": "聚合调用链",
-	"detail.functionsInCluster": "聚类中的函数",
-	"detail.moreFunctions": "还有 {count} 个函数未显示",
-	"detail.signature": "签名",
-	"detail.docstring": "文档字符串",
-	"detail.functionBodyBudget": "函数体展开预算: {expanded}/{max}",
-	"detail.functionBodyBudgetHint": "最多同时展开 {max} 个函数体，最早的将自动折叠。",
-	"minimap.title": "概览",
-	"minimap.close": "关闭缩略图",
-	"minimap.functions": "函数",
-	"minimap.classes": "类",
-	"minimap.variables": "变量",
-	"minimap.modules": "模块",
-	"minimap.interfaces": "接口",
-	"minimap.total": "总计",
-	"import.title": "导入图谱",
-	"import.close": "关闭导入",
-	"import.workspace": "工作区",
-	"import.paste": "粘贴",
-	"import.workspacePath": "当前工作区路径",
-	"import.workspaceHint": "扫描当前 DSH 工作区的 .codegraph 数据库",
-	"import.scanWorkspace": "扫描工作区",
-	"import.scanning": "扫描中…",
-	"import.pastePlaceholder": "在此粘贴图谱 JSON，例如 {\"nodes\":[...],\"edges\":[...]}",
-	"import.importJson": "导入 JSON",
-	"import.importing": "导入中…",
-	"import.fileTooLarge": "文件过大 (最大 10 MB)",
-	"import.pasteFirst": "请先粘贴 JSON",
-	"import.enterPath": "请输入仓库路径",
-	"import.imported": "已导入 {nodes} 节点 · {edges} 边",
-	"import.importFailed": "导入失败: {msg}",
-	"import.requestedScan": "已请求扫描 {path}",
-	"import.fileReadError": "文件读取错误",
-	"import.prereqMissing": "未检测到前置插件 (dsh-codegraph 或 dsh-tool-lens)。请安装其一以获得完整功能。",
-	"import.prereqCmd": "{cmd}",
-	"import.prereqCopy": "复制安装命令",
-	"import.copied": "已复制",
-	"import.initGraph": "初始化图谱",
-	"import.initializing": "初始化中…",
-	"import.initStarted": "正在为 {path} 初始化图谱",
-	"import.initSuccess": "图谱初始化成功",
-	"import.initFailed": "初始化失败 — 请检查前置插件",
-	"import.watchOn": "热更新: 开启",
-	"import.watchOff": "热更新: 关闭",
-	"legend.title": "图例",
-	"legend.close": "关闭图例",
-	"legend.nodes": "节点",
-	"legend.edges": "边",
-	"legend.function": "函数",
-	"legend.class": "类",
-	"legend.variable": "变量",
-	"legend.module": "模块",
-	"legend.interface": "接口",
-	"legend.type": "类型",
-	"legend.call": "调用",
-	"legend.import": "导入",
-	"legend.extend": "继承",
-	"legend.implement": "实现",
-	"legend.dependency": "依赖",
-	"legend.contains": "包含",
-	"export.png": "PNG",
-	"export.svg": "SVG",
-	"export.json": "JSON",
-	"export.mermaid": "Mermaid",
-	"export.graphml": "GraphML",
-	"export.jsonld": "JSON-LD",
-	"workspace.title": "工作区",
-	"workspace.current": "当前工作区",
-	"workspace.switch": "切换工作区",
-	"workspace.add": "添加工作区",
-	"workspace.remove": "移除",
-	"workspace.empty": "暂无工作区",
-	"workspace.namePlaceholder": "工作区路径或名称",
-	"workspace.addHint": "输入路径后按回车添加",
-	"workspace.active": "活跃",
-	"workspace.lastUsed": "上次使用",
-	"workspace.default": "默认",
-	"workspace.timeJustNow": "刚刚",
-	"workspace.timeMinutesAgo": "{n}分钟前",
-	"workspace.timeHoursAgo": "{n}小时前",
-	"workspace.timeDaysAgo": "{n}天前",
-	"prereq.installCodegraph": "dsh plugin --profile web add dsh-codegraph",
-	"prereq.installLens": "dsh plugin --profile web add dsh-tool-lens",
-	"prereq.installTitle": "安装前置插件",
-	"prereq.detecting": "正在检测前置插件…",
-	"prereq.found": "已检测到前置插件",
-	"prereq.notFound": "未检测到",
-	"prereq.codegraphLabel": "dsh-codegraph",
-	"prereq.lensLabel": "dsh-tool-lens",
-	"prereq.codegraphDesc": "必需 — 提供 20+ 语言支持和增量索引。",
-	"prereq.lensDesc": "可选 — 提供 AST 精准分析和影响检测。",
-	"graph.init": "初始化图谱",
-	"graph.initializing": "正在初始化图谱…",
-	"graph.initSuccess": "图谱初始化成功",
-	"graph.initFailed": "初始化失败",
-	"graph.refresh": "刷新",
-	"graph.hotUpdate": "热更新",
-	"graph.hotUpdateOn": "自动刷新: 开启",
-	"graph.hotUpdateOff": "自动刷新: 关闭",
-	"empty.prereqTitle": "需要前置插件",
-	"empty.prereqDesc": "安装 dsh-codegraph 或 dsh-tool-lens 以获得完整功能：",
-	"empty.copyCmd": "复制安装命令",
-	"empty.copied": "已复制！",
-	"empty.scanWorkspace": "扫描当前工作区",
-	"shortcut.title": "键盘快捷键",
-	"shortcut.close": "关闭",
-	"shortcut.search": "搜索符号",
-	"shortcut.searchCtrlF": "搜索符号",
-	"shortcut.closeAll": "关闭所有面板",
-	"shortcut.callChain": "切换调用链",
-	"shortcut.impact": "切换影响分析",
-	"shortcut.inheritance": "切换继承层次",
-	"shortcut.minimap": "切换缩略图",
-	"shortcut.layout": "循环切换布局",
-	"shortcut.import": "切换导入面板",
-	"shortcut.refresh": "刷新图谱",
-	"shortcut.undo": "撤销操作",
-	"shortcut.redo": "重做操作",
-	"shortcut.help": "显示此帮助",
-	"edge.tooltip.source": "源节点",
-	"edge.tooltip.target": "目标节点",
-	"edge.tooltip.type": "关系类型",
-	"state.complete": "图谱完整 ({total} 节点)",
-	"state.functionBudget": "已展开 {expanded}/{total} 个函数体",
-	"pathFind.title": "路径查找",
-	"pathFind.close": "关闭路径查找",
-	"pathFind.start": "起点",
-	"pathFind.end": "终点",
-	"pathFind.startPlaceholder": "搜索起点符号…",
-	"pathFind.endPlaceholder": "搜索终点符号…",
-	"pathFind.find": "查找路径",
-	"pathFind.clear": "清除",
-	"pathFind.length": "路径长度",
-	"pathFind.hops": "经过节点",
-	"pathFind.noPath": "不可达",
-	"health.title": "架构健康评分",
-	"health.close": "关闭健康评分",
-	"health.noData": "点击\"检查\"按钮计算评分",
-	"health.overall": "总体评分",
-	"health.coupling": "耦合度",
-	"health.cohesion": "内聚度",
-	"health.cyclicDependencyRate": "循环依赖率",
-	"health.modularity": "模块度",
-	"health.couplingDesc": "模块间耦合越低越好",
-	"health.cohesionDesc": "模块内内聚越高越好",
-	"health.cyclicDesc": "循环依赖越少越好",
-	"health.modularityDesc": "模块划分越均衡越好",
-	"rules.title": "规则引擎",
-	"rules.close": "关闭规则引擎",
-	"rules.config": "规则配置",
-	"rules.loadPresets": "加载预设规则",
-	"rules.noRules": "暂无规则，点击\"加载预设规则\"",
-	"rules.check": "检查违规",
-	"rules.violations": "违规列表",
-	"rules.noViolations": "无违规",
-	"focus.title": "聚焦模式",
-	"focus.mode": "聚焦",
-	"focus.depth": "深度",
-	"focus.expand": "展开下一层",
-	"focus.contract": "收起一层",
-	"focus.exit": "退出聚焦",
-	"toolbar.pathFind": "路径查找",
-	"toolbar.health": "架构健康评分",
-	"toolbar.rules": "规则引擎",
-	"toolbar.hotspot": "热点分析",
-	"toolbar.godModule": "God Module 检测",
-	"toolbar.coreFunction": "核心函数识别",
-	"toolbar.deadCode": "死代码检测",
-	"hotspot.close": "关闭热点分析",
-	"impact.total": "总影响节点",
-	"cycles.empty": "未检测到循环依赖",
-	"toolbar.undo": "撤销 (Ctrl+Z)",
-	"toolbar.redo": "重做 (Ctrl+Y)",
-	"toolbar.viewModeDeps": "切换到依赖图谱视图",
-	"toolbar.viewModeCode": "切换到代码图谱视图",
-	"toolbar.viewModeInheritance": "切换到继承树视图",
-	"toolbar.viewModeCallgraph": "切换到调用图视图",
-	"toolbar.viewModePackage": "切换到组件/包图视图",
-	"toolbar.viewModeClass": "切换到类图视图",
-	"toolbar.viewModeCfg": "切换到控制流图视图",
-	"toolbar.viewModeFlowchart": "切换到流程图视图",
-	"toolbar.viewModeSequence": "切换到时序图视图",
-	"toolbar.microDisabled": "请先选中函数节点",
-	"viewMode.code": "代码",
-	"viewMode.dependencies": "依赖",
-	"viewMode.inheritance": "继承",
-	"viewMode.callgraph": "调用",
-	"viewMode.package": "包",
-	"viewMode.class": "类图",
-	"viewMode.cfg": "CFG",
-	"viewMode.flowchart": "流程",
-	"viewMode.sequence": "时序",
-	"micro.selectFunctionPrompt": "请先在代码图谱中选择一个函数节点，然后切换到此视图",
-	"micro.backToCode": "返回代码视图",
-	"sequence.noData": "暂无时序图数据",
-	"sequence.ariaLabel": "{participants} 个参与者, {messages} 条消息",
-	"micro.selectedFunction": "当前函数: {name}",
-	"micro.clearSelection": "清除选择",
-	"micro.loadFailed": "微观图谱加载失败",
-	"micro.closeView": "关闭微观视图",
-	"stats.nodesEdges": "{nodes} 节点 · {edges} 边",
-	"stats.functionBodyBudget": "已展开 {expanded}/{max} 个函数体",
-	"godmodule.stats": "{nodes} 节点 · {edges} 边",
-	"search.moreResults": "还有 {n} 个结果",
-	"layer.inheritance.0": "根接口概览",
-	"layer.inheritance.1": "2层继承深度",
-	"layer.inheritance.2": "完整继承树",
-	"layer.callgraph.0": "入口函数概览",
-	"layer.callgraph.1": "调用链2层",
-	"layer.callgraph.2": "完整调用图",
-	"layer.package.0": "顶层包概览",
-	"layer.package.1": "子包展开",
-	"layer.package.2": "包内模块",
-	"layer.class.0": "类概览",
-	"layer.class.1": "类关系图",
-	"layer.class.2": "完整类图",
-	"layer.code.0": "目录聚类",
-	"layer.code.1": "文件聚类",
-	"layer.code.2": "全部节点",
-	"layer.dependencies.0": "目录依赖概览",
-	"layer.dependencies.1": "文件依赖",
-	"layer.dependencies.2": "模块依赖",
-	"coreFunction.category.entry": "入口",
-	"coreFunction.category.hub": "枢纽",
-	"coreFunction.category.api": "API",
-	"coreFunction.category.critical": "关键",
-	"coreFunction.reason.high-indegree": "高入度",
-	"coreFunction.reason.high-outdegree": "高出度",
-	"coreFunction.reason.entry-point": "入口点",
-	"coreFunction.reason.exported": "已导出",
-	"coreFunction.reason.handler-pattern": "处理器",
-	"coreFunction.reason.event-pattern": "事件",
-	"coreFunction.reason.cli-pattern": "CLI",
-	"coreFunction.reason.large-influence": "大影响",
-	"coreFunction.reason.deep-call-chain": "深调用链",
-	"coreFunction.reason.hub-function": "枢纽函数",
-	"coreFunction.inDegree": "入度",
-	"coreFunction.outDegree": "出度",
-	"coreFunction.influenceReach": "影响范围",
-	"coreFunction.callChainDepth": "调用链深度",
-	"deadcode.filterAll": "全部",
-	"deadcode.unreachable": "不可达",
-	"deadcode.noIncoming": "无调用者",
-	"deadcode.orphan": "孤立子图",
-	"deadcode.confirmed": "确认",
-	"deadcode.suspected": "疑似",
-	"deadcode.empty": "未检测到死代码",
-	"flowchart.start": "开始",
-	"flowchart.end": "结束",
-	"flowchart.errorExit": "异常退出",
-	"flowchart.tryBlock": "尝试执行",
-	"flowchart.catchBlock": "捕获异常",
-	"flowchart.finallyBlock": "最终处理",
-	"flowchart.returnResult": "返回结果",
-	"flowchart.throwException": "抛出异常",
-	"flowchart.loopPrefix": "循环: {cond}",
-	"flowchart.switchPrefix": "switch: {expr}",
-	"flowchart.statementsCount": "{n} 条语句",
-	"flowchart.edge.yes": "是",
-	"flowchart.edge.no": "否",
-	"flowchart.edge.loop": "循环",
-	"flowchart.edge.error": "异常",
-	"flowchart.edge.default": "默认",
-	"flowchart.edge.break": "跳出",
-	"flowchart.edge.continue": "继续",
-	"flowchart.semantic.init": "初始化",
-	"flowchart.semantic.prepare": "数据准备",
-	"flowchart.semantic.load": "加载数据",
-	"flowchart.semantic.save": "保存数据",
-	"flowchart.semantic.fetch": "获取数据",
-	"flowchart.semantic.find": "查找",
-	"flowchart.semantic.create": "创建",
-	"flowchart.semantic.update": "更新",
-	"flowchart.semantic.delete": "删除",
-	"flowchart.semantic.validate": "验证",
-	"flowchart.semantic.check": "检查",
-	"flowchart.semantic.parse": "解析",
-	"flowchart.semantic.format": "格式化",
-	"flowchart.semantic.transform": "转换",
-	"flowchart.semantic.render": "渲染",
-	"flowchart.semantic.compute": "计算",
-	"flowchart.semantic.build": "构建",
-	"flowchart.semantic.register": "注册",
-	"flowchart.semantic.cleanup": "清理",
-	"flowchart.semantic.destroy": "销毁",
-	"flowchart.semantic.start": "开始",
-	"flowchart.semantic.stop": "停止",
-	"flowchart.semantic.handle": "处理",
-	"flowchart.semantic.send": "发送",
-	"flowchart.semantic.receive": "接收",
-	"flowchart.semantic.read": "读取",
-	"flowchart.semantic.write": "写入",
-	"flowchart.semantic.log": "记录日志",
-	"flowchart.semantic.notify": "通知",
-	"flowchart.semantic.dispatch": "分发",
-	"flowchart.semantic.resolve": "解析",
-	"flowchart.semantic.reject": "拒绝",
-	"nav.title": "代码图谱",
-	"nav.ariaLabel": "代码图谱",
-	"nav.closePanel": "关闭图谱面板",
-	"nav.searchSymbols": "代码图谱: 搜索符号",
-	"nav.togglePanel": "代码图谱: 切换面板",
-	"filterPanel.title": "筛选与连接数",
-	"filterPanel.close": "关闭筛选面板",
-	"filterPanel.fanIn": "最小入度",
-	"filterPanel.fanOut": "最小出度",
-	"filterPanel.fanInHint": "仅显示入度达到此值的节点",
-	"filterPanel.fanOutHint": "仅显示出度达到此值的节点",
-	"filterPanel.nodeTypes": "可见节点类型",
-	"filterPanel.edgeTypes": "可见边类型",
-	"filterPanel.reset": "重置所有筛选",
-	"filterPanel.hideOrphans": "隐藏孤儿节点",
-	"filterPanel.hideLeaves": "隐藏叶子节点",
-	"filterPanel.orphansHint": "隐藏没有任何入边的节点",
-	"filterPanel.leavesHint": "隐藏没有任何出边的节点",
-	"filterPanel.pathFilter": "路径过滤",
-	"filterPanel.includePlaceholder": "包含路径 (正则表达式)",
-	"filterPanel.excludePlaceholder": "排除路径 (正则表达式)",
-	"filterPanel.includeLabel": "包含路径正则",
-	"filterPanel.excludeLabel": "排除路径正则",
-	"filterPanel.applyPath": "应用路径过滤",
-	"filterPanel.clearPath": "清除路径过滤",
-	"filterPanel.pathHint": "使用正则表达式过滤文件路径，仅显示匹配的节点",
-	"filterPanel.quickActions": "快捷操作",
-	"toolbar.filterPanel": "筛选面板",
-	"contextMenu.focus": "聚焦节点",
-	"contextMenu.isolate": "隔离（显示邻域）",
-	"contextMenu.hide": "隐藏节点",
-	"contextMenu.collapse": "折叠聚类",
-	"contextMenu.expand": "展开聚类",
-	"contextMenu.callChain": "高亮调用链",
-	"contextMenu.impact": "影响分析",
-	"contextMenu.findPath": "从此节点查找路径",
-	"contextMenu.showAll": "显示所有隐藏节点",
-	"contextMenu.openSource": "打开源码",
-	"a11y.graphContainer": "代码图谱交互区域",
-	"a11y.selectedNode": "已选中节点",
-	"a11y.nodes": "节点",
-	"a11y.edges": "边",
-	"heatmap.title": "热力图",
-	"heatmap.off": "关闭",
-	"heatmap.none": "关闭",
-	"heatmap.instability": "不稳定度",
-	"heatmap.lines": "代码行数",
-	"heatmap.complexity": "复杂度",
-	"detail.exportedBadge": "EXP",
-	"detail.expandedBadge": "OPEN",
-	"cycle.nodeCount": "{n} 节点",
-	"degradation.cycleDetectionSkipped": "循环检测已跳过",
-	"degradation.communityDetectionSampled": "社区检测已采样",
-	"degradation.largeGraphMode": "大规模图谱模式",
-	"degradation.tooltip": "因图谱规模较大，部分分析功能已降级或跳过以保证性能",
-	"toolbar.tour": "代码导览",
-	"tour.title": "代码导览",
-	"tour.close": "关闭导览",
-	"tour.empty": "暂无导览数据，请先加载代码图谱",
-	"tour.prev": "上一步",
-	"tour.next": "下一步",
-	"tour.dependencies": "依赖",
-	"tour.dependents": "被引用",
-	"tour.layer.entry": "入口",
-	"tour.layer.api": "API",
-	"tour.layer.service": "业务",
-	"tour.layer.data": "数据",
-	"tour.layer.ui": "界面",
-	"tour.layer.utility": "工具",
-	"tour.layer.other": "其他",
-	"common.close": "关闭",
-	"common.noVisibleNodes": "当前筛选条件下无可见节点"
-};
-
-//#endregion
-//#region src/client/i18n/index.ts
-const dicts = {
-	zh,
-	en
-};
-const STORAGE_KEY = "dsh-codegraph-visualizer/lang";
-let currentLang = typeof window === "undefined" ? "zh" : getStoredLang();
-const listeners = new Set();
-function getStoredLang() {
-	if (typeof window === "undefined") return "zh";
-	try {
-		const stored = window.localStorage.getItem(STORAGE_KEY);
-		return stored === "zh" || stored === "en" ? stored : "zh";
-	} catch {
-		return "zh";
-	}
-}
-function getLang() {
-	return currentLang;
-}
-function setLang(lang) {
-	if (lang === currentLang) return;
-	currentLang = lang;
-	if (typeof window !== "undefined") try {
-		window.localStorage.setItem(STORAGE_KEY, lang);
-	} catch {}
-	for (const fn$7 of listeners) fn$7();
-}
-function toggleLang() {
-	setLang(currentLang === "zh" ? "en" : "zh");
-}
-currentLang = getStoredLang();
-function subscribe(fn$7) {
-	listeners.add(fn$7);
-	return () => {
-		listeners.delete(fn$7);
-	};
-}
-function useLang() {
-	return (0, react.useSyncExternalStore)(subscribe, getLang, getLang);
-}
-function t(key, params) {
-	let str = dicts[currentLang][key] ?? dicts.en[key] ?? key;
-	if (params) for (const [k, v] of Object.entries(params)) str = str.replaceAll(`{${k}}`, String(v));
-	return str;
-}
-function useT() {
-	useLang();
-	return t;
-}
-function resetI18nListeners() {
-	listeners.clear();
-}
-
-//#endregion
-//#region src/client/diagram/FlowchartAssembler.ts
-const PROCESS_KEYWORDS = {
-	init: "flowchart.semantic.init",
-	prepare: "flowchart.semantic.prepare",
-	load: "flowchart.semantic.load",
-	save: "flowchart.semantic.save",
-	fetch: "flowchart.semantic.fetch",
-	find: "flowchart.semantic.find",
-	create: "flowchart.semantic.create",
-	update: "flowchart.semantic.update",
-	delete: "flowchart.semantic.delete",
-	validate: "flowchart.semantic.validate",
-	check: "flowchart.semantic.check",
-	parse: "flowchart.semantic.parse",
-	format: "flowchart.semantic.format",
-	transform: "flowchart.semantic.transform",
-	render: "flowchart.semantic.render",
-	compute: "flowchart.semantic.compute",
-	build: "flowchart.semantic.build",
-	register: "flowchart.semantic.register",
-	cleanup: "flowchart.semantic.cleanup",
-	destroy: "flowchart.semantic.destroy",
-	start: "flowchart.semantic.start",
-	stop: "flowchart.semantic.stop",
-	handle: "flowchart.semantic.handle",
-	send: "flowchart.semantic.send",
-	receive: "flowchart.semantic.receive",
-	read: "flowchart.semantic.read",
-	write: "flowchart.semantic.write",
-	log: "flowchart.semantic.log",
-	notify: "flowchart.semantic.notify",
-	dispatch: "flowchart.semantic.dispatch",
-	resolve: "flowchart.semantic.resolve",
-	reject: "flowchart.semantic.reject"
-};
-function inferSemanticLabel(statements, blockLabel) {
-	if (statements.length === 0) return blockLabel;
-	const firstStmt = statements[0];
-	if (!firstStmt) return blockLabel;
-	const text = firstStmt.text.toLowerCase();
-	for (const [keyword, i18nKey] of Object.entries(PROCESS_KEYWORDS)) if (text.includes(keyword)) return t(i18nKey);
-	if (firstStmt.type === "return") return t("flowchart.returnResult");
-	if (firstStmt.type === "throw") return t("flowchart.throwException");
-	if (statements.length === 1) return simplifyForLabel(firstStmt.text);
-	const verbMatch = text.match(/^(\w+)\s*\(/);
-	if (verbMatch && verbMatch[1]) {
-		const verb = verbMatch[1];
-		if (PROCESS_KEYWORDS[verb]) return t(PROCESS_KEYWORDS[verb]);
-		return `${verb}()`;
-	}
-	return t("flowchart.statementsCount", { n: statements.length });
-}
-function simplifyForLabel(text, maxLen = 20) {
-	return simplifyText$1(text, maxLen);
-}
-function conditionToQuestion(condText) {
-	const trimmed = condText.trim();
-	if (trimmed.startsWith("if") || trimmed.startsWith("if (") || trimmed.startsWith("if(")) {
-		const inner = trimmed.replace(/^if\s*\(?/, "").replace(/\)?$/, "").trim();
-		return `${inner}?`;
-	}
-	if (trimmed.startsWith("while") || trimmed.startsWith("for")) return t("flowchart.loopPrefix", { cond: trimmed });
-	return `${trimmed}?`;
-}
-var FlowchartAssembler = class {
-	cfgAssembler;
-	fcCounter = 0;
-	constructor(cfgAssembler) {
-		this.cfgAssembler = cfgAssembler ?? new CFGAssembler();
-	}
-	nextFcId() {
-		return `fc-node-${this.fcCounter++}`;
-	}
-	assemble(astRoot, filePath, functionName) {
-		this.fcCounter = 0;
-		const cfgResult = this.cfgAssembler.assemble(astRoot, filePath, functionName);
-		const cfgBlocks = cfgResult.nodes.map((n) => ({
-			id: n.id,
-			label: n.label,
-			blockType: n.properties.blockType,
-			isEntry: n.properties.isEntry,
-			isExit: n.properties.isExit,
-			depth: n.properties.depth,
-			statements: n.properties.statements
-		}));
-		const cfgEdges = cfgResult.edges.map((e) => ({
-			source: e.source,
-			target: e.target,
-			edgeType: e.properties.cfgEdgeType,
-			condition: e.properties.condition
-		}));
-		const fcNodes = [];
-		const fcEdges = [];
-		const blockToFc = new Map();
-		for (const block of cfgBlocks) {
-			const fcId = this.nextFcId();
-			blockToFc.set(block.id, fcId);
-			let nodeType = "process";
-			let label = block.label;
-			if (block.isEntry) {
-				nodeType = "start";
-				label = t("flowchart.start");
-			} else if (block.isExit) {
-				nodeType = block.label === "throw" ? "error" : "end";
-				label = block.label === "throw" ? t("flowchart.errorExit") : t("flowchart.end");
-			} else if (block.blockType === "condition") {
-				nodeType = "decision";
-				label = conditionToQuestion(block.label);
-			} else if (block.blockType === "loop") {
-				nodeType = "loop";
-				label = conditionToQuestion(block.label);
-			} else if (block.blockType === "switch") {
-				nodeType = "decision";
-				label = t("flowchart.switchPrefix", { expr: block.label });
-			} else if (block.blockType === "try") {
-				nodeType = "process";
-				label = t("flowchart.tryBlock");
-			} else if (block.blockType === "catch") {
-				nodeType = "error";
-				label = t("flowchart.catchBlock");
-			} else if (block.blockType === "finally") {
-				nodeType = "process";
-				label = t("flowchart.finallyBlock");
-			} else {
-				nodeType = "process";
-				label = inferSemanticLabel(block.statements, block.label);
-			}
-			fcNodes.push({
-				id: fcId,
-				label,
-				nodeType,
-				depth: block.depth
-			});
-		}
-		for (const edge of cfgEdges) {
-			const sourceFc = blockToFc.get(edge.source);
-			const targetFc = blockToFc.get(edge.target);
-			if (!sourceFc || !targetFc) continue;
-			let edgeLabel;
-			let flowchartEdgeType = "normal";
-			if (edge.edgeType === "true") {
-				edgeLabel = t("flowchart.edge.yes");
-				flowchartEdgeType = "yes";
-			} else if (edge.edgeType === "false") {
-				edgeLabel = t("flowchart.edge.no");
-				flowchartEdgeType = "no";
-			} else if (edge.edgeType === "loop-back") {
-				edgeLabel = t("flowchart.edge.loop");
-				flowchartEdgeType = "loop";
-			} else if (edge.edgeType === "exception") {
-				edgeLabel = t("flowchart.edge.error");
-				flowchartEdgeType = "error";
-			} else if (edge.edgeType === "case") edgeLabel = edge.condition;
-			else if (edge.edgeType === "default") edgeLabel = t("flowchart.edge.default");
-			else if (edge.edgeType === "break") edgeLabel = t("flowchart.edge.break");
-			else if (edge.edgeType === "continue") edgeLabel = t("flowchart.edge.continue");
-			fcEdges.push({
-				source: sourceFc,
-				target: targetFc,
-				...edgeLabel ? { label: edgeLabel } : {},
-				edgeType: flowchartEdgeType
-			});
-		}
-		return this.toAssembledDiagram(fcNodes, fcEdges, filePath, functionName);
-	}
-	toAssembledDiagram(fcNodes, fcEdges, filePath, functionName) {
-		const nodes = fcNodes.map((node) => ({
-			id: NodeId(node.id),
-			label: node.label,
-			type: "function",
-			filePath,
-			lineNumber: 0,
-			properties: {
-				flowchartNodeType: node.nodeType,
-				depth: node.depth,
-				...node.description ? { description: node.description } : {},
-				fcFunction: functionName
-			}
-		}));
-		const edges = fcEdges.map((edge, idx) => ({
-			id: EdgeId(`fc-edge-${idx}`),
-			source: NodeId(edge.source),
-			target: NodeId(edge.target),
-			type: "call",
-			properties: {
-				flowchartEdgeType: edge.edgeType,
-				...edge.label ? { label: edge.label } : {}
-			}
-		}));
-		const startIds = nodes.filter((n) => n.properties.flowchartNodeType === "start").map((n) => n.id);
-		return {
-			nodes,
-			edges,
-			metadata: {
-				rootIds: startIds,
-				maxDepth: Math.max(0, ...nodes.map((n) => n.properties.depth ?? 0)),
-				nodeCount: nodes.length,
-				edgeCount: edges.length
-			}
-		};
-	}
-};
-
-//#endregion
-//#region src/client/diagram/SequenceAssembler.ts
-const CALL_NODE_TYPES = new Set([
-	"call_expression",
-	"call",
-	"method_call",
-	"function_call",
-	"await_expression",
-	"macro_invocation"
-]);
-const DESTROY_METHODS = new Set([
-	"dispose",
-	"destroy",
-	"close",
-	"delete",
-	"remove",
-	"cleanup",
-	"finalize",
-	"free",
-	"release"
-]);
-function isNewExpression(node) {
-	return node.type === "new_expression" || node.type === "object_creation_expression" || node.type === "class_instance_creation_expression" || node.text.includes("new ");
-}
-function isDestroyMethod(methodName) {
-	return DESTROY_METHODS.has(methodName.toLowerCase());
-}
-function isCallExpression(node) {
-	return CALL_NODE_TYPES.has(node.type) || node.type.includes("call");
-}
-function extractMethodName(node) {
-	const children = node.children;
-	const funcNode = children.find((c) => c.type === "identifier" || c.type === "property_identifier" || c.type === "member_expression");
-	if (funcNode) {
-		if (funcNode.type === "member_expression") {
-			const prop = funcNode.children.find((c) => c.type === "property_identifier");
-			return prop ? prop.text : funcNode.text;
-		}
-		return funcNode.text;
-	}
-	return "<anonymous>";
-}
-function extractArguments(node) {
-	const argsNode = node.children.find((c) => c.type === "arguments" || c.type === "argument_list");
-	if (!argsNode) return [];
-	return argsNode.children.filter((c) => c.type !== "(" && c.type !== ")" && c.type !== ",").map((c) => c.text.trim().substring(0, 30));
-}
-function extractReceiver(callNode) {
-	const children = callNode.children;
-	const memberExpr = children.find((c) => c.type === "member_expression");
-	if (memberExpr) {
-		const objNode = memberExpr.children.find((c) => c.type === "identifier" || c.type === "this");
-		if (objNode) return {
-			receiverName: objNode.text,
-			isSelf: objNode.type === "this" || objNode.text === "self"
-		};
-	}
-	return {
-		receiverName: "",
-		isSelf: false
-	};
-}
-function inferParticipantType(receiverName, _methodName) {
-	if (!receiverName || receiverName === "this" || receiverName === "self") return "self";
-	if (receiverName === "fetch" || receiverName === "console" || receiverName === "window") return "external";
-	if (receiverName.charAt(0) === receiverName.charAt(0).toUpperCase()) return "class";
-	return "instance";
-}
-function getConditionText(node) {
-	const condNode = findConditionNode(node);
-	return condNode ? condNode.text.trim().substring(0, 40) : "";
-}
-function getBodyChildren(node) {
-	return getBodyChildren$2(node);
-}
-function getElseBody(node) {
-	return getElseBody$2(node);
-}
-function getCaseNodes(node) {
-	return node.children.filter((c) => c.type === "case_statement" || c.type === "case" || c.type === "default_statement" || c.type === "default");
-}
-function getCaseLabel(node) {
-	if (node.type === "default_statement" || node.type === "default") return "default";
-	const labelNode = node.children.find((c) => c.type === "identifier" || c.type === "number");
-	return labelNode ? labelNode.text : "case";
-}
-function getCaseBody(node) {
-	return node.children.filter((c) => c.type !== "identifier" && c.type !== "number" && c.type !== ":");
-}
-function getCatchNodes(node) {
-	return node.children.filter((c) => c.type === "catch_clause" || c.type === "catch");
-}
-function getFinallyNode(node) {
-	return node.children.find((c) => c.type === "finally_clause" || c.type === "finally") ?? null;
-}
-var SequenceAssembler = class {
-	seqCounter = 0;
-	callStack = [];
-	nextId(prefix) {
-		return `${prefix}-${this.seqCounter++}`;
-	}
-	assemble(astRoot, filePath, functionName) {
-		this.seqCounter = 0;
-		this.callStack = [];
-		const participants = new Map();
-		const messages = [];
-		const fragments = [];
-		let messageSeq = 0;
-		const entryParticipant = {
-			id: this.nextId("participant"),
-			name: functionName,
-			type: "self",
-			lifelineStart: 0,
-			lifelineEnd: 0,
-			isCreated: false,
-			isDestroyed: false
-		};
-		participants.set(functionName, entryParticipant);
-		const funcNode = findFunctionNode(astRoot, functionName);
-		if (!funcNode) return this.toAssembledDiagram({
-			participants: Array.from(participants.values()),
-			messages,
-			fragments: [],
-			entryFunctionName: functionName
-		}, filePath, functionName);
-		const targetChildren = getFunctionBody(funcNode);
-		this.processStatements(targetChildren, entryParticipant.id, participants, messages, fragments, (msg) => {
-			msg.sequenceNumber = messageSeq++;
-			messages.push(msg);
-		});
-		for (const participant of participants.values()) participant.lifelineEnd = messageSeq;
-		const sequenceData = {
-			participants: Array.from(participants.values()),
-			messages,
-			fragments,
-			entryFunctionName: functionName
-		};
-		return this.toAssembledDiagram(sequenceData, filePath, functionName);
-	}
-	processStatements(statements, selfId, participants, messages, fragments, addMessage) {
-		for (const stmt of statements) {
-			if (!stmt) continue;
-			if (isCallExpression(stmt)) this.processCall(stmt, selfId, participants, addMessage);
-			else if (isControlFlow$1(stmt)) this.processControlFlow(stmt, selfId, participants, messages, fragments, addMessage);
-			else {
-				const childCalls = [];
-				this.collectCalls(stmt, childCalls);
-				for (const call of childCalls) this.processCall(call, selfId, participants, addMessage);
-			}
-		}
-	}
-	collectCalls(node, result) {
-		if (!node) return;
-		const stack = [node];
-		while (stack.length > 0) {
-			const current = stack.pop();
-			if (isCallExpression(current)) {
-				result.push(current);
-				continue;
-			}
-			const children = current.children;
-			if (!children || !Array.isArray(children)) continue;
-			for (const child of children) stack.push(child);
-		}
-	}
-	processCall(node, selfId, participants, addMessage) {
-		const methodName = extractMethodName(node);
-		const args = extractArguments(node);
-		const { receiverName, isSelf } = extractReceiver(node);
-		const isCreate = isNewExpression(node);
-		let targetId;
-		if (isSelf && !isCreate) targetId = selfId;
-		else {
-			const participantName = receiverName || methodName;
-			if (!participants.has(participantName)) {
-				const participantType = isCreate ? "class" : inferParticipantType(receiverName, methodName);
-				participants.set(participantName, {
-					id: this.nextId("participant"),
-					name: participantName,
-					type: participantType,
-					...receiverName && receiverName.charAt(0) === receiverName.charAt(0).toUpperCase() ? { className: receiverName } : {},
-					lifelineStart: 0,
-					lifelineEnd: 0,
-					isCreated: isCreate,
-					isDestroyed: false
-				});
-			} else if (isCreate) {
-				const existing = participants.get(participantName);
-				existing.isCreated = true;
-			}
-			targetId = participants.get(participantName).id;
-		}
-		if (!isSelf && !isCreate && isDestroyMethod(methodName)) {
-			const participant = participants.get(receiverName || methodName);
-			if (participant) participant.isDestroyed = true;
-		}
-		if (!isSelf && !isCreate) this.callStack.push(targetId);
-		const msg = {
-			id: this.nextId("msg"),
-			sequenceNumber: 0,
-			source: selfId,
-			target: targetId,
-			methodName,
-			arguments: args,
-			isAsync: node.type === "await_expression" || node.type === "await",
-			isSelfCall: isSelf && !isCreate,
-			isReturn: false,
-			isCreate,
-			lineNumber: node.startPosition.row + 1
-		};
-		addMessage(msg);
-	}
-	processControlFlow(node, selfId, participants, messages, fragments, addMessage) {
-		const t$1 = node.type;
-		if (t$1 === "if_statement" || t$1 === "if" || t$1 === "if_expression") this.processIfFragment(node, selfId, participants, messages, fragments, addMessage);
-		else if (t$1 === "for_statement" || t$1 === "for" || t$1 === "for_expression" || t$1 === "for_in_statement" || t$1 === "while_statement" || t$1 === "while" || t$1 === "while_expression") this.processLoopFragment(node, selfId, participants, messages, fragments, addMessage);
-		else if (t$1 === "switch_statement" || t$1 === "switch" || t$1 === "match_expression") this.processSwitchFragment(node, selfId, participants, messages, fragments, addMessage);
-		else if (t$1 === "try_statement" || t$1 === "try") this.processTryFragment(node, selfId, participants, messages, fragments, addMessage);
-		else if (t$1 === "return_statement" || t$1 === "return") this.processReturnMessage(node, selfId, participants, addMessage);
-		else if (t$1 === "throw_statement" || t$1 === "throw" || t$1 === "raise_statement" || t$1 === "raise") this.processThrowFragment(node, selfId, participants, messages, fragments, addMessage);
-	}
-	processIfFragment(node, selfId, participants, messages, fragments, addMessage) {
-		const condText = getConditionText(node);
-		const elseBody = getElseBody(node);
-		const fragmentType = elseBody.length > 0 ? "alt" : "opt";
-		const startSeq = messages.length;
-		const trueBody = getBodyChildren(node);
-		this.processStatements(trueBody, selfId, participants, messages, fragments, addMessage);
-		const trueEnd = messages.length;
-		const operands = [{
-			guardCondition: condText,
-			startMessage: startSeq,
-			endMessage: trueEnd
-		}];
-		if (elseBody.length > 0) {
-			const elseStart = messages.length;
-			this.processStatements(elseBody, selfId, participants, messages, fragments, addMessage);
-			const elseEnd = messages.length;
-			operands.push({
-				guardCondition: "else",
-				startMessage: elseStart,
-				endMessage: elseEnd
-			});
-		}
-		const endSeq = messages.length;
-		fragments.push({
-			id: this.nextId("fragment"),
-			type: fragmentType,
-			condition: condText,
-			startMessage: startSeq,
-			endMessage: endSeq,
-			operands
-		});
-	}
-	processLoopFragment(node, selfId, participants, messages, fragments, addMessage) {
-		const condText = getConditionText(node);
-		const startSeq = messages.length;
-		const body = getBodyChildren(node);
-		this.processStatements(body, selfId, participants, messages, fragments, addMessage);
-		const endSeq = messages.length;
-		fragments.push({
-			id: this.nextId("fragment"),
-			type: "loop",
-			condition: condText,
-			loopConstraint: condText,
-			startMessage: startSeq,
-			endMessage: endSeq,
-			operands: [{
-				guardCondition: condText,
-				startMessage: startSeq,
-				endMessage: endSeq
-			}]
-		});
-	}
-	processSwitchFragment(node, selfId, participants, messages, fragments, addMessage) {
-		const condText = getConditionText(node);
-		const startSeq = messages.length;
-		const caseNodes = getCaseNodes(node);
-		const operands = [];
-		for (const caseNode of caseNodes) {
-			const label = getCaseLabel(caseNode);
-			const caseBody = getCaseBody(caseNode);
-			const caseStart = messages.length;
-			this.processStatements(caseBody, selfId, participants, messages, fragments, addMessage);
-			const caseEnd = messages.length;
-			operands.push({
-				guardCondition: label === "default" ? "default" : `case ${label}`,
-				startMessage: caseStart,
-				endMessage: caseEnd
-			});
-		}
-		const endSeq = messages.length;
-		fragments.push({
-			id: this.nextId("fragment"),
-			type: "alt",
-			condition: condText,
-			startMessage: startSeq,
-			endMessage: endSeq,
-			operands
-		});
-	}
-	processTryFragment(node, selfId, participants, messages, fragments, addMessage) {
-		const startSeq = messages.length;
-		const tryBody = node.children.find((c) => c.type === "block" || c.type === "statement_block");
-		const tryStmts = tryBody ? tryBody.children : [];
-		this.processStatements(tryStmts, selfId, participants, messages, fragments, addMessage);
-		const tryEnd = messages.length;
-		fragments.push({
-			id: this.nextId("fragment"),
-			type: "critical",
-			condition: "try",
-			startMessage: startSeq,
-			endMessage: tryEnd,
-			operands: [{
-				startMessage: startSeq,
-				endMessage: tryEnd
-			}]
-		});
-		const catchNodes = getCatchNodes(node);
-		for (const catchNode of catchNodes) {
-			const catchStart = messages.length;
-			const catchBody = catchNode.children.find((c) => c.type === "block" || c.type === "statement_block");
-			const catchStmts = catchBody ? catchBody.children : [];
-			this.processStatements(catchStmts, selfId, participants, messages, fragments, addMessage);
-			const catchEnd = messages.length;
-			fragments.push({
-				id: this.nextId("fragment"),
-				type: "break",
-				condition: "catch",
-				startMessage: catchStart,
-				endMessage: catchEnd,
-				operands: [{
-					guardCondition: "exception",
-					startMessage: catchStart,
-					endMessage: catchEnd
-				}]
-			});
-		}
-		const finallyNode = getFinallyNode(node);
-		if (finallyNode) {
-			const finallyStart = messages.length;
-			const finallyBody = finallyNode.children.find((c) => c.type === "block" || c.type === "statement_block");
-			const finallyStmts = finallyBody ? finallyBody.children : [];
-			this.processStatements(finallyStmts, selfId, participants, messages, fragments, addMessage);
-			const finallyEnd = messages.length;
-			fragments.push({
-				id: this.nextId("fragment"),
-				type: "critical",
-				condition: "finally",
-				startMessage: finallyStart,
-				endMessage: finallyEnd,
-				operands: [{
-					startMessage: finallyStart,
-					endMessage: finallyEnd
-				}]
-			});
-		}
-	}
-	processReturnMessage(node, selfId, participants, addMessage) {
-		const returnText = node.text.trim().substring(0, 30);
-		const lastCalledId = this.callStack.length > 0 ? this.callStack[this.callStack.length - 1] : selfId;
-		if (this.callStack.length > 0) this.callStack.pop();
-		const msg = {
-			id: this.nextId("msg"),
-			sequenceNumber: 0,
-			source: lastCalledId,
-			target: selfId,
-			methodName: "return",
-			arguments: [returnText],
-			isAsync: false,
-			isSelfCall: lastCalledId === selfId,
-			isReturn: true,
-			isCreate: false,
-			lineNumber: node.startPosition.row + 1
-		};
-		addMessage(msg);
-	}
-	processThrowFragment(node, selfId, participants, messages, fragments, addMessage) {
-		const startSeq = messages.length;
-		const msg = {
-			id: this.nextId("msg"),
-			sequenceNumber: 0,
-			source: selfId,
-			target: selfId,
-			methodName: "throw",
-			arguments: [node.text.trim().substring(0, 30)],
-			isAsync: false,
-			isSelfCall: true,
-			isReturn: true,
-			isCreate: false,
-			lineNumber: node.startPosition.row + 1
-		};
-		addMessage(msg);
-		const endSeq = messages.length;
-		fragments.push({
-			id: this.nextId("fragment"),
-			type: "break",
-			condition: "throw",
-			startMessage: startSeq,
-			endMessage: endSeq,
-			operands: [{
-				guardCondition: "exception",
-				startMessage: startSeq,
-				endMessage: endSeq
-			}]
-		});
-	}
-	toAssembledDiagram(sequenceData, filePath, functionName) {
-		const nodes = sequenceData.participants.map((p$1) => ({
-			id: NodeId(p$1.id),
-			label: p$1.name,
-			type: p$1.type === "class" ? "class" : p$1.type === "module" ? "module" : "function",
-			filePath,
-			lineNumber: 0,
-			properties: {
-				participantType: p$1.type,
-				...p$1.className ? { className: p$1.className } : {},
-				lifelineStart: p$1.lifelineStart,
-				lifelineEnd: p$1.lifelineEnd,
-				isCreated: p$1.isCreated,
-				isDestroyed: p$1.isDestroyed,
-				seqFunction: functionName
-			}
-		}));
-		const edges = sequenceData.messages.map((msg, idx) => ({
-			id: EdgeId(`seq-edge-${idx}`),
-			source: NodeId(msg.source),
-			target: NodeId(msg.target),
-			type: "call",
-			properties: {
-				sequenceNumber: msg.sequenceNumber,
-				methodName: msg.methodName,
-				arguments: msg.arguments,
-				isAsync: msg.isAsync,
-				isSelfCall: msg.isSelfCall,
-				isReturn: msg.isReturn,
-				isCreate: msg.isCreate,
-				...msg.fragmentId ? { fragmentId: msg.fragmentId } : {},
-				lineNumber: msg.lineNumber
-			}
-		}));
-		for (const fragment of sequenceData.fragments) {
-			const fragmentNode = {
-				id: NodeId(fragment.id),
-				label: `${fragment.type}${fragment.condition ? ` [${fragment.condition}]` : ""}`,
-				type: "type",
-				filePath,
-				lineNumber: 0,
-				properties: {
-					fragmentType: fragment.type,
-					...fragment.condition ? { condition: fragment.condition } : {},
-					...fragment.loopConstraint ? { loopConstraint: fragment.loopConstraint } : {},
-					startMessage: fragment.startMessage,
-					endMessage: fragment.endMessage,
-					...fragment.parentId ? { parentId: fragment.parentId } : {},
-					operands: fragment.operands,
-					seqFunction: functionName,
-					isFragment: true
-				}
-			};
-			nodes.push(fragmentNode);
-		}
-		return {
-			nodes,
-			edges,
-			metadata: {
-				rootIds: sequenceData.participants.length > 0 ? [sequenceData.participants[0].id] : [],
-				maxDepth: sequenceData.fragments.length > 0 ? Math.max(...sequenceData.fragments.map((f) => f.operands.length)) : 0,
-				nodeCount: nodes.length,
-				edgeCount: edges.length
-			}
-		};
-	}
-};
-
-//#endregion
-//#region src/client/diagram/CallChainAggregator.ts
-const MAX_FUNCTIONS = 20;
-var CallChainAggregator = class {
-	cfgAssembler = new CFGAssembler();
-	async aggregate(entryNodeId, nodes, edges, astFetcher, options = {
-		depth: 2,
-		maxFunctions: MAX_FUNCTIONS
-	}) {
-		const entryNode = nodes.find((n) => n.id === entryNodeId);
-		if (!entryNode || entryNode.type !== "function") return null;
-		const callEdges = edges.filter((e) => e.type === "call");
-		const outEdges = new Map();
-		for (const e of callEdges) {
-			if (e.source === e.target) continue;
-			const list = outEdges.get(e.source) ?? [];
-			list.push(e.target);
-			outEdges.set(e.source, list);
-		}
-		const visited = new Set([entryNodeId]);
-		const queue = [{
-			id: entryNodeId,
-			depth: 0
-		}];
-		const includedFunctions = [entryNodeId];
-		const callChainEdges = [];
-		let head = 0;
-		while (head < queue.length) {
-			const { id, depth } = queue[head++];
-			if (depth >= options.depth) continue;
-			if (includedFunctions.length >= options.maxFunctions) break;
-			const neighbors = outEdges.get(id) ?? [];
-			for (const target of neighbors) {
-				if (visited.has(target)) continue;
-				visited.add(target);
-				includedFunctions.push(target);
-				callChainEdges.push({
-					source: id,
-					target
-				});
-				queue.push({
-					id: target,
-					depth: depth + 1
-				});
-			}
-		}
-		const allNodes = [];
-		const allEdges = [];
-		const functionNodeMap = new Map();
-		const functionIndexMap = new Map();
-		for (let i$1 = 0; i$1 < includedFunctions.length; i$1++) {
-			functionIndexMap.set(includedFunctions[i$1], i$1);
-			const fnNode = nodes.find((n) => n.id === includedFunctions[i$1]);
-			if (fnNode) functionNodeMap.set(includedFunctions[i$1], fnNode);
-		}
-		const astCache = new Map();
-		let functionCount = 0;
-		for (const fnId of includedFunctions) {
-			const fnNode = functionNodeMap.get(fnId);
-			if (!fnNode) continue;
-			let astRoot = astCache.get(fnNode.filePath);
-			if (astRoot === void 0) {
-				astRoot = await astFetcher(fnNode.filePath);
-				astCache.set(fnNode.filePath, astRoot);
-			}
-			if (!astRoot) continue;
-			const fnDiagram = this.cfgAssembler.assemble(astRoot, fnNode.filePath, fnNode.label);
-			const prefix = `fn${functionCount}__`;
-			const blockIdMap = new Map();
-			for (const blockNode of fnDiagram.nodes) {
-				const newId = prefix + blockNode.id;
-				blockIdMap.set(blockNode.id, newId);
-				allNodes.push({
-					...blockNode,
-					id: NodeId(newId),
-					properties: {
-						...blockNode.properties,
-						callChainFunction: fnNode.label,
-						callChainFunctionId: fnId,
-						callChainDepth: functionIndexMap.get(fnId) ?? 0
-					}
-				});
-			}
-			for (const edge of fnDiagram.edges) {
-				const newSource = blockIdMap.get(edge.source);
-				const newTarget = blockIdMap.get(edge.target);
-				if (newSource && newTarget) allEdges.push({
-					...edge,
-					id: EdgeId(prefix + edge.id),
-					source: NodeId(newSource),
-					target: NodeId(newTarget)
-				});
-			}
-			functionCount++;
-		}
-		const nodesByPrefix = new Map();
-		for (const n of allNodes) {
-			const prefixKey = n.id.split("__")[0];
-			const list = nodesByPrefix.get(prefixKey) ?? [];
-			list.push(n);
-			nodesByPrefix.set(prefixKey, list);
-		}
-		for (const { source, target } of callChainEdges) {
-			const sourceFn = functionNodeMap.get(source);
-			const targetFn = functionNodeMap.get(target);
-			if (!sourceFn || !targetFn) continue;
-			const sourceIdx = functionIndexMap.get(source) ?? 0;
-			const targetIdx = functionIndexMap.get(target) ?? 0;
-			const sourcePrefix = `fn${sourceIdx}`;
-			const targetPrefix = `fn${targetIdx}`;
-			const sourceFnNodes = nodesByPrefix.get(sourcePrefix) ?? [];
-			const targetFnNodes = nodesByPrefix.get(targetPrefix) ?? [];
-			const sourceExitNodes = sourceFnNodes.filter((n) => n.properties?.isExit === true);
-			const targetEntryNodes = targetFnNodes.filter((n) => n.properties?.isEntry === true);
-			if (sourceExitNodes.length > 0 && targetEntryNodes.length > 0) {
-				const sourceExit = sourceExitNodes[0];
-				const targetEntry = targetEntryNodes[0];
-				allEdges.push({
-					id: EdgeId(`callchain__${source}__${target}`),
-					source: NodeId(sourceExit.id),
-					target: NodeId(targetEntry.id),
-					type: "call",
-					properties: {
-						callChainEdge: true,
-						sourceFunction: sourceFn.label,
-						targetFunction: targetFn.label
-					}
-				});
-			}
-		}
-		if (allNodes.length === 0) return null;
-		const chainDepth = includedFunctions.length > 0 ? includedFunctions.length - 1 : 0;
-		return {
-			diagram: {
-				nodes: allNodes,
-				edges: allEdges,
-				metadata: {
-					rootIds: [`fn0__cfg-block-0`],
-					maxDepth: chainDepth,
-					nodeCount: allNodes.length,
-					edgeCount: allEdges.length
-				}
-			},
-			functionCount,
-			chainDepth,
-			includedFunctions
-		};
-	}
-};
-
-//#endregion
 //#region src/shared/Logger.ts
 const LEVEL_ORDER = {
 	debug: 0,
@@ -4362,7 +1339,6 @@ const LEVEL_ORDER = {
 	warn: 2,
 	error: 3
 };
-const RING_SIZE = 200;
 var LoggerImpl = class {
 	buffer = [];
 	listeners = new Set();
@@ -4377,7 +1353,7 @@ var LoggerImpl = class {
 			data: data$2
 		};
 		this.buffer.push(entry);
-		if (this.buffer.length > RING_SIZE) this.buffer.splice(0, this.buffer.length - RING_SIZE);
+		if (this.buffer.length > LOGGER.RING_SIZE) this.buffer.splice(0, this.buffer.length - LOGGER.RING_SIZE);
 		this.emit();
 		const fn$7 = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
 		try {
@@ -4435,247 +1411,31 @@ function resetLoggerListeners() {
 }
 
 //#endregion
-//#region src/client/diagram/index.ts
-const log$16 = scoped("diagram");
-const macroAssemblerRegistry = new Map([
-	["inheritance", new InheritanceAssembler()],
-	["callgraph", new CallGraphAssembler()],
-	["package", new PackageAssembler()],
-	["class", new ClassAssembler()],
-	["dependencies", new DependencyAssembler()]
-]);
-const microAssemblerRegistry = new Map([
-	["cfg", new CFGAssembler()],
-	["flowchart", new FlowchartAssembler()],
-	["sequence", new SequenceAssembler()]
-]);
-const LAYER_DEFINITIONS = {
-	inheritance: [
-		{
-			level: 0,
-			name: "layer.inheritance.0",
-			nodeFilter: (n) => n.properties?.depth <= 1
-		},
-		{
-			level: 1,
-			name: "layer.inheritance.1",
-			nodeFilter: (n) => n.properties?.depth <= 3
-		},
-		{
-			level: 2,
-			name: "layer.inheritance.2",
-			nodeFilter: () => true
-		}
-	],
-	callgraph: [
-		{
-			level: 0,
-			name: "layer.callgraph.0",
-			nodeFilter: (n) => n.properties?.isEntry === true || n.properties?.depth <= 1
-		},
-		{
-			level: 1,
-			name: "layer.callgraph.1",
-			nodeFilter: (n) => n.properties?.depth <= 3
-		},
-		{
-			level: 2,
-			name: "layer.callgraph.2",
-			nodeFilter: () => true
-		}
-	],
-	package: [
-		{
-			level: 0,
-			name: "layer.package.0",
-			nodeFilter: (n) => n.properties?.depth <= 1
-		},
-		{
-			level: 1,
-			name: "layer.package.1",
-			nodeFilter: (n) => n.properties?.depth <= 3
-		},
-		{
-			level: 2,
-			name: "layer.package.2",
-			nodeFilter: () => true
-		}
-	],
-	class: [
-		{
-			level: 0,
-			name: "layer.class.0",
-			nodeFilter: (n) => n.properties?.depth <= 1
-		},
-		{
-			level: 1,
-			name: "layer.class.1",
-			nodeFilter: (n) => n.properties?.depth <= 3
-		},
-		{
-			level: 2,
-			name: "layer.class.2",
-			nodeFilter: () => true
-		}
-	],
-	code: [
-		{
-			level: 0,
-			name: "layer.code.0",
-			nodeFilter: () => true
-		},
-		{
-			level: 1,
-			name: "layer.code.1",
-			nodeFilter: () => true
-		},
-		{
-			level: 2,
-			name: "layer.code.2",
-			nodeFilter: () => true
-		}
-	],
-	dependencies: [
-		{
-			level: 0,
-			name: "layer.dependencies.0",
-			nodeFilter: (n) => n.properties?.depth <= 1
-		},
-		{
-			level: 1,
-			name: "layer.dependencies.1",
-			nodeFilter: (n) => n.properties?.depth <= 3
-		},
-		{
-			level: 2,
-			name: "layer.dependencies.2",
-			nodeFilter: () => true
-		}
-	]
-};
-function sliceByLayer(allNodes, allEdges, layerDef) {
-	const filteredNodes = allNodes.filter((n) => layerDef.nodeFilter(n, allNodes, allEdges));
-	const nodeIds = new Set(filteredNodes.map((n) => n.id));
-	const filteredEdges = allEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
-	return {
-		level: layerDef.level,
-		name: layerDef.name,
-		nodes: filteredNodes,
-		edges: filteredEdges,
-		nodeIds,
-		edgeIds: new Set(filteredEdges.map((e) => e.id))
-	};
-}
-function buildLayeredDiagram(viewMode, assembled) {
-	const layerDefs = LAYER_DEFINITIONS[viewMode];
-	if (!layerDefs) return {
-		viewMode,
-		layers: [{
-			level: 0,
-			name: "graphType.all",
-			nodes: assembled.nodes,
-			edges: assembled.edges,
-			nodeIds: new Set(assembled.nodes.map((n) => n.id)),
-			edgeIds: new Set(assembled.edges.map((e) => e.id))
-		}],
-		currentLayer: 0,
-		expandedNodes: new Set(),
-		allNodes: assembled.nodes,
-		allEdges: assembled.edges,
-		metadata: assembled.metadata
-	};
-	const layers = layerDefs.map((def) => sliceByLayer(assembled.nodes, assembled.edges, def));
-	return {
-		viewMode,
-		layers,
-		currentLayer: 0,
-		expandedNodes: new Set(),
-		allNodes: assembled.nodes,
-		allEdges: assembled.edges,
-		metadata: assembled.metadata
-	};
-}
-function assembleDiagram(viewMode, nodes, edges) {
-	const assembler = macroAssemblerRegistry.get(viewMode);
-	if (!assembler) return null;
-	const result = assembler.assemble(nodes, edges);
-	if (result) {
-		const taggedNodes = result.nodes.map((n) => ({
-			...n,
-			properties: {
-				...n.properties,
-				diagramType: viewMode
-			}
-		}));
-		const taggedEdges = result.edges.map((e) => ({
-			...e,
-			properties: {
-				...e.properties,
-				diagramType: viewMode
-			}
-		}));
-		return buildLayeredDiagram(viewMode, {
-			nodes: taggedNodes,
-			edges: taggedEdges,
-			metadata: result.metadata
-		});
-	}
-	return null;
-}
-async function assembleMicroDiagram(viewMode, filePath, functionName) {
-	if (!filePath) throw new Error("filePath is empty — cannot fetch AST");
-	if (!functionName) throw new Error("functionName is empty — cannot locate function in AST");
-	let response;
-	try {
-		response = await fetch("/api/v1/codegraph/ast", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ filePath })
-		});
-	} catch (e) {
-		log$16.warn("AST fetch failed", e);
-		throw new Error(`Network error: unable to reach AST endpoint`);
-	}
-	if (!response.ok) {
-		const status = response.status;
-		if (status === 400) throw new Error(`Bad request: filePath "${filePath}" is invalid or workspace not configured`);
-		if (status === 403) throw new Error(`Access denied: filePath "${filePath}" is outside workspace`);
-		if (status === 413) throw new Error(`File too large for AST parsing: ${filePath}`);
-		if (status === 500) {
-			const errorBody = await response.text();
-			let serverMsg = "";
-			try {
-				const parsed = JSON.parse(errorBody);
-				serverMsg = parsed.error || "";
-			} catch (e) {
-				log$16.warn("AST error body parse failed", e);
-				serverMsg = errorBody;
-			}
-			throw new Error(serverMsg || `AST parsing failed for "${filePath}"`);
-		}
-		throw new Error(`AST request failed (HTTP ${status})`);
-	}
-	const astRoot = await response.json();
-	if (!astRoot || !astRoot.children || astRoot.children.length === 0) throw new Error(`AST is empty for "${filePath}" — parsing produced no nodes`);
-	const assembler = microAssemblerRegistry.get(viewMode);
-	if (!assembler) throw new Error(`Unsupported view mode: ${viewMode}`);
-	return assembler.assemble(astRoot, filePath, functionName);
-}
-
-//#endregion
 //#region src/client/cache/IndexedDBCache.ts
-const log$15 = scoped("indexeddb-cache");
+const log$20 = scoped("indexeddb-cache");
 const DB_PREFIX = "codegraph-cache-";
-const DB_VERSION = 2;
 const CLUSTER_STORE = "cluster-cache";
 const DIAGRAM_STORE = "diagram-cache";
 const OUTLINE_STORE = "outline-cache";
 const AST_STORE = "ast-cache";
 const EDGES_STORE = "edges-cache";
+const ALL_STORES = [
+	CLUSTER_STORE,
+	DIAGRAM_STORE,
+	OUTLINE_STORE,
+	AST_STORE,
+	EDGES_STORE
+];
+function isCacheEntry(obj) {
+	return typeof obj === "object" && obj !== null && "value" in obj && "timestamp" in obj && "ttlMs" in obj && typeof obj.timestamp === "number" && typeof obj.ttlMs === "number";
+}
+function isExpired(entry) {
+	return Date.now() - entry.timestamp > entry.ttlMs;
+}
 function openDB(repoId) {
 	return new Promise((resolve, reject) => {
 		const dbName = `${DB_PREFIX}${repoId}`;
-		const request = indexedDB.open(dbName, DB_VERSION);
+		const request = indexedDB.open(dbName, INDEXED_DB.DB_VERSION);
 		request.onupgradeneeded = () => {
 			const db = request.result;
 			if (!db.objectStoreNames.contains(CLUSTER_STORE)) db.createObjectStore(CLUSTER_STORE);
@@ -4688,6 +1448,13 @@ function openDB(repoId) {
 		request.onerror = () => reject(request.error);
 	});
 }
+const TTL_BY_STORE = {
+	[CLUSTER_STORE]: INDEXED_DB.TTL.CLUSTER_MS,
+	[DIAGRAM_STORE]: INDEXED_DB.TTL.DIAGRAM_MS,
+	[OUTLINE_STORE]: INDEXED_DB.TTL.OUTLINE_MS,
+	[AST_STORE]: INDEXED_DB.TTL.AST_MS,
+	[EDGES_STORE]: INDEXED_DB.TTL.EDGES_MS
+};
 var IndexedDBCache = class {
 	dbPromise = null;
 	repoId;
@@ -4696,7 +1463,7 @@ var IndexedDBCache = class {
 	}
 	getDB() {
 		if (!this.dbPromise) this.dbPromise = openDB(this.repoId).catch((err) => {
-			log$15.warn("failed to open IndexedDB", {
+			log$20.warn("failed to open IndexedDB", {
 				repoId: this.repoId,
 				error: err
 			});
@@ -4706,70 +1473,16 @@ var IndexedDBCache = class {
 		return this.dbPromise;
 	}
 	async getCluster(key) {
-		try {
-			const db = await this.getDB();
-			return await new Promise((resolve, reject) => {
-				const tx = db.transaction(CLUSTER_STORE, "readonly");
-				const req = tx.objectStore(CLUSTER_STORE).get(key);
-				req.onsuccess = () => resolve(req.result ?? null);
-				req.onerror = () => reject(req.error);
-			});
-		} catch (e) {
-			log$15.warn("IndexedDB getCluster failed", {
-				key,
-				error: e
-			});
-			return null;
-		}
+		return this.getFromStore(CLUSTER_STORE, key);
 	}
 	async setCluster(key, value) {
-		try {
-			const db = await this.getDB();
-			await new Promise((resolve, reject) => {
-				const tx = db.transaction(CLUSTER_STORE, "readwrite");
-				tx.objectStore(CLUSTER_STORE).put(value, key);
-				tx.oncomplete = () => resolve();
-				tx.onerror = () => reject(tx.error);
-			});
-		} catch (e) {
-			log$15.warn("IndexedDB setCluster failed", {
-				key,
-				error: e
-			});
-		}
+		return this.setToStore(CLUSTER_STORE, key, value);
 	}
 	async getDiagram(key) {
-		try {
-			const db = await this.getDB();
-			return await new Promise((resolve, reject) => {
-				const tx = db.transaction(DIAGRAM_STORE, "readonly");
-				const req = tx.objectStore(DIAGRAM_STORE).get(key);
-				req.onsuccess = () => resolve(req.result ?? null);
-				req.onerror = () => reject(req.error);
-			});
-		} catch (e) {
-			log$15.warn("IndexedDB getDiagram failed", {
-				key,
-				error: e
-			});
-			return null;
-		}
+		return this.getFromStore(DIAGRAM_STORE, key);
 	}
 	async setDiagram(key, value) {
-		try {
-			const db = await this.getDB();
-			await new Promise((resolve, reject) => {
-				const tx = db.transaction(DIAGRAM_STORE, "readwrite");
-				tx.objectStore(DIAGRAM_STORE).put(value, key);
-				tx.oncomplete = () => resolve();
-				tx.onerror = () => reject(tx.error);
-			});
-		} catch (e) {
-			log$15.warn("IndexedDB setDiagram failed", {
-				key,
-				error: e
-			});
-		}
+		return this.setToStore(DIAGRAM_STORE, key, value);
 	}
 	async invalidateCluster() {
 		try {
@@ -4781,7 +1494,7 @@ var IndexedDBCache = class {
 				tx.onerror = () => reject(tx.error);
 			});
 		} catch (e) {
-			log$15.warn("IndexedDB invalidateCluster failed", { error: e });
+			log$20.warn("IndexedDB invalidateCluster failed", { error: e });
 		}
 	}
 	async invalidateDiagram(viewMode) {
@@ -4808,7 +1521,7 @@ var IndexedDBCache = class {
 				tx.onerror = () => reject(tx.error);
 			});
 		} catch (e) {
-			log$15.warn("IndexedDB invalidateDiagram failed", {
+			log$20.warn("IndexedDB invalidateDiagram failed", {
 				viewMode,
 				error: e
 			});
@@ -4832,17 +1545,119 @@ var IndexedDBCache = class {
 	async setEdges(key, value) {
 		return this.setToStore(EDGES_STORE, key, value);
 	}
+	async setMany(storeName, entries) {
+		if (entries.length === 0) return;
+		if (entries.length > INDEXED_DB.BATCH.MAX_ENTRIES) {
+			log$20.warn("setMany batch exceeds limit, splitting", {
+				count: entries.length,
+				limit: INDEXED_DB.BATCH.MAX_ENTRIES
+			});
+			for (let i$1 = 0; i$1 < entries.length; i$1 += INDEXED_DB.BATCH.MAX_ENTRIES) await this.setMany(storeName, entries.slice(i$1, i$1 + INDEXED_DB.BATCH.MAX_ENTRIES));
+			return;
+		}
+		const ttlMs = TTL_BY_STORE[storeName] ?? INDEXED_DB.TTL.CLUSTER_MS;
+		try {
+			const db = await this.getDB();
+			await new Promise((resolve, reject) => {
+				const tx = db.transaction(storeName, "readwrite");
+				const store = tx.objectStore(storeName);
+				const now$1 = Date.now();
+				for (const { key, value } of entries) {
+					const entry = {
+						value,
+						timestamp: now$1,
+						ttlMs
+					};
+					store.put(entry, key);
+				}
+				tx.oncomplete = () => resolve();
+				tx.onerror = () => reject(tx.error);
+			});
+		} catch (e) {
+			log$20.warn(`IndexedDB setMany(${storeName}) failed`, {
+				count: entries.length,
+				error: e
+			});
+		}
+	}
+	async getStorageEstimate() {
+		if (typeof navigator === "undefined" || !navigator.storage?.estimate) return null;
+		try {
+			const { usage = 0, quota = 0 } = await navigator.storage.estimate();
+			return {
+				usage,
+				quota,
+				usageRatio: quota > 0 ? usage / quota : 0
+			};
+		} catch (e) {
+			log$20.warn("storage.estimate() failed", { error: e });
+			return null;
+		}
+	}
+	async isCapacityHigh() {
+		const estimate = await this.getStorageEstimate();
+		if (!estimate) return false;
+		return estimate.usageRatio >= INDEXED_DB.CAPACITY.HIGH_WATERMARK;
+	}
+	async purgeExpired() {
+		let totalPurged = 0;
+		for (const storeName of ALL_STORES) totalPurged += await this.purgeExpiredStore(storeName);
+		if (totalPurged > 0) log$20.info("purged expired entries", { count: totalPurged });
+		return totalPurged;
+	}
+	async purgeExpiredStore(storeName) {
+		try {
+			const db = await this.getDB();
+			const allEntries = await new Promise((resolve, reject) => {
+				const tx = db.transaction(storeName, "readonly");
+				const store = tx.objectStore(storeName);
+				const cursorReq = store.openCursor();
+				const results = [];
+				cursorReq.onsuccess = () => {
+					const cursor = cursorReq.result;
+					if (cursor) {
+						results.push([cursor.key, cursor.value]);
+						cursor.continue();
+					} else resolve(results);
+				};
+				cursorReq.onerror = () => reject(cursorReq.error);
+			});
+			const expiredKeys = [];
+			for (const [key, value] of allEntries) if (isCacheEntry(value) && isExpired(value)) expiredKeys.push(key);
+			if (expiredKeys.length === 0) return 0;
+			await new Promise((resolve, reject) => {
+				const tx = db.transaction(storeName, "readwrite");
+				const store = tx.objectStore(storeName);
+				for (const key of expiredKeys) store.delete(key);
+				tx.oncomplete = () => resolve();
+				tx.onerror = () => reject(tx.error);
+			});
+			return expiredKeys.length;
+		} catch (e) {
+			log$20.warn(`purgeExpiredStore(${storeName}) failed`, { error: e });
+			return 0;
+		}
+	}
 	async getFromStore(storeName, key) {
 		try {
 			const db = await this.getDB();
-			return await new Promise((resolve, reject) => {
+			const raw = await new Promise((resolve, reject) => {
 				const tx = db.transaction(storeName, "readonly");
 				const req = tx.objectStore(storeName).get(key);
 				req.onsuccess = () => resolve(req.result ?? null);
 				req.onerror = () => reject(req.error);
 			});
+			if (raw === null) return null;
+			if (isCacheEntry(raw)) {
+				if (isExpired(raw)) {
+					this.deleteFromStore(storeName, key).catch(() => {});
+					return null;
+				}
+				return raw.value;
+			}
+			return raw;
 		} catch (e) {
-			log$15.warn(`IndexedDB getFromStore(${storeName}) failed`, {
+			log$20.warn(`IndexedDB getFromStore(${storeName}) failed`, {
 				key,
 				error: e
 			});
@@ -4850,16 +1665,38 @@ var IndexedDBCache = class {
 		}
 	}
 	async setToStore(storeName, key, value) {
+		const ttlMs = TTL_BY_STORE[storeName] ?? INDEXED_DB.TTL.CLUSTER_MS;
 		try {
 			const db = await this.getDB();
 			await new Promise((resolve, reject) => {
 				const tx = db.transaction(storeName, "readwrite");
-				tx.objectStore(storeName).put(value, key);
+				const entry = {
+					value,
+					timestamp: Date.now(),
+					ttlMs
+				};
+				tx.objectStore(storeName).put(entry, key);
 				tx.oncomplete = () => resolve();
 				tx.onerror = () => reject(tx.error);
 			});
 		} catch (e) {
-			log$15.warn(`IndexedDB setToStore(${storeName}) failed`, {
+			log$20.warn(`IndexedDB setToStore(${storeName}) failed`, {
+				key,
+				error: e
+			});
+		}
+	}
+	async deleteFromStore(storeName, key) {
+		try {
+			const db = await this.getDB();
+			await new Promise((resolve, reject) => {
+				const tx = db.transaction(storeName, "readwrite");
+				tx.objectStore(storeName).delete(key);
+				tx.oncomplete = () => resolve();
+				tx.onerror = () => reject(tx.error);
+			});
+		} catch (e) {
+			log$20.warn(`IndexedDB deleteFromStore(${storeName}) failed`, {
 				key,
 				error: e
 			});
@@ -4875,7 +1712,7 @@ var IndexedDBCache = class {
 
 //#endregion
 //#region src/client/cache/DiagramCache.ts
-const log$14 = scoped("cache");
+const log$19 = scoped("cache");
 function computeDataHash(nodes, edges) {
 	let nodeHash = 2166136261;
 	for (const n of nodes) {
@@ -4967,7 +1804,7 @@ var DiagramCache = class {
 				return diagram;
 			}
 		} catch (e) {
-			log$14.warn("IndexedDB diagram getAsync failed", e);
+			log$19.warn("IndexedDB diagram getAsync failed", e);
 		}
 		return null;
 	}
@@ -4979,13 +1816,13 @@ var DiagramCache = class {
 			if (firstKey) this.cache.delete(firstKey);
 		}
 		this.cache.set(key, diagram);
-		if (this.idbCache) this.idbCache.setDiagram(key, diagram).catch((e) => log$14.warn("IndexedDB diagram set failed", e));
+		if (this.idbCache) this.idbCache.setDiagram(key, diagram).catch((e) => log$19.warn("IndexedDB diagram set failed", e));
 	}
 	invalidate(viewMode) {
 		if (viewMode) {
 			for (const key of this.cache.keys()) if (key.startsWith(`${viewMode}:`)) this.cache.delete(key);
 		} else this.cache.clear();
-		if (this.idbCache) this.idbCache.invalidateDiagram(viewMode).catch((e) => log$14.warn("IndexedDB diagram invalidate failed", e));
+		if (this.idbCache) this.idbCache.invalidateDiagram(viewMode).catch((e) => log$19.warn("IndexedDB diagram invalidate failed", e));
 	}
 	size() {
 		return this.cache.size;
@@ -5030,7 +1867,7 @@ var ClusterCache = class {
 				return result;
 			}
 		} catch (e) {
-			log$14.warn("IndexedDB cluster getAsync failed", e);
+			log$19.warn("IndexedDB cluster getAsync failed", e);
 		}
 		return null;
 	}
@@ -5042,11 +1879,11 @@ var ClusterCache = class {
 			if (firstKey) this.cache.delete(firstKey);
 		}
 		this.cache.set(key, result);
-		if (this.idbCache) this.idbCache.setCluster(key, result).catch((e) => log$14.warn("IndexedDB cluster set failed", e));
+		if (this.idbCache) this.idbCache.setCluster(key, result).catch((e) => log$19.warn("IndexedDB cluster set failed", e));
 	}
 	invalidate() {
 		this.cache.clear();
-		if (this.idbCache) this.idbCache.invalidateCluster().catch((e) => log$14.warn("IndexedDB cluster invalidate failed", e));
+		if (this.idbCache) this.idbCache.invalidateCluster().catch((e) => log$19.warn("IndexedDB cluster invalidate failed", e));
 	}
 	size() {
 		return this.cache.size;
@@ -6982,6 +3819,4162 @@ function getAvailablePanels(layer) {
 }
 
 //#endregion
+//#region src/shared/CFGTypes.ts
+const FUNCTION_NODE_TYPES = new Set([
+	"function_declaration",
+	"function_definition",
+	"method_declaration",
+	"method_definition",
+	"arrow_function",
+	"function_item",
+	"constructor_declaration",
+	"destructor_declaration",
+	"function_expression",
+	"generator_function_declaration",
+	"generator_function",
+	"async_function_declaration",
+	"async_function_expression",
+	"async_arrow_function",
+	"function_signature",
+	"method_signature"
+]);
+const BODY_NODE_TYPES = new Set([
+	"block",
+	"statement_block",
+	"body",
+	"compound_statement",
+	"function_body",
+	"method_body",
+	"suite"
+]);
+function findFunctionNode(astRoot, functionName) {
+	const normalizedTarget = functionName.replace(/^.*\./, "");
+	const matchNode = (node) => {
+		if (FUNCTION_NODE_TYPES.has(node.type)) {
+			const nameNode = node.children.find((c) => c.type === "identifier" || c.type === "property_identifier" || c.type === "name");
+			if (!nameNode || nameNode.text === functionName || nameNode.text === normalizedTarget) return node;
+		}
+		for (const child of node.children) {
+			const found = matchNode(child);
+			if (found) return found;
+		}
+		return null;
+	};
+	return matchNode(astRoot);
+}
+function getFunctionBody(funcNode) {
+	const body = funcNode.children.find((c) => BODY_NODE_TYPES.has(c.type));
+	return body ? body.children : funcNode.children;
+}
+
+//#endregion
+//#region src/shared/astUtils.ts
+const BASE_CONTROL_FLOW_TYPES = new Set([
+	"if_statement",
+	"if",
+	"if_expression",
+	"for_statement",
+	"for",
+	"for_expression",
+	"for_in_statement",
+	"while_statement",
+	"while",
+	"while_expression",
+	"switch_statement",
+	"switch",
+	"match_expression",
+	"try_statement",
+	"try",
+	"return_statement",
+	"return",
+	"throw_statement",
+	"throw",
+	"raise_statement",
+	"raise",
+	"break_statement",
+	"break",
+	"continue_statement",
+	"continue"
+]);
+function isControlFlow$1(node, types = BASE_CONTROL_FLOW_TYPES) {
+	return types.has(node.type);
+}
+function findElseNode(node) {
+	return node.children.find((c) => c.type === "else_clause" || c.type === "else");
+}
+function findConditionNode(node) {
+	return node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression");
+}
+function simplifyText$1(text, maxLen = 40) {
+	const trimmed = text.trim().replace(/\s+/g, " ");
+	if (trimmed.length <= maxLen) return trimmed;
+	return trimmed.substring(0, maxLen - 3) + "...";
+}
+function getBodyChildren$2(node, filter$2) {
+	const body = node.children.find((c) => c.type === "block" || c.type === "statement_block" || c.type === "body" || c.type === "compound_statement" || c.type === "suite" || c.type === "function_body");
+	if (body) return filter$2 ? body.children.filter(filter$2) : body.children;
+	return node.children.filter((c) => c.type !== "condition" && c.type !== "parenthesized_expression" && (!filter$2 || filter$2(c)));
+}
+function getElseBody$2(node, filter$2) {
+	const elseNode = findElseNode(node);
+	if (!elseNode) return [];
+	const body = elseNode.children.find((c) => c.type === "block" || c.type === "statement_block");
+	if (body) return filter$2 ? body.children.filter(filter$2) : body.children;
+	return filter$2 ? elseNode.children.filter(filter$2) : elseNode.children;
+}
+
+//#endregion
+//#region src/client/diagram/CFGAssembler.ts
+const CFG_CONTROL_FLOW_TYPES = new Set([
+	...BASE_CONTROL_FLOW_TYPES,
+	"match_arm",
+	"elif_clause",
+	"elif",
+	"except_clause",
+	"except",
+	"finally_clause",
+	"finally",
+	"catch_clause",
+	"catch"
+]);
+const STATEMENT_TYPES = new Set([
+	"expression_statement",
+	"assignment",
+	"call",
+	"return_statement",
+	"return",
+	"throw_statement",
+	"throw",
+	"raise_statement",
+	"raise",
+	"break_statement",
+	"break",
+	"continue_statement",
+	"continue",
+	"declaration",
+	"variable_declaration",
+	"const_declaration",
+	"let_declaration",
+	"lexical_declaration",
+	"if_statement",
+	"if",
+	"if_expression",
+	"for_statement",
+	"for",
+	"for_expression",
+	"for_in_statement",
+	"while_statement",
+	"while",
+	"while_expression",
+	"switch_statement",
+	"switch",
+	"match_expression",
+	"try_statement",
+	"try",
+	"import_statement",
+	"import_declaration",
+	"use_declaration",
+	"export_statement",
+	"pass_statement",
+	"pass",
+	"assert_statement",
+	"assert",
+	"with_statement",
+	"with",
+	"yield_statement",
+	"yield",
+	"await_expression",
+	"macro_invocation"
+]);
+function isControlFlow(node) {
+	return isControlFlow$1(node, CFG_CONTROL_FLOW_TYPES);
+}
+function isStatement(node) {
+	return STATEMENT_TYPES.has(node.type) || node.type.endsWith("_statement");
+}
+function classifyStatement(node) {
+	const t$1 = node.type;
+	if (t$1 === "return_statement" || t$1 === "return") return "return";
+	if (t$1 === "throw_statement" || t$1 === "throw" || t$1 === "raise_statement" || t$1 === "raise") return "throw";
+	if (t$1 === "break_statement" || t$1 === "break") return "break";
+	if (t$1 === "continue_statement" || t$1 === "continue") return "continue";
+	if (t$1 === "if_statement" || t$1 === "if" || t$1 === "if_expression" || t$1 === "for_statement" || t$1 === "for" || t$1 === "for_expression" || t$1 === "for_in_statement" || t$1 === "while_statement" || t$1 === "while" || t$1 === "while_expression" || t$1 === "switch_statement" || t$1 === "switch" || t$1 === "match_expression" || t$1 === "try_statement" || t$1 === "try") return "condition";
+	if (t$1.includes("declaration") || t$1 === "assignment" || t$1 === "lexical_declaration") return "declaration";
+	if (t$1 === "call" || t$1 === "expression_statement" || t$1 === "await_expression" || t$1 === "macro_invocation") return "call";
+	return "expression";
+}
+function simplifyText(text, maxLen = 40) {
+	return simplifyText$1(text, maxLen);
+}
+function getConditionNode(node) {
+	if (node.type === "if_statement" || node.type === "if" || node.type === "if_expression") return node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression" || c.type === "binary_expression" || c.type === "comparison_expression") ?? null;
+	if (node.type === "while_statement" || node.type === "while" || node.type === "while_expression") return node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression" || c.type === "binary_expression") ?? null;
+	if (node.type === "for_statement" || node.type === "for" || node.type === "for_expression" || node.type === "for_in_statement") return node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression" || c.type === "for_header" || c.type === "binary_expression") ?? null;
+	return null;
+}
+function getBodyChildren$1(node) {
+	return getBodyChildren$2(node, isStatement);
+}
+function getElseBody$1(node) {
+	return getElseBody$2(node, isStatement);
+}
+var CFGAssembler = class {
+	blockCounter = 0;
+	loopStack = [];
+	nextBlockId() {
+		return `cfg-block-${this.blockCounter++}`;
+	}
+	assemble(astRoot, filePath, functionName) {
+		this.blockCounter = 0;
+		this.loopStack = [];
+		const blocks = [];
+		const edges = [];
+		const entryBlock = {
+			id: this.nextBlockId(),
+			label: "Entry",
+			statements: [],
+			isEntry: true,
+			isExit: false,
+			blockType: "entry",
+			depth: 0
+		};
+		blocks.push(entryBlock);
+		const exitBlock = {
+			id: this.nextBlockId(),
+			label: "Exit",
+			statements: [],
+			isEntry: false,
+			isExit: true,
+			blockType: "exit",
+			depth: 0
+		};
+		const funcNode = findFunctionNode(astRoot, functionName);
+		if (!funcNode) return this.toAssembledDiagram({
+			blocks: [entryBlock],
+			edges: [],
+			entryBlockId: entryBlock.id,
+			exitBlockIds: [exitBlock.id]
+		}, filePath, functionName);
+		const targetChildren = getFunctionBody(funcNode);
+		this.processStatements(targetChildren, entryBlock.id, exitBlock.id, blocks, edges, 1);
+		const hasExitEdge = edges.some((e) => e.target === exitBlock.id);
+		if (!hasExitEdge) {
+			const lastBlock = blocks[blocks.length - 1];
+			if (lastBlock && !lastBlock.isExit) edges.push({
+				source: lastBlock.id,
+				target: exitBlock.id,
+				edgeType: "fallthrough"
+			});
+		}
+		blocks.push(exitBlock);
+		const cfgData = {
+			blocks,
+			edges,
+			entryBlockId: entryBlock.id,
+			exitBlockIds: blocks.filter((b) => b.isExit).map((b) => b.id)
+		};
+		return this.toAssembledDiagram(cfgData, filePath, functionName);
+	}
+	processStatements(statements, entryId, exitId, blocks, edges, depth) {
+		if (statements.length === 0) {
+			edges.push({
+				source: entryId,
+				target: exitId,
+				edgeType: "fallthrough"
+			});
+			return entryId;
+		}
+		let currentId = entryId;
+		let currentBlock = blocks.find((b) => b.id === currentId) ?? null;
+		if (!currentBlock || currentBlock.isEntry) {
+			currentBlock = this.createProcessBlock(blocks, depth);
+			edges.push({
+				source: entryId,
+				target: currentBlock.id,
+				edgeType: "fallthrough"
+			});
+			currentId = currentBlock.id;
+		}
+		for (let i$1 = 0; i$1 < statements.length; i$1++) {
+			const stmt = statements[i$1];
+			if (!stmt) continue;
+			if (isControlFlow(stmt)) {
+				currentId = this.processControlFlow(stmt, currentId, exitId, blocks, edges, depth);
+				currentBlock = blocks.find((b) => b.id === currentId) ?? null;
+				if (!currentBlock) {
+					currentBlock = this.createProcessBlock(blocks, depth);
+					currentId = currentBlock.id;
+				}
+			} else {
+				if (!currentBlock || currentBlock.blockType !== "process") {
+					currentBlock = this.createProcessBlock(blocks, depth);
+					edges.push({
+						source: currentId,
+						target: currentBlock.id,
+						edgeType: "fallthrough"
+					});
+					currentId = currentBlock.id;
+				}
+				currentBlock.statements.push({
+					type: classifyStatement(stmt),
+					text: simplifyText(stmt.text),
+					line: stmt.startPosition.row + 1
+				});
+			}
+		}
+		if (currentId !== exitId) edges.push({
+			source: currentId,
+			target: exitId,
+			edgeType: "fallthrough"
+		});
+		return currentId;
+	}
+	processControlFlow(node, currentId, exitId, blocks, edges, depth) {
+		const t$1 = node.type;
+		if (t$1 === "if_statement" || t$1 === "if" || t$1 === "if_expression") return this.processIf(node, currentId, exitId, blocks, edges, depth);
+		if (t$1 === "for_statement" || t$1 === "for" || t$1 === "for_expression" || t$1 === "for_in_statement" || t$1 === "while_statement" || t$1 === "while" || t$1 === "while_expression") return this.processLoop(node, currentId, exitId, blocks, edges, depth);
+		if (t$1 === "switch_statement" || t$1 === "switch" || t$1 === "match_expression") return this.processSwitch(node, currentId, exitId, blocks, edges, depth);
+		if (t$1 === "try_statement" || t$1 === "try") return this.processTry(node, currentId, exitId, blocks, edges, depth);
+		if (t$1 === "return_statement" || t$1 === "return") return this.processReturn(node, currentId, exitId, blocks, edges, depth);
+		if (t$1 === "throw_statement" || t$1 === "throw" || t$1 === "raise_statement" || t$1 === "raise") return this.processThrow(node, currentId, exitId, blocks, edges, depth);
+		if (t$1 === "break_statement" || t$1 === "break") {
+			const loopCtx = this.loopStack[this.loopStack.length - 1];
+			if (loopCtx) {
+				edges.push({
+					source: currentId,
+					target: loopCtx.exitBlockId,
+					edgeType: "break"
+				});
+				return loopCtx.exitBlockId;
+			}
+			edges.push({
+				source: currentId,
+				target: exitId,
+				edgeType: "break"
+			});
+			return exitId;
+		}
+		if (t$1 === "continue_statement" || t$1 === "continue") {
+			for (let i$1 = this.loopStack.length - 1; i$1 >= 0; i$1--) {
+				const ctx = this.loopStack[i$1];
+				if (ctx && !ctx.isSwitch) {
+					edges.push({
+						source: currentId,
+						target: ctx.condBlockId,
+						edgeType: "continue"
+					});
+					return ctx.condBlockId;
+				}
+			}
+			edges.push({
+				source: currentId,
+				target: exitId,
+				edgeType: "continue"
+			});
+			return exitId;
+		}
+		return currentId;
+	}
+	processIf(node, currentId, exitId, blocks, edges, depth) {
+		const condNode = getConditionNode(node);
+		const condText = condNode ? simplifyText(condNode.text) : "if";
+		const condBlock = {
+			id: this.nextBlockId(),
+			label: condText,
+			statements: [{
+				type: "condition",
+				text: condText,
+				line: node.startPosition.row + 1
+			}],
+			isEntry: false,
+			isExit: false,
+			blockType: "condition",
+			depth
+		};
+		blocks.push(condBlock);
+		edges.push({
+			source: currentId,
+			target: condBlock.id,
+			edgeType: "fallthrough"
+		});
+		const mergeBlock = {
+			id: this.nextBlockId(),
+			label: "merge",
+			statements: [],
+			isEntry: false,
+			isExit: false,
+			blockType: "process",
+			depth
+		};
+		blocks.push(mergeBlock);
+		const trueBody = getBodyChildren$1(node);
+		const trueEntryId = this.nextBlockId();
+		const trueEntry = {
+			id: trueEntryId,
+			label: "true",
+			statements: [],
+			isEntry: false,
+			isExit: false,
+			blockType: "process",
+			depth: depth + 1
+		};
+		blocks.push(trueEntry);
+		edges.push({
+			source: condBlock.id,
+			target: trueEntryId,
+			edgeType: "true",
+			condition: condText
+		});
+		this.processStatements(trueBody, trueEntryId, mergeBlock.id, blocks, edges, depth + 1);
+		const elseBody = getElseBody$1(node);
+		if (elseBody.length > 0) {
+			const falseEntryId = this.nextBlockId();
+			const falseEntry = {
+				id: falseEntryId,
+				label: "false",
+				statements: [],
+				isEntry: false,
+				isExit: false,
+				blockType: "process",
+				depth: depth + 1
+			};
+			blocks.push(falseEntry);
+			edges.push({
+				source: condBlock.id,
+				target: falseEntryId,
+				edgeType: "false",
+				condition: condText
+			});
+			this.processStatements(elseBody, falseEntryId, mergeBlock.id, blocks, edges, depth + 1);
+		} else edges.push({
+			source: condBlock.id,
+			target: mergeBlock.id,
+			edgeType: "false",
+			condition: condText
+		});
+		return mergeBlock.id;
+	}
+	processLoop(node, currentId, exitId, blocks, edges, depth) {
+		const condNode = getConditionNode(node);
+		const condText = condNode ? simplifyText(condNode.text) : node.type;
+		const condBlock = {
+			id: this.nextBlockId(),
+			label: condText,
+			statements: [{
+				type: "condition",
+				text: condText,
+				line: node.startPosition.row + 1
+			}],
+			isEntry: false,
+			isExit: false,
+			blockType: "loop",
+			depth
+		};
+		blocks.push(condBlock);
+		edges.push({
+			source: currentId,
+			target: condBlock.id,
+			edgeType: "fallthrough"
+		});
+		const loopExitBlock = {
+			id: this.nextBlockId(),
+			label: "loop-exit",
+			statements: [],
+			isEntry: false,
+			isExit: false,
+			blockType: "process",
+			depth
+		};
+		blocks.push(loopExitBlock);
+		const body = getBodyChildren$1(node);
+		const bodyEntryId = this.nextBlockId();
+		const bodyEntry = {
+			id: bodyEntryId,
+			label: "loop-body",
+			statements: [],
+			isEntry: false,
+			isExit: false,
+			blockType: "process",
+			depth: depth + 1
+		};
+		blocks.push(bodyEntry);
+		edges.push({
+			source: condBlock.id,
+			target: bodyEntryId,
+			edgeType: "true",
+			condition: condText
+		});
+		const edgeCountBefore = edges.length;
+		this.loopStack.push({
+			condBlockId: condBlock.id,
+			exitBlockId: loopExitBlock.id,
+			isSwitch: false
+		});
+		this.processStatements(body, bodyEntryId, condBlock.id, blocks, edges, depth + 1);
+		this.loopStack.pop();
+		for (let i$1 = edgeCountBefore; i$1 < edges.length; i$1++) {
+			const e = edges[i$1];
+			if (e.target === condBlock.id && e.edgeType === "fallthrough") e.edgeType = "loop-back";
+		}
+		edges.push({
+			source: condBlock.id,
+			target: loopExitBlock.id,
+			edgeType: "false",
+			condition: condText
+		});
+		return loopExitBlock.id;
+	}
+	processSwitch(node, currentId, exitId, blocks, edges, depth) {
+		const condNode = node.children.find((c) => c.type === "condition" || c.type === "parenthesized_expression");
+		const condText = condNode ? simplifyText(condNode.text) : "switch";
+		const condBlock = {
+			id: this.nextBlockId(),
+			label: condText,
+			statements: [{
+				type: "condition",
+				text: condText,
+				line: node.startPosition.row + 1
+			}],
+			isEntry: false,
+			isExit: false,
+			blockType: "switch",
+			depth
+		};
+		blocks.push(condBlock);
+		edges.push({
+			source: currentId,
+			target: condBlock.id,
+			edgeType: "fallthrough"
+		});
+		const mergeBlock = {
+			id: this.nextBlockId(),
+			label: "switch-merge",
+			statements: [],
+			isEntry: false,
+			isExit: false,
+			blockType: "process",
+			depth
+		};
+		blocks.push(mergeBlock);
+		const caseNodes = node.children.filter((c) => c.type === "case_statement" || c.type === "case" || c.type === "default_statement" || c.type === "default" || c.type === "match_arm");
+		for (const caseNode of caseNodes) {
+			const isDefault = caseNode.type === "default_statement" || caseNode.type === "default" || caseNode.type === "match_arm" && caseNode.children.some((c) => c.type === "wildcard_pattern" || c.text === "_");
+			const caseLabel = isDefault ? "default" : caseNode.children.find((c) => c.type === "identifier" || c.type === "number" || c.type === "string" || c.type === "literal_pattern")?.text ?? "case";
+			const caseEntryId = this.nextBlockId();
+			const caseEntry = {
+				id: caseEntryId,
+				label: caseLabel,
+				statements: [],
+				isEntry: false,
+				isExit: false,
+				blockType: "process",
+				depth: depth + 1
+			};
+			blocks.push(caseEntry);
+			edges.push({
+				source: condBlock.id,
+				target: caseEntryId,
+				edgeType: isDefault ? "default" : "case",
+				condition: caseLabel
+			});
+			const caseBody = caseNode.children.filter((c) => c.type !== "identifier" && c.type !== "number" && isStatement(c));
+			this.loopStack.push({
+				condBlockId: condBlock.id,
+				exitBlockId: mergeBlock.id,
+				isSwitch: true
+			});
+			this.processStatements(caseBody, caseEntryId, mergeBlock.id, blocks, edges, depth + 1);
+			this.loopStack.pop();
+		}
+		if (!caseNodes.some((c) => c.type === "default_statement" || c.type === "default")) edges.push({
+			source: condBlock.id,
+			target: mergeBlock.id,
+			edgeType: "default"
+		});
+		return mergeBlock.id;
+	}
+	processTry(node, currentId, exitId, blocks, edges, depth) {
+		const tryBlock = {
+			id: this.nextBlockId(),
+			label: "try",
+			statements: [],
+			isEntry: false,
+			isExit: false,
+			blockType: "try",
+			depth
+		};
+		blocks.push(tryBlock);
+		edges.push({
+			source: currentId,
+			target: tryBlock.id,
+			edgeType: "fallthrough"
+		});
+		const tryBody = node.children.find((c) => c.type === "block" || c.type === "statement_block");
+		const tryStmts = tryBody ? tryBody.children.filter(isStatement) : [];
+		const mergeBlock = {
+			id: this.nextBlockId(),
+			label: "try-merge",
+			statements: [],
+			isEntry: false,
+			isExit: false,
+			blockType: "process",
+			depth
+		};
+		blocks.push(mergeBlock);
+		this.processStatements(tryStmts, tryBlock.id, mergeBlock.id, blocks, edges, depth + 1);
+		const catchNodes = node.children.filter((c) => c.type === "catch_clause" || c.type === "catch");
+		for (const catchNode of catchNodes) {
+			const catchBlock = {
+				id: this.nextBlockId(),
+				label: "catch",
+				statements: [],
+				isEntry: false,
+				isExit: false,
+				blockType: "catch",
+				depth
+			};
+			blocks.push(catchBlock);
+			edges.push({
+				source: tryBlock.id,
+				target: catchBlock.id,
+				edgeType: "exception"
+			});
+			const catchBody = catchNode.children.find((c) => c.type === "block" || c.type === "statement_block");
+			const catchStmts = catchBody ? catchBody.children.filter(isStatement) : [];
+			this.processStatements(catchStmts, catchBlock.id, mergeBlock.id, blocks, edges, depth + 1);
+		}
+		const finallyNode = node.children.find((c) => c.type === "finally_clause" || c.type === "finally");
+		if (finallyNode) {
+			const finallyBlock = {
+				id: this.nextBlockId(),
+				label: "finally",
+				statements: [],
+				isEntry: false,
+				isExit: false,
+				blockType: "finally",
+				depth
+			};
+			blocks.push(finallyBlock);
+			edges.push({
+				source: mergeBlock.id,
+				target: finallyBlock.id,
+				edgeType: "fallthrough"
+			});
+			const finallyBody = finallyNode.children.find((c) => c.type === "block" || c.type === "statement_block");
+			const finallyStmts = finallyBody ? finallyBody.children.filter(isStatement) : [];
+			const afterFinally = {
+				id: this.nextBlockId(),
+				label: "after-finally",
+				statements: [],
+				isEntry: false,
+				isExit: false,
+				blockType: "process",
+				depth
+			};
+			blocks.push(afterFinally);
+			this.processStatements(finallyStmts, finallyBlock.id, afterFinally.id, blocks, edges, depth + 1);
+			return afterFinally.id;
+		}
+		return mergeBlock.id;
+	}
+	processReturn(node, currentId, exitId, blocks, edges, depth) {
+		const exitBlock = {
+			id: this.nextBlockId(),
+			label: "return",
+			statements: [{
+				type: "return",
+				text: simplifyText(node.text),
+				line: node.startPosition.row + 1
+			}],
+			isEntry: false,
+			isExit: true,
+			blockType: "exit",
+			depth
+		};
+		blocks.push(exitBlock);
+		edges.push({
+			source: currentId,
+			target: exitBlock.id,
+			edgeType: "fallthrough"
+		});
+		return exitBlock.id;
+	}
+	processThrow(node, currentId, exitId, blocks, edges, depth) {
+		const exitBlock = {
+			id: this.nextBlockId(),
+			label: "throw",
+			statements: [{
+				type: "throw",
+				text: simplifyText(node.text),
+				line: node.startPosition.row + 1
+			}],
+			isEntry: false,
+			isExit: true,
+			blockType: "exit",
+			depth
+		};
+		blocks.push(exitBlock);
+		edges.push({
+			source: currentId,
+			target: exitBlock.id,
+			edgeType: "exception"
+		});
+		return exitBlock.id;
+	}
+	createProcessBlock(blocks, depth) {
+		const block = {
+			id: this.nextBlockId(),
+			label: "",
+			statements: [],
+			isEntry: false,
+			isExit: false,
+			blockType: "process",
+			depth
+		};
+		blocks.push(block);
+		return block;
+	}
+	toAssembledDiagram(cfgData, filePath, functionName) {
+		const nodes = cfgData.blocks.map((block) => {
+			const label = block.isEntry ? "Entry" : block.isExit ? block.label || "Exit" : block.statements.length > 0 ? block.statements[0].text : block.label || block.blockType;
+			return {
+				id: NodeId(block.id),
+				label,
+				type: "function",
+				filePath,
+				lineNumber: block.statements[0]?.line ?? 0,
+				properties: {
+					isEntry: block.isEntry,
+					isExit: block.isExit,
+					blockType: block.blockType,
+					depth: block.depth,
+					statements: block.statements,
+					cfgFunction: functionName
+				}
+			};
+		});
+		const edges = cfgData.edges.map((edge, idx) => ({
+			id: EdgeId(`cfg-edge-${idx}`),
+			source: NodeId(edge.source),
+			target: NodeId(edge.target),
+			type: "call",
+			properties: {
+				cfgEdgeType: edge.edgeType,
+				...edge.condition ? { condition: edge.condition } : {}
+			}
+		}));
+		return {
+			nodes,
+			edges,
+			metadata: {
+				rootIds: [cfgData.entryBlockId],
+				maxDepth: Math.max(0, ...nodes.map((n) => n.properties.depth ?? 0)),
+				nodeCount: nodes.length,
+				edgeCount: edges.length
+			}
+		};
+	}
+};
+
+//#endregion
+//#region src/client/diagram/CallChainAggregator.ts
+var CallChainAggregator = class {
+	cfgAssembler = new CFGAssembler();
+	async aggregate(entryNodeId, nodes, edges, astFetcher, options = {
+		depth: 2,
+		maxFunctions: CALL_CHAIN.MAX_FUNCTIONS
+	}) {
+		const entryNode = nodes.find((n) => n.id === entryNodeId);
+		if (!entryNode || entryNode.type !== "function") return null;
+		const callEdges = edges.filter((e) => e.type === "call");
+		const outEdges = new Map();
+		for (const e of callEdges) {
+			if (e.source === e.target) continue;
+			const list = outEdges.get(e.source) ?? [];
+			list.push(e.target);
+			outEdges.set(e.source, list);
+		}
+		const visited = new Set([entryNodeId]);
+		const queue = [{
+			id: entryNodeId,
+			depth: 0
+		}];
+		const includedFunctions = [entryNodeId];
+		const callChainEdges = [];
+		let head = 0;
+		while (head < queue.length) {
+			const { id, depth } = queue[head++];
+			if (depth >= options.depth) continue;
+			if (includedFunctions.length >= options.maxFunctions) break;
+			const neighbors = outEdges.get(id) ?? [];
+			for (const target of neighbors) {
+				if (visited.has(target)) continue;
+				visited.add(target);
+				includedFunctions.push(target);
+				callChainEdges.push({
+					source: id,
+					target
+				});
+				queue.push({
+					id: target,
+					depth: depth + 1
+				});
+			}
+		}
+		const allNodes = [];
+		const allEdges = [];
+		const functionNodeMap = new Map();
+		const functionIndexMap = new Map();
+		for (let i$1 = 0; i$1 < includedFunctions.length; i$1++) {
+			functionIndexMap.set(includedFunctions[i$1], i$1);
+			const fnNode = nodes.find((n) => n.id === includedFunctions[i$1]);
+			if (fnNode) functionNodeMap.set(includedFunctions[i$1], fnNode);
+		}
+		const astCache = new Map();
+		let functionCount = 0;
+		for (const fnId of includedFunctions) {
+			const fnNode = functionNodeMap.get(fnId);
+			if (!fnNode) continue;
+			let astRoot = astCache.get(fnNode.filePath);
+			if (astRoot === void 0) {
+				astRoot = await astFetcher(fnNode.filePath);
+				astCache.set(fnNode.filePath, astRoot);
+			}
+			if (!astRoot) continue;
+			const fnDiagram = this.cfgAssembler.assemble(astRoot, fnNode.filePath, fnNode.label);
+			const prefix = `fn${functionCount}__`;
+			const blockIdMap = new Map();
+			for (const blockNode of fnDiagram.nodes) {
+				const newId = prefix + blockNode.id;
+				blockIdMap.set(blockNode.id, newId);
+				allNodes.push({
+					...blockNode,
+					id: NodeId(newId),
+					properties: {
+						...blockNode.properties,
+						callChainFunction: fnNode.label,
+						callChainFunctionId: fnId,
+						callChainDepth: functionIndexMap.get(fnId) ?? 0
+					}
+				});
+			}
+			for (const edge of fnDiagram.edges) {
+				const newSource = blockIdMap.get(edge.source);
+				const newTarget = blockIdMap.get(edge.target);
+				if (newSource && newTarget) allEdges.push({
+					...edge,
+					id: EdgeId(prefix + edge.id),
+					source: NodeId(newSource),
+					target: NodeId(newTarget)
+				});
+			}
+			functionCount++;
+		}
+		const nodesByPrefix = new Map();
+		for (const n of allNodes) {
+			const prefixKey = n.id.split("__")[0];
+			const list = nodesByPrefix.get(prefixKey) ?? [];
+			list.push(n);
+			nodesByPrefix.set(prefixKey, list);
+		}
+		for (const { source, target } of callChainEdges) {
+			const sourceFn = functionNodeMap.get(source);
+			const targetFn = functionNodeMap.get(target);
+			if (!sourceFn || !targetFn) continue;
+			const sourceIdx = functionIndexMap.get(source) ?? 0;
+			const targetIdx = functionIndexMap.get(target) ?? 0;
+			const sourcePrefix = `fn${sourceIdx}`;
+			const targetPrefix = `fn${targetIdx}`;
+			const sourceFnNodes = nodesByPrefix.get(sourcePrefix) ?? [];
+			const targetFnNodes = nodesByPrefix.get(targetPrefix) ?? [];
+			const sourceExitNodes = sourceFnNodes.filter((n) => n.properties?.isExit === true);
+			const targetEntryNodes = targetFnNodes.filter((n) => n.properties?.isEntry === true);
+			if (sourceExitNodes.length > 0 && targetEntryNodes.length > 0) {
+				const sourceExit = sourceExitNodes[0];
+				const targetEntry = targetEntryNodes[0];
+				allEdges.push({
+					id: EdgeId(`callchain__${source}__${target}`),
+					source: NodeId(sourceExit.id),
+					target: NodeId(targetEntry.id),
+					type: "call",
+					properties: {
+						callChainEdge: true,
+						sourceFunction: sourceFn.label,
+						targetFunction: targetFn.label
+					}
+				});
+			}
+		}
+		if (allNodes.length === 0) return null;
+		const chainDepth = includedFunctions.length > 0 ? includedFunctions.length - 1 : 0;
+		return {
+			diagram: {
+				nodes: allNodes,
+				edges: allEdges,
+				metadata: {
+					rootIds: [`fn0__cfg-block-0`],
+					maxDepth: chainDepth,
+					nodeCount: allNodes.length,
+					edgeCount: allEdges.length
+				}
+			},
+			functionCount,
+			chainDepth,
+			includedFunctions
+		};
+	}
+};
+
+//#endregion
+//#region src/shared/PerformanceMonitor.ts
+const log$18 = scoped("perf");
+const MAX_HISTORY = 100;
+const measurements = [];
+const thresholds = new Map();
+const pendingMarks = new Map();
+const DEFAULT_THRESHOLDS = {
+	"cluster": {
+		warnMs: PERF.CLUSTER_WARN_MS,
+		degradeMs: PERF.CLUSTER_DEGRADE_MS,
+		degradationKey: "slow-clustering"
+	},
+	"layout": {
+		warnMs: PERF.LAYOUT_WARN_MS,
+		degradeMs: PERF.LAYOUT_DEGRADE_MS,
+		degradationKey: "slow-layout"
+	},
+	"render": {
+		warnMs: PERF.RENDER_WARN_MS,
+		degradeMs: PERF.RENDER_DEGRADE_MS,
+		degradationKey: "slow-render"
+	},
+	"diagram": {
+		warnMs: PERF.DIAGRAM_WARN_MS,
+		degradeMs: PERF.DIAGRAM_DEGRADE_MS,
+		degradationKey: "slow-diagram"
+	},
+	"ast-fetch": {
+		warnMs: PERF.AST_FETCH_WARN_MS,
+		degradeMs: PERF.AST_FETCH_DEGRADE_MS,
+		degradationKey: "slow-ast-fetch"
+	}
+};
+for (const [name$1, threshold] of Object.entries(DEFAULT_THRESHOLDS)) thresholds.set(name$1, threshold);
+function startMeasure(name$1) {
+	pendingMarks.set(name$1, performance.now());
+}
+function endMeasure(name$1) {
+	const start = pendingMarks.get(name$1);
+	if (start === void 0) return null;
+	pendingMarks.delete(name$1);
+	const durationMs = performance.now() - start;
+	recordMeasurement(name$1, durationMs);
+	return durationMs;
+}
+function measureSync(name$1, fn$7) {
+	startMeasure(name$1);
+	try {
+		const result = fn$7();
+		endMeasure(name$1);
+		return result;
+	} catch (e) {
+		pendingMarks.delete(name$1);
+		throw e;
+	}
+}
+async function measureAsync(name$1, fn$7) {
+	startMeasure(name$1);
+	try {
+		const result = await fn$7();
+		endMeasure(name$1);
+		return result;
+	} catch (e) {
+		pendingMarks.delete(name$1);
+		throw e;
+	}
+}
+function recordMeasurement(name$1, durationMs) {
+	const measurement = {
+		name: name$1,
+		durationMs,
+		timestamp: Date.now()
+	};
+	measurements.push(measurement);
+	if (measurements.length > MAX_HISTORY) measurements.shift();
+	const threshold = thresholds.get(name$1);
+	if (threshold) {
+		if (threshold.degradeMs !== void 0 && durationMs >= threshold.degradeMs && threshold.degradationKey) log$18.warn(`${name$1} exceeded degrade threshold: ${durationMs.toFixed(1)}ms >= ${threshold.degradeMs}ms`);
+		else if (threshold.warnMs !== void 0 && durationMs >= threshold.warnMs) log$18.info(`${name$1} exceeded warn threshold: ${durationMs.toFixed(1)}ms >= ${threshold.warnMs}ms`);
+	}
+}
+
+//#endregion
+//#region src/client/store/internals.ts
+const log$17 = scoped("store");
+const diagramCache = new DiagramCache(10);
+const clusterCache = new ClusterCache(20);
+const callChainAggregator = new CallChainAggregator();
+const internals = {
+	persistentCache: null,
+	persistentCacheRepoId: null,
+	microAssemblyGeneration: 0,
+	multiAssemblyGeneration: 0,
+	incrementalClusterCtx: null,
+	prefetchInFlightCount: 0,
+	prefetchAbortControllers: new Map(),
+	expandAbortControllers: new Map(),
+	expandGeneration: 0,
+	restoreGeneration: 0,
+	restoreTimeoutHandle: null,
+	restoreAbortController: null,
+	prefetchIdleHandle: null,
+	loadingFailsafe: null
+};
+let _getState = null;
+function registerStoreGetter(getter) {
+	_getState = getter;
+}
+function getState() {
+	return _getState();
+}
+function detectInitialTheme() {
+	if (typeof document === "undefined") return "dark";
+	return document.body.hasAttribute("data-ds-dark-theme") ? "dark" : "light";
+}
+function computeMaxVisible(panelWidth) {
+	return panelWidth !== null && panelWidth !== void 0 ? getDynamicMaxVisibleNodes(panelWidth) : CLUSTER.MAX_VISIBLE_NODES;
+}
+function enforceFunctionBodyBudget(expanded, rawNodes, maxExpanded) {
+	const functionIdSet = new Set(rawNodes.filter((n) => n.type === "function").map((n) => n.id));
+	const expandedFunctionBodies = [...expanded].filter((id) => functionIdSet.has(id));
+	while (expandedFunctionBodies.length > maxExpanded) {
+		const oldest = expandedFunctionBodies.shift();
+		expanded.delete(oldest);
+	}
+}
+function collapseExcessClusters(nodes, effectiveExpanded, maxVisible, costOffset, pinnedIds) {
+	if (nodes.length + costOffset <= maxVisible) return;
+	const clusterNodes = nodes.filter((n) => "isCluster" in n && n.isCluster === true);
+	const sorted = [...clusterNodes].sort((a, b) => b.childCount - a.childCount);
+	for (const cn of sorted) {
+		if (pinnedIds?.has(cn.id)) continue;
+		if (nodes.length + costOffset - cn.childCount <= maxVisible) {
+			effectiveExpanded.delete(cn.id);
+			break;
+		}
+		effectiveExpanded.delete(cn.id);
+	}
+}
+function updateIncrementalClusterCtx(result, rawNodes, rawEdges) {
+	const nodeIdToVisibleId = new Map();
+	for (const n of result.nodes) if ("isCluster" in n && n.isCluster) for (const childId of n.childIds) nodeIdToVisibleId.set(childId, n.id);
+	else nodeIdToVisibleId.set(n.id, n.id);
+	internals.incrementalClusterCtx = {
+		prevResult: result,
+		prevNodeIdToVisibleId: nodeIdToVisibleId,
+		prevRawNodes: rawNodes,
+		prevRawEdges: rawEdges
+	};
+}
+function mergeAndRecluster(newNodes, newEdges, set$1, logLabel, logDetail) {
+	const s = getState();
+	const existingIds = new Set(s.rawNodes.map((n) => n.id));
+	const filteredNodes = newNodes.filter((n) => !existingIds.has(n.id));
+	const existingEdgeIds = new Set(s.rawEdges.map((e) => e.id));
+	const filteredEdges = newEdges.filter((e) => !existingEdgeIds.has(e.id));
+	if (filteredNodes.length === 0 && filteredEdges.length === 0) return;
+	const mergedRawNodes = [...s.rawNodes, ...filteredNodes];
+	const mergedRawEdges = [...s.rawEdges, ...filteredEdges];
+	const { clusterDepth: cd, expandedNodeIds: ei, panelWidth: pw } = s;
+	const result = tryIncrementalOrFull(internals.incrementalClusterCtx, mergedRawNodes, mergedRawEdges, ei, cd, pw ?? void 0);
+	updateIncrementalClusterCtx(result, mergedRawNodes, mergedRawEdges);
+	set$1({
+		rawNodes: mergedRawNodes,
+		rawEdges: mergedRawEdges,
+		nodes: result.nodes,
+		edges: result.edges
+	});
+	log$17.info(logLabel, {
+		...logDetail,
+		newNodes: filteredNodes.length,
+		newEdges: filteredEdges.length
+	});
+}
+function computeLayeredExpandedView(diagramData, currentLayer, expandedNodeIds) {
+	const layer = diagramData.layers[currentLayer];
+	if (!layer) return {
+		nodes: [],
+		edges: []
+	};
+	const inEdgesMap = new Map();
+	for (const e of diagramData.allEdges) {
+		const list = inEdgesMap.get(e.target) ?? [];
+		list.push(e.source);
+		inEdgesMap.set(e.target, list);
+	}
+	const visibleIds = new Set(layer.nodeIds);
+	const queue = [];
+	for (const id of expandedNodeIds) if (visibleIds.has(id)) queue.push(id);
+	while (queue.length > 0) {
+		const id = queue.shift();
+		const children = inEdgesMap.get(id) ?? [];
+		for (const childId of children) if (!visibleIds.has(childId)) {
+			visibleIds.add(childId);
+			if (expandedNodeIds.has(childId)) queue.push(childId);
+		}
+	}
+	const visibleNodes = diagramData.allNodes.filter((n) => visibleIds.has(n.id));
+	const visibleEdges = diagramData.allEdges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target));
+	return {
+		nodes: visibleNodes,
+		edges: visibleEdges
+	};
+}
+function clearLoadingFailsafe() {
+	if (internals.loadingFailsafe !== null) {
+		clearTimeout(internals.loadingFailsafe);
+		internals.loadingFailsafe = null;
+	}
+}
+function applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, cache$1, set$1) {
+	if (isLayeredViewMode(viewMode)) {
+		if (diagramData) {
+			const { nodes: visNodes, edges: visEdges } = computeLayeredExpandedView(diagramData, currentLayer, newExpanded);
+			set$1({
+				expandedNodeIds: newExpanded,
+				expandedNodeIdsByViewMode: newExpandedByViewMode,
+				nodes: visNodes,
+				edges: visEdges
+			});
+		} else set$1({
+			expandedNodeIds: newExpanded,
+			expandedNodeIdsByViewMode: newExpandedByViewMode
+		});
+		return;
+	}
+	let sourceNodes = rawNodes;
+	let sourceEdges = rawEdges;
+	if (diagramData) {
+		const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+		if (layer) {
+			sourceNodes = layer.nodes;
+			sourceEdges = layer.edges;
+		}
+	}
+	const dataHash = computeDataHash(sourceNodes, sourceEdges);
+	const expandedKey = [...newExpanded].sort().join(",");
+	const cacheLevel = `progressive:${clusterDepth}`;
+	const cached = cache$1.get(dataHash, cacheLevel, expandedKey);
+	if (cached) {
+		set$1({
+			expandedNodeIds: newExpanded,
+			expandedNodeIdsByViewMode: newExpandedByViewMode,
+			nodes: cached.nodes,
+			edges: cached.edges
+		});
+		return;
+	}
+	const result = measureSync("cluster", () => computeClusteredGraph(sourceNodes, sourceEdges, "progressive", newExpanded, clusterDepth, getState().panelWidth ?? void 0));
+	cache$1.set(dataHash, cacheLevel, expandedKey, result);
+	set$1({
+		expandedNodeIds: newExpanded,
+		expandedNodeIdsByViewMode: newExpandedByViewMode,
+		nodes: result.nodes,
+		edges: result.edges
+	});
+}
+
+//#endregion
+//#region src/shared/AliasMapper.ts
+const NODE_TYPE_ALIASES = {
+	func: "function",
+	fn: "function",
+	method: "function",
+	cls: "class",
+	mod: "module",
+	file: "module",
+	pkg: "module",
+	package: "module",
+	iface: "interface",
+	typ: "type",
+	enum: "type",
+	const: "variable",
+	var: "variable",
+	let: "variable"
+};
+const EDGE_TYPE_ALIASES = {
+	calls: "call",
+	invoke: "call",
+	invokes: "call",
+	imports: "import",
+	import_from: "import",
+	extends: "extend",
+	inherits: "extend",
+	inherit: "extend",
+	implements: "implement",
+	implements_interface: "implement",
+	depends: "dependency",
+	depends_on: "dependency",
+	uses: "dependency",
+	contains_node: "contains",
+	owns: "contains",
+	has: "contains",
+	assoc: "association",
+	related: "association",
+	aggregates: "aggregation",
+	aggregate: "aggregation",
+	composes: "composition",
+	compose: "composition"
+};
+const VALID_NODE_TYPES = new Set([
+	"function",
+	"class",
+	"variable",
+	"module",
+	"interface",
+	"type"
+]);
+const VALID_EDGE_TYPES = new Set([
+	"call",
+	"import",
+	"extend",
+	"implement",
+	"dependency",
+	"contains",
+	"association",
+	"aggregation",
+	"composition"
+]);
+function normalizeNodeType(type) {
+	if (typeof type !== "string") return null;
+	if (VALID_NODE_TYPES.has(type)) return type;
+	const alias = NODE_TYPE_ALIASES[type];
+	if (alias) return alias;
+	return null;
+}
+function normalizeEdgeType(type) {
+	if (typeof type !== "string") return null;
+	if (VALID_EDGE_TYPES.has(type)) return type;
+	const alias = EDGE_TYPE_ALIASES[type];
+	if (alias) return alias;
+	return null;
+}
+
+//#endregion
+//#region src/shared/GraphValidator.ts
+const log$16 = scoped("validator");
+function coerceNode(raw, i$1) {
+	if (!raw || typeof raw !== "object") return null;
+	const o = raw;
+	const id = typeof o.id === "string" ? o.id : `node-${i$1}`;
+	const label = typeof o.label === "string" ? o.label : typeof o.name === "string" ? o.name : id;
+	const type = normalizeNodeType(o.type) ?? "variable";
+	const filePath = typeof o.filePath === "string" ? o.filePath : typeof o.file === "string" ? o.file : "";
+	const lineNumber = typeof o.lineNumber === "number" ? o.lineNumber : typeof o.line === "number" ? o.line : 0;
+	const properties = o.properties && typeof o.properties === "object" ? o.properties : {};
+	return {
+		id: NodeId(id),
+		label,
+		type,
+		filePath,
+		lineNumber,
+		properties
+	};
+}
+function coerceEdge(raw, i$1) {
+	if (!raw || typeof raw !== "object") return null;
+	const o = raw;
+	const id = typeof o.id === "string" ? o.id : `edge-${i$1}`;
+	const source = typeof o.source === "string" ? o.source : typeof o.from === "string" ? o.from : null;
+	const target = typeof o.target === "string" ? o.target : typeof o.to === "string" ? o.to : null;
+	if (!source || !target) return null;
+	const type = normalizeEdgeType(o.type) ?? "dependency";
+	const properties = o.properties && typeof o.properties === "object" ? o.properties : {};
+	const direction = o.direction === "forward" || o.direction === "backward" || o.direction === "bidirectional" ? o.direction : "forward";
+	const weight = typeof o.weight === "number" && o.weight >= 0 && o.weight <= 1 ? o.weight : 1;
+	return {
+		id: EdgeId(id),
+		source: NodeId(source),
+		target: NodeId(target),
+		type,
+		direction,
+		weight,
+		properties
+	};
+}
+function coerceGraphData(raw) {
+	if (!raw || typeof raw !== "object") return null;
+	const o = raw;
+	const rawNodes = Array.isArray(o.nodes) ? o.nodes : [];
+	const rawEdges = Array.isArray(o.edges) ? o.edges : [];
+	const nodes = rawNodes.map(coerceNode).filter((n) => n !== null);
+	if (nodes.length === 0) return null;
+	const nodeIds = new Set(nodes.map((n) => n.id));
+	const edges = rawEdges.map(coerceEdge).filter((e) => e !== null).filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+	const metadata = o.metadata;
+	const repoId = metadata?.repoId ?? `workspace-${Date.now()}`;
+	const timestamp = typeof metadata?.timestamp === "number" ? metadata.timestamp : Date.now();
+	const truncated = typeof metadata?.truncated === "boolean" ? metadata.truncated : false;
+	const totalNodeCount = typeof metadata?.totalNodeCount === "number" ? metadata.totalNodeCount : nodes.length;
+	const totalEdgeCount = typeof metadata?.totalEdgeCount === "number" ? metadata.totalEdgeCount : edges.length;
+	return {
+		nodes,
+		edges,
+		metadata: {
+			repoId: RepoId(repoId),
+			timestamp,
+			nodeCount: nodes.length,
+			edgeCount: edges.length,
+			truncated,
+			totalNodeCount,
+			totalEdgeCount
+		}
+	};
+}
+function sanitizeTypedGraph(nodes, edges) {
+	const seenNodeIds = new Set();
+	const validNodes = [];
+	for (const node of nodes) {
+		if (!node || !node.id || !node.label || !node.type || !node.filePath) continue;
+		if (seenNodeIds.has(node.id)) continue;
+		seenNodeIds.add(node.id);
+		validNodes.push(node);
+	}
+	const nodeIdSet = new Set(validNodes.map((n) => n.id));
+	const seenEdgeIds = new Set();
+	const validEdges = [];
+	for (const edge of edges) {
+		if (!edge || !edge.id || !edge.source || !edge.target) continue;
+		if (edge.source === edge.target) continue;
+		if (!nodeIdSet.has(edge.source) || !nodeIdSet.has(edge.target)) continue;
+		if (seenEdgeIds.has(edge.id)) continue;
+		seenEdgeIds.add(edge.id);
+		validEdges.push(edge);
+	}
+	return {
+		nodes: validNodes,
+		edges: validEdges
+	};
+}
+
+//#endregion
+//#region src/client/diagram/DiagramAssembler.ts
+function computeDepths(rootIds, edges, direction) {
+	const depths = new Map();
+	const queue = rootIds.map((id) => ({
+		id,
+		depth: 0
+	}));
+	let head = 0;
+	while (head < queue.length) {
+		const { id, depth } = queue[head++];
+		if (depths.has(id) && depths.get(id) <= depth) continue;
+		depths.set(id, depth);
+		const edgeList = edges.get(id) ?? [];
+		for (const edge of edgeList) {
+			const nextId = direction === "source" ? edge.source : edge.target;
+			if (!depths.has(nextId) || depths.get(nextId) > depth + 1) queue.push({
+				id: nextId,
+				depth: depth + 1
+			});
+		}
+	}
+	return depths;
+}
+function buildAdjacencyMaps$1(edges) {
+	const outEdges = new Map();
+	const inEdges = new Map();
+	for (const e of edges) {
+		const outList = outEdges.get(e.source) ?? [];
+		outList.push(e);
+		outEdges.set(e.source, outList);
+		const inList = inEdges.get(e.target) ?? [];
+		inList.push(e);
+		inEdges.set(e.target, inList);
+	}
+	return {
+		outEdges,
+		inEdges
+	};
+}
+
+//#endregion
+//#region src/client/diagram/BaseFilteringAssembler.ts
+var BaseFilteringAssembler = class {
+	prepare(_ctx) {}
+	assemble(nodes, edges) {
+		const cfg = this.config;
+		const filteredNodes = nodes.filter((n) => cfg.nodeTypes.has(n.type));
+		const filteredEdges = edges.filter((e) => cfg.edgeTypes.has(e.type));
+		const nodeIds = new Set(filteredNodes.map((n) => n.id));
+		const validEdges = filteredEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+		const { outEdges, inEdges } = buildAdjacencyMaps$1(validEdges);
+		const rootIds = this.findRoots(filteredNodes, outEdges, inEdges);
+		const depthEdges = cfg.depthDirection === "source" ? inEdges : outEdges;
+		const depthMap = computeDepths(rootIds, depthEdges, cfg.depthDirection);
+		const ctx = {
+			outEdges,
+			inEdges,
+			depthMap,
+			rootIds,
+			allNodes: nodes,
+			allEdges: edges,
+			filteredNodes,
+			validEdges
+		};
+		this.prepare(ctx);
+		const assembledNodes = filteredNodes.map((n) => this.enrichNode(n, ctx));
+		const maxDepth = Math.max(0, ...depthMap.values());
+		return {
+			nodes: assembledNodes,
+			edges: validEdges,
+			metadata: {
+				rootIds,
+				maxDepth,
+				nodeCount: assembledNodes.length,
+				edgeCount: validEdges.length
+			}
+		};
+	}
+	findRoots(nodes, outEdges, inEdges) {
+		if (this.config.rootDirection === "in-degree-zero") return nodes.filter((n) => (inEdges.get(n.id) ?? []).length === 0).map((n) => n.id);
+		return nodes.filter((n) => !outEdges.has(n.id)).map((n) => n.id);
+	}
+};
+
+//#endregion
+//#region src/client/diagram/InheritanceAssembler.ts
+const INHERITANCE_NODE_TYPES = new Set([
+	"class",
+	"interface",
+	"type"
+]);
+const INHERITANCE_EDGE_TYPES = new Set(["extend", "implement"]);
+var InheritanceAssembler = class extends BaseFilteringAssembler {
+	config = {
+		nodeTypes: INHERITANCE_NODE_TYPES,
+		edgeTypes: INHERITANCE_EDGE_TYPES,
+		rootDirection: "no-out-edges",
+		depthDirection: "source"
+	};
+	descendantCounts = new Map();
+	prepare(ctx) {
+		this.descendantCounts = this.computeDescendantCounts(ctx.rootIds, ctx.inEdges);
+	}
+	enrichNode(node, ctx) {
+		const parentEdges = ctx.outEdges.get(node.id) ?? [];
+		const childEdges = ctx.inEdges.get(node.id) ?? [];
+		const stereotype = node.type === "interface" ? `\u00ABinterface\u00BB\n` : "";
+		const umlLabel = stereotype + node.label;
+		const isInterface = node.type === "interface";
+		const hasAbstractProp = node.properties?.isAbstract === true;
+		const matchesAbstractPattern = /^Abstract[A-Z]/.test(node.label);
+		const matchesInterfacePattern = /^I[A-Z][a-z]/.test(node.label) && node.type === "class";
+		const isAbstract = isInterface || hasAbstractProp || matchesAbstractPattern || matchesInterfacePattern;
+		return {
+			...node,
+			properties: {
+				...node.properties,
+				depth: ctx.depthMap.get(node.id) ?? 0,
+				isRoot: !ctx.outEdges.has(node.id),
+				parentCount: parentEdges.length,
+				childCount: childEdges.length,
+				descendantCount: this.descendantCounts.get(node.id) ?? 0,
+				isAbstract,
+				umlLabel
+			}
+		};
+	}
+	computeDescendantCounts(rootIds, inEdges) {
+		const counts = new Map();
+		const countDescendants = (id, visited) => {
+			if (counts.has(id)) return counts.get(id);
+			if (visited.has(id)) return 0;
+			visited.add(id);
+			const children = inEdges.get(id) ?? [];
+			const childSet = new Set();
+			let total = 0;
+			for (const edge of children) if (!childSet.has(edge.source)) {
+				childSet.add(edge.source);
+				total += 1 + countDescendants(edge.source, visited);
+			}
+			counts.set(id, total);
+			return total;
+		};
+		for (const rootId of rootIds) countDescendants(rootId, new Set());
+		return counts;
+	}
+};
+
+//#endregion
+//#region src/client/diagram/CallGraphAssembler.ts
+const CALL_NODE_TYPES$1 = new Set(["function"]);
+const CALL_EDGE_TYPES = new Set(["call"]);
+const ENTRY_PATTERNS$2 = {
+	handler: /handler|controller|route|middleware|endpoint/i,
+	event: /^on[A-Z]|^listen|^subscribe|^emit/i,
+	cli: /^main$|^cli$|^run$|^start$/i,
+	test: /^test|^it$|^describe$|^beforeEach$|^afterEach$/i
+};
+var CallGraphAssembler = class extends BaseFilteringAssembler {
+	config = {
+		nodeTypes: CALL_NODE_TYPES$1,
+		edgeTypes: CALL_EDGE_TYPES,
+		rootDirection: "in-degree-zero",
+		depthDirection: "target"
+	};
+	recursiveIds = new Set();
+	prepare(ctx) {
+		this.recursiveIds = this.detectRecursion(ctx.filteredNodes, ctx.validEdges);
+	}
+	enrichNode(node, ctx) {
+		const inDeg = (ctx.inEdges.get(node.id) ?? []).length;
+		const outDeg = (ctx.outEdges.get(node.id) ?? []).length;
+		const isEntry = inDeg === 0;
+		const entryType = isEntry ? this.classifyEntry(node) : "none";
+		const entryPrefix = isEntry ? `\u00AB${entryType}\u00BB\n` : "";
+		const umlLabel = entryPrefix + node.label;
+		return {
+			...node,
+			properties: {
+				...node.properties,
+				depth: ctx.depthMap.get(node.id) ?? 0,
+				isEntry,
+				entryType,
+				inDegree: inDeg,
+				outDegree: outDeg,
+				isRecursive: this.recursiveIds.has(node.id),
+				umlLabel
+			}
+		};
+	}
+	classifyEntry(node) {
+		const isExported = node.properties?.isExported === true || node.properties?.is_exported === 1;
+		if (isExported) return "export";
+		const name$1 = node.label;
+		if (ENTRY_PATTERNS$2.handler.test(name$1)) return "handler";
+		if (ENTRY_PATTERNS$2.event.test(name$1)) return "event";
+		if (ENTRY_PATTERNS$2.cli.test(name$1)) return "cli";
+		if (ENTRY_PATTERNS$2.test.test(name$1)) return "test";
+		return "none";
+	}
+	detectRecursion(nodes, edges) {
+		const adjacency = buildForwardAdjacency(edges);
+		const recursive = new Set();
+		const visited = new Set();
+		for (const startNode of nodes) {
+			if (visited.has(startNode.id)) continue;
+			const stack = [];
+			const inStack = new Set();
+			stack.push({
+				id: startNode.id,
+				neighborIdx: 0
+			});
+			inStack.add(startNode.id);
+			visited.add(startNode.id);
+			while (stack.length > 0) {
+				const frame = stack[stack.length - 1];
+				const neighbors = adjacency.get(frame.id) ?? [];
+				if (frame.neighborIdx < neighbors.length) {
+					const target = neighbors[frame.neighborIdx];
+					frame.neighborIdx++;
+					if (inStack.has(target)) {
+						recursive.add(target);
+						recursive.add(frame.id);
+					} else if (!visited.has(target)) {
+						visited.add(target);
+						inStack.add(target);
+						stack.push({
+							id: target,
+							neighborIdx: 0
+						});
+					}
+				} else {
+					inStack.delete(frame.id);
+					stack.pop();
+				}
+			}
+		}
+		return recursive;
+	}
+};
+
+//#endregion
+//#region src/client/diagram/HierarchicalAssembler.ts
+const UML_SEPARATOR = "─".repeat(20);
+var HierarchicalAssembler = class {
+	assemble(nodes, edges) {
+		const cfg = this.config;
+		const filteredNodes = cfg.filterNodes ? cfg.filterNodes(nodes) : nodes;
+		const relevantEdges = edges.filter((e) => cfg.edgeTypes.has(e.type));
+		const dirNodes = new Map();
+		const dirChildCount = new Map();
+		const dirTypeDist = new Map();
+		for (const n of filteredNodes) {
+			const dir = cfg.getDirectory(n.filePath);
+			if (!dirNodes.has(dir)) {
+				dirNodes.set(dir, {
+					id: NodeId(`${cfg.nodePrefix}:${dir}`),
+					label: cfg.getLabel(dir),
+					type: "module",
+					filePath: dir,
+					lineNumber: 0,
+					properties: {
+						[cfg.isDirProperty]: true,
+						directory: dir
+					}
+				});
+				dirChildCount.set(dir, 0);
+				dirTypeDist.set(dir, {});
+			}
+			dirChildCount.set(dir, (dirChildCount.get(dir) ?? 0) + 1);
+			const dist$1 = dirTypeDist.get(dir);
+			if (!cfg.excludeTypesFromDist?.has(n.type)) dist$1[n.type] = (dist$1[n.type] ?? 0) + 1;
+		}
+		const nodeIdToDir = new Map();
+		for (const n of filteredNodes) nodeIdToDir.set(n.id, cfg.getDirectory(n.filePath));
+		const aggregatedEdges = new Map();
+		for (const e of relevantEdges) {
+			const sourceDir = nodeIdToDir.get(e.source);
+			const targetDir = nodeIdToDir.get(e.target);
+			if (!sourceDir || !targetDir || sourceDir === targetDir) continue;
+			const key = `${sourceDir}->${targetDir}`;
+			const existing = aggregatedEdges.get(key);
+			if (existing) {
+				existing.count++;
+				existing.types.add(e.type);
+			} else aggregatedEdges.set(key, {
+				source: sourceDir,
+				target: targetDir,
+				count: 1,
+				types: new Set([e.type])
+			});
+		}
+		const edgeList = [];
+		let edgeIdx = 0;
+		for (const [, agg] of aggregatedEdges) {
+			const sourceId = `${cfg.nodePrefix}:${agg.source}`;
+			const targetId = `${cfg.nodePrefix}:${agg.target}`;
+			if (!dirNodes.has(agg.source) || !dirNodes.has(agg.target)) continue;
+			edgeList.push({
+				id: EdgeId(`${cfg.edgeIdPrefix}:${edgeIdx++}`),
+				source: NodeId(sourceId),
+				target: NodeId(targetId),
+				type: agg.types.has("import") ? "import" : "dependency",
+				properties: {
+					aggregatedCount: agg.count,
+					[cfg.isEdgeProperty]: true
+				}
+			});
+		}
+		const inDegree = new Map();
+		const outDegree = new Map();
+		for (const e of edgeList) {
+			outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1);
+			inDegree.set(e.target, (inDegree.get(e.target) ?? 0) + 1);
+		}
+		const rootIds = [];
+		for (const [, dirNode] of dirNodes) if ((inDegree.get(dirNode.id) ?? 0) === 0) rootIds.push(dirNode.id);
+		const edgeMap = new Map();
+		for (const e of edgeList) {
+			const list = edgeMap.get(e.source) ?? [];
+			list.push(e);
+			edgeMap.set(e.source, list);
+		}
+		const depthMap = computeDepths(rootIds, edgeMap, "target");
+		const assembledNodes = [];
+		for (const [dir, dirNode] of dirNodes) {
+			const childCount = dirChildCount.get(dir) ?? 0;
+			const typeDist = dirTypeDist.get(dir) ?? {};
+			const inDeg = inDegree.get(dirNode.id) ?? 0;
+			const outDeg = outDegree.get(dirNode.id) ?? 0;
+			const depth = depthMap.get(dirNode.id) ?? 0;
+			const typeSummary = Object.entries(typeDist).map(([t$1, c]) => `${t$1}: ${c}`).join(", ");
+			const umlLabel = `${dirNode.label}\n${UML_SEPARATOR}\n${childCount} items${typeSummary ? "\n" + typeSummary : ""}`;
+			assembledNodes.push({
+				...dirNode,
+				properties: {
+					...dirNode.properties,
+					childCount,
+					typeDistribution: typeDist,
+					inDegree: inDeg,
+					outDegree: outDeg,
+					depth,
+					isRoot: inDeg === 0,
+					umlLabel
+				}
+			});
+		}
+		const maxDepth = Math.max(0, ...depthMap.values());
+		return {
+			nodes: assembledNodes,
+			edges: edgeList,
+			metadata: {
+				rootIds,
+				maxDepth,
+				nodeCount: assembledNodes.length,
+				edgeCount: edgeList.length
+			}
+		};
+	}
+};
+
+//#endregion
+//#region src/client/diagram/PackageAssembler.ts
+function getDirectory(filePath) {
+	const normalized = filePath.replace(/\\/g, "/");
+	const lastSlash = normalized.lastIndexOf("/");
+	if (lastSlash <= 0) return "/";
+	return normalized.substring(0, lastSlash);
+}
+function getPackageLabel(dir) {
+	if (dir === "/") return "root";
+	const parts = dir.split("/");
+	return parts[parts.length - 1] ?? dir;
+}
+var PackageAssembler = class extends HierarchicalAssembler {
+	config = {
+		nodePrefix: "pkg",
+		edgeIdPrefix: "pkg-edge",
+		isDirProperty: "isPackage",
+		isEdgeProperty: "isPackageEdge",
+		edgeTypes: new Set(["import", "dependency"]),
+		excludeTypesFromDist: new Set(["module"]),
+		getDirectory,
+		getLabel: getPackageLabel
+	};
+};
+
+//#endregion
+//#region src/client/diagram/ClassAssembler.ts
+const CLASS_NODE_TYPES = new Set([
+	"class",
+	"interface",
+	"type"
+]);
+const CLASS_EDGE_TYPES = new Set([
+	"extend",
+	"implement",
+	"association",
+	"aggregation",
+	"composition"
+]);
+var ClassAssembler = class extends BaseFilteringAssembler {
+	config = {
+		nodeTypes: CLASS_NODE_TYPES,
+		edgeTypes: CLASS_EDGE_TYPES,
+		rootDirection: "no-out-edges",
+		depthDirection: "source"
+	};
+	membersByClass = new Map();
+	prepare(ctx) {
+		this.membersByClass = this.associateMembers(ctx.filteredNodes, ctx.allNodes);
+	}
+	enrichNode(node, ctx) {
+		const members = this.membersByClass.get(node.id) ?? [];
+		const methodCount = members.filter((m) => m.type === "method").length;
+		const propertyCount = members.filter((m) => m.type === "property").length;
+		const parentEdges = ctx.outEdges.get(node.id) ?? [];
+		const childEdges = ctx.inEdges.get(node.id) ?? [];
+		const memberSignatures = members.slice(0, 10).map((m) => ({
+			name: m.name,
+			type: m.type,
+			visibility: m.visibility,
+			...m.signature ? { signature: m.signature } : {}
+		}));
+		const umlLabel = this.buildUmlLabel(node, members);
+		return {
+			...node,
+			properties: {
+				...node.properties,
+				depth: ctx.depthMap.get(node.id) ?? 0,
+				isRoot: !ctx.outEdges.has(node.id),
+				parentCount: parentEdges.length,
+				childCount: childEdges.length,
+				methodCount,
+				propertyCount,
+				members: memberSignatures,
+				umlLabel,
+				isAbstract: this.checkAbstract(node)
+			}
+		};
+	}
+	associateMembers(classNodes, allNodes) {
+		const result = new Map();
+		const classIdSet = new Set(classNodes.map((n) => n.id));
+		for (const member of allNodes) {
+			if (member.type !== "function" && member.type !== "variable") continue;
+			if (CLASS_NODE_TYPES.has(member.type)) continue;
+			let assignedClass = null;
+			if (member.parentId && classIdSet.has(member.parentId)) assignedClass = classNodes.find((n) => n.id === member.parentId) ?? null;
+			if (!assignedClass) {
+				const classesByFile = new Map();
+				for (const cls of classNodes) {
+					const list = classesByFile.get(cls.filePath) ?? [];
+					list.push(cls);
+					classesByFile.set(cls.filePath, list);
+				}
+				const sameFileClasses = classesByFile.get(member.filePath);
+				if (sameFileClasses) {
+					const sortedClasses = [...sameFileClasses].sort((a, b) => (a.lineNumber ?? 0) - (b.lineNumber ?? 0));
+					for (let i$1 = sortedClasses.length - 1; i$1 >= 0; i$1--) {
+						const cls = sortedClasses[i$1];
+						if (cls && (cls.lineNumber ?? 0) <= (member.lineNumber ?? 0)) {
+							assignedClass = cls;
+							break;
+						}
+					}
+				}
+			}
+			if (assignedClass) {
+				const list = result.get(assignedClass.id) ?? [];
+				const isMethod = member.type === "function";
+				list.push({
+					name: member.label,
+					type: isMethod ? "method" : "property",
+					...member.properties?.signature ? { signature: member.properties.signature } : {},
+					visibility: this.inferVisibility(member)
+				});
+				result.set(assignedClass.id, list);
+			}
+		}
+		return result;
+	}
+	inferVisibility(node) {
+		const name$1 = node.label;
+		if (name$1.startsWith("_") && !name$1.startsWith("__")) return "protected";
+		if (name$1.startsWith("__")) return "private";
+		const exported = node.properties?.exported ?? node.properties?.isExported;
+		if (exported === true || exported === 1) return "public";
+		return "private";
+	}
+	checkAbstract(node) {
+		const name$1 = node.label;
+		return name$1.startsWith("Abstract") || name$1.startsWith("I") && node.type === "interface";
+	}
+	buildUmlLabel(node, members) {
+		const visMark = (v) => v === "public" ? "+" : v === "private" ? "-" : "#";
+		const stereotype = node.type === "interface" ? `\u00ABinterface\u00BB\n` : "";
+		const header = stereotype + node.label;
+		const properties = members.filter((m) => m.type === "property");
+		const methods = members.filter((m) => m.type === "method");
+		const propLines = properties.slice(0, 5).map((m) => `${visMark(m.visibility)} ${m.name}${m.signature ? ": " + m.signature : ""}`);
+		const methodLines = methods.slice(0, 8).map((m) => `${visMark(m.visibility)} ${m.name}(${m.signature ?? ""})`);
+		const sep$1 = "─".repeat(20);
+		const parts = [header];
+		if (propLines.length > 0) parts.push(sep$1, ...propLines);
+		if (methodLines.length > 0) parts.push(sep$1, ...methodLines);
+		return parts.join("\n");
+	}
+};
+
+//#endregion
+//#region src/client/diagram/DependencyAssembler.ts
+var DependencyAssembler = class extends HierarchicalAssembler {
+	config = {
+		nodePrefix: "depdir",
+		edgeIdPrefix: "dep-edge",
+		isDirProperty: "isDependencyDir",
+		isEdgeProperty: "isDependencyEdge",
+		edgeTypes: new Set(["import", "dependency"]),
+		getDirectory: (filePath) => getTopLevelDir(filePath, { simplified: true }),
+		getLabel: (dir) => dir === "/" ? "root" : dir
+	};
+};
+
+//#endregion
+//#region src/client/i18n/dicts/en.ts
+const en = {
+	"panel.ariaLabel": "Code graph visualizer",
+	"panel.expand": "Expand graph panel",
+	"panel.collapse": "Collapse",
+	"panel.expandPanel": "Expand panel",
+	"panel.collapsePanel": "Collapse panel",
+	"panel.resetSize": "Double-click to reset to responsive fill",
+	"toolbar.import": "Import graph (Ctrl+I)",
+	"toolbar.filter": "Filter by node type",
+	"toolbar.search": "Search symbols (press /)",
+	"toolbar.chain": "Toggle call chain highlight (Ctrl+C)",
+	"toolbar.cycles": "Highlight circular dependencies",
+	"toolbar.isolateCycles": "Isolate cycle subgraph",
+	"toolbar.impact": "Impact analysis - show dependents (Ctrl+E)",
+	"toolbar.inheritance": "Inheritance hierarchy - show extend/implement (Ctrl+H)",
+	"toolbar.minimap": "Toggle mini-map (Ctrl+M)",
+	"toolbar.legend": "Toggle legend",
+	"toolbar.refresh": "Refresh graph",
+	"toolbar.dataGroup": "Data controls",
+	"toolbar.analysisGroup": "Analysis tools",
+	"toolbar.analysis": "Analysis",
+	"toolbar.quality": "Quality",
+	"toolbar.tools": "Tools",
+	"toolbar.viewGroup": "View controls",
+	"toolbar.settingsGroup": "Settings",
+	"toolbar.theme": "Toggle theme",
+	"toolbar.export": "Export graph",
+	"toolbar.lang": "Switch language",
+	"toolbar.layout": "Switch to {l} layout (Ctrl+L cycles)",
+	"toolbar.layoutSwitcher": "Layout switcher",
+	"toolbar.rankDir": "Dagre direction",
+	"toolbar.graphType": "Graph type switcher",
+	"toolbar.viewMode": "View mode",
+	"toolbar.viewModeStructural": "Structural",
+	"toolbar.viewModeBehavioral": "Behavioral",
+	"toolbar.viewModeMicro": "Micro (select a function)",
+	"toolbar.cluster": "Expand depth",
+	"toolbar.layer": "Diagram layer",
+	"clusterDepth.directory": "Directory",
+	"clusterDepth.file": "File",
+	"clusterDepth.function": "Function",
+	"filter.all": "All Types",
+	"filter.function": "Functions",
+	"filter.class": "Classes",
+	"filter.variable": "Variables",
+	"filter.module": "Modules",
+	"filter.interface": "Interfaces",
+	"graphType.all": "All",
+	"graphType.call": "Calls",
+	"graphType.dependency": "Deps",
+	"search.placeholder": "Search symbols…",
+	"search.close": "Close search",
+	"search.noMatch": "No matching symbols",
+	"search.match": "{n} match",
+	"search.matches": "{n} matches",
+	"search.debounced": "debounced 200ms",
+	"state.loading": "Loading graph…",
+	"state.ready": "Ready",
+	"state.error": "Error",
+	"state.noData": "No data",
+	"state.updated": "Updated {time}",
+	"state.truncated": "Showing top {shown} of {total} nodes",
+	"state.truncatedHint": "Graph is truncated for performance. Showing most important nodes.",
+	"status.feedback": "Feedback on GitHub",
+	"empty.title": "No graph data yet",
+	"empty.subtitle": "Import a .codegraph folder, paste graph data, or scan a repository.",
+	"empty.import": "Import Graph",
+	"error.title": "Something went wrong",
+	"error.retry": "Retry",
+	"error.reportIssue": "Report Issue",
+	"error.loadDependencies": "Unable to load dependency data. Please check your connection and try again.",
+	"error.loadGraphData": "Unable to load code graph data. Please refresh the page.",
+	"error.loadGraph": "Unable to load code graph. Please check the server status.",
+	"error.generic": "An unexpected error occurred. Please try again.",
+	"error.callChainEmpty": "Call chain aggregation produced no results — the selected function may have no callable targets or AST parsing failed.",
+	"error.callChainFailed": "Call chain aggregation failed. Please try again.",
+	"detail.ariaLabel": "Node details",
+	"detail.close": "Close details",
+	"detail.type": "Type",
+	"detail.kind": "Kind",
+	"detail.file": "File",
+	"detail.line": "Line",
+	"detail.properties": "Properties",
+	"detail.connections": "Connections",
+	"detail.doubleClickExpand": "Double-click to expand related nodes",
+	"detail.expanded": "Expanded",
+	"detail.collapse": "Collapse",
+	"detail.microViews": "Micro views",
+	"detail.microHint": "Select a function to view micro graphs",
+	"detail.aggregateCallChain": "Aggregate Call Chain",
+	"detail.functionsInCluster": "Functions in cluster",
+	"detail.moreFunctions": "{count} more functions not shown",
+	"detail.signature": "Signature",
+	"detail.docstring": "Docstring",
+	"detail.functionBodyBudget": "Function body budget: {expanded}/{max}",
+	"detail.functionBodyBudgetHint": "Only {max} function bodies can be expanded simultaneously. Oldest will be auto-collapsed.",
+	"minimap.title": "Overview",
+	"minimap.close": "Close mini-map",
+	"minimap.functions": "Functions",
+	"minimap.classes": "Classes",
+	"minimap.variables": "Variables",
+	"minimap.modules": "Modules",
+	"minimap.interfaces": "Interfaces",
+	"minimap.total": "Total",
+	"import.title": "Import Graph",
+	"import.close": "Close import",
+	"import.workspace": "Workspace",
+	"import.paste": "Paste",
+	"import.workspacePath": "Current workspace path",
+	"import.workspaceHint": "Scan the current DSH workspace for .codegraph database",
+	"import.scanWorkspace": "Scan Workspace",
+	"import.scanning": "Scanning…",
+	"import.pastePlaceholder": "Paste graph JSON here, e.g. {\"nodes\":[...],\"edges\":[...]}",
+	"import.importJson": "Import JSON",
+	"import.importing": "Importing…",
+	"import.pasteFirst": "Paste JSON first",
+	"import.imported": "Imported {nodes} nodes · {edges} edges",
+	"import.importFailed": "Import failed: {msg}",
+	"import.requestedScan": "Requested scan of {path}",
+	"import.prereqMissing": "Prerequisite plugins (dsh-codegraph or dsh-tool-lens) not detected. Install one for full functionality.",
+	"import.prereqCmd": "{cmd}",
+	"import.prereqCopy": "Copy install command",
+	"import.copied": "Copied",
+	"import.initGraph": "Initialize Graph",
+	"import.initializing": "Initializing…",
+	"import.initStarted": "Initializing graph for {path}",
+	"import.initSuccess": "Graph initialized successfully",
+	"import.initFailed": "Initialization failed — check prerequisite plugins",
+	"import.watchOn": "Auto Refresh: ON",
+	"import.watchOff": "Auto Refresh: OFF",
+	"legend.title": "Legend",
+	"legend.close": "Close legend",
+	"legend.nodes": "Nodes",
+	"legend.edges": "Edges",
+	"legend.function": "Function",
+	"legend.class": "Class",
+	"legend.variable": "Variable",
+	"legend.module": "Module",
+	"legend.interface": "Interface",
+	"legend.type": "Type",
+	"legend.call": "calls",
+	"legend.import": "imports",
+	"legend.extend": "extends",
+	"legend.implement": "implements",
+	"legend.dependency": "depends on",
+	"legend.contains": "contains",
+	"export.png": "PNG",
+	"export.svg": "SVG",
+	"export.json": "JSON",
+	"export.mermaid": "Mermaid Flowchart",
+	"export.mermaidSeq": "Mermaid Sequence",
+	"export.mermaidClass": "Mermaid Class",
+	"export.graphml": "GraphML",
+	"export.jsonld": "JSON-LD",
+	"workspace.current": "Current Workspace",
+	"workspace.switch": "Switch Workspace",
+	"workspace.add": "Add Workspace",
+	"workspace.remove": "Remove",
+	"workspace.empty": "No workspaces yet",
+	"workspace.namePlaceholder": "Workspace path or name",
+	"workspace.active": "Active",
+	"workspace.default": "Default",
+	"workspace.timeJustNow": "just now",
+	"workspace.timeMinutesAgo": "{n}m ago",
+	"workspace.timeHoursAgo": "{n}h ago",
+	"workspace.timeDaysAgo": "{n}d ago",
+	"prereq.installCodegraph": "dsh plugin --profile web add dsh-codegraph",
+	"prereq.installLens": "dsh plugin --profile web add dsh-tool-lens",
+	"prereq.installTitle": "Install Prerequisite Plugin",
+	"prereq.detecting": "Detecting prerequisite plugins…",
+	"prereq.notFound": "Not detected",
+	"prereq.codegraphLabel": "dsh-codegraph",
+	"prereq.lensLabel": "dsh-tool-lens",
+	"prereq.codegraphDesc": "Recommended — provides 20+ language support and incremental indexing. Built-in analysis available without it.",
+	"prereq.lensDesc": "Optional — provides AST-precise analysis and impact detection.",
+	"empty.prereqTitle": "Recommended Prerequisite Plugins",
+	"empty.copyCmd": "Copy install command",
+	"empty.copied": "Copied!",
+	"empty.scanWorkspace": "Scan Current Workspace",
+	"empty.degradedMode": "Degraded Mode — using built-in TreeSitter and dependency analysis",
+	"empty.degradedHint": "Built-in analysis provides basic code structure parsing without additional plugins.",
+	"shortcut.title": "Keyboard Shortcuts",
+	"shortcut.close": "Close",
+	"shortcut.search": "Search symbols",
+	"shortcut.searchCtrlF": "Search symbols",
+	"shortcut.closeAll": "Close all panels",
+	"shortcut.callChain": "Toggle call chain",
+	"shortcut.impact": "Toggle impact analysis",
+	"shortcut.inheritance": "Toggle inheritance hierarchy",
+	"shortcut.minimap": "Toggle mini-map",
+	"shortcut.layout": "Cycle layout",
+	"shortcut.import": "Toggle import panel",
+	"shortcut.refresh": "Refresh graph",
+	"shortcut.undo": "Undo",
+	"shortcut.redo": "Redo",
+	"shortcut.help": "Show this help",
+	"state.complete": "Graph is complete ({total} nodes)",
+	"state.functionBudget": "Expanded {expanded}/{total} function bodies",
+	"pathFind.title": "Path Finder",
+	"pathFind.close": "Close path finder",
+	"pathFind.start": "Start",
+	"pathFind.end": "End",
+	"pathFind.startPlaceholder": "Search start symbol…",
+	"pathFind.endPlaceholder": "Search end symbol…",
+	"pathFind.find": "Find Path",
+	"pathFind.clear": "Clear",
+	"pathFind.length": "Path length",
+	"pathFind.hops": "Hops",
+	"pathFind.startSuggestions": "Start suggestions",
+	"pathFind.endSuggestions": "End suggestions",
+	"health.title": "Architecture Health Score",
+	"health.close": "Close health score",
+	"health.noData": "Click \"Check\" to calculate score",
+	"health.overall": "Overall",
+	"health.coupling": "Coupling",
+	"health.cohesion": "Cohesion",
+	"health.cyclicDependencyRate": "Cyclic Dep Rate",
+	"health.modularity": "Modularity",
+	"health.couplingDesc": "Lower inter-module coupling is better",
+	"health.cohesionDesc": "Higher intra-module cohesion is better",
+	"health.cyclicDesc": "Fewer circular dependencies is better",
+	"health.modularityDesc": "Better module separation is better",
+	"rules.title": "Rule Engine",
+	"rules.close": "Close rule engine",
+	"rules.config": "Rule Configuration",
+	"rules.loadPresets": "Load Preset Rules",
+	"rules.noRules": "No rules yet, click \"Load Preset Rules\"",
+	"rules.check": "Check Violations",
+	"rules.violations": "Violations",
+	"rules.noViolations": "No violations",
+	"focus.title": "Focus Mode",
+	"focus.mode": "Focus",
+	"focus.depth": "Depth",
+	"focus.expand": "Expand next layer",
+	"focus.contract": "Contract one layer",
+	"focus.exit": "Exit focus",
+	"toolbar.pathFind": "Path Finder",
+	"toolbar.health": "Architecture Health Score",
+	"toolbar.rules": "Rule Engine",
+	"toolbar.hotspot": "Hotspot Analysis",
+	"toolbar.godModule": "God Module Detection",
+	"toolbar.coreFunction": "Core Function Analysis",
+	"toolbar.deadCode": "Dead Code Detection",
+	"hotspot.close": "Close hotspot analysis",
+	"impact.total": "Total impacted nodes",
+	"cycles.empty": "No circular dependencies detected",
+	"toolbar.undo": "Undo (Ctrl+Z)",
+	"toolbar.redo": "Redo (Ctrl+Y)",
+	"toolbar.viewModeDeps": "Switch to dependency graph view",
+	"toolbar.viewModeCode": "Switch to code graph view",
+	"toolbar.viewModeInheritance": "Switch to inheritance tree view",
+	"toolbar.viewModeCallgraph": "Switch to call graph view",
+	"toolbar.viewModePackage": "Switch to package/component diagram view",
+	"toolbar.viewModeClass": "Switch to class diagram view",
+	"toolbar.viewModeCfg": "Switch to control flow graph view",
+	"toolbar.viewModeFlowchart": "Switch to flowchart view",
+	"toolbar.viewModeSequence": "Switch to sequence diagram view",
+	"toolbar.microDisabled": "Select a function node first",
+	"viewMode.code": "Code",
+	"viewMode.dependencies": "Deps",
+	"viewMode.inheritance": "Inherit",
+	"viewMode.callgraph": "Call",
+	"viewMode.package": "Pkg",
+	"viewMode.class": "Class",
+	"viewMode.cfg": "CFG",
+	"viewMode.flowchart": "Flow",
+	"viewMode.sequence": "Seq",
+	"micro.selectFunctionPrompt": "Please select a function node in the code graph first, then switch to this view",
+	"micro.backToCode": "Back to Code View",
+	"sequence.noData": "No sequence data available",
+	"sequence.ariaLabel": "{participants} participants, {messages} messages",
+	"sequence.zoomIn": "Zoom in",
+	"sequence.zoomOut": "Zoom out",
+	"sequence.resetView": "Reset view",
+	"micro.closeView": "Close micro view",
+	"micro.functionBar": "Micro view toolbar",
+	"stats.nodesEdges": "{nodes} nodes · {edges} edges",
+	"stats.functionBodyBudget": "{expanded}/{max} function bodies expanded",
+	"godmodule.stats": "{nodes} nodes · {edges} edges",
+	"search.moreResults": "+{n} more results",
+	"layer.inheritance.0": "Root Overview",
+	"layer.inheritance.1": "2-Level Depth",
+	"layer.inheritance.2": "Full Tree",
+	"layer.callgraph.0": "Entry Functions",
+	"layer.callgraph.1": "2-Level Calls",
+	"layer.callgraph.2": "Full Call Graph",
+	"layer.package.0": "Top Packages",
+	"layer.package.1": "Sub Packages",
+	"layer.package.2": "Package Modules",
+	"layer.class.0": "Class Overview",
+	"layer.class.1": "Class Relations",
+	"layer.class.2": "Full Class Diagram",
+	"layer.code.0": "Directory Cluster",
+	"layer.code.1": "File Cluster",
+	"layer.code.2": "All Nodes",
+	"layer.dependencies.0": "Directory Deps",
+	"layer.dependencies.1": "File Dependencies",
+	"layer.dependencies.2": "Module Dependencies",
+	"coreFunction.category.entry": "Entry",
+	"coreFunction.category.hub": "Hub",
+	"coreFunction.category.api": "API",
+	"coreFunction.category.critical": "Critical",
+	"coreFunction.reason.high-indegree": "High In-Degree",
+	"coreFunction.reason.high-outdegree": "High Out-Degree",
+	"coreFunction.reason.entry-point": "Entry Point",
+	"coreFunction.reason.exported": "Exported",
+	"coreFunction.reason.handler-pattern": "Handler",
+	"coreFunction.reason.event-pattern": "Event",
+	"coreFunction.reason.cli-pattern": "CLI",
+	"coreFunction.reason.large-influence": "Large Influence",
+	"coreFunction.reason.deep-call-chain": "Deep Call Chain",
+	"coreFunction.reason.hub-function": "Hub Function",
+	"coreFunction.inDegree": "In-Degree",
+	"coreFunction.outDegree": "Out-Degree",
+	"coreFunction.influenceReach": "Influence Reach",
+	"coreFunction.callChainDepth": "Call Chain Depth",
+	"deadcode.filterAll": "All",
+	"deadcode.unreachable": "Unreachable",
+	"deadcode.noIncoming": "No Incoming",
+	"deadcode.orphan": "Orphan",
+	"deadcode.confirmed": "Confirmed",
+	"deadcode.suspected": "Suspected",
+	"deadcode.empty": "No dead code detected",
+	"flowchart.start": "Start",
+	"flowchart.end": "End",
+	"flowchart.errorExit": "Error Exit",
+	"flowchart.tryBlock": "Try",
+	"flowchart.catchBlock": "Catch",
+	"flowchart.finallyBlock": "Finally",
+	"flowchart.returnResult": "Return",
+	"flowchart.throwException": "Throw",
+	"flowchart.loopPrefix": "Loop: {cond}",
+	"flowchart.switchPrefix": "switch: {expr}",
+	"flowchart.statementsCount": "{n} statements",
+	"flowchart.edge.yes": "Yes",
+	"flowchart.edge.no": "No",
+	"flowchart.edge.loop": "Loop",
+	"flowchart.edge.error": "Error",
+	"flowchart.edge.default": "Default",
+	"flowchart.edge.break": "Break",
+	"flowchart.edge.continue": "Continue",
+	"flowchart.semantic.init": "Initialize",
+	"flowchart.semantic.prepare": "Prepare Data",
+	"flowchart.semantic.load": "Load Data",
+	"flowchart.semantic.save": "Save Data",
+	"flowchart.semantic.fetch": "Fetch Data",
+	"flowchart.semantic.find": "Find",
+	"flowchart.semantic.create": "Create",
+	"flowchart.semantic.update": "Update",
+	"flowchart.semantic.delete": "Delete",
+	"flowchart.semantic.validate": "Validate",
+	"flowchart.semantic.check": "Check",
+	"flowchart.semantic.parse": "Parse",
+	"flowchart.semantic.format": "Format",
+	"flowchart.semantic.transform": "Transform",
+	"flowchart.semantic.render": "Render",
+	"flowchart.semantic.compute": "Compute",
+	"flowchart.semantic.build": "Build",
+	"flowchart.semantic.register": "Register",
+	"flowchart.semantic.cleanup": "Cleanup",
+	"flowchart.semantic.destroy": "Destroy",
+	"flowchart.semantic.start": "Start",
+	"flowchart.semantic.stop": "Stop",
+	"flowchart.semantic.handle": "Handle",
+	"flowchart.semantic.send": "Send",
+	"flowchart.semantic.receive": "Receive",
+	"flowchart.semantic.read": "Read",
+	"flowchart.semantic.write": "Write",
+	"flowchart.semantic.log": "Log",
+	"flowchart.semantic.notify": "Notify",
+	"flowchart.semantic.dispatch": "Dispatch",
+	"flowchart.semantic.resolve": "Resolve",
+	"flowchart.semantic.reject": "Reject",
+	"nav.title": "Code Graph",
+	"nav.description": "Visualize code structure and dependencies",
+	"nav.ariaLabel": "Code Graph",
+	"nav.closePanel": "Close graph panel",
+	"nav.minimizePanel": "Minimize panel",
+	"nav.restorePanel": "Restore panel",
+	"nav.searchSymbols": "Code Graph: Search Symbols",
+	"nav.togglePanel": "Code Graph: Toggle Panel",
+	"nav.modeFloating": "Floating",
+	"nav.switchLayout": "Code Graph: Switch Layout",
+	"nav.toggleFilter": "Code Graph: Toggle Filter",
+	"nav.exportGraph": "Code Graph: Export Graph",
+	"filterPanel.title": "Filter & Connections",
+	"filterPanel.close": "Close filter panel",
+	"filterPanel.fanIn": "Min Fan-In",
+	"filterPanel.fanOut": "Min Fan-Out",
+	"filterPanel.fanInHint": "Show only nodes with at least this many incoming connections",
+	"filterPanel.fanOutHint": "Show only nodes with at least this many outgoing connections",
+	"filterPanel.nodeTypes": "Visible Node Types",
+	"filterPanel.edgeTypes": "Visible Edge Types",
+	"filterPanel.reset": "Reset All Filters",
+	"filterPanel.hideOrphans": "Hide Orphans",
+	"filterPanel.hideLeaves": "Hide Leaves",
+	"filterPanel.orphansHint": "Hide nodes with no incoming connections",
+	"filterPanel.leavesHint": "Hide nodes with no outgoing connections",
+	"filterPanel.pathFilter": "Path Filter",
+	"filterPanel.includePlaceholder": "Include path (regex)",
+	"filterPanel.excludePlaceholder": "Exclude path (regex)",
+	"filterPanel.includeLabel": "Include path regex",
+	"filterPanel.excludeLabel": "Exclude path regex",
+	"filterPanel.applyPath": "Apply Path Filter",
+	"filterPanel.clearPath": "Clear Path Filter",
+	"filterPanel.pathHint": "Use regex to filter file paths, showing only matching nodes",
+	"filterPanel.quickActions": "Quick Actions",
+	"toolbar.filterPanel": "Filter Panel",
+	"contextMenu.focus": "Focus Node",
+	"contextMenu.isolate": "Isolate (Show Neighborhood)",
+	"contextMenu.hide": "Hide Node",
+	"contextMenu.collapse": "Collapse Cluster",
+	"contextMenu.expand": "Expand Cluster",
+	"contextMenu.callChain": "Highlight Call Chain",
+	"contextMenu.impact": "Analyze Impact",
+	"contextMenu.findPath": "Find Path From Here",
+	"contextMenu.showAll": "Show All Hidden Nodes",
+	"contextMenu.openSource": "Open Source",
+	"a11y.graphContainer": "Code graph interactive area",
+	"a11y.graphContainerStats": "Code graph interactive area: {viewMode}, {nodeCount} nodes, {edgeCount} edges",
+	"a11y.selectedNode": "Selected node",
+	"a11y.selectedNodeDetail": "Selected node: {label}, {type}, {filePath}:{lineNumber}",
+	"a11y.nodes": "nodes",
+	"a11y.edges": "edges",
+	"overlay.title": "Visual Overlay",
+	"heatmap.title": "Heatmap",
+	"heatmap.off": "Off",
+	"heatmap.none": "Off",
+	"heatmap.instability": "Instability",
+	"heatmap.lines": "Lines",
+	"heatmap.complexity": "Complexity",
+	"todoMarker.title": "TODO/FIXME",
+	"todoMarker.none": "Off",
+	"todoMarker.todo": "TODO",
+	"todoMarker.fixme": "FIXME",
+	"todoMarker.all": "All",
+	"detail.exportedBadge": "EXP",
+	"detail.expandedBadge": "OPEN",
+	"cycle.nodeCount": "{n} nodes",
+	"degradation.cycleDetectionSkipped": "Cycle detection skipped",
+	"degradation.communityDetectionSampled": "Community detection sampled",
+	"degradation.largeGraphMode": "Large graph mode",
+	"degradation.tooltip": "Some analysis features have been degraded or skipped for performance due to graph size",
+	"toolbar.more": "More",
+	"toolbar.tour": "Code Tour",
+	"tour.title": "Code Tour",
+	"tour.close": "Close tour",
+	"tour.empty": "No tour data available, please load the code graph first",
+	"tour.prev": "Previous",
+	"tour.next": "Next",
+	"tour.dependencies": "Dependencies",
+	"tour.dependents": "Referenced by",
+	"tour.layer.entry": "Entry",
+	"tour.layer.api": "API",
+	"tour.layer.service": "Service",
+	"tour.layer.data": "Data",
+	"tour.layer.ui": "UI",
+	"tour.layer.utility": "Utility",
+	"tour.layer.other": "Other",
+	"common.close": "Close",
+	"common.noVisibleNodes": "No nodes match the current filter"
+};
+
+//#endregion
+//#region src/client/i18n/dicts/zh.ts
+const zh = {
+	"panel.ariaLabel": "代码图谱可视化",
+	"panel.expand": "展开图谱面板",
+	"panel.collapse": "折叠",
+	"panel.expandPanel": "展开面板",
+	"panel.collapsePanel": "折叠面板",
+	"panel.resetSize": "双击恢复响应式填充",
+	"toolbar.import": "导入图谱 (Ctrl+I)",
+	"toolbar.filter": "按节点类型筛选",
+	"toolbar.search": "搜索符号 (按 /)",
+	"toolbar.chain": "切换调用链高亮 (Ctrl+C)",
+	"toolbar.cycles": "高亮循环依赖",
+	"toolbar.isolateCycles": "隔离循环依赖子图",
+	"toolbar.impact": "影响分析 - 显示依赖者 (Ctrl+E)",
+	"toolbar.inheritance": "继承层次 - 显示继承/实现关系 (Ctrl+H)",
+	"toolbar.minimap": "切换缩略图 (Ctrl+M)",
+	"toolbar.legend": "切换图例",
+	"toolbar.refresh": "刷新图谱",
+	"toolbar.dataGroup": "数据控制",
+	"toolbar.analysisGroup": "分析工具",
+	"toolbar.analysis": "分析",
+	"toolbar.quality": "质量",
+	"toolbar.tools": "工具",
+	"toolbar.viewGroup": "视图控制",
+	"toolbar.settingsGroup": "设置",
+	"toolbar.theme": "切换主题",
+	"toolbar.export": "导出图谱",
+	"toolbar.lang": "切换语言",
+	"toolbar.layout": "切换至 {l} 布局 (Ctrl+L 循环)",
+	"toolbar.layoutSwitcher": "布局切换",
+	"toolbar.rankDir": "Dagre 方向",
+	"toolbar.graphType": "图谱类型切换",
+	"toolbar.viewMode": "视图模式",
+	"toolbar.viewModeStructural": "结构视图",
+	"toolbar.viewModeBehavioral": "行为视图",
+	"toolbar.viewModeMicro": "微观视图（需选中函数）",
+	"toolbar.cluster": "展开深度",
+	"toolbar.layer": "图谱层级",
+	"clusterDepth.directory": "目录级",
+	"clusterDepth.file": "文件级",
+	"clusterDepth.function": "函数级",
+	"filter.all": "全部类型",
+	"filter.function": "函数",
+	"filter.class": "类",
+	"filter.variable": "变量",
+	"filter.module": "模块",
+	"filter.interface": "接口",
+	"graphType.all": "全部",
+	"graphType.call": "调用",
+	"graphType.dependency": "依赖",
+	"search.placeholder": "搜索符号…",
+	"search.close": "关闭搜索",
+	"search.noMatch": "无匹配符号",
+	"search.match": "{n} 个匹配",
+	"search.matches": "{n} 个匹配",
+	"search.debounced": "防抖 200ms",
+	"state.loading": "加载图谱中…",
+	"state.ready": "就绪",
+	"state.error": "错误",
+	"state.noData": "无数据",
+	"state.updated": "更新于 {time}",
+	"state.truncated": "显示前 {shown}/{total} 节点",
+	"state.truncatedHint": "图谱已截断以提升性能，仅显示最重要的节点。",
+	"status.feedback": "在 GitHub 上反馈",
+	"empty.title": "暂无图谱数据",
+	"empty.subtitle": "导入 .codegraph 文件夹、粘贴图谱数据或扫描仓库。",
+	"empty.import": "导入图谱",
+	"error.title": "出错了",
+	"error.retry": "重试",
+	"error.reportIssue": "反馈问题",
+	"error.loadDependencies": "无法加载依赖数据，请检查连接后重试。",
+	"error.loadGraphData": "无法加载代码图谱数据，请刷新页面。",
+	"error.loadGraph": "无法加载代码图谱，请检查服务器状态。",
+	"error.generic": "发生意外错误，请重试。",
+	"error.callChainEmpty": "调用链聚合无结果 — 所选函数可能没有可调用目标或 AST 解析失败。",
+	"error.callChainFailed": "调用链聚合失败，请重试。",
+	"detail.ariaLabel": "节点详情",
+	"detail.close": "关闭详情",
+	"detail.type": "类型",
+	"detail.kind": "类别",
+	"detail.file": "文件",
+	"detail.line": "行号",
+	"detail.properties": "属性",
+	"detail.connections": "连接数",
+	"detail.doubleClickExpand": "双击展开相关节点",
+	"detail.expanded": "已展开",
+	"detail.collapse": "收起",
+	"detail.microViews": "微观图谱",
+	"detail.microHint": "选中函数节点可查看微观图谱",
+	"detail.aggregateCallChain": "聚合调用链",
+	"detail.functionsInCluster": "聚类中的函数",
+	"detail.moreFunctions": "还有 {count} 个函数未显示",
+	"detail.signature": "签名",
+	"detail.docstring": "文档字符串",
+	"detail.functionBodyBudget": "函数体展开预算: {expanded}/{max}",
+	"detail.functionBodyBudgetHint": "最多同时展开 {max} 个函数体，最早的将自动折叠。",
+	"minimap.title": "概览",
+	"minimap.close": "关闭缩略图",
+	"minimap.functions": "函数",
+	"minimap.classes": "类",
+	"minimap.variables": "变量",
+	"minimap.modules": "模块",
+	"minimap.interfaces": "接口",
+	"minimap.total": "总计",
+	"import.title": "导入图谱",
+	"import.close": "关闭导入",
+	"import.workspace": "工作区",
+	"import.paste": "粘贴",
+	"import.workspacePath": "当前工作区路径",
+	"import.workspaceHint": "扫描当前 DSH 工作区的 .codegraph 数据库",
+	"import.scanWorkspace": "扫描工作区",
+	"import.scanning": "扫描中…",
+	"import.pastePlaceholder": "在此粘贴图谱 JSON，例如 {\"nodes\":[...],\"edges\":[...]}",
+	"import.importJson": "导入 JSON",
+	"import.importing": "导入中…",
+	"import.pasteFirst": "请先粘贴 JSON",
+	"import.imported": "已导入 {nodes} 节点 · {edges} 边",
+	"import.importFailed": "导入失败: {msg}",
+	"import.requestedScan": "已请求扫描 {path}",
+	"import.prereqMissing": "未检测到前置插件 (dsh-codegraph 或 dsh-tool-lens)。请安装其一以获得完整功能。",
+	"import.prereqCmd": "{cmd}",
+	"import.prereqCopy": "复制安装命令",
+	"import.copied": "已复制",
+	"import.initGraph": "初始化图谱",
+	"import.initializing": "初始化中…",
+	"import.initStarted": "正在为 {path} 初始化图谱",
+	"import.initSuccess": "图谱初始化成功",
+	"import.initFailed": "初始化失败 — 请检查前置插件",
+	"import.watchOn": "热更新: 开启",
+	"import.watchOff": "热更新: 关闭",
+	"legend.title": "图例",
+	"legend.close": "关闭图例",
+	"legend.nodes": "节点",
+	"legend.edges": "边",
+	"legend.function": "函数",
+	"legend.class": "类",
+	"legend.variable": "变量",
+	"legend.module": "模块",
+	"legend.interface": "接口",
+	"legend.type": "类型",
+	"legend.call": "调用",
+	"legend.import": "导入",
+	"legend.extend": "继承",
+	"legend.implement": "实现",
+	"legend.dependency": "依赖",
+	"legend.contains": "包含",
+	"export.png": "PNG",
+	"export.svg": "SVG",
+	"export.json": "JSON",
+	"export.mermaid": "Mermaid 流程图",
+	"export.mermaidSeq": "Mermaid 时序图",
+	"export.mermaidClass": "Mermaid 类图",
+	"export.graphml": "GraphML",
+	"export.jsonld": "JSON-LD",
+	"workspace.current": "当前工作区",
+	"workspace.switch": "切换工作区",
+	"workspace.add": "添加工作区",
+	"workspace.remove": "移除",
+	"workspace.empty": "暂无工作区",
+	"workspace.namePlaceholder": "工作区路径或名称",
+	"workspace.active": "活跃",
+	"workspace.default": "默认",
+	"workspace.timeJustNow": "刚刚",
+	"workspace.timeMinutesAgo": "{n}分钟前",
+	"workspace.timeHoursAgo": "{n}小时前",
+	"workspace.timeDaysAgo": "{n}天前",
+	"prereq.installCodegraph": "dsh plugin --profile web add dsh-codegraph",
+	"prereq.installLens": "dsh plugin --profile web add dsh-tool-lens",
+	"prereq.installTitle": "安装前置插件",
+	"prereq.detecting": "正在检测前置插件…",
+	"prereq.notFound": "未检测到",
+	"prereq.codegraphLabel": "dsh-codegraph",
+	"prereq.lensLabel": "dsh-tool-lens",
+	"prereq.codegraphDesc": "推荐 — 提供 20+ 语言支持和增量索引。未安装时可使用内置分析能力。",
+	"prereq.lensDesc": "可选 — 提供 AST 精准分析和影响检测。",
+	"empty.prereqTitle": "推荐安装前置插件",
+	"empty.copyCmd": "复制安装命令",
+	"empty.copied": "已复制！",
+	"empty.scanWorkspace": "扫描当前工作区",
+	"empty.degradedMode": "降级模式 — 使用内置 TreeSitter 和依赖分析",
+	"empty.degradedHint": "内置分析支持基础代码结构解析，无需安装额外插件。",
+	"shortcut.title": "键盘快捷键",
+	"shortcut.close": "关闭",
+	"shortcut.search": "搜索符号",
+	"shortcut.searchCtrlF": "搜索符号",
+	"shortcut.closeAll": "关闭所有面板",
+	"shortcut.callChain": "切换调用链",
+	"shortcut.impact": "切换影响分析",
+	"shortcut.inheritance": "切换继承层次",
+	"shortcut.minimap": "切换缩略图",
+	"shortcut.layout": "循环切换布局",
+	"shortcut.import": "切换导入面板",
+	"shortcut.refresh": "刷新图谱",
+	"shortcut.undo": "撤销操作",
+	"shortcut.redo": "重做操作",
+	"shortcut.help": "显示此帮助",
+	"state.complete": "图谱完整 ({total} 节点)",
+	"state.functionBudget": "已展开 {expanded}/{total} 个函数体",
+	"pathFind.title": "路径查找",
+	"pathFind.close": "关闭路径查找",
+	"pathFind.start": "起点",
+	"pathFind.end": "终点",
+	"pathFind.startPlaceholder": "搜索起点符号…",
+	"pathFind.endPlaceholder": "搜索终点符号…",
+	"pathFind.find": "查找路径",
+	"pathFind.clear": "清除",
+	"pathFind.length": "路径长度",
+	"pathFind.hops": "经过节点",
+	"pathFind.startSuggestions": "起点建议列表",
+	"pathFind.endSuggestions": "终点建议列表",
+	"health.title": "架构健康评分",
+	"health.close": "关闭健康评分",
+	"health.noData": "点击\"检查\"按钮计算评分",
+	"health.overall": "总体评分",
+	"health.coupling": "耦合度",
+	"health.cohesion": "内聚度",
+	"health.cyclicDependencyRate": "循环依赖率",
+	"health.modularity": "模块度",
+	"health.couplingDesc": "模块间耦合越低越好",
+	"health.cohesionDesc": "模块内内聚越高越好",
+	"health.cyclicDesc": "循环依赖越少越好",
+	"health.modularityDesc": "模块划分越均衡越好",
+	"rules.title": "规则引擎",
+	"rules.close": "关闭规则引擎",
+	"rules.config": "规则配置",
+	"rules.loadPresets": "加载预设规则",
+	"rules.noRules": "暂无规则，点击\"加载预设规则\"",
+	"rules.check": "检查违规",
+	"rules.violations": "违规列表",
+	"rules.noViolations": "无违规",
+	"focus.title": "聚焦模式",
+	"focus.mode": "聚焦",
+	"focus.depth": "深度",
+	"focus.expand": "展开下一层",
+	"focus.contract": "收起一层",
+	"focus.exit": "退出聚焦",
+	"toolbar.pathFind": "路径查找",
+	"toolbar.health": "架构健康评分",
+	"toolbar.rules": "规则引擎",
+	"toolbar.hotspot": "热点分析",
+	"toolbar.godModule": "God Module 检测",
+	"toolbar.coreFunction": "核心函数识别",
+	"toolbar.deadCode": "死代码检测",
+	"hotspot.close": "关闭热点分析",
+	"impact.total": "总影响节点",
+	"cycles.empty": "未检测到循环依赖",
+	"toolbar.undo": "撤销 (Ctrl+Z)",
+	"toolbar.redo": "重做 (Ctrl+Y)",
+	"toolbar.viewModeDeps": "切换到依赖图谱视图",
+	"toolbar.viewModeCode": "切换到代码图谱视图",
+	"toolbar.viewModeInheritance": "切换到继承树视图",
+	"toolbar.viewModeCallgraph": "切换到调用图视图",
+	"toolbar.viewModePackage": "切换到组件/包图视图",
+	"toolbar.viewModeClass": "切换到类图视图",
+	"toolbar.viewModeCfg": "切换到控制流图视图",
+	"toolbar.viewModeFlowchart": "切换到流程图视图",
+	"toolbar.viewModeSequence": "切换到时序图视图",
+	"toolbar.microDisabled": "请先选中函数节点",
+	"viewMode.code": "代码",
+	"viewMode.dependencies": "依赖",
+	"viewMode.inheritance": "继承",
+	"viewMode.callgraph": "调用",
+	"viewMode.package": "包",
+	"viewMode.class": "类图",
+	"viewMode.cfg": "CFG",
+	"viewMode.flowchart": "流程",
+	"viewMode.sequence": "时序",
+	"micro.selectFunctionPrompt": "请先在代码图谱中选择一个函数节点，然后切换到此视图",
+	"micro.backToCode": "返回代码视图",
+	"sequence.noData": "暂无时序图数据",
+	"sequence.ariaLabel": "{participants} 个参与者, {messages} 条消息",
+	"sequence.zoomIn": "放大",
+	"sequence.zoomOut": "缩小",
+	"sequence.resetView": "重置视图",
+	"micro.closeView": "关闭微观视图",
+	"micro.functionBar": "微观视图工具栏",
+	"stats.nodesEdges": "{nodes} 节点 · {edges} 边",
+	"stats.functionBodyBudget": "已展开 {expanded}/{max} 个函数体",
+	"godmodule.stats": "{nodes} 节点 · {edges} 边",
+	"search.moreResults": "还有 {n} 个结果",
+	"layer.inheritance.0": "根接口概览",
+	"layer.inheritance.1": "2层继承深度",
+	"layer.inheritance.2": "完整继承树",
+	"layer.callgraph.0": "入口函数概览",
+	"layer.callgraph.1": "调用链2层",
+	"layer.callgraph.2": "完整调用图",
+	"layer.package.0": "顶层包概览",
+	"layer.package.1": "子包展开",
+	"layer.package.2": "包内模块",
+	"layer.class.0": "类概览",
+	"layer.class.1": "类关系图",
+	"layer.class.2": "完整类图",
+	"layer.code.0": "目录聚类",
+	"layer.code.1": "文件聚类",
+	"layer.code.2": "全部节点",
+	"layer.dependencies.0": "目录依赖概览",
+	"layer.dependencies.1": "文件依赖",
+	"layer.dependencies.2": "模块依赖",
+	"coreFunction.category.entry": "入口",
+	"coreFunction.category.hub": "枢纽",
+	"coreFunction.category.api": "API",
+	"coreFunction.category.critical": "关键",
+	"coreFunction.reason.high-indegree": "高入度",
+	"coreFunction.reason.high-outdegree": "高出度",
+	"coreFunction.reason.entry-point": "入口点",
+	"coreFunction.reason.exported": "已导出",
+	"coreFunction.reason.handler-pattern": "处理器",
+	"coreFunction.reason.event-pattern": "事件",
+	"coreFunction.reason.cli-pattern": "CLI",
+	"coreFunction.reason.large-influence": "大影响",
+	"coreFunction.reason.deep-call-chain": "深调用链",
+	"coreFunction.reason.hub-function": "枢纽函数",
+	"coreFunction.inDegree": "入度",
+	"coreFunction.outDegree": "出度",
+	"coreFunction.influenceReach": "影响范围",
+	"coreFunction.callChainDepth": "调用链深度",
+	"deadcode.filterAll": "全部",
+	"deadcode.unreachable": "不可达",
+	"deadcode.noIncoming": "无调用者",
+	"deadcode.orphan": "孤立子图",
+	"deadcode.confirmed": "确认",
+	"deadcode.suspected": "疑似",
+	"deadcode.empty": "未检测到死代码",
+	"flowchart.start": "开始",
+	"flowchart.end": "结束",
+	"flowchart.errorExit": "异常退出",
+	"flowchart.tryBlock": "尝试执行",
+	"flowchart.catchBlock": "捕获异常",
+	"flowchart.finallyBlock": "最终处理",
+	"flowchart.returnResult": "返回结果",
+	"flowchart.throwException": "抛出异常",
+	"flowchart.loopPrefix": "循环: {cond}",
+	"flowchart.switchPrefix": "switch: {expr}",
+	"flowchart.statementsCount": "{n} 条语句",
+	"flowchart.edge.yes": "是",
+	"flowchart.edge.no": "否",
+	"flowchart.edge.loop": "循环",
+	"flowchart.edge.error": "异常",
+	"flowchart.edge.default": "默认",
+	"flowchart.edge.break": "跳出",
+	"flowchart.edge.continue": "继续",
+	"flowchart.semantic.init": "初始化",
+	"flowchart.semantic.prepare": "数据准备",
+	"flowchart.semantic.load": "加载数据",
+	"flowchart.semantic.save": "保存数据",
+	"flowchart.semantic.fetch": "获取数据",
+	"flowchart.semantic.find": "查找",
+	"flowchart.semantic.create": "创建",
+	"flowchart.semantic.update": "更新",
+	"flowchart.semantic.delete": "删除",
+	"flowchart.semantic.validate": "验证",
+	"flowchart.semantic.check": "检查",
+	"flowchart.semantic.parse": "解析",
+	"flowchart.semantic.format": "格式化",
+	"flowchart.semantic.transform": "转换",
+	"flowchart.semantic.render": "渲染",
+	"flowchart.semantic.compute": "计算",
+	"flowchart.semantic.build": "构建",
+	"flowchart.semantic.register": "注册",
+	"flowchart.semantic.cleanup": "清理",
+	"flowchart.semantic.destroy": "销毁",
+	"flowchart.semantic.start": "开始",
+	"flowchart.semantic.stop": "停止",
+	"flowchart.semantic.handle": "处理",
+	"flowchart.semantic.send": "发送",
+	"flowchart.semantic.receive": "接收",
+	"flowchart.semantic.read": "读取",
+	"flowchart.semantic.write": "写入",
+	"flowchart.semantic.log": "记录日志",
+	"flowchart.semantic.notify": "通知",
+	"flowchart.semantic.dispatch": "分发",
+	"flowchart.semantic.resolve": "解析",
+	"flowchart.semantic.reject": "拒绝",
+	"nav.title": "代码图谱",
+	"nav.description": "可视化代码结构与依赖关系",
+	"nav.ariaLabel": "代码图谱",
+	"nav.closePanel": "关闭图谱面板",
+	"nav.minimizePanel": "最小化面板",
+	"nav.restorePanel": "恢复面板",
+	"nav.searchSymbols": "代码图谱: 搜索符号",
+	"nav.togglePanel": "代码图谱: 切换面板",
+	"nav.modeFloating": "浮动面板",
+	"nav.switchLayout": "代码图谱: 切换布局",
+	"nav.toggleFilter": "代码图谱: 切换筛选",
+	"nav.exportGraph": "代码图谱: 导出图谱",
+	"filterPanel.title": "筛选与连接数",
+	"filterPanel.close": "关闭筛选面板",
+	"filterPanel.fanIn": "最小入度",
+	"filterPanel.fanOut": "最小出度",
+	"filterPanel.fanInHint": "仅显示入度达到此值的节点",
+	"filterPanel.fanOutHint": "仅显示出度达到此值的节点",
+	"filterPanel.nodeTypes": "可见节点类型",
+	"filterPanel.edgeTypes": "可见边类型",
+	"filterPanel.reset": "重置所有筛选",
+	"filterPanel.hideOrphans": "隐藏孤儿节点",
+	"filterPanel.hideLeaves": "隐藏叶子节点",
+	"filterPanel.orphansHint": "隐藏没有任何入边的节点",
+	"filterPanel.leavesHint": "隐藏没有任何出边的节点",
+	"filterPanel.pathFilter": "路径过滤",
+	"filterPanel.includePlaceholder": "包含路径 (正则表达式)",
+	"filterPanel.excludePlaceholder": "排除路径 (正则表达式)",
+	"filterPanel.includeLabel": "包含路径正则",
+	"filterPanel.excludeLabel": "排除路径正则",
+	"filterPanel.applyPath": "应用路径过滤",
+	"filterPanel.clearPath": "清除路径过滤",
+	"filterPanel.pathHint": "使用正则表达式过滤文件路径，仅显示匹配的节点",
+	"filterPanel.quickActions": "快捷操作",
+	"toolbar.filterPanel": "筛选面板",
+	"contextMenu.focus": "聚焦节点",
+	"contextMenu.isolate": "隔离（显示邻域）",
+	"contextMenu.hide": "隐藏节点",
+	"contextMenu.collapse": "折叠聚类",
+	"contextMenu.expand": "展开聚类",
+	"contextMenu.callChain": "高亮调用链",
+	"contextMenu.impact": "影响分析",
+	"contextMenu.findPath": "从此节点查找路径",
+	"contextMenu.showAll": "显示所有隐藏节点",
+	"contextMenu.openSource": "打开源码",
+	"a11y.graphContainer": "代码图谱交互区域",
+	"a11y.graphContainerStats": "代码图谱交互区域: {viewMode}, {nodeCount} 节点, {edgeCount} 边",
+	"a11y.selectedNode": "已选中节点",
+	"a11y.selectedNodeDetail": "已选中节点: {label}, {type}, {filePath}:{lineNumber}",
+	"a11y.nodes": "节点",
+	"a11y.edges": "边",
+	"overlay.title": "可视化覆盖层",
+	"heatmap.title": "热力图",
+	"heatmap.off": "关闭",
+	"heatmap.none": "关闭",
+	"heatmap.instability": "不稳定度",
+	"heatmap.lines": "代码行数",
+	"heatmap.complexity": "复杂度",
+	"todoMarker.title": "TODO/FIXME",
+	"todoMarker.none": "关闭",
+	"todoMarker.todo": "TODO",
+	"todoMarker.fixme": "FIXME",
+	"todoMarker.all": "全部",
+	"detail.exportedBadge": "EXP",
+	"detail.expandedBadge": "OPEN",
+	"cycle.nodeCount": "{n} 节点",
+	"degradation.cycleDetectionSkipped": "循环检测已跳过",
+	"degradation.communityDetectionSampled": "社区检测已采样",
+	"degradation.largeGraphMode": "大规模图谱模式",
+	"degradation.tooltip": "因图谱规模较大，部分分析功能已降级或跳过以保证性能",
+	"toolbar.more": "更多",
+	"toolbar.tour": "代码导览",
+	"tour.title": "代码导览",
+	"tour.close": "关闭导览",
+	"tour.empty": "暂无导览数据，请先加载代码图谱",
+	"tour.prev": "上一步",
+	"tour.next": "下一步",
+	"tour.dependencies": "依赖",
+	"tour.dependents": "被引用",
+	"tour.layer.entry": "入口",
+	"tour.layer.api": "API",
+	"tour.layer.service": "业务",
+	"tour.layer.data": "数据",
+	"tour.layer.ui": "界面",
+	"tour.layer.utility": "工具",
+	"tour.layer.other": "其他",
+	"common.close": "关闭",
+	"common.noVisibleNodes": "当前筛选条件下无可见节点"
+};
+
+//#endregion
+//#region src/client/i18n/index.ts
+const dicts = {
+	zh,
+	en
+};
+const STORAGE_KEY = "dsh-codegraph-visualizer/lang";
+let currentLang = typeof window === "undefined" ? "zh" : getStoredLang();
+const listeners = new Set();
+function getStoredLang() {
+	if (typeof window === "undefined") return "zh";
+	try {
+		const stored = window.localStorage.getItem(STORAGE_KEY);
+		return stored === "zh" || stored === "en" ? stored : "zh";
+	} catch {
+		return "zh";
+	}
+}
+function getLang() {
+	return currentLang;
+}
+function setLang(lang) {
+	if (lang === currentLang) return;
+	currentLang = lang;
+	if (typeof window !== "undefined") try {
+		window.localStorage.setItem(STORAGE_KEY, lang);
+	} catch {}
+	for (const fn$7 of listeners) fn$7();
+}
+function toggleLang() {
+	setLang(currentLang === "zh" ? "en" : "zh");
+}
+currentLang = getStoredLang();
+function subscribe(fn$7) {
+	listeners.add(fn$7);
+	return () => {
+		listeners.delete(fn$7);
+	};
+}
+function useLang() {
+	return (0, react.useSyncExternalStore)(subscribe, getLang, getLang);
+}
+function t(key, params) {
+	let str = dicts[currentLang][key] ?? dicts.en[key] ?? key;
+	if (params) for (const [k, v] of Object.entries(params)) str = str.replaceAll(`{${k}}`, String(v));
+	return str;
+}
+function useT() {
+	useLang();
+	return t;
+}
+function resetI18nListeners() {
+	listeners.clear();
+}
+
+//#endregion
+//#region src/client/diagram/FlowchartAssembler.ts
+const PROCESS_KEYWORDS = {
+	init: "flowchart.semantic.init",
+	prepare: "flowchart.semantic.prepare",
+	load: "flowchart.semantic.load",
+	save: "flowchart.semantic.save",
+	fetch: "flowchart.semantic.fetch",
+	find: "flowchart.semantic.find",
+	create: "flowchart.semantic.create",
+	update: "flowchart.semantic.update",
+	delete: "flowchart.semantic.delete",
+	validate: "flowchart.semantic.validate",
+	check: "flowchart.semantic.check",
+	parse: "flowchart.semantic.parse",
+	format: "flowchart.semantic.format",
+	transform: "flowchart.semantic.transform",
+	render: "flowchart.semantic.render",
+	compute: "flowchart.semantic.compute",
+	build: "flowchart.semantic.build",
+	register: "flowchart.semantic.register",
+	cleanup: "flowchart.semantic.cleanup",
+	destroy: "flowchart.semantic.destroy",
+	start: "flowchart.semantic.start",
+	stop: "flowchart.semantic.stop",
+	handle: "flowchart.semantic.handle",
+	send: "flowchart.semantic.send",
+	receive: "flowchart.semantic.receive",
+	read: "flowchart.semantic.read",
+	write: "flowchart.semantic.write",
+	log: "flowchart.semantic.log",
+	notify: "flowchart.semantic.notify",
+	dispatch: "flowchart.semantic.dispatch",
+	resolve: "flowchart.semantic.resolve",
+	reject: "flowchart.semantic.reject"
+};
+function inferSemanticLabel(statements, blockLabel) {
+	if (statements.length === 0) return blockLabel;
+	const firstStmt = statements[0];
+	if (!firstStmt) return blockLabel;
+	const text = firstStmt.text.toLowerCase();
+	for (const [keyword, i18nKey] of Object.entries(PROCESS_KEYWORDS)) if (text.includes(keyword)) return t(i18nKey);
+	if (firstStmt.type === "return") return t("flowchart.returnResult");
+	if (firstStmt.type === "throw") return t("flowchart.throwException");
+	if (statements.length === 1) return simplifyForLabel(firstStmt.text);
+	const verbMatch = text.match(/^(\w+)\s*\(/);
+	if (verbMatch && verbMatch[1]) {
+		const verb = verbMatch[1];
+		if (PROCESS_KEYWORDS[verb]) return t(PROCESS_KEYWORDS[verb]);
+		return `${verb}()`;
+	}
+	return t("flowchart.statementsCount", { n: statements.length });
+}
+function simplifyForLabel(text, maxLen = 20) {
+	return simplifyText$1(text, maxLen);
+}
+function conditionToQuestion(condText) {
+	const trimmed = condText.trim();
+	if (trimmed.startsWith("if") || trimmed.startsWith("if (") || trimmed.startsWith("if(")) {
+		const inner = trimmed.replace(/^if\s*\(?/, "").replace(/\)?$/, "").trim();
+		return `${inner}?`;
+	}
+	if (trimmed.startsWith("while") || trimmed.startsWith("for")) return t("flowchart.loopPrefix", { cond: trimmed });
+	return `${trimmed}?`;
+}
+var FlowchartAssembler = class {
+	cfgAssembler;
+	fcCounter = 0;
+	constructor(cfgAssembler) {
+		this.cfgAssembler = cfgAssembler ?? new CFGAssembler();
+	}
+	nextFcId() {
+		return `fc-node-${this.fcCounter++}`;
+	}
+	assemble(astRoot, filePath, functionName) {
+		this.fcCounter = 0;
+		const cfgResult = this.cfgAssembler.assemble(astRoot, filePath, functionName);
+		const cfgBlocks = cfgResult.nodes.map((n) => ({
+			id: n.id,
+			label: n.label,
+			blockType: n.properties.blockType,
+			isEntry: n.properties.isEntry,
+			isExit: n.properties.isExit,
+			depth: n.properties.depth,
+			statements: n.properties.statements
+		}));
+		const cfgEdges = cfgResult.edges.map((e) => ({
+			source: e.source,
+			target: e.target,
+			edgeType: e.properties.cfgEdgeType,
+			condition: e.properties.condition
+		}));
+		const fcNodes = [];
+		const fcEdges = [];
+		const blockToFc = new Map();
+		for (const block of cfgBlocks) {
+			const fcId = this.nextFcId();
+			blockToFc.set(block.id, fcId);
+			let nodeType = "process";
+			let label = block.label;
+			if (block.isEntry) {
+				nodeType = "start";
+				label = t("flowchart.start");
+			} else if (block.isExit) {
+				nodeType = block.label === "throw" ? "error" : "end";
+				label = block.label === "throw" ? t("flowchart.errorExit") : t("flowchart.end");
+			} else if (block.blockType === "condition") {
+				nodeType = "decision";
+				label = conditionToQuestion(block.label);
+			} else if (block.blockType === "loop") {
+				nodeType = "loop";
+				label = conditionToQuestion(block.label);
+			} else if (block.blockType === "switch") {
+				nodeType = "decision";
+				label = t("flowchart.switchPrefix", { expr: block.label });
+			} else if (block.blockType === "try") {
+				nodeType = "process";
+				label = t("flowchart.tryBlock");
+			} else if (block.blockType === "catch") {
+				nodeType = "error";
+				label = t("flowchart.catchBlock");
+			} else if (block.blockType === "finally") {
+				nodeType = "process";
+				label = t("flowchart.finallyBlock");
+			} else {
+				nodeType = "process";
+				label = inferSemanticLabel(block.statements, block.label);
+			}
+			fcNodes.push({
+				id: fcId,
+				label,
+				nodeType,
+				depth: block.depth
+			});
+		}
+		for (const edge of cfgEdges) {
+			const sourceFc = blockToFc.get(edge.source);
+			const targetFc = blockToFc.get(edge.target);
+			if (!sourceFc || !targetFc) continue;
+			let edgeLabel;
+			let flowchartEdgeType = "normal";
+			if (edge.edgeType === "true") {
+				edgeLabel = t("flowchart.edge.yes");
+				flowchartEdgeType = "yes";
+			} else if (edge.edgeType === "false") {
+				edgeLabel = t("flowchart.edge.no");
+				flowchartEdgeType = "no";
+			} else if (edge.edgeType === "loop-back") {
+				edgeLabel = t("flowchart.edge.loop");
+				flowchartEdgeType = "loop";
+			} else if (edge.edgeType === "exception") {
+				edgeLabel = t("flowchart.edge.error");
+				flowchartEdgeType = "error";
+			} else if (edge.edgeType === "case") edgeLabel = edge.condition;
+			else if (edge.edgeType === "default") edgeLabel = t("flowchart.edge.default");
+			else if (edge.edgeType === "break") edgeLabel = t("flowchart.edge.break");
+			else if (edge.edgeType === "continue") edgeLabel = t("flowchart.edge.continue");
+			fcEdges.push({
+				source: sourceFc,
+				target: targetFc,
+				...edgeLabel ? { label: edgeLabel } : {},
+				edgeType: flowchartEdgeType
+			});
+		}
+		return this.toAssembledDiagram(fcNodes, fcEdges, filePath, functionName);
+	}
+	toAssembledDiagram(fcNodes, fcEdges, filePath, functionName) {
+		const nodes = fcNodes.map((node) => ({
+			id: NodeId(node.id),
+			label: node.label,
+			type: "function",
+			filePath,
+			lineNumber: 0,
+			properties: {
+				flowchartNodeType: node.nodeType,
+				depth: node.depth,
+				...node.description ? { description: node.description } : {},
+				fcFunction: functionName
+			}
+		}));
+		const edges = fcEdges.map((edge, idx) => ({
+			id: EdgeId(`fc-edge-${idx}`),
+			source: NodeId(edge.source),
+			target: NodeId(edge.target),
+			type: "call",
+			properties: {
+				flowchartEdgeType: edge.edgeType,
+				...edge.label ? { label: edge.label } : {}
+			}
+		}));
+		const startIds = nodes.filter((n) => n.properties.flowchartNodeType === "start").map((n) => n.id);
+		return {
+			nodes,
+			edges,
+			metadata: {
+				rootIds: startIds,
+				maxDepth: Math.max(0, ...nodes.map((n) => n.properties.depth ?? 0)),
+				nodeCount: nodes.length,
+				edgeCount: edges.length
+			}
+		};
+	}
+};
+
+//#endregion
+//#region src/client/diagram/SequenceAssembler.ts
+const CALL_NODE_TYPES = new Set([
+	"call_expression",
+	"call",
+	"method_call",
+	"function_call",
+	"await_expression",
+	"macro_invocation"
+]);
+const DESTROY_METHODS = new Set([
+	"dispose",
+	"destroy",
+	"close",
+	"delete",
+	"remove",
+	"cleanup",
+	"finalize",
+	"free",
+	"release"
+]);
+function isNewExpression(node) {
+	return node.type === "new_expression" || node.type === "object_creation_expression" || node.type === "class_instance_creation_expression" || node.text.includes("new ");
+}
+function isDestroyMethod(methodName) {
+	return DESTROY_METHODS.has(methodName.toLowerCase());
+}
+function isCallExpression(node) {
+	return CALL_NODE_TYPES.has(node.type) || node.type.includes("call");
+}
+function extractMethodName(node) {
+	const children = node.children;
+	const funcNode = children.find((c) => c.type === "identifier" || c.type === "property_identifier" || c.type === "member_expression");
+	if (funcNode) {
+		if (funcNode.type === "member_expression") {
+			const prop = funcNode.children.find((c) => c.type === "property_identifier");
+			return prop ? prop.text : funcNode.text;
+		}
+		return funcNode.text;
+	}
+	return "<anonymous>";
+}
+function extractArguments(node) {
+	const argsNode = node.children.find((c) => c.type === "arguments" || c.type === "argument_list");
+	if (!argsNode) return [];
+	return argsNode.children.filter((c) => c.type !== "(" && c.type !== ")" && c.type !== ",").map((c) => c.text.trim().substring(0, 30));
+}
+function extractReceiver(callNode) {
+	const children = callNode.children;
+	const memberExpr = children.find((c) => c.type === "member_expression");
+	if (memberExpr) {
+		const objNode = memberExpr.children.find((c) => c.type === "identifier" || c.type === "this");
+		if (objNode) return {
+			receiverName: objNode.text,
+			isSelf: objNode.type === "this" || objNode.text === "self"
+		};
+	}
+	return {
+		receiverName: "",
+		isSelf: false
+	};
+}
+function inferParticipantType(receiverName, _methodName) {
+	if (!receiverName || receiverName === "this" || receiverName === "self") return "self";
+	if (receiverName === "fetch" || receiverName === "console" || receiverName === "window") return "external";
+	if (receiverName.charAt(0) === receiverName.charAt(0).toUpperCase()) return "class";
+	return "instance";
+}
+function getConditionText(node) {
+	const condNode = findConditionNode(node);
+	return condNode ? condNode.text.trim().substring(0, 40) : "";
+}
+function getBodyChildren(node) {
+	return getBodyChildren$2(node);
+}
+function getElseBody(node) {
+	return getElseBody$2(node);
+}
+function getCaseNodes(node) {
+	return node.children.filter((c) => c.type === "case_statement" || c.type === "case" || c.type === "default_statement" || c.type === "default");
+}
+function getCaseLabel(node) {
+	if (node.type === "default_statement" || node.type === "default") return "default";
+	const labelNode = node.children.find((c) => c.type === "identifier" || c.type === "number");
+	return labelNode ? labelNode.text : "case";
+}
+function getCaseBody(node) {
+	return node.children.filter((c) => c.type !== "identifier" && c.type !== "number" && c.type !== ":");
+}
+function getCatchNodes(node) {
+	return node.children.filter((c) => c.type === "catch_clause" || c.type === "catch");
+}
+function getFinallyNode(node) {
+	return node.children.find((c) => c.type === "finally_clause" || c.type === "finally") ?? null;
+}
+var SequenceAssembler = class {
+	seqCounter = 0;
+	callStack = [];
+	nextId(prefix) {
+		return `${prefix}-${this.seqCounter++}`;
+	}
+	assemble(astRoot, filePath, functionName) {
+		this.seqCounter = 0;
+		this.callStack = [];
+		const participants = new Map();
+		const messages = [];
+		const fragments = [];
+		let messageSeq = 0;
+		const entryParticipant = {
+			id: this.nextId("participant"),
+			name: functionName,
+			type: "self",
+			lifelineStart: 0,
+			lifelineEnd: 0,
+			isCreated: false,
+			isDestroyed: false
+		};
+		participants.set(functionName, entryParticipant);
+		const funcNode = findFunctionNode(astRoot, functionName);
+		if (!funcNode) return this.toAssembledDiagram({
+			participants: Array.from(participants.values()),
+			messages,
+			fragments: [],
+			entryFunctionName: functionName
+		}, filePath, functionName);
+		const targetChildren = getFunctionBody(funcNode);
+		this.processStatements(targetChildren, entryParticipant.id, participants, messages, fragments, (msg) => {
+			msg.sequenceNumber = messageSeq++;
+			messages.push(msg);
+		});
+		for (const participant of participants.values()) participant.lifelineEnd = messageSeq;
+		const sequenceData = {
+			participants: Array.from(participants.values()),
+			messages,
+			fragments,
+			entryFunctionName: functionName
+		};
+		return this.toAssembledDiagram(sequenceData, filePath, functionName);
+	}
+	processStatements(statements, selfId, participants, messages, fragments, addMessage) {
+		for (const stmt of statements) {
+			if (!stmt) continue;
+			if (isCallExpression(stmt)) this.processCall(stmt, selfId, participants, addMessage);
+			else if (isControlFlow$1(stmt)) this.processControlFlow(stmt, selfId, participants, messages, fragments, addMessage);
+			else {
+				const childCalls = [];
+				this.collectCalls(stmt, childCalls);
+				for (const call of childCalls) this.processCall(call, selfId, participants, addMessage);
+			}
+		}
+	}
+	collectCalls(node, result) {
+		if (!node) return;
+		const stack = [node];
+		while (stack.length > 0) {
+			const current = stack.pop();
+			if (isCallExpression(current)) {
+				result.push(current);
+				continue;
+			}
+			const children = current.children;
+			if (!children || !Array.isArray(children)) continue;
+			for (const child of children) stack.push(child);
+		}
+	}
+	processCall(node, selfId, participants, addMessage) {
+		const methodName = extractMethodName(node);
+		const args = extractArguments(node);
+		const { receiverName, isSelf } = extractReceiver(node);
+		const isCreate = isNewExpression(node);
+		let targetId;
+		if (isSelf && !isCreate) targetId = selfId;
+		else {
+			const participantName = receiverName || methodName;
+			if (!participants.has(participantName)) {
+				const participantType = isCreate ? "class" : inferParticipantType(receiverName, methodName);
+				participants.set(participantName, {
+					id: this.nextId("participant"),
+					name: participantName,
+					type: participantType,
+					...receiverName && receiverName.charAt(0) === receiverName.charAt(0).toUpperCase() ? { className: receiverName } : {},
+					lifelineStart: 0,
+					lifelineEnd: 0,
+					isCreated: isCreate,
+					isDestroyed: false
+				});
+			} else if (isCreate) {
+				const existing = participants.get(participantName);
+				existing.isCreated = true;
+			}
+			targetId = participants.get(participantName).id;
+		}
+		if (!isSelf && !isCreate && isDestroyMethod(methodName)) {
+			const participant = participants.get(receiverName || methodName);
+			if (participant) participant.isDestroyed = true;
+		}
+		if (!isSelf && !isCreate) this.callStack.push(targetId);
+		const msg = {
+			id: this.nextId("msg"),
+			sequenceNumber: 0,
+			source: selfId,
+			target: targetId,
+			methodName,
+			arguments: args,
+			isAsync: node.type === "await_expression" || node.type === "await",
+			isSelfCall: isSelf && !isCreate,
+			isReturn: false,
+			isCreate,
+			lineNumber: node.startPosition.row + 1
+		};
+		addMessage(msg);
+	}
+	processControlFlow(node, selfId, participants, messages, fragments, addMessage) {
+		const t$1 = node.type;
+		if (t$1 === "if_statement" || t$1 === "if" || t$1 === "if_expression") this.processIfFragment(node, selfId, participants, messages, fragments, addMessage);
+		else if (t$1 === "for_statement" || t$1 === "for" || t$1 === "for_expression" || t$1 === "for_in_statement" || t$1 === "while_statement" || t$1 === "while" || t$1 === "while_expression") this.processLoopFragment(node, selfId, participants, messages, fragments, addMessage);
+		else if (t$1 === "switch_statement" || t$1 === "switch" || t$1 === "match_expression") this.processSwitchFragment(node, selfId, participants, messages, fragments, addMessage);
+		else if (t$1 === "try_statement" || t$1 === "try") this.processTryFragment(node, selfId, participants, messages, fragments, addMessage);
+		else if (t$1 === "return_statement" || t$1 === "return") this.processReturnMessage(node, selfId, participants, addMessage);
+		else if (t$1 === "throw_statement" || t$1 === "throw" || t$1 === "raise_statement" || t$1 === "raise") this.processThrowFragment(node, selfId, participants, messages, fragments, addMessage);
+	}
+	processIfFragment(node, selfId, participants, messages, fragments, addMessage) {
+		const condText = getConditionText(node);
+		const elseBody = getElseBody(node);
+		const fragmentType = elseBody.length > 0 ? "alt" : "opt";
+		const startSeq = messages.length;
+		const trueBody = getBodyChildren(node);
+		this.processStatements(trueBody, selfId, participants, messages, fragments, addMessage);
+		const trueEnd = messages.length;
+		const operands = [{
+			guardCondition: condText,
+			startMessage: startSeq,
+			endMessage: trueEnd
+		}];
+		if (elseBody.length > 0) {
+			const elseStart = messages.length;
+			this.processStatements(elseBody, selfId, participants, messages, fragments, addMessage);
+			const elseEnd = messages.length;
+			operands.push({
+				guardCondition: "else",
+				startMessage: elseStart,
+				endMessage: elseEnd
+			});
+		}
+		const endSeq = messages.length;
+		fragments.push({
+			id: this.nextId("fragment"),
+			type: fragmentType,
+			condition: condText,
+			startMessage: startSeq,
+			endMessage: endSeq,
+			operands
+		});
+	}
+	processLoopFragment(node, selfId, participants, messages, fragments, addMessage) {
+		const condText = getConditionText(node);
+		const startSeq = messages.length;
+		const body = getBodyChildren(node);
+		this.processStatements(body, selfId, participants, messages, fragments, addMessage);
+		const endSeq = messages.length;
+		fragments.push({
+			id: this.nextId("fragment"),
+			type: "loop",
+			condition: condText,
+			loopConstraint: condText,
+			startMessage: startSeq,
+			endMessage: endSeq,
+			operands: [{
+				guardCondition: condText,
+				startMessage: startSeq,
+				endMessage: endSeq
+			}]
+		});
+	}
+	processSwitchFragment(node, selfId, participants, messages, fragments, addMessage) {
+		const condText = getConditionText(node);
+		const startSeq = messages.length;
+		const caseNodes = getCaseNodes(node);
+		const operands = [];
+		for (const caseNode of caseNodes) {
+			const label = getCaseLabel(caseNode);
+			const caseBody = getCaseBody(caseNode);
+			const caseStart = messages.length;
+			this.processStatements(caseBody, selfId, participants, messages, fragments, addMessage);
+			const caseEnd = messages.length;
+			operands.push({
+				guardCondition: label === "default" ? "default" : `case ${label}`,
+				startMessage: caseStart,
+				endMessage: caseEnd
+			});
+		}
+		const endSeq = messages.length;
+		fragments.push({
+			id: this.nextId("fragment"),
+			type: "alt",
+			condition: condText,
+			startMessage: startSeq,
+			endMessage: endSeq,
+			operands
+		});
+	}
+	processTryFragment(node, selfId, participants, messages, fragments, addMessage) {
+		const startSeq = messages.length;
+		const tryBody = node.children.find((c) => c.type === "block" || c.type === "statement_block");
+		const tryStmts = tryBody ? tryBody.children : [];
+		this.processStatements(tryStmts, selfId, participants, messages, fragments, addMessage);
+		const tryEnd = messages.length;
+		fragments.push({
+			id: this.nextId("fragment"),
+			type: "critical",
+			condition: "try",
+			startMessage: startSeq,
+			endMessage: tryEnd,
+			operands: [{
+				startMessage: startSeq,
+				endMessage: tryEnd
+			}]
+		});
+		const catchNodes = getCatchNodes(node);
+		for (const catchNode of catchNodes) {
+			const catchStart = messages.length;
+			const catchBody = catchNode.children.find((c) => c.type === "block" || c.type === "statement_block");
+			const catchStmts = catchBody ? catchBody.children : [];
+			this.processStatements(catchStmts, selfId, participants, messages, fragments, addMessage);
+			const catchEnd = messages.length;
+			fragments.push({
+				id: this.nextId("fragment"),
+				type: "break",
+				condition: "catch",
+				startMessage: catchStart,
+				endMessage: catchEnd,
+				operands: [{
+					guardCondition: "exception",
+					startMessage: catchStart,
+					endMessage: catchEnd
+				}]
+			});
+		}
+		const finallyNode = getFinallyNode(node);
+		if (finallyNode) {
+			const finallyStart = messages.length;
+			const finallyBody = finallyNode.children.find((c) => c.type === "block" || c.type === "statement_block");
+			const finallyStmts = finallyBody ? finallyBody.children : [];
+			this.processStatements(finallyStmts, selfId, participants, messages, fragments, addMessage);
+			const finallyEnd = messages.length;
+			fragments.push({
+				id: this.nextId("fragment"),
+				type: "critical",
+				condition: "finally",
+				startMessage: finallyStart,
+				endMessage: finallyEnd,
+				operands: [{
+					startMessage: finallyStart,
+					endMessage: finallyEnd
+				}]
+			});
+		}
+	}
+	processReturnMessage(node, selfId, participants, addMessage) {
+		const returnText = node.text.trim().substring(0, 30);
+		const lastCalledId = this.callStack.length > 0 ? this.callStack[this.callStack.length - 1] : selfId;
+		if (this.callStack.length > 0) this.callStack.pop();
+		const msg = {
+			id: this.nextId("msg"),
+			sequenceNumber: 0,
+			source: lastCalledId,
+			target: selfId,
+			methodName: "return",
+			arguments: [returnText],
+			isAsync: false,
+			isSelfCall: lastCalledId === selfId,
+			isReturn: true,
+			isCreate: false,
+			lineNumber: node.startPosition.row + 1
+		};
+		addMessage(msg);
+	}
+	processThrowFragment(node, selfId, participants, messages, fragments, addMessage) {
+		const startSeq = messages.length;
+		const msg = {
+			id: this.nextId("msg"),
+			sequenceNumber: 0,
+			source: selfId,
+			target: selfId,
+			methodName: "throw",
+			arguments: [node.text.trim().substring(0, 30)],
+			isAsync: false,
+			isSelfCall: true,
+			isReturn: true,
+			isCreate: false,
+			lineNumber: node.startPosition.row + 1
+		};
+		addMessage(msg);
+		const endSeq = messages.length;
+		fragments.push({
+			id: this.nextId("fragment"),
+			type: "break",
+			condition: "throw",
+			startMessage: startSeq,
+			endMessage: endSeq,
+			operands: [{
+				guardCondition: "exception",
+				startMessage: startSeq,
+				endMessage: endSeq
+			}]
+		});
+	}
+	toAssembledDiagram(sequenceData, filePath, functionName) {
+		const nodes = sequenceData.participants.map((p$1) => ({
+			id: NodeId(p$1.id),
+			label: p$1.name,
+			type: p$1.type === "class" ? "class" : p$1.type === "module" ? "module" : "function",
+			filePath,
+			lineNumber: 0,
+			properties: {
+				participantType: p$1.type,
+				...p$1.className ? { className: p$1.className } : {},
+				lifelineStart: p$1.lifelineStart,
+				lifelineEnd: p$1.lifelineEnd,
+				isCreated: p$1.isCreated,
+				isDestroyed: p$1.isDestroyed,
+				seqFunction: functionName
+			}
+		}));
+		const edges = sequenceData.messages.map((msg, idx) => ({
+			id: EdgeId(`seq-edge-${idx}`),
+			source: NodeId(msg.source),
+			target: NodeId(msg.target),
+			type: "call",
+			properties: {
+				sequenceNumber: msg.sequenceNumber,
+				methodName: msg.methodName,
+				arguments: msg.arguments,
+				isAsync: msg.isAsync,
+				isSelfCall: msg.isSelfCall,
+				isReturn: msg.isReturn,
+				isCreate: msg.isCreate,
+				...msg.fragmentId ? { fragmentId: msg.fragmentId } : {},
+				lineNumber: msg.lineNumber
+			}
+		}));
+		for (const fragment of sequenceData.fragments) {
+			const fragmentNode = {
+				id: NodeId(fragment.id),
+				label: `${fragment.type}${fragment.condition ? ` [${fragment.condition}]` : ""}`,
+				type: "type",
+				filePath,
+				lineNumber: 0,
+				properties: {
+					fragmentType: fragment.type,
+					...fragment.condition ? { condition: fragment.condition } : {},
+					...fragment.loopConstraint ? { loopConstraint: fragment.loopConstraint } : {},
+					startMessage: fragment.startMessage,
+					endMessage: fragment.endMessage,
+					...fragment.parentId ? { parentId: fragment.parentId } : {},
+					operands: fragment.operands,
+					seqFunction: functionName,
+					isFragment: true
+				}
+			};
+			nodes.push(fragmentNode);
+		}
+		return {
+			nodes,
+			edges,
+			metadata: {
+				rootIds: sequenceData.participants.length > 0 ? [sequenceData.participants[0].id] : [],
+				maxDepth: sequenceData.fragments.length > 0 ? Math.max(...sequenceData.fragments.map((f) => f.operands.length)) : 0,
+				nodeCount: nodes.length,
+				edgeCount: edges.length
+			}
+		};
+	}
+};
+
+//#endregion
+//#region src/client/api/index.ts
+const log$15 = scoped("client");
+const DEFAULT_TIMEOUT = API.DEFAULT_TIMEOUT_MS;
+function fetchWithTimeout(url, options, timeoutMs = DEFAULT_TIMEOUT) {
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), timeoutMs);
+	const externalSignal = options?.signal;
+	const onExternalAbort = () => controller.abort();
+	if (externalSignal) if (externalSignal.aborted) controller.abort();
+	else externalSignal.addEventListener("abort", onExternalAbort, { once: true });
+	return fetch(url, {
+		...options,
+		signal: controller.signal
+	}).finally(() => {
+		clearTimeout(timer);
+		if (externalSignal) externalSignal.removeEventListener("abort", onExternalAbort);
+	});
+}
+async function fetchBootstrap(signal, workspace) {
+	try {
+		const params = new URLSearchParams();
+		if (workspace && workspace !== ".") params.set("workspace", workspace);
+		const options = {};
+		if (signal) options.signal = signal;
+		const qs = params.toString();
+		const res = await fetchWithTimeout(`/api/v1/codegraph/bootstrap${qs ? `?${qs}` : ""}`, options);
+		if (!res.ok) return null;
+		const data$2 = await res.json();
+		return {
+			rootNodes: data$2.rootNodes ?? [],
+			topLevelNodes: data$2.topLevelNodes ?? [],
+			topLevelTotal: data$2.topLevelTotal ?? 0,
+			edges: data$2.edges ?? [],
+			indexStatus: data$2.indexStatus ?? "empty",
+			metadata: data$2.metadata ?? {
+				repoId: "",
+				timestamp: 0,
+				totalNodeCount: 0,
+				totalEdgeCount: 0
+			}
+		};
+	} catch (e) {
+		if (e instanceof DOMException && e.name === "AbortError") return null;
+		log$15.warn("fetchBootstrap failed", { error: e instanceof Error ? e.message : String(e) });
+		return null;
+	}
+}
+async function fetchNodeChildren(nodeId, cursor, limit$1, signal, workspace) {
+	try {
+		const params = new URLSearchParams();
+		params.set("nodeId", nodeId);
+		if (cursor) params.set("cursor", cursor);
+		params.set("limit", String(limit$1 ?? BOOTSTRAP.CHILDREN_PAGE_SIZE));
+		if (workspace && workspace !== ".") params.set("workspace", workspace);
+		const options = {};
+		if (signal) options.signal = signal;
+		const res = await fetchWithTimeout(`/api/v1/codegraph/children?${params}`, options);
+		if (!res.ok) return null;
+		return await res.json();
+	} catch (e) {
+		if (e instanceof DOMException && e.name === "AbortError") return null;
+		log$15.warn("fetchNodeChildren failed", {
+			nodeId,
+			error: e instanceof Error ? e.message : String(e)
+		});
+		return null;
+	}
+}
+async function fetchStatus() {
+	try {
+		const res = await fetchWithTimeout("/api/v1/codegraph/status");
+		if (!res.ok) return {
+			codegraph: false,
+			lens: false,
+			builtin: true
+		};
+		const data$2 = await res.json();
+		return {
+			codegraph: !!data$2.codegraph,
+			lens: !!data$2.lens,
+			builtin: data$2.builtin ?? true
+		};
+	} catch (e) {
+		log$15.warn("fetchStatus failed", {
+			url: "/api/v1/codegraph/status",
+			error: e instanceof Error ? e.message : String(e)
+		});
+		return {
+			codegraph: false,
+			lens: false,
+			builtin: true
+		};
+	}
+}
+async function fetchWorkspace() {
+	try {
+		const res = await fetchWithTimeout("/api/v1/codegraph/workspace");
+		if (!res.ok) return {
+			path: ".",
+			list: []
+		};
+		const data$2 = await res.json();
+		return {
+			path: data$2.path ?? ".",
+			list: data$2.list ?? []
+		};
+	} catch (e) {
+		log$15.warn("fetchWorkspace failed", e);
+		return {
+			path: ".",
+			list: []
+		};
+	}
+}
+async function requestInit(path) {
+	try {
+		const res = await fetchWithTimeout("/api/v1/codegraph/init", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ path })
+		}, API.SCAN_TIMEOUT_MS);
+		if (!res.ok) return null;
+		return await res.json();
+	} catch (e) {
+		log$15.warn("requestInit failed", e);
+		return null;
+	}
+}
+async function fetchGraphDataIncremental(lastUpdated) {
+	try {
+		const res = await fetchWithTimeout("/api/v1/codegraph/data", { headers: { "if-none-match": String(lastUpdated) } });
+		if (res.status === 304) return null;
+		if (!res.ok) return null;
+		return coerceGraphData(await res.json());
+	} catch (e) {
+		log$15.warn("fetchGraphDataIncremental failed", { error: e instanceof Error ? e.message : String(e) });
+		return null;
+	}
+}
+async function requestWatch(enabled, path) {
+	try {
+		const res = await fetchWithTimeout("/api/v1/codegraph/watch", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				enabled,
+				path
+			})
+		});
+		return res.ok;
+	} catch (e) {
+		log$15.warn("requestWatch failed", e);
+		return false;
+	}
+}
+async function fetchFileOutline(nodeId, signal, workspace) {
+	try {
+		const params = new URLSearchParams();
+		if (workspace && workspace !== ".") params.set("workspace", workspace);
+		const options = {};
+		if (signal) options.signal = signal;
+		const qs = params.toString();
+		const res = await fetchWithTimeout(`/api/v1/codegraph/files/${encodeURIComponent(nodeId)}/outline${qs ? `?${qs}` : ""}`, options);
+		if (!res.ok) return null;
+		const data$2 = await res.json();
+		return {
+			symbols: data$2.symbols ?? [],
+			edges: data$2.edges ?? []
+		};
+	} catch (e) {
+		if (e instanceof DOMException && e.name === "AbortError") return null;
+		log$15.warn("fetchFileOutline failed", {
+			nodeId,
+			error: e instanceof Error ? e.message : String(e)
+		});
+		return null;
+	}
+}
+async function fetchSymbolAST(nodeId, signal, workspace) {
+	try {
+		const params = new URLSearchParams();
+		if (workspace && workspace !== ".") params.set("workspace", workspace);
+		const options = {};
+		if (signal) options.signal = signal;
+		const qs = params.toString();
+		const res = await fetchWithTimeout(`/api/v1/codegraph/symbols/${encodeURIComponent(nodeId)}/ast${qs ? `?${qs}` : ""}`, options);
+		if (!res.ok) return null;
+		const data$2 = await res.json();
+		return {
+			astNodes: data$2.astNodes ?? [],
+			astEdges: data$2.astEdges ?? [],
+			sourceLines: data$2.sourceLines ?? []
+		};
+	} catch (e) {
+		if (e instanceof DOMException && e.name === "AbortError") return null;
+		log$15.warn("fetchSymbolAST failed", {
+			nodeId,
+			error: e instanceof Error ? e.message : String(e)
+		});
+		return null;
+	}
+}
+
+//#endregion
+//#region src/client/diagram/index.ts
+const log$14 = scoped("diagram");
+const macroAssemblerRegistry = new Map([
+	["inheritance", new InheritanceAssembler()],
+	["callgraph", new CallGraphAssembler()],
+	["package", new PackageAssembler()],
+	["class", new ClassAssembler()],
+	["dependencies", new DependencyAssembler()]
+]);
+const microAssemblerRegistry = new Map([
+	["cfg", new CFGAssembler()],
+	["flowchart", new FlowchartAssembler()],
+	["sequence", new SequenceAssembler()]
+]);
+const LAYER_DEFINITIONS = {
+	inheritance: [
+		{
+			level: 0,
+			name: "layer.inheritance.0",
+			nodeFilter: (n) => n.properties?.depth <= 1
+		},
+		{
+			level: 1,
+			name: "layer.inheritance.1",
+			nodeFilter: (n) => n.properties?.depth <= 3
+		},
+		{
+			level: 2,
+			name: "layer.inheritance.2",
+			nodeFilter: () => true
+		}
+	],
+	callgraph: [
+		{
+			level: 0,
+			name: "layer.callgraph.0",
+			nodeFilter: (n) => n.properties?.isEntry === true || n.properties?.depth <= 1
+		},
+		{
+			level: 1,
+			name: "layer.callgraph.1",
+			nodeFilter: (n) => n.properties?.depth <= 3
+		},
+		{
+			level: 2,
+			name: "layer.callgraph.2",
+			nodeFilter: () => true
+		}
+	],
+	package: [
+		{
+			level: 0,
+			name: "layer.package.0",
+			nodeFilter: (n) => n.properties?.depth <= 1
+		},
+		{
+			level: 1,
+			name: "layer.package.1",
+			nodeFilter: (n) => n.properties?.depth <= 3
+		},
+		{
+			level: 2,
+			name: "layer.package.2",
+			nodeFilter: () => true
+		}
+	],
+	class: [
+		{
+			level: 0,
+			name: "layer.class.0",
+			nodeFilter: (n) => n.properties?.depth <= 1
+		},
+		{
+			level: 1,
+			name: "layer.class.1",
+			nodeFilter: (n) => n.properties?.depth <= 3
+		},
+		{
+			level: 2,
+			name: "layer.class.2",
+			nodeFilter: () => true
+		}
+	],
+	code: [
+		{
+			level: 0,
+			name: "layer.code.0",
+			nodeFilter: () => true
+		},
+		{
+			level: 1,
+			name: "layer.code.1",
+			nodeFilter: () => true
+		},
+		{
+			level: 2,
+			name: "layer.code.2",
+			nodeFilter: () => true
+		}
+	],
+	dependencies: [
+		{
+			level: 0,
+			name: "layer.dependencies.0",
+			nodeFilter: (n) => n.properties?.depth <= 1
+		},
+		{
+			level: 1,
+			name: "layer.dependencies.1",
+			nodeFilter: (n) => n.properties?.depth <= 3
+		},
+		{
+			level: 2,
+			name: "layer.dependencies.2",
+			nodeFilter: () => true
+		}
+	]
+};
+function sliceByLayer(allNodes, allEdges, layerDef) {
+	const filteredNodes = allNodes.filter((n) => layerDef.nodeFilter(n, allNodes, allEdges));
+	const nodeIds = new Set(filteredNodes.map((n) => n.id));
+	const filteredEdges = allEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+	return {
+		level: layerDef.level,
+		name: layerDef.name,
+		nodes: filteredNodes,
+		edges: filteredEdges,
+		nodeIds,
+		edgeIds: new Set(filteredEdges.map((e) => e.id))
+	};
+}
+function buildLayeredDiagram(viewMode, assembled) {
+	const layerDefs = LAYER_DEFINITIONS[viewMode];
+	if (!layerDefs) return {
+		viewMode,
+		layers: [{
+			level: 0,
+			name: "graphType.all",
+			nodes: assembled.nodes,
+			edges: assembled.edges,
+			nodeIds: new Set(assembled.nodes.map((n) => n.id)),
+			edgeIds: new Set(assembled.edges.map((e) => e.id))
+		}],
+		currentLayer: 0,
+		expandedNodes: new Set(),
+		allNodes: assembled.nodes,
+		allEdges: assembled.edges,
+		metadata: assembled.metadata
+	};
+	const layers = layerDefs.map((def) => sliceByLayer(assembled.nodes, assembled.edges, def));
+	return {
+		viewMode,
+		layers,
+		currentLayer: 0,
+		expandedNodes: new Set(),
+		allNodes: assembled.nodes,
+		allEdges: assembled.edges,
+		metadata: assembled.metadata
+	};
+}
+function assembleDiagram(viewMode, nodes, edges) {
+	const assembler = macroAssemblerRegistry.get(viewMode);
+	if (!assembler) return null;
+	const result = assembler.assemble(nodes, edges);
+	if (result) {
+		const taggedNodes = result.nodes.map((n) => ({
+			...n,
+			properties: {
+				...n.properties,
+				diagramType: viewMode
+			}
+		}));
+		const taggedEdges = result.edges.map((e) => ({
+			...e,
+			properties: {
+				...e.properties,
+				diagramType: viewMode
+			}
+		}));
+		return buildLayeredDiagram(viewMode, {
+			nodes: taggedNodes,
+			edges: taggedEdges,
+			metadata: result.metadata
+		});
+	}
+	return null;
+}
+async function assembleMicroDiagram(viewMode, filePath, functionName) {
+	if (!filePath) throw new Error("filePath is empty — cannot fetch AST");
+	if (!functionName) throw new Error("functionName is empty — cannot locate function in AST");
+	let response;
+	try {
+		response = await fetchWithTimeout("/api/v1/codegraph/ast", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ filePath })
+		});
+	} catch (e) {
+		log$14.warn("AST fetch failed", e);
+		throw new Error(`Network error: unable to reach AST endpoint`);
+	}
+	if (!response.ok) {
+		const status = response.status;
+		if (status === 400) throw new Error(`Bad request: filePath "${filePath}" is invalid or workspace not configured`);
+		if (status === 403) throw new Error(`Access denied: filePath "${filePath}" is outside workspace`);
+		if (status === 413) throw new Error(`File too large for AST parsing: ${filePath}`);
+		if (status === 500) {
+			const errorBody = await response.text();
+			let serverMsg = "";
+			try {
+				const parsed = JSON.parse(errorBody);
+				serverMsg = parsed.error || "";
+			} catch (e) {
+				log$14.warn("AST error body parse failed", e);
+				serverMsg = errorBody;
+			}
+			throw new Error(serverMsg || `AST parsing failed for "${filePath}"`);
+		}
+		throw new Error(`AST request failed (HTTP ${status})`);
+	}
+	const astRoot = await response.json();
+	if (!astRoot || !astRoot.children || astRoot.children.length === 0) throw new Error(`AST is empty for "${filePath}" — parsing produced no nodes`);
+	const assembler = microAssemblerRegistry.get(viewMode);
+	if (!assembler) throw new Error(`Unsupported view mode: ${viewMode}`);
+	return assembler.assemble(astRoot, filePath, functionName);
+}
+
+//#endregion
+//#region src/client/store/slices/graphDataSlice.ts
+function createGraphDataSlice(_set, _get) {
+	return {
+		nodes: [],
+		edges: [],
+		rawNodes: [],
+		rawEdges: [],
+		savedRawNodes: [],
+		savedRawEdges: [],
+		repoId: null,
+		truncated: false,
+		totalNodeCount: 0,
+		totalEdgeCount: 0,
+		setGraphData: (nodes, edges, repoId, metadata) => {
+			try {
+				clearLoadingFailsafe();
+				internals.expandGeneration++;
+				const prevPending = _get().pendingRequests;
+				for (const controller of prevPending.values()) controller.abort();
+				if (internals.persistentCacheRepoId !== repoId) {
+					if (internals.persistentCache) internals.persistentCache.close();
+					internals.persistentCache = new IndexedDBCache(repoId);
+					internals.persistentCacheRepoId = repoId;
+					diagramCache.setPersistentBackend(internals.persistentCache);
+					clusterCache.setPersistentBackend(internals.persistentCache);
+				}
+				const { clusterDepth, expandedNodeIds, viewMode, currentLayer } = _get();
+				const sanitized = sanitizeTypedGraph(nodes, edges);
+				const newDegradations = [];
+				if (sanitized.nodes.length > CYCLE_DETECTION.MAX_NODES_FOR_DETECTION) newDegradations.push("cycle-detection-skipped");
+				if (sanitized.nodes.length > CLUSTER.MAX_NODES_FOR_LABEL_PROP) newDegradations.push("community-detection-sampled");
+				if (sanitized.nodes.length > RENDERER.LARGE_GRAPH_NODE_THRESHOLD) newDegradations.push("large-graph-mode");
+				let displayNodes = sanitized.nodes;
+				let displayEdges = sanitized.edges;
+				let diagramData = null;
+				const isLayeredView = isLayeredViewMode(viewMode);
+				if (isLayeredView) {
+					const dataHash = computeDataHash(sanitized.nodes, sanitized.edges);
+					const cached = diagramCache.get(viewMode, dataHash);
+					if (cached) diagramData = cached;
+					else {
+						diagramData = assembleDiagram(viewMode, sanitized.nodes, sanitized.edges);
+						if (diagramData) diagramCache.set(viewMode, dataHash, diagramData);
+					}
+					if (diagramData) {
+						const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+						if (layer) {
+							displayNodes = layer.nodes;
+							displayEdges = layer.edges;
+						}
+					}
+					_set({
+						rawNodes: sanitized.nodes,
+						rawEdges: sanitized.edges,
+						nodes: displayNodes,
+						edges: displayEdges,
+						diagramData,
+						repoId,
+						error: null,
+						isLoading: false,
+						lastUpdated: Date.now(),
+						truncated: !!metadata?.truncated,
+						totalNodeCount: metadata?.totalNodeCount ?? sanitized.nodes.length,
+						totalEdgeCount: metadata?.totalEdgeCount ?? sanitized.edges.length,
+						healthScore: null,
+						ruleViolations: [],
+						performanceDegradations: newDegradations,
+						pendingRequests: new Map(),
+						loadErrorsByNodeId: new Map()
+					});
+					return;
+				}
+				const result = tryIncrementalOrFull(internals.incrementalClusterCtx, displayNodes, displayEdges, expandedNodeIds, clusterDepth, _get().panelWidth ?? void 0);
+				updateIncrementalClusterCtx(result, sanitized.nodes, sanitized.edges);
+				_set({
+					rawNodes: sanitized.nodes,
+					rawEdges: sanitized.edges,
+					nodes: result.nodes,
+					edges: result.edges,
+					diagramData,
+					repoId,
+					error: null,
+					isLoading: false,
+					lastUpdated: Date.now(),
+					truncated: !!metadata?.truncated,
+					totalNodeCount: metadata?.totalNodeCount ?? sanitized.nodes.length,
+					totalEdgeCount: metadata?.totalEdgeCount ?? sanitized.edges.length,
+					healthScore: null,
+					ruleViolations: [],
+					performanceDegradations: newDegradations,
+					pendingRequests: new Map(),
+					loadErrorsByNodeId: new Map()
+				});
+			} catch (err) {
+				log$17.error("setGraphData failed", { err });
+				_set({
+					error: err instanceof Error ? err.message : String(err),
+					isLoading: false
+				});
+			}
+		},
+		setBootstrapData: (rootNodes, edges, repoId, metadata) => {
+			try {
+				clearLoadingFailsafe();
+				internals.expandGeneration++;
+				const prevPending = _get().pendingRequests;
+				for (const controller of prevPending.values()) controller.abort();
+				internals.incrementalClusterCtx = null;
+				const sanitized = sanitizeTypedGraph(rootNodes, edges);
+				const { clusterDepth, expandedNodeIds, viewMode, panelWidth } = _get();
+				const isLayeredView = isLayeredViewMode(viewMode);
+				let displayNodes = sanitized.nodes;
+				let displayEdges = sanitized.edges;
+				let diagramData = null;
+				if (isLayeredView) {
+					const dataHash = computeDataHash(sanitized.nodes, sanitized.edges);
+					const cached = diagramCache.get(viewMode, dataHash);
+					if (cached) diagramData = cached;
+					else {
+						diagramData = assembleDiagram(viewMode, sanitized.nodes, sanitized.edges);
+						if (diagramData) diagramCache.set(viewMode, dataHash, diagramData);
+					}
+					if (diagramData) {
+						const layer = diagramData.layers[0];
+						if (layer) {
+							displayNodes = layer.nodes;
+							displayEdges = layer.edges;
+						}
+					}
+				} else {
+					const result = tryIncrementalOrFull(internals.incrementalClusterCtx, sanitized.nodes, sanitized.edges, expandedNodeIds, clusterDepth, panelWidth ?? void 0);
+					updateIncrementalClusterCtx(result, sanitized.nodes, sanitized.edges);
+					displayNodes = result.nodes;
+					displayEdges = result.edges;
+				}
+				_set({
+					rawNodes: sanitized.nodes,
+					rawEdges: sanitized.edges,
+					nodes: displayNodes,
+					edges: displayEdges,
+					diagramData,
+					repoId,
+					error: null,
+					isLoading: false,
+					lastUpdated: metadata.timestamp,
+					truncated: false,
+					totalNodeCount: metadata.totalNodeCount,
+					totalEdgeCount: metadata.totalEdgeCount,
+					healthScore: null,
+					ruleViolations: [],
+					performanceDegradations: [],
+					expandedNodeIds: new Set(),
+					expandedNodeIdsByViewMode: {},
+					pendingRequests: new Map(),
+					loadErrorsByNodeId: new Map()
+				});
+				log$17.info("bootstrap data set", {
+					rootNodes: sanitized.nodes.length,
+					totalNodeCount: metadata.totalNodeCount
+				});
+			} catch (err) {
+				log$17.error("setBootstrapData failed", { err });
+				_set({
+					error: err instanceof Error ? err.message : String(err),
+					isLoading: false
+				});
+			}
+		},
+		clearGraph: () => {
+			clearLoadingFailsafe();
+			internals.expandGeneration++;
+			const prevPending = _get().pendingRequests;
+			for (const controller of prevPending.values()) controller.abort();
+			internals.incrementalClusterCtx = null;
+			_set({
+				nodes: [],
+				edges: [],
+				rawNodes: [],
+				rawEdges: [],
+				savedRawNodes: [],
+				savedRawEdges: [],
+				repoId: null,
+				error: null,
+				isLoading: false,
+				lastUpdated: 0,
+				truncated: false,
+				totalNodeCount: 0,
+				totalEdgeCount: 0,
+				pendingRequests: new Map(),
+				loadErrorsByNodeId: new Map()
+			});
+		}
+	};
+}
+
+//#endregion
 //#region src/client/store/viewModeTransition.ts
 function getLayeredDiagram(viewMode, sourceNodes, sourceEdges, diagramCache$1) {
 	const dataHash = computeDataHash(sourceNodes, sourceEdges);
@@ -7120,272 +8113,148 @@ function computeViewModeTransition(newViewMode, state, diagramCache$1) {
 }
 
 //#endregion
-//#region src/client/validators.ts
-function coerceNode(raw, i$1) {
-	if (!raw || typeof raw !== "object") return null;
-	const o = raw;
-	const id = typeof o.id === "string" ? o.id : `node-${i$1}`;
-	const label = typeof o.label === "string" ? o.label : typeof o.name === "string" ? o.name : id;
-	const type = [
-		"function",
-		"class",
-		"variable",
-		"module",
-		"interface",
-		"type"
-	].includes(o.type) ? o.type : "variable";
-	const filePath = typeof o.filePath === "string" ? o.filePath : typeof o.file === "string" ? o.file : "";
-	const lineNumber = typeof o.lineNumber === "number" ? o.lineNumber : typeof o.line === "number" ? o.line : 0;
-	const properties = o.properties && typeof o.properties === "object" ? o.properties : {};
+//#region src/client/store/slices/viewModeSlice.ts
+function createViewModeSlice(_set, _get) {
 	return {
-		id: NodeId(id),
-		label,
-		type,
-		filePath,
-		lineNumber,
-		properties
-	};
-}
-function coerceEdge(raw, i$1) {
-	if (!raw || typeof raw !== "object") return null;
-	const o = raw;
-	const id = typeof o.id === "string" ? o.id : `edge-${i$1}`;
-	const source = typeof o.source === "string" ? o.source : typeof o.from === "string" ? o.from : null;
-	const target = typeof o.target === "string" ? o.target : typeof o.to === "string" ? o.to : null;
-	if (!source || !target) return null;
-	const type = [
-		"call",
-		"import",
-		"extend",
-		"implement",
-		"dependency",
-		"contains",
-		"association",
-		"aggregation",
-		"composition"
-	].includes(o.type) ? o.type : "dependency";
-	const properties = o.properties && typeof o.properties === "object" ? o.properties : {};
-	const direction = [
-		"forward",
-		"backward",
-		"bidirectional"
-	].includes(o.direction) ? o.direction : "forward";
-	const weight = typeof o.weight === "number" && o.weight >= 0 && o.weight <= 1 ? o.weight : 1;
-	return {
-		id: EdgeId(id),
-		source: NodeId(source),
-		target: NodeId(target),
-		type,
-		direction,
-		weight,
-		properties
-	};
-}
-function validateGraphData(raw) {
-	if (!raw || typeof raw !== "object") return null;
-	const o = raw;
-	const rawNodes = Array.isArray(o.nodes) ? o.nodes : [];
-	const rawEdges = Array.isArray(o.edges) ? o.edges : [];
-	const nodes = rawNodes.map(coerceNode).filter((n) => n !== null);
-	if (nodes.length === 0) return null;
-	const nodeIds = new Set(nodes.map((n) => n.id));
-	const edges = rawEdges.map(coerceEdge).filter((e) => e !== null).filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
-	const metadata = o.metadata;
-	const repoId = metadata?.repoId ?? `workspace-${Date.now()}`;
-	const timestamp = typeof metadata?.timestamp === "number" ? metadata.timestamp : Date.now();
-	const truncated = typeof metadata?.truncated === "boolean" ? metadata.truncated : false;
-	const totalNodeCount = typeof metadata?.totalNodeCount === "number" ? metadata.totalNodeCount : nodes.length;
-	const totalEdgeCount = typeof metadata?.totalEdgeCount === "number" ? metadata.totalEdgeCount : edges.length;
-	return {
-		nodes,
-		edges,
-		metadata: {
-			repoId: RepoId(repoId),
-			timestamp,
-			nodeCount: nodes.length,
-			edgeCount: edges.length,
-			truncated,
-			totalNodeCount,
-			totalEdgeCount
+		layout: "cose",
+		dagreRankDir: "TB",
+		theme: detectInitialTheme(),
+		searchQuery: "",
+		selectedNodeId: null,
+		highlightedNodeIds: [],
+		filterType: "all",
+		graphType: "all",
+		viewMode: "code",
+		diagramData: null,
+		currentLayer: 0,
+		clusterDepth: 0,
+		setLayout: (layout$2) => _set({ layout: layout$2 }),
+		setDagreRankDir: (dagreRankDir) => _set({ dagreRankDir }),
+		setTheme: (theme) => {
+			invalidateCssVarCache();
+			_set({ theme });
+		},
+		setSearchQuery: (searchQuery) => _set({ searchQuery }),
+		setSelectedNode: (selectedNodeId) => _set({ selectedNodeId }),
+		setHighlightedNodes: (highlightedNodeIds) => _set({ highlightedNodeIds }),
+		setFilterType: (filterType) => _set({ filterType }),
+		setGraphType: (graphType) => _set({ graphType }),
+		setViewMode: (viewMode) => {
+			const state = _get();
+			const result = computeViewModeTransition(viewMode, {
+				rawNodes: state.rawNodes,
+				rawEdges: state.rawEdges,
+				savedRawNodes: state.savedRawNodes,
+				savedRawEdges: state.savedRawEdges,
+				clusterDepth: state.clusterDepth,
+				expandedNodeIds: state.expandedNodeIds,
+				expandedNodeIdsByViewMode: state.expandedNodeIdsByViewMode,
+				selectedFunction: state.selectedFunction,
+				viewMode: state.viewMode
+			}, diagramCache);
+			const { needsMicroAssembly,...rest } = result;
+			_set(rest);
+			if (needsMicroAssembly) {
+				const fn$7 = _get().selectedFunction;
+				_get().assembleMicro(viewMode, fn$7);
+			}
+		},
+		setClusterDepth: (clusterDepth) => {
+			const { rawNodes, rawEdges, expandedNodeIds, expandedNodeIdsByViewMode, diagramData, currentLayer, viewMode } = _get();
+			if (isLayeredViewMode(viewMode)) {
+				_set({ clusterDepth });
+				return;
+			}
+			applyClusterUpdate(expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, _set);
+			_set({ clusterDepth });
+		},
+		setLayer: (layer) => {
+			const { diagramData, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, currentLayer } = _get();
+			if (!diagramData || layer < 0 || layer >= diagramData.layers.length) return;
+			const layerData = diagramData.layers[layer];
+			if (!layerData) return;
+			const currentLayerKey = `${viewMode}_layer${currentLayer}`;
+			const newExpandedByViewMode = {
+				...expandedNodeIdsByViewMode,
+				[currentLayerKey]: new Set(expandedNodeIds)
+			};
+			const layerExpanded = newExpandedByViewMode[`${viewMode}_layer${layer}`] ?? new Set();
+			_set({
+				currentLayer: layer,
+				expandedNodeIds: layerExpanded,
+				expandedNodeIdsByViewMode: newExpandedByViewMode,
+				nodes: layerData.nodes,
+				edges: layerData.edges
+			});
 		}
 	};
 }
 
 //#endregion
-//#region src/client/api/index.ts
-const log$13 = scoped("client");
-const DEFAULT_TIMEOUT = API.DEFAULT_TIMEOUT_MS;
-function fetchWithTimeout(url, options, timeoutMs = DEFAULT_TIMEOUT) {
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), timeoutMs);
-	return fetch(url, {
-		...options,
-		signal: controller.signal
-	}).finally(() => clearTimeout(timer));
-}
-async function fetchBootstrap() {
-	try {
-		const res = await fetchWithTimeout("/api/v1/codegraph/bootstrap");
-		if (!res.ok) return null;
-		const data$2 = await res.json();
-		return {
-			rootNodes: data$2.rootNodes ?? [],
-			topLevelNodes: data$2.topLevelNodes ?? [],
-			topLevelTotal: data$2.topLevelTotal ?? 0,
-			edges: data$2.edges ?? [],
-			indexStatus: data$2.indexStatus ?? "empty",
-			metadata: data$2.metadata ?? {
-				repoId: "",
-				timestamp: 0,
-				totalNodeCount: 0,
-				totalEdgeCount: 0
+//#region src/client/store/slices/sessionSlice.ts
+const LOADING_FAILSAFE_MS = POLLING.LOADING_FAILSAFE_MS;
+function createSessionSlice(_set, _get) {
+	return {
+		isLoading: false,
+		error: null,
+		lastUpdated: 0,
+		prerequisites: {
+			codegraph: false,
+			lens: false,
+			builtin: true
+		},
+		integrationMode: "unknown",
+		panelVisible: true,
+		urlRestored: false,
+		initStatus: "idle",
+		initMessage: null,
+		watchEnabled: false,
+		setLoading: (isLoading) => {
+			clearLoadingFailsafe();
+			_set({ isLoading });
+			if (isLoading) internals.loadingFailsafe = setTimeout(() => {
+				internals.loadingFailsafe = null;
+				if (_get().isLoading) _set({ isLoading: false });
+			}, LOADING_FAILSAFE_MS);
+		},
+		setError: (error$1) => {
+			clearLoadingFailsafe();
+			_set({
+				error: error$1,
+				isLoading: false
+			});
+		},
+		setPrerequisites: (prerequisites) => _set({ prerequisites }),
+		setIntegrationMode: (integrationMode) => _set({ integrationMode }),
+		setPanelVisible: (panelVisible) => {
+			_set({ panelVisible });
+			if (!panelVisible) {
+				for (const controller of internals.prefetchAbortControllers.values()) controller.abort();
+				internals.prefetchAbortControllers.clear();
+				internals.prefetchInFlightCount = 0;
+				for (const controller of internals.expandAbortControllers.values()) controller.abort();
+				internals.expandAbortControllers.clear();
+				const state = _get();
+				for (const controller of state.pendingRequests.values()) controller.abort();
+				state.pendingRequests.clear();
+				if (internals.prefetchIdleHandle !== null) {
+					if (typeof cancelIdleCallback !== "undefined") cancelIdleCallback(internals.prefetchIdleHandle);
+					else clearTimeout(internals.prefetchIdleHandle);
+					internals.prefetchIdleHandle = null;
+				}
 			}
-		};
-	} catch (e) {
-		log$13.warn("fetchBootstrap failed", { error: e instanceof Error ? e.message : String(e) });
-		return null;
-	}
-}
-async function fetchNodeChildren(nodeId, cursor, limit$1, signal) {
-	try {
-		const params = new URLSearchParams();
-		params.set("nodeId", nodeId);
-		if (cursor) params.set("cursor", cursor);
-		params.set("limit", String(limit$1 ?? BOOTSTRAP.CHILDREN_PAGE_SIZE));
-		const options = {};
-		if (signal) options.signal = signal;
-		const res = await fetchWithTimeout(`/api/v1/codegraph/children?${params}`, options);
-		if (!res.ok) return null;
-		return await res.json();
-	} catch (e) {
-		if (e instanceof DOMException && e.name === "AbortError") return null;
-		log$13.warn("fetchNodeChildren failed", {
-			nodeId,
-			error: e instanceof Error ? e.message : String(e)
-		});
-		return null;
-	}
-}
-async function fetchStatus() {
-	try {
-		const res = await fetchWithTimeout("/api/v1/codegraph/status");
-		if (!res.ok) return {
-			codegraph: false,
-			lens: false
-		};
-		return await res.json();
-	} catch (e) {
-		log$13.warn("fetchStatus failed", {
-			url: "/api/v1/codegraph/status",
-			error: e instanceof Error ? e.message : String(e)
-		});
-		return {
-			codegraph: false,
-			lens: false
-		};
-	}
-}
-async function fetchWorkspace() {
-	try {
-		const res = await fetchWithTimeout("/api/v1/codegraph/workspace");
-		if (!res.ok) return {
-			path: ".",
-			list: []
-		};
-		const data$2 = await res.json();
-		return {
-			path: data$2.path ?? ".",
-			list: data$2.list ?? []
-		};
-	} catch (e) {
-		log$13.warn("fetchWorkspace failed", e);
-		return {
-			path: ".",
-			list: []
-		};
-	}
-}
-async function requestInit(path) {
-	try {
-		const res = await fetchWithTimeout("/api/v1/codegraph/init", {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ path })
-		}, API.SCAN_TIMEOUT_MS);
-		if (!res.ok) return null;
-		return await res.json();
-	} catch (e) {
-		log$13.warn("requestInit failed", e);
-		return null;
-	}
-}
-async function fetchGraphDataIncremental(lastUpdated) {
-	try {
-		const res = await fetchWithTimeout("/api/v1/codegraph/data", { headers: { "if-none-match": String(lastUpdated) } });
-		if (res.status === 304) return null;
-		if (!res.ok) return null;
-		return validateGraphData(await res.json());
-	} catch (e) {
-		log$13.warn("fetchGraphDataIncremental failed", { error: e instanceof Error ? e.message : String(e) });
-		return null;
-	}
-}
-async function requestWatch(enabled, path) {
-	try {
-		const res = await fetchWithTimeout("/api/v1/codegraph/watch", {
-			method: "POST",
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({
-				enabled,
-				path
-			})
-		});
-		return res.ok;
-	} catch (e) {
-		log$13.warn("requestWatch failed", e);
-		return false;
-	}
-}
-async function fetchFileOutline(nodeId) {
-	try {
-		const res = await fetchWithTimeout(`/api/v1/codegraph/files/${encodeURIComponent(nodeId)}/outline`);
-		if (!res.ok) return null;
-		const data$2 = await res.json();
-		return {
-			symbols: data$2.symbols ?? [],
-			edges: data$2.edges ?? []
-		};
-	} catch (e) {
-		log$13.warn("fetchFileOutline failed", {
-			nodeId,
-			error: e instanceof Error ? e.message : String(e)
-		});
-		return null;
-	}
-}
-async function fetchSymbolAST(nodeId) {
-	try {
-		const res = await fetchWithTimeout(`/api/v1/codegraph/symbols/${encodeURIComponent(nodeId)}/ast`);
-		if (!res.ok) return null;
-		const data$2 = await res.json();
-		return {
-			astNodes: data$2.astNodes ?? [],
-			astEdges: data$2.astEdges ?? [],
-			sourceLines: data$2.sourceLines ?? []
-		};
-	} catch (e) {
-		log$13.warn("fetchSymbolAST failed", {
-			nodeId,
-			error: e instanceof Error ? e.message : String(e)
-		});
-		return null;
-	}
+		},
+		setInitStatus: (initStatus, initMessage = null) => _set({
+			initStatus,
+			initMessage
+		}),
+		setWatchEnabled: (watchEnabled) => _set({ watchEnabled })
+	};
 }
 
 //#endregion
 //#region src/client/utils/urlState.ts
-const log$12 = scoped("url-state");
-const MAX_URL_LENGTH = 2e3;
+const log$13 = scoped("url-state");
 const PREFIX_DIR = "d:";
 const PREFIX_FILE = "f:";
 const PREFIX_SYMBOL = "s:";
@@ -7439,10 +8308,10 @@ function updateUrlExpand(expandedNodeIds) {
 	if (expandParam) url.searchParams.set("expand", expandParam);
 	else url.searchParams.delete("expand");
 	const urlString = url.toString();
-	if (urlString.length > MAX_URL_LENGTH) {
+	if (urlString.length > URL_STATE.MAX_LENGTH) {
 		const trimmed = expandParam.split(",").filter((p$1) => !p$1.startsWith(PREFIX_SYMBOL));
 		url.searchParams.set("expand", trimmed.join(","));
-		log$12.warn("URL too long, trimmed symbol-level expansions");
+		log$13.warn("URL too long, trimmed symbol-level expansions");
 	}
 	window.history.replaceState(null, "", url.toString());
 }
@@ -7465,1038 +8334,689 @@ function restoreExpandedNodeIds(parsed) {
 }
 
 //#endregion
-//#region src/client/store/graphStore.ts
-const log$11 = scoped("store");
-const diagramCache = new DiagramCache(10);
-const clusterCache = new ClusterCache(20);
-let persistentCache = null;
-let persistentCacheRepoId = null;
-const callChainAggregator = new CallChainAggregator();
-let microAssemblyGeneration = 0;
-let multiAssemblyGeneration = 0;
-let incrementalClusterCtx = null;
-let prefetchInFlightCount = 0;
-const prefetchAbortControllers = new Map();
-let expandGeneration = 0;
-let prefetchIdleHandle = null;
-function detectInitialTheme() {
-	if (typeof document === "undefined") return "dark";
-	return document.body.hasAttribute("data-ds-dark-theme") ? "dark" : "light";
-}
-function computeMaxVisible(panelWidth) {
-	return panelWidth !== null && panelWidth !== void 0 ? getDynamicMaxVisibleNodes(panelWidth) : CLUSTER.MAX_VISIBLE_NODES;
-}
-function enforceFunctionBodyBudget(expanded, rawNodes, maxExpanded) {
-	const expandedFunctionBodies = [...expanded].filter((id) => rawNodes.some((n) => n.id === id && n.type === "function"));
-	while (expandedFunctionBodies.length > maxExpanded) {
-		const oldest = expandedFunctionBodies.shift();
-		expanded.delete(oldest);
-	}
-}
-function collapseExcessClusters(nodes, effectiveExpanded, maxVisible, costOffset, pinnedIds) {
-	if (nodes.length + costOffset <= maxVisible) return;
-	const clusterNodes = nodes.filter((n) => "isCluster" in n && n.isCluster === true);
-	const sorted = [...clusterNodes].sort((a, b) => b.childCount - a.childCount);
-	for (const cn of sorted) {
-		if (pinnedIds?.has(cn.id)) continue;
-		if (nodes.length + costOffset - cn.childCount <= maxVisible) {
-			effectiveExpanded.delete(cn.id);
-			break;
+//#region src/client/store/slices/expandSlice.ts
+function createExpandSlice(_set, _get) {
+	return {
+		expandedNodeIds: new Set(),
+		expandedNodeIdsByViewMode: {},
+		loadedChildrenByNodeId: new Set(),
+		prefetchedNodeIds: new Set(),
+		loadErrorsByNodeId: new Map(),
+		pendingRequests: new Map(),
+		pinnedIds: new Set(),
+		expandNode: (nodeId) => {
+			const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, nodes, panelWidth } = _get();
+			const gen = ++internals.expandGeneration;
+			const cost = estimateExpandCost(nodeId, rawNodes);
+			const maxVisible = computeMaxVisible(panelWidth);
+			const effectiveExpanded = new Set(expandedNodeIds);
+			const expandingFunctionBody = rawNodes.some((n) => n.id === nodeId && n.type === "function");
+			if (expandingFunctionBody) enforceFunctionBodyBudget(effectiveExpanded, rawNodes, FUNCTION_BODY.MAX_EXPANDED - 1);
+			effectiveExpanded.add(nodeId);
+			collapseExcessClusters(nodes, effectiveExpanded, maxVisible, cost, _get().pinnedIds);
+			if (cost > CLUSTER.EXPAND_BUDGET_SINGLE) log$17.warn("expand budget exceeded", {
+				nodeId,
+				cost,
+				budget: CLUSTER.EXPAND_BUDGET_SINGLE
+			});
+			const newExpandedByViewMode = {
+				...expandedNodeIdsByViewMode,
+				[viewMode]: effectiveExpanded
+			};
+			applyClusterUpdate(effectiveExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, _set);
+			const node = rawNodes.find((n) => n.id === nodeId);
+			if (node) {
+				const prevExpandController = internals.expandAbortControllers.get(nodeId);
+				if (prevExpandController) prevExpandController.abort();
+				const expandController = new AbortController();
+				internals.expandAbortControllers.set(nodeId, expandController);
+				_get().loadNodeChildren(nodeId, { signal: expandController.signal }).catch((err) => {
+					if (err instanceof DOMException && err.name === "AbortError") return;
+					log$17.warn("expandNode: loadNodeChildren failed", {
+						nodeId,
+						err
+					});
+				}).finally(() => {
+					internals.expandAbortControllers.delete(nodeId);
+				});
+				if (node.type === "module") (async () => {
+					if (internals.persistentCache) {
+						const cached = await internals.persistentCache.getOutline(nodeId);
+						if (cached && gen === internals.expandGeneration) {
+							const data$2 = cached;
+							if (data$2.symbols.length > 0) {
+								mergeAndRecluster(data$2.symbols, data$2.edges, _set, "file outline loaded (cache)", { nodeId });
+								return;
+							}
+						}
+					}
+					fetchFileOutline(nodeId, expandController.signal, _get().currentWorkspace).then(async (data$2) => {
+						if (gen !== internals.expandGeneration) return;
+						if (data$2 && data$2.symbols.length > 0) {
+							mergeAndRecluster(data$2.symbols, data$2.edges, _set, "file outline loaded", { nodeId });
+							if (internals.persistentCache) await internals.persistentCache.setOutline(nodeId, data$2);
+						}
+					}).catch((err) => {
+						log$17.warn("expandNode: fetchFileOutline failed", {
+							nodeId,
+							err
+						});
+					});
+				})();
+				if (node.type === "function") (async () => {
+					if (internals.persistentCache) {
+						const cached = await internals.persistentCache.getAST(nodeId);
+						if (cached && gen === internals.expandGeneration) {
+							const data$2 = cached;
+							if (data$2.astNodes.length > 0) {
+								const truncatedAstNodes = data$2.astNodes.length > SYMBOL_AST.MAX_NODES ? data$2.astNodes.slice(0, SYMBOL_AST.MAX_NODES) : data$2.astNodes;
+								const truncatedSourceLines = data$2.sourceLines.length > SYMBOL_AST.MAX_SOURCE_LINES ? data$2.sourceLines.slice(0, SYMBOL_AST.MAX_SOURCE_LINES) : data$2.sourceLines;
+								const astNodeIds = new Set(truncatedAstNodes.map((n) => n.id));
+								const truncatedAstEdges = data$2.astEdges.filter((e) => astNodeIds.has(e.source) && astNodeIds.has(e.target));
+								mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, _set, "symbol AST loaded (cache)", {
+									nodeId,
+									sourceLines: truncatedSourceLines.length
+								});
+								return;
+							}
+						}
+					}
+					measureAsync("ast-fetch", () => fetchSymbolAST(nodeId, expandController.signal, _get().currentWorkspace)).then(async (data$2) => {
+						if (gen !== internals.expandGeneration) return;
+						if (data$2 && data$2.astNodes.length > 0) {
+							const truncatedAstNodes = data$2.astNodes.length > SYMBOL_AST.MAX_NODES ? data$2.astNodes.slice(0, SYMBOL_AST.MAX_NODES) : data$2.astNodes;
+							const truncatedSourceLines = data$2.sourceLines.length > SYMBOL_AST.MAX_SOURCE_LINES ? data$2.sourceLines.slice(0, SYMBOL_AST.MAX_SOURCE_LINES) : data$2.sourceLines;
+							const astNodeIds = new Set(truncatedAstNodes.map((n) => n.id));
+							const truncatedAstEdges = data$2.astEdges.filter((e) => astNodeIds.has(e.source) && astNodeIds.has(e.target));
+							if (truncatedAstNodes.length < data$2.astNodes.length) log$17.warn("symbol AST truncated", {
+								nodeId,
+								original: data$2.astNodes.length,
+								truncated: truncatedAstNodes.length
+							});
+							mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, _set, "symbol AST loaded", {
+								nodeId,
+								sourceLines: truncatedSourceLines.length
+							});
+							if (internals.persistentCache) await internals.persistentCache.setAST(nodeId, data$2);
+						}
+					}).catch((err) => {
+						log$17.warn("expandNode: fetchSymbolAST failed", {
+							nodeId,
+							err
+						});
+					});
+				})();
+			}
+		},
+		loadNodeChildren: async (nodeId, options) => {
+			const state = _get();
+			if (state.loadedChildrenByNodeId.has(nodeId)) return;
+			const hasChildren = state.rawNodes.some((n) => n.parentId === nodeId || n.id.startsWith(nodeId + "/"));
+			if (hasChildren) {
+				const newLoaded = new Set(state.loadedChildrenByNodeId);
+				newLoaded.add(nodeId);
+				_set({ loadedChildrenByNodeId: newLoaded });
+				return;
+			}
+			const controller = new AbortController();
+			const newPending = new Map(state.pendingRequests);
+			newPending.set(nodeId, controller);
+			_set({ pendingRequests: newPending });
+			try {
+				const signal = options?.signal ?? controller.signal;
+				const data$2 = await fetchNodeChildren(nodeId, void 0, void 0, signal, _get().currentWorkspace);
+				if (!data$2 || data$2.nodes.length === 0) {
+					const newLoaded$1 = new Set(_get().loadedChildrenByNodeId);
+					newLoaded$1.add(nodeId);
+					const clearedPending$1 = new Map(_get().pendingRequests);
+					clearedPending$1.delete(nodeId);
+					_set({
+						loadedChildrenByNodeId: newLoaded$1,
+						pendingRequests: clearedPending$1
+					});
+					return;
+				}
+				const s2 = _get();
+				const existingNodeIds = new Set(s2.rawNodes.map((n) => n.id));
+				const newNodes = data$2.nodes.filter((n) => !existingNodeIds.has(n.id));
+				const existingEdgeIds = new Set(s2.rawEdges.map((e) => e.id));
+				const newEdges = data$2.edges.filter((e) => !existingEdgeIds.has(e.id));
+				if (newNodes.length === 0 && newEdges.length === 0) {
+					const newLoaded$1 = new Set(s2.loadedChildrenByNodeId);
+					newLoaded$1.add(nodeId);
+					const clearedPending$1 = new Map(s2.pendingRequests);
+					clearedPending$1.delete(nodeId);
+					_set({
+						loadedChildrenByNodeId: newLoaded$1,
+						pendingRequests: clearedPending$1
+					});
+					return;
+				}
+				const mergedRawNodes = [...s2.rawNodes, ...newNodes];
+				const mergedRawEdges = [...s2.rawEdges, ...newEdges];
+				const newLoaded = new Set(s2.loadedChildrenByNodeId);
+				newLoaded.add(nodeId);
+				const clearedPending = new Map(s2.pendingRequests);
+				clearedPending.delete(nodeId);
+				const { clusterDepth, expandedNodeIds, panelWidth } = s2;
+				const result = tryIncrementalOrFull(internals.incrementalClusterCtx, mergedRawNodes, mergedRawEdges, expandedNodeIds, clusterDepth, panelWidth ?? void 0);
+				updateIncrementalClusterCtx(result, mergedRawNodes, mergedRawEdges);
+				_set({
+					rawNodes: mergedRawNodes,
+					rawEdges: mergedRawEdges,
+					nodes: result.nodes,
+					edges: result.edges,
+					loadedChildrenByNodeId: newLoaded,
+					pendingRequests: clearedPending
+				});
+				log$17.info("node children loaded", {
+					nodeId,
+					newNodes: newNodes.length,
+					newEdges: newEdges.length
+				});
+			} catch (err) {
+				const clearedPending = new Map(_get().pendingRequests);
+				clearedPending.delete(nodeId);
+				if (err instanceof DOMException && err.name === "AbortError") {
+					_set({ pendingRequests: clearedPending });
+					return;
+				}
+				const newErrors = new Map(_get().loadErrorsByNodeId);
+				newErrors.set(nodeId, err instanceof Error ? err.message : String(err));
+				_set({
+					pendingRequests: clearedPending,
+					loadErrorsByNodeId: newErrors
+				});
+				log$17.warn("loadNodeChildren failed", {
+					nodeId,
+					err
+				});
+			}
+		},
+		loadBootstrap: async () => {
+			try {
+				const ws = _get().currentWorkspace;
+				const data$2 = await fetchBootstrap(void 0, ws);
+				if (!data$2 || data$2.topLevelNodes.length === 0) {
+					log$17.info("bootstrap returned empty, falling back to full load");
+					return false;
+				}
+				const state = _get();
+				state.setBootstrapData(data$2.topLevelNodes, data$2.edges, data$2.metadata.repoId, {
+					totalNodeCount: data$2.metadata.totalNodeCount,
+					totalEdgeCount: data$2.metadata.totalEdgeCount,
+					timestamp: data$2.metadata.timestamp
+				});
+				log$17.info("bootstrap loaded", {
+					rootNodes: data$2.topLevelNodes.length,
+					totalNodeCount: data$2.metadata.totalNodeCount,
+					indexStatus: data$2.indexStatus
+				});
+				return true;
+			} catch (err) {
+				log$17.warn("loadBootstrap failed, falling back to full load", { err });
+				return false;
+			}
+		},
+		batchExpandNodes: (nodeIds) => {
+			const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, nodes, panelWidth } = _get();
+			if (nodeIds.length === 0) return;
+			const maxVisible = computeMaxVisible(panelWidth);
+			const effectiveExpanded = new Set(expandedNodeIds);
+			for (const nodeId of nodeIds) effectiveExpanded.add(nodeId);
+			enforceFunctionBodyBudget(effectiveExpanded, rawNodes, FUNCTION_BODY.MAX_EXPANDED);
+			collapseExcessClusters(nodes, effectiveExpanded, maxVisible, 0, _get().pinnedIds);
+			const newExpandedByViewMode = {
+				...expandedNodeIdsByViewMode,
+				[viewMode]: effectiveExpanded
+			};
+			applyClusterUpdate(effectiveExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, _set);
+		},
+		prefetchExpand: (nodeId) => {
+			if (internals.prefetchInFlightCount >= PREFETCH.CONCURRENCY_LIMIT) return;
+			const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, viewMode, diagramData, currentLayer, loadedChildrenByNodeId, prefetchedNodeIds } = _get();
+			if (isLayeredViewMode(viewMode)) return;
+			if (expandedNodeIds.has(nodeId)) return;
+			if (prefetchedNodeIds.has(nodeId)) return;
+			const rawNode = rawNodes.find((n) => n.id === nodeId);
+			if (rawNode?.type === "function") return;
+			const cost = estimateExpandCost(nodeId, rawNodes);
+			if (cost > PREFETCH.COST_THRESHOLD) return;
+			const prevController = internals.prefetchAbortControllers.get(nodeId);
+			if (prevController) prevController.abort();
+			const controller = new AbortController();
+			internals.prefetchAbortControllers.set(nodeId, controller);
+			const newPrefetched = new Set(prefetchedNodeIds);
+			newPrefetched.add(nodeId);
+			_set({ prefetchedNodeIds: newPrefetched });
+			if (!loadedChildrenByNodeId.has(nodeId)) {
+				internals.prefetchInFlightCount++;
+				_get().loadNodeChildren(nodeId, { signal: controller.signal }).catch((err) => {
+					if (err instanceof DOMException && err.name === "AbortError") return;
+					const s = _get();
+					const newErrors = new Map(s.loadErrorsByNodeId);
+					newErrors.set(nodeId, err instanceof Error ? err.message : String(err));
+					_set({ loadErrorsByNodeId: newErrors });
+				}).finally(() => {
+					internals.prefetchInFlightCount--;
+					internals.prefetchAbortControllers.delete(nodeId);
+				});
+			}
+			const newExpanded = new Set(expandedNodeIds);
+			newExpanded.add(nodeId);
+			let sourceNodes = rawNodes;
+			let sourceEdges = rawEdges;
+			if (diagramData) {
+				const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+				if (layer) {
+					sourceNodes = layer.nodes;
+					sourceEdges = layer.edges;
+				}
+			}
+			const dataHash = computeDataHash(sourceNodes, sourceEdges);
+			const expandedKey = [...newExpanded].sort().join(",");
+			const cacheLevel = `progressive:${clusterDepth}`;
+			if (clusterCache.get(dataHash, cacheLevel, expandedKey)) return;
+			internals.prefetchInFlightCount++;
+			const runPrefetch = () => {
+				try {
+					if (controller.signal.aborted) return;
+					const result = measureSync("cluster", () => computeClusteredGraph(sourceNodes, sourceEdges, "progressive", newExpanded, clusterDepth, _get().panelWidth ?? void 0));
+					clusterCache.set(dataHash, cacheLevel, expandedKey, result);
+				} finally {
+					internals.prefetchInFlightCount--;
+				}
+			};
+			if (internals.prefetchIdleHandle !== null) {
+				if (typeof cancelIdleCallback === "function" && typeof internals.prefetchIdleHandle === "number") cancelIdleCallback(internals.prefetchIdleHandle);
+				else clearTimeout(internals.prefetchIdleHandle);
+				internals.prefetchIdleHandle = null;
+			}
+			if (typeof requestIdleCallback === "function") internals.prefetchIdleHandle = requestIdleCallback(runPrefetch, { timeout: 2e3 });
+			else internals.prefetchIdleHandle = setTimeout(runPrefetch, 0);
+		},
+		collapseNode: (nodeId) => {
+			const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, pinnedIds } = _get();
+			if (pinnedIds.has(nodeId)) return;
+			const newExpanded = new Set(expandedNodeIds);
+			newExpanded.delete(nodeId);
+			const newExpandedByViewMode = {
+				...expandedNodeIdsByViewMode,
+				[viewMode]: newExpanded
+			};
+			applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, _set);
+		},
+		collapseAll: () => {
+			const { rawNodes, rawEdges, clusterDepth, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, pinnedIds } = _get();
+			const newExpanded = new Set(pinnedIds);
+			const newExpandedByViewMode = {
+				...expandedNodeIdsByViewMode,
+				[viewMode]: newExpanded
+			};
+			applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, _set);
+		},
+		pinNode: (nodeId) => {
+			const { pinnedIds } = _get();
+			const newPinned = new Set(pinnedIds);
+			newPinned.add(nodeId);
+			_set({ pinnedIds: newPinned });
+		},
+		unpinNode: (nodeId) => {
+			const { pinnedIds } = _get();
+			const newPinned = new Set(pinnedIds);
+			newPinned.delete(nodeId);
+			_set({ pinnedIds: newPinned });
+		},
+		cancelPendingRequest: (nodeId) => {
+			const { pendingRequests } = _get();
+			const controller = pendingRequests.get(nodeId);
+			if (controller) {
+				controller.abort();
+				const newPending = new Map(pendingRequests);
+				newPending.delete(nodeId);
+				_set({ pendingRequests: newPending });
+			}
+		},
+		restoreFromUrl: async () => {
+			if (typeof window === "undefined") return;
+			const parsed = readUrlExpand();
+			if (parsed.expandedDirs.length === 0 && parsed.expandedFiles.length === 0 && parsed.expandedSymbols.length === 0) return;
+			const allIds = restoreExpandedNodeIds(parsed);
+			const sortedIds = [...allIds].sort((a, b) => {
+				const depthA = a.split("/").length;
+				const depthB = b.split("/").length;
+				return depthA - depthB;
+			});
+			const gen = ++internals.restoreGeneration;
+			if (internals.restoreAbortController) internals.restoreAbortController.abort();
+			const restoreController = internals.restoreAbortController = new AbortController();
+			for (const nodeId of sortedIds) {
+				if (gen !== internals.restoreGeneration) {
+					restoreController.abort();
+					return;
+				}
+				const state = _get();
+				const exists = state.rawNodes.some((n) => n.id === nodeId);
+				if (!exists) {
+					const parentId = nodeId.includes("/") ? nodeId.substring(0, nodeId.lastIndexOf("/")) : null;
+					if (parentId && !state.loadedChildrenByNodeId.has(parentId)) await state.loadNodeChildren(parentId, { signal: restoreController.signal }).catch((err) => {
+						if (!(err instanceof DOMException && err.name === "AbortError")) log$17.warn("restoreFromUrl: loadNodeChildren failed", {
+							parentId,
+							err
+						});
+					});
+				}
+				if (gen !== internals.restoreGeneration) {
+					restoreController.abort();
+					return;
+				}
+				state.expandNode(nodeId);
+				await new Promise((r) => {
+					internals.restoreTimeoutHandle = setTimeout(r, 50);
+				});
+				if (gen !== internals.restoreGeneration) {
+					restoreController.abort();
+					if (internals.restoreTimeoutHandle !== null) {
+						clearTimeout(internals.restoreTimeoutHandle);
+						internals.restoreTimeoutHandle = null;
+					}
+					return;
+				}
+			}
+			internals.restoreTimeoutHandle = null;
+			_set({ urlRestored: true });
+			log$17.info("URL restore completed", { restoredCount: sortedIds.length });
 		}
-		effectiveExpanded.delete(cn.id);
-	}
+	};
 }
+
+//#endregion
+//#region src/client/store/slices/workspaceSlice.ts
+function createWorkspaceSlice(_set, _get) {
+	return {
+		currentWorkspace: ".",
+		workspaceList: [],
+		setCurrentWorkspace: (path) => _set({ currentWorkspace: path }),
+		addWorkspace: (path, name$1) => {
+			const s = _get();
+			const wsName = name$1 ?? path.split(/[\\/]/).pop() ?? path;
+			const existing = s.workspaceList.filter((w) => w.path !== path);
+			_set({
+				currentWorkspace: path,
+				workspaceList: [{
+					path,
+					name: wsName,
+					lastUsed: Date.now()
+				}, ...existing].slice(0, UI.WORKSPACE_LIST_MAX)
+			});
+		},
+		removeWorkspace: (path) => {
+			const s = _get();
+			_set({
+				workspaceList: s.workspaceList.filter((w) => w.path !== path),
+				currentWorkspace: s.currentWorkspace === path ? "." : s.currentWorkspace
+			});
+		}
+	};
+}
+
+//#endregion
+//#region src/client/store/slices/pathFocusSlice.ts
+function createPathFocusSlice(_set, _get) {
+	return {
+		pathStartId: null,
+		pathEndId: null,
+		pathResult: null,
+		focusDepth: 1,
+		focusModeActive: false,
+		focusModeNodeId: null,
+		pathFilterInclude: null,
+		pathFilterExclude: null,
+		callChainDepth: 2,
+		setPathStart: (nodeId) => _set({ pathStartId: nodeId }),
+		setPathEnd: (nodeId) => _set({ pathEndId: nodeId }),
+		setPathResult: (path) => _set({ pathResult: path }),
+		setFocusDepth: (depth) => _set({ focusDepth: depth }),
+		setFocusMode: (active, nodeId) => _set({
+			focusModeActive: active,
+			focusModeNodeId: nodeId
+		}),
+		setPathFilter: (include, exclude) => _set({
+			pathFilterInclude: include,
+			pathFilterExclude: exclude
+		}),
+		setCallChainDepth: (depth) => _set({ callChainDepth: depth })
+	};
+}
+
+//#endregion
+//#region src/client/store/slices/filterSlice.ts
+function createFilterSlice(_set, _get) {
+	return {
+		fanInThreshold: 0,
+		fanOutThreshold: 0,
+		visibleNodeTypes: new Set([
+			"function",
+			"class",
+			"variable",
+			"module",
+			"interface"
+		]),
+		visibleEdgeTypes: new Set([
+			"call",
+			"extend",
+			"implement",
+			"import",
+			"dependency",
+			"contains"
+		]),
+		heatmapMode: "none",
+		todoMarkerMode: "none",
+		setFanInThreshold: (threshold) => _set({ fanInThreshold: threshold }),
+		setFanOutThreshold: (threshold) => _set({ fanOutThreshold: threshold }),
+		setVisibleNodeTypes: (types) => _set({ visibleNodeTypes: types }),
+		setVisibleEdgeTypes: (types) => _set({ visibleEdgeTypes: types }),
+		setHeatmapMode: (mode) => _set({ heatmapMode: mode }),
+		setTodoMarkerMode: (mode) => _set({ todoMarkerMode: mode })
+	};
+}
+
+//#endregion
+//#region src/client/store/slices/analysisSlice.ts
+function createAnalysisSlice(_set, _get) {
+	return {
+		healthScore: null,
+		rules: [],
+		ruleViolations: [],
+		deadCodeResult: null,
+		deadCodeModeActive: false,
+		selectedFunction: null,
+		setHealthScore: (score) => _set({ healthScore: score }),
+		setRules: (rules) => _set({ rules }),
+		setRuleViolations: (violations) => _set({ ruleViolations: violations }),
+		setDeadCodeResult: (result) => _set({ deadCodeResult: result }),
+		setDeadCodeModeActive: (active) => _set({ deadCodeModeActive: active }),
+		setSelectedFunction: (fn$7) => _set({ selectedFunction: fn$7 }),
+		assembleMultiFunction: async (entryNodeId) => {
+			const { rawNodes, rawEdges, callChainDepth, clusterDepth, expandedNodeIds } = _get();
+			const gen = ++internals.multiAssemblyGeneration;
+			const astFetcher = async (filePath) => {
+				try {
+					const response = await fetchWithTimeout("/api/v1/codegraph/ast", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({ filePath })
+					});
+					if (!response.ok) return null;
+					return await response.json();
+				} catch (e) {
+					log$17.warn("AST fetch failed", e);
+					return null;
+				}
+			};
+			try {
+				const result = await callChainAggregator.aggregate(entryNodeId, rawNodes, rawEdges, astFetcher, {
+					depth: callChainDepth,
+					maxFunctions: UI.MAX_FUNCTIONS_PER_CLUSTER
+				});
+				if (gen !== internals.multiAssemblyGeneration) return;
+				if (result && result.diagram.nodes.length > 0) {
+					const clustered = measureSync("diagram", () => computeClusteredGraph(result.diagram.nodes, result.diagram.edges, "progressive", expandedNodeIds, clusterDepth, _get().panelWidth ?? void 0));
+					_set({
+						diagramData: null,
+						nodes: clustered.nodes,
+						edges: clustered.edges,
+						viewMode: "cfg",
+						error: null
+					});
+				} else _set({
+					error: t("error.callChainEmpty"),
+					isLoading: false
+				});
+			} catch (e) {
+				log$17.warn("assembleMultiFunction failed", e);
+				_set({
+					error: t("error.callChainFailed"),
+					isLoading: false
+				});
+			}
+		},
+		assembleMicro: async (viewMode, selectedFunctionOverride) => {
+			const selectedFunction = selectedFunctionOverride ?? _get().selectedFunction;
+			if (!selectedFunction) return;
+			const gen = ++internals.microAssemblyGeneration;
+			_set({
+				isLoading: true,
+				error: null
+			});
+			try {
+				const diagram = await assembleMicroDiagram(viewMode, selectedFunction.filePath, selectedFunction.functionName);
+				if (gen !== internals.microAssemblyGeneration) return;
+				_set({
+					diagramData: null,
+					nodes: diagram.nodes,
+					edges: diagram.edges,
+					isLoading: false
+				});
+			} catch (e) {
+				if (gen !== internals.microAssemblyGeneration) return;
+				const msg = e instanceof Error ? e.message : String(e);
+				_set({
+					isLoading: false,
+					error: `${msg} — ${selectedFunction.functionName}`
+				});
+			}
+		}
+	};
+}
+
+//#endregion
+//#region src/client/store/slices/panelLodSlice.ts
+function createPanelLodSlice(_set, _get) {
+	return {
+		panelHeight: null,
+		panelWidth: null,
+		performanceDegradations: [],
+		lodLevel: "full",
+		lodEnabled: false,
+		setPanelSize: (height, width$1) => _set({
+			panelHeight: height,
+			panelWidth: width$1
+		}),
+		resetPanelSize: () => _set({
+			panelHeight: null,
+			panelWidth: null
+		}),
+		addDegradation: (key) => {
+			const s = _get();
+			if (s.performanceDegradations.includes(key)) return;
+			_set({ performanceDegradations: [...s.performanceDegradations, key] });
+		},
+		clearDegradations: () => _set({ performanceDegradations: [] }),
+		setLODLevel: (level) => {
+			const state = _get();
+			if (state.lodLevel === level) return;
+			_set({ lodLevel: level });
+			if (!state.lodEnabled) return;
+			if (isLayeredViewMode(state.viewMode)) return;
+			const lodDepth = level === "minimal" ? LOD.MINIMAL_CLUSTER_DEPTH : level === "compact" ? LOD.COMPACT_CLUSTER_DEPTH : state.clusterDepth;
+			const { rawNodes, rawEdges, expandedNodeIds } = state;
+			const result = tryIncrementalOrFull(internals.incrementalClusterCtx, rawNodes, rawEdges, expandedNodeIds, lodDepth, state.panelWidth ?? void 0);
+			updateIncrementalClusterCtx(result, rawNodes, rawEdges);
+			_set({
+				nodes: result.nodes,
+				edges: result.edges
+			});
+		},
+		setLODEnabled: (enabled) => {
+			_set({ lodEnabled: enabled });
+			if (!enabled) {
+				const state = _get();
+				if (state.lodLevel !== "full") _get().setLODLevel("full");
+			}
+		}
+	};
+}
+
+//#endregion
+//#region src/client/store/graphStore.ts
 const memoryStorage = {
 	getItem: () => null,
 	setItem: () => {},
 	removeItem: () => {}
 };
-const LOADING_FAILSAFE_MS = POLLING.LOADING_FAILSAFE_MS;
-let loadingFailsafe = null;
-function updateIncrementalClusterCtx(result, rawNodes, rawEdges) {
-	const nodeIdToVisibleId = new Map();
-	for (const n of result.nodes) if ("isCluster" in n && n.isCluster) for (const childId of n.childIds) nodeIdToVisibleId.set(childId, n.id);
-	else nodeIdToVisibleId.set(n.id, n.id);
-	incrementalClusterCtx = {
-		prevResult: result,
-		prevNodeIdToVisibleId: nodeIdToVisibleId,
-		prevRawNodes: rawNodes,
-		prevRawEdges: rawEdges
-	};
-}
-function mergeAndRecluster(newNodes, newEdges, set$1, logLabel, logDetail) {
-	const s = useGraphStore.getState();
-	const existingIds = new Set(s.rawNodes.map((n) => n.id));
-	const filteredNodes = newNodes.filter((n) => !existingIds.has(n.id));
-	const existingEdgeIds = new Set(s.rawEdges.map((e) => e.id));
-	const filteredEdges = newEdges.filter((e) => !existingEdgeIds.has(e.id));
-	if (filteredNodes.length === 0 && filteredEdges.length === 0) return;
-	const mergedRawNodes = [...s.rawNodes, ...filteredNodes];
-	const mergedRawEdges = [...s.rawEdges, ...filteredEdges];
-	const { clusterDepth: cd, expandedNodeIds: ei, panelWidth: pw } = s;
-	const result = tryIncrementalOrFull(incrementalClusterCtx, mergedRawNodes, mergedRawEdges, ei, cd, pw ?? void 0);
-	updateIncrementalClusterCtx(result, mergedRawNodes, mergedRawEdges);
-	set$1({
-		rawNodes: mergedRawNodes,
-		rawEdges: mergedRawEdges,
-		nodes: result.nodes,
-		edges: result.edges
-	});
-	log$11.info(logLabel, {
-		...logDetail,
-		newNodes: filteredNodes.length,
-		newEdges: filteredEdges.length
-	});
-}
-function sanitizeGraphData(nodes, edges) {
-	const seenNodeIds = new Set();
-	const validNodes = [];
-	for (const node of nodes) {
-		if (!node || !node.id || !node.label || !node.type || !node.filePath) continue;
-		if (seenNodeIds.has(node.id)) continue;
-		seenNodeIds.add(node.id);
-		validNodes.push(node);
-	}
-	const nodeIdSet = new Set(validNodes.map((n) => n.id));
-	const seenEdgeIds = new Set();
-	const validEdges = [];
-	for (const edge of edges) {
-		if (!edge || !edge.id || !edge.source || !edge.target) continue;
-		if (edge.source === edge.target) continue;
-		if (!nodeIdSet.has(edge.source) || !nodeIdSet.has(edge.target)) continue;
-		if (seenEdgeIds.has(edge.id)) continue;
-		seenEdgeIds.add(edge.id);
-		validEdges.push(edge);
-	}
-	return {
-		nodes: validNodes,
-		edges: validEdges
-	};
-}
-function computeLayeredExpandedView(diagramData, currentLayer, expandedNodeIds) {
-	const layer = diagramData.layers[currentLayer];
-	if (!layer) return {
-		nodes: [],
-		edges: []
-	};
-	const inEdgesMap = new Map();
-	for (const e of diagramData.allEdges) {
-		const list = inEdgesMap.get(e.target) ?? [];
-		list.push(e.source);
-		inEdgesMap.set(e.target, list);
-	}
-	const visibleIds = new Set(layer.nodeIds);
-	const queue = [];
-	for (const id of expandedNodeIds) if (visibleIds.has(id)) queue.push(id);
-	while (queue.length > 0) {
-		const id = queue.shift();
-		const children = inEdgesMap.get(id) ?? [];
-		for (const childId of children) if (!visibleIds.has(childId)) {
-			visibleIds.add(childId);
-			if (expandedNodeIds.has(childId)) queue.push(childId);
-		}
-	}
-	const visibleNodes = diagramData.allNodes.filter((n) => visibleIds.has(n.id));
-	const visibleEdges = diagramData.allEdges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target));
-	return {
-		nodes: visibleNodes,
-		edges: visibleEdges
-	};
-}
-function clearLoadingFailsafe() {
-	if (loadingFailsafe !== null) {
-		clearTimeout(loadingFailsafe);
-		loadingFailsafe = null;
-	}
-}
 function disposeStore() {
-	for (const controller of prefetchAbortControllers.values()) controller.abort();
-	prefetchAbortControllers.clear();
-	prefetchInFlightCount = 0;
-	if (prefetchIdleHandle !== null) {
-		if (typeof cancelIdleCallback === "function") cancelIdleCallback(prefetchIdleHandle);
-		else clearTimeout(prefetchIdleHandle);
-		prefetchIdleHandle = null;
+	for (const controller of internals.prefetchAbortControllers.values()) controller.abort();
+	internals.prefetchAbortControllers.clear();
+	internals.prefetchInFlightCount = 0;
+	for (const controller of internals.expandAbortControllers.values()) controller.abort();
+	internals.expandAbortControllers.clear();
+	if (internals.prefetchIdleHandle !== null) {
+		if (typeof cancelIdleCallback === "function") cancelIdleCallback(internals.prefetchIdleHandle);
+		else clearTimeout(internals.prefetchIdleHandle);
+		internals.prefetchIdleHandle = null;
 	}
+	const state = useGraphStore.getState();
+	for (const controller of state.pendingRequests.values()) controller.abort();
+	useGraphStore.setState({ pendingRequests: new Map() });
+	if (internals.restoreTimeoutHandle !== null) {
+		clearTimeout(internals.restoreTimeoutHandle);
+		internals.restoreTimeoutHandle = null;
+	}
+	if (internals.restoreAbortController) {
+		internals.restoreAbortController.abort();
+		internals.restoreAbortController = null;
+	}
+	internals.restoreGeneration++;
 	diagramCache.invalidate();
 	clusterCache.invalidate();
-	incrementalClusterCtx = null;
+	internals.incrementalClusterCtx = null;
 	invalidateExpandCostCache();
-	microAssemblyGeneration = 0;
-	multiAssemblyGeneration = 0;
+	internals.microAssemblyGeneration = 0;
+	internals.multiAssemblyGeneration = 0;
+	internals.expandGeneration = 0;
 	clearLoadingFailsafe();
-	if (persistentCache) {
-		persistentCache.close();
-		persistentCache = null;
+	if (internals.persistentCache) {
+		internals.persistentCache.close();
+		internals.persistentCache = null;
 	}
-	persistentCacheRepoId = null;
+	internals.persistentCacheRepoId = null;
 }
-function applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache$1, set$1) {
-	if (isLayeredViewMode(viewMode)) {
-		if (diagramData) {
-			const { nodes: visNodes, edges: visEdges } = computeLayeredExpandedView(diagramData, currentLayer, newExpanded);
-			set$1({
-				expandedNodeIds: newExpanded,
-				expandedNodeIdsByViewMode: newExpandedByViewMode,
-				nodes: visNodes,
-				edges: visEdges
-			});
-		} else set$1({
-			expandedNodeIds: newExpanded,
-			expandedNodeIdsByViewMode: newExpandedByViewMode
-		});
-		return;
-	}
-	let sourceNodes = rawNodes;
-	let sourceEdges = rawEdges;
-	if (diagramData) {
-		const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
-		if (layer) {
-			sourceNodes = layer.nodes;
-			sourceEdges = layer.edges;
-		}
-	}
-	const dataHash = computeDataHash(sourceNodes, sourceEdges);
-	const expandedKey = [...newExpanded].sort().join(",");
-	const cacheLevel = `progressive:${clusterDepth}`;
-	const cached = clusterCache$1.get(dataHash, cacheLevel, expandedKey);
-	if (cached) {
-		set$1({
-			expandedNodeIds: newExpanded,
-			expandedNodeIdsByViewMode: newExpandedByViewMode,
-			nodes: cached.nodes,
-			edges: cached.edges
-		});
-		return;
-	}
-	const result = computeClusteredGraph(sourceNodes, sourceEdges, "progressive", newExpanded, clusterDepth, useGraphStore.getState().panelWidth ?? void 0);
-	clusterCache$1.set(dataHash, cacheLevel, expandedKey, result);
-	set$1({
-		expandedNodeIds: newExpanded,
-		expandedNodeIdsByViewMode: newExpandedByViewMode,
-		nodes: result.nodes,
-		edges: result.edges
-	});
-}
-const useGraphStore = create$1()(persist((set$1) => ({
-	nodes: [],
-	edges: [],
-	rawNodes: [],
-	rawEdges: [],
-	savedRawNodes: [],
-	savedRawEdges: [],
-	repoId: null,
-	truncated: false,
-	totalNodeCount: 0,
-	totalEdgeCount: 0,
-	layout: "cose",
-	dagreRankDir: "TB",
-	theme: detectInitialTheme(),
-	searchQuery: "",
-	selectedNodeId: null,
-	highlightedNodeIds: [],
-	filterType: "all",
-	graphType: "all",
-	viewMode: "code",
-	diagramData: null,
-	currentLayer: 0,
-	clusterDepth: 0,
-	isLoading: false,
-	error: null,
-	lastUpdated: 0,
-	prerequisites: {
-		codegraph: false,
-		lens: false
-	},
-	initStatus: "idle",
-	initMessage: null,
-	watchEnabled: false,
-	expandedNodeIds: new Set(),
-	expandedNodeIdsByViewMode: {},
-	loadedChildrenByNodeId: new Set(),
-	prefetchedNodeIds: new Set(),
-	loadErrorsByNodeId: new Map(),
-	pendingRequests: new Map(),
-	pinnedIds: new Set(),
-	currentWorkspace: ".",
-	workspaceList: [],
-	pathStartId: null,
-	pathEndId: null,
-	pathResult: null,
-	focusDepth: 1,
-	focusModeActive: false,
-	focusModeNodeId: null,
-	pathFilterInclude: null,
-	pathFilterExclude: null,
-	callChainDepth: 2,
-	fanInThreshold: 0,
-	fanOutThreshold: 0,
-	visibleNodeTypes: new Set([
-		"function",
-		"class",
-		"variable",
-		"module",
-		"interface"
-	]),
-	visibleEdgeTypes: new Set([
-		"call",
-		"extend",
-		"implement",
-		"import",
-		"dependency",
-		"contains"
-	]),
-	heatmapMode: "none",
-	healthScore: null,
-	rules: [],
-	ruleViolations: [],
-	deadCodeResult: null,
-	deadCodeModeActive: false,
-	panelHeight: null,
-	panelWidth: null,
-	selectedFunction: null,
-	performanceDegradations: [],
-	lodLevel: "full",
-	lodEnabled: false,
-	setGraphData: (nodes, edges, repoId, metadata) => {
-		try {
-			clearLoadingFailsafe();
-			if (persistentCacheRepoId !== repoId) {
-				if (persistentCache) persistentCache.close();
-				persistentCache = new IndexedDBCache(repoId);
-				persistentCacheRepoId = repoId;
-				diagramCache.setPersistentBackend(persistentCache);
-				clusterCache.setPersistentBackend(persistentCache);
-			}
-			const { clusterDepth, expandedNodeIds, viewMode, currentLayer } = useGraphStore.getState();
-			const sanitized = sanitizeGraphData(nodes, edges);
-			const newDegradations = [];
-			if (sanitized.nodes.length > CYCLE_DETECTION.MAX_NODES_FOR_DETECTION) newDegradations.push("cycle-detection-skipped");
-			if (sanitized.nodes.length > CLUSTER.MAX_NODES_FOR_LABEL_PROP) newDegradations.push("community-detection-sampled");
-			if (sanitized.nodes.length > RENDERER.LARGE_GRAPH_NODE_THRESHOLD) newDegradations.push("large-graph-mode");
-			let displayNodes = sanitized.nodes;
-			let displayEdges = sanitized.edges;
-			let diagramData = null;
-			const isLayeredView = isLayeredViewMode(viewMode);
-			if (isLayeredView) {
-				const dataHash = computeDataHash(sanitized.nodes, sanitized.edges);
-				const cached = diagramCache.get(viewMode, dataHash);
-				if (cached) diagramData = cached;
-				else {
-					diagramData = assembleDiagram(viewMode, sanitized.nodes, sanitized.edges);
-					if (diagramData) diagramCache.set(viewMode, dataHash, diagramData);
-				}
-				if (diagramData) {
-					const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
-					if (layer) {
-						displayNodes = layer.nodes;
-						displayEdges = layer.edges;
-					}
-				}
-				set$1({
-					rawNodes: sanitized.nodes,
-					rawEdges: sanitized.edges,
-					nodes: displayNodes,
-					edges: displayEdges,
-					diagramData,
-					repoId,
-					error: null,
-					isLoading: false,
-					lastUpdated: Date.now(),
-					truncated: !!metadata?.truncated,
-					totalNodeCount: metadata?.totalNodeCount ?? sanitized.nodes.length,
-					totalEdgeCount: metadata?.totalEdgeCount ?? sanitized.edges.length,
-					healthScore: null,
-					ruleViolations: [],
-					performanceDegradations: newDegradations
-				});
-				return;
-			}
-			const result = tryIncrementalOrFull(incrementalClusterCtx, displayNodes, displayEdges, expandedNodeIds, clusterDepth, useGraphStore.getState().panelWidth ?? void 0);
-			updateIncrementalClusterCtx(result, sanitized.nodes, sanitized.edges);
-			set$1({
-				rawNodes: sanitized.nodes,
-				rawEdges: sanitized.edges,
-				nodes: result.nodes,
-				edges: result.edges,
-				diagramData,
-				repoId,
-				error: null,
-				isLoading: false,
-				lastUpdated: Date.now(),
-				truncated: !!metadata?.truncated,
-				totalNodeCount: metadata?.totalNodeCount ?? sanitized.nodes.length,
-				totalEdgeCount: metadata?.totalEdgeCount ?? sanitized.edges.length,
-				healthScore: null,
-				ruleViolations: [],
-				performanceDegradations: newDegradations
-			});
-		} catch (err) {
-			log$11.error("setGraphData failed", { err });
-			set$1({
-				error: err instanceof Error ? err.message : String(err),
-				isLoading: false
-			});
-		}
-	},
-	setBootstrapData: (rootNodes, edges, repoId, metadata) => {
-		try {
-			clearLoadingFailsafe();
-			incrementalClusterCtx = null;
-			const sanitized = sanitizeGraphData(rootNodes, edges);
-			const { clusterDepth, expandedNodeIds, viewMode, panelWidth } = useGraphStore.getState();
-			const isLayeredView = isLayeredViewMode(viewMode);
-			let displayNodes = sanitized.nodes;
-			let displayEdges = sanitized.edges;
-			let diagramData = null;
-			if (isLayeredView) {
-				const dataHash = computeDataHash(sanitized.nodes, sanitized.edges);
-				const cached = diagramCache.get(viewMode, dataHash);
-				if (cached) diagramData = cached;
-				else {
-					diagramData = assembleDiagram(viewMode, sanitized.nodes, sanitized.edges);
-					if (diagramData) diagramCache.set(viewMode, dataHash, diagramData);
-				}
-				if (diagramData) {
-					const layer = diagramData.layers[0];
-					if (layer) {
-						displayNodes = layer.nodes;
-						displayEdges = layer.edges;
-					}
-				}
-			} else {
-				const result = tryIncrementalOrFull(incrementalClusterCtx, sanitized.nodes, sanitized.edges, expandedNodeIds, clusterDepth, panelWidth ?? void 0);
-				updateIncrementalClusterCtx(result, sanitized.nodes, sanitized.edges);
-				displayNodes = result.nodes;
-				displayEdges = result.edges;
-			}
-			set$1({
-				rawNodes: sanitized.nodes,
-				rawEdges: sanitized.edges,
-				nodes: displayNodes,
-				edges: displayEdges,
-				diagramData,
-				repoId,
-				error: null,
-				isLoading: false,
-				lastUpdated: metadata.timestamp,
-				truncated: false,
-				totalNodeCount: metadata.totalNodeCount,
-				totalEdgeCount: metadata.totalEdgeCount,
-				healthScore: null,
-				ruleViolations: [],
-				performanceDegradations: [],
-				expandedNodeIds: new Set(),
-				expandedNodeIdsByViewMode: {}
-			});
-			log$11.info("bootstrap data set", {
-				rootNodes: sanitized.nodes.length,
-				totalNodeCount: metadata.totalNodeCount
-			});
-		} catch (err) {
-			log$11.error("setBootstrapData failed", { err });
-			set$1({
-				error: err instanceof Error ? err.message : String(err),
-				isLoading: false
-			});
-		}
-	},
-	setLayout: (layout$2) => set$1({ layout: layout$2 }),
-	setDagreRankDir: (dagreRankDir) => set$1({ dagreRankDir }),
-	setTheme: (theme) => {
-		invalidateCssVarCache();
-		set$1({ theme });
-	},
-	setSearchQuery: (searchQuery) => set$1({ searchQuery }),
-	setSelectedNode: (selectedNodeId) => set$1({ selectedNodeId }),
-	setHighlightedNodes: (highlightedNodeIds) => set$1({ highlightedNodeIds }),
-	setFilterType: (filterType) => set$1({ filterType }),
-	setGraphType: (graphType) => set$1({ graphType }),
-	setViewMode: (viewMode) => {
-		const state = useGraphStore.getState();
-		const result = computeViewModeTransition(viewMode, {
-			rawNodes: state.rawNodes,
-			rawEdges: state.rawEdges,
-			savedRawNodes: state.savedRawNodes,
-			savedRawEdges: state.savedRawEdges,
-			clusterDepth: state.clusterDepth,
-			expandedNodeIds: state.expandedNodeIds,
-			expandedNodeIdsByViewMode: state.expandedNodeIdsByViewMode,
-			selectedFunction: state.selectedFunction,
-			viewMode: state.viewMode
-		}, diagramCache);
-		if (result.needsMicroAssembly) {
-			const { needsMicroAssembly: _discarded,...rest$1 } = result;
-			const fn$7 = useGraphStore.getState().selectedFunction;
-			set$1(rest$1);
-			useGraphStore.getState().assembleMicro(viewMode, fn$7);
-			return;
-		}
-		const { needsMicroAssembly: _discarded2,...rest } = result;
-		set$1(rest);
-	},
-	setClusterDepth: (clusterDepth) => {
-		const { rawNodes, rawEdges, expandedNodeIds, expandedNodeIdsByViewMode, diagramData, currentLayer, viewMode } = useGraphStore.getState();
-		if (isLayeredViewMode(viewMode)) {
-			set$1({ clusterDepth });
-			return;
-		}
-		applyClusterUpdate(expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set$1);
-		set$1({ clusterDepth });
-	},
-	setLoading: (isLoading) => {
-		clearLoadingFailsafe();
-		set$1({ isLoading });
-		if (isLoading) loadingFailsafe = setTimeout(() => {
-			loadingFailsafe = null;
-			if (useGraphStore.getState().isLoading) useGraphStore.setState({ isLoading: false });
-		}, LOADING_FAILSAFE_MS);
-	},
-	setError: (error$1) => {
-		clearLoadingFailsafe();
-		set$1({
-			error: error$1,
-			isLoading: false
-		});
-	},
-	clearGraph: () => {
-		clearLoadingFailsafe();
-		incrementalClusterCtx = null;
-		set$1({
-			nodes: [],
-			edges: [],
-			rawNodes: [],
-			rawEdges: [],
-			savedRawNodes: [],
-			savedRawEdges: [],
-			repoId: null,
-			error: null,
-			isLoading: false,
-			lastUpdated: 0,
-			truncated: false,
-			totalNodeCount: 0,
-			totalEdgeCount: 0
-		});
-	},
-	setPrerequisites: (prerequisites) => set$1({ prerequisites }),
-	setInitStatus: (initStatus, initMessage = null) => set$1({
-		initStatus,
-		initMessage
-	}),
-	setWatchEnabled: (watchEnabled) => set$1({ watchEnabled }),
-	expandNode: (nodeId) => {
-		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, nodes, panelWidth } = useGraphStore.getState();
-		const gen = ++expandGeneration;
-		const cost = estimateExpandCost(nodeId, rawNodes);
-		const maxVisible = computeMaxVisible(panelWidth);
-		const effectiveExpanded = new Set(expandedNodeIds);
-		const expandingFunctionBody = rawNodes.some((n) => n.id === nodeId && n.type === "function");
-		if (expandingFunctionBody) enforceFunctionBodyBudget(effectiveExpanded, rawNodes, FUNCTION_BODY.MAX_EXPANDED - 1);
-		effectiveExpanded.add(nodeId);
-		collapseExcessClusters(nodes, effectiveExpanded, maxVisible, cost, useGraphStore.getState().pinnedIds);
-		if (cost > CLUSTER.EXPAND_BUDGET_SINGLE) log$11.warn("expand budget exceeded", {
-			nodeId,
-			cost,
-			budget: CLUSTER.EXPAND_BUDGET_SINGLE
-		});
-		const newExpandedByViewMode = {
-			...expandedNodeIdsByViewMode,
-			[viewMode]: effectiveExpanded
-		};
-		applyClusterUpdate(effectiveExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set$1);
-		const node = rawNodes.find((n) => n.id === nodeId);
-		if (node) {
-			useGraphStore.getState().loadNodeChildren(nodeId).catch((err) => {
-				log$11.warn("expandNode: loadNodeChildren failed", {
-					nodeId,
-					err
-				});
-			});
-			if (node.type === "module") (async () => {
-				if (persistentCache) {
-					const cached = await persistentCache.getOutline(nodeId);
-					if (cached && gen === expandGeneration) {
-						const data$2 = cached;
-						if (data$2.symbols.length > 0) {
-							mergeAndRecluster(data$2.symbols, data$2.edges, set$1, "file outline loaded (cache)", { nodeId });
-							return;
-						}
-					}
-				}
-				fetchFileOutline(nodeId).then(async (data$2) => {
-					if (gen !== expandGeneration) return;
-					if (data$2 && data$2.symbols.length > 0) {
-						mergeAndRecluster(data$2.symbols, data$2.edges, set$1, "file outline loaded", { nodeId });
-						if (persistentCache) await persistentCache.setOutline(nodeId, data$2);
-					}
-				}).catch((err) => {
-					log$11.warn("expandNode: fetchFileOutline failed", {
-						nodeId,
-						err
-					});
-				});
-			})();
-			if (node.type === "function") (async () => {
-				if (persistentCache) {
-					const cached = await persistentCache.getAST(nodeId);
-					if (cached && gen === expandGeneration) {
-						const data$2 = cached;
-						if (data$2.astNodes.length > 0) {
-							const truncatedAstNodes = data$2.astNodes.length > SYMBOL_AST.MAX_NODES ? data$2.astNodes.slice(0, SYMBOL_AST.MAX_NODES) : data$2.astNodes;
-							const truncatedSourceLines = data$2.sourceLines.length > SYMBOL_AST.MAX_SOURCE_LINES ? data$2.sourceLines.slice(0, SYMBOL_AST.MAX_SOURCE_LINES) : data$2.sourceLines;
-							const astNodeIds = new Set(truncatedAstNodes.map((n) => n.id));
-							const truncatedAstEdges = data$2.astEdges.filter((e) => astNodeIds.has(e.source) && astNodeIds.has(e.target));
-							mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, set$1, "symbol AST loaded (cache)", {
-								nodeId,
-								sourceLines: truncatedSourceLines.length
-							});
-							return;
-						}
-					}
-				}
-				fetchSymbolAST(nodeId).then(async (data$2) => {
-					if (gen !== expandGeneration) return;
-					if (data$2 && data$2.astNodes.length > 0) {
-						const truncatedAstNodes = data$2.astNodes.length > SYMBOL_AST.MAX_NODES ? data$2.astNodes.slice(0, SYMBOL_AST.MAX_NODES) : data$2.astNodes;
-						const truncatedSourceLines = data$2.sourceLines.length > SYMBOL_AST.MAX_SOURCE_LINES ? data$2.sourceLines.slice(0, SYMBOL_AST.MAX_SOURCE_LINES) : data$2.sourceLines;
-						const astNodeIds = new Set(truncatedAstNodes.map((n) => n.id));
-						const truncatedAstEdges = data$2.astEdges.filter((e) => astNodeIds.has(e.source) && astNodeIds.has(e.target));
-						if (truncatedAstNodes.length < data$2.astNodes.length) log$11.warn("symbol AST truncated", {
-							nodeId,
-							original: data$2.astNodes.length,
-							truncated: truncatedAstNodes.length
-						});
-						mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, set$1, "symbol AST loaded", {
-							nodeId,
-							sourceLines: truncatedSourceLines.length
-						});
-						if (persistentCache) await persistentCache.setAST(nodeId, data$2);
-					}
-				}).catch((err) => {
-					log$11.warn("expandNode: fetchSymbolAST failed", {
-						nodeId,
-						err
-					});
-				});
-			})();
-		}
-	},
-	loadNodeChildren: async (nodeId, options) => {
-		const state = useGraphStore.getState();
-		if (state.loadedChildrenByNodeId.has(nodeId)) return;
-		const hasChildren = state.rawNodes.some((n) => n.parentId === nodeId || n.id.startsWith(nodeId + "/"));
-		if (hasChildren) {
-			const newLoaded = new Set(state.loadedChildrenByNodeId);
-			newLoaded.add(nodeId);
-			set$1({ loadedChildrenByNodeId: newLoaded });
-			return;
-		}
-		const controller = new AbortController();
-		const newPending = new Map(state.pendingRequests);
-		newPending.set(nodeId, controller);
-		set$1({ pendingRequests: newPending });
-		try {
-			const signal = options?.signal ?? controller.signal;
-			const data$2 = await fetchNodeChildren(nodeId, void 0, void 0, signal);
-			if (!data$2 || data$2.nodes.length === 0) {
-				const newLoaded$1 = new Set(state.loadedChildrenByNodeId);
-				newLoaded$1.add(nodeId);
-				const clearedPending$1 = new Map(useGraphStore.getState().pendingRequests);
-				clearedPending$1.delete(nodeId);
-				set$1({
-					loadedChildrenByNodeId: newLoaded$1,
-					pendingRequests: clearedPending$1
-				});
-				return;
-			}
-			const s2 = useGraphStore.getState();
-			const existingNodeIds = new Set(s2.rawNodes.map((n) => n.id));
-			const newNodes = data$2.nodes.filter((n) => !existingNodeIds.has(n.id));
-			const existingEdgeIds = new Set(s2.rawEdges.map((e) => e.id));
-			const newEdges = data$2.edges.filter((e) => !existingEdgeIds.has(e.id));
-			if (newNodes.length === 0 && newEdges.length === 0) {
-				const newLoaded$1 = new Set(s2.loadedChildrenByNodeId);
-				newLoaded$1.add(nodeId);
-				const clearedPending$1 = new Map(s2.pendingRequests);
-				clearedPending$1.delete(nodeId);
-				set$1({
-					loadedChildrenByNodeId: newLoaded$1,
-					pendingRequests: clearedPending$1
-				});
-				return;
-			}
-			const mergedRawNodes = [...s2.rawNodes, ...newNodes];
-			const mergedRawEdges = [...s2.rawEdges, ...newEdges];
-			const newLoaded = new Set(s2.loadedChildrenByNodeId);
-			newLoaded.add(nodeId);
-			const clearedPending = new Map(s2.pendingRequests);
-			clearedPending.delete(nodeId);
-			const { clusterDepth, expandedNodeIds, panelWidth } = s2;
-			const result = tryIncrementalOrFull(incrementalClusterCtx, mergedRawNodes, mergedRawEdges, expandedNodeIds, clusterDepth, panelWidth ?? void 0);
-			updateIncrementalClusterCtx(result, mergedRawNodes, mergedRawEdges);
-			set$1({
-				rawNodes: mergedRawNodes,
-				rawEdges: mergedRawEdges,
-				nodes: result.nodes,
-				edges: result.edges,
-				loadedChildrenByNodeId: newLoaded,
-				pendingRequests: clearedPending
-			});
-			log$11.info("node children loaded", {
-				nodeId,
-				newNodes: newNodes.length,
-				newEdges: newEdges.length
-			});
-		} catch (err) {
-			const clearedPending = new Map(useGraphStore.getState().pendingRequests);
-			clearedPending.delete(nodeId);
-			if (err instanceof DOMException && err.name === "AbortError") {
-				set$1({ pendingRequests: clearedPending });
-				return;
-			}
-			const newErrors = new Map(useGraphStore.getState().loadErrorsByNodeId);
-			newErrors.set(nodeId, err instanceof Error ? err.message : String(err));
-			set$1({
-				pendingRequests: clearedPending,
-				loadErrorsByNodeId: newErrors
-			});
-			log$11.warn("loadNodeChildren failed", {
-				nodeId,
-				err
-			});
-		}
-	},
-	loadBootstrap: async () => {
-		try {
-			const data$2 = await fetchBootstrap();
-			if (!data$2 || data$2.topLevelNodes.length === 0) {
-				log$11.info("bootstrap returned empty, falling back to full load");
-				return false;
-			}
-			const state = useGraphStore.getState();
-			state.setBootstrapData(data$2.topLevelNodes, data$2.edges, data$2.metadata.repoId, {
-				totalNodeCount: data$2.metadata.totalNodeCount,
-				totalEdgeCount: data$2.metadata.totalEdgeCount,
-				timestamp: data$2.metadata.timestamp
-			});
-			log$11.info("bootstrap loaded", {
-				rootNodes: data$2.topLevelNodes.length,
-				totalNodeCount: data$2.metadata.totalNodeCount,
-				indexStatus: data$2.indexStatus
-			});
-			return true;
-		} catch (err) {
-			log$11.warn("loadBootstrap failed, falling back to full load", { err });
-			return false;
-		}
-	},
-	batchExpandNodes: (nodeIds) => {
-		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, nodes, panelWidth } = useGraphStore.getState();
-		if (nodeIds.length === 0) return;
-		const maxVisible = computeMaxVisible(panelWidth);
-		const effectiveExpanded = new Set(expandedNodeIds);
-		for (const nodeId of nodeIds) effectiveExpanded.add(nodeId);
-		enforceFunctionBodyBudget(effectiveExpanded, rawNodes, FUNCTION_BODY.MAX_EXPANDED);
-		collapseExcessClusters(nodes, effectiveExpanded, maxVisible, 0, useGraphStore.getState().pinnedIds);
-		const newExpandedByViewMode = {
-			...expandedNodeIdsByViewMode,
-			[viewMode]: effectiveExpanded
-		};
-		applyClusterUpdate(effectiveExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set$1);
-	},
-	prefetchExpand: (nodeId) => {
-		if (prefetchInFlightCount >= PREFETCH.CONCURRENCY_LIMIT) return;
-		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, viewMode, diagramData, currentLayer, loadedChildrenByNodeId, prefetchedNodeIds } = useGraphStore.getState();
-		if (isLayeredViewMode(viewMode)) return;
-		if (expandedNodeIds.has(nodeId)) return;
-		if (prefetchedNodeIds.has(nodeId)) return;
-		const rawNode = rawNodes.find((n) => n.id === nodeId);
-		if (rawNode?.type === "function") return;
-		const cost = estimateExpandCost(nodeId, rawNodes);
-		if (cost > PREFETCH.COST_THRESHOLD) return;
-		const prevController = prefetchAbortControllers.get(nodeId);
-		if (prevController) prevController.abort();
-		const controller = new AbortController();
-		prefetchAbortControllers.set(nodeId, controller);
-		const newPrefetched = new Set(prefetchedNodeIds);
-		newPrefetched.add(nodeId);
-		set$1({ prefetchedNodeIds: newPrefetched });
-		if (!loadedChildrenByNodeId.has(nodeId)) {
-			prefetchInFlightCount++;
-			useGraphStore.getState().loadNodeChildren(nodeId, { signal: controller.signal }).catch((err) => {
-				if (err instanceof DOMException && err.name === "AbortError") return;
-				const s = useGraphStore.getState();
-				const newErrors = new Map(s.loadErrorsByNodeId);
-				newErrors.set(nodeId, err instanceof Error ? err.message : String(err));
-				set$1({ loadErrorsByNodeId: newErrors });
-			}).finally(() => {
-				prefetchInFlightCount--;
-				prefetchAbortControllers.delete(nodeId);
-			});
-		}
-		const newExpanded = new Set(expandedNodeIds);
-		newExpanded.add(nodeId);
-		let sourceNodes = rawNodes;
-		let sourceEdges = rawEdges;
-		if (diagramData) {
-			const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
-			if (layer) {
-				sourceNodes = layer.nodes;
-				sourceEdges = layer.edges;
-			}
-		}
-		const dataHash = computeDataHash(sourceNodes, sourceEdges);
-		const expandedKey = [...newExpanded].sort().join(",");
-		const cacheLevel = `progressive:${clusterDepth}`;
-		if (clusterCache.get(dataHash, cacheLevel, expandedKey)) return;
-		prefetchInFlightCount++;
-		const runPrefetch = () => {
-			try {
-				if (controller.signal.aborted) return;
-				const result = computeClusteredGraph(sourceNodes, sourceEdges, "progressive", newExpanded, clusterDepth, useGraphStore.getState().panelWidth ?? void 0);
-				clusterCache.set(dataHash, cacheLevel, expandedKey, result);
-			} finally {
-				prefetchInFlightCount--;
-			}
-		};
-		if (prefetchIdleHandle !== null) {
-			if (typeof cancelIdleCallback === "function" && typeof prefetchIdleHandle === "number") cancelIdleCallback(prefetchIdleHandle);
-			else clearTimeout(prefetchIdleHandle);
-			prefetchIdleHandle = null;
-		}
-		if (typeof requestIdleCallback === "function") prefetchIdleHandle = requestIdleCallback(runPrefetch, { timeout: 2e3 });
-		else prefetchIdleHandle = setTimeout(runPrefetch, 0);
-	},
-	collapseNode: (nodeId) => {
-		const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, pinnedIds } = useGraphStore.getState();
-		if (pinnedIds.has(nodeId)) return;
-		const newExpanded = new Set(expandedNodeIds);
-		newExpanded.delete(nodeId);
-		const newExpandedByViewMode = {
-			...expandedNodeIdsByViewMode,
-			[viewMode]: newExpanded
-		};
-		applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set$1);
-	},
-	collapseAll: () => {
-		const { rawNodes, rawEdges, clusterDepth, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, pinnedIds } = useGraphStore.getState();
-		const newExpanded = new Set(pinnedIds);
-		const newExpandedByViewMode = {
-			...expandedNodeIdsByViewMode,
-			[viewMode]: newExpanded
-		};
-		applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, set$1);
-	},
-	setCurrentWorkspace: (path) => set$1({ currentWorkspace: path }),
-	addWorkspace: (path, name$1) => set$1((s) => {
-		const wsName = name$1 ?? path.split(/[\\/]/).pop() ?? path;
-		const existing = s.workspaceList.filter((w) => w.path !== path);
-		return {
-			currentWorkspace: path,
-			workspaceList: [{
-				path,
-				name: wsName,
-				lastUsed: Date.now()
-			}, ...existing].slice(0, UI.WORKSPACE_LIST_MAX)
-		};
-	}),
-	removeWorkspace: (path) => set$1((s) => ({
-		workspaceList: s.workspaceList.filter((w) => w.path !== path),
-		currentWorkspace: s.currentWorkspace === path ? "." : s.currentWorkspace
-	})),
-	setPathStart: (nodeId) => set$1({ pathStartId: nodeId }),
-	setPathEnd: (nodeId) => set$1({ pathEndId: nodeId }),
-	setPathResult: (path) => set$1({ pathResult: path }),
-	setFocusDepth: (depth) => set$1({ focusDepth: depth }),
-	setFocusMode: (active, nodeId) => set$1({
-		focusModeActive: active,
-		focusModeNodeId: nodeId
-	}),
-	setPathFilter: (include, exclude) => set$1({
-		pathFilterInclude: include,
-		pathFilterExclude: exclude
-	}),
-	setCallChainDepth: (depth) => set$1({ callChainDepth: depth }),
-	setFanInThreshold: (threshold) => set$1({ fanInThreshold: threshold }),
-	setFanOutThreshold: (threshold) => set$1({ fanOutThreshold: threshold }),
-	setVisibleNodeTypes: (types) => set$1({ visibleNodeTypes: types }),
-	setVisibleEdgeTypes: (types) => set$1({ visibleEdgeTypes: types }),
-	setHeatmapMode: (mode) => set$1({ heatmapMode: mode }),
-	assembleMultiFunction: async (entryNodeId) => {
-		const { rawNodes, rawEdges, callChainDepth, clusterDepth, expandedNodeIds } = useGraphStore.getState();
-		const gen = ++multiAssemblyGeneration;
-		const astFetcher = async (filePath) => {
-			try {
-				const response = await fetchWithTimeout("/api/v1/codegraph/ast", {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ filePath })
-				});
-				if (!response.ok) return null;
-				return await response.json();
-			} catch (e) {
-				log$11.warn("AST fetch failed", e);
-				return null;
-			}
-		};
-		try {
-			const result = await callChainAggregator.aggregate(entryNodeId, rawNodes, rawEdges, astFetcher, {
-				depth: callChainDepth,
-				maxFunctions: UI.MAX_FUNCTIONS_PER_CLUSTER
-			});
-			if (gen !== multiAssemblyGeneration) return;
-			if (result && result.diagram.nodes.length > 0) {
-				const clustered = computeClusteredGraph(result.diagram.nodes, result.diagram.edges, "progressive", expandedNodeIds, clusterDepth, useGraphStore.getState().panelWidth ?? void 0);
-				set$1({
-					diagramData: null,
-					nodes: clustered.nodes,
-					edges: clustered.edges,
-					viewMode: "cfg",
-					error: null
-				});
-			} else set$1({
-				error: "Call chain aggregation produced no results — the selected function may have no callable targets or AST parsing failed.",
-				isLoading: false
-			});
-		} catch (e) {
-			log$11.warn("assembleMultiFunction failed", e);
-			set$1({
-				error: `Call chain aggregation failed: ${e instanceof Error ? e.message : String(e)}`,
-				isLoading: false
-			});
-		}
-	},
-	setHealthScore: (score) => set$1({ healthScore: score }),
-	setRules: (rules) => set$1({ rules }),
-	setRuleViolations: (violations) => set$1({ ruleViolations: violations }),
-	setDeadCodeResult: (result) => set$1({ deadCodeResult: result }),
-	setDeadCodeModeActive: (active) => set$1({ deadCodeModeActive: active }),
-	setPanelSize: (height, width$1) => set$1({
-		panelHeight: height,
-		panelWidth: width$1
-	}),
-	resetPanelSize: () => set$1({
-		panelHeight: null,
-		panelWidth: null
-	}),
-	addDegradation: (key) => set$1((s) => {
-		if (s.performanceDegradations.includes(key)) return s;
-		return { performanceDegradations: [...s.performanceDegradations, key] };
-	}),
-	clearDegradations: () => set$1({ performanceDegradations: [] }),
-	setLODLevel: (level) => {
-		const state = useGraphStore.getState();
-		if (state.lodLevel === level) return;
-		set$1({ lodLevel: level });
-		if (!state.lodEnabled) return;
-		if (isLayeredViewMode(state.viewMode)) return;
-		const lodDepth = level === "minimal" ? LOD.MINIMAL_CLUSTER_DEPTH : level === "compact" ? LOD.COMPACT_CLUSTER_DEPTH : state.clusterDepth;
-		const { rawNodes, rawEdges, expandedNodeIds } = state;
-		const result = tryIncrementalOrFull(incrementalClusterCtx, rawNodes, rawEdges, expandedNodeIds, lodDepth, state.panelWidth ?? void 0);
-		updateIncrementalClusterCtx(result, rawNodes, rawEdges);
-		set$1({
-			nodes: result.nodes,
-			edges: result.edges
-		});
-	},
-	setLODEnabled: (enabled) => {
-		set$1({ lodEnabled: enabled });
-		if (!enabled) {
-			const state = useGraphStore.getState();
-			if (state.lodLevel !== "full") useGraphStore.getState().setLODLevel("full");
-		}
-	},
-	setSelectedFunction: (fn$7) => set$1({ selectedFunction: fn$7 }),
-	assembleMicro: async (viewMode, selectedFunctionOverride) => {
-		const selectedFunction = selectedFunctionOverride ?? useGraphStore.getState().selectedFunction;
-		if (!selectedFunction) return;
-		const gen = ++microAssemblyGeneration;
-		set$1({
-			isLoading: true,
-			error: null
-		});
-		try {
-			const diagram = await assembleMicroDiagram(viewMode, selectedFunction.filePath, selectedFunction.functionName);
-			if (gen !== microAssemblyGeneration) return;
-			set$1({
-				diagramData: null,
-				nodes: diagram.nodes,
-				edges: diagram.edges,
-				isLoading: false
-			});
-		} catch (e) {
-			if (gen !== microAssemblyGeneration) return;
-			const msg = e instanceof Error ? e.message : String(e);
-			set$1({
-				isLoading: false,
-				error: `${msg} — ${selectedFunction.functionName}`
-			});
-		}
-	},
-	pinNode: (nodeId) => {
-		const { pinnedIds } = useGraphStore.getState();
-		const newPinned = new Set(pinnedIds);
-		newPinned.add(nodeId);
-		set$1({ pinnedIds: newPinned });
-	},
-	unpinNode: (nodeId) => {
-		const { pinnedIds } = useGraphStore.getState();
-		const newPinned = new Set(pinnedIds);
-		newPinned.delete(nodeId);
-		set$1({ pinnedIds: newPinned });
-	},
-	cancelPendingRequest: (nodeId) => {
-		const { pendingRequests } = useGraphStore.getState();
-		const controller = pendingRequests.get(nodeId);
-		if (controller) {
-			controller.abort();
-			const newPending = new Map(pendingRequests);
-			newPending.delete(nodeId);
-			set$1({ pendingRequests: newPending });
-		}
-	},
-	restoreFromUrl: async () => {
-		if (typeof window === "undefined") return;
-		const parsed = readUrlExpand();
-		if (parsed.expandedDirs.length === 0 && parsed.expandedFiles.length === 0 && parsed.expandedSymbols.length === 0) return;
-		const allIds = restoreExpandedNodeIds(parsed);
-		const sortedIds = [...allIds].sort((a, b) => {
-			const depthA = a.split("/").length;
-			const depthB = b.split("/").length;
-			return depthA - depthB;
-		});
-		for (const nodeId of sortedIds) {
-			const state = useGraphStore.getState();
-			const exists = state.rawNodes.some((n) => n.id === nodeId);
-			if (!exists) {
-				const parentId = nodeId.includes("/") ? nodeId.substring(0, nodeId.lastIndexOf("/")) : null;
-				if (parentId && !state.loadedChildrenByNodeId.has(parentId)) await state.loadNodeChildren(parentId).catch(() => {});
-			}
-			state.expandNode(nodeId);
-			await new Promise((r) => setTimeout(r, 50));
-		}
-		log$11.info("URL restore completed", { restoredCount: sortedIds.length });
-	},
-	setLayer: (layer) => {
-		const { diagramData, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, currentLayer } = useGraphStore.getState();
-		if (!diagramData || layer < 0 || layer >= diagramData.layers.length) return;
-		const layerData = diagramData.layers[layer];
-		if (!layerData) return;
-		const currentLayerKey = `${viewMode}_layer${currentLayer}`;
-		const newExpandedByViewMode = {
-			...expandedNodeIdsByViewMode,
-			[currentLayerKey]: new Set(expandedNodeIds)
-		};
-		const layerExpanded = newExpandedByViewMode[`${viewMode}_layer${layer}`] ?? new Set();
-		set$1({
-			currentLayer: layer,
-			expandedNodeIds: layerExpanded,
-			expandedNodeIdsByViewMode: newExpandedByViewMode,
-			nodes: layerData.nodes,
-			edges: layerData.edges
-		});
-	}
-}), {
+const useGraphStore = create$1()(persist((set$1, get$3) => {
+	const store = {
+		...createGraphDataSlice(set$1, get$3),
+		...createViewModeSlice(set$1, get$3),
+		...createSessionSlice(set$1, get$3),
+		...createExpandSlice(set$1, get$3),
+		...createWorkspaceSlice(set$1, get$3),
+		...createPathFocusSlice(set$1, get$3),
+		...createFilterSlice(set$1, get$3),
+		...createAnalysisSlice(set$1, get$3),
+		...createPanelLodSlice(set$1, get$3)
+	};
+	registerStoreGetter(get$3);
+	return store;
+}, {
 	name: "dsh-codegraph-visualizer/ui",
 	version: 9,
 	storage: createJSONStorage(() => typeof window !== "undefined" ? window.localStorage : memoryStorage),
@@ -53949,7 +54469,7 @@ var OverlapRemover = class {
 
 //#endregion
 //#region src/client/renderer/LayoutController.ts
-const log$10 = scoped("layout");
+const log$12 = scoped("layout");
 var LayoutController = class {
 	cy;
 	layoutRaf = null;
@@ -53984,16 +54504,16 @@ var LayoutController = class {
 				this.worker.onerror = () => {
 					this.worker?.terminate();
 					this.worker = null;
-					this.workerInitFailed = true;
-					log$10.warn("layout worker error — falling back to main-thread layout");
+					log$12.warn("layout worker error — will auto-retry");
+					this.retryWorkerInit();
 				};
 			} else {
 				this.workerInitFailed = true;
-				log$10.warn("layout worker not available — using main-thread layout");
+				log$12.warn("layout worker not available — using main-thread layout");
 			}
 		} catch (e) {
 			this.workerInitFailed = true;
-			log$10.warn("layout worker init failed — using main-thread layout", e);
+			log$12.warn("layout worker init failed — using main-thread layout", e);
 		}
 	}
 	isWorkerAvailable() {
@@ -54012,9 +54532,17 @@ var LayoutController = class {
 	applyLayoutWithWorker(nodes, edges, layout$2) {
 		if (!this.worker) return Promise.resolve({});
 		const worker = this.worker;
+		if (this.workerLayoutResolve) {
+			if (this.workerTimeout) {
+				clearTimeout(this.workerTimeout);
+				this.workerTimeout = null;
+			}
+			this.workerLayoutResolve({});
+			this.workerLayoutResolve = null;
+		}
 		return new Promise((resolve) => {
 			this.workerTimeout = setTimeout(() => {
-				log$10.warn("layout worker timeout — falling back to empty positions");
+				log$12.warn("layout worker timeout — falling back to empty positions");
 				if (this.workerLayoutResolve) {
 					this.workerLayoutResolve({});
 					this.workerLayoutResolve = null;
@@ -54022,7 +54550,7 @@ var LayoutController = class {
 				if (this.worker) {
 					this.worker.terminate();
 					this.worker = null;
-					log$10.warn("layout worker terminated due to timeout — will auto-retry");
+					log$12.warn("layout worker terminated due to timeout — will auto-retry");
 					this.retryWorkerInit();
 				}
 			}, RENDERER.LAYOUT_TIMEOUT_MS);
@@ -54065,6 +54593,7 @@ var LayoutController = class {
 	applyLayout(layout$2) {
 		if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
 		this.layoutRaf = requestAnimationFrame(() => {
+			startMeasure("layout");
 			this.cachePositions();
 			const nodeCount = this.cy.nodes().length;
 			let effectiveLayout = layout$2;
@@ -54079,9 +54608,12 @@ var LayoutController = class {
 			const options = this.buildLayoutOptions(effectiveLayout, animate, nodeCount);
 			if (options) {
 				const l = this.cy.layout(options);
-				l.one("layoutstop", () => this.overlapRemover.remove());
+				l.one("layoutstop", () => {
+					endMeasure("layout");
+					this.overlapRemover.remove();
+				});
 				l.run();
-			}
+			} else endMeasure("layout");
 			this.layoutRaf = null;
 		});
 	}
@@ -54613,7 +55145,7 @@ function detectCyclesDFS(adjacency) {
 
 //#endregion
 //#region src/client/renderer/CycleDetector.ts
-const log$9 = scoped("cycle-detector");
+const log$11 = scoped("cycle-detector");
 var CycleDetector = class {
 	cy;
 	adjacencyCache;
@@ -54642,7 +55174,7 @@ var CycleDetector = class {
 		const cycles = new Set();
 		const nodeCount = this.cy.nodes().length;
 		if (nodeCount > CYCLE_DETECTION.MAX_NODES_FOR_DETECTION) {
-			log$9.warn("cycle detection skipped: graph too large", { nodeCount });
+			log$11.warn("cycle detection skipped: graph too large", { nodeCount });
 			return cycles;
 		}
 		const adjacencySet = this.getForwardAdjacency();
@@ -54655,7 +55187,7 @@ var CycleDetector = class {
 	detectCyclesDetailed() {
 		const nodeCount = this.cy.nodes().length;
 		if (nodeCount > CYCLE_DETECTION.MAX_NODES_FOR_DETECTION) {
-			log$9.warn("detailed cycle detection skipped: graph too large", { nodeCount });
+			log$11.warn("detailed cycle detection skipped: graph too large", { nodeCount });
 			return [];
 		}
 		const adjacencySet = this.getForwardAdjacency();
@@ -55012,7 +55544,7 @@ var ViewportController = class {
 
 //#endregion
 //#region src/client/renderer/DataController.ts
-const log$8 = scoped("data-controller");
+const log$10 = scoped("data-controller");
 var DataController = class {
 	cy;
 	destroyed = false;
@@ -55235,7 +55767,7 @@ var DataController = class {
 	}
 	addEdge(e) {
 		if (this.cy.getElementById(e.source).empty() || this.cy.getElementById(e.target).empty()) {
-			log$8.warn("edge dropped: missing endpoint", {
+			log$10.warn("edge dropped: missing endpoint", {
 				edgeId: e.id,
 				source: e.source,
 				target: e.target
@@ -55398,7 +55930,7 @@ var DataController = class {
 
 //#endregion
 //#region src/client/renderer/FilterController.ts
-const log$7 = scoped("filter");
+const log$9 = scoped("filter");
 var FilterController = class {
 	cy;
 	fanInCache = null;
@@ -55545,6 +56077,7 @@ var FilterController = class {
 				edge.style("display", "element");
 			});
 		});
+		this.invalidateCache();
 	}
 	safeRegExp(pattern) {
 		try {
@@ -55554,7 +56087,7 @@ var FilterController = class {
 			if (/(\+|\*|\{)\{/.test(pattern)) return null;
 			return new RegExp(pattern);
 		} catch (e) {
-			log$7.warn("invalid regex pattern", e);
+			log$9.warn("invalid regex pattern", e);
 			return null;
 		}
 	}
@@ -55722,22 +56255,56 @@ var Trie = class {
 
 //#endregion
 //#region src/client/renderer/SearchController.ts
+const log$8 = scoped("search");
+const BUILD_CHUNK_SIZE = 200;
+const BUILD_CHUNK_DELAY = 16;
+function requestIdleCallbackCompat(cb) {
+	if (typeof requestIdleCallback === "function") return requestIdleCallback(cb);
+	return setTimeout(() => cb({ timeRemaining: () => 50 }), BUILD_CHUNK_DELAY);
+}
+function cancelIdleCallbackCompat(handle) {
+	if (typeof cancelIdleCallback === "function" && typeof handle === "number") cancelIdleCallback(handle);
+	else clearTimeout(handle);
+}
 var SearchController = class {
 	cy;
 	rawNodesMap;
 	rawToVisibleMap;
 	trie = new Trie();
 	trieBuilt = false;
+	indexBuilding = false;
+	buildHandle = null;
 	constructor(cy, rawNodesMap, rawToVisibleMap) {
 		this.cy = cy;
 		this.rawNodesMap = rawNodesMap;
 		this.rawToVisibleMap = rawToVisibleMap;
 	}
-	buildTrieIfNeeded() {
-		if (this.trieBuilt) return;
+	startAsyncBuild() {
+		if (this.indexBuilding) return;
+		this.indexBuilding = true;
 		this.trie.clear();
-		for (const rawNode of this.rawNodesMap.values()) this.trie.insert(rawNode.label);
-		this.trieBuilt = true;
+		const entries = [...this.rawNodesMap.values()];
+		let index = 0;
+		const processChunk = () => {
+			const end = Math.min(index + BUILD_CHUNK_SIZE, entries.length);
+			for (let i$1 = index; i$1 < end; i$1++) {
+				const entry = entries[i$1];
+				if (entry) this.trie.insert(entry.label);
+			}
+			index = end;
+			if (index < entries.length) this.buildHandle = requestIdleCallbackCompat(processChunk);
+			else {
+				this.trieBuilt = true;
+				this.indexBuilding = false;
+				this.buildHandle = null;
+				log$8.info(`Trie index built: ${entries.length} nodes`);
+			}
+		};
+		processChunk();
+	}
+	buildTrieIfNeeded() {
+		if (this.trieBuilt || this.indexBuilding) return;
+		this.startAsyncBuild();
 	}
 	isSimplePrefixQuery(query) {
 		const trimmed = query.trim();
@@ -55770,8 +56337,7 @@ var SearchController = class {
 		});
 		let matches$2 = 0;
 		const matchedCyNodeIds = new Set();
-		if (this.isSimplePrefixQuery(query)) {
-			this.buildTrieIfNeeded();
+		if (this.isSimplePrefixQuery(query) && this.trieBuilt) {
 			const trieResults = this.trie.search(query.trim());
 			if (trieResults.length > 0) {
 				const resultSet = new Set(trieResults.map((s) => s.toLowerCase()));
@@ -55824,14 +56390,36 @@ var SearchController = class {
 			parentId = parentRaw?.parentId;
 		}
 	}
+	addNode(rawNode) {
+		this.rawNodesMap.set(rawNode.id, rawNode);
+		if (this.trieBuilt) this.trie.insert(rawNode.label);
+	}
+	removeNode(nodeId) {
+		this.rawNodesMap.delete(nodeId);
+		if (this.trieBuilt) {
+			this.trieBuilt = false;
+			this.indexBuilding = false;
+			this.cancelBuild();
+		}
+	}
 	rebuildIndex() {
+		this.cancelBuild();
 		this.trieBuilt = false;
+		this.indexBuilding = false;
 		this.buildTrieIfNeeded();
 	}
+	cancelBuild() {
+		if (this.buildHandle !== null) {
+			cancelIdleCallbackCompat(this.buildHandle);
+			this.buildHandle = null;
+		}
+	}
 	destroy() {
+		this.cancelBuild();
 		this.cy.nodes().removeClass("search-match");
 		this.trie.clear();
 		this.trieBuilt = false;
+		this.indexBuilding = false;
 	}
 };
 
@@ -55861,42 +56449,156 @@ var ExportController = class {
 		const nodes = this.cy.nodes();
 		const edges = this.cy.edges();
 		if (nodes.length === 0) return "graph TD\n";
+		if (nodes.length > EXPORT.MERMAID_MAX_NODES) {
+			const topNodes = nodes.sort((a, b) => b.degree() - a.degree()).slice(0, EXPORT.MERMAID_MAX_NODES);
+			const topNodeIds = new Set(topNodes.map((n) => n.id()));
+			const filteredEdges = edges.filter((e) => topNodeIds.has(e.source().id()) && topNodeIds.has(e.target().id())).slice(0, EXPORT.MERMAID_MAX_EDGES);
+			return this._buildMermaidGraph(topNodes, filteredEdges);
+		}
+		return this._buildMermaidGraph(nodes, edges);
+	}
+	_buildMermaidGraph(nodes, edges) {
 		const nodeShapeMap = {
-			function: "($label$)",
-			class: "[$label$]",
-			variable: "(($label$))",
-			module: "{$label$}",
-			interface: "/$label$/"
+			function: "process",
+			class: "rect",
+			variable: "process",
+			module: "folder",
+			interface: "document",
+			type: "document"
 		};
-		const defaultShape = "[$label$]";
+		const defaultShape = "rect";
 		const edgeLabelMap = {
 			call: "call",
 			extend: "extend",
 			implement: "implement",
 			import: "import",
 			dependency: "dependency",
-			contains: "contains"
+			contains: "contains",
+			association: "assoc",
+			aggregation: "aggr",
+			composition: "comp"
 		};
-		const lines = ["graph TD"];
+		const edgeStyleMap = {
+			extend: "-.->",
+			implement: "-.->",
+			aggregation: "--o",
+			composition: "--*",
+			association: "-->"
+		};
+		const dirMap = {
+			TB: "TD",
+			LR: "LR",
+			BT: "BT",
+			RL: "RL"
+		};
+		const rankDir = dirMap[String(this.cy.data("rankDir") ?? "TB")] ?? "TD";
+		const lines = [`graph ${rankDir}`];
 		const idMap = new Map();
-		let idCounter$1 = 0;
+		const moduleGroups = new Map();
 		nodes.forEach((node) => {
 			const rawId = node.id();
-			const safeId = "n" + rawId.replace(/[^a-zA-Z0-9_]/g, "_") + "_" + idCounter$1++;
+			const safeId = "n" + rawId.replace(/[^a-zA-Z0-9_]/g, "_");
 			idMap.set(rawId, safeId);
-			const label = String(node.data("label") ?? safeId).replace(/"/g, "'");
+			let label = String(node.data("label") ?? safeId).replace(/"/g, "'");
+			if (label.length > 40) label = label.slice(0, 37) + "...";
 			const type = String(node.data("type") ?? "");
 			const shape = nodeShapeMap[type] ?? defaultShape;
-			const shapeDef = shape.replace("$label$", `"${label}"`);
-			lines.push(`  ${safeId}${shapeDef}`);
+			lines.push(`  ${safeId}["${label}"]@{ shape: ${shape} }`);
+			const filePath = String(node.data("filePath") ?? "");
+			if (filePath && type !== "module") {
+				const dir = filePath.split(/[\\/]/).slice(0, -1).join("/") || "root";
+				if (!moduleGroups.has(dir)) moduleGroups.set(dir, []);
+				moduleGroups.get(dir).push(safeId);
+			}
 		});
+		for (const [dir, memberIds] of moduleGroups) {
+			if (memberIds.length < 2) continue;
+			const subgraphId = "sub_" + dir.replace(/[^a-zA-Z0-9_]/g, "_");
+			lines.push(`  subgraph ${subgraphId} ["${dir}"]`);
+			lines.push(`    direction LR`);
+			for (const memberId of memberIds) lines.push(`    ${memberId}`);
+			lines.push(`  end`);
+		}
 		edges.forEach((edge) => {
 			const sourceId = idMap.get(edge.source().id()) ?? edge.source().id().replace(/[^a-zA-Z0-9_]/g, "_");
 			const targetId = idMap.get(edge.target().id()) ?? edge.target().id().replace(/[^a-zA-Z0-9_]/g, "_");
 			const edgeType = String(edge.data("type") ?? "");
+			const direction = String(edge.data("direction") ?? "unidirectional");
 			const label = edgeLabelMap[edgeType];
-			if (label) lines.push(`  ${sourceId} -->|${label}| ${targetId}`);
-			else lines.push(`  ${sourceId} --> ${targetId}`);
+			const arrow = edgeStyleMap[edgeType] ?? "-->";
+			const bidir = direction === "bidirectional" ? "<" : "";
+			if (label) lines.push(`  ${sourceId} ${bidir}${arrow}|${label}| ${targetId}`);
+			else lines.push(`  ${sourceId} ${bidir}${arrow} ${targetId}`);
+		});
+		return lines.join("\n") + "\n";
+	}
+	exportMermaidSequence() {
+		const nodes = this.cy.nodes();
+		const edges = this.cy.edges();
+		if (nodes.length === 0) return "sequenceDiagram\n";
+		const callEdges = edges.filter((e) => String(e.data("type") ?? "") === "call");
+		if (callEdges.length === 0) return "sequenceDiagram\n";
+		const participants = new Set();
+		callEdges.forEach((edge) => {
+			participants.add(edge.source().id());
+			participants.add(edge.target().id());
+		});
+		const idMap = new Map();
+		let pCounter = 0;
+		const lines = ["sequenceDiagram"];
+		participants.forEach((pid) => {
+			const node = this.cy.getElementById(pid);
+			const label = String(node.data("label") ?? pid).replace(/"/g, "'");
+			const safeName = "P" + pCounter++;
+			idMap.set(pid, safeName);
+			lines.push(`  participant ${safeName} as "${label}"`);
+		});
+		const limitedCallEdges = callEdges.slice(0, EXPORT.MERMAID_MAX_SEQUENCE_MESSAGES);
+		limitedCallEdges.forEach((edge) => {
+			const sourceId = idMap.get(edge.source().id()) ?? "P?";
+			const targetId = idMap.get(edge.target().id()) ?? "P?";
+			lines.push(`  ${sourceId}->>+${targetId}: call`);
+			lines.push(`  ${targetId}-->>-${sourceId}: return`);
+		});
+		if (callEdges.length > EXPORT.MERMAID_MAX_SEQUENCE_MESSAGES) {
+			const firstParticipant = idMap.get([...participants][0] ?? "") ?? "P0";
+			lines.push(`  Note over ${firstParticipant}: ${callEdges.length - EXPORT.MERMAID_MAX_SEQUENCE_MESSAGES} more calls truncated`);
+		}
+		return lines.join("\n") + "\n";
+	}
+	exportMermaidClass() {
+		const nodes = this.cy.nodes();
+		const edges = this.cy.edges();
+		if (nodes.length === 0) return "classDiagram\n";
+		const classNodes = nodes.filter((n) => {
+			const t$1 = String(n.data("type") ?? "");
+			return t$1 === "class" || t$1 === "interface";
+		});
+		if (classNodes.length === 0) return "classDiagram\n";
+		const inheritanceEdges = edges.filter((e) => {
+			const t$1 = String(e.data("type") ?? "");
+			return t$1 === "extend" || t$1 === "implement";
+		});
+		const idMap = new Map();
+		const lines = ["classDiagram"];
+		classNodes.forEach((node) => {
+			const rawId = node.id();
+			const safeId = "C" + rawId.replace(/[^a-zA-Z0-9_]/g, "_");
+			idMap.set(rawId, safeId);
+			const type = String(node.data("type") ?? "");
+			if (type === "interface") {
+				lines.push(`  class ${safeId} {`);
+				lines.push(`    <<interface>>`);
+				lines.push(`  }`);
+			} else lines.push(`  class ${safeId}`);
+		});
+		inheritanceEdges.forEach((edge) => {
+			const sourceId = idMap.get(edge.source().id());
+			const targetId = idMap.get(edge.target().id());
+			if (!sourceId || !targetId) return;
+			const edgeType = String(edge.data("type") ?? "");
+			if (edgeType === "extend") lines.push(`  ${sourceId} <|-- ${targetId}`);
+			else if (edgeType === "implement") lines.push(`  ${sourceId} <|.. ${targetId}`);
 		});
 		return lines.join("\n") + "\n";
 	}
@@ -56102,6 +56804,7 @@ var StyleController = class {
 	currentLOD = "full";
 	lodEnabled = false;
 	heatmapMode = "none";
+	todoMarkerMode = "none";
 	cachedBaseStylesheet = null;
 	cachedNodeCount = -1;
 	stylesheetApplied = false;
@@ -56154,6 +56857,15 @@ var StyleController = class {
 	getHeatmapMode() {
 		return this.heatmapMode;
 	}
+	setTodoMarkerMode(mode) {
+		if (this.todoMarkerMode === mode) return;
+		this.todoMarkerMode = mode;
+		this.stylesheetApplied = false;
+		this.applyStylesheet();
+	}
+	getTodoMarkerMode() {
+		return this.todoMarkerMode;
+	}
 	sizeMetric = null;
 	colorMetric = null;
 	setMultiDimensionMapping(sizeMetric, colorMetric) {
@@ -56177,9 +56889,9 @@ var StyleController = class {
 		}
 	};
 	computeLODLevel(zoom) {
-		const thresholds = getLODThresholds(this.cy.nodes().length);
-		if (zoom < thresholds.minimal) return "minimal";
-		if (zoom < thresholds.compact) return "compact";
+		const thresholds$1 = getLODThresholds(this.cy.nodes().length);
+		if (zoom < thresholds$1.minimal) return "minimal";
+		if (zoom < thresholds$1.compact) return "compact";
 		return "full";
 	}
 	applyStylesheet() {
@@ -56202,12 +56914,14 @@ var StyleController = class {
 		}];
 		const heatmapOverrides = this.getHeatmapOverrides();
 		const multiDimOverrides = this.getMultiDimensionOverrides();
+		const todoMarkerOverrides = this.getTodoMarkerOverrides();
 		const lodClassStyles = getLODClassStyles();
 		this.cy.style().fromJson([
 			...baseStylesheet,
 			...transitionOverrides,
 			...heatmapOverrides,
 			...multiDimOverrides,
+			...todoMarkerOverrides,
 			...lodClassStyles
 		]).update();
 		this.stylesheetApplied = true;
@@ -56259,6 +56973,35 @@ var StyleController = class {
 			style: { "background-color": `mapData(complexity, ${HEATMAP.COMPLEXITY_LOW}, ${HEATMAP.COMPLEXITY_HIGH}, ${HEATMAP.COLOR_STABLE}, ${HEATMAP.COLOR_UNSTABLE})` }
 		}];
 		return assertNever(this.heatmapMode);
+	}
+	getTodoMarkerOverrides() {
+		if (this.todoMarkerMode === "none") return [];
+		const overrides = [];
+		if (this.todoMarkerMode === "todo" || this.todoMarkerMode === "all") overrides.push({
+			selector: "node[hasTodoFixme]",
+			style: {
+				"border-width": TODO_MARKER.BORDER_WIDTH,
+				"border-style": TODO_MARKER.BORDER_STYLE,
+				"border-color": TODO_MARKER.COLOR_TODO
+			}
+		});
+		if (this.todoMarkerMode === "fixme" || this.todoMarkerMode === "all") overrides.push({
+			selector: "node[fixmeCount]",
+			style: {
+				"border-width": TODO_MARKER.BORDER_WIDTH,
+				"border-style": TODO_MARKER.BORDER_STYLE,
+				"border-color": TODO_MARKER.COLOR_FIXME
+			}
+		});
+		if (this.todoMarkerMode === "all") overrides.push({
+			selector: "node[todoCount]",
+			style: {
+				"border-width": TODO_MARKER.BORDER_WIDTH,
+				"border-style": TODO_MARKER.BORDER_STYLE,
+				"border-color": TODO_MARKER.COLOR_BOTH
+			}
+		});
+		return overrides;
 	}
 	destroy() {
 		this.disableLOD();
@@ -56920,7 +57663,7 @@ var AdjacencyCache = class {
 
 //#endregion
 //#region src/client/renderer/CytoscapeRenderer.ts
-const log$6 = scoped("cytoscape-renderer");
+const log$7 = scoped("cytoscape-renderer");
 function ensureExtensionsRegistered() {
 	const cy = cytoscape$1;
 	if (!cy.__dagreRegistered) {
@@ -56955,7 +57698,7 @@ var CytoscapeRenderer = class {
 		try {
 			return fn$7();
 		} catch (err) {
-			log$6.error(`${name$1} failed`, err);
+			log$7.error(`${name$1} failed`, err);
 			this.lastError = err instanceof Error ? err : new Error(String(err));
 			return fallback;
 		}
@@ -56964,7 +57707,7 @@ var CytoscapeRenderer = class {
 		try {
 			fn$7();
 		} catch (err) {
-			log$6.error(`${name$1} failed`, err);
+			log$7.error(`${name$1} failed`, err);
 			this.lastError = err instanceof Error ? err : new Error(String(err));
 		}
 	}
@@ -57173,6 +57916,12 @@ var CytoscapeRenderer = class {
 	exportMermaid() {
 		return this.exportCtrl?.exportMermaid() ?? "graph TD\n";
 	}
+	exportMermaidSequence() {
+		return this.exportCtrl?.exportMermaidSequence() ?? "sequenceDiagram\n";
+	}
+	exportMermaidClass() {
+		return this.exportCtrl?.exportMermaidClass() ?? "classDiagram\n";
+	}
 	exportPNG() {
 		return this.safeCall("exportPNG", () => this.exportCtrl?.exportPNG() ?? null, null);
 	}
@@ -57207,6 +57956,12 @@ var CytoscapeRenderer = class {
 	getHeatmapMode() {
 		return this.styleCtrl?.getHeatmapMode() ?? "none";
 	}
+	setTodoMarkerMode(mode) {
+		this.styleCtrl?.setTodoMarkerMode(mode);
+	}
+	getTodoMarkerMode() {
+		return this.styleCtrl?.getTodoMarkerMode() ?? "none";
+	}
 	setMultiDimensionMapping(sizeMetric, colorMetric) {
 		this.safeCallVoid("setMultiDimensionMapping", () => this.styleCtrl?.setMultiDimensionMapping(sizeMetric, colorMetric));
 	}
@@ -57215,7 +57970,7 @@ var CytoscapeRenderer = class {
 			try {
 				fn$7();
 			} catch (err) {
-				log$6.warn(`destroy: ${label} cleanup failed`, err);
+				log$7.warn(`destroy: ${label} cleanup failed`, err);
 			}
 		};
 		safeDestroy("interactionCtrl", () => this.interactionCtrl?.destroy());
@@ -57307,15 +58062,33 @@ var CytoscapeRenderer = class {
 			this.cy.edges().removeClass("dead-code-edge");
 		});
 	}
+	pauseAnimations() {
+		if (!this.cy) return;
+		try {
+			this.cy.stop();
+			this.cy.nodes().stop();
+			this.cy.edges().stop();
+		} catch (e) {
+			log$7.warn("pauseAnimations failed", e);
+		}
+	}
+	resumeAnimations() {
+		if (!this.cy) return;
+		try {
+			this.cy.resize();
+		} catch (e) {
+			log$7.warn("resumeAnimations failed", e);
+		}
+	}
 };
 
 //#endregion
 //#region src/client/hooks/useGraphRenderer.ts
-const log$5 = scoped("renderer-hook");
+const log$6 = scoped("renderer-hook");
 function useGraphRenderer(config) {
 	const { data: data$2, display, interaction, filters, analysis, callbacks, showCallChainRef } = config;
 	const { nodes, edges, rawNodes } = data$2;
-	const { layout: layout$2, dagreRankDir, theme, clusterDepth, heatmapMode } = display;
+	const { layout: layout$2, dagreRankDir, theme, clusterDepth, heatmapMode, todoMarkerMode } = display;
 	const { highlightedNodeIds, selectedNodeId, focusNodeId, focusModeActive, focusModeNodeId, focusDepth, debouncedSearch } = interaction;
 	const { filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, pathFilterInclude, pathFilterExclude } = filters;
 	const { showCallChain, showCycles, cycleIsolation, showImpact, showInheritance } = analysis;
@@ -57355,7 +58128,7 @@ function useGraphRenderer(config) {
 				});
 				renderer$1.init();
 				rendererRef.current = renderer$1;
-				log$5.info("renderer initialized", {
+				log$6.info("renderer initialized", {
 					theme,
 					w,
 					h
@@ -57425,8 +58198,8 @@ function useGraphRenderer(config) {
 	}, [
 		layout$2,
 		clusterDepth,
-		nodes.length,
-		edges.length
+		nodes,
+		edges
 	]);
 	(0, react.useEffect)(() => {
 		const r = rendererRef.current;
@@ -57508,6 +58281,9 @@ function useGraphRenderer(config) {
 		rendererRef.current?.setHeatmapMode(heatmapMode);
 	}, [heatmapMode]);
 	(0, react.useEffect)(() => {
+		rendererRef.current?.setTodoMarkerMode(todoMarkerMode);
+	}, [todoMarkerMode]);
+	(0, react.useEffect)(() => {
 		const r = rendererRef.current;
 		if (!r) return;
 		if (focusModeActive && focusModeNodeId) r.setFocusMode(focusModeNodeId, focusDepth);
@@ -57548,6 +58324,14 @@ function useGraphRenderer(config) {
 			data$3 = renderer$1.exportMermaid();
 			mimeType = "text/plain";
 			extension$1 = "mmd";
+		} else if (format === "mermaid-seq") {
+			data$3 = renderer$1.exportMermaidSequence();
+			mimeType = "text/plain";
+			extension$1 = "mmd";
+		} else if (format === "mermaid-class") {
+			data$3 = renderer$1.exportMermaidClass();
+			mimeType = "text/plain";
+			extension$1 = "mmd";
 		} else if (format === "graphml") {
 			data$3 = renderer$1.exportGraphML();
 			mimeType = "application/xml";
@@ -57565,7 +58349,7 @@ function useGraphRenderer(config) {
 			a.download = `codegraph-${Date.now()}.${extension$1}`;
 			a.click();
 			setTimeout(() => URL.revokeObjectURL(url), UI.URL_REVOKE_DELAY_MS);
-			log$5.info(`exported ${format}`);
+			log$6.info(`exported ${format}`);
 		}
 	}, []);
 	const updateTheme = (0, react.useCallback)((newTheme) => {
@@ -58036,7 +58820,7 @@ function usePanelKeyboard(layout$2, setLayout, rendererRef, handlers) {
 
 //#endregion
 //#region src/client/hooks/useViewMode.ts
-const log$4 = scoped("viewMode");
+const log$5 = scoped("viewMode");
 const MICRO_MODES = [
 	"cfg",
 	"flowchart",
@@ -58055,6 +58839,7 @@ function useViewMode(viewMode, currentWorkspace, depsFetchAbortRef) {
 	const setSelectedFunction = useGraphStore((s) => s.setSelectedFunction);
 	const setSelectedNode = useGraphStore((s) => s.setSelectedNode);
 	const setHighlightedNodes = useGraphStore((s) => s.setHighlightedNodes);
+	const t$1 = useT();
 	const prevMacroViewModeRef = (0, react.useRef)("code");
 	const handleViewModeChange = (0, react.useCallback)((newMode) => {
 		if (newMode === viewMode) return;
@@ -58067,7 +58852,7 @@ function useViewMode(viewMode, currentWorkspace, depsFetchAbortRef) {
 			const controller = new AbortController();
 			depsFetchAbortRef.current?.abort();
 			depsFetchAbortRef.current = controller;
-			fetch("/api/v1/codegraph/dependencies", { signal: controller.signal }).then((r) => {
+			fetchWithTimeout("/api/v1/codegraph/dependencies", { signal: controller.signal }).then((r) => {
 				if (!r.ok) throw new Error(`HTTP ${r.status}`);
 				return r.json();
 			}).then((data$2) => {
@@ -58076,8 +58861,8 @@ function useViewMode(viewMode, currentWorkspace, depsFetchAbortRef) {
 					setViewMode(newMode);
 					setGraphData(data$2.nodes, data$2.edges, data$2.metadata?.repoId || currentWorkspace);
 				}
-			}).catch((err) => {
-				if (!controller.signal.aborted) setError(`Failed to load dependencies: ${err.message}`);
+			}).catch(() => {
+				if (!controller.signal.aborted) setError(t$1("error.loadDependencies"));
 			}).finally(() => {
 				if (!controller.signal.aborted) setLoading(false);
 			});
@@ -58089,11 +58874,11 @@ function useViewMode(viewMode, currentWorkspace, depsFetchAbortRef) {
 			const loadBootstrap = useGraphStore.getState().loadBootstrap;
 			loadBootstrap().then((ok) => {
 				if (ok) setViewMode(newMode);
-				else setError("Failed to load code graph data");
+				else setError(t$1("error.loadGraphData"));
 				setLoading(false);
 			}).catch((e) => {
-				log$4.warn("loadBootstrap failed", e);
-				setError(`Failed to load code graph: ${e.message}`);
+				log$5.warn("loadBootstrap failed", e);
+				setError(t$1("error.loadGraph"));
 				setLoading(false);
 			});
 		} else {
@@ -58721,7 +59506,6 @@ const MIN_OUTDEGREE_HUB = CORE_FUNCTION.MIN_OUTDEGREE_HUB;
 const MIN_INFLUENCE_REACH = CORE_FUNCTION.MIN_INFLUENCE_REACH;
 const MIN_CALL_CHAIN_DEPTH = CORE_FUNCTION.MIN_CALL_CHAIN_DEPTH;
 const MAX_BFS_NODES = CORE_FUNCTION.MAX_BFS_NODES;
-const MAX_CALL_CHAIN_RECURSION_DEPTH = 500;
 var CoreFunctionAnalyzer = class {
 	analyze(nodes, edges) {
 		if (nodes.length === 0) return [];
@@ -58826,12 +59610,12 @@ var CoreFunctionAnalyzer = class {
 		return reach;
 	}
 	computeCallChainDepth(nodes, outEdges) {
-		const memo$28 = new Map();
+		const memo$29 = new Map();
 		const computing = new Set();
 		const computeDepth = (id, currentDepth = 0) => {
-			if (memo$28.has(id)) return memo$28.get(id);
+			if (memo$29.has(id)) return memo$29.get(id);
 			if (computing.has(id)) return 0;
-			if (currentDepth >= MAX_CALL_CHAIN_RECURSION_DEPTH) return currentDepth;
+			if (currentDepth >= CORE_FUNCTION_ANALYZER.MAX_CALL_CHAIN_RECURSION_DEPTH) return currentDepth;
 			computing.add(id);
 			const neighbors = outEdges.get(id) ?? [];
 			let maxChildDepth = 0;
@@ -58841,11 +59625,11 @@ var CoreFunctionAnalyzer = class {
 			}
 			computing.delete(id);
 			const result = maxChildDepth + 1;
-			memo$28.set(id, result);
+			memo$29.set(id, result);
 			return result;
 		};
 		for (const n of nodes) computeDepth(n.id);
-		return memo$28;
+		return memo$29;
 	}
 };
 
@@ -59128,7 +59912,7 @@ function useNodeSearch(rawNodes) {
 }
 
 //#endregion
-//#region node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_react@19.2.8/node_modules/zustand/esm/vanilla/shallow.mjs
+//#region node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_immer@10.2.0_react@19.2.8_use-sync-external-store@1.2.0_react@19.2.8_/node_modules/zustand/esm/vanilla/shallow.mjs
 const isIterable = (obj) => Symbol.iterator in obj;
 const hasIterableEntries = (value) => "entries" in value;
 const compareEntries = (valueA, valueB) => {
@@ -59162,7 +59946,7 @@ function shallow(valueA, valueB) {
 }
 
 //#endregion
-//#region node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_react@19.2.8/node_modules/zustand/esm/react/shallow.mjs
+//#region node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_immer@10.2.0_react@19.2.8_use-sync-external-store@1.2.0_react@19.2.8_/node_modules/zustand/esm/react/shallow.mjs
 function useShallow(selector) {
 	const prev = react.default.useRef(void 0);
 	return (state) => {
@@ -59217,7 +60001,9 @@ function useGraphStatus() {
 		totalNodeCount: s.totalNodeCount,
 		prerequisites: s.prerequisites,
 		watchEnabled: s.watchEnabled,
-		initStatus: s.initStatus
+		initStatus: s.initStatus,
+		urlRestored: s.urlRestored,
+		panelVisible: s.panelVisible
 	})));
 }
 function useGraphWorkspace() {
@@ -59234,7 +60020,8 @@ function useGraphAnalysis() {
 		fanOutThreshold: s.fanOutThreshold,
 		visibleNodeTypes: s.visibleNodeTypes,
 		visibleEdgeTypes: s.visibleEdgeTypes,
-		heatmapMode: s.heatmapMode
+		heatmapMode: s.heatmapMode,
+		todoMarkerMode: s.todoMarkerMode
 	})));
 }
 function useGraphPerformance() {
@@ -59269,6 +60056,7 @@ function useGraphActions() {
 		setPathResult: useGraphStore((s) => s.setPathResult),
 		setFocusDepth: useGraphStore((s) => s.setFocusDepth),
 		setHeatmapMode: useGraphStore((s) => s.setHeatmapMode),
+		setTodoMarkerMode: useGraphStore((s) => s.setTodoMarkerMode),
 		setLODLevel: useGraphStore((s) => s.setLODLevel),
 		assembleMicro: useGraphStore((s) => s.assembleMicro)
 	};
@@ -59563,7 +60351,7 @@ function useGraphCache() {
 
 //#endregion
 //#region src/client/components/ErrorBoundary.tsx
-const log$3 = scoped("boundary");
+const log$4 = scoped("boundary");
 function ErrorFallback({ error: error$1, onRetry }) {
 	const t$1 = useT();
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
@@ -59606,7 +60394,7 @@ var GraphErrorBoundary = class extends react.Component {
 	}
 	componentDidCatch(error$1, errorInfo) {
 		this.props.onError?.(error$1, errorInfo);
-		log$3.error("render error caught by boundary", {
+		log$4.error("render error caught by boundary", {
 			error: error$1,
 			componentStack: errorInfo.componentStack
 		});
@@ -59638,7 +60426,10 @@ const DOM_EVENTS = {
 	WORKSPACE: "codegraph:workspace",
 	INSTALL_PLUGIN: "codegraph:install-plugin",
 	SYMBOL_SELECT: "codegraph:symbol-select",
-	EDITOR_SYMBOL_SELECT: "dsh:editor-symbol-select"
+	EDITOR_SYMBOL_SELECT: "dsh:editor-symbol-select",
+	TOGGLE_FILTER_PANEL: "codegraph:toggle-filter-panel",
+	TOGGLE_EXPORT_MENU: "codegraph:toggle-export-menu",
+	THEME_CHANGED: "codegraph:theme-changed"
 };
 
 //#endregion
@@ -59654,10 +60445,10 @@ const base = (size$1) => ({
 	strokeLinejoin: "round",
 	"aria-hidden": true
 });
-function memo$27(Component$1) {
+function memo$28(Component$1) {
 	return react.default.memo(Component$1);
 }
-const GraphIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const GraphIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59680,7 +60471,7 @@ const GraphIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ 
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 12v4" })
 	]
 }));
-const SearchIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const SearchIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -59689,12 +60480,12 @@ const SearchIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */
 		r: "7"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m21 21-4.3-4.3" })]
 }));
-const ChainIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const ChainIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" })]
 }));
-const CycleIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const CycleIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59704,7 +60495,7 @@ const CycleIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ 
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 13v1a4 4 0 0 1-4 4H3" })
 	]
 }));
-const MapIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const MapIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59713,7 +60504,7 @@ const MapIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M15 6v14" })
 	]
 }));
-const RefreshIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const RefreshIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59723,7 +60514,7 @@ const RefreshIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ *
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 21v-5h5" })
 	]
 }));
-const SunIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const SunIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -59732,12 +60523,12 @@ const SunIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0
 		r: "4"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" })]
 }));
-const MoonIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const MoonIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" })
 }));
-const DownloadIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const DownloadIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59746,22 +60537,22 @@ const DownloadIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ 
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 15V3" })
 	]
 }));
-const ChevronDownIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ChevronDownIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m6 9 6 6 6-6" })
 }));
-const ChevronUpIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ChevronUpIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m18 15-6-6-6 6" })
 }));
-const CloseIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const CloseIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M18 6 6 18M6 6l12 12" })
 }));
-const UploadIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const UploadIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59770,17 +60561,17 @@ const UploadIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 3v12" })
 	]
 }));
-const FolderIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const FolderIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" })
 }));
-const AlertIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const AlertIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 9v4M12 17h.01" })]
 }));
-const LayersIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const LayersIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59789,12 +60580,12 @@ const LayersIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m3 17 9 5 9-5" })
 	]
 }));
-const ZapIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ZapIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M13 2 3 14h9l-1 8 10-12h-9l1-8Z" })
 }));
-const WatchIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const WatchIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59807,22 +60598,22 @@ const WatchIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ 
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M9 1h6M9 23h6" })
 	]
 }));
-const WorkspaceIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const WorkspaceIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" })
 }));
-const PlusIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const PlusIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 5v14M5 12h14" })
 }));
-const CheckIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const CheckIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M20 6 9 17l-5-5" })
 }));
-const CopyIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const CopyIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
@@ -59833,7 +60624,7 @@ const CopyIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (
 		rx: "2"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" })]
 }));
-const TreeIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const TreeIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59861,7 +60652,7 @@ const TreeIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 6v4M12 10H5v4M12 10h7v4M5 14v4M19 14v4" })
 	]
 }));
-const PathIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const PathIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -59878,22 +60669,22 @@ const PathIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M5 7v4a4 4 0 0 0 4 4h6a4 4 0 0 1 4 4" })
 	]
 }));
-const HeartIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const HeartIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z" })
 }));
-const RuleIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const RuleIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M9 11l3 3L22 4" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" })]
 }));
-const FlameIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const FlameIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5Z" })
 }));
-const AlertCircleIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const AlertCircleIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -59902,17 +60693,17 @@ const AlertCircleIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE
 		r: "10"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 8v4M12 16h.01" })]
 }));
-const ExpandIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ExpandIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 21H3M21 3H3M9 9l3-3 3 3M9 15l3 3 3-3" })
 }));
-const ContractIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ContractIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 21H3M21 3H3M15 9l-3-3-3 3M15 15l-3 3-3-3" })
 }));
-const FocusIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const FocusIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -59921,27 +60712,27 @@ const FocusIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ 
 		r: "3"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4l1.4-1.4M17 7l1.4-1.4" })]
 }));
-const UndoIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const UndoIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 7v6h6" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 13a9 9 0 1 0 3-7.7L3 8" })]
 }));
-const RedoIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const RedoIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 7v6h-6" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 13a9 9 0 1 1-3-7.7L21 8" })]
 }));
-const StarIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const StarIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" })
 }));
-const FilterIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const FilterIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M22 3H2l8 9.46V19l4 2v-8.54L22 3z" })
 }));
-const GithubIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const GithubIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	width: size$1,
 	height: size$1,
 	viewBox: "0 0 24 24",
@@ -59950,16 +60741,41 @@ const GithubIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */
 	"aria-hidden": "true",
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.09 1.84 1.24 1.84 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.34-5.47-5.95 0-1.31.47-2.39 1.24-3.23-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.92 1.24 3.23 0 4.62-2.81 5.64-5.49 5.94.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12.01 12.01 0 0 0 24 12.5C24 5.87 18.63.5 12 .5Z" })
 }));
-const GhostIcon = memo$27(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const GhostIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M9 10h.01M15 10h.01M12 2a8 8 0 0 0-8 8v12l3-3 3 3 2-2 2 2 3-3 3 3V10a8 8 0 0 0-8-8z" })
 }));
+const MoreIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+	...base(size$1),
+	className,
+	children: [
+		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+			cx: "12",
+			cy: "5",
+			r: "1.5"
+		}),
+		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+			cx: "12",
+			cy: "12",
+			r: "1.5"
+		}),
+		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
+			cx: "12",
+			cy: "19",
+			r: "1.5"
+		})
+	]
+}));
+const WrenchIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+	...base(size$1),
+	className,
+	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-2.5 2.5-2.5Z" })
+}));
 
 //#endregion
 //#region src/client/components/ImportPanel.tsx
-const log$2 = scoped("import");
-const MAX_PASTE_BYTES = 10 * 1024 * 1024;
+const log$3 = scoped("import");
 function parseGraphJson(text) {
 	const parsed = JSON.parse(text);
 	if (!parsed || typeof parsed !== "object") throw new Error("Root is not an object");
@@ -60028,10 +60844,10 @@ const ImportPanel = (0, react.memo)(function ImportPanel$1({ onClose, workspaceP
 		setBusy(true);
 		setFeedback(null);
 		try {
-			if (text.length > MAX_PASTE_BYTES) throw new Error(`JSON exceeds ${MAX_PASTE_BYTES / 1024 / 1024}MB limit`);
+			if (text.length > IMPORT.MAX_PASTE_BYTES) throw new Error(`JSON exceeds ${IMPORT.MAX_PASTE_BYTES / 1024 / 1024}MB limit`);
 			const { nodes, edges, repoId } = parseGraphJson(text);
 			onSetGraphData(nodes, edges, repoId);
-			log$2.info(`imported from ${source}`, {
+			log$3.info(`imported from ${source}`, {
 				nodes: nodes.length,
 				edges: edges.length
 			});
@@ -60045,7 +60861,7 @@ const ImportPanel = (0, react.memo)(function ImportPanel$1({ onClose, workspaceP
 			timersRef.current.push(setTimeout(onClose, UI.IMPORT_CLOSE_DELAY_MS));
 		} catch (e) {
 			const msg = e instanceof Error ? e.message : String(e);
-			log$2.error(`import failed from ${source}`, msg);
+			log$3.error(`import failed from ${source}`, msg);
 			onSetError(t$1("import.importFailed", { msg }));
 			setFeedback({
 				kind: "err",
@@ -60079,7 +60895,7 @@ const ImportPanel = (0, react.memo)(function ImportPanel$1({ onClose, workspaceP
 		setFeedback(null);
 		onSetLoading(true);
 		window.dispatchEvent(new CustomEvent(DOM_EVENTS.IMPORT_REPO, { detail: { path: effectivePath } }));
-		log$2.info("workspace scan requested", { path: effectivePath });
+		log$3.info("workspace scan requested", { path: effectivePath });
 		setFeedback({
 			kind: "ok",
 			msg: t$1("import.requestedScan", { path: effectivePath })
@@ -60093,7 +60909,7 @@ const ImportPanel = (0, react.memo)(function ImportPanel$1({ onClose, workspaceP
 		onSetInitStatus("initializing");
 		setFeedback(null);
 		window.dispatchEvent(new CustomEvent(DOM_EVENTS.INIT_GRAPH, { detail: { path: effectivePath } }));
-		log$2.info("init requested", { path: effectivePath });
+		log$3.info("init requested", { path: effectivePath });
 		setFeedback({
 			kind: "ok",
 			msg: t$1("import.initStarted", { path: effectivePath })
@@ -60110,7 +60926,7 @@ const ImportPanel = (0, react.memo)(function ImportPanel$1({ onClose, workspaceP
 			enabled: next$1,
 			path: effectivePath
 		} }));
-		log$2.info("watch toggled", {
+		log$3.info("watch toggled", {
 			enabled: next$1,
 			path: effectivePath
 		});
@@ -60677,6 +61493,81 @@ const WorkspaceSelector = (0, react.memo)(function WorkspaceSelector$1({ current
 });
 
 //#endregion
+//#region src/client/components/Dropdown.tsx
+const Dropdown = (0, react.memo)(function Dropdown$1({ triggerClassName, triggerTitle, triggerAriaLabel, triggerContent, triggerAriaHasPopup, contentClassName = "cg-dropdown-content", contentRole, children, onOpenChange, closeOnOutsideClick = true, containerClassName = "cg-dropdown-menu" }) {
+	const containerRef = (0, react.useRef)(null);
+	const [open, setOpen] = (0, react.useState)(false);
+	const toggle = (0, react.useCallback)(() => {
+		setOpen((v) => {
+			const next$1 = !v;
+			onOpenChange?.(next$1);
+			return next$1;
+		});
+	}, [onOpenChange]);
+	const close = (0, react.useCallback)(() => {
+		setOpen(false);
+		onOpenChange?.(false);
+	}, [onOpenChange]);
+	(0, react.useEffect)(() => {
+		if (!open || !closeOnOutsideClick) return;
+		const onDocClick = (e) => {
+			if (containerRef.current && !containerRef.current.contains(e.target)) close();
+		};
+		document.addEventListener("mousedown", onDocClick);
+		return () => document.removeEventListener("mousedown", onDocClick);
+	}, [
+		open,
+		closeOnOutsideClick,
+		close
+	]);
+	(0, react.useEffect)(() => {
+		const onKey = (e) => {
+			if (open && e.key === "Escape") close();
+		};
+		if (open) {
+			document.addEventListener("keydown", onKey);
+			return () => document.removeEventListener("keydown", onKey);
+		}
+	}, [open, close]);
+	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+		className: containerClassName,
+		ref: containerRef,
+		children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+			className: `${triggerClassName} ${open ? "cg-active" : ""}`,
+			onClick: toggle,
+			title: triggerTitle,
+			"aria-label": triggerAriaLabel,
+			"aria-expanded": open,
+			"aria-haspopup": triggerAriaHasPopup,
+			children: triggerContent
+		}), open && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+			className: contentClassName,
+			role: contentRole,
+			children: typeof children === "function" ? children(close) : children
+		})]
+	});
+});
+
+//#endregion
+//#region src/client/hooks/useElementWidth.ts
+function useElementWidth() {
+	const ref = (0, react.useRef)(null);
+	const [width$1, setWidth] = (0, react.useState)(0);
+	(0, react.useEffect)(() => {
+		const el = ref.current;
+		if (!el) return;
+		setWidth(el.clientWidth);
+		if (typeof ResizeObserver === "undefined") return;
+		const ro = new ResizeObserver((entries) => {
+			for (const entry of entries) setWidth(entry.contentRect.width);
+		});
+		ro.observe(el);
+		return () => ro.disconnect();
+	}, []);
+	return [ref, width$1];
+}
+
+//#endregion
 //#region src/client/components/Toolbar.tsx
 const LAYOUTS = [
 	"cose",
@@ -60785,29 +61676,116 @@ const CLUSTER_DEPTHS = [
 		key: "clusterDepth.function"
 	}
 ];
-const Toolbar = (0, react.memo)(function Toolbar$1(props) {
+const ANALYSIS_ITEMS = [
+	{
+		panel: "showCallChain",
+		Icon: ChainIcon,
+		key: "toolbar.chain",
+		btnClass: "cg-chain-btn",
+		toggle: "onToggleCallChain"
+	},
+	{
+		panel: "showCycles",
+		Icon: CycleIcon,
+		key: "toolbar.cycles",
+		btnClass: "cg-cycle-btn",
+		toggle: "onToggleCycles"
+	},
+	{
+		panel: "showImpact",
+		Icon: ZapIcon,
+		key: "toolbar.impact",
+		btnClass: "cg-impact-btn",
+		toggle: "onToggleImpact"
+	},
+	{
+		panel: "showInheritance",
+		Icon: TreeIcon,
+		key: "toolbar.inheritance",
+		btnClass: "cg-inheritance-btn",
+		toggle: "onToggleInheritance"
+	},
+	{
+		panel: "showPathFind",
+		Icon: PathIcon,
+		key: "toolbar.pathFind",
+		btnClass: "cg-pathfind-btn",
+		toggle: "onTogglePathFind"
+	}
+];
+const QUALITY_ITEMS = [
+	{
+		panel: "showHealthScore",
+		Icon: HeartIcon,
+		key: "toolbar.health",
+		btnClass: "cg-health-btn",
+		toggle: "onToggleHealthScore"
+	},
+	{
+		panel: "showRules",
+		Icon: RuleIcon,
+		key: "toolbar.rules",
+		btnClass: "cg-rules-btn",
+		toggle: "onToggleRules"
+	},
+	{
+		panel: "showHotspot",
+		Icon: FlameIcon,
+		key: "toolbar.hotspot",
+		btnClass: "cg-hotspot-btn",
+		toggle: "onToggleHotspot"
+	},
+	{
+		panel: "showGodModule",
+		Icon: AlertCircleIcon,
+		key: "toolbar.godModule",
+		btnClass: "cg-godmodule-btn",
+		toggle: "onToggleGodModule"
+	},
+	{
+		panel: "showCoreFunction",
+		Icon: StarIcon,
+		key: "toolbar.coreFunction",
+		btnClass: "cg-corefunction-btn",
+		toggle: "onToggleCoreFunction"
+	},
+	{
+		panel: "showDeadCode",
+		Icon: GhostIcon,
+		key: "toolbar.deadCode",
+		btnClass: "cg-deadcode-btn",
+		toggle: "onToggleDeadCode"
+	}
+];
+const Toolbar = (0, react.memo)(function toolbar(props) {
 	const t$1 = useT();
 	const lang = useLang();
-	const exportMenuRef = (0, react.useRef)(null);
-	const [showExportMenu, setShowExportMenu] = react.default.useState(false);
-	(0, react.useEffect)(() => {
-		if (!showExportMenu) return;
-		const onDocClick = (e) => {
-			if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) setShowExportMenu(false);
-		};
-		document.addEventListener("mousedown", onDocClick);
-		return () => document.removeEventListener("mousedown", onDocClick);
-	}, [showExportMenu]);
+	const [toolbarRef, toolbarWidth] = useElementWidth();
+	const isCompact = toolbarWidth > 0 && toolbarWidth < 768;
+	const isNarrow = toolbarWidth > 0 && toolbarWidth < 480;
 	const onExport = props.onExport;
 	const handleExport = (0, react.useCallback)((format) => {
 		onExport(format);
-		setShowExportMenu(false);
 	}, [onExport]);
-	const { statsText, typeCounts, layout: layout$2, dagreRankDir, theme, filterType, graphType, clusterDepth, viewMode, currentLayer, layerNames, collapsed, panelControls, onLayoutChange, onDagreRankDirChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterDepthChange, onViewModeChange, onLayerChange, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll, onUndo, onRedo, canUndo, canRedo, hasSelectedFunction } = props;
-	const { showSearch, showCallChain, showCycles, cycleIsolation, showImpact, showInheritance, showMiniMap, showLegend, showImport, showPathFind, showHealthScore, showRules, showHotspot, showGodModule, showCoreFunction, showDeadCode, showFilterPanel, showTour, onToggleSearch, onToggleCallChain, onToggleCycles, onToggleCycleIsolation, onToggleImpact, onToggleInheritance, onToggleMiniMap, onToggleLegend, onToggleImport, onTogglePathFind, onToggleHealthScore, onToggleRules, onToggleHotspot, onToggleGodModule, onToggleCoreFunction, onToggleDeadCode, onToggleFilterPanel, onToggleTour } = panelControls;
+	const { statsText, typeCounts, theme, collapsed, panelControls, layoutConfig, viewConfig, history, onThemeToggle, onRefresh, onCollapse, currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace, onCollapseAll } = props;
+	const { layout: layout$2, dagreRankDir, clusterDepth } = layoutConfig;
+	const onLayoutChange = (0, react.useCallback)((l) => layoutConfig.onChange("layout", l), [layoutConfig]);
+	const onDagreRankDirChange = (0, react.useCallback)((d) => layoutConfig.onChange("dagreRankDir", d), [layoutConfig]);
+	const onClusterDepthChange = (0, react.useCallback)((d) => layoutConfig.onChange("clusterDepth", d), [layoutConfig]);
+	const { viewMode, graphType, filterType, currentLayer, layerNames, hasSelectedFunction } = viewConfig;
+	const onViewModeChange = (0, react.useCallback)((m) => viewConfig.onChange("viewMode", m), [viewConfig]);
+	const onGraphTypeChange = (0, react.useCallback)((g) => viewConfig.onChange("graphType", g), [viewConfig]);
+	const onFilterChange = (0, react.useCallback)((f) => viewConfig.onChange("filterType", f), [viewConfig]);
+	const onLayerChange = (0, react.useCallback)((l) => viewConfig.onChange("layer", l), [viewConfig]);
+	const onUndo = history?.undo;
+	const onRedo = history?.redo;
+	const canUndo = history?.canUndo;
+	const canRedo = history?.canRedo;
+	const { showSearch, showCycles, cycleIsolation, showMiniMap, showLegend, showImport, showFilterPanel, showTour, onToggleSearch, onToggleCycleIsolation, onToggleMiniMap, onToggleLegend, onToggleImport, onToggleFilterPanel, onToggleTour } = panelControls;
 	const availablePanels = getAvailablePanels(getViewLayer(viewMode));
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "cg-graph-toolbar",
+		ref: toolbarRef,
 		children: [
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: "cg-toolbar-left",
@@ -60846,79 +61824,97 @@ const Toolbar = (0, react.memo)(function Toolbar$1(props) {
 			/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: "cg-toolbar-center",
 				children: [
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "cg-layout-buttons",
-						role: "group",
-						"aria-label": t$1("toolbar.layoutSwitcher"),
-						children: LAYOUTS.map((l) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-							className: `cg-layout-btn ${layout$2 === l ? "cg-active" : ""}`,
-							onClick: () => onLayoutChange(l),
-							title: t$1("toolbar.layout", { l }),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Dropdown, {
+						triggerClassName: "cg-layout-dropdown-btn",
+						triggerTitle: t$1("toolbar.layoutSwitcher"),
+						triggerAriaLabel: t$1("toolbar.layoutSwitcher"),
+						triggerContent: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [layout$2, /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ChevronDownIcon, { size: 12 })] }),
+						contentClassName: "cg-dropdown-content cg-layout-dropdown",
+						children: (close) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [LAYOUTS.map((l) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							className: `cg-dropdown-item ${layout$2 === l ? "cg-active" : ""}`,
+							onClick: () => {
+								onLayoutChange(l);
+								if (l !== "dagre") close();
+							},
 							"aria-pressed": layout$2 === l,
 							children: l
-						}, l))
-					}),
-					layout$2 === "dagre" && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "cg-rank-dir-buttons",
-						role: "group",
-						"aria-label": t$1("toolbar.rankDir"),
-						children: RANK_DIRS.map((d) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-							className: `cg-rank-dir-btn ${dagreRankDir === d.value ? "cg-active" : ""}`,
-							onClick: () => onDagreRankDirChange(d.value),
-							title: d.label,
+						}, l)), layout$2 === "dagre" && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: "cg-dropdown-separator" }), RANK_DIRS.map((d) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							className: `cg-dropdown-item ${dagreRankDir === d.value ? "cg-active" : ""}`,
+							onClick: () => {
+								onDagreRankDirChange(d.value);
+								close();
+							},
 							"aria-pressed": dagreRankDir === d.value,
 							children: d.label
-						}, d.value))
+						}, d.value))] })] })
 					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className: "cg-graph-type-buttons",
-						role: "group",
-						"aria-label": t$1("toolbar.graphType"),
-						children: GRAPH_TYPES.map((g) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-							className: `cg-graph-type-btn ${graphType === g.value ? "cg-active" : ""}`,
-							onClick: () => onGraphTypeChange(g.value),
-							title: t$1(g.key),
-							"aria-pressed": graphType === g.value,
-							children: t$1(g.key)
-						}, g.value))
-					}),
-					/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-						className: "cg-view-mode-buttons",
-						role: "group",
-						"aria-label": t$1("toolbar.graphType"),
-						children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Dropdown, {
+						triggerClassName: "cg-view-dropdown-btn",
+						triggerTitle: t$1("toolbar.viewMode"),
+						triggerAriaLabel: t$1("toolbar.viewMode"),
+						triggerContent: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [t$1(STRUCTURAL_MODE_KEYS[viewMode] ?? BEHAVIORAL_MODE_KEYS[viewMode] ?? BEHAVIORAL_MICRO_MODE_KEYS[viewMode] ?? "toolbar.viewMode"), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ChevronDownIcon, { size: 12 })] }),
+						contentClassName: "cg-dropdown-content cg-view-dropdown",
+						children: (close) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								className: "cg-dropdown-section-label",
+								children: t$1("toolbar.graphType")
+							}),
+							GRAPH_TYPES.map((g) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `cg-dropdown-item ${graphType === g.value ? "cg-active" : ""}`,
+								onClick: () => {
+									onGraphTypeChange(g.value);
+								},
+								"aria-pressed": graphType === g.value,
+								children: t$1(g.key)
+							}, g.value)),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: "cg-dropdown-separator" }),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								className: "cg-dropdown-section-label",
+								children: t$1("toolbar.viewModeStructural")
+							}),
 							STRUCTURAL_VIEW_MODES.map((m) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `cg-view-mode-btn ${viewMode === m ? "cg-active" : ""}`,
-								onClick: () => onViewModeChange(m),
+								className: `cg-dropdown-item ${viewMode === m ? "cg-active" : ""}`,
+								onClick: () => {
+									onViewModeChange(m);
+									close();
+								},
 								title: t$1(STRUCTURAL_TITLE_KEYS[m]),
 								"aria-pressed": viewMode === m,
 								children: t$1(STRUCTURAL_MODE_KEYS[m])
 							}, m)),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: "cg-view-mode-divider",
-								"aria-hidden": "true"
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: "cg-dropdown-separator" }),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								className: "cg-dropdown-section-label",
+								children: t$1("toolbar.viewModeBehavioral")
 							}),
 							BEHAVIORAL_VIEW_MODES.map((m) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `cg-view-mode-btn ${viewMode === m ? "cg-active" : ""}`,
-								onClick: () => onViewModeChange(m),
+								className: `cg-dropdown-item ${viewMode === m ? "cg-active" : ""}`,
+								onClick: () => {
+									onViewModeChange(m);
+									close();
+								},
 								title: t$1(BEHAVIORAL_TITLE_KEYS[m]),
 								"aria-pressed": viewMode === m,
 								children: t$1(BEHAVIORAL_MODE_KEYS[m])
 							}, m)),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-								className: "cg-view-mode-divider",
-								"aria-hidden": "true"
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: "cg-dropdown-separator" }),
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+								className: "cg-dropdown-section-label",
+								children: t$1("toolbar.viewModeMicro")
 							}),
 							BEHAVIORAL_MICRO_VIEW_MODES.map((m) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `cg-view-mode-btn cg-view-mode-btn--micro ${viewMode === m ? "cg-active" : ""}`,
-								onClick: () => onViewModeChange(m),
+								className: `cg-dropdown-item ${viewMode === m ? "cg-active" : ""}`,
+								onClick: () => {
+									onViewModeChange(m);
+									close();
+								},
 								title: hasSelectedFunction ? t$1(BEHAVIORAL_MICRO_TITLE_KEYS[m]) : t$1("toolbar.microDisabled"),
 								"aria-pressed": viewMode === m,
 								disabled: !hasSelectedFunction,
 								"aria-disabled": !hasSelectedFunction,
 								children: t$1(BEHAVIORAL_MICRO_MODE_KEYS[m])
 							}, m))
-						]
+						] })
 					}),
 					layerNames.length > 1 && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 						className: "cg-layer-selector",
@@ -60997,111 +61993,67 @@ const Toolbar = (0, react.memo)(function Toolbar$1(props) {
 						role: "group",
 						"aria-label": t$1("toolbar.analysisGroup"),
 						children: [
-							availablePanels.has("showSearch") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `cg-search-btn ${showSearch ? "cg-active" : ""}`,
+							availablePanels.has("showSearch") && !isNarrow && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: `cg-search-standalone-btn ${showSearch ? "cg-active" : ""}`,
 								onClick: onToggleSearch,
 								title: t$1("toolbar.search"),
 								"aria-label": t$1("toolbar.search"),
-								"aria-expanded": showSearch,
+								"aria-pressed": showSearch,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SearchIcon, { size: 15 })
 							}),
-							availablePanels.has("showCallChain") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `cg-chain-btn ${showCallChain ? "cg-active" : ""}`,
-								onClick: onToggleCallChain,
-								title: t$1("toolbar.chain"),
-								"aria-label": t$1("toolbar.chain"),
-								"aria-pressed": showCallChain,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ChainIcon, { size: 15 })
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Dropdown, {
+								triggerClassName: "cg-tools-dropdown-btn",
+								triggerTitle: t$1("toolbar.tools"),
+								triggerAriaLabel: t$1("toolbar.tools"),
+								triggerAriaHasPopup: "menu",
+								triggerContent: /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(ZapIcon, { size: 15 }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ChevronDownIcon, { size: 10 })] }),
+								contentRole: "menu",
+								children: (close) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+										className: "cg-dropdown-section-label",
+										children: t$1("toolbar.analysis")
+									}),
+									ANALYSIS_ITEMS.map(({ panel, Icon, key, btnClass, toggle }) => availablePanels.has(panel) ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+										className: `cg-dropdown-item ${btnClass} ${panelControls[panel] ? "cg-active" : ""}`,
+										onClick: () => {
+											panelControls[toggle]();
+											close();
+										},
+										role: "menuitemcheckbox",
+										"aria-checked": panelControls[panel],
+										title: t$1(key),
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Icon, { size: 14 }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1(key) })]
+									}, panel) : null),
+									showCycles && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+										className: `cg-dropdown-item cg-isolate-btn ${cycleIsolation ? "cg-active" : ""}`,
+										onClick: () => {
+											onToggleCycleIsolation();
+											close();
+										},
+										role: "menuitemcheckbox",
+										"aria-checked": cycleIsolation,
+										title: t$1("toolbar.isolateCycles"),
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(FilterIcon, { size: 14 }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("toolbar.isolateCycles") })]
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", { className: "cg-dropdown-separator" }),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+										className: "cg-dropdown-section-label",
+										children: t$1("toolbar.quality")
+									}),
+									QUALITY_ITEMS.map(({ panel, Icon, key, btnClass, toggle }) => availablePanels.has(panel) ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+										className: `cg-dropdown-item ${btnClass} ${panelControls[panel] ? "cg-active" : ""}`,
+										onClick: () => {
+											panelControls[toggle]();
+											close();
+										},
+										role: "menuitemcheckbox",
+										"aria-checked": panelControls[panel],
+										title: t$1(key),
+										children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Icon, { size: 14 }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1(key) })]
+									}, panel) : null)
+								] })
 							}),
-							availablePanels.has("showCycles") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `cg-cycle-btn ${showCycles ? "cg-active" : ""}`,
-								onClick: onToggleCycles,
-								title: t$1("toolbar.cycles"),
-								"aria-label": t$1("toolbar.cycles"),
-								"aria-pressed": showCycles,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CycleIcon, { size: 15 })
-							}),
-							showCycles && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `cg-isolate-btn ${cycleIsolation ? "cg-active" : ""}`,
-								onClick: onToggleCycleIsolation,
-								title: t$1("toolbar.isolateCycles"),
-								"aria-label": t$1("toolbar.isolateCycles"),
-								"aria-pressed": cycleIsolation,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(FilterIcon, { size: 15 })
-							}),
-							availablePanels.has("showImpact") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `cg-impact-btn ${showImpact ? "cg-active" : ""}`,
-								onClick: onToggleImpact,
-								title: t$1("toolbar.impact"),
-								"aria-label": t$1("toolbar.impact"),
-								"aria-pressed": showImpact,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ZapIcon, { size: 15 })
-							}),
-							availablePanels.has("showInheritance") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `cg-inheritance-btn ${showInheritance ? "cg-active" : ""}`,
-								onClick: onToggleInheritance,
-								title: t$1("toolbar.inheritance"),
-								"aria-label": t$1("toolbar.inheritance"),
-								"aria-pressed": showInheritance,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(TreeIcon, { size: 15 })
-							}),
-							availablePanels.has("showPathFind") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `cg-pathfind-btn ${showPathFind ? "cg-active" : ""}`,
-								onClick: onTogglePathFind,
-								title: t$1("toolbar.pathFind"),
-								"aria-label": t$1("toolbar.pathFind"),
-								"aria-pressed": showPathFind,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(PathIcon, { size: 15 })
-							}),
-							availablePanels.has("showHealthScore") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `cg-health-btn ${showHealthScore ? "cg-active" : ""}`,
-								onClick: onToggleHealthScore,
-								title: t$1("toolbar.health"),
-								"aria-label": t$1("toolbar.health"),
-								"aria-pressed": showHealthScore,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(HeartIcon, { size: 15 })
-							}),
-							availablePanels.has("showRules") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `cg-rules-btn ${showRules ? "cg-active" : ""}`,
-								onClick: onToggleRules,
-								title: t$1("toolbar.rules"),
-								"aria-label": t$1("toolbar.rules"),
-								"aria-pressed": showRules,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(RuleIcon, { size: 15 })
-							}),
-							availablePanels.has("showHotspot") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `cg-hotspot-btn ${showHotspot ? "cg-active" : ""}`,
-								onClick: onToggleHotspot,
-								title: t$1("toolbar.hotspot"),
-								"aria-label": t$1("toolbar.hotspot"),
-								"aria-pressed": showHotspot,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(FlameIcon, { size: 15 })
-							}),
-							availablePanels.has("showGodModule") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `cg-godmodule-btn ${showGodModule ? "cg-active" : ""}`,
-								onClick: onToggleGodModule,
-								title: t$1("toolbar.godModule"),
-								"aria-label": t$1("toolbar.godModule"),
-								"aria-pressed": showGodModule,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(AlertCircleIcon, { size: 15 })
-							}),
-							availablePanels.has("showCoreFunction") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `cg-corefunction-btn ${showCoreFunction ? "cg-active" : ""}`,
-								onClick: onToggleCoreFunction,
-								title: t$1("toolbar.coreFunction"),
-								"aria-label": t$1("toolbar.coreFunction"),
-								"aria-pressed": showCoreFunction,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(StarIcon, { size: 15 })
-							}),
-							availablePanels.has("showDeadCode") && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-								className: `cg-deadcode-btn ${showDeadCode ? "cg-active" : ""}`,
-								onClick: onToggleDeadCode,
-								title: t$1("toolbar.deadCode"),
-								"aria-label": t$1("toolbar.deadCode"),
-								"aria-pressed": showDeadCode,
-								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GhostIcon, { size: 15 })
-							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							!isNarrow && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								className: `cg-tour-btn ${showTour ? "cg-active" : ""}`,
 								onClick: onToggleTour,
 								title: t$1("toolbar.tour"),
@@ -61120,7 +62072,7 @@ const Toolbar = (0, react.memo)(function Toolbar$1(props) {
 						role: "group",
 						"aria-label": t$1("toolbar.viewGroup"),
 						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							!isCompact && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								className: `cg-minimap-btn ${showMiniMap ? "cg-active" : ""}`,
 								onClick: onToggleMiniMap,
 								title: t$1("toolbar.minimap"),
@@ -61128,7 +62080,7 @@ const Toolbar = (0, react.memo)(function Toolbar$1(props) {
 								"aria-pressed": showMiniMap,
 								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(MapIcon, { size: 15 })
 							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							!isCompact && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								className: `cg-legend-btn ${showLegend ? "cg-active" : ""}`,
 								onClick: onToggleLegend,
 								title: t$1("toolbar.legend"),
@@ -61172,14 +62124,14 @@ const Toolbar = (0, react.memo)(function Toolbar$1(props) {
 						role: "group",
 						"aria-label": t$1("toolbar.settingsGroup"),
 						children: [
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							!isCompact && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								className: "cg-theme-btn",
 								onClick: onThemeToggle,
 								title: t$1("toolbar.theme"),
 								"aria-label": t$1("toolbar.theme"),
 								children: theme === "dark" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SunIcon, { size: 15 }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(MoonIcon, { size: 15 })
 							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							!isCompact && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 								className: "cg-lang-btn",
 								onClick: toggleLang,
 								title: t$1("toolbar.lang"),
@@ -61189,55 +62141,157 @@ const Toolbar = (0, react.memo)(function Toolbar$1(props) {
 									children: lang === "zh" ? "中" : "EN"
 								})
 							}),
-							/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-								className: "cg-export-menu",
-								ref: exportMenuRef,
-								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-									className: "cg-export-btn",
-									onClick: () => setShowExportMenu((v) => !v),
-									title: t$1("toolbar.export"),
-									"aria-label": t$1("toolbar.export"),
-									"aria-haspopup": "menu",
-									"aria-expanded": showExportMenu,
-									children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(DownloadIcon, { size: 15 })
-								}), showExportMenu && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-									className: "cg-export-dropdown",
-									role: "menu",
-									children: [
-										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-											onClick: () => handleExport("png"),
-											role: "menuitem",
-											children: t$1("export.png")
-										}),
-										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-											onClick: () => handleExport("svg"),
-											role: "menuitem",
-											children: t$1("export.svg")
-										}),
-										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-											onClick: () => handleExport("json"),
-											role: "menuitem",
-											children: t$1("export.json")
-										}),
-										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-											onClick: () => handleExport("mermaid"),
-											role: "menuitem",
-											children: t$1("export.mermaid")
-										}),
-										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-											onClick: () => handleExport("graphml"),
-											role: "menuitem",
-											children: t$1("export.graphml")
-										}),
-										/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-											onClick: () => handleExport("jsonld"),
-											role: "menuitem",
-											children: t$1("export.jsonld")
-										})
-									]
-								})]
+							/* @__PURE__ */ (0, react_jsx_runtime.jsx)(Dropdown, {
+								triggerClassName: "cg-export-btn",
+								triggerTitle: t$1("toolbar.export"),
+								triggerAriaLabel: t$1("toolbar.export"),
+								triggerAriaHasPopup: "menu",
+								triggerContent: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(DownloadIcon, { size: 15 }),
+								containerClassName: "cg-export-menu",
+								contentClassName: "cg-export-dropdown",
+								contentRole: "menu",
+								children: (close) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+										onClick: () => {
+											handleExport("png");
+											close();
+										},
+										role: "menuitem",
+										children: t$1("export.png")
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+										onClick: () => {
+											handleExport("svg");
+											close();
+										},
+										role: "menuitem",
+										children: t$1("export.svg")
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+										onClick: () => {
+											handleExport("json");
+											close();
+										},
+										role: "menuitem",
+										children: t$1("export.json")
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+										onClick: () => {
+											handleExport("mermaid");
+											close();
+										},
+										role: "menuitem",
+										children: t$1("export.mermaid")
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+										onClick: () => {
+											handleExport("mermaid-seq");
+											close();
+										},
+										role: "menuitem",
+										children: t$1("export.mermaidSeq")
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+										onClick: () => {
+											handleExport("mermaid-class");
+											close();
+										},
+										role: "menuitem",
+										children: t$1("export.mermaidClass")
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+										onClick: () => {
+											handleExport("graphml");
+											close();
+										},
+										role: "menuitem",
+										children: t$1("export.graphml")
+									}),
+									/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+										onClick: () => {
+											handleExport("jsonld");
+											close();
+										},
+										role: "menuitem",
+										children: t$1("export.jsonld")
+									})
+								] })
 							})
 						]
+					}),
+					(isCompact || isNarrow) && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Dropdown, {
+						triggerClassName: "cg-more-btn",
+						triggerTitle: t$1("toolbar.more"),
+						triggerAriaLabel: t$1("toolbar.more"),
+						triggerAriaHasPopup: "menu",
+						triggerContent: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(MoreIcon, { size: 15 }),
+						contentRole: "menu",
+						children: (close) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
+							isNarrow && availablePanels.has("showSearch") && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+								className: `cg-dropdown-item ${showSearch ? "cg-active" : ""}`,
+								onClick: () => {
+									onToggleSearch();
+									close();
+								},
+								role: "menuitemcheckbox",
+								"aria-checked": showSearch,
+								title: t$1("toolbar.search"),
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(SearchIcon, { size: 14 }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("toolbar.search") })]
+							}),
+							isCompact && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+								className: `cg-dropdown-item ${showMiniMap ? "cg-active" : ""}`,
+								onClick: () => {
+									onToggleMiniMap();
+									close();
+								},
+								role: "menuitemcheckbox",
+								"aria-checked": showMiniMap,
+								title: t$1("toolbar.minimap"),
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(MapIcon, { size: 14 }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("toolbar.minimap") })]
+							}),
+							isCompact && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+								className: `cg-dropdown-item ${showLegend ? "cg-active" : ""}`,
+								onClick: () => {
+									onToggleLegend();
+									close();
+								},
+								role: "menuitemcheckbox",
+								"aria-checked": showLegend,
+								title: t$1("toolbar.legend"),
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(LayersIcon, { size: 14 }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("toolbar.legend") })]
+							}),
+							isCompact && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+								className: "cg-dropdown-item",
+								onClick: () => {
+									onThemeToggle();
+									close();
+								},
+								role: "menuitem",
+								title: t$1("toolbar.theme"),
+								children: [theme === "dark" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)(SunIcon, { size: 14 }) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(MoonIcon, { size: 14 }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("toolbar.theme") })]
+							}),
+							isCompact && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+								className: "cg-dropdown-item",
+								onClick: () => {
+									toggleLang();
+									close();
+								},
+								role: "menuitem",
+								title: t$1("toolbar.lang"),
+								children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("toolbar.lang") })
+							}),
+							isNarrow && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+								className: `cg-dropdown-item ${showTour ? "cg-active" : ""}`,
+								onClick: () => {
+									onToggleTour();
+									close();
+								},
+								role: "menuitemcheckbox",
+								"aria-checked": showTour,
+								title: t$1("toolbar.tour"),
+								children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)(StarIcon, { size: 14 }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: t$1("toolbar.tour") })]
+							})
+						] })
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 						className: "cg-collapse-btn",
@@ -61976,6 +63030,8 @@ const EmptyState = (0, react.memo)(function EmptyState$1({ prerequisites, onImpo
 	const codegraphMissing = !prerequisites.codegraph;
 	const lensMissing = !prerequisites.lens;
 	const anyMissing = codegraphMissing || lensMissing;
+	const allMissing = codegraphMissing && lensMissing;
+	const hasBuiltin = prerequisites.builtin ?? true;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "cg-empty-state",
 		children: [
@@ -61990,6 +63046,16 @@ const EmptyState = (0, react.memo)(function EmptyState$1({ prerequisites, onImpo
 			/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 				className: "cg-empty-subtitle",
 				children: t$1("empty.subtitle")
+			}),
+			allMissing && hasBuiltin && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "cg-empty-degraded-notice",
+				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "cg-degraded-label",
+					children: t$1("empty.degradedMode")
+				}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+					className: "cg-degraded-hint",
+					children: t$1("empty.degradedHint")
+				})]
 			}),
 			anyMissing && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 				className: "cg-empty-prereq-warning",
@@ -62131,14 +63197,11 @@ function isEdgeTooltip(data$2) {
 	return "sourceLabel" in data$2;
 }
 function clampPosition(x$1, y$1) {
-	const offset = 15;
-	const tooltipWidth = 200;
-	const tooltipHeight = 80;
-	const maxX = window.innerWidth - tooltipWidth - offset;
-	const maxY = window.innerHeight - tooltipHeight - offset;
+	const maxX = window.innerWidth - TOOLTIP.WIDTH - TOOLTIP.OFFSET;
+	const maxY = window.innerHeight - TOOLTIP.HEIGHT - TOOLTIP.OFFSET;
 	return {
-		left: Math.min(x$1 + offset, Math.max(offset, maxX)),
-		top: Math.min(y$1 + offset, Math.max(offset, maxY))
+		left: Math.min(x$1 + TOOLTIP.OFFSET, Math.max(TOOLTIP.OFFSET, maxX)),
+		top: Math.min(y$1 + TOOLTIP.OFFSET, Math.max(TOOLTIP.OFFSET, maxY))
 	};
 }
 const GraphTooltip = (0, react.memo)(function GraphTooltip$1({ data: data$2 }) {
@@ -62583,7 +63646,11 @@ const PathBar = (0, react.memo)(function PathBar$1({ onFindPath, onClearPath, pa
 						}),
 						startMatches.length > 0 && !pathStartId && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 							className: "cg-path-suggestions",
+							role: "listbox",
+							"aria-label": t$1("pathFind.startSuggestions"),
 							children: startMatches.map((n) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+								role: "option",
+								"aria-selected": false,
 								onClick: () => {
 									setStartQuery(n.label);
 									setPathStart(NodeId(n.id));
@@ -62623,7 +63690,11 @@ const PathBar = (0, react.memo)(function PathBar$1({ onFindPath, onClearPath, pa
 						}),
 						endMatches.length > 0 && !pathEndId && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 							className: "cg-path-suggestions",
+							role: "listbox",
+							"aria-label": t$1("pathFind.endSuggestions"),
 							children: endMatches.map((n) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
+								role: "option",
+								"aria-selected": false,
 								onClick: () => {
 									setEndQuery(n.label);
 									setPathEnd(NodeId(n.id));
@@ -63199,7 +64270,7 @@ const CoreFunctionPanel = (0, react.memo)(function CoreFunctionPanel$1({ coreFun
 	const categoryLabel = (cat) => t$1(`coreFunction.category.${cat}`);
 	const reasonLabel = (r) => t$1(`coreFunction.reason.${r}`);
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-		className: "cg-analysis-panel core-function-panel",
+		className: "cg-analysis-panel cg-core-function-panel",
 		role: "region",
 		"aria-label": label,
 		"aria-live": "polite",
@@ -63208,6 +64279,7 @@ const CoreFunctionPanel = (0, react.memo)(function CoreFunctionPanel$1({ coreFun
 			children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", { children: label }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 				onClick: onClose,
 				className: "cg-close-btn",
+				"aria-label": t$1("common.close"),
 				children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(CloseIcon, { size: 14 })
 			})]
 		}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
@@ -63375,6 +64447,12 @@ const DeadCodePanel = (0, react.memo)(function DeadCodePanel$1({ result, onClose
 				}) : filtered.slice(0, 50).map((d) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 					className: `cg-deadcode-item cg-${d.confidence}`,
 					onClick: () => onSelectNode?.(d.nodeId),
+					onKeyDown: (e) => {
+						if (e.key === "Enter" || e.key === " ") {
+							e.preventDefault();
+							onSelectNode?.(d.nodeId);
+						}
+					},
 					role: "button",
 					tabIndex: 0,
 					children: [
@@ -63987,10 +65065,12 @@ const MicroViewPrompt = (0, react.memo)(function MicroViewPrompt$1({ viewMode, s
 });
 const MicroFunctionBar = (0, react.memo)(function MicroFunctionBar$1({ functionName, filePath, viewMode, onClose }) {
 	const t$1 = useT();
-	const modeLabel = viewMode === "cfg" ? "CFG" : viewMode === "flowchart" ? t$1("viewMode.flowchart") : viewMode === "sequence" ? t$1("viewMode.sequence") : "";
+	const modeLabel = viewMode === "cfg" ? t$1("viewMode.cfg") : viewMode === "flowchart" ? t$1("viewMode.flowchart") : viewMode === "sequence" ? t$1("viewMode.sequence") : "";
 	const shortPath = filePath ? filePath.split(/[\\/]/).slice(-2).join("/") : "";
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "cg-micro-function-bar",
+		role: "region",
+		"aria-label": t$1("micro.functionBar"),
 		children: [
 			modeLabel && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 				className: "cg-micro-function-mode",
@@ -64659,16 +65739,19 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 				children: [
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 						className: "cg-seq-zoom-btn",
+						"aria-label": t$1("sequence.zoomIn"),
 						onClick: () => setZoom((z) => Math.min(3, z * 1.2)),
 						children: "+"
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 						className: "cg-seq-zoom-btn",
+						"aria-label": t$1("sequence.zoomOut"),
 						onClick: () => setZoom((z) => Math.max(.3, z * .8)),
 						children: "−"
 					}),
 					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
 						className: "cg-seq-zoom-btn cg-seq-reset",
+						"aria-label": t$1("sequence.resetView"),
 						onClick: handleResetView,
 						children: "⟲"
 					})
@@ -64684,7 +65767,7 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 
 //#endregion
 //#region src/client/GraphPanel.tsx
-const log$1 = scoped("panel");
+const log$2 = scoped("panel");
 function GraphPanelInner({ className = "" }) {
 	const t$1 = useT();
 	const panelRef = (0, react.useRef)(null);
@@ -64702,13 +65785,13 @@ function GraphPanelInner({ className = "" }) {
 	const { nodes, edges, rawNodes, rawEdges } = useGraphData();
 	const { layout: layout$2, dagreRankDir, theme, filterType, graphType, clusterDepth, viewMode, currentLayer, diagramData } = useGraphDisplay();
 	const { searchQuery, selectedNodeId, highlightedNodeIds, expandedNodeIds, pathResult, focusDepth, focusModeActive, focusModeNodeId, pathFilterInclude, pathFilterExclude } = useGraphInteraction();
-	const { isLoading, error: error$1, lastUpdated, truncated, totalNodeCount, prerequisites, watchEnabled, initStatus } = useGraphStatus();
+	const { isLoading, error: error$1, lastUpdated, truncated, totalNodeCount, prerequisites, watchEnabled, initStatus, urlRestored, panelVisible } = useGraphStatus();
 	const { currentWorkspace, workspaceList } = useGraphWorkspace();
-	const { ruleViolations, selectedFunction, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, heatmapMode } = useGraphAnalysis();
+	const { ruleViolations, selectedFunction, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, heatmapMode, todoMarkerMode } = useGraphAnalysis();
 	const { performanceDegradations, lodLevel, lodEnabled } = useGraphPerformance();
 	const actions = useGraphActions();
 	const { panelHeight, panelWidth } = usePanelDimensions();
-	const { setLayout, setDagreRankDir, setTheme, setSearchQuery, setSelectedNode, setFilterType, setGraphType, setClusterDepth, setLayer, setLoading, setCurrentWorkspace, addWorkspace, removeWorkspace, setGraphData, setInitStatus, setWatchEnabled, setError, expandNode, collapseNode, collapseAll, setPathResult, setFocusDepth, setHeatmapMode, setLODLevel, assembleMicro } = actions;
+	const { setLayout, setDagreRankDir, setTheme, setSearchQuery, setSelectedNode, setFilterType, setGraphType, setClusterDepth, setLayer, setLoading, setCurrentWorkspace, addWorkspace, removeWorkspace, setGraphData, setInitStatus, setWatchEnabled, setError, expandNode, collapseNode, collapseAll, setPathResult, setFocusDepth, setHeatmapMode, setTodoMarkerMode, setLODLevel, assembleMicro } = actions;
 	const handleCollapseAll = (0, react.useCallback)(() => {
 		collapseAll();
 	}, [collapseAll]);
@@ -64736,64 +65819,10 @@ function GraphPanelInner({ className = "" }) {
 		rawEdges,
 		graphCache
 	]);
-	const urlRestoredRef = (0, react.useRef)(false);
 	(0, react.useEffect)(() => {
-		if (urlRestoredRef.current) return;
-		if (rawNodes.length === 0) return;
-		const parsed = readUrlExpand();
-		if (parsed.expandedDirs.length === 0 && parsed.expandedFiles.length === 0 && parsed.expandedSymbols.length === 0 && parsed.expandedSubgroups.length === 0) {
-			urlRestoredRef.current = true;
-			return;
-		}
-		const restoreSequentially = async () => {
-			const levels = [
-				{
-					ids: parsed.expandedDirs.map((d) => `cluster__${d}`),
-					label: "dirs"
-				},
-				{
-					ids: parsed.expandedFiles.map((f) => `filecluster__${f}`),
-					label: "files"
-				},
-				{
-					ids: parsed.expandedSymbols,
-					label: "symbols"
-				},
-				{
-					ids: parsed.expandedSubgroups.map((g) => `subgroup__${g}`),
-					label: "subgroups"
-				}
-			];
-			for (const level of levels) {
-				if (level.ids.length === 0) continue;
-				const validIds = [];
-				const missingIds = [];
-				for (const id of level.ids) {
-					const state = useGraphStore.getState();
-					const exists = state.rawNodes.some((n) => n.id === id) || state.nodes.some((n) => n.id === id);
-					if (exists) validIds.push(id);
-					else missingIds.push(id);
-				}
-				if (validIds.length > 0) useGraphStore.getState().batchExpandNodes(validIds);
-				for (const id of missingIds) {
-					await useGraphStore.getState().loadNodeChildren(id);
-					const state = useGraphStore.getState();
-					const loaded = state.rawNodes.some((n) => n.id === id) || state.nodes.some((n) => n.id === id);
-					if (loaded) useGraphStore.getState().batchExpandNodes([id]);
-				}
-			}
-		};
-		restoreSequentially().then(() => {
-			urlRestoredRef.current = true;
-		}).catch((err) => {
-			log$1.warn("URL restore failed", { err });
-			urlRestoredRef.current = true;
-		});
-	}, [rawNodes]);
-	(0, react.useEffect)(() => {
-		if (!urlRestoredRef.current) return;
+		if (!urlRestored) return;
 		updateUrlExpand(expandedNodeIds);
-	}, [expandedNodeIds]);
+	}, [expandedNodeIds, urlRestored]);
 	const debouncedSearch = useDebounce(searchQuery, UI.SEARCH_DEBOUNCE_MS);
 	const { search: searchNodes } = useNodeSearch(rawNodes);
 	const showCallChainRef = (0, react.useRef)(panel.showCallChain);
@@ -64841,7 +65870,7 @@ function GraphPanelInner({ className = "" }) {
 			const data$2 = getDataRef.current?.getNodeData(id) ?? null;
 			setSelectedNodeData(data$2);
 		} catch (err) {
-			log$1.error("handleNodeTap failed", {
+			log$2.error("handleNodeTap failed", {
 				id,
 				err
 			});
@@ -64870,7 +65899,7 @@ function GraphPanelInner({ className = "" }) {
 				});
 			}
 		} catch (err) {
-			log$1.error("handleNodeHover failed", {
+			log$2.error("handleNodeHover failed", {
 				nodeId,
 				err
 			});
@@ -64917,7 +65946,7 @@ function GraphPanelInner({ className = "" }) {
 				});
 			}
 		} catch (err) {
-			log$1.error("handleEdgeTap failed", {
+			log$2.error("handleEdgeTap failed", {
 				edgeId,
 				err
 			});
@@ -64934,7 +65963,8 @@ function GraphPanelInner({ className = "" }) {
 			dagreRankDir,
 			theme,
 			clusterDepth,
-			heatmapMode
+			heatmapMode,
+			todoMarkerMode
 		},
 		interaction: {
 			highlightedNodeIds,
@@ -65109,6 +66139,12 @@ function GraphPanelInner({ className = "" }) {
 		panelHeight,
 		renderer$1.rendererRef
 	]);
+	(0, react.useEffect)(() => {
+		const r = renderer$1.rendererRef.current;
+		if (!r) return;
+		if (panelVisible) r.resumeAnimations();
+		else r.pauseAnimations();
+	}, [panelVisible, renderer$1.rendererRef]);
 	usePanelKeyboard(layout$2, setLayout, renderer$1.rendererRef, {
 		onToggleSearch: panel.toggleSearch,
 		onCloseAll: () => {
@@ -65172,20 +66208,14 @@ function GraphPanelInner({ className = "" }) {
 			setViewportInfo(r.getViewportInfo());
 		};
 		updateMiniMap();
-		let rafId = null;
 		let lastUpdate = 0;
-		const throttledUpdate = () => {
+		const intervalId = setInterval(() => {
 			const now$1 = Date.now();
 			if (now$1 - lastUpdate < UI.MINIMAP_THROTTLE_MS) return;
 			lastUpdate = now$1;
-			if (rafId !== null) cancelAnimationFrame(rafId);
-			rafId = requestAnimationFrame(updateMiniMap);
-		};
-		const fallbackId = setInterval(throttledUpdate, UI.MINIMAP_UPDATE_INTERVAL_MS);
-		return () => {
-			if (rafId !== null) cancelAnimationFrame(rafId);
-			clearInterval(fallbackId);
-		};
+			updateMiniMap();
+		}, UI.MINIMAP_UPDATE_INTERVAL_MS);
+		return () => clearInterval(intervalId);
 	}, [
 		panel.showMiniMap,
 		panel.collapsed,
@@ -65203,7 +66233,7 @@ function GraphPanelInner({ className = "" }) {
 			setTheme(newTheme);
 			renderer$1.updateTheme(newTheme);
 		} catch (err) {
-			log$1.error("handleThemeToggle failed", { err });
+			log$2.error("handleThemeToggle failed", { err });
 		}
 	}, [
 		theme,
@@ -65259,7 +66289,7 @@ function GraphPanelInner({ className = "" }) {
 					return nodeId;
 				});
 			} catch (err) {
-				log$1.error("handleNodeDoubleTap failed", {
+				log$2.error("handleNodeDoubleTap failed", {
 					nodeId,
 					err
 				});
@@ -65275,12 +66305,12 @@ function GraphPanelInner({ className = "" }) {
 	const handleRefresh = (0, react.useCallback)(() => {
 		setLoading(true);
 		window.dispatchEvent(new CustomEvent(DOM_EVENTS.REFRESH, { detail: { incremental: false } }));
-		log$1.info("manual refresh (full)");
+		log$2.info("manual refresh (full)");
 	}, [setLoading]);
 	const handleScanWorkspace = (0, react.useCallback)(() => {
 		setLoading(true);
 		window.dispatchEvent(new CustomEvent(DOM_EVENTS.IMPORT_REPO, { detail: { path: currentWorkspace || "." } }));
-		log$1.info("scan workspace from empty state", { path: currentWorkspace });
+		log$2.info("scan workspace from empty state", { path: currentWorkspace });
 	}, [setLoading, currentWorkspace]);
 	const handleFindPath = (0, react.useCallback)((sourceId, targetId) => {
 		try {
@@ -65295,7 +66325,7 @@ function GraphPanelInner({ className = "" }) {
 				r.highlightPath(null);
 			}
 		} catch (err) {
-			log$1.error("handleFindPath failed", {
+			log$2.error("handleFindPath failed", {
 				sourceId,
 				targetId,
 				err
@@ -65362,10 +66392,10 @@ function GraphPanelInner({ className = "" }) {
 		if (!prerequisites.codegraph) return;
 		if (!currentWorkspace) return;
 		hasAutoScannedRef.current = true;
-		log$1.info("auto-fill: triggering bootstrap on first open", { path: currentWorkspace });
+		log$2.info("auto-fill: triggering bootstrap on first open", { path: currentWorkspace });
 		useGraphStore.getState().loadBootstrap().then((ok) => {
 			if (!ok) {
-				log$1.info("auto-fill: bootstrap failed, falling back to scan", { path: currentWorkspace });
+				log$2.info("auto-fill: bootstrap failed, falling back to scan", { path: currentWorkspace });
 				handleScanWorkspace();
 			}
 		});
@@ -65391,7 +66421,8 @@ function GraphPanelInner({ className = "" }) {
 		t$1
 	]);
 	const expandedFunctionBodyCount = (0, react.useMemo)(() => {
-		return [...expandedNodeIds].filter((id) => rawNodes.some((n) => n.id === id && n.type === "function")).length;
+		const functionIdSet = new Set(rawNodes.filter((n) => n.type === "function").map((n) => n.id));
+		return [...expandedNodeIds].filter((id) => functionIdSet.has(id)).length;
 	}, [expandedNodeIds, rawNodes]);
 	const showFunctionBodyBudget = expandedFunctionBodyCount > 0;
 	const searchResults = (0, react.useMemo)(() => {
@@ -65410,7 +66441,7 @@ function GraphPanelInner({ className = "" }) {
 			setSelectedNodeData(data$2);
 			panel.setShowSearch(false);
 		} catch (err) {
-			log$1.error("handleSelectSearchResult failed", {
+			log$2.error("handleSelectSearchResult failed", {
 				id,
 				err
 			});
@@ -65434,7 +66465,8 @@ function GraphPanelInner({ className = "" }) {
 	}, [
 		panel.showCycles,
 		nodes.length,
-		edges.length
+		edges.length,
+		renderer$1.rendererRef
 	]);
 	const tourData = (0, react.useMemo)(() => buildTour(rawNodes, rawEdges), [rawNodes, rawEdges]);
 	const panelClassName = (0, react.useMemo)(() => `cg-graph-panel cg-resizable ${panel.collapsed ? "cg-collapsed" : ""} ${className}`.trim(), [panel.collapsed, className]);
@@ -65459,34 +66491,44 @@ function GraphPanelInner({ className = "" }) {
 					class: nodeTypeCounts.class,
 					interface: nodeTypeCounts.interface
 				},
-				layout: layout$2,
-				dagreRankDir,
 				theme,
-				filterType,
-				graphType,
-				clusterDepth,
-				viewMode,
-				currentLayer,
-				layerNames: diagramData?.layers.map((l) => l.name) ?? [],
-				onLayerChange: setLayer,
 				collapsed: panel.collapsed,
 				panelControls: panel.toPanelControls,
-				onViewModeChange: handleViewModeChange,
-				onLayoutChange: setLayout,
-				onDagreRankDirChange: setDagreRankDir,
+				layoutConfig: {
+					layout: layout$2,
+					dagreRankDir,
+					clusterDepth,
+					onChange: (field, value) => {
+						if (field === "layout") setLayout(value);
+						else if (field === "dagreRankDir") setDagreRankDir(value);
+						else if (field === "clusterDepth") setClusterDepth(value);
+					}
+				},
+				viewConfig: {
+					viewMode,
+					graphType,
+					filterType,
+					currentLayer,
+					layerNames: diagramData?.layers.map((l) => l.name) ?? [],
+					hasSelectedFunction: !!selectedFunction,
+					onChange: (field, value) => {
+						if (field === "viewMode") handleViewModeChange(value);
+						else if (field === "graphType") setGraphType(value);
+						else if (field === "filterType") setFilterType(value);
+						else if (field === "layer") setLayer(value);
+					}
+				},
+				history: {
+					undo: history.undo,
+					redo: history.redo,
+					canUndo: history.canUndo,
+					canRedo: history.canRedo
+				},
 				onThemeToggle: handleThemeToggle,
-				onFilterChange: setFilterType,
-				onGraphTypeChange: setGraphType,
-				onClusterDepthChange: setClusterDepth,
 				onRefresh: handleRefresh,
 				onExport: renderer$1.exportGraph,
 				onCollapse: panel.toggleCollapsed,
 				onCollapseAll: handleCollapseAll,
-				onUndo: history.undo,
-				onRedo: history.redo,
-				canUndo: history.canUndo,
-				canRedo: history.canRedo,
-				hasSelectedFunction: !!selectedFunction,
 				currentWorkspace,
 				workspaceList,
 				onSwitchWorkspace: handleWorkspaceSwitch,
@@ -65544,30 +66586,62 @@ function GraphPanelInner({ className = "" }) {
 					}) })
 				]
 			}),
-			!isCollapsed && !isMicroView && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-				className: `cg-heatmap-bar ${heatmapMode === "none" ? "cg-heatmap-bar--collapsed" : ""}`,
+			!isCollapsed && !isMicroView && /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
+				className: "cg-overlay-bar",
 				role: "group",
-				"aria-label": t$1("heatmap.title"),
-				children: heatmapMode === "none" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-					className: "cg-heatmap-btn cg-heatmap-btn--activate",
-					onClick: () => setHeatmapMode("instability"),
-					"aria-label": t$1("heatmap.title"),
-					children: t$1("heatmap.title")
-				}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-					className: "cg-heatmap-label",
-					children: [t$1("heatmap.title"), ":"]
-				}), [
-					"none",
-					"instability",
-					"lines",
-					"complexity"
-				].map((m) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-					className: `cg-heatmap-btn ${heatmapMode === m ? "cg-active" : ""}`,
-					onClick: () => setHeatmapMode(m),
-					"aria-pressed": heatmapMode === m,
-					"aria-label": t$1(`heatmap.${m}`),
-					children: t$1(`heatmap.${m}`)
-				}, m))] })
+				"aria-label": t$1("overlay.title"),
+				children: [
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: `cg-overlay-section ${heatmapMode === "none" ? "cg-overlay-section--collapsed" : ""}`,
+						children: heatmapMode === "none" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							className: "cg-overlay-btn cg-overlay-btn--activate",
+							onClick: () => setHeatmapMode("instability"),
+							"aria-label": t$1("heatmap.title"),
+							children: t$1("heatmap.title")
+						}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+							className: "cg-overlay-label",
+							children: [t$1("heatmap.title"), ":"]
+						}), [
+							"none",
+							"instability",
+							"lines",
+							"complexity"
+						].map((m) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							className: `cg-overlay-btn ${heatmapMode === m ? "cg-active" : ""}`,
+							onClick: () => setHeatmapMode(m),
+							"aria-pressed": heatmapMode === m,
+							"aria-label": t$1(`heatmap.${m}`),
+							children: t$1(`heatmap.${m}`)
+						}, m))] })
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: "cg-overlay-divider",
+						"aria-hidden": "true"
+					}),
+					/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className: `cg-overlay-section ${todoMarkerMode === "none" ? "cg-overlay-section--collapsed" : ""}`,
+						children: todoMarkerMode === "none" ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							className: "cg-overlay-btn cg-overlay-btn--activate",
+							onClick: () => setTodoMarkerMode("all"),
+							"aria-label": t$1("todoMarker.title"),
+							children: t$1("todoMarker.title")
+						}) : /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
+							className: "cg-overlay-label",
+							children: [t$1("todoMarker.title"), ":"]
+						}), [
+							"none",
+							"todo",
+							"fixme",
+							"all"
+						].map((m) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							className: `cg-overlay-btn ${todoMarkerMode === m ? "cg-active" : ""}`,
+							onClick: () => setTodoMarkerMode(m),
+							"aria-pressed": todoMarkerMode === m,
+							"aria-label": t$1(`todoMarker.${m}`),
+							children: t$1(`todoMarker.${m}`)
+						}, m))] })
+					})
+				]
 			}),
 			focusNodeId && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(FocusModeBar, {
 				focusNodeId,
@@ -65613,7 +66687,11 @@ function GraphPanelInner({ className = "" }) {
 				className: "cg-graph-container",
 				ref: renderer$1.containerRef,
 				role: "application",
-				"aria-label": t$1("a11y.graphContainer") + `: ${t$1(`viewMode.${viewMode}`)}, ${nodes.length} ${t$1("a11y.nodes")}, ${edges.length} ${t$1("a11y.edges")}`,
+				"aria-label": t$1("a11y.graphContainerStats", {
+					viewMode: t$1(`viewMode.${viewMode}`),
+					nodeCount: nodes.length,
+					edgeCount: edges.length
+				}),
 				"aria-describedby": "cg-graph-live-region",
 				style: { display: viewMode === "sequence" && selectedFunction ? "none" : void 0 },
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
@@ -65621,7 +66699,12 @@ function GraphPanelInner({ className = "" }) {
 					className: "cg-visually-hidden",
 					role: "status",
 					"aria-live": "polite",
-					children: selectedNodeData ? `${t$1("a11y.selectedNode")}: ${selectedNodeData.label}, ${selectedNodeData.type}, ${selectedNodeData.filePath}:${selectedNodeData.lineNumber}` : ""
+					children: selectedNodeData ? t$1("a11y.selectedNodeDetail", {
+						label: selectedNodeData.label,
+						type: selectedNodeData.type,
+						filePath: selectedNodeData.filePath,
+						lineNumber: selectedNodeData.lineNumber ?? 0
+					}) : ""
 				}), nodes.length > 0 && visibleNodeCount === 0 && !isMicroView && /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 					className: "cg-filter-empty-state",
 					role: "status",
@@ -65706,10 +66789,6 @@ function GraphPanelInner({ className = "" }) {
 					}) })
 				]
 			}),
-			panel.showLegend && !isCollapsed && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(GraphErrorBoundary, { children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Legend, {
-				viewMode,
-				onClose: () => panel.setShowLegend(false)
-			}) }),
 			contextMenu && /* @__PURE__ */ (0, react_jsx_runtime.jsx)(ContextMenu, {
 				nodeId: contextMenu.nodeId,
 				nodeData: getDataRef.current?.getNodeData(contextMenu.nodeId) ?? null,
@@ -65789,10 +66868,90 @@ function GraphPanel(props) {
 const PLUGIN_VERSION = "0.2.0";
 
 //#endregion
+//#region src/client/compat/ClientCompatLayer.ts
+const log$1 = scoped("client:compat");
+function safeCheck(fn$7, fallback) {
+	try {
+		return fn$7();
+	} catch {
+		return fallback;
+	}
+}
+function createClientCompatLayer() {
+	let _mode = "floating";
+	let _flags = {
+		sidebarRightTabs: false,
+		betterSidebar: false,
+		spotlight: false,
+		slots: false
+	};
+	const detectMode = (ctx) => {
+		if (safeCheck(() => {
+			const tabs = ctx.sidebarRightTabs;
+			return tabs !== null && tabs !== void 0;
+		}, false)) {
+			_mode = "sidebar-right";
+			return _mode;
+		}
+		if (safeCheck(() => {
+			const bs = ctx.get("betterSidebar");
+			return bs !== null && bs !== void 0;
+		}, false)) {
+			_mode = "better-sidebar";
+			return _mode;
+		}
+		if (safeCheck(() => ctx.slots !== null && ctx.slots !== void 0, false)) {
+			_mode = "slot";
+			return _mode;
+		}
+		_mode = "floating";
+		return _mode;
+	};
+	const detectFlags = (ctx) => {
+		_flags = {
+			sidebarRightTabs: safeCheck(() => {
+				const tabs = ctx.sidebarRightTabs;
+				return tabs !== null && tabs !== void 0;
+			}, false),
+			betterSidebar: safeCheck(() => {
+				const bs = ctx.get("betterSidebar");
+				return bs !== null && bs !== void 0;
+			}, false),
+			spotlight: safeCheck(() => {
+				const sp = ctx.get("spotlight");
+				return sp !== null && sp !== void 0;
+			}, false),
+			slots: safeCheck(() => ctx.slots !== null && ctx.slots !== void 0, false)
+		};
+		log$1.info("client feature flags resolved", {
+			flags: _flags,
+			mode: _mode
+		});
+		return _flags;
+	};
+	const hasFlag = (key) => _flags[key];
+	return {
+		get mode() {
+			return _mode;
+		},
+		get flags() {
+			return _flags;
+		},
+		detectMode,
+		detectFlags,
+		hasFlag
+	};
+}
+
+//#endregion
 //#region src/client/index.ts
 const log = scoped("client");
 const name = "dsh-codegraph-visualizer-client";
-const inject = ["slots"];
+const inject = [
+	"slots",
+	"betterSidebar",
+	"sidebarRightTabs"
+];
 function SidebarNavButton({ onClick, active }) {
 	return react.default.createElement("button", {
 		onClick,
@@ -65801,12 +66960,25 @@ function SidebarNavButton({ onClick, active }) {
 		"aria-label": t("nav.ariaLabel")
 	}, react.default.createElement(GraphIcon, { size: 18 }));
 }
-function FloatingGraphPanel({ onClose }) {
-	return react.default.createElement("div", { className: "cg-floating-overlay" }, react.default.createElement("div", { className: "cg-floating-panel" }, react.default.createElement("div", { className: "cg-floating-header" }, react.default.createElement("span", { className: "cg-floating-title" }, t("nav.title")), react.default.createElement("button", {
+function FloatingGraphPanel({ onClose, onMinimize }) {
+	return react.default.createElement("div", { className: "cg-floating-overlay" }, react.default.createElement("div", { className: "cg-floating-panel" }, react.default.createElement("div", { className: "cg-floating-header" }, react.default.createElement("div", { className: "cg-floating-header-left" }, react.default.createElement("span", { className: "cg-floating-title" }, t("nav.title")), react.default.createElement("span", { className: "cg-floating-mode-badge" }, t("nav.modeFloating"))), react.default.createElement("div", { className: "cg-floating-header-actions" }, react.default.createElement("button", {
+		onClick: onMinimize,
+		className: "cg-floating-minimize",
+		"aria-label": t("nav.minimizePanel"),
+		title: t("nav.minimizePanel")
+	}, "–"), react.default.createElement("button", {
 		onClick: onClose,
 		className: "cg-floating-close",
 		"aria-label": t("nav.closePanel")
-	}, "×")), react.default.createElement("div", { className: "cg-floating-content" }, react.default.createElement(GraphPanel))));
+	}, "×"))), react.default.createElement("div", { className: "cg-floating-content" }, react.default.createElement(GraphPanel))));
+}
+function MinimizedFloatingButton({ onRestore }) {
+	return react.default.createElement("button", {
+		onClick: onRestore,
+		className: "cg-floating-minimized-btn",
+		"aria-label": t("nav.restorePanel"),
+		title: t("nav.restorePanel")
+	}, react.default.createElement(GraphIcon, { size: 20 }));
 }
 function init(container, initialData) {
 	const root$12 = react_dom_client.default.createRoot(container);
@@ -65818,9 +66990,16 @@ function init(container, initialData) {
 	return () => root$12.unmount();
 }
 function apply(ctx) {
+	const compat = createClientCompatLayer();
+	compat.detectFlags(ctx);
+	compat.detectMode(ctx);
+	const flags = compat.flags;
 	let panelVisible = false;
 	let navButtonRegistered = false;
 	let renderFloating = () => {};
+	let betterSidebarApi;
+	let _betterSidebarTabId;
+	let sidebarStateDisposer;
 	const slotDisposers = [];
 	const trackSlotDisposer = (d) => {
 		if (typeof d === "function") slotDisposers.push(d);
@@ -65829,29 +67008,124 @@ function apply(ctx) {
 		for (const dispose of slotDisposers) dispose();
 		slotDisposers.length = 0;
 	}, "codegraph: slot registrations cleanup");
+	const openSidebarTab = () => {
+		if (betterSidebarApi) try {
+			betterSidebarApi.openTab({ type: "codegraph-visualizer" });
+		} catch (e) {
+			log.warn("betterSidebar.openTab failed", e);
+		}
+	};
 	const togglePanel = () => {
+		if (betterSidebarApi && !panelVisible) {
+			openSidebarTab();
+			return;
+		}
 		panelVisible = !panelVisible;
 		const container = document.querySelector(".cg-floating-container");
 		if (container) container.setAttribute("data-visible", String(panelVisible));
 		renderFloating();
 	};
 	try {
-		const betterSidebar = ctx.get("betterSidebar");
-		if (betterSidebar) {
-			const dispose = betterSidebar.registerTab({
+		const seatDispose = ctx.inject(["sidebarRightTabs"], (injected) => {
+			const tabs = injected.get("sidebarRightTabs");
+			if (!tabs) {
+				log.warn("sidebarRightTabs injected but undefined");
+				return;
+			}
+			log.info("sidebarRightTabs injected via ctx.inject, registering...");
+			const typeDispose = tabs.register({
+				id: "dsh-codegraph-visualizer",
+				kind: "codegraph",
+				priority: "extension",
+				canOpen: () => true,
+				title: () => t("nav.title")
+			});
+			if (typeof typeDispose === "function") slotDisposers.push(typeDispose);
+			const bodyDispose = ctx.slots.inject("sidebar.right.pane.tab", () => {
+				const regResult = ctx.slots.register({
+					name: "sidebar.right.pane.tab",
+					key: "dsh-codegraph-visualizer"
+				}, GraphPanel);
+				if (typeof regResult === "function") slotDisposers.push(regResult);
+			});
+			if (typeof bodyDispose === "function") slotDisposers.push(bodyDispose);
+			navButtonRegistered = true;
+			useGraphStore.getState().setIntegrationMode("sidebar-right");
+			log.info("sidebarRightTabs registration succeeded");
+		});
+		if (typeof seatDispose === "function") slotDisposers.push(seatDispose);
+	} catch (e) {
+		log.error("sidebarRightTabs ctx.inject failed", e);
+	}
+	if (!navButtonRegistered && flags.betterSidebar) try {
+		betterSidebarApi = ctx.get("betterSidebar");
+		if (betterSidebarApi) {
+			const dispose = betterSidebarApi.registerTab({
 				id: "codegraph-visualizer",
-				title: t("nav.title"),
+				title: () => t("nav.title"),
+				description: () => t("nav.description"),
 				icon: (size$1) => react.default.createElement(GraphIcon, { size: size$1 }),
 				order: 50,
 				single: true,
-				component: ({ visible }) => {
-					panelVisible = visible;
-					return visible ? react.default.createElement(GraphPanel) : null;
+				badge: () => {
+					const s = useGraphStore.getState();
+					if (s.nodes.length === 0) return null;
+					return s.nodes.length > 99 ? "99+" : s.nodes.length;
+				},
+				onOpen: (tab, scope) => {
+					log.info("better-sidebar tab opened", {
+						tabId: tab?.id,
+						scope
+					});
+					useGraphStore.getState().setPanelVisible(true);
+				},
+				onActivate: (tab, scope) => {
+					log.info("better-sidebar tab activated", {
+						tabId: tab?.id,
+						scope
+					});
+					useGraphStore.getState().setPanelVisible(true);
+				},
+				onClose: (tab, scope) => {
+					log.info("better-sidebar tab closed", {
+						tabId: tab?.id,
+						scope
+					});
+					useGraphStore.getState().setPanelVisible(false);
+				},
+				component: (props) => {
+					panelVisible = props.visible;
+					useGraphStore.getState().setPanelVisible(props.visible);
+					if (props.tab?.id) _betterSidebarTabId = props.tab.id;
+					return react.default.createElement("div", {
+						style: {
+							display: props.visible ? "block" : "none",
+							width: "100%",
+							height: "100%"
+						},
+						"data-cg-sidebar-visible": String(props.visible)
+					}, react.default.createElement(GraphPanel));
 				}
 			});
 			if (typeof dispose === "function") {
 				ctx.effect(() => dispose, "codegraph: better-sidebar tab");
 				navButtonRegistered = true;
+				useGraphStore.getState().setIntegrationMode("sidebar");
+				try {
+					sidebarStateDisposer = betterSidebarApi.subscribeState(() => {
+						const snapshot = betterSidebarApi?.getSnapshot();
+						if (snapshot?.state) {
+							const isVisible = snapshot.state.activePane === "codegraph-visualizer" || snapshot.state.bottomOpen;
+							if (isVisible !== panelVisible) {
+								panelVisible = isVisible;
+								useGraphStore.getState().setPanelVisible(isVisible);
+							}
+						}
+					});
+					if (sidebarStateDisposer) ctx.effect(() => sidebarStateDisposer, "codegraph: sidebar state subscription");
+				} catch (e) {
+					log.warn("better-sidebar subscribeState failed", e);
+				}
 			} else log.warn("better-sidebar registerTab did not return a disposer, falling back to slots");
 		}
 	} catch (e) {
@@ -65871,35 +67145,53 @@ function apply(ctx) {
 		});
 		trackSlotDisposer(injectDisposer);
 		navButtonRegistered = true;
+		useGraphStore.getState().setIntegrationMode("slot");
 	} catch (e) {
 		log.warn("sidebar.footer.action slot failed", e);
 	}
 	if (!navButtonRegistered && typeof document !== "undefined") {
+		let floatingMinimized = false;
 		const floatingContainer = document.createElement("div");
 		floatingContainer.className = "cg-floating-container";
 		floatingContainer.setAttribute("data-visible", "false");
 		document.body.appendChild(floatingContainer);
 		const floatingRoot = react_dom_client.default.createRoot(floatingContainer);
 		renderFloating = () => {
-			floatingRoot.render(panelVisible ? react.default.createElement(FloatingGraphPanel, { onClose: () => {
-				panelVisible = false;
-				floatingContainer.setAttribute("data-visible", "false");
+			if (!panelVisible) {
+				floatingRoot.render(null);
+				return;
+			}
+			if (floatingMinimized) floatingRoot.render(react.default.createElement(MinimizedFloatingButton, { onRestore: () => {
+				floatingMinimized = false;
 				renderFloating();
-			} }) : null);
+			} }));
+			else floatingRoot.render(react.default.createElement(FloatingGraphPanel, {
+				onClose: () => {
+					panelVisible = false;
+					floatingContainer.setAttribute("data-visible", "false");
+					renderFloating();
+				},
+				onMinimize: () => {
+					floatingMinimized = true;
+					renderFloating();
+				}
+			}));
 		};
 		renderFloating();
+		useGraphStore.getState().setIntegrationMode("floating");
 		ctx.effect(() => () => {
 			floatingRoot.unmount();
 			floatingContainer.remove();
 		}, "codegraph: floating panel cleanup");
 	}
-	try {
+	if (flags.spotlight) try {
 		const spotlight = ctx.get("spotlight");
 		if (spotlight) {
 			const d1 = spotlight.registerCommand({
 				id: "codegraph-search",
 				title: t("nav.searchSymbols"),
 				handler: () => {
+					openSidebarTab();
 					window.dispatchEvent(new KeyboardEvent("keydown", { key: "/" }));
 				}
 			});
@@ -65910,6 +67202,45 @@ function apply(ctx) {
 				handler: () => togglePanel()
 			});
 			if (typeof d2 === "function") ctx.effect(() => d2, "codegraph: spotlight toggle cmd");
+			const d3 = spotlight.registerCommand({
+				id: "codegraph-layout",
+				title: t("nav.switchLayout"),
+				handler: () => {
+					openSidebarTab();
+					const store = useGraphStore.getState();
+					const layouts = [
+						"cose",
+						"fcose",
+						"dagre",
+						"circle",
+						"grid",
+						"radial",
+						"tree"
+					];
+					const currentIdx = layouts.indexOf(store.layout);
+					const nextIdx = currentIdx >= 0 ? (currentIdx + 1) % layouts.length : 0;
+					store.setLayout(layouts[nextIdx] ?? "cose");
+				}
+			});
+			if (typeof d3 === "function") ctx.effect(() => d3, "codegraph: spotlight layout cmd");
+			const d4 = spotlight.registerCommand({
+				id: "codegraph-filter",
+				title: t("nav.toggleFilter"),
+				handler: () => {
+					openSidebarTab();
+					window.dispatchEvent(new CustomEvent(DOM_EVENTS.TOGGLE_FILTER_PANEL));
+				}
+			});
+			if (typeof d4 === "function") ctx.effect(() => d4, "codegraph: spotlight filter cmd");
+			const d5 = spotlight.registerCommand({
+				id: "codegraph-export",
+				title: t("nav.exportGraph"),
+				handler: () => {
+					openSidebarTab();
+					window.dispatchEvent(new CustomEvent(DOM_EVENTS.TOGGLE_EXPORT_MENU));
+				}
+			});
+			if (typeof d5 === "function") ctx.effect(() => d5, "codegraph: spotlight export cmd");
 		}
 	} catch (e) {
 		log.warn("spotlight registration failed", e);
@@ -65923,7 +67254,8 @@ function apply(ctx) {
 			const store = useGraphStore.getState();
 			store.setPrerequisites({
 				codegraph: status.codegraph,
-				lens: status.lens
+				lens: status.lens,
+				builtin: status.builtin ?? true
 			});
 			const statusKey = `${status.codegraph}:${status.lens}`;
 			if (statusKey !== lastStatusKey) {
@@ -65946,6 +67278,7 @@ function apply(ctx) {
 		ctx.effect(() => {
 			const prereqInterval = setInterval(async () => {
 				if (document.hidden) return;
+				if (!useGraphStore.getState().panelVisible) return;
 				const s = useGraphStore.getState();
 				if (s.prerequisites.codegraph && s.prerequisites.lens) {
 					clearInterval(prereqInterval);
@@ -65982,7 +67315,7 @@ function apply(ctx) {
 				}
 				if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path: workspacePath } }));
 				log.info("auto-import requested", { path: workspacePath });
-				const bootstrap = await fetchBootstrap();
+				const bootstrap = await fetchBootstrap(void 0, workspacePath);
 				if (bootstrap && bootstrap.topLevelNodes.length > 0) {
 					const s2 = useGraphStore.getState();
 					s2.setBootstrapData(bootstrap.topLevelNodes, bootstrap.edges, workspacePath, {
@@ -66013,6 +67346,7 @@ function apply(ctx) {
 		ctx.effect(() => {
 			const workspacePoll = setInterval(async () => {
 				if (document.hidden) return;
+				if (!useGraphStore.getState().panelVisible) return;
 				try {
 					const { path: dshCurrent, list: dshList } = await fetchWorkspace();
 					if (dshCurrent && dshCurrent !== lastDshWorkspace) {
@@ -66037,6 +67371,83 @@ function apply(ctx) {
 		}, "codegraph: workspace polling");
 	}
 	if (typeof window !== "undefined") ctx.effect(() => {
+		let eventSource = null;
+		let reconnectTimer = null;
+		const connectSSE = () => {
+			try {
+				eventSource = new EventSource("/api/v1/codegraph/events");
+				eventSource.addEventListener("graph-updated", (e) => {
+					const data$2 = JSON.parse(e.data);
+					log.info("SSE: graph-updated", data$2);
+					const store = useGraphStore.getState();
+					if (store.nodes.length > 0 && store.panelVisible) fetchGraphDataIncremental(store.lastUpdated).then((graphData) => {
+						if (graphData && graphData.nodes && graphData.nodes.length > 0) store.setGraphData(graphData.nodes, graphData.edges, graphData.metadata.repoId, graphData.metadata);
+					}).catch((err) => log.warn("SSE: incremental fetch failed", err));
+				});
+				eventSource.addEventListener("graph-data", (e) => {
+					const data$2 = JSON.parse(e.data);
+					log.info("SSE: graph-data", {
+						nodeCount: data$2.nodes?.length,
+						edgeCount: data$2.edges?.length
+					});
+					const store = useGraphStore.getState();
+					if (store.panelVisible && data$2.nodes && data$2.nodes.length > 0) {
+						const graphData = coerceGraphData({
+							nodes: data$2.nodes,
+							edges: data$2.edges,
+							metadata: {
+								repoId: data$2.repoId,
+								timestamp: data$2.timestamp
+							}
+						});
+						if (graphData) store.setGraphData(graphData.nodes, graphData.edges, graphData.metadata.repoId, graphData.metadata);
+					}
+				});
+				eventSource.addEventListener("repo-imported", () => {
+					log.info("SSE: repo-imported");
+					const store = useGraphStore.getState();
+					if (store.panelVisible) store.loadBootstrap().catch((err) => log.warn("SSE: bootstrap failed", err));
+				});
+				eventSource.addEventListener("repo-scanned", () => {
+					log.info("SSE: repo-scanned");
+					const store = useGraphStore.getState();
+					if (store.panelVisible) store.loadBootstrap().catch((err) => log.warn("SSE: bootstrap failed", err));
+				});
+				eventSource.addEventListener("init-result", (e) => {
+					const data$2 = JSON.parse(e.data);
+					log.info("SSE: init-result", data$2);
+					const store = useGraphStore.getState();
+					if (data$2.success) {
+						store.setInitStatus("done");
+						store.loadBootstrap().catch((err) => log.warn("SSE: bootstrap after init failed", err));
+					} else store.setInitStatus("error");
+				});
+				eventSource.onerror = () => {
+					log.warn("SSE: connection error, will retry");
+					if (eventSource) {
+						eventSource.close();
+						eventSource = null;
+					}
+					reconnectTimer = setTimeout(connectSSE, 1e4);
+				};
+			} catch (err) {
+				log.warn("SSE: connect failed", err);
+				reconnectTimer = setTimeout(connectSSE, 1e4);
+			}
+		};
+		connectSSE();
+		return () => {
+			if (eventSource) {
+				eventSource.close();
+				eventSource = null;
+			}
+			if (reconnectTimer) {
+				clearTimeout(reconnectTimer);
+				reconnectTimer = null;
+			}
+		};
+	}, "codegraph: SSE events");
+	if (typeof window !== "undefined") ctx.effect(() => {
 		const refreshListener = (e) => {
 			const detail = e.detail;
 			const store = useGraphStore.getState();
@@ -66057,7 +67468,7 @@ function apply(ctx) {
 			store.loadBootstrap().then((ok) => {
 				if (!ok) {
 					log.warn("import-repo bootstrap failed");
-					store.setError("Failed to load code graph data");
+					store.setError(t("error.loadGraphData"));
 				}
 				store.setLoading(false);
 			}).catch((e$1) => {
@@ -66076,7 +67487,7 @@ function apply(ctx) {
 					if (result.success) store.loadBootstrap().then((ok) => {
 						if (!ok) log.warn("post-init bootstrap failed");
 					}).catch((e$1) => log.warn("post-init bootstrap failed", e$1));
-				} else store.setInitStatus("error", "Request failed");
+				} else store.setInitStatus("error", t("error.generic"));
 				log.info("init result", {
 					path: detail.path,
 					success: result?.success
@@ -66109,7 +67520,7 @@ function apply(ctx) {
 				store.loadBootstrap().then((ok) => {
 					if (!ok) {
 						log.warn("workspace change bootstrap failed");
-						store.setError("Failed to load code graph data");
+						store.setError(t("error.loadGraphData"));
 					}
 					store.setLoading(false);
 				}).catch((e$1) => {
@@ -66147,6 +67558,46 @@ function apply(ctx) {
 			window.removeEventListener(DOM_EVENTS.EDITOR_SYMBOL_SELECT, symbolSelectListener);
 		};
 	}, "codegraph: window event listeners");
+	if (typeof window !== "undefined") ctx.effect(() => {
+		const themeObserver = new MutationObserver(() => {
+			const isDark = document.body.hasAttribute("data-ds-dark-theme");
+			const store = useGraphStore.getState();
+			if (store.theme !== (isDark ? "dark" : "light")) {
+				store.setTheme(isDark ? "dark" : "light");
+				window.dispatchEvent(new CustomEvent(DOM_EVENTS.THEME_CHANGED, { detail: { theme: isDark ? "dark" : "light" } }));
+				log.info("theme changed via DSH host", { theme: isDark ? "dark" : "light" });
+			}
+		});
+		themeObserver.observe(document.body, {
+			attributes: true,
+			attributeFilter: ["data-ds-dark-theme"]
+		});
+		return () => themeObserver.disconnect();
+	}, "codegraph: theme observer");
+	if (typeof window !== "undefined") ctx.effect(() => {
+		const toggleFilterListener = () => {
+			const filterBtn = document.querySelector(".cg-filter-panel-btn");
+			if (filterBtn) filterBtn.click();
+		};
+		const toggleExportListener = () => {
+			const exportBtn = document.querySelector(".cg-export-btn");
+			if (exportBtn) exportBtn.click();
+		};
+		window.addEventListener(DOM_EVENTS.TOGGLE_FILTER_PANEL, toggleFilterListener);
+		window.addEventListener(DOM_EVENTS.TOGGLE_EXPORT_MENU, toggleExportListener);
+		return () => {
+			window.removeEventListener(DOM_EVENTS.TOGGLE_FILTER_PANEL, toggleFilterListener);
+			window.removeEventListener(DOM_EVENTS.TOGGLE_EXPORT_MENU, toggleExportListener);
+		};
+	}, "codegraph: spotlight event bridge");
+	if (typeof window !== "undefined") ctx.effect(() => {
+		const rejectionHandler = (e) => {
+			log.warn("unhandled promise rejection", e.reason);
+			e.preventDefault();
+		};
+		window.addEventListener("unhandledrejection", rejectionHandler);
+		return () => window.removeEventListener("unhandledrejection", rejectionHandler);
+	}, "codegraph: unhandled rejection handler");
 	return () => {
 		disposeStore();
 		resetI18nListeners();

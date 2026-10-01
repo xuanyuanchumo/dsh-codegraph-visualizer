@@ -145,37 +145,46 @@ export interface ToolbarToggleHandlers {
 
 export interface PanelControls extends ToolbarVisibilityState, ToolbarToggleHandlers {}
 
+export type ExportFormat = 'png' | 'svg' | 'json' | 'mermaid' | 'mermaid-seq' | 'mermaid-class' | 'graphml' | 'jsonld';
+
+export interface ToolbarLayoutConfig {
+  layout: LayoutType;
+  dagreRankDir: RankDir;
+  clusterDepth: number;
+  onChange: (field: 'layout' | 'dagreRankDir' | 'clusterDepth', value: LayoutType | RankDir | number) => void;
+}
+
+export interface ToolbarViewConfig {
+  viewMode: ViewMode;
+  graphType: GraphType;
+  filterType: GraphNode['type'] | 'all';
+  currentLayer: number;
+  layerNames: string[];
+  hasSelectedFunction?: boolean;
+  onChange: (field: 'viewMode' | 'graphType' | 'filterType' | 'layer', value: ViewMode | GraphType | GraphNode['type'] | 'all' | number) => void;
+}
+
+export interface ToolbarHistory {
+  undo?: () => void;
+  redo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+}
+
 interface ToolbarProps extends WorkspaceSelectorProps {
   statsText: string;
   typeCounts: { function: number; class: number; interface: number };
-  layout: LayoutType;
-  dagreRankDir: RankDir;
   theme: ThemeType;
-  filterType: GraphNode['type'] | 'all';
-  graphType: GraphType;
-  clusterDepth: number;
-  viewMode: ViewMode;
-  currentLayer: number;
-  layerNames: string[];
   collapsed: boolean;
   panelControls: PanelControls;
-  onLayoutChange: (l: LayoutType) => void;
-  onDagreRankDirChange: (dir: RankDir) => void;
+  layoutConfig: ToolbarLayoutConfig;
+  viewConfig: ToolbarViewConfig;
+  history?: ToolbarHistory;
   onThemeToggle: () => void;
-  onFilterChange: (f: GraphNode['type'] | 'all') => void;
-  onGraphTypeChange: (g: GraphType) => void;
-  onClusterDepthChange: (depth: number) => void;
-  onViewModeChange: (mode: ViewMode) => void;
-  onLayerChange: (layer: number) => void;
   onRefresh: () => void;
-  onExport: (format: 'png' | 'svg' | 'json' | 'mermaid' | 'mermaid-seq' | 'mermaid-class' | 'graphml' | 'jsonld') => void;
+  onExport: (format: ExportFormat) => void;
   onCollapse: () => void;
   onCollapseAll?: () => void;
-  onUndo?: () => void;
-  onRedo?: () => void;
-  canUndo?: boolean;
-  canRedo?: boolean;
-  hasSelectedFunction?: boolean;
 }
 
 export const Toolbar = memo(function toolbar(props: ToolbarProps) {
@@ -186,19 +195,33 @@ export const Toolbar = memo(function toolbar(props: ToolbarProps) {
   const isNarrow = toolbarWidth > 0 && toolbarWidth < 480;
 
   const onExport = props.onExport;
-  const handleExport = useCallback((format: 'png' | 'svg' | 'json' | 'mermaid' | 'mermaid-seq' | 'mermaid-class' | 'graphml' | 'jsonld') => {
+  const handleExport = useCallback((format: ExportFormat) => {
     onExport(format);
   }, [onExport]);
 
   const {
-    statsText, typeCounts, layout, dagreRankDir, theme, filterType, graphType, clusterDepth,
-    viewMode, currentLayer, layerNames, collapsed, panelControls,
-    onLayoutChange, onDagreRankDirChange, onThemeToggle, onFilterChange, onGraphTypeChange, onClusterDepthChange,
-    onViewModeChange, onLayerChange,
-    onRefresh, onCollapse,
+    statsText, typeCounts, theme, collapsed, panelControls,
+    layoutConfig, viewConfig, history,
+    onThemeToggle, onRefresh, onCollapse,
     currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
-    onCollapseAll, onUndo, onRedo, canUndo, canRedo, hasSelectedFunction,
+    onCollapseAll,
   } = props;
+
+  const { layout, dagreRankDir, clusterDepth } = layoutConfig;
+  const onLayoutChange = useCallback((l: LayoutType) => layoutConfig.onChange('layout', l), [layoutConfig]);
+  const onDagreRankDirChange = useCallback((d: RankDir) => layoutConfig.onChange('dagreRankDir', d), [layoutConfig]);
+  const onClusterDepthChange = useCallback((d: number) => layoutConfig.onChange('clusterDepth', d), [layoutConfig]);
+
+  const { viewMode, graphType, filterType, currentLayer, layerNames, hasSelectedFunction } = viewConfig;
+  const onViewModeChange = useCallback((m: ViewMode) => viewConfig.onChange('viewMode', m), [viewConfig]);
+  const onGraphTypeChange = useCallback((g: GraphType) => viewConfig.onChange('graphType', g), [viewConfig]);
+  const onFilterChange = useCallback((f: GraphNode['type'] | 'all') => viewConfig.onChange('filterType', f), [viewConfig]);
+  const onLayerChange = useCallback((l: number) => viewConfig.onChange('layer', l), [viewConfig]);
+
+  const onUndo = history?.undo;
+  const onRedo = history?.redo;
+  const canUndo = history?.canUndo;
+  const canRedo = history?.canRedo;
 
   const {
     showSearch, showCycles, cycleIsolation, showMiniMap, showLegend, showImport,
