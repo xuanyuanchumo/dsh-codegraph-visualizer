@@ -65,6 +65,41 @@ export class HealthScorer {
     ];
   }
 
+  static findOrphanNodes(nodes: GraphNode[], edges: GraphEdge[]): GraphNode[] {
+    const connectedIds = new Set<string>();
+    for (const edge of edges) {
+      connectedIds.add(edge.source);
+      connectedIds.add(edge.target);
+    }
+    return nodes.filter(n => !connectedIds.has(n.id));
+  }
+
+  static findLeafNodes(nodes: GraphNode[], edges: GraphEdge[]): GraphNode[] {
+    const degreeMap = new Map<string, number>();
+    for (const edge of edges) {
+      degreeMap.set(edge.source, (degreeMap.get(edge.source) ?? 0) + 1);
+      degreeMap.set(edge.target, (degreeMap.get(edge.target) ?? 0) + 1);
+    }
+    return nodes.filter(n => (degreeMap.get(n.id) ?? 0) === 1);
+  }
+
+  static findHubNodes(nodes: GraphNode[], edges: GraphEdge[], threshold = 10): GraphNode[] {
+    const degreeMap = new Map<string, number>();
+    for (const edge of edges) {
+      degreeMap.set(edge.source, (degreeMap.get(edge.source) ?? 0) + 1);
+      degreeMap.set(edge.target, (degreeMap.get(edge.target) ?? 0) + 1);
+    }
+    return nodes
+      .filter(n => (degreeMap.get(n.id) ?? 0) >= threshold)
+      .sort((a, b) => (degreeMap.get(b.id) ?? 0) - (degreeMap.get(a.id) ?? 0));
+  }
+
+  static calculateOrphanRate(nodes: GraphNode[], edges: GraphEdge[]): number {
+    if (nodes.length === 0) return 0;
+    const orphans = HealthScorer.findOrphanNodes(nodes, edges);
+    return orphans.length / nodes.length;
+  }
+
   private calculateCoupling(edges: GraphEdge[], moduleOfNode: Map<string, string>): number {
     if (edges.length === 0) return 100;
 

@@ -73,12 +73,24 @@ export const FilterPanel = memo(function FilterPanel({ onClose }: FilterPanelPro
       <div className="cg-filter-panel-section">
         <div className="cg-filter-section-label">{t('filterPanel.pathFilter')}</div>
         <input
+          id="cg-filter-include"
+          name="cg-filter-include"
           type="text"
           className="cg-filter-path-input"
           placeholder={t('filterPanel.includePlaceholder')}
           value={includeInput}
           onChange={(e) => setIncludeInput(e.target.value)}
           aria-label={t('filterPanel.includeLabel')}
+        />
+        <input
+          id="cg-filter-exclude"
+          name="cg-filter-exclude"
+          type="text"
+          className="cg-filter-path-input"
+          placeholder={t('filterPanel.excludePlaceholder')}
+          value={excludeInput}
+          onChange={(e) => setExcludeInput(e.target.value)}
+          aria-label={t('filterPanel.excludeLabel')}
         />
         <input
           type="text"
@@ -99,6 +111,8 @@ export const FilterPanel = memo(function FilterPanel({ onClose }: FilterPanelPro
         <div className="cg-filter-section-label">{t('filterPanel.fanIn')}</div>
         <div className="cg-filter-slider-row">
           <input
+            id="cg-filter-fanin"
+            name="cg-filter-fanin"
             type="range"
             min={0}
             max={50}
@@ -115,6 +129,8 @@ export const FilterPanel = memo(function FilterPanel({ onClose }: FilterPanelPro
         <div className="cg-filter-section-label">{t('filterPanel.fanOut')}</div>
         <div className="cg-filter-slider-row">
           <input
+            id="cg-filter-fanout"
+            name="cg-filter-fanout"
             type="range"
             min={0}
             max={50}

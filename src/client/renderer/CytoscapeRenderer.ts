@@ -94,6 +94,7 @@ export class CytoscapeRenderer implements IRenderer {
         container: this.options.container,
         minZoom: RENDERER.MIN_ZOOM,
         maxZoom: RENDERER.MAX_ZOOM,
+        wheelSensitivity: 0.3,
         style: [],
         layout: { name: 'cose' },
         headless: false,

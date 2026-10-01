@@ -340,6 +340,8 @@ declare module '@deepseek-ai/cordis' {
       register(options: { name: string; id?: string; key?: string; order?: number; label?: () => string; inject?: (...args: unknown[]) => unknown }, component?: unknown): (() => void) | void;
     };
     betterSidebar?: {
+      version: string;
+      features: string[];
       registerTab(descriptor: {
         id: string;
         title: string | (() => string);
@@ -348,7 +350,7 @@ declare module '@deepseek-ai/cordis' {
         order?: number;
         single?: boolean;
         hidden?: boolean;
-        badge?: (ctx: Context, scope: unknown, state: unknown) => string | number | null | undefined;
+        badge?: () => string | number | null | undefined;
         onOpen?: (tab: unknown, scope: unknown) => void;
         onActivate?: (tab: unknown, scope: unknown) => void;
         onClose?: (tab: unknown, scope: unknown) => void;
@@ -366,6 +368,7 @@ declare module '@deepseek-ai/cordis' {
       closeTab(tabId: string, scope?: unknown): void;
       activateTab(tabId: string, scope?: unknown): void;
       updateTab(tabId: string, patch: { title?: string; path?: string; meta?: unknown }): void;
+      subscribe(listener: () => void): () => void;
       subscribeState(listener: () => void): () => void;
       getSnapshot(): {
         sessionId: string | undefined;

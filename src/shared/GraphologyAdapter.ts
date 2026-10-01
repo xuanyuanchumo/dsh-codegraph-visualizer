@@ -157,6 +157,33 @@ export class GraphologyAdapter {
     return components.sort((a, b) => b.length - a.length);
   }
 
+  findOrphanNodes(): string[] {
+    if (!this.graph) return [];
+    const orphans: string[] = [];
+    this.graph.forEachNode((nodeId: string) => {
+      if (this.graph!.degree(nodeId) === 0) orphans.push(nodeId);
+    });
+    return orphans;
+  }
+
+  findLeafNodes(): string[] {
+    if (!this.graph) return [];
+    const leaves: string[] = [];
+    this.graph.forEachNode((nodeId: string) => {
+      if (this.graph!.degree(nodeId) === 1) leaves.push(nodeId);
+    });
+    return leaves;
+  }
+
+  findHubNodes(threshold = 10): string[] {
+    if (!this.graph) return [];
+    const hubs: string[] = [];
+    this.graph.forEachNode((nodeId: string) => {
+      if (this.graph!.degree(nodeId) >= threshold) hubs.push(nodeId);
+    });
+    return hubs.sort((a, b) => this.graph!.degree(b) - this.graph!.degree(a));
+  }
+
   clear(): void {
     if (this.graph) {
       this.graph.clear();
