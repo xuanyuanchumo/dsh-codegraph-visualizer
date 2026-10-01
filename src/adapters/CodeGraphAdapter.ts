@@ -236,14 +236,18 @@ export function readTopLevelNodesFromDb(dbPath: string, limit: number): { nodes:
   }
 }
 
-export function readNodeChildrenFromDb(dbPath: string, parentId: string, cursor: number, limit: number): { nodes: DbNodeRow[]; total: number } | null {
+export function readNodeChildrenFromDb(dbPath: string, parentId: string, cursor: string | null, limit: number): { nodes: DbNodeRow[]; total: number } | null {
   const db = getDbConnection(dbPath);
   if (!db) return null;
   try {
     const total = (db.prepare('SELECT COUNT(*) as cnt FROM nodes WHERE file_path = (SELECT file_path FROM nodes WHERE id = ?)').get(parentId) as { cnt: number }).cnt;
-    const nodes = validateNodeRows(db.prepare(
-      'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE file_path = (SELECT file_path FROM nodes WHERE id = ?) AND kind NOT IN (\'file\', \'module\', \'import\') LIMIT ? OFFSET ?',
-    ).all(parentId, limit, cursor));
+    const nodes = cursor
+      ? validateNodeRows(db.prepare(
+        'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE file_path = (SELECT file_path FROM nodes WHERE id = ?) AND kind NOT IN (\'file\', \'module\', \'import\') AND id > ? ORDER BY id LIMIT ?',
+      ).all(parentId, cursor, limit))
+      : validateNodeRows(db.prepare(
+        'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE file_path = (SELECT file_path FROM nodes WHERE id = ?) AND kind NOT IN (\'file\', \'module\', \'import\') ORDER BY id LIMIT ?',
+      ).all(parentId, limit));
     return { nodes, total };
   } catch (e) {
     log.warn('readNodeChildrenFromDb failed', e);

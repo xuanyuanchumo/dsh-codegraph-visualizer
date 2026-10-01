@@ -15,34 +15,22 @@ import { useHistory } from './hooks/useHistory.ts';
 import { useGraphCache } from './hooks/useGraphCache.ts';
 import { invalidateCssVarCache } from './renderer/styles/ThemeStylesheet.ts';
 import { GraphErrorBoundary } from './components/ErrorBoundary.tsx';
-import { ImportPanel } from './components/ImportPanel.tsx';
-import { Legend } from './components/Legend.tsx';
 import { Toolbar } from './components/Toolbar.tsx';
-import { SearchBar, type SearchResultItem } from './components/SearchBar.tsx';
-import { StatusBar } from './components/StatusBar.tsx';
-import { NodeDetail } from './components/NodeDetail.tsx';
-import { StatsPanel } from './components/StatsPanel.tsx';
-import { EmptyState } from './components/EmptyState.tsx';
+import type { SearchResultItem } from './components/SearchBar.tsx';
 import { GraphTooltip, type TooltipData, type EdgeTooltipData } from './components/GraphTooltip.tsx';
 import { ContextMenu } from './components/ContextMenu.tsx';
 import { LoadingOverlay } from './components/LoadingOverlay.tsx';
 import { ErrorOverlay } from './components/ErrorOverlay.tsx';
 import { KeyboardHelp } from './components/KeyboardHelp.tsx';
-import { PathBar } from './components/PathBar.tsx';
-import { HealthScoreCard } from './components/HealthScoreCard.tsx';
-import { RuleConfigPanel } from './components/RuleConfigPanel.tsx';
+import { EmptyState } from './components/EmptyState.tsx';
 import { FocusModeBar } from './components/FocusModeBar.tsx';
-import { HotspotPanel } from './components/HotspotPanel.tsx';
-import { GodModulePanel } from './components/GodModulePanel.tsx';
-import { ImpactPanel } from './components/ImpactPanel.tsx';
-import { CyclePanel } from './components/CyclePanel.tsx';
-import { CoreFunctionPanel } from './components/CoreFunctionPanel.tsx';
-import { DeadCodePanel } from './components/DeadCodePanel.tsx';
-import { FilterPanel } from './components/FilterPanel.tsx';
-import { TourPanel } from './components/TourPanel.tsx';
+import { StatusBar } from './components/StatusBar.tsx';
 import { buildTour } from '../shared/analysis/TourBuilder.ts';
 import { MicroViewPrompt, MicroFunctionBar } from './components/MicroViewBar.tsx';
 import { GraphIcon } from './components/Icons.tsx';
+import { OverlayBar } from './components/OverlayBar.tsx';
+import { LeftPanelStack } from './components/LeftPanelStack.tsx';
+import { RightPanelStack } from './components/RightPanelStack.tsx';
 
 import { SequenceDiagramRenderer } from './renderer/SequenceDiagramRenderer.tsx';
 import { scoped } from '../shared/Logger.ts';
@@ -701,106 +689,25 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         onRemoveWorkspace={removeWorkspace}
       />
 
-      <div className="cg-panel-stack cg-panel-stack-left">
-        {panel.showSearch && !isCollapsed && (
-          <GraphErrorBoundary><SearchBar query={searchQuery} matchCount={renderer.searchMatchCount}
-            searchResults={searchResults}
-            onChange={setSearchQuery} onClose={() => panel.setShowSearch(false)}
-            onSelectResult={handleSelectSearchResult} /></GraphErrorBoundary>
-        )}
-
-        {panel.showPathFind && !isCollapsed && (
-          <GraphErrorBoundary><PathBar onFindPath={handleFindPath} onClearPath={handleClearPath}
-            pathResult={pathResult} pathLength={pathResult ? pathResult.length - 1 : null}
-            onClose={() => panel.setShowPathFind(false)} /></GraphErrorBoundary>
-        )}
-
-        {panel.showHealthScore && !isCollapsed && (
-          <GraphErrorBoundary><HealthScoreCard onClose={() => panel.setShowHealthScore(false)} /></GraphErrorBoundary>
-        )}
-
-        {panel.showRules && !isCollapsed && (
-          <GraphErrorBoundary><RuleConfigPanel violations={ruleViolations} onCheckRules={handleRulesCheck}
-            onClose={() => panel.setShowRules(false)} /></GraphErrorBoundary>
-        )}
-
-        {selectedNodeData && !isCollapsed && (
-          <GraphErrorBoundary><NodeDetail node={selectedNodeData} onClose={handleCloseDetail}
-            isExpanded={selectedNodeData ? expandedNodeIds.has(selectedNodeData.id) : false}
-            connectionCount={selectedNodeData ? (adjacencyMap.get(selectedNodeData.id)?.in ?? 0) + (adjacencyMap.get(selectedNodeData.id)?.out ?? 0) : 0}
-            onCollapse={() => selectedNodeData && collapseNode(selectedNodeData.id)}
-            onSelectFunction={(node, mode) => handleSelectFunction(node.id, node.filePath, node.label, mode)}
-            onAggregateCallChain={handleAggregateCallChain} /></GraphErrorBoundary>
-        )}
-
-        {panel.showLegend && !isCollapsed && (
-          <GraphErrorBoundary><Legend viewMode={viewMode} onClose={() => panel.setShowLegend(false)} /></GraphErrorBoundary>
-        )}
-
-        {panel.showImport && !isCollapsed && (
-          <GraphErrorBoundary><ImportPanel onClose={() => panel.setShowImport(false)} workspacePath={currentWorkspace}
-            prerequisites={prerequisites} initStatus={initStatus} watchEnabled={watchEnabled}
-            onSetGraphData={setGraphData} onSetLoading={setLoading} onSetError={setError}
-            onSetInitStatus={setInitStatus} onSetWatchEnabled={setWatchEnabled} /></GraphErrorBoundary>
-        )}
-      </div>
+      <LeftPanelStack
+        panel={panel} isCollapsed={isCollapsed}
+        searchQuery={searchQuery} searchResults={searchResults} searchMatchCount={renderer.searchMatchCount}
+        onSearchChange={setSearchQuery} onSelectSearchResult={handleSelectSearchResult}
+        onFindPath={handleFindPath} onClearPath={handleClearPath} pathResult={pathResult}
+        ruleViolations={ruleViolations} onCheckRules={handleRulesCheck}
+        selectedNodeData={selectedNodeData} onCloseDetail={handleCloseDetail}
+        expandedNodeIds={expandedNodeIds} adjacencyMap={adjacencyMap}
+        onCollapseNode={(id) => collapseNode(id)}
+        onSelectFunction={(node, mode) => handleSelectFunction(node.id, node.filePath, node.label, mode)}
+        onAggregateCallChain={handleAggregateCallChain}
+        viewMode={viewMode} currentWorkspace={currentWorkspace}
+        prerequisites={prerequisites} initStatus={initStatus} watchEnabled={watchEnabled}
+        onSetGraphData={setGraphData} onSetLoading={setLoading} onSetError={setError}
+        onSetInitStatus={setInitStatus} onSetWatchEnabled={setWatchEnabled}
+      />
 
       {!isCollapsed && !isMicroView && (
-        <div className="cg-overlay-bar" role="group" aria-label={t('overlay.title')}>
-          <div className={`cg-overlay-section ${heatmapMode === 'none' ? 'cg-overlay-section--collapsed' : ''}`}>
-            {heatmapMode === 'none' ? (
-              <button
-                className="cg-overlay-btn cg-overlay-btn--activate"
-                onClick={() => setHeatmapMode('instability')}
-                aria-label={t('heatmap.title')}
-              >
-                {t('heatmap.title')}
-              </button>
-            ) : (
-              <>
-                <span className="cg-overlay-label">{t('heatmap.title')}:</span>
-                {(['none', 'instability', 'lines', 'complexity'] as const).map((m) => (
-                  <button
-                    key={m}
-                    className={`cg-overlay-btn ${heatmapMode === m ? 'cg-active' : ''}`}
-                    onClick={() => setHeatmapMode(m)}
-                    aria-pressed={heatmapMode === m}
-                    aria-label={t(`heatmap.${m}`)}
-                  >
-                    {t(`heatmap.${m}`)}
-                  </button>
-                ))}
-              </>
-            )}
-          </div>
-          <span className="cg-overlay-divider" aria-hidden="true" />
-          <div className={`cg-overlay-section ${todoMarkerMode === 'none' ? 'cg-overlay-section--collapsed' : ''}`}>
-            {todoMarkerMode === 'none' ? (
-              <button
-                className="cg-overlay-btn cg-overlay-btn--activate"
-                onClick={() => setTodoMarkerMode('all')}
-                aria-label={t('todoMarker.title')}
-              >
-                {t('todoMarker.title')}
-              </button>
-            ) : (
-              <>
-                <span className="cg-overlay-label">{t('todoMarker.title')}:</span>
-                {(['none', 'todo', 'fixme', 'all'] as const).map((m) => (
-                  <button
-                    key={m}
-                    className={`cg-overlay-btn ${todoMarkerMode === m ? 'cg-active' : ''}`}
-                    onClick={() => setTodoMarkerMode(m)}
-                    aria-pressed={todoMarkerMode === m}
-                    aria-label={t(`todoMarker.${m}`)}
-                  >
-                    {t(`todoMarker.${m}`)}
-                  </button>
-                ))}
-              </>
-            )}
-          </div>
-        </div>
+        <OverlayBar heatmapMode={heatmapMode} setHeatmapMode={setHeatmapMode} todoMarkerMode={todoMarkerMode} setTodoMarkerMode={setTodoMarkerMode} />
       )}
 
       {focusNodeId && !isCollapsed && (
@@ -863,66 +770,42 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           onNodeTap={(id) => handleNodeTap(NodeId(id))} /></GraphErrorBoundary>
       )}
 
-      <div className="cg-panel-stack cg-panel-stack-right">
-        {panel.showMiniMap && !isCollapsed && (
-          <GraphErrorBoundary><StatsPanel
-            counts={{
-              function: nodeTypeCounts.function, class: nodeTypeCounts.class,
-              variable: nodeTypeCounts.variable, module: nodeTypeCounts.module,
-              interface: nodeTypeCounts.interface,
-            }}
-            onClose={() => panel.setShowMiniMap(false)} thumbnail={thumbnail} viewportInfo={viewportInfo}
-            onFocusArea={(ratioX, ratioY) => {
-              const info = renderer.rendererRef.current?.getViewportInfo();
-              if (info) {
-                renderer.rendererRef.current?.focusOnArea(info.totalSize.w * ratioX, info.totalSize.h * ratioY, info.zoom);
-              }
-            }} /></GraphErrorBoundary>
-        )}
-
-        {panel.showHotspot && !isCollapsed && hotspotNodes.length > 0 && (
-          <GraphErrorBoundary><HotspotPanel hotspotNodes={hotspotNodes} onClose={() => panel.setShowHotspot(false)} label={t('toolbar.hotspot')} /></GraphErrorBoundary>
-        )}
-
-        {panel.showGodModule && !isCollapsed && godModules.length > 0 && (
-          <GraphErrorBoundary><GodModulePanel godModules={godModules} onClose={() => panel.setShowGodModule(false)}
-            label={t('toolbar.godModule')} statsLabel={(n, e) => t('godmodule.stats', { nodes: n, edges: e })} /></GraphErrorBoundary>
-        )}
-
-        {panel.showCoreFunction && !isCollapsed && coreFunctions.length > 0 && (
-          <GraphErrorBoundary><CoreFunctionPanel coreFunctions={coreFunctions} onClose={() => panel.setShowCoreFunction(false)}
-            label={t('toolbar.coreFunction')} onSelectFunction={(nodeId) => {
-              setSelectedNode(NodeId(nodeId));
-              renderer.rendererRef.current?.focusOnNode(nodeId);
-              renderer.rendererRef.current?.selectNode(NodeId(nodeId));
-            }} /></GraphErrorBoundary>
-        )}
-
-        {panel.showDeadCode && !isCollapsed && deadCodeResult && deadCodeResult.deadNodes.length > 0 && (
-          <GraphErrorBoundary><DeadCodePanel result={deadCodeResult} onClose={() => panel.setShowDeadCode(false)}
-            label={t('toolbar.deadCode')} onSelectNode={(nodeId) => {
-              setSelectedNode(NodeId(nodeId));
-              renderer.rendererRef.current?.focusOnNode(nodeId);
-              renderer.rendererRef.current?.selectNode(NodeId(nodeId));
-            }} /></GraphErrorBoundary>
-        )}
-
-        {panel.showFilterPanel && !isCollapsed && (
-          <GraphErrorBoundary><FilterPanel onClose={() => panel.setShowFilterPanel(false)} /></GraphErrorBoundary>
-        )}
-
-        {panel.showTour && !isCollapsed && (
-          <GraphErrorBoundary><TourPanel tour={tourData} onClose={() => panel.setShowTour(false)} /></GraphErrorBoundary>
-        )}
-
-        {panel.showImpact && !isCollapsed && impactStats && (
-          <GraphErrorBoundary><ImpactPanel impactStats={impactStats} label={t('toolbar.impact')} totalLabel={t('impact.total')} onClose={() => panel.setShowImpact(false)} /></GraphErrorBoundary>
-        )}
-
-        {panel.showCycles && !isCollapsed && cycleDetails.length > 0 && (
-          <GraphErrorBoundary><CyclePanel cycles={cycleDetails} label={t('toolbar.cycles')} emptyLabel={t('cycles.empty')} onClose={() => panel.setShowCycles(false)} /></GraphErrorBoundary>
-        )}
-      </div>
+      <RightPanelStack
+        panel={panel} isCollapsed={isCollapsed}
+        nodeTypeCounts={nodeTypeCounts}
+        thumbnail={thumbnail} viewportInfo={viewportInfo}
+        onFocusArea={(ratioX, ratioY) => {
+          const info = renderer.rendererRef.current?.getViewportInfo();
+          if (info) {
+            renderer.rendererRef.current?.focusOnArea(info.totalSize.w * ratioX, info.totalSize.h * ratioY, info.zoom);
+          }
+        }}
+        hotspotNodes={hotspotNodes} godModules={godModules}
+        coreFunctions={coreFunctions} deadCodeResult={deadCodeResult}
+        impactStats={impactStats} cycleDetails={cycleDetails}
+        tourData={tourData}
+        onSelectCoreFunction={(nodeId) => {
+          setSelectedNode(NodeId(nodeId));
+          renderer.rendererRef.current?.focusOnNode(nodeId);
+          renderer.rendererRef.current?.selectNode(NodeId(nodeId));
+        }}
+        onSelectDeadNode={(nodeId) => {
+          setSelectedNode(NodeId(nodeId));
+          renderer.rendererRef.current?.focusOnNode(nodeId);
+          renderer.rendererRef.current?.selectNode(NodeId(nodeId));
+        }}
+        labels={{
+          hotspot: t('toolbar.hotspot'),
+          godModule: t('toolbar.godModule'),
+          coreFunction: t('toolbar.coreFunction'),
+          deadCode: t('toolbar.deadCode'),
+          impact: t('toolbar.impact'),
+          impactTotal: t('impact.total'),
+          cycles: t('toolbar.cycles'),
+          cyclesEmpty: t('cycles.empty'),
+          godModuleStats: (n, e) => t('godmodule.stats', { nodes: n, edges: e }),
+        }}
+      />
 
 
       {contextMenu && (

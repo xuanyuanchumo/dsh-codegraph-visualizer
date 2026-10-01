@@ -152,7 +152,7 @@ export function registerNodeChildrenRoute(rc: RouteContext): void {
         return;
       }
 
-      const cursor = parseInt(url.searchParams.get('cursor') ?? '0', 10) || 0;
+      const cursor = url.searchParams.get('cursor') ?? null;
       const limit = parseInt(url.searchParams.get('limit') ?? String(BOOTSTRAP.CHILDREN_PAGE_SIZE), 10) || BOOTSTRAP.CHILDREN_PAGE_SIZE;
 
       const cachedData = deps.getLastGraphData();
@@ -170,10 +170,11 @@ export function registerNodeChildrenRoute(rc: RouteContext): void {
           const dbEdges = readEdgesForNodesFromDb(dbPath, childIds);
           const childEdges = mapDbEdgesToGraphEdges(dbEdges);
 
+          const lastNode = dbResult.nodes[dbResult.nodes.length - 1];
           sendJson(res, 200, {
             nodes: page,
             edges: childEdges,
-            cursor: cursor + page.length < dbResult.total ? String(cursor + page.length) : null,
+            cursor: dbResult.nodes.length < limit || !lastNode ? null : lastNode.id,
             total: dbResult.total,
           }, req, corsConfig);
           return;
@@ -182,17 +183,20 @@ export function registerNodeChildrenRoute(rc: RouteContext): void {
 
       const lastGraphData = deps.getLastGraphData();
       if (lastGraphData && lastGraphData.nodes.length > 0) {
-        const children = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
-        const page = children.slice(cursor, cursor + limit);
+        const children = lastGraphData.nodes.filter((n) => n.parentId === nodeId)
+          .sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+        const startIdx = cursor ? Math.max(0, children.findIndex((n) => n.id > cursor)) : 0;
+        const page = children.slice(startIdx, startIdx + limit);
         const childIds = new Set(page.map((n) => n.id));
         const childEdges = lastGraphData.edges.filter(
           (e) => childIds.has(e.source) && childIds.has(e.target),
         );
 
+        const lastChild = page[page.length - 1];
         sendJson(res, 200, {
           nodes: page,
           edges: childEdges,
-          cursor: cursor + page.length < children.length ? String(cursor + page.length) : null,
+          cursor: page.length < limit || !lastChild ? null : lastChild.id,
           total: children.length,
         }, req, corsConfig);
         return;
