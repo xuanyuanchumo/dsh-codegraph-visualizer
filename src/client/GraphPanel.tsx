@@ -14,6 +14,9 @@ import type { AnalysisPanelKey } from '../shared/viewModeUtils.ts';
 import { useThemeSync } from './hooks/useThemeSync.ts';
 import { useHistory } from './hooks/useHistory.ts';
 import { useGraphCache } from './hooks/useGraphCache.ts';
+import { useWorkspaceCache } from './hooks/useWorkspaceCache.ts';
+import { useSymbolSelectListener } from './hooks/useSymbolSelectListener.ts';
+import { useLODZoom } from './hooks/useLODZoom.ts';
 import { invalidateCssVarCache } from './renderer/styles/ThemeStylesheet.ts';
 import { GraphErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Toolbar } from './components/Toolbar.tsx';
@@ -36,7 +39,7 @@ import { RightPanelStack } from './components/RightPanelStack.tsx';
 import { SequenceDiagramRenderer } from './renderer/SequenceDiagramRenderer.tsx';
 import { scoped } from '../shared/Logger.ts';
 import { DOM_EVENTS } from '../shared/domEvents.ts';
-import { LOD, UI, PREFETCH, FUNCTION_BODY } from '../shared/constants.ts';
+import { UI, PREFETCH, FUNCTION_BODY } from '../shared/constants.ts';
 
 import { useT } from './i18n/index.ts';
 import './styles/tokens.css';
@@ -112,21 +115,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const history = useHistory();
   const graphCache = useGraphCache();
 
-  const prevWorkspaceRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!currentWorkspace) return;
-    if (prevWorkspaceRef.current && prevWorkspaceRef.current !== currentWorkspace) {
-      const cached = graphCache.getCachedData(currentWorkspace);
-      if (cached) setGraphData(cached.nodes, cached.edges, currentWorkspace);
-    }
-    prevWorkspaceRef.current = currentWorkspace;
-  }, [currentWorkspace, graphCache, setGraphData]);
-
-  useEffect(() => {
-    if (currentWorkspace && rawNodes.length > 0) {
-      graphCache.cacheData(currentWorkspace, rawNodes, rawEdges);
-    }
-  }, [currentWorkspace, rawNodes, rawEdges, graphCache]);
+  useWorkspaceCache({ currentWorkspace, rawNodes, rawEdges, graphCache, setGraphData });
 
   useEffect(() => {
     if (!urlRestored) return;
@@ -260,64 +249,17 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     };
   }, [renderer.rendererRef]);
 
-  useEffect(() => {
-    const symbolHandler = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { symbol?: string };
-      if (!detail?.symbol) return;
-      const sym = detail.symbol;
-      const store = useGraphStore.getState();
-      const match = store.rawNodes.find((n) =>
-        n.label === sym || n.label.endsWith(`.${sym}`) || n.label.includes(sym),
-      );
-      if (match) {
-        store.setSelectedNode(NodeId(match.id));
-        renderer.rendererRef.current?.focusOnNode(match.id);
-        renderer.rendererRef.current?.selectNode(NodeId(match.id));
-      }
-    };
-    window.addEventListener(DOM_EVENTS.SYMBOL_SELECT, symbolHandler);
-    return () => window.removeEventListener(DOM_EVENTS.SYMBOL_SELECT, symbolHandler);
-  }, [renderer.rendererRef]);
+  useSymbolSelectListener({ rendererRef: renderer.rendererRef });
 
   useThemeSync(renderer.updateTheme);
 
-  useEffect(() => {
-    if (!lodEnabled) return;
-    const r = renderer.rendererRef.current;
-    if (!r) return;
-    let rafId: number | null = null;
-    const computeLODFromZoom = (zoom: number) => {
-      const nodeCount = rawNodes.length;
-      let minimalThreshold: number;
-      let compactThreshold: number;
-      if (nodeCount < LOD.SMALL_NODE_COUNT) {
-        minimalThreshold = LOD.MINIMAL_THRESHOLD_SMALL;
-        compactThreshold = LOD.COMPACT_THRESHOLD_SMALL;
-      } else if (nodeCount < LOD.MEDIUM_NODE_COUNT) {
-        minimalThreshold = LOD.MINIMAL_THRESHOLD_MEDIUM;
-        compactThreshold = LOD.COMPACT_THRESHOLD_MEDIUM;
-      } else {
-        minimalThreshold = LOD.MINIMAL_THRESHOLD_LARGE;
-        compactThreshold = LOD.COMPACT_THRESHOLD_LARGE;
-      }
-      if (zoom < minimalThreshold) return 'minimal' as const;
-      if (zoom < compactThreshold) return 'compact' as const;
-      return 'full' as const;
-    };
-    const handleZoom = () => {
-      if (rafId !== null) return;
-      rafId = requestAnimationFrame(() => {
-        rafId = null;
-        const newLevel = computeLODFromZoom(r.getZoom());
-        if (newLevel !== lodLevel) setLODLevel(newLevel);
-      });
-    };
-    const disposeZoomListener = r.onZoomChange(handleZoom);
-    return () => {
-      disposeZoomListener();
-      if (rafId !== null) cancelAnimationFrame(rafId);
-    };
-  }, [lodEnabled, lodLevel, rawNodes.length, renderer.rendererRef, setLODLevel]);
+  useLODZoom({
+    lodEnabled,
+    lodLevel,
+    rawNodesLength: rawNodes.length,
+    rendererRef: renderer.rendererRef,
+    setLODLevel,
+  });
 
   usePanelResize(panelRef, renderer.rendererRef);
 

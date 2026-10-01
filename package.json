@@ -123,7 +123,8 @@
     },
     "optionalPlugins": [
       "dsh-codegraph",
-      "dsh-tool-lens"
+      "dsh-tool-lens",
+      "dsh-remote-web-ui"
     ]
   }
 }

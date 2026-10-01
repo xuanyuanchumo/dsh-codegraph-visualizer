@@ -13,6 +13,7 @@ import { createClientCompatLayer } from './compat/ClientCompatLayer.ts';
 import { IntegrationState } from './integrations/IntegrationState.ts';
 import { integrateSidebarRightTabs } from './integrations/SidebarRightTabsIntegration.ts';
 import { integrateBetterSidebar } from './integrations/BetterSidebarIntegration.ts';
+import { integrateRemoteWebUi } from './integrations/RemoteWebUiIntegration.ts';
 import { integrateSlotsFallback } from './integrations/SlotsFallback.ts';
 import { integrateFloatingPanel } from './integrations/FloatingPanelIntegration.ts';
 import { integrateSpotlight } from './integrations/SpotlightIntegration.ts';
@@ -48,6 +49,7 @@ export function apply(ctx: Context): () => void {
 
   integrateSidebarRightTabs(state);
   integrateBetterSidebar(state);
+  integrateRemoteWebUi(state);
   integrateSlotsFallback(state);
   integrateFloatingPanel(state);
   integrateSpotlight(state);

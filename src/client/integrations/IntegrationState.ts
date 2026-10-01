@@ -10,6 +10,9 @@ export class IntegrationState {
   betterSidebarApi: Context['betterSidebar'] | undefined;
   betterSidebarTabId: string | undefined;
   sidebarStateDisposer: (() => void) | undefined;
+  remoteWebUiApi: Context['remoteWebUI'] | undefined;
+  remoteWebUiPanelId: string | undefined;
+  remoteWebUiStateDisposer: (() => void) | undefined;
   slotDisposers: Array<() => void> = [];
   renderFloating: () => void = () => {};
 
@@ -37,7 +40,21 @@ export class IntegrationState {
     }
   }
 
+  openRemoteWebUiPanel(): void {
+    if (this.remoteWebUiApi) {
+      try {
+        this.remoteWebUiApi.openPanel({ type: 'codegraph-visualizer' });
+      } catch (e) {
+        log.warn('remoteWebUI.openPanel failed', e);
+      }
+    }
+  }
+
   togglePanel(): void {
+    if (this.remoteWebUiApi && !this.panelVisible) {
+      this.openRemoteWebUiPanel();
+      return;
+    }
     if (this.betterSidebarApi && !this.panelVisible) {
       this.openSidebarTab();
       return;

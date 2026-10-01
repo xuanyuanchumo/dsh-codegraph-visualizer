@@ -88,19 +88,3 @@ export function detectHostVersion(ctx: Context): HostVersionInfo {
   return { raw: 'unknown', major: 0, minor: 2, patch: 0, prerelease: null, generation: 'gen2' };
 }
 
-export function isGen1(info: HostVersionInfo): boolean {
-  return info.generation === 'gen1';
-}
-
-export function isGen2(info: HostVersionInfo): boolean {
-  return info.generation === 'gen2' || info.generation === 'gen3';
-}
-
-export function isGen3(info: HostVersionInfo): boolean {
-  return info.generation === 'gen3';
-}
-
-export function meetsMinimum(info: HostVersionInfo, minMajor: number, minMinor: number): boolean {
-  if (info.generation === 'unknown') return true;
-  return info.major > minMajor || (info.major === minMajor && info.minor >= minMinor);
-}

@@ -79,6 +79,3 @@ export function createFeatureFlags(info: HostVersionInfo): FeatureFlags {
   return flags;
 }
 
-export function hasFlag(flags: FeatureFlags, key: keyof FeatureFlags): boolean {
-  return flags[key];
-}

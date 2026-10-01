@@ -221,6 +221,95 @@ export function readGraphFromDb(dbPath: string): { nodes: DbNodeRow[]; edges: Db
   }
 }
 
+export type GraphPageCursor = string;
+
+export interface GraphPageResult {
+  nodes: DbNodeRow[];
+  edges: DbEdgeRow[];
+  nextCursor: GraphPageCursor | null;
+  done: boolean;
+  stats: { nodeCount: number; edgeCount: number; phase: 'nodes' | 'edges' | 'done' };
+}
+
+interface CursorState {
+  phase: 'nodes' | 'edges';
+  nodeCursor: string | null;
+  edgeCursor: number | null;
+  totalNodes: number;
+  totalEdges: number;
+}
+
+function encodeCursor(state: CursorState): string {
+  return Buffer.from(JSON.stringify(state), 'utf8').toString('base64');
+}
+
+function decodeCursor(cursor: string): CursorState {
+  return JSON.parse(Buffer.from(cursor, 'base64').toString('utf8')) as CursorState;
+}
+
+export function readGraphFromDbPaged(
+  dbPath: string,
+  cursor: GraphPageCursor | null,
+  limit: number,
+): GraphPageResult | null {
+  const db = getDbConnection(dbPath);
+  if (!db) return null;
+
+  const state: CursorState = cursor
+    ? decodeCursor(cursor)
+    : { phase: 'nodes', nodeCursor: null, edgeCursor: null, totalNodes: 0, totalEdges: 0 };
+
+  try {
+    if (state.phase === 'nodes') {
+      const nodes = validateNodeRows(db.prepare(
+        'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE id > ? ORDER BY id LIMIT ?',
+      ).all(state.nodeCursor ?? '', limit));
+      state.totalNodes += nodes.length;
+
+      if (nodes.length < limit) {
+        state.phase = 'edges';
+        state.nodeCursor = null;
+        const edges = validateEdgeRows(db.prepare(
+          'SELECT id, source, target, kind, line FROM edges ORDER BY id LIMIT ?',
+        ).all(limit));
+        state.totalEdges += edges.length;
+        state.edgeCursor = edges.length > 0 ? edges[edges.length - 1]!.id : null;
+        const done = edges.length < limit;
+        return {
+          nodes, edges,
+          nextCursor: done ? null : encodeCursor(state),
+          done,
+          stats: { nodeCount: state.totalNodes, edgeCount: state.totalEdges, phase: done ? 'done' : 'edges' },
+        };
+      }
+
+      state.nodeCursor = nodes[nodes.length - 1]!.id;
+      return {
+        nodes, edges: [],
+        nextCursor: encodeCursor(state),
+        done: false,
+        stats: { nodeCount: state.totalNodes, edgeCount: 0, phase: 'nodes' },
+      };
+    }
+
+    const edges = validateEdgeRows(db.prepare(
+      'SELECT id, source, target, kind, line FROM edges WHERE id > ? ORDER BY id LIMIT ?',
+    ).all(state.edgeCursor ?? 0, limit));
+    state.totalEdges += edges.length;
+    const done = edges.length < limit;
+    state.edgeCursor = edges.length > 0 ? edges[edges.length - 1]!.id : null;
+    return {
+      nodes: [], edges,
+      nextCursor: done ? null : encodeCursor(state),
+      done,
+      stats: { nodeCount: state.totalNodes, edgeCount: state.totalEdges, phase: done ? 'done' : 'edges' },
+    };
+  } catch (e) {
+    log.warn('readGraphFromDbPaged failed', e);
+    return null;
+  }
+}
+
 export function readTopLevelNodesFromDb(dbPath: string, limit: number): { nodes: DbNodeRow[]; total: number } | null {
   const db = getDbConnection(dbPath);
   if (!db) return null;
@@ -359,10 +448,22 @@ export class CodeGraphAdapter implements IDataAdapter {
   readonly source: DataSourceType = 'codegraph';
 
   async fetchData(repoId: string, invoke: UpstreamInvoker): Promise<AdapterResult> {
-    // Primary: direct SQLite read of the upstream index (single O(N+E) query).
-    const dbRows = readGraphFromDb(resolveDbPath(repoId));
-    if (dbRows && dbRows.nodes.length > 0) {
-      return this.toAdapterResult(dbRows.nodes, dbRows.edges);
+    // Primary: paged SQLite read of the upstream index (avoids OOM on large repos).
+    const dbPath = resolveDbPath(repoId);
+    let cursor: GraphPageCursor | null = null;
+    const allNodes: DbNodeRow[] = [];
+    const allEdges: DbEdgeRow[] = [];
+    const PAGE = 500;
+    do {
+      const page = readGraphFromDbPaged(dbPath, cursor, PAGE);
+      if (!page) { allNodes.length = 0; break; }
+      allNodes.push(...page.nodes);
+      allEdges.push(...page.edges);
+      cursor = page.nextCursor;
+    } while (cursor !== null);
+
+    if (allNodes.length > 0) {
+      return this.toAdapterResult(allNodes, allEdges);
     }
 
     // Fallback (DB unreadable): assemble a file-structure skeleton from the

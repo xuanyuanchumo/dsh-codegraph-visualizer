@@ -47,7 +47,7 @@ export interface GraphState {
   lastUpdated: number;
 
   prerequisites: { codegraph: boolean; lens: boolean; builtin: boolean };
-  integrationMode: 'sidebar' | 'slot' | 'floating' | 'unknown' | 'sidebar-right';
+  integrationMode: 'sidebar' | 'slot' | 'floating' | 'unknown' | 'sidebar-right' | 'remote-web-ui';
   panelVisible: boolean;
   urlRestored: boolean;
   initStatus: 'idle' | 'initializing' | 'done' | 'error';
@@ -119,7 +119,7 @@ export interface GraphState {
   setError: (error: string | null) => void;
   clearGraph: () => void;
   setPrerequisites: (status: { codegraph: boolean; lens: boolean; builtin: boolean }) => void;
-  setIntegrationMode: (mode: 'sidebar' | 'slot' | 'floating' | 'unknown' | 'sidebar-right') => void;
+  setIntegrationMode: (mode: 'sidebar' | 'slot' | 'floating' | 'unknown' | 'sidebar-right' | 'remote-web-ui') => void;
   setPanelVisible: (visible: boolean) => void;
   setInitStatus: (status: 'idle' | 'initializing' | 'done' | 'error', message?: string | null) => void;
   setWatchEnabled: (enabled: boolean) => void;
