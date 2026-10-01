@@ -1,5 +1,5 @@
 import { VALIDATION, BOOTSTRAP, ERROR_CODES, API, EDGES_AGGREGATION, SYMBOL_AST } from '../../shared/constants.ts';
-import type { GraphEdge } from '../../types/index.ts';
+import type { GraphEdge, GraphNode, GraphData } from '../../types/index.ts';
 import { RepoId, NodeId, EdgeId } from '../../types/index.ts';
 import {
   resolveDbPath, readTopLevelNodesFromDb, readNodeChildrenFromDb, readFileOutlineFromDb, readSymbolASTFromDb, readEdgesFromDb, readEdgesForNodesFromDb, countEdgesInDb, FILTERED_EDGE_KINDS,
@@ -10,6 +10,50 @@ import {
   withRouteMiddleware, resolveWorkspaceFromRequest, checkEtag, slimGraphData,
   triggerBackgroundBuild, type RouteContext,
 } from './shared.ts';
+
+interface GraphIndex {
+  parentIdToChildren: Map<string, GraphNode[]>;
+  filePathToNodeIds: Map<string, Set<string>>;
+  nodeIdToFilePath: Map<string, string>;
+  rootNodes: GraphNode[];
+}
+
+let _indexCacheFor: GraphData | null = null;
+let _indexCache: GraphIndex | null = null;
+
+function getGraphIndex(data: GraphData): GraphIndex {
+  if (_indexCacheFor === data && _indexCache) return _indexCache;
+  _indexCacheFor = data;
+
+  const parentIdToChildren = new Map<string, GraphNode[]>();
+  const filePathToNodeIds = new Map<string, Set<string>>();
+  const nodeIdToFilePath = new Map<string, string>();
+  const rootNodes: GraphNode[] = [];
+
+  for (const n of data.nodes) {
+    if (n.parentId) {
+      const siblings = parentIdToChildren.get(n.parentId);
+      if (siblings) siblings.push(n);
+      else parentIdToChildren.set(n.parentId, [n]);
+    } else {
+      rootNodes.push(n);
+    }
+    const fp = n.filePath;
+    if (fp) {
+      const ids = filePathToNodeIds.get(fp);
+      if (ids) ids.add(n.id);
+      else filePathToNodeIds.set(fp, new Set([n.id]));
+    }
+    nodeIdToFilePath.set(n.id, n.filePath);
+  }
+
+  for (const children of parentIdToChildren.values()) {
+    children.sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  }
+
+  _indexCache = { parentIdToChildren, filePathToNodeIds, nodeIdToFilePath, rootNodes };
+  return _indexCache;
+}
 
 export function registerDataRoute(rc: RouteContext): void {
   const { deps, corsConfig, rateLimiter } = rc;
@@ -92,7 +136,7 @@ export function registerBootstrapRoute(rc: RouteContext): void {
 
       const lastGraphData = deps.getLastGraphData();
       if (lastGraphData && lastGraphData.nodes.length > 0) {
-        const allRootNodes = lastGraphData.nodes.filter((n) => !n.parentId);
+        const allRootNodes = getGraphIndex(lastGraphData).rootNodes;
         const topLevelNodes = allRootNodes.slice(0, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
         const topLevelIds = new Set(topLevelNodes.map((n) => n.id));
         const rootEdges = lastGraphData.edges.filter(
@@ -183,8 +227,7 @@ export function registerNodeChildrenRoute(rc: RouteContext): void {
 
       const lastGraphData = deps.getLastGraphData();
       if (lastGraphData && lastGraphData.nodes.length > 0) {
-        const children = lastGraphData.nodes.filter((n) => n.parentId === nodeId)
-          .sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+        const children = getGraphIndex(lastGraphData).parentIdToChildren.get(nodeId) ?? [];
         const startIdx = cursor ? Math.max(0, children.findIndex((n) => n.id > cursor)) : 0;
         const page = children.slice(startIdx, startIdx + limit);
         const childIds = new Set(page.map((n) => n.id));
@@ -253,7 +296,7 @@ export function registerFileOutlineRoute(rc: RouteContext): void {
         return;
       }
 
-      const symbols = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
+      const symbols = getGraphIndex(lastGraphData).parentIdToChildren.get(nodeId) ?? [];
       const symbolIds = new Set(symbols.map((n) => n.id));
       const symbolEdges = lastGraphData.edges.filter(
         (e) => symbolIds.has(e.source) && symbolIds.has(e.target),
@@ -317,7 +360,7 @@ export function registerSymbolASTRoute(rc: RouteContext): void {
         return;
       }
 
-      const allAstNodes = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
+      const allAstNodes = getGraphIndex(lastGraphData).parentIdToChildren.get(nodeId) ?? [];
       const hasMore = allAstNodes.length > budget;
       const astNodes = hasMore ? allAstNodes.slice(0, budget) : allAstNodes;
       const astNodeIds = new Set(astNodes.map((n) => n.id));
@@ -380,21 +423,27 @@ export function registerEdgesRoute(rc: RouteContext): void {
         if (scope === 'symbol') {
           filteredEdges = lastGraphData.edges.filter((e) => e.source === fromId || e.target === fromId);
         } else {
+          const index = getGraphIndex(lastGraphData);
           const nodeIds = new Set<string>();
           const nodeFilePaths = new Map<string, string>();
-          for (const n of lastGraphData.nodes) {
-            if (n.filePath === fromId || n.id === fromId) {
-              nodeIds.add(n.id);
-              nodeFilePaths.set(n.id, n.filePath);
+          const fpNodeIds = index.filePathToNodeIds.get(fromId);
+          if (fpNodeIds) {
+            for (const id of fpNodeIds) {
+              nodeIds.add(id);
+              nodeFilePaths.set(id, fromId);
             }
+          }
+          const selfFp = index.nodeIdToFilePath.get(fromId);
+          if (selfFp !== undefined && !nodeIds.has(fromId)) {
+            nodeIds.add(fromId);
+            nodeFilePaths.set(fromId, selfFp);
           }
           filteredEdges = lastGraphData.edges.filter(
             (e) => nodeIds.has(e.source) || nodeIds.has(e.target),
           );
 
           if (!aggregated && filteredEdges.length > EDGES_AGGREGATION.THRESHOLD) {
-            const nodeIdToFilePath = new Map<string, string>();
-            for (const n of lastGraphData.nodes) nodeIdToFilePath.set(n.id, n.filePath);
+            const nodeIdToFilePath = index.nodeIdToFilePath;
             const filePairCounts = new Map<string, number>();
             for (const e of filteredEdges) {
               const srcFile = nodeFilePaths.get(e.source) ?? nodeIdToFilePath.get(e.source) ?? '?';

@@ -58,6 +58,7 @@ export interface PanelState {
   setShowDeadCode: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowFilterPanel: (v: boolean | ((prev: boolean) => boolean)) => void;
   setShowTour: (v: boolean | ((prev: boolean) => boolean)) => void;
+  closeAll: () => void;
   toPanelControls: PanelControls;
 }
 
@@ -91,7 +92,14 @@ interface PanelStateInternal {
 
 type Action =
   | { type: 'toggle'; key: PanelVisibilityKey | 'collapsed' }
-  | { type: 'set'; key: PanelVisibilityKey; value: boolean | ((prev: boolean) => boolean) };
+  | { type: 'set'; key: PanelVisibilityKey; value: boolean | ((prev: boolean) => boolean) }
+  | { type: 'closeAll' };
+
+const CLOSABLE_PANEL_KEYS: PanelVisibilityKey[] = [
+  'showSearch', 'showCallChain', 'showCycles', 'showImpact', 'showInheritance',
+  'showImport', 'showLegend', 'showPathFind', 'showHealthScore', 'showRules',
+  'showHotspot', 'showGodModule', 'showCoreFunction', 'showFilterPanel', 'showTour',
+];
 
 const initialState: PanelStateInternal = {
   showSearch: false,
@@ -127,6 +135,13 @@ function reducer(state: PanelStateInternal, action: Action): PanelStateInternal 
       const next = typeof action.value === 'function' ? action.value(prev) : action.value;
       return { ...state, [key]: next };
     }
+    case 'closeAll': {
+      const next = { ...state };
+      for (const key of CLOSABLE_PANEL_KEYS) next[key] = false;
+      return next;
+    }
+    default:
+      return state;
   }
 }
 
@@ -175,6 +190,8 @@ export function usePanelState(): PanelState {
   const setShowFilterPanel = useCallback(makeSet('showFilterPanel'), [makeSet]);
   const setShowTour = useCallback(makeSet('showTour'), [makeSet]);
 
+  const closeAll = useCallback(() => dispatch({ type: 'closeAll' }), []);
+
   return {
     ...state,
     toggleSearch, toggleCollapsed, toggleCycles, toggleCycleIsolation, toggleCallChain, toggleImpact, toggleInheritance, toggleMiniMap, toggleImport, toggleLegend,
@@ -183,6 +200,7 @@ export function usePanelState(): PanelState {
     setShowSearch, setShowImport, setShowCallChain, setShowCycles, setShowCycleIsolation, setShowImpact, setShowInheritance, setShowMiniMap, setShowLegend,
     setShowPathFind, setShowHealthScore, setShowRules, setShowHotspot, setShowGodModule, setShowCoreFunction, setShowDeadCode, setShowFilterPanel,
     setShowTour,
+    closeAll,
     toPanelControls: useMemo(() => ({
       showSearch: state.showSearch, showCallChain: state.showCallChain, showCycles: state.showCycles,
       cycleIsolation: state.cycleIsolation,

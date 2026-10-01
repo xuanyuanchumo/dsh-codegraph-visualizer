@@ -383,11 +383,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   usePanelKeyboard(layout, setLayout, renderer.rendererRef, {
     onToggleSearch: panel.toggleSearch,
     onCloseAll: () => {
-      panel.setShowSearch(false); panel.setShowCallChain(false); panel.setShowCycles(false);
-      panel.setShowImpact(false); panel.setShowInheritance(false); panel.setShowImport(false); panel.setShowLegend(false);
-      panel.setShowPathFind(false); panel.setShowHealthScore(false); panel.setShowRules(false);
-      panel.setShowHotspot(false); panel.setShowGodModule(false); panel.setShowCoreFunction(false);
-      panel.setShowFilterPanel(false); panel.setShowTour(false);
+      panel.closeAll();
       setTooltip(null); setShowHelp(false); setFocusNodeId(null);
     },
     onToggleCallChain: panel.toggleCallChain,

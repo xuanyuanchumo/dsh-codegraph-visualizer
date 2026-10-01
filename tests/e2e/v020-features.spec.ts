@@ -30,7 +30,7 @@ test.describe('v0.2.0 Feature: Path Finding (FR-25)', () => {
   });
 });
 
-test.describe('v0.2.0 Feature: Health Score (FR-32)', () => {
+test.describe('J17: Health Score (FR-32)', () => {
   test('should toggle health score panel', async ({ page }) => {
     await setupPluginPage(page);
     const healthBtn = page.locator('.cg-health-btn');
@@ -42,7 +42,7 @@ test.describe('v0.2.0 Feature: Health Score (FR-32)', () => {
   });
 });
 
-test.describe('v0.2.0 Feature: Rules Engine (FR-34)', () => {
+test.describe('J18: Rules Engine (FR-34)', () => {
   test('should toggle rules panel', async ({ page }) => {
     await setupPluginPage(page);
     const rulesBtn = page.locator('.cg-rules-btn');
@@ -78,7 +78,7 @@ test.describe('v0.2.0 Feature: God Module (FR-36)', () => {
   });
 });
 
-test.describe('v0.2.0 Feature: Undo/Redo (FR-31)', () => {
+test.describe('J29: Undo/Redo (FR-31)', () => {
   test('should have undo and redo buttons', async ({ page }) => {
     await setupPluginPage(page);
     const undoBtn = page.locator('.cg-undo-btn');
@@ -130,7 +130,7 @@ test.describe('v0.2.0 Feature: Tree Layout (FR-40)', () => {
   });
 });
 
-test.describe('v0.2.0 Feature: MiniMap Navigation (FR-43)', () => {
+test.describe('J26: MiniMap Navigation (FR-43)', () => {
   test('should toggle minimap', async ({ page }) => {
     await setupPluginPage(page);
     const minimapBtn = page.locator('.cg-minimap-btn');

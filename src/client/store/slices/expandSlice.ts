@@ -17,6 +17,22 @@ import { computeClusteredGraph } from '../cluster/index.ts';
 type SetFn = (partial: Partial<GraphState>) => void;
 type GetFn = () => GraphState;
 
+function truncateAstData(data: { astNodes: GraphNode[]; astEdges: GraphEdge[]; sourceLines: string[] }): {
+  astNodes: GraphNode[];
+  astEdges: GraphEdge[];
+  sourceLines: string[];
+} {
+  const astNodes = data.astNodes.length > SYMBOL_AST.MAX_NODES
+    ? data.astNodes.slice(0, SYMBOL_AST.MAX_NODES)
+    : data.astNodes;
+  const sourceLines = data.sourceLines.length > SYMBOL_AST.MAX_SOURCE_LINES
+    ? data.sourceLines.slice(0, SYMBOL_AST.MAX_SOURCE_LINES)
+    : data.sourceLines;
+  const astNodeIds = new Set(astNodes.map(n => n.id));
+  const astEdges = data.astEdges.filter(e => astNodeIds.has(e.source) && astNodeIds.has(e.target));
+  return { astNodes, astEdges, sourceLines };
+}
+
 export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState> {
   return {
     expandedNodeIds: new Set(),
@@ -88,14 +104,7 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
               if (cached && gen === internals.expandGeneration) {
                 const data = cached as { astNodes: GraphNode[]; astEdges: GraphEdge[]; sourceLines: string[] };
                 if (data.astNodes.length > 0) {
-                  const truncatedAstNodes = data.astNodes.length > SYMBOL_AST.MAX_NODES
-                    ? data.astNodes.slice(0, SYMBOL_AST.MAX_NODES)
-                    : data.astNodes;
-                  const truncatedSourceLines = data.sourceLines.length > SYMBOL_AST.MAX_SOURCE_LINES
-                    ? data.sourceLines.slice(0, SYMBOL_AST.MAX_SOURCE_LINES)
-                    : data.sourceLines;
-                  const astNodeIds = new Set(truncatedAstNodes.map(n => n.id));
-                  const truncatedAstEdges = data.astEdges.filter(e => astNodeIds.has(e.source) && astNodeIds.has(e.target));
+                  const { astNodes: truncatedAstNodes, astEdges: truncatedAstEdges, sourceLines: truncatedSourceLines } = truncateAstData(data);
                   mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, _set, 'symbol AST loaded (cache)', { nodeId, sourceLines: truncatedSourceLines.length });
                   return;
                 }
@@ -104,14 +113,7 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
             measureAsync('ast-fetch', () => fetchSymbolAST(nodeId, expandController.signal, _get().currentWorkspace)).then(async (data) => {
               if (gen !== internals.expandGeneration) return;
               if (data && data.astNodes.length > 0) {
-                const truncatedAstNodes = data.astNodes.length > SYMBOL_AST.MAX_NODES
-                  ? data.astNodes.slice(0, SYMBOL_AST.MAX_NODES)
-                  : data.astNodes;
-                const truncatedSourceLines = data.sourceLines.length > SYMBOL_AST.MAX_SOURCE_LINES
-                  ? data.sourceLines.slice(0, SYMBOL_AST.MAX_SOURCE_LINES)
-                  : data.sourceLines;
-                const astNodeIds = new Set(truncatedAstNodes.map(n => n.id));
-                const truncatedAstEdges = data.astEdges.filter(e => astNodeIds.has(e.source) && astNodeIds.has(e.target));
+                const { astNodes: truncatedAstNodes, astEdges: truncatedAstEdges, sourceLines: truncatedSourceLines } = truncateAstData(data);
                 if (truncatedAstNodes.length < data.astNodes.length) {
                   log.warn('symbol AST truncated', { nodeId, original: data.astNodes.length, truncated: truncatedAstNodes.length });
                 }

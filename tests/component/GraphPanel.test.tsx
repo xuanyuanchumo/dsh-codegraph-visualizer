@@ -2100,6 +2100,7 @@ describe('GraphPanel keyboard handler callback tests', () => {
       togglePathFind: vi.fn(), toggleHealthScore: vi.fn(), toggleRules: vi.fn(),
       toggleHotspot: vi.fn(), toggleGodModule: vi.fn(), toggleCoreFunction: vi.fn(),
       toggleFilterPanel: vi.fn(),
+      closeAll: vi.fn(),
     } as any);
 
     render(React.createElement(GraphPanel));
@@ -2111,12 +2112,9 @@ describe('GraphPanel keyboard handler callback tests', () => {
       capturedKeyboardHandlers.onCloseAll();
     });
 
-    // onCloseAll should call setShow* functions with false
+    // onCloseAll should call closeAll
     const panelStateMock = vi.mocked(usePanelState).mock.results[0]?.value;
-    expect(panelStateMock?.setShowSearch).toHaveBeenCalledWith(false);
-    expect(panelStateMock?.setShowCallChain).toHaveBeenCalledWith(false);
-    expect(panelStateMock?.setShowImport).toHaveBeenCalledWith(false);
-    expect(panelStateMock?.setShowTour).toHaveBeenCalledWith(false);
+    expect(panelStateMock?.closeAll).toHaveBeenCalled();
   });
 
   it('onToggleHelp: toggles keyboard help visibility', async () => {

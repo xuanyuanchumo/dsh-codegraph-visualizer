@@ -16,7 +16,7 @@ import {
   LAYOUTS, FILTER_KEYS, RANK_DIRS, GRAPH_TYPES,
   STRUCTURAL_MODE_KEYS, BEHAVIORAL_MODE_KEYS, BEHAVIORAL_MICRO_MODE_KEYS,
   STRUCTURAL_TITLE_KEYS, BEHAVIORAL_TITLE_KEYS, BEHAVIORAL_MICRO_TITLE_KEYS,
-  CLUSTER_DEPTHS, HIERARCHY_LEVELS, ANALYSIS_ITEMS, QUALITY_ITEMS,
+  CLUSTER_DEPTHS, HIERARCHY_LEVELS, ANALYSIS_ITEMS, QUALITY_ITEMS, EXPORT_FORMATS,
 } from './toolbarConfig.ts';
 import type { ToolbarProps, ExportFormat } from './toolbarTypes.ts';
 
@@ -70,6 +70,22 @@ export const Toolbar = memo(function toolbar(props: ToolbarProps) {
   } = panelControls;
 
   const availablePanels = getAvailablePanels(getViewLayer(viewMode));
+
+  const moreDropdownItems: { key: string; titleKey: string; icon: React.ReactNode; active: boolean; onClick: () => void; role: 'menuitem' | 'menuitemcheckbox' }[] = [];
+  if (isNarrow && availablePanels.has('showSearch')) {
+    moreDropdownItems.push({ key: 'search', titleKey: 'toolbar.search', icon: <SearchIcon size={14} />, active: showSearch, onClick: onToggleSearch, role: 'menuitemcheckbox' });
+  }
+  if (isCompact) {
+    moreDropdownItems.push(
+      { key: 'minimap', titleKey: 'toolbar.minimap', icon: <MapIcon size={14} />, active: showMiniMap, onClick: onToggleMiniMap, role: 'menuitemcheckbox' },
+      { key: 'legend', titleKey: 'toolbar.legend', icon: <LayersIcon size={14} />, active: showLegend, onClick: onToggleLegend, role: 'menuitemcheckbox' },
+      { key: 'theme', titleKey: 'toolbar.theme', icon: theme === 'dark' ? <SunIcon size={14} /> : <MoonIcon size={14} />, active: false, onClick: onThemeToggle, role: 'menuitem' },
+      { key: 'lang', titleKey: 'toolbar.lang', icon: null, active: false, onClick: toggleLang, role: 'menuitem' },
+    );
+  }
+  if (isNarrow) {
+    moreDropdownItems.push({ key: 'tour', titleKey: 'toolbar.tour', icon: <StarIcon size={14} />, active: showTour, onClick: onToggleTour, role: 'menuitemcheckbox' });
+  }
 
   return (
     <div className="cg-graph-toolbar" ref={toolbarRef}>
@@ -319,22 +335,13 @@ export const Toolbar = memo(function toolbar(props: ToolbarProps) {
             contentClassName="cg-export-dropdown"
             contentRole="menu"
           >
-            {(close) => (
-              <>
-                <button onClick={() => { handleExport('png'); close(); }} role="menuitem">{t('export.png')}</button>
-                <button onClick={() => { handleExport('svg'); close(); }} role="menuitem">{t('export.svg')}</button>
-                <button onClick={() => { handleExport('json'); close(); }} role="menuitem">{t('export.json')}</button>
-                <button onClick={() => { handleExport('mermaid'); close(); }} role="menuitem">{t('export.mermaid')}</button>
-                <button onClick={() => { handleExport('mermaid-seq'); close(); }} role="menuitem">{t('export.mermaidSeq')}</button>
-                <button onClick={() => { handleExport('mermaid-class'); close(); }} role="menuitem">{t('export.mermaidClass')}</button>
-                <button onClick={() => { handleExport('graphml'); close(); }} role="menuitem">{t('export.graphml')}</button>
-                <button onClick={() => { handleExport('jsonld'); close(); }} role="menuitem">{t('export.jsonld')}</button>
-              </>
-            )}
+            {(close) => EXPORT_FORMATS.map(({ value, key }) => (
+              <button key={value} onClick={() => { handleExport(value); close(); }} role="menuitem">{t(key)}</button>
+            ))}
           </Dropdown>
         </div>
 
-        {(isCompact || isNarrow) && (
+        {moreDropdownItems.length > 0 && (
           <Dropdown
             triggerClassName="cg-more-btn"
             triggerTitle={t('toolbar.more')}
@@ -343,46 +350,12 @@ export const Toolbar = memo(function toolbar(props: ToolbarProps) {
             triggerContent={<MoreIcon size={15} />}
             contentRole="menu"
           >
-            {(close) => (
-              <>
-                {isNarrow && availablePanels.has('showSearch') && (
-                  <button className={`cg-dropdown-item ${showSearch ? 'cg-active' : ''}`} onClick={() => { onToggleSearch(); close(); }}
-                    role="menuitemcheckbox" aria-checked={showSearch} title={t('toolbar.search')}>
-                    <SearchIcon size={14} /><span>{t('toolbar.search')}</span>
-                  </button>
-                )}
-                {isCompact && (
-                  <button className={`cg-dropdown-item ${showMiniMap ? 'cg-active' : ''}`} onClick={() => { onToggleMiniMap(); close(); }}
-                    role="menuitemcheckbox" aria-checked={showMiniMap} title={t('toolbar.minimap')}>
-                    <MapIcon size={14} /><span>{t('toolbar.minimap')}</span>
-                  </button>
-                )}
-                {isCompact && (
-                  <button className={`cg-dropdown-item ${showLegend ? 'cg-active' : ''}`} onClick={() => { onToggleLegend(); close(); }}
-                    role="menuitemcheckbox" aria-checked={showLegend} title={t('toolbar.legend')}>
-                    <LayersIcon size={14} /><span>{t('toolbar.legend')}</span>
-                  </button>
-                )}
-                {isCompact && (
-                  <button className="cg-dropdown-item" onClick={() => { onThemeToggle(); close(); }}
-                    role="menuitem" title={t('toolbar.theme')}>
-                    {theme === 'dark' ? <SunIcon size={14} /> : <MoonIcon size={14} />}<span>{t('toolbar.theme')}</span>
-                  </button>
-                )}
-                {isCompact && (
-                  <button className="cg-dropdown-item" onClick={() => { toggleLang(); close(); }}
-                    role="menuitem" title={t('toolbar.lang')}>
-                    <span>{t('toolbar.lang')}</span>
-                  </button>
-                )}
-                {isNarrow && (
-                  <button className={`cg-dropdown-item ${showTour ? 'cg-active' : ''}`} onClick={() => { onToggleTour(); close(); }}
-                    role="menuitemcheckbox" aria-checked={showTour} title={t('toolbar.tour')}>
-                    <StarIcon size={14} /><span>{t('toolbar.tour')}</span>
-                  </button>
-                )}
-              </>
-            )}
+            {(close) => moreDropdownItems.map(({ key, titleKey, icon, active, onClick, role }) => (
+              <button key={key} className={`cg-dropdown-item ${active ? 'cg-active' : ''}`} onClick={() => { onClick(); close(); }}
+                role={role} aria-checked={role === 'menuitemcheckbox' ? active : undefined} title={t(titleKey)}>
+                {icon}<span>{t(titleKey)}</span>
+              </button>
+            ))}
           </Dropdown>
         )}
 

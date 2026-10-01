@@ -6,7 +6,7 @@ import {
   HeartIcon, RuleIcon, FlameIcon, AlertCircleIcon,
   StarIcon, GhostIcon,
 } from './Icons.tsx';
-import type { ToolMenuItem } from './toolbarTypes.ts';
+import type { ToolMenuItem, ExportFormat } from './toolbarTypes.ts';
 
 export const LAYOUTS: LayoutType[] = ['cose', 'fcose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
 
@@ -91,4 +91,14 @@ export const QUALITY_ITEMS: ToolMenuItem[] = [
   { panel: 'showGodModule', Icon: AlertCircleIcon, key: 'toolbar.godModule', btnClass: 'cg-godmodule-btn', toggle: 'onToggleGodModule' },
   { panel: 'showCoreFunction', Icon: StarIcon, key: 'toolbar.coreFunction', btnClass: 'cg-corefunction-btn', toggle: 'onToggleCoreFunction' },
   { panel: 'showDeadCode', Icon: GhostIcon, key: 'toolbar.deadCode', btnClass: 'cg-deadcode-btn', toggle: 'onToggleDeadCode' },
+];
+export const EXPORT_FORMATS: { value: ExportFormat; key: string }[] = [
+  { value: 'png', key: 'export.png' },
+  { value: 'svg', key: 'export.svg' },
+  { value: 'json', key: 'export.json' },
+  { value: 'mermaid', key: 'export.mermaid' },
+  { value: 'mermaid-seq', key: 'export.mermaidSeq' },
+  { value: 'mermaid-class', key: 'export.mermaidClass' },
+  { value: 'graphml', key: 'export.graphml' },
+  { value: 'jsonld', key: 'export.jsonld' },
 ];
