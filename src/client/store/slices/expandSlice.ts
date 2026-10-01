@@ -8,9 +8,9 @@ import { measureAsync } from '../../../shared/PerformanceMonitor.ts';
 import {
   internals, log, clusterCache,
   computeMaxVisible, enforceFunctionBodyBudget, collapseExcessClusters,
-  mergeAndRecluster, applyClusterUpdate,
+  mergeAndRecluster,
   estimateExpandCost, tryIncrementalOrFull, updateIncrementalClusterCtx,
-  computeDataHash, measureSync,
+  computeDataHash, measureSync, replaceController, reclusterWith,
 } from '../internals.ts';
 import { computeClusteredGraph } from '../cluster/index.ts';
 
@@ -43,7 +43,7 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
     pendingRequests: new Map(),
     pinnedIds: new Set(),
     expandNode: (nodeId: string) => {
-      const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, nodes, panelWidth } = _get();
+      const { rawNodes, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, nodes, panelWidth } = _get();
       const gen = ++internals.expandGeneration;
       const cost = estimateExpandCost(nodeId, rawNodes);
       const maxVisible = computeMaxVisible(panelWidth);
@@ -58,14 +58,11 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
         log.warn('expand budget exceeded', { nodeId, cost, budget: CLUSTER.EXPAND_BUDGET_SINGLE });
       }
       const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: effectiveExpanded };
-      applyClusterUpdate(effectiveExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, _set);
+      reclusterWith(_get, _set, effectiveExpanded, newExpandedByViewMode);
 
       const node = rawNodes.find((n) => n.id === nodeId);
       if (node) {
-        const prevExpandController = internals.expandAbortControllers.get(nodeId);
-        if (prevExpandController) prevExpandController.abort();
-        const expandController = new AbortController();
-        internals.expandAbortControllers.set(nodeId, expandController);
+        const expandController = replaceController(internals.expandAbortControllers, nodeId);
         _get().loadNodeChildren(nodeId, { signal: expandController.signal }).catch((err) => {
           if (err instanceof DOMException && err.name === 'AbortError') return;
           log.warn('expandNode: loadNodeChildren failed', { nodeId, err });
@@ -230,7 +227,7 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
       }
     },
     batchExpandNodes: (nodeIds: string[]) => {
-      const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, nodes, panelWidth } = _get();
+      const { rawNodes, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, nodes, panelWidth } = _get();
       if (nodeIds.length === 0) return;
       const maxVisible = computeMaxVisible(panelWidth);
       const effectiveExpanded = new Set(expandedNodeIds);
@@ -240,7 +237,7 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
       enforceFunctionBodyBudget(effectiveExpanded, rawNodes, FUNCTION_BODY.MAX_EXPANDED);
       collapseExcessClusters(nodes, effectiveExpanded, maxVisible, 0, _get().pinnedIds);
       const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: effectiveExpanded };
-      applyClusterUpdate(effectiveExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, _set);
+      reclusterWith(_get, _set, effectiveExpanded, newExpandedByViewMode);
     },
     prefetchExpand: (nodeId: string) => {
       if (internals.prefetchInFlightCount >= PREFETCH.CONCURRENCY_LIMIT) return;
@@ -253,10 +250,7 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
       const cost = estimateExpandCost(nodeId, rawNodes);
       if (cost > PREFETCH.COST_THRESHOLD) return;
 
-      const prevController = internals.prefetchAbortControllers.get(nodeId);
-      if (prevController) prevController.abort();
-      const controller = new AbortController();
-      internals.prefetchAbortControllers.set(nodeId, controller);
+      const controller = replaceController(internals.prefetchAbortControllers, nodeId);
 
       const newPrefetched = new Set(prefetchedNodeIds);
       newPrefetched.add(nodeId);
@@ -317,18 +311,18 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
       }
     },
     collapseNode: (nodeId: string) => {
-      const { rawNodes, rawEdges, clusterDepth, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, pinnedIds } = _get();
+      const { expandedNodeIds, expandedNodeIdsByViewMode, viewMode, pinnedIds } = _get();
       if (pinnedIds.has(nodeId)) return;
       const newExpanded = new Set(expandedNodeIds);
       newExpanded.delete(nodeId);
       const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: newExpanded };
-      applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, _set);
+      reclusterWith(_get, _set, newExpanded, newExpandedByViewMode);
     },
     collapseAll: () => {
-      const { rawNodes, rawEdges, clusterDepth, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, pinnedIds } = _get();
+      const { expandedNodeIdsByViewMode, viewMode, pinnedIds } = _get();
       const newExpanded = new Set(pinnedIds);
       const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: newExpanded };
-      applyClusterUpdate(newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, _set);
+      reclusterWith(_get, _set, newExpanded, newExpandedByViewMode);
     },
     pinNode: (nodeId: string) => {
       const { pinnedIds } = _get();

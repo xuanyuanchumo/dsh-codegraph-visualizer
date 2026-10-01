@@ -1,0 +1,309 @@
+/** @vitest-environment jsdom */
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { Context } from '@deepseek-ai/cordis';
+import { DOM_EVENTS } from '../../../src/shared/domEvents.ts';
+import { logger } from '../../../src/shared/Logger.ts';
+
+const mocks = vi.hoisted(() => ({
+  fetchWorkspace: vi.fn(),
+  fetchBootstrap: vi.fn(),
+  getState: vi.fn(),
+  setCurrentWorkspace: vi.fn(),
+  addWorkspace: vi.fn(),
+  setBootstrapData: vi.fn(),
+  setLoading: vi.fn(),
+  restoreFromUrl: vi.fn(),
+}));
+
+vi.mock('../../../src/client/api/index.ts', () => ({
+  fetchWorkspace: mocks.fetchWorkspace,
+  fetchBootstrap: mocks.fetchBootstrap,
+}));
+
+vi.mock('../../../src/client/store/graphStore.ts', () => ({
+  useGraphStore: { getState: mocks.getState },
+}));
+
+import { setupWorkspaceBootstrap } from '../../../src/client/runtime/WorkspaceBootstrap.ts';
+
+let activeDisposers: Array<() => void> = [];
+function createCtx(): { ctx: Context; disposers: Array<() => void> } {
+  const disposers: Array<() => void> = [];
+  activeDisposers = disposers;
+  const ctx = {
+    effect: vi.fn((setup: () => (() => void) | void) => {
+      const d = setup();
+      if (typeof d === 'function') disposers.push(d);
+    }),
+    emit: vi.fn(),
+  } as unknown as Context;
+  return { ctx, disposers };
+}
+
+function createStore(overrides: Record<string, unknown> = {}) {
+  return {
+    nodes: [],
+    isLoading: false,
+    panelVisible: true,
+    workspaceList: [] as Array<{ path: string }>,
+    setCurrentWorkspace: mocks.setCurrentWorkspace,
+    addWorkspace: mocks.addWorkspace,
+    setBootstrapData: mocks.setBootstrapData,
+    setLoading: mocks.setLoading,
+    restoreFromUrl: mocks.restoreFromUrl,
+    ...overrides,
+  };
+}
+
+async function flush(times = 8) {
+  for (let i = 0; i < times; i++) await Promise.resolve();
+}
+
+function captureWorkspaceEvent(): { received: Array<Event>; stop: () => void } {
+  const received: Array<Event> = [];
+  const handler = (e: Event) => { received.push(e); };
+  window.addEventListener(DOM_EVENTS.WORKSPACE, handler);
+  return { received, stop: () => window.removeEventListener(DOM_EVENTS.WORKSPACE, handler) };
+}
+
+describe('setupWorkspaceBootstrap', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    mocks.fetchWorkspace.mockReset();
+    mocks.fetchBootstrap.mockReset();
+    mocks.getState.mockReset();
+    mocks.setCurrentWorkspace.mockReset();
+    mocks.addWorkspace.mockReset();
+    mocks.setBootstrapData.mockReset();
+    mocks.setLoading.mockReset();
+    mocks.restoreFromUrl.mockReset();
+    mocks.restoreFromUrl.mockResolvedValue(undefined);
+    mocks.getState.mockReturnValue(createStore());
+  });
+
+  afterEach(() => {
+    activeDisposers.forEach((d) => d());
+    activeDisposers = [];
+    vi.useRealTimers();
+  });
+
+  it('initial scan fetches workspace and bootstrap when nodes empty', async () => {
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws', list: [] });
+    mocks.fetchBootstrap.mockResolvedValue({
+      topLevelNodes: [{ id: 'n1' }],
+      edges: [],
+      metadata: { repoId: 'r1', timestamp: 1, totalNodeCount: 1, totalEdgeCount: 0 },
+    });
+    const { ctx } = createCtx();
+    const result = setupWorkspaceBootstrap(ctx);
+    expect(result.scanInProgress.value).toBe(true);
+    await flush();
+    expect(mocks.fetchWorkspace).toHaveBeenCalledTimes(1);
+    expect(mocks.setCurrentWorkspace).toHaveBeenCalledWith('/ws');
+    expect(mocks.setBootstrapData).toHaveBeenCalled();
+    expect(result.scanInProgress.value).toBe(false);
+  });
+
+  it('initial scan adds workspaces from list', async () => {
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws', list: ['/a', '/b'] });
+    mocks.fetchBootstrap.mockResolvedValue({
+      topLevelNodes: [{ id: 'n1' }],
+      edges: [],
+      metadata: { repoId: 'r1', timestamp: 1, totalNodeCount: 1, totalEdgeCount: 0 },
+    });
+    const { ctx } = createCtx();
+    setupWorkspaceBootstrap(ctx);
+    await flush();
+    expect(mocks.addWorkspace).toHaveBeenCalledWith('/a', 'a');
+    expect(mocks.addWorkspace).toHaveBeenCalledWith('/b', 'b');
+  });
+
+  it('initial scan dispatches workspace event', async () => {
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws', list: [] });
+    mocks.fetchBootstrap.mockResolvedValue({
+      topLevelNodes: [{ id: 'n1' }],
+      edges: [],
+      metadata: { repoId: 'r1', timestamp: 1, totalNodeCount: 1, totalEdgeCount: 0 },
+    });
+    const cap = captureWorkspaceEvent();
+    const { ctx } = createCtx();
+    setupWorkspaceBootstrap(ctx);
+    await flush();
+    expect(cap.received.length).toBeGreaterThan(0);
+    cap.stop();
+  });
+
+  it('initial scan with empty bootstrap shows empty state', async () => {
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws', list: [] });
+    mocks.fetchBootstrap.mockResolvedValue({
+      topLevelNodes: [],
+      edges: [],
+      metadata: { repoId: 'r1', timestamp: 1, totalNodeCount: 0, totalEdgeCount: 0 },
+    });
+    const { ctx } = createCtx();
+    setupWorkspaceBootstrap(ctx);
+    await flush();
+    expect(mocks.setBootstrapData).not.toHaveBeenCalled();
+    expect(mocks.setLoading).toHaveBeenCalledWith(false);
+  });
+
+  it('initial scan with null bootstrap shows empty state', async () => {
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws', list: [] });
+    mocks.fetchBootstrap.mockResolvedValue(null);
+    const { ctx } = createCtx();
+    setupWorkspaceBootstrap(ctx);
+    await flush();
+    expect(mocks.setBootstrapData).not.toHaveBeenCalled();
+    expect(mocks.setLoading).toHaveBeenCalledWith(false);
+  });
+
+  it('initial scan failure logs warn and sets loading false', async () => {
+    mocks.fetchWorkspace.mockRejectedValue(new Error('ws fail'));
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    const { ctx } = createCtx();
+    setupWorkspaceBootstrap(ctx);
+    await flush();
+    expect(warnSpy).toHaveBeenCalledWith('client', 'getWorkspaceAndScan failed', expect.any(Error));
+    expect(mocks.setLoading).toHaveBeenCalledWith(false);
+    warnSpy.mockRestore();
+  });
+
+  it('skips initial scan when nodes already present', () => {
+    mocks.getState.mockReturnValue(createStore({ nodes: [{ id: 'n1' }] }));
+    const { ctx } = createCtx();
+    setupWorkspaceBootstrap(ctx);
+    expect(mocks.fetchWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('skips initial scan when loading', () => {
+    mocks.getState.mockReturnValue(createStore({ isLoading: true }));
+    const { ctx } = createCtx();
+    setupWorkspaceBootstrap(ctx);
+    expect(mocks.fetchWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('scanInProgress guards concurrent scans', async () => {
+    mocks.fetchWorkspace.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve({ path: '/ws', list: [] }), 5000)),
+    );
+    mocks.fetchBootstrap.mockResolvedValue({
+      topLevelNodes: [],
+      edges: [],
+      metadata: { repoId: 'r1', timestamp: 1, totalNodeCount: 0, totalEdgeCount: 0 },
+    });
+    const { ctx } = createCtx();
+    const result = setupWorkspaceBootstrap(ctx);
+    expect(result.scanInProgress.value).toBe(true);
+    await vi.advanceTimersByTimeAsync(5000);
+    await flush();
+    expect(result.scanInProgress.value).toBe(false);
+  });
+
+  it('polling skips when document.hidden', async () => {
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws', list: [] });
+    mocks.fetchBootstrap.mockResolvedValue({
+      topLevelNodes: [{ id: 'n1' }],
+      edges: [],
+      metadata: { repoId: 'r1', timestamp: 1, totalNodeCount: 1, totalEdgeCount: 0 },
+    });
+    Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+    const { ctx } = createCtx();
+    setupWorkspaceBootstrap(ctx);
+    await flush();
+    mocks.fetchWorkspace.mockClear();
+    await vi.advanceTimersByTimeAsync(15000);
+    await flush();
+    expect(mocks.fetchWorkspace).not.toHaveBeenCalled();
+    Object.defineProperty(document, 'hidden', { value: false, configurable: true });
+  });
+
+  it('polling skips when panelVisible false', async () => {
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws', list: [] });
+    mocks.fetchBootstrap.mockResolvedValue({
+      topLevelNodes: [{ id: 'n1' }],
+      edges: [],
+      metadata: { repoId: 'r1', timestamp: 1, totalNodeCount: 1, totalEdgeCount: 0 },
+    });
+    mocks.getState.mockReturnValue(createStore({ panelVisible: false }));
+    const { ctx } = createCtx();
+    setupWorkspaceBootstrap(ctx);
+    await flush();
+    mocks.fetchWorkspace.mockClear();
+    await vi.advanceTimersByTimeAsync(15000);
+    await flush();
+    expect(mocks.fetchWorkspace).not.toHaveBeenCalled();
+  });
+
+  it('polling detects workspace change and dispatches event', async () => {
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws1', list: [] });
+    mocks.fetchBootstrap.mockResolvedValue({
+      topLevelNodes: [{ id: 'n1' }],
+      edges: [],
+      metadata: { repoId: 'r1', timestamp: 1, totalNodeCount: 1, totalEdgeCount: 0 },
+    });
+    const cap = captureWorkspaceEvent();
+    const { ctx } = createCtx();
+    setupWorkspaceBootstrap(ctx);
+    await flush();
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws2', list: [] });
+    mocks.setCurrentWorkspace.mockClear();
+    await vi.advanceTimersByTimeAsync(15000);
+    await flush();
+    expect(mocks.setCurrentWorkspace).toHaveBeenCalledWith('/ws2');
+    expect(cap.received.length).toBeGreaterThan(0);
+    cap.stop();
+  });
+
+  it('polling adds new workspaces from list', async () => {
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws', list: [] });
+    mocks.fetchBootstrap.mockResolvedValue({
+      topLevelNodes: [{ id: 'n1' }],
+      edges: [],
+      metadata: { repoId: 'r1', timestamp: 1, totalNodeCount: 1, totalEdgeCount: 0 },
+    });
+    const { ctx } = createCtx();
+    setupWorkspaceBootstrap(ctx);
+    await flush();
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws', list: ['/new'] });
+    mocks.addWorkspace.mockClear();
+    await vi.advanceTimersByTimeAsync(15000);
+    await flush();
+    expect(mocks.addWorkspace).toHaveBeenCalledWith('/new', 'new');
+  });
+
+  it('polling failure logs warn', async () => {
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws', list: [] });
+    mocks.fetchBootstrap.mockResolvedValue({
+      topLevelNodes: [{ id: 'n1' }],
+      edges: [],
+      metadata: { repoId: 'r1', timestamp: 1, totalNodeCount: 1, totalEdgeCount: 0 },
+    });
+    const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    const { ctx } = createCtx();
+    setupWorkspaceBootstrap(ctx);
+    await flush();
+    mocks.fetchWorkspace.mockRejectedValue(new Error('poll fail'));
+    warnSpy.mockClear();
+    await vi.advanceTimersByTimeAsync(15000);
+    await flush();
+    expect(warnSpy).toHaveBeenCalledWith('client', 'workspace polling failed', expect.any(Error));
+    warnSpy.mockRestore();
+  });
+
+  it('cleanup clears polling interval', async () => {
+    mocks.fetchWorkspace.mockResolvedValue({ path: '/ws', list: [] });
+    mocks.fetchBootstrap.mockResolvedValue({
+      topLevelNodes: [{ id: 'n1' }],
+      edges: [],
+      metadata: { repoId: 'r1', timestamp: 1, totalNodeCount: 1, totalEdgeCount: 0 },
+    });
+    const { ctx, disposers } = createCtx();
+    setupWorkspaceBootstrap(ctx);
+    await flush();
+    disposers[0]!();
+    mocks.fetchWorkspace.mockClear();
+    await vi.advanceTimersByTimeAsync(30000);
+    await flush();
+    expect(mocks.fetchWorkspace).not.toHaveBeenCalled();
+  });
+});

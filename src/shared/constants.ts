@@ -260,6 +260,10 @@ export const SYMBOL_AST = {
   MAX_SOURCE_LINES: 1500,
 } as const;
 
+export const FILE_OUTLINE = {
+  MAX_SYMBOLS: 800,
+} as const;
+
 export const SQLITE = {
   MAX_IN_PARAMS: 900,
 } as const;

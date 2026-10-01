@@ -7,6 +7,21 @@ const log = scoped('client');
 
 const DEFAULT_TIMEOUT = API.DEFAULT_TIMEOUT_MS;
 
+async function withAbortGuard<T>(
+  name: string,
+  run: () => Promise<T>,
+  fallback: T,
+  logContext?: Record<string, unknown>,
+): Promise<T> {
+  try {
+    return await run();
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return fallback;
+    log.warn(`${name} failed`, { ...logContext, error: e instanceof Error ? e.message : String(e) });
+    return fallback;
+  }
+}
+
 export function fetchWithTimeout(url: string, options?: RequestInit, timeoutMs: number = DEFAULT_TIMEOUT): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -40,7 +55,7 @@ export interface BootstrapData {
 }
 
 export async function fetchBootstrap(signal?: AbortSignal, workspace?: string): Promise<BootstrapData | null> {
-  try {
+  return withAbortGuard('fetchBootstrap', async () => {
     const params = new URLSearchParams();
     if (workspace && workspace !== '.') params.set('workspace', workspace);
     const options: RequestInit = {};
@@ -57,11 +72,7 @@ export async function fetchBootstrap(signal?: AbortSignal, workspace?: string): 
       indexStatus: data.indexStatus ?? 'empty',
       metadata: data.metadata ?? { repoId: '', timestamp: 0, totalNodeCount: 0, totalEdgeCount: 0 },
     };
-  } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') return null;
-    log.warn('fetchBootstrap failed', { error: e instanceof Error ? e.message : String(e) });
-    return null;
-  }
+  }, null);
 }
 
 export interface NodeChildrenData {
@@ -72,7 +83,7 @@ export interface NodeChildrenData {
 }
 
 export async function fetchNodeChildren(nodeId: string, cursor?: string, limit?: number, signal?: AbortSignal, workspace?: string): Promise<NodeChildrenData | null> {
-  try {
+  return withAbortGuard('fetchNodeChildren', async () => {
     const params = new URLSearchParams();
     params.set('nodeId', nodeId);
     if (cursor) params.set('cursor', cursor);
@@ -83,50 +94,37 @@ export async function fetchNodeChildren(nodeId: string, cursor?: string, limit?:
     const res = await fetchWithTimeout(`/api/v1/codegraph/children?${params}`, options);
     if (!res.ok) return null;
     return await res.json() as NodeChildrenData;
-  } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') return null;
-    log.warn('fetchNodeChildren failed', { nodeId, error: e instanceof Error ? e.message : String(e) });
-    return null;
-  }
+  }, null, { nodeId });
 }
 
 export async function fetchStatus(): Promise<{ codegraph: boolean; lens: boolean; builtin: boolean }> {
-  try {
+  return withAbortGuard('fetchStatus', async () => {
     const res = await fetchWithTimeout('/api/v1/codegraph/status');
     if (!res.ok) return { codegraph: false, lens: false, builtin: true };
     const data = await res.json();
     return { codegraph: !!data.codegraph, lens: !!data.lens, builtin: data.builtin ?? true };
-  } catch (e) {
-    log.warn('fetchStatus failed', { url: '/api/v1/codegraph/status', error: e instanceof Error ? e.message : String(e) });
-    return { codegraph: false, lens: false, builtin: true };
-  }
+  }, { codegraph: false, lens: false, builtin: true }, { url: '/api/v1/codegraph/status' });
 }
 
 export async function fetchGraphData(): Promise<GraphData | null> {
-  try {
+  return withAbortGuard('fetchGraphData', async () => {
     const res = await fetchWithTimeout('/api/v1/codegraph/data');
     if (!res.ok) return null;
     return coerceGraphData(await res.json());
-  } catch (e) {
-    log.warn('fetchGraphData failed', { url: '/api/v1/codegraph/data', error: e instanceof Error ? e.message : String(e) });
-    return null;
-  }
+  }, null, { url: '/api/v1/codegraph/data' });
 }
 
 export async function fetchWorkspace(): Promise<{ path: string; list: string[] }> {
-  try {
+  return withAbortGuard('fetchWorkspace', async () => {
     const res = await fetchWithTimeout('/api/v1/codegraph/workspace');
     if (!res.ok) return { path: '.', list: [] };
     const data = await res.json() as { path?: string; list?: string[] };
     return { path: data.path ?? '.', list: data.list ?? [] };
-  } catch (e) {
-    log.warn('fetchWorkspace failed', e);
-    return { path: '.', list: [] };
-  }
+  }, { path: '.', list: [] });
 }
 
 export async function requestScan(path: string, maxNodes?: number): Promise<{ success: boolean; nodes: unknown[]; edges: unknown[]; metadata?: Record<string, unknown> } | null> {
-  try {
+  return withAbortGuard('requestScan', async () => {
     const res = await fetchWithTimeout('/api/v1/codegraph/scan', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -134,14 +132,11 @@ export async function requestScan(path: string, maxNodes?: number): Promise<{ su
     }, API.SCAN_TIMEOUT_MS);
     if (!res.ok) return null;
     return await res.json();
-  } catch (e) {
-    log.warn('requestScan failed', e);
-    return null;
-  }
+  }, null);
 }
 
 export async function requestInit(path: string): Promise<{ success: boolean; message: string } | null> {
-  try {
+  return withAbortGuard('requestInit', async () => {
     const res = await fetchWithTimeout('/api/v1/codegraph/init', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -149,38 +144,29 @@ export async function requestInit(path: string): Promise<{ success: boolean; mes
     }, API.SCAN_TIMEOUT_MS);
     if (!res.ok) return null;
     return await res.json();
-  } catch (e) {
-    log.warn('requestInit failed', e);
-    return null;
-  }
+  }, null);
 }
 
 export async function fetchGraphDataIncremental(lastUpdated: number): Promise<GraphData | null> {
-  try {
+  return withAbortGuard('fetchGraphDataIncremental', async () => {
     const res = await fetchWithTimeout('/api/v1/codegraph/data', {
       headers: { 'if-none-match': String(lastUpdated) },
     });
     if (res.status === 304) return null;
     if (!res.ok) return null;
     return coerceGraphData(await res.json());
-  } catch (e) {
-    log.warn('fetchGraphDataIncremental failed', { error: e instanceof Error ? e.message : String(e) });
-    return null;
-  }
+  }, null);
 }
 
 export async function requestWatch(enabled: boolean, path: string): Promise<boolean> {
-  try {
+  return withAbortGuard('requestWatch', async () => {
     const res = await fetchWithTimeout('/api/v1/codegraph/watch', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ enabled, path }),
     });
     return res.ok;
-  } catch (e) {
-    log.warn('requestWatch failed', e);
-    return false;
-  }
+  }, false);
 }
 export interface FileOutlineData {
   symbols: GraphNode[];
@@ -188,7 +174,7 @@ export interface FileOutlineData {
 }
 
 export async function fetchFileOutline(nodeId: string, signal?: AbortSignal, workspace?: string): Promise<FileOutlineData | null> {
-  try {
+  return withAbortGuard('fetchFileOutline', async () => {
     const params = new URLSearchParams();
     if (workspace && workspace !== '.') params.set('workspace', workspace);
     const options: RequestInit = {};
@@ -201,11 +187,7 @@ export async function fetchFileOutline(nodeId: string, signal?: AbortSignal, wor
       symbols: data.symbols ?? [],
       edges: data.edges ?? [],
     };
-  } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') return null;
-    log.warn('fetchFileOutline failed', { nodeId, error: e instanceof Error ? e.message : String(e) });
-    return null;
-  }
+  }, null, { nodeId });
 }
 
 export interface SymbolASTData {
@@ -215,7 +197,7 @@ export interface SymbolASTData {
 }
 
 export async function fetchSymbolAST(nodeId: string, signal?: AbortSignal, workspace?: string): Promise<SymbolASTData | null> {
-  try {
+  return withAbortGuard('fetchSymbolAST', async () => {
     const params = new URLSearchParams();
     if (workspace && workspace !== '.') params.set('workspace', workspace);
     const options: RequestInit = {};
@@ -229,11 +211,7 @@ export async function fetchSymbolAST(nodeId: string, signal?: AbortSignal, works
       astEdges: data.astEdges ?? [],
       sourceLines: data.sourceLines ?? [],
     };
-  } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') return null;
-    log.warn('fetchSymbolAST failed', { nodeId, error: e instanceof Error ? e.message : String(e) });
-    return null;
-  }
+  }, null, { nodeId });
 }
 export interface EdgesData {
   edges: GraphEdge[];
@@ -243,7 +221,7 @@ export interface EdgesData {
 }
 
 export async function fetchEdges(fromId: string, scope: 'file' | 'symbol' = 'file', cursor?: number, limit?: number, signal?: AbortSignal, workspace?: string): Promise<EdgesData | null> {
-  try {
+  return withAbortGuard('fetchEdges', async () => {
     const params = new URLSearchParams();
     params.set('from', fromId);
     params.set('scope', scope);
@@ -255,9 +233,5 @@ export async function fetchEdges(fromId: string, scope: 'file' | 'symbol' = 'fil
     const res = await fetchWithTimeout(`/api/v1/codegraph/edges?${params}`, options);
     if (!res.ok) return null;
     return await res.json() as EdgesData;
-  } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') return null;
-    log.warn('fetchEdges failed', { fromId, scope, error: e instanceof Error ? e.message : String(e) });
-    return null;
-  }
+  }, null, { fromId, scope });
 }

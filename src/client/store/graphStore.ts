@@ -4,7 +4,7 @@ import type { GraphState } from './types.ts';
 import type { LayoutType } from '../../shared/viewModeUtils.ts';
 import {
   internals, registerStoreGetter, diagramCache, clusterCache,
-  invalidateExpandCostCache, clearLoadingFailsafe,
+  invalidateExpandCostCache, clearLoadingFailsafe, abortAllControllers,
 } from './internals.ts';
 import { createGraphDataSlice } from './slices/graphDataSlice.ts';
 import { createViewModeSlice } from './slices/viewModeSlice.ts';
@@ -27,18 +27,16 @@ const memoryStorage: StateStorage = {
 };
 
 export function disposeStore(): void {
-  for (const controller of internals.prefetchAbortControllers.values()) controller.abort();
-  internals.prefetchAbortControllers.clear();
+  abortAllControllers(internals.prefetchAbortControllers);
   internals.prefetchInFlightCount = 0;
-  for (const controller of internals.expandAbortControllers.values()) controller.abort();
-  internals.expandAbortControllers.clear();
+  abortAllControllers(internals.expandAbortControllers);
   if (internals.prefetchIdleHandle !== null) {
     if (typeof cancelIdleCallback === 'function') cancelIdleCallback(internals.prefetchIdleHandle as number);
     else clearTimeout(internals.prefetchIdleHandle as ReturnType<typeof setTimeout>);
     internals.prefetchIdleHandle = null;
   }
   const state = useGraphStore.getState();
-  for (const controller of state.pendingRequests.values()) controller.abort();
+  abortAllControllers(state.pendingRequests);
   useGraphStore.setState({ pendingRequests: new Map() });
   if (internals.restoreTimeoutHandle !== null) {
     clearTimeout(internals.restoreTimeoutHandle);

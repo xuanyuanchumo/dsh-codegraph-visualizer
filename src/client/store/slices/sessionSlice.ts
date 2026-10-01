@@ -1,5 +1,5 @@
 import type { GraphState } from '../types.ts';
-import { POLLING, internals, clearLoadingFailsafe } from '../internals.ts';
+import { POLLING, internals, clearLoadingFailsafe, abortAllControllers } from '../internals.ts';
 
 type SetFn = (partial: Partial<GraphState>) => void;
 type GetFn = () => GraphState;
@@ -39,14 +39,11 @@ export function createSessionSlice(_set: SetFn, _get: GetFn): Partial<GraphState
     setPanelVisible: (panelVisible: boolean) => {
       _set({ panelVisible });
       if (!panelVisible) {
-        for (const controller of internals.prefetchAbortControllers.values()) controller.abort();
-        internals.prefetchAbortControllers.clear();
+        abortAllControllers(internals.prefetchAbortControllers);
         internals.prefetchInFlightCount = 0;
-        for (const controller of internals.expandAbortControllers.values()) controller.abort();
-        internals.expandAbortControllers.clear();
+        abortAllControllers(internals.expandAbortControllers);
         const state = _get();
-        for (const controller of state.pendingRequests.values()) controller.abort();
-        state.pendingRequests.clear();
+        abortAllControllers(state.pendingRequests);
         if (internals.prefetchIdleHandle !== null) {
           if (typeof cancelIdleCallback !== 'undefined') cancelIdleCallback(internals.prefetchIdleHandle as number);
           else clearTimeout(internals.prefetchIdleHandle as ReturnType<typeof setTimeout>);

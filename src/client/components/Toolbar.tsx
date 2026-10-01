@@ -16,7 +16,7 @@ import {
   LAYOUTS, FILTER_KEYS, RANK_DIRS, GRAPH_TYPES,
   STRUCTURAL_MODE_KEYS, BEHAVIORAL_MODE_KEYS, BEHAVIORAL_MICRO_MODE_KEYS,
   STRUCTURAL_TITLE_KEYS, BEHAVIORAL_TITLE_KEYS, BEHAVIORAL_MICRO_TITLE_KEYS,
-  CLUSTER_DEPTHS, HIERARCHY_LEVELS, ANALYSIS_ITEMS, QUALITY_ITEMS, EXPORT_FORMATS,
+  CLUSTER_DEPTHS, HIERARCHY_LEVELS, PANEL_DROPDOWN_SECTIONS, EXPORT_FORMATS,
 } from './toolbarConfig.ts';
 import type { ToolbarProps, ExportFormat } from './toolbarTypes.ts';
 
@@ -254,33 +254,27 @@ export const Toolbar = memo(function toolbar(props: ToolbarProps) {
           >
             {(close) => (
               <>
-                <div className="cg-dropdown-section-label">{t('toolbar.analysis')}</div>
-                {ANALYSIS_ITEMS.map(({ panel, Icon, key, btnClass, toggle }) =>
-                  availablePanels.has(panel) ? (
-                    <button key={panel} className={`cg-dropdown-item ${btnClass} ${panelControls[panel] ? 'cg-active' : ''}`}
-                      onClick={() => { panelControls[toggle](); close(); }}
-                      role="menuitemcheckbox" aria-checked={panelControls[panel]} title={t(key)}>
-                      <Icon size={14} /><span>{t(key)}</span>
-                    </button>
-                  ) : null
-                )}
-                {showCycles && (
-                  <button className={`cg-dropdown-item cg-isolate-btn ${cycleIsolation ? 'cg-active' : ''}`} onClick={() => { onToggleCycleIsolation(); close(); }}
-                    role="menuitemcheckbox" aria-checked={cycleIsolation} title={t('toolbar.isolateCycles')}>
-                    <FilterIcon size={14} /><span>{t('toolbar.isolateCycles')}</span>
-                  </button>
-                )}
-                <div className="cg-dropdown-separator" />
-                <div className="cg-dropdown-section-label">{t('toolbar.quality')}</div>
-                {QUALITY_ITEMS.map(({ panel, Icon, key, btnClass, toggle }) =>
-                  availablePanels.has(panel) ? (
-                    <button key={panel} className={`cg-dropdown-item ${btnClass} ${panelControls[panel] ? 'cg-active' : ''}`}
-                      onClick={() => { panelControls[toggle](); close(); }}
-                      role="menuitemcheckbox" aria-checked={panelControls[panel]} title={t(key)}>
-                      <Icon size={14} /><span>{t(key)}</span>
-                    </button>
-                  ) : null
-                )}
+                {PANEL_DROPDOWN_SECTIONS.map((section, sectionIdx) => (
+                  <React.Fragment key={section.labelKey}>
+                    {sectionIdx > 0 && <div className="cg-dropdown-separator" />}
+                    <div className="cg-dropdown-section-label">{t(section.labelKey)}</div>
+                    {section.items.map(({ panel, Icon, key, btnClass, toggle }) =>
+                      availablePanels.has(panel) ? (
+                        <button key={panel} className={`cg-dropdown-item ${btnClass} ${panelControls[panel] ? 'cg-active' : ''}`}
+                          onClick={() => { panelControls[toggle](); close(); }}
+                          role="menuitemcheckbox" aria-checked={panelControls[panel]} title={t(key)}>
+                          <Icon size={14} /><span>{t(key)}</span>
+                        </button>
+                      ) : null
+                    )}
+                    {sectionIdx === 0 && showCycles && (
+                      <button className={`cg-dropdown-item cg-isolate-btn ${cycleIsolation ? 'cg-active' : ''}`} onClick={() => { onToggleCycleIsolation(); close(); }}
+                        role="menuitemcheckbox" aria-checked={cycleIsolation} title={t('toolbar.isolateCycles')}>
+                        <FilterIcon size={14} /><span>{t('toolbar.isolateCycles')}</span>
+                      </button>
+                    )}
+                  </React.Fragment>
+                ))}
               </>
             )}
           </Dropdown>

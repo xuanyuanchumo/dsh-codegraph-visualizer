@@ -37,6 +37,19 @@ export const internals = {
   loadingFailsafe: null as ReturnType<typeof setTimeout> | null,
 };
 
+export function abortAllControllers(map: Map<string, AbortController>): void {
+  for (const controller of map.values()) controller.abort();
+  map.clear();
+}
+
+export function replaceController(map: Map<string, AbortController>, key: string): AbortController {
+  const prev = map.get(key);
+  if (prev) prev.abort();
+  const next = new AbortController();
+  map.set(key, next);
+  return next;
+}
+
 let _getState: (() => GraphState) | null = null;
 export function registerStoreGetter(getter: () => GraphState): void { _getState = getter; }
 function getState(): GraphState { return _getState!(); }
@@ -242,3 +255,16 @@ export type { IncrementalClusterContext };
 export type { LayeredDiagram };
 export type { ClusterResult };
 export type { GraphState };
+export function reclusterWith(
+  _get: () => GraphState,
+  _set: (partial: Partial<GraphState>) => void,
+  newExpanded: Set<string>,
+  newExpandedByViewMode: Record<string, Set<string>>,
+  clusterDepthOverride?: number,
+): void {
+  const { rawNodes, rawEdges, viewMode, diagramData, currentLayer, clusterDepth } = _get();
+  applyClusterUpdate(
+    newExpanded, newExpandedByViewMode, viewMode, diagramData, currentLayer,
+    rawNodes, rawEdges, clusterDepthOverride ?? clusterDepth, clusterCache, _set,
+  );
+}

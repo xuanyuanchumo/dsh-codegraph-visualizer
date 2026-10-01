@@ -41,8 +41,8 @@ export function init(container: HTMLElement, initialData?: GraphData): () => voi
 
 export function apply(ctx: Context): () => void {
   const compat = createClientCompatLayer();
-  compat.detectFlags(ctx);
   compat.detectMode(ctx);
+  compat.detectFlags(ctx);
 
   const state = new IntegrationState(ctx, compat.flags);
 

@@ -8,6 +8,7 @@ import { assembleDiagram } from '../../diagram/index.ts';
 import {
   diagramCache, clusterCache, internals, clearLoadingFailsafe, log,
   IndexedDBCache, tryIncrementalOrFull, updateIncrementalClusterCtx, computeDataHash,
+  abortAllControllers,
 } from '../internals.ts';
 
 type SetFn = (partial: Partial<GraphState>) => void;
@@ -30,7 +31,7 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
         clearLoadingFailsafe();
         internals.expandGeneration++;
         const prevPending = _get().pendingRequests;
-        for (const controller of prevPending.values()) controller.abort();
+        abortAllControllers(prevPending);
         if (internals.persistentCacheRepoId !== repoId) {
           if (internals.persistentCache) internals.persistentCache.close();
           internals.persistentCache = new IndexedDBCache(repoId);
@@ -117,7 +118,7 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
         clearLoadingFailsafe();
         internals.expandGeneration++;
         const prevPending = _get().pendingRequests;
-        for (const controller of prevPending.values()) controller.abort();
+        abortAllControllers(prevPending);
         internals.incrementalClusterCtx = null;
         const sanitized = sanitizeTypedGraph(rootNodes, edges);
         const { clusterDepth, expandedNodeIds, viewMode, panelWidth } = _get();
@@ -183,7 +184,7 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
       clearLoadingFailsafe();
       internals.expandGeneration++;
       const prevPending = _get().pendingRequests;
-      for (const controller of prevPending.values()) controller.abort();
+      abortAllControllers(prevPending);
       internals.incrementalClusterCtx = null;
       _set({ nodes: [], edges: [], rawNodes: [], rawEdges: [], savedRawNodes: [], savedRawEdges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0, truncated: false, totalNodeCount: 0, totalEdgeCount: 0, pendingRequests: new Map(), loadErrorsByNodeId: new Map() });
     },

@@ -118,10 +118,7 @@ export class GraphRepository {
     if (!this.db) return;
     try {
       this.db.prepare(
-        `DELETE FROM analysis_results WHERE repo_id = ? AND analysis_type = ? AND IFNULL(target_node, '') = IFNULL(?, '')`,
-      ).run(repoId, type, targetNode ?? null);
-      this.db.prepare(
-        `INSERT INTO analysis_results (repo_id, analysis_type, target_node, result, created_at) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO analysis_results (repo_id, analysis_type, target_node, result, created_at) VALUES (?, ?, ?, ?, ?)`,
       ).run(repoId, type, targetNode ?? null, result, Date.now());
     } catch (e) { log.warn('saveAnalysis failed', e); }
   }

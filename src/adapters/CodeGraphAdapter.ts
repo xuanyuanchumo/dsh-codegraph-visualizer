@@ -259,14 +259,10 @@ export function readFileOutlineFromDb(dbPath: string, fileId: string): { nodes: 
   const db = getDbConnection(dbPath);
   if (!db) return null;
   try {
-    const filePathRow = db.prepare('SELECT file_path FROM nodes WHERE id = ?').get(fileId) as { file_path: string } | undefined;
-    if (!filePathRow) return { nodes: [], total: 0 };
-    const filePath = filePathRow.file_path;
-    const total = (db.prepare('SELECT COUNT(*) as cnt FROM nodes WHERE file_path = ? AND kind NOT IN (\'file\', \'module\', \'import\')').get(filePath) as { cnt: number }).cnt;
     const nodes = validateNodeRows(db.prepare(
-      'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE file_path = ? AND kind NOT IN (\'file\', \'module\', \'import\')',
-    ).all(filePath));
-    return { nodes, total };
+      `SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE file_path = (SELECT file_path FROM nodes WHERE id = ?) AND kind NOT IN ('file', 'module', 'import')`,
+    ).all(fileId));
+    return { nodes, total: nodes.length };
   } catch (e) {
     log.warn('readFileOutlineFromDb failed', e);
     return null;

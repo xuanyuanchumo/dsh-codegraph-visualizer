@@ -92,6 +92,11 @@ export const QUALITY_ITEMS: ToolMenuItem[] = [
   { panel: 'showCoreFunction', Icon: StarIcon, key: 'toolbar.coreFunction', btnClass: 'cg-corefunction-btn', toggle: 'onToggleCoreFunction' },
   { panel: 'showDeadCode', Icon: GhostIcon, key: 'toolbar.deadCode', btnClass: 'cg-deadcode-btn', toggle: 'onToggleDeadCode' },
 ];
+
+export const PANEL_DROPDOWN_SECTIONS: { labelKey: string; items: ToolMenuItem[] }[] = [
+  { labelKey: 'toolbar.analysis', items: ANALYSIS_ITEMS },
+  { labelKey: 'toolbar.quality', items: QUALITY_ITEMS },
+];
 export const EXPORT_FORMATS: { value: ExportFormat; key: string }[] = [
   { value: 'png', key: 'export.png' },
   { value: 'svg', key: 'export.svg' },

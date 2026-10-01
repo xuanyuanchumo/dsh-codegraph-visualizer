@@ -3,7 +3,7 @@ import type { GraphState } from '../types.ts';
 import type { LayoutType, ThemeType, RankDir } from '../../../shared/viewModeUtils.ts';
 import { isLayeredViewMode } from '../../../shared/viewModeUtils.ts';
 import { computeViewModeTransition } from '../viewModeTransition.ts';
-import { invalidateCssVarCache, applyClusterUpdate, clusterCache, diagramCache, detectInitialTheme } from '../internals.ts';
+import { invalidateCssVarCache, diagramCache, detectInitialTheme, reclusterWith } from '../internals.ts';
 
 type SetFn = (partial: Partial<GraphState>) => void;
 type GetFn = () => GraphState;
@@ -56,12 +56,12 @@ export function createViewModeSlice(_set: SetFn, _get: GetFn): Partial<GraphStat
       }
     },
     setClusterDepth: (clusterDepth: number) => {
-      const { rawNodes, rawEdges, expandedNodeIds, expandedNodeIdsByViewMode, diagramData, currentLayer, viewMode } = _get();
+      const { expandedNodeIds, expandedNodeIdsByViewMode, viewMode } = _get();
       if (isLayeredViewMode(viewMode)) {
         _set({ clusterDepth });
         return;
       }
-      applyClusterUpdate(expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, _set);
+      reclusterWith(_get, _set, expandedNodeIds, expandedNodeIdsByViewMode, clusterDepth);
       _set({ clusterDepth });
     },
     setHierarchyLevel: (hierarchyLevel: number) => {
@@ -71,9 +71,9 @@ export function createViewModeSlice(_set: SetFn, _get: GetFn): Partial<GraphStat
       if (level === 0) {
         _get().collapseAll();
       }
-      const { rawNodes, rawEdges, expandedNodeIds, expandedNodeIdsByViewMode, diagramData, currentLayer, viewMode } = _get();
+      const { expandedNodeIds, expandedNodeIdsByViewMode, viewMode } = _get();
       if (!isLayeredViewMode(viewMode)) {
-        applyClusterUpdate(expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, _set);
+        reclusterWith(_get, _set, expandedNodeIds, expandedNodeIdsByViewMode, clusterDepth);
       }
       _set({ hierarchyLevel: level, clusterDepth });
     },

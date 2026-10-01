@@ -1,4 +1,4 @@
-import { VALIDATION, BOOTSTRAP, ERROR_CODES, API, EDGES_AGGREGATION, SYMBOL_AST } from '../../shared/constants.ts';
+import { VALIDATION, BOOTSTRAP, ERROR_CODES, API, EDGES_AGGREGATION, SYMBOL_AST, FILE_OUTLINE } from '../../shared/constants.ts';
 import type { GraphEdge, GraphNode, GraphData } from '../../types/index.ts';
 import { RepoId, NodeId, EdgeId } from '../../types/index.ts';
 import {
@@ -281,7 +281,7 @@ export function registerFileOutlineRoute(rc: RouteContext): void {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readFileOutlineFromDb(dbPath, nodeId);
         if (dbResult && dbResult.nodes.length > 0) {
-          const symbols = mapDbNodesToGraphNodes(dbResult.nodes, nodeId);
+          const symbols = mapDbNodesToGraphNodes(dbResult.nodes, nodeId).slice(0, FILE_OUTLINE.MAX_SYMBOLS);
           const symbolIds = new Set(symbols.map((n) => n.id));
           const dbEdges = readEdgesForNodesFromDb(dbPath, [...symbolIds]);
           const symbolEdges = mapDbEdgesToGraphEdges(dbEdges);
@@ -296,7 +296,7 @@ export function registerFileOutlineRoute(rc: RouteContext): void {
         return;
       }
 
-      const symbols = getGraphIndex(lastGraphData).parentIdToChildren.get(nodeId) ?? [];
+      const symbols = (getGraphIndex(lastGraphData).parentIdToChildren.get(nodeId) ?? []).slice(0, FILE_OUTLINE.MAX_SYMBOLS);
       const symbolIds = new Set(symbols.map((n) => n.id));
       const symbolEdges = lastGraphData.edges.filter(
         (e) => symbolIds.has(e.source) && symbolIds.has(e.target),
