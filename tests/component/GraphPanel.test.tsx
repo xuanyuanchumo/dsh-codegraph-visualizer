@@ -343,9 +343,7 @@ describe('GraphPanel handler behavior', () => {
   it('search button click toggles search panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const analysisDropdownBtn = container.querySelector('.cg-analysis-dropdown-btn') as HTMLButtonElement;
-    fireEvent.click(analysisDropdownBtn);
-    const searchBtn = container.querySelector('.cg-search-btn') as HTMLButtonElement;
+    const searchBtn = container.querySelector('.cg-search-standalone-btn') as HTMLButtonElement;
     expect(searchBtn?.tagName).toBe('BUTTON');
     fireEvent.click(searchBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -381,8 +379,8 @@ describe('GraphPanel handler behavior', () => {
   it('pathfind button click toggles path panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const analysisDropdownBtn = container.querySelector('.cg-analysis-dropdown-btn') as HTMLButtonElement;
-    fireEvent.click(analysisDropdownBtn);
+    const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
+    fireEvent.click(toolsDropdownBtn);
     const pathfindBtn = container.querySelector('.cg-pathfind-btn') as HTMLButtonElement;
     expect(pathfindBtn?.tagName).toBe('BUTTON');
     fireEvent.click(pathfindBtn);
@@ -392,8 +390,8 @@ describe('GraphPanel handler behavior', () => {
   it('health score button click toggles health panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const qualityDropdownBtn = container.querySelector('.cg-quality-dropdown-btn') as HTMLButtonElement;
-    fireEvent.click(qualityDropdownBtn);
+    const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
+    fireEvent.click(toolsDropdownBtn);
     const healthBtn = container.querySelector('.cg-health-btn') as HTMLButtonElement;
     expect(healthBtn?.tagName).toBe('BUTTON');
     fireEvent.click(healthBtn);
@@ -431,8 +429,8 @@ describe('GraphPanel handler behavior', () => {
     useGraphStore.setState({ viewMode: 'callgraph' });
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const analysisDropdownBtn = container.querySelector('.cg-analysis-dropdown-btn') as HTMLButtonElement;
-    fireEvent.click(analysisDropdownBtn);
+    const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
+    fireEvent.click(toolsDropdownBtn);
     const callchainBtn = container.querySelector('.cg-chain-btn') as HTMLButtonElement;
     expect(callchainBtn?.tagName).toBe('BUTTON');
     fireEvent.click(callchainBtn);
@@ -443,8 +441,8 @@ describe('GraphPanel handler behavior', () => {
     useGraphStore.setState({ viewMode: 'callgraph' });
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const analysisDropdownBtn = container.querySelector('.cg-analysis-dropdown-btn') as HTMLButtonElement;
-    fireEvent.click(analysisDropdownBtn);
+    const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
+    fireEvent.click(toolsDropdownBtn);
     const impactBtn = container.querySelector('.cg-impact-btn') as HTMLButtonElement;
     expect(impactBtn?.tagName).toBe('BUTTON');
     fireEvent.click(impactBtn);
@@ -455,8 +453,8 @@ describe('GraphPanel handler behavior', () => {
     useGraphStore.setState({ viewMode: 'callgraph' });
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const analysisDropdownBtn = container.querySelector('.cg-analysis-dropdown-btn') as HTMLButtonElement;
-    fireEvent.click(analysisDropdownBtn);
+    const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
+    fireEvent.click(toolsDropdownBtn);
     const inheritanceBtn = container.querySelector('.cg-inheritance-btn') as HTMLButtonElement;
     expect(inheritanceBtn?.tagName).toBe('BUTTON');
     fireEvent.click(inheritanceBtn);
@@ -467,8 +465,8 @@ describe('GraphPanel handler behavior', () => {
     useGraphStore.setState({ viewMode: 'callgraph' });
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const qualityDropdownBtn = container.querySelector('.cg-quality-dropdown-btn') as HTMLButtonElement;
-    fireEvent.click(qualityDropdownBtn);
+    const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
+    fireEvent.click(toolsDropdownBtn);
     const hotspotBtn = container.querySelector('.cg-hotspot-btn') as HTMLButtonElement;
     expect(hotspotBtn?.tagName).toBe('BUTTON');
     fireEvent.click(hotspotBtn);
@@ -479,8 +477,8 @@ describe('GraphPanel handler behavior', () => {
     useGraphStore.setState({ viewMode: 'callgraph' });
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const qualityDropdownBtn = container.querySelector('.cg-quality-dropdown-btn') as HTMLButtonElement;
-    fireEvent.click(qualityDropdownBtn);
+    const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
+    fireEvent.click(toolsDropdownBtn);
     const godBtn = container.querySelector('.cg-godmodule-btn') as HTMLButtonElement;
     expect(godBtn?.tagName).toBe('BUTTON');
     fireEvent.click(godBtn);
@@ -491,8 +489,8 @@ describe('GraphPanel handler behavior', () => {
     useGraphStore.setState({ viewMode: 'callgraph' });
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const analysisDropdownBtn = container.querySelector('.cg-analysis-dropdown-btn') as HTMLButtonElement;
-    fireEvent.click(analysisDropdownBtn);
+    const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
+    fireEvent.click(toolsDropdownBtn);
     const cyclesBtn = container.querySelector('.cg-cycle-btn') as HTMLButtonElement;
     expect(cyclesBtn?.tagName).toBe('BUTTON');
     fireEvent.click(cyclesBtn);
@@ -503,8 +501,8 @@ describe('GraphPanel handler behavior', () => {
     useGraphStore.setState({ viewMode: 'callgraph' });
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const qualityDropdownBtn = container.querySelector('.cg-quality-dropdown-btn') as HTMLButtonElement;
-    fireEvent.click(qualityDropdownBtn);
+    const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
+    fireEvent.click(toolsDropdownBtn);
     const coreBtn = container.querySelector('.cg-corefunction-btn') as HTMLButtonElement;
     expect(coreBtn?.tagName).toBe('BUTTON');
     fireEvent.click(coreBtn);
@@ -514,8 +512,8 @@ describe('GraphPanel handler behavior', () => {
   it('rules button click toggles rules panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const qualityDropdownBtn = container.querySelector('.cg-quality-dropdown-btn') as HTMLButtonElement;
-    fireEvent.click(qualityDropdownBtn);
+    const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
+    fireEvent.click(toolsDropdownBtn);
     const rulesBtn = container.querySelector('.cg-rules-btn') as HTMLButtonElement;
     expect(rulesBtn?.tagName).toBe('BUTTON');
     fireEvent.click(rulesBtn);
@@ -536,8 +534,8 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const toolbar = container.querySelector('.cg-graph-toolbar');
     expect(toolbar?.tagName).toBe('DIV');
-    expect(container.querySelector('.cg-analysis-dropdown-btn')?.tagName).toBe('BUTTON');
-    expect(container.querySelector('.cg-quality-dropdown-btn')?.tagName).toBe('BUTTON');
+    expect(container.querySelector('.cg-tools-dropdown-btn')?.tagName).toBe('BUTTON');
+    expect(container.querySelector('.cg-search-standalone-btn')?.tagName).toBe('BUTTON');
     expect(container.querySelector('.cg-theme-btn')?.tagName).toBe('BUTTON');
     expect(container.querySelector('.cg-export-btn')?.tagName).toBe('BUTTON');
   });
@@ -813,9 +811,7 @@ describe('GraphPanel handler integration', () => {
   it('handleSelectSearchResult: search panel toggle works', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const analysisDropdownBtn = container.querySelector('.cg-analysis-dropdown-btn') as HTMLButtonElement;
-    fireEvent.click(analysisDropdownBtn);
-    const searchBtn = container.querySelector('.cg-search-btn') as HTMLButtonElement;
+    const searchBtn = container.querySelector('.cg-search-standalone-btn') as HTMLButtonElement;
     expect(searchBtn?.tagName).toBe('BUTTON');
     fireEvent.click(searchBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -824,8 +820,8 @@ describe('GraphPanel handler integration', () => {
   it('handleFindPath: pathfind button toggles path panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const analysisDropdownBtn = container.querySelector('.cg-analysis-dropdown-btn') as HTMLButtonElement;
-    fireEvent.click(analysisDropdownBtn);
+    const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
+    fireEvent.click(toolsDropdownBtn);
     const pathfindBtn = container.querySelector('.cg-pathfind-btn') as HTMLButtonElement;
     expect(pathfindBtn?.tagName).toBe('BUTTON');
     fireEvent.click(pathfindBtn);

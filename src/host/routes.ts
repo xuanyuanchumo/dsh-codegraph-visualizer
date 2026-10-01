@@ -382,23 +382,35 @@ function registerScanRoute(rc: RouteContext): void {
         const cached = scanCache.get(scanPath);
         if (cached && Date.now() - cached.timestamp < config.scanCacheTtl) {
           deps.setLastGraphData(cached.data);
-          sendJson(res, 200, { success: true, ...cached.data }, req, corsConfig);
+          const scanPayload = JSON.stringify({ success: true, ...cached.data });
+          if (scanPayload.length > API.DATA_RESPONSE_MAX_BYTES) {
+            const slimmed = slimGraphData(cached.data, API.DATA_RESPONSE_SLIM_NODES);
+            const slimPayload = JSON.stringify({ success: true, ...slimmed });
+            const scanHeaders = buildCorsHeaders(req, corsConfig);
+            scanHeaders['content-type'] = 'application/json';
+            scanHeaders['x-truncated'] = '1';
+            res.writeHead(200, scanHeaders);
+            res.end(slimPayload);
+          } else {
+            sendJson(res, 200, { success: true, ...cached.data }, req, corsConfig);
+          }
           return;
         }
 
         const inFlight = deps.getScanInFlight(scanPath);
         if (inFlight) {
-          const data = await inFlight;
-          sendJson(res, 200, { success: true, ...data }, req, corsConfig);
+          sendJson(res, 200, { success: true, status: 'scanning', message: 'Scan already in progress' }, req, corsConfig);
           return;
         }
 
+        // P1-3: Non-blocking scan — return immediately, process in background
         const scanPromise = fetchMergedGraph(invokeUpstream, repoId, 'both')
           .then(raw => slimGraphData(raw, config.maxNodes));
         deps.setScanInFlight(scanPath, scanPromise);
-        try {
-          const data = await scanPromise;
 
+        sendJson(res, 200, { success: true, status: 'scanning', message: 'Scan started, listen to SSE for completion' }, req, corsConfig);
+
+        scanPromise.then(data => {
           deps.setLastGraphData(data);
           scanCache.set(scanPath, { data, timestamp: Date.now() });
           if (scanCache.size > config.scanCacheLimit) {
@@ -417,30 +429,20 @@ function registerScanRoute(rc: RouteContext): void {
             edges: data.edges,
             timestamp: data.metadata.timestamp,
           });
-          log.info('scan completed', { repoId, nodes: data.metadata.nodeCount, edges: data.metadata.edgeCount });
-          const scanPayload = JSON.stringify({ success: true, ...data });
-          if (scanPayload.length > API.DATA_RESPONSE_MAX_BYTES) {
-            const slimmed = slimGraphData(data, API.DATA_RESPONSE_SLIM_NODES);
-            const slimPayload = JSON.stringify({ success: true, ...slimmed });
-            const scanHeaders = buildCorsHeaders(req, corsConfig);
-            scanHeaders['content-type'] = 'application/json';
-            scanHeaders['x-truncated'] = '1';
-            res.writeHead(200, scanHeaders);
-            res.end(slimPayload);
-          } else {
-            sendJson(res, 200, { success: true, ...data }, req, corsConfig);
-          }
-
-        } finally {
+          log.info('scan completed (background)', { repoId, nodes: data.metadata.nodeCount, edges: data.metadata.edgeCount });
+        }).catch(e => {
+          log.error('scan failed (background)', e);
+        }).finally(() => {
           deps.setScanInFlight(scanPath, null);
-        }
+        });
       } catch (e) {
-        log.error('scan failed', e);
+        log.error('scan route failed', e);
         sendError(res, 500, ERROR_CODES.SCAN_FAILED, req, corsConfig);
       }
     }),
   }), 'codegraph: scan route');
 }
+
 
 
 function registerInitRoute(rc: RouteContext): void {
@@ -458,30 +460,50 @@ function registerInitRoute(rc: RouteContext): void {
         const pathInput = extractStringField(parsed, 'path', VALIDATION.MAX_PATH_LENGTH);
         const initPath = await resolveAndValidatePath(pathInput, ctx, deps, req, res, corsConfig);
         if (initPath === null) return;
-        log.info('init requested', { path: initPath });
-        const result = await invokeUpstream('codegraph_init', { path: initPath, force: true });
-        const success = result !== null;
-        const initResult = {
-          success,
+        log.info('init requested (non-blocking)', { path: initPath });
+
+        // P1-3: Non-blocking init — return immediately, process in background
+        sendJson(res, 200, {
+          success: true,
+          status: 'initializing',
           path: initPath,
-          message: success ? 'Graph initialized successfully' : (ERROR_MESSAGES.INIT_FAILED?.en ?? 'Initialization failed'),
+          message: 'Initialization started, listen to SSE for completion',
           timestamp: Date.now(),
-        };
-        deps.setLastInitResult(initResult);
-        ctx.emit('codegraph-visualizer/graph/init-result', initResult);
-        if (success) {
-          const repoId = initPath || `workspace-${Date.now()}`;
-          const raw = await fetchMergedGraph(invokeUpstream, repoId, 'both');
-          const data = slimGraphData(raw, config.maxNodes);
-          deps.setLastGraphData(data);
-          ctx.emit('codegraph-visualizer/graph/data', {
-            repoId: RepoId(repoId),
-            nodes: data.nodes,
-            edges: data.edges,
-            timestamp: data.metadata.timestamp,
-          });
-        }
-        sendJson(res, 200, initResult, req, corsConfig);
+        }, req, corsConfig);
+
+        // Background processing
+        (async () => {
+          try {
+            const result = await invokeUpstream('codegraph_init', { path: initPath, force: true });
+            const success = result !== null;
+            const initResult = {
+              success,
+              path: initPath,
+              message: success ? 'Graph initialized successfully' : (ERROR_MESSAGES.INIT_FAILED?.en ?? 'Initialization failed'),
+              timestamp: Date.now(),
+            };
+            deps.setLastInitResult(initResult);
+            ctx.emit('codegraph-visualizer/graph/init-result', initResult);
+            if (success) {
+              const repoId = initPath || `workspace-${Date.now()}`;
+              const raw = await fetchMergedGraph(invokeUpstream, repoId, 'both');
+              const data = slimGraphData(raw, config.maxNodes);
+              deps.setLastGraphData(data);
+              ctx.emit('codegraph-visualizer/graph/data', {
+                repoId: RepoId(repoId),
+                nodes: data.nodes,
+                edges: data.edges,
+                timestamp: data.metadata.timestamp,
+              });
+              log.info('init completed (background)', { path: initPath, nodes: data.metadata.nodeCount });
+            }
+          } catch (e) {
+            log.error('init failed (background)', e);
+            const errorResult = { success: false, path: initPath, message: ERROR_MESSAGES.INIT_FAILED?.en ?? 'Initialization failed', timestamp: Date.now() };
+            deps.setLastInitResult(errorResult);
+            ctx.emit('codegraph-visualizer/graph/init-result', errorResult);
+          }
+        })();
       } catch (e) {
         log.error('init route failed', e);
         const errorResult = { success: false, path: '', message: ERROR_MESSAGES.INIT_FAILED?.en ?? 'Initialization failed', timestamp: Date.now() };
@@ -710,8 +732,66 @@ function registerTreeSitterRoute(rc: RouteContext, sharedTreeSitterAdapter: Tree
     }), 'codegraph: tree-sitter route');
 }
 
+function triggerBackgroundBuild(
+  deps: RouteDeps,
+  invokeUpstream: ReturnType<typeof createInvokeUpstream>,
+  workspacePath: string,
+): void {
+  const existing = deps.getScanInFlight(workspacePath);
+  if (existing) return;
+
+  const cached = deps.getScanCache().get(workspacePath);
+  if (cached && Date.now() - cached.timestamp < deps.config.scanCacheTtl) return;
+
+  const repoId = workspacePath || `workspace-${Date.now()}`;
+  const flags = deps.featureFlags;
+
+  // Gen2: use incremental bootstrap tool if available, then fetch merged graph
+  // Gen1: fall back to full init + fetchMergedGraph
+  let scanPromise: Promise<GraphData>;
+  if (flags && flags.incrementalBootstrap && deps.apiCompat) {
+    const bootstrapTool = deps.apiCompat.getAvailableToolName(deps.ctx, 'codegraphBootstrap');
+    if (bootstrapTool) {
+      scanPromise = invokeUpstream(bootstrapTool, { path: workspacePath })
+        .then(() => fetchMergedGraph(invokeUpstream, repoId, 'both'))
+        .then(raw => slimGraphData(raw, deps.config.maxNodes));
+    } else {
+      scanPromise = fetchMergedGraph(invokeUpstream, repoId, 'both')
+        .then(raw => slimGraphData(raw, deps.config.maxNodes));
+    }
+  } else {
+    scanPromise = fetchMergedGraph(invokeUpstream, repoId, 'both')
+      .then(raw => slimGraphData(raw, deps.config.maxNodes));
+  }
+
+  deps.setScanInFlight(workspacePath, scanPromise);
+
+  scanPromise.then(data => {
+    deps.setLastGraphData(data);
+    deps.getScanCache().set(workspacePath, { data, timestamp: Date.now() });
+    const { ctx } = deps;
+    ctx.emit('codegraph-visualizer/graph/updated', {
+      repoId: RepoId(repoId),
+      nodeCount: data.metadata.nodeCount,
+      edgeCount: data.metadata.edgeCount,
+      timestamp: data.metadata.timestamp,
+    });
+    ctx.emit('codegraph-visualizer/graph/data', {
+      repoId: RepoId(repoId),
+      nodes: data.nodes,
+      edges: data.edges,
+      timestamp: data.metadata.timestamp,
+    });
+    log.info('background build completed', { repoId, nodes: data.metadata.nodeCount, edges: data.metadata.edgeCount });
+  }).catch(e => {
+    log.error('background build failed', e);
+  }).finally(() => {
+    deps.setScanInFlight(workspacePath, null);
+  });
+}
+
 function registerBootstrapRoute(rc: RouteContext): void {
-  const { deps, corsConfig, rateLimiter } = rc;
+  const { deps, corsConfig, rateLimiter, invokeUpstream } = rc;
   const { ctx } = deps;
   const routePath = '/api/v1/codegraph/bootstrap';
 
@@ -778,7 +858,11 @@ function registerBootstrapRoute(rc: RouteContext): void {
         return;
       }
 
-      // P0-2: No data available — return skeleton immediately, do NOT block on upstream fetch
+      // P1-4: No data available — return skeleton immediately AND trigger background build
+      if (workspacePath) {
+        triggerBackgroundBuild(deps, invokeUpstream, workspacePath);
+      }
+
       sendJson(res, 200, {
         rootNodes: [],
         topLevelNodes: [],

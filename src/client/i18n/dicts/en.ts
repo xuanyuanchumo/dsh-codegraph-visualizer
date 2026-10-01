@@ -23,6 +23,7 @@ export const en: Record<string, string> = {
   'toolbar.analysisGroup': 'Analysis tools',
   'toolbar.analysis': 'Analysis',
   'toolbar.quality': 'Quality',
+  'toolbar.tools': 'Tools',
   'toolbar.viewGroup': 'View controls',
   'toolbar.settingsGroup': 'Settings',
   'toolbar.theme': 'Toggle theme',

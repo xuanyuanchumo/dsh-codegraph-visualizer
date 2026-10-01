@@ -258,7 +258,7 @@ describe('registerRoutes', () => {
     expect(state.headers['etag']).toBe(String(graphData.metadata.timestamp));
   });
 
-  it('POST /scan fetches and returns graph data', async () => {
+  it('POST /scan starts background scan and returns scanning status', async () => {
     const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     vi.mocked(fetchMergedGraph).mockResolvedValue(graphData);
     registerRoutes(deps);
@@ -268,7 +268,7 @@ describe('registerRoutes', () => {
     expect(state.code).toBe(200);
     const parsed = JSON.parse(state.body);
     expect(parsed.success).toBe(true);
-    expect(parsed.nodes).toHaveLength(1);
+    expect(parsed.status).toBe('scanning');
   });
 
   it('POST /scan returns 403 for disallowed path', async () => {
@@ -281,14 +281,16 @@ describe('registerRoutes', () => {
     expect(JSON.parse(state.body).error).toBe('PATH_NOT_ALLOWED');
   });
 
-  it('POST /scan returns 500 on fetch error', async () => {
+  it('POST /scan returns 200 with scanning status (non-blocking)', async () => {
     vi.mocked(fetchMergedGraph).mockRejectedValue(new Error('fetch failed'));
     registerRoutes(deps);
     const handler = getHandler(ctx, 4);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '.' })), res);
-    expect(state.code).toBe(500);
-    expect(JSON.parse(state.body).error).toBe('SCAN_FAILED');
+    expect(state.code).toBe(200);
+    const parsed = JSON.parse(state.body);
+    expect(parsed.success).toBe(true);
+    expect(parsed.status).toBe('scanning');
   });
 
   it('POST /scan returns cached data when within TTL', async () => {
@@ -299,6 +301,11 @@ describe('registerRoutes', () => {
     const { res: res1, state: state1 } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '.' })), res1);
     expect(state1.code).toBe(200);
+    expect(JSON.parse(state1.body).status).toBe('scanning');
+    // Wait for background scan to complete
+    await vi.waitFor(() => {
+      expect(deps.getLastGraphData()).not.toBeNull();
+    });
     const { res: res2, state: state2 } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '.' })), res2);
     expect(state2.code).toBe(200);
@@ -306,7 +313,7 @@ describe('registerRoutes', () => {
     expect(fetchMergedGraph).toHaveBeenCalledTimes(1);
   });
 
-  it('POST /init initializes graph and returns success', async () => {
+  it('POST /init returns initializing status (non-blocking)', async () => {
     vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []));
     registerRoutes(deps);
     const handler = getHandler(ctx, 5);
@@ -315,6 +322,7 @@ describe('registerRoutes', () => {
     expect(state.code).toBe(200);
     const parsed = JSON.parse(state.body);
     expect(parsed.success).toBe(true);
+    expect(parsed.status).toBe('initializing');
   });
 
   it('POST /init returns 403 for disallowed path', async () => {
@@ -327,14 +335,16 @@ describe('registerRoutes', () => {
     expect(JSON.parse(state.body).error).toBe('PATH_NOT_ALLOWED');
   });
 
-  it('POST /init returns 500 on error', async () => {
+  it('POST /init returns 200 with initializing status (non-blocking)', async () => {
     vi.mocked(fetchMergedGraph).mockRejectedValue(new Error('init failed'));
     registerRoutes(deps);
     const handler = getHandler(ctx, 5);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '.' })), res);
-    expect(state.code).toBe(500);
-    expect(JSON.parse(state.body).error).toBe('INIT_FAILED');
+    expect(state.code).toBe(200);
+    const parsed = JSON.parse(state.body);
+    expect(parsed.success).toBe(true);
+    expect(parsed.status).toBe('initializing');
   });
 
   it('POST /watch toggles watch mode', async () => {
@@ -877,20 +887,18 @@ describe('POST /scan (additional)', () => {
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
-  it('returns in-flight data when a scan is already running', async () => {
+  it('returns scanning status when a scan is already running (non-blocking)', async () => {
     const inFlightData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
     const inFlightPromise = Promise.resolve(inFlightData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 4);
-    // Pre-set an in-flight promise for the workspace path
     deps.setScanInFlight('/test/workspace', inFlightPromise);
     const { res, state } = makeRes();
     await handler(makeReq('POST', JSON.stringify({ path: '.' })), res);
     expect(state.code).toBe(200);
     const parsed = JSON.parse(state.body);
     expect(parsed.success).toBe(true);
-    expect(parsed.nodes).toHaveLength(1);
-    // fetchMergedGraph should NOT have been called since in-flight was used
+    expect(parsed.status).toBe('scanning');
     expect(fetchMergedGraph).not.toHaveBeenCalled();
   });
 
@@ -921,7 +929,7 @@ describe('POST /init (additional)', () => {
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
-  it('returns failure result when invokeUpstream returns null', async () => {
+  it('returns initializing status when invokeUpstream returns null (non-blocking)', async () => {
     const mockInvoke = vi.fn().mockResolvedValue(null);
     vi.mocked(createInvoke).mockReturnValue(mockInvoke);
     registerRoutes(deps);
@@ -930,8 +938,8 @@ describe('POST /init (additional)', () => {
     await handler(makeReq('POST', JSON.stringify({ path: '.' })), res);
     expect(state.code).toBe(200);
     const parsed = JSON.parse(state.body);
-    expect(parsed.success).toBe(false);
-    expect(parsed.message).toContain('Initialization failed');
+    expect(parsed.success).toBe(true);
+    expect(parsed.status).toBe('initializing');
   });
 
   it('handles CORS preflight', async () => {

@@ -327,7 +327,7 @@ describe('Toolbar component', () => {
   // 8. 分析工具按钮渲染和点击响应
   describe('analysis tool buttons', () => {
     const structuralButtons = [
-      { className: 'cg-search-btn', handler: 'onToggleSearch', state: 'showSearch' },
+      { className: 'cg-search-standalone-btn', handler: 'onToggleSearch', state: 'showSearch' },
       { className: 'cg-pathfind-btn', handler: 'onTogglePathFind', state: 'showPathFind' },
     ];
     const structuralQualityButtons = [
@@ -346,61 +346,43 @@ describe('Toolbar component', () => {
       { className: 'cg-corefunction-btn', handler: 'onToggleCoreFunction', state: 'showCoreFunction' },
     ];
 
-    async function openAnalysisDropdown(user: ReturnType<typeof userEvent.setup>) {
-      const btn = document.querySelector('.cg-analysis-dropdown-btn') as HTMLButtonElement;
+    async function openToolsDropdown(user: ReturnType<typeof userEvent.setup>) {
+      const btn = document.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
       await user.click(btn);
     }
 
-    async function openQualityDropdown(user: ReturnType<typeof userEvent.setup>) {
-      const btn = document.querySelector('.cg-quality-dropdown-btn') as HTMLButtonElement;
-      await user.click(btn);
-    }
-
-    it('renders analysis dropdown button in code view mode', () => {
+    it('renders tools dropdown button in code view mode', () => {
       render(<Toolbar {...makeProps({ viewMode: 'code' })} />);
-      expect(document.querySelector('.cg-analysis-dropdown-btn')).toBeTruthy();
-      expect(document.querySelector('.cg-quality-dropdown-btn')).toBeTruthy();
+      expect(document.querySelector('.cg-tools-dropdown-btn')).toBeTruthy();
     });
 
-    it('renders analysis dropdown button in callgraph view mode', () => {
+    it('renders tools dropdown button in callgraph view mode', () => {
       render(<Toolbar {...makeProps({ viewMode: 'callgraph' })} />);
-      expect(document.querySelector('.cg-analysis-dropdown-btn')).toBeTruthy();
-      expect(document.querySelector('.cg-quality-dropdown-btn')).toBeTruthy();
+      expect(document.querySelector('.cg-tools-dropdown-btn')).toBeTruthy();
     });
 
-    it('shows analysis dropdown items when dropdown is opened', async () => {
+    it('shows tools dropdown items when dropdown is opened', async () => {
       const user = userEvent.setup();
       render(<Toolbar {...makeProps({ viewMode: 'code' })} />);
-      await openAnalysisDropdown(user);
+      await openToolsDropdown(user);
       expect(document.querySelector('.cg-dropdown-content')).toBeTruthy();
       const items = document.querySelectorAll('.cg-dropdown-item');
       expect(items.length).toBeGreaterThan(0);
     });
 
-    it('shows quality dropdown items when dropdown is opened', async () => {
-      const user = userEvent.setup();
-      render(<Toolbar {...makeProps({ viewMode: 'code' })} />);
-      await openQualityDropdown(user);
-      expect(document.querySelector('.cg-dropdown-content')).toBeTruthy();
-      const items = document.querySelectorAll('.cg-dropdown-item');
-      expect(items.length).toBeGreaterThan(0);
-    });
-
-    it('hides analysis dropdown items by default', () => {
+    it('hides tools dropdown items by default', () => {
       render(<Toolbar {...makeProps({ viewMode: 'code' })} />);
       expect(document.querySelector('.cg-dropdown-content')).toBeNull();
     });
 
-    it('calls onToggleSearch when search dropdown item is clicked', async () => {
+    it('calls onToggleSearch when search standalone button is clicked', async () => {
       const user = userEvent.setup();
       const onToggleSearch = vi.fn();
       const panelControls = makePanelControls({ onToggleSearch });
       render(<Toolbar {...makeProps({ viewMode: 'code', panelControls })} />);
-      const dropdownBtn = document.querySelector('.cg-analysis-dropdown-btn') as HTMLButtonElement;
-      await user.click(dropdownBtn);
-      const searchItem = document.querySelector('.cg-search-btn') as HTMLButtonElement;
-      expect(searchItem).toBeTruthy();
-      await user.click(searchItem);
+      const searchBtn = document.querySelector('.cg-search-standalone-btn') as HTMLButtonElement;
+      expect(searchBtn).toBeTruthy();
+      await user.click(searchBtn);
       expect(onToggleSearch).toHaveBeenCalledOnce();
     });
 
@@ -409,8 +391,7 @@ describe('Toolbar component', () => {
       const onToggleCallChain = vi.fn();
       const panelControls = makePanelControls({ onToggleCallChain });
       render(<Toolbar {...makeProps({ viewMode: 'callgraph', panelControls })} />);
-      const dropdownBtn = document.querySelector('.cg-analysis-dropdown-btn') as HTMLButtonElement;
-      await user.click(dropdownBtn);
+      await openToolsDropdown(user);
       const chainItem = document.querySelector('.cg-chain-btn') as HTMLButtonElement;
       expect(chainItem).toBeTruthy();
       await user.click(chainItem);
@@ -422,8 +403,7 @@ describe('Toolbar component', () => {
       const onToggleHealthScore = vi.fn();
       const panelControls = makePanelControls({ onToggleHealthScore });
       render(<Toolbar {...makeProps({ viewMode: 'code', panelControls })} />);
-      const dropdownBtn = document.querySelector('.cg-quality-dropdown-btn') as HTMLButtonElement;
-      await user.click(dropdownBtn);
+      await openToolsDropdown(user);
       const healthItem = document.querySelector('.cg-health-btn') as HTMLButtonElement;
       expect(healthItem).toBeTruthy();
       await user.click(healthItem);
@@ -435,8 +415,7 @@ describe('Toolbar component', () => {
       const onToggleHotspot = vi.fn();
       const panelControls = makePanelControls({ onToggleHotspot });
       render(<Toolbar {...makeProps({ viewMode: 'callgraph', panelControls })} />);
-      const dropdownBtn = document.querySelector('.cg-quality-dropdown-btn') as HTMLButtonElement;
-      await user.click(dropdownBtn);
+      await openToolsDropdown(user);
       const hotspotItem = document.querySelector('.cg-hotspot-btn') as HTMLButtonElement;
       expect(hotspotItem).toBeTruthy();
       await user.click(hotspotItem);
@@ -447,8 +426,7 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const panelControls = makePanelControls({ showSearch: true });
       render(<Toolbar {...makeProps({ viewMode: 'code', panelControls })} />);
-      await openAnalysisDropdown(user);
-      const btn = document.querySelector('.cg-search-btn') as HTMLButtonElement;
+      const btn = document.querySelector('.cg-search-standalone-btn') as HTMLButtonElement;
       expect(btn).toBeTruthy();
       expect(btn.className).toContain('active');
     });
@@ -457,7 +435,7 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const panelControls = makePanelControls({ showHealthScore: true });
       render(<Toolbar {...makeProps({ viewMode: 'code', panelControls })} />);
-      await openQualityDropdown(user);
+      await openToolsDropdown(user);
       const btn = document.querySelector('.cg-health-btn') as HTMLButtonElement;
       expect(btn).toBeTruthy();
       expect(btn.className).toContain('active');
@@ -467,7 +445,7 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const panelControls = makePanelControls({ showCallChain: true });
       render(<Toolbar {...makeProps({ viewMode: 'callgraph', panelControls })} />);
-      await openAnalysisDropdown(user);
+      await openToolsDropdown(user);
       const btn = document.querySelector('.cg-chain-btn') as HTMLButtonElement;
       expect(btn).toBeTruthy();
       expect(btn.className).toContain('active');
@@ -477,26 +455,16 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const panelControls = makePanelControls({ showHotspot: true });
       render(<Toolbar {...makeProps({ viewMode: 'callgraph', panelControls })} />);
-      await openQualityDropdown(user);
+      await openToolsDropdown(user);
       const btn = document.querySelector('.cg-hotspot-btn') as HTMLButtonElement;
       expect(btn).toBeTruthy();
       expect(btn.className).toContain('active');
     });
 
-    it('closes analysis dropdown after clicking an item', async () => {
+    it('closes tools dropdown after clicking an item', async () => {
       const user = userEvent.setup();
       render(<Toolbar {...makeProps({ viewMode: 'code' })} />);
-      await openAnalysisDropdown(user);
-      expect(document.querySelector('.cg-dropdown-content')).toBeTruthy();
-      const item = document.querySelector('.cg-dropdown-item') as HTMLButtonElement;
-      await user.click(item);
-      expect(document.querySelector('.cg-dropdown-content')).toBeNull();
-    });
-
-    it('closes quality dropdown after clicking an item', async () => {
-      const user = userEvent.setup();
-      render(<Toolbar {...makeProps({ viewMode: 'code' })} />);
-      await openQualityDropdown(user);
+      await openToolsDropdown(user);
       expect(document.querySelector('.cg-dropdown-content')).toBeTruthy();
       const item = document.querySelector('.cg-dropdown-item') as HTMLButtonElement;
       await user.click(item);

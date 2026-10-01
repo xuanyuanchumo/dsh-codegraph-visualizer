@@ -198,8 +198,8 @@ export async function executeGraphImpact(args: { symbolId: string }, invoke: Ups
 
 // ── Tool factory ────────────────────────────────────────────────────────
 
-export const createGraphTools = async (ctx: Context, options: { requestTimeout?: number } = {}) => {
-  const invoke = createInvoke(ctx, options.requestTimeout);
+export const createGraphTools = async (ctx: Context, options: { requestTimeout?: number; apiCompat?: ApiCompatLayer } = {}) => {
+  const invoke = createInvoke(ctx, options.requestTimeout, options.apiCompat);
   const graphCache = new Map<string, GraphData>();
   const deps = await createGraphToolDeps();
 

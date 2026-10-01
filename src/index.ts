@@ -33,7 +33,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   const featureFlags = createFeatureFlags(hostVersionInfo);
   const apiCompat = createApiCompatLayer(hostVersionInfo);
 
-  const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout });
+  const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout, apiCompat });
 
   ctx.effect(() => {
     const d1 = ctx.tools.register(graphStatus);
