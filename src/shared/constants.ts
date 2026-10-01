@@ -239,6 +239,11 @@ export const PREFETCH = {
   CONCURRENCY_LIMIT: 2,
   COST_THRESHOLD: 50,
   HOVER_DEBOUNCE_MS: 300,
+  IDLE_TIMEOUT_MS: 2000,
+} as const;
+
+export const RESTORE = {
+  STEP_DELAY_MS: 50,
 } as const;
 
 export const BOOTSTRAP = {

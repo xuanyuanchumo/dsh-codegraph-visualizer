@@ -393,15 +393,17 @@ export function registerEdgesRoute(rc: RouteContext): void {
           );
 
           if (!aggregated && filteredEdges.length > EDGES_AGGREGATION.THRESHOLD) {
+            const nodeIdToFilePath = new Map<string, string>();
+            for (const n of lastGraphData.nodes) nodeIdToFilePath.set(n.id, n.filePath);
             const filePairCounts = new Map<string, number>();
             for (const e of filteredEdges) {
-              const srcFile = nodeFilePaths.get(e.source) ?? lastGraphData.nodes.find(n => n.id === e.source)?.filePath ?? '?';
-              const tgtFile = nodeFilePaths.get(e.target) ?? lastGraphData.nodes.find(n => n.id === e.target)?.filePath ?? '?';
-              const pairKey = srcFile < tgtFile ? `${srcFile}→${tgtFile}` : `${tgtFile}→${srcFile}`;
+              const srcFile = nodeFilePaths.get(e.source) ?? nodeIdToFilePath.get(e.source) ?? '?';
+              const tgtFile = nodeFilePaths.get(e.target) ?? nodeIdToFilePath.get(e.target) ?? '?';
+              const pairKey = srcFile < tgtFile ? `${srcFile}\0${tgtFile}` : `${tgtFile}\0${srcFile}`;
               filePairCounts.set(pairKey, (filePairCounts.get(pairKey) ?? 0) + 1);
             }
             const aggregatedEdges = [...filePairCounts.entries()].map(([pairKey, count]) => {
-              const [fileA, fileB] = pairKey.split('→');
+              const [fileA, fileB] = pairKey.split('\0');
               return {
                 id: EdgeId(`agg:${pairKey}`),
                 source: NodeId(fromId),

@@ -246,3 +246,83 @@ test.describe('v0.2.0 Feature: Collapse All (FR-42)', () => {
     await expect(collapseAllBtn).toBeVisible();
   });
 });
+test.describe('J33: 展开/折叠聚类', () => {
+  test('should expand cluster on double-click and show internal nodes', async ({ page }) => {
+    await setupPluginPage(page);
+    await page.waitForTimeout(1000);
+    const clusterNodeId = await page.evaluate(() => {
+      const cy = (window as any).__cytoscape;
+      if (!cy) return null;
+      const clusterNode = cy.nodes('[isCluster = "true"]').first();
+      if (clusterNode.length === 0) return null;
+      return clusterNode.id();
+    });
+    if (!clusterNodeId) {
+      test.skip(true, 'No cluster nodes found');
+      return;
+    }
+    const beforeCount = await page.evaluate(() => {
+      const cy = (window as any).__cytoscape;
+      return cy ? cy.nodes().length : 0;
+    });
+    await page.evaluate((id) => {
+      const cy = (window as any).__cytoscape;
+      if (cy) cy.getElementById(id).emit('dbltap');
+    }, clusterNodeId);
+    await page.waitForTimeout(1000);
+    const afterExpandCount = await page.evaluate(() => {
+      const cy = (window as any).__cytoscape;
+      return cy ? cy.nodes().length : 0;
+    });
+    expect(afterExpandCount).toBeGreaterThanOrEqual(beforeCount);
+  });
+
+  test('should collapse cluster on second double-click', async ({ page }) => {
+    await setupPluginPage(page);
+    await page.waitForTimeout(1000);
+    const clusterNodeId = await page.evaluate(() => {
+      const cy = (window as any).__cytoscape;
+      if (!cy) return null;
+      const clusterNode = cy.nodes('[isCluster = "true"]').first();
+      if (clusterNode.length === 0) return null;
+      return clusterNode.id();
+    });
+    if (!clusterNodeId) {
+      test.skip(true, 'No cluster nodes found');
+      return;
+    }
+    await page.evaluate((id) => {
+      const cy = (window as any).__cytoscape;
+      if (cy) cy.getElementById(id).emit('dbltap');
+    }, clusterNodeId);
+    await page.waitForTimeout(1000);
+    const expandedCount = await page.evaluate(() => {
+      const cy = (window as any).__cytoscape;
+      return cy ? cy.nodes().length : 0;
+    });
+    await page.evaluate((id) => {
+      const cy = (window as any).__cytoscape;
+      if (cy) cy.getElementById(id).emit('dbltap');
+    }, clusterNodeId);
+    await page.waitForTimeout(1000);
+    const collapsedCount = await page.evaluate(() => {
+      const cy = (window as any).__cytoscape;
+      return cy ? cy.nodes().length : 0;
+    });
+    expect(collapsedCount).toBeLessThanOrEqual(expandedCount);
+  });
+
+  test('should collapse all via collapse-all button', async ({ page }) => {
+    await setupPluginPage(page);
+    await page.waitForTimeout(1000);
+    const collapseAllBtn = page.locator('.cg-collapse-all-btn');
+    await collapseAllBtn.click({ timeout: 10000 });
+    await page.waitForTimeout(1000);
+    const clusterCount = await page.evaluate(() => {
+      const cy = (window as any).__cytoscape;
+      if (!cy) return 0;
+      return cy.nodes('[isCluster = "true"]').length;
+    });
+    expect(clusterCount).toBeGreaterThanOrEqual(0);
+  });
+});

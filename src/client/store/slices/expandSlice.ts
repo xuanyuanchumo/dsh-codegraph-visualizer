@@ -1,6 +1,6 @@
 import type { GraphNode, GraphEdge } from '../../../types/index.ts';
 import type { GraphState } from '../types.ts';
-import { CLUSTER, PREFETCH, FUNCTION_BODY, SYMBOL_AST } from '../../../shared/constants.ts';
+import { CLUSTER, PREFETCH, RESTORE, FUNCTION_BODY, SYMBOL_AST } from '../../../shared/constants.ts';
 import { isLayeredViewMode } from '../../../shared/viewModeUtils.ts';
 import { fetchNodeChildren, fetchBootstrap, fetchFileOutline, fetchSymbolAST } from '../../api/index.ts';
 import { readUrlExpand, restoreExpandedNodeIds } from '../../utils/urlState.ts';
@@ -309,7 +309,7 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
         internals.prefetchInFlightCount--;
       }
       if (typeof requestIdleCallback === 'function') {
-        internals.prefetchIdleHandle = requestIdleCallback(runPrefetch, { timeout: 2000 });
+        internals.prefetchIdleHandle = requestIdleCallback(runPrefetch, { timeout: PREFETCH.IDLE_TIMEOUT_MS });
       } else {
         internals.prefetchIdleHandle = setTimeout(runPrefetch, 0);
       }
@@ -379,7 +379,7 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
         }
         if (gen !== internals.restoreGeneration) { restoreController.abort(); return; }
         state.expandNode(nodeId);
-        await new Promise<void>((r) => { internals.restoreTimeoutHandle = setTimeout(r, 50); });
+        await new Promise<void>((r) => { internals.restoreTimeoutHandle = setTimeout(r, RESTORE.STEP_DELAY_MS); });
         if (gen !== internals.restoreGeneration) {
           restoreController.abort();
           if (internals.restoreTimeoutHandle !== null) { clearTimeout(internals.restoreTimeoutHandle); internals.restoreTimeoutHandle = null; }
