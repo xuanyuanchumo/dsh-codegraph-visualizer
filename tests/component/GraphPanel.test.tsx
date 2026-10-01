@@ -6,7 +6,7 @@ import { render, screen, cleanup, fireEvent, act } from '@testing-library/react'
 import React from 'react';
 import { useGraphStore } from '../../src/client/store/graphStore.ts';
 import { useShallow } from 'zustand/shallow';
-import { useGraphRenderer, useGraphInteraction, useGraphStatus, useGraphPerformance, useNodeSearch, usePanelState, useGraphWorkspace, useGraphData, usePanelKeyboard, useGraphDisplay, useAnalysisPanels, useGraphAnalysis } from '../../src/client/hooks/index.ts';
+import { useGraphRenderer, useGraphInteraction, useGraphStatus, useGraphPerformance, useNodeSearch, usePanelState, useGraphWorkspace, useGraphData, usePanelKeyboard, useGraphDisplay, useAnalysisPanels, useGraphAnalysis, useGraphActions } from '../../src/client/hooks/index.ts';
 import { NodeId } from '../../src/types/index.ts';
 
 class ResizeObserverMock {
@@ -3371,5 +3371,278 @@ describe('GraphPanel onClose callback tests', () => {
     fireEvent.click(closeBtn);
     // After close, selectedNodeId should be null
     expect(useGraphStore.getState().selectedNodeId).toBeNull();
+  });
+});
+describe('GraphPanel remaining handler coverage tests', () => {
+  let capturedCallbacks: any;
+  let capturedKeyboardHandlers: any;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    document.body.removeAttribute('data-ds-dark-theme');
+    useGraphStore.setState({
+      nodes: [], edges: [], rawNodes: [], rawEdges: [],
+      isLoading: false, error: null, theme: 'dark',
+      heatmapMode: 'none', viewMode: 'code', selectedNodeId: null,
+      focusModeActive: false, focusModeNodeId: null, focusDepth: 1,
+      pathResult: null, selectedFunction: null, diagramData: null,
+      expandedNodeIds: new Set(), lodLevel: 'full',
+    });
+    capturedCallbacks = {};
+    capturedKeyboardHandlers = {};
+    vi.mocked(useGraphActions).mockReturnValue(useGraphStore.getState() as any);
+  });
+
+  function setupRendererMockWithCallbacks(rendererCurrent: any) {
+    vi.mocked(useGraphRenderer).mockImplementation((opts: any) => {
+      capturedCallbacks = opts.callbacks;
+      return {
+        containerRef: { current: null },
+        rendererRef: { current: rendererCurrent },
+        initRenderer: vi.fn(),
+        destroyRenderer: vi.fn(),
+        updateData: vi.fn(),
+        applyLayout: vi.fn(),
+        selectNode: vi.fn(),
+        focusOnNode: vi.fn(),
+        focusNeighborhood: vi.fn(),
+        highlightCallChain: vi.fn(),
+        highlightImpact: vi.fn(),
+        highlightInheritance: vi.fn(),
+        getViewportInfo: vi.fn(() => null),
+        focusOnArea: vi.fn(),
+        exportPNG: vi.fn(),
+        exportSVG: vi.fn(),
+        setTheme: vi.fn(),
+        setFilter: vi.fn(),
+        setGraphType: vi.fn(),
+        setClusterDepth: vi.fn(),
+        setLODLevel: vi.fn(),
+        setHeatmapMode: vi.fn(),
+        applyIncrementalLayout: vi.fn(),
+        updateTheme: vi.fn(),
+        searchMatchCount: 0,
+        setSearchMatchCount: vi.fn(),
+        exportGraph: vi.fn(),
+      };
+    });
+  }
+
+  function setupKeyboardMockWithHandlers() {
+    vi.mocked(usePanelKeyboard).mockImplementation((...args: any[]) => {
+      capturedKeyboardHandlers = args[3];
+      return {};
+    });
+  }
+
+  function createMockRenderer(nodeMap: Map<string, any> = new Map(), edgeMap: Map<string, any> = new Map()) {
+    return {
+      getNodeData: vi.fn((id: string) => nodeMap.get(id) ?? null),
+      getEdgeData: vi.fn((id: string) => edgeMap.get(id) ?? null),
+      getSelectedNodeData: vi.fn(() => null as any),
+      getZoom: vi.fn(() => 1),
+      onZoomChange: vi.fn(() => vi.fn()),
+      findPath: vi.fn(() => null),
+      highlightPath: vi.fn(),
+      expandNeighborhood: vi.fn(),
+      focusNeighborhood: vi.fn(),
+      focusOnNode: vi.fn(),
+      selectNode: vi.fn(),
+      getVisibleNodeCount: vi.fn(() => 0),
+      getThumbnail: vi.fn(() => null),
+      getViewportInfo: vi.fn(() => null),
+      resize: vi.fn(),
+      detectCyclesDetailed: vi.fn(() => []),
+      hideNode: vi.fn(),
+      showAllNodes: vi.fn(),
+      focusOnArea: vi.fn(),
+      highlightCallChain: vi.fn(),
+      highlightImpact: vi.fn(),
+      getImpactStats: vi.fn(() => null),
+      markDeadCode: vi.fn(),
+      clearDeadCodeMarks: vi.fn(),
+      pauseAnimations: vi.fn(),
+      resumeAnimations: vi.fn(),
+    };
+  }
+
+  function makePanelStateMock(overrides: Record<string, any> = {}) {
+    const base: Record<string, any> = {
+      showImport: false, showSearch: false, showLegend: false, showMiniMap: false,
+      showFilterPanel: false, showPathFind: false, showHealthScore: false,
+      showRules: false, showCallChain: false, showImpact: false,
+      showCycles: false, showHotspot: false, showGodModule: false,
+      showCoreFunction: false, showInheritance: false, cycleIsolation: false,
+      showDeadCode: false,
+      collapsed: false, isCollapsed: false, showTour: false,
+      toPanelControls: {
+        showImport: false, showSearch: false, showLegend: false, showMiniMap: false,
+        showFilterPanel: false, showPathFind: false, showHealthScore: false,
+        showRules: false, showCallChain: false, showImpact: false,
+        showCycles: false, showHotspot: false, showGodModule: false,
+        showCoreFunction: false, cycleIsolation: false, showInheritance: false, showTour: false,
+        showDeadCode: false,
+        onToggleSearch: vi.fn(), onToggleCallChain: vi.fn(), onToggleCycles: vi.fn(),
+        onToggleCycleIsolation: vi.fn(), onToggleImpact: vi.fn(), onToggleInheritance: vi.fn(),
+        onToggleMiniMap: vi.fn(), onToggleLegend: vi.fn(), onToggleImport: vi.fn(),
+        onTogglePathFind: vi.fn(), onToggleHealthScore: vi.fn(), onToggleRules: vi.fn(),
+        onToggleHotspot: vi.fn(), onToggleGodModule: vi.fn(), onToggleCoreFunction: vi.fn(),
+        onToggleDeadCode: vi.fn(),
+        onToggleFilterPanel: vi.fn(),
+      },
+      setShowImport: vi.fn(), setShowSearch: vi.fn(), setShowLegend: vi.fn(),
+      setShowMiniMap: vi.fn(), setShowFilterPanel: vi.fn(), setShowPathFind: vi.fn(),
+      setShowHealthScore: vi.fn(), setShowRules: vi.fn(), setShowCallChain: vi.fn(),
+      setShowImpact: vi.fn(), setShowCycles: vi.fn(), setShowHotspot: vi.fn(),
+      setShowGodModule: vi.fn(), setShowCoreFunction: vi.fn(),
+      setShowDeadCode: vi.fn(),
+      setShowCycleIsolation: vi.fn(), setShowInheritance: vi.fn(), setShowTour: vi.fn(),
+      toggleCollapsed: vi.fn(), toggleCollapse: vi.fn(),
+      toggleSearch: vi.fn(), toggleCycles: vi.fn(), toggleCycleIsolation: vi.fn(),
+      toggleCallChain: vi.fn(), toggleImpact: vi.fn(), toggleInheritance: vi.fn(),
+      toggleMiniMap: vi.fn(), toggleImport: vi.fn(), toggleLegend: vi.fn(),
+      togglePathFind: vi.fn(), toggleHealthScore: vi.fn(), toggleRules: vi.fn(),
+      toggleHotspot: vi.fn(), toggleGodModule: vi.fn(), toggleCoreFunction: vi.fn(),
+      toggleFilterPanel: vi.fn(),
+    };
+    return { ...base, ...overrides };
+  }
+
+  it('layoutConfig.onChange: triggers setClusterDepth when depth select changed', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const mockRenderer = createMockRenderer();
+    setupRendererMockWithCallbacks(mockRenderer);
+    const setClusterDepthSpy = vi.fn();
+    vi.mocked(useGraphActions).mockReturnValue({
+      ...useGraphStore.getState(),
+      setClusterDepth: setClusterDepthSpy,
+    } as any);
+    vi.mocked(useGraphDisplay).mockReturnValue({
+      layout: 'dagre', dagreRankDir: 'TB', theme: 'dark',
+      filterType: 'all', graphType: 'callgraph', clusterDepth: 1,
+      viewMode: 'code', currentLayer: 0, diagramData: null, hierarchyLevel: 1,
+    } as any);
+
+    const { container } = render(React.createElement(GraphPanel));
+    const depthSelect = container.querySelector('.cg-depth-select') as HTMLSelectElement;
+    expect(depthSelect).toBeTruthy();
+    fireEvent.change(depthSelect, { target: { value: '2' } });
+    expect(setClusterDepthSpy).toHaveBeenCalledWith(2);
+  });
+
+  it('viewConfig.onChange: triggers setHierarchyLevel when hierarchy button clicked', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const mockRenderer = createMockRenderer();
+    setupRendererMockWithCallbacks(mockRenderer);
+    const setHierarchyLevelSpy = vi.fn();
+    vi.mocked(useGraphActions).mockReturnValue({
+      ...useGraphStore.getState(),
+      setHierarchyLevel: setHierarchyLevelSpy,
+    } as any);
+
+    const { container } = render(React.createElement(GraphPanel));
+    const hierarchyBtns = container.querySelectorAll('.cg-hierarchy-btn');
+    expect(hierarchyBtns.length).toBeGreaterThan(1);
+    const targetBtn = Array.from(hierarchyBtns).find((btn) => !btn.classList.contains('cg-active')) as HTMLButtonElement;
+    expect(targetBtn).toBeTruthy();
+    fireEvent.click(targetBtn);
+    expect(setHierarchyLevelSpy).toHaveBeenCalled();
+  });
+
+  it('viewConfig.onChange: triggers setFilterType when filter select changed', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const mockRenderer = createMockRenderer();
+    setupRendererMockWithCallbacks(mockRenderer);
+    useGraphStore.setState({ filterType: 'all' } as any);
+
+    const { container } = render(React.createElement(GraphPanel));
+    const filterSelect = container.querySelector('.cg-filter-select') as HTMLSelectElement;
+    expect(filterSelect).toBeTruthy();
+    fireEvent.change(filterSelect, { target: { value: 'function' } });
+    expect(useGraphStore.getState().filterType).toBe('function');
+  });
+
+  it('onRetry (ErrorOverlay): calls assembleMicro when retry button clicked in micro view', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const mockRenderer = createMockRenderer();
+    setupRendererMockWithCallbacks(mockRenderer);
+    const assembleMicroSpy = vi.fn();
+    vi.mocked(useGraphActions).mockReturnValue({
+      ...useGraphStore.getState(),
+      assembleMicro: assembleMicroSpy,
+    } as any);
+    useGraphStore.setState({ viewMode: 'cfg', error: 'Test error' } as any);
+    vi.mocked(useGraphAnalysis).mockReturnValue({
+      ruleViolations: [], selectedFunction: { nodeId: 'fn1', functionName: 'myFunc', filePath: '/test.ts' },
+      fanInThreshold: 0, fanOutThreshold: 0, visibleNodeTypes: new Set(), visibleEdgeTypes: new Set(), heatmapMode: 'none',
+    } as any);
+    vi.mocked(useGraphStatus).mockReturnValue({
+      isLoading: false, error: 'Test error', lastUpdated: 0, truncated: false,
+      totalNodeCount: 0, prerequisites: { codegraph: false, lens: false, builtin: true },
+      watchEnabled: false, initStatus: 'idle', urlRestored: true, panelVisible: true,
+    });
+
+    const { container } = render(React.createElement(GraphPanel));
+    const retryBtn = container.querySelector('.cg-error-overlay-retry') as HTMLButtonElement;
+    expect(retryBtn).toBeTruthy();
+    fireEvent.click(retryBtn);
+    expect(assembleMicroSpy).toHaveBeenCalledWith('cfg');
+  });
+
+  it('onSelectDeadNode: sets selectedNodeId when dead code node clicked', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const mockRenderer = createMockRenderer();
+    setupRendererMockWithCallbacks(mockRenderer);
+    const panelState = makePanelStateMock({ showDeadCode: true });
+    vi.mocked(usePanelState).mockReturnValue(panelState as any);
+    const deadCodeResult = {
+      deadNodes: [{ nodeId: 'dead1', confidence: 'confirmed', category: 'unreachable', label: 'deadFunc', filePath: '/dead.ts' }],
+      unreachableNodes: new Set(['dead1']),
+      stats: { total: 1, confirmed: 1, suspected: 0 },
+    };
+    vi.mocked(useAnalysisPanels).mockReturnValue({
+      handleRulesCheck: vi.fn(), hotspotNodes: [], godModules: [], impactStats: null,
+      coreFunctions: [], deadCodeResult, cycleDetails: [], healthScore: null,
+    } as any);
+
+    const { container } = render(React.createElement(GraphPanel));
+    const deadNodeItem = container.querySelector('.cg-deadcode-item') as HTMLElement;
+    expect(deadNodeItem).toBeTruthy();
+    fireEvent.click(deadNodeItem);
+    expect(useGraphStore.getState().selectedNodeId).toEqual(NodeId('dead1'));
+    expect(mockRenderer.focusOnNode).toHaveBeenCalledWith('dead1');
+  });
+
+  it('KeyboardHelp onClose: closes help panel when close button clicked', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const mockRenderer = createMockRenderer();
+    setupRendererMockWithCallbacks(mockRenderer);
+    setupKeyboardMockWithHandlers();
+
+    const { container } = render(React.createElement(GraphPanel));
+    expect(capturedKeyboardHandlers.onToggleHelp).toBeInstanceOf(Function);
+    act(() => {
+      capturedKeyboardHandlers.onToggleHelp();
+    });
+    const helpCloseBtn = container.querySelector('.cg-keyboard-help-close') as HTMLButtonElement;
+    expect(helpCloseBtn).toBeTruthy();
+    fireEvent.click(helpCloseBtn);
+    expect(container.querySelector('.cg-keyboard-help-overlay')).toBeNull();
+  });
+
+  it('KeyboardHelp onClose: closes help panel when overlay backdrop clicked', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const mockRenderer = createMockRenderer();
+    setupRendererMockWithCallbacks(mockRenderer);
+    setupKeyboardMockWithHandlers();
+
+    const { container } = render(React.createElement(GraphPanel));
+    act(() => {
+      capturedKeyboardHandlers.onToggleHelp();
+    });
+    const helpOverlay = container.querySelector('.cg-keyboard-help-overlay') as HTMLElement;
+    expect(helpOverlay).toBeTruthy();
+    fireEvent.click(helpOverlay);
+    expect(container.querySelector('.cg-keyboard-help-overlay')).toBeNull();
   });
 });

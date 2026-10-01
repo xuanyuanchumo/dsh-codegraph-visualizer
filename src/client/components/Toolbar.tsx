@@ -7,11 +7,10 @@ import { Dropdown } from './Dropdown.tsx';
 import { useElementWidth } from '../hooks/useElementWidth.ts';
 import { STRUCTURAL_VIEW_MODES, BEHAVIORAL_VIEW_MODES, BEHAVIORAL_MICRO_VIEW_MODES, getViewLayer, getAvailablePanels } from '../../shared/viewModeUtils.ts';
 import {
-  SearchIcon, ChainIcon, CycleIcon, MapIcon, RefreshIcon,
+  SearchIcon, MapIcon, RefreshIcon,
   SunIcon, MoonIcon, DownloadIcon, ChevronDownIcon, ChevronUpIcon,
-  UploadIcon, LayersIcon, ZapIcon, TreeIcon,
-  PathIcon, HeartIcon, RuleIcon, FlameIcon, AlertCircleIcon,
-  UndoIcon, RedoIcon, StarIcon, FilterIcon, GhostIcon, MoreIcon,
+  UploadIcon, LayersIcon, ZapIcon,
+  UndoIcon, RedoIcon, StarIcon, FilterIcon, MoreIcon,
 } from './Icons.tsx';
 import {
   LAYOUTS, FILTER_KEYS, RANK_DIRS, GRAPH_TYPES,

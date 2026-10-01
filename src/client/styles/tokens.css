@@ -173,6 +173,13 @@ body[data-ds-dark-theme] {
   --cg-accent-soft: var(--dsw-accent-soft, rgba(99, 102, 241, 0.12));
   --cg-on-accent: var(--dsw-on-accent, #ffffff);
 
+  /* Semantic status colors — dark theme */
+  --cg-success: #34d399;
+  --cg-warning: #fbbf24;
+  --cg-error: #f87171;
+  --cg-info: #60a5fa;
+  --cg-cycle-highlight: #ff6b6b;
+
   /* Node type semantic colors — dark theme */
   --cg-node-default: #6366f1;
   --cg-node-function: #10b981;

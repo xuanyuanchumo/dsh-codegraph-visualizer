@@ -1,5 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { scoped } from '../../shared/Logger.ts';
+import { safeCheck } from '../utils/safeCheck.ts';
 
 const log = scoped('client:compat');
 
@@ -18,14 +19,6 @@ export interface ClientCompatLayer {
   detectMode(ctx: Context): SidebarIntegrationMode;
   detectFlags(ctx: Context): ClientFeatureFlags;
   hasFlag(key: keyof ClientFeatureFlags): boolean;
-}
-
-function safeCheck<T>(fn: () => T, fallback: T): T {
-  try {
-    return fn();
-  } catch {
-    return fallback;
-  }
 }
 
 export function createClientCompatLayer(): ClientCompatLayer {

@@ -92,14 +92,7 @@ export const FilterPanel = memo(function FilterPanel({ onClose }: FilterPanelPro
           onChange={(e) => setExcludeInput(e.target.value)}
           aria-label={t('filterPanel.excludeLabel')}
         />
-        <input
-          type="text"
-          className="cg-filter-path-input"
-          placeholder={t('filterPanel.excludePlaceholder')}
-          value={excludeInput}
-          onChange={(e) => setExcludeInput(e.target.value)}
-          aria-label={t('filterPanel.excludeLabel')}
-        />
+
         <div className="cg-filter-path-actions">
           <button className="cg-filter-quick-btn" onClick={applyPathFilter}>{t('filterPanel.applyPath')}</button>
           <button className="cg-filter-quick-btn" onClick={clearPathFilter}>{t('filterPanel.clearPath')}</button>

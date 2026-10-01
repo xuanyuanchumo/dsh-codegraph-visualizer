@@ -51,12 +51,10 @@ export function extractBooleanField(obj: Record<string, unknown>, field: string)
   return typeof v === 'boolean' ? v : undefined;
 }
 
-const GIT_REF_PATTERN = /^[a-zA-Z0-9._/-]+$/;
+const GIT_REF_PATTERN = /^(?!.*\.\.)[a-zA-Z0-9._/-]+$/;
 
 export function isSafeGitRef(ref: string): boolean {
-  if (!GIT_REF_PATTERN.test(ref)) return false;
-  if (ref.includes('..')) return false;
-  return true;
+  return GIT_REF_PATTERN.test(ref);
 }
 
 export async function validatePathRealpath(scanPath: string, securityManager: SecurityManager): Promise<boolean> {

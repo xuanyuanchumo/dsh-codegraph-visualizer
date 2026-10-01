@@ -1,6 +1,6 @@
 import type { LayoutType, GraphType, RankDir } from '../store/graphStore.ts';
 import type { GraphNode, ViewMode } from '../../types/index.ts';
-import type { AnalysisPanelKey } from '../../shared/viewModeUtils.ts';
+
 import {
   ChainIcon, CycleIcon, ZapIcon, TreeIcon, PathIcon,
   HeartIcon, RuleIcon, FlameIcon, AlertCircleIcon,
