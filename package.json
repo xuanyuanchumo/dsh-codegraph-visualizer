@@ -27,6 +27,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:web": "playwright test --project=chromium",
+    "perf-gate": "node scripts/perf-gate.mjs",
     "lint": "oxlint src/",
     "lint:fix": "oxlint src/ --fix",
     "hygiene": "publint dist && node scripts/consume-check.mjs",
