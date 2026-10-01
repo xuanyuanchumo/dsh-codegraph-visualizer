@@ -410,6 +410,20 @@ export const TREE_SITTER = {
 
 export const INDEXED_DB = {
   DB_VERSION: 2,
+  TTL: {
+    CLUSTER_MS: 30 * 60 * 1000,
+    DIAGRAM_MS: 60 * 60 * 1000,
+    OUTLINE_MS: 24 * 60 * 60 * 1000,
+    AST_MS: 24 * 60 * 60 * 1000,
+    EDGES_MS: 30 * 60 * 1000,
+  },
+  CAPACITY: {
+    HIGH_WATERMARK: 0.85,
+    LOW_WATERMARK: 0.70,
+  },
+  BATCH: {
+    MAX_ENTRIES: 500,
+  },
 } as const;
 
 export const LOGGER = {

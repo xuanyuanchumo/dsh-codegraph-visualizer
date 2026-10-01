@@ -711,4 +711,156 @@ describe('IndexedDBCache', () => {
       expect(result).toBeNull();
     });
   });
+
+  describe('batch write (setMany)', () => {
+    it('writes multiple entries in a single batch', async () => {
+      const entries = [
+        { key: 'k1', value: { n: 1 } },
+        { key: 'k2', value: { n: 2 } },
+        { key: 'k3', value: { n: 3 } },
+      ];
+      await cache.setMany('cluster-cache', entries);
+      expect(await cache.getCluster('k1')).toEqual({ n: 1 });
+      expect(await cache.getCluster('k2')).toEqual({ n: 2 });
+      expect(await cache.getCluster('k3')).toEqual({ n: 3 });
+    });
+
+    it('handles empty batch gracefully', async () => {
+      await expect(cache.setMany('cluster-cache', [])).resolves.toBeUndefined();
+    });
+
+    it('writes to diagram store via setMany', async () => {
+      const entries = [
+        { key: 'inheritance:h1', value: { layers: 1 } },
+        { key: 'callgraph:h2', value: { layers: 2 } },
+      ];
+      await cache.setMany('diagram-cache', entries);
+      expect(await cache.getDiagram('inheritance:h1')).toEqual({ layers: 1 });
+      expect(await cache.getDiagram('callgraph:h2')).toEqual({ layers: 2 });
+    });
+
+    it('writes to outline store via setMany', async () => {
+      const entries = [
+        { key: 'node1', value: { symbols: ['a'] } },
+        { key: 'node2', value: { symbols: ['b'] } },
+      ];
+      await cache.setMany('outline-cache', entries);
+      expect(await cache.getOutline('node1')).toEqual({ symbols: ['a'] });
+      expect(await cache.getOutline('node2')).toEqual({ symbols: ['b'] });
+    });
+  });
+
+  describe('storage estimate (getStorageEstimate)', () => {
+    it('returns null when navigator.storage is undefined', async () => {
+      const result = await cache.getStorageEstimate();
+      expect(result).toBeNull();
+    });
+
+    it('returns estimate when navigator.storage.estimate is available', async () => {
+      vi.stubGlobal('navigator', {
+        storage: {
+          estimate: vi.fn().mockResolvedValue({ usage: 500_000, quota: 1_000_000 }),
+        },
+      });
+      const result = await cache.getStorageEstimate();
+      expect(result).not.toBeNull();
+      expect(result!.usage).toBe(500_000);
+      expect(result!.quota).toBe(1_000_000);
+      expect(result!.usageRatio).toBe(0.5);
+    });
+
+    it('returns null when storage.estimate throws', async () => {
+      vi.stubGlobal('navigator', {
+        storage: {
+          estimate: vi.fn().mockRejectedValue(new Error('fail')),
+        },
+      });
+      const result = await cache.getStorageEstimate();
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('capacity check (isCapacityHigh)', () => {
+    it('returns false when storage estimate is unavailable', async () => {
+      const result = await cache.isCapacityHigh();
+      expect(result).toBe(false);
+    });
+
+    it('returns false when usage is below high watermark', async () => {
+      vi.stubGlobal('navigator', {
+        storage: {
+          estimate: vi.fn().mockResolvedValue({ usage: 100, quota: 1000 }),
+        },
+      });
+      expect(await cache.isCapacityHigh()).toBe(false);
+    });
+
+    it('returns true when usage exceeds high watermark', async () => {
+      vi.stubGlobal('navigator', {
+        storage: {
+          estimate: vi.fn().mockResolvedValue({ usage: 900, quota: 1000 }),
+        },
+      });
+      expect(await cache.isCapacityHigh()).toBe(true);
+    });
+  });
+
+  describe('TTL expiry', () => {
+    it('wraps values with TTL envelope on write', async () => {
+      await cache.setCluster('ttl-key', { data: 1 });
+      const db = await (cache as any).getDB();
+      const raw = await new Promise<any>((resolve) => {
+        const tx = db.transaction('cluster-cache', 'readonly');
+        const req = tx.objectStore('cluster-cache').get('ttl-key');
+        req.onsuccess = () => resolve(req.result);
+      });
+      expect(raw).not.toBeNull();
+      expect(raw.value).toEqual({ data: 1 });
+      expect(typeof raw.timestamp).toBe('number');
+      expect(typeof raw.ttlMs).toBe('number');
+      expect(raw.ttlMs).toBe(30 * 60 * 1000);
+    });
+
+    it('returns data for non-expired entries', async () => {
+      await cache.setCluster('fresh-key', { data: 42 });
+      const result = await cache.getCluster('fresh-key');
+      expect(result).toEqual({ data: 42 });
+    });
+
+    it('uses different TTL for different stores', async () => {
+      await cache.setCluster('c-key', { d: 1 });
+      await cache.setDiagram('d-key', { d: 2 });
+      await cache.setOutline('o-key', { d: 3 });
+
+      const db = await (cache as any).getDB();
+      const getRaw = (store: string, key: string) =>
+        new Promise<any>((resolve) => {
+          const tx = db.transaction(store, 'readonly');
+          const req = tx.objectStore(store).get(key);
+          req.onsuccess = () => resolve(req.result);
+        });
+
+      const clusterRaw = await getRaw('cluster-cache', 'c-key');
+      const diagramRaw = await getRaw('diagram-cache', 'd-key');
+      const outlineRaw = await getRaw('outline-cache', 'o-key');
+
+      expect(clusterRaw.ttlMs).toBe(30 * 60 * 1000);
+      expect(diagramRaw.ttlMs).toBe(60 * 60 * 1000);
+      expect(outlineRaw.ttlMs).toBe(24 * 60 * 60 * 1000);
+    });
+  });
+
+  describe('purgeExpired', () => {
+    it('returns 0 when no entries are expired', async () => {
+      await cache.setCluster('k1', { d: 1 });
+      await cache.setDiagram('h1', { d: 2 });
+      const purged = await cache.purgeExpired();
+      expect(purged).toBe(0);
+    });
+
+    it('returns 0 when stores are empty', async () => {
+      const purged = await cache.purgeExpired();
+      expect(purged).toBe(0);
+    });
+  });
 });

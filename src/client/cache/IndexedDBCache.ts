@@ -11,6 +11,27 @@ const OUTLINE_STORE = 'outline-cache';
 const AST_STORE = 'ast-cache';
 const EDGES_STORE = 'edges-cache';
 
+const ALL_STORES = [CLUSTER_STORE, DIAGRAM_STORE, OUTLINE_STORE, AST_STORE, EDGES_STORE] as const;
+
+interface CacheEntry<T> {
+  value: T;
+  timestamp: number;
+  ttlMs: number;
+}
+
+function isCacheEntry(obj: unknown): obj is CacheEntry<unknown> {
+  return (
+    typeof obj === 'object' && obj !== null &&
+    'value' in obj && 'timestamp' in obj && 'ttlMs' in obj &&
+    typeof (obj as CacheEntry<unknown>).timestamp === 'number' &&
+    typeof (obj as CacheEntry<unknown>).ttlMs === 'number'
+  );
+}
+
+function isExpired(entry: CacheEntry<unknown>): boolean {
+  return Date.now() - entry.timestamp > entry.ttlMs;
+}
+
 function openDB(repoId: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const dbName = `${DB_PREFIX}${repoId}`;
@@ -38,6 +59,25 @@ function openDB(repoId: string): Promise<IDBDatabase> {
   });
 }
 
+export interface StorageEstimate {
+  usage: number;
+  quota: number;
+  usageRatio: number;
+}
+
+export interface BatchEntry {
+  key: string;
+  value: unknown;
+}
+
+const TTL_BY_STORE: Record<string, number> = {
+  [CLUSTER_STORE]: INDEXED_DB.TTL.CLUSTER_MS,
+  [DIAGRAM_STORE]: INDEXED_DB.TTL.DIAGRAM_MS,
+  [OUTLINE_STORE]: INDEXED_DB.TTL.OUTLINE_MS,
+  [AST_STORE]: INDEXED_DB.TTL.AST_MS,
+  [EDGES_STORE]: INDEXED_DB.TTL.EDGES_MS,
+};
+
 export class IndexedDBCache {
   private dbPromise: Promise<IDBDatabase> | null = null;
   private repoId: string;
@@ -58,61 +98,19 @@ export class IndexedDBCache {
   }
 
   async getCluster(key: string): Promise<unknown | null> {
-    try {
-      const db = await this.getDB();
-      return await new Promise((resolve, reject) => {
-        const tx = db.transaction(CLUSTER_STORE, 'readonly');
-        const req = tx.objectStore(CLUSTER_STORE).get(key);
-        req.onsuccess = () => resolve(req.result ?? null);
-        req.onerror = () => reject(req.error);
-      });
-    } catch (e) {
-      log.warn('IndexedDB getCluster failed', { key, error: e });
-      return null;
-    }
+    return this.getFromStore(CLUSTER_STORE, key);
   }
 
   async setCluster(key: string, value: unknown): Promise<void> {
-    try {
-      const db = await this.getDB();
-      await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(CLUSTER_STORE, 'readwrite');
-        tx.objectStore(CLUSTER_STORE).put(value, key);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
-    } catch (e) {
-      log.warn('IndexedDB setCluster failed', { key, error: e });
-    }
+    return this.setToStore(CLUSTER_STORE, key, value);
   }
 
   async getDiagram(key: string): Promise<unknown | null> {
-    try {
-      const db = await this.getDB();
-      return await new Promise((resolve, reject) => {
-        const tx = db.transaction(DIAGRAM_STORE, 'readonly');
-        const req = tx.objectStore(DIAGRAM_STORE).get(key);
-        req.onsuccess = () => resolve(req.result ?? null);
-        req.onerror = () => reject(req.error);
-      });
-    } catch (e) {
-      log.warn('IndexedDB getDiagram failed', { key, error: e });
-      return null;
-    }
+    return this.getFromStore(DIAGRAM_STORE, key);
   }
 
   async setDiagram(key: string, value: unknown): Promise<void> {
-    try {
-      const db = await this.getDB();
-      await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(DIAGRAM_STORE, 'readwrite');
-        tx.objectStore(DIAGRAM_STORE).put(value, key);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
-    } catch (e) {
-      log.warn('IndexedDB setDiagram failed', { key, error: e });
-    }
+    return this.setToStore(DIAGRAM_STORE, key, value);
   }
 
   async invalidateCluster(): Promise<void> {
@@ -161,7 +159,6 @@ export class IndexedDBCache {
     }
   }
 
-  // P1-4: Outline/AST/Edges persistent cache
   async getOutline(nodeId: string): Promise<unknown | null> {
     return this.getFromStore(OUTLINE_STORE, nodeId);
   }
@@ -186,33 +183,157 @@ export class IndexedDBCache {
     return this.setToStore(EDGES_STORE, key, value);
   }
 
+  async setMany(storeName: string, entries: BatchEntry[]): Promise<void> {
+    if (entries.length === 0) return;
+    if (entries.length > INDEXED_DB.BATCH.MAX_ENTRIES) {
+      log.warn('setMany batch exceeds limit, splitting', { count: entries.length, limit: INDEXED_DB.BATCH.MAX_ENTRIES });
+      for (let i = 0; i < entries.length; i += INDEXED_DB.BATCH.MAX_ENTRIES) {
+        await this.setMany(storeName, entries.slice(i, i + INDEXED_DB.BATCH.MAX_ENTRIES));
+      }
+      return;
+    }
+    const ttlMs = TTL_BY_STORE[storeName] ?? INDEXED_DB.TTL.CLUSTER_MS;
+    try {
+      const db = await this.getDB();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        const now = Date.now();
+        for (const { key, value } of entries) {
+          const entry: CacheEntry<unknown> = { value, timestamp: now, ttlMs };
+          store.put(entry, key);
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch (e) {
+      log.warn(`IndexedDB setMany(${storeName}) failed`, { count: entries.length, error: e });
+    }
+  }
+
+  async getStorageEstimate(): Promise<StorageEstimate | null> {
+    if (typeof navigator === 'undefined' || !navigator.storage?.estimate) return null;
+    try {
+      const { usage = 0, quota = 0 } = await navigator.storage.estimate();
+      return {
+        usage,
+        quota,
+        usageRatio: quota > 0 ? usage / quota : 0,
+      };
+    } catch (e) {
+      log.warn('storage.estimate() failed', { error: e });
+      return null;
+    }
+  }
+
+  async isCapacityHigh(): Promise<boolean> {
+    const estimate = await this.getStorageEstimate();
+    if (!estimate) return false;
+    return estimate.usageRatio >= INDEXED_DB.CAPACITY.HIGH_WATERMARK;
+  }
+
+  async purgeExpired(): Promise<number> {
+    let totalPurged = 0;
+    for (const storeName of ALL_STORES) {
+      totalPurged += await this.purgeExpiredStore(storeName);
+    }
+    if (totalPurged > 0) {
+      log.info('purged expired entries', { count: totalPurged });
+    }
+    return totalPurged;
+  }
+
+  private async purgeExpiredStore(storeName: string): Promise<number> {
+    try {
+      const db = await this.getDB();
+      const allEntries = await new Promise<[IDBValidKey, unknown][]>((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readonly');
+        const store = tx.objectStore(storeName);
+        const cursorReq = store.openCursor();
+        const results: [IDBValidKey, unknown][] = [];
+        cursorReq.onsuccess = () => {
+          const cursor = cursorReq.result;
+          if (cursor) {
+            results.push([cursor.key, cursor.value]);
+            cursor.continue();
+          } else {
+            resolve(results);
+          }
+        };
+        cursorReq.onerror = () => reject(cursorReq.error);
+      });
+      const expiredKeys: IDBValidKey[] = [];
+      for (const [key, value] of allEntries) {
+        if (isCacheEntry(value) && isExpired(value)) {
+          expiredKeys.push(key);
+        }
+      }
+      if (expiredKeys.length === 0) return 0;
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        const store = tx.objectStore(storeName);
+        for (const key of expiredKeys) store.delete(key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+      return expiredKeys.length;
+    } catch (e) {
+      log.warn(`purgeExpiredStore(${storeName}) failed`, { error: e });
+      return 0;
+    }
+  }
+
   private async getFromStore(storeName: string, key: string): Promise<unknown | null> {
     try {
       const db = await this.getDB();
-      return await new Promise((resolve, reject) => {
+      const raw = await new Promise<unknown>((resolve, reject) => {
         const tx = db.transaction(storeName, 'readonly');
         const req = tx.objectStore(storeName).get(key);
         req.onsuccess = () => resolve(req.result ?? null);
         req.onerror = () => reject(req.error);
       });
+      if (raw === null) return null;
+      if (isCacheEntry(raw)) {
+        if (isExpired(raw)) {
+          this.deleteFromStore(storeName, key).catch(() => {});
+          return null;
+        }
+        return raw.value;
+      }
+      return raw;
     } catch (e) {
       log.warn(`IndexedDB getFromStore(${storeName}) failed`, { key, error: e });
       return null;
     }
   }
 
-
   private async setToStore(storeName: string, key: string, value: unknown): Promise<void> {
+    const ttlMs = TTL_BY_STORE[storeName] ?? INDEXED_DB.TTL.CLUSTER_MS;
     try {
       const db = await this.getDB();
       await new Promise<void>((resolve, reject) => {
         const tx = db.transaction(storeName, 'readwrite');
-        tx.objectStore(storeName).put(value, key);
+        const entry: CacheEntry<unknown> = { value, timestamp: Date.now(), ttlMs };
+        tx.objectStore(storeName).put(entry, key);
         tx.oncomplete = () => resolve();
         tx.onerror = () => reject(tx.error);
       });
     } catch (e) {
       log.warn(`IndexedDB setToStore(${storeName}) failed`, { key, error: e });
+    }
+  }
+
+  private async deleteFromStore(storeName: string, key: string): Promise<void> {
+    try {
+      const db = await this.getDB();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        tx.objectStore(storeName).delete(key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } catch (e) {
+      log.warn(`IndexedDB deleteFromStore(${storeName}) failed`, { key, error: e });
     }
   }
 
