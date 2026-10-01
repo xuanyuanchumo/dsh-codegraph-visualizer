@@ -1,6 +1,6 @@
 {
   "currentPhase": "complete",
-  "currentCycle": "cycle-51",
+  "currentCycle": "cycle-54",
   "phaseHistory": [
     {
       "cycle": "cycle-33",
@@ -56,9 +56,19 @@
       "cycle": "cycle-51",
       "phase": "complete",
       "result": "P0-1 桌面端平台声明(web→[web,desktop])+P1-4 sidebarRightTabs兼容性集成(三级回退: better-sidebar→sidebarRightTabs→slots→floating)+类型声明扩展+integrationMode新增sidebar-right+Cycle-51评估报告(E1-E8+Q1-Q8). 已知问题: sidebarRightTabs内容渲染未生效需进一步调试slot注入格式. 4201测试通过"
+    },
+    {
+      "cycle": "cycle-52",
+      "phase": "complete",
+      "result": "P0-1 graphStore.ts lint warning修复(移除未使用shouldDegrade)+P0-2 ClientCompatLayer sidebarRightTabs检测逻辑修复(ctx.inject→ctx.sidebarRightTabs属性检测)+P1-1 多代适配器gen3(1.0+)前向兼容支持(HostVersionDetector+FeatureFlags+ApiCompatLayer)+P1-2 Drizzle ORM数据库层(GraphRepository+schema: snapshots/analysis/preferences/layout)+P1-3 GraphRepository集成到Host生命周期. 新增66测试(GraphRepository 33+ClientCompatLayer 22+compat gen3 11). 4398测试通过, lint零错误, typecheck通过. Chrome DevTools MCP视觉验证: sidebarRightTabs集成成功, 工具栏全部按钮正确渲染, 无控制台错误"
+    },
+    {
+      "cycle": "cycle-54",
+      "phase": "complete",
+      "result": "P0-1 Dropdown组件抽象(4个手写下拉菜单→可复用Dropdown组件,支持render props close+Escape关闭+点击外部关闭)+P0-2 tools下拉菜单项配置化(12个菜单项用ANALYSIS_ITEMS/QUALITY_ITEMS数组map简化)+P0-3 工具栏JS响应式折叠(useElementWidth hook+ResizeObserver降级+isCompact<768px/isNarrow<480px+更多Dropdown动态收进溢出按钮)+i18n添加toolbar.more. 新增14测试(Dropdown组件). 4412测试通过, lint零错误, typecheck通过, build成功. Chrome DevTools MCP视觉验证: 工具栏全部18个按钮正确渲染, Dropdown haspopup=menu正常, 无console error"
     }
   ],
   "nodeStatus": {},
   "createdAt": "2026-09-21T14:25:00.105Z",
-  "updatedAt": "2026-10-01T12:00:00.000Z"
+  "updatedAt": "2026-10-01T15:15:00.000Z"
 }

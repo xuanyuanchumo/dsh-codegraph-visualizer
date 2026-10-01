@@ -542,6 +542,7 @@ export const zh: Record<string, string> = {
   'degradation.tooltip': '因图谱规模较大，部分分析功能已降级或跳过以保证性能',
 
   // 导览功能
+  'toolbar.more': '更多',
   'toolbar.tour': '代码导览',
   'tour.title': '代码导览',
   'tour.close': '关闭导览',

@@ -543,6 +543,7 @@ export const en: Record<string, string> = {
   'degradation.tooltip': 'Some analysis features have been degraded or skipped for performance due to graph size',
 
   // Tour feature
+  'toolbar.more': 'More',
   'toolbar.tour': 'Code Tour',
   'tour.title': 'Code Tour',
   'tour.close': 'Close tour',
