@@ -49,8 +49,11 @@ export const RuleConfigPanel = memo(function RuleConfigPanel({ violations, onChe
               <label className="cg-rule-toggle">
                 <input
                   type="checkbox"
+                  id={`rule-toggle-${rule.id}`}
+                  name={`rule-toggle-${rule.id}`}
                   checked={rule.enabled}
                   onChange={() => handleToggleRule(rule.id)}
+                  aria-label={rule.name}
                 />
                 <span className="cg-rule-name">{rule.name}</span>
                 <span className={`cg-rule-severity cg-${rule.severity}`}>{rule.severity}</span>
