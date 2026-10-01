@@ -16,7 +16,7 @@ function makeSnapshot(overrides: Partial<HistorySnapshot> = {}): HistorySnapshot
   };
 }
 
-describe('HistoryManager (FR-31)', () => {
+describe('J29: 历史记录 - HistoryManager (FR-31)', () => {
   let manager: HistoryManager;
 
   beforeEach(() => {

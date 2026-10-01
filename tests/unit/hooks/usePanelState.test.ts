@@ -117,7 +117,7 @@ describe('usePanelState', () => {
     expect(result.current.showInheritance).toBe(true);
   });
 
-  it('toggleMiniMap flips showMiniMap', () => {
+  it('J26: toggleMiniMap flips showMiniMap', () => {
     const { result } = renderHook(() => usePanelState());
 
     act(() => {

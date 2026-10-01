@@ -83,7 +83,7 @@ describe('useAnalysisPanels', () => {
     expect(result.current.handleHealthCheck).toBeDefined();
   });
 
-  it('showHotspot=true 且有节点时应分析热点', () => {
+  it('J30: showHotspot=true 且有节点时应分析热点', () => {
     const { result, rerender } = renderHook(
       ({ show }) =>
         useAnalysisPanels(

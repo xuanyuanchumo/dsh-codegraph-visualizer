@@ -4,7 +4,7 @@ import { makeNode, makeEdge } from '../helpers.ts';
 
 const scorer = new HealthScorer();
 
-describe('HealthScorer', () => {
+describe('J17: 架构健康评估 - HealthScorer', () => {
   describe('calculate - empty input', () => {
     it('returns all zeros for empty nodes', () => {
       const score = scorer.calculate([], []);

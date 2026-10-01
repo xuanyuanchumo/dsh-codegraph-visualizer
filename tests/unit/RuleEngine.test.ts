@@ -6,7 +6,7 @@ import { NodeId } from '../../src/types/index.ts';
 import type { RuleType } from '../../src/types/index.ts';
 import { makeNode, makeEdge } from '../helpers.ts';
 
-describe('RuleEngine', () => {
+describe('J18: 规则引擎检测 - RuleEngine', () => {
   const engine = new RuleEngine();
 
   describe('getPresetRules', () => {
