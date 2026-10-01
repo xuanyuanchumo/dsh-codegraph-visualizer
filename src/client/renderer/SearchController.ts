@@ -1,6 +1,9 @@
 import type { Core } from 'cytoscape';
 import { parseSearchQuery, matchSearchQuery, fuzzyMatch } from '../../shared/searchUtils.ts';
 import { Trie } from '../../shared/Trie.ts';
+import { scoped } from '../../shared/Logger.ts';
+
+const log = scoped('search');
 
 interface RawNodeInfo {
   id: string;
@@ -10,12 +13,35 @@ interface RawNodeInfo {
   properties?: Record<string, unknown>;
 }
 
+const BUILD_CHUNK_SIZE = 200;
+const BUILD_CHUNK_DELAY = 16;
+
+type IdleCallbackHandle = number | ReturnType<typeof setTimeout>;
+type IdleCallback = (deadline: { timeRemaining: () => number }) => void;
+
+function requestIdleCallbackCompat(cb: IdleCallback): IdleCallbackHandle {
+  if (typeof requestIdleCallback === 'function') {
+    return requestIdleCallback(cb);
+  }
+  return setTimeout(() => cb({ timeRemaining: () => 50 }), BUILD_CHUNK_DELAY);
+}
+
+function cancelIdleCallbackCompat(handle: IdleCallbackHandle): void {
+  if (typeof cancelIdleCallback === 'function' && typeof handle === 'number') {
+    cancelIdleCallback(handle);
+  } else {
+    clearTimeout(handle as ReturnType<typeof setTimeout>);
+  }
+}
+
 export class SearchController {
   private cy: Core;
   private rawNodesMap: Map<string, RawNodeInfo>;
   private rawToVisibleMap: Map<string, string>;
   private trie: Trie = new Trie();
   private trieBuilt: boolean = false;
+  private indexBuilding: boolean = false;
+  private buildHandle: IdleCallbackHandle | null = null;
 
   constructor(
     cy: Core,
@@ -27,13 +53,37 @@ export class SearchController {
     this.rawToVisibleMap = rawToVisibleMap;
   }
 
-  private buildTrieIfNeeded(): void {
-    if (this.trieBuilt) return;
+  private startAsyncBuild(): void {
+    if (this.indexBuilding) return;
+    this.indexBuilding = true;
     this.trie.clear();
-    for (const rawNode of this.rawNodesMap.values()) {
-      this.trie.insert(rawNode.label);
-    }
-    this.trieBuilt = true;
+    const entries = [...this.rawNodesMap.values()];
+    let index = 0;
+
+    const processChunk = () => {
+      const end = Math.min(index + BUILD_CHUNK_SIZE, entries.length);
+      for (let i = index; i < end; i++) {
+        const entry = entries[i];
+        if (entry) this.trie.insert(entry.label);
+      }
+      index = end;
+
+      if (index < entries.length) {
+        this.buildHandle = requestIdleCallbackCompat(processChunk);
+      } else {
+        this.trieBuilt = true;
+        this.indexBuilding = false;
+        this.buildHandle = null;
+        log.info(`Trie index built: ${entries.length} nodes`);
+      }
+    };
+
+    processChunk();
+  }
+
+  private buildTrieIfNeeded(): void {
+    if (this.trieBuilt || this.indexBuilding) return;
+    this.startAsyncBuild();
   }
 
   private isSimplePrefixQuery(query: string): boolean {
@@ -68,8 +118,7 @@ export class SearchController {
     let matches = 0;
     const matchedCyNodeIds = new Set<string>();
 
-    if (this.isSimplePrefixQuery(query)) {
-      this.buildTrieIfNeeded();
+    if (this.isSimplePrefixQuery(query) && this.trieBuilt) {
       const trieResults = this.trie.search(query.trim());
       if (trieResults.length > 0) {
         const resultSet = new Set(trieResults.map(s => s.toLowerCase()));
@@ -135,14 +184,41 @@ export class SearchController {
     }
   }
 
+  addNode(rawNode: RawNodeInfo): void {
+    this.rawNodesMap.set(rawNode.id, rawNode);
+    if (this.trieBuilt) {
+      this.trie.insert(rawNode.label);
+    }
+  }
+
+  removeNode(nodeId: string): void {
+    this.rawNodesMap.delete(nodeId);
+    if (this.trieBuilt) {
+      this.trieBuilt = false;
+      this.indexBuilding = false;
+      this.cancelBuild();
+    }
+  }
+
   rebuildIndex(): void {
+    this.cancelBuild();
     this.trieBuilt = false;
+    this.indexBuilding = false;
     this.buildTrieIfNeeded();
   }
 
+  private cancelBuild(): void {
+    if (this.buildHandle !== null) {
+      cancelIdleCallbackCompat(this.buildHandle);
+      this.buildHandle = null;
+    }
+  }
+
   destroy(): void {
+    this.cancelBuild();
     this.cy.nodes().removeClass('search-match');
     this.trie.clear();
     this.trieBuilt = false;
+    this.indexBuilding = false;
   }
 }

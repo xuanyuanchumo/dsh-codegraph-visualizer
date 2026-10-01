@@ -4,6 +4,7 @@ import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { computeSmartSpacing, type SmartSpacing } from '../../shared/layoutUtils.ts';
 import { LAYOUT as LAYOUT_CONST, RENDERER } from '../../shared/constants.ts';
+import { startMeasure, endMeasure } from '../../shared/PerformanceMonitor.ts';
 import { OverlapRemover } from './OverlapRemover.ts';
 
 const log = scoped('layout');
@@ -142,6 +143,7 @@ export class LayoutController {
     if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
 
     this.layoutRaf = requestAnimationFrame(() => {
+      startMeasure('layout');
       this.cachePositions();
       const nodeCount = this.cy.nodes().length;
       let effectiveLayout = layout;
@@ -158,8 +160,13 @@ export class LayoutController {
       const options = this.buildLayoutOptions(effectiveLayout, animate, nodeCount);
       if (options) {
         const l = this.cy.layout(options);
-          l.one('layoutstop', () => this.overlapRemover.remove());
+        l.one('layoutstop', () => {
+          endMeasure('layout');
+          this.overlapRemover.remove();
+        });
         l.run();
+      } else {
+        endMeasure('layout');
       }
       this.layoutRaf = null;
     });

@@ -20,6 +20,7 @@ import { readUrlExpand, restoreExpandedNodeIds } from '../utils/urlState.ts';
 import { t } from '../i18n/index.ts';
 
 import { POLLING, CYCLE_DETECTION, CLUSTER, RENDERER, LOD, UI, PREFETCH, FUNCTION_BODY, SYMBOL_AST, getDynamicMaxVisibleNodes } from '../../shared/constants.ts';
+import { measureSync, measureAsync } from '../../shared/PerformanceMonitor.ts';
 
 const log = scoped('store');
 
@@ -272,7 +273,7 @@ function applyClusterUpdate(
     set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: cached.nodes, edges: cached.edges });
     return;
   }
-  const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', newExpanded, clusterDepth, useGraphStore.getState().panelWidth ?? undefined);
+  const result = measureSync('cluster', () => computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', newExpanded, clusterDepth, useGraphStore.getState().panelWidth ?? undefined));
   clusterCache.set(dataHash, cacheLevel, expandedKey, result);
   set({ expandedNodeIds: newExpanded, expandedNodeIdsByViewMode: newExpandedByViewMode, nodes: result.nodes, edges: result.edges });
 }
@@ -814,7 +815,7 @@ export const useGraphStore = create<GraphState>()(
                   }
                 }
               }
-              fetchSymbolAST(nodeId, expandController.signal, useGraphStore.getState().currentWorkspace).then(async (data) => {
+              measureAsync('ast-fetch', () => fetchSymbolAST(nodeId, expandController.signal, useGraphStore.getState().currentWorkspace)).then(async (data) => {
                 if (gen !== expandGeneration) return;
                 if (data && data.astNodes.length > 0) {
                   const truncatedAstNodes = data.astNodes.length > SYMBOL_AST.MAX_NODES
@@ -1007,7 +1008,7 @@ export const useGraphStore = create<GraphState>()(
         const runPrefetch = () => {
           try {
             if (controller.signal.aborted) return;
-            const result = computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', newExpanded, clusterDepth, useGraphStore.getState().panelWidth ?? undefined);
+            const result = measureSync('cluster', () => computeClusteredGraph(sourceNodes, sourceEdges, 'progressive', newExpanded, clusterDepth, useGraphStore.getState().panelWidth ?? undefined));
             clusterCache.set(dataHash, cacheLevel, expandedKey, result);
           } finally {
             prefetchInFlightCount--;
@@ -1091,7 +1092,7 @@ export const useGraphStore = create<GraphState>()(
           );
           if (gen !== multiAssemblyGeneration) return;
           if (result && result.diagram.nodes.length > 0) {
-            const clustered = computeClusteredGraph(result.diagram.nodes, result.diagram.edges, 'progressive', expandedNodeIds, clusterDepth, useGraphStore.getState().panelWidth ?? undefined);
+            const clustered = measureSync('diagram', () => computeClusteredGraph(result.diagram.nodes, result.diagram.edges, 'progressive', expandedNodeIds, clusterDepth, useGraphStore.getState().panelWidth ?? undefined));
             set({
               diagramData: null,
               nodes: clustered.nodes,

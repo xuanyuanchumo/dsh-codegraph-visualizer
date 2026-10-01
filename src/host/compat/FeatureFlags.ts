@@ -16,6 +16,9 @@ export interface FeatureFlags {
   healthScore: boolean;
   rulesCheck: boolean;
   multiWorkspace: boolean;
+  aiAssist: boolean;
+  crossRepo: boolean;
+  desktopPlatform: boolean;
 }
 
 const GEN1_FLAGS: FeatureFlags = {
@@ -31,6 +34,9 @@ const GEN1_FLAGS: FeatureFlags = {
   healthScore: true,
   rulesCheck: true,
   multiWorkspace: false,
+  aiAssist: false,
+  crossRepo: false,
+  desktopPlatform: false,
 };
 
 const GEN2_FLAGS: FeatureFlags = {
@@ -46,6 +52,16 @@ const GEN2_FLAGS: FeatureFlags = {
   healthScore: true,
   rulesCheck: true,
   multiWorkspace: true,
+  aiAssist: false,
+  crossRepo: false,
+  desktopPlatform: true,
+};
+
+const GEN3_FLAGS: FeatureFlags = {
+  ...GEN2_FLAGS,
+  aiAssist: true,
+  crossRepo: true,
+  desktopPlatform: true,
 };
 
 const UNKNOWN_FLAGS: FeatureFlags = {
@@ -57,6 +73,7 @@ const UNKNOWN_FLAGS: FeatureFlags = {
 export function createFeatureFlags(info: HostVersionInfo): FeatureFlags {
   const flags = info.generation === 'gen1' ? GEN1_FLAGS
     : info.generation === 'gen2' ? GEN2_FLAGS
+    : info.generation === 'gen3' ? GEN3_FLAGS
     : UNKNOWN_FLAGS;
   log.info('feature flags resolved', { generation: info.generation, flags });
   return flags;

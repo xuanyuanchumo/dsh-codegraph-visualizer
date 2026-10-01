@@ -3,7 +3,7 @@ import { scoped } from '../../shared/Logger.ts';
 
 const log = scoped('host:compat');
 
-export type HostGeneration = 'gen1' | 'gen2' | 'unknown';
+export type HostGeneration = 'gen1' | 'gen2' | 'gen3' | 'unknown';
 
 export interface HostVersionInfo {
   raw: string;
@@ -28,7 +28,7 @@ function parseVersion(raw: string): HostVersionInfo {
   let generation: HostGeneration = 'unknown';
   if (major === 0 && minor >= 1 && minor < 2) generation = 'gen1';
   else if (major === 0 && minor >= 2) generation = 'gen2';
-  else if (major >= 1) generation = 'gen2';
+  else if (major >= 1) generation = 'gen3';
   return { raw, major, minor, patch, prerelease, generation };
 }
 
@@ -93,7 +93,11 @@ export function isGen1(info: HostVersionInfo): boolean {
 }
 
 export function isGen2(info: HostVersionInfo): boolean {
-  return info.generation === 'gen2';
+  return info.generation === 'gen2' || info.generation === 'gen3';
+}
+
+export function isGen3(info: HostVersionInfo): boolean {
+  return info.generation === 'gen3';
 }
 
 export function meetsMinimum(info: HostVersionInfo, minMajor: number, minMinor: number): boolean {

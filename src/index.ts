@@ -12,6 +12,7 @@ import { registerWatcher, registerEventListeners } from './host/watcher.ts';
 import { McpServer } from './host/McpServer.ts';
 import { closeAllDbConnections } from './adapters/CodeGraphAdapter.ts';
 import { detectHostVersion, createFeatureFlags, createApiCompatLayer } from './host/compat/index.ts';
+import { GraphRepository } from './host/db/GraphRepository.ts';
 
 
 export { PLUGIN_VERSION };
@@ -32,6 +33,11 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   const hostVersionInfo = detectHostVersion(ctx);
   const featureFlags = createFeatureFlags(hostVersionInfo);
   const apiCompat = createApiCompatLayer(hostVersionInfo);
+
+  const workspacePaths = extractWorkspacePaths(ctx);
+  const primaryWorkspace = workspacePaths[0] ?? process.cwd();
+  const graphRepo = new GraphRepository(primaryWorkspace);
+  graphRepo.init();
 
   const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout, apiCompat });
 
@@ -136,6 +142,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
       lastInitResult = null;
       securityManager.reset();
       closeAllDbConnections();
+      graphRepo.close();
     };
   }, 'codegraph: state cleanup');
 

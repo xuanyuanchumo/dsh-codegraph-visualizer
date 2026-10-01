@@ -3,7 +3,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { scoped } from '../shared/Logger.ts';
-import { VALIDATION, AST, ERROR_CODES, ERROR_MESSAGES, BOOTSTRAP, EDGES_AGGREGATION, API } from '../shared/constants.ts';
+import { VALIDATION, AST, ERROR_CODES, ERROR_MESSAGES, BOOTSTRAP, EDGES_AGGREGATION, API, SYMBOL_AST } from '../shared/constants.ts';
 import type { GraphData, GraphNode, GraphEdge, IncomingMessage, ServerResponse, IGraphVisualizerService } from '../types/index.ts';
 import { RepoId, NodeId, EdgeId } from '../types/index.ts';
 import { fetchMergedGraph } from '../tools.ts';
@@ -1045,17 +1045,24 @@ function registerSymbolASTRoute(rc: RouteContext): void {
         return;
       }
 
+      const budget = Math.min(
+        parseInt(url.searchParams.get('budget') ?? String(SYMBOL_AST.MAX_NODES), 10),
+        SYMBOL_AST.MAX_NODES,
+      );
+
       // DB-first: try SQLite direct read
       const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readSymbolASTFromDb(dbPath, nodeId);
         if (dbResult && dbResult.nodes.length > 0) {
-          const astNodes = mapDbNodesToGraphNodes(dbResult.nodes, nodeId);
+          const allAstNodes = mapDbNodesToGraphNodes(dbResult.nodes, nodeId);
+          const hasMore = allAstNodes.length > budget;
+          const astNodes = hasMore ? allAstNodes.slice(0, budget) : allAstNodes;
           const astNodeIds = new Set(astNodes.map((n) => n.id));
           const dbEdges = readEdgesForNodesFromDb(dbPath, [...astNodeIds]);
           const astEdges = mapDbEdgesToGraphEdges(dbEdges);
-          sendJson(res, 200, { astNodes, astEdges, sourceLines: [] }, req, corsConfig);
+          sendJson(res, 200, { astNodes, astEdges, sourceLines: [], hasMore }, req, corsConfig);
           return;
         }
       }
@@ -1063,17 +1070,19 @@ function registerSymbolASTRoute(rc: RouteContext): void {
       // Memory cache fallback
       const lastGraphData = deps.getLastGraphData();
       if (!lastGraphData) {
-        sendJson(res, 200, { astNodes: [], astEdges: [], sourceLines: [] }, req, corsConfig);
+        sendJson(res, 200, { astNodes: [], astEdges: [], sourceLines: [], hasMore: false }, req, corsConfig);
         return;
       }
 
-      const astNodes = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
+      const allAstNodes = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
+      const hasMore = allAstNodes.length > budget;
+      const astNodes = hasMore ? allAstNodes.slice(0, budget) : allAstNodes;
       const astNodeIds = new Set(astNodes.map((n) => n.id));
       const astEdges = lastGraphData.edges.filter(
         (e) => astNodeIds.has(e.source) && astNodeIds.has(e.target),
       );
 
-      sendJson(res, 200, { astNodes, astEdges, sourceLines: [] }, req, corsConfig);
+      sendJson(res, 200, { astNodes, astEdges, sourceLines: [], hasMore }, req, corsConfig);
     }),
   }), 'codegraph: symbol AST route');
 }

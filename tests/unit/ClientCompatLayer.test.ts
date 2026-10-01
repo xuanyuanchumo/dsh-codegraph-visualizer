@@ -1,0 +1,211 @@
+import { describe, it, expect, beforeEach } from 'vitest';
+import type { Context } from '@deepseek-ai/cordis';
+import {
+  createClientCompatLayer,
+} from '../../src/client/compat/ClientCompatLayer.ts';
+import type {
+  SidebarIntegrationMode,
+  ClientFeatureFlags,
+  ClientCompatLayer as ClientCompatLayerInterface,
+} from '../../src/client/compat/ClientCompatLayer.ts';
+
+interface CtxOptions {
+  sidebarRightTabs?: unknown;
+  betterSidebar?: unknown;
+  spotlight?: unknown;
+  slots?: unknown;
+  getThrows?: boolean;
+  slotsThrows?: boolean;
+  sidebarRightTabsThrows?: boolean;
+}
+
+function makeCtx(opts: CtxOptions = {}): Context {
+  const ctx: Record<string, unknown> = {
+    get: (key: string): unknown => {
+      if (opts.getThrows) throw new Error('get boom');
+      if (key === 'betterSidebar') return opts.betterSidebar;
+      if (key === 'spotlight') return opts.spotlight;
+      return undefined;
+    },
+  };
+
+  if (opts.slotsThrows) {
+    Object.defineProperty(ctx, 'slots', {
+      get() {
+        throw new Error('slots boom');
+      },
+      configurable: true,
+    });
+  } else {
+    ctx.slots = opts.slots;
+  }
+
+  if (opts.sidebarRightTabsThrows) {
+    Object.defineProperty(ctx, 'sidebarRightTabs', {
+      get() {
+        throw new Error('tabs boom');
+      },
+      configurable: true,
+    });
+  } else {
+    ctx.sidebarRightTabs = opts.sidebarRightTabs;
+  }
+
+  return ctx as unknown as Context;
+}
+
+describe('ClientCompatLayer', () => {
+  let layer: ClientCompatLayerInterface;
+
+  beforeEach(() => {
+    layer = createClientCompatLayer();
+  });
+
+  describe('initial state', () => {
+    it('defaults mode to floating and flags to all false', () => {
+      expect(layer.mode).toBe<SidebarIntegrationMode>('floating');
+      expect(layer.flags).toEqual({
+        sidebarRightTabs: false,
+        betterSidebar: false,
+        spotlight: false,
+        slots: false,
+      } satisfies ClientFeatureFlags);
+    });
+  });
+
+  describe('detectMode', () => {
+    it('returns sidebar-right when ctx.sidebarRightTabs is present', () => {
+      const ctx = makeCtx({ sidebarRightTabs: { tabs: true } });
+      expect(layer.detectMode(ctx)).toBe<SidebarIntegrationMode>('sidebar-right');
+      expect(layer.mode).toBe('sidebar-right');
+    });
+
+    it('returns better-sidebar when betterSidebar service is available', () => {
+      const ctx = makeCtx({ betterSidebar: { id: 'bs' } });
+      expect(layer.detectMode(ctx)).toBe<SidebarIntegrationMode>('better-sidebar');
+    });
+
+    it('returns slot when ctx.slots is present', () => {
+      const ctx = makeCtx({ slots: { inject: () => () => {} } });
+      expect(layer.detectMode(ctx)).toBe<SidebarIntegrationMode>('slot');
+    });
+
+    it('returns floating when nothing is available', () => {
+      const ctx = makeCtx({});
+      expect(layer.detectMode(ctx)).toBe<SidebarIntegrationMode>('floating');
+    });
+
+    it('prioritises sidebar-right over better-sidebar', () => {
+      const ctx = makeCtx({ sidebarRightTabs: {}, betterSidebar: {} });
+      expect(layer.detectMode(ctx)).toBe('sidebar-right');
+    });
+
+    it('prioritises better-sidebar over slots', () => {
+      const ctx = makeCtx({ betterSidebar: {}, slots: {} });
+      expect(layer.detectMode(ctx)).toBe('better-sidebar');
+    });
+
+    it('treats null sidebarRightTabs as absent and falls through', () => {
+      const ctx = makeCtx({ sidebarRightTabs: null, betterSidebar: {} });
+      expect(layer.detectMode(ctx)).toBe('better-sidebar');
+    });
+
+    it('treats undefined sidebarRightTabs as absent and falls through', () => {
+      const ctx = makeCtx({ sidebarRightTabs: undefined, slots: {} });
+      expect(layer.detectMode(ctx)).toBe('slot');
+    });
+
+    it('falls back to floating when sidebarRightTabs access throws', () => {
+      const ctx = makeCtx({ sidebarRightTabsThrows: true });
+      expect(layer.detectMode(ctx)).toBe('floating');
+    });
+
+    it('falls back when ctx.get throws (better-sidebar check degrades safely)', () => {
+      const ctx = makeCtx({ getThrows: true, slots: {} });
+      // sidebarRightTabs absent, get throws → better-sidebar false, slots present → slot
+      expect(layer.detectMode(ctx)).toBe('slot');
+    });
+
+    it('falls back to floating when slots access throws', () => {
+      const ctx = makeCtx({ slotsThrows: true });
+      expect(layer.detectMode(ctx)).toBe('floating');
+    });
+  });
+
+  describe('detectFlags', () => {
+    it('sets sidebarRightTabs=true when ctx.sidebarRightTabs is present', () => {
+      const ctx = makeCtx({ sidebarRightTabs: { tabs: true } });
+      const flags = layer.detectFlags(ctx);
+      expect(flags.sidebarRightTabs).toBe(true);
+      expect(layer.flags.sidebarRightTabs).toBe(true);
+    });
+
+    it('sets betterSidebar=true when the betterSidebar service is available', () => {
+      const ctx = makeCtx({ betterSidebar: { id: 'bs' } });
+      const flags = layer.detectFlags(ctx);
+      expect(flags.betterSidebar).toBe(true);
+    });
+
+    it('sets spotlight=true when the spotlight service is available', () => {
+      const ctx = makeCtx({ spotlight: { id: 'sp' } });
+      const flags = layer.detectFlags(ctx);
+      expect(flags.spotlight).toBe(true);
+    });
+
+    it('sets slots=true when ctx.slots is present', () => {
+      const ctx = makeCtx({ slots: { inject: () => () => {} } });
+      const flags = layer.detectFlags(ctx);
+      expect(flags.slots).toBe(true);
+    });
+
+    it('returns all false when nothing is available', () => {
+      const ctx = makeCtx({});
+      const flags = layer.detectFlags(ctx);
+      expect(flags).toEqual({
+        sidebarRightTabs: false,
+        betterSidebar: false,
+        spotlight: false,
+        slots: false,
+      } satisfies ClientFeatureFlags);
+    });
+
+    it('degrades safely when ctx.get throws (betterSidebar/spotlight false)', () => {
+      const ctx = makeCtx({ getThrows: true, sidebarRightTabs: {}, slots: {} });
+      const flags = layer.detectFlags(ctx);
+      expect(flags.sidebarRightTabs).toBe(true);
+      expect(flags.betterSidebar).toBe(false);
+      expect(flags.spotlight).toBe(false);
+      expect(flags.slots).toBe(true);
+    });
+
+    it('degrades safely when sidebarRightTabs access throws', () => {
+      const ctx = makeCtx({ sidebarRightTabsThrows: true });
+      const flags = layer.detectFlags(ctx);
+      expect(flags.sidebarRightTabs).toBe(false);
+    });
+
+    it('degrades safely when slots access throws', () => {
+      const ctx = makeCtx({ slotsThrows: true });
+      const flags = layer.detectFlags(ctx);
+      expect(flags.slots).toBe(false);
+    });
+  });
+
+  describe('hasFlag', () => {
+    it('reflects the latest detected flags', () => {
+      const ctx = makeCtx({ sidebarRightTabs: {}, spotlight: {} });
+      layer.detectFlags(ctx);
+      expect(layer.hasFlag('sidebarRightTabs')).toBe(true);
+      expect(layer.hasFlag('spotlight')).toBe(true);
+      expect(layer.hasFlag('betterSidebar')).toBe(false);
+      expect(layer.hasFlag('slots')).toBe(false);
+    });
+
+    it('returns false for all keys before any detection', () => {
+      expect(layer.hasFlag('sidebarRightTabs')).toBe(false);
+      expect(layer.hasFlag('betterSidebar')).toBe(false);
+      expect(layer.hasFlag('spotlight')).toBe(false);
+      expect(layer.hasFlag('slots')).toBe(false);
+    });
+  });
+});

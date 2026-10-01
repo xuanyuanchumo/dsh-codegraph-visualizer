@@ -38,7 +38,10 @@ export function createClientCompatLayer(): ClientCompatLayer {
   };
 
   const detectMode = (ctx: Context): SidebarIntegrationMode => {
-    if (safeCheck(() => typeof ctx.inject === 'function', false)) {
+    if (safeCheck(() => {
+      const tabs = (ctx as unknown as { sidebarRightTabs?: unknown }).sidebarRightTabs;
+      return tabs !== null && tabs !== undefined;
+    }, false)) {
       _mode = 'sidebar-right';
       return _mode;
     }
@@ -59,7 +62,10 @@ export function createClientCompatLayer(): ClientCompatLayer {
 
   const detectFlags = (ctx: Context): ClientFeatureFlags => {
     _flags = {
-      sidebarRightTabs: safeCheck(() => typeof ctx.inject === 'function', false),
+      sidebarRightTabs: safeCheck(() => {
+        const tabs = (ctx as unknown as { sidebarRightTabs?: unknown }).sidebarRightTabs;
+        return tabs !== null && tabs !== undefined;
+      }, false),
       betterSidebar: safeCheck(() => {
         const bs = ctx.get('betterSidebar');
         return bs !== null && bs !== undefined;

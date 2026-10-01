@@ -42,8 +42,14 @@ const GEN2_MAPPING: ToolNameMapping = {
   codegraphIncremental: 'codegraph_incremental',
 };
 
+const GEN3_MAPPING: ToolNameMapping = {
+  ...GEN2_MAPPING,
+};
+
 export function createToolNameMapping(info: HostVersionInfo): ToolNameMapping {
-  return info.generation === 'gen1' ? GEN1_MAPPING : GEN2_MAPPING;
+  if (info.generation === 'gen1') return GEN1_MAPPING;
+  if (info.generation === 'gen3') return GEN3_MAPPING;
+  return GEN2_MAPPING;
 }
 
 export interface ApiCompatLayer {

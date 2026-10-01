@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi } from 'vitest';
-import { detectHostVersion, isGen1, isGen2, meetsMinimum } from '../../src/host/compat/HostVersionDetector.ts';
+import { detectHostVersion, isGen1, isGen2, isGen3, meetsMinimum } from '../../src/host/compat/HostVersionDetector.ts';
 import { createFeatureFlags, hasFlag } from '../../src/host/compat/FeatureFlags.ts';
 import { createApiCompatLayer, createToolNameMapping } from '../../src/host/compat/ApiCompatLayer.ts';
 
@@ -87,6 +87,56 @@ describe('HostVersionDetector', () => {
     expect(info.prerelease).toBe('rc.1');
     expect(info.generation).toBe('gen2');
   });
+
+  // --- gen3 support (added) ---
+  it('parseVersion returns gen3 for 1.0.0', () => {
+    const ctx = makeMockContext({ hostVersion: '1.0.0' });
+    const info = detectHostVersion(ctx);
+    expect(info.major).toBe(1);
+    expect(info.minor).toBe(0);
+    expect(info.patch).toBe(0);
+    expect(info.generation).toBe('gen3');
+  });
+
+  it('isGen3 returns true for gen3 info', () => {
+    const ctx = makeMockContext({ hostVersion: '1.0.0' });
+    const info = detectHostVersion(ctx);
+    expect(isGen3(info)).toBe(true);
+  });
+
+  it('isGen2 returns true for gen3 (gen3 is a superset of gen2)', () => {
+    const ctx = makeMockContext({ hostVersion: '1.0.0' });
+    const info = detectHostVersion(ctx);
+    expect(isGen2(info)).toBe(true);
+  });
+
+  it('isGen1 returns false for gen3', () => {
+    const ctx = makeMockContext({ hostVersion: '1.0.0' });
+    const info = detectHostVersion(ctx);
+    expect(isGen1(info)).toBe(false);
+  });
+
+  it('parses gen3 prerelease versions', () => {
+    const ctx = makeMockContext({ hostVersion: '1.2.3-rc.1' });
+    const info = detectHostVersion(ctx);
+    expect(info.prerelease).toBe('rc.1');
+    expect(info.generation).toBe('gen3');
+  });
+
+  it('detects gen3 from app.version', () => {
+    const ctx = makeMockContext({ app: { version: '2.5.0' } });
+    const info = detectHostVersion(ctx);
+    expect(info.generation).toBe('gen3');
+  });
+
+  it('meetsMinimum works for gen3 versions', () => {
+    const ctx = makeMockContext({ hostVersion: '1.0.0' });
+    const info = detectHostVersion(ctx);
+    expect(meetsMinimum(info, 0, 2)).toBe(true);
+    expect(meetsMinimum(info, 1, 0)).toBe(true);
+    expect(meetsMinimum(info, 1, 1)).toBe(false);
+    expect(meetsMinimum(info, 2, 0)).toBe(false);
+  });
 });
 
 describe('FeatureFlags', () => {
@@ -129,6 +179,52 @@ describe('FeatureFlags', () => {
     const flags = createFeatureFlags(info);
     expect(hasFlag(flags, 'incrementalBootstrap')).toBe(true);
     expect(hasFlag(flags, 'remoteWebUi')).toBe(true);
+  });
+
+  // --- gen3 feature flags (added) ---
+  it('gen3 flags include aiAssist, crossRepo, desktopPlatform', () => {
+    const ctx = makeMockContext({ hostVersion: '1.0.0' });
+    const info = detectHostVersion(ctx);
+    const flags = createFeatureFlags(info);
+    expect(flags.aiAssist).toBe(true);
+    expect(flags.crossRepo).toBe(true);
+    expect(flags.desktopPlatform).toBe(true);
+  });
+
+  it('createFeatureFlags returns correct gen3 flags (superset of gen2)', () => {
+    const ctx = makeMockContext({ hostVersion: '1.0.0' });
+    const info = detectHostVersion(ctx);
+    const flags = createFeatureFlags(info);
+    // inherited from gen2
+    expect(flags.incrementalBootstrap).toBe(true);
+    expect(flags.workspaceRegistry).toBe(true);
+    expect(flags.betterSidebar).toBe(true);
+    expect(flags.spotlight).toBe(true);
+    expect(flags.remoteWebUi).toBe(true);
+    expect(flags.multiWorkspace).toBe(true);
+    expect(flags.sessionsApi).toBe(true);
+    expect(flags.mcpServer).toBe(true);
+    // gen3-only additions
+    expect(flags.aiAssist).toBe(true);
+    expect(flags.crossRepo).toBe(true);
+    expect(flags.desktopPlatform).toBe(true);
+  });
+
+  it('gen2 flags do not include aiAssist/crossRepo', () => {
+    const ctx = makeMockContext({ hostVersion: '0.2.0' });
+    const info = detectHostVersion(ctx);
+    const flags = createFeatureFlags(info);
+    expect(flags.aiAssist).toBe(false);
+    expect(flags.crossRepo).toBe(false);
+  });
+
+  it('hasFlag reflects gen3-only flags', () => {
+    const ctx = makeMockContext({ hostVersion: '1.0.0' });
+    const info = detectHostVersion(ctx);
+    const flags = createFeatureFlags(info);
+    expect(hasFlag(flags, 'aiAssist')).toBe(true);
+    expect(hasFlag(flags, 'crossRepo')).toBe(true);
+    expect(hasFlag(flags, 'desktopPlatform')).toBe(true);
   });
 });
 
