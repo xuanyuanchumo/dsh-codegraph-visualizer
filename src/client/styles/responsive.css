@@ -1,5 +1,24 @@
 /* ---- Responsive ---------------------------------------------------------- */
 
+/* Extra-narrow panels (DSH sidebar tab minimal width).
+ * Hide toolbar center (layout/view selectors) to prioritize graph canvas.
+ * Users can still access layout/view modes via context menu or keyboard. */
+@container graphpanel (max-width: 380px) {
+  .cg-toolbar-center {
+    display: none;
+  }
+
+  .cg-tour-btn,
+  .cg-minimap-btn,
+  .cg-legend-btn {
+    display: none;
+  }
+
+  .cg-toolbar-group[aria-label]:not(:last-of-type) .cg-toolbar-separator {
+    display: none;
+  }
+}
+
 /* Small panels (DSH sidebar tab, narrow bottom panel).
  * Container queries respond to the PANEL width, not the viewport — the plugin
  * renders inside DSH panels whose width is unrelated to the window size. */
@@ -160,6 +179,22 @@
     margin: 0 2px;
   }
 
+  .cg-tour-btn {
+    display: none;
+  }
+
+}
+
+/* Medium-narrow panels — hide tour and reduce analysis button clutter */
+@container graphpanel (max-width: 600px) {
+  .cg-tour-btn,
+  .cg-minimap-btn {
+    display: none;
+  }
+
+  .cg-toolbar-left .cg-type-badge {
+    display: none;
+  }
 }
 
 /* Very small panels */
@@ -422,6 +457,17 @@
 }
 /* ---- Container Queries fallback ------------------------------------------- */
 @supports not (container-type: inline-size) {
+  @media (max-width: 380px) {
+    .cg-toolbar-center {
+      display: none;
+    }
+    .cg-tour-btn,
+    .cg-minimap-btn,
+    .cg-legend-btn {
+      display: none;
+    }
+  }
+
   @media (max-width: 480px) {
     .cg-graph-panel {
       border-radius: var(--cg-radius-sm);
@@ -512,6 +558,46 @@
       padding: 0 8px;
       gap: 6px;
     }
+    .cg-toolbar-center {
+      gap: 6px;
+    }
+    .cg-toolbar-right {
+      gap: 6px;
+    }
+    .cg-layout-btn,
+    .cg-graph-type-btn {
+      padding: 3px 8px;
+      font-size: 11px;
+    }
+    .cg-node-detail-panel {
+      width: 220px;
+    }
+    .cg-legend-panel {
+      width: 160px;
+    }
+    .cg-mini-map {
+      width: 160px;
+    }
+    .cg-filter-select {
+      font-size: 11px;
+    }
+    .cg-toolbar-separator {
+      margin: 0 2px;
+    }
+    .cg-tour-btn {
+      display: none;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .cg-tour-btn,
+    .cg-minimap-btn {
+      display: none;
+    }
+    .cg-toolbar-left .cg-type-badge {
+      display: none;
+    }
+  }
     .cg-toolbar-center {
       gap: 6px;
     }

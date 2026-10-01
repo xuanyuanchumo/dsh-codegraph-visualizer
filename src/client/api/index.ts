@@ -39,11 +39,14 @@ export interface BootstrapData {
   };
 }
 
-export async function fetchBootstrap(signal?: AbortSignal): Promise<BootstrapData | null> {
+export async function fetchBootstrap(signal?: AbortSignal, workspace?: string): Promise<BootstrapData | null> {
   try {
+    const params = new URLSearchParams();
+    if (workspace && workspace !== '.') params.set('workspace', workspace);
     const options: RequestInit = {};
     if (signal) options.signal = signal;
-    const res = await fetchWithTimeout('/api/v1/codegraph/bootstrap', options);
+    const qs = params.toString();
+    const res = await fetchWithTimeout(`/api/v1/codegraph/bootstrap${qs ? `?${qs}` : ''}`, options);
     if (!res.ok) return null;
     const data = await res.json() as BootstrapData;
     return {
@@ -68,12 +71,13 @@ export interface NodeChildrenData {
   total: number;
 }
 
-export async function fetchNodeChildren(nodeId: string, cursor?: string, limit?: number, signal?: AbortSignal): Promise<NodeChildrenData | null> {
+export async function fetchNodeChildren(nodeId: string, cursor?: string, limit?: number, signal?: AbortSignal, workspace?: string): Promise<NodeChildrenData | null> {
   try {
     const params = new URLSearchParams();
     params.set('nodeId', nodeId);
     if (cursor) params.set('cursor', cursor);
     params.set('limit', String(limit ?? BOOTSTRAP.CHILDREN_PAGE_SIZE));
+    if (workspace && workspace !== '.') params.set('workspace', workspace);
     const options: RequestInit = {};
     if (signal) options.signal = signal;
     const res = await fetchWithTimeout(`/api/v1/codegraph/children?${params}`, options);
@@ -183,11 +187,14 @@ export interface FileOutlineData {
   edges: GraphEdge[];
 }
 
-export async function fetchFileOutline(nodeId: string, signal?: AbortSignal): Promise<FileOutlineData | null> {
+export async function fetchFileOutline(nodeId: string, signal?: AbortSignal, workspace?: string): Promise<FileOutlineData | null> {
   try {
+    const params = new URLSearchParams();
+    if (workspace && workspace !== '.') params.set('workspace', workspace);
     const options: RequestInit = {};
     if (signal) options.signal = signal;
-    const res = await fetchWithTimeout(`/api/v1/codegraph/files/${encodeURIComponent(nodeId)}/outline`, options);
+    const qs = params.toString();
+    const res = await fetchWithTimeout(`/api/v1/codegraph/files/${encodeURIComponent(nodeId)}/outline${qs ? `?${qs}` : ''}`, options);
     if (!res.ok) return null;
     const data = await res.json() as FileOutlineData;
     return {
@@ -207,11 +214,14 @@ export interface SymbolASTData {
   sourceLines: string[];
 }
 
-export async function fetchSymbolAST(nodeId: string, signal?: AbortSignal): Promise<SymbolASTData | null> {
+export async function fetchSymbolAST(nodeId: string, signal?: AbortSignal, workspace?: string): Promise<SymbolASTData | null> {
   try {
+    const params = new URLSearchParams();
+    if (workspace && workspace !== '.') params.set('workspace', workspace);
     const options: RequestInit = {};
     if (signal) options.signal = signal;
-    const res = await fetchWithTimeout(`/api/v1/codegraph/symbols/${encodeURIComponent(nodeId)}/ast`, options);
+    const qs = params.toString();
+    const res = await fetchWithTimeout(`/api/v1/codegraph/symbols/${encodeURIComponent(nodeId)}/ast${qs ? `?${qs}` : ''}`, options);
     if (!res.ok) return null;
     const data = await res.json() as SymbolASTData;
     return {
@@ -232,13 +242,14 @@ export interface EdgesData {
   hasMore: boolean;
 }
 
-export async function fetchEdges(fromId: string, scope: 'file' | 'symbol' = 'file', cursor?: number, limit?: number, signal?: AbortSignal): Promise<EdgesData | null> {
+export async function fetchEdges(fromId: string, scope: 'file' | 'symbol' = 'file', cursor?: number, limit?: number, signal?: AbortSignal, workspace?: string): Promise<EdgesData | null> {
   try {
     const params = new URLSearchParams();
     params.set('from', fromId);
     params.set('scope', scope);
     if (cursor !== undefined) params.set('cursor', String(cursor));
     params.set('limit', String(limit ?? 500));
+    if (workspace && workspace !== '.') params.set('workspace', workspace);
     const options: RequestInit = {};
     if (signal) options.signal = signal;
     const res = await fetchWithTimeout(`/api/v1/codegraph/edges?${params}`, options);

@@ -47,6 +47,17 @@ function withRouteMiddleware(
   };
 }
 
+function resolveWorkspaceFromRequest(req: IncomingMessage, ctx: Context, deps: RouteDeps): string {
+  try {
+    const url = new URL(req.url ?? '', `http://${req.headers.host ?? 'localhost'}`);
+    const wsParam = url.searchParams.get('workspace');
+    if (wsParam && wsParam !== '.' && deps.securityManager.isPathAllowed(wsParam)) {
+      return wsParam;
+    }
+  } catch { /* ignore */ }
+  return findWorkspacePath(ctx);
+}
+
 async function resolveAndValidatePath(
   pathInput: string | undefined,
   ctx: Context,
@@ -799,7 +810,7 @@ function registerBootstrapRoute(rc: RouteContext): void {
     kind: 'exact',
     path: routePath,
     handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, async (req, res) => {
-      const workspacePath = findWorkspacePath(ctx);
+      const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
 
       const cachedData = deps.getLastGraphData();
       if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) {
@@ -905,7 +916,7 @@ function registerNodeChildrenRoute(rc: RouteContext): void {
       }
 
       // P0-1: DB-first — try SQLite direct read for true sharded query
-      const workspacePath = findWorkspacePath(ctx);
+      const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readNodeChildrenFromDb(dbPath, nodeId, cursor, limit);
@@ -976,7 +987,7 @@ function registerFileOutlineRoute(rc: RouteContext): void {
       }
 
       // DB-first: try SQLite direct read
-      const workspacePath = findWorkspacePath(ctx);
+      const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readFileOutlineFromDb(dbPath, nodeId);
@@ -1035,7 +1046,7 @@ function registerSymbolASTRoute(rc: RouteContext): void {
       }
 
       // DB-first: try SQLite direct read
-      const workspacePath = findWorkspacePath(ctx);
+      const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readSymbolASTFromDb(dbPath, nodeId);
@@ -1094,7 +1105,7 @@ function registerEdgesRoute(rc: RouteContext): void {
       }
 
       // DB-first — try SQLite direct read, consistent with other routes
-      const workspacePath = findWorkspacePath(ctx);
+      const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readEdgesFromDb(dbPath, fromId, scope as 'file' | 'symbol', cursor, limit);

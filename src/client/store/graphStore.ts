@@ -781,7 +781,7 @@ export const useGraphStore = create<GraphState>()(
                   }
                 }
               }
-              fetchFileOutline(nodeId, expandController.signal).then(async (data) => {
+              fetchFileOutline(nodeId, expandController.signal, useGraphStore.getState().currentWorkspace).then(async (data) => {
                 if (gen !== expandGeneration) return;
                 if (data && data.symbols.length > 0) {
                   mergeAndRecluster(data.symbols, data.edges, set, 'file outline loaded', { nodeId });
@@ -814,7 +814,7 @@ export const useGraphStore = create<GraphState>()(
                   }
                 }
               }
-              fetchSymbolAST(nodeId, expandController.signal).then(async (data) => {
+              fetchSymbolAST(nodeId, expandController.signal, useGraphStore.getState().currentWorkspace).then(async (data) => {
                 if (gen !== expandGeneration) return;
                 if (data && data.astNodes.length > 0) {
                   const truncatedAstNodes = data.astNodes.length > SYMBOL_AST.MAX_NODES
@@ -856,7 +856,7 @@ export const useGraphStore = create<GraphState>()(
         set({ pendingRequests: newPending });
         try {
           const signal = options?.signal ?? controller.signal;
-          const data = await fetchNodeChildren(nodeId, undefined, undefined, signal);
+          const data = await fetchNodeChildren(nodeId, undefined, undefined, signal, useGraphStore.getState().currentWorkspace);
           if (!data || data.nodes.length === 0) {
             const newLoaded = new Set(state.loadedChildrenByNodeId);
             newLoaded.add(nodeId);
@@ -916,7 +916,8 @@ export const useGraphStore = create<GraphState>()(
       },
       loadBootstrap: async () => {
         try {
-          const data = await fetchBootstrap();
+          const ws = useGraphStore.getState().currentWorkspace;
+          const data = await fetchBootstrap(undefined, ws);
           if (!data || data.topLevelNodes.length === 0) {
             log.info('bootstrap returned empty, falling back to full load');
             return false;

@@ -419,7 +419,7 @@ export function apply(ctx: Context): () => void {
         }
         log.info('auto-import requested', { path: workspacePath });
 
-        const bootstrap = await fetchBootstrap();
+        const bootstrap = await fetchBootstrap(undefined, workspacePath);
         if (bootstrap && bootstrap.topLevelNodes.length > 0) {
           const s2 = useGraphStore.getState();
           s2.setBootstrapData(bootstrap.topLevelNodes, bootstrap.edges, workspacePath, {
