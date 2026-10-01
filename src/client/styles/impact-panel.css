@@ -1,0 +1,51 @@
+/* ---- Impact stats panel (FR-35) ------------------------------------------ */
+
+.cg-impact-panel {
+  right: 12px;
+  bottom: calc(var(--cg-statusbar-h) + 12px);
+  top: auto;
+  width: 160px;
+}
+
+.cg-impact-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.cg-impact-stat-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.cg-impact-stat-badge.cg-d1 {
+  background: var(--cg-impact-d1);
+  color: var(--cg-text);
+}
+
+.cg-impact-stat-badge.cg-d2 {
+  background: var(--cg-impact-d2);
+  color: var(--cg-text);
+}
+
+.cg-impact-stat-badge.cg-d3 {
+  background: var(--cg-impact-d3);
+  color: var(--cg-text);
+}
+
+.cg-impact-stat-count {
+  font-family: var(--cg-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cg-text);
+}
+

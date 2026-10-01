@@ -1,0 +1,115 @@
+/* ---- HealthScoreCard (FR-32: Health Score) -------------------------------- */
+
+.cg-health-score-card {
+  position: absolute;
+  left: 12px;
+  top: calc(var(--cg-toolbar-h) + 12px);
+  width: 260px;
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius);
+  box-shadow: var(--cg-shadow);
+  z-index: 7;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow: hidden;
+  animation: cg-slide-right 160ms var(--cg-ease-out);
+}
+
+.cg-health-score-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cg-text);
+  border-bottom: 1px solid var(--cg-border);
+}
+
+.cg-health-score-empty {
+  padding: 20px 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--cg-text-tertiary);
+}
+
+.cg-health-score-overall {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 12px 10px;
+}
+
+.cg-health-score-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border: 3px solid;
+  border-radius: 50%;
+  font-size: 22px;
+  font-weight: 700;
+  font-family: var(--cg-font-mono);
+}
+
+.cg-health-score-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cg-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cg-health-dimensions {
+  padding: 0 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cg-health-dimension {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cg-health-dimension-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cg-health-dimension-name {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--cg-text-secondary);
+}
+
+.cg-health-dimension-score {
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--cg-font-mono);
+}
+
+.cg-health-dimension-bar {
+  height: 6px;
+  background: var(--cg-surface-active);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.cg-health-dimension-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 400ms var(--cg-ease-out);
+}
+
+.cg-health-dimension-desc {
+  font-size: 10px;
+  color: var(--cg-text-tertiary);
+  line-height: 1.3;
+}
+

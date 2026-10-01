@@ -1,12 +1,11 @@
 import React, { useCallback, memo } from 'react';
-import type { LayoutType, ThemeType, GraphType, RankDir } from '../store/graphStore.ts';
+import type { LayoutType, GraphType, RankDir } from '../store/graphStore.ts';
 import type { GraphNode, ViewMode } from '../../types/index.ts';
-import type { WorkspaceSelectorProps } from './WorkspaceSelector.tsx';
 import { useT, useLang, toggleLang } from '../i18n/index.ts';
 import { WorkspaceSelector } from './WorkspaceSelector.tsx';
 import { Dropdown } from './Dropdown.tsx';
 import { useElementWidth } from '../hooks/useElementWidth.ts';
-import { STRUCTURAL_VIEW_MODES, BEHAVIORAL_VIEW_MODES, BEHAVIORAL_MICRO_VIEW_MODES, getViewLayer, getAvailablePanels, type AnalysisPanelKey } from '../../shared/viewModeUtils.ts';
+import { STRUCTURAL_VIEW_MODES, BEHAVIORAL_VIEW_MODES, BEHAVIORAL_MICRO_VIEW_MODES, getViewLayer, getAvailablePanels } from '../../shared/viewModeUtils.ts';
 import {
   SearchIcon, ChainIcon, CycleIcon, MapIcon, RefreshIcon,
   SunIcon, MoonIcon, DownloadIcon, ChevronDownIcon, ChevronUpIcon,
@@ -14,186 +13,18 @@ import {
   PathIcon, HeartIcon, RuleIcon, FlameIcon, AlertCircleIcon,
   UndoIcon, RedoIcon, StarIcon, FilterIcon, GhostIcon, MoreIcon,
 } from './Icons.tsx';
+import {
+  LAYOUTS, FILTER_KEYS, RANK_DIRS, GRAPH_TYPES,
+  STRUCTURAL_MODE_KEYS, BEHAVIORAL_MODE_KEYS, BEHAVIORAL_MICRO_MODE_KEYS,
+  STRUCTURAL_TITLE_KEYS, BEHAVIORAL_TITLE_KEYS, BEHAVIORAL_MICRO_TITLE_KEYS,
+  CLUSTER_DEPTHS, HIERARCHY_LEVELS, ANALYSIS_ITEMS, QUALITY_ITEMS,
+} from './toolbarConfig.ts';
+import type { ToolbarProps, ExportFormat } from './toolbarTypes.ts';
 
-const LAYOUTS: LayoutType[] = ['cose', 'fcose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
-const FILTER_KEYS: { value: GraphNode['type'] | 'all'; key: string }[] = [
-  { value: 'all', key: 'filter.all' },
-  { value: 'function', key: 'filter.function' },
-  { value: 'class', key: 'filter.class' },
-  { value: 'variable', key: 'filter.variable' },
-  { value: 'module', key: 'filter.module' },
-  { value: 'interface', key: 'filter.interface' },
-];
-
-const RANK_DIRS: { value: RankDir; label: string }[] = [
-  { value: 'TB', label: 'TB' },
-  { value: 'LR', label: 'LR' },
-  { value: 'BT', label: 'BT' },
-  { value: 'RL', label: 'RL' },
-];
-
-const GRAPH_TYPES: { value: GraphType; key: string }[] = [
-  { value: 'all', key: 'graphType.all' },
-  { value: 'call', key: 'graphType.call' },
-  { value: 'dependency', key: 'graphType.dependency' },
-];
-
-
-const STRUCTURAL_MODE_KEYS: Partial<Record<ViewMode, string>> = {
-  code: 'viewMode.code',
-};
-const BEHAVIORAL_MODE_KEYS: Partial<Record<ViewMode, string>> = {
-  dependencies: 'viewMode.dependencies',
-  inheritance: 'viewMode.inheritance',
-  callgraph: 'viewMode.callgraph',
-  package: 'viewMode.package',
-  class: 'viewMode.class',
-};
-const BEHAVIORAL_MICRO_MODE_KEYS: Partial<Record<ViewMode, string>> = {
-  cfg: 'viewMode.cfg',
-  flowchart: 'viewMode.flowchart',
-  sequence: 'viewMode.sequence',
-};
-const STRUCTURAL_TITLE_KEYS: Partial<Record<ViewMode, string>> = {
-  code: 'toolbar.viewModeCode',
-};
-const BEHAVIORAL_TITLE_KEYS: Partial<Record<ViewMode, string>> = {
-  dependencies: 'toolbar.viewModeDeps',
-  inheritance: 'toolbar.viewModeInheritance',
-  callgraph: 'toolbar.viewModeCallgraph',
-  package: 'toolbar.viewModePackage',
-  class: 'toolbar.viewModeClass',
-};
-const BEHAVIORAL_MICRO_TITLE_KEYS: Partial<Record<ViewMode, string>> = {
-  cfg: 'toolbar.viewModeCfg',
-  flowchart: 'toolbar.viewModeFlowchart',
-  sequence: 'toolbar.viewModeSequence',
-};
-
-const CLUSTER_DEPTHS: { value: number; key: string }[] = [
-  { value: 0, key: 'clusterDepth.directory' },
-  { value: 1, key: 'clusterDepth.file' },
-  { value: 2, key: 'clusterDepth.function' },
-];
-
-const HIERARCHY_LEVELS: { value: number; key: string; short: string }[] = [
-  { value: 0, key: 'toolbar.hierarchyL0', short: 'L0' },
-  { value: 1, key: 'toolbar.hierarchyL1', short: 'L1' },
-  { value: 2, key: 'toolbar.hierarchyL2', short: 'L2' },
-  { value: 3, key: 'toolbar.hierarchyL3', short: 'L3' },
-];
-
-interface ToolMenuItem {
-  panel: AnalysisPanelKey;
-  Icon: React.ComponentType<{ size?: number }>;
-  key: string;
-  btnClass: string;
-  toggle: keyof ToolbarToggleHandlers;
-}
-
-const ANALYSIS_ITEMS: ToolMenuItem[] = [
-  { panel: 'showCallChain', Icon: ChainIcon, key: 'toolbar.chain', btnClass: 'cg-chain-btn', toggle: 'onToggleCallChain' },
-  { panel: 'showCycles', Icon: CycleIcon, key: 'toolbar.cycles', btnClass: 'cg-cycle-btn', toggle: 'onToggleCycles' },
-  { panel: 'showImpact', Icon: ZapIcon, key: 'toolbar.impact', btnClass: 'cg-impact-btn', toggle: 'onToggleImpact' },
-  { panel: 'showInheritance', Icon: TreeIcon, key: 'toolbar.inheritance', btnClass: 'cg-inheritance-btn', toggle: 'onToggleInheritance' },
-  { panel: 'showPathFind', Icon: PathIcon, key: 'toolbar.pathFind', btnClass: 'cg-pathfind-btn', toggle: 'onTogglePathFind' },
-];
-
-const QUALITY_ITEMS: ToolMenuItem[] = [
-  { panel: 'showHealthScore', Icon: HeartIcon, key: 'toolbar.health', btnClass: 'cg-health-btn', toggle: 'onToggleHealthScore' },
-  { panel: 'showRules', Icon: RuleIcon, key: 'toolbar.rules', btnClass: 'cg-rules-btn', toggle: 'onToggleRules' },
-  { panel: 'showHotspot', Icon: FlameIcon, key: 'toolbar.hotspot', btnClass: 'cg-hotspot-btn', toggle: 'onToggleHotspot' },
-  { panel: 'showGodModule', Icon: AlertCircleIcon, key: 'toolbar.godModule', btnClass: 'cg-godmodule-btn', toggle: 'onToggleGodModule' },
-  { panel: 'showCoreFunction', Icon: StarIcon, key: 'toolbar.coreFunction', btnClass: 'cg-corefunction-btn', toggle: 'onToggleCoreFunction' },
-  { panel: 'showDeadCode', Icon: GhostIcon, key: 'toolbar.deadCode', btnClass: 'cg-deadcode-btn', toggle: 'onToggleDeadCode' },
-];
-
-export interface ToolbarVisibilityState {
-  showSearch: boolean;
-  showCallChain: boolean;
-  showCycles: boolean;
-  cycleIsolation: boolean;
-  showImpact: boolean;
-  showInheritance: boolean;
-  showMiniMap: boolean;
-  showLegend: boolean;
-  showImport: boolean;
-  showPathFind: boolean;
-  showHealthScore: boolean;
-  showRules: boolean;
-  showHotspot: boolean;
-  showGodModule: boolean;
-  showCoreFunction: boolean;
-  showDeadCode: boolean;
-  showFilterPanel: boolean;
-  showTour: boolean;
-}
-
-export interface ToolbarToggleHandlers {
-  onToggleSearch: () => void;
-  onToggleCallChain: () => void;
-  onToggleCycles: () => void;
-  onToggleCycleIsolation: () => void;
-  onToggleImpact: () => void;
-  onToggleInheritance: () => void;
-  onToggleMiniMap: () => void;
-  onToggleLegend: () => void;
-  onToggleImport: () => void;
-  onTogglePathFind: () => void;
-  onToggleHealthScore: () => void;
-  onToggleRules: () => void;
-  onToggleHotspot: () => void;
-  onToggleGodModule: () => void;
-  onToggleCoreFunction: () => void;
-  onToggleDeadCode: () => void;
-  onToggleFilterPanel: () => void;
-  onToggleTour: () => void;
-}
-
-export interface PanelControls extends ToolbarVisibilityState, ToolbarToggleHandlers {}
-
-export type ExportFormat = 'png' | 'svg' | 'json' | 'mermaid' | 'mermaid-seq' | 'mermaid-class' | 'graphml' | 'jsonld';
-
-export interface ToolbarLayoutConfig {
-  layout: LayoutType;
-  dagreRankDir: RankDir;
-  clusterDepth: number;
-  onChange: (field: 'layout' | 'dagreRankDir' | 'clusterDepth', value: LayoutType | RankDir | number) => void;
-}
-
-export interface ToolbarViewConfig {
-  viewMode: ViewMode;
-  graphType: GraphType;
-  filterType: GraphNode['type'] | 'all';
-  currentLayer: number;
-  layerNames: string[];
-  hierarchyLevel: number;
-  hasSelectedFunction?: boolean;
-  onChange: (field: 'viewMode' | 'graphType' | 'filterType' | 'layer' | 'hierarchyLevel', value: ViewMode | GraphType | GraphNode['type'] | 'all' | number) => void;
-}
-
-export interface ToolbarHistory {
-  undo?: () => void;
-  redo?: () => void;
-  canUndo?: boolean;
-  canRedo?: boolean;
-}
-
-interface ToolbarProps extends WorkspaceSelectorProps {
-  statsText: string;
-  typeCounts: { function: number; class: number; interface: number };
-  theme: ThemeType;
-  collapsed: boolean;
-  panelControls: PanelControls;
-  layoutConfig: ToolbarLayoutConfig;
-  viewConfig: ToolbarViewConfig;
-  history?: ToolbarHistory;
-  onThemeToggle: () => void;
-  onRefresh: () => void;
-  onExport: (format: ExportFormat) => void;
-  onCollapse: () => void;
-  onCollapseAll?: () => void;
-}
+export type {
+  ToolMenuItem, ToolbarVisibilityState, ToolbarToggleHandlers, PanelControls,
+  ExportFormat, ToolbarLayoutConfig, ToolbarViewConfig, ToolbarHistory, ToolbarProps,
+} from './toolbarTypes.ts';
 
 export const Toolbar = memo(function toolbar(props: ToolbarProps) {
   const t = useT();

@@ -1,6 +1,6 @@
 {
   "currentPhase": "complete",
-  "currentCycle": "cycle-54",
+  "currentCycle": "cycle-56",
   "phaseHistory": [
     {
       "cycle": "cycle-33",
@@ -66,9 +66,19 @@
       "cycle": "cycle-54",
       "phase": "complete",
       "result": "P0-1 Dropdown组件抽象(4个手写下拉菜单→可复用Dropdown组件,支持render props close+Escape关闭+点击外部关闭)+P0-2 tools下拉菜单项配置化(12个菜单项用ANALYSIS_ITEMS/QUALITY_ITEMS数组map简化)+P0-3 工具栏JS响应式折叠(useElementWidth hook+ResizeObserver降级+isCompact<768px/isNarrow<480px+更多Dropdown动态收进溢出按钮)+i18n添加toolbar.more. 新增14测试(Dropdown组件). 4412测试通过, lint零错误, typecheck通过, build成功. Chrome DevTools MCP视觉验证: 工具栏全部18个按钮正确渲染, Dropdown haspopup=menu正常, 无console error"
+    },
+    {
+      "cycle": "cycle-55",
+      "phase": "complete",
+      "result": "P0 better-sidebar features gating(按能力门控非版本号,badge/tabLifecycle/stateSubscription)+类型声明增强(betterSidebar添加features/version/subscribe)+P1 GraphologyAdapter新增孤儿/叶子/枢纽节点检测+HealthScorer新增findOrphanNodes/findLeafNodes/findHubNodes/calculateOrphanRate+P2 FilterPanel 4个input添加id/name(a11y)+CytoscapeRenderer wheelSensitivity=0.3. 4463测试通过, lint零错误, typecheck通过, build成功. Chrome DevTools MCP视觉验证: 工具栏22按钮正确渲染, sidebarRightTabs集成成功, 控制台零错误零警告"
+    },
+    {
+      "cycle": "cycle-56",
+      "phase": "complete",
+      "result": "P0 删除误创建nul文件+Toolbar.tsx配置/类型抽取到toolbarConfig.ts+toolbarTypes.ts(566→397行减少30%)+P1 CSS模块化拆分(analysis-panels.css 1155行→6个独立文件:health-score-card/rule-config-panel/hotspot-godmodule-panel/impact-panel/cycle-panel/tour-panel). 4463测试通过, lint零错误, typecheck通过, build成功. Chrome DevTools MCP视觉验证: 代码图谱面板在sidebarRightTabs正确打开, 工具栏22+按钮全正确渲染, L0-L3层级选择器(概览/目录/文件/符号)正常, Dropdown菜单(工具/导出/更多)正常, 控制台零error(3warn因前置插件未安装)"
     }
   ],
   "nodeStatus": {},
   "createdAt": "2026-09-21T14:25:00.105Z",
-  "updatedAt": "2026-10-01T15:15:00.000Z"
+  "updatedAt": "2026-10-02T00:30:00.000Z"
 }
