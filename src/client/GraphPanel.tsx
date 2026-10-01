@@ -9,14 +9,17 @@ import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelStat
   useGraphData, useGraphDisplay, useGraphInteraction, useGraphStatus, useGraphWorkspace, useGraphAnalysis, useGraphPerformance, useGraphActions, usePanelDimensions,
 } from './hooks/index.ts';
 import { updateUrlExpand } from './utils/urlState.ts';
-import { getViewLayer, getAvailablePanels } from '../shared/viewModeUtils.ts';
-import type { AnalysisPanelKey } from '../shared/viewModeUtils.ts';
+
 import { useThemeSync } from './hooks/useThemeSync.ts';
 import { useHistory } from './hooks/useHistory.ts';
 import { useGraphCache } from './hooks/useGraphCache.ts';
 import { useWorkspaceCache } from './hooks/useWorkspaceCache.ts';
 import { useSymbolSelectListener } from './hooks/useSymbolSelectListener.ts';
 import { useLODZoom } from './hooks/useLODZoom.ts';
+import { useMiniMapSync } from './hooks/useMiniMapSync.ts';
+import { useAutoBootstrap } from './hooks/useAutoBootstrap.ts';
+import { useAncestorResize } from './hooks/useAncestorResize.ts';
+import { useViewModePanelGuard } from './hooks/useViewModePanelGuard.ts';
 import { invalidateCssVarCache } from './renderer/styles/ThemeStylesheet.ts';
 import { GraphErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Toolbar } from './components/Toolbar.tsx';
@@ -66,6 +69,7 @@ interface GraphPanelProps {
 
 function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const t = useT();
+  const integrationMode = useGraphStore((s) => s.integrationMode);
   const panelRef = useRef<HTMLDivElement>(null);
   const depsFetchAbortRef = useRef<AbortController | null>(null);
   const getDataRef = useRef<{
@@ -76,12 +80,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const [selectedNodeData, setSelectedNodeData] = useState<GraphNode | ClusterNode | null>(null);
   const [tooltip, setTooltip] = useState<TooltipData | EdgeTooltipData | null>(null);
   const [showHelp, setShowHelp] = useState(false);
-  const [thumbnail, setThumbnail] = useState<string | null>(null);
-  const [viewportInfo, setViewportInfo] = useState<{
-    zoom: number; pan: { x: number; y: number };
-    renderedSize: { w: number; h: number };
-    totalSize: { w: number; h: number };
-  } | null>(null);
+
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     nodeId: string;
@@ -272,46 +271,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     if (panelHeight !== null || panelWidth !== null) renderer.rendererRef.current?.resize();
   }, [panel.collapsed, panelHeight, panelWidth, renderer.rendererRef]);
 
-  useEffect(() => {
-    if (panel.collapsed) return;
-    const panelEl = panelRef.current;
-    if (!panelEl) return;
-    const hasUserOverride = panelHeight !== null;
-    if (hasUserOverride) return;
-    let ancestor: HTMLElement | null = panelEl.parentElement;
-    let depth = 0;
-    while (ancestor && depth < UI.ANCESTOR_SEARCH_MAX_DEPTH) {
-      const h = ancestor.getBoundingClientRect().height;
-      if (h >= UI.ANCESTOR_MIN_HEIGHT_PX) break;
-      ancestor = ancestor.parentElement;
-      depth++;
-    }
-    const target = ancestor ?? panelEl.parentElement ?? panelEl;
-    let resizeTimer: ReturnType<typeof setTimeout> | null = null;
-    const applyAncestorHeight = () => {
-      if (resizeTimer !== null) clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        resizeTimer = null;
-        const h = target.getBoundingClientRect().height;
-        const maxH = window.innerHeight;
-        const finalH = Math.min(h, maxH);
-        if (finalH > 0) {
-          panelEl.style.height = `${finalH}px`;
-          renderer.rendererRef.current?.resize();
-        }
-      }, UI.RESIZE_DEBOUNCE_MS);
-    };
-    applyAncestorHeight();
-    if (typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver(applyAncestorHeight);
-      ro.observe(target);
-      return () => { ro.disconnect(); if (resizeTimer !== null) clearTimeout(resizeTimer); };
-    } else {
-      const onWinResize = () => applyAncestorHeight();
-      window.addEventListener('resize', onWinResize);
-      return () => { window.removeEventListener('resize', onWinResize); if (resizeTimer !== null) clearTimeout(resizeTimer); };
-    }
-  }, [panel.collapsed, panelHeight, renderer.rendererRef]);
+  useAncestorResize({
+    collapsed: panel.collapsed,
+    panelHeight,
+    rendererRef: renderer.rendererRef,
+    panelRef,
+  });
 
   useEffect(() => {
     const r = renderer.rendererRef.current;
@@ -355,24 +320,13 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     setHasHiddenNodes(count < nodes.length);
   }, [filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, renderer.rendererRef, nodes.length]);
 
-  useEffect(() => {
-    if (!panel.showMiniMap || panel.collapsed) return;
-    const updateMiniMap = () => {
-      const r = renderer.rendererRef.current;
-      if (!r) return;
-      setThumbnail(r.getThumbnail());
-      setViewportInfo(r.getViewportInfo());
-    };
-    updateMiniMap();
-    let lastUpdate = 0;
-    const intervalId = setInterval(() => {
-      const now = Date.now();
-      if (now - lastUpdate < UI.MINIMAP_THROTTLE_MS) return;
-      lastUpdate = now;
-      updateMiniMap();
-    }, UI.MINIMAP_UPDATE_INTERVAL_MS);
-    return () => clearInterval(intervalId);
-  }, [panel.showMiniMap, panel.collapsed, renderer.rendererRef, nodes.length, layout]);
+  const { thumbnail, viewportInfo } = useMiniMapSync({
+    showMiniMap: panel.showMiniMap,
+    collapsed: panel.collapsed,
+    rendererRef: renderer.rendererRef,
+    nodesLength: nodes.length,
+    layout,
+  });
 
   useEffect(() => () => depsFetchAbortRef.current?.abort(), []);
 
@@ -402,32 +356,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     rawHandleSelectFunction(nodeId, filePath, functionName, mode);
   }, [rawHandleSelectFunction]);
 
-  useEffect(() => {
-    setFocusNodeId(null);
-  }, [viewMode]);
-
-  useEffect(() => {
-    const available = getAvailablePanels(getViewLayer(viewMode));
-    const panelEntries: Array<[AnalysisPanelKey, boolean, () => void]> = [
-      ['showCallChain', panel.showCallChain, () => panel.setShowCallChain(false)],
-      ['showCycles', panel.showCycles, () => panel.setShowCycles(false)],
-      ['showImpact', panel.showImpact, () => panel.setShowImpact(false)],
-      ['showInheritance', panel.showInheritance, () => panel.setShowInheritance(false)],
-      ['showHotspot', panel.showHotspot, () => panel.setShowHotspot(false)],
-      ['showGodModule', panel.showGodModule, () => panel.setShowGodModule(false)],
-      ['showCoreFunction', panel.showCoreFunction, () => panel.setShowCoreFunction(false)],
-      ['showDeadCode', panel.showDeadCode, () => panel.setShowDeadCode(false)],
-      ['showHealthScore', panel.showHealthScore, () => panel.setShowHealthScore(false)],
-      ['showRules', panel.showRules, () => panel.setShowRules(false)],
-      ['showImport', panel.showImport, () => panel.setShowImport(false)],
-      ['showFilterPanel', panel.showFilterPanel, () => panel.setShowFilterPanel(false)],
-      ['showSearch', panel.showSearch, () => panel.setShowSearch(false)],
-      ['showPathFind', panel.showPathFind, () => panel.setShowPathFind(false)],
-    ];
-    for (const [key, isShowing, close] of panelEntries) {
-      if (!available.has(key) && isShowing) close();
-    }
-  }, [viewMode]);
+  useViewModePanelGuard({
+    viewMode,
+    setFocusNodeId,
+    panel,
+  });
 
   useEffect(() => {
     handleNodeDoubleTapRef.current = (nodeId: string) => {
@@ -529,22 +462,14 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     }
   }, [panel.showDeadCode, deadCodeResult, renderer.rendererRef]);
 
-  const hasAutoScannedRef = useRef(false);
-  useEffect(() => {
-    if (hasAutoScannedRef.current) return;
-    if (panel.collapsed) return;
-    if (nodes.length > 0 || rawNodes.length > 0) return;
-    if (!prerequisites.codegraph) return;
-    if (!currentWorkspace) return;
-    hasAutoScannedRef.current = true;
-    log.info('auto-fill: triggering bootstrap on first open', { path: currentWorkspace });
-    useGraphStore.getState().loadBootstrap().then((ok) => {
-      if (!ok) {
-        log.info('auto-fill: bootstrap failed, falling back to scan', { path: currentWorkspace });
-        handleScanWorkspace();
-      }
-    });
-  }, [panel.collapsed, nodes.length, rawNodes.length, prerequisites.codegraph, currentWorkspace, handleScanWorkspace]);
+  useAutoBootstrap({
+    collapsed: panel.collapsed,
+    nodesLength: nodes.length,
+    rawNodesLength: rawNodes.length,
+    codegraphReady: prerequisites.codegraph,
+    currentWorkspace,
+    handleScanWorkspace,
+  });
 
   const statsText = useMemo(() => {
     const totalNodes = diagramData?.allNodes.length ?? nodes.length;
@@ -598,7 +523,8 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const isMicroView = viewMode === 'cfg' || viewMode === 'flowchart' || viewMode === 'sequence';
 
   return (
-    <div className={panelClassName} ref={panelRef} role="region" aria-label={t('panel.ariaLabel')}>
+    <div className={panelClassName} ref={panelRef} role="region" aria-label={t('panel.ariaLabel')}
+      data-cg-integration={integrationMode}>
       <button className="cg-collapse-fab" onClick={panel.toggleCollapsed} aria-label={t('panel.expand')}>
         <GraphIcon size={22} />
       </button>

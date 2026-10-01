@@ -59,7 +59,10 @@ test.describe('J38: 智能缓存', () => {
 test.describe('Performance metrics', () => {
   test('should maintain reasonable DOM node count', async ({ page }) => {
     await setupPluginPage(page);
-    await page.waitForTimeout(2000);
+    await page.waitForFunction(() => {
+      const cy = (window as any).__cytoscape;
+      return cy && cy.nodes().length > 0;
+    }, { timeout: 10000 });
     const nodeCount = await page.evaluate(() => document.querySelectorAll('*').length);
     expect(nodeCount).toBeLessThan(5000);
   });
@@ -77,13 +80,19 @@ test.describe('Performance metrics', () => {
       if (msg.type() === 'error') errors.push(msg.text());
     });
     await setupPluginPage(page);
-    await page.waitForTimeout(2000);
+    await page.waitForFunction(() => {
+      const cy = (window as any).__cytoscape;
+      return cy && cy.nodes().length > 0;
+    }, { timeout: 10000 });
     expect(errors.length).toBeLessThan(10);
   });
 
   test('should have stable memory usage', async ({ page }) => {
     await setupPluginPage(page);
-    await page.waitForTimeout(2000);
+    await page.waitForFunction(() => {
+      const cy = (window as any).__cytoscape;
+      return cy && cy.nodes().length > 0;
+    }, { timeout: 10000 });
     const memInfo = await page.evaluate(() => {
       const perf = performance as Performance & { memory?: { usedJSHeapSize: number; totalJSHeapSize: number } };
       return perf.memory ? { used: perf.memory.usedJSHeapSize, total: perf.memory.totalJSHeapSize } : null;

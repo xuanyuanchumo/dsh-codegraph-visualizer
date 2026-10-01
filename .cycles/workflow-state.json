@@ -1,7 +1,12 @@
 {
   "currentPhase": "complete",
-  "currentCycle": "cycle-63",
+  "currentCycle": "cycle-64",
   "phaseHistory": [
+    {
+      "cycle": "cycle-64",
+      "phase": "complete",
+      "result": "P0-1 响应式布局回退块缺口补全(responsive.css @media 480px补6条规则+320px补1条+400px补2条,旧浏览器布局退化修复)+P0-2 GraphPanel hooks拆分useMiniMapSync+useAutoBootstrap(新增2 hooks,GraphPanel 807→731行,减少76行)+P0-3 工具栏a11y修复(Layout/ViewMode dropdown补aria-haspopup=menu+Collapse补aria-expanded)+P0-4 smoke/regression测试集划分(playwright.config.ts新增smoke/regression/visual/performance 4个project,按文件级分层)+P1-1 GraphPanel hooks拆分useViewModePanelGuard+useAncestorResize(新增2 hooks,GraphPanel 731→减少66行)+P1-2 integrationMode→CSS映射(GraphPanel data-cg-integration属性+Toolbar断点常量提取到constants.ts TOOLBAR_BREAKPOINT_COMPACT/NARROW_PX)+P1-3 waitForTimeout P0治理(visual-screenshots 17处+performance 3处≥2000ms全改为waitForFunction/expect timeout)+P1-4 E2E helpers补充(waitForGraphReady+getCyNodeCount+getClusterNodeIds+emitNodeEvent 4个helper). 4707测试通过, lint零警告, typecheck通过, build成功. G3 Chrome DevTools MCP验证: 22+工具栏按钮全部渲染,Layout/ViewMode dropdown haspopup=menu,Collapse expanded=true,console零error(3warn已知非关键)"
+    },
     {
       "cycle": "cycle-63",
       "phase": "complete",

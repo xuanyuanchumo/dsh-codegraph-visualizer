@@ -540,6 +540,30 @@
     .cg-graph-type-buttons {
       display: none;
     }
+    .cg-dropdown-content {
+      min-width: 140px;
+    }
+    .cg-view-mode-buttons {
+      gap: 1px;
+    }
+    .cg-view-mode-btn {
+      padding: 2px 4px;
+      font-size: 9px;
+    }
+    .cg-search-panel,
+    .cg-path-panel {
+      width: calc(100% - 16px);
+      max-width: 320px;
+    }
+    .cg-filter-panel {
+      width: calc(100% - 16px);
+    }
+    .cg-heatmap-btn--activate,
+    .cg-heatmap-btn--deactivate {
+      width: 26px;
+      height: 26px;
+      font-size: 12px;
+    }
     .cg-path-bar,
     .cg-health-score-card,
     .cg-rule-panel {
@@ -661,12 +685,18 @@
       left: 4px;
       right: 4px;
     }
+    .cg-view-mode-buttons {
+      flex-wrap: wrap;
+    }
   }
 
   @media (max-height: 400px) {
     .cg-graph-toolbar {
       padding: 0 4px;
       gap: 2px;
+    }
+    .cg-toolbar-left .cg-node-count {
+      font-size: 10px;
     }
     .cg-type-badge {
       display: none;
@@ -694,6 +724,12 @@
     }
     .cg-mini-map {
       max-height: 100px;
+    }
+    .cg-search-panel,
+    .cg-path-panel,
+    .cg-filter-panel {
+      max-height: calc(100% - 60px);
+      overflow-y: auto;
     }
   }
 

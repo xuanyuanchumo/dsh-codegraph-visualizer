@@ -5,6 +5,7 @@ import { useT, useLang, toggleLang } from '../i18n/index.ts';
 import { WorkspaceSelector } from './WorkspaceSelector.tsx';
 import { Dropdown } from './Dropdown.tsx';
 import { useElementWidth } from '../hooks/useElementWidth.ts';
+import { UI } from '../../shared/constants.ts';
 import { STRUCTURAL_VIEW_MODES, BEHAVIORAL_VIEW_MODES, BEHAVIORAL_MICRO_VIEW_MODES, getViewLayer, getAvailablePanels } from '../../shared/viewModeUtils.ts';
 import {
   SearchIcon, MapIcon, RefreshIcon,
@@ -29,8 +30,8 @@ export const Toolbar = memo(function toolbar(props: ToolbarProps) {
   const t = useT();
   const lang = useLang();
   const [toolbarRef, toolbarWidth] = useElementWidth<HTMLDivElement>();
-  const isCompact = toolbarWidth > 0 && toolbarWidth < 768;
-  const isNarrow = toolbarWidth > 0 && toolbarWidth < 480;
+  const isCompact = toolbarWidth > 0 && toolbarWidth < UI.TOOLBAR_BREAKPOINT_COMPACT_PX;
+  const isNarrow = toolbarWidth > 0 && toolbarWidth < UI.TOOLBAR_BREAKPOINT_NARROW_PX;
 
   const onExport = props.onExport;
   const handleExport = useCallback((format: ExportFormat) => {
@@ -109,6 +110,7 @@ export const Toolbar = memo(function toolbar(props: ToolbarProps) {
           triggerClassName="cg-layout-dropdown-btn"
           triggerTitle={t('toolbar.layoutSwitcher')}
           triggerAriaLabel={t('toolbar.layoutSwitcher')}
+          triggerAriaHasPopup="menu"
           triggerContent={<>{layout}<ChevronDownIcon size={12} /></>}
           contentClassName="cg-dropdown-content cg-layout-dropdown"
         >
@@ -136,6 +138,7 @@ export const Toolbar = memo(function toolbar(props: ToolbarProps) {
           triggerClassName="cg-view-dropdown-btn"
           triggerTitle={t('toolbar.viewMode')}
           triggerAriaLabel={t('toolbar.viewMode')}
+          triggerAriaHasPopup="menu"
           triggerContent={<>{t(STRUCTURAL_MODE_KEYS[viewMode] ?? BEHAVIORAL_MODE_KEYS[viewMode] ?? BEHAVIORAL_MICRO_MODE_KEYS[viewMode] ?? 'toolbar.viewMode')}<ChevronDownIcon size={12} /></>}
           contentClassName="cg-dropdown-content cg-view-dropdown"
         >
@@ -354,7 +357,8 @@ export const Toolbar = memo(function toolbar(props: ToolbarProps) {
         )}
 
         <button className="cg-collapse-btn" onClick={onCollapse} title={collapsed ? t('panel.expand') : t('panel.collapse')}
-          aria-label={collapsed ? t('panel.expandPanel') : t('panel.collapsePanel')}>
+          aria-label={collapsed ? t('panel.expandPanel') : t('panel.collapsePanel')}
+          aria-expanded={!collapsed}>
           {collapsed ? <ChevronUpIcon size={15} /> : <ChevronDownIcon size={15} />}
         </button>
       </div>
