@@ -34,10 +34,10 @@ function parseVersion(raw: string): HostVersionInfo {
 
 function detectFromContext(ctx: Context): string | null {
   const candidates = [
-    () => (ctx as unknown as { hostVersion?: string }).hostVersion,
-    () => (ctx as unknown as { version?: string }).version,
-    () => (ctx as unknown as { app?: { version?: string } }).app?.version,
-    () => (ctx as unknown as { runtime?: { version?: string } }).runtime?.version,
+    () => ctx.hostVersion,
+    () => ctx.version,
+    () => ctx.app?.version,
+    () => ctx.runtime?.version,
   ];
   for (const fn of candidates) {
     try {

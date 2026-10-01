@@ -400,6 +400,11 @@ declare module '@deepseek-ai/cordis' {
     workspaceRegistry?: {
       list?(): Array<{ path?: string }>;
     };
+
+    hostVersion?: string;
+    version?: string;
+    app?: { version?: string };
+    runtime?: { version?: string };
   }
 }
 
