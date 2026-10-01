@@ -294,9 +294,14 @@ function validateNoDuplicateIds(nodes: GraphNode[], edges: GraphEdge[], issues: 
   return { nodes: dedupedNodes, edges: dedupedEdges };
 }
 
-export function validateGraphData(raw: unknown): ValidationResult {
-  const issues: GraphIssue[] = [];
+interface ProcessedInput {
+  fixedNodes: GraphNode[];
+  fixedEdges: GraphEdge[];
+  issues: GraphIssue[];
+  root: Record<string, unknown>;
+}
 
+function processRawInput(raw: unknown): ProcessedInput | ValidationResult {
   if (raw === null || raw === undefined || typeof raw !== 'object') {
     return {
       data: { nodes: [], edges: [], metadata: { repoId: '' as RepoId, timestamp: 0, nodeCount: 0, edgeCount: 0 } },
@@ -305,16 +310,10 @@ export function validateGraphData(raw: unknown): ValidationResult {
   }
 
   const root = raw as Record<string, unknown>;
+  const issues: GraphIssue[] = [];
 
   const rawNodes = Array.isArray(root.nodes) ? root.nodes : [];
   const rawEdges = Array.isArray(root.edges) ? root.edges : [];
-
-  if (!Array.isArray(root.nodes)) {
-    issues.push({ level: 'auto-corrected', category: 'data', message: 'nodes is not an array, defaulting to empty', path: 'nodes' });
-  }
-  if (!Array.isArray(root.edges)) {
-    issues.push({ level: 'auto-corrected', category: 'data', message: 'edges is not an array, defaulting to empty', path: 'edges' });
-  }
 
   const sanitizedNodes = rawNodes.map(n => sanitizeNode(n)).filter((n): n is Record<string, unknown> => n !== null);
   const sanitizedEdges = rawEdges.map(e => sanitizeEdge(e)).filter((e): e is Record<string, unknown> => e !== null);
@@ -331,12 +330,32 @@ export function validateGraphData(raw: unknown): ValidationResult {
     if (fixed) fixedEdges.push(fixed);
   }
 
+  return { fixedNodes, fixedEdges, issues, root };
+}
+
+function buildDefaultMetadata(root: Record<string, unknown>, nodeCount: number, edgeCount: number): GraphData['metadata'] {
+  return (root.metadata && typeof root.metadata === 'object')
+    ? root.metadata as GraphData['metadata']
+    : { repoId: '' as RepoId, timestamp: Date.now(), nodeCount, edgeCount };
+}
+
+export function validateGraphData(raw: unknown): ValidationResult {
+  const processed = processRawInput(raw);
+  if ('data' in processed) return processed;
+
+  const { fixedNodes, fixedEdges, issues, root } = processed;
+
+  if (!Array.isArray(root.nodes)) {
+    issues.push({ level: 'auto-corrected', category: 'data', message: 'nodes is not an array, defaulting to empty', path: 'nodes' });
+  }
+  if (!Array.isArray(root.edges)) {
+    issues.push({ level: 'auto-corrected', category: 'data', message: 'edges is not an array, defaulting to empty', path: 'edges' });
+  }
+
   const deduped = validateNoDuplicateIds(fixedNodes, fixedEdges, issues);
   const validEdges = validateReferentialIntegrity(deduped.nodes, deduped.edges, issues);
 
-  const metadata = (root.metadata && typeof root.metadata === 'object')
-    ? root.metadata as GraphData['metadata']
-    : { repoId: '' as RepoId, timestamp: Date.now(), nodeCount: deduped.nodes.length, edgeCount: validEdges.length };
+  const metadata = buildDefaultMetadata(root, deduped.nodes.length, validEdges.length);
 
   if (!root.metadata || typeof root.metadata !== 'object') {
     issues.push({ level: 'auto-corrected', category: 'data', message: 'metadata missing, generated default', path: 'metadata' });
@@ -365,39 +384,14 @@ export function validateGraphData(raw: unknown): ValidationResult {
 
   return { data, issues };
 }
+
 export function sanitizeGraphData(raw: unknown): ValidationResult {
-  const issues: GraphIssue[] = [];
+  const processed = processRawInput(raw);
+  if ('data' in processed) return processed;
 
-  if (raw === null || raw === undefined || typeof raw !== 'object') {
-    return {
-      data: { nodes: [], edges: [], metadata: { repoId: '' as RepoId, timestamp: 0, nodeCount: 0, edgeCount: 0 } },
-      issues: [{ level: 'fatal', category: 'data', message: 'input is null or not an object', path: 'root' }],
-    };
-  }
+  const { fixedNodes, fixedEdges, issues, root } = processed;
 
-  const root = raw as Record<string, unknown>;
-
-  const rawNodes = Array.isArray(root.nodes) ? root.nodes : [];
-  const rawEdges = Array.isArray(root.edges) ? root.edges : [];
-
-  const sanitizedNodes = rawNodes.map((n) => sanitizeNode(n)).filter((n): n is Record<string, unknown> => n !== null);
-  const sanitizedEdges = rawEdges.map((e) => sanitizeEdge(e)).filter((e): e is Record<string, unknown> => e !== null);
-
-  const fixedNodes: GraphNode[] = [];
-  for (const sanitizedNode of sanitizedNodes) {
-    const fixed = autoFixNode(sanitizedNode, issues, `node[${fixedNodes.length}]`);
-    if (fixed) fixedNodes.push(fixed);
-  }
-
-  const fixedEdges: GraphEdge[] = [];
-  for (const sanitizedEdge of sanitizedEdges) {
-    const fixed = autoFixEdge(sanitizedEdge, issues, `edge[${fixedEdges.length}]`);
-    if (fixed) fixedEdges.push(fixed);
-  }
-
-  const metadata = (root.metadata && typeof root.metadata === 'object')
-    ? root.metadata as GraphData['metadata']
-    : { repoId: '' as RepoId, timestamp: Date.now(), nodeCount: fixedNodes.length, edgeCount: fixedEdges.length };
+  const metadata = buildDefaultMetadata(root, fixedNodes.length, fixedEdges.length);
 
   const data: GraphData = {
     nodes: fixedNodes,

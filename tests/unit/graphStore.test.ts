@@ -2107,11 +2107,303 @@ describe('graphStore (J6/J7/J10)', () => {
     try {
       await useGraphStore.getState().assembleMultiFunction('n1');
       const s = useGraphStore.getState();
-      // Should set the "no results" error message
       expect(s.error).not.toBeNull();
       expect(s.error).toContain('聚合无结果');
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+});
+
+describe('graphStore additional setters', () => {
+  beforeEach(() => {
+    useGraphStore.getState().clearGraph();
+    useGraphStore.setState({
+      integrationMode: 'unknown',
+      panelVisible: true,
+      heatmapMode: 'none',
+      todoMarkerMode: 'none',
+      deadCodeResult: null,
+      deadCodeModeActive: false,
+      healthScore: null,
+      rules: [],
+      ruleViolations: [],
+    });
+  });
+
+  it('setIntegrationMode updates integrationMode', () => {
+    useGraphStore.getState().setIntegrationMode('sidebar');
+    expect(useGraphStore.getState().integrationMode).toBe('sidebar');
+    useGraphStore.getState().setIntegrationMode('slot');
+    expect(useGraphStore.getState().integrationMode).toBe('slot');
+    useGraphStore.getState().setIntegrationMode('floating');
+    expect(useGraphStore.getState().integrationMode).toBe('floating');
+    useGraphStore.getState().setIntegrationMode('sidebar-right');
+    expect(useGraphStore.getState().integrationMode).toBe('sidebar-right');
+  });
+
+  it('setPanelVisible updates panelVisible', () => {
+    useGraphStore.getState().setPanelVisible(false);
+    expect(useGraphStore.getState().panelVisible).toBe(false);
+    useGraphStore.getState().setPanelVisible(true);
+    expect(useGraphStore.getState().panelVisible).toBe(true);
+  });
+
+  it('setPanelVisible false aborts pending requests', () => {
+    const controller = new AbortController();
+    const pendingRequests = new Map([['node1', controller]]);
+    useGraphStore.setState({ pendingRequests });
+    useGraphStore.getState().setPanelVisible(false);
+    expect(controller.signal.aborted).toBe(true);
+    expect(useGraphStore.getState().pendingRequests.size).toBe(0);
+  });
+
+  it('setTodoMarkerMode updates todoMarkerMode', () => {
+    useGraphStore.getState().setTodoMarkerMode('todo');
+    expect(useGraphStore.getState().todoMarkerMode).toBe('todo');
+    useGraphStore.getState().setTodoMarkerMode('fixme');
+    expect(useGraphStore.getState().todoMarkerMode).toBe('fixme');
+    useGraphStore.getState().setTodoMarkerMode('none');
+    expect(useGraphStore.getState().todoMarkerMode).toBe('none');
+  });
+
+  it('setDeadCodeResult updates deadCodeResult', () => {
+    const result = { deadNodes: [], totalNodes: 0, coverage: 0 } as any;
+    useGraphStore.getState().setDeadCodeResult(result);
+    expect(useGraphStore.getState().deadCodeResult).toBe(result);
+    useGraphStore.getState().setDeadCodeResult(null);
+    expect(useGraphStore.getState().deadCodeResult).toBeNull();
+  });
+
+  it('setDeadCodeModeActive updates deadCodeModeActive', () => {
+    useGraphStore.getState().setDeadCodeModeActive(true);
+    expect(useGraphStore.getState().deadCodeModeActive).toBe(true);
+    useGraphStore.getState().setDeadCodeModeActive(false);
+    expect(useGraphStore.getState().deadCodeModeActive).toBe(false);
+  });
+
+  it('setHeatmapMode updates heatmapMode', () => {
+    useGraphStore.getState().setHeatmapMode('instability');
+    expect(useGraphStore.getState().heatmapMode).toBe('instability');
+    useGraphStore.getState().setHeatmapMode('lines');
+    expect(useGraphStore.getState().heatmapMode).toBe('lines');
+    useGraphStore.getState().setHeatmapMode('complexity');
+    expect(useGraphStore.getState().heatmapMode).toBe('complexity');
+    useGraphStore.getState().setHeatmapMode('none');
+    expect(useGraphStore.getState().heatmapMode).toBe('none');
+  });
+
+  it('setHealthScore updates healthScore', () => {
+    const score = { overall: 80, breakdown: {} } as any;
+    useGraphStore.getState().setHealthScore(score);
+    expect(useGraphStore.getState().healthScore).toBe(score);
+    useGraphStore.getState().setHealthScore(null);
+    expect(useGraphStore.getState().healthScore).toBeNull();
+  });
+
+  it('setRules updates rules', () => {
+    const rules = [{ id: 'r1', name: 'Rule 1', severity: 'warning' }] as any;
+    useGraphStore.getState().setRules(rules);
+    expect(useGraphStore.getState().rules).toBe(rules);
+    useGraphStore.getState().setRules([]);
+    expect(useGraphStore.getState().rules).toHaveLength(0);
+  });
+
+  it('setRuleViolations updates ruleViolations', () => {
+    const violations = [{ ruleId: 'r1', nodeId: 'n1', message: 'violation' }] as any;
+    useGraphStore.getState().setRuleViolations(violations);
+    expect(useGraphStore.getState().ruleViolations).toBe(violations);
+    useGraphStore.getState().setRuleViolations([]);
+    expect(useGraphStore.getState().ruleViolations).toHaveLength(0);
+  });
+
+  it('setPrerequisites updates prerequisites', () => {
+    useGraphStore.getState().setPrerequisites({ codegraph: true, lens: false, builtin: true });
+    expect(useGraphStore.getState().prerequisites).toEqual({ codegraph: true, lens: false, builtin: true });
+  });
+
+  it('setInitStatus updates initStatus and initMessage', () => {
+    useGraphStore.getState().setInitStatus('initializing', 'Loading...');
+    expect(useGraphStore.getState().initStatus).toBe('initializing');
+    expect(useGraphStore.getState().initMessage).toBe('Loading...');
+    useGraphStore.getState().setInitStatus('done');
+    expect(useGraphStore.getState().initStatus).toBe('done');
+    expect(useGraphStore.getState().initMessage).toBeNull();
+    useGraphStore.getState().setInitStatus('error', 'Failed to init');
+    expect(useGraphStore.getState().initStatus).toBe('error');
+    expect(useGraphStore.getState().initMessage).toBe('Failed to init');
+  });
+
+  it('setWatchEnabled updates watchEnabled', () => {
+    useGraphStore.getState().setWatchEnabled(true);
+    expect(useGraphStore.getState().watchEnabled).toBe(true);
+    useGraphStore.getState().setWatchEnabled(false);
+    expect(useGraphStore.getState().watchEnabled).toBe(false);
+  });
+
+  it('setPanelSize updates panelHeight and panelWidth', () => {
+    useGraphStore.getState().setPanelSize(400, 600);
+    expect(useGraphStore.getState().panelHeight).toBe(400);
+    expect(useGraphStore.getState().panelWidth).toBe(600);
+  });
+
+  it('resetPanelSize resets panelHeight and panelWidth to null', () => {
+    useGraphStore.getState().setPanelSize(400, 600);
+    useGraphStore.getState().resetPanelSize();
+    expect(useGraphStore.getState().panelHeight).toBeNull();
+    expect(useGraphStore.getState().panelWidth).toBeNull();
+  });
+
+  it('addDegradation adds unique degradation key', () => {
+    useGraphStore.getState().addDegradation('slow-render');
+    expect(useGraphStore.getState().performanceDegradations).toContain('slow-render');
+    useGraphStore.getState().addDegradation('slow-render');
+    expect(useGraphStore.getState().performanceDegradations).toHaveLength(1);
+    useGraphStore.getState().addDegradation('high-memory');
+    expect(useGraphStore.getState().performanceDegradations).toHaveLength(2);
+  });
+
+  it('clearDegradations clears all degradations', () => {
+    useGraphStore.getState().addDegradation('slow-render');
+    useGraphStore.getState().addDegradation('high-memory');
+    useGraphStore.getState().clearDegradations();
+    expect(useGraphStore.getState().performanceDegradations).toHaveLength(0);
+  });
+
+  it('setSelectedFunction updates selectedFunction', () => {
+    const fn = { nodeId: 'n1', filePath: 'src/foo.ts', functionName: 'foo' };
+    useGraphStore.getState().setSelectedFunction(fn);
+    expect(useGraphStore.getState().selectedFunction).toEqual(fn);
+    useGraphStore.getState().setSelectedFunction(null);
+    expect(useGraphStore.getState().selectedFunction).toBeNull();
+  });
+
+  it('setDagreRankDir updates dagreRankDir', () => {
+    useGraphStore.getState().setDagreRankDir('LR');
+    expect(useGraphStore.getState().dagreRankDir).toBe('LR');
+    useGraphStore.getState().setDagreRankDir('TB');
+    expect(useGraphStore.getState().dagreRankDir).toBe('TB');
+    useGraphStore.getState().setDagreRankDir('BT');
+    expect(useGraphStore.getState().dagreRankDir).toBe('BT');
+    useGraphStore.getState().setDagreRankDir('RL');
+    expect(useGraphStore.getState().dagreRankDir).toBe('RL');
+  });
+
+  it('setGraphType updates graphType', () => {
+    useGraphStore.getState().setGraphType('call');
+    expect(useGraphStore.getState().graphType).toBe('call');
+    useGraphStore.getState().setGraphType('dependency');
+    expect(useGraphStore.getState().graphType).toBe('dependency');
+    useGraphStore.getState().setGraphType('all');
+    expect(useGraphStore.getState().graphType).toBe('all');
+  });
+
+  it('setClusterDepth updates clusterDepth', () => {
+    useGraphStore.getState().setClusterDepth(1);
+    expect(useGraphStore.getState().clusterDepth).toBe(1);
+    useGraphStore.getState().setClusterDepth(2);
+    expect(useGraphStore.getState().clusterDepth).toBe(2);
+    useGraphStore.getState().setClusterDepth(0);
+    expect(useGraphStore.getState().clusterDepth).toBe(0);
+  });
+
+  it('setCurrentWorkspace updates currentWorkspace', () => {
+    useGraphStore.getState().setCurrentWorkspace('/path/to/project');
+    expect(useGraphStore.getState().currentWorkspace).toBe('/path/to/project');
+  });
+
+  it('addWorkspace adds workspace to list', () => {
+    useGraphStore.getState().addWorkspace('/path/to/project', 'project');
+    const list = useGraphStore.getState().workspaceList;
+    expect(list).toHaveLength(1);
+    expect(list[0]!.path).toBe('/path/to/project');
+    expect(list[0]!.name).toBe('project');
+  });
+
+  it('removeWorkspace removes workspace from list', () => {
+    useGraphStore.getState().addWorkspace('/path/to/project', 'project');
+    useGraphStore.getState().addWorkspace('/path/to/other', 'other');
+    useGraphStore.getState().removeWorkspace('/path/to/project');
+    const list = useGraphStore.getState().workspaceList;
+    expect(list).toHaveLength(1);
+    expect(list[0]!.path).toBe('/path/to/other');
+  });
+
+  it('removeWorkspace updates currentWorkspace if it was removed', () => {
+    useGraphStore.getState().setCurrentWorkspace('/path/to/project');
+    useGraphStore.getState().addWorkspace('/path/to/project', 'project');
+    useGraphStore.getState().removeWorkspace('/path/to/project');
+    expect(useGraphStore.getState().currentWorkspace).toBe('.');
+  });
+
+  it('setPathStart updates pathStartId', () => {
+    useGraphStore.getState().setPathStart('n1' as any);
+    expect(useGraphStore.getState().pathStartId).toBe('n1');
+    useGraphStore.getState().setPathStart(null);
+    expect(useGraphStore.getState().pathStartId).toBeNull();
+  });
+
+  it('setPathEnd updates pathEndId', () => {
+    useGraphStore.getState().setPathEnd('n2' as any);
+    expect(useGraphStore.getState().pathEndId).toBe('n2');
+    useGraphStore.getState().setPathEnd(null);
+    expect(useGraphStore.getState().pathEndId).toBeNull();
+  });
+
+  it('setPathResult updates pathResult', () => {
+    useGraphStore.getState().setPathResult(['n1', 'n2', 'n3'] as any);
+    expect(useGraphStore.getState().pathResult).toEqual(['n1', 'n2', 'n3']);
+    useGraphStore.getState().setPathResult(null);
+    expect(useGraphStore.getState().pathResult).toBeNull();
+  });
+
+  it('setFocusDepth updates focusDepth', () => {
+    useGraphStore.getState().setFocusDepth(3);
+    expect(useGraphStore.getState().focusDepth).toBe(3);
+  });
+
+  it('setFocusMode updates focusModeActive and focusModeNodeId', () => {
+    useGraphStore.getState().setFocusMode(true, 'n1' as any);
+    expect(useGraphStore.getState().focusModeActive).toBe(true);
+    expect(useGraphStore.getState().focusModeNodeId).toBe('n1');
+    useGraphStore.getState().setFocusMode(false, null);
+    expect(useGraphStore.getState().focusModeActive).toBe(false);
+    expect(useGraphStore.getState().focusModeNodeId).toBeNull();
+  });
+
+  it('setPathFilter updates pathFilterInclude and pathFilterExclude', () => {
+    useGraphStore.getState().setPathFilter('include-pattern', 'exclude-pattern');
+    expect(useGraphStore.getState().pathFilterInclude).toBe('include-pattern');
+    expect(useGraphStore.getState().pathFilterExclude).toBe('exclude-pattern');
+    useGraphStore.getState().setPathFilter(null, null);
+    expect(useGraphStore.getState().pathFilterInclude).toBeNull();
+    expect(useGraphStore.getState().pathFilterExclude).toBeNull();
+  });
+
+  it('setCallChainDepth updates callChainDepth', () => {
+    useGraphStore.getState().setCallChainDepth(5);
+    expect(useGraphStore.getState().callChainDepth).toBe(5);
+  });
+
+  it('setFanInThreshold updates fanInThreshold', () => {
+    useGraphStore.getState().setFanInThreshold(10);
+    expect(useGraphStore.getState().fanInThreshold).toBe(10);
+  });
+
+  it('setFanOutThreshold updates fanOutThreshold', () => {
+    useGraphStore.getState().setFanOutThreshold(15);
+    expect(useGraphStore.getState().fanOutThreshold).toBe(15);
+  });
+
+  it('setVisibleNodeTypes updates visibleNodeTypes', () => {
+    const types = new Set<GraphNode['type']>(['function', 'class']);
+    useGraphStore.getState().setVisibleNodeTypes(types);
+    expect(useGraphStore.getState().visibleNodeTypes).toBe(types);
+  });
+
+  it('setVisibleEdgeTypes updates visibleEdgeTypes', () => {
+    const types = new Set<GraphEdge['type']>(['call', 'import']);
+    useGraphStore.getState().setVisibleEdgeTypes(types);
+    expect(useGraphStore.getState().visibleEdgeTypes).toBe(types);
   });
 });

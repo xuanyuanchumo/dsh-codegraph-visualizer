@@ -830,12 +830,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
       <div className="cg-graph-container" ref={renderer.containerRef}
         role="application"
-        aria-label={t('a11y.graphContainer') + `: ${t(`viewMode.${viewMode}`)}, ${nodes.length} ${t('a11y.nodes')}, ${edges.length} ${t('a11y.edges')}`}
+        aria-label={t('a11y.graphContainerStats', { viewMode: t(`viewMode.${viewMode}`), nodeCount: nodes.length, edgeCount: edges.length })}
         aria-describedby="cg-graph-live-region"
         style={{ display: viewMode === 'sequence' && selectedFunction ? 'none' : undefined }}>
         <div id="cg-graph-live-region" className="cg-visually-hidden" role="status" aria-live="polite">
           {selectedNodeData
-            ? `${t('a11y.selectedNode')}: ${selectedNodeData.label}, ${selectedNodeData.type}, ${selectedNodeData.filePath}:${selectedNodeData.lineNumber}`
+            ? t('a11y.selectedNodeDetail', { label: selectedNodeData.label, type: selectedNodeData.type, filePath: selectedNodeData.filePath, lineNumber: selectedNodeData.lineNumber ?? 0 })
             : ''}
         </div>
         {nodes.length > 0 && visibleNodeCount === 0 && !isMicroView && (

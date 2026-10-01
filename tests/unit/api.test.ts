@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
+  fetchWithTimeout,
   fetchStatus,
   fetchGraphData,
   fetchWorkspace,
@@ -518,6 +519,79 @@ describe('client api', () => {
       globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as unknown as typeof fetch;
       const result = await fetchEdges('node-1');
       expect(result).toBeNull();
+    });
+  });
+
+  describe('fetchWithTimeout', () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('passes through to fetch with signal in options', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({ ok: true } as Response);
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
+      await fetchWithTimeout('/api/test', { method: 'GET' }, 5000);
+      expect(mockFetch).toHaveBeenCalledWith('/api/test', expect.objectContaining({
+        method: 'GET',
+        signal: expect.any(AbortSignal),
+      }));
+    });
+
+    it('aborts when external signal is already aborted', async () => {
+      const controller = new AbortController();
+      controller.abort();
+      globalThis.fetch = vi.fn().mockImplementation((_url: string, options?: RequestInit) => {
+        return new Promise((_resolve, reject) => {
+          if (options?.signal?.aborted) {
+            reject(new DOMException('aborted', 'AbortError'));
+          }
+        });
+      }) as unknown as typeof fetch;
+      await expect(fetchWithTimeout('/api/test', { signal: controller.signal }, 5000)).rejects.toThrow();
+    });
+
+    it('aborts when external signal fires during request', async () => {
+      const controller = new AbortController();
+      globalThis.fetch = vi.fn().mockImplementation((_url: string, options?: RequestInit) => {
+        return new Promise((_resolve, reject) => {
+          if (options?.signal) {
+            options.signal.addEventListener('abort', () => {
+              reject(new DOMException('aborted', 'AbortError'));
+            });
+          }
+          setTimeout(() => controller.abort(), 10);
+        });
+      }) as unknown as typeof fetch;
+      await expect(fetchWithTimeout('/api/test', { signal: controller.signal }, 5000)).rejects.toThrow();
+    });
+
+    it('clears timeout after successful response', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({ ok: true } as Response);
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
+      const result = await fetchWithTimeout('/api/test', {}, 5000);
+      expect(result.ok).toBe(true);
+    });
+
+    it('clears timeout after error response', async () => {
+      globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as unknown as typeof fetch;
+      await expect(fetchWithTimeout('/api/test', {}, 5000)).rejects.toThrow('network');
+    });
+
+    it('aborts after timeout period', async () => {
+      vi.useFakeTimers();
+      globalThis.fetch = vi.fn().mockImplementation((_url: string, options?: RequestInit) => {
+        return new Promise((_resolve, reject) => {
+          if (options?.signal) {
+            options.signal.addEventListener('abort', () => {
+              reject(new DOMException('aborted', 'AbortError'));
+            });
+          }
+        });
+      }) as unknown as typeof fetch;
+      const promise = fetchWithTimeout('/api/test', {}, 100);
+      vi.advanceTimersByTime(150);
+      await expect(promise).rejects.toThrow();
+      vi.useRealTimers();
     });
   });
 });

@@ -504,7 +504,9 @@ export const en: Record<string, string> = {
 
   // Accessibility
   'a11y.graphContainer': 'Code graph interactive area',
+  'a11y.graphContainerStats': 'Code graph interactive area: {viewMode}, {nodeCount} nodes, {edgeCount} edges',
   'a11y.selectedNode': 'Selected node',
+  'a11y.selectedNodeDetail': 'Selected node: {label}, {type}, {filePath}:{lineNumber}',
   'a11y.nodes': 'nodes',
   'a11y.edges': 'edges',
 

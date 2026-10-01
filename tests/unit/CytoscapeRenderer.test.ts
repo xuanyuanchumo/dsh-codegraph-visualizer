@@ -435,6 +435,50 @@ describe('CytoscapeRenderer', () => {
       expect(renderer!.exportSVG()).toBeNull();
     });
 
+    it('exportMermaidSequence returns string', () => {
+      const result = renderer!.exportMermaidSequence();
+      expect(typeof result).toBe('string');
+    });
+
+    it('exportMermaidClass returns string', () => {
+      const result = renderer!.exportMermaidClass();
+      expect(typeof result).toBe('string');
+    });
+
+    it('exportGraphML returns string', () => {
+      const result = renderer!.exportGraphML();
+      expect(typeof result).toBe('string');
+    });
+
+    it('exportJSONLD returns string', () => {
+      const result = renderer!.exportJSONLD();
+      expect(typeof result).toBe('string');
+    });
+
+    it('setTodoMarkerMode does not throw', () => {
+      expect(() => renderer!.setTodoMarkerMode('todo')).not.toThrow();
+    });
+
+    it('getTodoMarkerMode returns string', () => {
+      expect(typeof renderer!.getTodoMarkerMode()).toBe('string');
+    });
+
+    it('markDeadCode does not throw', () => {
+      expect(() => renderer!.markDeadCode(new Set(['a']))).not.toThrow();
+    });
+
+    it('clearDeadCodeMarks does not throw', () => {
+      expect(() => renderer!.clearDeadCodeMarks()).not.toThrow();
+    });
+
+    it('pauseAnimations does not throw', () => {
+      expect(() => renderer!.pauseAnimations()).not.toThrow();
+    });
+
+    it('resumeAnimations does not throw', () => {
+      expect(() => renderer!.resumeAnimations()).not.toThrow();
+    });
+
     it('getSelectedNodeData returns null when no node selected', () => {
       expect(renderer!.getSelectedNodeData()).toBeNull();
     });

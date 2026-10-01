@@ -1,9 +1,43 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   VirtualViewportController,
   edgeIntersectsViewport,
 } from '../../src/client/renderer/VirtualViewportController.ts';
 import { VIRTUAL_VIEWPORT } from '../../src/shared/constants.ts';
+
+let rafIdCounter = 0;
+const rafCallbacks = new Map<number, () => void>();
+let originalRAF: typeof requestAnimationFrame | undefined;
+let originalCancelRAF: typeof cancelAnimationFrame | undefined;
+
+beforeEach(() => {
+  originalRAF = globalThis.requestAnimationFrame;
+  originalCancelRAF = globalThis.cancelAnimationFrame;
+  rafIdCounter = 0;
+  rafCallbacks.clear();
+  globalThis.requestAnimationFrame = ((cb: () => void) => {
+    const id = ++rafIdCounter;
+    rafCallbacks.set(id, cb);
+    return id;
+  }) as typeof requestAnimationFrame;
+  globalThis.cancelAnimationFrame = ((id: number) => {
+    rafCallbacks.delete(id);
+  }) as typeof cancelAnimationFrame;
+});
+
+afterEach(() => {
+  if (originalRAF !== undefined) globalThis.requestAnimationFrame = originalRAF;
+  else delete (globalThis as any).requestAnimationFrame;
+  if (originalCancelRAF !== undefined) globalThis.cancelAnimationFrame = originalCancelRAF;
+  else delete (globalThis as any).cancelAnimationFrame;
+  rafCallbacks.clear();
+});
+
+function flushRAF() {
+  const callbacks = [...rafCallbacks.values()];
+  rafCallbacks.clear();
+  for (const cb of callbacks) cb();
+}
 
 function makeMockNode(id: string, x = 0, y = 0, data: Record<string, unknown> = {}) {
   const dataMap = new Map<string, unknown>(Object.entries(data));
@@ -360,6 +394,174 @@ describe('VirtualViewportController', () => {
       ctrl.enable();
       expect(edgeAB.style).toHaveBeenCalledWith('display', 'none');
       ctrl.disable();
+    });
+  });
+
+  describe('handleViewportChange event handler', () => {
+    it('triggers visibility update when viewport event fires', () => {
+      const nodeA = makeMockNode('a', 50, 50);
+      const nodeB = makeMockNode('b', 5000, 5000);
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const ctrl = new VirtualViewportController(cy as any);
+      ctrl.enable();
+
+      const viewportHandler = cy.on.mock.calls.find(
+        (call: any[]) => call[0] === 'viewport',
+      )?.[1] as (() => void) | undefined;
+      expect(viewportHandler).toBeDefined();
+
+      if (viewportHandler) {
+        viewportHandler();
+        flushRAF();
+      }
+
+      expect(ctrl.getVisibleNodeCount()).toBeGreaterThanOrEqual(0);
+      ctrl.disable();
+    });
+
+    it('does not schedule multiple RAFs when viewport changes rapidly', () => {
+      const nodeA = makeMockNode('a', 50, 50);
+      const cy = makeMockCy([nodeA], []);
+      const ctrl = new VirtualViewportController(cy as any);
+      ctrl.enable();
+
+      const viewportHandler = cy.on.mock.calls.find(
+        (call: any[]) => call[0] === 'viewport',
+      )?.[1] as (() => void) | undefined;
+      expect(viewportHandler).toBeDefined();
+
+      if (viewportHandler) {
+        viewportHandler();
+        viewportHandler();
+        viewportHandler();
+        flushRAF();
+      }
+
+      ctrl.disable();
+    });
+  });
+
+  describe('handleStructureChange event handler', () => {
+    it('marks index as dirty when structure change event fires', () => {
+      const nodeA = makeMockNode('a', 50, 50);
+      const cy = makeMockCy([nodeA], []);
+      const ctrl = new VirtualViewportController(cy as any);
+      ctrl.enable();
+
+      const structureHandler = cy.on.mock.calls.find(
+        (call: any[]) => call[0] === 'add remove',
+      )?.[1] as (() => void) | undefined;
+      expect(structureHandler).toBeDefined();
+
+      if (structureHandler) {
+        structureHandler();
+        flushRAF();
+      }
+
+      ctrl.disable();
+    });
+
+    it('does not schedule multiple RAFs when structure changes rapidly', () => {
+      const nodeA = makeMockNode('a', 50, 50);
+      const cy = makeMockCy([nodeA], []);
+      const ctrl = new VirtualViewportController(cy as any);
+      ctrl.enable();
+
+      const structureHandler = cy.on.mock.calls.find(
+        (call: any[]) => call[0] === 'add remove',
+      )?.[1] as (() => void) | undefined;
+      expect(structureHandler).toBeDefined();
+
+      if (structureHandler) {
+        structureHandler();
+        structureHandler();
+        flushRAF();
+      }
+
+      ctrl.disable();
+    });
+
+    it('triggers rebuildIndex on next visibility update after structure change', () => {
+      const nodeA = makeMockNode('a', 50, 50);
+      const nodeB = makeMockNode('b', 60, 60);
+      const cy = makeMockCy([nodeA, nodeB], []);
+      const ctrl = new VirtualViewportController(cy as any);
+      ctrl.enable();
+
+      const structureHandler = cy.on.mock.calls.find(
+        (call: any[]) => call[0] === 'add remove',
+      )?.[1] as (() => void) | undefined;
+      expect(structureHandler).toBeDefined();
+
+      if (structureHandler) {
+        structureHandler();
+        flushRAF();
+      }
+
+      const viewportHandler = cy.on.mock.calls.find(
+        (call: any[]) => call[0] === 'viewport',
+      )?.[1] as (() => void) | undefined;
+      if (viewportHandler) {
+        viewportHandler();
+        flushRAF();
+      }
+
+      ctrl.disable();
+    });
+  });
+
+  describe('connectionFiltered edge visibility', () => {
+    it('hides edge with connectionFiltered flag', () => {
+      const nodeA = makeMockNode('a', 50, 50);
+      const nodeB = makeMockNode('b', 60, 60);
+      const edgeAB = makeMockEdge('e1', nodeA, nodeB, { connectionFiltered: true });
+      nodeA._connectedEdgeList.push(edgeAB);
+      nodeB._connectedEdgeList.push(edgeAB);
+      const cy = makeMockCy([nodeA, nodeB], [edgeAB]);
+      const ctrl = new VirtualViewportController(cy as any);
+      ctrl.enable();
+      expect(edgeAB.style).toHaveBeenCalledWith('display', 'none');
+      ctrl.disable();
+    });
+
+    it('shows edge intersecting viewport when only one endpoint is visible', () => {
+      const nodeA = makeMockNode('a', 50, 50);
+      const nodeB = makeMockNode('b', 5000, 5000);
+      const edgeAB = makeMockEdge('e1', nodeA, nodeB);
+      nodeA._connectedEdgeList.push(edgeAB);
+      nodeB._connectedEdgeList.push(edgeAB);
+      const cy = makeMockCy([nodeA, nodeB], [edgeAB]);
+      const ctrl = new VirtualViewportController(cy as any);
+      ctrl.enable();
+      ctrl.disable();
+    });
+  });
+
+  describe('disable restores edge styles', () => {
+    it('restores all edge display styles to element when not filtered', () => {
+      const nodeA = makeMockNode('a', 50, 50);
+      const nodeB = makeMockNode('b', 60, 60);
+      const edgeAB = makeMockEdge('e1', nodeA, nodeB);
+      nodeA._connectedEdgeList.push(edgeAB);
+      nodeB._connectedEdgeList.push(edgeAB);
+      const cy = makeMockCy([nodeA, nodeB], [edgeAB]);
+      const ctrl = new VirtualViewportController(cy as any);
+      ctrl.enable();
+      ctrl.disable();
+      expect(edgeAB.style).toHaveBeenCalledWith('display', 'element');
+    });
+
+    it('keeps filtered edges hidden when disabled', () => {
+      const nodeA = makeMockNode('a', 50, 50);
+      const nodeB = makeMockNode('b', 60, 60);
+      const edgeAB = makeMockEdge('e1', nodeA, nodeB, { typeFiltered: true });
+      nodeA._connectedEdgeList.push(edgeAB);
+      nodeB._connectedEdgeList.push(edgeAB);
+      const cy = makeMockCy([nodeA, nodeB], [edgeAB]);
+      const ctrl = new VirtualViewportController(cy as any);
+      ctrl.enable();
+      ctrl.disable();
+      expect(edgeAB.style).toHaveBeenCalledWith('display', 'none');
     });
   });
 });

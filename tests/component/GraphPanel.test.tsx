@@ -323,9 +323,7 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const graphContainer = container.querySelector('.cg-graph-container') as HTMLElement;
     const ariaLabel = graphContainer.getAttribute('aria-label');
-    expect(ariaLabel).toContain('a11y.graphContainer');
-    expect(ariaLabel).toContain('a11y.nodes');
-    expect(ariaLabel).toContain('a11y.edges');
+    expect(ariaLabel).toContain('a11y.graphContainerStats');
   });
 
   it('live region shows empty when no node selected', async () => {
@@ -926,7 +924,7 @@ describe('GraphPanel handler integration', () => {
     const graphContainer = container.querySelector('.cg-graph-container') as HTMLElement;
     expect(graphContainer?.tagName).toBe('DIV');
     const ariaLabel = graphContainer.getAttribute('aria-label') ?? '';
-    expect(ariaLabel).toContain('a11y.nodes');
+    expect(ariaLabel).toContain('a11y.graphContainerStats');
   });
 
   it('nodeTypeCounts: computed from rawNodes', async () => {
@@ -959,8 +957,7 @@ describe('GraphPanel handler integration', () => {
     const { container } = render(React.createElement(GraphPanel));
     const graphContainer = container.querySelector('.cg-graph-container') as HTMLElement;
     const ariaLabel = graphContainer.getAttribute('aria-label') ?? '';
-    expect(ariaLabel).toContain('a11y.nodes');
-    expect(ariaLabel).toContain('a11y.edges');
+    expect(ariaLabel).toContain('a11y.graphContainerStats');
   });
 
   it('panel collapsed state: applies cg-collapsed class', async () => {

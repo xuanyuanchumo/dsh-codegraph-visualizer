@@ -503,7 +503,9 @@ export const zh: Record<string, string> = {
 
   // Accessibility
   'a11y.graphContainer': '代码图谱交互区域',
+  'a11y.graphContainerStats': '代码图谱交互区域: {viewMode}, {nodeCount} 节点, {edgeCount} 边',
   'a11y.selectedNode': '已选中节点',
+  'a11y.selectedNodeDetail': '已选中节点: {label}, {type}, {filePath}:{lineNumber}',
   'a11y.nodes': '节点',
   'a11y.edges': '边',
 

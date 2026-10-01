@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { validateGraphData, sanitizeGraphData } from '../../src/shared/GraphValidator.ts';
+import {
+  validateGraphData,
+  sanitizeGraphData,
+  coerceNode,
+  coerceEdge,
+  coerceGraphData,
+  filterSelfLoopEdges,
+  sanitizeTypedGraph,
+} from '../../src/shared/GraphValidator.ts';
 import type { GraphNode, GraphEdge } from '../../src/types/index.ts';
 
 describe('GraphValidator', () => {
@@ -549,5 +557,385 @@ describe('sanitizeGraphData', () => {
     const { data, issues } = sanitizeGraphData(input);
     expect(data.edges[0]!.type).toBe('association');
     expect(issues.some(i => i.level === 'auto-corrected' && i.message.includes('unknown type'))).toBe(true);
+  });
+});
+describe('coerceNode', () => {
+  it('coerces a well-formed node object', () => {
+    const raw = { id: 'n1', label: 'foo', type: 'function', filePath: 'src/foo.ts', lineNumber: 10, properties: { a: 1 } };
+    const node = coerceNode(raw, 0);
+    expect(node).not.toBeNull();
+    expect(node!.id).toBe('n1');
+    expect(node!.label).toBe('foo');
+    expect(node!.type).toBe('function');
+    expect(node!.filePath).toBe('src/foo.ts');
+    expect(node!.lineNumber).toBe(10);
+    expect(node!.properties).toEqual({ a: 1 });
+  });
+
+  it('uses name as label when label is missing', () => {
+    const raw = { id: 'n1', name: 'barName', type: 'function', filePath: 'a.ts' };
+    const node = coerceNode(raw, 0);
+    expect(node!.label).toBe('barName');
+  });
+
+  it('uses id as label when both label and name are missing', () => {
+    const raw = { id: 'n1', type: 'function', filePath: 'a.ts' };
+    const node = coerceNode(raw, 0);
+    expect(node!.label).toBe('n1');
+  });
+
+  it('generates id from index when id is missing', () => {
+    const raw = { label: 'foo', type: 'function', filePath: 'a.ts' };
+    const node = coerceNode(raw, 5);
+    expect(node!.id).toBe('node-5');
+  });
+
+  it('uses file as filePath when filePath is missing', () => {
+    const raw = { id: 'n1', label: 'foo', type: 'function', file: 'src/bar.ts' };
+    const node = coerceNode(raw, 0);
+    expect(node!.filePath).toBe('src/bar.ts');
+  });
+
+  it('uses line as lineNumber when lineNumber is missing', () => {
+    const raw = { id: 'n1', label: 'foo', type: 'function', filePath: 'a.ts', line: 42 };
+    const node = coerceNode(raw, 0);
+    expect(node!.lineNumber).toBe(42);
+  });
+
+  it('defaults type to variable when type is unknown', () => {
+    const raw = { id: 'n1', label: 'foo', type: 'totally_unknown', filePath: 'a.ts' };
+    const node = coerceNode(raw, 0);
+    expect(node!.type).toBe('variable');
+  });
+
+  it('normalizes alias types', () => {
+    const raw = { id: 'n1', label: 'foo', type: 'func', filePath: 'a.ts' };
+    const node = coerceNode(raw, 0);
+    expect(node!.type).toBe('function');
+  });
+
+  it('returns null for null input', () => {
+    expect(coerceNode(null, 0)).toBeNull();
+  });
+
+  it('returns null for non-object input', () => {
+    expect(coerceNode('string', 0)).toBeNull();
+    expect(coerceNode(42, 0)).toBeNull();
+    expect(coerceNode(undefined, 0)).toBeNull();
+  });
+
+  it('defaults properties to empty object when missing', () => {
+    const raw = { id: 'n1', label: 'foo', type: 'function', filePath: 'a.ts' };
+    const node = coerceNode(raw, 0);
+    expect(node!.properties).toEqual({});
+  });
+
+  it('defaults lineNumber to 0 when missing', () => {
+    const raw = { id: 'n1', label: 'foo', type: 'function', filePath: 'a.ts' };
+    const node = coerceNode(raw, 0);
+    expect(node!.lineNumber).toBe(0);
+  });
+});
+
+describe('coerceEdge', () => {
+  it('coerces a well-formed edge object', () => {
+    const raw = { id: 'e1', source: 'n1', target: 'n2', type: 'call', direction: 'forward', weight: 0.5, properties: { a: 1 } };
+    const edge = coerceEdge(raw, 0);
+    expect(edge).not.toBeNull();
+    expect(edge!.id).toBe('e1');
+    expect(edge!.source).toBe('n1');
+    expect(edge!.target).toBe('n2');
+    expect(edge!.type).toBe('call');
+    expect(edge!.direction).toBe('forward');
+    expect(edge!.weight).toBe(0.5);
+    expect(edge!.properties).toEqual({ a: 1 });
+  });
+
+  it('uses from/to as source/target when source/target are missing', () => {
+    const raw = { id: 'e1', from: 'n1', to: 'n2', type: 'call' };
+    const edge = coerceEdge(raw, 0);
+    expect(edge!.source).toBe('n1');
+    expect(edge!.target).toBe('n2');
+  });
+
+  it('returns null when both source and from are missing', () => {
+    const raw = { id: 'e1', target: 'n2', type: 'call' };
+    expect(coerceEdge(raw, 0)).toBeNull();
+  });
+
+  it('returns null when both target and to are missing', () => {
+    const raw = { id: 'e1', source: 'n1', type: 'call' };
+    expect(coerceEdge(raw, 0)).toBeNull();
+  });
+
+  it('generates id from index when id is missing', () => {
+    const raw = { source: 'n1', target: 'n2', type: 'call' };
+    const edge = coerceEdge(raw, 3);
+    expect(edge!.id).toBe('edge-3');
+  });
+
+  it('defaults type to dependency when type is unknown', () => {
+    const raw = { id: 'e1', source: 'n1', target: 'n2', type: 'totally_unknown' };
+    const edge = coerceEdge(raw, 0);
+    expect(edge!.type).toBe('dependency');
+  });
+
+  it('normalizes alias edge types', () => {
+    const raw = { id: 'e1', source: 'n1', target: 'n2', type: 'calls' };
+    const edge = coerceEdge(raw, 0);
+    expect(edge!.type).toBe('call');
+  });
+
+  it('defaults direction to forward when invalid', () => {
+    const raw = { id: 'e1', source: 'n1', target: 'n2', type: 'call', direction: 'sideways' };
+    const edge = coerceEdge(raw, 0);
+    expect(edge!.direction).toBe('forward');
+  });
+
+  it('accepts bidirectional direction', () => {
+    const raw = { id: 'e1', source: 'n1', target: 'n2', type: 'call', direction: 'bidirectional' };
+    const edge = coerceEdge(raw, 0);
+    expect(edge!.direction).toBe('bidirectional');
+  });
+
+  it('accepts backward direction', () => {
+    const raw = { id: 'e1', source: 'n1', target: 'n2', type: 'call', direction: 'backward' };
+    const edge = coerceEdge(raw, 0);
+    expect(edge!.direction).toBe('backward');
+  });
+
+  it('defaults weight to 1 when missing or invalid', () => {
+    const raw = { id: 'e1', source: 'n1', target: 'n2', type: 'call' };
+    const edge = coerceEdge(raw, 0);
+    expect(edge!.weight).toBe(1);
+  });
+
+  it('defaults weight to 1 when out of [0, 1] range', () => {
+    const raw1 = { id: 'e1', source: 'n1', target: 'n2', type: 'call', weight: -0.5 };
+    const raw2 = { id: 'e2', source: 'n1', target: 'n2', type: 'call', weight: 2.0 };
+    expect(coerceEdge(raw1, 0)!.weight).toBe(1);
+    expect(coerceEdge(raw2, 0)!.weight).toBe(1);
+  });
+
+  it('returns null for null input', () => {
+    expect(coerceEdge(null, 0)).toBeNull();
+  });
+
+  it('returns null for non-object input', () => {
+    expect(coerceEdge('string', 0)).toBeNull();
+    expect(coerceEdge(42, 0)).toBeNull();
+  });
+
+  it('defaults properties to empty object when missing', () => {
+    const raw = { id: 'e1', source: 'n1', target: 'n2', type: 'call' };
+    const edge = coerceEdge(raw, 0);
+    expect(edge!.properties).toEqual({});
+  });
+});
+
+describe('coerceGraphData', () => {
+  it('coerces well-formed graph data', () => {
+    const raw = {
+      nodes: [
+        { id: 'n1', label: 'foo', type: 'function', filePath: 'a.ts' },
+        { id: 'n2', label: 'bar', type: 'class', filePath: 'b.ts' },
+      ],
+      edges: [
+        { id: 'e1', source: 'n1', target: 'n2', type: 'call' },
+      ],
+      metadata: { repoId: 'repo1', timestamp: 1000 },
+    };
+    const data = coerceGraphData(raw);
+    expect(data).not.toBeNull();
+    expect(data!.nodes).toHaveLength(2);
+    expect(data!.edges).toHaveLength(1);
+    expect(data!.metadata.repoId).toBe('repo1');
+    expect(data!.metadata.timestamp).toBe(1000);
+  });
+
+  it('filters out edges with missing endpoints', () => {
+    const raw = {
+      nodes: [{ id: 'n1', label: 'foo', type: 'function', filePath: 'a.ts' }],
+      edges: [
+        { id: 'e1', source: 'n1', target: 'nonexistent', type: 'call' },
+        { id: 'e2', source: 'n1', target: 'n1', type: 'call' },
+      ],
+    };
+    const data = coerceGraphData(raw);
+    expect(data!.edges).toHaveLength(1);
+    expect(data!.edges[0]!.id).toBe('e2');
+  });
+
+  it('returns null when no nodes after coercion', () => {
+    const raw = { nodes: [], edges: [] };
+    expect(coerceGraphData(raw)).toBeNull();
+  });
+
+  it('returns null for null input', () => {
+    expect(coerceGraphData(null)).toBeNull();
+  });
+
+  it('returns null for non-object input', () => {
+    expect(coerceGraphData('string')).toBeNull();
+  });
+
+  it('defaults metadata when missing', () => {
+    const raw = {
+      nodes: [{ id: 'n1', label: 'foo', type: 'function', filePath: 'a.ts' }],
+      edges: [],
+    };
+    const data = coerceGraphData(raw);
+    expect(data!.metadata.repoId).toMatch(/^workspace-/);
+    expect(data!.metadata.timestamp).toBeGreaterThan(0);
+    expect(data!.metadata.truncated).toBe(false);
+    expect(data!.metadata.totalNodeCount).toBe(1);
+    expect(data!.metadata.totalEdgeCount).toBe(0);
+  });
+
+  it('uses metadata totalNodeCount/totalEdgeCount when provided', () => {
+    const raw = {
+      nodes: [{ id: 'n1', label: 'foo', type: 'function', filePath: 'a.ts' }],
+      edges: [],
+      metadata: { repoId: 'r1', timestamp: 500, truncated: true, totalNodeCount: 100, totalEdgeCount: 50 },
+    };
+    const data = coerceGraphData(raw);
+    expect(data!.metadata.truncated).toBe(true);
+    expect(data!.metadata.totalNodeCount).toBe(100);
+    expect(data!.metadata.totalEdgeCount).toBe(50);
+  });
+
+  it('handles non-array nodes/edges', () => {
+    const raw = { nodes: 'not array', edges: 42 };
+    expect(coerceGraphData(raw)).toBeNull();
+  });
+});
+
+describe('filterSelfLoopEdges', () => {
+  it('filters out self-loop edges', () => {
+    const edges: GraphEdge[] = [
+      { id: 'e1' as any, source: 'n1' as any, target: 'n2' as any, type: 'call', direction: 'forward', weight: 1, properties: {} },
+      { id: 'e2' as any, source: 'n1' as any, target: 'n1' as any, type: 'call', direction: 'forward', weight: 1, properties: {} },
+      { id: 'e3' as any, source: 'n2' as any, target: 'n3' as any, type: 'call', direction: 'forward', weight: 1, properties: {} },
+      { id: 'e4' as any, source: 'n3' as any, target: 'n3' as any, type: 'call', direction: 'forward', weight: 1, properties: {} },
+    ];
+    const result = filterSelfLoopEdges(edges);
+    expect(result).toHaveLength(2);
+    expect(result[0]!.id).toBe('e1');
+    expect(result[1]!.id).toBe('e3');
+  });
+
+  it('returns all edges when no self-loops', () => {
+    const edges: GraphEdge[] = [
+      { id: 'e1' as any, source: 'n1' as any, target: 'n2' as any, type: 'call', direction: 'forward', weight: 1, properties: {} },
+      { id: 'e2' as any, source: 'n2' as any, target: 'n3' as any, type: 'call', direction: 'forward', weight: 1, properties: {} },
+    ];
+    expect(filterSelfLoopEdges(edges)).toHaveLength(2);
+  });
+
+  it('returns empty array for empty input', () => {
+    expect(filterSelfLoopEdges([])).toHaveLength(0);
+  });
+
+  it('filters all edges when all are self-loops', () => {
+    const edges: GraphEdge[] = [
+      { id: 'e1' as any, source: 'n1' as any, target: 'n1' as any, type: 'call', direction: 'forward', weight: 1, properties: {} },
+      { id: 'e2' as any, source: 'n2' as any, target: 'n2' as any, type: 'call', direction: 'forward', weight: 1, properties: {} },
+    ];
+    expect(filterSelfLoopEdges(edges)).toHaveLength(0);
+  });
+});
+
+describe('sanitizeTypedGraph', () => {
+  it('sanitizes well-formed nodes and edges', () => {
+    const nodes: GraphNode[] = [
+      { id: 'n1' as any, label: 'foo', type: 'function', filePath: 'a.ts', properties: {} },
+      { id: 'n2' as any, label: 'bar', type: 'class', filePath: 'b.ts', properties: {} },
+    ];
+    const edges: GraphEdge[] = [
+      { id: 'e1' as any, source: 'n1' as any, target: 'n2' as any, type: 'call', direction: 'forward', weight: 1, properties: {} },
+    ];
+    const result = sanitizeTypedGraph(nodes, edges);
+    expect(result.nodes).toHaveLength(2);
+    expect(result.edges).toHaveLength(1);
+  });
+
+  it('drops nodes with missing id, label, type, or filePath', () => {
+    const nodes: GraphNode[] = [
+      { id: '' as any, label: 'noId', type: 'function', filePath: 'a.ts', properties: {} },
+      { id: 'n2' as any, label: '', type: 'function', filePath: 'b.ts', properties: {} },
+      { id: 'n3' as any, label: 'noType', type: '' as any, filePath: 'c.ts', properties: {} },
+      { id: 'n4' as any, label: 'noPath', type: 'function', filePath: '', properties: {} },
+      { id: 'n5' as any, label: 'valid', type: 'class', filePath: 'd.ts', properties: {} },
+    ];
+    const result = sanitizeTypedGraph(nodes, []);
+    expect(result.nodes).toHaveLength(1);
+    expect(result.nodes[0]!.id).toBe('n5');
+  });
+
+  it('drops duplicate node ids', () => {
+    const nodes: GraphNode[] = [
+      { id: 'n1' as any, label: 'first', type: 'function', filePath: 'a.ts', properties: {} },
+      { id: 'n1' as any, label: 'second', type: 'class', filePath: 'b.ts', properties: {} },
+    ];
+    const result = sanitizeTypedGraph(nodes, []);
+    expect(result.nodes).toHaveLength(1);
+    expect(result.nodes[0]!.label).toBe('first');
+  });
+
+  it('drops edges with missing id, source, or target', () => {
+    const nodes: GraphNode[] = [
+      { id: 'n1' as any, label: 'foo', type: 'function', filePath: 'a.ts', properties: {} },
+      { id: 'n2' as any, label: 'bar', type: 'class', filePath: 'b.ts', properties: {} },
+    ];
+    const edges: GraphEdge[] = [
+      { id: '' as any, source: 'n1' as any, target: 'n2' as any, type: 'call', direction: 'forward', weight: 1, properties: {} },
+      { id: 'e2' as any, source: '' as any, target: 'n2' as any, type: 'call', direction: 'forward', weight: 1, properties: {} },
+      { id: 'e3' as any, source: 'n1' as any, target: '' as any, type: 'call', direction: 'forward', weight: 1, properties: {} },
+      { id: 'e4' as any, source: 'n1' as any, target: 'n2' as any, type: 'call', direction: 'forward', weight: 1, properties: {} },
+    ];
+    const result = sanitizeTypedGraph(nodes, edges);
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]!.id).toBe('e4');
+  });
+
+  it('drops self-loop edges', () => {
+    const nodes: GraphNode[] = [
+      { id: 'n1' as any, label: 'foo', type: 'function', filePath: 'a.ts', properties: {} },
+    ];
+    const edges: GraphEdge[] = [
+      { id: 'e1' as any, source: 'n1' as any, target: 'n1' as any, type: 'call', direction: 'forward', weight: 1, properties: {} },
+    ];
+    const result = sanitizeTypedGraph(nodes, edges);
+    expect(result.edges).toHaveLength(0);
+  });
+
+  it('drops edges with non-existent endpoints', () => {
+    const nodes: GraphNode[] = [
+      { id: 'n1' as any, label: 'foo', type: 'function', filePath: 'a.ts', properties: {} },
+    ];
+    const edges: GraphEdge[] = [
+      { id: 'e1' as any, source: 'n1' as any, target: 'nonexistent' as any, type: 'call', direction: 'forward', weight: 1, properties: {} },
+    ];
+    const result = sanitizeTypedGraph(nodes, edges);
+    expect(result.edges).toHaveLength(0);
+  });
+
+  it('drops duplicate edge ids', () => {
+    const nodes: GraphNode[] = [
+      { id: 'n1' as any, label: 'foo', type: 'function', filePath: 'a.ts', properties: {} },
+      { id: 'n2' as any, label: 'bar', type: 'class', filePath: 'b.ts', properties: {} },
+    ];
+    const edges: GraphEdge[] = [
+      { id: 'e1' as any, source: 'n1' as any, target: 'n2' as any, type: 'call', direction: 'forward', weight: 1, properties: {} },
+      { id: 'e1' as any, source: 'n2' as any, target: 'n1' as any, type: 'call', direction: 'forward', weight: 1, properties: {} },
+    ];
+    const result = sanitizeTypedGraph(nodes, edges);
+    expect(result.edges).toHaveLength(1);
+  });
+
+  it('handles empty input', () => {
+    const result = sanitizeTypedGraph([], []);
+    expect(result.nodes).toHaveLength(0);
+    expect(result.edges).toHaveLength(0);
   });
 });
