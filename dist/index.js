@@ -1,5 +1,5 @@
 import { API, AST, BOOTSTRAP, CACHE, DIFF_ENGINE, EDGES_AGGREGATION, ERROR_CODES, ERROR_MESSAGES, EdgeId, HEALTH_SCORE, MCP, NodeId, PATH_FINDER, RepoId, SYMBOL_AST, TOOL_MESSAGES, TREE_SITTER, VALIDATION, WATCHER, inferLayerFromPath, safeNumber, safeString, scoped } from "./layerUtils-yqcFCQ8u.js";
-import { FILTERED_EDGE_KINDS, closeAllDbConnections, countEdgesInDb, isNoisePath, mapEdgeKind, mapNodeKind, readEdgesForNodesFromDb, readEdgesFromDb, readFileOutlineFromDb, readNodeChildrenFromDb, readSymbolASTFromDb, readTopLevelNodesFromDb, resolveDbPath } from "./CodeGraphAdapter-BFvELUd1.js";
+import { FILTERED_EDGE_KINDS, closeAllDbConnections, countEdgesInDb, isNoisePath, mapEdgeKind, mapNodeKind, readEdgesForNodesFromDb, readEdgesFromDb, readFileOutlineFromDb, readNodeChildrenFromDb, readSymbolASTFromDb, readTopLevelNodesFromDb, resolveDbPath } from "./CodeGraphAdapter-DeJORm-r.js";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { ToolCallId } from "@deepseek-ai/dsh-llm";
 import path, { isAbsolute, join, normalize, sep } from "node:path";
@@ -484,7 +484,7 @@ const EDGE_WEIGHTS = {
 	composition: .7
 };
 const DEFAULT_MAX_MODULE_DEPTH = HEALTH_SCORE.DEFAULT_MAX_MODULE_DEPTH;
-var HealthScorer = class {
+var HealthScorer = class HealthScorer {
 	maxModuleDepth;
 	constructor(maxModuleDepth) {
 		this.maxModuleDepth = maxModuleDepth ?? DEFAULT_MAX_MODULE_DEPTH;
@@ -534,6 +534,35 @@ var HealthScorer = class {
 				description: "Better module separation is better"
 			}
 		];
+	}
+	static findOrphanNodes(nodes, edges) {
+		const connectedIds = new Set();
+		for (const edge of edges) {
+			connectedIds.add(edge.source);
+			connectedIds.add(edge.target);
+		}
+		return nodes.filter((n) => !connectedIds.has(n.id));
+	}
+	static findLeafNodes(nodes, edges) {
+		const degreeMap = new Map();
+		for (const edge of edges) {
+			degreeMap.set(edge.source, (degreeMap.get(edge.source) ?? 0) + 1);
+			degreeMap.set(edge.target, (degreeMap.get(edge.target) ?? 0) + 1);
+		}
+		return nodes.filter((n) => (degreeMap.get(n.id) ?? 0) === 1);
+	}
+	static findHubNodes(nodes, edges, threshold = 10) {
+		const degreeMap = new Map();
+		for (const edge of edges) {
+			degreeMap.set(edge.source, (degreeMap.get(edge.source) ?? 0) + 1);
+			degreeMap.set(edge.target, (degreeMap.get(edge.target) ?? 0) + 1);
+		}
+		return nodes.filter((n) => (degreeMap.get(n.id) ?? 0) >= threshold).sort((a, b) => (degreeMap.get(b.id) ?? 0) - (degreeMap.get(a.id) ?? 0));
+	}
+	static calculateOrphanRate(nodes, edges) {
+		if (nodes.length === 0) return 0;
+		const orphans = HealthScorer.findOrphanNodes(nodes, edges);
+		return orphans.length / nodes.length;
 	}
 	calculateCoupling(edges, moduleOfNode) {
 		if (edges.length === 0) return 100;
@@ -1096,7 +1125,7 @@ function toJsonValue(value) {
 }
 const GRAPH_CACHE_LIMIT = CACHE.GRAPH_CACHE_LIMIT;
 async function createGraphToolDeps() {
-	const [{ CodeGraphAdapter: CGA }, { LensAdapter: LA }] = await Promise.all([import("./CodeGraphAdapter-D2OoNIC2.js"), import("./LensAdapter-B7SPGQsZ.js")]);
+	const [{ CodeGraphAdapter: CGA }, { LensAdapter: LA }] = await Promise.all([import("./CodeGraphAdapter-D6kzMylO.js"), import("./LensAdapter-B7SPGQsZ.js")]);
 	return {
 		codegraphAdapter: new CGA(),
 		lensAdapter: new LA(),
@@ -2439,6 +2468,17 @@ function triggerBackgroundBuild(deps, invokeUpstream, workspacePath) {
 			data,
 			timestamp: Date.now()
 		});
+		if (deps.graphRepo?.isReady()) try {
+			const hash = `${data.metadata.nodeCount}:${data.metadata.edgeCount}:${data.metadata.timestamp}`;
+			const serialized = Buffer.from(JSON.stringify({
+				n: data.nodes.length,
+				e: data.edges.length,
+				t: data.metadata.timestamp
+			}), "utf-8");
+			deps.graphRepo.saveSnapshot(repoId, hash, data.metadata.nodeCount, data.metadata.edgeCount, serialized);
+		} catch (e) {
+			log$8.warn("snapshot save failed", e);
+		}
 		const { ctx } = deps;
 		ctx.emit("codegraph-visualizer/graph/updated", {
 			repoId: RepoId(repoId),
@@ -2697,7 +2737,7 @@ function registerNodeChildrenRoute(rc) {
 				sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
 				return;
 			}
-			const cursor = parseInt(url.searchParams.get("cursor") ?? "0", 10) || 0;
+			const cursor = url.searchParams.get("cursor") ?? null;
 			const limit = parseInt(url.searchParams.get("limit") ?? String(BOOTSTRAP.CHILDREN_PAGE_SIZE), 10) || BOOTSTRAP.CHILDREN_PAGE_SIZE;
 			const cachedData = deps.getLastGraphData();
 			if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) return;
@@ -2710,10 +2750,11 @@ function registerNodeChildrenRoute(rc) {
 					const childIds = page.map((n) => n.id);
 					const dbEdges = readEdgesForNodesFromDb(dbPath, childIds);
 					const childEdges = mapDbEdgesToGraphEdges(dbEdges);
+					const lastNode = dbResult.nodes[dbResult.nodes.length - 1];
 					sendJson(res, 200, {
 						nodes: page,
 						edges: childEdges,
-						cursor: cursor + page.length < dbResult.total ? String(cursor + page.length) : null,
+						cursor: dbResult.nodes.length < limit || !lastNode ? null : lastNode.id,
 						total: dbResult.total
 					}, req, corsConfig);
 					return;
@@ -2721,14 +2762,16 @@ function registerNodeChildrenRoute(rc) {
 			}
 			const lastGraphData = deps.getLastGraphData();
 			if (lastGraphData && lastGraphData.nodes.length > 0) {
-				const children = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
-				const page = children.slice(cursor, cursor + limit);
+				const children = lastGraphData.nodes.filter((n) => n.parentId === nodeId).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+				const startIdx = cursor ? Math.max(0, children.findIndex((n) => n.id > cursor)) : 0;
+				const page = children.slice(startIdx, startIdx + limit);
 				const childIds = new Set(page.map((n) => n.id));
 				const childEdges = lastGraphData.edges.filter((e) => childIds.has(e.source) && childIds.has(e.target));
+				const lastChild = page[page.length - 1];
 				sendJson(res, 200, {
 					nodes: page,
 					edges: childEdges,
-					cursor: cursor + page.length < children.length ? String(cursor + page.length) : null,
+					cursor: page.length < limit || !lastChild ? null : lastChild.id,
 					total: children.length
 				}, req, corsConfig);
 				return;
@@ -4667,7 +4710,8 @@ const graphSnapshots = sqliteTable("graph_snapshots", {
 	createdAt: integer("created_at").notNull().default(0)
 }, (t) => ({
 	repoIdx: index("idx_snapshots_repo").on(t.repoId),
-	repoHashUniq: uniqueIndex("idx_snapshots_repo_hash").on(t.repoId, t.snapshotHash)
+	repoHashUniq: uniqueIndex("idx_snapshots_repo_hash").on(t.repoId, t.snapshotHash),
+	repoCreatedIdx: index("idx_snapshots_repo_created").on(t.repoId, t.createdAt)
 }));
 const analysisResults = sqliteTable("analysis_results", {
 	id: integer("id").primaryKey({ autoIncrement: true }),
@@ -4678,7 +4722,8 @@ const analysisResults = sqliteTable("analysis_results", {
 	createdAt: integer("created_at").notNull().default(0)
 }, (t) => ({
 	repoTypeIdx: index("idx_analysis_repo_type").on(t.repoId, t.analysisType),
-	repoTypeNodeUniq: uniqueIndex("idx_analysis_repo_type_node").on(t.repoId, t.analysisType, t.targetNode)
+	repoTypeNodeUniq: uniqueIndex("idx_analysis_repo_type_node").on(t.repoId, t.analysisType, t.targetNode),
+	repoTypeCreatedIdx: index("idx_analysis_repo_type_created").on(t.repoId, t.analysisType, t.createdAt)
 }));
 const userPreferences = sqliteTable("user_preferences", {
 	key: text("key").primaryKey(),
@@ -4694,7 +4739,8 @@ const layoutPresets = sqliteTable("layout_presets", {
 	createdAt: integer("created_at").notNull().default(0)
 }, (t) => ({
 	repoIdx: index("idx_layout_presets_repo").on(t.repoId),
-	repoNameUniq: uniqueIndex("idx_layout_presets_repo_name").on(t.repoId, t.name)
+	repoNameUniq: uniqueIndex("idx_layout_presets_repo_name").on(t.repoId, t.name),
+	repoCreatedIdx: index("idx_layout_presets_repo_created").on(t.repoId, t.createdAt)
 }));
 
 //#endregion
@@ -4714,10 +4760,13 @@ const MIGRATION_SQL = [
 	`CREATE TABLE IF NOT EXISTS layout_presets (id INTEGER PRIMARY KEY AUTOINCREMENT, repo_id TEXT NOT NULL, name TEXT NOT NULL, layout_type TEXT NOT NULL, positions TEXT NOT NULL, created_at INTEGER NOT NULL DEFAULT 0)`,
 	`CREATE INDEX IF NOT EXISTS idx_snapshots_repo ON graph_snapshots(repo_id)`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS idx_snapshots_repo_hash ON graph_snapshots(repo_id, snapshot_hash)`,
+	`CREATE INDEX IF NOT EXISTS idx_snapshots_repo_created ON graph_snapshots(repo_id, created_at)`,
 	`CREATE INDEX IF NOT EXISTS idx_analysis_repo_type ON analysis_results(repo_id, analysis_type)`,
 	`CREATE UNIQUE INDEX IF NOT EXISTS idx_analysis_repo_type_node ON analysis_results(repo_id, analysis_type, IFNULL(target_node, ''))`,
+	`CREATE INDEX IF NOT EXISTS idx_analysis_repo_type_created ON analysis_results(repo_id, analysis_type, created_at)`,
 	`CREATE INDEX IF NOT EXISTS idx_layout_presets_repo ON layout_presets(repo_id)`,
-	`CREATE UNIQUE INDEX IF NOT EXISTS idx_layout_presets_repo_name ON layout_presets(repo_id, name)`
+	`CREATE UNIQUE INDEX IF NOT EXISTS idx_layout_presets_repo_name ON layout_presets(repo_id, name)`,
+	`CREATE INDEX IF NOT EXISTS idx_layout_presets_repo_created ON layout_presets(repo_id, created_at)`
 ];
 var GraphRepository = class {
 	db = null;
@@ -4926,7 +4975,8 @@ async function apply(ctx, userConfig) {
 		setScanInFlight: (path$1, p) => {
 			if (p === null) scanInFlightMap.delete(path$1);
 			else scanInFlightMap.set(path$1, p);
-		}
+		},
+		graphRepo: repoReady ? graphRepo : void 0
 	};
 	registerService(routeDeps);
 	registerRoutes(routeDeps);

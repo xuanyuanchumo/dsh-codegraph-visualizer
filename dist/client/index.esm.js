@@ -1416,7 +1416,7 @@ function resetLoggerListeners() {
 
 //#endregion
 //#region src/client/cache/IndexedDBCache.ts
-const log$20 = scoped("indexeddb-cache");
+const log$30 = scoped("indexeddb-cache");
 const DB_PREFIX = "codegraph-cache-";
 const CLUSTER_STORE = "cluster-cache";
 const DIAGRAM_STORE = "diagram-cache";
@@ -1467,7 +1467,7 @@ var IndexedDBCache = class {
 	}
 	getDB() {
 		if (!this.dbPromise) this.dbPromise = openDB(this.repoId).catch((err) => {
-			log$20.warn("failed to open IndexedDB", {
+			log$30.warn("failed to open IndexedDB", {
 				repoId: this.repoId,
 				error: err
 			});
@@ -1498,7 +1498,7 @@ var IndexedDBCache = class {
 				tx.onerror = () => reject(tx.error);
 			});
 		} catch (e) {
-			log$20.warn("IndexedDB invalidateCluster failed", { error: e });
+			log$30.warn("IndexedDB invalidateCluster failed", { error: e });
 		}
 	}
 	async invalidateDiagram(viewMode) {
@@ -1525,7 +1525,7 @@ var IndexedDBCache = class {
 				tx.onerror = () => reject(tx.error);
 			});
 		} catch (e) {
-			log$20.warn("IndexedDB invalidateDiagram failed", {
+			log$30.warn("IndexedDB invalidateDiagram failed", {
 				viewMode,
 				error: e
 			});
@@ -1552,7 +1552,7 @@ var IndexedDBCache = class {
 	async setMany(storeName, entries) {
 		if (entries.length === 0) return;
 		if (entries.length > INDEXED_DB.BATCH.MAX_ENTRIES) {
-			log$20.warn("setMany batch exceeds limit, splitting", {
+			log$30.warn("setMany batch exceeds limit, splitting", {
 				count: entries.length,
 				limit: INDEXED_DB.BATCH.MAX_ENTRIES
 			});
@@ -1578,7 +1578,7 @@ var IndexedDBCache = class {
 				tx.onerror = () => reject(tx.error);
 			});
 		} catch (e) {
-			log$20.warn(`IndexedDB setMany(${storeName}) failed`, {
+			log$30.warn(`IndexedDB setMany(${storeName}) failed`, {
 				count: entries.length,
 				error: e
 			});
@@ -1594,7 +1594,7 @@ var IndexedDBCache = class {
 				usageRatio: quota > 0 ? usage / quota : 0
 			};
 		} catch (e) {
-			log$20.warn("storage.estimate() failed", { error: e });
+			log$30.warn("storage.estimate() failed", { error: e });
 			return null;
 		}
 	}
@@ -1606,7 +1606,7 @@ var IndexedDBCache = class {
 	async purgeExpired() {
 		let totalPurged = 0;
 		for (const storeName of ALL_STORES) totalPurged += await this.purgeExpiredStore(storeName);
-		if (totalPurged > 0) log$20.info("purged expired entries", { count: totalPurged });
+		if (totalPurged > 0) log$30.info("purged expired entries", { count: totalPurged });
 		return totalPurged;
 	}
 	async purgeExpiredStore(storeName) {
@@ -1638,7 +1638,7 @@ var IndexedDBCache = class {
 			});
 			return expiredKeys.length;
 		} catch (e) {
-			log$20.warn(`purgeExpiredStore(${storeName}) failed`, { error: e });
+			log$30.warn(`purgeExpiredStore(${storeName}) failed`, { error: e });
 			return 0;
 		}
 	}
@@ -1661,7 +1661,7 @@ var IndexedDBCache = class {
 			}
 			return raw;
 		} catch (e) {
-			log$20.warn(`IndexedDB getFromStore(${storeName}) failed`, {
+			log$30.warn(`IndexedDB getFromStore(${storeName}) failed`, {
 				key,
 				error: e
 			});
@@ -1684,7 +1684,7 @@ var IndexedDBCache = class {
 				tx.onerror = () => reject(tx.error);
 			});
 		} catch (e) {
-			log$20.warn(`IndexedDB setToStore(${storeName}) failed`, {
+			log$30.warn(`IndexedDB setToStore(${storeName}) failed`, {
 				key,
 				error: e
 			});
@@ -1700,7 +1700,7 @@ var IndexedDBCache = class {
 				tx.onerror = () => reject(tx.error);
 			});
 		} catch (e) {
-			log$20.warn(`IndexedDB deleteFromStore(${storeName}) failed`, {
+			log$30.warn(`IndexedDB deleteFromStore(${storeName}) failed`, {
 				key,
 				error: e
 			});
@@ -1716,7 +1716,7 @@ var IndexedDBCache = class {
 
 //#endregion
 //#region src/client/cache/DiagramCache.ts
-const log$19 = scoped("cache");
+const log$29 = scoped("cache");
 function computeDataHash(nodes, edges) {
 	let nodeHash = 2166136261;
 	for (const n of nodes) {
@@ -1808,7 +1808,7 @@ var DiagramCache = class {
 				return diagram;
 			}
 		} catch (e) {
-			log$19.warn("IndexedDB diagram getAsync failed", e);
+			log$29.warn("IndexedDB diagram getAsync failed", e);
 		}
 		return null;
 	}
@@ -1820,13 +1820,13 @@ var DiagramCache = class {
 			if (firstKey) this.cache.delete(firstKey);
 		}
 		this.cache.set(key, diagram);
-		if (this.idbCache) this.idbCache.setDiagram(key, diagram).catch((e) => log$19.warn("IndexedDB diagram set failed", e));
+		if (this.idbCache) this.idbCache.setDiagram(key, diagram).catch((e) => log$29.warn("IndexedDB diagram set failed", e));
 	}
 	invalidate(viewMode) {
 		if (viewMode) {
 			for (const key of this.cache.keys()) if (key.startsWith(`${viewMode}:`)) this.cache.delete(key);
 		} else this.cache.clear();
-		if (this.idbCache) this.idbCache.invalidateDiagram(viewMode).catch((e) => log$19.warn("IndexedDB diagram invalidate failed", e));
+		if (this.idbCache) this.idbCache.invalidateDiagram(viewMode).catch((e) => log$29.warn("IndexedDB diagram invalidate failed", e));
 	}
 	size() {
 		return this.cache.size;
@@ -1871,7 +1871,7 @@ var ClusterCache = class {
 				return result;
 			}
 		} catch (e) {
-			log$19.warn("IndexedDB cluster getAsync failed", e);
+			log$29.warn("IndexedDB cluster getAsync failed", e);
 		}
 		return null;
 	}
@@ -1883,11 +1883,11 @@ var ClusterCache = class {
 			if (firstKey) this.cache.delete(firstKey);
 		}
 		this.cache.set(key, result);
-		if (this.idbCache) this.idbCache.setCluster(key, result).catch((e) => log$19.warn("IndexedDB cluster set failed", e));
+		if (this.idbCache) this.idbCache.setCluster(key, result).catch((e) => log$29.warn("IndexedDB cluster set failed", e));
 	}
 	invalidate() {
 		this.cache.clear();
-		if (this.idbCache) this.idbCache.invalidateCluster().catch((e) => log$19.warn("IndexedDB cluster invalidate failed", e));
+		if (this.idbCache) this.idbCache.invalidateCluster().catch((e) => log$29.warn("IndexedDB cluster invalidate failed", e));
 	}
 	size() {
 		return this.cache.size;
@@ -4731,7 +4731,7 @@ var CallChainAggregator = class {
 
 //#endregion
 //#region src/shared/PerformanceMonitor.ts
-const log$18 = scoped("perf");
+const log$28 = scoped("perf");
 const MAX_HISTORY = 100;
 const measurements = [];
 const thresholds = new Map();
@@ -4807,14 +4807,14 @@ function recordMeasurement(name$1, durationMs) {
 	if (measurements.length > MAX_HISTORY) measurements.shift();
 	const threshold = thresholds.get(name$1);
 	if (threshold) {
-		if (threshold.degradeMs !== void 0 && durationMs >= threshold.degradeMs && threshold.degradationKey) log$18.warn(`${name$1} exceeded degrade threshold: ${durationMs.toFixed(1)}ms >= ${threshold.degradeMs}ms`);
-		else if (threshold.warnMs !== void 0 && durationMs >= threshold.warnMs) log$18.info(`${name$1} exceeded warn threshold: ${durationMs.toFixed(1)}ms >= ${threshold.warnMs}ms`);
+		if (threshold.degradeMs !== void 0 && durationMs >= threshold.degradeMs && threshold.degradationKey) log$28.warn(`${name$1} exceeded degrade threshold: ${durationMs.toFixed(1)}ms >= ${threshold.degradeMs}ms`);
+		else if (threshold.warnMs !== void 0 && durationMs >= threshold.warnMs) log$28.info(`${name$1} exceeded warn threshold: ${durationMs.toFixed(1)}ms >= ${threshold.warnMs}ms`);
 	}
 }
 
 //#endregion
 //#region src/client/store/internals.ts
-const log$17 = scoped("store");
+const log$27 = scoped("store");
 const diagramCache = new DiagramCache(10);
 const clusterCache = new ClusterCache(20);
 const callChainAggregator = new CallChainAggregator();
@@ -4898,7 +4898,7 @@ function mergeAndRecluster(newNodes, newEdges, set$1, logLabel, logDetail) {
 		nodes: result.nodes,
 		edges: result.edges
 	});
-	log$17.info(logLabel, {
+	log$27.info(logLabel, {
 		...logDetail,
 		newNodes: filteredNodes.length,
 		newEdges: filteredEdges.length
@@ -5066,7 +5066,7 @@ function normalizeEdgeType(type) {
 
 //#endregion
 //#region src/shared/GraphValidator.ts
-const log$16 = scoped("validator");
+const log$26 = scoped("validator");
 function coerceNode(raw, i$1) {
 	if (!raw || typeof raw !== "object") return null;
 	const o = raw;
@@ -7352,7 +7352,7 @@ var SequenceAssembler = class {
 
 //#endregion
 //#region src/client/api/index.ts
-const log$15 = scoped("client");
+const log$25 = scoped("client");
 const DEFAULT_TIMEOUT = API.DEFAULT_TIMEOUT_MS;
 function fetchWithTimeout(url, options, timeoutMs = DEFAULT_TIMEOUT) {
 	const controller = new AbortController();
@@ -7394,7 +7394,7 @@ async function fetchBootstrap(signal, workspace) {
 		};
 	} catch (e) {
 		if (e instanceof DOMException && e.name === "AbortError") return null;
-		log$15.warn("fetchBootstrap failed", { error: e instanceof Error ? e.message : String(e) });
+		log$25.warn("fetchBootstrap failed", { error: e instanceof Error ? e.message : String(e) });
 		return null;
 	}
 }
@@ -7412,7 +7412,7 @@ async function fetchNodeChildren(nodeId, cursor, limit$1, signal, workspace) {
 		return await res.json();
 	} catch (e) {
 		if (e instanceof DOMException && e.name === "AbortError") return null;
-		log$15.warn("fetchNodeChildren failed", {
+		log$25.warn("fetchNodeChildren failed", {
 			nodeId,
 			error: e instanceof Error ? e.message : String(e)
 		});
@@ -7434,7 +7434,7 @@ async function fetchStatus() {
 			builtin: data$2.builtin ?? true
 		};
 	} catch (e) {
-		log$15.warn("fetchStatus failed", {
+		log$25.warn("fetchStatus failed", {
 			url: "/api/v1/codegraph/status",
 			error: e instanceof Error ? e.message : String(e)
 		});
@@ -7458,7 +7458,7 @@ async function fetchWorkspace() {
 			list: data$2.list ?? []
 		};
 	} catch (e) {
-		log$15.warn("fetchWorkspace failed", e);
+		log$25.warn("fetchWorkspace failed", e);
 		return {
 			path: ".",
 			list: []
@@ -7475,7 +7475,7 @@ async function requestInit(path) {
 		if (!res.ok) return null;
 		return await res.json();
 	} catch (e) {
-		log$15.warn("requestInit failed", e);
+		log$25.warn("requestInit failed", e);
 		return null;
 	}
 }
@@ -7486,7 +7486,7 @@ async function fetchGraphDataIncremental(lastUpdated) {
 		if (!res.ok) return null;
 		return coerceGraphData(await res.json());
 	} catch (e) {
-		log$15.warn("fetchGraphDataIncremental failed", { error: e instanceof Error ? e.message : String(e) });
+		log$25.warn("fetchGraphDataIncremental failed", { error: e instanceof Error ? e.message : String(e) });
 		return null;
 	}
 }
@@ -7502,7 +7502,7 @@ async function requestWatch(enabled, path) {
 		});
 		return res.ok;
 	} catch (e) {
-		log$15.warn("requestWatch failed", e);
+		log$25.warn("requestWatch failed", e);
 		return false;
 	}
 }
@@ -7522,7 +7522,7 @@ async function fetchFileOutline(nodeId, signal, workspace) {
 		};
 	} catch (e) {
 		if (e instanceof DOMException && e.name === "AbortError") return null;
-		log$15.warn("fetchFileOutline failed", {
+		log$25.warn("fetchFileOutline failed", {
 			nodeId,
 			error: e instanceof Error ? e.message : String(e)
 		});
@@ -7546,7 +7546,7 @@ async function fetchSymbolAST(nodeId, signal, workspace) {
 		};
 	} catch (e) {
 		if (e instanceof DOMException && e.name === "AbortError") return null;
-		log$15.warn("fetchSymbolAST failed", {
+		log$25.warn("fetchSymbolAST failed", {
 			nodeId,
 			error: e instanceof Error ? e.message : String(e)
 		});
@@ -7556,7 +7556,7 @@ async function fetchSymbolAST(nodeId, signal, workspace) {
 
 //#endregion
 //#region src/client/diagram/index.ts
-const log$14 = scoped("diagram");
+const log$24 = scoped("diagram");
 const macroAssemblerRegistry = new Map([
 	["inheritance", new InheritanceAssembler()],
 	["callgraph", new CallGraphAssembler()],
@@ -7753,7 +7753,7 @@ async function assembleMicroDiagram(viewMode, filePath, functionName) {
 			body: JSON.stringify({ filePath })
 		});
 	} catch (e) {
-		log$14.warn("AST fetch failed", e);
+		log$24.warn("AST fetch failed", e);
 		throw new Error(`Network error: unable to reach AST endpoint`);
 	}
 	if (!response.ok) {
@@ -7768,7 +7768,7 @@ async function assembleMicroDiagram(viewMode, filePath, functionName) {
 				const parsed = JSON.parse(errorBody);
 				serverMsg = parsed.error || "";
 			} catch (e) {
-				log$14.warn("AST error body parse failed", e);
+				log$24.warn("AST error body parse failed", e);
 				serverMsg = errorBody;
 			}
 			throw new Error(serverMsg || `AST parsing failed for "${filePath}"`);
@@ -7877,7 +7877,7 @@ function createGraphDataSlice(_set, _get) {
 					loadErrorsByNodeId: new Map()
 				});
 			} catch (err) {
-				log$17.error("setGraphData failed", { err });
+				log$27.error("setGraphData failed", { err });
 				_set({
 					error: err instanceof Error ? err.message : String(err),
 					isLoading: false
@@ -7939,12 +7939,12 @@ function createGraphDataSlice(_set, _get) {
 					pendingRequests: new Map(),
 					loadErrorsByNodeId: new Map()
 				});
-				log$17.info("bootstrap data set", {
+				log$27.info("bootstrap data set", {
 					rootNodes: sanitized.nodes.length,
 					totalNodeCount: metadata.totalNodeCount
 				});
 			} catch (err) {
-				log$17.error("setBootstrapData failed", { err });
+				log$27.error("setBootstrapData failed", { err });
 				_set({
 					error: err instanceof Error ? err.message : String(err),
 					isLoading: false
@@ -8258,7 +8258,7 @@ function createSessionSlice(_set, _get) {
 
 //#endregion
 //#region src/client/utils/urlState.ts
-const log$13 = scoped("url-state");
+const log$23 = scoped("url-state");
 const PREFIX_DIR = "d:";
 const PREFIX_FILE = "f:";
 const PREFIX_SYMBOL = "s:";
@@ -8315,7 +8315,7 @@ function updateUrlExpand(expandedNodeIds) {
 	if (urlString.length > URL_STATE.MAX_LENGTH) {
 		const trimmed = expandParam.split(",").filter((p$1) => !p$1.startsWith(PREFIX_SYMBOL));
 		url.searchParams.set("expand", trimmed.join(","));
-		log$13.warn("URL too long, trimmed symbol-level expansions");
+		log$23.warn("URL too long, trimmed symbol-level expansions");
 	}
 	window.history.replaceState(null, "", url.toString());
 }
@@ -8358,7 +8358,7 @@ function createExpandSlice(_set, _get) {
 			if (expandingFunctionBody) enforceFunctionBodyBudget(effectiveExpanded, rawNodes, FUNCTION_BODY.MAX_EXPANDED - 1);
 			effectiveExpanded.add(nodeId);
 			collapseExcessClusters(nodes, effectiveExpanded, maxVisible, cost, _get().pinnedIds);
-			if (cost > CLUSTER.EXPAND_BUDGET_SINGLE) log$17.warn("expand budget exceeded", {
+			if (cost > CLUSTER.EXPAND_BUDGET_SINGLE) log$27.warn("expand budget exceeded", {
 				nodeId,
 				cost,
 				budget: CLUSTER.EXPAND_BUDGET_SINGLE
@@ -8376,7 +8376,7 @@ function createExpandSlice(_set, _get) {
 				internals.expandAbortControllers.set(nodeId, expandController);
 				_get().loadNodeChildren(nodeId, { signal: expandController.signal }).catch((err) => {
 					if (err instanceof DOMException && err.name === "AbortError") return;
-					log$17.warn("expandNode: loadNodeChildren failed", {
+					log$27.warn("expandNode: loadNodeChildren failed", {
 						nodeId,
 						err
 					});
@@ -8401,7 +8401,7 @@ function createExpandSlice(_set, _get) {
 							if (internals.persistentCache) await internals.persistentCache.setOutline(nodeId, data$2);
 						}
 					}).catch((err) => {
-						log$17.warn("expandNode: fetchFileOutline failed", {
+						log$27.warn("expandNode: fetchFileOutline failed", {
 							nodeId,
 							err
 						});
@@ -8432,7 +8432,7 @@ function createExpandSlice(_set, _get) {
 							const truncatedSourceLines = data$2.sourceLines.length > SYMBOL_AST.MAX_SOURCE_LINES ? data$2.sourceLines.slice(0, SYMBOL_AST.MAX_SOURCE_LINES) : data$2.sourceLines;
 							const astNodeIds = new Set(truncatedAstNodes.map((n) => n.id));
 							const truncatedAstEdges = data$2.astEdges.filter((e) => astNodeIds.has(e.source) && astNodeIds.has(e.target));
-							if (truncatedAstNodes.length < data$2.astNodes.length) log$17.warn("symbol AST truncated", {
+							if (truncatedAstNodes.length < data$2.astNodes.length) log$27.warn("symbol AST truncated", {
 								nodeId,
 								original: data$2.astNodes.length,
 								truncated: truncatedAstNodes.length
@@ -8444,7 +8444,7 @@ function createExpandSlice(_set, _get) {
 							if (internals.persistentCache) await internals.persistentCache.setAST(nodeId, data$2);
 						}
 					}).catch((err) => {
-						log$17.warn("expandNode: fetchSymbolAST failed", {
+						log$27.warn("expandNode: fetchSymbolAST failed", {
 							nodeId,
 							err
 						});
@@ -8513,7 +8513,7 @@ function createExpandSlice(_set, _get) {
 					loadedChildrenByNodeId: newLoaded,
 					pendingRequests: clearedPending
 				});
-				log$17.info("node children loaded", {
+				log$27.info("node children loaded", {
 					nodeId,
 					newNodes: newNodes.length,
 					newEdges: newEdges.length
@@ -8531,7 +8531,7 @@ function createExpandSlice(_set, _get) {
 					pendingRequests: clearedPending,
 					loadErrorsByNodeId: newErrors
 				});
-				log$17.warn("loadNodeChildren failed", {
+				log$27.warn("loadNodeChildren failed", {
 					nodeId,
 					err
 				});
@@ -8542,7 +8542,7 @@ function createExpandSlice(_set, _get) {
 				const ws = _get().currentWorkspace;
 				const data$2 = await fetchBootstrap(void 0, ws);
 				if (!data$2 || data$2.topLevelNodes.length === 0) {
-					log$17.info("bootstrap returned empty, falling back to full load");
+					log$27.info("bootstrap returned empty, falling back to full load");
 					return false;
 				}
 				const state = _get();
@@ -8551,14 +8551,14 @@ function createExpandSlice(_set, _get) {
 					totalEdgeCount: data$2.metadata.totalEdgeCount,
 					timestamp: data$2.metadata.timestamp
 				});
-				log$17.info("bootstrap loaded", {
+				log$27.info("bootstrap loaded", {
 					rootNodes: data$2.topLevelNodes.length,
 					totalNodeCount: data$2.metadata.totalNodeCount,
 					indexStatus: data$2.indexStatus
 				});
 				return true;
 			} catch (err) {
-				log$17.warn("loadBootstrap failed, falling back to full load", { err });
+				log$27.warn("loadBootstrap failed, falling back to full load", { err });
 				return false;
 			}
 		},
@@ -8635,6 +8635,7 @@ function createExpandSlice(_set, _get) {
 				if (typeof cancelIdleCallback === "function" && typeof internals.prefetchIdleHandle === "number") cancelIdleCallback(internals.prefetchIdleHandle);
 				else clearTimeout(internals.prefetchIdleHandle);
 				internals.prefetchIdleHandle = null;
+				internals.prefetchInFlightCount--;
 			}
 			if (typeof requestIdleCallback === "function") internals.prefetchIdleHandle = requestIdleCallback(runPrefetch, { timeout: 2e3 });
 			else internals.prefetchIdleHandle = setTimeout(runPrefetch, 0);
@@ -8704,7 +8705,7 @@ function createExpandSlice(_set, _get) {
 				if (!exists) {
 					const parentId = nodeId.includes("/") ? nodeId.substring(0, nodeId.lastIndexOf("/")) : null;
 					if (parentId && !state.loadedChildrenByNodeId.has(parentId)) await state.loadNodeChildren(parentId, { signal: restoreController.signal }).catch((err) => {
-						if (!(err instanceof DOMException && err.name === "AbortError")) log$17.warn("restoreFromUrl: loadNodeChildren failed", {
+						if (!(err instanceof DOMException && err.name === "AbortError")) log$27.warn("restoreFromUrl: loadNodeChildren failed", {
 							parentId,
 							err
 						});
@@ -8729,7 +8730,7 @@ function createExpandSlice(_set, _get) {
 			}
 			internals.restoreTimeoutHandle = null;
 			_set({ urlRestored: true });
-			log$17.info("URL restore completed", { restoredCount: sortedIds.length });
+			log$27.info("URL restore completed", { restoredCount: sortedIds.length });
 		}
 	};
 }
@@ -8854,7 +8855,7 @@ function createAnalysisSlice(_set, _get) {
 					if (!response.ok) return null;
 					return await response.json();
 				} catch (e) {
-					log$17.warn("AST fetch failed", e);
+					log$27.warn("AST fetch failed", e);
 					return null;
 				}
 			};
@@ -8878,7 +8879,7 @@ function createAnalysisSlice(_set, _get) {
 					isLoading: false
 				});
 			} catch (e) {
-				log$17.warn("assembleMultiFunction failed", e);
+				log$27.warn("assembleMultiFunction failed", e);
 				_set({
 					error: t("error.callChainFailed"),
 					isLoading: false
@@ -54473,7 +54474,7 @@ var OverlapRemover = class {
 
 //#endregion
 //#region src/client/renderer/LayoutController.ts
-const log$12 = scoped("layout");
+const log$22 = scoped("layout");
 var LayoutController = class {
 	cy;
 	layoutRaf = null;
@@ -54508,16 +54509,16 @@ var LayoutController = class {
 				this.worker.onerror = () => {
 					this.worker?.terminate();
 					this.worker = null;
-					log$12.warn("layout worker error — will auto-retry");
+					log$22.warn("layout worker error — will auto-retry");
 					this.retryWorkerInit();
 				};
 			} else {
 				this.workerInitFailed = true;
-				log$12.warn("layout worker not available — using main-thread layout");
+				log$22.warn("layout worker not available — using main-thread layout");
 			}
 		} catch (e) {
 			this.workerInitFailed = true;
-			log$12.warn("layout worker init failed — using main-thread layout", e);
+			log$22.warn("layout worker init failed — using main-thread layout", e);
 		}
 	}
 	isWorkerAvailable() {
@@ -54546,7 +54547,7 @@ var LayoutController = class {
 		}
 		return new Promise((resolve) => {
 			this.workerTimeout = setTimeout(() => {
-				log$12.warn("layout worker timeout — falling back to empty positions");
+				log$22.warn("layout worker timeout — falling back to empty positions");
 				if (this.workerLayoutResolve) {
 					this.workerLayoutResolve({});
 					this.workerLayoutResolve = null;
@@ -54554,7 +54555,7 @@ var LayoutController = class {
 				if (this.worker) {
 					this.worker.terminate();
 					this.worker = null;
-					log$12.warn("layout worker terminated due to timeout — will auto-retry");
+					log$22.warn("layout worker terminated due to timeout — will auto-retry");
 					this.retryWorkerInit();
 				}
 			}, RENDERER.LAYOUT_TIMEOUT_MS);
@@ -55149,7 +55150,7 @@ function detectCyclesDFS(adjacency) {
 
 //#endregion
 //#region src/client/renderer/CycleDetector.ts
-const log$11 = scoped("cycle-detector");
+const log$21 = scoped("cycle-detector");
 var CycleDetector = class {
 	cy;
 	adjacencyCache;
@@ -55178,7 +55179,7 @@ var CycleDetector = class {
 		const cycles = new Set();
 		const nodeCount = this.cy.nodes().length;
 		if (nodeCount > CYCLE_DETECTION.MAX_NODES_FOR_DETECTION) {
-			log$11.warn("cycle detection skipped: graph too large", { nodeCount });
+			log$21.warn("cycle detection skipped: graph too large", { nodeCount });
 			return cycles;
 		}
 		const adjacencySet = this.getForwardAdjacency();
@@ -55191,7 +55192,7 @@ var CycleDetector = class {
 	detectCyclesDetailed() {
 		const nodeCount = this.cy.nodes().length;
 		if (nodeCount > CYCLE_DETECTION.MAX_NODES_FOR_DETECTION) {
-			log$11.warn("detailed cycle detection skipped: graph too large", { nodeCount });
+			log$21.warn("detailed cycle detection skipped: graph too large", { nodeCount });
 			return [];
 		}
 		const adjacencySet = this.getForwardAdjacency();
@@ -55548,7 +55549,7 @@ var ViewportController = class {
 
 //#endregion
 //#region src/client/renderer/DataController.ts
-const log$10 = scoped("data-controller");
+const log$20 = scoped("data-controller");
 var DataController = class {
 	cy;
 	destroyed = false;
@@ -55771,7 +55772,7 @@ var DataController = class {
 	}
 	addEdge(e) {
 		if (this.cy.getElementById(e.source).empty() || this.cy.getElementById(e.target).empty()) {
-			log$10.warn("edge dropped: missing endpoint", {
+			log$20.warn("edge dropped: missing endpoint", {
 				edgeId: e.id,
 				source: e.source,
 				target: e.target
@@ -55934,7 +55935,7 @@ var DataController = class {
 
 //#endregion
 //#region src/client/renderer/FilterController.ts
-const log$9 = scoped("filter");
+const log$19 = scoped("filter");
 var FilterController = class {
 	cy;
 	fanInCache = null;
@@ -56091,7 +56092,7 @@ var FilterController = class {
 			if (/(\+|\*|\{)\{/.test(pattern)) return null;
 			return new RegExp(pattern);
 		} catch (e) {
-			log$9.warn("invalid regex pattern", e);
+			log$19.warn("invalid regex pattern", e);
 			return null;
 		}
 	}
@@ -56259,7 +56260,7 @@ var Trie = class {
 
 //#endregion
 //#region src/client/renderer/SearchController.ts
-const log$8 = scoped("search");
+const log$18 = scoped("search");
 const BUILD_CHUNK_SIZE = 200;
 const BUILD_CHUNK_DELAY = 16;
 function requestIdleCallbackCompat(cb) {
@@ -56301,7 +56302,7 @@ var SearchController = class {
 				this.trieBuilt = true;
 				this.indexBuilding = false;
 				this.buildHandle = null;
-				log$8.info(`Trie index built: ${entries.length} nodes`);
+				log$18.info(`Trie index built: ${entries.length} nodes`);
 			}
 		};
 		processChunk();
@@ -57667,7 +57668,7 @@ var AdjacencyCache = class {
 
 //#endregion
 //#region src/client/renderer/CytoscapeRenderer.ts
-const log$7 = scoped("cytoscape-renderer");
+const log$17 = scoped("cytoscape-renderer");
 function ensureExtensionsRegistered() {
 	const cy = cytoscape$1;
 	if (!cy.__dagreRegistered) {
@@ -57702,7 +57703,7 @@ var CytoscapeRenderer = class {
 		try {
 			return fn$7();
 		} catch (err) {
-			log$7.error(`${name$1} failed`, err);
+			log$17.error(`${name$1} failed`, err);
 			this.lastError = err instanceof Error ? err : new Error(String(err));
 			return fallback;
 		}
@@ -57711,7 +57712,7 @@ var CytoscapeRenderer = class {
 		try {
 			fn$7();
 		} catch (err) {
-			log$7.error(`${name$1} failed`, err);
+			log$17.error(`${name$1} failed`, err);
 			this.lastError = err instanceof Error ? err : new Error(String(err));
 		}
 	}
@@ -57726,6 +57727,7 @@ var CytoscapeRenderer = class {
 				container: this.options.container,
 				minZoom: RENDERER.MIN_ZOOM,
 				maxZoom: RENDERER.MAX_ZOOM,
+				wheelSensitivity: .3,
 				style: [],
 				layout: { name: "cose" },
 				headless: false,
@@ -57974,7 +57976,7 @@ var CytoscapeRenderer = class {
 			try {
 				fn$7();
 			} catch (err) {
-				log$7.warn(`destroy: ${label} cleanup failed`, err);
+				log$17.warn(`destroy: ${label} cleanup failed`, err);
 			}
 		};
 		safeDestroy("interactionCtrl", () => this.interactionCtrl?.destroy());
@@ -58073,7 +58075,7 @@ var CytoscapeRenderer = class {
 			this.cy.nodes().stop();
 			this.cy.edges().stop();
 		} catch (e) {
-			log$7.warn("pauseAnimations failed", e);
+			log$17.warn("pauseAnimations failed", e);
 		}
 	}
 	resumeAnimations() {
@@ -58081,14 +58083,14 @@ var CytoscapeRenderer = class {
 		try {
 			this.cy.resize();
 		} catch (e) {
-			log$7.warn("resumeAnimations failed", e);
+			log$17.warn("resumeAnimations failed", e);
 		}
 	}
 };
 
 //#endregion
 //#region src/client/hooks/useGraphRenderer.ts
-const log$6 = scoped("renderer-hook");
+const log$16 = scoped("renderer-hook");
 function useGraphRenderer(config) {
 	const { data: data$2, display, interaction, filters, analysis, callbacks, showCallChainRef } = config;
 	const { nodes, edges, rawNodes } = data$2;
@@ -58132,7 +58134,7 @@ function useGraphRenderer(config) {
 				});
 				renderer$1.init();
 				rendererRef.current = renderer$1;
-				log$6.info("renderer initialized", {
+				log$16.info("renderer initialized", {
 					theme,
 					w,
 					h
@@ -58353,7 +58355,7 @@ function useGraphRenderer(config) {
 			a.download = `codegraph-${Date.now()}.${extension$1}`;
 			a.click();
 			setTimeout(() => URL.revokeObjectURL(url), UI.URL_REVOKE_DELAY_MS);
-			log$6.info(`exported ${format}`);
+			log$16.info(`exported ${format}`);
 		}
 	}, []);
 	const updateTheme = useCallback((newTheme) => {
@@ -58824,7 +58826,7 @@ function usePanelKeyboard(layout$2, setLayout, rendererRef, handlers) {
 
 //#endregion
 //#region src/client/hooks/useViewMode.ts
-const log$5 = scoped("viewMode");
+const log$15 = scoped("viewMode");
 const MICRO_MODES = [
 	"cfg",
 	"flowchart",
@@ -58881,7 +58883,7 @@ function useViewMode(viewMode, currentWorkspace, depsFetchAbortRef) {
 				else setError(t$1("error.loadGraphData"));
 				setLoading(false);
 			}).catch((e) => {
-				log$5.warn("loadBootstrap failed", e);
+				log$15.warn("loadBootstrap failed", e);
 				setError(t$1("error.loadGraph"));
 				setLoading(false);
 			});
@@ -58975,7 +58977,7 @@ const EDGE_WEIGHTS = {
 	composition: .7
 };
 const DEFAULT_MAX_MODULE_DEPTH = HEALTH_SCORE.DEFAULT_MAX_MODULE_DEPTH;
-var HealthScorer = class {
+var HealthScorer = class HealthScorer {
 	maxModuleDepth;
 	constructor(maxModuleDepth) {
 		this.maxModuleDepth = maxModuleDepth ?? DEFAULT_MAX_MODULE_DEPTH;
@@ -59025,6 +59027,35 @@ var HealthScorer = class {
 				description: "Better module separation is better"
 			}
 		];
+	}
+	static findOrphanNodes(nodes, edges) {
+		const connectedIds = new Set();
+		for (const edge of edges) {
+			connectedIds.add(edge.source);
+			connectedIds.add(edge.target);
+		}
+		return nodes.filter((n) => !connectedIds.has(n.id));
+	}
+	static findLeafNodes(nodes, edges) {
+		const degreeMap = new Map();
+		for (const edge of edges) {
+			degreeMap.set(edge.source, (degreeMap.get(edge.source) ?? 0) + 1);
+			degreeMap.set(edge.target, (degreeMap.get(edge.target) ?? 0) + 1);
+		}
+		return nodes.filter((n) => (degreeMap.get(n.id) ?? 0) === 1);
+	}
+	static findHubNodes(nodes, edges, threshold = 10) {
+		const degreeMap = new Map();
+		for (const edge of edges) {
+			degreeMap.set(edge.source, (degreeMap.get(edge.source) ?? 0) + 1);
+			degreeMap.set(edge.target, (degreeMap.get(edge.target) ?? 0) + 1);
+		}
+		return nodes.filter((n) => (degreeMap.get(n.id) ?? 0) >= threshold).sort((a, b) => (degreeMap.get(b.id) ?? 0) - (degreeMap.get(a.id) ?? 0));
+	}
+	static calculateOrphanRate(nodes, edges) {
+		if (nodes.length === 0) return 0;
+		const orphans = HealthScorer.findOrphanNodes(nodes, edges);
+		return orphans.length / nodes.length;
 	}
 	calculateCoupling(edges, moduleOfNode) {
 		if (edges.length === 0) return 100;
@@ -60355,7 +60386,7 @@ function useGraphCache() {
 
 //#endregion
 //#region src/client/components/ErrorBoundary.tsx
-const log$4 = scoped("boundary");
+const log$14 = scoped("boundary");
 function ErrorFallback({ error: error$1, onRetry }) {
 	const t$1 = useT();
 	return /* @__PURE__ */ jsxs("div", {
@@ -60398,7 +60429,7 @@ var GraphErrorBoundary = class extends Component {
 	}
 	componentDidCatch(error$1, errorInfo) {
 		this.props.onError?.(error$1, errorInfo);
-		log$4.error("render error caught by boundary", {
+		log$14.error("render error caught by boundary", {
 			error: error$1,
 			componentStack: errorInfo.componentStack
 		});
@@ -60420,21 +60451,12 @@ var GraphErrorBoundary = class extends Component {
 };
 
 //#endregion
-//#region src/shared/domEvents.ts
-const DOM_EVENTS = {
-	REFRESH: "codegraph:refresh",
-	OPEN_SOURCE: "codegraph:open-source",
-	IMPORT_REPO: "codegraph:import-repo",
-	INIT_GRAPH: "codegraph:init-graph",
-	TOGGLE_WATCH: "codegraph:toggle-watch",
-	WORKSPACE: "codegraph:workspace",
-	INSTALL_PLUGIN: "codegraph:install-plugin",
-	SYMBOL_SELECT: "codegraph:symbol-select",
-	EDITOR_SYMBOL_SELECT: "dsh:editor-symbol-select",
-	TOGGLE_FILTER_PANEL: "codegraph:toggle-filter-panel",
-	TOGGLE_EXPORT_MENU: "codegraph:toggle-export-menu",
-	THEME_CHANGED: "codegraph:theme-changed"
-};
+//#region src/client/utils/deriveName.ts
+function deriveWorkspaceName(path) {
+	if (!path || path === ".") return "";
+	const parts = path.replace(/[\\/]+$/, "").split(/[\\/]/);
+	return parts[parts.length - 1] || path;
+}
 
 //#endregion
 //#region src/client/components/Icons.tsx
@@ -60776,518 +60798,6 @@ const WrenchIcon = memo$1(({ size: size$1 = 16, className }) => /* @__PURE__ */ 
 	className,
 	children: /* @__PURE__ */ jsx("path", { d: "M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-2.5 2.5-2.5Z" })
 }));
-
-//#endregion
-//#region src/client/components/ImportPanel.tsx
-const log$3 = scoped("import");
-function parseGraphJson(text) {
-	const parsed = JSON.parse(text);
-	if (!parsed || typeof parsed !== "object") throw new Error("Root is not an object");
-	const rawNodes = Array.isArray(parsed.nodes) ? parsed.nodes : [];
-	const rawEdges = Array.isArray(parsed.edges) ? parsed.edges : [];
-	const nodes = rawNodes.map(coerceNode).filter((n) => n !== null);
-	const edges = rawEdges.map(coerceEdge).filter((e) => e !== null);
-	if (nodes.length === 0) throw new Error("No valid nodes found in JSON");
-	const repoId = parsed.metadata?.repoId ?? `imported-${Date.now()}`;
-	return {
-		nodes,
-		edges,
-		repoId
-	};
-}
-const ImportPanel = memo(function ImportPanel$1({ onClose, workspacePath, prerequisites, initStatus, watchEnabled, onSetGraphData, onSetLoading, onSetError, onSetInitStatus, onSetWatchEnabled }) {
-	const t$1 = useT();
-	const [tab, setTab] = useState("workspace");
-	const [pasteText, setPasteText] = useState("");
-	const [busy, setBusy] = useState(false);
-	const [feedback, setFeedback] = useState(null);
-	const [customPath, setCustomPath] = useState("");
-	const timersRef = useRef([]);
-	useEffect(() => () => {
-		timersRef.current.forEach(clearTimeout);
-	}, []);
-	const [copied, setCopied] = useState(false);
-	const panelRef = useRef(null);
-	const triggerRef = useRef(null);
-	useEffect(() => {
-		triggerRef.current = document.activeElement;
-		return () => {
-			triggerRef.current?.focus();
-		};
-	}, []);
-	useEffect(() => {
-		const panel = panelRef.current;
-		if (!panel) return;
-		const focusable = panel.querySelectorAll("button, input, textarea, [tabindex]:not([tabindex=\"-1\"])");
-		if (focusable.length > 0) focusable[0].focus();
-		const handleKeyDown = (e) => {
-			if (e.key !== "Tab" || focusable.length === 0) return;
-			const first = focusable[0];
-			const last$1 = focusable[focusable.length - 1];
-			if (e.shiftKey && document.activeElement === first) {
-				e.preventDefault();
-				last$1.focus();
-			} else if (!e.shiftKey && document.activeElement === last$1) {
-				e.preventDefault();
-				first.focus();
-			}
-		};
-		panel.addEventListener("keydown", handleKeyDown);
-		return () => panel.removeEventListener("keydown", handleKeyDown);
-	}, []);
-	const copyInstallCmd = useCallback(async () => {
-		try {
-			await navigator.clipboard.writeText("dsh plugin --profile web add dsh-codegraph");
-			setCopied(true);
-			timersRef.current.push(setTimeout(() => setCopied(false), UI.COPY_FEEDBACK_MS));
-		} catch {}
-	}, []);
-	const effectivePath = customPath.trim() || workspacePath || ".";
-	const prereqMissing = !prerequisites.codegraph && !prerequisites.lens;
-	const applyGraph = useCallback((text, source) => {
-		setBusy(true);
-		setFeedback(null);
-		try {
-			if (text.length > IMPORT.MAX_PASTE_BYTES) throw new Error(`JSON exceeds ${IMPORT.MAX_PASTE_BYTES / 1024 / 1024}MB limit`);
-			const { nodes, edges, repoId } = parseGraphJson(text);
-			onSetGraphData(nodes, edges, repoId);
-			log$3.info(`imported from ${source}`, {
-				nodes: nodes.length,
-				edges: edges.length
-			});
-			setFeedback({
-				kind: "ok",
-				msg: t$1("import.imported", {
-					nodes: nodes.length,
-					edges: edges.length
-				})
-			});
-			timersRef.current.push(setTimeout(onClose, UI.IMPORT_CLOSE_DELAY_MS));
-		} catch (e) {
-			const msg = e instanceof Error ? e.message : String(e);
-			log$3.error(`import failed from ${source}`, msg);
-			onSetError(t$1("import.importFailed", { msg }));
-			setFeedback({
-				kind: "err",
-				msg
-			});
-		} finally {
-			setBusy(false);
-		}
-	}, [
-		onSetGraphData,
-		onSetError,
-		t$1,
-		onClose
-	]);
-	const handlePasteSubmit = useCallback(() => {
-		if (!pasteText.trim()) {
-			setFeedback({
-				kind: "err",
-				msg: t$1("import.pasteFirst")
-			});
-			return;
-		}
-		applyGraph(pasteText, "paste");
-	}, [
-		pasteText,
-		applyGraph,
-		t$1
-	]);
-	const handleWorkspaceScan = useCallback(() => {
-		setBusy(true);
-		setFeedback(null);
-		onSetLoading(true);
-		window.dispatchEvent(new CustomEvent(DOM_EVENTS.IMPORT_REPO, { detail: { path: effectivePath } }));
-		log$3.info("workspace scan requested", { path: effectivePath });
-		setFeedback({
-			kind: "ok",
-			msg: t$1("import.requestedScan", { path: effectivePath })
-		});
-	}, [
-		effectivePath,
-		onSetLoading,
-		t$1
-	]);
-	const handleInit = useCallback(() => {
-		onSetInitStatus("initializing");
-		setFeedback(null);
-		window.dispatchEvent(new CustomEvent(DOM_EVENTS.INIT_GRAPH, { detail: { path: effectivePath } }));
-		log$3.info("init requested", { path: effectivePath });
-		setFeedback({
-			kind: "ok",
-			msg: t$1("import.initStarted", { path: effectivePath })
-		});
-	}, [
-		effectivePath,
-		onSetInitStatus,
-		t$1
-	]);
-	const handleToggleWatch = useCallback(() => {
-		const next$1 = !watchEnabled;
-		onSetWatchEnabled(next$1);
-		window.dispatchEvent(new CustomEvent(DOM_EVENTS.TOGGLE_WATCH, { detail: {
-			enabled: next$1,
-			path: effectivePath
-		} }));
-		log$3.info("watch toggled", {
-			enabled: next$1,
-			path: effectivePath
-		});
-	}, [
-		watchEnabled,
-		onSetWatchEnabled,
-		effectivePath
-	]);
-	return /* @__PURE__ */ jsxs("div", {
-		className: "cg-import-panel",
-		role: "dialog",
-		"aria-modal": "true",
-		"aria-label": t$1("import.title"),
-		ref: panelRef,
-		children: [
-			/* @__PURE__ */ jsxs("div", {
-				className: "cg-import-header",
-				children: [/* @__PURE__ */ jsx("span", {
-					className: "cg-import-title",
-					children: t$1("import.title")
-				}), /* @__PURE__ */ jsx("button", {
-					className: "cg-import-close",
-					onClick: onClose,
-					"aria-label": t$1("import.close"),
-					children: /* @__PURE__ */ jsx(CloseIcon, { size: 16 })
-				})]
-			}),
-			prereqMissing && /* @__PURE__ */ jsxs("div", {
-				className: "cg-prereq-warning",
-				role: "alert",
-				children: [
-					/* @__PURE__ */ jsx(AlertIcon, { size: 14 }),
-					/* @__PURE__ */ jsx("span", { children: t$1("import.prereqMissing") }),
-					/* @__PURE__ */ jsxs("div", {
-						className: "cg-prereq-install",
-						children: [/* @__PURE__ */ jsx("code", { children: t$1("import.prereqCmd", { cmd: "dsh plugin --profile web add dsh-codegraph" }) }), /* @__PURE__ */ jsx("button", {
-							className: "cg-prereq-copy",
-							onClick: () => {
-								copyInstallCmd();
-							},
-							disabled: copied,
-							"aria-label": t$1("import.prereqCopy"),
-							children: copied ? t$1("import.copied") : t$1("import.prereqCopy")
-						})]
-					})
-				]
-			}),
-			/* @__PURE__ */ jsxs("div", {
-				className: "cg-import-tabs",
-				role: "tablist",
-				children: [/* @__PURE__ */ jsxs("button", {
-					className: tab === "workspace" ? "cg-active" : "",
-					onClick: () => setTab("workspace"),
-					role: "tab",
-					"aria-selected": tab === "workspace",
-					children: [
-						/* @__PURE__ */ jsx(FolderIcon, { size: 14 }),
-						" ",
-						t$1("import.workspace")
-					]
-				}), /* @__PURE__ */ jsxs("button", {
-					className: tab === "paste" ? "cg-active" : "",
-					onClick: () => setTab("paste"),
-					role: "tab",
-					"aria-selected": tab === "paste",
-					children: [
-						/* @__PURE__ */ jsx(UploadIcon, { size: 14 }),
-						" ",
-						t$1("import.paste")
-					]
-				})]
-			}),
-			/* @__PURE__ */ jsxs("div", {
-				className: "cg-import-body",
-				children: [tab === "workspace" && /* @__PURE__ */ jsxs("div", {
-					className: "cg-workspace-zone",
-					children: [
-						/* @__PURE__ */ jsxs("div", {
-							className: "cg-workspace-path-row",
-							children: [/* @__PURE__ */ jsx(FolderIcon, {
-								size: 16,
-								className: "cg-workspace-path-icon"
-							}), /* @__PURE__ */ jsx("span", {
-								className: "cg-workspace-path-label",
-								children: t$1("import.workspacePath")
-							})]
-						}),
-						/* @__PURE__ */ jsx("input", {
-							className: "cg-workspace-path-input",
-							id: "import-workspace-path",
-							name: "import-workspace-path",
-							type: "text",
-							value: customPath,
-							onChange: (e) => setCustomPath(e.target.value),
-							placeholder: workspacePath || ".",
-							"aria-label": t$1("import.workspacePath")
-						}),
-						/* @__PURE__ */ jsx("span", {
-							className: "cg-workspace-hint",
-							children: t$1("import.workspaceHint")
-						}),
-						/* @__PURE__ */ jsxs("div", {
-							className: "cg-workspace-actions",
-							children: [/* @__PURE__ */ jsxs("button", {
-								className: "cg-import-submit",
-								onClick: handleWorkspaceScan,
-								disabled: busy,
-								children: [
-									/* @__PURE__ */ jsx(RefreshIcon, { size: 14 }),
-									" ",
-									busy ? t$1("import.scanning") : t$1("import.scanWorkspace")
-								]
-							}), /* @__PURE__ */ jsxs("button", {
-								className: "cg-import-submit cg-secondary",
-								onClick: handleInit,
-								disabled: initStatus === "initializing",
-								children: [
-									/* @__PURE__ */ jsx(ZapIcon, { size: 14 }),
-									" ",
-									initStatus === "initializing" ? t$1("import.initializing") : t$1("import.initGraph")
-								]
-							})]
-						}),
-						/* @__PURE__ */ jsxs("button", {
-							className: `cg-watch-toggle ${watchEnabled ? "cg-active" : ""}`,
-							onClick: handleToggleWatch,
-							children: [
-								/* @__PURE__ */ jsx(WatchIcon, { size: 14 }),
-								" ",
-								watchEnabled ? t$1("import.watchOn") : t$1("import.watchOff")
-							]
-						}),
-						initStatus === "done" && /* @__PURE__ */ jsx("div", {
-							className: "cg-init-feedback cg-ok",
-							children: t$1("import.initSuccess")
-						}),
-						initStatus === "error" && /* @__PURE__ */ jsx("div", {
-							className: "cg-init-feedback cg-err",
-							children: t$1("import.initFailed")
-						})
-					]
-				}), tab === "paste" && /* @__PURE__ */ jsxs("div", {
-					className: "cg-paste-zone",
-					children: [/* @__PURE__ */ jsx("textarea", {
-						className: "cg-paste-input",
-						id: "import-paste-json",
-						name: "import-paste-json",
-						placeholder: t$1("import.pastePlaceholder"),
-						value: pasteText,
-						onChange: (e) => setPasteText(e.target.value),
-						rows: 8,
-						"aria-label": t$1("import.pastePlaceholder")
-					}), /* @__PURE__ */ jsx("button", {
-						className: "cg-import-submit",
-						onClick: handlePasteSubmit,
-						disabled: busy,
-						children: busy ? t$1("import.importing") : t$1("import.importJson")
-					})]
-				})]
-			}),
-			feedback && /* @__PURE__ */ jsxs("div", {
-				className: `cg-import-feedback cg-${feedback.kind}`,
-				role: "status",
-				children: [feedback.kind === "err" && /* @__PURE__ */ jsx(AlertIcon, { size: 14 }), /* @__PURE__ */ jsx("span", { children: feedback.msg })]
-			})
-		]
-	});
-});
-
-//#endregion
-//#region src/client/components/Legend.tsx
-const ALL_NODE_TYPES = [
-	{
-		type: "function",
-		color: "var(--cg-node-function)",
-		key: "legend.function"
-	},
-	{
-		type: "class",
-		color: "var(--cg-node-class)",
-		key: "legend.class"
-	},
-	{
-		type: "variable",
-		color: "var(--cg-node-variable)",
-		key: "legend.variable"
-	},
-	{
-		type: "module",
-		color: "var(--cg-node-module)",
-		key: "legend.module"
-	},
-	{
-		type: "interface",
-		color: "var(--cg-node-interface)",
-		key: "legend.interface"
-	},
-	{
-		type: "type",
-		color: "var(--cg-node-type)",
-		key: "legend.type"
-	}
-];
-const ALL_EDGE_TYPES = [
-	{
-		type: "call",
-		style: "solid",
-		color: "var(--cg-edge-call)",
-		key: "legend.call"
-	},
-	{
-		type: "import",
-		style: "dashed",
-		color: "var(--cg-edge-import)",
-		key: "legend.import"
-	},
-	{
-		type: "extend",
-		style: "solid",
-		color: "var(--cg-edge-extend)",
-		key: "legend.extend"
-	},
-	{
-		type: "implement",
-		style: "dotted",
-		color: "var(--cg-edge-implement)",
-		key: "legend.implement"
-	},
-	{
-		type: "dependency",
-		style: "dashed",
-		color: "var(--cg-edge-dependency)",
-		key: "legend.dependency"
-	},
-	{
-		type: "contains",
-		style: "dotted",
-		color: "var(--cg-edge-contains)",
-		key: "legend.contains"
-	}
-];
-const VIEW_MODE_NODE_FILTER = {
-	code: new Set([
-		"function",
-		"class",
-		"variable",
-		"module",
-		"interface",
-		"type"
-	]),
-	dependencies: new Set([
-		"module",
-		"class",
-		"type"
-	]),
-	inheritance: new Set([
-		"class",
-		"interface",
-		"type"
-	]),
-	callgraph: new Set([
-		"function",
-		"class",
-		"module"
-	]),
-	package: new Set(["module", "class"]),
-	class: new Set([
-		"class",
-		"interface",
-		"type"
-	]),
-	cfg: new Set(["function"]),
-	flowchart: new Set(["function"]),
-	sequence: new Set([
-		"function",
-		"class",
-		"module"
-	])
-};
-const VIEW_MODE_EDGE_FILTER = {
-	code: new Set([
-		"call",
-		"import",
-		"extend",
-		"implement",
-		"contains"
-	]),
-	dependencies: new Set(["dependency"]),
-	inheritance: new Set(["extend", "implement"]),
-	callgraph: new Set(["call"]),
-	package: new Set(["contains", "dependency"]),
-	class: new Set([
-		"extend",
-		"implement",
-		"contains"
-	]),
-	cfg: new Set(["call"]),
-	flowchart: new Set(["call"]),
-	sequence: new Set(["call"])
-};
-const Legend = memo(function Legend$1({ viewMode, onClose }) {
-	const t$1 = useT();
-	const nodeTypes = ALL_NODE_TYPES.filter((n) => VIEW_MODE_NODE_FILTER[viewMode]?.has(n.type) ?? true);
-	const edgeTypes = ALL_EDGE_TYPES.filter((e) => VIEW_MODE_EDGE_FILTER[viewMode]?.has(e.type) ?? true);
-	return /* @__PURE__ */ jsxs("div", {
-		className: "cg-legend-panel",
-		role: "complementary",
-		"aria-label": t$1("legend.title"),
-		children: [/* @__PURE__ */ jsxs("div", {
-			className: "cg-legend-header",
-			children: [/* @__PURE__ */ jsx("span", { children: t$1("legend.title") }), /* @__PURE__ */ jsx("button", {
-				className: "cg-legend-close",
-				onClick: onClose,
-				"aria-label": t$1("legend.close"),
-				children: "×"
-			})]
-		}), /* @__PURE__ */ jsxs("div", {
-			className: "cg-legend-body",
-			children: [/* @__PURE__ */ jsxs("div", {
-				className: "cg-legend-section",
-				children: [/* @__PURE__ */ jsx("div", {
-					className: "cg-legend-section-title",
-					children: t$1("legend.nodes")
-				}), nodeTypes.map((n) => /* @__PURE__ */ jsxs("div", {
-					className: "cg-legend-row",
-					children: [/* @__PURE__ */ jsx("span", {
-						className: "cg-legend-swatch",
-						style: { background: n.color }
-					}), /* @__PURE__ */ jsx("span", { children: t$1(n.key) })]
-				}, n.type))]
-			}), /* @__PURE__ */ jsxs("div", {
-				className: "cg-legend-section",
-				children: [/* @__PURE__ */ jsx("div", {
-					className: "cg-legend-section-title",
-					children: t$1("legend.edges")
-				}), edgeTypes.map((e) => /* @__PURE__ */ jsxs("div", {
-					className: "cg-legend-row",
-					children: [/* @__PURE__ */ jsx("span", {
-						className: "cg-legend-line",
-						style: {
-							borderTopStyle: e.style,
-							borderTopColor: e.color
-						}
-					}), /* @__PURE__ */ jsx("span", { children: t$1(e.key) })]
-				}, e.type))]
-			})]
-		})]
-	});
-});
-
-//#endregion
-//#region src/client/utils/deriveName.ts
-function deriveWorkspaceName(path) {
-	if (!path || path === ".") return "";
-	const parts = path.replace(/[\\/]+$/, "").split(/[\\/]/);
-	return parts[parts.length - 1] || path;
-}
 
 //#endregion
 //#region src/client/components/WorkspaceSelector.tsx
@@ -62311,891 +61821,6 @@ const Toolbar = memo(function toolbar(props) {
 });
 
 //#endregion
-//#region src/client/components/SearchBar.tsx
-const SearchBar = memo(function SearchBar$1({ query, matchCount, searchResults, onChange, onClose, onSelectResult }) {
-	const t$1 = useT();
-	const [showResults, setShowResults] = useState(false);
-	const [activeIndex, setActiveIndex] = useState(-1);
-	const containerRef = useRef(null);
-	const listRef = useRef(null);
-	const triggerRef = useRef(null);
-	useEffect(() => {
-		triggerRef.current = document.activeElement;
-		return () => {
-			triggerRef.current?.focus();
-		};
-	}, []);
-	useEffect(() => {
-		const handler = (e) => {
-			if (containerRef.current && !containerRef.current.contains(e.target)) setShowResults(false);
-		};
-		document.addEventListener("mousedown", handler);
-		return () => document.removeEventListener("mousedown", handler);
-	}, []);
-	useEffect(() => {
-		setActiveIndex(-1);
-	}, [query]);
-	useEffect(() => {
-		if (activeIndex < 0) return;
-		const list = listRef.current;
-		if (!list) return;
-		const item = list.children[activeIndex];
-		if (item) item.scrollIntoView({ block: "nearest" });
-	}, [activeIndex]);
-	const handleSelect = (id) => {
-		onSelectResult(id);
-		setShowResults(false);
-		setActiveIndex(-1);
-		onClose();
-	};
-	const handleKeyDown = (e) => {
-		if (e.key === "Escape") {
-			e.preventDefault();
-			e.stopPropagation();
-			onClose();
-			return;
-		}
-		if (!showResults || searchResults.length === 0) return;
-		const maxIdx = Math.min(searchResults.length, 10) - 1;
-		if (e.key === "ArrowDown") {
-			e.preventDefault();
-			setActiveIndex((prev) => prev < maxIdx ? prev + 1 : 0);
-		} else if (e.key === "ArrowUp") {
-			e.preventDefault();
-			setActiveIndex((prev) => prev > 0 ? prev - 1 : maxIdx);
-		} else if (e.key === "Enter" && activeIndex >= 0 && activeIndex < displayResults.length) {
-			e.preventDefault();
-			handleSelect(displayResults[activeIndex].id);
-		}
-	};
-	const displayResults = searchResults.slice(0, 10);
-	return /* @__PURE__ */ jsxs("div", {
-		className: "cg-search-bar",
-		ref: containerRef,
-		children: [
-			/* @__PURE__ */ jsx(SearchIcon, {
-				size: 14,
-				className: "cg-search-bar-icon"
-			}),
-			/* @__PURE__ */ jsx("input", {
-				id: "graph-search",
-				name: "graph-search",
-				type: "text",
-				placeholder: t$1("search.placeholder"),
-				value: query,
-				onChange: (e) => {
-					onChange(e.target.value);
-					setShowResults(true);
-				},
-				onFocus: () => setShowResults(true),
-				onKeyDown: handleKeyDown,
-				autoFocus: true,
-				"aria-label": t$1("search.placeholder")
-			}),
-			/* @__PURE__ */ jsx("button", {
-				onClick: onClose,
-				"aria-label": t$1("search.close"),
-				children: /* @__PURE__ */ jsx(CloseIcon, { size: 14 })
-			}),
-			query && matchCount !== null && /* @__PURE__ */ jsx("span", {
-				className: "cg-search-hint",
-				role: "status",
-				"aria-live": "polite",
-				children: matchCount > 0 ? t$1(matchCount === 1 ? "search.match" : "search.matches", { n: matchCount }) : t$1("search.noMatch")
-			}),
-			!query && /* @__PURE__ */ jsx("span", {
-				className: "cg-search-hint",
-				children: t$1("search.debounced")
-			}),
-			showResults && query && searchResults.length > 0 && /* @__PURE__ */ jsxs("ul", {
-				className: "cg-search-results",
-				role: "listbox",
-				ref: listRef,
-				children: [displayResults.map((item, idx) => /* @__PURE__ */ jsxs("li", {
-					role: "option",
-					"aria-selected": idx === activeIndex,
-					className: `cg-search-result-item ${idx === activeIndex ? "cg-active" : ""}`,
-					onClick: () => handleSelect(item.id),
-					onKeyDown: (e) => {
-						if (e.key === "Enter") handleSelect(item.id);
-					},
-					tabIndex: 0,
-					children: [
-						/* @__PURE__ */ jsx("span", {
-							className: "cg-search-result-type",
-							children: item.type
-						}),
-						/* @__PURE__ */ jsx("span", {
-							className: "cg-search-result-label",
-							children: item.label
-						}),
-						/* @__PURE__ */ jsx("span", {
-							className: "cg-search-result-path",
-							children: item.filePath
-						})
-					]
-				}, item.id)), searchResults.length > 10 && /* @__PURE__ */ jsx("li", {
-					className: "cg-search-result-more",
-					children: t$1("search.moreResults", { n: searchResults.length - 10 })
-				})]
-			})
-		]
-	});
-});
-
-//#endregion
-//#region src/client/components/StatusBar.tsx
-function formatTime(ts) {
-	const d = new Date(ts);
-	return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
-}
-const DEGRADATION_KEYS = {
-	"cycle-detection-skipped": "degradation.cycleDetectionSkipped",
-	"community-detection-sampled": "degradation.communityDetectionSampled",
-	"large-graph-mode": "degradation.largeGraphMode"
-};
-const StatusBar = memo(function StatusBar$1({ error: error$1, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount, displayedNodeCount, performanceDegradations }) {
-	const t$1 = useT();
-	const statusDotClass = error$1 ? "cg-status-dot cg-error" : isLoading ? "cg-status-dot cg-loading" : "cg-status-dot";
-	const statusText = error$1 ? t$1("state.error") : isLoading ? t$1("state.loading") : t$1("state.ready");
-	const wsName = workspaceName ? deriveWorkspaceName(workspaceName) : "";
-	const hasDegradations = performanceDegradations && performanceDegradations.length > 0;
-	const degradationLabels = hasDegradations ? performanceDegradations.map((key) => DEGRADATION_KEYS[key] ? t$1(DEGRADATION_KEYS[key]) : key).join(", ") : "";
-	const expandedNodeIds = useGraphStore((s) => s.expandedNodeIds);
-	const rawNodes = useGraphStore((s) => s.rawNodes);
-	const expandedFunctionCount = [...expandedNodeIds].filter((id) => rawNodes.some((n) => n.id === id && n.type === "function")).length;
-	const totalFunctionCount = rawNodes.filter((n) => n.type === "function").length;
-	const showFunctionBudget = expandedFunctionCount > 0 || totalFunctionCount > FUNCTION_BODY.MAX_EXPANDED && expandedNodeIds.size > 0;
-	return /* @__PURE__ */ jsxs("div", {
-		className: "cg-status-bar",
-		role: "status",
-		"aria-live": "polite",
-		children: [
-			/* @__PURE__ */ jsxs("div", {
-				className: "cg-status-item",
-				children: [/* @__PURE__ */ jsx("span", { className: statusDotClass }), /* @__PURE__ */ jsx("span", { children: statusText })]
-			}),
-			wsName && /* @__PURE__ */ jsx("span", {
-				className: "cg-status-workspace",
-				title: workspaceName,
-				children: wsName
-			}),
-			truncated ? /* @__PURE__ */ jsxs("span", {
-				className: "cg-status-truncated",
-				title: t$1("state.truncatedHint"),
-				children: ["⚠ ", t$1("state.truncated", {
-					shown: displayedNodeCount ?? 0,
-					total: totalNodeCount ?? 0
-				})]
-			}) : totalNodeCount && totalNodeCount > 0 ? /* @__PURE__ */ jsxs("span", {
-				className: "cg-status-complete",
-				title: t$1("state.complete", { total: totalNodeCount }),
-				children: ["✓ ", t$1("state.complete", { total: totalNodeCount })]
-			}) : null,
-			showFunctionBudget && /* @__PURE__ */ jsx("span", {
-				className: "cg-status-function-budget",
-				title: t$1("state.functionBudget", {
-					expanded: expandedFunctionCount,
-					total: totalFunctionCount
-				}),
-				children: t$1("state.functionBudget", {
-					expanded: expandedFunctionCount,
-					total: totalFunctionCount
-				})
-			}),
-			hasDegradations && /* @__PURE__ */ jsxs("span", {
-				className: "cg-status-degradation",
-				title: t$1("degradation.tooltip"),
-				children: ["⚠ ", degradationLabels]
-			}),
-			watchEnabled && /* @__PURE__ */ jsx("span", {
-				className: "cg-watch-indicator",
-				title: t$1("import.watchOn"),
-				children: "●"
-			}),
-			/* @__PURE__ */ jsx("div", { className: "cg-status-spacer" }),
-			/* @__PURE__ */ jsx("a", {
-				href: REPO_URL,
-				target: "_blank",
-				rel: "noopener noreferrer",
-				className: "cg-status-github",
-				title: t$1("status.feedback"),
-				"aria-label": t$1("status.feedback"),
-				children: /* @__PURE__ */ jsx(GithubIcon, { size: 14 })
-			}),
-			/* @__PURE__ */ jsx("div", {
-				className: "cg-status-item",
-				children: /* @__PURE__ */ jsx("span", {
-					className: "cg-status-time",
-					children: lastUpdated > 0 ? t$1("state.updated", { time: formatTime(lastUpdated) }) : t$1("state.noData")
-				})
-			})
-		]
-	});
-});
-
-//#endregion
-//#region src/client/components/NodeDetail.tsx
-const TYPE_ICONS = {
-	function: "fn",
-	class: "C",
-	variable: "V",
-	module: "M",
-	interface: "I",
-	type: "T"
-};
-const TYPE_COLORS = {
-	function: "var(--cg-node-function)",
-	class: "var(--cg-node-class)",
-	variable: "var(--cg-node-variable)",
-	module: "var(--cg-node-module)",
-	interface: "var(--cg-node-interface)",
-	type: "var(--cg-node-type)"
-};
-const EXPANDABLE_TYPES = new Set([
-	"module",
-	"class",
-	"interface"
-]);
-const NodeDetail = memo(function NodeDetail$1({ node, onClose, isExpanded, connectionCount, onCollapse, onSelectFunction, onAggregateCallChain }) {
-	const t$1 = useT();
-	const rawNodes = useGraphStore((s) => s.rawNodes);
-	const expandedNodeIds = useGraphStore((s) => s.expandedNodeIds);
-	const icon = TYPE_ICONS[node.type] ?? "?";
-	const color = TYPE_COLORS[node.type] ?? "var(--cg-accent)";
-	const canExpand = EXPANDABLE_TYPES.has(node.type);
-	const expandedFunctionBodyCount = useMemo(() => {
-		const functionIdSet = new Set();
-		for (const n of rawNodes) if (n.type === "function") functionIdSet.add(n.id);
-		let count = 0;
-		for (const id of expandedNodeIds) if (functionIdSet.has(id)) count++;
-		return count;
-	}, [rawNodes, expandedNodeIds]);
-	const isClusterNode = "isCluster" in node && node.isCluster === true;
-	const clusterChildCount = isClusterNode ? node.childCount ?? 0 : 0;
-	const clusterChildIds = isClusterNode ? node.childIds ?? [] : [];
-	const childFunctionNodes = useMemo(() => {
-		if (!isClusterNode || clusterChildIds.length === 0) return [];
-		const nodeMap = new Map(rawNodes.map((n) => [n.id, n]));
-		const result = [];
-		for (const id of clusterChildIds) {
-			const child = nodeMap.get(id);
-			if (child && child.type === "function") result.push(child);
-		}
-		return result;
-	}, [
-		isClusterNode,
-		clusterChildIds,
-		rawNodes
-	]);
-	const displayedChildFunctions = childFunctionNodes.slice(0, 50);
-	const hiddenChildFunctionCount = childFunctionNodes.length - displayedChildFunctions.length;
-	const signature = node.properties?.signature;
-	const docstring = node.properties?.docstring;
-	const exported = node.properties?.exported;
-	const kind = node.properties?.kind;
-	const extraProps = useMemo(() => {
-		const knownKeys = new Set([
-			"signature",
-			"docstring",
-			"exported",
-			"kind"
-		]);
-		return Object.entries(node.properties ?? {}).filter(([k]) => !knownKeys.has(k));
-	}, [node]);
-	return /* @__PURE__ */ jsxs("div", {
-		className: "cg-node-detail-panel",
-		role: "complementary",
-		"aria-label": t$1("detail.ariaLabel"),
-		"aria-live": "polite",
-		children: [
-			/* @__PURE__ */ jsx("button", {
-				className: "cg-close-btn",
-				onClick: onClose,
-				"aria-label": t$1("detail.close"),
-				children: /* @__PURE__ */ jsx(CloseIcon, { size: 14 })
-			}),
-			/* @__PURE__ */ jsxs("div", {
-				className: "cg-detail-header",
-				children: [
-					/* @__PURE__ */ jsx("span", {
-						className: "cg-detail-type-icon",
-						style: {
-							color,
-							borderColor: color
-						},
-						children: icon
-					}),
-					/* @__PURE__ */ jsx("h3", { children: node.label }),
-					exported && /* @__PURE__ */ jsx("span", {
-						className: "cg-detail-exported-badge",
-						children: t$1("detail.exportedBadge")
-					}),
-					isExpanded && /* @__PURE__ */ jsx("span", {
-						className: "cg-detail-expanded-badge",
-						children: t$1("detail.expandedBadge")
-					})
-				]
-			}),
-			/* @__PURE__ */ jsxs("div", {
-				className: "cg-detail-row",
-				children: [/* @__PURE__ */ jsx("span", {
-					className: "cg-detail-label",
-					children: t$1("detail.type")
-				}), /* @__PURE__ */ jsx("span", {
-					className: "cg-detail-value",
-					children: node.type
-				})]
-			}),
-			kind && kind !== node.type && /* @__PURE__ */ jsxs("div", {
-				className: "cg-detail-row",
-				children: [/* @__PURE__ */ jsx("span", {
-					className: "cg-detail-label",
-					children: t$1("detail.kind")
-				}), /* @__PURE__ */ jsx("span", {
-					className: "cg-detail-value",
-					children: kind
-				})]
-			}),
-			/* @__PURE__ */ jsxs("div", {
-				className: "cg-detail-row",
-				children: [/* @__PURE__ */ jsx("span", {
-					className: "cg-detail-label",
-					children: t$1("detail.file")
-				}), /* @__PURE__ */ jsx("span", {
-					className: "cg-detail-value",
-					children: node.filePath
-				})]
-			}),
-			/* @__PURE__ */ jsxs("div", {
-				className: "cg-detail-row",
-				children: [/* @__PURE__ */ jsx("span", {
-					className: "cg-detail-label",
-					children: t$1("detail.line")
-				}), /* @__PURE__ */ jsx("span", {
-					className: "cg-detail-value",
-					children: node.lineNumber
-				})]
-			}),
-			connectionCount !== void 0 && connectionCount > 0 && /* @__PURE__ */ jsxs("div", {
-				className: "cg-detail-row",
-				children: [/* @__PURE__ */ jsx("span", {
-					className: "cg-detail-label",
-					children: t$1("detail.connections")
-				}), /* @__PURE__ */ jsx("span", {
-					className: "cg-detail-value",
-					children: connectionCount
-				})]
-			}),
-			signature && /* @__PURE__ */ jsxs("div", {
-				className: "cg-detail-signature",
-				children: [/* @__PURE__ */ jsx("div", {
-					className: "cg-detail-section-title",
-					children: t$1("detail.signature")
-				}), /* @__PURE__ */ jsx("code", {
-					className: "cg-detail-code",
-					children: signature
-				})]
-			}),
-			docstring && /* @__PURE__ */ jsxs("div", {
-				className: "cg-detail-docstring",
-				children: [/* @__PURE__ */ jsx("div", {
-					className: "cg-detail-section-title",
-					children: t$1("detail.docstring")
-				}), /* @__PURE__ */ jsx("pre", {
-					className: "cg-detail-doc-text",
-					children: docstring
-				})]
-			}),
-			canExpand && !isExpanded && /* @__PURE__ */ jsx("div", {
-				className: "cg-detail-expand-hint",
-				children: t$1("detail.doubleClickExpand")
-			}),
-			canExpand && isExpanded && onCollapse && /* @__PURE__ */ jsxs("div", {
-				className: "cg-detail-expand-hint cg-detail-expand-hint--expanded",
-				children: [t$1("detail.expanded"), /* @__PURE__ */ jsx("button", {
-					onClick: onCollapse,
-					className: "cg-detail-collapse-btn",
-					children: t$1("detail.collapse")
-				})]
-			}),
-			node.type === "function" && onSelectFunction && /* @__PURE__ */ jsxs("div", {
-				className: "cg-detail-micro-actions",
-				children: [
-					/* @__PURE__ */ jsxs("div", {
-						className: "cg-detail-function-body-budget",
-						role: "status",
-						"aria-live": "polite",
-						children: [
-							/* @__PURE__ */ jsx("span", {
-								className: "cg-detail-budget-label",
-								children: t$1("detail.functionBodyBudget", {
-									expanded: expandedFunctionBodyCount,
-									max: FUNCTION_BODY.MAX_EXPANDED
-								})
-							}),
-							/* @__PURE__ */ jsx("div", {
-								className: "cg-detail-budget-bar",
-								"aria-hidden": "true",
-								children: /* @__PURE__ */ jsx("div", {
-									className: "cg-detail-budget-fill",
-									style: { width: `${Math.min(expandedFunctionBodyCount / FUNCTION_BODY.MAX_EXPANDED * 100, 100)}%` }
-								})
-							}),
-							expandedFunctionBodyCount >= FUNCTION_BODY.MAX_EXPANDED && /* @__PURE__ */ jsx("span", {
-								className: "cg-detail-budget-hint",
-								children: t$1("detail.functionBodyBudgetHint", { max: FUNCTION_BODY.MAX_EXPANDED })
-							})
-						]
-					}),
-					/* @__PURE__ */ jsx("div", {
-						className: "cg-detail-section-title",
-						children: t$1("detail.microViews")
-					}),
-					/* @__PURE__ */ jsxs("div", {
-						className: "cg-detail-micro-btns",
-						children: [
-							/* @__PURE__ */ jsx("button", {
-								className: "cg-detail-micro-btn",
-								onClick: () => onSelectFunction(node, "cfg"),
-								"aria-label": t$1("toolbar.viewModeCfg"),
-								children: t$1("viewMode.cfg")
-							}),
-							/* @__PURE__ */ jsx("button", {
-								className: "cg-detail-micro-btn",
-								onClick: () => onSelectFunction(node, "flowchart"),
-								"aria-label": t$1("toolbar.viewModeFlowchart"),
-								children: t$1("viewMode.flowchart")
-							}),
-							/* @__PURE__ */ jsx("button", {
-								className: "cg-detail-micro-btn",
-								onClick: () => onSelectFunction(node, "sequence"),
-								"aria-label": t$1("toolbar.viewModeSequence"),
-								children: t$1("viewMode.sequence")
-							})
-						]
-					}),
-					onAggregateCallChain && /* @__PURE__ */ jsx("button", {
-						className: "cg-detail-micro-btn cg-detail-chain-btn",
-						onClick: () => onAggregateCallChain(node.id),
-						children: t$1("detail.aggregateCallChain")
-					})
-				]
-			}),
-			node.type !== "function" && !isClusterNode && onSelectFunction && /* @__PURE__ */ jsx("div", {
-				className: "cg-detail-micro-hint",
-				children: t$1("detail.microHint")
-			}),
-			isClusterNode && displayedChildFunctions.length > 0 && onSelectFunction && /* @__PURE__ */ jsxs("div", {
-				className: "cg-detail-cluster-functions",
-				children: [/* @__PURE__ */ jsxs("div", {
-					className: "cg-detail-section-title",
-					children: [
-						t$1("detail.functionsInCluster"),
-						" (",
-						childFunctionNodes.length,
-						clusterChildCount > 50 ? "+" : "",
-						")"
-					]
-				}), /* @__PURE__ */ jsxs("div", {
-					className: "cg-detail-function-list",
-					children: [displayedChildFunctions.map((fn$7) => /* @__PURE__ */ jsxs("div", {
-						className: "cg-detail-function-item",
-						children: [/* @__PURE__ */ jsx("span", {
-							className: "cg-detail-function-name",
-							title: fn$7.filePath,
-							children: fn$7.label
-						}), /* @__PURE__ */ jsxs("div", {
-							className: "cg-detail-function-micro-btns",
-							children: [
-								/* @__PURE__ */ jsx("button", {
-									className: "cg-detail-micro-btn cg-detail-micro-btn--small",
-									onClick: () => onSelectFunction(fn$7, "cfg"),
-									"aria-label": t$1("toolbar.viewModeCfg"),
-									children: t$1("viewMode.cfg")
-								}),
-								/* @__PURE__ */ jsx("button", {
-									className: "cg-detail-micro-btn cg-detail-micro-btn--small",
-									onClick: () => onSelectFunction(fn$7, "flowchart"),
-									"aria-label": t$1("toolbar.viewModeFlowchart"),
-									children: t$1("viewMode.flowchart")
-								}),
-								/* @__PURE__ */ jsx("button", {
-									className: "cg-detail-micro-btn cg-detail-micro-btn--small",
-									onClick: () => onSelectFunction(fn$7, "sequence"),
-									"aria-label": t$1("toolbar.viewModeSequence"),
-									children: t$1("viewMode.sequence")
-								})
-							]
-						})]
-					}, fn$7.id)), hiddenChildFunctionCount > 0 && /* @__PURE__ */ jsx("div", {
-						className: "cg-detail-function-truncated",
-						children: t$1("detail.moreFunctions", { count: hiddenChildFunctionCount })
-					})]
-				})]
-			}),
-			extraProps.length > 0 && /* @__PURE__ */ jsxs("div", {
-				className: "cg-detail-extra",
-				children: [/* @__PURE__ */ jsx("div", {
-					className: "cg-detail-extra-title",
-					children: t$1("detail.properties")
-				}), extraProps.map(([k, v]) => /* @__PURE__ */ jsxs("div", {
-					className: "cg-detail-row",
-					children: [/* @__PURE__ */ jsx("span", {
-						className: "cg-detail-label",
-						children: k
-					}), /* @__PURE__ */ jsx("span", {
-						className: "cg-detail-value",
-						children: typeof v === "object" ? JSON.stringify(v) : String(v)
-					})]
-				}, k))]
-			})
-		]
-	});
-});
-
-//#endregion
-//#region src/client/components/StatsPanel.tsx
-const StatsPanel = memo(function StatsPanel$1({ counts, onClose, thumbnail, viewportInfo, onFocusArea }) {
-	const t$1 = useT();
-	const total = counts.function + counts.class + counts.variable + counts.module + counts.interface;
-	const imgRef = useRef(null);
-	const [imgLoaded, setImgLoaded] = useState(false);
-	useEffect(() => {
-		if (thumbnail) setImgLoaded(false);
-	}, [thumbnail]);
-	const viewportBox = (() => {
-		if (!viewportInfo || !imgLoaded || !imgRef.current) return null;
-		const img = imgRef.current;
-		const imgW = img.clientWidth;
-		const imgH = img.clientHeight;
-		if (imgW === 0 || imgH === 0) return null;
-		const { zoom, pan, renderedSize, totalSize } = viewportInfo;
-		if (totalSize.w === 0 || totalSize.h === 0) return null;
-		const scale$1 = Math.min(imgW / totalSize.w, imgH / totalSize.h);
-		const offsetX = (imgW - totalSize.w * scale$1) / 2;
-		const offsetY = (imgH - totalSize.h * scale$1) / 2;
-		const vpW = renderedSize.w / zoom * scale$1;
-		const vpH = renderedSize.h / zoom * scale$1;
-		const vpX = offsetX + pan.x / zoom * scale$1 + (totalSize.w * scale$1 - imgW) / 2;
-		const vpY = offsetY + pan.y / zoom * scale$1 + (totalSize.h * scale$1 - imgH) / 2;
-		return {
-			left: vpX,
-			top: vpY,
-			width: vpW,
-			height: vpH
-		};
-	})();
-	const handleThumbnailClick = (e) => {
-		if (!onFocusArea || !imgRef.current) return;
-		const rect = imgRef.current.getBoundingClientRect();
-		const ratioX = (e.clientX - rect.left) / rect.width;
-		const ratioY = (e.clientY - rect.top) / rect.height;
-		onFocusArea(ratioX, ratioY);
-	};
-	return /* @__PURE__ */ jsxs("div", {
-		className: "cg-mini-map",
-		role: "complementary",
-		"aria-label": t$1("minimap.title"),
-		children: [/* @__PURE__ */ jsxs("div", {
-			className: "cg-mini-map-header",
-			children: [/* @__PURE__ */ jsx("span", { children: t$1("minimap.title") }), /* @__PURE__ */ jsx("button", {
-				onClick: onClose,
-				"aria-label": t$1("minimap.close"),
-				className: "cg-close-btn cg-close-btn--compact",
-				children: /* @__PURE__ */ jsx(CloseIcon, { size: 14 })
-			})]
-		}), /* @__PURE__ */ jsxs("div", {
-			className: "cg-mini-map-content",
-			children: [
-				thumbnail && /* @__PURE__ */ jsxs("div", {
-					className: "cg-mini-map-thumbnail",
-					children: [/* @__PURE__ */ jsx("img", {
-						ref: imgRef,
-						src: thumbnail,
-						alt: t$1("minimap.title"),
-						onLoad: () => setImgLoaded(true),
-						onClick: handleThumbnailClick,
-						style: {
-							width: "100%",
-							height: "auto",
-							display: "block",
-							cursor: onFocusArea ? "crosshair" : "default"
-						}
-					}), viewportBox && /* @__PURE__ */ jsx("div", {
-						className: "cg-mini-map-viewport",
-						style: {
-							position: "absolute",
-							left: `${viewportBox.left}px`,
-							top: `${viewportBox.top}px`,
-							width: `${viewportBox.width}px`,
-							height: `${viewportBox.height}px`
-						}
-					})]
-				}),
-				/* @__PURE__ */ jsxs("div", {
-					className: "cg-mini-map-stats",
-					children: [
-						/* @__PURE__ */ jsxs("div", { children: [
-							/* @__PURE__ */ jsx("span", {
-								className: "cg-dot",
-								style: { background: "var(--cg-success)" }
-							}),
-							t$1("minimap.functions"),
-							": ",
-							counts.function
-						] }),
-						/* @__PURE__ */ jsxs("div", { children: [
-							/* @__PURE__ */ jsx("span", {
-								className: "cg-dot",
-								style: { background: "var(--cg-accent)" }
-							}),
-							t$1("minimap.classes"),
-							": ",
-							counts.class
-						] }),
-						/* @__PURE__ */ jsxs("div", { children: [
-							/* @__PURE__ */ jsx("span", {
-								className: "cg-dot",
-								style: { background: "var(--cg-warning)" }
-							}),
-							t$1("minimap.variables"),
-							": ",
-							counts.variable
-						] }),
-						/* @__PURE__ */ jsxs("div", { children: [
-							/* @__PURE__ */ jsx("span", {
-								className: "cg-dot",
-								style: { background: "var(--cg-node-module)" }
-							}),
-							t$1("minimap.modules"),
-							": ",
-							counts.module
-						] }),
-						/* @__PURE__ */ jsxs("div", { children: [
-							/* @__PURE__ */ jsx("span", {
-								className: "cg-dot",
-								style: { background: "var(--cg-node-interface)" }
-							}),
-							t$1("minimap.interfaces"),
-							": ",
-							counts.interface
-						] })
-					]
-				}),
-				/* @__PURE__ */ jsxs("div", {
-					className: "cg-mini-map-total",
-					children: [
-						t$1("minimap.total"),
-						": ",
-						total
-					]
-				})
-			]
-		})]
-	});
-});
-
-//#endregion
-//#region src/client/components/EmptyState.tsx
-const EmptyState = memo(function EmptyState$1({ prerequisites, onImport, onScanWorkspace }) {
-	const t$1 = useT();
-	const [copiedCmd, setCopiedCmd] = useState(null);
-	const [installing, setInstalling] = useState(false);
-	const copyTimerRef = useRef(void 0);
-	const installTimerRef = useRef(void 0);
-	useEffect(() => {
-		return () => {
-			if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-			if (installTimerRef.current) clearTimeout(installTimerRef.current);
-		};
-	}, []);
-	const handleCopyCmd = useCallback((cmd) => {
-		try {
-			navigator.clipboard?.writeText(cmd);
-			setCopiedCmd(cmd);
-			if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-			copyTimerRef.current = setTimeout(() => setCopiedCmd(null), UI.COPY_HINT_TIMEOUT_MS);
-		} catch {}
-	}, []);
-	const handleInstall = useCallback((plugin) => {
-		const cmd = plugin === "dsh-codegraph" ? t$1("prereq.installCodegraph") : t$1("prereq.installLens");
-		try {
-			navigator.clipboard?.writeText(cmd);
-			setCopiedCmd(cmd);
-			if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
-			copyTimerRef.current = setTimeout(() => setCopiedCmd(null), UI.INSTALL_HINT_TIMEOUT_MS);
-		} catch {}
-		window.dispatchEvent(new CustomEvent(DOM_EVENTS.INSTALL_PLUGIN, { detail: { plugin } }));
-		setInstalling(true);
-		if (installTimerRef.current) clearTimeout(installTimerRef.current);
-		installTimerRef.current = setTimeout(() => setInstalling(false), UI.INSTALL_HINT_TIMEOUT_MS);
-	}, [t$1]);
-	const codegraphMissing = !prerequisites.codegraph;
-	const lensMissing = !prerequisites.lens;
-	const anyMissing = codegraphMissing || lensMissing;
-	const allMissing = codegraphMissing && lensMissing;
-	const hasBuiltin = prerequisites.builtin ?? true;
-	return /* @__PURE__ */ jsxs("div", {
-		className: "cg-empty-state",
-		children: [
-			/* @__PURE__ */ jsx(GraphIcon, {
-				size: 48,
-				className: "cg-empty-icon"
-			}),
-			/* @__PURE__ */ jsx("span", {
-				className: "cg-empty-title",
-				children: t$1("empty.title")
-			}),
-			/* @__PURE__ */ jsx("span", {
-				className: "cg-empty-subtitle",
-				children: t$1("empty.subtitle")
-			}),
-			allMissing && hasBuiltin && /* @__PURE__ */ jsxs("div", {
-				className: "cg-empty-degraded-notice",
-				children: [/* @__PURE__ */ jsx("span", {
-					className: "cg-degraded-label",
-					children: t$1("empty.degradedMode")
-				}), /* @__PURE__ */ jsx("span", {
-					className: "cg-degraded-hint",
-					children: t$1("empty.degradedHint")
-				})]
-			}),
-			anyMissing && /* @__PURE__ */ jsxs("div", {
-				className: "cg-empty-prereq-warning",
-				children: [
-					/* @__PURE__ */ jsxs("div", {
-						className: "cg-prereq-header",
-						children: [/* @__PURE__ */ jsx(AlertIcon, { size: 14 }), /* @__PURE__ */ jsx("span", {
-							className: "cg-prereq-title",
-							children: t$1("empty.prereqTitle")
-						})]
-					}),
-					codegraphMissing && /* @__PURE__ */ jsxs("div", {
-						className: "cg-prereq-item",
-						children: [
-							/* @__PURE__ */ jsxs("div", {
-								className: "cg-prereq-item-header",
-								children: [
-									/* @__PURE__ */ jsx("span", { className: `cg-prereq-status-dot ${prerequisites.codegraph ? "cg-ok" : "cg-missing"}` }),
-									/* @__PURE__ */ jsx("span", {
-										className: "cg-prereq-item-label",
-										children: t$1("prereq.codegraphLabel")
-									}),
-									/* @__PURE__ */ jsx("span", {
-										className: "cg-prereq-item-status",
-										children: t$1("prereq.notFound")
-									})
-								]
-							}),
-							/* @__PURE__ */ jsx("span", {
-								className: "cg-prereq-item-desc",
-								children: t$1("prereq.codegraphDesc")
-							}),
-							/* @__PURE__ */ jsxs("div", {
-								className: "cg-prereq-cmd-row",
-								children: [/* @__PURE__ */ jsx("code", {
-									className: "cg-prereq-cmd",
-									children: t$1("prereq.installCodegraph")
-								}), /* @__PURE__ */ jsx("button", {
-									className: "cg-prereq-copy-btn",
-									onClick: () => handleCopyCmd(t$1("prereq.installCodegraph")),
-									"aria-label": t$1("empty.copyCmd"),
-									title: t$1("empty.copyCmd"),
-									children: copiedCmd === t$1("prereq.installCodegraph") ? /* @__PURE__ */ jsx(CheckIcon, { size: 13 }) : /* @__PURE__ */ jsx(CopyIcon, { size: 13 })
-								})]
-							}),
-							/* @__PURE__ */ jsxs("button", {
-								className: "cg-prereq-install-btn",
-								onClick: () => handleInstall("dsh-codegraph"),
-								disabled: installing,
-								"aria-label": installing ? t$1("prereq.detecting") : t$1("prereq.installTitle"),
-								children: [
-									/* @__PURE__ */ jsx(ZapIcon, { size: 14 }),
-									" ",
-									installing ? copiedCmd === t$1("prereq.installCodegraph") ? t$1("empty.copied") : t$1("prereq.detecting") : t$1("prereq.installTitle")
-								]
-							})
-						]
-					}),
-					lensMissing && /* @__PURE__ */ jsxs("div", {
-						className: "cg-prereq-item",
-						children: [
-							/* @__PURE__ */ jsxs("div", {
-								className: "cg-prereq-item-header",
-								children: [
-									/* @__PURE__ */ jsx("span", { className: `cg-prereq-status-dot ${prerequisites.lens ? "cg-ok" : "cg-missing"}` }),
-									/* @__PURE__ */ jsx("span", {
-										className: "cg-prereq-item-label",
-										children: t$1("prereq.lensLabel")
-									}),
-									/* @__PURE__ */ jsx("span", {
-										className: "cg-prereq-item-status",
-										children: t$1("prereq.notFound")
-									})
-								]
-							}),
-							/* @__PURE__ */ jsx("span", {
-								className: "cg-prereq-item-desc",
-								children: t$1("prereq.lensDesc")
-							}),
-							/* @__PURE__ */ jsxs("div", {
-								className: "cg-prereq-cmd-row",
-								children: [/* @__PURE__ */ jsx("code", {
-									className: "cg-prereq-cmd",
-									children: t$1("prereq.installLens")
-								}), /* @__PURE__ */ jsx("button", {
-									className: "cg-prereq-copy-btn",
-									onClick: () => handleCopyCmd(t$1("prereq.installLens")),
-									"aria-label": t$1("empty.copyCmd"),
-									title: t$1("empty.copyCmd"),
-									children: copiedCmd === t$1("prereq.installLens") ? /* @__PURE__ */ jsx(CheckIcon, { size: 13 }) : /* @__PURE__ */ jsx(CopyIcon, { size: 13 })
-								})]
-							}),
-							/* @__PURE__ */ jsxs("button", {
-								className: "cg-prereq-install-btn",
-								onClick: () => handleInstall("dsh-tool-lens"),
-								disabled: installing,
-								"aria-label": installing ? t$1("prereq.detecting") : t$1("prereq.installTitle"),
-								children: [
-									/* @__PURE__ */ jsx(ZapIcon, { size: 14 }),
-									" ",
-									installing ? copiedCmd === t$1("prereq.installLens") ? t$1("empty.copied") : t$1("prereq.detecting") : t$1("prereq.installTitle")
-								]
-							})
-						]
-					}),
-					copiedCmd && /* @__PURE__ */ jsx("span", {
-						className: "cg-prereq-copied",
-						children: t$1("empty.copied")
-					})
-				]
-			}),
-			/* @__PURE__ */ jsxs("div", {
-				className: "cg-empty-actions",
-				children: [/* @__PURE__ */ jsxs("button", {
-					className: "cg-empty-import-btn",
-					onClick: onImport,
-					children: [
-						/* @__PURE__ */ jsx(UploadIcon, { size: 15 }),
-						" ",
-						t$1("empty.import")
-					]
-				}), /* @__PURE__ */ jsxs("button", {
-					className: "cg-empty-scan-btn",
-					onClick: onScanWorkspace,
-					children: [
-						/* @__PURE__ */ jsx(GraphIcon, { size: 15 }),
-						" ",
-						t$1("empty.scanWorkspace")
-					]
-				})]
-			})
-		]
-	});
-});
-
-//#endregion
 //#region src/client/components/GraphTooltip.tsx
 function isEdgeTooltip(data$2) {
 	return "sourceLabel" in data$2;
@@ -63571,6 +62196,1587 @@ const KeyboardHelp = memo(function KeyboardHelp$1({ visible, onClose }) {
 				}, s.key))
 			})]
 		})
+	});
+});
+
+//#endregion
+//#region src/shared/domEvents.ts
+const DOM_EVENTS = {
+	REFRESH: "codegraph:refresh",
+	OPEN_SOURCE: "codegraph:open-source",
+	IMPORT_REPO: "codegraph:import-repo",
+	INIT_GRAPH: "codegraph:init-graph",
+	TOGGLE_WATCH: "codegraph:toggle-watch",
+	WORKSPACE: "codegraph:workspace",
+	INSTALL_PLUGIN: "codegraph:install-plugin",
+	SYMBOL_SELECT: "codegraph:symbol-select",
+	EDITOR_SYMBOL_SELECT: "dsh:editor-symbol-select",
+	TOGGLE_FILTER_PANEL: "codegraph:toggle-filter-panel",
+	TOGGLE_EXPORT_MENU: "codegraph:toggle-export-menu",
+	THEME_CHANGED: "codegraph:theme-changed"
+};
+
+//#endregion
+//#region src/client/components/EmptyState.tsx
+const EmptyState = memo(function EmptyState$1({ prerequisites, onImport, onScanWorkspace }) {
+	const t$1 = useT();
+	const [copiedCmd, setCopiedCmd] = useState(null);
+	const [installing, setInstalling] = useState(false);
+	const copyTimerRef = useRef(void 0);
+	const installTimerRef = useRef(void 0);
+	useEffect(() => {
+		return () => {
+			if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+			if (installTimerRef.current) clearTimeout(installTimerRef.current);
+		};
+	}, []);
+	const handleCopyCmd = useCallback((cmd) => {
+		try {
+			navigator.clipboard?.writeText(cmd);
+			setCopiedCmd(cmd);
+			if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+			copyTimerRef.current = setTimeout(() => setCopiedCmd(null), UI.COPY_HINT_TIMEOUT_MS);
+		} catch {}
+	}, []);
+	const handleInstall = useCallback((plugin) => {
+		const cmd = plugin === "dsh-codegraph" ? t$1("prereq.installCodegraph") : t$1("prereq.installLens");
+		try {
+			navigator.clipboard?.writeText(cmd);
+			setCopiedCmd(cmd);
+			if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+			copyTimerRef.current = setTimeout(() => setCopiedCmd(null), UI.INSTALL_HINT_TIMEOUT_MS);
+		} catch {}
+		window.dispatchEvent(new CustomEvent(DOM_EVENTS.INSTALL_PLUGIN, { detail: { plugin } }));
+		setInstalling(true);
+		if (installTimerRef.current) clearTimeout(installTimerRef.current);
+		installTimerRef.current = setTimeout(() => setInstalling(false), UI.INSTALL_HINT_TIMEOUT_MS);
+	}, [t$1]);
+	const codegraphMissing = !prerequisites.codegraph;
+	const lensMissing = !prerequisites.lens;
+	const anyMissing = codegraphMissing || lensMissing;
+	const allMissing = codegraphMissing && lensMissing;
+	const hasBuiltin = prerequisites.builtin ?? true;
+	return /* @__PURE__ */ jsxs("div", {
+		className: "cg-empty-state",
+		children: [
+			/* @__PURE__ */ jsx(GraphIcon, {
+				size: 48,
+				className: "cg-empty-icon"
+			}),
+			/* @__PURE__ */ jsx("span", {
+				className: "cg-empty-title",
+				children: t$1("empty.title")
+			}),
+			/* @__PURE__ */ jsx("span", {
+				className: "cg-empty-subtitle",
+				children: t$1("empty.subtitle")
+			}),
+			allMissing && hasBuiltin && /* @__PURE__ */ jsxs("div", {
+				className: "cg-empty-degraded-notice",
+				children: [/* @__PURE__ */ jsx("span", {
+					className: "cg-degraded-label",
+					children: t$1("empty.degradedMode")
+				}), /* @__PURE__ */ jsx("span", {
+					className: "cg-degraded-hint",
+					children: t$1("empty.degradedHint")
+				})]
+			}),
+			anyMissing && /* @__PURE__ */ jsxs("div", {
+				className: "cg-empty-prereq-warning",
+				children: [
+					/* @__PURE__ */ jsxs("div", {
+						className: "cg-prereq-header",
+						children: [/* @__PURE__ */ jsx(AlertIcon, { size: 14 }), /* @__PURE__ */ jsx("span", {
+							className: "cg-prereq-title",
+							children: t$1("empty.prereqTitle")
+						})]
+					}),
+					codegraphMissing && /* @__PURE__ */ jsxs("div", {
+						className: "cg-prereq-item",
+						children: [
+							/* @__PURE__ */ jsxs("div", {
+								className: "cg-prereq-item-header",
+								children: [
+									/* @__PURE__ */ jsx("span", { className: `cg-prereq-status-dot ${prerequisites.codegraph ? "cg-ok" : "cg-missing"}` }),
+									/* @__PURE__ */ jsx("span", {
+										className: "cg-prereq-item-label",
+										children: t$1("prereq.codegraphLabel")
+									}),
+									/* @__PURE__ */ jsx("span", {
+										className: "cg-prereq-item-status",
+										children: t$1("prereq.notFound")
+									})
+								]
+							}),
+							/* @__PURE__ */ jsx("span", {
+								className: "cg-prereq-item-desc",
+								children: t$1("prereq.codegraphDesc")
+							}),
+							/* @__PURE__ */ jsxs("div", {
+								className: "cg-prereq-cmd-row",
+								children: [/* @__PURE__ */ jsx("code", {
+									className: "cg-prereq-cmd",
+									children: t$1("prereq.installCodegraph")
+								}), /* @__PURE__ */ jsx("button", {
+									className: "cg-prereq-copy-btn",
+									onClick: () => handleCopyCmd(t$1("prereq.installCodegraph")),
+									"aria-label": t$1("empty.copyCmd"),
+									title: t$1("empty.copyCmd"),
+									children: copiedCmd === t$1("prereq.installCodegraph") ? /* @__PURE__ */ jsx(CheckIcon, { size: 13 }) : /* @__PURE__ */ jsx(CopyIcon, { size: 13 })
+								})]
+							}),
+							/* @__PURE__ */ jsxs("button", {
+								className: "cg-prereq-install-btn",
+								onClick: () => handleInstall("dsh-codegraph"),
+								disabled: installing,
+								"aria-label": installing ? t$1("prereq.detecting") : t$1("prereq.installTitle"),
+								children: [
+									/* @__PURE__ */ jsx(ZapIcon, { size: 14 }),
+									" ",
+									installing ? copiedCmd === t$1("prereq.installCodegraph") ? t$1("empty.copied") : t$1("prereq.detecting") : t$1("prereq.installTitle")
+								]
+							})
+						]
+					}),
+					lensMissing && /* @__PURE__ */ jsxs("div", {
+						className: "cg-prereq-item",
+						children: [
+							/* @__PURE__ */ jsxs("div", {
+								className: "cg-prereq-item-header",
+								children: [
+									/* @__PURE__ */ jsx("span", { className: `cg-prereq-status-dot ${prerequisites.lens ? "cg-ok" : "cg-missing"}` }),
+									/* @__PURE__ */ jsx("span", {
+										className: "cg-prereq-item-label",
+										children: t$1("prereq.lensLabel")
+									}),
+									/* @__PURE__ */ jsx("span", {
+										className: "cg-prereq-item-status",
+										children: t$1("prereq.notFound")
+									})
+								]
+							}),
+							/* @__PURE__ */ jsx("span", {
+								className: "cg-prereq-item-desc",
+								children: t$1("prereq.lensDesc")
+							}),
+							/* @__PURE__ */ jsxs("div", {
+								className: "cg-prereq-cmd-row",
+								children: [/* @__PURE__ */ jsx("code", {
+									className: "cg-prereq-cmd",
+									children: t$1("prereq.installLens")
+								}), /* @__PURE__ */ jsx("button", {
+									className: "cg-prereq-copy-btn",
+									onClick: () => handleCopyCmd(t$1("prereq.installLens")),
+									"aria-label": t$1("empty.copyCmd"),
+									title: t$1("empty.copyCmd"),
+									children: copiedCmd === t$1("prereq.installLens") ? /* @__PURE__ */ jsx(CheckIcon, { size: 13 }) : /* @__PURE__ */ jsx(CopyIcon, { size: 13 })
+								})]
+							}),
+							/* @__PURE__ */ jsxs("button", {
+								className: "cg-prereq-install-btn",
+								onClick: () => handleInstall("dsh-tool-lens"),
+								disabled: installing,
+								"aria-label": installing ? t$1("prereq.detecting") : t$1("prereq.installTitle"),
+								children: [
+									/* @__PURE__ */ jsx(ZapIcon, { size: 14 }),
+									" ",
+									installing ? copiedCmd === t$1("prereq.installLens") ? t$1("empty.copied") : t$1("prereq.detecting") : t$1("prereq.installTitle")
+								]
+							})
+						]
+					}),
+					copiedCmd && /* @__PURE__ */ jsx("span", {
+						className: "cg-prereq-copied",
+						children: t$1("empty.copied")
+					})
+				]
+			}),
+			/* @__PURE__ */ jsxs("div", {
+				className: "cg-empty-actions",
+				children: [/* @__PURE__ */ jsxs("button", {
+					className: "cg-empty-import-btn",
+					onClick: onImport,
+					children: [
+						/* @__PURE__ */ jsx(UploadIcon, { size: 15 }),
+						" ",
+						t$1("empty.import")
+					]
+				}), /* @__PURE__ */ jsxs("button", {
+					className: "cg-empty-scan-btn",
+					onClick: onScanWorkspace,
+					children: [
+						/* @__PURE__ */ jsx(GraphIcon, { size: 15 }),
+						" ",
+						t$1("empty.scanWorkspace")
+					]
+				})]
+			})
+		]
+	});
+});
+
+//#endregion
+//#region src/client/components/FocusModeBar.tsx
+const FocusModeBar = memo(function FocusModeBar$1({ focusNodeId, onExpand, onContract, onExit }) {
+	const t$1 = useT();
+	const focusDepth = useGraphStore((s) => s.focusDepth);
+	const focusLabel = useGraphStore((s) => {
+		if (!focusNodeId) return null;
+		return s.rawNodes.find((n) => n.id === focusNodeId)?.label ?? focusNodeId;
+	});
+	if (!focusNodeId) return null;
+	return /* @__PURE__ */ jsxs("div", {
+		className: "cg-focus-mode-bar",
+		role: "region",
+		"aria-label": t$1("focus.title"),
+		children: [
+			/* @__PURE__ */ jsx(FocusIcon, { size: 14 }),
+			/* @__PURE__ */ jsxs("span", {
+				className: "cg-focus-label",
+				children: [
+					t$1("focus.mode"),
+					": ",
+					focusLabel
+				]
+			}),
+			/* @__PURE__ */ jsxs("span", {
+				className: "cg-focus-depth",
+				children: [
+					t$1("focus.depth"),
+					": ",
+					focusDepth
+				]
+			}),
+			/* @__PURE__ */ jsx("button", {
+				onClick: onExpand,
+				className: "cg-focus-expand-btn",
+				title: t$1("focus.expand"),
+				"aria-label": t$1("focus.expand"),
+				children: /* @__PURE__ */ jsx(ExpandIcon, { size: 14 })
+			}),
+			/* @__PURE__ */ jsx("button", {
+				onClick: onContract,
+				className: "cg-focus-contract-btn",
+				title: t$1("focus.contract"),
+				"aria-label": t$1("focus.contract"),
+				disabled: focusDepth <= 1,
+				children: /* @__PURE__ */ jsx(ContractIcon, { size: 14 })
+			}),
+			/* @__PURE__ */ jsx("button", {
+				onClick: onExit,
+				className: "cg-focus-exit-btn",
+				title: t$1("focus.exit"),
+				"aria-label": t$1("focus.exit"),
+				children: /* @__PURE__ */ jsx(CloseIcon, { size: 14 })
+			})
+		]
+	});
+});
+
+//#endregion
+//#region src/client/components/StatusBar.tsx
+function formatTime(ts) {
+	const d = new Date(ts);
+	return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
+}
+const DEGRADATION_KEYS = {
+	"cycle-detection-skipped": "degradation.cycleDetectionSkipped",
+	"community-detection-sampled": "degradation.communityDetectionSampled",
+	"large-graph-mode": "degradation.largeGraphMode"
+};
+const StatusBar = memo(function StatusBar$1({ error: error$1, isLoading, lastUpdated, watchEnabled, workspaceName, truncated, totalNodeCount, displayedNodeCount, performanceDegradations }) {
+	const t$1 = useT();
+	const statusDotClass = error$1 ? "cg-status-dot cg-error" : isLoading ? "cg-status-dot cg-loading" : "cg-status-dot";
+	const statusText = error$1 ? t$1("state.error") : isLoading ? t$1("state.loading") : t$1("state.ready");
+	const wsName = workspaceName ? deriveWorkspaceName(workspaceName) : "";
+	const hasDegradations = performanceDegradations && performanceDegradations.length > 0;
+	const degradationLabels = hasDegradations ? performanceDegradations.map((key) => DEGRADATION_KEYS[key] ? t$1(DEGRADATION_KEYS[key]) : key).join(", ") : "";
+	const expandedNodeIds = useGraphStore((s) => s.expandedNodeIds);
+	const rawNodes = useGraphStore((s) => s.rawNodes);
+	const expandedFunctionCount = [...expandedNodeIds].filter((id) => rawNodes.some((n) => n.id === id && n.type === "function")).length;
+	const totalFunctionCount = rawNodes.filter((n) => n.type === "function").length;
+	const showFunctionBudget = expandedFunctionCount > 0 || totalFunctionCount > FUNCTION_BODY.MAX_EXPANDED && expandedNodeIds.size > 0;
+	return /* @__PURE__ */ jsxs("div", {
+		className: "cg-status-bar",
+		role: "status",
+		"aria-live": "polite",
+		children: [
+			/* @__PURE__ */ jsxs("div", {
+				className: "cg-status-item",
+				children: [/* @__PURE__ */ jsx("span", { className: statusDotClass }), /* @__PURE__ */ jsx("span", { children: statusText })]
+			}),
+			wsName && /* @__PURE__ */ jsx("span", {
+				className: "cg-status-workspace",
+				title: workspaceName,
+				children: wsName
+			}),
+			truncated ? /* @__PURE__ */ jsxs("span", {
+				className: "cg-status-truncated",
+				title: t$1("state.truncatedHint"),
+				children: ["⚠ ", t$1("state.truncated", {
+					shown: displayedNodeCount ?? 0,
+					total: totalNodeCount ?? 0
+				})]
+			}) : totalNodeCount && totalNodeCount > 0 ? /* @__PURE__ */ jsxs("span", {
+				className: "cg-status-complete",
+				title: t$1("state.complete", { total: totalNodeCount }),
+				children: ["✓ ", t$1("state.complete", { total: totalNodeCount })]
+			}) : null,
+			showFunctionBudget && /* @__PURE__ */ jsx("span", {
+				className: "cg-status-function-budget",
+				title: t$1("state.functionBudget", {
+					expanded: expandedFunctionCount,
+					total: totalFunctionCount
+				}),
+				children: t$1("state.functionBudget", {
+					expanded: expandedFunctionCount,
+					total: totalFunctionCount
+				})
+			}),
+			hasDegradations && /* @__PURE__ */ jsxs("span", {
+				className: "cg-status-degradation",
+				title: t$1("degradation.tooltip"),
+				children: ["⚠ ", degradationLabels]
+			}),
+			watchEnabled && /* @__PURE__ */ jsx("span", {
+				className: "cg-watch-indicator",
+				title: t$1("import.watchOn"),
+				children: "●"
+			}),
+			/* @__PURE__ */ jsx("div", { className: "cg-status-spacer" }),
+			/* @__PURE__ */ jsx("a", {
+				href: REPO_URL,
+				target: "_blank",
+				rel: "noopener noreferrer",
+				className: "cg-status-github",
+				title: t$1("status.feedback"),
+				"aria-label": t$1("status.feedback"),
+				children: /* @__PURE__ */ jsx(GithubIcon, { size: 14 })
+			}),
+			/* @__PURE__ */ jsx("div", {
+				className: "cg-status-item",
+				children: /* @__PURE__ */ jsx("span", {
+					className: "cg-status-time",
+					children: lastUpdated > 0 ? t$1("state.updated", { time: formatTime(lastUpdated) }) : t$1("state.noData")
+				})
+			})
+		]
+	});
+});
+
+//#endregion
+//#region src/shared/analysis/TourBuilder.ts
+const ENTRY_NAME_PATTERNS = [
+	"main",
+	"index",
+	"app",
+	"entry",
+	"start",
+	"server",
+	"cli"
+];
+const LAYER_ORDER = [
+	"entry",
+	"api",
+	"service",
+	"data",
+	"ui",
+	"utility",
+	"other"
+];
+function classifyLayer(node) {
+	const path = node.filePath?.toLowerCase() ?? "";
+	const name$1 = node.label?.toLowerCase() ?? "";
+	if (ENTRY_NAME_PATTERNS.some((p$1) => name$1.includes(p$1) || path.includes(p$1))) return "entry";
+	if (path.includes("api") || path.includes("route") || path.includes("controller")) return "api";
+	if (path.includes("service") || path.includes("business") || path.includes("domain")) return "service";
+	if (path.includes("data") || path.includes("model") || path.includes("db") || path.includes("repository")) return "data";
+	if (path.includes("ui") || path.includes("component") || path.includes("view") || path.includes("page")) return "ui";
+	if (path.includes("util") || path.includes("helper") || path.includes("common") || path.includes("shared")) return "utility";
+	return "other";
+}
+function buildAdjacencyMaps(edges) {
+	const outMap = new Map();
+	const inMap = new Map();
+	for (const edge of edges) {
+		const out = outMap.get(edge.source) ?? [];
+		out.push(edge.target);
+		outMap.set(edge.source, out);
+		const inc = inMap.get(edge.target) ?? [];
+		inc.push(edge.source);
+		inMap.set(edge.target, inc);
+	}
+	return {
+		outMap,
+		inMap
+	};
+}
+function findEntryPoints(nodes, inMap) {
+	const noIncoming = nodes.filter((n) => !inMap.has(n.id) || inMap.get(n.id).length === 0);
+	if (noIncoming.length > 0) return noIncoming.map((n) => n.id);
+	const named = nodes.filter((n) => ENTRY_NAME_PATTERNS.some((p$1) => n.label?.toLowerCase().includes(p$1)));
+	if (named.length > 0) return named.map((n) => n.id);
+	return nodes.slice(0, 5).map((n) => n.id);
+}
+function topologicalSort(nodeIds, outMap, inMap) {
+	const inDegree = new Map();
+	const queue = [];
+	const result = [];
+	const visited = new Set();
+	for (const id of nodeIds) {
+		const deg = inMap.get(id)?.length ?? 0;
+		inDegree.set(id, deg);
+		if (deg === 0) queue.push(id);
+	}
+	while (queue.length > 0) {
+		const current = queue.shift();
+		if (visited.has(current)) continue;
+		visited.add(current);
+		result.push(current);
+		const neighbors = outMap.get(current) ?? [];
+		for (const neighbor of neighbors) {
+			if (!nodeIds.includes(neighbor)) continue;
+			const deg = (inDegree.get(neighbor) ?? 1) - 1;
+			inDegree.set(neighbor, deg);
+			if (deg <= 0 && !visited.has(neighbor)) queue.push(neighbor);
+		}
+	}
+	for (const id of nodeIds) if (!visited.has(id)) result.push(id);
+	return result;
+}
+function generateDescription(node, deps, dependents) {
+	const parts = [];
+	const typeLabel = node.type === "function" ? "函数" : node.type === "class" ? "类" : node.type === "module" ? "模块" : node.type === "interface" ? "接口" : "变量";
+	parts.push(`${typeLabel} ${node.label}`);
+	if (node.filePath) parts.push(`位于 ${node.filePath}`);
+	if (deps.length > 0) parts.push(`依赖 ${deps.length} 个其他节点`);
+	if (dependents.length > 0) parts.push(`被 ${dependents.length} 个节点引用`);
+	if (deps.length === 0 && dependents.length === 0) parts.push("独立节点，无依赖关系");
+	return parts.join("，");
+}
+function buildTour(nodes, edges, maxSteps = 30) {
+	if (nodes.length === 0) return {
+		steps: [],
+		totalSteps: 0,
+		entryPoints: []
+	};
+	const { outMap, inMap } = buildAdjacencyMaps(edges);
+	const entryPoints = findEntryPoints(nodes, inMap);
+	const allNodeIds = nodes.map((n) => n.id);
+	const sortedIds = topologicalSort(allNodeIds, outMap, inMap);
+	const nodeMap = new Map();
+	for (const n of nodes) nodeMap.set(n.id, n);
+	const layerGroups = new Map();
+	for (const id of sortedIds) {
+		const node = nodeMap.get(id);
+		if (!node) continue;
+		const layer = classifyLayer(node);
+		const group = layerGroups.get(layer) ?? [];
+		group.push(id);
+		layerGroups.set(layer, group);
+	}
+	const orderedIds = [];
+	for (const layer of LAYER_ORDER) {
+		const ids = layerGroups.get(layer) ?? [];
+		orderedIds.push(...ids);
+	}
+	const limitedIds = orderedIds.slice(0, maxSteps);
+	const steps = limitedIds.map((id) => {
+		const node = nodeMap.get(id);
+		const deps = outMap.get(id) ?? [];
+		const dependents = inMap.get(id) ?? [];
+		return {
+			id: `tour-${id}`,
+			title: node.label,
+			description: generateDescription(node, deps, dependents),
+			nodeId: id,
+			nodeType: node.type,
+			filePath: node.filePath ?? "",
+			dependencies: deps,
+			dependents,
+			layer: classifyLayer(node)
+		};
+	});
+	return {
+		steps,
+		totalSteps: steps.length,
+		entryPoints
+	};
+}
+
+//#endregion
+//#region src/client/components/MicroViewBar.tsx
+const MicroViewPrompt = memo(function MicroViewPrompt$1({ viewMode, selectFunctionPrompt, flowchartLabel, sequenceLabel, backToCodeLabel, onBackToCode }) {
+	const t$1 = useT();
+	const modeLabel = viewMode === "cfg" ? t$1("viewMode.cfg") : viewMode === "flowchart" ? flowchartLabel : sequenceLabel;
+	return /* @__PURE__ */ jsxs("div", {
+		className: "cg-micro-empty-prompt",
+		children: [
+			/* @__PURE__ */ jsx("div", {
+				className: "cg-micro-empty-icon",
+				children: modeLabel
+			}),
+			/* @__PURE__ */ jsx("div", {
+				className: "cg-micro-empty-text",
+				children: selectFunctionPrompt
+			}),
+			/* @__PURE__ */ jsx("button", {
+				className: "cg-micro-empty-back-btn",
+				onClick: onBackToCode,
+				"aria-label": backToCodeLabel,
+				children: backToCodeLabel
+			})
+		]
+	});
+});
+const MicroFunctionBar = memo(function MicroFunctionBar$1({ functionName, filePath, viewMode, onClose }) {
+	const t$1 = useT();
+	const modeLabel = viewMode === "cfg" ? t$1("viewMode.cfg") : viewMode === "flowchart" ? t$1("viewMode.flowchart") : viewMode === "sequence" ? t$1("viewMode.sequence") : "";
+	const shortPath = filePath ? filePath.split(/[\\/]/).slice(-2).join("/") : "";
+	return /* @__PURE__ */ jsxs("div", {
+		className: "cg-micro-function-bar",
+		role: "region",
+		"aria-label": t$1("micro.functionBar"),
+		children: [
+			modeLabel && /* @__PURE__ */ jsx("span", {
+				className: "cg-micro-function-mode",
+				children: modeLabel
+			}),
+			/* @__PURE__ */ jsx("span", {
+				className: "cg-micro-function-name",
+				children: functionName
+			}),
+			shortPath && /* @__PURE__ */ jsx("span", {
+				className: "cg-micro-function-path",
+				children: shortPath
+			}),
+			/* @__PURE__ */ jsx("button", {
+				className: "cg-micro-function-close",
+				onClick: onClose,
+				"aria-label": t$1("micro.closeView"),
+				children: "✕"
+			})
+		]
+	});
+});
+
+//#endregion
+//#region src/client/components/OverlayBar.tsx
+function OverlayBar({ heatmapMode, setHeatmapMode, todoMarkerMode, setTodoMarkerMode }) {
+	const t$1 = useT();
+	return /* @__PURE__ */ jsxs("div", {
+		className: "cg-overlay-bar",
+		role: "group",
+		"aria-label": t$1("overlay.title"),
+		children: [
+			/* @__PURE__ */ jsx("div", {
+				className: `cg-overlay-section ${heatmapMode === "none" ? "cg-overlay-section--collapsed" : ""}`,
+				children: heatmapMode === "none" ? /* @__PURE__ */ jsx("button", {
+					className: "cg-overlay-btn cg-overlay-btn--activate",
+					onClick: () => setHeatmapMode("instability"),
+					"aria-label": t$1("heatmap.title"),
+					children: t$1("heatmap.title")
+				}) : /* @__PURE__ */ jsxs(Fragment, { children: [/* @__PURE__ */ jsxs("span", {
+					className: "cg-overlay-label",
+					children: [t$1("heatmap.title"), ":"]
+				}), [
+					"none",
+					"instability",
+					"lines",
+					"complexity"
+				].map((m) => /* @__PURE__ */ jsx("button", {
+					className: `cg-overlay-btn ${heatmapMode === m ? "cg-active" : ""}`,
+					onClick: () => setHeatmapMode(m),
+					"aria-pressed": heatmapMode === m,
+					"aria-label": t$1(`heatmap.${m}`),
+					children: t$1(`heatmap.${m}`)
+				}, m))] })
+			}),
+			/* @__PURE__ */ jsx("span", {
+				className: "cg-overlay-divider",
+				"aria-hidden": "true"
+			}),
+			/* @__PURE__ */ jsx("div", {
+				className: `cg-overlay-section ${todoMarkerMode === "none" ? "cg-overlay-section--collapsed" : ""}`,
+				children: todoMarkerMode === "none" ? /* @__PURE__ */ jsx("button", {
+					className: "cg-overlay-btn cg-overlay-btn--activate",
+					onClick: () => setTodoMarkerMode("all"),
+					"aria-label": t$1("todoMarker.title"),
+					children: t$1("todoMarker.title")
+				}) : /* @__PURE__ */ jsxs(Fragment, { children: [/* @__PURE__ */ jsxs("span", {
+					className: "cg-overlay-label",
+					children: [t$1("todoMarker.title"), ":"]
+				}), [
+					"none",
+					"todo",
+					"fixme",
+					"all"
+				].map((m) => /* @__PURE__ */ jsx("button", {
+					className: `cg-overlay-btn ${todoMarkerMode === m ? "cg-active" : ""}`,
+					onClick: () => setTodoMarkerMode(m),
+					"aria-pressed": todoMarkerMode === m,
+					"aria-label": t$1(`todoMarker.${m}`),
+					children: t$1(`todoMarker.${m}`)
+				}, m))] })
+			})
+		]
+	});
+}
+
+//#endregion
+//#region src/client/components/ImportPanel.tsx
+const log$13 = scoped("import");
+function parseGraphJson(text) {
+	const parsed = JSON.parse(text);
+	if (!parsed || typeof parsed !== "object") throw new Error("Root is not an object");
+	const rawNodes = Array.isArray(parsed.nodes) ? parsed.nodes : [];
+	const rawEdges = Array.isArray(parsed.edges) ? parsed.edges : [];
+	const nodes = rawNodes.map(coerceNode).filter((n) => n !== null);
+	const edges = rawEdges.map(coerceEdge).filter((e) => e !== null);
+	if (nodes.length === 0) throw new Error("No valid nodes found in JSON");
+	const repoId = parsed.metadata?.repoId ?? `imported-${Date.now()}`;
+	return {
+		nodes,
+		edges,
+		repoId
+	};
+}
+const ImportPanel = memo(function ImportPanel$1({ onClose, workspacePath, prerequisites, initStatus, watchEnabled, onSetGraphData, onSetLoading, onSetError, onSetInitStatus, onSetWatchEnabled }) {
+	const t$1 = useT();
+	const [tab, setTab] = useState("workspace");
+	const [pasteText, setPasteText] = useState("");
+	const [busy, setBusy] = useState(false);
+	const [feedback, setFeedback] = useState(null);
+	const [customPath, setCustomPath] = useState("");
+	const timersRef = useRef([]);
+	useEffect(() => () => {
+		timersRef.current.forEach(clearTimeout);
+	}, []);
+	const [copied, setCopied] = useState(false);
+	const panelRef = useRef(null);
+	const triggerRef = useRef(null);
+	useEffect(() => {
+		triggerRef.current = document.activeElement;
+		return () => {
+			triggerRef.current?.focus();
+		};
+	}, []);
+	useEffect(() => {
+		const panel = panelRef.current;
+		if (!panel) return;
+		const focusable = panel.querySelectorAll("button, input, textarea, [tabindex]:not([tabindex=\"-1\"])");
+		if (focusable.length > 0) focusable[0].focus();
+		const handleKeyDown = (e) => {
+			if (e.key !== "Tab" || focusable.length === 0) return;
+			const first = focusable[0];
+			const last$1 = focusable[focusable.length - 1];
+			if (e.shiftKey && document.activeElement === first) {
+				e.preventDefault();
+				last$1.focus();
+			} else if (!e.shiftKey && document.activeElement === last$1) {
+				e.preventDefault();
+				first.focus();
+			}
+		};
+		panel.addEventListener("keydown", handleKeyDown);
+		return () => panel.removeEventListener("keydown", handleKeyDown);
+	}, []);
+	const copyInstallCmd = useCallback(async () => {
+		try {
+			await navigator.clipboard.writeText("dsh plugin --profile web add dsh-codegraph");
+			setCopied(true);
+			timersRef.current.push(setTimeout(() => setCopied(false), UI.COPY_FEEDBACK_MS));
+		} catch {}
+	}, []);
+	const effectivePath = customPath.trim() || workspacePath || ".";
+	const prereqMissing = !prerequisites.codegraph && !prerequisites.lens;
+	const applyGraph = useCallback((text, source) => {
+		setBusy(true);
+		setFeedback(null);
+		try {
+			if (text.length > IMPORT.MAX_PASTE_BYTES) throw new Error(`JSON exceeds ${IMPORT.MAX_PASTE_BYTES / 1024 / 1024}MB limit`);
+			const { nodes, edges, repoId } = parseGraphJson(text);
+			onSetGraphData(nodes, edges, repoId);
+			log$13.info(`imported from ${source}`, {
+				nodes: nodes.length,
+				edges: edges.length
+			});
+			setFeedback({
+				kind: "ok",
+				msg: t$1("import.imported", {
+					nodes: nodes.length,
+					edges: edges.length
+				})
+			});
+			timersRef.current.push(setTimeout(onClose, UI.IMPORT_CLOSE_DELAY_MS));
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : String(e);
+			log$13.error(`import failed from ${source}`, msg);
+			onSetError(t$1("import.importFailed", { msg }));
+			setFeedback({
+				kind: "err",
+				msg
+			});
+		} finally {
+			setBusy(false);
+		}
+	}, [
+		onSetGraphData,
+		onSetError,
+		t$1,
+		onClose
+	]);
+	const handlePasteSubmit = useCallback(() => {
+		if (!pasteText.trim()) {
+			setFeedback({
+				kind: "err",
+				msg: t$1("import.pasteFirst")
+			});
+			return;
+		}
+		applyGraph(pasteText, "paste");
+	}, [
+		pasteText,
+		applyGraph,
+		t$1
+	]);
+	const handleWorkspaceScan = useCallback(() => {
+		setBusy(true);
+		setFeedback(null);
+		onSetLoading(true);
+		window.dispatchEvent(new CustomEvent(DOM_EVENTS.IMPORT_REPO, { detail: { path: effectivePath } }));
+		log$13.info("workspace scan requested", { path: effectivePath });
+		setFeedback({
+			kind: "ok",
+			msg: t$1("import.requestedScan", { path: effectivePath })
+		});
+	}, [
+		effectivePath,
+		onSetLoading,
+		t$1
+	]);
+	const handleInit = useCallback(() => {
+		onSetInitStatus("initializing");
+		setFeedback(null);
+		window.dispatchEvent(new CustomEvent(DOM_EVENTS.INIT_GRAPH, { detail: { path: effectivePath } }));
+		log$13.info("init requested", { path: effectivePath });
+		setFeedback({
+			kind: "ok",
+			msg: t$1("import.initStarted", { path: effectivePath })
+		});
+	}, [
+		effectivePath,
+		onSetInitStatus,
+		t$1
+	]);
+	const handleToggleWatch = useCallback(() => {
+		const next$1 = !watchEnabled;
+		onSetWatchEnabled(next$1);
+		window.dispatchEvent(new CustomEvent(DOM_EVENTS.TOGGLE_WATCH, { detail: {
+			enabled: next$1,
+			path: effectivePath
+		} }));
+		log$13.info("watch toggled", {
+			enabled: next$1,
+			path: effectivePath
+		});
+	}, [
+		watchEnabled,
+		onSetWatchEnabled,
+		effectivePath
+	]);
+	return /* @__PURE__ */ jsxs("div", {
+		className: "cg-import-panel",
+		role: "dialog",
+		"aria-modal": "true",
+		"aria-label": t$1("import.title"),
+		ref: panelRef,
+		children: [
+			/* @__PURE__ */ jsxs("div", {
+				className: "cg-import-header",
+				children: [/* @__PURE__ */ jsx("span", {
+					className: "cg-import-title",
+					children: t$1("import.title")
+				}), /* @__PURE__ */ jsx("button", {
+					className: "cg-import-close",
+					onClick: onClose,
+					"aria-label": t$1("import.close"),
+					children: /* @__PURE__ */ jsx(CloseIcon, { size: 16 })
+				})]
+			}),
+			prereqMissing && /* @__PURE__ */ jsxs("div", {
+				className: "cg-prereq-warning",
+				role: "alert",
+				children: [
+					/* @__PURE__ */ jsx(AlertIcon, { size: 14 }),
+					/* @__PURE__ */ jsx("span", { children: t$1("import.prereqMissing") }),
+					/* @__PURE__ */ jsxs("div", {
+						className: "cg-prereq-install",
+						children: [/* @__PURE__ */ jsx("code", { children: t$1("import.prereqCmd", { cmd: "dsh plugin --profile web add dsh-codegraph" }) }), /* @__PURE__ */ jsx("button", {
+							className: "cg-prereq-copy",
+							onClick: () => {
+								copyInstallCmd();
+							},
+							disabled: copied,
+							"aria-label": t$1("import.prereqCopy"),
+							children: copied ? t$1("import.copied") : t$1("import.prereqCopy")
+						})]
+					})
+				]
+			}),
+			/* @__PURE__ */ jsxs("div", {
+				className: "cg-import-tabs",
+				role: "tablist",
+				children: [/* @__PURE__ */ jsxs("button", {
+					className: tab === "workspace" ? "cg-active" : "",
+					onClick: () => setTab("workspace"),
+					role: "tab",
+					"aria-selected": tab === "workspace",
+					children: [
+						/* @__PURE__ */ jsx(FolderIcon, { size: 14 }),
+						" ",
+						t$1("import.workspace")
+					]
+				}), /* @__PURE__ */ jsxs("button", {
+					className: tab === "paste" ? "cg-active" : "",
+					onClick: () => setTab("paste"),
+					role: "tab",
+					"aria-selected": tab === "paste",
+					children: [
+						/* @__PURE__ */ jsx(UploadIcon, { size: 14 }),
+						" ",
+						t$1("import.paste")
+					]
+				})]
+			}),
+			/* @__PURE__ */ jsxs("div", {
+				className: "cg-import-body",
+				children: [tab === "workspace" && /* @__PURE__ */ jsxs("div", {
+					className: "cg-workspace-zone",
+					children: [
+						/* @__PURE__ */ jsxs("div", {
+							className: "cg-workspace-path-row",
+							children: [/* @__PURE__ */ jsx(FolderIcon, {
+								size: 16,
+								className: "cg-workspace-path-icon"
+							}), /* @__PURE__ */ jsx("span", {
+								className: "cg-workspace-path-label",
+								children: t$1("import.workspacePath")
+							})]
+						}),
+						/* @__PURE__ */ jsx("input", {
+							className: "cg-workspace-path-input",
+							id: "import-workspace-path",
+							name: "import-workspace-path",
+							type: "text",
+							value: customPath,
+							onChange: (e) => setCustomPath(e.target.value),
+							placeholder: workspacePath || ".",
+							"aria-label": t$1("import.workspacePath")
+						}),
+						/* @__PURE__ */ jsx("span", {
+							className: "cg-workspace-hint",
+							children: t$1("import.workspaceHint")
+						}),
+						/* @__PURE__ */ jsxs("div", {
+							className: "cg-workspace-actions",
+							children: [/* @__PURE__ */ jsxs("button", {
+								className: "cg-import-submit",
+								onClick: handleWorkspaceScan,
+								disabled: busy,
+								children: [
+									/* @__PURE__ */ jsx(RefreshIcon, { size: 14 }),
+									" ",
+									busy ? t$1("import.scanning") : t$1("import.scanWorkspace")
+								]
+							}), /* @__PURE__ */ jsxs("button", {
+								className: "cg-import-submit cg-secondary",
+								onClick: handleInit,
+								disabled: initStatus === "initializing",
+								children: [
+									/* @__PURE__ */ jsx(ZapIcon, { size: 14 }),
+									" ",
+									initStatus === "initializing" ? t$1("import.initializing") : t$1("import.initGraph")
+								]
+							})]
+						}),
+						/* @__PURE__ */ jsxs("button", {
+							className: `cg-watch-toggle ${watchEnabled ? "cg-active" : ""}`,
+							onClick: handleToggleWatch,
+							children: [
+								/* @__PURE__ */ jsx(WatchIcon, { size: 14 }),
+								" ",
+								watchEnabled ? t$1("import.watchOn") : t$1("import.watchOff")
+							]
+						}),
+						initStatus === "done" && /* @__PURE__ */ jsx("div", {
+							className: "cg-init-feedback cg-ok",
+							children: t$1("import.initSuccess")
+						}),
+						initStatus === "error" && /* @__PURE__ */ jsx("div", {
+							className: "cg-init-feedback cg-err",
+							children: t$1("import.initFailed")
+						})
+					]
+				}), tab === "paste" && /* @__PURE__ */ jsxs("div", {
+					className: "cg-paste-zone",
+					children: [/* @__PURE__ */ jsx("textarea", {
+						className: "cg-paste-input",
+						id: "import-paste-json",
+						name: "import-paste-json",
+						placeholder: t$1("import.pastePlaceholder"),
+						value: pasteText,
+						onChange: (e) => setPasteText(e.target.value),
+						rows: 8,
+						"aria-label": t$1("import.pastePlaceholder")
+					}), /* @__PURE__ */ jsx("button", {
+						className: "cg-import-submit",
+						onClick: handlePasteSubmit,
+						disabled: busy,
+						children: busy ? t$1("import.importing") : t$1("import.importJson")
+					})]
+				})]
+			}),
+			feedback && /* @__PURE__ */ jsxs("div", {
+				className: `cg-import-feedback cg-${feedback.kind}`,
+				role: "status",
+				children: [feedback.kind === "err" && /* @__PURE__ */ jsx(AlertIcon, { size: 14 }), /* @__PURE__ */ jsx("span", { children: feedback.msg })]
+			})
+		]
+	});
+});
+
+//#endregion
+//#region src/client/components/Legend.tsx
+const ALL_NODE_TYPES = [
+	{
+		type: "function",
+		color: "var(--cg-node-function)",
+		key: "legend.function"
+	},
+	{
+		type: "class",
+		color: "var(--cg-node-class)",
+		key: "legend.class"
+	},
+	{
+		type: "variable",
+		color: "var(--cg-node-variable)",
+		key: "legend.variable"
+	},
+	{
+		type: "module",
+		color: "var(--cg-node-module)",
+		key: "legend.module"
+	},
+	{
+		type: "interface",
+		color: "var(--cg-node-interface)",
+		key: "legend.interface"
+	},
+	{
+		type: "type",
+		color: "var(--cg-node-type)",
+		key: "legend.type"
+	}
+];
+const ALL_EDGE_TYPES = [
+	{
+		type: "call",
+		style: "solid",
+		color: "var(--cg-edge-call)",
+		key: "legend.call"
+	},
+	{
+		type: "import",
+		style: "dashed",
+		color: "var(--cg-edge-import)",
+		key: "legend.import"
+	},
+	{
+		type: "extend",
+		style: "solid",
+		color: "var(--cg-edge-extend)",
+		key: "legend.extend"
+	},
+	{
+		type: "implement",
+		style: "dotted",
+		color: "var(--cg-edge-implement)",
+		key: "legend.implement"
+	},
+	{
+		type: "dependency",
+		style: "dashed",
+		color: "var(--cg-edge-dependency)",
+		key: "legend.dependency"
+	},
+	{
+		type: "contains",
+		style: "dotted",
+		color: "var(--cg-edge-contains)",
+		key: "legend.contains"
+	}
+];
+const VIEW_MODE_NODE_FILTER = {
+	code: new Set([
+		"function",
+		"class",
+		"variable",
+		"module",
+		"interface",
+		"type"
+	]),
+	dependencies: new Set([
+		"module",
+		"class",
+		"type"
+	]),
+	inheritance: new Set([
+		"class",
+		"interface",
+		"type"
+	]),
+	callgraph: new Set([
+		"function",
+		"class",
+		"module"
+	]),
+	package: new Set(["module", "class"]),
+	class: new Set([
+		"class",
+		"interface",
+		"type"
+	]),
+	cfg: new Set(["function"]),
+	flowchart: new Set(["function"]),
+	sequence: new Set([
+		"function",
+		"class",
+		"module"
+	])
+};
+const VIEW_MODE_EDGE_FILTER = {
+	code: new Set([
+		"call",
+		"import",
+		"extend",
+		"implement",
+		"contains"
+	]),
+	dependencies: new Set(["dependency"]),
+	inheritance: new Set(["extend", "implement"]),
+	callgraph: new Set(["call"]),
+	package: new Set(["contains", "dependency"]),
+	class: new Set([
+		"extend",
+		"implement",
+		"contains"
+	]),
+	cfg: new Set(["call"]),
+	flowchart: new Set(["call"]),
+	sequence: new Set(["call"])
+};
+const Legend = memo(function Legend$1({ viewMode, onClose }) {
+	const t$1 = useT();
+	const nodeTypes = ALL_NODE_TYPES.filter((n) => VIEW_MODE_NODE_FILTER[viewMode]?.has(n.type) ?? true);
+	const edgeTypes = ALL_EDGE_TYPES.filter((e) => VIEW_MODE_EDGE_FILTER[viewMode]?.has(e.type) ?? true);
+	return /* @__PURE__ */ jsxs("div", {
+		className: "cg-legend-panel",
+		role: "complementary",
+		"aria-label": t$1("legend.title"),
+		children: [/* @__PURE__ */ jsxs("div", {
+			className: "cg-legend-header",
+			children: [/* @__PURE__ */ jsx("span", { children: t$1("legend.title") }), /* @__PURE__ */ jsx("button", {
+				className: "cg-legend-close",
+				onClick: onClose,
+				"aria-label": t$1("legend.close"),
+				children: "×"
+			})]
+		}), /* @__PURE__ */ jsxs("div", {
+			className: "cg-legend-body",
+			children: [/* @__PURE__ */ jsxs("div", {
+				className: "cg-legend-section",
+				children: [/* @__PURE__ */ jsx("div", {
+					className: "cg-legend-section-title",
+					children: t$1("legend.nodes")
+				}), nodeTypes.map((n) => /* @__PURE__ */ jsxs("div", {
+					className: "cg-legend-row",
+					children: [/* @__PURE__ */ jsx("span", {
+						className: "cg-legend-swatch",
+						style: { background: n.color }
+					}), /* @__PURE__ */ jsx("span", { children: t$1(n.key) })]
+				}, n.type))]
+			}), /* @__PURE__ */ jsxs("div", {
+				className: "cg-legend-section",
+				children: [/* @__PURE__ */ jsx("div", {
+					className: "cg-legend-section-title",
+					children: t$1("legend.edges")
+				}), edgeTypes.map((e) => /* @__PURE__ */ jsxs("div", {
+					className: "cg-legend-row",
+					children: [/* @__PURE__ */ jsx("span", {
+						className: "cg-legend-line",
+						style: {
+							borderTopStyle: e.style,
+							borderTopColor: e.color
+						}
+					}), /* @__PURE__ */ jsx("span", { children: t$1(e.key) })]
+				}, e.type))]
+			})]
+		})]
+	});
+});
+
+//#endregion
+//#region src/client/components/SearchBar.tsx
+const SearchBar = memo(function SearchBar$1({ query, matchCount, searchResults, onChange, onClose, onSelectResult }) {
+	const t$1 = useT();
+	const [showResults, setShowResults] = useState(false);
+	const [activeIndex, setActiveIndex] = useState(-1);
+	const containerRef = useRef(null);
+	const listRef = useRef(null);
+	const triggerRef = useRef(null);
+	useEffect(() => {
+		triggerRef.current = document.activeElement;
+		return () => {
+			triggerRef.current?.focus();
+		};
+	}, []);
+	useEffect(() => {
+		const handler = (e) => {
+			if (containerRef.current && !containerRef.current.contains(e.target)) setShowResults(false);
+		};
+		document.addEventListener("mousedown", handler);
+		return () => document.removeEventListener("mousedown", handler);
+	}, []);
+	useEffect(() => {
+		setActiveIndex(-1);
+	}, [query]);
+	useEffect(() => {
+		if (activeIndex < 0) return;
+		const list = listRef.current;
+		if (!list) return;
+		const item = list.children[activeIndex];
+		if (item) item.scrollIntoView({ block: "nearest" });
+	}, [activeIndex]);
+	const handleSelect = (id) => {
+		onSelectResult(id);
+		setShowResults(false);
+		setActiveIndex(-1);
+		onClose();
+	};
+	const handleKeyDown = (e) => {
+		if (e.key === "Escape") {
+			e.preventDefault();
+			e.stopPropagation();
+			onClose();
+			return;
+		}
+		if (!showResults || searchResults.length === 0) return;
+		const maxIdx = Math.min(searchResults.length, 10) - 1;
+		if (e.key === "ArrowDown") {
+			e.preventDefault();
+			setActiveIndex((prev) => prev < maxIdx ? prev + 1 : 0);
+		} else if (e.key === "ArrowUp") {
+			e.preventDefault();
+			setActiveIndex((prev) => prev > 0 ? prev - 1 : maxIdx);
+		} else if (e.key === "Enter" && activeIndex >= 0 && activeIndex < displayResults.length) {
+			e.preventDefault();
+			handleSelect(displayResults[activeIndex].id);
+		}
+	};
+	const displayResults = searchResults.slice(0, 10);
+	return /* @__PURE__ */ jsxs("div", {
+		className: "cg-search-bar",
+		ref: containerRef,
+		children: [
+			/* @__PURE__ */ jsx(SearchIcon, {
+				size: 14,
+				className: "cg-search-bar-icon"
+			}),
+			/* @__PURE__ */ jsx("input", {
+				id: "graph-search",
+				name: "graph-search",
+				type: "text",
+				placeholder: t$1("search.placeholder"),
+				value: query,
+				onChange: (e) => {
+					onChange(e.target.value);
+					setShowResults(true);
+				},
+				onFocus: () => setShowResults(true),
+				onKeyDown: handleKeyDown,
+				autoFocus: true,
+				"aria-label": t$1("search.placeholder")
+			}),
+			/* @__PURE__ */ jsx("button", {
+				onClick: onClose,
+				"aria-label": t$1("search.close"),
+				children: /* @__PURE__ */ jsx(CloseIcon, { size: 14 })
+			}),
+			query && matchCount !== null && /* @__PURE__ */ jsx("span", {
+				className: "cg-search-hint",
+				role: "status",
+				"aria-live": "polite",
+				children: matchCount > 0 ? t$1(matchCount === 1 ? "search.match" : "search.matches", { n: matchCount }) : t$1("search.noMatch")
+			}),
+			!query && /* @__PURE__ */ jsx("span", {
+				className: "cg-search-hint",
+				children: t$1("search.debounced")
+			}),
+			showResults && query && searchResults.length > 0 && /* @__PURE__ */ jsxs("ul", {
+				className: "cg-search-results",
+				role: "listbox",
+				ref: listRef,
+				children: [displayResults.map((item, idx) => /* @__PURE__ */ jsxs("li", {
+					role: "option",
+					"aria-selected": idx === activeIndex,
+					className: `cg-search-result-item ${idx === activeIndex ? "cg-active" : ""}`,
+					onClick: () => handleSelect(item.id),
+					onKeyDown: (e) => {
+						if (e.key === "Enter") handleSelect(item.id);
+					},
+					tabIndex: 0,
+					children: [
+						/* @__PURE__ */ jsx("span", {
+							className: "cg-search-result-type",
+							children: item.type
+						}),
+						/* @__PURE__ */ jsx("span", {
+							className: "cg-search-result-label",
+							children: item.label
+						}),
+						/* @__PURE__ */ jsx("span", {
+							className: "cg-search-result-path",
+							children: item.filePath
+						})
+					]
+				}, item.id)), searchResults.length > 10 && /* @__PURE__ */ jsx("li", {
+					className: "cg-search-result-more",
+					children: t$1("search.moreResults", { n: searchResults.length - 10 })
+				})]
+			})
+		]
+	});
+});
+
+//#endregion
+//#region src/client/components/NodeDetail.tsx
+const TYPE_ICONS = {
+	function: "fn",
+	class: "C",
+	variable: "V",
+	module: "M",
+	interface: "I",
+	type: "T"
+};
+const TYPE_COLORS = {
+	function: "var(--cg-node-function)",
+	class: "var(--cg-node-class)",
+	variable: "var(--cg-node-variable)",
+	module: "var(--cg-node-module)",
+	interface: "var(--cg-node-interface)",
+	type: "var(--cg-node-type)"
+};
+const EXPANDABLE_TYPES = new Set([
+	"module",
+	"class",
+	"interface"
+]);
+const NodeDetail = memo(function NodeDetail$1({ node, onClose, isExpanded, connectionCount, onCollapse, onSelectFunction, onAggregateCallChain }) {
+	const t$1 = useT();
+	const rawNodes = useGraphStore((s) => s.rawNodes);
+	const expandedNodeIds = useGraphStore((s) => s.expandedNodeIds);
+	const icon = TYPE_ICONS[node.type] ?? "?";
+	const color = TYPE_COLORS[node.type] ?? "var(--cg-accent)";
+	const canExpand = EXPANDABLE_TYPES.has(node.type);
+	const expandedFunctionBodyCount = useMemo(() => {
+		const functionIdSet = new Set();
+		for (const n of rawNodes) if (n.type === "function") functionIdSet.add(n.id);
+		let count = 0;
+		for (const id of expandedNodeIds) if (functionIdSet.has(id)) count++;
+		return count;
+	}, [rawNodes, expandedNodeIds]);
+	const isClusterNode = "isCluster" in node && node.isCluster === true;
+	const clusterChildCount = isClusterNode ? node.childCount ?? 0 : 0;
+	const clusterChildIds = isClusterNode ? node.childIds ?? [] : [];
+	const childFunctionNodes = useMemo(() => {
+		if (!isClusterNode || clusterChildIds.length === 0) return [];
+		const nodeMap = new Map(rawNodes.map((n) => [n.id, n]));
+		const result = [];
+		for (const id of clusterChildIds) {
+			const child = nodeMap.get(id);
+			if (child && child.type === "function") result.push(child);
+		}
+		return result;
+	}, [
+		isClusterNode,
+		clusterChildIds,
+		rawNodes
+	]);
+	const displayedChildFunctions = childFunctionNodes.slice(0, 50);
+	const hiddenChildFunctionCount = childFunctionNodes.length - displayedChildFunctions.length;
+	const signature = node.properties?.signature;
+	const docstring = node.properties?.docstring;
+	const exported = node.properties?.exported;
+	const kind = node.properties?.kind;
+	const extraProps = useMemo(() => {
+		const knownKeys = new Set([
+			"signature",
+			"docstring",
+			"exported",
+			"kind"
+		]);
+		return Object.entries(node.properties ?? {}).filter(([k]) => !knownKeys.has(k));
+	}, [node]);
+	return /* @__PURE__ */ jsxs("div", {
+		className: "cg-node-detail-panel",
+		role: "complementary",
+		"aria-label": t$1("detail.ariaLabel"),
+		"aria-live": "polite",
+		children: [
+			/* @__PURE__ */ jsx("button", {
+				className: "cg-close-btn",
+				onClick: onClose,
+				"aria-label": t$1("detail.close"),
+				children: /* @__PURE__ */ jsx(CloseIcon, { size: 14 })
+			}),
+			/* @__PURE__ */ jsxs("div", {
+				className: "cg-detail-header",
+				children: [
+					/* @__PURE__ */ jsx("span", {
+						className: "cg-detail-type-icon",
+						style: {
+							color,
+							borderColor: color
+						},
+						children: icon
+					}),
+					/* @__PURE__ */ jsx("h3", { children: node.label }),
+					exported && /* @__PURE__ */ jsx("span", {
+						className: "cg-detail-exported-badge",
+						children: t$1("detail.exportedBadge")
+					}),
+					isExpanded && /* @__PURE__ */ jsx("span", {
+						className: "cg-detail-expanded-badge",
+						children: t$1("detail.expandedBadge")
+					})
+				]
+			}),
+			/* @__PURE__ */ jsxs("div", {
+				className: "cg-detail-row",
+				children: [/* @__PURE__ */ jsx("span", {
+					className: "cg-detail-label",
+					children: t$1("detail.type")
+				}), /* @__PURE__ */ jsx("span", {
+					className: "cg-detail-value",
+					children: node.type
+				})]
+			}),
+			kind && kind !== node.type && /* @__PURE__ */ jsxs("div", {
+				className: "cg-detail-row",
+				children: [/* @__PURE__ */ jsx("span", {
+					className: "cg-detail-label",
+					children: t$1("detail.kind")
+				}), /* @__PURE__ */ jsx("span", {
+					className: "cg-detail-value",
+					children: kind
+				})]
+			}),
+			/* @__PURE__ */ jsxs("div", {
+				className: "cg-detail-row",
+				children: [/* @__PURE__ */ jsx("span", {
+					className: "cg-detail-label",
+					children: t$1("detail.file")
+				}), /* @__PURE__ */ jsx("span", {
+					className: "cg-detail-value",
+					children: node.filePath
+				})]
+			}),
+			/* @__PURE__ */ jsxs("div", {
+				className: "cg-detail-row",
+				children: [/* @__PURE__ */ jsx("span", {
+					className: "cg-detail-label",
+					children: t$1("detail.line")
+				}), /* @__PURE__ */ jsx("span", {
+					className: "cg-detail-value",
+					children: node.lineNumber
+				})]
+			}),
+			connectionCount !== void 0 && connectionCount > 0 && /* @__PURE__ */ jsxs("div", {
+				className: "cg-detail-row",
+				children: [/* @__PURE__ */ jsx("span", {
+					className: "cg-detail-label",
+					children: t$1("detail.connections")
+				}), /* @__PURE__ */ jsx("span", {
+					className: "cg-detail-value",
+					children: connectionCount
+				})]
+			}),
+			signature && /* @__PURE__ */ jsxs("div", {
+				className: "cg-detail-signature",
+				children: [/* @__PURE__ */ jsx("div", {
+					className: "cg-detail-section-title",
+					children: t$1("detail.signature")
+				}), /* @__PURE__ */ jsx("code", {
+					className: "cg-detail-code",
+					children: signature
+				})]
+			}),
+			docstring && /* @__PURE__ */ jsxs("div", {
+				className: "cg-detail-docstring",
+				children: [/* @__PURE__ */ jsx("div", {
+					className: "cg-detail-section-title",
+					children: t$1("detail.docstring")
+				}), /* @__PURE__ */ jsx("pre", {
+					className: "cg-detail-doc-text",
+					children: docstring
+				})]
+			}),
+			canExpand && !isExpanded && /* @__PURE__ */ jsx("div", {
+				className: "cg-detail-expand-hint",
+				children: t$1("detail.doubleClickExpand")
+			}),
+			canExpand && isExpanded && onCollapse && /* @__PURE__ */ jsxs("div", {
+				className: "cg-detail-expand-hint cg-detail-expand-hint--expanded",
+				children: [t$1("detail.expanded"), /* @__PURE__ */ jsx("button", {
+					onClick: onCollapse,
+					className: "cg-detail-collapse-btn",
+					children: t$1("detail.collapse")
+				})]
+			}),
+			node.type === "function" && onSelectFunction && /* @__PURE__ */ jsxs("div", {
+				className: "cg-detail-micro-actions",
+				children: [
+					/* @__PURE__ */ jsxs("div", {
+						className: "cg-detail-function-body-budget",
+						role: "status",
+						"aria-live": "polite",
+						children: [
+							/* @__PURE__ */ jsx("span", {
+								className: "cg-detail-budget-label",
+								children: t$1("detail.functionBodyBudget", {
+									expanded: expandedFunctionBodyCount,
+									max: FUNCTION_BODY.MAX_EXPANDED
+								})
+							}),
+							/* @__PURE__ */ jsx("div", {
+								className: "cg-detail-budget-bar",
+								"aria-hidden": "true",
+								children: /* @__PURE__ */ jsx("div", {
+									className: "cg-detail-budget-fill",
+									style: { width: `${Math.min(expandedFunctionBodyCount / FUNCTION_BODY.MAX_EXPANDED * 100, 100)}%` }
+								})
+							}),
+							expandedFunctionBodyCount >= FUNCTION_BODY.MAX_EXPANDED && /* @__PURE__ */ jsx("span", {
+								className: "cg-detail-budget-hint",
+								children: t$1("detail.functionBodyBudgetHint", { max: FUNCTION_BODY.MAX_EXPANDED })
+							})
+						]
+					}),
+					/* @__PURE__ */ jsx("div", {
+						className: "cg-detail-section-title",
+						children: t$1("detail.microViews")
+					}),
+					/* @__PURE__ */ jsxs("div", {
+						className: "cg-detail-micro-btns",
+						children: [
+							/* @__PURE__ */ jsx("button", {
+								className: "cg-detail-micro-btn",
+								onClick: () => onSelectFunction(node, "cfg"),
+								"aria-label": t$1("toolbar.viewModeCfg"),
+								children: t$1("viewMode.cfg")
+							}),
+							/* @__PURE__ */ jsx("button", {
+								className: "cg-detail-micro-btn",
+								onClick: () => onSelectFunction(node, "flowchart"),
+								"aria-label": t$1("toolbar.viewModeFlowchart"),
+								children: t$1("viewMode.flowchart")
+							}),
+							/* @__PURE__ */ jsx("button", {
+								className: "cg-detail-micro-btn",
+								onClick: () => onSelectFunction(node, "sequence"),
+								"aria-label": t$1("toolbar.viewModeSequence"),
+								children: t$1("viewMode.sequence")
+							})
+						]
+					}),
+					onAggregateCallChain && /* @__PURE__ */ jsx("button", {
+						className: "cg-detail-micro-btn cg-detail-chain-btn",
+						onClick: () => onAggregateCallChain(node.id),
+						children: t$1("detail.aggregateCallChain")
+					})
+				]
+			}),
+			node.type !== "function" && !isClusterNode && onSelectFunction && /* @__PURE__ */ jsx("div", {
+				className: "cg-detail-micro-hint",
+				children: t$1("detail.microHint")
+			}),
+			isClusterNode && displayedChildFunctions.length > 0 && onSelectFunction && /* @__PURE__ */ jsxs("div", {
+				className: "cg-detail-cluster-functions",
+				children: [/* @__PURE__ */ jsxs("div", {
+					className: "cg-detail-section-title",
+					children: [
+						t$1("detail.functionsInCluster"),
+						" (",
+						childFunctionNodes.length,
+						clusterChildCount > 50 ? "+" : "",
+						")"
+					]
+				}), /* @__PURE__ */ jsxs("div", {
+					className: "cg-detail-function-list",
+					children: [displayedChildFunctions.map((fn$7) => /* @__PURE__ */ jsxs("div", {
+						className: "cg-detail-function-item",
+						children: [/* @__PURE__ */ jsx("span", {
+							className: "cg-detail-function-name",
+							title: fn$7.filePath,
+							children: fn$7.label
+						}), /* @__PURE__ */ jsxs("div", {
+							className: "cg-detail-function-micro-btns",
+							children: [
+								/* @__PURE__ */ jsx("button", {
+									className: "cg-detail-micro-btn cg-detail-micro-btn--small",
+									onClick: () => onSelectFunction(fn$7, "cfg"),
+									"aria-label": t$1("toolbar.viewModeCfg"),
+									children: t$1("viewMode.cfg")
+								}),
+								/* @__PURE__ */ jsx("button", {
+									className: "cg-detail-micro-btn cg-detail-micro-btn--small",
+									onClick: () => onSelectFunction(fn$7, "flowchart"),
+									"aria-label": t$1("toolbar.viewModeFlowchart"),
+									children: t$1("viewMode.flowchart")
+								}),
+								/* @__PURE__ */ jsx("button", {
+									className: "cg-detail-micro-btn cg-detail-micro-btn--small",
+									onClick: () => onSelectFunction(fn$7, "sequence"),
+									"aria-label": t$1("toolbar.viewModeSequence"),
+									children: t$1("viewMode.sequence")
+								})
+							]
+						})]
+					}, fn$7.id)), hiddenChildFunctionCount > 0 && /* @__PURE__ */ jsx("div", {
+						className: "cg-detail-function-truncated",
+						children: t$1("detail.moreFunctions", { count: hiddenChildFunctionCount })
+					})]
+				})]
+			}),
+			extraProps.length > 0 && /* @__PURE__ */ jsxs("div", {
+				className: "cg-detail-extra",
+				children: [/* @__PURE__ */ jsx("div", {
+					className: "cg-detail-extra-title",
+					children: t$1("detail.properties")
+				}), extraProps.map(([k, v]) => /* @__PURE__ */ jsxs("div", {
+					className: "cg-detail-row",
+					children: [/* @__PURE__ */ jsx("span", {
+						className: "cg-detail-label",
+						children: k
+					}), /* @__PURE__ */ jsx("span", {
+						className: "cg-detail-value",
+						children: typeof v === "object" ? JSON.stringify(v) : String(v)
+					})]
+				}, k))]
+			})
+		]
 	});
 });
 
@@ -64003,60 +64209,202 @@ const RuleConfigPanel = memo(function RuleConfigPanel$1({ violations, onCheckRul
 });
 
 //#endregion
-//#region src/client/components/FocusModeBar.tsx
-const FocusModeBar = memo(function FocusModeBar$1({ focusNodeId, onExpand, onContract, onExit }) {
-	const t$1 = useT();
-	const focusDepth = useGraphStore((s) => s.focusDepth);
-	const focusLabel = useGraphStore((s) => {
-		if (!focusNodeId) return null;
-		return s.rawNodes.find((n) => n.id === focusNodeId)?.label ?? focusNodeId;
-	});
-	if (!focusNodeId) return null;
+//#region src/client/components/LeftPanelStack.tsx
+function LeftPanelStack(props) {
+	const { panel, isCollapsed } = props;
+	if (isCollapsed) return null;
 	return /* @__PURE__ */ jsxs("div", {
-		className: "cg-focus-mode-bar",
-		role: "region",
-		"aria-label": t$1("focus.title"),
+		className: "cg-panel-stack cg-panel-stack-left",
 		children: [
-			/* @__PURE__ */ jsx(FocusIcon, { size: 14 }),
-			/* @__PURE__ */ jsxs("span", {
-				className: "cg-focus-label",
-				children: [
-					t$1("focus.mode"),
-					": ",
-					focusLabel
-				]
-			}),
-			/* @__PURE__ */ jsxs("span", {
-				className: "cg-focus-depth",
-				children: [
-					t$1("focus.depth"),
-					": ",
-					focusDepth
-				]
-			}),
-			/* @__PURE__ */ jsx("button", {
-				onClick: onExpand,
-				className: "cg-focus-expand-btn",
-				title: t$1("focus.expand"),
-				"aria-label": t$1("focus.expand"),
-				children: /* @__PURE__ */ jsx(ExpandIcon, { size: 14 })
-			}),
-			/* @__PURE__ */ jsx("button", {
-				onClick: onContract,
-				className: "cg-focus-contract-btn",
-				title: t$1("focus.contract"),
-				"aria-label": t$1("focus.contract"),
-				disabled: focusDepth <= 1,
-				children: /* @__PURE__ */ jsx(ContractIcon, { size: 14 })
-			}),
-			/* @__PURE__ */ jsx("button", {
-				onClick: onExit,
-				className: "cg-focus-exit-btn",
-				title: t$1("focus.exit"),
-				"aria-label": t$1("focus.exit"),
-				children: /* @__PURE__ */ jsx(CloseIcon, { size: 14 })
-			})
+			panel.showSearch && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(SearchBar, {
+				query: props.searchQuery,
+				matchCount: props.searchMatchCount,
+				searchResults: props.searchResults,
+				onChange: props.onSearchChange,
+				onClose: () => panel.setShowSearch(false),
+				onSelectResult: props.onSelectSearchResult
+			}) }),
+			panel.showPathFind && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(PathBar, {
+				onFindPath: props.onFindPath,
+				onClearPath: props.onClearPath,
+				pathResult: props.pathResult,
+				pathLength: props.pathResult ? props.pathResult.length - 1 : null,
+				onClose: () => panel.setShowPathFind(false)
+			}) }),
+			panel.showHealthScore && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(HealthScoreCard, { onClose: () => panel.setShowHealthScore(false) }) }),
+			panel.showRules && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(RuleConfigPanel, {
+				violations: props.ruleViolations,
+				onCheckRules: props.onCheckRules,
+				onClose: () => panel.setShowRules(false)
+			}) }),
+			props.selectedNodeData && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(NodeDetail, {
+				node: props.selectedNodeData,
+				onClose: props.onCloseDetail,
+				isExpanded: props.expandedNodeIds.has(props.selectedNodeData.id),
+				connectionCount: (props.adjacencyMap.get(props.selectedNodeData.id)?.in ?? 0) + (props.adjacencyMap.get(props.selectedNodeData.id)?.out ?? 0),
+				onCollapse: () => props.selectedNodeData && props.onCollapseNode(props.selectedNodeData.id),
+				onSelectFunction: (node, mode) => props.onSelectFunction(node, mode),
+				onAggregateCallChain: props.onAggregateCallChain
+			}) }),
+			panel.showLegend && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(Legend, {
+				viewMode: props.viewMode,
+				onClose: () => panel.setShowLegend(false)
+			}) }),
+			panel.showImport && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(ImportPanel, {
+				onClose: () => panel.setShowImport(false),
+				workspacePath: props.currentWorkspace,
+				prerequisites: props.prerequisites,
+				initStatus: props.initStatus,
+				watchEnabled: props.watchEnabled,
+				onSetGraphData: props.onSetGraphData,
+				onSetLoading: props.onSetLoading,
+				onSetError: props.onSetError,
+				onSetInitStatus: props.onSetInitStatus,
+				onSetWatchEnabled: props.onSetWatchEnabled
+			}) })
 		]
+	});
+}
+
+//#endregion
+//#region src/client/components/StatsPanel.tsx
+const StatsPanel = memo(function StatsPanel$1({ counts, onClose, thumbnail, viewportInfo, onFocusArea }) {
+	const t$1 = useT();
+	const total = counts.function + counts.class + counts.variable + counts.module + counts.interface;
+	const imgRef = useRef(null);
+	const [imgLoaded, setImgLoaded] = useState(false);
+	useEffect(() => {
+		if (thumbnail) setImgLoaded(false);
+	}, [thumbnail]);
+	const viewportBox = (() => {
+		if (!viewportInfo || !imgLoaded || !imgRef.current) return null;
+		const img = imgRef.current;
+		const imgW = img.clientWidth;
+		const imgH = img.clientHeight;
+		if (imgW === 0 || imgH === 0) return null;
+		const { zoom, pan, renderedSize, totalSize } = viewportInfo;
+		if (totalSize.w === 0 || totalSize.h === 0) return null;
+		const scale$1 = Math.min(imgW / totalSize.w, imgH / totalSize.h);
+		const offsetX = (imgW - totalSize.w * scale$1) / 2;
+		const offsetY = (imgH - totalSize.h * scale$1) / 2;
+		const vpW = renderedSize.w / zoom * scale$1;
+		const vpH = renderedSize.h / zoom * scale$1;
+		const vpX = offsetX + pan.x / zoom * scale$1 + (totalSize.w * scale$1 - imgW) / 2;
+		const vpY = offsetY + pan.y / zoom * scale$1 + (totalSize.h * scale$1 - imgH) / 2;
+		return {
+			left: vpX,
+			top: vpY,
+			width: vpW,
+			height: vpH
+		};
+	})();
+	const handleThumbnailClick = (e) => {
+		if (!onFocusArea || !imgRef.current) return;
+		const rect = imgRef.current.getBoundingClientRect();
+		const ratioX = (e.clientX - rect.left) / rect.width;
+		const ratioY = (e.clientY - rect.top) / rect.height;
+		onFocusArea(ratioX, ratioY);
+	};
+	return /* @__PURE__ */ jsxs("div", {
+		className: "cg-mini-map",
+		role: "complementary",
+		"aria-label": t$1("minimap.title"),
+		children: [/* @__PURE__ */ jsxs("div", {
+			className: "cg-mini-map-header",
+			children: [/* @__PURE__ */ jsx("span", { children: t$1("minimap.title") }), /* @__PURE__ */ jsx("button", {
+				onClick: onClose,
+				"aria-label": t$1("minimap.close"),
+				className: "cg-close-btn cg-close-btn--compact",
+				children: /* @__PURE__ */ jsx(CloseIcon, { size: 14 })
+			})]
+		}), /* @__PURE__ */ jsxs("div", {
+			className: "cg-mini-map-content",
+			children: [
+				thumbnail && /* @__PURE__ */ jsxs("div", {
+					className: "cg-mini-map-thumbnail",
+					children: [/* @__PURE__ */ jsx("img", {
+						ref: imgRef,
+						src: thumbnail,
+						alt: t$1("minimap.title"),
+						onLoad: () => setImgLoaded(true),
+						onClick: handleThumbnailClick,
+						style: {
+							width: "100%",
+							height: "auto",
+							display: "block",
+							cursor: onFocusArea ? "crosshair" : "default"
+						}
+					}), viewportBox && /* @__PURE__ */ jsx("div", {
+						className: "cg-mini-map-viewport",
+						style: {
+							position: "absolute",
+							left: `${viewportBox.left}px`,
+							top: `${viewportBox.top}px`,
+							width: `${viewportBox.width}px`,
+							height: `${viewportBox.height}px`
+						}
+					})]
+				}),
+				/* @__PURE__ */ jsxs("div", {
+					className: "cg-mini-map-stats",
+					children: [
+						/* @__PURE__ */ jsxs("div", { children: [
+							/* @__PURE__ */ jsx("span", {
+								className: "cg-dot",
+								style: { background: "var(--cg-success)" }
+							}),
+							t$1("minimap.functions"),
+							": ",
+							counts.function
+						] }),
+						/* @__PURE__ */ jsxs("div", { children: [
+							/* @__PURE__ */ jsx("span", {
+								className: "cg-dot",
+								style: { background: "var(--cg-accent)" }
+							}),
+							t$1("minimap.classes"),
+							": ",
+							counts.class
+						] }),
+						/* @__PURE__ */ jsxs("div", { children: [
+							/* @__PURE__ */ jsx("span", {
+								className: "cg-dot",
+								style: { background: "var(--cg-warning)" }
+							}),
+							t$1("minimap.variables"),
+							": ",
+							counts.variable
+						] }),
+						/* @__PURE__ */ jsxs("div", { children: [
+							/* @__PURE__ */ jsx("span", {
+								className: "cg-dot",
+								style: { background: "var(--cg-node-module)" }
+							}),
+							t$1("minimap.modules"),
+							": ",
+							counts.module
+						] }),
+						/* @__PURE__ */ jsxs("div", { children: [
+							/* @__PURE__ */ jsx("span", {
+								className: "cg-dot",
+								style: { background: "var(--cg-node-interface)" }
+							}),
+							t$1("minimap.interfaces"),
+							": ",
+							counts.interface
+						] })
+					]
+				}),
+				/* @__PURE__ */ jsxs("div", {
+					className: "cg-mini-map-total",
+					children: [
+						t$1("minimap.total"),
+						": ",
+						total
+					]
+				})
+			]
+		})]
 	});
 });
 
@@ -64136,127 +64484,6 @@ const GodModulePanel = memo(function GodModulePanel$1({ godModules, onClose, lab
 					})
 				]
 			}, m.modulePath))
-		})]
-	});
-});
-
-//#endregion
-//#region src/client/components/ImpactPanel.tsx
-const ImpactPanel = memo(function ImpactPanel$1({ impactStats, label, totalLabel, onClose }) {
-	const t$1 = useT();
-	return /* @__PURE__ */ jsxs("div", {
-		className: "cg-analysis-panel cg-impact-panel",
-		role: "region",
-		"aria-label": label,
-		"aria-live": "polite",
-		children: [/* @__PURE__ */ jsxs("div", {
-			className: "cg-analysis-panel-header",
-			children: [/* @__PURE__ */ jsx("span", { children: label }), onClose && /* @__PURE__ */ jsx("button", {
-				className: "cg-analysis-panel-close",
-				onClick: onClose,
-				"aria-label": t$1("common.close"),
-				children: "×"
-			})]
-		}), /* @__PURE__ */ jsxs("div", {
-			className: "cg-analysis-panel-content",
-			children: [
-				/* @__PURE__ */ jsxs("div", {
-					className: "cg-impact-stat-row",
-					children: [/* @__PURE__ */ jsx("span", {
-						className: "cg-impact-stat-badge cg-d1",
-						children: "D1"
-					}), /* @__PURE__ */ jsx("span", {
-						className: "cg-impact-stat-count",
-						children: impactStats.d1
-					})]
-				}),
-				/* @__PURE__ */ jsxs("div", {
-					className: "cg-impact-stat-row",
-					children: [/* @__PURE__ */ jsx("span", {
-						className: "cg-impact-stat-badge cg-d2",
-						children: "D2"
-					}), /* @__PURE__ */ jsx("span", {
-						className: "cg-impact-stat-count",
-						children: impactStats.d2
-					})]
-				}),
-				/* @__PURE__ */ jsxs("div", {
-					className: "cg-impact-stat-row",
-					children: [/* @__PURE__ */ jsx("span", {
-						className: "cg-impact-stat-badge cg-d3",
-						children: "D3"
-					}), /* @__PURE__ */ jsx("span", {
-						className: "cg-impact-stat-count",
-						children: impactStats.d3
-					})]
-				}),
-				/* @__PURE__ */ jsxs("div", {
-					className: "cg-impact-stat-total",
-					children: [
-						totalLabel,
-						": ",
-						impactStats.total
-					]
-				})
-			]
-		})]
-	});
-});
-
-//#endregion
-//#region src/client/components/CyclePanel.tsx
-const CyclePanel = memo(function CyclePanel$1({ cycles, label, emptyLabel, onClose }) {
-	const t$1 = useT();
-	return /* @__PURE__ */ jsxs("div", {
-		className: "cg-analysis-panel cg-cycle-panel",
-		role: "region",
-		"aria-label": label,
-		"aria-live": "polite",
-		children: [/* @__PURE__ */ jsxs("div", {
-			className: "cg-analysis-panel-header",
-			children: [
-				/* @__PURE__ */ jsx("span", { children: label }),
-				/* @__PURE__ */ jsx("span", {
-					className: "cg-cycle-count-badge",
-					children: cycles.length
-				}),
-				onClose && /* @__PURE__ */ jsx("button", {
-					className: "cg-analysis-panel-close",
-					onClick: onClose,
-					"aria-label": t$1("common.close"),
-					children: "×"
-				})
-			]
-		}), /* @__PURE__ */ jsx("div", {
-			className: "cg-analysis-panel-content",
-			children: cycles.length === 0 ? /* @__PURE__ */ jsx("div", {
-				className: "cg-cycle-empty",
-				children: emptyLabel
-			}) : cycles.map((cycle, i$1) => /* @__PURE__ */ jsxs("div", {
-				className: "cg-cycle-item",
-				children: [/* @__PURE__ */ jsxs("div", {
-					className: "cg-cycle-item-header",
-					children: [/* @__PURE__ */ jsxs("span", {
-						className: "cg-cycle-index",
-						children: ["#", i$1 + 1]
-					}), /* @__PURE__ */ jsx("span", {
-						className: "cg-cycle-length",
-						children: t$1("cycle.nodeCount").replace("{n}", String(cycle.length))
-					})]
-				}), /* @__PURE__ */ jsxs("div", {
-					className: "cg-cycle-nodes",
-					children: [cycle.nodes.map((nodeId, j) => /* @__PURE__ */ jsxs("span", {
-						className: "cg-cycle-node-tag",
-						children: [nodeId, j < cycle.nodes.length - 1 && /* @__PURE__ */ jsx("span", {
-							className: "cg-cycle-arrow",
-							children: "→"
-						})]
-					}, j)), /* @__PURE__ */ jsx("span", {
-						className: "cg-cycle-arrow",
-						children: "↺"
-					})]
-				})]
-			}, i$1))
 		})]
 	});
 });
@@ -64567,12 +64794,24 @@ const FilterPanel = memo(function FilterPanel$1({ onClose }) {
 						children: t$1("filterPanel.pathFilter")
 					}),
 					/* @__PURE__ */ jsx("input", {
+						id: "cg-filter-include",
+						name: "cg-filter-include",
 						type: "text",
 						className: "cg-filter-path-input",
 						placeholder: t$1("filterPanel.includePlaceholder"),
 						value: includeInput,
 						onChange: (e) => setIncludeInput(e.target.value),
 						"aria-label": t$1("filterPanel.includeLabel")
+					}),
+					/* @__PURE__ */ jsx("input", {
+						id: "cg-filter-exclude",
+						name: "cg-filter-exclude",
+						type: "text",
+						className: "cg-filter-path-input",
+						placeholder: t$1("filterPanel.excludePlaceholder"),
+						value: excludeInput,
+						onChange: (e) => setExcludeInput(e.target.value),
+						"aria-label": t$1("filterPanel.excludeLabel")
 					}),
 					/* @__PURE__ */ jsx("input", {
 						type: "text",
@@ -64610,6 +64849,8 @@ const FilterPanel = memo(function FilterPanel$1({ onClose }) {
 					/* @__PURE__ */ jsxs("div", {
 						className: "cg-filter-slider-row",
 						children: [/* @__PURE__ */ jsx("input", {
+							id: "cg-filter-fanin",
+							name: "cg-filter-fanin",
 							type: "range",
 							min: 0,
 							max: 50,
@@ -64637,6 +64878,8 @@ const FilterPanel = memo(function FilterPanel$1({ onClose }) {
 					/* @__PURE__ */ jsxs("div", {
 						className: "cg-filter-slider-row",
 						children: [/* @__PURE__ */ jsx("input", {
+							id: "cg-filter-fanout",
+							name: "cg-filter-fanout",
 							type: "range",
 							min: 0,
 							max: 50,
@@ -64903,200 +65146,184 @@ const TourPanel = memo(function TourPanel$1({ tour, onClose }) {
 });
 
 //#endregion
-//#region src/shared/analysis/TourBuilder.ts
-const ENTRY_NAME_PATTERNS = [
-	"main",
-	"index",
-	"app",
-	"entry",
-	"start",
-	"server",
-	"cli"
-];
-const LAYER_ORDER = [
-	"entry",
-	"api",
-	"service",
-	"data",
-	"ui",
-	"utility",
-	"other"
-];
-function classifyLayer(node) {
-	const path = node.filePath?.toLowerCase() ?? "";
-	const name$1 = node.label?.toLowerCase() ?? "";
-	if (ENTRY_NAME_PATTERNS.some((p$1) => name$1.includes(p$1) || path.includes(p$1))) return "entry";
-	if (path.includes("api") || path.includes("route") || path.includes("controller")) return "api";
-	if (path.includes("service") || path.includes("business") || path.includes("domain")) return "service";
-	if (path.includes("data") || path.includes("model") || path.includes("db") || path.includes("repository")) return "data";
-	if (path.includes("ui") || path.includes("component") || path.includes("view") || path.includes("page")) return "ui";
-	if (path.includes("util") || path.includes("helper") || path.includes("common") || path.includes("shared")) return "utility";
-	return "other";
-}
-function buildAdjacencyMaps(edges) {
-	const outMap = new Map();
-	const inMap = new Map();
-	for (const edge of edges) {
-		const out = outMap.get(edge.source) ?? [];
-		out.push(edge.target);
-		outMap.set(edge.source, out);
-		const inc = inMap.get(edge.target) ?? [];
-		inc.push(edge.source);
-		inMap.set(edge.target, inc);
-	}
-	return {
-		outMap,
-		inMap
-	};
-}
-function findEntryPoints(nodes, inMap) {
-	const noIncoming = nodes.filter((n) => !inMap.has(n.id) || inMap.get(n.id).length === 0);
-	if (noIncoming.length > 0) return noIncoming.map((n) => n.id);
-	const named = nodes.filter((n) => ENTRY_NAME_PATTERNS.some((p$1) => n.label?.toLowerCase().includes(p$1)));
-	if (named.length > 0) return named.map((n) => n.id);
-	return nodes.slice(0, 5).map((n) => n.id);
-}
-function topologicalSort(nodeIds, outMap, inMap) {
-	const inDegree = new Map();
-	const queue = [];
-	const result = [];
-	const visited = new Set();
-	for (const id of nodeIds) {
-		const deg = inMap.get(id)?.length ?? 0;
-		inDegree.set(id, deg);
-		if (deg === 0) queue.push(id);
-	}
-	while (queue.length > 0) {
-		const current = queue.shift();
-		if (visited.has(current)) continue;
-		visited.add(current);
-		result.push(current);
-		const neighbors = outMap.get(current) ?? [];
-		for (const neighbor of neighbors) {
-			if (!nodeIds.includes(neighbor)) continue;
-			const deg = (inDegree.get(neighbor) ?? 1) - 1;
-			inDegree.set(neighbor, deg);
-			if (deg <= 0 && !visited.has(neighbor)) queue.push(neighbor);
-		}
-	}
-	for (const id of nodeIds) if (!visited.has(id)) result.push(id);
-	return result;
-}
-function generateDescription(node, deps, dependents) {
-	const parts = [];
-	const typeLabel = node.type === "function" ? "函数" : node.type === "class" ? "类" : node.type === "module" ? "模块" : node.type === "interface" ? "接口" : "变量";
-	parts.push(`${typeLabel} ${node.label}`);
-	if (node.filePath) parts.push(`位于 ${node.filePath}`);
-	if (deps.length > 0) parts.push(`依赖 ${deps.length} 个其他节点`);
-	if (dependents.length > 0) parts.push(`被 ${dependents.length} 个节点引用`);
-	if (deps.length === 0 && dependents.length === 0) parts.push("独立节点，无依赖关系");
-	return parts.join("，");
-}
-function buildTour(nodes, edges, maxSteps = 30) {
-	if (nodes.length === 0) return {
-		steps: [],
-		totalSteps: 0,
-		entryPoints: []
-	};
-	const { outMap, inMap } = buildAdjacencyMaps(edges);
-	const entryPoints = findEntryPoints(nodes, inMap);
-	const allNodeIds = nodes.map((n) => n.id);
-	const sortedIds = topologicalSort(allNodeIds, outMap, inMap);
-	const nodeMap = new Map();
-	for (const n of nodes) nodeMap.set(n.id, n);
-	const layerGroups = new Map();
-	for (const id of sortedIds) {
-		const node = nodeMap.get(id);
-		if (!node) continue;
-		const layer = classifyLayer(node);
-		const group = layerGroups.get(layer) ?? [];
-		group.push(id);
-		layerGroups.set(layer, group);
-	}
-	const orderedIds = [];
-	for (const layer of LAYER_ORDER) {
-		const ids = layerGroups.get(layer) ?? [];
-		orderedIds.push(...ids);
-	}
-	const limitedIds = orderedIds.slice(0, maxSteps);
-	const steps = limitedIds.map((id) => {
-		const node = nodeMap.get(id);
-		const deps = outMap.get(id) ?? [];
-		const dependents = inMap.get(id) ?? [];
-		return {
-			id: `tour-${id}`,
-			title: node.label,
-			description: generateDescription(node, deps, dependents),
-			nodeId: id,
-			nodeType: node.type,
-			filePath: node.filePath ?? "",
-			dependencies: deps,
-			dependents,
-			layer: classifyLayer(node)
-		};
+//#region src/client/components/ImpactPanel.tsx
+const ImpactPanel = memo(function ImpactPanel$1({ impactStats, label, totalLabel, onClose }) {
+	const t$1 = useT();
+	return /* @__PURE__ */ jsxs("div", {
+		className: "cg-analysis-panel cg-impact-panel",
+		role: "region",
+		"aria-label": label,
+		"aria-live": "polite",
+		children: [/* @__PURE__ */ jsxs("div", {
+			className: "cg-analysis-panel-header",
+			children: [/* @__PURE__ */ jsx("span", { children: label }), onClose && /* @__PURE__ */ jsx("button", {
+				className: "cg-analysis-panel-close",
+				onClick: onClose,
+				"aria-label": t$1("common.close"),
+				children: "×"
+			})]
+		}), /* @__PURE__ */ jsxs("div", {
+			className: "cg-analysis-panel-content",
+			children: [
+				/* @__PURE__ */ jsxs("div", {
+					className: "cg-impact-stat-row",
+					children: [/* @__PURE__ */ jsx("span", {
+						className: "cg-impact-stat-badge cg-d1",
+						children: "D1"
+					}), /* @__PURE__ */ jsx("span", {
+						className: "cg-impact-stat-count",
+						children: impactStats.d1
+					})]
+				}),
+				/* @__PURE__ */ jsxs("div", {
+					className: "cg-impact-stat-row",
+					children: [/* @__PURE__ */ jsx("span", {
+						className: "cg-impact-stat-badge cg-d2",
+						children: "D2"
+					}), /* @__PURE__ */ jsx("span", {
+						className: "cg-impact-stat-count",
+						children: impactStats.d2
+					})]
+				}),
+				/* @__PURE__ */ jsxs("div", {
+					className: "cg-impact-stat-row",
+					children: [/* @__PURE__ */ jsx("span", {
+						className: "cg-impact-stat-badge cg-d3",
+						children: "D3"
+					}), /* @__PURE__ */ jsx("span", {
+						className: "cg-impact-stat-count",
+						children: impactStats.d3
+					})]
+				}),
+				/* @__PURE__ */ jsxs("div", {
+					className: "cg-impact-stat-total",
+					children: [
+						totalLabel,
+						": ",
+						impactStats.total
+					]
+				})
+			]
+		})]
 	});
-	return {
-		steps,
-		totalSteps: steps.length,
-		entryPoints
-	};
-}
+});
 
 //#endregion
-//#region src/client/components/MicroViewBar.tsx
-const MicroViewPrompt = memo(function MicroViewPrompt$1({ viewMode, selectFunctionPrompt, flowchartLabel, sequenceLabel, backToCodeLabel, onBackToCode }) {
+//#region src/client/components/CyclePanel.tsx
+const CyclePanel = memo(function CyclePanel$1({ cycles, label, emptyLabel, onClose }) {
 	const t$1 = useT();
-	const modeLabel = viewMode === "cfg" ? t$1("viewMode.cfg") : viewMode === "flowchart" ? flowchartLabel : sequenceLabel;
 	return /* @__PURE__ */ jsxs("div", {
-		className: "cg-micro-empty-prompt",
-		children: [
-			/* @__PURE__ */ jsx("div", {
-				className: "cg-micro-empty-icon",
-				children: modeLabel
-			}),
-			/* @__PURE__ */ jsx("div", {
-				className: "cg-micro-empty-text",
-				children: selectFunctionPrompt
-			}),
-			/* @__PURE__ */ jsx("button", {
-				className: "cg-micro-empty-back-btn",
-				onClick: onBackToCode,
-				"aria-label": backToCodeLabel,
-				children: backToCodeLabel
-			})
-		]
-	});
-});
-const MicroFunctionBar = memo(function MicroFunctionBar$1({ functionName, filePath, viewMode, onClose }) {
-	const t$1 = useT();
-	const modeLabel = viewMode === "cfg" ? t$1("viewMode.cfg") : viewMode === "flowchart" ? t$1("viewMode.flowchart") : viewMode === "sequence" ? t$1("viewMode.sequence") : "";
-	const shortPath = filePath ? filePath.split(/[\\/]/).slice(-2).join("/") : "";
-	return /* @__PURE__ */ jsxs("div", {
-		className: "cg-micro-function-bar",
+		className: "cg-analysis-panel cg-cycle-panel",
 		role: "region",
-		"aria-label": t$1("micro.functionBar"),
-		children: [
-			modeLabel && /* @__PURE__ */ jsx("span", {
-				className: "cg-micro-function-mode",
-				children: modeLabel
-			}),
-			/* @__PURE__ */ jsx("span", {
-				className: "cg-micro-function-name",
-				children: functionName
-			}),
-			shortPath && /* @__PURE__ */ jsx("span", {
-				className: "cg-micro-function-path",
-				children: shortPath
-			}),
-			/* @__PURE__ */ jsx("button", {
-				className: "cg-micro-function-close",
-				onClick: onClose,
-				"aria-label": t$1("micro.closeView"),
-				children: "✕"
-			})
-		]
+		"aria-label": label,
+		"aria-live": "polite",
+		children: [/* @__PURE__ */ jsxs("div", {
+			className: "cg-analysis-panel-header",
+			children: [
+				/* @__PURE__ */ jsx("span", { children: label }),
+				/* @__PURE__ */ jsx("span", {
+					className: "cg-cycle-count-badge",
+					children: cycles.length
+				}),
+				onClose && /* @__PURE__ */ jsx("button", {
+					className: "cg-analysis-panel-close",
+					onClick: onClose,
+					"aria-label": t$1("common.close"),
+					children: "×"
+				})
+			]
+		}), /* @__PURE__ */ jsx("div", {
+			className: "cg-analysis-panel-content",
+			children: cycles.length === 0 ? /* @__PURE__ */ jsx("div", {
+				className: "cg-cycle-empty",
+				children: emptyLabel
+			}) : cycles.map((cycle, i$1) => /* @__PURE__ */ jsxs("div", {
+				className: "cg-cycle-item",
+				children: [/* @__PURE__ */ jsxs("div", {
+					className: "cg-cycle-item-header",
+					children: [/* @__PURE__ */ jsxs("span", {
+						className: "cg-cycle-index",
+						children: ["#", i$1 + 1]
+					}), /* @__PURE__ */ jsx("span", {
+						className: "cg-cycle-length",
+						children: t$1("cycle.nodeCount").replace("{n}", String(cycle.length))
+					})]
+				}), /* @__PURE__ */ jsxs("div", {
+					className: "cg-cycle-nodes",
+					children: [cycle.nodes.map((nodeId, j) => /* @__PURE__ */ jsxs("span", {
+						className: "cg-cycle-node-tag",
+						children: [nodeId, j < cycle.nodes.length - 1 && /* @__PURE__ */ jsx("span", {
+							className: "cg-cycle-arrow",
+							children: "→"
+						})]
+					}, j)), /* @__PURE__ */ jsx("span", {
+						className: "cg-cycle-arrow",
+						children: "↺"
+					})]
+				})]
+			}, i$1))
+		})]
 	});
 });
+
+//#endregion
+//#region src/client/components/RightPanelStack.tsx
+function RightPanelStack(props) {
+	const { panel, isCollapsed } = props;
+	if (isCollapsed) return null;
+	return /* @__PURE__ */ jsxs("div", {
+		className: "cg-panel-stack cg-panel-stack-right",
+		children: [
+			panel.showMiniMap && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(StatsPanel, {
+				counts: props.nodeTypeCounts,
+				onClose: () => panel.setShowMiniMap(false),
+				thumbnail: props.thumbnail,
+				viewportInfo: props.viewportInfo,
+				onFocusArea: props.onFocusArea
+			}) }),
+			panel.showHotspot && props.hotspotNodes.length > 0 && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(HotspotPanel, {
+				hotspotNodes: props.hotspotNodes,
+				onClose: () => panel.setShowHotspot(false),
+				label: props.labels.hotspot
+			}) }),
+			panel.showGodModule && props.godModules.length > 0 && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(GodModulePanel, {
+				godModules: props.godModules,
+				onClose: () => panel.setShowGodModule(false),
+				label: props.labels.godModule,
+				statsLabel: props.labels.godModuleStats
+			}) }),
+			panel.showCoreFunction && props.coreFunctions.length > 0 && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(CoreFunctionPanel, {
+				coreFunctions: props.coreFunctions,
+				onClose: () => panel.setShowCoreFunction(false),
+				label: props.labels.coreFunction,
+				onSelectFunction: props.onSelectCoreFunction
+			}) }),
+			panel.showDeadCode && props.deadCodeResult && props.deadCodeResult.deadNodes.length > 0 && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(DeadCodePanel, {
+				result: props.deadCodeResult,
+				onClose: () => panel.setShowDeadCode(false),
+				label: props.labels.deadCode,
+				onSelectNode: props.onSelectDeadNode
+			}) }),
+			panel.showFilterPanel && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(FilterPanel, { onClose: () => panel.setShowFilterPanel(false) }) }),
+			panel.showTour && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(TourPanel, {
+				tour: props.tourData,
+				onClose: () => panel.setShowTour(false)
+			}) }),
+			panel.showImpact && props.impactStats && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(ImpactPanel, {
+				impactStats: props.impactStats,
+				label: props.labels.impact,
+				totalLabel: props.labels.impactTotal,
+				onClose: () => panel.setShowImpact(false)
+			}) }),
+			panel.showCycles && props.cycleDetails.length > 0 && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(CyclePanel, {
+				cycles: props.cycleDetails,
+				label: props.labels.cycles,
+				emptyLabel: props.labels.cyclesEmpty,
+				onClose: () => panel.setShowCycles(false)
+			}) })
+		]
+	});
+}
 
 //#endregion
 //#region src/client/renderer/SequenceDiagramRenderer.tsx
@@ -65771,7 +65998,7 @@ const SequenceDiagramRenderer = ({ nodes, edges, theme, onNodeTap }) => {
 
 //#endregion
 //#region src/client/GraphPanel.tsx
-const log$2 = scoped("panel");
+const log$12 = scoped("panel");
 function GraphPanelInner({ className = "" }) {
 	const t$1 = useT();
 	const panelRef = useRef(null);
@@ -65874,7 +66101,7 @@ function GraphPanelInner({ className = "" }) {
 			const data$2 = getDataRef.current?.getNodeData(id) ?? null;
 			setSelectedNodeData(data$2);
 		} catch (err) {
-			log$2.error("handleNodeTap failed", {
+			log$12.error("handleNodeTap failed", {
 				id,
 				err
 			});
@@ -65903,7 +66130,7 @@ function GraphPanelInner({ className = "" }) {
 				});
 			}
 		} catch (err) {
-			log$2.error("handleNodeHover failed", {
+			log$12.error("handleNodeHover failed", {
 				nodeId,
 				err
 			});
@@ -65950,7 +66177,7 @@ function GraphPanelInner({ className = "" }) {
 				});
 			}
 		} catch (err) {
-			log$2.error("handleEdgeTap failed", {
+			log$12.error("handleEdgeTap failed", {
 				edgeId,
 				err
 			});
@@ -66237,7 +66464,7 @@ function GraphPanelInner({ className = "" }) {
 			setTheme(newTheme);
 			renderer$1.updateTheme(newTheme);
 		} catch (err) {
-			log$2.error("handleThemeToggle failed", { err });
+			log$12.error("handleThemeToggle failed", { err });
 		}
 	}, [
 		theme,
@@ -66293,7 +66520,7 @@ function GraphPanelInner({ className = "" }) {
 					return nodeId;
 				});
 			} catch (err) {
-				log$2.error("handleNodeDoubleTap failed", {
+				log$12.error("handleNodeDoubleTap failed", {
 					nodeId,
 					err
 				});
@@ -66309,12 +66536,12 @@ function GraphPanelInner({ className = "" }) {
 	const handleRefresh = useCallback(() => {
 		setLoading(true);
 		window.dispatchEvent(new CustomEvent(DOM_EVENTS.REFRESH, { detail: { incremental: false } }));
-		log$2.info("manual refresh (full)");
+		log$12.info("manual refresh (full)");
 	}, [setLoading]);
 	const handleScanWorkspace = useCallback(() => {
 		setLoading(true);
 		window.dispatchEvent(new CustomEvent(DOM_EVENTS.IMPORT_REPO, { detail: { path: currentWorkspace || "." } }));
-		log$2.info("scan workspace from empty state", { path: currentWorkspace });
+		log$12.info("scan workspace from empty state", { path: currentWorkspace });
 	}, [setLoading, currentWorkspace]);
 	const handleFindPath = useCallback((sourceId, targetId) => {
 		try {
@@ -66329,7 +66556,7 @@ function GraphPanelInner({ className = "" }) {
 				r.highlightPath(null);
 			}
 		} catch (err) {
-			log$2.error("handleFindPath failed", {
+			log$12.error("handleFindPath failed", {
 				sourceId,
 				targetId,
 				err
@@ -66396,10 +66623,10 @@ function GraphPanelInner({ className = "" }) {
 		if (!prerequisites.codegraph) return;
 		if (!currentWorkspace) return;
 		hasAutoScannedRef.current = true;
-		log$2.info("auto-fill: triggering bootstrap on first open", { path: currentWorkspace });
+		log$12.info("auto-fill: triggering bootstrap on first open", { path: currentWorkspace });
 		useGraphStore.getState().loadBootstrap().then((ok) => {
 			if (!ok) {
-				log$2.info("auto-fill: bootstrap failed, falling back to scan", { path: currentWorkspace });
+				log$12.info("auto-fill: bootstrap failed, falling back to scan", { path: currentWorkspace });
 				handleScanWorkspace();
 			}
 		});
@@ -66445,7 +66672,7 @@ function GraphPanelInner({ className = "" }) {
 			setSelectedNodeData(data$2);
 			panel.setShowSearch(false);
 		} catch (err) {
-			log$2.error("handleSelectSearchResult failed", {
+			log$12.error("handleSelectSearchResult failed", {
 				id,
 				err
 			});
@@ -66539,113 +66766,42 @@ function GraphPanelInner({ className = "" }) {
 				onAddWorkspace: handleWorkspaceAdd,
 				onRemoveWorkspace: removeWorkspace
 			}),
-			/* @__PURE__ */ jsxs("div", {
-				className: "cg-panel-stack cg-panel-stack-left",
-				children: [
-					panel.showSearch && !isCollapsed && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(SearchBar, {
-						query: searchQuery,
-						matchCount: renderer$1.searchMatchCount,
-						searchResults,
-						onChange: setSearchQuery,
-						onClose: () => panel.setShowSearch(false),
-						onSelectResult: handleSelectSearchResult
-					}) }),
-					panel.showPathFind && !isCollapsed && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(PathBar, {
-						onFindPath: handleFindPath,
-						onClearPath: handleClearPath,
-						pathResult,
-						pathLength: pathResult ? pathResult.length - 1 : null,
-						onClose: () => panel.setShowPathFind(false)
-					}) }),
-					panel.showHealthScore && !isCollapsed && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(HealthScoreCard, { onClose: () => panel.setShowHealthScore(false) }) }),
-					panel.showRules && !isCollapsed && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(RuleConfigPanel, {
-						violations: ruleViolations,
-						onCheckRules: handleRulesCheck,
-						onClose: () => panel.setShowRules(false)
-					}) }),
-					selectedNodeData && !isCollapsed && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(NodeDetail, {
-						node: selectedNodeData,
-						onClose: handleCloseDetail,
-						isExpanded: selectedNodeData ? expandedNodeIds.has(selectedNodeData.id) : false,
-						connectionCount: selectedNodeData ? (adjacencyMap.get(selectedNodeData.id)?.in ?? 0) + (adjacencyMap.get(selectedNodeData.id)?.out ?? 0) : 0,
-						onCollapse: () => selectedNodeData && collapseNode(selectedNodeData.id),
-						onSelectFunction: (node, mode) => handleSelectFunction(node.id, node.filePath, node.label, mode),
-						onAggregateCallChain: handleAggregateCallChain
-					}) }),
-					panel.showLegend && !isCollapsed && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(Legend, {
-						viewMode,
-						onClose: () => panel.setShowLegend(false)
-					}) }),
-					panel.showImport && !isCollapsed && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(ImportPanel, {
-						onClose: () => panel.setShowImport(false),
-						workspacePath: currentWorkspace,
-						prerequisites,
-						initStatus,
-						watchEnabled,
-						onSetGraphData: setGraphData,
-						onSetLoading: setLoading,
-						onSetError: setError,
-						onSetInitStatus: setInitStatus,
-						onSetWatchEnabled: setWatchEnabled
-					}) })
-				]
+			/* @__PURE__ */ jsx(LeftPanelStack, {
+				panel,
+				isCollapsed,
+				searchQuery,
+				searchResults,
+				searchMatchCount: renderer$1.searchMatchCount,
+				onSearchChange: setSearchQuery,
+				onSelectSearchResult: handleSelectSearchResult,
+				onFindPath: handleFindPath,
+				onClearPath: handleClearPath,
+				pathResult,
+				ruleViolations,
+				onCheckRules: handleRulesCheck,
+				selectedNodeData,
+				onCloseDetail: handleCloseDetail,
+				expandedNodeIds,
+				adjacencyMap,
+				onCollapseNode: (id) => collapseNode(id),
+				onSelectFunction: (node, mode) => handleSelectFunction(node.id, node.filePath, node.label, mode),
+				onAggregateCallChain: handleAggregateCallChain,
+				viewMode,
+				currentWorkspace,
+				prerequisites,
+				initStatus,
+				watchEnabled,
+				onSetGraphData: setGraphData,
+				onSetLoading: setLoading,
+				onSetError: setError,
+				onSetInitStatus: setInitStatus,
+				onSetWatchEnabled: setWatchEnabled
 			}),
-			!isCollapsed && !isMicroView && /* @__PURE__ */ jsxs("div", {
-				className: "cg-overlay-bar",
-				role: "group",
-				"aria-label": t$1("overlay.title"),
-				children: [
-					/* @__PURE__ */ jsx("div", {
-						className: `cg-overlay-section ${heatmapMode === "none" ? "cg-overlay-section--collapsed" : ""}`,
-						children: heatmapMode === "none" ? /* @__PURE__ */ jsx("button", {
-							className: "cg-overlay-btn cg-overlay-btn--activate",
-							onClick: () => setHeatmapMode("instability"),
-							"aria-label": t$1("heatmap.title"),
-							children: t$1("heatmap.title")
-						}) : /* @__PURE__ */ jsxs(Fragment, { children: [/* @__PURE__ */ jsxs("span", {
-							className: "cg-overlay-label",
-							children: [t$1("heatmap.title"), ":"]
-						}), [
-							"none",
-							"instability",
-							"lines",
-							"complexity"
-						].map((m) => /* @__PURE__ */ jsx("button", {
-							className: `cg-overlay-btn ${heatmapMode === m ? "cg-active" : ""}`,
-							onClick: () => setHeatmapMode(m),
-							"aria-pressed": heatmapMode === m,
-							"aria-label": t$1(`heatmap.${m}`),
-							children: t$1(`heatmap.${m}`)
-						}, m))] })
-					}),
-					/* @__PURE__ */ jsx("span", {
-						className: "cg-overlay-divider",
-						"aria-hidden": "true"
-					}),
-					/* @__PURE__ */ jsx("div", {
-						className: `cg-overlay-section ${todoMarkerMode === "none" ? "cg-overlay-section--collapsed" : ""}`,
-						children: todoMarkerMode === "none" ? /* @__PURE__ */ jsx("button", {
-							className: "cg-overlay-btn cg-overlay-btn--activate",
-							onClick: () => setTodoMarkerMode("all"),
-							"aria-label": t$1("todoMarker.title"),
-							children: t$1("todoMarker.title")
-						}) : /* @__PURE__ */ jsxs(Fragment, { children: [/* @__PURE__ */ jsxs("span", {
-							className: "cg-overlay-label",
-							children: [t$1("todoMarker.title"), ":"]
-						}), [
-							"none",
-							"todo",
-							"fixme",
-							"all"
-						].map((m) => /* @__PURE__ */ jsx("button", {
-							className: `cg-overlay-btn ${todoMarkerMode === m ? "cg-active" : ""}`,
-							onClick: () => setTodoMarkerMode(m),
-							"aria-pressed": todoMarkerMode === m,
-							"aria-label": t$1(`todoMarker.${m}`),
-							children: t$1(`todoMarker.${m}`)
-						}, m))] })
-					})
-				]
+			!isCollapsed && !isMicroView && /* @__PURE__ */ jsx(OverlayBar, {
+				heatmapMode,
+				setHeatmapMode,
+				todoMarkerMode,
+				setTodoMarkerMode
 			}),
 			focusNodeId && !isCollapsed && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(FocusModeBar, {
 				focusNodeId,
@@ -66721,77 +66877,47 @@ function GraphPanelInner({ className = "" }) {
 				theme,
 				onNodeTap: (id) => handleNodeTap(NodeId(id))
 			}) }),
-			/* @__PURE__ */ jsxs("div", {
-				className: "cg-panel-stack cg-panel-stack-right",
-				children: [
-					panel.showMiniMap && !isCollapsed && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(StatsPanel, {
-						counts: {
-							function: nodeTypeCounts.function,
-							class: nodeTypeCounts.class,
-							variable: nodeTypeCounts.variable,
-							module: nodeTypeCounts.module,
-							interface: nodeTypeCounts.interface
-						},
-						onClose: () => panel.setShowMiniMap(false),
-						thumbnail,
-						viewportInfo,
-						onFocusArea: (ratioX, ratioY) => {
-							const info = renderer$1.rendererRef.current?.getViewportInfo();
-							if (info) renderer$1.rendererRef.current?.focusOnArea(info.totalSize.w * ratioX, info.totalSize.h * ratioY, info.zoom);
-						}
-					}) }),
-					panel.showHotspot && !isCollapsed && hotspotNodes.length > 0 && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(HotspotPanel, {
-						hotspotNodes,
-						onClose: () => panel.setShowHotspot(false),
-						label: t$1("toolbar.hotspot")
-					}) }),
-					panel.showGodModule && !isCollapsed && godModules.length > 0 && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(GodModulePanel, {
-						godModules,
-						onClose: () => panel.setShowGodModule(false),
-						label: t$1("toolbar.godModule"),
-						statsLabel: (n, e) => t$1("godmodule.stats", {
-							nodes: n,
-							edges: e
-						})
-					}) }),
-					panel.showCoreFunction && !isCollapsed && coreFunctions.length > 0 && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(CoreFunctionPanel, {
-						coreFunctions,
-						onClose: () => panel.setShowCoreFunction(false),
-						label: t$1("toolbar.coreFunction"),
-						onSelectFunction: (nodeId) => {
-							setSelectedNode(NodeId(nodeId));
-							renderer$1.rendererRef.current?.focusOnNode(nodeId);
-							renderer$1.rendererRef.current?.selectNode(NodeId(nodeId));
-						}
-					}) }),
-					panel.showDeadCode && !isCollapsed && deadCodeResult && deadCodeResult.deadNodes.length > 0 && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(DeadCodePanel, {
-						result: deadCodeResult,
-						onClose: () => panel.setShowDeadCode(false),
-						label: t$1("toolbar.deadCode"),
-						onSelectNode: (nodeId) => {
-							setSelectedNode(NodeId(nodeId));
-							renderer$1.rendererRef.current?.focusOnNode(nodeId);
-							renderer$1.rendererRef.current?.selectNode(NodeId(nodeId));
-						}
-					}) }),
-					panel.showFilterPanel && !isCollapsed && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(FilterPanel, { onClose: () => panel.setShowFilterPanel(false) }) }),
-					panel.showTour && !isCollapsed && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(TourPanel, {
-						tour: tourData,
-						onClose: () => panel.setShowTour(false)
-					}) }),
-					panel.showImpact && !isCollapsed && impactStats && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(ImpactPanel, {
-						impactStats,
-						label: t$1("toolbar.impact"),
-						totalLabel: t$1("impact.total"),
-						onClose: () => panel.setShowImpact(false)
-					}) }),
-					panel.showCycles && !isCollapsed && cycleDetails.length > 0 && /* @__PURE__ */ jsx(GraphErrorBoundary, { children: /* @__PURE__ */ jsx(CyclePanel, {
-						cycles: cycleDetails,
-						label: t$1("toolbar.cycles"),
-						emptyLabel: t$1("cycles.empty"),
-						onClose: () => panel.setShowCycles(false)
-					}) })
-				]
+			/* @__PURE__ */ jsx(RightPanelStack, {
+				panel,
+				isCollapsed,
+				nodeTypeCounts,
+				thumbnail,
+				viewportInfo,
+				onFocusArea: (ratioX, ratioY) => {
+					const info = renderer$1.rendererRef.current?.getViewportInfo();
+					if (info) renderer$1.rendererRef.current?.focusOnArea(info.totalSize.w * ratioX, info.totalSize.h * ratioY, info.zoom);
+				},
+				hotspotNodes,
+				godModules,
+				coreFunctions,
+				deadCodeResult,
+				impactStats,
+				cycleDetails,
+				tourData,
+				onSelectCoreFunction: (nodeId) => {
+					setSelectedNode(NodeId(nodeId));
+					renderer$1.rendererRef.current?.focusOnNode(nodeId);
+					renderer$1.rendererRef.current?.selectNode(NodeId(nodeId));
+				},
+				onSelectDeadNode: (nodeId) => {
+					setSelectedNode(NodeId(nodeId));
+					renderer$1.rendererRef.current?.focusOnNode(nodeId);
+					renderer$1.rendererRef.current?.selectNode(NodeId(nodeId));
+				},
+				labels: {
+					hotspot: t$1("toolbar.hotspot"),
+					godModule: t$1("toolbar.godModule"),
+					coreFunction: t$1("toolbar.coreFunction"),
+					deadCode: t$1("toolbar.deadCode"),
+					impact: t$1("toolbar.impact"),
+					impactTotal: t$1("impact.total"),
+					cycles: t$1("toolbar.cycles"),
+					cyclesEmpty: t$1("cycles.empty"),
+					godModuleStats: (n, e) => t$1("godmodule.stats", {
+						nodes: n,
+						edges: e
+					})
+				}
 			}),
 			contextMenu && /* @__PURE__ */ jsx(ContextMenu, {
 				nodeId: contextMenu.nodeId,
@@ -66873,8 +66999,8 @@ const PLUGIN_VERSION = "0.2.0";
 
 //#endregion
 //#region src/client/compat/ClientCompatLayer.ts
-const log$1 = scoped("client:compat");
-function safeCheck(fn$7, fallback) {
+const log$11 = scoped("client:compat");
+function safeCheck$1(fn$7, fallback) {
 	try {
 		return fn$7();
 	} catch {
@@ -66890,21 +67016,21 @@ function createClientCompatLayer() {
 		slots: false
 	};
 	const detectMode = (ctx) => {
-		if (safeCheck(() => {
+		if (safeCheck$1(() => {
 			const tabs = ctx.sidebarRightTabs;
 			return tabs !== null && tabs !== void 0;
 		}, false)) {
 			_mode = "sidebar-right";
 			return _mode;
 		}
-		if (safeCheck(() => {
+		if (safeCheck$1(() => {
 			const bs = ctx.get("betterSidebar");
 			return bs !== null && bs !== void 0;
 		}, false)) {
 			_mode = "better-sidebar";
 			return _mode;
 		}
-		if (safeCheck(() => ctx.slots !== null && ctx.slots !== void 0, false)) {
+		if (safeCheck$1(() => ctx.slots !== null && ctx.slots !== void 0, false)) {
 			_mode = "slot";
 			return _mode;
 		}
@@ -66913,21 +67039,21 @@ function createClientCompatLayer() {
 	};
 	const detectFlags = (ctx) => {
 		_flags = {
-			sidebarRightTabs: safeCheck(() => {
+			sidebarRightTabs: safeCheck$1(() => {
 				const tabs = ctx.sidebarRightTabs;
 				return tabs !== null && tabs !== void 0;
 			}, false),
-			betterSidebar: safeCheck(() => {
+			betterSidebar: safeCheck$1(() => {
 				const bs = ctx.get("betterSidebar");
 				return bs !== null && bs !== void 0;
 			}, false),
-			spotlight: safeCheck(() => {
+			spotlight: safeCheck$1(() => {
 				const sp = ctx.get("spotlight");
 				return sp !== null && sp !== void 0;
 			}, false),
-			slots: safeCheck(() => ctx.slots !== null && ctx.slots !== void 0, false)
+			slots: safeCheck$1(() => ctx.slots !== null && ctx.slots !== void 0, false)
 		};
-		log$1.info("client feature flags resolved", {
+		log$11.info("client feature flags resolved", {
 			flags: _flags,
 			mode: _mode
 		});
@@ -66948,14 +67074,189 @@ function createClientCompatLayer() {
 }
 
 //#endregion
-//#region src/client/index.ts
-const log = scoped("client");
-const name = "dsh-codegraph-visualizer-client";
-const inject = [
-	"slots",
-	"betterSidebar",
-	"sidebarRightTabs"
-];
+//#region src/client/integrations/IntegrationState.ts
+const log$10 = scoped("client");
+var IntegrationState = class {
+	panelVisible = false;
+	navButtonRegistered = false;
+	betterSidebarApi;
+	betterSidebarTabId;
+	sidebarStateDisposer;
+	slotDisposers = [];
+	renderFloating = () => {};
+	constructor(ctx, flags) {
+		this.ctx = ctx;
+		this.flags = flags;
+		ctx.effect(() => () => {
+			for (const dispose of this.slotDisposers) dispose();
+			this.slotDisposers.length = 0;
+		}, "codegraph: slot registrations cleanup");
+	}
+	trackSlotDisposer(d) {
+		if (typeof d === "function") this.slotDisposers.push(d);
+	}
+	openSidebarTab() {
+		if (this.betterSidebarApi) try {
+			this.betterSidebarApi.openTab({ type: "codegraph-visualizer" });
+		} catch (e) {
+			log$10.warn("betterSidebar.openTab failed", e);
+		}
+	}
+	togglePanel() {
+		if (this.betterSidebarApi && !this.panelVisible) {
+			this.openSidebarTab();
+			return;
+		}
+		this.panelVisible = !this.panelVisible;
+		const container = document.querySelector(".cg-floating-container");
+		if (container) container.setAttribute("data-visible", String(this.panelVisible));
+		this.renderFloating();
+	}
+};
+
+//#endregion
+//#region src/client/integrations/SidebarRightTabsIntegration.ts
+const log$9 = scoped("client");
+function integrateSidebarRightTabs(state) {
+	const { ctx } = state;
+	try {
+		const seatDispose = ctx.inject(["sidebarRightTabs"], (injected) => {
+			const tabs = injected.get("sidebarRightTabs");
+			if (!tabs) {
+				log$9.warn("sidebarRightTabs injected but undefined");
+				return;
+			}
+			log$9.info("sidebarRightTabs injected via ctx.inject, registering...");
+			const typeDispose = tabs.register({
+				id: "dsh-codegraph-visualizer",
+				kind: "codegraph",
+				priority: "extension",
+				canOpen: () => true,
+				title: () => t("nav.title")
+			});
+			if (typeof typeDispose === "function") state.slotDisposers.push(typeDispose);
+			const bodyDispose = ctx.slots.inject("sidebar.right.pane.tab", () => {
+				const regResult = ctx.slots.register({
+					name: "sidebar.right.pane.tab",
+					key: "dsh-codegraph-visualizer"
+				}, GraphPanel);
+				if (typeof regResult === "function") state.slotDisposers.push(regResult);
+			});
+			if (typeof bodyDispose === "function") state.slotDisposers.push(bodyDispose);
+			state.navButtonRegistered = true;
+			useGraphStore.getState().setIntegrationMode("sidebar-right");
+			log$9.info("sidebarRightTabs registration succeeded");
+		});
+		if (typeof seatDispose === "function") state.slotDisposers.push(seatDispose);
+	} catch (e) {
+		log$9.error("sidebarRightTabs ctx.inject failed", e);
+	}
+}
+
+//#endregion
+//#region src/client/utils/safeCheck.ts
+function safeCheck(fn$7, fallback) {
+	try {
+		return fn$7();
+	} catch {
+		return fallback;
+	}
+}
+
+//#endregion
+//#region src/client/integrations/BetterSidebarIntegration.ts
+const log$8 = scoped("client");
+function integrateBetterSidebar(state) {
+	if (!state.flags.betterSidebar) return;
+	if (state.navButtonRegistered) return;
+	const { ctx } = state;
+	try {
+		const betterSidebarApi = ctx.get("betterSidebar");
+		if (!betterSidebarApi) return;
+		const bsFeatures = safeCheck(() => betterSidebarApi?.features ?? [], []);
+		const hasFeature = (f) => bsFeatures.includes(f);
+		log$8.info("better-sidebar features", {
+			version: safeCheck(() => betterSidebarApi?.version, "unknown"),
+			features: bsFeatures
+		});
+		const tabDescriptor = {
+			id: "codegraph-visualizer",
+			title: () => t("nav.title"),
+			description: () => t("nav.description"),
+			icon: (size$1) => React.createElement(GraphIcon, { size: size$1 }),
+			order: 50,
+			single: true,
+			component: (props) => {
+				state.panelVisible = props.visible;
+				useGraphStore.getState().setPanelVisible(props.visible);
+				if (props.tab?.id) state.betterSidebarTabId = props.tab.id;
+				return React.createElement("div", {
+					style: {
+						display: props.visible ? "block" : "none",
+						width: "100%",
+						height: "100%"
+					},
+					"data-cg-sidebar-visible": String(props.visible)
+				}, React.createElement(GraphErrorBoundary, null, React.createElement(GraphPanel)));
+			}
+		};
+		if (hasFeature("badge")) tabDescriptor.badge = () => {
+			const s = useGraphStore.getState();
+			if (s.nodes.length === 0) return null;
+			return s.nodes.length > 99 ? "99+" : s.nodes.length;
+		};
+		if (hasFeature("tabLifecycle")) {
+			tabDescriptor.onOpen = (tab, scope) => {
+				log$8.info("better-sidebar tab opened", {
+					tabId: tab?.id,
+					scope
+				});
+				useGraphStore.getState().setPanelVisible(true);
+			};
+			tabDescriptor.onActivate = (tab, scope) => {
+				log$8.info("better-sidebar tab activated", {
+					tabId: tab?.id,
+					scope
+				});
+				useGraphStore.getState().setPanelVisible(true);
+			};
+			tabDescriptor.onClose = (tab, scope) => {
+				log$8.info("better-sidebar tab closed", {
+					tabId: tab?.id,
+					scope
+				});
+				useGraphStore.getState().setPanelVisible(false);
+			};
+		}
+		const dispose = betterSidebarApi.registerTab(tabDescriptor);
+		if (typeof dispose === "function") {
+			ctx.effect(() => dispose, "codegraph: better-sidebar tab");
+			state.navButtonRegistered = true;
+			state.betterSidebarApi = betterSidebarApi;
+			useGraphStore.getState().setIntegrationMode("sidebar");
+			if (hasFeature("stateSubscription")) try {
+				state.sidebarStateDisposer = betterSidebarApi.subscribeState(() => {
+					const snapshot = betterSidebarApi?.getSnapshot();
+					if (snapshot?.state) {
+						const isVisible = snapshot.state.activePane === "codegraph-visualizer" || snapshot.state.bottomOpen;
+						if (isVisible !== state.panelVisible) {
+							state.panelVisible = isVisible;
+							useGraphStore.getState().setPanelVisible(isVisible);
+						}
+					}
+				});
+				if (state.sidebarStateDisposer) ctx.effect(() => state.sidebarStateDisposer, "codegraph: sidebar state subscription");
+			} catch (e) {
+				log$8.warn("better-sidebar subscribeState failed", e);
+			}
+		} else log$8.warn("better-sidebar registerTab did not return a disposer, falling back to slots");
+	} catch (e) {
+		log$8.warn("better-sidebar registration failed", e);
+	}
+}
+
+//#endregion
+//#region src/client/components/FloatingUI.tsx
 function SidebarNavButton({ onClick, active }) {
 	return React.createElement("button", {
 		onClick,
@@ -66974,7 +67275,7 @@ function FloatingGraphPanel({ onClose, onMinimize }) {
 		onClick: onClose,
 		className: "cg-floating-close",
 		"aria-label": t("nav.closePanel")
-	}, "×"))), React.createElement("div", { className: "cg-floating-content" }, React.createElement(GraphPanel))));
+	}, "×"))), React.createElement("div", { className: "cg-floating-content" }, React.createElement(GraphErrorBoundary, null, React.createElement(GraphPanel)))));
 }
 function MinimizedFloatingButton({ onRestore }) {
 	return React.createElement("button", {
@@ -66984,397 +67285,282 @@ function MinimizedFloatingButton({ onRestore }) {
 		title: t("nav.restorePanel")
 	}, React.createElement(GraphIcon, { size: 20 }));
 }
-function init(container, initialData) {
-	const root$12 = ReactDOM.createRoot(container);
-	if (initialData) {
-		const store = useGraphStore.getState();
-		store.setGraphData(initialData.nodes, initialData.edges, initialData.metadata.repoId, initialData.metadata);
-	}
-	root$12.render(React.createElement(GraphPanel));
-	return () => root$12.unmount();
-}
-function apply(ctx) {
-	const compat = createClientCompatLayer();
-	compat.detectFlags(ctx);
-	compat.detectMode(ctx);
-	const flags = compat.flags;
-	let panelVisible = false;
-	let navButtonRegistered = false;
-	let renderFloating = () => {};
-	let betterSidebarApi;
-	let _betterSidebarTabId;
-	let sidebarStateDisposer;
-	const slotDisposers = [];
-	const trackSlotDisposer = (d) => {
-		if (typeof d === "function") slotDisposers.push(d);
-	};
-	ctx.effect(() => () => {
-		for (const dispose of slotDisposers) dispose();
-		slotDisposers.length = 0;
-	}, "codegraph: slot registrations cleanup");
-	const openSidebarTab = () => {
-		if (betterSidebarApi) try {
-			betterSidebarApi.openTab({ type: "codegraph-visualizer" });
-		} catch (e) {
-			log.warn("betterSidebar.openTab failed", e);
-		}
-	};
-	const togglePanel = () => {
-		if (betterSidebarApi && !panelVisible) {
-			openSidebarTab();
-			return;
-		}
-		panelVisible = !panelVisible;
-		const container = document.querySelector(".cg-floating-container");
-		if (container) container.setAttribute("data-visible", String(panelVisible));
-		renderFloating();
-	};
+
+//#endregion
+//#region src/client/integrations/SlotsFallback.ts
+const log$7 = scoped("client");
+function integrateSlotsFallback(state) {
+	if (state.navButtonRegistered) return;
+	const { ctx } = state;
 	try {
-		const seatDispose = ctx.inject(["sidebarRightTabs"], (injected) => {
-			const tabs = injected.get("sidebarRightTabs");
-			if (!tabs) {
-				log.warn("sidebarRightTabs injected but undefined");
-				return;
-			}
-			log.info("sidebarRightTabs injected via ctx.inject, registering...");
-			const typeDispose = tabs.register({
-				id: "dsh-codegraph-visualizer",
-				kind: "codegraph",
-				priority: "extension",
-				canOpen: () => true,
-				title: () => t("nav.title")
-			});
-			if (typeof typeDispose === "function") slotDisposers.push(typeDispose);
-			const bodyDispose = ctx.slots.inject("sidebar.right.pane.tab", () => {
-				const regResult = ctx.slots.register({
-					name: "sidebar.right.pane.tab",
-					key: "dsh-codegraph-visualizer"
-				}, GraphPanel);
-				if (typeof regResult === "function") slotDisposers.push(regResult);
-			});
-			if (typeof bodyDispose === "function") slotDisposers.push(bodyDispose);
-			navButtonRegistered = true;
-			useGraphStore.getState().setIntegrationMode("sidebar-right");
-			log.info("sidebarRightTabs registration succeeded");
-		});
-		if (typeof seatDispose === "function") slotDisposers.push(seatDispose);
-	} catch (e) {
-		log.error("sidebarRightTabs ctx.inject failed", e);
-	}
-	if (!navButtonRegistered && flags.betterSidebar) try {
-		betterSidebarApi = ctx.get("betterSidebar");
-		if (betterSidebarApi) {
-			const dispose = betterSidebarApi.registerTab({
-				id: "codegraph-visualizer",
-				title: () => t("nav.title"),
-				description: () => t("nav.description"),
-				icon: (size$1) => React.createElement(GraphIcon, { size: size$1 }),
-				order: 50,
-				single: true,
-				badge: () => {
-					const s = useGraphStore.getState();
-					if (s.nodes.length === 0) return null;
-					return s.nodes.length > 99 ? "99+" : s.nodes.length;
-				},
-				onOpen: (tab, scope) => {
-					log.info("better-sidebar tab opened", {
-						tabId: tab?.id,
-						scope
-					});
-					useGraphStore.getState().setPanelVisible(true);
-				},
-				onActivate: (tab, scope) => {
-					log.info("better-sidebar tab activated", {
-						tabId: tab?.id,
-						scope
-					});
-					useGraphStore.getState().setPanelVisible(true);
-				},
-				onClose: (tab, scope) => {
-					log.info("better-sidebar tab closed", {
-						tabId: tab?.id,
-						scope
-					});
-					useGraphStore.getState().setPanelVisible(false);
-				},
-				component: (props) => {
-					panelVisible = props.visible;
-					useGraphStore.getState().setPanelVisible(props.visible);
-					if (props.tab?.id) _betterSidebarTabId = props.tab.id;
-					return React.createElement("div", {
-						style: {
-							display: props.visible ? "block" : "none",
-							width: "100%",
-							height: "100%"
-						},
-						"data-cg-sidebar-visible": String(props.visible)
-					}, React.createElement(GraphPanel));
-				}
-			});
-			if (typeof dispose === "function") {
-				ctx.effect(() => dispose, "codegraph: better-sidebar tab");
-				navButtonRegistered = true;
-				useGraphStore.getState().setIntegrationMode("sidebar");
-				try {
-					sidebarStateDisposer = betterSidebarApi.subscribeState(() => {
-						const snapshot = betterSidebarApi?.getSnapshot();
-						if (snapshot?.state) {
-							const isVisible = snapshot.state.activePane === "codegraph-visualizer" || snapshot.state.bottomOpen;
-							if (isVisible !== panelVisible) {
-								panelVisible = isVisible;
-								useGraphStore.getState().setPanelVisible(isVisible);
-							}
-						}
-					});
-					if (sidebarStateDisposer) ctx.effect(() => sidebarStateDisposer, "codegraph: sidebar state subscription");
-				} catch (e) {
-					log.warn("better-sidebar subscribeState failed", e);
-				}
-			} else log.warn("better-sidebar registerTab did not return a disposer, falling back to slots");
-		}
-	} catch (e) {
-		log.warn("better-sidebar registration failed", e);
-	}
-	if (!navButtonRegistered) try {
 		const injectDisposer = ctx.slots.inject("sidebar.footer.action", () => {
-			trackSlotDisposer(ctx.slots.register({
+			state.trackSlotDisposer(ctx.slots.register({
 				name: "sidebar.footer.action",
 				id: "codegraph-visualizer",
 				order: 10,
 				label: () => t("nav.title")
 			}, () => React.createElement(SidebarNavButton, {
-				onClick: togglePanel,
-				active: panelVisible
+				onClick: state.togglePanel.bind(state),
+				active: state.panelVisible
 			})));
 		});
-		trackSlotDisposer(injectDisposer);
-		navButtonRegistered = true;
+		state.trackSlotDisposer(injectDisposer);
+		state.navButtonRegistered = true;
 		useGraphStore.getState().setIntegrationMode("slot");
 	} catch (e) {
-		log.warn("sidebar.footer.action slot failed", e);
+		log$7.warn("sidebar.footer.action slot failed", e);
 	}
-	if (!navButtonRegistered && typeof document !== "undefined") {
-		let floatingMinimized = false;
-		const floatingContainer = document.createElement("div");
-		floatingContainer.className = "cg-floating-container";
-		floatingContainer.setAttribute("data-visible", "false");
-		document.body.appendChild(floatingContainer);
-		const floatingRoot = ReactDOM.createRoot(floatingContainer);
-		renderFloating = () => {
-			if (!panelVisible) {
-				floatingRoot.render(null);
+}
+
+//#endregion
+//#region src/client/integrations/FloatingPanelIntegration.ts
+function integrateFloatingPanel(state) {
+	if (state.navButtonRegistered) return;
+	if (typeof document === "undefined") return;
+	const { ctx } = state;
+	let floatingMinimized = false;
+	const floatingContainer = document.createElement("div");
+	floatingContainer.className = "cg-floating-container";
+	floatingContainer.setAttribute("data-visible", "false");
+	document.body.appendChild(floatingContainer);
+	const floatingRoot = ReactDOM.createRoot(floatingContainer);
+	state.renderFloating = () => {
+		if (!state.panelVisible) {
+			floatingRoot.render(null);
+			return;
+		}
+		if (floatingMinimized) floatingRoot.render(React.createElement(MinimizedFloatingButton, { onRestore: () => {
+			floatingMinimized = false;
+			state.renderFloating();
+		} }));
+		else floatingRoot.render(React.createElement(FloatingGraphPanel, {
+			onClose: () => {
+				state.panelVisible = false;
+				floatingContainer.setAttribute("data-visible", "false");
+				state.renderFloating();
+			},
+			onMinimize: () => {
+				floatingMinimized = true;
+				state.renderFloating();
+			}
+		}));
+	};
+	state.renderFloating();
+	useGraphStore.getState().setIntegrationMode("floating");
+	ctx.effect(() => () => {
+		floatingRoot.unmount();
+		floatingContainer.remove();
+	}, "codegraph: floating panel cleanup");
+}
+
+//#endregion
+//#region src/client/integrations/SpotlightIntegration.ts
+const log$6 = scoped("client");
+function integrateSpotlight(state) {
+	if (!state.flags.spotlight) return;
+	const { ctx } = state;
+	try {
+		const spotlight = ctx.get("spotlight");
+		if (!spotlight) return;
+		const d1 = spotlight.registerCommand({
+			id: "codegraph-search",
+			title: t("nav.searchSymbols"),
+			handler: () => {
+				state.openSidebarTab();
+				window.dispatchEvent(new KeyboardEvent("keydown", { key: "/" }));
+			}
+		});
+		if (typeof d1 === "function") ctx.effect(() => d1, "codegraph: spotlight search cmd");
+		const d2 = spotlight.registerCommand({
+			id: "codegraph-toggle",
+			title: t("nav.togglePanel"),
+			handler: () => state.togglePanel()
+		});
+		if (typeof d2 === "function") ctx.effect(() => d2, "codegraph: spotlight toggle cmd");
+		const d3 = spotlight.registerCommand({
+			id: "codegraph-layout",
+			title: t("nav.switchLayout"),
+			handler: () => {
+				state.openSidebarTab();
+				const store = useGraphStore.getState();
+				const layouts = [
+					"cose",
+					"fcose",
+					"dagre",
+					"circle",
+					"grid",
+					"radial",
+					"tree"
+				];
+				const currentIdx = layouts.indexOf(store.layout);
+				const nextIdx = currentIdx >= 0 ? (currentIdx + 1) % layouts.length : 0;
+				store.setLayout(layouts[nextIdx] ?? "cose");
+			}
+		});
+		if (typeof d3 === "function") ctx.effect(() => d3, "codegraph: spotlight layout cmd");
+		const d4 = spotlight.registerCommand({
+			id: "codegraph-filter",
+			title: t("nav.toggleFilter"),
+			handler: () => {
+				state.openSidebarTab();
+				window.dispatchEvent(new CustomEvent(DOM_EVENTS.TOGGLE_FILTER_PANEL));
+			}
+		});
+		if (typeof d4 === "function") ctx.effect(() => d4, "codegraph: spotlight filter cmd");
+		const d5 = spotlight.registerCommand({
+			id: "codegraph-export",
+			title: t("nav.exportGraph"),
+			handler: () => {
+				state.openSidebarTab();
+				window.dispatchEvent(new CustomEvent(DOM_EVENTS.TOGGLE_EXPORT_MENU));
+			}
+		});
+		if (typeof d5 === "function") ctx.effect(() => d5, "codegraph: spotlight export cmd");
+	} catch (e) {
+		log$6.warn("spotlight registration failed", e);
+	}
+}
+
+//#endregion
+//#region src/client/runtime/PrerequisitePolling.ts
+const log$5 = scoped("client");
+function setupPrerequisitePolling(ctx) {
+	let lastStatusKey = "";
+	let prereqTimer = null;
+	let prereqDisposed = false;
+	const checkStatus = async () => {
+		const status = await fetchStatus();
+		const store = useGraphStore.getState();
+		store.setPrerequisites({
+			codegraph: status.codegraph,
+			lens: status.lens,
+			builtin: status.builtin ?? true
+		});
+		const statusKey = `${status.codegraph}:${status.lens}`;
+		if (statusKey !== lastStatusKey) {
+			log$5.info("prerequisite status", status);
+			lastStatusKey = statusKey;
+		}
+		return status;
+	};
+	ctx.effect(() => () => {
+		prereqDisposed = true;
+		if (prereqTimer !== null) clearTimeout(prereqTimer);
+	}, "codegraph: prereq timer cleanup");
+	checkStatus().then(() => {
+		if (prereqDisposed) return;
+		prereqTimer = setTimeout(() => {
+			if (prereqDisposed) return;
+			checkStatus().catch((e) => log$5.warn("prereq delayed check failed", e));
+		}, POLLING.PREREQ_INITIAL_DELAY_MS);
+	}).catch((e) => log$5.warn("initial status check failed", e));
+	ctx.effect(() => {
+		const prereqInterval = setInterval(async () => {
+			if (document.hidden) return;
+			if (!useGraphStore.getState().panelVisible) return;
+			const s = useGraphStore.getState();
+			if (s.prerequisites.codegraph && s.prerequisites.lens) {
+				clearInterval(prereqInterval);
 				return;
 			}
-			if (floatingMinimized) floatingRoot.render(React.createElement(MinimizedFloatingButton, { onRestore: () => {
-				floatingMinimized = false;
-				renderFloating();
-			} }));
-			else floatingRoot.render(React.createElement(FloatingGraphPanel, {
-				onClose: () => {
-					panelVisible = false;
-					floatingContainer.setAttribute("data-visible", "false");
-					renderFloating();
-				},
-				onMinimize: () => {
-					floatingMinimized = true;
-					renderFloating();
-				}
-			}));
-		};
-		renderFloating();
-		useGraphStore.getState().setIntegrationMode("floating");
-		ctx.effect(() => () => {
-			floatingRoot.unmount();
-			floatingContainer.remove();
-		}, "codegraph: floating panel cleanup");
-	}
-	if (flags.spotlight) try {
-		const spotlight = ctx.get("spotlight");
-		if (spotlight) {
-			const d1 = spotlight.registerCommand({
-				id: "codegraph-search",
-				title: t("nav.searchSymbols"),
-				handler: () => {
-					openSidebarTab();
-					window.dispatchEvent(new KeyboardEvent("keydown", { key: "/" }));
-				}
-			});
-			if (typeof d1 === "function") ctx.effect(() => d1, "codegraph: spotlight search cmd");
-			const d2 = spotlight.registerCommand({
-				id: "codegraph-toggle",
-				title: t("nav.togglePanel"),
-				handler: () => togglePanel()
-			});
-			if (typeof d2 === "function") ctx.effect(() => d2, "codegraph: spotlight toggle cmd");
-			const d3 = spotlight.registerCommand({
-				id: "codegraph-layout",
-				title: t("nav.switchLayout"),
-				handler: () => {
-					openSidebarTab();
-					const store = useGraphStore.getState();
-					const layouts = [
-						"cose",
-						"fcose",
-						"dagre",
-						"circle",
-						"grid",
-						"radial",
-						"tree"
-					];
-					const currentIdx = layouts.indexOf(store.layout);
-					const nextIdx = currentIdx >= 0 ? (currentIdx + 1) % layouts.length : 0;
-					store.setLayout(layouts[nextIdx] ?? "cose");
-				}
-			});
-			if (typeof d3 === "function") ctx.effect(() => d3, "codegraph: spotlight layout cmd");
-			const d4 = spotlight.registerCommand({
-				id: "codegraph-filter",
-				title: t("nav.toggleFilter"),
-				handler: () => {
-					openSidebarTab();
-					window.dispatchEvent(new CustomEvent(DOM_EVENTS.TOGGLE_FILTER_PANEL));
-				}
-			});
-			if (typeof d4 === "function") ctx.effect(() => d4, "codegraph: spotlight filter cmd");
-			const d5 = spotlight.registerCommand({
-				id: "codegraph-export",
-				title: t("nav.exportGraph"),
-				handler: () => {
-					openSidebarTab();
-					window.dispatchEvent(new CustomEvent(DOM_EVENTS.TOGGLE_EXPORT_MENU));
-				}
-			});
-			if (typeof d5 === "function") ctx.effect(() => d5, "codegraph: spotlight export cmd");
-		}
-	} catch (e) {
-		log.warn("spotlight registration failed", e);
-	}
-	{
-		let lastStatusKey = "";
-		let prereqTimer = null;
-		let prereqDisposed = false;
-		const checkStatus = async () => {
-			const status = await fetchStatus();
-			const store = useGraphStore.getState();
-			store.setPrerequisites({
-				codegraph: status.codegraph,
-				lens: status.lens,
-				builtin: status.builtin ?? true
-			});
-			const statusKey = `${status.codegraph}:${status.lens}`;
-			if (statusKey !== lastStatusKey) {
-				log.info("prerequisite status", status);
-				lastStatusKey = statusKey;
-			}
-			return status;
-		};
-		ctx.effect(() => () => {
-			prereqDisposed = true;
-			if (prereqTimer !== null) clearTimeout(prereqTimer);
-		}, "codegraph: prereq timer cleanup");
-		checkStatus().then(() => {
-			if (prereqDisposed) return;
-			prereqTimer = setTimeout(() => {
-				if (prereqDisposed) return;
-				checkStatus().catch((e) => log.warn("prereq delayed check failed", e));
-			}, POLLING.PREREQ_INITIAL_DELAY_MS);
-		}).catch((e) => log.warn("initial status check failed", e));
-		ctx.effect(() => {
-			const prereqInterval = setInterval(async () => {
-				if (document.hidden) return;
-				if (!useGraphStore.getState().panelVisible) return;
-				const s = useGraphStore.getState();
-				if (s.prerequisites.codegraph && s.prerequisites.lens) {
-					clearInterval(prereqInterval);
-					return;
-				}
-				try {
-					await checkStatus();
-				} catch (e) {
-					log.warn("prereq polling failed", e);
-				}
-			}, POLLING.PREREQ_INTERVAL_MS);
-			return () => clearInterval(prereqInterval);
-		}, "codegraph: prereq polling");
-	}
-	let lastDshWorkspace = "";
-	let scanInProgress = false;
-	{
-		const store = useGraphStore.getState();
-		const getWorkspaceAndScan = async () => {
-			if (scanInProgress) return;
-			scanInProgress = true;
 			try {
-				const { path: workspacePath, list: wsList } = await fetchWorkspace();
-				lastDshWorkspace = workspacePath;
-				const s = useGraphStore.getState();
-				s.setCurrentWorkspace(workspacePath);
-				if (wsList.length > 0) {
-					const workspaceInfos = wsList.map((p$1) => ({
-						path: p$1,
-						name: p$1.split(/[\\/]/).pop() ?? p$1,
-						lastUsed: Date.now()
-					}));
-					for (const wi of workspaceInfos) if (!s.workspaceList.some((w) => w.path === wi.path)) s.addWorkspace(wi.path, wi.name);
-				}
-				if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path: workspacePath } }));
-				log.info("auto-import requested", { path: workspacePath });
-				const bootstrap = await fetchBootstrap(void 0, workspacePath);
-				if (bootstrap && bootstrap.topLevelNodes.length > 0) {
-					const s2 = useGraphStore.getState();
-					s2.setBootstrapData(bootstrap.topLevelNodes, bootstrap.edges, workspacePath, {
-						totalNodeCount: bootstrap.metadata.totalNodeCount,
-						totalEdgeCount: bootstrap.metadata.totalEdgeCount,
-						timestamp: bootstrap.metadata.timestamp
-					});
-					log.info("bootstrap data loaded", {
-						rootNodes: bootstrap.topLevelNodes.length,
-						totalNodeCount: bootstrap.metadata.totalNodeCount
-					});
-					useGraphStore.getState().setLoading(false);
-					useGraphStore.getState().restoreFromUrl().catch((err) => {
-						log.warn("URL restore failed", { err });
-					});
-					return;
-				}
-				log.info("bootstrap returned no data, showing empty state");
-				useGraphStore.getState().setLoading(false);
+				await checkStatus();
 			} catch (e) {
-				log.warn("getWorkspaceAndScan failed", e);
-				useGraphStore.getState().setLoading(false);
-			} finally {
-				scanInProgress = false;
+				log$5.warn("prereq polling failed", e);
 			}
-		};
-		if (store.nodes.length === 0 && !store.isLoading) getWorkspaceAndScan();
-		ctx.effect(() => {
-			const workspacePoll = setInterval(async () => {
-				if (document.hidden) return;
-				if (!useGraphStore.getState().panelVisible) return;
-				try {
-					const { path: dshCurrent, list: dshList } = await fetchWorkspace();
-					if (dshCurrent && dshCurrent !== lastDshWorkspace) {
-						log.info("DSH workspace changed", {
-							from: lastDshWorkspace,
-							to: dshCurrent
-						});
-						lastDshWorkspace = dshCurrent;
-						const s = useGraphStore.getState();
-						s.setCurrentWorkspace(dshCurrent);
-						if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path: dshCurrent } }));
-					}
-					for (const p$1 of dshList) {
-						const s = useGraphStore.getState();
-						if (!s.workspaceList.some((w) => w.path === p$1)) s.addWorkspace(p$1, p$1.split(/[\\/]/).pop() ?? p$1);
-					}
-				} catch (e) {
-					log.warn("workspace polling failed", e);
+		}, POLLING.PREREQ_INTERVAL_MS);
+		return () => clearInterval(prereqInterval);
+	}, "codegraph: prereq polling");
+}
+
+//#endregion
+//#region src/client/runtime/WorkspaceBootstrap.ts
+const log$4 = scoped("client");
+function setupWorkspaceBootstrap(ctx) {
+	let lastDshWorkspace = "";
+	const scanInProgress = { value: false };
+	const getWorkspaceAndScan = async () => {
+		if (scanInProgress.value) return;
+		scanInProgress.value = true;
+		try {
+			const { path: workspacePath, list: wsList } = await fetchWorkspace();
+			lastDshWorkspace = workspacePath;
+			const s = useGraphStore.getState();
+			s.setCurrentWorkspace(workspacePath);
+			if (wsList.length > 0) {
+				const workspaceInfos = wsList.map((p$1) => ({
+					path: p$1,
+					name: p$1.split(/[\\/]/).pop() ?? p$1,
+					lastUsed: Date.now()
+				}));
+				for (const wi of workspaceInfos) if (!s.workspaceList.some((w) => w.path === wi.path)) s.addWorkspace(wi.path, wi.name);
+			}
+			if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path: workspacePath } }));
+			log$4.info("auto-import requested", { path: workspacePath });
+			const bootstrap = await fetchBootstrap(void 0, workspacePath);
+			if (bootstrap && bootstrap.topLevelNodes.length > 0) {
+				const s2 = useGraphStore.getState();
+				s2.setBootstrapData(bootstrap.topLevelNodes, bootstrap.edges, workspacePath, {
+					totalNodeCount: bootstrap.metadata.totalNodeCount,
+					totalEdgeCount: bootstrap.metadata.totalEdgeCount,
+					timestamp: bootstrap.metadata.timestamp
+				});
+				log$4.info("bootstrap data loaded", {
+					rootNodes: bootstrap.topLevelNodes.length,
+					totalNodeCount: bootstrap.metadata.totalNodeCount
+				});
+				useGraphStore.getState().setLoading(false);
+				useGraphStore.getState().restoreFromUrl().catch((err) => {
+					log$4.warn("URL restore failed", { err });
+				});
+				return;
+			}
+			log$4.info("bootstrap returned no data, showing empty state");
+			useGraphStore.getState().setLoading(false);
+		} catch (e) {
+			log$4.warn("getWorkspaceAndScan failed", e);
+			useGraphStore.getState().setLoading(false);
+		} finally {
+			scanInProgress.value = false;
+		}
+	};
+	const store = useGraphStore.getState();
+	if (store.nodes.length === 0 && !store.isLoading) getWorkspaceAndScan();
+	ctx.effect(() => {
+		const workspacePoll = setInterval(async () => {
+			if (document.hidden) return;
+			if (!useGraphStore.getState().panelVisible) return;
+			try {
+				const { path: dshCurrent, list: dshList } = await fetchWorkspace();
+				if (dshCurrent && dshCurrent !== lastDshWorkspace) {
+					log$4.info("DSH workspace changed", {
+						from: lastDshWorkspace,
+						to: dshCurrent
+					});
+					lastDshWorkspace = dshCurrent;
+					const s = useGraphStore.getState();
+					s.setCurrentWorkspace(dshCurrent);
+					if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path: dshCurrent } }));
 				}
-			}, POLLING.WORKSPACE_INTERVAL_MS);
-			return () => clearInterval(workspacePoll);
-		}, "codegraph: workspace polling");
-	}
-	if (typeof window !== "undefined") ctx.effect(() => {
+				for (const p$1 of dshList) {
+					const s = useGraphStore.getState();
+					if (!s.workspaceList.some((w) => w.path === p$1)) s.addWorkspace(p$1, p$1.split(/[\\/]/).pop() ?? p$1);
+				}
+			} catch (e) {
+				log$4.warn("workspace polling failed", e);
+			}
+		}, POLLING.WORKSPACE_INTERVAL_MS);
+		return () => clearInterval(workspacePoll);
+	}, "codegraph: workspace polling");
+	return { scanInProgress };
+}
+
+//#endregion
+//#region src/client/runtime/SSEEvents.ts
+const log$3 = scoped("client");
+function setupSSEEvents(ctx) {
+	if (typeof window === "undefined") return;
+	ctx.effect(() => {
 		let eventSource = null;
 		let reconnectTimer = null;
 		const connectSSE = () => {
@@ -67382,15 +67568,15 @@ function apply(ctx) {
 				eventSource = new EventSource("/api/v1/codegraph/events");
 				eventSource.addEventListener("graph-updated", (e) => {
 					const data$2 = JSON.parse(e.data);
-					log.info("SSE: graph-updated", data$2);
+					log$3.info("SSE: graph-updated", data$2);
 					const store = useGraphStore.getState();
 					if (store.nodes.length > 0 && store.panelVisible) fetchGraphDataIncremental(store.lastUpdated).then((graphData) => {
 						if (graphData && graphData.nodes && graphData.nodes.length > 0) store.setGraphData(graphData.nodes, graphData.edges, graphData.metadata.repoId, graphData.metadata);
-					}).catch((err) => log.warn("SSE: incremental fetch failed", err));
+					}).catch((err) => log$3.warn("SSE: incremental fetch failed", err));
 				});
 				eventSource.addEventListener("graph-data", (e) => {
 					const data$2 = JSON.parse(e.data);
-					log.info("SSE: graph-data", {
+					log$3.info("SSE: graph-data", {
 						nodeCount: data$2.nodes?.length,
 						edgeCount: data$2.edges?.length
 					});
@@ -67408,26 +67594,26 @@ function apply(ctx) {
 					}
 				});
 				eventSource.addEventListener("repo-imported", () => {
-					log.info("SSE: repo-imported");
+					log$3.info("SSE: repo-imported");
 					const store = useGraphStore.getState();
-					if (store.panelVisible) store.loadBootstrap().catch((err) => log.warn("SSE: bootstrap failed", err));
+					if (store.panelVisible) store.loadBootstrap().catch((err) => log$3.warn("SSE: bootstrap failed", err));
 				});
 				eventSource.addEventListener("repo-scanned", () => {
-					log.info("SSE: repo-scanned");
+					log$3.info("SSE: repo-scanned");
 					const store = useGraphStore.getState();
-					if (store.panelVisible) store.loadBootstrap().catch((err) => log.warn("SSE: bootstrap failed", err));
+					if (store.panelVisible) store.loadBootstrap().catch((err) => log$3.warn("SSE: bootstrap failed", err));
 				});
 				eventSource.addEventListener("init-result", (e) => {
 					const data$2 = JSON.parse(e.data);
-					log.info("SSE: init-result", data$2);
+					log$3.info("SSE: init-result", data$2);
 					const store = useGraphStore.getState();
 					if (data$2.success) {
 						store.setInitStatus("done");
-						store.loadBootstrap().catch((err) => log.warn("SSE: bootstrap after init failed", err));
+						store.loadBootstrap().catch((err) => log$3.warn("SSE: bootstrap after init failed", err));
 					} else store.setInitStatus("error");
 				});
 				eventSource.onerror = () => {
-					log.warn("SSE: connection error, will retry");
+					log$3.warn("SSE: connection error, will retry");
 					if (eventSource) {
 						eventSource.close();
 						eventSource = null;
@@ -67435,7 +67621,7 @@ function apply(ctx) {
 					reconnectTimer = setTimeout(connectSSE, 1e4);
 				};
 			} catch (err) {
-				log.warn("SSE: connect failed", err);
+				log$3.warn("SSE: connect failed", err);
 				reconnectTimer = setTimeout(connectSSE, 1e4);
 			}
 		};
@@ -67451,16 +67637,23 @@ function apply(ctx) {
 			}
 		};
 	}, "codegraph: SSE events");
-	if (typeof window !== "undefined") ctx.effect(() => {
+}
+
+//#endregion
+//#region src/client/runtime/WindowEvents.ts
+const log$2 = scoped("client");
+function setupWindowEvents(ctx) {
+	if (typeof window === "undefined") return;
+	ctx.effect(() => {
 		const refreshListener = (e) => {
 			const detail = e.detail;
 			const store = useGraphStore.getState();
 			if (store.nodes.length > 0) if (detail?.incremental) fetchGraphDataIncremental(store.lastUpdated).then((data$2) => {
 				if (data$2 && data$2.nodes && data$2.nodes.length > 0) store.setGraphData(data$2.nodes, data$2.edges, data$2.metadata.repoId, data$2.metadata);
-			}).catch((e$1) => log.warn("incremental graph fetch failed", e$1));
+			}).catch((e$1) => log$2.warn("incremental graph fetch failed", e$1));
 			else store.loadBootstrap().then((ok) => {
-				if (!ok) log.warn("bootstrap refresh failed");
-			}).catch((e$1) => log.warn("bootstrap refresh failed", e$1));
+				if (!ok) log$2.warn("bootstrap refresh failed");
+			}).catch((e$1) => log$2.warn("bootstrap refresh failed", e$1));
 		};
 		const openSourceListener = (e) => {
 			ctx.emit("codegraph-visualizer/source/open", e.detail);
@@ -67471,15 +67664,15 @@ function apply(ctx) {
 			store.setLoading(true);
 			store.loadBootstrap().then((ok) => {
 				if (!ok) {
-					log.warn("import-repo bootstrap failed");
+					log$2.warn("import-repo bootstrap failed");
 					store.setError(t("error.loadGraphData"));
 				}
 				store.setLoading(false);
 			}).catch((e$1) => {
-				log.warn("import-repo failed", e$1);
+				log$2.warn("import-repo failed", e$1);
 				store.setLoading(false);
 			});
-			log.info("import-repo forwarded", { path: detail.path });
+			log$2.info("import-repo forwarded", { path: detail.path });
 		};
 		const initGraphListener = (e) => {
 			const detail = e.detail;
@@ -67489,25 +67682,25 @@ function apply(ctx) {
 				if (result) {
 					store.setInitStatus(result.success ? "done" : "error", result.message);
 					if (result.success) store.loadBootstrap().then((ok) => {
-						if (!ok) log.warn("post-init bootstrap failed");
-					}).catch((e$1) => log.warn("post-init bootstrap failed", e$1));
+						if (!ok) log$2.warn("post-init bootstrap failed");
+					}).catch((e$1) => log$2.warn("post-init bootstrap failed", e$1));
 				} else store.setInitStatus("error", t("error.generic"));
-				log.info("init result", {
+				log$2.info("init result", {
 					path: detail.path,
 					success: result?.success
 				});
 			}).catch((e$1) => {
-				log.warn("init-graph failed", e$1);
+				log$2.warn("init-graph failed", e$1);
 				store.setInitStatus("error", String(e$1));
 			});
-			log.info("init-graph forwarded", { path: detail.path });
+			log$2.info("init-graph forwarded", { path: detail.path });
 		};
 		const toggleWatchListener = (e) => {
 			const detail = e.detail;
 			const store = useGraphStore.getState();
 			store.setWatchEnabled(detail.enabled);
-			requestWatch(detail.enabled, detail.path).catch((err) => log.warn("toggle-watch request failed", err));
-			log.info("toggle-watch forwarded", {
+			requestWatch(detail.enabled, detail.path).catch((err) => log$2.warn("toggle-watch request failed", err));
+			log$2.info("toggle-watch forwarded", {
 				enabled: detail.enabled,
 				path: detail.path
 			});
@@ -67523,20 +67716,20 @@ function apply(ctx) {
 				store.setLoading(true);
 				store.loadBootstrap().then((ok) => {
 					if (!ok) {
-						log.warn("workspace change bootstrap failed");
+						log$2.warn("workspace change bootstrap failed");
 						store.setError(t("error.loadGraphData"));
 					}
 					store.setLoading(false);
 				}).catch((e$1) => {
-					log.warn("workspace scan failed", e$1);
+					log$2.warn("workspace scan failed", e$1);
 					store.setLoading(false);
 				});
-				log.info("workspace change forwarded", { path: detail.path });
+				log$2.info("workspace change forwarded", { path: detail.path });
 			}, POLLING.WORKSPACE_SCAN_DEBOUNCE_MS);
 		};
 		const installPluginListener = (e) => {
 			const detail = e.detail;
-			log.info("install plugin requested", { plugin: detail.plugin });
+			log$2.info("install plugin requested", { plugin: detail.plugin });
 		};
 		const symbolSelectListener = (e) => {
 			const detail = e.detail;
@@ -67562,14 +67755,21 @@ function apply(ctx) {
 			window.removeEventListener(DOM_EVENTS.EDITOR_SYMBOL_SELECT, symbolSelectListener);
 		};
 	}, "codegraph: window event listeners");
-	if (typeof window !== "undefined") ctx.effect(() => {
+}
+
+//#endregion
+//#region src/client/runtime/ThemeObserver.ts
+const log$1 = scoped("client");
+function setupThemeObserver(ctx) {
+	if (typeof window === "undefined") return;
+	ctx.effect(() => {
 		const themeObserver = new MutationObserver(() => {
 			const isDark = document.body.hasAttribute("data-ds-dark-theme");
 			const store = useGraphStore.getState();
 			if (store.theme !== (isDark ? "dark" : "light")) {
 				store.setTheme(isDark ? "dark" : "light");
 				window.dispatchEvent(new CustomEvent(DOM_EVENTS.THEME_CHANGED, { detail: { theme: isDark ? "dark" : "light" } }));
-				log.info("theme changed via DSH host", { theme: isDark ? "dark" : "light" });
+				log$1.info("theme changed via DSH host", { theme: isDark ? "dark" : "light" });
 			}
 		});
 		themeObserver.observe(document.body, {
@@ -67578,7 +67778,13 @@ function apply(ctx) {
 		});
 		return () => themeObserver.disconnect();
 	}, "codegraph: theme observer");
-	if (typeof window !== "undefined") ctx.effect(() => {
+}
+
+//#endregion
+//#region src/client/runtime/SpotlightBridge.ts
+function setupSpotlightBridge(ctx) {
+	if (typeof window === "undefined") return;
+	ctx.effect(() => {
 		const toggleFilterListener = () => {
 			const filterBtn = document.querySelector(".cg-filter-panel-btn");
 			if (filterBtn) filterBtn.click();
@@ -67594,7 +67800,14 @@ function apply(ctx) {
 			window.removeEventListener(DOM_EVENTS.TOGGLE_EXPORT_MENU, toggleExportListener);
 		};
 	}, "codegraph: spotlight event bridge");
-	if (typeof window !== "undefined") ctx.effect(() => {
+}
+
+//#endregion
+//#region src/client/runtime/RejectionHandler.ts
+const log = scoped("client");
+function setupRejectionHandler(ctx) {
+	if (typeof window === "undefined") return;
+	ctx.effect(() => {
 		const rejectionHandler = (e) => {
 			log.warn("unhandled promise rejection", e.reason);
 			e.preventDefault();
@@ -67602,7 +67815,44 @@ function apply(ctx) {
 		window.addEventListener("unhandledrejection", rejectionHandler);
 		return () => window.removeEventListener("unhandledrejection", rejectionHandler);
 	}, "codegraph: unhandled rejection handler");
+}
+
+//#endregion
+//#region src/client/index.ts
+const name = "dsh-codegraph-visualizer-client";
+const inject = [
+	"slots",
+	"betterSidebar",
+	"sidebarRightTabs"
+];
+function init(container, initialData) {
+	const root$12 = ReactDOM.createRoot(container);
+	if (initialData) {
+		const store = useGraphStore.getState();
+		store.setGraphData(initialData.nodes, initialData.edges, initialData.metadata.repoId, initialData.metadata);
+	}
+	root$12.render(React.createElement(GraphErrorBoundary, null, React.createElement(GraphPanel)));
+	return () => root$12.unmount();
+}
+function apply(ctx) {
+	const compat = createClientCompatLayer();
+	compat.detectFlags(ctx);
+	compat.detectMode(ctx);
+	const state = new IntegrationState(ctx, compat.flags);
+	integrateSidebarRightTabs(state);
+	integrateBetterSidebar(state);
+	integrateSlotsFallback(state);
+	integrateFloatingPanel(state);
+	integrateSpotlight(state);
+	setupPrerequisitePolling(ctx);
+	const { scanInProgress } = setupWorkspaceBootstrap(ctx);
+	setupSSEEvents(ctx);
+	setupWindowEvents(ctx);
+	setupThemeObserver(ctx);
+	setupSpotlightBridge(ctx);
+	setupRejectionHandler(ctx);
 	return () => {
+		scanInProgress.value = false;
 		disposeStore();
 		resetI18nListeners();
 		resetLoggerListeners();
