@@ -41,4 +41,34 @@ test.describe('J12: 异常恢复与容错', () => {
     await page.locator('#api-skip-btn').click({ timeout: 15000 }).catch(() => {});
     await expect(page.locator('.cg-graph-panel')).toBeVisible({ timeout: 45000 });
   });
+
+  test('should handle WASM instantiation failure gracefully', async ({ page }) => {
+    await page.addInitScript(() => {
+      const origInstantiate = WebAssembly.instantiate;
+      Object.defineProperty(WebAssembly, 'instantiate', {
+        value: () => Promise.reject(new Error('WASM unavailable')),
+        writable: true,
+        configurable: true,
+      });
+      void origInstantiate;
+    });
+    await setupPluginPage(page);
+    const graphPanel = page.locator('.cg-graph-panel');
+    await expect(graphPanel).toBeVisible();
+  });
+
+  test('should handle WASM compile failure gracefully', async ({ page }) => {
+    await page.addInitScript(() => {
+      const origCompile = WebAssembly.compile;
+      Object.defineProperty(WebAssembly, 'compile', {
+        value: () => Promise.reject(new Error('WASM compile failed')),
+        writable: true,
+        configurable: true,
+      });
+      void origCompile;
+    });
+    await setupPluginPage(page);
+    const graphPanel = page.locator('.cg-graph-panel');
+    await expect(graphPanel).toBeVisible();
+  });
 });

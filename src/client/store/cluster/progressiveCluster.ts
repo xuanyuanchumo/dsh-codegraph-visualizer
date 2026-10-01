@@ -122,18 +122,28 @@ export function parseExpandedNodeIds(expandedNodeIds: Set<string>): {
 
 let _dirToNodesCache: Map<string, GraphNode[]> | null = null;
 let _fileToNodesCache: Map<string, GraphNode[]> | null = null;
+let _clusterIdToCountCache: Map<string, number> | null = null;
+let _normalizedDirToCountCache: Map<string, number> | null = null;
+let _normalizedFileToCountCache: Map<string, number> | null = null;
 let _rawNodesRef: GraphNode[] | null = null;
 
 function getDirToNodesCache(rawNodes: GraphNode[]): Map<string, GraphNode[]> {
   if (_rawNodesRef === rawNodes && _dirToNodesCache) return _dirToNodesCache;
   _rawNodesRef = rawNodes;
   _dirToNodesCache = new Map();
+  _clusterIdToCountCache = new Map();
+  _normalizedDirToCountCache = new Map();
   for (const n of rawNodes) {
     const depGroup = getDependencyGroup(n);
     const dir = depGroup ?? (n.filePath ? getTopLevelDir(n.filePath) : n.id);
     const list = _dirToNodesCache.get(dir);
     if (list) list.push(n);
     else _dirToNodesCache.set(dir, [n]);
+  }
+  for (const [dir, nodes] of _dirToNodesCache) {
+    const normalized = dir.replace(/[/:\\]/g, '__');
+    _clusterIdToCountCache.set(`cluster__${normalized}`, (_clusterIdToCountCache.get(`cluster__${normalized}`) ?? 0) + nodes.length);
+    _normalizedDirToCountCache.set(normalized, (_normalizedDirToCountCache.get(normalized) ?? 0) + nodes.length);
   }
   return _dirToNodesCache;
 }
@@ -142,6 +152,7 @@ function getFileToNodesCache(rawNodes: GraphNode[]): Map<string, GraphNode[]> {
   if (_rawNodesRef === rawNodes && _fileToNodesCache) return _fileToNodesCache;
   _rawNodesRef = rawNodes;
   _fileToNodesCache = new Map();
+  _normalizedFileToCountCache = new Map();
   for (const n of rawNodes) {
     if (n.filePath) {
       const list = _fileToNodesCache.get(n.filePath);
@@ -149,12 +160,19 @@ function getFileToNodesCache(rawNodes: GraphNode[]): Map<string, GraphNode[]> {
       else _fileToNodesCache.set(n.filePath, [n]);
     }
   }
+  for (const [fp, nodes] of _fileToNodesCache) {
+    const normalized = fp.replace(/[/:\\]/g, '__');
+    _normalizedFileToCountCache.set(normalized, (_normalizedFileToCountCache.get(normalized) ?? 0) + nodes.length);
+  }
   return _fileToNodesCache;
 }
 
 export function invalidateExpandCostCache(): void {
   _dirToNodesCache = null;
   _fileToNodesCache = null;
+  _clusterIdToCountCache = null;
+  _normalizedDirToCountCache = null;
+  _normalizedFileToCountCache = null;
   _rawNodesRef = null;
 }
 
@@ -163,11 +181,8 @@ export function estimateExpandCost(nodeId: string, rawNodes: GraphNode[]): numbe
     const parts = nodeId.split('__');
     const dirPart = parts.slice(1, -1).join('__');
     const clusterId = `cluster__${dirPart}`;
-    const cache = getDirToNodesCache(rawNodes);
-    let count = 0;
-    for (const [dir, nodes] of cache) {
-      if (`cluster__${dir.replace(/[/:\\]/g, '__')}` === clusterId) count += nodes.length;
-    }
+    getDirToNodesCache(rawNodes);
+    const count = _clusterIdToCountCache!.get(clusterId) ?? 0;
     return Math.max(0, count - 1);
   }
   if (nodeId.startsWith('cluster__')) {
@@ -175,10 +190,8 @@ export function estimateExpandCost(nodeId: string, rawNodes: GraphNode[]): numbe
     const cache = getDirToNodesCache(rawNodes);
     const nodes = cache.get(dirPath);
     if (nodes) return Math.max(0, nodes.length - 1);
-    let count = 0;
-    for (const [dir, dirNodes] of cache) {
-      if (dir.replace(/[/:\\]/g, '__') === nodeId.replace(/^cluster__/, '')) count += dirNodes.length;
-    }
+    const normalized = nodeId.replace(/^cluster__/, '');
+    const count = _normalizedDirToCountCache!.get(normalized) ?? 0;
     return Math.max(0, count - 1);
   }
   if (nodeId.startsWith('filecluster__')) {
@@ -186,10 +199,8 @@ export function estimateExpandCost(nodeId: string, rawNodes: GraphNode[]): numbe
     const cache = getFileToNodesCache(rawNodes);
     const nodes = cache.get(filePath);
     if (nodes) return Math.max(0, nodes.length - 1);
-    let count = 0;
-    for (const [fp, fpNodes] of cache) {
-      if (fp.replace(/[/:\\]/g, '__') === nodeId.replace(/^filecluster__file__/, '')) count += fpNodes.length;
-    }
+    const normalized = nodeId.replace(/^filecluster__file__/, '');
+    const count = _normalizedFileToCountCache!.get(normalized) ?? 0;
     return Math.max(0, count - 1);
   }
   return 0;

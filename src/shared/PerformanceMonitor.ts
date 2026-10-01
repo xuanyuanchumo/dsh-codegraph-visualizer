@@ -110,3 +110,30 @@ export function shouldDegrade(name: string): boolean {
   const avg = getAverageDuration(name);
   return avg >= threshold.degradeMs;
 }
+const baselines: Map<string, number> = new Map();
+
+export function setBaseline(name: string, durationMs: number): void {
+  baselines.set(name, durationMs);
+}
+
+export function getBaseline(name: string): number | undefined {
+  return baselines.get(name);
+}
+
+export function isDegradedFromBaseline(name: string, ratio: number = 1.5): boolean {
+  const baseline = baselines.get(name);
+  if (baseline === undefined) return false;
+  const avg = getAverageDuration(name);
+  return avg > baseline * ratio;
+}
+
+export function getDegradationReport(): Array<{ name: string; baseline: number; current: number; ratio: number }> {
+  const report: Array<{ name: string; baseline: number; current: number; ratio: number }> = [];
+  for (const [name, baseline] of baselines) {
+    const current = getAverageDuration(name);
+    if (current > 0) {
+      report.push({ name, baseline, current, ratio: current / baseline });
+    }
+  }
+  return report;
+}

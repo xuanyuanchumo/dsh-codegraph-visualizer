@@ -4,13 +4,14 @@ import { safeCheck } from '../utils/safeCheck.ts';
 
 const log = scoped('client:compat');
 
-export type SidebarIntegrationMode = 'sidebar-right' | 'better-sidebar' | 'slot' | 'floating';
+export type SidebarIntegrationMode = 'sidebar-right' | 'better-sidebar' | 'slot' | 'floating' | 'remote-web-ui';
 
 export interface ClientFeatureFlags {
   sidebarRightTabs: boolean;
   betterSidebar: boolean;
   spotlight: boolean;
   slots: boolean;
+  remoteWebUi: boolean;
 }
 
 export interface ClientCompatLayer {
@@ -28,6 +29,7 @@ export function createClientCompatLayer(): ClientCompatLayer {
     betterSidebar: false,
     spotlight: false,
     slots: false,
+    remoteWebUi: false,
   };
 
   const detectMode = (ctx: Context): SidebarIntegrationMode => {
@@ -43,6 +45,13 @@ export function createClientCompatLayer(): ClientCompatLayer {
       return bs !== null && bs !== undefined;
     }, false)) {
       _mode = 'better-sidebar';
+      return _mode;
+    }
+    if (safeCheck(() => {
+      const rui = ctx.get('remoteWebUI');
+      return rui !== null && rui !== undefined;
+    }, false)) {
+      _mode = 'remote-web-ui';
       return _mode;
     }
     if (safeCheck(() => ctx.slots !== null && ctx.slots !== undefined, false)) {
@@ -68,6 +77,10 @@ export function createClientCompatLayer(): ClientCompatLayer {
         return sp !== null && sp !== undefined;
       }, false),
       slots: safeCheck(() => ctx.slots !== null && ctx.slots !== undefined, false),
+      remoteWebUi: safeCheck(() => {
+        const rui = ctx.get('remoteWebUI');
+        return rui !== null && rui !== undefined;
+      }, false),
     };
     log.info('client feature flags resolved', { flags: _flags, mode: _mode });
     return _flags;

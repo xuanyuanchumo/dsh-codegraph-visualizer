@@ -134,4 +134,37 @@ describe('detectCyclesDFS', () => {
     const adjacency = makeAdjacency(entries);
     expect(detectCyclesDFS(adjacency)).toEqual([]);
   });
+
+  it('respects maxCycles limit and stops early', () => {
+    const adjacency = makeAdjacency([
+      ['a', ['b']],
+      ['b', ['a']],
+      ['c', ['d']],
+      ['d', ['c']],
+      ['e', ['f']],
+      ['f', ['e']],
+    ]);
+    const cycles = detectCyclesDFS(adjacency, 2);
+    expect(cycles.length).toBe(2);
+  });
+
+  it('maxCycles=1 returns at most one cycle', () => {
+    const adjacency = makeAdjacency([
+      ['a', ['b']],
+      ['b', ['a']],
+      ['c', ['d']],
+      ['d', ['c']],
+    ]);
+    const cycles = detectCyclesDFS(adjacency, 1);
+    expect(cycles.length).toBe(1);
+  });
+
+  it('maxCycles=0 returns empty array (no cycles requested)', () => {
+    const adjacency = makeAdjacency([
+      ['a', ['b']],
+      ['b', ['a']],
+    ]);
+    const cycles = detectCyclesDFS(adjacency, 0);
+    expect(cycles.length).toBe(0);
+  });
 });

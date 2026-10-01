@@ -56,3 +56,41 @@ test.describe('J38: 智能缓存', () => {
     expect([200, 304]).toContain(response2.status);
   });
 });
+test.describe('Performance metrics', () => {
+  test('should maintain reasonable DOM node count', async ({ page }) => {
+    await setupPluginPage(page);
+    await page.waitForTimeout(2000);
+    const nodeCount = await page.evaluate(() => document.querySelectorAll('*').length);
+    expect(nodeCount).toBeLessThan(5000);
+  });
+
+  test('should load graph within reasonable time', async ({ page }) => {
+    const start = Date.now();
+    await setupPluginPage(page);
+    const loadTime = Date.now() - start;
+    expect(loadTime).toBeLessThan(60000);
+  });
+
+  test('should not have excessive console errors', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('console', (msg) => {
+      if (msg.type() === 'error') errors.push(msg.text());
+    });
+    await setupPluginPage(page);
+    await page.waitForTimeout(2000);
+    expect(errors.length).toBeLessThan(10);
+  });
+
+  test('should have stable memory usage', async ({ page }) => {
+    await setupPluginPage(page);
+    await page.waitForTimeout(2000);
+    const memInfo = await page.evaluate(() => {
+      const perf = performance as Performance & { memory?: { usedJSHeapSize: number; totalJSHeapSize: number } };
+      return perf.memory ? { used: perf.memory.usedJSHeapSize, total: perf.memory.totalJSHeapSize } : null;
+    });
+    if (memInfo) {
+      expect(memInfo.used).toBeLessThan(500 * 1024 * 1024);
+      expect(memInfo.total).toBeLessThan(1024 * 1024 * 1024);
+    }
+  });
+});

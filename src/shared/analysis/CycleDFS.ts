@@ -4,7 +4,9 @@ export interface CycleDetectionResult {
   cycles: string[][];
 }
 
-export function detectCyclesDFS(adjacency: AdjacencyMap): string[][] {
+export const MAX_CYCLES_DEFAULT = 1000;
+
+export function detectCyclesDFS(adjacency: AdjacencyMap, maxCycles: number = MAX_CYCLES_DEFAULT): string[][] {
   const visited = new Set<string>();
   const inStack = new Set<string>();
   const cycles: string[][] = [];
@@ -22,6 +24,7 @@ export function detectCyclesDFS(adjacency: AdjacencyMap): string[][] {
     pathIndex.set(start, 0);
 
     while (frames.length > 0) {
+      if (cycles.length >= maxCycles) return;
       const frame = frames[frames.length - 1]!;
       if (frame.next >= frame.neighbors.length) {
         inStack.delete(frame.id);
@@ -39,6 +42,7 @@ export function detectCyclesDFS(adjacency: AdjacencyMap): string[][] {
           if (!seenCycleKeys.has(cycleKey)) {
             seenCycleKeys.add(cycleKey);
             cycles.push([...cycleNodes, target]);
+            if (cycles.length >= maxCycles) return;
           }
         }
       } else if (!visited.has(target)) {
@@ -52,6 +56,7 @@ export function detectCyclesDFS(adjacency: AdjacencyMap): string[][] {
   };
 
   for (const id of adjacency.keys()) {
+    if (cycles.length >= maxCycles) break;
     if (!visited.has(id)) enter(id);
   }
 

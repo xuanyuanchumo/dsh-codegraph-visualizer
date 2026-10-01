@@ -14,6 +14,7 @@ interface CtxOptions {
   betterSidebar?: unknown;
   spotlight?: unknown;
   slots?: unknown;
+  remoteWebUI?: unknown;
   getThrows?: boolean;
   slotsThrows?: boolean;
   sidebarRightTabsThrows?: boolean;
@@ -25,6 +26,7 @@ function makeCtx(opts: CtxOptions = {}): Context {
       if (opts.getThrows) throw new Error('get boom');
       if (key === 'betterSidebar') return opts.betterSidebar;
       if (key === 'spotlight') return opts.spotlight;
+      if (key === 'remoteWebUI') return opts.remoteWebUI;
       return undefined;
     },
   };
@@ -69,6 +71,7 @@ describe('ClientCompatLayer', () => {
         betterSidebar: false,
         spotlight: false,
         slots: false,
+        remoteWebUi: false,
       } satisfies ClientFeatureFlags);
     });
   });
@@ -90,6 +93,11 @@ describe('ClientCompatLayer', () => {
       expect(layer.detectMode(ctx)).toBe<SidebarIntegrationMode>('slot');
     });
 
+    it('returns remote-web-ui when remoteWebUI service is available', () => {
+      const ctx = makeCtx({ remoteWebUI: { id: 'rui' } });
+      expect(layer.detectMode(ctx)).toBe<SidebarIntegrationMode>('remote-web-ui');
+    });
+
     it('returns floating when nothing is available', () => {
       const ctx = makeCtx({});
       expect(layer.detectMode(ctx)).toBe<SidebarIntegrationMode>('floating');
@@ -98,6 +106,16 @@ describe('ClientCompatLayer', () => {
     it('prioritises sidebar-right over better-sidebar', () => {
       const ctx = makeCtx({ sidebarRightTabs: {}, betterSidebar: {} });
       expect(layer.detectMode(ctx)).toBe('sidebar-right');
+    });
+
+    it('prioritises better-sidebar over remote-web-ui', () => {
+      const ctx = makeCtx({ betterSidebar: {}, remoteWebUI: {} });
+      expect(layer.detectMode(ctx)).toBe('better-sidebar');
+    });
+
+    it('prioritises remote-web-ui over slots', () => {
+      const ctx = makeCtx({ remoteWebUI: {}, slots: {} });
+      expect(layer.detectMode(ctx)).toBe('remote-web-ui');
     });
 
     it('prioritises better-sidebar over slots', () => {
@@ -166,6 +184,7 @@ describe('ClientCompatLayer', () => {
         betterSidebar: false,
         spotlight: false,
         slots: false,
+        remoteWebUi: false,
       } satisfies ClientFeatureFlags);
     });
 

@@ -9,6 +9,10 @@ import {
   getAverageDuration,
   clearMeasurements,
   shouldDegrade,
+  setBaseline,
+  getBaseline,
+  isDegradedFromBaseline,
+  getDegradationReport,
   type PerfThreshold,
 } from '../../src/shared/PerformanceMonitor.ts';
 
@@ -189,6 +193,51 @@ describe('PerformanceMonitor', () => {
       }
       const all = getMeasurements();
       expect(all.length).toBeLessThanOrEqual(100);
+    });
+  });
+
+  describe('baseline comparison', () => {
+    it('setBaseline / getBaseline round-trip', () => {
+      setBaseline('op', 50);
+      expect(getBaseline('op')).toBe(50);
+    });
+
+    it('getBaseline returns undefined for unknown name', () => {
+      expect(getBaseline('unknown')).toBeUndefined();
+    });
+
+    it('isDegradedFromBaseline returns false when no baseline set', () => {
+      expect(isDegradedFromBaseline('no-baseline')).toBe(false);
+    });
+
+    it('isDegradedFromBaseline returns false when current is within ratio', () => {
+      setBaseline('op', 100);
+      measureSync('op', () => {});
+      expect(isDegradedFromBaseline('op', 1.5)).toBe(false);
+    });
+
+    it('isDegradedFromBaseline returns true when current exceeds ratio', () => {
+      setBaseline('op', 10);
+      for (let i = 0; i < 5; i++) {
+        startMeasure('op');
+        endMeasure('op');
+      }
+      const avg = getAverageDuration('op');
+      setBaseline('op', avg / 2);
+      expect(isDegradedFromBaseline('op', 1.5)).toBe(true);
+    });
+
+    it('getDegradationReport returns empty array when no baselines', () => {
+      expect(getDegradationReport()).toEqual([]);
+    });
+
+    it('getDegradationReport returns entries for baselines with measurements', () => {
+      setBaseline('op', 50);
+      measureSync('op', () => {});
+      const report = getDegradationReport();
+      expect(report.length).toBe(1);
+      expect(report[0]!.name).toBe('op');
+      expect(report[0]!.baseline).toBe(50);
     });
   });
 });

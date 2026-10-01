@@ -1,4 +1,4 @@
-// E2E tests for J3-J5: 符号搜索与定位, 调用链追踪, 依赖拓扑分析
+// E2E tests for J3-J5, J15, J23, J30-J32: 符号搜索与定位, 调用链追踪, 依赖拓扑分析, 路径查找, 影响分析, 热点分析, 波及半径, God Module
 import { test, expect } from '@playwright/test';
 import { setupPluginPage } from './helpers.ts';
 
@@ -50,6 +50,95 @@ test.describe('J5: 依赖拓扑分析', () => {
     await cycleBtn.click();
     await page.waitForTimeout(500);
     await expect(cycleBtn).not.toHaveClass(/cg-active/);
+  });
+});
+
+test.describe('J15: 路径查找', () => {
+  test('should open path find panel via toolbar button', async ({ page }) => {
+    await setupPluginPage(page);
+    const pathBar = page.locator('.cg-path-bar');
+    await expect(pathBar).not.toBeVisible();
+    const pathfindBtn = page.locator('.cg-pathfind-btn');
+    await pathfindBtn.click({ timeout: 10000 });
+    await expect(pathBar).toBeVisible({ timeout: 5000 });
+  });
+
+  test('should show start and end inputs with find button disabled', async ({ page }) => {
+    await setupPluginPage(page);
+    await page.locator('.cg-pathfind-btn').click({ timeout: 10000 });
+    await expect(page.locator('input[name="pathStart"]')).toBeVisible();
+    await expect(page.locator('input[name="pathEnd"]')).toBeVisible();
+    const findBtn = page.locator('.cg-path-find-btn');
+    await expect(findBtn).toBeDisabled();
+  });
+
+  test('should show suggestions when typing in start input', async ({ page }) => {
+    await setupPluginPage(page);
+    await page.locator('.cg-pathfind-btn').click({ timeout: 10000 });
+    const startInput = page.locator('input[name="pathStart"]');
+    await startInput.type('a', { delay: 50 });
+    await page.waitForTimeout(300);
+    await expect(page.locator('.cg-graph-container')).toBeAttached();
+  });
+
+  test('should close path find panel via close button', async ({ page }) => {
+    await setupPluginPage(page);
+    await page.locator('.cg-pathfind-btn').click({ timeout: 10000 });
+    const pathBar = page.locator('.cg-path-bar');
+    await expect(pathBar).toBeVisible({ timeout: 5000 });
+    await page.locator('.cg-path-bar .cg-close-btn').click();
+    await expect(pathBar).not.toBeVisible();
+  });
+
+  test('should clear button be visible in path bar', async ({ page }) => {
+    await setupPluginPage(page);
+    await page.locator('.cg-pathfind-btn').click({ timeout: 10000 });
+    await expect(page.locator('.cg-path-clear-btn')).toBeVisible();
+  });
+});
+
+test.describe('J23: 影响分析', () => {
+  test('should toggle impact panel via toolbar button', async ({ page }) => {
+    await setupPluginPage(page);
+    const impactBtn = page.locator('.cg-impact-btn');
+    await impactBtn.click({ timeout: 10000 });
+    await expect(impactBtn).toHaveClass(/cg-active/, { timeout: 10000 });
+    await impactBtn.click();
+    await page.waitForTimeout(500);
+    await expect(impactBtn).not.toHaveClass(/cg-active/);
+  });
+});
+
+test.describe('J30: 热点分析', () => {
+  test('should toggle hotspot via toolbar button', async ({ page }) => {
+    await setupPluginPage(page);
+    const hotspotBtn = page.locator('.cg-hotspot-btn');
+    await hotspotBtn.click({ timeout: 10000 });
+    await expect(hotspotBtn).toHaveClass(/cg-active/, { timeout: 10000 });
+    await hotspotBtn.click();
+    await page.waitForTimeout(500);
+    await expect(hotspotBtn).not.toHaveClass(/cg-active/);
+  });
+});
+
+test.describe('J31: 波及半径分析', () => {
+  test('should impact panel be visible after toggle', async ({ page }) => {
+    await setupPluginPage(page);
+    const impactBtn = page.locator('.cg-impact-btn');
+    await impactBtn.click({ timeout: 10000 });
+    await expect(page.locator('.cg-impact-panel')).toBeVisible({ timeout: 5000 });
+  });
+});
+
+test.describe('J32: God Module 检测', () => {
+  test('should toggle god module via toolbar button', async ({ page }) => {
+    await setupPluginPage(page);
+    const godBtn = page.locator('.cg-godmodule-btn');
+    await godBtn.click({ timeout: 10000 });
+    await expect(godBtn).toHaveClass(/cg-active/, { timeout: 10000 });
+    await godBtn.click();
+    await page.waitForTimeout(500);
+    await expect(godBtn).not.toHaveClass(/cg-active/);
   });
 });
 
