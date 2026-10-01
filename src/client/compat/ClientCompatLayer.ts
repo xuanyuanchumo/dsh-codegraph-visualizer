@@ -1,28 +1,86 @@
 import type { Context } from '@deepseek-ai/cordis';
+import { scoped } from '../../shared/Logger.ts';
 
+const log = scoped('client:compat');
 
 export type SidebarIntegrationMode = 'sidebar-right' | 'better-sidebar' | 'slot' | 'floating';
 
+export interface ClientFeatureFlags {
+  sidebarRightTabs: boolean;
+  betterSidebar: boolean;
+  spotlight: boolean;
+  slots: boolean;
+}
+
 export interface ClientCompatLayer {
+  mode: SidebarIntegrationMode;
+  flags: ClientFeatureFlags;
   detectMode(ctx: Context): SidebarIntegrationMode;
+  detectFlags(ctx: Context): ClientFeatureFlags;
+  hasFlag(key: keyof ClientFeatureFlags): boolean;
+}
+
+function safeCheck<T>(fn: () => T, fallback: T): T {
+  try {
+    return fn();
+  } catch {
+    return fallback;
+  }
 }
 
 export function createClientCompatLayer(): ClientCompatLayer {
-  const detectMode = (ctx: Context): SidebarIntegrationMode => {
-    try {
-      if (typeof ctx.inject === 'function') {
-        return 'sidebar-right';
-      }
-    } catch { /* ignore */ }
-    try {
-      const bs = ctx.get('betterSidebar');
-      if (bs) return 'better-sidebar';
-    } catch { /* ignore */ }
-    try {
-      if (ctx.slots) return 'slot';
-    } catch { /* ignore */ }
-    return 'floating';
+  let _mode: SidebarIntegrationMode = 'floating';
+  let _flags: ClientFeatureFlags = {
+    sidebarRightTabs: false,
+    betterSidebar: false,
+    spotlight: false,
+    slots: false,
   };
 
-  return { detectMode };
+  const detectMode = (ctx: Context): SidebarIntegrationMode => {
+    if (safeCheck(() => typeof ctx.inject === 'function', false)) {
+      _mode = 'sidebar-right';
+      return _mode;
+    }
+    if (safeCheck(() => {
+      const bs = ctx.get('betterSidebar');
+      return bs !== null && bs !== undefined;
+    }, false)) {
+      _mode = 'better-sidebar';
+      return _mode;
+    }
+    if (safeCheck(() => ctx.slots !== null && ctx.slots !== undefined, false)) {
+      _mode = 'slot';
+      return _mode;
+    }
+    _mode = 'floating';
+    return _mode;
+  };
+
+  const detectFlags = (ctx: Context): ClientFeatureFlags => {
+    _flags = {
+      sidebarRightTabs: safeCheck(() => typeof ctx.inject === 'function', false),
+      betterSidebar: safeCheck(() => {
+        const bs = ctx.get('betterSidebar');
+        return bs !== null && bs !== undefined;
+      }, false),
+      spotlight: safeCheck(() => {
+        const sp = ctx.get('spotlight');
+        return sp !== null && sp !== undefined;
+      }, false),
+      slots: safeCheck(() => ctx.slots !== null && ctx.slots !== undefined, false),
+    };
+    log.info('client feature flags resolved', { flags: _flags, mode: _mode });
+    return _flags;
+  };
+
+  const hasFlag = (key: keyof ClientFeatureFlags): boolean => _flags[key];
+
+  return {
+    get mode() { return _mode; },
+    get flags() { return _flags; },
+    detectMode,
+    detectFlags,
+    hasFlag,
+  };
 }

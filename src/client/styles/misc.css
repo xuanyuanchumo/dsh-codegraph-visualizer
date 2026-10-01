@@ -418,8 +418,8 @@
   background: var(--cg-border);
 }
 
-/* Heatmap mode selector bar */
-.cg-heatmap-bar {
+/* Visual overlay bar (heatmap + TODO/FIXME combined) */
+.cg-overlay-bar {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -430,67 +430,23 @@
   z-index: 5;
 }
 
-.cg-heatmap-label {
-  color: var(--cg-text-secondary);
-  font-weight: 500;
-  margin-right: 2px;
-}
-
-.cg-heatmap-btn {
-  padding: 2px 8px;
-  border: 1px solid var(--cg-border);
-  border-radius: var(--cg-radius-xs);
-  background: transparent;
-  color: var(--cg-text-secondary);
-  cursor: pointer;
-  font-size: 11px;
-  transition: background var(--cg-transition), color var(--cg-transition), border-color var(--cg-transition);
-}
-
-.cg-heatmap-btn:hover {
-  background: var(--cg-surface-hover);
-  color: var(--cg-text);
-}
-
-.cg-heatmap-btn.cg-active {
-  background: var(--cg-accent-soft);
-  border-color: var(--cg-accent);
-  color: var(--cg-accent);
-  font-weight: 600;
-}
-
-.cg-heatmap-btn:focus-visible {
-  outline: 2px solid var(--cg-accent);
-  outline-offset: 1px;
-}
-.cg-heatmap-bar--collapsed {
-  padding: 2px 4px;
-}
-
-.cg-heatmap-btn--activate {
-  font-weight: 500;
-  color: var(--cg-text-secondary);
-}
-
-/* TODO/FIXME marker bar */
-.cg-todo-marker-bar {
+.cg-overlay-section {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
-  background: var(--cg-surface);
-  border-bottom: 1px solid var(--cg-border);
-  font-size: 11px;
-  z-index: 5;
 }
 
-.cg-todo-marker-label {
+.cg-overlay-section--collapsed {
+  padding: 0;
+}
+
+.cg-overlay-label {
   color: var(--cg-text-secondary);
   font-weight: 500;
   margin-right: 2px;
 }
 
-.cg-todo-marker-btn {
+.cg-overlay-btn {
   padding: 2px 8px;
   border: 1px solid var(--cg-border);
   border-radius: var(--cg-radius-xs);
@@ -501,30 +457,34 @@
   transition: background var(--cg-transition), color var(--cg-transition), border-color var(--cg-transition);
 }
 
-.cg-todo-marker-btn:hover {
+.cg-overlay-btn:hover {
   background: var(--cg-surface-hover);
   color: var(--cg-text);
 }
 
-.cg-todo-marker-btn.cg-active {
+.cg-overlay-btn.cg-active {
   background: var(--cg-accent-soft);
   border-color: var(--cg-accent);
   color: var(--cg-accent);
   font-weight: 600;
 }
 
-.cg-todo-marker-btn:focus-visible {
+.cg-overlay-btn:focus-visible {
   outline: 2px solid var(--cg-accent);
   outline-offset: 1px;
 }
 
-.cg-todo-marker-bar--collapsed {
-  padding: 2px 4px;
-}
-
-.cg-todo-marker-btn--activate {
+.cg-overlay-btn--activate {
   font-weight: 500;
   color: var(--cg-text-secondary);
+}
+
+.cg-overlay-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--cg-border);
+  margin: 0 2px;
+  flex-shrink: 0;
 }
 .cg-function-body-budget {
   display: flex;

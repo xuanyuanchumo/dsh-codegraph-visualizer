@@ -304,7 +304,7 @@ describe('GraphPanel handler behavior', () => {
   it('heatmap activate button: renders when heatmapMode is none', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const heatmapBtn = container.querySelector('.cg-heatmap-btn--activate');
+    const heatmapBtn = container.querySelector('.cg-overlay-btn--activate');
     expect(heatmapBtn?.tagName).toBe('BUTTON');
   });
 
@@ -372,7 +372,7 @@ describe('GraphPanel handler behavior', () => {
   it('heatmap button click does not crash', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const heatmapBtn = container.querySelector('.cg-heatmap-btn--activate') as HTMLButtonElement;
+    const heatmapBtn = container.querySelector('.cg-overlay-btn--activate') as HTMLButtonElement;
     expect(heatmapBtn?.tagName).toBe('BUTTON');
     fireEvent.click(heatmapBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -643,9 +643,9 @@ describe('GraphPanel event dispatch behavior', () => {
   it('heatmap mode buttons: renders activate button when mode is none', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const heatmapBar = container.querySelector('.cg-heatmap-bar');
+    const heatmapBar = container.querySelector('.cg-overlay-bar');
     expect(heatmapBar?.getAttribute('role')).toBe('group');
-    const activateBtn = container.querySelector('.cg-heatmap-btn--activate');
+    const activateBtn = container.querySelector('.cg-overlay-btn--activate');
     expect(activateBtn?.tagName).toBe('BUTTON');
   });
 
@@ -727,12 +727,12 @@ describe('GraphPanel event dispatch behavior', () => {
     expect(fab.getAttribute('aria-label')).toBe('panel.expand');
   });
 
-  it('heatmap bar: has group role and aria-label', async () => {
+  it('overlay bar: has group role and aria-label', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const heatmapBar = container.querySelector('.cg-heatmap-bar') as HTMLElement;
-    expect(heatmapBar.getAttribute('role')).toBe('group');
-    expect(heatmapBar.getAttribute('aria-label')).toBe('heatmap.title');
+    const overlayBar = container.querySelector('.cg-overlay-bar') as HTMLElement;
+    expect(overlayBar.getAttribute('role')).toBe('group');
+    expect(overlayBar.getAttribute('aria-label')).toBe('overlay.title');
   });
 });
 describe('GraphPanel handler integration', () => {
@@ -853,7 +853,7 @@ describe('GraphPanel handler integration', () => {
   it('heatmap activate: clicking activates instability mode', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const activateBtn = container.querySelector('.cg-heatmap-btn--activate') as HTMLButtonElement;
+    const activateBtn = container.querySelector('.cg-overlay-btn--activate') as HTMLButtonElement;
     expect(activateBtn?.tagName).toBe('BUTTON');
     fireEvent.click(activateBtn);
     expect(useGraphStore.getState().heatmapMode).toBe('instability');
@@ -863,7 +863,8 @@ describe('GraphPanel handler integration', () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     useGraphStore.setState({ heatmapMode: 'instability' });
     const { container } = render(React.createElement(GraphPanel));
-    const linesBtn = container.querySelector('.cg-heatmap-btn[data-mode="lines"], button.cg-heatmap-btn:not(.cg-heatmap-btn--activate)') as HTMLButtonElement;
+    const overlayBtns = container.querySelectorAll('.cg-overlay-section .cg-overlay-btn');
+    const linesBtn = Array.from(overlayBtns).find((btn) => btn.textContent === 'lines' || btn.textContent === 'Lines') as HTMLButtonElement | undefined;
     if (linesBtn) {
       fireEvent.click(linesBtn);
     }

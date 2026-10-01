@@ -509,6 +509,9 @@ export const zh: Record<string, string> = {
   'a11y.nodes': '节点',
   'a11y.edges': '边',
 
+  // 可视化覆盖层
+  'overlay.title': '可视化覆盖层',
+
   // Heatmap labels
   'heatmap.title': '热力图',
   'heatmap.off': '关闭',

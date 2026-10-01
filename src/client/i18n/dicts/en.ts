@@ -510,6 +510,9 @@ export const en: Record<string, string> = {
   'a11y.nodes': 'nodes',
   'a11y.edges': 'edges',
 
+  // Visual overlay
+  'overlay.title': 'Visual Overlay',
+
   // Heatmap labels
   'heatmap.title': 'Heatmap',
   'heatmap.off': 'Off',
