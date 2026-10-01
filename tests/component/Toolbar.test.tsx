@@ -79,6 +79,7 @@ function makeProps(overrides: Record<string, unknown> = {}) {
   const onGraphTypeChange = (overrides.onGraphTypeChange as typeof noop) ?? noop;
   const onFilterChange = (overrides.onFilterChange as typeof noop) ?? noop;
   const onLayerChange = (overrides.onLayerChange as typeof noop) ?? noop;
+  const onHierarchyLevelChange = (overrides.onHierarchyLevelChange as typeof noop) ?? noop;
 
   const layoutConfig: ToolbarLayoutConfig = {
     layout: (overrides.layout as LayoutType) ?? 'cose',
@@ -97,12 +98,14 @@ function makeProps(overrides: Record<string, unknown> = {}) {
     filterType: (overrides.filterType as GraphNode['type'] | 'all') ?? 'all',
     currentLayer: (overrides.currentLayer as number) ?? 0,
     layerNames: (overrides.layerNames as string[]) ?? [],
+    hierarchyLevel: (overrides.hierarchyLevel as number) ?? 3,
     hasSelectedFunction: overrides.hasSelectedFunction as boolean | undefined,
     onChange: (field, value) => {
       if (field === 'viewMode') onViewModeChange(value as ViewMode);
       else if (field === 'graphType') onGraphTypeChange(value as GraphType);
       else if (field === 'filterType') onFilterChange(value as GraphNode['type'] | 'all');
       else if (field === 'layer') onLayerChange(value as number);
+      else if (field === 'hierarchyLevel') onHierarchyLevelChange(value as number);
     },
   };
 

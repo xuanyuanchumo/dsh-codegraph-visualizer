@@ -22,6 +22,7 @@ export function createViewModeSlice(_set: SetFn, _get: GetFn): Partial<GraphStat
     diagramData: null,
     currentLayer: 0,
     clusterDepth: 0,
+    hierarchyLevel: 3,
     setLayout: (layout: LayoutType) => _set({ layout }),
     setDagreRankDir: (dagreRankDir: RankDir) => _set({ dagreRankDir }),
     setTheme: (theme: ThemeType) => { invalidateCssVarCache(); _set({ theme }); },
@@ -62,6 +63,19 @@ export function createViewModeSlice(_set: SetFn, _get: GetFn): Partial<GraphStat
       }
       applyClusterUpdate(expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, _set);
       _set({ clusterDepth });
+    },
+    setHierarchyLevel: (hierarchyLevel: number) => {
+      const level = Math.max(0, Math.min(3, hierarchyLevel));
+      const depthMap = [0, 0, 1, 2];
+      const clusterDepth = depthMap[level] ?? 0;
+      if (level === 0) {
+        _get().collapseAll();
+      }
+      const { rawNodes, rawEdges, expandedNodeIds, expandedNodeIdsByViewMode, diagramData, currentLayer, viewMode } = _get();
+      if (!isLayeredViewMode(viewMode)) {
+        applyClusterUpdate(expandedNodeIds, expandedNodeIdsByViewMode, viewMode, diagramData, currentLayer, rawNodes, rawEdges, clusterDepth, clusterCache, _set);
+      }
+      _set({ hierarchyLevel: level, clusterDepth });
     },
     setLayer: (layer: number) => {
       const { diagramData, expandedNodeIds, expandedNodeIdsByViewMode, viewMode, currentLayer } = _get();

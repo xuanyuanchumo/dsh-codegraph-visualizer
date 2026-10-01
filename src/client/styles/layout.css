@@ -377,6 +377,40 @@ body[data-ds-dark-theme] .cg-type-badge.cg-function {
   box-shadow: var(--cg-shadow-active);
 }
 
+.cg-hierarchy-selector {
+  display: inline-flex;
+  gap: 1px;
+  margin-left: 4px;
+  align-items: center;
+  border: 1px solid var(--cg-border);
+  border-radius: var(--cg-radius-sm);
+  overflow: hidden;
+}
+
+.cg-hierarchy-btn {
+  padding: 4px 7px;
+  border: none;
+  background: transparent;
+  color: var(--cg-text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--cg-transition);
+  font-family: var(--cg-font-sans);
+  min-width: 30px;
+  text-align: center;
+}
+
+.cg-hierarchy-btn:hover {
+  color: var(--cg-text);
+  background: var(--cg-surface-hover);
+}
+
+.cg-hierarchy-btn.cg-active {
+  color: var(--cg-on-accent);
+  background: var(--cg-accent);
+}
+
 /* ---- Select -------------------------------------------------------------- */
 
 .cg-filter-select,

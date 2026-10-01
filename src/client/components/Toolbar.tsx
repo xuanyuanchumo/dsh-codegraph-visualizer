@@ -76,6 +76,13 @@ const CLUSTER_DEPTHS: { value: number; key: string }[] = [
   { value: 2, key: 'clusterDepth.function' },
 ];
 
+const HIERARCHY_LEVELS: { value: number; key: string; short: string }[] = [
+  { value: 0, key: 'toolbar.hierarchyL0', short: 'L0' },
+  { value: 1, key: 'toolbar.hierarchyL1', short: 'L1' },
+  { value: 2, key: 'toolbar.hierarchyL2', short: 'L2' },
+  { value: 3, key: 'toolbar.hierarchyL3', short: 'L3' },
+];
+
 interface ToolMenuItem {
   panel: AnalysisPanelKey;
   Icon: React.ComponentType<{ size?: number }>;
@@ -160,8 +167,9 @@ export interface ToolbarViewConfig {
   filterType: GraphNode['type'] | 'all';
   currentLayer: number;
   layerNames: string[];
+  hierarchyLevel: number;
   hasSelectedFunction?: boolean;
-  onChange: (field: 'viewMode' | 'graphType' | 'filterType' | 'layer', value: ViewMode | GraphType | GraphNode['type'] | 'all' | number) => void;
+  onChange: (field: 'viewMode' | 'graphType' | 'filterType' | 'layer' | 'hierarchyLevel', value: ViewMode | GraphType | GraphNode['type'] | 'all' | number) => void;
 }
 
 export interface ToolbarHistory {
@@ -212,11 +220,12 @@ export const Toolbar = memo(function toolbar(props: ToolbarProps) {
   const onDagreRankDirChange = useCallback((d: RankDir) => layoutConfig.onChange('dagreRankDir', d), [layoutConfig]);
   const onClusterDepthChange = useCallback((d: number) => layoutConfig.onChange('clusterDepth', d), [layoutConfig]);
 
-  const { viewMode, graphType, filterType, currentLayer, layerNames, hasSelectedFunction } = viewConfig;
+  const { viewMode, graphType, filterType, currentLayer, layerNames, hierarchyLevel, hasSelectedFunction } = viewConfig;
   const onViewModeChange = useCallback((m: ViewMode) => viewConfig.onChange('viewMode', m), [viewConfig]);
   const onGraphTypeChange = useCallback((g: GraphType) => viewConfig.onChange('graphType', g), [viewConfig]);
   const onFilterChange = useCallback((f: GraphNode['type'] | 'all') => viewConfig.onChange('filterType', f), [viewConfig]);
   const onLayerChange = useCallback((l: number) => viewConfig.onChange('layer', l), [viewConfig]);
+  const onHierarchyLevelChange = useCallback((l: number) => viewConfig.onChange('hierarchyLevel', l), [viewConfig]);
 
   const onUndo = history?.undo;
   const onRedo = history?.redo;
@@ -321,6 +330,18 @@ export const Toolbar = memo(function toolbar(props: ToolbarProps) {
             </>
           )}
         </Dropdown>
+        <div className="cg-hierarchy-selector" role="group" aria-label={t('toolbar.hierarchy')}>
+          {HIERARCHY_LEVELS.map((lvl) => (
+            <button
+              key={lvl.value}
+              className={`cg-hierarchy-btn ${hierarchyLevel === lvl.value ? 'cg-active' : ''}`}
+              onClick={() => onHierarchyLevelChange(lvl.value)}
+              title={t(lvl.key)}
+              aria-pressed={hierarchyLevel === lvl.value}
+              aria-label={t(lvl.key)}
+            >{lvl.short}</button>
+          ))}
+        </div>
         {layerNames.length > 1 && (
           <div className="cg-layer-selector" role="group" aria-label={t('toolbar.layer')}>
             {layerNames.map((name, idx) => {

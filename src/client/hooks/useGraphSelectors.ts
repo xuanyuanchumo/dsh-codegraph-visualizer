@@ -12,7 +12,7 @@ export function useGraphDisplay() {
     layout: s.layout, theme: s.theme,
     filterType: s.filterType, graphType: s.graphType, clusterDepth: s.clusterDepth,
     viewMode: s.viewMode, currentLayer: s.currentLayer, diagramData: s.diagramData,
-    dagreRankDir: s.dagreRankDir,
+    dagreRankDir: s.dagreRankDir, hierarchyLevel: s.hierarchyLevel,
   })));
 }
 
@@ -68,6 +68,7 @@ export function useGraphActions() {
     setFilterType: useGraphStore((s) => s.setFilterType),
     setGraphType: useGraphStore((s) => s.setGraphType),
     setClusterDepth: useGraphStore((s) => s.setClusterDepth),
+    setHierarchyLevel: useGraphStore((s) => s.setHierarchyLevel),
     setLayer: useGraphStore((s) => s.setLayer),
     setLoading: useGraphStore((s) => s.setLoading),
     setCurrentWorkspace: useGraphStore((s) => s.setCurrentWorkspace),

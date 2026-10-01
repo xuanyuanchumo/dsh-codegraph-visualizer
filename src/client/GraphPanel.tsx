@@ -82,7 +82,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const [hasHiddenNodes, setHasHiddenNodes] = useState<boolean>(false);
 
   const { nodes, edges, rawNodes, rawEdges } = useGraphData();
-  const { layout, dagreRankDir, theme, filterType, graphType, clusterDepth, viewMode, currentLayer, diagramData } = useGraphDisplay();
+  const { layout, dagreRankDir, theme, filterType, graphType, clusterDepth, viewMode, currentLayer, diagramData, hierarchyLevel } = useGraphDisplay();
   const { searchQuery, selectedNodeId, highlightedNodeIds, expandedNodeIds, pathResult, focusDepth, focusModeActive, focusModeNodeId, pathFilterInclude, pathFilterExclude } = useGraphInteraction();
   const { isLoading, error, lastUpdated, truncated, totalNodeCount, prerequisites, watchEnabled, initStatus, urlRestored, panelVisible } = useGraphStatus();
   const { currentWorkspace, workspaceList } = useGraphWorkspace();
@@ -93,7 +93,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const {
     setLayout, setDagreRankDir, setTheme, setSearchQuery, setSelectedNode,
-    setFilterType, setGraphType, setClusterDepth, setLayer, setLoading,
+    setFilterType, setGraphType, setClusterDepth, setHierarchyLevel, setLayer, setLoading,
     setCurrentWorkspace, addWorkspace, removeWorkspace, setGraphData,
     setInitStatus, setWatchEnabled, setError, expandNode, collapseNode,
     collapseAll, setPathResult, setFocusDepth, setHeatmapMode, setTodoMarkerMode, setLODLevel,
@@ -670,12 +670,14 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         viewConfig={{
           viewMode, graphType, filterType, currentLayer,
           layerNames: diagramData?.layers.map((l) => l.name) ?? [],
+          hierarchyLevel,
           hasSelectedFunction: !!selectedFunction,
           onChange: (field, value) => {
             if (field === 'viewMode') handleViewModeChange(value as ViewMode);
             else if (field === 'graphType') setGraphType(value as GraphType);
             else if (field === 'filterType') setFilterType(value as GraphNode['type'] | 'all');
             else if (field === 'layer') setLayer(value as number);
+            else if (field === 'hierarchyLevel') setHierarchyLevel(value as number);
           },
         }}
         history={{ undo: history.undo, redo: history.redo, canUndo: history.canUndo, canRedo: history.canRedo }}

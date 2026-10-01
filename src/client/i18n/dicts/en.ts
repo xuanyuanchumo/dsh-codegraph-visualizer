@@ -39,6 +39,11 @@ export const en: Record<string, string> = {
   'toolbar.viewModeMicro': 'Micro (select a function)',
   'toolbar.cluster': 'Expand depth',
   'toolbar.layer': 'Diagram layer',
+  'toolbar.hierarchy': 'Hierarchy level',
+  'toolbar.hierarchyL0': 'Overview',
+  'toolbar.hierarchyL1': 'Directory',
+  'toolbar.hierarchyL2': 'File',
+  'toolbar.hierarchyL3': 'Symbol',
 
   // Cluster depths
   'clusterDepth.directory': 'Directory',

@@ -40,6 +40,7 @@ export interface GraphState {
   diagramData: LayeredDiagram | null;
   currentLayer: number;
   clusterDepth: number;
+  hierarchyLevel: number;
 
   isLoading: boolean;
   error: string | null;
@@ -113,6 +114,7 @@ export interface GraphState {
   setViewMode: (viewMode: ViewMode) => void;
   setLayer: (layer: number) => void;
   setClusterDepth: (depth: number) => void;
+  setHierarchyLevel: (level: number) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
   clearGraph: () => void;

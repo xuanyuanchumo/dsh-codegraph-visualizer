@@ -39,6 +39,11 @@ export const zh: Record<string, string> = {
   'toolbar.viewModeMicro': '微观视图（需选中函数）',
   'toolbar.cluster': '展开深度',
   'toolbar.layer': '图谱层级',
+  'toolbar.hierarchy': '层级选择',
+  'toolbar.hierarchyL0': '概览',
+  'toolbar.hierarchyL1': '目录',
+  'toolbar.hierarchyL2': '文件',
+  'toolbar.hierarchyL3': '符号',
 
   // 展开深度
   'clusterDepth.directory': '目录级',
