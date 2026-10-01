@@ -1,7 +1,6 @@
 import type { GraphNode, GraphEdge, ViewMode } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
 import { NodeId } from '../../types/index.ts';
-import { GraphErrorBoundary } from './ErrorBoundary.tsx';
 import { ImportPanel } from './ImportPanel.tsx';
 import { Legend } from './Legend.tsx';
 import { SearchBar, type SearchResultItem } from './SearchBar.tsx';
@@ -9,6 +8,7 @@ import { NodeDetail } from './NodeDetail.tsx';
 import { PathBar } from './PathBar.tsx';
 import { HealthScoreCard } from './HealthScoreCard.tsx';
 import { RuleConfigPanel } from './RuleConfigPanel.tsx';
+import { PanelStack, type PanelStackItem } from './PanelStack.tsx';
 import type { PanelState } from '../hooks/usePanelState.ts';
 
 interface LeftPanelStackProps {
@@ -45,51 +45,51 @@ interface LeftPanelStackProps {
 
 export function LeftPanelStack(props: LeftPanelStackProps) {
   const { panel, isCollapsed } = props;
-  if (isCollapsed) return null;
 
-  return (
-    <div className="cg-panel-stack cg-panel-stack-left">
-      {panel.showSearch && (
-        <GraphErrorBoundary><SearchBar query={props.searchQuery} matchCount={props.searchMatchCount}
-          searchResults={props.searchResults}
-          onChange={props.onSearchChange} onClose={() => panel.setShowSearch(false)}
-          onSelectResult={props.onSelectSearchResult} /></GraphErrorBoundary>
-      )}
+  const items: PanelStackItem[] = [
+    {
+      visible: panel.showSearch,
+      children: <SearchBar query={props.searchQuery} matchCount={props.searchMatchCount}
+        searchResults={props.searchResults}
+        onChange={props.onSearchChange} onClose={() => panel.setShowSearch(false)}
+        onSelectResult={props.onSelectSearchResult} />,
+    },
+    {
+      visible: panel.showPathFind,
+      children: <PathBar onFindPath={props.onFindPath} onClearPath={props.onClearPath}
+        pathResult={props.pathResult} pathLength={props.pathResult ? props.pathResult.length - 1 : null}
+        onClose={() => panel.setShowPathFind(false)} />,
+    },
+    {
+      visible: panel.showHealthScore,
+      children: <HealthScoreCard onClose={() => panel.setShowHealthScore(false)} />,
+    },
+    {
+      visible: panel.showRules,
+      children: <RuleConfigPanel violations={props.ruleViolations as never} onCheckRules={props.onCheckRules}
+        onClose={() => panel.setShowRules(false)} />,
+    },
+    {
+      visible: !!props.selectedNodeData,
+      children: props.selectedNodeData ? <NodeDetail node={props.selectedNodeData} onClose={props.onCloseDetail}
+        isExpanded={props.expandedNodeIds.has(props.selectedNodeData.id)}
+        connectionCount={(props.adjacencyMap.get(props.selectedNodeData.id)?.in ?? 0) + (props.adjacencyMap.get(props.selectedNodeData.id)?.out ?? 0)}
+        onCollapse={() => props.selectedNodeData && props.onCollapseNode(props.selectedNodeData.id)}
+        onSelectFunction={(node, mode) => props.onSelectFunction(node, mode)}
+        onAggregateCallChain={props.onAggregateCallChain} /> : null,
+    },
+    {
+      visible: panel.showLegend,
+      children: <Legend viewMode={props.viewMode} onClose={() => panel.setShowLegend(false)} />,
+    },
+    {
+      visible: panel.showImport,
+      children: <ImportPanel onClose={() => panel.setShowImport(false)} workspacePath={props.currentWorkspace}
+        prerequisites={props.prerequisites} initStatus={props.initStatus} watchEnabled={props.watchEnabled}
+        onSetGraphData={props.onSetGraphData} onSetLoading={props.onSetLoading} onSetError={props.onSetError}
+        onSetInitStatus={props.onSetInitStatus} onSetWatchEnabled={props.onSetWatchEnabled} />,
+    },
+  ];
 
-      {panel.showPathFind && (
-        <GraphErrorBoundary><PathBar onFindPath={props.onFindPath} onClearPath={props.onClearPath}
-          pathResult={props.pathResult} pathLength={props.pathResult ? props.pathResult.length - 1 : null}
-          onClose={() => panel.setShowPathFind(false)} /></GraphErrorBoundary>
-      )}
-
-      {panel.showHealthScore && (
-        <GraphErrorBoundary><HealthScoreCard onClose={() => panel.setShowHealthScore(false)} /></GraphErrorBoundary>
-      )}
-
-      {panel.showRules && (
-        <GraphErrorBoundary><RuleConfigPanel violations={props.ruleViolations as never} onCheckRules={props.onCheckRules}
-          onClose={() => panel.setShowRules(false)} /></GraphErrorBoundary>
-      )}
-
-      {props.selectedNodeData && (
-        <GraphErrorBoundary><NodeDetail node={props.selectedNodeData} onClose={props.onCloseDetail}
-          isExpanded={props.expandedNodeIds.has(props.selectedNodeData.id)}
-          connectionCount={(props.adjacencyMap.get(props.selectedNodeData.id)?.in ?? 0) + (props.adjacencyMap.get(props.selectedNodeData.id)?.out ?? 0)}
-          onCollapse={() => props.selectedNodeData && props.onCollapseNode(props.selectedNodeData.id)}
-          onSelectFunction={(node, mode) => props.onSelectFunction(node, mode)}
-          onAggregateCallChain={props.onAggregateCallChain} /></GraphErrorBoundary>
-      )}
-
-      {panel.showLegend && (
-        <GraphErrorBoundary><Legend viewMode={props.viewMode} onClose={() => panel.setShowLegend(false)} /></GraphErrorBoundary>
-      )}
-
-      {panel.showImport && (
-        <GraphErrorBoundary><ImportPanel onClose={() => panel.setShowImport(false)} workspacePath={props.currentWorkspace}
-          prerequisites={props.prerequisites} initStatus={props.initStatus} watchEnabled={props.watchEnabled}
-          onSetGraphData={props.onSetGraphData} onSetLoading={props.onSetLoading} onSetError={props.onSetError}
-          onSetInitStatus={props.onSetInitStatus} onSetWatchEnabled={props.onSetWatchEnabled} /></GraphErrorBoundary>
-      )}
-    </div>
-  );
+  return <PanelStack side="left" isCollapsed={isCollapsed} items={items} />;
 }

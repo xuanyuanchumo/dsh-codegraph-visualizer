@@ -10,6 +10,7 @@ import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelStat
 } from './hooks/index.ts';
 import { updateUrlExpand } from './utils/urlState.ts';
 import { getViewLayer, getAvailablePanels } from '../shared/viewModeUtils.ts';
+import type { AnalysisPanelKey } from '../shared/viewModeUtils.ts';
 import { useThemeSync } from './hooks/useThemeSync.ts';
 import { useHistory } from './hooks/useHistory.ts';
 import { useGraphCache } from './hooks/useGraphCache.ts';
@@ -464,20 +465,26 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, [viewMode]);
 
   useEffect(() => {
-    const layer = getViewLayer(viewMode);
-    const available = getAvailablePanels(layer);
-    if (!available.has('showCallChain') && panel.showCallChain) panel.setShowCallChain(false);
-    if (!available.has('showCycles') && panel.showCycles) panel.setShowCycles(false);
-    if (!available.has('showImpact') && panel.showImpact) panel.setShowImpact(false);
-    if (!available.has('showInheritance') && panel.showInheritance) panel.setShowInheritance(false);
-    if (!available.has('showHotspot') && panel.showHotspot) panel.setShowHotspot(false);
-    if (!available.has('showGodModule') && panel.showGodModule) panel.setShowGodModule(false);
-    if (!available.has('showCoreFunction') && panel.showCoreFunction) panel.setShowCoreFunction(false);
-    if (!available.has('showDeadCode') && panel.showDeadCode) panel.setShowDeadCode(false);
-    if (!available.has('showHealthScore') && panel.showHealthScore) panel.setShowHealthScore(false);
-    if (!available.has('showRules') && panel.showRules) panel.setShowRules(false);
-    if (!available.has('showImport') && panel.showImport) panel.setShowImport(false);
-    if (!available.has('showFilterPanel') && panel.showFilterPanel) panel.setShowFilterPanel(false);
+    const available = getAvailablePanels(getViewLayer(viewMode));
+    const panelEntries: Array<[AnalysisPanelKey, boolean, () => void]> = [
+      ['showCallChain', panel.showCallChain, () => panel.setShowCallChain(false)],
+      ['showCycles', panel.showCycles, () => panel.setShowCycles(false)],
+      ['showImpact', panel.showImpact, () => panel.setShowImpact(false)],
+      ['showInheritance', panel.showInheritance, () => panel.setShowInheritance(false)],
+      ['showHotspot', panel.showHotspot, () => panel.setShowHotspot(false)],
+      ['showGodModule', panel.showGodModule, () => panel.setShowGodModule(false)],
+      ['showCoreFunction', panel.showCoreFunction, () => panel.setShowCoreFunction(false)],
+      ['showDeadCode', panel.showDeadCode, () => panel.setShowDeadCode(false)],
+      ['showHealthScore', panel.showHealthScore, () => panel.setShowHealthScore(false)],
+      ['showRules', panel.showRules, () => panel.setShowRules(false)],
+      ['showImport', panel.showImport, () => panel.setShowImport(false)],
+      ['showFilterPanel', panel.showFilterPanel, () => panel.setShowFilterPanel(false)],
+      ['showSearch', panel.showSearch, () => panel.setShowSearch(false)],
+      ['showPathFind', panel.showPathFind, () => panel.setShowPathFind(false)],
+    ];
+    for (const [key, isShowing, close] of panelEntries) {
+      if (!available.has(key) && isShowing) close();
+    }
   }, [viewMode]);
 
   useEffect(() => {

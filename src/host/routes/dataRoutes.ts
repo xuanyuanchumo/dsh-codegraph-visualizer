@@ -403,6 +403,10 @@ export function registerEdgesRoute(rc: RouteContext): void {
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readEdgesFromDb(dbPath, fromId, scope as 'file' | 'symbol', cursor, limit);
+        // DB-first: when DB is readable, its answer is authoritative — empty edges means
+        // no edges exist, NOT "fall back to memory". This intentionally differs from
+        // other routes (bootstrap/children/outline/ast) which use `dbResult.nodes.length > 0`
+        // to fall back to memory when DB has no nodes. See CLAUDE.md for rationale.
         if (dbResult) {
           const pagedEdges = mapDbEdgesToGraphEdges(
             dbResult.edges.filter((e) => e.source !== e.target && !FILTERED_EDGE_KINDS.has(e.kind)),

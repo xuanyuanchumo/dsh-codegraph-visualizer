@@ -52,10 +52,21 @@ test.describe('J44: 微观-宏观切换', () => {
     await expect(backBtn).not.toBeVisible();
   });
 
-  test('should return to code view when back button clicked', async ({ page }) => {
+  test('should enter micro view and return via back button', async ({ page }) => {
     await setupPluginPage(page);
+    const cfgBtn = page.locator('.cg-view-mode-btn--micro[data-mode="cfg"]');
     const graphContainer = page.locator('.cg-graph-container');
+    const microPrompt = page.locator('.cg-micro-empty-prompt');
+
     await expect(graphContainer).toBeVisible();
+    await cfgBtn.click();
+    await expect(microPrompt).toBeVisible({ timeout: 10000 });
+    await expect(graphContainer).not.toBeVisible({ timeout: 10000 });
+
+    const backBtn = page.locator('.cg-micro-empty-back-btn');
+    await expect(backBtn).toBeVisible({ timeout: 10000 });
+    await backBtn.click();
+    await expect(graphContainer).toBeVisible({ timeout: 10000 });
   });
 });
 

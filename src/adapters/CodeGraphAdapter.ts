@@ -313,16 +313,17 @@ export function readEdgesFromDb(dbPath: string, nodeId: string, scope: 'file' | 
     const nodeIds = db.prepare('SELECT id FROM nodes WHERE file_path = ?').all(filePath) as { id: string }[];
     const idList = nodeIds.map(n => n.id);
     if (idList.length === 0) return { edges: [], total: 0 };
-    const batchSize = SQLITE.MAX_IN_PARAMS;
-    const allEdges: DbEdgeRow[] = [];
+    const batchSize = Math.floor(SQLITE.MAX_IN_PARAMS / 2);
+    const edgeMap = new Map<number, DbEdgeRow>();
     for (let i = 0; i < idList.length; i += batchSize) {
       const batch = idList.slice(i, i + batchSize);
       const placeholders = batch.map(() => '?').join(',');
       const batchEdges = validateEdgeRows(db.prepare(
         `SELECT id, source, target, kind, line FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders})`,
       ).all(...batch, ...batch));
-      allEdges.push(...batchEdges);
+      for (const e of batchEdges) edgeMap.set(e.id, e);
     }
+    const allEdges = [...edgeMap.values()];
     const total = allEdges.length;
     const pagedEdges = allEdges.slice(cursor, cursor + limit);
     return { edges: pagedEdges, total };
@@ -337,17 +338,17 @@ export function readEdgesForNodesFromDb(dbPath: string, nodeIds: string[]): DbEd
   const db = getDbConnection(dbPath);
   if (!db) return [];
   try {
-    const allEdges: DbEdgeRow[] = [];
-    const batchSize = SQLITE.MAX_IN_PARAMS;
+    const edgeMap = new Map<number, DbEdgeRow>();
+    const batchSize = Math.floor(SQLITE.MAX_IN_PARAMS / 2);
     for (let i = 0; i < nodeIds.length; i += batchSize) {
       const batch = nodeIds.slice(i, i + batchSize);
       const placeholders = batch.map(() => '?').join(',');
       const edges = validateEdgeRows(db.prepare(
         `SELECT id, source, target, kind, line FROM edges WHERE (source IN (${placeholders}) AND target IN (${placeholders}))`,
       ).all(...batch, ...batch));
-      allEdges.push(...edges);
+      for (const e of edges) edgeMap.set(e.id, e);
     }
-    return allEdges;
+    return [...edgeMap.values()];
   } catch (e) {
     log.warn('readEdgesForNodesFromDb failed', e);
     return [];

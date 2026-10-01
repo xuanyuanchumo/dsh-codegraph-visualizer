@@ -23,6 +23,10 @@ export const analysisResults = sqliteTable('analysis_results', {
   createdAt: integer('created_at').notNull().default(0),
 }, (t) => ({
   repoTypeIdx: index('idx_analysis_repo_type').on(t.repoId, t.analysisType),
+  // NOTE: The actual UNIQUE constraint uses IFNULL(target_node, '') to normalize NULL→''
+  // (see MIGRATION_SQL in GraphRepository.ts). Drizzle ORM does not support expression
+  // indexes via .on() — this declaration is an approximation for type inference only.
+  // The runtime DDL is authored in MIGRATION_SQL and executed by db.exec().
   repoTypeNodeUniq: uniqueIndex('idx_analysis_repo_type_node').on(t.repoId, t.analysisType, t.targetNode),
   repoTypeCreatedIdx: index('idx_analysis_repo_type_created').on(t.repoId, t.analysisType, t.createdAt),
 }));
