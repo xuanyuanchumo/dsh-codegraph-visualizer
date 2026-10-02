@@ -15,6 +15,7 @@ import { createPathFocusSlice } from './slices/pathFocusSlice.ts';
 import { createFilterSlice } from './slices/filterSlice.ts';
 import { createAnalysisSlice } from './slices/analysisSlice.ts';
 import { createPanelLodSlice } from './slices/panelLodSlice.ts';
+import { getMinPanelSize } from '../../shared/constants.ts';
 
 export type { ClusterNode, ClusterEdge } from './cluster/index.ts';
 export type { LayoutType, ThemeType, RankDir } from '../../shared/viewModeUtils.ts';
@@ -110,8 +111,9 @@ export const useGraphStore = create<GraphState>()(
         if (version < 5) {
           const h = (p as { panelHeight?: unknown }).panelHeight;
           const w = (p as { panelWidth?: unknown }).panelWidth;
-          result.panelHeight = typeof h === 'number' && h >= 240 ? h : null;
-          result.panelWidth = typeof w === 'number' && w >= 320 ? w : null;
+          const minSize = getMinPanelSize('unknown');
+          result.panelHeight = typeof h === 'number' && h >= minSize.minHeight ? h : null;
+          result.panelWidth = typeof w === 'number' && w >= minSize.minWidth ? w : null;
         }
         if (version < 6) {
           const validClusterLevels = ['directory', 'file', 'function', 'progressive'];

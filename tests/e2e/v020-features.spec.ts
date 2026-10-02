@@ -1,7 +1,7 @@
 // E2E tests for v0.2.0 new features: viewMode, pathfind, health, rules, hotspot,
 // godmodule, undo/redo, radial/tree layout, minimap, collapse-all
 import { test, expect } from '@playwright/test';
-import { setupPluginPage } from './helpers.ts';
+import { setupPluginPage, waitForGraphReady, getCyNodeCount, getClusterNodeIds } from './helpers.ts';
 
 test.describe('v0.2.0 Feature: View Mode Switch (FR-21)', () => {
   test('should toggle view mode between code and dependencies', async ({ page }) => {
@@ -183,38 +183,26 @@ test.describe('v0.2.0 Feature: Cluster Level (FR-42)', () => {
     await setupPluginPage(page);
     const clusterSelect = page.locator('#cluster-depth');
     await clusterSelect.selectOption('1');
-    await page.waitForTimeout(500);
     const graphContainer = page.locator('.cg-graph-container');
-    await expect(graphContainer).toBeVisible();
+    await expect(graphContainer).toBeVisible({ timeout: 5000 });
     await clusterSelect.selectOption('2');
-    await page.waitForTimeout(500);
-    await expect(graphContainer).toBeVisible();
+    await expect(graphContainer).toBeVisible({ timeout: 5000 });
     await clusterSelect.selectOption('0');
-    await page.waitForTimeout(500);
-    await expect(graphContainer).toBeVisible();
+    await expect(graphContainer).toBeVisible({ timeout: 5000 });
   });
 
   test('J25: cluster nodes should be present in directory depth', async ({ page }) => {
     await setupPluginPage(page);
-    await page.waitForTimeout(1000);
-    const clusterNodeCount = await page.evaluate(() => {
-      const cy = (window as any).__cytoscape;
-      if (!cy) return 0;
-      return cy.nodes('[isCluster = "true"]').length;
-    });
-    expect(clusterNodeCount).toBeGreaterThan(0);
+    await waitForGraphReady(page);
+    const clusterNodeIds = await getClusterNodeIds(page);
+    expect(clusterNodeIds.length).toBeGreaterThan(0);
   });
 
   test('J25: double-clicking cluster node should expand it', async ({ page }) => {
     await setupPluginPage(page);
-    await page.waitForTimeout(1000);
-    const clusterNodeId = await page.evaluate(() => {
-      const cy = (window as any).__cytoscape;
-      if (!cy) return null;
-      const clusterNode = cy.nodes('[isCluster = "true"]').first();
-      if (clusterNode.length === 0) return null;
-      return clusterNode.id();
-    });
+    await waitForGraphReady(page);
+    const clusterNodeIds = await getClusterNodeIds(page);
+    const clusterNodeId = clusterNodeIds[0] ?? null;
     if (!clusterNodeId) {
       test.skip(true, 'No cluster nodes found');
       return;
@@ -230,12 +218,7 @@ test.describe('v0.2.0 Feature: Cluster Level (FR-42)', () => {
         node.emit('dbltap');
       }
     }, clusterNodeId);
-    await page.waitForTimeout(1000);
-    const afterCount = await page.evaluate(() => {
-      const cy = (window as any).__cytoscape;
-      return cy ? cy.nodes().length : 0;
-    });
-    expect(afterCount).toBeGreaterThanOrEqual(beforeCount);
+    await expect.poll(async () => await getCyNodeCount(page), { timeout: 5000 }).toBeGreaterThanOrEqual(beforeCount);
   });
 });
 
@@ -249,14 +232,9 @@ test.describe('v0.2.0 Feature: Collapse All (FR-42)', () => {
 test.describe('J33: 展开/折叠聚类', () => {
   test('should expand cluster on double-click and show internal nodes', async ({ page }) => {
     await setupPluginPage(page);
-    await page.waitForTimeout(1000);
-    const clusterNodeId = await page.evaluate(() => {
-      const cy = (window as any).__cytoscape;
-      if (!cy) return null;
-      const clusterNode = cy.nodes('[isCluster = "true"]').first();
-      if (clusterNode.length === 0) return null;
-      return clusterNode.id();
-    });
+    await waitForGraphReady(page);
+    const clusterNodeIds = await getClusterNodeIds(page);
+    const clusterNodeId = clusterNodeIds[0] ?? null;
     if (!clusterNodeId) {
       test.skip(true, 'No cluster nodes found');
       return;
@@ -269,24 +247,14 @@ test.describe('J33: 展开/折叠聚类', () => {
       const cy = (window as any).__cytoscape;
       if (cy) cy.getElementById(id).emit('dbltap');
     }, clusterNodeId);
-    await page.waitForTimeout(1000);
-    const afterExpandCount = await page.evaluate(() => {
-      const cy = (window as any).__cytoscape;
-      return cy ? cy.nodes().length : 0;
-    });
-    expect(afterExpandCount).toBeGreaterThanOrEqual(beforeCount);
+    await expect.poll(async () => await getCyNodeCount(page), { timeout: 5000 }).toBeGreaterThanOrEqual(beforeCount);
   });
 
   test('should collapse cluster on second double-click', async ({ page }) => {
     await setupPluginPage(page);
-    await page.waitForTimeout(1000);
-    const clusterNodeId = await page.evaluate(() => {
-      const cy = (window as any).__cytoscape;
-      if (!cy) return null;
-      const clusterNode = cy.nodes('[isCluster = "true"]').first();
-      if (clusterNode.length === 0) return null;
-      return clusterNode.id();
-    });
+    await waitForGraphReady(page);
+    const clusterNodeIds = await getClusterNodeIds(page);
+    const clusterNodeId = clusterNodeIds[0] ?? null;
     if (!clusterNodeId) {
       test.skip(true, 'No cluster nodes found');
       return;
@@ -295,34 +263,23 @@ test.describe('J33: 展开/折叠聚类', () => {
       const cy = (window as any).__cytoscape;
       if (cy) cy.getElementById(id).emit('dbltap');
     }, clusterNodeId);
-    await page.waitForTimeout(1000);
-    const expandedCount = await page.evaluate(() => {
-      const cy = (window as any).__cytoscape;
-      return cy ? cy.nodes().length : 0;
-    });
+    await waitForGraphReady(page);
+    const expandedCount = await getCyNodeCount(page);
     await page.evaluate((id) => {
       const cy = (window as any).__cytoscape;
       if (cy) cy.getElementById(id).emit('dbltap');
     }, clusterNodeId);
-    await page.waitForTimeout(1000);
-    const collapsedCount = await page.evaluate(() => {
-      const cy = (window as any).__cytoscape;
-      return cy ? cy.nodes().length : 0;
-    });
+    await waitForGraphReady(page);
+    const collapsedCount = await getCyNodeCount(page);
     expect(collapsedCount).toBeLessThanOrEqual(expandedCount);
   });
 
   test('should collapse all via collapse-all button', async ({ page }) => {
     await setupPluginPage(page);
-    await page.waitForTimeout(1000);
     const collapseAllBtn = page.locator('.cg-collapse-all-btn');
     await collapseAllBtn.click({ timeout: 10000 });
-    await page.waitForTimeout(1000);
-    const clusterCount = await page.evaluate(() => {
-      const cy = (window as any).__cytoscape;
-      if (!cy) return 0;
-      return cy.nodes('[isCluster = "true"]').length;
-    });
-    expect(clusterCount).toBeGreaterThanOrEqual(0);
+    await waitForGraphReady(page);
+    const clusterNodeIds = await getClusterNodeIds(page);
+    expect(clusterNodeIds.length).toBeGreaterThanOrEqual(0);
   });
 });

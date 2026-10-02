@@ -32,11 +32,9 @@ test.describe('J4: 调用链追踪', () => {
     await setupPluginPage(page);
     const chainBtn = page.locator('.cg-chain-btn');
     await chainBtn.click();
-    await page.waitForTimeout(500);
     await expect(chainBtn).toHaveClass(/cg-active/, { timeout: 10000 });
     await chainBtn.click();
-    await page.waitForTimeout(500);
-    await expect(chainBtn).not.toHaveClass(/cg-active/);
+    await expect(chainBtn).not.toHaveClass(/cg-active/, { timeout: 5000 });
   });
 });
 
@@ -45,11 +43,9 @@ test.describe('J5: 依赖拓扑分析', () => {
     await setupPluginPage(page);
     const cycleBtn = page.locator('.cg-cycle-btn');
     await cycleBtn.click();
-    await page.waitForTimeout(500);
     await expect(cycleBtn).toHaveClass(/cg-active/, { timeout: 10000 });
     await cycleBtn.click();
-    await page.waitForTimeout(500);
-    await expect(cycleBtn).not.toHaveClass(/cg-active/);
+    await expect(cycleBtn).not.toHaveClass(/cg-active/, { timeout: 5000 });
   });
 });
 
@@ -104,8 +100,7 @@ test.describe('J23: 影响分析', () => {
     await impactBtn.click({ timeout: 10000 });
     await expect(impactBtn).toHaveClass(/cg-active/, { timeout: 10000 });
     await impactBtn.click();
-    await page.waitForTimeout(500);
-    await expect(impactBtn).not.toHaveClass(/cg-active/);
+    await expect(impactBtn).not.toHaveClass(/cg-active/, { timeout: 5000 });
   });
 });
 
@@ -116,8 +111,7 @@ test.describe('J30: 热点分析', () => {
     await hotspotBtn.click({ timeout: 10000 });
     await expect(hotspotBtn).toHaveClass(/cg-active/, { timeout: 10000 });
     await hotspotBtn.click();
-    await page.waitForTimeout(500);
-    await expect(hotspotBtn).not.toHaveClass(/cg-active/);
+    await expect(hotspotBtn).not.toHaveClass(/cg-active/, { timeout: 5000 });
   });
 });
 
@@ -137,8 +131,7 @@ test.describe('J32: God Module 检测', () => {
     await godBtn.click({ timeout: 10000 });
     await expect(godBtn).toHaveClass(/cg-active/, { timeout: 10000 });
     await godBtn.click();
-    await page.waitForTimeout(500);
-    await expect(godBtn).not.toHaveClass(/cg-active/);
+    await expect(godBtn).not.toHaveClass(/cg-active/, { timeout: 5000 });
   });
 });
 

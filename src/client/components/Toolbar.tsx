@@ -179,20 +179,21 @@ export const Toolbar = memo(function toolbar(props: ToolbarProps) {
             </>
           )}
         </Dropdown>
-        <div className="cg-hierarchy-selector" role="group" aria-label={t('toolbar.hierarchy')}>
+        <div className="cg-hierarchy-selector" role="radiogroup" aria-orientation="horizontal" aria-label={t('toolbar.hierarchy')}>
           {HIERARCHY_LEVELS.map((lvl) => (
             <button
               key={lvl.value}
               className={`cg-hierarchy-btn ${hierarchyLevel === lvl.value ? 'cg-active' : ''}`}
               onClick={() => onHierarchyLevelChange(lvl.value)}
               title={t(lvl.key)}
-              aria-pressed={hierarchyLevel === lvl.value}
+              role="radio"
+              aria-checked={hierarchyLevel === lvl.value}
               aria-label={t(lvl.key)}
             >{lvl.short}</button>
           ))}
         </div>
         {layerNames.length > 1 && (
-          <div className="cg-layer-selector" role="group" aria-label={t('toolbar.layer')}>
+          <div className="cg-layer-selector" role="radiogroup" aria-orientation="horizontal" aria-label={t('toolbar.layer')}>
             {layerNames.map((name, idx) => {
               const translated = t(name) ?? name;
               return (
@@ -201,7 +202,8 @@ export const Toolbar = memo(function toolbar(props: ToolbarProps) {
                 className={`cg-layer-btn ${currentLayer === idx ? 'cg-active' : ''}`}
                 onClick={() => onLayerChange(idx)}
                 title={translated}
-                aria-pressed={currentLayer === idx}
+                role="radio"
+                aria-checked={currentLayer === idx}
               >{translated.length <= 4 ? translated : translated.slice(0, 3)}</button>
               );
             })}
@@ -349,7 +351,7 @@ export const Toolbar = memo(function toolbar(props: ToolbarProps) {
           >
             {(close) => moreDropdownItems.map(({ key, titleKey, icon, active, onClick, role }) => (
               <button key={key} className={`cg-dropdown-item ${active ? 'cg-active' : ''}`} onClick={() => { onClick(); close(); }}
-                role={role} aria-checked={role === 'menuitemcheckbox' ? active : undefined} title={t(titleKey)}>
+                role={role} aria-checked={role === 'menuitemcheckbox' ? active : undefined} title={t(titleKey)} aria-label={t(titleKey)}>
                 {icon}<span>{t(titleKey)}</span>
               </button>
             ))}

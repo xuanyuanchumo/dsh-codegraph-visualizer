@@ -20,9 +20,8 @@ test.describe('J9: 实时更新验证', () => {
 
   test('should not show loading overlay after initial load', async ({ page }) => {
     await setupPluginPage(page);
-    await page.waitForTimeout(500);
     const loadingOverlay = page.locator('.cg-loading-overlay');
-    await expect(loadingOverlay).not.toBeVisible();
+    await expect(loadingOverlay).not.toBeVisible({ timeout: 5000 });
   });
 
   test('should not show error overlay on load', async ({ page }) => {

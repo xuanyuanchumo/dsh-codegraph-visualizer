@@ -5,7 +5,7 @@ import type { ThemeType, GraphType } from './store/graphStore.ts';
 import type { GraphNode, GraphEdge, ViewMode } from '../types/index.ts';
 import type { ClusterNode } from './store/cluster/index.ts';
 import { NodeId } from '../types/index.ts';
-import { useDebounce, usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard, useViewMode, useAnalysisPanels, useNodeSearch,
+import { usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard, useViewMode, useAnalysisPanels,
   useGraphData, useGraphDisplay, useGraphInteraction, useGraphStatus, useGraphWorkspace, useGraphAnalysis, useGraphPerformance, useGraphActions, usePanelDimensions,
 } from './hooks/index.ts';
 import { updateUrlExpand } from './utils/urlState.ts';
@@ -20,10 +20,13 @@ import { useMiniMapSync } from './hooks/useMiniMapSync.ts';
 import { useAutoBootstrap } from './hooks/useAutoBootstrap.ts';
 import { useAncestorResize } from './hooks/useAncestorResize.ts';
 import { useViewModePanelGuard } from './hooks/useViewModePanelGuard.ts';
+import { useSearchInteraction } from './hooks/useSearchInteraction.ts';
+import { useFocusMode } from './hooks/useFocusMode.ts';
+import { useNodeInteraction } from './hooks/useNodeInteraction.ts';
 import { invalidateCssVarCache } from './renderer/styles/ThemeStylesheet.ts';
 import { GraphErrorBoundary } from './components/ErrorBoundary.tsx';
 import { Toolbar } from './components/Toolbar.tsx';
-import type { SearchResultItem } from './components/SearchBar.tsx';
+
 import { GraphTooltip, type TooltipData, type EdgeTooltipData } from './components/GraphTooltip.tsx';
 import { ContextMenu } from './components/ContextMenu.tsx';
 import { LoadingOverlay } from './components/LoadingOverlay.tsx';
@@ -42,7 +45,8 @@ import { RightPanelStack } from './components/RightPanelStack.tsx';
 import { SequenceDiagramRenderer } from './renderer/SequenceDiagramRenderer.tsx';
 import { scoped } from '../shared/Logger.ts';
 import { DOM_EVENTS } from '../shared/domEvents.ts';
-import { UI, PREFETCH, FUNCTION_BODY } from '../shared/constants.ts';
+import { UI, FUNCTION_BODY } from '../shared/constants.ts';
+import { getMinPanelSize } from '../shared/constants.ts';
 
 import { useT } from './i18n/index.ts';
 import './styles/tokens.css';
@@ -121,9 +125,17 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     updateUrlExpand(expandedNodeIds);
   }, [expandedNodeIds, urlRestored]);
 
-  const debouncedSearch = useDebounce(searchQuery, UI.SEARCH_DEBOUNCE_MS);
-  const { search: searchNodes } = useNodeSearch(rawNodes);
+
   const showCallChainRef = useRef(panel.showCallChain);
+
+  const { debouncedSearch, searchResults, handleSelectSearchResult } = useSearchInteraction({
+    searchQuery,
+    rawNodes,
+    setSelectedNode,
+    setSelectedNodeData,
+    getDataRef,
+    setShowSearch: panel.setShowSearch,
+  });
 
   const adjacencyMap = useMemo(() => {
     const map = new Map<string, { in: number; out: number }>();
@@ -159,76 +171,20 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     window.dispatchEvent(new CustomEvent(DOM_EVENTS.IMPORT_REPO, { detail: { path } }));
   }, [addWorkspace]);
 
-  const handleNodeTap = useCallback((id: NodeId) => {
-    try {
-      setSelectedNode(id);
-      const data = getDataRef.current?.getNodeData(id) ?? null;
-      setSelectedNodeData(data);
-    } catch (err) {
-      log.error('handleNodeTap failed', { id, err });
-    }
-  }, [setSelectedNode]);
-
   const handleNodeDoubleTapRef = useRef<(nodeId: string) => void>(() => {});
 
-  const handleNodeDoubleTap = useCallback((nodeId: string) => {
-    handleNodeDoubleTapRef.current(nodeId);
-  }, []);
+  const { handleViewModeChange, handleSelectFunction: rawHandleSelectFunction, handleCloseMicroView, handleAggregateCallChain } = useViewMode(
+    viewMode, currentWorkspace, depsFetchAbortRef,
+  );
 
-  const handleNodeHover = useCallback((nodeId: string, pos: { x: number; y: number }) => {
-    try {
-      const data = getDataRef.current?.getNodeData(nodeId);
-      if (data) {
-        const counts = adjacencyMap.get(nodeId) ?? { in: 0, out: 0 };
-        setTooltip({ x: pos.x, y: pos.y, name: data.label, path: `${data.filePath}:${data.lineNumber}`, type: data.type, linksIn: counts.in, linksOut: counts.out });
-      }
-    } catch (err) {
-      log.error('handleNodeHover failed', { nodeId, err });
-    }
-  }, [adjacencyMap]);
-
-  const handleNodeHoverOut = useCallback(() => setTooltip(null), []);
-
-  const hoverPrefetchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const handleNodeHoverPrefetch = useCallback((nodeId: string) => {
-    if (hoverPrefetchTimerRef.current) clearTimeout(hoverPrefetchTimerRef.current);
-    hoverPrefetchTimerRef.current = setTimeout(() => {
-      useGraphStore.getState().prefetchExpand(nodeId);
-    }, PREFETCH.HOVER_DEBOUNCE_MS);
-  }, []);
-  useEffect(() => () => { if (hoverPrefetchTimerRef.current) clearTimeout(hoverPrefetchTimerRef.current); }, []);
-  const handleEdgeHover = useCallback((edgeId: string, pos: { x: number; y: number }) => {
-    const edgeData = getDataRef.current?.getEdgeData(edgeId);
-    if (edgeData) {
-      const sourceNode = getDataRef.current?.getNodeData(edgeData.source);
-      const targetNode = getDataRef.current?.getNodeData(edgeData.target);
-      setTooltip({
-        x: pos.x, y: pos.y,
-        sourceLabel: sourceNode?.label ?? edgeData.source,
-        targetLabel: targetNode?.label ?? edgeData.target,
-        edgeType: edgeData.type,
-      });
-    }
-  }, []);
-  const handleEdgeHoverOut = useCallback(() => setTooltip(null), []);
-
-  const handleEdgeTap = useCallback((edgeId: string, pos: { x: number; y: number }) => {
-    try {
-      const edgeData = getDataRef.current?.getEdgeData(edgeId);
-      if (edgeData) {
-        const sourceNode = getDataRef.current?.getNodeData(edgeData.source);
-        const targetNode = getDataRef.current?.getNodeData(edgeData.target);
-        setTooltip({
-          x: pos.x, y: pos.y,
-          sourceLabel: sourceNode?.label ?? edgeData.source,
-          targetLabel: targetNode?.label ?? edgeData.target,
-          edgeType: edgeData.type,
-        });
-      }
-    } catch (err) {
-      log.error('handleEdgeTap failed', { edgeId, err });
-    }
-  }, []);
+  const {
+    handleNodeTap, handleNodeDoubleTap, handleNodeHover, handleNodeHoverOut,
+    handleNodeHoverPrefetch, handleEdgeHover, handleEdgeHoverOut, handleEdgeTap,
+  } = useNodeInteraction({
+    setSelectedNode, setSelectedNodeData, getDataRef, adjacencyMap,
+    setTooltip, expandedNodeIds, collapseNode, expandNode,
+    handleSelectFunction: rawHandleSelectFunction, setFocusNodeId, handleNodeDoubleTapRef,
+  });
 
   const renderer = useGraphRenderer({
     data: { nodes, edges, rawNodes },
@@ -266,10 +222,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     if (panel.collapsed) return;
     const panelEl = panelRef.current;
     if (!panelEl) return;
-    if (panelHeight !== null && panelHeight >= UI.MIN_PANEL_HEIGHT_PX) panelEl.style.height = `${Math.min(panelHeight, window.innerHeight)}px`;
-    if (panelWidth !== null && panelWidth >= UI.MIN_PANEL_WIDTH_PX) panelEl.style.width = `${panelWidth}px`;
+    const minSize = getMinPanelSize(integrationMode);
+    if (panelHeight !== null && panelHeight >= minSize.minHeight) panelEl.style.height = `${Math.min(panelHeight, window.innerHeight)}px`;
+    if (panelWidth !== null && panelWidth >= minSize.minWidth) panelEl.style.width = `${panelWidth}px`;
     if (panelHeight !== null || panelWidth !== null) renderer.rendererRef.current?.resize();
-  }, [panel.collapsed, panelHeight, panelWidth, renderer.rendererRef]);
+  }, [panel.collapsed, panelHeight, panelWidth, renderer.rendererRef, integrationMode]);
 
   useAncestorResize({
     collapsed: panel.collapsed,
@@ -347,10 +304,6 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     setSelectedNodeData(null); setSelectedNode(null);
   }, [setSelectedNode]);
 
-  const { handleViewModeChange, handleSelectFunction: rawHandleSelectFunction, handleCloseMicroView, handleAggregateCallChain } = useViewMode(
-    viewMode, currentWorkspace, depsFetchAbortRef,
-  );
-
   const handleSelectFunction = useCallback((nodeId: string, filePath: string, functionName: string, mode: 'cfg' | 'flowchart' | 'sequence') => {
     setSelectedNodeData(null);
     rawHandleSelectFunction(nodeId, filePath, functionName, mode);
@@ -361,34 +314,6 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     setFocusNodeId,
     panel,
   });
-
-  useEffect(() => {
-    handleNodeDoubleTapRef.current = (nodeId: string) => {
-      try {
-        const data = getDataRef.current?.getNodeData(nodeId);
-        const isClusterNode = data ? ('isCluster' in data && data.isCluster === true) : nodeId.startsWith('cluster__') || nodeId.startsWith('filecluster__') || nodeId.startsWith('subgroup__');
-        if (isClusterNode) {
-          const isExpanded = expandedNodeIds.has(nodeId);
-          if (isExpanded) collapseNode(nodeId);
-          else expandNode(nodeId);
-        } else if (data && data.type === 'function') {
-          setSelectedNode(NodeId(nodeId));
-          setSelectedNodeData(data);
-        } else {
-          setFocusNodeId((prev) => {
-            if (prev === nodeId) {
-              setSelectedNode(null);
-              return null;
-            }
-            setSelectedNode(null);
-            return nodeId;
-          });
-        }
-      } catch (err) {
-        log.error('handleNodeDoubleTap failed', { nodeId, err });
-      }
-    };
-  }, [expandedNodeIds, collapseNode, expandNode, handleSelectFunction, setSelectedNode]);
 
   const handleRefresh = useCallback(() => {
     setLoading(true);
@@ -420,26 +345,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     setPathResult(null);
   }, [renderer.rendererRef, setPathResult]);
 
-  const handleFocusExpand = useCallback(() => {
-    if (!focusNodeId) return;
-    const newDepth = focusDepth + 1;
-    setFocusDepth(newDepth);
-    renderer.rendererRef.current?.expandNeighborhood(NodeId(focusNodeId), newDepth);
-  }, [focusNodeId, focusDepth, setFocusDepth, renderer.rendererRef]);
-
-  const handleFocusContract = useCallback(() => {
-    if (!focusNodeId || focusDepth <= 1) return;
-    const newDepth = focusDepth - 1;
-    setFocusDepth(newDepth);
-    renderer.rendererRef.current?.expandNeighborhood(NodeId(focusNodeId), newDepth);
-  }, [focusNodeId, focusDepth, setFocusDepth, renderer.rendererRef]);
-
-  const handleFocusExit = useCallback(() => {
-    setFocusNodeId(null);
-    setFocusDepth(1);
-    setSelectedNode(null);
-    renderer.rendererRef.current?.focusNeighborhood(null);
-  }, [setFocusDepth, setSelectedNode, renderer.rendererRef]);
+  const { handleFocusExpand, handleFocusContract, handleFocusExit } = useFocusMode({
+    focusNodeId, focusDepth, setFocusDepth, setSelectedNode, setFocusNodeId, rendererRef: renderer.rendererRef,
+  });
 
   const getImpactStats = useCallback(() => {
     if (!selectedNodeId) return null;
@@ -484,22 +392,6 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const showFunctionBodyBudget = expandedFunctionBodyCount > 0;
 
-  const searchResults = useMemo<SearchResultItem[]>(() => {
-    if (!debouncedSearch) return [];
-    return searchNodes(debouncedSearch, 50)
-      .map((n) => ({ id: n.id, label: n.label, type: n.type, filePath: n.filePath }));
-  }, [debouncedSearch, searchNodes]);
-
-  const handleSelectSearchResult = useCallback((id: string) => {
-    try {
-      setSelectedNode(NodeId(id));
-      const data = getDataRef.current?.getNodeData(NodeId(id)) ?? null;
-      setSelectedNodeData(data);
-      panel.setShowSearch(false);
-    } catch (err) {
-      log.error('handleSelectSearchResult failed', { id, err });
-    }
-  }, [setSelectedNode, panel]);
 
   const nodeTypeCounts = useMemo(() => {
     const counts = { function: 0, class: 0, variable: 0, module: 0, interface: 0, type: 0 };

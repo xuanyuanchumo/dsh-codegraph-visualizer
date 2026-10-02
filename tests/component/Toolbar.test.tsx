@@ -314,7 +314,7 @@ describe('Toolbar component', () => {
       const layerSelector = document.querySelector('.cg-layer-selector');
       const activeBtn = layerSelector!.querySelector('.cg-layer-btn.cg-active') as HTMLButtonElement;
       expect(activeBtn).toBeTruthy();
-      expect(activeBtn.getAttribute('aria-pressed')).toBe('true');
+      expect(activeBtn.getAttribute('aria-checked')).toBe('true');
     });
 
     it('calls onLayerChange when a layer button is clicked', async () => {

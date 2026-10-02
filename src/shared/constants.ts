@@ -295,6 +295,14 @@ export const UI = {
   ANCESTOR_SEARCH_MAX_DEPTH: 8,
   MIN_PANEL_HEIGHT_PX: 240,
   MIN_PANEL_WIDTH_PX: 320,
+  PANEL_MIN_SIZE: {
+    sidebar: { width: 200, height: 180 },
+    'sidebar-right': { width: 200, height: 180 },
+    slot: { width: 220, height: 200 },
+    floating: { width: 320, height: 240 },
+    'remote-web-ui': { width: 320, height: 240 },
+    unknown: { width: 320, height: 240 },
+  } as const,
   TOOLBAR_BREAKPOINT_COMPACT_PX: 768,
   TOOLBAR_BREAKPOINT_NARROW_PX: 480,
   POLLING_INTERVAL_WATCH_MS: 10000,
@@ -311,6 +319,13 @@ export const UI = {
   WORKSPACE_LIST_MAX: 10,
   MAX_FUNCTIONS_PER_CLUSTER: 50,
 } as const;
+export type IntegrationMode = 'sidebar' | 'slot' | 'floating' | 'unknown' | 'sidebar-right' | 'remote-web-ui';
+
+export function getMinPanelSize(mode: IntegrationMode): { minWidth: number; minHeight: number } {
+  const cfg = UI.PANEL_MIN_SIZE[mode] ?? UI.PANEL_MIN_SIZE.unknown;
+  return { minWidth: cfg.width, minHeight: cfg.height };
+}
+
 export const COLORS = {
   PACKAGE_LIGHT: '#263148',
   PACKAGE_DARK: '#232324',

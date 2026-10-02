@@ -1,10 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { IRenderer } from '../renderer/IRenderer.ts';
 import { useGraphStore } from '../store/graphStore.ts';
-import { UI } from '../../shared/constants.ts';
-
-const MIN_WIDTH = UI.MIN_PANEL_WIDTH_PX;
-const MIN_HEIGHT = UI.MIN_PANEL_HEIGHT_PX;
+import { getMinPanelSize, type IntegrationMode } from '../../shared/constants.ts';
 
 export function usePanelResize(
   panelRef: React.RefObject<HTMLDivElement | null>,
@@ -13,10 +10,13 @@ export function usePanelResize(
   const savedRef = useRef<HTMLElement | null>(null);
   const setPanelSize = useGraphStore((s) => s.setPanelSize);
   const resetPanelSize = useGraphStore((s) => s.resetPanelSize);
+  const integrationMode = useGraphStore((s) => s.integrationMode) as IntegrationMode;
 
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
+
+    const { minWidth: MIN_WIDTH, minHeight: MIN_HEIGHT } = getMinPanelSize(integrationMode);
 
     let startX = 0, startY = 0, startW = 0, startH = 0;
     let rafId: number | null = null;
@@ -68,5 +68,5 @@ export function usePanelResize(
       window.removeEventListener('pointerup', onPointerUp);
       if (rafId !== null) cancelAnimationFrame(rafId);
     };
-  }, [panelRef, rendererRef, setPanelSize, resetPanelSize]);
+  }, [panelRef, rendererRef, setPanelSize, resetPanelSize, integrationMode]);
 }

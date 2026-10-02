@@ -3,6 +3,9 @@ import { useState, useEffect, useRef } from 'react';
 
 export { useGraphRenderer } from './useGraphRenderer.ts';
 export { usePanelResize } from './usePanelResize.ts';
+export { useSearchInteraction } from './useSearchInteraction.ts';
+export { useFocusMode } from './useFocusMode.ts';
+export { useNodeInteraction } from './useNodeInteraction.ts';
 export { usePanelState } from './usePanelState.ts';
 export { usePanelKeyboard } from './usePanelKeyboard.ts';
 export { useViewMode } from './useViewMode.ts';
