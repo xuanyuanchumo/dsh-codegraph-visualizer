@@ -221,6 +221,14 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       schema: { type: 'json' },
       render: renderGraphStatus,
     },
+    presentCall: (args) => {
+      const a = args as { repoId: string };
+      return { card: 'generic' as const, title: 'Check graph status', kind: 'other' as const, rawInput: { repoId: a.repoId } };
+    },
+    presentResult: (_args, result) => ({
+      card: 'generic' as const,
+      title: result.isError ? 'Graph status failed' : 'Graph status',
+    }),
     execute: (args) => executeGraphStatus(args as { repoId: string }, invoke, deps),
   });
 
@@ -239,6 +247,14 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       schema: { type: 'json' },
       render: renderGraphData,
     },
+    presentCall: (args) => {
+      const a = args as { repoId: string; source?: string };
+      return { card: 'generic' as const, title: 'Fetch code graph', kind: 'fetch' as const, rawInput: { repoId: a.repoId, source: a.source ?? 'both' } };
+    },
+    presentResult: (_args, result) => ({
+      card: 'generic' as const,
+      title: result.isError ? 'Graph fetch failed' : 'Code graph fetched',
+    }),
     execute: (args) => executeGraphData(args as { repoId: string; source?: string }, invoke, emitUpdate, emitData, graphCache, deps),
   });
 
@@ -252,6 +268,14 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       schema: { type: 'json' },
       render: renderGraphSymbol,
     },
+    presentCall: (args) => {
+      const a = args as { symbolId: string };
+      return { card: 'generic' as const, title: 'Resolve symbol', kind: 'search' as const, rawInput: { symbolId: a.symbolId } };
+    },
+    presentResult: (_args, result) => ({
+      card: 'generic' as const,
+      title: result.isError ? 'Symbol resolution failed' : 'Symbol resolved',
+    }),
     execute: (args) => executeGraphSymbol(args as { symbolId: string }, invoke),
   });
 
@@ -265,6 +289,14 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
       schema: { type: 'json' },
       render: renderGraphImpact,
     },
+    presentCall: (args) => {
+      const a = args as { symbolId: string };
+      return { card: 'generic' as const, title: 'Analyze impact', kind: 'search' as const, rawInput: { symbolId: a.symbolId } };
+    },
+    presentResult: (_args, result) => ({
+      card: 'generic' as const,
+      title: result.isError ? 'Impact analysis failed' : 'Impact analyzed',
+    }),
     execute: (args) => executeGraphImpact(args as { symbolId: string }, invoke),
   });
 
@@ -287,6 +319,14 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         return [{ type: 'text' as const, text: `${TOOL_MESSAGES.PATH_FOUND?.en ?? 'Path found'} (${v.length} ${TOOL_MESSAGES.HOPS?.en ?? 'hops'}): ${v.path.join(' → ')}` }];
       },
     },
+    presentCall: (args) => {
+      const a = args as { sourceSymbol: string; targetSymbol: string };
+      return { card: 'generic' as const, title: 'Find call path', kind: 'search' as const, rawInput: { from: a.sourceSymbol, to: a.targetSymbol } };
+    },
+    presentResult: (_args, result) => ({
+      card: 'generic' as const,
+      title: result.isError ? 'Path search failed' : 'Call path',
+    }),
     execute: async (args) => {
       const a = args as { repoId: string; sourceSymbol: string; targetSymbol: string };
       const data = await fetchMergedGraph(invoke, a.repoId);
@@ -319,6 +359,14 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         }];
       },
     },
+    presentCall: (args) => {
+      const a = args as { repoId: string };
+      return { card: 'generic' as const, title: 'Calculate health score', kind: 'other' as const, rawInput: { repoId: a.repoId } };
+    },
+    presentResult: (_args, result) => ({
+      card: 'generic' as const,
+      title: result.isError ? 'Health scoring failed' : 'Health score',
+    }),
     execute: async (args) => {
       const a = args as { repoId: string };
       const data = await fetchMergedGraph(invoke, a.repoId);
@@ -347,6 +395,14 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         return [{ type: 'text' as const, text: `${v.length} ${TOOL_MESSAGES.RULE_VIOLATIONS?.en ?? 'rule violations:'}\n${lines.join('\n')}` }];
       },
     },
+    presentCall: (args) => {
+      const a = args as { repoId: string; maxIndegree?: number; maxOutdegree?: number };
+      return { card: 'generic' as const, title: 'Check architecture rules', kind: 'other' as const, rawInput: { repoId: a.repoId, maxIndegree: a.maxIndegree ?? 10, maxOutdegree: a.maxOutdegree ?? 15 } };
+    },
+    presentResult: (_args, result) => ({
+      card: 'generic' as const,
+      title: result.isError ? 'Rules check failed' : 'Rules checked',
+    }),
     execute: async (args) => {
       const a = args as { repoId: string; maxIndegree?: number; maxOutdegree?: number };
       const data = await fetchMergedGraph(invoke, a.repoId, 'both', deps);
@@ -385,6 +441,14 @@ export const createGraphTools = async (ctx: Context, options: { requestTimeout?:
         }];
       },
     },
+    presentCall: (args) => {
+      const a = args as { symbolId: string };
+      return { card: 'generic' as const, title: 'Focus on symbol', kind: 'search' as const, rawInput: { symbolId: a.symbolId } };
+    },
+    presentResult: (_args, result) => ({
+      card: 'generic' as const,
+      title: result.isError ? 'Focus failed' : 'Symbol neighborhood',
+    }),
     execute: async (args) => {
       const a = args as { repoId: string; symbolId: string };
       const data = await fetchMergedGraph(invoke, a.repoId);

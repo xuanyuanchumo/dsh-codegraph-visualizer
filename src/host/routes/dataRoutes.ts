@@ -7,7 +7,7 @@ import {
 import { mapDbNodesToGraphNodes, mapDbEdgesToGraphEdges } from '../DbMapper.ts';
 import { buildCorsHeaders, sendJson, sendError } from '../HttpHelpers.ts';
 import {
-  withRouteMiddleware, resolveWorkspaceFromRequest, checkEtag, slimGraphData,
+  withRouteMiddleware, resolveWorkspaceFromRequest, returnIfEtagMatch, slimGraphData,
   triggerBackgroundBuild, type RouteContext,
 } from './shared.ts';
 
@@ -64,10 +64,8 @@ export function registerDataRoute(rc: RouteContext): void {
     kind: 'exact',
     path: routePath,
     handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, (req, res) => {
+      if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
       const lastGraphData = deps.getLastGraphData();
-      if (lastGraphData && checkEtag(req, res, corsConfig, String(lastGraphData.metadata.timestamp))) {
-        return;
-      }
       if (lastGraphData) {
         const payload = JSON.stringify(lastGraphData);
         if (payload.length > API.DATA_RESPONSE_MAX_BYTES) {
@@ -104,10 +102,7 @@ export function registerBootstrapRoute(rc: RouteContext): void {
     handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, async (req, res) => {
       const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
 
-      const cachedData = deps.getLastGraphData();
-      if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) {
-        return;
-      }
+      if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
 
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
@@ -199,10 +194,7 @@ export function registerNodeChildrenRoute(rc: RouteContext): void {
       const cursor = url.searchParams.get('cursor') ?? null;
       const limit = parseInt(url.searchParams.get('limit') ?? String(BOOTSTRAP.CHILDREN_PAGE_SIZE), 10) || BOOTSTRAP.CHILDREN_PAGE_SIZE;
 
-      const cachedData = deps.getLastGraphData();
-      if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) {
-        return;
-      }
+      if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
 
       const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
       if (workspacePath) {
@@ -271,10 +263,7 @@ export function registerFileOutlineRoute(rc: RouteContext): void {
         return;
       }
 
-      const cachedData = deps.getLastGraphData();
-      if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) {
-        return;
-      }
+      if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
 
       const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
       if (workspacePath) {
@@ -328,10 +317,7 @@ export function registerSymbolASTRoute(rc: RouteContext): void {
         return;
       }
 
-      const cachedData = deps.getLastGraphData();
-      if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) {
-        return;
-      }
+      if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
 
       const budget = Math.min(
         parseInt(url.searchParams.get('budget') ?? String(SYMBOL_AST.MAX_NODES), 10),
@@ -394,10 +380,7 @@ export function registerEdgesRoute(rc: RouteContext): void {
         return;
       }
 
-      const cachedData = deps.getLastGraphData();
-      if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) {
-        return;
-      }
+      if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
 
       const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
       if (workspacePath) {

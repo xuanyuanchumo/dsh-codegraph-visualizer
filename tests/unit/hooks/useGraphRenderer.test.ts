@@ -42,6 +42,10 @@ const { mockRenderer } = vi.hoisted(() => ({
     focusOnArea: vi.fn(),
     exportJSON: vi.fn((): string => '{}'),
     exportMermaid: vi.fn((): string => 'graph TD'),
+    exportMermaidSequence: vi.fn((): string => 'sequenceDiagram'),
+    exportMermaidClass: vi.fn((): string => 'classDiagram'),
+    exportGraphML: vi.fn((): string => '<graphml/>'),
+    exportJSONLD: vi.fn((): string => '{"@context":"..."}'),
     exportPNG: vi.fn((): string | null => null),
     exportSVG: vi.fn((): string | null => null),
     getSelectedNodeData: vi.fn(() => null),
@@ -570,6 +574,197 @@ describe('useGraphRenderer', () => {
         result.current.updateTheme('light');
       });
       expect(mockRenderer.updateTheme).toHaveBeenCalledWith('light');
+    });
+  });
+
+  describe('additional effect triggers', () => {
+    function renderWithRenderer<P extends Record<string, any>, R>(initialProps: P, renderFn: (props: P) => R) {
+      const { result, rerender } = renderHook(renderFn as any, { initialProps });
+      (result.current as any).rendererRef.current = mockRenderer;
+      return { result, rerender } as any;
+    }
+
+    it('calls applyConnectionFilters when fanIn/fanOut thresholds change', () => {
+      const { rerender } = renderWithRenderer(
+        { fanInThreshold: 0, fanOutThreshold: 0 },
+        ({ fanInThreshold, fanOutThreshold }: { fanInThreshold: number; fanOutThreshold: number }) =>
+          useGraphRenderer(makeConfig({ fanInThreshold, fanOutThreshold }))
+      );
+      rerender({ fanInThreshold: 5, fanOutThreshold: 3 });
+      expect(mockRenderer.applyConnectionFilters).toHaveBeenCalledWith(
+        5, 3,
+        expect.any(Set),
+        expect.any(Set),
+      );
+    });
+
+    it('calls setTodoMarkerMode when todoMarkerMode changes', () => {
+      const { rerender } = renderWithRenderer(
+        { todoMarkerMode: 'none' },
+        ({ todoMarkerMode }: { todoMarkerMode: string }) =>
+          useGraphRenderer(makeConfig({ todoMarkerMode }))
+      );
+      rerender({ todoMarkerMode: 'todo' });
+      expect(mockRenderer.setTodoMarkerMode).toHaveBeenCalledWith('todo');
+    });
+
+    it('calls search and sets match count when debouncedSearch changes', () => {
+      mockRenderer.search = vi.fn(() => 7);
+      const { rerender, result } = renderWithRenderer(
+        { debouncedSearch: '' },
+        ({ debouncedSearch }: { debouncedSearch: string }) =>
+          useGraphRenderer(makeConfig({ debouncedSearch }))
+      );
+      rerender({ debouncedSearch: 'foo' });
+      expect(mockRenderer.search).toHaveBeenCalledWith('foo');
+      expect(result.current.searchMatchCount).toBe(7);
+    });
+
+    it('sets searchMatchCount to null when debouncedSearch is empty', () => {
+      mockRenderer.search = vi.fn(() => 0);
+      const { rerender, result } = renderWithRenderer(
+        { debouncedSearch: 'foo' },
+        ({ debouncedSearch }: { debouncedSearch: string }) =>
+          useGraphRenderer(makeConfig({ debouncedSearch }))
+      );
+      rerender({ debouncedSearch: '' });
+      expect(result.current.searchMatchCount).toBeNull();
+    });
+
+    it('calls isolateCycles and relayoutCycles when cycleIsolation + showCycles enabled', () => {
+      const { rerender } = renderWithRenderer(
+        { cycleIsolation: false, showCycles: true },
+        ({ cycleIsolation }: { cycleIsolation: boolean }) =>
+          useGraphRenderer(makeConfig({ cycleIsolation, showCycles: true }))
+      );
+      rerender({ cycleIsolation: true });
+      expect(mockRenderer.isolateCycles).toHaveBeenCalled();
+      expect(mockRenderer.relayoutCycles).toHaveBeenCalled();
+    });
+
+    it('calls restoreIsolation when cycleIsolation becomes false', () => {
+      const { rerender } = renderWithRenderer(
+        { cycleIsolation: true, showCycles: true },
+        ({ cycleIsolation }: { cycleIsolation: boolean }) =>
+          useGraphRenderer(makeConfig({ cycleIsolation, showCycles: true }))
+      );
+      rerender({ cycleIsolation: false });
+      expect(mockRenderer.restoreIsolation).toHaveBeenCalled();
+    });
+
+    it('calls restoreIsolation when showCycles becomes false with cycleIsolation true', () => {
+      const { rerender } = renderWithRenderer(
+        { cycleIsolation: true, showCycles: true },
+        ({ showCycles }: { showCycles: boolean }) =>
+          useGraphRenderer(makeConfig({ cycleIsolation: true, showCycles }))
+      );
+      rerender({ showCycles: false });
+      expect(mockRenderer.restoreIsolation).toHaveBeenCalled();
+    });
+
+    it('calls enableVirtualScroll when node count exceeds threshold', () => {
+      mockRenderer.shouldEnableVirtualScroll = vi.fn(() => true);
+      mockRenderer.isVirtualScrollEnabled = vi.fn(() => false);
+      const { rerender } = renderWithRenderer(
+        { nodes: [] as GraphNode[] },
+        ({ nodes }: { nodes: GraphNode[] }) =>
+          useGraphRenderer(makeConfig({ nodes }))
+      );
+      const manyNodes = Array.from({ length: 500 }, (_, i) => makeNode(`n${i}`));
+      rerender({ nodes: manyNodes });
+      expect(mockRenderer.enableVirtualScroll).toHaveBeenCalled();
+    });
+
+    it('calls disableVirtualScroll when node count drops below threshold', () => {
+      mockRenderer.shouldEnableVirtualScroll = vi.fn(() => false);
+      mockRenderer.isVirtualScrollEnabled = vi.fn(() => true);
+      const manyNodes = Array.from({ length: 500 }, (_, i) => makeNode(`n${i}`));
+      const { rerender } = renderWithRenderer(
+        { nodes: manyNodes },
+        ({ nodes }: { nodes: GraphNode[] }) =>
+          useGraphRenderer(makeConfig({ nodes }))
+      );
+      rerender({ nodes: [] });
+      expect(mockRenderer.disableVirtualScroll).toHaveBeenCalled();
+    });
+
+    it('calls applyLayout when layout changes', () => {
+      vi.useFakeTimers();
+      const { rerender } = renderWithRenderer(
+        { layout: 'cose' },
+        ({ layout }: { layout: string }) =>
+          useGraphRenderer(makeConfig({ layout }))
+      );
+      rerender({ layout: 'breadthfirst' });
+      vi.advanceTimersByTime(1000);
+      expect(mockRenderer.applyLayout).toHaveBeenCalledWith('breadthfirst');
+      vi.useRealTimers();
+    });
+
+    it('calls updateData when nodes change', () => {
+      const { rerender } = renderWithRenderer(
+        { nodes: [] as GraphNode[] },
+        ({ nodes }: { nodes: GraphNode[] }) =>
+          useGraphRenderer(makeConfig({ nodes }))
+      );
+      rerender({ nodes: [makeNode('x')] });
+      expect(mockRenderer.updateData).toHaveBeenCalled();
+    });
+
+    it('calls setRawNodes when rawNodes change', () => {
+      const { rerender } = renderWithRenderer(
+        { rawNodes: [] as GraphNode[] },
+        ({ rawNodes }: { rawNodes: GraphNode[] }) =>
+          useGraphRenderer(makeConfig({ rawNodes }))
+      );
+      rerender({ rawNodes: [makeNode('r1')] });
+      expect(mockRenderer.setRawNodes).toHaveBeenCalledWith([makeNode('r1')]);
+    });
+  });
+
+  describe('exportGraph additional formats', () => {
+    function renderWithRendererRef() {
+      return renderHook(() => {
+        const r = useGraphRenderer(makeConfig());
+        r.rendererRef.current = mockRenderer as any;
+        return r;
+      });
+    }
+
+    it('calls exportMermaidSequence for mermaid-seq format', () => {
+      mockRenderer.exportMermaidSequence = vi.fn(() => 'sequenceDiagram');
+      const { result } = renderWithRendererRef();
+      const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+      act(() => { result.current.exportGraph('mermaid-seq'); });
+      expect(mockRenderer.exportMermaidSequence).toHaveBeenCalled();
+      clickSpy.mockRestore();
+    });
+
+    it('calls exportMermaidClass for mermaid-class format', () => {
+      mockRenderer.exportMermaidClass = vi.fn(() => 'classDiagram');
+      const { result } = renderWithRendererRef();
+      const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+      act(() => { result.current.exportGraph('mermaid-class'); });
+      expect(mockRenderer.exportMermaidClass).toHaveBeenCalled();
+      clickSpy.mockRestore();
+    });
+
+    it('calls exportGraphML for graphml format', () => {
+      mockRenderer.exportGraphML = vi.fn(() => '<graphml/>');
+      const { result } = renderWithRendererRef();
+      const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+      act(() => { result.current.exportGraph('graphml'); });
+      expect(mockRenderer.exportGraphML).toHaveBeenCalled();
+      clickSpy.mockRestore();
+    });
+
+    it('calls exportJSONLD for jsonld format', () => {
+      mockRenderer.exportJSONLD = vi.fn(() => '{"@context":"..."}');
+      const { result } = renderWithRendererRef();
+      const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+      act(() => { result.current.exportGraph('jsonld'); });
+      expect(mockRenderer.exportJSONLD).toHaveBeenCalled();
+      clickSpy.mockRestore();
     });
   });
 });

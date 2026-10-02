@@ -135,6 +135,16 @@ export function checkEtag(
   return true;
 }
 
+export function returnIfEtagMatch(
+  req: IncomingMessage,
+  res: ServerResponse,
+  corsConfig: CorsConfig,
+  deps: RouteDeps,
+): boolean {
+  const cachedData = deps.getLastGraphData();
+  return !!cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp));
+}
+
 export interface RouteDeps {
   ctx: Context;
   config: VisualizerConfig;
