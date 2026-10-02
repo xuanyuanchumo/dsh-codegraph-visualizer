@@ -60,6 +60,7 @@ export function registerScanRoute(rc: RouteContext): void {
         sendJson(res, 200, { success: true, status: 'scanning', message: 'Scan started, listen to SSE for completion' }, req, corsConfig);
 
         scanPromise.then(data => {
+          if (deps.isDestroyed()) return;
           deps.setLastGraphData(data);
           scanCache.set(scanPath, { data, timestamp: Date.now() });
           if (scanCache.size > config.scanCacheLimit) {
@@ -120,6 +121,7 @@ export function registerInitRoute(rc: RouteContext): void {
         (async () => {
           try {
             const result = await invokeUpstream('codegraph_init', { path: initPath, force: true });
+            if (deps.isDestroyed()) return;
             const success = result !== null;
             const initResult = {
               success,
@@ -132,6 +134,7 @@ export function registerInitRoute(rc: RouteContext): void {
             if (success) {
               const repoId = initPath || `workspace-${Date.now()}`;
               const raw = await fetchMergedGraph(invokeUpstream, repoId, 'both');
+              if (deps.isDestroyed()) return;
               const data = slimGraphData(raw, config.maxNodes);
               deps.setLastGraphData(data);
               ctx.emit('codegraph-visualizer/graph/data', {

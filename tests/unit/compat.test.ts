@@ -58,11 +58,11 @@ describe('HostVersionDetector', () => {
     expect(info.generation).toBe('gen1');
   });
 
-  it('defaults to gen2 when unknown', () => {
+  it('defaults to unknown when version undetectable', () => {
     const ctx = makeMockContext({});
     ctx.tools.get = vi.fn(() => undefined);
     const info = detectHostVersion(ctx);
-    expect(info.generation).toBe('gen2');
+    expect(info.generation).toBe('unknown');
   });
 
 
@@ -123,13 +123,13 @@ describe('FeatureFlags', () => {
     expect(flags.multiWorkspace).toBe(true);
   });
 
-  it('default to gen2 flags when version undetectable', () => {
+  it('default to conservative flags when version undetectable', () => {
     const ctx = makeMockContext({});
     ctx.tools.get = vi.fn(() => undefined);
     const info = detectHostVersion(ctx);
     const flags = createFeatureFlags(info);
-    expect(flags.incrementalBootstrap).toBe(true);
-    expect(flags.remoteWebUi).toBe(true);
+    expect(flags.incrementalBootstrap).toBe(false);
+    expect(flags.remoteWebUi).toBe(false);
     expect(flags.betterSidebar).toBe(true);
   });
 

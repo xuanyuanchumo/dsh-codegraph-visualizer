@@ -23,37 +23,37 @@ afterEach(() => {
 describe('ImpactPanel component', () => {
   it('renders D1, D2, D3 stat values correctly', () => {
     render(<ImpactPanel impactStats={sampleStats} label="Impact Analysis" totalLabel="Total" />);
-    expect(screen.getByText('5')).toBeTruthy();
-    expect(screen.getByText('12')).toBeTruthy();
-    expect(screen.getByText('8')).toBeTruthy();
+    expect(screen.getByText('5')).toBeInTheDocument();
+    expect(screen.getByText('12')).toBeInTheDocument();
+    expect(screen.getByText('8')).toBeInTheDocument();
   });
 
   it('renders total value correctly', () => {
     render(<ImpactPanel impactStats={sampleStats} label="Impact Analysis" totalLabel="Total" />);
-    expect(screen.getByText('Total: 25')).toBeTruthy();
+    expect(screen.getByText('Total: 25')).toBeInTheDocument();
   });
 
   it('renders label in header', () => {
     render(<ImpactPanel impactStats={sampleStats} label="Impact Analysis" totalLabel="Total" />);
-    expect(screen.getByText('Impact Analysis')).toBeTruthy();
+    expect(screen.getByText('Impact Analysis')).toBeInTheDocument();
   });
 
   it('renders totalLabel prefix before total value', () => {
     render(<ImpactPanel impactStats={sampleStats} label="Impact" totalLabel="Affected Nodes" />);
-    expect(screen.getByText('Affected Nodes: 25')).toBeTruthy();
+    expect(screen.getByText('Affected Nodes: 25')).toBeInTheDocument();
   });
 
   it('renders D1, D2, D3 badge labels', () => {
     render(<ImpactPanel impactStats={sampleStats} label="Impact Analysis" totalLabel="Total" />);
-    expect(screen.getByText('D1')).toBeTruthy();
-    expect(screen.getByText('D2')).toBeTruthy();
-    expect(screen.getByText('D3')).toBeTruthy();
+    expect(screen.getByText('D1')).toBeInTheDocument();
+    expect(screen.getByText('D2')).toBeInTheDocument();
+    expect(screen.getByText('D3')).toBeInTheDocument();
   });
 
   it('has role="region" with correct aria-label', () => {
     render(<ImpactPanel impactStats={sampleStats} label="Impact Analysis" totalLabel="Total" />);
     const region = screen.getByRole('region');
-    expect(region).toBeTruthy();
+    expect(region).toBeInTheDocument();
     expect(region.getAttribute('aria-label')).toBe('Impact Analysis');
   });
 
@@ -65,15 +65,15 @@ describe('ImpactPanel component', () => {
 
   it('applies correct CSS class names', () => {
     render(<ImpactPanel impactStats={sampleStats} label="Impact Analysis" totalLabel="Total" />);
-    expect(document.querySelector('.cg-analysis-panel.cg-impact-panel')).toBeTruthy();
-    expect(document.querySelector('.cg-analysis-panel-header')).toBeTruthy();
-    expect(document.querySelector('.cg-analysis-panel-content')).toBeTruthy();
+    expect(document.querySelector('.cg-analysis-panel.cg-impact-panel')).toBeInTheDocument();
+    expect(document.querySelector('.cg-analysis-panel-header')).toBeInTheDocument();
+    expect(document.querySelector('.cg-analysis-panel-content')).toBeInTheDocument();
     expect(document.querySelectorAll('.cg-impact-stat-row').length).toBe(3);
-    expect(document.querySelector('.cg-impact-stat-badge.cg-d1')).toBeTruthy();
-    expect(document.querySelector('.cg-impact-stat-badge.cg-d2')).toBeTruthy();
-    expect(document.querySelector('.cg-impact-stat-badge.cg-d3')).toBeTruthy();
+    expect(document.querySelector('.cg-impact-stat-badge.cg-d1')).toBeInTheDocument();
+    expect(document.querySelector('.cg-impact-stat-badge.cg-d2')).toBeInTheDocument();
+    expect(document.querySelector('.cg-impact-stat-badge.cg-d3')).toBeInTheDocument();
     expect(document.querySelectorAll('.cg-impact-stat-count').length).toBe(3);
-    expect(document.querySelector('.cg-impact-stat-total')).toBeTruthy();
+    expect(document.querySelector('.cg-impact-stat-total')).toBeInTheDocument();
   });
 
   it('renders zero values correctly', () => {
@@ -83,16 +83,16 @@ describe('ImpactPanel component', () => {
     expect(counts[0]!.textContent).toBe('0');
     expect(counts[1]!.textContent).toBe('0');
     expect(counts[2]!.textContent).toBe('0');
-    expect(screen.getByText('Total: 0')).toBeTruthy();
+    expect(screen.getByText('Total: 0')).toBeInTheDocument();
   });
 
   it('renders large values correctly', () => {
     const largeStats: ImpactStats = { d1: 9999, d2: 50000, d3: 100000, total: 159999 };
     render(<ImpactPanel impactStats={largeStats} label="Impact Analysis" totalLabel="Total" />);
-    expect(screen.getByText('9999')).toBeTruthy();
-    expect(screen.getByText('50000')).toBeTruthy();
-    expect(screen.getByText('100000')).toBeTruthy();
-    expect(screen.getByText('Total: 159999')).toBeTruthy();
+    expect(screen.getByText('9999')).toBeInTheDocument();
+    expect(screen.getByText('50000')).toBeInTheDocument();
+    expect(screen.getByText('100000')).toBeInTheDocument();
+    expect(screen.getByText('Total: 159999')).toBeInTheDocument();
   });
 
   it('renders each stat row with badge and count paired correctly', () => {
@@ -117,14 +117,14 @@ describe('ImpactPanel component', () => {
     const { rerender } = render(
       <ImpactPanel impactStats={sampleStats} label="Impact Analysis" totalLabel="Total" />
     );
-    expect(screen.getByText('5')).toBeTruthy();
-    expect(screen.getByText('Total: 25')).toBeTruthy();
+    expect(screen.getByText('5')).toBeInTheDocument();
+    expect(screen.getByText('Total: 25')).toBeInTheDocument();
 
     const newStats: ImpactStats = { d1: 100, d2: 200, d3: 300, total: 600 };
     rerender(<ImpactPanel impactStats={newStats} label="Impact Analysis" totalLabel="Total" />);
-    expect(screen.getByText('100')).toBeTruthy();
-    expect(screen.getByText('200')).toBeTruthy();
-    expect(screen.getByText('300')).toBeTruthy();
-    expect(screen.getByText('Total: 600')).toBeTruthy();
+    expect(screen.getByText('100')).toBeInTheDocument();
+    expect(screen.getByText('200')).toBeInTheDocument();
+    expect(screen.getByText('300')).toBeInTheDocument();
+    expect(screen.getByText('Total: 600')).toBeInTheDocument();
   });
 });

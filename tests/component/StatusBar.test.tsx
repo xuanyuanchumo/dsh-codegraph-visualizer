@@ -15,60 +15,60 @@ afterEach(() => {
 describe('StatusBar component', () => {
   it('shows error status when error is present', () => {
     render(<StatusBar error="something broke" isLoading={false} lastUpdated={0} watchEnabled={false} />);
-    expect(screen.getByText(/错误|error/i)).toBeTruthy();
+    expect(screen.getByText(/错误|error/i)).toBeInTheDocument();
   });
 
   it('shows loading status when isLoading is true', () => {
     render(<StatusBar error={null} isLoading={true} lastUpdated={0} watchEnabled={false} />);
-    expect(screen.getByText(/加载|loading/i)).toBeTruthy();
+    expect(screen.getByText(/加载|loading/i)).toBeInTheDocument();
   });
 
   it('shows ready status when no error and not loading', () => {
     render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false} />);
-    expect(screen.getByText(/就绪|ready/i)).toBeTruthy();
+    expect(screen.getByText(/就绪|ready/i)).toBeInTheDocument();
   });
 
   it('shows workspace name when provided', () => {
     render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false} workspaceName="/path/to/repo" />);
-    expect(screen.getByText('repo')).toBeTruthy();
+    expect(screen.getByText('repo')).toBeInTheDocument();
   });
 
   it('shows truncated indicator when truncated is true', () => {
     render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false} truncated={true} totalNodeCount={1000} displayedNodeCount={500} />);
-    expect(screen.getByText(/500/)).toBeTruthy();
-    expect(screen.getByText(/1000/)).toBeTruthy();
+    expect(screen.getByText(/500/)).toBeInTheDocument();
+    expect(screen.getByText(/1000/)).toBeInTheDocument();
   });
 
   it('shows complete indicator when not truncated and totalNodeCount > 0', () => {
     render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false} totalNodeCount={500} />);
-    expect(screen.getByText(/500/)).toBeTruthy();
+    expect(screen.getByText(/500/)).toBeInTheDocument();
   });
 
   it('shows watch indicator when watchEnabled is true', () => {
     render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={true} />);
-    expect(screen.getByText('●')).toBeTruthy();
+    expect(screen.getByText('●')).toBeInTheDocument();
   });
 
   it('shows update time when lastUpdated > 0', () => {
     const ts = Date.now();
     render(<StatusBar error={null} isLoading={false} lastUpdated={ts} watchEnabled={false} />);
-    expect(screen.getByText(/更新|updated/i)).toBeTruthy();
+    expect(screen.getByText(/更新|updated/i)).toBeInTheDocument();
   });
 
   it('shows no-data when lastUpdated is 0', () => {
     render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false} />);
-    expect(screen.getByText(/无数据|no data/i)).toBeTruthy();
+    expect(screen.getByText(/无数据|no data/i)).toBeInTheDocument();
   });
 
   it('shows degradation indicator when performanceDegradations is non-empty', () => {
     render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false} performanceDegradations={['cycle-detection-skipped']} />);
-    expect(screen.getByText(/循环检测已跳过|cycle detection skipped/i)).toBeTruthy();
+    expect(screen.getByText(/循环检测已跳过|cycle detection skipped/i)).toBeInTheDocument();
   });
 
   it('shows multiple degradation indicators joined by comma', () => {
     render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false} performanceDegradations={['cycle-detection-skipped', 'large-graph-mode']} />);
-    expect(screen.getByText(/循环检测已跳过|cycle detection skipped/i)).toBeTruthy();
-    expect(screen.getByText(/大规模图谱模式|large graph mode/i)).toBeTruthy();
+    expect(screen.getByText(/循环检测已跳过|cycle detection skipped/i)).toBeInTheDocument();
+    expect(screen.getByText(/大规模图谱模式|large graph mode/i)).toBeInTheDocument();
   });
 
   it('does not show degradation indicator when performanceDegradations is empty', () => {
@@ -84,7 +84,7 @@ describe('StatusBar component', () => {
   it('renders GitHub feedback link with correct URL', () => {
     render(<StatusBar error={null} isLoading={false} lastUpdated={0} watchEnabled={false} />);
     const link = screen.getByRole('link');
-    expect(link).toBeTruthy();
+    expect(link).toBeInTheDocument();
     expect(link.getAttribute('href')).toBe('https://github.com/xuanyuanchumo/dsh-codegraph-visualizer');
     expect(link.getAttribute('target')).toBe('_blank');
     expect(link.getAttribute('rel')).toBe('noopener noreferrer');

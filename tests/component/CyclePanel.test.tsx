@@ -22,30 +22,30 @@ afterEach(() => {
 describe('CyclePanel component', () => {
   it('renders label in header', () => {
     render(<CyclePanel cycles={sampleCycles} label="Cycles" emptyLabel="No cycles" />);
-    expect(screen.getByText('Cycles')).toBeTruthy();
+    expect(screen.getByText('Cycles')).toBeInTheDocument();
   });
 
   it('renders cycle count badge', () => {
     render(<CyclePanel cycles={sampleCycles} label="Cycles" emptyLabel="No cycles" />);
-    expect(screen.getByText('2')).toBeTruthy();
+    expect(screen.getByText('2')).toBeInTheDocument();
   });
 
   it('renders empty label when no cycles', () => {
     render(<CyclePanel cycles={[]} label="Cycles" emptyLabel="No cycles found" />);
-    expect(screen.getByText('No cycles found')).toBeTruthy();
+    expect(screen.getByText('No cycles found')).toBeInTheDocument();
   });
 
   it('renders cycle items with index', () => {
     render(<CyclePanel cycles={sampleCycles} label="Cycles" emptyLabel="No cycles" />);
-    expect(screen.getByText('#1')).toBeTruthy();
-    expect(screen.getByText('#2')).toBeTruthy();
+    expect(screen.getByText('#1')).toBeInTheDocument();
+    expect(screen.getByText('#2')).toBeInTheDocument();
   });
 
   it('renders cycle nodes with arrows', () => {
     render(<CyclePanel cycles={sampleCycles} label="Cycles" emptyLabel="No cycles" />);
-    expect(screen.getByText('a')).toBeTruthy();
-    expect(screen.getByText('b')).toBeTruthy();
-    expect(screen.getByText('c')).toBeTruthy();
+    expect(screen.getByText('a')).toBeInTheDocument();
+    expect(screen.getByText('b')).toBeInTheDocument();
+    expect(screen.getByText('c')).toBeInTheDocument();
   });
 
   it('renders cycle return arrow', () => {
@@ -57,7 +57,7 @@ describe('CyclePanel component', () => {
 
   it('renders close button when onClose provided', () => {
     render(<CyclePanel cycles={sampleCycles} label="Cycles" emptyLabel="No cycles" onClose={vi.fn()} />);
-    expect(screen.getByRole('button', { name: /close|关闭/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /close|关闭/i })).toBeInTheDocument();
   });
 
   it('does not render close button when onClose not provided', () => {
@@ -87,10 +87,10 @@ describe('CyclePanel component', () => {
 
   it('applies correct CSS class names', () => {
     render(<CyclePanel cycles={sampleCycles} label="Cycles" emptyLabel="No cycles" />);
-    expect(document.querySelector('.cg-analysis-panel.cg-cycle-panel')).toBeTruthy();
-    expect(document.querySelector('.cg-analysis-panel-header')).toBeTruthy();
-    expect(document.querySelector('.cg-analysis-panel-content')).toBeTruthy();
-    expect(document.querySelector('.cg-cycle-count-badge')).toBeTruthy();
+    expect(document.querySelector('.cg-analysis-panel.cg-cycle-panel')).toBeInTheDocument();
+    expect(document.querySelector('.cg-analysis-panel-header')).toBeInTheDocument();
+    expect(document.querySelector('.cg-analysis-panel-content')).toBeInTheDocument();
+    expect(document.querySelector('.cg-cycle-count-badge')).toBeInTheDocument();
   });
 
   it('renders cycle node tags with correct count', () => {
@@ -107,9 +107,9 @@ describe('CyclePanel component', () => {
 
   it('updates when cycles prop changes', () => {
     const { rerender } = render(<CyclePanel cycles={sampleCycles} label="Cycles" emptyLabel="No cycles" />);
-    expect(screen.getByText('2')).toBeTruthy();
+    expect(screen.getByText('2')).toBeInTheDocument();
     rerender(<CyclePanel cycles={[]} label="Cycles" emptyLabel="No cycles" />);
-    expect(screen.getByText('0')).toBeTruthy();
-    expect(screen.getByText('No cycles')).toBeTruthy();
+    expect(screen.getByText('0')).toBeInTheDocument();
+    expect(screen.getByText('No cycles')).toBeInTheDocument();
   });
 });

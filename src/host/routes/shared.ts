@@ -36,7 +36,14 @@ export function withRouteMiddleware(
     if (!requireMethod(req, res, method, corsConfig)) return;
     logRequest(req, routePath);
     if (!checkRate(req, res, routePath, rateLimiter, corsConfig)) return;
-    await handler(req, res);
+    try {
+      await handler(req, res);
+    } catch (e) {
+      log.error('route handler error', { routePath, error: e });
+      if (!res.headersSent) {
+        sendError(res, 500, ERROR_CODES.INTERNAL_ERROR, req, corsConfig);
+      }
+    }
   };
 }
 
@@ -162,6 +169,7 @@ export interface RouteDeps {
   getScanInFlight: (path: string) => Promise<GraphData> | null;
   setScanInFlight: (path: string, p: Promise<GraphData> | null) => void;
   graphRepo?: GraphRepository | undefined;
+  isDestroyed: () => boolean;
 }
 
 export function slimGraphData(data: GraphData, maxNodes: number): GraphData {
@@ -307,6 +315,7 @@ export function triggerBackgroundBuild(
   deps.setScanInFlight(workspacePath, scanPromise);
 
   scanPromise.then(data => {
+    if (deps.isDestroyed()) return;
     deps.setLastGraphData(data);
     deps.getScanCache().set(workspacePath, { data, timestamp: Date.now() });
     if (deps.graphRepo?.isReady()) {

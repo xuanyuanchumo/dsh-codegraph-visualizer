@@ -188,7 +188,8 @@ export function registerTreeSitterRoute(rc: RouteContext, sharedTreeSitterAdapte
             sendError(res, 400, ERROR_CODES.FILEPATH_AND_CONTENT_REQUIRED, req, corsConfig);
             return;
           }
-          if (filePath.includes('..') || filePath.length > VALIDATION.MAX_FILEPATH_LENGTH) {
+          const normalizedPath = path.normalize(filePath);
+          if (normalizedPath !== filePath || filePath.includes('..') || filePath.length > VALIDATION.MAX_FILEPATH_LENGTH) {
             sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
             return;
           }

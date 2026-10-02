@@ -49,6 +49,8 @@ export default defineConfig({
       ['tests/component/**', 'jsdom'],
     ],
 
+    setupFiles: ['tests/component/setup.ts'],
+
 
     testTimeout: 10000,
     hookTimeout: 10000,

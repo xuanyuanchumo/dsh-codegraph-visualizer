@@ -30,18 +30,18 @@ afterEach(() => {
 describe('HealthScoreCard (FR-32) component', () => {
   it('renders overall score and dimension bars when healthScore is present', () => {
     render(<HealthScoreCard onClose={vi.fn()} />);
-    expect(screen.getByText('79')).toBeTruthy();
-    expect(screen.getByText('75')).toBeTruthy();
-    expect(screen.getByText('82')).toBeTruthy();
-    expect(screen.getByText('90')).toBeTruthy();
-    expect(screen.getByText('68')).toBeTruthy();
+    expect(screen.getByText('79')).toBeInTheDocument();
+    expect(screen.getByText('75')).toBeInTheDocument();
+    expect(screen.getByText('82')).toBeInTheDocument();
+    expect(screen.getByText('90')).toBeInTheDocument();
+    expect(screen.getByText('68')).toBeInTheDocument();
   });
 
   it('shows empty message when healthScore is null', () => {
     useGraphStore.setState({ healthScore: null });
     render(<HealthScoreCard onClose={vi.fn()} />);
     const emptyEl = document.querySelector('.cg-health-score-empty');
-    expect(emptyEl).toBeTruthy();
+    expect(emptyEl).toBeInTheDocument();
     expect(emptyEl?.textContent).toBeTruthy();
   });
 

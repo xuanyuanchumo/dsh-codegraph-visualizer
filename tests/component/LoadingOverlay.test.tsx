@@ -20,20 +20,20 @@ describe('LoadingOverlay', () => {
 
   it('visible=true 时应显示加载覆盖层', () => {
     const { container, getByText } = render(<LoadingOverlay visible={true} />);
-    expect(container.querySelector('.cg-loading-overlay')).toBeTruthy();
-    expect(container.querySelector('.cg-spinner')).toBeTruthy();
-    expect(getByText('state.loading')).toBeTruthy();
+    expect(container.querySelector('.cg-loading-overlay')).toBeInTheDocument();
+    expect(container.querySelector('.cg-spinner')).toBeInTheDocument();
+    expect(getByText('state.loading')).toBeInTheDocument();
   });
 
   it('应有 role=status 无障碍属性', () => {
     const { container } = render(<LoadingOverlay visible={true} />);
     const status = container.querySelector('[role="status"]');
-    expect(status).toBeTruthy();
+    expect(status).toBeInTheDocument();
   });
 
   it('应有 aria-live=polite 无障碍属性', () => {
     const { container } = render(<LoadingOverlay visible={true} />);
     const live = container.querySelector('[aria-live="polite"]');
-    expect(live).toBeTruthy();
+    expect(live).toBeInTheDocument();
   });
 });

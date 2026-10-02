@@ -25,7 +25,7 @@ describe('MicroViewPrompt component', () => {
         onBackToCode={vi.fn()}
       />
     );
-    expect(screen.getByText('CFG')).toBeTruthy();
+    expect(screen.getByText('CFG')).toBeInTheDocument();
   });
 
   it('displays flowchartLabel when viewMode is flowchart', () => {
@@ -39,7 +39,7 @@ describe('MicroViewPrompt component', () => {
         onBackToCode={vi.fn()}
       />
     );
-    expect(screen.getByText('Flow')).toBeTruthy();
+    expect(screen.getByText('Flow')).toBeInTheDocument();
   });
 
   it('displays sequenceLabel when viewMode is sequence', () => {
@@ -53,7 +53,7 @@ describe('MicroViewPrompt component', () => {
         onBackToCode={vi.fn()}
       />
     );
-    expect(screen.getByText('Seq')).toBeTruthy();
+    expect(screen.getByText('Seq')).toBeInTheDocument();
   });
 
   it('displays selectFunctionPrompt text', () => {
@@ -67,7 +67,7 @@ describe('MicroViewPrompt component', () => {
         onBackToCode={vi.fn()}
       />
     );
-    expect(screen.getByText('Please select a function node')).toBeTruthy();
+    expect(screen.getByText('Please select a function node')).toBeInTheDocument();
   });
 
   it('renders back button with backToCodeLabel', () => {
@@ -81,7 +81,7 @@ describe('MicroViewPrompt component', () => {
         onBackToCode={vi.fn()}
       />
     );
-    expect(screen.getByText('Back to Code')).toBeTruthy();
+    expect(screen.getByText('Back to Code')).toBeInTheDocument();
   });
 
   it('calls onBackToCode when back button is clicked', async () => {
@@ -112,10 +112,10 @@ describe('MicroViewPrompt component', () => {
         onBackToCode={vi.fn()}
       />
     );
-    expect(container.querySelector('.cg-micro-empty-prompt')).toBeTruthy();
-    expect(container.querySelector('.cg-micro-empty-icon')).toBeTruthy();
-    expect(container.querySelector('.cg-micro-empty-text')).toBeTruthy();
-    expect(container.querySelector('.cg-micro-empty-back-btn')).toBeTruthy();
+    expect(container.querySelector('.cg-micro-empty-prompt')).toBeInTheDocument();
+    expect(container.querySelector('.cg-micro-empty-icon')).toBeInTheDocument();
+    expect(container.querySelector('.cg-micro-empty-text')).toBeInTheDocument();
+    expect(container.querySelector('.cg-micro-empty-back-btn')).toBeInTheDocument();
   });
 });
 
@@ -128,7 +128,7 @@ describe('MicroFunctionBar component', () => {
         onClose={vi.fn()}
       />
     );
-    expect(screen.getByText('CFG')).toBeTruthy();
+    expect(screen.getByText('CFG')).toBeInTheDocument();
   });
 
   it('displays translated flowchart label when viewMode is flowchart', () => {
@@ -140,7 +140,7 @@ describe('MicroFunctionBar component', () => {
       />
     );
     // useT() defaults to zh dictionary, viewMode.flowchart = '流程'
-    expect(screen.getByText('流程')).toBeTruthy();
+    expect(screen.getByText('流程')).toBeInTheDocument();
   });
 
   it('displays translated sequence label when viewMode is sequence', () => {
@@ -152,7 +152,7 @@ describe('MicroFunctionBar component', () => {
       />
     );
     // useT() defaults to zh dictionary, viewMode.sequence = '时序'
-    expect(screen.getByText('时序')).toBeTruthy();
+    expect(screen.getByText('时序')).toBeInTheDocument();
   });
 
   it('does not render mode label when viewMode is unknown', () => {
@@ -184,7 +184,7 @@ describe('MicroFunctionBar component', () => {
         onClose={vi.fn()}
       />
     );
-    expect(screen.getByText('calculateSum')).toBeTruthy();
+    expect(screen.getByText('calculateSum')).toBeInTheDocument();
   });
 
   it('displays shortened file path (last 2 segments) when filePath is provided', () => {
@@ -196,7 +196,7 @@ describe('MicroFunctionBar component', () => {
         onClose={vi.fn()}
       />
     );
-    expect(screen.getByText('utils/helper.ts')).toBeTruthy();
+    expect(screen.getByText('utils/helper.ts')).toBeInTheDocument();
   });
 
   it('displays shortened Windows-style file path correctly', () => {
@@ -208,7 +208,7 @@ describe('MicroFunctionBar component', () => {
         onClose={vi.fn()}
       />
     );
-    expect(screen.getByText('components/Bar.tsx')).toBeTruthy();
+    expect(screen.getByText('components/Bar.tsx')).toBeInTheDocument();
   });
 
   it('does not render file path when filePath is undefined', () => {
@@ -233,7 +233,7 @@ describe('MicroFunctionBar component', () => {
       />
     );
     const closeBtn = document.querySelector('.cg-micro-function-close') as HTMLButtonElement;
-    expect(closeBtn).toBeTruthy();
+    expect(closeBtn).toBeInTheDocument();
     await user.click(closeBtn);
     expect(onClose).toHaveBeenCalledOnce();
   });
@@ -247,7 +247,7 @@ describe('MicroFunctionBar component', () => {
       />
     );
     const closeBtn = document.querySelector('.cg-micro-function-close') as HTMLButtonElement;
-    expect(closeBtn).toBeTruthy();
+    expect(closeBtn).toBeInTheDocument();
     // useT() defaults to zh dictionary, micro.closeView = '关闭微观视图'
     expect(closeBtn.getAttribute('aria-label')).toBe('关闭微观视图');
   });
@@ -261,10 +261,10 @@ describe('MicroFunctionBar component', () => {
         onClose={vi.fn()}
       />
     );
-    expect(container.querySelector('.cg-micro-function-bar')).toBeTruthy();
-    expect(container.querySelector('.cg-micro-function-mode')).toBeTruthy();
-    expect(container.querySelector('.cg-micro-function-name')).toBeTruthy();
-    expect(container.querySelector('.cg-micro-function-path')).toBeTruthy();
-    expect(container.querySelector('.cg-micro-function-close')).toBeTruthy();
+    expect(container.querySelector('.cg-micro-function-bar')).toBeInTheDocument();
+    expect(container.querySelector('.cg-micro-function-mode')).toBeInTheDocument();
+    expect(container.querySelector('.cg-micro-function-name')).toBeInTheDocument();
+    expect(container.querySelector('.cg-micro-function-path')).toBeInTheDocument();
+    expect(container.querySelector('.cg-micro-function-close')).toBeInTheDocument();
   });
 });

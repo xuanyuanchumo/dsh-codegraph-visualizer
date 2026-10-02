@@ -386,7 +386,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   return (
     <div className={panelClassName} ref={panelRef} role="region" aria-label={t('panel.ariaLabel')}
       data-cg-integration={integrationMode}>
-      <button className="cg-collapse-fab" onClick={panel.toggleCollapsed} aria-label={t('panel.expand')}>
+      <button className="cg-collapse-fab" onClick={panel.toggleCollapsed} aria-label={t('panel.expand')} aria-expanded={!panel.collapsed}>
         <GraphIcon size={22} />
       </button>
 

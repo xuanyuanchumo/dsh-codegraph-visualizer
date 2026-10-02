@@ -58,6 +58,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   let lastInitResult: { success: boolean; path: string; message: string; timestamp: number } | null = null;
   const scanInFlightMap = new Map<string, Promise<GraphData>>();
   const scanCache = new Map<string, { data: GraphData; timestamp: number }>();
+  let destroyed = false;
 
   const invokeUpstream = createInvokeUpstream(ctx, config, apiCompat);
 
@@ -79,6 +80,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
       else scanInFlightMap.set(path, p);
     },
     graphRepo: repoReady ? graphRepo : undefined,
+    isDestroyed: () => destroyed,
   };
 
   registerService(routeDeps);
@@ -138,6 +140,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
 
   ctx.effect(() => {
     return () => {
+      destroyed = true;
       scanCache.clear();
       scanInFlightMap.clear();
       lastGraphData = null;

@@ -22,25 +22,25 @@ afterEach(() => {
 describe('GodModulePanel component', () => {
   it('renders label in header', () => {
     render(<GodModulePanel godModules={sampleModules} onClose={vi.fn()} label="God Modules" statsLabel={(n, e) => `${n} nodes, ${e} edges`} />);
-    expect(screen.getByText('God Modules')).toBeTruthy();
+    expect(screen.getByText('God Modules')).toBeInTheDocument();
   });
 
   it('renders module paths', () => {
     render(<GodModulePanel godModules={sampleModules} onClose={vi.fn()} label="God Modules" statsLabel={(n, e) => `${n} nodes, ${e} edges`} />);
-    expect(screen.getByText('src/core/engine.ts')).toBeTruthy();
-    expect(screen.getByText('src/utils/helpers.ts')).toBeTruthy();
+    expect(screen.getByText('src/core/engine.ts')).toBeInTheDocument();
+    expect(screen.getByText('src/utils/helpers.ts')).toBeInTheDocument();
   });
 
   it('renders stats via statsLabel callback', () => {
     render(<GodModulePanel godModules={sampleModules} onClose={vi.fn()} label="God Modules" statsLabel={(n, e) => `${n}n/${e}e`} />);
-    expect(screen.getByText('50n/120e')).toBeTruthy();
-    expect(screen.getByText('30n/60e')).toBeTruthy();
+    expect(screen.getByText('50n/120e')).toBeInTheDocument();
+    expect(screen.getByText('30n/60e')).toBeInTheDocument();
   });
 
   it('renders suggestions', () => {
     render(<GodModulePanel godModules={sampleModules} onClose={vi.fn()} label="God Modules" statsLabel={(n, e) => `${n}, ${e}`} />);
-    expect(screen.getByText('Consider splitting into smaller modules')).toBeTruthy();
-    expect(screen.getByText('Extract utility functions')).toBeTruthy();
+    expect(screen.getByText('Consider splitting into smaller modules')).toBeInTheDocument();
+    expect(screen.getByText('Extract utility functions')).toBeInTheDocument();
   });
 
   it('calls onClose when close button clicked', async () => {
@@ -66,13 +66,13 @@ describe('GodModulePanel component', () => {
 
   it('applies correct CSS class names', () => {
     render(<GodModulePanel godModules={sampleModules} onClose={vi.fn()} label="God Modules" statsLabel={(n, e) => `${n}`} />);
-    expect(document.querySelector('.cg-analysis-panel.godmodule-panel')).toBeTruthy();
-    expect(document.querySelector('.cg-analysis-panel-header')).toBeTruthy();
-    expect(document.querySelector('.cg-analysis-panel-content')).toBeTruthy();
-    expect(document.querySelector('.cg-godmodule-item')).toBeTruthy();
-    expect(document.querySelector('.cg-godmodule-path')).toBeTruthy();
-    expect(document.querySelector('.cg-godmodule-stats')).toBeTruthy();
-    expect(document.querySelector('.cg-godmodule-suggestion')).toBeTruthy();
+    expect(document.querySelector('.cg-analysis-panel.godmodule-panel')).toBeInTheDocument();
+    expect(document.querySelector('.cg-analysis-panel-header')).toBeInTheDocument();
+    expect(document.querySelector('.cg-analysis-panel-content')).toBeInTheDocument();
+    expect(document.querySelector('.cg-godmodule-item')).toBeInTheDocument();
+    expect(document.querySelector('.cg-godmodule-path')).toBeInTheDocument();
+    expect(document.querySelector('.cg-godmodule-stats')).toBeInTheDocument();
+    expect(document.querySelector('.cg-godmodule-suggestion')).toBeInTheDocument();
   });
 
   it('renders empty list without crashing', () => {
@@ -83,9 +83,9 @@ describe('GodModulePanel component', () => {
 
   it('updates when godModules prop changes', () => {
     const { rerender } = render(<GodModulePanel godModules={sampleModules} onClose={vi.fn()} label="God Modules" statsLabel={(n, e) => `${n}`} />);
-    expect(screen.getByText('src/core/engine.ts')).toBeTruthy();
+    expect(screen.getByText('src/core/engine.ts')).toBeInTheDocument();
     rerender(<GodModulePanel godModules={[{ modulePath: 'new.ts', nodeCount: 1, edgeCount: 1, suggestion: 'New' }]} onClose={vi.fn()} label="God Modules" statsLabel={(n, e) => `${n}`} />);
-    expect(screen.getByText('new.ts')).toBeTruthy();
+    expect(screen.getByText('new.ts')).toBeInTheDocument();
     expect(screen.queryByText('src/core/engine.ts')).toBeNull();
   });
 });

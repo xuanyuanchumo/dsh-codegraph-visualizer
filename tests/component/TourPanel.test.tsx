@@ -59,19 +59,19 @@ afterEach(() => {
 describe('TourPanel component', () => {
   it('renders tour title and close button', () => {
     render(<TourPanel tour={sampleTour} onClose={vi.fn()} />);
-    expect(screen.getByText('代码导览')).toBeTruthy();
-    expect(screen.getByLabelText('关闭导览')).toBeTruthy();
+    expect(screen.getByText('代码导览')).toBeInTheDocument();
+    expect(screen.getByLabelText('关闭导览')).toBeInTheDocument();
   });
 
   it('shows progress text 1 / total', () => {
     render(<TourPanel tour={sampleTour} onClose={vi.fn()} />);
-    expect(screen.getByText('1 / 3')).toBeTruthy();
+    expect(screen.getByText('1 / 3')).toBeInTheDocument();
   });
 
   it('renders current step title and description', () => {
     render(<TourPanel tour={sampleTour} onClose={vi.fn()} />);
     expect(screen.getAllByText('Entry Point').length).toBeGreaterThan(0);
-    expect(screen.getByText('Description for Entry Point')).toBeTruthy();
+    expect(screen.getByText('Description for Entry Point')).toBeInTheDocument();
   });
 
   it('renders step list with all steps', () => {
@@ -84,14 +84,14 @@ describe('TourPanel component', () => {
   it('disables prev button on first step', () => {
     render(<TourPanel tour={sampleTour} onClose={vi.fn()} />);
     const prevBtn = screen.getByLabelText('上一步');
-    expect(prevBtn).toBeTruthy();
+    expect(prevBtn).toBeInTheDocument();
     expect(prevBtn.hasAttribute('disabled')).toBe(true);
   });
 
   it('enables next button on first step', () => {
     render(<TourPanel tour={sampleTour} onClose={vi.fn()} />);
     const nextBtn = screen.getByLabelText('下一步');
-    expect(nextBtn).toBeTruthy();
+    expect(nextBtn).toBeInTheDocument();
     expect(nextBtn.hasAttribute('disabled')).toBe(false);
   });
 
@@ -109,7 +109,7 @@ describe('TourPanel component', () => {
     render(<TourPanel tour={sampleTour} onClose={vi.fn()} />);
     const nextBtn = screen.getByLabelText('下一步');
     await user.click(nextBtn);
-    expect(screen.getByText('2 / 3')).toBeTruthy();
+    expect(screen.getByText('2 / 3')).toBeInTheDocument();
   });
 
   it('navigates to prev step on prev button click', async () => {
@@ -117,10 +117,10 @@ describe('TourPanel component', () => {
     render(<TourPanel tour={sampleTour} onClose={vi.fn()} />);
     const nextBtn = screen.getByLabelText('下一步');
     await user.click(nextBtn);
-    expect(screen.getByText('2 / 3')).toBeTruthy();
+    expect(screen.getByText('2 / 3')).toBeInTheDocument();
     const prevBtn = screen.getByLabelText('上一步');
     await user.click(prevBtn);
-    expect(screen.getByText('1 / 3')).toBeTruthy();
+    expect(screen.getByText('1 / 3')).toBeInTheDocument();
   });
 
   it('calls onClose when close button clicked', async () => {
@@ -145,12 +145,12 @@ describe('TourPanel component', () => {
   it('renders empty state when tour has no steps', () => {
     const emptyTour = makeTour([]);
     render(<TourPanel tour={emptyTour} onClose={vi.fn()} />);
-    expect(screen.getByText('暂无导览数据，请先加载代码图谱')).toBeTruthy();
+    expect(screen.getByText('暂无导览数据，请先加载代码图谱')).toBeInTheDocument();
   });
 
   it('shows filePath when current step has one', () => {
     render(<TourPanel tour={sampleTour} onClose={vi.fn()} />);
-    expect(screen.getByText('/src/main.ts')).toBeTruthy();
+    expect(screen.getByText('/src/main.ts')).toBeInTheDocument();
   });
 
   it('shows dependencies count when step has dependencies', () => {
@@ -158,7 +158,7 @@ describe('TourPanel component', () => {
       { ...makeTourStep('s1', 'Entry', 'n1'), dependencies: ['n2', 'n3'] },
     ]);
     render(<TourPanel tour={tourWithDeps} onClose={vi.fn()} />);
-    expect(screen.getByText(/依赖/)).toBeTruthy();
+    expect(screen.getByText(/依赖/)).toBeInTheDocument();
   });
 
   it('shows dependents count when step has dependents', () => {
@@ -166,7 +166,7 @@ describe('TourPanel component', () => {
       { ...makeTourStep('s1', 'Entry', 'n1'), dependents: ['n2'] },
     ]);
     render(<TourPanel tour={tourWithDependents} onClose={vi.fn()} />);
-    expect(screen.getByText(/被引用/)).toBeTruthy();
+    expect(screen.getByText(/被引用/)).toBeInTheDocument();
   });
 
   it('calls handleStepClick when step list item is clicked', async () => {
@@ -176,7 +176,7 @@ describe('TourPanel component', () => {
     const stepItems = document.querySelectorAll('.cg-tour-step-item');
     expect(stepItems.length).toBe(3);
     fireEvent.click(stepItems[1]!);
-    expect(screen.getByText('2 / 3')).toBeTruthy();
+    expect(screen.getByText('2 / 3')).toBeInTheDocument();
     expect(setSelectedNode).toHaveBeenCalled();
   });
 });

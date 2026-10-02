@@ -173,6 +173,7 @@ function makeDeps(ctx: MockCtx, config: VisualizerConfig) {
     getScanCache: () => scanCache,
     getScanInFlight: (p: string) => scanInFlight.get(p) ?? null,
     setScanInFlight: (p: string, promise: Promise<GraphData> | null) => { scanInFlight.set(p, promise); },
+    isDestroyed: () => false,
   };
 }
 

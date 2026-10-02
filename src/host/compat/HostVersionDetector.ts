@@ -84,7 +84,7 @@ export function detectHostVersion(ctx: Context): HostVersionInfo {
       }
     } catch { /* ignore */ }
   }
-  log.info('host version unknown, assuming gen2 (current target)');
-  return { raw: 'unknown', major: 0, minor: 2, patch: 0, prerelease: null, generation: 'gen2' };
+  log.info('host version unknown, using conservative flags');
+  return { raw: 'unknown', major: 0, minor: 0, patch: 0, prerelease: null, generation: 'unknown' };
 }
 

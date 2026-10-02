@@ -23,9 +23,9 @@ describe('StatsPanel', () => {
 
   it('应渲染标题和关闭按钮', () => {
     const { getByText, container } = render(<StatsPanel {...defaultProps} />);
-    expect(getByText('minimap.title')).toBeTruthy();
+    expect(getByText('minimap.title')).toBeInTheDocument();
     const closeBtn = container.querySelector('.cg-close-btn');
-    expect(closeBtn).toBeTruthy();
+    expect(closeBtn).toBeInTheDocument();
     expect(closeBtn?.getAttribute('aria-label')).toBe('minimap.close');
   });
 
@@ -39,16 +39,16 @@ describe('StatsPanel', () => {
 
   it('应显示各类型计数', () => {
     const { getByText } = render(<StatsPanel {...defaultProps} />);
-    expect(getByText('minimap.functions: 10')).toBeTruthy();
-    expect(getByText('minimap.classes: 5')).toBeTruthy();
-    expect(getByText('minimap.variables: 3')).toBeTruthy();
-    expect(getByText('minimap.modules: 2')).toBeTruthy();
-    expect(getByText('minimap.interfaces: 1')).toBeTruthy();
+    expect(getByText('minimap.functions: 10')).toBeInTheDocument();
+    expect(getByText('minimap.classes: 5')).toBeInTheDocument();
+    expect(getByText('minimap.variables: 3')).toBeInTheDocument();
+    expect(getByText('minimap.modules: 2')).toBeInTheDocument();
+    expect(getByText('minimap.interfaces: 1')).toBeInTheDocument();
   });
 
   it('应显示总数', () => {
     const { getByText } = render(<StatsPanel {...defaultProps} />);
-    expect(getByText('minimap.total: 21')).toBeTruthy();
+    expect(getByText('minimap.total: 21')).toBeInTheDocument();
   });
 
   it('thumbnail 为 null 时不应显示缩略图', () => {
@@ -63,13 +63,13 @@ describe('StatsPanel', () => {
     };
     const { container } = render(<StatsPanel {...props} />);
     const img = container.querySelector('img');
-    expect(img).toBeTruthy();
+    expect(img).toBeInTheDocument();
     expect(img?.getAttribute('src')).toBe('data:image/png;base64,abc');
   });
 
   it('应有 role=complementary 无障碍属性', () => {
     const { container } = render(<StatsPanel {...defaultProps} />);
-    expect(container.querySelector('[role="complementary"]')).toBeTruthy();
+    expect(container.querySelector('[role="complementary"]')).toBeInTheDocument();
   });
 
   it('应显示统计点标记', () => {
@@ -103,7 +103,7 @@ describe('StatsPanel', () => {
       counts: { function: 0, class: 0, variable: 0, module: 0, interface: 0 },
     };
     const { getByText } = render(<StatsPanel {...props} />);
-    expect(getByText('minimap.total: 0')).toBeTruthy();
+    expect(getByText('minimap.total: 0')).toBeInTheDocument();
   });
 
   it('thumbnail 存在且 img 加载完成时应显示 img 元素', () => {
@@ -113,7 +113,7 @@ describe('StatsPanel', () => {
     };
     const { container } = render(<StatsPanel {...props} />);
     const img = container.querySelector('img');
-    expect(img).toBeTruthy();
+    expect(img).toBeInTheDocument();
     expect(img?.getAttribute('alt')).toBe('minimap.title');
   });
 
@@ -152,7 +152,7 @@ describe('StatsPanel', () => {
     };
     const { container } = render(<StatsPanel {...props} />);
     const img = container.querySelector('img') as HTMLImageElement;
-    expect(img).toBeTruthy();
+    expect(img).toBeInTheDocument();
     expect(() => fireEvent.load(img)).not.toThrow();
   });
 

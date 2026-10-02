@@ -63,38 +63,38 @@ describe('CoreFunctionPanel', () => {
 
   it('应渲染面板标题', () => {
     const { getByText } = render(<CoreFunctionPanel {...defaultProps} />);
-    expect(getByText('核心函数分析')).toBeTruthy();
+    expect(getByText('核心函数分析')).toBeInTheDocument();
   });
 
   it('点击关闭按钮应调用 onClose', () => {
     const onClose = vi.fn();
     const { container } = render(<CoreFunctionPanel {...defaultProps} onClose={onClose} />);
     const closeBtn = container.querySelector('.cg-close-btn');
-    expect(closeBtn).toBeTruthy();
+    expect(closeBtn).toBeInTheDocument();
     fireEvent.click(closeBtn!);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('应渲染核心函数列表', () => {
     const { getByText } = render(<CoreFunctionPanel {...defaultProps} />);
-    expect(getByText('main')).toBeTruthy();
-    expect(getByText('processData')).toBeTruthy();
-    expect(getByText('apiHandler')).toBeTruthy();
+    expect(getByText('main')).toBeInTheDocument();
+    expect(getByText('processData')).toBeInTheDocument();
+    expect(getByText('apiHandler')).toBeInTheDocument();
   });
 
   it('应显示函数分数', () => {
     const { getByText } = render(<CoreFunctionPanel {...defaultProps} />);
-    expect(getByText('0.95')).toBeTruthy();
-    expect(getByText('0.85')).toBeTruthy();
-    expect(getByText('0.75')).toBeTruthy();
+    expect(getByText('0.95')).toBeInTheDocument();
+    expect(getByText('0.85')).toBeInTheDocument();
+    expect(getByText('0.75')).toBeInTheDocument();
   });
 
   it('应显示函数统计信息', () => {
     const { getByText } = render(<CoreFunctionPanel {...defaultProps} />);
-    expect(getByText('in:0')).toBeTruthy();
-    expect(getByText('out:10')).toBeTruthy();
-    expect(getByText('reach:50')).toBeTruthy();
-    expect(getByText('depth:5')).toBeTruthy();
+    expect(getByText('in:0')).toBeInTheDocument();
+    expect(getByText('out:10')).toBeInTheDocument();
+    expect(getByText('reach:50')).toBeInTheDocument();
+    expect(getByText('depth:5')).toBeInTheDocument();
   });
 
   it('点击函数项应调用 onSelectFunction', () => {
@@ -120,19 +120,19 @@ describe('CoreFunctionPanel', () => {
 
   it('应有 role=region 无障碍属性', () => {
     const { container } = render(<CoreFunctionPanel {...defaultProps} />);
-    expect(container.querySelector('[role="region"]')).toBeTruthy();
+    expect(container.querySelector('[role="region"]')).toBeInTheDocument();
   });
 
   it('应有 aria-live=polite 无障碍属性', () => {
     const { container } = render(<CoreFunctionPanel {...defaultProps} />);
-    expect(container.querySelector('[aria-live="polite"]')).toBeTruthy();
+    expect(container.querySelector('[aria-live="polite"]')).toBeInTheDocument();
   });
 
   it('空列表时不应崩溃', () => {
     const { container } = render(
       <CoreFunctionPanel {...defaultProps} coreFunctions={[]} />
     );
-    expect(container.querySelector('.cg-core-function-panel')).toBeTruthy();
+    expect(container.querySelector('.cg-core-function-panel')).toBeInTheDocument();
   });
 
   it('按 Enter 键应调用 onSelectFunction', () => {

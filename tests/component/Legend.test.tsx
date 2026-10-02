@@ -17,9 +17,9 @@ describe('Legend', () => {
   it('应渲染标题和关闭按钮', () => {
     const onClose = vi.fn();
     const { getByText, container } = render(<Legend viewMode="code" onClose={onClose} />);
-    expect(getByText('legend.title')).toBeTruthy();
+    expect(getByText('legend.title')).toBeInTheDocument();
     const closeBtn = container.querySelector('.cg-legend-close');
-    expect(closeBtn).toBeTruthy();
+    expect(closeBtn).toBeInTheDocument();
     expect(closeBtn?.getAttribute('aria-label')).toBe('legend.close');
   });
 
@@ -33,52 +33,52 @@ describe('Legend', () => {
 
   it('code 视图应显示所有节点类型', () => {
     const { getByText } = render(<Legend viewMode="code" onClose={vi.fn()} />);
-    expect(getByText('legend.function')).toBeTruthy();
-    expect(getByText('legend.class')).toBeTruthy();
-    expect(getByText('legend.variable')).toBeTruthy();
-    expect(getByText('legend.module')).toBeTruthy();
-    expect(getByText('legend.interface')).toBeTruthy();
-    expect(getByText('legend.type')).toBeTruthy();
+    expect(getByText('legend.function')).toBeInTheDocument();
+    expect(getByText('legend.class')).toBeInTheDocument();
+    expect(getByText('legend.variable')).toBeInTheDocument();
+    expect(getByText('legend.module')).toBeInTheDocument();
+    expect(getByText('legend.interface')).toBeInTheDocument();
+    expect(getByText('legend.type')).toBeInTheDocument();
   });
 
   it('dependencies 视图应仅显示 module/class/type 节点', () => {
     const { getByText, queryByText } = render(<Legend viewMode="dependencies" onClose={vi.fn()} />);
-    expect(getByText('legend.module')).toBeTruthy();
-    expect(getByText('legend.class')).toBeTruthy();
-    expect(getByText('legend.type')).toBeTruthy();
+    expect(getByText('legend.module')).toBeInTheDocument();
+    expect(getByText('legend.class')).toBeInTheDocument();
+    expect(getByText('legend.type')).toBeInTheDocument();
     expect(queryByText('legend.function')).toBeNull();
     expect(queryByText('legend.variable')).toBeNull();
   });
 
   it('inheritance 视图应仅显示 class/interface/type 节点', () => {
     const { getByText, queryByText } = render(<Legend viewMode="inheritance" onClose={vi.fn()} />);
-    expect(getByText('legend.class')).toBeTruthy();
-    expect(getByText('legend.interface')).toBeTruthy();
+    expect(getByText('legend.class')).toBeInTheDocument();
+    expect(getByText('legend.interface')).toBeInTheDocument();
     expect(queryByText('legend.function')).toBeNull();
   });
 
   it('callgraph 视图应仅显示 call 边', () => {
     const { getByText, queryByText } = render(<Legend viewMode="callgraph" onClose={vi.fn()} />);
-    expect(getByText('legend.call')).toBeTruthy();
+    expect(getByText('legend.call')).toBeInTheDocument();
     expect(queryByText('legend.import')).toBeNull();
     expect(queryByText('legend.extend')).toBeNull();
   });
 
   it('cfg 视图应仅显示 function 节点和 call 边', () => {
     const { getByText, queryByText } = render(<Legend viewMode="cfg" onClose={vi.fn()} />);
-    expect(getByText('legend.function')).toBeTruthy();
-    expect(getByText('legend.call')).toBeTruthy();
+    expect(getByText('legend.function')).toBeInTheDocument();
+    expect(getByText('legend.call')).toBeInTheDocument();
     expect(queryByText('legend.class')).toBeNull();
   });
 
   it('应有 role=complementary 无障碍属性', () => {
     const { container } = render(<Legend viewMode="code" onClose={vi.fn()} />);
-    expect(container.querySelector('[role="complementary"]')).toBeTruthy();
+    expect(container.querySelector('[role="complementary"]')).toBeInTheDocument();
   });
 
   it('应显示节点和边分区标题', () => {
     const { getByText } = render(<Legend viewMode="code" onClose={vi.fn()} />);
-    expect(getByText('legend.nodes')).toBeTruthy();
-    expect(getByText('legend.edges')).toBeTruthy();
+    expect(getByText('legend.nodes')).toBeInTheDocument();
+    expect(getByText('legend.edges')).toBeInTheDocument();
   });
 });

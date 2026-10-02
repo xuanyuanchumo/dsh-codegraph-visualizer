@@ -25,7 +25,7 @@ describe('GraphErrorBoundary', () => {
         <div>正常内容</div>
       </GraphErrorBoundary>
     );
-    expect(getByText('正常内容')).toBeTruthy();
+    expect(getByText('正常内容')).toBeInTheDocument();
   });
 
   it('应捕获子组件渲染错误并显示默认 fallback', () => {
@@ -35,9 +35,9 @@ describe('GraphErrorBoundary', () => {
         <ThrowOnRender error={error} />
       </GraphErrorBoundary>
     );
-    expect(getByText('error.title')).toBeTruthy();
-    expect(getByText('测试渲染失败')).toBeTruthy();
-    expect(getByText('error.retry')).toBeTruthy();
+    expect(getByText('error.title')).toBeInTheDocument();
+    expect(getByText('测试渲染失败')).toBeInTheDocument();
+    expect(getByText('error.retry')).toBeInTheDocument();
   });
 
   it('点击重试应清除错误状态', () => {
@@ -47,9 +47,9 @@ describe('GraphErrorBoundary', () => {
         <ThrowOnRender error={error} />
       </GraphErrorBoundary>
     );
-    expect(getByText('error.title')).toBeTruthy();
+    expect(getByText('error.title')).toBeInTheDocument();
     fireEvent.click(getByText('error.retry'));
-    expect(queryByText('error.title')).toBeTruthy();
+    expect(queryByText('error.title')).toBeInTheDocument();
   });
 
   it('应使用自定义 fallback 当提供时', () => {
@@ -60,7 +60,7 @@ describe('GraphErrorBoundary', () => {
         <ThrowOnRender error={error} />
       </GraphErrorBoundary>
     );
-    expect(getByText('自定义错误界面')).toBeTruthy();
+    expect(getByText('自定义错误界面')).toBeInTheDocument();
   });
 
   it('应调用 onError 回调当错误发生时', () => {
@@ -83,7 +83,7 @@ describe('GraphErrorBoundary', () => {
       </GraphErrorBoundary>
     );
     const alert = container.querySelector('[role="alert"]');
-    expect(alert).toBeTruthy();
+    expect(alert).toBeInTheDocument();
   });
 
   it('应显示报告问题链接', () => {

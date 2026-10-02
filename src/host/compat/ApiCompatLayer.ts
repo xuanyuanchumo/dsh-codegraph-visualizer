@@ -42,8 +42,20 @@ const GEN2_MAPPING: ToolNameMapping = {
   codegraphIncremental: 'codegraph_incremental',
 };
 
+const GEN3_MAPPING: ToolNameMapping = {
+  ...GEN2_MAPPING,
+};
+
+const UNKNOWN_MAPPING: ToolNameMapping = {
+  ...GEN1_MAPPING,
+  codegraphBootstrap: null,
+  codegraphIncremental: null,
+};
+
 export function createToolNameMapping(info: HostVersionInfo): ToolNameMapping {
   if (info.generation === 'gen1') return GEN1_MAPPING;
+  if (info.generation === 'gen3') return GEN3_MAPPING;
+  if (info.generation === 'unknown') return UNKNOWN_MAPPING;
   return GEN2_MAPPING;
 }
 
@@ -114,4 +126,6 @@ const FALLBACK_CHAINS: Partial<Record<keyof ToolNameMapping, (keyof ToolNameMapp
   codegraphQuery: ['codegraphStatus', 'codegraphGraph'],
   codegraphBootstrap: ['codegraphInit'],
   codegraphIncremental: ['codegraphSync', 'codegraphInit'],
+  codegraphInit: ['codegraphBootstrap'],
+  codegraphSync: ['codegraphIncremental', 'codegraphBootstrap'],
 };

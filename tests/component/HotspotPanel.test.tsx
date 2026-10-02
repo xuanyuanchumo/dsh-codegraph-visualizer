@@ -23,28 +23,28 @@ afterEach(() => {
 describe('HotspotPanel component', () => {
   it('renders label in header', () => {
     render(<HotspotPanel hotspotNodes={sampleHotspots} onClose={vi.fn()} label="Hotspots" />);
-    expect(screen.getByText('Hotspots')).toBeTruthy();
+    expect(screen.getByText('Hotspots')).toBeInTheDocument();
   });
 
   it('renders hotspot labels', () => {
     render(<HotspotPanel hotspotNodes={sampleHotspots} onClose={vi.fn()} label="Hotspots" />);
-    expect(screen.getByText('functionA')).toBeTruthy();
-    expect(screen.getByText('functionB')).toBeTruthy();
-    expect(screen.getByText('functionC')).toBeTruthy();
+    expect(screen.getByText('functionA')).toBeInTheDocument();
+    expect(screen.getByText('functionB')).toBeInTheDocument();
+    expect(screen.getByText('functionC')).toBeInTheDocument();
   });
 
   it('renders indegree values', () => {
     render(<HotspotPanel hotspotNodes={sampleHotspots} onClose={vi.fn()} label="Hotspots" />);
-    expect(screen.getByText('15')).toBeTruthy();
-    expect(screen.getByText('10')).toBeTruthy();
-    expect(screen.getByText('6')).toBeTruthy();
+    expect(screen.getByText('15')).toBeInTheDocument();
+    expect(screen.getByText('10')).toBeInTheDocument();
+    expect(screen.getByText('6')).toBeInTheDocument();
   });
 
   it('renders level badges', () => {
     render(<HotspotPanel hotspotNodes={sampleHotspots} onClose={vi.fn()} label="Hotspots" />);
-    expect(screen.getByText('critical')).toBeTruthy();
-    expect(screen.getByText('warning')).toBeTruthy();
-    expect(screen.getByText('info')).toBeTruthy();
+    expect(screen.getByText('critical')).toBeInTheDocument();
+    expect(screen.getByText('warning')).toBeInTheDocument();
+    expect(screen.getByText('info')).toBeInTheDocument();
   });
 
   it('calls onClose when close button clicked', async () => {
@@ -70,16 +70,16 @@ describe('HotspotPanel component', () => {
 
   it('applies correct CSS class names', () => {
     render(<HotspotPanel hotspotNodes={sampleHotspots} onClose={vi.fn()} label="Hotspots" />);
-    expect(document.querySelector('.cg-analysis-panel.hotspot-panel')).toBeTruthy();
-    expect(document.querySelector('.cg-analysis-panel-header')).toBeTruthy();
-    expect(document.querySelector('.cg-analysis-panel-content')).toBeTruthy();
+    expect(document.querySelector('.cg-analysis-panel.hotspot-panel')).toBeInTheDocument();
+    expect(document.querySelector('.cg-analysis-panel-header')).toBeInTheDocument();
+    expect(document.querySelector('.cg-analysis-panel-content')).toBeInTheDocument();
   });
 
   it('applies level-specific CSS class to hotspot items', () => {
     render(<HotspotPanel hotspotNodes={sampleHotspots} onClose={vi.fn()} label="Hotspots" />);
-    expect(document.querySelector('.cg-hotspot-item.cg-critical')).toBeTruthy();
-    expect(document.querySelector('.cg-hotspot-item.cg-warning')).toBeTruthy();
-    expect(document.querySelector('.cg-hotspot-item.cg-info')).toBeTruthy();
+    expect(document.querySelector('.cg-hotspot-item.cg-critical')).toBeInTheDocument();
+    expect(document.querySelector('.cg-hotspot-item.cg-warning')).toBeInTheDocument();
+    expect(document.querySelector('.cg-hotspot-item.cg-info')).toBeInTheDocument();
   });
 
   it('limits display to 20 hotspots', () => {
@@ -102,9 +102,9 @@ describe('HotspotPanel component', () => {
 
   it('updates when hotspotNodes prop changes', () => {
     const { rerender } = render(<HotspotPanel hotspotNodes={sampleHotspots} onClose={vi.fn()} label="Hotspots" />);
-    expect(screen.getByText('functionA')).toBeTruthy();
+    expect(screen.getByText('functionA')).toBeInTheDocument();
     rerender(<HotspotPanel hotspotNodes={[{ nodeId: 'new', label: 'newFunc', indegree: 99, level: 'critical' }]} onClose={vi.fn()} label="Hotspots" />);
-    expect(screen.getByText('newFunc')).toBeTruthy();
+    expect(screen.getByText('newFunc')).toBeInTheDocument();
     expect(screen.queryByText('functionA')).toBeNull();
   });
 });

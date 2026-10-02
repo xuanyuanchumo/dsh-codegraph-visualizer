@@ -52,23 +52,23 @@ afterEach(() => {
 describe('DeadCodePanel component', () => {
   it('renders label in header', () => {
     render(<DeadCodePanel result={sampleResult} onClose={vi.fn()} label="Dead Code" />);
-    expect(screen.getByText('Dead Code')).toBeTruthy();
+    expect(screen.getByText('Dead Code')).toBeInTheDocument();
   });
 
   it('renders total count badge', () => {
     render(<DeadCodePanel result={sampleResult} onClose={vi.fn()} label="Dead Code" />);
-    expect(screen.getByText('3')).toBeTruthy();
+    expect(screen.getByText('3')).toBeInTheDocument();
   });
 
   it('renders confirmed and suspected stats', () => {
     render(<DeadCodePanel result={sampleResult} onClose={vi.fn()} label="Dead Code" />);
-    expect(screen.getByText('2')).toBeTruthy();
-    expect(screen.getByText('1')).toBeTruthy();
+    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getByText('1')).toBeInTheDocument();
   });
 
   it('renders close button', () => {
     render(<DeadCodePanel result={sampleResult} onClose={vi.fn()} label="Dead Code" />);
-    expect(screen.getByRole('button', { name: /close|关闭/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /close|关闭/i })).toBeInTheDocument();
   });
 
   it('calls onClose when close button clicked', async () => {
@@ -93,50 +93,50 @@ describe('DeadCodePanel component', () => {
 
   it('applies correct CSS class names', () => {
     render(<DeadCodePanel result={sampleResult} onClose={vi.fn()} label="Dead Code" />);
-    expect(document.querySelector('.cg-analysis-panel.cg-deadcode-panel')).toBeTruthy();
-    expect(document.querySelector('.cg-analysis-panel-header')).toBeTruthy();
-    expect(document.querySelector('.cg-analysis-panel-content')).toBeTruthy();
-    expect(document.querySelector('.cg-deadcode-count-badge')).toBeTruthy();
+    expect(document.querySelector('.cg-analysis-panel.cg-deadcode-panel')).toBeInTheDocument();
+    expect(document.querySelector('.cg-analysis-panel-header')).toBeInTheDocument();
+    expect(document.querySelector('.cg-analysis-panel-content')).toBeInTheDocument();
+    expect(document.querySelector('.cg-deadcode-count-badge')).toBeInTheDocument();
   });
 
   it('renders dead code item labels', () => {
     render(<DeadCodePanel result={sampleResult} onClose={vi.fn()} label="Dead Code" />);
-    expect(screen.getByText('functionA')).toBeTruthy();
-    expect(screen.getByText('functionB')).toBeTruthy();
-    expect(screen.getByText('functionC')).toBeTruthy();
+    expect(screen.getByText('functionA')).toBeInTheDocument();
+    expect(screen.getByText('functionB')).toBeInTheDocument();
+    expect(screen.getByText('functionC')).toBeInTheDocument();
   });
 
   it('renders category badges', () => {
     render(<DeadCodePanel result={sampleResult} onClose={vi.fn()} label="Dead Code" />);
-    expect(screen.getByText('unreachable')).toBeTruthy();
-    expect(screen.getByText('no-incoming')).toBeTruthy();
-    expect(screen.getByText('orphan')).toBeTruthy();
+    expect(screen.getByText('unreachable')).toBeInTheDocument();
+    expect(screen.getByText('no-incoming')).toBeInTheDocument();
+    expect(screen.getByText('orphan')).toBeInTheDocument();
   });
 
   it('renders file paths', () => {
     render(<DeadCodePanel result={sampleResult} onClose={vi.fn()} label="Dead Code" />);
-    expect(screen.getByText('src/foo.ts')).toBeTruthy();
-    expect(screen.getByText('src/bar.ts')).toBeTruthy();
-    expect(screen.getByText('src/baz.ts')).toBeTruthy();
+    expect(screen.getByText('src/foo.ts')).toBeInTheDocument();
+    expect(screen.getByText('src/bar.ts')).toBeInTheDocument();
+    expect(screen.getByText('src/baz.ts')).toBeInTheDocument();
   });
 
   it('applies confidence-specific CSS class to items', () => {
     render(<DeadCodePanel result={sampleResult} onClose={vi.fn()} label="Dead Code" />);
-    expect(document.querySelector('.cg-deadcode-item.cg-confirmed')).toBeTruthy();
-    expect(document.querySelector('.cg-deadcode-item.cg-suspected')).toBeTruthy();
+    expect(document.querySelector('.cg-deadcode-item.cg-confirmed')).toBeInTheDocument();
+    expect(document.querySelector('.cg-deadcode-item.cg-suspected')).toBeInTheDocument();
   });
 
   it('applies category-specific CSS class to badges', () => {
     render(<DeadCodePanel result={sampleResult} onClose={vi.fn()} label="Dead Code" />);
-    expect(document.querySelector('.cg-deadcode-category-badge.cg-unreachable')).toBeTruthy();
-    expect(document.querySelector('.cg-deadcode-category-badge.cg-no-incoming')).toBeTruthy();
-    expect(document.querySelector('.cg-deadcode-category-badge.cg-orphan')).toBeTruthy();
+    expect(document.querySelector('.cg-deadcode-category-badge.cg-unreachable')).toBeInTheDocument();
+    expect(document.querySelector('.cg-deadcode-category-badge.cg-no-incoming')).toBeInTheDocument();
+    expect(document.querySelector('.cg-deadcode-category-badge.cg-orphan')).toBeInTheDocument();
   });
 
   it('renders empty message when no dead nodes', () => {
     const emptyResult = makeResult([]);
     render(<DeadCodePanel result={emptyResult} onClose={vi.fn()} label="Dead Code" />);
-    expect(screen.getByText(/empty|无/)).toBeTruthy();
+    expect(screen.getByText(/empty|无/)).toBeInTheDocument();
   });
 
   it('renders empty message when all nodes filtered out', () => {
@@ -146,14 +146,14 @@ describe('DeadCodePanel component', () => {
     render(<DeadCodePanel result={singleCategory} onClose={vi.fn()} label="Dead Code" />);
     const selects = document.querySelectorAll('.cg-deadcode-filters select');
     fireEvent.change(selects[0]!, { target: { value: 'orphan' } });
-    expect(screen.getByText(/empty|无/)).toBeTruthy();
+    expect(screen.getByText(/empty|无/)).toBeInTheDocument();
   });
 
   it('filters by category', () => {
     render(<DeadCodePanel result={sampleResult} onClose={vi.fn()} label="Dead Code" />);
     const selects = document.querySelectorAll('.cg-deadcode-filters select');
     fireEvent.change(selects[0]!, { target: { value: 'orphan' } });
-    expect(screen.getByText('functionC')).toBeTruthy();
+    expect(screen.getByText('functionC')).toBeInTheDocument();
     expect(screen.queryByText('functionA')).toBeNull();
     expect(screen.queryByText('functionB')).toBeNull();
   });
@@ -162,7 +162,7 @@ describe('DeadCodePanel component', () => {
     render(<DeadCodePanel result={sampleResult} onClose={vi.fn()} label="Dead Code" />);
     const selects = document.querySelectorAll('.cg-deadcode-filters select');
     fireEvent.change(selects[1]!, { target: { value: 'suspected' } });
-    expect(screen.getByText('functionB')).toBeTruthy();
+    expect(screen.getByText('functionB')).toBeInTheDocument();
     expect(screen.queryByText('functionA')).toBeNull();
     expect(screen.queryByText('functionC')).toBeNull();
   });
@@ -172,7 +172,7 @@ describe('DeadCodePanel component', () => {
     const selects = document.querySelectorAll('.cg-deadcode-filters select');
     fireEvent.change(selects[0]!, { target: { value: 'unreachable' } });
     fireEvent.change(selects[1]!, { target: { value: 'confirmed' } });
-    expect(screen.getByText('functionA')).toBeTruthy();
+    expect(screen.getByText('functionA')).toBeInTheDocument();
     expect(screen.queryByText('functionB')).toBeNull();
     expect(screen.queryByText('functionC')).toBeNull();
   });
@@ -228,10 +228,10 @@ describe('DeadCodePanel component', () => {
 
   it('updates when result prop changes', () => {
     const { rerender } = render(<DeadCodePanel result={sampleResult} onClose={vi.fn()} label="Dead Code" />);
-    expect(screen.getByText('functionA')).toBeTruthy();
+    expect(screen.getByText('functionA')).toBeInTheDocument();
     const newResult = makeResult([makeDeadNode({ nodeId: NodeId('new'), label: 'newFunc', filePath: 'src/new.ts' })]);
     rerender(<DeadCodePanel result={newResult} onClose={vi.fn()} label="Dead Code" />);
-    expect(screen.getByText('newFunc')).toBeTruthy();
+    expect(screen.getByText('newFunc')).toBeInTheDocument();
     expect(screen.queryByText('functionA')).toBeNull();
   });
 
@@ -243,14 +243,14 @@ describe('DeadCodePanel component', () => {
 
   it('renders stats section with confirmed and suspected badges', () => {
     render(<DeadCodePanel result={sampleResult} onClose={vi.fn()} label="Dead Code" />);
-    expect(document.querySelector('.cg-deadcode-stats')).toBeTruthy();
-    expect(document.querySelector('.cg-deadcode-stat-badge.cg-confirmed')).toBeTruthy();
-    expect(document.querySelector('.cg-deadcode-stat-badge.cg-suspected')).toBeTruthy();
+    expect(document.querySelector('.cg-deadcode-stats')).toBeInTheDocument();
+    expect(document.querySelector('.cg-deadcode-stat-badge.cg-confirmed')).toBeInTheDocument();
+    expect(document.querySelector('.cg-deadcode-stat-badge.cg-suspected')).toBeInTheDocument();
   });
 
   it('renders filter section with two selects', () => {
     render(<DeadCodePanel result={sampleResult} onClose={vi.fn()} label="Dead Code" />);
-    expect(document.querySelector('.cg-deadcode-filters')).toBeTruthy();
+    expect(document.querySelector('.cg-deadcode-filters')).toBeInTheDocument();
     const selects = document.querySelectorAll('.cg-deadcode-filters select');
     expect(selects.length).toBe(2);
   });
@@ -284,8 +284,8 @@ describe('DeadCodePanel component', () => {
     fireEvent.change(selects[0]!, { target: { value: 'orphan' } });
     expect(screen.queryByText('functionA')).toBeNull();
     fireEvent.change(selects[0]!, { target: { value: 'all' } });
-    expect(screen.getByText('functionA')).toBeTruthy();
-    expect(screen.getByText('functionB')).toBeTruthy();
-    expect(screen.getByText('functionC')).toBeTruthy();
+    expect(screen.getByText('functionA')).toBeInTheDocument();
+    expect(screen.getByText('functionB')).toBeInTheDocument();
+    expect(screen.getByText('functionC')).toBeInTheDocument();
   });
 });

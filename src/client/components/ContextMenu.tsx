@@ -37,11 +37,21 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
   const t = useT();
   const menuRef = useRef<HTMLDivElement>(null);
   const [focusedIndex, setFocusedIndex] = useState(0);
+  const triggerRef = useRef<HTMLElement | null>(null);
 
   const handleClose = useCallback(() => {
     setFocusedIndex(0);
     props.onClose();
   }, [props.onClose]);
+
+  useEffect(() => {
+    triggerRef.current = document.activeElement as HTMLElement;
+    const items = menuRef.current?.querySelectorAll<HTMLButtonElement>('.cg-context-menu-item:not([disabled])');
+    items?.[0]?.focus();
+    return () => {
+      triggerRef.current?.focus();
+    };
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {

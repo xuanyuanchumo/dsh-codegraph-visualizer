@@ -27,14 +27,14 @@ describe('EmptyState', () => {
 
   it('应显示标题和副标题', () => {
     const { getByText } = render(<EmptyState {...defaultProps} />);
-    expect(getByText('empty.title')).toBeTruthy();
-    expect(getByText('empty.subtitle')).toBeTruthy();
+    expect(getByText('empty.title')).toBeInTheDocument();
+    expect(getByText('empty.subtitle')).toBeInTheDocument();
   });
 
   it('应显示导入和扫描按钮', () => {
     const { getByText } = render(<EmptyState {...defaultProps} />);
-    expect(getByText('empty.import')).toBeTruthy();
-    expect(getByText('empty.scanWorkspace')).toBeTruthy();
+    expect(getByText('empty.import')).toBeInTheDocument();
+    expect(getByText('empty.scanWorkspace')).toBeInTheDocument();
   });
 
   it('点击导入按钮应调用 onImport', () => {
@@ -60,9 +60,9 @@ describe('EmptyState', () => {
       prerequisites: { codegraph: false, lens: true },
     };
     const { container, getByText } = render(<EmptyState {...props} />);
-    expect(container.querySelector('.cg-empty-prereq-warning')).toBeTruthy();
-    expect(getByText('prereq.codegraphLabel')).toBeTruthy();
-    expect(getByText('prereq.installCodegraph')).toBeTruthy();
+    expect(container.querySelector('.cg-empty-prereq-warning')).toBeInTheDocument();
+    expect(getByText('prereq.codegraphLabel')).toBeInTheDocument();
+    expect(getByText('prereq.installCodegraph')).toBeInTheDocument();
   });
 
   it('lens 缺失时应显示安装提示', () => {
@@ -71,8 +71,8 @@ describe('EmptyState', () => {
       prerequisites: { codegraph: true, lens: false },
     };
     const { getByText } = render(<EmptyState {...props} />);
-    expect(getByText('prereq.lensLabel')).toBeTruthy();
-    expect(getByText('prereq.installLens')).toBeTruthy();
+    expect(getByText('prereq.lensLabel')).toBeInTheDocument();
+    expect(getByText('prereq.installLens')).toBeInTheDocument();
   });
 
   it('两者都缺失时应显示两个安装提示', () => {
@@ -81,8 +81,8 @@ describe('EmptyState', () => {
       prerequisites: { codegraph: false, lens: false },
     };
     const { getByText } = render(<EmptyState {...props} />);
-    expect(getByText('prereq.codegraphLabel')).toBeTruthy();
-    expect(getByText('prereq.lensLabel')).toBeTruthy();
+    expect(getByText('prereq.codegraphLabel')).toBeInTheDocument();
+    expect(getByText('prereq.lensLabel')).toBeInTheDocument();
   });
 
   it('点击复制按钮应调用 clipboard.writeText', () => {
@@ -170,7 +170,7 @@ describe('EmptyState', () => {
 
   it('应显示导入和扫描操作按钮', () => {
     const { container } = render(<EmptyState {...defaultProps} />);
-    expect(container.querySelector('.cg-empty-import-btn')).toBeTruthy();
-    expect(container.querySelector('.cg-empty-scan-btn')).toBeTruthy();
+    expect(container.querySelector('.cg-empty-import-btn')).toBeInTheDocument();
+    expect(container.querySelector('.cg-empty-scan-btn')).toBeInTheDocument();
   });
 });

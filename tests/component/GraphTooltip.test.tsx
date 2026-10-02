@@ -22,9 +22,9 @@ describe('GraphTooltip', () => {
       type: 'function',
     };
     const { getByText } = render(<GraphTooltip data={data} />);
-    expect(getByText('myFunction')).toBeTruthy();
-    expect(getByText('src/utils/myFunction.ts')).toBeTruthy();
-    expect(getByText('function')).toBeTruthy();
+    expect(getByText('myFunction')).toBeInTheDocument();
+    expect(getByText('src/utils/myFunction.ts')).toBeInTheDocument();
+    expect(getByText('function')).toBeInTheDocument();
   });
 
   it('应渲染 linksIn 和 linksOut 当提供时', () => {
@@ -38,8 +38,8 @@ describe('GraphTooltip', () => {
       linksOut: 3,
     };
     const { getByText } = render(<GraphTooltip data={data} />);
-    expect(getByText('in: 5')).toBeTruthy();
-    expect(getByText('out: 3')).toBeTruthy();
+    expect(getByText('in: 5')).toBeInTheDocument();
+    expect(getByText('out: 3')).toBeInTheDocument();
   });
 
   it('不应渲染 links 区域当 linksIn 和 linksOut 都未提供时', () => {
@@ -63,9 +63,9 @@ describe('GraphTooltip', () => {
       edgeType: 'call',
     };
     const { getByText } = render(<GraphTooltip data={data} />);
-    expect(getByText('funcA')).toBeTruthy();
-    expect(getByText('funcB')).toBeTruthy();
-    expect(getByText('legend.call')).toBeTruthy();
+    expect(getByText('funcA')).toBeInTheDocument();
+    expect(getByText('funcB')).toBeInTheDocument();
+    expect(getByText('legend.call')).toBeInTheDocument();
   });
 
   it('应有 role=tooltip 无障碍属性', () => {
@@ -77,7 +77,7 @@ describe('GraphTooltip', () => {
       type: 't',
     };
     const { container } = render(<GraphTooltip data={data} />);
-    expect(container.querySelector('[role="tooltip"]')).toBeTruthy();
+    expect(container.querySelector('[role="tooltip"]')).toBeInTheDocument();
   });
 
   it('应设置 style left/top 属性', () => {

@@ -193,7 +193,11 @@ export function mapEdgeKind(kind: string): GraphEdge['type'] {
   return EDGE_KIND_MAP[kind] ?? 'dependency';
 }
 
-/** Locate the .codegraph/codegraph.db for a workspace path. */
+/**
+ * Locate the .codegraph/codegraph.db for a workspace path.
+ * Callers MUST validate workspacePath via resolveWorkspaceFromRequest or
+ * validateWorkspacePath before calling this function.
+ */
 export function resolveDbPath(workspacePath: string): string {
   const root = workspacePath && workspacePath !== '.' ? workspacePath : process.cwd();
   const normalized = normalize(root);

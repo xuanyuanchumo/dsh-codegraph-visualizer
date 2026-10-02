@@ -489,6 +489,7 @@ export interface ServerResponse {
   writeHead(code: number, headers?: Record<string, string>): void;
   write(data: string): boolean;
   end(data?: string): void;
+  headersSent: boolean;
 }
 
 // ---- DSH Module Loader (runtime global) ----------------------------------
