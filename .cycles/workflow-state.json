@@ -1,7 +1,12 @@
 {
   "currentPhase": "complete",
-  "currentCycle": "cycle-71",
+  "currentCycle": "cycle-72",
   "phaseHistory": [
+    {
+      "cycle": "cycle-72",
+      "phase": "complete",
+      "result": "P0-1 GraphRepository SQL优化(SQL常量提取+saveAnalysis ON CONFLICT DO UPDATE UPSERT统一+getAnalysis IFNULL合并+Drizzle ORM schema类型)+P0-2 conversation.view插槽优先级提升(detectMode顺序:conversation-view→sidebar-right→better-sidebar→remote-web-ui→floating,更严格检测条件)+P1-3 IntegrationState.togglePanel逻辑简化(可见→隐藏,不可见→优先可用集成方式)+useGraphRenderer theme独立useEffect(避免渲染器重建)+expandSlice expandGeneration过期检查(防止stale writes)+filterSlice Set复制(避免引用共享)+dataRoutes WeakMap缓存(消除内存泄漏)+ConversationViewIntegration flags检查+回调内navButtonRegistered+SidebarRightTabsIntegration重复注册检查+graphStore v10迁移(expandedNodeIdsByViewMode持久化)+Toolbar函数名修复(React DevTools). 4712测试通过,lint零警告,typecheck通过,build成功. G3 Chrome DevTools MCP验证:代码图谱标签页与对话/轨迹同级渲染,69个cg-元素全部可见,零console error"
+    },
     {
       "cycle": "cycle-71",
       "phase": "complete",

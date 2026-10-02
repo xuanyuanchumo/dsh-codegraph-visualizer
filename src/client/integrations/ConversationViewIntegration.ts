@@ -21,7 +21,7 @@ export function integrateConversationView(state: IntegrationState): void {
       const regResult = ctx.slots.register(
         {
           name: 'conversation.view',
-          key: 'dsh-codegraph-visualizer',
+          id: 'dsh-codegraph-visualizer',
           order: 50,
           label: () => t('nav.title'),
         },
@@ -33,45 +33,19 @@ export function integrateConversationView(state: IntegrationState): void {
           return React.createElement(
             'div',
             {
-              style: {
-                display: visible ? 'flex' : 'none',
-                flexDirection: 'column',
-                width: '100%',
-                height: '100%',
-                minHeight: '0',
-              },
+              className: 'cg-conversation-view-wrapper',
               'data-cg-conversation-view': 'true',
               'data-cg-visible': String(visible),
             },
             React.createElement(
               'div',
-              {
-                className: 'cg-conversation-view-header',
-                style: {
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '4px 8px',
-                  borderBottom: '1px solid var(--cg-border, #e0e0e0)',
-                  flexShrink: 0,
-                },
-              },
+              { className: 'cg-conversation-view-header' },
               React.createElement(GraphIcon, { size: 16 }),
-              React.createElement(
-                'span',
-                { style: { fontSize: '13px', fontWeight: 500 } },
-                t('nav.title'),
-              ),
+              React.createElement('span', null, t('nav.title')),
             ),
             React.createElement(
               'div',
-              {
-                style: {
-                  flex: 1,
-                  minHeight: '0',
-                  overflow: 'hidden',
-                },
-              },
+              { className: 'cg-conversation-view-body' },
               React.createElement(GraphErrorBoundary, null, React.createElement(GraphPanel)),
             ),
           );

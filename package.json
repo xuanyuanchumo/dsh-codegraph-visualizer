@@ -83,6 +83,7 @@
   },
   "keywords": [
     "dsh",
+    "dsh-plugin",
     "codegraph",
     "visualizer",
     "cytoscape",
@@ -128,7 +129,8 @@
         "@deepseek-ai/dsh-client-ui-slots",
         "@deepseek-ai/dsh-client-ui-sidebar-right",
         "@deepseek-ai/dsh-client-ui-conversation",
-        "dsh-better-sidebar"
+        "dsh-better-sidebar",
+        "dsh-remote-web-ui"
       ]
     },
     "optionalPlugins": [
