@@ -428,14 +428,17 @@ export function readEdgesForNodesFromDb(dbPath: string, nodeIds: string[]): DbEd
   if (!db) return [];
   try {
     const edgeMap = new Map<number, DbEdgeRow>();
+    const nodeSet = new Set(nodeIds);
     const batchSize = Math.floor(SQLITE.MAX_IN_PARAMS / 2);
     for (let i = 0; i < nodeIds.length; i += batchSize) {
       const batch = nodeIds.slice(i, i + batchSize);
       const placeholders = batch.map(() => '?').join(',');
       const edges = validateEdgeRows(db.prepare(
-        `SELECT id, source, target, kind, line FROM edges WHERE (source IN (${placeholders}) AND target IN (${placeholders}))`,
+        `SELECT id, source, target, kind, line FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders})`,
       ).all(...batch, ...batch));
-      for (const e of edges) edgeMap.set(e.id, e);
+      for (const e of edges) {
+        if (nodeSet.has(e.source) && nodeSet.has(e.target)) edgeMap.set(e.id, e);
+      }
     }
     return [...edgeMap.values()];
   } catch (e) {

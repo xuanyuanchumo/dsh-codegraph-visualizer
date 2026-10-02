@@ -104,6 +104,9 @@ export class CytoscapeRenderer implements IRenderer {
       });
 
       const cy = this.cy;
+      if (typeof window !== 'undefined') {
+        (window as unknown as Record<string, unknown>).__cytoscape = cy;
+      }
       this.adjacencyCache = new AdjacencyCache();
       this.styleCtrl = new StyleController(cy, this.options.theme);
       cy.style().fromJson(this.styleCtrl.getStylesheet()).update();
@@ -146,6 +149,9 @@ export class CytoscapeRenderer implements IRenderer {
       this.styleCtrl?.destroy();
       this.cy?.destroy();
       this.cy = null;
+      if (typeof window !== 'undefined') {
+        (window as unknown as Record<string, unknown>).__cytoscape = null;
+      }
       this.pathFinder = null;
       this.virtualViewportCtrl = null;
       this.interactionCtrl = null;
@@ -426,6 +432,9 @@ export class CytoscapeRenderer implements IRenderer {
     safeDestroy('adjacencyCache', () => this.adjacencyCache?.destroy());
     safeDestroy('cy', () => this.cy?.destroy());
     this.cy = null;
+    if (typeof window !== 'undefined') {
+      (window as unknown as Record<string, unknown>).__cytoscape = null;
+    }
     if (this.fitTimer !== null) {
       clearTimeout(this.fitTimer);
       this.fitTimer = null;

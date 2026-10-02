@@ -75,6 +75,8 @@ export class GraphRepository {
       mkdirSync(join(this.dbPath, '..'), { recursive: true });
       const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite');
       this.db = new DatabaseSync(this.dbPath) as unknown as SqliteDb;
+      this.db.exec('PRAGMA journal_mode = WAL');
+      this.db.exec('PRAGMA busy_timeout = 5000');
       for (const sql of MIGRATION_SQL) {
         this.db!.exec(sql);
       }

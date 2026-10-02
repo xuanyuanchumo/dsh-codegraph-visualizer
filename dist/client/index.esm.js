@@ -578,10 +578,8 @@ const UI = {
 	RESIZE_DEBOUNCE_MS: 200,
 	ANCESTOR_MIN_HEIGHT_PX: 300,
 	ANCESTOR_SEARCH_MAX_DEPTH: 8,
-	MIN_PANEL_HEIGHT_PX: 240,
-	MIN_PANEL_WIDTH_PX: 320,
 	PANEL_MIN_SIZE: {
-		sidebar: {
+		"better-sidebar": {
 			width: 200,
 			height: 180
 		},
@@ -9177,6 +9175,7 @@ const useGraphStore = create$1()(persist((set$1, get$3) => {
 		expandedNodeIds: [...s.expandedNodeIds]
 	})
 }));
+if (typeof window !== "undefined") window.__graphStore = useGraphStore;
 
 //#endregion
 //#region node_modules/.pnpm/cytoscape@3.34.2/node_modules/cytoscape/dist/cytoscape.esm.mjs
@@ -57803,6 +57802,7 @@ var CytoscapeRenderer = class {
 				textureOnViewport: false
 			});
 			const cy = this.cy;
+			if (typeof window !== "undefined") window.__cytoscape = cy;
 			this.adjacencyCache = new AdjacencyCache();
 			this.styleCtrl = new StyleController(cy, this.options.theme);
 			cy.style().fromJson(this.styleCtrl.getStylesheet()).update();
@@ -57844,6 +57844,7 @@ var CytoscapeRenderer = class {
 			this.styleCtrl?.destroy();
 			this.cy?.destroy();
 			this.cy = null;
+			if (typeof window !== "undefined") window.__cytoscape = null;
 			this.pathFinder = null;
 			this.virtualViewportCtrl = null;
 			this.interactionCtrl = null;
@@ -58062,6 +58063,7 @@ var CytoscapeRenderer = class {
 		safeDestroy("adjacencyCache", () => this.adjacencyCache?.destroy());
 		safeDestroy("cy", () => this.cy?.destroy());
 		this.cy = null;
+		if (typeof window !== "undefined") window.__cytoscape = null;
 		if (this.fitTimer !== null) {
 			clearTimeout(this.fitTimer);
 			this.fitTimer = null;
@@ -61874,6 +61876,39 @@ const WorkspaceSelector = memo(function WorkspaceSelector$1({ currentWorkspace, 
 });
 
 //#endregion
+//#region src/client/hooks/useDismissable.ts
+/**
+
+* 统一的"关闭浮层"行为：外部点击 + Escape。
+
+* 供 Dropdown / ContextMenu / SearchBar / WorkspaceSelector 等复用，避免重复实现。
+
+*/
+function useDismissable(ref, enabled, onDismiss, opts = {}) {
+	const { closeOnOutsideClick = true } = opts;
+	useEffect(() => {
+		if (!enabled) return;
+		const onPointerDown = (e) => {
+			if (ref.current && !ref.current.contains(e.target)) onDismiss();
+		};
+		const onKeyDown = (e) => {
+			if (e.key === "Escape") onDismiss();
+		};
+		if (closeOnOutsideClick) document.addEventListener("mousedown", onPointerDown);
+		document.addEventListener("keydown", onKeyDown);
+		return () => {
+			if (closeOnOutsideClick) document.removeEventListener("mousedown", onPointerDown);
+			document.removeEventListener("keydown", onKeyDown);
+		};
+	}, [
+		ref,
+		enabled,
+		onDismiss,
+		closeOnOutsideClick
+	]);
+}
+
+//#endregion
 //#region src/client/components/Dropdown.tsx
 const Dropdown = memo(function Dropdown$1({ triggerClassName, triggerTitle, triggerAriaLabel, triggerContent, triggerAriaHasPopup, contentClassName = "cg-dropdown-content", contentRole, children, onOpenChange, closeOnOutsideClick = true, containerClassName = "cg-dropdown-menu" }) {
 	const containerRef = useRef(null);
@@ -61889,27 +61924,7 @@ const Dropdown = memo(function Dropdown$1({ triggerClassName, triggerTitle, trig
 		setOpen(false);
 		onOpenChange?.(false);
 	}, [onOpenChange]);
-	useEffect(() => {
-		if (!open || !closeOnOutsideClick) return;
-		const onDocClick = (e) => {
-			if (containerRef.current && !containerRef.current.contains(e.target)) close();
-		};
-		document.addEventListener("mousedown", onDocClick);
-		return () => document.removeEventListener("mousedown", onDocClick);
-	}, [
-		open,
-		closeOnOutsideClick,
-		close
-	]);
-	useEffect(() => {
-		const onKey = (e) => {
-			if (open && e.key === "Escape") close();
-		};
-		if (open) {
-			document.addEventListener("keydown", onKey);
-			return () => document.removeEventListener("keydown", onKey);
-		}
-	}, [open, close]);
+	useDismissable(containerRef, open, close, { closeOnOutsideClick });
 	return /* @__PURE__ */ jsxs("div", {
 		className: containerClassName,
 		ref: containerRef,
@@ -67677,7 +67692,7 @@ function integrateBetterSidebar(state) {
 			ctx.effect(() => dispose, "codegraph: better-sidebar tab");
 			state.navButtonRegistered = true;
 			state.betterSidebarApi = betterSidebarApi;
-			useGraphStore.getState().setIntegrationMode("sidebar");
+			useGraphStore.getState().setIntegrationMode("better-sidebar");
 			if (hasFeature("stateSubscription")) try {
 				state.sidebarStateDisposer = betterSidebarApi.subscribeState(() => {
 					const snapshot = betterSidebarApi?.getSnapshot();

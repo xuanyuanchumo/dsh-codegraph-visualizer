@@ -40,7 +40,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   const repoReady = graphRepo.init();
   if (!repoReady) { log.warn('graph repository init failed, persistence disabled'); }
 
-  const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout, apiCompat });
+  const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus, dispose: disposeGraphTools } = await createGraphTools(ctx, { requestTimeout: config.requestTimeout, apiCompat });
 
   ctx.effect(() => {
     const d1 = ctx.tools.register(graphStatus);
@@ -143,6 +143,7 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
       lastGraphData = null;
       lastInitResult = null;
       securityManager.reset();
+      disposeGraphTools();
       closeAllDbConnections();
       graphRepo.close();
     };

@@ -53,10 +53,16 @@ export interface ApiCompatLayer {
   resolveToolName(key: keyof ToolNameMapping): string | null;
   isToolAvailable(ctx: Context, key: keyof ToolNameMapping): boolean;
   getAvailableToolName(ctx: Context, key: keyof ToolNameMapping): string | null;
+  getAvailableToolNameFor(ctx: Context, actualName: string): string | null;
 }
 
 export function createApiCompatLayer(info: HostVersionInfo): ApiCompatLayer {
   const toolNames = createToolNameMapping(info);
+  const keyByToolName = new Map<string, keyof ToolNameMapping>();
+  for (const key of Object.keys(toolNames) as (keyof ToolNameMapping)[]) {
+    const actual = toolNames[key];
+    if (actual) keyByToolName.set(actual, key);
+  }
 
   const resolveToolName = (key: keyof ToolNameMapping): string | null => {
     return toolNames[key];
@@ -90,7 +96,16 @@ export function createApiCompatLayer(info: HostVersionInfo): ApiCompatLayer {
     return null;
   };
 
-  return { versionInfo: info, toolNames, resolveToolName, isToolAvailable, getAvailableToolName };
+  const getAvailableToolNameFor = (ctx: Context, actualName: string): string | null => {
+    try {
+      if (ctx.tools.get(actualName)) return actualName;
+    } catch { /* ignore */ }
+    const key = keyByToolName.get(actualName);
+    if (!key) return null;
+    return getAvailableToolName(ctx, key);
+  };
+
+  return { versionInfo: info, toolNames, resolveToolName, isToolAvailable, getAvailableToolName, getAvailableToolNameFor };
 }
 
 const FALLBACK_CHAINS: Partial<Record<keyof ToolNameMapping, (keyof ToolNameMapping)[]>> = {

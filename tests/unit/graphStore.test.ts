@@ -2132,8 +2132,8 @@ describe('graphStore additional setters', () => {
   });
 
   it('setIntegrationMode updates integrationMode', () => {
-    useGraphStore.getState().setIntegrationMode('sidebar');
-    expect(useGraphStore.getState().integrationMode).toBe('sidebar');
+    useGraphStore.getState().setIntegrationMode('better-sidebar');
+    expect(useGraphStore.getState().integrationMode).toBe('better-sidebar');
     useGraphStore.getState().setIntegrationMode('slot');
     expect(useGraphStore.getState().integrationMode).toBe('slot');
     useGraphStore.getState().setIntegrationMode('floating');

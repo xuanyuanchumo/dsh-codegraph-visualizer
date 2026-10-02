@@ -150,3 +150,6 @@ export const useGraphStore = create<GraphState>()(
     },
   ),
 );
+if (typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>).__graphStore = useGraphStore;
+}

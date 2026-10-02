@@ -310,7 +310,7 @@ export function triggerBackgroundBuild(
     if (deps.graphRepo?.isReady()) {
       try {
         const hash = `${data.metadata.nodeCount}:${data.metadata.edgeCount}:${data.metadata.timestamp}`;
-        const serialized = Buffer.from(JSON.stringify({ n: data.nodes.length, e: data.edges.length, t: data.metadata.timestamp }), 'utf-8');
+        const serialized = Buffer.from(JSON.stringify({ nodes: data.nodes, edges: data.edges, metadata: data.metadata }), 'utf-8');
         deps.graphRepo.saveSnapshot(repoId, hash, data.metadata.nodeCount, data.metadata.edgeCount, serialized);
       } catch (e) { log.warn('snapshot save failed', e); }
     }

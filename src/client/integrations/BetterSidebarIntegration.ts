@@ -83,7 +83,7 @@ export function integrateBetterSidebar(state: IntegrationState): void {
       ctx.effect(() => dispose, 'codegraph: better-sidebar tab');
       state.navButtonRegistered = true;
       state.betterSidebarApi = betterSidebarApi;
-      useGraphStore.getState().setIntegrationMode('sidebar');
+      useGraphStore.getState().setIntegrationMode('better-sidebar');
       if (hasFeature('stateSubscription')) {
         try {
           state.sidebarStateDisposer = betterSidebarApi.subscribeState(() => {

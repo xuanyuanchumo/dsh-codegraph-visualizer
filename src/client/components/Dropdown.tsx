@@ -1,4 +1,5 @@
-import { useRef, useEffect, useCallback, memo, useState, type ReactNode } from 'react';
+import { useRef, useCallback, memo, useState, type ReactNode } from 'react';
+import { useDismissable } from '../hooks/useDismissable.ts';
 
 export type DropdownChildren = ReactNode | ((close: () => void) => ReactNode);
 
@@ -45,28 +46,7 @@ export const Dropdown = memo(function Dropdown({
     onOpenChange?.(false);
   }, [onOpenChange]);
 
-  useEffect(() => {
-    if (!open || !closeOnOutsideClick) return;
-    const onDocClick = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        close();
-      }
-    };
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, [open, closeOnOutsideClick, close]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (open && e.key === 'Escape') {
-        close();
-      }
-    };
-    if (open) {
-      document.addEventListener('keydown', onKey);
-      return () => document.removeEventListener('keydown', onKey);
-    }
-  }, [open, close]);
+  useDismissable(containerRef, open, close, { closeOnOutsideClick });
 
   return (
     <div className={containerClassName} ref={containerRef}>

@@ -26,7 +26,7 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "test:web": "playwright test --project=chromium",
+    "test:web": "playwright test --project=regression",
     "perf-gate": "node scripts/perf-gate.mjs",
     "lint": "oxlint src/",
     "lint:fix": "oxlint src/ --fix",
@@ -85,7 +85,11 @@
     "codegraph",
     "visualizer",
     "cytoscape",
-    "code-analysis"
+    "code-analysis",
+    "code-visualization",
+    "dependency-graph",
+    "call-chain",
+    "impact-analysis"
   ],
   "files": [
     "dist",
@@ -103,6 +107,9 @@
     "./package.json": "./package.json"
   },
   "dsh": {
+    "displayName": "代码图谱可视化",
+    "description": "交互式代码图谱可视化工具，支持调用链追踪、依赖分析、影响评估",
+    "category": "visualization",
     "hostVersion": ">=0.1.1-rc.2 <0.3.0",
     "permissions": {
       "workspace": true,

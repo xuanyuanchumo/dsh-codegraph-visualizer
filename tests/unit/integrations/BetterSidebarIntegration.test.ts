@@ -111,7 +111,7 @@ describe('integrateBetterSidebar', () => {
     expect(api.registerTab).toHaveBeenCalledTimes(1);
     expect(state.navButtonRegistered).toBe(true);
     expect(state.betterSidebarApi).toBe(api);
-    expect(storeState.setIntegrationMode).toHaveBeenCalledWith('sidebar');
+    expect(storeState.setIntegrationMode).toHaveBeenCalledWith('better-sidebar');
     const labels = effect.mock.calls.map((c: unknown[]) => c[1] as string);
     expect(labels).toContain('codegraph: better-sidebar tab');
   });

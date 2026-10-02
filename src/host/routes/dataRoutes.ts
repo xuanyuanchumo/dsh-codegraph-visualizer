@@ -320,7 +320,7 @@ export function registerSymbolASTRoute(rc: RouteContext): void {
       if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
 
       const budget = Math.min(
-        parseInt(url.searchParams.get('budget') ?? String(SYMBOL_AST.MAX_NODES), 10),
+        parseInt(url.searchParams.get('budget') ?? String(SYMBOL_AST.MAX_NODES), 10) || SYMBOL_AST.MAX_NODES,
         SYMBOL_AST.MAX_NODES,
       );
 

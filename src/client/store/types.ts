@@ -3,6 +3,7 @@ import type { DeadCodeResult } from '../../shared/analysis/DeadCodeAnalyzer.ts';
 import type { ClusterNode, ClusterEdge } from './cluster/index.ts';
 import type { LayeredDiagram } from '../diagram/index.ts';
 import { type LayoutType, type ThemeType, type RankDir } from '../../shared/viewModeUtils.ts';
+import type { IntegrationMode } from '../../shared/constants.ts';
 
 export type { ClusterNode, ClusterEdge } from './cluster/index.ts';
 export type { LayoutType, ThemeType, RankDir } from '../../shared/viewModeUtils.ts';
@@ -47,7 +48,7 @@ export interface GraphState {
   lastUpdated: number;
 
   prerequisites: { codegraph: boolean; lens: boolean; builtin: boolean };
-  integrationMode: 'sidebar' | 'slot' | 'floating' | 'unknown' | 'sidebar-right' | 'remote-web-ui';
+  integrationMode: IntegrationMode;
   panelVisible: boolean;
   urlRestored: boolean;
   initStatus: 'idle' | 'initializing' | 'done' | 'error';
@@ -119,7 +120,7 @@ export interface GraphState {
   setError: (error: string | null) => void;
   clearGraph: () => void;
   setPrerequisites: (status: { codegraph: boolean; lens: boolean; builtin: boolean }) => void;
-  setIntegrationMode: (mode: 'sidebar' | 'slot' | 'floating' | 'unknown' | 'sidebar-right' | 'remote-web-ui') => void;
+  setIntegrationMode: (mode: IntegrationMode) => void;
   setPanelVisible: (visible: boolean) => void;
   setInitStatus: (status: 'idle' | 'initializing' | 'done' | 'error', message?: string | null) => void;
   setWatchEnabled: (enabled: boolean) => void;

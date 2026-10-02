@@ -1,5 +1,5 @@
 import { API, AST, BOOTSTRAP, CACHE, DIFF_ENGINE, EDGES_AGGREGATION, ERROR_CODES, ERROR_MESSAGES, EdgeId, FILE_OUTLINE, HEALTH_SCORE, MCP, NodeId, PATH_FINDER, RepoId, SYMBOL_AST, TOOL_MESSAGES, TREE_SITTER, VALIDATION, WATCHER, inferLayerFromPath, safeNumber, safeString, scoped } from "./layerUtils-pEdT0G0J.js";
-import { FILTERED_EDGE_KINDS, closeAllDbConnections, countEdgesInDb, isNoisePath, mapEdgeKind, mapNodeKind, readEdgesForNodesFromDb, readEdgesFromDb, readFileOutlineFromDb, readNodeChildrenFromDb, readSymbolASTFromDb, readTopLevelNodesFromDb, resolveDbPath } from "./CodeGraphAdapter-1ZalnG3i.js";
+import { FILTERED_EDGE_KINDS, closeAllDbConnections, countEdgesInDb, isNoisePath, mapEdgeKind, mapNodeKind, readEdgesForNodesFromDb, readEdgesFromDb, readFileOutlineFromDb, readNodeChildrenFromDb, readSymbolASTFromDb, readTopLevelNodesFromDb, resolveDbPath } from "./CodeGraphAdapter-BEnxTQQP.js";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { ToolCallId } from "@deepseek-ai/dsh-llm";
 import path, { isAbsolute, join, normalize, sep } from "node:path";
@@ -1131,7 +1131,7 @@ function toJsonValue(value) {
 }
 const GRAPH_CACHE_LIMIT = CACHE.GRAPH_CACHE_LIMIT;
 async function createGraphToolDeps() {
-	const [{ CodeGraphAdapter: CGA }, { LensAdapter: LA }] = await Promise.all([import("./CodeGraphAdapter-DAStoLYX.js"), import("./LensAdapter-BfMLy2m0.js")]);
+	const [{ CodeGraphAdapter: CGA }, { LensAdapter: LA }] = await Promise.all([import("./CodeGraphAdapter-C2Av79x6.js"), import("./LensAdapter-BfMLy2m0.js")]);
 	return {
 		codegraphAdapter: new CGA(),
 		lensAdapter: new LA(),
@@ -1161,7 +1161,7 @@ function createInvoke(ctx, requestTimeout = API.INVOKE_DEFAULT_TIMEOUT_MS, apiCo
 	return async (tool, args) => {
 		let resolvedName = tool;
 		if (apiCompat) {
-			const mapped = apiCompat.getAvailableToolName(ctx, tool);
+			const mapped = apiCompat.getAvailableToolNameFor(ctx, tool);
 			if (mapped) resolvedName = mapped;
 		}
 		try {
@@ -2593,9 +2593,9 @@ function triggerBackgroundBuild(deps, invokeUpstream, workspacePath) {
 		if (deps.graphRepo?.isReady()) try {
 			const hash = `${data.metadata.nodeCount}:${data.metadata.edgeCount}:${data.metadata.timestamp}`;
 			const serialized = Buffer.from(JSON.stringify({
-				n: data.nodes.length,
-				e: data.edges.length,
-				t: data.metadata.timestamp
+				nodes: data.nodes,
+				edges: data.edges,
+				metadata: data.metadata
 			}), "utf-8");
 			deps.graphRepo.saveSnapshot(repoId, hash, data.metadata.nodeCount, data.metadata.edgeCount, serialized);
 		} catch (e) {
@@ -3011,7 +3011,7 @@ function registerSymbolASTRoute(rc) {
 				return;
 			}
 			if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
-			const budget = Math.min(parseInt(url.searchParams.get("budget") ?? String(SYMBOL_AST.MAX_NODES), 10), SYMBOL_AST.MAX_NODES);
+			const budget = Math.min(parseInt(url.searchParams.get("budget") ?? String(SYMBOL_AST.MAX_NODES), 10) || SYMBOL_AST.MAX_NODES, SYMBOL_AST.MAX_NODES);
 			const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
 			if (workspacePath) {
 				const dbPath = resolveDbPath(workspacePath);
@@ -4806,6 +4806,11 @@ function createToolNameMapping(info) {
 }
 function createApiCompatLayer(info) {
 	const toolNames = createToolNameMapping(info);
+	const keyByToolName = new Map();
+	for (const key of Object.keys(toolNames)) {
+		const actual = toolNames[key];
+		if (actual) keyByToolName.set(actual, key);
+	}
 	const resolveToolName = (key) => {
 		return toolNames[key];
 	};
@@ -4837,12 +4842,21 @@ function createApiCompatLayer(info) {
 		}
 		return null;
 	};
+	const getAvailableToolNameFor = (ctx, actualName) => {
+		try {
+			if (ctx.tools.get(actualName)) return actualName;
+		} catch {}
+		const key = keyByToolName.get(actualName);
+		if (!key) return null;
+		return getAvailableToolName(ctx, key);
+	};
 	return {
 		versionInfo: info,
 		toolNames,
 		resolveToolName,
 		isToolAvailable,
-		getAvailableToolName
+		getAvailableToolName,
+		getAvailableToolNameFor
 	};
 }
 const FALLBACK_CHAINS = {
@@ -4934,6 +4948,8 @@ var GraphRepository = class {
 			mkdirSync(join(this.dbPath, ".."), { recursive: true });
 			const { DatabaseSync } = require("node:sqlite");
 			this.db = new DatabaseSync(this.dbPath);
+			this.db.exec("PRAGMA journal_mode = WAL");
+			this.db.exec("PRAGMA busy_timeout = 5000");
 			for (const sql of MIGRATION_SQL) this.db.exec(sql);
 			log$1.info("graph repository initialized", {
 				path: this.dbPath,
@@ -5080,7 +5096,7 @@ async function apply(ctx, userConfig) {
 	const graphRepo = new GraphRepository(primaryWorkspace);
 	const repoReady = graphRepo.init();
 	if (!repoReady) log.warn("graph repository init failed, persistence disabled");
-	const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus } = await createGraphTools(ctx, {
+	const { graphStatus, graphData, graphSymbol, graphImpact, graphPathFind, graphHealth, graphRulesCheck, graphFocus, dispose: disposeGraphTools } = await createGraphTools(ctx, {
 		requestTimeout: config.requestTimeout,
 		apiCompat
 	});
@@ -5188,6 +5204,7 @@ async function apply(ctx, userConfig) {
 			lastGraphData = null;
 			lastInitResult = null;
 			securityManager.reset();
+			disposeGraphTools();
 			closeAllDbConnections();
 			graphRepo.close();
 		};

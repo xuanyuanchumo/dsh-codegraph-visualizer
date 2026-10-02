@@ -13,7 +13,7 @@ import { RuleEngine, type RuleDefinition } from './shared/analysis/RuleEngine.ts
 import { buildForwardAdjacency } from './shared/analysis/AdjacencyList.ts';
 import { bfsShortestPath } from './shared/analysis/GraphBFS.ts';
 import { scoped } from './shared/Logger.ts';
-import type { ApiCompatLayer, ToolNameMapping } from './host/compat/ApiCompatLayer.ts';
+import type { ApiCompatLayer } from './host/compat/ApiCompatLayer.ts';
 import { CACHE, PATH_FINDER, TOOL_MESSAGES, API } from './shared/constants.ts';
 import {
   summarizeGraph,
@@ -108,7 +108,7 @@ export function createInvoke(ctx: Context, requestTimeout: number = API.INVOKE_D
   return async (tool, args) => {
     let resolvedName = tool;
     if (apiCompat) {
-      const mapped = apiCompat.getAvailableToolName(ctx, tool as keyof ToolNameMapping);
+      const mapped = apiCompat.getAvailableToolNameFor(ctx, tool);
       if (mapped) resolvedName = mapped;
     }
     try {

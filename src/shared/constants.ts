@@ -293,10 +293,9 @@ export const UI = {
   RESIZE_DEBOUNCE_MS: 200,
   ANCESTOR_MIN_HEIGHT_PX: 300,
   ANCESTOR_SEARCH_MAX_DEPTH: 8,
-  MIN_PANEL_HEIGHT_PX: 240,
-  MIN_PANEL_WIDTH_PX: 320,
+
   PANEL_MIN_SIZE: {
-    sidebar: { width: 200, height: 180 },
+    'better-sidebar': { width: 200, height: 180 },
     'sidebar-right': { width: 200, height: 180 },
     slot: { width: 220, height: 200 },
     floating: { width: 320, height: 240 },
@@ -319,7 +318,7 @@ export const UI = {
   WORKSPACE_LIST_MAX: 10,
   MAX_FUNCTIONS_PER_CLUSTER: 50,
 } as const;
-export type IntegrationMode = 'sidebar' | 'slot' | 'floating' | 'unknown' | 'sidebar-right' | 'remote-web-ui';
+export type IntegrationMode = 'better-sidebar' | 'slot' | 'floating' | 'unknown' | 'sidebar-right' | 'remote-web-ui';
 
 export function getMinPanelSize(mode: IntegrationMode): { minWidth: number; minHeight: number } {
   const cfg = UI.PANEL_MIN_SIZE[mode] ?? UI.PANEL_MIN_SIZE.unknown;
