@@ -2,11 +2,9 @@ import React from 'react';
 import type { IntegrationState } from './IntegrationState.ts';
 import { GraphPanel } from '../GraphPanel.tsx';
 import { GraphErrorBoundary } from '../components/ErrorBoundary.tsx';
-import { GraphIcon } from '../components/Icons.tsx';
 import { useGraphStore } from '../store/graphStore.ts';
 import { t } from '../i18n/index.ts';
 import { scoped } from '../../shared/Logger.ts';
-
 
 const log = scoped('client');
 
@@ -37,17 +35,7 @@ export function integrateConversationView(state: IntegrationState): void {
               'data-cg-conversation-view': 'true',
               'data-cg-visible': String(visible),
             },
-            React.createElement(
-              'div',
-              { className: 'cg-conversation-view-header' },
-              React.createElement(GraphIcon, { size: 16 }),
-              React.createElement('span', null, t('nav.title')),
-            ),
-            React.createElement(
-              'div',
-              { className: 'cg-conversation-view-body' },
-              React.createElement(GraphErrorBoundary, null, React.createElement(GraphPanel)),
-            ),
+            React.createElement(GraphErrorBoundary, null, React.createElement(GraphPanel)),
           );
         },
       );

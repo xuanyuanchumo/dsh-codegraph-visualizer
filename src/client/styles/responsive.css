@@ -805,23 +805,6 @@
   display: none;
 }
 
-.cg-conversation-view-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--cg-border, #e0e0e0);
-  flex-shrink: 0;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--cg-text, inherit);
-}
-
-.cg-conversation-view-body {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
 
 /* In conversation-view mode, the panel should not have its own border/radius
  * since it's embedded in the DSH conversation area */
