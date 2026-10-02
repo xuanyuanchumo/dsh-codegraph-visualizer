@@ -1,23 +1,18 @@
 import { test, expect, type Page } from '@playwright/test';
+import { setupPluginPage, waitForGraphReady, getCyNodeCount, getCyNodeIdsByClass, selectNode, TIMEOUTS } from './helpers.ts';
 
 test.describe('Resource exhaustion & concurrency chaos', () => {
 
   test('concurrent expand requests do not corrupt graph state', async ({ page }: { page: Page }) => {
-    await page.goto('/');
-    await page.waitForSelector('[data-testid="graph-panel"]', { timeout: 30000 });
+    await setupPluginPage(page);
+    await waitForGraphReady(page, TIMEOUTS.ACTION);
 
-    const nodes = await page.$$eval('[data-testid="graph-node"]', (els) =>
-      els.slice(0, 5).map((el) => el.getAttribute('data-node-id')).filter(Boolean)
-    );
+    const nodeIds = await getCyNodeIdsByClass(page, 'cluster');
+    expect(nodeIds.length).toBeGreaterThan(0);
 
-    if (nodes.length < 2) {
-      test.skip();
-      return;
-    }
-
-    const results = await page.evaluate(async (nodeIds) => {
+    const results = await page.evaluate(async (ids) => {
       const errors: string[] = [];
-      const promises = nodeIds.map((id) =>
+      const promises = ids.slice(0, 5).map((id) =>
         window.fetch(`/api/v1/codegraph/nodes/${id}/children`).then(
           (r) => ({ ok: r.ok, status: r.status }),
           (e) => ({ error: String(e) })
@@ -29,56 +24,45 @@ test.describe('Resource exhaustion & concurrency chaos', () => {
         if (r.status === 'fulfilled' && r.value && 'error' in r.value) errors.push(r.value.error!);
       }
       return { errors, total: responses.length };
-    }, nodes);
+    }, nodeIds);
 
     expect(results.errors.length).toBe(0);
-    expect(results.total).toBe(nodes.length);
+    expect(results.total).toBe(Math.min(nodeIds.length, 5));
   });
 
   test('rapid expand/collapse cycles maintain consistency', async ({ page }: { page: Page }) => {
-    await page.goto('/');
-    await page.waitForSelector('[data-testid="graph-panel"]', { timeout: 30000 });
+    await setupPluginPage(page);
+    await waitForGraphReady(page, TIMEOUTS.ACTION);
 
-    const firstNode = await page.$('[data-testid="graph-node"]');
-    if (!firstNode) {
-      test.skip();
-      return;
-    }
-
-    const nodeId = await firstNode.getAttribute('data-node-id');
-    if (!nodeId) {
-      test.skip();
-      return;
-    }
+    const nodeIds = await getCyNodeIdsByClass(page, 'cluster');
+    expect(nodeIds.length).toBeGreaterThan(0);
 
     for (let i = 0; i < 5; i++) {
-      await firstNode.click();
+      await selectNode(page, nodeIds[0]);
       await page.waitForTimeout(100);
-      const collapseBtn = await page.$('[data-testid="collapse-all-btn"]');
-      if (collapseBtn) {
+      const collapseBtn = page.locator('.cg-collapse-fab');
+      if (await collapseBtn.isVisible()) {
         await collapseBtn.click();
         await page.waitForTimeout(100);
       }
     }
 
-    const nodeCount = await page.$$eval('[data-testid="graph-node"]', (els) => els.length);
+    const nodeCount = await getCyNodeCount(page);
     expect(nodeCount).toBeGreaterThan(0);
   });
 
   test('large node count does not crash renderer', async ({ page }: { page: Page }) => {
-    await page.goto('/');
-    await page.waitForSelector('[data-testid="graph-panel"]', { timeout: 30000 });
+    await setupPluginPage(page);
+    await waitForGraphReady(page, TIMEOUTS.ACTION);
 
     const metrics = await page.evaluate(() => {
-      const nodes = document.querySelectorAll('[data-testid="graph-node"]');
-      const edges = document.querySelectorAll('[data-testid="graph-edge"]');
-      return {
-        nodeCount: nodes.length,
-        edgeCount: edges.length,
-        memoryMB: (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory
-          ? Math.round((performance as unknown as { memory: { usedJSHeapSize: number } }).memory.usedJSHeapSize / 1024 / 1024)
-          : -1,
-      };
+      const cy = (window as any).__cytoscape;
+      const nodeCount = cy ? cy.nodes().length : 0;
+      const edgeCount = cy ? cy.edges().length : 0;
+      const memoryMB = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory
+        ? Math.round((performance as unknown as { memory: { usedJSHeapSize: number } }).memory.usedJSHeapSize / 1024 / 1024)
+        : -1;
+      return { nodeCount, edgeCount, memoryMB };
     });
 
     expect(metrics.nodeCount).toBeGreaterThan(0);
@@ -88,21 +72,16 @@ test.describe('Resource exhaustion & concurrency chaos', () => {
   });
 
   test('abort in-flight requests on rapid navigation', async ({ page }: { page: Page }) => {
-    await page.goto('/');
-    await page.waitForSelector('[data-testid="graph-panel"]', { timeout: 30000 });
+    await setupPluginPage(page);
+    await waitForGraphReady(page, TIMEOUTS.ACTION);
 
-    const nodes = await page.$$eval('[data-testid="graph-node"]', (els) =>
-      els.slice(0, 3).map((el) => el.getAttribute('data-node-id')).filter(Boolean)
-    );
+    const nodeIds = await getCyNodeIdsByClass(page, 'cluster');
+    expect(nodeIds.length).toBeGreaterThan(0);
 
-    if (nodes.length === 0) {
-      test.skip();
-      return;
-    }
-
-    const abortResult = await page.evaluate(async (nodeIds) => {
-      const controllers = nodeIds.map(() => new AbortController());
-      const promises = nodeIds.map((id, i) =>
+    const abortResult = await page.evaluate(async (ids) => {
+      const targets = ids.slice(0, 3);
+      const controllers = targets.map(() => new AbortController());
+      const promises = targets.map((id, i) =>
         window.fetch(`/api/v1/codegraph/nodes/${id}/children`, { signal: controllers[i].signal }).then(
           (r) => ({ ok: r.ok }),
           (e) => ({ aborted: e instanceof DOMException && e.name === 'AbortError' })
@@ -114,7 +93,7 @@ test.describe('Resource exhaustion & concurrency chaos', () => {
         (r) => r.status === 'fulfilled' && r.value && 'aborted' in r.value && r.value.aborted
       ).length;
       return { aborted, total: results.length };
-    }, nodes);
+    }, nodeIds);
 
     expect(abortResult.aborted).toBeGreaterThan(0);
   });
