@@ -47,7 +47,7 @@ export class HealthScorer {
 
     const coupling = this.calculateCoupling(edges, moduleOfNode);
     const cohesion = this.calculateCohesion(nodes, edges, moduleOfNode);
-    const cyclicDependencyRate = this.calculateCyclicDependencyRate(nodes, edges);
+    const cyclicDependencyRate = this.calculateCyclicDependencyRate(edges);
     const modularity = this.calculateModularity(nodes, edges, moduleOfNode);
     const overall = Math.round(
       coupling * HEALTH_SCORE.WEIGHT_COUPLING + cohesion * HEALTH_SCORE.WEIGHT_COHESION + cyclicDependencyRate * HEALTH_SCORE.WEIGHT_CYCLIC + modularity * HEALTH_SCORE.WEIGHT_MODULARITY,
@@ -183,7 +183,7 @@ export class HealthScorer {
     return Math.round((weightedCohesion / totalNodes) * 100);
   }
 
-  private calculateCyclicDependencyRate(nodes: GraphNode[], edges: GraphEdge[]): number {
+  private calculateCyclicDependencyRate(edges: GraphEdge[]): number {
     const cycleEdgeTypes: GraphEdge['type'][] = ['call', 'extend', 'implement', 'import'];
     const adjacency = buildFilteredForwardAdjacency(edges, cycleEdgeTypes);
     const nodeIds = new Set<string>();

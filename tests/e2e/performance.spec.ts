@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupPluginPage } from './helpers.ts';
+import { setupPluginPage, panGraph, getVisibleNodeCount, getCyNodeCount } from './helpers.ts';
 
 test.describe('J35: 虚拟滚动', () => {
   test('should render graph container for large graphs', async ({ page }) => {
@@ -12,6 +12,38 @@ test.describe('J35: 虚拟滚动', () => {
     await setupPluginPage(page);
     const graphPanel = page.locator('.cg-graph-panel');
     await expect(graphPanel).toBeVisible();
+  });
+
+  test('should maintain graph container during pan', async ({ page }) => {
+    await setupPluginPage(page);
+    await panGraph(page, 100, 50);
+    const graphContainer = page.locator('.cg-graph-container');
+    await expect(graphContainer).toBeVisible();
+  });
+
+  test('should maintain non-negative visible node count during pan', async ({ page }) => {
+    await setupPluginPage(page);
+    await panGraph(page, 200, 100);
+    const visibleCount = await getVisibleNodeCount(page);
+    expect(visibleCount).toBeGreaterThanOrEqual(0);
+  });
+
+  test('should not show error overlay during pan', async ({ page }) => {
+    await setupPluginPage(page);
+    await panGraph(page, 150, 75);
+    const errorOverlay = page.locator('.cg-error-overlay');
+    await expect(errorOverlay).not.toBeVisible();
+  });
+
+  test('should handle rapid pan without crash', async ({ page }) => {
+    await setupPluginPage(page);
+    for (let i = 0; i < 5; i++) {
+      await panGraph(page, 50 * i, 30 * i);
+    }
+    const graphContainer = page.locator('.cg-graph-container');
+    await expect(graphContainer).toBeAttached();
+    const nodeCount = await getCyNodeCount(page);
+    expect(nodeCount).toBeGreaterThanOrEqual(0);
   });
 });
 

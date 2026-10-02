@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, memo, useState, type ReactNode } from 'react';
+import { useRef, useEffect, useCallback, memo, useState, type ReactNode } from 'react';
 
 export type DropdownChildren = ReactNode | ((close: () => void) => ReactNode);
 

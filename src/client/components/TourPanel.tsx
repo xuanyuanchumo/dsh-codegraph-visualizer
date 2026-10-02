@@ -1,4 +1,4 @@
-import React, { memo, useState, useCallback } from 'react';
+import { memo, useState, useCallback } from 'react';
 import { useGraphStore } from '../store/graphStore.ts';
 import { useT } from '../i18n/index.ts';
 import { NodeId } from '../../types/index.ts';

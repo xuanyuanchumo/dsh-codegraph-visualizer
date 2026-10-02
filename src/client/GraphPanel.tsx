@@ -45,6 +45,7 @@ import { RightPanelStack } from './components/RightPanelStack.tsx';
 import { SequenceDiagramRenderer } from './renderer/SequenceDiagramRenderer.tsx';
 import { scoped } from '../shared/Logger.ts';
 import { DOM_EVENTS } from '../shared/domEvents.ts';
+import { dispatchCgEvent } from './utils/cgEvents.ts';
 import { UI, FUNCTION_BODY } from '../shared/constants.ts';
 import { getMinPanelSize } from '../shared/constants.ts';
 
@@ -162,13 +163,13 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const handleWorkspaceSwitch = useCallback((path: string) => {
     setCurrentWorkspace(path);
-    window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path } }));
+    dispatchCgEvent(DOM_EVENTS.WORKSPACE, { path });
   }, [setCurrentWorkspace]);
 
   const handleWorkspaceAdd = useCallback((path: string) => {
     addWorkspace(path, path.split(/[\\/]/).pop() || path);
-    window.dispatchEvent(new CustomEvent(DOM_EVENTS.WORKSPACE, { detail: { path } }));
-    window.dispatchEvent(new CustomEvent(DOM_EVENTS.IMPORT_REPO, { detail: { path } }));
+    dispatchCgEvent(DOM_EVENTS.WORKSPACE, { path });
+    dispatchCgEvent(DOM_EVENTS.IMPORT_REPO, { path });
   }, [addWorkspace]);
 
   const handleNodeDoubleTapRef = useRef<(nodeId: string) => void>(() => {});
@@ -262,12 +263,12 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     onRedo: history.redo,
     onRefresh: () => {
       setLoading(true);
-      window.dispatchEvent(new CustomEvent(DOM_EVENTS.REFRESH, { detail: { incremental: false } }));
+      dispatchCgEvent(DOM_EVENTS.REFRESH, { incremental: false });
     },
   });
 
   const requestRefresh = useCallback(() => {
-    window.dispatchEvent(new CustomEvent(DOM_EVENTS.REFRESH, { detail: { incremental: true } }));
+    dispatchCgEvent(DOM_EVENTS.REFRESH, { incremental: true });
   }, []);
   usePolling(requestRefresh, watchEnabled ? UI.POLLING_INTERVAL_WATCH_MS : UI.POLLING_INTERVAL_IDLE_MS, !panel.collapsed);
 
@@ -317,13 +318,13 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   const handleRefresh = useCallback(() => {
     setLoading(true);
-    window.dispatchEvent(new CustomEvent(DOM_EVENTS.REFRESH, { detail: { incremental: false } }));
+    dispatchCgEvent(DOM_EVENTS.REFRESH, { incremental: false });
     log.info('manual refresh (full)');
   }, [setLoading]);
 
   const handleScanWorkspace = useCallback(() => {
     setLoading(true);
-    window.dispatchEvent(new CustomEvent(DOM_EVENTS.IMPORT_REPO, { detail: { path: currentWorkspace || '.' } }));
+    dispatchCgEvent(DOM_EVENTS.IMPORT_REPO, { path: currentWorkspace || '.' });
     log.info('scan workspace from empty state', { path: currentWorkspace });
   }, [setLoading, currentWorkspace]);
 
@@ -599,7 +600,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           onOpenSource={(id) => {
             const data = getDataRef.current?.getNodeData(id);
             if (data) {
-              window.dispatchEvent(new CustomEvent(DOM_EVENTS.OPEN_SOURCE, { detail: { filePath: data.filePath, lineNumber: data.lineNumber } }));
+              dispatchCgEvent(DOM_EVENTS.OPEN_SOURCE, { filePath: data.filePath, lineNumber: data.lineNumber });
             }
           }}
         />

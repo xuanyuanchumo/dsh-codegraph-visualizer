@@ -335,7 +335,7 @@ describe('applyInitialDepth', () => {
     const expandedDirs = new Set<string>();
     const expandedFileClusters = new Set<string>();
 
-    applyInitialDepth(0, dirToNodes, rawNodes, expandedDirs, expandedFileClusters);
+    applyInitialDepth(0, dirToNodes, expandedDirs, expandedFileClusters);
 
     expect(expandedDirs.size).toBe(0);
     expect(expandedFileClusters.size).toBe(0);
@@ -350,7 +350,7 @@ describe('applyInitialDepth', () => {
     const expandedDirs = new Set<string>();
     const expandedFileClusters = new Set<string>();
 
-    applyInitialDepth(1, dirToNodes, rawNodes, expandedDirs, expandedFileClusters);
+    applyInitialDepth(1, dirToNodes, expandedDirs, expandedFileClusters);
 
     expect(expandedDirs.size).toBe(2);
     expect(expandedDirs.has('cluster__src__components')).toBe(true);
@@ -368,7 +368,7 @@ describe('applyInitialDepth', () => {
     const expandedDirs = new Set<string>();
     const expandedFileClusters = new Set<string>();
 
-    applyInitialDepth(2, dirToNodes, rawNodes, expandedDirs, expandedFileClusters);
+    applyInitialDepth(2, dirToNodes, expandedDirs, expandedFileClusters);
 
     expect(expandedDirs.size).toBe(1);
     expect(expandedDirs.has('cluster__src__components')).toBe(true);
@@ -388,7 +388,7 @@ describe('applyInitialDepth', () => {
     const expandedDirs = new Set<string>(); // empty - no dirs expanded
     const expandedFileClusters = new Set<string>();
 
-    applyInitialDepth(2, dirToNodes, rawNodes, expandedDirs, expandedFileClusters);
+    applyInitialDepth(2, dirToNodes, expandedDirs, expandedFileClusters);
 
     // applyInitialDepth first adds all dir cluster IDs at depth >= 1,
     // then at depth >= 2 checks if dirClusterId is in expandedDirs

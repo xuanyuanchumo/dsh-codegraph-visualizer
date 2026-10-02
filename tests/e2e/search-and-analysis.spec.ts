@@ -1,6 +1,6 @@
 // E2E tests for J3-J5, J15, J23, J30-J32: 符号搜索与定位, 调用链追踪, 依赖拓扑分析, 路径查找, 影响分析, 热点分析, 波及半径, God Module
 import { test, expect } from '@playwright/test';
-import { setupPluginPage } from './helpers.ts';
+import { setupPluginPage, getCyEdgeIdsByClass, getCyNodeCount } from './helpers.ts';
 
 test.describe('J3: 符号搜索与定位', () => {
   test('should open search with search button', async ({ page }) => {
@@ -35,6 +35,55 @@ test.describe('J4: 调用链追踪', () => {
     await expect(chainBtn).toHaveClass(/cg-active/, { timeout: 10000 });
     await chainBtn.click();
     await expect(chainBtn).not.toHaveClass(/cg-active/, { timeout: 5000 });
+  });
+
+  test('should not crash when enabling chain mode without selection', async ({ page }) => {
+    await setupPluginPage(page);
+    const chainBtn = page.locator('.cg-chain-btn');
+    await chainBtn.click();
+    await expect(chainBtn).toHaveClass(/cg-active/, { timeout: 10000 });
+    const graphContainer = page.locator('.cg-graph-container');
+    await expect(graphContainer).toBeAttached();
+    const errorOverlay = page.locator('.cg-error-overlay');
+    await expect(errorOverlay).not.toBeVisible();
+    await chainBtn.click();
+  });
+
+  test('should clear chain highlight on second toggle', async ({ page }) => {
+    await setupPluginPage(page);
+    const chainBtn = page.locator('.cg-chain-btn');
+    await chainBtn.click();
+    await expect(chainBtn).toHaveClass(/cg-active/, { timeout: 10000 });
+    await chainBtn.click();
+    await expect(chainBtn).not.toHaveClass(/cg-active/, { timeout: 5000 });
+    const highlightedEdges = await getCyEdgeIdsByClass(page, 'cg-chain-highlight');
+    expect(highlightedEdges).toHaveLength(0);
+  });
+
+  test('should maintain graph container when chain mode enabled', async ({ page }) => {
+    await setupPluginPage(page);
+    const chainBtn = page.locator('.cg-chain-btn');
+    await chainBtn.click();
+    await expect(chainBtn).toHaveClass(/cg-active/, { timeout: 10000 });
+    const nodeCount = await getCyNodeCount(page);
+    expect(nodeCount).toBeGreaterThanOrEqual(0);
+    const graphContainer = page.locator('.cg-graph-container');
+    await expect(graphContainer).toBeAttached();
+    await chainBtn.click();
+  });
+
+  test('should coexist with cycle detection mode', async ({ page }) => {
+    await setupPluginPage(page);
+    const chainBtn = page.locator('.cg-chain-btn');
+    const cycleBtn = page.locator('.cg-cycle-btn');
+    await chainBtn.click();
+    await expect(chainBtn).toHaveClass(/cg-active/, { timeout: 10000 });
+    await cycleBtn.click();
+    await expect(cycleBtn).toHaveClass(/cg-active/, { timeout: 10000 });
+    const graphContainer = page.locator('.cg-graph-container');
+    await expect(graphContainer).toBeAttached();
+    await chainBtn.click();
+    await cycleBtn.click();
   });
 });
 

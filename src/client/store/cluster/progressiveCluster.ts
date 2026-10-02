@@ -226,7 +226,7 @@ function buildDirMapping(rawNodes: GraphNode[]): {
 export function applyInitialDepth(
   initialDepth: number,
   dirToNodes: Map<string, GraphNode[]>,
-  rawNodes: GraphNode[],
+
   expandedDirs: Set<string>,
   expandedFileClusters: Set<string>,
 ): void {
@@ -473,7 +473,7 @@ export function computeProgressiveClusters(
 
   const { nodeToDir: _nodeToDir, dirToNodes } = buildDirMapping(rawNodes);
 
-  applyInitialDepth(effectiveDepth, dirToNodes, rawNodes, expandedDirs, expandedFileClusters);
+  applyInitialDepth(effectiveDepth, dirToNodes, expandedDirs, expandedFileClusters);
 
   const dirEdgeCache = new Map<string, GraphEdge[]>();
 
