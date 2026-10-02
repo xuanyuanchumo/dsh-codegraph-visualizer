@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { StyleController } from '../../src/client/renderer/StyleController.ts';
+import type { HeatmapMode } from '../../src/client/renderer/IRenderer.ts';
+import { HEATMAP, LOD } from '../../src/shared/constants.ts';
 
 function makeMockNode(id: string, data: Record<string, unknown> = {}) {
   const dataMap = new Map<string, unknown>(Object.entries(data));
@@ -362,6 +364,51 @@ describe('StyleController', () => {
       controller.enableLOD();
       controller.destroy();
       expect(cy.off).toHaveBeenCalledWith('zoom', expect.any(Function));
+    });
+  });
+
+  describe('HeatmapMode type and HEATMAP constants', () => {
+    it('should export HeatmapMode type with correct values', () => {
+      const modes: HeatmapMode[] = ['none', 'instability', 'lines', 'complexity'];
+      expect(modes).toHaveLength(4);
+    });
+
+    it('HEATMAP constants should have required color and threshold values', () => {
+      expect(HEATMAP.COLOR_STABLE).toBe('#10b981');
+      expect(HEATMAP.COLOR_UNSTABLE).toBe('#ef4444');
+      expect(HEATMAP.COLOR_LOW).toBe('#3b82f6');
+      expect(HEATMAP.COLOR_HIGH).toBe('#ef4444');
+      expect(HEATMAP.LINES_LOW).toBe(50);
+      expect(HEATMAP.LINES_HIGH).toBe(500);
+      expect(HEATMAP.COMPLEXITY_LOW).toBe(5);
+      expect(HEATMAP.COMPLEXITY_HIGH).toBe(20);
+    });
+  });
+
+  describe('LOD dynamic thresholds', () => {
+    it('LOD constants should have small/medium/large thresholds', () => {
+      expect(LOD.MINIMAL_THRESHOLD_SMALL).toBeDefined();
+      expect(LOD.MINIMAL_THRESHOLD_MEDIUM).toBeDefined();
+      expect(LOD.MINIMAL_THRESHOLD_LARGE).toBeDefined();
+      expect(LOD.COMPACT_THRESHOLD_SMALL).toBeDefined();
+      expect(LOD.COMPACT_THRESHOLD_MEDIUM).toBeDefined();
+      expect(LOD.COMPACT_THRESHOLD_LARGE).toBeDefined();
+    });
+
+    it('small thresholds should be lower than medium, medium lower than large', () => {
+      expect(LOD.MINIMAL_THRESHOLD_SMALL).toBeLessThan(LOD.MINIMAL_THRESHOLD_MEDIUM);
+      expect(LOD.MINIMAL_THRESHOLD_MEDIUM).toBeLessThan(LOD.MINIMAL_THRESHOLD_LARGE);
+      expect(LOD.COMPACT_THRESHOLD_SMALL).toBeLessThan(LOD.COMPACT_THRESHOLD_MEDIUM);
+      expect(LOD.COMPACT_THRESHOLD_MEDIUM).toBeLessThan(LOD.COMPACT_THRESHOLD_LARGE);
+    });
+
+    it('should have node size and edge width constants', () => {
+      expect(LOD.MINIMAL_NODE_SIZE).toBe(8);
+      expect(LOD.COMPACT_NODE_SIZE).toBe(16);
+      expect(LOD.MINIMAL_EDGE_WIDTH).toBe(0.5);
+      expect(LOD.COMPACT_EDGE_WIDTH).toBe(1);
+      expect(LOD.COMPACT_FONT_SIZE).toBe(6);
+      expect(LOD.TRANSITION_DURATION_MS).toBe(200);
     });
   });
 });

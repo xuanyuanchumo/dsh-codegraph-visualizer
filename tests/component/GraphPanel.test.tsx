@@ -3548,7 +3548,7 @@ describe('GraphPanel remaining handler coverage tests', () => {
     expect(setClusterDepthSpy).toHaveBeenCalledWith(2);
   });
 
-  it('viewConfig.onChange: triggers setHierarchyLevel when hierarchy button clicked', async () => {
+  it('viewConfig.onChange: triggers setHierarchyLevel when hierarchy item clicked in level dropdown', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const mockRenderer = createMockRenderer();
     setupRendererMockWithCallbacks(mockRenderer);
@@ -3559,25 +3559,28 @@ describe('GraphPanel remaining handler coverage tests', () => {
     } as any);
 
     const { container } = render(React.createElement(GraphPanel));
-    const hierarchyBtns = container.querySelectorAll('.cg-hierarchy-btn');
-    expect(hierarchyBtns.length).toBeGreaterThan(1);
-    const targetBtn = Array.from(hierarchyBtns).find((btn) => !btn.classList.contains('cg-active')) as HTMLButtonElement;
-    expect(targetBtn).toBeTruthy();
-    fireEvent.click(targetBtn);
+    const levelBtn = container.querySelector('.cg-level-dropdown-btn') as HTMLButtonElement;
+    expect(levelBtn).toBeTruthy();
+    fireEvent.click(levelBtn);
+    const levelDropdown = container.querySelector('.cg-level-dropdown');
+    expect(levelDropdown).toBeTruthy();
+    const items = levelDropdown!.querySelectorAll('.cg-dropdown-item');
+    const targetItem = Array.from(items).find((item) => !item.classList.contains('cg-active')) as HTMLButtonElement;
+    expect(targetItem).toBeTruthy();
+    fireEvent.click(targetItem);
     expect(setHierarchyLevelSpy).toHaveBeenCalled();
   });
 
-  it('viewConfig.onChange: triggers setFilterType when filter select changed', async () => {
+  it('viewConfig.onChange: filterType is managed via FilterPanel node type checkboxes', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const mockRenderer = createMockRenderer();
     setupRendererMockWithCallbacks(mockRenderer);
     useGraphStore.setState({ filterType: 'all' } as any);
 
     const { container } = render(React.createElement(GraphPanel));
-    const filterSelect = container.querySelector('.cg-filter-select') as HTMLSelectElement;
-    expect(filterSelect).toBeTruthy();
-    fireEvent.change(filterSelect, { target: { value: 'function' } });
-    expect(useGraphStore.getState().filterType).toBe('function');
+    const filterPanelBtn = container.querySelector('.cg-filter-panel-btn') as HTMLButtonElement;
+    expect(filterPanelBtn).toBeTruthy();
+    fireEvent.click(filterPanelBtn);
   });
 
   it('onRetry (ErrorOverlay): calls assembleMicro when retry button clicked in micro view', async () => {

@@ -1,6 +1,6 @@
 import React, { useCallback, memo } from 'react';
 import type { LayoutType, GraphType, RankDir } from '../store/graphStore.ts';
-import type { GraphNode, ViewMode } from '../../types/index.ts';
+import type { ViewMode } from '../../types/index.ts';
 import { useT, useLang, toggleLang } from '../i18n/index.ts';
 import { WorkspaceSelector } from './WorkspaceSelector.tsx';
 import { Dropdown } from './Dropdown.tsx';
@@ -14,7 +14,7 @@ import {
   UndoIcon, RedoIcon, StarIcon, FilterIcon, MoreIcon,
 } from './Icons.tsx';
 import {
-  LAYOUTS, FILTER_KEYS, RANK_DIRS, GRAPH_TYPES,
+  LAYOUTS, RANK_DIRS, GRAPH_TYPES,
   STRUCTURAL_MODE_KEYS, BEHAVIORAL_MODE_KEYS, BEHAVIORAL_MICRO_MODE_KEYS,
   STRUCTURAL_TITLE_KEYS, BEHAVIORAL_TITLE_KEYS, BEHAVIORAL_MICRO_TITLE_KEYS,
   CLUSTER_DEPTHS, HIERARCHY_LEVELS, PANEL_DROPDOWN_SECTIONS, EXPORT_FORMATS,
@@ -51,10 +51,9 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   const onDagreRankDirChange = useCallback((d: RankDir) => layoutConfig.onChange('dagreRankDir', d), [layoutConfig]);
   const onClusterDepthChange = useCallback((d: number) => layoutConfig.onChange('clusterDepth', d), [layoutConfig]);
 
-  const { viewMode, graphType, filterType, currentLayer, layerNames, hierarchyLevel, hasSelectedFunction } = viewConfig;
+  const { viewMode, graphType, currentLayer, layerNames, hierarchyLevel, hasSelectedFunction } = viewConfig;
   const onViewModeChange = useCallback((m: ViewMode) => viewConfig.onChange('viewMode', m), [viewConfig]);
   const onGraphTypeChange = useCallback((g: GraphType) => viewConfig.onChange('graphType', g), [viewConfig]);
-  const onFilterChange = useCallback((f: GraphNode['type'] | 'all') => viewConfig.onChange('filterType', f), [viewConfig]);
   const onLayerChange = useCallback((l: number) => viewConfig.onChange('layer', l), [viewConfig]);
   const onHierarchyLevelChange = useCallback((l: number) => viewConfig.onChange('hierarchyLevel', l), [viewConfig]);
 
@@ -179,36 +178,43 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
             </>
           )}
         </Dropdown>
-        <div className="cg-hierarchy-selector" role="radiogroup" aria-orientation="horizontal" aria-label={t('toolbar.hierarchy')}>
-          {HIERARCHY_LEVELS.map((lvl) => (
-            <button
-              key={lvl.value}
-              className={`cg-hierarchy-btn ${hierarchyLevel === lvl.value ? 'cg-active' : ''}`}
-              onClick={() => onHierarchyLevelChange(lvl.value)}
-              title={t(lvl.key)}
-              role="radio"
-              aria-checked={hierarchyLevel === lvl.value}
-              aria-label={t(lvl.key)}
-            >{lvl.short}</button>
-          ))}
-        </div>
-        {layerNames.length > 1 && (
-          <div className="cg-layer-selector" role="radiogroup" aria-orientation="horizontal" aria-label={t('toolbar.layer')}>
-            {layerNames.map((name, idx) => {
-              const translated = t(name) ?? name;
-              return (
-              <button
-                key={idx}
-                className={`cg-layer-btn ${currentLayer === idx ? 'cg-active' : ''}`}
-                onClick={() => onLayerChange(idx)}
-                title={translated}
-                role="radio"
-                aria-checked={currentLayer === idx}
-              >{translated.length <= 4 ? translated : translated.slice(0, 3)}</button>
-              );
-            })}
-          </div>
-        )}
+        <Dropdown
+          triggerClassName="cg-level-dropdown-btn"
+          triggerTitle={t('toolbar.hierarchy')}
+          triggerAriaLabel={t('toolbar.hierarchy')}
+          triggerAriaHasPopup="menu"
+          triggerContent={<>{`L${hierarchyLevel}`}<ChevronDownIcon size={12} /></>}
+          contentClassName="cg-dropdown-content cg-level-dropdown"
+        >
+          {(_close) => (
+            <>
+              <div className="cg-dropdown-section-label">{t('toolbar.hierarchy')}</div>
+              {HIERARCHY_LEVELS.map((lvl) => (
+                <button key={lvl.value} className={`cg-dropdown-item ${hierarchyLevel === lvl.value ? 'cg-active' : ''}`}
+                  onClick={() => { onHierarchyLevelChange(lvl.value); }}
+                  aria-pressed={hierarchyLevel === lvl.value} title={t(lvl.key)}>
+                  {lvl.short} — {t(lvl.key)}
+                </button>
+              ))}
+              {layerNames.length > 1 && (
+                <>
+                  <div className="cg-dropdown-separator" />
+                  <div className="cg-dropdown-section-label">{t('toolbar.layer')}</div>
+                  {layerNames.map((name, idx) => {
+                    const translated = t(name) ?? name;
+                    return (
+                      <button key={idx} className={`cg-dropdown-item ${currentLayer === idx ? 'cg-active' : ''}`}
+                        onClick={() => { onLayerChange(idx); }}
+                        aria-pressed={currentLayer === idx} title={translated}>
+                        {translated}
+                      </button>
+                    );
+                  })}
+                </>
+              )}
+            </>
+          )}
+        </Dropdown>
         {viewMode === 'code' && (
           <select
             value={clusterDepth}
@@ -230,12 +236,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         <div className="cg-toolbar-group" role="group" aria-label={t('toolbar.dataGroup')}>
           <button className="cg-import-btn" onClick={onToggleImport} title={t('toolbar.import')}
             aria-label={t('toolbar.import')} aria-pressed={showImport}><UploadIcon size={15} /></button>
-          <select value={filterType} onChange={(e) => onFilterChange(e.target.value as GraphNode['type'] | 'all')}
-            className="cg-filter-select" id="filter-type" name="filter-type" aria-label={t('toolbar.filter')}>
-            {FILTER_KEYS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{t(opt.key)}</option>
-            ))}
-          </select>
+
           <button className={`cg-filter-panel-btn ${showFilterPanel ? 'cg-active' : ''}`} onClick={onToggleFilterPanel}
             title={t('toolbar.filterPanel')} aria-label={t('toolbar.filterPanel')} aria-pressed={showFilterPanel}>
             <FilterIcon size={15} />

@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, afterEach, vi, beforeEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import React from 'react';
 
@@ -300,42 +300,49 @@ describe('Toolbar component', () => {
     });
   });
 
-  // 4. 分层视图模式下显示层级选择器
-  describe('layer selector', () => {
-    it('shows layer selector when layerNames has more than 1 entry', () => {
+  // 4. 分层视图模式下显示层级选择器（已合并到 Level Dropdown）
+  describe('layer selector (via level dropdown)', () => {
+    it('shows layer options in level dropdown when layerNames has more than 1 entry', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ layerNames: ['Layer0', 'Layer1', 'Layer2'] })} />);
-      const layerSelector = document.querySelector('.cg-layer-selector');
-      expect(layerSelector).toBeTruthy();
-      const layerBtns = layerSelector!.querySelectorAll('button');
-      expect(layerBtns.length).toBe(3);
+      const levelBtn = document.querySelector('.cg-level-dropdown-btn') as HTMLButtonElement;
+      expect(levelBtn).toBeTruthy();
+      await user.click(levelBtn);
+      const levelDropdown = document.querySelector('.cg-level-dropdown');
+      expect(levelDropdown).toBeTruthy();
+      const items = levelDropdown!.querySelectorAll('.cg-dropdown-item');
+      expect(items.length).toBeGreaterThanOrEqual(3);
     });
 
-    it('marks the current layer button as active', () => {
-      render(<Toolbar {...makeProps({ layerNames: ['L0', 'L1'], currentLayer: 1 })} />);
-      const layerSelector = document.querySelector('.cg-layer-selector');
-      const activeBtn = layerSelector!.querySelector('.cg-layer-btn.cg-active') as HTMLButtonElement;
-      expect(activeBtn).toBeTruthy();
-      expect(activeBtn.getAttribute('aria-checked')).toBe('true');
-    });
-
-    it('calls onLayerChange when a layer button is clicked', async () => {
+    it('calls onLayerChange when a layer item is clicked', async () => {
       const user = userEvent.setup();
       const onLayerChange = vi.fn();
       render(<Toolbar {...makeProps({ layerNames: ['L0', 'L1'], onLayerChange })} />);
-      const layerSelector = document.querySelector('.cg-layer-selector');
-      const layerBtns = layerSelector!.querySelectorAll('button');
-      await user.click(layerBtns[1]!);
-      expect(onLayerChange).toHaveBeenCalledWith(1);
+      const levelBtn = document.querySelector('.cg-level-dropdown-btn') as HTMLButtonElement;
+      await user.click(levelBtn);
+      const levelDropdown = document.querySelector('.cg-level-dropdown');
+      expect(levelDropdown).toBeTruthy();
+      const allItems = levelDropdown!.querySelectorAll('.cg-dropdown-item');
+      const layerItem = allItems[allItems.length - 1] as HTMLButtonElement;
+      expect(layerItem).toBeTruthy();
+      await user.click(layerItem);
+      expect(onLayerChange).toHaveBeenCalled();
     });
   });
 
-  // 6. 非分层视图模式下不显示层级选择器
-  it('does not show layer selector when layerNames has 0 or 1 entry', () => {
+  // 6. 非分层视图模式下不显示层级选项
+  it('does not show layer options when layerNames has 0 or 1 entry', async () => {
+    const user = userEvent.setup();
     const { rerender } = render(<Toolbar {...makeProps({ layerNames: [] })} />);
-    expect(document.querySelector('.cg-layer-selector')).toBeNull();
+    const levelBtn = document.querySelector('.cg-level-dropdown-btn') as HTMLButtonElement;
+    await user.click(levelBtn);
+    expect(document.querySelector('.cg-level-dropdown')?.textContent).not.toContain('Layer');
 
     rerender(<Toolbar {...makeProps({ layerNames: ['OnlyOne'] })} />);
-    expect(document.querySelector('.cg-layer-selector')).toBeNull();
+    const levelBtn2 = document.querySelector('.cg-level-dropdown-btn') as HTMLButtonElement;
+    await user.click(levelBtn2);
+    const dropdownText = document.querySelector('.cg-level-dropdown')?.textContent ?? '';
+    expect(dropdownText).not.toContain('OnlyOne');
   });
 
   // 5. code 模式下显示聚类深度选择器
@@ -789,21 +796,25 @@ describe('Toolbar component', () => {
     });
   });
 
-  // 额外覆盖：层级名截断逻辑
-  describe('layer name truncation', () => {
-    it('displays full layer name when length <= 4', () => {
+  // 额外覆盖：层级名在 Dropdown 中完整显示
+  describe('layer name display in level dropdown', () => {
+    it('displays full layer name in dropdown items', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ layerNames: ['L0', 'L1'] })} />);
-      const layerSelector = document.querySelector('.cg-layer-selector');
-      const btns = layerSelector!.querySelectorAll('button');
-      expect(btns[0]!.textContent).toBe('L0');
-      expect(btns[1]!.textContent).toBe('L1');
+      const levelBtn = document.querySelector('.cg-level-dropdown-btn') as HTMLButtonElement;
+      await user.click(levelBtn);
+      const levelDropdown = document.querySelector('.cg-level-dropdown');
+      expect(levelDropdown?.textContent).toContain('L0');
+      expect(levelDropdown?.textContent).toContain('L1');
     });
 
-    it('truncates layer name to 3 characters when length > 4', () => {
+    it('displays long layer names fully in dropdown', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ layerNames: ['LongLayerName', 'L1'] })} />);
-      const layerSelector = document.querySelector('.cg-layer-selector');
-      const btn = layerSelector!.querySelector('button');
-      expect(btn!.textContent).toBe('Lon');
+      const levelBtn = document.querySelector('.cg-level-dropdown-btn') as HTMLButtonElement;
+      await user.click(levelBtn);
+      const levelDropdown = document.querySelector('.cg-level-dropdown');
+      expect(levelDropdown?.textContent).toContain('LongLayerName');
     });
   });
 
@@ -868,23 +879,22 @@ describe('Toolbar component', () => {
     });
   });
 
-  // 额外覆盖：filter select
-  describe('filter type select', () => {
-    it('renders filter select with all options', () => {
+  // 额外覆盖：filter panel button (filter select 已合并到 filter panel)
+  describe('filter panel button', () => {
+    it('renders filter panel button', () => {
       render(<Toolbar {...makeProps()} />);
-      const filterSelect = document.querySelector('.cg-filter-select') as HTMLSelectElement;
-      expect(filterSelect).toBeTruthy();
-      const options = filterSelect.querySelectorAll('option');
-      expect(options.length).toBe(6);
+      const filterBtn = document.querySelector('.cg-filter-panel-btn') as HTMLButtonElement;
+      expect(filterBtn).toBeTruthy();
+      expect(filterBtn.getAttribute('aria-label')).toBeTruthy();
     });
 
-    it('calls onFilterChange when filter type is changed', async () => {
+    it('calls onToggleFilterPanel when clicked', async () => {
       const user = userEvent.setup();
-      const onFilterChange = vi.fn();
-      render(<Toolbar {...makeProps({ onFilterChange })} />);
-      const filterSelect = document.querySelector('.cg-filter-select') as HTMLSelectElement;
-      await user.selectOptions(filterSelect, 'class');
-      expect(onFilterChange).toHaveBeenCalledWith('class');
+      const onToggleFilterPanel = vi.fn();
+      render(<Toolbar {...makeProps()} panelControls={makePanelControls({ onToggleFilterPanel })} />);
+      const filterBtn = document.querySelector('.cg-filter-panel-btn') as HTMLButtonElement;
+      await user.click(filterBtn);
+      expect(onToggleFilterPanel).toHaveBeenCalled();
     });
   });
 

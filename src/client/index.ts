@@ -29,7 +29,7 @@ import { setupRejectionHandler } from './runtime/RejectionHandler.ts';
 export { PLUGIN_VERSION };
 
 export const name = 'dsh-codegraph-visualizer-client';
-export const inject = ['slots', 'betterSidebar', 'sidebarRightTabs'];
+export const inject = ['slots', 'betterSidebar', 'sidebarRightTabs', 'uiConversation'];
 
 export function init(container: HTMLElement, initialData?: GraphData): () => void {
   const root = ReactDOM.createRoot(container);
@@ -41,7 +41,7 @@ export function init(container: HTMLElement, initialData?: GraphData): () => voi
   return () => root.unmount();
 }
 
-export function apply(ctx: Context): () => void {
+export function apply(ctx: Context): void {
   const compat = createClientCompatLayer();
   compat.detectMode(ctx);
   compat.detectFlags(ctx);
@@ -64,10 +64,12 @@ export function apply(ctx: Context): () => void {
   setupSpotlightBridge(ctx);
   setupRejectionHandler(ctx);
 
-  return () => {
-    scanInProgress.value = false;
-    disposeStore();
-    resetI18nListeners();
-    resetLoggerListeners();
-  };
+  ctx.effect(() => {
+    return () => {
+      scanInProgress.value = false;
+      disposeStore();
+      resetI18nListeners();
+      resetLoggerListeners();
+    };
+  }, 'codegraph: client cleanup');
 }

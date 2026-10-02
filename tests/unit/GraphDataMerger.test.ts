@@ -424,4 +424,86 @@ describe('GraphDataMerger', () => {
       expect(nodeB?.label).toBe('fnB');
     });
   });
+
+  describe('applyDelta properties deep merge', () => {
+    it('should deep merge node properties: existing {a:1,b:2} + delta {b:3,c:4} = {a:1,b:3,c:4}', () => {
+      const current: GraphData = {
+        nodes: [{ id: NodeId('n1'), label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: { a: 1, b: 2 } }],
+        edges: [],
+        metadata: { repoId: RepoId('test-repo'), nodeCount: 1, edgeCount: 0, timestamp: 1 },
+      };
+      const delta: AdapterResult = {
+        nodes: [{ id: NodeId('n1'), label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: { b: 3, c: 4 } }],
+        edges: [],
+        source: 'codegraph',
+        timestamp: 2,
+      };
+      const result = merger.applyDelta(current, delta);
+      expect(result.nodes[0]?.properties).toEqual({ a: 1, b: 3, c: 4 });
+    });
+
+    it('should deep merge edge properties', () => {
+      const current: GraphData = {
+        nodes: [{ id: NodeId('n1'), label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} }],
+        edges: [{ id: EdgeId('e1'), source: NodeId('n1'), target: NodeId('n1'), type: 'call', properties: { x: 'old' } }],
+        metadata: { repoId: RepoId('test-repo'), nodeCount: 1, edgeCount: 1, timestamp: 1 },
+      };
+      const delta: AdapterResult = {
+        nodes: [],
+        edges: [{ id: EdgeId('e1'), source: NodeId('n1'), target: NodeId('n1'), type: 'call', properties: { x: 'new', y: 'added' } }],
+        source: 'codegraph',
+        timestamp: 2,
+      };
+      const result = merger.applyDelta(current, delta);
+      expect(result.edges[0]?.properties).toEqual({ x: 'new', y: 'added' });
+    });
+
+    it('should preserve existing properties not in delta', () => {
+      const current: GraphData = {
+        nodes: [{ id: NodeId('n1'), label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: { a: 1, b: 2, c: 3 } }],
+        edges: [],
+        metadata: { repoId: RepoId('test-repo'), nodeCount: 1, edgeCount: 0, timestamp: 1 },
+      };
+      const delta: AdapterResult = {
+        nodes: [{ id: NodeId('n1'), label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: { b: 99 } }],
+        edges: [],
+        source: 'codegraph',
+        timestamp: 2,
+      };
+      const result = merger.applyDelta(current, delta);
+      expect(result.nodes[0]?.properties).toEqual({ a: 1, b: 99, c: 3 });
+    });
+
+    it('should keep all existing properties when delta properties is empty', () => {
+      const current: GraphData = {
+        nodes: [{ id: NodeId('n1'), label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: { a: 1, b: 2 } }],
+        edges: [],
+        metadata: { repoId: RepoId('test-repo'), nodeCount: 1, edgeCount: 0, timestamp: 1 },
+      };
+      const delta: AdapterResult = {
+        nodes: [{ id: NodeId('n1'), label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} }],
+        edges: [],
+        source: 'codegraph',
+        timestamp: 2,
+      };
+      const result = merger.applyDelta(current, delta);
+      expect(result.nodes[0]?.properties).toEqual({ a: 1, b: 2 });
+    });
+
+    it('should use delta properties when existing properties is empty', () => {
+      const current: GraphData = {
+        nodes: [{ id: NodeId('n1'), label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} }],
+        edges: [],
+        metadata: { repoId: RepoId('test-repo'), nodeCount: 1, edgeCount: 0, timestamp: 1 },
+      };
+      const delta: AdapterResult = {
+        nodes: [{ id: NodeId('n1'), label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: { x: 'new' } }],
+        edges: [],
+        source: 'codegraph',
+        timestamp: 2,
+      };
+      const result = merger.applyDelta(current, delta);
+      expect(result.nodes[0]?.properties).toEqual({ x: 'new' });
+    });
+  });
 });
