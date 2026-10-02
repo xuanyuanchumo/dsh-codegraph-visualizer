@@ -89,8 +89,8 @@ describe('ClientCompatLayer', () => {
       expect(layer.detectMode(ctx)).toBe<SidebarIntegrationMode>('better-sidebar');
     });
 
-    it('returns conversation-view when ctx.slots is present', () => {
-      const ctx = makeCtx({ slots: { inject: () => () => {} } });
+    it('returns conversation-view when ctx.slots has inject and register', () => {
+      const ctx = makeCtx({ slots: { inject: () => () => {}, register: () => {} } });
       expect(layer.detectMode(ctx)).toBe<SidebarIntegrationMode>('conversation-view');
     });
 
@@ -130,7 +130,7 @@ describe('ClientCompatLayer', () => {
     });
 
     it('treats undefined sidebarRightTabs as absent and falls through', () => {
-      const ctx = makeCtx({ sidebarRightTabs: undefined, slots: {} });
+      const ctx = makeCtx({ sidebarRightTabs: undefined, slots: { inject: () => {}, register: () => {} } });
       expect(layer.detectMode(ctx)).toBe('conversation-view');
     });
 
@@ -140,8 +140,7 @@ describe('ClientCompatLayer', () => {
     });
 
     it('falls back when ctx.get throws (better-sidebar check degrades safely)', () => {
-      const ctx = makeCtx({ getThrows: true, slots: {} });
-      // sidebarRightTabs absent, get throws → better-sidebar false, slots present → conversation-view
+      const ctx = makeCtx({ getThrows: true, slots: { inject: () => {}, register: () => {} } });
       expect(layer.detectMode(ctx)).toBe('conversation-view');
     });
 

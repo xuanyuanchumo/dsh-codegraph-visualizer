@@ -49,6 +49,14 @@ export function createClientCompatLayer(): ClientCompatLayer {
 
   const detectMode = (ctx: Context): SidebarIntegrationMode => {
     if (safeCheck(() => {
+      const slots = ctx.slots;
+      if (!slots) return false;
+      return typeof slots.inject === 'function' && typeof slots.register === 'function';
+    }, false)) {
+      _mode = 'conversation-view';
+      return _mode;
+    }
+    if (safeCheck(() => {
       const tabs = (ctx as unknown as { sidebarRightTabs?: unknown }).sidebarRightTabs;
       return tabs !== null && tabs !== undefined;
     }, false)) {
@@ -67,10 +75,6 @@ export function createClientCompatLayer(): ClientCompatLayer {
       return rui !== null && rui !== undefined;
     }, false)) {
       _mode = 'remote-web-ui';
-      return _mode;
-    }
-    if (safeCheck(() => ctx.slots !== null && ctx.slots !== undefined, false)) {
-      _mode = 'conversation-view';
       return _mode;
     }
     _mode = 'floating';

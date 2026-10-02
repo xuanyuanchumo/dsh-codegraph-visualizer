@@ -79,7 +79,7 @@ export const useGraphStore = create<GraphState>()(
     },
     {
       name: 'dsh-codegraph-visualizer/ui',
-      version: 9,
+      version: 10,
       storage: createJSONStorage(() =>
         typeof window !== 'undefined' ? window.localStorage : memoryStorage,
       ),
@@ -137,6 +137,16 @@ export const useGraphStore = create<GraphState>()(
             ? new Set(arr as string[])
             : new Set<string>();
         }
+        if (version < 10) {
+          const byMode = (p as { expandedNodeIdsByViewMode?: unknown }).expandedNodeIdsByViewMode;
+          if (byMode && typeof byMode === 'object') {
+            const restored: Record<string, Set<string>> = {};
+            for (const [k, v] of Object.entries(byMode as Record<string, unknown>)) {
+              restored[k] = Array.isArray(v) ? new Set(v as string[]) : new Set<string>();
+            }
+            (result as Record<string, unknown>).expandedNodeIdsByViewMode = restored;
+          }
+        }
         return result;
       },
       partialize: (s) => ({
@@ -146,10 +156,13 @@ export const useGraphStore = create<GraphState>()(
         rules: s.rules, focusDepth: s.focusDepth,
         panelHeight: s.panelHeight, panelWidth: s.panelWidth,
         expandedNodeIds: [...s.expandedNodeIds],
+        expandedNodeIdsByViewMode: Object.fromEntries(
+          Object.entries(s.expandedNodeIdsByViewMode).map(([k, v]) => [k, [...v]])
+        ),
       }),
     },
   ),
 );
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && typeof localStorage !== 'undefined' && localStorage.getItem('__cg_debug') === '1') {
   (window as unknown as Record<string, unknown>).__graphStore = useGraphStore;
 }

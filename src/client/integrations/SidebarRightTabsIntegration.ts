@@ -8,6 +8,8 @@ import { scoped } from '../../shared/Logger.ts';
 const log = scoped('client');
 
 export function integrateSidebarRightTabs(state: IntegrationState): void {
+  if (state.navButtonRegistered) return;
+
   const { ctx } = state;
 
   try {

@@ -26,7 +26,7 @@ export type {
   ExportFormat, ToolbarLayoutConfig, ToolbarViewConfig, ToolbarHistory, ToolbarProps,
 } from './toolbarTypes.ts';
 
-export const Toolbar = memo(function toolbar(props: ToolbarProps) {
+export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   const t = useT();
   const lang = useLang();
   const [toolbarRef, toolbarWidth] = useElementWidth<HTMLDivElement>();

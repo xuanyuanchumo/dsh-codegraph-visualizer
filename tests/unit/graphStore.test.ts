@@ -2398,12 +2398,12 @@ describe('graphStore additional setters', () => {
   it('setVisibleNodeTypes updates visibleNodeTypes', () => {
     const types = new Set<GraphNode['type']>(['function', 'class']);
     useGraphStore.getState().setVisibleNodeTypes(types);
-    expect(useGraphStore.getState().visibleNodeTypes).toBe(types);
+    expect(useGraphStore.getState().visibleNodeTypes).toStrictEqual(types);
   });
 
   it('setVisibleEdgeTypes updates visibleEdgeTypes', () => {
     const types = new Set<GraphEdge['type']>(['call', 'import']);
     useGraphStore.getState().setVisibleEdgeTypes(types);
-    expect(useGraphStore.getState().visibleEdgeTypes).toBe(types);
+    expect(useGraphStore.getState().visibleEdgeTypes).toStrictEqual(types);
   });
 });

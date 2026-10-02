@@ -76,19 +76,18 @@ export class IntegrationState {
   }
 
   togglePanel(): void {
-    if (this.remoteWebUiApi && !this.panelVisible) {
-      this.openRemoteWebUiPanel();
+    if (this.panelVisible) {
+      this.panelVisible = false;
+      const container = document.querySelector('.cg-floating-container');
+      if (container) container.setAttribute('data-visible', 'false');
+      this.renderFloating();
       return;
     }
-    if (this.betterSidebarApi && !this.panelVisible) {
-      this.openSidebarTab();
-      return;
-    }
-    this.panelVisible = !this.panelVisible;
+    if (this.remoteWebUiApi) { this.openRemoteWebUiPanel(); return; }
+    if (this.betterSidebarApi) { this.openSidebarTab(); return; }
+    this.panelVisible = true;
     const container = document.querySelector('.cg-floating-container');
-    if (container) {
-      container.setAttribute('data-visible', String(this.panelVisible));
-    }
+    if (container) container.setAttribute('data-visible', 'true');
     this.renderFloating();
   }
 }

@@ -29,6 +29,7 @@ function makeFlags(overrides: Partial<ClientFeatureFlags> = {}): ClientFeatureFl
     spotlight: false,
     slots: false,
     remoteWebUi: false,
+    conversationView: false,
     ...overrides,
   };
 }

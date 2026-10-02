@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { scoped } from '../../shared/Logger.ts';
 import { graphSnapshots, analysisResults, userPreferences, layoutPresets } from './schema.ts';
 import { createDrizzleDb, type DrizzleDb } from './drizzleDb.ts';
+import type { GraphSnapshot, AnalysisResult, LayoutPreset } from './schema.ts';
 
 const log = scoped('db:repository');
 
@@ -21,31 +22,20 @@ type SqliteDb = {
   close(): void;
 };
 
-export interface SnapshotRecord {
-  id: number;
-  repoId: string;
-  snapshotHash: string;
-  nodeCount: number;
-  edgeCount: number;
-  data: Buffer | null;
-  createdAt: number;
-}
+export type SnapshotRecord = GraphSnapshot;
+export type AnalysisRecord = AnalysisResult;
+export type LayoutPresetRecord = Pick<LayoutPreset, 'id' | 'name' | 'layoutType' | 'positions'>;
 
-export interface AnalysisRecord {
-  id: number;
-  repoId: string;
-  analysisType: string;
-  targetNode: string | null;
-  result: string;
-  createdAt: number;
-}
-
-export interface LayoutPresetRecord {
-  id: number;
-  name: string;
-  layoutType: string;
-  positions: string;
-}
+const SQL = {
+  SAVE_SNAPSHOT: `INSERT INTO graph_snapshots (repo_id, snapshot_hash, node_count, edge_count, data, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(repo_id, snapshot_hash) DO UPDATE SET node_count = excluded.node_count, edge_count = excluded.edge_count, data = excluded.data, created_at = excluded.created_at`,
+  GET_LATEST_SNAPSHOT: `SELECT id, repo_id, snapshot_hash, node_count, edge_count, data, created_at FROM graph_snapshots WHERE repo_id = ? ORDER BY created_at DESC LIMIT 1`,
+  SAVE_ANALYSIS: `INSERT INTO analysis_results (repo_id, analysis_type, target_node, result, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(repo_id, analysis_type, IFNULL(target_node, '')) DO UPDATE SET result = excluded.result, created_at = excluded.created_at`,
+  GET_ANALYSIS: `SELECT id, repo_id, analysis_type, target_node, result, created_at FROM analysis_results WHERE repo_id = ? AND analysis_type = ? AND IFNULL(target_node, '') = IFNULL(?, '') ORDER BY created_at DESC LIMIT 1`,
+  SET_PREFERENCE: `INSERT INTO user_preferences (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+  GET_PREFERENCE: `SELECT value FROM user_preferences WHERE key = ?`,
+  SAVE_LAYOUT_PRESET: `INSERT INTO layout_presets (repo_id, name, layout_type, positions, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(repo_id, name) DO UPDATE SET layout_type = excluded.layout_type, positions = excluded.positions, created_at = excluded.created_at`,
+  GET_LAYOUT_PRESETS: `SELECT id, name, layout_type, positions FROM layout_presets WHERE repo_id = ? ORDER BY created_at DESC`,
+} as const;
 
 const MIGRATION_SQL = [
   `CREATE TABLE IF NOT EXISTS graph_snapshots (id INTEGER PRIMARY KEY AUTOINCREMENT, repo_id TEXT NOT NULL, snapshot_hash TEXT NOT NULL, node_count INTEGER NOT NULL DEFAULT 0, edge_count INTEGER NOT NULL DEFAULT 0, data BLOB, created_at INTEGER NOT NULL DEFAULT 0)`,
@@ -61,7 +51,7 @@ const MIGRATION_SQL = [
   `CREATE INDEX IF NOT EXISTS idx_layout_presets_repo ON layout_presets(repo_id)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_layout_presets_repo_name ON layout_presets(repo_id, name)`,
   `CREATE INDEX IF NOT EXISTS idx_layout_presets_repo_created ON layout_presets(repo_id, created_at)`,
-];
+] as const;
 
 export class GraphRepository {
   private db: SqliteDb | null = null;
@@ -99,18 +89,14 @@ export class GraphRepository {
   saveSnapshot(repoId: string, hash: string, nodeCount: number, edgeCount: number, data: Buffer): void {
     if (!this.db) return;
     try {
-      this.db.prepare(
-        `INSERT INTO graph_snapshots (repo_id, snapshot_hash, node_count, edge_count, data, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(repo_id, snapshot_hash) DO UPDATE SET node_count = excluded.node_count, edge_count = excluded.edge_count, data = excluded.data, created_at = excluded.created_at`,
-      ).run(repoId, hash, nodeCount, edgeCount, data, Date.now());
+      this.db.prepare(SQL.SAVE_SNAPSHOT).run(repoId, hash, nodeCount, edgeCount, data, Date.now());
     } catch (e) { log.warn('saveSnapshot failed', e); }
   }
 
   getLatestSnapshot(repoId: string): SnapshotRecord | null {
     if (!this.db) return null;
     try {
-      const row = this.db.prepare(
-        `SELECT id, repo_id, snapshot_hash, node_count, edge_count, data, created_at FROM graph_snapshots WHERE repo_id = ? ORDER BY created_at DESC LIMIT 1`,
-      ).get(repoId) as Record<string, unknown> | undefined;
+      const row = this.db.prepare(SQL.GET_LATEST_SNAPSHOT).get(repoId) as Record<string, unknown> | undefined;
       if (!row) return null;
       return {
         id: row['id'] as number,
@@ -127,20 +113,14 @@ export class GraphRepository {
   saveAnalysis(repoId: string, type: string, result: string, targetNode?: string): void {
     if (!this.db) return;
     try {
-      this.db.prepare(
-        `INSERT OR REPLACE INTO analysis_results (repo_id, analysis_type, target_node, result, created_at) VALUES (?, ?, ?, ?, ?)`,
-      ).run(repoId, type, targetNode ?? null, result, Date.now());
+      this.db.prepare(SQL.SAVE_ANALYSIS).run(repoId, type, targetNode ?? null, result, Date.now());
     } catch (e) { log.warn('saveAnalysis failed', e); }
   }
 
   getAnalysis(repoId: string, type: string, targetNode?: string): AnalysisRecord | null {
     if (!this.db) return null;
     try {
-      const sql = targetNode
-        ? `SELECT id, repo_id, analysis_type, target_node, result, created_at FROM analysis_results WHERE repo_id = ? AND analysis_type = ? AND target_node = ? ORDER BY created_at DESC LIMIT 1`
-        : `SELECT id, repo_id, analysis_type, target_node, result, created_at FROM analysis_results WHERE repo_id = ? AND analysis_type = ? ORDER BY created_at DESC LIMIT 1`;
-      const params = targetNode ? [repoId, type, targetNode] : [repoId, type];
-      const row = this.db.prepare(sql).get(...params) as Record<string, unknown> | undefined;
+      const row = this.db.prepare(SQL.GET_ANALYSIS).get(repoId, type, targetNode ?? null) as Record<string, unknown> | undefined;
       if (!row) return null;
       return {
         id: row['id'] as number,
@@ -156,18 +136,14 @@ export class GraphRepository {
   setPreference(key: string, value: string): void {
     if (!this.db) return;
     try {
-      this.db.prepare(
-        `INSERT INTO user_preferences (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
-      ).run(key, value, Date.now());
+      this.db.prepare(SQL.SET_PREFERENCE).run(key, value, Date.now());
     } catch (e) { log.warn('setPreference failed', e); }
   }
 
   getPreference(key: string): string | null {
     if (!this.db) return null;
     try {
-      const row = this.db.prepare(
-        `SELECT value FROM user_preferences WHERE key = ?`,
-      ).get(key) as Record<string, unknown> | undefined;
+      const row = this.db.prepare(SQL.GET_PREFERENCE).get(key) as Record<string, unknown> | undefined;
       return (row?.['value'] as string) ?? null;
     } catch (e) { log.warn('getPreference failed', e); return null; }
   }
@@ -175,18 +151,14 @@ export class GraphRepository {
   saveLayoutPreset(repoId: string, name: string, layoutType: string, positions: string): void {
     if (!this.db) return;
     try {
-      this.db.prepare(
-        `INSERT INTO layout_presets (repo_id, name, layout_type, positions, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(repo_id, name) DO UPDATE SET layout_type = excluded.layout_type, positions = excluded.positions, created_at = excluded.created_at`,
-      ).run(repoId, name, layoutType, positions, Date.now());
+      this.db.prepare(SQL.SAVE_LAYOUT_PRESET).run(repoId, name, layoutType, positions, Date.now());
     } catch (e) { log.warn('saveLayoutPreset failed', e); }
   }
 
   getLayoutPresets(repoId: string): LayoutPresetRecord[] {
     if (!this.db) return [];
     try {
-      const rows = this.db.prepare(
-        `SELECT id, name, layout_type, positions FROM layout_presets WHERE repo_id = ? ORDER BY created_at DESC`,
-      ).all(repoId) as Array<Record<string, unknown>>;
+      const rows = this.db.prepare(SQL.GET_LAYOUT_PRESETS).all(repoId) as Array<Record<string, unknown>>;
       return rows.map((row) => ({
         id: row['id'] as number,
         name: row['name'] as string,
@@ -199,6 +171,7 @@ export class GraphRepository {
   close(): void {
     this.drizzle = null;
     if (this.db) {
+      try { this.db.exec('PRAGMA busy_timeout = 0'); } catch { /* ignore */ }
       try { this.db.close(); } catch { /* ignore */ }
       this.db = null;
     }

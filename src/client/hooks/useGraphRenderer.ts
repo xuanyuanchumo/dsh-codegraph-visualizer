@@ -160,7 +160,11 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
       renderer?.destroy();
       rendererRef.current = null;
     };
-  }, [callbacksRef, showCallChainRef, theme]);
+  }, [callbacksRef, showCallChainRef]);
+
+  useEffect(() => {
+    rendererRef.current?.updateTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     rendererRef.current?.updateData(nodes, edges);
@@ -351,7 +355,7 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
       setTimeout(() => URL.revokeObjectURL(url), UI.URL_REVOKE_DELAY_MS);
       log.info(`exported ${format}`);
     }
-  }, []);
+  }, [theme]);
 
   const updateTheme = useCallback((newTheme: ThemeType) => {
     rendererRef.current?.updateTheme(newTheme);

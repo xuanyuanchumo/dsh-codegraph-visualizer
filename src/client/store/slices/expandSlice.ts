@@ -140,9 +140,11 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
       const newPending = new Map(state.pendingRequests);
       newPending.set(nodeId, controller);
       _set({ pendingRequests: newPending });
+      const gen = internals.expandGeneration;
       try {
         const signal = options?.signal ?? controller.signal;
         const data = await fetchNodeChildren(nodeId, undefined, undefined, signal, _get().currentWorkspace);
+        if (gen !== internals.expandGeneration) return;
         if (!data || data.nodes.length === 0) {
           const newLoaded = new Set(_get().loadedChildrenByNodeId);
           newLoaded.add(nodeId);

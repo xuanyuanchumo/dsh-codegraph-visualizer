@@ -12,6 +12,7 @@ const log = scoped('client');
 
 export function integrateConversationView(state: IntegrationState): void {
   if (state.navButtonRegistered) return;
+  if (!state.flags.conversationView) return;
 
   const { ctx } = state;
 
@@ -77,13 +78,12 @@ export function integrateConversationView(state: IntegrationState): void {
         },
       );
       if (typeof regResult === 'function') state.slotDisposers.push(regResult);
+      state.navButtonRegistered = true;
+      useGraphStore.getState().setIntegrationMode('conversation-view');
+      log.info('conversation.view slot registration succeeded');
     });
 
     if (typeof injectDisposer === 'function') state.trackSlotDisposer(injectDisposer);
-
-    state.navButtonRegistered = true;
-    useGraphStore.getState().setIntegrationMode('conversation-view');
-    log.info('conversation.view slot registration succeeded');
   } catch (e) {
     log.warn('conversation.view slot registration failed', e);
   }

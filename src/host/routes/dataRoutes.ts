@@ -18,12 +18,11 @@ interface GraphIndex {
   rootNodes: GraphNode[];
 }
 
-let _indexCacheFor: GraphData | null = null;
-let _indexCache: GraphIndex | null = null;
+const _indexCache = new WeakMap<GraphData, GraphIndex>();
 
 function getGraphIndex(data: GraphData): GraphIndex {
-  if (_indexCacheFor === data && _indexCache) return _indexCache;
-  _indexCacheFor = data;
+  const cached = _indexCache.get(data);
+  if (cached) return cached;
 
   const parentIdToChildren = new Map<string, GraphNode[]>();
   const filePathToNodeIds = new Map<string, Set<string>>();
@@ -51,8 +50,9 @@ function getGraphIndex(data: GraphData): GraphIndex {
     children.sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   }
 
-  _indexCache = { parentIdToChildren, filePathToNodeIds, nodeIdToFilePath, rootNodes };
-  return _indexCache;
+  const index: GraphIndex = { parentIdToChildren, filePathToNodeIds, nodeIdToFilePath, rootNodes };
+  _indexCache.set(data, index);
+  return index;
 }
 
 export function registerDataRoute(rc: RouteContext): void {

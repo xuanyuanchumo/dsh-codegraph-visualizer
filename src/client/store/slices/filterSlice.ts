@@ -14,8 +14,8 @@ export function createFilterSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
     todoMarkerMode: 'none',
     setFanInThreshold: (threshold: number) => _set({ fanInThreshold: threshold }),
     setFanOutThreshold: (threshold: number) => _set({ fanOutThreshold: threshold }),
-    setVisibleNodeTypes: (types: Set<GraphNode['type']>) => _set({ visibleNodeTypes: types }),
-    setVisibleEdgeTypes: (types: Set<GraphEdge['type']>) => _set({ visibleEdgeTypes: types }),
+    setVisibleNodeTypes: (types: Set<GraphNode['type']>) => _set({ visibleNodeTypes: new Set(types) }),
+    setVisibleEdgeTypes: (types: Set<GraphEdge['type']>) => _set({ visibleEdgeTypes: new Set(types) }),
     setHeatmapMode: (mode) => _set({ heatmapMode: mode }),
     setTodoMarkerMode: (mode) => _set({ todoMarkerMode: mode }),
   };
