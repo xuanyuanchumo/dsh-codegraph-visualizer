@@ -58514,47 +58514,6 @@ function usePanelResize(panelRef, rendererRef) {
 }
 
 //#endregion
-//#region src/client/hooks/useSearchInteraction.ts
-const log$19 = scoped("panel");
-function useSearchInteraction(opts) {
-	const { searchQuery, rawNodes, setSelectedNode, setSelectedNodeData, getDataRef, setShowSearch } = opts;
-	const debouncedSearch = useDebounce(searchQuery, UI.SEARCH_DEBOUNCE_MS);
-	const { search: searchNodes } = useNodeSearch(rawNodes);
-	const searchResults = useMemo(() => {
-		if (!debouncedSearch) return [];
-		return searchNodes(debouncedSearch, 50).map((n) => ({
-			id: n.id,
-			label: n.label,
-			type: n.type,
-			filePath: n.filePath
-		}));
-	}, [debouncedSearch, searchNodes]);
-	const handleSelectSearchResult = useCallback((id) => {
-		try {
-			setSelectedNode(NodeId(id));
-			const data$2 = getDataRef.current?.getNodeData(NodeId(id)) ?? null;
-			setSelectedNodeData(data$2);
-			setShowSearch(false);
-		} catch (err) {
-			log$19.error("handleSelectSearchResult failed", {
-				id,
-				err
-			});
-		}
-	}, [
-		setSelectedNode,
-		setSelectedNodeData,
-		getDataRef,
-		setShowSearch
-	]);
-	return {
-		debouncedSearch,
-		searchResults,
-		handleSelectSearchResult
-	};
-}
-
-//#endregion
 //#region src/client/hooks/useFocusMode.ts
 function useFocusMode(opts) {
 	const { focusNodeId, focusDepth, setFocusDepth, setSelectedNode, setFocusNodeId, rendererRef } = opts;
@@ -58600,7 +58559,7 @@ function useFocusMode(opts) {
 
 //#endregion
 //#region src/client/hooks/useNodeInteraction.ts
-const log$18 = scoped("panel");
+const log$19 = scoped("panel");
 function useNodeInteraction(opts) {
 	const { setSelectedNode, setSelectedNodeData, getDataRef, adjacencyMap, setTooltip, expandedNodeIds, collapseNode, expandNode, handleSelectFunction, setFocusNodeId, handleNodeDoubleTapRef } = opts;
 	const handleNodeTap = useCallback((id) => {
@@ -58609,7 +58568,7 @@ function useNodeInteraction(opts) {
 			const data$2 = getDataRef.current?.getNodeData(id) ?? null;
 			setSelectedNodeData(data$2);
 		} catch (err) {
-			log$18.error("handleNodeTap failed", {
+			log$19.error("handleNodeTap failed", {
 				id,
 				err
 			});
@@ -58641,7 +58600,7 @@ function useNodeInteraction(opts) {
 				});
 			}
 		} catch (err) {
-			log$18.error("handleNodeHover failed", {
+			log$19.error("handleNodeHover failed", {
 				nodeId,
 				err
 			});
@@ -58692,7 +58651,7 @@ function useNodeInteraction(opts) {
 				});
 			}
 		} catch (err) {
-			log$18.error("handleEdgeTap failed", {
+			log$19.error("handleEdgeTap failed", {
 				edgeId,
 				err
 			});
@@ -58719,7 +58678,7 @@ function useNodeInteraction(opts) {
 					return nodeId;
 				});
 			} catch (err) {
-				log$18.error("handleNodeDoubleTap failed", {
+				log$19.error("handleNodeDoubleTap failed", {
 					nodeId,
 					err
 				});
@@ -59394,7 +59353,7 @@ function usePanelKeyboard(layout$2, setLayout, rendererRef, handlers) {
 
 //#endregion
 //#region src/client/hooks/useViewMode.ts
-const log$17 = scoped("viewMode");
+const log$18 = scoped("viewMode");
 const MICRO_MODES = [
 	"cfg",
 	"flowchart",
@@ -59451,7 +59410,7 @@ function useViewMode(viewMode, currentWorkspace, depsFetchAbortRef) {
 				else setError(t$1("error.loadGraphData"));
 				setLoading(false);
 			}).catch((e) => {
-				log$17.warn("loadBootstrap failed", e);
+				log$18.warn("loadBootstrap failed", e);
 				setError(t$1("error.loadGraph"));
 				setLoading(false);
 			});
@@ -60515,6 +60474,35 @@ function useNodeSearch(rawNodes) {
 }
 
 //#endregion
+//#region src/client/hooks/useDebounce.ts
+function useDebounce(value, delay) {
+	const [debounced, setDebounced] = useState(value);
+	useEffect(() => {
+		const id = setTimeout(() => setDebounced(value), delay);
+		return () => clearTimeout(id);
+	}, [value, delay]);
+	return debounced;
+}
+
+//#endregion
+//#region src/client/hooks/useExpandedFunctionBodyCount.ts
+function useExpandedFunctionBodyCount() {
+	const expandedNodeIds = useGraphStore((s) => s.expandedNodeIds);
+	const rawNodes = useGraphStore((s) => s.rawNodes);
+	return useMemo(() => {
+		const functionIdSet = new Set();
+		for (const n of rawNodes) if (n.type === "function") functionIdSet.add(n.id);
+		let expanded = 0;
+		for (const id of expandedNodeIds) if (functionIdSet.has(id)) expanded++;
+		return {
+			expandedFunctionCount: expanded,
+			totalFunctionCount: functionIdSet.size,
+			expandedNodeIdsSize: expandedNodeIds.size
+		};
+	}, [expandedNodeIds, rawNodes]);
+}
+
+//#endregion
 //#region node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_immer@10.2.0_react@19.2.8_use-sync-external-store@1.2.0_react@19.2.8_/node_modules/zustand/esm/vanilla/shallow.mjs
 const isIterable = (obj) => Symbol.iterator in obj;
 const hasIterableEntries = (value) => "entries" in value;
@@ -60675,32 +60663,6 @@ function usePanelDimensions() {
 
 //#endregion
 //#region src/client/hooks/index.ts
-/**
-
-* Debounce a value with a delay.
-
-* Use case: search input, window resize, etc.
-
-*/
-function useDebounce(value, delay) {
-	const [debounced, setDebounced] = useState(value);
-	useEffect(() => {
-		const id = setTimeout(() => setDebounced(value), delay);
-		return () => clearTimeout(id);
-	}, [value, delay]);
-	return debounced;
-}
-/**
-
-* Polling hook for real-time updates.
-
-* Use case: refresh graph data periodically.
-
-* The callback is kept in a ref so a new inline callback per render does not
-
-* tear down and recreate the interval (rerender cascade fix).
-
-*/
 function usePolling(callback, interval, enabled = true) {
 	const callbackRef = useRef(callback);
 	callbackRef.current = callback;
@@ -61086,7 +61048,7 @@ function useMiniMapSync(opts) {
 
 //#endregion
 //#region src/client/hooks/useAutoBootstrap.ts
-const log$16 = scoped("auto-bootstrap");
+const log$17 = scoped("auto-bootstrap");
 function useAutoBootstrap(opts) {
 	const hasAutoScannedRef = useRef(false);
 	useEffect(() => {
@@ -61096,10 +61058,10 @@ function useAutoBootstrap(opts) {
 		if (!opts.codegraphReady) return;
 		if (!opts.currentWorkspace) return;
 		hasAutoScannedRef.current = true;
-		log$16.info("auto-fill: triggering bootstrap on first open", { path: opts.currentWorkspace });
+		log$17.info("auto-fill: triggering bootstrap on first open", { path: opts.currentWorkspace });
 		useGraphStore.getState().loadBootstrap().then((ok) => {
 			if (!ok) {
-				log$16.info("auto-fill: bootstrap failed, falling back to scan", { path: opts.currentWorkspace });
+				log$17.info("auto-fill: bootstrap failed, falling back to scan", { path: opts.currentWorkspace });
 				opts.handleScanWorkspace();
 			}
 		});
@@ -61251,6 +61213,47 @@ function useViewModePanelGuard(opts) {
 		];
 		for (const [key, isShowing, close] of panelEntries) if (!available.has(key) && isShowing) close();
 	}, [opts.viewMode, opts.panel]);
+}
+
+//#endregion
+//#region src/client/hooks/useSearchInteraction.ts
+const log$16 = scoped("panel");
+function useSearchInteraction(opts) {
+	const { searchQuery, rawNodes, setSelectedNode, setSelectedNodeData, getDataRef, setShowSearch } = opts;
+	const debouncedSearch = useDebounce(searchQuery, UI.SEARCH_DEBOUNCE_MS);
+	const { search: searchNodes } = useNodeSearch(rawNodes);
+	const searchResults = useMemo(() => {
+		if (!debouncedSearch) return [];
+		return searchNodes(debouncedSearch, 50).map((n) => ({
+			id: n.id,
+			label: n.label,
+			type: n.type,
+			filePath: n.filePath
+		}));
+	}, [debouncedSearch, searchNodes]);
+	const handleSelectSearchResult = useCallback((id) => {
+		try {
+			setSelectedNode(NodeId(id));
+			const data$2 = getDataRef.current?.getNodeData(NodeId(id)) ?? null;
+			setSelectedNodeData(data$2);
+			setShowSearch(false);
+		} catch (err) {
+			log$16.error("handleSelectSearchResult failed", {
+				id,
+				err
+			});
+		}
+	}, [
+		setSelectedNode,
+		setSelectedNodeData,
+		getDataRef,
+		setShowSearch
+	]);
+	return {
+		debouncedSearch,
+		searchResults,
+		handleSelectSearchResult
+	};
 }
 
 //#endregion
@@ -63362,11 +63365,8 @@ const StatusBar = memo(function StatusBar$1({ error: error$1, isLoading, lastUpd
 	const wsName = workspaceName ? deriveWorkspaceName(workspaceName) : "";
 	const hasDegradations = performanceDegradations && performanceDegradations.length > 0;
 	const degradationLabels = hasDegradations ? performanceDegradations.map((key) => DEGRADATION_KEYS[key] ? t$1(DEGRADATION_KEYS[key]) : key).join(", ") : "";
-	const expandedNodeIds = useGraphStore((s) => s.expandedNodeIds);
-	const rawNodes = useGraphStore((s) => s.rawNodes);
-	const expandedFunctionCount = [...expandedNodeIds].filter((id) => rawNodes.some((n) => n.id === id && n.type === "function")).length;
-	const totalFunctionCount = rawNodes.filter((n) => n.type === "function").length;
-	const showFunctionBudget = expandedFunctionCount > 0 || totalFunctionCount > FUNCTION_BODY.MAX_EXPANDED && expandedNodeIds.size > 0;
+	const { expandedFunctionCount, totalFunctionCount, expandedNodeIdsSize } = useExpandedFunctionBodyCount();
+	const showFunctionBudget = expandedFunctionCount > 0 || totalFunctionCount > FUNCTION_BODY.MAX_EXPANDED && expandedNodeIdsSize > 0;
 	return /* @__PURE__ */ jsxs("div", {
 		className: "cg-status-bar",
 		role: "status",
@@ -63493,7 +63493,7 @@ const MicroFunctionBar = memo(function MicroFunctionBar$1({ functionName, filePa
 
 //#endregion
 //#region src/client/components/OverlayBar.tsx
-function OverlayBar({ heatmapMode, setHeatmapMode, todoMarkerMode, setTodoMarkerMode }) {
+const OverlayBar = memo(function OverlayBar$1({ heatmapMode, setHeatmapMode, todoMarkerMode, setTodoMarkerMode }) {
 	const t$1 = useT();
 	return /* @__PURE__ */ jsxs("div", {
 		className: "cg-overlay-bar",
@@ -63552,7 +63552,7 @@ function OverlayBar({ heatmapMode, setHeatmapMode, todoMarkerMode, setTodoMarker
 			})
 		]
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/ImportPanel.tsx
@@ -64217,17 +64217,10 @@ const EXPANDABLE_TYPES = new Set([
 const NodeDetail = memo(function NodeDetail$1({ node, onClose, isExpanded, connectionCount, onCollapse, onSelectFunction, onAggregateCallChain }) {
 	const t$1 = useT();
 	const rawNodes = useGraphStore((s) => s.rawNodes);
-	const expandedNodeIds = useGraphStore((s) => s.expandedNodeIds);
 	const icon = TYPE_ICONS[node.type] ?? "?";
 	const color = TYPE_COLORS[node.type] ?? "var(--cg-accent)";
 	const canExpand = EXPANDABLE_TYPES.has(node.type);
-	const expandedFunctionBodyCount = useMemo(() => {
-		const functionIdSet = new Set();
-		for (const n of rawNodes) if (n.type === "function") functionIdSet.add(n.id);
-		let count = 0;
-		for (const id of expandedNodeIds) if (functionIdSet.has(id)) count++;
-		return count;
-	}, [rawNodes, expandedNodeIds]);
+	const { expandedFunctionCount: expandedFunctionBodyCount } = useExpandedFunctionBodyCount();
 	const isClusterNode = "isCluster" in node && node.isCluster === true;
 	const clusterChildCount = isClusterNode ? node.childCount ?? 0 : 0;
 	const clusterChildIds = isClusterNode ? node.childIds ?? [] : [];

@@ -77,6 +77,7 @@ export class GraphRepository {
       this.db = new DatabaseSync(this.dbPath) as unknown as SqliteDb;
       this.db.exec('PRAGMA journal_mode = WAL');
       this.db.exec('PRAGMA busy_timeout = 5000');
+      this.db.exec('PRAGMA synchronous = NORMAL');
       for (const sql of MIGRATION_SQL) {
         this.db!.exec(sql);
       }

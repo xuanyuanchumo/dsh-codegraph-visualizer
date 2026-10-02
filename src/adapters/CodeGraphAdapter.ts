@@ -329,7 +329,7 @@ export function readNodeChildrenFromDb(dbPath: string, parentId: string, cursor:
   const db = getDbConnection(dbPath);
   if (!db) return null;
   try {
-    const total = (db.prepare('SELECT COUNT(*) as cnt FROM nodes WHERE file_path = (SELECT file_path FROM nodes WHERE id = ?)').get(parentId) as { cnt: number }).cnt;
+    const total = (db.prepare('SELECT COUNT(*) as cnt FROM nodes WHERE file_path = (SELECT file_path FROM nodes WHERE id = ?) AND kind NOT IN (\'file\', \'module\', \'import\')').get(parentId) as { cnt: number }).cnt;
     const nodes = cursor
       ? validateNodeRows(db.prepare(
         'SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes WHERE file_path = (SELECT file_path FROM nodes WHERE id = ?) AND kind NOT IN (\'file\', \'module\', \'import\') AND id > ? ORDER BY id LIMIT ?',

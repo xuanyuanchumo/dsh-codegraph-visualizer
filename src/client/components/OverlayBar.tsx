@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { useT } from '../i18n/index.ts';
 
 interface OverlayBarProps {
@@ -7,7 +8,7 @@ interface OverlayBarProps {
   setTodoMarkerMode: (mode: 'none' | 'todo' | 'fixme' | 'all') => void;
 }
 
-export function OverlayBar({ heatmapMode, setHeatmapMode, todoMarkerMode, setTodoMarkerMode }: OverlayBarProps) {
+export const OverlayBar = memo(function OverlayBar({ heatmapMode, setHeatmapMode, todoMarkerMode, setTodoMarkerMode }: OverlayBarProps) {
   const t = useT();
   return (
     <div className="cg-overlay-bar" role="group" aria-label={t('overlay.title')}>
@@ -66,4 +67,4 @@ export function OverlayBar({ heatmapMode, setHeatmapMode, todoMarkerMode, setTod
       </div>
     </div>
   );
-}
+});

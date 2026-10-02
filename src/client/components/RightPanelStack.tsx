@@ -13,6 +13,7 @@ import type { HotspotNode, GodModule, ImpactStats } from '../hooks/useAnalysisPa
 import type { CoreFunction } from '../../shared/analysis/CoreFunctionAnalyzer.ts';
 import type { DeadCodeResult } from '../../shared/analysis/DeadCodeAnalyzer.ts';
 import type { CycleInfo } from '../renderer/CycleDetector.ts';
+import type { Tour } from '../../shared/analysis/TourBuilder.ts';
 
 interface RightPanelStackProps {
   panel: PanelState;
@@ -79,7 +80,7 @@ export function RightPanelStack(props: RightPanelStackProps) {
     },
     {
       visible: panel.showTour,
-      children: <TourPanel tour={props.tourData as never} onClose={() => panel.setShowTour(false)} />,
+      children: <TourPanel tour={props.tourData as Tour} onClose={() => panel.setShowTour(false)} />,
     },
     {
       visible: panel.showImpact && !!props.impactStats,

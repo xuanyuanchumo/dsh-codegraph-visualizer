@@ -58510,47 +58510,6 @@ function usePanelResize(panelRef, rendererRef) {
 }
 
 //#endregion
-//#region src/client/hooks/useSearchInteraction.ts
-const log$19 = scoped("panel");
-function useSearchInteraction(opts) {
-	const { searchQuery, rawNodes, setSelectedNode, setSelectedNodeData, getDataRef, setShowSearch } = opts;
-	const debouncedSearch = useDebounce(searchQuery, UI.SEARCH_DEBOUNCE_MS);
-	const { search: searchNodes } = useNodeSearch(rawNodes);
-	const searchResults = (0, react.useMemo)(() => {
-		if (!debouncedSearch) return [];
-		return searchNodes(debouncedSearch, 50).map((n) => ({
-			id: n.id,
-			label: n.label,
-			type: n.type,
-			filePath: n.filePath
-		}));
-	}, [debouncedSearch, searchNodes]);
-	const handleSelectSearchResult = (0, react.useCallback)((id) => {
-		try {
-			setSelectedNode(NodeId(id));
-			const data$2 = getDataRef.current?.getNodeData(NodeId(id)) ?? null;
-			setSelectedNodeData(data$2);
-			setShowSearch(false);
-		} catch (err) {
-			log$19.error("handleSelectSearchResult failed", {
-				id,
-				err
-			});
-		}
-	}, [
-		setSelectedNode,
-		setSelectedNodeData,
-		getDataRef,
-		setShowSearch
-	]);
-	return {
-		debouncedSearch,
-		searchResults,
-		handleSelectSearchResult
-	};
-}
-
-//#endregion
 //#region src/client/hooks/useFocusMode.ts
 function useFocusMode(opts) {
 	const { focusNodeId, focusDepth, setFocusDepth, setSelectedNode, setFocusNodeId, rendererRef } = opts;
@@ -58596,7 +58555,7 @@ function useFocusMode(opts) {
 
 //#endregion
 //#region src/client/hooks/useNodeInteraction.ts
-const log$18 = scoped("panel");
+const log$19 = scoped("panel");
 function useNodeInteraction(opts) {
 	const { setSelectedNode, setSelectedNodeData, getDataRef, adjacencyMap, setTooltip, expandedNodeIds, collapseNode, expandNode, handleSelectFunction, setFocusNodeId, handleNodeDoubleTapRef } = opts;
 	const handleNodeTap = (0, react.useCallback)((id) => {
@@ -58605,7 +58564,7 @@ function useNodeInteraction(opts) {
 			const data$2 = getDataRef.current?.getNodeData(id) ?? null;
 			setSelectedNodeData(data$2);
 		} catch (err) {
-			log$18.error("handleNodeTap failed", {
+			log$19.error("handleNodeTap failed", {
 				id,
 				err
 			});
@@ -58637,7 +58596,7 @@ function useNodeInteraction(opts) {
 				});
 			}
 		} catch (err) {
-			log$18.error("handleNodeHover failed", {
+			log$19.error("handleNodeHover failed", {
 				nodeId,
 				err
 			});
@@ -58688,7 +58647,7 @@ function useNodeInteraction(opts) {
 				});
 			}
 		} catch (err) {
-			log$18.error("handleEdgeTap failed", {
+			log$19.error("handleEdgeTap failed", {
 				edgeId,
 				err
 			});
@@ -58715,7 +58674,7 @@ function useNodeInteraction(opts) {
 					return nodeId;
 				});
 			} catch (err) {
-				log$18.error("handleNodeDoubleTap failed", {
+				log$19.error("handleNodeDoubleTap failed", {
 					nodeId,
 					err
 				});
@@ -59390,7 +59349,7 @@ function usePanelKeyboard(layout$2, setLayout, rendererRef, handlers) {
 
 //#endregion
 //#region src/client/hooks/useViewMode.ts
-const log$17 = scoped("viewMode");
+const log$18 = scoped("viewMode");
 const MICRO_MODES = [
 	"cfg",
 	"flowchart",
@@ -59447,7 +59406,7 @@ function useViewMode(viewMode, currentWorkspace, depsFetchAbortRef) {
 				else setError(t$1("error.loadGraphData"));
 				setLoading(false);
 			}).catch((e) => {
-				log$17.warn("loadBootstrap failed", e);
+				log$18.warn("loadBootstrap failed", e);
 				setError(t$1("error.loadGraph"));
 				setLoading(false);
 			});
@@ -60209,10 +60168,10 @@ var CoreFunctionAnalyzer = class {
 		return reach;
 	}
 	computeCallChainDepth(nodes, outEdges) {
-		const memo$29 = new Map();
+		const memo$30 = new Map();
 		const computing = new Set();
 		const computeDepth = (id, currentDepth = 0) => {
-			if (memo$29.has(id)) return memo$29.get(id);
+			if (memo$30.has(id)) return memo$30.get(id);
 			if (computing.has(id)) return 0;
 			if (currentDepth >= CORE_FUNCTION_ANALYZER.MAX_CALL_CHAIN_RECURSION_DEPTH) return currentDepth;
 			computing.add(id);
@@ -60224,11 +60183,11 @@ var CoreFunctionAnalyzer = class {
 			}
 			computing.delete(id);
 			const result = maxChildDepth + 1;
-			memo$29.set(id, result);
+			memo$30.set(id, result);
 			return result;
 		};
 		for (const n of nodes) computeDepth(n.id);
-		return memo$29;
+		return memo$30;
 	}
 };
 
@@ -60511,6 +60470,35 @@ function useNodeSearch(rawNodes) {
 }
 
 //#endregion
+//#region src/client/hooks/useDebounce.ts
+function useDebounce(value, delay) {
+	const [debounced, setDebounced] = (0, react.useState)(value);
+	(0, react.useEffect)(() => {
+		const id = setTimeout(() => setDebounced(value), delay);
+		return () => clearTimeout(id);
+	}, [value, delay]);
+	return debounced;
+}
+
+//#endregion
+//#region src/client/hooks/useExpandedFunctionBodyCount.ts
+function useExpandedFunctionBodyCount() {
+	const expandedNodeIds = useGraphStore((s) => s.expandedNodeIds);
+	const rawNodes = useGraphStore((s) => s.rawNodes);
+	return (0, react.useMemo)(() => {
+		const functionIdSet = new Set();
+		for (const n of rawNodes) if (n.type === "function") functionIdSet.add(n.id);
+		let expanded = 0;
+		for (const id of expandedNodeIds) if (functionIdSet.has(id)) expanded++;
+		return {
+			expandedFunctionCount: expanded,
+			totalFunctionCount: functionIdSet.size,
+			expandedNodeIdsSize: expandedNodeIds.size
+		};
+	}, [expandedNodeIds, rawNodes]);
+}
+
+//#endregion
 //#region node_modules/.pnpm/zustand@5.0.15_@types+react@19.2.18_immer@10.2.0_react@19.2.8_use-sync-external-store@1.2.0_react@19.2.8_/node_modules/zustand/esm/vanilla/shallow.mjs
 const isIterable = (obj) => Symbol.iterator in obj;
 const hasIterableEntries = (value) => "entries" in value;
@@ -60671,32 +60659,6 @@ function usePanelDimensions() {
 
 //#endregion
 //#region src/client/hooks/index.ts
-/**
-
-* Debounce a value with a delay.
-
-* Use case: search input, window resize, etc.
-
-*/
-function useDebounce(value, delay) {
-	const [debounced, setDebounced] = (0, react.useState)(value);
-	(0, react.useEffect)(() => {
-		const id = setTimeout(() => setDebounced(value), delay);
-		return () => clearTimeout(id);
-	}, [value, delay]);
-	return debounced;
-}
-/**
-
-* Polling hook for real-time updates.
-
-* Use case: refresh graph data periodically.
-
-* The callback is kept in a ref so a new inline callback per render does not
-
-* tear down and recreate the interval (rerender cascade fix).
-
-*/
 function usePolling(callback, interval, enabled = true) {
 	const callbackRef = (0, react.useRef)(callback);
 	callbackRef.current = callback;
@@ -61082,7 +61044,7 @@ function useMiniMapSync(opts) {
 
 //#endregion
 //#region src/client/hooks/useAutoBootstrap.ts
-const log$16 = scoped("auto-bootstrap");
+const log$17 = scoped("auto-bootstrap");
 function useAutoBootstrap(opts) {
 	const hasAutoScannedRef = (0, react.useRef)(false);
 	(0, react.useEffect)(() => {
@@ -61092,10 +61054,10 @@ function useAutoBootstrap(opts) {
 		if (!opts.codegraphReady) return;
 		if (!opts.currentWorkspace) return;
 		hasAutoScannedRef.current = true;
-		log$16.info("auto-fill: triggering bootstrap on first open", { path: opts.currentWorkspace });
+		log$17.info("auto-fill: triggering bootstrap on first open", { path: opts.currentWorkspace });
 		useGraphStore.getState().loadBootstrap().then((ok) => {
 			if (!ok) {
-				log$16.info("auto-fill: bootstrap failed, falling back to scan", { path: opts.currentWorkspace });
+				log$17.info("auto-fill: bootstrap failed, falling back to scan", { path: opts.currentWorkspace });
 				opts.handleScanWorkspace();
 			}
 		});
@@ -61250,6 +61212,47 @@ function useViewModePanelGuard(opts) {
 }
 
 //#endregion
+//#region src/client/hooks/useSearchInteraction.ts
+const log$16 = scoped("panel");
+function useSearchInteraction(opts) {
+	const { searchQuery, rawNodes, setSelectedNode, setSelectedNodeData, getDataRef, setShowSearch } = opts;
+	const debouncedSearch = useDebounce(searchQuery, UI.SEARCH_DEBOUNCE_MS);
+	const { search: searchNodes } = useNodeSearch(rawNodes);
+	const searchResults = (0, react.useMemo)(() => {
+		if (!debouncedSearch) return [];
+		return searchNodes(debouncedSearch, 50).map((n) => ({
+			id: n.id,
+			label: n.label,
+			type: n.type,
+			filePath: n.filePath
+		}));
+	}, [debouncedSearch, searchNodes]);
+	const handleSelectSearchResult = (0, react.useCallback)((id) => {
+		try {
+			setSelectedNode(NodeId(id));
+			const data$2 = getDataRef.current?.getNodeData(NodeId(id)) ?? null;
+			setSelectedNodeData(data$2);
+			setShowSearch(false);
+		} catch (err) {
+			log$16.error("handleSelectSearchResult failed", {
+				id,
+				err
+			});
+		}
+	}, [
+		setSelectedNode,
+		setSelectedNodeData,
+		getDataRef,
+		setShowSearch
+	]);
+	return {
+		debouncedSearch,
+		searchResults,
+		handleSelectSearchResult
+	};
+}
+
+//#endregion
 //#region src/client/components/ErrorBoundary.tsx
 const log$15 = scoped("boundary");
 function ErrorFallback({ error: error$1, onRetry }) {
@@ -61336,10 +61339,10 @@ const base = (size$1) => ({
 	strokeLinejoin: "round",
 	"aria-hidden": true
 });
-function memo$28(Component$1) {
+function memo$29(Component$1) {
 	return react.default.memo(Component$1);
 }
-const GraphIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const GraphIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -61362,7 +61365,7 @@ const GraphIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ 
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 12v4" })
 	]
 }));
-const SearchIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const SearchIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -61371,12 +61374,12 @@ const SearchIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */
 		r: "7"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m21 21-4.3-4.3" })]
 }));
-const ChainIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const ChainIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" })]
 }));
-const CycleIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const CycleIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -61386,7 +61389,7 @@ const CycleIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ 
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 13v1a4 4 0 0 1-4 4H3" })
 	]
 }));
-const MapIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const MapIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -61395,7 +61398,7 @@ const MapIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M15 6v14" })
 	]
 }));
-const RefreshIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const RefreshIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -61405,7 +61408,7 @@ const RefreshIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ *
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 21v-5h5" })
 	]
 }));
-const SunIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const SunIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -61414,12 +61417,12 @@ const SunIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0
 		r: "4"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" })]
 }));
-const MoonIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const MoonIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" })
 }));
-const DownloadIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const DownloadIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -61428,22 +61431,22 @@ const DownloadIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ 
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 15V3" })
 	]
 }));
-const ChevronDownIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ChevronDownIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m6 9 6 6 6-6" })
 }));
-const ChevronUpIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ChevronUpIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m18 15-6-6-6 6" })
 }));
-const CloseIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const CloseIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M18 6 6 18M6 6l12 12" })
 }));
-const UploadIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const UploadIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -61452,17 +61455,17 @@ const UploadIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 3v12" })
 	]
 }));
-const FolderIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const FolderIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" })
 }));
-const AlertIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const AlertIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 9v4M12 17h.01" })]
 }));
-const LayersIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const LayersIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -61471,12 +61474,12 @@ const LayersIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "m3 17 9 5 9-5" })
 	]
 }));
-const ZapIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ZapIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M13 2 3 14h9l-1 8 10-12h-9l1-8Z" })
 }));
-const WatchIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const WatchIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -61489,22 +61492,22 @@ const WatchIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ 
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M9 1h6M9 23h6" })
 	]
 }));
-const WorkspaceIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const WorkspaceIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" })
 }));
-const PlusIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const PlusIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 5v14M5 12h14" })
 }));
-const CheckIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const CheckIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M20 6 9 17l-5-5" })
 }));
-const CopyIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const CopyIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("rect", {
@@ -61515,7 +61518,7 @@ const CopyIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (
 		rx: "2"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" })]
 }));
-const TreeIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const TreeIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -61543,7 +61546,7 @@ const TreeIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 6v4M12 10H5v4M12 10h7v4M5 14v4M19 14v4" })
 	]
 }));
-const PathIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const PathIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -61560,22 +61563,22 @@ const PathIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (
 		/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M5 7v4a4 4 0 0 0 4 4h6a4 4 0 0 1 4 4" })
 	]
 }));
-const HeartIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const HeartIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z" })
 }));
-const RuleIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const RuleIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M9 11l3 3L22 4" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" })]
 }));
-const FlameIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const FlameIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5Z" })
 }));
-const AlertCircleIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const AlertCircleIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -61584,17 +61587,17 @@ const AlertCircleIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE
 		r: "10"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 8v4M12 16h.01" })]
 }));
-const ExpandIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ExpandIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 21H3M21 3H3M9 9l3-3 3 3M9 15l3 3 3-3" })
 }));
-const ContractIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const ContractIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 21H3M21 3H3M15 9l-3-3-3 3M15 15l-3 3-3-3" })
 }));
-const FocusIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const FocusIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("circle", {
@@ -61603,27 +61606,27 @@ const FocusIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ 
 		r: "3"
 	}), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4l1.4-1.4M17 7l1.4-1.4" })]
 }));
-const UndoIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const UndoIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 7v6h6" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M3 13a9 9 0 1 0 3-7.7L3 8" })]
 }));
-const RedoIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const RedoIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 7v6h-6" }), /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M21 13a9 9 0 1 1-3-7.7L21 8" })]
 }));
-const StarIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const StarIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" })
 }));
-const FilterIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const FilterIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M22 3H2l8 9.46V19l4 2v-8.54L22 3z" })
 }));
-const GithubIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const GithubIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	width: size$1,
 	height: size$1,
 	viewBox: "0 0 24 24",
@@ -61632,12 +61635,12 @@ const GithubIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */
 	"aria-hidden": "true",
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M12 .5C5.37.5 0 5.87 0 12.5c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58v-2.03c-3.34.73-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.09 1.84 1.24 1.84 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.34-5.47-5.95 0-1.31.47-2.39 1.24-3.23-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 6 0c2.29-1.55 3.3-1.23 3.3-1.23.66 1.66.24 2.88.12 3.18.77.84 1.24 1.92 1.24 3.23 0 4.62-2.81 5.64-5.49 5.94.43.37.81 1.1.81 2.22v3.29c0 .32.22.7.83.58A12.01 12.01 0 0 0 24 12.5C24 5.87 18.63.5 12 .5Z" })
 }));
-const GhostIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const GhostIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M9 10h.01M15 10h.01M12 2a8 8 0 0 0-8 8v12l3-3 3 3 2-2 2 2 3-3 3 3V10a8 8 0 0 0-8-8z" })
 }));
-const MoreIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
+const MoreIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("svg", {
 	...base(size$1),
 	className,
 	children: [
@@ -61658,7 +61661,7 @@ const MoreIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (
 		})
 	]
 }));
-const WrenchIcon = memo$28(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
+const WrenchIcon = memo$29(({ size: size$1 = 16, className }) => /* @__PURE__ */ (0, react_jsx_runtime.jsx)("svg", {
 	...base(size$1),
 	className,
 	children: /* @__PURE__ */ (0, react_jsx_runtime.jsx)("path", { d: "M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-2.5 2.5-2.5Z" })
@@ -63358,11 +63361,8 @@ const StatusBar = (0, react.memo)(function StatusBar$1({ error: error$1, isLoadi
 	const wsName = workspaceName ? deriveWorkspaceName(workspaceName) : "";
 	const hasDegradations = performanceDegradations && performanceDegradations.length > 0;
 	const degradationLabels = hasDegradations ? performanceDegradations.map((key) => DEGRADATION_KEYS[key] ? t$1(DEGRADATION_KEYS[key]) : key).join(", ") : "";
-	const expandedNodeIds = useGraphStore((s) => s.expandedNodeIds);
-	const rawNodes = useGraphStore((s) => s.rawNodes);
-	const expandedFunctionCount = [...expandedNodeIds].filter((id) => rawNodes.some((n) => n.id === id && n.type === "function")).length;
-	const totalFunctionCount = rawNodes.filter((n) => n.type === "function").length;
-	const showFunctionBudget = expandedFunctionCount > 0 || totalFunctionCount > FUNCTION_BODY.MAX_EXPANDED && expandedNodeIds.size > 0;
+	const { expandedFunctionCount, totalFunctionCount, expandedNodeIdsSize } = useExpandedFunctionBodyCount();
+	const showFunctionBudget = expandedFunctionCount > 0 || totalFunctionCount > FUNCTION_BODY.MAX_EXPANDED && expandedNodeIdsSize > 0;
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "cg-status-bar",
 		role: "status",
@@ -63489,7 +63489,7 @@ const MicroFunctionBar = (0, react.memo)(function MicroFunctionBar$1({ functionN
 
 //#endregion
 //#region src/client/components/OverlayBar.tsx
-function OverlayBar({ heatmapMode, setHeatmapMode, todoMarkerMode, setTodoMarkerMode }) {
+const OverlayBar = (0, react.memo)(function OverlayBar$1({ heatmapMode, setHeatmapMode, todoMarkerMode, setTodoMarkerMode }) {
 	const t$1 = useT();
 	return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
 		className: "cg-overlay-bar",
@@ -63548,7 +63548,7 @@ function OverlayBar({ heatmapMode, setHeatmapMode, todoMarkerMode, setTodoMarker
 			})
 		]
 	});
-}
+});
 
 //#endregion
 //#region src/client/components/ImportPanel.tsx
@@ -64213,17 +64213,10 @@ const EXPANDABLE_TYPES = new Set([
 const NodeDetail = (0, react.memo)(function NodeDetail$1({ node, onClose, isExpanded, connectionCount, onCollapse, onSelectFunction, onAggregateCallChain }) {
 	const t$1 = useT();
 	const rawNodes = useGraphStore((s) => s.rawNodes);
-	const expandedNodeIds = useGraphStore((s) => s.expandedNodeIds);
 	const icon = TYPE_ICONS[node.type] ?? "?";
 	const color = TYPE_COLORS[node.type] ?? "var(--cg-accent)";
 	const canExpand = EXPANDABLE_TYPES.has(node.type);
-	const expandedFunctionBodyCount = (0, react.useMemo)(() => {
-		const functionIdSet = new Set();
-		for (const n of rawNodes) if (n.type === "function") functionIdSet.add(n.id);
-		let count = 0;
-		for (const id of expandedNodeIds) if (functionIdSet.has(id)) count++;
-		return count;
-	}, [rawNodes, expandedNodeIds]);
+	const { expandedFunctionCount: expandedFunctionBodyCount } = useExpandedFunctionBodyCount();
 	const isClusterNode = "isCluster" in node && node.isCluster === true;
 	const clusterChildCount = isClusterNode ? node.childCount ?? 0 : 0;
 	const clusterChildIds = isClusterNode ? node.childIds ?? [] : [];

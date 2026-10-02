@@ -10,6 +10,7 @@ import { HealthScoreCard } from './HealthScoreCard.tsx';
 import { RuleConfigPanel } from './RuleConfigPanel.tsx';
 import { PanelStack, type PanelStackItem } from './PanelStack.tsx';
 import type { PanelState } from '../hooks/usePanelState.ts';
+import type { RuleViolation } from '../../shared/analysis/RuleEngine.ts';
 
 interface LeftPanelStackProps {
   panel: PanelState;
@@ -66,7 +67,7 @@ export function LeftPanelStack(props: LeftPanelStackProps) {
     },
     {
       visible: panel.showRules,
-      children: <RuleConfigPanel violations={props.ruleViolations as never} onCheckRules={props.onCheckRules}
+      children: <RuleConfigPanel violations={props.ruleViolations as RuleViolation[]} onCheckRules={props.onCheckRules}
         onClose={() => panel.setShowRules(false)} />,
     },
     {

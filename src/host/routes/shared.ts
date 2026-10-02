@@ -40,12 +40,14 @@ export function withRouteMiddleware(
   };
 }
 
-export function resolveWorkspaceFromRequest(req: IncomingMessage, ctx: Context, deps: RouteDeps): string {
+export async function resolveWorkspaceFromRequest(req: IncomingMessage, ctx: Context, deps: RouteDeps): Promise<string> {
   try {
     const url = new URL(req.url ?? '', `http://${req.headers.host ?? 'localhost'}`);
     const wsParam = url.searchParams.get('workspace');
     if (wsParam && wsParam !== '.' && deps.securityManager.isPathAllowed(wsParam)) {
-      return wsParam;
+      if (await validatePathRealpath(wsParam, deps.securityManager)) {
+        return wsParam;
+      }
     }
   } catch { /* ignore */ }
   return findWorkspacePath(ctx);

@@ -1637,7 +1637,7 @@ describe('bootstrap route', () => {
     expect(body.indexStatus).toBe('building');
   });
 
-  it('GET /bootstrap returns root nodes when graph data exists', () => {
+  it('GET /bootstrap returns root nodes when graph data exists', async () => {
     const nodes = [
       makeNode('root1', 'Root 1', 'module', '/src', 1),
       makeNode('root2', 'Root 2', 'module', '/lib', 1),
@@ -1649,7 +1649,7 @@ describe('bootstrap route', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 11);
     const { res, state } = makeRes();
-    handler(makeReq('GET'), res);
+    await handler(makeReq('GET'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.rootNodes).toHaveLength(2);
@@ -1676,7 +1676,7 @@ describe('node children route', () => {
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
-  it('GET /children returns children of specified node', () => {
+  it('GET /children returns children of specified node', async () => {
     const parentNode = makeNode('parent', 'Parent', 'module', '/src', 1);
     const child1 = makeNode('child1', 'Child 1', 'function', '/src/a.ts', 1, {}, 'parent');
     const child2 = makeNode('child2', 'Child 2', 'class', '/src/b.ts', 1, {}, 'parent');
@@ -1687,7 +1687,7 @@ describe('node children route', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 12);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/children?nodeId=parent'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/children?nodeId=parent'), res);
     expect(state.code).toBe(200);
   });
 });
@@ -1724,7 +1724,7 @@ describe('file outline route (index 13)', () => {
     expect(state.code).toBe(404);
   });
 
-  it('GET /files/{nodeId}/outline returns symbols from cached data', () => {
+  it('GET /files/{nodeId}/outline returns symbols from cached data', async () => {
     const fileNode = makeNode('file1', 'main.ts', 'module', '/src/main.ts', 1);
     const sym1 = makeNode('sym1', 'foo', 'function', '/src/main.ts', 10, {}, 'file1');
     const sym2 = makeNode('sym2', 'bar', 'class', '/src/main.ts', 20, {}, 'file1');
@@ -1735,7 +1735,7 @@ describe('file outline route (index 13)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 13);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/files/file1/outline'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/files/file1/outline'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.symbols).toHaveLength(2);
@@ -1744,11 +1744,11 @@ describe('file outline route (index 13)', () => {
     expect(body.edges).toHaveLength(1);
   });
 
-  it('GET /files/{nodeId}/outline returns empty when no cached data', () => {
+  it('GET /files/{nodeId}/outline returns empty when no cached data', async () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 13);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/files/file1/outline'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/files/file1/outline'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.symbols).toEqual([]);
@@ -1798,7 +1798,7 @@ describe('symbol AST route (index 14)', () => {
     expect(state.code).toBe(404);
   });
 
-  it('GET /symbols/{nodeId}/ast returns AST nodes from cached data', () => {
+  it('GET /symbols/{nodeId}/ast returns AST nodes from cached data', async () => {
     const symNode = makeNode('sym1', 'foo', 'function', '/src/main.ts', 1);
     const ast1 = makeNode('ast1', 'var1', 'variable', '/src/main.ts', 10, {}, 'sym1');
     const ast2 = makeNode('ast2', 'var2', 'variable', '/src/main.ts', 20, {}, 'sym1');
@@ -1809,7 +1809,7 @@ describe('symbol AST route (index 14)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 14);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/symbols/sym1/ast'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/symbols/sym1/ast'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.astNodes).toHaveLength(2);
@@ -1818,11 +1818,11 @@ describe('symbol AST route (index 14)', () => {
     expect(body.astEdges).toHaveLength(1);
   });
 
-  it('GET /symbols/{nodeId}/ast returns empty when no cached data', () => {
+  it('GET /symbols/{nodeId}/ast returns empty when no cached data', async () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 14);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/symbols/sym1/ast'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/symbols/sym1/ast'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.astNodes).toEqual([]);
@@ -1876,11 +1876,11 @@ describe('edges route (index 15)', () => {
     expect(JSON.parse(state.body).error).toBe('INVALID_FILEPATH');
   });
 
-  it('GET /edges returns empty edges when no cached data', () => {
+  it('GET /edges returns empty edges when no cached data', async () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=somefile.ts'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=somefile.ts'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.edges).toEqual([]);
@@ -1888,7 +1888,7 @@ describe('edges route (index 15)', () => {
     expect(body.hasMore).toBe(false);
   });
 
-  it('GET /edges returns edges with scope=file from cached data', () => {
+  it('GET /edges returns edges with scope=file from cached data', async () => {
     const node1 = makeNode('n1', 'A', 'function', 'src/main.ts', 1);
     const node2 = makeNode('n2', 'B', 'function', 'src/main.ts', 10);
     const node3 = makeNode('n3', 'C', 'function', 'lib/util.ts', 5);
@@ -1902,14 +1902,14 @@ describe('edges route (index 15)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&scope=file'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&scope=file'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.edges.length).toBeGreaterThan(0);
     expect(body.total).toBeGreaterThan(0);
   });
 
-  it('GET /edges returns edges with scope=symbol from cached data', () => {
+  it('GET /edges returns edges with scope=symbol from cached data', async () => {
     const node1 = makeNode('n1', 'A', 'function', 'src/main.ts', 1);
     const node2 = makeNode('n2', 'B', 'function', 'src/main.ts', 10);
     const node3 = makeNode('n3', 'C', 'function', 'lib/util.ts', 5);
@@ -1923,7 +1923,7 @@ describe('edges route (index 15)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=n1&scope=symbol'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=n1&scope=symbol'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.edges.length).toBeGreaterThan(0);
@@ -1941,7 +1941,7 @@ describe('edges route (index 15)', () => {
     expect(state.code).toBe(304);
   });
 
-  it('GET /edges supports pagination with cursor and limit', () => {
+  it('GET /edges supports pagination with cursor and limit', async () => {
     // Use fewer than 20 edges to avoid aggregation
     const nodes: GraphNode[] = [];
     const edges: GraphEdge[] = [];
@@ -1956,7 +1956,7 @@ describe('edges route (index 15)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&scope=file&cursor=0&limit=10'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&scope=file&cursor=0&limit=10'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.edges.length).toBe(10);
@@ -1964,7 +1964,7 @@ describe('edges route (index 15)', () => {
     expect(body.cursor).toBe(10);
   });
 
-  it('GET /edges returns aggregated edges when count exceeds threshold', () => {
+  it('GET /edges returns aggregated edges when count exceeds threshold', async () => {
     // Create enough edges to exceed EDGES_AGGREGATION.THRESHOLD (20)
     const nodes: GraphNode[] = [];
     const edges: GraphEdge[] = [];
@@ -1985,7 +1985,7 @@ describe('edges route (index 15)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&scope=file'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&scope=file'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.aggregated).toBe(true);
@@ -1995,7 +1995,7 @@ describe('edges route (index 15)', () => {
     expect(body.edges[0].properties.aggregated).toBe(true);
   });
 
-  it('GET /edges does not aggregate when aggregated=1 is set', () => {
+  it('GET /edges does not aggregate when aggregated=1 is set', async () => {
     const nodes: GraphNode[] = [];
     const edges: GraphEdge[] = [];
     for (let i = 0; i < 25; i++) {
@@ -2012,14 +2012,14 @@ describe('edges route (index 15)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&scope=file&aggregated=1'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts&scope=file&aggregated=1'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.aggregated).toBeUndefined();
     expect(body.edges.length).toBe(25);
   });
 
-  it('GET /edges returns empty when fromId matches no nodes (scope=file)', () => {
+  it('GET /edges returns empty when fromId matches no nodes (scope=file)', async () => {
     const node1 = makeNode('n1', 'A', 'function', 'src/main.ts', 1);
     const node2 = makeNode('n2', 'B', 'function', 'lib/util.ts', 5);
     const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
@@ -2028,14 +2028,14 @@ describe('edges route (index 15)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=nonexistent.ts&scope=file'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=nonexistent.ts&scope=file'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.edges).toEqual([]);
     expect(body.total).toBe(0);
   });
 
-  it('GET /edges returns empty when fromId matches no nodes (scope=symbol)', () => {
+  it('GET /edges returns empty when fromId matches no nodes (scope=symbol)', async () => {
     const node1 = makeNode('n1', 'A', 'function', 'src/main.ts', 1);
     const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
     deps.setLastGraphData(makeGraphData([node1], edges));
@@ -2043,14 +2043,14 @@ describe('edges route (index 15)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=nonexistent&scope=symbol'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=nonexistent&scope=symbol'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.edges).toEqual([]);
     expect(body.total).toBe(0);
   });
 
-  it('GET /edges uses default scope=file when scope not specified', () => {
+  it('GET /edges uses default scope=file when scope not specified', async () => {
     const node1 = makeNode('n1', 'A', 'function', 'src/main.ts', 1);
     const node2 = makeNode('n2', 'B', 'function', 'src/main.ts', 10);
     const edges = [makeEdge('e1', 'n1', 'n2', 'call')];
@@ -2059,13 +2059,13 @@ describe('edges route (index 15)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=src/main.ts'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.edges.length).toBeGreaterThan(0);
   });
 
-  it('GET /edges matches by node id when fromId equals a node id (scope=file)', () => {
+  it('GET /edges matches by node id when fromId equals a node id (scope=file)', async () => {
     const node1 = makeNode('n1', 'A', 'function', 'src/main.ts', 1);
     const node2 = makeNode('n2', 'B', 'function', 'src/main.ts', 10);
     const node3 = makeNode('n3', 'C', 'function', 'lib/util.ts', 5);
@@ -2078,7 +2078,7 @@ describe('edges route (index 15)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=n1&scope=file'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=n1&scope=file'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.edges.length).toBeGreaterThan(0);
@@ -2105,7 +2105,7 @@ describe('edges route - DB fallback paths (index 15)', () => {
     mockReadEdgesForNodesFromDb.mockReturnValue([]);
   });
 
-  it('GET /edges returns edges from DB when no cached data', () => {
+  it('GET /edges returns edges from DB when no cached data', async () => {
     mockReadEdgesFromDb.mockReturnValue({
       edges: [
         { id: 1, source: 'nodeA', target: 'nodeB', kind: 'call', line: 5 },
@@ -2117,7 +2117,7 @@ describe('edges route - DB fallback paths (index 15)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=nodeA&scope=symbol'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=nodeA&scope=symbol'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.edges.length).toBe(2);
@@ -2127,7 +2127,7 @@ describe('edges route - DB fallback paths (index 15)', () => {
     expect(body.edges[0].type).toBe('call');
   });
 
-  it('GET /edges filters self-loops and filtered edge kinds from DB', () => {
+  it('GET /edges filters self-loops and filtered edge kinds from DB', async () => {
     mockReadEdgesFromDb.mockReturnValue({
       edges: [
         { id: 1, source: 'nodeA', target: 'nodeA', kind: 'call', line: 5 },  // self-loop
@@ -2140,7 +2140,7 @@ describe('edges route - DB fallback paths (index 15)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=nodeA&scope=symbol'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=nodeA&scope=symbol'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.edges.length).toBe(1);
@@ -2148,13 +2148,13 @@ describe('edges route - DB fallback paths (index 15)', () => {
     expect(body.edges[0].target).toBe('nodeC');
   });
 
-  it('GET /edges returns empty when DB returns null and no cached data', () => {
+  it('GET /edges returns empty when DB returns null and no cached data', async () => {
     mockReadEdgesFromDb.mockReturnValue(null);
 
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=nodeA&scope=symbol'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/edges?from=nodeA&scope=symbol'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.edges).toEqual([]);
@@ -2180,7 +2180,7 @@ describe('file outline route - DB fallback (index 13)', () => {
     mockReadEdgesForNodesFromDb.mockReturnValue([]);
   });
 
-  it('GET /files/{nodeId}/outline returns symbols from DB', () => {
+  it('GET /files/{nodeId}/outline returns symbols from DB', async () => {
     mockReadFileOutlineFromDb.mockReturnValue({
       nodes: [
         { id: 'sym1', kind: 'function', name: 'foo', file_path: 'src/main.ts', start_line: 10, signature: 'foo()', docstring: null, is_exported: 1 },
@@ -2195,7 +2195,7 @@ describe('file outline route - DB fallback (index 13)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 13);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/files/file1/outline'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/files/file1/outline'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.symbols.length).toBe(2);
@@ -2227,7 +2227,7 @@ describe('symbol AST route - DB fallback (index 14)', () => {
     mockReadEdgesForNodesFromDb.mockReturnValue([]);
   });
 
-  it('GET /symbols/{nodeId}/ast returns AST nodes from DB', () => {
+  it('GET /symbols/{nodeId}/ast returns AST nodes from DB', async () => {
     mockReadSymbolASTFromDb.mockReturnValue({
       nodes: [
         { id: 'ast1', kind: 'variable', name: 'var1', file_path: 'src/main.ts', start_line: 10, signature: null, docstring: null, is_exported: 0 },
@@ -2242,7 +2242,7 @@ describe('symbol AST route - DB fallback (index 14)', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 14);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/symbols/sym1/ast'), res);
+    await handler(makeReq('GET', undefined, { host: 'localhost' }, undefined, '/api/v1/codegraph/symbols/sym1/ast'), res);
     expect(state.code).toBe(200);
     const body = JSON.parse(state.body);
     expect(body.astNodes.length).toBe(2);

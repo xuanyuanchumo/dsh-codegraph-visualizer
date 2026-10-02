@@ -100,7 +100,7 @@ export function registerBootstrapRoute(rc: RouteContext): void {
     kind: 'exact',
     path: routePath,
     handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, async (req, res) => {
-      const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
+      const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
 
       if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
 
@@ -183,7 +183,7 @@ export function registerNodeChildrenRoute(rc: RouteContext): void {
   ctx.effect(() => ctx.webServer.register({
     kind: 'exact',
     path: routePath,
-    handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, (req, res) => {
+    handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, async (req, res) => {
       const url = new URL(req.url ?? '', `http://${req.headers.host ?? 'localhost'}`);
       const nodeId = url.searchParams.get('nodeId');
       if (!nodeId || nodeId.length > VALIDATION.MAX_PATH_LENGTH) {
@@ -196,7 +196,7 @@ export function registerNodeChildrenRoute(rc: RouteContext): void {
 
       if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
 
-      const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
+      const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readNodeChildrenFromDb(dbPath, nodeId, cursor, limit);
@@ -250,7 +250,7 @@ export function registerFileOutlineRoute(rc: RouteContext): void {
   ctx.effect(() => ctx.webServer.register({
     kind: 'prefix',
     path: routePath,
-    handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, (req, res) => {
+    handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, async (req, res) => {
       const url = new URL(req.url ?? '', `http://${req.headers.host ?? 'localhost'}`);
       const match = url.pathname.match(/^\/api\/v1\/codegraph\/files\/([^/]+)\/outline$/);
       if (!match) {
@@ -265,7 +265,7 @@ export function registerFileOutlineRoute(rc: RouteContext): void {
 
       if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
 
-      const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
+      const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readFileOutlineFromDb(dbPath, nodeId);
@@ -304,7 +304,7 @@ export function registerSymbolASTRoute(rc: RouteContext): void {
   ctx.effect(() => ctx.webServer.register({
     kind: 'prefix',
     path: routePath,
-    handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, (req, res) => {
+    handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, async (req, res) => {
       const url = new URL(req.url ?? '', `http://${req.headers.host ?? 'localhost'}`);
       const match = url.pathname.match(/^\/api\/v1\/codegraph\/symbols\/([^/]+)\/ast$/);
       if (!match) {
@@ -324,7 +324,7 @@ export function registerSymbolASTRoute(rc: RouteContext): void {
         SYMBOL_AST.MAX_NODES,
       );
 
-      const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
+      const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readSymbolASTFromDb(dbPath, nodeId);
@@ -367,7 +367,7 @@ export function registerEdgesRoute(rc: RouteContext): void {
   ctx.effect(() => ctx.webServer.register({
     kind: 'prefix',
     path: routePath,
-    handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, (req, res) => {
+    handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, async (req, res) => {
       const url = new URL(req.url ?? '', `http://${req.headers.host ?? 'localhost'}`);
       const fromId = url.searchParams.get('from') ?? '';
       const scope = url.searchParams.get('scope') ?? 'file';
@@ -382,7 +382,7 @@ export function registerEdgesRoute(rc: RouteContext): void {
 
       if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
 
-      const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
+      const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readEdgesFromDb(dbPath, fromId, scope as 'file' | 'symbol', cursor, limit);

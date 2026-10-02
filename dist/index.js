@@ -1,5 +1,5 @@
 import { API, AST, BOOTSTRAP, CACHE, DIFF_ENGINE, EDGES_AGGREGATION, ERROR_CODES, ERROR_MESSAGES, EdgeId, FILE_OUTLINE, HEALTH_SCORE, MCP, NodeId, PATH_FINDER, RepoId, SYMBOL_AST, TOOL_MESSAGES, TREE_SITTER, VALIDATION, WATCHER, inferLayerFromPath, safeNumber, safeString, scoped } from "./layerUtils-pEdT0G0J.js";
-import { FILTERED_EDGE_KINDS, closeAllDbConnections, countEdgesInDb, isNoisePath, mapEdgeKind, mapNodeKind, readEdgesForNodesFromDb, readEdgesFromDb, readFileOutlineFromDb, readNodeChildrenFromDb, readSymbolASTFromDb, readTopLevelNodesFromDb, resolveDbPath } from "./CodeGraphAdapter-BEnxTQQP.js";
+import { FILTERED_EDGE_KINDS, closeAllDbConnections, countEdgesInDb, isNoisePath, mapEdgeKind, mapNodeKind, readEdgesForNodesFromDb, readEdgesFromDb, readFileOutlineFromDb, readNodeChildrenFromDb, readSymbolASTFromDb, readTopLevelNodesFromDb, resolveDbPath } from "./CodeGraphAdapter-SshDynt-.js";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { ToolCallId } from "@deepseek-ai/dsh-llm";
 import path, { isAbsolute, join, normalize, sep } from "node:path";
@@ -1131,7 +1131,7 @@ function toJsonValue(value) {
 }
 const GRAPH_CACHE_LIMIT = CACHE.GRAPH_CACHE_LIMIT;
 async function createGraphToolDeps() {
-	const [{ CodeGraphAdapter: CGA }, { LensAdapter: LA }] = await Promise.all([import("./CodeGraphAdapter-C2Av79x6.js"), import("./LensAdapter-BfMLy2m0.js")]);
+	const [{ CodeGraphAdapter: CGA }, { LensAdapter: LA }] = await Promise.all([import("./CodeGraphAdapter-BoiExSfA.js"), import("./LensAdapter-BfMLy2m0.js")]);
 	return {
 		codegraphAdapter: new CGA(),
 		lensAdapter: new LA(),
@@ -2406,11 +2406,13 @@ function withRouteMiddleware(method, routePath, corsConfig, rateLimiter, handler
 		await handler(req, res);
 	};
 }
-function resolveWorkspaceFromRequest(req, ctx, deps) {
+async function resolveWorkspaceFromRequest(req, ctx, deps) {
 	try {
 		const url = new URL(req.url ?? "", `http://${req.headers.host ?? "localhost"}`);
 		const wsParam = url.searchParams.get("workspace");
-		if (wsParam && wsParam !== "." && deps.securityManager.isPathAllowed(wsParam)) return wsParam;
+		if (wsParam && wsParam !== "." && deps.securityManager.isPathAllowed(wsParam)) {
+			if (await validatePathRealpath(wsParam, deps.securityManager)) return wsParam;
+		}
 	} catch {}
 	return findWorkspacePath(ctx);
 }
@@ -2812,7 +2814,7 @@ function registerBootstrapRoute(rc) {
 		kind: "exact",
 		path: routePath,
 		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, async (req, res) => {
-			const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
+			const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
 			if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
 			if (workspacePath) {
 				const dbPath = resolveDbPath(workspacePath);
@@ -2883,7 +2885,7 @@ function registerNodeChildrenRoute(rc) {
 	ctx.effect(() => ctx.webServer.register({
 		kind: "exact",
 		path: routePath,
-		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, (req, res) => {
+		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, async (req, res) => {
 			const url = new URL(req.url ?? "", `http://${req.headers.host ?? "localhost"}`);
 			const nodeId = url.searchParams.get("nodeId");
 			if (!nodeId || nodeId.length > VALIDATION.MAX_PATH_LENGTH) {
@@ -2893,7 +2895,7 @@ function registerNodeChildrenRoute(rc) {
 			const cursor = url.searchParams.get("cursor") ?? null;
 			const limit = parseInt(url.searchParams.get("limit") ?? String(BOOTSTRAP.CHILDREN_PAGE_SIZE), 10) || BOOTSTRAP.CHILDREN_PAGE_SIZE;
 			if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
-			const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
+			const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
 			if (workspacePath) {
 				const dbPath = resolveDbPath(workspacePath);
 				const dbResult = readNodeChildrenFromDb(dbPath, nodeId, cursor, limit);
@@ -2944,7 +2946,7 @@ function registerFileOutlineRoute(rc) {
 	ctx.effect(() => ctx.webServer.register({
 		kind: "prefix",
 		path: routePath,
-		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, (req, res) => {
+		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, async (req, res) => {
 			const url = new URL(req.url ?? "", `http://${req.headers.host ?? "localhost"}`);
 			const match = url.pathname.match(/^\/api\/v1\/codegraph\/files\/([^/]+)\/outline$/);
 			if (!match) {
@@ -2957,7 +2959,7 @@ function registerFileOutlineRoute(rc) {
 				return;
 			}
 			if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
-			const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
+			const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
 			if (workspacePath) {
 				const dbPath = resolveDbPath(workspacePath);
 				const dbResult = readFileOutlineFromDb(dbPath, nodeId);
@@ -2998,7 +3000,7 @@ function registerSymbolASTRoute(rc) {
 	ctx.effect(() => ctx.webServer.register({
 		kind: "prefix",
 		path: routePath,
-		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, (req, res) => {
+		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, async (req, res) => {
 			const url = new URL(req.url ?? "", `http://${req.headers.host ?? "localhost"}`);
 			const match = url.pathname.match(/^\/api\/v1\/codegraph\/symbols\/([^/]+)\/ast$/);
 			if (!match) {
@@ -3012,7 +3014,7 @@ function registerSymbolASTRoute(rc) {
 			}
 			if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
 			const budget = Math.min(parseInt(url.searchParams.get("budget") ?? String(SYMBOL_AST.MAX_NODES), 10) || SYMBOL_AST.MAX_NODES, SYMBOL_AST.MAX_NODES);
-			const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
+			const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
 			if (workspacePath) {
 				const dbPath = resolveDbPath(workspacePath);
 				const dbResult = readSymbolASTFromDb(dbPath, nodeId);
@@ -3063,7 +3065,7 @@ function registerEdgesRoute(rc) {
 	ctx.effect(() => ctx.webServer.register({
 		kind: "prefix",
 		path: routePath,
-		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, (req, res) => {
+		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, async (req, res) => {
 			const url = new URL(req.url ?? "", `http://${req.headers.host ?? "localhost"}`);
 			const fromId = url.searchParams.get("from") ?? "";
 			const scope = url.searchParams.get("scope") ?? "file";
@@ -3075,7 +3077,7 @@ function registerEdgesRoute(rc) {
 				return;
 			}
 			if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
-			const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
+			const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
 			if (workspacePath) {
 				const dbPath = resolveDbPath(workspacePath);
 				const dbResult = readEdgesFromDb(dbPath, fromId, scope, cursor, limit);
@@ -4950,6 +4952,7 @@ var GraphRepository = class {
 			this.db = new DatabaseSync(this.dbPath);
 			this.db.exec("PRAGMA journal_mode = WAL");
 			this.db.exec("PRAGMA busy_timeout = 5000");
+			this.db.exec("PRAGMA synchronous = NORMAL");
 			for (const sql of MIGRATION_SQL) this.db.exec(sql);
 			log$1.info("graph repository initialized", {
 				path: this.dbPath,
