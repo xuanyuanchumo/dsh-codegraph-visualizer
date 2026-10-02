@@ -27,7 +27,8 @@ function parseVersion(raw: string): HostVersionInfo {
   const prerelease = match[4] ?? null;
   let generation: HostGeneration = 'unknown';
   if (major === 0 && minor >= 1 && minor < 2) generation = 'gen1';
-  else if (major === 0 && minor >= 2) generation = 'gen2';
+  else if (major === 0 && minor >= 2 && minor < 3) generation = 'gen2';
+  else if (major === 0 && minor >= 3) generation = 'gen3';
   else if (major >= 1) generation = 'gen3';
   return { raw, major, minor, patch, prerelease, generation };
 }

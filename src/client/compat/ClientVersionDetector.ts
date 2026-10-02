@@ -26,7 +26,8 @@ function parseVersion(raw: string): ClientVersionInfo {
   const patch = parseInt(match[3]!, 10);
   let generation: ClientGeneration = 'unknown';
   if (major === 0 && minor >= 1 && minor < 2) generation = 'gen1';
-  else if (major === 0 && minor >= 2) generation = 'gen2';
+  else if (major === 0 && minor >= 2 && minor < 3) generation = 'gen2';
+  else if (major === 0 && minor >= 3) generation = 'gen3';
   else if (major >= 1) generation = 'gen3';
   return { raw, major, minor, patch, generation };
 }

@@ -59,8 +59,9 @@ const GEN2_FLAGS: FeatureFlags = {
 
 const GEN3_FLAGS: FeatureFlags = {
   ...GEN2_FLAGS,
-  aiAssist: true,
-  crossRepo: true,
+  // gen3 (v0.3.0+) reserved flags — enable when v0.3.0 confirms these features
+  aiAssist: false, // placeholder: enable when v0.3.0 confirms AI assist API
+  crossRepo: false, // placeholder: enable when v0.3.0 confirms cross-repo API
   desktopPlatform: true,
 };
 

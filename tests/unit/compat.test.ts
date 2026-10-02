@@ -83,6 +83,21 @@ describe('HostVersionDetector', () => {
     expect(info.generation).toBe('gen3');
   });
 
+  it('parseVersion returns gen3 for 0.3.0 (v0.3.x = gen3)', () => {
+    const ctx = makeMockContext({ hostVersion: '0.3.0' });
+    const info = detectHostVersion(ctx);
+    expect(info.major).toBe(0);
+    expect(info.minor).toBe(3);
+    expect(info.generation).toBe('gen3');
+  });
+
+  it('parseVersion returns gen3 for 0.3.0-rc.1', () => {
+    const ctx = makeMockContext({ hostVersion: '0.3.0-rc.1' });
+    const info = detectHostVersion(ctx);
+    expect(info.prerelease).toBe('rc.1');
+    expect(info.generation).toBe('gen3');
+  });
+
 
   it('parses gen3 prerelease versions', () => {
     const ctx = makeMockContext({ hostVersion: '1.2.3-rc.1' });
@@ -135,13 +150,14 @@ describe('FeatureFlags', () => {
 
 
   // --- gen3 feature flags (added) ---
-  it('gen3 flags include aiAssist, crossRepo, desktopPlatform', () => {
+  it('gen3 flags include desktopPlatform, aiAssist/crossRepo are placeholder false', () => {
     const ctx = makeMockContext({ hostVersion: '1.0.0' });
     const info = detectHostVersion(ctx);
     const flags = createFeatureFlags(info);
-    expect(flags.aiAssist).toBe(true);
-    expect(flags.crossRepo).toBe(true);
     expect(flags.desktopPlatform).toBe(true);
+    // aiAssist/crossRepo are placeholder false until v0.3.0 confirms these APIs
+    expect(flags.aiAssist).toBe(false);
+    expect(flags.crossRepo).toBe(false);
   });
 
   it('createFeatureFlags returns correct gen3 flags (superset of gen2)', () => {
@@ -157,10 +173,10 @@ describe('FeatureFlags', () => {
     expect(flags.multiWorkspace).toBe(true);
     expect(flags.sessionsApi).toBe(true);
     expect(flags.mcpServer).toBe(true);
-    // gen3-only additions
-    expect(flags.aiAssist).toBe(true);
-    expect(flags.crossRepo).toBe(true);
+    // gen3-only additions (placeholder until v0.3.0 confirms)
     expect(flags.desktopPlatform).toBe(true);
+    expect(flags.aiAssist).toBe(false);
+    expect(flags.crossRepo).toBe(false);
   });
 
   it('gen2 flags do not include aiAssist/crossRepo', () => {

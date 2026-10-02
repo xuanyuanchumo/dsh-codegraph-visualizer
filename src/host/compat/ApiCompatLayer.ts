@@ -44,6 +44,8 @@ const GEN2_MAPPING: ToolNameMapping = {
 
 const GEN3_MAPPING: ToolNameMapping = {
   ...GEN2_MAPPING,
+  // gen3 may introduce renamed tools; keep gen2 names as fallback
+  // New gen3-only tools would be added here when v0.3.0 is released
 };
 
 const UNKNOWN_MAPPING: ToolNameMapping = {
