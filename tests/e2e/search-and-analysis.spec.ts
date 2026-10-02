@@ -1,6 +1,6 @@
 // E2E tests for J3-J5, J15, J23, J30-J32: 符号搜索与定位, 调用链追踪, 依赖拓扑分析, 路径查找, 影响分析, 热点分析, 波及半径, God Module
 import { test, expect } from '@playwright/test';
-import { setupPluginPage, getCyEdgeIdsByClass, getCyNodeCount } from './helpers.ts';
+import { setupPluginPage, getCyEdgeIdsByClass, getCyNodeCount, waitForGraphReady, TIMEOUTS } from './helpers.ts';
 
 test.describe('J3: 符号搜索与定位', () => {
   test('should open search with search button', async ({ page }) => {
@@ -95,6 +95,45 @@ test.describe('J5: 依赖拓扑分析', () => {
     await expect(cycleBtn).toHaveClass(/cg-active/, { timeout: 10000 });
     await cycleBtn.click();
     await expect(cycleBtn).not.toHaveClass(/cg-active/, { timeout: 5000 });
+  });
+
+  test('should display cycle panel when detection enabled', async ({ page }) => {
+    await setupPluginPage(page);
+    const cycleBtn = page.locator('.cg-cycle-btn');
+    await cycleBtn.click({ timeout: TIMEOUTS.ACTION });
+    await expect(cycleBtn).toHaveClass(/cg-active/, { timeout: 10000 });
+    const cyclePanel = page.locator('.cg-cycle-panel');
+    await expect(cyclePanel).toBeVisible({ timeout: TIMEOUTS.VISIBLE_SHORT });
+  });
+
+  test('should maintain graph container when cycle detection active', async ({ page }) => {
+    await setupPluginPage(page);
+    await waitForGraphReady(page);
+    const cycleBtn = page.locator('.cg-cycle-btn');
+    await cycleBtn.click({ timeout: TIMEOUTS.ACTION });
+    await expect(cycleBtn).toHaveClass(/cg-active/, { timeout: 10000 });
+    await expect(page.locator('.cg-graph-container')).toBeAttached();
+  });
+
+  test('should toggle off cycle detection cleanly', async ({ page }) => {
+    await setupPluginPage(page);
+    const cycleBtn = page.locator('.cg-cycle-btn');
+    await cycleBtn.click({ timeout: TIMEOUTS.ACTION });
+    await expect(cycleBtn).toHaveClass(/cg-active/, { timeout: 10000 });
+    await cycleBtn.click();
+    await expect(cycleBtn).not.toHaveClass(/cg-active/, { timeout: 5000 });
+    await expect(page.locator('.cg-graph-container')).toBeAttached();
+  });
+
+  test('should handle graph with dependencies without crash', async ({ page }) => {
+    await setupPluginPage(page);
+    await waitForGraphReady(page);
+    const nodeCount = await getCyNodeCount(page);
+    expect(nodeCount).toBeGreaterThan(0);
+    const cycleBtn = page.locator('.cg-cycle-btn');
+    await cycleBtn.click({ timeout: TIMEOUTS.ACTION });
+    await expect(cycleBtn).toHaveClass(/cg-active/, { timeout: 10000 });
+    await expect(page.locator('.cg-graph-container')).toBeAttached();
   });
 });
 

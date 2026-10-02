@@ -19,6 +19,26 @@ class ResizeObserverMock {
 vi.mock('../../src/client/hooks/index.ts', () => ({
   useDebounce: vi.fn((fn: any) => fn),
   usePolling: vi.fn(() => ({ start: vi.fn(), stop: vi.fn() })),
+  useGraphDerivedValues: vi.fn((params: any) => ({
+    statsText: '0 nodes, 0 edges',
+    expandedFunctionBodyCount: 0,
+    showFunctionBodyBudget: false,
+    nodeTypeCounts: { function: 0, class: 0, variable: 0, module: 0, interface: 0, type: 0 },
+    cycleDetails: params?.showCycles ? (params?.rendererRef?.current?.detectCyclesDetailed() ?? []) : [],
+    tourData: { steps: [] },
+    panelClassName: 'cg-graph-panel cg-resizable',
+  })),
+  useWorkspaceHandlers: vi.fn((params: any) => ({
+    handleWorkspaceSwitch: vi.fn((path: string) => {
+      params?.setCurrentWorkspace?.(path);
+      window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path } }));
+    }),
+    handleWorkspaceAdd: vi.fn((path: string) => {
+      params?.addWorkspace?.(path, path.split(/[\\/]/).pop() || path);
+      window.dispatchEvent(new CustomEvent('codegraph:workspace', { detail: { path } }));
+      window.dispatchEvent(new CustomEvent('codegraph:import-repo', { detail: { path } }));
+    }),
+  })),
   useGraphRenderer: vi.fn(() => ({
     containerRef: { current: null },
     rendererRef: { current: null },

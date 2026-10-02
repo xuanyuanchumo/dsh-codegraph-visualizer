@@ -1,5 +1,5 @@
-import { API, AST, BOOTSTRAP, CACHE, DIFF_ENGINE, EDGES_AGGREGATION, ERROR_CODES, ERROR_MESSAGES, EdgeId, HEALTH_SCORE, MCP, NodeId, PATH_FINDER, RepoId, SYMBOL_AST, TOOL_MESSAGES, TREE_SITTER, VALIDATION, WATCHER, inferLayerFromPath, safeNumber, safeString, scoped } from "./layerUtils-yqcFCQ8u.js";
-import { FILTERED_EDGE_KINDS, closeAllDbConnections, countEdgesInDb, isNoisePath, mapEdgeKind, mapNodeKind, readEdgesForNodesFromDb, readEdgesFromDb, readFileOutlineFromDb, readNodeChildrenFromDb, readSymbolASTFromDb, readTopLevelNodesFromDb, resolveDbPath } from "./CodeGraphAdapter-DeJORm-r.js";
+import { API, AST, BOOTSTRAP, CACHE, DIFF_ENGINE, EDGES_AGGREGATION, ERROR_CODES, ERROR_MESSAGES, EdgeId, FILE_OUTLINE, HEALTH_SCORE, MCP, NodeId, PATH_FINDER, RepoId, SYMBOL_AST, TOOL_MESSAGES, TREE_SITTER, VALIDATION, WATCHER, inferLayerFromPath, safeNumber, safeString, scoped } from "./layerUtils-pEdT0G0J.js";
+import { FILTERED_EDGE_KINDS, closeAllDbConnections, countEdgesInDb, isNoisePath, mapEdgeKind, mapNodeKind, readEdgesForNodesFromDb, readEdgesFromDb, readFileOutlineFromDb, readNodeChildrenFromDb, readSymbolASTFromDb, readTopLevelNodesFromDb, resolveDbPath } from "./CodeGraphAdapter-1ZalnG3i.js";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { ToolCallId } from "@deepseek-ai/dsh-llm";
 import path, { isAbsolute, join, normalize, sep } from "node:path";
@@ -500,7 +500,7 @@ var HealthScorer = class HealthScorer {
 		const moduleOfNode = buildModuleMap(nodes, this.maxModuleDepth);
 		const coupling = this.calculateCoupling(edges, moduleOfNode);
 		const cohesion = this.calculateCohesion(nodes, edges, moduleOfNode);
-		const cyclicDependencyRate = this.calculateCyclicDependencyRate(nodes, edges);
+		const cyclicDependencyRate = this.calculateCyclicDependencyRate(edges);
 		const modularity = this.calculateModularity(nodes, edges, moduleOfNode);
 		const overall = Math.round(coupling * HEALTH_SCORE.WEIGHT_COUPLING + cohesion * HEALTH_SCORE.WEIGHT_COHESION + cyclicDependencyRate * HEALTH_SCORE.WEIGHT_CYCLIC + modularity * HEALTH_SCORE.WEIGHT_MODULARITY);
 		return {
@@ -644,7 +644,7 @@ var HealthScorer = class HealthScorer {
 		if (totalNodes === 0) return 50;
 		return Math.round(weightedCohesion / totalNodes * 100);
 	}
-	calculateCyclicDependencyRate(nodes, edges) {
+	calculateCyclicDependencyRate(edges) {
 		const cycleEdgeTypes = [
 			"call",
 			"extend",
@@ -759,7 +759,8 @@ var HealthScorer = class HealthScorer {
 
 //#endregion
 //#region src/shared/analysis/CycleDFS.ts
-function detectCyclesDFS(adjacency) {
+const MAX_CYCLES_DEFAULT = 1e3;
+function detectCyclesDFS(adjacency, maxCycles = MAX_CYCLES_DEFAULT) {
 	const visited = new Set();
 	const inStack = new Set();
 	const cycles = [];
@@ -777,6 +778,7 @@ function detectCyclesDFS(adjacency) {
 		path$1.push(start);
 		pathIndex.set(start, 0);
 		while (frames.length > 0) {
+			if (cycles.length >= maxCycles) return;
 			const frame = frames[frames.length - 1];
 			if (frame.next >= frame.neighbors.length) {
 				inStack.delete(frame.id);
@@ -794,6 +796,7 @@ function detectCyclesDFS(adjacency) {
 					if (!seenCycleKeys.has(cycleKey)) {
 						seenCycleKeys.add(cycleKey);
 						cycles.push([...cycleNodes, target]);
+						if (cycles.length >= maxCycles) return;
 					}
 				}
 			} else if (!visited.has(target)) {
@@ -809,7 +812,10 @@ function detectCyclesDFS(adjacency) {
 			}
 		}
 	};
-	for (const id of adjacency.keys()) if (!visited.has(id)) enter(id);
+	for (const id of adjacency.keys()) {
+		if (cycles.length >= maxCycles) break;
+		if (!visited.has(id)) enter(id);
+	}
 	return cycles;
 }
 
@@ -1125,7 +1131,7 @@ function toJsonValue(value) {
 }
 const GRAPH_CACHE_LIMIT = CACHE.GRAPH_CACHE_LIMIT;
 async function createGraphToolDeps() {
-	const [{ CodeGraphAdapter: CGA }, { LensAdapter: LA }] = await Promise.all([import("./CodeGraphAdapter-D6kzMylO.js"), import("./LensAdapter-B7SPGQsZ.js")]);
+	const [{ CodeGraphAdapter: CGA }, { LensAdapter: LA }] = await Promise.all([import("./CodeGraphAdapter-DAStoLYX.js"), import("./LensAdapter-BfMLy2m0.js")]);
 	return {
 		codegraphAdapter: new CGA(),
 		lensAdapter: new LA(),
@@ -1257,6 +1263,19 @@ const createGraphTools = async (ctx, options = {}) => {
 			schema: { type: "json" },
 			render: renderGraphStatus
 		},
+		presentCall: (args) => {
+			const a = args;
+			return {
+				card: "generic",
+				title: "Check graph status",
+				kind: "other",
+				rawInput: { repoId: a.repoId }
+			};
+		},
+		presentResult: (_args, result) => ({
+			card: "generic",
+			title: result.isError ? "Graph status failed" : "Graph status"
+		}),
 		execute: (args) => executeGraphStatus(args, invoke, deps)
 	});
 	const graphData = defineTool({
@@ -1283,6 +1302,22 @@ const createGraphTools = async (ctx, options = {}) => {
 			schema: { type: "json" },
 			render: renderGraphData
 		},
+		presentCall: (args) => {
+			const a = args;
+			return {
+				card: "generic",
+				title: "Fetch code graph",
+				kind: "fetch",
+				rawInput: {
+					repoId: a.repoId,
+					source: a.source ?? "both"
+				}
+			};
+		},
+		presentResult: (_args, result) => ({
+			card: "generic",
+			title: result.isError ? "Graph fetch failed" : "Code graph fetched"
+		}),
 		execute: (args) => executeGraphData(args, invoke, emitUpdate, emitData, graphCache, deps)
 	});
 	const graphSymbol = defineTool({
@@ -1297,6 +1332,19 @@ const createGraphTools = async (ctx, options = {}) => {
 			schema: { type: "json" },
 			render: renderGraphSymbol
 		},
+		presentCall: (args) => {
+			const a = args;
+			return {
+				card: "generic",
+				title: "Resolve symbol",
+				kind: "search",
+				rawInput: { symbolId: a.symbolId }
+			};
+		},
+		presentResult: (_args, result) => ({
+			card: "generic",
+			title: result.isError ? "Symbol resolution failed" : "Symbol resolved"
+		}),
 		execute: (args) => executeGraphSymbol(args, invoke)
 	});
 	const graphImpact = defineTool({
@@ -1311,6 +1359,19 @@ const createGraphTools = async (ctx, options = {}) => {
 			schema: { type: "json" },
 			render: renderGraphImpact
 		},
+		presentCall: (args) => {
+			const a = args;
+			return {
+				card: "generic",
+				title: "Analyze impact",
+				kind: "search",
+				rawInput: { symbolId: a.symbolId }
+			};
+		},
+		presentResult: (_args, result) => ({
+			card: "generic",
+			title: result.isError ? "Impact analysis failed" : "Impact analyzed"
+		}),
 		execute: (args) => executeGraphImpact(args, invoke)
 	});
 	const graphPathFind = defineTool({
@@ -1353,6 +1414,22 @@ const createGraphTools = async (ctx, options = {}) => {
 				}];
 			}
 		},
+		presentCall: (args) => {
+			const a = args;
+			return {
+				card: "generic",
+				title: "Find call path",
+				kind: "search",
+				rawInput: {
+					from: a.sourceSymbol,
+					to: a.targetSymbol
+				}
+			};
+		},
+		presentResult: (_args, result) => ({
+			card: "generic",
+			title: result.isError ? "Path search failed" : "Call path"
+		}),
 		execute: async (args) => {
 			const a = args;
 			const data = await fetchMergedGraph(invoke, a.repoId);
@@ -1394,6 +1471,19 @@ const createGraphTools = async (ctx, options = {}) => {
 				}];
 			}
 		},
+		presentCall: (args) => {
+			const a = args;
+			return {
+				card: "generic",
+				title: "Calculate health score",
+				kind: "other",
+				rawInput: { repoId: a.repoId }
+			};
+		},
+		presentResult: (_args, result) => ({
+			card: "generic",
+			title: result.isError ? "Health scoring failed" : "Health score"
+		}),
 		execute: async (args) => {
 			const a = args;
 			const data = await fetchMergedGraph(invoke, a.repoId);
@@ -1436,6 +1526,23 @@ const createGraphTools = async (ctx, options = {}) => {
 				}];
 			}
 		},
+		presentCall: (args) => {
+			const a = args;
+			return {
+				card: "generic",
+				title: "Check architecture rules",
+				kind: "other",
+				rawInput: {
+					repoId: a.repoId,
+					maxIndegree: a.maxIndegree ?? 10,
+					maxOutdegree: a.maxOutdegree ?? 15
+				}
+			};
+		},
+		presentResult: (_args, result) => ({
+			card: "generic",
+			title: result.isError ? "Rules check failed" : "Rules checked"
+		}),
 		execute: async (args) => {
 			const a = args;
 			const data = await fetchMergedGraph(invoke, a.repoId, "both", deps);
@@ -1491,6 +1598,19 @@ const createGraphTools = async (ctx, options = {}) => {
 				}];
 			}
 		},
+		presentCall: (args) => {
+			const a = args;
+			return {
+				card: "generic",
+				title: "Focus on symbol",
+				kind: "search",
+				rawInput: { symbolId: a.symbolId }
+			};
+		},
+		presentResult: (_args, result) => ({
+			card: "generic",
+			title: result.isError ? "Focus failed" : "Symbol neighborhood"
+		}),
 		execute: async (args) => {
 			const a = args;
 			const data = await fetchMergedGraph(invoke, a.repoId);
@@ -2204,11 +2324,9 @@ function extractBooleanField(obj, field) {
 	const v = obj[field];
 	return typeof v === "boolean" ? v : void 0;
 }
-const GIT_REF_PATTERN = /^[a-zA-Z0-9._/-]+$/;
+const GIT_REF_PATTERN = /^(?!.*\.\.)[a-zA-Z0-9._/-]+$/;
 function isSafeGitRef(ref) {
-	if (!GIT_REF_PATTERN.test(ref)) return false;
-	if (ref.includes("..")) return false;
-	return true;
+	return GIT_REF_PATTERN.test(ref);
 }
 async function validatePathRealpath(scanPath, securityManager) {
 	try {
@@ -2347,6 +2465,10 @@ function checkEtag(req, res, corsConfig, serverEtag) {
 	res.writeHead(304, corsHeaders);
 	res.end();
 	return true;
+}
+function returnIfEtagMatch(req, res, corsConfig, deps) {
+	const cachedData = deps.getLastGraphData();
+	return !!cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp));
 }
 function slimGraphData(data, maxNodes) {
 	const cap = maxNodes;
@@ -2609,6 +2731,38 @@ function mapDbEdgesToGraphEdges(dbEdges) {
 
 //#endregion
 //#region src/host/routes/dataRoutes.ts
+let _indexCacheFor = null;
+let _indexCache = null;
+function getGraphIndex(data) {
+	if (_indexCacheFor === data && _indexCache) return _indexCache;
+	_indexCacheFor = data;
+	const parentIdToChildren = new Map();
+	const filePathToNodeIds = new Map();
+	const nodeIdToFilePath = new Map();
+	const rootNodes = [];
+	for (const n of data.nodes) {
+		if (n.parentId) {
+			const siblings = parentIdToChildren.get(n.parentId);
+			if (siblings) siblings.push(n);
+			else parentIdToChildren.set(n.parentId, [n]);
+		} else rootNodes.push(n);
+		const fp = n.filePath;
+		if (fp) {
+			const ids = filePathToNodeIds.get(fp);
+			if (ids) ids.add(n.id);
+			else filePathToNodeIds.set(fp, new Set([n.id]));
+		}
+		nodeIdToFilePath.set(n.id, n.filePath);
+	}
+	for (const children of parentIdToChildren.values()) children.sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+	_indexCache = {
+		parentIdToChildren,
+		filePathToNodeIds,
+		nodeIdToFilePath,
+		rootNodes
+	};
+	return _indexCache;
+}
 function registerDataRoute(rc) {
 	const { deps, corsConfig, rateLimiter } = rc;
 	const { ctx } = deps;
@@ -2617,8 +2771,8 @@ function registerDataRoute(rc) {
 		kind: "exact",
 		path: routePath,
 		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, (req, res) => {
+			if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
 			const lastGraphData = deps.getLastGraphData();
-			if (lastGraphData && checkEtag(req, res, corsConfig, String(lastGraphData.metadata.timestamp))) return;
 			if (lastGraphData) {
 				const payload = JSON.stringify(lastGraphData);
 				if (payload.length > API.DATA_RESPONSE_MAX_BYTES) {
@@ -2659,8 +2813,7 @@ function registerBootstrapRoute(rc) {
 		path: routePath,
 		handler: withRouteMiddleware("GET", routePath, corsConfig, rateLimiter, async (req, res) => {
 			const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
-			const cachedData = deps.getLastGraphData();
-			if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) return;
+			if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
 			if (workspacePath) {
 				const dbPath = resolveDbPath(workspacePath);
 				const dbResult = readTopLevelNodesFromDb(dbPath, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
@@ -2687,7 +2840,7 @@ function registerBootstrapRoute(rc) {
 			}
 			const lastGraphData = deps.getLastGraphData();
 			if (lastGraphData && lastGraphData.nodes.length > 0) {
-				const allRootNodes = lastGraphData.nodes.filter((n) => !n.parentId);
+				const allRootNodes = getGraphIndex(lastGraphData).rootNodes;
 				const topLevelNodes = allRootNodes.slice(0, BOOTSTRAP.TOP_LEVEL_NODE_LIMIT);
 				const topLevelIds = new Set(topLevelNodes.map((n) => n.id));
 				const rootEdges = lastGraphData.edges.filter((e) => topLevelIds.has(e.source) && topLevelIds.has(e.target));
@@ -2739,8 +2892,7 @@ function registerNodeChildrenRoute(rc) {
 			}
 			const cursor = url.searchParams.get("cursor") ?? null;
 			const limit = parseInt(url.searchParams.get("limit") ?? String(BOOTSTRAP.CHILDREN_PAGE_SIZE), 10) || BOOTSTRAP.CHILDREN_PAGE_SIZE;
-			const cachedData = deps.getLastGraphData();
-			if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) return;
+			if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
 			const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
 			if (workspacePath) {
 				const dbPath = resolveDbPath(workspacePath);
@@ -2762,7 +2914,7 @@ function registerNodeChildrenRoute(rc) {
 			}
 			const lastGraphData = deps.getLastGraphData();
 			if (lastGraphData && lastGraphData.nodes.length > 0) {
-				const children = lastGraphData.nodes.filter((n) => n.parentId === nodeId).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+				const children = getGraphIndex(lastGraphData).parentIdToChildren.get(nodeId) ?? [];
 				const startIdx = cursor ? Math.max(0, children.findIndex((n) => n.id > cursor)) : 0;
 				const page = children.slice(startIdx, startIdx + limit);
 				const childIds = new Set(page.map((n) => n.id));
@@ -2804,14 +2956,13 @@ function registerFileOutlineRoute(rc) {
 				sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
 				return;
 			}
-			const cachedData = deps.getLastGraphData();
-			if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) return;
+			if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
 			const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
 			if (workspacePath) {
 				const dbPath = resolveDbPath(workspacePath);
 				const dbResult = readFileOutlineFromDb(dbPath, nodeId);
 				if (dbResult && dbResult.nodes.length > 0) {
-					const symbols$1 = mapDbNodesToGraphNodes(dbResult.nodes, nodeId);
+					const symbols$1 = mapDbNodesToGraphNodes(dbResult.nodes, nodeId).slice(0, FILE_OUTLINE.MAX_SYMBOLS);
 					const symbolIds$1 = new Set(symbols$1.map((n) => n.id));
 					const dbEdges = readEdgesForNodesFromDb(dbPath, [...symbolIds$1]);
 					const symbolEdges$1 = mapDbEdgesToGraphEdges(dbEdges);
@@ -2830,7 +2981,7 @@ function registerFileOutlineRoute(rc) {
 				}, req, corsConfig);
 				return;
 			}
-			const symbols = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
+			const symbols = (getGraphIndex(lastGraphData).parentIdToChildren.get(nodeId) ?? []).slice(0, FILE_OUTLINE.MAX_SYMBOLS);
 			const symbolIds = new Set(symbols.map((n) => n.id));
 			const symbolEdges = lastGraphData.edges.filter((e) => symbolIds.has(e.source) && symbolIds.has(e.target));
 			sendJson(res, 200, {
@@ -2859,8 +3010,7 @@ function registerSymbolASTRoute(rc) {
 				sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
 				return;
 			}
-			const cachedData = deps.getLastGraphData();
-			if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) return;
+			if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
 			const budget = Math.min(parseInt(url.searchParams.get("budget") ?? String(SYMBOL_AST.MAX_NODES), 10), SYMBOL_AST.MAX_NODES);
 			const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
 			if (workspacePath) {
@@ -2892,7 +3042,7 @@ function registerSymbolASTRoute(rc) {
 				}, req, corsConfig);
 				return;
 			}
-			const allAstNodes = lastGraphData.nodes.filter((n) => n.parentId === nodeId);
+			const allAstNodes = getGraphIndex(lastGraphData).parentIdToChildren.get(nodeId) ?? [];
 			const hasMore = allAstNodes.length > budget;
 			const astNodes = hasMore ? allAstNodes.slice(0, budget) : allAstNodes;
 			const astNodeIds = new Set(astNodes.map((n) => n.id));
@@ -2924,8 +3074,7 @@ function registerEdgesRoute(rc) {
 				sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
 				return;
 			}
-			const cachedData = deps.getLastGraphData();
-			if (cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp))) return;
+			if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
 			const workspacePath = resolveWorkspaceFromRequest(req, ctx, deps);
 			if (workspacePath) {
 				const dbPath = resolveDbPath(workspacePath);
@@ -2946,23 +3095,31 @@ function registerEdgesRoute(rc) {
 				let filteredEdges;
 				if (scope === "symbol") filteredEdges = lastGraphData.edges.filter((e) => e.source === fromId || e.target === fromId);
 				else {
+					const index$1 = getGraphIndex(lastGraphData);
 					const nodeIds = new Set();
 					const nodeFilePaths = new Map();
-					for (const n of lastGraphData.nodes) if (n.filePath === fromId || n.id === fromId) {
-						nodeIds.add(n.id);
-						nodeFilePaths.set(n.id, n.filePath);
+					const fpNodeIds = index$1.filePathToNodeIds.get(fromId);
+					if (fpNodeIds) for (const id of fpNodeIds) {
+						nodeIds.add(id);
+						nodeFilePaths.set(id, fromId);
+					}
+					const selfFp = index$1.nodeIdToFilePath.get(fromId);
+					if (selfFp !== void 0 && !nodeIds.has(fromId)) {
+						nodeIds.add(fromId);
+						nodeFilePaths.set(fromId, selfFp);
 					}
 					filteredEdges = lastGraphData.edges.filter((e) => nodeIds.has(e.source) || nodeIds.has(e.target));
 					if (!aggregated && filteredEdges.length > EDGES_AGGREGATION.THRESHOLD) {
+						const nodeIdToFilePath = index$1.nodeIdToFilePath;
 						const filePairCounts = new Map();
 						for (const e of filteredEdges) {
-							const srcFile = nodeFilePaths.get(e.source) ?? lastGraphData.nodes.find((n) => n.id === e.source)?.filePath ?? "?";
-							const tgtFile = nodeFilePaths.get(e.target) ?? lastGraphData.nodes.find((n) => n.id === e.target)?.filePath ?? "?";
-							const pairKey = srcFile < tgtFile ? `${srcFile}→${tgtFile}` : `${tgtFile}→${srcFile}`;
+							const srcFile = nodeFilePaths.get(e.source) ?? nodeIdToFilePath.get(e.source) ?? "?";
+							const tgtFile = nodeFilePaths.get(e.target) ?? nodeIdToFilePath.get(e.target) ?? "?";
+							const pairKey = srcFile < tgtFile ? `${srcFile}\0${tgtFile}` : `${tgtFile}\0${srcFile}`;
 							filePairCounts.set(pairKey, (filePairCounts.get(pairKey) ?? 0) + 1);
 						}
 						const aggregatedEdges = [...filePairCounts.entries()].map(([pairKey, count]) => {
-							const [fileA, fileB] = pairKey.split("→");
+							const [fileA, fileB] = pairKey.split("\0");
 							return {
 								id: EdgeId(`agg:${pairKey}`),
 								source: NodeId(fromId),
@@ -4643,10 +4800,8 @@ const GEN2_MAPPING = {
 	codegraphBootstrap: "codegraph_bootstrap",
 	codegraphIncremental: "codegraph_incremental"
 };
-const GEN3_MAPPING = { ...GEN2_MAPPING };
 function createToolNameMapping(info) {
 	if (info.generation === "gen1") return GEN1_MAPPING;
-	if (info.generation === "gen3") return GEN3_MAPPING;
 	return GEN2_MAPPING;
 }
 function createApiCompatLayer(info) {
@@ -4820,8 +4975,7 @@ var GraphRepository = class {
 	saveAnalysis(repoId, type, result, targetNode) {
 		if (!this.db) return;
 		try {
-			this.db.prepare(`DELETE FROM analysis_results WHERE repo_id = ? AND analysis_type = ? AND IFNULL(target_node, '') = IFNULL(?, '')`).run(repoId, type, targetNode ?? null);
-			this.db.prepare(`INSERT INTO analysis_results (repo_id, analysis_type, target_node, result, created_at) VALUES (?, ?, ?, ?, ?)`).run(repoId, type, targetNode ?? null, result, Date.now());
+			this.db.prepare(`INSERT OR REPLACE INTO analysis_results (repo_id, analysis_type, target_node, result, created_at) VALUES (?, ?, ?, ?, ?)`).run(repoId, type, targetNode ?? null, result, Date.now());
 		} catch (e) {
 			log$1.warn("saveAnalysis failed", e);
 		}

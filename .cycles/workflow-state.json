@@ -1,7 +1,12 @@
 {
   "currentPhase": "complete",
-  "currentCycle": "cycle-66",
+  "currentCycle": "cycle-67",
   "phaseHistory": [
+    {
+      "cycle": "cycle-67",
+      "phase": "complete",
+      "result": "P0-1 presentCall/presentResult UI呈现(8个图谱工具实现纯函数presentCall+presentResult,GenericCallView with title/kind/rawInput+GenericResultView with error-aware title)+P0-2 useGraphRenderer测试补全(+16用例:applyConnectionFilters/setTodoMarkerMode/search匹配计数/cycleIsolation isolateCycles+relayoutCycles+restoreIsolation/虚拟滚动enable+disable/layout applyLayout/updateData+setRawNodes/4种额外导出格式mermaid-seq+mermaid-class+graphml+jsonld)+P0-3 dataRoutes etag重复模式提取(新增returnIfEtagMatch辅助函数到shared.ts,6个路由3行etag模式替换为1行调用,移除未使用checkEtag导入). 4723测试通过,lint零警告,typecheck通过,build成功. G3 Chrome DevTools MCP验证:代码图谱可视化区域完整渲染,22+工具栏按钮全部可见,无console错误"
+    },
     {
       "cycle": "cycle-66",
       "phase": "complete",
@@ -130,5 +135,5 @@
   ],
   "nodeStatus": {},
   "createdAt": "2026-09-21T14:25:00.105Z",
-  "updatedAt": "2026-10-02T14:30:00.000Z"
+  "updatedAt": "2026-10-02T15:00:00.000Z"
 }

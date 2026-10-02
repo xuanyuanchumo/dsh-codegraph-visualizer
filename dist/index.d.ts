@@ -311,10 +311,72 @@ declare module '@deepseek-ai/cordis' {
         title?: (address: string) => string;
       }): (() => void) | void;
     };
+    remoteWebUI?: {
+      version: string;
+      features: string[];
+      registerPanel(descriptor: {
+        id: string;
+        title: string | (() => string);
+        description?: string | (() => string);
+        icon?: unknown;
+        order?: number;
+        single?: boolean;
+        hidden?: boolean;
+        badge?: () => string | number | null | undefined;
+        onOpen?: (panel: unknown, scope: unknown) => void;
+        onActivate?: (panel: unknown, scope: unknown) => void;
+        onClose?: (panel: unknown, scope: unknown) => void;
+        component: (props: {
+          ctx: Context;
+          store: unknown;
+          scope: unknown;
+          panel: {
+            id: string;
+            title: string;
+            path?: string;
+          };
+          visible: boolean;
+          expanded?: string[];
+          revealed?: string[];
+        }) => unknown;
+      }): (() => void) | void;
+      openPanel(seed: {
+        type: string;
+        title?: string;
+        path?: string;
+      }): void;
+      closePanel(panelId: string, scope?: unknown): void;
+      activatePanel(panelId: string, scope?: unknown): void;
+      updatePanel(panelId: string, patch: {
+        title?: string;
+        path?: string;
+        meta?: unknown;
+      }): void;
+      subscribe(listener: () => void): () => void;
+      subscribeState(listener: () => void): () => void;
+      getSnapshot(): {
+        sessionId: string | undefined;
+        state: {
+          activePane: string | null;
+          panelOpen: boolean;
+          expanded: string[];
+          revealed: string[];
+        } | undefined;
+        prefs: unknown;
+      };
+    };
     workspaceRegistry?: {
       list?(): Array<{
         path?: string;
       }>;
+    };
+    hostVersion?: string;
+    version?: string;
+    app?: {
+      version?: string;
+    };
+    runtime?: {
+      version?: string;
     };
   }
 }

@@ -6,6 +6,8 @@ export { usePanelResize } from './usePanelResize.ts';
 export { useSearchInteraction } from './useSearchInteraction.ts';
 export { useFocusMode } from './useFocusMode.ts';
 export { useNodeInteraction } from './useNodeInteraction.ts';
+export { useGraphDerivedValues } from './useGraphDerivedValues.ts';
+export { useWorkspaceHandlers } from './useWorkspaceHandlers.ts';
 export { usePanelState } from './usePanelState.ts';
 export { usePanelKeyboard } from './usePanelKeyboard.ts';
 export { useViewMode } from './useViewMode.ts';

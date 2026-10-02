@@ -7,6 +7,7 @@ import type { ClusterNode } from './store/cluster/index.ts';
 import { NodeId } from '../types/index.ts';
 import { usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard, useViewMode, useAnalysisPanels,
   useGraphData, useGraphDisplay, useGraphInteraction, useGraphStatus, useGraphWorkspace, useGraphAnalysis, useGraphPerformance, useGraphActions, usePanelDimensions,
+  useGraphDerivedValues, useWorkspaceHandlers,
 } from './hooks/index.ts';
 import { updateUrlExpand } from './utils/urlState.ts';
 
@@ -35,7 +36,7 @@ import { KeyboardHelp } from './components/KeyboardHelp.tsx';
 import { EmptyState } from './components/EmptyState.tsx';
 import { FocusModeBar } from './components/FocusModeBar.tsx';
 import { StatusBar } from './components/StatusBar.tsx';
-import { buildTour } from '../shared/analysis/TourBuilder.ts';
+
 import { MicroViewPrompt, MicroFunctionBar } from './components/MicroViewBar.tsx';
 import { GraphIcon } from './components/Icons.tsx';
 import { OverlayBar } from './components/OverlayBar.tsx';
@@ -161,16 +162,9 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     return () => window.removeEventListener(DOM_EVENTS.WORKSPACE, handler);
   }, []);
 
-  const handleWorkspaceSwitch = useCallback((path: string) => {
-    setCurrentWorkspace(path);
-    dispatchCgEvent(DOM_EVENTS.WORKSPACE, { path });
-  }, [setCurrentWorkspace]);
-
-  const handleWorkspaceAdd = useCallback((path: string) => {
-    addWorkspace(path, path.split(/[\\/]/).pop() || path);
-    dispatchCgEvent(DOM_EVENTS.WORKSPACE, { path });
-    dispatchCgEvent(DOM_EVENTS.IMPORT_REPO, { path });
-  }, [addWorkspace]);
+  const { handleWorkspaceSwitch, handleWorkspaceAdd } = useWorkspaceHandlers({
+    setCurrentWorkspace, addWorkspace,
+  });
 
   const handleNodeDoubleTapRef = useRef<(nodeId: string) => void>(() => {});
 
@@ -380,37 +374,11 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     handleScanWorkspace,
   });
 
-  const statsText = useMemo(() => {
-    const totalNodes = diagramData?.allNodes.length ?? nodes.length;
-    const totalEdges = diagramData?.allEdges.length ?? edges.length;
-    return t('stats.nodesEdges', { nodes: totalNodes, edges: totalEdges });
-  }, [nodes.length, edges.length, diagramData, t]);
-
-  const expandedFunctionBodyCount = useMemo(() => {
-    const functionIdSet = new Set(rawNodes.filter(n => n.type === 'function').map(n => n.id as string));
-    return [...expandedNodeIds].filter(id => functionIdSet.has(id)).length;
-  }, [expandedNodeIds, rawNodes]);
-
-  const showFunctionBodyBudget = expandedFunctionBodyCount > 0;
-
-
-  const nodeTypeCounts = useMemo(() => {
-    const counts = { function: 0, class: 0, variable: 0, module: 0, interface: 0, type: 0 };
-    for (const n of rawNodes) { if (n.type in counts) counts[n.type as keyof typeof counts]++; }
-    return counts;
-  }, [rawNodes]);
-
-  const cycleDetails = useMemo(() => {
-    if (!panel.showCycles) return [];
-    return renderer.rendererRef.current?.detectCyclesDetailed() ?? [];
-  }, [panel.showCycles, nodes.length, edges.length, renderer.rendererRef]);
-
-  const tourData = useMemo(() => buildTour(rawNodes, rawEdges), [rawNodes, rawEdges]);
-
-  const panelClassName = useMemo(() =>
-    `cg-graph-panel cg-resizable ${panel.collapsed ? 'cg-collapsed' : ''} ${className}`.trim(),
-    [panel.collapsed, className],
-  );
+  const { statsText, expandedFunctionBodyCount, showFunctionBodyBudget, nodeTypeCounts, cycleDetails, tourData, panelClassName } = useGraphDerivedValues({
+    nodes, edges, rawNodes, rawEdges, diagramData, expandedNodeIds,
+    showCycles: panel.showCycles, collapsed: panel.collapsed, className,
+    rendererRef: renderer.rendererRef, t,
+  });
 
   const isCollapsed = panel.collapsed;
   const isMicroView = viewMode === 'cfg' || viewMode === 'flowchart' || viewMode === 'sequence';
