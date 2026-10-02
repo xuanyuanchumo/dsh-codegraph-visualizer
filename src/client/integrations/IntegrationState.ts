@@ -9,12 +9,11 @@ export class IntegrationState {
   navButtonRegistered = false;
   betterSidebarApi: Context['betterSidebar'] | undefined;
   betterSidebarTabId: string | undefined;
-  sidebarStateDisposer: (() => void) | undefined;
   remoteWebUiApi: Context['remoteWebUI'] | undefined;
   remoteWebUiPanelId: string | undefined;
-  remoteWebUiStateDisposer: (() => void) | undefined;
   slotDisposers: Array<() => void> = [];
   renderFloating: () => void = () => {};
+  private allDisposers: Array<() => void> = [];
 
   constructor(
     public ctx: Context,
@@ -23,12 +22,38 @@ export class IntegrationState {
     ctx.effect(() => () => {
       for (const dispose of this.slotDisposers) dispose();
       this.slotDisposers.length = 0;
+      for (const dispose of this.allDisposers) {
+        try { dispose(); } catch { /* ignore */ }
+      }
+      this.allDisposers.length = 0;
     }, 'codegraph: slot registrations cleanup');
   }
 
   trackSlotDisposer(d: (() => void) | void): void {
     if (typeof d === 'function') this.slotDisposers.push(d);
   }
+
+  trackDisposer(d: (() => void) | void): void {
+    if (typeof d === 'function') this.allDisposers.push(d);
+  }
+
+  get sidebarStateDisposer(): (() => void) | undefined {
+    return this._sidebarStateDisposer;
+  }
+  set sidebarStateDisposer(d: (() => void) | undefined) {
+    this._sidebarStateDisposer = d;
+    if (d) this.allDisposers.push(d);
+  }
+  private _sidebarStateDisposer: (() => void) | undefined;
+
+  get remoteWebUiStateDisposer(): (() => void) | undefined {
+    return this._remoteWebUiStateDisposer;
+  }
+  set remoteWebUiStateDisposer(d: (() => void) | undefined) {
+    this._remoteWebUiStateDisposer = d;
+    if (d) this.allDisposers.push(d);
+  }
+  private _remoteWebUiStateDisposer: (() => void) | undefined;
 
   openSidebarTab(): void {
     if (this.betterSidebarApi) {

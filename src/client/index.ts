@@ -11,6 +11,7 @@ import { resetI18nListeners } from './i18n/index.ts';
 import { disposeStore } from './store/graphStore.ts';
 import { createClientCompatLayer } from './compat/ClientCompatLayer.ts';
 import { IntegrationState } from './integrations/IntegrationState.ts';
+import { integrateConversationView } from './integrations/ConversationViewIntegration.ts';
 import { integrateSidebarRightTabs } from './integrations/SidebarRightTabsIntegration.ts';
 import { integrateBetterSidebar } from './integrations/BetterSidebarIntegration.ts';
 import { integrateRemoteWebUi } from './integrations/RemoteWebUiIntegration.ts';
@@ -47,6 +48,7 @@ export function apply(ctx: Context): () => void {
 
   const state = new IntegrationState(ctx, compat.flags);
 
+  integrateConversationView(state);
   integrateSidebarRightTabs(state);
   integrateBetterSidebar(state);
   integrateRemoteWebUi(state);

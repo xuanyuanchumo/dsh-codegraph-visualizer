@@ -123,6 +123,7 @@ function makeProps(overrides: Record<string, unknown> = {}) {
 
   return {
     statsText: '50 nodes',
+    hasData: true,
     typeCounts: { function: 10, class: 5, interface: 3 },
     theme: 'dark' as ThemeType,
     collapsed: false,

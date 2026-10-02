@@ -72,6 +72,7 @@ describe('ClientCompatLayer', () => {
         spotlight: false,
         slots: false,
         remoteWebUi: false,
+        conversationView: false,
       } satisfies ClientFeatureFlags);
     });
   });
@@ -88,9 +89,9 @@ describe('ClientCompatLayer', () => {
       expect(layer.detectMode(ctx)).toBe<SidebarIntegrationMode>('better-sidebar');
     });
 
-    it('returns slot when ctx.slots is present', () => {
+    it('returns conversation-view when ctx.slots is present', () => {
       const ctx = makeCtx({ slots: { inject: () => () => {} } });
-      expect(layer.detectMode(ctx)).toBe<SidebarIntegrationMode>('slot');
+      expect(layer.detectMode(ctx)).toBe<SidebarIntegrationMode>('conversation-view');
     });
 
     it('returns remote-web-ui when remoteWebUI service is available', () => {
@@ -130,7 +131,7 @@ describe('ClientCompatLayer', () => {
 
     it('treats undefined sidebarRightTabs as absent and falls through', () => {
       const ctx = makeCtx({ sidebarRightTabs: undefined, slots: {} });
-      expect(layer.detectMode(ctx)).toBe('slot');
+      expect(layer.detectMode(ctx)).toBe('conversation-view');
     });
 
     it('falls back to floating when sidebarRightTabs access throws', () => {
@@ -140,8 +141,8 @@ describe('ClientCompatLayer', () => {
 
     it('falls back when ctx.get throws (better-sidebar check degrades safely)', () => {
       const ctx = makeCtx({ getThrows: true, slots: {} });
-      // sidebarRightTabs absent, get throws → better-sidebar false, slots present → slot
-      expect(layer.detectMode(ctx)).toBe('slot');
+      // sidebarRightTabs absent, get throws → better-sidebar false, slots present → conversation-view
+      expect(layer.detectMode(ctx)).toBe('conversation-view');
     });
 
     it('falls back to floating when slots access throws', () => {
@@ -185,6 +186,7 @@ describe('ClientCompatLayer', () => {
         spotlight: false,
         slots: false,
         remoteWebUi: false,
+        conversationView: false,
       } satisfies ClientFeatureFlags);
     });
 
@@ -225,6 +227,51 @@ describe('ClientCompatLayer', () => {
       expect(layer.hasFlag('betterSidebar')).toBe(false);
       expect(layer.hasFlag('spotlight')).toBe(false);
       expect(layer.hasFlag('slots')).toBe(false);
+    });
+  });
+
+  describe('detectVersion', () => {
+    it('defaults to unknown generation before detection', () => {
+      expect(layer.generation).toBe('unknown');
+      expect(layer.isGen1()).toBe(false);
+      expect(layer.isGen2()).toBe(false);
+      expect(layer.isGen3()).toBe(false);
+    });
+
+    it('detects gen2 when sidebarRightTabs is present', () => {
+      const ctx = makeCtx({ sidebarRightTabs: {} });
+      layer.detectVersion(ctx);
+      expect(layer.isGen2()).toBe(true);
+    });
+
+    it('detects gen2 when remoteWebUI is present', () => {
+      const ctx = makeCtx({ remoteWebUI: {} });
+      layer.detectVersion(ctx);
+      expect(layer.isGen2()).toBe(true);
+    });
+
+    it('detects gen2 when betterSidebar is present', () => {
+      const ctx = makeCtx({ betterSidebar: {} });
+      layer.detectVersion(ctx);
+      expect(layer.isGen2()).toBe(true);
+    });
+
+    it('detects gen2 when slots are present', () => {
+      const ctx = makeCtx({ slots: { inject: () => {}, register: () => {} } });
+      layer.detectVersion(ctx);
+      expect(layer.isGen2()).toBe(true);
+    });
+
+    it('detects gen1 when only spotlight is present', () => {
+      const ctx = makeCtx({ spotlight: {} });
+      layer.detectVersion(ctx);
+      expect(layer.isGen1()).toBe(true);
+    });
+
+    it('returns unknown when nothing is available', () => {
+      const ctx = makeCtx({});
+      layer.detectVersion(ctx);
+      expect(layer.generation).toBe('unknown');
     });
   });
 });

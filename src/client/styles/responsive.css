@@ -761,3 +761,165 @@
     }
   }
 }
+/* ---- Conversation View Integration Mode ----------------------------------- */
+
+/* When integrated into DSH's conversation.view slot, the panel fills the
+ * conversation area. Toolbar is always visible; graph canvas fills remaining
+ * space. The panel must not collapse or float — it's the primary view. */
+[data-cg-integration="conversation-view"] {
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+}
+
+[data-cg-integration="conversation-view"] .cg-graph-toolbar {
+  display: flex;
+  flex-shrink: 0;
+}
+
+[data-cg-integration="conversation-view"] .cg-graph-container {
+  flex: 1;
+  min-height: 0;
+}
+
+[data-cg-integration="conversation-view"] .cg-collapse-fab {
+  display: none;
+}
+
+[data-cg-integration="conversation-view"] .cg-status-bar {
+  flex-shrink: 0;
+}
+
+/* Conversation view header (custom header added by ConversationViewIntegration) */
+.cg-conversation-view-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--cg-border, #e0e0e0);
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cg-text, inherit);
+}
+
+/* In conversation-view mode, the panel should not have its own border/radius
+ * since it's embedded in the DSH conversation area */
+[data-cg-integration="conversation-view"].cg-graph-panel {
+  border: none;
+  border-radius: 0;
+}
+/* ---- Sidebar Right Tab Integration Mode ----------------------------------- */
+
+/* When integrated into DSH's sidebar.right.pane.tab, the panel is in a
+ * right sidebar tab. Width is typically 300-500px, height is full window. */
+[data-cg-integration="sidebar-right"] {
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+[data-cg-integration="sidebar-right"] .cg-graph-toolbar {
+  display: flex;
+  flex-shrink: 0;
+}
+
+[data-cg-integration="sidebar-right"] .cg-graph-container {
+  flex: 1;
+  min-height: 0;
+}
+
+[data-cg-integration="sidebar-right"] .cg-collapse-fab {
+  display: none;
+}
+
+[data-cg-integration="sidebar-right"].cg-graph-panel {
+  border: none;
+  border-radius: 0;
+}
+
+/* ---- Better Sidebar Integration Mode -------------------------------------- */
+
+/* When integrated via betterSidebar API, the panel is in a sidebar tab.
+ * Similar to sidebar-right but may have different container constraints. */
+[data-cg-integration="better-sidebar"] {
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+}
+
+[data-cg-integration="better-sidebar"] .cg-graph-toolbar {
+  display: flex;
+  flex-shrink: 0;
+}
+
+[data-cg-integration="better-sidebar"] .cg-graph-container {
+  flex: 1;
+  min-height: 0;
+}
+
+[data-cg-integration="better-sidebar"] .cg-collapse-fab {
+  display: none;
+}
+
+[data-cg-integration="better-sidebar"].cg-graph-panel {
+  border: none;
+  border-radius: 0;
+}
+
+/* ---- Remote Web UI Integration Mode --------------------------------------- */
+
+/* When integrated via remoteWebUI API, the panel is in a remote panel. */
+[data-cg-integration="remote-web-ui"] {
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+}
+
+[data-cg-integration="remote-web-ui"] .cg-graph-toolbar {
+  display: flex;
+  flex-shrink: 0;
+}
+
+[data-cg-integration="remote-web-ui"] .cg-graph-container {
+  flex: 1;
+  min-height: 0;
+}
+
+[data-cg-integration="remote-web-ui"] .cg-collapse-fab {
+  display: none;
+}
+
+[data-cg-integration="remote-web-ui"].cg-graph-panel {
+  border: none;
+  border-radius: 0;
+}
+
+/* ---- Toolbar always visible in non-floating modes -------------------------- */
+/* In all sidebar/slot integration modes, the toolbar must remain visible
+ * even when there's no graph data. The toolbar is the primary interaction
+ * surface and should not disappear. */
+[data-cg-integration="conversation-view"] .cg-graph-toolbar,
+[data-cg-integration="sidebar-right"] .cg-graph-toolbar,
+[data-cg-integration="better-sidebar"] .cg-graph-toolbar,
+[data-cg-integration="remote-web-ui"] .cg-graph-toolbar {
+  display: flex !important;
+}
+
+/* ---- Desktop vs Web distinction ------------------------------------------- */
+/* On desktop platforms, the panel may have more space. On web, it's
+ * constrained by the browser window. */
+@media (min-width: 1024px) {
+  [data-cg-integration="conversation-view"] .cg-graph-toolbar {
+    padding: 0 12px;
+    gap: 8px;
+  }
+}

@@ -392,6 +392,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
       <Toolbar
         statsText={statsText}
+        hasData={nodes.length > 0}
         typeCounts={{ function: nodeTypeCounts.function, class: nodeTypeCounts.class, interface: nodeTypeCounts.interface }}
         theme={theme}
         collapsed={panel.collapsed}

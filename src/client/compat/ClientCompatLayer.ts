@@ -1,10 +1,11 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { scoped } from '../../shared/Logger.ts';
 import { safeCheck } from '../utils/safeCheck.ts';
+import { detectClientVersion, type ClientVersionInfo, type ClientGeneration } from './ClientVersionDetector.ts';
 
 const log = scoped('client:compat');
 
-export type SidebarIntegrationMode = 'sidebar-right' | 'better-sidebar' | 'slot' | 'floating' | 'remote-web-ui';
+export type SidebarIntegrationMode = 'sidebar-right' | 'better-sidebar' | 'slot' | 'floating' | 'remote-web-ui' | 'conversation-view';
 
 export interface ClientFeatureFlags {
   sidebarRightTabs: boolean;
@@ -12,14 +13,21 @@ export interface ClientFeatureFlags {
   spotlight: boolean;
   slots: boolean;
   remoteWebUi: boolean;
+  conversationView: boolean;
 }
 
 export interface ClientCompatLayer {
   mode: SidebarIntegrationMode;
   flags: ClientFeatureFlags;
+  versionInfo: ClientVersionInfo;
+  generation: ClientGeneration;
   detectMode(ctx: Context): SidebarIntegrationMode;
   detectFlags(ctx: Context): ClientFeatureFlags;
+  detectVersion(ctx: Context): ClientVersionInfo;
   hasFlag(key: keyof ClientFeatureFlags): boolean;
+  isGen1(): boolean;
+  isGen2(): boolean;
+  isGen3(): boolean;
 }
 
 export function createClientCompatLayer(): ClientCompatLayer {
@@ -30,6 +38,13 @@ export function createClientCompatLayer(): ClientCompatLayer {
     spotlight: false,
     slots: false,
     remoteWebUi: false,
+    conversationView: false,
+  };
+  let _versionInfo: ClientVersionInfo = { raw: 'unknown', major: 0, minor: 0, patch: 0, generation: 'unknown' };
+
+  const detectVersion = (ctx: Context): ClientVersionInfo => {
+    _versionInfo = detectClientVersion(ctx);
+    return _versionInfo;
   };
 
   const detectMode = (ctx: Context): SidebarIntegrationMode => {
@@ -55,7 +70,7 @@ export function createClientCompatLayer(): ClientCompatLayer {
       return _mode;
     }
     if (safeCheck(() => ctx.slots !== null && ctx.slots !== undefined, false)) {
-      _mode = 'slot';
+      _mode = 'conversation-view';
       return _mode;
     }
     _mode = 'floating';
@@ -81,18 +96,32 @@ export function createClientCompatLayer(): ClientCompatLayer {
         const rui = ctx.get('remoteWebUI');
         return rui !== null && rui !== undefined;
       }, false),
+      conversationView: safeCheck(() => {
+        const slots = ctx.slots;
+        if (!slots) return false;
+        return typeof slots.inject === 'function' && typeof slots.register === 'function';
+      }, false),
     };
-    log.info('client feature flags resolved', { flags: _flags, mode: _mode });
+    log.info('client feature flags resolved', { flags: _flags, mode: _mode, generation: _versionInfo.generation });
     return _flags;
   };
 
   const hasFlag = (key: keyof ClientFeatureFlags): boolean => _flags[key];
+  const isGen1 = (): boolean => _versionInfo.generation === 'gen1';
+  const isGen2 = (): boolean => _versionInfo.generation === 'gen2';
+  const isGen3 = (): boolean => _versionInfo.generation === 'gen3';
 
   return {
     get mode() { return _mode; },
     get flags() { return _flags; },
+    get versionInfo() { return _versionInfo; },
+    get generation() { return _versionInfo.generation; },
     detectMode,
     detectFlags,
+    detectVersion,
     hasFlag,
+    isGen1,
+    isGen2,
+    isGen3,
   };
 }

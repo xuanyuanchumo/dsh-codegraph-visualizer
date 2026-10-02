@@ -300,6 +300,7 @@ export const UI = {
     slot: { width: 220, height: 200 },
     floating: { width: 320, height: 240 },
     'remote-web-ui': { width: 320, height: 240 },
+    'conversation-view': { width: 280, height: 200 },
     unknown: { width: 320, height: 240 },
   } as const,
   TOOLBAR_BREAKPOINT_COMPACT_PX: 768,
@@ -318,7 +319,7 @@ export const UI = {
   WORKSPACE_LIST_MAX: 10,
   MAX_FUNCTIONS_PER_CLUSTER: 50,
 } as const;
-export type IntegrationMode = 'better-sidebar' | 'slot' | 'floating' | 'unknown' | 'sidebar-right' | 'remote-web-ui';
+export type IntegrationMode = 'better-sidebar' | 'slot' | 'floating' | 'unknown' | 'sidebar-right' | 'remote-web-ui' | 'conversation-view';
 
 export function getMinPanelSize(mode: IntegrationMode): { minWidth: number; minHeight: number } {
   const cfg = UI.PANEL_MIN_SIZE[mode] ?? UI.PANEL_MIN_SIZE.unknown;

@@ -9,6 +9,7 @@ export interface DropdownProps {
   triggerAriaLabel: string;
   triggerContent: ReactNode;
   triggerAriaHasPopup?: 'menu' | 'true' | 'false';
+  triggerDisabled?: boolean;
   contentClassName?: string;
   contentRole?: string;
   children: DropdownChildren;
@@ -23,6 +24,7 @@ export const Dropdown = memo(function Dropdown({
   triggerAriaLabel,
   triggerContent,
   triggerAriaHasPopup,
+  triggerDisabled = false,
   contentClassName = 'cg-dropdown-content',
   contentRole,
   children,
@@ -34,12 +36,13 @@ export const Dropdown = memo(function Dropdown({
   const [open, setOpen] = useState(false);
 
   const toggle = useCallback(() => {
+    if (triggerDisabled) return;
     setOpen((v) => {
       const next = !v;
       onOpenChange?.(next);
       return next;
     });
-  }, [onOpenChange]);
+  }, [onOpenChange, triggerDisabled]);
 
   const close = useCallback(() => {
     setOpen(false);
@@ -53,14 +56,16 @@ export const Dropdown = memo(function Dropdown({
       <button
         className={`${triggerClassName} ${open ? 'cg-active' : ''}`}
         onClick={toggle}
+        disabled={triggerDisabled}
         title={triggerTitle}
         aria-label={triggerAriaLabel}
         aria-expanded={open}
         aria-haspopup={triggerAriaHasPopup}
+        aria-disabled={triggerDisabled || undefined}
       >
         {triggerContent}
       </button>
-      {open && (
+      {open && !triggerDisabled && (
         <div className={contentClassName} role={contentRole}>
           {typeof children === 'function' ? children(close) : children}
         </div>

@@ -39,7 +39,7 @@ export const Toolbar = memo(function toolbar(props: ToolbarProps) {
   }, [onExport]);
 
   const {
-    statsText, typeCounts, theme, collapsed, panelControls,
+    statsText, typeCounts, theme, collapsed, hasData, panelControls,
     layoutConfig, viewConfig, history,
     onThemeToggle, onRefresh, onCollapse,
     currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
@@ -333,6 +333,7 @@ export const Toolbar = memo(function toolbar(props: ToolbarProps) {
             containerClassName="cg-export-menu"
             contentClassName="cg-export-dropdown"
             contentRole="menu"
+            triggerDisabled={!hasData}
           >
             {(close) => EXPORT_FORMATS.map(({ value, key }) => (
               <button key={value} onClick={() => { handleExport(value); close(); }} role="menuitem">{t(key)}</button>

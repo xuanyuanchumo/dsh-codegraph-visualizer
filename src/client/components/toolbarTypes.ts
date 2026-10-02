@@ -88,6 +88,7 @@ export interface ToolbarProps extends WorkspaceSelectorProps {
   typeCounts: { function: number; class: number; interface: number };
   theme: ThemeType;
   collapsed: boolean;
+  hasData: boolean;
   panelControls: PanelControls;
   layoutConfig: ToolbarLayoutConfig;
   viewConfig: ToolbarViewConfig;

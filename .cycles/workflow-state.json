@@ -1,7 +1,12 @@
 {
   "currentPhase": "complete",
-  "currentCycle": "cycle-68",
+  "currentCycle": "cycle-71",
   "phaseHistory": [
+    {
+      "cycle": "cycle-71",
+      "phase": "complete",
+      "result": "T01 HostVersionDetector unknown降级修复(generation:'gen2'→'unknown',UNKNOWN_FLAGS继承GEN2关闭incrementalBootstrap/remoteWebUi)+T02 @testing-library/jest-dom安装+setup.ts+vitest setupFiles配置+T03 17个组件测试文件475处toBeTruthy→toBeInTheDocument语义化断言+T04 withRouteMiddleware统一try-catch+T05 isDestroyed标志+后台异步操作生命周期管理(triggerBackgroundBuild/controlRoutes IIFE)+T06 useGraphActions useShallow合并27次独立store订阅+T07 tree-sitter路由path.normalize验证+resolveDbPath安全文档+T08 ApiCompatLayer GEN3_MAPPING+UNKNOWN_MAPPING+fallback chains+T10 cg-collapse-fab aria-expanded+ContextMenu焦点管理. 4705测试通过,lint零警告,typecheck通过,build成功. G3 Chrome DevTools MCP验证:插件加载正常,Graph Panel/Status Bar/Overlay Bar/Collapse Fab全部渲染,aria-expanded=true正确,console零错误"
+    },
     {
       "cycle": "cycle-68",
       "phase": "complete",
@@ -140,5 +145,5 @@
   ],
   "nodeStatus": {},
   "createdAt": "2026-09-21T14:25:00.105Z",
-  "updatedAt": "2026-10-02T15:00:00.000Z"
+  "updatedAt": "2026-10-02T16:30:00.000Z"
 }
