@@ -2614,7 +2614,7 @@ describe('GraphPanel panel callback tests', () => {
     const { container } = render(React.createElement(GraphPanel));
 
     // GodModulePanel should be visible
-    const godPanel = container.querySelector('.godmodule-panel');
+    const godPanel = container.querySelector('.cg-godmodule-panel');
     expect(godPanel).not.toBeNull();
   });
 
@@ -3105,7 +3105,7 @@ describe('GraphPanel onClose callback tests', () => {
     vi.mocked(usePanelState).mockReturnValue(panelState as any);
 
     const { container } = render(React.createElement(GraphPanel));
-    const hotspotPanel = container.querySelector('.hotspot-panel');
+    const hotspotPanel = container.querySelector('.cg-hotspot-panel');
     expect(hotspotPanel).not.toBeNull();
     const closeBtn = hotspotPanel?.querySelector('.cg-close-btn') as HTMLButtonElement;
     expect(closeBtn).toBeTruthy();
@@ -3127,7 +3127,7 @@ describe('GraphPanel onClose callback tests', () => {
     vi.mocked(usePanelState).mockReturnValue(panelState as any);
 
     const { container } = render(React.createElement(GraphPanel));
-    const godPanel = container.querySelector('.godmodule-panel');
+    const godPanel = container.querySelector('.cg-godmodule-panel');
     expect(godPanel).not.toBeNull();
     const closeBtn = godPanel?.querySelector('.cg-close-btn') as HTMLButtonElement;
     expect(closeBtn).toBeTruthy();
@@ -3204,7 +3204,7 @@ describe('GraphPanel onClose callback tests', () => {
     const { container } = render(React.createElement(GraphPanel));
     const impactPanel = container.querySelector('.cg-impact-panel');
     expect(impactPanel).not.toBeNull();
-    const closeBtn = impactPanel?.querySelector('.cg-analysis-panel-close') as HTMLButtonElement;
+    const closeBtn = impactPanel?.querySelector('.cg-close-btn') as HTMLButtonElement;
     expect(closeBtn).toBeTruthy();
     fireEvent.click(closeBtn);
     expect(panelState.setShowImpact).toHaveBeenCalledWith(false);
@@ -3222,7 +3222,7 @@ describe('GraphPanel onClose callback tests', () => {
     const { container } = render(React.createElement(GraphPanel));
     const cyclePanel = container.querySelector('.cg-cycle-panel');
     expect(cyclePanel).not.toBeNull();
-    const closeBtn = cyclePanel?.querySelector('.cg-analysis-panel-close') as HTMLButtonElement;
+    const closeBtn = cyclePanel?.querySelector('.cg-close-btn') as HTMLButtonElement;
     expect(closeBtn).toBeTruthy();
     fireEvent.click(closeBtn);
     expect(panelState.setShowCycles).toHaveBeenCalledWith(false);

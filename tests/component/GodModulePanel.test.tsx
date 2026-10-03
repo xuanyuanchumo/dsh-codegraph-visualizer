@@ -66,7 +66,7 @@ describe('GodModulePanel component', () => {
 
   it('applies correct CSS class names', () => {
     render(<GodModulePanel godModules={sampleModules} onClose={vi.fn()} label="God Modules" statsLabel={(n, e) => `${n}`} />);
-    expect(document.querySelector('.cg-analysis-panel.godmodule-panel')).toBeInTheDocument();
+    expect(document.querySelector('.cg-analysis-panel.cg-godmodule-panel')).toBeInTheDocument();
     expect(document.querySelector('.cg-analysis-panel-header')).toBeInTheDocument();
     expect(document.querySelector('.cg-analysis-panel-content')).toBeInTheDocument();
     expect(document.querySelector('.cg-godmodule-item')).toBeInTheDocument();

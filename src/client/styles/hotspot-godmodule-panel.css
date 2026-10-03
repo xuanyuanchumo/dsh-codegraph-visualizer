@@ -31,21 +31,6 @@
   flex-shrink: 0;
 }
 
-.cg-analysis-panel-close {
-  margin-left: auto;
-  background: none;
-  border: none;
-  color: var(--cg-text-tertiary);
-  font-size: 16px;
-  cursor: pointer;
-  padding: 0 4px;
-  line-height: 1;
-  transition: color var(--cg-transition);
-}
-
-.cg-analysis-panel-close:hover {
-  color: var(--cg-text);
-}
 
 .cg-analysis-panel-content {
   flex: 1;

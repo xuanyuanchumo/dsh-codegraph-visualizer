@@ -70,7 +70,7 @@ describe('HotspotPanel component', () => {
 
   it('applies correct CSS class names', () => {
     render(<HotspotPanel hotspotNodes={sampleHotspots} onClose={vi.fn()} label="Hotspots" />);
-    expect(document.querySelector('.cg-analysis-panel.hotspot-panel')).toBeInTheDocument();
+    expect(document.querySelector('.cg-analysis-panel.cg-hotspot-panel')).toBeInTheDocument();
     expect(document.querySelector('.cg-analysis-panel-header')).toBeInTheDocument();
     expect(document.querySelector('.cg-analysis-panel-content')).toBeInTheDocument();
   });
