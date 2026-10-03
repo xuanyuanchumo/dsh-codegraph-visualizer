@@ -41,16 +41,15 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   if (isNarrow && availablePanels.has('showSearch')) {
     moreDropdownItems.push({ key: 'search', titleKey: 'toolbar.search', icon: <SearchIcon size={14} />, active: panelControls.showSearch, onClick: panelControls.onToggleSearch, role: 'menuitemcheckbox' });
   }
-  if (isCompact) {
-    moreDropdownItems.push(
-      { key: 'minimap', titleKey: 'toolbar.minimap', icon: <MapIcon size={14} />, active: panelControls.showMiniMap, onClick: panelControls.onToggleMiniMap, role: 'menuitemcheckbox' },
-      { key: 'legend', titleKey: 'toolbar.legend', icon: <FilterIcon size={14} />, active: panelControls.showLegend, onClick: panelControls.onToggleLegend, role: 'menuitemcheckbox' },
-      { key: 'theme', titleKey: 'toolbar.theme', icon: theme === 'dark' ? <SunIcon size={14} /> : <MoonIcon size={14} />, active: false, onClick: onThemeToggle, role: 'menuitem' },
-      { key: 'lang', titleKey: 'toolbar.lang', icon: null, active: false, onClick: toggleLang, role: 'menuitem' },
-    );
-  }
-  if (isNarrow) {
-    moreDropdownItems.push({ key: 'tour', titleKey: 'toolbar.tour', icon: <StarIcon size={14} />, active: panelControls.showTour, onClick: panelControls.onToggleTour, role: 'menuitemcheckbox' });
+  moreDropdownItems.push(
+    { key: 'minimap', titleKey: 'toolbar.minimap', icon: <MapIcon size={14} />, active: panelControls.showMiniMap, onClick: panelControls.onToggleMiniMap, role: 'menuitemcheckbox' },
+    { key: 'legend', titleKey: 'toolbar.legend', icon: <FilterIcon size={14} />, active: panelControls.showLegend, onClick: panelControls.onToggleLegend, role: 'menuitemcheckbox' },
+    { key: 'theme', titleKey: 'toolbar.theme', icon: theme === 'dark' ? <SunIcon size={14} /> : <MoonIcon size={14} />, active: false, onClick: onThemeToggle, role: 'menuitem' },
+    { key: 'lang', titleKey: 'toolbar.lang', icon: null, active: false, onClick: toggleLang, role: 'menuitem' },
+    { key: 'tour', titleKey: 'toolbar.tour', icon: <StarIcon size={14} />, active: panelControls.showTour, onClick: panelControls.onToggleTour, role: 'menuitemcheckbox' },
+  );
+  if (onCollapseAll) {
+    moreDropdownItems.push({ key: 'collapseAll', titleKey: 'detail.collapse', icon: null, active: false, onClick: onCollapseAll, role: 'menuitem' });
   }
 
   return (
@@ -59,7 +58,6 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         statsText={statsText}
         typeCounts={typeCounts}
         hasData={hasData}
-        onCollapseAll={onCollapseAll}
         currentWorkspace={currentWorkspace}
         workspaceList={workspaceList}
         onSwitchWorkspace={onSwitchWorkspace}
@@ -70,12 +68,10 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       <ToolbarViewMode
         layoutConfig={layoutConfig}
         viewConfig={viewConfig}
-
       />
 
       <div className="cg-toolbar-right">
         <ToolbarActions
-
           panelControls={panelControls}
           history={history}
           onRefresh={onRefresh}

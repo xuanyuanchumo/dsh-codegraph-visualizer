@@ -130,6 +130,19 @@ export const ToolbarViewMode = memo(function ToolbarViewMode({
                 {lvl.short} — {t(lvl.key)}
               </button>
             ))}
+            {viewMode === 'code' && (
+              <>
+                <div className="cg-dropdown-separator" />
+                <div className="cg-dropdown-section-label">{t('toolbar.cluster')}</div>
+                {CLUSTER_DEPTHS.map((opt) => (
+                  <button key={opt.value} className={`cg-dropdown-item ${clusterDepth === opt.value ? 'cg-active' : ''}`}
+                    onClick={() => { onClusterDepthChange(opt.value); }}
+                    aria-pressed={clusterDepth === opt.value} title={t(opt.key)}>
+                    {t(opt.key)}
+                  </button>
+                ))}
+              </>
+            )}
             {layerNames.length > 1 && (
               <>
                 <div className="cg-dropdown-separator" />
@@ -149,22 +162,6 @@ export const ToolbarViewMode = memo(function ToolbarViewMode({
           </>
         )}
       </Dropdown>
-      {viewMode === 'code' && (
-        <select
-          value={clusterDepth}
-          onChange={(e) => onClusterDepthChange(Number(e.target.value))}
-          className="cg-depth-select"
-          id="cluster-depth"
-          name="cluster-depth"
-          aria-label={t('toolbar.cluster')}
-          title={t('toolbar.cluster')}
-
-        >
-          {CLUSTER_DEPTHS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{t(opt.key)}</option>
-          ))}
-        </select>
-      )}
     </div>
   );
 });

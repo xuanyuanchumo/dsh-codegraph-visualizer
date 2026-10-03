@@ -3,9 +3,9 @@ import { useT } from '../../i18n/index.ts';
 import { Dropdown } from '../Dropdown.tsx';
 import { getAvailablePanels, getViewLayer } from '../../../shared/viewModeUtils.ts';
 import {
-  SearchIcon, MapIcon, RefreshIcon, FilterIcon,
+  SearchIcon, RefreshIcon, FilterIcon,
   UploadIcon, ZapIcon, ChevronDownIcon,
-  UndoIcon, RedoIcon, StarIcon,
+  UndoIcon, RedoIcon,
 } from '../Icons.tsx';
 import {
   PANEL_DROPDOWN_SECTIONS,
@@ -23,19 +23,18 @@ interface ToolbarActionsProps {
 }
 
 export const ToolbarActions = memo(function ToolbarActions({
-  panelControls, history, onRefresh, isCompact, isNarrow, viewMode,
+  panelControls, history, onRefresh, isCompact: _isCompact, isNarrow, viewMode,
 }: ToolbarActionsProps) {
   const t = useT();
 
   const {
-    showSearch, showCycles, cycleIsolation, showMiniMap, showLegend, showImport,
-    showFilterPanel, showTour,
-    onToggleSearch, onToggleCycleIsolation, onToggleMiniMap, onToggleLegend,
-    onToggleImport, onToggleFilterPanel, onToggleTour,
+    showSearch, showCycles, cycleIsolation,
+    showImport, showFilterPanel,
+    onToggleSearch, onToggleCycleIsolation,
+    onToggleImport, onToggleFilterPanel,
   } = panelControls;
 
   const availablePanels = getAvailablePanels(getViewLayer(viewMode));
-
 
   const onUndo = history?.undo;
   const onRedo = history?.redo;
@@ -45,12 +44,29 @@ export const ToolbarActions = memo(function ToolbarActions({
   return (
     <>
       <div className="cg-toolbar-group" role="group" aria-label={t('toolbar.dataGroup')}>
-        <button className="cg-import-btn" onClick={onToggleImport} title={t('toolbar.import')}
-          aria-label={t('toolbar.import')} aria-pressed={showImport}><UploadIcon size={15} /></button>
-        <button className={`cg-filter-panel-btn ${showFilterPanel ? 'cg-active' : ''}`} onClick={onToggleFilterPanel}
-          title={t('toolbar.filterPanel')} aria-label={t('toolbar.filterPanel')} aria-pressed={showFilterPanel}>
-          <FilterIcon size={15} />
-        </button>
+        <Dropdown
+          triggerClassName="cg-data-dropdown-btn"
+          triggerTitle={t('toolbar.data')}
+          triggerAriaLabel={t('toolbar.data')}
+          triggerAriaHasPopup="menu"
+          triggerContent={<><UploadIcon size={15} /><ChevronDownIcon size={10} /></>}
+          contentRole="menu"
+        >
+          {(close) => (
+            <>
+              <button className={`cg-dropdown-item cg-import-btn ${showImport ? 'cg-active' : ''}`}
+                onClick={() => { onToggleImport(); close(); }}
+                role="menuitemcheckbox" aria-checked={showImport} title={t('toolbar.import')}>
+                <UploadIcon size={14} /><span>{t('toolbar.import')}</span>
+              </button>
+              <button className={`cg-dropdown-item cg-filter-panel-btn ${showFilterPanel ? 'cg-active' : ''}`}
+                onClick={() => { onToggleFilterPanel(); close(); }}
+                role="menuitemcheckbox" aria-checked={showFilterPanel} title={t('toolbar.filterPanel')}>
+                <FilterIcon size={14} /><span>{t('toolbar.filterPanel')}</span>
+              </button>
+            </>
+          )}
+        </Dropdown>
       </div>
 
       <span className="cg-toolbar-separator" aria-hidden="true" />
@@ -95,32 +111,41 @@ export const ToolbarActions = memo(function ToolbarActions({
             </>
           )}
         </Dropdown>
-        {!isNarrow && (
-          <button className={`cg-tour-btn ${showTour ? 'cg-active' : ''}`} onClick={onToggleTour}
-            title={t('toolbar.tour')} aria-label={t('toolbar.tour')} aria-pressed={showTour}><StarIcon size={15} /></button>
-        )}
       </div>
 
       <span className="cg-toolbar-separator" aria-hidden="true" />
 
       <div className="cg-toolbar-group" role="group" aria-label={t('toolbar.viewGroup')}>
-        {!isCompact && (
-          <button className={`cg-minimap-btn ${showMiniMap ? 'cg-active' : ''}`} onClick={onToggleMiniMap}
-            title={t('toolbar.minimap')} aria-label={t('toolbar.minimap')} aria-pressed={showMiniMap}><MapIcon size={15} /></button>
-        )}
-        {!isCompact && (
-          <button className={`cg-legend-btn ${showLegend ? 'cg-active' : ''}`} onClick={onToggleLegend}
-            title={t('toolbar.legend')} aria-label={t('toolbar.legend')} aria-pressed={showLegend}><FilterIcon size={15} /></button>
-        )}
         <button className="cg-refresh-btn" onClick={onRefresh} title={t('toolbar.refresh')}
           aria-label={t('toolbar.refresh')}><RefreshIcon size={15} /></button>
-        {onUndo && (
-          <button className="cg-undo-btn" onClick={onUndo} disabled={!canUndo} title={t('toolbar.undo')}
-            aria-label={t('toolbar.undo')} aria-disabled={!canUndo}><UndoIcon size={15} /></button>
-        )}
-        {onRedo && (
-          <button className="cg-redo-btn" onClick={onRedo} disabled={!canRedo} title={t('toolbar.redo')}
-            aria-label={t('toolbar.redo')} aria-disabled={!canRedo}><RedoIcon size={15} /></button>
+        {(onUndo || onRedo) && (
+          <Dropdown
+            triggerClassName="cg-history-dropdown-btn"
+            triggerTitle={t('toolbar.history')}
+            triggerAriaLabel={t('toolbar.history')}
+            triggerAriaHasPopup="menu"
+            triggerContent={<><UndoIcon size={15} /><ChevronDownIcon size={10} /></>}
+            contentRole="menu"
+          >
+            {(close) => (
+              <>
+                {onUndo && (
+                  <button className="cg-dropdown-item cg-undo-btn" onClick={() => { onUndo(); close(); }}
+                    disabled={!canUndo} role="menuitem" title={t('toolbar.undo')}
+                    aria-label={t('toolbar.undo')} aria-disabled={!canUndo}>
+                    <UndoIcon size={14} /><span>{t('toolbar.undo')}</span>
+                  </button>
+                )}
+                {onRedo && (
+                  <button className="cg-dropdown-item cg-redo-btn" onClick={() => { onRedo(); close(); }}
+                    disabled={!canRedo} role="menuitem" title={t('toolbar.redo')}
+                    aria-label={t('toolbar.redo')} aria-disabled={!canRedo}>
+                    <RedoIcon size={14} /><span>{t('toolbar.redo')}</span>
+                  </button>
+                )}
+              </>
+            )}
+          </Dropdown>
         )}
       </div>
     </>

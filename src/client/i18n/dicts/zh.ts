@@ -24,6 +24,8 @@ export const zh: Record<string, string> = {
   'toolbar.analysis': '分析',
   'toolbar.quality': '质量',
   'toolbar.tools': '工具',
+  'toolbar.data': '数据',
+  'toolbar.history': '历史',
   'toolbar.viewGroup': '视图控制',
   'toolbar.settingsGroup': '设置',
   'toolbar.theme': '切换主题',

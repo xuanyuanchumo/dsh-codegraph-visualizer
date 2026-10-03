@@ -310,12 +310,18 @@ describe('GraphPanel handler behavior', () => {
   it('handleThemeToggle: toggles data-ds-dark-theme on body when clicking theme button', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const themeBtn = container.querySelector('.cg-theme-btn') as HTMLButtonElement;
-    expect(themeBtn?.tagName).toBe('BUTTON');
+    const moreBtn = container.querySelector('.cg-more-btn') as HTMLButtonElement;
     expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(false);
+    fireEvent.click(moreBtn);
+    let themeBtn = container.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
+    expect(themeBtn?.tagName).toBe('BUTTON');
     fireEvent.click(themeBtn);
+    fireEvent.click(moreBtn);
+    themeBtn = container.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
     fireEvent.click(themeBtn);
     expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(true);
+    fireEvent.click(moreBtn);
+    themeBtn = container.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
     fireEvent.click(themeBtn);
     expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(false);
   });
@@ -324,7 +330,9 @@ describe('GraphPanel handler behavior', () => {
     const { invalidateCssVarCache } = await import('../../src/client/renderer/styles/ThemeStylesheet.ts');
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const themeBtn = container.querySelector('.cg-theme-btn') as HTMLButtonElement;
+    const moreBtn = container.querySelector('.cg-more-btn') as HTMLButtonElement;
+    fireEvent.click(moreBtn);
+    const themeBtn = container.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
     fireEvent.click(themeBtn);
     expect(vi.mocked(invalidateCssVarCache)).toHaveBeenCalled();
   });
@@ -349,7 +357,9 @@ describe('GraphPanel handler behavior', () => {
     const i18nModule = await import('../../src/client/i18n/index.ts');
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const langBtn = container.querySelector('.cg-lang-btn') as HTMLButtonElement;
+    const moreBtn = container.querySelector('.cg-more-btn') as HTMLButtonElement;
+    fireEvent.click(moreBtn);
+    const langBtn = container.querySelector('[aria-label="toolbar.lang"]') as HTMLButtonElement;
     expect(langBtn?.tagName).toBe('BUTTON');
     fireEvent.click(langBtn);
     expect(vi.mocked(i18nModule.toggleLang)).toHaveBeenCalled();
@@ -438,6 +448,8 @@ describe('GraphPanel handler behavior', () => {
   it('filter button click toggles filter panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
+    const dataDropdownBtn = container.querySelector('.cg-data-dropdown-btn') as HTMLButtonElement;
+    fireEvent.click(dataDropdownBtn);
     const filterBtn = container.querySelector('.cg-filter-panel-btn') as HTMLButtonElement;
     expect(filterBtn?.tagName).toBe('BUTTON');
     fireEvent.click(filterBtn);
@@ -447,7 +459,9 @@ describe('GraphPanel handler behavior', () => {
   it('legend button click toggles legend panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const legendBtn = container.querySelector('.cg-legend-btn') as HTMLButtonElement;
+    const moreBtn = container.querySelector('.cg-more-btn') as HTMLButtonElement;
+    fireEvent.click(moreBtn);
+    const legendBtn = container.querySelector('[aria-label="toolbar.legend"]') as HTMLButtonElement;
     expect(legendBtn?.tagName).toBe('BUTTON');
     fireEvent.click(legendBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -456,7 +470,9 @@ describe('GraphPanel handler behavior', () => {
   it('minimap button click toggles minimap panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const minimapBtn = container.querySelector('.cg-minimap-btn') as HTMLButtonElement;
+    const moreBtn = container.querySelector('.cg-more-btn') as HTMLButtonElement;
+    fireEvent.click(moreBtn);
+    const minimapBtn = container.querySelector('[aria-label="toolbar.minimap"]') as HTMLButtonElement;
     expect(minimapBtn?.tagName).toBe('BUTTON');
     fireEvent.click(minimapBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -560,6 +576,8 @@ describe('GraphPanel handler behavior', () => {
   it('import button click toggles import panel', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
+    const dataDropdownBtn = container.querySelector('.cg-data-dropdown-btn') as HTMLButtonElement;
+    fireEvent.click(dataDropdownBtn);
     const importBtn = container.querySelector('.cg-import-btn') as HTMLButtonElement;
     expect(importBtn?.tagName).toBe('BUTTON');
     fireEvent.click(importBtn);
@@ -571,10 +589,13 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const toolbar = container.querySelector('.cg-graph-toolbar');
     expect(toolbar?.tagName).toBe('DIV');
-    expect(container.querySelector('.cg-tools-dropdown-btn')?.tagName).toBe('BUTTON');
+    expect(container.querySelector('.cg-data-dropdown-btn')?.tagName).toBe('BUTTON');
     expect(container.querySelector('.cg-search-standalone-btn')?.tagName).toBe('BUTTON');
-    expect(container.querySelector('.cg-theme-btn')?.tagName).toBe('BUTTON');
+    expect(container.querySelector('.cg-tools-dropdown-btn')?.tagName).toBe('BUTTON');
+    expect(container.querySelector('.cg-refresh-btn')?.tagName).toBe('BUTTON');
     expect(container.querySelector('.cg-export-btn')?.tagName).toBe('BUTTON');
+    expect(container.querySelector('.cg-more-btn')?.tagName).toBe('BUTTON');
+    expect(container.querySelector('.cg-collapse-btn')?.tagName).toBe('BUTTON');
   });
 
   it('status bar renders with node and edge counts', async () => {
@@ -638,9 +659,13 @@ describe('GraphPanel event dispatch behavior', () => {
   it('handleThemeToggle: toggles theme attribute and calls setTheme', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const themeBtn = container.querySelector('.cg-theme-btn') as HTMLButtonElement;
+    const moreBtn = container.querySelector('.cg-more-btn') as HTMLButtonElement;
+    fireEvent.click(moreBtn);
+    let themeBtn = container.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
     expect(themeBtn?.tagName).toBe('BUTTON');
     fireEvent.click(themeBtn);
+    fireEvent.click(moreBtn);
+    themeBtn = container.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
     fireEvent.click(themeBtn);
     expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(true);
   });
@@ -907,10 +932,14 @@ describe('GraphPanel handler integration', () => {
   it('handleThemeToggle: toggles to light theme correctly', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const themeBtn = container.querySelector('.cg-theme-btn') as HTMLButtonElement;
-    expect(themeBtn?.tagName).toBe('BUTTON');
+    const moreBtn = container.querySelector('.cg-more-btn') as HTMLButtonElement;
     expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(false);
+    fireEvent.click(moreBtn);
+    let themeBtn = container.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
+    expect(themeBtn?.tagName).toBe('BUTTON');
     fireEvent.click(themeBtn);
+    fireEvent.click(moreBtn);
+    themeBtn = container.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
     fireEvent.click(themeBtn);
     expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(true);
     expect(useGraphStore.getState().theme).toBe('dark');
@@ -3559,9 +3588,14 @@ describe('GraphPanel remaining handler coverage tests', () => {
     } as any);
 
     const { container } = render(React.createElement(GraphPanel));
-    const depthSelect = container.querySelector('.cg-depth-select') as HTMLSelectElement;
-    expect(depthSelect).toBeTruthy();
-    fireEvent.change(depthSelect, { target: { value: '2' } });
+    const levelDropdownBtn = container.querySelector('.cg-level-dropdown-btn') as HTMLButtonElement;
+    expect(levelDropdownBtn).toBeTruthy();
+    fireEvent.click(levelDropdownBtn);
+    const levelDropdown = container.querySelector('.cg-level-dropdown');
+    expect(levelDropdown).toBeTruthy();
+    const clusterDepthBtn = levelDropdown!.querySelector('[title="clusterDepth.function"]') as HTMLButtonElement;
+    expect(clusterDepthBtn).toBeTruthy();
+    fireEvent.click(clusterDepthBtn);
     expect(setClusterDepthSpy).toHaveBeenCalledWith(2);
   });
 
@@ -3595,6 +3629,8 @@ describe('GraphPanel remaining handler coverage tests', () => {
     useGraphStore.setState({ filterType: 'all' } as any);
 
     const { container } = render(React.createElement(GraphPanel));
+    const dataDropdownBtn = container.querySelector('.cg-data-dropdown-btn') as HTMLButtonElement;
+    fireEvent.click(dataDropdownBtn);
     const filterPanelBtn = container.querySelector('.cg-filter-panel-btn') as HTMLButtonElement;
     expect(filterPanelBtn).toBeTruthy();
     fireEvent.click(filterPanelBtn);

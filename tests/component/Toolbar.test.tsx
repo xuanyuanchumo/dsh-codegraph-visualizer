@@ -347,31 +347,52 @@ describe('Toolbar component', () => {
 
   // 5. code 模式下显示聚类深度选择器
   describe('cluster depth selector', () => {
-    it('shows cluster depth selector when viewMode is code', () => {
+    it('shows cluster depth selector when viewMode is code', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ viewMode: 'code' })} />);
-      const depthSelect = document.querySelector('.cg-depth-select');
-      expect(depthSelect).toBeTruthy();
-      const options = depthSelect!.querySelectorAll('option');
-      expect(options.length).toBe(3);
+      const levelBtn = document.querySelector('.cg-level-dropdown-btn') as HTMLButtonElement;
+      await user.click(levelBtn);
+      const levelDropdown = document.querySelector('.cg-level-dropdown');
+      expect(levelDropdown).toBeTruthy();
+      const clusterItems = Array.from(levelDropdown!.querySelectorAll('.cg-dropdown-item')).filter(
+        (b) => ['目录级', '文件级', '函数级'].includes(b.textContent ?? ''),
+      );
+      expect(clusterItems.length).toBe(3);
     });
 
     it('calls onClusterDepthChange when a different depth is selected', async () => {
       const user = userEvent.setup();
       const onClusterDepthChange = vi.fn();
       render(<Toolbar {...makeProps({ viewMode: 'code', onClusterDepthChange })} />);
-      const depthSelect = document.querySelector('.cg-depth-select') as HTMLSelectElement;
-      await user.selectOptions(depthSelect, '1');
+      const levelBtn = document.querySelector('.cg-level-dropdown-btn') as HTMLButtonElement;
+      await user.click(levelBtn);
+      const levelDropdown = document.querySelector('.cg-level-dropdown');
+      const fileItem = Array.from(levelDropdown!.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.textContent === '文件级',
+      ) as HTMLButtonElement;
+      await user.click(fileItem);
       expect(onClusterDepthChange).toHaveBeenCalledWith(1);
     });
   });
 
   // 7. 非 code 模式下不显示聚类深度选择器
-  it('does not show cluster depth selector when viewMode is not code', () => {
-    const { rerender } = render(<Toolbar {...makeProps({ viewMode: 'dependencies' })} />);
-    expect(document.querySelector('.cg-depth-select')).toBeNull();
+  it('does not show cluster depth selector when viewMode is not code', async () => {
+    const user = userEvent.setup();
 
-    rerender(<Toolbar {...makeProps({ viewMode: 'callgraph' })} />);
-    expect(document.querySelector('.cg-depth-select')).toBeNull();
+    render(<Toolbar {...makeProps({ viewMode: 'dependencies' })} />);
+    const levelBtn = document.querySelector('.cg-level-dropdown-btn') as HTMLButtonElement;
+    await user.click(levelBtn);
+    let levelDropdown = document.querySelector('.cg-level-dropdown');
+    expect(levelDropdown?.textContent).not.toContain('目录级');
+    expect(levelDropdown?.textContent).not.toContain('展开深度');
+    cleanup();
+
+    render(<Toolbar {...makeProps({ viewMode: 'callgraph' })} />);
+    const levelBtn2 = document.querySelector('.cg-level-dropdown-btn') as HTMLButtonElement;
+    await user.click(levelBtn2);
+    levelDropdown = document.querySelector('.cg-level-dropdown');
+    expect(levelDropdown?.textContent).not.toContain('目录级');
+    expect(levelDropdown?.textContent).not.toContain('展开深度');
   });
 
   // 8. 分析工具按钮渲染和点击响应
@@ -525,11 +546,20 @@ describe('Toolbar component', () => {
 
   // 9. 视图工具按钮渲染和点击响应
   describe('view tool buttons', () => {
-    it('renders minimap, legend, and refresh buttons', () => {
+    it('renders minimap, legend, and refresh buttons', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps()} />);
-      expect(document.querySelector('.cg-minimap-btn')).toBeTruthy();
-      expect(document.querySelector('.cg-legend-btn')).toBeTruthy();
       expect(document.querySelector('.cg-refresh-btn')).toBeTruthy();
+      const moreBtn = document.querySelector('.cg-more-btn') as HTMLButtonElement;
+      await user.click(moreBtn);
+      const minimapBtn = Array.from(document.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.getAttribute('aria-label') === '切换缩略图 (Ctrl+M)',
+      );
+      const legendBtn = Array.from(document.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.getAttribute('aria-label') === '切换图例',
+      );
+      expect(minimapBtn).toBeTruthy();
+      expect(legendBtn).toBeTruthy();
     });
 
     it('calls onToggleMiniMap when minimap button is clicked', async () => {
@@ -537,7 +567,12 @@ describe('Toolbar component', () => {
       const onToggleMiniMap = vi.fn();
       const panelControls = makePanelControls({ onToggleMiniMap });
       render(<Toolbar {...makeProps({ panelControls })} />);
-      await user.click(document.querySelector('.cg-minimap-btn') as HTMLButtonElement);
+      const moreBtn = document.querySelector('.cg-more-btn') as HTMLButtonElement;
+      await user.click(moreBtn);
+      const minimapBtn = Array.from(document.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.getAttribute('aria-label') === '切换缩略图 (Ctrl+M)',
+      ) as HTMLButtonElement;
+      await user.click(minimapBtn);
       expect(onToggleMiniMap).toHaveBeenCalledOnce();
     });
 
@@ -546,7 +581,12 @@ describe('Toolbar component', () => {
       const onToggleLegend = vi.fn();
       const panelControls = makePanelControls({ onToggleLegend });
       render(<Toolbar {...makeProps({ panelControls })} />);
-      await user.click(document.querySelector('.cg-legend-btn') as HTMLButtonElement);
+      const moreBtn = document.querySelector('.cg-more-btn') as HTMLButtonElement;
+      await user.click(moreBtn);
+      const legendBtn = Array.from(document.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.getAttribute('aria-label') === '切换图例',
+      ) as HTMLButtonElement;
+      await user.click(legendBtn);
       expect(onToggleLegend).toHaveBeenCalledOnce();
     });
 
@@ -558,18 +598,24 @@ describe('Toolbar component', () => {
       expect(onRefresh).toHaveBeenCalledOnce();
     });
 
-    it('renders undo button when onUndo is provided', () => {
+    it('renders undo button when onUndo is provided', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ onUndo: noop, canUndo: true })} />);
+      const historyBtn = document.querySelector('.cg-history-dropdown-btn') as HTMLButtonElement;
+      await user.click(historyBtn);
       expect(document.querySelector('.cg-undo-btn')).toBeTruthy();
     });
 
     it('does not render undo button when onUndo is not provided', () => {
       render(<Toolbar {...makeProps()} />);
-      expect(document.querySelector('.cg-undo-btn')).toBeNull();
+      expect(document.querySelector('.cg-history-dropdown-btn')).toBeNull();
     });
 
-    it('disables undo button when canUndo is false', () => {
+    it('disables undo button when canUndo is false', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ onUndo: noop, canUndo: false })} />);
+      const historyBtn = document.querySelector('.cg-history-dropdown-btn') as HTMLButtonElement;
+      await user.click(historyBtn);
       const undoBtn = document.querySelector('.cg-undo-btn') as HTMLButtonElement;
       expect(undoBtn.disabled).toBe(true);
     });
@@ -578,22 +624,30 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const onUndo = vi.fn();
       render(<Toolbar {...makeProps({ onUndo, canUndo: true })} />);
+      const historyBtn = document.querySelector('.cg-history-dropdown-btn') as HTMLButtonElement;
+      await user.click(historyBtn);
       await user.click(document.querySelector('.cg-undo-btn') as HTMLButtonElement);
       expect(onUndo).toHaveBeenCalledOnce();
     });
 
-    it('renders redo button when onRedo is provided', () => {
+    it('renders redo button when onRedo is provided', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ onRedo: noop, canRedo: true })} />);
+      const historyBtn = document.querySelector('.cg-history-dropdown-btn') as HTMLButtonElement;
+      await user.click(historyBtn);
       expect(document.querySelector('.cg-redo-btn')).toBeTruthy();
     });
 
     it('does not render redo button when onRedo is not provided', () => {
       render(<Toolbar {...makeProps()} />);
-      expect(document.querySelector('.cg-redo-btn')).toBeNull();
+      expect(document.querySelector('.cg-history-dropdown-btn')).toBeNull();
     });
 
-    it('disables redo button when canRedo is false', () => {
+    it('disables redo button when canRedo is false', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ onRedo: noop, canRedo: false })} />);
+      const historyBtn = document.querySelector('.cg-history-dropdown-btn') as HTMLButtonElement;
+      await user.click(historyBtn);
       const redoBtn = document.querySelector('.cg-redo-btn') as HTMLButtonElement;
       expect(redoBtn.disabled).toBe(true);
     });
@@ -602,6 +656,8 @@ describe('Toolbar component', () => {
       const user = userEvent.setup();
       const onRedo = vi.fn();
       render(<Toolbar {...makeProps({ onRedo, canRedo: true })} />);
+      const historyBtn = document.querySelector('.cg-history-dropdown-btn') as HTMLButtonElement;
+      await user.click(historyBtn);
       await user.click(document.querySelector('.cg-redo-btn') as HTMLButtonElement);
       expect(onRedo).toHaveBeenCalledOnce();
     });
@@ -609,37 +665,60 @@ describe('Toolbar component', () => {
 
   // 10. 主题切换按钮
   describe('theme toggle button', () => {
-    it('renders theme button', () => {
+    it('renders theme button', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ theme: 'dark' })} />);
-      expect(document.querySelector('.cg-theme-btn')).toBeTruthy();
+      const moreBtn = document.querySelector('.cg-more-btn') as HTMLButtonElement;
+      await user.click(moreBtn);
+      const themeBtn = Array.from(document.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.getAttribute('aria-label') === '切换主题',
+      );
+      expect(themeBtn).toBeTruthy();
     });
 
     it('calls onThemeToggle when theme button is clicked', async () => {
       const user = userEvent.setup();
       const onThemeToggle = vi.fn();
       render(<Toolbar {...makeProps({ onThemeToggle })} />);
-      await user.click(document.querySelector('.cg-theme-btn') as HTMLButtonElement);
+      const moreBtn = document.querySelector('.cg-more-btn') as HTMLButtonElement;
+      await user.click(moreBtn);
+      const themeBtn = Array.from(document.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.getAttribute('aria-label') === '切换主题',
+      ) as HTMLButtonElement;
+      await user.click(themeBtn);
       expect(onThemeToggle).toHaveBeenCalledOnce();
     });
   });
 
   // 11. 语言切换按钮
   describe('language toggle button', () => {
-    it('renders language button with current language label', () => {
+    it('renders language button with current language label', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps()} />);
-      const langBtn = document.querySelector('.cg-lang-btn');
+      const moreBtn = document.querySelector('.cg-more-btn') as HTMLButtonElement;
+      await user.click(moreBtn);
+      const langBtn = Array.from(document.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.getAttribute('aria-label') === '切换语言',
+      );
       expect(langBtn).toBeTruthy();
-      const label = langBtn!.querySelector('.cg-lang-label');
-      expect(label).toBeTruthy();
     });
 
     it('toggles language when lang button is clicked', async () => {
       const user = userEvent.setup();
       render(<Toolbar {...makeProps()} />);
-      const langBtn = document.querySelector('.cg-lang-btn') as HTMLButtonElement;
-      const labelBefore = langBtn.querySelector('.cg-lang-label')!.textContent;
+      const moreBtn = document.querySelector('.cg-more-btn') as HTMLButtonElement;
+      await user.click(moreBtn);
+      const langBtn = Array.from(document.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.getAttribute('aria-label') === '切换语言',
+      ) as HTMLButtonElement;
+      const labelBefore = langBtn.textContent;
       await user.click(langBtn);
-      const labelAfter = langBtn.querySelector('.cg-lang-label')!.textContent;
+      const moreBtn2 = document.querySelector('.cg-more-btn') as HTMLButtonElement;
+      await user.click(moreBtn2);
+      const langBtn2 = Array.from(document.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.getAttribute('aria-label') === 'Switch language',
+      ) as HTMLButtonElement;
+      const labelAfter = langBtn2.textContent;
       expect(labelBefore).not.toBe(labelAfter);
     });
   });
@@ -840,19 +919,29 @@ describe('Toolbar component', () => {
 
   // 额外覆盖：主题图标
   describe('theme icon display', () => {
-    it('renders SunIcon when theme is dark', () => {
+    it('renders SunIcon when theme is dark', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ theme: 'dark' })} />);
-      const themeBtn = document.querySelector('.cg-theme-btn');
+      const moreBtn = document.querySelector('.cg-more-btn') as HTMLButtonElement;
+      await user.click(moreBtn);
+      const themeBtn = Array.from(document.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.getAttribute('aria-label') === '切换主题',
+      ) as HTMLButtonElement;
       expect(themeBtn).toBeTruthy();
-      const svg = themeBtn!.querySelector('svg');
+      const svg = themeBtn.querySelector('svg');
       expect(svg).toBeTruthy();
     });
 
-    it('renders MoonIcon when theme is light', () => {
+    it('renders MoonIcon when theme is light', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ theme: 'light' })} />);
-      const themeBtn = document.querySelector('.cg-theme-btn');
+      const moreBtn = document.querySelector('.cg-more-btn') as HTMLButtonElement;
+      await user.click(moreBtn);
+      const themeBtn = Array.from(document.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.getAttribute('aria-label') === '切换主题',
+      ) as HTMLButtonElement;
       expect(themeBtn).toBeTruthy();
-      const svg = themeBtn!.querySelector('svg');
+      const svg = themeBtn.querySelector('svg');
       expect(svg).toBeTruthy();
     });
   });
@@ -881,17 +970,22 @@ describe('Toolbar component', () => {
 
   // 额外覆盖：filter panel button (filter select 已合并到 filter panel)
   describe('filter panel button', () => {
-    it('renders filter panel button', () => {
+    it('renders filter panel button', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps()} />);
+      const dataBtn = document.querySelector('.cg-data-dropdown-btn') as HTMLButtonElement;
+      await user.click(dataBtn);
       const filterBtn = document.querySelector('.cg-filter-panel-btn') as HTMLButtonElement;
       expect(filterBtn).toBeTruthy();
-      expect(filterBtn.getAttribute('aria-label')).toBeTruthy();
+      expect(filterBtn.getAttribute('title')).toBeTruthy();
     });
 
     it('calls onToggleFilterPanel when clicked', async () => {
       const user = userEvent.setup();
       const onToggleFilterPanel = vi.fn();
       render(<Toolbar {...makeProps()} panelControls={makePanelControls({ onToggleFilterPanel })} />);
+      const dataBtn = document.querySelector('.cg-data-dropdown-btn') as HTMLButtonElement;
+      await user.click(dataBtn);
       const filterBtn = document.querySelector('.cg-filter-panel-btn') as HTMLButtonElement;
       await user.click(filterBtn);
       expect(onToggleFilterPanel).toHaveBeenCalled();
@@ -900,8 +994,11 @@ describe('Toolbar component', () => {
 
   // 额外覆盖：import button
   describe('import button', () => {
-    it('renders import button', () => {
+    it('renders import button', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps()} />);
+      const dataBtn = document.querySelector('.cg-data-dropdown-btn') as HTMLButtonElement;
+      await user.click(dataBtn);
       expect(document.querySelector('.cg-import-btn')).toBeTruthy();
     });
 
@@ -910,6 +1007,8 @@ describe('Toolbar component', () => {
       const onToggleImport = vi.fn();
       const panelControls = makePanelControls({ onToggleImport });
       render(<Toolbar {...makeProps({ panelControls })} />);
+      const dataBtn = document.querySelector('.cg-data-dropdown-btn') as HTMLButtonElement;
+      await user.click(dataBtn);
       await user.click(document.querySelector('.cg-import-btn') as HTMLButtonElement);
       expect(onToggleImport).toHaveBeenCalledOnce();
     });
@@ -917,21 +1016,38 @@ describe('Toolbar component', () => {
 
   // 额外覆盖：collapse-all button
   describe('collapse-all button', () => {
-    it('renders collapse-all button when onCollapseAll is provided', () => {
+    it('renders collapse-all button when onCollapseAll is provided', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps({ onCollapseAll: noop })} />);
-      expect(document.querySelector('.cg-collapse-all-btn')).toBeTruthy();
+      const moreBtn = document.querySelector('.cg-more-btn') as HTMLButtonElement;
+      await user.click(moreBtn);
+      const collapseAllBtn = Array.from(document.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.getAttribute('aria-label') === '收起',
+      );
+      expect(collapseAllBtn).toBeTruthy();
     });
 
-    it('does not render collapse-all button when onCollapseAll is not provided', () => {
+    it('does not render collapse-all button when onCollapseAll is not provided', async () => {
+      const user = userEvent.setup();
       render(<Toolbar {...makeProps()} />);
-      expect(document.querySelector('.cg-collapse-all-btn')).toBeNull();
+      const moreBtn = document.querySelector('.cg-more-btn') as HTMLButtonElement;
+      await user.click(moreBtn);
+      const collapseAllBtn = Array.from(document.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.getAttribute('aria-label') === '收起',
+      );
+      expect(collapseAllBtn).toBeUndefined();
     });
 
     it('calls onCollapseAll when collapse-all button is clicked', async () => {
       const user = userEvent.setup();
       const onCollapseAll = vi.fn();
       render(<Toolbar {...makeProps({ onCollapseAll })} />);
-      await user.click(document.querySelector('.cg-collapse-all-btn') as HTMLButtonElement);
+      const moreBtn = document.querySelector('.cg-more-btn') as HTMLButtonElement;
+      await user.click(moreBtn);
+      const collapseAllBtn = Array.from(document.querySelectorAll('.cg-dropdown-item')).find(
+        (b) => b.getAttribute('aria-label') === '收起',
+      ) as HTMLButtonElement;
+      await user.click(collapseAllBtn);
       expect(onCollapseAll).toHaveBeenCalledOnce();
     });
   });

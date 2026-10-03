@@ -24,6 +24,8 @@ export const en: Record<string, string> = {
   'toolbar.analysis': 'Analysis',
   'toolbar.quality': 'Quality',
   'toolbar.tools': 'Tools',
+  'toolbar.data': 'Data',
+  'toolbar.history': 'History',
   'toolbar.viewGroup': 'View controls',
   'toolbar.settingsGroup': 'Settings',
   'toolbar.theme': 'Toggle theme',
