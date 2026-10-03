@@ -9,7 +9,7 @@
   border: 1px solid var(--cg-border);
   border-radius: var(--cg-radius);
   box-shadow: var(--cg-shadow);
-  z-index: 7;
+  z-index: var(--cg-z-panel);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   overflow: hidden;

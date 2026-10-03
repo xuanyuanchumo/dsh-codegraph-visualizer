@@ -9,7 +9,7 @@
   flex-direction: column;
   gap: 14px;
   background: var(--cg-bg);
-  z-index: 10;
+  z-index: var(--cg-z-overlay);
   padding: 24px;
 }
 
@@ -55,7 +55,7 @@
   flex-direction: column;
   gap: 14px;
   background: var(--cg-bg);
-  z-index: 5;
+  z-index: var(--cg-z-overlay);
 }
 
 .cg-loading-overlay {

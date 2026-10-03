@@ -94,7 +94,7 @@
   border: 1px solid var(--cg-border);
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.2);
-  z-index: 20;
+  z-index: var(--cg-z-dropdown);
   padding: 12px;
 }
 

@@ -21,15 +21,22 @@ export function setupSSEEvents(ctx: Context): void {
           const data = JSON.parse(e.data) as { repoId?: string; nodeCount?: number; edgeCount?: number; timestamp?: number };
           log.info('SSE: graph-updated', data);
           const store = useGraphStore.getState();
-          if (store.nodes.length > 0 && store.panelVisible) {
-            fetchGraphDataIncremental(store.lastUpdated)
-              .then((graphData) => {
-                if (graphData && graphData.nodes && graphData.nodes.length > 0) {
-                  store.setGraphData(graphData.nodes, graphData.edges, graphData.metadata.repoId, graphData.metadata);
-                }
-              })
-              .catch((err) => log.warn('SSE: incremental fetch failed', err));
+          if (!store.panelVisible) return;
+          if (store.nodes.length === 0) {
+            // The workspace was still being indexed when we bootstrapped. Now that the
+            // server reports a graph update, re-run bootstrap so the real top-level
+            // skeleton replaces the empty placeholder (the incremental path below cannot
+            // bootstrap from nothing because it requires an already-rendered graph).
+            store.loadBootstrap().catch((err) => log.warn('SSE: bootstrap refresh failed', err));
+            return;
           }
+          fetchGraphDataIncremental(store.lastUpdated)
+            .then((graphData) => {
+              if (graphData && graphData.nodes && graphData.nodes.length > 0) {
+                store.setGraphData(graphData.nodes, graphData.edges, graphData.metadata.repoId, graphData.metadata);
+              }
+            })
+            .catch((err) => log.warn('SSE: incremental fetch failed', err));
         });
 
         eventSource.addEventListener('graph-data', (e: MessageEvent) => {

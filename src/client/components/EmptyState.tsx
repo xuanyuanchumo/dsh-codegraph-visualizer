@@ -8,9 +8,11 @@ interface EmptyStateProps {
   prerequisites: { codegraph: boolean; lens: boolean; builtin?: boolean };
   onImport: () => void;
   onScanWorkspace: () => void;
+  /** True while the host is still building the index for the active workspace. */
+  indexing?: boolean;
 }
 
-export const EmptyState = memo(function EmptyState({ prerequisites, onImport, onScanWorkspace }: EmptyStateProps) {
+export const EmptyState = memo(function EmptyState({ prerequisites, onImport, onScanWorkspace, indexing = false }: EmptyStateProps) {
   const t = useT();
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
   const [installing, setInstalling] = useState(false);
@@ -58,15 +60,15 @@ export const EmptyState = memo(function EmptyState({ prerequisites, onImport, on
   return (
     <div className="cg-empty-state">
       <GraphIcon size={48} className="cg-empty-icon" />
-      <span className="cg-empty-title">{t('empty.title')}</span>
-      <span className="cg-empty-subtitle">{t('empty.subtitle')}</span>
-      {allMissing && hasBuiltin && (
+      <span className="cg-empty-title">{indexing ? t('empty.indexingTitle') : t('empty.title')}</span>
+      <span className="cg-empty-subtitle">{indexing ? t('empty.indexingSubtitle') : t('empty.subtitle')}</span>
+      {!indexing && allMissing && hasBuiltin && (
         <div className="cg-empty-degraded-notice">
           <span className="cg-degraded-label">{t('empty.degradedMode')}</span>
           <span className="cg-degraded-hint">{t('empty.degradedHint')}</span>
         </div>
       )}
-      {anyMissing && (
+      {!indexing && anyMissing && (
         <div className="cg-empty-prereq-warning">
           <div className="cg-prereq-header">
             <AlertIcon size={14} />

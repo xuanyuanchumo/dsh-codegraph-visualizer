@@ -171,6 +171,8 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
           performanceDegradations: [],
           expandedNodeIds: new Set(),
           expandedNodeIdsByViewMode: {},
+          loadedChildrenByNodeId: new Set(),
+          prefetchedNodeIds: new Set(),
           pendingRequests: new Map(),
           loadErrorsByNodeId: new Map(),
         });
@@ -186,7 +188,7 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
       const prevPending = _get().pendingRequests;
       abortAllControllers(prevPending);
       internals.incrementalClusterCtx = null;
-      _set({ nodes: [], edges: [], rawNodes: [], rawEdges: [], savedRawNodes: [], savedRawEdges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0, truncated: false, totalNodeCount: 0, totalEdgeCount: 0, pendingRequests: new Map(), loadErrorsByNodeId: new Map() });
+      _set({ nodes: [], edges: [], rawNodes: [], rawEdges: [], savedRawNodes: [], savedRawEdges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0, truncated: false, totalNodeCount: 0, totalEdgeCount: 0, loadedChildrenByNodeId: new Set(), prefetchedNodeIds: new Set(), pendingRequests: new Map(), loadErrorsByNodeId: new Map() });
     },
   };
 }

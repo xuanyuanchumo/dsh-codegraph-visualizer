@@ -1779,6 +1779,35 @@ describe('graphStore (J6/J7/J10)', () => {
     expect(useGraphStore.getState().expandedNodeIdsByViewMode).toEqual({});
   });
 
+  // ── setBootstrapData / clearGraph must drop the per-node child caches ──
+  // Regression: a stale loadedChildrenByNodeId made expandNode() a silent no-op
+  // after a workspace switch (it early-returns on "children already loaded"),
+  // and prefetchedNodeIds only ever grew.
+  it('setBootstrapData resets loadedChildrenByNodeId and prefetchedNodeIds', () => {
+    useGraphStore.setState({
+      loadedChildrenByNodeId: new Set(['stale']),
+      prefetchedNodeIds: new Set(['stale']),
+    });
+    useGraphStore.getState().setBootstrapData(
+      [makeNode('r2', 'root', 'module', '/', 0)],
+      [],
+      'repo-bs',
+      { totalNodeCount: 1, totalEdgeCount: 0, timestamp: 1 },
+    );
+    expect(useGraphStore.getState().loadedChildrenByNodeId.size).toBe(0);
+    expect(useGraphStore.getState().prefetchedNodeIds.size).toBe(0);
+  });
+
+  it('clearGraph resets loadedChildrenByNodeId and prefetchedNodeIds', () => {
+    useGraphStore.setState({
+      loadedChildrenByNodeId: new Set(['stale']),
+      prefetchedNodeIds: new Set(['stale']),
+    });
+    useGraphStore.getState().clearGraph();
+    expect(useGraphStore.getState().loadedChildrenByNodeId.size).toBe(0);
+    expect(useGraphStore.getState().prefetchedNodeIds.size).toBe(0);
+  });
+
   // ── loadNodeChildren with new edges from API ──────────────────────
   it('loadNodeChildren should merge new edges from API response', async () => {
     const originalFetch = globalThis.fetch;

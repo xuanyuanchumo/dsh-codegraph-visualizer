@@ -11,7 +11,7 @@
   border-radius: var(--cg-radius);
   box-shadow: var(--cg-shadow);
   padding: 14px;
-  z-index: 6;
+  z-index: var(--cg-z-panel);
   overflow-y: auto;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);

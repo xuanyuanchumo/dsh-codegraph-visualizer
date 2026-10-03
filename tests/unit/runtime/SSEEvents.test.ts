@@ -139,12 +139,14 @@ describe('setupSSEEvents', () => {
     );
   });
 
-  it('graph-updated skips fetch when nodes empty', async () => {
+  it('graph-updated re-bootstraps when the graph is empty (index was still building)', async () => {
+    mocks.loadBootstrap.mockResolvedValue(true);
     mocks.getState.mockReturnValue(createStore({ nodes: [] }));
     const { ctx } = createCtx();
     setupSSEEvents(ctx);
     MockEventSource.last().emit('graph-updated', { repoId: 'r1' });
     await flush();
+    expect(mocks.loadBootstrap).toHaveBeenCalledTimes(1);
     expect(mocks.fetchGraphDataIncremental).not.toHaveBeenCalled();
   });
 

@@ -1,5 +1,5 @@
 // Error boundary for graph visualization components
-import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { Component, Fragment, type ErrorInfo, type ReactNode } from 'react';
 import { useT } from '../i18n/index.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { REPO_URL } from '../../shared/constants.ts';
@@ -65,6 +65,13 @@ export class GraphErrorBoundary extends Component<Props, State> {
       );
     }
 
-    return <div key={this.state.retryKey}>{this.props.children}</div>;
+    // The boundary must be layout-transparent: it used to wrap children in a bare <div>,
+    // which became the flex item of `.cg-graph-panel` (column flex) while the real flexible
+    // child `.cg-graph-container` (flex: 1; min-height: 0) sat one level deeper. A block
+    // wrapper has content-based height, so the container resolved to 0px, the cytoscape
+    // renderer never initialised (it retries until clientHeight > 0) and the graph area
+    // stayed permanently empty. A keyed Fragment keeps the retry-remount semantics without
+    // adding a box to the layout.
+    return <Fragment key={this.state.retryKey}>{this.props.children}</Fragment>;
   }
 }

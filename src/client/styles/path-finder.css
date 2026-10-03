@@ -9,7 +9,7 @@
   border: 1px solid var(--cg-border);
   border-radius: var(--cg-radius);
   box-shadow: var(--cg-shadow);
-  z-index: 7;
+  z-index: var(--cg-z-panel);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   overflow: hidden;
@@ -80,7 +80,7 @@
   border: 1px solid var(--cg-border-strong);
   border-radius: var(--cg-radius-sm);
   box-shadow: var(--cg-shadow);
-  z-index: 10;
+  z-index: var(--cg-z-dropdown);
   max-height: 160px;
   overflow-y: auto;
   animation: cg-dropdown-in 120ms var(--cg-ease-out);

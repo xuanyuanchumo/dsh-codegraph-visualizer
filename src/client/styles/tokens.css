@@ -153,6 +153,22 @@
   --cg-statusbar-h: 28px;
   --cg-panel-min-h: 240px;
   --cg-panel-min-w: 320px;
+
+  /* Z-index hierarchy — semantic layers from base to top.
+   * Each layer has a clear purpose; values are spaced to allow
+   * fine-tuning within a layer without crossing into the next. */
+  --cg-z-base: 0;
+  --cg-z-canvas-ui: 5;
+  --cg-z-panel: 10;
+  --cg-z-panel-stack: 15;
+  --cg-z-dropdown: 20;
+  --cg-z-search: 25;
+  --cg-z-overlay: 30;
+  --cg-z-resize: 35;
+  --cg-z-tooltip: 40;
+  --cg-z-modal: 50;
+  --cg-z-modal-action: 55;
+  --cg-z-context-menu: 60;
 }
 
 /* DSH Dark theme — activated when body[data-ds-dark-theme] is set.

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import type { CycleInfo } from '../renderer/CycleDetector.ts';
 import { buildTour } from '../../shared/analysis/TourBuilder.ts';
+import { isHostSizedIntegrationMode, type IntegrationMode } from '../../shared/constants.ts';
 import type { useGraphDisplay } from './useGraphSelectors.ts';
 import type { useGraphRenderer } from './useGraphRenderer.ts';
 import type { useT } from '../i18n/index.ts';
@@ -20,6 +21,7 @@ export interface GraphDerivedValuesParams {
   showCycles: boolean;
   collapsed: boolean;
   className: string;
+  integrationMode: IntegrationMode;
   rendererRef: RendererRef;
   t: TFunction;
 }
@@ -35,7 +37,7 @@ export interface GraphDerivedValues {
 }
 
 export function useGraphDerivedValues(params: GraphDerivedValuesParams): GraphDerivedValues {
-  const { nodes, edges, rawNodes, rawEdges, diagramData, expandedNodeIds, showCycles, collapsed, className, rendererRef, t } = params;
+  const { nodes, edges, rawNodes, rawEdges, diagramData, expandedNodeIds, showCycles, collapsed, className, integrationMode, rendererRef, t } = params;
 
   const statsText = useMemo(() => {
     const totalNodes = diagramData?.allNodes.length ?? nodes.length;
@@ -63,10 +65,12 @@ export function useGraphDerivedValues(params: GraphDerivedValuesParams): GraphDe
 
   const tourData = useMemo(() => buildTour(rawNodes, rawEdges), [rawNodes, rawEdges]);
 
-  const panelClassName = useMemo(() =>
-    `cg-graph-panel cg-resizable ${collapsed ? 'cg-collapsed' : ''} ${className}`.trim(),
-    [collapsed, className],
-  );
+  // `cg-resizable` is only meaningful where the panel owns its own geometry; in host-sized
+  // integration modes the slot decides the size, so the drag handle would fight it.
+  const panelClassName = useMemo(() => {
+    const resizable = isHostSizedIntegrationMode(integrationMode) ? '' : 'cg-resizable';
+    return `cg-graph-panel ${resizable} ${collapsed ? 'cg-collapsed' : ''} ${className}`.replace(/\s+/g, ' ').trim();
+  }, [collapsed, className, integrationMode]);
 
   return { statsText, expandedFunctionBodyCount, showFunctionBodyBudget, nodeTypeCounts, cycleDetails, tourData, panelClassName };
 }

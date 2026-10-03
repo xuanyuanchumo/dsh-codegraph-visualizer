@@ -87,6 +87,8 @@ export const zh: Record<string, string> = {
   // Empty state
   'empty.title': '暂无图谱数据',
   'empty.subtitle': '导入 .codegraph 文件夹、粘贴图谱数据或扫描仓库。',
+  'empty.indexingTitle': '正在建立索引',
+  'empty.indexingSubtitle': '该工作区的索引仍在构建中，完成后图谱会自动出现。',
   'empty.import': '导入图谱',
 
   // Error boundary

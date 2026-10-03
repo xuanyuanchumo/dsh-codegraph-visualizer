@@ -88,7 +88,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const { nodes, edges, rawNodes, rawEdges } = useGraphData();
   const { layout, dagreRankDir, theme, filterType, graphType, clusterDepth, viewMode, currentLayer, diagramData, hierarchyLevel } = useGraphDisplay();
   const { searchQuery, selectedNodeId, highlightedNodeIds, expandedNodeIds, pathResult, focusDepth, focusModeActive, focusModeNodeId, pathFilterInclude, pathFilterExclude } = useGraphInteraction();
-  const { isLoading, error, lastUpdated, truncated, totalNodeCount, prerequisites, watchEnabled, initStatus, urlRestored, panelVisible } = useGraphStatus();
+  const { isLoading, error, lastUpdated, truncated, totalNodeCount, prerequisites, watchEnabled, initStatus, urlRestored, panelVisible, indexStatus } = useGraphStatus();
   const { currentWorkspace, workspaceList } = useGraphWorkspace();
   const { ruleViolations, selectedFunction, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, heatmapMode, todoMarkerMode } = useGraphAnalysis();
   const { performanceDegradations, lodLevel, lodEnabled } = useGraphPerformance();
@@ -320,7 +320,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const { statsText, expandedFunctionBodyCount, showFunctionBodyBudget, nodeTypeCounts, cycleDetails, tourData, panelClassName } = useGraphDerivedValues({
     nodes, edges, rawNodes, rawEdges, diagramData, expandedNodeIds,
     showCycles: panel.showCycles, collapsed: panel.collapsed, className,
-    rendererRef: renderer.rendererRef, t,
+    integrationMode, rendererRef: renderer.rendererRef, t,
   });
 
   const isCollapsed = panel.collapsed;
@@ -427,27 +427,32 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       )}
 
       {nodes.length === 0 && !isLoading && !error && !isCollapsed && !isMicroView && (
-        <EmptyState prerequisites={prerequisites} onImport={() => panel.setShowImport(true)} onScanWorkspace={handleScanWorkspace} />
+        <EmptyState prerequisites={prerequisites} indexing={indexStatus === 'building'} onImport={() => panel.setShowImport(true)} onScanWorkspace={handleScanWorkspace} />
       )}
 
 
 
-      <div className="cg-graph-container" ref={renderer.containerRef}
-        role="application"
-        aria-label={t('a11y.graphContainerStats', { viewMode: t(`viewMode.${viewMode}`), nodeCount: nodes.length, edgeCount: edges.length })}
-        aria-describedby="cg-graph-live-region"
-        style={{ display: viewMode === 'sequence' && selectedFunction ? 'none' : undefined }}>
-        <div id="cg-graph-live-region" className="cg-visually-hidden" role="status" aria-live="polite">
-          {selectedNodeData
-            ? t('a11y.selectedNodeDetail', { label: selectedNodeData.label, type: selectedNodeData.type, filePath: selectedNodeData.filePath, lineNumber: selectedNodeData.lineNumber ?? 0 })
-            : ''}
-        </div>
-        {nodes.length > 0 && visibleNodeCount === 0 && !isMicroView && (
-          <div className="cg-filter-empty-state" role="status">
-            {t('common.noVisibleNodes')}
+      <GraphErrorBoundary
+        onError={(err) => setError(err instanceof Error ? err.message : String(err))}
+        fallback={<div className="cg-graph-container" />}
+      >
+        <div className="cg-graph-container" ref={renderer.containerRef}
+          role="application"
+          aria-label={t('a11y.graphContainerStats', { viewMode: t(`viewMode.${viewMode}`), nodeCount: nodes.length, edgeCount: edges.length })}
+          aria-describedby="cg-graph-live-region"
+          style={{ display: viewMode === 'sequence' && selectedFunction ? 'none' : undefined }}>
+          <div id="cg-graph-live-region" className="cg-visually-hidden" role="status" aria-live="polite">
+            {selectedNodeData
+              ? t('a11y.selectedNodeDetail', { label: selectedNodeData.label, type: selectedNodeData.type, filePath: selectedNodeData.filePath, lineNumber: selectedNodeData.lineNumber ?? 0 })
+              : ''}
           </div>
-        )}
-      </div>
+          {nodes.length > 0 && visibleNodeCount === 0 && !isMicroView && (
+            <div className="cg-filter-empty-state" role="status">
+              {t('common.noVisibleNodes')}
+            </div>
+          )}
+        </div>
+      </GraphErrorBoundary>
       {viewMode === 'sequence' && selectedFunction && !isCollapsed && (
         <GraphErrorBoundary><SequenceDiagramRenderer nodes={nodes} edges={edges} theme={theme}
           onNodeTap={(id) => handleNodeTap(NodeId(id))} /></GraphErrorBoundary>

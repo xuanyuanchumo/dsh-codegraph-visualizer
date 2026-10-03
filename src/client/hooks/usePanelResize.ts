@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { IRenderer } from '../renderer/IRenderer.ts';
 import { useGraphStore } from '../store/graphStore.ts';
-import { getMinPanelSize, type IntegrationMode } from '../../shared/constants.ts';
+import { getMinPanelSize, isHostSizedIntegrationMode, type IntegrationMode } from '../../shared/constants.ts';
 
 export function usePanelResize(
   panelRef: React.RefObject<HTMLDivElement | null>,
@@ -15,6 +15,9 @@ export function usePanelResize(
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
+    // Host-sized integration modes (the DSH slots) own the panel geometry; dragging would
+    // only write inline sizes that fight the slot layout on the next render.
+    if (isHostSizedIntegrationMode(integrationMode)) return;
 
     const { minWidth: MIN_WIDTH, minHeight: MIN_HEIGHT } = getMinPanelSize(integrationMode);
 

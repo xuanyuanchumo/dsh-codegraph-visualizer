@@ -98,4 +98,17 @@ describe('GraphErrorBoundary', () => {
     expect(link.getAttribute('href')).toContain('github.com');
     expect(link.getAttribute('target')).toBe('_blank');
   });
+
+  it('must be layout-transparent (no wrapper element around children)', () => {
+    const { container } = render(
+      <div className="host">
+        <GraphErrorBoundary>
+          <div className="child">x</div>
+        </GraphErrorBoundary>
+      </div>
+    );
+    const host = container.querySelector('.host');
+    expect(host?.children).toHaveLength(1);
+    expect(host?.firstElementChild?.className).toBe('child');
+  });
 });

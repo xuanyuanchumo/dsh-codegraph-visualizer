@@ -6,6 +6,7 @@ import { NodeId } from '../../types/index.ts';
 import type { ClusterNode, ClusterEdge } from '../store/cluster/index.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { RENDERER, UI } from '../../shared/constants.ts';
+import { useGraphStore } from '../store/graphStore.ts';
 
 type FilterType = GraphNode['type'] | 'all';
 
@@ -116,25 +117,33 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
       const w = container.clientWidth;
       const h = container.clientHeight;
       if (w > 0 && h > 0) {
-        renderer = new CytoscapeRenderer({
-          container,
-          theme,
-          onNodeTap: (nodeId: string) => {
-            const id = NodeId(nodeId);
-            callbacksRef.current.onNodeTap(id);
-            if (showCallChainRef.current) { rendererRef.current?.highlightCallChain(id); }
-          },
-          onNodeDoubleTap: (nodeId: string) => callbacksRef.current.onNodeDoubleTap(nodeId),
-          onNodeHover: (nodeId: string, pos: { x: number; y: number }) => callbacksRef.current.onNodeHover(nodeId, pos),
-          onNodeHoverPrefetch: (nodeId: string) => callbacksRef.current.onNodeHoverPrefetch?.(nodeId),
-          onNodeHoverOut: () => callbacksRef.current.onNodeHoverOut(),
-          onEdgeTap: (edgeId: string, pos: { x: number; y: number }) => callbacksRef.current.onEdgeTap(edgeId, pos),
-          onEdgeHover: (edgeId: string, pos: { x: number; y: number }) => callbacksRef.current.onEdgeHover(edgeId, pos),
-          onEdgeHoverOut: () => callbacksRef.current.onEdgeHoverOut(),
-        });
-        renderer.init();
-        rendererRef.current = renderer;
-        log.info('renderer initialized', { theme, w, h });
+        try {
+          renderer = new CytoscapeRenderer({
+            container,
+            theme,
+            onNodeTap: (nodeId: string) => {
+              const id = NodeId(nodeId);
+              callbacksRef.current.onNodeTap(id);
+              if (showCallChainRef.current) { rendererRef.current?.highlightCallChain(id); }
+            },
+            onNodeDoubleTap: (nodeId: string) => callbacksRef.current.onNodeDoubleTap(nodeId),
+            onNodeHover: (nodeId: string, pos: { x: number; y: number }) => callbacksRef.current.onNodeHover(nodeId, pos),
+            onNodeHoverPrefetch: (nodeId: string) => callbacksRef.current.onNodeHoverPrefetch?.(nodeId),
+            onNodeHoverOut: () => callbacksRef.current.onNodeHoverOut(),
+            onEdgeTap: (edgeId: string, pos: { x: number; y: number }) => callbacksRef.current.onEdgeTap(edgeId, pos),
+            onEdgeHover: (edgeId: string, pos: { x: number; y: number }) => callbacksRef.current.onEdgeHover(edgeId, pos),
+            onEdgeHoverOut: () => callbacksRef.current.onEdgeHoverOut(),
+          });
+          renderer.init();
+          rendererRef.current = renderer;
+          log.info('renderer initialized', { theme, w, h });
+        } catch (err) {
+          log.error('renderer init failed', { err });
+          renderer?.destroy();
+          renderer = null;
+          useGraphStore.getState().setError(err instanceof Error ? err.message : String(err));
+          return;
+        }
 
         if (typeof ResizeObserver !== 'undefined') {
           ro = new ResizeObserver(() => {

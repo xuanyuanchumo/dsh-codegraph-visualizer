@@ -4,7 +4,7 @@
   position: absolute;
   inset: var(--cg-toolbar-h) 0 var(--cg-statusbar-h) 0;
   background: var(--cg-bg);
-  z-index: 15;
+  z-index: var(--cg-z-panel-stack);
   display: flex;
   flex-direction: column;
   animation: cg-slide-down 160ms var(--cg-ease-out);
@@ -335,7 +335,7 @@
   border: 1px solid var(--cg-border);
   border-radius: var(--cg-radius);
   box-shadow: var(--cg-shadow);
-  z-index: 6;
+  z-index: var(--cg-z-panel);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   overflow: hidden;
@@ -466,14 +466,14 @@
   border: 1px solid var(--cg-border-strong);
   border-radius: var(--cg-radius-sm);
   box-shadow: var(--cg-shadow-lg);
-  z-index: 1100;
+  z-index: var(--cg-z-dropdown);
   overflow: hidden;
   animation: ws-slide-in 120ms var(--cg-ease-out);
 }
 
 .cg-workspace-dropdown-portal {
   position: fixed;
-  z-index: 9999;
+  z-index: var(--cg-z-modal);
 }
 
 @keyframes ws-slide-in {
@@ -661,7 +661,7 @@
   background: var(--cg-overlay-bg);
   -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
-  z-index: 10000;
+  z-index: var(--cg-z-modal);
   display: flex;
   align-items: center;
   justify-content: center;

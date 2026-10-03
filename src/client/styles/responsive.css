@@ -820,7 +820,7 @@
 
 /* In conversation-view mode, the panel should not have its own border/radius
  * since it's embedded in the DSH conversation area */
-[data-cg-integration="conversation-view"].cg-graph-panel {
+[data-cg-integration="conversation-view"].cg-graph-panel:not(.cg-collapsed) {
   border: none;
   border-radius: 0;
 }
@@ -850,7 +850,7 @@
   display: none;
 }
 
-[data-cg-integration="sidebar-right"].cg-graph-panel {
+[data-cg-integration="sidebar-right"].cg-graph-panel:not(.cg-collapsed) {
   border: none;
   border-radius: 0;
 }
@@ -881,7 +881,7 @@
   display: none;
 }
 
-[data-cg-integration="better-sidebar"].cg-graph-panel {
+[data-cg-integration="better-sidebar"].cg-graph-panel:not(.cg-collapsed) {
   border: none;
   border-radius: 0;
 }
@@ -911,7 +911,7 @@
   display: none;
 }
 
-[data-cg-integration="remote-web-ui"].cg-graph-panel {
+[data-cg-integration="remote-web-ui"].cg-graph-panel:not(.cg-collapsed) {
   border: none;
   border-radius: 0;
 }
@@ -919,11 +919,14 @@
 /* ---- Toolbar always visible in non-floating modes -------------------------- */
 /* In all sidebar/slot integration modes, the toolbar must remain visible
  * even when there's no graph data. The toolbar is the primary interaction
- * surface and should not disappear. */
-[data-cg-integration="conversation-view"] .cg-graph-toolbar,
-[data-cg-integration="sidebar-right"] .cg-graph-toolbar,
-[data-cg-integration="better-sidebar"] .cg-graph-toolbar,
-[data-cg-integration="remote-web-ui"] .cg-graph-toolbar {
+ * surface and should not disappear.
+ * Expressed as one rule over `[data-cg-integration]` (the attribute lives on
+ * `.cg-graph-panel` itself, see GraphPanel.tsx) so every current and future
+ * integration mode is covered. The `:not(.cg-collapsed)` guard is load-bearing:
+ * without it this `!important` declaration outranks
+ * `.cg-graph-panel.cg-collapsed .cg-graph-toolbar { display: none }` and the
+ * toolbar keeps painting inside the 52px collapsed FAB. */
+.cg-graph-panel[data-cg-integration]:not(.cg-collapsed) .cg-graph-toolbar {
   display: flex !important;
 }
 

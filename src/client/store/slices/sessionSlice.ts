@@ -17,6 +17,7 @@ export function createSessionSlice(_set: SetFn, _get: GetFn): Partial<GraphState
     urlRestored: false,
     initStatus: 'idle',
     initMessage: null,
+    indexStatus: 'empty',
     watchEnabled: false,
     setLoading: (isLoading: boolean) => {
       clearLoadingFailsafe();
@@ -52,6 +53,7 @@ export function createSessionSlice(_set: SetFn, _get: GetFn): Partial<GraphState
       }
     },
     setInitStatus: (initStatus, initMessage = null) => _set({ initStatus, initMessage }),
+    setIndexStatus: (indexStatus) => _set({ indexStatus }),
     setWatchEnabled: (watchEnabled: boolean) => _set({ watchEnabled }),
   };
 }

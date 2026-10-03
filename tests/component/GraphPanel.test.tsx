@@ -293,6 +293,15 @@ describe('GraphPanel component', () => {
     const { container } = render(React.createElement(GraphPanel));
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
   });
+
+  it('renders .cg-graph-container as a direct flex child of the panel', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const { container } = render(React.createElement(GraphPanel));
+    const panel = container.querySelector('.cg-graph-panel');
+    // Regression: an error-boundary wrapper <div> between the panel and the container made
+    // the container (flex: 1; min-height: 0) resolve to 0px, so the renderer never mounted.
+    expect(panel?.querySelector(':scope > .cg-graph-container')).not.toBeNull();
+  });
 });
 describe('GraphPanel handler behavior', () => {
   beforeEach(() => {
@@ -1717,6 +1726,7 @@ describe('GraphPanel uncovered handler tests', () => {
       isLoading: false, error: null, lastUpdated: 0, truncated: false,
       totalNodeCount: 0, prerequisites: { codegraph: true, lens: false, builtin: true },
       watchEnabled: false, initStatus: 'idle', urlRestored: true, panelVisible: true,
+      indexStatus: 'ready',
     });
     vi.mocked(useGraphWorkspace).mockReturnValue({
       currentWorkspace: '/test/workspace', workspaceList: [],
@@ -1736,6 +1746,7 @@ describe('GraphPanel uncovered handler tests', () => {
       isLoading: false, error: null, lastUpdated: 0, truncated: false,
       totalNodeCount: 0, prerequisites: { codegraph: false, lens: false, builtin: true },
       watchEnabled: false, initStatus: 'idle', urlRestored: true, panelVisible: true,
+      indexStatus: 'ready',
     });
     vi.mocked(useGraphWorkspace).mockReturnValue({
       currentWorkspace: '/test/workspace', workspaceList: [],
@@ -1757,6 +1768,7 @@ describe('GraphPanel uncovered handler tests', () => {
       isLoading: false, error: null, lastUpdated: 0, truncated: false,
       totalNodeCount: 1, prerequisites: { codegraph: true, lens: false, builtin: true },
       watchEnabled: false, initStatus: 'idle', urlRestored: true, panelVisible: true,
+      indexStatus: 'ready',
     });
     vi.mocked(useGraphWorkspace).mockReturnValue({
       currentWorkspace: '/test/workspace', workspaceList: [],
@@ -2846,6 +2858,7 @@ describe('GraphPanel panel callback tests', () => {
       isLoading: false, error: 'Test error', lastUpdated: 0, truncated: false,
       totalNodeCount: 0, prerequisites: { codegraph: false, lens: false, builtin: true },
       watchEnabled: false, initStatus: 'idle', urlRestored: true, panelVisible: true,
+      indexStatus: 'ready',
     });
 
     const { container } = render(React.createElement(GraphPanel));
@@ -3373,6 +3386,7 @@ describe('GraphPanel onClose callback tests', () => {
       isLoading: false, error: 'Test error', lastUpdated: 0, truncated: false,
       totalNodeCount: 0, prerequisites: { codegraph: false, lens: false, builtin: true },
       watchEnabled: false, initStatus: 'idle', urlRestored: true, panelVisible: true,
+      indexStatus: 'ready',
     });
 
     const { container } = render(React.createElement(GraphPanel));
@@ -3654,6 +3668,7 @@ describe('GraphPanel remaining handler coverage tests', () => {
       isLoading: false, error: 'Test error', lastUpdated: 0, truncated: false,
       totalNodeCount: 0, prerequisites: { codegraph: false, lens: false, builtin: true },
       watchEnabled: false, initStatus: 'idle', urlRestored: true, panelVisible: true,
+      indexStatus: 'ready',
     });
 
     const { container } = render(React.createElement(GraphPanel));

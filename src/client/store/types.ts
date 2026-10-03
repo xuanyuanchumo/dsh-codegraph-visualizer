@@ -53,6 +53,8 @@ export interface GraphState {
   urlRestored: boolean;
   initStatus: 'idle' | 'initializing' | 'done' | 'error';
   initMessage: string | null;
+  /** Server-reported index status for the active workspace (from the bootstrap payload). */
+  indexStatus: 'ready' | 'building' | 'empty';
   watchEnabled: boolean;
 
   expandedNodeIds: Set<string>;
@@ -123,6 +125,7 @@ export interface GraphState {
   setIntegrationMode: (mode: IntegrationMode) => void;
   setPanelVisible: (visible: boolean) => void;
   setInitStatus: (status: 'idle' | 'initializing' | 'done' | 'error', message?: string | null) => void;
+  setIndexStatus: (status: 'ready' | 'building' | 'empty') => void;
   setWatchEnabled: (enabled: boolean) => void;
   expandNode: (nodeId: string) => void;
   loadNodeChildren: (nodeId: string, options?: { signal?: AbortSignal }) => Promise<void>;

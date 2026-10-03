@@ -206,7 +206,27 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
       try {
         const ws = _get().currentWorkspace;
         const data = await fetchBootstrap(undefined, ws);
-        if (!data || data.topLevelNodes.length === 0) {
+        if (!data) {
+          log.info('bootstrap returned no payload, falling back to full load');
+          return false;
+        }
+        _get().setIndexStatus(data.indexStatus);
+        if (data.indexStatus === 'building') {
+          // The server side index for this workspace is still being built. Install the
+          // empty skeleton for the new repoId (so a workspace switch never keeps showing
+          // the previous repository) and wait for the `graph-updated` SSE event instead of
+          // escalating to an error / full-scan fallback, which would break the first-paint
+          // contract of one bootstrap request per workspace.
+          _get().setBootstrapData(
+            data.topLevelNodes,
+            data.edges,
+            data.metadata.repoId,
+            { totalNodeCount: data.metadata.totalNodeCount, totalEdgeCount: data.metadata.totalEdgeCount, timestamp: data.metadata.timestamp },
+          );
+          log.info('bootstrap: index building, empty skeleton installed', { repoId: data.metadata.repoId });
+          return true;
+        }
+        if (data.topLevelNodes.length === 0) {
           log.info('bootstrap returned empty, falling back to full load');
           return false;
         }

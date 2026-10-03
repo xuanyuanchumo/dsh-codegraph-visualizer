@@ -32,6 +32,7 @@ export function useGraphStatus() {
     truncated: s.truncated, totalNodeCount: s.totalNodeCount,
     prerequisites: s.prerequisites, watchEnabled: s.watchEnabled,
     initStatus: s.initStatus, urlRestored: s.urlRestored, panelVisible: s.panelVisible,
+    indexStatus: s.indexStatus,
   })));
 }
 

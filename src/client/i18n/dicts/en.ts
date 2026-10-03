@@ -87,6 +87,8 @@ export const en: Record<string, string> = {
   // Empty state
   'empty.title': 'No graph data yet',
   'empty.subtitle': 'Import a .codegraph folder, paste graph data, or scan a repository.',
+  'empty.indexingTitle': 'Indexing in progress',
+  'empty.indexingSubtitle': 'The index for this workspace is still being built. The graph appears automatically once it is ready.',
   'empty.import': 'Import Graph',
 
   // Error boundary

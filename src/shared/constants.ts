@@ -326,6 +326,26 @@ export function getMinPanelSize(mode: IntegrationMode): { minWidth: number; minH
   return { minWidth: cfg.width, minHeight: cfg.height };
 }
 
+/**
+ * Integration modes where the host container owns the panel geometry.
+ *
+ * `src/client/styles/responsive.css` declares `width: 100%; height: 100%` for exactly
+ * these modes, so the panel must track the DSH slot it was mounted into. A persisted
+ * free-float size applied as an inline style would outrank that stylesheet and squeeze
+ * the primary tab view down to the last floating size, so both the size applier and the
+ * drag handle are disabled for them.
+ */
+const HOST_SIZED_INTEGRATION_MODES: ReadonlySet<IntegrationMode> = new Set<IntegrationMode>([
+  'conversation-view',
+  'sidebar-right',
+  'better-sidebar',
+  'remote-web-ui',
+]);
+
+export function isHostSizedIntegrationMode(mode: IntegrationMode): boolean {
+  return HOST_SIZED_INTEGRATION_MODES.has(mode);
+}
+
 export const COLORS = {
   PACKAGE_LIGHT: '#263148',
   PACKAGE_DARK: '#232324',

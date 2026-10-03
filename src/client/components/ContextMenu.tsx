@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, memo, useCallback } from 'react';
 import type { GraphNode } from '../../types/index.ts';
 import type { ClusterNode } from '../store/cluster/index.ts';
 import { useT } from '../i18n/index.ts';
-import { UI } from '../../shared/constants.ts';
+
 
 export interface ContextMenuAction {
   id: string;
@@ -192,11 +192,12 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
     onClick: () => { props.onOpenSource(props.nodeId); handleClose(); },
   });
 
+  // Layering is owned by the stylesheet (`.cg-context-menu { z-index: var(--cg-z-context-menu) }`),
+  // so only the anchored position lives inline.
   const menuStyle: React.CSSProperties = {
     position: 'fixed',
     left: `${props.position.x}px`,
     top: `${props.position.y}px`,
-    zIndex: UI.CONTEXT_MENU_Z_INDEX,
   };
 
   return (

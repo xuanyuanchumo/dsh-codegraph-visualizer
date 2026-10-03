@@ -119,7 +119,10 @@ function makeSlice(initial: Partial<GraphState> = {}): SliceHarness {
   // Inject slice methods into state so _get().loadNodeChildren / setBootstrapData resolve.
   // Spread order: slice provides methods + initial empty collections; state (with caller
   // overrides) wins so user-supplied expandedNodeIds/pinnedIds etc. are preserved.
+  // setIndexStatus belongs to sessionSlice, which this harness does not create, so it is
+  // stubbed here unless the caller supplied one.
   state = { ...slice, ...state } as GraphState;
+  if (typeof state.setIndexStatus !== 'function') state.setIndexStatus = vi.fn();
   return { set, get, slice, get state() { return state; } };
 }
 
@@ -662,13 +665,33 @@ describe('expandSlice', () => {
         topLevelNodes: [],
         edges: [],
         metadata: { repoId: 'r', totalNodeCount: 0, totalEdgeCount: 0, timestamp: 1 },
-        indexStatus: 'ok',
+        indexStatus: 'ready',
       });
       const setBootstrapData = vi.fn();
       const h = makeSlice({ setBootstrapData: setBootstrapData } as unknown as Partial<GraphState>);
       const ok = await h.slice.loadBootstrap();
       expect(ok).toBe(false);
       expect(setBootstrapData).not.toHaveBeenCalled();
+    });
+
+    it('returns true and installs an empty skeleton while the index is still building', async () => {
+      mocks.fetchBootstrap.mockResolvedValue({
+        topLevelNodes: [],
+        edges: [],
+        metadata: { repoId: 'r2', totalNodeCount: 0, totalEdgeCount: 0, timestamp: 7 },
+        indexStatus: 'building',
+      });
+      const setBootstrapData = vi.fn();
+      const setIndexStatus = vi.fn();
+      const h = makeSlice({ setBootstrapData, setIndexStatus } as unknown as Partial<GraphState>);
+      const ok = await h.slice.loadBootstrap();
+      expect(ok).toBe(true);
+      expect(setIndexStatus).toHaveBeenCalledWith('building');
+      expect(setBootstrapData).toHaveBeenCalledWith([], [], 'r2', {
+        totalNodeCount: 0,
+        totalEdgeCount: 0,
+        timestamp: 7,
+      });
     });
 
     it('returns true and applies bootstrap data when present', async () => {
