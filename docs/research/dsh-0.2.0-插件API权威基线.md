@@ -277,7 +277,82 @@ Chrome（`--remote-debugging-port=9222`，profile 在 `test-results/chrome-debug
 - 辨析方法：看 `--user-data-dir`。`…\.cache\chrome-devtools-mcp\chrome-profile` = MCP 的；
   `test-results\chrome-debug-profile` = 启动器的。
 
-## 6. 对后续开发的门禁结论
+### 5.2 上游第三方插件的真实能力面（J0 实测，纠正既有假设）
+
+对 profile `web` 里**已安装**的 `dsh-codegraph@0.1.3` 逐文件核对（`node_modules/dsh-codegraph/`）：
+
+- `dsh.plugin.json` → `contributes.tools: ["mcp__codegraph__codegraph_explore"]`，即**只贡献一个工具**；
+- `lib/index.js:26` → `export const inject = ['tools', 'systemPrompt']`；
+- `Select-String -Path lib\*.js -Pattern "codegraph_[a-z_]+"` 的全部命中只有 `codegraph_explore`
+  与 `mcp__codegraph__codegraph_explore`（其余为 `CODEGRAPH_BIN` 等环境变量常量）。
+
+**结论：本项目 `CodegraphAdapter` / `ApiCompatLayer.FALLBACK_CHAINS` / `HostVersionDetector.detectFromToolNames`
+所依赖的 `codegraph_status`、`codegraph_graph`、`codegraph_query`、`codegraph_init`、`codegraph_sync`、
+`codegraph_callers`、`codegraph_callees`、`codegraph_bootstrap`、`codegraph_incremental`
+在当前生态中**一个都不存在**。**J0 的直接后果**：宿主日志
+
+```
+[codegraph:host] prerequisite status { codegraph: false, lens: false, builtin: true }
+```
+
+即"插件已安装却报前置缺失"——客户端据此永久显示 `import.prereqMissing` 提示
+（`src/client/components/ImportPanel.tsx:102`），并抑制首开自动补全
+（`src/client/hooks/useAutoBootstrap.ts:22` `if (!opts.codegraphReady) return;`）。
+**修法（本轮落地）**：`src/host/prerequisites.ts` 改为**证据列表**判定，把插件真实贡献的
+`mcp__codegraph__codegraph_explore` 与 `codegraph_*` 家族并列为存在性证据，且优先采用兼容层解析出的名字。
+
+**根因（Round 2 追加复现）**：上游的 MCP 桥在 Windows 上**根本起不来**，与本项目无关：
+
+- 复现脚本（临时，`.cycles/probe-upstream-mcp.mjs`，位于 gitignore 区）：直接对
+  `C:\Users\86156\.dsh\profiles\web\node_modules\dsh-codegraph\lib\codegraph\serve.js`
+  讲原始 MCP stdio（`initialize` → `notifications/initialized` → `tools/list`），得到
+  `STDERR: Error: spawn D:\JetBrains\nvm\node_global\codegraph ENOENT`，**零条** JSON-RPC 响应。
+- 该目录下同时存在 `codegraph`（439B，npm 生成的 POSIX shim）、`codegraph.cmd`（350B）、
+  `codegraph.ps1`（905B）；Node 的 `spawn` 在 Windows 上**不能执行无扩展名的 shell shim**，
+  而 `serve.js:445-450` 的 `getWindowsCandidates` 只在部分解析路径上追加 `.exe/.cmd/.bat/.com`
+  → 解析到 `…\node_global\codegraph` 即 ENOENT。
+- 因此 DSH 进程里那个 `serve.js` 子进程（实测 PID 2868，父进程 DSH 3212）**只是空壳**：
+  `_syncTools()` 永远拿不到 `tools/list` 结果 → `disposers.size === 0` → 不注册任何工具、
+  也不会打印 `dsh-codegraph: registered N codegraph tool(s)`（`lib/mcp-client.js:370-381`）。
+- 旁证：`pluginInventory/list` 中 `include:codegraph` 为 `{ enabled: true, fiberPhase: "active" }`，
+  但全宿主看不到它的工具面；DSH 的 `ctx.logger` 不写 stdout，故启动器捕获的日志里没有任何上游行。
+
+**对本项目的意义**：Windows 上 `codegraph: false` 是**准确**的（不是检测缺陷），内置扫描就是唯一
+可用数据源；客户端的前置提示应据此理解为"上游 MCP 桥不可用"，而不是"用户没装插件"。
+
+- `dsh-tool-lens` **未安装**在 `web` profile（`dsh.profile.bundles` 与本 profile 依赖均无），
+  因此 `lens_analyze`/`lens_impact` 是否为其真实工具名**仍未经证实**（保持猜测性证据，不得据此下结论）。
+- 真实生效的数据源只有本项目**内置扫描**（`builtin: true`）。所有上游调用必须保持
+  "可用即用、不可用即回落"：`createInvoke`（`src/tools.ts:107-128`）在 `ctx.tools.execute` 抛错或
+  `result.isError` 时返回 `null`，`getAvailableToolName` 解析不到即返回 `null`。
+
+## 6. 多代适配模型（Round 2 落地，本项目自持）
+
+- **单一世代事实源**：`src/shared/dshGeneration.ts` —— `DSH_GENERATION_PROBES`
+  （`gen1:'0.1.7-rc.2'`、`gen2:'0.2.0-rc.2'`、`gen3:'0.3.0-rc.2'`）、`DSH_SUPPORTED_RANGE`
+  （`>=0.1.7-rc.2 <0.4.0`，与 `package.json` 的 `engines.dsh` **逐字相等**，由测试钉死）、
+  `DSH_UNSUPPORTED_PROBE`、`parseDshVersion`、`generationOfVersion`。宿主与客户端探测器
+  （`src/host/compat/HostVersionDetector.ts`、`src/client/compat/ClientVersionDetector.ts`）
+  **都委托**它，此前的四份独立世代知识（两个 `parseVersion` 阈值 + `manifest.test.ts` 的硬编码数组
+  + `engines.dsh`）已收敛为一。
+- **适配器表按世代索引**：`FEATURE_FLAGS_BY_GENERATION` 与 `TOOL_MAPPING_BY_GENERATION` 均为
+  `Record<DshGeneration, …>`，新增世代会在**类型层**报错（此前是 if 链，静默漏配）。
+- **`gen3` 表故意等于 `gen2`**：未发布线不得被赋予未经证实的能力。真实的新一代能力由
+  `createHostCapabilityProbe`（服务/工具证据）在运行时**只增不减**地打开
+  （`resolveFeatureFlags` 的 `if (flags[capability]) continue`），这是"预留未发布版本适配性"的落地方式。
+- **DSH 不提供宿主版本 API**：`ctx` 上没有 `version`/`hostVersion`/`app.version`/`runtime.version`
+  任何一个（本项目 `detectFromContext` 的四个候选在真实运行时全部为 `undefined`），环境变量也没有。
+  **J0 实测**：真实 `0.2.0-rc.2` 宿主被判定为 `unknown`，日志
+  `host version unknown, using conservative flags` + `featureFlags … source: 'generation', probedUpgrades: []`。
+- **因此运行时行为不得以世代为门**：`triggerBackgroundBuild`（`src/host/routes/shared.ts`）原先
+  `if (flags.incrementalBootstrap && …)` 的门只可能产生**假阴性**（把一个确实存在的 bootstrap 工具挡掉），
+  已改为调用时可用性判定 —— `apiCompat.getAvailableToolName(ctx, 'codegraphBootstrap')`，
+  其内部已包含每代映射与 `codegraph_init` 回落链。`RouteDeps.featureFlags` 降级为**诊断**，
+  随 `GET /api/v1/codegraph/status` 的 `compat` 字段暴露（便于 J0 直接取证）。
+- **探测时机**：探测发生在 `apply()` 开头（`src/index.ts:38-42`），兄弟插件可能尚未挂载
+  → 探测结果只能"打开"能力，**不得**用来关闭；真实判定一律放在调用点。
+
+## 7. 对后续开发的门禁结论
 
 1. **主入口正确**：`conversation.view` 槽位名与注册范式经官方源码逐字确认，无需改槽位名。
 2. **唯一可信验收 = 运行时**：槽位注册失败会在加载期抛错并被本项目 try/catch 吞掉，
@@ -292,3 +367,8 @@ Chrome（`--remote-debugging-port=9222`，profile 在 `test-results/chrome-debug
 5. **`conversation.view` 之外的入口必须走运行时能力探测**：`client.inject` 只允许官方包
    （§2.6），第三方集成（better-sidebar / remote-web-ui / codegraph / tool-lens）不得写成
    硬前置或静态声明。
+6. **"前置插件已安装"必须按插件真实贡献的工具判定**（§5.2）：`dsh-codegraph@0.1.3` 只贡献
+   `mcp__codegraph__codegraph_explore`。任何"上游能力"判断都不得只认自己期望的工具名，
+   否则在真实生态里会稳定误报缺失（并连带关掉客户端自动补全）。
+7. **世代只用于"能力提示"，运行时行为一律以调用时可用性为准**（§6）：DSH 无版本 API，
+   真实宿主可能被判为 `unknown`；`unknown` 的保守表**不得**成为"不使用已存在工具"的理由。
