@@ -263,11 +263,32 @@ gen1（0.1.7-rc.2）宿主可能携带更早的 cordis 4.x；而 devDep 取 `^4.
   → **插件共存场景是真实存在的**（对应用户旅程"多插件共存"）。
 - `@deepseek-ai/dsh-client-ui-slots` **未安装进任何 profile 的 node_modules**——它由 asar 运行时提供。
 
+### 5.1 MCP 的浏览器与启动器的浏览器是两个实例
+
+实测（`Win32_Process` 命令行）澄清了此前反复误判的一点：**chrome-devtools MCP 自己拉起一个 Chrome**，
+参数为 `--remote-debugging-pipe --user-data-dir=C:\Users\86156\.cache\chrome-devtools-mcp\chrome-profile`，
+父进程就是 `chrome-devtools-mcp` 的 node 进程；而 `./scripts/start-dsh-test.mjs` 起的是**另一个**
+Chrome（`--remote-debugging-port=9222`，profile 在 `test-results/chrome-debug-profile`）。
+
+- 因此"J0 页面"是通过 MCP 自己的浏览器 `navigate_page` 到启动器打印的 token URL 后才存在的；
+  启动器那条 `Chrome 将打开 …?token=…` 是并行的另一个窗口。
+- 测试环境收尾时 `start-dsh-test.mjs stop` **不会**关掉 MCP 的浏览器；需要单独清理
+  （杀掉 MCP 浏览器进程即可，MCP 会在下次调用时按需重启它）。
+- 辨析方法：看 `--user-data-dir`。`…\.cache\chrome-devtools-mcp\chrome-profile` = MCP 的；
+  `test-results\chrome-debug-profile` = 启动器的。
+
 ## 6. 对后续开发的门禁结论
 
 1. **主入口正确**：`conversation.view` 槽位名与注册范式经官方源码逐字确认，无需改槽位名。
 2. **唯一可信验收 = 运行时**：槽位注册失败会在加载期抛错并被本项目 try/catch 吞掉，
    因此 **J0 必须在真实 DSH + Chrome DevTools MCP 下验证标签实际渲染**（单测无法证伪）。
 3. **多代适配走运行时探测**：DSH 明确不强制静态兼容声明，本项目能力探测路线正确；
-   应补 `engines.dsh` / `dsh.manifestVersion` 作为规范化元数据，并移除/保留 `hostVersion` 需决策。
-4. **版本偏斜需修**：补 `@deepseek-ai/dsh-client-connection@0.2.0-rc.2` 到 devDependencies。
+   `engines.dsh`（`>=0.1.7-rc.2 <0.4.0`，三代窗口）与 `dsh.manifestVersion: 1` 已补，
+   `dsh.hostVersion` 已删除（DSH 运行时 0 读取）。
+4. **版本偏斜已修，且选择"删死声明"而非"补装"**：`@deepseek-ai/dsh-client-connection` 与
+   `dsh-session` 在 `src/` 零导入，已从 peer + devDep **整条删除**（原先的"补装 0.2.0-rc.2"
+   方案被否决）；devDep 的 `@deepseek-ai/cordis` 升到 `^4.0.4` 与运行时 4.0.4 精确对齐，
+   peer 有意保持 `^4.0.1` 以容忍 gen1 宿主（宽 peer / 严 devDep）。
+5. **`conversation.view` 之外的入口必须走运行时能力探测**：`client.inject` 只允许官方包
+   （§2.6），第三方集成（better-sidebar / remote-web-ui / codegraph / tool-lens）不得写成
+   硬前置或静态声明。
