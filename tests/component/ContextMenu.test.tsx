@@ -125,6 +125,42 @@ describe('ContextMenu', () => {
     expect(defaultProps.onClose).toHaveBeenCalled();
   });
 
+  // BUG-R12-02: the real key used to be swallowed because the listener was re-registered on
+  // every render (inline onClose) and left on the bubble phase.
+  it('按 Escape 应在捕获阶段消费事件并调用最新的 onClose', () => {
+    const firstClose = vi.fn();
+    const secondClose = vi.fn();
+    const leaked = vi.fn();
+    document.addEventListener('keydown', leaked);
+
+    try {
+      const { container, rerender } = render(<ContextMenu {...defaultProps} onClose={firstClose} />);
+      rerender(<ContextMenu {...defaultProps} onClose={secondClose} />);
+
+      const item = container.querySelector('.cg-context-menu-item') as HTMLButtonElement;
+      const notCancelled = fireEvent.keyDown(item, { key: 'Escape' });
+
+      expect(notCancelled).toBe(false);
+      expect(secondClose).toHaveBeenCalledTimes(1);
+      expect(firstClose).not.toHaveBeenCalled();
+      expect(leaked).not.toHaveBeenCalled();
+    } finally {
+      document.removeEventListener('keydown', leaked);
+    }
+  });
+
+  it('按方向键仍能移动菜单项焦点', () => {
+    const { container } = render(<ContextMenu {...defaultProps} />);
+    const items = container.querySelectorAll<HTMLButtonElement>('.cg-context-menu-item');
+    expect(document.activeElement).toBe(items[0]);
+
+    fireEvent.keyDown(document.activeElement ?? document, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(items[1]);
+
+    fireEvent.keyDown(document.activeElement ?? document, { key: 'ArrowUp' });
+    expect(document.activeElement).toBe(items[0]);
+  });
+
   it('点击菜单外部应关闭菜单', () => {
     render(<ContextMenu {...defaultProps} />);
     fireEvent.mouseDown(document.body);

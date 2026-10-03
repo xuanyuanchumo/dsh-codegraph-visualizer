@@ -1138,4 +1138,45 @@ describe('CytoscapeRenderer', () => {
       expect(mockCy.animate).toHaveBeenCalled();
     });
   });
+
+  // The node context menu is reachable from the keyboard (Shift+F10), and a keyboard-opened menu
+  // has no pointer coordinates to anchor to: it asks the renderer where the selected node currently
+  // is. Without this the menu would either be skipped or pop up at 0,0.
+  describe('getNodeRenderedPosition', () => {
+    function makePositionedNode(id: string, position: { x: number; y: number } | null) {
+      return {
+        id: () => id,
+        empty: () => false,
+        nonempty: () => true,
+        isNode: () => true,
+        renderedPosition: vi.fn(() => position),
+      };
+    }
+
+    beforeEach(() => {
+      renderer = new CytoscapeRenderer({ container: makeContainer(), theme: 'dark' });
+      renderer!.init();
+    });
+
+    it('returns the rendered position of a node in the graph', () => {
+      mockCy.getElementById = vi.fn(() => makePositionedNode('n1', { x: 412.5, y: 233 }));
+      expect(renderer!.getNodeRenderedPosition('n1')).toEqual({ x: 412.5, y: 233 });
+      expect(mockCy.getElementById).toHaveBeenCalledWith('n1');
+    });
+
+    it('returns null for an id that is not in the rendered graph', () => {
+      mockCy.getElementById = vi.fn(() => ({ empty: () => true, nonempty: () => false }));
+      expect(renderer!.getNodeRenderedPosition('missing')).toBeNull();
+    });
+
+    it('returns null for an element that is not a node', () => {
+      mockCy.getElementById = vi.fn(() => ({
+        empty: () => false,
+        nonempty: () => true,
+        isNode: () => false,
+        renderedPosition: vi.fn(() => ({ x: 1, y: 1 })),
+      }));
+      expect(renderer!.getNodeRenderedPosition('edge-1')).toBeNull();
+    });
+  });
 });

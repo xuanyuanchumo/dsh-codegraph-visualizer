@@ -54,6 +54,7 @@ function createMockHandlers() {
     onCycleLayout: vi.fn(),
     onToggleImport: vi.fn(),
     onToggleHelp: vi.fn(),
+    onOpenContextMenu: vi.fn(),
     onUndo: vi.fn(),
     onRedo: vi.fn(),
   };
@@ -82,8 +83,8 @@ describe('formatShortcutKey', () => {
 });
 
 describe('KEYBOARD_SHORTCUTS', () => {
-  it('has 13 shortcuts', () => {
-    expect(KEYBOARD_SHORTCUTS).toHaveLength(13);
+  it('has 15 shortcuts', () => {
+    expect(KEYBOARD_SHORTCUTS).toHaveLength(15);
   });
 
   it('contains search shortcut with preventDefault', () => {
@@ -114,6 +115,23 @@ describe('KEYBOARD_SHORTCUTS', () => {
     expect(help).toBeDefined();
     expect(help!.key).toBe('?');
     expect(help!.preventDefault).toBe(true);
+  });
+
+  it('documents the keyboard route to the node context menu', () => {
+    const menu = KEYBOARD_SHORTCUTS.find((s) => s.descKey === 'shortcut.contextMenu');
+    expect(menu).toBeDefined();
+    expect(menu!.key).toBe('F10');
+    expect(menu!.shift).toBe(true);
+    expect(menu!.preventDefault).toBe(true);
+
+    const menuKey = KEYBOARD_SHORTCUTS.find((s) => s.descKey === 'shortcut.contextMenuKey');
+    expect(menuKey).toBeDefined();
+    expect(menuKey!.key).toBe('ContextMenu');
+  });
+
+  it('formats the context-menu shortcut as Shift+F10', () => {
+    const menu = KEYBOARD_SHORTCUTS.find((s) => s.descKey === 'shortcut.contextMenu')!;
+    expect(formatShortcutKey(menu)).toBe('Shift+F10');
   });
 });
 
@@ -231,6 +249,55 @@ describe('usePanelKeyboard', () => {
 
     dispatchKey({ key: '?' });
     expect(mockHandlers.onToggleHelp).toHaveBeenCalledTimes(1);
+  });
+
+  it('triggers onOpenContextMenu when Shift+F10 is pressed', () => {
+    renderHook(() =>
+      usePanelKeyboard('cose', setLayout, { current: mockRenderer }, mockHandlers),
+    );
+
+    const event = dispatchKey({ key: 'F10', shiftKey: true });
+    expect(mockHandlers.onOpenContextMenu).toHaveBeenCalledTimes(1);
+    // The browser opens its own native menu on Shift+F10 unless we claim the key.
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('triggers onOpenContextMenu when the dedicated menu key is pressed', () => {
+    renderHook(() =>
+      usePanelKeyboard('cose', setLayout, { current: mockRenderer }, mockHandlers),
+    );
+
+    dispatchKey({ key: 'ContextMenu' });
+    expect(mockHandlers.onOpenContextMenu).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not open the context menu on a bare F10', () => {
+    renderHook(() =>
+      usePanelKeyboard('cose', setLayout, { current: mockRenderer }, mockHandlers),
+    );
+
+    dispatchKey({ key: 'F10' });
+    expect(mockHandlers.onOpenContextMenu).not.toHaveBeenCalled();
+  });
+
+  it('does not open the context menu while focus is in an input', () => {
+    renderHook(() =>
+      usePanelKeyboard('cose', setLayout, { current: mockRenderer }, mockHandlers),
+    );
+
+    const input = document.createElement('input');
+    dispatchKey({ key: 'F10', shiftKey: true, target: input });
+    expect(mockHandlers.onOpenContextMenu).not.toHaveBeenCalled();
+  });
+
+  it('handles a missing onOpenContextMenu gracefully', () => {
+    const handlersWithoutMenu = { ...mockHandlers, onOpenContextMenu: undefined };
+    renderHook(() =>
+      usePanelKeyboard('cose', setLayout, { current: mockRenderer }, handlersWithoutMenu),
+    );
+
+    expect(() => dispatchKey({ key: 'F10', shiftKey: true })).not.toThrow();
+    expect(mockHandlers.onOpenContextMenu).not.toHaveBeenCalled();
   });
 
   it('triggers onUndo when Ctrl+Z is pressed', () => {

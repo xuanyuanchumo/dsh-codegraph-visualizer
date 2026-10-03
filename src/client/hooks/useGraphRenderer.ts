@@ -127,6 +127,12 @@ export function useGraphRenderer(config: GraphRendererConfig): UseGraphRendererR
               if (showCallChainRef.current) { rendererRef.current?.highlightCallChain(id); }
             },
             onNodeDoubleTap: (nodeId: string) => callbacksRef.current.onNodeDoubleTap(nodeId),
+            // Forwarded through callbacksRef like every other interaction callback: the renderer
+            // snapshots its options once at construction, so this wrapper keeps right-click
+            // working after a re-render. Dropping this line silently disables the node context
+            // menu (InteractionController keeps the cxttap binding but has no handler to call).
+            onNodeContextTap: (nodeId: string, pos: { x: number; y: number }) =>
+              callbacksRef.current.onNodeContextTap?.(nodeId, pos),
             onNodeHover: (nodeId: string, pos: { x: number; y: number }) => callbacksRef.current.onNodeHover(nodeId, pos),
             onNodeHoverPrefetch: (nodeId: string) => callbacksRef.current.onNodeHoverPrefetch?.(nodeId),
             onNodeHoverOut: () => callbacksRef.current.onNodeHoverOut(),

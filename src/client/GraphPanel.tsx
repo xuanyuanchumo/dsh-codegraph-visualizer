@@ -196,6 +196,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   usePanelKeyboard(layout, setLayout, renderer.rendererRef, {
     onToggleSearch: panel.toggleSearch,
     onCloseAll: () => {
+      // The node context menu is an overlay too, so Escape has to dismiss it; leaving it
+      // out stranded keyboard users inside a menu the shortcut could not close. It goes
+      // first because it is the topmost overlay.
+      setContextMenu(null);
       panel.closeAll();
       setTooltip(null); setShowHelp(false); setFocusNodeId(null);
     },
@@ -206,6 +210,15 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     onCycleLayout: () => {},
     onToggleImport: panel.toggleImport,
     onToggleHelp: () => setShowHelp((v) => !v),
+    onOpenContextMenu: () => {
+      if (!selectedNodeId) return;
+      const position = renderer.rendererRef.current?.getNodeRenderedPosition(selectedNodeId);
+      if (!position) return;
+      // Focus the canvas first so the menu's focus restoration lands on the graph instead
+      // of <body>, where a keyboard user would be dropped after Escape (BUG-R12-03).
+      renderer.containerRef.current?.focus();
+      setContextMenu({ nodeId: selectedNodeId, position });
+    },
     onUndo: history.undo,
     onRedo: history.redo,
     onRefresh: () => {
@@ -436,6 +449,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       >
         <div className="cg-graph-container" ref={renderer.containerRef}
           role="application"
+          tabIndex={0}
           aria-label={t('a11y.graphContainerStats', { viewMode: t(`viewMode.${viewMode}`), nodeCount: nodes.length, edgeCount: edges.length })}
           aria-describedby="cg-graph-live-region"
           style={{ display: viewMode === 'sequence' && selectedFunction ? 'none' : undefined }}>

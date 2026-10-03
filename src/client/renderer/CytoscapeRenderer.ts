@@ -311,6 +311,20 @@ export class CytoscapeRenderer implements IRenderer {
     return el.data('typeFiltered') === true || el.data('connectionFiltered') === true;
   }
 
+  /**
+   * Position used to anchor the context menu when the user opens it without a pointer. Cytoscape
+   * keeps reporting the last computed position for `display: none` elements, and the menu clamps
+   * itself into the viewport, so only a node that is really absent returns `null`.
+   */
+  getNodeRenderedPosition(nodeId: string): { x: number; y: number } | null {
+    return this.safeCall('getNodeRenderedPosition', () => {
+      const node = this.cy?.getElementById(nodeId);
+      if (!node || node.empty() || !node.isNode()) return null;
+      const pos = node.renderedPosition();
+      return { x: pos.x, y: pos.y };
+    }, null);
+  }
+
   highlightCallChain(nodeId: NodeId | null): void {
     this.safeCallVoid('highlightCallChain', () => this.highlightCtrl?.highlightCallChain(nodeId));
   }

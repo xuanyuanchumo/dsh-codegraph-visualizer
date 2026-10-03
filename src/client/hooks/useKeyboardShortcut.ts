@@ -21,8 +21,11 @@ export function useKeyboardShortcut(
       const isSlash = e.key === '/';
 
       if (!isEscape && !isSlash) {
-        const tag = (e.target as HTMLElement)?.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+        const target = e.target as HTMLElement | null;
+        // The host composer is a contenteditable div, not an input/textarea, so a tag check
+        // alone lets panel shortcuts steal keystrokes from whatever the user is typing into
+        // (J0 Round 12, BUG-R12-04: Shift+F10 opened the node menu from the composer).
+        if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.isContentEditable) return;
       }
 
       const keyMatch = e.key.toLowerCase() === key.toLowerCase();

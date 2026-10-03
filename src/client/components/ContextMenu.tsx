@@ -39,10 +39,16 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
   const [focusedIndex, setFocusedIndex] = useState(0);
   const triggerRef = useRef<HTMLElement | null>(null);
 
+  // The close callback lives in a ref so the document listeners below keep a stable
+  // identity: GraphPanel hands down an inline arrow, so keying the effect on it made the
+  // keydown listener be removed and re-added on every render (J0 Round 12, BUG-R12-02).
+  const onCloseRef = useRef(props.onClose);
+  onCloseRef.current = props.onClose;
+
   const handleClose = useCallback(() => {
     setFocusedIndex(0);
-    props.onClose();
-  }, [props.onClose]);
+    onCloseRef.current();
+  }, []);
 
   useEffect(() => {
     triggerRef.current = document.activeElement as HTMLElement;
@@ -61,6 +67,12 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        // The menu is the topmost overlay, so it claims Escape in the capture phase: a
+        // bubble-phase listener here can be pre-empted when another document-level Escape
+        // handler (the panel shortcuts) re-renders mid-dispatch, and a leaked Escape would
+        // also close whatever sits behind the menu (J0 Round 12, BUG-R12-02).
+        e.preventDefault();
+        e.stopPropagation();
         handleClose();
         return;
       }
@@ -91,10 +103,10 @@ export const ContextMenu = memo(function ContextMenu(props: ContextMenuProps) {
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keydown', handleKeyDown, true);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keydown', handleKeyDown, true);
     };
   }, [handleClose]);
 

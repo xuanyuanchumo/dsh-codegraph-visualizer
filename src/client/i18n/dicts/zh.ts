@@ -245,6 +245,8 @@ export const zh: Record<string, string> = {
   'shortcut.undo': '撤销操作',
   'shortcut.redo': '重做操作',
   'shortcut.help': '显示此帮助',
+  'shortcut.contextMenu': '打开选中节点的菜单',
+  'shortcut.contextMenuKey': '打开选中节点的菜单（菜单键）',
 
   'state.complete': '图谱完整 ({total} 节点)',
   'state.functionBudget': '已展开 {expanded}/{total} 个函数体',

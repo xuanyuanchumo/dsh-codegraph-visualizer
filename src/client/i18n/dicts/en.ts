@@ -246,6 +246,8 @@ export const en: Record<string, string> = {
   'shortcut.undo': 'Undo',
   'shortcut.redo': 'Redo',
   'shortcut.help': 'Show this help',
+  'shortcut.contextMenu': 'Open the selected node menu',
+  'shortcut.contextMenuKey': 'Open the selected node menu (menu key)',
 
   'state.complete': 'Graph is complete ({total} nodes)',
   'state.functionBudget': 'Expanded {expanded}/{total} function bodies',

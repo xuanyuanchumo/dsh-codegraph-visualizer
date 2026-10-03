@@ -56,6 +56,12 @@ export interface IRenderer {
   focusOnNode(nodeId: string): void;
   /** Reveal a node hidden by `hideNode`, then focus it. `false` when it is absent or filter-hidden. */
   revealNode(nodeId: string): boolean;
+  /**
+   * Viewport-space position of a node, used to anchor the context menu when it is opened from the
+   * keyboard (Shift+F10 / the menu key) rather than from a pointer. `null` when the node is not part
+   * of the rendered graph, so the caller can skip a menu it has no place to anchor.
+   */
+  getNodeRenderedPosition(nodeId: string): { x: number; y: number } | null;
   highlightCallChain(nodeId: NodeId | null): void;
   detectCycles(): Set<string>;
   detectCyclesDetailed(): CycleInfo[];

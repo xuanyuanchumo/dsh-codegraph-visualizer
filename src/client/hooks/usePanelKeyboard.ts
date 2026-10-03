@@ -13,6 +13,13 @@ export interface PanelKeyboardHandlers {
   onCycleLayout: () => void;
   onToggleImport: () => void;
   onToggleHelp: () => void;
+  /**
+   * Open the node context menu without a pointer (Shift+F10 / the dedicated menu key). The graph has
+   * no keyboard route to per-node actions otherwise: focus / isolate / hide / expand / call chain /
+   * impact / find path / open source all live in that menu, and `role="application"` keeps the
+   * canvas opaque to assistive technology.
+   */
+  onOpenContextMenu?: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
   onRefresh?: () => void;
@@ -40,6 +47,8 @@ export const KEYBOARD_SHORTCUTS: ShortcutDef[] = [
   { key: 'Z', descKey: 'shortcut.undo', ctrl: true, preventDefault: true },
   { key: 'Y', descKey: 'shortcut.redo', ctrl: true, preventDefault: true },
   { key: '?', descKey: 'shortcut.help', preventDefault: true },
+  { key: 'F10', descKey: 'shortcut.contextMenu', shift: true, preventDefault: true },
+  { key: 'ContextMenu', descKey: 'shortcut.contextMenuKey', preventDefault: true },
 ];
 
 export function formatShortcutKey(s: ShortcutDef): string {
@@ -84,6 +93,8 @@ export function usePanelKeyboard(
   useKeyboardShortcut('i', () => handlersRef.current.onToggleImport(), { ctrl: true });
   useKeyboardShortcut('r', () => handlersRef.current.onRefresh?.(), { ctrl: true, shift: true, preventDefault: true });
   useKeyboardShortcut('?', () => handlersRef.current.onToggleHelp(), { preventDefault: true });
+  useKeyboardShortcut('F10', () => handlersRef.current.onOpenContextMenu?.(), { shift: true, preventDefault: true });
+  useKeyboardShortcut('ContextMenu', () => handlersRef.current.onOpenContextMenu?.(), { preventDefault: true });
   useKeyboardShortcut('z', () => handlersRef.current.onUndo?.(), { ctrl: true, preventDefault: true });
   useKeyboardShortcut('y', () => handlersRef.current.onRedo?.(), { ctrl: true, preventDefault: true });
 }

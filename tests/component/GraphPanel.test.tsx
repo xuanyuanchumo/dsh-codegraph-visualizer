@@ -2195,6 +2195,25 @@ describe('GraphPanel keyboard handler callback tests', () => {
     expect(panelStateMock?.closeAll).toHaveBeenCalled();
   });
 
+  it('closes the open node context menu on Escape', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    setupRendererMockWithCallbacks(createMockRenderer());
+
+    const { container } = render(React.createElement(GraphPanel));
+
+    act(() => {
+      capturedCallbacks.onNodeContextTap('n1', { x: 300, y: 300 });
+    });
+    expect(container.querySelector('.cg-context-menu')).not.toBeNull();
+
+    // BUG-R12-02: the real key used to leave the menu open because the menu listener was
+    // re-registered on every render and sat on the bubble phase.
+    const target = (document.activeElement as HTMLElement | null) ?? document;
+    fireEvent.keyDown(target, { key: 'Escape' });
+
+    expect(container.querySelector('.cg-context-menu')).toBeNull();
+  });
+
   it('onToggleHelp: toggles keyboard help visibility', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     setupKeyboardMockWithHandlers();

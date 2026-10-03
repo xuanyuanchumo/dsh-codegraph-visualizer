@@ -2,7 +2,8 @@
  * @vitest-environment jsdom
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { render, renderHook, act } from '@testing-library/react';
+import { createElement } from 'react';
 
 const { mockRenderer } = vi.hoisted(() => ({
   mockRenderer: {
@@ -72,6 +73,7 @@ vi.mock('../../../src/client/renderer/CytoscapeRenderer.ts', () => ({
 }));
 
 import { useGraphRenderer } from '../../../src/client/hooks/useGraphRenderer.ts';
+import { CytoscapeRenderer } from '../../../src/client/renderer/CytoscapeRenderer.ts';
 import { NodeId, type GraphNode, type GraphEdge } from '../../../src/types/index.ts';
 import type { GraphRendererCallbacks } from '../../../src/client/hooks/useGraphRenderer.ts';
 
@@ -99,6 +101,7 @@ function makeCallbacks(): GraphRendererCallbacks {
   return {
     onNodeTap: vi.fn(),
     onNodeDoubleTap: vi.fn(),
+    onNodeContextTap: vi.fn(),
     onNodeHover: vi.fn(),
     onNodeHoverOut: vi.fn(),
     onEdgeTap: vi.fn(),
@@ -765,6 +768,69 @@ describe('useGraphRenderer', () => {
       act(() => { result.current.exportGraph('jsonld'); });
       expect(mockRenderer.exportJSONLD).toHaveBeenCalled();
       clickSpy.mockRestore();
+    });
+  });
+
+  /**
+   * Regression guard for BUG-R12-01: the renderer is constructed with a frozen options object,
+   * so every interaction callback has to be forwarded explicitly. `onNodeContextTap` was missing
+   * here while GraphPanel passed it in, which silently disabled the node context menu for every
+   * real user (InteractionController kept binding cxttap but had no handler to call).
+   */
+  describe('interaction callback wiring', () => {
+    function withSizedContainer<T>(run: () => T): T {
+      const widthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth');
+      const heightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientHeight');
+      Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 800 });
+      Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => 600 });
+      try {
+        return run();
+      } finally {
+        if (widthDescriptor) Object.defineProperty(HTMLElement.prototype, 'clientWidth', widthDescriptor);
+        if (heightDescriptor) Object.defineProperty(HTMLElement.prototype, 'clientHeight', heightDescriptor);
+      }
+    }
+
+    function Harness(props: { callbacks: GraphRendererCallbacks }) {
+      const r = useGraphRenderer(makeConfig({ callbacks: props.callbacks }));
+      return createElement('div', { ref: r.containerRef });
+    }
+
+    function rendererOptions() {
+      return vi.mocked(CytoscapeRenderer).mock.calls[0]?.[0] as
+        | { onNodeContextTap?: (nodeId: string, pos: { x: number; y: number }) => void }
+        | undefined;
+    }
+
+    it('forwards onNodeContextTap to the renderer so right-click reaches the panel', () => {
+      withSizedContainer(() => {
+        const onNodeContextTap = vi.fn();
+        render(createElement(Harness, { callbacks: { ...makeCallbacks(), onNodeContextTap } }));
+
+        const options = rendererOptions();
+        expect(options).toBeDefined();
+        expect(typeof options?.onNodeContextTap).toBe('function');
+
+        options?.onNodeContextTap?.('n1', { x: 10, y: 20 });
+        expect(onNodeContextTap).toHaveBeenCalledWith('n1', { x: 10, y: 20 });
+      });
+    });
+
+    it('keeps forwarding to the latest callbacks object after a re-render', () => {
+      withSizedContainer(() => {
+        const first = vi.fn();
+        const second = vi.fn();
+        const { rerender } = render(
+          createElement(Harness, { callbacks: { ...makeCallbacks(), onNodeContextTap: first } }),
+        );
+
+        const options = rendererOptions();
+        rerender(createElement(Harness, { callbacks: { ...makeCallbacks(), onNodeContextTap: second } }));
+        options?.onNodeContextTap?.('n2', { x: 1, y: 2 });
+
+        expect(first).not.toHaveBeenCalled();
+        expect(second).toHaveBeenCalledWith('n2', { x: 1, y: 2 });
+      });
     });
   });
 });
