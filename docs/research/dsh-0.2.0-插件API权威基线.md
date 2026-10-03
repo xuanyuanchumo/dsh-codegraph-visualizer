@@ -301,7 +301,8 @@ Chrome（`--remote-debugging-port=9222`，profile 在 `test-results/chrome-debug
 **修法（本轮落地）**：`src/host/prerequisites.ts` 改为**证据列表**判定，把插件真实贡献的
 `mcp__codegraph__codegraph_explore` 与 `codegraph_*` 家族并列为存在性证据，且优先采用兼容层解析出的名字。
 
-**根因（Round 2 追加复现）**：上游的 MCP 桥在 Windows 上**根本起不来**，与本项目无关：
+**根因（Round 2 追加复现，Round 3 实测修正）**：上游的 MCP 桥**会被正常拉起，但随即死亡**，
+与本项目无关：
 
 - 复现脚本（临时，`.cycles/probe-upstream-mcp.mjs`，位于 gitignore 区）：直接对
   `C:\Users\86156\.dsh\profiles\web\node_modules\dsh-codegraph\lib\codegraph\serve.js`
@@ -311,11 +312,20 @@ Chrome（`--remote-debugging-port=9222`，profile 在 `test-results/chrome-debug
   `codegraph.ps1`（905B）；Node 的 `spawn` 在 Windows 上**不能执行无扩展名的 shell shim**，
   而 `serve.js:445-450` 的 `getWindowsCandidates` 只在部分解析路径上追加 `.exe/.cmd/.bat/.com`
   → 解析到 `…\node_global\codegraph` 即 ENOENT。
-- 因此 DSH 进程里那个 `serve.js` 子进程（实测 PID 2868，父进程 DSH 3212）**只是空壳**：
-  `_syncTools()` 永远拿不到 `tools/list` 结果 → `disposers.size === 0` → 不注册任何工具、
-  也不会打印 `dsh-codegraph: registered N codegraph tool(s)`（`lib/mcp-client.js:370-381`）。
+- **Round 3 实测修正**：桥的启动环节其实是成功的 —— `lib/config.js:43` 的 `mcpEnabled` **默认为 true**，
+  `lib/index.js:43-44` 的 `McpStdioClient` 用 **Node 二进制**（不是那个 shim）拉起
+  `lib/codegraph/serve.js`；在真实宿主里确实观测到该子进程：
+  `node.exe …\dsh-codegraph\lib\codegraph\serve.js`，**PID 11396、父进程 DSH 10480、创建于 00:17:02**
+  （DSH 自身启动于 00:05:37），且它**不监听任何 TCP 端口**（stdio 桥，符合 `mcp-client.js:73` 的注释）。
+  但该进程**在一分钟内消失**：`serve.js` 自己 spawn 上面的 shim 失败后退出。
+- 后果同样是"空壳"：`_syncTools()` 永远拿不到 `tools/list` 结果 → `disposers.size === 0` →
+  不注册任何工具、也不会打印 `dsh-codegraph: registered N codegraph tool(s)`
+  （`lib/mcp-client.js:370-381`）；`mcp-client.js:73-75` 的注释确认"崩溃后按指数退避自动重连，
+  退避预算耗尽后**注销全部工具并停止**"，实测到的进程消失正走这条路径。
 - 旁证：`pluginInventory/list` 中 `include:codegraph` 为 `{ enabled: true, fiberPhase: "active" }`，
-  但全宿主看不到它的工具面；DSH 的 `ctx.logger` 不写 stdout，故启动器捕获的日志里没有任何上游行。
+  但全宿主看不到它的工具面；DSH 的 `ctx.logger` 不写 stdout，故启动器捕获的日志里没有任何上游行
+  （Round 3 复核：25.9KB 的日志里 `mcp-server started { tools: 4 }` / `MCP server stopped`
+  都是**本项目自己**的 MCP 服务，与上游无关）。
 
 **对本项目的意义**：Windows 上 `codegraph: false` 是**准确**的（不是检测缺陷），内置扫描就是唯一
 可用数据源；客户端的前置提示应据此理解为"上游 MCP 桥不可用"，而不是"用户没装插件"。
