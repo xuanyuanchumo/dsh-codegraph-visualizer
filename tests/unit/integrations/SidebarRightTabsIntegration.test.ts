@@ -58,7 +58,7 @@ describe('integrateSidebarRightTabs', () => {
       return seatDispose;
     });
     const ctx = { effect, slots, inject: ctxInject } as unknown as Context;
-    const state = new IntegrationState(ctx, makeFlags());
+    const state = new IntegrationState(ctx, makeFlags({ sidebarRightTabs: true }));
 
     integrateSidebarRightTabs(state);
 
@@ -87,7 +87,7 @@ describe('integrateSidebarRightTabs', () => {
       return vi.fn();
     });
     const ctx = { effect, slots, inject: ctxInject } as unknown as Context;
-    const state = new IntegrationState(ctx, makeFlags());
+    const state = new IntegrationState(ctx, makeFlags({ sidebarRightTabs: true }));
 
     integrateSidebarRightTabs(state);
 
@@ -105,7 +105,7 @@ describe('integrateSidebarRightTabs', () => {
       return seatDispose;
     });
     const ctx = { effect, slots, inject: ctxInject } as unknown as Context;
-    const state = new IntegrationState(ctx, makeFlags());
+    const state = new IntegrationState(ctx, makeFlags({ sidebarRightTabs: true }));
 
     integrateSidebarRightTabs(state);
 
@@ -121,7 +121,7 @@ describe('integrateSidebarRightTabs', () => {
       throw new Error('inject boom');
     });
     const ctx = { effect, slots, inject: ctxInject } as unknown as Context;
-    const state = new IntegrationState(ctx, makeFlags());
+    const state = new IntegrationState(ctx, makeFlags({ sidebarRightTabs: true }));
 
     integrateSidebarRightTabs(state);
 
@@ -143,7 +143,7 @@ describe('integrateSidebarRightTabs', () => {
       return undefined;
     });
     const ctx = { effect, slots, inject: ctxInject } as unknown as Context;
-    const state = new IntegrationState(ctx, makeFlags());
+    const state = new IntegrationState(ctx, makeFlags({ sidebarRightTabs: true }));
 
     integrateSidebarRightTabs(state);
 
@@ -166,7 +166,7 @@ describe('integrateSidebarRightTabs', () => {
       return vi.fn();
     });
     const ctx = { effect, slots, inject: ctxInject } as unknown as Context;
-    const state = new IntegrationState(ctx, makeFlags());
+    const state = new IntegrationState(ctx, makeFlags({ sidebarRightTabs: true }));
 
     integrateSidebarRightTabs(state);
 

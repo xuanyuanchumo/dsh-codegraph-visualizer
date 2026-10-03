@@ -23,7 +23,11 @@ export { SecurityManager, createSecurityManager } from './host/security.ts';
 const log = scoped('host');
 
 export const name = 'dsh-codegraph-visualizer';
-export const inject = ['tools', 'webServer', 'sessions', 'workspaceRegistry'];
+// Required services only. `workspaceRegistry` is a gen2-only (DSH >=0.2) capability;
+// declaring it here would make the whole plugin INACTIVE on gen1/minimal hosts
+// (Cordis fiber inject must be fully satisfied). It is probed optionally at runtime
+// via ctx.get() in host/prerequisites.ts.
+export const inject = ['tools', 'webServer', 'sessions'];
 
 export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
   const config = resolveConfig(userConfig);

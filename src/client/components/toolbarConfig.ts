@@ -1,5 +1,5 @@
 import type { LayoutType, GraphType, RankDir } from '../store/graphStore.ts';
-import type { GraphNode, ViewMode } from '../../types/index.ts';
+import type { ViewMode } from '../../types/index.ts';
 
 import {
   ChainIcon, CycleIcon, ZapIcon, TreeIcon, PathIcon,
@@ -10,14 +10,6 @@ import type { ToolMenuItem, ExportFormat } from './toolbarTypes.ts';
 
 export const LAYOUTS: LayoutType[] = ['cose', 'fcose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
 
-export const FILTER_KEYS: { value: GraphNode['type'] | 'all'; key: string }[] = [
-  { value: 'all', key: 'filter.all' },
-  { value: 'function', key: 'filter.function' },
-  { value: 'class', key: 'filter.class' },
-  { value: 'variable', key: 'filter.variable' },
-  { value: 'module', key: 'filter.module' },
-  { value: 'interface', key: 'filter.interface' },
-];
 
 export const RANK_DIRS: { value: RankDir; label: string }[] = [
   { value: 'TB', label: 'TB' },

@@ -65,27 +65,33 @@ describe('checkPrerequisites', () => {
 
 describe('extractWorkspacePaths', () => {
   it('returns paths from workspaceRegistry when available', () => {
+    const wsr = { list: () => [{ path: '/repo1' }, { path: '/repo2' }] };
     const ctx = {
       tools: { get: vi.fn() },
-      workspaceRegistry: { list: () => [{ path: '/repo1' }, { path: '/repo2' }] },
+      get: vi.fn((key: string) => key === 'workspaceRegistry' ? wsr : undefined),
+      workspaceRegistry: wsr,
     } as unknown as MockCtx;
     const result = extractWorkspacePaths(ctx);
     expect(result).toEqual(['/repo1', '/repo2']);
   });
 
   it('filters out undefined paths from workspaceRegistry', () => {
+    const wsr = { list: () => [{ path: '/repo1' }, {}, { path: undefined }] };
     const ctx = {
       tools: { get: vi.fn() },
-      workspaceRegistry: { list: () => [{ path: '/repo1' }, {}, { path: undefined }] },
+      get: vi.fn((key: string) => key === 'workspaceRegistry' ? wsr : undefined),
+      workspaceRegistry: wsr,
     } as unknown as MockCtx;
     const result = extractWorkspacePaths(ctx);
     expect(result).toEqual(['/repo1']);
   });
 
   it('falls back to sessions when workspaceRegistry empty', () => {
+    const wsr = { list: () => [] };
     const ctx = {
       tools: { get: vi.fn() },
-      workspaceRegistry: { list: () => [] },
+      get: vi.fn((key: string) => key === 'workspaceRegistry' ? wsr : undefined),
+      workspaceRegistry: wsr,
       sessions: { list: () => [{ header: { cwd: '/sess1' } }, { header: { cwd: '/sess2' } }] },
     } as unknown as MockCtx;
     const result = extractWorkspacePaths(ctx);
@@ -95,6 +101,7 @@ describe('extractWorkspacePaths', () => {
   it('dedupes session cwd paths', () => {
     const ctx = {
       tools: { get: vi.fn() },
+      get: vi.fn(() => undefined),
       sessions: { list: () => [
         { header: { cwd: '/sess1' } },
         { header: { cwd: '/sess1' } },
@@ -106,15 +113,17 @@ describe('extractWorkspacePaths', () => {
   });
 
   it('falls back to process.cwd() when no workspace or sessions', () => {
-    const ctx = { tools: { get: vi.fn() } } as unknown as MockCtx;
+    const ctx = { tools: { get: vi.fn() }, get: vi.fn(() => undefined) } as unknown as MockCtx;
     const result = extractWorkspacePaths(ctx);
     expect(result).toEqual([process.cwd()]);
   });
 
   it('falls back to process.cwd() when workspaceRegistry.list throws', () => {
+    const wsr = { list: () => { throw new Error('boom'); } };
     const ctx = {
       tools: { get: vi.fn() },
-      workspaceRegistry: { list: () => { throw new Error('boom'); } },
+      get: vi.fn((key: string) => key === 'workspaceRegistry' ? wsr : undefined),
+      workspaceRegistry: wsr,
     } as unknown as MockCtx;
     const result = extractWorkspacePaths(ctx);
     expect(result).toEqual([process.cwd()]);
@@ -123,6 +132,7 @@ describe('extractWorkspacePaths', () => {
   it('falls back to process.cwd() when sessions.list throws', () => {
     const ctx = {
       tools: { get: vi.fn() },
+      get: vi.fn(() => undefined),
       sessions: { list: () => { throw new Error('boom'); } },
     } as unknown as MockCtx;
     const result = extractWorkspacePaths(ctx);
@@ -132,6 +142,7 @@ describe('extractWorkspacePaths', () => {
   it('falls back to process.cwd() when sessions have no cwd', () => {
     const ctx = {
       tools: { get: vi.fn() },
+      get: vi.fn(() => undefined),
       sessions: { list: () => [{ header: {} }, {}] },
     } as unknown as MockCtx;
     const result = extractWorkspacePaths(ctx);
@@ -141,31 +152,37 @@ describe('extractWorkspacePaths', () => {
 
 describe('findWorkspacePath', () => {
   it('returns first path from workspaceRegistry', () => {
+    const wsr = { list: () => [{ path: '/repo1' }, { path: '/repo2' }] };
     const ctx = {
       tools: { get: vi.fn() },
-      workspaceRegistry: { list: () => [{ path: '/repo1' }, { path: '/repo2' }] },
+      get: vi.fn((key: string) => key === 'workspaceRegistry' ? wsr : undefined),
+      workspaceRegistry: wsr,
     } as unknown as MockCtx;
     expect(findWorkspacePath(ctx)).toBe('/repo1');
   });
 
   it('falls back to sessions when workspaceRegistry empty', () => {
+    const wsr = { list: () => [] };
     const ctx = {
       tools: { get: vi.fn() },
-      workspaceRegistry: { list: () => [] },
+      get: vi.fn((key: string) => key === 'workspaceRegistry' ? wsr : undefined),
+      workspaceRegistry: wsr,
       sessions: { list: () => [{ header: { cwd: '/sess1' } }] },
     } as unknown as MockCtx;
     expect(findWorkspacePath(ctx)).toBe('/sess1');
   });
 
   it('falls back to process.cwd() when nothing available', () => {
-    const ctx = { tools: { get: vi.fn() } } as unknown as MockCtx;
+    const ctx = { tools: { get: vi.fn() }, get: vi.fn(() => undefined) } as unknown as MockCtx;
     expect(findWorkspacePath(ctx)).toBe(process.cwd());
   });
 
   it('falls back to process.cwd() when workspaceRegistry throws', () => {
+    const wsr = { list: () => { throw new Error('boom'); } };
     const ctx = {
       tools: { get: vi.fn() },
-      workspaceRegistry: { list: () => { throw new Error('boom'); } },
+      get: vi.fn((key: string) => key === 'workspaceRegistry' ? wsr : undefined),
+      workspaceRegistry: wsr,
     } as unknown as MockCtx;
     expect(findWorkspacePath(ctx)).toBe(process.cwd());
   });
@@ -173,6 +190,7 @@ describe('findWorkspacePath', () => {
   it('falls back to process.cwd() when sessions throws', () => {
     const ctx = {
       tools: { get: vi.fn() },
+      get: vi.fn(() => undefined),
       sessions: { list: () => { throw new Error('boom'); } },
     } as unknown as MockCtx;
     expect(findWorkspacePath(ctx)).toBe(process.cwd());
@@ -181,6 +199,7 @@ describe('findWorkspacePath', () => {
   it('falls back to process.cwd() when sessions have no cwd', () => {
     const ctx = {
       tools: { get: vi.fn() },
+      get: vi.fn(() => undefined),
       sessions: { list: () => [{ header: {} }] },
     } as unknown as MockCtx;
     expect(findWorkspacePath(ctx)).toBe(process.cwd());

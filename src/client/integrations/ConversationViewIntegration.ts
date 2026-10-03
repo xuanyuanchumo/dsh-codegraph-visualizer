@@ -5,6 +5,7 @@ import { GraphErrorBoundary } from '../components/ErrorBoundary.tsx';
 import { useGraphStore } from '../store/graphStore.ts';
 import { t } from '../i18n/index.ts';
 import { scoped } from '../../shared/Logger.ts';
+import { PLUGIN_SLOT_ID } from './integrationIds.ts';
 
 const log = scoped('client');
 
@@ -19,7 +20,7 @@ export function integrateConversationView(state: IntegrationState): void {
       const regResult = ctx.slots.register(
         {
           name: 'conversation.view',
-          id: 'dsh-codegraph-visualizer',
+          id: PLUGIN_SLOT_ID,
           order: 50,
           label: () => t('nav.title'),
         },

@@ -8,6 +8,7 @@ import { useGraphStore } from '../store/graphStore.ts';
 import { t } from '../i18n/index.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { safeCheck } from '../utils/safeCheck.ts';
+import { PLUGIN_TAB_KIND } from './integrationIds.ts';
 
 const log = scoped('client');
 
@@ -26,7 +27,7 @@ export function integrateRemoteWebUi(state: IntegrationState): void {
     log.info('remote-web-ui features', { version: safeCheck(() => remoteWebUiApi?.version, 'unknown'), features: ruiFeatures });
 
     const panelDescriptor: Parameters<NonNullable<Context['remoteWebUI']>['registerPanel']>[0] = {
-      id: 'codegraph-visualizer',
+      id: PLUGIN_TAB_KIND,
       title: () => t('nav.title'),
       description: () => t('nav.description'),
       icon: (size: number) => React.createElement(GraphIcon, { size }),
@@ -42,11 +43,8 @@ export function integrateRemoteWebUi(state: IntegrationState): void {
         return React.createElement(
           'div',
           {
-            style: {
-              display: props.visible ? 'block' : 'none',
-              width: '100%',
-              height: '100%',
-            },
+            className: 'cg-integration-host',
+            'data-cg-visible': String(props.visible),
             'data-cg-remote-web-ui-visible': String(props.visible),
           },
           React.createElement(GraphErrorBoundary, null, React.createElement(GraphPanel)),
@@ -89,7 +87,7 @@ export function integrateRemoteWebUi(state: IntegrationState): void {
           state.remoteWebUiStateDisposer = remoteWebUiApi.subscribeState(() => {
             const snapshot = remoteWebUiApi?.getSnapshot();
             if (snapshot?.state) {
-              const isVisible = snapshot.state.activePane === 'codegraph-visualizer' ||
+              const isVisible = snapshot.state.activePane === PLUGIN_TAB_KIND ||
                 snapshot.state.panelOpen;
               if (isVisible !== state.panelVisible) {
                 state.panelVisible = isVisible;

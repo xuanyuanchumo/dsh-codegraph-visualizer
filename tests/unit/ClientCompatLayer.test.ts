@@ -24,6 +24,7 @@ function makeCtx(opts: CtxOptions = {}): Context {
   const ctx: Record<string, unknown> = {
     get: (key: string): unknown => {
       if (opts.getThrows) throw new Error('get boom');
+      if (key === 'sidebarRightTabs') return opts.sidebarRightTabs;
       if (key === 'betterSidebar') return opts.betterSidebar;
       if (key === 'spotlight') return opts.spotlight;
       if (key === 'remoteWebUI') return opts.remoteWebUI;
@@ -191,10 +192,10 @@ describe('ClientCompatLayer', () => {
       } satisfies ClientFeatureFlags);
     });
 
-    it('degrades safely when ctx.get throws (betterSidebar/spotlight false)', () => {
+    it('degrades safely when ctx.get throws (all get-based flags false)', () => {
       const ctx = makeCtx({ getThrows: true, sidebarRightTabs: {}, slots: {} });
       const flags = layer.detectFlags(ctx);
-      expect(flags.sidebarRightTabs).toBe(true);
+      expect(flags.sidebarRightTabs).toBe(false);
       expect(flags.betterSidebar).toBe(false);
       expect(flags.spotlight).toBe(false);
       expect(flags.slots).toBe(true);

@@ -58,7 +58,9 @@ function getSessions(ctx: Context): SessionsLike {
 }
 
 function getWorkspaceRegistry(ctx: Context): WorkspaceRegistryLike {
-  return ctx.workspaceRegistry;
+  // Optional service (gen2-only): probe via ctx.get() so the plugin remains active
+  // on hosts that do not provide the workspace registry.
+  return ctx.get('workspaceRegistry') as WorkspaceRegistryLike;
 }
 
 export function extractWorkspacePaths(ctx: Context): string[] {

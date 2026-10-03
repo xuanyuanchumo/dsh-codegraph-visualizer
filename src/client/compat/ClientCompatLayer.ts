@@ -59,7 +59,7 @@ export function createClientCompatLayer(): ClientCompatLayer {
       return _mode;
     }
     if (safeCheck(() => {
-      const tabs = (ctx as unknown as { sidebarRightTabs?: unknown }).sidebarRightTabs;
+      const tabs = ctx.get('sidebarRightTabs');
       return tabs !== null && tabs !== undefined;
     }, false)) {
       _mode = 'sidebar-right';
@@ -86,7 +86,7 @@ export function createClientCompatLayer(): ClientCompatLayer {
   const detectFlags = (ctx: Context): ClientFeatureFlags => {
     _flags = {
       sidebarRightTabs: safeCheck(() => {
-        const tabs = (ctx as unknown as { sidebarRightTabs?: unknown }).sidebarRightTabs;
+        const tabs = ctx.get('sidebarRightTabs');
         return tabs !== null && tabs !== undefined;
       }, false),
       betterSidebar: safeCheck(() => {
@@ -118,7 +118,9 @@ export function createClientCompatLayer(): ClientCompatLayer {
 
   const hasFlag = (key: keyof ClientFeatureFlags): boolean => _flags[key];
   const isGen1 = (): boolean => _versionInfo.generation === 'gen1';
-  const isGen2 = (): boolean => _versionInfo.generation === 'gen2';
+  // gen3 is a forward-compatible superset of gen2 (mirrors the Host-side
+  // ApiCompatLayer GEN3_MAPPING = { ...GEN2_MAPPING } strategy).
+  const isGen2 = (): boolean => _versionInfo.generation === 'gen2' || _versionInfo.generation === 'gen3';
   const isGen3 = (): boolean => _versionInfo.generation === 'gen3';
 
   return {

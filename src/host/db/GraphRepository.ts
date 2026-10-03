@@ -2,9 +2,39 @@ import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { scoped } from '../../shared/Logger.ts';
-import type { GraphSnapshot, AnalysisResult, LayoutPreset } from './schema.ts';
 
 const log = scoped('db:repository');
+
+/** Row shape of the `graph_snapshots` table (DDL authored in MIGRATION_SQL). */
+export interface GraphSnapshot {
+  id: number;
+  repoId: string;
+  snapshotHash: string;
+  nodeCount: number;
+  edgeCount: number;
+  data: Buffer | null;
+  createdAt: number;
+}
+
+/** Row shape of the `analysis_results` table. */
+export interface AnalysisResult {
+  id: number;
+  repoId: string;
+  analysisType: string;
+  targetNode: string | null;
+  result: string;
+  createdAt: number;
+}
+
+/** Row shape of the `layout_presets` table. */
+export interface LayoutPreset {
+  id: number;
+  repoId: string;
+  name: string;
+  layoutType: string;
+  positions: string;
+  createdAt: number;
+}
 
 const require = createRequire(import.meta.url);
 
@@ -31,6 +61,7 @@ const SQL = {
   GET_PREFERENCE: `SELECT value FROM user_preferences WHERE key = ?`,
   SAVE_LAYOUT_PRESET: `INSERT INTO layout_presets (repo_id, name, layout_type, positions, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(repo_id, name) DO UPDATE SET layout_type = excluded.layout_type, positions = excluded.positions, created_at = excluded.created_at`,
   GET_LAYOUT_PRESETS: `SELECT id, name, layout_type, positions FROM layout_presets WHERE repo_id = ? ORDER BY created_at DESC`,
+  PRUNE_SNAPSHOTS: `DELETE FROM graph_snapshots WHERE repo_id = ? AND id NOT IN (SELECT id FROM graph_snapshots WHERE repo_id = ? ORDER BY created_at DESC LIMIT ?)`,
 } as const;
 
 const MIGRATION_SQL = [
@@ -82,7 +113,16 @@ export class GraphRepository {
     if (!this.db) return;
     try {
       this.db.prepare(SQL.SAVE_SNAPSHOT).run(repoId, hash, nodeCount, edgeCount, data, Date.now());
+      this.pruneSnapshots(repoId);
     } catch (e) { log.warn('saveSnapshot failed', e); }
+  }
+
+  /** Keep only the most recent `keep` snapshots per repo to bound disk growth. */
+  pruneSnapshots(repoId: string, keep = 3): void {
+    if (!this.db) return;
+    try {
+      this.db.prepare(SQL.PRUNE_SNAPSHOTS).run(repoId, repoId, keep);
+    } catch (e) { log.warn('pruneSnapshots failed', e); }
   }
 
   getLatestSnapshot(repoId: string): SnapshotRecord | null {

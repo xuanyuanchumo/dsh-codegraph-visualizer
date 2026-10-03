@@ -15,5 +15,8 @@
         prerequisiteRetryDelay: 3000
         watchDebounce: 500
         maxNodes: 500000
+        allowedOrigins:
+          - http://localhost:3080
+          - http://127.0.0.1:3080
         panelMinHeight: 240
         panelDefaultHeight: 600

@@ -29,7 +29,11 @@ import { setupRejectionHandler } from './runtime/RejectionHandler.ts';
 export { PLUGIN_VERSION };
 
 export const name = 'dsh-codegraph-visualizer-client';
-export const inject = ['slots', 'betterSidebar', 'sidebarRightTabs', 'uiConversation'];
+// Only the slot system is a hard requirement. `betterSidebar`, `sidebarRightTabs`
+// and `uiConversation` are gen2-only optional integrations: each integrator probes
+// them dynamically (ctx.inject / ctx.get), so declaring them as static inject would
+// needlessly deactivate the plugin on gen1/minimal hosts.
+export const inject = ['slots'];
 
 export function init(container: HTMLElement, initialData?: GraphData): () => void {
   const root = ReactDOM.createRoot(container);

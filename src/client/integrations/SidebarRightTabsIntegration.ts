@@ -4,11 +4,13 @@ import { GraphPanel } from '../GraphPanel.tsx';
 import { useGraphStore } from '../store/graphStore.ts';
 import { t } from '../i18n/index.ts';
 import { scoped } from '../../shared/Logger.ts';
+import { PLUGIN_SLOT_ID } from './integrationIds.ts';
 
 const log = scoped('client');
 
 export function integrateSidebarRightTabs(state: IntegrationState): void {
   if (state.navButtonRegistered) return;
+  if (!state.flags.sidebarRightTabs) return;
 
   const { ctx } = state;
 
@@ -22,7 +24,7 @@ export function integrateSidebarRightTabs(state: IntegrationState): void {
       log.info('sidebarRightTabs injected via ctx.inject, registering...');
 
       const typeDispose = tabs.register({
-        id: 'dsh-codegraph-visualizer',
+        id: PLUGIN_SLOT_ID,
         kind: 'codegraph',
         priority: 'extension',
         canOpen: () => true,
@@ -32,7 +34,7 @@ export function integrateSidebarRightTabs(state: IntegrationState): void {
 
       const bodyDispose = ctx.slots.inject('sidebar.right.pane.tab', () => {
         const regResult = ctx.slots.register(
-          { name: 'sidebar.right.pane.tab', key: 'dsh-codegraph-visualizer' },
+          { name: 'sidebar.right.pane.tab', key: PLUGIN_SLOT_ID },
           GraphPanel,
         );
         if (typeof regResult === 'function') state.slotDisposers.push(regResult);

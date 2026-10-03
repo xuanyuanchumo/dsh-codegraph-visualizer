@@ -36,19 +36,6 @@ export const ToolbarActions = memo(function ToolbarActions({
 
   const availablePanels = getAvailablePanels(getViewLayer(viewMode));
 
-  const moreDropdownItems: { key: string; titleKey: string; icon: React.ReactNode; active: boolean; onClick: () => void; role: 'menuitem' | 'menuitemcheckbox' }[] = [];
-  if (isNarrow && availablePanels.has('showSearch')) {
-    moreDropdownItems.push({ key: 'search', titleKey: 'toolbar.search', icon: <SearchIcon size={14} />, active: showSearch, onClick: onToggleSearch, role: 'menuitemcheckbox' });
-  }
-  if (isCompact) {
-    moreDropdownItems.push(
-      { key: 'minimap', titleKey: 'toolbar.minimap', icon: <MapIcon size={14} />, active: showMiniMap, onClick: onToggleMiniMap, role: 'menuitemcheckbox' },
-      { key: 'legend', titleKey: 'toolbar.legend', icon: <FilterIcon size={14} />, active: showLegend, onClick: onToggleLegend, role: 'menuitemcheckbox' },
-    );
-  }
-  if (isNarrow) {
-    moreDropdownItems.push({ key: 'tour', titleKey: 'toolbar.tour', icon: <StarIcon size={14} />, active: showTour, onClick: onToggleTour, role: 'menuitemcheckbox' });
-  }
 
   const onUndo = history?.undo;
   const onRedo = history?.redo;
