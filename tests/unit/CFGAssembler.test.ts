@@ -362,7 +362,7 @@ describe('CFGAssembler', () => {
 
   // --- function not found ---
 
-  it('returns minimal diagram when function is not found', () => {
+  it('returns a self-consistent fallback diagram when function is not found', () => {
     // Include identifier child so findFunctionNode does not match by !nameNode
     const astRoot = makeAstNode('function_declaration', 'function other() {}', [
       makeAstNode('identifier', 'other', [], 0),
@@ -370,9 +370,17 @@ describe('CFGAssembler', () => {
     ]);
     const result = assembler.assemble(astRoot, 'src/f.ts', 'nonexistent');
 
-    expect(result.nodes.length).toBe(1);
-    expect(result.edges.length).toBe(0);
-    expect(result.metadata.nodeCount).toBe(1);
+    // Round 9: the fallback used to name an exit block that was never added to the diagram.
+    expect(result.nodes.length).toBe(2);
+    expect(result.edges.length).toBe(1);
+    expect(result.nodes.some((n) => n.properties.isEntry === true)).toBe(true);
+    expect(result.nodes.some((n) => n.properties.isExit === true)).toBe(true);
+    expect(result.metadata.nodeCount).toBe(2);
+    for (const edge of result.edges) {
+      const ids = new Set(result.nodes.map((n) => n.id));
+      expect(ids.has(edge.source)).toBe(true);
+      expect(ids.has(edge.target)).toBe(true);
+    }
   });
 
   // --- simplifyText truncation ---
@@ -995,12 +1003,16 @@ describe('CFGAssembler', () => {
 
   // --- function not found ---
 
-  it('returns entry-only diagram when function not found', () => {
+  it('returns an entry-to-exit fallback when function not found', () => {
     const astRoot = makeAstNode('program', '', []);
     const result = assembler.assemble(astRoot, 'src/f.ts', 'nonexistent');
 
-    expect(result.nodes.length).toBe(1);
+    expect(result.nodes.length).toBe(2);
     expect(result.nodes[0]!.properties.isEntry).toBe(true);
+    expect(result.nodes[1]!.properties.isExit).toBe(true);
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]!.source).toBe(result.nodes[0]!.id);
+    expect(result.edges[0]!.target).toBe(result.nodes[1]!.id);
   });
 
   // --- nested loops with break ---

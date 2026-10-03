@@ -66,11 +66,15 @@ describe('TreeSitterAdapter (FR-20)', () => {
     expect(adapter.isAvailable()).toBe(false);
   });
 
-  it('should return error result when parsing without init and wasm unavailable', async () => {
+  it('lazily initializes and extracts a symbol when init() was not called explicitly', async () => {
     const result = await adapter.parseFile('foo.ts', 'const x = 1');
-    expect(result.nodes).toEqual([]);
+    expect(result.error).toBeUndefined();
     expect(result.edges).toEqual([]);
     expect(result.source).toBe('tree-sitter');
+    // Regression: this used to return no nodes at all. The old shared type table listed the
+    // nameless `variable_declaration` *wrapper* instead of `variable_declarator` (the node that
+    // carries the name), so the assertion below only ever held because of that bug.
+    expect(result.nodes.map((n: GraphNode) => n.label)).toEqual(['x']);
   });
 
   it('should return error for unsupported file extension via detectLanguage', () => {
@@ -443,6 +447,163 @@ describe('TreeSitterAdapter symbol extraction (real wasm)', () => {
     const asTs = await adapter.parseFile('src/App.ts', TSX_SOURCE);
     expect(asTs.nodes.length).toBeGreaterThan(0);
     expect(asTsx.nodes.length).toBeGreaterThanOrEqual(asTs.nodes.length);
+  });
+});
+
+describe('TreeSitterAdapter per-grammar symbol types (real wasm)', () => {
+  let adapter: TreeSitterAdapter;
+
+  beforeEach(async () => {
+    adapter = new TreeSitterAdapter();
+    await adapter.init();
+  });
+
+  afterEach(() => {
+    adapter.destroy();
+  });
+
+  const labelsOf = (nodes: GraphNode[], type: GraphNode['type']): string[] =>
+    nodes.filter((n: GraphNode) => n.type === type).map((n: GraphNode) => n.label);
+
+  /** Node types whose only possible label is the `<node.type>` placeholder — none may reach the graph. */
+  const NAMELESS_WRAPPERS = [
+    'lexical_declaration', 'variable_declaration', 'var_declaration', 'short_var_declaration',
+    'type_declaration', 'field_declaration', 'struct_type', 'interface_type',
+  ];
+
+  it('extracts Rust functions, types and constants instead of dropping them', async () => {
+    const code = [
+      'use std::fmt;',
+      'fn foo() {}',
+      'struct Bar { x: i32 }',
+      'enum Color { Red, Green }',
+      'trait Shape { fn area(&self) -> i32; }',
+      'impl Bar {',
+      '  fn method(&self) {}',
+      '}',
+      'const LIMIT: i32 = 10;',
+      'static GLOBAL: i32 = 1;',
+      'fn main() { let x = 1; }',
+    ].join('\n');
+    const result = await adapter.parseFile('foo.rs', code);
+    expect(result.source).toBe('tree-sitter');
+    expect(result.error).toBeUndefined();
+
+    const functions = labelsOf(result.nodes, 'function');
+    // `function_item` was missing from the shared flat set, so every Rust function was invisible.
+    expect(functions).toEqual(expect.arrayContaining(['foo', 'method', 'main', 'area']));
+
+    const classes = labelsOf(result.nodes, 'class');
+    // `impl_item` has no `name` field; its label must come from the `type` field, not `<impl_item>`.
+    expect(classes).toEqual(expect.arrayContaining(['Bar', 'Color', 'Shape']));
+    expect(classes).not.toContain('<impl_item>');
+
+    const variables = labelsOf(result.nodes, 'variable');
+    expect(variables).toEqual(expect.arrayContaining(['x', 'LIMIT', 'GLOBAL']));
+
+    const modules = labelsOf(result.nodes, 'module');
+    expect(modules.length).toBeGreaterThan(0);
+  });
+
+  it('extracts TypeScript symbols without the nameless declaration wrappers', async () => {
+    const code = [
+      'export function foo() {}',
+      'export interface Shape { area(): number; }',
+      'export type Alias = string;',
+      'export enum Color { Red, Green }',
+      'export class Bar { method() {} }',
+      'const x = 1;',
+      'let y = 2;',
+    ].join('\n');
+    const result = await adapter.parseFile('foo.ts', code);
+    expect(result.error).toBeUndefined();
+
+    expect(labelsOf(result.nodes, 'function')).toEqual(expect.arrayContaining(['foo', 'method']));
+    expect(labelsOf(result.nodes, 'class')).toEqual(
+      expect.arrayContaining(['Bar', 'Shape', 'Alias', 'Color']));
+    // `variable_declarator` carries the name; the `lexical_declaration` wrapper does not.
+    expect(labelsOf(result.nodes, 'variable')).toEqual(expect.arrayContaining(['x', 'y']));
+    expect(result.nodes.some((n: GraphNode) => n.properties?.nodeType === 'variable_declaration')).toBe(false);
+    expect(result.nodes.some((n: GraphNode) => n.properties?.nodeType === 'lexical_declaration')).toBe(false);
+  });
+
+  it('extracts JavaScript symbols', async () => {
+    const code = 'function foo() {}\nclass Bar { method() {} }\nconst x = 1;';
+    const result = await adapter.parseFile('foo.js', code);
+    expect(labelsOf(result.nodes, 'function')).toEqual(expect.arrayContaining(['foo', 'method']));
+    expect(labelsOf(result.nodes, 'class')).toContain('Bar');
+    expect(labelsOf(result.nodes, 'variable')).toContain('x');
+  });
+
+  it('extracts Java constructors, interface methods and fields', async () => {
+    const code = [
+      'import java.util.List;',
+      'public interface Shape { int area(); }',
+      'public enum Color { RED }',
+      'public class Bar {',
+      '  private int global = 1;',
+      '  public Bar() {}',
+      '  public void method() {}',
+      '}',
+    ].join('\n');
+    const result = await adapter.parseFile('Bar.java', code);
+    expect(result.error).toBeUndefined();
+    expect(labelsOf(result.nodes, 'function')).toEqual(expect.arrayContaining(['Bar', 'method', 'area']));
+    expect(labelsOf(result.nodes, 'class')).toEqual(expect.arrayContaining(['Bar', 'Shape', 'Color']));
+    expect(labelsOf(result.nodes, 'variable')).toContain('global');
+  });
+
+  it('extracts Go types, interface methods and specs', async () => {
+    const code = [
+      'package main',
+      'import "fmt"',
+      'func foo() {}',
+      'type Bar struct { x int }',
+      'type Shape interface { area() int }',
+      'type Alias = int',
+      'func (b Bar) method() {}',
+      'var x = 1',
+      'const K = 2',
+    ].join('\n');
+    const result = await adapter.parseFile('main.go', code);
+    expect(result.error).toBeUndefined();
+    expect(labelsOf(result.nodes, 'function')).toEqual(expect.arrayContaining(['foo', 'method', 'area']));
+    expect(labelsOf(result.nodes, 'class')).toEqual(expect.arrayContaining(['Bar', 'Shape', 'Alias']));
+    expect(labelsOf(result.nodes, 'variable')).toEqual(expect.arrayContaining(['x', 'K']));
+  });
+
+  it('extracts Python symbols', async () => {
+    const code = 'import os\ndef foo():\n    pass\nclass Bar:\n    def method(self):\n        pass\nx = 1\n';
+    const result = await adapter.parseFile('foo.py', code);
+    expect(labelsOf(result.nodes, 'function')).toEqual(expect.arrayContaining(['foo', 'method']));
+    expect(labelsOf(result.nodes, 'class')).toContain('Bar');
+    expect(labelsOf(result.nodes, 'variable')).toContain('x');
+  });
+
+  it('never emits a nameless declaration wrapper as a symbol across all six grammars', async () => {
+    const samples: Array<{ filePath: string; code: string }> = [
+      { filePath: 'a.ts', code: 'const x = 1;\nlet y = 2;\nvar z = 3;\nfunction f() {}' },
+      { filePath: 'a.js', code: 'const x = 1;\nlet y = 2;\nvar z = 3;\nfunction f() {}' },
+      { filePath: 'a.py', code: 'x = 1\ndef f():\n    pass\n' },
+      { filePath: 'a.java', code: 'class A { private int x = 1; void f() {} }' },
+      { filePath: 'a.rs', code: 'fn f() { let x = 1; }\nconst K: i32 = 1;' },
+      { filePath: 'a.go', code: 'package main\nvar x = 1\nconst K = 2\nfunc f() { y := 3 }' },
+    ];
+    for (const sample of samples) {
+      const result = await adapter.parseFile(sample.filePath, sample.code);
+      expect(result.error, sample.filePath).toBeUndefined();
+      const wrappers = result.nodes.filter(
+        (n: GraphNode) => NAMELESS_WRAPPERS.includes(String(n.properties?.nodeType)));
+      expect(wrappers.map((n: GraphNode) => n.properties?.nodeType), sample.filePath).toEqual([]);
+      const symbols = result.nodes.filter((n: GraphNode) => n.type !== 'module');
+      expect(symbols.length, sample.filePath).toBeGreaterThan(0);
+      for (const node of symbols) {
+        // `<node.type>` placeholders stay allowed only where the grammar genuinely has no name.
+        if (node.label.startsWith('<')) {
+          expect(['arrow_function', 'closure_expression']).toContain(String(node.properties?.nodeType));
+        }
+      }
+    }
   });
 });
 

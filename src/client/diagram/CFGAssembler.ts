@@ -132,7 +132,16 @@ export class CFGAssembler {
 
     const funcNode = findFunctionNode(astRoot, functionName);
     if (!funcNode) {
-      return this.toAssembledDiagram({ blocks: [entryBlock], edges: [], entryBlockId: entryBlock.id, exitBlockIds: [exitBlock.id] }, filePath, functionName);
+      // The requested function is not in this AST. Keep the fallback diagram self-consistent: the
+      // exit block used to be named in `exitBlockIds` without ever being added to `blocks`, so the
+      // metadata pointed at a node the diagram did not contain.
+      edges.push({ source: entryBlock.id, target: exitBlock.id, edgeType: 'fallthrough' });
+      blocks.push(exitBlock);
+      return this.toAssembledDiagram(
+        { blocks, edges, entryBlockId: entryBlock.id, exitBlockIds: [exitBlock.id] },
+        filePath,
+        functionName,
+      );
     }
     const targetChildren = getFunctionBody(funcNode);
 

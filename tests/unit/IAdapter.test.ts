@@ -60,12 +60,15 @@ describe('IAdapter 统一抽象接口', () => {
       expect(adapter.isAvailable()).toBe(false);
     });
 
-    it('parseFile 在未初始化时应返回空结果带错误信息', async () => {
+    it('parseFile 在未显式 init 时会懒初始化并解析出符号', async () => {
       const adapter = new TreeSitterAdapter();
       const result = await adapter.parseFile('test.ts', 'const x = 1;');
-      expect(result.nodes).toEqual([]);
-      expect(result.edges).toEqual([]);
+      // Round 9：这里原本断言 nodes 为空，只是因为旧的平坦类型表恰好匹配不到 TypeScript 的
+      // `lexical_declaration` 包装节点；适配器实际会懒初始化。契约按真实行为锁定。
       expect(result.source).toBe('tree-sitter');
+      expect(result.edges).toEqual([]);
+      expect(result.nodes.map((n) => n.label)).toContain('x');
+      adapter.destroy();
     });
   });
 

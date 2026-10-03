@@ -16,6 +16,11 @@ function makeMockNode(id: string, x = 0, y = 0, data: Record<string, unknown> = 
     nonempty: vi.fn(() => true),
     empty: vi.fn(() => false),
     connectedEdges: vi.fn(() => ({ forEach: vi.fn(), length: 0 })),
+    // Flat mock graph: no compound parents. Real nodes answer with a NodeSingular collection here,
+    // and the incremental layout detaches compound membership before running (see
+    // layoutIncrementalCompound.test.ts for the compound case).
+    parent: vi.fn(() => ({ nonempty: () => false, empty: () => true, first: () => undefined })),
+    move: vi.fn(),
   };
 }
 

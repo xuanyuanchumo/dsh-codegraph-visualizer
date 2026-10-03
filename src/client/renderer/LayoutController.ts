@@ -1,4 +1,4 @@
-import type { Core, LayoutOptions } from 'cytoscape';
+import type { Collection, Core, LayoutOptions } from 'cytoscape';
 import type { LayoutType, RankDir } from '../../shared/viewModeUtils.ts';
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { scoped } from '../../shared/Logger.ts';
@@ -220,92 +220,138 @@ export class LayoutController {
     if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
 
     this.layoutRaf = requestAnimationFrame(() => {
-      const newNodes = this.cy.nodes().filter((n) => newNodeIds.has(n.id()));
-      if (newNodes.length === 0) {
+      // A requestAnimationFrame callback sits outside every synchronous guard its caller has —
+      // CytoscapeRenderer.safeCallVoid cannot see it — so a layout-library throw here would escape
+      // as an uncaught exception. Guard the whole body and always clear the pending handle.
+      try {
+        this.runIncrementalLayout(layout, newNodeIds);
+      } catch (e) {
+        log.warn('incremental layout failed — keeping the previous positions', e);
+      } finally {
         this.layoutRaf = null;
-        return;
       }
+    });
+  }
 
-      this.restoreCachedPositions();
+  private runIncrementalLayout(layout: LayoutType, newNodeIds: Set<string>): void {
+    const newNodes = this.cy.nodes().filter((n) => newNodeIds.has(n.id()));
+    if (newNodes.length === 0) {
+      return;
+    }
 
-      const totalNodes = this.cy.nodes().length;
-      const sp = this.computeSmartSpacing(totalNodes);
-      const newNodeIdArray = Array.from(newNodeIds);
+    this.restoreCachedPositions();
 
-      let anchorX = 0;
-      let anchorY = 0;
-      let anchorCount = 0;
-      for (const newId of newNodeIdArray) {
-        const newNode = this.cy.getElementById(newId);
-        if (newNode.empty()) continue;
-        newNode.connectedEdges().forEach((edge) => {
-          const source = edge.source();
-          const target = edge.target();
-          const other = source.id() === newId ? target : source;
-          if (!newNodeIds.has(other.id())) {
-            const pos = other.position();
-            anchorX += pos.x;
-            anchorY += pos.y;
-            anchorCount++;
-          }
-        });
-      }
+    const totalNodes = this.cy.nodes().length;
+    const sp = this.computeSmartSpacing(totalNodes);
+    const newNodeIdArray = Array.from(newNodeIds);
 
-      let cx: number;
-      let cy: number;
-      if (anchorCount > 0) {
-        cx = anchorX / anchorCount;
-        cy = anchorY / anchorCount;
-      } else {
-        const existingNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
-        if (existingNodes.length > 0) {
-          const bbox = existingNodes.boundingBox();
-          cx = (bbox.x1 + bbox.x2) / 2;
-          cy = (bbox.y1 + bbox.y2) / 2;
-        } else {
-          cx = 0;
-          cy = 0;
+    let anchorX = 0;
+    let anchorY = 0;
+    let anchorCount = 0;
+    for (const newId of newNodeIdArray) {
+      const newNode = this.cy.getElementById(newId);
+      if (newNode.empty()) continue;
+      newNode.connectedEdges().forEach((edge) => {
+        const source = edge.source();
+        const target = edge.target();
+        const other = source.id() === newId ? target : source;
+        if (!newNodeIds.has(other.id())) {
+          const pos = other.position();
+          anchorX += pos.x;
+          anchorY += pos.y;
+          anchorCount++;
         }
+      });
+    }
+
+    let cx: number;
+    let cy: number;
+    if (anchorCount > 0) {
+      cx = anchorX / anchorCount;
+      cy = anchorY / anchorCount;
+    } else {
+      const existingNodes = this.cy.nodes().filter((n) => !newNodeIds.has(n.id()));
+      if (existingNodes.length > 0) {
+        const bbox = existingNodes.boundingBox();
+        cx = (bbox.x1 + bbox.x2) / 2;
+        cy = (bbox.y1 + bbox.y2) / 2;
+      } else {
+        cx = 0;
+        cy = 0;
       }
+    }
 
-      const goldenAngle = LAYOUT_CONST.GOLDEN_ANGLE;
-      const newNodeIndexMap = new Map<string, number>();
-      for (let i = 0; i < newNodeIdArray.length; i++) {
-        newNodeIndexMap.set(newNodeIdArray[i]!, i);
-      }
+    const goldenAngle = LAYOUT_CONST.GOLDEN_ANGLE;
+    const newNodeIndexMap = new Map<string, number>();
+    for (let i = 0; i < newNodeIdArray.length; i++) {
+      newNodeIndexMap.set(newNodeIdArray[i]!, i);
+    }
 
-      const presetOptions: LayoutOptions = {
-        name: 'preset',
-        positions: (node: { id: () => string }) => {
-          const cached = this.positionCache.get(node.id());
-          if (cached) return cached;
-          const idx = newNodeIndexMap.get(node.id());
-          if (idx === undefined) return { x: cx, y: cy };
-          const radius = sp.incrementalRadius * Math.sqrt(idx + 1);
-          const angle = idx * goldenAngle;
-          return {
-            x: cx + radius * Math.cos(angle),
-            y: cy + radius * Math.sin(angle),
-          };
-        },
-        animate: false,
-      } as LayoutOptions;
+    const presetOptions: LayoutOptions = {
+      name: 'preset',
+      positions: (node: { id: () => string }) => {
+        const cached = this.positionCache.get(node.id());
+        if (cached) return cached;
+        const idx = newNodeIndexMap.get(node.id());
+        if (idx === undefined) return { x: cx, y: cy };
+        const radius = sp.incrementalRadius * Math.sqrt(idx + 1);
+        const angle = idx * goldenAngle;
+        return {
+          x: cx + radius * Math.cos(angle),
+          y: cy + radius * Math.sin(angle),
+        };
+      },
+      animate: false,
+    } as LayoutOptions;
 
-      this.cy.layout(presetOptions).run();
+    this.cy.layout(presetOptions).run();
 
+    // Compound links make Cytoscape's spatial layouts fragile as soon as the graph is partial: the
+    // built-in `cose` indexes each node's parent inside the collection it is handed (a parent left
+    // behind makes that lookup undefined and the layout throws `...reading 'children'`), and
+    // fcose/cose-base trips over compounds whose members are only partly in the collection. Lay the
+    // new nodes out flat instead — compound membership comes back right after — and let Cytoscape
+    // recompute the compound box from the children's final positions.
+    const detached = this.detachCompoundLinks(newNodes);
+    try {
       if (layout === 'cose' || layout === 'fcose' || layout === 'dagre') {
         const incrementalOptions = this.buildLayoutOptions(layout, false, newNodes.length);
         if (incrementalOptions) {
           const l = newNodes.layout(incrementalOptions);
-      l.one('layoutstop', () => this.overlapRemover.remove());
+          l.one('layoutstop', () => this.overlapRemover.remove());
           l.run();
         }
       } else {
         this.overlapRemover.remove();
       }
+    } finally {
+      this.restoreCompoundLinks(detached);
+    }
 
-      this.cachePositions();
-      this.layoutRaf = null;
+    this.cachePositions();
+  }
+
+  /** Drop compound membership for the duration of a layout; returns what has to be put back. */
+  private detachCompoundLinks(nodes: Collection): Array<{ child: string; parent: string }> {
+    const detached: Array<{ child: string; parent: string }> = [];
+    this.cy.batch(() => {
+      nodes.forEach((node) => {
+        const parent = node.parent();
+        if (parent.nonempty()) {
+          detached.push({ child: node.id(), parent: parent.first().id() });
+          node.move({ parent: null });
+        }
+      });
+    });
+    return detached;
+  }
+
+  private restoreCompoundLinks(detached: Array<{ child: string; parent: string }>): void {
+    if (detached.length === 0) return;
+    this.cy.batch(() => {
+      for (const { child, parent } of detached) {
+        this.cy.getElementById(child).move({ parent });
+      }
     });
   }
 

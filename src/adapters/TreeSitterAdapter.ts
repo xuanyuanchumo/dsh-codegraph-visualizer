@@ -72,18 +72,94 @@ interface TreeSitterLanguage {
   load(path: string): Promise<TreeSitterLanguage>;
 }
 
-const FUNCTION_NODE_TYPES = new Set([
-  'function_declaration', 'function_definition', 'method_declaration', 'method_definition', 'arrow_function',
-]);
-const CLASS_NODE_TYPES = new Set([
-  'class_declaration', 'class_definition', 'struct_declaration', 'interface_declaration',
-]);
-const VARIABLE_NODE_TYPES = new Set([
-  'variable_declaration', 'const_declaration', 'let_declaration', 'assignment',
-]);
-const IMPORT_NODE_TYPES = new Set([
-  'import_statement', 'import_declaration', 'use_declaration',
-]);
+type SymbolKind = 'function' | 'class' | 'variable' | 'module';
+
+/**
+ * Node type → graph symbol kind, **per grammar**. Previously this was one flat set shared by all
+ * grammars, which was guesswork: it listed types no supported grammar emits (`struct_declaration`,
+ * `const_declaration`) while missing real ones, so Rust functions never reached the graph
+ * (`function_item` was absent) and TypeScript variables were labelled `<variable_declaration>`
+ * (the *wrapper* was listed instead of `variable_declarator`, the node that actually carries the
+ * name).
+ *
+ * Every entry below was measured against the shipped grammars by
+ * `.cycles/probe-grammar-node-types.mjs` (all samples parse with `hasError: false`). A type is
+ * listed only when the grammar emits it **and** `extractName` yields a real label for it — a
+ * `name` field, a `type` field (`impl_item`), or an identifier child (`assignment`,
+ * `let_declaration`). Declaration wrappers are deliberately absent because they carry no name of
+ * their own and would enter the graph as `<lexical_declaration>`-style noise:
+ * `lexical_declaration`, `variable_declaration`, `var_declaration`, `short_var_declaration`,
+ * `type_declaration`, `field_declaration`, plus the `*_body` / `*_type` container nodes.
+ */
+const SYMBOL_NODE_TYPES: Record<SupportedGrammar, Record<string, SymbolKind>> = (() => {
+  const js: Record<string, SymbolKind> = {
+    function_declaration: 'function',
+    method_definition: 'function',
+    arrow_function: 'function',
+    class_declaration: 'class',
+    variable_declarator: 'variable',
+    import_statement: 'module',
+  };
+  return {
+    // The TS grammar is a superset of the JS one; keep them separate so a JS-only change cannot
+    // silently leak JSX/TS-only node types into plain JavaScript files.
+    typescript: {
+      ...js,
+      interface_declaration: 'class',
+      enum_declaration: 'class',
+      type_alias_declaration: 'class',
+    },
+    tsx: {
+      ...js,
+      interface_declaration: 'class',
+      enum_declaration: 'class',
+      type_alias_declaration: 'class',
+    },
+    javascript: js,
+    python: {
+      function_definition: 'function',
+      class_definition: 'class',
+      assignment: 'variable',
+      import_statement: 'module',
+    },
+    java: {
+      method_declaration: 'function',
+      constructor_declaration: 'function',
+      class_declaration: 'class',
+      interface_declaration: 'class',
+      enum_declaration: 'class',
+      variable_declarator: 'variable',
+      import_declaration: 'module',
+    },
+    rust: {
+      function_item: 'function',
+      function_signature_item: 'function',
+      closure_expression: 'function',
+      struct_item: 'class',
+      enum_item: 'class',
+      trait_item: 'class',
+      impl_item: 'class',
+      let_declaration: 'variable',
+      const_item: 'variable',
+      static_item: 'variable',
+      use_declaration: 'module',
+    },
+    go: {
+      function_declaration: 'function',
+      method_declaration: 'function',
+      method_elem: 'function',
+      type_spec: 'class',
+      type_alias: 'class',
+      var_spec: 'variable',
+      const_spec: 'variable',
+      import_declaration: 'module',
+    },
+  };
+})();
+
+function symbolKindFor(grammar: SupportedGrammar, nodeType: string): SymbolKind | null {
+  return SYMBOL_NODE_TYPES[grammar][nodeType] ?? null;
+}
 const COMMENT_NODE_TYPES = new Set(['comment', 'line_comment', 'block_comment']);
 const TODO_PATTERNS = /\b(TODO|FIXME|HACK|XXX|BUG)\b/g;
 
@@ -201,7 +277,7 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
 
     try {
       const tree = parser.parse(content);
-      const { nodes, edges } = this.extractSymbols(tree.rootNode, filePath);
+      const { nodes, edges } = this.extractSymbols(tree.rootNode, filePath, grammar);
       tree.delete();
       return { nodes, edges, source: 'tree-sitter', timestamp: Date.now() };
     } catch (e) {
@@ -232,7 +308,7 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
           if (!parser) return null;
           try {
             const tree = parser.parse(file.content);
-            const { nodes, edges } = this.extractSymbols(tree.rootNode, file.filePath);
+            const { nodes, edges } = this.extractSymbols(tree.rootNode, file.filePath, grammar);
             tree.delete();
             return { nodes, edges };
           } catch (e) {
@@ -290,15 +366,24 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
     throw new Error(`Cannot load ${wasmFile} from any candidate path`);
   }
 
-  private extractSymbols(rootNode: TreeSitterNode, filePath: string): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  private extractSymbols(rootNode: TreeSitterNode, filePath: string, grammar: SupportedGrammar): { nodes: GraphNode[]; edges: GraphEdge[] } {
     const nodes: GraphNode[] = [];
     const edges: GraphEdge[] = [];
     const visited = new Set<string>();
     const nodeMap = new Map<string, GraphNode>();
 
+    /**
+     * `name` first, then the `type` field (Rust `impl_item` has no `name`; its `type` field is the
+     * implemented type, e.g. `Bar`), then the first name-bearing child. Measured across all six
+     * grammars: the label child of a symbol node is always an `identifier`, `property_identifier`
+     * or `type_identifier`. Nodes with none of these keep the explicit `<node.type>` marker —
+     * `arrow_function` / `closure_expression` have no name and are expected to render as such.
+     */
     const extractName = (node: TreeSitterNode): string => {
       const nameNode = node.childForFieldName?.('name') ||
-        node.children?.find((c: TreeSitterNode) => c.type === 'identifier' || c.type === 'property_identifier');
+        node.childForFieldName?.('type') ||
+        node.children?.find((c: TreeSitterNode) =>
+          c.type === 'identifier' || c.type === 'property_identifier' || c.type === 'type_identifier');
       return nameNode ? nameNode.text : `<${node.type}>`;
     };
 
@@ -313,15 +398,8 @@ export class TreeSitterAdapter implements IAnalysisAdapter {
         const nodeType = node.type;
 
         let graphType: GraphNode['type'] | null = null;
-        if (FUNCTION_NODE_TYPES.has(nodeType)) {
-          graphType = 'function';
-        } else if (CLASS_NODE_TYPES.has(nodeType)) {
-          graphType = 'class';
-        } else if (VARIABLE_NODE_TYPES.has(nodeType)) {
-          graphType = 'variable';
-        } else if (IMPORT_NODE_TYPES.has(nodeType)) {
-          graphType = 'module';
-        }
+        const symbolKind = symbolKindFor(grammar, nodeType);
+        if (symbolKind) graphType = symbolKind;
 
         let currentParentId: string | undefined = parentId;
 
