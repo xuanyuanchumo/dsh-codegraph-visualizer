@@ -9,10 +9,12 @@ import { scoped } from '../../shared/Logger.ts';
 
 const log = scoped('panel');
 
-interface GetDataApi {
+export interface GetDataApi {
   getSelectedNodeData: () => GraphNode | ClusterNode | null;
   getNodeData: (id: string) => GraphNode | ClusterNode | null;
   getEdgeData: (id: string) => GraphEdge | null;
+  /** Reveals a node hidden by `hideNode` and centres the viewport on it; `false` when it cannot. */
+  revealNode: (id: string) => boolean;
 }
 
 interface UseSearchInteractionOpts {
@@ -47,6 +49,10 @@ export function useSearchInteraction(opts: UseSearchInteractionOpts): UseSearchI
       setSelectedNode(NodeId(id));
       const data = getDataRef.current?.getNodeData(NodeId(id)) ?? null;
       setSelectedNodeData(data);
+      // Sourcetrail-style linkage: picking a result must also bring it into view. Without this the
+      // selection only changed the detail panel, so a hidden or off-screen hit looked like a no-op.
+      const revealed = getDataRef.current?.revealNode(id) ?? false;
+      if (!revealed) log.warn('search result is not revealable in the rendered graph', { id });
       setShowSearch(false);
     } catch (err) {
       log.error('handleSelectSearchResult failed', { id, err });

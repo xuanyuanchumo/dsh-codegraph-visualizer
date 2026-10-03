@@ -1050,4 +1050,92 @@ describe('CytoscapeRenderer', () => {
       expect(() => disposer()).not.toThrow();
     });
   });
+
+  // ── revealNode ────────────────────────────────────────────────────────
+
+  describe('revealNode', () => {
+    /** Minimal element double whose style map is readable and writable like Cytoscape's. */
+    function makeElement(id: string, opts: { display?: string; data?: Record<string, unknown> } = {}) {
+      const styles: Record<string, string> = { display: opts.display ?? 'element' };
+      const data = opts.data ?? {};
+      const el: any = {
+        id: () => id,
+        empty: () => false,
+        nonempty: () => true,
+        data: vi.fn((key?: string) => (key === undefined ? data : data[key])),
+        style: vi.fn((key?: string, value?: string) => {
+          if (key === undefined) return { ...styles };
+          if (value === undefined) return styles[key];
+          styles[key] = value;
+          return el;
+        }),
+        connectedEdges: vi.fn(() => mockCy._makeCollection([])),
+        display: () => styles.display,
+      };
+      return el;
+    }
+
+    function makeEdgeDouble(id: string, source: any, target: any, data: Record<string, unknown> = {}) {
+      const styles: Record<string, string> = { display: 'element' };
+      return {
+        id: () => id,
+        data: vi.fn((key?: string) => (key === undefined ? data : data[key])),
+        source: () => source,
+        target: () => target,
+        style: vi.fn((key?: string, value?: string) => {
+          if (key === undefined) return { ...styles };
+          if (value === undefined) return styles[key];
+          styles[key] = value;
+          return undefined;
+        }),
+        edgeDisplay: () => styles.display,
+      };
+    }
+
+    beforeEach(() => {
+      renderer = new CytoscapeRenderer({ container: makeContainer(), theme: 'dark' });
+      renderer!.init();
+    });
+
+    it('returns false when the node is not in the graph', () => {
+      mockCy.getElementById = vi.fn(() => ({ empty: () => true, nonempty: () => false }));
+      expect(renderer!.revealNode('missing')).toBe(false);
+    });
+
+    it('returns false for a filter-hidden node and leaves its display untouched', () => {
+      const node = makeElement('n1', { display: 'none', data: { typeFiltered: true } });
+      mockCy.getElementById = vi.fn(() => node);
+      expect(renderer!.revealNode('n1')).toBe(false);
+      expect(node.style).not.toHaveBeenCalled();
+    });
+
+    it('restores a hidden node and only the edges whose both ends are visible', () => {
+      const hiddenNeighbour = makeElement('n3', { display: 'none' });
+      const visibleA = makeElement('a');
+      const visibleB = makeElement('b');
+      const restorable = makeEdgeDouble('e1', visibleA, visibleB);
+      const dangling = makeEdgeDouble('e2', visibleA, hiddenNeighbour);
+      const connectionFiltered = makeEdgeDouble('e3', visibleA, visibleB, { connectionFiltered: true });
+      const node = makeElement('n1', { display: 'none' });
+      node.connectedEdges = vi.fn(() => mockCy._makeCollection([restorable, dangling, connectionFiltered]));
+      mockCy.getElementById = vi.fn(() => node);
+
+      expect(renderer!.revealNode('n1')).toBe(true);
+      expect(node.style).toHaveBeenCalledWith('display', 'element');
+      expect(restorable.style).toHaveBeenCalledWith('display', 'element');
+      // An edge pointing at a still-hidden node would be the dangling edge Cytoscape warns about.
+      expect(dangling.style).not.toHaveBeenCalledWith('display', 'element');
+      expect(connectionFiltered.style).not.toHaveBeenCalledWith('display', 'element');
+      // Revealing must also centre the viewport, otherwise the click still looks like a no-op.
+      expect(mockCy.animate).toHaveBeenCalledWith(expect.objectContaining({ center: { eles: node } }));
+    });
+
+    it('still focuses an already-visible node without rewriting its display', () => {
+      const node = makeElement('n1');
+      mockCy.getElementById = vi.fn(() => node);
+      expect(renderer!.revealNode('n1')).toBe(true);
+      expect(node.style).not.toHaveBeenCalledWith('display', 'element');
+      expect(mockCy.animate).toHaveBeenCalled();
+    });
+  });
 });

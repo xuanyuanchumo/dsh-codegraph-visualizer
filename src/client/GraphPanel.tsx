@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react';
 import { useGraphStore } from './store/graphStore.ts';
 import type { ThemeType, GraphType } from './store/graphStore.ts';
 
-import type { GraphNode, GraphEdge, ViewMode } from '../types/index.ts';
+import type { GraphNode, ViewMode } from '../types/index.ts';
 import type { ClusterNode } from './store/cluster/index.ts';
 import { NodeId } from '../types/index.ts';
 import { usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard, useViewMode, useAnalysisPanels,
@@ -22,7 +22,7 @@ import { useMiniMapSync } from './hooks/useMiniMapSync.ts';
 import { useAutoBootstrap } from './hooks/useAutoBootstrap.ts';
 import { useAncestorResize } from './hooks/useAncestorResize.ts';
 import { useViewModePanelGuard } from './hooks/useViewModePanelGuard.ts';
-import { useSearchInteraction } from './hooks/useSearchInteraction.ts';
+import { useSearchInteraction, type GetDataApi } from './hooks/useSearchInteraction.ts';
 import { useFocusMode } from './hooks/useFocusMode.ts';
 import { useNodeInteraction } from './hooks/useNodeInteraction.ts';
 import { invalidateCssVarCache } from './renderer/styles/ThemeStylesheet.ts';
@@ -69,11 +69,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const integrationMode = useGraphStore((s) => s.integrationMode);
   const panelRef = useRef<HTMLDivElement>(null);
   const depsFetchAbortRef = useRef<AbortController | null>(null);
-  const getDataRef = useRef<{
-    getSelectedNodeData: () => GraphNode | ClusterNode | null;
-    getNodeData: (id: string) => GraphNode | ClusterNode | null;
-    getEdgeData: (id: string) => GraphEdge | null;
-  } | null>(null);
+  const getDataRef = useRef<GetDataApi | null>(null);
   const [selectedNodeData, setSelectedNodeData] = useState<GraphNode | ClusterNode | null>(null);
   const [tooltip, setTooltip] = useState<TooltipData | EdgeTooltipData | null>(null);
   const [showHelp, setShowHelp] = useState(false);
@@ -165,6 +161,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
       getSelectedNodeData: () => renderer.rendererRef.current?.getSelectedNodeData() ?? null,
       getNodeData: (id: string) => renderer.rendererRef.current?.getNodeData(id) ?? null,
       getEdgeData: (id: string) => renderer.rendererRef.current?.getEdgeData(id) ?? null,
+      revealNode: (id: string) => renderer.rendererRef.current?.revealNode(id) ?? false,
     };
   }, [renderer.rendererRef]);
 

@@ -23,6 +23,19 @@ import {
 
 export const log = scoped('host');
 
+/**
+ * Shape check for a caller-supplied *relative* path. Both separators are accepted on every
+ * platform: `path.normalize()` rewrites `/` to `\` on win32, so comparing its output against the
+ * raw input rejected perfectly valid forward-slash paths (`src/App.tsx`) while the sibling `/ast`
+ * route accepted them. What must stay rejected is traversal and anything absolute.
+ */
+export function isSafeRelativePath(value: string, maxLength: number): boolean {
+  if (!value || value.length > maxLength || value.includes('\0')) return false;
+  if (path.isAbsolute(value) || /^[a-zA-Z]:/.test(value) || value.startsWith('\\\\')) return false;
+  const normalized = path.normalize(value);
+  return !normalized.startsWith('..') && !path.isAbsolute(normalized);
+}
+
 export type RouteHandler = (req: IncomingMessage, res: ServerResponse) => Promise<void> | void;
 
 export function withRouteMiddleware(

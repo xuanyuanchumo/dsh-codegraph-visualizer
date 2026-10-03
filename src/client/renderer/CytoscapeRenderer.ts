@@ -1,4 +1,4 @@
-import cytoscape, { type Core } from 'cytoscape';
+import cytoscape, { type Core, type EdgeSingular, type NodeSingular } from 'cytoscape';
 import dagre from 'cytoscape-dagre';
 import fcose from 'cytoscape-fcose';
 import type { GraphNode, GraphEdge, NodeId, HeatmapMode, TodoMarkerMode } from '../../types/index.ts';
@@ -277,6 +277,38 @@ export class CytoscapeRenderer implements IRenderer {
 
   focusOnNode(nodeId: string): void {
     this.viewportCtrl?.focusOnNode(nodeId);
+  }
+
+  /**
+   * Bring a node the user explicitly asked for (a search hit, a host symbol link) into view even
+   * when it is currently hidden, then centre the viewport on it. Returns `false` when the node is
+   * not in the rendered graph at all, or when it is excluded by an active type/connection filter —
+   * silently panning to an element the filter keeps invisible is what made "search a hidden node"
+   * look like a no-op.
+   */
+  revealNode(nodeId: string): boolean {
+    return this.safeCall('revealNode', () => {
+      const cy = this.cy;
+      const node = cy?.getElementById(nodeId);
+      if (!cy || !node || node.empty()) return false;
+      if (this.isFilterHidden(node)) return false;
+
+      if (node.style('display') === 'none') {
+        node.style('display', 'element');
+        node.connectedEdges().forEach((edge: EdgeSingular) => {
+          if (this.isFilterHidden(edge)) return;
+          if (edge.source().style('display') === 'none' || edge.target().style('display') === 'none') return;
+          edge.style('display', 'element');
+        });
+      }
+
+      this.viewportCtrl?.focusOnNode(nodeId);
+      return true;
+    }, false);
+  }
+
+  private isFilterHidden(el: NodeSingular | EdgeSingular): boolean {
+    return el.data('typeFiltered') === true || el.data('connectionFiltered') === true;
   }
 
   highlightCallChain(nodeId: NodeId | null): void {

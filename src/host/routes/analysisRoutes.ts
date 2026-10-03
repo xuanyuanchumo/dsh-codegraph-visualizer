@@ -12,7 +12,7 @@ import {
 } from '../HttpHelpers.ts';
 import {
   withRouteMiddleware, resolveAndValidateRelativePath, validateWorkspacePath,
-  type RouteContext, log,
+  isSafeRelativePath, type RouteContext, log,
 } from './shared.ts';
 
 export function registerDependenciesRoute(rc: RouteContext): void {
@@ -188,8 +188,7 @@ export function registerTreeSitterRoute(rc: RouteContext, sharedTreeSitterAdapte
             sendError(res, 400, ERROR_CODES.FILEPATH_AND_CONTENT_REQUIRED, req, corsConfig);
             return;
           }
-          const normalizedPath = path.normalize(filePath);
-          if (normalizedPath !== filePath || filePath.includes('..') || filePath.length > VALIDATION.MAX_FILEPATH_LENGTH) {
+          if (!isSafeRelativePath(filePath, VALIDATION.MAX_FILEPATH_LENGTH)) {
             sendError(res, 400, ERROR_CODES.INVALID_FILEPATH, req, corsConfig);
             return;
           }

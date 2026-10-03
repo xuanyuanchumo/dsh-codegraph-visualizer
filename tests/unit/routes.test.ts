@@ -86,6 +86,8 @@ import path from 'node:path';
 import type { GraphData, GraphNode, GraphEdge } from '../../src/types/index.ts';
 import { makeNode, makeEdge, makeGraphData } from '../helpers.ts';
 import type { VisualizerConfig } from '../../src/host/config.ts';
+import { isSafeRelativePath } from '../../src/host/routes/shared.ts';
+import { VALIDATION } from '../../src/shared/constants.ts';
 
 type MockCtx = {
   effect: ReturnType<typeof vi.fn>;
@@ -906,6 +908,60 @@ describe('POST /tree-sitter (additional)', () => {
     await handler(makeReq('POST', JSON.stringify({ filePath: '../test.ts', content: 'const x = 1;' })), res);
     expect(state.code).toBe(400);
     expect(JSON.parse(state.body).error).toBe('INVALID_FILEPATH');
+  });
+
+  it('accepts a forward-slash relative path, matching the sibling /ast route', async () => {
+    const parseFile = vi.fn().mockResolvedValue({ nodes: [{ id: 'n1' }], edges: [] });
+    vi.mocked(TreeSitterAdapter).mockImplementation(() => ({
+      parseFile,
+      parseToAst: vi.fn().mockResolvedValue({ type: 'program' }),
+    }) as never);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 10);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ filePath: 'src/App.tsx', content: 'export const A = () => <p/>;' })), res);
+    expect(state.code).toBe(200);
+    // The path must reach the adapter verbatim: no separator rewriting, no rejection.
+    expect(parseFile).toHaveBeenCalledWith('src/App.tsx', 'export const A = () => <p/>;');
+  });
+
+  it('accepts a nested backslash relative path', async () => {
+    const parseFile = vi.fn().mockResolvedValue({ nodes: [], edges: [] });
+    vi.mocked(TreeSitterAdapter).mockImplementation(() => ({
+      parseFile,
+      parseToAst: vi.fn().mockResolvedValue({ type: 'program' }),
+    }) as never);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 10);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ filePath: 'src\\host\\app.ts', content: 'const x = 1;' })), res);
+    expect(state.code).toBe(200);
+    expect(parseFile).toHaveBeenCalledWith('src\\host\\app.ts', 'const x = 1;');
+  });
+
+  it.each([
+    ['posix absolute', '/etc/passwd'],
+    ['windows drive absolute', 'C:\\Windows\\System32\\drivers\\etc\\hosts'],
+    ['UNC absolute', '\\\\server\\share\\a.ts'],
+    ['parent traversal with backslash', '..\\secrets.ts'],
+  ])('returns 400 INVALID_FILEPATH for %s', async (_label, filePath) => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 10);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ filePath, content: 'const x = 1;' })), res);
+    expect(state.code).toBe(400);
+    expect(JSON.parse(state.body).error).toBe('INVALID_FILEPATH');
+  });
+
+  it('rejects an embedded NUL filePath before the shape guard runs', async () => {
+    // extractStringField (src/host/HttpHelpers.ts:44) drops NUL-bearing strings, so the field reads
+    // as missing; isSafeRelativePath keeps its own NUL check as defence in depth.
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 10);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ filePath: 'src/a\0b.ts', content: 'const x = 1;' })), res);
+    expect(state.code).toBe(400);
+    expect(JSON.parse(state.body).error).toBe('FILEPATH_AND_CONTENT_REQUIRED');
   });
 
   it('returns 400 when filePath exceeds 512 characters', async () => {
@@ -2315,6 +2371,41 @@ describe('symbol AST route - DB fallback (index 14)', () => {
     expect(body.astNodes[0].label).toBe('var1');
     expect(body.astNodes[0].parentId).toBe('sym1');
     expect(body.astEdges.length).toBe(1);
+  });
+});
+
+describe('isSafeRelativePath (host path-shape guard)', () => {
+  const max = VALIDATION.MAX_FILEPATH_LENGTH;
+
+  it.each([
+    'src/app.ts',
+    'src/App.tsx',
+    'src\\host\\app.ts',
+    'a/b/c/d.ts',
+    './src/app.ts',
+  ])('accepts %s', (value) => {
+    expect(isSafeRelativePath(value, max)).toBe(true);
+  });
+
+  it.each([
+    '',
+    '..',
+    '../app.ts',
+    '..\\app.ts',
+    'src/../../etc/passwd',
+    '/app.ts',
+    '/etc/passwd',
+    'C:\\app.ts',
+    'c:/app.ts',
+    '\\\\server\\share\\app.ts',
+    'a\0b.ts',
+  ])('rejects %s', (value) => {
+    expect(isSafeRelativePath(value, max)).toBe(false);
+  });
+
+  it('rejects a path longer than the configured maximum', () => {
+    expect(isSafeRelativePath('a'.repeat(max), max)).toBe(true);
+    expect(isSafeRelativePath('a'.repeat(max + 1), max)).toBe(false);
   });
 });
 

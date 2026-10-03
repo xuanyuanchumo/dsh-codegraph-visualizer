@@ -54,6 +54,8 @@ export interface IRenderer {
 
   search(query: string): number;
   focusOnNode(nodeId: string): void;
+  /** Reveal a node hidden by `hideNode`, then focus it. `false` when it is absent or filter-hidden. */
+  revealNode(nodeId: string): boolean;
   highlightCallChain(nodeId: NodeId | null): void;
   detectCycles(): Set<string>;
   detectCyclesDetailed(): CycleInfo[];
