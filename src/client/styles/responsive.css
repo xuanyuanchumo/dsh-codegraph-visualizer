@@ -1,20 +1,19 @@
 /* ---- Responsive ---------------------------------------------------------- */
 
 /* Extra-narrow panels (DSH sidebar tab minimal width).
- * Hide toolbar center (layout/view selectors) to prioritize graph canvas.
- * Users can still access layout/view modes via context menu or keyboard. */
+ * Hide the remaining toolbar extras to prioritize graph canvas.
+ * The center group is already gone at the 600px tier below. */
 @container graphpanel (max-width: 380px) {
-  .cg-toolbar-center {
-    display: none;
-  }
-
   .cg-tour-btn,
   .cg-minimap-btn,
   .cg-legend-btn {
     display: none;
   }
 
-  .cg-toolbar-group[aria-label]:not(:last-of-type) .cg-toolbar-separator {
+  /* The separators are siblings of the `.cg-toolbar-group` elements, not descendants,
+     so the previous `.cg-toolbar-group ... .cg-toolbar-separator` selector never
+     matched anything. */
+  .cg-toolbar-separator {
     display: none;
   }
 }
@@ -193,6 +192,18 @@
   }
 
   .cg-toolbar-left .cg-type-badge {
+    display: none;
+  }
+
+  /* The center group (layout / view-mode / level) is the widest fixed-width block in the
+     toolbar: 150px for its three icon-only triggers, measured on the real host. At a 520px
+     panel it was being squeezed to 115px, which wrapped the level trigger onto two lines
+     and clipped it; at 600px it still has 45px of slack. Hiding it here instead of letting
+     it be crushed keeps the workspace chip and every right-hand control (export / more /
+     collapse) reachable. Of the three controls, only the layout keeps an alternative entry
+     point (Ctrl+L cycles it, see `usePanelKeyboard`); view mode and hierarchy level lose
+     their mouse entry below this tier — see the note in `docs/需求分析.md` §28.3. */
+  .cg-toolbar-center {
     display: none;
   }
 }
@@ -458,9 +469,6 @@
 /* ---- Container Queries fallback ------------------------------------------- */
 @supports not (container-type: inline-size) {
   @media (max-width: 380px) {
-    .cg-toolbar-center {
-      display: none;
-    }
     .cg-tour-btn,
     .cg-minimap-btn,
     .cg-legend-btn {
@@ -631,6 +639,11 @@
       display: none;
     }
     .cg-toolbar-left .cg-type-badge {
+      display: none;
+    }
+    /* Mirrors the 600px container tier: the center group needs 150px for its three
+       icon-only triggers and gets crushed below that. */
+    .cg-toolbar-center {
       display: none;
     }
   }

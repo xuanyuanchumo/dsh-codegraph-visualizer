@@ -53,7 +53,12 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   }
 
   return (
-    <div className="cg-graph-toolbar" ref={toolbarRef}>
+    <div
+      className="cg-graph-toolbar"
+      ref={toolbarRef}
+      data-cg-compact={isCompact ? '' : undefined}
+      data-cg-narrow={isNarrow ? '' : undefined}
+    >
       <ToolbarWorkspace
         statsText={statsText}
         typeCounts={typeCounts}
@@ -69,6 +74,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         layoutConfig={layoutConfig}
         viewConfig={viewConfig}
         hasData={hasData}
+        isCompact={isCompact}
       />
 
       <div className="cg-toolbar-right">
@@ -76,7 +82,6 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
           panelControls={panelControls}
           history={history}
           onRefresh={onRefresh}
-          isCompact={isCompact}
           isNarrow={isNarrow}
           viewMode={viewMode}
         />

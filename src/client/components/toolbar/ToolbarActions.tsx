@@ -17,13 +17,12 @@ interface ToolbarActionsProps {
   panelControls: PanelControls;
   history?: ToolbarHistory | undefined;
   onRefresh: () => void;
-  isCompact: boolean;
   isNarrow: boolean;
   viewMode: ViewMode;
 }
 
 export const ToolbarActions = memo(function ToolbarActions({
-  panelControls, history, onRefresh, isCompact: _isCompact, isNarrow, viewMode,
+  panelControls, history, onRefresh, isNarrow, viewMode,
 }: ToolbarActionsProps) {
   const t = useT();
 

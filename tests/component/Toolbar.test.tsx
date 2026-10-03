@@ -11,6 +11,19 @@ import type { LayoutType, ThemeType, GraphType, RankDir } from '../../src/client
 import type { GraphNode, ViewMode } from '../../src/types/index.ts';
 import type { WorkspaceInfo } from '../../src/client/store/graphStore.ts';
 import { setLang, resetI18nListeners } from '../../src/client/i18n/index.ts';
+import { UI } from '../../src/shared/constants.ts';
+
+/**
+ * The toolbar's responsive tiers are driven by its *measured* width. jsdom can never
+ * produce one (clientWidth is 0 and ResizeObserver does not exist), so before this mock
+ * every tier assertion was impossible and the narrow branch had no coverage at all.
+ * Default 0 means "not measured yet" — what the real hook reports before its first
+ * layout effect — which keeps the pre-responsive expectations of this suite valid.
+ */
+const measuredWidth = vi.hoisted(() => ({ value: 0 }));
+vi.mock('../../src/client/hooks/useElementWidth.ts', () => ({
+  useElementWidth: () => [{ current: null }, measuredWidth.value] as const,
+}));
 
 afterEach(() => {
   cleanup();
@@ -1148,5 +1161,57 @@ describe('Toolbar component', () => {
       await user.click(menuItems[3]!);
       expect(onExport).toHaveBeenCalledWith('mermaid');
     });
+  });
+});
+
+describe('Toolbar responsive tiers', () => {
+  const WIDE = UI.TOOLBAR_BREAKPOINT_COMPACT_PX + 120;
+  const COMPACT = UI.TOOLBAR_BREAKPOINT_COMPACT_PX - 1;
+  const NARROW = UI.TOOLBAR_BREAKPOINT_NARROW_PX - 1;
+
+  const toolbarEl = () => document.querySelector('.cg-graph-toolbar') as HTMLElement;
+
+  it('renders the wide tier with value labels, separators and the standalone search button', () => {
+    measuredWidth.value = WIDE;
+    render(<Toolbar {...makeProps()} />);
+    expect(toolbarEl().hasAttribute('data-cg-compact')).toBe(false);
+    expect(toolbarEl().hasAttribute('data-cg-narrow')).toBe(false);
+    expect((document.querySelector('.cg-layout-dropdown-btn') as HTMLElement).textContent).toContain('cose');
+    expect(document.querySelectorAll('.cg-toolbar-separator').length).toBeGreaterThan(0);
+    expect(document.querySelector('.cg-search-standalone-btn')).not.toBeNull();
+  });
+
+  it('drops the value labels and flags the compact tier on a narrow-ish toolbar', () => {
+    measuredWidth.value = COMPACT;
+    render(<Toolbar {...makeProps()} />);
+    expect(toolbarEl().hasAttribute('data-cg-compact')).toBe(true);
+    expect(toolbarEl().hasAttribute('data-cg-narrow')).toBe(false);
+    const layout = document.querySelector('.cg-layout-dropdown-btn') as HTMLElement;
+    expect(layout.textContent).not.toContain('cose');
+    expect(layout.querySelector('svg')).not.toBeNull();
+    // The current value must stay discoverable even when the label is gone.
+    expect(layout.getAttribute('title')).toContain('cose');
+    // The search button survives the compact tier — only the narrow tier moves it.
+    expect(document.querySelector('.cg-search-standalone-btn')).not.toBeNull();
+  });
+
+  it('moves the search control into the more menu and flags the narrow tier', async () => {
+    measuredWidth.value = NARROW;
+    render(<Toolbar {...makeProps()} />);
+    expect(toolbarEl().hasAttribute('data-cg-narrow')).toBe(true);
+    expect(document.querySelector('.cg-search-standalone-btn')).toBeNull();
+    const user = userEvent.setup();
+    await user.click(document.querySelector('.cg-more-btn') as HTMLButtonElement);
+    const items = [...document.querySelectorAll('.cg-dropdown-item')].map(el => el.textContent ?? '');
+    expect(items.some(text => text.includes('搜索'))).toBe(true);
+  });
+
+  it('treats an unmeasured toolbar as wide so chrome never flashes into compact', () => {
+    measuredWidth.value = 0;
+    render(<Toolbar {...makeProps()} />);
+    expect(toolbarEl().hasAttribute('data-cg-compact')).toBe(false);
+    expect(toolbarEl().hasAttribute('data-cg-narrow')).toBe(false);
+    expect((document.querySelector('.cg-layout-dropdown-btn') as HTMLElement).textContent).toContain('cose');
+    expect(document.querySelector('.cg-search-standalone-btn')).not.toBeNull();
   });
 });

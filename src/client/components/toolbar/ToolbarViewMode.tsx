@@ -4,7 +4,7 @@ import type { ViewMode } from '../../../types/index.ts';
 import { useT } from '../../i18n/index.ts';
 import { Dropdown } from '../Dropdown.tsx';
 import { STRUCTURAL_VIEW_MODES, BEHAVIORAL_VIEW_MODES, BEHAVIORAL_MICRO_VIEW_MODES } from '../../../shared/viewModeUtils.ts';
-import { ChevronDownIcon } from '../Icons.tsx';
+import { ChevronDownIcon, GraphIcon, LayersIcon } from '../Icons.tsx';
 import {
   LAYOUTS, RANK_DIRS, GRAPH_TYPES,
   STRUCTURAL_MODE_KEYS, BEHAVIORAL_MODE_KEYS, BEHAVIORAL_MICRO_MODE_KEYS,
@@ -17,10 +17,17 @@ interface ToolbarViewModeProps {
   layoutConfig: ToolbarLayoutConfig;
   viewConfig: ToolbarViewConfig;
   hasData: boolean;
+  /**
+   * Toolbar width is below `UI.TOOLBAR_BREAKPOINT_COMPACT_PX`. The center group
+   * holds the widest controls in the toolbar (their text labels), so on a narrow
+   * panel it must shrink to icon-only triggers; the current value stays reachable
+   * through the trigger title and the menu itself.
+   */
+  isCompact: boolean;
 }
 
 export const ToolbarViewMode = memo(function ToolbarViewMode({
-  layoutConfig, viewConfig, hasData,
+  layoutConfig, viewConfig, hasData, isCompact,
 }: ToolbarViewModeProps) {
   const t = useT();
 
@@ -30,6 +37,7 @@ export const ToolbarViewMode = memo(function ToolbarViewMode({
   const onClusterDepthChange = useCallback((d: number) => layoutConfig.onChange('clusterDepth', d), [layoutConfig]);
 
   const { viewMode, graphType, currentLayer, layerNames, hierarchyLevel, hasSelectedFunction } = viewConfig;
+  const viewModeLabel = t(STRUCTURAL_MODE_KEYS[viewMode] ?? BEHAVIORAL_MODE_KEYS[viewMode] ?? BEHAVIORAL_MICRO_MODE_KEYS[viewMode] ?? 'toolbar.viewMode');
   const onViewModeChange = useCallback((m: ViewMode) => viewConfig.onChange('viewMode', m), [viewConfig]);
   const onGraphTypeChange = useCallback((g: GraphType) => viewConfig.onChange('graphType', g), [viewConfig]);
   const onLayerChange = useCallback((l: number) => viewConfig.onChange('layer', l), [viewConfig]);
@@ -39,11 +47,11 @@ export const ToolbarViewMode = memo(function ToolbarViewMode({
     <div className="cg-toolbar-center">
       <Dropdown
         triggerClassName="cg-layout-dropdown-btn"
-        triggerTitle={t('toolbar.layoutSwitcher')}
+        triggerTitle={isCompact ? `${t('toolbar.layoutSwitcher')}: ${layout}` : t('toolbar.layoutSwitcher')}
         triggerAriaLabel={t('toolbar.layoutSwitcher')}
         triggerAriaHasPopup="menu"
         triggerDisabled={!hasData}
-        triggerContent={<>{layout}<ChevronDownIcon size={12} /></>}
+        triggerContent={isCompact ? <><LayersIcon size={15} /><ChevronDownIcon size={12} /></> : <>{layout}<ChevronDownIcon size={12} /></>}
         contentClassName="cg-dropdown-content cg-layout-dropdown"
       >
         {(close) => (
@@ -68,11 +76,11 @@ export const ToolbarViewMode = memo(function ToolbarViewMode({
       </Dropdown>
       <Dropdown
         triggerClassName="cg-view-dropdown-btn"
-        triggerTitle={t('toolbar.viewMode')}
+        triggerTitle={isCompact ? `${t('toolbar.viewMode')}: ${viewModeLabel}` : t('toolbar.viewMode')}
         triggerAriaLabel={t('toolbar.viewMode')}
         triggerAriaHasPopup="menu"
         triggerDisabled={!hasData}
-        triggerContent={<>{t(STRUCTURAL_MODE_KEYS[viewMode] ?? BEHAVIORAL_MODE_KEYS[viewMode] ?? BEHAVIORAL_MICRO_MODE_KEYS[viewMode] ?? 'toolbar.viewMode')}<ChevronDownIcon size={12} /></>}
+        triggerContent={isCompact ? <><GraphIcon size={15} /><ChevronDownIcon size={12} /></> : <>{viewModeLabel}<ChevronDownIcon size={12} /></>}
         contentClassName="cg-dropdown-content cg-view-dropdown"
       >
         {(close) => (

@@ -116,6 +116,12 @@
   color: var(--cg-text-secondary);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  /* Measured at 420px panel width: the toolbar used to overflow by 72px and push
+     `.cg-more-btn` / `.cg-collapse-btn` out of the visible area. The stats text is
+     the right thing to sacrifice, so it truncates instead of forcing the row wider. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cg-toolbar-center {
@@ -124,12 +130,18 @@
   gap: 8px;
   flex: 1;
   justify-content: center;
+  /* The center group is the flexible one: it may be squeezed (and clipped) before the
+     right group — export / more / collapse, the controls the panel cannot live
+     without — is pushed past the edge. */
+  min-width: 0;
+  overflow: hidden;
 }
 
 .cg-toolbar-right {
   display: flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .cg-toolbar-group {
@@ -145,6 +157,19 @@
   opacity: 0.6;
   flex-shrink: 0;
 }
+
+/* Compact toolbars drop the group separators. They are pure decoration and cost the
+   center group ~18px of the width it needs between the compact (768px) and narrow
+   (480px) tiers. Driven by the measured `data-cg-compact` flag rather than a media
+   query, because a media query sees the viewport, not the DSH panel's width. */
+.cg-graph-toolbar[data-cg-compact] .cg-toolbar-separator {
+  display: none;
+}
+
+/* The center group's own visibility is decided by `responsive.css`
+   `@container graphpanel (max-width: 600px)`: it needs 150px for its three icon-only
+   triggers, and a container query measures the panel width directly — including on hosts
+   where `ResizeObserver` is missing and the measured flags stay false. */
 
 .cg-node-count {
   font-weight: 600;
