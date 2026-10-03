@@ -2,13 +2,9 @@ import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { scoped } from '../../shared/Logger.ts';
-import { graphSnapshots, analysisResults, userPreferences, layoutPresets } from './schema.ts';
-import { createDrizzleDb, type DrizzleDb } from './drizzleDb.ts';
 import type { GraphSnapshot, AnalysisResult, LayoutPreset } from './schema.ts';
 
 const log = scoped('db:repository');
-
-const SCHEMA_TABLES = [graphSnapshots, analysisResults, userPreferences, layoutPresets] as const;
 
 const require = createRequire(import.meta.url);
 
@@ -55,7 +51,7 @@ const MIGRATION_SQL = [
 
 export class GraphRepository {
   private db: SqliteDb | null = null;
-  private drizzle: DrizzleDb | null = null;
+
   private dbPath: string;
 
   constructor(workspacePath: string) {
@@ -73,8 +69,7 @@ export class GraphRepository {
       for (const sql of MIGRATION_SQL) {
         this.db!.exec(sql);
       }
-      this.drizzle = createDrizzleDb(this.db);
-      log.info('graph repository initialized', { path: this.dbPath, tables: SCHEMA_TABLES.length, drizzle: true });
+      log.info('graph repository initialized', { path: this.dbPath });
       return true;
     } catch (e) {
       log.warn('graph repository init failed', e);
@@ -82,9 +77,6 @@ export class GraphRepository {
     }
   }
 
-  getDrizzle(): DrizzleDb | null {
-    return this.drizzle;
-  }
 
   saveSnapshot(repoId: string, hash: string, nodeCount: number, edgeCount: number, data: Buffer): void {
     if (!this.db) return;
@@ -169,7 +161,7 @@ export class GraphRepository {
   }
 
   close(): void {
-    this.drizzle = null;
+
     if (this.db) {
       try { this.db.exec('PRAGMA busy_timeout = 0'); } catch { /* ignore */ }
       try { this.db.close(); } catch { /* ignore */ }

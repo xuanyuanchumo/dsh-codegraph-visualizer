@@ -264,7 +264,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   const requestRefresh = useCallback(() => {
     dispatchCgEvent(DOM_EVENTS.REFRESH, { incremental: true });
   }, []);
-  usePolling(requestRefresh, watchEnabled ? UI.POLLING_INTERVAL_WATCH_MS : UI.POLLING_INTERVAL_IDLE_MS, !panel.collapsed);
+  usePolling(requestRefresh, watchEnabled ? UI.POLLING_INTERVAL_WATCH_MS : UI.POLLING_INTERVAL_IDLE_MS, !panel.collapsed && panelVisible);
 
   useEffect(() => {
     const count = renderer.rendererRef.current?.getVisibleNodeCount() ?? 0;

@@ -14,6 +14,7 @@ export interface ClientFeatureFlags {
   slots: boolean;
   remoteWebUi: boolean;
   conversationView: boolean;
+  desktopPlatform: boolean;
 }
 
 export interface ClientCompatLayer {
@@ -39,6 +40,7 @@ export function createClientCompatLayer(): ClientCompatLayer {
     slots: false,
     remoteWebUi: false,
     conversationView: false,
+    desktopPlatform: false,
   };
   let _versionInfo: ClientVersionInfo = { raw: 'unknown', major: 0, minor: 0, patch: 0, generation: 'unknown' };
 
@@ -104,6 +106,10 @@ export function createClientCompatLayer(): ClientCompatLayer {
         const slots = ctx.slots;
         if (!slots) return false;
         return typeof slots.inject === 'function' && typeof slots.register === 'function';
+      }, false),
+      desktopPlatform: safeCheck(() => {
+        const profiles = ctx.get('desktopProfiles');
+        return profiles !== null && profiles !== undefined;
       }, false),
     };
     log.info('client feature flags resolved', { flags: _flags, mode: _mode, generation: _versionInfo.generation });

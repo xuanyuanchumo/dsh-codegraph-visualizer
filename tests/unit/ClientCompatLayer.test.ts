@@ -73,6 +73,7 @@ describe('ClientCompatLayer', () => {
         slots: false,
         remoteWebUi: false,
         conversationView: false,
+    desktopPlatform: false,
       } satisfies ClientFeatureFlags);
     });
   });
@@ -186,6 +187,7 @@ describe('ClientCompatLayer', () => {
         slots: false,
         remoteWebUi: false,
         conversationView: false,
+    desktopPlatform: false,
       } satisfies ClientFeatureFlags);
     });
 
