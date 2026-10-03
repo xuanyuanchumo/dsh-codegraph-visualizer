@@ -4,6 +4,16 @@ import type { DshGeneration } from '../../shared/dshGeneration.ts';
 
 const log = scoped('host:compat');
 
+/**
+ * Host capability matrix. Every entry must describe something **the host provides**: the flag
+ * gates behaviour that degrades when the host lacks the capability.
+ *
+ * Deliberately absent: `treeSitterWasm`. Parsing runs in this plugin's own host process off its
+ * own dependency (`tree-sitter-wasm`, resolved by `getWasmPath`), so the host cannot grant or
+ * withhold it; the capability was declared `true` on every generation and read by nobody.
+ * Round 7 removed it rather than leaving a flag that claims a host capability the plugin never
+ * consumes (see `docs/需求分析.md` §31.6 / FR-33).
+ */
 export interface FeatureFlags {
   incrementalBootstrap: boolean;
   workspaceRegistry: boolean;
@@ -13,7 +23,6 @@ export interface FeatureFlags {
   remoteWebUi: boolean;
   mcpServer: boolean;
   rateLimiting: boolean;
-  treeSitterWasm: boolean;
   healthScore: boolean;
   rulesCheck: boolean;
   multiWorkspace: boolean;
@@ -31,7 +40,6 @@ const GEN1_FLAGS: FeatureFlags = {
   remoteWebUi: false,
   mcpServer: true,
   rateLimiting: true,
-  treeSitterWasm: true,
   healthScore: true,
   rulesCheck: true,
   multiWorkspace: false,
@@ -49,7 +57,6 @@ const GEN2_FLAGS: FeatureFlags = {
   remoteWebUi: true,
   mcpServer: true,
   rateLimiting: true,
-  treeSitterWasm: true,
   healthScore: true,
   rulesCheck: true,
   multiWorkspace: true,

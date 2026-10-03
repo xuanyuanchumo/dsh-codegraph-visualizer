@@ -4,8 +4,12 @@
  * 1. dist/client/index.esm.js  — ESM (for the dev server's dynamic import)
  * 2. dist/client/index.d.ts    — declarations for the `./client` export subpath
  * 3. dist/client.js            — CJS wrapped in __ModuleLoader__.load (what DSH web loads)
- * 4. dist/client/*.wasm        — tree-sitter grammars
- * 5. dist/client/worker/layoutWorker.js — the classic Worker that runs graph layout off-thread
+ * 4. dist/client/worker/layoutWorker.js — the classic Worker that runs graph layout off-thread
+ *
+ * No tree-sitter WASM is emitted here: the adapter that parses with tree-sitter runs in the host
+ * process only and resolves grammars next to the `tree-sitter-wasm` package, so copies under
+ * dist/client had no reader (4.05 MB of pure publish weight). Languages are added to that package,
+ * not to this build.
  *
  * DSH web pulls the plugin client bundle through its own `/plugins/??...` entry list and expects
  * the __ModuleLoader__.load({ id, factory: (require) => {... } }) signature, so the wrapped CJS
@@ -13,7 +17,7 @@
  * is fetched from this plugin's own HTTP surface (see src/host/routes/workerRoutes.ts) and must
  * therefore stay a single self-contained file.
  */
-import { renameSync, existsSync, mkdirSync, copyFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { renameSync, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { join } from 'node:path';
@@ -65,23 +69,7 @@ async function main() {
     console.log('  removed intermediate dist/client-cjs');
   }
 
-  console.log('[build-client] Step 4: copy tree-sitter WASM files -> dist/client/');
-  const wasmSourceDir = join(root, 'node_modules', 'tree-sitter-wasm', 'out');
-  const wasmDestDir = join(root, 'dist', 'client');
-  const neededLanguages = ['typescript', 'javascript', 'python', 'java', 'rust', 'go'];
-  if (existsSync(wasmSourceDir)) {
-    for (const lang of neededLanguages) {
-      const srcFile = join(wasmSourceDir, lang, `tree-sitter-${lang}.wasm`);
-      if (existsSync(srcFile)) {
-        copyFileSync(srcFile, join(wasmDestDir, `tree-sitter-${lang}.wasm`));
-        console.log(`  copied tree-sitter-${lang}.wasm`);
-      }
-    }
-  } else {
-    console.warn('  WARNING: tree-sitter-wasm/out not found, skipping WASM copy');
-  }
-
-  console.log('[build-client] Step 5: layout worker -> dist/client/worker/layoutWorker.js');
+  console.log('[build-client] Step 4: layout worker -> dist/client/worker/layoutWorker.js');
   // IIFE on purpose: a classic worker is one self-contained file, so no shared chunk can be
   // requested from a sibling URL that the exact-path route would not serve. The worker imports
   // cytoscape/dagre/fcose, which bundling pulls in.

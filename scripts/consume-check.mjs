@@ -148,6 +148,86 @@ check('no intermediate build output is published', () => {
   return 'dist/client-cjs absent';
 });
 
+check('every published artefact is reachable from a declared reader', () => {
+  // NFR-17. An artefact nobody reads is not "harmless extra weight": it hides the next delivery bug
+  // behind a green build. `scripts/build-client.mjs` used to copy 6 tree-sitter grammars (4.05 MB)
+  // into dist/client for a browser-side parser that does not exist — the adapter runs in the host
+  // process and resolves grammars next to the `tree-sitter-wasm` package. The shipped copies could
+  // not be reached by any code path, in this repo or in a profile.
+  //
+  // Roots are the artefacts a real consumer loads; everything else has to be reachable from one of
+  // them through a static/dynamic import, a require, or a sourceMappingURL comment.
+  const roots = [
+    ['dist/index.js', 'package.json exports "."'],
+    ['dist/index.d.ts', 'package.json exports "." types'],
+    ['dist/client.js', 'DSH web /plugins/?? module list'],
+    ['dist/client/index.esm.js', 'dev server dynamic import (scripts/dev-server.mjs)'],
+    ['dist/client/index.d.ts', 'package.json exports "./client" types'],
+    ['dist/client/worker/layoutWorker.js', 'workerRoutes.ts exact-path route'],
+    // Build-time fallback: wrap-client-bundle.mjs reads it when the CJS build left no CSS of its own.
+    ['dist/client/index.css', 'scripts/wrap-client-bundle.mjs CSS fallback'],
+  ];
+
+  const reachable = new Set();
+  const queue = [];
+  for (const [relative, reader] of roots) {
+    if (existsSync(join(root, relative))) {
+      reachable.add(relative);
+      queue.push([relative, reader]);
+    }
+  }
+
+  const candidatesFor = (base) => [
+    base,
+    `${base}.js`,
+    `${base}.mjs`,
+    `${base}.cjs`,
+    `${base}.css`,
+    `${base}.json`,
+  ];
+
+  for (let i = 0; i < queue.length; i += 1) {
+    const [relative] = queue[i];
+    const absolute = join(root, relative);
+    if (!/\.(js|mjs|cjs|css|ts)$/.test(relative) || !existsSync(absolute)) continue;
+    const source = readFileSync(absolute, 'utf8');
+    const refs = [
+      ...source.matchAll(/\bfrom\s*["'](\.{1,2}\/[^"']+)["']/g),
+      ...source.matchAll(/\brequire\(\s*["'](\.{1,2}\/[^"']+)["']\s*\)/g),
+      ...source.matchAll(/\bimport\(\s*["'](\.{1,2}\/[^"']+)["']\s*\)/g),
+      ...source.matchAll(/sourceMappingURL=([^\s*]+)/g),
+    ];
+    for (const match of refs) {
+      const target = resolve(dirname(absolute), match[1]);
+      const found = candidatesFor(target).find((candidate) => existsSync(candidate) && statSync(candidate).isFile());
+      if (!found) continue;
+      const asRelative = found.slice(root.length + 1).split(/[\\/]/).join('/');
+      if (!reachable.has(asRelative)) {
+        reachable.add(asRelative);
+        queue.push([asRelative, `${relative} imports it`]);
+      }
+    }
+  }
+
+  const unclaimed = walk(join(root, 'dist'))
+    .map((file) => file.slice(root.length + 1).split(/[\\/]/).join('/'))
+    .filter((relative) => !reachable.has(relative));
+  assert(
+    unclaimed.length === 0,
+    `nothing reads ${unclaimed.join(', ')} — declare a reader in the roots list or stop shipping it`,
+  );
+  return `${reachable.size} artefact(s) reachable from ${roots.length} root(s)`;
+});
+
+check('no tree-sitter grammar is shipped with the client bundle', () => {
+  const wasm = walk(join(root, 'dist')).filter((file) => file.endsWith('.wasm'));
+  assert(
+    wasm.length === 0,
+    `found ${wasm.map((f) => f.slice(root.length + 1)).join(', ')}; tree-sitter runs in the host process and loads grammars from the tree-sitter-wasm package, so these have no reader`,
+  );
+  return 'no .wasm under dist/';
+});
+
 check('published payload size', () => {
   let bytes = 0;
   for (const entry of pkg.files) {

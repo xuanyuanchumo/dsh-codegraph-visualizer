@@ -1,6 +1,26 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TreeSitterAdapter } from '../../src/adapters/TreeSitterAdapter.ts';
 import type { GraphNode } from '../../src/types/index.ts';
+import type { ASTNode } from '../../src/shared/CFGTypes.ts';
+
+/**
+ * JSX inside a component body is exactly what the non-JSX `typescript` grammar cannot parse, and the
+ * arrow component after it is what disappears from symbol extraction when the wrong grammar is used.
+ */
+const TSX_SOURCE = [
+  "import React from 'react';",
+  'export function Widget({ label }: { label: string }) {',
+  '  return <div className="w"><span>{label}</span></div>;',
+  '}',
+  'export const Other = () => <p>hi</p>;',
+  '',
+].join('\n');
+
+function countNodesOfType(node: ASTNode, type: string): number {
+  let count = node.type === type ? 1 : 0;
+  for (const child of node.children) count += countNodesOfType(child, type);
+  return count;
+}
 
 describe('TreeSitterAdapter (FR-20)', () => {
   let adapter: TreeSitterAdapter;
@@ -400,20 +420,54 @@ describe('TreeSitterAdapter symbol extraction (real wasm)', () => {
     expect(funcNode!.properties.source).toBe('tree-sitter');
     expect(funcNode!.properties.nodeType).toBeDefined();
   });
+
+  it('maps .tsx to the JSX-aware tsx grammar while still reporting TypeScript', () => {
+    expect(adapter.detectGrammar('src/App.tsx')).toBe('tsx');
+    expect(adapter.detectGrammar('src/App.ts')).toBe('typescript');
+    expect(adapter.detectLanguage('src/App.tsx')).toBe('typescript');
+    expect(adapter.detectGrammar('src/App.txt')).toBeNull();
+  });
+
+  it('parses .tsx without ERROR nodes (the plain typescript grammar cannot parse JSX)', async () => {
+    const ast = await adapter.parseToAst('src/App.tsx', TSX_SOURCE);
+    expect(ast).not.toBeNull();
+    expect(countNodesOfType(ast!, 'ERROR')).toBe(0);
+  });
+
+  it('keeps the JSX arrow component as a symbol when parsing .tsx', async () => {
+    const asTsx = await adapter.parseFile('src/App.tsx', TSX_SOURCE);
+    expect(asTsx.error).toBeUndefined();
+    // Same source through two grammars: the JSX-aware one must not lose symbols. Before the fix the
+    // `typescript` grammar swallowed `const Other = () => <p/>` into an ERROR node, so the .tsx
+    // result had strictly fewer nodes than the same text parsed as .ts.
+    const asTs = await adapter.parseFile('src/App.ts', TSX_SOURCE);
+    expect(asTs.nodes.length).toBeGreaterThan(0);
+    expect(asTsx.nodes.length).toBeGreaterThanOrEqual(asTs.nodes.length);
+  });
 });
 
-describe('TreeSitterAdapter cross-language cleanup (real wasm)', () => {
-  it('cleans up old language when switching languages', async () => {
+describe('TreeSitterAdapter per-grammar parser isolation (real wasm)', () => {
+  it('parses a mixed-language batch without one grammar leaking into another', async () => {
     const adapter = new TreeSitterAdapter();
     await adapter.init();
-    const r1 = await adapter.parseFile('a.ts', 'function a() {}');
-    const r2 = await adapter.parseFile('b.py', 'x = 1');
-    expect(r1.nodes.length).toBeGreaterThan(0);
-    expect(r2.nodes.length).toBeGreaterThan(0);
+    const mixed = await adapter.batchScan([
+      { filePath: 'a.tsx', content: TSX_SOURCE },
+      { filePath: 'b.ts', content: 'export function alpha() {}' },
+      { filePath: 'c.py', content: 'def hello():\n    return 1' },
+    ]);
+    expect(mixed.error).toBeUndefined();
+    const labels = mixed.nodes.map((n: GraphNode) => n.label);
+    expect(labels).toContain('alpha');
+    expect(labels).toContain('hello');
+    // Both JSX-aware symbols of a.tsx must survive the *concurrent* batch: the old shared-parser
+    // design set the language on one parser after an await, so a .ts sibling could win the race and
+    // parse a.tsx with the plain typescript grammar, silently dropping the arrow component.
+    const fromTsx = mixed.nodes.filter((n: GraphNode) => n.filePath === 'a.tsx' && n.type === 'function');
+    expect(fromTsx.length).toBeGreaterThanOrEqual(2);
     adapter.destroy();
   });
 
-  it('reuses loaded language for same language files', async () => {
+  it('reuses one parser per grammar across repeated files', async () => {
     const adapter = new TreeSitterAdapter();
     await adapter.init();
     const r1 = await adapter.parseFile('a.ts', 'function a() {}');
@@ -670,8 +724,8 @@ describe('TreeSitterAdapter loadLanguageWasm candidate paths (mocked)', () => {
     vi.resetModules();
   });
 
-  it('tries document.baseURI candidate paths when tree-sitter-wasm fails', async () => {
-    (globalThis as Record<string, unknown>).document = { baseURI: 'http://localhost:8080/' };
+  it('resolves wasm through tree-sitter-wasm only, then the bare file name', async () => {
+    const attempted: string[] = [];
     vi.doMock('web-tree-sitter', () => ({
       Parser: class MockParser {
         static async init() {}
@@ -679,7 +733,35 @@ describe('TreeSitterAdapter loadLanguageWasm candidate paths (mocked)', () => {
         parse() { return { rootNode: { type: 'program', text: '', startPosition: { row: 0, column: 0 }, endPosition: { row: 0, column: 0 }, childCount: 0, child: () => null, childForFieldName: () => null, children: [] }, delete() {} }; }
         delete() {}
       },
-      Language: { load: async () => { throw new Error('all paths fail'); } },
+      Language: { load: async (path: string) => { attempted.push(path); throw new Error('all paths fail'); } },
+    }));
+    vi.doMock('tree-sitter-wasm', () => ({
+      getWasmPath: (lang: string) => `/pkg/out/${lang}/tree-sitter-${lang}.wasm`,
+    }));
+    vi.resetModules();
+    const { TreeSitterAdapter: MockedAdapter } = await import('../../src/adapters/TreeSitterAdapter.ts');
+    const adapter = new MockedAdapter();
+    await adapter.init();
+    const result = await adapter.parseFile('App.tsx', 'const x = 1;');
+    expect(result.error).toContain('Failed to load tsx');
+    // Absolute package path first, bare file name last — and nothing else. The removed
+    // `plugins/dsh-codegraph-visualizer/…`, `node_modules/web-tree-sitter/dist/…` and
+    // `document.baseURI` candidates could never resolve: DSH serves no asset route for plugin files.
+    expect(attempted).toEqual(['/pkg/out/tsx/tree-sitter-tsx.wasm', 'tree-sitter-tsx.wasm']);
+    adapter.destroy();
+  });
+
+  it('never builds a browser URL even when document.baseURI exists', async () => {
+    (globalThis as Record<string, unknown>).document = { baseURI: 'http://localhost:8080/' };
+    const attempted: string[] = [];
+    vi.doMock('web-tree-sitter', () => ({
+      Parser: class MockParser {
+        static async init() {}
+        setLanguage() {}
+        parse() { return { rootNode: { type: 'program', text: '', startPosition: { row: 0, column: 0 }, endPosition: { row: 0, column: 0 }, childCount: 0, child: () => null, childForFieldName: () => null, children: [] }, delete() {} }; }
+        delete() {}
+      },
+      Language: { load: async (path: string) => { attempted.push(path); throw new Error('all paths fail'); } },
     }));
     vi.doMock('tree-sitter-wasm', () => ({
       getWasmPath: () => { throw new Error('wasm path not available'); },
@@ -688,9 +770,9 @@ describe('TreeSitterAdapter loadLanguageWasm candidate paths (mocked)', () => {
     const { TreeSitterAdapter: MockedAdapter } = await import('../../src/adapters/TreeSitterAdapter.ts');
     const adapter = new MockedAdapter();
     await adapter.init();
-    const result = await adapter.parseFile('foo.ts', 'const x = 1');
-    expect(result.nodes).toEqual([]);
-    expect(result.error).toContain('Failed to load');
+    await adapter.parseFile('foo.ts', 'const x = 1');
+    expect(attempted).toEqual(['tree-sitter-typescript.wasm']);
+    expect(attempted.some((p) => p.includes('://'))).toBe(false);
     adapter.destroy();
   });
 
