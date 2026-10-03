@@ -159,6 +159,51 @@ describe('FilterPanel component', () => {
     });
   });
 
+  describe('form semantics of the type checkboxes', () => {
+    it('gives every node and edge type checkbox a unique id and a matching name', () => {
+      render(<FilterPanel onClose={vi.fn()} />);
+      const checkboxes = Array.from(
+        document.querySelectorAll('.cg-filter-checkbox-item input[type="checkbox"]'),
+      ) as HTMLInputElement[];
+      expect(checkboxes.length).toBeGreaterThan(0);
+      const ids = checkboxes.map((cb) => cb.id);
+      expect(ids.every((id) => id.length > 0)).toBe(true);
+      expect(new Set(ids).size).toBe(ids.length);
+      for (const cb of checkboxes) {
+        expect(cb.getAttribute('name')).toBe(cb.id);
+      }
+    });
+
+    it('namespaces node and edge checkbox ids so they cannot collide', () => {
+      render(<FilterPanel onClose={vi.fn()} />);
+      const nodeIds = Array.from(
+        document.querySelectorAll('.cg-filter-checkbox-item input[type="checkbox"]'),
+      )
+        .slice(0, 5)
+        .map((cb) => (cb as HTMLInputElement).id);
+      const edgeIds = Array.from(
+        document.querySelectorAll('.cg-filter-checkbox-item input[type="checkbox"]'),
+      )
+        .slice(5)
+        .map((cb) => (cb as HTMLInputElement).id);
+      expect(nodeIds.every((id) => id.startsWith('cg-filter-node-'))).toBe(true);
+      expect(edgeIds.every((id) => id.startsWith('cg-filter-edge-'))).toBe(true);
+    });
+
+    it('exposes every type checkbox with an accessible name from its wrapping label', () => {
+      render(<FilterPanel onClose={vi.fn()} />);
+      const checkboxes = Array.from(
+        document.querySelectorAll('.cg-filter-checkbox-item input[type="checkbox"]'),
+      ) as HTMLInputElement[];
+      for (const cb of checkboxes) {
+        const label = cb.closest('label');
+        expect(label).toBeTruthy();
+        expect((label!.textContent ?? '').trim().length).toBeGreaterThan(0);
+      }
+      expect(screen.getByRole('checkbox', { name: '函数' })).toBeTruthy();
+    });
+  });
+
   describe('quick action buttons', () => {
     it('renders Hide Orphans and Hide Leaves buttons', () => {
       render(<FilterPanel onClose={vi.fn()} />);

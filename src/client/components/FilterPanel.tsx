@@ -142,6 +142,8 @@ export const FilterPanel = memo(function FilterPanel({ onClose }: FilterPanelPro
           {NODE_TYPES.map((type) => (
             <label key={type} className="cg-filter-checkbox-item">
               <input
+                id={`cg-filter-node-${type}`}
+                name={`cg-filter-node-${type}`}
                 type="checkbox"
                 checked={visibleNodeTypes.has(type)}
                 onChange={() => toggleNodeType(type)}
@@ -158,6 +160,8 @@ export const FilterPanel = memo(function FilterPanel({ onClose }: FilterPanelPro
           {EDGE_TYPES.map((type) => (
             <label key={type} className="cg-filter-checkbox-item">
               <input
+                id={`cg-filter-edge-${type}`}
+                name={`cg-filter-edge-${type}`}
                 type="checkbox"
                 checked={visibleEdgeTypes.has(type)}
                 onChange={() => toggleEdgeType(type)}

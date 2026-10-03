@@ -39,13 +39,25 @@ export const DeadCodePanel = memo(function DeadCodePanel({ result, onClose, labe
         </div>
       </div>
       <div className="cg-deadcode-filters">
-        <select value={filter} onChange={(e) => setFilter(e.target.value as DeadCodeCategory | 'all')}>
+        <select
+          id="cg-deadcode-category"
+          name="cg-deadcode-category"
+          value={filter}
+          aria-label={t('deadcode.categoryFilter')}
+          onChange={(e) => setFilter(e.target.value as DeadCodeCategory | 'all')}
+        >
           <option value="all">{t('deadcode.filterAll')}</option>
           <option value="unreachable">{t('deadcode.unreachable')}</option>
           <option value="no-incoming">{t('deadcode.noIncoming')}</option>
           <option value="orphan">{t('deadcode.orphan')}</option>
         </select>
-        <select value={confidenceFilter} onChange={(e) => setConfidenceFilter(e.target.value as DeadCodeConfidence | 'all')}>
+        <select
+          id="cg-deadcode-confidence"
+          name="cg-deadcode-confidence"
+          value={confidenceFilter}
+          aria-label={t('deadcode.confidenceFilter')}
+          onChange={(e) => setConfidenceFilter(e.target.value as DeadCodeConfidence | 'all')}
+        >
           <option value="all">{t('deadcode.filterAll')}</option>
           <option value="confirmed">{t('deadcode.confirmed')}</option>
           <option value="suspected">{t('deadcode.suspected')}</option>

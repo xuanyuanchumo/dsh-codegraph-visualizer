@@ -403,6 +403,8 @@ export const en: Record<string, string> = {
   'deadcode.confirmed': 'Confirmed',
   'deadcode.suspected': 'Suspected',
   'deadcode.empty': 'No dead code detected',
+  'deadcode.categoryFilter': 'Dead-code category filter',
+  'deadcode.confidenceFilter': 'Dead-code confidence filter',
 
   // Flowchart node labels
   'flowchart.start': 'Start',

@@ -402,6 +402,8 @@ export const zh: Record<string, string> = {
   'deadcode.confirmed': '确认',
   'deadcode.suspected': '疑似',
   'deadcode.empty': '未检测到死代码',
+  'deadcode.categoryFilter': '死代码分类筛选',
+  'deadcode.confidenceFilter': '死代码置信度筛选',
 
   // Flowchart node labels
   'flowchart.start': '开始',

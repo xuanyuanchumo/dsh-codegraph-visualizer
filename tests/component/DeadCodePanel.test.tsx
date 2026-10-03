@@ -255,6 +255,21 @@ describe('DeadCodePanel component', () => {
     expect(selects.length).toBe(2);
   });
 
+  it('exposes both filter selects with stable id/name and an accessible name', () => {
+    render(<DeadCodePanel result={sampleResult} onClose={vi.fn()} label="Dead Code" />);
+    const category = document.getElementById('cg-deadcode-category');
+    const confidence = document.getElementById('cg-deadcode-confidence');
+    expect(category?.tagName).toBe('SELECT');
+    expect(confidence?.tagName).toBe('SELECT');
+    expect(category?.getAttribute('name')).toBe('cg-deadcode-category');
+    expect(confidence?.getAttribute('name')).toBe('cg-deadcode-confidence');
+    // A bare <select> has no accessible name, so each one must carry an explicit aria-label.
+    expect(category?.getAttribute('aria-label')).toBeTruthy();
+    expect(confidence?.getAttribute('aria-label')).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: category!.getAttribute('aria-label')! })).toBe(category);
+    expect(screen.getByRole('combobox', { name: confidence!.getAttribute('aria-label')! })).toBe(confidence);
+  });
+
   it('category select has correct options', () => {
     render(<DeadCodePanel result={sampleResult} onClose={vi.fn()} label="Dead Code" />);
     const selects = document.querySelectorAll('.cg-deadcode-filters select');
