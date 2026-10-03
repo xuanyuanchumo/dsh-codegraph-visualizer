@@ -8,6 +8,14 @@ export { useFocusMode } from './useFocusMode.ts';
 export { useNodeInteraction } from './useNodeInteraction.ts';
 export { useGraphDerivedValues } from './useGraphDerivedValues.ts';
 export { useWorkspaceHandlers } from './useWorkspaceHandlers.ts';
+export { useAdjacencyMap } from './useAdjacencyMap.ts';
+export { usePanelSizeApply } from './usePanelSizeApply.ts';
+export { useVisibleNodeCount } from './useVisibleNodeCount.ts';
+export { useDeadCodeMarker } from './useDeadCodeMarker.ts';
+export { useWorkspaceEventListener } from './useWorkspaceEventListener.ts';
+export { useUrlExpandSync } from './useUrlExpandSync.ts';
+export { usePanelVisibility } from './usePanelVisibility.ts';
+
 export { usePanelState } from './usePanelState.ts';
 export { usePanelKeyboard } from './usePanelKeyboard.ts';
 export { useViewMode } from './useViewMode.ts';

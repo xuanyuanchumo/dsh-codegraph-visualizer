@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState, useMemo } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useGraphStore } from './store/graphStore.ts';
 import type { ThemeType, GraphType } from './store/graphStore.ts';
 
@@ -8,8 +8,9 @@ import { NodeId } from '../types/index.ts';
 import { usePolling, useGraphRenderer, usePanelResize, usePanelState, usePanelKeyboard, useViewMode, useAnalysisPanels,
   useGraphData, useGraphDisplay, useGraphInteraction, useGraphStatus, useGraphWorkspace, useGraphAnalysis, useGraphPerformance, useGraphActions, usePanelDimensions,
   useGraphDerivedValues, useWorkspaceHandlers,
+  useAdjacencyMap, usePanelSizeApply, useVisibleNodeCount, useDeadCodeMarker, useWorkspaceEventListener, useUrlExpandSync, usePanelVisibility,
 } from './hooks/index.ts';
-import { updateUrlExpand } from './utils/urlState.ts';
+
 
 import { useThemeSync } from './hooks/useThemeSync.ts';
 import { useHistory } from './hooks/useHistory.ts';
@@ -48,24 +49,14 @@ import { scoped } from '../shared/Logger.ts';
 import { DOM_EVENTS } from '../shared/domEvents.ts';
 import { dispatchCgEvent } from './utils/cgEvents.ts';
 import { UI, FUNCTION_BODY } from '../shared/constants.ts';
-import { getMinPanelSize } from '../shared/constants.ts';
+
 
 import { useT } from './i18n/index.ts';
-import './styles/tokens.css';
-import './styles/layout.css';
-import './styles/overlays.css';
-import './styles/graph.css';
-import './styles/node-detail.css';
-import './styles/import-workspace.css';
-import './styles/path-finder.css';
-import './styles/health-score-card.css';
-import './styles/rule-config-panel.css';
-import './styles/hotspot-godmodule-panel.css';
-import './styles/impact-panel.css';
-import './styles/cycle-panel.css';
-import './styles/tour-panel.css';
-import './styles/responsive.css';
-import './styles/misc.css';
+import './styles/tokens.css'; import './styles/layout.css'; import './styles/overlays.css';
+import './styles/graph.css'; import './styles/node-detail.css'; import './styles/import-workspace.css';
+import './styles/path-finder.css'; import './styles/health-score-card.css'; import './styles/rule-config-panel.css';
+import './styles/hotspot-godmodule-panel.css'; import './styles/impact-panel.css'; import './styles/cycle-panel.css';
+import './styles/tour-panel.css'; import './styles/responsive.css'; import './styles/misc.css';
 
 const log = scoped('panel');
 
@@ -92,8 +83,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     nodeId: string;
     position: { x: number; y: number };
   } | null>(null);
-  const [visibleNodeCount, setVisibleNodeCount] = useState<number>(0);
-  const [hasHiddenNodes, setHasHiddenNodes] = useState<boolean>(false);
+
 
   const { nodes, edges, rawNodes, rawEdges } = useGraphData();
   const { layout, dagreRankDir, theme, filterType, graphType, clusterDepth, viewMode, currentLayer, diagramData, hierarchyLevel } = useGraphDisplay();
@@ -122,10 +112,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   useWorkspaceCache({ currentWorkspace, rawNodes, rawEdges, graphCache, setGraphData });
 
-  useEffect(() => {
-    if (!urlRestored) return;
-    updateUrlExpand(expandedNodeIds);
-  }, [expandedNodeIds, urlRestored]);
+  useUrlExpandSync(expandedNodeIds, urlRestored);
 
 
   const showCallChainRef = useRef(panel.showCallChain);
@@ -139,28 +126,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     setShowSearch: panel.setShowSearch,
   });
 
-  const adjacencyMap = useMemo(() => {
-    const map = new Map<string, { in: number; out: number }>();
-    for (const edge of edges) {
-      const src = map.get(edge.source);
-      if (src) src.out++;
-      else map.set(edge.source, { in: 0, out: 1 });
-      const tgt = map.get(edge.target);
-      if (tgt) tgt.in++;
-      else map.set(edge.target, { in: 1, out: 0 });
-    }
-    return map;
-  }, [edges]);
+  const adjacencyMap = useAdjacencyMap(edges);
   useEffect(() => { showCallChainRef.current = panel.showCallChain; }, [panel.showCallChain]);
 
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail as { path?: string };
-      if (detail?.path) useGraphStore.getState().setCurrentWorkspace(detail.path);
-    };
-    window.addEventListener(DOM_EVENTS.WORKSPACE, handler);
-    return () => window.removeEventListener(DOM_EVENTS.WORKSPACE, handler);
-  }, []);
+  useWorkspaceEventListener();
 
   const { handleWorkspaceSwitch, handleWorkspaceAdd } = useWorkspaceHandlers({
     setCurrentWorkspace, addWorkspace,
@@ -213,15 +182,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
 
   usePanelResize(panelRef, renderer.rendererRef);
 
-  useEffect(() => {
-    if (panel.collapsed) return;
-    const panelEl = panelRef.current;
-    if (!panelEl) return;
-    const minSize = getMinPanelSize(integrationMode);
-    if (panelHeight !== null && panelHeight >= minSize.minHeight) panelEl.style.height = `${Math.min(panelHeight, window.innerHeight)}px`;
-    if (panelWidth !== null && panelWidth >= minSize.minWidth) panelEl.style.width = `${panelWidth}px`;
-    if (panelHeight !== null || panelWidth !== null) renderer.rendererRef.current?.resize();
-  }, [panel.collapsed, panelHeight, panelWidth, renderer.rendererRef, integrationMode]);
+  usePanelSizeApply({
+    panelRef, collapsed: panel.collapsed, panelHeight, panelWidth, integrationMode,
+    rendererResize: () => renderer.rendererRef.current?.resize(),
+  });
 
   useAncestorResize({
     collapsed: panel.collapsed,
@@ -230,15 +194,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     panelRef,
   });
 
-  useEffect(() => {
-    const r = renderer.rendererRef.current;
-    if (!r) return;
-    if (panelVisible) {
-      r.resumeAnimations();
-    } else {
-      r.pauseAnimations();
-    }
-  }, [panelVisible, renderer.rendererRef]);
+  usePanelVisibility({ panelVisible, rendererRef: renderer.rendererRef });
 
   usePanelKeyboard(layout, setLayout, renderer.rendererRef, {
     onToggleSearch: panel.toggleSearch,
@@ -266,11 +222,10 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
   }, []);
   usePolling(requestRefresh, watchEnabled ? UI.POLLING_INTERVAL_WATCH_MS : UI.POLLING_INTERVAL_IDLE_MS, !panel.collapsed && panelVisible);
 
-  useEffect(() => {
-    const count = renderer.rendererRef.current?.getVisibleNodeCount() ?? 0;
-    setVisibleNodeCount(count);
-    setHasHiddenNodes(count < nodes.length);
-  }, [filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes, renderer.rendererRef, nodes.length]);
+  const { visibleNodeCount, hasHiddenNodes } = useVisibleNodeCount({
+    filterType, graphType, fanInThreshold, fanOutThreshold, visibleNodeTypes, visibleEdgeTypes,
+    rendererRef: renderer.rendererRef, nodesLength: nodes.length,
+  });
 
   const { thumbnail, viewportInfo } = useMiniMapSync({
     showMiniMap: panel.showMiniMap,
@@ -304,11 +259,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     rawHandleSelectFunction(nodeId, filePath, functionName, mode);
   }, [rawHandleSelectFunction]);
 
-  useViewModePanelGuard({
-    viewMode,
-    setFocusNodeId,
-    panel,
-  });
+  useViewModePanelGuard({ viewMode, setFocusNodeId, panel });
 
   const handleRefresh = useCallback(() => {
     setLoading(true);
@@ -355,15 +306,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     panel.showImpact, selectedNodeId, getImpactStats, panel.showCoreFunction, panel.showDeadCode,
   );
 
-  useEffect(() => {
-    const r = renderer.rendererRef.current;
-    if (!r) return;
-    if (panel.showDeadCode && deadCodeResult) {
-      r.markDeadCode(new Set(deadCodeResult.unreachableNodes));
-    } else {
-      r.clearDeadCodeMarks();
-    }
-  }, [panel.showDeadCode, deadCodeResult, renderer.rendererRef]);
+  useDeadCodeMarker({ showDeadCode: panel.showDeadCode, deadCodeResult, rendererRef: renderer.rendererRef });
 
   useAutoBootstrap({
     collapsed: panel.collapsed,

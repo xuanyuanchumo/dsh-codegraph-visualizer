@@ -142,7 +142,7 @@ vi.mock('../../src/client/hooks/index.ts', () => ({
   useGraphInteraction: vi.fn(() => ({ searchQuery: '', selectedNodeId: null, highlightedNodeIds: [], expandedNodeIds: new Set(), pathResult: null, focusDepth: 1, focusModeActive: false, focusModeNodeId: null, pathFilterInclude: null, pathFilterExclude: null })),
   useGraphStatus: vi.fn(() => ({ isLoading: false, error: null, lastUpdated: 0, truncated: false, totalNodeCount: 0, prerequisites: { codegraph: false, lens: false, builtin: true }, watchEnabled: false, initStatus: 'idle', urlRestored: true, panelVisible: true })),
   useGraphWorkspace: vi.fn(() => ({ currentWorkspace: '', workspaceList: [] })),
-  useGraphAnalysis: vi.fn(() => ({ ruleViolations: [], selectedFunction: null, fanInThreshold: 0, fanOutThreshold: 0, visibleNodeTypes: new Set(), visibleEdgeTypes: new Set(), heatmapMode: 'none' })),
+  useGraphAnalysis: vi.fn(() => ({ ruleViolations: [], selectedFunction: null, fanInThreshold: 0, fanOutThreshold: 0, visibleNodeTypes: new Set(), visibleEdgeTypes: new Set(), heatmapMode: 'none', todoMarkerMode: 'none' })),
   useGraphPerformance: vi.fn(() => ({ performanceDegradations: [], lodLevel: 'full', lodEnabled: false })),
   useGraphActions: vi.fn(() => {
     const s = useGraphStore.getState();
@@ -157,6 +157,23 @@ vi.mock('../../src/client/hooks/index.ts', () => ({
     };
   }),
   usePanelDimensions: vi.fn(() => ({ panelHeight: null, panelWidth: null })),
+  useAdjacencyMap: vi.fn(() => new Map()),
+  usePanelSizeApply: vi.fn(),
+  useVisibleNodeCount: vi.fn(() => ({ visibleNodeCount: 0, hasHiddenNodes: true })),
+  useDeadCodeMarker: vi.fn(),
+  useWorkspaceEventListener: vi.fn(() => {
+    React.useEffect(() => {
+      const handler = (e: Event) => {
+        const detail = (e as CustomEvent).detail as { path?: string };
+        if (detail?.path) useGraphStore.getState().setCurrentWorkspace(detail.path);
+      };
+      window.addEventListener('codegraph:workspace', handler);
+      return () => window.removeEventListener('codegraph:workspace', handler);
+    }, []);
+  }),
+  useUrlExpandSync: vi.fn(),
+  usePanelVisibility: vi.fn(),
+
 }));
 
 vi.mock('../../src/client/hooks/useThemeSync.ts', () => ({
