@@ -62,6 +62,7 @@ const SQL = {
   SAVE_LAYOUT_PRESET: `INSERT INTO layout_presets (repo_id, name, layout_type, positions, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(repo_id, name) DO UPDATE SET layout_type = excluded.layout_type, positions = excluded.positions, created_at = excluded.created_at`,
   GET_LAYOUT_PRESETS: `SELECT id, name, layout_type, positions FROM layout_presets WHERE repo_id = ? ORDER BY created_at DESC`,
   PRUNE_SNAPSHOTS: `DELETE FROM graph_snapshots WHERE repo_id = ? AND id NOT IN (SELECT id FROM graph_snapshots WHERE repo_id = ? ORDER BY created_at DESC LIMIT ?)`,
+  PRUNE_ANALYSIS: `DELETE FROM analysis_results WHERE repo_id = ? AND analysis_type = ? AND id NOT IN (SELECT id FROM analysis_results WHERE repo_id = ? AND analysis_type = ? ORDER BY created_at DESC LIMIT ?)`,
 } as const;
 
 const MIGRATION_SQL = [
@@ -146,7 +147,15 @@ export class GraphRepository {
     if (!this.db) return;
     try {
       this.db.prepare(SQL.SAVE_ANALYSIS).run(repoId, type, targetNode ?? null, result, Date.now());
+      this.pruneAnalysisResults(repoId, type);
     } catch (e) { log.warn('saveAnalysis failed', e); }
+  }
+
+  pruneAnalysisResults(repoId: string, type: string, keep = 10): void {
+    if (!this.db) return;
+    try {
+      this.db.prepare(SQL.PRUNE_ANALYSIS).run(repoId, type, repoId, type, keep);
+    } catch (e) { log.warn('pruneAnalysisResults failed', e); }
   }
 
   getAnalysis(repoId: string, type: string, targetNode?: string): AnalysisRecord | null {

@@ -16,6 +16,8 @@ export interface ToolNameMapping {
   codegraphCallees: string;
   codegraphBootstrap: string | null;
   codegraphIncremental: string | null;
+  codegraphAiAssist: string | null;
+  codegraphSemanticSearch: string | null;
   lensAnalyze: string;
   lensImpact: string;
 }
@@ -32,6 +34,8 @@ const GEN1_MAPPING: ToolNameMapping = {
   codegraphCallees: 'codegraph_callees',
   codegraphBootstrap: null,
   codegraphIncremental: null,
+  codegraphAiAssist: null,
+  codegraphSemanticSearch: null,
   lensAnalyze: 'lens_analyze',
   lensImpact: 'lens_impact',
 };
@@ -44,14 +48,16 @@ const GEN2_MAPPING: ToolNameMapping = {
 
 const GEN3_MAPPING: ToolNameMapping = {
   ...GEN2_MAPPING,
-  // gen3 may introduce renamed tools; keep gen2 names as fallback
-  // New gen3-only tools would be added here when v0.3.0 is released
+  codegraphAiAssist: null,
+  codegraphSemanticSearch: null,
 };
 
 const UNKNOWN_MAPPING: ToolNameMapping = {
   ...GEN1_MAPPING,
   codegraphBootstrap: null,
   codegraphIncremental: null,
+  codegraphAiAssist: null,
+  codegraphSemanticSearch: null,
 };
 
 export function createToolNameMapping(info: HostVersionInfo): ToolNameMapping {
@@ -132,6 +138,8 @@ const FALLBACK_CHAINS: Partial<Record<keyof ToolNameMapping, (keyof ToolNameMapp
   codegraphCallees: ['codegraphImpact', 'codegraphCallers'],
   codegraphBootstrap: ['codegraphInit'],
   codegraphIncremental: ['codegraphSync', 'codegraphInit'],
+  codegraphAiAssist: ['codegraphQuery', 'codegraphGraph'],
+  codegraphSemanticSearch: ['codegraphQuery', 'codegraphGraph'],
   codegraphInit: ['codegraphBootstrap'],
   codegraphSync: ['codegraphIncremental', 'codegraphBootstrap'],
   lensAnalyze: ['codegraphQuery', 'codegraphGraph'],

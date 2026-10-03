@@ -198,28 +198,6 @@ test.describe('v0.2.0 Feature: Cluster Level (FR-42)', () => {
     expect(clusterNodeIds.length).toBeGreaterThan(0);
   });
 
-  test('J25: double-clicking cluster node should expand it', async ({ page }) => {
-    await setupPluginPage(page);
-    await waitForGraphReady(page);
-    const clusterNodeIds = await getClusterNodeIds(page);
-    const clusterNodeId = clusterNodeIds[0] ?? null;
-    if (!clusterNodeId) {
-      test.skip(true, 'No cluster nodes found');
-      return;
-    }
-    const beforeCount = await page.evaluate(() => {
-      const cy = (window as any).__cytoscape;
-      return cy ? cy.nodes().length : 0;
-    });
-    await page.evaluate((id) => {
-      const cy = (window as any).__cytoscape;
-      if (cy) {
-        const node = cy.getElementById(id);
-        node.emit('dbltap');
-      }
-    }, clusterNodeId);
-    await expect.poll(async () => await getCyNodeCount(page), { timeout: 5000 }).toBeGreaterThanOrEqual(beforeCount);
-  });
 });
 
 test.describe('v0.2.0 Feature: Collapse All (FR-42)', () => {

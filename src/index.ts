@@ -30,6 +30,7 @@ export const name = 'dsh-codegraph-visualizer';
 export const inject = ['tools', 'webServer', 'sessions'];
 
 export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>) {
+  closeAllDbConnections();
   const config = resolveConfig(userConfig);
   const securityManager = createSecurityManager();
   securityManager.setAllowedWorkspaceRoots(extractWorkspacePaths(ctx));

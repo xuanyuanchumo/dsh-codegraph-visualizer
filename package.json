@@ -93,7 +93,11 @@
     "code-visualization",
     "dependency-graph",
     "call-chain",
+    "call-graph",
     "impact-analysis",
+    "code-architecture",
+    "software-analysis",
+    "dependency-analysis",
     "ast",
     "tree-sitter"
   ],

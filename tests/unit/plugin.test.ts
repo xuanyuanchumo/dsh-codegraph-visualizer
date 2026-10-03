@@ -20,6 +20,7 @@ vi.mock('../../src/adapters/CodeGraphAdapter.ts', () => {
       fetchData: mockFetchData,
       source: 'codegraph' as const,
     })),
+    closeAllDbConnections: vi.fn(),
   };
 });
 

@@ -16,10 +16,11 @@ import type { ToolbarLayoutConfig, ToolbarViewConfig } from '../toolbarTypes.ts'
 interface ToolbarViewModeProps {
   layoutConfig: ToolbarLayoutConfig;
   viewConfig: ToolbarViewConfig;
+  hasData: boolean;
 }
 
 export const ToolbarViewMode = memo(function ToolbarViewMode({
-  layoutConfig, viewConfig,
+  layoutConfig, viewConfig, hasData,
 }: ToolbarViewModeProps) {
   const t = useT();
 
@@ -41,7 +42,7 @@ export const ToolbarViewMode = memo(function ToolbarViewMode({
         triggerTitle={t('toolbar.layoutSwitcher')}
         triggerAriaLabel={t('toolbar.layoutSwitcher')}
         triggerAriaHasPopup="menu"
-
+        triggerDisabled={!hasData}
         triggerContent={<>{layout}<ChevronDownIcon size={12} /></>}
         contentClassName="cg-dropdown-content cg-layout-dropdown"
       >
@@ -70,7 +71,7 @@ export const ToolbarViewMode = memo(function ToolbarViewMode({
         triggerTitle={t('toolbar.viewMode')}
         triggerAriaLabel={t('toolbar.viewMode')}
         triggerAriaHasPopup="menu"
-
+        triggerDisabled={!hasData}
         triggerContent={<>{t(STRUCTURAL_MODE_KEYS[viewMode] ?? BEHAVIORAL_MODE_KEYS[viewMode] ?? BEHAVIORAL_MICRO_MODE_KEYS[viewMode] ?? 'toolbar.viewMode')}<ChevronDownIcon size={12} /></>}
         contentClassName="cg-dropdown-content cg-view-dropdown"
       >

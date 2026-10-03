@@ -58,7 +58,7 @@ describe('integrateConversationView', () => {
       expect.objectContaining({
         name: 'conversation.view',
         id: 'dsh-codegraph-visualizer',
-        order: 50,
+        order: 100,
       }),
       expect.any(Function),
     );

@@ -1,5 +1,5 @@
 import React, { memo, useCallback } from 'react';
-import type { ThemeType } from '../../store/graphStore.ts';
+
 import { useT } from '../../i18n/index.ts';
 import { Dropdown } from '../Dropdown.tsx';
 import {
@@ -9,18 +9,15 @@ import { EXPORT_FORMATS } from '../toolbarConfig.ts';
 import type { ExportFormat } from '../toolbarTypes.ts';
 
 interface ToolbarSettingsProps {
-  theme: ThemeType;
   hasData: boolean;
   collapsed: boolean;
-  onThemeToggle: () => void;
   onExport: (format: ExportFormat) => void;
   onCollapse: () => void;
-  isCompact: boolean;
   moreDropdownItems: { key: string; titleKey: string; icon: React.ReactNode; active: boolean; onClick: () => void; role: 'menuitem' | 'menuitemcheckbox' }[];
 }
 
 export const ToolbarSettings = memo(function ToolbarSettings({
-  theme: _theme, hasData, collapsed, onExport, onCollapse, moreDropdownItems,
+  hasData, collapsed, onExport, onCollapse, moreDropdownItems,
 }: ToolbarSettingsProps) {
   const t = useT();
   const handleExport = useCallback((format: ExportFormat) => { onExport(format); }, [onExport]);

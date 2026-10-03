@@ -68,6 +68,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       <ToolbarViewMode
         layoutConfig={layoutConfig}
         viewConfig={viewConfig}
+        hasData={hasData}
       />
 
       <div className="cg-toolbar-right">
@@ -81,13 +82,10 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
         />
 
         <ToolbarSettings
-          theme={theme}
           hasData={hasData}
           collapsed={collapsed}
-          onThemeToggle={onThemeToggle}
           onExport={handleExport}
           onCollapse={onCollapse}
-          isCompact={isCompact}
           moreDropdownItems={moreDropdownItems}
         />
       </div>

@@ -31,7 +31,7 @@ export function integrateRemoteWebUi(state: IntegrationState): void {
       title: () => t('nav.title'),
       description: () => t('nav.description'),
       icon: (size: number) => React.createElement(GraphIcon, { size }),
-      order: 50,
+      order: 100,
       component: (props: {
         ctx: Context;
         visible: boolean;

@@ -394,11 +394,12 @@ export function readEdgesFromDb(dbPath: string, nodeId: string, scope: 'file' | 
   if (!db) return null;
   try {
     if (scope === 'symbol') {
-      const total = (db.prepare('SELECT COUNT(*) as cnt FROM edges WHERE source = ? OR target = ?').get(nodeId, nodeId) as { cnt: number }).cnt;
-      const edges = validateEdgeRows(db.prepare(
-        'SELECT id, source, target, kind, line FROM edges WHERE source = ? OR target = ? LIMIT ? OFFSET ?',
-      ).all(nodeId, nodeId, limit, cursor));
-      return { edges, total };
+      const allEdges = validateEdgeRows(db.prepare(
+        'SELECT id, source, target, kind, line FROM edges WHERE source = ? OR target = ?',
+      ).all(nodeId, nodeId));
+      const total = allEdges.length;
+      const pagedEdges = allEdges.slice(cursor, cursor + limit);
+      return { edges: pagedEdges, total };
     }
     const filePathResult = db.prepare('SELECT file_path FROM nodes WHERE id = ?').get(nodeId) as { file_path: string } | undefined;
     if (!filePathResult) return { edges: [], total: 0 };

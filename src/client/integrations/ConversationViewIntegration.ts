@@ -21,7 +21,7 @@ export function integrateConversationView(state: IntegrationState): void {
         {
           name: 'conversation.view',
           id: PLUGIN_SLOT_ID,
-          order: 50,
+          order: 100,
           label: () => t('nav.title'),
         },
         (props: { ctx?: unknown; visible?: boolean }) => {
