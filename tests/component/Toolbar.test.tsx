@@ -137,6 +137,7 @@ function makeProps(overrides: Record<string, unknown> = {}) {
   return {
     statsText: '50 nodes',
     hasData: true,
+    hasGraphData: true,
     typeCounts: { function: 10, class: 5, interface: 3 },
     theme: 'dark' as ThemeType,
     collapsed: false,
@@ -1213,5 +1214,42 @@ describe('Toolbar responsive tiers', () => {
     expect(toolbarEl().hasAttribute('data-cg-narrow')).toBe(false);
     expect((document.querySelector('.cg-layout-dropdown-btn') as HTMLElement).textContent).toContain('cose');
     expect(document.querySelector('.cg-search-standalone-btn')).not.toBeNull();
+  });
+});
+
+describe('Toolbar empty-view recovery (J0 Round 11)', () => {
+  it('keeps the layout and view-mode triggers usable when the current view renders zero nodes', () => {
+    render(<Toolbar {...makeProps({ hasData: false, hasGraphData: true })} />);
+    const layout = document.querySelector('.cg-layout-dropdown-btn') as HTMLButtonElement;
+    const view = document.querySelector('.cg-view-dropdown-btn') as HTMLButtonElement;
+    // An empty behavioural view (e.g. the call graph in degraded mode) must not
+    // strand the user: the raw graph is still loaded, so switching back stays possible.
+    expect(layout.disabled).toBe(false);
+    expect(view.disabled).toBe(false);
+  });
+
+  it('disables both triggers only when no graph is loaded at all', () => {
+    render(<Toolbar {...makeProps({ hasData: false, hasGraphData: false })} />);
+    const layout = document.querySelector('.cg-layout-dropdown-btn') as HTMLButtonElement;
+    const view = document.querySelector('.cg-view-dropdown-btn') as HTMLButtonElement;
+    expect(layout.disabled).toBe(true);
+    expect(view.disabled).toBe(true);
+  });
+
+  it('still lets the user pick a different view mode from an empty view', async () => {
+    const onViewModeChange = vi.fn();
+    render(<Toolbar {...makeProps({ hasData: false, hasGraphData: true, viewMode: 'callgraph', onViewModeChange })} />);
+    const user = userEvent.setup();
+    await user.click(document.querySelector('.cg-view-dropdown-btn') as HTMLButtonElement);
+    const codeItem = [...document.querySelectorAll('.cg-dropdown-item')].find(el => el.textContent === '代码');
+    expect(codeItem).toBeDefined();
+    await user.click(codeItem as HTMLButtonElement);
+    expect(onViewModeChange).toHaveBeenCalledWith('code');
+  });
+
+  it('hides the node count for an empty view even though the graph is loaded', () => {
+    render(<Toolbar {...makeProps({ hasData: false, hasGraphData: true, statsText: '0 nodes' })} />);
+    // Counts describe what is rendered, so they stay hidden while the view is empty.
+    expect(document.querySelector('.cg-node-count')).toBeNull();
   });
 });

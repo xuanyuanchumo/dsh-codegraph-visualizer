@@ -27,7 +27,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
   const handleExport = useCallback((format: ExportFormat) => { onExport(format); }, [onExport]);
 
   const {
-    statsText, typeCounts, theme, collapsed, hasData, panelControls,
+    statsText, typeCounts, theme, collapsed, hasData, hasGraphData, panelControls,
     layoutConfig, viewConfig, history,
     onThemeToggle, onRefresh, onCollapse,
     currentWorkspace, workspaceList, onSwitchWorkspace, onAddWorkspace, onRemoveWorkspace,
@@ -73,7 +73,7 @@ export const Toolbar = memo(function Toolbar(props: ToolbarProps) {
       <ToolbarViewMode
         layoutConfig={layoutConfig}
         viewConfig={viewConfig}
-        hasData={hasData}
+        hasGraphData={hasGraphData}
         isCompact={isCompact}
       />
 

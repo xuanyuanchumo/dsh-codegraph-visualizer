@@ -89,6 +89,12 @@ export interface ToolbarProps extends WorkspaceSelectorProps {
   theme: ThemeType;
   collapsed: boolean;
   hasData: boolean;
+  /**
+   * Raw graph presence, independent of the current view. Keeps the layout and
+   * view-mode triggers usable when a behavioural view renders zero nodes
+   * (J0 Round 11: the empty call-graph view used to strand the user).
+   */
+  hasGraphData: boolean;
   panelControls: PanelControls;
   layoutConfig: ToolbarLayoutConfig;
   viewConfig: ToolbarViewConfig;

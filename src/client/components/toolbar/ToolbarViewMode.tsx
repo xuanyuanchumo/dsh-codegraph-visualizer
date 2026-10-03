@@ -16,7 +16,15 @@ import type { ToolbarLayoutConfig, ToolbarViewConfig } from '../toolbarTypes.ts'
 interface ToolbarViewModeProps {
   layoutConfig: ToolbarLayoutConfig;
   viewConfig: ToolbarViewConfig;
-  hasData: boolean;
+  /**
+   * Whether the store still holds a loaded graph, independently of the current
+   * view. `hasData` tracks the *rendered* node count, so an empty behavioural
+   * view (for example the call graph while the codegraph host services are in
+   * degraded mode) would disable the layout and view-mode triggers and strand
+   * the user in a blank graph with no way back except a page reload (J0 Round 11).
+   * The triggers therefore key off the raw graph, not the visible one.
+   */
+  hasGraphData: boolean;
   /**
    * Toolbar width is below `UI.TOOLBAR_BREAKPOINT_COMPACT_PX`. The center group
    * holds the widest controls in the toolbar (their text labels), so on a narrow
@@ -27,7 +35,7 @@ interface ToolbarViewModeProps {
 }
 
 export const ToolbarViewMode = memo(function ToolbarViewMode({
-  layoutConfig, viewConfig, hasData, isCompact,
+  layoutConfig, viewConfig, hasGraphData, isCompact,
 }: ToolbarViewModeProps) {
   const t = useT();
 
@@ -50,7 +58,7 @@ export const ToolbarViewMode = memo(function ToolbarViewMode({
         triggerTitle={isCompact ? `${t('toolbar.layoutSwitcher')}: ${layout}` : t('toolbar.layoutSwitcher')}
         triggerAriaLabel={t('toolbar.layoutSwitcher')}
         triggerAriaHasPopup="menu"
-        triggerDisabled={!hasData}
+        triggerDisabled={!hasGraphData}
         triggerContent={isCompact ? <><LayersIcon size={15} /><ChevronDownIcon size={12} /></> : <>{layout}<ChevronDownIcon size={12} /></>}
         contentClassName="cg-dropdown-content cg-layout-dropdown"
       >
@@ -79,7 +87,7 @@ export const ToolbarViewMode = memo(function ToolbarViewMode({
         triggerTitle={isCompact ? `${t('toolbar.viewMode')}: ${viewModeLabel}` : t('toolbar.viewMode')}
         triggerAriaLabel={t('toolbar.viewMode')}
         triggerAriaHasPopup="menu"
-        triggerDisabled={!hasData}
+        triggerDisabled={!hasGraphData}
         triggerContent={isCompact ? <><GraphIcon size={15} /><ChevronDownIcon size={12} /></> : <>{viewModeLabel}<ChevronDownIcon size={12} /></>}
         contentClassName="cg-dropdown-content cg-view-dropdown"
       >
