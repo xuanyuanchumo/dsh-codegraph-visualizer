@@ -22,7 +22,7 @@ export function useNodeSearch<T extends RawNodeLike>(rawNodes: T[]) {
   const trie = useMemo(() => {
     const t = new Trie();
     for (const node of rawNodes) {
-      t.insert(node.label);
+      t.insert(node.label, node.id);
     }
     return t;
   }, [rawNodes]);
@@ -33,10 +33,10 @@ export function useNodeSearch<T extends RawNodeLike>(rawNodes: T[]) {
     if (isSimplePrefixQuery(query)) {
       const trieResults = trie.search(query.trim());
       if (trieResults.length > 0) {
-        const resultSet = new Set(trieResults.map(s => s.toLowerCase()));
+        const idSet = new Set(trieResults);
         const matched: T[] = [];
         for (const node of rawNodes) {
-          if (resultSet.has(node.label.toLowerCase())) {
+          if (idSet.has(node.id)) {
             matched.push(node);
             if (matched.length >= limit) break;
           }

@@ -392,6 +392,7 @@ declare module '@deepseek-ai/cordis' {
         kind: string;
         patterns?: string[];
         priority?: 'extension' | 'builtin' | 'fallback';
+        order?: number;
         canOpen?: (address: string) => boolean;
         title?: (address: string) => string;
       }): (() => void) | void;

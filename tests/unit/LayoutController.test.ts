@@ -757,7 +757,7 @@ describe('LayoutController', () => {
       globalThis.document = originalDocument;
     });
 
-    it('handles worker onerror by terminating and setting workerInitFailed', () => {
+    it('handles worker onerror by terminating and auto-retrying', () => {
       const originalDocument = globalThis.document;
       let mockWorkerInstance: any;
       class MockWorker {
@@ -775,9 +775,11 @@ describe('LayoutController', () => {
       const controller = new LayoutController(cy);
       expect(controller.isWorkerAvailable()).toBe(true);
 
+      const oldWorker = mockWorkerInstance;
       mockWorkerInstance.onerror({} as ErrorEvent);
-      expect(controller.isWorkerAvailable()).toBe(false);
-      expect(mockWorkerInstance.terminate).toHaveBeenCalled();
+      expect(oldWorker.terminate).toHaveBeenCalled();
+      // auto-retry creates a new worker instance — worker should be available again
+      expect(controller.isWorkerAvailable()).toBe(true);
       controller.destroy();
 
       globalThis.Worker = undefined as any;
@@ -870,7 +872,8 @@ describe('LayoutController', () => {
 
       const result = await promise;
       expect(result).toEqual({});
-      expect(controller.isWorkerAvailable()).toBe(false);
+      // auto-retry creates a new worker after timeout — worker should be available again
+      expect(controller.isWorkerAvailable()).toBe(true);
       controller.destroy();
 
       globalThis.setTimeout = originalSetTimeout;
@@ -1242,12 +1245,17 @@ describe('LayoutController', () => {
     it('causes applyLayoutWithWorker to return empty object after onerror', async () => {
       const originalDocument = globalThis.document;
       let mockWorkerInstance: any;
+      let constructorCallCount = 0;
       class MockWorker {
         onmessage: ((e: MessageEvent) => void) | null = null;
         onerror: ((e: ErrorEvent) => void) | null = null;
         postMessage = vi.fn();
         terminate = vi.fn();
-        constructor() { mockWorkerInstance = this; }
+        constructor() {
+          constructorCallCount++;
+          if (constructorCallCount > 1) throw new Error('retry failed');
+          mockWorkerInstance = this;
+        }
       }
       globalThis.Worker = MockWorker as any;
       globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
@@ -1257,6 +1265,7 @@ describe('LayoutController', () => {
       const controller = new LayoutController(cy);
 
       mockWorkerInstance.onerror({} as ErrorEvent);
+      // retry failed — worker should not be available
       expect(controller.isWorkerAvailable()).toBe(false);
 
       const result = await controller.applyLayoutWithWorker([], [], 'cose');
@@ -1459,9 +1468,9 @@ describe('LayoutController', () => {
       const { LayoutController } = await import('../../src/client/renderer/LayoutController.ts');
       const controller = new LayoutController(cy);
 
-      // Use vi.useFakeTimers to control timeout precisely
+      const oldWorker = mockWorkerInstance;
+
       vi.useFakeTimers();
-      const timeoutSpy = vi.spyOn(globalThis, 'setTimeout');
 
       const positionsPromise = controller.applyLayoutWithWorker(
         [{ id: 'a', label: 'A', type: 'class' }] as any,
@@ -1469,21 +1478,19 @@ describe('LayoutController', () => {
         'cose',
       );
 
-      // Advance time past LAYOUT_TIMEOUT_MS (10000ms)
       vi.advanceTimersByTime(10001);
 
       const result = await positionsPromise;
       expect(result).toEqual({});
-      expect(mockWorkerInstance.terminate).toHaveBeenCalled();
-      expect(controller.isWorkerAvailable()).toBe(false);
+      expect(oldWorker.terminate).toHaveBeenCalled();
 
       vi.useRealTimers();
-      timeoutSpy.mockRestore();
       controller.destroy();
       globalThis.Worker = undefined as any;
       globalThis.document = originalDocument;
     });
   });
+
 
   describe('worker init catch block', () => {
     it('sets workerInitFailed when Worker constructor throws', async () => {

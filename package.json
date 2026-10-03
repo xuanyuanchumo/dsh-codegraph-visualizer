@@ -124,7 +124,7 @@
     "permissions": {
       "workspace": true,
       "network": true,
-      "fs": "readonly"
+      "fs": "readwrite"
     },
     "bundle": {
       "patch": "./cordis.patch.yml"

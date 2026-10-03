@@ -1,13 +1,13 @@
 export class TrieNode {
   children: Map<string, TrieNode> = new Map();
   isEnd: boolean = false;
-  value: string | null = null;
+  nodeIds: string[] = [];
 }
 
 export class Trie {
   private root: TrieNode = new TrieNode();
 
-  insert(word: string): void {
+  insert(word: string, nodeId: string): void {
     const lower = word.toLowerCase();
     let node = this.root;
     for (const char of lower) {
@@ -19,7 +19,7 @@ export class Trie {
       node = child;
     }
     node.isEnd = true;
-    node.value = word;
+    node.nodeIds.push(nodeId);
   }
 
   hasPrefix(prefix: string): boolean {
@@ -50,8 +50,8 @@ export class Trie {
     const stack: TrieNode[] = [node];
     while (stack.length > 0) {
       const current = stack.pop()!;
-      if (current.isEnd && current.value !== null) {
-        results.push(current.value);
+      if (current.isEnd && current.nodeIds.length > 0) {
+        results.push(...current.nodeIds);
       }
       for (const child of current.children.values()) {
         stack.push(child);

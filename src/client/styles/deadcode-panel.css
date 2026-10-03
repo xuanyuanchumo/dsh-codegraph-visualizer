@@ -1,0 +1,168 @@
+/* ---- Dead code panel ------------------------------------------------------ */
+
+.cg-deadcode-panel {
+  right: 12px;
+  bottom: calc(var(--cg-statusbar-h) + 12px);
+  top: auto;
+  width: 240px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.cg-deadcode-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--cg-deadcode-highlight, #e74c3c);
+  color: var(--cg-on-accent);
+  margin-left: 6px;
+}
+
+.cg-deadcode-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.cg-deadcode-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 0;
+}
+
+.cg-deadcode-stat-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.cg-deadcode-stat-badge.cg-confirmed {
+  background: var(--cg-deadcode-confirmed, #e74c3c);
+  color: var(--cg-on-accent);
+}
+
+.cg-deadcode-stat-badge.cg-suspected {
+  background: var(--cg-deadcode-suspected, #f39c12);
+  color: var(--cg-on-accent);
+}
+
+.cg-deadcode-stat-count {
+  font-family: var(--cg-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cg-text);
+}
+
+.cg-deadcode-filters {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.cg-deadcode-filters select {
+  flex: 1;
+  padding: 3px 6px;
+  font-size: 11px;
+  background: var(--cg-surface);
+  border: 1px solid var(--cg-border);
+  border-radius: 4px;
+  color: var(--cg-text);
+  cursor: pointer;
+}
+
+.cg-deadcode-filters select:hover {
+  border-color: var(--cg-accent);
+}
+
+.cg-deadcode-empty {
+  font-size: 11px;
+  color: var(--cg-text-tertiary);
+  text-align: center;
+  padding: 12px 0;
+}
+
+.cg-deadcode-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--cg-border);
+  cursor: pointer;
+}
+
+.cg-deadcode-item:last-child {
+  border-bottom: none;
+}
+
+.cg-deadcode-item:hover {
+  background: var(--cg-surface-hover);
+}
+
+.cg-deadcode-item.cg-confirmed {
+  border-left: 2px solid var(--cg-deadcode-confirmed, #e74c3c);
+  padding-left: 4px;
+}
+
+.cg-deadcode-item.cg-suspected {
+  border-left: 2px solid var(--cg-deadcode-suspected, #f39c12);
+  padding-left: 4px;
+}
+
+.cg-deadcode-category-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-size: 9px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.cg-deadcode-category-badge.cg-unreachable {
+  background: var(--cg-deadcode-confirmed, #e74c3c);
+  color: var(--cg-on-accent);
+}
+
+.cg-deadcode-category-badge.cg-no-incoming {
+  background: var(--cg-deadcode-suspected, #f39c12);
+  color: var(--cg-on-accent);
+}
+
+.cg-deadcode-category-badge.cg-orphan {
+  background: var(--cg-surface-hover);
+  color: var(--cg-text);
+}
+
+.cg-deadcode-label {
+  font-family: var(--cg-font-mono);
+  font-size: 11px;
+  color: var(--cg-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.cg-deadcode-filepath {
+  font-size: 9px;
+  color: var(--cg-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+  max-width: 80px;
+}

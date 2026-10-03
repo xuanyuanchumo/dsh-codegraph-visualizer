@@ -610,7 +610,10 @@ body[data-ds-dark-theme] .cg-type-badge.cg-function {
 }
 
 .cg-tools-dropdown-btn,
-.cg-search-standalone-btn {
+.cg-search-standalone-btn,
+.cg-data-dropdown-btn,
+.cg-history-dropdown-btn,
+.cg-more-btn {
   display: flex;
   align-items: center;
   gap: 2px;
@@ -628,14 +631,20 @@ body[data-ds-dark-theme] .cg-type-badge.cg-function {
 }
 
 .cg-tools-dropdown-btn:hover,
-.cg-search-standalone-btn:hover {
+.cg-search-standalone-btn:hover,
+.cg-data-dropdown-btn:hover,
+.cg-history-dropdown-btn:hover,
+.cg-more-btn:hover {
   background: var(--cg-surface-hover);
   border-color: var(--cg-accent);
   color: var(--cg-text);
 }
 
 .cg-tools-dropdown-btn.cg-active,
-.cg-search-standalone-btn.cg-active {
+.cg-search-standalone-btn.cg-active,
+.cg-data-dropdown-btn.cg-active,
+.cg-history-dropdown-btn.cg-active,
+.cg-more-btn.cg-active {
   background: var(--cg-accent);
   border-color: var(--cg-accent-hover);
   color: var(--cg-on-accent);
@@ -643,7 +652,10 @@ body[data-ds-dark-theme] .cg-type-badge.cg-function {
 }
 
 .cg-tools-dropdown-btn:focus-visible,
-.cg-search-standalone-btn:focus-visible {
+.cg-search-standalone-btn:focus-visible,
+.cg-data-dropdown-btn:focus-visible,
+.cg-history-dropdown-btn:focus-visible,
+.cg-more-btn:focus-visible {
   outline: 2px solid var(--cg-accent);
   outline-offset: 2px;
 }

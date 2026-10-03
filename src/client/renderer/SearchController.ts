@@ -64,7 +64,7 @@ export class SearchController {
       const end = Math.min(index + BUILD_CHUNK_SIZE, entries.length);
       for (let i = index; i < end; i++) {
         const entry = entries[i];
-        if (entry) this.trie.insert(entry.label);
+        if (entry) this.trie.insert(entry.label, entry.id);
       }
       index = end;
 
@@ -121,9 +121,9 @@ export class SearchController {
     if (this.isSimplePrefixQuery(query) && this.trieBuilt) {
       const trieResults = this.trie.search(query.trim());
       if (trieResults.length > 0) {
-        const resultSet = new Set(trieResults.map(s => s.toLowerCase()));
-        for (const rawNode of this.rawNodesMap.values()) {
-          if (resultSet.has(rawNode.label.toLowerCase())) {
+        for (const nodeId of trieResults) {
+          const rawNode = this.rawNodesMap.get(nodeId);
+          if (rawNode) {
             matches++;
             this.mapToVisible(rawNode, matchedCyNodeIds);
           }
@@ -187,7 +187,7 @@ export class SearchController {
   addNode(rawNode: RawNodeInfo): void {
     this.rawNodesMap.set(rawNode.id, rawNode);
     if (this.trieBuilt) {
-      this.trie.insert(rawNode.label);
+      this.trie.insert(rawNode.label, rawNode.id);
     }
   }
 

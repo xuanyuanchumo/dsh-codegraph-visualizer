@@ -56,6 +56,7 @@ export class LayoutController {
         this.worker.onerror = () => {
           this.worker?.terminate();
           this.worker = null;
+          this.workerInitFailed = true;
           log.warn('layout worker error — will auto-retry');
           this.retryWorkerInit();
         };
@@ -78,7 +79,7 @@ export class LayoutController {
   }
 
   private retryWorkerInit(): void {
-    if (this.worker || !this.workerInitFailed) return;
+    if (this.worker) return;
     if (this.workerRetryCount >= 3) return;
     this.workerRetryCount++;
     this.workerInitFailed = false;
@@ -101,7 +102,7 @@ export class LayoutController {
     }
     return new Promise((resolve) => {
       this.workerTimeout = setTimeout(() => {
-        log.warn('layout worker timeout — falling back to empty positions');
+        log.warn('layout worker timeout — falling back to main-thread layout');
         if (this.workerLayoutResolve) {
           this.workerLayoutResolve({});
           this.workerLayoutResolve = null;
@@ -109,6 +110,7 @@ export class LayoutController {
         if (this.worker) {
           this.worker.terminate();
           this.worker = null;
+          this.workerInitFailed = true;
           log.warn('layout worker terminated due to timeout — will auto-retry');
           this.retryWorkerInit();
         }

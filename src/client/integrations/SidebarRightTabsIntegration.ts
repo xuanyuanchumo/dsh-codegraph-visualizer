@@ -27,6 +27,7 @@ export function integrateSidebarRightTabs(state: IntegrationState): void {
         id: PLUGIN_SLOT_ID,
         kind: 'codegraph',
         priority: 'extension',
+        order: 100,
         canOpen: () => true,
         title: () => t('nav.title'),
       });
