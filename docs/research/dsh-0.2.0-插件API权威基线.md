@@ -194,6 +194,26 @@ J0 实测正是如此：`D:\JetBrains\nvm\node_global\node_modules\dsh-codegraph
 - `external` 用于"我 require 但不打包进来"的模块（`:428` 禁止声明自身包名）。
 - 官方客户端插件的 `peerDependencies` 统一为 `{ "@deepseek-ai/cordis": "~4.0.4" }`。
 
+### 2.7 插件市场的发现路径：策展索引，不是关键词搜索
+
+用户要求"支持在 dsh-market 等插件市场能搜到本项目"。查 `dshmarket@1.66.5` 源码后结论是：
+**市场不按 npm 关键词搜索**，它读的是一份**策展索引**：
+
+- `dshmarket/src/regions.ts:80`：`const CATALOG_OFFICIAL = 'https://awesome-dsh-plugin.com/plugins.json'`
+  （注释写明用自定义域名而非仓库路径是刻意的：仓库改名/迁移后地址仍有效，且 Pages 前面有 CDN）。
+- `dshmarket/src/regions.ts:82-92`：目录源有两种传输 —— `{kind:'url', url}` 与
+  `{kind:'npm', registry, pkg}`；后者让目录**搭 npm 镜像的便车**并带上可回滚的版本号，
+  中国区路由用的就是 npm 镜像那条（`:154`）。
+- `:103-109`：目录是市场发出的**第一个请求**，每个区域的源列表最后都留一条"一直可用"的直连兜底。
+- `dshmarket/lib/verify.js` 只读 `dsh.client` / `dsh.bundle`，并靠 `clientBundlePath(exports['./client'])`
+  定位客户端产物（`lib/verify.js:303/320/416-418`）。
+
+**推论**：`package.json` 的 `keywords`（本项目已有 18 个，含 `dsh`/`dsh-plugin`/`dsh-market`）
+与 `repository` 字段**都不能让插件出现在市场里**；上架需要向该策展索引提交条目。
+`repository`/`homepage`/`bugs` 的作用是让 npm 页面与索引条目能正确回链（已补齐，并由
+`tests/unit/manifest.test.ts` 固化）。`docs/开发计划.md:203`、`docs/需求分析.md:587`
+的"发布 npm + 上架市场"因此是**外部动作**，不在本仓库内可完成的范围。
+
 ## 3. 版本矩阵与偏斜
 
 | 包 | DSH 运行时（asar） | 本项目 node_modules | 本项目声明 | 判定 |

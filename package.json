@@ -5,6 +5,14 @@
   "type": "module",
   "license": "MIT",
   "author": "DSH Team",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xuanyuanchumo/dsh-codegraph-visualizer.git"
+  },
+  "homepage": "https://github.com/xuanyuanchumo/dsh-codegraph-visualizer#readme",
+  "bugs": {
+    "url": "https://github.com/xuanyuanchumo/dsh-codegraph-visualizer/issues"
+  },
   "icon": "./assets/icon.svg",
   "engines": {
     "node": ">=22.19 || >=24",

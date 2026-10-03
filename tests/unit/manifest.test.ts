@@ -17,6 +17,9 @@ interface PluginManifest {
   files?: string[];
   exports?: Record<string, unknown>;
   icon?: string;
+  repository?: { type?: string; url?: string };
+  homepage?: string;
+  bugs?: { url?: string };
   dsh?: {
     manifestVersion?: number;
     bundle?: { patch?: string };
@@ -139,6 +142,18 @@ describe('dsh plugin manifest', () => {
     for (const entry of ['dist', 'cordis.patch.yml', 'locale', 'assets']) {
       expect(pkg.files, `files[] must ship ${entry}`).toContain(entry);
     }
+  });
+
+  it('points at the public repository the market catalog entry will link to', () => {
+    // dshmarket/src/regions.ts:80 reads its catalog from a curated index
+    // (https://awesome-dsh-plugin.com/plugins.json), so an entry cannot be earned
+    // by keywords; the catalog links to a repository and the npm page reads these
+    // same fields. Keep them consistent with the configured git remote.
+    expect(pkg.repository?.type).toBe('git');
+    expect(pkg.repository?.url).toMatch(/^git\+https:\/\/github\.com\/[\w.-]+\/[\w.-]+\.git$/);
+    const slug = pkg.repository?.url?.replace(/^git\+https:\/\/github\.com\//, '').replace(/\.git$/, '');
+    expect(pkg.homepage).toBe(`https://github.com/${slug}#readme`);
+    expect(pkg.bugs?.url).toBe(`https://github.com/${slug}/issues`);
   });
 });
 
