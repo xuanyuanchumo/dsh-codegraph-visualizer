@@ -46,6 +46,50 @@ describe('checkPrerequisites', () => {
     expect(result.codegraph).toBe(false);
   });
 
+  it('returns lens true when only lens_impact exists (fallback)', () => {
+    const ctx = {
+      tools: { get: vi.fn((name: string) => (name === 'lens_impact' ? {} : undefined)) },
+    } as unknown as MockCtx;
+    const result = checkPrerequisites(ctx);
+    expect(result.lens).toBe(true);
+    expect(result.codegraph).toBe(false);
+  });
+
+  it('detects the upstream plugin through the tool it actually contributes', () => {
+    // dsh-codegraph@0.1.3 declares exactly one tool in dsh.plugin.json: contributes.tools =
+    // ["mcp__codegraph__codegraph_explore"]. Keying presence off codegraph_status alone
+    // reported "prerequisite missing" on a host that had the plugin installed (J0 finding).
+    const ctx = {
+      tools: { get: vi.fn((name: string) => (name === 'mcp__codegraph__codegraph_explore' ? {} : undefined)) },
+    } as unknown as MockCtx;
+    const result = checkPrerequisites(ctx);
+    expect(result.codegraph).toBe(true);
+    expect(result.lens).toBe(false);
+  });
+
+  it('prefers the name resolved by the compat layer', () => {
+    const ctx = {
+      tools: { get: vi.fn((name: string) => (name === 'codegraph_status' ? {} : undefined)) },
+    } as unknown as MockCtx;
+    const apiCompat = {
+      getAvailableToolName: vi.fn((_ctx: unknown, key: string) => (key === 'codegraphStatus' ? 'codegraph_status' : null)),
+    } as unknown as NonNullable<Parameters<typeof checkPrerequisites>[1]>;
+    const result = checkPrerequisites(ctx, apiCompat);
+    expect(result.codegraph).toBe(true);
+    expect(apiCompat.getAvailableToolName).toHaveBeenCalledWith(ctx, 'codegraphStatus');
+  });
+
+  it('falls back to the evidence list when the compat layer resolves nothing', () => {
+    const ctx = {
+      tools: { get: vi.fn((name: string) => (name === 'mcp__codegraph__codegraph_explore' ? {} : undefined)) },
+    } as unknown as MockCtx;
+    const apiCompat = {
+      getAvailableToolName: vi.fn(() => null),
+    } as unknown as NonNullable<Parameters<typeof checkPrerequisites>[1]>;
+    const result = checkPrerequisites(ctx, apiCompat);
+    expect(result.codegraph).toBe(true);
+  });
+
   it('returns both false when no tools exist', () => {
     const ctx = {
       tools: { get: vi.fn(() => undefined) },

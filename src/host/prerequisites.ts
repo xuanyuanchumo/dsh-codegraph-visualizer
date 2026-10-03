@@ -19,23 +19,52 @@ export async function detectCodegraphCli(): Promise<boolean> {
   }
 }
 
+/**
+ * Tool names that prove the optional upstream plugin is installed.
+ *
+ * `codegraph_status`/`codegraph_graph`/`codegraph_query` are the surface our adapters talk to.
+ * `mcp__codegraph__codegraph_explore` is the only tool the published plugin actually
+ * contributes — verified against `dsh-codegraph@0.1.3` in the J0 profile, whose
+ * `dsh.plugin.json` declares `contributes.tools: ["mcp__codegraph__codegraph_explore"]`.
+ * Detecting presence solely through the `codegraph_status` family reported "prerequisite
+ * missing" on a host that had the plugin installed, which also suppressed the client's
+ * auto-bootstrap (`src/client/hooks/useAutoBootstrap.ts` gates on `codegraphReady`).
+ */
+const CODEGRAPH_TOOL_EVIDENCE = [
+  'codegraph_status',
+  'codegraph_graph',
+  'codegraph_query',
+  'mcp__codegraph__codegraph_explore',
+] as const;
+
+/** The `dsh-tool-lens` surface (absent from the J0 profile, so only its names are known). */
+const LENS_TOOL_EVIDENCE = ['lens_analyze', 'lens_impact'] as const;
+
+function isToolPresent(
+  ctx: Context,
+  apiCompat: ApiCompatLayer | undefined,
+  key: 'codegraphStatus' | 'lensAnalyze',
+  evidence: readonly string[],
+): boolean {
+  // Prefer the name the compat layer resolves for the detected generation, then fall back to
+  // the full evidence list: a host we could not date may still expose one of these tools.
+  if (apiCompat) {
+    const resolved = apiCompat.getAvailableToolName(ctx, key);
+    if (resolved && ctx.tools.get(resolved)) return true;
+  }
+  for (const name of evidence) {
+    if (ctx.tools.get(name)) return true;
+  }
+  return false;
+}
+
 export function checkPrerequisites(ctx: Context, apiCompat?: ApiCompatLayer): { codegraph: boolean; lens: boolean; builtin: boolean } {
   try {
-    let cg: unknown = null;
-    if (apiCompat) {
-      const toolName = apiCompat.getAvailableToolName(ctx, 'codegraphStatus');
-      if (toolName) cg = ctx.tools.get(toolName);
-    } else {
-      cg = ctx.tools.get('codegraph_status') ?? ctx.tools.get('codegraph_graph') ?? ctx.tools.get('codegraph_query');
-    }
-    let lens: unknown = null;
-    if (apiCompat) {
-      const lensName = apiCompat.getAvailableToolName(ctx, 'lensAnalyze');
-      if (lensName) lens = ctx.tools.get(lensName);
-    } else {
-      lens = ctx.tools.get('lens_analyze');
-    }
-    return { codegraph: !!cg, lens: !!lens, builtin: true };
+    return {
+      codegraph: isToolPresent(ctx, apiCompat, 'codegraphStatus', CODEGRAPH_TOOL_EVIDENCE),
+      lens: isToolPresent(ctx, apiCompat, 'lensAnalyze', LENS_TOOL_EVIDENCE),
+      builtin: true,
+    };
   } catch (e) {
     log.warn('checkPrerequisites failed', e);
     return { codegraph: false, lens: false, builtin: true };

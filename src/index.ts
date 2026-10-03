@@ -11,7 +11,7 @@ import { createInvokeUpstream, registerRoutes, registerService } from './host/ro
 import { registerWatcher, registerEventListeners } from './host/watcher.ts';
 import { McpServer } from './host/McpServer.ts';
 import { closeAllDbConnections } from './adapters/CodeGraphAdapter.ts';
-import { detectHostVersion, createFeatureFlags, createApiCompatLayer } from './host/compat/index.ts';
+import { detectHostVersion, createFeatureFlags, createApiCompatLayer, createHostCapabilityProbe } from './host/compat/index.ts';
 import { GraphRepository } from './host/db/GraphRepository.ts';
 
 
@@ -36,7 +36,9 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
   securityManager.setAllowedWorkspaceRoots(extractWorkspacePaths(ctx));
 
   const hostVersionInfo = detectHostVersion(ctx);
-  const featureFlags = createFeatureFlags(hostVersionInfo);
+  // The probe only ever switches capabilities ON (see resolveFeatureFlags), so a host whose
+  // generation we cannot date still gets the capabilities it visibly advertises.
+  const featureFlags = createFeatureFlags(hostVersionInfo, createHostCapabilityProbe(ctx));
   const apiCompat = createApiCompatLayer(hostVersionInfo);
 
   const workspacePaths = extractWorkspacePaths(ctx);

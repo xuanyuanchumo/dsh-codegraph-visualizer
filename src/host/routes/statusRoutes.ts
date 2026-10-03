@@ -11,8 +11,15 @@ export function registerStatusRoute(rc: RouteContext): void {
     kind: 'exact',
     path: routePath,
     handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, (req, res) => {
-      const status = checkPrerequisites(ctx);
-      sendJson(res, 200, { codegraph: status.codegraph, lens: status.lens, builtin: status.builtin }, req, corsConfig);
+      const status = checkPrerequisites(ctx, deps.apiCompat);
+      sendJson(res, 200, {
+        codegraph: status.codegraph,
+        lens: status.lens,
+        builtin: status.builtin,
+        // Diagnostics only: the generation-dated capability record resolved at boot. Runtime
+        // behaviour is decided by which upstream tools are actually available, not by these flags.
+        compat: deps.featureFlags ?? null,
+      }, req, corsConfig);
     }),
   }), 'codegraph: status route');
 }
@@ -27,7 +34,7 @@ export function registerHealthRoute(rc: RouteContext): void {
     path: routePath,
     handler: withRouteMiddleware('GET', routePath, corsConfig, rc.rateLimiter, (req, res) => {
       try {
-        const status = checkPrerequisites(ctx);
+        const status = checkPrerequisites(ctx, deps.apiCompat);
         const mem = process.memoryUsage();
         const hasGraphData = deps.getLastGraphData() !== null;
         const healthy = status.codegraph || status.lens || status.builtin;

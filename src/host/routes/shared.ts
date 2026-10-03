@@ -294,19 +294,23 @@ export function triggerBackgroundBuild(
   if (cached && Date.now() - cached.timestamp < deps.config.scanCacheTtl) return;
 
   const repoId = workspacePath || `workspace-${Date.now()}`;
-  const flags = deps.featureFlags;
+
+  // Prefer a bootstrap-capable upstream tool when the host actually exposes one. This used to be
+  // gated on the generation-derived `incrementalBootstrap` flag, which can only produce a false
+  // negative: DSH exposes no host-version API (see docs/research/dsh-0.2.0-插件API权威基线.md),
+  // sibling tools mount after our own apply() runs, and the live 0.2.0-rc.2 host resolves to
+  // `unknown` (J0). `getAvailableToolName` already applies the per-generation mapping plus the
+  // `codegraph_init` fallback chain, so tool availability is the honest signal here.
+  const bootstrapTool = deps.apiCompat
+    ? deps.apiCompat.getAvailableToolName(deps.ctx, 'codegraphBootstrap')
+    : null;
 
   let scanPromise: Promise<GraphData>;
-  if (flags && flags.incrementalBootstrap && deps.apiCompat) {
-    const bootstrapTool = deps.apiCompat.getAvailableToolName(deps.ctx, 'codegraphBootstrap');
-    if (bootstrapTool) {
-      scanPromise = invokeUpstream(bootstrapTool, { path: workspacePath })
-        .then(() => fetchMergedGraph(invokeUpstream, repoId, 'both'))
-        .then(raw => slimGraphData(raw, deps.config.maxNodes));
-    } else {
-      scanPromise = fetchMergedGraph(invokeUpstream, repoId, 'both')
-        .then(raw => slimGraphData(raw, deps.config.maxNodes));
-    }
+  if (bootstrapTool) {
+    log.info('background build: upstream bootstrap tool available', { tool: bootstrapTool, workspace: workspacePath });
+    scanPromise = invokeUpstream(bootstrapTool, { path: workspacePath })
+      .then(() => fetchMergedGraph(invokeUpstream, repoId, 'both'))
+      .then(raw => slimGraphData(raw, deps.config.maxNodes));
   } else {
     scanPromise = fetchMergedGraph(invokeUpstream, repoId, 'both')
       .then(raw => slimGraphData(raw, deps.config.maxNodes));

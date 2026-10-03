@@ -204,7 +204,7 @@ describe('registerRoutes', () => {
     const { res, state } = makeRes();
     handler(makeReq('GET'), res);
     expect(state.code).toBe(200);
-    expect(JSON.parse(state.body)).toEqual({ codegraph: true, lens: true, builtin: true });
+    expect(JSON.parse(state.body)).toEqual({ codegraph: true, lens: true, builtin: true, compat: null });
   });
 
   it('GET /status handles CORS preflight', () => {
