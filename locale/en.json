@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Code Graph Visualizer",
+    "description": "Interactive code-graph visualization inside DSH: a top-level conversation tab for call chains, dependency analysis and impact assessment."
+  }
+}

@@ -5,15 +5,18 @@
   "type": "module",
   "license": "MIT",
   "author": "DSH Team",
+  "icon": "./assets/icon.svg",
   "engines": {
     "node": ">=22.19 || >=24",
-    "pnpm": ">=9"
+    "pnpm": ">=9",
+    "dsh": ">=0.1.7-rc.2 <0.4.0"
   },
   "packageManager": "pnpm@9.12.0",
   "main": "dist/index.js",
   "scripts": {
     "sync-version": "node scripts/sync-version.mjs",
     "prebuild": "pnpm run sync-version",
+    "prepare": "pnpm run build",
     "build": "tsdown src/index.ts --format esm --dts --outDir dist && pnpm run build:client",
     "build:host": "tsdown src/index.ts --format esm --dts --outDir dist-host --platform node",
     "build:client": "node scripts/build-client.mjs",
@@ -34,7 +37,6 @@
     "prepublishOnly": "pnpm run build && pnpm run test"
   },
   "dependencies": {
-
     "graphology": "^0.26.0",
     "graphology-communities-louvain": "^2.0.2",
     "tree-sitter-wasm": "^1.1.8",
@@ -42,17 +44,14 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-client-connection": "^0.1.7-rc.2 || ^0.2.0-rc.2 || ^0.3.0-rc.2",
     "@deepseek-ai/dsh-llm": "^0.1.7-rc.2 || ^0.2.0-rc.2 || ^0.3.0-rc.2",
-    "@deepseek-ai/dsh-session": "^0.1.7-rc.2 || ^0.2.0-rc.2 || ^0.3.0-rc.2",
     "@deepseek-ai/dsh-tools": "^0.1.7-rc.2 || ^0.2.0-rc.2 || ^0.3.0-rc.2",
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/cordis": "^4.0.4",
     "@deepseek-ai/dsh-llm": "0.2.0-rc.2",
-    "@deepseek-ai/dsh-session": "0.2.0-rc.2",
     "@deepseek-ai/dsh-tools": "0.2.0-rc.2",
     "@playwright/test": "^1.62.1",
     "@testing-library/dom": "^10.4.1",
@@ -103,7 +102,10 @@
   ],
   "files": [
     "dist",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "locale",
+    "assets",
+    "README.md"
   ],
   "exports": {
     ".": {
@@ -114,37 +116,21 @@
       "types": "./dist/client/index.d.ts",
       "default": "./dist/client.js"
     },
+    "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json"
   },
   "dsh": {
-    "displayName": "代码图谱可视化",
-    "description": "交互式代码图谱可视化工具，支持调用链追踪、依赖分析、影响评估",
-    "category": "visualization",
-    "hostVersion": ">=0.1.1-rc.2 <0.4.0",
-    "permissions": {
-      "workspace": true,
-      "network": true,
-      "fs": "readwrite"
-    },
+    "manifestVersion": 1,
     "bundle": {
       "patch": "./cordis.patch.yml"
     },
     "client": {
       "platform": "web",
-      "entry": "./dist/client.js",
       "inject": [
-        "@deepseek-ai/dsh-client-connection",
-        "@deepseek-ai/dsh-client-ui-slots",
-        "@deepseek-ai/dsh-client-ui-sidebar-right",
         "@deepseek-ai/dsh-client-ui-conversation",
-        "dsh-better-sidebar",
-        "dsh-remote-web-ui"
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
       ]
-    },
-    "optionalPlugins": [
-      "dsh-codegraph",
-      "dsh-tool-lens",
-      "dsh-remote-web-ui"
-    ]
+    }
   }
 }
