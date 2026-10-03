@@ -1,37 +1,18 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { scoped } from '../../shared/Logger.ts';
+import {
+  parseDshVersion,
+  probeReleaseFor,
+  unknownDshVersion,
+  type DshGeneration,
+  type DshVersionInfo,
+} from '../../shared/dshGeneration.ts';
 
 const log = scoped('host:compat');
 
-export type HostGeneration = 'gen1' | 'gen2' | 'gen3' | 'unknown';
-
-export interface HostVersionInfo {
-  raw: string;
-  major: number;
-  minor: number;
-  patch: number;
-  prerelease: string | null;
-  generation: HostGeneration;
-}
-
-const VERSION_PATTERN = /^v?(\d+)\.(\d+)\.(\d+)(?:-([\w.]+))?/;
-
-function parseVersion(raw: string): HostVersionInfo {
-  const match = raw.match(VERSION_PATTERN);
-  if (!match) {
-    return { raw, major: 0, minor: 0, patch: 0, prerelease: null, generation: 'unknown' };
-  }
-  const major = parseInt(match[1]!, 10);
-  const minor = parseInt(match[2]!, 10);
-  const patch = parseInt(match[3]!, 10);
-  const prerelease = match[4] ?? null;
-  let generation: HostGeneration = 'unknown';
-  if (major === 0 && minor >= 1 && minor < 2) generation = 'gen1';
-  else if (major === 0 && minor >= 2 && minor < 3) generation = 'gen2';
-  else if (major === 0 && minor >= 3) generation = 'gen3';
-  else if (major >= 1) generation = 'gen3';
-  return { raw, major, minor, patch, prerelease, generation };
-}
+/** @deprecated alias kept for call sites; the model lives in `src/shared/dshGeneration.ts`. */
+export type HostGeneration = DshGeneration;
+export type HostVersionInfo = DshVersionInfo;
 
 function detectFromContext(ctx: Context): string | null {
   const candidates = [
@@ -58,17 +39,27 @@ function detectFromEnv(): string | null {
   return null;
 }
 
+/**
+ * Last resort: infer the generation from the upstream tool surface. `codegraph_incremental`/
+ * `codegraph_bootstrap` only ever shipped from the 0.2 line, so their presence dates the host.
+ * Returns a representative release (see DSH_GENERATION_PROBES) rather than a measured version.
+ */
 function detectFromToolNames(ctx: Context): string | null {
   try {
     const tools = ctx.tools;
     const hasGen2OnlyTool = tools.get('codegraph_incremental') ?? tools.get('codegraph_bootstrap');
-    if (hasGen2OnlyTool) return '0.2.0';
+    if (hasGen2OnlyTool) return probeReleaseFor('gen2');
     const hasGen1Tool = tools.get('codegraph_status') ?? tools.get('codegraph_graph');
-    if (hasGen1Tool) return '0.1.7';
+    if (hasGen1Tool) return probeReleaseFor('gen1');
   } catch { /* ignore */ }
   return null;
 }
 
+/**
+ * Resolve the running DSH generation. Every source is a heuristic (DSH exposes no stable
+ * version API on the plugin context), so a miss degrades to `unknown` — which the adapter
+ * layers answer with the conservative capability set plus runtime probes, never with a crash.
+ */
 export function detectHostVersion(ctx: Context): HostVersionInfo {
   const sources = [
     () => detectFromContext(ctx),
@@ -79,13 +70,12 @@ export function detectHostVersion(ctx: Context): HostVersionInfo {
     try {
       const raw = fn();
       if (raw) {
-        const info = parseVersion(raw);
+        const info = parseDshVersion(raw);
         log.info('host version detected', { raw, generation: info.generation });
         return info;
       }
     } catch { /* ignore */ }
   }
   log.info('host version unknown, using conservative flags');
-  return { raw: 'unknown', major: 0, minor: 0, patch: 0, prerelease: null, generation: 'unknown' };
+  return unknownDshVersion();
 }
-

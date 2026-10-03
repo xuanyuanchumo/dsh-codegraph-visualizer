@@ -1,34 +1,24 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { scoped } from '../../shared/Logger.ts';
 import { safeCheck } from '../utils/safeCheck.ts';
+import {
+  parseDshVersion,
+  probeReleaseFor,
+  unknownDshVersion,
+  type DshGeneration,
+  type DshVersionInfo,
+} from '../../shared/dshGeneration.ts';
 
 const log = scoped('client:compat:version');
 
-export type ClientGeneration = 'gen1' | 'gen2' | 'gen3' | 'unknown';
+/** @deprecated alias kept for call sites; the model lives in `src/shared/dshGeneration.ts`. */
+export type ClientGeneration = DshGeneration;
+/** The browser half has no use for the prerelease tag, so it is dropped here. */
+export type ClientVersionInfo = Omit<DshVersionInfo, 'prerelease'>;
 
-export interface ClientVersionInfo {
-  raw: string;
-  major: number;
-  minor: number;
-  patch: number;
-  generation: ClientGeneration;
-}
-
-const VERSION_PATTERN = /^v?(\d+)\.(\d+)\.(\d+)/;
-
-function parseVersion(raw: string): ClientVersionInfo {
-  const match = raw.match(VERSION_PATTERN);
-  if (!match) {
-    return { raw, major: 0, minor: 0, patch: 0, generation: 'unknown' };
-  }
-  const major = parseInt(match[1]!, 10);
-  const minor = parseInt(match[2]!, 10);
-  const patch = parseInt(match[3]!, 10);
-  let generation: ClientGeneration = 'unknown';
-  if (major === 0 && minor >= 1 && minor < 2) generation = 'gen1';
-  else if (major === 0 && minor >= 2 && minor < 3) generation = 'gen2';
-  else if (major === 0 && minor >= 3) generation = 'gen3';
-  else if (major >= 1) generation = 'gen3';
+/** Strip the host-only prerelease field so both halves report the same shape to consumers. */
+function toClientVersionInfo(info: DshVersionInfo): ClientVersionInfo {
+  const { raw, major, minor, patch, generation } = info;
   return { raw, major, minor, patch, generation };
 }
 
@@ -48,33 +38,39 @@ function detectFromContext(ctx: Context): string | null {
   return null;
 }
 
+/**
+ * The client half runs in the browser and usually cannot read a version string, so it dates
+ * the host from the service surface instead: `slots`/`sidebarRightTabs` arrived with 0.2,
+ * `spotlight` is the only marker that dates back to 0.1. Order matters — the newest marker
+ * wins.
+ */
 function detectFromApiShape(ctx: Context): string | null {
   if (safeCheck(() => {
     const tabs = (ctx as unknown as { sidebarRightTabs?: unknown }).sidebarRightTabs;
     return tabs !== null && tabs !== undefined;
   }, false)) {
-    return '0.2.0';
+    return probeReleaseFor('gen2');
   }
   if (safeCheck(() => {
     const rui = ctx.get('remoteWebUI');
     return rui !== null && rui !== undefined;
   }, false)) {
-    return '0.2.0';
+    return probeReleaseFor('gen2');
   }
   if (safeCheck(() => {
     const bs = ctx.get('betterSidebar');
     return bs !== null && bs !== undefined;
   }, false)) {
-    return '0.2.0';
+    return probeReleaseFor('gen2');
   }
   if (safeCheck(() => ctx.slots !== null && ctx.slots !== undefined, false)) {
-    return '0.2.0';
+    return probeReleaseFor('gen2');
   }
   if (safeCheck(() => {
     const sp = ctx.get('spotlight');
     return sp !== null && sp !== undefined;
   }, false)) {
-    return '0.1.7';
+    return probeReleaseFor('gen1');
   }
   return null;
 }
@@ -88,12 +84,12 @@ export function detectClientVersion(ctx: Context): ClientVersionInfo {
     try {
       const raw = fn();
       if (raw) {
-        const info = parseVersion(raw);
+        const info = parseDshVersion(raw);
         log.info('client version detected', { raw, generation: info.generation });
-        return info;
+        return toClientVersionInfo(info);
       }
     } catch { /* ignore */ }
   }
   log.info('client version unknown, using feature detection only');
-  return { raw: 'unknown', major: 0, minor: 0, patch: 0, generation: 'unknown' };
+  return toClientVersionInfo(unknownDshVersion());
 }

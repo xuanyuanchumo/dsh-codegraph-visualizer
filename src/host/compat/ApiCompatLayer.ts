@@ -1,6 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import type { HostVersionInfo } from './HostVersionDetector.ts';
 import { scoped } from '../../shared/Logger.ts';
+import type { DshGeneration } from '../../shared/dshGeneration.ts';
 
 const log = scoped('host:compat');
 
@@ -60,11 +61,21 @@ const UNKNOWN_MAPPING: ToolNameMapping = {
   codegraphSemanticSearch: null,
 };
 
+/**
+ * The generation → tool-name matrix, keyed by every generation the model can report.
+ * Exported so exhaustiveness is asserted instead of assumed (tests/unit/dshGeneration.test.ts)
+ * and so a future generation added to `dshGeneration.ts` fails typecheck here rather than
+ * silently falling through to a default.
+ */
+export const TOOL_MAPPING_BY_GENERATION: Record<DshGeneration, ToolNameMapping> = {
+  gen1: GEN1_MAPPING,
+  gen2: GEN2_MAPPING,
+  gen3: GEN3_MAPPING,
+  unknown: UNKNOWN_MAPPING,
+};
+
 export function createToolNameMapping(info: HostVersionInfo): ToolNameMapping {
-  if (info.generation === 'gen1') return GEN1_MAPPING;
-  if (info.generation === 'gen3') return GEN3_MAPPING;
-  if (info.generation === 'unknown') return UNKNOWN_MAPPING;
-  return GEN2_MAPPING;
+  return TOOL_MAPPING_BY_GENERATION[info.generation];
 }
 
 export interface ApiCompatLayer {

@@ -2,6 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, extname, join, resolve } from 'node:path';
+import {
+  DSH_GENERATION_PROBES,
+  DSH_SUPPORTED_RANGE,
+  DSH_UNSUPPORTED_PROBE,
+} from '../../src/shared/dshGeneration.ts';
 
 /**
  * Guards the DSH plugin-manifest contract this package's metadata is written against.
@@ -43,8 +48,12 @@ const ICON_MEDIA_TYPES: Record<string, string> = {
   '.webp': 'image/webp',
 };
 
-/** Host generations this package claims to support through the adapter layer. */
-const DSH_GENERATIONS = ['0.1.7-rc.2', '0.2.0-rc.2', '0.3.0-rc.2'];
+/**
+ * Host generations this package claims to support through the adapter layer. The list is
+ * imported from the shared generation model rather than restated here, so this file cannot
+ * drift away from the thresholds the host/client detectors actually apply.
+ */
+const DSH_GENERATIONS = Object.values(DSH_GENERATION_PROBES);
 
 /**
  * Minimal evaluator for the single range shape this package declares (`>=A <B`).
@@ -90,10 +99,13 @@ describe('dsh plugin manifest', () => {
   it('declares engines.dsh covering every supported host generation and nothing beyond it', () => {
     const range = pkg.engines?.dsh;
     expect(typeof range).toBe('string');
+    // Exact equality, not just coverage: the value must equal the range the generation model
+    // publishes, otherwise the two halves of "which hosts do we support" can disagree.
+    expect(range).toBe(DSH_SUPPORTED_RANGE);
     for (const generation of DSH_GENERATIONS) {
       expect(coversVersion(range as string, generation), `${range} should cover ${generation}`).toBe(true);
     }
-    expect(coversVersion(range as string, '0.4.0')).toBe(false);
+    expect(coversVersion(range as string, DSH_UNSUPPORTED_PROBE)).toBe(false);
   });
 
   it('declares the client half as a web-platform module', () => {
