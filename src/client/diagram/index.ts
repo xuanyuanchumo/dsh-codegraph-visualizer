@@ -208,6 +208,7 @@ export async function assembleMicroDiagram(
   viewMode: 'cfg' | 'flowchart' | 'sequence',
   filePath: string,
   functionName: string,
+  workspace?: string,
 ): Promise<AssembledDiagram> {
   if (!filePath) {
     throw new Error('filePath is empty — cannot fetch AST');
@@ -216,9 +217,15 @@ export async function assembleMicroDiagram(
     throw new Error('functionName is empty — cannot locate function in AST');
   }
 
+  // `?workspace=` pins the resolution to the workspace the caller is looking at; without it the
+  // host resolves `filePath` against its first listed workspace (docs/需求分析.md §31.7).
+  const params = new URLSearchParams();
+  if (workspace && workspace !== '.') params.set('workspace', workspace);
+  const qs = params.toString();
+
   let response: Response;
   try {
-    response = await fetchWithTimeout('/api/v1/codegraph/ast', {
+    response = await fetchWithTimeout(`/api/v1/codegraph/ast${qs ? `?${qs}` : ''}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filePath }),

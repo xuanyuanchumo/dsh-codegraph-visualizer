@@ -580,6 +580,20 @@ describe('assembleMicroDiagram', () => {
       expect(init.headers).toEqual({ 'Content-Type': 'application/json' });
       expect(JSON.parse(init.body as string)).toEqual({ filePath: 'src/test.ts' });
     });
+
+    it('pins the AST request to the selected workspace (§31.7)', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(makeMockFetchResponse(validAst, true, 200));
+      await assembleMicroDiagram('cfg', 'src/test.ts', 'foo', 'D:\\Projects\\repo');
+      const url = vi.mocked(global.fetch).mock.calls[0]![0] as string;
+      expect(url.startsWith('/api/v1/codegraph/ast?')).toBe(true);
+      expect(new URL(url, 'http://localhost').searchParams.get('workspace')).toBe('D:\\Projects\\repo');
+    });
+
+    it('omits the workspace parameter when it is "."', async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(makeMockFetchResponse(validAst, true, 200));
+      await assembleMicroDiagram('cfg', 'src/test.ts', 'foo', '.');
+      expect(vi.mocked(global.fetch).mock.calls[0]![0]).toBe('/api/v1/codegraph/ast');
+    });
   });
 });
 

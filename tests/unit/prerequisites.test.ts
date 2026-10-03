@@ -4,6 +4,7 @@ import {
   checkPrerequisites,
   extractWorkspacePaths,
   findWorkspacePath,
+  resolveWorkspaceRoots,
 } from '../../src/host/prerequisites.ts';
 import type { Context } from '@deepseek-ai/cordis';
 
@@ -171,6 +172,33 @@ describe('extractWorkspacePaths', () => {
     } as unknown as MockCtx;
     const result = extractWorkspacePaths(ctx);
     expect(result).toEqual([process.cwd()]);
+  });
+
+  it('resolveWorkspaceRoots reports which branch produced the roots (§31.7 observability)', () => {
+    const wsr = { list: () => [{ path: '/repo1' }] };
+    const fromRegistry = {
+      tools: { get: vi.fn() },
+      get: vi.fn((key: string) => key === 'workspaceRegistry' ? wsr : undefined),
+      workspaceRegistry: wsr,
+    } as unknown as MockCtx;
+    expect(resolveWorkspaceRoots(fromRegistry)).toEqual({ paths: ['/repo1'], source: 'registry' });
+
+    const emptyRegistry = { list: () => [] };
+    const fromSessions = {
+      tools: { get: vi.fn() },
+      get: vi.fn((key: string) => key === 'workspaceRegistry' ? emptyRegistry : undefined),
+      workspaceRegistry: emptyRegistry,
+      sessions: { list: () => [{ header: { cwd: '/sess1' } }] },
+    } as unknown as MockCtx;
+    expect(resolveWorkspaceRoots(fromSessions)).toEqual({ paths: ['/sess1'], source: 'sessions' });
+
+    const fromCwd = { tools: { get: vi.fn() }, get: vi.fn(() => undefined) } as unknown as MockCtx;
+    expect(resolveWorkspaceRoots(fromCwd)).toEqual({ paths: [process.cwd()], source: 'cwd' });
+  });
+
+  it('extractWorkspacePaths stays a thin wrapper over resolveWorkspaceRoots', () => {
+    const ctx = { tools: { get: vi.fn() }, get: vi.fn(() => undefined) } as unknown as MockCtx;
+    expect(extractWorkspacePaths(ctx)).toEqual(resolveWorkspaceRoots(ctx).paths);
   });
 
   it('falls back to process.cwd() when sessions.list throws', () => {

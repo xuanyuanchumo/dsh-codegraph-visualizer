@@ -25,7 +25,7 @@ export function registerDependenciesRoute(rc: RouteContext): void {
     path: routePath,
     handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, async (req, res) => {
       try {
-        const workspacePath = await validateWorkspacePath(ctx, deps);
+        const workspacePath = await validateWorkspacePath(ctx, deps, req);
         if (workspacePath === '__denied__') {
           sendError(res, 403, ERROR_CODES.WORKSPACE_PATH_NOT_ALLOWED, req, corsConfig);
           return;
@@ -103,7 +103,7 @@ export function registerDiffRoute(rc: RouteContext): void {
           return;
         }
 
-        const workspacePath = await validateWorkspacePath(ctx, deps);
+        const workspacePath = await validateWorkspacePath(ctx, deps, req);
         if (workspacePath === '__denied__') {
           sendError(res, 403, ERROR_CODES.WORKSPACE_PATH_NOT_ALLOWED, req, corsConfig);
           return;

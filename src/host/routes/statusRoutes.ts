@@ -1,6 +1,6 @@
 import { findWorkspacePath, extractWorkspacePaths, checkPrerequisites } from '../prerequisites.ts';
 import { sendJson } from '../HttpHelpers.ts';
-import { withRouteMiddleware, type RouteContext } from './shared.ts';
+import { withRouteMiddleware, ensureWorkspaceRootsAllowed, type RouteContext } from './shared.ts';
 
 export function registerStatusRoute(rc: RouteContext): void {
   const { deps, corsConfig, rateLimiter } = rc;
@@ -70,7 +70,16 @@ export function registerWorkspaceRoute(rc: RouteContext): void {
     handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, (req, res) => {
       const current = findWorkspacePath(ctx);
       const list = extractWorkspacePaths(ctx);
-      sendJson(res, 200, { path: current, list }, req, corsConfig);
+      // Observability for docs/需求分析.md §31.7: a rejected file route used to be diagnosable only
+      // by reading the process's memory. The allowlist is local-only (host-provided roots).
+      const refresh = ensureWorkspaceRootsAllowed(ctx, deps);
+      sendJson(res, 200, {
+        path: current,
+        list,
+        allowedRoots: refresh.roots,
+        rootSource: refresh.source,
+        resolvedFrom: refresh.resolved,
+      }, req, corsConfig);
     }),
   }), 'codegraph: workspace route');
 }

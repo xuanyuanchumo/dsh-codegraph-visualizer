@@ -12,6 +12,7 @@ import {
   fetchGraphDataIncremental,
   fetchFileOutline,
   fetchSymbolAST,
+  fetchAst,
   fetchEdges,
 } from '../../src/client/api/index.ts';
 
@@ -113,6 +114,64 @@ describe('client api', () => {
       }) as unknown as typeof fetch;
       const result = await fetchWorkspace();
       expect(result).toEqual({ path: '.', list: [] });
+    });
+
+    it('passes through the allowed-roots diagnostics', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          path: '/repo',
+          list: ['/repo'],
+          rootSource: 'registry',
+          allowedRoots: ['/repo'],
+          resolvedFrom: ['/repo'],
+        }),
+      }) as unknown as typeof fetch;
+      const result = await fetchWorkspace();
+      expect(result.rootSource).toBe('registry');
+      expect(result.allowedRoots).toEqual(['/repo']);
+      expect(result.resolvedFrom).toEqual(['/repo']);
+    });
+  });
+
+  describe('fetchAst', () => {
+    it('posts filePath and returns the AST', async () => {
+      const ast = { type: 'program', children: [] };
+      const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ast });
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
+      const result = await fetchAst('src/a.ts');
+      expect(result).toEqual(ast);
+      expect(mockFetch).toHaveBeenCalledWith('/api/v1/codegraph/ast', expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath: 'src/a.ts' }),
+      }));
+    });
+
+    it('carries the selected workspace so the host resolves filePath against it', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ type: 'program' }) });
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
+      await fetchAst('src/a.ts', undefined, 'D:\\Projects\\repo');
+      const url = mockFetch.mock.calls[0]![0] as string;
+      expect(url.startsWith('/api/v1/codegraph/ast?')).toBe(true);
+      expect(new URL(url, 'http://localhost').searchParams.get('workspace')).toBe('D:\\Projects\\repo');
+    });
+
+    it('omits the workspace parameter when unset or "."', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ type: 'program' }) });
+      globalThis.fetch = mockFetch as unknown as typeof fetch;
+      await fetchAst('src/a.ts', undefined, '.');
+      expect(mockFetch.mock.calls[0]![0]).toBe('/api/v1/codegraph/ast');
+    });
+
+    it('returns null when the response is not ok', async () => {
+      globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }) as unknown as typeof fetch;
+      expect(await fetchAst('src/a.ts')).toBeNull();
+    });
+
+    it('returns null on network error', async () => {
+      globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as unknown as typeof fetch;
+      expect(await fetchAst('src/a.ts')).toBeNull();
     });
   });
 

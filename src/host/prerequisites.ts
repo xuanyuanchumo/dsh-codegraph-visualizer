@@ -4,6 +4,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import { scoped } from '../shared/Logger.ts';
 import { POLLING } from '../shared/constants.ts';
 import type { ApiCompatLayer } from './compat/index.ts';
+import type { WorkspaceRootSource } from './security.ts';
 
 const log = scoped('host');
 const execFileAsync = promisify(execFile);
@@ -92,15 +93,27 @@ function getWorkspaceRegistry(ctx: Context): WorkspaceRegistryLike {
   return ctx.get('workspaceRegistry') as WorkspaceRegistryLike;
 }
 
-export function extractWorkspacePaths(ctx: Context): string[] {
+export interface WorkspaceRootsResolution {
+  paths: string[];
+  source: WorkspaceRootSource;
+}
+
+/**
+ * Resolve the workspace roots the host currently knows about, **and say which branch produced
+ * them**. The label is the observability half of docs/需求分析.md §31.7: the plugin used to call
+ * this once in `apply()` and freeze the result, so a boot-time empty registry silently denied
+ * every later file route with a bare 403 and no way to see why. Callers re-resolve per request
+ * (`ensureWorkspaceRootsAllowed` in `host/routes/shared.ts`).
+ */
+export function resolveWorkspaceRoots(ctx: Context): WorkspaceRootsResolution {
   try {
     const wsr = getWorkspaceRegistry(ctx);
     if (wsr?.list) {
       const workspaces = wsr.list();
       const paths = workspaces.map((w) => w.path).filter((p): p is string => !!p);
-      if (paths.length > 0) return paths;
+      if (paths.length > 0) return { paths, source: 'registry' };
     }
-  } catch (e) { log.warn('extractWorkspacePaths: workspaceRegistry failed', e); }
+  } catch (e) { log.warn('resolveWorkspaceRoots: workspaceRegistry failed', e); }
   try {
     const sessions = getSessions(ctx);
     if (sessions?.list) {
@@ -114,10 +127,14 @@ export function extractWorkspacePaths(ctx: Context): string[] {
           paths.push(cwd);
         }
       }
-      if (paths.length > 0) return paths;
+      if (paths.length > 0) return { paths, source: 'sessions' };
     }
-  } catch (e) { log.warn('extractWorkspacePaths: sessions failed', e); }
-  return [process.cwd()];
+  } catch (e) { log.warn('resolveWorkspaceRoots: sessions failed', e); }
+  return { paths: [process.cwd()], source: 'cwd' };
+}
+
+export function extractWorkspacePaths(ctx: Context): string[] {
+  return resolveWorkspaceRoots(ctx).paths;
 }
 
 export function findWorkspacePath(ctx: Context): string {

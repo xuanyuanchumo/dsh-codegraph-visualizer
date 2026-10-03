@@ -3,7 +3,7 @@ import type { DeadCodeResult } from '../../../shared/analysis/DeadCodeAnalyzer.t
 import type { GraphState } from '../types.ts';
 import { UI } from '../../../shared/constants.ts';
 import { t } from '../../i18n/index.ts';
-import { fetchWithTimeout } from '../../api/index.ts';
+import { fetchAst } from '../../api/index.ts';
 import { assembleMicroDiagram } from '../../diagram/index.ts';
 import { computeClusteredGraph } from '../cluster/index.ts';
 import { callChainAggregator, internals, log, measureSync } from '../internals.ts';
@@ -29,18 +29,9 @@ export function createAnalysisSlice(_set: SetFn, _get: GetFn): Partial<GraphStat
       const { rawNodes, rawEdges, callChainDepth, clusterDepth, expandedNodeIds } = _get();
       const gen = ++internals.multiAssemblyGeneration;
       const astFetcher = async (filePath: string) => {
-        try {
-          const response = await fetchWithTimeout('/api/v1/codegraph/ast', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filePath }),
-          });
-          if (!response.ok) return null;
-          return await response.json();
-        } catch (e) {
-          log.warn('AST fetch failed', e);
-          return null;
-        }
+        // Carries the selected workspace: the AST route resolves `filePath` against it
+        // (§31.7 — otherwise the host picks whichever workspace it lists first).
+        return await fetchAst(filePath, undefined, _get().currentWorkspace);
       };
       try {
         const result = await callChainAggregator.aggregate(
@@ -71,7 +62,7 @@ export function createAnalysisSlice(_set: SetFn, _get: GetFn): Partial<GraphStat
       const gen = ++internals.microAssemblyGeneration;
       _set({ isLoading: true, error: null });
       try {
-        const diagram = await assembleMicroDiagram(viewMode, selectedFunction.filePath, selectedFunction.functionName);
+        const diagram = await assembleMicroDiagram(viewMode, selectedFunction.filePath, selectedFunction.functionName, _get().currentWorkspace);
         if (gen !== internals.microAssemblyGeneration) return;
         _set({ diagramData: null, nodes: diagram.nodes, edges: diagram.edges, isLoading: false });
       } catch (e) {

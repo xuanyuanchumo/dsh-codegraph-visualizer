@@ -1,5 +1,6 @@
 import { scoped } from '../../shared/Logger.ts';
 import type { GraphData, GraphNode, GraphEdge } from '../../types/index.ts';
+import type { ASTNode } from '../../shared/CFGTypes.ts';
 import { coerceGraphData } from '../../shared/GraphValidator.ts';
 import { API, BOOTSTRAP } from '../../shared/constants.ts';
 
@@ -114,12 +115,26 @@ export async function fetchGraphData(): Promise<GraphData | null> {
   }, null, { url: '/api/v1/codegraph/data' });
 }
 
-export async function fetchWorkspace(): Promise<{ path: string; list: string[] }> {
+export interface WorkspaceInfo {
+  path: string;
+  list: string[];
+  /** Diagnostics (docs/需求分析.md §31.7): which host source produced the allowed roots. */
+  rootSource?: string;
+  allowedRoots?: string[];
+  resolvedFrom?: string[];
+}
+
+export async function fetchWorkspace(): Promise<WorkspaceInfo> {
   return withAbortGuard('fetchWorkspace', async () => {
     const res = await fetchWithTimeout('/api/v1/codegraph/workspace');
     if (!res.ok) return { path: '.', list: [] };
-    const data = await res.json() as { path?: string; list?: string[] };
-    return { path: data.path ?? '.', list: data.list ?? [] };
+    const data = await res.json() as Partial<WorkspaceInfo>;
+    const info: WorkspaceInfo = { path: data.path ?? '.', list: data.list ?? [] };
+    // Diagnostics are optional: an older host does not send them.
+    if (data.rootSource !== undefined) info.rootSource = data.rootSource;
+    if (data.allowedRoots !== undefined) info.allowedRoots = data.allowedRoots;
+    if (data.resolvedFrom !== undefined) info.resolvedFrom = data.resolvedFrom;
+    return info;
   }, { path: '.', list: [] });
 }
 
@@ -213,6 +228,32 @@ export async function fetchSymbolAST(nodeId: string, signal?: AbortSignal, works
     };
   }, null, { nodeId });
 }
+
+/**
+ * POST /api/v1/codegraph/ast, carrying the caller's selected workspace.
+ *
+ * The route resolves `filePath` against a workspace, and used to always pick whichever workspace the
+ * host listed first (`findWorkspacePath`). Sending `?workspace=` makes the request address the
+ * workspace the user is actually looking at, the same way `fetchBootstrap` / `fetchFileOutline` /
+ * `fetchSymbolAST` / `fetchEdges` already do.
+ */
+export async function fetchAst(filePath: string, signal?: AbortSignal, workspace?: string): Promise<ASTNode | null> {
+  return withAbortGuard('fetchAst', async () => {
+    const params = new URLSearchParams();
+    if (workspace && workspace !== '.') params.set('workspace', workspace);
+    const qs = params.toString();
+    const options: RequestInit = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filePath }),
+    };
+    if (signal) options.signal = signal;
+    const res = await fetchWithTimeout(`/api/v1/codegraph/ast${qs ? `?${qs}` : ''}`, options);
+    if (!res.ok) return null;
+    return await res.json() as ASTNode;
+  }, null, { filePath });
+}
+
 export interface EdgesData {
   edges: GraphEdge[];
   total: number;

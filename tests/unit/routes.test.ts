@@ -12,11 +12,15 @@ vi.mock('../../src/host/security.ts', () => ({
   SecurityManager: class {
     isPathAllowed = mockIsPathAllowed;
     setAllowedWorkspaceRoots = vi.fn();
+    addAllowedWorkspaceRoots = vi.fn();
+    getSnapshot = vi.fn(() => ({ roots: ['/test/workspace'], source: 'registry' }));
     reset = vi.fn();
   },
   createSecurityManager: () => new (class {
     isPathAllowed = mockIsPathAllowed;
     setAllowedWorkspaceRoots = vi.fn();
+    addAllowedWorkspaceRoots = vi.fn();
+    getSnapshot = vi.fn(() => ({ roots: ['/test/workspace'], source: 'registry' }));
     reset = vi.fn();
   })(),
 }));
@@ -24,6 +28,7 @@ vi.mock('../../src/host/security.ts', () => ({
 vi.mock('../../src/host/prerequisites.ts', () => ({
   findWorkspacePath: vi.fn(() => '/test/workspace'),
   extractWorkspacePaths: vi.fn(() => ['/test/workspace']),
+  resolveWorkspaceRoots: vi.fn(() => ({ paths: ['/test/workspace'], source: 'registry' })),
   checkPrerequisites: vi.fn(() => ({ codegraph: true, lens: true, builtin: true })),
 }));
 
@@ -235,7 +240,7 @@ describe('registerRoutes', () => {
     expect(state.code).toBe(204);
   });
 
-  it('GET /workspace returns current path and list', () => {
+  it('GET /workspace reports the current path and list', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 2);
     const { res, state } = makeRes();
@@ -244,6 +249,20 @@ describe('registerRoutes', () => {
     const parsed = JSON.parse(state.body);
     expect(parsed.path).toBe('/test/workspace');
     expect(parsed.list).toEqual(['/test/workspace']);
+  });
+
+  it('GET /workspace reports the allowed roots and which source produced them (§31.7 observability)', () => {
+    // A rejected file route used to be diagnosable only from inside the process: the response said
+    // 403 and nothing else. These fields make "everything is denied" readable from the browser.
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 2);
+    const { res, state } = makeRes();
+    handler(makeReq('GET'), res);
+    expect(state.code).toBe(200);
+    const parsed = JSON.parse(state.body);
+    expect(parsed.allowedRoots).toEqual(['/test/workspace']);
+    expect(parsed.rootSource).toBe('registry');
+    expect(parsed.resolvedFrom).toEqual(['/test/workspace']);
   });
 
   it('GET /data returns empty graph when no lastGraphData', () => {
@@ -753,6 +772,31 @@ describe('POST /ast', () => {
     expect(state.code).toBe(200);
     const parsed = JSON.parse(state.body);
     expect(parsed).toHaveProperty('type', 'program');
+  });
+
+  it('refreshes the allowed workspace roots before validating a path (no boot-time freeze)', async () => {
+    // §31.7: the allowlist used to be computed once in apply(). Re-resolving per request is what
+    // keeps a workspace that the host registers later — or a registry that was briefly empty —
+    // from turning every file request into a bare 403.
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 9);
+    const { res, state } = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ filePath: 'test.ts' })), res);
+    expect(state.code).toBe(200);
+    expect(vi.mocked(deps.securityManager.addAllowedWorkspaceRoots)).toHaveBeenCalledWith(['/test/workspace'], 'registry');
+  });
+
+  it('resolves filePath against the workspace named in ?workspace=', async () => {
+    const otherWorkspace = path.resolve('D:\\test\\other');
+    const readFile = vi.mocked(fs.readFile);
+    readFile.mockClear();
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 9);
+    const { res, state } = makeRes();
+    const url = `/api/v1/codegraph/ast?workspace=${encodeURIComponent(otherWorkspace)}`;
+    await handler(makeReq('POST', JSON.stringify({ filePath: 'src/a.ts' }), { host: 'localhost' }, undefined, url), res);
+    expect(state.code).toBe(200);
+    expect(readFile).toHaveBeenCalledWith(path.join(otherWorkspace, 'src/a.ts'), 'utf-8');
   });
 
   it('handles CORS preflight', async () => {

@@ -9,7 +9,8 @@ import { fetchMergedGraph } from '../../tools.ts';
 import { createInvoke } from '../../tools.ts';
 import type { UpstreamInvoker } from '../../adapters/IAdapter.ts';
 import { SecurityManager } from '../security.ts';
-import { findWorkspacePath } from '../prerequisites.ts';
+import type { WorkspaceRootSource } from '../security.ts';
+import { findWorkspacePath, resolveWorkspaceRoots } from '../prerequisites.ts';
 import type { VisualizerConfig } from '../config.ts';
 import type { ApiCompatLayer, FeatureFlags } from '../compat/index.ts';
 import { createRateLimiter } from '../RateLimiter.ts';
@@ -47,7 +48,41 @@ export function withRouteMiddleware(
   };
 }
 
+export interface WorkspaceRootsRefresh {
+  /** Roots the security manager now accepts (raw paths). */
+  roots: string[];
+  /** Which host source produced the newly resolved roots. */
+  source: WorkspaceRootSource;
+  /** The roots resolved for this request, regardless of de-duplication. */
+  resolved: string[];
+}
+
+/**
+ * Re-resolve and widen the allowlist before validating a path.
+ *
+ * The allowlist used to be computed once in `apply()` (`src/index.ts`) and frozen, so a workspace
+ * the host registered later — or a registry that was still empty at boot — denied every file route
+ * with a bare 403 and no diagnostic (`docs/需求分析.md` §31.7). Roots only ever come from host
+ * services (`workspaceRegistry` / `sessions` / the host's own cwd), never from the request, which is
+ * why growing the list here cannot be used to read an arbitrary path.
+ */
+export function ensureWorkspaceRootsAllowed(ctx: Context, deps: RouteDeps): WorkspaceRootsRefresh {
+  let resolved: string[] = [];
+  let source: WorkspaceRootSource = 'unknown';
+  try {
+    const resolution = resolveWorkspaceRoots(ctx);
+    resolved = resolution.paths;
+    source = resolution.source;
+    deps.securityManager.addAllowedWorkspaceRoots(resolved, source);
+  } catch (e) {
+    log.warn('ensureWorkspaceRootsAllowed failed', e);
+  }
+  const roots = deps.securityManager.getSnapshot().roots;
+  return { roots, source, resolved };
+}
+
 export async function resolveWorkspaceFromRequest(req: IncomingMessage, ctx: Context, deps: RouteDeps): Promise<string> {
+  ensureWorkspaceRootsAllowed(ctx, deps);
   try {
     const url = new URL(req.url ?? '', `http://${req.headers.host ?? 'localhost'}`);
     const wsParam = url.searchParams.get('workspace');
@@ -68,6 +103,7 @@ export async function resolveAndValidatePath(
   res: ServerResponse,
   corsConfig: CorsConfig,
 ): Promise<string | null> {
+  ensureWorkspaceRootsAllowed(ctx, deps);
   if (pathInput && pathInput !== '.' && !deps.securityManager.isPathAllowed(pathInput)) {
     sendError(res, 403, ERROR_CODES.PATH_NOT_ALLOWED, req, corsConfig);
     return null;
@@ -92,7 +128,9 @@ export async function resolveAndValidateRelativePath(
   res: ServerResponse,
   corsConfig: CorsConfig,
 ): Promise<string | null> {
-  const workspacePath = findWorkspacePath(ctx);
+  // Request-scoped: honours `?workspace=<path>` so a caller can address the workspace it is
+  // actually looking at instead of whichever workspace the host happens to list first.
+  const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
   if (!workspacePath) {
     sendError(res, 400, ERROR_CODES.NO_WORKSPACE_PATH, req, corsConfig);
     return null;
@@ -113,8 +151,15 @@ export async function resolveAndValidateRelativePath(
 export async function validateWorkspacePath(
   ctx: Context,
   deps: RouteDeps,
+  req?: IncomingMessage,
 ): Promise<string | null> {
-  const workspacePath = findWorkspacePath(ctx);
+  let workspacePath: string;
+  if (req) {
+    workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
+  } else {
+    ensureWorkspaceRootsAllowed(ctx, deps);
+    workspacePath = findWorkspacePath(ctx);
+  }
   if (!workspacePath) {
     return null;
   }
