@@ -28,6 +28,28 @@
   --cg-info: #3b82f6;
   --cg-cycle-highlight: #e74c3c;
 
+  /* Dead-code analysis — panel accents (badge / border / highlight). */
+  --cg-deadcode-highlight: #e74c3c;
+  --cg-deadcode-confirmed: #e74c3c;
+  --cg-deadcode-suspected: #f39c12;
+
+  /* Dead-code analysis — canvas node palette. These are read through
+   * `readCssVarCached('--cg-deadcode-node…')` in
+   * `src/client/renderer/styles/ThemeStylesheet.ts`, whose fallback literals are
+   * locked to these values by `tests/unit/tokensContract.test.ts`. */
+  --cg-deadcode-node: #9ca3af;
+  --cg-deadcode-node-border: #6b7280;
+  --cg-deadcode-node-suspected: #d1d5db;
+  --cg-deadcode-node-suspected-border: #9ca3af;
+
+  /* Tour step layer palette — guided-tour legend chips and step badges. */
+  --cg-tour-layer-entry: #4caf50;
+  --cg-tour-layer-api: #2196f3;
+  --cg-tour-layer-service: #ff9800;
+  --cg-tour-layer-data: #9c27b0;
+  --cg-tour-layer-ui: #e91e63;
+  --cg-tour-layer-utility: #607d8b;
+
   /* Node type semantic colors — light theme */
   --cg-node-default: #263148;
   --cg-node-function: #059669;
@@ -55,6 +77,8 @@
   --cg-seq-external: #db2777;
   --cg-seq-fragment: #263148;
   --cg-seq-async: #f59e0b;
+  /* 时序图网格线 / 片段底色（原先在 TS 里硬编码 rgba(0,0,0,0.03)，深色下不可见） */
+  --cg-seq-grid: rgba(0, 0, 0, 0.03);
 
   /* Package diagram semantic colors — light theme */
   --cg-package-border: #1a2230;
@@ -72,6 +96,9 @@
   --cg-edge-dep-dev: #3b82f6;
   --cg-edge-dep-peer: #10b981;
   --cg-edge-dep-optional: #7c3aed;
+  /* UML relation kinds that are not package-manager edges. */
+  --cg-edge-aggregation: #6366f1;
+  --cg-edge-composition: #db2777;
 
   /* Highlight / analysis colors — light theme */
   --cg-hover-border: #1a2230;
@@ -135,6 +162,10 @@
   --cg-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.14);
   --cg-shadow-active: 0 1px 4px rgba(0, 0, 0, 0.3);
   --cg-overlay-bg: rgba(0, 0, 0, 0.3);
+  /* Neutral shadow tints for `box-shadow` / `filter: drop-shadow` that need a
+   * bare colour instead of one of the composed elevation tokens above. */
+  --cg-shadow-soft: rgba(0, 0, 0, 0.15);
+  --cg-shadow-strong: rgba(0, 0, 0, 0.2);
 
   /* Radii */
   --cg-radius: 12px;
@@ -152,12 +183,11 @@
   --cg-toolbar-h: 44px;
   --cg-statusbar-h: 28px;
   --cg-panel-min-h: 240px;
-  --cg-panel-min-w: 320px;
 
-  /* Z-index hierarchy — semantic layers from base to top.
+  /* Z-index hierarchy — semantic layers.
    * Each layer has a clear purpose; values are spaced to allow
-   * fine-tuning within a layer without crossing into the next. */
-  --cg-z-base: 0;
+   * fine-tuning within a layer without crossing into the next.
+   * 0–4 stay free so a future base layer can be inserted without renumbering. */
   --cg-z-canvas-ui: 5;
   --cg-z-panel: 10;
   --cg-z-panel-stack: 15;
@@ -196,6 +226,23 @@ body[data-ds-dark-theme] {
   --cg-info: #60a5fa;
   --cg-cycle-highlight: #ff6b6b;
 
+  /* Dead-code analysis — dark theme (panel accents + canvas node palette) */
+  --cg-deadcode-highlight: #f87171;
+  --cg-deadcode-confirmed: #f87171;
+  --cg-deadcode-suspected: #fbbf24;
+  --cg-deadcode-node: #6b7280;
+  --cg-deadcode-node-border: #4b5563;
+  --cg-deadcode-node-suspected: #9ca3af;
+  --cg-deadcode-node-suspected-border: #6b7280;
+
+  /* Tour step layer palette — dark theme (brighter Material-400 weights) */
+  --cg-tour-layer-entry: #66bb6a;
+  --cg-tour-layer-api: #42a5f5;
+  --cg-tour-layer-service: #ffa726;
+  --cg-tour-layer-data: #ab47bc;
+  --cg-tour-layer-ui: #ec407a;
+  --cg-tour-layer-utility: #78909c;
+
   /* Node type semantic colors — dark theme */
   --cg-node-default: #6366f1;
   --cg-node-function: #10b981;
@@ -223,6 +270,7 @@ body[data-ds-dark-theme] {
   --cg-seq-external: #ec4899;
   --cg-seq-fragment: #818cf8;
   --cg-seq-async: #fbbf24;
+  --cg-seq-grid: rgba(255, 255, 255, 0.03);
 
   /* Package diagram semantic colors — dark theme */
   --cg-package-border: #818cf8;
@@ -240,10 +288,11 @@ body[data-ds-dark-theme] {
   --cg-edge-dep-dev: #60a5fa;
   --cg-edge-dep-peer: #34d399;
   --cg-edge-dep-optional: #a78bfa;
+  --cg-edge-aggregation: #818cf8;
+  --cg-edge-composition: #ec4899;
 
   /* Highlight / analysis colors — dark theme */
   --cg-hover-border: #818cf8;
-  --cg-cycle-highlight: #ff6b6b;
   --cg-impact-d1: #f59e0b;
   --cg-impact-d2: #fbbf24;
   --cg-impact-d3: #fde68a;

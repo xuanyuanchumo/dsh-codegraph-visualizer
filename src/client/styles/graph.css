@@ -112,7 +112,7 @@
 
 .cg-seq-participant-group:hover .cg-seq-participant-box {
   stroke-width: 3;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+  filter: drop-shadow(0 2px 4px var(--cg-shadow-soft));
 }
 
 .cg-seq-participant-box {
@@ -281,11 +281,11 @@
 }
 
 .cg-tooltip .cg-tooltip-links-in {
-  color: var(--cg-edge-import, #10b981);
+  color: var(--cg-edge-import);
 }
 
 .cg-tooltip .cg-tooltip-links-out {
-  color: var(--cg-edge-call, #3b82f6);
+  color: var(--cg-edge-call);
 }
 
 .cg-tooltip .cg-tooltip-edge-source {

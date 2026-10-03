@@ -224,9 +224,9 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
     {
       selector: 'node.dead-code',
       style: {
-        'background-color': readCssVarCached('--cg-dead-code', isDark ? '#6b7280' : '#9ca3af'),
+        'background-color': readCssVarCached('--cg-deadcode-node', isDark ? '#6b7280' : '#9ca3af'),
         'border-style': 'dashed',
-        'border-color': readCssVarCached('--cg-dead-code-border', isDark ? '#4b5563' : '#6b7280'),
+        'border-color': readCssVarCached('--cg-deadcode-node-border', isDark ? '#4b5563' : '#6b7280'),
         'border-width': 2,
         'opacity': 0.5,
       },
@@ -234,9 +234,9 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
     {
       selector: 'node.dead-code-suspected',
       style: {
-        'background-color': readCssVarCached('--cg-dead-code-suspected', isDark ? '#9ca3af' : '#d1d5db'),
+        'background-color': readCssVarCached('--cg-deadcode-node-suspected', isDark ? '#9ca3af' : '#d1d5db'),
         'border-style': 'dotted',
-        'border-color': readCssVarCached('--cg-dead-code-suspected-border', isDark ? '#6b7280' : '#9ca3af'),
+        'border-color': readCssVarCached('--cg-deadcode-node-suspected-border', isDark ? '#6b7280' : '#9ca3af'),
         'border-width': 1,
         'opacity': 0.7,
       },
@@ -244,7 +244,7 @@ export function buildStylesheet(theme: ThemeType, nodeCount = 0): cytoscape.Styl
     {
       selector: 'edge.dead-code-edge',
       style: {
-        'line-color': readCssVarCached('--cg-dead-code', isDark ? '#6b7280' : '#9ca3af'),
+        'line-color': readCssVarCached('--cg-deadcode-node', isDark ? '#6b7280' : '#9ca3af'),
         'line-style': 'dashed',
         'opacity': 0.3,
       },

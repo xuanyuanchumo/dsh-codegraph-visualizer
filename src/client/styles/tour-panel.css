@@ -38,7 +38,7 @@
 .cg-tour-panel-close {
   background: none;
   border: none;
-  color: var(--cg-text-muted);
+  color: var(--cg-text-secondary);
   font-size: 16px;
   cursor: pointer;
   padding: 0 4px;
@@ -53,7 +53,7 @@
   padding: 24px 12px;
   text-align: center;
   font-size: 12px;
-  color: var(--cg-text-muted);
+  color: var(--cg-text-secondary);
 }
 
 .cg-tour-progress {
@@ -63,7 +63,7 @@
 
 .cg-tour-progress-text {
   font-size: 11px;
-  color: var(--cg-text-muted);
+  color: var(--cg-text-secondary);
   margin-bottom: 4px;
   display: block;
 }
@@ -97,12 +97,12 @@
   letter-spacing: 0.5px;
 }
 
-.cg-tour-step-layer[data-layer="entry"] { background: #4caf50; color: #fff; }
-.cg-tour-step-layer[data-layer="api"] { background: #2196f3; color: #fff; }
-.cg-tour-step-layer[data-layer="service"] { background: #ff9800; color: #fff; }
-.cg-tour-step-layer[data-layer="data"] { background: #9c27b0; color: #fff; }
-.cg-tour-step-layer[data-layer="ui"] { background: #e91e63; color: #fff; }
-.cg-tour-step-layer[data-layer="utility"] { background: #607d8b; color: #fff; }
+.cg-tour-step-layer[data-layer="entry"] { background: var(--cg-tour-layer-entry); color: var(--cg-on-accent); }
+.cg-tour-step-layer[data-layer="api"] { background: var(--cg-tour-layer-api); color: var(--cg-on-accent); }
+.cg-tour-step-layer[data-layer="service"] { background: var(--cg-tour-layer-service); color: var(--cg-on-accent); }
+.cg-tour-step-layer[data-layer="data"] { background: var(--cg-tour-layer-data); color: var(--cg-on-accent); }
+.cg-tour-step-layer[data-layer="ui"] { background: var(--cg-tour-layer-ui); color: var(--cg-on-accent); }
+.cg-tour-step-layer[data-layer="utility"] { background: var(--cg-tour-layer-utility); color: var(--cg-on-accent); }
 .cg-tour-step-layer[data-layer="other"] { background: var(--cg-border); color: var(--cg-text); }
 
 .cg-tour-step-title {
@@ -114,14 +114,14 @@
 
 .cg-tour-step-description {
   font-size: 11px;
-  color: var(--cg-text-muted);
+  color: var(--cg-text-secondary);
   line-height: 1.4;
   margin-bottom: 4px;
 }
 
 .cg-tour-step-path {
   font-size: 10px;
-  color: var(--cg-text-muted);
+  color: var(--cg-text-secondary);
   font-family: monospace;
   margin-bottom: 4px;
 }
@@ -130,7 +130,7 @@
   display: flex;
   gap: 8px;
   font-size: 10px;
-  color: var(--cg-text-muted);
+  color: var(--cg-text-secondary);
 }
 
 .cg-tour-meta-item {
@@ -158,11 +158,11 @@
 }
 
 .cg-tour-step-item:hover {
-  background: var(--cg-hover);
+  background: var(--cg-surface-hover);
 }
 
 .cg-tour-step-item.cg-active {
-  background: var(--cg-active);
+  background: var(--cg-surface-active);
   font-weight: 600;
 }
 
@@ -182,7 +182,7 @@
 
 .cg-tour-step-item.cg-active .cg-tour-step-number {
   background: var(--cg-accent);
-  color: #fff;
+  color: var(--cg-on-accent);
 }
 
 .cg-tour-step-label {
@@ -200,12 +200,12 @@
   text-transform: uppercase;
 }
 
-.cg-tour-step-layer-badge[data-layer="entry"] { background: #4caf50; color: #fff; }
-.cg-tour-step-layer-badge[data-layer="api"] { background: #2196f3; color: #fff; }
-.cg-tour-step-layer-badge[data-layer="service"] { background: #ff9800; color: #fff; }
-.cg-tour-step-layer-badge[data-layer="data"] { background: #9c27b0; color: #fff; }
-.cg-tour-step-layer-badge[data-layer="ui"] { background: #e91e63; color: #fff; }
-.cg-tour-step-layer-badge[data-layer="utility"] { background: #607d8b; color: #fff; }
+.cg-tour-step-layer-badge[data-layer="entry"] { background: var(--cg-tour-layer-entry); color: var(--cg-on-accent); }
+.cg-tour-step-layer-badge[data-layer="api"] { background: var(--cg-tour-layer-api); color: var(--cg-on-accent); }
+.cg-tour-step-layer-badge[data-layer="service"] { background: var(--cg-tour-layer-service); color: var(--cg-on-accent); }
+.cg-tour-step-layer-badge[data-layer="data"] { background: var(--cg-tour-layer-data); color: var(--cg-on-accent); }
+.cg-tour-step-layer-badge[data-layer="ui"] { background: var(--cg-tour-layer-ui); color: var(--cg-on-accent); }
+.cg-tour-step-layer-badge[data-layer="utility"] { background: var(--cg-tour-layer-utility); color: var(--cg-on-accent); }
 .cg-tour-step-layer-badge[data-layer="other"] { background: var(--cg-border); color: var(--cg-text); }
 
 .cg-tour-nav {
@@ -229,7 +229,7 @@
 }
 
 .cg-tour-nav-btn:hover:not(:disabled) {
-  background: var(--cg-hover);
+  background: var(--cg-surface-hover);
 }
 
 .cg-tour-nav-btn:disabled {

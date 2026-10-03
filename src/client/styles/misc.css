@@ -385,7 +385,7 @@
   background: var(--cg-surface);
   border: 1px solid var(--cg-border);
   border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px var(--cg-shadow-soft);
   padding: 4px 0;
   font-size: 13px;
   z-index: var(--cg-z-context-menu);

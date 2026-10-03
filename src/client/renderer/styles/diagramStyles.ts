@@ -389,7 +389,7 @@ export function buildDiagramStyles(ctx: StyleContext): cytoscape.StylesheetJson 
       selector: 'node[isFragment="true"]',
       style: {
         'shape': 'round-rectangle',
-        'background-color': 'rgba(0,0,0,0.03)',
+        'background-color': readCssVar('--cg-seq-grid', isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'),
         'border-width': 2,
         'border-color': readCssVar('--cg-seq-fragment', isDark ? '#818cf8' : COLORS.PACKAGE_LIGHT),
         'border-style': 'dashed',

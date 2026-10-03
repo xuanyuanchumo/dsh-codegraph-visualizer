@@ -185,7 +185,7 @@ export const SequenceDiagramRenderer: React.FC<SequenceDiagramRendererProps> = (
       fragmentLabelBg: readCssVarCached('--cg-surface-active', isDark ? '#333335' : '#e5e7eb'),
       participantBg: readCssVarCached('--cg-surface-hover', isDark ? '#2a2a2c' : '#f3f4f6'),
       participantBorder: readCssVarCached('--cg-border-strong', isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)'),
-      gridLine: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+      gridLine: readCssVarCached('--cg-seq-grid', isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'),
       highlightBg: readCssVarCached('--cg-accent-soft', isDark ? 'rgba(99,102,241,0.12)' : 'rgba(38,49,72,0.1)'),
     };
   }, [isDark, theme]);

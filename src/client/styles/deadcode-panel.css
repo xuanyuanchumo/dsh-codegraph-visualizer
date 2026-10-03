@@ -18,7 +18,7 @@
   border-radius: 10px;
   font-size: 10px;
   font-weight: 700;
-  background: var(--cg-deadcode-highlight, #e74c3c);
+  background: var(--cg-deadcode-highlight);
   color: var(--cg-on-accent);
   margin-left: 6px;
 }
@@ -51,12 +51,12 @@
 }
 
 .cg-deadcode-stat-badge.cg-confirmed {
-  background: var(--cg-deadcode-confirmed, #e74c3c);
+  background: var(--cg-deadcode-confirmed);
   color: var(--cg-on-accent);
 }
 
 .cg-deadcode-stat-badge.cg-suspected {
-  background: var(--cg-deadcode-suspected, #f39c12);
+  background: var(--cg-deadcode-suspected);
   color: var(--cg-on-accent);
 }
 
@@ -113,12 +113,12 @@
 }
 
 .cg-deadcode-item.cg-confirmed {
-  border-left: 2px solid var(--cg-deadcode-confirmed, #e74c3c);
+  border-left: 2px solid var(--cg-deadcode-confirmed);
   padding-left: 4px;
 }
 
 .cg-deadcode-item.cg-suspected {
-  border-left: 2px solid var(--cg-deadcode-suspected, #f39c12);
+  border-left: 2px solid var(--cg-deadcode-suspected);
   padding-left: 4px;
 }
 
@@ -133,12 +133,12 @@
 }
 
 .cg-deadcode-category-badge.cg-unreachable {
-  background: var(--cg-deadcode-confirmed, #e74c3c);
+  background: var(--cg-deadcode-confirmed);
   color: var(--cg-on-accent);
 }
 
 .cg-deadcode-category-badge.cg-no-incoming {
-  background: var(--cg-deadcode-suspected, #f39c12);
+  background: var(--cg-deadcode-suspected);
   color: var(--cg-on-accent);
 }
 

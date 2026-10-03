@@ -55,6 +55,12 @@ export function readCssVarCached(name: string, fallback: string): string {
       '--cg-role-entry', '--cg-role-orphan', '--cg-role-leaf', '--cg-role-hub',
       '--cg-heatmap-stable', '--cg-heatmap-unstable', '--cg-heatmap-low', '--cg-heatmap-high',
       '--cg-cycle-highlight',
+      // 死代码节点四色 + 时序图网格线：这几条此前缺失于白名单，
+      // 导致 readCssVarCached 永远返回 TS fallback（主题令牌形同不存在）。
+      // tests/unit/tokensContract.test.ts 会守住"凡经 readCssVarCached 读取的令牌必须在此白名单内"。
+      '--cg-deadcode-node', '--cg-deadcode-node-border',
+      '--cg-deadcode-node-suspected', '--cg-deadcode-node-suspected-border',
+      '--cg-seq-grid',
       '--cg-cluster-hue-0-bg', '--cg-cluster-hue-0-border',
       '--cg-cluster-hue-1-bg', '--cg-cluster-hue-1-border',
       '--cg-cluster-hue-2-bg', '--cg-cluster-hue-2-border',
