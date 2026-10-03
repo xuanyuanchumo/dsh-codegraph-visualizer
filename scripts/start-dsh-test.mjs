@@ -25,10 +25,11 @@
 import { spawn, execSync } from 'node:child_process';
 import {
   existsSync, writeFileSync, readFileSync, unlinkSync, mkdirSync,
-  openSync, closeSync, rmSync,
+  openSync, closeSync, rmSync, realpathSync,
 } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { homedir, tmpdir } from 'node:os';
 
 // ---------- 路径与常量 ----------
@@ -312,6 +313,54 @@ function resolveDshEntry(dshCmd) {
   return existsSync(guess) ? guess : null;
 }
 
+/**
+ * 只读预检：DSH 的 bundle 元数据解析顺序是「安装锚点优先」
+ * （`@deepseek-ai/dsh-app-boot/lib/index.js:889-907 resolveBundleDir`）。
+ * 只要 DSH 安装目录自身的 `node_modules` 里存在同名旧副本，
+ * bundle 级 `version`/`meta`/`icon` 就全部来自那份副本，而 profile 里
+ * 指向本仓库的 `link:` 只在 rows[] 与客户端半边生效 —— 表现为插件列表里
+ * 显示包名而非 locale 标题、版本号诡异，极容易被误判成清单写错。
+ *
+ * 这里只报告解析结果，不修改任何安装。
+ */
+function checkInstallAnchorShadowing(dshEntry) {
+  if (!dshEntry) return null;
+  let pkgName;
+  try {
+    pkgName = JSON.parse(readFileSync(join(PROJECT_ROOT, 'package.json'), 'utf8')).name;
+  } catch {
+    return null;
+  }
+  if (typeof pkgName !== 'string' || pkgName === '') return null;
+  const probe = join(dirname(dshEntry), 'dsh-codegraph-preflight-probe.js');
+  let resolved;
+  try {
+    resolved = createRequire(probe).resolve(`${pkgName}/package.json`);
+  } catch {
+    return null;
+  }
+  const shadowDir = dirname(resolved);
+  try {
+    if (realpathSync(shadowDir).toLowerCase() === realpathSync(PROJECT_ROOT).toLowerCase()) return null;
+  } catch {
+    return null;
+  }
+  return shadowDir;
+}
+
+function reportInstallAnchorShadowing(dshEntry) {
+  const shadowDir = checkInstallAnchorShadowing(dshEntry);
+  if (!shadowDir) return;
+  let version = 'unknown';
+  try {
+    version = JSON.parse(readFileSync(join(shadowDir, 'package.json'), 'utf8')).version ?? 'unknown';
+  } catch { /* keep unknown */ }
+  warn('安装锚点存在本插件的另一份副本，它会遮蔽 bundle 元数据（版本/locale 标题/图标）：');
+  warn(`  ${shadowDir}  (version ${version})`);
+  warn('  这是 DSH 的 resolveBundleDir「安装锚点优先」语义，不是清单缺陷。');
+  warn('  如需让插件列表显示正确版本与 locale 标题，请把该副本改名让路后重新拉取（不删除即可逆）。');
+}
+
 function findChromeExe() {
   const localAppData = process.env.LOCALAPPDATA;
   const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
@@ -530,6 +579,7 @@ async function startDsh() {
         cwd: PROJECT_ROOT, detached: true, windowsHide: true,
       }, DSH_LOG);
   if (!dshEntry) warn(`未能从 ${dshCmd} 解析出 Node 入口，回退 cmd.exe 垫片（可能捕获不到认证 URL）`);
+  reportInstallAnchorShadowing(dshEntry);
 
   let spawnFailed = false;
   dshProc.once('error', e => { spawnFailed = true; warn(`DSH spawn 失败: ${e.message}`); });
