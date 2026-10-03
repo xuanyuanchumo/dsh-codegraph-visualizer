@@ -2138,5 +2138,183 @@ describe('LayoutController', () => {
       globalThis.Worker = undefined as any;
       globalThis.document = originalDocument;
     });
+
+    it('stops rebuilding the worker when the failure arrives as an async error event', () => {
+      // The regression this pins: `new Worker(url)` does NOT throw for an unreachable URL — the
+      // failure arrives later as an error event. The old code reset its retry counter on every
+      // successful construction, so an error handler that rebuilds kept resetting its own budget
+      // and the browser issued over a thousand requests for the same missing worker bundle.
+      const originalDocument = globalThis.document;
+      const instances: Array<{ onerror: ((e: ErrorEvent) => void) | null }> = [];
+      globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
+      globalThis.Worker = class {
+        onmessage: ((e: MessageEvent) => void) | null = null;
+        onerror: ((e: ErrorEvent) => void) | null = null;
+        postMessage = vi.fn();
+        terminate = vi.fn();
+        constructor() { instances.push(this as never); }
+      } as any;
+
+      const cy = makeMockCy();
+      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { RENDERER } = require('../../src/shared/constants.ts');
+      const controller = new LayoutController(cy);
+      expect(instances.length).toBe(1);
+
+      // Answer every construction with an error until the controller stops rebuilding.
+      let seen = 0;
+      while (instances.length > seen) {
+        seen = instances.length;
+        instances[instances.length - 1]!.onerror!({} as ErrorEvent);
+      }
+
+      expect(instances.length).toBe(RENDERER.WORKER_MAX_INIT_RETRIES + 1);
+      expect(controller.isWorkerAvailable()).toBe(false);
+
+      // The budget is spent: further attempts (including an explicit retryWorker call) do nothing.
+      controller.retryWorker();
+      controller.retryWorker();
+      expect(instances.length).toBe(RENDERER.WORKER_MAX_INIT_RETRIES + 1);
+
+      controller.destroy();
+      globalThis.Worker = undefined as any;
+      globalThis.document = originalDocument;
+    });
+
+    it('releases an in-flight layout as soon as the worker errors', async () => {
+      // Otherwise the caller waits out the whole layout timeout before falling back, which is
+      // exactly the stall a missing worker bundle used to cause on every large-graph layout.
+      const originalDocument = globalThis.document;
+      const instances: any[] = [];
+      globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
+      globalThis.Worker = class {
+        onmessage: ((e: MessageEvent) => void) | null = null;
+        onerror: ((e: ErrorEvent) => void) | null = null;
+        postMessage = vi.fn();
+        terminate = vi.fn();
+        constructor() { instances.push(this); }
+      } as any;
+
+      const cy = makeMockCy([makeMockNode('a')], []);
+      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      const promise = controller.applyLayoutWithWorker(
+        [{ id: 'a', label: 'A', type: 'function' }],
+        [],
+        'cose',
+      );
+      instances[0].onerror({} as ErrorEvent);
+
+      await expect(promise).resolves.toEqual({});
+      controller.destroy();
+
+      globalThis.Worker = undefined as any;
+      globalThis.document = originalDocument;
+    });
+
+    it('refills the retry budget after the worker has answered', async () => {
+      const originalDocument = globalThis.document;
+      const instances: any[] = [];
+      globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
+      globalThis.Worker = class {
+        onmessage: ((e: MessageEvent) => void) | null = null;
+        onerror: ((e: ErrorEvent) => void) | null = null;
+        postMessage = vi.fn();
+        terminate = vi.fn();
+        constructor() { instances.push(this); }
+      } as any;
+
+      const cy = makeMockCy([makeMockNode('a')], []);
+      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+
+      // Burn two of the three retries, then let the third worker answer.
+      instances[0].onerror({} as ErrorEvent);
+      instances[1].onerror({} as ErrorEvent);
+      expect(instances.length).toBe(3);
+
+      const promise = controller.applyLayoutWithWorker(
+        [{ id: 'a', label: 'A', type: 'function' }],
+        [],
+        'cose',
+      );
+      instances[2].onmessage({ data: { positions: { a: { x: 1, y: 2 } } } } as never);
+      await expect(promise).resolves.toEqual({ a: { x: 1, y: 2 } });
+
+      // A proven worker gets a fresh budget, so one later failure is still retried.
+      instances[2].onerror({} as ErrorEvent);
+      expect(instances.length).toBe(4);
+      expect(controller.isWorkerAvailable()).toBe(true);
+
+      controller.destroy();
+      globalThis.Worker = undefined as any;
+      globalThis.document = originalDocument;
+    });
+
+    it('does not rebuild the worker after destroy', () => {
+      const originalDocument = globalThis.document;
+      const instances: any[] = [];
+      globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
+      globalThis.Worker = class {
+        onmessage: ((e: MessageEvent) => void) | null = null;
+        onerror: ((e: ErrorEvent) => void) | null = null;
+        postMessage = vi.fn();
+        terminate = vi.fn();
+        constructor() { instances.push(this); }
+      } as any;
+
+      const cy = makeMockCy();
+      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const controller = new LayoutController(cy);
+      controller.destroy();
+
+      // An error event that lands after teardown must not resurrect a worker for a dead controller.
+      instances[0].onerror({} as ErrorEvent);
+      expect(instances.length).toBe(1);
+
+      globalThis.Worker = undefined as any;
+      globalThis.document = originalDocument;
+    });
+
+    it('gives an unproven worker the handshake budget and a proven one the layout budget', async () => {
+      const originalDocument = globalThis.document;
+      const originalSetTimeout = globalThis.setTimeout;
+      const delays: number[] = [];
+      const instances: any[] = [];
+      globalThis.document = { baseURI: 'http://localhost:3000/' } as any;
+      globalThis.Worker = class {
+        onmessage: ((e: MessageEvent) => void) | null = null;
+        onerror: ((e: ErrorEvent) => void) | null = null;
+        postMessage = vi.fn();
+        terminate = vi.fn();
+        constructor() { instances.push(this); }
+      } as any;
+      globalThis.setTimeout = ((cb: () => void, ms?: number) => {
+        delays.push(ms ?? 0);
+        void cb;
+        return 0 as any;
+      }) as any;
+
+      const cy = makeMockCy([makeMockNode('a')], []);
+      const { LayoutController } = require('../../src/client/renderer/LayoutController.ts');
+      const { RENDERER } = require('../../src/shared/constants.ts');
+      const controller = new LayoutController(cy);
+
+      void controller.applyLayoutWithWorker([{ id: 'a', label: 'A', type: 'function' }], [], 'cose');
+      expect(delays[0]).toBe(RENDERER.WORKER_HANDSHAKE_TIMEOUT_MS);
+
+      // Answer the first request, then ask again: a worker that has replied is no longer on
+      // probation and may take the full layout budget.
+      instances[0].postMessage.mockClear();
+      instances[0].onmessage({ data: { positions: {} } } as never);
+      void controller.applyLayoutWithWorker([{ id: 'a', label: 'A', type: 'function' }], [], 'cose');
+      expect(delays[delays.length - 1]).toBe(RENDERER.LAYOUT_TIMEOUT_MS);
+
+      controller.destroy();
+      globalThis.setTimeout = originalSetTimeout;
+      globalThis.Worker = undefined as any;
+      globalThis.document = originalDocument;
+    });
   });
 });

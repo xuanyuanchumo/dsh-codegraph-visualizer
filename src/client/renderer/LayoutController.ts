@@ -3,7 +3,7 @@ import type { LayoutType, RankDir } from '../../shared/viewModeUtils.ts';
 import type { GraphNode, GraphEdge } from '../../types/index.ts';
 import { scoped } from '../../shared/Logger.ts';
 import { computeSmartSpacing, type SmartSpacing } from '../../shared/layoutUtils.ts';
-import { LAYOUT as LAYOUT_CONST, RENDERER } from '../../shared/constants.ts';
+import { LAYOUT as LAYOUT_CONST, LAYOUT_WORKER, RENDERER } from '../../shared/constants.ts';
 import { startMeasure, endMeasure } from '../../shared/PerformanceMonitor.ts';
 import { OverlapRemover } from './OverlapRemover.ts';
 
@@ -17,6 +17,10 @@ export class LayoutController {
   private worker: Worker | null = null;
   private workerInitFailed = false;
   private workerRetryCount = 0;
+  /** Set once the worker has answered at least one message — only that proves the bundle loaded. */
+  private workerReady = false;
+  /** Set when the retry budget is exhausted, or after destroy; blocks every later attempt. */
+  private workerGaveUp = false;
 
   private workerTimeout: ReturnType<typeof setTimeout> | null = null;
   private overlapRemover: OverlapRemover;
@@ -29,25 +33,32 @@ export class LayoutController {
   }
 
   private initWorker(): void {
+    if (this.workerGaveUp) return;
     try {
       let workerUrl: string | null = null;
 
-      // In browser context (both ESM and CJS bundles), use document.baseURI
-      // for relative URL resolution. This works in DSH web's classic <script>
-      // loading as well as the dev server's ESM dynamic import.
+      // The worker bundle is served by this plugin's own host route (see LAYOUT_WORKER), so an
+      // absolute same-origin URL is correct in DSH web, in the desktop shell and behind the dev
+      // server's /api proxy — all of which serve the plugin's HTTP API from the page origin.
       if (typeof document !== 'undefined' && document.baseURI) {
         try {
-          workerUrl = new URL('plugins/dsh-codegraph-visualizer/worker/layoutWorker.js', document.baseURI).href;
+          workerUrl = new URL(LAYOUT_WORKER.ROUTE_PATH, document.baseURI).href;
         } catch { /* URL construction fallback — try next candidate */ }
       }
 
       if (workerUrl) {
-        this.worker = new Worker(workerUrl, { type: 'module' });
+        // Classic worker: the bundle is built as a single IIFE on purpose, so no sibling chunk can
+        // be requested from a URL the worker route does not serve.
+        this.worker = new Worker(workerUrl);
       }
 
       if (this.worker) {
-        this.workerRetryCount = 0;
         this.worker.onmessage = (e: MessageEvent<{ positions: Record<string, { x: number; y: number }> }>) => {
+          // A reply is the only proof the bundle loaded: reset the budget here, never at
+          // construction time, or a failing URL would be retried forever.
+          this.workerReady = true;
+          this.workerInitFailed = false;
+          this.workerRetryCount = 0;
           if (this.workerLayoutResolve) {
             this.workerLayoutResolve(e.data.positions);
             this.workerLayoutResolve = null;
@@ -57,7 +68,10 @@ export class LayoutController {
           this.worker?.terminate();
           this.worker = null;
           this.workerInitFailed = true;
-          log.warn('layout worker error — will auto-retry');
+          log.warn('layout worker error — falling back to main-thread layout');
+          // Release any layout already waiting on this worker instead of letting it sit until
+          // the timeout: the caller re-runs the layout on the main thread as soon as we resolve.
+          this.failPendingLayout();
           this.retryWorkerInit();
         };
       } else {
@@ -70,8 +84,21 @@ export class LayoutController {
     }
   }
 
+  /** Resolve an in-flight worker layout with no positions, so the caller falls back immediately. */
+  private failPendingLayout(): void {
+    if (this.workerTimeout) {
+      clearTimeout(this.workerTimeout);
+      this.workerTimeout = null;
+    }
+    if (this.workerLayoutResolve) {
+      const resolve = this.workerLayoutResolve;
+      this.workerLayoutResolve = null;
+      resolve({});
+    }
+  }
+
   isWorkerAvailable(): boolean {
-    return this.worker !== null && !this.workerInitFailed;
+    return this.worker !== null && !this.workerInitFailed && !this.workerGaveUp;
   }
 
   retryWorker(): void {
@@ -80,7 +107,14 @@ export class LayoutController {
 
   private retryWorkerInit(): void {
     if (this.worker) return;
-    if (this.workerRetryCount >= 3) return;
+    if (this.workerGaveUp) return;
+    if (this.workerRetryCount >= RENDERER.WORKER_MAX_INIT_RETRIES) {
+      this.workerGaveUp = true;
+      log.warn(
+        `layout worker unavailable after ${RENDERER.WORKER_MAX_INIT_RETRIES} retries — main-thread layout for the rest of this session`,
+      );
+      return;
+    }
     this.workerRetryCount++;
     this.workerInitFailed = false;
     this.initWorker();
@@ -100,21 +134,23 @@ export class LayoutController {
       this.workerLayoutResolve({});
       this.workerLayoutResolve = null;
     }
+    // Before the first reply the URL may still be a 404 that has not errored yet, so the first
+    // round trip gets the shorter handshake budget; proven workers get the full layout budget.
+    const timeoutMs = this.workerReady
+      ? RENDERER.LAYOUT_TIMEOUT_MS
+      : RENDERER.WORKER_HANDSHAKE_TIMEOUT_MS;
     return new Promise((resolve) => {
       this.workerTimeout = setTimeout(() => {
         log.warn('layout worker timeout — falling back to main-thread layout');
-        if (this.workerLayoutResolve) {
-          this.workerLayoutResolve({});
-          this.workerLayoutResolve = null;
-        }
+        this.failPendingLayout();
         if (this.worker) {
           this.worker.terminate();
           this.worker = null;
           this.workerInitFailed = true;
-          log.warn('layout worker terminated due to timeout — will auto-retry');
+          log.warn('layout worker terminated due to timeout — retrying within the retry budget');
           this.retryWorkerInit();
         }
-      }, RENDERER.LAYOUT_TIMEOUT_MS);
+      }, timeoutMs);
 
       this.workerLayoutResolve = (positions) => {
         if (this.workerTimeout) {
@@ -381,15 +417,11 @@ export class LayoutController {
   destroy(): void {
     if (this.layoutRaf !== null) cancelAnimationFrame(this.layoutRaf);
     this.layoutRaf = null;
-    if (this.workerTimeout) {
-      clearTimeout(this.workerTimeout);
-      this.workerTimeout = null;
-    }
+    // Stop every later attempt: a worker error that lands after destroy must not be answered by
+    // building a fresh worker for a controller nobody uses any more.
+    this.workerGaveUp = true;
     this.positionCache.clear();
-    if (this.workerLayoutResolve) {
-      this.workerLayoutResolve({});
-      this.workerLayoutResolve = null;
-    }
+    this.failPendingLayout();
     this.worker?.terminate();
     this.worker = null;
   }

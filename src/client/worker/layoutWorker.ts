@@ -1,3 +1,7 @@
+// Must stay first: it installs the CommonJS feature test that graphlib/dagre's vendored shims
+// look for before they fall back to browser globals this worker does not have. See the header of
+// workerShims.ts for the full failure chain.
+import './workerShims.ts';
 import cytoscape, { type Core, type LayoutOptions } from 'cytoscape';
 import dagre from 'cytoscape-dagre';
 import fcose from 'cytoscape-fcose';

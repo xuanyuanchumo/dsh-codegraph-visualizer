@@ -34,6 +34,7 @@ import {
   registerAstRoute,
   registerTreeSitterRoute,
 } from './routes/analysisRoutes.ts';
+import { registerLayoutWorkerRoute } from './routes/workerRoutes.ts';
 
 export function registerRoutes(deps: RouteDeps): void {
   const { ctx, config } = deps;
@@ -61,6 +62,7 @@ export function registerRoutes(deps: RouteDeps): void {
   registerSymbolASTRoute(rc);
   registerEdgesRoute(rc);
   registerEventsRoute(rc);
+  registerLayoutWorkerRoute(rc);
 
   ctx.effect(() => () => rateLimiter.reset(), 'codegraph: rate limiter cleanup');
   ctx.effect(() => () => sharedTreeSitterAdapter.destroy(), 'codegraph: tree-sitter adapter cleanup');

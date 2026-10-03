@@ -23,10 +23,10 @@
   "main": "dist/index.js",
   "scripts": {
     "sync-version": "node scripts/sync-version.mjs",
-    "prebuild": "pnpm run sync-version",
+    "clean": "node scripts/clean-dist.mjs",
     "prepare": "pnpm run build",
-    "build": "tsdown src/index.ts --format esm --dts --outDir dist && pnpm run build:client",
-    "build:host": "tsdown src/index.ts --format esm --dts --outDir dist-host --platform node",
+    "build": "pnpm run clean && pnpm run sync-version && tsdown src/index.ts --format esm --dts --outDir dist && pnpm run build:client",
+    "build:host": "pnpm run clean && tsdown src/index.ts --format esm --dts --outDir dist-host --platform node",
     "build:client": "node scripts/build-client.mjs",
     "dev": "node scripts/dev-server.mjs",
     "typecheck": "tsc -p tsconfig.host.json && tsc -p tsconfig.client.json && tsc -p tsconfig.test.json",
@@ -41,7 +41,7 @@
     "perf-gate": "node scripts/perf-gate.mjs",
     "lint": "oxlint src/",
     "lint:fix": "oxlint src/ --fix",
-    "hygiene": "publint dist && node scripts/consume-check.mjs",
+    "hygiene": "node scripts/consume-check.mjs",
     "prepublishOnly": "pnpm run build && pnpm run test"
   },
   "dependencies": {

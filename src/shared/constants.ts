@@ -7,6 +7,14 @@ export const RENDERER = {
   LARGE_GRAPH_NODE_THRESHOLD: 500,
   LAYOUT_TIMEOUT_MS: 10000,
   WORKER_NODE_THRESHOLD: 500,
+  // A worker that has never answered gets a shorter budget than one already proven responsive:
+  // the first round trip also pays for fetching and compiling the worker bundle, and a silent
+  // worker must not keep a layout blocked for the full LAYOUT_TIMEOUT_MS.
+  WORKER_HANDSHAKE_TIMEOUT_MS: 5000,
+  // Hard cap on worker (re)construction attempts. `new Worker(url)` never throws for an
+  // unreachable URL — the failure arrives later as an async `error` event — so without a cap the
+  // error handler would rebuild forever and hammer the server with 404s.
+  WORKER_MAX_INIT_RETRIES: 3,
   INCREMENTAL_LAYOUT_THRESHOLD: 50,
   INCREMENTAL_LAYOUT_DELAY_MS: 50,
   FULL_LAYOUT_DELAY_MS: 150,
@@ -14,6 +22,21 @@ export const RENDERER = {
   NEIGHBORHOOD_ANIMATION_MS: 400,
   DEFAULT_CONTAINER_WIDTH: 800,
   DEFAULT_CONTAINER_HEIGHT: 600,
+} as const;
+
+/**
+ * The layout worker has to be fetched over HTTP because a browser Worker cannot be given an
+ * in-memory module. The plugin's own host serves it, so the client and the host share this one
+ * path: the client builds the Worker URL from it and the host registers the route for it.
+ *
+ * `ARTIFACT` is the file the build produces; `tests/unit/workerContract.test.ts` keeps the two in
+ * step, because a route that serves nothing (or a client that asks for a path nobody registered)
+ * is silent at runtime: layouts just fall back to the main thread.
+ */
+export const LAYOUT_WORKER = {
+  ROUTE_PATH: '/api/v1/codegraph/worker/layoutWorker.js',
+  ARTIFACT: 'dist/client/worker/layoutWorker.js',
+  SOURCE_ENTRY: 'src/client/worker/layoutWorker.ts',
 } as const;
 
 export const CLUSTER = {

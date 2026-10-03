@@ -193,9 +193,29 @@ describe('registerRoutes', () => {
     vi.mocked(checkPrerequisites).mockReturnValue({ codegraph: true, lens: true, builtin: true });
   });
 
-  it('registers all 17 routes', () => {
+  it('registers all 18 routes', () => {
     registerRoutes(deps);
-    expect(ctx.webServer.register).toHaveBeenCalledTimes(17);
+    expect(ctx.webServer.register).toHaveBeenCalledTimes(18);
+  });
+
+  it('serves the layout worker bundle from the plugin HTTP surface', () => {
+    // The browser loads a Worker from a URL, and DSH exposes no asset route for plugin files, so
+    // this path has to be served by the plugin itself (see workerRoutes.ts).
+    registerRoutes(deps);
+    const registration = ctx.webServer.register.mock.calls[17]![0];
+    expect(registration.kind).toBe('exact');
+    expect(registration.path).toBe('/api/v1/codegraph/worker/layoutWorker.js');
+
+    const { res, state } = makeRes();
+    registration.handler(makeReq('GET', undefined, {}, undefined, registration.path), res);
+    // Either the bundle is built (200 with JavaScript) or the route says so honestly (404).
+    if (state.code === 200) {
+      expect(state.headers['content-type']).toContain('text/javascript');
+      expect(state.body.length).toBeGreaterThan(0);
+    } else {
+      expect(state.code).toBe(404);
+      expect(JSON.parse(state.body).error).toBe('WORKER_NOT_BUILT');
+    }
   });
 
   it('GET /status returns prerequisites status', () => {
