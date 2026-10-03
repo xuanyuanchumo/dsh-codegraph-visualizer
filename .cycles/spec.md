@@ -9,18 +9,29 @@ src/
 ├── index.ts                    # Host 入口
 ├── client/
 │   ├── index.ts                # Client 入口
-│   ├── GraphPanel.tsx          # 主面板组件
+│   ├── GraphPanel.tsx          # 主面板组件 (537行)
 │   ├── components/
-│   │   ├── Toolbar.tsx         # 工具栏 (443行)
+│   │   ├── Toolbar.tsx         # 工具栏
 │   │   ├── toolbarConfig.ts    # 工具栏配置
 │   │   └── ...
 │   ├── store/
-│   │   └── graphStore.ts       # Zustand Store (1331行)
-│   └── hooks/                  # React Hooks
+│   │   └── graphStore.ts       # Zustand Store
+│   └── hooks/                  # React Hooks (20+ hooks)
+│       ├── useAdjacencyMap.ts  # 邻接矩阵计算
+│       ├── usePanelSizeApply.ts # 面板尺寸应用
+│       ├── useVisibleNodeCount.ts # 可见节点计数
+│       ├── useDeadCodeMarker.ts # 死代码标记
+│       ├── useWorkspaceEventListener.ts # 工作区事件监听
+│       ├── useUrlExpandSync.ts  # URL expand 同步
+│       ├── usePanelVisibility.ts # 面板可见性控制
+│       └── ...
 ├── host/
-│   ├── routes.ts               # 路由 (1209行)
+│   ├── routes.ts               # 路由
 │   ├── compat/                 # 多代适配器
-│   └── db/                     # 数据库层
+│   │   ├── ClientCompatLayer.ts # 客户端兼容层 (含 desktopPlatform)
+│   │   └── ...
+│   └── db/
+│       └── GraphRepository.ts  # 数据仓库 (原生 SQLite)
 └── adapters/                   # 数据适配器
 ```
 
@@ -57,11 +68,8 @@ src/
 │   │   ├── FeatureFlags.ts     # 特征标志
 │   │   └── HostVersionDetector.ts
 │   └── db/
-│       ├── schema.ts           # drizzle-orm schema
-│       └── GraphRepository.ts  # 数据仓库
+│       └── GraphRepository.ts  # 数据仓库 (原生 SQLite)
 └── adapters/
-    ├── CodeGraphAdapter.ts
-    └── drizzle/                # drizzle 配置
 ```
 
 ---
@@ -114,6 +122,7 @@ interface FeatureFlags {
   supportsSidebarRightTabs: boolean;
   supportsRemoteWebUi: boolean;
   supportsBetterSidebar: boolean;
+  desktopPlatform: boolean;  // Electron 桌面端检测
 }
 ```
 
@@ -134,33 +143,13 @@ interface FeatureFlags {
 | 标签页 | 800-1200px | 标准布局 |
 | 全屏 | 1200px+ | 完整布局 |
 
-### 2.4 数据库层优化 (drizzle-orm)
+### 2.4 数据库层
 
-#### Schema 定义
-```typescript
-// src/host/db/schema.ts
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
-
-export const nodes = sqliteTable('nodes', {
-  id: text('id').primaryKey(),
-  type: text('type').notNull(),
-  name: text('name').notNull(),
-  path: text('path'),
-  // ...
-});
-
-export const edges = sqliteTable('edges', {
-  id: text('id').primaryKey(),
-  source: text('source').notNull(),
-  target: text('target').notNull(),
-  type: text('type').notNull(),
-  // ...
-});
-```
+> **注意**: drizzle-orm 已移除。`node:sqlite` 是同步 API，与 `drizzle-orm/sqlite-proxy` 异步架构不兼容，导致 `getDrizzle()` 从未被外部调用。当前使用原生 SQLite 查询。
 
 #### 查询优化
 - 分页查询使用 `limit/offset`
-- 批量查询使用 `where in` 分批处理
+- 批量查询使用 `where in` 分批处理 (SQLITE.MAX_IN_PARAMS)
 - 缓存层保持不变
 
 ---

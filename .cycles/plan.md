@@ -222,14 +222,15 @@ pnpm run test:e2e
 
 | 阶段 | 任务 | 开始 | 结束 | 状态 |
 |------|------|------|------|------|
-| Build | T01 工具栏整合 | 10-02 | 10-02 | 待开始 |
-| Build | T02 适配器架构 | 10-02 | 10-02 | 待开始 |
-| Build | T03 测试修复 | 10-02 | 10-02 | 待开始 |
-| Build | T04 响应式布局 | 10-02 | 10-02 | 待开始 |
-| Build | T05 Store 拆分 | 10-02 | 10-02 | 待开始 |
-| Build | T06 Routes 拆分 | 10-02 | 10-02 | 待开始 |
-| Build | T07 drizzle-orm | 10-02 | 10-02 | 待开始 |
-| Test | T08 旅程验证 | 10-02 | 10-02 | 待开始 |
+| P0-1 | 轮询 BUG 修复 | 10-03 | 10-03 | ✅ 完成 |
+| P0-2 | 移除未使用 drizzleDb.ts | 10-03 | 10-03 | ✅ 完成 |
+| P0-3 | conversation.view slot 验证 | 10-03 | 10-03 | ✅ 完成 |
+| P1-1 | Desktop 平台检测增强 | 10-03 | 10-03 | ✅ 完成 |
+| P1-2 | RemoteWebUiIntegration 验证 | 10-03 | 10-03 | ✅ 完成 |
+| P1-3 | 删除冗余 validators.test.ts | 10-03 | 10-03 | ✅ 完成 |
+| P1-4 | 用户旅程文档测试映射验证 | 10-03 | 10-03 | ✅ 完成 |
+| P2-1 | GraphPanel hook 拆分 (7 hooks) | 10-03 | 10-03 | ✅ 完成 |
+| P2-2 | 文档更新 | 10-03 | 10-03 | ✅ 完成 |
 
 ---
 
@@ -246,22 +247,22 @@ pnpm run test:e2e
 
 ## 5. 交付清单
 
-- [ ] intent.md 已创建
-- [ ] spec.md 已创建
-- [ ] plan.md 已创建
-- [ ] 工具栏整合完成
-- [ ] 多代适配器架构完成
-- [ ] 测试修复完成
-- [ ] 响应式布局完成
-- [ ] graphStore 拆分完成
-- [ ] routes 拆分完成
-- [ ] drizzle-orm 引入完成
-- [ ] 用户旅程验证完成
-- [ ] 构建成功
-- [ ] lint 通过
-- [ ] 测试通过
-- [ ] 文档更新
-- [ ] 代码提交
+- [x] intent.md 已创建
+- [x] spec.md 已创建
+- [x] plan.md 已创建
+- [x] 轮询 BUG 修复 (P0-1)
+- [x] 移除未使用 drizzleDb.ts (P0-2)
+- [x] conversation.view slot 验证 (P0-3)
+- [x] Desktop 平台检测增强 (P1-1)
+- [x] RemoteWebUiIntegration 验证 (P1-2)
+- [x] 删除冗余 validators.test.ts (P1-3)
+- [x] 用户旅程文档测试映射验证 (P1-4)
+- [x] GraphPanel hook 拆分 — 7 hooks (P2-1)
+- [x] 文档更新 (P2-2)
+- [x] 构建成功
+- [x] lint 通过
+- [x] 测试通过 (4556 tests)
+- [x] 代码提交
 
 ---
 
