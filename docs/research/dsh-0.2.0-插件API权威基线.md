@@ -104,36 +104,116 @@ const manifest: DshPackageManifest = {
 即本项目 `src/client/compat/ClientCompatLayer.ts` + `src/host/compat/ApiCompatLayer.ts` 的
 `safeCheck` 能力探测路线是**正确且唯一可行**的；静态清单只承担"文档 + 元数据"职责。
 
-### 2.3 本项目清单的实测偏差
+### 2.3 本项目清单的实测偏差（已完成整改）
 
-| 项 | 本项目现状 | DSH 规范 | 判定 |
+判定依据来自 **asar 内的真实读取器**，而非 README 的措辞：
+
+| 项 | 整改前 | 权威读取器与行为 | 整改后 |
 |---|---|---|---|
-| `dsh.client.platform` | `"web"` | `"web"`（官方同值） | ✅ 正确 |
-| `dsh.bundle.patch` | `"./cordis.patch.yml"` | 支持 | ✅ 正确 |
-| `dsh.client.inject` | 6 项（含 3 个第三方/官方包） | 官方亦用 `inject` 数组 | ✅ 形状正确（内容待核） |
-| `dsh.hostVersion` | `">=0.1.1-rc.2 <0.4.0"` | **DSH 全部 `.js` 内 `hostVersion` 零命中** | ⚠️ 非规范字段（no-op） |
-| `engines.dsh` | **缺失** | 权威兼容声明位置 | ❌ 应补 |
-| `dsh.manifestVersion` | **缺失** | 推荐为 `1` | ❌ 应补 |
-| `dsh.client.entry` | `"./dist/client.js"` | 官方靠 `exports["./client"]` 发现 | ⚠️ 待运行时验证是否被读取 |
+| `dsh.client.platform` | `"web"` | `dsh-client-modules/lib/index.js:714`：非 `"web"` 即视为**没有客户端半边** | ✅ 保持 `"web"` |
+| `dsh.client.inject` | 6 项（含 `dsh-better-sidebar`、`dsh-remote-web-ui` 两个第三方） | `client.js:61-75` 仅接受 `platform/inject/external/immediately`；`inject` 成为**模块图边**（`:724`） | ✅ 收敛为 3 个官方包（`dsh-client-ui-conversation`/`-renderer`/`-sidebar-right`） |
+| `dsh.hostVersion` | `">=0.1.1-rc.2 <0.4.0"` | DSH 全部 `.js` 零读取 | ✅ 删除，职责交 `engines.dsh` |
+| `engines.dsh` | **缺失** | `dsh-package-manifest` 声明的权威兼容位置（不强制） | ✅ `">=0.1.7-rc.2 <0.4.0"`（覆盖三代） |
+| `dsh.manifestVersion` | **缺失** | 同上（不强制） | ✅ `1` |
+| `dsh.client.entry` | `"./dist/client.js"` | `index.js:718-719` `clientExportOf(packageName, pkg.exports)` → **`exports["./client"]` 唯一权威**；`clientEntry`/`client.entry` 全库 **0 命中** | ✅ 删除 |
+| `dsh.displayName`/`dsh.description`/`dsh.category` | 有 | `dsh[?]?\.(displayName\|category\|optionalPlugins\|permissions\|hostVersion\|manifestVersion)` 全库 **0 命中** | ✅ 删除，展示文案改由 `locale/*.json` 承担 |
+| `dsh.permissions`/`dsh.optionalPlugins` | 有 | 同上 0 命中；第三方市场也不读（`dshmarket/lib/verify.js` 只读 `dsh.client`/`dsh.bundle`） | ✅ 删除，意图移入文档 + 运行时能力探测 |
+| `files` | `["dist","cordis.patch.yml"]` | `app-boot` 需要从包内解析 `locale/` 与图标 | ✅ 增 `locale`、`assets`、`README.md` |
+| `exports["./locale/*.json"]` | **缺失** | `app-boot/lib/index.js:1884-1895` 用 **Node ESM resolver** 解析 `${pkg}/locale/en.json`，`ERR_PACKAGE_PATH_NOT_EXPORTED` 被 `missingResource` 吞掉 → **元数据静默消失** | ✅ 补上 |
+| `scripts.prepare` | **缺失** | `dist/` 被 `.gitignore` 忽略；`dshmarket/lib/verify.js:184-195` 对"源码检出且入口产物缺失"判定为下一个 boot 会失败 | ✅ 补 `pnpm run build` |
 
-`hostVersion` 全库零命中的验证方式：
-`node .cycles/tmp-asar.mjs <asar> grep '[.]js$' 'hostVersion' 10` → `files with hits: 0`
-（同法 `manifestVersion` 亦 0 命中，与 2.2 的"不强制"表述自洽）。
+零命中的复验方式：`node .cycles/tmp-asar.mjs <asar> grep '[.]js$' '<pattern>' 10`。
+
+### 2.4 展示元数据的权威契约（locale + icon）
+
+`@deepseek-ai/dsh-app-boot/lib/index.js`：
+
+- `:1969 readPluginMeta(specifier, parentURL)` → `:1972` 读 `${specifier}/locale/en.json`
+  （**en.json 是锚点，缺失则所有语言都不读**）→ `:1976 title`、`:1977 description`、
+  `:1984 icon = iconOf(manifest?.icon, manifestPath)`。
+- `:1925 dictionariesOf()`：读取 en.json **同目录下的每一个 `.json`**，用**文件名（去扩展名）当 language id**，
+  必须匹配 `:1850 LANGUAGE_ID = /^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/u`；重复 locale 或跨目录即 throw。
+  字典键是**小写化**后的文件名（`:1930 const language = entry.name.slice(0, -5);` → `:1932 const id = language.toLowerCase();`），
+  因此 `zh.json` 与 `zh-CN.json` 是两个**不同**的键（`zh` / `zh-cn`）。
+- **JSON 形状是 `{ "meta": { "title": ..., "description": ... } }`**（不是顶层 title/description）；
+  字段存在时必须是非空字符串，否则 throw。
+- `:1945 localizedText(field, dictionaries, fallback, finalFallback)` **返回的不是字符串而是语言映射**
+  （`:1951-1954 return { en: fallback ?? finalFallback, ...Object.fromEntries(entries) }`），
+  即 `{ "en": <manifest.name 或字典 en>, "zh": ..., "zh-cn": ... }`。
+  消费端（如 `pluginManager/listBundles` 的 `meta`、设置面板列表）再按**当前界面语言 id 精确取键**：
+  **键不存在时不回落 `en`，而是退回包名 + package.json 的 `description`**。
+- **语言 id 用 `zh` 而不是 `zh-CN`**：asar 中带 locale 的 **10 个官方包全部只发 `en.json` + `zh.json`**
+  （`node .cycles/tmp-asar.mjs <asar> find "node_modules/@deepseek-ai/[^/]+/locale/[^/]+\.json$"` → 10 个 `en.json`、10 个 `zh.json`、**零个 `zh-CN.json`**）。
+  文件名与宿主实际索取的 id 不一致时**不报错**，只静默退化为包名（J0 实测教训）。
+- `:1860 iconOf(value, manifestPath)`：图标取自 **package.json 顶层 `icon`**（相对路径），
+  扩展名必须在 `:1853 ICON_MEDIA_TYPES`（`.svg`/`.png`/`.jpg`/`.jpeg`/`.webp`）内、
+  必须留在 manifest 目录内、且 `:1852 MAX_ICON_BYTES = 256 * 1024` 以内；最终内联为 `data:<mime>;base64,...`。
+- 容错差异很重要：`:1986-1990` 图标失败只返回 `{...text, error}`，**展示文本仍保留**；
+  而 locale 不可解析（含未导出）则**静默退化为包名**。
+
+本项目据此新增 `locale/en.json`、`locale/zh.json`（形状 `{"meta":{"title","description"}}`，
+另保留 `locale/zh-CN.json` 作为地区标签别名）与 `assets/icon.svg`（1.1 KiB，相对路径），
+并由 `tests/unit/manifest.test.ts` 的 **18 条**断言固化为回归测试。
+
+### 2.5 元数据的解析锚点：安装目录优先（J0 实测的遮蔽陷阱）
+
+`@deepseek-ai/dsh-app-boot/lib/index.js:889-907`：
+
+```js
+// Resolve one bundle package's directory: installation anchor first, then the
+// profile directory. The installation-first order is the contract that
+// `@deepseek-ai/dsh-base` (and every other in-box bundle) always comes from
+// the same installation as the running dsh, never from a profile-local copy.
+function resolveBundleDir(binName, packageName, installAnchor, profileDir) {
+  for (const anchor of [installAnchor, join(profileDir, "package.json")]) { … }
+}
+```
+
+`@deepseek-ai/dsh-plugin-manager/lib/index.js:1493` 用 `resolveBundleDir("dsh", name, profile.installAnchor, profile.dir)`
+再交给 `readPluginMeta(...)`，`:1475 bundleManifest(...)` 也从同一目录取**版本**。
+
+⇒ **若 DSH 安装目录自身的 `node_modules` 里存在本插件的同名副本，bundle 级 `version`/`meta`/`icon`
+全部来自那个副本**，profile 里指向本仓库的 `link:` 只在 `rows[]` 与客户端半边生效。
+J0 实测正是如此：`D:\JetBrains\nvm\node_global\node_modules\dsh-codegraph-visualizer@2.1.0`
+（无 `locale/`、无 `exports["./locale/*.json"]`、无 `dist/client.js`）遮蔽了本体，
+导致"已安装"列表显示包名而非 `locale` 标题、图标缺失、版本显示 2.1.0。
+把该副本改名让路后（可逆），同一 RPC 立即返回
+`version:"0.2.0"`、`meta.title:{en,zh,zh-cn}`、`iconLen:1494`，UI 随即渲染中文标题与图标。
+
+**这不是清单缺陷**：清洁环境中插件只存在于 profile，解析自然命中本体。
+但**自测/开发环境必须检查安装锚点是否残留同名旧副本**，否则会追错方向
+（详见 `docs/用户旅程.md` 的 J0 前置检查）。
+
+### 2.6 `dsh.client` 的真实语义
+
+- `dsh-client-modules/lib/client.js:61-75 parseDshClient()` 只认 4 个键：`platform`（**必填 string**）、
+  `inject`（string[]）、`external`（string[]）、`immediately`（boolean）；**其余键被静默丢弃**，类型不符即 throw。
+- `inject` = 模块图边：官方客户端插件（`dsh-client-ui-chat/package.json:28-45`、
+  `dsh-client-ui-sidebar-right/package.json:28-39` 等）**只列 `@deepseek-ai/*` 官方包**，
+  从不列第三方插件 —— 本项目整改后与官方范式一致，第三方集成全部退回运行时能力探测。
+- `external` 用于"我 require 但不打包进来"的模块（`:428` 禁止声明自身包名）。
+- 官方客户端插件的 `peerDependencies` 统一为 `{ "@deepseek-ai/cordis": "~4.0.4" }`。
 
 ## 3. 版本矩阵与偏斜
 
 | 包 | DSH 运行时（asar） | 本项目 node_modules | 本项目声明 | 判定 |
 |---|---|---|---|---|
-| `@deepseek-ai/cordis` | `4.0.4` | `4.0.1` | peer `^4.0.1` | ✅ 可满足（4.0.4 在 ^4.0.1 内） |
-| `@deepseek-ai/dsh-client-connection` | `0.2.0-rc.2` | **`0.1.7-rc.2`** | 仅 peer，无 devDep | ⚠️ **偏斜** |
+| `@deepseek-ai/cordis` | `4.0.4` | `4.0.4` | devDep `^4.0.4`；peer `^4.0.1` | ✅ 构建期与运行时精确对齐 |
+| `@deepseek-ai/dsh-client-connection` | `0.2.0-rc.2` | —（已移除） | **原仅 peer，现整条删除** | ✅ 偏斜随死声明一并消除 |
 | `@deepseek-ai/dsh-llm` | `0.2.0-rc.2` | `0.2.0-rc.2` | devDep `0.2.0-rc.2` | ✅ |
-| `@deepseek-ai/dsh-session` | `0.2.0-rc.2` | `0.2.0-rc.2` | devDep `0.2.0-rc.2` | ✅ |
+| `@deepseek-ai/dsh-session` | `0.2.0-rc.2` | —（已移除） | **原 peer+devDep，现删除** | ✅ 全库零引用 |
 | `@deepseek-ai/dsh-tools` | `0.2.0-rc.2` | `0.2.0-rc.2` | devDep `0.2.0-rc.2` | ✅ |
 
-`dsh-client-connection` 偏斜根因：`package.json` 的 `devDependencies` **未声明**该包，
-`0.1.7-rc.2` 由传递依赖提升而来。`src/**` 中**没有任何文件 import 它**
-（grep `dsh-client-connection` 于 `src/` 仅命中 `package.json` 的 inject 列表），
-故当前**无编译期实际损害**，但清单与锁文件不一致，属应修的技术债。
+**偏斜的真实根因与更好的修法**：`dsh-client-connection` 的 `0.1.7-rc.2` 由传递依赖提升而来，
+只因清单里有一条**从未被 import** 的 peer 声明才显得"偏高"。`src/**` 的实际导入面只有
+`@deepseek-ai/cordis`（21 处）、`@deepseek-ai/dsh-llm`（1 处）、`@deepseek-ai/dsh-tools`（1 处）与
+`react`/`react-dom`（83 个文件）；`dsh-session` 在 `src/`、`tests/`、`tsconfig*.json` 中**零命中**。
+因此本轮采取的修法是**删除死声明**而非升级版本号：`pnpm install` 后 `node_modules/@deepseek-ai/`
+只剩 `cordis@4.0.4`、`dsh-llm@0.2.0-rc.2`、`dsh-tools@0.2.0-rc.2` 三个包，锁文件同步收缩。
+
+**`peerDependencies` 故意保留 `^4.0.1`（而非官方的 `~4.0.4`）**：本项目是**跨代发布的第三方插件**，
+gen1（0.1.7-rc.2）宿主可能携带更早的 cordis 4.x；而 devDep 取 `^4.0.4` 保证 `tsc` 面向当前运行时 API 校验。
+这是"宽 peer / 严 devDep"的有意分歧，不是为了对齐官方而收窄兼容面。
 
 ## 4. DSH 运行时同时提供的、与本项目相关的能力包
 
