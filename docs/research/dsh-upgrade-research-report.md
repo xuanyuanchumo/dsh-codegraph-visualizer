@@ -45,7 +45,7 @@
 | `remoteWebUi` | ❌ false | ✅ true | ❌ false | **gen2 新增**：远程 Web UI 标签页协议 |
 | `mcpServer` | ✅ true | ✅ true | ✅ true | MCP Server（两代均有） |
 | `rateLimiting` | ✅ true | ✅ true | ✅ true | 限流（两代均有） |
-| `treeSitterWasm` | ✅ true | ✅ true | ✅ true | Tree-sitter WASM 解析 |
+| `treeSitterWasm` | ✅ true | ✅ true | ✅ true | Tree-sitter WASM 解析 —— **Round 7 已从 `FeatureFlags` 删除**：本插件的解析跑在自己的宿主进程、用自家依赖 `tree-sitter-wasm`（`getWasmPath`），宿主既不能授予也不能收回该能力；该标志在每一代都写 `true` 且全仓无读取点（语义与实际相反）。取舍理由见 `docs/需求分析.md` §31.6 与 `src/host/compat/FeatureFlags.ts` 顶部注释 |
 | `healthScore` | ✅ true | ✅ true | ✅ true | 架构健康评分 |
 | `rulesCheck` | ✅ true | ✅ true | ✅ true | 规则引擎检测 |
 | `multiWorkspace` | ❌ false | ✅ true | ✅ true | **gen2 新增**：多工作区并行 |
