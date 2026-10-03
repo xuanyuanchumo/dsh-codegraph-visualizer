@@ -68,16 +68,74 @@ describe('DeadCodeAnalyzer', () => {
     expect(result.deadNodes[0]!.category).toBe('no-incoming');
   });
 
-  it('marks module nodes as entry points', () => {
+  it('keeps module nodes as entry points but not their containment as liveness', () => {
     const mod = makeNode('mod1', 'myModule', 'module', '/index.ts', 1);
-    const func = makeNode('func1', 'myFunc', 'function', '/index.ts', 5);
-    const nodes = [mod, func];
+    const uncalled = makeNode('func1', 'myFunc', 'function', '/index.ts', 5);
+    const nodes = [mod, uncalled];
     const edges: GraphEdge[] = [
       makeEdge('e1', 'mod1', 'func1', 'contains'),
     ];
 
     const result = analyzer.analyze(nodes, edges);
+    expect(result.entryNodes).toContain('mod1');
+    // Containment is structure, not usage: nothing references the symbol, so it is
+    // suspected dead code instead of being silently kept alive by its module.
+    expect(result.deadNodes).toHaveLength(1);
+    expect(result.deadNodes[0]!.nodeId).toBe('func1');
+    expect(result.deadNodes[0]!.category).toBe('no-incoming');
+    expect(result.deadNodes[0]!.confidence).toBe('suspected');
+  });
+
+  it('keeps a contained symbol alive when a reference edge reaches it', () => {
+    const mod = makeNode('mod1', 'myModule', 'module', '/index.ts', 1);
+    const exported = makeNode('exp', 'exportedFunc', 'function', '/index.ts', 3, { isExported: true });
+    const helper = makeNode('helper', 'helper', 'function', '/index.ts', 8);
+    const nodes = [mod, exported, helper];
+    const edges: GraphEdge[] = [
+      makeEdge('e1', 'mod1', 'exported', 'contains'),
+      makeEdge('e2', 'mod1', 'helper', 'contains'),
+      makeEdge('e3', 'exp', 'helper', 'call'),
+    ];
+
+    const result = analyzer.analyze(nodes, edges);
     expect(result.deadNodes).toHaveLength(0);
+  });
+
+  it('reports reference degrees, not structural connection counts', () => {
+    const mod = makeNode('mod1', 'myModule', 'module', '/index.ts', 1);
+    const exported = makeNode('exp', 'exportedFunc', 'function', '/index.ts', 3, { isExported: true });
+    const used = makeNode('used', 'usedHelper', 'function', '/index.ts', 5);
+    const orphanNode = makeNode('orphan', 'orphanCaller', 'function', '/dead.ts', 9);
+    const nodes = [mod, exported, used, orphanNode];
+    const edges: GraphEdge[] = [
+      makeEdge('e1', 'mod1', 'used', 'contains'),
+      makeEdge('e2', 'mod1', 'orphan', 'contains'),
+      makeEdge('e3', 'exp', 'used', 'call'),
+      makeEdge('e4', 'orphan', 'used', 'call'),
+    ];
+
+    const result = analyzer.analyze(nodes, edges);
+    // `orphanCaller` is contained by an entry module but nothing references it, so it is dead;
+    // its single outgoing reference is reported while the `contains` edge is not counted.
+    expect(result.deadNodes).toHaveLength(1);
+    expect(result.deadNodes[0]!.nodeId).toBe('orphan');
+    expect(result.deadNodes[0]!.inDegree).toBe(0);
+    expect(result.deadNodes[0]!.outDegree).toBe(1);
+  });
+
+  it('surfaces a containment-only graph that used to report nothing (J0 Round 11)', () => {
+    const nodes: GraphNode[] = [];
+    const edges: GraphEdge[] = [];
+    for (let i = 0; i < 5; i++) {
+      nodes.push(makeNode(`mod${i}`, `module${i}`, 'module', `/m${i}.ts`, 1));
+      nodes.push(makeNode(`fn${i}`, `helper${i}`, 'function', `/m${i}.ts`, 4));
+      edges.push(makeEdge(`c${i}`, `mod${i}`, `fn${i}`, 'contains'));
+    }
+
+    const result = analyzer.analyze(nodes, edges);
+    expect(result.deadNodes).toHaveLength(5);
+    expect(result.stats.suspected).toBe(5);
+    expect(result.stats.confirmed).toBe(0);
   });
 
   it('computes stats correctly', () => {
