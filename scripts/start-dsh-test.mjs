@@ -30,14 +30,12 @@ import {
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir, tmpdir } from 'node:os';
-import { randomBytes } from 'node:crypto';
 
 // ---------- 路径与常量 ----------
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '..');
 const PID_FILE = join(tmpdir(), 'dsh-codegraph-dsh.pid');
 const CHROME_PID_FILE = join(tmpdir(), 'dsh-codegraph-chrome.pid');
-const TOKEN_FILE = join(tmpdir(), 'dsh-codegraph-token.txt');
 const DSH_LOG = join(tmpdir(), 'dsh-codegraph-dsh.log');
 const CHROME_LOG = join(tmpdir(), 'dsh-codegraph-chrome.log');
 
@@ -300,6 +298,20 @@ function findDshCmd() {
   return null;
 }
 
+/**
+ * 把 `dsh.cmd` 垫片解析成它真正执行的 Node 入口。
+ *
+ * 必须绕过 .cmd：`cmd.exe /c dsh.cmd` 以 detached（无控制台）方式启动时，
+ * 垫片里 `endLocal & goto … & title %COMSPEC% & node …` 这条链会把子进程的
+ * stdout 丢掉（实测 `dsh.cmd --version` 重定向到文件后是 0 字节，直接
+ * `node bin.js --version` 则有输出）。而 DSH 的认证 URL 只从 stdout 打印，
+ * 所以拿不到它就等于 J0 无法鉴权。
+ */
+function resolveDshEntry(dshCmd) {
+  const guess = join(dirname(dshCmd), 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
+  return existsSync(guess) ? guess : null;
+}
+
 function findChromeExe() {
   const localAppData = process.env.LOCALAPPDATA;
   const programFiles = process.env.ProgramFiles || 'C:\\Program Files';
@@ -334,35 +346,34 @@ function wipeChromeProfile() {
   }
 }
 
-// ---------- 令牌管理 ----------
-function getOrCreateFixedToken() {
-  try {
-    if (existsSync(TOKEN_FILE)) {
-      const saved = readFileSync(TOKEN_FILE, 'utf8').trim();
-      if (saved) { dbg(`从 ${TOKEN_FILE} 复用固定令牌`); return saved; }
-    }
-  } catch (e) { warn(`读取令牌文件失败: ${e.message}，将重新生成`); }
-  const token = randomBytes(24).toString('hex');
-  try {
-    writeFileSync(TOKEN_FILE, token, { mode: 0o600 });
-    log(`生成新的固定令牌并保存到 ${TOKEN_FILE}`);
-  } catch (e) { warn(`写入令牌文件失败: ${e.message}，本次使用内存令牌`); }
-  return token;
-}
-
-function buildTokenUrl(token, host = '127.0.0.1') {
-  return `http://${host}:${DSH_PORT}/?web_token=${encodeURIComponent(token)}`;
-}
+// ---------- 认证 URL 管理 ----------
+// DSH 的启动令牌是每进程随机、只存在于内存与它自己打印的 URL 中的（查询参数名是
+// `token`，没有 `web_token` 语义，也没有任何环境变量入口 —— 见
+// @deepseek-ai/dsh-client-connection 的 PROCESS_LAUNCH_TOKENS WeakMap）。
+// 因此唯一可行的获取方式就是捕获 `dsh web` 写到 stdout 的那一行。
+const DSH_URL_LINE_RE = /dsh web:\s*(https?:\/\/\S+)/;
 
 function extractTokenUrlFromLog(logFile) {
   try {
     if (!existsSync(logFile)) return null;
     const content = readFileSync(logFile, 'utf8');
-    const re = /https?:\/\/[^\s"'<>\[\]()]+[?](?:web_)?token=[^\s"'<>\[\]()]+/g;
-    const matches = [...content.matchAll(re)];
+    const direct = DSH_URL_LINE_RE.exec(content);
+    if (direct) return direct[1];
+    const matches = [...content.matchAll(/https?:\/\/127\.0\.0\.1:\d+\/\?token=\S+/g)];
     if (matches.length === 0) return null;
     return matches[matches.length - 1][0];
   } catch { return null; }
+}
+
+/** 轮询 DSH 日志等待 `dsh web:` 认证 URL（它紧随服务就绪打印）。 */
+async function waitForTokenUrlFromLog(timeoutMs = 5000) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const url = extractTokenUrlFromLog(DSH_LOG);
+    if (url) return url;
+    if (Date.now() >= deadline) return null;
+    await sleep(250);
+  }
 }
 
 // ---------- 启动前端口评估 ----------
@@ -496,7 +507,6 @@ function statusEnvironment() {
   console.log('');
   console.log(`DSH PID 文件:     ${PID_FILE}`);
   console.log(`Chrome PID 文件:  ${CHROME_PID_FILE}`);
-  console.log(`令牌文件:         ${TOKEN_FILE}`);
   console.log(`DSH 日志:         ${DSH_LOG}`);
   console.log(`Chrome 日志:      ${CHROME_LOG}`);
   console.log(`Chrome profile:   ${USER_DATA_DIR}`);
@@ -508,20 +518,18 @@ async function startDsh() {
   if (!dshCmd) throw new Error('找不到 dsh.cmd');
   log(`使用 DSH: ${dshCmd}`);
 
-  const fixedToken = getOrCreateFixedToken();
-  const tokenUrl = buildTokenUrl(fixedToken);
-  log(`固定令牌已就绪 (${fixedToken.slice(0, 8)}...)`);
-  log(`认证 URL: ${tokenUrl}`);
-
   try { unlinkSync(DSH_LOG); } catch { /* ignore */ }
 
-  log(`启动 DSH Web 服务（注入固定令牌，超时 ${timeoutSeconds}s）...`);
-  const dshProc = spawnWithLog('cmd.exe', ['/c', dshCmd, 'web', '--no-open'], {
-    cwd: PROJECT_ROOT,
-    detached: true,
-    windowsHide: true,
-    env: { ...process.env, DSH_WEB_TOKEN: fixedToken },
-  }, DSH_LOG);
+  log(`启动 DSH Web 服务（超时 ${timeoutSeconds}s）...`);
+  const dshEntry = resolveDshEntry(dshCmd);
+  const dshProc = dshEntry
+    ? spawnWithLog(process.execPath, [dshEntry, 'web', '--no-open'], {
+        cwd: PROJECT_ROOT, detached: true, windowsHide: true,
+      }, DSH_LOG)
+    : spawnWithLog('cmd.exe', ['/c', dshCmd, 'web', '--no-open'], {
+        cwd: PROJECT_ROOT, detached: true, windowsHide: true,
+      }, DSH_LOG);
+  if (!dshEntry) warn(`未能从 ${dshCmd} 解析出 Node 入口，回退 cmd.exe 垫片（可能捕获不到认证 URL）`);
 
   let spawnFailed = false;
   dshProc.once('error', e => { spawnFailed = true; warn(`DSH spawn 失败: ${e.message}`); });
@@ -551,13 +559,11 @@ async function startDsh() {
   else warn(`无法通过端口查找 PID，使用 spawn PID: ${dshProc.pid}`);
   writePidFile(PID_FILE, finalDshPid);
 
-  let dshTokenUrl = tokenUrl;
-  await sleep(300);
-  const fromLog = extractTokenUrlFromLog(DSH_LOG);
-  if (fromLog) { dshTokenUrl = fromLog; dbg(`从日志捕获 token URL: ${dshTokenUrl}`); }
-  else dbg('日志中未找到 token URL，使用构造的认证 URL');
+  const dshTokenUrl = await waitForTokenUrlFromLog(5000);
+  if (dshTokenUrl) log(`认证 URL 已捕获: ${dshTokenUrl}`);
+  else warn(`未能从 ${DSH_LOG} 捕获 DSH 认证 URL —— 新开的 Chrome 会停在被拒绝访问页面；请检查日志`);
 
-  return { dshProc, finalDshPid, fixedToken, tokenUrl, dshTokenUrl };
+  return { dshProc, finalDshPid, dshTokenUrl };
 }
 
 // ---------- 启动 Chrome ----------
@@ -672,9 +678,8 @@ function printConnectionInfo(dsh, chrome, dshTarget) {
     console.log('DSH 页面 WebSocket: (未找到 DSH 页面，请手动在 Chrome 中打开)');
   }
   console.log(`DSH Web 服务: ${DSH_URL}`);
-  if (dsh) {
-    console.log(`DSH 固定令牌: ${dsh.fixedToken}`);
-    console.log(`DSH 认证 URL: ${dsh.tokenUrl}`);
+  if (dsh?.dshTokenUrl || dsh?.tokenUrl) {
+    console.log(`DSH 认证 URL: ${dsh.dshTokenUrl || dsh.tokenUrl}`);
   }
   console.log('');
   console.log('chrome-devtools MCP 可直接使用，无需额外配置。');
@@ -699,10 +704,10 @@ async function startEnvironment() {
       } else {
         warn('已运行的 Chrome 中未找到 DSH 页面目标，请手动刷新或使用 --force 重启');
       }
-      let token = null;
-      try { token = existsSync(TOKEN_FILE) ? readFileSync(TOKEN_FILE, 'utf8').trim() : null; } catch {}
+      const reusedUrl = extractTokenUrlFromLog(DSH_LOG);
+      if (!reusedUrl) warn(`无法从 ${DSH_LOG} 恢复认证 URL；如需新开 Chrome 请用 --force 重启 DSH`);
       printConnectionInfo(
-        token ? { fixedToken: token, tokenUrl: buildTokenUrl(token), finalDshPid: findPidByPort(DSH_PORT) } : null,
+        { dshTokenUrl: reusedUrl, finalDshPid: findPidByPort(DSH_PORT) },
         { finalChromePid: findPidByPort(CHROME_DEBUG_PORT) },
         dshTarget,
       );
@@ -711,11 +716,10 @@ async function startEnvironment() {
     }
     if (health.dsh && !health.chrome) {
       log('检测到 DSH 已在运行但 Chrome 未启动，将只启动 Chrome');
-      const token = (() => { try { return readFileSync(TOKEN_FILE, 'utf8').trim(); } catch { return null; } })();
-      if (!token) {
-        warn('未找到令牌文件，无法复用 DSH 会话，将走完整重启流程');
+      const tokenUrl = extractTokenUrlFromLog(DSH_LOG);
+      if (!tokenUrl) {
+        warn(`无法从 ${DSH_LOG} 恢复 DSH 认证 URL，将走完整重启流程`);
       } else {
-        const tokenUrl = buildTokenUrl(token);
         let chrome;
         try {
           chrome = await startChrome(tokenUrl);
@@ -732,7 +736,7 @@ async function startEnvironment() {
         if (!dshTarget) warn('未能在 20 秒内找到 DSH 页面目标，MCP 可能需要手动附加');
         else log(`DSH 页面目标已就绪: ${dshTarget.title || '(无标题)'}`);
         printConnectionInfo(
-          { fixedToken: token, tokenUrl, finalDshPid: findPidByPort(DSH_PORT) },
+          { dshTokenUrl: tokenUrl, finalDshPid: findPidByPort(DSH_PORT) },
           chrome, dshTarget,
         );
         await sleep(300);
@@ -761,9 +765,13 @@ async function startEnvironment() {
   }
 
   // 3) 启动 Chrome（失败时可选 fresh-profile 重试一次）
+  const chromeUrl = dsh.dshTokenUrl || DSH_URL;
+  if (!dsh.dshTokenUrl) {
+    warn('没有认证 URL，Chrome 只会打开未鉴权首页（会显示 authentication required）');
+  }
   let chrome;
   try {
-    chrome = await startChrome(dsh.dshTokenUrl || dsh.tokenUrl);
+    chrome = await startChrome(chromeUrl);
   } catch (e) {
     warn(`Chrome 启动失败: ${e.message}`);
     if (freshProfile) {
@@ -771,7 +779,7 @@ async function startEnvironment() {
       try { await stopChromeGracefully(); } catch {}
       wipeChromeProfile();
       try {
-        chrome = await startChrome(dsh.dshTokenUrl || dsh.tokenUrl);
+        chrome = await startChrome(chromeUrl);
         log('fresh-profile 重试成功');
       } catch (e2) {
         warn(`Chrome 重试仍失败: ${e2.message}，回滚 DSH`);

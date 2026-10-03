@@ -18,6 +18,7 @@ playwright-report/
 test-results/
 .codegraph/
 .codeartsdoer/
+.dsh/
 .codegraph-visualizer/
 dist-test/
 src/types/*.d.ts
