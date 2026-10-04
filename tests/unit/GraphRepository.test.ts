@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GraphRepository } from '../../src/host/db/GraphRepository.ts';
 import type { SnapshotRecord, AnalysisRecord, LayoutPresetRecord } from '../../src/host/db/GraphRepository.ts';
+import { FINGERPRINT } from '../../src/shared/constants.ts';
 
 // Internal sqlite handle shape, accessed only for fault-injection in tests.
 type SqliteDbLike = {
@@ -117,6 +118,53 @@ describe('GraphRepository', () => {
     it('saveSnapshot before init is a safe no-op', () => {
       expect(() => repo.saveSnapshot('r', 'h', 1, 1, Buffer.from('x'))).not.toThrow();
       expect(repo.getLatestSnapshot('r')).toBeNull();
+    });
+  });
+
+  describe('countSnapshots', () => {
+    it('counts snapshots per repo in isolation', () => {
+      repo.init();
+      expect(repo.countSnapshots('repo-A')).toBe(0);
+      repo.saveSnapshot('repo-A', 'h1', 1, 1, Buffer.from('a'));
+      repo.saveSnapshot('repo-B', 'h1', 1, 1, Buffer.from('b'));
+      repo.saveSnapshot('repo-A', 'h2', 2, 2, Buffer.from('c'));
+
+      expect(repo.countSnapshots('repo-A')).toBe(2);
+      expect(repo.countSnapshots('repo-B')).toBe(1);
+      expect(repo.countSnapshots('missing')).toBe(0);
+    });
+
+    // P0-6: re-saving the same structural fingerprint must update the existing row in place instead
+    // of appending. This is the UNIQUE(repo_id, snapshot_hash) index doing its job.
+    it('does not grow when the same hash is saved twice', () => {
+      repo.init();
+      repo.saveSnapshot('repo-A', 'v1:stable', 5, 6, Buffer.from('first'));
+      repo.saveSnapshot('repo-A', 'v1:stable', 5, 6, Buffer.from('second'));
+
+      expect(repo.countSnapshots('repo-A')).toBe(1);
+      const rec = repo.getLatestSnapshot('repo-A') as SnapshotRecord;
+      expect(rec.snapshotHash).toBe('v1:stable');
+      expect(Buffer.from(rec.data as Uint8Array).toString('utf-8')).toBe('second');
+    });
+
+    it('keeps at most the configured number of distinct snapshots', () => {
+      repo.init();
+      for (let i = 0; i < FINGERPRINT.SNAPSHOT_KEEP + 2; i++) {
+        repo.saveSnapshot('repo-A', `v1:h${i}`, i, i, Buffer.from(`d${i}`));
+      }
+      expect(repo.countSnapshots('repo-A')).toBe(FINGERPRINT.SNAPSHOT_KEEP);
+    });
+
+    it('honours an explicit keep override on pruneSnapshots', () => {
+      repo.init();
+      repo.saveSnapshot('repo-A', 'h1', 1, 1, Buffer.from('a'));
+      repo.saveSnapshot('repo-A', 'h2', 1, 1, Buffer.from('b'));
+      repo.pruneSnapshots('repo-A', 1);
+      expect(repo.countSnapshots('repo-A')).toBe(1);
+    });
+
+    it('countSnapshots before init is a safe no-op returning 0', () => {
+      expect(repo.countSnapshots('repo-A')).toBe(0);
     });
   });
 
@@ -336,6 +384,14 @@ describe('GraphRepository', () => {
         throw new Error('prepare boom');
       };
       expect(repo.getLayoutPresets('r')).toEqual([]);
+    });
+
+    it('countSnapshots returns 0 on a prepare error', () => {
+      const db = getDb(repo);
+      db.prepare = () => {
+        throw new Error('prepare boom');
+      };
+      expect(repo.countSnapshots('r')).toBe(0);
     });
   });
 });

@@ -2,6 +2,7 @@ import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { scoped } from '../../shared/Logger.ts';
+import { FINGERPRINT } from '../../shared/constants.ts';
 
 const log = scoped('db:repository');
 
@@ -61,6 +62,7 @@ const SQL = {
   GET_PREFERENCE: `SELECT value FROM user_preferences WHERE key = ?`,
   SAVE_LAYOUT_PRESET: `INSERT INTO layout_presets (repo_id, name, layout_type, positions, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(repo_id, name) DO UPDATE SET layout_type = excluded.layout_type, positions = excluded.positions, created_at = excluded.created_at`,
   GET_LAYOUT_PRESETS: `SELECT id, name, layout_type, positions FROM layout_presets WHERE repo_id = ? ORDER BY created_at DESC`,
+  COUNT_SNAPSHOTS: `SELECT COUNT(*) AS n FROM graph_snapshots WHERE repo_id = ?`,
   PRUNE_SNAPSHOTS: `DELETE FROM graph_snapshots WHERE repo_id = ? AND id NOT IN (SELECT id FROM graph_snapshots WHERE repo_id = ? ORDER BY created_at DESC LIMIT ?)`,
   PRUNE_ANALYSIS: `DELETE FROM analysis_results WHERE repo_id = ? AND analysis_type = ? AND id NOT IN (SELECT id FROM analysis_results WHERE repo_id = ? AND analysis_type = ? ORDER BY created_at DESC LIMIT ?)`,
 } as const;
@@ -119,7 +121,7 @@ export class GraphRepository {
   }
 
   /** Keep only the most recent `keep` snapshots per repo to bound disk growth. */
-  pruneSnapshots(repoId: string, keep = 3): void {
+  pruneSnapshots(repoId: string, keep: number = FINGERPRINT.SNAPSHOT_KEEP): void {
     if (!this.db) return;
     try {
       this.db.prepare(SQL.PRUNE_SNAPSHOTS).run(repoId, repoId, keep);
@@ -141,6 +143,15 @@ export class GraphRepository {
         createdAt: row['created_at'] as number,
       };
     } catch (e) { log.warn('getLatestSnapshot failed', e); return null; }
+  }
+
+  /** Number of stored snapshots for a repo. Diagnostics and fingerprint-dedup assertions. */
+  countSnapshots(repoId: string): number {
+    if (!this.db) return 0;
+    try {
+      const row = this.db.prepare(SQL.COUNT_SNAPSHOTS).get(repoId) as Record<string, unknown> | undefined;
+      return typeof row?.['n'] === 'number' ? (row['n'] as number) : 0;
+    } catch (e) { log.warn('countSnapshots failed', e); return 0; }
   }
 
   saveAnalysis(repoId: string, type: string, result: string, targetNode?: string): void {

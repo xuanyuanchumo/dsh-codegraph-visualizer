@@ -1,5 +1,6 @@
 import { findWorkspacePath, extractWorkspacePaths, checkPrerequisites } from '../prerequisites.ts';
 import { sendJson } from '../HttpHelpers.ts';
+import { computeGraphFingerprint } from '../../shared/graphFingerprint.ts';
 import { withRouteMiddleware, ensureWorkspaceRootsAllowed, type RouteContext } from './shared.ts';
 
 export function registerStatusRoute(rc: RouteContext): void {
@@ -36,7 +37,8 @@ export function registerHealthRoute(rc: RouteContext): void {
       try {
         const status = checkPrerequisites(ctx, deps.apiCompat);
         const mem = process.memoryUsage();
-        const hasGraphData = deps.getLastGraphData() !== null;
+        const lastGraph = deps.getLastGraphData();
+        const hasGraphData = lastGraph !== null;
         const healthy = status.codegraph || status.lens || status.builtin;
         sendJson(res, healthy ? 200 : 503, {
           status: healthy ? 'healthy' : 'degraded',
@@ -44,6 +46,9 @@ export function registerHealthRoute(rc: RouteContext): void {
           lens: status.lens,
           builtin: status.builtin,
           hasGraphData,
+          // P0-6: the current structural fingerprint, so an operator can tell whether the graph
+          // in memory actually changed without diffing nodes/edges by hand.
+          fingerprint: lastGraph ? computeGraphFingerprint(lastGraph) : null,
           uptime: process.uptime(),
           memory: { rss: mem.rss, heapUsed: mem.heapUsed, heapTotal: mem.heapTotal },
           timestamp: Date.now(),

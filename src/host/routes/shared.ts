@@ -3,6 +3,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import path from 'node:path';
 import { scoped } from '../../shared/Logger.ts';
 import { ERROR_CODES } from '../../shared/constants.ts';
+import { computeGraphFingerprint } from '../../shared/graphFingerprint.ts';
 import type { GraphData, GraphNode, GraphEdge, IncomingMessage, ServerResponse, IGraphVisualizerService } from '../../types/index.ts';
 import { RepoId, NodeId, EdgeId } from '../../types/index.ts';
 import { fetchMergedGraph } from '../../tools.ts';
@@ -380,11 +381,21 @@ export function triggerBackgroundBuild(
     if (deps.isDestroyed()) return;
     deps.setLastGraphData(data);
     deps.getScanCache().set(workspacePath, { data, timestamp: Date.now() });
-    if (deps.graphRepo?.isReady()) {
+    // P0-6: key snapshots by structural fingerprint, never by timestamp. The old
+    // `${nodeCount}:${edgeCount}:${timestamp}` hash changed on every scan, so the
+    // idx_snapshots_repo_hash UNIQUE constraint could never fire and pruneSnapshots was the only
+    // bound on table growth. An unchanged graph now short-circuits the write entirely.
+    const fingerprint = computeGraphFingerprint(data);
+    const graphRepo = deps.graphRepo;
+    if (graphRepo?.isReady()) {
       try {
-        const hash = `${data.metadata.nodeCount}:${data.metadata.edgeCount}:${data.metadata.timestamp}`;
-        const serialized = Buffer.from(JSON.stringify({ nodes: data.nodes, edges: data.edges, metadata: data.metadata }), 'utf-8');
-        deps.graphRepo.saveSnapshot(repoId, hash, data.metadata.nodeCount, data.metadata.edgeCount, serialized);
+        const previous = graphRepo.getLatestSnapshot(repoId);
+        if (previous?.snapshotHash !== fingerprint) {
+          const serialized = Buffer.from(JSON.stringify({ nodes: data.nodes, edges: data.edges, metadata: data.metadata }), 'utf-8');
+          graphRepo.saveSnapshot(repoId, fingerprint, data.metadata.nodeCount, data.metadata.edgeCount, serialized);
+        } else {
+          log.debug('snapshot unchanged, skipping write', { repoId, fingerprint });
+        }
       } catch (e) { log.warn('snapshot save failed', e); }
     }
     const { ctx } = deps;
@@ -393,14 +404,16 @@ export function triggerBackgroundBuild(
       nodeCount: data.metadata.nodeCount,
       edgeCount: data.metadata.edgeCount,
       timestamp: data.metadata.timestamp,
+      fingerprint,
     });
     ctx.emit('codegraph-visualizer/graph/data', {
       repoId: RepoId(repoId),
       nodes: data.nodes,
       edges: data.edges,
       timestamp: data.metadata.timestamp,
+      fingerprint,
     });
-    log.info('background build completed', { repoId, nodes: data.metadata.nodeCount, edges: data.metadata.edgeCount });
+    log.info('background build completed', { repoId, nodes: data.metadata.nodeCount, edges: data.metadata.edgeCount, fingerprint });
   }).catch(e => {
     log.error('background build failed', e);
   }).finally(() => {

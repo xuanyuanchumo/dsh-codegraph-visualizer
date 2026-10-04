@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 vi.mock('../../src/tools.ts', () => ({
@@ -82,12 +82,14 @@ const { TreeSitterAdapter } = await import('../../src/adapters/TreeSitterAdapter
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import type { GraphData, GraphNode, GraphEdge } from '../../src/types/index.ts';
 import { makeNode, makeEdge, makeGraphData } from '../helpers.ts';
 import type { VisualizerConfig } from '../../src/host/config.ts';
-import { isSafeRelativePath } from '../../src/host/routes/shared.ts';
-import { VALIDATION } from '../../src/shared/constants.ts';
+import { isSafeRelativePath, triggerBackgroundBuild } from '../../src/host/routes/shared.ts';
+import { GraphRepository } from '../../src/host/db/GraphRepository.ts';
+import { FINGERPRINT, VALIDATION } from '../../src/shared/constants.ts';
 
 type MockCtx = {
   effect: ReturnType<typeof vi.fn>;
@@ -180,6 +182,8 @@ function makeDeps(ctx: MockCtx, config: VisualizerConfig) {
     getScanCache: () => scanCache,
     getScanInFlight: (p: string) => scanInFlight.get(p) ?? null,
     setScanInFlight: (p: string, promise: Promise<GraphData> | null) => { scanInFlight.set(p, promise); },
+    // Optional persistence hook. Tests that assert snapshot/fingerprint behaviour inject a real repo.
+    graphRepo: undefined as GraphRepository | undefined,
     isDestroyed: () => false,
   };
 }
@@ -989,6 +993,48 @@ describe('POST /tree-sitter (additional)', () => {
     const { res, state } = makeRes();
     await handler(makeReq('OPTIONS'), res);
     expect(state.code).toBe(204);
+  });
+
+  // P0-6: the parse response carries the content hash, so an identical payload is recognisable
+  // without re-parsing and the client can key a cache entry on it.
+  it('returns a stable contentHash for identical content', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 10);
+    const payload = JSON.stringify({ filePath: 'src/a.ts', content: 'const x = 1;' });
+
+    const first = makeRes();
+    await handler(makeReq('POST', payload), first.res);
+    expect(first.state.code).toBe(200);
+    const firstHash = JSON.parse(first.state.body).contentHash;
+    expect(firstHash).toMatch(/^v\d+:[0-9a-f]{16}$/);
+
+    const second = makeRes();
+    await handler(makeReq('POST', payload), second.res);
+    expect(JSON.parse(second.state.body).contentHash).toBe(firstHash);
+  });
+
+  it('returns a different contentHash when the content changes', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 10);
+
+    const first = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ filePath: 'src/a.ts', content: 'const x = 1;' })), first.res);
+    const second = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ filePath: 'src/a.ts', content: 'const x = 2;' })), second.res);
+
+    expect(JSON.parse(second.state.body).contentHash).not.toBe(JSON.parse(first.state.body).contentHash);
+  });
+
+  it('ignores the filePath when hashing content', async () => {
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 10);
+
+    const first = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ filePath: 'src/a.ts', content: 'const x = 1;' })), first.res);
+    const second = makeRes();
+    await handler(makeReq('POST', JSON.stringify({ filePath: 'src/b.ts', content: 'const x = 1;' })), second.res);
+
+    expect(JSON.parse(second.state.body).contentHash).toBe(JSON.parse(first.state.body).contentHash);
   });
 });
 
@@ -2406,6 +2452,175 @@ describe('isSafeRelativePath (host path-shape guard)', () => {
   it('rejects a path longer than the configured maximum', () => {
     expect(isSafeRelativePath('a'.repeat(max), max)).toBe(true);
     expect(isSafeRelativePath('a'.repeat(max + 1), max)).toBe(false);
+  });
+});
+
+describe('triggerBackgroundBuild snapshot fingerprint (P0-6)', () => {
+  let ctx: MockCtx;
+  let config: VisualizerConfig;
+  let deps: ReturnType<typeof makeDeps>;
+  let workspace: string;
+  let graphRepo: GraphRepository;
+
+  beforeEach(() => {
+    ctx = makeMockCtx();
+    config = makeConfig();
+    deps = makeDeps(ctx, config);
+    workspace = mkdtempSync(path.join(tmpdir(), 'cgroutes-'));
+    graphRepo = new GraphRepository(workspace);
+    graphRepo.init();
+    deps.graphRepo = graphRepo;
+    vi.mocked(fetchMergedGraph).mockClear();
+    vi.mocked(fetchMergedGraph).mockResolvedValue(makeGraphData([], []));
+  });
+
+  afterEach(() => {
+    graphRepo.close();
+    rmSync(workspace, { recursive: true, force: true });
+  });
+
+  const repoId = () => workspace;
+
+  function settle(): Promise<void> {
+    // triggerBackgroundBuild fires and forgets; flush the microtask queue until the write lands.
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  it('stores one snapshot for the first build', async () => {
+    triggerBackgroundBuild(deps, vi.fn() as never, workspace);
+    await settle();
+
+    expect(graphRepo.countSnapshots(repoId())).toBe(1);
+    expect(graphRepo.getLatestSnapshot(repoId())?.snapshotHash).toMatch(/^v\d+:[0-9a-f]{16}$/);
+  });
+
+  // The regression that motivated P0-6: the old `${nodes}:${edges}:${timestamp}` key meant every
+  // build minted a fresh row, so the UNIQUE(repo_id, snapshot_hash) index could never fire.
+  it('does not add a second snapshot when the content is unchanged', async () => {
+    triggerBackgroundBuild(deps, vi.fn() as never, workspace);
+    await settle();
+    const firstHash = graphRepo.getLatestSnapshot(repoId())?.snapshotHash;
+
+    // A fresh cache window (no in-flight promise, no cache hit) forces a real second build.
+    deps.setScanInFlight(workspace, null);
+    deps.getScanCache().clear();
+    triggerBackgroundBuild(deps, vi.fn() as never, workspace);
+    await settle();
+
+    expect(graphRepo.countSnapshots(repoId())).toBe(1);
+    expect(graphRepo.getLatestSnapshot(repoId())?.snapshotHash).toBe(firstHash);
+  });
+
+  // The UNIQUE index alone would also absorb a duplicate write, so count alone cannot prove the
+  // short-circuit works. Spy on saveSnapshot to assert the redundant write never happens at all.
+  it('skips the repository write entirely when the fingerprint is unchanged', async () => {
+    triggerBackgroundBuild(deps, vi.fn() as never, workspace);
+    await settle();
+
+    const saveSpy = vi.spyOn(graphRepo, 'saveSnapshot');
+    deps.setScanInFlight(workspace, null);
+    deps.getScanCache().clear();
+    triggerBackgroundBuild(deps, vi.fn() as never, workspace);
+    await settle();
+
+    expect(saveSpy).not.toHaveBeenCalled();
+    expect(graphRepo.countSnapshots(repoId())).toBe(1);
+    saveSpy.mockRestore();
+  });
+
+  it('writes the snapshot again when the fingerprint changed', async () => {
+    triggerBackgroundBuild(deps, vi.fn() as never, workspace);
+    await settle();
+
+    const saveSpy = vi.spyOn(graphRepo, 'saveSnapshot');
+    vi.mocked(fetchMergedGraph).mockResolvedValue(
+      makeGraphData([makeNode('a', 'alpha', 'function', 'src/a.ts', 1)], []),
+    );
+    deps.setScanInFlight(workspace, null);
+    deps.getScanCache().clear();
+    triggerBackgroundBuild(deps, vi.fn() as never, workspace);
+    await settle();
+
+    expect(saveSpy).toHaveBeenCalledTimes(1);
+    expect(saveSpy.mock.calls[0]![0]).toBe(repoId());
+    expect(saveSpy.mock.calls[0]![1]).toMatch(/^v\d+:[0-9a-f]{16}$/);
+    saveSpy.mockRestore();
+  });
+
+  it('stores a new snapshot when the graph content changed', async () => {
+    triggerBackgroundBuild(deps, vi.fn() as never, workspace);
+    await settle();
+    const firstHash = graphRepo.getLatestSnapshot(repoId())?.snapshotHash;
+
+    vi.mocked(fetchMergedGraph).mockResolvedValue(
+      makeGraphData([makeNode('a', 'alpha', 'function', 'src/a.ts', 1)], []),
+    );
+    deps.setScanInFlight(workspace, null);
+    deps.getScanCache().clear();
+    triggerBackgroundBuild(deps, vi.fn() as never, workspace);
+    await settle();
+
+    const latest = graphRepo.getLatestSnapshot(repoId());
+    expect(latest?.snapshotHash).not.toBe(firstHash);
+    expect(latest?.nodeCount).toBe(1);
+  });
+
+  it('ignores a changed metadata.timestamp when the content is identical', async () => {
+    vi.mocked(fetchMergedGraph).mockResolvedValue(
+      makeGraphData([makeNode('a', 'alpha', 'function', 'src/a.ts', 1)], [], 'test-repo', 111),
+    );
+    triggerBackgroundBuild(deps, vi.fn() as never, workspace);
+    await settle();
+    const firstHash = graphRepo.getLatestSnapshot(repoId())?.snapshotHash;
+
+    vi.mocked(fetchMergedGraph).mockResolvedValue(
+      makeGraphData([makeNode('a', 'alpha', 'function', 'src/a.ts', 1)], [], 'test-repo', 999_999),
+    );
+    deps.setScanInFlight(workspace, null);
+    deps.getScanCache().clear();
+    triggerBackgroundBuild(deps, vi.fn() as never, workspace);
+    await settle();
+
+    expect(graphRepo.countSnapshots(repoId())).toBe(1);
+    expect(graphRepo.getLatestSnapshot(repoId())?.snapshotHash).toBe(firstHash);
+  });
+
+  it('emits the fingerprint on both graph events', async () => {
+    triggerBackgroundBuild(deps, vi.fn() as never, workspace);
+    await settle();
+
+    const emitted = ctx.emit.mock.calls.map(([name]) => name);
+    expect(emitted).toContain('codegraph-visualizer/graph/updated');
+    expect(emitted).toContain('codegraph-visualizer/graph/data');
+    const updated = ctx.emit.mock.calls.find(([name]) => name === 'codegraph-visualizer/graph/updated')?.[1];
+    const data = ctx.emit.mock.calls.find(([name]) => name === 'codegraph-visualizer/graph/data')?.[1];
+    expect((updated as { fingerprint: string }).fingerprint).toMatch(/^v\d+:[0-9a-f]{16}$/);
+    expect((data as { fingerprint: string }).fingerprint).toBe((updated as { fingerprint: string }).fingerprint);
+    expect((updated as { fingerprint: string }).fingerprint).toBe(
+      graphRepo.getLatestSnapshot(repoId())?.snapshotHash,
+    );
+  });
+
+  it('keeps at most FINGERPRINT.SNAPSHOT_KEEP distinct snapshots per repo', async () => {
+    for (let i = 0; i < FINGERPRINT.SNAPSHOT_KEEP + 2; i++) {
+      vi.mocked(fetchMergedGraph).mockResolvedValue(
+        makeGraphData([makeNode('a', 'alpha', 'function', `src/a${i}.ts`, 1)], []),
+      );
+      deps.setScanInFlight(workspace, null);
+      deps.getScanCache().clear();
+      triggerBackgroundBuild(deps, vi.fn() as never, workspace);
+      await settle();
+    }
+
+    expect(graphRepo.countSnapshots(repoId())).toBe(FINGERPRINT.SNAPSHOT_KEEP);
+  });
+
+  it('still builds and emits when no repository is wired', async () => {
+    deps.graphRepo = undefined;
+    triggerBackgroundBuild(deps, vi.fn() as never, workspace);
+    await settle();
+
+    expect(ctx.emit.mock.calls.map(([name]) => name)).toContain('codegraph-visualizer/graph/data');
   });
 });
 

@@ -3,6 +3,7 @@ import { platform } from 'node:os';
 import type { Context } from '@deepseek-ai/cordis';
 import { scoped } from '../shared/Logger.ts';
 import { WATCHER, ERROR_CODES, ERROR_MESSAGES } from '../shared/constants.ts';
+import { computeGraphFingerprint } from '../shared/graphFingerprint.ts';
 import { fetchMergedGraph } from '../tools.ts';
 import { RepoId } from '../types/index.ts';
 import type { UpstreamInvoker } from '../adapters/IAdapter.ts';
@@ -23,11 +24,15 @@ async function scanAndPush(
   try {
     const repoId = path || 'workspace-default';
     const data = await fetchMergedGraph(invokeUpstream, repoId, 'both');
+    // P0-6: emit the structural fingerprint alongside the payload so consumers can tell an
+    // unchanged re-scan from a real change without deep-comparing nodes/edges.
+    const fingerprint = computeGraphFingerprint(data);
     ctx.emit('codegraph-visualizer/graph/updated', {
       repoId: RepoId(repoId),
       nodeCount: data.metadata.nodeCount,
       edgeCount: data.metadata.edgeCount,
       timestamp: data.metadata.timestamp,
+      fingerprint,
       ...(changedFiles ? { changedFiles } : {}),
     });
     ctx.emit('codegraph-visualizer/graph/data', {
@@ -35,9 +40,10 @@ async function scanAndPush(
       nodes: data.nodes,
       edges: data.edges,
       timestamp: data.metadata.timestamp,
+      fingerprint,
       ...(changedFiles ? { changedFiles } : {}),
     });
-    log.info('scan completed', { repoId, nodes: data.metadata.nodeCount, edges: data.metadata.edgeCount, changedFiles: changedFiles?.length ?? 0 });
+    log.info('scan completed', { repoId, nodes: data.metadata.nodeCount, edges: data.metadata.edgeCount, changedFiles: changedFiles?.length ?? 0, fingerprint });
   } catch (e) {
     log.error('scan failed', e);
   }

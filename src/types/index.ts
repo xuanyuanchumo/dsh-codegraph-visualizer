@@ -128,6 +128,10 @@ export interface GraphUpdatedEvent {
   nodeCount: number;
   edgeCount: number;
   timestamp: number;
+  /** P0-6 structural fingerprint; stable while graph content is unchanged. */
+  fingerprint?: string;
+  /** File paths that triggered an incremental re-scan, when the watcher drove the update. */
+  changedFiles?: string[];
 }
 
 export interface GraphDataEvent {
@@ -135,6 +139,10 @@ export interface GraphDataEvent {
   nodes: GraphNode[];
   edges: GraphEdge[];
   timestamp: number;
+  /** P0-6 structural fingerprint; stable while graph content is unchanged. */
+  fingerprint?: string;
+  /** File paths that triggered an incremental re-scan, when the watcher drove the update. */
+  changedFiles?: string[];
 }
 
 export interface RepoImportedEvent {

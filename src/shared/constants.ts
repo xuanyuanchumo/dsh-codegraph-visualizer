@@ -311,6 +311,15 @@ export const WATCHER = {
   MAX_RETRIES: 3,
   RETRY_BASE_DELAY_MS: 1000,
 } as const;
+
+/** Structural-fingerprint incremental detection (P0-6). Bump VERSION when the canonical record
+ * shape changes, so previously stored snapshot hashes are not mistaken for current ones. */
+export const FINGERPRINT = {
+  VERSION: 1,
+  /** Snapshots retained per repo; older rows are pruned after each save. */
+  SNAPSHOT_KEEP: 3,
+} as const;
+
 export const UI = {
   SEARCH_DEBOUNCE_MS: 200,
   RESIZE_DEBOUNCE_MS: 200,

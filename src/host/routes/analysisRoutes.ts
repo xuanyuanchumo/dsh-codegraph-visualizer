@@ -6,6 +6,7 @@ import { fetchMergedGraph } from '../../tools.ts';
 import { parsePackageJson, parseCargoToml, parseGoMod, dependencyGraphToGraphData } from '../../adapters/DependencyAdapter.ts';
 import { TreeSitterAdapter } from '../../adapters/TreeSitterAdapter.ts';
 import { computeGraphDiff, diffToGraphData } from '../../merger/DiffEngine.ts';
+import { computeContentHash } from '../../shared/graphFingerprint.ts';
 import {
   readBody, parseJsonBody, extractStringField,
   isSafeGitRef, sendJson, sendError,
@@ -198,7 +199,9 @@ export function registerTreeSitterRoute(rc: RouteContext, sharedTreeSitterAdapte
             return;
           }
           const result = await sharedTreeSitterAdapter.parseFile(filePath, content);
-          sendJson(res, 200, result, req, corsConfig);
+          // P0-6: contentHash lets a caller recognise an identical parse request (and lets a client
+          // key its AST cache on content rather than on the file path alone).
+          sendJson(res, 200, { ...result, contentHash: computeContentHash(content) }, req, corsConfig);
         } catch (e) {
           log.error('tree-sitter route failed', e);
           sendError(res, 500, ERROR_CODES.INTERNAL_ERROR, req, corsConfig);

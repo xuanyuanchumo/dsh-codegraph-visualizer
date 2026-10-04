@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Context } from '@deepseek-ai/cordis';
 import { makeGraphData, makeNode } from '../helpers.ts';
 import { logger } from '../../src/shared/Logger.ts';
+import { computeGraphFingerprint } from '../../src/shared/graphFingerprint.ts';
 
 vi.mock('../../src/tools.ts', () => ({
   fetchMergedGraph: vi.fn(),
@@ -234,6 +235,41 @@ describe('scanAndPush error handling', () => {
       nodes: graphData.nodes,
       edges: graphData.edges,
     }));
+  });
+
+  // P0-6: the watcher must publish the same structural fingerprint the snapshot table is keyed by,
+  // so a consumer can tell an unchanged re-scan from a real change without diffing nodes/edges.
+  it('publishes the structural fingerprint on both events', async () => {
+    const ctx = makeMockCtx();
+    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    mockedFetchMergedGraph.mockResolvedValue(graphData);
+    const scanCb = captureEventCb(ctx, 'codegraph-visualizer/repo/request-scan');
+    await scanCb({ path: '/repo', timestamp: 1 });
+
+    const expected = computeGraphFingerprint(graphData);
+    const updated = ctx.emit.mock.calls.find(([name]) => name === 'codegraph-visualizer/graph/updated')?.[1];
+    const data = ctx.emit.mock.calls.find(([name]) => name === 'codegraph-visualizer/graph/data')?.[1];
+    expect((updated as { fingerprint: string }).fingerprint).toBe(expected);
+    expect((data as { fingerprint: string }).fingerprint).toBe(expected);
+  });
+
+  it('keeps the fingerprint stable when only metadata.timestamp changes', async () => {
+    const ctx = makeMockCtx();
+    mockedFetchMergedGraph.mockResolvedValue(
+      makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], [], 'test-repo', 1),
+    );
+    const scanCb = captureEventCb(ctx, 'codegraph-visualizer/repo/request-scan');
+    await scanCb({ path: '/repo', timestamp: 1 });
+    const first = (ctx.emit.mock.calls.find(([n]) => n === 'codegraph-visualizer/graph/data')?.[1] as { fingerprint: string }).fingerprint;
+
+    ctx.emit.mockClear();
+    mockedFetchMergedGraph.mockResolvedValue(
+      makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], [], 'test-repo', 987654),
+    );
+    await scanCb({ path: '/repo', timestamp: 987654 });
+    const second = (ctx.emit.mock.calls.find(([n]) => n === 'codegraph-visualizer/graph/data')?.[1] as { fingerprint: string }).fingerprint;
+
+    expect(first).toBe(second);
   });
 });
 
