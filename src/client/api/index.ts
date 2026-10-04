@@ -259,6 +259,12 @@ export interface EdgesData {
   total: number;
   cursor: number;
   hasMore: boolean;
+  /**
+   * Present and `true` when the server collapsed a dense neighbourhood into
+   * one synthetic edge per file pair (`/edges` returns this instead of paging
+   * when the unaggregated edge count exceeds `EDGES_AGGREGATION.THRESHOLD`).
+   */
+  aggregated?: boolean;
 }
 
 export async function fetchEdges(fromId: string, scope: 'file' | 'symbol' = 'file', cursor?: number, limit?: number, signal?: AbortSignal, workspace?: string): Promise<EdgesData | null> {

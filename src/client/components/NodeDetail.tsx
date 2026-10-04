@@ -3,6 +3,7 @@ import type { GraphNode } from '../../types/index.ts';
 import { useT } from '../i18n/index.ts';
 import { useGraphStore } from '../store/graphStore.ts';
 import { CloseIcon } from './Icons.tsx';
+import { NodeEdgeList } from './NodeEdgeList.tsx';
 import { FUNCTION_BODY } from '../../shared/constants.ts';
 import { useExpandedFunctionBodyCount } from '../hooks/useExpandedFunctionBodyCount.ts';
 
@@ -97,6 +98,7 @@ export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, 
       {connectionCount !== undefined && connectionCount > 0 && (
         <div className="cg-detail-row"><span className="cg-detail-label">{t('detail.connections')}</span><span className="cg-detail-value">{connectionCount}</span></div>
       )}
+      {!isClusterNode && <NodeEdgeList nodeId={node.id as string} />}
       {signature && (
         <div className="cg-detail-signature">
           <div className="cg-detail-section-title">{t('detail.signature')}</div>

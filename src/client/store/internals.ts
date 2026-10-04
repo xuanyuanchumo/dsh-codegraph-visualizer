@@ -29,6 +29,12 @@ export const internals = {
   prefetchInFlightCount: 0,
   prefetchAbortControllers: new Map<string, AbortController>(),
   expandAbortControllers: new Map<string, AbortController>(),
+  /**
+   * Monotonic request token per node for the lazy edge list. Lets a finished
+   * request clear its own loading flag without clobbering a newer one, and
+   * without depending on `expandGeneration` (which advances on ordinary expands).
+   */
+  edgeRequestSeq: new Map<string, number>(),
   expandGeneration: 0,
   restoreGeneration: 0,
   restoreTimeoutHandle: null as ReturnType<typeof setTimeout> | null,

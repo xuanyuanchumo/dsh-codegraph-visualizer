@@ -65,6 +65,15 @@ export interface GraphState {
   pendingRequests: Map<string, AbortController>;
   pinnedIds: Set<string>;
 
+  /** Lazily fetched per-node edge pages from `GET /api/v1/codegraph/edges`. */
+  nodeEdgesByNodeId: Map<string, GraphEdge[]>;
+  /** Server-reported total edge count per node (may exceed the loaded page). */
+  nodeEdgeTotals: Map<string, number>;
+  /** Next cursor to request per node when appending a page. */
+  nodeEdgeCursors: Map<string, number>;
+  /** Node ids with an in-flight edge request. */
+  loadingEdgeNodeIds: Set<string>;
+
   currentWorkspace: string;
   workspaceList: WorkspaceInfo[];
 
@@ -167,5 +176,6 @@ export interface GraphState {
   pinNode: (nodeId: string) => void;
   unpinNode: (nodeId: string) => void;
   cancelPendingRequest: (nodeId: string) => void;
+  loadNodeEdges: (nodeId: string, options?: { append?: boolean; scope?: 'file' | 'symbol' }) => Promise<void>;
   restoreFromUrl: () => Promise<void>;
 }

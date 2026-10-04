@@ -27,7 +27,7 @@ export { useExpandedFunctionBodyCount } from './useExpandedFunctionBodyCount.ts'
 export {
   useGraphData, useGraphDisplay, useGraphInteraction, useGraphStatus,
   useGraphWorkspace, useGraphAnalysis, useGraphPerformance, useGraphActions,
-  usePanelDimensions,
+  usePanelDimensions, useNodeEdges,
 } from './useGraphSelectors.ts';
 
 export function usePolling(

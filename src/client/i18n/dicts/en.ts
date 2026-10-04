@@ -123,6 +123,14 @@ export const en: Record<string, string> = {
   'detail.docstring': 'Docstring',
   'detail.functionBodyBudget': 'Function body budget: {expanded}/{max}',
   'detail.functionBodyBudgetHint': 'Only {max} function bodies can be expanded simultaneously. Oldest will be auto-collapsed.',
+  'detail.edgesTitle': 'Edges',
+  'detail.edgesLoading': 'Loading edges…',
+  'detail.edgesEmpty': 'No edges for this node',
+  'detail.edgesShowMore': 'Show more edges ({count} remaining)',
+  'detail.edgesLoadedOf': '{loaded} of {total} edges',
+  'detail.edgesAggregated': 'Aggregated by file pair',
+  'detail.edgeIncoming': 'in',
+  'detail.edgeOutgoing': 'out',
 
   // Mini-map
   'minimap.title': 'Overview',

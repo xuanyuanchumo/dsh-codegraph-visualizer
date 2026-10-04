@@ -59,6 +59,16 @@ export function useGraphPerformance() {
   })));
 }
 
+/** Lazily fetched per-node edge pages served by `GET /api/v1/codegraph/edges`. */
+export function useNodeEdges() {
+  return useGraphStore(useShallow((s) => ({
+    nodeEdgesByNodeId: s.nodeEdgesByNodeId,
+    nodeEdgeTotals: s.nodeEdgeTotals,
+    nodeEdgeCursors: s.nodeEdgeCursors,
+    loadingEdgeNodeIds: s.loadingEdgeNodeIds,
+  })));
+}
+
 export function useGraphActions() {
   return useGraphStore(useShallow((s) => ({
     setLayout: s.setLayout,
@@ -88,6 +98,7 @@ export function useGraphActions() {
     setTodoMarkerMode: s.setTodoMarkerMode,
     setLODLevel: s.setLODLevel,
     assembleMicro: s.assembleMicro,
+    loadNodeEdges: s.loadNodeEdges,
   })));
 }
 

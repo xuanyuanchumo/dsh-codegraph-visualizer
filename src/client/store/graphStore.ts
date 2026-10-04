@@ -10,6 +10,7 @@ import { createGraphDataSlice } from './slices/graphDataSlice.ts';
 import { createViewModeSlice } from './slices/viewModeSlice.ts';
 import { createSessionSlice } from './slices/sessionSlice.ts';
 import { createExpandSlice } from './slices/expandSlice.ts';
+import { createEdgeSlice } from './slices/edgeSlice.ts';
 import { createWorkspaceSlice } from './slices/workspaceSlice.ts';
 import { createPathFocusSlice } from './slices/pathFocusSlice.ts';
 import { createFilterSlice } from './slices/filterSlice.ts';
@@ -38,7 +39,13 @@ export function disposeStore(): void {
   }
   const state = useGraphStore.getState();
   abortAllControllers(state.pendingRequests);
-  useGraphStore.setState({ pendingRequests: new Map() });
+  useGraphStore.setState({
+    pendingRequests: new Map(),
+    nodeEdgesByNodeId: new Map(),
+    nodeEdgeTotals: new Map(),
+    nodeEdgeCursors: new Map(),
+    loadingEdgeNodeIds: new Set(),
+  });
   if (internals.restoreTimeoutHandle !== null) {
     clearTimeout(internals.restoreTimeoutHandle);
     internals.restoreTimeoutHandle = null;
@@ -68,6 +75,7 @@ export const useGraphStore = create<GraphState>()(
         ...createViewModeSlice(set, get),
         ...createSessionSlice(set, get),
         ...createExpandSlice(set, get),
+        ...createEdgeSlice(set, get),
         ...createWorkspaceSlice(set, get),
         ...createPathFocusSlice(set, get),
         ...createFilterSlice(set, get),

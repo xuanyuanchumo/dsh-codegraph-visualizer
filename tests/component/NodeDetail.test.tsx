@@ -6,12 +6,22 @@ import { render, screen, cleanup } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import React from 'react';
 
+// The detail panel now lazy-loads the authoritative edge neighbourhood. jsdom's
+// AbortSignal is not the undici class, so a real request would fail noisily; stub
+// the API and assert against the store instead.
+const mocks = vi.hoisted(() => ({ fetchEdges: vi.fn() }));
+vi.mock('../../src/client/api/index.ts', () => ({ fetchEdges: mocks.fetchEdges }));
+
 import { NodeDetail } from '../../src/client/components/NodeDetail.tsx';
 import { useGraphStore } from '../../src/client/store/graphStore.ts';
-import type { GraphNode } from '../../src/types/index.ts';
-import { NodeId } from '../../src/types/index.ts';
+import type { GraphNode, GraphEdge } from '../../src/types/index.ts';
+import { NodeId, EdgeId } from '../../src/types/index.ts';
 
 const noop = vi.fn();
+
+function makeEdge(id: string, source: string, target: string, type: GraphEdge['type'] = 'call'): GraphEdge {
+  return { id: EdgeId(id), source: NodeId(source), target: NodeId(target), type, properties: {} };
+}
 
 function makeNode(overrides: Partial<GraphNode> & Record<string, unknown> = {}): GraphNode {
   const { isCluster, childIds, childCount, ...rest } = overrides as Record<string, unknown>;
@@ -34,7 +44,15 @@ function makeNode(overrides: Partial<GraphNode> & Record<string, unknown> = {}):
 }
 
 beforeEach(() => {
-  useGraphStore.setState({ rawNodes: [] });
+  mocks.fetchEdges.mockReset();
+  mocks.fetchEdges.mockResolvedValue({ edges: [], total: 0, cursor: 0, hasMore: false });
+  useGraphStore.setState({
+    rawNodes: [],
+    nodeEdgesByNodeId: new Map(),
+    nodeEdgeTotals: new Map(),
+    nodeEdgeCursors: new Map(),
+    loadingEdgeNodeIds: new Set(),
+  });
 });
 
 afterEach(() => {

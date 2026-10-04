@@ -199,6 +199,14 @@ vi.mock('../../src/client/hooks/useGraphCache.ts', () => ({
   })),
 }));
 
+// NodeDetail renders NodeEdgeList, which fetches the authoritative edge
+// neighbourhood. jsdom's AbortSignal is not accepted by undici's RequestInit
+// check, so the component test stubs the transport instead of hitting it.
+vi.mock('../../src/client/api/index.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/client/api/index.ts')>()),
+  fetchEdges: vi.fn(async () => ({ edges: [], total: 0, cursor: 0, hasMore: false })),
+}));
+
 vi.mock('../../src/client/renderer/SequenceDiagramRenderer.tsx', () => ({
   SequenceDiagramRenderer: () => React.createElement('div', { 'data-testid': 'seq-renderer' }),
 }));

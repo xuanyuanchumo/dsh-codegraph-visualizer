@@ -296,6 +296,18 @@ export const EDGES_AGGREGATION = {
   PAGE_SIZE: 500,
 } as const;
 
+/**
+ * Client-side budget for the per-node edge list in the detail panel.
+ * The server caps `limit` at `EDGES_AGGREGATION.PAGE_SIZE`, so PAGE_SIZE here
+ * must stay at or below that value.
+ */
+export const EDGE_DETAIL = {
+  /** Edges requested per page by the node-detail edge list. */
+  PAGE_SIZE: 100,
+  /** Edges rendered inline before the "show more" affordance appears. */
+  PREVIEW_LIMIT: 5,
+} as const;
+
 export const VALIDATION = {
   MAX_PATH_LENGTH: 4096,
   MAX_GIT_REF_LENGTH: 256,

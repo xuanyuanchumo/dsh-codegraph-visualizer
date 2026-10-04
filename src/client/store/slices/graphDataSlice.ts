@@ -5,6 +5,7 @@ import { CYCLE_DETECTION, CLUSTER, RENDERER } from '../../../shared/constants.ts
 import { sanitizeTypedGraph } from '../../../shared/GraphValidator.ts';
 import { isLayeredViewMode } from '../../../shared/viewModeUtils.ts';
 import { assembleDiagram } from '../../diagram/index.ts';
+import { emptyEdgeState } from './edgeSlice.ts';
 import {
   diagramCache, clusterCache, internals, clearLoadingFailsafe, log,
   IndexedDBCache, tryIncrementalOrFull, updateIncrementalClusterCtx, computeDataHash,
@@ -84,6 +85,7 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
             performanceDegradations: newDegradations,
             pendingRequests: new Map(),
             loadErrorsByNodeId: new Map(),
+            ...emptyEdgeState(),
           });
           return;
         }
@@ -107,6 +109,7 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
           performanceDegradations: newDegradations,
           pendingRequests: new Map(),
           loadErrorsByNodeId: new Map(),
+          ...emptyEdgeState(),
         });
       } catch (err) {
         log.error('setGraphData failed', { err });
@@ -175,6 +178,7 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
           prefetchedNodeIds: new Set(),
           pendingRequests: new Map(),
           loadErrorsByNodeId: new Map(),
+          ...emptyEdgeState(),
         });
         log.info('bootstrap data set', { rootNodes: sanitized.nodes.length, totalNodeCount: metadata.totalNodeCount });
       } catch (err) {
@@ -188,7 +192,7 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
       const prevPending = _get().pendingRequests;
       abortAllControllers(prevPending);
       internals.incrementalClusterCtx = null;
-      _set({ nodes: [], edges: [], rawNodes: [], rawEdges: [], savedRawNodes: [], savedRawEdges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0, truncated: false, totalNodeCount: 0, totalEdgeCount: 0, loadedChildrenByNodeId: new Set(), prefetchedNodeIds: new Set(), pendingRequests: new Map(), loadErrorsByNodeId: new Map() });
+      _set({ nodes: [], edges: [], rawNodes: [], rawEdges: [], savedRawNodes: [], savedRawEdges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0, truncated: false, totalNodeCount: 0, totalEdgeCount: 0, loadedChildrenByNodeId: new Set(), prefetchedNodeIds: new Set(), pendingRequests: new Map(), loadErrorsByNodeId: new Map(), ...emptyEdgeState() });
     },
   };
 }

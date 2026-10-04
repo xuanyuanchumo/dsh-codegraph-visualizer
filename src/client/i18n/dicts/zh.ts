@@ -123,6 +123,14 @@ export const zh: Record<string, string> = {
   'detail.docstring': '文档字符串',
   'detail.functionBodyBudget': '函数体展开预算: {expanded}/{max}',
   'detail.functionBodyBudgetHint': '最多同时展开 {max} 个函数体，最早的将自动折叠。',
+  'detail.edgesTitle': '关联边',
+  'detail.edgesLoading': '正在加载关联边…',
+  'detail.edgesEmpty': '该节点没有关联边',
+  'detail.edgesShowMore': '显示更多边（剩余 {count} 条）',
+  'detail.edgesLoadedOf': '已加载 {loaded} / {total} 条边',
+  'detail.edgesAggregated': '已按文件对聚合',
+  'detail.edgeIncoming': '入',
+  'detail.edgeOutgoing': '出',
 
   // Mini-map
   'minimap.title': '概览',

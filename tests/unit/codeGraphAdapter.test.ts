@@ -6,6 +6,7 @@ import {
   mapEdgeKind,
   resolveDbPath,
   readGraphFromDb,
+  readEdgesFromDb,
   closeAllDbConnections,
 } from '../../src/adapters/CodeGraphAdapter.ts';
 import type { UpstreamInvoker } from '../../src/adapters/CodeGraphAdapter.ts';
@@ -266,6 +267,80 @@ describe('readGraphFromDb', () => {
     db.close();
     const result = readGraphFromDb(dbPath);
     expect(result).toBeNull();
+  });
+});
+
+describe('readEdgesFromDb pagination', () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'cg-edges-'));
+  });
+
+  afterEach(() => {
+    closeAllDbConnections();
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  function createEdgesDb(dir: string): string {
+    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite');
+    const codegraphDir = join(dir, '.codegraph');
+    mkdirSync(codegraphDir, { recursive: true });
+    const dbPath = join(codegraphDir, 'codegraph.db');
+    const db = new DatabaseSync(dbPath);
+    db.exec(`
+      CREATE TABLE nodes (id TEXT PRIMARY KEY, kind TEXT, name TEXT, file_path TEXT, start_line INTEGER, signature TEXT, docstring TEXT, is_exported INTEGER);
+      CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, line INTEGER);
+    `);
+    const insertNode = db.prepare('INSERT INTO nodes (id, kind, name, file_path, start_line, signature, docstring, is_exported) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    insertNode.run('n1', 'function', 'a', 'src/big.ts', 1, null, null, 1);
+    insertNode.run('n2', 'function', 'b', 'src/big.ts', 2, null, null, 1);
+    insertNode.run('n3', 'function', 'c', 'src/big.ts', 3, null, null, 1);
+    const insertEdge = db.prepare('INSERT INTO edges (id, source, target, kind, line) VALUES (?, ?, ?, ?, ?)');
+    // Interleave kept edges with both filtered kinds and self-loops, so an
+    // implementation that filters AFTER slicing both short-pages and re-reads
+    // rows on the next cursor.
+    insertEdge.run(1, 'n1', 'n2', 'call', 1);              // kept
+    insertEdge.run(2, 'n1', 'n3', 'uses_var', 2);          // filtered kind
+    insertEdge.run(3, 'n2', 'n3', 'call', 3);              // kept
+    insertEdge.run(4, 'n1', 'n1', 'call', 4);              // self-loop
+    insertEdge.run(5, 'n2', 'n1', 'func_imports_local', 5); // filtered kind
+    insertEdge.run(6, 'n3', 'n1', 'call', 6);              // kept
+    insertEdge.run(7, 'n3', 'n2', 'call', 7);              // kept
+    insertEdge.run(8, 'n1', 'n2', 'import', 8);            // kept
+    insertEdge.run(9, 'n3', 'n3', 'call', 9);              // self-loop
+    insertEdge.run(10, 'n2', 'n3', 'import', 10);          // kept
+    db.close();
+    return dbPath;
+  }
+
+  it('reports the filtered total and pages without duplicates or gaps', () => {
+    const dbPath = createEdgesDb(tempDir);
+    const limit = 2;
+    const seen: number[] = [];
+    let cursor = 0;
+    let total = -1;
+    for (let page = 0; page < 10; page++) {
+      const result = readEdgesFromDb(dbPath, 'n1', 'file', cursor, limit);
+      expect(result).not.toBeNull();
+      total = result!.total;
+      for (const e of result!.edges) seen.push(e.id);
+      cursor += result!.edges.length;
+      if (cursor >= total) break;
+    }
+    expect(total).toBe(6);
+    // Sorted comparison: the underlying SELECT has no ORDER BY, so row order is
+    // a query-planner detail. Duplicates and gaps are the real contract.
+    expect([...seen].sort((a, b) => a - b)).toEqual([1, 3, 6, 7, 8, 10]);
+    expect(new Set(seen).size).toBe(seen.length);
+  });
+
+  it('applies the shared edge policy on the symbol scope too', () => {
+    const dbPath = createEdgesDb(tempDir);
+    const result = readEdgesFromDb(dbPath, 'n1', 'symbol', 0, 100);
+    expect(result).not.toBeNull();
+    expect(result!.total).toBe(3);
+    expect([...result!.edges.map((e) => e.id)].sort((a, b) => a - b)).toEqual([1, 6, 8]);
   });
 });
 

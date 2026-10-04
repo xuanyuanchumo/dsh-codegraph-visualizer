@@ -389,14 +389,24 @@ export function readSymbolASTFromDb(dbPath: string, symbolId: string): { nodes: 
   }
 }
 
+/**
+ * Paged read of a node's incident edges, already filtered by the shared edge
+ * policy (`FILTERED_EDGE_KINDS` + self-loops).
+ *
+ * The filter MUST run before slicing: `total` is the filtered count and the
+ * caller advances its cursor by the returned page length, so filtering after
+ * the slice would make `total` unreachable and re-read rows on every page.
+ * `CodeGraphAdapter.fetchData` applies the same policy to `dbEdges`.
+ */
 export function readEdgesFromDb(dbPath: string, nodeId: string, scope: 'file' | 'symbol', cursor: number, limit: number): { edges: DbEdgeRow[]; total: number } | null {
   const db = getDbConnection(dbPath);
   if (!db) return null;
+  const keep = (e: DbEdgeRow): boolean => e.source !== e.target && !FILTERED_EDGE_KINDS.has(e.kind);
   try {
     if (scope === 'symbol') {
       const allEdges = validateEdgeRows(db.prepare(
         'SELECT id, source, target, kind, line FROM edges WHERE source = ? OR target = ?',
-      ).all(nodeId, nodeId));
+      ).all(nodeId, nodeId)).filter(keep);
       const total = allEdges.length;
       const pagedEdges = allEdges.slice(cursor, cursor + limit);
       return { edges: pagedEdges, total };
@@ -417,7 +427,7 @@ export function readEdgesFromDb(dbPath: string, nodeId: string, scope: 'file' | 
       ).all(...batch, ...batch));
       for (const e of batchEdges) edgeMap.set(e.id, e);
     }
-    const allEdges = [...edgeMap.values()];
+    const allEdges = [...edgeMap.values()].filter(keep);
     const total = allEdges.length;
     const pagedEdges = allEdges.slice(cursor, cursor + limit);
     return { edges: pagedEdges, total };
