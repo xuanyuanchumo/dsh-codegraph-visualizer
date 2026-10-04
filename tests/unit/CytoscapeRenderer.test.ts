@@ -1178,5 +1178,25 @@ describe('CytoscapeRenderer', () => {
       }));
       expect(renderer!.getNodeRenderedPosition('edge-1')).toBeNull();
     });
+
+    it('offsets the position by the container origin so the fixed menu lands on the node', () => {
+      // J0 实测：面板容器在视口 (280,146)，而 renderedPosition 是容器相对坐标。
+      // 上下文菜单用 position: fixed 贴视口，缺了这一步菜单会偏到容器左上角附近。
+      const offsetContainer = {
+        clientWidth: 800,
+        clientHeight: 600,
+        getBoundingClientRect: () => ({ left: 280, top: 146 }),
+      } as unknown as HTMLElement;
+      renderer = new CytoscapeRenderer({ container: offsetContainer, theme: 'dark' });
+      renderer!.init();
+      mockCy.getElementById = vi.fn(() => makePositionedNode('n1', { x: 412.5, y: 233 }));
+      expect(renderer!.getNodeRenderedPosition('n1')).toEqual({ x: 692.5, y: 379 });
+    });
+
+    it('falls back to the raw position when the container cannot be measured', () => {
+      // makeContainer() 没有 getBoundingClientRect：无头环境必须退化成原坐标。
+      mockCy.getElementById = vi.fn(() => makePositionedNode('n1', { x: 412.5, y: 233 }));
+      expect(renderer!.getNodeRenderedPosition('n1')).toEqual({ x: 412.5, y: 233 });
+    });
   });
 });

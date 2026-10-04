@@ -51,7 +51,9 @@ describe('GraphTooltip', () => {
       type: 'function',
     };
     const { container } = render(<GraphTooltip data={data} />);
+    // 提示框 portal 到 document.body，容器内应为空
     expect(container.querySelector('.cg-tooltip-links')).toBeNull();
+    expect(document.querySelector('.cg-tooltip-links')).toBeNull();
   });
 
   it('应渲染边 tooltip 含 source 和 target', () => {
@@ -76,8 +78,8 @@ describe('GraphTooltip', () => {
       path: 'p',
       type: 't',
     };
-    const { container } = render(<GraphTooltip data={data} />);
-    expect(container.querySelector('[role="tooltip"]')).toBeInTheDocument();
+    render(<GraphTooltip data={data} />);
+    expect(document.querySelector('[role="tooltip"]')).toBeInTheDocument();
   });
 
   it('应设置 style left/top 属性', () => {
@@ -88,9 +90,24 @@ describe('GraphTooltip', () => {
       path: 'p',
       type: 't',
     };
-    const { container } = render(<GraphTooltip data={data} />);
-    const tooltip = container.querySelector('.cg-tooltip') as HTMLElement;
+    render(<GraphTooltip data={data} />);
+    const tooltip = document.querySelector('.cg-tooltip') as HTMLElement;
     expect(tooltip.style.left).toBeTruthy();
     expect(tooltip.style.top).toBeTruthy();
+  });
+
+  it('应将提示框portal到document.body以脱离面板裁剪', () => {
+    const data: TooltipData = {
+      x: 200,
+      y: 300,
+      name: 'n',
+      path: 'p',
+      type: 't',
+    };
+    const { container } = render(<GraphTooltip data={data} />);
+    const tooltip = document.querySelector('.cg-tooltip');
+    expect(tooltip).toBeTruthy();
+    expect(container.contains(tooltip)).toBe(false);
+    expect(document.body.contains(tooltip)).toBe(true);
   });
 });

@@ -2,6 +2,7 @@
 import { memo } from 'react';
 import { useT } from '../i18n/index.ts';
 import { TOOLTIP } from '../../shared/constants.ts';
+import { Portal } from './Portal.tsx';
 
 export interface TooltipData {
   x: number;
@@ -41,27 +42,33 @@ function clampPosition(x: number, y: number): { left: number; top: number } {
 export const GraphTooltip = memo(function GraphTooltip({ data }: GraphTooltipProps) {
   const t = useT();
   const pos = clampPosition(data.x, data.y);
+  // 提示框用 `position: fixed` 贴视口；面板的 `contain: layout paint style` 会把它
+  // 变成裁剪容器，所以必须 portal 到 body，否则提示框会在面板边缘被截断。
   if (isEdgeTooltip(data)) {
     return (
-      <div className="cg-tooltip" style={{ left: pos.left, top: pos.top }} role="tooltip">
-        <div className="cg-tooltip-edge-source">{data.sourceLabel}</div>
-        <div className="cg-tooltip-edge-arrow">→</div>
-        <div className="cg-tooltip-edge-target">{data.targetLabel}</div>
-        <span className="cg-tooltip-type">{t(`legend.${data.edgeType}`)}</span>
-      </div>
+      <Portal>
+        <div className="cg-tooltip" style={{ left: pos.left, top: pos.top }} role="tooltip">
+          <div className="cg-tooltip-edge-source">{data.sourceLabel}</div>
+          <div className="cg-tooltip-edge-arrow">→</div>
+          <div className="cg-tooltip-edge-target">{data.targetLabel}</div>
+          <span className="cg-tooltip-type">{t(`legend.${data.edgeType}`)}</span>
+        </div>
+      </Portal>
     );
   }
   return (
-    <div className="cg-tooltip" style={{ left: pos.left, top: pos.top }} role="tooltip">
-      <div className="cg-tooltip-name">{data.name}</div>
-      <div className="cg-tooltip-path">{data.path}</div>
-      <span className="cg-tooltip-type">{data.type}</span>
-      {(data.linksIn !== undefined || data.linksOut !== undefined) && (
-        <div className="cg-tooltip-links">
-          {data.linksIn !== undefined && <span className="cg-tooltip-links-in">in: {data.linksIn}</span>}
-          {data.linksOut !== undefined && <span className="cg-tooltip-links-out">out: {data.linksOut}</span>}
-        </div>
-      )}
-    </div>
+    <Portal>
+      <div className="cg-tooltip" style={{ left: pos.left, top: pos.top }} role="tooltip">
+        <div className="cg-tooltip-name">{data.name}</div>
+        <div className="cg-tooltip-path">{data.path}</div>
+        <span className="cg-tooltip-type">{data.type}</span>
+        {(data.linksIn !== undefined || data.linksOut !== undefined) && (
+          <div className="cg-tooltip-links">
+            {data.linksIn !== undefined && <span className="cg-tooltip-links-in">in: {data.linksIn}</span>}
+            {data.linksOut !== undefined && <span className="cg-tooltip-links-out">out: {data.linksOut}</span>}
+          </div>
+        )}
+      </div>
+    </Portal>
   );
 });

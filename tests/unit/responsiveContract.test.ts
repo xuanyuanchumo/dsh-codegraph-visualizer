@@ -103,4 +103,21 @@ describe('toolbar responsive contract', () => {
     expect(ruleBody(layoutCss, '.cg-toolbar-right')).toMatch(/flex-shrink:\s*0/);
     expect(ruleBody(layoutCss, '.cg-toolbar-center')).toMatch(/min-width:\s*0/);
   });
+
+  it('drives the narrow-panel dropdown drawer from measurement, not from a container query', () => {
+    // The dropdown content is portaled to document.body (so the toolbar and the panel's
+    // `contain: paint` can no longer clip it), which also means it stops being a descendant
+    // of `.cg-graph-panel`: any `@container graphpanel` rule for it is dead. Measured on the
+    // real host at a 317px panel the drawer rule silently stopped applying. The drawer form
+    // now lives on `.cg-portal-drawer`, added by the component after it measures the panel.
+    const drawerMatch = /\.cg-portal-drawer\s*\{([^}]*)\}/.exec(layoutCss);
+    const drawer = drawerMatch ? drawerMatch[1] : '';
+    expect(drawer).toMatch(/bottom:\s*var\(--cg-portal-bottom/);
+    expect(drawer).toMatch(/width:\s*var\(--cg-portal-width/);
+    // Content-box would inflate the measured width by the padding and border and overflow
+    // the panel edge by ~9.4px (measured), so the drawer must size border-box.
+    expect(drawer).toMatch(/box-sizing:\s*border-box/);
+    // No `@container` tier may claim to style the portaled dropdown again.
+    expect(responsiveCss).not.toMatch(/\.cg-dropdown-content\s*\{[^}]*bottom:\s*4px/);
+  });
 });

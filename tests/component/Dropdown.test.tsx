@@ -104,21 +104,98 @@ describe('Dropdown', () => {
   });
 
   it('应使用自定义contentClassName', () => {
-    const { getByLabelText, container } = render(
+    const { getByLabelText } = render(
       <Dropdown {...defaultProps} contentClassName="cg-custom-content" />
     );
     fireEvent.click(getByLabelText('Test menu'));
-    const content = container.querySelector('.cg-custom-content');
+    // 内容被 portal 到 document.body，因此查询必须落在 document 上而非渲染容器内
+    const content = document.querySelector('.cg-custom-content');
     expect(content).toBeTruthy();
   });
 
   it('应设置content的role属性', () => {
-    const { getByLabelText, container } = render(
+    const { getByLabelText } = render(
       <Dropdown {...defaultProps} contentRole="menu" />
     );
     fireEvent.click(getByLabelText('Test menu'));
-    const content = container.querySelector('[role="menu"]');
+    const content = document.querySelector('[role="menu"]');
     expect(content).toBeTruthy();
+  });
+
+  it('应将下拉内容portal到document.body以脱离工具栏与面板的裁剪', () => {
+    const { getByLabelText, container } = render(<Dropdown {...defaultProps} />);
+    fireEvent.click(getByLabelText('Test menu'));
+    const content = document.querySelector('.cg-dropdown-content');
+    expect(content).toBeTruthy();
+    // 触发器仍在原容器内，内容则挂在 body 下
+    expect(container.contains(content)).toBe(false);
+    expect(document.body.contains(content)).toBe(true);
+  });
+
+  it('应支持注入portal挂载点', () => {
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    try {
+      const { getByLabelText } = render(<Dropdown {...defaultProps} portalTarget={host} />);
+      fireEvent.click(getByLabelText('Test menu'));
+      expect(host.querySelector('.cg-dropdown-content')).toBeTruthy();
+    } finally {
+      host.remove();
+    }
+  });
+
+  it('窄面板下应将下拉内容切换为底部抽屉形态', () => {
+    // jsdom 不做布局，clientWidth 恒为 0，因此手工注入面板宽度与矩形，
+    // 模拟 `@container graphpanel (max-width: 320px)` 的窄面板场景。
+    const panel = document.createElement('div');
+    panel.className = 'cg-graph-panel';
+    Object.defineProperty(panel, 'clientWidth', { configurable: true, value: 300 });
+    panel.getBoundingClientRect = () =>
+      ({ left: 40, top: 100, right: 340, bottom: 700, width: 300, height: 600 }) as DOMRect;
+    document.body.appendChild(panel);
+    try {
+      const { getByLabelText } = render(<Dropdown {...defaultProps} portalTarget={panel} />, {
+        container: panel,
+      });
+      fireEvent.click(getByLabelText('Test menu'));
+      const content = panel.querySelector('.cg-dropdown-content') as HTMLElement;
+      expect(content).toBeTruthy();
+      // 形态由组件测量后决定，不再依赖容器查询
+      expect(content.className).toContain('cg-portal-drawer');
+      expect(content.style.getPropertyValue('--cg-portal-width')).toBe('292px');
+      expect(content.style.getPropertyValue('--cg-portal-bottom')).toBe('72px');
+      expect(content.style.getPropertyValue('--cg-portal-top')).toBe('auto');
+    } finally {
+      panel.remove();
+    }
+  });
+
+  it('宽面板下应保持锚定在触发按钮下方', () => {
+    const panel = document.createElement('div');
+    panel.className = 'cg-graph-panel';
+    Object.defineProperty(panel, 'clientWidth', { configurable: true, value: 900 });
+    panel.getBoundingClientRect = () =>
+      ({ left: 0, top: 0, right: 900, bottom: 600, width: 900, height: 600 }) as DOMRect;
+    document.body.appendChild(panel);
+    try {
+      const { getByLabelText } = render(<Dropdown {...defaultProps} portalTarget={panel} />, {
+        container: panel,
+      });
+      fireEvent.click(getByLabelText('Test menu'));
+      const content = panel.querySelector('.cg-dropdown-content') as HTMLElement;
+      expect(content.className).not.toContain('cg-portal-drawer');
+      expect(content.style.getPropertyValue('--cg-portal-top')).not.toBe('auto');
+      expect(content.style.getPropertyValue('--cg-portal-width')).toBe('auto');
+    } finally {
+      panel.remove();
+    }
+  });
+
+  it('点击portal出去的下拉内容不应被误判为外部点击', () => {
+    const { getByLabelText, getByTestId } = render(<Dropdown {...defaultProps} />);
+    fireEvent.click(getByLabelText('Test menu'));
+    fireEvent.mouseDown(getByTestId('content'));
+    expect(getByTestId('content')).toBeTruthy();
   });
 
   it('closeOnOutsideClick=false时点击外部不关闭', () => {

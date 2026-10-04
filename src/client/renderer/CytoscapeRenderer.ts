@@ -312,16 +312,19 @@ export class CytoscapeRenderer implements IRenderer {
   }
 
   /**
-   * Position used to anchor the context menu when the user opens it without a pointer. Cytoscape
-   * keeps reporting the last computed position for `display: none` elements, and the menu clamps
-   * itself into the viewport, so only a node that is really absent returns `null`.
+   * Viewport-space position used to anchor the context menu when the user opens it without a
+   * pointer. Cytoscape keeps reporting the last computed position for `display: none` elements,
+   * and the menu clamps itself into the viewport, so only a node that is really absent returns
+   * `null`. Cytoscape 的渲染坐标相对画布容器，这里叠加容器原点换算成视口坐标。
    */
   getNodeRenderedPosition(nodeId: string): { x: number; y: number } | null {
     return this.safeCall('getNodeRenderedPosition', () => {
       const node = this.cy?.getElementById(nodeId);
       if (!node || node.empty() || !node.isNode()) return null;
       const pos = node.renderedPosition();
-      return { x: pos.x, y: pos.y };
+      const rect = this.options.container?.getBoundingClientRect?.();
+      if (!rect) return { x: pos.x, y: pos.y };
+      return { x: pos.x + rect.left, y: pos.y + rect.top };
     }, null);
   }
 

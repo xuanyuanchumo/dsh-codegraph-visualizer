@@ -225,9 +225,10 @@
 }
 /* ---- Tooltip (node hover) ------------------------------------------------ */
 
+/* 提示框 portal 到 body：位置已是视口坐标，层级需压过宿主外壳 chrome。 */
 .cg-tooltip {
   position: fixed;
-  z-index: var(--cg-z-tooltip);
+  z-index: var(--cg-z-portal-tooltip);
   background: var(--cg-surface);
   border: 1px solid var(--cg-border-strong);
   border-radius: var(--cg-radius-sm);

@@ -134,10 +134,11 @@ describe('ContextMenu', () => {
     document.addEventListener('keydown', leaked);
 
     try {
-      const { container, rerender } = render(<ContextMenu {...defaultProps} onClose={firstClose} />);
+      const { rerender } = render(<ContextMenu {...defaultProps} onClose={firstClose} />);
       rerender(<ContextMenu {...defaultProps} onClose={secondClose} />);
 
-      const item = container.querySelector('.cg-context-menu-item') as HTMLButtonElement;
+      // 菜单 portal 到 document.body，故查询落在 document 上
+      const item = document.querySelector('.cg-context-menu-item') as HTMLButtonElement;
       const notCancelled = fireEvent.keyDown(item, { key: 'Escape' });
 
       expect(notCancelled).toBe(false);
@@ -150,8 +151,8 @@ describe('ContextMenu', () => {
   });
 
   it('按方向键仍能移动菜单项焦点', () => {
-    const { container } = render(<ContextMenu {...defaultProps} />);
-    const items = container.querySelectorAll<HTMLButtonElement>('.cg-context-menu-item');
+    render(<ContextMenu {...defaultProps} />);
+    const items = document.querySelectorAll<HTMLButtonElement>('.cg-context-menu-item');
     expect(document.activeElement).toBe(items[0]);
 
     fireEvent.keyDown(document.activeElement ?? document, { key: 'ArrowDown' });
@@ -168,11 +169,17 @@ describe('ContextMenu', () => {
   });
 
   it('菜单应定位在指定位置', () => {
-    const { container } = render(
-      <ContextMenu {...defaultProps} position={{ x: 300, y: 400 }} />
-    );
-    const menu = container.querySelector('.cg-context-menu') as HTMLElement;
+    render(<ContextMenu {...defaultProps} position={{ x: 300, y: 400 }} />);
+    const menu = document.querySelector('.cg-context-menu') as HTMLElement;
     expect(menu.style.left).toBe('300px');
     expect(menu.style.top).toBe('400px');
+  });
+
+  it('应将菜单portal到document.body以脱离面板裁剪', () => {
+    const { container } = render(<ContextMenu {...defaultProps} />);
+    const menu = document.querySelector('.cg-context-menu');
+    expect(menu).toBeTruthy();
+    expect(container.contains(menu)).toBe(false);
+    expect(document.body.contains(menu)).toBe(true);
   });
 });

@@ -330,15 +330,15 @@ describe('GraphPanel handler behavior', () => {
     const moreBtn = container.querySelector('.cg-more-btn') as HTMLButtonElement;
     expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(false);
     fireEvent.click(moreBtn);
-    let themeBtn = container.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
+    let themeBtn = document.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
     expect(themeBtn?.tagName).toBe('BUTTON');
     fireEvent.click(themeBtn);
     fireEvent.click(moreBtn);
-    themeBtn = container.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
+    themeBtn = document.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
     fireEvent.click(themeBtn);
     expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(true);
     fireEvent.click(moreBtn);
-    themeBtn = container.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
+    themeBtn = document.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
     fireEvent.click(themeBtn);
     expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(false);
   });
@@ -349,7 +349,7 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const moreBtn = container.querySelector('.cg-more-btn') as HTMLButtonElement;
     fireEvent.click(moreBtn);
-    const themeBtn = container.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
+    const themeBtn = document.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
     fireEvent.click(themeBtn);
     expect(vi.mocked(invalidateCssVarCache)).toHaveBeenCalled();
   });
@@ -376,7 +376,7 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const moreBtn = container.querySelector('.cg-more-btn') as HTMLButtonElement;
     fireEvent.click(moreBtn);
-    const langBtn = container.querySelector('[aria-label="toolbar.lang"]') as HTMLButtonElement;
+    const langBtn = document.querySelector('[aria-label="toolbar.lang"]') as HTMLButtonElement;
     expect(langBtn?.tagName).toBe('BUTTON');
     fireEvent.click(langBtn);
     expect(vi.mocked(i18nModule.toggleLang)).toHaveBeenCalled();
@@ -445,7 +445,7 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
     fireEvent.click(toolsDropdownBtn);
-    const pathfindBtn = container.querySelector('.cg-pathfind-btn') as HTMLButtonElement;
+    const pathfindBtn = document.querySelector('.cg-pathfind-btn') as HTMLButtonElement;
     expect(pathfindBtn?.tagName).toBe('BUTTON');
     fireEvent.click(pathfindBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -456,7 +456,7 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
     fireEvent.click(toolsDropdownBtn);
-    const healthBtn = container.querySelector('.cg-health-btn') as HTMLButtonElement;
+    const healthBtn = document.querySelector('.cg-health-btn') as HTMLButtonElement;
     expect(healthBtn?.tagName).toBe('BUTTON');
     fireEvent.click(healthBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -467,7 +467,7 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const dataDropdownBtn = container.querySelector('.cg-data-dropdown-btn') as HTMLButtonElement;
     fireEvent.click(dataDropdownBtn);
-    const filterBtn = container.querySelector('.cg-filter-panel-btn') as HTMLButtonElement;
+    const filterBtn = document.querySelector('.cg-filter-panel-btn') as HTMLButtonElement;
     expect(filterBtn?.tagName).toBe('BUTTON');
     fireEvent.click(filterBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -478,7 +478,7 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const moreBtn = container.querySelector('.cg-more-btn') as HTMLButtonElement;
     fireEvent.click(moreBtn);
-    const legendBtn = container.querySelector('[aria-label="toolbar.legend"]') as HTMLButtonElement;
+    const legendBtn = document.querySelector('[aria-label="toolbar.legend"]') as HTMLButtonElement;
     expect(legendBtn?.tagName).toBe('BUTTON');
     fireEvent.click(legendBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -489,7 +489,7 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const moreBtn = container.querySelector('.cg-more-btn') as HTMLButtonElement;
     fireEvent.click(moreBtn);
-    const minimapBtn = container.querySelector('[aria-label="toolbar.minimap"]') as HTMLButtonElement;
+    const minimapBtn = document.querySelector('[aria-label="toolbar.minimap"]') as HTMLButtonElement;
     expect(minimapBtn?.tagName).toBe('BUTTON');
     fireEvent.click(minimapBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -501,7 +501,7 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
     fireEvent.click(toolsDropdownBtn);
-    const callchainBtn = container.querySelector('.cg-chain-btn') as HTMLButtonElement;
+    const callchainBtn = document.querySelector('.cg-chain-btn') as HTMLButtonElement;
     expect(callchainBtn?.tagName).toBe('BUTTON');
     fireEvent.click(callchainBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -513,7 +513,7 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
     fireEvent.click(toolsDropdownBtn);
-    const impactBtn = container.querySelector('.cg-impact-btn') as HTMLButtonElement;
+    const impactBtn = document.querySelector('.cg-impact-btn') as HTMLButtonElement;
     expect(impactBtn?.tagName).toBe('BUTTON');
     fireEvent.click(impactBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -525,7 +525,7 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
     fireEvent.click(toolsDropdownBtn);
-    const inheritanceBtn = container.querySelector('.cg-inheritance-btn') as HTMLButtonElement;
+    const inheritanceBtn = document.querySelector('.cg-inheritance-btn') as HTMLButtonElement;
     expect(inheritanceBtn?.tagName).toBe('BUTTON');
     fireEvent.click(inheritanceBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -537,7 +537,7 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
     fireEvent.click(toolsDropdownBtn);
-    const hotspotBtn = container.querySelector('.cg-hotspot-btn') as HTMLButtonElement;
+    const hotspotBtn = document.querySelector('.cg-hotspot-btn') as HTMLButtonElement;
     expect(hotspotBtn?.tagName).toBe('BUTTON');
     fireEvent.click(hotspotBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -549,7 +549,7 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
     fireEvent.click(toolsDropdownBtn);
-    const godBtn = container.querySelector('.cg-godmodule-btn') as HTMLButtonElement;
+    const godBtn = document.querySelector('.cg-godmodule-btn') as HTMLButtonElement;
     expect(godBtn?.tagName).toBe('BUTTON');
     fireEvent.click(godBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -561,7 +561,7 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
     fireEvent.click(toolsDropdownBtn);
-    const cyclesBtn = container.querySelector('.cg-cycle-btn') as HTMLButtonElement;
+    const cyclesBtn = document.querySelector('.cg-cycle-btn') as HTMLButtonElement;
     expect(cyclesBtn?.tagName).toBe('BUTTON');
     fireEvent.click(cyclesBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -573,7 +573,7 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
     fireEvent.click(toolsDropdownBtn);
-    const coreBtn = container.querySelector('.cg-corefunction-btn') as HTMLButtonElement;
+    const coreBtn = document.querySelector('.cg-corefunction-btn') as HTMLButtonElement;
     expect(coreBtn?.tagName).toBe('BUTTON');
     fireEvent.click(coreBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -584,7 +584,7 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
     fireEvent.click(toolsDropdownBtn);
-    const rulesBtn = container.querySelector('.cg-rules-btn') as HTMLButtonElement;
+    const rulesBtn = document.querySelector('.cg-rules-btn') as HTMLButtonElement;
     expect(rulesBtn?.tagName).toBe('BUTTON');
     fireEvent.click(rulesBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -595,7 +595,7 @@ describe('GraphPanel handler behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const dataDropdownBtn = container.querySelector('.cg-data-dropdown-btn') as HTMLButtonElement;
     fireEvent.click(dataDropdownBtn);
-    const importBtn = container.querySelector('.cg-import-btn') as HTMLButtonElement;
+    const importBtn = document.querySelector('.cg-import-btn') as HTMLButtonElement;
     expect(importBtn?.tagName).toBe('BUTTON');
     fireEvent.click(importBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -678,11 +678,11 @@ describe('GraphPanel event dispatch behavior', () => {
     const { container } = render(React.createElement(GraphPanel));
     const moreBtn = container.querySelector('.cg-more-btn') as HTMLButtonElement;
     fireEvent.click(moreBtn);
-    let themeBtn = container.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
+    let themeBtn = document.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
     expect(themeBtn?.tagName).toBe('BUTTON');
     fireEvent.click(themeBtn);
     fireEvent.click(moreBtn);
-    themeBtn = container.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
+    themeBtn = document.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
     fireEvent.click(themeBtn);
     expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(true);
   });
@@ -750,7 +750,7 @@ describe('GraphPanel event dispatch behavior', () => {
   it('context menu: not shown by default', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const { container } = render(React.createElement(GraphPanel));
-    const contextMenu = container.querySelector('.cg-context-menu');
+    const contextMenu = document.querySelector('.cg-context-menu');
     expect(contextMenu).toBeNull();
   });
 
@@ -901,7 +901,7 @@ describe('GraphPanel handler integration', () => {
     const { container } = render(React.createElement(GraphPanel));
     const toolsDropdownBtn = container.querySelector('.cg-tools-dropdown-btn') as HTMLButtonElement;
     fireEvent.click(toolsDropdownBtn);
-    const pathfindBtn = container.querySelector('.cg-pathfind-btn') as HTMLButtonElement;
+    const pathfindBtn = document.querySelector('.cg-pathfind-btn') as HTMLButtonElement;
     expect(pathfindBtn?.tagName).toBe('BUTTON');
     fireEvent.click(pathfindBtn);
     expect(container.querySelector('.cg-graph-panel')).not.toBeNull();
@@ -952,11 +952,11 @@ describe('GraphPanel handler integration', () => {
     const moreBtn = container.querySelector('.cg-more-btn') as HTMLButtonElement;
     expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(false);
     fireEvent.click(moreBtn);
-    let themeBtn = container.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
+    let themeBtn = document.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
     expect(themeBtn?.tagName).toBe('BUTTON');
     fireEvent.click(themeBtn);
     fireEvent.click(moreBtn);
-    themeBtn = container.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
+    themeBtn = document.querySelector('[aria-label="toolbar.theme"]') as HTMLButtonElement;
     fireEvent.click(themeBtn);
     expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(true);
     expect(useGraphStore.getState().theme).toBe('dark');
@@ -1210,7 +1210,7 @@ describe('GraphPanel uncovered handler tests', () => {
       capturedCallbacks.onNodeHover('n1', { x: 100, y: 100 });
     });
 
-    const tooltip = container.querySelector('.cg-tooltip');
+    const tooltip = document.querySelector('.cg-tooltip');
     expect(tooltip).not.toBeNull();
     expect(tooltip?.getAttribute('role')).toBe('tooltip');
     expect(tooltip?.querySelector('.cg-tooltip-name')?.textContent).toBe('myFunc');
@@ -1231,12 +1231,12 @@ describe('GraphPanel uncovered handler tests', () => {
     act(() => {
       capturedCallbacks.onNodeHover('n1', { x: 100, y: 100 });
     });
-    expect(container.querySelector('.cg-tooltip')).not.toBeNull();
+    expect(document.querySelector('.cg-tooltip')).not.toBeNull();
 
     act(() => {
       capturedCallbacks.onNodeHoverOut();
     });
-    expect(container.querySelector('.cg-tooltip')).toBeNull();
+    expect(document.querySelector('.cg-tooltip')).toBeNull();
   });
 
   it('handleEdgeHover: sets tooltip with edge source and target labels', async () => {
@@ -1256,7 +1256,7 @@ describe('GraphPanel uncovered handler tests', () => {
       capturedCallbacks.onEdgeHover('e1', { x: 200, y: 200 });
     });
 
-    const tooltip = container.querySelector('.cg-tooltip');
+    const tooltip = document.querySelector('.cg-tooltip');
     expect(tooltip).not.toBeNull();
     expect(tooltip?.querySelector('.cg-tooltip-edge-source')?.textContent).toBe('sourceFunc');
     expect(tooltip?.querySelector('.cg-tooltip-edge-target')?.textContent).toBe('targetFunc');
@@ -1278,12 +1278,12 @@ describe('GraphPanel uncovered handler tests', () => {
     act(() => {
       capturedCallbacks.onEdgeHover('e1', { x: 200, y: 200 });
     });
-    expect(container.querySelector('.cg-tooltip')).not.toBeNull();
+    expect(document.querySelector('.cg-tooltip')).not.toBeNull();
 
     act(() => {
       capturedCallbacks.onEdgeHoverOut();
     });
-    expect(container.querySelector('.cg-tooltip')).toBeNull();
+    expect(document.querySelector('.cg-tooltip')).toBeNull();
   });
 
   it('handleEdgeTap: sets tooltip with edge data on tap', async () => {
@@ -1303,7 +1303,7 @@ describe('GraphPanel uncovered handler tests', () => {
       capturedCallbacks.onEdgeTap('e1', { x: 150, y: 150 });
     });
 
-    const tooltip = container.querySelector('.cg-tooltip');
+    const tooltip = document.querySelector('.cg-tooltip');
     expect(tooltip).not.toBeNull();
     expect(tooltip?.querySelector('.cg-tooltip-edge-source')?.textContent).toBe('callerFunc');
     expect(tooltip?.querySelector('.cg-tooltip-edge-target')?.textContent).toBe('calleeFunc');
@@ -1700,7 +1700,7 @@ describe('GraphPanel uncovered handler tests', () => {
       capturedCallbacks.onNodeContextTap('n1', { x: 300, y: 300 });
     });
 
-    const contextMenu = container.querySelector('.cg-context-menu');
+    const contextMenu = document.querySelector('.cg-context-menu');
     expect(contextMenu).not.toBeNull();
     expect(contextMenu?.getAttribute('role')).toBe('menu');
 
@@ -1719,10 +1719,10 @@ describe('GraphPanel uncovered handler tests', () => {
     act(() => {
       capturedCallbacks.onNodeContextTap('n1', { x: 300, y: 300 });
     });
-    expect(container.querySelector('.cg-context-menu')).not.toBeNull();
+    expect(document.querySelector('.cg-context-menu')).not.toBeNull();
 
     fireEvent.mouseDown(document.body);
-    expect(container.querySelector('.cg-context-menu')).toBeNull();
+    expect(document.querySelector('.cg-context-menu')).toBeNull();
   });
 
   it('auto-scan: triggers bootstrap when prerequisites are ready and workspace is set', async () => {
@@ -1891,7 +1891,7 @@ describe('GraphPanel context menu callback tests', () => {
     act(() => {
       capturedCallbacks.onNodeContextTap(nodeId, pos);
     });
-    return container.querySelector('.cg-context-menu');
+    return document.querySelector('.cg-context-menu');
   }
 
   function clickMenuItem(menu: Element, itemIndex: number) {
@@ -2212,14 +2212,14 @@ describe('GraphPanel keyboard handler callback tests', () => {
     act(() => {
       capturedCallbacks.onNodeContextTap('n1', { x: 300, y: 300 });
     });
-    expect(container.querySelector('.cg-context-menu')).not.toBeNull();
+    expect(document.querySelector('.cg-context-menu')).not.toBeNull();
 
     // BUG-R12-02: the real key used to leave the menu open because the menu listener was
     // re-registered on every render and sat on the bubble phase.
     const target = (document.activeElement as HTMLElement | null) ?? document;
     fireEvent.keyDown(target, { key: 'Escape' });
 
-    expect(container.querySelector('.cg-context-menu')).toBeNull();
+    expect(document.querySelector('.cg-context-menu')).toBeNull();
   });
 
   it('onToggleHelp: toggles keyboard help visibility', async () => {
@@ -3632,7 +3632,7 @@ describe('GraphPanel remaining handler coverage tests', () => {
     const levelDropdownBtn = container.querySelector('.cg-level-dropdown-btn') as HTMLButtonElement;
     expect(levelDropdownBtn).toBeTruthy();
     fireEvent.click(levelDropdownBtn);
-    const levelDropdown = container.querySelector('.cg-level-dropdown');
+    const levelDropdown = document.querySelector('.cg-level-dropdown');
     expect(levelDropdown).toBeTruthy();
     const clusterDepthBtn = levelDropdown!.querySelector('[title="clusterDepth.function"]') as HTMLButtonElement;
     expect(clusterDepthBtn).toBeTruthy();
@@ -3654,7 +3654,7 @@ describe('GraphPanel remaining handler coverage tests', () => {
     const levelBtn = container.querySelector('.cg-level-dropdown-btn') as HTMLButtonElement;
     expect(levelBtn).toBeTruthy();
     fireEvent.click(levelBtn);
-    const levelDropdown = container.querySelector('.cg-level-dropdown');
+    const levelDropdown = document.querySelector('.cg-level-dropdown');
     expect(levelDropdown).toBeTruthy();
     const items = levelDropdown!.querySelectorAll('.cg-dropdown-item');
     const targetItem = Array.from(items).find((item) => !item.classList.contains('cg-active')) as HTMLButtonElement;
@@ -3672,7 +3672,7 @@ describe('GraphPanel remaining handler coverage tests', () => {
     const { container } = render(React.createElement(GraphPanel));
     const dataDropdownBtn = container.querySelector('.cg-data-dropdown-btn') as HTMLButtonElement;
     fireEvent.click(dataDropdownBtn);
-    const filterPanelBtn = container.querySelector('.cg-filter-panel-btn') as HTMLButtonElement;
+    const filterPanelBtn = document.querySelector('.cg-filter-panel-btn') as HTMLButtonElement;
     expect(filterPanelBtn).toBeTruthy();
     fireEvent.click(filterPanelBtn);
   });

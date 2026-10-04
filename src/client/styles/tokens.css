@@ -195,10 +195,21 @@
   --cg-z-search: 25;
   --cg-z-overlay: 30;
   --cg-z-resize: 35;
-  --cg-z-tooltip: 40;
   --cg-z-modal: 50;
   --cg-z-modal-action: 55;
   --cg-z-context-menu: 60;
+
+  /* Portal layers — 浮层被 portal 到 document.body 后不再受面板 contain/overflow 约束，
+   * 因此必须压过 DSH 宿主外壳自身的 chrome。实测宿主外壳最高层级为 40，
+   * 故 portal 子阶梯从 50 起（与 --cg-z-modal 同起点，靠数值区分先后）。
+   * 悬浮提示原先的 --cg-z-tooltip(40) 已随 portal 化并入此子阶梯，故不再单列。
+   * 定位钩子由组件在 layout 阶段写入行内自定义属性，媒体查询仍可覆盖。 */
+  --cg-z-portal-tooltip: 50;
+  --cg-z-portal-dropdown: 55;
+  --cg-portal-left: auto;
+  --cg-portal-top: auto;
+  --cg-portal-bottom: auto;
+  --cg-portal-width: auto;
 }
 
 /* DSH Dark theme — activated when body[data-ds-dark-theme] is set.

@@ -248,17 +248,9 @@
     width: 120px;
   }
 
-  .cg-dropdown-content {
-    position: fixed;
-    left: 4px;
-    right: 4px;
-    top: auto;
-    bottom: 4px;
-    min-width: unset;
-    width: calc(100% - 8px);
-    max-height: 60vh;
-    overflow-y: auto;
-  }
+  /* 下拉内容已 portal 到 document.body，不再是本容器的后代，此处的
+   * `@container` 抽屉规则永远匹配不到；抽屉形态改由 Dropdown 组件测量面板
+   * 宽度后加 `.cg-portal-drawer`（见 layout.css）实现。 */
 
   .cg-search-panel,
   .cg-path-panel,
@@ -680,17 +672,7 @@
     .cg-mini-map {
       width: 120px;
     }
-    .cg-dropdown-content {
-      position: fixed;
-      left: 4px;
-      right: 4px;
-      top: auto;
-      bottom: 4px;
-      min-width: unset;
-      width: calc(100% - 8px);
-      max-height: 60vh;
-      overflow-y: auto;
-    }
+    /* 同上：portal 到 body 后这里也匹配不到，抽屉由 `.cg-portal-drawer` 接管。 */
     .cg-search-panel,
     .cg-path-panel,
     .cg-filter-panel {

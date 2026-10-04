@@ -89,7 +89,11 @@
   /* The toolbar is persistent chrome: it must stay above the empty / loading / error
      overlays (which are absolutely positioned with z-index: var(--cg-z-overlay)) so its
      controls remain visible and clickable while the graph area has no data. Without a
-     stacking context here the overlays cover the whole panel, toolbar included. */
+     stacking context here the overlays cover the whole panel, toolbar included.
+     `overflow-y: visible` computes to `auto` while `overflow-x` is `auto`, so this box
+     used to clip its own dropdowns (J0: a 231.6px menu showed only 3px). Dropdown
+     contents are now portalled to document.body and no longer live inside this box,
+     which keeps horizontal scrolling intact without the clipping. */
   position: relative;
   z-index: calc(var(--cg-z-overlay) + 1);
 }
@@ -598,11 +602,13 @@ body[data-ds-dark-theme] .cg-type-badge.cg-function {
   position: relative;
 }
 
+/* 下拉内容被 portal 到 document.body，脱离工具栏与面板的裁剪链；
+ * 位置由组件写入 --cg-portal-* 行内自定义属性，
+ * 因此这里不写 inline 可覆盖的 left/top，窄面板抽屉由 .cg-portal-drawer 接管。 */
 .cg-export-dropdown {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 6px;
+  position: fixed;
+  left: var(--cg-portal-left, auto);
+  top: var(--cg-portal-top, auto);
   background: var(--cg-surface);
   border: 1px solid var(--cg-border);
   border-radius: var(--cg-radius-sm);
@@ -611,7 +617,7 @@ body[data-ds-dark-theme] .cg-type-badge.cg-function {
   flex-direction: column;
   gap: 2px;
   padding: 4px;
-  z-index: var(--cg-z-dropdown);
+  z-index: var(--cg-z-portal-dropdown);
   min-width: 120px;
   animation: cg-dropdown-in 120ms var(--cg-ease-out);
 }
@@ -695,11 +701,11 @@ body[data-ds-dark-theme] .cg-type-badge.cg-function {
   outline-offset: 2px;
 }
 
+/* 与 .cg-export-dropdown 同理：内容 portal 到 body，靠自定义属性定位。 */
 .cg-dropdown-content {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 6px;
+  position: fixed;
+  left: var(--cg-portal-left, auto);
+  top: var(--cg-portal-top, auto);
   background: var(--cg-surface);
   border: 1px solid var(--cg-border);
   border-radius: var(--cg-radius-sm);
@@ -708,9 +714,26 @@ body[data-ds-dark-theme] .cg-type-badge.cg-function {
   flex-direction: column;
   gap: 2px;
   padding: 4px;
-  z-index: var(--cg-z-dropdown);
+  z-index: var(--cg-z-portal-dropdown);
   min-width: 160px;
   animation: cg-dropdown-in 120ms var(--cg-ease-out);
+}
+
+/* 窄面板抽屉形态：内容 portal 到 body 后不再是 `.cg-graph-panel` 的后代，
+ * `@container graphpanel (max-width: 320px)` 的底部抽屉规则无法命中，
+ * 故由 Dropdown 组件测量面板宽度后加 `.cg-portal-drawer` 并写定位变量。 */
+.cg-portal-drawer {
+  /* 宽度由组件按「面板宽 - 两侧内缩」写入，若沿用默认 content-box，
+   * 内边距与边框会把这 309px 撑成 318.6px 并溢出面板右侧，故改 border-box。 */
+  box-sizing: border-box;
+  left: var(--cg-portal-left, auto);
+  right: auto;
+  top: auto;
+  bottom: var(--cg-portal-bottom, auto);
+  width: var(--cg-portal-width, auto);
+  min-width: unset;
+  max-height: 60vh;
+  overflow-y: auto;
 }
 
 .cg-dropdown-item {

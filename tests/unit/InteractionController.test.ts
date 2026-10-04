@@ -25,7 +25,7 @@ function makeMockEdge(id: string) {
   };
 }
 
-function makeMockCy(nodeList: any[] = [], edgeList: any[] = []) {
+function makeMockCy(nodeList: any[] = [], edgeList: any[] = [], containerRect: { left: number; top: number } | null = null) {
   const handlers: Record<string, Function[]> = {};
   const nodeCollection = {
     forEach: vi.fn((cb: (n: any) => void) => nodeList.forEach(cb)),
@@ -47,6 +47,11 @@ function makeMockCy(nodeList: any[] = [], edgeList: any[] = []) {
     }),
     nodes: vi.fn(() => nodeCollection),
     edges: vi.fn(() => edgeCollection),
+    // 容器原点：Cytoscape 的 renderedPosition 是容器相对坐标，消费方需要视口坐标。
+    // 不传时返回 undefined，等价于无头环境（偏移为 0）。
+    ...(containerRect
+      ? { container: vi.fn(() => ({ getBoundingClientRect: () => ({ ...containerRect }) })) }
+      : {}),
     _handlers: handlers,
     _nodeList: nodeList,
     _edgeList: edgeList,
@@ -174,6 +179,46 @@ describe('InteractionController', () => {
       const handler = cy._handlers['cxttap:node']![0]!;
       const mockNode = makeMockNode('node5');
       handler({ target: mockNode });
+      expect(callbacks.onNodeContextTap).toHaveBeenCalledWith('node5', { x: 10, y: 20 });
+    });
+  });
+
+  describe('viewport coordinate conversion', () => {
+    // 真实浏览器里容器不在视口原点（J0 实测 left=280, top=146），
+    // 浮层用 position: fixed 贴视口，因此回调必须加上容器原点。
+    it('offsets the edge tap position by the container origin', () => {
+      const cy = makeMockCy([], [], { left: 280, top: 146 });
+      const callbacks = makeCallbacks();
+      new InteractionController(cy as any, callbacks);
+      const handler = cy._handlers['tap:edge']![0]!;
+      handler({ target: makeMockEdge('edge1') });
+      expect(callbacks.onEdgeTap).toHaveBeenCalledWith('edge1', { x: 330, y: 206 });
+    });
+
+    it('offsets the node hover position by the container origin', () => {
+      const cy = makeMockCy([], [], { left: 280, top: 146 });
+      const callbacks = makeCallbacks();
+      new InteractionController(cy as any, callbacks);
+      const handler = cy._handlers['mouseover:node']![0]!;
+      handler({ target: makeMockNode('node3') });
+      expect(callbacks.onNodeHover).toHaveBeenCalledWith('node3', { x: 290, y: 166 });
+    });
+
+    it('offsets the context tap position by the container origin', () => {
+      const cy = makeMockCy([], [], { left: 280, top: 146 });
+      const callbacks = makeCallbacks();
+      new InteractionController(cy as any, callbacks);
+      const handler = cy._handlers['cxttap:node']![0]!;
+      handler({ target: makeMockNode('node5') });
+      expect(callbacks.onNodeContextTap).toHaveBeenCalledWith('node5', { x: 290, y: 166 });
+    });
+
+    it('falls back to the raw position when the container cannot be measured', () => {
+      const cy = makeMockCy([], [], { left: 0, top: 0 });
+      const callbacks = makeCallbacks();
+      new InteractionController(cy as any, callbacks);
+      const handler = cy._handlers['cxttap:node']![0]!;
+      handler({ target: makeMockNode('node5') });
       expect(callbacks.onNodeContextTap).toHaveBeenCalledWith('node5', { x: 10, y: 20 });
     });
   });
