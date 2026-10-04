@@ -4,11 +4,38 @@
       "gate": "G0",
       "gateName": "评估收敛门",
       "result": "PASS",
-      "detail": "E2E验证测试",
-      "timestamp": "2026-09-14T14:24:40.249Z",
-      "previousHash": null,
-      "hash": "c2e7c9e5eeaf7c18af4a35efed17169e8a5d516130864194c55f3e337ad66404"
+      "detail": "评估报告与事实基座抽验通过（cycle-78）",
+      "timestamp": "2026-10-05T00:00:00.000Z",
+      "previousHash": "c2e7c9e5eeaf7c18af4a35efed17169e8a5d516130864194c55f3e337ad66404",
+      "hash": "c9d448ba8ed100ea7de8c2f4af31318d9b8210e09260d4c59dafeb3859379ddf"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务登记门",
+      "result": "PASS",
+      "detail": "任务清单 T14-1..T14-12 全登记，L1-L6 已登记为下轮候选",
+      "timestamp": "2026-10-05T00:00:00.000Z",
+      "previousHash": "c9d448ba8ed100ea7de8c2f4af31318d9b8210e09260d4c59dafeb3859379ddf",
+      "hash": "988680351f5a1a9acbc9cf7b86e62f0079e9c815de71bf6c185c67afae70925a"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试通过门",
+      "result": "PASS",
+      "detail": "179 files / 4903 tests passed; typecheck host+client+test 0 errors; mutation 12/12 red",
+      "timestamp": "2026-10-05T00:00:00.000Z",
+      "previousHash": "988680351f5a1a9acbc9cf7b86e62f0079e9c815de71bf6c185c67afae70925a",
+      "hash": "525bee26d86c59941053602c736d80b5055f7c7ed3bfdb25f69472b7dcbd0774"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建交付门",
+      "result": "PASS",
+      "detail": "build exit 0 (worker 1527487 B); lint 0 warnings 0 errors (239 files); hygiene 19 artefacts / 7 roots, payload 11.23 MB",
+      "timestamp": "2026-10-05T00:00:00.000Z",
+      "previousHash": "525bee26d86c59941053602c736d80b5055f7c7ed3bfdb25f69472b7dcbd0774",
+      "hash": "c854bdc4f69434c0020a1537521e333089d80dc14b63b3f63f652b53d5b88d20"
     }
   ],
-  "chainHead": "c2e7c9e5eeaf7c18af4a35efed17169e8a5d516130864194c55f3e337ad66404"
+  "chainHead": "c854bdc4f69434c0020a1537521e333089d80dc14b63b3f63f652b53d5b88d20"
 }
