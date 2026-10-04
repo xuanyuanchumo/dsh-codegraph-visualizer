@@ -332,6 +332,18 @@ export const FINGERPRINT = {
   SNAPSHOT_KEEP: 3,
 } as const;
 
+/** Targeted (file-scoped) graph refresh driven by the watcher (P2-21). */
+export const INCREMENTAL = {
+  /**
+   * Watcher-supplied file paths accepted per update. Beyond this the targeted read stops being
+   * cheaper than the full one, so callers fall back to a whole-graph fetch. The watcher already
+   * clears its own tracking set past `MAX_CHANGED_FILES_TRACK`, which is why this ceiling is lower.
+   */
+  MAX_CHANGED_FILES: 50,
+  /** Rows per `IN (...)` batch when reading the changed files back out of the index. */
+  MAX_FILE_BATCH: 200,
+} as const;
+
 export const UI = {
   SEARCH_DEBOUNCE_MS: 200,
   RESIZE_DEBOUNCE_MS: 200,

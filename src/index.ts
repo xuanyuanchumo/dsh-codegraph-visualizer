@@ -136,8 +136,14 @@ export async function apply(ctx: Context, userConfig?: Partial<VisualizerConfig>
     emitPrereqStatus();
   }), 'codegraph: prerequisite request listener');
 
-  registerEventListeners(ctx, invokeUpstream);
-  registerWatcher(ctx, config, invokeUpstream);
+  registerEventListeners(ctx, invokeUpstream, {
+    getLastGraphData: () => lastGraphData,
+    setLastGraphData: (data) => { lastGraphData = data; },
+  });
+  registerWatcher(ctx, config, invokeUpstream, {
+    getLastGraphData: () => lastGraphData,
+    setLastGraphData: (data) => { lastGraphData = data; },
+  });
 
   const mcpServer = new McpServer();
   ctx.effect(() => {

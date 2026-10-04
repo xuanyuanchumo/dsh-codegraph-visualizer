@@ -1,9 +1,10 @@
-import type { GraphNode, GraphEdge } from '../../../types/index.ts';
+import type { GraphNode, GraphEdge, GraphDelta } from '../../../types/index.ts';
 import type { GraphState } from '../types.ts';
 import type { LayeredDiagram } from '../../diagram/index.ts';
 import { CYCLE_DETECTION, CLUSTER, RENDERER } from '../../../shared/constants.ts';
 import { sanitizeTypedGraph } from '../../../shared/GraphValidator.ts';
 import { isLayeredViewMode } from '../../../shared/viewModeUtils.ts';
+import { applyGraphDelta as applyDeltaToSkeleton, canApplyGraphDelta } from '../../../shared/graphDelta.ts';
 import { assembleDiagram } from '../../diagram/index.ts';
 import { emptyEdgeState } from './edgeSlice.ts';
 import {
@@ -193,6 +194,92 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
       abortAllControllers(prevPending);
       internals.incrementalClusterCtx = null;
       _set({ nodes: [], edges: [], rawNodes: [], rawEdges: [], savedRawNodes: [], savedRawEdges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0, truncated: false, totalNodeCount: 0, totalEdgeCount: 0, loadedChildrenByNodeId: new Set(), prefetchedNodeIds: new Set(), pendingRequests: new Map(), loadErrorsByNodeId: new Map(), ...emptyEdgeState() });
+    },
+    applyGraphDelta: (delta: GraphDelta): boolean => {
+      // The delta describes a specific revision. If the store has drifted (a full `graph/data`
+      // landed mid-flight, a reconnect skipped events, the graph was cleared) applying it would
+      // silently drop or resurrect entries, so refuse and let the caller re-bootstrap instead.
+      const { rawNodes, rawEdges } = _get();
+      if (!canApplyGraphDelta({ nodes: rawNodes, edges: rawEdges }, delta)) {
+        log.info('applyGraphDelta refused: delta does not match the current revision', {
+          storedNodes: rawNodes.length, storedEdges: rawEdges.length,
+        });
+        return false;
+      }
+      try {
+        clearLoadingFailsafe();
+        // Bump the generation like a full set does: in-flight expand/prefetch requests were computed
+        // against the pre-delta revision and must not write their stale children into the new one.
+        internals.expandGeneration++;
+        const prevPending = _get().pendingRequests;
+        abortAllControllers(prevPending);
+        internals.incrementalClusterCtx = null;
+
+        const folded = applyDeltaToSkeleton({ nodes: rawNodes, edges: rawEdges }, delta);
+        const sanitized = sanitizeTypedGraph(folded.nodes, folded.edges);
+        const { clusterDepth, expandedNodeIds, viewMode, currentLayer, panelWidth } = _get();
+        const isLayeredView = isLayeredViewMode(viewMode);
+
+        let displayNodes = sanitized.nodes;
+        let displayEdges = sanitized.edges;
+        let diagramData: LayeredDiagram | null = null;
+        if (isLayeredView) {
+          const dataHash = computeDataHash(sanitized.nodes, sanitized.edges);
+          const cached = diagramCache.get(viewMode, dataHash);
+          if (cached) {
+            diagramData = cached;
+          } else {
+            diagramData = assembleDiagram(viewMode, sanitized.nodes, sanitized.edges);
+            if (diagramData) diagramCache.set(viewMode, dataHash, diagramData);
+          }
+          if (diagramData) {
+            const layer = diagramData.layers[currentLayer] ?? diagramData.layers[0];
+            if (layer) {
+              displayNodes = layer.nodes;
+              displayEdges = layer.edges;
+            }
+          }
+        } else {
+          const result = tryIncrementalOrFull(
+            internals.incrementalClusterCtx,
+            sanitized.nodes, sanitized.edges,
+            expandedNodeIds, clusterDepth,
+            panelWidth ?? undefined,
+          );
+          updateIncrementalClusterCtx(result, sanitized.nodes, sanitized.edges);
+          displayNodes = result.nodes;
+          displayEdges = result.edges;
+        }
+
+        _set({
+          rawNodes: sanitized.nodes,
+          rawEdges: sanitized.edges,
+          nodes: displayNodes,
+          edges: displayEdges,
+          diagramData,
+          error: null,
+          isLoading: false,
+          lastUpdated: Date.now(),
+          totalNodeCount: sanitized.nodes.length,
+          totalEdgeCount: sanitized.edges.length,
+          pendingRequests: new Map(),
+          loadErrorsByNodeId: new Map(),
+          ...emptyEdgeState(),
+        });
+        log.info('applied graph delta', {
+          addedNodes: delta.addedNodes.length,
+          removedNodes: delta.removedNodes.length,
+          modifiedNodes: delta.modifiedNodes.length,
+          addedEdges: delta.addedEdges.length,
+          removedEdges: delta.removedEdges.length,
+          modifiedEdges: delta.modifiedEdges.length,
+        });
+        return true;
+      } catch (err) {
+        log.error('applyGraphDelta failed', { err });
+        _set({ error: err instanceof Error ? err.message : String(err), isLoading: false });
+        return false;
+      }
     },
   };
 }

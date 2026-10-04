@@ -224,6 +224,11 @@ export function registerEventsRoute(rc: RouteContext): void {
       disposers.push(ctx.on('codegraph-visualizer/graph/data', (event: { repoId?: string; nodes?: unknown[]; edges?: unknown[]; timestamp?: number; changedFiles?: string[] }) => {
         sendEvent('graph-data', event);
       }));
+      // P2-21: targeted updates. Forwarded as its own event so consumers that understand deltas can
+      // take the cheap path while anything that does not simply keeps listening to `graph-updated`.
+      disposers.push(ctx.on('codegraph-visualizer/graph/delta', (event: { repoId?: string; delta?: unknown; timestamp?: number; changedFiles?: string[] }) => {
+        sendEvent('graph-delta', event);
+      }));
       disposers.push(ctx.on('codegraph-visualizer/repo/imported', (event: { repoId?: string; timestamp?: number }) => {
         sendEvent('repo-imported', event);
       }));

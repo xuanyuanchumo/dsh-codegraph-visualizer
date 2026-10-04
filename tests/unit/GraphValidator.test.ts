@@ -5,6 +5,7 @@ import {
   coerceNode,
   coerceEdge,
   coerceGraphData,
+  coerceGraphDelta,
   filterSelfLoopEdges,
   sanitizeTypedGraph,
 } from '../../src/shared/GraphValidator.ts';
@@ -807,6 +808,104 @@ describe('coerceGraphData', () => {
   it('handles non-array nodes/edges', () => {
     const raw = { nodes: 'not array', edges: 42 };
     expect(coerceGraphData(raw)).toBeNull();
+  });
+});
+
+describe('coerceGraphDelta', () => {
+  it('coerces a full delta into typed buckets', () => {
+    const raw = {
+      addedNodes: [{ id: 'n2', label: 'bar', type: 'class', filePath: 'b.ts' }],
+      removedNodes: [{ id: 'n3', label: 'gone', type: 'function', filePath: 'c.ts' }],
+      modifiedNodes: [{ id: 'n1', label: 'foo2', type: 'function', filePath: 'a.ts' }],
+      addedEdges: [{ id: 'e1', source: 'n1', target: 'n2', type: 'call' }],
+      removedEdges: [{ id: 'e2', source: 'n1', target: 'n3', type: 'call' }],
+      modifiedEdges: [{ id: 'e3', source: 'n1', target: 'n2', type: 'import' }],
+    };
+    const delta = coerceGraphDelta(raw);
+    expect(delta).not.toBeNull();
+    expect(delta!.addedNodes.map((n) => n.id)).toEqual(['n2']);
+    expect(delta!.removedNodes.map((n) => n.id)).toEqual(['n3']);
+    expect(delta!.modifiedNodes.map((n) => n.id)).toEqual(['n1']);
+    expect(delta!.addedEdges.map((e) => e.id)).toEqual(['e1']);
+    expect(delta!.removedEdges.map((e) => e.id)).toEqual(['e2']);
+    expect(delta!.modifiedEdges.map((e) => e.id)).toEqual(['e3']);
+    expect(delta!.addedNodes[0]!.type).toBe('class');
+    expect(delta!.addedEdges[0]!.type).toBe('call');
+  });
+
+  // The renderer needs parentId/layer to place an incrementally-added node where a full load would,
+  // and the shared coerceNode drops both.
+  it('keeps parentId and layer that the plain node coercion drops', () => {
+    const raw = {
+      addedNodes: [{ id: 'n2', label: 'bar', type: 'function', filePath: 'src/b.ts', parentId: 'n1', layer: 'src' }],
+      removedNodes: [], modifiedNodes: [], addedEdges: [], removedEdges: [], modifiedEdges: [],
+    };
+    const delta = coerceGraphDelta(raw);
+    expect(delta!.addedNodes[0]!.parentId).toBe('n1');
+    expect(delta!.addedNodes[0]!.layer).toBe('src');
+  });
+
+  it('treats missing buckets as empty rather than failing', () => {
+    const delta = coerceGraphDelta({ addedNodes: [{ id: 'n2', label: 'bar', type: 'class', filePath: 'b.ts' }] });
+    expect(delta).not.toBeNull();
+    expect(delta!.addedNodes).toHaveLength(1);
+    expect(delta!.removedNodes).toEqual([]);
+    expect(delta!.modifiedEdges).toEqual([]);
+  });
+
+  it('treats non-array buckets as empty', () => {
+    const delta = coerceGraphDelta({ addedNodes: 'nope', removedEdges: 42 });
+    expect(delta).not.toBeNull();
+    expect(delta!.addedNodes).toEqual([]);
+    expect(delta!.removedEdges).toEqual([]);
+  });
+
+  it('drops malformed entries inside a bucket', () => {
+    const raw = {
+      addedNodes: [
+        { id: 'n2', label: 'bar', type: 'class', filePath: 'b.ts' },
+        { label: 'no id', type: 'class', filePath: 'c.ts' },
+        null,
+      ],
+      removedNodes: [], modifiedNodes: [],
+      addedEdges: [
+        { id: 'e1', source: 'n1', target: 'n2', type: 'call' },
+        { source: 'n1', target: 'n2', type: 'call' },
+      ],
+      removedEdges: [], modifiedEdges: [],
+    };
+    const delta = coerceGraphDelta(raw);
+    expect(delta!.addedNodes.map((n) => n.id)).toEqual(['n2']);
+    expect(delta!.addedEdges.map((e) => e.id)).toEqual(['e1']);
+  });
+
+  // An id-less entry would otherwise be given `node-<index>` / `edge-<index>` and slip past
+  // `canApplyGraphDelta`, because an added node is allowed to be one nobody has seen before.
+  it('never invents an id for a delta entry', () => {
+    const raw = {
+      addedNodes: [{ label: 'ghost', type: 'function', filePath: 'g.ts' }],
+      addedEdges: [{ source: 'n1', target: 'n2', type: 'call' }],
+    };
+    const delta = coerceGraphDelta(raw);
+    expect(delta!.addedNodes).toEqual([]);
+    expect(delta!.addedEdges).toEqual([]);
+  });
+
+  it('returns null for null input', () => {
+    expect(coerceGraphDelta(null)).toBeNull();
+  });
+
+  it('returns null for non-object input', () => {
+    expect(coerceGraphDelta('string')).toBeNull();
+    expect(coerceGraphDelta(42)).toBeNull();
+  });
+
+  it('returns an all-empty delta for an empty object', () => {
+    const delta = coerceGraphDelta({});
+    expect(delta).toEqual({
+      addedNodes: [], removedNodes: [], modifiedNodes: [],
+      addedEdges: [], removedEdges: [], modifiedEdges: [],
+    });
   });
 });
 

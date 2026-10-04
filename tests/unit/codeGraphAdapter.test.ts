@@ -7,6 +7,8 @@ import {
   resolveDbPath,
   readGraphFromDb,
   readEdgesFromDb,
+  readFilesFromDb,
+  normalizeRepoPath,
   closeAllDbConnections,
 } from '../../src/adapters/CodeGraphAdapter.ts';
 import type { UpstreamInvoker } from '../../src/adapters/CodeGraphAdapter.ts';
@@ -341,6 +343,104 @@ describe('readEdgesFromDb pagination', () => {
     expect(result).not.toBeNull();
     expect(result!.total).toBe(3);
     expect([...result!.edges.map((e) => e.id)].sort((a, b) => a - b)).toEqual([1, 6, 8]);
+  });
+});
+
+describe('readFilesFromDb', () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = mkdtempSync(join(tmpdir(), 'cg-files-'));
+  });
+
+  afterEach(() => {
+    closeAllDbConnections();
+    rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  function createFilesDb(dir: string): string {
+    const { DatabaseSync } = require('node:sqlite') as typeof import('node:sqlite');
+    const codegraphDir = join(dir, '.codegraph');
+    mkdirSync(codegraphDir, { recursive: true });
+    const dbPath = join(codegraphDir, 'codegraph.db');
+    const db = new DatabaseSync(dbPath);
+    db.exec(`
+      CREATE TABLE nodes (id TEXT PRIMARY KEY, kind TEXT, name TEXT, file_path TEXT, start_line INTEGER, signature TEXT, docstring TEXT, is_exported INTEGER);
+      CREATE TABLE edges (id INTEGER PRIMARY KEY, source TEXT, target TEXT, kind TEXT, line INTEGER);
+    `);
+    const insertNode = db.prepare('INSERT INTO nodes (id, kind, name, file_path, start_line, signature, docstring, is_exported) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    insertNode.run('a1', 'function', 'alpha', 'src/a.ts', 1, null, null, 1);
+    insertNode.run('a2', 'class', 'Alpha', 'src/a.ts', 20, null, null, 1);
+    insertNode.run('b1', 'function', 'beta', 'src/nested/b.ts', 5, null, null, 1);
+    insertNode.run('c1', 'function', 'gamma', 'src/c.ts', 7, null, null, 0);
+    insertNode.run('d1', 'function', 'delta', 'lib/d.ts', 9, null, null, 1);
+    const insertEdge = db.prepare('INSERT INTO edges (id, source, target, kind, line) VALUES (?, ?, ?, ?, ?)');
+    insertEdge.run(1, 'a1', 'a2', 'call', 2);      // both ends changed
+    insertEdge.run(2, 'a1', 'd1', 'call', 3);      // one end changed
+    insertEdge.run(3, 'c1', 'd1', 'call', 4);      // neither end changed
+    db.close();
+    return dbPath;
+  }
+
+  it('returns null when the index cannot be opened', () => {
+    expect(readFilesFromDb(join(tempDir, 'missing', 'codegraph.db'), ['src/a.ts'])).toBeNull();
+  });
+
+  it('returns an empty result for an empty file list without touching the index', () => {
+    expect(readFilesFromDb(join(tempDir, 'missing', 'codegraph.db'), [])).toEqual({ nodes: [], edges: [] });
+  });
+
+  it('reads back only the rows that belong to the requested files', () => {
+    const dbPath = createFilesDb(tempDir);
+    const result = readFilesFromDb(dbPath, ['src/a.ts']);
+    expect(result).not.toBeNull();
+    expect(result!.nodes.map((n) => n.id).sort()).toEqual(['a1', 'a2']);
+  });
+
+  it('accepts backslash-separated paths from the watcher', () => {
+    const dbPath = createFilesDb(tempDir);
+    const result = readFilesFromDb(dbPath, ['src\\a.ts']);
+    expect(result!.nodes.map((n) => n.id).sort()).toEqual(['a1', 'a2']);
+  });
+
+  it('pulls in files below a changed directory', () => {
+    const dbPath = createFilesDb(tempDir);
+    const result = readFilesFromDb(dbPath, ['src']);
+    expect(result!.nodes.map((n) => n.id).sort()).toEqual(['a1', 'a2', 'b1', 'c1']);
+  });
+
+  // An edge from a changed file into an unchanged one is exactly the kind of edge a re-scan can
+  // add or drop, so keeping both-ends-only would hide it from the caller.
+  it('keeps edges with only one endpoint inside the changed set', () => {
+    const dbPath = createFilesDb(tempDir);
+    const result = readFilesFromDb(dbPath, ['src/a.ts']);
+    expect(result!.edges.map((e) => e.id).sort((x, y) => x - y)).toEqual([1, 2]);
+  });
+
+  it('drops edges whose endpoints are all outside the changed set', () => {
+    const dbPath = createFilesDb(tempDir);
+    const result = readFilesFromDb(dbPath, ['lib/d.ts']);
+    expect(result!.edges.map((e) => e.id).sort((x, y) => x - y)).toEqual([2, 3]);
+  });
+
+  it('returns empty buckets when nothing in the index matches', () => {
+    const dbPath = createFilesDb(tempDir);
+    const result = readFilesFromDb(dbPath, ['src/nowhere.ts']);
+    expect(result).toEqual({ nodes: [], edges: [] });
+  });
+});
+
+describe('normalizeRepoPath', () => {
+  it('converts backslashes to forward slashes', () => {
+    expect(normalizeRepoPath('src\\nested\\a.ts')).toBe('src/nested/a.ts');
+  });
+
+  it('strips a leading ./ prefix', () => {
+    expect(normalizeRepoPath('./src/a.ts')).toBe('src/a.ts');
+  });
+
+  it('leaves an already-normal path untouched', () => {
+    expect(normalizeRepoPath('src/a.ts')).toBe('src/a.ts');
   });
 });
 

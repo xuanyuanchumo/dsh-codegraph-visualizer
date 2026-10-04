@@ -1,4 +1,5 @@
 import type { GraphNode, GraphEdge } from '../types/index.ts';
+import type { GraphDelta } from '../shared/graphDelta.ts';
 import { DIFF_ENGINE } from '../shared/constants.ts';
 
 
@@ -30,14 +31,12 @@ function deepEqual(a: unknown, b: unknown, seen?: Map<unknown, unknown>, depth?:
   return true;
 }
 
-export interface GraphDiff {
-  addedNodes: GraphNode[];
-  removedNodes: GraphNode[];
-  modifiedNodes: GraphNode[];
-  addedEdges: GraphEdge[];
-  removedEdges: GraphEdge[];
-  modifiedEdges: GraphEdge[];
-}
+/**
+ * Host-side diff result. Aliased to the shared `GraphDelta` shape so the incremental watcher can
+ * publish it verbatim over `graph/delta` and the client can apply it with `applyGraphDelta()`
+ * without a field-by-field translation.
+ */
+export type GraphDiff = GraphDelta;
 
 export function computeGraphDiff(
   beforeNodes: GraphNode[],

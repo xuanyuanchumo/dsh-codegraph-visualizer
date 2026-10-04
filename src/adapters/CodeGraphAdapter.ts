@@ -14,7 +14,7 @@ import type { GraphNode, GraphEdge, AdapterResult, DataSourceType } from '../typ
 import { NodeId, EdgeId } from '../types/index.ts';
 import { scoped } from '../shared/Logger.ts';
 import { inferLayerFromPath } from '../shared/layerUtils.ts';
-import { SQLITE, CODEGRAPH_ADAPTER } from '../shared/constants.ts';
+import { SQLITE, CODEGRAPH_ADAPTER, INCREMENTAL } from '../shared/constants.ts';
 import type { IDataAdapter, UpstreamInvoker } from './IAdapter.ts';
 
 export type { UpstreamInvoker } from './IAdapter.ts';
@@ -459,6 +459,81 @@ export function readEdgesForNodesFromDb(dbPath: string, nodeIds: string[]): DbEd
   } catch (e) {
     log.warn('readEdgesForNodesFromDb failed', e);
     return [];
+  }
+}
+
+/**
+ * Normalize a repo-relative path for comparison against the index's own `file_path` values.
+ *
+ * The watcher reports platform separators while the indexer stores whatever it was handed, so the
+ * two forms have to be reconciled before any lookup. Callers that need both spellings should ask
+ * for them explicitly rather than relying on the index to pick one.
+ */
+export function normalizeRepoPath(filePath: string): string {
+  return filePath.replace(/\\/g, '/').replace(/^\.\//, '');
+}
+
+/**
+ * Read the nodes of a set of changed files plus every edge that touches one of them (P2-21).
+ *
+ * Both separator spellings of each path are tried, and a changed *directory* is matched by prefix so
+ * that a file added under a new folder still pulls that folder's rows.
+ *
+ * Edges are returned when **either** endpoint is in the touched node set, not only when both are: an
+ * edge from a changed file into an unchanged one is exactly the kind of edge a re-scan can add or
+ * remove, and filtering it out here would make it invisible to the caller. The caller is responsible
+ * for dropping edges whose far endpoint no longer exists in the resulting graph.
+ *
+ * Returns `null` when the index cannot be read at all, which callers treat as "fall back to a full
+ * fetch"; an empty result means the index was read and holds nothing for those paths.
+ */
+export function readFilesFromDb(dbPath: string, filePaths: string[]): { nodes: DbNodeRow[]; edges: DbEdgeRow[] } | null {
+  if (filePaths.length === 0) return { nodes: [], edges: [] };
+  const db = getDbConnection(dbPath);
+  if (!db) return null;
+
+  try {
+    const wanted = new Set<string>();
+    for (const raw of filePaths) {
+      const normalized = normalizeRepoPath(raw);
+      if (!normalized) continue;
+      wanted.add(normalized);
+      wanted.add(normalized.replace(/\//g, '\\'));
+    }
+    const candidates = [...wanted];
+    if (candidates.length === 0) return { nodes: [], edges: [] };
+
+    const batchSize = Math.min(INCREMENTAL.MAX_FILE_BATCH, Math.floor(SQLITE.MAX_IN_PARAMS / 2));
+    const nodeMap = new Map<string, DbNodeRow>();
+    for (let i = 0; i < candidates.length; i += batchSize) {
+      const batch = candidates.slice(i, i + batchSize);
+      const exact = batch.map(() => '?').join(',');
+      const prefix = batch.map(() => "file_path LIKE ? ESCAPE '\\'").join(' OR ');
+      const prefixArgs = batch.map((p) => `${p.replace(/[%_\\]/g, '\\$&')}/%`);
+      const rows = validateNodeRows(db.prepare(
+        `SELECT id, kind, name, file_path, start_line, signature, docstring, is_exported FROM nodes
+         WHERE file_path IN (${exact}) OR ${prefix}`,
+      ).all(...batch, ...prefixArgs));
+      for (const n of rows) nodeMap.set(n.id, n);
+    }
+
+    if (nodeMap.size === 0) return { nodes: [], edges: [] };
+
+    const nodeIds = [...nodeMap.keys()];
+    const edgeMap = new Map<number, DbEdgeRow>();
+    for (let i = 0; i < nodeIds.length; i += batchSize) {
+      const batch = nodeIds.slice(i, i + batchSize);
+      const placeholders = batch.map(() => '?').join(',');
+      const rows = validateEdgeRows(db.prepare(
+        `SELECT id, source, target, kind, line FROM edges WHERE source IN (${placeholders}) OR target IN (${placeholders})`,
+      ).all(...batch, ...batch));
+      for (const e of rows) edgeMap.set(e.id, e);
+    }
+
+    return { nodes: [...nodeMap.values()], edges: [...edgeMap.values()] };
+  } catch (e) {
+    log.warn('readFilesFromDb failed', e);
+    return null;
   }
 }
 

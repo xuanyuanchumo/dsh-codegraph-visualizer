@@ -1,7 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import { scoped } from '../../shared/Logger.ts';
 import { fetchGraphDataIncremental } from '../api/index.ts';
-import { coerceGraphData } from '../../shared/GraphValidator.ts';
+import { coerceGraphData, coerceGraphDelta } from '../../shared/GraphValidator.ts';
 import { useGraphStore } from '../store/graphStore.ts';
 
 const log = scoped('client');
@@ -18,8 +18,12 @@ export function setupSSEEvents(ctx: Context): void {
         eventSource = new EventSource('/api/v1/codegraph/events');
 
         eventSource.addEventListener('graph-updated', (e: MessageEvent) => {
-          const data = JSON.parse(e.data) as { repoId?: string; nodeCount?: number; edgeCount?: number; timestamp?: number };
+          const data = JSON.parse(e.data) as { repoId?: string; nodeCount?: number; edgeCount?: number; timestamp?: number; incremental?: boolean };
           log.info('SSE: graph-updated', data);
+          // P2-21: an incremental update is accompanied by a `graph/delta` that already carries the
+          // changes. Re-fetching the whole graph here would throw away exactly the saving the delta
+          // exists to provide, so this listener only handles the full-rebuild case.
+          if (data.incremental) return;
           const store = useGraphStore.getState();
           if (!store.panelVisible) return;
           if (store.nodes.length === 0) {
@@ -48,6 +52,39 @@ export function setupSSEEvents(ctx: Context): void {
             if (graphData) {
               store.setGraphData(graphData.nodes, graphData.edges, graphData.metadata.repoId, graphData.metadata);
             }
+          }
+        });
+
+        // P2-21: the host sends only the entries that changed when the watcher drove the update.
+        // Applying it avoids re-rendering the whole graph for a one-line edit. When the store's
+        // revision does not match the delta (a reconnect skipped events, a full load landed
+        // mid-flight) `applyGraphDelta` refuses and we re-bootstrap instead of rendering a
+        // half-applied graph.
+        eventSource.addEventListener('graph-delta', (e: MessageEvent) => {
+          const data = JSON.parse(e.data) as {
+            repoId?: string;
+            delta?: { addedNodes?: unknown[]; removedNodes?: unknown[]; modifiedNodes?: unknown[]; addedEdges?: unknown[]; removedEdges?: unknown[]; modifiedEdges?: unknown[] };
+            timestamp?: number;
+          };
+          log.info('SSE: graph-delta', {
+            addedNodes: data.delta?.addedNodes?.length,
+            removedNodes: data.delta?.removedNodes?.length,
+            modifiedNodes: data.delta?.modifiedNodes?.length,
+            addedEdges: data.delta?.addedEdges?.length,
+            removedEdges: data.delta?.removedEdges?.length,
+            modifiedEdges: data.delta?.modifiedEdges?.length,
+          });
+          const store = useGraphStore.getState();
+          if (!store.panelVisible || !data.delta) return;
+          const delta = coerceGraphDelta(data.delta);
+          if (!delta) {
+            log.warn('SSE: graph-delta payload malformed, falling back to bootstrap');
+            store.loadBootstrap().catch((err) => log.warn('SSE: bootstrap after bad delta failed', err));
+            return;
+          }
+          if (!store.applyGraphDelta(delta)) {
+            log.warn('SSE: graph-delta did not apply, falling back to bootstrap');
+            store.loadBootstrap().catch((err) => log.warn('SSE: bootstrap after refused delta failed', err));
           }
         });
 

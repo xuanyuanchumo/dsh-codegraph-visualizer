@@ -1,5 +1,5 @@
 import { NodeId, EdgeId, RepoId } from '../types/index.ts';
-import type { GraphNode, GraphEdge, GraphData, EdgeDirection, Layer } from '../types/index.ts';
+import type { GraphNode, GraphEdge, GraphData, GraphDelta, EdgeDirection, Layer } from '../types/index.ts';
 import { scoped } from './Logger.ts';
 import { normalizeNodeType, normalizeEdgeType } from './AliasMapper.ts';
 
@@ -80,6 +80,62 @@ export function coerceGraphData(raw: unknown): GraphData | null {
 
 export function filterSelfLoopEdges(edges: GraphEdge[]): GraphEdge[] {
   return edges.filter((e) => e.source !== e.target);
+}
+
+/**
+ * Validate a `graph/delta` payload (P2-21).
+ *
+ * `coerceNode`/`coerceEdge` drop `parentId` and `layer`, which the renderer needs for an
+ * incrementally-added node to sit in the same place a full load would have put it, so both are
+ * re-attached here. Returns `null` when the payload is not an object at all — the caller then falls
+ * back to a full reload rather than applying a partial graph.
+ */
+export function coerceGraphDelta(raw: unknown): GraphDelta | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+
+  const nodeList = (value: unknown): GraphNode[] => {
+    if (!Array.isArray(value)) return [];
+    const out: GraphNode[] = [];
+    value.forEach((entry, i) => {
+      // `coerceNode` invents `node-${i}` when an entry carries no id. That is tolerable for a full
+      // load (the graph is self-consistent either way) but not for a delta: an invented id is a node
+      // the host never described, and `canApplyGraphDelta` cannot notice because an added node needs
+      // no prior existence. Delta entries therefore have to name themselves.
+      if (!entry || typeof entry !== 'object') return;
+      const src = entry as Record<string, unknown>;
+      if (typeof src.id !== 'string' || !src.id) return;
+      const node = coerceNode(entry, i);
+      if (!node) return;
+      if (typeof src.parentId === 'string' && src.parentId) node.parentId = NodeId(src.parentId);
+      if (typeof src.layer === 'string' && src.layer) node.layer = src.layer;
+      out.push(node);
+    });
+    return out;
+  };
+
+  const edgeList = (value: unknown): GraphEdge[] => {
+    if (!Array.isArray(value)) return [];
+    const out: GraphEdge[] = [];
+    value.forEach((entry, i) => {
+      // Same reasoning as `nodeList`: `coerceEdge` falls back to `edge-${i}`.
+      if (!entry || typeof entry !== 'object') return;
+      const src = entry as Record<string, unknown>;
+      if (typeof src.id !== 'string' || !src.id) return;
+      const edge = coerceEdge(entry, i);
+      if (edge) out.push(edge);
+    });
+    return out;
+  };
+
+  return {
+    addedNodes: nodeList(o.addedNodes),
+    removedNodes: nodeList(o.removedNodes),
+    modifiedNodes: nodeList(o.modifiedNodes),
+    addedEdges: edgeList(o.addedEdges),
+    removedEdges: edgeList(o.removedEdges),
+    modifiedEdges: edgeList(o.modifiedEdges),
+  };
 }
 
 export function sanitizeTypedGraph(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[]; edges: GraphEdge[] } {

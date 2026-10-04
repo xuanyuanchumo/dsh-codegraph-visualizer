@@ -4,8 +4,11 @@ import type { Context } from '@deepseek-ai/cordis';
 import { scoped } from '../shared/Logger.ts';
 import { WATCHER, ERROR_CODES, ERROR_MESSAGES } from '../shared/constants.ts';
 import { computeGraphFingerprint } from '../shared/graphFingerprint.ts';
+import { isEmptyGraphDelta } from '../shared/graphDelta.ts';
+import { buildIncrementalUpdate } from './incrementalUpdate.ts';
 import { fetchMergedGraph } from '../tools.ts';
 import { RepoId } from '../types/index.ts';
+import type { GraphData } from '../types/index.ts';
 import type { UpstreamInvoker } from '../adapters/IAdapter.ts';
 import type { VisualizerConfig } from './config.ts';
 
@@ -14,16 +17,78 @@ const supportsRecursive = platform() === 'win32' || platform() === 'darwin';
 
 const MAX_CHANGED_FILES_TRACK = 100;
 
+/** Minimal store surface the watcher needs to run the incremental path. */
+export interface WatcherGraphState {
+  getLastGraphData: () => GraphData | null;
+  setLastGraphData: (data: GraphData | null) => void;
+}
+
 async function scanAndPush(
   ctx: Context,
   invokeUpstream: UpstreamInvoker,
   path: string,
   changedFiles?: string[],
+  state?: WatcherGraphState,
 ): Promise<void> {
   log.info('scan requested', { path, incremental: changedFiles !== undefined });
   try {
     const repoId = path || 'workspace-default';
+
+    // P2-21: when the watcher knows which files changed, try the targeted read first. It returns
+    // null whenever the targeted view is unusable, in which case we fall through to the full fetch
+    // below — correctness never depends on the incremental path succeeding.
+    if (changedFiles && changedFiles.length > 0 && state) {
+      const current = state.getLastGraphData();
+      if (current) {
+        const update = buildIncrementalUpdate({ workspacePath: repoId, changedFiles, current });
+        if (update) {
+          state.setLastGraphData(update.next);
+          const fingerprint = computeGraphFingerprint(update.next);
+          // Nothing structural changed, so there is nothing for a consumer to re-render. Publishing
+          // anyway would make every debounce tick look like a real update and defeat the point of
+          // the fingerprint the previous round added.
+          if (isEmptyGraphDelta(update.delta)) {
+            log.info('incremental scan produced no change', {
+              repoId, changedFiles: changedFiles.length, fingerprint,
+            });
+            return;
+          }
+          ctx.emit('codegraph-visualizer/graph/delta', {
+            repoId: RepoId(repoId),
+            delta: update.delta,
+            timestamp: update.next.metadata.timestamp,
+            fingerprint,
+            changedFiles,
+          });
+          ctx.emit('codegraph-visualizer/graph/updated', {
+            repoId: RepoId(repoId),
+            nodeCount: update.next.metadata.nodeCount,
+            edgeCount: update.next.metadata.edgeCount,
+            timestamp: update.next.metadata.timestamp,
+            fingerprint,
+            changedFiles,
+            incremental: true,
+          });
+          log.info('incremental scan completed', {
+            repoId,
+            changedFiles: changedFiles.length,
+            scannedNodes: update.scanned.nodes,
+            scannedEdges: update.scanned.edges,
+            addedNodes: update.delta.addedNodes.length,
+            removedNodes: update.delta.removedNodes.length,
+            modifiedNodes: update.delta.modifiedNodes.length,
+            addedEdges: update.delta.addedEdges.length,
+            removedEdges: update.delta.removedEdges.length,
+            modifiedEdges: update.delta.modifiedEdges.length,
+            fingerprint,
+          });
+          return;
+        }
+      }
+    }
+
     const data = await fetchMergedGraph(invokeUpstream, repoId, 'both');
+    state?.setLastGraphData(data);
     // P0-6: emit the structural fingerprint alongside the payload so consumers can tell an
     // unchanged re-scan from a real change without deep-comparing nodes/edges.
     const fingerprint = computeGraphFingerprint(data);
@@ -49,7 +114,12 @@ async function scanAndPush(
   }
 }
 
-export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUpstream: UpstreamInvoker): void {
+export function registerWatcher(
+  ctx: Context,
+  config: VisualizerConfig,
+  invokeUpstream: UpstreamInvoker,
+  state?: WatcherGraphState,
+): void {
   let watchTimer: ReturnType<typeof setTimeout> | null = null;
   let activeWatcher: { close: () => void } | null = null;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -91,7 +161,7 @@ export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUp
           changedFilesSet.clear();
           log.info('file changed, syncing + re-scanning', { count: changedFiles.length, files: changedFiles.slice(0, 5) });
           invokeUpstream('codegraph_sync', { path: watchPath })
-            .then(() => scanAndPush(ctx, invokeUpstream, watchPath, changedFiles))
+            .then(() => scanAndPush(ctx, invokeUpstream, watchPath, changedFiles, state))
             .catch((e) => log.error('watch re-scan failed', e));
         }, config.watchDebounce);
       });
@@ -130,7 +200,11 @@ export function registerWatcher(ctx: Context, config: VisualizerConfig, invokeUp
   }, 'codegraph: watch toggle listener');
 }
 
-export function registerEventListeners(ctx: Context, invokeUpstream: UpstreamInvoker): void {
+export function registerEventListeners(
+  ctx: Context,
+  invokeUpstream: UpstreamInvoker,
+  state?: WatcherGraphState,
+): void {
   ctx.effect(() => ctx.on('codegraph-visualizer/repo/imported', (event) => {
     ctx.emit('codegraph-visualizer/graph/updated', { repoId: event.repoId, nodeCount: 0, edgeCount: 0, timestamp: event.timestamp });
   }), 'codegraph: repo imported listener');
@@ -140,7 +214,7 @@ export function registerEventListeners(ctx: Context, invokeUpstream: UpstreamInv
   }), 'codegraph: repo scanned listener');
 
   ctx.effect(() => ctx.on('codegraph-visualizer/repo/request-scan', async (event) => {
-    await scanAndPush(ctx, invokeUpstream, event.path);
+    await scanAndPush(ctx, invokeUpstream, event.path, undefined, state);
   }), 'codegraph: repo request-scan listener');
 
   ctx.effect(() => ctx.on('codegraph-visualizer/graph/init', async (event) => {
@@ -157,7 +231,7 @@ export function registerEventListeners(ctx: Context, invokeUpstream: UpstreamInv
       if (!success) initResult.errorCode = ERROR_CODES.INIT_FAILED;
       ctx.emit('codegraph-visualizer/graph/init-result', initResult);
       if (success) {
-        await scanAndPush(ctx, invokeUpstream, event.path);
+        await scanAndPush(ctx, invokeUpstream, event.path, undefined, state);
       }
     } catch (e) {
       log.warn('graph init failed', e);

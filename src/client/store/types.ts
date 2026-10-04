@@ -1,4 +1,4 @@
-import type { GraphNode, GraphEdge, NodeId, HealthScore, RuleDefinition, RuleViolation, ViewMode, HeatmapMode, TodoMarkerMode } from '../../types/index.ts';
+import type { GraphNode, GraphEdge, GraphDelta, NodeId, HealthScore, RuleDefinition, RuleViolation, ViewMode, HeatmapMode, TodoMarkerMode } from '../../types/index.ts';
 import type { DeadCodeResult } from '../../shared/analysis/DeadCodeAnalyzer.ts';
 import type { ClusterNode, ClusterEdge } from './cluster/index.ts';
 import type { LayeredDiagram } from '../diagram/index.ts';
@@ -177,5 +177,13 @@ export interface GraphState {
   unpinNode: (nodeId: string) => void;
   cancelPendingRequest: (nodeId: string) => void;
   loadNodeEdges: (nodeId: string, options?: { append?: boolean; scope?: 'file' | 'symbol' }) => Promise<void>;
+  /**
+   * Apply a targeted update from the host (P2-21).
+   *
+   * Returns `false` when the delta does not describe the revision the store currently holds, in
+   * which case the caller must fall back to a full reload rather than rendering a half-applied
+   * graph. Returns `true` when the delta was applied or was legitimately empty.
+   */
+  applyGraphDelta: (delta: GraphDelta) => boolean;
   restoreFromUrl: () => Promise<void>;
 }

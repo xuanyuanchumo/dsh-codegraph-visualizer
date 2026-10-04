@@ -123,6 +123,21 @@ export interface AdapterResult {
 
 // ---- Graph heat-update event payloads -------------------------------------
 
+/**
+ * Structural difference between two graph revisions (P2-21).
+ *
+ * Lives here rather than next to its producer so both the host diff engine and the client store can
+ * name it without importing each other; `shared/graphDelta.ts` re-exports it and owns the helpers.
+ */
+export interface GraphDelta {
+  addedNodes: GraphNode[];
+  removedNodes: GraphNode[];
+  modifiedNodes: GraphNode[];
+  addedEdges: GraphEdge[];
+  removedEdges: GraphEdge[];
+  modifiedEdges: GraphEdge[];
+}
+
 export interface GraphUpdatedEvent {
   repoId: RepoId;
   nodeCount: number;
@@ -132,6 +147,11 @@ export interface GraphUpdatedEvent {
   fingerprint?: string;
   /** File paths that triggered an incremental re-scan, when the watcher drove the update. */
   changedFiles?: string[];
+  /**
+   * P2-21: this update is followed by a `graph/delta` carrying the actual changes, so consumers that
+   * understand deltas must not re-fetch the whole graph in response to this event.
+   */
+  incremental?: boolean;
 }
 
 export interface GraphDataEvent {
@@ -142,6 +162,22 @@ export interface GraphDataEvent {
   /** P0-6 structural fingerprint; stable while graph content is unchanged. */
   fingerprint?: string;
   /** File paths that triggered an incremental re-scan, when the watcher drove the update. */
+  changedFiles?: string[];
+}
+
+/**
+ * P2-21 targeted update: only the entries that actually changed since the consumer's revision.
+ *
+ * Consumers apply this with `applyGraphDelta()` and must check `canApplyGraphDelta()` first — a
+ * delta is only meaningful against the exact revision it was computed from.
+ */
+export interface GraphDeltaEvent {
+  repoId: RepoId;
+  delta: GraphDelta;
+  timestamp: number;
+  /** P0-6 structural fingerprint of the resulting graph. */
+  fingerprint?: string;
+  /** File paths that triggered this update. */
   changedFiles?: string[];
 }
 
@@ -279,6 +315,11 @@ declare module '@deepseek-ai/cordis' {
      * @param event Full graph data payload for rendering
      */
     'codegraph-visualizer/graph/data'(event: GraphDataEvent): void;
+    /**
+     * @mode serial
+     * @param event Targeted graph update carrying only the entries that changed (P2-21)
+     */
+    'codegraph-visualizer/graph/delta'(event: GraphDeltaEvent): void;
     /**
      * @mode serial
      * @param event Request to open a source file at a specific line

@@ -6,8 +6,10 @@ import { logger } from '../../../src/shared/Logger.ts';
 const mocks = vi.hoisted(() => ({
   fetchGraphDataIncremental: vi.fn(),
   coerceGraphData: vi.fn(),
+  coerceGraphDelta: vi.fn(),
   getState: vi.fn(),
   setGraphData: vi.fn(),
+  applyGraphDelta: vi.fn(),
   loadBootstrap: vi.fn(),
   setInitStatus: vi.fn(),
 }));
@@ -18,6 +20,7 @@ vi.mock('../../../src/client/api/index.ts', () => ({
 
 vi.mock('../../../src/shared/GraphValidator.ts', () => ({
   coerceGraphData: mocks.coerceGraphData,
+  coerceGraphDelta: mocks.coerceGraphDelta,
 }));
 
 vi.mock('../../../src/client/store/graphStore.ts', () => ({
@@ -71,6 +74,7 @@ function createStore(overrides: Record<string, unknown> = {}) {
     panelVisible: true,
     lastUpdated: 123,
     setGraphData: mocks.setGraphData,
+    applyGraphDelta: mocks.applyGraphDelta,
     loadBootstrap: mocks.loadBootstrap,
     setInitStatus: mocks.setInitStatus,
     ...overrides,
@@ -91,8 +95,10 @@ describe('setupSSEEvents', () => {
     globalThis.EventSource = MockEventSource as unknown as typeof EventSource;
     mocks.fetchGraphDataIncremental.mockReset();
     mocks.coerceGraphData.mockReset();
+    mocks.coerceGraphDelta.mockReset();
     mocks.getState.mockReset();
     mocks.setGraphData.mockReset();
+    mocks.applyGraphDelta.mockReset();
     mocks.loadBootstrap.mockReset();
     mocks.setInitStatus.mockReset();
     mocks.getState.mockReturnValue(createStore());
@@ -303,5 +309,107 @@ describe('setupSSEEvents', () => {
     await vi.advanceTimersByTimeAsync(10000);
     expect(MockEventSource.instances.length).toBe(1);
     warnSpy.mockRestore();
+  });
+
+  // ── P2-21: graph-delta ───────────────────────────────────────────────────
+  describe('graph-delta', () => {
+    const delta = {
+      addedNodes: [{ id: 'n2' }], removedNodes: [], modifiedNodes: [],
+      addedEdges: [], removedEdges: [], modifiedEdges: [],
+    };
+
+    // The host already sent the delta, so re-fetching the whole graph here would throw away the
+    // entire point of the incremental path.
+    it('graph-updated with incremental flag does not re-fetch the full graph', async () => {
+      const { ctx } = createCtx();
+      setupSSEEvents(ctx);
+      MockEventSource.last().emit('graph-updated', { repoId: 'r1', incremental: true });
+      await flush();
+      expect(mocks.fetchGraphDataIncremental).not.toHaveBeenCalled();
+    });
+
+    it('graph-updated without the incremental flag still re-fetches', async () => {
+      mocks.fetchGraphDataIncremental.mockResolvedValue({
+        nodes: [{ id: 'n2' }], edges: [], metadata: { repoId: 'r1', timestamp: 2 },
+      });
+      const { ctx } = createCtx();
+      setupSSEEvents(ctx);
+      MockEventSource.last().emit('graph-updated', { repoId: 'r1' });
+      await flush();
+      expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123);
+    });
+
+    it('graph-delta coerces and applies the delta', async () => {
+      const coerced = { ...delta };
+      mocks.coerceGraphDelta.mockReturnValue(coerced);
+      mocks.applyGraphDelta.mockReturnValue(true);
+      const { ctx } = createCtx();
+      setupSSEEvents(ctx);
+      MockEventSource.last().emit('graph-delta', { repoId: 'r1', delta, timestamp: 2 });
+      await flush();
+      expect(mocks.coerceGraphDelta).toHaveBeenCalledWith(delta);
+      expect(mocks.applyGraphDelta).toHaveBeenCalledWith(coerced);
+      expect(mocks.loadBootstrap).not.toHaveBeenCalled();
+    });
+
+    it('graph-delta skips when panelVisible is false', async () => {
+      mocks.getState.mockReturnValue(createStore({ panelVisible: false }));
+      const { ctx } = createCtx();
+      setupSSEEvents(ctx);
+      MockEventSource.last().emit('graph-delta', { repoId: 'r1', delta });
+      await flush();
+      expect(mocks.coerceGraphDelta).not.toHaveBeenCalled();
+    });
+
+    it('graph-delta skips when the payload carries no delta', async () => {
+      const { ctx } = createCtx();
+      setupSSEEvents(ctx);
+      MockEventSource.last().emit('graph-delta', { repoId: 'r1' });
+      await flush();
+      expect(mocks.coerceGraphDelta).not.toHaveBeenCalled();
+    });
+
+    it('graph-delta falls back to bootstrap when the payload is malformed', async () => {
+      mocks.coerceGraphDelta.mockReturnValue(null);
+      mocks.loadBootstrap.mockResolvedValue(true);
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+      const { ctx } = createCtx();
+      setupSSEEvents(ctx);
+      MockEventSource.last().emit('graph-delta', { repoId: 'r1', delta });
+      await flush();
+      expect(warnSpy).toHaveBeenCalledWith('client', 'SSE: graph-delta payload malformed, falling back to bootstrap', undefined);
+      expect(mocks.loadBootstrap).toHaveBeenCalledTimes(1);
+      expect(mocks.applyGraphDelta).not.toHaveBeenCalled();
+      warnSpy.mockRestore();
+    });
+
+    // A delta describes one specific revision. When it no longer matches what the store holds, the
+    // honest recovery is a full reload — never a half-applied graph.
+    it('graph-delta falls back to bootstrap when the delta does not apply', async () => {
+      mocks.coerceGraphDelta.mockReturnValue(delta);
+      mocks.applyGraphDelta.mockReturnValue(false);
+      mocks.loadBootstrap.mockResolvedValue(true);
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+      const { ctx } = createCtx();
+      setupSSEEvents(ctx);
+      MockEventSource.last().emit('graph-delta', { repoId: 'r1', delta });
+      await flush();
+      expect(warnSpy).toHaveBeenCalledWith('client', 'SSE: graph-delta did not apply, falling back to bootstrap', undefined);
+      expect(mocks.loadBootstrap).toHaveBeenCalledTimes(1);
+      warnSpy.mockRestore();
+    });
+
+    it('graph-delta bootstrap failure logs warn', async () => {
+      mocks.coerceGraphDelta.mockReturnValue(delta);
+      mocks.applyGraphDelta.mockReturnValue(false);
+      mocks.loadBootstrap.mockRejectedValue(new Error('boot fail'));
+      const warnSpy = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+      const { ctx } = createCtx();
+      setupSSEEvents(ctx);
+      MockEventSource.last().emit('graph-delta', { repoId: 'r1', delta });
+      await flush();
+      expect(warnSpy).toHaveBeenCalledWith('client', 'SSE: bootstrap after refused delta failed', expect.any(Error));
+      warnSpy.mockRestore();
+    });
   });
 });

@@ -8,6 +8,16 @@ vi.mock('../../src/tools.ts', () => ({
   fetchMergedGraph: vi.fn(),
 }));
 
+// The incremental path talks to a real SQLite index; here we only care about the watcher's decision
+// logic around it (publish, stay quiet, or fall back to the full fetch).
+const { incrementalMock } = vi.hoisted(() => ({
+  incrementalMock: { buildIncrementalUpdate: vi.fn() },
+}));
+
+vi.mock('../../src/host/incrementalUpdate.ts', () => ({
+  buildIncrementalUpdate: incrementalMock.buildIncrementalUpdate,
+}));
+
 const { watchMock } = vi.hoisted(() => ({
   watchMock: {
     callback: null as ((eventType: string, filename: string | null) => void) | null,
@@ -176,13 +186,17 @@ describe('registerEventListeners', () => {
   });
 });
 // ── Helper: capture watch/toggle callback from registerWatcher ────────────
-function captureToggleCb(ctx: MockCtx): (e: { enabled: boolean; path: string; timestamp: number }) => void {
+function captureToggleCb(
+  ctx: MockCtx,
+  invokeUpstream: ReturnType<typeof vi.fn> = vi.fn(),
+  state?: unknown,
+): (e: { enabled: boolean; path: string; timestamp: number }) => void {
   let toggleCb: ((e: { enabled: boolean; path: string; timestamp: number }) => void) | null = null;
   ctx.on = vi.fn((event: string, cb: (e: unknown) => void) => {
     if (event === 'codegraph-visualizer/watch/toggle') toggleCb = cb as typeof toggleCb;
     return vi.fn();
   });
-  registerWatcher(ctx, config, vi.fn());
+  registerWatcher(ctx, config, invokeUpstream, state as Parameters<typeof registerWatcher>[3]);
   return toggleCb!;
 }
 
@@ -522,5 +536,196 @@ describe('scanAndPush with empty path', () => {
     expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/graph/updated', expect.objectContaining({
       repoId: 'workspace-default',
     }));
+  });
+});
+
+// ── P2-21: the watcher's targeted-update branch ───────────────────────────
+describe('scanAndPush incremental updates', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    watchMock.callback = null;
+    watchMock.lastWatcher = null;
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  const EMPTY_DELTA = {
+    addedNodes: [], removedNodes: [], modifiedNodes: [],
+    addedEdges: [], removedEdges: [], modifiedEdges: [],
+  };
+
+  /** Build a state surface backed by a mutable slot, the way src/index.ts wires the module state. */
+  function makeState(initial: ReturnType<typeof makeGraphData> | null) {
+    let current = initial;
+    return {
+      state: {
+        getLastGraphData: () => current,
+        setLastGraphData: (d: ReturnType<typeof makeGraphData> | null) => { current = d; },
+      },
+      read: () => current,
+    };
+  }
+
+  /** Drive the debounced watcher once with a real file change and return after the timer fires. */
+  async function fireChange(ctx: MockCtx, invokeUpstream: ReturnType<typeof vi.fn>, state: unknown, file = 'src/file.ts') {
+    vi.useFakeTimers();
+    const toggleCb = captureToggleCb(ctx, invokeUpstream, state);
+    toggleCb({ enabled: true, path: '/repo', timestamp: 1 });
+    watchMock.callback!('change', file);
+    await vi.advanceTimersByTimeAsync(config.watchDebounce + 10);
+  }
+
+  it('publishes a graph/delta event carrying the real change', async () => {
+    const ctx = makeMockCtx();
+    const invokeUpstream = vi.fn().mockResolvedValue(null);
+    const current = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const { state } = makeState(current);
+    const added = makeNode('n2', 'B', 'function', 'a.ts', 9);
+    const next = makeGraphData([...current.nodes, added], [], 'test-repo', 42);
+    incrementalMock.buildIncrementalUpdate.mockReturnValue({
+      delta: { ...EMPTY_DELTA, addedNodes: [added] },
+      next,
+      scanned: { nodes: 1, edges: 0 },
+    });
+
+    await fireChange(ctx, invokeUpstream, state);
+
+    expect(incrementalMock.buildIncrementalUpdate).toHaveBeenCalledWith({
+      workspacePath: '/repo',
+      changedFiles: ['src/file.ts'],
+      current,
+    });
+    const deltaEvent = ctx.emit.mock.calls.find(([n]) => n === 'codegraph-visualizer/graph/delta')?.[1];
+    expect(deltaEvent).toMatchObject({
+      repoId: '/repo',
+      timestamp: 42,
+      changedFiles: ['src/file.ts'],
+      delta: expect.objectContaining({ addedNodes: [added] }),
+    });
+  });
+
+  // The incremental path already handed the client the delta, so re-sending the whole graph would
+  // make the payload proportional to the repo again — exactly what P2-21 set out to avoid.
+  it('does not re-send the whole graph on the incremental path', async () => {
+    const ctx = makeMockCtx();
+    const invokeUpstream = vi.fn().mockResolvedValue(null);
+    const current = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const { state } = makeState(current);
+    const added = makeNode('n2', 'B', 'function', 'a.ts', 9);
+    incrementalMock.buildIncrementalUpdate.mockReturnValue({
+      delta: { ...EMPTY_DELTA, addedNodes: [added] },
+      next: makeGraphData([...current.nodes, added], [], 'test-repo', 42),
+      scanned: { nodes: 1, edges: 0 },
+    });
+
+    await fireChange(ctx, invokeUpstream, state);
+
+    expect(mockedFetchMergedGraph).not.toHaveBeenCalled();
+    expect(ctx.emit.mock.calls.some(([n]) => n === 'codegraph-visualizer/graph/data')).toBe(false);
+  });
+
+  it('marks the graph/updated event as incremental', async () => {
+    const ctx = makeMockCtx();
+    const invokeUpstream = vi.fn().mockResolvedValue(null);
+    const current = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const { state } = makeState(current);
+    const added = makeNode('n2', 'B', 'function', 'a.ts', 9);
+    incrementalMock.buildIncrementalUpdate.mockReturnValue({
+      delta: { ...EMPTY_DELTA, addedNodes: [added] },
+      next: makeGraphData([...current.nodes, added], [], 'test-repo', 42),
+      scanned: { nodes: 1, edges: 0 },
+    });
+
+    await fireChange(ctx, invokeUpstream, state);
+
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/graph/updated', expect.objectContaining({
+      repoId: '/repo',
+      nodeCount: 2,
+      edgeCount: 0,
+      incremental: true,
+    }));
+  });
+
+  // A debounce tick that changes nothing must stay silent: publishing would make an idle editor
+  // look like a stream of real updates and make the fingerprint meaningless.
+  it('stays silent when the targeted read finds no structural change', async () => {
+    const ctx = makeMockCtx();
+    const invokeUpstream = vi.fn().mockResolvedValue(null);
+    const current = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const { state } = makeState(current);
+    incrementalMock.buildIncrementalUpdate.mockReturnValue({
+      delta: EMPTY_DELTA,
+      next: current,
+      scanned: { nodes: 1, edges: 0 },
+    });
+
+    await fireChange(ctx, invokeUpstream, state);
+
+    expect(ctx.emit).not.toHaveBeenCalled();
+    expect(mockedFetchMergedGraph).not.toHaveBeenCalled();
+  });
+
+  it('records the folded graph as the host state so the next delta diffs the right revision', async () => {
+    const ctx = makeMockCtx();
+    const invokeUpstream = vi.fn().mockResolvedValue(null);
+    const current = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const { state, read } = makeState(current);
+    const added = makeNode('n2', 'B', 'function', 'a.ts', 9);
+    const next = makeGraphData([...current.nodes, added], [], 'test-repo', 42);
+    incrementalMock.buildIncrementalUpdate.mockReturnValue({
+      delta: { ...EMPTY_DELTA, addedNodes: [added] },
+      next,
+      scanned: { nodes: 1, edges: 0 },
+    });
+
+    await fireChange(ctx, invokeUpstream, state);
+
+    expect(read()).toBe(next);
+  });
+
+  it('falls back to the full fetch when the targeted read is unusable', async () => {
+    const ctx = makeMockCtx();
+    const invokeUpstream = vi.fn().mockResolvedValue(null);
+    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    mockedFetchMergedGraph.mockResolvedValue(graphData);
+    const { state } = makeState(graphData);
+    incrementalMock.buildIncrementalUpdate.mockReturnValue(null);
+
+    await fireChange(ctx, invokeUpstream, state);
+
+    expect(mockedFetchMergedGraph).toHaveBeenCalledWith(expect.any(Function), '/repo', 'both');
+    expect(ctx.emit).toHaveBeenCalledWith('codegraph-visualizer/graph/data', expect.objectContaining({
+      repoId: '/repo',
+    }));
+  });
+
+  it('falls back to the full fetch when the host holds no graph yet', async () => {
+    const ctx = makeMockCtx();
+    const invokeUpstream = vi.fn().mockResolvedValue(null);
+    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    mockedFetchMergedGraph.mockResolvedValue(graphData);
+    const { state } = makeState(null);
+
+    await fireChange(ctx, invokeUpstream, state);
+
+    expect(incrementalMock.buildIncrementalUpdate).not.toHaveBeenCalled();
+    expect(mockedFetchMergedGraph).toHaveBeenCalledWith(expect.any(Function), '/repo', 'both');
+  });
+
+  // Without a state surface the watcher cannot read the current revision, so it must keep the old
+  // whole-graph behaviour rather than guessing.
+  it('keeps the full fetch when no state surface was provided', async () => {
+    const ctx = makeMockCtx();
+    const invokeUpstream = vi.fn().mockResolvedValue(null);
+    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    mockedFetchMergedGraph.mockResolvedValue(graphData);
+
+    await fireChange(ctx, invokeUpstream, undefined);
+
+    expect(incrementalMock.buildIncrementalUpdate).not.toHaveBeenCalled();
+    expect(mockedFetchMergedGraph).toHaveBeenCalledWith(expect.any(Function), '/repo', 'both');
   });
 });

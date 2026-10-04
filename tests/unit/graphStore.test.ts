@@ -2436,3 +2436,135 @@ describe('graphStore additional setters', () => {
     expect(useGraphStore.getState().visibleEdgeTypes).toStrictEqual(types);
   });
 });
+
+// ── P2-21: applying a targeted update from the host ───────────────────────
+describe('graphStore applyGraphDelta (P2-21)', () => {
+  const emptyDelta = () => ({
+    addedNodes: [], removedNodes: [], modifiedNodes: [],
+    addedEdges: [], removedEdges: [], modifiedEdges: [],
+  });
+
+  beforeEach(() => {
+    disposeStore();
+    useGraphStore.getState().clearGraph();
+  });
+
+  /** Seed the store through the normal full-load path so the raw revision is realistic. */
+  function seed(nodes: GraphNode[], edges: GraphEdge[] = []) {
+    useGraphStore.getState().setClusterDepth(0);
+    useGraphStore.getState().setGraphData(nodes, edges, 'repo-1');
+  }
+
+  it('applies added nodes to the rendered graph', () => {
+    seed([makeNode('n1', 'A', 'function', 'a.ts', 1)]);
+    const ok = useGraphStore.getState().applyGraphDelta({
+      ...emptyDelta(),
+      addedNodes: [makeNode('n2', 'B', 'function', 'b.ts', 1)],
+    });
+    expect(ok).toBe(true);
+    expect(useGraphStore.getState().rawNodes.map((n) => n.id).sort()).toEqual(['n1', 'n2']);
+  });
+
+  it('applies added edges once both endpoints exist', () => {
+    seed([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const ok = useGraphStore.getState().applyGraphDelta({
+      ...emptyDelta(),
+      addedNodes: [makeNode('n2', 'B', 'function', 'b.ts', 1)],
+      addedEdges: [makeEdge('e1', 'n1', 'n2', 'call')],
+    });
+    expect(ok).toBe(true);
+    expect(useGraphStore.getState().rawEdges.map((e) => e.id)).toEqual(['e1']);
+  });
+
+  it('applies removals to the rendered graph', () => {
+    seed([
+      makeNode('n1', 'A', 'function', 'a.ts', 1),
+      makeNode('n2', 'B', 'function', 'b.ts', 1),
+    ], [makeEdge('e1', 'n1', 'n2', 'call')]);
+    const ok = useGraphStore.getState().applyGraphDelta({
+      ...emptyDelta(),
+      removedEdges: [makeEdge('e1', 'n1', 'n2', 'call')],
+      removedNodes: [makeNode('n2', 'B', 'function', 'b.ts', 1)],
+    });
+    expect(ok).toBe(true);
+    expect(useGraphStore.getState().rawNodes.map((n) => n.id)).toEqual(['n1']);
+    expect(useGraphStore.getState().rawEdges).toEqual([]);
+  });
+
+  it('refreshes lastUpdated so a later incremental fetch uses the new revision', () => {
+    seed([makeNode('n1', 'A', 'function', 'a.ts', 1)]);
+    const before = useGraphStore.getState().lastUpdated;
+    useGraphStore.getState().applyGraphDelta({
+      ...emptyDelta(),
+      addedNodes: [makeNode('n2', 'B', 'function', 'b.ts', 1)],
+    });
+    expect(useGraphStore.getState().lastUpdated).toBeGreaterThanOrEqual(before);
+  });
+
+  it('clears any error and stops the loading state', () => {
+    seed([makeNode('n1', 'A', 'function', 'a.ts', 1)]);
+    useGraphStore.setState({ error: 'boom', isLoading: true });
+    useGraphStore.getState().applyGraphDelta(emptyDelta());
+    expect(useGraphStore.getState().error).toBeNull();
+    expect(useGraphStore.getState().isLoading).toBe(false);
+  });
+
+  it('refuses a delta that removes a node the store never held', () => {
+    seed([makeNode('n1', 'A', 'function', 'a.ts', 1)]);
+    const ok = useGraphStore.getState().applyGraphDelta({
+      ...emptyDelta(),
+      removedNodes: [makeNode('ghost', 'G', 'function', 'g.ts', 1)],
+    });
+    expect(ok).toBe(false);
+    expect(useGraphStore.getState().rawNodes.map((n) => n.id)).toEqual(['n1']);
+  });
+
+  // A dangling edge would be dropped later by the renderer with a warning; refusing the delta makes
+  // the caller reload instead, which is the honest outcome.
+  it('refuses a delta whose added edge points at a missing node', () => {
+    seed([makeNode('n1', 'A', 'function', 'a.ts', 1)]);
+    const ok = useGraphStore.getState().applyGraphDelta({
+      ...emptyDelta(),
+      addedEdges: [makeEdge('e1', 'n1', 'nowhere', 'call')],
+    });
+    expect(ok).toBe(false);
+    expect(useGraphStore.getState().rawEdges).toEqual([]);
+  });
+
+  it('refuses a delta against an empty store rather than inventing a graph', () => {
+    useGraphStore.getState().clearGraph();
+    const ok = useGraphStore.getState().applyGraphDelta({
+      ...emptyDelta(),
+      modifiedNodes: [makeNode('n1', 'A', 'function', 'a.ts', 1)],
+    });
+    expect(ok).toBe(false);
+    expect(useGraphStore.getState().rawNodes).toEqual([]);
+  });
+
+  it('accepts a legitimately empty delta', () => {
+    seed([makeNode('n1', 'A', 'function', 'a.ts', 1)]);
+    expect(useGraphStore.getState().applyGraphDelta(emptyDelta())).toBe(true);
+    expect(useGraphStore.getState().rawNodes.map((n) => n.id)).toEqual(['n1']);
+  });
+
+  it('resets the per-node edge neighbourhood like a full load does', () => {
+    seed([makeNode('n1', 'A', 'function', 'a.ts', 1)]);
+    useGraphStore.setState({ nodeEdgesByNodeId: new Map([['n1', []]]) });
+    useGraphStore.getState().applyGraphDelta({
+      ...emptyDelta(),
+      addedNodes: [makeNode('n2', 'B', 'function', 'b.ts', 1)],
+    });
+    expect(useGraphStore.getState().nodeEdgesByNodeId.size).toBe(0);
+  });
+
+  it('bumps the expand generation so stale children cannot land in the new revision', () => {
+    seed([makeNode('n1', 'A', 'function', 'a.ts', 1)]);
+    const before = useGraphStore.getState().pendingRequests;
+    useGraphStore.getState().applyGraphDelta({
+      ...emptyDelta(),
+      addedNodes: [makeNode('n2', 'B', 'function', 'b.ts', 1)],
+    });
+    expect(useGraphStore.getState().pendingRequests).not.toBe(before);
+    expect(useGraphStore.getState().pendingRequests.size).toBe(0);
+  });
+});
