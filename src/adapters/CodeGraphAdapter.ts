@@ -83,7 +83,7 @@ export function countEdgesInDb(dbPath: string): number {
 
 // ---- codegraph.db schema (upstream @colbymchenry/codegraph) ----------------
 
-interface DbNodeRow {
+export interface DbNodeRow {
   id: string;
   kind: string;
   name: string;
@@ -94,7 +94,7 @@ interface DbNodeRow {
   is_exported: number;
 }
 
-interface DbEdgeRow {
+export interface DbEdgeRow {
   id: number;
   source: string;
   target: string;
@@ -182,6 +182,115 @@ export function isNoisePath(filePath: string): boolean {
     if (segments.includes(seg)) return true;
   }
   return false;
+}
+
+/**
+ * 索引行 → 图节点。这是**唯一**的节点映射实现：全量路径（`toAdapterResult`）与增量路径
+ * （`buildIncrementalUpdate`）都必须走这里，否则两条路径产出的节点形状会漂移。
+ *
+ * 父节点按**每个节点自己的 `file_path`** 解析（`kind` 为 file/module/import 的节点本身没有父），
+ * 而不是整批共用一个父 id —— 增量定向读会一次拿回多个文件的节点，整批单父会把它们全挂到同一个
+ * 文件下。
+ *
+ * `source` 给出时给 `properties.__source` 打标记，取值必须与 `GraphDataMerger.merge` 用的一致；
+ * 增量路径必须打（它要和已经过 merger 的 `current` 逐字段比对），全量路径不打（merger 会打，
+ * 打了也只是重复覆盖同一个值，但会让 adapter 的原始输出测试多出一个字段）。
+ */
+export function mapRowsToGraphNodes(dbNodes: DbNodeRow[], source?: DataSourceType): GraphNode[] {
+  const fileNodeIds = new Map<string, string>();
+  for (const n of dbNodes) {
+    if (n.kind === 'file' || n.kind === 'module') {
+      fileNodeIds.set(n.file_path, n.id);
+    }
+  }
+
+  return dbNodes
+    .filter((n) => n.name && n.file_path && !isNoisePath(n.file_path))
+    .map((n) => {
+      const parentId = (n.kind !== 'file' && n.kind !== 'module' && n.kind !== 'import')
+        ? fileNodeIds.get(n.file_path) ?? undefined
+        : undefined;
+      return {
+        id: NodeId(n.id),
+        label: n.name,
+        type: mapNodeKind(n.kind),
+        filePath: n.file_path,
+        lineNumber: n.start_line ?? 1,
+        properties: {
+          kind: n.kind,
+          ...(n.signature ? { signature: n.signature } : {}),
+          ...(n.docstring ? { docstring: n.docstring } : {}),
+          exported: n.is_exported === 1,
+          ...(source ? { __source: source } : {}),
+        },
+        ...(parentId ? { parentId: NodeId(parentId) } : {}),
+        layer: inferLayerFromPath(n.file_path),
+      };
+    });
+}
+
+/**
+ * 索引行 → 图边。同样是唯一的边映射实现，全量/增量两条路径共用。
+ *
+ * 三条过滤规则必须和全量路径完全一致，否则增量路径会把全量路径早已丢弃的边重新塞回图里：
+ * 两端都必须存在于 `validNodeIds`、丢弃自环、丢弃 `FILTERED_EDGE_KINDS`，最后按**每个来源**
+ * 截断到 import 上限条 import 边。
+ *
+ * 截断前先按边 id 升序排序：全量路径的边来自 `ORDER BY id` 的分页读，增量路径的边来自
+ * 分批 IN 查询（SQL 不保证顺序），不排序的话同一个来源保留下来的 20 条会不一样。
+ *
+ * `keptImportIds` 是增量路径必须提供的东西，也是这里唯一不显然的地方。一次定向读只拿回**某个
+ * 来源的部分** import 边：改动的是 `b.ts` 时，`a.ts -> b.ts` 这条边会因为"目标在改动集合内"被
+ * 返回，但 `a.ts` 自己的 57 条 import 里哪些进了前 20 名，局部集合根本看不出来。若只对局部集合
+ * 数到 20，这条本应被全量路径丢弃的边就会当成新边加进图里（实测本仓库多出 10 条）。
+ *
+ * 因此截断要在"当前图里该来源已保留的 import 边 id" ∪ "本次读回的 import 边 id" 上做：边 id 随
+ * 插入单调递增，所以两者的并集按 id 排序后取前 `cap` 条，就是全量路径会保留的那一批。来源在改动
+ * 集合内时局部集合本就是完整的（并集不变）；来源不在改动集合内时，当前图里已有 20 条、新边的 id
+ * 更大，自然落选 —— 这正是想要的结论。
+ */
+export function mapRowsToGraphEdges(
+  dbEdges: DbEdgeRow[],
+  validNodeIds: Set<string>,
+  opts: { source?: DataSourceType; importCap?: number; keptImportIds?: Map<string, number[]> } = {},
+): GraphEdge[] {
+  const importCap = opts.importCap ?? CODEGRAPH_ADAPTER.MAX_IMPORTS_PER_SOURCE;
+  const kept = dbEdges
+    .filter((e) =>
+      validNodeIds.has(e.source) && validNodeIds.has(e.target) &&
+      e.source !== e.target &&
+      !FILTERED_EDGE_KINDS.has(e.kind))
+    .sort((a, b) => a.id - b.id);
+
+  const importIdsBySource = new Map<string, number[]>();
+  for (const e of kept) {
+    if (mapEdgeKind(e.kind) !== 'import') continue;
+    const list = importIdsBySource.get(e.source);
+    if (list) list.push(e.id);
+    else importIdsBySource.set(e.source, [e.id]);
+  }
+
+  const admittedImportIds = new Set<number>();
+  for (const [src, ids] of importIdsBySource) {
+    const merged = [...new Set([...(opts.keptImportIds?.get(src) ?? []), ...ids])].sort((a, b) => a - b);
+    for (const id of merged.slice(0, importCap)) admittedImportIds.add(id);
+  }
+
+  const edges: GraphEdge[] = [];
+  for (const e of kept) {
+    if (mapEdgeKind(e.kind) === 'import' && !admittedImportIds.has(e.id)) continue;
+    edges.push({
+      id: EdgeId(String(e.id)),
+      source: NodeId(e.source),
+      target: NodeId(e.target),
+      type: mapEdgeKind(e.kind),
+      properties: {
+        ...(e.line !== null && e.line !== undefined ? { line: e.line } : {}),
+        ...(opts.source ? { __source: opts.source } : {}),
+      },
+    });
+  }
+  return edges;
 }
 
 
@@ -537,8 +646,11 @@ export function readFilesFromDb(dbPath: string, filePaths: string[]): { nodes: D
   }
 }
 
+/** The `source` every row this adapter produces is attributed to. */
+export const CODEGRAPH_SOURCE: DataSourceType = 'codegraph';
+
 export class CodeGraphAdapter implements IDataAdapter {
-  readonly source: DataSourceType = 'codegraph';
+  readonly source: DataSourceType = CODEGRAPH_SOURCE;
 
   async fetchData(repoId: string, invoke: UpstreamInvoker): Promise<AdapterResult> {
     // Primary: paged SQLite read of the upstream index (avoids OOM on large repos).
@@ -598,62 +710,11 @@ export class CodeGraphAdapter implements IDataAdapter {
   }
 
   private toAdapterResult(dbNodes: DbNodeRow[], dbEdges: DbEdgeRow[]): AdapterResult {
-
-    const fileNodeIds = new Map<string, string>();
-    for (const n of dbNodes) {
-      if (n.kind === 'file' || n.kind === 'module') {
-        fileNodeIds.set(n.file_path, n.id);
-      }
-    }
-
-    const nodes: GraphNode[] = dbNodes
-      .filter((n) => n.name && n.file_path && !isNoisePath(n.file_path))
-      .map((n) => {
-      const parentId = (n.kind !== 'file' && n.kind !== 'module' && n.kind !== 'import')
-        ? fileNodeIds.get(n.file_path) ?? undefined
-        : undefined;
-      return {
-        id: NodeId(n.id),
-        label: n.name,
-        type: mapNodeKind(n.kind),
-        filePath: n.file_path,
-        lineNumber: n.start_line ?? 1,
-        properties: {
-          kind: n.kind,
-          ...(n.signature ? { signature: n.signature } : {}),
-          ...(n.docstring ? { docstring: n.docstring } : {}),
-          exported: n.is_exported === 1,
-        },
-        ...(parentId ? { parentId: NodeId(parentId) } : {}),
-        layer: inferLayerFromPath(n.file_path),
-      };
-    });
-
+    // 节点/边的映射与过滤全部委托给共享实现，增量路径走同一份逻辑（见 mapRowsToGraphNodes /
+    // mapRowsToGraphEdges）。这里不传 `source`：`__source` 由 GraphDataMerger.merge 统一打标。
+    const nodes = mapRowsToGraphNodes(dbNodes);
     const validNodeIds = new Set<string>(nodes.map((n) => n.id as string));
-    const filteredEdges = dbEdges.filter((e) =>
-      validNodeIds.has(e.source) && validNodeIds.has(e.target) &&
-      e.source !== e.target &&
-      !FILTERED_EDGE_KINDS.has(e.kind),
-    );
-
-    const importCountBySource = new Map<string, number>();
-    const edges: GraphEdge[] = [];
-    for (const e of filteredEdges) {
-      const mappedType = mapEdgeKind(e.kind);
-      if (mappedType === 'import') {
-        const count = importCountBySource.get(e.source) ?? 0;
-        if (count >= CODEGRAPH_ADAPTER.MAX_IMPORTS_PER_SOURCE) continue;
-        importCountBySource.set(e.source, count + 1);
-      }
-      edges.push({
-        id: EdgeId(String(e.id)),
-        source: NodeId(e.source),
-        target: NodeId(e.target),
-        type: mappedType,
-        properties: e.line !== null && e.line !== undefined ? { line: e.line } : {},
-      });
-    }
-
+    const edges = mapRowsToGraphEdges(dbEdges, validNodeIds);
     return { nodes, edges, source: this.source, timestamp: Date.now() };
   }
 }
