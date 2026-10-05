@@ -2,6 +2,7 @@ import { scoped } from '../../shared/Logger.ts';
 import type { GraphData, GraphNode, GraphEdge } from '../../types/index.ts';
 import type { ASTNode } from '../../shared/CFGTypes.ts';
 import { coerceGraphData } from '../../shared/GraphValidator.ts';
+import { isForeignRepo } from '../../shared/graphScope.ts';
 import { API, BOOTSTRAP } from '../../shared/constants.ts';
 
 const log = scoped('client');
@@ -107,14 +108,6 @@ export async function fetchStatus(): Promise<{ codegraph: boolean; lens: boolean
   }, { codegraph: false, lens: false, builtin: true }, { url: '/api/v1/codegraph/status' });
 }
 
-export async function fetchGraphData(): Promise<GraphData | null> {
-  return withAbortGuard('fetchGraphData', async () => {
-    const res = await fetchWithTimeout('/api/v1/codegraph/data');
-    if (!res.ok) return null;
-    return coerceGraphData(await res.json());
-  }, null, { url: '/api/v1/codegraph/data' });
-}
-
 export interface WorkspaceInfo {
   path: string;
   list: string[];
@@ -162,15 +155,39 @@ export async function requestInit(path: string): Promise<{ success: boolean; mes
   }, null);
 }
 
-export async function fetchGraphDataIncremental(lastUpdated: number): Promise<GraphData | null> {
+/**
+ * 读取 host 单槽里的图（`/api/v1/codegraph/data`，增量语义：带 `if-none-match` 走 304 短路）。
+ *
+ * P0 跨工作区污染防护的**唯一收口点**：该端点既不接受 `workspace` 参数、也不做任何过滤，返回的
+ * 永远是 host `lastGraphData` 那一个槽里的内容。因此响应必须在这里就与调用方的作用域身份比对，
+ * 外来工作区的负载直接丢弃，绝不交给调用方去 `setGraphData`。
+ *
+ * `scopeRepoId` 是**必填**参数而非可选：任何新增调用点都会被类型检查强制回答"我期望哪个工作区"，
+ * 而不是默默继承一个不设防的默认值。这正是 Round 15 遗留 SSE `graph-updated` 漏网的成因——
+ * 当时守卫只写在调用点，新增通道时被漏掉。
+ */
+export async function fetchGraphDataIncremental(
+  lastUpdated: number,
+  scopeRepoId: string | null | undefined,
+): Promise<GraphData | null> {
   return withAbortGuard('fetchGraphDataIncremental', async () => {
     const res = await fetchWithTimeout('/api/v1/codegraph/data', {
       headers: { 'if-none-match': String(lastUpdated) },
     });
     if (res.status === 304) return null;
     if (!res.ok) return null;
-    return coerceGraphData(await res.json());
-  }, null);
+    const data = coerceGraphData(await res.json());
+    if (!data) return null;
+    // host 只保留一个槽：槽里可能装着别的工作区的图，按作用域身份丢弃。
+    if (isForeignRepo(data.metadata.repoId, scopeRepoId)) {
+      log.info('incremental graph fetch ignored for another workspace', {
+        repoId: data.metadata.repoId,
+        activeRepoId: scopeRepoId,
+      });
+      return null;
+    }
+    return data;
+  }, null, { url: '/api/v1/codegraph/data' });
 }
 
 export async function requestWatch(enabled: boolean, path: string): Promise<boolean> {

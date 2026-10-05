@@ -2,7 +2,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import { scoped } from '../../shared/Logger.ts';
 import { fetchGraphDataIncremental } from '../api/index.ts';
 import { coerceGraphData, coerceGraphDelta } from '../../shared/GraphValidator.ts';
-import { isForeignRepo } from './repoScope.ts';
+import { applyScopedGraphPayload, isForeignRepo } from './repoScope.ts';
 import { useGraphStore } from '../store/graphStore.ts';
 
 const log = scoped('client');
@@ -42,11 +42,11 @@ export function setupSSEEvents(ctx: Context): void {
             store.loadBootstrap().catch((err) => log.warn('SSE: bootstrap refresh failed', err));
             return;
           }
-          fetchGraphDataIncremental(store.lastUpdated)
+          // 增量取数本身已按 `store.repoId` 过滤（`fetchGraphDataIncremental` 的第二个参数是必填的），
+          // 这里再经统一的落库通道，保证运行时不存在绕过身份判定的写图路径。
+          fetchGraphDataIncremental(store.lastUpdated, store.repoId)
             .then((graphData) => {
-              if (graphData && graphData.nodes && graphData.nodes.length > 0) {
-                store.setGraphData(graphData.nodes, graphData.edges, graphData.metadata.repoId, graphData.metadata);
-              }
+              applyScopedGraphPayload(store, graphData, store.repoId, 'SSE: incremental graph fetch');
             })
             .catch((err) => log.warn('SSE: incremental fetch failed', err));
         });

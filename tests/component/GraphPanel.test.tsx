@@ -114,7 +114,6 @@ vi.mock('../../src/client/hooks/index.ts', () => ({
   useViewMode: vi.fn(() => ({
     isMicroView: false,
     handleViewModeChange: vi.fn(),
-    fetchGraphData: vi.fn(),
     loadingMicro: false,
     microError: null,
     handleSelectFunction: vi.fn(),

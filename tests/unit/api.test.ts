@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   fetchWithTimeout,
   fetchStatus,
-  fetchGraphData,
   fetchWorkspace,
   requestScan,
   requestInit,
@@ -44,44 +43,6 @@ describe('client api', () => {
       globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as unknown as typeof fetch;
       const result = await fetchStatus();
       expect(result).toEqual({ codegraph: false, lens: false, builtin: true });
-    });
-  });
-
-  describe('fetchGraphData', () => {
-    it('returns validated graph data on success', async () => {
-      const graphData = {
-        nodes: [{ id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} }],
-        edges: [],
-        metadata: { repoId: 'r1', timestamp: 1, nodeCount: 1, edgeCount: 0 },
-      };
-      globalThis.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => graphData,
-      }) as unknown as typeof fetch;
-      const result = await fetchGraphData();
-      expect(result).not.toBeNull();
-      expect(result!.nodes).toHaveLength(1);
-    });
-
-    it('returns null when response not ok', async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => null }) as unknown as typeof fetch;
-      const result = await fetchGraphData();
-      expect(result).toBeNull();
-    });
-
-    it('returns null on fetch error', async () => {
-      globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as unknown as typeof fetch;
-      const result = await fetchGraphData();
-      expect(result).toBeNull();
-    });
-
-    it('returns null when validateGraphData returns null (empty nodes)', async () => {
-      globalThis.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({ nodes: [], edges: [], metadata: {} }),
-      }) as unknown as typeof fetch;
-      const result = await fetchGraphData();
-      expect(result).toBeNull();
     });
   });
 
@@ -388,7 +349,7 @@ describe('client api', () => {
   describe('fetchGraphDataIncremental', () => {
     it('returns null on 304 Not Modified', async () => {
       globalThis.fetch = vi.fn().mockResolvedValue({ status: 304, ok: false }) as unknown as typeof fetch;
-      const result = await fetchGraphDataIncremental(123);
+      const result = await fetchGraphDataIncremental(123, 'r1');
       expect(result).toBeNull();
     });
 
@@ -403,21 +364,69 @@ describe('client api', () => {
         status: 200,
         json: async () => graphData,
       }) as unknown as typeof fetch;
-      const result = await fetchGraphDataIncremental(123);
+      const result = await fetchGraphDataIncremental(123, 'r1');
       expect(result).not.toBeNull();
       expect(result!.nodes).toHaveLength(1);
     });
 
     it('returns null on fetch error', async () => {
       globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as unknown as typeof fetch;
-      const result = await fetchGraphDataIncremental(123);
+      const result = await fetchGraphDataIncremental(123, 'r1');
       expect(result).toBeNull();
     });
 
     it('returns null when response not ok', async () => {
       globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => null }) as unknown as typeof fetch;
-      const result = await fetchGraphDataIncremental(123);
+      const result = await fetchGraphDataIncremental(123, 'r1');
       expect(result).toBeNull();
+    });
+
+    // P0-R16-01：`/api/v1/codegraph/data` 读的是 host 单槽，槽里可能是另一个工作区的图。
+    // 守卫必须在取数层就把外来负载挡掉，调用点无需再自行判定。
+    it('returns null when the payload belongs to another workspace', async () => {
+      const graphData = {
+        nodes: [{ id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} }],
+        edges: [],
+        metadata: { repoId: '/repo/other', timestamp: 2, nodeCount: 1, edgeCount: 0 },
+      };
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => graphData,
+      }) as unknown as typeof fetch;
+      const result = await fetchGraphDataIncremental(123, '/repo/current');
+      expect(result).toBeNull();
+    });
+
+    it('accepts the payload when the scope has no workspace identity yet', async () => {
+      const graphData = {
+        nodes: [{ id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} }],
+        edges: [],
+        metadata: { repoId: '/repo/other', timestamp: 2, nodeCount: 1, edgeCount: 0 },
+      };
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => graphData,
+      }) as unknown as typeof fetch;
+      const result = await fetchGraphDataIncremental(123, null);
+      expect(result).not.toBeNull();
+      expect(result!.nodes).toHaveLength(1);
+    });
+
+    it('accepts a separator-only difference as the same workspace', async () => {
+      const graphData = {
+        nodes: [{ id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} }],
+        edges: [],
+        metadata: { repoId: 'D:\\Projects\\repo', timestamp: 2, nodeCount: 1, edgeCount: 0 },
+      };
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => graphData,
+      }) as unknown as typeof fetch;
+      const result = await fetchGraphDataIncremental(123, 'D:/Projects/repo');
+      expect(result).not.toBeNull();
     });
   });
 

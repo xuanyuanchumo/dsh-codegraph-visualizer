@@ -137,7 +137,7 @@ describe('setupSSEEvents', () => {
     setupSSEEvents(ctx);
     MockEventSource.last().emit('graph-updated', { repoId: 'r1', nodeCount: 2, edgeCount: 0 });
     await flush();
-    expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123);
+    expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123, 'r1');
     expect(mocks.setGraphData).toHaveBeenCalledWith(
       [{ id: 'n2' }],
       [],
@@ -159,6 +159,18 @@ describe('setupSSEEvents', () => {
 
   it('graph-updated skips setGraphData when incremental fetch returns null', async () => {
     mocks.fetchGraphDataIncremental.mockResolvedValue(null);
+    const { ctx } = createCtx();
+    setupSSEEvents(ctx);
+    MockEventSource.last().emit('graph-updated', { repoId: 'r1' });
+    await flush();
+    expect(mocks.setGraphData).not.toHaveBeenCalled();
+  });
+
+  // 空负载也必须被挡下：把它写进画布等于用一个空图覆盖用户正在看的图。
+  it('graph-updated skips setGraphData when the incremental payload has no nodes', async () => {
+    mocks.fetchGraphDataIncremental.mockResolvedValue({
+      nodes: [], edges: [], metadata: { repoId: 'r1', timestamp: 3 },
+    });
     const { ctx } = createCtx();
     setupSSEEvents(ctx);
     MockEventSource.last().emit('graph-updated', { repoId: 'r1' });
@@ -337,7 +349,7 @@ describe('setupSSEEvents', () => {
       setupSSEEvents(ctx);
       MockEventSource.last().emit('graph-updated', { repoId: 'r1' });
       await flush();
-      expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123);
+      expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123, 'r1');
     });
 
     it('graph-delta coerces and applies the delta', async () => {
@@ -466,7 +478,40 @@ describe('setupSSEEvents', () => {
       setupSSEEvents(ctx);
       MockEventSource.last().emit('graph-updated', { repoId: '/repo/other' });
       await flush();
-      expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123);
+      expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123, null);
+    });
+
+    // P0-R16-01：事件里的 repoId 是正确的，但 `/data` 是 host 单槽端点，取回来的负载可能属于
+    // 另一个工作区。Round 15 只校验了事件身份，这条通道因此漏网——用统一落库通道后必须被拦下。
+    it('graph-updated ignores an incremental payload that belongs to another workspace', async () => {
+      mocks.getState.mockReturnValue(createStore({ repoId: '/repo/current' }));
+      mocks.fetchGraphDataIncremental.mockResolvedValue({
+        nodes: [{ id: 'n2' }], edges: [], metadata: { repoId: '/repo/other', timestamp: 2 },
+      });
+      const { ctx } = createCtx();
+      setupSSEEvents(ctx);
+      MockEventSource.last().emit('graph-updated', { repoId: '/repo/current' });
+      await flush();
+      expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123, '/repo/current');
+      expect(mocks.setGraphData).not.toHaveBeenCalled();
+      expect(mocks.loadBootstrap).not.toHaveBeenCalled();
+    });
+
+    it('graph-updated applies an incremental payload from the same workspace', async () => {
+      mocks.getState.mockReturnValue(createStore({ repoId: '/repo/current' }));
+      mocks.fetchGraphDataIncremental.mockResolvedValue({
+        nodes: [{ id: 'n2' }], edges: [], metadata: { repoId: '/repo/current', timestamp: 2 },
+      });
+      const { ctx } = createCtx();
+      setupSSEEvents(ctx);
+      MockEventSource.last().emit('graph-updated', { repoId: '/repo/current' });
+      await flush();
+      expect(mocks.setGraphData).toHaveBeenCalledWith(
+        [{ id: 'n2' }],
+        [],
+        '/repo/current',
+        { repoId: '/repo/current', timestamp: 2 },
+      );
     });
 
     // A separator-only difference is the same workspace; the guard must normalise before comparing.

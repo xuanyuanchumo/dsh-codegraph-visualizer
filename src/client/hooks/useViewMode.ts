@@ -5,7 +5,7 @@ import type { ViewMode } from '../../types/index.ts';
 
 import { scoped } from '../../shared/Logger.ts';
 import { fetchWithTimeout } from '../api/index.ts';
-import { isForeignRepo } from '../runtime/repoScope.ts';
+import { isForeignRepo } from '../../shared/graphScope.ts';
 
 const log = scoped('viewMode');
 

@@ -138,7 +138,7 @@ describe('setupWindowEvents', () => {
     setupWindowEvents(ctx);
     dispatch(DOM_EVENTS.REFRESH, { incremental: true });
     await flush();
-    expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123);
+    expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123, 'r1');
     expect(mocks.setGraphData).toHaveBeenCalled();
   });
 
@@ -204,7 +204,7 @@ describe('setupWindowEvents', () => {
     setupWindowEvents(ctx);
     dispatch(DOM_EVENTS.REFRESH, { incremental: true });
     await flush();
-    expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123);
+    expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123, 'r1');
     expect(mocks.setGraphData).not.toHaveBeenCalled();
   });
 
