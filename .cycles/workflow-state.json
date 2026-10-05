@@ -1,7 +1,12 @@
 {
   "currentPhase": "complete",
-  "currentCycle": "cycle-81",
+  "currentCycle": "cycle-82",
   "phaseHistory": [
+    {
+      "cycle": "cycle-82",
+      "phase": "complete",
+      "result": "P0-R16-02 ETag 身份定域 + 时钟域解耦（\"校验器不校验身份\"家族的第三次复发，触发 R10 结构性收口）： (a) 新增 GraphEtagResource 六成员与 computeGraphEtag(repoId, revision, resource) => W/\"<revision>-<hash64(resource+repoId)>\" （资源维度为编译期必填、无默认值，迫使每个新调用点表态；刻意不用 computeGraphFingerprint——指纹要遍历全图而 ETag 每次 /data 都算，目的是身份定域不是内容寻址）； (b) returnIfEtagMatch 增必填 resource 与可选 repoId，身份取「请求方声明的工作区」、revision 取槽 （代价不对称的刻意选择：误报\"已变\"只多一次 200，假 304 会静默丢弃真实更新）； (c) 修正 4 处反序调用（children/outline/ast/edges 此前在 resolveWorkspaceFromRequest 之前就校验，身份维度根本没被读到）； (d) /data 两处 200 写入点改用与 304 比对同源的 computeGraphEtag(..., \"graph\")； (e) buildCorsHeaders 增 access-control-expose-headers: etag, x-truncated（跨源客户端此前读不到 etag，增量取数静默退化为全量重取）； (f) 客户端新增 graphEtag 字段与展示时钟 lastUpdated 彻底分离；fetchGraphDataIncremental 首参由 lastUpdated:number 改为 clientEtag 并返回 IncrementalGraphResult{data, etag}，无校验值时完全不发 if-none-match； (g) graphDataSlice 四处写入点全部显式表态（setGraphData 两分支取 metadata?.timestamp ?? Date.now() + metadata?.etag ?? null；setBootstrapData 与 applyGraphDelta 置 graphEtag: null）； (h) applyScopedGraphPayload 增第 5 参 etag，使校验值与负载在同一次 setGraphData 落库（undefined 保持原 metadata 对象引用）； (i) workspaceSlice 三处作废校验值（切/加必清；删仅当删的是当前工作区）。 验证：全量 185 文件 / 5086 用例全绿（cycle-81 为 5060，+26）；typecheck 0 错误；lint 0 warnings 0 errors（244 files / 103 rules）； build exit 0（client.js 2506859 B vs 基线 2505499 B = +1360 B/+0.054%；index.js 202364 B vs 198784 B = +3580 B/+1.80%）； hygiene 19 artefact / 7 root、payload 11.39 MB；perf-gate 全 PASS；E2E smoke 57 passed / 0 failed（2.6 min）； 变异锁 cross-workspace-guard-mutations.ps1 由 16 条扩至 28 条且 28/28 全红 + restored verbatim OK（exit 0），incremental-update-mutations.ps1 26/26； 契约测试新增 2 条（never feeds the display clock into the HTTP validator / scopes the host validator by resource）； J0 真机 13 项可判别观测（旧格式裸时间戳 -> /data 与 /children 均 200 是修复的直接反证；/data 的 etag -> /children = 200 证资源维度；错误哈希 / 错误 revision -> 200 证身份与 revision 维度；客户端种入 graphEtag 与 lastUpdated 取不同值时仍发 graphEtag 证时钟域解耦）； 一处预测被真机推翻并已更正：/data 路由根本不接受 ?workspace= 参数，故\"换 workspace 应得 200\"是错的（实测 304 且该行为正确），身份维度改由错误哈希探针证明； 一项诚实标注未验证：真实工作区索引端到端（本机 codegraph:false 属 Windows 降级，nodeCount=0 显示\"正在建立索引\"），仅以种入图验证了渲染链路。"
+    },
     {
       "cycle": "cycle-81",
       "phase": "complete",
@@ -180,5 +185,5 @@
   ],
   "nodeStatus": {},
   "createdAt": "2026-09-21T14:25:00.105Z",
-  "updatedAt": "2026-10-05T09:25:45.657Z"
+  "updatedAt": "2026-10-05T10:44:13.104Z"
 }

@@ -143,7 +143,43 @@
       "timestamp": "2026-10-05T09:17:41.414Z",
       "previousHash": "ba878ac3767c092d4f801513f2b3470951d457afbab33cf691466d1676b5d849",
       "hash": "4ff5cf41ae6b8b7dfd70038881f844904742cae29c8b4b8adc28bb341e9ccb64"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "cycle-82: 项目评估报告.md (分层摘要 + E1-E8 + P0-P3 清单); 事实基座抽验 10 条全部真实存在 (computeGraphEtag/GraphEtagResource in src/shared/graphFingerprint.ts, 6 call sites carry a resource name, dataRoutes.ts:73 etag same-source as :68 check, HttpHelpers.ts expose header, sessionSlice.ts:14 graphEtag:null, types.ts graphEtag field, SSEEvents.ts:48/WindowEvents.ts:26 store.graphEtag, contract tests 4 cases, 28 mutation locks)",
+      "timestamp": "2026-10-05T10:43:20.078Z",
+      "previousHash": "4ff5cf41ae6b8b7dfd70038881f844904742cae29c8b4b8adc28bb341e9ccb64",
+      "hash": "938a1752368b4b02bc4544003fe9768dcc272ff465cd9b838467497121829e10"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "cycle-82: 任务清单.md T18-1..T18-16 all done; no unregistered P0-P3 item; 11 carry-over items each with destination and gate impact (incl. new P3-R18-01 English comments in dshGeneration.ts, P1-R18-01 alignment report P1-2/P1-4, P2-R18-01 three-layer panels, P3-R18-02 five routes emit no etag on 200)",
+      "timestamp": "2026-10-05T10:43:25.820Z",
+      "previousHash": "938a1752368b4b02bc4544003fe9768dcc272ff465cd9b838467497121829e10",
+      "hash": "3b670acdcda291d4dca7bce627199a3794a24e267f19ad0cda51e2bfa74f2f90"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "cycle-82: 185 files / 5086 tests green (0 failed, 0 errors; cycle-81 was 5060, +26); typecheck host+client+test 0 errors; lint 0 warnings and 0 errors on 244 files with 103 rules; E2E smoke 57 passed / 0 failed (2.6 min, exit 0); cross-workspace-guard-mutations.ps1 28/28 red with restored verbatim OK (exit 0); incremental-update-mutations.ps1 26/26; J0 real-host 13 discriminating observations as expected",
+      "timestamp": "2026-10-05T10:43:25.894Z",
+      "previousHash": "3b670acdcda291d4dca7bce627199a3794a24e267f19ad0cda51e2bfa74f2f90",
+      "hash": "3f838e62c8085ee4b6d1f60b8731343d75daba4ed9bd5b5e3884fcf7f99b2ad4"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "cycle-82: build exit 0 (client.js 2506859 B vs baseline 2505499 B = +1360 B/+0.054%; index.js 202364 B vs 198784 B = +3580 B/+1.80%; index.esm.js 2323522 B; index.css 157984 B; worker 1527487 B); hygiene 19 artefacts / 7 roots, payload 11.39 MB; perf-gate all PASS (client 2.39MB/3MB, host 198KB/512KB, tests 5086/4463); real-host tab bar and canvas render chain not regressed",
+      "timestamp": "2026-10-05T10:43:25.965Z",
+      "previousHash": "3f838e62c8085ee4b6d1f60b8731343d75daba4ed9bd5b5e3884fcf7f99b2ad4",
+      "hash": "9c197a70f298686aa05a19322e2e934614f219007499b23669e32312660a1446"
     }
   ],
-  "chainHead": "4ff5cf41ae6b8b7dfd70038881f844904742cae29c8b4b8adc28bb341e9ccb64"
+  "chainHead": "9c197a70f298686aa05a19322e2e934614f219007499b23669e32312660a1446"
 }
