@@ -1,5 +1,6 @@
 import { scoped } from '../shared/Logger.ts';
 import { INCREMENTAL } from '../shared/constants.ts';
+import { sameRepoId } from '../shared/pathUtils.ts';
 import { readFilesFromDb, resolveDbPath, normalizeRepoPath, mapRowsToGraphNodes, mapRowsToGraphEdges, CODEGRAPH_SOURCE } from '../adapters/CodeGraphAdapter.ts';
 import { computeGraphDiff } from '../merger/DiffEngine.ts';
 import { applyGraphDelta, canApplyGraphDelta, isEmptyGraphDelta, graphDeltaSize } from '../shared/graphDelta.ts';
@@ -80,6 +81,18 @@ function withCounts(nodes: GraphNode[], edges: GraphEdge[], previous: GraphData[
 export function buildIncrementalUpdate(input: IncrementalUpdateInput): IncrementalUpdateResult | null {
   const { workspacePath, changedFiles, current } = input;
   if (changedFiles.length === 0) return null;
+  // 跨工作区防护（P0）：`current` 是 host 持有的"最后一个图"，它可能属于另一个工作区——浏览器先给
+  // 无索引的工作区跑了后台建图，`setLastGraphData` 就会把那个空图放进同一个槽里，而 watcher 监听的
+  // 却是另一个仓库。此时若照常 diff，改动文件在 `current` 里找不到对应节点，全部会被判为 added，
+  // 折叠后的 `next` 还会带着**旧工作区的 repoId** 被写回 host 权威图，把全量图替换成两个节点。
+  // 这里直接返回 null 让调用方落回全量拉取，顺带把槽修回正确的工作区。
+  if (!sameRepoId(current.metadata.repoId, workspacePath)) {
+    log.warn('incremental update skipped: current graph belongs to another workspace', {
+      workspacePath,
+      heldRepoId: current.metadata.repoId,
+    });
+    return null;
+  }
   if (changedFiles.length > INCREMENTAL.MAX_CHANGED_FILES) {
     log.info('incremental update skipped: too many changed files', { count: changedFiles.length, max: INCREMENTAL.MAX_CHANGED_FILES });
     return null;

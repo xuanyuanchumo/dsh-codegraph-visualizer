@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getTopLevelDir } from '../../src/shared/pathUtils.ts';
+import { getTopLevelDir, sameRepoId } from '../../src/shared/pathUtils.ts';
 
 describe('pathUtils', () => {
   describe('getTopLevelDir', () => {
@@ -51,6 +51,37 @@ describe('pathUtils', () => {
 
     it('handles paths with only drive letter and one dir', () => {
       expect(getTopLevelDir('C:/Users')).toBe('C:/Users');
+    });
+  });
+
+  describe('sameRepoId', () => {
+    it('treats identical paths as the same workspace', () => {
+      expect(sameRepoId('/repo/app', '/repo/app')).toBe(true);
+    });
+
+    it('normalises backslashes', () => {
+      expect(sameRepoId('D:\\Projects\\app', 'D:/Projects/app')).toBe(true);
+    });
+
+    it('ignores a trailing separator', () => {
+      expect(sameRepoId('D:/Projects/app/', 'D:\\Projects\\app')).toBe(true);
+    });
+
+    it('ignores case for Windows drive-letter paths only', () => {
+      expect(sameRepoId('D:/Projects/App', 'd:/projects/app')).toBe(true);
+      expect(sameRepoId('/repo/App', '/repo/app')).toBe(false);
+    });
+
+    it('separates genuinely different workspaces', () => {
+      expect(sameRepoId('D:/Projects/app', 'D:/Projects/other')).toBe(false);
+    });
+
+    // A missing identity must never be treated as a match: the host slot would then be read as
+    // "same workspace" and diffed against a graph it does not own.
+    it('treats a missing identity on either side as different', () => {
+      expect(sameRepoId(null, '/repo/app')).toBe(false);
+      expect(sameRepoId('/repo/app', undefined)).toBe(false);
+      expect(sameRepoId('', '')).toBe(false);
     });
   });
 });

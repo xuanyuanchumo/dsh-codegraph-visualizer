@@ -581,10 +581,10 @@ describe('scanAndPush incremental updates', () => {
   it('publishes a graph/delta event carrying the real change', async () => {
     const ctx = makeMockCtx();
     const invokeUpstream = vi.fn().mockResolvedValue(null);
-    const current = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const current = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], [], '/repo');
     const { state } = makeState(current);
     const added = makeNode('n2', 'B', 'function', 'a.ts', 9);
-    const next = makeGraphData([...current.nodes, added], [], 'test-repo', 42);
+    const next = makeGraphData([...current.nodes, added], [], '/repo', 42);
     incrementalMock.buildIncrementalUpdate.mockReturnValue({
       delta: { ...EMPTY_DELTA, addedNodes: [added] },
       next,
@@ -612,12 +612,12 @@ describe('scanAndPush incremental updates', () => {
   it('does not re-send the whole graph on the incremental path', async () => {
     const ctx = makeMockCtx();
     const invokeUpstream = vi.fn().mockResolvedValue(null);
-    const current = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const current = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], [], '/repo');
     const { state } = makeState(current);
     const added = makeNode('n2', 'B', 'function', 'a.ts', 9);
     incrementalMock.buildIncrementalUpdate.mockReturnValue({
       delta: { ...EMPTY_DELTA, addedNodes: [added] },
-      next: makeGraphData([...current.nodes, added], [], 'test-repo', 42),
+      next: makeGraphData([...current.nodes, added], [], '/repo', 42),
       scanned: { nodes: 1, edges: 0 },
     });
 
@@ -630,12 +630,12 @@ describe('scanAndPush incremental updates', () => {
   it('marks the graph/updated event as incremental', async () => {
     const ctx = makeMockCtx();
     const invokeUpstream = vi.fn().mockResolvedValue(null);
-    const current = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const current = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], [], '/repo');
     const { state } = makeState(current);
     const added = makeNode('n2', 'B', 'function', 'a.ts', 9);
     incrementalMock.buildIncrementalUpdate.mockReturnValue({
       delta: { ...EMPTY_DELTA, addedNodes: [added] },
-      next: makeGraphData([...current.nodes, added], [], 'test-repo', 42),
+      next: makeGraphData([...current.nodes, added], [], '/repo', 42),
       scanned: { nodes: 1, edges: 0 },
     });
 
@@ -654,7 +654,7 @@ describe('scanAndPush incremental updates', () => {
   it('stays silent when the targeted read finds no structural change', async () => {
     const ctx = makeMockCtx();
     const invokeUpstream = vi.fn().mockResolvedValue(null);
-    const current = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const current = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], [], '/repo');
     const { state } = makeState(current);
     incrementalMock.buildIncrementalUpdate.mockReturnValue({
       delta: EMPTY_DELTA,
@@ -671,10 +671,10 @@ describe('scanAndPush incremental updates', () => {
   it('records the folded graph as the host state so the next delta diffs the right revision', async () => {
     const ctx = makeMockCtx();
     const invokeUpstream = vi.fn().mockResolvedValue(null);
-    const current = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    const current = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], [], '/repo');
     const { state, read } = makeState(current);
     const added = makeNode('n2', 'B', 'function', 'a.ts', 9);
-    const next = makeGraphData([...current.nodes, added], [], 'test-repo', 42);
+    const next = makeGraphData([...current.nodes, added], [], '/repo', 42);
     incrementalMock.buildIncrementalUpdate.mockReturnValue({
       delta: { ...EMPTY_DELTA, addedNodes: [added] },
       next,
@@ -713,6 +713,45 @@ describe('scanAndPush incremental updates', () => {
 
     expect(incrementalMock.buildIncrementalUpdate).not.toHaveBeenCalled();
     expect(mockedFetchMergedGraph).toHaveBeenCalledWith(expect.any(Function), '/repo', 'both');
+  });
+
+  // P0: the host keeps a single graph slot but the client can browse any workspace. If that slot
+  // still holds another workspace's graph (the user switched away before the watched repo finished
+  // indexing), diffing against it reports every touched node as "added" and publishes a two-node
+  // graph as the watched repo's whole graph. The watcher must refuse and re-fetch instead.
+  it('refuses to diff a graph that belongs to another workspace and re-fetches instead', async () => {
+    const ctx = makeMockCtx();
+    const invokeUpstream = vi.fn().mockResolvedValue(null);
+    const foreign = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], [], 'D:\\Projects\\Other');
+    mockedFetchMergedGraph.mockResolvedValue(foreign);
+    const { state } = makeState(foreign);
+
+    await fireChange(ctx, invokeUpstream, state);
+
+    expect(incrementalMock.buildIncrementalUpdate).not.toHaveBeenCalled();
+    expect(mockedFetchMergedGraph).toHaveBeenCalledWith(expect.any(Function), '/repo', 'both');
+    // The full fetch must also repair the slot, otherwise every later tick repeats the mistake.
+    expect(state.getLastGraphData()).toBe(foreign);
+  });
+
+  // Workspace paths reach the watcher with either separator depending on who produced them, so the
+  // guard has to normalise instead of comparing raw strings.
+  it('treats a separator-only difference as the same workspace', async () => {
+    const ctx = makeMockCtx();
+    const invokeUpstream = vi.fn().mockResolvedValue(null);
+    const current = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], [], '\\repo');
+    const { state } = makeState(current);
+    const added = makeNode('n2', 'B', 'function', 'a.ts', 9);
+    incrementalMock.buildIncrementalUpdate.mockReturnValue({
+      delta: { ...EMPTY_DELTA, addedNodes: [added] },
+      next: makeGraphData([...current.nodes, added], [], '\\repo', 42),
+      scanned: { nodes: 1, edges: 0 },
+    });
+
+    await fireChange(ctx, invokeUpstream, state);
+
+    expect(incrementalMock.buildIncrementalUpdate).toHaveBeenCalled();
+    expect(mockedFetchMergedGraph).not.toHaveBeenCalled();
   });
 
   // Without a state surface the watcher cannot read the current revision, so it must keep the old

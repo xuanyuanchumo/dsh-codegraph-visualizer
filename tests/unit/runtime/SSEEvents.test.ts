@@ -73,6 +73,7 @@ function createStore(overrides: Record<string, unknown> = {}) {
     nodes: [{ id: 'n1' }],
     panelVisible: true,
     lastUpdated: 123,
+    repoId: 'r1',
     setGraphData: mocks.setGraphData,
     applyGraphDelta: mocks.applyGraphDelta,
     loadBootstrap: mocks.loadBootstrap,
@@ -410,6 +411,77 @@ describe('setupSSEEvents', () => {
       await flush();
       expect(warnSpy).toHaveBeenCalledWith('client', 'SSE: bootstrap after refused delta failed', expect.any(Error));
       warnSpy.mockRestore();
+    });
+  });
+
+  // P0: the host keeps one graph slot while the client can browse any workspace, so events for the
+  // workspace the user switched away from keep arriving on the same SSE channel. Applying them
+  // replaces the visible graph with a foreign one; ignoring them is the only correct behaviour, and
+  // it must NOT trigger a bootstrap (that would fight the graph the user is actually looking at).
+  describe('cross-workspace guard', () => {
+    it('graph-delta from another workspace is ignored without a bootstrap', async () => {
+      mocks.getState.mockReturnValue(createStore({ repoId: '/repo/current' }));
+      mocks.coerceGraphDelta.mockReturnValue({});
+      const { ctx } = createCtx();
+      setupSSEEvents(ctx);
+      MockEventSource.last().emit('graph-delta', {
+        repoId: '/repo/other',
+        delta: { addedNodes: [{ id: 'n2' }], removedNodes: [], modifiedNodes: [], addedEdges: [], removedEdges: [], modifiedEdges: [] },
+      });
+      await flush();
+      expect(mocks.coerceGraphDelta).not.toHaveBeenCalled();
+      expect(mocks.applyGraphDelta).not.toHaveBeenCalled();
+      expect(mocks.loadBootstrap).not.toHaveBeenCalled();
+    });
+
+    it('graph-data from another workspace is ignored without a bootstrap', async () => {
+      mocks.getState.mockReturnValue(createStore({ repoId: '/repo/current' }));
+      const { ctx } = createCtx();
+      setupSSEEvents(ctx);
+      MockEventSource.last().emit('graph-data', { repoId: '/repo/other', nodes: [{ id: 'n2' }], edges: [] });
+      await flush();
+      expect(mocks.coerceGraphData).not.toHaveBeenCalled();
+      expect(mocks.setGraphData).not.toHaveBeenCalled();
+      expect(mocks.loadBootstrap).not.toHaveBeenCalled();
+    });
+
+    it('graph-updated from another workspace is ignored without a re-fetch', async () => {
+      mocks.getState.mockReturnValue(createStore({ repoId: '/repo/current' }));
+      const { ctx } = createCtx();
+      setupSSEEvents(ctx);
+      MockEventSource.last().emit('graph-updated', { repoId: '/repo/other' });
+      await flush();
+      expect(mocks.fetchGraphDataIncremental).not.toHaveBeenCalled();
+      expect(mocks.loadBootstrap).not.toHaveBeenCalled();
+    });
+
+    // Before the first load the store has no identity yet; dropping those events would leave the
+    // panel permanently empty, so an unknown identity must be let through.
+    it('events are accepted while the store has no workspace identity yet', async () => {
+      mocks.getState.mockReturnValue(createStore({ repoId: null }));
+      mocks.fetchGraphDataIncremental.mockResolvedValue({
+        nodes: [{ id: 'n2' }], edges: [], metadata: { repoId: '/repo/other', timestamp: 2 },
+      });
+      const { ctx } = createCtx();
+      setupSSEEvents(ctx);
+      MockEventSource.last().emit('graph-updated', { repoId: '/repo/other' });
+      await flush();
+      expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123);
+    });
+
+    // A separator-only difference is the same workspace; the guard must normalise before comparing.
+    it('a separator-only difference is treated as the same workspace', async () => {
+      mocks.getState.mockReturnValue(createStore({ repoId: 'D:/Projects/repo' }));
+      mocks.coerceGraphDelta.mockReturnValue({});
+      mocks.applyGraphDelta.mockReturnValue(true);
+      const { ctx } = createCtx();
+      setupSSEEvents(ctx);
+      MockEventSource.last().emit('graph-delta', {
+        repoId: 'D:\\Projects\\repo',
+        delta: { addedNodes: [{ id: 'n2' }], removedNodes: [], modifiedNodes: [], addedEdges: [], removedEdges: [], modifiedEdges: [] },
+      });
+      await flush();
+      expect(mocks.applyGraphDelta).toHaveBeenCalled();
     });
   });
 });

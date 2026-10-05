@@ -53,6 +53,7 @@ function createStore(overrides: Record<string, unknown> = {}) {
   return {
     nodes: [{ id: 'n1' }],
     lastUpdated: 123,
+    repoId: 'r1',
     setGraphData: mocks.setGraphData,
     loadBootstrap: mocks.loadBootstrap,
     setLoading: mocks.setLoading,
@@ -189,6 +190,37 @@ describe('setupWindowEvents', () => {
     await flush();
     expect(mocks.fetchGraphDataIncremental).not.toHaveBeenCalled();
     expect(mocks.loadBootstrap).not.toHaveBeenCalled();
+  });
+
+  // P0: `/data` returns the host's single graph slot with no workspace filter, so a poll fired
+  // while the host slot still holds another workspace's graph would overwrite the visible graph.
+  it('refresh incremental ignores a payload from another workspace', async () => {
+    mocks.fetchGraphDataIncremental.mockResolvedValue({
+      nodes: [{ id: 'n2' }],
+      edges: [],
+      metadata: { repoId: '/repo/other', timestamp: 1 },
+    });
+    const { ctx } = createCtx();
+    setupWindowEvents(ctx);
+    dispatch(DOM_EVENTS.REFRESH, { incremental: true });
+    await flush();
+    expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123);
+    expect(mocks.setGraphData).not.toHaveBeenCalled();
+  });
+
+  // Paths arrive with either separator; normalising keeps the guard from dropping the live graph.
+  it('refresh incremental accepts a separator-only difference', async () => {
+    mocks.getState.mockReturnValue(createStore({ repoId: 'D:/Projects/repo' }));
+    mocks.fetchGraphDataIncremental.mockResolvedValue({
+      nodes: [{ id: 'n2' }],
+      edges: [],
+      metadata: { repoId: 'D:\\Projects\\repo', timestamp: 1 },
+    });
+    const { ctx } = createCtx();
+    setupWindowEvents(ctx);
+    dispatch(DOM_EVENTS.REFRESH, { incremental: true });
+    await flush();
+    expect(mocks.setGraphData).toHaveBeenCalled();
   });
 
   it('openSource emits source open event', () => {

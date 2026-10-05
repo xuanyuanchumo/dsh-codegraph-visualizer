@@ -5,6 +5,7 @@ import { scoped } from '../shared/Logger.ts';
 import { WATCHER, ERROR_CODES, ERROR_MESSAGES } from '../shared/constants.ts';
 import { computeGraphFingerprint } from '../shared/graphFingerprint.ts';
 import { isEmptyGraphDelta } from '../shared/graphDelta.ts';
+import { sameRepoId } from '../shared/pathUtils.ts';
 import { buildIncrementalUpdate } from './incrementalUpdate.ts';
 import { fetchMergedGraph } from '../tools.ts';
 import { RepoId } from '../types/index.ts';
@@ -39,7 +40,14 @@ async function scanAndPush(
     // below — correctness never depends on the incremental path succeeding.
     if (changedFiles && changedFiles.length > 0 && state) {
       const current = state.getLastGraphData();
-      if (current) {
+      // P0: the host keeps exactly one `lastGraphData` slot, but the client can browse several
+      // workspaces in one session. When a background build for workspace A lands in that slot while
+      // the watcher is watching workspace B, diffing B's changed files against A's graph turns every
+      // touched node into an "added" node and — worse — writes B's two-node result back into the slot
+      // stamped with A's repoId, destroying the authoritative full graph. Only take the incremental
+      // path when the held graph really belongs to the watched repo; otherwise fall through to the
+      // full fetch below, which also repairs the slot.
+      if (current && sameRepoId(current.metadata.repoId, repoId)) {
         const update = buildIncrementalUpdate({ workspacePath: repoId, changedFiles, current });
         if (update) {
           state.setLastGraphData(update.next);

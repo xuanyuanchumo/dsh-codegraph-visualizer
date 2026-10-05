@@ -61,7 +61,16 @@ function createWorkspace(dir: string, nodes: NodeRow[], edges: EdgeRow[] = []): 
  * nothing to do with the change under test, and a fixture that skipped the merger would hide exactly
  * the drift the parity cases below exist to catch.
  */
-function graphFrom(nodes: NodeRow[], edges: EdgeRow[] = [], repoId = 'ws', timestamp = 1): GraphData {
+/**
+ * The repoId every fixture graph is stamped with. It has to track `tempDir` (the workspace the tests
+ * pass as `workspacePath`) because the update layer refuses to diff a graph against a workspace it
+ * does not belong to — that guard is the regression lock for the cross-workspace corruption fixed in
+ * this round, so a fixture whose repoId drifted from `tempDir` would silently stop exercising the
+ * incremental path at all.
+ */
+let activeRepoId = 'ws';
+
+function graphFrom(nodes: NodeRow[], edges: EdgeRow[] = [], repoId = activeRepoId, timestamp = 1): GraphData {
   const graphNodes = mapRowsToGraphNodes(nodes.map((n) => ({
     id: n.id,
     kind: n.kind,
@@ -101,6 +110,7 @@ describe('buildIncrementalUpdate', () => {
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), 'cg-incr-'));
+    activeRepoId = tempDir;
   });
 
   afterEach(() => {
@@ -204,14 +214,14 @@ describe('buildIncrementalUpdate', () => {
 
   it('recomputes the revision metadata from the folded arrays', () => {
     createWorkspace(tempDir, [A1, A2]);
-    const current = graphFrom([A1], [], 'ws', 111);
+    const current = graphFrom([A1], [], tempDir, 111);
     const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current, timestamp: 999 });
     expect(result!.next.metadata.timestamp).toBe(999);
     expect(result!.next.metadata.nodeCount).toBe(2);
     expect(result!.next.metadata.edgeCount).toBe(0);
     expect(result!.next.metadata.totalNodeCount).toBe(2);
     expect(result!.next.metadata.totalEdgeCount).toBe(0);
-    expect(result!.next.metadata.repoId).toBe('ws');
+    expect(result!.next.metadata.repoId).toBe(tempDir);
   });
 
   it('reports how many index rows the targeted read pulled back', () => {
@@ -383,6 +393,39 @@ describe('buildIncrementalUpdate', () => {
       });
       expect(second!.delta).toEqual(EMPTY_DELTA);
       expect(second!.next.edges.filter((e) => e.type === 'import')).toHaveLength(20);
+    });
+  });
+
+  // ── P0：跨工作区污染 ──────────────────────────────────────────────────────
+  // host 只有一个 `lastGraphData` 槽，而客户端可以在同一次会话里浏览多个工作区。当浏览器先给
+  // "正在建索引"的工作区跑了后台建图，那个（可能是空的）图会占住槽位；此后 watcher 为另一个仓库
+  // 产出的增量就会拿"别人的图"当 `current` 来 diff。实测后果：改动文件里的节点在 `current` 里找不到
+  // 对应项，全部被判为 added，折叠后的 `next` 还带着旧工作区的 repoId 写回 host 权威图 —— 4790 节点的
+  // 全量图被替换成 2 个节点。这里锁住"不同源直接拒绝、让调用方落回全量拉取"的行为。
+  describe('cross-workspace guard', () => {
+    it('refuses to diff a graph that belongs to another workspace', () => {
+      createWorkspace(tempDir, [A1, A2]);
+      const current = graphFrom([A1], [], 'D:\\Projects\\TraeProjects\\Studying');
+      expect(buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current })).toBeNull();
+    });
+
+    it('treats a path with different separators as the same workspace', () => {
+      createWorkspace(tempDir, [A1, A2]);
+      // The watcher reports a native Windows path while the client may hold the same root with
+      // forward slashes; both name the same directory and must not be mistaken for two workspaces.
+      const current = graphFrom([A1], [], tempDir.replace(/\\/g, '/'));
+      const result = buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current });
+      expect(result).not.toBeNull();
+      expect(result!.delta.addedNodes.map((n) => n.id)).toEqual(['a2']);
+    });
+
+    it('refuses a graph with no workspace identity rather than guessing', () => {
+      createWorkspace(tempDir, [A1, A2]);
+      const graph = graphFrom([A1]);
+      // `RepoId` refuses to build an empty id, so an identity-less graph can only be fabricated —
+      // which is exactly what a partially-initialised host slot looks like.
+      const current: GraphData = { ...graph, metadata: { ...graph.metadata, repoId: '' as RepoId } };
+      expect(buildIncrementalUpdate({ workspacePath: tempDir, changedFiles: ['src/a.ts'], current })).toBeNull();
     });
   });
 });

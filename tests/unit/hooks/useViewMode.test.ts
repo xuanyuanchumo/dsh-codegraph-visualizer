@@ -232,7 +232,9 @@ describe('useViewMode', () => {
       };
       mockFetch.mockResolvedValue(makeMockFetchResponse(depData));
 
-      const { result } = renderViewModeHook('code');
+      // The payload must belong to the workspace the request addresses, otherwise the P0
+      // cross-workspace guard drops it — see the guard tests below.
+      const { result } = renderViewModeHook('code', 'dep-repo');
 
       await act(async () => {
         result.current.handleViewModeChange('dependencies');
@@ -243,7 +245,7 @@ describe('useViewMode', () => {
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        '/api/v1/codegraph/dependencies',
+        '/api/v1/codegraph/dependencies?workspace=dep-repo',
         expect.objectContaining({ signal: expect.any(AbortSignal) }),
       );
       expect(mockStoreState.setGraphType).toHaveBeenCalledWith('dependency');
@@ -297,6 +299,122 @@ describe('useViewMode', () => {
       expect(mockStoreState.setGraphData).not.toHaveBeenCalled();
     });
 
+    // ── cross-workspace guard (P0) ──────────────────────────────────
+
+    it('should address the dependency request at the active workspace', async () => {
+      const depData = {
+        nodes: [makeNode('n1', 'A', 'module', 'a.ts', 1)],
+        edges: [],
+        metadata: { repoId: '/repo/b' },
+      };
+      mockFetch.mockResolvedValue(makeMockFetchResponse(depData));
+
+      const { result } = renderViewModeHook('code', '/repo/b');
+
+      await act(async () => {
+        result.current.handleViewModeChange('dependencies');
+      });
+
+      await waitFor(() => {
+        expect(mockStoreState.setViewMode).toHaveBeenCalledWith('dependencies');
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/codegraph/dependencies?workspace=%2Frepo%2Fb',
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+      expect(mockStoreState.setGraphData).toHaveBeenCalledWith(depData.nodes, depData.edges, '/repo/b');
+    });
+
+    it('should omit the workspace param when no workspace is selected', async () => {
+      const depData = {
+        nodes: [makeNode('n1', 'A', 'module', 'a.ts', 1)],
+        edges: [],
+        metadata: { repoId: '/repo/a' },
+      };
+      mockFetch.mockResolvedValue(makeMockFetchResponse(depData));
+
+      const { result } = renderViewModeHook('code', '.');
+
+      await act(async () => {
+        result.current.handleViewModeChange('dependencies');
+      });
+
+      await waitFor(() => {
+        expect(mockStoreState.setViewMode).toHaveBeenCalledWith('dependencies');
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/v1/codegraph/dependencies',
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      );
+      expect(mockStoreState.setGraphData).toHaveBeenCalledWith(depData.nodes, depData.edges, '/repo/a');
+    });
+
+    it('should discard dependency data belonging to another workspace', async () => {
+      const depData = {
+        nodes: [makeNode('n1', 'A', 'module', 'a.ts', 1)],
+        edges: [makeEdge('e1', 'n1', 'n2', 'dependency')],
+        metadata: { repoId: '/repo/a' },
+      };
+      mockFetch.mockResolvedValue(makeMockFetchResponse(depData));
+
+      const { result } = renderViewModeHook('code', '/repo/b');
+
+      await act(async () => {
+        result.current.handleViewModeChange('dependencies');
+      });
+
+      await waitFor(() => {
+        expect(mockStoreState.setLoading).toHaveBeenCalledWith(false);
+      });
+
+      expect(mockStoreState.setViewMode).not.toHaveBeenCalledWith('dependencies');
+      expect(mockStoreState.setGraphData).not.toHaveBeenCalled();
+      expect(mockStoreState.setError).not.toHaveBeenCalled();
+    });
+
+    it('should treat separator and drive-case differences as the same workspace', async () => {
+      const depData = {
+        nodes: [makeNode('n1', 'A', 'module', 'a.ts', 1)],
+        edges: [],
+        metadata: { repoId: 'D:/Projects/App' },
+      };
+      mockFetch.mockResolvedValue(makeMockFetchResponse(depData));
+
+      const { result } = renderViewModeHook('code', 'd:\\projects\\app');
+
+      await act(async () => {
+        result.current.handleViewModeChange('dependencies');
+      });
+
+      await waitFor(() => {
+        expect(mockStoreState.setViewMode).toHaveBeenCalledWith('dependencies');
+      });
+
+      expect(mockStoreState.setGraphData).toHaveBeenCalledWith(depData.nodes, depData.edges, 'D:/Projects/App');
+    });
+
+    it('should accept dependency data when the payload carries no repoId', async () => {
+      const depData = {
+        nodes: [makeNode('n1', 'A', 'module', 'a.ts', 1)],
+        edges: [],
+      };
+      mockFetch.mockResolvedValue(makeMockFetchResponse(depData));
+
+      const { result } = renderViewModeHook('code', '/repo/b');
+
+      await act(async () => {
+        result.current.handleViewModeChange('dependencies');
+      });
+
+      await waitFor(() => {
+        expect(mockStoreState.setViewMode).toHaveBeenCalledWith('dependencies');
+      });
+
+      expect(mockStoreState.setGraphData).toHaveBeenCalledWith(depData.nodes, depData.edges, '/repo/b');
+    });
+
     it('should set error when dependencies fetch returns non-ok response', async () => {
       mockFetch.mockResolvedValue(makeMockFetchResponse({}, false, 500));
 
@@ -339,7 +457,7 @@ describe('useViewMode', () => {
       };
       mockFetch.mockResolvedValue(makeMockFetchResponse(depData));
 
-      const { result } = renderViewModeHook('code');
+      const { result } = renderViewModeHook('code', 'r');
 
       act(() => {
         result.current.handleViewModeChange('dependencies');

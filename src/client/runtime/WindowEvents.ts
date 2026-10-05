@@ -2,6 +2,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import { scoped } from '../../shared/Logger.ts';
 import { fetchGraphDataIncremental, requestInit, requestWatch } from '../api/index.ts';
 import { useGraphStore } from '../store/graphStore.ts';
+import { isForeignRepo } from './repoScope.ts';
 import { t } from '../i18n/index.ts';
 import { POLLING } from '../../shared/constants.ts';
 import { DOM_EVENTS } from '../../shared/domEvents.ts';
@@ -18,7 +19,18 @@ export function setupWindowEvents(ctx: Context): void {
       if (store.nodes.length > 0) {
         if (detail?.incremental) {
           fetchGraphDataIncremental(store.lastUpdated)
-            .then((data) => { if (data && data.nodes && data.nodes.length > 0) { store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata); } })
+            .then((data) => {
+              if (!data || !data.nodes || data.nodes.length === 0) return;
+              // P0: `/api/v1/codegraph/data` returns whatever the host holds in its single graph slot.
+              // If that slot currently belongs to another workspace, applying it here silently
+              // replaces the visible graph — this is exactly how a 50-node skeleton became a 2-node
+              // graph. Drop the payload unless it names the workspace we are showing.
+              if (isForeignRepo(data.metadata.repoId, store.repoId)) {
+                log.info('incremental graph fetch ignored for another workspace', { repoId: data.metadata.repoId, activeRepoId: store.repoId });
+                return;
+              }
+              store.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata);
+            })
             .catch((e) => log.warn('incremental graph fetch failed', e));
         } else {
           store.loadBootstrap().then((ok) => {
