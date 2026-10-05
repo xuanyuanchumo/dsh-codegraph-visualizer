@@ -100,7 +100,9 @@ export const SearchBar = memo(function SearchBar({ query, matchCount, searchResu
         autoFocus
         aria-label={t('search.placeholder')}
       />
-      <button onClick={onClose} aria-label={t('search.close')}><CloseIcon size={14} /></button>
+      {/* cg-search-close-btn 是稳定寻址名：按钮只靠 aria-label 标识，
+          文案随 i18n 变化，E2E 与契约测试只能锚类名。 */}
+      <button className="cg-search-close-btn" onClick={onClose} aria-label={t('search.close')}><CloseIcon size={14} /></button>
       {query && matchCount !== null && (
         <span className="cg-search-hint" role="status" aria-live="polite">
           {matchCount > 0

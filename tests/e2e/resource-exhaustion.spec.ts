@@ -1,5 +1,30 @@
+// 资源耗尽与并发混沌测试。
+//
+// cycle-81 修正：原用例用 `getCyNodeIdsByClass(page, 'cluster')` 取聚类节点，
+// 但聚类标记是 cytoscape **数据属性** `isCluster`（`DataController.ts:265`、
+// `ThemeStylesheet.ts:100` 用 `node[isCluster="true"]` 选择），不是类名——
+// 原选择器恒返回空数组，三条 `expect(nodeIds.length).toBeGreaterThan(0)` 必然失败。
+// 这里改用 `getClusterNodeIds`（`[isCluster = "true"]`）；若当前图谱未触发聚类
+// （dev-server 只有 21 个节点，远低于 `CLUSTER.MIN_NODES_FOR_SUBGROUP = 50`），
+// 则退回全量节点 id，保证并发路径本身仍被覆盖。
 import { test, expect, type Page } from '@playwright/test';
-import { setupPluginPage, waitForGraphReady, getCyNodeCount, getCyNodeIdsByClass, selectNode, TIMEOUTS } from './helpers.ts';
+import {
+  setupPluginPage,
+  waitForGraphReady,
+  getCyNodeCount,
+  getClusterNodeIds,
+  getAllCyNodeIds,
+  selectNode,
+  TIMEOUTS,
+} from './helpers.ts';
+import { PANEL } from './selectors.ts';
+
+/** 取并发目标 id：优先聚类节点，无聚类时退回全量节点。 */
+async function concurrencyTargetIds(page: Page): Promise<string[]> {
+  const clusters = await getClusterNodeIds(page);
+  if (clusters.length > 0) return clusters;
+  return getAllCyNodeIds(page);
+}
 
 test.describe('Resource exhaustion & concurrency chaos', () => {
 
@@ -7,7 +32,7 @@ test.describe('Resource exhaustion & concurrency chaos', () => {
     await setupPluginPage(page);
     await waitForGraphReady(page, TIMEOUTS.ACTION);
 
-    const nodeIds = await getCyNodeIdsByClass(page, 'cluster');
+    const nodeIds = await concurrencyTargetIds(page);
     expect(nodeIds.length).toBeGreaterThan(0);
 
     const results = await page.evaluate(async (ids) => {
@@ -34,13 +59,13 @@ test.describe('Resource exhaustion & concurrency chaos', () => {
     await setupPluginPage(page);
     await waitForGraphReady(page, TIMEOUTS.ACTION);
 
-    const nodeIds = await getCyNodeIdsByClass(page, 'cluster');
+    const nodeIds = await concurrencyTargetIds(page);
     expect(nodeIds.length).toBeGreaterThan(0);
 
     for (let i = 0; i < 5; i++) {
       await selectNode(page, nodeIds[0]);
       await page.waitForTimeout(100);
-      const collapseBtn = page.locator('.cg-collapse-fab');
+      const collapseBtn = page.locator(PANEL.collapsedFab);
       if (await collapseBtn.isVisible()) {
         await collapseBtn.click();
         await page.waitForTimeout(100);
@@ -75,7 +100,7 @@ test.describe('Resource exhaustion & concurrency chaos', () => {
     await setupPluginPage(page);
     await waitForGraphReady(page, TIMEOUTS.ACTION);
 
-    const nodeIds = await getCyNodeIdsByClass(page, 'cluster');
+    const nodeIds = await concurrencyTargetIds(page);
     expect(nodeIds.length).toBeGreaterThan(0);
 
     const abortResult = await page.evaluate(async (ids) => {

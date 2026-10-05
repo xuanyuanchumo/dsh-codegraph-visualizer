@@ -12,6 +12,89 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
 const PORT = 3080;
 
+// -----------------------------------------------------------------------------
+// 桩图数据 —— 唯一真源
+// -----------------------------------------------------------------------------
+// 页面内联脚本（`mod.init()` 的初始负载）与 `/api/v1/codegraph/data` 增量刷新接口
+// **必须**共用这一份定义，再也不能各写一份。
+//
+// 历史缺陷（cycle-81 定位）：两处各写一份（21 节点 vs 6 节点），且两份都只用
+// `class` 节点构造「环」，而 `src/client/diagram/CallGraphAssembler.ts:5` 的
+// `CALL_NODE_TYPES = new Set(['function'])` 会在装配前把所有 class 节点过滤掉，
+// 于是调用视图里既没有环、也没有可被 `selectNode` 命中的节点，
+// J5（循环面板）与 J31（波及半径面板）在 E2E 里**永远无法验证**。
+//
+// 因此本数据的硬约束（改动前请先读 `src/client/diagram/CallGraphAssembler.ts`
+// 与 `src/client/diagram/index.ts:69-73`）：
+//   1. 环必须由 **function → function** 的 `call` 边构成，否则被装配器过滤；
+//   2. 至少有一个 function 节点可作 `selectNode` 目标，否则分析面板缺前置数据
+//      （`src/client/hooks/useAnalysisPanels.ts:82-89`）；
+//   3. 环上的 function 节点在 Layer 0（`isEntry === true || depth <= 1`）中必须保留。
+// 这里用 n9 ↔ n11（`graphData` 与 `fetchMergedGraph`）成环：两者都是 function，
+// 且深度默认回退为 0，必然通过上述两条过滤。
+//
+// 注意：本常量会被 `JSON.stringify` 注入 HTML 模板字符串，注释里可以出现反引号
+// （注释在模板字符串之外），但**注入点之后**的 HTML 内联脚本注释里不能出现反引号。
+const MOCK_GRAPH = {
+  nodes: [
+    { id: 'n1', label: 'apply', type: 'function', filePath: 'src/index.ts', lineNumber: 9, properties: { depth: 0, isEntry: true } },
+    { id: 'n2', label: 'createGraphTools', type: 'function', filePath: 'src/tools.ts', lineNumber: 61, properties: { depth: 1, isEntry: true } },
+    { id: 'n3', label: 'CodeGraphAdapter', type: 'class', filePath: 'src/adapters/CodeGraphAdapter.ts', lineNumber: 25, properties: { depth: 2 } },
+    { id: 'n4', label: 'LensAdapter', type: 'class', filePath: 'src/adapters/LensAdapter.ts', lineNumber: 22, properties: { depth: 2 } },
+    { id: 'n5', label: 'GraphDataMerger', type: 'class', filePath: 'src/merger/GraphDataMerger.ts', lineNumber: 5, properties: { depth: 2 } },
+    { id: 'n6', label: 'GraphPanel', type: 'function', filePath: 'src/client/GraphPanel.tsx', lineNumber: 30, properties: { depth: 1 } },
+    { id: 'n7', label: 'CytoscapeRenderer', type: 'class', filePath: 'src/client/renderer/CytoscapeRenderer.ts', lineNumber: 53, properties: { depth: 2 } },
+    { id: 'n8', label: 'useGraphStore', type: 'variable', filePath: 'src/client/store/graphStore.ts', lineNumber: 39, properties: { depth: 1 } },
+    { id: 'n9', label: 'graphData', type: 'function', filePath: 'src/tools.ts', lineNumber: 119, properties: { depth: 1, isEntry: true } },
+    { id: 'n10', label: 'summarizeGraph', type: 'function', filePath: 'src/tools.ts', lineNumber: 37, properties: { depth: 1, isEntry: true } },
+    { id: 'n11', label: 'fetchMergedGraph', type: 'function', filePath: 'src/tools.ts', lineNumber: 21, properties: { depth: 1, isEntry: true } },
+    { id: 'n12', label: 'RepoId', type: 'variable', filePath: 'src/types/index.ts', lineNumber: 11, properties: { depth: 0 } },
+    { id: 'm1', label: 'src/index.ts', type: 'module', filePath: 'src/index.ts', lineNumber: 0, properties: {} },
+    { id: 'm2', label: 'src/tools.ts', type: 'module', filePath: 'src/tools.ts', lineNumber: 0, properties: {} },
+    { id: 'm3', label: 'src/adapters/CodeGraphAdapter.ts', type: 'module', filePath: 'src/adapters/CodeGraphAdapter.ts', lineNumber: 0, properties: {} },
+    { id: 'm4', label: 'src/adapters/LensAdapter.ts', type: 'module', filePath: 'src/adapters/LensAdapter.ts', lineNumber: 0, properties: {} },
+    { id: 'm5', label: 'src/merger/GraphDataMerger.ts', type: 'module', filePath: 'src/merger/GraphDataMerger.ts', lineNumber: 0, properties: {} },
+    { id: 'm6', label: 'src/client/GraphPanel.tsx', type: 'module', filePath: 'src/client/GraphPanel.tsx', lineNumber: 0, properties: {} },
+    { id: 'm7', label: 'src/client/renderer/CytoscapeRenderer.ts', type: 'module', filePath: 'src/client/renderer/CytoscapeRenderer.ts', lineNumber: 0, properties: {} },
+    { id: 'm8', label: 'src/client/store/graphStore.ts', type: 'module', filePath: 'src/client/store/graphStore.ts', lineNumber: 0, properties: {} },
+    { id: 'm9', label: 'src/types/index.ts', type: 'module', filePath: 'src/types/index.ts', lineNumber: 0, properties: {} },
+  ],
+  edges: [
+    { id: 'e1', source: 'n1', target: 'n2', type: 'call', properties: {} },
+    { id: 'e2', source: 'n2', target: 'n3', type: 'call', properties: {} },
+    { id: 'e3', source: 'n2', target: 'n4', type: 'call', properties: {} },
+    { id: 'e4', source: 'n2', target: 'n5', type: 'call', properties: {} },
+    { id: 'e5', source: 'n6', target: 'n7', type: 'call', properties: {} },
+    { id: 'e6', source: 'n6', target: 'n8', type: 'call', properties: {} },
+    { id: 'e7', source: 'n9', target: 'n11', type: 'call', properties: {} },
+    { id: 'e8', source: 'n11', target: 'n3', type: 'call', properties: {} },
+    { id: 'e9', source: 'n11', target: 'n4', type: 'call', properties: {} },
+    { id: 'e10', source: 'n11', target: 'n5', type: 'call', properties: {} },
+    { id: 'e11', source: 'n9', target: 'n10', type: 'call', properties: {} },
+    { id: 'e12', source: 'n3', target: 'n12', type: 'import', properties: {} },
+    { id: 'e13', source: 'n4', target: 'n12', type: 'import', properties: {} },
+    { id: 'e14', source: 'n5', target: 'n12', type: 'import', properties: {} },
+    { id: 'e15', source: 'n3', target: 'n4', type: 'extend', properties: {} },
+    { id: 'e16', source: 'n5', target: 'n3', type: 'implement', properties: {} },
+    { id: 'e17', source: 'm1', target: 'n1', type: 'contains', properties: {} },
+    { id: 'e18', source: 'm2', target: 'n2', type: 'contains', properties: {} },
+    { id: 'e19', source: 'm2', target: 'n9', type: 'contains', properties: {} },
+    { id: 'e20', source: 'm2', target: 'n10', type: 'contains', properties: {} },
+    { id: 'e21', source: 'm2', target: 'n11', type: 'contains', properties: {} },
+    { id: 'e22', source: 'm3', target: 'n3', type: 'contains', properties: {} },
+    { id: 'e23', source: 'm4', target: 'n4', type: 'contains', properties: {} },
+    { id: 'e24', source: 'm5', target: 'n5', type: 'contains', properties: {} },
+    { id: 'e25', source: 'm6', target: 'n6', type: 'contains', properties: {} },
+    { id: 'e26', source: 'm7', target: 'n7', type: 'contains', properties: {} },
+    { id: 'e27', source: 'm8', target: 'n8', type: 'contains', properties: {} },
+    { id: 'e28', source: 'm9', target: 'n12', type: 'contains', properties: {} },
+    // e29 与 e7 构成**函数级环** n9 → n11 → n9。两端都是 function，
+    // 因此能穿过 CallGraphAssembler 的类型过滤并留在 Layer 0，
+    // 让 J5 的 cycleDetails 与 J31 的 selectedNodeId 都有真实数据可依。
+    { id: 'e29', source: 'n11', target: 'n9', type: 'call', properties: {} },
+  ],
+};
+
 const HTML = `<!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
@@ -201,7 +284,11 @@ const HTML = `<!DOCTYPE html>
     .dsh-btn.primary:hover { background: var(--dsw-accent-hover); }
     #plugin-root { position: relative; z-index: 1; }
   </style>
-  <link rel="stylesheet" href="/src/client/styles.css" />
+  <!-- 插件 CSS 的唯一来源：ESM 产物不内联样式（tsdown 只产出 index.css），
+       因此页面必须以 <link> 引入构建产物 dist/client/index.css。
+       历史上这里写的是 /src/client/styles.css，该文件在 CSS 模块化拆分
+       （1d61b53）后已删除，导致每次加载都 404、插件样式整体丢失。 -->
+  <link rel="stylesheet" href="/dist/client/index.css" />
 </head>
 <body>
   <div id="dsh-shell">
@@ -241,6 +328,13 @@ const HTML = `<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- E2E 需要读取 Zustand store（window.__graphStore）来断言状态。
+       该调试句柄只在 localStorage.__cg_debug === '1' 时才挂载
+       （src/client/store/graphStore.ts:174-176），真实 DSH 宿主不会开启它，
+       所以 dev-server 必须在这里显式打开，否则所有读 store 的 E2E 断言
+       都会拿到 null。 -->
+  <script>localStorage.setItem('__cg_debug', '1');</script>
+
   <script type="importmap">
   {
     "imports": {
@@ -266,61 +360,8 @@ const HTML = `<!DOCTYPE html>
     globalThis.__ModuleLoader__ = __ModuleLoader__;
 
     // Mock graph data for testing (wrapped as a GraphData payload for init()).
-    const mockGraphData = {
-      nodes: [
-        { id: 'n1', label: 'apply', type: 'function', filePath: 'src/index.ts', lineNumber: 9, properties: { depth: 0, isEntry: true } },
-        { id: 'n2', label: 'createGraphTools', type: 'function', filePath: 'src/tools.ts', lineNumber: 61, properties: { depth: 1, isEntry: true } },
-        { id: 'n3', label: 'CodeGraphAdapter', type: 'class', filePath: 'src/adapters/CodeGraphAdapter.ts', lineNumber: 25, properties: { depth: 2 } },
-        { id: 'n4', label: 'LensAdapter', type: 'class', filePath: 'src/adapters/LensAdapter.ts', lineNumber: 22, properties: { depth: 2 } },
-        { id: 'n5', label: 'GraphDataMerger', type: 'class', filePath: 'src/merger/GraphDataMerger.ts', lineNumber: 5, properties: { depth: 2 } },
-        { id: 'n6', label: 'GraphPanel', type: 'function', filePath: 'src/client/GraphPanel.tsx', lineNumber: 30, properties: { depth: 1 } },
-        { id: 'n7', label: 'CytoscapeRenderer', type: 'class', filePath: 'src/client/renderer/CytoscapeRenderer.ts', lineNumber: 53, properties: { depth: 2 } },
-        { id: 'n8', label: 'useGraphStore', type: 'variable', filePath: 'src/client/store/graphStore.ts', lineNumber: 39, properties: { depth: 1 } },
-        { id: 'n9', label: 'graphData', type: 'function', filePath: 'src/tools.ts', lineNumber: 119, properties: { depth: 1, isEntry: true } },
-        { id: 'n10', label: 'summarizeGraph', type: 'function', filePath: 'src/tools.ts', lineNumber: 37, properties: { depth: 1, isEntry: true } },
-        { id: 'n11', label: 'fetchMergedGraph', type: 'function', filePath: 'src/tools.ts', lineNumber: 21, properties: { depth: 1, isEntry: true } },
-        { id: 'n12', label: 'RepoId', type: 'variable', filePath: 'src/types/index.ts', lineNumber: 11, properties: { depth: 0 } },
-        { id: 'm1', label: 'src/index.ts', type: 'module', filePath: 'src/index.ts', lineNumber: 0, properties: {} },
-        { id: 'm2', label: 'src/tools.ts', type: 'module', filePath: 'src/tools.ts', lineNumber: 0, properties: {} },
-        { id: 'm3', label: 'src/adapters/CodeGraphAdapter.ts', type: 'module', filePath: 'src/adapters/CodeGraphAdapter.ts', lineNumber: 0, properties: {} },
-        { id: 'm4', label: 'src/adapters/LensAdapter.ts', type: 'module', filePath: 'src/adapters/LensAdapter.ts', lineNumber: 0, properties: {} },
-        { id: 'm5', label: 'src/merger/GraphDataMerger.ts', type: 'module', filePath: 'src/merger/GraphDataMerger.ts', lineNumber: 0, properties: {} },
-        { id: 'm6', label: 'src/client/GraphPanel.tsx', type: 'module', filePath: 'src/client/GraphPanel.tsx', lineNumber: 0, properties: {} },
-        { id: 'm7', label: 'src/client/renderer/CytoscapeRenderer.ts', type: 'module', filePath: 'src/client/renderer/CytoscapeRenderer.ts', lineNumber: 0, properties: {} },
-        { id: 'm8', label: 'src/client/store/graphStore.ts', type: 'module', filePath: 'src/client/store/graphStore.ts', lineNumber: 0, properties: {} },
-        { id: 'm9', label: 'src/types/index.ts', type: 'module', filePath: 'src/types/index.ts', lineNumber: 0, properties: {} },
-      ],
-      edges: [
-        { id: 'e1', source: 'n1', target: 'n2', type: 'call', properties: {} },
-        { id: 'e2', source: 'n2', target: 'n3', type: 'call', properties: {} },
-        { id: 'e3', source: 'n2', target: 'n4', type: 'call', properties: {} },
-        { id: 'e4', source: 'n2', target: 'n5', type: 'call', properties: {} },
-        { id: 'e5', source: 'n6', target: 'n7', type: 'call', properties: {} },
-        { id: 'e6', source: 'n6', target: 'n8', type: 'call', properties: {} },
-        { id: 'e7', source: 'n9', target: 'n11', type: 'call', properties: {} },
-        { id: 'e8', source: 'n11', target: 'n3', type: 'call', properties: {} },
-        { id: 'e9', source: 'n11', target: 'n4', type: 'call', properties: {} },
-        { id: 'e10', source: 'n11', target: 'n5', type: 'call', properties: {} },
-        { id: 'e11', source: 'n9', target: 'n10', type: 'call', properties: {} },
-        { id: 'e12', source: 'n3', target: 'n12', type: 'import', properties: {} },
-        { id: 'e13', source: 'n4', target: 'n12', type: 'import', properties: {} },
-        { id: 'e14', source: 'n5', target: 'n12', type: 'import', properties: {} },
-        { id: 'e15', source: 'n3', target: 'n4', type: 'extend', properties: {} },
-        { id: 'e16', source: 'n5', target: 'n3', type: 'implement', properties: {} },
-        { id: 'e17', source: 'm1', target: 'n1', type: 'contains', properties: {} },
-        { id: 'e18', source: 'm2', target: 'n2', type: 'contains', properties: {} },
-        { id: 'e19', source: 'm2', target: 'n9', type: 'contains', properties: {} },
-        { id: 'e20', source: 'm2', target: 'n10', type: 'contains', properties: {} },
-        { id: 'e21', source: 'm2', target: 'n11', type: 'contains', properties: {} },
-        { id: 'e22', source: 'm3', target: 'n3', type: 'contains', properties: {} },
-        { id: 'e23', source: 'm4', target: 'n4', type: 'contains', properties: {} },
-        { id: 'e24', source: 'm5', target: 'n5', type: 'contains', properties: {} },
-        { id: 'e25', source: 'm6', target: 'n6', type: 'contains', properties: {} },
-        { id: 'e26', source: 'm7', target: 'n7', type: 'contains', properties: {} },
-        { id: 'e27', source: 'm8', target: 'n8', type: 'contains', properties: {} },
-        { id: 'e28', source: 'm9', target: 'n12', type: 'contains', properties: {} },
-      ],
-    };
+    // 数据来自服务端的 MOCK_GRAPH 单一真源（见文件头注释），不再各自维护一份。
+    const mockGraphData = ${JSON.stringify(MOCK_GRAPH)};
 
     // GraphData payload consumed by the real client bundle's init().
     const graphDataPayload = {
@@ -661,6 +702,23 @@ const HTML = `<!DOCTYPE html>
 const server = createServer(async (req, res) => {
   const url = req.url ?? '/';
 
+  // ---------------------------------------------------------------------------
+  // 插件 HTTP API 桩（cycle-81）
+  //
+  // 本 dev-server 只模拟 DSH 外壳，原先对 `/api/**` 一律回 404 文本 `Not found`。
+  // 21 个 E2E spec 里有 4 个直接打插件 API（realtime / diff-and-integration /
+  // performance / resource-exhaustion），于是 404 文本被 `res.json()` 解析成
+  // `SyntaxError: Unexpected token 'N'`——「接口不存在」被伪装成「解析失败」，
+  // 与选择器脱节一起构成 TODO-02 的两个真实根因。
+  //
+  // 这里给出与 host 路由语义一致的最小桩：状态码、ETag/304 短路、错误体形状
+  // 都与 `src/host/routes/*.ts` 对齐，让 E2E 断言的是**契约**而不是巧合。
+  // ---------------------------------------------------------------------------
+  if (url.startsWith('/api/')) {
+    await handleApi(req, res, url);
+    return;
+  }
+
   if (url === '/' || url === '/index.html') {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(HTML);
@@ -686,6 +744,159 @@ const server = createServer(async (req, res) => {
   res.writeHead(404);
   res.end('Not found');
 });
+
+// -----------------------------------------------------------------------------
+// API 桩实现
+// -----------------------------------------------------------------------------
+
+// 图数据只有一份真源：文件头的 MOCK_GRAPH。这里曾经另写一份 6 节点副本，
+// 与页面内联的那份（21 节点）互相漂移，导致「页面里能看到的图」与
+// 「接口返回的图」不是同一张——J5/J31 的失败正是由此而来。
+const API_GRAPH = MOCK_GRAPH;
+
+const DEV_WORKSPACE = 'dev-workspace';
+
+function graphPayload() {
+  return {
+    ...API_GRAPH,
+    metadata: {
+      repoId: DEV_WORKSPACE,
+      timestamp: 1,
+      nodeCount: API_GRAPH.nodes.length,
+      edgeCount: API_GRAPH.edges.length,
+    },
+  };
+}
+
+function sendJson(res, status, body, headers = {}) {
+  const text = JSON.stringify(body);
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', ...headers });
+  res.end(text);
+}
+
+async function readJsonBody(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  if (chunks.length === 0) return {};
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  } catch {
+    return null;
+  }
+}
+
+/** git ref 合法性：与 host `diffRoutes` 同规则，拒绝 shell 元字符。 */
+const INVALID_REF_RE = /[;|&$`<>(){}[\]\s]/;
+
+async function handleApi(req, res, url) {
+  const path = url.split('?')[0];
+  const method = req.method ?? 'GET';
+
+  // --- 图数据：带 if-none-match 走 304 短路（对应 host `returnIfEtagMatch`） ---
+  if (path === '/api/v1/codegraph/data' && method === 'GET') {
+    const etag = `W/"dev-1"`;
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304, { ETag: etag });
+      res.end();
+      return;
+    }
+    sendJson(res, 200, graphPayload(), { ETag: etag });
+    return;
+  }
+
+  // --- 扫描：POST 后回成功体，触发前端增量刷新 ---
+  if (path === '/api/v1/codegraph/scan') {
+    if (method !== 'POST') { sendJson(res, 405, { error: 'Method not allowed' }); return; }
+    const body = await readJsonBody(req);
+    if (body === null) { sendJson(res, 400, { error: 'Invalid JSON body' }); return; }
+    sendJson(res, 200, {
+      success: true,
+      nodes: API_GRAPH.nodes,
+      edges: API_GRAPH.edges,
+      metadata: graphPayload().metadata,
+    });
+    return;
+  }
+
+  // --- 版本对比：非法 ref 必须 400 + `Invalid git ref`（E2E 直接断言该文案） ---
+  if (path === '/api/v1/codegraph/diff') {
+    if (method !== 'POST') { sendJson(res, 405, { error: 'Method not allowed' }); return; }
+    const body = await readJsonBody(req);
+    if (body === null) { sendJson(res, 400, { error: 'Invalid JSON body' }); return; }
+    const { from, to } = body;
+    if (typeof from !== 'string' || typeof to !== 'string' || INVALID_REF_RE.test(from) || INVALID_REF_RE.test(to)) {
+      sendJson(res, 400, { error: `Invalid git ref: ${from ?? ''}..${to ?? ''}` });
+      return;
+    }
+    sendJson(res, 200, { from, to, added: [], removed: [], changed: [] });
+    return;
+  }
+
+  // --- 健康检查：`codegraph: false` 是本机降级态，与真实 host 一致 ---
+  if (path === '/api/v1/codegraph/health' && method === 'GET') {
+    sendJson(res, 200, {
+      status: 'healthy',
+      codegraph: false,
+      lens: false,
+      builtin: true,
+      hasGraphData: true,
+      fingerprint: 'dev-stub',
+      uptime: process.uptime(),
+      timestamp: Date.now(),
+    });
+    return;
+  }
+
+  if (path === '/api/v1/codegraph/status' && method === 'GET') {
+    sendJson(res, 200, { codegraph: false, lens: false, builtin: true });
+    return;
+  }
+
+  if (path === '/api/v1/codegraph/workspace' && method === 'GET') {
+    sendJson(res, 200, { path: ROOT, list: [ROOT], rootSource: 'dev-server' });
+    return;
+  }
+
+  if (path === '/api/v1/codegraph/bootstrap' && method === 'GET') {
+    const payload = graphPayload();
+    sendJson(res, 200, {
+      rootNodes: payload.nodes,
+      topLevelNodes: payload.nodes,
+      topLevelTotal: payload.nodes.length,
+      edges: payload.edges,
+      indexStatus: 'ready',
+      metadata: { ...payload.metadata, totalNodeCount: payload.nodes.length, totalEdgeCount: payload.edges.length },
+    });
+    return;
+  }
+
+  // --- 子节点展开：`resource-exhaustion` 用它验证并发取消 ---
+  const childrenMatch = path.match(/^\/api\/v1\/codegraph\/nodes\/([^/]+)\/children$/);
+  if (childrenMatch) {
+    sendJson(res, 200, { nodes: [], edges: [], cursor: null, total: 0 });
+    return;
+  }
+
+  if (path === '/api/v1/codegraph/children' && method === 'GET') {
+    sendJson(res, 200, { nodes: [], edges: [], cursor: null, total: 0 });
+    return;
+  }
+
+  // --- SSE：保持连接并周期心跳，让 `EventSource` 不报错 ---
+  if (path === '/api/v1/codegraph/events') {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    });
+    res.write(': connected\n\n');
+    const heartbeat = setInterval(() => { res.write(': ping\n\n'); }, 15000);
+    req.on('close', () => clearInterval(heartbeat));
+    return;
+  }
+
+  sendJson(res, 404, { error: `No dev stub for ${method} ${path}` });
+}
 
 server.listen(PORT, () => {
   console.log(`\n  DSH CodeGraph Visualizer — dev server`);

@@ -65,7 +65,7 @@ export const ToolbarViewMode = memo(function ToolbarViewMode({
         {(close) => (
           <>
             {LAYOUTS.map((l) => (
-              <button key={l} className={`cg-dropdown-item ${layout === l ? 'cg-active' : ''}`}
+              <button key={l} className={`cg-dropdown-item cg-layout-option-${l} ${layout === l ? 'cg-active' : ''}`}
                 onClick={() => { onLayoutChange(l); if (l !== 'dagre') close(); }}
                 aria-pressed={layout === l}>{l}</button>
             ))}
@@ -73,7 +73,7 @@ export const ToolbarViewMode = memo(function ToolbarViewMode({
               <>
                 <div className="cg-dropdown-separator" />
                 {RANK_DIRS.map((d) => (
-                  <button key={d.value} className={`cg-dropdown-item ${dagreRankDir === d.value ? 'cg-active' : ''}`}
+                  <button key={d.value} className={`cg-dropdown-item cg-rankdir-option-${d.value} ${dagreRankDir === d.value ? 'cg-active' : ''}`}
                     onClick={() => { onDagreRankDirChange(d.value); close(); }}
                     aria-pressed={dagreRankDir === d.value}>{d.label}</button>
                 ))}
@@ -95,14 +95,14 @@ export const ToolbarViewMode = memo(function ToolbarViewMode({
           <>
             <div className="cg-dropdown-section-label">{t('toolbar.graphType')}</div>
             {GRAPH_TYPES.map((g) => (
-              <button key={g.value} className={`cg-dropdown-item ${graphType === g.value ? 'cg-active' : ''}`}
+              <button key={g.value} className={`cg-dropdown-item cg-graphtype-option-${g.value} ${graphType === g.value ? 'cg-active' : ''}`}
                 onClick={() => { onGraphTypeChange(g.value); }}
                 aria-pressed={graphType === g.value}>{t(g.key)}</button>
             ))}
             <div className="cg-dropdown-separator" />
             <div className="cg-dropdown-section-label">{t('toolbar.viewModeStructural')}</div>
             {STRUCTURAL_VIEW_MODES.map((m) => (
-              <button key={m} className={`cg-dropdown-item ${viewMode === m ? 'cg-active' : ''}`}
+              <button key={m} className={`cg-dropdown-item cg-viewmode-option-${m} ${viewMode === m ? 'cg-active' : ''}`}
                 onClick={() => { onViewModeChange(m); close(); }}
                 title={t(STRUCTURAL_TITLE_KEYS[m]!)}
                 aria-pressed={viewMode === m}>{t(STRUCTURAL_MODE_KEYS[m]!)}</button>
@@ -110,7 +110,7 @@ export const ToolbarViewMode = memo(function ToolbarViewMode({
             <div className="cg-dropdown-separator" />
             <div className="cg-dropdown-section-label">{t('toolbar.viewModeBehavioral')}</div>
             {BEHAVIORAL_VIEW_MODES.map((m) => (
-              <button key={m} className={`cg-dropdown-item ${viewMode === m ? 'cg-active' : ''}`}
+              <button key={m} className={`cg-dropdown-item cg-viewmode-option-${m} ${viewMode === m ? 'cg-active' : ''}`}
                 onClick={() => { onViewModeChange(m); close(); }}
                 title={t(BEHAVIORAL_TITLE_KEYS[m]!)}
                 aria-pressed={viewMode === m}>{t(BEHAVIORAL_MODE_KEYS[m]!)}</button>
@@ -118,7 +118,7 @@ export const ToolbarViewMode = memo(function ToolbarViewMode({
             <div className="cg-dropdown-separator" />
             <div className="cg-dropdown-section-label">{t('toolbar.viewModeMicro')}</div>
             {BEHAVIORAL_MICRO_VIEW_MODES.map((m) => (
-              <button key={m} className={`cg-dropdown-item ${viewMode === m ? 'cg-active' : ''}`}
+              <button key={m} className={`cg-dropdown-item cg-viewmode-option-${m} ${viewMode === m ? 'cg-active' : ''}`}
                 onClick={() => { onViewModeChange(m); close(); }}
                 title={hasSelectedFunction ? t(BEHAVIORAL_MICRO_TITLE_KEYS[m]!) : t('toolbar.microDisabled')}
                 aria-pressed={viewMode === m}
@@ -141,7 +141,7 @@ export const ToolbarViewMode = memo(function ToolbarViewMode({
           <>
             <div className="cg-dropdown-section-label">{t('toolbar.hierarchy')}</div>
             {HIERARCHY_LEVELS.map((lvl) => (
-              <button key={lvl.value} className={`cg-dropdown-item ${hierarchyLevel === lvl.value ? 'cg-active' : ''}`}
+              <button key={lvl.value} className={`cg-dropdown-item cg-level-option-${lvl.value} ${hierarchyLevel === lvl.value ? 'cg-active' : ''}`}
                 onClick={() => { onHierarchyLevelChange(lvl.value); }}
                 aria-pressed={hierarchyLevel === lvl.value} title={t(lvl.key)}>
                 {lvl.short} — {t(lvl.key)}
@@ -152,7 +152,7 @@ export const ToolbarViewMode = memo(function ToolbarViewMode({
                 <div className="cg-dropdown-separator" />
                 <div className="cg-dropdown-section-label">{t('toolbar.cluster')}</div>
                 {CLUSTER_DEPTHS.map((opt) => (
-                  <button key={opt.value} className={`cg-dropdown-item ${clusterDepth === opt.value ? 'cg-active' : ''}`}
+                  <button key={opt.value} className={`cg-dropdown-item cg-clusterdepth-option-${opt.value} ${clusterDepth === opt.value ? 'cg-active' : ''}`}
                     onClick={() => { onClusterDepthChange(opt.value); }}
                     aria-pressed={clusterDepth === opt.value} title={t(opt.key)}>
                     {t(opt.key)}
@@ -167,7 +167,7 @@ export const ToolbarViewMode = memo(function ToolbarViewMode({
                 {layerNames.map((name, idx) => {
                   const translated = t(name) ?? name;
                   return (
-                    <button key={idx} className={`cg-dropdown-item ${currentLayer === idx ? 'cg-active' : ''}`}
+                    <button key={idx} className={`cg-dropdown-item cg-layer-option-${idx} ${currentLayer === idx ? 'cg-active' : ''}`}
                       onClick={() => { onLayerChange(idx); }}
                       aria-pressed={currentLayer === idx} title={translated}>
                       {translated}

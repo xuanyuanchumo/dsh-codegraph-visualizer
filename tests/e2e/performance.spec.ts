@@ -1,23 +1,24 @@
 import { test, expect } from '@playwright/test';
-import { setupPluginPage, panGraph, getVisibleNodeCount, getCyNodeCount } from './helpers.ts';
+import { setupPluginPage, panGraph, getVisibleNodeCount, getCyNodeCount, openDropdown } from './helpers.ts';
+import { PANEL, TRIGGERS, DROPDOWN_CONTENT, OPTION } from './selectors.ts';
 
 test.describe('J35: 虚拟滚动', () => {
   test('should render graph container for large graphs', async ({ page }) => {
     await setupPluginPage(page);
-    const graphContainer = page.locator('.cg-graph-container');
+    const graphContainer = page.locator(PANEL.graphContainer);
     await expect(graphContainer).toBeVisible();
   });
 
   test('should not crash with empty graph data', async ({ page }) => {
     await setupPluginPage(page);
-    const graphPanel = page.locator('.cg-graph-panel');
+    const graphPanel = page.locator(PANEL.root);
     await expect(graphPanel).toBeVisible();
   });
 
   test('should maintain graph container during pan', async ({ page }) => {
     await setupPluginPage(page);
     await panGraph(page, 100, 50);
-    const graphContainer = page.locator('.cg-graph-container');
+    const graphContainer = page.locator(PANEL.graphContainer);
     await expect(graphContainer).toBeVisible();
   });
 
@@ -31,7 +32,7 @@ test.describe('J35: 虚拟滚动', () => {
   test('should not show error overlay during pan', async ({ page }) => {
     await setupPluginPage(page);
     await panGraph(page, 150, 75);
-    const errorOverlay = page.locator('.cg-error-overlay');
+    const errorOverlay = page.locator(PANEL.overlay);
     await expect(errorOverlay).not.toBeVisible();
   });
 
@@ -40,7 +41,7 @@ test.describe('J35: 虚拟滚动', () => {
     for (let i = 0; i < 5; i++) {
       await panGraph(page, 50 * i, 30 * i);
     }
-    const graphContainer = page.locator('.cg-graph-container');
+    const graphContainer = page.locator(PANEL.graphContainer);
     await expect(graphContainer).toBeAttached();
     const nodeCount = await getCyNodeCount(page);
     expect(nodeCount).toBeGreaterThanOrEqual(0);
@@ -50,22 +51,25 @@ test.describe('J35: 虚拟滚动', () => {
 test.describe('J36: 增量布局', () => {
   test('should support layout switching without full re-render', async ({ page }) => {
     await setupPluginPage(page);
-    const layoutBtns = page.locator('.cg-layout-btn');
-    const count = await layoutBtns.count();
-    expect(count).toBeGreaterThan(0);
+    // 布局切换不是独立按钮族：触发器是「布局」下拉（`cg-layout-dropdown-btn`），
+    // 各布局是可选项 `cg-layout-option-*`（`ToolbarViewMode.tsx:57/68`）。
+    await openDropdown(page, TRIGGERS.layout, DROPDOWN_CONTENT.layout);
+    const layoutOptions = page.locator(`${DROPDOWN_CONTENT.layout} [class*="cg-layout-option-"]`);
+    expect(await layoutOptions.count()).toBeGreaterThan(0);
+    await expect(page.locator(OPTION.layout('cose'))).toBeVisible();
   });
 });
 
 test.describe('J37: Web Worker 并行', () => {
   test('should have worker layout capability check', async ({ page }) => {
     await setupPluginPage(page);
-    const graphContainer = page.locator('.cg-graph-container');
+    const graphContainer = page.locator(PANEL.graphContainer);
     await expect(graphContainer).toBeVisible();
   });
 
   test('should fallback to main-thread layout when worker unavailable', async ({ page }) => {
     await setupPluginPage(page);
-    const graphPanel = page.locator('.cg-graph-panel');
+    const graphPanel = page.locator(PANEL.root);
     await expect(graphPanel).toBeVisible();
   });
 });

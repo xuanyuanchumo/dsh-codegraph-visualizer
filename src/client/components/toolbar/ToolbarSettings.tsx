@@ -39,7 +39,10 @@ export const ToolbarSettings = memo(function ToolbarSettings({
           triggerDisabled={!hasData}
         >
           {(close) => EXPORT_FORMATS.map(({ value, key }) => (
-            <button key={value} onClick={() => { handleExport(value); close(); }} role="menuitem">{t(key)}</button>
+            // `cg-export-option-${value}` 是稳定寻址名：按钮文案随 i18n 变化，
+            // E2E 与契约测试只能锚类名。
+            <button key={value} className={`cg-export-option-${value}`}
+              onClick={() => { handleExport(value); close(); }} role="menuitem">{t(key)}</button>
           ))}
         </Dropdown>
       </div>
@@ -53,7 +56,8 @@ export const ToolbarSettings = memo(function ToolbarSettings({
         contentRole="menu"
       >
         {(close) => moreDropdownItems.map(({ key, titleKey, icon, active, onClick, role }) => (
-          <button key={key} className={`cg-dropdown-item ${active ? 'cg-active' : ''}`} onClick={() => { onClick(); close(); }}
+          // `cg-more-${key}` 是稳定寻址名：菜单项文案随 i18n 变化，E2E 与契约测试只能锚类名。
+          <button key={key} className={`cg-dropdown-item cg-more-${key} ${active ? 'cg-active' : ''}`} onClick={() => { onClick(); close(); }}
             role={role} aria-checked={role === 'menuitemcheckbox' ? active : undefined} title={t(titleKey)} aria-label={t(titleKey)}>
             {icon}<span>{t(titleKey)}</span>
           </button>

@@ -7,8 +7,14 @@ import {
   selectNode,
   doubleTapNode,
   panGraph,
+  getZoom,
+  zoomGraph,
+  fitGraph,
+  clickToolItem,
+  selectViewMode,
   TIMEOUTS,
 } from './helpers.ts';
+import { CY_CLASS, TRIGGERS, ANALYSIS_PANEL, TOOL_ITEM, OPTION } from './selectors.ts';
 
 test.describe('J2: 图谱浏览与导航（拖拽/缩放/平移）', () => {
   test('should pan graph without losing nodes', async ({ page }) => {
@@ -25,48 +31,31 @@ test.describe('J2: 图谱浏览与导航（拖拽/缩放/平移）', () => {
     expect(afterCount).toBe(beforeCount);
   });
 
-  test('should zoom graph via toolbar zoom buttons', async ({ page }) => {
+  // 工具栏从未有过缩放按钮（`CytoscapeRenderer` 只暴露 `getZoom`/`onZoomChange`，
+  // 缩放靠滚轮与 `focusOnArea`）。原用例断言 `.cg-zoom-in-btn` 可见——该元素不存在，
+  // 所以它一直在测一个幻觉。这里改为直接验证渲染器的缩放能力。
+  test('should zoom graph programmatically', async ({ page }) => {
     await setupPluginPage(page);
     await waitForGraphReady(page, TIMEOUTS.ACTION);
 
-    const zoomInBtn = page.locator('.cg-zoom-in-btn');
-    const zoomOutBtn = page.locator('.cg-zoom-out-btn');
-    await expect(zoomInBtn).toBeVisible({ timeout: TIMEOUTS.VISIBLE_SHORT });
-    await expect(zoomOutBtn).toBeVisible({ timeout: TIMEOUTS.VISIBLE_SHORT });
-
-    const zoomBefore = await page.evaluate(() => {
-      const cy = (window as any).__cytoscape;
-      return cy ? cy.zoom() : -1;
-    });
+    const zoomBefore = await getZoom(page);
     expect(zoomBefore).toBeGreaterThan(0);
 
-    await zoomInBtn.click();
-    await page.waitForTimeout(200);
-
-    const zoomAfter = await page.evaluate(() => {
-      const cy = (window as any).__cytoscape;
-      return cy ? cy.zoom() : -1;
-    });
+    const zoomAfter = await zoomGraph(page, 1.5);
     expect(zoomAfter).toBeGreaterThan(zoomBefore);
   });
 
-  test('should fit graph to viewport via fit button', async ({ page }) => {
+  test('should fit graph to viewport', async ({ page }) => {
     await setupPluginPage(page);
     await waitForGraphReady(page, TIMEOUTS.ACTION);
-
-    const fitBtn = page.locator('.cg-fit-btn');
-    await expect(fitBtn).toBeVisible({ timeout: TIMEOUTS.VISIBLE_SHORT });
 
     await panGraph(page, 200, 100);
     await page.waitForTimeout(200);
 
-    await fitBtn.click();
+    await fitGraph(page);
     await page.waitForTimeout(300);
 
-    const zoom = await page.evaluate(() => {
-      const cy = (window as any).__cytoscape;
-      return cy ? cy.zoom() : -1;
-    });
+    const zoom = await getZoom(page);
     expect(zoom).toBeGreaterThan(0);
   });
 
@@ -120,25 +109,29 @@ test.describe('J2: 图谱浏览与导航（拖拽/缩放/平移）', () => {
     await selectNode(page, clusterIds[0]);
     await page.waitForTimeout(300);
 
-    const hasSelected = await page.evaluate(() => {
+    // 选中态由 `HighlightController` 加的是 cytoscape 内部类 `selected`，
+    // 不是 CSS 类 `cg-selected`（后者从未存在）。
+    const hasSelected = await page.evaluate((cls) => {
       const cy = (window as any).__cytoscape;
       if (!cy) return false;
-      return cy.nodes('.cg-selected').length > 0;
-    });
+      return cy.nodes(`.${cls}`).length > 0;
+    }, CY_CLASS.selected);
     expect(hasSelected).toBe(true);
   });
 });
 
 test.describe('J23: 影响分析', () => {
-  test('should toggle impact analysis via toolbar button', async ({ page }) => {
+  test('should toggle impact analysis via tools dropdown', async ({ page }) => {
     await setupPluginPage(page);
-    const impactBtn = page.locator('.cg-impact-btn');
-    await expect(impactBtn).toBeVisible();
+    // 面板开关全部位于「工具」下拉内，未展开时按钮不在 DOM 中。
+    await clickToolItem(page, TOOL_ITEM.impact);
+    const impactBtn = page.locator(TOOL_ITEM.impact);
+    await expect(impactBtn).toHaveClass(/cg-active/);
   });
 
   test('should show impact panel with D1/D2/D3 stats', async ({ page }) => {
     await setupPluginPage(page);
-    const impactPanel = page.locator('.cg-impact-panel');
+    const impactPanel = page.locator(ANALYSIS_PANEL.impact);
     await expect(impactPanel).not.toBeVisible();
   });
 
@@ -152,13 +145,25 @@ test.describe('J23: 影响分析', () => {
 test.describe('J24: 继承层次图', () => {
   test('should switch to inheritance view mode', async ({ page }) => {
     await setupPluginPage(page);
-    const inheritanceBtn = page.locator('.cg-view-mode-btn[data-mode="inheritance"]');
-    await expect(inheritanceBtn).toBeVisible({ timeout: 10000 });
+    // 视图模式是「视图模式」下拉里的一个选项，不是独立按钮。
+    await expect(page.locator(TRIGGERS.view)).toBeVisible({ timeout: TIMEOUTS.VISIBLE_SHORT });
+    await selectViewMode(page, 'inheritance');
+    const viewMode = await page.evaluate(() => {
+      const store = (window as any).__graphStore;
+      return store ? store.getState().viewMode : null;
+    });
+    expect(viewMode).toBe('inheritance');
   });
 
-  test('should show layer selector in inheritance mode', async ({ page }) => {
+  // 原用例断言 `.cg-layer-selector` 不可见——该类名不存在，断言恒真。
+  // 真实的层级选择器就是「层级」下拉触发器，这里改为正向断言它存在。
+  test('should expose hierarchy level dropdown in inheritance mode', async ({ page }) => {
     await setupPluginPage(page);
-    const layerSelector = page.locator('.cg-layer-selector');
-    await expect(layerSelector).not.toBeVisible();
+    await selectViewMode(page, 'inheritance');
+    await expect(page.locator(TRIGGERS.level)).toBeVisible({ timeout: TIMEOUTS.VISIBLE_SHORT });
+    // 下拉内应能选到 4 个层级。
+    await page.locator(TRIGGERS.level).click();
+    await expect(page.locator(OPTION.level(0))).toBeVisible({ timeout: TIMEOUTS.VISIBLE_SHORT });
+    await expect(page.locator('.cg-level-option-3')).toBeVisible({ timeout: TIMEOUTS.VISIBLE_SHORT });
   });
 });
