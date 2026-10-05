@@ -1,7 +1,12 @@
 {
   "currentPhase": "complete",
-  "currentCycle": "cycle-80",
+  "currentCycle": "cycle-81",
   "phaseHistory": [
+    {
+      "cycle": "cycle-81",
+      "phase": "complete",
+      "result": "P0 E2E 用户旅程首次真正可执行: 选择器收敛到唯一事实源 tests/e2e/selectors.ts(236 行) + 新增 tests/unit/e2eSelectorContract.test.ts 8 条源码级契约; 十根因逐条修复(行为层视图 setupPluginPageInBehavioralLayer 覆盖 17 条 / FILTER 改 id 选择器 / dev-server 注入 __cg_debug / resize handle 按 data-cg-integration 分支 / SearchBar 加 cg-search-close-btn / dev-server CSS 链接改 /dist/client/index.css / closeDropdown 替代全局 Escape / selectNodeStrict 消除静默 no-op / plugin-install 与 integration-and-lifecycle 整体重写); P0 桩图统一为 MOCK_GRAPH 单一真源(页面内联 21 节点与服务端 6 节点曾互相漂移, 环经 class 节点被 CallGraphAssembler 过滤导致 J5/J31 永不可验证), 环改 function->function n9<->n11; E2E smoke 32 failed/24 passed -> 20/36 -> 10/46 -> 2/55 -> 0 failed/57 passed (2.9 min, 耗时改善 88%); 全量 185 文件/5060 用例(基线 181/5035, +1 文件/+8 用例); typecheck 0 错误; lint 0 warnings 0 errors (244 files); build exit 0 (client.js 2505499 B (Round-16 baseline rebuilt from 0cdf734 = 2505159 B, +340 B/+0.014%), worker 1527487 B); hygiene 19 artefact/7 root payload 11.38 MB; perf-gate PASS; 变异锁 incremental-update 26/26 + cross-workspace-guard 16/16 全红逐字还原(必须串行, 并行会因两锁同改 src/host/watcher.ts 而 RESTORE MISMATCH); 契约测试 3 组守卫变异按预期变红 + 2 组无效变异教训入 docs/测试体系.md; TODO-02 误诊跨 8 轮 11 处登记点全部更正并新增 docs/需求分析.md 59.19; CLAUDE.md 新增 3 条 R10 教训(46->49 行); G0-G3 全 PASS; 遗留 P3-R17-01(52 处裸 cg-* 字面量重复) + host 单槽 + P3-R16-02 + L2/L3/L6/L7 流转 cycle-82"
+    },
     {
       "cycle": "cycle-80",
       "phase": "complete",
@@ -175,5 +180,5 @@
   ],
   "nodeStatus": {},
   "createdAt": "2026-09-21T14:25:00.105Z",
-  "updatedAt": "2026-10-05T06:35:15.919Z"
+  "updatedAt": "2026-10-05T09:25:45.657Z"
 }

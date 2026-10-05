@@ -15,3 +15,7 @@
 | G1 | PASS | 2026-10-05T06:40:47.161Z | 任务清单 T16-1..T16-12 全部完成；9 条流转项已登记去向（L1 关闭候选、L5 文档澄清、L2/L3/L4/L6/L7 + host 单槽 + P3-R16-02 → cycle-81） |
 | G2 | PASS | 2026-10-05T06:40:47.264Z | 184 files / 5052 tests passed (HEAD baseline 181/5035, +3 files / +17 tests); typecheck host+client+test 0 errors; lint 0 warnings 0 errors (244 files); mutation 16/16 + 26/26 red; J0 8/8 journeys |
 | G3 | PASS | 2026-10-05T06:40:47.932Z | build exit 0 (client.js 2496405 B, worker 1527487 B); hygiene 19 artefacts / 7 roots, payload 11.38 MB; perf-gate PASS (client 2.39MB/3MB, host 194KB/512KB, tests 5052/4463); J0 release bundle verified |
+| G0 | PASS | 2026-10-05T09:17:41.111Z | cycle-81: 评估报告与事实基座抽验 8 条通过（E2E 选择器单一事实源 + dev-server 桩图统一 P0） |
+| G1 | PASS | 2026-10-05T09:17:41.217Z | cycle-81: 任务清单 T17-1..T17-17 全部完成；10 条流转项已登记去向（L2/L3/L6/L7 + host 单槽 + P3-R16-02 + P3-R17-01 + P2-R17-01） |
+| G2 | PASS | 2026-10-05T09:17:41.312Z | cycle-81: 185 files / 5060 tests passed (HEAD baseline 181/5035); E2E smoke 57 passed / 0 failed (2.9 min); typecheck 0 errors; lint 0 warnings 0 errors (244 files); mutation 26/26 + 16/16 red; 3 guard mutations red as expected |
+| G3 | PASS | 2026-10-05T09:17:41.414Z | cycle-81: build exit 0 (client.js 2505499 B measured; Round-16 baseline rebuilt from 0cdf734 = 2505159 B, +340 B/+0.014%; worker 1527487 B); hygiene 19 artefacts / 7 roots, payload 11.38 MB; perf-gate PASS (client 2.39MB/3MB, host 194KB/512KB, tests 5060/4463) |

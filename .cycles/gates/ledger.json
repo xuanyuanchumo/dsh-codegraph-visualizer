@@ -107,7 +107,43 @@
       "timestamp": "2026-10-05T06:40:47.932Z",
       "previousHash": "7ef4e4b398c76e528e001535aa409d5462b1be89b33a7bd93ad261caab25863d",
       "hash": "dbf3f01d4710768b7617bd7c4a7881c15f817c018c0bbcc70d590b08d930984e"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "cycle-81: 评估报告与事实基座抽验 8 条通过（E2E 选择器单一事实源 + dev-server 桩图统一 P0）",
+      "timestamp": "2026-10-05T09:17:41.111Z",
+      "previousHash": "dbf3f01d4710768b7617bd7c4a7881c15f817c018c0bbcc70d590b08d930984e",
+      "hash": "28f265e3ef843edfbe12f9423060591ddda85eb9deb3d2f2a6aaea2e87f089f2"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "cycle-81: 任务清单 T17-1..T17-17 全部完成；10 条流转项已登记去向（L2/L3/L6/L7 + host 单槽 + P3-R16-02 + P3-R17-01 + P2-R17-01）",
+      "timestamp": "2026-10-05T09:17:41.217Z",
+      "previousHash": "28f265e3ef843edfbe12f9423060591ddda85eb9deb3d2f2a6aaea2e87f089f2",
+      "hash": "fa12e8b72f76eb1b6f1dcca07b0d75d7c9856ffb5e0aaf8a137aefb792094a2d"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "cycle-81: 185 files / 5060 tests passed (HEAD baseline 181/5035); E2E smoke 57 passed / 0 failed (2.9 min); typecheck 0 errors; lint 0 warnings 0 errors (244 files); mutation 26/26 + 16/16 red; 3 guard mutations red as expected",
+      "timestamp": "2026-10-05T09:17:41.312Z",
+      "previousHash": "fa12e8b72f76eb1b6f1dcca07b0d75d7c9856ffb5e0aaf8a137aefb792094a2d",
+      "hash": "ba878ac3767c092d4f801513f2b3470951d457afbab33cf691466d1676b5d849"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "cycle-81: build exit 0 (client.js 2505499 B measured; Round-16 baseline rebuilt from 0cdf734 = 2505159 B, +340 B/+0.014%; worker 1527487 B); hygiene 19 artefacts / 7 roots, payload 11.38 MB; perf-gate PASS (client 2.39MB/3MB, host 194KB/512KB, tests 5060/4463)",
+      "timestamp": "2026-10-05T09:17:41.414Z",
+      "previousHash": "ba878ac3767c092d4f801513f2b3470951d457afbab33cf691466d1676b5d849",
+      "hash": "4ff5cf41ae6b8b7dfd70038881f844904742cae29c8b4b8adc28bb341e9ccb64"
     }
   ],
-  "chainHead": "dbf3f01d4710768b7617bd7c4a7881c15f817c018c0bbcc70d590b08d930984e"
+  "chainHead": "4ff5cf41ae6b8b7dfd70038881f844904742cae29c8b4b8adc28bb341e9ccb64"
 }
