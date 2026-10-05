@@ -19,7 +19,7 @@ export interface GraphPayloadSink {
     nodes: GraphNode[],
     edges: GraphEdge[],
     repoId: string,
-    metadata?: GraphData['metadata'],
+    metadata?: GraphData['metadata'] & { etag?: string | null },
   ) => void;
 }
 
@@ -31,6 +31,10 @@ export interface GraphPayloadSink {
  * 分支被漏掉，于是同一类缺陷第二次出现（正是"50 节点骨架被覆盖成 2 节点图"的机理）。按 R10，
  * 这里不再逐点补守卫，而是把"判身份 → 通过才落库"收成**一处**，两条通道都只能经由它写图。
  *
+ * `etag` 是 `/data` 那次 200 响应给出的校验值，必须与负载**同一次**落库：分开写会出现"画布已是
+ * 新版、校验值还是旧版"的窗口，下一次请求就会假 304 并静默吞掉一次真实更新。传 `undefined` 表示
+ * 这条通道没有校验值（例如 SSE 直推的 `graph-data`），此时保留原 `metadata` 对象不变。
+ *
  * 空负载与外来负载都返回 `false` 且不触碰画布；应用成功返回 `true`。
  */
 export function applyScopedGraphPayload(
@@ -38,6 +42,7 @@ export function applyScopedGraphPayload(
   data: GraphData | null | undefined,
   scopeRepoId: string | null | undefined,
   source: string,
+  etag?: string | null,
 ): boolean {
   if (!data || !data.nodes || data.nodes.length === 0) return false;
   if (isForeignRepo(data.metadata.repoId, scopeRepoId)) {
@@ -47,6 +52,7 @@ export function applyScopedGraphPayload(
     });
     return false;
   }
-  sink.setGraphData(data.nodes, data.edges, data.metadata.repoId, data.metadata);
+  const metadata = etag === undefined ? data.metadata : { ...data.metadata, etag };
+  sink.setGraphData(data.nodes, data.edges, data.metadata.repoId, metadata);
   return true;
 }

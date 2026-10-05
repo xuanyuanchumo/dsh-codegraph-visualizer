@@ -5,6 +5,7 @@ import {
   resolveDbPath, readTopLevelNodesFromDb, readNodeChildrenFromDb, readFileOutlineFromDb, readSymbolASTFromDb, readEdgesFromDb, readEdgesForNodesFromDb, countEdgesInDb, FILTERED_EDGE_KINDS,
 } from '../../adapters/CodeGraphAdapter.ts';
 import { mapDbNodesToGraphNodes, mapDbEdgesToGraphEdges } from '../DbMapper.ts';
+import { computeGraphEtag } from '../../shared/graphFingerprint.ts';
 import { buildCorsHeaders, sendJson, sendError } from '../HttpHelpers.ts';
 import {
   withRouteMiddleware, resolveWorkspaceFromRequest, returnIfEtagMatch, slimGraphData,
@@ -64,23 +65,26 @@ export function registerDataRoute(rc: RouteContext): void {
     kind: 'exact',
     path: routePath,
     handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, (req, res) => {
-      if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
+      if (returnIfEtagMatch(req, res, corsConfig, deps, 'graph')) return;
       const lastGraphData = deps.getLastGraphData();
       if (lastGraphData) {
+        // 校验值必须与 returnIfEtagMatch 算出的完全一致，否则客户端拿到 200 里的 etag 再发回来时永远
+        // 匹配不上，"增量取数"退化成每次都全量重取。
+        const etag = computeGraphEtag(lastGraphData.metadata.repoId, lastGraphData.metadata.timestamp, 'graph');
         const payload = JSON.stringify(lastGraphData);
         if (payload.length > API.DATA_RESPONSE_MAX_BYTES) {
           const slimmed = slimGraphData(lastGraphData, API.DATA_RESPONSE_SLIM_NODES);
           const slimPayload = JSON.stringify(slimmed);
           const dataHeaders = buildCorsHeaders(req, corsConfig);
           dataHeaders['content-type'] = 'application/json';
-          dataHeaders['etag'] = String(lastGraphData.metadata.timestamp);
+          dataHeaders['etag'] = etag;
           dataHeaders['x-truncated'] = '1';
           res.writeHead(200, dataHeaders);
           res.end(slimPayload);
         } else {
           const dataHeaders = buildCorsHeaders(req, corsConfig);
           dataHeaders['content-type'] = 'application/json';
-          dataHeaders['etag'] = String(lastGraphData.metadata.timestamp);
+          dataHeaders['etag'] = etag;
           res.writeHead(200, dataHeaders);
           res.end(payload);
         }
@@ -102,7 +106,7 @@ export function registerBootstrapRoute(rc: RouteContext): void {
     handler: withRouteMiddleware('GET', routePath, corsConfig, rateLimiter, async (req, res) => {
       const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
 
-      if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
+      if (returnIfEtagMatch(req, res, corsConfig, deps, 'bootstrap', workspacePath)) return;
 
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
@@ -194,9 +198,12 @@ export function registerNodeChildrenRoute(rc: RouteContext): void {
       const cursor = url.searchParams.get('cursor') ?? null;
       const limit = parseInt(url.searchParams.get('limit') ?? String(BOOTSTRAP.CHILDREN_PAGE_SIZE), 10) || BOOTSTRAP.CHILDREN_PAGE_SIZE;
 
-      if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
-
+      // 先解析工作区、再校验 ETag：反序会让校验值缺少身份维度（`?workspace=` 还没读），
+      // 客户端切到别的工作区时会因槽里还留着旧图而收到 304，静默保留错误画布。
       const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
+
+      if (returnIfEtagMatch(req, res, corsConfig, deps, 'children', workspacePath)) return;
+
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readNodeChildrenFromDb(dbPath, nodeId, cursor, limit);
@@ -263,9 +270,11 @@ export function registerFileOutlineRoute(rc: RouteContext): void {
         return;
       }
 
-      if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
-
+      // 先解析工作区、再校验 ETag（理由同 /children）。
       const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
+
+      if (returnIfEtagMatch(req, res, corsConfig, deps, 'outline', workspacePath)) return;
+
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readFileOutlineFromDb(dbPath, nodeId);
@@ -317,14 +326,16 @@ export function registerSymbolASTRoute(rc: RouteContext): void {
         return;
       }
 
-      if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
+      // 先解析工作区、再校验 ETag（理由同 /children）。
+      const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
 
       const budget = Math.min(
         parseInt(url.searchParams.get('budget') ?? String(SYMBOL_AST.MAX_NODES), 10) || SYMBOL_AST.MAX_NODES,
         SYMBOL_AST.MAX_NODES,
       );
 
-      const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
+      if (returnIfEtagMatch(req, res, corsConfig, deps, 'ast', workspacePath)) return;
+
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readSymbolASTFromDb(dbPath, nodeId);
@@ -380,9 +391,11 @@ export function registerEdgesRoute(rc: RouteContext): void {
         return;
       }
 
-      if (returnIfEtagMatch(req, res, corsConfig, deps)) return;
-
+      // 先解析工作区、再校验 ETag（理由同 /children）。
       const workspacePath = await resolveWorkspaceFromRequest(req, ctx, deps);
+
+      if (returnIfEtagMatch(req, res, corsConfig, deps, 'edges', workspacePath)) return;
+
       if (workspacePath) {
         const dbPath = resolveDbPath(workspacePath);
         const dbResult = readEdgesFromDb(dbPath, fromId, scope as 'file' | 'symbol', cursor, limit);

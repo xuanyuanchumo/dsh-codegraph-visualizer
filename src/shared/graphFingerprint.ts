@@ -117,6 +117,34 @@ export function computeContentHash(content: string): string {
   return `v${FINGERPRINT.VERSION}:${hash64(content)}`;
 }
 
+/** 会被 ETag 定域的数据端点。`/data` 之外的路由返回的都是派生数据，与缓存图不是同一份资源。 */
+export type GraphEtagResource = 'graph' | 'bootstrap' | 'children' | 'outline' | 'ast' | 'edges';
+
+/**
+ * ETag for a graph resource, **scoped to both the workspace identity and the resource dimension**.
+ *
+ * 为什么不能只回 `String(metadata.timestamp)`：host 只保留一个 `lastGraphData` 槽，槽里可能装着另一个
+ * 工作区的图。若校验值只有时间戳，两个工作区在毫秒级上撞到同一个 timestamp 时，客户端带着 A 工作区
+ * 的校验值去问 B 工作区，host 会回 304，客户端于是保留旧画布并**静默丢弃一次真实更新**。把 `repoId`
+ * 混进校验值后，不同工作区的 ETag 必然不同，"校验器与被校验资源无关"这类缺陷在结构上不再可能。
+ *
+ * 为什么还要 `resource` 维度：`/data`、`/bootstrap`、`/children`、`/outline`、`/ast`、`/edges` 全都拿
+ * 同一个单槽缓存图去比对。若校验值不含资源维度，客户端持有的 `/data` 校验值就能让 `/children` 回
+ * 304——"校验器与被校验资源无关"的同一条缺陷换了个形状。该参数**必填**（不给默认值）：任何新增调用点
+ * 都被类型检查强制回答"我校验的是哪一份资源"，与 `fetchGraphDataIncremental` 的 `scopeRepoId` 同一设计。
+ *
+ * 值仍然是"弱校验器"语义（`W/` 前缀）：它随内容变化，但不是逐字节摘要。刻意**不**改用
+ * `computeGraphFingerprint()`——指纹要遍历全部节点与边，而 ETag 在每次 `/data` 请求上都会被计算；
+ * 这里的目的是**身份定域**，不是内容寻址。
+ */
+export function computeGraphEtag(
+  repoId: string | null | undefined,
+  revision: number,
+  resource: GraphEtagResource,
+): string {
+  return `W/"${revision}-${hash64(`${resource}\u0001${repoId ?? ''}`)}"`;
+}
+
 /**
  * Fingerprint of a graph's content. Independent of node/edge ordering and of `metadata.timestamp`,
  * so it is stable across repeated scans of an unchanged repository.

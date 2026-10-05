@@ -28,7 +28,7 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
     truncated: false,
     totalNodeCount: 0,
     totalEdgeCount: 0,
-    setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata?: { truncated?: boolean; totalNodeCount?: number; totalEdgeCount?: number }) => {
+    setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata?: { truncated?: boolean; totalNodeCount?: number; totalEdgeCount?: number; timestamp?: number; etag?: string | null }) => {
       try {
         clearLoadingFailsafe();
         internals.expandGeneration++;
@@ -77,7 +77,10 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
             rawNodes: sanitized.nodes, rawEdges: sanitized.edges,
             nodes: displayNodes, edges: displayEdges,
             diagramData,
-            repoId, error: null, isLoading: false, lastUpdated: Date.now(),
+            repoId, error: null, isLoading: false,
+            // 服务端给了时间戳就用服务端时钟，否则退回本地时钟（仅供 StatusBar 展示）。
+            lastUpdated: metadata?.timestamp ?? Date.now(),
+            graphEtag: metadata?.etag ?? null,
             truncated: !!metadata?.truncated,
             totalNodeCount: metadata?.totalNodeCount ?? sanitized.nodes.length,
             totalEdgeCount: metadata?.totalEdgeCount ?? sanitized.edges.length,
@@ -101,7 +104,9 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
           rawNodes: sanitized.nodes, rawEdges: sanitized.edges,
           nodes: result.nodes, edges: result.edges,
           diagramData,
-          repoId, error: null, isLoading: false, lastUpdated: Date.now(),
+          repoId, error: null, isLoading: false,
+          lastUpdated: metadata?.timestamp ?? Date.now(),
+          graphEtag: metadata?.etag ?? null,
           truncated: !!metadata?.truncated,
           totalNodeCount: metadata?.totalNodeCount ?? sanitized.nodes.length,
           totalEdgeCount: metadata?.totalEdgeCount ?? sanitized.edges.length,
@@ -167,6 +172,9 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
           error: null,
           isLoading: false,
           lastUpdated: metadata.timestamp,
+          // bootstrap 走的是另一个端点（`/api/v1/codegraph/bootstrap`），不带 `/data` 的 etag：
+          // 沿用旧校验值会让下一次 `/data` 请求带上一个与当前画布不对应的校验值，可能假 304。
+          graphEtag: null,
           truncated: false,
           totalNodeCount: metadata.totalNodeCount,
           totalEdgeCount: metadata.totalEdgeCount,
@@ -193,7 +201,7 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
       const prevPending = _get().pendingRequests;
       abortAllControllers(prevPending);
       internals.incrementalClusterCtx = null;
-      _set({ nodes: [], edges: [], rawNodes: [], rawEdges: [], savedRawNodes: [], savedRawEdges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0, truncated: false, totalNodeCount: 0, totalEdgeCount: 0, loadedChildrenByNodeId: new Set(), prefetchedNodeIds: new Set(), pendingRequests: new Map(), loadErrorsByNodeId: new Map(), ...emptyEdgeState() });
+      _set({ nodes: [], edges: [], rawNodes: [], rawEdges: [], savedRawNodes: [], savedRawEdges: [], repoId: null, error: null, isLoading: false, lastUpdated: 0, graphEtag: null, truncated: false, totalNodeCount: 0, totalEdgeCount: 0, loadedChildrenByNodeId: new Set(), prefetchedNodeIds: new Set(), pendingRequests: new Map(), loadErrorsByNodeId: new Map(), ...emptyEdgeState() });
     },
     applyGraphDelta: (delta: GraphDelta): boolean => {
       // The delta describes a specific revision. If the store has drifted (a full `graph/data`
@@ -260,6 +268,10 @@ export function createGraphDataSlice(_set: SetFn, _get: GetFn): Partial<GraphSta
           error: null,
           isLoading: false,
           lastUpdated: Date.now(),
+          // 增量补丁只描述"相对上一版的差异"，不带 `/data` 的新 etag：补丁应用后画布已前进到
+          // 一个新版本，而手上仍是旧版本的校验值。留着它下次请求就可能被服务端判成 304，
+          // 于是真实更新被静默吞掉；置 null 让下一次取数必然回 200，代价只是少省一次传输。
+          graphEtag: null,
           totalNodeCount: sanitized.nodes.length,
           totalEdgeCount: sanitized.edges.length,
           pendingRequests: new Map(),

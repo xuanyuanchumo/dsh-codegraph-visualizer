@@ -73,6 +73,8 @@ function createStore(overrides: Record<string, unknown> = {}) {
     nodes: [{ id: 'n1' }],
     panelVisible: true,
     lastUpdated: 123,
+    // P0-R16-02：取数发的是服务端校验值，不是展示时钟 `lastUpdated`。
+    graphEtag: 'W/"123-abc"',
     repoId: 'r1',
     setGraphData: mocks.setGraphData,
     applyGraphDelta: mocks.applyGraphDelta,
@@ -129,20 +131,25 @@ describe('setupSSEEvents', () => {
 
   it('graph-updated triggers incremental fetch and setGraphData', async () => {
     mocks.fetchGraphDataIncremental.mockResolvedValue({
-      nodes: [{ id: 'n2' }],
-      edges: [],
-      metadata: { repoId: 'r1', timestamp: 1 },
+      data: {
+        nodes: [{ id: 'n2' }],
+        edges: [],
+        metadata: { repoId: 'r1', timestamp: 1 },
+      },
+      etag: 'W/"1-new"',
     });
     const { ctx } = createCtx();
     setupSSEEvents(ctx);
     MockEventSource.last().emit('graph-updated', { repoId: 'r1', nodeCount: 2, edgeCount: 0 });
     await flush();
-    expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123, 'r1');
+    expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith('W/"123-abc"', 'r1');
+    // 校验值必须与负载在同一次落库中写入：否则画布已是新版、校验值还是旧版，
+    // 下一次取数会带着过期的校验值发出。
     expect(mocks.setGraphData).toHaveBeenCalledWith(
       [{ id: 'n2' }],
       [],
       'r1',
-      { repoId: 'r1', timestamp: 1 },
+      { repoId: 'r1', timestamp: 1, etag: 'W/"1-new"' },
     );
   });
 
@@ -169,7 +176,8 @@ describe('setupSSEEvents', () => {
   // 空负载也必须被挡下：把它写进画布等于用一个空图覆盖用户正在看的图。
   it('graph-updated skips setGraphData when the incremental payload has no nodes', async () => {
     mocks.fetchGraphDataIncremental.mockResolvedValue({
-      nodes: [], edges: [], metadata: { repoId: 'r1', timestamp: 3 },
+      data: { nodes: [], edges: [], metadata: { repoId: 'r1', timestamp: 3 } },
+      etag: 'W/"3-empty"',
     });
     const { ctx } = createCtx();
     setupSSEEvents(ctx);
@@ -343,13 +351,14 @@ describe('setupSSEEvents', () => {
 
     it('graph-updated without the incremental flag still re-fetches', async () => {
       mocks.fetchGraphDataIncremental.mockResolvedValue({
-        nodes: [{ id: 'n2' }], edges: [], metadata: { repoId: 'r1', timestamp: 2 },
+        data: { nodes: [{ id: 'n2' }], edges: [], metadata: { repoId: 'r1', timestamp: 2 } },
+        etag: null,
       });
       const { ctx } = createCtx();
       setupSSEEvents(ctx);
       MockEventSource.last().emit('graph-updated', { repoId: 'r1' });
       await flush();
-      expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123, 'r1');
+      expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith('W/"123-abc"', 'r1');
     });
 
     it('graph-delta coerces and applies the delta', async () => {
@@ -470,15 +479,16 @@ describe('setupSSEEvents', () => {
     // Before the first load the store has no identity yet; dropping those events would leave the
     // panel permanently empty, so an unknown identity must be let through.
     it('events are accepted while the store has no workspace identity yet', async () => {
-      mocks.getState.mockReturnValue(createStore({ repoId: null }));
+      mocks.getState.mockReturnValue(createStore({ repoId: null, graphEtag: null }));
       mocks.fetchGraphDataIncremental.mockResolvedValue({
-        nodes: [{ id: 'n2' }], edges: [], metadata: { repoId: '/repo/other', timestamp: 2 },
+        data: { nodes: [{ id: 'n2' }], edges: [], metadata: { repoId: '/repo/other', timestamp: 2 } },
+        etag: null,
       });
       const { ctx } = createCtx();
       setupSSEEvents(ctx);
       MockEventSource.last().emit('graph-updated', { repoId: '/repo/other' });
       await flush();
-      expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123, null);
+      expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(null, null);
     });
 
     // P0-R16-01：事件里的 repoId 是正确的，但 `/data` 是 host 单槽端点，取回来的负载可能属于
@@ -486,13 +496,14 @@ describe('setupSSEEvents', () => {
     it('graph-updated ignores an incremental payload that belongs to another workspace', async () => {
       mocks.getState.mockReturnValue(createStore({ repoId: '/repo/current' }));
       mocks.fetchGraphDataIncremental.mockResolvedValue({
-        nodes: [{ id: 'n2' }], edges: [], metadata: { repoId: '/repo/other', timestamp: 2 },
+        data: { nodes: [{ id: 'n2' }], edges: [], metadata: { repoId: '/repo/other', timestamp: 2 } },
+        etag: 'W/"2-other"',
       });
       const { ctx } = createCtx();
       setupSSEEvents(ctx);
       MockEventSource.last().emit('graph-updated', { repoId: '/repo/current' });
       await flush();
-      expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123, '/repo/current');
+      expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith('W/"123-abc"', '/repo/current');
       expect(mocks.setGraphData).not.toHaveBeenCalled();
       expect(mocks.loadBootstrap).not.toHaveBeenCalled();
     });
@@ -500,7 +511,8 @@ describe('setupSSEEvents', () => {
     it('graph-updated applies an incremental payload from the same workspace', async () => {
       mocks.getState.mockReturnValue(createStore({ repoId: '/repo/current' }));
       mocks.fetchGraphDataIncremental.mockResolvedValue({
-        nodes: [{ id: 'n2' }], edges: [], metadata: { repoId: '/repo/current', timestamp: 2 },
+        data: { nodes: [{ id: 'n2' }], edges: [], metadata: { repoId: '/repo/current', timestamp: 2 } },
+        etag: 'W/"2-same"',
       });
       const { ctx } = createCtx();
       setupSSEEvents(ctx);
@@ -510,7 +522,7 @@ describe('setupSSEEvents', () => {
         [{ id: 'n2' }],
         [],
         '/repo/current',
-        { repoId: '/repo/current', timestamp: 2 },
+        { repoId: '/repo/current', timestamp: 2, etag: 'W/"2-same"' },
       );
     });
 

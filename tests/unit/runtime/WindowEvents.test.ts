@@ -53,6 +53,8 @@ function createStore(overrides: Record<string, unknown> = {}) {
   return {
     nodes: [{ id: 'n1' }],
     lastUpdated: 123,
+    // P0-R16-02：取数发的是服务端校验值，不是展示时钟 `lastUpdated`。
+    graphEtag: 'W/"123-abc"',
     repoId: 'r1',
     setGraphData: mocks.setGraphData,
     loadBootstrap: mocks.loadBootstrap,
@@ -130,16 +132,24 @@ describe('setupWindowEvents', () => {
 
   it('refresh incremental branch fetches and sets graph data', async () => {
     mocks.fetchGraphDataIncremental.mockResolvedValue({
-      nodes: [{ id: 'n2' }],
-      edges: [],
-      metadata: { repoId: 'r1', timestamp: 1 },
+      data: {
+        nodes: [{ id: 'n2' }],
+        edges: [],
+        metadata: { repoId: 'r1', timestamp: 1 },
+      },
+      etag: 'W/"1-new"',
     });
     const { ctx } = createCtx();
     setupWindowEvents(ctx);
     dispatch(DOM_EVENTS.REFRESH, { incremental: true });
     await flush();
-    expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123, 'r1');
-    expect(mocks.setGraphData).toHaveBeenCalled();
+    expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith('W/"123-abc"', 'r1');
+    expect(mocks.setGraphData).toHaveBeenCalledWith(
+      [{ id: 'n2' }],
+      [],
+      'r1',
+      { repoId: 'r1', timestamp: 1, etag: 'W/"1-new"' },
+    );
   });
 
   it('refresh incremental with null data skips setGraphData', async () => {
@@ -196,15 +206,18 @@ describe('setupWindowEvents', () => {
   // while the host slot still holds another workspace's graph would overwrite the visible graph.
   it('refresh incremental ignores a payload from another workspace', async () => {
     mocks.fetchGraphDataIncremental.mockResolvedValue({
-      nodes: [{ id: 'n2' }],
-      edges: [],
-      metadata: { repoId: '/repo/other', timestamp: 1 },
+      data: {
+        nodes: [{ id: 'n2' }],
+        edges: [],
+        metadata: { repoId: '/repo/other', timestamp: 1 },
+      },
+      etag: 'W/"1-other"',
     });
     const { ctx } = createCtx();
     setupWindowEvents(ctx);
     dispatch(DOM_EVENTS.REFRESH, { incremental: true });
     await flush();
-    expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith(123, 'r1');
+    expect(mocks.fetchGraphDataIncremental).toHaveBeenCalledWith('W/"123-abc"', 'r1');
     expect(mocks.setGraphData).not.toHaveBeenCalled();
   });
 
@@ -212,9 +225,12 @@ describe('setupWindowEvents', () => {
   it('refresh incremental accepts a separator-only difference', async () => {
     mocks.getState.mockReturnValue(createStore({ repoId: 'D:/Projects/repo' }));
     mocks.fetchGraphDataIncremental.mockResolvedValue({
-      nodes: [{ id: 'n2' }],
-      edges: [],
-      metadata: { repoId: 'D:\\Projects\\repo', timestamp: 1 },
+      data: {
+        nodes: [{ id: 'n2' }],
+        edges: [],
+        metadata: { repoId: 'D:\\Projects\\repo', timestamp: 1 },
+      },
+      etag: null,
     });
     const { ctx } = createCtx();
     setupWindowEvents(ctx);

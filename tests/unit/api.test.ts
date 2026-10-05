@@ -349,7 +349,7 @@ describe('client api', () => {
   describe('fetchGraphDataIncremental', () => {
     it('returns null on 304 Not Modified', async () => {
       globalThis.fetch = vi.fn().mockResolvedValue({ status: 304, ok: false }) as unknown as typeof fetch;
-      const result = await fetchGraphDataIncremental(123, 'r1');
+      const result = await fetchGraphDataIncremental('W/"1-abc"', 'r1');
       expect(result).toBeNull();
     });
 
@@ -364,20 +364,20 @@ describe('client api', () => {
         status: 200,
         json: async () => graphData,
       }) as unknown as typeof fetch;
-      const result = await fetchGraphDataIncremental(123, 'r1');
+      const result = await fetchGraphDataIncremental('W/"1-abc"', 'r1');
       expect(result).not.toBeNull();
-      expect(result!.nodes).toHaveLength(1);
+      expect(result!.data.nodes).toHaveLength(1);
     });
 
     it('returns null on fetch error', async () => {
       globalThis.fetch = vi.fn().mockRejectedValue(new Error('network')) as unknown as typeof fetch;
-      const result = await fetchGraphDataIncremental(123, 'r1');
+      const result = await fetchGraphDataIncremental('W/"1-abc"', 'r1');
       expect(result).toBeNull();
     });
 
     it('returns null when response not ok', async () => {
       globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => null }) as unknown as typeof fetch;
-      const result = await fetchGraphDataIncremental(123, 'r1');
+      const result = await fetchGraphDataIncremental('W/"1-abc"', 'r1');
       expect(result).toBeNull();
     });
 
@@ -394,7 +394,7 @@ describe('client api', () => {
         status: 200,
         json: async () => graphData,
       }) as unknown as typeof fetch;
-      const result = await fetchGraphDataIncremental(123, '/repo/current');
+      const result = await fetchGraphDataIncremental('W/"1-abc"', '/repo/current');
       expect(result).toBeNull();
     });
 
@@ -409,9 +409,9 @@ describe('client api', () => {
         status: 200,
         json: async () => graphData,
       }) as unknown as typeof fetch;
-      const result = await fetchGraphDataIncremental(123, null);
+      const result = await fetchGraphDataIncremental('W/"1-abc"', null);
       expect(result).not.toBeNull();
-      expect(result!.nodes).toHaveLength(1);
+      expect(result!.data.nodes).toHaveLength(1);
     });
 
     it('accepts a separator-only difference as the same workspace', async () => {
@@ -425,8 +425,51 @@ describe('client api', () => {
         status: 200,
         json: async () => graphData,
       }) as unknown as typeof fetch;
-      const result = await fetchGraphDataIncremental(123, 'D:/Projects/repo');
+      const result = await fetchGraphDataIncremental('W/"1-abc"', 'D:/Projects/repo');
       expect(result).not.toBeNull();
+    });
+
+    // P0-R16-02：校验值必须原样回传。客户端无从推导宿主的 `W/"<revision>-<hash>"`，
+    // 用展示时钟（`lastUpdated`）代替会同时造成"304 永不命中"与"假 304 吞掉真实更新"。
+    it('echoes the server etag verbatim and returns it with the payload', async () => {
+      const graphData = {
+        nodes: [{ id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} }],
+        edges: [],
+        metadata: { repoId: 'r1', timestamp: 2, nodeCount: 1, edgeCount: 0 },
+      };
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => graphData,
+        headers: { get: (name: string) => (name === 'etag' ? 'W/"7-deadbeef"' : null) },
+      });
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+      const result = await fetchGraphDataIncremental('W/"6-cafe"', 'r1');
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/codegraph/data',
+        expect.objectContaining({ headers: { 'if-none-match': 'W/"6-cafe"' } }),
+      );
+      expect(result!.etag).toBe('W/"7-deadbeef"');
+    });
+
+    it('sends no if-none-match when there is no usable etag yet', async () => {
+      const graphData = {
+        nodes: [{ id: 'n1', label: 'A', type: 'function', filePath: 'a.ts', lineNumber: 1, properties: {} }],
+        edges: [],
+        metadata: { repoId: 'r1', timestamp: 2, nodeCount: 1, edgeCount: 0 },
+      };
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => graphData,
+      });
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+      const result = await fetchGraphDataIncremental(null, 'r1');
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/codegraph/data',
+        expect.objectContaining({ headers: {} }),
+      );
+      expect(result!.etag).toBeNull();
     });
   });
 

@@ -3,7 +3,8 @@ import type { Context } from '@deepseek-ai/cordis';
 import path from 'node:path';
 import { scoped } from '../../shared/Logger.ts';
 import { ERROR_CODES } from '../../shared/constants.ts';
-import { computeGraphFingerprint } from '../../shared/graphFingerprint.ts';
+import { computeGraphEtag, computeGraphFingerprint } from '../../shared/graphFingerprint.ts';
+import type { GraphEtagResource } from '../../shared/graphFingerprint.ts';
 import type { GraphData, GraphNode, GraphEdge, IncomingMessage, ServerResponse, IGraphVisualizerService } from '../../types/index.ts';
 import { RepoId, NodeId, EdgeId } from '../../types/index.ts';
 import { fetchMergedGraph } from '../../tools.ts';
@@ -186,6 +187,12 @@ export async function validateWorkspacePath(
   return workspacePath;
 }
 
+/**
+ * 304 短路：客户端带来的校验值与 `serverEtag` 完全一致时回 304 并返回 `true`。
+ *
+ * 本函数只负责"比较并回包"，**不负责决定校验值是什么**——校验值的构造必须由调用方通过
+ * `returnIfEtagMatch` 传入身份与资源维度，否则就会退化成"校验器与被校验资源无关"。
+ */
 export function checkEtag(
   req: IncomingMessage,
   res: ServerResponse,
@@ -203,14 +210,34 @@ export function checkEtag(
   return true;
 }
 
+/**
+ * 用**资源身份**（repoId + revision）与**资源维度**构造校验值，再交给 `checkEtag` 比较。
+ *
+ * `resource` 是必填参数，理由见 `computeGraphEtag`：缺少资源维度，"拿 `/data` 的校验值让 `/children`
+ * 回 304"就重新成立——同一条"校验器与被校验资源无关"的缺陷换了个形状。
+ *
+ * `repoId` 传**请求方声明的工作区**（`resolveWorkspaceFromRequest()` 的结果）。这样校验值对
+ * `(工作区, 版本, 资源)` 三元组单射：两个不同的请求永远不会算出同一个校验值。调用方必须先解析工作区、
+ * 再调本函数（顺序反了就等于把身份维度丢掉一半）。
+ *
+ * `repoId` 省略时回落到槽自身的 `metadata.repoId`——`/data` 返回的就是这个槽，没有请求方工作区可言。
+ *
+ * 为什么身份维度可以取"请求方声明的工作区"，而 revision 必须取槽的：这两类错误的代价不对称。校验值
+ * 多算一次不匹配，只是多回一次 200、少省一次传输；而假 304 会让客户端保留过期数据并**静默丢弃一次
+ * 真实更新**（P0-R16-01 的同类机理）。取请求方工作区只会让校验值更难撞上，方向是安全的。
+ */
 export function returnIfEtagMatch(
   req: IncomingMessage,
   res: ServerResponse,
   corsConfig: CorsConfig,
   deps: RouteDeps,
+  resource: GraphEtagResource,
+  repoId?: string | null | undefined,
 ): boolean {
   const cachedData = deps.getLastGraphData();
-  return !!cachedData && checkEtag(req, res, corsConfig, String(cachedData.metadata.timestamp));
+  if (!cachedData) return false;
+  const etag = computeGraphEtag(repoId ?? cachedData.metadata.repoId, cachedData.metadata.timestamp, resource);
+  return checkEtag(req, res, corsConfig, etag);
 }
 
 export interface RouteDeps {

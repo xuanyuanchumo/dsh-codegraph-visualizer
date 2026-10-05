@@ -44,9 +44,10 @@ export function setupSSEEvents(ctx: Context): void {
           }
           // 增量取数本身已按 `store.repoId` 过滤（`fetchGraphDataIncremental` 的第二个参数是必填的），
           // 这里再经统一的落库通道，保证运行时不存在绕过身份判定的写图路径。
-          fetchGraphDataIncremental(store.lastUpdated, store.repoId)
-            .then((graphData) => {
-              applyScopedGraphPayload(store, graphData, store.repoId, 'SSE: incremental graph fetch');
+          // 校验值 `graphEtag` 与负载一起交给落库通道，由它在同一次 `_set` 里写入。
+          fetchGraphDataIncremental(store.graphEtag, store.repoId)
+            .then((result) => {
+              applyScopedGraphPayload(store, result?.data, store.repoId, 'SSE: incremental graph fetch', result?.etag);
             })
             .catch((err) => log.warn('SSE: incremental fetch failed', err));
         });

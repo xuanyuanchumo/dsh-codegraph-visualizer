@@ -31,10 +31,40 @@ describe('cross-workspace guard contract (P0-R16-01)', () => {
   it('requires the scope identity on the incremental fetch, so no call site can omit it', () => {
     const api = read('src/client/api/index.ts');
     // 必填（非可选）参数：没有 `?`，也没有默认值。
-    expect(api).toMatch(/export async function fetchGraphDataIncremental\(\s*lastUpdated: number,\s*scopeRepoId: string \| null \| undefined,\s*\)/);
+    expect(api).toMatch(/export async function fetchGraphDataIncremental\(\s*clientEtag: string \| null \| undefined,\s*scopeRepoId: string \| null \| undefined,\s*\)/);
     expect(api).not.toMatch(/scopeRepoId\?:/);
     // 取数层必须在返回前比对响应身份。
     expect(api).toContain('if (isForeignRepo(data.metadata.repoId, scopeRepoId)) {');
+  });
+
+  // P0-R16-02：校验器域与展示时钟域必须分开。`store.lastUpdated` 是 `Date.now()`（客户端时钟）
+  // 与 `metadata.timestamp`（服务端时钟）混写的展示字段，把它当 `if-none-match` 传会同时造成
+  // "304 永不命中"与"假 304 静默吞掉真实更新"两种错。宿主侧的校验值含身份与资源维度，客户端
+  // 无从推导，只能原样回传。
+  it('never feeds the display clock into the HTTP validator', () => {
+    const api = read('src/client/api/index.ts');
+    expect(api).not.toMatch(/if-none-match':\s*String\(/);
+
+    for (const rel of ['src/client/runtime/SSEEvents.ts', 'src/client/runtime/WindowEvents.ts']) {
+      const src = read(rel);
+      expect(src).not.toMatch(/fetchGraphDataIncremental\(\s*store\.lastUpdated/);
+      expect(src).toMatch(/fetchGraphDataIncremental\(\s*store\.graphEtag/);
+    }
+  });
+
+  it('scopes the host validator by resource, so one endpoint cannot answer another\'s 304', () => {
+    const shared = read('src/host/routes/shared.ts');
+    // `resource` 必填：省略它就能拿 `/data` 的校验值让 `/children` 回 304。
+    expect(shared).toMatch(/resource: GraphEtagResource/);
+    expect(shared).toContain('computeGraphEtag(');
+
+    const dataRoutes = read('src/host/routes/dataRoutes.ts');
+    for (const resource of ['graph', 'bootstrap', 'children', 'outline', 'ast', 'edges']) {
+      expect(dataRoutes).toMatch(new RegExp(`returnIfEtagMatch\\([^)]*'${resource}'`));
+    }
+
+    // 跨源客户端必须能读到 `etag`，否则增量取数静默退化成全量重取。
+    expect(read('src/host/HttpHelpers.ts')).toContain("'access-control-expose-headers'");
   });
 
   it('keeps exactly one runtime channel that may write a fetched payload to the canvas', () => {

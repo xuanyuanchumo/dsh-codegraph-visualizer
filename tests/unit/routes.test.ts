@@ -90,6 +90,7 @@ import type { VisualizerConfig } from '../../src/host/config.ts';
 import { isSafeRelativePath, triggerBackgroundBuild } from '../../src/host/routes/shared.ts';
 import { GraphRepository } from '../../src/host/db/GraphRepository.ts';
 import { FINGERPRINT, VALIDATION } from '../../src/shared/constants.ts';
+import { computeGraphEtag } from '../../src/shared/graphFingerprint.ts';
 
 type MockCtx = {
   effect: ReturnType<typeof vi.fn>;
@@ -289,7 +290,10 @@ describe('registerRoutes', () => {
     const { res, state } = makeRes();
     handler(makeReq('GET'), res);
     expect(state.code).toBe(200);
-    expect(state.headers['etag']).toBe(String(graphData.metadata.timestamp));
+    // P0-R16-02：校验值不再是裸时间戳，而是带身份 + 资源维度的弱校验器。
+    expect(state.headers['etag']).toBe(
+      computeGraphEtag(graphData.metadata.repoId, graphData.metadata.timestamp, 'graph'),
+    );
     expect(JSON.parse(state.body).nodes).toHaveLength(1);
   });
 
@@ -299,9 +303,36 @@ describe('registerRoutes', () => {
     registerRoutes(deps);
     const handler = getHandler(ctx, 3);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { 'if-none-match': String(graphData.metadata.timestamp) }), res);
+    const etag = computeGraphEtag(graphData.metadata.repoId, graphData.metadata.timestamp, 'graph');
+    handler(makeReq('GET', undefined, { 'if-none-match': etag }), res);
     expect(state.code).toBe(304);
-    expect(state.headers['etag']).toBe(String(graphData.metadata.timestamp));
+    expect(state.headers['etag']).toBe(etag);
+  });
+
+  // 校验值按资源定域：`/data` 的校验值不能替别的端点回答 304，否则调用方拿到的是
+  // "这个资源没变"的假结论，而实际请求的是另一个资源。
+  it('GET /data does not accept another resource\'s etag', () => {
+    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    deps.setLastGraphData(graphData);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 3);
+    const { res, state } = makeRes();
+    const wrongResource = computeGraphEtag(graphData.metadata.repoId, graphData.metadata.timestamp, 'children');
+    handler(makeReq('GET', undefined, { 'if-none-match': wrongResource }), res);
+    expect(state.code).toBe(200);
+  });
+
+  // 同一个 revision 但身份不同 ⇒ 必须回 200。假 304 会让客户端把旧工作区的图当成当前版本，
+  // 这正是跨工作区污染的另一条路径（P0-R16-02）。
+  it('GET /data does not accept the same revision from another workspace', () => {
+    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'a.ts', 1)], []);
+    deps.setLastGraphData(graphData);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 3);
+    const { res, state } = makeRes();
+    const foreign = computeGraphEtag('/repo/other', graphData.metadata.timestamp, 'graph');
+    handler(makeReq('GET', undefined, { 'if-none-match': foreign }), res);
+    expect(state.code).toBe(200);
   });
 
   it('POST /scan starts background scan and returns scanning status', async () => {
@@ -1922,14 +1953,31 @@ describe('file outline route (index 13)', () => {
     expect(body.edges).toEqual([]);
   });
 
-  it('GET /files/{nodeId}/outline returns 304 when etag matches', () => {
+  // 注意 `await`：修正反序后，`returnIfEtagMatch` 必须在 `resolveWorkspaceFromRequest()` 之后
+  // 才可能回 304，因此 304 不再在 handler 的同步段里写出。
+  it('GET /files/{nodeId}/outline returns 304 when etag matches', async () => {
     const graphData = makeGraphData([makeNode('file1', 'main.ts', 'module', '/src/main.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 13);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': String(graphData.metadata.timestamp) }, undefined, '/api/v1/codegraph/files/file1/outline'), res);
+    // 校验值按「请求方声明的工作区 + 资源」定域；`findWorkspacePath` 被 mock 成 '/test/workspace'。
+    const etag = computeGraphEtag('/test/workspace', graphData.metadata.timestamp, 'outline');
+    await handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': etag }, undefined, '/api/v1/codegraph/files/file1/outline'), res);
     expect(state.code).toBe(304);
+  });
+
+  // 反序（先校验 ETag、后解析工作区）会让校验值缺少身份维度：`?workspace=` 还没被读，
+  // 请求方声明的工作区被忽略，另一个工作区的校验值也能让本请求回 304。
+  it('GET /files/{nodeId}/outline rejects an etag scoped to another workspace', async () => {
+    const graphData = makeGraphData([makeNode('file1', 'main.ts', 'module', '/src/main.ts', 1)], []);
+    deps.setLastGraphData(graphData);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 13);
+    const { res, state } = makeRes();
+    const foreign = computeGraphEtag('/test/other', graphData.metadata.timestamp, 'outline');
+    await handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': foreign }, undefined, '/api/v1/codegraph/files/file1/outline'), res);
+    expect(state.code).toBe(200);
   });
 });
 
@@ -1997,14 +2045,27 @@ describe('symbol AST route (index 14)', () => {
     expect(body.sourceLines).toEqual([]);
   });
 
-  it('GET /symbols/{nodeId}/ast returns 304 when etag matches', () => {
+  it('GET /symbols/{nodeId}/ast returns 304 when etag matches', async () => {
     const graphData = makeGraphData([makeNode('sym1', 'foo', 'function', '/src/main.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 14);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': String(graphData.metadata.timestamp) }, undefined, '/api/v1/codegraph/symbols/sym1/ast'), res);
+    const etag = computeGraphEtag('/test/workspace', graphData.metadata.timestamp, 'ast');
+    await handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': etag }, undefined, '/api/v1/codegraph/symbols/sym1/ast'), res);
     expect(state.code).toBe(304);
+  });
+
+  // 同一个 revision 下，`/outline` 的校验值不得让 `/ast` 回 304。
+  it('GET /symbols/{nodeId}/ast does not accept another resource\'s etag', async () => {
+    const graphData = makeGraphData([makeNode('sym1', 'foo', 'function', '/src/main.ts', 1)], []);
+    deps.setLastGraphData(graphData);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 14);
+    const { res, state } = makeRes();
+    const wrongResource = computeGraphEtag('/test/workspace', graphData.metadata.timestamp, 'outline');
+    await handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': wrongResource }, undefined, '/api/v1/codegraph/symbols/sym1/ast'), res);
+    expect(state.code).toBe(200);
   });
 });
 
@@ -2098,14 +2159,28 @@ describe('edges route (index 15)', () => {
     expect(body.total).toBe(2); // e1 (n1->n2) and e2 (n1->n3)
   });
 
-  it('GET /edges returns 304 when etag matches', () => {
+  it('GET /edges returns 304 when etag matches', async () => {
     const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'src/main.ts', 1)], []);
     deps.setLastGraphData(graphData);
     registerRoutes(deps);
     const handler = getHandler(ctx, 15);
     const { res, state } = makeRes();
-    handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': String(graphData.metadata.timestamp) }, undefined, '/api/v1/codegraph/edges?from=src/main.ts'), res);
+    const etag = computeGraphEtag('/test/workspace', graphData.metadata.timestamp, 'edges');
+    await handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': etag }, undefined, '/api/v1/codegraph/edges?from=src/main.ts'), res);
     expect(state.code).toBe(304);
+  });
+
+  // `/children` 与 `/edges` 曾经先校验 ETag、后解析工作区：`?workspace=` 还没被读，
+  // 校验值因此缺少身份维度，另一个工作区的校验值也能让本请求回 304。
+  it('GET /edges rejects an etag scoped to another workspace', async () => {
+    const graphData = makeGraphData([makeNode('n1', 'A', 'function', 'src/main.ts', 1)], []);
+    deps.setLastGraphData(graphData);
+    registerRoutes(deps);
+    const handler = getHandler(ctx, 15);
+    const { res, state } = makeRes();
+    const foreign = computeGraphEtag('/test/other', graphData.metadata.timestamp, 'edges');
+    await handler(makeReq('GET', undefined, { host: 'localhost', 'if-none-match': foreign }, undefined, '/api/v1/codegraph/edges?from=src/main.ts'), res);
+    expect(state.code).toBe(200);
   });
 
   it('GET /edges supports pagination with cursor and limit', async () => {

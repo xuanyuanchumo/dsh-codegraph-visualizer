@@ -75,6 +75,10 @@ export function buildCorsHeaders(req: IncomingMessage | undefined, config: CorsC
   const headers: Record<string, string> = {
     'access-control-allow-methods': 'GET, POST, OPTIONS',
     'access-control-allow-headers': 'content-type, if-none-match',
+    // 跨源（桌面端 / dsh-remote-web-ui）时，`etag` 与 `x-truncated` 默认不暴露给 JS：`fetch()` 的
+    // `res.headers.get('etag')` 会返回 null，客户端于是永远拿不到校验值，"增量取数"静默退化成
+    // 每次都全量重取。这两个头必须显式列入 expose 名单。
+    'access-control-expose-headers': 'etag, x-truncated',
     'access-control-max-age': '86400',
     'vary': 'Origin',
   };

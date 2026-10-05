@@ -46,6 +46,19 @@ export interface GraphState {
   isLoading: boolean;
   error: string | null;
   lastUpdated: number;
+  /**
+   * 服务端在最近一次 `200 /api/v1/codegraph/data` 里给出的 `etag`，原样保存、原样回传。
+   *
+   * 与 `lastUpdated` **刻意分开**：`lastUpdated` 是展示用的时间（`Date.now()` 与服务端
+   * `metadata.timestamp` 混写，供 StatusBar 显示"最后更新于"），而本字段是 HTTP 校验器域。
+   * 把展示时钟当校验器用会同时造成两种错：时钟域不同导致 304 永不命中（每次全量重取），
+   * 或身份不同导致**假 304 静默吞掉一次真实更新**（P0-R16-02）。
+   *
+   * `null` 表示"没有可用校验值"（首次取数、刚切工作区、刚清图、刚应用增量补丁）——此时不带
+   * `if-none-match` 发请求，服务端必然回 200，代价只是少省一次传输。
+   * 不持久化（不在 `graphStore.ts` 的 partialize 白名单里）：它只对当前会话的这一份画布有意义。
+   */
+  graphEtag: string | null;
 
   prerequisites: { codegraph: boolean; lens: boolean; builtin: boolean };
   integrationMode: IntegrationMode;
@@ -113,7 +126,7 @@ export interface GraphState {
   lodLevel: 'minimal' | 'compact' | 'full';
   lodEnabled: boolean;
 
-  setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata?: { truncated?: boolean; totalNodeCount?: number; totalEdgeCount?: number }) => void;
+  setGraphData: (nodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata?: { truncated?: boolean; totalNodeCount?: number; totalEdgeCount?: number; timestamp?: number; etag?: string | null }) => void;
   setBootstrapData: (rootNodes: GraphNode[], edges: GraphEdge[], repoId: string, metadata: { totalNodeCount: number; totalEdgeCount: number; timestamp: number }) => void;
   setLayout: (layout: LayoutType) => void;
   setDagreRankDir: (dir: RankDir) => void;

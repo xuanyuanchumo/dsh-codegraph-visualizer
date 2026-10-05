@@ -22,9 +22,10 @@ export function setupWindowEvents(ctx: Context): void {
           // 直接落库会静默覆盖当前画布——这正是"50 节点骨架变成 2 节点图"的机理。
           // 取数侧（`fetchGraphDataIncremental` 的第二个参数）已按 `store.repoId` 过滤，
           // 落库侧统一走 `applyScopedGraphPayload`，不再在本处内联判定。
-          fetchGraphDataIncremental(store.lastUpdated, store.repoId)
-            .then((data) => {
-              applyScopedGraphPayload(store, data, store.repoId, 'incremental graph fetch');
+          // 校验值用 `store.graphEtag`（服务端上次给的 etag），不是展示用的 `lastUpdated`。
+          fetchGraphDataIncremental(store.graphEtag, store.repoId)
+            .then((result) => {
+              applyScopedGraphPayload(store, result?.data, store.repoId, 'incremental graph fetch', result?.etag);
             })
             .catch((e) => log.warn('incremental graph fetch failed', e));
         } else {

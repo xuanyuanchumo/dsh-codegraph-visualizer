@@ -69,4 +69,34 @@ describe('applyScopedGraphPayload', () => {
     expect(applyScopedGraphPayload(sink, payload(''), '/repo/a', 'test')).toBe(true);
     expect(sink.setGraphData).toHaveBeenCalled();
   });
+
+  // P0-R16-02：校验值必须与负载**同一次**落库。分开写会出现"画布已是新版、校验值还是旧版"
+  // 的窗口，下一次请求就被判成 304，真实更新被静默吞掉。
+  it('folds the etag into the same setGraphData call as the payload', () => {
+    const data = payload('/repo/a');
+    expect(applyScopedGraphPayload(sink, data, '/repo/a', 'test', 'W/"1-new"')).toBe(true);
+    expect(sink.setGraphData).toHaveBeenCalledWith(data.nodes, data.edges, '/repo/a', {
+      ...data.metadata,
+      etag: 'W/"1-new"',
+    });
+  });
+
+  // 没有校验值的通道（`graph-data` 直推）必须保留原 `metadata` 对象引用不变：调用方
+  // （`SSEEvents`）按引用传的是同一个对象，多造一个浅拷贝会让断言与下游比较都漂移。
+  it('leaves the metadata object untouched when there is no etag', () => {
+    const data = payload('/repo/a');
+    expect(applyScopedGraphPayload(sink, data, '/repo/a', 'test', undefined)).toBe(true);
+    expect(sink.setGraphData).toHaveBeenCalledWith(data.nodes, data.edges, '/repo/a', data.metadata);
+  });
+
+  // `null` 与 `undefined` 语义不同：`null` 表示"这次响应确实没有校验值"，必须写进 metadata
+  // 把旧值抹掉；`undefined` 表示"这条通道不谈校验值"，保持原样。
+  it('clears a stale etag when the response carries null', () => {
+    const data = payload('/repo/a');
+    expect(applyScopedGraphPayload(sink, data, '/repo/a', 'test', null)).toBe(true);
+    expect(sink.setGraphData).toHaveBeenCalledWith(data.nodes, data.edges, '/repo/a', {
+      ...data.metadata,
+      etag: null,
+    });
+  });
 });

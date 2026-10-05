@@ -149,6 +149,8 @@ describe('buildCorsHeaders', () => {
     const headers = buildCorsHeaders(undefined, { origins: [] });
     expect(headers['access-control-allow-methods']).toBe('GET, POST, OPTIONS');
     expect(headers['access-control-allow-headers']).toBe('content-type, if-none-match');
+    // 跨源客户端只有被显式 expose 才读得到 `etag` 响应头；否则增量取数静默退化成全量重取。
+    expect(headers['access-control-expose-headers']).toBe('etag, x-truncated');
     expect(headers['access-control-max-age']).toBe('86400');
     expect(headers['vary']).toBe('Origin');
   });

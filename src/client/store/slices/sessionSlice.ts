@@ -11,6 +11,7 @@ export function createSessionSlice(_set: SetFn, _get: GetFn): Partial<GraphState
     isLoading: false,
     error: null,
     lastUpdated: 0,
+    graphEtag: null,
     prerequisites: { codegraph: false, lens: false, builtin: true },
     integrationMode: 'unknown',
     panelVisible: true,

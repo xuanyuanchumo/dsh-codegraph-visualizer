@@ -13,6 +13,7 @@ import {
   canonicalizeEdge,
   computeContentHash,
   computeGraphFingerprint,
+  computeGraphEtag,
 } from '../../src/shared/graphFingerprint.ts';
 import { makeNode, makeEdge, makeGraphData } from '../helpers.ts';
 import type { GraphData } from '../../src/types/index.ts';
@@ -250,5 +251,45 @@ describe('computeGraphFingerprint', () => {
     const withTotals = graph({ totalNodeCount: 2, totalEdgeCount: 1 });
     const withoutTotals = graph();
     expect(computeGraphFingerprint(withTotals)).toBe(computeGraphFingerprint(withoutTotals));
+  });
+});
+
+// P0-R16-02：ETag 不是内容寻址，而是**身份定域**的弱校验器。它与 `computeGraphFingerprint`
+// 解决的是两个不同问题，故意不共用实现：
+//   - 指纹要遍历全图（每次扫描算一次），用来判断"内容是否变化"；
+//   - ETag 在每次 `/data` 请求上都要算，用来判断"这个请求方问的还是不是同一份资源"。
+// 因此 ETag 必须同时含 revision、工作区身份与资源维度。少了任何一维，"校验器与被校验资源
+// 无关"这类缺陷就会换一个形状重现（Round 15 / Round 16 / Round 17 已各出现一次）。
+describe('computeGraphEtag', () => {
+  it('carries the weak-validator prefix and a 16 hex digit body', () => {
+    expect(computeGraphEtag('/repo/a', 1, 'graph')).toMatch(/^W\/"1-[0-9a-f]{16}"$/);
+  });
+
+  it('is stable for the same identity, revision and resource', () => {
+    expect(computeGraphEtag('/repo/a', 7, 'graph')).toBe(computeGraphEtag('/repo/a', 7, 'graph'));
+  });
+
+  // 两个工作区在同一毫秒各产生一版图时，裸时间戳会撞车 ⇒ 服务端回 304 ⇒ 真实更新被静默丢弃。
+  it('distinguishes two workspaces that share the same revision', () => {
+    expect(computeGraphEtag('/repo/a', 5, 'graph')).not.toBe(computeGraphEtag('/repo/b', 5, 'graph'));
+  });
+
+  it('distinguishes revisions', () => {
+    expect(computeGraphEtag('/repo/a', 5, 'graph')).not.toBe(computeGraphEtag('/repo/a', 6, 'graph'));
+  });
+
+  // 少了资源维度就能拿 `/data` 的校验值让 `/children` 回 304——调用方拿到的是"这个资源没变"
+  // 的假结论，而它请求的是另一个资源。
+  it('distinguishes resources that share the same identity and revision', () => {
+    const resources = ['graph', 'bootstrap', 'children', 'outline', 'ast', 'edges'] as const;
+    const seen = new Set(resources.map((r) => computeGraphEtag('/repo/a', 5, r)));
+    expect(seen.size).toBe(resources.length);
+  });
+
+  // 身份缺失（首次加载、`repoId` 尚未确定）时不得抛错，也不得与"空字符串身份"的图混淆。
+  it('handles a missing repoId without throwing', () => {
+    expect(computeGraphEtag(null, 1, 'graph')).toMatch(/^W\/"1-[0-9a-f]{16}"$/);
+    expect(computeGraphEtag(undefined, 1, 'graph')).toBe(computeGraphEtag(null, 1, 'graph'));
+    expect(computeGraphEtag('', 1, 'graph')).toBe(computeGraphEtag(null, 1, 'graph'));
   });
 });

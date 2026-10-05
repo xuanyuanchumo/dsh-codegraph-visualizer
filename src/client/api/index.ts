@@ -156,6 +156,18 @@ export async function requestInit(path: string): Promise<{ success: boolean; mes
 }
 
 /**
+ * `fetchGraphDataIncremental` 的返回：图负载 + 服务端在这次 200 响应里给出的校验值。
+ *
+ * 校验值必须**原样**回传（`if-none-match`），不能由客户端自己按时间戳拼：host 的校验值是
+ * `W/"<revision>-<hash64(资源 + 工作区)>"`（见 `computeGraphEtag`），含身份与资源维度，
+ * 客户端无从推导。
+ */
+export interface IncrementalGraphResult {
+  data: GraphData;
+  etag: string | null;
+}
+
+/**
  * 读取 host 单槽里的图（`/api/v1/codegraph/data`，增量语义：带 `if-none-match` 走 304 短路）。
  *
  * P0 跨工作区污染防护的**唯一收口点**：该端点既不接受 `workspace` 参数、也不做任何过滤，返回的
@@ -165,14 +177,19 @@ export async function requestInit(path: string): Promise<{ success: boolean; mes
  * `scopeRepoId` 是**必填**参数而非可选：任何新增调用点都会被类型检查强制回答"我期望哪个工作区"，
  * 而不是默默继承一个不设防的默认值。这正是 Round 15 遗留 SSE `graph-updated` 漏网的成因——
  * 当时守卫只写在调用点，新增通道时被漏掉。
+ *
+ * `clientEtag` 同样必填，但**允许为 `null`**（首次取数、或刚切过工作区）。这里刻意不再复用
+ * `store.lastUpdated`：那个字段是 `Date.now()`（客户端时钟）与 `metadata.timestamp`（服务端时钟）
+ * 混写的展示字段，拿它当校验器会让 304 要么永不命中（每次都全量重取），要么**假命中并静默吞掉
+ * 一次真实更新**。校验值域与展示时钟域必须分开。
  */
 export async function fetchGraphDataIncremental(
-  lastUpdated: number,
+  clientEtag: string | null | undefined,
   scopeRepoId: string | null | undefined,
-): Promise<GraphData | null> {
+): Promise<IncrementalGraphResult | null> {
   return withAbortGuard('fetchGraphDataIncremental', async () => {
     const res = await fetchWithTimeout('/api/v1/codegraph/data', {
-      headers: { 'if-none-match': String(lastUpdated) },
+      headers: clientEtag ? { 'if-none-match': clientEtag } : {},
     });
     if (res.status === 304) return null;
     if (!res.ok) return null;
@@ -186,7 +203,9 @@ export async function fetchGraphDataIncremental(
       });
       return null;
     }
-    return data;
+    // 校验值与负载一起返回，调用方必须**同一次** `_set` 落库：两者分开写会出现
+    // "画布已是新版、校验值还是旧版"的窗口，下一次请求就会假 304。
+    return { data, etag: res.headers?.get('etag') ?? null };
   }, null, { url: '/api/v1/codegraph/data' });
 }
 

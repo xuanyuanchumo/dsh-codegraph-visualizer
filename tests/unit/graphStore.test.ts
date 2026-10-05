@@ -290,6 +290,34 @@ describe('graphStore (J6/J7/J10)', () => {
     expect(useGraphStore.getState().currentWorkspace).toBe('/path/b');
   });
 
+  // P0-R16-02：校验值按工作区身份定域（`computeGraphEtag(repoId, revision, resource)`）。
+  // 切换工作区后旧校验值描述的是另一个身份；留着它，下一次 `/data` 请求可能被服务端判成 304，
+  // 客户端于是把"没有新数据"当成结论，而画布上还是旧工作区的图。
+  it('setCurrentWorkspace invalidates the stored etag', () => {
+    useGraphStore.setState({ graphEtag: 'W/"1-old"' });
+    useGraphStore.getState().setCurrentWorkspace('/path/b');
+    expect(useGraphStore.getState().graphEtag).toBeNull();
+  });
+
+  it('addWorkspace invalidates the stored etag', () => {
+    useGraphStore.setState({ graphEtag: 'W/"1-old"' });
+    useGraphStore.getState().addWorkspace('/path/c');
+    expect(useGraphStore.getState().graphEtag).toBeNull();
+  });
+
+  it('removeWorkspace invalidates the etag only when the active workspace was removed', () => {
+    useGraphStore.getState().addWorkspace('/path/a');
+    useGraphStore.getState().addWorkspace('/path/b');
+    useGraphStore.setState({ graphEtag: 'W/"1-old"' });
+    // 删掉非当前工作区：画布对应的身份没变，校验值仍然有效。
+    useGraphStore.getState().removeWorkspace('/path/a');
+    expect(useGraphStore.getState().graphEtag).toBe('W/"1-old"');
+
+    // 删掉当前工作区：身份变成 '.', 旧校验值必须作废。
+    useGraphStore.getState().removeWorkspace('/path/b');
+    expect(useGraphStore.getState().graphEtag).toBeNull();
+  });
+
   // ── Cluster depth tests ─────────────────────────────────────────────
   it('setClusterDepth to 2 should show all nodes at function level', () => {
     const nodes = [
@@ -551,6 +579,45 @@ describe('graphStore (J6/J7/J10)', () => {
     expect(s.truncated).toBe(false);
     expect(s.totalNodeCount).toBe(2);
     expect(s.totalEdgeCount).toBe(1);
+  });
+
+  // P0-R16-02：`/data` 200 响应里的 `etag` 必须落进 store，下一次取数才有东西可回传。
+  // 少了这一条，`graphEtag` 永远是 null，增量取数每次都发不带校验值的请求 ⇒ 永远 200 全量。
+  it('should store the etag from the response metadata', () => {
+    const nodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
+    useGraphStore.getState().setGraphData(nodes, [], 'repo-1', {
+      timestamp: 42,
+      etag: 'W/"42-abcdef"',
+    });
+    expect(useGraphStore.getState().graphEtag).toBe('W/"42-abcdef"');
+    expect(useGraphStore.getState().lastUpdated).toBe(42);
+  });
+
+  // 没有校验值的通道（3 参调用、SSE 直推的 `graph-data`）必须把校验值清成 null，
+  // 而不是留着上一次的：留着它描述的就是另一份负载。
+  it('should clear the etag when the payload carries no validator', () => {
+    const nodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
+    useGraphStore.setState({ graphEtag: 'W/"1-stale"' });
+    useGraphStore.getState().setGraphData(nodes, [], 'repo-1');
+    expect(useGraphStore.getState().graphEtag).toBeNull();
+  });
+
+  it('setBootstrapData should clear the etag', () => {
+    const rootNodes = [makeNode('n1', 'A', 'function', 'a.ts', 1)];
+    useGraphStore.setState({ graphEtag: 'W/"1-stale"' });
+    useGraphStore.getState().setBootstrapData(rootNodes, [], 'repo-bs', {
+      totalNodeCount: 1,
+      totalEdgeCount: 0,
+      timestamp: 99,
+    });
+    expect(useGraphStore.getState().lastUpdated).toBe(99);
+    expect(useGraphStore.getState().graphEtag).toBeNull();
+  });
+
+  it('clearGraph should clear the etag', () => {
+    useGraphStore.setState({ graphEtag: 'W/"1-stale"' });
+    useGraphStore.getState().clearGraph();
+    expect(useGraphStore.getState().graphEtag).toBeNull();
   });
 
   it('should clear healthScore and ruleViolations on new graph data', () => {
@@ -2491,14 +2558,30 @@ describe('graphStore applyGraphDelta (P2-21)', () => {
     expect(useGraphStore.getState().rawEdges).toEqual([]);
   });
 
-  it('refreshes lastUpdated so a later incremental fetch uses the new revision', () => {
+  // P0-R16-02：补丁只描述"相对上一版"的差异。补丁落库后画布已经前进，而服务端校验值
+  // 描述的还是打补丁之前的那一版；留着它，下一次增量取数就会带着过期的校验值发出，
+  // 服务端判成 304 后客户端会以为"没有更新"——而画布其实停在补丁后的中间态。
+  it('invalidates the stored etag after a delta so the next fetch cannot be falsely 304', () => {
     seed([makeNode('n1', 'A', 'function', 'a.ts', 1)]);
+    useGraphStore.setState({ graphEtag: 'W/"1-old"' });
     const before = useGraphStore.getState().lastUpdated;
     useGraphStore.getState().applyGraphDelta({
       ...emptyDelta(),
       addedNodes: [makeNode('n2', 'B', 'function', 'b.ts', 1)],
     });
     expect(useGraphStore.getState().lastUpdated).toBeGreaterThanOrEqual(before);
+    expect(useGraphStore.getState().graphEtag).toBeNull();
+  });
+
+  // 展示时钟（`lastUpdated`）与校验器（`graphEtag`）是两个域：`lastUpdated` 在增量/补丁路径
+  // 上是 `Date.now()`，在 bootstrap 路径上是服务端 `metadata.timestamp`。把它当
+  // `if-none-match` 传会同时造成"304 永不命中"与"假 304 吞掉真实更新"。
+  it('keeps the server etag separate from the display clock', () => {
+    seed([makeNode('n1', 'A', 'function', 'a.ts', 1)]);
+    const s = useGraphStore.getState();
+    expect(s).toHaveProperty('graphEtag');
+    expect(s.lastUpdated).toBeGreaterThan(0);
+    expect(s.graphEtag).not.toBe(String(s.lastUpdated));
   });
 
   it('clears any error and stops the loading state', () => {
