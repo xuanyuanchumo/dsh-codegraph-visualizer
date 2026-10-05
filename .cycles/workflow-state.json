@@ -1,7 +1,12 @@
 {
   "currentPhase": "complete",
-  "currentCycle": "cycle-76",
+  "currentCycle": "cycle-79",
   "phaseHistory": [
+    {
+      "cycle": "cycle-79",
+      "phase": "complete",
+      "result": "P0 跨工作区图负载隔离: 新增 sameRepoId(a,b) 身份判定原语(src/shared/pathUtils.ts) + isForeignRepo 守卫入口(新增 src/client/runtime/repoScope.ts) + 六处调用点接线(SSEEvents 三通道 graph-data/graph-delta/graph-updated, WindowEvents refresh 增量, useViewMode dependencies 请求带 workspace 参数 + 响应守卫, watcher/incrementalUpdate host 侧拒绝外来基线). 真实 HEAD 基线 181文件/5012用例 -> 工作树 181/5035 (+23 用例, +0 文件); typecheck host+client+test 0 错误; lint 0 warnings 0 errors (243 files); build exit 0 (client.js 2.38MB, worker 1527487B); hygiene 19 artefact/7 root payload 11.37MB; perf-gate 全 PASS. 变异锁 .cycles/cross-workspace-guard-mutations.ps1 14/14 全红 + .cycles/incremental-update-mutations.ps1 26/26 全红, 均 restored verbatim OK. J0 真机对照实验(Chrome DevTools MCP @ DSH 3080): host 单槽=Jet-Hub 空图, 页面=本仓库 2193 节点; 外来负载被拒(画布/状态栏均不变, 控制台 incremental graph fetch ignored for another workspace), 同源负载照常应用(2 节点), 守卫后恢复 50 节点/6 边并截图. 文档: docs/需求分析.md 新增 31.14 技术详解 + 59.15/59.16 待修复项与门禁对照. 遗留 L1-L7 流转 cycle-80."
+    },
     {
       "cycle": "cycle-76",
       "phase": "complete",
@@ -165,5 +170,5 @@
   ],
   "nodeStatus": {},
   "createdAt": "2026-09-21T14:25:00.105Z",
-  "updatedAt": "2026-10-02T16:30:00.000Z"
+  "updatedAt": "2026-10-05T04:57:54.471Z"
 }

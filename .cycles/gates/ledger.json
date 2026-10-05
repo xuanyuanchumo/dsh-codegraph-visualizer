@@ -35,7 +35,43 @@
       "timestamp": "2026-10-05T00:00:00.000Z",
       "previousHash": "525bee26d86c59941053602c736d80b5055f7c7ed3bfdb25f69472b7dcbd0774",
       "hash": "c854bdc4f69434c0020a1537521e333089d80dc14b63b3f63f652b53d5b88d20"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "评估报告与事实基座抽验通过（cycle-79：跨工作区图负载污染 P0）",
+      "timestamp": "2026-10-05T04:57:37.509Z",
+      "previousHash": "c854bdc4f69434c0020a1537521e333089d80dc14b63b3f63f652b53d5b88d20",
+      "hash": "6ec914f0fa4b28a656b7a88a39a013b5ba2901cbc3cb361973ed25a92a30d533"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "任务清单 T15-1..T15-10 全登记完成，L1-L7 登记流转至 cycle-80",
+      "timestamp": "2026-10-05T04:57:37.607Z",
+      "previousHash": "6ec914f0fa4b28a656b7a88a39a013b5ba2901cbc3cb361973ed25a92a30d533",
+      "hash": "1230fd970c42f1affdc71ed3a45abfd60a98150a2fc18f260da01d4a07cac3cc"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "181 files / 5035 tests passed (HEAD baseline 181/5012, +23); typecheck 0 errors; mutation 14/14 + 26/26 red",
+      "timestamp": "2026-10-05T04:57:37.703Z",
+      "previousHash": "1230fd970c42f1affdc71ed3a45abfd60a98150a2fc18f260da01d4a07cac3cc",
+      "hash": "2ccdf35863502691aafb99e322adec36994486a5f8abda91d3219c1d1e146a3e"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "build exit 0 (client.js 2.38 MB, worker 1527487 B); lint 0/0 (243 files); hygiene 19/7 payload 11.37 MB; perf-gate PASS",
+      "timestamp": "2026-10-05T04:57:37.805Z",
+      "previousHash": "2ccdf35863502691aafb99e322adec36994486a5f8abda91d3219c1d1e146a3e",
+      "hash": "3b451cfd13c7e45604addf44a5e928035a10b4e10e76f4f4fd248320f0f79a00"
     }
   ],
-  "chainHead": "c854bdc4f69434c0020a1537521e333089d80dc14b63b3f63f652b53d5b88d20"
+  "chainHead": "3b451cfd13c7e45604addf44a5e928035a10b4e10e76f4f4fd248320f0f79a00"
 }
