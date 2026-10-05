@@ -1,7 +1,12 @@
 {
   "currentPhase": "complete",
-  "currentCycle": "cycle-79",
+  "currentCycle": "cycle-80",
   "phaseHistory": [
+    {
+      "cycle": "cycle-80",
+      "phase": "complete",
+      "result": "P0-R16-01 跨工作区守卫结构性收口: 身份原语下沉 src/shared/graphScope.ts(api/ 不得反向依赖 runtime/) + fetchGraphDataIncremental 第二参数 scopeRepoId 必填(取数层比对响应身份) + 新增唯一落库通道 applyScopedGraphPayload(src/client/runtime/repoScope.ts), SSE graph-updated 与 WindowEvents refresh 两条增量通道均改走它; P2-R16-01 删除死导出 fetchGraphData() 及陈旧 mock; P3-R16-01 更正 docs/图谱按需加载-整合融汇迭代对齐报告.md 四处过期结论; 测试 184 文件/5052 用例(基线 181/5035, +3 文件/+17 用例, 新增 graphScope 5/repoScope 6/crossWorkspaceGuardContract 4 三套件, api -4+3, SSEEvents +3); 变异锁 cross-workspace-guard 16/16 + incremental-update 26/26 全红逐字还原; J0 真机 8/8(顶层标签栏 [对话,轨迹,代码图谱], 外来 2 节点负载被拒且画布保持 4670/10048, 发布产物 4720959 B 核验); G0-G3 全 PASS; 遗留 L1 关闭候选/L5 文档澄清/L2,L3,L4,L6,L7 + host 单槽 + P3-R16-02 流转 cycle-81"
+    },
     {
       "cycle": "cycle-79",
       "phase": "complete",
@@ -170,5 +175,5 @@
   ],
   "nodeStatus": {},
   "createdAt": "2026-09-21T14:25:00.105Z",
-  "updatedAt": "2026-10-05T04:57:54.471Z"
+  "updatedAt": "2026-10-05T06:35:15.919Z"
 }

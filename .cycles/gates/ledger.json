@@ -71,7 +71,43 @@
       "timestamp": "2026-10-05T04:57:37.805Z",
       "previousHash": "2ccdf35863502691aafb99e322adec36994486a5f8abda91d3219c1d1e146a3e",
       "hash": "3b451cfd13c7e45604addf44a5e928035a10b4e10e76f4f4fd248320f0f79a00"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "cycle-80: project evaluation report + 6 fact-base spot checks (src/shared/graphScope.ts, src/client/api/index.ts:169-191, src/client/runtime/repoScope.ts, src/client/runtime/SSEEvents.ts, tests/unit/crossWorkspaceGuardContract.test.ts, pnpm run test); layers: Contract healthy, Host known-risk, Client UI healthy",
+      "timestamp": "2026-10-05T06:40:47.052Z",
+      "previousHash": "3b451cfd13c7e45604addf44a5e928035a10b4e10e76f4f4fd248320f0f79a00",
+      "hash": "97a7ca25a983596b8ba05b7ff18fefefd16684d043414bdc6c55d54843249cac"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "cycle-80: task list T16-1..T16-12 all done (P0 x8, P2 x2, P3 x2); 9 handover items routed (L1 close-candidate, L5 doc clarification, L2/L3/L4/L6/L7 + host single-slot + P3-R16-02 -> cycle-81)",
+      "timestamp": "2026-10-05T06:40:47.161Z",
+      "previousHash": "97a7ca25a983596b8ba05b7ff18fefefd16684d043414bdc6c55d54843249cac",
+      "hash": "b7cb5fbf511702421bba4b71dac9a2b330792a356de6a5d3d8a384acca6fb752"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "cycle-80: 184 files / 5052 tests passed (HEAD baseline 181/5035, +3 files / +17 tests); typecheck host+client+test 0 errors; lint 0 warnings 0 errors (244 files); mutation 16/16 + 26/26 red; J0 8/8 journeys",
+      "timestamp": "2026-10-05T06:40:47.264Z",
+      "previousHash": "b7cb5fbf511702421bba4b71dac9a2b330792a356de6a5d3d8a384acca6fb752",
+      "hash": "7ef4e4b398c76e528e001535aa409d5462b1be89b33a7bd93ad261caab25863d"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "cycle-80: build exit 0 (client.js 2496405 B, worker 1527487 B); hygiene 19 artefacts / 7 roots, payload 11.38 MB; perf-gate PASS (client 2.39MB/3MB, host 194KB/512KB, tests 5052/4463); J0 real-env release bundle verified",
+      "timestamp": "2026-10-05T06:40:47.932Z",
+      "previousHash": "7ef4e4b398c76e528e001535aa409d5462b1be89b33a7bd93ad261caab25863d",
+      "hash": "dbf3f01d4710768b7617bd7c4a7881c15f817c018c0bbcc70d590b08d930984e"
     }
   ],
-  "chainHead": "3b451cfd13c7e45604addf44a5e928035a10b4e10e76f4f4fd248320f0f79a00"
+  "chainHead": "dbf3f01d4710768b7617bd7c4a7881c15f817c018c0bbcc70d590b08d930984e"
 }
