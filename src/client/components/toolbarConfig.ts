@@ -1,5 +1,7 @@
 import type { LayoutType, GraphType, RankDir } from '../store/graphStore.ts';
 import type { ViewMode } from '../../types/index.ts';
+// 布局顺序的唯一权威表在 `src/shared/viewModeUtils.ts`（cycle-84 收敛，原先此处有第 2 份副本）。
+import { LAYOUT_ORDER } from '../../shared/viewModeUtils.ts';
 
 import {
   ChainIcon, CycleIcon, ZapIcon, TreeIcon, PathIcon,
@@ -8,8 +10,8 @@ import {
 } from './Icons.tsx';
 import type { ToolMenuItem, ExportFormat } from './toolbarTypes.ts';
 
-export const LAYOUTS: LayoutType[] = ['cose', 'fcose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
-
+/** 工具栏布局下拉的选项顺序，直接引用权威表（见 `LAYOUT_ORDER` 的中文说明）。 */
+export const LAYOUTS: readonly LayoutType[] = LAYOUT_ORDER;
 
 export const RANK_DIRS: { value: RankDir; label: string }[] = [
   { value: 'TB', label: 'TB' },

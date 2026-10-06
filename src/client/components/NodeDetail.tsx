@@ -1,4 +1,4 @@
-import { useMemo, memo } from 'react';
+import { useCallback, useEffect, useMemo, useState, memo } from 'react';
 import type { GraphNode } from '../../types/index.ts';
 import { useT } from '../i18n/index.ts';
 import { useGraphStore } from '../store/graphStore.ts';
@@ -6,6 +6,7 @@ import { CloseIcon } from './Icons.tsx';
 import { NodeEdgeList } from './NodeEdgeList.tsx';
 import { FUNCTION_BODY } from '../../shared/constants.ts';
 import { useExpandedFunctionBodyCount } from '../hooks/useExpandedFunctionBodyCount.ts';
+import { collectFunctionBodyCandidates } from '../utils/functionBudgetCandidates.ts';
 
 const TYPE_ICONS: Record<string, string> = {
   function: 'fn',
@@ -35,17 +36,32 @@ interface NodeDetailProps {
   onCollapse?: () => void;
   onSelectFunction?: (node: GraphNode, viewMode: 'cfg' | 'flowchart' | 'sequence') => void;
   onAggregateCallChain?: (nodeId: string) => void;
+  /**
+   * 「只看调用链」的轻通路：只高亮调用链，不切换视图、不重建子图。
+   *
+   * 刻意不用 onAggregateCallChain（那条通路会调 assembleMultiFunction 并把
+   * viewMode 强制改成 'cfg'），因为文档里的语义是「只看」，而「看」不应改写
+   * 用户当前的视图选择。回调由 GraphPanel 注入，因为高亮需要 rendererRef。
+   */
+  onHighlightCallChain?: (nodeId: string) => void;
 }
 
-export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, onSelectFunction, onAggregateCallChain }: NodeDetailProps) {
+export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, connectionCount, onCollapse, onSelectFunction, onAggregateCallChain, onHighlightCallChain }: NodeDetailProps) {
   const t = useT();
   const rawNodes = useGraphStore((s) => s.rawNodes);
+  const rawEdges = useGraphStore((s) => s.rawEdges);
+  const expandedNodeIds = useGraphStore((s) => s.expandedNodeIds);
+  const expandNode = useGraphStore((s) => s.expandNode);
+  const pinNode = useGraphStore((s) => s.pinNode);
+  const unpinNode = useGraphStore((s) => s.unpinNode);
+  const batchExpandNodes = useGraphStore((s) => s.batchExpandNodes);
+  const collapseNode = useGraphStore((s) => s.collapseNode);
 
   const icon = TYPE_ICONS[node.type] ?? '?';
   const color = TYPE_COLORS[node.type] ?? 'var(--cg-accent)';
   const canExpand = EXPANDABLE_TYPES.has(node.type);
 
-  const { expandedFunctionCount: expandedFunctionBodyCount } = useExpandedFunctionBodyCount();
+  const { expandedFunctionCount: expandedFunctionBodyCount, totalFunctionCount } = useExpandedFunctionBodyCount();
 
   const isClusterNode = 'isCluster' in node && node.isCluster === true;
   const clusterChildCount = isClusterNode ? (node as { childCount?: number }).childCount ?? 0 : 0;
@@ -77,6 +93,49 @@ export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, 
     return Object.entries(node.properties ?? {})
       .filter(([k]) => !knownKeys.has(k)) as [string, unknown][];
   }, [node]);
+
+  // ── 函数体展开预算的出口（docs/图谱按需加载.md 第五节 + 风险 8） ──────────────
+  // 候选顺序由 collectFunctionBodyCandidates 决定（自身 → 聚类子函数 → 调用邻居 → 兜底）。
+  const functionCandidates = useMemo(
+    () => collectFunctionBodyCandidates({ node, rawNodes, rawEdges, clusterChildIds }),
+    [node, rawNodes, rawEdges, clusterChildIds],
+  );
+  // 已展开的候选（供「收起已展开」用）；未展开的候选（供「展开更多 / 展开全部」用）。
+  const expandedFunctionIds = useMemo(
+    () => functionCandidates.filter((id) => expandedNodeIds.has(id)),
+    [functionCandidates, expandedNodeIds],
+  );
+  const expandableFunctionIds = useMemo(
+    () => functionCandidates.filter((id) => !expandedNodeIds.has(id)),
+    [functionCandidates, expandedNodeIds],
+  );
+  const nextExpandableId = expandableFunctionIds[0];
+
+  // 「展开全部」会一次性把多个函数体钉住并展开，属于有代价的批量动作，
+  // 因此走内联二次确认（不用 window.confirm：它会阻塞渲染器且无法在测试里驱动）。
+  const [confirmingExpandAll, setConfirmingExpandAll] = useState(false);
+  useEffect(() => {
+    setConfirmingExpandAll(false);
+  }, [node.id]);
+
+  const handleExpandMore = useCallback(() => {
+    if (nextExpandableId) expandNode(nextExpandableId);
+  }, [nextExpandableId, expandNode]);
+
+  // 「展开全部」= 先 pin 再批量展开。pin 是必须的：enforceFunctionBodyBudget 会按插入序
+  // 驱逐超出 MAX_EXPANDED 的函数体，只有 pinned 豁免才能让用户显式确认过的批量展开存活。
+  const handleExpandAll = useCallback(() => {
+    for (const id of expandableFunctionIds) pinNode(id);
+    batchExpandNodes(expandableFunctionIds);
+    setConfirmingExpandAll(false);
+  }, [expandableFunctionIds, pinNode, batchExpandNodes]);
+
+  const handleCollapseExpanded = useCallback(() => {
+    for (const id of expandedFunctionIds) {
+      unpinNode(id);
+      collapseNode(id);
+    }
+  }, [expandedFunctionIds, unpinNode, collapseNode]);
 
   return (
     <div className="cg-node-detail-panel" role="complementary" aria-label={t('detail.ariaLabel')} aria-live="polite">
@@ -140,6 +199,57 @@ export const NodeDetail = memo(function NodeDetail({ node, onClose, isExpanded, 
               <span className="cg-detail-budget-hint">
                 {t('detail.functionBodyBudgetHint', { max: FUNCTION_BODY.MAX_EXPANDED })}
               </span>
+            )}
+            <div className="cg-detail-budget-actions">
+              <button
+                className="cg-detail-micro-btn cg-detail-budget-btn"
+                onClick={handleExpandMore}
+                disabled={!nextExpandableId}
+                title={t('detail.budgetExpandMoreHint', { count: expandableFunctionIds.length })}
+              >
+                {t('detail.budgetExpandMore')}
+              </button>
+              <button
+                className="cg-detail-micro-btn cg-detail-budget-btn"
+                onClick={handleCollapseExpanded}
+                disabled={expandedFunctionIds.length === 0}
+                title={t('detail.budgetCollapseHint', { count: expandedFunctionIds.length })}
+              >
+                {t('detail.budgetCollapse')}
+              </button>
+              {onHighlightCallChain && (
+                <button
+                  className="cg-detail-micro-btn cg-detail-budget-btn"
+                  onClick={() => onHighlightCallChain(node.id as string)}
+                  title={t('detail.budgetChainHint')}
+                >
+                  {t('detail.budgetChainOnly')}
+                </button>
+              )}
+            </div>
+            {confirmingExpandAll ? (
+              <div className="cg-detail-budget-confirm" role="alert">
+                <span className="cg-detail-budget-warning">
+                  {t('detail.budgetExpandAllWarning', { count: expandableFunctionIds.length })}
+                </span>
+                <div className="cg-detail-budget-actions">
+                  <button className="cg-detail-micro-btn cg-detail-budget-btn cg-detail-budget-btn--danger" onClick={handleExpandAll}>
+                    {t('detail.budgetExpandAllConfirm')}
+                  </button>
+                  <button className="cg-detail-micro-btn cg-detail-budget-btn" onClick={() => setConfirmingExpandAll(false)}>
+                    {t('detail.budgetExpandAllCancel')}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                className="cg-detail-micro-btn cg-detail-budget-btn cg-detail-budget-btn--wide"
+                onClick={() => setConfirmingExpandAll(true)}
+                disabled={expandableFunctionIds.length === 0}
+                title={t('detail.budgetExpandAllHint', { count: expandableFunctionIds.length, total: totalFunctionCount })}
+              >
+                {t('detail.budgetExpandAll')}
+              </button>
             )}
           </div>
           <div className="cg-detail-section-title">{t('detail.microViews')}</div>

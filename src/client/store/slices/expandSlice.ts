@@ -33,6 +33,52 @@ function truncateAstData(data: { astNodes: GraphNode[]; astEdges: GraphEdge[]; s
   return { astNodes, astEdges, sourceLines };
 }
 
+/**
+ * 加载单个函数体的 AST 并合并进图谱（缓存优先）。
+ *
+ * 从 `expandNode` 中抽出，供「展开全部」这类批量入口复用：
+ * 批量场景下必须共用同一个 `gen`，否则每次调用 `expandNode` 都会
+ * `++expandGeneration` 而把前一次仍在飞行中的 AST 结果判为过期丢弃。
+ *
+ * @param gen 调用方持有的展开代际；回调执行时若已过期则整体放弃写入。
+ */
+function loadFunctionBodyAst(
+  nodeId: string,
+  signal: AbortSignal,
+  gen: number,
+  _set: SetFn,
+  _get: GetFn,
+): void {
+  void (async () => {
+    if (internals.persistentCache) {
+      const cached = await internals.persistentCache.getAST(nodeId);
+      if (cached && gen === internals.expandGeneration) {
+        const data = cached as { astNodes: GraphNode[]; astEdges: GraphEdge[]; sourceLines: string[] };
+        if (data.astNodes.length > 0) {
+          const { astNodes: truncatedAstNodes, astEdges: truncatedAstEdges, sourceLines: truncatedSourceLines } = truncateAstData(data);
+          mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, _set, 'symbol AST loaded (cache)', { nodeId, sourceLines: truncatedSourceLines.length });
+          return;
+        }
+      }
+    }
+    measureAsync('ast-fetch', () => fetchSymbolAST(nodeId, signal, _get().currentWorkspace)).then(async (data) => {
+      if (gen !== internals.expandGeneration) return;
+      if (data && data.astNodes.length > 0) {
+        const { astNodes: truncatedAstNodes, astEdges: truncatedAstEdges, sourceLines: truncatedSourceLines } = truncateAstData(data);
+        if (truncatedAstNodes.length < data.astNodes.length) {
+          log.warn('symbol AST truncated', { nodeId, original: data.astNodes.length, truncated: truncatedAstNodes.length });
+        }
+        mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, _set, 'symbol AST loaded', { nodeId, sourceLines: truncatedSourceLines.length });
+        if (internals.persistentCache) {
+          await internals.persistentCache.setAST(nodeId, data);
+        }
+      }
+    }).catch((err) => {
+      log.warn('expandNode: fetchSymbolAST failed', { nodeId, err });
+    });
+  })();
+}
+
 export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState> {
   return {
     expandedNodeIds: new Set(),
@@ -49,11 +95,14 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
       const maxVisible = computeMaxVisible(panelWidth);
       const effectiveExpanded = new Set(expandedNodeIds);
       const expandingFunctionBody = rawNodes.some((n) => n.id === nodeId && n.type === 'function');
+      // 单点展开同样必须认 pinned：否则「展开全部」固定住的那批函数体会被
+      // 随后任意一次单点展开按插入序驱逐，pin 的语义就被破坏了。
+      const pinnedIds = _get().pinnedIds;
       if (expandingFunctionBody) {
-        enforceFunctionBodyBudget(effectiveExpanded, rawNodes, FUNCTION_BODY.MAX_EXPANDED - 1);
+        enforceFunctionBodyBudget(effectiveExpanded, rawNodes, FUNCTION_BODY.MAX_EXPANDED - 1, pinnedIds);
       }
       effectiveExpanded.add(nodeId);
-      collapseExcessClusters(nodes, effectiveExpanded, maxVisible, cost, _get().pinnedIds);
+      collapseExcessClusters(nodes, effectiveExpanded, maxVisible, cost, pinnedIds);
       if (cost > CLUSTER.EXPAND_BUDGET_SINGLE) {
         log.warn('expand budget exceeded', { nodeId, cost, budget: CLUSTER.EXPAND_BUDGET_SINGLE });
       }
@@ -95,34 +144,7 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
           })();
         }
         if (node.type === 'function') {
-          (async () => {
-            if (internals.persistentCache) {
-              const cached = await internals.persistentCache.getAST(nodeId);
-              if (cached && gen === internals.expandGeneration) {
-                const data = cached as { astNodes: GraphNode[]; astEdges: GraphEdge[]; sourceLines: string[] };
-                if (data.astNodes.length > 0) {
-                  const { astNodes: truncatedAstNodes, astEdges: truncatedAstEdges, sourceLines: truncatedSourceLines } = truncateAstData(data);
-                  mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, _set, 'symbol AST loaded (cache)', { nodeId, sourceLines: truncatedSourceLines.length });
-                  return;
-                }
-              }
-            }
-            measureAsync('ast-fetch', () => fetchSymbolAST(nodeId, expandController.signal, _get().currentWorkspace)).then(async (data) => {
-              if (gen !== internals.expandGeneration) return;
-              if (data && data.astNodes.length > 0) {
-                const { astNodes: truncatedAstNodes, astEdges: truncatedAstEdges, sourceLines: truncatedSourceLines } = truncateAstData(data);
-                if (truncatedAstNodes.length < data.astNodes.length) {
-                  log.warn('symbol AST truncated', { nodeId, original: data.astNodes.length, truncated: truncatedAstNodes.length });
-                }
-                mergeAndRecluster(truncatedAstNodes, truncatedAstEdges, _set, 'symbol AST loaded', { nodeId, sourceLines: truncatedSourceLines.length });
-                if (internals.persistentCache) {
-                  await internals.persistentCache.setAST(nodeId, data);
-                }
-              }
-            }).catch((err) => {
-              log.warn('expandNode: fetchSymbolAST failed', { nodeId, err });
-            });
-          })();
+          loadFunctionBodyAst(nodeId, expandController.signal, gen, _set, _get);
         }
       }
     },
@@ -256,8 +278,12 @@ export function createExpandSlice(_set: SetFn, _get: GetFn): Partial<GraphState>
       for (const nodeId of nodeIds) {
         effectiveExpanded.add(nodeId);
       }
-      enforceFunctionBodyBudget(effectiveExpanded, rawNodes, FUNCTION_BODY.MAX_EXPANDED);
-      collapseExcessClusters(nodes, effectiveExpanded, maxVisible, 0, _get().pinnedIds);
+      // 批量展开必须认 pinned：NodeDetail 的「展开全部」先把目标函数 pinNode 固定，
+      // 再调本动作；若这里不把 pinnedIds 传给预算，用户刚刚显式确认过的批量展开
+      // 会被预算立刻折回 MAX_EXPANDED 个，形成「确认了却又被自动撤销」的矛盾。
+      const pinnedIds = _get().pinnedIds;
+      enforceFunctionBodyBudget(effectiveExpanded, rawNodes, FUNCTION_BODY.MAX_EXPANDED, pinnedIds);
+      collapseExcessClusters(nodes, effectiveExpanded, maxVisible, 0, pinnedIds);
       const newExpandedByViewMode = { ...expandedNodeIdsByViewMode, [viewMode]: effectiveExpanded };
       reclusterWith(_get, _set, effectiveExpanded, newExpandedByViewMode);
     },

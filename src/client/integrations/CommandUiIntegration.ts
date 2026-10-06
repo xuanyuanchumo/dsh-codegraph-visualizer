@@ -4,12 +4,10 @@ import { useGraphStore } from '../store/graphStore.ts';
 import { t } from '../i18n/index.ts';
 import { DOM_EVENTS } from '../../shared/domEvents.ts';
 import { scoped } from '../../shared/Logger.ts';
-import type { LayoutType } from '../../shared/viewModeUtils.ts';
+// 布局顺序的唯一权威表（cycle-84 收敛，原先此处有第 2 份副本 `LAYOUT_CYCLE`）。
+import { LAYOUT_ORDER } from '../../shared/viewModeUtils.ts';
 
 const log = scoped('client');
-
-/** 命令面板可循环切换的布局顺序（与工具栏的布局下拉保持同一集合）。 */
-const LAYOUT_CYCLE: LayoutType[] = ['cose', 'fcose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
 
 /**
  * 把本插件的五个动作贡献为 DSH 的**客户端斜杠命令**。
@@ -96,9 +94,9 @@ export function integrateCommandUi(state: IntegrationState): void {
         () => {
           state.openSidebarTab();
           const store = useGraphStore.getState();
-          const currentIdx = LAYOUT_CYCLE.indexOf(store.layout);
-          const nextIdx = currentIdx >= 0 ? (currentIdx + 1) % LAYOUT_CYCLE.length : 0;
-          store.setLayout(LAYOUT_CYCLE[nextIdx] ?? 'cose');
+          const currentIdx = LAYOUT_ORDER.indexOf(store.layout);
+          const nextIdx = currentIdx >= 0 ? (currentIdx + 1) % LAYOUT_ORDER.length : 0;
+          store.setLayout(LAYOUT_ORDER[nextIdx] ?? 'cose');
         },
         'codegraph: command layout',
       );

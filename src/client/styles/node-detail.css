@@ -439,6 +439,55 @@
   margin-top: 4px;
 }
 
+/* 预算出口按钮（展开更多 / 收起已展开 / 只看调用链 / 展开全部）。
+   依据 docs/图谱按需加载.md 第五节「提供入口」与风险 8「UI 必须明确不是数据没有」。 */
+.cg-node-detail-panel .cg-detail-budget-actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.cg-node-detail-panel .cg-detail-budget-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cg-node-detail-panel .cg-detail-budget-btn--wide {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.cg-node-detail-panel .cg-detail-budget-btn--danger {
+  border-color: color-mix(in srgb, var(--cg-warning) 45%, transparent);
+  background: color-mix(in srgb, var(--cg-warning) 15%, transparent);
+  color: var(--cg-warning);
+  font-weight: 600;
+}
+
+.cg-node-detail-panel .cg-detail-budget-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.cg-node-detail-panel .cg-detail-budget-confirm {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--cg-warning) 40%, transparent);
+  border-radius: var(--cg-radius-xs);
+  background: color-mix(in srgb, var(--cg-warning) 10%, transparent);
+}
+
+.cg-node-detail-panel .cg-detail-budget-warning {
+  display: block;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--cg-warning);
+}
+
 .cg-node-detail-panel .cg-detail-micro-hint {
   margin-top: 8px;
   padding: 6px 10px;

@@ -532,6 +532,115 @@ describe('NodeDetail component', () => {
     expect(chainBtn).toBeNull();
   });
 
+  // --- Scenario 8b: Function body budget action entries (P1-2) ---
+  // docs/图谱按需加载.md 第五节要求预算区提供「展开更多 / 只看调用链 / 展开全部」入口。
+  // 这些用例覆盖三个出口各自触发的 store 动作，以及「展开全部」的二次确认门。
+  const fnA = makeNode({ id: NodeId('fn-a'), label: 'fnA', type: 'function' });
+  const fnB = makeNode({ id: NodeId('fn-b'), label: 'fnB', type: 'function' });
+
+  it('renders the budget action buttons for a function node', () => {
+    useGraphStore.setState({ rawNodes: [fnA, fnB], rawEdges: [], expandedNodeIds: new Set(), pinnedIds: new Set() });
+    render(<NodeDetail node={fnA} onClose={noop} onSelectFunction={noop} onHighlightCallChain={noop} />);
+
+    expect(screen.getByText('展开更多')).toBeTruthy();
+    expect(screen.getByText('收起已展开')).toBeTruthy();
+    expect(screen.getByText('只看调用链')).toBeTruthy();
+    expect(screen.getByText('展开全部函数体')).toBeTruthy();
+  });
+
+  it('calls expandNode with the first collapsed candidate when 展开更多 is clicked', async () => {
+    const user = userEvent.setup();
+    const expandNode = vi.spyOn(useGraphStore.getState(), 'expandNode').mockImplementation(() => {});
+    useGraphStore.setState({ rawNodes: [fnA, fnB], rawEdges: [], expandedNodeIds: new Set(), pinnedIds: new Set() });
+    render(<NodeDetail node={fnA} onClose={noop} onSelectFunction={noop} />);
+
+    await user.click(screen.getByText('展开更多'));
+    expect(expandNode).toHaveBeenCalledWith('fn-a');
+  });
+
+  it('disables 展开更多 when every candidate is already expanded', () => {
+    useGraphStore.setState({ rawNodes: [fnA], rawEdges: [], expandedNodeIds: new Set(['fn-a']), pinnedIds: new Set() });
+    render(<NodeDetail node={fnA} onClose={noop} onSelectFunction={noop} />);
+
+    expect((screen.getByText('展开更多') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('requires a second confirmation before pinning and batch-expanding every candidate', async () => {
+    const user = userEvent.setup();
+    const pinNode = vi.spyOn(useGraphStore.getState(), 'pinNode').mockImplementation(() => {});
+    const batchExpandNodes = vi.spyOn(useGraphStore.getState(), 'batchExpandNodes').mockImplementation(() => {});
+    useGraphStore.setState({ rawNodes: [fnA, fnB], rawEdges: [], expandedNodeIds: new Set(), pinnedIds: new Set() });
+    render(<NodeDetail node={fnA} onClose={noop} onSelectFunction={noop} />);
+
+    // First click only opens the inline confirmation; nothing is pinned yet.
+    await user.click(screen.getByText('展开全部函数体'));
+    expect(pinNode).not.toHaveBeenCalled();
+    expect(batchExpandNodes).not.toHaveBeenCalled();
+    expect(document.querySelector('.cg-detail-budget-confirm')).toBeTruthy();
+
+    await user.click(screen.getByText('确认展开'));
+    expect(pinNode).toHaveBeenCalledWith('fn-a');
+    expect(pinNode).toHaveBeenCalledWith('fn-b');
+    expect(batchExpandNodes).toHaveBeenCalledWith(['fn-a', 'fn-b']);
+    expect(document.querySelector('.cg-detail-budget-confirm')).toBeNull();
+  });
+
+  it('cancels the expand-all confirmation without touching the store', async () => {
+    const user = userEvent.setup();
+    const pinNode = vi.spyOn(useGraphStore.getState(), 'pinNode').mockImplementation(() => {});
+    useGraphStore.setState({ rawNodes: [fnA], rawEdges: [], expandedNodeIds: new Set(), pinnedIds: new Set() });
+    render(<NodeDetail node={fnA} onClose={noop} onSelectFunction={noop} />);
+
+    await user.click(screen.getByText('展开全部函数体'));
+    await user.click(screen.getByText('取消'));
+
+    expect(pinNode).not.toHaveBeenCalled();
+    expect(document.querySelector('.cg-detail-budget-confirm')).toBeNull();
+    expect(screen.getByText('展开全部函数体')).toBeTruthy();
+  });
+
+  it('unpins then collapses every expanded candidate', async () => {
+    const user = userEvent.setup();
+    const unpinNode = vi.spyOn(useGraphStore.getState(), 'unpinNode').mockImplementation(() => {});
+    const collapseNode = vi.spyOn(useGraphStore.getState(), 'collapseNode').mockImplementation(() => {});
+    useGraphStore.setState({
+      rawNodes: [fnA, fnB],
+      rawEdges: [],
+      expandedNodeIds: new Set(['fn-a', 'fn-b']),
+      pinnedIds: new Set(['fn-a']),
+    });
+    render(<NodeDetail node={fnA} onClose={noop} onSelectFunction={noop} />);
+
+    await user.click(screen.getByText('收起已展开'));
+
+    expect(unpinNode.mock.calls.map((c) => c[0])).toEqual(['fn-a', 'fn-b']);
+    expect(collapseNode.mock.calls.map((c) => c[0])).toEqual(['fn-a', 'fn-b']);
+  });
+
+  it('disables 收起已展开 when nothing is expanded', () => {
+    useGraphStore.setState({ rawNodes: [fnA], rawEdges: [], expandedNodeIds: new Set(), pinnedIds: new Set() });
+    render(<NodeDetail node={fnA} onClose={noop} onSelectFunction={noop} />);
+
+    expect((screen.getByText('收起已展开') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('calls onHighlightCallChain with the node id when 只看调用链 is clicked', async () => {
+    const user = userEvent.setup();
+    const onHighlightCallChain = vi.fn();
+    useGraphStore.setState({ rawNodes: [fnA], rawEdges: [], expandedNodeIds: new Set(), pinnedIds: new Set() });
+    render(<NodeDetail node={fnA} onClose={noop} onSelectFunction={noop} onHighlightCallChain={onHighlightCallChain} />);
+
+    await user.click(screen.getByText('只看调用链'));
+    expect(onHighlightCallChain).toHaveBeenCalledWith('fn-a');
+  });
+
+  it('does not render 只看调用链 when onHighlightCallChain is not provided', () => {
+    useGraphStore.setState({ rawNodes: [fnA], rawEdges: [], expandedNodeIds: new Set(), pinnedIds: new Set() });
+    render(<NodeDetail node={fnA} onClose={noop} onSelectFunction={noop} />);
+
+    expect(screen.queryByText('只看调用链')).toBeNull();
+  });
+
   // --- Scenario 9: Connection count display ---
   it('shows connection count when connectionCount > 0', () => {
     const node = makeNode();

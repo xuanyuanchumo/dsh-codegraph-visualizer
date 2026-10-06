@@ -49,6 +49,7 @@ import { scoped } from '../shared/Logger.ts';
 import { DOM_EVENTS } from '../shared/domEvents.ts';
 import { dispatchCgEvent } from './utils/cgEvents.ts';
 import { UI, FUNCTION_BODY } from '../shared/constants.ts';
+import { getAvailablePanels, getViewLayer } from '../shared/viewModeUtils.ts';
 
 
 import { useT } from './i18n/index.ts';
@@ -269,6 +270,23 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
     rawHandleSelectFunction(nodeId, filePath, functionName, mode);
   }, [rawHandleSelectFunction]);
 
+  // NodeDetail 预算区的「只看调用链」与右键菜单的「高亮调用链」共用这一条轻通路：
+  // 只让渲染器高亮，不改 viewMode、不重建子图。刻意不走 handleAggregateCallChain，
+  // 因为那条通路会调 assembleMultiFunction 并把视图强制切到 'cfg'，与「只看」语义不符。
+  //
+  // 为什么必须按层判断再置位：useViewModePanelGuard 会在当前层不提供该面板时把
+  // showCallChain 立刻改回 false，随后 useGraphRenderer 的 [showCallChain, selectedNodeId]
+  // effect 会以 false 调 highlightCallChain(null)，把刚加上的高亮抹掉 —— 这正是
+  // 默认 code 视图（structural 层，STRUCTURAL_PANELS 不含 showCallChain）下
+  // 「高亮调用链」点了没反应的原因。因此仅在当前层确实提供该面板时才置位，
+  // 否则只做一次性高亮（不置位就没有后续渲染，高亮得以保留）。
+  const handleHighlightCallChain = useCallback((nodeId: string) => {
+    if (getAvailablePanels(getViewLayer(viewMode)).has('showCallChain')) {
+      panel.setShowCallChain(true);
+    }
+    renderer.rendererRef.current?.highlightCallChain(NodeId(nodeId));
+  }, [panel, renderer.rendererRef, viewMode]);
+
   useViewModePanelGuard({ viewMode, setFocusNodeId, panel });
 
   const handleRefresh = useCallback(() => {
@@ -394,6 +412,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
         onCollapseNode={(id) => collapseNode(id)}
         onSelectFunction={(node, mode) => handleSelectFunction(node.id, node.filePath, node.label, mode)}
         onAggregateCallChain={handleAggregateCallChain}
+        onHighlightCallChain={handleHighlightCallChain}
         viewMode={viewMode} currentWorkspace={currentWorkspace}
         prerequisites={prerequisites} initStatus={initStatus} watchEnabled={watchEnabled}
         onSetGraphData={setGraphData} onSetLoading={setLoading} onSetError={setError}
@@ -524,7 +543,7 @@ function GraphPanelInner({ className = '' }: GraphPanelProps) {
           onExpandNode={(id) => { expandNode(id); }}
           onCollapseNode={(id) => { collapseNode(id); }}
           onFindPath={(id) => { panel.setShowPathFind(true); useGraphStore.getState().setPathStart(NodeId(id)); }}
-          onHighlightCallChain={(id) => { panel.setShowCallChain(true); renderer.rendererRef.current?.highlightCallChain(NodeId(id)); }}
+          onHighlightCallChain={handleHighlightCallChain}
           onHighlightImpact={(id) => { panel.setShowImpact(true); renderer.rendererRef.current?.highlightImpact(NodeId(id)); }}
           onOpenSource={(id) => {
             const data = getDataRef.current?.getNodeData(id);

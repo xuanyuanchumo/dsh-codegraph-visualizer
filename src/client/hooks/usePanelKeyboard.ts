@@ -2,6 +2,8 @@ import { useRef } from 'react';
 import { useKeyboardShortcut } from './useKeyboardShortcut.ts';
 import type { LayoutType } from '../renderer/IRenderer.ts';
 import type { IRenderer } from '../renderer/IRenderer.ts';
+// 布局顺序的唯一权威表（cycle-84 收敛，原先此处有第 4 份副本）。
+import { LAYOUT_ORDER } from '../../shared/viewModeUtils.ts';
 
 export interface PanelKeyboardHandlers {
   onToggleSearch: () => void;
@@ -85,9 +87,9 @@ export function usePanelKeyboard(
   useKeyboardShortcut('m', () => handlersRef.current.onToggleMiniMap(), { ctrl: true });
   useKeyboardShortcut('l', () => {
     const cur = layoutRef.current;
-    const order: LayoutType[] = ['cose', 'fcose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
-    const idx = order.indexOf(cur);
-    const next = order[(idx + 1) % order.length]!;
+    // 原先此处有第 4 份布局顺序副本（cycle-84 收敛到 `LAYOUT_ORDER`）。
+    const idx = LAYOUT_ORDER.indexOf(cur);
+    const next = LAYOUT_ORDER[(idx + 1) % LAYOUT_ORDER.length]!;
     setLayoutRef.current(next);
   }, { ctrl: true });
   useKeyboardShortcut('i', () => handlersRef.current.onToggleImport(), { ctrl: true });

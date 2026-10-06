@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import type { GraphState } from './types.ts';
 import type { LayoutType } from '../../shared/viewModeUtils.ts';
+import { LAYOUT_ORDER } from '../../shared/viewModeUtils.ts';
 import {
   internals, registerStoreGetter, diagramCache, clusterCache,
   invalidateExpandCostCache, clearLoadingFailsafe, abortAllControllers,
@@ -102,7 +103,8 @@ export const useGraphStore = create<GraphState>()(
       migrate: (persisted, version) => {
         const p = persisted as Partial<GraphState>;
         const layout = p.layout;
-        const valid: LayoutType[] = ['cose', 'fcose', 'dagre', 'circle', 'grid', 'radial', 'tree'];
+        // 原先此处有第 3 份布局顺序副本（cycle-84 收敛到 `LAYOUT_ORDER`）。
+        const valid = LAYOUT_ORDER as readonly LayoutType[];
         const result: Partial<GraphState> = {
           ...p,
           layout: valid.includes(layout as LayoutType) ? (layout as LayoutType) : 'cose',

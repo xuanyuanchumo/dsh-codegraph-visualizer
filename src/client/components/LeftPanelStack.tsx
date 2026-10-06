@@ -32,6 +32,11 @@ interface LeftPanelStackProps {
   onCollapseNode: (id: string) => void;
   onSelectFunction: (node: GraphNode | ClusterNode, mode: 'cfg' | 'flowchart' | 'sequence') => void;
   onAggregateCallChain: (nodeId: string) => void;
+  /**
+   * 「只看调用链」轻通路：只让渲染器高亮调用链，不切换视图。
+   * 由 GraphPanel 注入，因为高亮需要 rendererRef（渲染器实例只在面板内可见）。
+   */
+  onHighlightCallChain: (nodeId: string) => void;
   viewMode: ViewMode;
   currentWorkspace: string;
   prerequisites: { codegraph: boolean; lens: boolean };
@@ -77,7 +82,8 @@ export function LeftPanelStack(props: LeftPanelStackProps) {
         connectionCount={(props.adjacencyMap.get(props.selectedNodeData.id)?.in ?? 0) + (props.adjacencyMap.get(props.selectedNodeData.id)?.out ?? 0)}
         onCollapse={() => props.selectedNodeData && props.onCollapseNode(props.selectedNodeData.id)}
         onSelectFunction={(node, mode) => props.onSelectFunction(node, mode)}
-        onAggregateCallChain={props.onAggregateCallChain} /> : null,
+        onAggregateCallChain={props.onAggregateCallChain}
+        onHighlightCallChain={props.onHighlightCallChain} /> : null,
     },
     {
       visible: panel.showLegend,

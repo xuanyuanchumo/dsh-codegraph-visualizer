@@ -71,13 +71,25 @@ export function computeMaxVisible(panelWidth: number | null | undefined): number
     : CLUSTER.MAX_VISIBLE_NODES;
 }
 
+/**
+ * 函数体展开预算：同一时刻最多保留 maxExpanded 个函数体处于展开态。
+ *
+ * 驱逐顺序 = `expanded` 的插入顺序，即「最早展开的先折叠」，与
+ * docs/图谱按需加载.md 第五节的「按需替换」一致。
+ *
+ * `pinnedIds` 中的节点豁免驱逐：pin 在别处已经表示「用户显式要求常驻」
+ * （collapseNode / collapseAll 都跳过 pinned），预算若不认这一点，就会出现
+ * 「刚 pin 完就被预算折叠」的自相矛盾。「展开全部」正是靠 pin + 豁免把
+ * 用户显式确认过的批量展开固定下来。
+ */
 export function enforceFunctionBodyBudget(
   expanded: Set<string>,
   rawNodes: GraphNode[],
   maxExpanded: number,
+  pinnedIds?: ReadonlySet<string>,
 ): void {
   const functionIdSet = new Set(rawNodes.filter(n => n.type === 'function').map(n => n.id as string));
-  const expandedFunctionBodies = [...expanded].filter(id => functionIdSet.has(id));
+  const expandedFunctionBodies = [...expanded].filter(id => functionIdSet.has(id) && !pinnedIds?.has(id));
   while (expandedFunctionBodies.length > maxExpanded) {
     const oldest = expandedFunctionBodies.shift()!;
     expanded.delete(oldest);

@@ -1898,6 +1898,45 @@ describe('GraphPanel context menu callback tests', () => {
     fireEvent.click(items[itemIndex]!);
   }
 
+  // 稳定的 panelState 替身：默认 mock 每次调用都返回新对象，若用 mock.results[0]
+  // 取到的实例可能与点击时实际使用的那一个不同，断言会假阴性。
+  function makePanelStateForLayerTests() {
+    return {
+      showImport: false, showSearch: false, showLegend: false, showMiniMap: false,
+      showFilterPanel: false, showPathFind: false, showHealthScore: false,
+      showRules: false, showCallChain: false, showImpact: false, showCycles: false,
+      showHotspot: false, showGodModule: false, showCoreFunction: false,
+      showInheritance: false, cycleIsolation: false, showDeadCode: false, showTour: false,
+      collapsed: false, isCollapsed: false,
+      toPanelControls: {
+        showImport: false, showSearch: false, showLegend: false, showMiniMap: false,
+        showFilterPanel: false, showPathFind: false, showHealthScore: false,
+        showRules: false, showCallChain: false, showImpact: false, showCycles: false,
+        cycleIsolation: false, showInheritance: false, showHotspot: false,
+        showGodModule: false, showCoreFunction: false, showDeadCode: false, showTour: false,
+        onToggleSearch: vi.fn(), onToggleCallChain: vi.fn(), onToggleCycles: vi.fn(),
+        onToggleCycleIsolation: vi.fn(), onToggleImpact: vi.fn(), onToggleInheritance: vi.fn(),
+        onToggleMiniMap: vi.fn(), onToggleLegend: vi.fn(), onToggleImport: vi.fn(),
+        onTogglePathFind: vi.fn(), onToggleHealthScore: vi.fn(), onToggleRules: vi.fn(),
+        onToggleHotspot: vi.fn(), onToggleGodModule: vi.fn(), onToggleCoreFunction: vi.fn(),
+        onToggleDeadCode: vi.fn(), onToggleFilterPanel: vi.fn(), onToggleTour: vi.fn(),
+      },
+      setShowImport: vi.fn(), setShowSearch: vi.fn(), setShowLegend: vi.fn(),
+      setShowMiniMap: vi.fn(), setShowFilterPanel: vi.fn(), setShowPathFind: vi.fn(),
+      setShowHealthScore: vi.fn(), setShowRules: vi.fn(), setShowCallChain: vi.fn(),
+      setShowImpact: vi.fn(), setShowCycles: vi.fn(), setShowHotspot: vi.fn(),
+      setShowGodModule: vi.fn(), setShowCoreFunction: vi.fn(), setShowDeadCode: vi.fn(),
+      setShowCycleIsolation: vi.fn(), setShowInheritance: vi.fn(), setShowTour: vi.fn(),
+      toggleCollapsed: vi.fn(), toggleCollapse: vi.fn(),
+      toggleSearch: vi.fn(), toggleCycles: vi.fn(), toggleCycleIsolation: vi.fn(),
+      toggleCallChain: vi.fn(), toggleImpact: vi.fn(), toggleInheritance: vi.fn(),
+      toggleMiniMap: vi.fn(), toggleImport: vi.fn(), toggleLegend: vi.fn(),
+      togglePathFind: vi.fn(), toggleHealthScore: vi.fn(), toggleRules: vi.fn(),
+      toggleHotspot: vi.fn(), toggleGodModule: vi.fn(), toggleCoreFunction: vi.fn(),
+      toggleFilterPanel: vi.fn(), toggleTour: vi.fn(), closeAll: vi.fn(),
+    };
+  }
+
   it('onFocusNode: calls renderer.focusOnNode and selectNode', async () => {
     const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
     const nodeData = { id: 'n1', label: 'myFunc', type: 'function', filePath: '/test.ts', lineNumber: 5 };
@@ -2029,6 +2068,46 @@ describe('GraphPanel context menu callback tests', () => {
     expect(callChainBtn).toBeTruthy();
     fireEvent.click(callChainBtn!);
     expect(mockRenderer.highlightCallChain).toHaveBeenCalled();
+  });
+
+  it('onHighlightCallChain: in the structural layer highlights without persisting the panel flag', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const nodeData = { id: 'n1', label: 'myFunc', type: 'function', filePath: '/test.ts', lineNumber: 5 };
+    const mockRenderer = createMockRenderer(new Map([['n1', nodeData]]), new Map());
+    setupRendererMockWithCallbacks(mockRenderer);
+    const panelState = makePanelStateForLayerTests();
+    vi.mocked(usePanelState).mockReturnValue(panelState as any);
+
+    useGraphStore.setState({ viewMode: 'code' });
+    const { container } = render(React.createElement(GraphPanel));
+    const menu = openContextMenu(container);
+    const items = menu!.querySelectorAll('.cg-context-menu-item');
+    const callChainBtn = Array.from(items).find((btn) => btn.textContent === 'contextMenu.callChain');
+    fireEvent.click(callChainBtn!);
+
+    expect(mockRenderer.highlightCallChain).toHaveBeenCalledWith('n1');
+    // structural 层不提供 showCallChain：置位会被 useViewModePanelGuard 立刻回滚并抹掉高亮。
+    expect(panelState.setShowCallChain).not.toHaveBeenCalled();
+  });
+
+  it('onHighlightCallChain: in the behavioral layer also persists the panel flag', async () => {
+    const { GraphPanel } = await import('../../src/client/GraphPanel.tsx');
+    const nodeData = { id: 'n1', label: 'myFunc', type: 'function', filePath: '/test.ts', lineNumber: 5 };
+    const mockRenderer = createMockRenderer(new Map([['n1', nodeData]]), new Map());
+    setupRendererMockWithCallbacks(mockRenderer);
+    const panelState = makePanelStateForLayerTests();
+    vi.mocked(usePanelState).mockReturnValue(panelState as any);
+
+    useGraphStore.setState({ viewMode: 'callgraph' });
+    const { container } = render(React.createElement(GraphPanel));
+    const menu = openContextMenu(container);
+    const items = menu!.querySelectorAll('.cg-context-menu-item');
+    const callChainBtn = Array.from(items).find((btn) => btn.textContent === 'contextMenu.callChain');
+    fireEvent.click(callChainBtn!);
+
+    expect(mockRenderer.highlightCallChain).toHaveBeenCalledWith('n1');
+    // behavioral 层提供该面板：置位后由 useGraphRenderer 的 effect 维持持久高亮。
+    expect(panelState.setShowCallChain).toHaveBeenCalledWith(true);
   });
 
   it('onHighlightImpact: opens impact panel and calls renderer', async () => {

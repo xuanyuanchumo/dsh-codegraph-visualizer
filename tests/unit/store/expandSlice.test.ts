@@ -226,6 +226,25 @@ describe('expandSlice', () => {
       expect(mocks.fetchSymbolAST).toHaveBeenCalledTimes(1);
     });
 
+    // 「展开全部」pin 住的那批函数体不能被随后任意一次单点展开驱逐。
+    it('does not evict pinned function bodies on a single expand', () => {
+      const fn1 = fnNode('fn1', 'function');
+      const fn2 = fnNode('fn2', 'function');
+      const fn3 = fnNode('fn3', 'function');
+      const h = makeSlice({
+        rawNodes: [fn1, fn2, fn3],
+        expandedNodeIds: new Set(['fn1', 'fn2']),
+        pinnedIds: new Set(['fn1', 'fn2']),
+      });
+
+      h.slice.expandNode('fn3');
+
+      const newExpanded = mocks.reclusterWith.mock.calls[0]![2] as Set<string>;
+      expect(newExpanded.has('fn1')).toBe(true);
+      expect(newExpanded.has('fn2')).toBe(true);
+      expect(newExpanded.has('fn3')).toBe(true);
+    });
+
     it('warns when expand cost exceeds CLUSTER.EXPAND_BUDGET_SINGLE', () => {
       const node = fnNode('big', 'module');
       mocks.estimateExpandCost.mockReturnValue(CLUSTER.EXPAND_BUDGET_SINGLE + 1);
@@ -397,6 +416,25 @@ describe('expandSlice', () => {
       // effective = {fn1, fn2, fn3}, evict to 2 => removes oldest fn1.
       const newExpanded = mocks.reclusterWith.mock.calls[0]![2] as Set<string>;
       expect(newExpanded.has('fn1')).toBe(false);
+      expect(newExpanded.has('fn2')).toBe(true);
+      expect(newExpanded.has('fn3')).toBe(true);
+    });
+
+    // NodeDetail「展开全部」= 先 pinNode 再 batchExpandNodes；这条用例锁住该组合的语义。
+    it('keeps pinned functions expanded even beyond the budget', () => {
+      const fn1 = fnNode('fn1', 'function');
+      const fn2 = fnNode('fn2', 'function');
+      const fn3 = fnNode('fn3', 'function');
+      const h = makeSlice({
+        rawNodes: [fn1, fn2, fn3],
+        expandedNodeIds: new Set(),
+        pinnedIds: new Set(['fn1', 'fn2', 'fn3']),
+      });
+
+      h.slice.batchExpandNodes(['fn1', 'fn2', 'fn3']);
+
+      const newExpanded = mocks.reclusterWith.mock.calls[0]![2] as Set<string>;
+      expect(newExpanded.has('fn1')).toBe(true);
       expect(newExpanded.has('fn2')).toBe(true);
       expect(newExpanded.has('fn3')).toBe(true);
     });
@@ -824,6 +862,19 @@ describe('expandSlice', () => {
       enforceFunctionBodyBudget(expanded, fns, 1);
       expect(expanded.has('f1')).toBe(false);
       expect(expanded.has('f2')).toBe(false);
+      expect(expanded.has('f3')).toBe(true);
+    });
+
+    // pinnedIds 豁免是「展开全部」的承重前提：NodeDetail 先 pin 再批量展开，
+    // 若预算不认 pinned，用户显式确认过的批量展开会被立刻折回 MAX_EXPANDED 个。
+    it('enforceFunctionBodyBudget spares pinned function bodies', () => {
+      const fns = [fnNode('f1', 'function'), fnNode('f2', 'function'), fnNode('f3', 'function')];
+      const expanded = new Set(['f1', 'f2', 'f3']);
+      enforceFunctionBodyBudget(expanded, fns, 1, new Set(['f1', 'f2']));
+      // f1/f2 are pinned, so only the unpinned f3 is eligible for eviction — and it
+      // is the only candidate left, so it stays even though the budget is exceeded.
+      expect(expanded.has('f1')).toBe(true);
+      expect(expanded.has('f2')).toBe(true);
       expect(expanded.has('f3')).toBe(true);
     });
 
