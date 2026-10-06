@@ -251,7 +251,43 @@
       "timestamp": "2026-10-06T10:32:47.026Z",
       "previousHash": "a4f20bc8ec2698a8c7551204a6c66d09c73bc8af24d17da7ad6bc587c86935c0",
       "hash": "6ec8ed1e0b154e0b63fee331eb9e190ff371e365d1f4854b65df6d59ab8d1aa3"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "cycle-85: 项目评估报告.md（8 层分层摘要 + E1-E8 维度表 + P0-P3 清单 + 12 条事实基座抽验全部真实存在：docs/图谱按需加载.md:152-156 逐字验收 / :264 验收行 / SYMBOL_AST 800+1500 / 修复前 4 键 vs 修复后 6 键真机对照 / readSymbolASTFromDb 不接受 budget / edgeRequestSeq 同构范式 / emptyEdgeState 五处展开 / partialize 白名单不含 astPageByNodeId / perf-gate length 口径 / 真机 astPageByNodeId 800/1200 / 真机续取 cursor=800 / 插件 CSS 153961B）+ 范围声明 4 条（P1-3 死路 / P2-4 半在上游 / §4 三项文档缺口 / sourceLines 恒空）",
+      "timestamp": "2026-10-06T11:09:02.586Z",
+      "previousHash": "6ec8ed1e0b154e0b63fee331eb9e190ff371e365d1f4854b65df6d59ab8d1aa3",
+      "hash": "37e843bdd77d254fe338b1c88e4b5fe9cecdc941140e36c0e0083742fe5a4c19"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "cycle-85: 任务清单.md T21-1..T21-25 全部完成（P0：服务端 cursor 入参+三字段出参两条路径同改/客户端 SymbolASTData 增字段+缺字段退化/AstPageInfo+astPageByNodeId+loadMoreAst+recordAstPage/emptyEdgeState 扩容/UI 披露块+分段加载按钮/17 条新用例/变异探针×2/真机验证；P1：astRequestSeq 独立令牌/缓存分支与写缓存收紧；P2：i18n 3 键 zh+en/CSS 2 块；P3：中文注释/八件套+账本+docs 三处+CLAUDE.md）；19 条流转项均写明去向（P1-R21-03 边聚合死路 / P2-R21-01 增量索引半在上游 / P3-R21-02 视觉基线 / P3-R21-03 发布清单 / P3-R21-04 性能预算 / P3-R21-05 sourceLines 恒空 / P3-R21-06 DB 未下推分页 / P3-R21-07 真机无索引 / P3-R20-01 / P1-R19-03 / P3-R19-01 / P3-R17-01 / P0-6 / P3-R14-01 / P3-R18-02 / host data 单槽 / 对齐报告 §4 / objective #2 #4 #5 #6 余项）",
+      "timestamp": "2026-10-06T11:09:08.588Z",
+      "previousHash": "37e843bdd77d254fe338b1c88e4b5fe9cecdc941140e36c0e0083742fe5a4c19",
+      "hash": "4917b563a748c849fd48ccdb40e2c165dd23c5aab45f8a25f89c531abc9259fe"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "cycle-85: 188 files / 5133 tests passed（cycle-84 为 188/5116，净 +17 用例；0 failed）；typecheck host+client+test exit 0；lint Found 0 warnings and 0 errors（245 files / 103 rules）；E2E smoke 57 passed / 0 failed（3.1m，exit 0）；两组变异探针均红（服务端 slice(cursor,cursor+budget)->slice(0,budget) -> Tests 1 failed | 3 passed | 173 skipped (177)，失败点 routes.test.ts:2575 的 expect(secondBody.cursor).toBe(3)；客户端 hasMore:data.hasMore===true -> hasMore:false -> Tests 2 failed | 135 passed (137)）；真机 J0 16 项观测全部符合预期（/ast 响应键 4->6、cursor 回显、负数夹紧、披露文案逐字、续取 URL 带 &cursor=800、折叠消失、rawNodes 1202、CSS 153961B、本插件零 console error）",
+      "timestamp": "2026-10-06T11:09:13.753Z",
+      "previousHash": "4917b563a748c849fd48ccdb40e2c165dd23c5aab45f8a25f89c531abc9259fe",
+      "hash": "35fb408bdc6e7b8c41b4acbc03ebcc2b95b8b22cb4a14cff21c0cfbb8e591e78"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "cycle-85: build exit 0（dist/client.js 2520660 B vs cycle-84 2516351 B = +4310 B/+0.17%；index.js 205420 B +326；index.esm.js 2354329 B +3854；index.css 160671 B +730；layout worker 1527487 B 不变）；hygiene exit 0（单独运行，未与 build 并行；19 artefacts / 7 roots、payload 11.52 MB、no stale hashed chunks 4/12、无中间产物发布）；perf-gate 全 PASS（client 2.42MB/3MB、host 201KB/512KB、tests 5133/4463）；真机插件 CSS 153961 B 且含 cg-detail-ast-fold/cg-detail-ast-fold-text 两条新选择器",
+      "timestamp": "2026-10-06T11:09:18.942Z",
+      "previousHash": "35fb408bdc6e7b8c41b4acbc03ebcc2b95b8b22cb4a14cff21c0cfbb8e591e78",
+      "hash": "b3239c05bde1df95901b99af42436bb8506d7ed73a7d8d63137ede44538e6fed"
     }
   ],
-  "chainHead": "6ec8ed1e0b154e0b63fee331eb9e190ff371e365d1f4854b65df6d59ab8d1aa3"
+  "chainHead": "b3239c05bde1df95901b99af42436bb8506d7ed73a7d8d63137ede44538e6fed"
 }

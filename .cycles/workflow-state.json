@@ -1,7 +1,12 @@
 {
   "currentPhase": "complete",
-  "currentCycle": "cycle-84",
+  "currentCycle": "cycle-85",
   "phaseHistory": [
+    {
+      "cycle": "cycle-85",
+      "phase": "complete",
+      "result": "P1-1 单符号 AST 节点预算分页与折叠披露（objective #2 主线）： (a) 缺口定位：docs/图谱按需加载.md:155 逐字要求「超限时显示\"该函数过大，已折叠为摘要 / 分段加载\"」，但信息在三层各丢一次——服务端 src/host/routes/dataRoutes.ts 只按 budget 截断、不返回 total/cursor/hasMore 且不接受 cursor 入参；客户端 src/client/api/index.ts:244-248 的 SymbolASTData 无 hasMore 字段（服务端返回也会被丢弃）；src/client/store/slices/expandSlice.ts:20-34 truncateAstData 二次静默切片且只 log.warn；src/client/components/NodeDetail.tsx 零披露（全仓 grep 分段加载 在 src/ 命中 0）。用户侧表现为函数过大时既看不到提示也拿不回被折叠部分，任何单层修复都无效。 (b) 修法（三层同修）：服务端 dataRoutes.ts:329-374 增 cursor 入参（Math.max(parseInt(...) || 0, 0) 夹紧负数与 NaN）、budget 经 Math.min(..., SYMBOL_AST.MAX_NODES) 上限夹紧，DB-first 与内存回退两条路径统一 slice(cursor, cursor + budget) + nextCursor + hasMore，响应体统一含 total/cursor/hasMore，空态统一 {total:0,cursor:0,hasMore:false}；客户端 api/index.ts:244-279 的 SymbolASTData 增三字段、fetchSymbolAST 增第 4 参 cursor（仅 cursor>0 下发）、缺字段退化为「本页即全部」（hasMore: data.hasMore === true）；状态层新增 AstPageInfo（store/types.ts:20）、astPageByNodeId（:109）、loadMoreAst（:222）、模块级 recordAstPage，internals.astRequestSeq 作独立请求令牌，emptyEdgeState()（edgeSlice.ts:20-37）扩容含 astPageByNodeId 从而随图替换自动清空（被 graphDataSlice.ts:92/118/190/204/279 五处展开）；UI 新增 .cg-detail-ast-fold 披露块（role=status aria-live=polite）+ 「分段加载」按钮 + i18n 3 键（zh/en）+ CSS 2 块。 (c) 四条决定性判断：服务端必须同时给 cursor 入参与 hasMore 出参（只做其一无效）且两条数据路径都改；缺字段必须退化为「本页即全部」而非 hasMore:true（假承诺比不显示更糟）；分段加载不能复用 expandGeneration 作归属判据（它在普通 expand/collapse 时也前进，expandSlice.ts:93），必须用独立单调令牌；分页结果不写缓存（否则首页命中缓存后 hasMore 永不重算，用户永久失去被折叠部分），setAST 条件收紧为 !data.hasMore && cursor === 0。 (d) 门禁：typecheck exit 0；lint Found 0 warnings and 0 errors（245 files / 103 rules）；test 188 files / 5133 tests passed（cycle-84 为 188/5116，净 +17 用例）；build exit 0（dist/client.js 2520660 B vs cycle-84 2516351 B = +4310 B/+0.17%；index.js 205420 B；index.esm.js 2354329 B；index.css 160671 B；layout worker 1527487 B 不变）；hygiene exit 0（单独跑，19 artefacts / 7 roots、payload 11.52 MB、no stale hashed chunks 4/12）；perf-gate 全 PASS（client 2.42MB/3MB、host 201KB/512KB、tests 5133/4463）；E2E smoke 57 passed（3.1m，exit 0）。 (e) 两组变异探针均红：服务端 slice(cursor, cursor + budget) -> slice(0, budget) 报 Tests 1 failed | 3 passed | 173 skipped (177)（失败点 tests/unit/routes.test.ts:2575 的 expect(secondBody.cursor).toBe(3)）；客户端 hasMore: data.hasMore === true -> hasMore: false 报 Tests 2 failed | 135 passed (137)。 (f) 真机 J0（objective #7）16 项全绿：/ast 响应键修复前 4 -> 修复后 6（[\"astEdges\",\"astNodes\",\"cursor\",\"hasMore\",\"sourceLines\",\"total\"]，改宿主路由后必须 stop + start + reload，仅 rebuild 不够）；?budget=2&cursor=2 -> cursor:2（回显）；?budget=99999&cursor=-3 -> cursor:0（夹紧）；CDP 拦截 window.fetch 造分页数据（cursor 0 -> 800 节点 total 1200/hasMore true；cursor 800 -> 400 节点 hasMore false）后 expandNode(\"fn-a\") 得 astPageByNodeId {loaded:800,total:1200,hasMore:true,cursor:800}、披露文案逐字「该函数过大，已折叠为摘要（已加载 800 / 1200 个 AST 节点）分段加载」；点「分段加载」请求 URL 带 &cursor=800，得 {loaded:1200,total:1200,hasMore:false,cursor:1200}、折叠块消失、rawNodes 1202；插件 CSS 153961 B 含 cg-detail-ast-fold/cg-detail-ast-fold-text；本插件零 console error。 (g) 诚实披露：真机 workspace 无索引（codegraph:false，Windows 降级），分页数据由 CDP 拦截构造而非真实 SQLite；readSymbolASTFromDb 不接受 budget/cursor，服务端在内存切片（超大函数仍是内存峰值点）；sourceLines 恒为 []，SYMBOL_AST.MAX_SOURCE_LINES 未作用于任何 UI 路径；budget 未由客户端下发（固定用服务端默认 800）；视觉/性能/Firefox E2E project 未跑。 (h) 流转：19 条均写明去向，本轮新增 P1-R21-03（跨文件边聚合在 DB-first 下是死路，需三处同改）、P2-R21-01（增量索引解析/写库半在上游）、P3-R21-02/03/04（视觉基线 / 发布清单 / 性能预算）、P3-R21-05（sourceLines 恒空）、P3-R21-06（DB 未下推分页）、P3-R21-07（真机无索引）。 (i) 改动规模：14 files changed, 544 insertions(+), 44 deletions(-)，0 新文件。文档补写 docs/需求分析.md §59.24（+89 行，3787 -> 3876）、docs/测试体系.md §2.ab（+58 行，1119 -> 1177）、CLAUDE.md +6 条 R10 教训（71 -> 77 行）。"
+    },
     {
       "cycle": "cycle-84",
       "phase": "complete",
@@ -195,5 +200,5 @@
   ],
   "nodeStatus": {},
   "createdAt": "2026-09-21T14:25:00.105Z",
-  "updatedAt": "2026-10-06T10:33:48.383Z"
+  "updatedAt": "2026-10-06T11:10:01.797Z"
 }
