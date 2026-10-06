@@ -1,7 +1,12 @@
 {
   "currentPhase": "complete",
-  "currentCycle": "cycle-82",
+  "currentCycle": "cycle-83",
   "phaseHistory": [
+    {
+      "cycle": "cycle-83",
+      "phase": "complete",
+      "result": "P0-R19-01 幻影服务键清除 + P0-R19-02 cordis 严格探测时序缺陷 + P0-R19-03 上游命令目录连坐（objective #3 主线）： (a) 用双向证据（静态 reflect.provide 扫描 + 真实 ctx.get 调用点）裁决三键均为 CONFIRMED NEGATIVE——spotlight 不存在（真实替代 ctx.commandUi，经 Service 基类存在于两代故对静态扫描不可见；契约在 dsh-client-ui-commands/lib/types/client/contract.d.ts:129）、remoteWebUI 不存在（真实名字是宿主侧 remoteWebUiPairing，无面板 API；真实影响只有版面适配，靠 body.dsh-remote-portrait 与 style[data-plugin-css=\"dsh-remote-web-ui/mobile-adapt.css\"] 两个 DOM 标记）、desktopProfiles 不是 cordis 服务（只在 dshmarket 里出现）； (b) 新增 src/client/compat/PlatformProbe.ts（117 行，detectHostPlatform 每次重读 DOM 绝不缓存 + observeHostPlatform 基于 MutationObserver；HostCarrier 刻意不含 linux）、src/client/integrations/CommandUiIntegration.ts（131 行，替代 SpotlightIntegration）、src/client/runtime/PanelEventBridge.ts（36 行，替代 SpotlightBridge）；git rm 删除 SpotlightIntegration/RemoteWebUiIntegration/SpotlightBridge 三个源文件与三个测试文件； (c) 代际判别修正：sidebarRightTabs/documentPreviews/slots 两代都有（dsh-client-ui-slots 的 lib/index.js 两代逐字节相同 SHA256 57E1314E31A2015F30231E1E7596DA658F1BB5CB64C103C4CF13381647412C99，均 23461 B），故 GEN2_ONLY_SERVICES 收敛为 pluginNavigation/userQuestionPanels 两项； (d) P0-R19-02 根因：ctx.get(name) 默认 strict=true 的语义是「提供者 fiber 当前活跃」而非「服务存在」（cordis/lib/index.js:763-772；reflect.d.ts:16），在同步 apply() 里一次性探测会永久杀掉加载稍晚的服务——这正是 5 条斜杠命令全部未注册的原因（slots 加载早故读得到）。修法：存在性判断改 ctx.get(key, false)（ClientCompatLayer/ClientVersionDetector/BetterSidebarIntegration/HostCapabilityProbe 四处，src/host/prerequisites.ts:93 因逐请求重新解析会自愈而保留 strict=true 并写明豁免理由），附加型贡献面改 ctx.inject(['commandUi']) 响应式注入； (e) 主动回退：BetterSidebarIntegration 曾短暂改 ctx.inject 后还原——5 个通道互斥抢占同一 navButtonRegistered，异步会让 fallback 先赢造成优先级反转，故只有附加型非互斥贡献面才可异步； (f) R10 结构性收口：新增 tests/unit/serviceKeyContract.test.ts（324 行 11 用例，3 个 describe），经两次变异探针验证承重——第一次新建 __mutation_probe.ts 含 ctx.get('spotlight') 使守卫红；第二次发现首版正则只匹配字面量键（把 ClientCompatLayer.ts:177 改回 ctx.get(key) 后仍 10 passed），遂把正则扩为 /ctx\\.get\\(\\s*['\"A-Za-z_$][^,)]*\\)/ 并新增反向自检用例把盲点本身变成断言，复测三文件同时回退得 1 failed | 10 passed 并逐字列出三个 offender； (g) 真机复核：顶层标签栏仍为 [对话,轨迹,代码图谱]（须先进入已有会话）；修复后真机 console 新增 [codegraph:client] commandUi contributions registered {count: 5} 证明本插件侧注册生效；但 / 弹层仍零命令，定位到上游 dsh-client-ui-commands 的 session/writer-held 连坐（candidates() 在 lib/client.js:898 await directory.ensureReady 早于 :909-918 合并 live.contributions，:299 的 failed 态粘住不自愈），已排除「环境脏」与「特定会话」两个假说并如实标注未闭环； (h) 文档：新建 docs/research/dsh-多代API规范差异与兼容矩阵.md（391 行 11 节）+ 就地勘误 dsh-upgrade-research-report.md §五整节重写 + docs/需求分析.md 新增 §59.21/§59.22（3645 行）+ docs/测试体系.md 新增 §2.z（1066 行）+ CLAUDE.md 53→65 行（9 条 R10 教训）。 验证：全量 186 文件 / 5087 用例全绿（cycle-82 为 185/5086，净 +1 文件/+1 用例）；typecheck exit 0；lint 0 warnings 0 errors（244 files / 103 rules）；build exit 0（client.js 2523785 B vs 基线 2506859 B = +16926 B/+0.675%；index.js 205094 B vs 202364 B = +2730 B/+1.35%；index.esm.js 2339894 B；index.css 158556 B；worker 1527487 B 不变）；hygiene exit 0（19 artefacts/7 roots、payload 11.46 MB、无中间产物发布）；perf-gate 全 PASS（client 2.41MB/3MB、host 200KB/512KB、tests 5087/4463）；E2E smoke 57 passed / 0 failed（3.1 min）。G0-G3 全 PASS；12 条流转项已登记（含 cycle-84 候选：dsh-client-ui-input-trigger 的 registerSource 只在 (trigger,name) 重复时抛错，故可自建 {trigger:'/',name:'codegraph',order:3} 自有 source 绕开上游缺陷，范本 dsh-client-ui-skill/lib/client.js:375-437）。"
+    },
     {
       "cycle": "cycle-82",
       "phase": "complete",
@@ -185,5 +190,5 @@
   ],
   "nodeStatus": {},
   "createdAt": "2026-09-21T14:25:00.105Z",
-  "updatedAt": "2026-10-05T10:44:13.104Z"
+  "updatedAt": "2026-10-06T08:53:21.126Z"
 }

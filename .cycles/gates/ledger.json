@@ -179,7 +179,43 @@
       "timestamp": "2026-10-05T10:43:25.965Z",
       "previousHash": "3f838e62c8085ee4b6d1f60b8731343d75daba4ed9bd5b5e3884fcf7f99b2ad4",
       "hash": "9c197a70f298686aa05a19322e2e934614f219007499b23669e32312660a1446"
+    },
+    {
+      "gate": "G0",
+      "gateName": "评估收敛门",
+      "result": "PASS",
+      "detail": "cycle-83: 项目评估报告.md（8 层分层摘要 + E1-E8 维度表 + P0-P3 清单）; 事实基座抽验 12 条全部真实存在（PlatformProbe 惰性 DOM 读取 / CommandUiIntegration ctx.inject / serviceKeyContract 11 用例 / dshGeneration gen3 档 / ApiCompatLayer 4 张映射表 / HostVersionDetector 3 条路径 / responsive.css dsh-remote-portrait / 新报告 391 行 11 节 / 幻影三键 CONFIRMED NEGATIVE）",
+      "timestamp": "2026-10-06T08:53:13.006Z",
+      "previousHash": "9c197a70f298686aa05a19322e2e934614f219007499b23669e32312660a1446",
+      "hash": "4a3f59ac12144a443a17d7e98710e62333be252bddee86ee1f0adb2290bca61f"
+    },
+    {
+      "gate": "G1",
+      "gateName": "任务收敛门",
+      "result": "PASS",
+      "detail": "cycle-83: 任务清单.md T19-1..T19-19 全部完成; 12 条流转项已登记去向（P1-R19-03 命令面板绕行 / P3-R17-01 裸字面量 / P0-6 headless fcose / P3-R14-01 截图基线 / P3-R18-02 路由 etag / host /data 单槽 / 遗留 spotlight 措辞 / 对齐报告 4-10 缺口）",
+      "timestamp": "2026-10-06T08:53:20.969Z",
+      "previousHash": "4a3f59ac12144a443a17d7e98710e62333be252bddee86ee1f0adb2290bca61f",
+      "hash": "db6492b3294ea06321403a3dd2bedddb12661ae1c5549cadef3c5f4ce7a9ab93"
+    },
+    {
+      "gate": "G2",
+      "gateName": "测试收敛门",
+      "result": "PASS",
+      "detail": "cycle-83: 186 files / 5087 tests passed (cycle-82 185/5086, net +1 file/+1 case); typecheck exit 0; lint 0 warnings 0 errors on 244 files; E2E smoke 57 passed (3.1m); 契约守卫经两次变异探针验证承重（幻影键 + 变量键 strict get 盲点已修并把盲点变成断言）",
+      "timestamp": "2026-10-06T08:53:21.053Z",
+      "previousHash": "db6492b3294ea06321403a3dd2bedddb12661ae1c5549cadef3c5f4ce7a9ab93",
+      "hash": "3839e4ea4138b0d8a5d59f94cbbb576a85da292bcc0ea55348e51e76ce05e107"
+    },
+    {
+      "gate": "G3",
+      "gateName": "构建收敛门",
+      "result": "PASS",
+      "detail": "cycle-83: build exit 0 (client.js 2523785 B vs baseline 2506859 B = +16926 B/+0.675%; host 205094 B vs 202364 B = +2730 B/+1.35%; worker 1527487 B unchanged); hygiene exit 0 (19 artefacts, payload 11.46 MB, no intermediate output); perf-gate all PASS (client 2.41MB/3MB, host 200KB/512KB, tests 5087/4463)",
+      "timestamp": "2026-10-06T08:53:21.126Z",
+      "previousHash": "3839e4ea4138b0d8a5d59f94cbbb576a85da292bcc0ea55348e51e76ce05e107",
+      "hash": "c76f087e5bd46289b896618d5306c5cc9ef483e73c389224e700535ed5060149"
     }
   ],
-  "chainHead": "9c197a70f298686aa05a19322e2e934614f219007499b23669e32312660a1446"
+  "chainHead": "c76f087e5bd46289b896618d5306c5cc9ef483e73c389224e700535ed5060149"
 }
